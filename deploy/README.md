@@ -380,6 +380,16 @@ Between 1 and 5 nobody crawls: what is due is fetched afterwards, nothing is los
 the rollback with the data of the handover; before it crawls again, the database goes back the
 same way.
 
+**A release of two lines** (2026-10-26, the public site onto Cortex): the public site keeps a Folia
+of its own line (branch `claude/main-folia-markdown`, Folia 1.0.x) while its Radix is the one of
+master. 50-app.sh deploys one tag for both images, so the two get one tag that names both:
+`deploy/ship.sh <instance> --build-only` on the Folia's branch (it builds both images of that
+commit, ships nothing), `docker load` of its Folia image on the server, then
+`docker tag betula-folia:<its tag> betula-folia:<T>` and
+`docker tag betula-radix:<master's tag> betula-radix:<T>` with
+`T=<date>-radix-<hash>-folia-<hash>`, and `45-seed.sh` and `50-app.sh` with `T`. Never ship that
+branch with ship.sh: it would sync the deploy/ of 2026-09-30.
+
 Swarm compares service definitions, not image contents: re-loading an existing tag restarts nothing,
 hence a tag per commit and never `latest`. Old versions stay until you remove them
 (`docker image rm ...`); the weekly prune timer only removes untagged images.
@@ -789,9 +799,9 @@ it does not have fresh, at one floor per host for every instance and colour toge
 every version. One Cortex per host, not per instance: two instances of one image in the stack
 `cortex` (`stacks/cortex.yml`), each with a volume of its own, of which one leads and the other
 follows and takes over. Built 2026-10-02/03; deployed 2026-10-04 and seeded with the public site's
-archive, read offline by the canary; the public colours do not use it yet (below, „The public site
-may wait"). It is not part of the canary pipeline (`images.yml` builds Radix and Folia): a push to
-master does not restart the cache the live site uses.
+archive, read offline by the canary; the public site's crawling colour fetches through it since
+2026-10-26 (below, „The public site through Cortex"). It is not part of the canary pipeline
+(`images.yml` builds Radix and Folia): a push to master does not restart the cache the live site uses.
 
 ```
 workstation   deploy/ship-cortex.sh: nix build .#cortex-image ─ssh─▶ docker load, tag <date>-<hash>
@@ -839,12 +849,20 @@ In this order; steps 1 and 2 belong together.
 Without step 3 the others work all the same: a crawling Radix then gets `stacks/betula.egress.yml`
 and fetches directly, as before; running step 5 again once Cortex runs moves it over.
 
-**The public site may wait** (owner, 2026-10-04: „erstmal das system zu testen, ohne main zu
-stören"): step 5 for the canary alone. The colours of https://betula.app keep running as they
-were deployed, Radix on `monitoring` and `<stack>_default` and the crawling one fetching directly;
-`91-verify-stacks.sh cortex` says so with a FAIL per colour (a way to the internet), until their
-next deploy moves them over. Cortex then has what `cortex-seed.sh` gave it (below) and nothing
-newer, and the canary reads that.
+**The public site through Cortex** (owner, 2026-10-26: „Ja zieh mal main auf Cortex um. Kleine
+sache radix sollte an sich backwards compatible sein. Nur die md anzeige für die modulpages müssten
+auch portiert werden."). From 2026-10-04 to 2026-10-26 step 5 was the canary's alone (owner,
+2026-10-04: „erstmal das system zu testen, ohne main zu stören"), and the crawling colour of
+https://betula.app fetched directly, until it archived the university's block page in the night to
+2026-10-22 (`docs/cortex/cortex.md` §5). Since 2026-10-26 `betula` crawls through Cortex with the
+release `2026-10-26-radix-006140f-folia-f5bdbba`, two lines under one tag (section 4, „A release
+of two lines"): the canary's Radix of that day, and Folia 1.0.4, the public site's Folia of
+2026-09-30 with the module texts as Markdown (branch `claude/main-folia-markdown`), so that the
+public site keeps its pages. `betula-green` (2026-09-30-436f93c) is the rollback: its Radix serves
+the snapshot it exported last, stopped with `docker service update --args "serve-snapshot …"`
+rather than 50-app.sh, which would put a Radix without `/metrics` on the network cortex (rule
+„Monitoring target is down"); `91-verify-stacks.sh cortex` keeps a FAIL for it (a way to the
+internet). Cortex now gets what the public site fetches, and the canary reads that.
 
 ### Seeding Cortex with an archive
 
@@ -885,6 +903,7 @@ reaches the university.
 | a release that is loaded already, the rollback | `bash /opt/betula/vps/48-cortex.sh <tag>` (`docker image ls betula-cortex`) |
 | a change to `stacks/cortex.yml` | sync, `bash /opt/betula/vps/48-cortex.sh` (the release that runs) |
 | the host policy | `config/cortex/hosts.json`, sync: read again within 30 s, no restart (`docs/cortex/cortex.md` §5) |
+| a host serves a block or maintenance page in place of its pages | its text into the host's `reject` in `config/cortex/hosts.json`, sync: such an answer is `502 rejected`, never stored, and Radix keeps the page it has (`docs/cortex/cortex.md` §5; the BTU's of 2026-10-22 is there). Logs: `upstream.failed` with `code=rejected` |
 | a follower that fetches the blobs of a whole index (a fresh volume, away more than 7 days) | `CATCHUP_TIMEOUT=3600 bash /opt/betula/vps/48-cortex.sh <tag>` goes on where a stopped run ended (default 600 s) |
 | a follower that cannot reach the leader | `48-cortex.sh` stops after `STALL_TIMEOUT` (60 s) of `no_leader`, or of no progress while its lag grows, and names the leader's URL: `docker service logs cortex_X 2>&1 \| grep replica.failed`, not a longer `CATCHUP_TIMEOUT`. One huge blob (a model of gigabytes) may need `STALL_TIMEOUT=<seconds>` |
 | an update that failed | swarm rolled the instance back (the other one is untouched, the script exits 1); it shows `rollback_completed` until its next update, still counts as running for `50-app.sh` and is a WARN in `91-verify-stacks.sh cortex` (a FAIL in section services). The previous tag again, or a fixed one |
@@ -954,6 +973,9 @@ answers. Cortex's `ERROR` lines reach the log alert like every stack's (`stack=~
 - **Polite for everybody together.** One floor per host (`concurrency`, `pause`, a breaker) for
   every client, so two colours that crawl do not add up; what was fetched within the hour is not
   fetched again.
+- **A block page is no page.** What a host's `reject` names (the university's „Zugriff auf die
+  Webseite eingeschränkt“) is not stored and not handed on as the page, and ten in a row pause the
+  host: the archive keeps the pages it had.
 - **Not covered.** The host itself: both instances are on it. And backups: none exist yet
   (section 8); the volumes `cortex_a-data` and `cortex_b-data` are worth one (either is enough).
   The follower is no backup: a deletion, or a bug that writes wrong data, replicates to it.

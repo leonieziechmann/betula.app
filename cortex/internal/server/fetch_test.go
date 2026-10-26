@@ -226,6 +226,30 @@ func TestAFailingHostGetsTheStoredVersionUnlessStaleIsNever(t *testing.T) {
 	}
 }
 
+func TestABlockPageLeavesTheStoredVersionCurrent(t *testing.T) {
+	host := newFakeHost(t)
+	host.set("/event", page{body: "<h1>Methoden 3</h1>", header: map[string]string{"Content-Type": "text/html"}})
+	c := newTestCortex(t, withPolicy(`{"default": {"max_age": "1h", "queue_wait": "10s", "breaker_failures": 100},
+		"hosts": {"127.0.0.1": {"reject": ["Zugriff auf die Webseite eingeschränkt"]}}}`))
+	get(t, c.fetchURL(host.url("/event")))
+	c.clock.advance(2 * time.Hour)
+	host.set("/event", page{body: "<h1>Zugriff auf die Webseite eingeschränkt</h1>", header: map[string]string{"Content-Type": "text/html"}})
+
+	resp, body := get(t, c.fetchURL(host.url("/event")))
+	wantStatus(t, resp, body, http.StatusOK, "")
+	if body != "<h1>Methoden 3</h1>" || resp.Header.Get("Cortex-Upstream-Error") != codeRejected {
+		t.Errorf("stale-if-error: %q, Cortex-Upstream-Error %q, want the stored page", body, resp.Header.Get("Cortex-Upstream-Error"))
+	}
+	resp, body = get(t, c.fetchURL(host.url("/event"), "stale", "never"))
+	wantStatus(t, resp, body, http.StatusBadGateway, codeRejected)
+	if !strings.Contains(body, "Zugriff auf die Webseite eingeschr") {
+		t.Errorf("the message does not name the text: %s", body)
+	}
+	if n := versionsOf(t, c, host.url("/event")); n != 1 {
+		t.Errorf("%d versions, want 1: the block page was stored", n)
+	}
+}
+
 // versionsOf returns how many versions GET /v1/entries lists for target (0 for a 404).
 func versionsOf(t *testing.T, c *testCortex, target string, params ...string) int {
 	t.Helper()
@@ -579,6 +603,8 @@ func TestUpstreamFailuresMapToCortexsErrors(t *testing.T) {
 		{"too large", `{"default": {"max_body": 10}}`, false, "more than ten bytes", nil, http.StatusBadGateway, codeTooLarge},
 		{"wrong type", `{"hosts": {"127.0.0.1": {"expect_type": "application/pdf"}}}`, false, "<html>a challenge</html>",
 			map[string]string{"Content-Type": "text/html"}, http.StatusBadGateway, codeWrongType},
+		{"rejected", `{"hosts": {"127.0.0.1": {"reject": ["Zugriff auf die Webseite eingeschränkt"]}}}`, false,
+			"<h1>Zugriff auf die Webseite eingeschränkt</h1>", map[string]string{"Content-Type": "text/html"}, http.StatusBadGateway, codeRejected},
 		{"host not allowed", `{"allow": ["example.org"]}`, false, "x", nil, http.StatusForbidden, codeHostNotAllowed},
 		{"address not allowed", testPolicy, true, "x", nil, http.StatusForbidden, codeAddressNotAllowed},
 	} {

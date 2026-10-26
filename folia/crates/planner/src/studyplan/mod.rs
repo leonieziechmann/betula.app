@@ -36,6 +36,7 @@ mod import;
 mod modules;
 mod share;
 mod side;
+mod termin;
 mod week;
 
 use folia_calendar::day::Day;
@@ -70,6 +71,7 @@ use self::export::CalendarGroup;
 use self::head::{marked_offered, DerivedLine, ExamAlerts, FromBookmarks, NothingPlanned, Overlaps, SemesterHead};
 use self::modules::ModuleList;
 use self::side::PlanSidebar;
+use self::termin::PlanTerminPanel;
 use self::week::{DatesView, WeekLoose, WeekView};
 
 /// When a module is planned, for „Mein Studium" as for the import here.
@@ -258,21 +260,28 @@ pub fn StudyplanPage() -> impl IntoView {
         let going = going.filter(|going| going.change() == Some(Change::Aside))?;
         Some(StudyplanUrl::parse(&going.search_on(url::STUDYPLAN)?))
     });
-    let open = Memo::new(move |_| url.with(|url| url.open.is_some()));
+    // Beside the plan a module (`open`) or a Termin in its own view (`termin`), never both.
+    let beside = |url: &StudyplanUrl| url.open.is_some() || url.termin.is_some();
+    let open = Memo::new(move |_| url.with(beside));
+    let termin = Memo::new(move |_| url.with(|url| url.termin.is_some()));
     let picked = Signal::derive(move || {
         let shown = match target.get() {
-            Some(to) => to.open.is_some(),
+            Some(to) => beside(&to),
             None => open.get(),
         };
         shown && !empty.get()
     });
     let aside = move || {
         let there = open.get();
-        let coming = target.with(|to| to.as_ref().is_some_and(|to| to.open.is_some()));
+        let coming = target.with(|to| to.as_ref().is_some_and(beside));
         if coming && (!there || going.is_some_and(|going| going.waits(Change::Aside))) {
+            // A Termin's view comes up as the module's panel does: on a phone a sheet over the plan.
             return view! { <DetailSkeleton aside=true calm=there module=true/> }.into_any();
         }
-        view! { <PlanModulePanel ctx/> }.into_any()
+        match termin.get() {
+            true => view! { <PlanTerminPanel ctx/> }.into_any(),
+            false => view! { <PlanModulePanel ctx/> }.into_any(),
+        }
     };
 
     let page = move || {

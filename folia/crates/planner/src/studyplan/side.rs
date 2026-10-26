@@ -664,7 +664,7 @@ mod tests {
             attendance: if options.is_empty() { Attendance::All } else { Attendance::OneOf { options, basis: folia_timetable::model::Basis::Groups } },
             across: None,
             extra: false,
-            chosen,
+            chosen: chosen.into_iter().collect(),
             rows,
             hidden: None,
             source_url: None,

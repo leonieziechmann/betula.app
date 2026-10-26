@@ -25,4 +25,5 @@ pub mod planmenu;
 pub mod plannote;
 pub mod plansetup;
 pub mod swipe;
+pub mod termin;
 pub mod week;

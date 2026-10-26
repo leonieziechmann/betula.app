@@ -166,7 +166,6 @@ pub struct Texts {
     pub row_selected: &'static str,
     /// The filter panel's name, its heading and the button that opens it on a phone.
     pub filters: &'static str,
-    pub program_page: &'static str,
     pub remove_filter: &'static str,
     /// The end of a list longer than a page: „Ende der Liste · 1.204 Module"; the number is
     /// written already.
@@ -447,7 +446,6 @@ pub const DE: Texts = Texts {
     keys_select: "Strg und Klick, Shift mit Klick oder den Pfeiltasten und Ziehen über Zeilen wählen mehrere aus, Strg A alle",
     row_selected: "ausgewählt",
     filters: "Filter",
-    program_page: "Studiengangsseite",
     remove_filter: "Filter entfernen",
     list_end: |n| format!("Ende der Liste · {n} Module"),
     pages: "Seiten",
@@ -684,7 +682,6 @@ pub const EN: Texts = Texts {
     keys_select: "Ctrl and click, Shift with a click or the arrow keys and dragging over rows select several, Ctrl A all",
     row_selected: "selected",
     filters: "Filters",
-    program_page: "Programme page",
     remove_filter: "Remove filter",
     list_end: |n| format!("End of the list · {n} modules"),
     pages: "Pages",

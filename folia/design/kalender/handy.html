@@ -1,0 +1,1120 @@
+<title>Kalender am Handy</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- The calendar on a phone: choosing a group. The owner on round 2 of the calendar's concepts
+     (2026-10-26): „Also chips sind wirklich in 90% der Zeit ein schlechtes UI tool. Bei der handy
+     version muss nochmal dringend daran gearbeitet werden, wie man das richtig macht mit dem übung
+     auswählen. Da braucht es noch ein besseres konzept.“ Round 2's phone ticked inside the week
+     (ticks of 18 px on Termine of 67 px) and used chips for calendars, choices and „Fertig“. Here:
+     why that fails, measured on round 2's phone; what a choice needs; three ways, each on a
+     clickable phone — H1 the choice under the week (the Termin's group tiles in a sheet, the week
+     above), H2 the days compared (each group a row with its day as a band, as „Der Tag“ in the
+     Termin), H3 one after another (the week large, a bar steps through the groups); a comparison;
+     the recommendation (H1, „Vergleichen“ opening H2) played through from the week to „Fertig“,
+     with „Offen“ and the calendars as rows and a segment instead of chips; what takes each chip's
+     place; questions. The tiles, the band, the sheet and the place of each control are those of
+     folia/design/termin/konzepte.html (fourth round). Data: canary of 2026-10-26, Informatik
+     B.Sc. 1. FS, WiSe 2026/27 at the Zentralcampus with Denkmalpflege (13676) as a Besuch and
+     Lena's BWL B.Sc. 1. FS; for seven groups Praxis und methodische Begleitung (Soziale Arbeit,
+     event 149820, seven Übungsgruppen in Sachsendorf), as if planned, as the Termin's concepts
+     show it. Tokens are Betula's (folia/assets/app.css); Inter comes from Google Fonts here, the app
+     self-hosts it. Decided on 2026-10-26 (owner: „Deine Vorschläge passen, nimm H1 mit
+     Vergleichen“): H1 with „Vergleichen“ opening H2, and the five proposals. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a review desk. Why round 2's phone fails, then three phones side by side in one state
+   chosen at the top, a comparison, the recommendation as one phone played through, what replaces
+   the chips, the questions. Tokens: Betula's own (light, then dark), the modules' tones, the wood
+   the devices lie on. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4;
+  --panel: #ffffff;
+  --panel-2: #f6f7f8;
+  --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08);
+  --line-strong: rgba(15, 23, 42, .15);
+  --row-hover: color-mix(in oklab, var(--text) 5.2%, var(--panel));
+  --text: #10151f;
+  --text-2: #4b5565;
+  --text-3: #8790a0;
+  --invert: #161b26;
+  --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149);
+  --accent-ink: oklch(.46 .07 149);
+  --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --ok: #0b7f58;
+  --ok-soft: color-mix(in srgb, #0b7f58 10%, var(--panel));
+  --warn: #8f5a0a;
+  --warn-dot: #d49a2a;
+  --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel));
+  --no: #b3261e;
+  --no-soft: color-mix(in srgb, #b3261e 8%, var(--panel));
+  --m-eeg: oklch(.64 .12 70);
+  --m-evs: oklch(.55 .07 245);
+  --m-mit: oklch(.56 .08 185);
+  --m-pp: oklch(.53 .1 300);
+  --m-dp: oklch(.55 .08 115);
+  --m-pmb: oklch(.53 .07 50);
+  --m-lena: oklch(.56 .11 355);
+  --backdrop: rgba(10, 12, 17, .32);
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line), 0 14px 44px -12px rgba(15, 23, 42, .3);
+  --seg-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line);
+  --r-panel: 9px; --r-ctl: 9px; --r-s: 5px;
+  --wood: color-mix(in oklab, var(--text) 7%, var(--bg));
+  --device: #1b2130;
+  --device-ring: rgba(15, 23, 42, .25);
+  --shadow-device: 0 34px 70px -38px rgba(15, 23, 42, .6);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --ok: #4fd1a1; --ok-soft: color-mix(in srgb, #4fd1a1 12%, var(--panel));
+    --warn: #f0b861; --warn-dot: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+    --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+    --m-eeg: oklch(.8 .11 75); --m-evs: oklch(.78 .07 245); --m-mit: oklch(.8 .08 185); --m-pp: oklch(.78 .09 300); --m-dp: oklch(.8 .08 115); --m-pmb: oklch(.78 .07 55); --m-lena: oklch(.79 .09 355);
+    --backdrop: rgba(0, 0, 0, .5);
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+    --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+    --seg-shadow: 0 0 0 1px var(--line);
+    --wood: color-mix(in oklab, var(--text) 5.5%, var(--bg));
+    --device-ring: rgba(255, 255, 255, .12);
+    --shadow-device: 0 34px 70px -38px rgba(0, 0, 0, .9);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --ok: #4fd1a1; --ok-soft: color-mix(in srgb, #4fd1a1 12%, var(--panel));
+  --warn: #f0b861; --warn-dot: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+  --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+  --m-eeg: oklch(.8 .11 75); --m-evs: oklch(.78 .07 245); --m-mit: oklch(.8 .08 185); --m-pp: oklch(.78 .09 300); --m-dp: oklch(.8 .08 115); --m-pmb: oklch(.78 .07 55); --m-lena: oklch(.79 .09 355);
+  --backdrop: rgba(0, 0, 0, .5);
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+  --seg-shadow: 0 0 0 1px var(--line);
+  --wood: color-mix(in oklab, var(--text) 5.5%, var(--bg));
+  --device-ring: rgba(255, 255, 255, .12);
+  --shadow-device: 0 34px 70px -38px rgba(0, 0, 0, .9);
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+a { color: var(--accent-ink); }
+kbd { display: inline-block; padding: 0 5px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-3); font: 500 10.5px/18px var(--mono); }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.85; stroke-linecap: round; stroke-linejoin: round; }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 28px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+
+/* The brief. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -.026em; font-weight: 770; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.quote { margin: 18px 0 0; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.quote b { color: var(--text); font-weight: 600; }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ol { margin: 12px 0 0; padding: 0; list-style: none; counter-reset: rule; display: flex; flex-direction: column; gap: 10px; }
+.rules li { counter-increment: rule; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); }
+.rules li::before { content: counter(rule); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.rules li b { color: var(--text); font-weight: 620; }
+.rules li span { min-width: 0; }
+.rules .more { margin-top: 12px; font-size: 13px; color: var(--text-3); }
+
+/* The bar that sets the state of the three phones. */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+.setbar { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--shadow-panel); }
+.setbar .group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.setbar .kicker { font-size: 10.5px; }
+.seg { display: inline-flex; flex-wrap: wrap; max-width: 100%; gap: 2px; padding: 2px; border-radius: 8px; background: var(--panel-3); }
+.seg button { height: 30px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: var(--seg-shadow); }
+.setbar .jump { margin-left: auto; display: flex; flex-wrap: wrap; gap: 2px; }
+.setbar .jump a { padding: 6px 7px; border-radius: 7px; color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.setbar .jump a:hover { background: var(--panel-3); color: var(--text); }
+
+/* A section. */
+.sec { padding: 24px 24px 26px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); scroll-margin-top: 90px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.sec > header { display: flex; flex-direction: column; gap: 8px; }
+.sec h2 { font-size: 23px; line-height: 1.2; letter-spacing: -.02em; font-weight: 730; }
+.sec .sub { max-width: 76ch; color: var(--text-2); text-wrap: pretty; }
+.sec h3 { font-size: 15px; font-weight: 700; letter-spacing: -.005em; }
+
+/* Why round 2's phone fails: the picture with its pins, the points beside it. */
+.why { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 24px 36px; align-items: start; }
+.shot { position: relative; margin: 0; width: 100%; max-width: 300px; }
+.shot img { display: block; width: 100%; height: auto; }
+.shot figcaption { margin-top: 8px; color: var(--text-3); font-size: 12.5px; text-align: center; }
+.pn { position: absolute; translate: -50% -50%; width: 22px; height: 22px; border-radius: 50%; background: var(--no); color: #fff; font: 700 12px/22px var(--font); text-align: center; box-shadow: 0 0 0 2px #fff, 0 2px 8px rgba(0, 0, 0, .35); }
+.pts { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.pts li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.pts li .pn { position: static; translate: none; box-shadow: none; }
+.pts li b { color: var(--text); font-weight: 620; }
+.needs { margin-top: 6px; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: 8px; }
+.needs h3 { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.needs ul { margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--text-2); }
+.needs ul b { color: var(--text); font-weight: 620; }
+.needs .num { font-size: 13px; color: var(--text-2); text-wrap: pretty; }
+.needs .num b { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
+
+/* Three phones side by side. */
+.trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.cpt { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cpt-h { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; align-items: baseline; }
+.cpt-h .tagc { grid-row: span 2; align-self: start; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--invert); color: var(--on-invert); font-size: 14px; font-weight: 750; }
+.cpt-h h3 { font-size: 16.5px; font-weight: 720; letter-spacing: -.01em; }
+.cpt-h p { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.stage { padding: 18px 14px 14px; border-radius: 14px; background: var(--wood); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.try { font-size: 12.5px; color: var(--text-3); text-align: center; text-wrap: balance; }
+.gb { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.gb div { padding: 10px 12px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; color: var(--text-2); text-wrap: pretty; }
+.gb div b { display: block; margin-bottom: 2px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.gb div.good b { color: var(--ok); }
+.gb div.weak b { color: var(--warn); }
+
+/* The devices. */
+.device { margin: 0; width: 100%; min-width: 0; }
+.device.phone { max-width: 330px; }
+.fit { position: relative; width: 100%; height: calc(var(--h) * var(--s, 1) * 1px); }
+.screen { position: absolute; left: 0; top: 0; width: calc(var(--w) * 1px); height: calc(var(--h) * 1px); transform: scale(var(--s, 1)); transform-origin: 0 0; overflow: hidden; }
+.phone .fit { --w: 390; --h: 844; }
+.phone .frame { padding: 9px; border-radius: 48px; background: var(--device); box-shadow: var(--shadow-device), 0 0 0 1px var(--device-ring); }
+.phone .screen { border-radius: 39px; }
+
+/* ---------- Betula inside the phone ---------- */
+.pho { position: absolute; inset: 0; overflow: hidden; background: var(--bg); color: var(--text); font-size: 13.5px; line-height: 1.45; text-align: left; }
+:where(.pho) button { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; }
+:where(.pho) button:disabled { cursor: default; opacity: .35; }
+.p-status { position: absolute; left: 0; right: 0; top: 0; height: 47px; z-index: 60; display: flex; align-items: center; justify-content: space-between; padding: 8px 30px 0 36px; color: var(--text); font-size: 15.5px; font-weight: 650; pointer-events: none; font-variant-numeric: tabular-nums; }
+.p-status .bat i { display: block; width: 24px; height: 12px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px currentColor; position: relative; }
+.p-status .bat i::after { content: ""; position: absolute; inset: 2.5px 6px 2.5px 2.5px; border-radius: 2px; background: currentColor; }
+.lay { position: absolute; inset: 0; display: flex; flex-direction: column; padding-top: 47px; }
+.lay.normal { padding-bottom: 88px; }
+.p-nav { position: absolute; left: 10px; right: 10px; bottom: 12px; height: 64px; z-index: 20; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; padding: 6px; border-radius: 22px; background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--shadow-pop); }
+.p-nav span { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 16px; color: var(--text-2); font-size: 10.5px; font-weight: 560; }
+.p-nav span.on { background: var(--invert); color: var(--on-invert); }
+.p-nav span svg.i { width: 19px; height: 19px; }
+.p-top { display: flex; gap: 8px; padding: 6px 12px 0; flex: none; }
+.p-top .search { flex: 1; display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 12px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-3); font-size: 15px; }
+.p-top .me { width: 46px; height: 46px; border-radius: var(--r-ctl); display: grid; place-items: center; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); }
+.p-card { flex: none; margin: 10px 12px 0; padding: 12px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); display: flex; flex-direction: column; gap: 8px; }
+.mh { display: flex; align-items: center; gap: 10px; }
+.mh h2 { font-size: 18px; font-weight: 740; letter-spacing: -.02em; }
+.mh h2 span { color: var(--text-3); font-weight: 600; }
+.tool { margin-left: auto; height: 34px; padding: 0 10px; border-radius: 9px; display: inline-flex; align-items: center; gap: 6px; box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.rowbtn { display: grid; grid-template-columns: 32px minmax(0, 1fr) 16px; align-items: center; gap: 10px; width: 100%; min-height: 50px; padding: 6px 10px 6px 8px; border-radius: 11px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.rowbtn .ic { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
+.rowbtn b { display: block; font-size: 14px; font-weight: 650; line-height: 1.25; }
+.rowbtn small { display: block; color: var(--text-2); font-size: 12px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rowbtn > svg.i { color: var(--text-3); }
+.rowbtn.open { background: var(--warn-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 26%, transparent); }
+.rowbtn.open .ic { background: var(--panel); color: var(--warn); }
+.p-week { flex: 1; min-height: 0; margin-top: 10px; display: flex; flex-direction: column; }
+.p-week.f { margin-top: 0; }
+
+/* The Regelwoche, in per cent of its height: it fills what the phone leaves it. */
+.wk { flex: 1; min-height: 0; display: grid; grid-template-columns: 22px repeat(5, minmax(0, 1fr)); grid-template-rows: auto minmax(0, 1fr); padding: 0 4px 6px 0; background: var(--panel-2); box-shadow: 0 -1px 0 var(--line), 0 1px 0 var(--line); }
+.wk .dn { padding: 5px 0 7px; text-align: center; color: var(--text-2); font-size: 12px; font-weight: 650; }
+.wk .hrs { position: relative; }
+.wk .hrs span { position: absolute; right: 4px; translate: 0 -50%; color: var(--text-3); font-size: 9.5px; font-variant-numeric: tabular-nums; }
+.wk .col { position: relative; border-left: 1px solid var(--line); background-image: repeating-linear-gradient(180deg, var(--line) 0 1px, transparent 1px calc(100% / var(--rows))); }
+.slot { position: absolute; top: calc(var(--t) * 1%); height: calc(var(--d) * 1% - 2px); left: calc(var(--lane) * (100% - var(--spur, 0px)) / var(--lanes) + 2px); width: calc((100% - var(--spur, 0px)) / var(--lanes) - 4px); display: block; padding: 3px 4px; overflow: hidden; border-radius: 5px; background: color-mix(in oklab, var(--mc) 15%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--mc) 55%, transparent), inset 3px 0 0 var(--mc); color: var(--text); font-size: 9.5px; line-height: 1.25; text-align: left; }
+.slot b { display: block; font-size: 10px; font-weight: 720; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slot span { display: block; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.slot span.room { white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
+.slot .ab, .slot .of { position: absolute; right: 2px; bottom: 2px; padding: 0 3px; border-radius: 4px; background: var(--panel); color: var(--text-2); font-size: 8.5px; font-weight: 700; }
+.slot .dot { position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--warn-dot); box-shadow: 0 0 0 2px var(--panel); }
+.slot .cx { position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: var(--no); box-shadow: 0 0 0 2px var(--panel); }
+.slot .ck { position: absolute; right: 3px; bottom: 3px; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; background: var(--mc); color: #fff; }
+.slot .ck svg.i { width: 10px; height: 10px; stroke-width: 3; }
+.slot.opt { background: color-mix(in oklab, var(--mc) 9%, var(--panel)); box-shadow: none; outline: 1.5px dashed var(--mc); outline-offset: -1.5px; }
+.slot.extra { background: var(--panel); box-shadow: none; outline: 1.5px dotted color-mix(in oklab, var(--mc) 70%, transparent); outline-offset: -1.5px; }
+.slot.extra b, .slot.extra span { color: var(--text-3); }
+.slot.visit { background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--mc) 22%, var(--panel)) 0 5px, var(--panel) 5px 10px); }
+.slot.friend { background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--mc); }
+.slot.friend b { color: var(--text-2); }
+.slot.dim { opacity: .42; }
+.pho .slot.pick { z-index: 2; background: var(--panel); box-shadow: none; outline: 2px dashed var(--mc); outline-offset: -2px; }
+.pho .slot.pick.on { background: color-mix(in oklab, var(--mc) 24%, var(--panel)); outline-style: solid; }
+.pho .slot.pick.cur { z-index: 3; box-shadow: 0 0 0 2.5px var(--text), 0 8px 16px -8px rgba(0, 0, 0, .5); }
+.spur { position: absolute; right: 2px; width: 5px; top: calc(var(--t) * 1%); height: calc(var(--d) * 1% - 2px); border-radius: 3px; background: var(--m-lena); opacity: .85; }
+.free { position: absolute; left: 2px; right: calc(var(--spur, 0px) + 2px); top: calc(var(--t) * 1%); height: calc(var(--d) * 1% - 3px); border-radius: 6px; outline: 1.5px dashed var(--ok); outline-offset: -1.5px; background: var(--ok-soft); display: grid; place-items: center; color: var(--ok); font-size: 9.5px; font-weight: 700; text-align: center; }
+
+/* Sheets: the choice under the week (in the column, so the week ends where it begins), the
+   others over the screen. The grab, the module's tag and the tiles are the Termin's. */
+.fsheet { flex: none; position: relative; z-index: 5; display: flex; flex-direction: column; gap: 10px; padding: 0 14px 28px; border-radius: 22px 22px 0 0; background: var(--panel); box-shadow: var(--shadow-pop); }
+.fsheet.tall { flex: 1; min-height: 0; margin-top: 6px; }
+.psheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 41; display: flex; flex-direction: column; gap: 10px; padding: 0 14px 30px; border-radius: 22px 22px 0 0; background: var(--panel); box-shadow: var(--shadow-pop); }
+.shade { position: absolute; inset: 0; z-index: 40; width: 100%; background: var(--backdrop); cursor: default; }
+.grab { flex: none; position: relative; display: block; width: 100%; height: 18px; }
+.grab::before { content: ""; position: absolute; left: 50%; top: 7px; width: 40px; height: 5px; margin-left: -20px; border-radius: 3px; background: var(--line-strong); }
+.sh-head { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+.sh-t { font-size: 18px; font-weight: 740; letter-spacing: -.015em; }
+.tm-mod { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 6px; background: color-mix(in oklab, var(--mc) 15%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--mc) 45%, transparent); color: var(--text); font: 600 11.5px var(--mono); }
+.tm-mod i { width: 8px; height: 8px; border-radius: 50%; background: var(--mc); }
+.tm-kind { min-width: 0; color: var(--text-2); font-size: 13.5px; font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ib { position: relative; flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: var(--panel-3); color: var(--text); }
+.ib::after { content: ""; position: absolute; inset: -4px; }
+.ib svg.i { width: 17px; height: 17px; }
+.sh-head .ib.end { margin-left: auto; }
+.grp { display: flex; flex-direction: column; gap: 6px; }
+.grp-h { display: flex; align-items: center; gap: 8px; min-height: 26px; font-size: 13px; font-weight: 650; }
+.grp-h .r { margin-left: auto; color: var(--text-2); font-size: 12.5px; font-weight: 600; }
+.go2 { display: inline-flex; align-items: center; gap: 1px; min-height: 32px; padding: 0 0 0 6px; color: var(--accent-ink); font-size: 13px; font-weight: 650; white-space: nowrap; }
+.go2 svg.i { width: 15px; height: 15px; }
+.grp-seg { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 8px 3px; padding: 3px; border-radius: 12px; background: var(--panel-3); }
+.gs { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 1px; min-width: 0; min-height: 54px; padding: 7px 10px; border-radius: 9px; }
+.gs b { font-size: 14px; font-weight: 680; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gs small { max-width: 100%; color: var(--text-3); font: 500 11px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gs small.nm { font: 600 11px var(--font); }
+.gs .st { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; vertical-align: 2px; }
+.st.no { background: var(--no); }
+.st.ok { background: var(--ok); }
+.gs.pick:not(.on) b { color: var(--text-2); }
+.gs.on { background: var(--panel); box-shadow: var(--seg-shadow); }
+.gs .ck, .gs .cb { position: absolute; top: -6px; right: -5px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; }
+.gs .ck { background: var(--mc); color: var(--panel); box-shadow: 0 0 0 2px var(--panel-3); }
+.gs .ck svg.i { width: 11px; height: 11px; stroke-width: 3; }
+.gs .cb { background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--line-strong), 0 0 0 2px var(--panel-3); }
+.gs.more { align-items: center; text-align: center; }
+.gs.more b { color: var(--text); }
+.gs.more small { font-family: var(--font); font-weight: 600; }
+.grp-n { color: var(--text-3); font-size: 12px; line-height: 1.4; }
+.big { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 50px; padding: 0 20px; border-radius: 13px; background: var(--accent); color: var(--on-accent); font-size: 15px; font-weight: 680; text-align: center; }
+.big svg.i { width: 17px; height: 17px; }
+.toast { position: absolute; left: 16px; right: 16px; bottom: 100px; z-index: 70; padding: 12px 14px; border-radius: 12px; background: var(--invert); color: var(--on-invert); font-size: 13.5px; font-weight: 600; box-shadow: var(--shadow-pop); text-align: center; }
+
+/* H2: the days compared. */
+.mwk { flex: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; padding: 6px 6px 8px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.mwk .mc { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mwk .md { text-align: center; color: var(--text-2); font-size: 10.5px; font-weight: 650; }
+.mwk .mt { position: relative; height: 58px; border-radius: 4px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
+.mb { position: absolute; left: 3px; right: 3px; border-radius: 2px; background: color-mix(in oklab, var(--mc) 34%, var(--panel)); }
+.mb.g { background: var(--panel); outline: 1.5px dashed var(--mc); outline-offset: -1.5px; z-index: 1; }
+.mb.g.on { background: var(--mc); outline: 0; }
+.clist { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; display: flex; flex-direction: column; gap: 8px; margin: 0 -4px; padding: 2px 4px 4px; }
+.clist::-webkit-scrollbar { display: none; }
+.crow { flex: none; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; width: 100%; padding: 10px 12px 10px 10px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.crow.on { background: color-mix(in oklab, var(--mc) 9%, var(--panel)); box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--mc) 60%, transparent); }
+.cbx { width: 24px; height: 24px; margin-top: 1px; border-radius: 7px; display: grid; place-items: center; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--line-strong); color: var(--panel); }
+.crow.on .cbx { background: var(--mc); box-shadow: none; }
+.cbx svg.i { width: 15px; height: 15px; stroke-width: 3; }
+.cm { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ct { display: flex; align-items: baseline; gap: 0; min-width: 0; }
+.ct b { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ct .cr { margin-left: auto; padding-left: 8px; color: var(--text-2); font: 500 11.5px var(--mono); white-space: nowrap; }
+.csub { color: var(--text-2); font-size: 12px; line-height: 1.35; }
+.csub .w { color: var(--warn); font-weight: 600; }
+.rib { position: relative; display: block; height: 30px; border-radius: 8px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
+.rb { position: absolute; display: flex; align-items: center; padding: 0 4px; border-radius: 5px; background: color-mix(in oklab, var(--mc) 24%, var(--panel)); box-shadow: inset 2px 0 0 var(--mc); color: var(--text); font: 650 9.5px/1 var(--mono); white-space: nowrap; overflow: hidden; }
+.rb.cand { background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--mc) 30%, var(--panel)) 0 4px, var(--panel) 4px 8px); box-shadow: inset 0 0 0 1.5px var(--mc); }
+.rb.me { background: var(--mc); color: var(--panel); box-shadow: none; }
+.rb.hit { box-shadow: inset 0 0 0 1.5px var(--no); }
+.rt { position: relative; display: block; height: 12px; margin-top: -3px; }
+.rt span { position: absolute; translate: -50% 0; color: var(--text-3); font-size: 9.5px; font-variant-numeric: tabular-nums; }
+.cn { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 12.5px; font-weight: 560; }
+.cn svg.i { width: 14px; height: 14px; color: var(--text-3); }
+.cn.no, .cn.no svg.i { color: var(--no); }
+.cn.lone svg.i { color: var(--warn); }
+
+/* H3: one after another. */
+.sh-head .pos { margin-left: auto; color: var(--text-2); font-size: 12.5px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sh-head .pos + .ib.end { margin-left: 0; }
+.step { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: 8px; padding: 8px 6px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.step .ib { width: 44px; height: 44px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
+.det { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.det .dt { font-size: 18px; font-weight: 740; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.det .dr { color: var(--text-2); font: 500 12.5px var(--mono); }
+.tick-big { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 50px; border-radius: 13px; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--mc); color: var(--text); font-size: 15px; font-weight: 680; text-align: center; }
+.tick-big.on { background: var(--mc); color: #fff; box-shadow: none; }
+.tick-big svg.i { width: 17px; height: 17px; stroke-width: 2.6; }
+.under { display: flex; justify-content: center; }
+
+/* The sheets around the choice: Offen and the calendars, rows and a segment, no chips. */
+.olist { display: flex; flex-direction: column; gap: 6px; }
+.orow { display: grid; grid-template-columns: 22px minmax(0, 1fr) 16px; align-items: center; gap: 10px; width: 100%; min-height: 56px; padding: 8px 12px 8px 10px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.orow .od { justify-self: center; width: 10px; height: 10px; border-radius: 50%; background: var(--mc); }
+.orow .od.ring { background: transparent; box-shadow: inset 0 0 0 2px var(--text-3); }
+.orow b { display: block; font-size: 14px; font-weight: 650; line-height: 1.25; }
+.orow small { display: block; color: var(--text-2); font-size: 12px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.orow > svg.i { color: var(--text-3); }
+.orow.add { grid-template-columns: 22px minmax(0, 1fr); min-height: 44px; background: transparent; box-shadow: none; outline: 1px dashed var(--line-strong); outline-offset: -1px; color: var(--text-2); }
+.orow.add svg.i { justify-self: center; color: var(--text-2); }
+.kcard { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.kc-h { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.kc-h .swc { width: 14px; height: 14px; border-radius: 4px; background: var(--cc); }
+.kc-h .swc.strip { background: linear-gradient(90deg, transparent 60%, var(--cc) 60%); box-shadow: inset 0 0 0 1.5px var(--cc); }
+.kc-h .swc.off { background: transparent; box-shadow: inset 0 0 0 1.5px var(--cc); }
+.kc-h b { display: block; font-size: 14px; font-weight: 650; line-height: 1.25; }
+.kc-h small { display: block; color: var(--text-2); font-size: 12px; }
+.kc-a { display: flex; align-items: center; gap: 8px; }
+.seg3 { flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; padding: 2px; border-radius: 10px; background: var(--panel-3); }
+.seg3 button { min-height: 40px; border-radius: 8px; color: var(--text-2); font-size: 13.5px; font-weight: 650; text-align: center; }
+.seg3 button.on { background: var(--panel); color: var(--text); box-shadow: var(--seg-shadow); }
+.sw2 { flex: none; display: inline-flex; align-items: center; gap: 5px; min-height: 44px; padding: 0 12px; border-radius: 10px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; font-weight: 640; }
+.sw2 svg.i { width: 15px; height: 15px; }
+.kc-a .sw2:only-child { margin-left: auto; }
+.trow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 8px 12px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.trow b { display: block; font-size: 14px; font-weight: 650; }
+.trow small { display: block; color: var(--text-2); font-size: 12px; }
+.tg { position: relative; width: 46px; height: 28px; border-radius: 14px; background: var(--line-strong); }
+.tg i { position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
+.tg.on { background: var(--accent); }
+.tg.on i { left: 21px; }
+
+/* The comparison. */
+.scroll { overflow-x: auto; }
+table.cmp { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 13.5px; }
+table.cmp th, table.cmp td { padding: 10px 12px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; text-wrap: pretty; }
+table.cmp thead th { border-top: 0; color: var(--text-3); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+table.cmp tbody th { width: 22%; color: var(--text); font-weight: 650; }
+table.cmp td { color: var(--text-2); }
+table.cmp td.best { color: var(--text); font-weight: 600; }
+table.cmp td.best::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--ok); vertical-align: 1px; }
+table.cmp td .n { font-variant-numeric: tabular-nums; }
+
+/* The recommendation, played through. */
+.flow { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 24px 36px; align-items: start; }
+.flow .stage { padding: 20px 16px 16px; }
+.flow .device.phone { max-width: 328px; }
+.steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.steps li button { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 4px 12px; width: 100%; padding: 12px 14px; border: 0; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); text-align: left; cursor: pointer; }
+.steps li button:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.steps li button[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent-line); }
+.steps .sn { grid-row: span 2; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--panel-3); color: var(--text); font-size: 12.5px; font-weight: 700; }
+.steps li button[aria-pressed="true"] .sn { background: var(--accent); color: var(--on-accent); }
+.steps b { font-size: 14px; font-weight: 680; color: var(--text); }
+.steps span.t { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.steps span.t b { font-size: inherit; font-weight: 620; }
+
+/* What takes the chips' place. */
+table.chips { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 13.5px; }
+table.chips th, table.chips td { padding: 9px 12px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; text-wrap: pretty; }
+table.chips thead th { border-top: 0; color: var(--text-3); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+table.chips td { color: var(--text-2); }
+table.chips td:first-child { white-space: nowrap; }
+.oldchip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 13px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 12px; font-weight: 620; white-space: nowrap; text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--no) 70%, transparent); }
+.oldchip.dark { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+
+/* Questions. */
+.qs { margin: 0; padding: 0; list-style: none; counter-reset: q; display: flex; flex-direction: column; }
+.qs li { counter-increment: q; display: grid; grid-template-columns: 30px minmax(0, 1fr) minmax(0, 1fr); gap: 8px 20px; padding: 14px 0; border-top: 1px solid var(--line); }
+.qs li:first-child { border-top: 0; padding-top: 4px; }
+.qs li::before { content: counter(q); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.qs .ask { font-size: 14.5px; color: var(--text); font-weight: 600; text-wrap: pretty; }
+.qs .ask small { display: block; margin-top: 4px; font-weight: 400; font-size: 13.5px; color: var(--text-2); }
+.qs .rec { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.qs .rec b { color: var(--accent-ink); font-weight: 650; }
+.foot { color: var(--text-3); font-size: 13px; text-align: center; text-wrap: balance; }
+.verdicts { padding: 18px 20px; border-radius: 14px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); display: flex; flex-direction: column; gap: 10px; }
+.verdicts .kicker { color: var(--accent-ink); }
+.verdicts ol { margin: 0; padding: 0; list-style: none; counter-reset: v; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 24px; }
+.verdicts li { counter-increment: v; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.verdicts li::before { content: counter(v); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; }
+.verdicts li b { color: var(--text); font-weight: 620; }
+.verdicts li span { min-width: 0; }
+.qs li.done .ask { color: var(--text-2); }
+.qs .rec b.done { color: var(--accent-ink); }
+.cpt-h h3 .pk { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 6px; background: var(--panel-3); color: var(--text-2); font-size: 11.5px; font-weight: 650; letter-spacing: 0; vertical-align: 2px; }
+.cpt-h h3 .pk.on { background: var(--accent); color: var(--on-accent); }
+
+@media (max-width: 1100px) {
+  .trio { grid-template-columns: minmax(0, 1fr); max-width: 640px; margin-inline: auto; width: 100%; }
+  .cpt { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 12px 20px; align-items: start; }
+  .cpt-h { grid-column: 1 / -1; }
+  .cpt .stage { grid-row: span 2; }
+}
+@media (max-width: 980px) {
+  .flow { grid-template-columns: minmax(0, 1fr); }
+  .flow .stage { max-width: 380px; width: 100%; margin-inline: auto; }
+}
+@media (max-width: 860px) {
+  .intro, .why { grid-template-columns: minmax(0, 1fr); }
+  .verdicts ol { grid-template-columns: minmax(0, 1fr); }
+  .shot { margin-inline: auto; }
+  .qs li { grid-template-columns: 30px minmax(0, 1fr); }
+  .qs .rec { grid-column: 2; }
+}
+@media (max-width: 640px) {
+  .cpt { display: flex; }
+  .cpt .stage { align-self: stretch; }
+}
+@media (max-width: 560px) {
+  .sec { padding: 18px 16px 20px; }
+  .setbar { gap: 6px; }
+  .setbar .group { width: 100%; flex-wrap: nowrap; }
+  .setbar .group > .kicker { display: none; }
+  .setbar .seg { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .setbar .jump { margin-left: 0; flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="page">
+
+<section class="intro">
+  <div>
+    <div class="kicker">Betula · Kalender · am Handy · erste Runde · 26.10.2026 · entschieden</div>
+    <h1>Eine Gruppe wählen, am Handy</h1>
+    <p class="lead">Die zweite Runde ließ am Handy in der Woche anhaken: Haken von 18 px auf Terminen von 67 px, dazu Chips für die Kalender, die offene Wahl und „Fertig“. Hier drei Wege ohne beides. Alle haken mit den Kacheln an, mit denen der Termin schon anhakt, und eine Empfehlung ist von der Woche bis „Fertig“ durchgespielt.</p>
+    <p class="quote">„Also <b>chips sind wirklich in 90% der Zeit ein schlechtes UI tool</b>. Bei der handy version muss nochmal dringend daran gearbeitet werden, <b>wie man das richtig macht mit dem übung auswählen</b>. Da braucht es noch ein besseres konzept.“</p>
+  </div>
+  <aside class="rules" aria-label="Die Regeln am Handy">
+    <div class="kicker">Die Regeln am Handy</div>
+    <ol>
+      <li><span><b>Keine Chips.</b> Was etwas zeigt, ist eine Zeile; was etwas tut, ein Knopf; was etwas schaltet, ein Schalter oder ein Segment.</span></li>
+      <li><span><b>Alles, was man antippt, ist mindestens 44 px groß,</b> in der Höhe und in der Breite.</span></li>
+      <li><span><b>Angehakt wird mit den Kacheln des Termins:</b> dieselben Gruppen, derselbe Haken, so viele, wie man will. Es wirkt sofort.</span></li>
+      <li><span><b>Beim Wählen bleibt die Woche zu sehen,</b> oder der Tag, den eine Gruppe ändert.</span></li>
+      <li><span><b>Werkzeuge oben rechts, eine große Aktion unten,</b> wie im Termin: Schließen oben, „Weiter“ oder „Fertig“ unten.</span></li>
+    </ol>
+    <p class="more">Was die zweite Runde sonst entschieden hat, steht in den <a href="https://claude.ai/artifact/GqLTxtgsMvYv4TACrNsWAk">Kalender-Konzepten</a>.</p>
+  </aside>
+</section>
+
+<section class="verdicts" id="entschieden" aria-label="Entschieden am 26.10.">
+  <div class="kicker">Entschieden am 26.10. · „Deine Vorschläge passen, nimm H1 mit Vergleichen“</div>
+  <ol>
+    <li><span><b>H1, und „Vergleichen“ öffnet H2:</b> die Woche oben, die Kacheln des Termins darunter; dasselbe Sheet ganz hoch zeigt jede Gruppe mit ihrem Tag.</span></li>
+    <li><span><b>Ein Tipp auf eine gestrichelte Gruppe öffnet ihre Wahl,</b> ein Tipp auf einen festen Termin den Termin.</span></li>
+    <li><span><b>Eine Themenwahl hat Zeilen mit dem Titel</b> des Themas, wie in „Vergleichen“; Kacheln tragen Tag, Zeit und Raum.</span></li>
+    <li><span><b>Wer eine Gruppe leitet, steht in „Vergleichen“</b> und im Termin, nicht auf der Kachel.</span></li>
+    <li><span><b>Beim Wählen tritt der Rest der Woche auf 42 % zurück,</b> die Gruppen der Wahl liegen umrandet darüber.</span></li>
+    <li><span><b>Am Rechner kommt „Vergleichen“ in den Fokus,</b> neben „Fertig“; es zeigt die Tage rechts an der Stelle von „Offen“.</span></li>
+  </ol>
+</section>
+
+<nav class="setbar" aria-label="Zustand und Abschnitte">
+  <div class="group"><span class="kicker">Die drei Wege</span><div class="seg" role="group" aria-label="Zustand der drei Handys" id="trioseg"></div></div>
+  <div class="jump"><a href="#warum">Warum</a><a href="#wege">Drei Wege</a><a href="#vergleich">Vergleich</a><a href="#empfehlung">Entschieden</a><a href="#chips">Ohne Chips</a><a href="#fragen">Fragen</a></div>
+</nav>
+
+<!-- ============================================================ Warum -->
+<section class="sec" id="warum">
+  <header>
+    <h2>Woran die zweite Runde am Handy scheitert</h2>
+    <p class="sub">Die Übung von MIT1 im Fokus, wie die zweite Runde sie am Handy zeigt. Gemessen in den Pixeln des Handys, 390 breit.</p>
+  </header>
+  <div class="why">
+    <figure class="shot">
+      <img src="bilder/runde2-handy.webp" width="600" height="1258" alt="Die zweite Runde am Handy: oben die Chips „Mein Studiengang“, „+ Kalender“, „Übung MIT1 · 1 von 3“ und „Fertig“, darunter die Woche, die drei Übungsgruppen umrandet mit kleinen Haken, der Rest blass.">
+      <span class="pn" style="left: 5%; top: 24.3%">1</span>
+      <span class="pn" style="left: 75.2%; top: 50.3%">2</span>
+      <span class="pn" style="left: 40.5%; top: 47.3%">3</span>
+      <span class="pn" style="left: 88%; top: 44.8%">4</span>
+      <figcaption>Zweite Runde, Fokus auf „Übung MIT1“</figcaption>
+    </figure>
+    <div>
+      <ul class="pts">
+        <li><span class="pn">1</span><span><b>Vier Chips, vier Bedeutungen, ein Aussehen.</b> „Mein Studiengang“ zeigt einen Kalender, „+ Kalender“ legt einen an, „Übung MIT1 · 1 von 3“ ist eine offene Wahl, „Fertig“ beendet sie. Jeder ist 30 px hoch.</span></li>
+        <li><span class="pn">2</span><span><b>Der Haken ist 18 px groß,</b> in der Ecke eines Termins von 67 × 58 px. Liegen zwei Termine nebeneinander, ist jeder nur 26 px breit.</span></li>
+        <li><span class="pn">3</span><span><b>Was man zum Wählen braucht, ist kaum lesbar:</b> der Raum in 9,5 px, die Uhrzeit nur an der Achse. Wer die Gruppe leitet und dass Mi 09:15 am 04.11. in einem anderen Raum ist, steht nirgends.</span></li>
+        <li><span class="pn">4</span><span><b>Der Rest der Woche tritt auf 26 % zurück,</b> und damit genau das, woran man sieht, ob eine Gruppe passt.</span></li>
+      </ul>
+      <div class="needs">
+        <h3>Was eine Wahl am Handy braucht</h3>
+        <ul>
+          <li><b>Wann und wo</b> jede Gruppe ist, nebeneinander lesbar.</li>
+          <li><b>Ob sie passt:</b> ein grüner oder roter Punkt, wie im Termin.</li>
+          <li><b>Was sie mit dem Tag macht:</b> allein am Campus, eine Lücke, ein anderer Campus.</li>
+          <li><b>Wer sie leitet,</b> wo QIS es nennt, bei MIT1 Pilling und Krowiorz.</li>
+          <li><b>Mehrere anhaken und später ändern,</b> ohne zu speichern.</li>
+        </ul>
+        <p class="num"><b>72 %</b> der ersten Semester eines Bachelors wählen Gruppen. Meist hat eine Veranstaltung zwei bis vier Gruppen (74 von 84), im Katalog höchstens <b>sieben</b>. Eine Themenwahl hat bis zu <b>13</b> Themen (Berufspraktische Profilierung).</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ Drei Wege -->
+<section class="sec" id="wege">
+  <header>
+    <h2>Drei Wege, eine Gruppe zu wählen</h2>
+    <p class="sub">Dieselbe Woche, dieselben Wahlen: Übung MIT1 mit drei Gruppen, dann Praktikum PP mit vier. Oben in der Leiste stellst du alle drei Handys auf denselben Stand. „Sieben Gruppen“ zeigt Praxis und methodische Begleitung aus der Sozialen Arbeit, als wäre es eingeplant, wie im Termin-Konzept.</p>
+  </header>
+  <div class="trio">
+    <div class="cpt">
+      <div class="cpt-h"><span class="tagc">H1</span><h3>Unter der Woche <span class="pk on">gewählt</span></h3><p>Die Woche bleibt oben, darunter liegt die Wahl als Sheet: die Gruppen als Kacheln des Termins. Ein Tipp hakt an, die Woche zeigt sofort, was der Haken tut.</p></div>
+      <div class="stage"><figure class="device phone" data-c="h1"><div class="frame"><div class="fit"><div class="screen"><div class="pho"></div></div></div></div></figure><p class="try">Tippe eine Kachel an, oder eine umrandete Gruppe in der Woche.</p></div>
+      <div class="gb"><div class="good"><b>Gut</b>Woche und Wahl zugleich. Dieselben Kacheln wie im Termin. Ein Tipp je Gruppe.</div><div class="weak"><b>Schwach</b>Was eine Gruppe mit ihrem Tag macht, liest man aus der Woche, nicht von der Kachel. Bei sieben Gruppen wird die Woche voll.</div></div>
+    </div>
+    <div class="cpt">
+      <div class="cpt-h"><span class="tagc">H2</span><h3>Tage im Vergleich <span class="pk">als „Vergleichen“</span></h3><p>Jede Gruppe eine Zeile mit ihrem Tag als Band, wie „Der Tag“ im Termin: deine Termine, die Gruppe schraffiert dazwischen, darunter, was sie bedeutet.</p></div>
+      <div class="stage"><figure class="device phone" data-c="h2"><div class="frame"><div class="fit"><div class="screen"><div class="pho"></div></div></div></div></figure><p class="try">Tippe eine Zeile an.</p></div>
+      <div class="gb"><div class="good"><b>Gut</b>Lücken, allein am Campus, anderer Campus stehen da, ohne zu suchen. Sieben Gruppen sind sieben Zeilen.</div><div class="weak"><b>Schwach</b>Die Woche ist nur klein oben. Eine Zeile ist über 100 px hoch, vier füllen den Schirm.</div></div>
+    </div>
+    <div class="cpt">
+      <div class="cpt-h"><span class="tagc">H3</span><h3>Eine nach der anderen <span class="pk">nicht gewählt</span></h3><p>Die Woche oben wie in H1, darunter eine Leiste: ‹ und › gehen durch die Gruppen. Die Gruppe, die dran ist, ist in der Woche hervorgehoben, ein großer Knopf hakt sie an.</p></div>
+      <div class="stage"><figure class="device phone" data-c="h3"><div class="frame"><div class="fit"><div class="screen"><div class="pho"></div></div></div></div></figure><p class="try">‹ und › gehen durch die Gruppen, „Anhaken“ nimmt sie.</p></div>
+      <div class="gb"><div class="good"><b>Gut</b>Die Woche bleibt, und zu der Gruppe, die dran ist, steht alles: Zeit, Raum, wer leitet, was sie mit dem Tag macht.</div><div class="weak"><b>Schwach</b>Vergleichen heißt hin und her gehen, sieben Gruppen sind sieben Schritte. Anhaken braucht zwei Tipps.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ Vergleich -->
+<section class="sec" id="vergleich">
+  <header>
+    <h2>Der Vergleich</h2>
+    <p class="sub">Grün, wo ein Weg am besten ist. Die Höhen misst diese Seite an den drei Handys oben, im Stand „Übung MIT1“.</p>
+  </header>
+  <div class="scroll">
+    <table class="cmp">
+      <thead><tr><th scope="col"></th><th scope="col">H1 Unter der Woche</th><th scope="col">H2 Tage im Vergleich</th><th scope="col">H3 Eine nach der anderen</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Die Woche beim Wählen</th><td class="best">oben, <span class="n" id="m-h1">–</span> px hoch</td><td>klein, <span class="n" id="m-h2">–</span> px hoch</td><td class="best">oben, <span class="n" id="m-h3">–</span> px hoch</td></tr>
+        <tr><th scope="row">Was die Gruppe mit ihrem Tag macht</th><td>in der Woche zu sehen</td><td class="best">als Band und in einem Satz</td><td>in der Woche und als Satz, für eine</td></tr>
+        <tr><th scope="row">Gruppen vergleichen</th><td class="best">nebeneinander, als Kacheln</td><td class="best">untereinander, mit ihrem Tag</td><td>eine nach der anderen</td></tr>
+        <tr><th scope="row">Eine Gruppe anhaken</th><td class="best">ein Tipp</td><td class="best">ein Tipp</td><td>Hingehen, dann „Anhaken“</td></tr>
+        <tr><th scope="row">Sieben Gruppen</th><td>fünf und „+2“, die passenden zuerst</td><td class="best">sieben Zeilen</td><td>sieben Schritte</td></tr>
+        <tr><th scope="row">Wie im Termin</th><td class="best">dieselben Kacheln</td><td>dasselbe Band wie „Der Tag“</td><td>neu</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ Empfehlung -->
+<section class="sec" id="empfehlung">
+  <header>
+    <h2>Entschieden: H1, und „Vergleichen“ öffnet H2</h2>
+    <p class="sub">H1 für den Alltag: zwei bis vier Gruppen, ein Tipp, die Woche darüber. Wer abwägen will, tippt „Vergleichen“: dasselbe Sheet wird ganz hoch und zeigt jede Gruppe mit ihrem Tag. Das ist ein Weg mit zwei Höhen, so wie das Sheet des Termins halb und ganz hoch ist. Hier durchgespielt, von der Woche bis „Fertig“, mit „Offen“ und den Kalendern ohne Chips.</p>
+  </header>
+  <div class="flow">
+    <div class="stage"><figure class="device phone" data-c="rec"><div class="frame"><div class="fit"><div class="screen"><div class="pho"></div></div></div></div></figure><p class="try">Alles ist anklickbar; links springst du in jeden Schritt.</p></div>
+    <ol class="steps" id="steps"></ol>
+  </div>
+</section>
+
+<!-- ============================================================ Ohne Chips -->
+<section class="sec" id="chips">
+  <header>
+    <h2>Was an die Stelle der Chips tritt</h2>
+    <p class="sub">Jeder Chip der zweiten Runde am Handy, was er war und was jetzt dasteht. Was zeigt, ist eine Zeile, was tut, ein Knopf, was schaltet, ein Segment oder Schalter.</p>
+  </header>
+  <div class="scroll">
+    <table class="chips">
+      <thead><tr><th scope="col">Zweite Runde</th><th scope="col">Was er war</th><th scope="col">Jetzt</th></tr></thead>
+      <tbody>
+        <tr><td><span class="oldchip">Mein Studiengang</span></td><td>zeigt, welcher Kalender da ist</td><td>Die Zeile <b>Kalender</b> im Kopf: „Mein Studiengang, Lena als Spur“. Ein Tipp öffnet das Sheet der Kalender.</td></tr>
+        <tr><td><span class="oldchip">Lena · Spur</span></td><td>schaltet einen Kalender</td><td>Im Sheet der Kalender ein Segment <b>Voll · Spur · Aus</b>, 44 px hoch. Die Woche darüber folgt sofort.</td></tr>
+        <tr><td><span class="oldchip">+ Kalender</span></td><td>legt einen Kalender an</td><td>Die Zeile <b>Neuer Kalender</b> im Sheet der Kalender, „+ Modul“ als Knopf an jedem Kalender.</td></tr>
+        <tr><td><span class="oldchip">Übung MIT1 · 1 von 3</span></td><td>eine offene Wahl</td><td>Die Zeile <b>Offen</b> im Kopf: „2 Wahlen offen“. Im Sheet eine Zeile je Wahl. Auch ein Tipp auf eine gestrichelte Gruppe in der Woche öffnet sie.</td></tr>
+        <tr><td><span class="oldchip dark">Übung MIT1 · 1 von 3</span></td><td>die Wahl im Fokus</td><td>Der Kopf des Sheets: das Kürzel des Moduls, „Übung“, und wie viele angehakt sind.</td></tr>
+        <tr><td><span class="oldchip">Fertig</span></td><td>beendet den Fokus</td><td><b>Schließen</b> oben rechts. Unten groß „Weiter: Praktikum PP“, oder „Fertig“, wenn nichts mehr offen ist.</td></tr>
+        <tr><td><span class="oldchip">Bio trifft VL MIT1</span></td><td>ein Hinweis</td><td>Eine Zeile in <b>Offen</b>, gelb, wie am Rechner.</td></tr>
+        <tr><td><span class="oldchip">FÜS ›</span></td><td>ein Weg</td><td>Eine Zeile in <b>Offen</b>, die nach „Mein Studium“ führt.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ Fragen -->
+<section class="sec" id="fragen">
+  <header>
+    <h2>Fragen, entschieden</h2>
+  </header>
+  <ol class="qs">
+    <li class="done"><p class="ask">Ein Tipp auf eine gestrichelte Gruppe in der Woche: die Wahl oder der Termin?</p><p class="rec"><b class="done">Entschieden:</b> wie vorgeschlagen, die Wahl, als H1. Ein Tipp auf einen festen Termin öffnet weiter den Termin.</p></li>
+    <li class="done"><p class="ask">Eine Themenwahl mit bis zu 13 Themen: Kacheln oder Zeilen?</p><p class="rec"><b class="done">Entschieden:</b> wie vorgeschlagen, Zeilen mit dem Titel des Themas, wie in „Vergleichen“. Kacheln tragen nur Tag, Zeit und Raum.</p></li>
+    <li class="done"><p class="ask">Steht auf der Kachel, wer die Gruppe leitet?</p><p class="rec"><b class="done">Entschieden:</b> wie vorgeschlagen, nein. Das steht in „Vergleichen“ und im Termin.</p></li>
+    <li class="done"><p class="ask">Wie weit tritt der Rest der Woche zurück, während man wählt?</p><p class="rec"><b class="done">Entschieden:</b> wie vorgeschlagen, auf 42 % statt 26 %; die Gruppen der Wahl liegen darüber, umrandet.</p></li>
+    <li class="done"><p class="ask">Am Rechner auch „Vergleichen“?</p><p class="rec"><b class="done">Entschieden:</b> wie vorgeschlagen, ja, im Fokus neben „Fertig“. Es zeigt die Tage rechts an der Stelle von „Offen“.</p></li>
+  </ol>
+</section>
+
+<p class="foot">Konzept, nichts davon ist gebaut · Daten von canary, 26.10.2026 · Kacheln, Band und Sheet aus den <a href="https://claude.ai/artifact/9oDRvoaiEm61EuBUFX7q1X">Termin-Konzepten</a> · Folia 1.45.3</p>
+</div>
+
+<script>
+// The calendar on a phone, choosing a group: three ways (H1, H2, H3) and the recommendation played
+// through. Real Termine of Informatik B.Sc. 1. FS (WiSe 2026/27, Zentralcampus) with Denkmalpflege
+// as a Besuch, Lena's BWL B.Sc. 1. FS, and Praxis und methodische Begleitung's seven groups.
+(() => {
+  "use strict";
+  const ICON = {
+    home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',
+    mods: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 4h7M14 9h7M14 15h7M14 20h7"/>',
+    cap: '<path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>',
+    mark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>',
+    cal: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+    user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    x: '<path d="M18 6 6 18M6 6l12 12"/>',
+    right: '<path d="m9 18 6-6-6-6"/>',
+    left: '<path d="m15 18-6-6 6-6"/>',
+    up: '<path d="m18 15-6-6-6 6"/>',
+    sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+    layers: '<path d="m12 2 10 5-10 5L2 7l10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>',
+    dashed: '<path d="M10.1 2.18a9.93 9.93 0 0 1 3.8 0M17.6 3.71a9.95 9.95 0 0 1 2.69 2.7M21.82 10.1a9.93 9.93 0 0 1 0 3.8M20.29 17.6a9.95 9.95 0 0 1-2.7 2.69M13.9 21.82a9.94 9.94 0 0 1-3.8 0M6.4 20.29a9.95 9.95 0 0 1-2.69-2.7M2.18 13.9a9.93 9.93 0 0 1 0-3.8M3.71 6.4a9.95 9.95 0 0 1 2.7-2.69"/>',
+    alert: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>',
+    walk: '<circle cx="13" cy="4" r="2"/><path d="m9 20 2-6 3 2v6M7 12l3-4 4 1 3 3M10 8l-1 5"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    lone: '<path d="M12 22s8-4.5 8-11a8 8 0 0 0-16 0c0 6.5 8 11 8 11Z"/><circle cx="12" cy="11" r="3"/>',
+    lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+  };
+  const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
+  const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const wbr = (s) => esc(s).replace(/\//g, "/<wbr>");
+
+  const MODS = {
+    EEG: { t: "Elektrische und elektronische Grundlagen der Informatik", c: "eeg" },
+    EvS: { t: "Entwicklung von Softwaresystemen", c: "evs" },
+    PP: { t: "Programmierpraktikum", c: "pp" },
+    MIT1: { t: "Mathematik IT-1 (Diskrete Mathematik)", c: "mit" },
+    DP: { t: "Denkmalpflege", c: "dp" },
+    PMB: { t: "Praxis und methodische Begleitung", c: "pmb" },
+    MW1: { t: "Mathematik W-1", c: "lena" },
+    GdW: { t: "Grundlagen der Wirtschaftsinformatik", c: "lena" },
+    ABWL1: { t: "Allgemeine BWL I", c: "lena" },
+    ABWL2: { t: "Allgemeine BWL II", c: "lena" },
+    "EiÖ": { t: "Einführung in die Ökonomie", c: "lena" },
+  };
+  const KL = { VL: "Vorlesung", "Ü": "Übung", Prak: "Praktikum", Tut: "Tutorium", Sem: "Seminar" };
+  const S = (id, cal, mod, k, wd, s, e, room, more) => ({ id, cal, mod, k, wd, s, e, room, ...(more || {}) });
+  const SLOTS = [
+    S("eeg1", "me", "EEG", "VL", 2, "07:30", "09:00", "ZHG/HS.B", { ab: "A" }),
+    S("eeg2", "me", "EEG", "VL", 2, "09:15", "10:45", "ZHG/HS.B"),
+    S("evs1", "me", "EvS", "VL", 2, "11:30", "13:00", "ZHG/HS.C"),
+    S("evs2", "me", "EvS", "VL", 5, "09:15", "10:45", "ZHG/HS.C"),
+    S("pp1", "me", "PP", "VL", 5, "11:30", "13:00", "ZHG/HS.C", { ab: "A" }),
+    S("ppg1", "me", "PP", "Prak", 1, "11:30", "13:00", "VG1C/0.03", { ch: "pprak" }),
+    S("ppg2", "me", "PP", "Prak", 3, "11:30", "13:00", "VG1C/0.03", { ch: "pprak" }),
+    S("ppg3", "me", "PP", "Prak", 4, "11:30", "13:00", "VG1C/0.03", { ch: "pprak" }),
+    S("ppg4", "me", "PP", "Prak", 5, "13:45", "15:15", "VG1C/0.03", { ch: "pprak" }),
+    S("mit1", "me", "MIT1", "VL", 1, "13:45", "15:15", "ZHG/HS.A"),
+    S("mit2", "me", "MIT1", "VL", 2, "13:45", "15:15", "LG1A/HS.2"),
+    S("mitg1", "me", "MIT1", "Ü", 3, "09:15", "10:45", "HG/0.17", { ch: "mitue", who: "Pilling", also: "LG1A/304", dot: "am 04.11. in LG1A/304" }),
+    S("mitg2", "me", "MIT1", "Ü", 3, "13:45", "15:15", "LG1A/304", { ch: "mitue", who: "Pilling" }),
+    S("mitg3", "me", "MIT1", "Ü", 4, "09:15", "10:45", "HG/0.17", { ch: "mitue", who: "Krowiorz" }),
+    S("tut", "me", "MIT1", "Tut", 2, "15:30", "17:00", "HG/2.45", { extra: true }),
+    S("dp1", "me", "DP", "VL", 4, "13:45", "15:15", "LG2C/317", { visit: "DP" }),
+    S("dp2", "me", "DP", "VL", 4, "15:30", "17:00", "LG2C/317", { visit: "DP" }),
+    S("pmb4", "me", "PMB", "Ü", 1, "11:00", "15:00", "SD/9.219", { ch: "pmb", nm: "Gruppe 4" }),
+    S("pmb2", "me", "PMB", "Ü", 1, "13:30", "16:45", "SD/11.207", { ch: "pmb", nm: "Gruppe 2" }),
+    S("pmb7", "me", "PMB", "Ü", 2, "11:00", "15:00", "SD/11.201", { ch: "pmb", nm: "Gruppe 7" }),
+    S("pmb6", "me", "PMB", "Ü", 2, "13:30", "16:45", "SD/11.202", { ch: "pmb", nm: "Gruppe 6" }),
+    S("pmb3", "me", "PMB", "Ü", 3, "09:15", "12:30", "SD/11.202", { ch: "pmb", nm: "Gruppe 3", note: "online" }),
+    S("pmb1", "me", "PMB", "Ü", 4, "09:15", "12:30", "SD/11.201", { ch: "pmb", nm: "Gruppe 1" }),
+    S("pmb5", "me", "PMB", "Ü", 5, "11:00", "15:00", "SD/11.302", { ch: "pmb", nm: "Gruppe 5" }),
+    S("l1", "lena", "GdW", "Ü", 1, "11:30", "13:00", "LG3B/304"),
+    S("l2", "lena", "ABWL2", "Ü", 1, "13:45", "15:15", "LG3B/101"),
+    S("l3", "lena", "MW1", "Ü", 1, "15:30", "17:00", "ZHG/SEM.1"),
+    S("l4", "lena", "ABWL1", "Sem", 1, "17:30", "19:00", "LG1A/HS.1"),
+    S("l5", "lena", "MW1", "VL", 2, "13:45", "15:15", "ZHG/HS.C"),
+    S("l6", "lena", "ABWL1", "Ü", 2, "17:30", "19:00", "GHS"),
+    S("l7", "lena", "GdW", "VL", 3, "09:15", "10:45", "ZHG/SEM.3"),
+    S("l8", "lena", "GdW", "VL", 3, "11:30", "13:00", "ZHG/SEM.3"),
+    S("l9", "lena", "ABWL1", "VL", 3, "15:30", "17:00", "GHS"),
+    S("l10", "lena", "ABWL2", "VL", 4, "11:30", "13:00", "LG1A/HS.2"),
+    S("l11", "lena", "MW1", "VL", 4, "13:45", "15:15", "GHS"),
+    S("l12", "lena", "EiÖ", "Ü", 4, "17:15", "18:45", "ZHG/HS.B"),
+    S("l13", "lena", "EiÖ", "VL", 5, "09:15", "10:45", "ZHG/HS.A"),
+  ];
+  // The choices: the two of the plan in the order Offen lists them, and one with seven groups to show.
+  const CHOICES = {
+    mitue: { mod: "MIT1", k: "Ü", word: "Übungsgruppen" },
+    pprak: { mod: "PP", k: "Prak", word: "Praktikumsgruppen" },
+    pmb: { mod: "PMB", k: "Ü", word: "Übungsgruppen", demo: true },
+  };
+  const OPEN_ORDER = ["mitue", "pprak"];
+  const VISITS = ["DP"];
+  const DAYS = ["", "Mo", "Di", "Mi", "Do", "Fr"];
+  const DAYL = ["", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"];
+  const NUM = ["null", "eine", "zwei", "drei", "vier", "fünf", "sechs", "sieben"];
+  const mins = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  const overlap = (a, b) => a.wd === b.wd && mins(a.s) < mins(b.e) && mins(b.s) < mins(a.e);
+  const gapTxt = (m) => (m < 60 ? `${m} min` : m % 60 ? `${Math.floor(m / 60)} h ${m % 60}` : `${m / 60} h`);
+  const campus = (room) => (room.startsWith("SD/") ? "Sachsendorf" : "Zentralcampus");
+  const short = (s) => `${s.k} ${s.mod}`;
+  const names = (list) => [...new Set(list.map(short))].join(" und ");
+  const label = (ch) => `${KL[CHOICES[ch].k]} ${CHOICES[ch].mod}`;
+
+  const groups = (ch) => SLOTS.filter((s) => s.ch === ch);
+  const picked = (st, ch) => st.chosen[ch] || [];
+  const isOpen = (st, ch) => picked(st, ch).length === 0;
+  const openChoices = (st) => OPEN_ORDER.filter((ch) => isOpen(st, ch));
+  // What a group of the choice ch is measured against: my Termine, the Besuch, the groups taken elsewhere.
+  function fixedFor(st, ch) {
+    return SLOTS.filter((s) => {
+      if (s.cal !== "me" || s.ch === ch) return false;
+      if (s.visit) return VISITS.includes(s.visit);
+      if (s.ch) return picked(st, s.ch).includes(s.id);
+      return true;
+    });
+  }
+  const clashesOf = (st, g) => fixedFor(st, g.ch).filter((x) => overlap(x, g));
+  // The groups in the order they stand: by time; more than six, those that fit first (as in the Termin).
+  function ordered(st, ch) {
+    const gs = groups(ch).slice().sort((a, b) => a.wd - b.wd || mins(a.s) - mins(b.s));
+    if (gs.length <= 6) return gs;
+    return gs.sort((a, b) => Number(clashesOf(st, a).length > 0) - Number(clashesOf(st, b).length > 0) || a.wd - b.wd || mins(a.s) - mins(b.s));
+  }
+
+  // ---------- the week ----------
+  function items(st) {
+    const out = [];
+    for (const s of SLOTS) {
+      if (s.cal === "lena") { if (!st.focus && st.lena === "full") out.push({ s, role: "friend" }); continue; }
+      if (s.visit && !VISITS.includes(s.visit)) continue;
+      if (!s.ch) { out.push({ s, role: "fixed" }); continue; }
+      const on = picked(st, s.ch).includes(s.id);
+      if (st.focus === s.ch) out.push({ s, role: "cand", on });
+      else if (CHOICES[s.ch].demo) { if (on) out.push({ s, role: "fixed" }); }
+      else if (isOpen(st, s.ch)) out.push({ s, role: "open" });
+      else if (on) out.push({ s, role: "fixed" });
+    }
+    return out;
+  }
+  function freeBoth(st, wd) {
+    const busy = [...items(st).filter((it) => it.role !== "open").map((it) => it.s), ...SLOTS.filter((s) => s.cal === "lena")].filter((s) => s.wd === wd).map((s) => [mins(s.s), mins(s.e)]);
+    const out = [];
+    let from = null;
+    for (let m = 8 * 60; m <= 18 * 60; m += 15) {
+      const free = m < 18 * 60 && !busy.some(([a, b]) => a < m + 15 && m < b);
+      if (free && from === null) from = m;
+      if (!free && from !== null) { if (m - from >= 90) out.push([from, m]); from = null; }
+    }
+    return out;
+  }
+  function week(st, o) {
+    const list = items(st).map((it) => ({ ...it, a: mins(it.s.s), b: mins(it.s.e) }));
+    const lena = SLOTS.filter((s) => s.cal === "lena");
+    const spur = !st.focus && st.lena === "strip";
+    const ends = [...list.map((x) => x.b), ...(spur || (!st.focus && st.lena === "full") ? lena.map((s) => mins(s.e)) : [])];
+    const h0 = 7, h1 = Math.max(17, Math.ceil(Math.max(...ends) / 60));
+    const top = h0 * 60, span = (h1 - h0) * 60;
+    const pct = (m) => ((m - top) / span) * 100;
+    const cols = [1, 2, 3, 4, 5].map((wd) => {
+      const day = list.filter((x) => x.s.wd === wd).sort((x, y) => x.a - y.a || x.b - y.b);
+      const clusters = [];
+      for (const it of day) {
+        const c = clusters.find((cl) => cl.end > it.a);
+        if (c) { c.items.push(it); c.end = Math.max(c.end, it.b); } else clusters.push({ end: it.b, items: [it] });
+      }
+      const slots = clusters.flatMap((cl) => {
+        const lanes = [];
+        for (const it of cl.items) { let l = lanes.findIndex((end) => end <= it.a); if (l < 0) { l = lanes.length; lanes.push(0); } lanes[l] = it.b; it.lane = l; }
+        return cl.items.map((it) => ({ ...it, lanes: lanes.length }));
+      });
+      const html = slots.map((it) => slot(st, it, o, pct)).join("");
+      const spurs = spur ? lena.filter((s) => s.wd === wd).map((s) => `<span class="spur" style="--t: ${pct(mins(s.s))}; --d: ${pct(mins(s.e)) - pct(mins(s.s))}" title="Lena: ${esc(short(s))} ${s.s}–${s.e}"></span>`).join("") : "";
+      const free = !st.focus && st.free && (st.lena === "strip" || st.lena === "full") ? freeBoth(st, wd).map(([a, b]) => `<span class="free" style="--t: ${pct(a)}; --d: ${pct(b) - pct(a)}">beide frei</span>`).join("") : "";
+      return `<div class="col"${spur ? ' style="--spur: 8px"' : ""}>${free}${html}${spurs}</div>`;
+    }).join("");
+    const hours = Array.from({ length: h1 - h0 }, (_, i) => `<span style="top: ${(i / (h1 - h0)) * 100}%">${h0 + i}</span>`).join("");
+    return `<div class="wk" style="--rows: ${h1 - h0}"><div></div>${DAYS.slice(1).map((d) => `<div class="dn">${d}</div>`).join("")}<div class="hrs">${hours}</div>${cols}</div>`;
+  }
+  function slot(st, it, o, pct) {
+    const s = it.s, cls = ["slot"];
+    const cand = it.role === "cand";
+    const hit = cand && clashesOf(st, s).length > 0;
+    if (it.role === "friend") cls.push("friend");
+    if (it.role === "open") cls.push("opt");
+    if (s.extra) cls.push("extra");
+    if (s.visit) cls.push("visit");
+    if (cand) { cls.push("pick"); if (it.on) cls.push("on"); if (o.cur === s.id) cls.push("cur"); }
+    else if (st.focus) cls.push("dim");
+    const narrow = it.lanes > 1;
+    const body = cand
+      ? `<b>${esc(short(s))}</b>${narrow ? "" : `<span>${s.s}</span><span class="room">${wbr(s.room)}</span>`}`
+      : `<b>${esc(s.mod)}</b>${narrow ? "" : `<span class="room">${wbr(s.room)}</span>`}`;
+    const marks = [
+      s.ab && !narrow && !cand ? `<span class="ab">${s.ab}</span>` : "",
+      it.role === "open" && !narrow ? `<span class="of">1 von ${groups(s.ch).length}</span>` : "",
+      s.dot && !hit ? '<i class="dot"></i>' : "",
+      hit ? '<i class="cx"></i>' : "",
+      cand && it.on ? `<i class="ck">${icon("check")}</i>` : "",
+    ].join("");
+    const mc = s.cal === "lena" ? "lena" : MODS[s.mod].c;
+    const style = `--mc: var(--m-${mc}); --t: ${pct(it.a)}; --d: ${pct(it.b) - pct(it.a)}; --lane: ${it.lane}; --lanes: ${it.lanes}`;
+    const say = `${KL[s.k] || s.k} ${MODS[s.mod].t}, ${DAYL[s.wd]} ${s.s}–${s.e}, ${s.room}${s.dot ? `, ${s.dot}` : ""}${s.visit ? ", Besuch" : ""}${hit ? `, überschneidet sich mit ${names(clashesOf(st, s))}` : ""}${cand ? (it.on ? ", angehakt" : ", nicht angehakt") : it.role === "open" ? `, 1 von ${groups(s.ch).length}` : ""}`;
+    let act = "";
+    if (cand && o.pickAct === "pick") act = ` data-act="pick" data-v="${s.id}" role="checkbox" aria-checked="${!!it.on}"`;
+    else if (cand && o.pickAct === "cur") act = ` data-act="cur" data-v="${s.id}" aria-pressed="${o.cur === s.id}"`;
+    else if (it.role === "open" && o.openAct) act = ` data-act="focus" data-v="${s.ch}"`;
+    const tag = act ? "button" : "span";
+    return `<${tag}${act ? ' type="button"' : ""} class="${cls.join(" ")}" style="${style}"${act} title="${esc(say)}" aria-label="${esc(say)}">${body}${marks}</${tag}>`;
+  }
+
+  // ---------- what a group does to its day: the band and one line ----------
+  function dayOf(st, g) { return fixedFor(st, g.ch).filter((x) => x.wd === g.wd).sort((a, b) => mins(a.s) - mins(b.s)); }
+  function dayNote(st, g) {
+    const day = dayOf(st, g);
+    const hit = day.filter((x) => overlap(x, g));
+    if (hit.length) return { cls: "no", ic: "alert", txt: `trifft ${names(hit)}` };
+    if (!day.length) return { cls: "lone", ic: "lone", txt: `allein am ${DAYL[g.wd]}` };
+    const before = day.filter((x) => mins(x.e) <= mins(g.s)).pop();
+    const after = day.find((x) => mins(x.s) >= mins(g.e));
+    const away = (x) => campus(x.room) !== campus(g.room);
+    const parts = [];
+    if (before) parts.push(`${gapTxt(mins(g.s) - mins(before.e))} nach ${short(before)}`);
+    if (after) parts.push(`${gapTxt(mins(after.s) - mins(g.e))} bis ${short(after)}`);
+    else parts.push("danach frei");
+    const far = (before && away(before)) || (after && away(after));
+    return { cls: "", ic: far ? "walk" : "clock", txt: `${parts.join(", ")}${far ? ", anderer Campus" : ""}` };
+  }
+  function band(st, g, on) {
+    const T0 = 7 * 60, span = 12 * 60;
+    const list = [...dayOf(st, g).map((x) => ({ x, me: false })), { x: g, me: true }].map((it) => ({ ...it, a: mins(it.x.s), b: mins(it.x.e) })).sort((p, q) => p.a - q.a);
+    const lanes = [];
+    for (const it of list) { let l = lanes.findIndex((end) => end <= it.a); if (l < 0) { l = lanes.length; lanes.push(0); } lanes[l] = it.b; it.lane = l; }
+    const n = Math.max(1, lanes.length), h = (30 - 6 - (n - 1) * 2) / n;
+    const hits = new Set(clashesOf(st, g).map((x) => x.id));
+    const blocks = list.map((it) => {
+      const cls = it.me ? (on ? "rb me" : "rb cand") : `rb${hits.has(it.x.id) ? " hit" : ""}`;
+      return `<span class="${cls}" style="--mc: var(--m-${MODS[it.x.mod].c}); left: ${((it.a - T0) / span) * 100}%; width: calc(${((it.b - it.a) / span) * 100}% - 2px); top: ${3 + it.lane * (h + 2)}px; height: ${h}px">${esc(it.x.mod)}</span>`;
+    }).join("");
+    const ticks = [8, 10, 12, 14, 16, 18].map((hh) => `<span style="left: ${((hh * 60 - T0) / span) * 100}%">${hh}</span>`).join("");
+    return `<span class="rib" aria-hidden="true">${blocks}</span><span class="rt" aria-hidden="true">${ticks}</span>`;
+  }
+  const subOf = (g) => [g.nm, g.who ? `${g.who} leitet` : "", campus(g.room) === "Sachsendorf" ? "Sachsendorf" : "", g.note ? `QIS: ${g.note}` : "", g.dot ? `<span class="w">${esc(g.dot)}</span>` : ""].filter(Boolean).map((x) => (x.startsWith("<") ? x : esc(x))).join(" · ");
+
+  // ---------- the parts of a phone ----------
+  const statusBar = () => '<div class="p-status"><span>9:41</span><span class="bat"><i></i></span></div>';
+  const nav = () => `<nav class="p-nav" aria-hidden="true"><span>${icon("home")}Start</span><span>${icon("mods")}Module</span><span>${icon("cap")}Studium</span><span>${icon("mark")}Merkliste</span><span class="on">${icon("cal")}Kalender</span></nav>`;
+  const closeBtn = (act) => `<button type="button" class="ib end" data-act="${act}" aria-label="Schließen" title="Schließen">${icon("x")}</button>`;
+  const head = (st, back, pos) => {
+    const c = CHOICES[st.focus];
+    return `<div class="sh-head">${back ? `<button type="button" class="ib" data-act="uncmp" aria-label="Zurück zu den Kacheln" title="Zurück">${icon("left")}</button>` : ""}<span class="tm-mod"><i></i>${esc(c.mod)}</span><span class="tm-kind">${KL[c.k]} · ${esc(MODS[c.mod].t)}</span>${pos ? `<span class="pos">${pos}</span>` : ""}${closeBtn("done")}</div>`;
+  };
+  const counted = (st, ch, total) => { const n = picked(st, ch).length; return n ? `${n} von ${total}` : "noch keine"; };
+  function bigAction(st) {
+    const next = OPEN_ORDER.find((ch) => ch !== st.focus && isOpen(st, ch) && !CHOICES[st.focus].demo);
+    return next ? `<button type="button" class="big" data-act="next" data-v="${next}">Weiter: ${label(next)}${icon("right")}</button>` : '<button type="button" class="big" data-act="done">Fertig</button>';
+  }
+  function noteFor(st, ch) {
+    const gs = groups(ch), fits = gs.filter((g) => !clashesOf(st, g).length);
+    if (fits.length && fits.length < gs.length) return `<p class="grp-n">${fits.length === 1 ? `Nur ${DAYL[fits[0].wd]} ${fits[0].s} passt` : `${NUM[fits.length]} von ${NUM[gs.length]} passen`}, die anderen überschneiden sich. Anhaken geht trotzdem.</p>`;
+    if (!fits.length) return '<p class="grp-n">Keine passt ohne Überschneidung. Anhaken geht trotzdem.</p>';
+    return isOpen(st, ch) ? `<p class="grp-n">Alle ${NUM[gs.length]} passen. Bis du eine anhakst, stehen alle gestrichelt im Kalender.</p>` : "";
+  }
+  function tile(st, g) {
+    const on = picked(st, g.ch).includes(g.id);
+    const hit = clashesOf(st, g);
+    const say = `${g.nm ? `${g.nm}, ` : ""}${DAYL[g.wd]} ${g.s}–${g.e}, ${g.room}${g.dot ? `, ${g.dot}` : ""}${hit.length ? `, überschneidet sich mit ${names(hit)}` : ", passt"}`;
+    return `<button type="button" class="gs pick${on ? " on" : ""}" role="checkbox" aria-checked="${on}" data-act="pick" data-v="${g.id}" title="${esc(say)}" aria-label="${esc(say)}"><b>${DAYS[g.wd]} ${g.s}<i class="st ${hit.length ? "no" : "ok"}"></i></b><small>${esc(g.room)}${g.also ? " +1" : ""}</small>${g.nm ? `<small class="nm">${esc(g.nm)}</small>` : ""}${on ? `<i class="ck">${icon("check")}</i>` : '<i class="cb"></i>'}</button>`;
+  }
+
+  // H1: the week above, the choice under it with the Termin's tiles.
+  function screenH1(st, o) {
+    const ch = st.focus, c = CHOICES[ch], gs = ordered(st, ch);
+    const many = gs.length > 6;
+    const vis = many && !st.more ? gs.slice(0, 5) : gs;
+    const rest = gs.length - vis.length;
+    const more = many ? `<button type="button" class="gs more" data-act="more" aria-label="${rest ? `${rest} weitere zeigen` : "Weniger zeigen"}">${rest ? `<b>+${rest}</b><small>weitere</small>` : `<b>${icon("up")}</b><small>weniger</small>`}</button>` : "";
+    const cmp = o.cmp ? `<button type="button" class="go2" data-act="cmp">Vergleichen${icon("right")}</button>` : "";
+    const sheet = `<section class="fsheet" aria-label="${esc(label(ch))} wählen" style="--mc: var(--m-${MODS[c.mod].c})"><span class="grab" aria-hidden="true"></span>${head(st)}<div class="grp"><div class="grp-h"><span>${c.word}</span><span class="r">${counted(st, ch, gs.length)}</span>${cmp}</div><div class="grp-seg" style="--n: 3">${vis.map((g) => tile(st, g)).join("")}${more}</div>${noteFor(st, ch)}</div>${bigAction(st)}</section>`;
+    return `${statusBar()}<div class="lay focus"><div class="p-week f">${week(st, { pickAct: "pick" })}</div>${sheet}</div>`;
+  }
+  // H2: every group a row with its day as a band; the week only small on top.
+  function miniWeek(st, ch) {
+    const T0 = 7 * 60, span = 11 * 60;
+    const at = (s) => `top: ${((mins(s.s) - T0) / span) * 100}%; height: ${((mins(s.e) - mins(s.s)) / span) * 100}%`;
+    const cols = [1, 2, 3, 4, 5].map((wd) => {
+      const fx = fixedFor(st, ch).filter((x) => x.wd === wd).map((x) => `<i class="mb" style="--mc: var(--m-${MODS[x.mod].c}); ${at(x)}"></i>`).join("");
+      const gs = groups(ch).filter((x) => x.wd === wd).map((x) => `<i class="mb g${picked(st, ch).includes(x.id) ? " on" : ""}" style="--mc: var(--m-${MODS[x.mod].c}); ${at(x)}"></i>`).join("");
+      return `<span class="mc"><span class="md">${DAYS[wd]}</span><span class="mt">${fx}${gs}</span></span>`;
+    }).join("");
+    return `<div class="mwk" aria-hidden="true">${cols}</div>`;
+  }
+  function crow(st, g) {
+    const on = picked(st, g.ch).includes(g.id);
+    const hit = clashesOf(st, g);
+    const note = dayNote(st, g);
+    const sub = subOf(g);
+    const say = `${DAYL[g.wd]} ${g.s}–${g.e}, ${g.room}, ${note.txt}`;
+    return `<button type="button" class="crow${on ? " on" : ""}" role="checkbox" aria-checked="${on}" data-act="pick" data-v="${g.id}" aria-label="${esc(say)}"><span class="cbx">${on ? icon("check") : ""}</span><span class="cm"><span class="ct"><b>${DAYS[g.wd]} ${g.s}–${g.e}</b><i class="st ${hit.length ? "no" : "ok"}" style="margin-left: 7px; align-self: center"></i><span class="cr">${esc(g.room)}</span></span>${sub ? `<span class="csub">${sub}</span>` : ""}${band(st, g, on)}<span class="cn ${note.cls}">${icon(note.ic)}${esc(note.txt)}</span></span></button>`;
+  }
+  function screenH2(st, o) {
+    const ch = st.focus, c = CHOICES[ch], gs = ordered(st, ch);
+    const sheet = `<section class="fsheet tall" aria-label="${esc(label(ch))} vergleichen" style="--mc: var(--m-${MODS[c.mod].c})"><span class="grab" aria-hidden="true"></span>${head(st, o.back)}${miniWeek(st, ch)}<div class="grp-h"><span>${c.word}</span><span class="r">${counted(st, ch, gs.length)}</span></div><div class="clist">${gs.map((g) => crow(st, g)).join("")}</div>${bigAction(st)}</section>`;
+    return `${statusBar()}<div class="lay focus">${sheet}</div>`;
+  }
+  // H3: the week large, a bar going through the groups one by one.
+  function screenH3(st) {
+    const ch = st.focus, c = CHOICES[ch], gs = ordered(st, ch);
+    const i = Math.max(0, Math.min(st.idx, gs.length - 1)), g = gs[i];
+    const on = picked(st, ch).includes(g.id);
+    const note = dayNote(st, g), sub = subOf(g);
+    const next = OPEN_ORDER.find((x) => x !== ch && isOpen(st, x) && !c.demo);
+    const bar = `<section class="fsheet" aria-label="${esc(label(ch))} wählen" style="--mc: var(--m-${MODS[c.mod].c})"><span class="grab" aria-hidden="true"></span>${head(st, false, `${i + 1} von ${gs.length}`)}
+      <div class="step"><button type="button" class="ib" data-act="prev" aria-label="Vorige Gruppe"${i === 0 ? " disabled" : ""}>${icon("left")}</button><div class="det"><b class="dt">${DAYL[g.wd]} ${g.s}–${g.e}</b><span class="dr">${esc(g.room)}</span>${sub ? `<span class="csub">${sub}</span>` : ""}<span class="cn ${note.cls}">${icon(note.ic)}${esc(note.txt)}</span></div><button type="button" class="ib" data-act="nextg" aria-label="Nächste Gruppe"${i === gs.length - 1 ? " disabled" : ""}>${icon("right")}</button></div>
+      <button type="button" class="tick-big${on ? " on" : ""}" role="checkbox" aria-checked="${on}" data-act="pick" data-v="${g.id}">${on ? `${icon("check")}Angehakt` : "Anhaken"}</button>
+      <div class="under">${next ? `<button type="button" class="go2" data-act="next" data-v="${next}">Weiter: ${label(next)}${icon("right")}</button>` : '<button type="button" class="go2" data-act="done">Fertig</button>'}</div></section>`;
+    return `${statusBar()}<div class="lay focus"><div class="p-week f">${week(st, { pickAct: "cur", cur: g.id })}</div>${bar}</div>`;
+  }
+  // The calendar itself: two rows instead of chips, the week, and the sheets over it.
+  function screenWeek(st) {
+    const open = openChoices(st);
+    const lenaWord = { strip: "als Spur", full: "voll", off: "aus" }[st.lena];
+    const calLine = lenaWord ? `Mein Studiengang, Lena ${lenaWord}${st.free && st.lena !== "off" ? ", gemeinsam frei" : ""}` : "Mein Studiengang";
+    const offen = open.length
+      ? `<button type="button" class="rowbtn open" data-act="sheet" data-v="offen"><span class="ic">${icon("dashed")}</span><span><b>${open.length === 1 ? "1 Wahl offen" : `${NUM[open.length].replace(/^./, (x) => x.toUpperCase())} Wahlen offen`}</b><small>${open.map(label).join(" · ")}</small></span>${icon("right")}</button>`
+      : `<button type="button" class="rowbtn" data-act="sheet" data-v="offen"><span class="ic">${icon("dashed")}</span><span><b>Offen</b><small>1 Platzhalter · Fachübergreifendes Studium</small></span>${icon("right")}</button>`;
+    const card = `<div class="p-card"><div class="mh"><h2>Kalender <span>WiSe 2026/27</span></h2><span class="tool">${icon("sliders")}Anpassen</span></div><button type="button" class="rowbtn" data-act="sheet" data-v="kal"><span class="ic">${icon("layers")}</span><span><b>Kalender</b><small>${esc(calLine)}</small></span>${icon("right")}</button>${offen}</div>`;
+    const sheet = st.sheet === "offen" ? sheetOffen(st) : st.sheet === "kal" ? sheetKal(st) : "";
+    return `${statusBar()}<div class="lay normal"><div class="p-top"><span class="search">${icon("search")}Modul, Nummer oder Thema</span><span class="me">${icon("user")}</span></div>${card}<div class="p-week">${week(st, { openAct: true })}</div></div>${nav()}${sheet}`;
+  }
+  function sheetOffen(st) {
+    const rows = openChoices(st).map((ch) => { const c = CHOICES[ch]; return `<button type="button" class="orow" data-act="focus" data-v="${ch}" style="--mc: var(--m-${MODS[c.mod].c})"><i class="od"></i><span><b>${label(ch)}</b><small>eine von ${groups(ch).length} anhaken · ${esc(MODS[c.mod].t)}</small></span>${icon("right")}</button>`; }).join("");
+    const ph = '<button type="button" class="orow" data-act="toast" data-v="Weiter in „Mein Studium“: Fachübergreifendes Studium"><i class="od ring"></i><span><b>Fachübergreifendes Studium</b><small>Platzhalter · 6 LP · in „Mein Studium“</small></span>' + icon("right") + "</button>";
+    return `<button type="button" class="shade" data-act="close" aria-label="Schließen"></button><section class="psheet" aria-label="Offen"><span class="grab" aria-hidden="true"></span><div class="sh-head"><b class="sh-t">Offen</b>${closeBtn("close")}</div><div class="olist">${rows}${ph}</div></section>`;
+  }
+  function sheetKal(st) {
+    const seg = ["full", "strip", "off"].map((v, i) => `<button type="button" class="${st.lena === v ? "on" : ""}" aria-pressed="${st.lena === v}" data-act="lena" data-v="${v}">${["Voll", "Spur", "Aus"][i]}</button>`).join("");
+    const sw = st.lena === "strip" ? " strip" : st.lena === "off" ? " off" : "";
+    const hasLena = st.lena !== "none";
+    const free = hasLena && st.lena !== "off" ? `<button type="button" class="trow" role="switch" aria-checked="${!!st.free}" data-act="free"><span><b>Gemeinsam frei</b><small>wo du und Lena frei seid, ab 90 Minuten</small></span><i class="tg${st.free ? " on" : ""}"><i></i></i></button>` : "";
+    return `<section class="psheet" aria-label="Kalender"><span class="grab" aria-hidden="true"></span><div class="sh-head"><b class="sh-t">Kalender</b>${closeBtn("close")}</div>
+      <div class="kcard" style="--cc: var(--accent)"><div class="kc-h"><i class="swc"></i><span><b>Mein Studiengang</b><small>Informatik B.Sc. · 1. FS · immer voll</small></span><button type="button" class="sw2" data-act="toast" data-v="Modul in „Mein Studiengang“: zählt in „Mein Studium“ als Besuch">${icon("plus")}Modul</button></div></div>
+      ${hasLena ? `<div class="kcard" style="--cc: var(--m-lena)"><div class="kc-h"><i class="swc${sw}"></i><span><b>Lena</b><small>BWL B.Sc. · 5 Module</small></span><button type="button" class="ib" data-act="toast" data-v="Lena: Umbenennen, Teilen, Löschen" aria-label="Mehr zu Lena">${icon("more")}</button></div><div class="kc-a"><span class="seg3" role="group" aria-label="Lena in der Woche">${seg}</span><button type="button" class="sw2" data-act="toast" data-v="Modul in „Lena“: zählt nirgends">${icon("plus")}Modul</button></div></div>` : ""}
+      <button type="button" class="orow add" data-act="toast" data-v="Neuer Kalender: leer oder aus einem Link">${icon("plus")}<span><b>Neuer Kalender</b></span></button>${free}</section>`;
+  }
+
+  // ---------- the phones ----------
+  const TRIO = {
+    mitue: { name: "Übung MIT1", chosen: {}, focus: "mitue" },
+    ticked: { name: "Angehakt", chosen: { mitue: ["mitg1"] }, focus: "mitue" },
+    pprak: { name: "Praktikum PP", chosen: { mitue: ["mitg1"] }, focus: "pprak" },
+    pmb: { name: "Sieben Gruppen", chosen: { mitue: ["mitg1"], pprak: ["ppg1"] }, focus: "pmb" },
+  };
+  const FLOW = [
+    ["woche", "Die Woche", "Zwei Zeilen statt Chips: <b>Kalender</b> mit der Stellung jedes Kalenders, <b>Offen</b> mit dem, was offen ist. Ein Tipp auf eine gestrichelte Gruppe öffnet ihre Wahl.", { chosen: {}, lena: "strip" }],
+    ["offen", "Offen", "Ein Sheet mit einer Zeile je Wahl und dem Platzhalter, der nach „Mein Studium“ führt.", { chosen: {}, lena: "strip", sheet: "offen" }],
+    ["wahl", "Die Wahl, H1", "Die Woche oben, die Kacheln darunter; ein Tipp hakt an. Unten groß „Weiter: Praktikum PP“, oben rechts Schließen.", { chosen: {}, lena: "strip", focus: "mitue" }],
+    ["vergleich", "Vergleichen, H2", "Dasselbe Sheet ganz hoch: jede Gruppe mit ihrem Tag als Band. Anhaken geht auch hier, ‹ führt zurück zu den Kacheln.", { chosen: {}, lena: "strip", focus: "mitue", cmp: true }],
+    ["kalender", "Kalender", "Die Kalender als Zeilen, die Stellung als Segment <b>Voll · Spur · Aus</b>, „Gemeinsam frei“ als Schalter. Die Woche darüber folgt sofort.", { chosen: { mitue: ["mitg1"], pprak: ["ppg1"] }, lena: "strip", sheet: "kal" }],
+    ["fertig", "Fertig", "Beide Wahlen angehakt, die Woche ruhig. Unter Offen bleibt der Platzhalter.", { chosen: { mitue: ["mitg1"], pprak: ["ppg1"] }, lena: "strip" }],
+  ];
+  const fresh = (p) => ({ chosen: JSON.parse(JSON.stringify(p.chosen || {})), focus: p.focus || null, idx: 0, more: false, cmp: !!p.cmp, sheet: p.sheet || null, lena: p.lena || "none", free: !!p.free, toast: "" });
+  const PHONES = {};
+  document.querySelectorAll(".device[data-c]").forEach((el) => { PHONES[el.dataset.c] = { el, kind: el.dataset.c, st: fresh(TRIO.mitue), flow: null }; });
+  PHONES.rec.st = fresh(FLOW[0][3]);
+  PHONES.rec.flow = "woche";
+  let trioKey = "mitue";
+
+  function screen(ph) {
+    const st = ph.st;
+    let html;
+    if (!st.focus) html = screenWeek(st);
+    else if (ph.kind === "h1") html = screenH1(st, {});
+    else if (ph.kind === "h2") html = screenH2(st, {});
+    else if (ph.kind === "h3") html = screenH3(st);
+    else html = st.cmp ? screenH2(st, { back: true }) : screenH1(st, { cmp: true });
+    return html + (st.toast ? `<div class="toast" role="status">${esc(st.toast)}</div>` : "");
+  }
+  function render(ph) { ph.el.querySelector(".pho").innerHTML = screen(ph); }
+  function renderBars() {
+    document.querySelectorAll("#trioseg [data-trio]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.trio === trioKey)));
+    document.querySelectorAll("#steps [data-flow]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.flow === PHONES.rec.flow)));
+  }
+  function setTrio(k) {
+    trioKey = k;
+    for (const kind of ["h1", "h2", "h3"]) { PHONES[kind].st = fresh(TRIO[k]); render(PHONES[kind]); }
+    renderBars();
+  }
+  function setFlow(k) {
+    const f = FLOW.find((x) => x[0] === k);
+    PHONES.rec.st = fresh(f[3]);
+    PHONES.rec.flow = k;
+    render(PHONES.rec);
+    renderBars();
+  }
+  document.getElementById("trioseg").innerHTML = Object.entries(TRIO).map(([k, p]) => `<button type="button" data-trio="${k}" aria-pressed="false">${p.name}</button>`).join("");
+  document.getElementById("steps").innerHTML = FLOW.map(([k, name, text], i) => `<li><button type="button" data-flow="${k}" aria-pressed="false"><span class="sn">${i + 1}</span><b>${name}</b><span class="t">${text}</span></button></li>`).join("");
+
+  let toastTimer = 0;
+  document.addEventListener("click", (e) => {
+    const tb = e.target.closest("[data-trio]");
+    if (tb) { setTrio(tb.dataset.trio); return; }
+    const fb = e.target.closest("[data-flow]");
+    if (fb) { setFlow(fb.dataset.flow); return; }
+    const el = e.target.closest("[data-act]");
+    const dev = el && el.closest(".device[data-c]");
+    if (!el || !dev || el.disabled) return;
+    const ph = PHONES[dev.dataset.c], st = ph.st, v = el.dataset.v;
+    st.toast = "";
+    switch (el.dataset.act) {
+      case "pick": {
+        const g = SLOTS.find((x) => x.id === v), list = picked(st, g.ch);
+        st.chosen[g.ch] = list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
+        break;
+      }
+      case "cur": st.idx = ordered(st, st.focus).findIndex((x) => x.id === v); break;
+      case "prev": st.idx = Math.max(0, st.idx - 1); break;
+      case "nextg": st.idx = Math.min(groups(st.focus).length - 1, st.idx + 1); break;
+      case "focus": st.focus = v; st.sheet = null; st.idx = 0; st.more = false; break;
+      case "next": st.focus = v; st.idx = 0; st.more = false; break;
+      case "done": st.focus = null; st.cmp = false; st.more = false; break;
+      case "more": st.more = !st.more; break;
+      case "cmp": st.cmp = true; break;
+      case "uncmp": st.cmp = false; break;
+      case "sheet": st.sheet = v; break;
+      case "close": st.sheet = null; break;
+      case "lena": st.lena = v; if (v === "off") st.free = false; break;
+      case "free": st.free = !st.free; break;
+      case "toast": st.toast = v; break;
+      default: return;
+    }
+    if (ph.kind === "rec") ph.flow = null;
+    render(ph);
+    renderBars();
+    if (st.toast) { clearTimeout(toastTimer); toastTimer = setTimeout(() => { st.toast = ""; render(ph); }, 2200); }
+  });
+
+  // The heights of the week while choosing, measured on the three phones in „Übung MIT1“.
+  function measure() {
+    for (const kind of ["h1", "h2", "h3"]) {
+      const ph = PHONES[kind];
+      const keep = ph.st;
+      ph.st = fresh(TRIO.mitue);
+      render(ph);
+      const w = ph.el.querySelector(kind === "h2" ? ".mwk" : ".p-week.f");
+      document.getElementById(`m-${kind}`).textContent = w ? String(Math.round(w.offsetHeight)) : "–";
+      ph.st = keep;
+      render(ph);
+    }
+  }
+  function fit() {
+    document.querySelectorAll(".device .fit").forEach((f) => {
+      const w = Number(getComputedStyle(f).getPropertyValue("--w"));
+      if (w) f.style.setProperty("--s", String(f.clientWidth / w));
+    });
+  }
+  setTrio("mitue");
+  setFlow("woche");
+  measure();
+  fit();
+  if ("ResizeObserver" in window) new ResizeObserver(fit).observe(document.body);
+  window.addEventListener("resize", fit);
+})();
+</script>

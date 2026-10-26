@@ -107,8 +107,8 @@ pub struct Template {
     pub every: Every,
 }
 
-/// The dates of one row, each in exactly one of `days`, `cancelled` and `skipped`, each list in
-/// date order.
+/// The dates of one row, each in exactly one of `days`, `cancelled`, `skipped` and `hidden`, each
+/// list in date order.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Occurrences {
     /// The days it is held.
@@ -119,6 +119,10 @@ pub struct Occurrences {
     pub skipped: Vec<(Day, Skipped)>,
     /// Room notes of held days („LV findet ersatzweise im ZHG HS A statt.").
     pub notes: Vec<(Day, String)>,
+    /// Held days the visitor hid („Nur am … ausblenden", `Selection::hidden_dates`): the timetable
+    /// takes them out of `days`, so the week, the day, the clashes and the feed leave them out,
+    /// while the Termin's own view still names them. `occurrences` leaves it empty.
+    pub hidden: Vec<Day>,
     /// The range is the lecture period's, because the row has none.
     pub assumed: bool,
     /// A recurring row without any concrete day: no range and nothing to assume one from.

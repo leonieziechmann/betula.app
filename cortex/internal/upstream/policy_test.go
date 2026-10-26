@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -20,14 +21,17 @@ func TestDefaultPolicyIsTheBuiltInOne(t *testing.T) {
 	}
 	want := HostPolicy{Concurrency: 1, Pause: 0, MaxAge: 24 * time.Hour, QueueWait: 60 * time.Second, BreakerFailures: 10,
 		BreakerPause: 15 * time.Minute, Timeout: 10 * time.Minute, MaxBody: 8589934592}
-	if p.Default != want {
+	if !reflect.DeepEqual(p.Default, want) {
 		t.Errorf("default %+v, want %+v", p.Default, want)
 	}
 	qis := want
-	qis.Name, qis.Pause = "qis.b-tu.de", 500*time.Millisecond
+	qis.Name, qis.Pause, qis.Reject = "qis.b-tu.de", 500*time.Millisecond, []string{"Zugriff auf die Webseite eingeschränkt"}
+	www := qis
+	www.Name = "www.b-tu.de"
 	opus := want
 	opus.Name, opus.Pause, opus.MaxAge, opus.ExpectType = "opus4.kobv.de", 2*time.Second, 720*time.Hour, "application/pdf"
-	if len(p.Hosts) != 3 || p.For("qis.b-tu.de") != qis || p.For("www.b-tu.de").Pause != 500*time.Millisecond || p.For("opus4.kobv.de") != opus {
+	if len(p.Hosts) != 3 || !reflect.DeepEqual(p.For("qis.b-tu.de"), qis) || !reflect.DeepEqual(p.For("www.b-tu.de"), www) ||
+		!reflect.DeepEqual(p.For("opus4.kobv.de"), opus) {
 		t.Errorf("hosts %+v", p.Hosts)
 	}
 	if !p.Allows("example.org") || p.For("example.org").label() != "other" {
@@ -60,6 +64,36 @@ func TestParsePolicyFillsInWhatTheFileLeavesOut(t *testing.T) {
 	}
 	if len(p.Hosts) != 2 {
 		t.Errorf("hosts %v, want the file's two: they replace the built-in ones", p.Hosts)
+	}
+}
+
+func TestARejectListIsTheDefaultsUnlessTheHostGivesOneOfItsOwn(t *testing.T) {
+	p, err := ParsePolicy([]byte(`{
+		"default": {"reject": ["Wartungsarbeiten"]},
+		"hosts": {
+			"inherits.example": {"pause": "1s"},
+			"own.example": {"reject": ["Zugriff auf die Webseite eingeschränkt", "Bitte melden Sie sich an"]},
+			"none.example": {"reject": []}
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("ParsePolicy failed: %v", err)
+	}
+	for _, tc := range []struct {
+		host string
+		want []string
+	}{
+		{"inherits.example", []string{"Wartungsarbeiten"}},
+		{"other.example", []string{"Wartungsarbeiten"}},
+		{"own.example", []string{"Zugriff auf die Webseite eingeschränkt", "Bitte melden Sie sich an"}},
+		{"none.example", []string{}},
+	} {
+		if got := p.For(tc.host).Reject; !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: reject %q, want %q", tc.host, got, tc.want)
+		}
+	}
+	if p, err := ParsePolicy([]byte(`{}`)); err != nil || p.Default.Reject != nil {
+		t.Errorf("no reject anywhere: default %+v (err %v), want none", p.Default, err)
 	}
 }
 
@@ -168,6 +202,11 @@ func TestParsePolicyRejectsBrokenFiles(t *testing.T) {
 		{"an allow wildcard in the middle", `{"allow": ["www.*.org"]}`},
 		{"an empty user agent", `{"user_agent": ""}`},
 		{"a user agent with a line break", `{"user_agent": "Cortex\r\nX-Evil: 1"}`},
+		{"reject as a text", `{"default": {"reject": "Wartungsarbeiten"}}`},
+		{"an empty reject text", `{"default": {"reject": [""]}}`},
+		{"a host's empty reject text", `{"hosts": {"example.org": {"reject": ["Wartung", ""]}}}`},
+		{"a reject text over 1024 bytes", `{"default": {"reject": ["` + strings.Repeat("x", 1025) + `"]}}`},
+		{"over 100 reject texts", `{"default": {"reject": [` + strings.TrimSuffix(strings.Repeat(`"x",`, 101), ",") + `]}}`},
 	} {
 		if p, err := ParsePolicy([]byte(tc.file)); err == nil {
 			t.Errorf("%s: parsed as %+v, want an error", tc.name, p)

@@ -958,6 +958,124 @@ func TestTheRulesOfTheFirstHostHoldAtTheEndOfARedirect(t *testing.T) {
 	}
 }
 
+// blockedText and blockPage are the university's block page of the night to 2026-10-22, which
+// it served with 200 in place of every page, shortened.
+const (
+	blockedText = "Zugriff auf die Webseite eingeschränkt"
+	blockPage   = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Zugriff eingeschränkt</title></head>` +
+		`<body><main><img class="logo" src="firmenlogo.png" alt="Firmenlogo"><h1>` + blockedText + `</h1>` +
+		`<p>Bitte verbinden Sie sich mit dem BTU-VPN und laden Sie die Webseite anschließend erneut.</p></main></body></html>`
+)
+
+func TestAPageTheHostsRejectGivesAwayNeverReachesTheSink(t *testing.T) {
+	long := strings.Repeat("<p>Modul</p>", RejectScan/8) // longer than what is searched
+	late := strings.Repeat("x", RejectScan) + blockedText
+	f := newFakeHost(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		switch r.URL.Path {
+		case "/blocked":
+			_, _ = io.WriteString(w, blockPage)
+		case "/blocked-404":
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(w, blockPage)
+		case "/blocked-gzip":
+			w.Header().Set("Content-Encoding", "gzip")
+			_, _ = w.Write(gzipped(t, []byte(blockPage)))
+		case "/page":
+			_, _ = io.WriteString(w, long)
+		case "/late":
+			_, _ = io.WriteString(w, late)
+		case "/empty":
+			w.WriteHeader(http.StatusNoContent)
+		}
+	})
+	p := testPolicy(func(h *HostPolicy) { h.BreakerFailures = 100 })
+	btu := p.Default
+	btu.Reject = []string{"Wartungsarbeiten", blockedText}
+	p.Hosts["127.0.0.1"] = btu
+	u := newTestUpstream(t, Options{Policy: p})
+
+	// Whatever its status and its coding: a 404 would tell the client the page is gone.
+	for _, path := range []string{"/blocked", "/blocked-404", "/blocked-gzip"} {
+		var sink memSink
+		_, err := u.Fetch(context.Background(), Request{URL: f.srv.URL + path, Sink: sink.sink})
+		if !errors.Is(err, ErrRejected) || !strings.Contains(err.Error(), blockedText) {
+			t.Errorf("%s: err %v, want ErrRejected naming the text", path, err)
+		}
+		if sink.called() != 0 {
+			t.Errorf("%s: the block page went to the sink", path)
+		}
+	}
+
+	// A page without the texts reaches the Sink whole, the part read for the check included.
+	var page memSink
+	res, err := u.Fetch(context.Background(), Request{URL: f.srv.URL + "/page", Sink: page.sink})
+	if err != nil || res.Status != 200 || string(page.body) != long || res.Hash != hashOf([]byte(long)) || res.Size != int64(len(long)) {
+		t.Errorf("a page longer than RejectScan: got %+v (err %v, %d bytes), want it stored whole", res, err, len(page.body))
+	}
+	// Only the start is searched: a text further down belongs to the page.
+	var lateSink memSink
+	if _, err := u.Fetch(context.Background(), Request{URL: f.srv.URL + "/late", Sink: lateSink.sink}); err != nil || string(lateSink.body) != late {
+		t.Errorf("a text behind the first RejectScan bytes: err %v, %d bytes stored", err, len(lateSink.body))
+	}
+	if res, err := u.Fetch(context.Background(), Request{URL: f.srv.URL + "/empty", Sink: discardSink}); err != nil || res.Status != http.StatusNoContent {
+		t.Errorf("a 204: got %+v (err %v)", res, err)
+	}
+}
+
+func TestARejectedPageCountsAgainstTheHostsBreaker(t *testing.T) {
+	f := newFakeHost(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, blockPage)
+	})
+	u := newTestUpstream(t, Options{Policy: testPolicy(func(h *HostPolicy) {
+		h.BreakerFailures, h.BreakerPause = 2, time.Hour
+		h.Reject = []string{blockedText}
+	})})
+	for i := 1; i <= 2; i++ {
+		if _, err := u.Fetch(context.Background(), Request{URL: f.srv.URL + "/p", Sink: discardSink}); !errors.Is(err, ErrRejected) {
+			t.Fatalf("request %d: err %v, want ErrRejected", i, err)
+		}
+	}
+	var pe *PausedError
+	if _, err := u.Fetch(context.Background(), Request{URL: f.srv.URL + "/p", Sink: discardSink}); !errors.As(err, &pe) {
+		t.Errorf("after two block pages in a row: err %v, want *PausedError", err)
+	}
+	if n := f.count(); n != 2 {
+		t.Errorf("%d requests reached the host, want 2: a paused host is not asked", n)
+	}
+}
+
+func TestTheRejectOfTheFirstHostHoldsAtTheEndOfARedirect(t *testing.T) {
+	var port string
+	f := newFakeHost(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/module":
+			http.Redirect(w, r, "http://127.0.0.1:"+port+"/blocked", http.StatusFound)
+		case "/blocked":
+			_, _ = io.WriteString(w, blockPage)
+		}
+	})
+	port = f.srv.URL[strings.LastIndexByte(f.srv.URL, ':')+1:]
+	p := testPolicy(nil)
+	btu := p.Default
+	btu.Reject = []string{blockedText}
+	p.Hosts["localhost"] = btu // 127.0.0.1 has the default: no reject
+	u := newTestUpstream(t, Options{Policy: p})
+
+	var sink memSink
+	_, err := u.Fetch(context.Background(), Request{URL: "http://localhost:" + port + "/module", Sink: sink.sink})
+	if !errors.Is(err, ErrRejected) || !strings.Contains(err.Error(), "localhost") {
+		t.Errorf("a redirect to a block page on another host: err %v, want ErrRejected naming localhost", err)
+	}
+	if sink.called() != 0 {
+		t.Error("the block page went to the sink")
+	}
+	// The host at the end, asked itself, keeps its own rules.
+	if _, err := u.Fetch(context.Background(), Request{URL: f.srv.URL + "/blocked", Sink: discardSink}); err != nil {
+		t.Errorf("a host without reject: err %v", err)
+	}
+}
+
 // gzipped compresses b as one gzip member.
 func gzipped(t *testing.T, b []byte) []byte {
 	t.Helper()

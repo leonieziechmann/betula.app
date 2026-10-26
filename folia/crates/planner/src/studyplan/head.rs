@@ -900,9 +900,11 @@ pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
     });
     // What the semester hides (its events and Termine) and has chosen: siblings of the timetable,
     // both derived from the selection (R16).
-    let hides = Memo::new(move |_| ctx.selection.with(|(_, selection)| (selection.hidden_events.clone(), selection.hidden_rows.clone())));
+    let hides = Memo::new(move |_| ctx.selection.with(|(_, selection)| (selection.hidden_events.clone(), selection.hidden_rows.clone(), selection.hidden_dates.clone())));
     let hidden = Memo::new(move |_| {
-        hides.with(|(events, rows)| about.with(|about| ctx.table.with(|table| table.as_ref().map(|table| hidden_lines(table, events, rows, &about.titles, t)).unwrap_or_default())))
+        hides.with(|(events, rows, dates)| {
+            about.with(|about| ctx.table.with(|table| table.as_ref().map(|table| hidden_lines(table, (events, rows, dates), &about.titles, t)).unwrap_or_default()))
+        })
     });
     let parts = Memo::new(move |_| {
         let count = hidden.with(Vec::len);
@@ -937,6 +939,7 @@ pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
                     }
                 }
                 Unhide::Choice(id) => doc.choose(key, id, None),
+                Unhide::Date(row, day) => doc.set_date(key, row, day, false),
             });
         }
     };
@@ -983,6 +986,8 @@ enum Unhide {
     /// The dates of a series of single dates, which the plan hides as one Termin.
     Rows(Vec<RowKey>),
     Choice(u32),
+    /// One date of a Termin („Nur am 04.11. ausblenden").
+    Date(RowKey, Day),
 }
 
 /// One line of what is hidden: „Tutorium Mathematik IT-1 · Di 15:30".
@@ -1002,12 +1007,17 @@ fn row_when(row: &Row, series: bool, locale: Locale) -> String {
     parts.join(" ")
 }
 
-/// The lines of what is hidden (A.3): each hidden event, each hidden Termin and each made choice
-/// of the semester's timetable (the hidden dates of a series of single dates one Termin), exams
-/// included, in the timetable's order. `events` and `rows` are
-/// what the semester hides; a choice is the timetable's own (`Event::chosen`). Hidden kinds keep
-/// their chips in the sidebar. Titles are the modules' (`titles`).
-fn hidden_lines(table: &Timetable, events: &BTreeSet<u32>, rows: &BTreeSet<RowKey>, titles: &BTreeMap<String, String>, t: &i18n::Texts) -> Vec<HiddenLine> {
+/// What a semester hides, as its selection keeps it: events, Termine, single dates of a Termin.
+type Hides<'a> = (&'a BTreeSet<u32>, &'a BTreeSet<RowKey>, &'a BTreeSet<(RowKey, Day)>);
+
+/// The lines of what is hidden (A.3): each hidden event, each hidden Termin, each made choice
+/// (the options ticked, „nur Mo 15:30, Di 9:15") and each hidden date of the semester's timetable
+/// (the hidden dates of a series of single dates one Termin), exams included, in the timetable's
+/// order. `hides` are what the semester hides; a choice is the timetable's own
+/// (`Event::chosen`). Hidden kinds keep their chips in the sidebar. Titles are the modules'
+/// (`titles`).
+fn hidden_lines(table: &Timetable, hides: Hides<'_>, titles: &BTreeMap<String, String>, t: &i18n::Texts) -> Vec<HiddenLine> {
+    let (events, rows, dates) = hides;
     let title = |modules: &[String], fallback: &str| modules.first().and_then(|module| titles.get(module)).cloned().unwrap_or_else(|| fallback.to_string());
     let mut lines = Vec::new();
     let mut seen = BTreeSet::new();
@@ -1036,9 +1046,28 @@ fn hidden_lines(table: &Timetable, events: &BTreeSet<u32>, rows: &BTreeSet<RowKe
             };
             lines.push(HiddenLine { text: format!("{name} · {when}"), unhide });
         }
-        if let (Some(option), Some(id)) = (event.chosen, id) {
-            let when = event.rows.iter().find(|row| row.option == Some(option)).map(|row| row_when(row, row.date.series.is_some(), t.locale)).unwrap_or_default();
-            lines.push(HiddenLine { text: format!("{name} · {}", (t.studyplan_head.only)(&when)), unhide: Unhide::Choice(id) });
+        if let (false, Some(id)) = (event.chosen.is_empty(), id) {
+            let whens: Vec<String> = event
+                .chosen
+                .iter()
+                .filter_map(|option| event.rows.iter().find(|row| row.option == Some(*option)))
+                .map(|row| row_when(row, row.date.series.is_some(), t.locale))
+                .collect();
+            lines.push(HiddenLine { text: format!("{name} · {}", (t.studyplan_head.only)(&whens.join(", "))), unhide: Unhide::Choice(id) });
+        }
+        let mut gone: Vec<(RowKey, Day, &Row)> = Vec::new();
+        for row in &event.rows {
+            let Some(key) = row.key else { continue };
+            for (_, day) in dates.range((key, Day(i32::MIN))..=(key, Day(i32::MAX))) {
+                if !gone.iter().any(|(other, at, _)| *other == key && at == day) {
+                    gone.push((key, *day, row));
+                }
+            }
+        }
+        gone.sort_by_key(|(_, day, row)| (*day, row.from));
+        for (key, day, row) in gone {
+            let when: Vec<String> = [Some(weekday_name(day.weekday(), t.locale).to_string()), Some(day.day_month(t.locale)), row.from.map(clock)].into_iter().flatten().collect();
+            lines.push(HiddenLine { text: format!("{name} · {}", when.join(" ")), unhide: Unhide::Date(key, day) });
         }
     }
     for exam in &table.exams {
@@ -1217,7 +1246,7 @@ mod tests {
             attendance,
             across: None,
             extra: false,
-            chosen: None,
+            chosen: BTreeSet::new(),
             rows,
             hidden: None,
             source_url: None,
@@ -1488,7 +1517,7 @@ mod tests {
             events: vec![
                 event("150132", "Tutorium", "11112", vec![dated(row("150132", 7, 2, ("15:30", "17:00"), "weekly", None), "2026-10-13")], Attendance::All),
                 Event {
-                    chosen: Some(0),
+                    chosen: BTreeSet::from([0, 1]),
                     ..event(
                         "148369",
                         "Übung",
@@ -1503,22 +1532,35 @@ mod tests {
         };
         let events: BTreeSet<u32> = [150132].into_iter().collect();
         let rows: BTreeSet<RowKey> = [RowKey { event: 150132, fp: 7 }, RowKey { event: 148019, fp: 3 }].into_iter().collect();
-        let lines = hidden_lines(&table, &events, &rows, &about.titles, &DE);
+        // Two dates of the Monday group hidden, the later one first: they read in their order.
+        let dates: BTreeSet<(RowKey, Day)> = [(RowKey { event: 148369, fp: 1 }, day("2026-11-02")), (RowKey { event: 148369, fp: 1 }, day("2026-10-19"))].into_iter().collect();
+        let lines = hidden_lines(&table, (&events, &rows, &dates), &about.titles, &DE);
         let texts: Vec<(&str, Unhide)> = lines.iter().map(|line| (line.text.as_str(), line.unhide.clone())).collect();
         assert_eq!(
             texts,
             vec![
                 ("Tutorium Mathematik IT-1", Unhide::Event(150132)),
                 ("Tutorium Mathematik IT-1 · Di 15:30", Unhide::Row(RowKey { event: 150132, fp: 7 })),
-                ("Übung Entwicklung von Softwaresystemen · nur Mo 15:30", Unhide::Choice(148369)),
+                ("Übung Entwicklung von Softwaresystemen · nur Mo 15:30, Di 11:30", Unhide::Choice(148369)),
+                ("Übung Entwicklung von Softwaresystemen · Mo 19.10. 15:30", Unhide::Date(RowKey { event: 148369, fp: 1 }, day("2026-10-19"))),
+                ("Übung Entwicklung von Softwaresystemen · Mo 02.11. 15:30", Unhide::Date(RowKey { event: 148369, fp: 1 }, day("2026-11-02"))),
                 ("Übung Entwicklung von Softwaresystemen · Di 23.02. 11:45", Unhide::Row(RowKey { event: 148019, fp: 3 })),
             ]
         );
-        let english: Vec<String> = hidden_lines(&table, &events, &rows, &about.titles, &EN).into_iter().map(|line| line.text).collect();
-        assert_eq!(english[1..], ["Tutorium Mathematik IT-1 · Tue 15:30", "Übung Entwicklung von Softwaresystemen · only Mon 15:30", "Übung Entwicklung von Softwaresystemen · Tue 23 Feb 11:45"]);
+        let english: Vec<String> = hidden_lines(&table, (&events, &rows, &dates), &about.titles, &EN).into_iter().map(|line| line.text).collect();
+        assert_eq!(
+            english[1..],
+            [
+                "Tutorium Mathematik IT-1 · Tue 15:30",
+                "Übung Entwicklung von Softwaresystemen · only Mon 15:30, Tue 11:30",
+                "Übung Entwicklung von Softwaresystemen · Mon 19 Oct 15:30",
+                "Übung Entwicklung von Softwaresystemen · Mon 2 Nov 15:30",
+                "Übung Entwicklung von Softwaresystemen · Tue 23 Feb 11:45"
+            ]
+        );
         // Nothing hidden, nothing chosen: no line.
-        let calm = Timetable { events: table.events.iter().cloned().map(|event| Event { chosen: None, ..event }).collect(), ..table };
-        assert!(hidden_lines(&calm, &BTreeSet::new(), &BTreeSet::new(), &about.titles, &DE).is_empty());
+        let calm = Timetable { events: table.events.iter().cloned().map(|event| Event { chosen: BTreeSet::new(), ..event }).collect(), ..table };
+        assert!(hidden_lines(&calm, (&BTreeSet::new(), &BTreeSet::new(), &BTreeSet::new()), &about.titles, &DE).is_empty());
     }
 
     /// The hidden dates of a series of single dates are one line, as the panel hides them, and
@@ -1540,7 +1582,7 @@ mod tests {
         let key = |fp: u32| RowKey { event: 148020, fp };
         let named = |hidden: &[u32]| -> Vec<(String, Unhide)> {
             let rows: BTreeSet<RowKey> = hidden.iter().map(|fp| key(*fp)).collect();
-            hidden_lines(&table, &BTreeSet::new(), &rows, &about.titles, &DE).into_iter().map(|line| (line.text, line.unhide)).collect()
+            hidden_lines(&table, (&BTreeSet::new(), &rows, &BTreeSet::new()), &about.titles, &DE).into_iter().map(|line| (line.text, line.unhide)).collect()
         };
         let name = "Übung Entwicklung von Softwaresystemen";
         assert_eq!(named(&[10, 11, 12]), vec![(format!("{name} · Di 11:45"), Unhide::Rows(vec![key(10), key(11), key(12)]))]);
