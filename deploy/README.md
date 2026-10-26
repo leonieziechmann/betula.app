@@ -885,6 +885,7 @@ reaches the university.
 | a release that is loaded already, the rollback | `bash /opt/betula/vps/48-cortex.sh <tag>` (`docker image ls betula-cortex`) |
 | a change to `stacks/cortex.yml` | sync, `bash /opt/betula/vps/48-cortex.sh` (the release that runs) |
 | the host policy | `config/cortex/hosts.json`, sync: read again within 30 s, no restart (`docs/cortex/cortex.md` §5) |
+| a host serves a block or maintenance page in place of its pages | its text into the host's `reject` in `config/cortex/hosts.json`, sync: such an answer is `502 rejected`, never stored, and Radix keeps the page it has (`docs/cortex/cortex.md` §5; the BTU's of 2026-10-22 is there). Logs: `upstream.failed` with `code=rejected` |
 | a follower that fetches the blobs of a whole index (a fresh volume, away more than 7 days) | `CATCHUP_TIMEOUT=3600 bash /opt/betula/vps/48-cortex.sh <tag>` goes on where a stopped run ended (default 600 s) |
 | a follower that cannot reach the leader | `48-cortex.sh` stops after `STALL_TIMEOUT` (60 s) of `no_leader`, or of no progress while its lag grows, and names the leader's URL: `docker service logs cortex_X 2>&1 \| grep replica.failed`, not a longer `CATCHUP_TIMEOUT`. One huge blob (a model of gigabytes) may need `STALL_TIMEOUT=<seconds>` |
 | an update that failed | swarm rolled the instance back (the other one is untouched, the script exits 1); it shows `rollback_completed` until its next update, still counts as running for `50-app.sh` and is a WARN in `91-verify-stacks.sh cortex` (a FAIL in section services). The previous tag again, or a fixed one |
@@ -954,6 +955,9 @@ answers. Cortex's `ERROR` lines reach the log alert like every stack's (`stack=~
 - **Polite for everybody together.** One floor per host (`concurrency`, `pause`, a breaker) for
   every client, so two colours that crawl do not add up; what was fetched within the hour is not
   fetched again.
+- **A block page is no page.** What a host's `reject` names (the university's „Zugriff auf die
+  Webseite eingeschränkt“) is not stored and not handed on as the page, and ten in a row pause the
+  host: the archive keeps the pages it had.
 - **Not covered.** The host itself: both instances are on it. And backups: none exist yet
   (section 8); the volumes `cortex_a-data` and `cortex_b-data` are worth one (either is enough).
   The follower is no backup: a deletion, or a bug that writes wrong data, replicates to it.
