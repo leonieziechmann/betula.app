@@ -8,8 +8,8 @@
 // day without a study. The app keeps the photo of the days ahead, which the server's page then
 // shows before the app has started. On a wide screen the page runs under the bar as on a phone,
 // the frost behind the bar once it is scrolled. The ground names who took the photo shown. On a phone the photo reaches up under the
-// search without the crown's leaves, which slide down with the scroll as the photo leaves the bar,
-// no faster than their most on a quick swipe; once a page is scrolled the frost lies under the
+// search without the crown's leaves, which slide down the whole way once the photo has left the
+// bar, in 150 ms, on a quick swipe as well; once a page is scrolled the frost lies under the
 // search, on the start page as on the catalog's. Nothing loads a page. („Über Betula", what the
 // start page said until then, is `e2e/about.mjs`.)
 // Needs radix serve-snapshot + folia running and a fresh `bash scripts/build-client.sh`.
@@ -261,12 +261,17 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
   await settle();
   const down = await bar();
   check(down.frost === "1" && down.leaves === "0" && down.tint === "0" && down.height === still.height, `phone: no frost over the photo once scrolled, or leaves over it: ${JSON.stringify(down)}`);
-  // The photo's end half the leaves' height above the bar's: the leaves half down, the frost's
-  // colour half come (a scroll animation, owner 2026-10-26).
-  await pastPhoto(32);
+  // A breaking point, not the scroll (owner, 2026-10-26: „dass die Animation nicht mit dem scrollen
+  // mitläuft, sondern dass es einen breaking point gibt, wo die dann umschaltet"): the photo's end
+  // 8 px short of the bar's, no leaves yet; 4 px past it, the leaves and the frost's colour the
+  // whole way.
+  await pastPhoto(-8);
   await settle();
-  const half = await bar();
-  check(Math.abs(Number(half.leaves) - 0.5) < 0.06 && half.tint === half.leaves && half.height === still.height, `phone: the leaves do not come down with the scroll past the photo: ${JSON.stringify(half)}`);
+  const short = await bar();
+  await pastPhoto(4);
+  await settle();
+  const over = await bar();
+  check(short.leaves === "0" && short.tint === "0" && over.leaves === "1" && over.tint === "1" && over.height === still.height, `phone: the leaves do not switch where the photo leaves the bar: ${JSON.stringify([short, over])}`);
   // Past the photo: the leaves of every page, the frost in its colour.
   await pastPhoto(120);
   await settle();
