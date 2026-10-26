@@ -2268,15 +2268,19 @@
   // animation aber mit einem max speed, wenn jemand schnell scrolled"; on a wide screen the same:
   // „die animation für die Blätter gibt es auch immer noch nicht"): `--leaves` on the crown and
   // the frost, from 0 to 1 over the leaves' height of the scroll (LEAVES_WAY), the frost's colour
-  // coming with them; but never faster than the whole way in a quarter of a second
-  // (LEAVES_FAST), so that a quick swipe shows them come instead of just being there, and they
-  // catch up with the page. On every other page they are there (1), and a page that comes in front
-  // brings them as fast. Where less motion is wanted they are there or not, at once. On the
-  // server's page and in the app alike, a page in front of another as well (its stage gives the
-  // window its own scroll); the app's crown, new at the takeover, is told where they are as it
-  // comes (the body's children).
+  // coming with them; but never faster than the whole way in 150 ms (LEAVES_FAST; a quarter of a
+  // second until the owner, the same day: „Ich will schon dass sich das snappy anfühlt. Aber dass
+  // wenn man mal bild runter drückt das nicht sofort da ist, vielleicht so 100-200ms"), so that a
+  // quick swipe or Bild ↓ shows them come instead of just being there, and they catch up with the
+  // page. On every other page they are there (1), and a page that comes in front brings them as
+  // fast. Whatever the system's setting on motion: where less of it was wanted they were there or
+  // not, at once, and the owner, who has it so, took that for no animation at all („das mit
+  // weniger bewegung war richtig. Aber ich finde das sollte nicht dazu gehören"). On the server's
+  // page and in the app alike, a page in front of another as well (its stage gives the window its
+  // own scroll); the app's crown, new at the takeover, is told where they are as it comes (the
+  // body's children).
   const LEAVES_WAY = 64; // px: the leaves' height (app.css `.crown::before`)
-  const LEAVES_FAST = 4; // the whole way per second at most
+  const LEAVES_FAST = 1000 / 150; // the whole way per second at most: in 150 ms
   let leavesShown = null;
   let leavesTarget = 1;
   let leavesFrame = 0;
@@ -2338,8 +2342,7 @@
       leaves = Math.min(Math.max(past / LEAVES_WAY, 0), 1);
     }
     if (root.hasAttribute("data-photo-gone") !== gone) root.toggleAttribute("data-photo-gone", gone);
-    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    leavesTo(still ? (gone ? 1 : 0) : leaves, still);
+    leavesTo(leaves, false);
   };
   const frostSoon = () => { if (!frostFrame) frostFrame = requestAnimationFrame(frost); };
   addEventListener("scroll", frostSoon, { passive: true });

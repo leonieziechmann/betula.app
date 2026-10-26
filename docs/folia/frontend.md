@@ -3076,13 +3076,16 @@ the visitor now; what it said of Betula moved to „Über Betula" (`/about`, bel
   „wenn die main box of screen geht dann so die blätter von den anderen seiten engeblendet werden
   mit einer animation", and of that fade: „dass sich die blätter von oben rein schieben beim
   handy. Als scroll animation aber mit einem max speed, wenn jemand schnell scrolled"). Never
-  faster than the whole way in a quarter of a second: a quick swipe shows them come and catch up
-  with the page instead of just being there. `--leaves` on the crown and the frost, from 0 to 1
-  (enhance.js; the stylesheet has 0 while the photo lies under the bar, `data-photo-gone`, for
-  the server's page and the app's first frame); where less motion is wanted they do not slide but
-  fade where they hang, in a quarter of a second, the frost's colour with them (a fade moves
-  nothing; every other transition stops there). The panels in one column; the actions of a step across the width, „Studium
-  anlegen" first.
+  faster than the whole way in 150 ms: a quick swipe or Bild ↓ shows them come and catch up with
+  the page instead of just being there (a quarter of a second until the owner, the same day: „Ich
+  will schon dass sich das snappy anfühlt. Aber dass wenn man mal bild runter drückt das nicht
+  sofort da ist, vielleicht so 100-200ms"). `--leaves` on the crown and the frost, from 0 to 1
+  (enhance.js, frame by frame; the stylesheet has 0 while the photo lies under the bar,
+  `data-photo-gone`, for the server's page and the app's first frame). Whatever the system's
+  setting on motion: where less of it was wanted they were there or not, at once, and the owner,
+  who has it so, took that for no animation at all („das mit weniger bewegung war richtig. Aber
+  ich finde das sollte nicht dazu gehören"). The panels in one column; the actions of a step
+  across the width, „Studium anlegen" first.
 - **A wide screen**: the photo reaches up behind the bar to the window's edge as on a phone, and
   across from the rail to the window's right edge, its lower corners round, its content where it
   stood, in line with the panels below (owner, 2026-10-26: „Jo mach mal den hero banner beim Pc
@@ -3141,8 +3144,8 @@ the season's photo with its name in the ground, the day at once (the days ahead 
 server's page with the app's photo in it before the app has started, but not in another
 language), on a wide screen the page under the bar with the frost behind it once scrolled (at its
 top the page where it stood, the frost gone), the photo up to the window's edge with the bar's
-words light and no leaves, the blur alone over it, past it the leaves and the frost's colour, and
-on a phone the photo under the search, the frost once scrolled, the
+words light and no leaves, the blur alone over it, past it the leaves and the frost's colour, a
+jump past it sliding them in where less motion is wanted as well, and on a phone the photo under the search, the frost once scrolled, the
 leaves halfway down with half their height of the scroll past the photo and all the way past it,
 no faster than their most on a quick swipe, and the catalog's bar with its leaves and the frost
 under them.

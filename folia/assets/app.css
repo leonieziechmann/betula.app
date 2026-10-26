@@ -493,15 +493,10 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
    start page, below; else 1). */
 .frost::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--bg) 76%, transparent); opacity: var(--leaves, 1); }
 /* The leaves slide down from above the window, their whole height, as far as `--leaves` says, from
-   0 to 1 (set on the crown and the frost, enhance.js): 1 on every page, on the start page as far as
-   it has gone on past its photo (below). The frost's colour comes with them. */
+   0 to 1 (set on the crown and the frost, enhance.js, frame by frame, so whatever the system's
+   setting on motion): 1 on every page, on the start page as far as it has gone on past its photo
+   (below). The frost's colour comes with them. */
 .crown::before, .crown::after { translate: 0 calc((var(--leaves, 1) - 1) * 100%); }
-/* Where less motion is wanted (the system's setting) they do not slide: they come and go in a
-   quarter of a second where they hang, the frost's colour with them (enhance.js sets them at
-   once). */
-@media (prefers-reduced-motion: reduce) {
-  .crown::before, .crown::after { translate: none; opacity: var(--leaves, 1); }
-}
 @media (max-width: 900px) {
   /* On a phone the crown hangs over the page and under the search, and under both lies the frost
      (`ground::Crown`): once the window is scrolled (`data-scrolled`, enhance.js), a blur over what
@@ -6102,9 +6097,6 @@ a.st-rsp-name:hover { text-decoration: underline; }
    visitor scrolls (owner, 2026-09-30: with less motion it stayed down behind the ground). The start
    of the installed app keeps the fade that takes it away without enhance.js (.launch). */
 @media (prefers-reduced-motion: reduce) { *:not(.wood, .launch), *::before, *::after { animation: none !important; transition: none !important; } }
-/* But for the crown's leaves and the frost's colour, which fade where they hang instead of sliding
-   (the crown, above): a fade moves nothing, and without it they would just be there. */
-@media (prefers-reduced-motion: reduce) { .crown::before, .crown::after, .frost::after { transition: opacity .25s !important; } }
 @media print { .rail, .topbar, .filters, .bottomnav, .pager, .crown, .ground, .to-top, .wood { display: none !important; } body { display: block; background: #fff; } .main { height: auto; display: block; } }
 
 /* ---------- the start page: the day and the setup (concept A, 2026-10-20) ----------
