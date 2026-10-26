@@ -57,7 +57,7 @@ use folia_calendar::select::HiddenBy;
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::Rhythm;
 use folia_model::rows_detail::EventDate;
-use folia_plans::studyplan::PlanDoc;
+use folia_plans::studyplan::{CalendarView, PlanDoc};
 use folia_routes::url::{self, StudyplanUrl};
 use folia_timetable::choice;
 use folia_timetable::clash::Weeks;
@@ -75,7 +75,7 @@ use crate::i18n::{self, Locale};
 use folia_design::nav;
 use folia_shell::pending::Pending;
 use folia_design::ui::Icon;
-use folia_widgets::week::{slot_buttons, GridSlot, SlotButton, WeekGrid};
+use folia_widgets::week::{slot_buttons, GridBand, GridSlot, SlotButton, WeekGrid};
 use super::head::{hue, kind_word, tone_at, MarkedModule, NothingPlanned};
 use super::PlanCtx;
 
@@ -89,6 +89,10 @@ const DAYS_ID: &str = "sp-days";
 /// The module beside the plan and the Termin its panel points at, or (no module) the Termin in its
 /// own view.
 type Picked = (Option<String>, Option<RowKey>);
+
+/// What the calendars of one's own add to a week: their slots and the stretches free in all of
+/// them (`calendars::layer`).
+type Layer = Memo<(Vec<GridSlot>, Vec<GridBand>)>;
 
 /// „Woche": the Regelwoche as a grid that fits the page's height (`WeekGrid`'s `fit`, in
 /// `div.sp-week`), on a phone as a grid that fits the screen over the list of its days (in
@@ -135,6 +139,19 @@ pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl In
         let shown = ctx.weeks.get();
         weeks.iter().find(|(week, _)| *week == shown).map(|(_, slots)| slots.get()).unwrap_or_default()
     });
+    // What the calendars of one's own add to each week (`calendars::layer`): their slots, and with
+    // „Gemeinsam frei" the stretches every calendar in the week has free. Siblings of the plan's
+    // slots, of the same sources (R16); behind a choice in focus they step back with the plan.
+    let layers: [Layer; 3] = WEEKS.map(|week| {
+        Memo::new(move |_| {
+            let (together, focused) = (ctx.together.get(), wahl.with(Option::is_some));
+            ctx.calendars.with(|calendars| ctx.table.with(|table| super::calendars::layer(calendars, table.as_ref(), week, together, focused, t)))
+        })
+    });
+    let layer = Memo::new(move |_| {
+        let shown = ctx.weeks.get();
+        WEEKS.iter().position(|week| *week == shown).and_then(|at| layers.get(at)).map(|layer| layer.get()).unwrap_or_default()
+    });
     let empty = Memo::new(move |_| ctx.wanted.with(|wanted| wanted.1.is_empty()));
     let nothing = move || empty.get().then(|| view! { <NothingPlanned ctx marked/> });
     // The buttons of the slots, one listener for all of them: a click changes the plan after the
@@ -161,7 +178,7 @@ pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl In
         }
         if ctx.phone.get() {
             return view! {
-                <WeekCarousel ctx weeks shown=slots picked/>
+                <WeekCarousel ctx weeks layers shown=slots layer picked/>
                 {move || {
                     (rows.get() > 0).then(|| {
                         view! {
@@ -192,11 +209,14 @@ pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl In
         }
         let grid = Signal::derive(move || {
             let picked = picked.get();
-            slots.with(|slots| slots.iter().map(|slot| GridSlot { current: slot.row.is(&picked), href: linked(&slot.slot, t), ..slot.slot.clone() }).collect::<Vec<_>>())
+            let mut grid: Vec<GridSlot> = slots.with(|slots| slots.iter().map(|slot| GridSlot { current: slot.row.is(&picked), href: linked(&slot.slot, t), ..slot.slot.clone() }).collect());
+            layer.with(|(calendars, _)| grid.extend(calendars.iter().cloned()));
+            grid
         });
+        let bands = Signal::derive(move || layer.with(|(_, bands)| bands.clone()));
         view! {
             <div class="sp-week" on:click=act>
-                <WeekGrid slots=grid fit=true/>
+                <WeekGrid slots=grid bands fit=true/>
                 {nothing}
             </div>
         }
@@ -229,17 +249,21 @@ pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl In
 /// large as a finger (in a day's narrow column they would cover the slot). With nothing planned
 /// there is no week (`WeekView`).
 #[component]
-fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], shown: Memo<Vec<PlanSlot>>, picked: Memo<Picked>) -> impl IntoView {
+fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: [Layer; 3], shown: Memo<Vec<PlanSlot>>, layer: Layer, picked: Memo<Picked>) -> impl IntoView {
     let t = i18n::t();
     let ab = Memo::new(move |_| ctx.table.with(|table| table.as_ref().is_some_and(has_ab)));
     let current = Memo::new(move |_| week_at(ctx.weeks.get()));
-    // A grid of the carousel: its slots, the one beside the plan marked, without buttons.
-    let grid = move |slots: Memo<Vec<PlanSlot>>| {
+    // A grid of the carousel: its slots, the one beside the plan marked, without buttons, and what
+    // the calendars of one's own add to its week.
+    let grid = move |slots: Memo<Vec<PlanSlot>>, layer: Layer| {
         Signal::derive(move || {
             let picked = picked.get();
-            slots.with(|slots| slots.iter().map(|slot| GridSlot { current: slot.row.is(&picked), href: linked(&slot.slot, t), acts: Vec::new(), asks: false, ..slot.slot.clone() }).collect::<Vec<_>>())
+            let mut grid: Vec<GridSlot> = slots.with(|slots| slots.iter().map(|slot| GridSlot { current: slot.row.is(&picked), href: linked(&slot.slot, t), acts: Vec::new(), asks: false, ..slot.slot.clone() }).collect());
+            layer.with(|(calendars, _)| grid.extend(calendars.iter().cloned()));
+            grid
         })
     };
+    let bands = |layer: Layer| Signal::derive(move || layer.with(|(_, bands)| bands.clone()));
     // To the week at `to` of `WEEKS`; the ends stay where they are.
     let go = move |to: usize| {
         if let Some(week) = WEEKS.get(to) {
@@ -299,7 +323,7 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], shown: M
         remember(Within::Grid, &ev);
     };
     // A week of the carousel, named by `label`; the grid alone has no name but the page's.
-    let slide = move |at: Signal<i32>, label: Option<&'static str>, slots: Memo<Vec<PlanSlot>>| {
+    let slide = move |at: Signal<i32>, label: Option<&'static str>, slots: Memo<Vec<PlanSlot>>, layer: Layer| {
         view! {
             <div
                 class="sp-slide"
@@ -313,7 +337,7 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], shown: M
                 inert=move || (at.get() != 0).then_some("")
             >
                 <div class="sp-week">
-                    <WeekGrid slots=grid(slots) fit=true/>
+                    <WeekGrid slots=grid(slots, layer) bands=bands(layer) fit=true/>
                 </div>
             </div>
         }
@@ -329,7 +353,7 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], shown: M
                         remember(Within::Grid, &ev);
                     }
                 >
-                    {slide(Signal::stored(0), None, shown)}
+                    {slide(Signal::stored(0), None, shown, layer)}
                 </div>
             }
             .into_any();
@@ -337,12 +361,13 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], shown: M
         let slides = WEEKS
             .into_iter()
             .zip(weeks)
+            .zip(layers)
             .enumerate()
-            .map(|(i, (week, (_, slots)))| {
+            .map(|(i, ((week, (_, slots)), layer))| {
                 // Its place counted from the week shown: 0 in the middle, ±1 at the sides, ±2 out of
                 // sight at the side it lies on.
                 let at = Signal::derive(move || place_of(i, current.get()));
-                slide(at, Some(week_label(week, t)), slots)
+                slide(at, Some(week_label(week, t)), slots, layer)
             })
             .collect_view();
         view! {
@@ -1015,6 +1040,7 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
         tick: None,
         dim: false,
         pre: None,
+        badge: None,
     };
     let row = DayRow {
         day: item.day,
@@ -1029,6 +1055,35 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
         acts: Vec::new(),
     };
     Some(PlanSlot { slot, row, key: String::new(), acts: Vec::new(), weeks: item.weeks, opens: groups && shown.key.is_some() })
+}
+
+/// The slots of a calendar of one's own in the week `shown` (`calendars.rs`): its Termine drawn
+/// as the plan's are, in its colour, without links or buttons; in full outlined with its initial
+/// (`cal`), as a strip at the edge of each day (`strip`) only what stands firm (no group of a
+/// choice still open, no extra). Behind a choice in focus they step back with the plan (`dim`).
+/// Their tooltip begins with the calendar's name.
+pub(super) fn calendar_slots(table: &Timetable, titles: &BTreeMap<String, String>, shown: Weeks, calendar: &super::calendars::Shown, dim: bool, t: &i18n::Texts) -> Vec<GridSlot> {
+    let strip = calendar.view == CalendarView::Strip;
+    let base = StudyplanUrl::default();
+    table
+        .regular_week()
+        .iter()
+        .filter(|item| item.in_week(shown) && (!strip || (item.alt.is_none() && !item.extra)))
+        .filter_map(|item| {
+            let slot = drawn_slot(table, &base, item, titles, &[], t)?.slot;
+            Some(GridSlot {
+                class: if strip { "strip" } else { "cal" },
+                hue: Some(calendar.hue),
+                mark: None,
+                href: None,
+                title: format!("{} · {}", calendar.name, slot.title),
+                clash: false,
+                dim,
+                badge: (!strip).then(|| calendar.initial.clone()),
+                ..slot
+            })
+        })
+        .collect()
 }
 
 /// „Alle Termine": the slots of what the plan leaves out, held in the week `shown` — a hidden

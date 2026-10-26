@@ -3,7 +3,8 @@
 //! `folia_timetable::i18n`.)
 
 pub struct Texts {
-    /// „Kalender": the group's heading.
+    /// „In deinen Kalender": the group's heading (the calendars of one's own are „Kalender",
+    /// `studyplan_calendars`).
     pub calendar: &'static str,
     /// „.ics herunterladen" …
     pub download: &'static str,
@@ -33,7 +34,7 @@ pub struct Texts {
 }
 
 pub const DE: Texts = Texts {
-    calendar: "Kalender",
+    calendar: "In deinen Kalender",
     download: ".ics herunterladen",
     not_yet: "noch keine Termine",
     none: "keine Termine",
@@ -51,7 +52,7 @@ pub const DE: Texts = Texts {
 };
 
 pub const EN: Texts = Texts {
-    calendar: "Calendar",
+    calendar: "Into your calendar",
     download: "Download .ics",
     not_yet: "no dates yet",
     none: "no dates",

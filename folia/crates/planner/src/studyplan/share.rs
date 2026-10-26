@@ -3,17 +3,22 @@
 //! take its modules over.
 //!
 //! The link is the visitor's own act, and the exception R20 makes for it is what it carries: the
-//! semester, the planned modules in their order and the timetable's program — so that the preview
-//! a messenger shows of it names the modules („MIT-1, AuP, EEG"), which the messenger can read
-//! from the address alone. Nothing of what is hidden or chosen travels.
+//! semester, the planned modules in their order, the timetable's program — so that the preview a
+//! messenger shows of it names the modules („MIT-1, AuP, EEG"), which the messenger can read from
+//! the address alone — and the groups ticked, so that whoever opens it can put the plan beside
+//! their own as a calendar with its owner's groups (`calendars.rs`). Nothing of what is hidden
+//! travels.
 //!
 //! The offer stands at the top of the plan while the address carries a code, as the Merkliste
 //! offers a list from a link: „Übernehmen" plans the modules the plan does not have yet into the
-//! semester, after the next frame (R21), with the program where the plan has none; „Verwerfen"
-//! leaves the plan as it is. Either takes the code out of the address, in the same history entry.
-//! Where the offer stood, „Aus dem Link übernommen: 6 Module" then answers with „Rückgängig"
-//! (`PlanCtx::undo`, which the import and „Plan leeren" share) until the next change of the kind.
-//! A code of another semester than the one the page shows is only named: the page has no other.
+//! semester, after the next frame (R21), with the program where the plan has none; „Als Kalender"
+//! puts the plan beside one's own as a calendar, with its groups (`calendars.rs`; a plan of another
+//! semester too, which then stands in the week once the page shows that semester); „Verwerfen"
+//! leaves the plan as it is. Each takes the code out of the address, in the same history entry.
+//! Where the offer stood, „Aus dem Link übernommen: 6 Module" or „Als Kalender angelegt: Kalender
+//! 2" then answers with „Rückgängig" (`PlanCtx::undo`, which the import and „Plan leeren" share)
+//! until the next change of the kind. A code of another semester than the one the page shows is
+//! otherwise only named: the page has no other.
 //!
 //! The link copied is in the page's language (`/en/studyplan?share=…`), so that whoever opens it
 //! reads the offer in the language it was handed on in.
@@ -37,7 +42,11 @@ use super::PlanCtx;
 pub(super) fn ShareAction(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let s = &t.studyplan_share;
-    let link = Memo::new(move |_| ctx.wanted.with(|(key, ids, program)| share_path(*key, ids, program.as_deref())));
+    // The groups ticked of the semester shown: the selection is a sibling of `wanted` (R16).
+    let link = Memo::new(move |_| {
+        let chosen = ctx.selection.with(|(_, selection)| selection.chosen_rows.clone());
+        ctx.wanted.with(|(key, ids, program)| share_path(*key, ids, program.as_deref(), chosen))
+    });
     move || match link.get() {
         Some(link) => view! {
             <a class="action" href="#" data-action="copy-text" data-absolute="" data-text=t.path(&link) title=s.link_title>
@@ -53,10 +62,11 @@ pub(super) fn ShareAction(ctx: PlanCtx) -> impl IntoView {
     }
 }
 
-/// The address that hands the modules `ids` of the semester `key` on, named as in `program`; `None`
-/// when none of them can travel. A path of the app: the link writes it as `t.path(…)`.
-fn share_path(key: folia_calendar::semester::SemesterKey, ids: &[String], program: Option<&str>) -> Option<String> {
-    let code = SharedPlan::of(key, ids, program)?.code().ok()?;
+/// The address that hands the modules `ids` of the semester `key` on, named as in `program`, with
+/// the groups `chosen` ticked as far as the code carries them; `None` when no module can travel. A
+/// path of the app: the link writes it as `t.path(…)`.
+fn share_path(key: folia_calendar::semester::SemesterKey, ids: &[String], program: Option<&str>, chosen: impl IntoIterator<Item = folia_calendar::rowkey::RowKey>) -> Option<String> {
+    let code = SharedPlan::of(key, ids, program)?.with_chosen(chosen).code().ok()?;
     Some(folia_routes::url::share_path(&code))
 }
 
@@ -150,9 +160,36 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
         });
     };
     let dismiss = move |_| leave();
+    // „Als Kalender": the plan of the link beside one's own, not in it (`calendars.rs`), with the
+    // groups it ticked; „Rückgängig" puts the plan back as it was. The eighth calendar is the last.
+    let made = RwSignal::new(None::<String>);
+    let room = Memo::new(move |_| ctx.calendars.with(Vec::len) < folia_plans::studyplan::MAX_CALENDARS);
+    let as_calendar = move |_| {
+        if busy.get_untracked() {
+            return;
+        }
+        let Some((plan, _)) = shared.get_untracked() else { return };
+        busy.set(true);
+        let (store, undo) = (ctx.plan, ctx.undo);
+        folia_design::nav::after_paint(move || {
+            if let Some(store) = store {
+                let before = store.with(Clone::clone);
+                if let Some(id) = super::calendars::create(ctx, &plan, "") {
+                    let note = (t.studyplan_calendars.created)(&(t.studyplan_calendars.unnamed)(id));
+                    let _ = made.try_set(Some(note.clone()));
+                    let _ = undo.try_set(Some((note, before)));
+                }
+            }
+            leave();
+            let _ = busy.try_set(false);
+        });
+    };
 
-    // Once taken over: the note where the offer stood, until the next change of the kind.
-    let taken = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().map(|(note, _)| note.clone()).filter(|note| note.starts_with(s.taken))));
+    // Once taken over or made a calendar: the note where the offer stood, until the next change of
+    // the kind.
+    let taken = Memo::new(move |_| {
+        ctx.undo.with(|undo| undo.as_ref().map(|(note, _)| note.clone()).filter(|note| note.starts_with(s.taken) || made.with(|made| made.as_ref() == Some(note))))
+    });
     let restoring = RwSignal::new(false);
     let restore = move |_| {
         let (Some(store), Some((_, before))) = (ctx.plan, ctx.undo.get_untracked()) else { return };
@@ -181,6 +218,8 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
                 .into_any()
             });
         };
+        // A calendar of a plan whose modules the catalog knows.
+        let known = !matches!(offer, Offer::Unknown);
         let (text, can_take) = offer_text(offer, t);
         let label = shared.with(|shared| shared.as_ref().map(|(_, data)| data.label.clone())).unwrap_or_default();
         Some(view! {
@@ -189,6 +228,11 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
                 <p><b>{(s.shared)(&label)}</b>{text}</p>
                 {can_take.then(|| view! {
                     <button class="mini primary hit" type="button" id="sp-share-take" aria-busy=move || busy.get().then_some("true") on:click=take>{s.take}</button>
+                })}
+                {move || (known && room.get()).then(|| view! {
+                    <button class="mini hit" type="button" id="sp-share-calendar" title=t.studyplan_calendars.as_calendar_title aria-busy=move || busy.get().then_some("true") on:click=as_calendar>
+                        {t.studyplan_calendars.as_calendar}
+                    </button>
                 })}
                 <button class="mini hit" type="button" id="sp-share-dismiss" on:click=dismiss>{if can_take { s.dismiss } else { s.ok }}</button>
             </div>
@@ -260,12 +304,13 @@ mod tests {
     #[test]
     fn only_a_plan_with_a_module_is_handed_on() {
         let key = SemesterKey::parse("2026W").unwrap();
-        let path = share_path(key, &["12104".to_string(), "11101".to_string()], Some("079-82-2008")).unwrap();
+        let tick = folia_calendar::rowkey::RowKey { event: 148_370, fp: 0xeb017 };
+        let path = share_path(key, &["12104".to_string(), "11101".to_string()], Some("079-82-2008"), [tick]).unwrap();
         let code = path.strip_prefix("/studyplan?share=").unwrap();
         // The link of an English page opens the plan in English.
         assert_eq!(EN.path(&path), format!("/en/studyplan?share={code}"));
         let plan = SharedPlan::from_code(code).unwrap();
-        assert_eq!((plan.module_ids(), plan.program.as_deref()), (vec!["12104".to_string(), "11101".to_string()], Some("079-82-2008")));
-        assert_eq!(share_path(key, &[], None), None);
+        assert_eq!((plan.module_ids(), plan.program.as_deref(), plan.chosen_rows()), (vec!["12104".to_string(), "11101".to_string()], Some("079-82-2008"), vec![tick]));
+        assert_eq!(share_path(key, &[], None, []), None);
     }
 }
