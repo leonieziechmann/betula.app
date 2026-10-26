@@ -29,6 +29,7 @@
 //! second time).
 
 mod aside;
+mod calendars;
 mod exams;
 mod export;
 mod head;
@@ -67,6 +68,7 @@ use folia_shell::tabs::Area;
 use folia_shell::frame::{ErrorState, Frame};
 use folia_design::ui::Icon;
 use self::aside::PlanModulePanel;
+use self::calendars::{CalendarLine, CalendarModules};
 use self::exams::ExamsView;
 use self::export::CalendarGroup;
 use self::head::{marked_offered, DerivedLine, ExamAlerts, FromBookmarks, NothingPlanned, Overlaps, SemesterHead};
@@ -131,6 +133,12 @@ pub(super) struct PlanCtx {
     /// until asked for). A view setting of the page, not stored; it outlasts the module opened
     /// from the list, so that closing the module finds its row.
     pub days: RwSignal<bool>,
+    /// The calendars of one's own of the semester shown, each with its timetable (`calendars.rs`;
+    /// owner, 2026-10-26: „Kallender, die die nutzer selbst erstellen können").
+    pub calendars: Memo<Vec<calendars::Shown>>,
+    /// „Gemeinsam frei": the week draws the time every calendar in it has free. A view setting of
+    /// the page, off until switched on, not stored.
+    pub together: RwSignal<bool>,
 }
 
 /// The semester the page shows: the one the catalog has dates for, the snapshot's current one
@@ -239,6 +247,8 @@ pub fn StudyplanPage() -> impl IntoView {
         all: RwSignal::new(false),
         phone: phone_layout(),
         days: RwSignal::new(false),
+        calendars: calendars::shown_calendars(url, current, plan, source, today),
+        together: RwSignal::new(false),
     };
     // What „Rückgängig" puts back is the plan of the profile it was taken from: with another
     // profile (chosen here or in another tab, `folia_stores::profiles`) there is nothing to undo.
@@ -360,6 +370,9 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
                     // and the choice in focus: over the week of a wide screen, on a phone a sheet
                     // under it (H1 of folia/design/kalender/handy.html).
                     <OpenLine ctx/>
+                    // On a phone the calendars of one's own in a line over the week, where there
+                    // are any (`calendars.rs`; the sidebar's group is in „Anpassen").
+                    {move || (ctx.phone.get() && weekly.get()).then(|| view! { <CalendarLine ctx/> })}
                     {move || (!ctx.phone.get()).then(|| view! { <FocusBar ctx/> })}
                     <div class="sp-view">{view}</div>
                     {move || ctx.phone.get().then(|| view! { <PickSheet ctx/> })}
@@ -377,6 +390,7 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
                     <div class="sp-side">
                         <OpenPanel ctx/>
                         <ModuleList ctx/>
+                        <CalendarModules ctx/>
                         <FromBookmarks ctx list=marked/>
                     </div>
                 }

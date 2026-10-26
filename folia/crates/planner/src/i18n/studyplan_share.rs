@@ -39,8 +39,8 @@ pub struct Texts {
 
 pub const DE: Texts = Texts {
     copy_link: "Link zum Teilen kopieren",
-    with_modules: "mit den Modulen dieses Semesters",
-    link_title: "Der Link trägt das Semester und die geplanten Module: Wer ihn öffnet, kann sie in den eigenen Stundenplan übernehmen, und die Vorschau in Messengern zeigt sie.",
+    with_modules: "mit den Modulen und Gruppen dieses Semesters",
+    link_title: "Der Link trägt das Semester, die geplanten Module und die angehakten Gruppen: Wer ihn öffnet, kann die Module in den eigenen Stundenplan übernehmen oder deinen Plan als eigenen Kalender daneben legen, und die Vorschau in Messengern zeigt sie.",
     nothing_planned: "Nichts geplant",
 
     shared: |semester| format!("Geteilter Stundenplan · {semester}. "),
@@ -57,8 +57,8 @@ pub const DE: Texts = Texts {
 
 pub const EN: Texts = Texts {
     copy_link: "Copy link to share",
-    with_modules: "with this semester's modules",
-    link_title: "The link carries the semester and the planned modules: whoever opens it can add them to their own timetable, and previews in messengers show them.",
+    with_modules: "with this semester's modules and groups",
+    link_title: "The link carries the semester, the planned modules and the groups ticked: whoever opens it can add the modules to their own timetable or put your plan beside theirs as a calendar of its own, and previews in messengers show them.",
     nothing_planned: "Nothing planned",
 
     shared: |semester| format!("Shared timetable · {semester}. "),

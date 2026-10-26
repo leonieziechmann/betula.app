@@ -326,10 +326,11 @@ async function labels() {
 
 // ---------- 9: a plan handed on by a link ----------
 // „Link zum Teilen kopieren" hands the semester shown on (`/studyplan?share=<code>`, owner
-// 2026-09-26): the link carries the planned modules and the program (R20's exception), nothing
-// hidden or chosen. The server's page names the modules in its tags and its picture; a fresh
-// browser that opens the link is offered them, takes them over (the code leaves the address, the
-// note with „Rückgängig" stands where the offer stood) and hands on the same link.
+// 2026-09-26): the link carries the planned modules, the program and the groups ticked (R20's
+// exception; the groups since 2026-10-26, for a calendar of one's own), nothing hidden. The
+// server's page names the modules in its tags and its picture; a fresh browser that opens the link
+// is offered them, takes them over (the code leaves the address, the note with „Rückgängig" stands
+// where the offer stood) and hands on a link of the same modules (the groups are its own).
 async function shared() {
   const sidebarLink = (page) => page.getAttribute('.sidebar [data-action="copy-text"][data-absolute][data-text^="/studyplan?share="]', "data-text", { timeout: 8000 }).catch(() => null);
   const sender = await open({ viewport: { width: 1500, height: 900 } }, "/studyplan");
@@ -341,7 +342,7 @@ async function shared() {
   await sender.context.close();
   check(Boolean(link), "shared: no „Link zum Teilen kopieren“ for a planned semester");
   if (!link) return;
-  check(!["149408", "148369", "tutorial"].some((secret) => link.includes(secret)), `shared: the link carries what is hidden or chosen: ${link}`);
+  check(!["149408", "148369", "tutorial"].some((secret) => link.includes(secret)), `shared: the link names what is hidden or chosen in its letters: ${link}`);
 
   // What a messenger reads: the page's tags and its picture.
   const head = (await (await fetch(base + link)).text()).split("</head>")[0];
@@ -364,7 +365,8 @@ async function shared() {
   const sharedProgram = await receiver.page.evaluate(() => sessionStorage.getItem("betula.studyplan.program"));
   check(sharedProgram === "079-82-2008" && !taken.includes("079-82-2008"), `shared: the program taken over is ${sharedProgram}, the plan ${JSON.stringify(taken)}`);
   const handedOn = await sidebarLink(receiver.page);
-  check(handedOn === link, `shared: the receiver hands on ${handedOn} instead of ${link}`);
+  const named = async (path) => /4 Module: [^"<]*/.exec((await (await fetch(base + path)).text()).split("</head>")[0])?.[0] ?? null;
+  check(Boolean(handedOn) && (await named(handedOn)) === (await named(link)) && (await named(link)) !== null, `shared: the receiver hands on ${handedOn}, not a link of the same modules as ${link}`);
   await receiver.step("„Rückgängig“ takes the shared plan back", () => receiver.page.click("#sp-share-undo"), () => !document.querySelector(".sp-fold > .offer"));
   check((await stored(receiver.page, PLAN)) === null, "shared: „Rückgängig“ left a plan behind");
   await receiver.context.close();

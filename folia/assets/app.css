@@ -69,6 +69,9 @@
   /* The ways into the catalog on the start page: a soft hue each, at the faculties' lightness. */
   --t-ice: oklch(.55 .09 240); --t-sun: oklch(.64 .12 75); --t-violet: oklch(.53 .1 300); --t-teal: oklch(.56 .08 190);
   --t-green: oklch(.56 .1 150); --t-coral: oklch(.6 .12 35); --t-rose: oklch(.56 .1 355); --t-slate: oklch(.55 .04 260);
+  /* The calendars of one's own beside the plan (planner studyplan/calendars.rs, `k-1` … `k-6`): a
+     little more chroma than the modules' tones, which they stand beside in the week. */
+  --k-1: oklch(.56 .13 355); --k-2: oklch(.58 .13 45); --k-3: oklch(.55 .12 135); --k-4: oklch(.55 .11 215); --k-5: oklch(.53 .13 290); --k-6: oklch(.6 .12 95);
 
   /* A panel: its ring, then its lift; the lift alone where a card draws its ring inside (a phone's
      semesters). */
@@ -145,6 +148,7 @@
     --accent: oklch(.53 .07 149);
     --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-3: oklch(.79 .1 70); --fac-4: oklch(.76 .1 330); --fac-5: oklch(.77 .08 212); --fac-6: oklch(.75 .1 30);
     --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-green: oklch(.8 .09 150); --t-coral: oklch(.8 .09 35); --t-rose: oklch(.78 .09 355); --t-slate: oklch(.78 .04 260);
+    --k-1: oklch(.78 .11 355); --k-2: oklch(.8 .11 45); --k-3: oklch(.8 .11 135); --k-4: oklch(.8 .09 215); --k-5: oklch(.78 .11 290); --k-6: oklch(.84 .11 95);
     --accent-ink: oklch(.8 .06 149);
     --on-accent: #ffffff;
     --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
@@ -202,6 +206,7 @@
   --accent: oklch(.53 .07 149);
   --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-3: oklch(.79 .1 70); --fac-4: oklch(.76 .1 330); --fac-5: oklch(.77 .08 212); --fac-6: oklch(.75 .1 30);
   --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-green: oklch(.8 .09 150); --t-coral: oklch(.8 .09 35); --t-rose: oklch(.78 .09 355); --t-slate: oklch(.78 .04 260);
+  --k-1: oklch(.78 .11 355); --k-2: oklch(.8 .11 45); --k-3: oklch(.8 .11 135); --k-4: oklch(.8 .09 215); --k-5: oklch(.78 .11 290); --k-6: oklch(.84 .11 95);
   --accent-ink: oklch(.8 .06 149);
   --on-accent: #ffffff;
   --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
@@ -1779,9 +1784,12 @@ button.action:hover { background: var(--panel-3); }
    and `width`): a border box is never narrower than its padding, so a fixed 6px made the slots of
    five or more lanes 12px wide, over their neighbours and out of the column. */
 .slot, .slot-acts, .slot-frame {
-  --pw: min(100% * var(--theirs, 0) / (2 * var(--mine, 1) + var(--theirs, 0)), max(var(--theirs, 0) * 10px, 100% - var(--mine, 1) * 42px));
-  --at: calc(var(--beside, 0) * (100% - var(--pw)));
-  --in: calc(var(--beside, 0) * var(--pw) + (1 - var(--beside, 0)) * (100% - var(--pw)));
+  /* A calendar of one's own as a strip (`--strip` on .week, week.rs): a band at each day's right
+     edge, which the day's lanes leave free. */
+  --sw: calc(var(--strip, 0) * 10px);
+  --pw: min((100% - var(--sw)) * var(--theirs, 0) / (2 * var(--mine, 1) + var(--theirs, 0)), max(var(--theirs, 0) * 10px, 100% - var(--sw) - var(--mine, 1) * 42px));
+  --at: calc(var(--beside, 0) * (100% - var(--sw) - var(--pw)));
+  --in: calc(var(--beside, 0) * var(--pw) + (1 - var(--beside, 0)) * (100% - var(--sw) - var(--pw)));
 }
 .slot {
   position: absolute; left: calc(1px + var(--at) + var(--in) * var(--lane, 0) / var(--lanes, 1)); width: calc(var(--in) * var(--wide, 1) / var(--lanes, 1) - 2px); top: calc((var(--from) - var(--first)) * 24px); height: calc((var(--to) - var(--from)) * 24px - 2px); border-radius: 6px; padding: 4px clamp(0px, calc((var(--in) * var(--wide, 1) / var(--lanes, 1) - 2px) / 4), 6px); font-size: 11px; line-height: 1.25; font-weight: 600; overflow: hidden; background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 2.5px 0 0 var(--accent); container-type: inline-size; overflow-wrap: normal; word-break: normal; hyphens: manual;
@@ -3497,6 +3505,108 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-compare > .sp-list-head .nm { min-width: 0; color: var(--text-2); font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sp-compare > .sp-list-head .icon-btn { flex: none; margin-left: auto; width: 32px; height: 32px; }
 .sp-compare > .sp-list-head .icon-btn .icon { width: 16px; height: 16px; }
+/* The calendars of one's own beside „Mein Studiengang" (planner studyplan/calendars.rs; owner,
+   2026-10-26: „A mit Fokus und Spur aus C"), each in its colour (.k-1 … .k-6, `--cal`). In the
+   week: in full a slot outlined in it with its initial in the corner (.slot.cal, i.slot-who), as a
+   strip a thin bar at the day's right edge (.slot.strip, in the band `--sw` the day's lanes leave
+   free), its words for a screen reader and its tooltip; „Gemeinsam frei" behind the slots, a
+   dashed green stretch with „beide frei" in it (.band.free). */
+.k-1 { --cal: var(--k-1); } .k-2 { --cal: var(--k-2); } .k-3 { --cal: var(--k-3); } .k-4 { --cal: var(--k-4); } .k-5 { --cal: var(--k-5); } .k-6 { --cal: var(--k-6); }
+.sp-body .slot.cal { background: var(--panel); color: var(--text-2); box-shadow: inset 0 0 0 1.5px var(--cal); }
+.sp-body .slot.cal.alt { box-shadow: none; outline: 1.5px dashed var(--cal); outline-offset: -1.5px; }
+.sp-body .slot.cal.extra { box-shadow: none; outline: 1.5px dotted var(--cal); outline-offset: -1.5px; color: var(--text-3); }
+.slot > .slot-who { position: absolute; right: 3px; bottom: 3px; width: 15px; height: 15px; border-radius: 4px; background: var(--cal, var(--text-3)); color: var(--panel); font: 700 9.5px/15px var(--font); font-style: normal; text-align: center; }
+.sp-body .slot.strip { left: calc(100% - var(--sw) + 2px + (var(--sw) - 3px) * var(--lane, 0) / var(--lanes, 1)); width: max(2px, calc((var(--sw) - 3px) / var(--lanes, 1) - 1px)); padding: 0; border-radius: 3px; background: var(--cal); box-shadow: none; opacity: .85; }
+.sp-body .slot.strip > * { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Its words at its top, where the stretch begins: a group of a choice still open, which counts as
+   free, may stand in its middle. */
+.week .band { position: absolute; left: 2px; right: calc(var(--strip, 0) * 10px + 2px); top: calc((var(--from) - var(--first)) * 24px + 1px); height: calc((var(--to) - var(--from)) * 24px - 3px); display: grid; place-items: start center; padding-top: 3px; overflow: hidden; border-radius: 6px; font-size: 10px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+.week.fit .band { top: calc((var(--from) - var(--first)) * 100% / var(--span) + 1px); height: calc((var(--to) - var(--from)) * 100% / var(--span) - 3px); }
+.week .band.free { background: var(--ok-soft); color: var(--ok); outline: 1.5px dashed color-mix(in srgb, var(--ok) 70%, transparent); outline-offset: -1.5px; }
+.week .band > span { max-width: 100%; padding: 0 3px; overflow: hidden; text-overflow: ellipsis; }
+/* The list of them (div.fgroup.sp-cals, at the top of „Anpassen"): „Mein Studiengang" with its
+   lock, each calendar of one's own a row — its colour as a square in the way it stands (full,
+   half, outlined), its name and modules, „Voll · Spur · Aus" (span.sp-cal-seg; on a phone with its
+   words under the name, as tall as a finger) and its „…" — its menu under it, the note after
+   „Löschen", „Neuer Kalender" and its form. */
+.sp-cals > .sp-cal + .sp-cal, .sp-cals > .sp-cal-menu + .sp-cal, .sp-cals > .sp-cal-rename + .sp-cal { margin-top: 6px; }
+.sp-cal { --cal: var(--text-3); display: grid; grid-template-columns: 12px minmax(0, 1fr) auto auto; align-items: center; gap: 4px 9px; min-height: 46px; padding: 6px 4px 6px 10px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.sp-cal.mine { --cal: var(--accent); grid-template-columns: 12px minmax(0, 1fr) auto; }
+.sp-cal.off { background: transparent; }
+.sp-cal > .sw { width: 12px; height: 12px; border-radius: 4px; background: var(--cal); }
+.sp-cal > .sw.strip { background: linear-gradient(90deg, transparent 58%, var(--cal) 58%); box-shadow: inset 0 0 0 1.5px var(--cal); }
+.sp-cal > .sw.off { background: transparent; box-shadow: inset 0 0 0 1.5px var(--cal); }
+.sp-cal > .t { min-width: 0; }
+.sp-cal > .t b { display: block; overflow: hidden; font-size: 13px; font-weight: 650; line-height: 1.25; white-space: nowrap; text-overflow: ellipsis; }
+.sp-cal > .t small { display: block; overflow: hidden; color: var(--text-3); font-size: 11.5px; line-height: 1.3; white-space: nowrap; text-overflow: ellipsis; }
+.sp-cal.off > .t b { color: var(--text-2); }
+.sp-cal > .lock { display: grid; place-items: center; width: 30px; color: var(--text-3); }
+.sp-cal > .lock .icon { width: 14px; height: 14px; }
+.sp-cal > .sp-cal-more { width: 32px; height: 32px; }
+.sp-cal > .sp-cal-more .icon { width: 16px; height: 16px; }
+.sp-cal-seg { display: inline-flex; gap: 1px; padding: 2px; border-radius: 7px; background: var(--panel-3); }
+.sp-cal-seg > button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 26px; height: 24px; padding: 0 5px; border-radius: 5px; color: var(--text-3); font-size: 12.5px; font-weight: 600; }
+.sp-cal-seg > button:hover { color: var(--text); }
+.sp-cal-seg > button .icon { width: 13px; height: 13px; }
+.sp-cal-seg > button[aria-checked="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); }
+.sp-cal > .sp-cal-seg:last-child { grid-column: 2 / -1; display: flex; margin-right: 6px; }
+.sp-cal > .sp-cal-seg:last-child > button { flex: 1; height: 38px; }
+.sp-cal-menu, .sp-cal-rename { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 0 2px 31px; }
+.sp-cal-menu .mini { display: inline-flex; align-items: center; gap: 5px; }
+.sp-cal-menu .mini .icon { width: 13px; height: 13px; }
+.sp-cal-rename input { flex: 1 1 100%; min-width: 0; min-height: 34px; padding: 0 10px; border: 0; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; }
+.sp-cal-note { display: flex; align-items: center; gap: 8px; margin: 6px 0 0; padding: 4px 2px; color: var(--text-2); font-size: 12.5px; }
+.sp-cal-note > span { flex: 1; min-width: 0; }
+.sp-cal-note > .icon { flex: none; width: 15px; height: 15px; color: var(--ok); }
+.sp-cal-add { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 38px; margin-top: 6px; padding: 0 10px; border-radius: var(--r-row); color: var(--text-2); font-size: 12.5px; font-weight: 600; outline: 1px dashed var(--line-strong); outline-offset: -1px; }
+.sp-cal-add:hover { background: var(--panel-2); color: var(--text); }
+.sp-cal-add .icon { width: 15px; height: 15px; }
+.sp-cal-new { display: grid; gap: 9px; margin-top: 6px; padding: 10px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.sp-cal-new .hint { margin: 0; }
+.sp-cal-new label { display: grid; gap: 4px; color: var(--text-2); font-size: 12px; font-weight: 600; }
+.sp-cal-new input { min-width: 0; min-height: 36px; padding: 0 10px; border: 0; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 13px; font-weight: 500; }
+.sp-cal-holds { display: flex; align-items: flex-start; gap: 6px; margin: -3px 0 0; font-size: 12px; line-height: 1.35; }
+.sp-cal-holds.ok { color: var(--ok); }
+.sp-cal-holds.no { color: var(--warn); }
+.sp-cal-holds > .icon { flex: none; width: 14px; height: 14px; margin-top: 1px; }
+.sp-cal-actions { display: flex; gap: 6px; }
+.sp-cal-hint { margin-top: 6px; }
+/* „Gemeinsam frei" in the week's head (button.ghost.sp-together), on once pressed; on a phone a
+   row of the line of the calendars with a switch (button.sp-cal-free). */
+.sp-head .sp-together { margin-left: auto; }
+.sp-head .sp-together + .sp-all { margin-left: 6px; }
+.sp-together.on { background: var(--ok-soft); color: var(--ok); }
+.sp-cal-free { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 50px; padding: 6px 10px 6px 12px; border-radius: var(--r-row); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); text-align: left; }
+.sp-cal-free > .t b { display: block; font-size: 13.5px; font-weight: 650; line-height: 1.25; }
+.sp-cal-free > .t small { display: block; color: var(--text-3); font-size: 11.5px; line-height: 1.3; }
+.sp-cal-free > .tg { position: relative; width: 44px; height: 26px; border-radius: 13px; background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.sp-cal-free > .tg > i { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--panel); box-shadow: 0 1px 2px rgb(0 0 0 / .25); transition: left .18s; }
+.sp-cal-free[aria-checked="true"] > .tg { background: var(--ok); box-shadow: none; }
+.sp-cal-free[aria-checked="true"] > .tg > i { left: 21px; }
+/* On a phone the calendars in one line over the week (details.sp-cal-line), „Kalender" and how
+   each stands, that opens into the rows. */
+.sp-cal-line { border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.sp-cal-line > summary { display: grid; grid-template-columns: 32px minmax(0, 1fr) 16px; align-items: center; gap: 10px; min-height: 50px; padding: 6px 12px 6px 8px; cursor: pointer; list-style: none; }
+.sp-cal-line > summary::-webkit-details-marker { display: none; }
+.sp-cal-line .ic { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; background: var(--panel); color: var(--text-2); }
+.sp-cal-line .ic .icon { width: 17px; height: 17px; }
+.sp-cal-line > summary .t { min-width: 0; }
+.sp-cal-line > summary b { display: block; font-size: 14px; font-weight: 650; line-height: 1.25; }
+.sp-cal-line > summary small { display: block; overflow: hidden; color: var(--text-2); font-size: 12px; line-height: 1.3; white-space: nowrap; text-overflow: ellipsis; }
+.sp-cal-line .chev { width: 16px; height: 16px; color: var(--text-3); transition: transform .2s var(--ease); }
+.sp-cal-line[open] .chev { transform: rotate(180deg); }
+.sp-cal-rows { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 0 6px 6px; }
+.sp-cal-rows > .sp-cal { background: var(--panel); }
+.sp-cal-rows > .sp-cal.off { background: transparent; }
+.sp-cal-rows > .sp-cal-menu, .sp-cal-rows > .sp-cal-rename { padding-top: 0; }
+/* Its part of the module list (section.sp-cal-mods.k-…): its name in its colour, its modules by
+   their abbreviations, outlined as in the week, and where they came from. */
+.sp-cal-mods { display: grid; gap: 4px; margin-top: 4px; }
+.sp-cal-mods > .sp-list-head h2 { display: inline-flex; align-items: center; gap: 7px; }
+.sp-cal-mods > .sp-list-head .sw { width: 10px; height: 10px; border-radius: 3px; background: var(--cal); }
+.sp-cal-abbrs { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; padding: 0 12px; }
+.sp-cal-abbrs > .abbr { padding: 3px 7px; border-radius: 6px; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--cal); color: var(--text-2); font: 600 11.5px var(--mono); }
+.sp-cal-came { margin: 0; padding: 0 12px; color: var(--text-3); font-size: 11.5px; }
 /* Over the week while a choice is in focus (div.sp-focusbar.t-…, a screen wider than a phone):
    dark, in two lines the choice with its dot and how many are ticked, and whether its groups fit
    and what to do (span.fb-text); „Weiter: …", „Vergleichen" (pressed while compared) and „Fertig"
