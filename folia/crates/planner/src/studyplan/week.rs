@@ -941,7 +941,7 @@ fn unhidden(table: &Timetable) -> Timetable {
     let mut all = table.clone();
     for event in &mut all.events {
         event.hidden = town(event.hidden);
-        event.chosen = None;
+        event.chosen.clear();
         for row in &mut event.rows {
             row.hidden = town(row.hidden);
         }
@@ -970,8 +970,9 @@ fn reason_text(reason: HiddenBy, event: &Event, t: &i18n::Texts) -> String {
 // ---------- the buttons of a slot ----------
 
 /// A button of a slot (owner, 2026-09-25: „ja der fliegt raus, die Übung möchte ich", on the
-/// Termin itself): „✓" takes, „×" leaves out; its words (its name and tooltip) say what. A „✓"
-/// that is on (`pressed`) belongs to what was taken, and takes it back.
+/// Termin itself): „✓" takes, „×" leaves out, „+" takes beside what was taken; its words (its
+/// name and tooltip) say what. A „✓" that is on (`pressed`) belongs to what was taken, and takes
+/// it back.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct SlotAct {
     icon: &'static str,
@@ -995,6 +996,11 @@ impl SlotAct {
     fn leave(label: impl Into<String>, act: Act) -> Self {
         SlotAct { icon: "x", label: label.into(), act, pressed: false }
     }
+
+    /// „+": takes it beside what was taken.
+    fn also(label: impl Into<String>, act: Act) -> Self {
+        SlotAct { icon: "plus", label: label.into(), act, pressed: false }
+    }
 }
 
 /// What a button of a slot does to what the semester shows (the plan's `Selection`).
@@ -1004,26 +1010,29 @@ enum Act {
     HideRows(Vec<RowKey>),
     /// Hides the whole event.
     HideEvent(u32),
-    /// Takes the slot's option of the event's choice („Nur diesen", `row` a Termin of it): the
-    /// event and the option's Termine shown again where they were hidden.
+    /// Takes the slot's option of the event's choice instead of what it took („Nur diesen", `row`
+    /// a Termin of it): the event and the option's Termine shown again where they were hidden.
     Choose { event: u32, row: RowKey, rows: Vec<RowKey> },
-    /// Takes the choice back: every option shown again, the one it took among them.
-    Unchoose(u32),
-    /// Leaves out the option a choice took: the choice is open again, without it.
-    Drop { event: u32, rows: Vec<RowKey> },
+    /// Ticks the slot's option beside those ticked (owner, 2026-10-26: several groups, all alike),
+    /// shown again as `Choose`.
+    Tick { event: u32, row: RowKey, rows: Vec<RowKey> },
+    /// Takes the tick of an option away, by the keys of its Termine (`Event::option_keys`): the
+    /// others ticked stay, and without any the choice is open again.
+    Untick(Vec<RowKey>),
+    /// Leaves out an option ticked: its tick taken away (`ticks`), the slot's Termine hidden.
+    Drop { ticks: Vec<RowKey>, rows: Vec<RowKey> },
     /// Shows the slot again: its event, a kind of it, its Termine.
     Show { event: Option<u32>, kind: Option<EventKind>, rows: Vec<RowKey> },
     /// Takes the slot's event, an option of the choice among its module's events, by a Termin of
     /// it (`row`): the choices of `events` undone first (all of the choice's where it takes this
-    /// one instead of what it took, none where it is open and has room for it), the event and the
-    /// slot's Termine shown again.
+    /// one instead of what it took, „Nur diese"; none where it is taken beside, „+", or the choice
+    /// is open), the event and the slot's Termine shown again.
     ChooseAcross { events: Vec<u32>, event: u32, row: RowKey, rows: Vec<RowKey> },
-    /// Takes the choices of `events` back (the whole choice's where it takes one, else the slot's
-    /// option alone): the choice is open again.
-    UnchooseAcross(Vec<u32>),
-    /// Leaves out the option it took, and undoes the choices of `events` as `UnchooseAcross`: the
-    /// choice is open again, without it.
-    DropAcross { events: Vec<u32>, event: u32 },
+    /// Takes the event, an option the visitor took, back alone: the others taken stay, and
+    /// without any the choice is open again.
+    UnchooseAcross(u32),
+    /// Takes the event back as `UnchooseAcross` and leaves it out.
+    DropAcross(u32),
 }
 
 impl Act {
@@ -1037,9 +1046,14 @@ impl Act {
                 rows.iter().for_each(|row| doc.set_row(key, *row, false));
                 doc.choose(key, *event, Some(*row));
             }
-            Act::Unchoose(event) => doc.choose(key, *event, None),
-            Act::Drop { event, rows } => {
-                doc.choose(key, *event, None);
+            Act::Tick { event, row, rows } => {
+                doc.set_event(key, *event, false);
+                rows.iter().for_each(|row| doc.set_row(key, *row, false));
+                doc.tick(key, *row, true);
+            }
+            Act::Untick(ticks) => ticks.iter().for_each(|row| doc.tick(key, *row, false)),
+            Act::Drop { ticks, rows } => {
+                ticks.iter().for_each(|row| doc.tick(key, *row, false));
                 rows.iter().for_each(|row| doc.set_row(key, *row, true));
             }
             Act::Show { event, kind, rows } => {
@@ -1057,9 +1071,9 @@ impl Act {
                 rows.iter().for_each(|row| doc.set_row(key, *row, false));
                 doc.choose(key, *event, Some(*row));
             }
-            Act::UnchooseAcross(events) => events.iter().for_each(|other| doc.choose(key, *other, None)),
-            Act::DropAcross { events, event } => {
-                events.iter().for_each(|other| doc.choose(key, *other, None));
+            Act::UnchooseAcross(event) => doc.choose(key, *event, None),
+            Act::DropAcross(event) => {
+                doc.choose(key, *event, None);
                 doc.set_event(key, *event, true);
             }
         }
@@ -1076,10 +1090,10 @@ fn across_of<'t>(table: &'t Timetable, event: &Event) -> Option<(Vec<u32>, &'t A
 }
 
 /// The buttons of a slot of the plan. An option of an open choice: „✓" takes it, „×" leaves it
-/// out. The option a made choice took: its „✓", on, takes the choice back (owner, 2026-09-25:
-/// „schnell abwählen"), its „×" leaves it out, and the choice is open again without it. Any other
-/// Termin: „×" leaves it out, and an event of one slot (`slots`) as a whole. `keys` are the slot's
-/// Termine.
+/// out. An option ticked: its „✓", on, takes its tick back (owner, 2026-09-25: „schnell
+/// abwählen"), the others ticked stay, without any the choice is open again; its „×" leaves it
+/// out besides. Any other Termin: „×" leaves it out, and an event of one slot (`slots`) as a
+/// whole. `keys` are the slot's Termine.
 fn plan_acts(table: &Timetable, item: &WeekItem, keys: &[RowKey], slots: usize, t: &i18n::Texts) -> Vec<SlotAct> {
     let words = &t.studyplan_week;
     let Some(event) = table.events.get(item.event) else { return Vec::new() };
@@ -1087,9 +1101,8 @@ fn plan_acts(table: &Timetable, item: &WeekItem, keys: &[RowKey], slots: usize, 
     let shown = event.rows.get(item.row);
     let (option, row) = (shown.and_then(|row| row.option), shown.and_then(|row| row.key));
     // An option of a choice among the module's events: taken („✓") or left out („×") as a whole
-    // event, beside what the open choice took so far; the one the visitor took takes the choice
-    // back, of a choice that takes more than one only itself.
-    if let Some((events, across, alt)) = across_of(table, event) {
+    // event, beside what the open choice took so far; one the visitor took takes itself back.
+    if let Some((_, across, alt)) = across_of(table, event) {
         let chosen = across.by == Some(TakenBy::Chosen) && across.taken.contains(&alt.option);
         match row {
             Some(row) if alt.open => {
@@ -1099,10 +1112,9 @@ fn plan_acts(table: &Timetable, item: &WeekItem, keys: &[RowKey], slots: usize, 
                 ];
             }
             _ if chosen => {
-                let undone = if across.pick > 1 { vec![id] } else { events };
                 return vec![
-                    SlotAct::taken(words.drop_option, Act::UnchooseAcross(undone.clone())),
-                    SlotAct::leave(words.not_this_option, Act::DropAcross { events: undone, event: id }),
+                    SlotAct::taken(words.drop_option, Act::UnchooseAcross(id)),
+                    SlotAct::leave(words.not_this_option, Act::DropAcross(id)),
                 ];
             }
             _ => {}
@@ -1113,19 +1125,21 @@ fn plan_acts(table: &Timetable, item: &WeekItem, keys: &[RowKey], slots: usize, 
             SlotAct::take(words.take_group, Act::Choose { event: id, row, rows: keys.to_vec() }),
             SlotAct::leave(words.not_this_group, Act::HideRows(keys.to_vec())),
         ],
-        _ if option.is_some() && event.chosen == option => vec![
-            SlotAct::taken(words.drop_group, Act::Unchoose(id)),
-            SlotAct::leave(words.not_this_group, Act::Drop { event: id, rows: keys.to_vec() }),
-        ],
+        _ if option.is_some_and(|option| event.chosen.contains(&option)) => {
+            let ticks = option.map(|option| event.option_keys(option)).unwrap_or_default();
+            vec![SlotAct::taken(words.drop_group, Act::Untick(ticks.clone())), SlotAct::leave(words.not_this_group, Act::Drop { ticks, rows: keys.to_vec() })]
+        }
         _ if slots > 1 && !keys.is_empty() => vec![SlotAct::leave(words.hide_session, Act::HideRows(keys.to_vec()))],
         _ => vec![SlotAct::leave((words.hide_event)(&kind_word(event, t.locale)), Act::HideEvent(id))],
     }
 }
 
-/// The button of a slot the plan leaves out: „✓" takes it back. An option of a choice is taken
-/// („Diese Gruppe nehmen"); a kind switched off comes back with every event of it („„Übung“ wieder
-/// einblenden"); any other Termin is shown again, its event with it. `event` is the plan's, `keys`
-/// the slot's Termine.
+/// The buttons of a slot the plan leaves out: „✓" takes it back. An option of a choice another
+/// option of which is ticked is taken instead („Nur diese Gruppe"), or with „+" beside it („Auch
+/// diese Gruppe", owner, 2026-10-26: several groups, all alike); an option of an open choice is
+/// taken („Diese Gruppe nehmen"); a kind switched off comes back with every event of it
+/// („„Übung“ wieder einblenden"); any other Termin is shown again, its event with it. `event` is
+/// the plan's, `keys` the slot's Termine.
 fn ghost_acts(table: &Timetable, event: &Event, item: &WeekItem, keys: &[RowKey], reason: HiddenBy, t: &i18n::Texts) -> Vec<SlotAct> {
     let words = &t.studyplan_week;
     let id = event.id.parse::<u32>().ok();
@@ -1133,21 +1147,31 @@ fn ghost_acts(table: &Timetable, event: &Event, item: &WeekItem, keys: &[RowKey]
     let (option, row) = (shown.and_then(|row| row.option), shown.and_then(|row| row.key));
     // Another option of a choice among the module's events, left out by a choice or the program:
     // its „✓" takes it instead (owner, 2026-10-19, the concept: „Ein Tipp auf einen anderen Termin
-    // wählt um").
+    // wählt um"), and of one the visitor made „+" takes it beside.
     if let (HiddenBy::Option | HiddenBy::Program, Some(number), Some(row)) = (reason, id, row) {
         if let Some((events, ..)) = across_of(table, event) {
-            return vec![SlotAct::take(words.take_option, Act::ChooseAcross { events, event: number, row, rows: keys.to_vec() })];
+            let instead = Act::ChooseAcross { events, event: number, row, rows: keys.to_vec() };
+            return match reason {
+                HiddenBy::Option => vec![
+                    SlotAct::take(words.only_option, instead),
+                    SlotAct::also(words.also_option, Act::ChooseAcross { events: Vec::new(), event: number, row, rows: keys.to_vec() }),
+                ],
+                _ => vec![SlotAct::take(words.take_option, instead)],
+            };
         }
     }
-    let act = match (reason, id, row) {
+    match (reason, id, row) {
         (HiddenBy::Kinds, _, _) => {
             let kind = event.kinds.iter().next();
-            SlotAct::take((words.show_kind)(kind.map_or("", |kind| kind.label(t.locale))), Act::Show { event: None, kind, rows: keys.to_vec() })
+            vec![SlotAct::take((words.show_kind)(kind.map_or("", |kind| kind.label(t.locale))), Act::Show { event: None, kind, rows: keys.to_vec() })]
         }
-        (_, Some(number), Some(row)) if option.is_some() => SlotAct::take(words.take_group, Act::Choose { event: number, row, rows: keys.to_vec() }),
-        _ => SlotAct::take(words.show_again, Act::Show { event: id.filter(|_| reason == HiddenBy::Event), kind: None, rows: keys.to_vec() }),
-    };
-    vec![act]
+        (HiddenBy::Choice, Some(number), Some(row)) if option.is_some() => vec![
+            SlotAct::take(words.only_group, Act::Choose { event: number, row, rows: keys.to_vec() }),
+            SlotAct::also(words.also_group, Act::Tick { event: number, row, rows: keys.to_vec() }),
+        ],
+        (_, Some(number), Some(row)) if option.is_some() => vec![SlotAct::take(words.take_group, Act::Choose { event: number, row, rows: keys.to_vec() })],
+        _ => vec![SlotAct::take(words.show_again, Act::Show { event: id.filter(|_| reason == HiddenBy::Event), kind: None, rows: keys.to_vec() })],
+    }
 }
 
 /// The rows behind a slot of the Regelwoche: the shown rows of its event at its weekday and
@@ -2193,8 +2217,8 @@ mod tests {
             let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[], taken: &[], choices: &[], listed: &[] };
             week_slots(&Timetable::build(&input, &doc.selection(key(), TownChoice::Derive)), &plain(), &titles(), Weeks::All, all, &i18n::DE)
         };
-        // Each slot as „Mo 11:30" with its buttons, „✓ …" or „× …".
-        let said = |slot: &PlanSlot| -> Vec<String> { slot.acts.iter().map(|act| format!("{} {}", if act.icon == "check" { "✓" } else { "×" }, act.label)).collect() };
+        // Each slot as „Mo 11:30" with its buttons, „✓ …", „+ …" or „× …".
+        let said = |slot: &PlanSlot| -> Vec<String> { slot.acts.iter().map(|act| format!("{} {}", sign(act.icon), act.label)).collect() };
         let buttons = |slots: &[PlanSlot]| -> Vec<(String, Vec<String>)> { slots.iter().map(|slot| (format!("{} {}", day_short(slot.slot.day, &i18n::DE), clock(slot.slot.from)), said(slot))).collect() };
         let at = |slots: &[PlanSlot], day: u8, from: &str| slots.iter().find(|slot| slot.slot.day == day && clock(slot.slot.from) == from).cloned().unwrap();
         let practicals = |slots: &[PlanSlot]| -> Vec<u8> { slots.iter().filter(|slot| slot.row.text.starts_with("Praktikum")).map(|slot| slot.slot.day).collect() };
@@ -2241,12 +2265,20 @@ mod tests {
             .filter(|slot| slot.slot.class == "faint")
             .map(|slot| (format!("{} {}", day_short(slot.slot.day, &i18n::DE), clock(slot.slot.from)), slot.slot.clash, slot.slot.asks, said(slot)))
             .collect();
-        let taken = |when: &str, clash: bool| (when.to_string(), clash, true, vec!["✓ Diese Gruppe nehmen".to_string()]);
+        let taken = |when: &str, clash: bool| (when.to_string(), clash, true, vec!["✓ Nur diese Gruppe".to_string(), "+ Auch diese Gruppe".to_string()]);
         assert_eq!(faint, [taken("Mo 11:30", false), taken("Do 11:30", true), taken("Fr 13:45", false)]);
         let thursday = at(&all, 4, "11:30");
         assert!(thursday.slot.title.starts_with("andere Gruppe gewählt · ") && thursday.slot.title.ends_with("überschneidet sich mit VL Entwicklung von Softwaresystemen"), "{}", thursday.slot.title);
         assert!(thursday.key.starts_with('g') && thursday.row.class.contains("faint"));
         assert_eq!(all.len(), chosen.len() + 3);
+        // „+" on a faint one ticks it beside (owner, 2026-10-26): both groups in the plan, each
+        // with its „✓" on, which takes back that one alone.
+        at(&all, 1, "11:30").acts[1].act.apply(&mut doc, key());
+        let two = plan_week(&doc, false);
+        assert_eq!(practicals(&two), [1, 3]);
+        assert!([1, 3].iter().all(|day| said(&at(&two, *day, "11:30")) == ["✓ Gruppe abwählen", "× Nicht diese Gruppe"] && !at(&two, *day, "11:30").slot.alt));
+        at(&two, 1, "11:30").acts[0].act.apply(&mut doc, key());
+        assert_eq!(practicals(&plan_week(&doc, false)), [3]);
         // „✓" on a faint one switches the choice.
         at(&all, 5, "13:45").acts[0].act.apply(&mut doc, key());
         assert_eq!(practicals(&plan_week(&doc, false)), [5]);
@@ -2277,6 +2309,15 @@ mod tests {
         assert_eq!(said(&lecture), ["✓ „Vorlesung“ wieder einblenden"]);
         lecture.acts[0].act.apply(&mut doc, key());
         assert_eq!(plan_week(&doc, false).iter().filter(|slot| slot.row.text.starts_with("Vorlesung")).count(), 3);
+    }
+
+    /// A slot button's sign as the slot shows it.
+    fn sign(icon: &str) -> &'static str {
+        match icon {
+            "check" => "✓",
+            "plus" => "+",
+            _ => "×",
+        }
     }
 
     fn week(monday: &str, break_week: bool, days: Vec<AgendaDay>) -> AgendaWeek {
@@ -2474,7 +2515,7 @@ mod tests {
             let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[], taken: &[], choices, listed: &[] };
             week_slots(&Timetable::build(&input, &doc.selection(key(), TownChoice::Derive)), &plain(), &titles(), Weeks::All, all, &i18n::DE)
         };
-        let said = |slot: &PlanSlot| -> Vec<String> { slot.acts.iter().map(|act| format!("{} {}", if act.icon == "check" { "✓" } else { "×" }, act.label)).collect() };
+        let said = |slot: &PlanSlot| -> Vec<String> { slot.acts.iter().map(|act| format!("{} {}", sign(act.icon), act.label)).collect() };
         let at = |slots: &[PlanSlot], day: u8| slots.iter().find(|slot| slot.slot.day == day).cloned().unwrap();
         let days = |slots: &[PlanSlot]| -> Vec<u8> { slots.iter().filter(|slot| slot.slot.class != "faint").map(|slot| slot.slot.day).collect() };
         let open_buttons = ["✓ Diese nehmen", "× Nicht diese"];
@@ -2502,8 +2543,16 @@ mod tests {
         at(&plan_week(&doc, &three, false), 2).acts[0].act.apply(&mut doc, key());
         let all = plan_week(&doc, &three, true);
         let thursday = at(&all, 4);
-        assert!(thursday.slot.class == "faint" && said(&thursday) == ["✓ Diese nehmen"] && thursday.slot.title.starts_with("andere Option gewählt"), "{}", thursday.slot.title);
+        assert!(thursday.slot.class == "faint" && said(&thursday) == ["✓ Nur diese", "+ Auch diese"] && thursday.slot.title.starts_with("andere Option gewählt"), "{}", thursday.slot.title);
         thursday.acts[0].act.apply(&mut doc, key());
+        assert_eq!(days(&plan_week(&doc, &three, false)), [4, 5]);
+        // Tuesday's faint „+" takes it beside Thursday, one more than the choice takes; the „✓" of
+        // either takes back that one alone.
+        at(&plan_week(&doc, &three, true), 2).acts[1].act.apply(&mut doc, key());
+        let two = plan_week(&doc, &three, false);
+        assert_eq!(days(&two), [2, 4, 5]);
+        assert!(said(&at(&two, 2)) == taken_buttons && said(&at(&two, 4)) == taken_buttons);
+        at(&two, 2).acts[0].act.apply(&mut doc, key());
         assert_eq!(days(&plan_week(&doc, &three, false)), [4, 5]);
         // „×" on the one taken: open again without it.
         at(&plan_week(&doc, &three, false), 4).acts[1].act.apply(&mut doc, key());

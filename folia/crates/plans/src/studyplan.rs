@@ -39,8 +39,9 @@ use crate::variants::{self, PlanVariant};
 /// below it (a test fills a store to every cap); a longer text is read up to the last line break
 /// before the limit, so a store never reads as empty because of its size and the next change
 /// cannot wipe a plan. What lies beyond is dropped with the next write, which only text Betula did
-/// not write can lose.
-pub const MAX_STORED: usize = 512 * 1024;
+/// not write can lose. 512 KiB until 2026-10-26, when the hidden dates (`h`) came: a build before
+/// them reads the first 512 KiB, which hold everything but a store full to the new caps.
+pub const MAX_STORED: usize = 640 * 1024;
 
 /// The same for `betula.myprogram.v1`, a handful of short lines.
 pub const MAX_MINE: usize = 4 * 1024;
@@ -104,6 +105,7 @@ type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>, Option<&'a Semest
 /// e  <semester>  <event_id>
 /// r  <semester>  <event_id>-<fp 5 hex>
 /// c  <semester>  <event_id>-<fp 5 hex>
+/// h  <semester>  <event_id>-<fp 5 hex>  <date>,<date>,…
 /// a  <semester>  <code>
 /// d  <semester>  <module_id>
 /// q  <semester>  <program_id>  <ord>  <caption>  <name>
@@ -111,9 +113,12 @@ type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>, Option<&'a Semest
 ///
 /// `g` is the program the timetable is planned for (`program`): in a saved plan, not in the text
 /// the browser keeps of the Stundenplan (`stored_without_program`). `plan` marks a module taken over
-/// from the Regelstudienplan (`Planned::from_plan`). `r` hides one Termin, `c` is a made choice
-/// („Nur diesen"): of the choice that holds the row, only the option with it is shown. A choice
-/// whose row QIS changed no longer matches, and the choice is open again, the safe direction.
+/// from the Regelstudienplan (`Planned::from_plan`). `r` hides one Termin, `c` ticks an option of a
+/// choice: of the choice that holds the row, the options ticked are shown, as many as there are
+/// lines (owner, 2026-10-26: several groups, all alike). A tick whose row QIS changed no longer
+/// matches, and with none left the choice is open again, the safe direction. `h` hides single
+/// dates of one Termin („Nur am 04.11. ausblenden", 2026-10-26), its days joined by commas as `k`
+/// joins its kinds; a build before it keeps the lines as lines of a tag it does not know.
 ///
 /// The `m` and `p` lines are the semesters of „Mein Studium" as well (`study`): a semester's
 /// timetable is its part of the study, one plan for both pages.
@@ -215,7 +220,7 @@ pub struct Placeholder {
     pub name: String,
 }
 
-/// What one semester hides (`k`, `e`, `r`) and has chosen (`c`). Named apart from
+/// What one semester hides (`k`, `e`, `r`, `h`) and has ticked (`c`). Named apart from
 /// `timetable::select::HiddenBy`, which says why something is not shown.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SemesterHides {
@@ -224,11 +229,13 @@ pub struct SemesterHides {
     pub events: BTreeSet<u32>,
     pub rows: BTreeSet<RowKey>,
     pub chosen: BTreeSet<RowKey>,
+    /// Single dates of Termine hidden, by the Termin's key and the day.
+    pub dates: BTreeSet<(RowKey, Day)>,
 }
 
 impl SemesterHides {
     pub fn is_empty(&self) -> bool {
-        self.kinds.is_empty() && self.events.is_empty() && self.rows.is_empty() && self.chosen.is_empty()
+        self.kinds.is_empty() && self.events.is_empty() && self.rows.is_empty() && self.chosen.is_empty() && self.dates.is_empty()
     }
 }
 
@@ -295,6 +302,13 @@ impl PlanDoc {
                         doc.add_to(s, row, |h| &h.chosen, |h| &mut h.chosen);
                     }
                 }
+                "h" => {
+                    if let (Some(s), Some(row)) = (semester, RowKey::parse(field(2))) {
+                        for day in field(3).split(',').filter_map(|iso| Day::parse(iso.trim())) {
+                            doc.set_date(s, row, day, true);
+                        }
+                    }
+                }
                 "a" => {
                     if let Some(s) = semester {
                         doc.remember(s, field(2));
@@ -329,7 +343,7 @@ impl PlanDoc {
 
     /// The text `restored` reads back as this plan: `g`; `m` by semester, then in planning order;
     /// `p` by pid; `d` and `q` in the order they were marked; then per semester `k`, `e`, `r`,
-    /// `c`, `a`; then the lines of unknown tags. Control characters in names become spaces, so a
+    /// `c`, `h` (one line per Termin), `a`; then the lines of unknown tags. Control characters in names become spaces, so a
     /// name never splits its line.
     pub fn stored(&self) -> String {
         self.text(self.program.as_deref())
@@ -392,6 +406,13 @@ impl PlanDoc {
                 }
                 for row in &hides.chosen {
                     let _ = writeln!(out, "c\t{key}\t{}", row.text());
+                }
+                let mut dates: BTreeMap<RowKey, Vec<String>> = BTreeMap::new();
+                for (row, day) in &hides.dates {
+                    dates.entry(*row).or_default().push(day.iso());
+                }
+                for (row, days) in dates {
+                    let _ = writeln!(out, "h\t{key}\t{}\t{}", row.text(), days.join(","));
                 }
             }
             if let Some(code) = self.subscribed.get(&s).filter(|code| is_code(code)) {
@@ -462,6 +483,7 @@ impl PlanDoc {
             hidden_events: hides.map(|h| h.events.clone()).unwrap_or_default(),
             hidden_rows: hides.map(|h| h.rows.clone()).unwrap_or_default(),
             chosen_rows: hides.map(|h| h.chosen.clone()).unwrap_or_default(),
+            hidden_dates: hides.map(|h| h.dates.clone()).unwrap_or_default(),
             town,
             town_from: (!imported.is_empty()).then_some(imported),
         }
@@ -503,6 +525,7 @@ impl PlanDoc {
             }
             hides.rows.retain(|row| !only_its_events.contains(&row.event));
             hides.chosen.retain(|row| !only_its_events.contains(&row.event));
+            hides.dates.retain(|(row, _)| !only_its_events.contains(&row.event));
         }
         self.prune(s);
     }
@@ -581,8 +604,31 @@ impl PlanDoc {
         }
     }
 
-    /// Replaces the choice made for an event („Nur diesen") by `row`, a row of that event; `None`
-    /// clears it („Alle zeigen").
+    /// Ticks one option of a choice, or takes the tick away (`on`): the row is ticked beside the
+    /// others of its event, however many (owner, 2026-10-26: several groups, all alike), and
+    /// taking the last one away opens the choice again. Caps as `set_event`.
+    pub fn tick(&mut self, s: SemesterKey, row: RowKey, on: bool) {
+        if !on {
+            self.take_from(s, &row, |h| &mut h.chosen);
+        } else if is_row(row) {
+            self.add_to(s, row, |h| &h.chosen, |h| &mut h.chosen);
+        }
+    }
+
+    /// Hides one date of a Termin („Nur am 04.11. ausblenden"), or shows it again; caps as
+    /// `set_event`, a date counting as an entry. A day outside the semester's half-year is none of
+    /// its dates and is not hidden.
+    pub fn set_date(&mut self, s: SemesterKey, row: RowKey, day: Day, hidden: bool) {
+        let (first, last) = s.bounds();
+        if !hidden {
+            self.take_from(s, &(row, day), |h| &mut h.dates);
+        } else if is_row(row) && (first..=last).contains(&day) {
+            self.add_to(s, (row, day), |h| &h.dates, |h| &mut h.dates);
+        }
+    }
+
+    /// Replaces the ticks of an event by `row`, a row of that event („Nur diesen"); `None` takes
+    /// them all away („Alle zeigen"), and the choice is open again.
     pub fn choose(&mut self, s: SemesterKey, event: u32, row: Option<RowKey>) {
         if let Some(hides) = self.hidden.get_mut(&s) {
             hides.chosen.retain(|chosen| chosen.event != event);
@@ -593,13 +639,14 @@ impl PlanDoc {
         self.prune(s);
     }
 
-    /// Shows every event and Termin of a semester again and undoes its choices; hidden kinds stay
-    /// (they have chips of their own).
+    /// Shows every event, Termin and date of a semester again and undoes its choices; hidden kinds
+    /// stay (they have chips of their own).
     pub fn show_all(&mut self, s: SemesterKey) {
         if let Some(hides) = self.hidden.get_mut(&s) {
             hides.events.clear();
             hides.rows.clear();
             hides.chosen.clear();
+            hides.dates.clear();
         }
         self.prune(s);
     }
@@ -772,6 +819,10 @@ impl PlanDoc {
             }
             for row in &hides.chosen {
                 self.add_to(s, *row, |h| &h.chosen, |h| &mut h.chosen);
+            }
+            // A plan saved in another semester names days of that one, which are none of `s`'s.
+            for (row, day) in &hides.dates {
+                self.set_date(s, *row, *day, true);
             }
         }
     }
@@ -1953,10 +2004,15 @@ mod tests {
                 doc.set_event(*s, MAX_EVENT - n, true);
                 doc.set_row(*s, termin(u32::MAX - n, 0xfffff), true);
                 doc.choose(*s, u32::MAX - n, Some(termin(u32::MAX - n, 0xffffe)));
+                // One date of a Termin of its own: a line each, the longest the dates can write.
+                doc.set_date(*s, termin(u32::MAX - n, 0xffffd), s.bounds().0.plus(k as i32 % 180), true);
             }
         }
         let total = |pick: fn(&SemesterHides) -> usize| doc.hidden.values().map(pick).sum::<usize>();
-        assert_eq!((total(|h| h.events.len()), total(|h| h.rows.len()), total(|h| h.chosen.len())), (2_000, 2_000, 2_000));
+        assert_eq!(
+            (total(|h| h.events.len()), total(|h| h.rows.len()), total(|h| h.chosen.len()), total(|h| h.dates.len())),
+            (2_000, 2_000, 2_000, 2_000)
+        );
         assert_eq!(doc.hidden[&semesters[0]].events.len(), MAX_HIDDEN);
         assert!(!doc.hidden[&semesters[4]].kinds.is_empty() && doc.hidden[&semesters[4]].events.is_empty());
         let later = key("2020W").plus(24).unwrap();
@@ -1969,6 +2025,39 @@ mod tests {
         let text = doc.stored();
         assert!(text.len() < MAX_STORED, "{} bytes", text.len());
         assert_eq!(PlanDoc::restored(&text), doc);
+    }
+
+    #[test]
+    fn ticks_stand_beside_each_other_and_dates_are_kept_per_termin() {
+        let w = key("2026W");
+        let day = |iso: &str| Day::parse(iso).unwrap();
+        let mut doc = example();
+        // A tick beside the choice made: both stay (owner, 2026-10-26: several groups, alike).
+        doc.tick(w, termin(148369, 0xaaf38), true);
+        assert_eq!(doc.hidden[&w].chosen, BTreeSet::from([termin(148369, 0xa4d12), termin(148369, 0xaaf38)]));
+        doc.tick(w, termin(148369, 0xa4d12), false);
+        assert_eq!(doc.hidden[&w].chosen, BTreeSet::from([termin(148369, 0xaaf38)]));
+        // Dates hidden: one line per Termin, its days in order; a day of another half-year is none.
+        let (mit, evs) = (termin(148304, 0xe4bf3), termin(148701, 0xb7025));
+        doc.set_date(w, mit, day("2026-11-18"), true);
+        doc.set_date(w, mit, day("2026-11-04"), true);
+        doc.set_date(w, evs, day("2026-11-06"), true);
+        doc.set_date(w, evs, day("2027-04-01"), true);
+        let text = doc.stored();
+        assert!(text.contains("h\t2026W\t148304-e4bf3\t2026-11-04,2026-11-18\n"), "{text}");
+        assert!(text.contains("h\t2026W\t148701-b7025\t2026-11-06\n"), "{text}");
+        assert_eq!(PlanDoc::restored(&text), doc);
+        assert_eq!(doc.selection(w, TownChoice::Derive).hidden_dates, BTreeSet::from([(mit, day("2026-11-04")), (mit, day("2026-11-18")), (evs, day("2026-11-06"))]));
+        doc.set_date(w, mit, day("2026-11-04"), false);
+        assert_eq!(doc.hidden[&w].dates.len(), 2);
+        // Unplanning a module takes the dates of its events with it; „Alle zeigen" shows every date.
+        doc.unplan(w, "11112", &[148304]);
+        assert_eq!(doc.hidden[&w].dates, BTreeSet::from([(evs, day("2026-11-06"))]));
+        doc.show_all(w);
+        assert!(doc.hidden[&w].dates.is_empty());
+        // A line of hand-made text keeps the days it can read.
+        let read = PlanDoc::restored("h\t2026W\t148304-e4bf3\t2026-11-04,04.11.2026,,2026-02-30\nh\t2026W\tnonsense\t2026-11-04\n");
+        assert_eq!(read.hidden[&w].dates, BTreeSet::from([(mit, day("2026-11-04"))]));
     }
 
     #[test]

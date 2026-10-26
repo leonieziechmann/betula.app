@@ -1740,8 +1740,8 @@ a.slot { text-decoration: none; }
 @media (hover: none) { .slot-acts { opacity: 1; } }
 .slot-act { flex: none; pointer-events: auto; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 6px; background: var(--panel); color: var(--text-2); box-shadow: 0 0 0 1px var(--line-strong), 0 1px 2px rgba(15, 23, 42, .12); }
 .slot-act .icon { width: 13px; height: 13px; stroke-width: 2.6; }
-.slot-act[data-icon="check"] { color: var(--ok); }
-.slot-act[data-icon="check"]:hover { background: var(--ok); color: var(--panel); box-shadow: none; }
+.slot-act[data-icon="check"], .slot-act[data-icon="plus"] { color: var(--ok); }
+.slot-act[data-icon="check"]:hover, .slot-act[data-icon="plus"]:hover { background: var(--ok); color: var(--panel); box-shadow: none; }
 .slot-act[data-icon="x"]:hover { background: var(--no); color: var(--panel); box-shadow: none; }
 /* Slots that stand together and clash (a module's A-week and B-week Termine at one time,
    week.rs): one red frame around them (div.slot-frame, the slot style of their lanes and times),
@@ -3540,15 +3540,17 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
    which a line-through does not reach. */
 .sp-rowline .rt > small { display: inline-block; }
 .sp-rowline .rt > small > span { white-space: nowrap; }
-/* An option of a choice is its own line's choice: a radio mark at the left, filled when chosen;
-   the options not chosen step back (not struck: they are not hidden, only not chosen). */
+/* An option of a choice is its own line's choice: a box at the left, ticked when chosen, as many
+   as one likes; the options not chosen step back (not struck: they are not hidden, only not
+   chosen). */
 .sp-rowline > .pick { display: flex; align-items: flex-start; gap: 8px; padding: 3px 0; border-radius: var(--r-s); text-align: left; }
 .sp-rowline > .pick:disabled { cursor: default; }
 .sp-rowline > .pick > .rt { min-width: 0; }
-.radio { flex: none; width: 14px; height: 14px; margin-top: 2px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--text-3); }
-.pick:not(:disabled):hover .radio { box-shadow: inset 0 0 0 1.5px var(--text); }
-.pick[aria-pressed="true"] .radio { box-shadow: inset 0 0 0 1.5px var(--accent), inset 0 0 0 4px var(--panel), inset 0 0 0 8px var(--accent); }
-.pick:disabled .radio { opacity: .5; }
+.pick > .tick { flex: none; display: grid; place-items: center; width: 14px; height: 14px; margin-top: 2px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px var(--text-3); color: transparent; }
+.pick > .tick .icon { width: 11px; height: 11px; stroke-width: 3.2; }
+.pick:not(:disabled):hover > .tick { box-shadow: inset 0 0 0 1.5px var(--text); }
+.pick[aria-pressed="true"] > .tick { background: var(--accent); box-shadow: none; color: var(--panel); }
+.pick:disabled > .tick { opacity: .5; }
 .sp-rowline[data-off], .sp-rowline[data-off] b { color: var(--text-3); }
 .sp-option b { font-weight: 620; }
 /* An event hidden for any reason (the eye, a kind, the Standort) steps back as its Termine do. */

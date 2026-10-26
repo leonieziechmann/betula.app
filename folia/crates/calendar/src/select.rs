@@ -2,9 +2,10 @@
 //!
 //! The Studienplan shows everything its modules link unless the visitor says otherwise, because a
 //! lecture the app hid is missed while one that does not happen is easy to hide. A `Selection` is
-//! what the visitor said for one semester: kinds switched off, whole events and single Termine
-//! hidden, one option of a choice taken („Nur diesen"), and the town whose course a module with
-//! two city tracks is taken in. The store (`studyplan`) and the subscription code carry it; the
+//! what the visitor said for one semester: kinds switched off, whole events, single Termine and
+//! single dates of a Termin hidden, the options of a choice ticked (as many as the visitor likes,
+//! all alike: owner, 2026-10-26), and the town whose course a module with two city tracks is taken
+//! in. The store (`studyplan`) and the subscription code carry it; the
 //! timetable (`model`) applies it and says per event and row which rule hid it (`HiddenBy`).
 
 use std::collections::BTreeSet;
@@ -12,14 +13,15 @@ use std::collections::BTreeSet;
 use folia_model::labels::{Campus, Code};
 use serde::{Deserialize, Serialize};
 
+use crate::day::Day;
 use crate::kind::KindSet;
 use crate::rowkey::RowKey;
 
 /// The most modules of one semester: the store's cap and the subscription code's.
 pub const MAX_MODULES: usize = 60;
 
-/// The most entries of each list of hidden events, hidden Termine and chosen Termine of one
-/// semester: the store's cap and the subscription code's.
+/// The most entries of each list of hidden events, hidden Termine, chosen Termine and hidden dates
+/// of one semester: the store's cap and the subscription code's.
 pub const MAX_HIDDEN: usize = 500;
 
 /// One of the BTU's two towns: what a visitor chooses („Standort"). The courses of a module are
@@ -106,8 +108,14 @@ pub struct Selection {
     pub hidden_events: BTreeSet<u32>,
     /// Single Termine hidden by an eye button.
     pub hidden_rows: BTreeSet<RowKey>,
-    /// Made choices („Nur diesen"): of the open choice holding the row, only its option is shown.
+    /// Ticked options of choices: of a choice holding the rows, the options with them are shown,
+    /// as many as are ticked, and each counts as a Termin of the plan like any other (owner,
+    /// 2026-10-26: „Ja zu allen drei Vorschlägen", the ticked groups alike).
     pub chosen_rows: BTreeSet<RowKey>,
+    /// Single dates hidden („Nur am 04.11. ausblenden"): the Termin's key and the day. The Termin
+    /// stays; that day is in neither its week, its day nor the feed (owner, 2026-10-26: a hidden
+    /// date is missing in the calendar too).
+    pub hidden_dates: BTreeSet<(RowKey, Day)>,
     pub town: TownChoice,
     /// The planned modules a derived town is taken from: those taken over from the
     /// Regelstudienplan, so that an elective added later does not turn the town (owner review
@@ -129,7 +137,7 @@ pub enum HiddenBy {
     /// take (docs/radix/schema-v2.md, „Tracks"): its program takes another, or the town shown
     /// holds another. The campus is the event's own, where it is held.
     Course(Campus),
-    /// Another option of the event's choice was chosen.
+    /// Other options of the event's choice were ticked, not this one.
     Choice,
     /// Another option of the choice among its module's events was chosen (docs/radix/schema-v2.md,
     /// „Choices": one exercise of three, one of 14 projects).
@@ -179,7 +187,7 @@ mod tests {
     fn an_empty_selection_hides_nothing() {
         let empty = Selection::default();
         assert!(empty.hidden_kinds.is_empty());
-        assert!(empty.hidden_events.is_empty() && empty.hidden_rows.is_empty() && empty.chosen_rows.is_empty());
+        assert!(empty.hidden_events.is_empty() && empty.hidden_rows.is_empty() && empty.chosen_rows.is_empty() && empty.hidden_dates.is_empty());
         assert_eq!(empty.town, TownChoice::Derive);
     }
 }

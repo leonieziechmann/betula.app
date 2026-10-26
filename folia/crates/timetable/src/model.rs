@@ -185,9 +185,11 @@ impl Across {
         self.options.iter().enumerate().filter(|(_, events)| events.iter().any(shown)).map(|(option, _)| option).collect()
     }
 
-    /// Whether the student still picks among its options: more of them are shown than one takes.
+    /// Whether the student still picks among its options: more of them are shown than one takes,
+    /// or than were ticked, where the visitor ticked more than one takes (all of them alike,
+    /// owner, 2026-10-26).
     pub fn open(&self, events: &[Event]) -> bool {
-        self.visible(events).len() > self.pick
+        self.visible(events).len() > self.pick.max(self.taken.len())
     }
 
     /// The options still to choose among: shown, not taken; empty when the choice is not open.
@@ -274,8 +276,9 @@ pub struct Event {
     /// An extra beside its module's compulsory part (`EventDate::extra`): attended by whoever
     /// wants to, it meets nothing (`clash`).
     pub extra: bool,
-    /// The option a made choice („Nur diesen") picked.
-    pub chosen: Option<usize>,
+    /// The options of `Attendance::OneOf` the visitor ticked (`Selection::chosen_rows`), as many as
+    /// they like, each shown and counted alike (owner, 2026-10-26); empty while the choice is open.
+    pub chosen: BTreeSet<usize>,
     /// Its dated rows by `ord`; empty for an event without dates („ohne Termine").
     pub rows: Vec<Row>,
     pub hidden: Option<HiddenBy>,
@@ -337,9 +340,21 @@ impl Event {
     }
 
     /// Whether the student still has to pick one of two or more visible options („1 von 4
-    /// wählen").
+    /// wählen"): nothing is ticked. Ticked options are the plan's, however many there are.
     pub fn unresolved(&self) -> bool {
-        self.visible_options().len() >= 2
+        self.chosen.is_empty() && self.visible_options().len() >= 2
+    }
+
+    /// The keys of an option's Termine, each once, in order: one of them ticks the option
+    /// (`Selection::chosen_rows`), and all of them taken away untick it.
+    pub fn option_keys(&self, option: usize) -> Vec<RowKey> {
+        let mut keys: Vec<RowKey> = Vec::new();
+        for key in self.rows.iter().filter(|row| row.option == Some(option)).filter_map(|row| row.key) {
+            if !keys.contains(&key) {
+                keys.push(key);
+            }
+        }
+        keys
     }
 
     /// The one town all its rows with a known campus are in; `None` when they are in both towns
@@ -522,7 +537,7 @@ fn gather(schedule: &[DateRow], modules: &[String], facts: &SemesterFacts) -> Ve
             attendance: Attendance::All,
             across: None,
             extra: rows.iter().any(|row| row.date.extra),
-            chosen: None,
+            chosen: BTreeSet::new(),
             // A row without `ord` is the view's line for an event without dates: no row at all.
             rows: rows.iter().filter(|row| row.ord.is_some()).map(|row| Row::of(row, facts)).collect(),
             hidden: None,
@@ -955,23 +970,35 @@ fn event_number(id: &str) -> Option<u32> {
     canonical.then(|| id.parse().ok()).flatten()
 }
 
-/// Applies a made choice and the hidden Termine to the rows. The first row (by `ord`) of an
-/// option whose key is chosen decides; a chosen key that names no option's row (a required row,
-/// or one QIS changed) changes nothing, and the choice is open again. A row is hidden, first rule
-/// that holds, with its event, when another option is chosen, or when its key is hidden.
+/// Applies the ticked options, the hidden Termine and the hidden dates to the rows. Every option
+/// a row of which has its key ticked is shown, however many (owner, 2026-10-26); a ticked key that
+/// names no option's row (a required row, or one QIS changed) changes nothing, and with none left
+/// the choice is open again. A row is hidden, first rule that holds, with its event, when other
+/// options are ticked and its own is not, or when its key is hidden. A hidden date of a row's key
+/// leaves its held days (`Occurrences::hidden`): the Termin stays, that day is gone from the week,
+/// the day, the clashes and the feed.
 fn choose(event: &mut Event, selection: &Selection) {
     event.chosen = match event.attendance {
         Attendance::OneOf { .. } => event
             .rows
             .iter()
-            .find_map(|row| row.option.filter(|_| row.key.is_some_and(|key| selection.chosen_rows.contains(&key)))),
-        Attendance::All => None,
+            .filter_map(|row| row.option.filter(|_| row.key.is_some_and(|key| selection.chosen_rows.contains(&key))))
+            .collect(),
+        Attendance::All => BTreeSet::new(),
     };
-    let chosen = event.chosen;
+    let chosen = event.chosen.clone();
     for row in &mut event.rows {
-        let by_choice = chosen.is_some() && row.option.is_some() && row.option != chosen;
+        let by_choice = !chosen.is_empty() && row.option.is_some_and(|option| !chosen.contains(&option));
         let by_row = row.key.is_some_and(|key| selection.hidden_rows.contains(&key));
         row.hidden = event.hidden.or(by_choice.then_some(HiddenBy::Choice)).or(by_row.then_some(HiddenBy::Row));
+        if let Some(key) = row.key {
+            let hidden: Vec<Day> = selection.hidden_dates.range((key, Day(i32::MIN))..=(key, Day(i32::MAX))).map(|(_, day)| *day).collect();
+            if !hidden.is_empty() {
+                let (gone, kept): (Vec<Day>, Vec<Day>) = row.occ.days.iter().partition(|day| hidden.contains(day));
+                row.occ.days = kept;
+                row.occ.hidden = gone;
+            }
+        }
     }
 }
 
@@ -1267,7 +1294,7 @@ pub mod tests {
             assert!(e.rows.iter().all(|r| r.ord.is_some() && r.from.is_some() == r.to.is_some()));
             match &e.attendance {
                 Attendance::All => {
-                    assert!(e.rows.iter().all(|r| r.option.is_none()) && e.chosen.is_none(), "{}", e.id);
+                    assert!(e.rows.iter().all(|r| r.option.is_none()) && e.chosen.is_empty(), "{}", e.id);
                 }
                 Attendance::OneOf { options, basis } => {
                     assert!(options.len() >= 2, "{}", e.id);
@@ -1283,9 +1310,10 @@ pub mod tests {
                     if let Basis::Sws { stated } = basis {
                         assert!(*stated > 0.0 && !e.kinds.contains(EventKind::Lecture), "{}", e.id);
                     }
-                    if let Some(chosen) = e.chosen {
-                        assert!(chosen < options.len());
-                        assert!(e.visible_options().iter().all(|o| *o == chosen), "{}", e.id);
+                    assert!(e.chosen.iter().all(|chosen| *chosen < options.len()), "{}", e.id);
+                    if !e.chosen.is_empty() {
+                        assert!(e.visible_options().iter().all(|o| e.chosen.contains(o)), "{}", e.id);
+                        assert!(!e.unresolved(), "{}: ticked options are the plan's", e.id);
                     }
                 }
             }
@@ -1294,7 +1322,7 @@ pub mod tests {
                     assert_eq!(r.hidden, e.hidden, "{}: a row of a hidden event", e.id);
                 }
                 if r.hidden == Some(HiddenBy::Choice) {
-                    assert!(e.chosen.is_some() && r.option != e.chosen);
+                    assert!(!e.chosen.is_empty() && r.option.is_some_and(|option| !e.chosen.contains(&option)));
                 }
             }
             if e.hidden.is_some() {
@@ -1615,7 +1643,7 @@ pub mod tests {
         };
         let t = pick(&[rows[1].key()]);
         let e = &t.events[0];
-        assert_eq!(e.chosen, Some(1));
+        assert_eq!(e.chosen, BTreeSet::from([1]));
         let hidden: Vec<Option<HiddenBy>> = e.rows.iter().map(|r| r.hidden).collect();
         assert_eq!(hidden, [Some(HiddenBy::Choice), None, Some(HiddenBy::Choice), None], "the single stays");
         assert_eq!(e.visible_options(), [1]);
@@ -1624,11 +1652,44 @@ pub mod tests {
         for stale in [RowKey { event: 70, fp: 0x12345 }, rows[3].key(), RowKey { event: 71, fp: rows[0].key().fp }] {
             assert_eq!(pick(&[stale]), open, "{}", stale.text());
         }
-        // Two chosen rows of one event (a store written by hand): the first option in row order.
-        assert_eq!(pick(&[rows[2].key(), rows[0].key()]).events[0].chosen, Some(0));
+        // Two ticked rows of one event: both options shown, alike, and the choice made (owner,
+        // 2026-10-26: several groups); the third option stays out.
+        let two = pick(&[rows[2].key(), rows[0].key()]);
+        let e = &two.events[0];
+        assert_eq!(e.chosen, BTreeSet::from([0, 2]));
+        assert_eq!(e.visible_options(), [0, 2]);
+        assert!(!e.unresolved());
+        assert_eq!(e.rows[1].hidden, Some(HiddenBy::Choice));
         // An event whose rows are all required has no choice.
         let t = table(&rows, &["A"], &[], &Selection { chosen_rows: [rows[0].key()].into(), ..Selection::default() });
-        assert_eq!((t.events[0].chosen, t.events[0].rows.iter().all(|r| r.hidden.is_none())), (None, true));
+        assert!(t.events[0].chosen.is_empty() && t.events[0].rows.iter().all(|r| r.hidden.is_none()));
+    }
+
+    #[test]
+    fn a_hidden_date_leaves_its_day_and_keeps_its_termin() {
+        let rows = [teaching("A", "80", 1, "Übung", 3, "09:15", "10:45"), teaching("B", "81", 1, "Vorlesung", 3, "10:00", "11:30")];
+        let open = table(&rows, &["A", "B"], &[], &Selection::default());
+        let days = open.events[0].rows[0].occ.days.clone();
+        let day = d("2026-11-04");
+        assert!(days.contains(&day));
+        // 23.12. lies in the break: no held day of it, so nothing to hide.
+        let selection = Selection { hidden_dates: [(rows[0].key(), day), (rows[0].key(), d("2026-12-23"))].into(), ..Selection::default() };
+        let t = table(&rows, &["A", "B"], &[], &selection);
+        let row = &t.events[0].rows[0];
+        assert_eq!(row.occ.days.len(), days.len() - 1);
+        assert!(!row.occ.days.contains(&day));
+        assert_eq!(row.occ.hidden, [day]);
+        assert!(row.hidden.is_none() && t.events[0].hidden.is_none(), "the Termin stays");
+        // The week reads as before: the two still meet on the other Wednesdays.
+        let slots = |t: &Timetable| t.regular_week().iter().map(|item| (item.event, item.day, item.from, item.label.clone())).collect::<Vec<_>>();
+        assert_eq!(slots(&t), slots(&open));
+        assert_eq!(t.clashes.len(), open.clashes.len());
+        // The day has no item of it any more; the other module's Termin stays.
+        let items = |t: &Timetable| -> Vec<usize> {
+            t.agenda(folia_locale::Locale::De).iter().flat_map(|week| &week.days).filter(|d| d.day == day).flat_map(|d| d.items.iter().filter_map(|item| item.event)).collect()
+        };
+        assert_eq!(items(&open), [0, 1]);
+        assert_eq!(items(&t), [1]);
     }
 
     #[test]
@@ -1862,7 +1923,7 @@ pub mod tests {
                 ("148369-f09d2".into(), choice)
             ]
         );
-        assert_eq!((e.chosen, e.unresolved()), (Some(1), false));
+        assert_eq!((e.chosen.clone(), e.unresolved()), (BTreeSet::from([1]), false));
         assert_eq!(picked.events.len(), t.events.len());
         for (before, after) in t.events.iter().zip(&picked.events).filter(|(e, _)| e.id != "148369") {
             assert_eq!(before, after, "only 148369 changes");

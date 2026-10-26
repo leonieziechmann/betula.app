@@ -25,6 +25,7 @@ use folia_locale::Locale;
 use folia_model::ids::is_program_id;
 use serde::{Deserialize, Serialize};
 
+use crate::day::Day;
 use crate::kind::KindSet;
 use crate::rowkey::RowKey;
 use crate::select::{MAX_HIDDEN, MAX_MODULES, Selection, TownChoice};
@@ -85,6 +86,34 @@ pub struct Subscription {
     /// 0 derive from the modules, 1 Cottbus, 2 Senftenberg, 3 both (`TownChoice::code`); a value
     /// a reader does not know reads as 0.
     pub town: u8,
+    /// Single dates of Termine hidden („Nur am 04.11. ausblenden", appended 2026-10-26; owner: a
+    /// hidden date is missing in the calendar too): `RowKey::packed() << 9` plus the day's
+    /// distance from the first day of the half-year (`date_value`). Empty, a code is the same as
+    /// before the field: every address handed out so far reads as it did.
+    #[serde(with = "folia_pack::set")]
+    pub hidden_dates: Vec<u64>,
+}
+
+/// How many bits of a hidden date's value hold its day: a half-year has at most 183 days.
+const DAY_BITS: u32 = 9;
+
+/// The value a code carries for a hidden date of semester `key`: the Termin's packed key and the
+/// day's distance from the half-year's first day (`SemesterKey::bounds`). `None` for a day
+/// outside the half-year.
+pub fn date_value(key: SemesterKey, row: RowKey, day: Day) -> Option<u64> {
+    let (first, last) = key.bounds();
+    let offset = u64::try_from(day.0.checked_sub(first.0)?).ok().filter(|_| day <= last)?;
+    (offset < 1 << DAY_BITS).then(|| row.packed() << DAY_BITS | offset)
+}
+
+/// The Termin and the day of a hidden date's value (`date_value`), or `None` for a value no key
+/// or no day of the half-year has.
+pub fn date_of(key: SemesterKey, value: u64) -> Option<(RowKey, Day)> {
+    let row = RowKey::unpack(value >> DAY_BITS)?;
+    let (first, last) = key.bounds();
+    let offset = i32::try_from(value & ((1 << DAY_BITS) - 1)).ok()?;
+    let day = first.plus(offset);
+    (day <= last).then_some((row, day))
 }
 
 impl Subscription {
@@ -123,7 +152,9 @@ impl Subscription {
         let mut subscription: Subscription = folia_pack::from_versioned_code(KIND, VERSION, code).ok()?;
         SemesterKey::from_index(subscription.semester)?;
         let within = (1..=MAX_MODULES).contains(&subscription.modules.len())
-            && [subscription.hidden_events.len(), subscription.hidden_rows.len(), subscription.chosen_rows.len()].iter().all(|len| *len <= MAX_HIDDEN);
+            && [subscription.hidden_events.len(), subscription.hidden_rows.len(), subscription.chosen_rows.len(), subscription.hidden_dates.len()]
+                .iter()
+                .all(|len| *len <= MAX_HIDDEN);
         if !within {
             return None;
         }
@@ -147,9 +178,9 @@ impl Subscription {
         ids.into_iter().map(|id| id.to_string()).collect()
     }
 
-    /// What the visitor chose to see, as the timetable applies it. Kind bits and row keys this
-    /// build does not know are left out; an unknown town is `Derive`, from every module of the
-    /// code (a town the page derived from the imported modules alone comes as the town it is,
+    /// What the visitor chose to see, as the timetable applies it. Kind bits, row keys and dates
+    /// this build does not know are left out; an unknown town is `Derive`, from every module of
+    /// the code (a town the page derived from the imported modules alone comes as the town it is,
     /// `export::town_of`).
     pub fn selection(&self) -> Selection {
         let rows = |packed: &[u64]| packed.iter().filter_map(|value| RowKey::unpack(*value)).collect();
@@ -158,6 +189,7 @@ impl Subscription {
             hidden_events: self.hidden_events.iter().copied().collect(),
             hidden_rows: rows(&self.hidden_rows),
             chosen_rows: rows(&self.chosen_rows),
+            hidden_dates: self.key().map(|key| self.hidden_dates.iter().filter_map(|value| date_of(key, *value)).collect()).unwrap_or_default(),
             town: TownChoice::from_code(self.town),
             town_from: None,
         }
@@ -246,6 +278,7 @@ pub(crate) mod tests {
             hidden_rows: vec![],
             chosen_rows: vec![RowKey { event: 148_369, fp: 0xa4d12 }.packed()],
             town: 0,
+            hidden_dates: vec![],
         }
     }
 
@@ -266,11 +299,25 @@ pub(crate) mod tests {
             hidden_rows: vec![RowKey { event: 148_369, fp: 0xaaf38 }.packed()],
             chosen_rows: vec![RowKey { event: 148_304, fp: 0x467cf }.packed(), RowKey { event: 148_370, fp: 0xf09d2 }.packed()],
             town: 2,
+            hidden_dates: vec![],
         }
     }
 
     /// Subscribed codes: never change (see `FIRST_SEMESTER_CODE`).
     const EVERY_FIELD_CODE: &str = "Zy3_j2JR3ZOvpql-PMBgMDxxl3eoec6JV8.GhPQYxLyjEOKK7RqcT_W4PRm.HL6R";
+
+    /// The first plan with two dates of its Monday 17:30 Übung hidden (04.11. is no Monday: a date
+    /// is the Termin's key and a day, whatever the day): the field appended on 2026-10-26.
+    fn with_dates() -> Subscription {
+        let key = SemesterKey::parse("2026W").unwrap();
+        let row = RowKey { event: 148_369, fp: 0xa4d12 };
+        let dates = ["2026-10-12", "2026-11-04"].map(|iso| date_value(key, row, Day::parse(iso).unwrap()).unwrap());
+        Subscription { hidden_dates: dates.to_vec(), ..first_semester() }
+    }
+
+    /// Subscribed codes: never change (see `FIRST_SEMESTER_CODE`). Printed by the first run of the
+    /// field (2026-10-26) and pinned.
+    const WITH_DATES_CODE: &str = "1YFkXqHJSGAmg-8gfy2.wlaDCjjpwwBbgEzsonfxshFAwPA-YVzY3";
 
     #[test]
     fn the_code_of_a_plan_is_frozen() {
@@ -279,6 +326,31 @@ pub(crate) mod tests {
         assert_eq!(Subscription::from_code(EVERY_FIELD_CODE), Some(every_field()));
         assert_eq!(Subscription::from_code(FIRST_SEMESTER_CODE), Some(first_semester()));
         assert!(is_feed_path(&path(FIRST_SEMESTER_CODE)));
+        assert_eq!(with_dates().code().unwrap(), WITH_DATES_CODE, "subscribed codes: never change");
+        assert_eq!(Subscription::from_code(WITH_DATES_CODE), Some(with_dates()));
+    }
+
+    #[test]
+    fn a_hidden_date_is_a_termin_and_a_day_of_the_half_year() {
+        let (winter, summer) = (SemesterKey::parse("2026W").unwrap(), SemesterKey::parse("2027S").unwrap());
+        let row = RowKey { event: 148_369, fp: 0xa4d12 };
+        let day = |iso: &str| Day::parse(iso).unwrap();
+        for iso in ["2026-10-01", "2026-11-04", "2027-03-31"] {
+            let value = date_value(winter, row, day(iso)).unwrap();
+            assert_eq!(date_of(winter, value), Some((row, day(iso))), "{iso}");
+        }
+        // A day outside the half-year has no value, and a value past its last day no day.
+        assert_eq!(date_value(winter, row, day("2026-09-30")), None);
+        assert_eq!(date_value(winter, row, day("2027-04-01")), None);
+        assert_eq!(date_of(winter, row.packed() << 9 | 300), None);
+        // A value counts from its own half-year's first day.
+        assert_eq!(date_of(summer, row.packed() << 9 | 3), Some((row, day("2027-04-04"))));
+        // A value of no key (event 0) names no Termin.
+        assert_eq!(date_of(winter, 5), None);
+        let selection = with_dates().selection();
+        assert_eq!(selection.hidden_dates, [(row, day("2026-10-12")), (row, day("2026-11-04"))].into_iter().collect());
+        // A plan without hidden dates writes the code it wrote before the field.
+        assert_eq!(Subscription { hidden_dates: vec![], ..with_dates() }.code().unwrap(), FIRST_SEMESTER_CODE);
     }
 
     #[test]
@@ -296,6 +368,7 @@ pub(crate) mod tests {
             hidden_rows: vec![RowKey { event: 148_369, fp: 0xaaf38 }.packed(), RowKey { event: 148_370, fp: 0x00001 }.packed()],
             chosen_rows: vec![RowKey { event: 148_304, fp: 0xfffff }.packed()],
             town: 2,
+            hidden_dates: vec![RowKey { event: 148_304, fp: 0xfffff }.packed() << 9 | 182],
         };
         assert_eq!(Subscription::from_code(&every.code().unwrap()), Some(every.clone()));
         for town in 0..=3 {
@@ -343,6 +416,7 @@ pub(crate) mod tests {
             Subscription { hidden_events: consecutive(501), ..first_semester() },
             Subscription { hidden_rows: packed(501), ..first_semester() },
             Subscription { chosen_rows: packed(501), ..first_semester() },
+            Subscription { hidden_dates: (0..501u64).map(|n| (RowKey { event: 148_369, fp: 0 }.packed() << 9) + n).collect(), ..first_semester() },
         ];
         for subscription in refused {
             let code = raw(&subscription);
@@ -351,7 +425,14 @@ pub(crate) mod tests {
             assert_eq!(subscription.code(), Err(folia_pack::Error::Malformed), "{subscription:?}");
         }
         // At the caps, a code is still read.
-        let full = Subscription { modules: consecutive(60), hidden_events: consecutive(500), hidden_rows: packed(500), chosen_rows: packed(500), ..first_semester() };
+        let full = Subscription {
+            modules: consecutive(60),
+            hidden_events: consecutive(500),
+            hidden_rows: packed(500),
+            chosen_rows: packed(500),
+            hidden_dates: (0..500u64).map(|n| (RowKey { event: 148_369, fp: 1 }.packed() << 9) + n).collect(),
+            ..first_semester()
+        };
         let code = full.code().unwrap();
         assert_eq!(Subscription::from_code(&code), Some(full));
     }
