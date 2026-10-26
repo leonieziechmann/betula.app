@@ -1,29 +1,34 @@
 <title>Termin-Konzepte</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<!-- Concepts for a Termin's own view (owner, 2026-10-24: „Hey klar, das braucht noch ein paar
-     einzelansichten für die termine. Aktuell, wenn man drauf klickt, landet man ja entweder bei qis
-     oder halt im stundenplan. Aber eigentlich möchte man noch relativ häufig eine detailansicht vom
-     Termin haben … Auf dem Handy kann das definitiv ein modal sein. Aber ich glaube, es sollte auch
-     eine Seite dafür geben. Erstelle mal ein paar Konzepte wie man das anzeigen kann."). What a tap
-     on a Termin does today (Folia 1.44.3, read from the code, two screenshots in bilder/); what one
-     date of a Termin can show, block by block, and where each block comes from; four ways to show it
-     (A–D), each working on a phone and a desktop over the start page or the Stundenplan, each with a
-     page of its own; the address; a comparison, a recommendation and questions. The data is real:
+<!-- Concepts for a Termin's own view. First round (owner, 2026-10-24: „Aktuell, wenn man drauf
+     klickt, landet man ja entweder bei qis oder halt im stundenplan … Auf dem Handy kann das
+     definitiv ein modal sein. Aber ich glaube, es sollte auch eine Seite dafür geben"): four ways
+     to show a Termin, A–D. Second round (owner, 2026-10-26: „konzept A ist mit abstand das beste.
+     … zu unaufgeräumt und informationen sind schlecht erkennbar. Es braucht eine ordentliche
+     visuelle hirarchie und erklärtext darf nicht zu lange sein. … solche buttons sind einfach ein
+     nono. Quellen, wie in qis gehören nach ganz unten und ehr als grauer text. Link kopieren ist
+     eher ein share ding oben rechts. In den kallender ist eine action für den Termin die sollte ein
+     großer button sein, oder nicht existieren und im stundenplan ist so eine sache, die nicht
+     gleichzeitig mit in den kallender gezeigt werden sollte … wie man die informationen möglichst
+     ohne text anzeigt und mehr mit symboliken ohne cheap oder kindisch auszusehen."): A alone,
+     rebuilt in an order of three levels (when and where as a ticket; who and which group; the day,
+     the series and the module), each kind of control in a place of its own (tools top right, at
+     most one large action, ways at their section, the source grey at the foot), and signs instead
+     of sentences; the order, the controls, the signs, A working on a phone and a desktop, nine
+     states, the address, questions; the first round's look at today in a fold. The data is real:
      Informatik B.Sc., 1. FS, WiSe 2026/27 at the Zentralcampus as betula.app's snapshot had it on
-     2026-10-21, the Termine keyed as folia-calendar's RowKey keys them (148304-e4bf3); the clock
-     stands at Wednesday 04.11.2026, 08:40 (KW 45, an A week), the day QIS moves the Übung of
-     Mathematik IT-1 from HG/0.17 to LG1A/304. Tokens are Betula's (folia/assets/app.css); Inter
-     comes from Google Fonts here, the app self-hosts it; the photo of the start page is a drawn
-     stand-in. -->
+     2026-10-21, and one seminar of another program (Forschungsseminar Stochastik) for a Termin
+     outside the plan; the Termine keyed as folia-calendar's RowKey keys them; the clock stands at
+     Wednesday 04.11.2026, 08:40 (KW 45, an A week). Tokens are Betula's (folia/assets/app.css);
+     Inter comes from Google Fonts here, the app self-hosts it; the start page's photo is drawn. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
 <style>
-/* Layout: a review desk. The brief and the rules, a bar that stays at the top (which Termin, which
-   page lies under it), what a tap does today, what a Termin shows, then one panel per concept with
-   a phone and a desktop that work, the address, the comparison, the recommendation and the
-   questions. Tokens: Betula's own (light, then dark), the modules' colours of the Stundenplan, the
-   wood the devices lie on, and a drawn photo for the start page. */
+/* Layout: a review desk. What was decided, the order of what a Termin shows, where each control
+   goes, the signs, then A working on a phone and a desktop, its states side by side, the address
+   and the questions. Tokens: Betula's own (light, then dark), the modules' colours of the
+   Stundenplan, the wood the devices lie on, and a drawn photo for the start page. */
 :root {
   color-scheme: light;
   --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -56,6 +61,7 @@
   --m-evs: oklch(.55 .07 245);
   --m-mit: oklch(.56 .08 185);
   --m-pp: oklch(.53 .1 300);
+  --m-mse: oklch(.55 .08 115);
   --backdrop: rgba(10, 12, 17, .42);
   --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
   --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
@@ -87,7 +93,7 @@
     --ok: #4fd1a1;
     --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel)); --warn-line: color-mix(in srgb, #f0b861 38%, transparent);
     --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel)); --no-line: color-mix(in srgb, #ff8f85 32%, transparent);
-    --m-eeg: oklch(.8 .11 75); --m-evs: oklch(.78 .07 245); --m-mit: oklch(.8 .08 185); --m-pp: oklch(.78 .09 300);
+    --m-eeg: oklch(.8 .11 75); --m-evs: oklch(.78 .07 245); --m-mit: oklch(.8 .08 185); --m-pp: oklch(.78 .09 300); --m-mse: oklch(.8 .08 115);
     --backdrop: rgba(0, 0, 0, .55);
     --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
     --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
@@ -111,7 +117,7 @@
   --ok: #4fd1a1;
   --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel)); --warn-line: color-mix(in srgb, #f0b861 38%, transparent);
   --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel)); --no-line: color-mix(in srgb, #ff8f85 32%, transparent);
-  --m-eeg: oklch(.8 .11 75); --m-evs: oklch(.78 .07 245); --m-mit: oklch(.8 .08 185); --m-pp: oklch(.78 .09 300);
+  --m-eeg: oklch(.8 .11 75); --m-evs: oklch(.78 .07 245); --m-mit: oklch(.8 .08 185); --m-pp: oklch(.78 .09 300); --m-mse: oklch(.8 .08 115);
   --backdrop: rgba(0, 0, 0, .55);
   --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
   --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
@@ -122,6 +128,7 @@
   --shadow-device: 0 34px 70px -38px rgba(0, 0, 0, .9);
 }
 
+
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
@@ -130,13 +137,15 @@ button { font: inherit; color: inherit; }
 h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
 p { margin: 0; }
 code { font: 500 .88em var(--mono); padding: 1px 5px; border-radius: 5px; background: var(--panel-3); overflow-wrap: anywhere; }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.85; stroke-linecap: round; stroke-linejoin: round; }
+kbd { display: inline-block; padding: 0 5px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-3); font: 500 10.5px/18px var(--mono); }
 .page { max-width: 1240px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 28px; }
 .kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
 
 /* The brief. */
-.intro { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
 .intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -.026em; font-weight: 770; }
-.intro .lead { margin-top: 14px; max-width: 64ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.intro .lead { margin-top: 14px; max-width: 60ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
 .quote { margin: 18px 0 0; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
 .quote b { color: var(--text); font-weight: 600; }
 .rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
@@ -161,9 +170,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 
 /* A section of the brief. */
 .sec { padding: 24px 24px 26px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); scroll-margin-top: 110px; }
-.sec h2, .reco h2 { font-size: 23px; line-height: 1.2; letter-spacing: -.02em; font-weight: 730; }
-.sec .sub { margin-top: 8px; max-width: 76ch; color: var(--text-2); text-wrap: pretty; }
-.sec .sub + .sub { margin-top: 8px; }
+.sec h2 { font-size: 23px; line-height: 1.2; letter-spacing: -.02em; font-weight: 730; }
+.sec .sub { margin-top: 8px; max-width: 72ch; color: var(--text-2); text-wrap: pretty; }
 .sec h3 { font-size: 15px; font-weight: 700; letter-spacing: -.005em; }
 .scroll { overflow-x: auto; margin-top: 16px; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -172,37 +180,69 @@ thead th { border-top: 0; font-size: 11px; font-weight: 700; letter-spacing: .06
 tbody th { font-weight: 620; color: var(--text); }
 td { color: var(--text-2); }
 td b { color: var(--text); font-weight: 620; }
-.t-today { min-width: 760px; }
-.t-today tbody th { width: 21%; }
-.t-today td:nth-child(2) { width: 42%; }
 
-/* Today, in two screenshots. */
-.shots { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr); gap: 20px; margin-top: 20px; align-items: start; }
-.shots figure { margin: 0; min-width: 0; }
-.shots img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 10px; box-shadow: var(--shadow-panel); background: var(--panel-2); }
-.shots .tall img { border-radius: 22px; }
-.shots figcaption { margin-top: 8px; font-size: 13px; color: var(--text-2); text-wrap: pretty; }
-.shots figcaption b { color: var(--text); font-weight: 620; }
+/* What was decided: before and after, and the feedback point by point. */
+.dec { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px 36px; margin-top: 18px; align-items: start; }
+.ba { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.ba figure { margin: 0; min-width: 0; }
+.ba figcaption { margin-bottom: 8px; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.ba img { display: block; width: 100%; height: auto; max-width: 100%; border-radius: 12px; box-shadow: var(--shadow-panel); background: #fff; }
+.ba .ui { border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); overflow: hidden; }
+.ba .ui .tm { padding: 12px 12px 14px; gap: 12px; }
+.fb { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.fb li { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 0 0 10px; border-bottom: 1px solid var(--line); }
+.fb li:last-child { border-bottom: 0; padding-bottom: 0; }
+.fb q { quotes: "„" "“"; color: var(--text-3); font-size: 13px; }
+.fb span { font-size: 14.5px; color: var(--text); }
 
-/* What a Termin shows: the page drawn at its size, the blocks beside it. */
-.anat { display: grid; grid-template-columns: 410px minmax(0, 1fr); gap: 28px 36px; margin-top: 20px; align-items: start; }
+/* The order: the Termin at its size with its levels, the levels explained beside it. */
+.anat { display: grid; grid-template-columns: 418px minmax(0, 1fr); gap: 28px 36px; margin-top: 20px; align-items: start; }
 .paper { position: sticky; top: 120px; border-radius: 18px; background: var(--panel); box-shadow: var(--shadow-pop); overflow: hidden; }
-.paper .app { height: auto; overflow: visible; background: var(--panel); }
-.blocks { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; }
-.blocks li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; }
-.blocks .n { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--invert); color: var(--on-invert); font-size: 12px; font-weight: 700; }
-.blocks h3 { font-size: 15px; }
-.blocks p { margin-top: 2px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
-.src { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 12px; color: var(--text-3); }
-.src span { padding: 1px 7px; border-radius: 5px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font: 500 11.5px var(--mono); }
-.src span.derived { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--accent-ink); font-family: var(--font); font-weight: 600; }
-.blocks li.not .n { background: var(--panel-3); color: var(--text-3); }
-.paper .tm { padding-left: 46px; }
-.paper .tm-head, .paper .tm-alert, .paper .tm-place, .paper .tm-facts, .paper .tm-acts, .paper .tm-sec { position: relative; }
-.anat-n { position: absolute; left: -36px; top: 0; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--invert); color: var(--on-invert); font: 700 11.5px/1 var(--font); }
-.tm-alert > .anat-n { top: 8px; left: -36px; }
-.tm-sec > .anat-n { top: 12px; }
-.tm-head > .anat-n { top: 6px; }
+.paper .tm { padding-left: 52px; }
+.tier { position: absolute; left: -40px; top: 2px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--invert); color: var(--on-invert); font: 700 12px/1 var(--font); }
+.tm-t1 > .tier { top: 10px; }
+.levels { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 16px; }
+.levels li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; }
+.levels .n { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--invert); color: var(--on-invert); font-size: 12px; font-weight: 700; }
+.levels .n.act { background: var(--accent); color: var(--on-accent); }
+.levels h3 { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 15.5px; }
+.levels h3 small { font-size: 12px; font-weight: 600; color: var(--text-3); }
+.levels p { margin-top: 3px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+
+/* Where each control goes. */
+.kinds { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+.kind { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 14px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.kind .demo { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 64px; padding: 10px; border-radius: 10px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.kind .demo.left { justify-content: flex-start; }
+.kind h3 { font-size: 15px; }
+.kind h3 small { display: block; font-size: 12px; font-weight: 600; color: var(--text-3); }
+.kind p { color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.kind .was { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 12.5px; }
+.kind .was s { color: var(--text-3); }
+.kind .was b { color: var(--text-2); font-weight: 600; }
+
+/* The signs. */
+.signs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+.sign { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 14px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.sign .v { display: flex; flex-direction: column; justify-content: center; gap: 6px; min-height: 76px; padding: 12px; border-radius: 10px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.sign .v.row { flex-direction: row; align-items: center; flex-wrap: wrap; }
+.sign b { font-size: 14px; font-weight: 650; }
+.mini-dots .sdots { grid-auto-columns: 9px; gap: 4px; padding-top: 4px; }
+.mini-dots .sd { width: 9px; height: 9px; }
+.mini-dots .sd.brk { height: 3px; }
+.mini-dots .sd.cancel::after { top: 3.75px; }
+.mini-dots .sd.sel { box-shadow: 0 0 0 1.5px var(--panel), 0 0 0 3px var(--text); }
+.mini-dots .sd.today::before { top: -6px; }
+.mini-dots .smon { display: none; }
+.sign p { margin-top: -6px; color: var(--text-2); font-size: 13px; text-wrap: pretty; }
+
+/* The states, side by side; on a phone a row to swipe. */
+.states { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 18px; align-items: start; }
+.state { margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.state figcaption b { display: block; font-size: 14.5px; font-weight: 680; }
+.state figcaption span { color: var(--text-2); font-size: 13px; }
+.state-card { position: relative; border-radius: 18px; background: var(--panel); box-shadow: var(--shadow-pop); overflow: hidden; }
+.state-card .tm { padding: 12px 16px 16px; }
 
 /* A concept. */
 .concept { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); overflow: hidden; scroll-margin-top: 110px; }
@@ -210,7 +250,7 @@ td b { color: var(--text); font-weight: 620; }
 .c-tag { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: var(--invert); color: var(--on-invert); font-size: 17px; font-weight: 760; }
 .c-head h2 { font-size: 22px; letter-spacing: -.018em; font-weight: 720; }
 .c-head h2 small { margin-left: 8px; font-size: 12px; font-weight: 650; color: var(--accent-ink); letter-spacing: .02em; white-space: nowrap; }
-.c-head p { margin-top: 4px; max-width: 80ch; color: var(--text-2); text-wrap: pretty; }
+.c-head p { margin-top: 4px; max-width: 78ch; color: var(--text-2); text-wrap: pretty; }
 .c-ctl { padding: 0 24px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .c-ctl .kicker { font-size: 10.5px; }
 .c-reset { height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; }
@@ -238,15 +278,14 @@ td b { color: var(--text); font-weight: 620; }
 .phone .frame { padding: 9px; border-radius: 48px; background: var(--device); box-shadow: var(--shadow-device), 0 0 0 1px var(--device-ring); }
 .phone .screen { border-radius: 39px; }
 
+
 /* ---------- Betula inside the devices ---------- */
 .app { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-size: 13.5px; line-height: 1.45; text-align: left; }
-.app svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.app kbd { display: inline-block; padding: 0 5px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-3); font: 500 10.5px/18px var(--mono); }
-.app button { cursor: pointer; }
+.ui { color: var(--text); font-size: 13.5px; line-height: 1.45; text-align: left; }
+.app button, .ui button { cursor: pointer; }
 .app .mono { font-family: var(--mono); }
 .scr { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
-.scr::-webkit-scrollbar, .sheet-body::-webkit-scrollbar, .ppage-body::-webkit-scrollbar { display: none; }
-
+.scr::-webkit-scrollbar, .sheet-body::-webkit-scrollbar { display: none; }
 /* The desktop's frame: the rail, the top bar with the search, the page. */
 .d-rail { position: absolute; left: 0; top: 0; bottom: 0; width: 52px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0 12px; z-index: 3; }
 .d-rail .logo { width: 38px; height: 38px; border-radius: 11px; background: var(--invert); color: var(--on-invert); display: grid; place-items: center; margin-bottom: 10px; }
@@ -380,273 +419,247 @@ td b { color: var(--text); font-weight: 620; }
 .mods .m .lp small { font: 500 11px var(--font); color: var(--text-3); display: inline; }
 .abbr { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 5px; background: color-mix(in oklab, var(--mc) 15%, var(--panel)); box-shadow: inset 2px 0 0 var(--mc); color: var(--text); font: 600 10.5px var(--mono); }
 
-/* ---------- The Termin: one building block in every size ---------- */
-.tm { display: flex; flex-direction: column; gap: 14px; padding: 4px 18px 22px; }
+
+/* ---------- The Termin: one block, three levels ---------- */
+.tm { display: flex; flex-direction: column; gap: 18px; padding: 2px 18px 22px; }
+.tm-t1, .tm-t2, .tm-t3, .tm-t4, .tm-head { position: relative; }
+.tm-t2 { display: flex; flex-direction: column; gap: 12px; }
+.tm-t3 { display: flex; flex-direction: column; gap: 22px; padding-top: 4px; }
 .tm-head { display: flex; flex-direction: column; gap: 4px; }
-.tm-top { display: flex; align-items: center; gap: 8px; min-height: 34px; }
-.tm-mod { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border: 0; border-radius: 6px; background: color-mix(in oklab, var(--mc) 15%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--mc) 45%, transparent); color: var(--text); font: 600 11.5px var(--mono); }
+.tm-bar { display: flex; align-items: center; gap: 8px; min-height: 36px; }
+.tm-mod { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 6px; background: color-mix(in oklab, var(--mc) 15%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--mc) 45%, transparent); color: var(--text); font: 600 11.5px var(--mono); }
 .tm-mod i { width: 8px; height: 8px; border-radius: 50%; background: var(--mc); }
-.tm-kind { min-width: 0; color: var(--text-2); font-size: 13px; font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tm-tools { margin-left: auto; display: flex; gap: 4px; align-items: center; flex: none; }
-.ib { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); }
-.ib:hover { background: var(--panel-3); }
-.ib[disabled] { opacity: .35; cursor: default; }
-.ib.x { width: 34px; height: 34px; border-radius: 50%; background: var(--panel-3); box-shadow: none; }
+.tm-kind { min-width: 0; color: var(--text-2); font-size: 13.5px; font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tm-tools { margin-left: auto; display: flex; gap: 6px; align-items: center; flex: none; }
+.ib { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: var(--panel-3); color: var(--text); }
+.ib:hover { background: color-mix(in oklab, var(--text) 11%, var(--panel)); }
+.ib svg.i { width: 17px; height: 17px; }
 .tb { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; border: 0; border-radius: 8px; background: none; color: var(--text-2); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .tb:hover { background: var(--row-hover); color: var(--text); }
 .tb svg.i { width: 15px; height: 15px; }
-.tm-title { margin-top: 2px; font-size: 21px; line-height: 1.18; letter-spacing: -.022em; font-weight: 740; }
-.tm-sub { color: var(--text-2); font-size: 13px; }
-.tm-when { margin-top: 6px; font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -.005em; }
-.tm-rel { color: var(--text-2); font-size: 13px; }
-.tm-rel .soon { color: var(--accent-ink); font-weight: 650; }
-.tm-rel .live { color: var(--no); font-weight: 650; }
-.tm-alert { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; padding: 11px 12px; border-radius: 10px; background: var(--warn-soft); box-shadow: inset 0 0 0 1px var(--warn-line); color: var(--text); font-size: 13.5px; }
-.tm-alert > svg.i { margin-top: 2px; color: var(--warn); width: 17px; height: 17px; }
-.tm-alert b { font-weight: 680; }
-.tm-alert p { margin-top: 3px; color: var(--text-2); font-size: 12.5px; text-wrap: pretty; }
-.tm-alert.no { background: var(--no-soft); box-shadow: inset 0 0 0 1px var(--no-line); }
-.tm-alert.no > svg.i { color: var(--no); }
-.tm-alert.info { background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
-.tm-alert.info > svg.i { color: var(--text-3); }
-.tm-place { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: center; }
-.tm-place .room { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; font: 700 26px/1.1 var(--mono); letter-spacing: -.015em; }
-.tm-place .room s { font-size: 14px; font-weight: 500; color: var(--text-3); letter-spacing: 0; }
-.tm-place p { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 13px; }
-.tm-place p svg.i { width: 14px; height: 14px; color: var(--text-3); }
-.mini { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border: 0; border-radius: 7px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 12px; font-weight: 600; white-space: nowrap; }
-.mini:hover { background: var(--row-hover); }
-.mini svg.i { width: 13px; height: 13px; }
-.tm-facts { margin: 0; display: grid; gap: 9px; }
-.tm-facts > div { display: grid; grid-template-columns: 102px minmax(0, 1fr); gap: 10px; align-items: baseline; }
-.tm-facts dt { font-size: 10.5px; font-weight: 680; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
-.tm-facts dd { margin: 0; min-width: 0; font-size: 13.5px; }
-.tm-facts dd small { display: block; color: var(--text-3); font-size: 12px; }
-.tm-facts dd .mini { margin-top: 6px; }
-.opts { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
-.opt { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 2px 9px; align-items: center; width: 100%; padding: 7px 8px; border: 0; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); text-align: left; color: var(--text); }
+.tm-title { font-size: 20px; line-height: 1.22; letter-spacing: -.02em; font-weight: 720; }
+/* Level 1: the ticket, when and where. */
+.tk { position: relative; container-type: inline-size; border-radius: 14px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.tk-date { display: flex; align-items: center; gap: 2px; min-height: 40px; padding: 6px 10px 0 6px; }
+.tk-date b { padding: 0 4px; font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tk-date .nopg { padding-left: 10px; }
+.pg { width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--text-2); }
+.pg:hover { background: var(--row-hover); color: var(--text); }
+.pg[disabled] { opacity: .28; cursor: default; }
+.tk-date .pill { margin-left: auto; }
+.tk-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
+.tk-main > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 4px 16px 15px; }
+.tk-room { box-shadow: inset 1px 0 0 var(--line-strong); }
+.tk-time b { font-size: 36px; line-height: 1.04; font-weight: 760; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+.tk-main small { color: var(--text-2); font-size: 12.5px; line-height: 1.35; }
+.plate { font: 700 26px/1.2 var(--mono); letter-spacing: -.02em; overflow-wrap: anywhere; }
+.plate .sl { color: var(--text-3); font-weight: 400; }
+.chg { display: inline-flex; align-items: center; gap: 5px; color: var(--warn) !important; font-weight: 650; }
+.chg svg.i { width: 14px; height: 14px; }
+.chg s { color: var(--text-3); font-weight: 500; text-decoration-thickness: 1.5px; }
+.tk.room .tk-room { background: var(--warn-soft); box-shadow: inset 1px 0 0 var(--warn-line); }
+.tk.cancel .tk-time b, .tk.off .tk-time b { color: var(--text-3); text-decoration: line-through; text-decoration-thickness: 3px; }
+.tk.cancel .plate, .tk.off .plate { color: var(--text-3); }
+.tk.past { opacity: .6; }
+@container (max-width: 330px) {
+  .tk-time b { font-size: 30px; }
+  .plate { font-size: 21px; }
+  .tk-main > div { padding: 4px 12px 13px; }
+}
+@container (max-width: 250px) {
+  .tk-main { grid-template-columns: minmax(0, 1fr); }
+  .tk-room { box-shadow: inset 0 1px 0 var(--line-strong); padding-top: 10px !important; }
+}
+.tk-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--line); }
+.tk-prog i { display: block; height: 100%; background: var(--accent); }
+.pill { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 12px; background: var(--panel-3); color: var(--text-2); font-size: 12px; font-weight: 650; white-space: nowrap; }
+.pill svg.i { width: 13px; height: 13px; }
+.pill.soon { background: var(--accent-soft); color: var(--accent-ink); }
+.pill.live { background: var(--accent); color: var(--on-accent); }
+.pill.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.8s ease-in-out infinite; }
+.pill.no { background: var(--no-soft); color: var(--no); }
+@keyframes pulse { 50% { opacity: .35; } }
+.abg { display: inline-flex; margin-left: 6px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--line-strong); overflow: hidden; }
+.abg i { width: 18px; height: 18px; display: grid; place-items: center; color: var(--text-3); font: 700 10.5px/1 var(--font); font-style: normal; }
+.abg i.on { background: var(--invert); color: var(--on-invert); }
+/* Level 2: who and which group, as signs. */
+.tm-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; padding: 0 2px; }
+.fact { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0; border: 0; background: none; color: var(--text); font-size: 14px; font-weight: 560; text-align: left; }
+.fact svg.i { color: var(--text-3); }
+.fact.btnish { margin-left: -8px; padding: 0 8px; border-radius: 8px; }
+.fact.btnish:hover { background: var(--row-hover); }
+.fact.btnish > svg.i:last-child { width: 14px; height: 14px; }
+.fact.warn, .fact.warn svg.i { color: var(--no); }
+.gdots { display: inline-flex; gap: 5px; margin-left: 2px; }
+.gdots i { width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
+.gdots i.mine { background: var(--mc); box-shadow: none; }
+.gdots i.this { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--text); }
+.gdots i.mine.this { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--text); }
+.hint { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; color: var(--text-2); font-size: 13px; }
+.hint svg.i { margin-top: 2px; color: var(--text-3); }
+.hint span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.hint.no, .hint.no svg.i { color: var(--no); }
+.opts { display: flex; flex-direction: column; gap: 4px; }
+.opt { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto 14px; gap: 10px; align-items: center; width: 100%; padding: 9px 10px; border: 0; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); text-align: left; }
 .opt:hover { background: var(--row-hover); }
-.opt .rd { width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
-.opt[aria-checked="true"] .rd { box-shadow: inset 0 0 0 5px var(--accent); }
-.opt b { font-size: 12.5px; font-weight: 640; font-variant-numeric: tabular-nums; }
-.opt small { grid-column: 2; color: var(--text-3); font-size: 11.5px; }
-.opt .fitn { grid-row: 1 / span 2; grid-column: 3; }
-.tm-acts { display: flex; flex-wrap: wrap; gap: 6px; }
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 34px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 13px; font-weight: 620; white-space: nowrap; }
-.btn:hover { background: var(--row-hover); }
-.btn svg.i { width: 15px; height: 15px; }
-.btn.primary { background: var(--invert); color: var(--on-invert); box-shadow: none; }
-.btn.primary:hover { background: color-mix(in oklab, var(--invert) 88%, var(--panel)); }
-.btn kbd { margin-left: 2px; }
-.tm-sec { padding-top: 14px; border-top: 1px solid var(--line); }
-.tm-sec h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-2); }
-.tm-sec h4 small { font-size: 12px; font-weight: 520; letter-spacing: 0; text-transform: none; color: var(--text-3); }
-.tm-sec > p { margin-top: 8px; color: var(--text-2); font-size: 13px; text-wrap: pretty; }
-.tm-more { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 36px; border: 0; border-radius: 9px; background: var(--panel-2); color: var(--text-2); font-size: 12.5px; font-weight: 600; }
-.tm-more svg.i { width: 15px; height: 15px; }
-/* The day around it. */
-.dayl { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; }
-.dayl .it { display: grid; grid-template-columns: 52px 3px minmax(0, 1fr); gap: 10px; align-items: start; width: 100%; padding: 7px 6px; border: 0; border-radius: 8px; background: none; color: var(--text); text-align: left; font-size: 13px; }
-.dayl button.it:hover { background: var(--row-hover); }
-.dayl .it .t { font-weight: 620; font-variant-numeric: tabular-nums; line-height: 1.35; }
-.dayl .it .t small { display: block; color: var(--text-3); font-weight: 500; font-size: 12px; }
-.dayl.ex .it { grid-template-columns: 70px 3px minmax(0, 1fr); }
-.dayl.ex .gap { padding-left: 99px; }
-.dayl .it .bar { align-self: stretch; border-radius: 2px; background: var(--mc); }
-.dayl .it .w { min-width: 0; }
-.dayl .it .w small { display: block; color: var(--text-2); font-size: 12px; }
-.dayl .it.me { background: var(--row-hover); box-shadow: inset 0 0 0 1px var(--line-strong); }
-.dayl .it.gone { color: var(--text-3); }
-.dayl .it.gone .w b { text-decoration: line-through; }
-.dayl .gap, .dayl .now { padding: 1px 6px 1px 81px; color: var(--text-3); font-size: 12px; }
-.dayl .now { color: var(--no); font-weight: 650; }
-/* Every date of the Termin. */
-.days { margin-top: 10px; display: grid; gap: 6px; }
-.days .mo { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 8px; }
-.days .mo > span { font-size: 11.5px; font-weight: 650; color: var(--text-3); }
-.days .ds { display: flex; flex-wrap: wrap; gap: 5px; }
-.dc { position: relative; min-width: 34px; height: 30px; padding: 0 6px; border: 0; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); font: 620 12.5px var(--font); font-variant-numeric: tabular-nums; }
-.dc:hover { box-shadow: inset 0 0 0 1px var(--text-3); }
-.dc.past { background: transparent; color: var(--text-3); }
-.dc.today::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--accent); }
-.dc.room { box-shadow: inset 0 0 0 1.5px var(--warn); }
-.dc.cancel, .dc.brk { color: var(--text-3); text-decoration: line-through; background: repeating-linear-gradient(135deg, var(--panel-2) 0 4px, transparent 4px 8px); box-shadow: inset 0 0 0 1px var(--line); }
-.dc.sel { background: var(--invert); color: var(--on-invert); box-shadow: none; text-decoration: none; }
-.dc.sel.today::after { background: var(--on-invert); }
-.legend { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--text-3); font-size: 11.5px; }
-.legend span { display: inline-flex; align-items: center; gap: 5px; }
-.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 4px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
-.legend i.room { box-shadow: inset 0 0 0 1.5px var(--warn); }
-.legend i.brk { background: repeating-linear-gradient(135deg, var(--panel-3) 0 2px, transparent 2px 4px); }
-.legend i.today { background: var(--accent); box-shadow: none; width: 6px; height: 6px; border-radius: 50%; }
-/* The module and its exam. */
-.modc { margin-top: 10px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
-.modc b { display: block; font-size: 14px; font-weight: 650; line-height: 1.3; }
-.modc > div small { display: flex; align-items: center; gap: 6px; margin-top: 3px; color: var(--text-3); font: 500 11.5px var(--mono); }
-.exl { grid-column: 1 / -1; display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; align-items: center; width: 100%; padding: 8px; border: 0; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); text-align: left; }
-.exl:hover { background: var(--row-hover); }
-.exl .dt { background: var(--panel); }
-.exl b { font-size: 13.5px; }
-.exl small { display: block; color: var(--text-2); font-size: 12px; }
-.qnote { margin-top: 8px; padding: 10px 12px; border-radius: 9px; background: var(--panel-2); color: var(--text-2); font-size: 13px; overflow-wrap: anywhere; }
-.qnote q { quotes: "„" "“"; }
+.opt .dot { width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
+.opt .dot.mine { background: var(--mc); box-shadow: none; }
+.opt b { display: block; font-size: 13px; font-weight: 640; font-variant-numeric: tabular-nums; }
+.opt small { display: block; color: var(--text-3); font-size: 12px; }
+.opt.this { box-shadow: inset 0 0 0 1.5px var(--text); }
+.opt > svg.i { width: 14px; height: 14px; color: var(--text-3); }
+/* Level 3: around it. */
+.tm-sec { display: flex; flex-direction: column; gap: 10px; }
+.tm-sec h4 { display: flex; align-items: center; gap: 8px; min-height: 22px; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.tm-sec h4 .r { margin-left: auto; color: var(--text-2); font-size: 12.5px; font-weight: 600; letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
+.tm-sec h4 .go { margin-left: auto; display: inline-flex; align-items: center; gap: 1px; padding: 0 0 0 6px; border: 0; background: none; color: var(--accent-ink); font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.tm-sec h4 .go svg.i { width: 15px; height: 15px; }
+.rib { position: relative; height: 36px; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.rb { position: absolute; display: block; padding: 0 6px; border: 0; border-radius: 6px; background: color-mix(in oklab, var(--mc) 24%, var(--panel)); box-shadow: inset 2px 0 0 var(--mc); color: var(--text); font: 650 10.5px/1 var(--mono); text-align: left; white-space: nowrap; overflow: hidden; display: flex; align-items: center; }
+.rb.me { background: var(--mc); color: var(--panel); box-shadow: none; }
+.rb.cand { background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--mc) 30%, var(--panel)) 0 4px, var(--panel) 4px 8px); box-shadow: inset 0 0 0 1.5px var(--mc); color: var(--text); }
+.rb.gone { opacity: .45; text-decoration: line-through; }
+.rn { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--no); }
+.rn::before { content: ""; position: absolute; top: -3px; left: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--no); }
+.rt { position: relative; height: 14px; margin-top: -4px; }
+.rt span { position: absolute; translate: -50% 0; color: var(--text-3); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.nx { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; color: var(--text-2); font-size: 13px; }
+.nx svg.i { width: 15px; height: 15px; color: var(--text-3); }
+.nx b { color: var(--text); font-weight: 640; font-variant-numeric: tabular-nums; }
+.nx .w { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; color: var(--text-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.sdots { display: grid; grid-auto-flow: column; grid-auto-columns: 14px; gap: 5px; align-items: center; justify-content: start; padding-top: 6px; }
+.sd { position: relative; width: 14px; height: 14px; padding: 0; border: 0; border-radius: 50%; background: transparent; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
+.sd:hover { box-shadow: inset 0 0 0 1.5px var(--text-2); }
+.sd.past { background: color-mix(in oklab, var(--text) 26%, var(--panel)); box-shadow: none; }
+.sd.room { background: var(--warn); box-shadow: none; }
+.sd.cancel { box-shadow: inset 0 0 0 1.5px var(--no); }
+.sd.cancel::after { content: ""; position: absolute; left: 1px; right: 1px; top: 6.25px; height: 1.5px; background: var(--no); transform: rotate(-45deg); }
+.sd.brk { height: 4px; border-radius: 2px; background: var(--line-strong); box-shadow: none; }
+.sd.today::before { content: ""; position: absolute; left: 50%; top: -8px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--accent); }
+.sd.sel { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--text); }
+.sd.sel:not(.past):not(.room):not(.cancel) { background: var(--text); }
+.smon { display: grid; grid-auto-flow: column; grid-auto-columns: 14px; gap: 5px; margin-top: -4px; color: var(--text-3); font-size: 10.5px; }
+.smon span { white-space: nowrap; }
+.mrow { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto 14px; gap: 12px; align-items: center; width: 100%; padding: 9px 10px; border: 0; border-radius: 11px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); text-align: left; }
+.mrow:hover { background: var(--row-hover); }
+.mrow + .mrow { margin-top: -4px; }
+.mrow .ico { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
+.mrow .dt { width: 40px; height: 40px; background: var(--panel); }
+.mrow .dt b { font-size: 16px; }
+.mrow b { display: block; font-size: 13.5px; font-weight: 650; line-height: 1.3; }
+.mrow small { display: block; color: var(--text-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mrow .v { color: var(--text-2); font-size: 13px; font-weight: 650; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mrow > svg.i { width: 14px; height: 14px; color: var(--text-3); }
+.exs { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.exc { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 6px 10px; border: 0; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line), inset 3px 0 0 var(--mc); color: var(--text); text-align: left; font-variant-numeric: tabular-nums; }
+.exc b { font-size: 13px; font-weight: 680; }
+.exc small { color: var(--text-3); font: 600 11px var(--mono); }
+.exc.me { background: var(--invert); color: var(--on-invert); box-shadow: inset 3px 0 0 var(--mc); }
+.exc.me small { color: color-mix(in srgb, var(--on-invert) 70%, transparent); }
+.exg { color: var(--text-3); font-size: 12px; white-space: nowrap; }
+.exg::before { content: ""; display: inline-block; width: 14px; height: 1px; margin-right: 5px; vertical-align: middle; background: var(--line-strong); }
+/* The foot: where it comes from, grey. */
+.tm-src { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 12px; line-height: 1.5; }
+.tm-src q { quotes: "„" "“"; }
+.tm-src > span + span::before { content: "·"; margin-right: 6px; color: var(--text-3); }
+.nw { white-space: nowrap; }
+.tm-src button { padding: 0; border: 0; background: none; color: var(--text-2); font: inherit; font-weight: 600; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+/* The one action, when there is one. */
+.tm-act { flex: none; padding: 10px 14px 26px; border-top: 1px solid var(--line); background: var(--panel); }
+.tm-act.right { display: flex; justify-content: flex-end; padding: 12px 16px 14px; }
+.big { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 48px; padding: 0 20px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); font-size: 15px; font-weight: 680; }
+.big:hover { background: color-mix(in oklab, var(--accent) 88%, var(--text)); }
+.big svg.i { width: 17px; height: 17px; }
+.tm-act.right .big { width: auto; min-height: 40px; font-size: 14px; }
+.page-act { display: flex; justify-content: flex-end; }
+.page-act .big { width: auto; min-height: 42px; }
 /* The page: the same block in two columns. */
-.tm.page { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px 40px; padding: 22px 34px 40px; }
+.tm.page { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 22px 44px; padding: 14px 34px 40px; }
 .tm.page > .tm-head { grid-column: 1 / -1; }
 .tm.page .tm-title { font-size: 28px; }
-.tm.page .tm-when { font-size: 18px; }
-.tm .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.tm.page .col + .col > .tm-sec:first-child { padding-top: 0; border-top: 0; }
-.crumb { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 13px; font-weight: 600; }
-.crumb button { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 8px 0 4px; border: 0; border-radius: 7px; background: none; color: var(--accent-ink); font-weight: 600; }
-.crumb button:hover { background: var(--row-hover); }
+.tm .col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.crumb { display: flex; align-items: center; gap: 6px; padding: 14px 24px 0 28px; color: var(--text-2); font-size: 13px; font-weight: 600; }
+.crumb > button:first-child { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 8px 0 4px; border: 0; border-radius: 7px; background: none; color: var(--accent-ink); font-weight: 600; }
+.crumb > button:first-child:hover { background: var(--row-hover); }
+.crumb .fill { flex: 1; }
 
-/* Over the page: shade, sheet, panel, card, page, dialog. */
+/* Over the page: shade, sheet, panel, page. */
 .shade { position: absolute; inset: 0; z-index: 40; width: 100%; padding: 0; border: 0; background: var(--backdrop); animation: fade .2s var(--ease); cursor: default; }
-.catch { position: absolute; inset: 0; z-index: 40; width: 100%; padding: 0; border: 0; background: transparent; cursor: default; }
 .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 41; display: flex; flex-direction: column; background: var(--panel); border-radius: 22px 22px 0 0; box-shadow: var(--shadow-pop); transition: top .3s var(--ease), border-radius .3s var(--ease); animation: rise .28s var(--ease); }
 .sheet.half { top: 318px; }
 .sheet.full { top: 0; border-radius: 0; padding-top: 44px; }
-.sheet.day { top: 58px; }
 .grab { flex: none; position: relative; display: block; width: 100%; height: 22px; padding: 0; border: 0; background: none; }
 .grab::before { content: ""; position: absolute; left: 50%; top: 8px; width: 40px; height: 5px; margin-left: -20px; border-radius: 3px; background: var(--line-strong); }
-.sheet-body { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding-bottom: 30px; }
-.dpanel { position: absolute; top: 62px; right: 10px; bottom: 10px; width: 430px; z-index: 41; display: flex; flex-direction: column; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-pop); animation: slide-l .26s var(--ease); }
-.dpanel .sheet-body { padding-top: 10px; }
-.ppage { position: absolute; inset: 0; z-index: 41; display: flex; flex-direction: column; background: var(--panel); animation: push .26s var(--ease); }
-.ppage.up { animation: rise .3s var(--ease); }
-.ppage-bar { flex: none; display: flex; align-items: center; gap: 6px; padding: 50px 10px 8px; border-bottom: 1px solid var(--line); background: var(--panel); }
-.ppage-bar .ttl { min-width: 0; flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; line-height: 1.2; }
-.ppage-bar .ttl b { font-size: 14.5px; font-weight: 700; }
-.ppage-bar .ttl small { color: var(--text-3); font-size: 12px; }
-.ppage-bar .back { display: inline-flex; align-items: center; gap: 2px; height: 34px; padding: 0 8px 0 2px; border: 0; border-radius: 8px; background: none; color: var(--accent-ink); font-size: 15px; font-weight: 600; }
-.ppage-body { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding-top: 12px; }
-.pcard { position: absolute; left: 8px; right: 8px; bottom: 10px; z-index: 41; border-radius: 26px; background: var(--panel); box-shadow: var(--shadow-pop); animation: rise .24s var(--ease); }
-.pcard .grab { height: 18px; }
-.pop { position: absolute; z-index: 41; width: 360px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-pop); animation: fade .16s var(--ease); }
-.kcard { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 16px; }
-.kcard .tm-title { font-size: 18px; }
-.kcard .tm-when { margin-top: 2px; font-size: 15px; }
-.kline { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 13.5px; }
-.kline .room { font: 700 18px var(--mono); }
-.kline small { color: var(--text-2); font-size: 12.5px; }
-.kline .lead { color: var(--text-2); }
-.kacts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.kacts .btn { min-height: 40px; }
-.dlg { position: absolute; left: 50%; top: 50%; z-index: 41; width: 1000px; height: 680px; translate: -50% -50%; display: grid; grid-template-rows: auto minmax(0, 1fr); border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-pop); overflow: hidden; animation: fade .2s var(--ease); }
-.dlg-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px 12px 22px; border-bottom: 1px solid var(--line); }
-.dlg-head .tt { min-width: 0; flex: 1; }
-.dlg-head .tt b { display: block; font-size: 18px; font-weight: 730; letter-spacing: -.015em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dlg-head .tt small { color: var(--text-2); font-size: 13px; }
-.dlg-body { display: grid; grid-template-columns: 340px minmax(0, 1fr); min-height: 0; }
-.dlg-body > .ser-wrap { border-right: 1px solid var(--line); }
-.dlg-body .sheet-body, .ser-wrap { position: relative; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.sheet-body { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+.dpanel { position: absolute; top: 62px; right: 10px; bottom: 10px; width: 430px; z-index: 41; display: flex; flex-direction: column; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-pop); overflow: hidden; animation: slide-l .26s var(--ease); }
+.dpanel .sheet-body { padding-top: 8px; scrollbar-width: thin; }
 .dpage { position: absolute; left: 60px; right: 8px; top: 60px; bottom: 8px; z-index: 30; overflow-y: auto; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); animation: fade .2s var(--ease); scrollbar-width: thin; }
-.dpage .crumb { padding: 16px 30px 0; }
-.dpage.split { display: grid; grid-template-columns: 360px minmax(0, 1fr); overflow: hidden; }
-.dpage.split > .ser-wrap, .dpage.split > .day-wrap { border-right: 1px solid var(--line); overflow-y: auto; }
-.dpage.split > .sheet-body { overflow-y: auto; }
-/* C: the series as a list. */
-.ser { margin: 0; padding: 4px 10px 20px; list-style: none; }
-.ser .mh { padding: 14px 8px 6px; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
-.ser .r { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 9px 8px; border: 0; border-radius: 9px; background: none; color: var(--text); text-align: left; font-size: 13.5px; font-variant-numeric: tabular-nums; }
-.ser .r:hover { background: var(--row-hover); }
-.ser .r .d { font-weight: 650; }
-.ser .r .w { min-width: 0; color: var(--text-2); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ser .r.past { color: var(--text-3); }
-.ser .r.past .w { color: var(--text-3); }
-.ser .r.cancel .d, .ser .r.brk .d { text-decoration: line-through; color: var(--text-3); }
-.ser .r.sel { background: var(--invert); color: var(--on-invert); }
-.ser .r.sel .w { color: color-mix(in srgb, var(--on-invert) 75%, transparent); }
-.ser .r.sel .chip { background: color-mix(in srgb, var(--on-invert) 16%, transparent); color: var(--on-invert); }
-.ser .open { margin: 6px 0 10px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel), inset 4px 0 0 var(--mc); }
-.ser .open .tm { padding: 14px 16px 16px 18px; gap: 12px; }
-.ser .brkrow { padding: 8px 8px 8px 94px; color: var(--text-3); font-size: 12.5px; }
-.ser-foot { flex: none; display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; padding: 10px 12px 28px; border-top: 1px solid var(--line); background: var(--panel); }
-.ser-foot .btn { min-height: 42px; }
-.ser-head { padding: 14px 18px 4px; }
-.ser-head .tm-top { min-height: 0; }
-.ser-head h3 { margin-top: 6px; font-size: 19px; line-height: 1.2; letter-spacing: -.02em; font-weight: 740; }
-.ser-head p { margin-top: 4px; color: var(--text-2); font-size: 13px; }
-/* D: the day as a list. */
-.dhead { display: flex; align-items: center; gap: 8px; padding: 2px 14px 10px; }
-.dhead .tt { flex: 1; min-width: 0; text-align: center; line-height: 1.2; }
-.dhead .tt b { display: block; font-size: 17px; font-weight: 730; letter-spacing: -.015em; }
-.dhead .tt small { color: var(--text-3); font-size: 12.5px; }
-.dlist { margin: 0; padding: 0 12px 24px; list-style: none; display: flex; flex-direction: column; gap: 6px; }
-.dlist .now { display: flex; align-items: center; gap: 8px; padding: 2px 4px; color: var(--no); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.dlist .now::after { content: ""; flex: 1; height: 2px; border-radius: 1px; background: var(--no); }
-.dlist .gap { display: flex; align-items: center; gap: 6px; padding: 2px 6px 2px 66px; color: var(--text-3); font-size: 12.5px; }
-.dlist .gap svg.i { width: 14px; height: 14px; }
-.dlist .row { display: grid; grid-template-columns: 50px minmax(0, 1fr); gap: 12px; align-items: start; width: 100%; padding: 11px 12px; border: 0; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line), inset 3px 0 0 var(--mc); color: var(--text); text-align: left; }
-.dlist .row:hover { background: var(--row-hover); }
-.dlist .row .t { font-weight: 680; font-variant-numeric: tabular-nums; line-height: 1.3; }
-.dlist .row .t small { display: block; color: var(--text-3); font-weight: 500; }
-.dlist .row b { display: block; font-size: 14px; font-weight: 650; }
-.dlist .row small { color: var(--text-2); font-size: 12.5px; }
-.dlist .row.gone b { text-decoration: line-through; color: var(--text-3); }
-.dlist .row.sel { background: var(--invert); color: var(--on-invert); box-shadow: inset 4px 0 0 var(--mc); }
-.dlist .row.sel small, .dlist .row.sel .t small { color: color-mix(in srgb, var(--on-invert) 72%, transparent); }
-.dlist .open { border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel), inset 4px 0 0 var(--mc); }
-.dlist .open .tm { padding: 12px 16px 16px 18px; gap: 12px; }
-.dlist .end { padding: 6px 6px 2px 66px; color: var(--text-3); font-size: 12.5px; }
-.dpanel .dhead { padding-top: 12px; }
-
-/* A note in the device that goes away by itself. */
 .toast { position: absolute; z-index: 70; left: 50%; bottom: 92px; translate: -50% 0; width: max-content; max-width: calc(100% - 32px); padding: 10px 14px; border-radius: 12px; background: var(--invert); color: var(--on-invert); box-shadow: var(--shadow-pop); font-size: 13px; animation: rise .22s var(--ease); }
-.desk-app .toast { bottom: 24px; }
+.desk-app .toast, .state-card .toast { bottom: 18px; }
 @keyframes rise { from { transform: translateY(24px); opacity: 0; } }
-@keyframes push { from { transform: translateX(30px); opacity: 0; } }
 @keyframes slide-l { from { transform: translateX(24px); opacity: 0; } }
 @keyframes fade { from { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .app *, .app { animation: none !important; transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { .app *, .app, .ui * { animation: none !important; transition: none !important; } }
 
 /* The address. */
-.addrs { margin-top: 18px; display: grid; gap: 10px; }
-.addrs > div { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 6px 22px; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
-.addrs code { display: inline-block; font-size: 13px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
-.addrs b { display: block; margin-bottom: 4px; font-weight: 650; }
+.addrs { margin-top: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.addrs > div { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.addrs code { align-self: flex-start; font-size: 12.5px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
+.addrs b { font-weight: 650; }
 .addrs p { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
 
-/* Comparison, recommendation, questions. */
-.t-cmp { min-width: 820px; }
-.t-cmp tbody th { width: 19%; }
-.t-cmp td { width: 20%; }
-.reco { padding: 24px; border-radius: 16px; background: var(--invert); color: var(--on-invert); box-shadow: var(--shadow-panel); scroll-margin-top: 110px; }
-.reco p { margin-top: 10px; max-width: 80ch; color: color-mix(in srgb, var(--on-invert) 82%, transparent); text-wrap: pretty; }
-.reco p b { color: var(--on-invert); }
-.reco ol { margin: 14px 0 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; max-width: 86ch; color: color-mix(in srgb, var(--on-invert) 82%, transparent); }
-.reco ol b { color: var(--on-invert); font-weight: 650; }
-.reco code { background: color-mix(in srgb, var(--on-invert) 12%, transparent); color: var(--on-invert); }
-.qs { margin: 16px 0 0; padding: 0; list-style: none; counter-reset: q; display: grid; gap: 12px; }
+/* Questions, and the first round in a fold. */
+.qs { margin: 16px 0 0; padding: 0; list-style: none; counter-reset: q; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .qs li { counter-increment: q; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 4px 12px; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
 .qs li::before { content: counter(q); grid-row: 1 / span 2; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; font-weight: 700; }
 .qs b { font-weight: 650; }
 .qs p { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
 .qs p em { font-style: normal; color: var(--accent-ink); font-weight: 600; }
-.nots { margin: 14px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; color: var(--text-2); }
-.nots b { color: var(--text); font-weight: 620; }
+details.r1 { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); }
+details.r1 > summary { cursor: pointer; padding: 18px 24px; font-size: 16px; font-weight: 680; list-style: none; display: flex; align-items: center; gap: 10px; }
+details.r1 > summary::-webkit-details-marker { display: none; }
+details.r1 > summary::before { content: "›"; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--panel-3); color: var(--text-2); transition: transform .2s var(--ease); }
+details.r1[open] > summary::before { transform: rotate(90deg); }
+details.r1 > summary small { color: var(--text-3); font-size: 13px; font-weight: 500; }
+details.r1 .in { padding: 0 24px 24px; }
+.t-today { min-width: 720px; }
+.t-today tbody th { width: 22%; }
+.shots { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr); gap: 20px; margin-top: 18px; align-items: start; }
+.shots figure { margin: 0; min-width: 0; }
+.shots img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 10px; box-shadow: var(--shadow-panel); background: var(--panel-2); }
+.shots .tall img { border-radius: 22px; }
+.shots figcaption { margin-top: 8px; font-size: 13px; color: var(--text-2); text-wrap: pretty; }
 .foot { color: var(--text-3); font-size: 13px; text-align: center; }
 
 @media (max-width: 1080px) {
   .stage { grid-template-columns: minmax(0, 1fr) 280px; }
-  .anat { grid-template-columns: 380px minmax(0, 1fr); }
+  .anat { grid-template-columns: 390px minmax(0, 1fr); }
+  .kinds, .signs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .states { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
-  .intro { grid-template-columns: minmax(0, 1fr); }
+  .intro, .dec { grid-template-columns: minmax(0, 1fr); }
   .stage { grid-template-columns: minmax(0, 1fr); padding: 22px 16px; }
   .stage .phone { order: -1; justify-self: center; width: min(340px, 100%); }
   .c-head { padding: 18px 16px 12px; }
   .c-ctl { padding: 0 16px 14px; }
   .c-notes { grid-template-columns: minmax(0, 1fr); padding: 16px 16px 20px; }
   .anat { grid-template-columns: minmax(0, 1fr); }
-  .paper { position: static; max-width: 410px; width: 100%; justify-self: center; }
+  .paper { position: static; max-width: 418px; width: 100%; justify-self: center; }
+  .sec { padding: 20px 16px 22px; }
+  .addrs, .qs { grid-template-columns: minmax(0, 1fr); }
   .shots { grid-template-columns: minmax(0, 1fr); }
   .shots .tall { max-width: 320px; justify-self: center; }
-  .sec { padding: 20px 16px 22px; }
-  .addrs > div { grid-template-columns: minmax(0, 1fr); }
   .setbar .jump { margin-left: 0; }
-  .reco { padding: 20px 16px; }
+  details.r1 > summary { padding: 16px; }
+  details.r1 .in { padding: 0 16px 20px; }
+}
+@media (max-width: 640px) {
+  .states { display: flex; grid-template-columns: none; overflow-x: auto; scroll-snap-type: x mandatory; gap: 12px; margin-inline: -16px; padding: 4px 16px 14px; scrollbar-width: none; }
+  .states::-webkit-scrollbar { display: none; }
+  .state { flex: 0 0 min(320px, 86%); scroll-snap-align: center; }
+  .kinds, .signs { grid-template-columns: minmax(0, 1fr); }
+  .ba { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 560px) {
   .setbar { flex-wrap: nowrap; overflow-x: auto; gap: 12px; padding: 8px 10px; scrollbar-width: none; }
@@ -654,26 +667,25 @@ td b { color: var(--text); font-weight: 620; }
   .setbar .group, .seg { flex-wrap: nowrap; flex: none; }
   .setbar .jump { display: none; }
   .seg button small { display: none; }
-  .seg button { padding: 0 9px; font-size: 12.5px; }
 }
 </style>
 
 <div class="page">
   <header class="intro">
     <div>
-      <p class="kicker">Betula · Konzepte · 24.10.2026</p>
-      <h1>Ein Tipp auf einen Termin zeigt den Termin</h1>
-      <p class="lead">Heute führt ein Termin ins Modul oder nach QIS, und was nur an diesem Tag gilt, bleibt unterwegs liegen. Hier sind vier Wege, den Termin selbst zu zeigen: am Handy als Modal über der Seite, am Rechner daneben, und jedes Mal mit einer eigenen Seite, die man teilen und neu laden kann. Die Prototypen funktionieren: tippe einen Termin an. Die Daten sind echt, Informatik B.Sc. im 1. FS, WiSe 2026/27, wie betula.app sie am 21.10. hatte. Die Uhr steht auf Mittwoch, 04.11.2026, 08:40. An dem Tag ist die Übung in Diskreter Mathematik laut QIS in LG1A/304 statt in HG/0.17.</p>
-      <p class="quote">„Aktuell, wenn man drauf klickt, landet man ja entweder bei qis oder halt im stundenplan. Aber eigentlich möchte man noch relativ häufig eine <b>detailansicht vom Termin</b> haben … Auf dem Handy kann das <b>definitiv ein modal</b> sein. Aber ich glaube, es sollte auch <b>eine Seite dafür</b> geben.“</p>
+      <p class="kicker">Betula · Konzepte · zweite Runde · 26.10.2026</p>
+      <h1>Erst wann und wo, dann alles andere</h1>
+      <p class="lead">A bleibt und ist neu geordnet: drei Ebenen statt einer Liste, Zeichen statt Sätzen, und jeder Knopf dort, wo seine Art hingehört. Alles funktioniert wieder mit echten Daten; die Uhr steht auf Mittwoch, 04.11.2026, 08:40.</p>
+      <p class="quote">„Also TLDR ist: <b>zu unaufgeräumt und informationen sind schlecht erkennbar</b>. Es braucht eine <b>ordentliche visuelle hirarchie</b> und erklärtext darf nicht zu lange sein. … wie man die informationen <b>möglichst ohne text</b> anzeigt und mehr mit symboliken <b>ohne cheap oder kindisch</b> auszusehen.“</p>
     </div>
     <aside class="rules" aria-labelledby="rules-title">
-      <p class="kicker" id="rules-title">Was alle Konzepte gemeinsam haben</p>
+      <p class="kicker" id="rules-title">Die Regeln der zweiten Runde</p>
       <ol>
-        <li><span><b>Ein Tipp öffnet den Termin,</b> überall: Startseite, Stundenplan, Prüfungen, Modulseite. Modul, Stundenplan und QIS sind Knöpfe darin.</span></li>
-        <li><span><b>Erst der Tag, dann die Reihe.</b> Was nur an diesem Datum gilt, steht oben in Worten: anderer Raum, fällt aus, vorlesungsfrei.</span></li>
-        <li><span><b>Jeder Termin hat eine Seite</b> unter einer Adresse, die auf jedem Gerät dasselbe zeigt: <code>/event/148304-e4bf3/2026-11-04</code>.</span></li>
-        <li><span><b>Nur was die Daten wissen.</b> Jede Zeile kommt aus QIS oder folgt daraus; QIS' eigene Worte stehen mit „laut QIS“ da.</span></li>
-        <li><span><b>Alles ist ein Knopf.</b> ‹ › blättern zum vorigen und nächsten Datum, auch mit ← →; Esc schließt. Betulas eigene Tasten stehen neben ihrem Knopf.</span></li>
+        <li><span><b>Wann und wo zuerst, am größten.</b> Tag, Uhrzeit und Raum stehen als Ticket oben; alles andere ist kleiner.</span></li>
+        <li><span><b>Was anders ist, steht im Ticket selbst:</b> Farbe, durchgestrichen, der alte Raum. Kein Absatz dafür.</span></li>
+        <li><span><b>Zeichen statt Sätze.</b> Punkte für Gruppe und Reihe, ein Band für den Tag, A und B als Kästchen.</span></li>
+        <li><span><b>Jede Art Knopf an ihren Ort.</b> Werkzeuge oben rechts, eine Aktion groß unten, Wege an ihrem Abschnitt, die Quelle grau ganz unten.</span></li>
+        <li><span><b>Kein Satz im Termin.</b> QIS' Wortlaut steht im Fuß; ein Hinweis aus QIS höchstens zwei Zeilen.</span></li>
       </ol>
     </aside>
   </header>
@@ -693,174 +705,130 @@ td b { color: var(--text); font-weight: 620; }
         <button type="button" data-set="under" data-v="week" aria-pressed="false">Stundenplan</button>
       </div>
     </div>
-    <div class="jump"><a href="#heute">Heute</a><a href="#inhalt">Inhalt</a><a href="#a">A</a><a href="#b">B</a><a href="#c">C</a><a href="#d">D</a><a href="#adresse">Adresse</a><a href="#vergleich">Vergleich</a><a href="#empfehlung">Empfehlung</a><a href="#fragen">Fragen</a></div>
+    <div class="jump"><a href="#entschieden">Entschieden</a><a href="#rang">Rangfolge</a><a href="#knoepfe">Knöpfe</a><a href="#zeichen">Zeichen</a><a href="#a">A</a><a href="#zustaende">Zustände</a><a href="#adresse">Adresse</a><a href="#fragen">Fragen</a></div>
   </nav>
 
-  <section class="sec" id="heute" aria-labelledby="heute-title">
-    <h2 id="heute-title">Heute: das Modul oder QIS</h2>
-    <p class="sub">So steht es in Folia 1.44.3 (auf canary und develop). Für einen einzelnen Termin gibt es keine Ansicht und keine Adresse. Am nächsten kommt ihm das Modul neben dem Stundenplan: es zeigt alle Termine des Moduls und markiert einen, aber nicht das Datum.</p>
-    <div class="scroll">
-      <table class="t-today">
-        <thead><tr><th scope="col">Wo</th><th scope="col">Ein Tipp führt</th><th scope="col">Was dabei verloren geht</th></tr></thead>
-        <tbody>
-          <tr><th scope="row">Startseite · „Als Nächstes“</th><td>Die Karte selbst ist kein Link. <b>„Modul ansehen“</b> öffnet den Stundenplan mit dem Modul daneben, <b>„Stundenplan“</b> den Stundenplan.</td><td>Welcher Termin es war: das Modul öffnet oben, keiner ist markiert.</td></tr>
-          <tr><th scope="row">Startseite · „Heute“, „Am Montag“</th><td>Jede Zeile öffnet den Stundenplan mit dem Modul daneben, <code>/studyplan?open=11112</code>.</td><td>Das Datum und sein Hinweis. „findet in LG1A/304 statt“ steht an der Zeile, im Modul nicht mehr.</td></tr>
-          <tr><th scope="row">Startseite · „Diese Woche“</th><td>Nichts. Die Balken sind ein Bild; nur „Woche →“ führt in den Stundenplan.</td><td>Welcher Balken was ist.</td></tr>
-          <tr><th scope="row">Startseite · „Prüfungen“</th><td>Den Stundenplan in der Ansicht Prüfungen, das Modul daneben.</td><td>Welche Prüfung; ihre Uhrzeit steht dort in einer Zeile unter vielen.</td></tr>
-          <tr><th scope="row">Stundenplan · Woche, Liste, Alle Termine, Prüfungen</th><td>Das Modul daneben, am Handy als Sheet; der Termin darin markiert, <code>&amp;row=148304-e4bf3</code>.</td><td>Was nur an diesem Datum gilt. Ausfallgrund und Raumhinweis stehen nur im Tooltip und in „Alle Termine“.</td></tr>
-          <tr><th scope="row">Modulseite · Termine, Prüfungstermine</th><td><b>QIS</b>, im selben Tab.</td><td>Betula selbst. Die Ausfälle fragt die Modulseite gar nicht ab.</td></tr>
-          <tr><th scope="row">Modulseite · Wochenbild</th><td>Klappt die Zeile des Termins in der Liste darunter auf.</td><td>Nichts; das bleibt.</td></tr>
-          <tr><th scope="row">Kalender, .ics und Abo</th><td>Der Link jedes Eintrags führt nach QIS.</td><td>Betulas Sicht auf den Termin.</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="shots">
-      <figure><img src="bilder/heute-stundenplan.webp" width="1100" height="844" alt="Der Stundenplan am Rechner, rechts das Modul Mathematik IT-1 mit seinen Terminen: unter Übung „Mi 04.11. 09:15–10:45 · LG1A/304 · einmalig“ und darunter „Mi 09:15–10:45 · HG/0.17 · A/B, 14 Termine · 1 fällt aus“." loading="lazy"><figcaption><b>Am Rechner:</b> ein Tipp auf die Übung öffnet das ganze Modul. Dass die Übung am 04.11. umzieht, steht da in zwei Zeilen, „einmalig“ in LG1A/304 und „1 fällt aus“ in HG/0.17. Zusammensetzen muss man es selbst.</figcaption></figure>
-      <figure class="tall"><img src="bilder/heute-sheet.webp" width="780" height="1688" alt="Der Stundenplan am Handy, das Modul Mathematik IT-1 als Sheet von unten, halb hoch." loading="lazy"><figcaption><b>Am Handy:</b> dasselbe Modul als Sheet von unten, halb hoch. Das Muster gibt es also schon; nur zeigt es ein Modul, keinen Termin.</figcaption></figure>
+  <section class="sec" id="entschieden" aria-labelledby="ent-title">
+    <h2 id="ent-title">Entschieden: A</h2>
+    <p class="sub">B, C und D fallen weg. Aus C bleibt die Reihe, jetzt als Punkte; aus D der Tag, jetzt als Band. Was sich aus deiner Rückmeldung ändert:</p>
+    <div class="dec">
+      <div class="ba">
+        <figure><figcaption>Erste Runde</figcaption><img src="bilder/runde1.webp" width="406" height="369" alt="Der Termin der ersten Runde: Kopf, gelber Kasten mit zwei Sätzen, Raum mit Kopieren-Knopf, Beschriftungen in Großbuchstaben." loading="lazy"></figure>
+        <figure><figcaption>Zweite Runde</figcaption><div class="ui" id="after"></div></figure>
+      </div>
+      <ul class="fb">
+        <li><q>zu unaufgeräumt</q><span>Drei Ebenen, getrennt durch Abstand statt Linien. Keine Tabelle aus Beschriftung und Wert mehr.</span></li>
+        <li><q>solche buttons sind einfach ein nono</q><span>Keine Reihe gleich lauter Knöpfe. Jede Art hat ihren Ort, siehe Knöpfe.</span></li>
+        <li><q>Quellen, wie in qis gehören nach ganz unten</q><span>QIS, die Nummer und QIS' Wortlaut stehen grau im Fuß.</span></li>
+        <li><q>Link kopieren ist eher ein share ding oben rechts</q><span>Teilen steht neben Schließen.</span></li>
+        <li><q>In den kallender … ein großer button … oder nicht existieren</q><span>Groß, wenn der Termin nicht in deinem Plan ist. Im Plan gibt es ihn nicht, das Abo trägt den Termin schon.</span></li>
+        <li><q>im stundenplan … nicht gleichzeitig mit in den kallender</q><span>„Stundenplan“ ist ein Weg und steht am Abschnitt „Der Tag“.</span></li>
+        <li><q>erklärtext darf nicht zu lange sein</q><span>Im Termin steht kein Satz mehr. Der Raumwechsel ist ein Zeichen: gelb, „statt HG/0.17“.</span></li>
+      </ul>
     </div>
   </section>
 
-  <section class="sec" id="inhalt" aria-labelledby="inhalt-title">
-    <h2 id="inhalt-title">Was ein Termin zeigt</h2>
-    <p class="sub">Ein Termin ist bei Betula eine Zeile aus QIS: „Mi 09:15–10:45, wöchentlich, 07.10.–27.01., HG/0.17“, mit einem Schlüssel, der bleibt, wenn QIS Zeilen umstellt (<code>148304-e4bf3</code>). Ein Datum ist ein Tag davon. Die Ansicht zeigt das Datum und darunter den Termin, zu dem es gehört. In allen vier Konzepten ist es derselbe Baustein, nur anders groß und anders gerahmt.</p>
-    <p class="sub">Alles darin steht in den Daten oder folgt aus ihnen. Was nicht drinsteht, steht auch hier nicht: kein Lageplan, keine Etage, keine Wegzeit, keine Anmeldung.</p>
+  <section class="sec" id="rang" aria-labelledby="rang-title">
+    <h2 id="rang-title">Rangfolge</h2>
+    <p class="sub">Was man von einem Termin will, in der Reihenfolge, in der man es braucht. Je höher die Ebene, desto größer und weiter oben.</p>
     <div class="anat">
-      <div class="paper" id="anat-paper"><div class="app" id="anat-app"></div></div>
-      <ol class="blocks" id="anat-list"></ol>
+      <div class="paper"><div class="ui" id="anat-app"></div></div>
+      <ol class="levels">
+        <li><span class="n">1</span><div><h3>Was <small>Kopf, klein</small></h3><p>Modul als farbiges Kürzel, Art, Titel. Nur zur Orientierung: wer tippt, weiß meist schon, was er antippt.</p></div></li>
+        <li><span class="n">2</span><div><h3>Wann und wo <small>das Ticket, am größten</small></h3><p>Tag mit ‹ › zum Blättern, wie bald, Uhrzeit, Raum mit Gebäude und Standort. Was an diesem Tag anders ist, verändert das Ticket selbst.</p></div></li>
+        <li><span class="n">3</span><div><h3>Wer und welche Gruppe <small>eine Zeile Zeichen</small></h3><p>Eine Person: wer diesen Termin leitet, sonst wer das Modul verantwortet. Die Gruppe als Punkte, eine Überschneidung als rotes Zeichen, ein Hinweis aus QIS in höchstens zwei Zeilen.</p></div></li>
+        <li><span class="n">4</span><div><h3>Drumherum <small>Abschnitte, klein überschrieben</small></h3><p>Der Tag als Band mit „danach“, die Reihe als Punkte, Modul und Prüfung als Zeilen. Jeder Abschnitt hat seinen Weg: „Stundenplan“, „Zum Modul“.</p></div></li>
+        <li><span class="n">5</span><div><h3>Quelle <small>grau, ganz unten</small></h3><p>QIS mit Art und Nummer, QIS' Wortlaut, der Stand der Daten, „In QIS öffnen“.</p></div></li>
+        <li><span class="n act">+</span><div><h3>Die eine Aktion <small>groß, nur wenn es etwas zu tun gibt</small></h3><p>„Diese Gruppe nehmen“ bei einer anderen Gruppe, „In den Kalender“ bei einem Termin außerhalb des Plans. Bei einem Termin des Plans, einem Ausfall oder etwas Vergangenem: keine.</p></div></li>
+      </ol>
     </div>
+  </section>
+
+  <section class="sec" id="knoepfe" aria-labelledby="kn-title">
+    <h2 id="kn-title">Vier Arten Knopf, vier Orte</h2>
+    <p class="sub">Ein Knopf tut etwas, führt woandershin, bedient die Ansicht oder sagt, woher etwas kommt. Gemischt in einer Reihe sehen alle gleich wichtig aus. Getrennt sagt der Ort, was der Knopf tut.</p>
+    <div class="kinds ui">
+      <div class="kind"><div class="demo"><span class="ib">#SHARE#</span><span class="ib">#X#</span></div><h3>Werkzeuge <small>oben rechts</small></h3><p>Teilen und Schließen; am Rechner dazu „Ganze Seite“ mit <kbd>V</kbd>.</p><p class="was">Erste Runde: <s>Link kopieren</s> in der Knopfreihe</p></div>
+      <div class="kind"><div class="demo"><span class="big" style="pointer-events: none">#CALPLUS#In den Kalender</span></div><h3>Aktion <small>groß, unten, höchstens eine</small></h3><p>Nur wenn es etwas zu tun gibt. Im Plan trägt das Kalender-Abo den Termin schon, darum dort kein Knopf.</p><p class="was">Erste Runde: <s>In den Kalender</s> klein zwischen drei anderen</p></div>
+      <div class="kind"><div class="demo left"><div class="tm-sec" style="width: 100%"><h4>Der Tag<span class="go">Stundenplan#RIGHT#</span></h4></div></div><h3>Wege <small>an ihrem Abschnitt</small></h3><p>„Stundenplan“ am Tag, „Zum Modul“ und die Prüfung als Zeilen, jeder Punkt der Reihe, jeder Block im Band.</p><p class="was">Erste Runde: <s>Im Stundenplan</s> neben <s>In den Kalender</s></p></div>
+      <div class="kind"><div class="demo left"><p class="tm-src" style="border: 0; padding: 0"><span>Quelle: QIS · Übung 130431</span><span style="text-decoration: underline; text-decoration-color: var(--line-strong); color: var(--text-2); font-weight: 600">In QIS öffnen ↗</span></p></div><h3>Quelle <small>grau, ganz unten</small></h3><p>Woher es kommt, für wen es nachsehen will: QIS, Nummer, Wortlaut, Stand.</p><p class="was">Erste Runde: <s>In QIS</s> als Knopf, <s>Kopieren</s> am Raum</p></div>
+    </div>
+  </section>
+
+  <section class="sec" id="zeichen" aria-labelledby="zeichen-title">
+    <h2 id="zeichen-title">Zeichen statt Text</h2>
+    <p class="sub">Wenige Zeichen, immer gleich verwendet, in Betulas Strichstärke und Farben. Farbe trägt nur Bedeutung: das Modul, Grün für bald, Gelb für anders, Rot für fällt aus.</p>
+    <div class="signs ui" id="signs"></div>
   </section>
 
   <section class="concept" id="a" aria-labelledby="a-title" data-concept="a">
     <header class="c-head">
       <span class="c-tag">A</span>
-      <div><h2 id="a-title">Sheet, das zur Seite wird <small>Empfehlung</small></h2><p>Ein Baustein in drei Größen, wie das Modul heute. Am Handy kommt der Termin als Sheet von unten, halb hoch, mit dem, was man unterwegs braucht: wann, wo, was heute anders ist, wer. Hochgezogen füllt er den Bildschirm und ist die Seite, mit allen Daten, dem Tag und dem Modul. Am Rechner steht derselbe Baustein neben der Woche oder der Startseite; „Ganze Seite“ öffnet ihn groß.</p></div>
+      <div><h2 id="a-title">Sheet, das zur Seite wird <small>zweite Runde</small></h2><p>Am Handy halb hoch: Ebene 1 und 2, darunter beginnt der Tag. Hochgezogen ist es die Seite. Am Rechner daneben, „Ganze Seite“ zeigt es groß in zwei Spalten.</p></div>
     </header>
-    <div class="c-ctl"><span class="kicker">Zeigen</span><div class="seg" role="group" aria-label="Zustand A" data-steps="a"></div><button type="button" class="c-reset" data-reset="a">Zurücksetzen</button></div>
+    <div class="c-ctl"><span class="kicker">Zeigen</span><div class="seg" role="group" aria-label="Zustand" data-steps="a"></div><button type="button" class="c-reset" data-reset="a">Zurücksetzen</button></div>
     <div class="stage">
       <figure class="device desk" data-c="a" data-dev="desk"><div class="frame"><div class="chrome"><i></i><i></i><i></i><span class="url"></span></div><div class="fit"><div class="screen"><div class="app desk-app"></div></div></div></div><figcaption>Am Rechner</figcaption></figure>
       <figure class="device phone" data-c="a" data-dev="phone"><div class="frame"><div class="fit"><div class="screen"><div class="app phone-app"></div></div></div></div><figcaption>Am Handy <span class="addr"></span></figcaption></figure>
     </div>
     <div class="c-notes">
-      <div><h3>So geht es</h3><ul><li>Tipp auf einen Termin: das Sheet halb hoch, am Rechner der Termin daneben.</li><li>Am Griff hochziehen oder „Alles zeigen“: ganz hoch, die Seite. Herunterziehen, × oder daneben tippen: zu.</li><li>‹ › oder ← →: das vorige und das nächste Datum, ohne zu schließen.</li><li>„Ganze Seite“ <b>V</b> am Rechner, wie „Modul ansehen“.</li></ul></div>
-      <div><h3>Gut</h3><ul><li><b>Nichts Neues zu lernen.</b> Halb, ganz, daneben und groß sind die vier Zustände des Moduls.</li><li>Halb hoch reicht für die Frage unterwegs, „wo muss ich hin?“; der Rest liegt einen Wisch entfernt.</li><li>Die Adresse trägt den Termin vom ersten Tipp an: Neuladen und Zurück tun, was man erwartet.</li></ul></div>
-      <div><h3>Schwächer</h3><ul><li>Am Rechner nimmt der Termin der Woche 430 px, wie das Modul heute.</li><li>Halb hoch muss es auswählen; ein langer Hinweis aus QIS rückt den Raum nach unten.</li></ul></div>
+      <div><h3>Zum Ausprobieren</h3><ul><li>‹ › im Ticket oder ← →: das Datum davor und danach.</li><li>Ein Punkt der Reihe, ein Block im Band: dorthin.</li><li>„Gruppe“: die anderen Gruppen; eine antippen zeigt sie, mit „Diese Gruppe nehmen“.</li></ul></div>
+      <div><h3>Halb hoch</h3><ul><li><b>Ebene 1 und 2 ganz,</b> vom Tag der Anfang: genug für „wo muss ich hin?“.</li><li>Kein Knopf am Fuß, solange der Termin im Plan ist.</li></ul></div>
+      <div><h3>Am Rechner</h3><ul><li>Daneben 430 px, wie das Modul heute; „Ganze Seite“ <b>V</b>, Schließen <b>Esc</b>.</li><li>Die Seite: links Ebene 1 bis 3 mit dem Tag, rechts Reihe, Modul, Quelle.</li></ul></div>
     </div>
   </section>
 
-  <section class="concept" id="b" aria-labelledby="b-title" data-concept="b">
-    <header class="c-head">
-      <span class="c-tag">B</span>
-      <div><h2 id="b-title">Karte, dann Seite</h2><p>Erst eine kurze Karte, alles andere auf einer Seite. Am Handy kommt eine Karte von unten, nur so hoch wie ihr Inhalt: Zeit, Raum, was anders ist, wer, und „Details“. Am Rechner steht dieselbe Karte am angetippten Termin, wie in einem Kalender; die Woche bewegt sich nicht. „Details“ öffnet die Seite, am Handy von rechts, am Rechner an Stelle der Seite darunter.</p></div>
-    </header>
-    <div class="c-ctl"><span class="kicker">Zeigen</span><div class="seg" role="group" aria-label="Zustand B" data-steps="b"></div><button type="button" class="c-reset" data-reset="b">Zurücksetzen</button></div>
-    <div class="stage">
-      <figure class="device desk" data-c="b" data-dev="desk"><div class="frame"><div class="chrome"><i></i><i></i><i></i><span class="url"></span></div><div class="fit"><div class="screen"><div class="app desk-app"></div></div></div></div><figcaption>Am Rechner</figcaption></figure>
-      <figure class="device phone" data-c="b" data-dev="phone"><div class="frame"><div class="fit"><div class="screen"><div class="app phone-app"></div></div></div></div><figcaption>Am Handy <span class="addr"></span></figcaption></figure>
-    </div>
-    <div class="c-notes">
-      <div><h3>So geht es</h3><ul><li>Tipp auf einen Termin: die Karte. Daneben tippen oder Esc: weg.</li><li>„Details“: die Seite des Termins, mit Zurück.</li><li>Die Karte ist eine Ebene und steht in keiner Adresse; die Seite hat eine.</li></ul></div>
-      <div><h3>Gut</h3><ul><li><b>Der schnellste Blick.</b> Am Rechner bleibt die Woche ganz, am Handy die Seite fast ganz sichtbar.</li><li>Die Seite kann großzügig sein: zwei Spalten, alle Daten, das Modul.</li></ul></div>
-      <div><h3>Schwächer</h3><ul><li>Zwei Schritte bis zu den Daten der Reihe und zum Hinweis aus QIS.</li><li>Zwei Dinge zu bauen und gleich zu halten, Karte und Seite.</li><li>Die Karte deckt am Rechner Termine daneben zu; am Handy führt „Details“ weg von der Seite darunter.</li></ul></div>
-    </div>
-  </section>
-
-  <section class="concept" id="c" aria-labelledby="c-title" data-concept="c">
-    <header class="c-head">
-      <span class="c-tag">C</span>
-      <div><h2 id="c-title">Die Reihe</h2><p>Der Termin als ein Datum seiner Reihe. Ein Tipp öffnet alle Daten von Oktober bis Januar als Liste, das angetippte offen darin: vorbei, heute, Ausfälle und Raumwechsel in Worten, die Weihnachtspause als Lücke, am Ende die Prüfung. Am Handy ist das ein Vollbild, das von unten kommt; am Rechner ein Dialog mit der Reihe links und dem Datum rechts.</p></div>
-    </header>
-    <div class="c-ctl"><span class="kicker">Zeigen</span><div class="seg" role="group" aria-label="Zustand C" data-steps="c"></div><button type="button" class="c-reset" data-reset="c">Zurücksetzen</button></div>
-    <div class="stage">
-      <figure class="device desk" data-c="c" data-dev="desk"><div class="frame"><div class="chrome"><i></i><i></i><i></i><span class="url"></span></div><div class="fit"><div class="screen"><div class="app desk-app"></div></div></div></div><figcaption>Am Rechner</figcaption></figure>
-      <figure class="device phone" data-c="c" data-dev="phone"><div class="frame"><div class="fit"><div class="screen"><div class="app phone-app"></div></div></div></div><figcaption>Am Handy <span class="addr"></span></figcaption></figure>
-    </div>
-    <div class="c-notes">
-      <div><h3>So geht es</h3><ul><li>Tipp auf einen Termin: die Reihe, das Datum offen und in der Mitte.</li><li>Ein anderes Datum antippen: es geht auf. „Früher“, „Heute“, „Später“ oder ← →.</li><li>Am Rechner: „Ganze Seite“ <b>V</b> macht aus dem Dialog die Seite.</li></ul></div>
-      <div><h3>Gut</h3><ul><li><b>Beantwortet, was QIS verstreut:</b> fällt etwas aus, wie oft noch, wann zum letzten Mal.</li><li>Änderungen fallen in der Liste auf, auch die kommenden.</li><li>Eine Adresse für die ganze Reihe, gut zum Teilen: „unsere Übung“.</li></ul></div>
-      <div><h3>Schwächer</h3><ul><li>Für den schnellen Blick zu schwer: ein Vollbild, um einen Raum zu lesen.</li><li>Am Rechner verdeckt der Dialog die Woche ganz.</li><li>Der Tag drumherum fehlt: was davor und danach ist.</li></ul></div>
-    </div>
-  </section>
-
-  <section class="concept" id="d" aria-labelledby="d-title" data-concept="d">
-    <header class="c-head">
-      <span class="c-tag">D</span>
-      <div><h2 id="d-title">Der Tag</h2><p>Der Termin in seinem Tag. Ein Tipp öffnet den ganzen Tag als Liste, der angetippte Termin offen darin; davor und danach die anderen, dazwischen die Pausen und wo man als Nächstes hinmuss. ‹ › blättern zum Tag davor und danach. Am Handy ein Sheet fast ganz hoch, am Rechner der Tag neben der Woche.</p></div>
-    </header>
-    <div class="c-ctl"><span class="kicker">Zeigen</span><div class="seg" role="group" aria-label="Zustand D" data-steps="d"></div><button type="button" class="c-reset" data-reset="d">Zurücksetzen</button></div>
-    <div class="stage">
-      <figure class="device desk" data-c="d" data-dev="desk"><div class="frame"><div class="chrome"><i></i><i></i><i></i><span class="url"></span></div><div class="fit"><div class="screen"><div class="app desk-app"></div></div></div></div><figcaption>Am Rechner</figcaption></figure>
-      <figure class="device phone" data-c="d" data-dev="phone"><div class="frame"><div class="fit"><div class="screen"><div class="app phone-app"></div></div></div></div><figcaption>Am Handy <span class="addr"></span></figcaption></figure>
-    </div>
-    <div class="c-notes">
-      <div><h3>So geht es</h3><ul><li>Tipp auf einen Termin: sein Tag, er selbst offen.</li><li>Einen anderen Termin des Tages antippen: er geht auf, der vorige zu.</li><li>‹ ›: der Tag davor und danach. „Seite“ zeigt Tag und Termin nebeneinander.</li></ul></div>
-      <div><h3>Gut</h3><ul><li><b>Beantwortet den Morgen:</b> wohin danach, reicht die Pause, wann ist Schluss.</li><li>Passt zu „Als Nächstes“ und „Heute“ auf der Startseite.</li></ul></div>
-      <div><h3>Schwächer</h3><ul><li>Doppelt sich mit „Heute“ und dem Tag im Stundenplan.</li><li>Die Reihe tritt zurück: Ausfälle in drei Wochen sieht man nicht.</li><li>Von der Modulseite oder einer Prüfung im März aus sagt der Tag wenig.</li></ul></div>
-    </div>
+  <section class="sec" id="zustaende" aria-labelledby="zu-title">
+    <h2 id="zu-title">Neun Zustände, dieselbe Ordnung</h2>
+    <p class="sub">Ebene 1 und 2, wie das Sheet halb hoch sie zeigt. Was sich ändert, ändert das Ticket; ein Knopf kommt nur dazu, wo es etwas zu tun gibt.</p>
+    <div class="states" id="states"></div>
   </section>
 
   <section class="sec" id="adresse" aria-labelledby="adresse-title">
     <h2 id="adresse-title">Die Adresse</h2>
-    <p class="sub">Betulas Pfade sind englisch, <code>/catalog</code>, <code>/studyplan</code>, und unter <code>/en/…</code> dieselben. Der Schlüssel des Termins ist der, den Betula schon hat: die Veranstaltung aus QIS und fünf Zeichen für die Zeile. Er steht in Abo-Codes und Kalender-UIDs und ändert sich nicht, wenn QIS Zeilen umstellt.</p>
+    <p class="sub">Unverändert aus der ersten Runde. Der Schlüssel ist der, den Betula für Abo und Kalender schon hat: Veranstaltung und fünf Zeichen für die Zeile.</p>
     <div class="addrs">
-      <div><p><b>Die Seite eines Datums</b><code>/event/148304-e4bf3/2026-11-04</code></p><p>Was „Link kopieren“ kopiert und was man teilt. Auf jedem Gerät dieselbe Seite. Ohne JavaScript rendert sie der Server ganz.</p></div>
-      <div><p><b>Die Seite eines Termins</b><code>/event/148304-e4bf3</code></p><p>Das nächste Datum offen, nach dem letzten das letzte. Gut für Konzept C und für Links, die ein Semester lang halten.</p></div>
-      <div><p><b>Über einer Seite</b><code>/studyplan?termin=148304-e4bf3&amp;on=2026-11-04</code></p><p>A und D: am Handy das Sheet, am Rechner daneben, wie <code>open=</code> beim Modul. Schließen nimmt den Eintrag zurück, Neuladen bringt das Sheet wieder.</p></div>
-      <div><p><b>Eine Ebene</b><span class="addr">keine Adresse</span></p><p>B's Karte ist wie ein Menü: weder in der Adresse noch im Verlauf. Zurück schließt sie auf Android, Esc am Rechner.</p></div>
-      <div><p><b>Im Kalender</b><code>URL:https://betula.app/event/148304-e4bf3/2026-11-04</code></p><p>Heute zeigt der Link jedes Eintrags nach QIS. Künftig zur Seite des Datums; QIS ist dort ein Knopf.</p></div>
-      <div><p><b>Was es nicht mehr gibt</b><code>/event/148304-e4bf3/2026-11-05</code></p><p>Kein „Nicht gefunden“. Die Seite sagt, dass der Termin an dem Tag nicht stattfindet, und zeigt die Daten davor und danach. Ist der Termin aus QIS verschwunden, sagt sie das und verlinkt das Modul.</p></div>
+      <div><b>Die Seite eines Datums</b><code>/event/148304-e4bf3/2026-11-04</code><p>Was „Teilen“ teilt. Auf jedem Gerät dieselbe Seite; ohne JavaScript rendert sie der Server.</p></div>
+      <div><b>Über einer Seite</b><code>/studyplan?termin=148304-e4bf3&amp;on=2026-11-04</code><p>Das Sheet, am Rechner daneben, wie <code>open=</code> beim Modul. Schließen nimmt den Eintrag zurück.</p></div>
+      <div><b>Im Kalender</b><code>URL:https://betula.app/event/148304-e4bf3/2026-11-04</code><p>Der Link jedes Eintrags im Abo führt zur Seite des Datums statt nach QIS.</p></div>
+      <div><b>Was es nicht gibt</b><code>/event/148304-e4bf3/2026-11-05</code><p>Kein „Nicht gefunden“: die Seite zeigt das Ticket des nächsten Datums und sagt, dass an diesem Tag nichts ist.</p></div>
     </div>
-  </section>
-
-  <section class="sec" id="vergleich" aria-labelledby="cmp-title">
-    <h2 id="cmp-title">Vergleich</h2>
-    <div class="scroll">
-      <table class="t-cmp">
-        <thead><tr><th scope="col"></th><th scope="col">A Sheet, das zur Seite wird</th><th scope="col">B Karte, dann Seite</th><th scope="col">C Die Reihe</th><th scope="col">D Der Tag</th></tr></thead>
-        <tbody>
-          <tr><th scope="row">Am Handy</th><td>Sheet halb hoch, hochgezogen die Seite</td><td>Karte so hoch wie ihr Inhalt</td><td>Vollbild von unten</td><td>Sheet fast ganz hoch</td></tr>
-          <tr><th scope="row">Am Rechner</th><td>daneben, wie das Modul</td><td>Karte am Termin</td><td>Dialog in der Mitte</td><td>der Tag daneben</td></tr>
-          <tr><th scope="row">Ohne weiteren Tipp sichtbar</th><td><b>Tag, Raum, was anders ist, wer, Knöpfe</b></td><td>Zeit, Raum, was anders ist</td><td>jedes Datum, eins offen</td><td>der Tag, ein Termin offen</td></tr>
-          <tr><th scope="row">Bis zu allen Daten der Reihe</th><td>ein Wisch</td><td>zwei Tipps</td><td><b>sofort</b></td><td>„Seite“, dann scrollen</td></tr>
-          <tr><th scope="row">Bis zu davor und danach</th><td>ein Wisch</td><td>zwei Tipps</td><td>fehlt</td><td><b>sofort</b></td></tr>
-          <tr><th scope="row">Woche bleibt sichtbar (Rechner)</th><td>ja, schmaler</td><td><b>ja, ganz</b></td><td>nein</td><td>ja, schmaler</td></tr>
-          <tr><th scope="row">Adresse ab dem ersten Tipp</th><td><b>ja</b></td><td>erst die Seite</td><td><b>ja</b></td><td><b>ja</b></td></tr>
-          <tr><th scope="row">Zu bauen</th><td><b>ein Baustein, Sheet und Panel gibt es</b></td><td>Karte, Popover und Seite</td><td>Liste der Reihe, Dialog</td><td>Tagesliste, Blättern nach Tagen</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section class="reco" id="empfehlung" aria-labelledby="reco-title">
-    <h2 id="reco-title">Empfehlung: A, mit der Reihe aus C und dem Tag aus D</h2>
-    <p><b>A ist das Modul-Sheet, das Betula schon hat, nur für einen Termin.</b> Halb hoch beantwortet es die Frage unterwegs, ganz hoch ist es die Seite, am Rechner steht es daneben und „Ganze Seite“ macht es groß. C und D sind darin keine eigenen Ansichten, sondern zwei Abschnitte: „Alle Termine“ als Kalenderstreifen, in dem ein Tipp das Datum wechselt, und „An diesem Tag“ mit davor, danach und der Pause. B's Karte braucht es dann nicht, das halbe Sheet ist schon die Karte.</p>
-    <ol>
-      <li><b>Die Seite</b> <code>/event/&lt;termin&gt;/&lt;datum&gt;</code> mit dem Baustein: Kopf, was an diesem Tag gilt, Raum, wer, Knöpfe, der Tag, alle Termine, Hinweis aus QIS, Modul und Prüfung. Der Server rendert sie ganz, die App übernimmt.</li>
-      <li><b>Derselbe Baustein über der Seite:</b> <code>?termin=…&amp;on=…</code> auf Startseite, Stundenplan und Modulseite; am Handy das Sheet des Moduls mit seinen Griffen, am Rechner das Panel daneben.</li>
-      <li><b>Jeder Termin öffnet ihn:</b> „Als Nächstes“ als Ganzes, die Zeilen von Heute und Morgen, die Balken der Woche, die Prüfungen; im Stundenplan Woche, Liste, Alle Termine und Prüfungen; auf der Modulseite jede Zeile. QIS wird ein Knopf im Termin. Aus der Woche des Stundenplans, die kein Datum hat, öffnet sich das nächste Datum.</li>
-      <li><b>Kalender:</b> der Link jedes Eintrags in .ics und Abo zeigt auf die Seite des Datums.</li>
-      <li><b>Prüfen:</b> <code>e2e/termin.mjs</code> öffnet, blättert, lädt neu, geht zurück, am Handy und am Rechner; die Seite auch ohne JavaScript.</li>
-    </ol>
-    <p>Gebaut ist das eine neue Funktion, also Folia MINOR. Radix bleibt, wie es ist; für „für wen“ (Frage 5) reicht eine Abfrage in Folia.</p>
   </section>
 
   <section class="sec" id="fragen" aria-labelledby="fragen-title">
     <h2 id="fragen-title">Fragen, mit Vorschlag</h2>
     <ol class="qs">
-      <li><b>Was öffnet ein Tipp auf einen Slot im Stundenplan?</b><p>Heute das Modul, mit Wahl, Ausblenden und Entfernen. <em>Vorschlag:</em> den Termin; das Modul liegt einen Tipp entfernt, auf seinem Kürzel im Kopf und unter „Modul ansehen“. Die Haken an den Slots zum Wählen bleiben, wo sie sind.</p></li>
-      <li><b>Ausfall plus Einzeltermin zur selben Zeit: ein Raumwechsel?</b><p>QIS streicht die Übung am 04.11. in HG/0.17 („findet in LG1A/304 statt“) und führt den Tag einzeln in LG1A/304. Heute stehen dafür zwei Zeilen da. <em>Vorschlag:</em> wo eine Veranstaltung an einem gestrichenen Datum zur selben Uhrzeit einen Einzeltermin hat, ist es ein Raumwechsel, und der Termin sagt es in einem Satz.</p></li>
-      <li><b>Soll der Kalender auf Betula zeigen?</b><p>Der Link jedes Eintrags im Abo führt heute nach QIS. <em>Vorschlag:</em> auf die Seite des Datums; dort ist QIS ein Knopf, und Ausfälle stehen schon drin.</p></li>
-      <li><b>Englisch oder deutsch im Pfad?</b><p><em>Vorschlag:</em> <code>/event/…</code>, wie die anderen Pfade englisch; deutsch wäre <code>/termin/…</code>.</p></li>
-      <li><b>„Für wen“ zeigen?</b><p>QIS listet je Veranstaltung, für welche Studiengänge und Semester sie ist. Radix hat das in der Sicht <code>v_event_program</code>, Folia fragt sie nicht ab. <em>Vorschlag:</em> eine Zeile „laut QIS für Informatik B.Sc., 1. Semester“; dafür reicht eine Abfrage, Radix ändert sich nicht.</p></li>
-      <li><b>Eigene Notizen an einem Termin?</b><p>Wie die Notiz an einem gemerkten Modul: „Laptop mitbringen“. <em>Vorschlag:</em> später, wenn jemand danach fragt; es ist der erste Zustand, der an einem Datum hängt.</p></li>
-      <li><b>Sollen Suchmaschinen die Seiten finden?</b><p>Es gäbe zehntausende, und jedes Semester neue. <em>Vorschlag:</em> <code>noindex</code> für alle Termine; die Modulseiten tragen die Termine schon und sind im Index.</p></li>
+      <li><b>Der große Knopf nur, wo es etwas zu tun gibt?</b><p>Eine andere Gruppe: „Diese Gruppe nehmen“. Ein Termin außerhalb des Plans: „In den Kalender“. <em>Vorschlag:</em> im Plan keiner, das Abo trägt ihn.</p></li>
+      <li><b>Nur eine Person?</b><p>QIS nennt je Zeile oft nur einen Nachnamen („Pilling“). <em>Vorschlag:</em> die Leitung dieser Zeile, sonst wer das Modul verantwortet; die anderen stehen auf der Modulseite.</p></li>
+      <li><b>Tipp im Stundenplan: Termin statt Modul?</b><p><em>Vorschlag:</em> der Termin; das Modul liegt einen Tipp entfernt unter „Zum Modul“.</p></li>
+      <li><b>Ausfall plus Einzeltermin zur selben Zeit: ein Raumwechsel?</b><p>So zeigt es das Ticket am 04.11. <em>Vorschlag:</em> ja, Betula fasst beides zusammen.</p></li>
+      <li><b>Kalender-Abo auf Betula statt QIS?</b><p><em>Vorschlag:</em> ja; QIS ist dort im Fuß.</p></li>
+      <li><b>„Für wen“ laut QIS zeigen?</b><p>Radix hat <code>v_event_program</code>, Folia fragt es nicht ab. <em>Vorschlag:</em> später, als Zeichen in Ebene 3, wenn es gebraucht wird.</p></li>
     </ol>
-    <h3 style="margin-top: 22px">Bewusst nicht</h3>
-    <ul class="nots">
-      <li><b>Lageplan, Etage, Wegzeit:</b> nichts davon steht in den Daten. Der Termin sagt Gebäude und Standort und, wenn das Gebäude wechselt, dass es wechselt.</li>
-      <li><b>Teilnehmerzahl, Sprache der Veranstaltung, Lehrende je Veranstaltung:</b> stehen in keiner Sicht von Radix. Gezeigt werden die Leitung der Zeile und die Verantwortlichen des Moduls.</li>
-      <li><b>Erinnerungen:</b> Betula schickt nichts; dafür ist das Kalender-Abo da.</li>
-    </ul>
   </section>
+
+  <details class="r1" id="heute">
+    <summary>Erste Runde: wie es heute ist <small>Folia 1.44.3</small></summary>
+    <div class="in">
+      <div class="scroll">
+        <table class="t-today">
+          <thead><tr><th scope="col">Wo</th><th scope="col">Ein Tipp führt</th><th scope="col">Was dabei verloren geht</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Startseite · „Als Nächstes“</th><td>„Modul ansehen“ ins Modul neben dem Stundenplan, „Stundenplan“ in den Stundenplan. Die Karte selbst ist kein Link.</td><td>Welcher Termin es war.</td></tr>
+            <tr><th scope="row">Startseite · Heute, Morgen</th><td>Den Stundenplan mit dem Modul daneben.</td><td>Das Datum und sein Hinweis.</td></tr>
+            <tr><th scope="row">Startseite · Diese Woche</th><td>Nichts; die Balken sind ein Bild.</td><td>Welcher Balken was ist.</td></tr>
+            <tr><th scope="row">Stundenplan</th><td>Das Modul daneben, der Termin darin markiert.</td><td>Was nur an diesem Datum gilt.</td></tr>
+            <tr><th scope="row">Modulseite · Termine</th><td>QIS, im selben Tab.</td><td>Betula selbst.</td></tr>
+            <tr><th scope="row">Kalender-Abo</th><td>QIS.</td><td>Betulas Sicht auf den Termin.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="shots">
+        <figure><img src="bilder/heute-stundenplan.webp" width="1100" height="844" alt="Der Stundenplan am Rechner mit dem Modul Mathematik IT-1 daneben: „Mi 04.11. … LG1A/304 · einmalig“ und „HG/0.17 … 1 fällt aus“ in zwei Zeilen." loading="lazy"><figcaption>Der Raumwechsel am 04.11. steht heute als zwei Zeilen im Modul.</figcaption></figure>
+        <figure class="tall"><img src="bilder/heute-sheet.webp" width="780" height="1688" alt="Das Modul Mathematik IT-1 als Sheet am Handy, halb hoch." loading="lazy"><figcaption>Das Sheet gibt es schon, für ein Modul.</figcaption></figure>
+      </div>
+    </div>
+  </details>
 
   <p class="foot">Daten: betula.app, Stand 21.10.2026 · Folia 1.44.3 · Entwurf, nichts davon ist gebaut.</p>
 </div>
@@ -871,13 +839,18 @@ td b { color: var(--text); font-weight: 620; }
 const NOW_ISO = "2026-11-04"; // a Wednesday, KW 45, an A week
 const NOW_MIN = 8 * 60 + 40; // 08:40
 const MODS = {
-  EEG: { id: "12107", title: "Elektrische und elektronische Grundlagen der Informatik", lp: 6, c: "eeg", resp: "Dr.-Ing. habil. Herglotz, Christian Josef", form: "Modulabschlussprüfung (MAP)", exam: "Klausur, 120 Minuten", pre: null },
-  EvS: { id: "12104", title: "Entwicklung von Softwaresystemen", lp: 8, c: "evs", resp: "Prof. Dr. rer. nat. Lambers, Leen", form: "Voraussetzung + Modulabschlussprüfung (MAP)", exam: "Klausur, 120 min.", pre: "erfolgreiche Bearbeitung von Übungsblättern (75 Punkte müssen erreicht werden)" },
-  MIT1: { id: "11112", title: "Mathematik IT-1 (Diskrete Mathematik)", lp: 8, c: "mit", resp: "Prof. Dr. rer. nat. habil. Köhler, Ekkehard", form: "Voraussetzung + Modulabschlussprüfung (MAP)", exam: "Klausur, 90 min.", pre: "erfolgreiche Bearbeitung von Hausaufgaben" },
-  PP: { id: "12102", title: "Programmierpraktikum", lp: 4, c: "pp", resp: "Prof. Dr. rer. nat. habil. Hofstedt, Petra", form: "Continuous Assessment (MCA)", exam: "drei Übungsblätter und drei praktische Programmiertests", pre: null },
+  EEG: { id: "12107", title: "Elektrische und elektronische Grundlagen der Informatik", lp: 6, c: "eeg", resp: "Dr.-Ing. habil. Herglotz, Christian Josef", who: "Herglotz, Christian Josef", exam: "Klausur, 120 min", pre: null },
+  EvS: { id: "12104", title: "Entwicklung von Softwaresystemen", lp: 8, c: "evs", resp: "Prof. Dr. rer. nat. Lambers, Leen", who: "Lambers, Leen", exam: "Klausur, 120 min", pre: "Übungsblätter, 75 Punkte" },
+  MIT1: { id: "11112", title: "Mathematik IT-1 (Diskrete Mathematik)", lp: 8, c: "mit", resp: "Prof. Dr. rer. nat. habil. Köhler, Ekkehard", who: "Köhler, Ekkehard", exam: "Klausur, 90 min", pre: "Hausaufgaben" },
+  PP: { id: "12102", title: "Programmierpraktikum", lp: 4, c: "pp", resp: "Prof. Dr. rer. nat. habil. Hofstedt, Petra", who: "Hofstedt, Petra", exam: "drei Programmiertests", pre: null },
+  MSe: { id: "11503", title: "Master-Seminar", lp: 4, c: "mse", resp: "Prof. Dr. rer. nat. habil. Wunderlich, Ralf", who: "Wunderlich, Ralf", exam: "Seminarvortrag", pre: null },
 };
-// The rows at the Zentralcampus as QIS lists them: key (RowKey), module, event, number, type, weekday, start, end,
-// rhythm, first and last date, room, room as QIS names it, campus, who leads it, QIS's remark, the dates QIS cancels.
+// The modules of the plan; the seminar of MSe is a Termin from outside it (a Master's program).
+const PLAN = new Set(["EEG", "EvS", "MIT1", "PP"]);
+// Where an event's title is not its module's.
+const EVTITLE = { "148960": "Forschungsseminar Stochastik" };
+// The rows as QIS lists them: key (RowKey), module, event, number, type, weekday, start, end, rhythm, first and
+// last date, room, room as QIS names it, campus, who leads it, QIS's remark, the dates QIS cancels.
 const RAW = [
   ["148097-1bcd7", "EEG", "148097", "120413", "Prüfung", 4, "11:00", "13:00", "single", "2027-02-11", "2027-02-11", "GHS", "Großer Hörsaal - Großer Hörsaal - Zentralcampus", "zentralcampus", null, null, ""],
   ["148134-b869a", "EEG", "148134", "120410", "Vorlesung", 2, "07:30", "09:00", "week_a", "2026-10-06", "2027-01-26", "ZHG/HS.B", "Zentrales Hörsaalgebäude - Hörsaal B - Zentralcampus", "zentralcampus", null, null, ""],
@@ -903,15 +876,11 @@ const RAW = [
   ["148370-ef2fb", "PP", "148370", "120731", "Praktikum", 3, "11:30", "13:00", "weekly", "2026-10-07", "2027-01-27", "VG1C/0.03", "Verfügungsgebäude 1C - 0.03 - Zentralcampus", "zentralcampus", null, null, ""],
   ["148370-d70e0", "PP", "148370", "120731", "Praktikum", 4, "11:30", "13:00", "weekly", "2026-10-08", "2027-01-28", "VG1C/0.03", "Verfügungsgebäude 1C - 0.03 - Zentralcampus", "zentralcampus", null, null, ""],
   ["148370-89ed1", "PP", "148370", "120731", "Praktikum", 5, "13:45", "15:15", "weekly", "2026-10-09", "2027-01-29", "VG1C/0.03", "Verfügungsgebäude 1C - 0.03 - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148960-ef2fb", "MSe", "148960", "130850", "Seminar", 3, "11:30", "13:00", "weekly", "2026-10-07", "2027-01-27", "HG/3.45", "Hauptgebäude - HG 3.45 - Zentralcampus", "zentralcampus", null, null, "04.11.2026: fällt aus"],
 ];
-// The group the student took where an event offers several (the Stundenplan's choice).
+
 const CHOSEN = { "148304": "148304-e4bf3", "148369": "148369-aaf38", "148370": "148370-ef2fb" };
-const EXAMPLES = {
-  raum: "148304-e4bf3@2026-11-04",
-  vl: "148701-b7025@2026-11-06",
-  ab: "148135-462ed@2026-11-10",
-  exam: "148664-84d53@2027-03-10",
-};
+const EXAMPLES = { raum: "148304-e4bf3@2026-11-04", vl: "148701-b7025@2026-11-06", ab: "148135-462ed@2026-11-10", exam: "148664-84d53@2027-03-10" };
 // The semester as the data says it (folia-timetable's SemesterFacts): the break and Brandenburg's holidays.
 const BREAK = ["2026-12-21", "2027-01-03"];
 const HOLIDAYS = { "2026-10-31": "Reformationstag", "2026-12-25": "1. Weihnachtstag", "2026-12-26": "2. Weihnachtstag", "2027-01-01": "Neujahr" };
@@ -926,12 +895,12 @@ const wdOf = (n) => ((new Date(n * DAY_MS).getUTCDay() + 6) % 7) + 1;
 const mins = (t) => +t.slice(0, 2) * 60 + +t.slice(3, 5);
 const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 const TODAY = dn(NOW_ISO);
+const NOW = { d: TODAY, m: NOW_MIN };
 const WD = ["", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 const WD2 = ["", "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const MON = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 const MON3 = ["Jan", "Feb", "März", "Apr", "Mai", "Juni", "Juli", "Aug", "Sep", "Okt", "Nov", "Dez"];
 const ddmm = (n) => { const s = isoOf(n); return `${s.slice(8, 10)}.${s.slice(5, 7)}.`; };
-const ddmmyyyy = (n) => `${ddmm(n)}${isoOf(n).slice(0, 4)}`;
 const monthOf = (n) => +isoOf(n).slice(5, 7) - 1;
 function isoWeek(n) {
   const d = new Date(n * DAY_MS);
@@ -956,15 +925,16 @@ function notesOf(text) {
   });
   return out;
 }
-// A single date of an event at the time of another of its rows that QIS cancels that day is that row moving:
-// the proposal of question 2. The single row is then shown as the other row's date.
+// A single date of an event at the time of another of its rows that QIS cancels that day is that row moving
+// (question 4). The single row is then shown as the other row's date.
 for (const s of ROWS) {
   if (s.rh !== "single" || s.exam) continue;
   const r = ROWS.find((x) => x.ev === s.ev && x.k !== s.k && x.rh !== "single" && x.s === s.s && x.notes[s.from] !== undefined);
   if (r) { s.into = r.k; (r.moves ||= {})[s.from] = s; }
 }
+const titleOf = (r) => EVTITLE[r.ev] || MODS[r.mod].title;
 const choiceOf = (r) => (CHOSEN[r.ev] ? ROWS.filter((x) => x.ev === r.ev && x.rh !== "single") : null);
-const inPlan = (r) => !r.into && (!CHOSEN[r.ev] || CHOSEN[r.ev] === r.k);
+const inPlan = (r) => PLAN.has(r.mod) && !r.into && (!CHOSEN[r.ev] || CHOSEN[r.ev] === r.k);
 function datesOf(r) {
   if (r._dates) return r._dates;
   const out = [];
@@ -986,7 +956,6 @@ function datesOf(r) {
   return (r._dates = out);
 }
 const held = (o) => o.st === "held" || o.st === "room";
-// A date the student can step to: every date QIS names, the break left out.
 const steppable = (o) => o.st !== "brk";
 function parseK(k) {
   let [rk, iso] = k.split("@");
@@ -1007,7 +976,6 @@ function info(k) {
   return {
     k: keyOf(r, n), r, n, o, all, m: MODS[r.mod],
     count: hs.length, nth: hs.findIndex((x) => x.n === n) + 1, past: hs.filter(isPast).length,
-    breaks: all.filter((x) => x.st === "brk").length, cancels: all.filter((x) => x.st === "cancel").length,
     room: o.room || r.room, roomLong: o.roomLong || r.roomLong,
   };
 }
@@ -1030,40 +998,31 @@ function dayItems(n) {
   return out.sort((a, b) => a.s - b.s || a.r.k.localeCompare(b.r.k));
 }
 const exams = () => ROWS.filter((r) => r.exam && inPlan(r)).sort((a, b) => dn(a.from) - dn(b.from));
-
-// ---------- words ----------
-const KSHORT = { Vorlesung: "VL", Übung: "Ü", Tutorium: "Tut", Praktikum: "Prak", Prüfung: "Prüfung" };
-const GROUPWORD = { Übung: "Übungsgruppen", Praktikum: "Praktikumsgruppen", Tutorium: "Tutoriumsgruppen" };
-const RHYTHM = { weekly: "wöchentlich", week_a: "14-täglich (A-Woche)", week_b: "14-täglich (B-Woche)", single: "Einzeltermin" };
-const CAMPUS = { zentralcampus: "Zentralcampus Cottbus", sachsendorf: "Cottbus-Sachsendorf", senftenberg: "Senftenberg" };
-const building = (room) => room.split("/")[0];
-function roomName(long, campus) {
-  const parts = long.split(" - ").filter((p, i, a) => p !== a[i - 1]);
-  parts[parts.length - 1] = CAMPUS[campus] || parts[parts.length - 1];
-  return parts.join(" · ");
-}
+// For the start page's card, as the first round wrote it.
 function rel(n, s, e) {
   const d = n - TODAY;
   if (d === 0) {
     const a = mins(s), b = mins(e);
-    if (NOW_MIN < a) { const m = a - NOW_MIN; return { t: m < 60 ? `heute, in ${m} Min.` : `heute, in ${Math.floor(m / 60)} Std. ${m % 60 ? `${m % 60} Min.` : ""}`.trim(), c: "soon" }; }
+    if (NOW_MIN < a) { const m = a - NOW_MIN; return { t: m < 60 ? `heute, in ${m} Min.` : `heute, in ${Math.floor(m / 60)} Std.`, c: "soon" }; }
     if (NOW_MIN < b) return { t: `läuft, noch ${b - NOW_MIN} Min.`, c: "live" };
     return { t: "heute, vorbei", c: "" };
   }
   if (d === 1) return { t: "morgen", c: "soon" };
-  if (d === 2) return { t: "übermorgen", c: "" };
-  if (d === -1) return { t: "gestern", c: "" };
-  if (d > 0) return { t: `in ${d} Tagen`, c: "" };
-  return { t: d > -14 ? `vor ${-d} Tagen` : `vor ${Math.round(-d / 7)} Wochen`, c: "" };
+  return { t: d > 0 ? `in ${d} Tagen` : `vor ${-d} Tagen`, c: "" };
 }
-const gapText = (m) => (m < 60 ? `${m} Min.` : `${Math.floor(m / 60)} Std.${m % 60 ? ` ${m % 60} Min.` : ""}`);
-function kindLine(i) {
-  const ch = choiceOf(i.r);
-  if (i.r.exam) return "Prüfung · Erstermin";
-  if (ch) return `${i.r.kind} · eine von ${ch.length} ${GROUPWORD[i.r.kind] || "Gruppen"}`;
-  if (i.r.rh === "week_a" || i.r.rh === "week_b") return `${i.r.kind} · nur ${i.r.rh === "week_a" ? "A" : "B"}-Wochen`;
-  return i.r.kind;
+
+// ---------- words ----------
+const KSHORT = { Vorlesung: "VL", Übung: "Ü", Tutorium: "Tut", Praktikum: "Prak", Seminar: "Sem", Prüfung: "Prüfung" };
+const CAMPUS = { zentralcampus: "Zentralcampus", sachsendorf: "Sachsendorf", senftenberg: "Senftenberg" };
+const building = (room) => room.split("/")[0];
+const gapText = (m) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}`);
+// Where it is, without the room itself (that is on the plate): „Lehrgebäude 1A · Zentralcampus".
+function whereOf(long, campus) {
+  const parts = long.split(" - ").filter((p, i, a) => p !== a[i - 1]);
+  return `<span class="nw">${esc(parts[0])}</span>&nbsp;· <span class="nw">${esc(CAMPUS[campus] || parts[parts.length - 1])}</span>`;
 }
+const nbh = (s) => s.replace(/-(?=\d)/g, "\u2011");
+const plate = (room) => esc(room).replace("/", '<span class="sl">/</span>');
 
 // ---------- icons (Lucide's shapes, as Betula draws them) ----------
 const ICON = {
@@ -1100,143 +1059,179 @@ const ICON = {
   walk: '<circle cx="13" cy="4" r="2"/><path d="m7 21 3-7M14 21l-2-6-3-3 1-4 4 3 3 1"/>',
   dots: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
 };
+
+Object.assign(ICON, {
+  share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/>',
+  pause: '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
+  pen: '<path d="M12 20h9"/><path d="M16.38 3.62a1 1 0 0 1 3 3L7.37 18.64a2 2 0 0 1-.86.5l-2.87.84a.5.5 0 0 1-.62-.62l.84-2.87a2 2 0 0 1 .5-.86z"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  walk: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path d="M16 17h4M4 13h4"/>',
+});
 const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
 const mc = (mod) => `--mc: var(--m-${MODS[mod].c})`;
 
-// ---------- the Termin, one building block ----------
-// o.size: half | full | panel | page | embed | anat; o.tools: the buttons at the top right; o.mk: numbers for the anatomy.
-function tm(k, o) {
-  const i = info(k);
-  const mk = (n) => (o.mk ? `<span class="n anat-n" aria-hidden="true">${n}</span>` : "");
-  const head = o.size === "embed" ? "" : tmHead(i, o, mk);
-  const alert = o.mk ? tmAlert(i).replace(/^(<div class="tm-alert[^"]*">)/, `$1${mk(2)}`) : tmAlert(i);
-  const place = `<div class="tm-place">${mk(3)}<span class="room">${esc(i.room)}${i.o.st === "room" ? `<s>${esc(i.r.room)}</s>` : ""}</span><button type="button" class="mini" data-act="toast" data-msg="Raum kopiert: ${esc(i.room)}">${icon("copy")}Kopieren</button><p>${icon("pin")}${esc(roomName(i.roomLong, i.r.campus))}</p></div>`;
-  const facts = i.r.exam ? tmExamFacts(i, mk) : tmFacts(i, o, mk);
-  const acts = `<div class="tm-acts">${mk(5)}${tmActs(i, o)}</div>`;
-  const day = tmDay(i, mk);
-  const series = i.r.exam ? tmExams(i, mk) : tmSeries(i, mk);
-  const note = tmNote(i, mk);
-  const module = tmModule(i, mk);
-  if (o.size === "embed") return `<div class="tm">${alert}${place}${facts}${acts}</div>`;
-  if (o.size === "page") {
-    return `<article class="tm page" style="${mc(i.r.mod)}">${head}<div class="col">${alert}${place}${facts}${acts}${day}</div><div class="col">${series}${note}${module}</div></article>`;
-  }
-  const more = o.size === "half" ? `<button type="button" class="tm-more" data-act="grow">${icon("up")}Alles zeigen: ${i.r.exam ? "Prüfungen" : "alle Termine"}, der Tag, Modul</button>` : "";
-  return `<article class="tm ${o.size}" style="${mc(i.r.mod)}">${head}${alert}${place}${facts}${acts}${more}${day}${series}${note}${module}</article>`;
+// ---------- the Termin: one block, three levels ----------
+function timing(i, now) {
+  const a = mins(i.r.s), b = mins(i.r.e);
+  const past = i.n < now.d || (i.n === now.d && b <= now.m);
+  const live = i.n === now.d && now.m >= a && now.m < b;
+  return { past, live, left: live ? b - now.m : 0, pct: live ? Math.round(((now.m - a) / (b - a)) * 100) : 0 };
 }
-function tmHead(i, o, mk) {
-  const r = rel(i.n, i.r.s, i.r.e);
-  const wk = `KW ${isoWeek(i.n)}${i.r.exam ? "" : ` · ${abWeek(i.n)}-Woche`}`;
-  const nth = i.r.exam ? (i.n > TODAY ? "Prüfungszeit" : "") : i.nth ? `der ${i.nth}. von ${i.count}` : "";
-  const title = MODS[i.r.mod].title;
-  return `<header class="tm-head">${mk(1)}<div class="tm-top"><button type="button" class="tm-mod" data-act="toast" data-msg="Modul ansehen: ${esc(title)}"><i></i>${esc(i.r.mod)}</button><span class="tm-kind">${esc(kindLine(i))}</span><span class="tm-tools">${o.tools || ""}</span></div>
-    <h3 class="tm-title">${esc(title)}</h3>
-    <p class="tm-when">${WD[wdOf(i.n)]}, ${ddmmyyyy(i.n)} · ${i.r.s}–${i.r.e}</p>
-    <p class="tm-rel"><span class="${r.c}">${r.t}</span> · ${wk}${nth ? ` · ${nth}` : ""}</p></header>`;
+function pillOf(i, now) {
+  const t = timing(i, now);
+  if (i.o.st === "cancel") return `<span class="pill no">${icon("ban")}Fällt aus</span>`;
+  if (i.o.st === "brk") return `<span class="pill">${icon("pause")}${esc(i.o.why)}</span>`;
+  if (t.live) return `<span class="pill live">läuft · noch ${t.left} min</span>`;
+  if (t.past) return `<span class="pill">vorbei</span>`;
+  const d = i.n - now.d;
+  if (d === 0) { const m = mins(i.r.s) - now.m; return `<span class="pill soon">in ${m < 60 ? `${m} min` : gapText(m)}</span>`; }
+  if (d === 1) return `<span class="pill soon">morgen</span>`;
+  return `<span class="pill">${d === 2 ? "übermorgen" : `in ${d} Tagen`}</span>`;
 }
-function tmAlert(i) {
-  const today = i.n === TODAY;
-  const day = today ? "Heute" : `Am ${ddmm(i.n)}`;
-  if (i.o.st === "room") {
-    const single = i.r.moves && i.r.moves[i.o.iso];
-    return `<div class="tm-alert">${icon("move")}<div><b>${day} in ${esc(i.o.room || "einem anderen Raum")}, nicht in ${esc(i.r.room)}</b><p>Laut QIS „${esc(i.o.note)}“.${single ? ` QIS streicht den Tag in ${esc(i.r.room)} und führt ihn einzeln in ${esc(i.o.room)}.` : ""}</p></div></div>`;
-  }
-  if (i.o.st === "cancel") return `<div class="tm-alert no">${icon("ban")}<div><b>Fällt aus</b><p>${i.o.note ? `Laut QIS „${esc(i.o.note)}“.` : "Laut QIS, ohne Grund."}</p></div></div>`;
-  if (i.o.st === "brk") return `<div class="tm-alert no">${icon("ban")}<div><b>Fällt aus: ${esc(i.o.why)}</b><p>${i.o.why === "vorlesungsfrei" ? `Weihnachtspause vom ${ddmm(dn(BREAK[0]))} bis ${ddmm(dn(BREAK[1]))}, abgeleitet aus den Daten.` : "Feiertag in Brandenburg."}</p></div></div>`;
-  if (i.o.st === "none") return `<div class="tm-alert info">${icon("info")}<div><b>An diesem Tag nicht</b><p>Der Termin findet am ${ddmm(i.n)} nicht statt. Das nächste Datum steht unter „Alle Termine“.</p></div></div>`;
-  if (i.r.rh === "week_a" || i.r.rh === "week_b") {
-    const other = ROWS.find((x) => x.ev !== i.r.ev && x.mod === i.r.mod && x.wd === i.r.wd && x.s === i.r.s && (x.rh === "week_a" || x.rh === "week_b") && x.rh !== i.r.rh);
-    return `<div class="tm-alert info">${icon("info")}<div><b>Nur in ${i.r.rh === "week_a" ? "A" : "B"}-Wochen</b><p>${other ? `In ${other.rh === "week_a" ? "A" : "B"}-Wochen ist um diese Zeit im selben Raum die ${esc(other.kind)}.` : "Alle zwei Wochen."}</p></div></div>`;
-  }
-  return "";
+const abGlyph = (w) => `<span class="abg" title="${w}-Woche" aria-label="${w}-Woche"><i class="${w === "A" ? "on" : ""}">A</i><i class="${w === "B" ? "on" : ""}">B</i></span>`;
+function ticket(i, o) {
+  const now = o.now || NOW;
+  const t = timing(i, now);
+  const st = i.o.st;
+  const cls = ["tk", st === "room" ? "room" : "", st === "cancel" ? "cancel" : "", st === "brk" ? "off" : "", t.past && st !== "cancel" && st !== "brk" ? "past" : ""].filter(Boolean).join(" ");
+  const yr = isoOf(i.n).slice(0, 4) !== NOW_ISO.slice(0, 4) ? isoOf(i.n).slice(0, 4) : "";
+  const date = `<b>${WD[wdOf(i.n)]}, ${ddmm(i.n)}${yr}</b>`;
+  const p = stepKey(i.k, -1), nx = stepKey(i.k, 1);
+  const pager = o.pager === false || i.r.rh === "single"
+    ? `<span class="nopg"></span>${date}`
+    : `<button type="button" class="pg" data-act="prev" aria-label="Voriges Datum"${p ? "" : " disabled"}>${icon("left")}</button>${date}<button type="button" class="pg" data-act="next" aria-label="Nächstes Datum"${nx ? "" : " disabled"}>${icon("right")}</button>`;
+  const ab = i.r.rh === "week_a" || i.r.rh === "week_b" ? abGlyph(abWeek(i.n)) : "";
+  const room = `<b class="plate">${plate(i.room)}</b>${st === "room" ? `<small class="chg">${icon("move")}statt <s>${esc(i.r.room)}</s></small>` : ""}<small>${whereOf(i.roomLong, i.r.campus)}</small>`;
+  return `<section class="${cls}" aria-label="Wann und wo"><div class="tk-date">${pager}${ab}${pillOf(i, now)}</div><div class="tk-main"><div class="tk-time"><b>${i.r.s}</b><small>bis ${i.r.e}</small></div><div class="tk-room">${room}</div></div>${t.live ? `<div class="tk-prog" aria-hidden="true"><i style="width: ${t.pct}%"></i></div>` : ""}</section>`;
 }
-function tmFacts(i, o, mk) {
-  const ch = choiceOf(i.r);
-  const who = `<div><dt>Wer</dt><dd>${i.r.instr ? `${esc(i.r.instr)}<small>leitet diesen Termin, laut QIS</small>` : ""}${esc(MODS[i.r.mod].resp)}<small>verantwortlich für das Modul</small></dd></div>`;
-  const range = `${ddmm(dn(i.r.from))}${i.r.from.slice(0, 4)}–${ddmm(dn(i.r.to))}${i.r.to.slice(0, 4)}`;
-  const counts = [`${i.count} Termine`, i.past ? `${i.past} vorbei` : "", i.breaks ? `${i.breaks} vorlesungsfrei` : "", i.cancels ? `${i.cancels} fällt aus` : ""].filter(Boolean).join(" · ");
-  let group = "";
-  if (ch) {
-    const pick = ch.map((x, n) => {
-      const clash = clashOf(x);
-      return `<button type="button" class="opt" role="radio" aria-checked="${x.k === i.r.k}" data-act="pick" data-k="${x.k}"><span class="rd"></span><b>${WD2[x.wd]} ${x.s}–${x.e} · ${esc(x.room)}</b><small>${esc(x.instr || "Leitung offen")}${x.k === i.r.k ? " · deine" : ""}</small><span class="chip fitn ${clash ? "no" : "ok"}">${clash ? `überschneidet sich mit ${esc(clash)}` : "passt"}</span></button>`;
-    }).join("");
-    group = `<div><dt>Gruppe</dt><dd>eine von ${ch.length} ${GROUPWORD[i.r.kind] || "Gruppen"}${o.groups ? `<div class="opts" role="radiogroup" aria-label="Gruppe">${pick}</div>` : `<br><button type="button" class="mini" data-act="groups">${icon("move")}Andere Gruppe</button>`}</dd></div>`;
-  }
-  return `<dl class="tm-facts">${mk(4)}${who}<div><dt>Rhythmus</dt><dd>${RHYTHM[i.r.rh]} · ${WD2[i.r.wd]} ${i.r.s}–${i.r.e}<small>${range} · ${counts}</small></dd></div>${group}<div><dt>Nummer</dt><dd class="mono">${esc(i.r.num)} <small style="display:inline">in QIS</small></dd></div></dl>`;
+function clashOn(i) {
+  if (i.r.exam || i.o.st === "cancel" || i.o.st === "brk") return null;
+  const a = mins(i.r.s), b = mins(i.r.e);
+  const it = dayItems(i.n).find((x) => x.r.ev !== i.r.ev && x.o.st !== "cancel" && x.s < b && a < x.e);
+  return it ? { short: `${KSHORT[it.r.kind] || it.r.kind} ${it.r.mod}`, title: `${it.r.kind} ${titleOf(it.r)}, ${it.r.s}–${it.r.e}` } : null;
 }
-function clashOf(x) {
+// Whether an option of a choice meets the plan in its week: the Stundenplan's „passt" or the other Termin.
+function clashRow(x) {
   for (const r of ROWS) {
     if (r.ev === x.ev || !inPlan(r) || r.exam || r.wd !== x.wd) continue;
     if (mins(r.s) < mins(x.e) && mins(x.s) < mins(r.e)) return `${KSHORT[r.kind]} ${r.mod}`;
   }
   return "";
 }
-function tmExamFacts(i, mk) {
+function factsOf(i, o) {
   const m = MODS[i.r.mod];
-  return `<dl class="tm-facts">${mk(4)}<div><dt>Form</dt><dd>${esc(m.exam)}<small>${esc(m.form)}</small></dd></div>${m.pre ? `<div><dt>Zulassung</dt><dd>${esc(m.pre)}<small>Voraussetzung für die Prüfung</small></dd></div>` : ""}<div><dt>Wer</dt><dd>${esc(m.resp)}<small>verantwortlich für das Modul</small></dd></div><div><dt>Anmeldung</dt><dd>über die Systeme der BTU<small>steht nicht in den Daten</small></dd></div><div><dt>Nummer</dt><dd class="mono">${esc(i.r.num)} <small style="display:inline">in QIS</small></dd></div></dl>`;
-}
-function tmActs(i, o) {
-  const plan = `<button type="button" class="btn" data-act="toast" data-msg="Stundenplan: ${i.r.exam ? "Prüfungen" : `KW ${isoWeek(i.n)}`}, der Termin markiert">${icon("plan")}Im Stundenplan</button>`;
-  const qis = `<button type="button" class="btn" data-act="toast" data-msg="QIS öffnet die Veranstaltung ${esc(i.r.num)} in einem neuen Tab">${icon("ext")}In QIS</button>`;
-  const cal = `<button type="button" class="btn" data-act="toast" data-msg="Kalender: dieses Datum oder die ganze Reihe">${icon("calplus")}In den Kalender</button>`;
-  const link = `<button type="button" class="btn" data-act="toast" data-msg="Link kopiert: betula.app/event/${esc(i.r.k)}/${isoOf(i.n)}">${icon("link")}Link kopieren</button>`;
-  return o.size === "half" ? plan + qis + link : plan + qis + cal + link;
-}
-function tmDay(i, mk) {
-  const items = dayItems(i.n);
-  if (!items.length) return "";
-  const rows = [];
-  let prev = null;
-  if (i.n === TODAY && items[0].s > NOW_MIN) rows.push(`<div class="now">${hhmm(NOW_MIN)} jetzt</div>`);
-  for (const it of items) {
-    if (prev && prev.o.st !== "cancel" && it.o.st !== "cancel") {
-      const gap = it.s - prev.e;
-      const moveTo = building(it.room) === building(prev.room) ? (it.room === prev.room ? "gleicher Raum" : "gleiches Gebäude") : `anderes Gebäude, ${esc(building(it.room))}`;
-      rows.push(`<div class="gap">${gap > 0 ? `${gapText(gap)} Pause` : "direkt danach"} · ${moveTo}</div>`);
-    }
-    const me = parseK(it.k).r.k === i.r.k;
-    const gone = it.o.st === "cancel";
-    const tag = me ? "div" : "button";
-    rows.push(`<${tag} ${me ? "" : `type="button" data-act="open" data-k="${it.k}"`} class="it${me ? " me" : ""}${gone ? " gone" : ""}" style="${mc(it.r.mod)}"><span class="t">${it.r.s}<small>${it.r.e}</small></span><span class="bar"></span><span class="w"><b>${esc(it.r.kind)} · ${esc(it.r.mod)}</b><small>${esc(it.room)}${gone ? " · fällt aus" : ""}${me ? " · dieser Termin" : ""}</small></span></${tag}>`);
-    if (!gone) prev = it;
+  const out = [`<span class="fact" title="${i.r.instr ? "leitet diesen Termin, laut QIS" : `verantwortlich: ${esc(m.resp)}`}">${icon("user")}${esc(i.r.instr || m.who)}</span>`];
+  if (i.r.exam) out.push(`<span class="fact">${icon("pen")}${esc(m.exam)}</span>`);
+  const ch = choiceOf(i.r);
+  if (ch) {
+    const dots = ch.map((x) => `<i class="${[CHOSEN[x.ev] === x.k ? "mine" : "", x.k === i.r.k ? "this" : ""].join(" ").trim()}"></i>`).join("");
+    out.push(`<button type="button" class="fact btnish" data-act="groups" aria-expanded="${!!o.groups}">${icon("users")}Gruppe<span class="gdots" aria-hidden="true">${dots}</span>${icon(o.groups ? "up" : "down")}</button>`);
   }
-  return `<section class="tm-sec">${mk(6)}<h4>An diesem Tag <small>${WD2[wdOf(i.n)]} ${ddmm(i.n)} · ${items.length} ${items.length === 1 ? "Termin" : "Termine"}</small></h4><div class="dayl">${rows.join("")}</div></section>`;
+  const c = clashOn(i);
+  if (c) out.push(`<span class="fact warn" title="überschneidet sich mit ${esc(c.title)}">${icon("alert")}${esc(c.short)}</span>`);
+  let hint = "";
+  if (i.o.st === "cancel" && i.o.note && !/^fällt aus\.?$/i.test(i.o.note)) hint = `<p class="hint no">${icon("ban")}<span>${esc(i.o.note)}</span></p>`;
+  else if (i.r.comment) hint = `<p class="hint">${icon("info")}<span>${esc(i.r.comment)}</span></p>`;
+  else if (i.r.exam && m.pre) hint = `<p class="hint">${icon("check")}<span>Zulassung: ${esc(m.pre)}</span></p>`;
+  const opts = o.groups && ch ? `<div class="opts">${ch.map((x) => {
+    const mine = CHOSEN[x.ev] === x.k;
+    const c2 = clashRow(x);
+    return `<button type="button" class="opt${x.k === i.r.k ? " this" : ""}" data-act="open" data-k="${keyOf(x, nextDate(x))}"><span class="dot${mine ? " mine" : ""}"></span><span><b>${WD2[x.wd]} ${x.s}–${x.e} · ${esc(x.room)}</b><small>${esc(x.instr || "")}${mine ? `${x.instr ? " · " : ""}deine` : ""}</small></span>${c2 ? `<span class="pill no">${icon("alert")}${esc(c2)}</span>` : '<span class="pill soon">passt</span>'}${icon("right")}</button>`;
+  }).join("")}</div>` : "";
+  return `<div class="tm-facts">${out.join("")}</div>${opts}${hint}`;
 }
-function tmSeries(i, mk) {
-  const months = new Map();
-  for (const o of i.all) { const key = isoOf(o.n).slice(0, 7); if (!months.has(key)) months.set(key, []); months.get(key).push(o); }
-  const chip = (o) => {
-    const cls = ["dc", o.n < TODAY ? "past" : "", o.n === TODAY ? "today" : "", o.st === "room" ? "room" : "", o.st === "cancel" ? "cancel" : "", o.st === "brk" ? "brk" : "", o.n === i.n ? "sel" : ""].filter(Boolean).join(" ");
-    const what = o.st === "room" ? `in ${o.room}` : o.st === "cancel" ? "fällt aus" : o.st === "brk" ? o.why : o.n < TODAY ? "vorbei" : "";
-    return `<button type="button" class="${cls}" data-act="date" data-k="${keyOf(i.r, o.n)}" title="${WD2[wdOf(o.n)]} ${ddmm(o.n)}${what ? ` · ${esc(what)}` : ""}" aria-label="${WD2[wdOf(o.n)]} ${ddmm(o.n)}${what ? `, ${esc(what)}` : ""}">${isoOf(o.n).slice(8, 10)}</button>`;
-  };
-  const rows = [...months].map(([key, os]) => `<div class="mo"><span>${MON3[+key.slice(5, 7) - 1]}</span><div class="ds">${os.map(chip).join("")}</div></div>`).join("");
-  const sub = [i.past ? `${i.past} vorbei` : "", i.breaks ? `${i.breaks} vorlesungsfrei` : "", i.all.some((o) => o.st === "room") ? "1 anderer Raum" : ""].filter(Boolean).join(" · ");
-  return `<section class="tm-sec">${mk(7)}<h4>Alle ${i.count} Termine <small>${sub}</small></h4><div class="days">${rows}</div><div class="legend"><span><i class="today"></i>heute</span><span><i class="room"></i>anderer Raum</span><span><i class="brk"></i>fällt aus, vorlesungsfrei</span></div></section>`;
+function secDay(i, o) {
+  if (i.r.exam) return secExams(i);
+  const now = o.now || NOW;
+  const items = dayItems(i.n).map((x) => ({ ...x }));
+  if (!items.some((x) => parseK(x.k).r.k === i.r.k)) items.push({ k: i.k, r: i.r, o: i.o, s: mins(i.r.s), e: mins(i.r.e), room: i.room, cand: true });
+  items.sort((a, b) => a.s - b.s);
+  const lanes = [];
+  for (const it of items) { let l = lanes.findIndex((end) => end <= it.s); if (l < 0) { l = lanes.length; lanes.push(0); } lanes[l] = it.e; it.lane = l; }
+  const n = Math.max(1, lanes.length), T0 = 7 * 60, span = 12 * 60, h = (36 - 8 - (n - 1) * 2) / n;
+  const blocks = items.map((it) => {
+    const me = parseK(it.k).r.k === i.r.k;
+    const style = `${mc(it.r.mod)}; left: ${((it.s - T0) / span) * 100}%; width: calc(${((it.e - it.s) / span) * 100}% - 2px); top: ${4 + it.lane * (h + 2)}px; height: ${h}px`;
+    const cls = `rb${me ? " me" : ""}${it.cand ? " cand" : ""}${it.o.st === "cancel" ? " gone" : ""}`;
+    const label = `${WD2[wdOf(i.n)]} ${it.r.s}–${it.r.e} · ${it.r.kind} ${it.r.mod} · ${it.room}`;
+    return me ? `<span class="${cls}" style="${style}" title="${esc(label)}">${esc(it.r.mod)}</span>` : `<button type="button" class="${cls}" style="${style}" data-act="open" data-k="${it.k}" title="${esc(label)}" aria-label="${esc(label)}">${esc(it.r.mod)}</button>`;
+  }).join("");
+  const nowLine = i.n === now.d && now.m > T0 && now.m < T0 + span ? `<span class="rn" style="left: ${((now.m - T0) / span) * 100}%" title="jetzt, ${hhmm(now.m)}"></span>` : "";
+  const ticks = [8, 10, 12, 14, 16, 18].map((hh) => `<span style="left: ${((hh * 60 - T0) / span) * 100}%">${hh}</span>`).join("");
+  let next = "";
+  if (i.o.st !== "cancel" && i.o.st !== "brk") {
+    const after = items.find((x) => x.s >= mins(i.r.e) && x.o.st !== "cancel" && parseK(x.k).r.k !== i.r.k);
+    if (after) {
+      const gap = after.s - mins(i.r.e);
+      const away = building(after.room) !== building(i.room);
+      next = `<p class="nx">${icon("right")}<span>danach <b>${after.r.s}</b> ${esc(KSHORT[after.r.kind] || after.r.kind)} ${esc(after.r.mod)} · ${esc(after.room)}</span><span class="w">${away ? icon("walk") : ""}${gapText(gap)}${away ? "" : " Pause"}</span></p>`;
+    } else next = `<p class="nx">${icon("right")}<span>danach frei</span></p>`;
+  }
+  return `<section class="tm-sec"><h4>Der Tag<button type="button" class="go" data-act="toast" data-msg="Stundenplan: KW ${isoWeek(i.n)}, der Termin markiert">Stundenplan${icon("right")}</button></h4><div class="rib">${blocks}${nowLine}</div><div class="rt">${ticks}</div>${next}</section>`;
 }
-function tmExams(i, mk) {
-  const list = exams();
+function secExams(i) {
   let prev = null;
-  const rows = list.map((r) => {
+  const chips = exams().map((r) => {
     const n = dn(r.from);
-    const gap = prev ? `<div class="gap">${n - prev} Tage später</div>` : "";
+    const gap = prev != null ? `<span class="exg">${n - prev} Tage</span>` : "";
     prev = n;
     const me = r.k === i.r.k;
-    return `${gap}<${me ? "div" : "button"} ${me ? "" : `type="button" data-act="open" data-k="${keyOf(r, n)}"`} class="it${me ? " me" : ""}" style="${mc(r.mod)}"><span class="t">${WD2[wdOf(n)]} ${ddmm(n)}</span><span class="bar"></span><span class="w"><b>Prüfung · ${esc(r.mod)}</b><small>${r.s}–${r.e} · ${esc(r.room)}${me ? " · diese" : ""}</small></span></${me ? "div" : "button"}>`;
+    const label = `${WD2[wdOf(n)]} ${ddmm(n)} · Prüfung ${r.mod}`;
+    return `${gap}<${me ? "span" : "button type=\"button\""} class="exc${me ? " me" : ""}" style="${mc(r.mod)}"${me ? "" : ` data-act="open" data-k="${keyOf(r, n)}" aria-label="${esc(label)}"`}><b>${ddmm(n)}</b><small>${esc(r.mod)}</small></${me ? "span" : "button"}>`;
   }).join("");
-  return `<section class="tm-sec">${mk(7)}<h4>Deine Prüfungen <small>WiSe 2026/27</small></h4><div class="dayl ex">${rows}</div></section>`;
+  return `<section class="tm-sec"><h4>Deine Prüfungen<span class="r">WiSe 2026/27</span></h4><div class="exs">${chips}</div></section>`;
 }
-function tmNote(i, mk) {
-  if (!i.r.comment) return "";
-  return `<section class="tm-sec">${mk(8)}<h4>Hinweis aus QIS</h4><p class="qnote"><q>${esc(i.r.comment)}</q></p></section>`;
+function secSeries(i) {
+  if (i.r.rh === "single") return "";
+  const dots = i.all.map((o) => {
+    const label = `${WD2[wdOf(o.n)]} ${ddmm(o.n)}${o.st === "room" ? ` · in ${o.room}` : o.st === "cancel" ? " · fällt aus" : o.st === "brk" ? ` · ${o.why}` : o.n < TODAY ? " · vorbei" : ""}`;
+    if (o.st === "brk") return `<span class="sd brk" title="${esc(label)}"></span>`;
+    const cls = ["sd", o.st === "cancel" ? "cancel" : o.st === "room" ? "room" : o.n < TODAY ? "past" : "", o.n === TODAY ? "today" : "", o.n === i.n ? "sel" : ""].filter(Boolean).join(" ");
+    return `<button type="button" class="${cls}" data-act="date" data-k="${keyOf(i.r, o.n)}" title="${esc(label)}" aria-label="${esc(label)}"></button>`;
+  }).join("");
+  const months = [];
+  i.all.forEach((o, idx) => { const m = monthOf(o.n); const last = months[months.length - 1]; if (last && last.m === m) last.n++; else months.push({ m, start: idx, n: 1 }); });
+  const mon = months.map((x) => `<span style="grid-column: ${x.start + 1} / span ${x.n}">${MON3[x.m]}</span>`).join("");
+  const left = i.count - i.past;
+  return `<section class="tm-sec"><h4>Reihe<span class="r">${i.nth ? `${i.nth} von ${i.count}` : `${i.count} Termine`} · noch ${left}</span></h4><div class="sdots">${dots}</div><div class="smon">${mon}</div></section>`;
 }
-function tmModule(i, mk) {
+function secModule(i) {
   const m = MODS[i.r.mod];
   const ex = !i.r.exam && exams().find((x) => x.mod === i.r.mod);
-  const exl = ex ? (() => { const n = dn(ex.from); return `<button type="button" class="exl" data-act="open" data-k="${keyOf(ex, n)}"><span class="dt"><b>${isoOf(n).slice(8, 10)}</b><small>${MON3[monthOf(n)]}</small></span><span><b>Prüfung · ${WD2[wdOf(n)]} ${ex.s}–${ex.e} · ${esc(ex.room)}</b><small>in ${n - TODAY} Tagen · ${esc(m.exam)}</small></span></button>`; })() : "";
-  return `<section class="tm-sec">${mk(9)}<h4>Modul${ex ? " und Prüfung" : ""}</h4><div class="modc" style="${mc(i.r.mod)}"><div><b>${esc(m.title)}</b><small><span class="abbr">${esc(i.r.mod)}</span>${m.id} · ${m.lp} LP</small></div><button type="button" class="btn" data-act="toast" data-msg="Modul ansehen: ${esc(m.title)}">${icon("book")}Modul ansehen</button>${exl}</div></section>`;
+  const exRow = ex ? (() => { const n = dn(ex.from); return `<button type="button" class="mrow" data-act="open" data-k="${keyOf(ex, n)}"><span class="dt"><b>${isoOf(n).slice(8, 10)}</b><small>${MON3[monthOf(n)]}</small></span><span><b>Prüfung</b><small>${WD2[wdOf(n)]} ${ex.s}–${ex.e} · ${esc(ex.room)} · ${esc(m.exam)}</small></span><span class="v">${n - TODAY} Tage</span>${icon("right")}</button>`; })() : "";
+  const sub = [titleOf(i.r) !== m.title ? m.title : "", m.id, `${m.lp} LP`].filter(Boolean).join(" · ");
+  return `<section class="tm-sec"><h4>Modul</h4><button type="button" class="mrow" data-act="toast" data-msg="Modul ansehen: ${esc(m.title)}"><span class="ico">${icon("book")}</span><span><b>Zum Modul</b><small>${esc(sub)}</small></span><span class="v"></span>${icon("right")}</button>${exRow}</section>`;
 }
+function sourceOf(i) {
+  const bits = ["Quelle: QIS", `${esc(i.r.kind)} ${esc(i.r.num)}`];
+  if (i.o.note) bits.push(`<q>${esc(i.o.note)}</q>`);
+  bits.push("Stand 21.10.");
+  return `<footer class="tm-src">${bits.map((b) => `<span>${b}</span>`).join("")}<span><button type="button" data-act="toast" data-msg="QIS öffnet die Veranstaltung ${esc(i.r.num)} in einem neuen Tab">In QIS öffnen ↗</button></span></footer>`;
+}
+// The one action, or none.
+function actionOf(i, now) {
+  if (i.o.st === "cancel" || i.o.st === "brk" || i.o.st === "none" || timing(i, now || NOW).past) return "";
+  if (choiceOf(i.r) && CHOSEN[i.r.ev] !== i.r.k) return `<button type="button" class="big" data-act="take" data-k="${i.r.k}">${icon("check")}Diese Gruppe nehmen</button>`;
+  if (!PLAN.has(i.r.mod)) return `<button type="button" class="big" data-act="toast" data-msg="Kalender: ${WD2[wdOf(i.n)]} ${ddmm(i.n)}, ${i.r.s}, als Termin">${icon("calplus")}In den Kalender</button>`;
+  return "";
+}
+// o.size: half | full | panel | page | card; o.tools: the buttons top right; o.anat: the levels numbered.
+function tmBlock(k, o) {
+  const i = info(k);
+  const tier = (n) => (o.anat ? `<span class="tier" aria-hidden="true">${n}</span>` : "");
+  const head = `<header class="tm-head">${tier(1)}<div class="tm-bar"><span class="tm-mod"><i></i>${esc(i.r.mod)}</span><span class="tm-kind">${esc(i.r.kind)}</span><span class="tm-tools">${o.tools || ""}</span></div><h3 class="tm-title">${nbh(esc(titleOf(i.r)))}</h3></header>`;
+  const t1 = `<div class="tm-t1">${tier(2)}${ticket(i, o)}</div>`;
+  const t2 = `<div class="tm-t2">${tier(3)}${factsOf(i, o)}</div>`;
+  if (o.size === "card") return `<article class="tm card" style="${mc(i.r.mod)}">${head}${t1}${t2}</article>`;
+  const day = secDay(i, o), ser = secSeries(i), mod = secModule(i);
+  if (o.size === "page") return `<article class="tm page" style="${mc(i.r.mod)}">${head}<div class="col">${t1}${t2}${o.action ? `<div class="page-act">${o.action}</div>` : ""}${day}</div><div class="col">${ser}${mod}${sourceOf(i)}</div></article>`;
+  return `<article class="tm ${o.size}" style="${mc(i.r.mod)}">${head}${t1}${t2}<div class="tm-t3">${tier(4)}${day}${ser}${mod}</div><div class="tm-t4">${tier(5)}${sourceOf(i)}</div></article>`;
+}
+const shareBtn = (k, label) => { const { r, iso } = parseK(k); return `<button type="button" class="${label ? "tb" : "ib"}" data-act="toast" data-msg="Teilen: betula.app/event/${r.k}/${iso}" aria-label="Teilen" title="Teilen">${icon("share")}${label ? "Teilen" : ""}</button>`; };
+const closeIb = `<button type="button" class="ib" data-act="close" aria-label="Schließen" title="Schließen">${icon("x")}</button>`;
+const pageTb = `<button type="button" class="tb" data-act="page">${icon("expand")}Ganze Seite <kbd>V</kbd></button>`;
 
 // ---------- the pages under it ----------
 function statusBar(onPhoto) { return `<div class="p-status${onPhoto ? " on-photo" : ""}"><span>08:40</span><span class="bat"><i></i></span></div>`; }
@@ -1361,313 +1356,181 @@ function deskWeek(st) {
     <div><p class="kicker" style="padding: 6px 10px 6px">Module <b style="float: right; color: var(--text); font-size: 15px">26 LP</b></p><div class="mods">${mods}</div></div></div>`;
 }
 
-// ---------- the concepts: what lies over the page ----------
-const CONCEPTS = {
-  a: { steps: [["Zu", "closed", "closed"], ["Halb · daneben", "half", "panel"], ["Ganz · Seite", "full", "page"]], open: ["half", "panel"] },
-  b: { steps: [["Zu", "closed", "closed"], ["Karte", "card", "pop"], ["Seite", "page", "page"]], open: ["card", "pop"] },
-  c: { steps: [["Zu", "closed", "closed"], ["Reihe", "series", "dlg"], ["Seite", "series", "page"]], open: ["series", "dlg"] },
-  d: { steps: [["Zu", "closed", "closed"], ["Tag", "day", "daypanel"], ["Seite", "page", "page"]], open: ["day", "daypanel"] },
-};
+
+// ---------- A: what lies over the page ----------
+const STEPS = [["Zu", "closed", "closed"], ["Halb · daneben", "half", "panel"], ["Ganz · Seite", "full", "page"]];
 const G = { ex: "raum", under: "home" };
-const ST = {};
-function reset(c) {
+let ST;
+function reset() {
   const k = EXAMPLES[G.ex];
-  ST[c] = { phone: { mode: CONCEPTS[c].open[0], k, groups: false }, desk: { mode: CONCEPTS[c].open[1], k, groups: false } };
+  ST = { phone: { mode: "half", k, groups: false }, desk: { mode: "panel", k, groups: false } };
 }
-const navTools = (k, extra) => {
-  const p = stepKey(k, -1), n = stepKey(k, 1);
-  return `<button type="button" class="ib" data-act="prev" aria-label="Voriges Datum"${p ? "" : " disabled"}>${icon("left")}</button><button type="button" class="ib" data-act="next" aria-label="Nächstes Datum"${n ? "" : " disabled"}>${icon("right")}</button>${extra || ""}`;
-};
-const closeBtn = (label) => `<button type="button" class="ib x" data-act="close" aria-label="${label || "Schließen"}">${icon("x")}</button>`;
-const closeTb = `<button type="button" class="tb" data-act="close">${icon("x")}Schließen <kbd>Esc</kbd></button>`;
-const pageTb = `<button type="button" class="tb" data-act="page">${icon("expand")}Ganze Seite <kbd>V</kbd></button>`;
-
-function overlayPhone(c, st) {
+function overlayPhone(st) {
   if (st.mode === "closed") return "";
-  const k = st.k;
-  if (c === "a") {
-    const size = st.mode === "half" ? "half" : "full";
-    return `${st.mode === "half" ? '<button type="button" class="shade" data-act="close" aria-label="Schließen"></button>' : ""}<section class="sheet ${st.mode}" aria-label="Termin"><button type="button" class="grab" data-act="${st.mode === "half" ? "grow" : "shrink"}" aria-label="${st.mode === "half" ? "Ganz hoch" : "Halb hoch"}"></button><div class="sheet-body" data-keep="body">${tm(k, { size, tools: navTools(k, closeBtn()), groups: st.groups })}</div></section>`;
-  }
-  if (c === "b") {
-    if (st.mode === "card") return `<button type="button" class="shade" data-act="close" aria-label="Schließen"></button><section class="pcard" aria-label="Termin"><button type="button" class="grab" data-act="close" aria-label="Schließen"></button>${kcard(k, true)}</section>`;
-    return pagePhone(k, st, "Zurück");
-  }
-  if (c === "c") return seriesPhone(k, st);
-  if (c === "d") {
-    if (st.mode === "day") return `<button type="button" class="shade" data-act="close" aria-label="Schließen"></button><section class="sheet day" aria-label="Tag"><button type="button" class="grab" data-act="close" aria-label="Schließen"></button>${dayHead(k, `<button type="button" class="ib" data-act="page" aria-label="Seite">${icon("expand")}</button>${closeBtn()}`)}<div class="sheet-body" data-keep="body">${dayList(k, st)}</div></section>`;
-    return pagePhone(k, st, "Tag");
-  }
-  return "";
+  const act = actionOf(info(st.k));
+  return `${st.mode === "half" ? '<button type="button" class="shade" data-act="close" aria-label="Schließen"></button>' : ""}<section class="sheet ${st.mode}" aria-label="Termin"><button type="button" class="grab" data-act="${st.mode === "half" ? "grow" : "shrink"}" aria-label="${st.mode === "half" ? "Ganz hoch" : "Halb hoch"}"></button><div class="sheet-body" data-keep="body">${tmBlock(st.k, { size: st.mode, tools: shareBtn(st.k) + closeIb, groups: st.groups })}</div>${act ? `<div class="tm-act">${act}</div>` : ""}</section>`;
 }
-function pagePhone(k, st, back) {
-  const i = info(k);
-  return `<section class="ppage" aria-label="Seite des Termins"><div class="ppage-bar"><button type="button" class="back" data-act="back">${icon("left")}${back}</button><span class="ttl"><b>${esc(i.r.kind)} · ${esc(i.r.mod)}</b><small>${WD2[wdOf(i.n)]} ${ddmm(i.n)} · ${i.r.s}</small></span><button type="button" class="ib" data-act="toast" data-msg="Link kopiert: betula.app/event/${esc(i.r.k)}/${isoOf(i.n)}" aria-label="Link kopieren">${icon("link")}</button></div><div class="ppage-body" data-keep="body">${tm(k, { size: "full", tools: navTools(k), groups: st.groups })}</div></section>`;
-}
-function kcard(k, phone) {
-  const i = info(k);
-  const r = rel(i.n, i.r.s, i.r.e);
-  const alert = tmAlert(i);
-  return `<div class="kcard" style="${mc(i.r.mod)}"><div class="tm-top"><span class="tm-mod"><i></i>${esc(i.r.mod)}</span><span class="tm-kind">${esc(kindLine(i))}</span><span class="tm-tools">${phone ? "" : closeBtn()}</span></div>
-    <div><h3 class="tm-title">${esc(MODS[i.r.mod].title)}</h3><p class="tm-when">${WD2[wdOf(i.n)]} ${ddmm(i.n)} · ${i.r.s}–${i.r.e}</p><p class="tm-rel"><span class="${r.c}">${r.t}</span></p></div>
-    ${alert}<div class="kline"><span class="room">${esc(i.room)}</span><small>${esc(roomName(i.roomLong, i.r.campus))}</small></div>${i.r.instr ? `<div class="kline"><small>${icon("user")} ${esc(i.r.instr)}, leitet diesen Termin</small></div>` : ""}
-    <div class="kacts"><button type="button" class="btn primary" data-act="page">${icon("expand")}Details${phone ? "" : " <kbd>V</kbd>"}</button><button type="button" class="btn" data-act="toast" data-msg="QIS öffnet die Veranstaltung ${esc(i.r.num)} in einem neuen Tab">${icon("ext")}In QIS</button></div></div>`;
-}
-function seriesList(k, st) {
-  const i = info(k);
-  let lastMonth = -1, brkOpen = false;
-  const out = [];
-  for (const o of i.all) {
-    const mo = monthOf(o.n);
-    if (mo !== lastMonth) { out.push(`<li class="mh">${MON[mo]} ${isoOf(o.n).slice(0, 4)}</li>`); lastMonth = mo; }
-    if (o.st === "brk") {
-      if (!brkOpen) { out.push(`<li class="brkrow">${WD2[wdOf(o.n)]} ${ddmm(o.n)}${i.all.filter((x) => x.st === "brk").length > 1 ? ` und ${ddmm(i.all.filter((x) => x.st === "brk")[1].n)}` : ""} · ${esc(o.why)}</li>`); brkOpen = true; }
-      continue;
-    }
-    const sel = o.n === i.n;
-    const what = o.st === "room" ? `<span class="chip warn">in ${esc(o.room)}</span>` : o.st === "cancel" ? '<span class="chip no">fällt aus</span>' : o.n === TODAY ? '<span class="chip ok">heute</span>' : "";
-    const cls = ["r", o.n < TODAY ? "past" : "", o.st === "cancel" ? "cancel" : "", sel ? "sel" : ""].filter(Boolean).join(" ");
-    out.push(`<li${sel ? ' data-sel="1"' : ""}><button type="button" class="${cls}" data-act="date" data-k="${keyOf(i.r, o.n)}"><span class="d">${WD2[wdOf(o.n)]} ${ddmm(o.n)}</span><span class="w">${i.r.s}–${i.r.e} · ${esc(o.room || i.r.room)}${o.n < TODAY ? " · vorbei" : ""}</span>${what}</button>${sel ? `<div class="open">${tm(k, { size: "embed", groups: st.groups })}</div>` : ""}</li>`);
-  }
-  const ex = exams().find((x) => x.mod === i.r.mod);
-  if (ex) out.push(`<li class="mh">Am Ende</li><li><button type="button" class="r" data-act="open" data-k="${keyOf(ex, dn(ex.from))}"><span class="d">${WD2[wdOf(dn(ex.from))]} ${ddmm(dn(ex.from))}</span><span class="w">Prüfung · ${ex.s} · ${esc(ex.room)}</span><span class="chip">${dn(ex.from) - TODAY} Tage</span></button></li>`);
-  return `<ul class="ser">${out.join("")}</ul>`;
-}
-function seriesHead(k, tools) {
-  const i = info(k);
-  return `<div class="ser-head" style="${mc(i.r.mod)}"><div class="tm-top"><span class="tm-mod"><i></i>${esc(i.r.mod)}</span><span class="tm-kind">${esc(kindLine(i))}</span><span class="tm-tools">${tools || ""}</span></div><h3>${esc(MODS[i.r.mod].title)}</h3><p>${RHYTHM[i.r.rh]} · ${WD2[i.r.wd]} ${i.r.s}–${i.r.e} · ${i.count} Termine, ${i.past} vorbei</p></div>`;
-}
-function seriesPhone(k, st) {
-  const i = info(k);
-  if (i.r.exam) return pagePhone(k, st, "Zurück");
-  return `<section class="ppage up" aria-label="Reihe des Termins"><div style="padding-top: 40px; border-bottom: 1px solid var(--line)">${seriesHead(k, `<button type="button" class="ib" data-act="toast" data-msg="Link kopiert: betula.app/event/${esc(i.r.k)}/${isoOf(i.n)}" aria-label="Link kopieren">${icon("link")}</button>${closeBtn()}`)}</div><div class="ppage-body" data-keep="ser" data-center="1">${seriesList(k, st)}</div><div class="ser-foot"><button type="button" class="btn" data-act="prev">${icon("left")}Früher</button><button type="button" class="btn" data-act="today">Heute</button><button type="button" class="btn" data-act="next">Später${icon("right")}</button></div></section>`;
-}
-// D: the day as a list, the Termin open in it.
-function dayHead(k, tools) {
-  const i = info(k);
-  const r = i.n === TODAY ? "heute" : i.n === TODAY + 1 ? "morgen" : rel(i.n, "00:00", "00:00").t;
-  return `<div class="dhead"><button type="button" class="ib" data-act="dayprev" aria-label="Tag davor">${icon("left")}</button><span class="tt"><b>${WD[wdOf(i.n)]}, ${ddmm(i.n)}</b><small>${r} · KW ${isoWeek(i.n)}${i.r.exam ? "" : ` · ${abWeek(i.n)}-Woche`}</small></span><button type="button" class="ib" data-act="daynext" aria-label="Tag danach">${icon("right")}</button>${tools || ""}</div>`;
-}
-function dayList(k, st, compact) {
-  const i = info(k);
-  const items = dayItems(i.n);
-  const out = [];
-  if (i.n === TODAY && items.length && items[0].s > NOW_MIN) out.push(`<li class="now">${hhmm(NOW_MIN)} jetzt</li>`);
-  let prev = null;
-  for (const it of items) {
-    if (prev && it.o.st !== "cancel") {
-      const gap = it.s - prev.e;
-      const where = building(it.room) === building(prev.room) ? (it.room === prev.room ? "gleicher Raum" : "gleiches Gebäude") : `weiter nach ${esc(building(it.room))}`;
-      out.push(`<li class="gap">${icon(gap >= 30 ? "coffee" : "walk")}${gap > 0 ? `${gapText(gap)} Pause` : "direkt danach"} · ${where}</li>`);
-    }
-    const open = parseK(it.k).r.k === i.r.k;
-    const gone = it.o.st === "cancel";
-    if (open && compact) out.push(`<li data-sel="1"><div class="row sel" style="${mc(it.r.mod)}"><span class="t">${it.r.s}<small>${it.r.e}</small></span><span><b>${esc(it.r.kind)} · ${esc(MODS[it.r.mod].title)}</b><small>${esc(it.room)} · rechts offen</small></span></div></li>`);
-    else if (open) out.push(`<li class="open" data-sel="1" style="${mc(it.r.mod)}"><div class="tm" style="padding-bottom: 4px"><div class="tm-head"><div class="tm-top"><span class="tm-mod"><i></i>${esc(it.r.mod)}</span><span class="tm-kind">${esc(kindLine(i))}</span></div><h3 class="tm-title" style="font-size: 18px">${esc(MODS[it.r.mod].title)}</h3><p class="tm-when" style="font-size: 15px">${it.r.s}–${it.r.e}</p></div></div>${tm(it.k, { size: "embed", groups: st.groups })}</li>`);
-    else out.push(`<li><button type="button" class="row${gone ? " gone" : ""}" data-act="open" data-k="${it.k}" style="${mc(it.r.mod)}"><span class="t">${it.r.s}<small>${it.r.e}</small></span><span><b>${esc(it.r.kind)} · ${esc(MODS[it.r.mod].title)}</b><small>${esc(it.room)}${gone ? " · fällt aus" : ""}</small></span></button></li>`);
-    if (!gone) prev = it;
-  }
-  if (prev) out.push(`<li class="end">ab ${prev.r.e} frei</li>`);
-  if (!items.length) out.push(`<li class="end" style="padding-left: 6px">Keine Termine an diesem Tag.</li>`);
-  return `<ul class="dlist">${out.join("")}</ul>`;
-}
-function dayStep(k, dir) {
-  const { n } = parseK(k);
-  for (let d = n + dir, tries = 0; tries < 60; d += dir, tries++) {
-    const items = dayItems(d);
-    if (items.length) return items[0].k;
-  }
-  return null;
-}
-
-function overlayDesk(c, st) {
+function overlayDesk(st) {
   if (st.mode === "closed") return "";
-  const k = st.k;
-  if (c === "a") {
-    if (st.mode === "panel") return `<aside class="dpanel" aria-label="Termin"><div class="sheet-body" data-keep="body">${tm(k, { size: "panel", tools: navTools(k, pageTb + closeTb), groups: st.groups })}</div></aside>`;
-    return pageDesk(k, st, G.under === "home" ? "Startseite" : "Stundenplan");
-  }
-  if (c === "b") {
-    if (st.mode === "pop") return `<button type="button" class="catch" data-act="close" aria-label="Schließen"></button><div class="pop" role="dialog" aria-label="Termin">${kcard(k, false)}</div>`;
-    return pageDesk(k, st, G.under === "home" ? "Startseite" : "Stundenplan");
-  }
-  if (c === "c") {
-    const i = info(k);
-    if (i.r.exam) return pageDesk(k, st, "Zurück");
-    const body = `<div class="ser-wrap" data-keep="ser" data-center="1">${seriesList(k, { groups: st.groups }).replace(/<div class="open">[\s\S]*?<\/div><\/li>/, "</li>")}</div><div class="sheet-body" data-keep="body">${tm(k, { size: "panel", tools: navTools(k), groups: st.groups }).replace(/<section class="tm-sec"><h4>Alle[\s\S]*?<\/section>/, "")}</div>`;
-    if (st.mode === "dlg") return `<button type="button" class="shade" data-act="close" aria-label="Schließen"></button><div class="dlg" role="dialog" aria-label="Reihe des Termins"><div class="dlg-head" style="${mc(i.r.mod)}"><span class="tm-mod"><i></i>${esc(i.r.mod)}</span><span class="tt"><b>${esc(i.r.kind)} · ${esc(MODS[i.r.mod].title)}</b><small>${RHYTHM[i.r.rh]} · ${WD2[i.r.wd]} ${i.r.s}–${i.r.e} · ${i.count} Termine</small></span>${pageTb}${closeTb}</div><div class="dlg-body">${body}</div></div>`;
-    return `<div class="dpage split">${body.replace('<div class="ser-wrap" data-keep="ser" data-center="1">', `<div class="ser-wrap" data-keep="ser" data-center="1"><div class="crumb" style="padding: 14px 16px 0"><button type="button" data-act="back">${icon("left")}${G.under === "home" ? "Startseite" : "Stundenplan"}</button><span>· Reihe</span></div>`)}</div>`;
-  }
-  if (c === "d") {
-    if (st.mode === "daypanel") return `<aside class="dpanel" aria-label="Tag"><div style="padding-top: 6px">${dayHead(k, `<button type="button" class="ib" data-act="page" aria-label="Ganze Seite">${icon("expand")}</button>${closeBtn()}`)}</div><div class="sheet-body" data-keep="body" style="padding-top: 0">${dayList(k, st)}</div></aside>`;
-    return `<div class="dpage split"><div class="day-wrap"><div class="crumb" style="padding: 14px 16px 0"><button type="button" data-act="back">${icon("left")}${G.under === "home" ? "Startseite" : "Stundenplan"}</button><span>· Tag</span></div><div style="padding-top: 8px">${dayHead(k)}</div>${dayList(k, st, true)}</div><div class="sheet-body" data-keep="body">${tm(k, { size: "panel", tools: navTools(k), groups: st.groups })}</div></div>`;
-  }
-  return "";
+  const act = actionOf(info(st.k));
+  if (st.mode === "panel") return `<aside class="dpanel" aria-label="Termin"><div class="sheet-body" data-keep="body">${tmBlock(st.k, { size: "panel", tools: shareBtn(st.k) + pageTb + closeIb, groups: st.groups })}</div>${act ? `<div class="tm-act right">${act}</div>` : ""}</aside>`;
+  return `<div class="dpage" data-keep="body"><div class="crumb"><button type="button" data-act="back">${icon("left")}${G.under === "home" ? "Startseite" : "Stundenplan"}</button><span>· Termin</span><span class="fill"></span>${shareBtn(st.k, true)}</div>${tmBlock(st.k, { size: "page", groups: st.groups, action: act })}</div>`;
 }
-function pageDesk(k, st, back) {
-  return `<div class="dpage" data-keep="page"><div class="crumb"><button type="button" data-act="back">${icon("left")}${back}</button><span>· Termin</span></div>${tm(k, { size: "page", tools: navTools(k), groups: st.groups })}</div>`;
-}
-
-// ---------- painting ----------
-function addrOf(c, dev, st) {
+function addrOf(dev, st) {
   const base = G.under === "home" ? "/" : "/studyplan";
   if (st.mode === "closed") return base;
   const { r, iso } = parseK(st.k);
-  const page = `/event/${r.k}/${iso}`;
-  const over = `${base}?termin=${r.k}&on=${iso}`;
-  if (c === "a") return st.mode === "page" ? page : over;
-  if (c === "b") return st.mode === "page" ? page : base;
-  if (c === "c") return dev === "phone" || st.mode === "page" ? page : over;
-  return st.mode === "page" ? page : over;
+  return st.mode === "page" ? `/event/${r.k}/${iso}` : `${base}?termin=${r.k}&on=${iso}`;
 }
-function paint(c, dev, fresh) {
-  const fig = document.querySelector(`.device[data-c="${c}"][data-dev="${dev}"]`);
+function paint(dev, fresh) {
+  const fig = document.querySelector(`.device[data-c="a"][data-dev="${dev}"]`);
   const app = fig.querySelector(".app");
-  const st = ST[c][dev];
+  const st = ST[dev];
   const keep = {};
-  if (!fresh) app.querySelectorAll("[data-keep]").forEach((el) => { keep[el.dataset.keep] = el.scrollTop; });
+  app.querySelectorAll("[data-keep]").forEach((el) => { keep[el.dataset.keep] = el.scrollTop; });
   const under = G.under === "home" ? (dev === "phone" ? phoneHome(st) : deskHome(st)) : dev === "phone" ? phoneWeek(st) : deskWeek(st);
   if (dev === "phone") {
-    const onPhoto = G.under === "home" && !(st.mode === "full" || st.mode === "page" || st.mode === "series");
-    app.innerHTML = `${statusBar(onPhoto)}${under}${overlayPhone(c, st)}`;
+    const onPhoto = G.under === "home" && st.mode !== "full";
+    app.innerHTML = `${statusBar(onPhoto)}${under}${overlayPhone(st)}`;
   } else {
-    const title = st.mode === "page" ? "Termin" : G.under === "home" ? 'Betula<small>Modulkatalog · inoffiziell</small>' : "Stundenplan";
-    app.innerHTML = `${rail(G.under === "home" ? "home" : "plan")}${deskTop(title)}<div class="d-main" data-keep="main">${under}</div>${overlayDesk(c, st)}`;
+    const title = st.mode === "page" ? "Termin" : G.under === "home" ? "Betula<small>Modulkatalog · inoffiziell</small>" : "Stundenplan";
+    app.innerHTML = `${rail(G.under === "home" ? "home" : "plan")}${deskTop(title)}<div class="d-main" data-keep="main">${under}</div>${overlayDesk(st)}`;
   }
   app.querySelectorAll("[data-keep]").forEach((el) => {
-    if (keep[el.dataset.keep] != null && !(fresh === "body" && el.dataset.keep !== "scr" && el.dataset.keep !== "main")) el.scrollTop = keep[el.dataset.keep];
+    if (keep[el.dataset.keep] == null) return;
+    if (fresh && el.dataset.keep === "body") return;
+    el.scrollTop = keep[el.dataset.keep];
   });
-  app.querySelectorAll("[data-center]").forEach((box) => {
-    const sel = box.querySelector("[data-sel]");
-    if (sel && (fresh || keep[box.dataset.keep] == null)) box.scrollTop = Math.max(0, sel.offsetTop - 64);
-  });
-  if (dev === "desk" && st.mode === "pop") placePop(app, st.k);
-  const a = addrOf(c, dev, st);
+  const a = addrOf(dev, st);
   if (dev === "desk") fig.querySelector(".url").textContent = `betula.app${a}`;
   else fig.querySelector(".addr").textContent = a;
-  document.querySelectorAll(`[data-steps="${c}"] button`).forEach((b) => {
-    const [, p, d] = CONCEPTS[c].steps[+b.dataset.i];
-    b.setAttribute("aria-pressed", String(ST[c].phone.mode === p && ST[c].desk.mode === d));
+  document.querySelectorAll('[data-steps="a"] button').forEach((b) => {
+    const [, p, d] = STEPS[+b.dataset.i];
+    b.setAttribute("aria-pressed", String(ST.phone.mode === p && ST.desk.mode === d));
   });
 }
-function placePop(app, k) {
-  const pop = app.querySelector(".pop");
-  const s = parseFloat(getComputedStyle(app.closest(".fit")).getPropertyValue("--s")) || 1;
-  const base = app.getBoundingClientRect();
-  const { r, n } = parseK(k);
-  const hits = [...app.querySelectorAll(".d-main [data-k]")].filter((el) => { const x = parseK(el.dataset.k); return x.r.k === r.k && (x.n === n || el.classList.contains("slot")); });
-  const t = hits.find((el) => !el.classList.contains("next")) || hits[0];
-  let x = 600, y = 160;
-  if (t) {
-    const b = t.getBoundingClientRect();
-    const left = (b.left - base.left) / s, top = (b.top - base.top) / s, w = b.width / s;
-    x = left + w + 10 + 360 > 1270 ? left - 370 : left + w + 10;
-    y = top - 20;
-  }
-  const h = pop.offsetHeight;
-  pop.style.left = `${Math.max(64, Math.min(x, 1280 - 370))}px`;
-  pop.style.top = `${Math.max(64, Math.min(y, 800 - h - 12))}px`;
-}
-function toast(app, msg) {
-  app.querySelectorAll(".toast").forEach((t) => t.remove());
+function toast(host, msg) {
+  host.querySelectorAll(".toast").forEach((t) => t.remove());
   const t = document.createElement("div");
   t.className = "toast";
   t.setAttribute("role", "status");
   t.textContent = msg;
-  app.appendChild(t);
+  host.appendChild(t);
   setTimeout(() => t.remove(), 2600);
 }
-function paintAll(fresh) { for (const c of Object.keys(CONCEPTS)) { paint(c, "phone", fresh); paint(c, "desk", fresh); } paintAnat(); }
+
+// ---------- the sections around the prototype ----------
+const STATES = [
+  ["Wie immer", "148701-b7025@2026-11-06", null, "Nichts anders: kein Hinweis, kein Knopf."],
+  ["Raumwechsel", "148304-e4bf3@2026-11-04", null, "Der Raum in Gelb, der alte darunter."],
+  ["Läuft", "148304-e4bf3@2026-11-04", { d: dn("2026-11-04"), m: 9 * 60 + 40 }, "Grün, die Zeit als Balken am Ticket."],
+  ["B-Woche", "148135-462ed@2026-11-10", null, "A und B als Kästchen am Datum."],
+  ["Fällt aus", "148960-ef2fb@2026-11-04", null, "Durchgestrichen und rot, laut QIS."],
+  ["Vorlesungsfrei", "148304-e4bf3@2026-12-23", null, "Wie ein Ausfall, aber grau: so geplant."],
+  ["Andere Gruppe", "148304-5c532@2026-11-05", null, "Deine Gruppe gefüllt, diese umrandet; der Knopf nimmt sie."],
+  ["Nicht im Plan", "148960-ef2fb@2026-11-11", null, "Der eine Knopf: in den Kalender. Die Überschneidung rot."],
+  ["Prüfung", "148664-84d53@2027-03-10", null, "Wie jeder Termin, dazu Form und Zulassung."],
+];
+function paintStates() {
+  document.getElementById("states").innerHTML = STATES.map(([t, k, now, d]) => {
+    const i = info(k);
+    const act = actionOf(i, now || NOW);
+    return `<figure class="state"><figcaption><b>${t}</b><span>${d}</span></figcaption><div class="state-card ui">${tmBlock(k, { size: "card", now: now || NOW, pager: false, tools: shareBtn(k) + closeIb })}${act ? `<div class="tm-act">${act}</div>` : ""}</div></figure>`;
+  }).join("");
+}
+function paintSigns() {
+  const raum = info("148304-e4bf3@2026-11-04");
+  const sign = (vis, b, p, row) => `<div class="sign"><div class="v${row ? " row" : ""}">${vis}</div><b>${b}</b><p>${p}</p></div>`;
+  const dots = secSeries(raum).replace(/^<section class="tm-sec"><h4>[\s\S]*?<\/h4>/, "").replace(/<\/section>$/, "");
+  const rib = secDay(raum, {}).replace(/^<section class="tm-sec"><h4>[\s\S]*?<\/h4>/, "").replace(/<p class="nx">[\s\S]*<\/section>$/, "");
+  document.getElementById("signs").innerHTML = [
+    sign(`<b class="plate">${plate("LG1A/304")}</b><small style="color: var(--text-2); font-size: 12.5px"><span class="nw">Lehrgebäude 1A</span>&nbsp;· <span class="nw">Zentralcampus</span></small>`, "Raum", "Groß, wie an der Tür; darunter Gebäude und Standort."),
+    sign(`<div class="tk room" style="width: 100%; box-shadow: none; background: none"><div class="tk-room" style="display: flex; flex-direction: column; gap: 2px; box-shadow: none; padding: 8px 12px; border-radius: 9px"><b class="plate" style="font-size: 20px">${plate("LG1A/304")}</b><small class="chg">${icon("move")}statt <s>HG/0.17</s></small></div></div>`, "Raumwechsel", "Gelb heißt: anders als sonst."),
+    sign(`<div class="tk cancel" style="width: 100%; background: none; box-shadow: none"><div class="tk-time" style="display: flex; align-items: center; gap: 12px"><b style="font-size: 26px">11:30</b><span class="pill no">${icon("ban")}Fällt aus</span></div></div>`, "Fällt aus", "Durchgestrichen und rot; vorlesungsfrei grau.", true),
+    sign(`<span class="pill soon">in 35 min</span><span class="pill live">läuft · noch 20 min</span><span class="pill">in 6 Tagen</span>`, "Wie bald", "Grün für heute und morgen, sonst grau.", true),
+    sign(`${abGlyph("A")}<span style="width: 10px"></span>${abGlyph("B")}`, "A- und B-Woche", "Nur bei Terminen, die alle zwei Wochen sind.", true),
+    sign(`<span class="fact" style="${mc("MIT1")}">${icon("users")}Gruppe<span class="gdots"><i class="mine this"></i><i></i><i></i></span></span>`, "Gruppe", "Ein Punkt je Gruppe, deine gefüllt.", true),
+    sign(`<div class="mini-dots" style="${mc("MIT1")}">${dots}</div>`, "Reihe", "Ein Punkt je Datum: vorbei, heute, anders, fällt aus, Pause."),
+    sign(`<div style="width: 100%">${rib}</div>`, "Der Tag", "7 bis 19 Uhr; dieser Termin voll, der rote Strich ist jetzt."),
+    sign(`<p class="nx" style="width: 100%">${icon("right")}<span>danach <b>11:30</b> Prak PP</span><span class="w">${icon("walk")}45 min</span></p>`, "Weg", "Die Füße nur, wenn das Gebäude wechselt.", true),
+    sign(`<span class="fact warn">${icon("alert")}Prak PP</span>`, "Überschneidung", "Rot, mit dem, was zur selben Zeit ist.", true),
+    sign(`<span class="dt" style="width: 44px; height: 44px"><b>10</b><small>März</small></span><span style="font-weight: 650">126 Tage</span>`, "Prüfung", "Die Kachel der Startseite, mit dem Abstand.", true),
+    sign(`<span class="ib">${icon("share")}</span><span class="ib">${icon("x")}</span>`, "Teilen, Schließen", "Oben rechts, rund, ohne Wort.", true),
+  ].join("");
+}
+function paintAnat() {
+  const k = EXAMPLES[G.ex];
+  document.getElementById("anat-app").innerHTML = tmBlock(k, { size: "full", tools: shareBtn(k) + closeIb, anat: true });
+  document.getElementById("after").innerHTML = tmBlock("148304-e4bf3@2026-11-04", { size: "card", pager: true, tools: shareBtn("148304-e4bf3@2026-11-04") + closeIb });
+}
+function paintAll(fresh) { paint("phone", fresh); paint("desk", fresh); paintAnat(); paintStates(); }
 
 // ---------- what each tap does ----------
 let LAST = null;
-function act(c, dev, a, el) {
-  const st = ST[c][dev];
-  const [phoneOpen, deskOpen] = CONCEPTS[c].open;
-  const openMode = dev === "phone" ? phoneOpen : deskOpen;
+function act(dev, a, el) {
+  const st = ST[dev];
   switch (a) {
-    case "open": st.prev = st.mode === "page" ? st.prevMode || "closed" : st.mode; st.k = el.dataset.k; st.groups = false; if (st.mode === "closed" || (c === "b" && st.mode !== "page") || (c === "a" && st.mode === "half")) st.mode = openMode; break;
+    case "open": st.k = el.dataset.k; st.groups = false; if (st.mode === "closed") st.mode = dev === "phone" ? "half" : "panel"; break;
     case "date": st.k = el.dataset.k; break;
     case "close": st.mode = "closed"; st.groups = false; break;
     case "grow": st.mode = "full"; break;
     case "shrink": st.mode = "half"; break;
-    case "page": st.prevMode = st.mode; st.mode = c === "a" && dev === "phone" ? "full" : "page"; break;
-    case "back": st.mode = st.prevMode && st.prevMode !== "page" ? st.prevMode : "closed"; if (c === "b") st.mode = "closed"; break;
+    case "page": st.mode = dev === "phone" ? "full" : "page"; break;
+    case "back": st.mode = dev === "phone" ? "half" : "panel"; break;
     case "prev": case "next": { const k = stepKey(st.k, a === "prev" ? -1 : 1); if (!k) return; st.k = k; break; }
-    case "today": { const { r } = parseK(st.k); st.k = keyOf(r, nextDate(r)); break; }
-    case "dayprev": case "daynext": { const k = dayStep(st.k, a === "dayprev" ? -1 : 1); if (!k) return; st.k = k; break; }
-    case "groups": st.groups = !st.groups; paint(c, dev); return;
-    case "pick": {
+    case "groups": st.groups = !st.groups; paint(dev); return;
+    case "take": {
       const r = ROW[el.dataset.k];
       CHOSEN[r.ev] = r.k;
-      for (const x of ROWS) delete x._dates;
-      for (const cc of Object.keys(ST)) for (const d of ["phone", "desk"]) { const s = ST[cc][d]; if (s.k && parseK(s.k).r.ev === r.ev) { s.k = keyOf(r, nextDate(r)); } }
       paintAll();
-      toast(document.querySelector(`.device[data-c="${c}"][data-dev="${dev}"] .app`), `Gruppe gewählt: ${WD2[r.wd]} ${r.s}, ${r.room}`);
+      toast(document.querySelector(`.device[data-c="a"][data-dev="${dev}"] .app`), `Gruppe genommen: ${WD2[r.wd]} ${r.s}, ${r.room}`);
       return;
     }
     case "toast": toast(el.closest(".app"), el.dataset.msg); return;
     default: return;
   }
-  paint(c, dev, a === "close" ? false : "body");
+  paint(dev, a === "close" ? false : true);
 }
 document.addEventListener("click", (e) => {
   const set = e.target.closest("[data-set]");
   if (set) {
     G[set.dataset.set] = set.dataset.v;
     document.querySelectorAll(`[data-set="${set.dataset.set}"]`).forEach((b) => b.setAttribute("aria-pressed", String(b === set)));
-    if (set.dataset.set === "ex") for (const c of Object.keys(CONCEPTS)) reset(c);
+    if (set.dataset.set === "ex") reset();
     paintAll(true);
     return;
   }
-  const rs = e.target.closest("[data-reset]");
-  if (rs) { reset(rs.dataset.reset); paint(rs.dataset.reset, "phone", true); paint(rs.dataset.reset, "desk", true); return; }
+  if (e.target.closest("[data-reset]")) { reset(); paint("phone", true); paint("desk", true); return; }
   const step = e.target.closest("[data-steps] button");
   if (step) {
-    const c = step.parentElement.dataset.steps;
-    const [, p, d] = CONCEPTS[c].steps[+step.dataset.i];
-    for (const [dev, mode] of [["phone", p], ["desk", d]]) { const st = ST[c][dev]; if (mode !== "closed" && !st.k) st.k = EXAMPLES[G.ex]; if (mode === "page") st.prevMode = CONCEPTS[c].open[dev === "phone" ? 0 : 1]; st.mode = mode; }
-    paint(c, "phone", true); paint(c, "desk", true);
+    const [, p, d] = STEPS[+step.dataset.i];
+    ST.phone.mode = p; ST.desk.mode = d;
+    paint("phone", true); paint("desk", true);
+    return;
+  }
+  const card = e.target.closest(".state-card, #after, #anat-app, .signs");
+  if (card) {
+    const el = e.target.closest('[data-act="toast"]');
+    if (el) toast(card.classList.contains("state-card") ? card : card.closest(".paper, .ba figure") || card, el.dataset.msg);
     return;
   }
   const dev = e.target.closest(".device[data-c]");
   if (!dev) return;
-  LAST = { c: dev.dataset.c, dev: dev.dataset.dev };
+  LAST = dev.dataset.dev;
   const el = e.target.closest("[data-act]");
   if (!el || el.disabled) return;
-  act(dev.dataset.c, dev.dataset.dev, el.dataset.act, el);
+  act(dev.dataset.dev, el.dataset.act, el);
 });
 document.addEventListener("keydown", (e) => {
   if (!LAST || e.altKey || e.ctrlKey || e.metaKey || /input|textarea|select/i.test(e.target.tagName)) return;
-  const st = ST[LAST.c][LAST.dev];
+  const st = ST[LAST];
   if (st.mode === "closed") return;
-  const map = { Escape: st.mode === "page" ? "back" : "close", ArrowLeft: LAST.c === "d" ? "dayprev" : "prev", ArrowRight: LAST.c === "d" ? "daynext" : "next", v: "page", V: "page" };
+  const map = { Escape: st.mode === "page" ? "back" : "close", ArrowLeft: "prev", ArrowRight: "next", v: "page", V: "page" };
   const a = map[e.key];
-  if (!a) return;
-  if (a === "page" && (LAST.dev !== "desk" || st.mode === "page")) return;
+  if (!a || (a === "page" && (LAST !== "desk" || st.mode === "page"))) return;
   e.preventDefault();
-  act(LAST.c, LAST.dev, a, null);
+  act(LAST, a, null);
 });
-
-// ---------- the anatomy: the page of the chosen Termin at its size, numbered ----------
-const BLOCKS = [
-  ["Kopf", "Art und Gruppe, das Modul mit Kürzel und Farbe, Tag und Uhrzeit, wie lange noch, Kalenderwoche, A- oder B-Woche, das wievielte Datum. ‹ › blättern, × schließt.", ["event_type", "event_title", "v_module.abbrev"], ["Tag, KW, A/B, Zählung"]],
-  ["Was an diesem Tag gilt", "Anderer Raum, fällt aus, vorlesungsfrei, Feiertag, nur in A- oder B-Wochen. In Betulas Worten, darunter QIS' eigene mit „laut QIS“.", ["cancelled_dates"], ["Einzeltermin zur selben Zeit", "Pause und Feiertage"]],
-  ["Raum", "Die Kurzform groß, zum Abschreiben und Kopieren, darunter der Name aus QIS und der Standort; bei einem Raumwechsel der alte durchgestrichen.", ["room_short", "room", "campus"], []],
-  ["Wer und wie oft", "Die Leitung dieser Zeile, die Verantwortlichen des Moduls, Rhythmus und Zeitraum, wie viele Termine es sind und wie viele vorbei. Bei einer Wahl die Gruppen mit „passt“ oder der Überschneidung, und eine andere nehmen.", ["instructor", "v_module_lecturer", "rhythm", "first_date", "last_date", "event_number"], ["Wahl des Stundenplans"]],
-  ["Knöpfe", "Im Stundenplan (die Woche, der Termin markiert), In QIS, In den Kalender (dieses Datum oder die Reihe), Link kopieren. Das Modul öffnet das Kürzel im Kopf.", [], []],
-  ["An diesem Tag", "Was davor und danach ist, die Pause dazwischen, ob es im selben Raum, im selben Gebäude oder anderswo weitergeht. Jeder andere Termin ist ein Tipp entfernt.", [], ["dein Stundenplan"]],
-  ["Alle Termine", "Jedes Datum der Reihe als Streifen nach Monaten: vorbei, heute, anderer Raum, fällt aus, vorlesungsfrei. Ein Tipp wechselt das Datum. Bei einer Prüfung stehen hier alle Prüfungen mit ihren Abständen.", ["rhythm", "first_date", "last_date", "cancelled_dates"], ["Pause, Feiertage"]],
-  ["Hinweis aus QIS", "Die Bemerkung der Zeile, wie QIS sie schreibt; Links darin werden klickbar. Erscheint nur, wo es eine gibt, etwa an der Prüfung in EvS.", ["comment"], []],
-  ["Modul und Prüfung", "Titel, Kürzel, Nummer und LP des Moduls, „Modul ansehen“, und seine Prüfung mit Datum, Raum, Abstand und Form, ein Tipp entfernt.", ["v_module", "v_module_exam"], []],
-];
-function paintAnat() {
-  const k = EXAMPLES[G.ex];
-  document.getElementById("anat-app").innerHTML = tm(k, { size: "full", tools: navTools(k, closeBtn()), mk: true });
-  const i = info(k);
-  const present = new Set([...document.querySelectorAll("#anat-app .anat-n")].map((n) => +n.textContent));
-  document.getElementById("anat-list").innerHTML = BLOCKS.map(([h, p, cols, der], n) => `<li class="${present.has(n + 1) ? "" : "not"}"><span class="n">${n + 1}</span><div><h3>${h}</h3><p>${p}</p>${cols.length || der.length ? `<div class="src">${cols.map((x) => `<span>${x}</span>`).join("")}${der.map((x) => `<span class="derived">abgeleitet: ${x}</span>`).join("")}</div>` : ""}${present.has(n + 1) ? "" : `<p style="color: var(--text-3)">Bei ${esc(i.r.kind === "Prüfung" ? "dieser Prüfung" : "diesem Termin")} nicht da.</p>`}</div></li>`).join("");
-}
 
 // ---------- scaling the devices to their place ----------
 function fitAll() {
@@ -1676,12 +1539,12 @@ function fitAll() {
     f.style.setProperty("--s", String(Math.min(1, f.clientWidth / w)));
   });
 }
-for (const c of Object.keys(CONCEPTS)) {
-  document.querySelector(`[data-steps="${c}"]`).innerHTML = CONCEPTS[c].steps.map(([l], i) => `<button type="button" data-i="${i}" aria-pressed="false">${l}</button>`).join("");
-  reset(c);
-}
+document.querySelector('[data-steps="a"]').innerHTML = STEPS.map(([l], i) => `<button type="button" data-i="${i}" aria-pressed="false">${l}</button>`).join("");
+reset();
 fitAll();
 paintAll(true);
-new ResizeObserver(() => { fitAll(); }).observe(document.querySelector(".page"));
+paintSigns();
+document.querySelector(".kinds").innerHTML = document.querySelector(".kinds").innerHTML.replace("#SHARE#", icon("share")).replace("#X#", icon("x")).replace("#CALPLUS#", icon("calplus")).replace("#RIGHT#", icon("right"));
+new ResizeObserver(() => fitAll()).observe(document.querySelector(".page"));
 window.addEventListener("resize", fitAll);
 </script>
