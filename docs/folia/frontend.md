@@ -1989,9 +1989,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   in a slot's bottom corner, where it covers no name. A slot is a link to its Termin in its own
   view (2026-10-26, „A Termin in its own view" below; until then to its module); the „✓" and „×"
   are the list's. Where the plan has Termine of A or B weeks only, the grid is a carousel of
-  „A-Woche", „B-Woche" and „A/B", as the pictures of the start page are one, with the tabs under
-  it (they take the place of the head's switch): a finger carries the weeks sideways and lets the
-  next one in, any other move scrolls the page, and the three stand in a row without going round.
+  „A-Woche", „B-Woche" and „A/B", as the pictures of the start page are one: a finger carries the
+  weeks sideways and lets the next one in, any other move scrolls the page, and the three stand in
+  a row without going round. Its switch stands in the head under the title, „Woche: A, B, A/B"
+  beside „Anpassen" (owner, 2026-10-26: „Dann kann oben in die gleiche Reihe mit dem Anpassen
+  Knopf die Handles"; until then tabs under the week), and „Plan · Alle Termine" is in „Anpassen",
+  under „Ansicht", greyed out where it would show nothing („Das ist keine Aktion, die man häufig
+  macht"); a wider screen keeps both switches in the head.
   Under the grid the list of the week's days (each Termin a row as tall as a finger, with its
   buttons) is closed until its line „Termine als Liste (8) +" opens it („standardmäßig
   eingeklappt"); the line counts the week shown, and the list stays open under a module opened
@@ -2091,9 +2095,17 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     in yellow („keine passt ohne Überschneidung"). Where the page has the column beside the week it
     stands at its top, over the modules; where it has not (a phone, a narrow window) it is one line
     over the week, „2 Wahlen offen" and their names, which opens into the same rows. The quiet line
-    under the head counts only the overlaps and the Standort now: the choices are „Offen"'s.
+    under the head counts only the overlaps and the Standort now: the choices are „Offen"'s; on a
+    phone it says nothing of what is hidden either (owner, 2026-10-26: „Der Ausgeblendet Knopf kann
+    weg" — a group ticked counted as „1 ausgeblendet"), which comes back with „Alle Termine" in
+    „Anpassen" and in its module.
   - **The focus** (`wahl=e<event>`): a row of „Offen", and a dashed group in the week, take the
-    choice into focus. Its groups all stand in the week, each a box to tick, dashed in its tone while
+    choice into focus; the dashed group comes ticked (owner, 2026-10-26: „Wenn man auf eine Übung
+    klickt, dann soll die Preselected sein, so dass man einfach direkt auf Fertig klicken kann"):
+    its link carries the key of its „✓" (`GridSlot::pre`, `data-pre`), which acts after the next
+    frame while the link is followed (a click with a key held only follows it), on a wide screen,
+    in a phone's carousel and in its list of days. A row of „Offen" ticks nothing: no group was
+    picked there. Its groups all stand in the week, each a box to tick, dashed in its tone while
     not ticked, filled once ticked, red where it meets the plan; the rest of the week steps back to
     42 % and leads nowhere. As many groups as one likes can be ticked (`PlanDoc::tick`, as the
     Termin's tiles do); the focus stays after a tick. Over the week of a wide screen a dark bar says
@@ -2105,6 +2117,18 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (at most three a row, from seven on five and „+N"), „Vergleichen ›", a line of what is to know,
     and one large action, „Weiter: …" or „Fertig"; × and Esc close it. The week above it is as tall
     as the sheet leaves of the screen (`--pick-h`) and comes up under the bar when the sheet opens.
+    A finger moves it as the module's sheet (owner, 2026-10-26: „Der Modale Dialog muss auf jeden
+    Fall mit der swipe Geste nach unten geschlossen werden können und mit der swipe Geste nach oben
+    maximiert werden können"; `enhance.js`, the same spring, `goalOf`): down from half up it goes
+    away and the choice closes as with ×, up it goes all up into „Vergleichen", down from its head
+    back to the tiles; „Vergleichen ›", ‹ and a tap on its grabber take the same way. Between half
+    up and all up each tile becomes its group's line as far as the sheet has come („Wenn man den
+    Modal maximiert, sollen während dessen die Termine aus der 3 spalten Ansicht in die
+    Vergleichsliste Morphen. Passend zum Progress"): the sheet's body holds both ways, one shown
+    (`.full`), and the script lays a copy of the groups over it as the finger takes the sheet,
+    each a card from its tile to its line (`data-g`, `--p`, app.css `.sp-pick.morph`), the tile's
+    face fading into the line's, the tiles' heading and track fading, ‹ coming in; at a stop the
+    page follows by the sheet's own link, and the copy goes once the sheet's classes say the same.
   - **„Vergleichen"** (`vergleich=1`) lists every group with its box, time, room, QIS's name of the
     group and who leads it, its weekday as a band from 7 to 19 among the plan's firm Termine (the
     group striped, ticked filled, what it meets red), and what it does to the day
@@ -5150,14 +5174,27 @@ drives the Stundenplan's week on a phone, with real touches as `phone.mjs` does,
 it plans modules of the current semester held in A weeks, in B weeks and every week, which it
 finds in the snapshot the server serves (`/api/db`, read with the app's own sql.js). The week is
 a grid as wide as the window, three of them (A/B shown, the others out of the pointer's and the
-focus's reach) with their tabs under them and no switch in the head; each slot tall enough says
-where it is held; a swipe to the right brings the week before, carried by the finger while it
-moves, and opens nothing; two more end at the A-Woche; a short move changes nothing, a move up
-scrolls the page; the list of days is closed under a line that counts the week shown, opens with
-it and follows the tabs; a slot opens its module, and back the week is in view as it was;
-„Kalender" stands under the Termine in the views „Woche", „Termine" and „Prüfungen" and not in
-the sheet; a wide screen keeps it in the sidebar and the switch in the head; a plan without A or
-B weeks has the grid alone.
+focus's reach), switched in the head beside „Anpassen" („Woche: A, B, A/B") without „Plan · Alle
+Termine", which is in „Anpassen"; each slot tall enough says where it is held; a swipe to the right
+brings the week before, carried by the finger while it moves, and opens nothing; two more end at
+the A-Woche; a short move changes nothing, a move up scrolls the page; the list of days is closed
+under a line that counts the week shown, opens with it and follows the switch; a slot opens its
+module, and back the week is in view as it was; „Kalender" stands under the Termine in the views
+„Woche", „Termine" and „Prüfungen" and not in the sheet; a wide screen keeps it in the sidebar and
+both switches in the head; a plan without A or B weeks has the grid alone, without a switch of the
+weeks.
+
+```bash
+cd e2e && node choice-sheet.mjs
+```
+
+drives the choice in focus with Informatik B.Sc.'s first semester planned (Programmierpraktikum in
+four groups; the snapshot whose current semester is WiSe 2026/27): on a wide screen a click on a
+dashed group takes its choice into focus with that group ticked; on a phone a tap does the same,
+the line under the head says nothing of what is hidden, a finger moving the sheet up holds the
+tiles on their way to „Vergleichen" (`.morph`, a card per group), let go all up the address says
+`vergleich=1`, down from its head it is back at the tiles, „Vergleichen ›" and ‹ take the same
+way, and a quick move down closes the choice, its tick kept.
 
 ```bash
 cd e2e && node tabbar.mjs

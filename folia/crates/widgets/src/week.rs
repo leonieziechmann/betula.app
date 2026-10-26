@@ -100,6 +100,10 @@ pub struct GridSlot {
     pub tick: Option<String>,
     /// What a choice in focus leaves behind it: the rest of the plan, which steps back.
     pub dim: bool,
+    /// The key of what a click on the slot's link does besides following it (`data-pre`): a group
+    /// of a choice still open is ticked as its link takes the choice into focus (owner,
+    /// 2026-10-26: „Wenn man auf eine Übung klickt, dann soll die Preselected sein").
+    pub pre: Option<String>,
 }
 
 /// A button the page puts on a slot: its icon („check", „x"), what it does in words (its name and
@@ -459,7 +463,7 @@ fn slot_view(slot: &GridSlot, style: String, framed: bool) -> AnyView {
             <a class=class href=format!("#{first}") data-action="termin" data-lines=slot.lines.join(" ") style=style title=title aria-current=current>{label}{small}{place}</a>
         }
         .into_any(),
-        (None, Some(href)) => view! { <a class=class href=href data-noscroll="" style=style title=title aria-current=current>{label}{small}{place}</a> }.into_any(),
+        (None, Some(href)) => view! { <a class=class href=href data-noscroll="" data-pre=slot.pre.clone() style=style title=title aria-current=current>{label}{small}{place}</a> }.into_any(),
         (None, None) => view! { <div class=class style=style title=title aria-current=current>{label}{small}{place}</div> }.into_any(),
     };
     view! { {drawn}{act} }.into_any()
