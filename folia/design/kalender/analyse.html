@@ -128,6 +128,15 @@ code { font: 500 .86em var(--mono); padding: 1px 5px; border-radius: 5px; backgr
 .rules li::before { content: counter(rule); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
 .rules li b { color: var(--text); font-weight: 620; }
 .rules li span { min-width: 0; }
+.verdicts { padding: 18px 20px; border-radius: 14px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); display: flex; flex-direction: column; gap: 10px; }
+.verdicts .kicker { color: var(--accent-ink); }
+.verdicts ol { margin: 0; padding: 0; list-style: none; counter-reset: v; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 24px; }
+.verdicts li { counter-increment: v; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.verdicts li::before { content: counter(v); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; }
+.verdicts li b { color: var(--text); font-weight: 620; }
+.verdicts li span { min-width: 0; }
+.qs li.done .ask { color: var(--text-2); }
+.qs .rec b.done { color: var(--accent-ink); }
 
 /* The bar of the sections, under the phone's status bar. */
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
@@ -362,6 +371,7 @@ details.table table { margin-top: 8px; font-size: 13px; }
   .zoom, .why { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 860px) {
+  .verdicts ol { grid-template-columns: minmax(0, 1fr); }
   .intro, .shots, .anat, .idea { grid-template-columns: minmax(0, 1fr); }
   .flow { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .flow .arrow { height: 26px; transform: rotate(90deg); }
@@ -400,6 +410,15 @@ details.table table { margin-top: 8px; font-size: 13px; }
       <li><span><b>Mehrere Kalender sind Ebenen einer Woche.</b> Mein Studiengang immer, zusätzliche Module und weitere Kalender zuschaltbar, jede Ebene in der Form unterscheidbar, nicht nur in der Farbe.</span></li>
     </ol>
   </aside>
+</section>
+
+<section class="verdicts" id="entschieden" aria-label="Entschieden am 26.10.">
+  <div class="kicker">Entschieden am 26.10., nach der Analyse · die erste Runde darauf: <a href="https://claude.ai/artifact/GqLTxtgsMvYv4TACrNsWAk">Kalender-Konzepte</a></div>
+  <ol>
+    <li><span><b>Weitere Kalender legt man selbst an,</b> „um zum beispiel für ihre freunde einen speraten kallender zu haben“. „Mein Studiengang“ bleibt Pflicht.</span></li>
+    <li><span><b>Der Kalender öffnet mit der Regelwoche.</b> „Den aktuellen Tag und woche kann man ja auf der Landingpage sehen.“ Die Woche mit Datum gehört der Startseite; die Regelwoche muss sagen, was nicht jede Woche ist.</span></li>
+    <li><span><b>Aus dem Kalender kommt kein Modul ins Studium, nur Besuchsmodule.</b> „Damit es einen weg gibt, wie man sein studium plant und nicht 200 verschiedene.“</span></li>
+  </ol>
 </section>
 
 <nav class="jumpbar" aria-label="Abschnitte">
@@ -465,7 +484,6 @@ details.table table { margin-top: 8px; font-size: 13px; }
       <li><span><b>Wer einen Termin hält, steht nirgends</b> auf der Seite, nur in der Beschreibung der .ics-Einträge.</span></li>
       <li><span><b>„Zusatz“ ist schon vergeben:</b> für freiwillige Teile eines Moduls (Tutorium, Aufbaukurs). Für zusätzliche Module braucht es ein anderes Wort.</span></li>
       <li><span><b>Rückgängig gibt es nur für manches:</b> einen Platz für Import, „Plan leeren“ und das × der Modulliste; nichts für ✓ und × an Terminen, für „Entfernen“ im Panel und für gelöschte gespeicherte Pläne.</span></li>
-      <li><span><b>Nicht jeder Termin ist meiner.</b> Informatik 1. FS sieht heute die Übung von EvS in Senftenberg (SFB/6.210), weil QIS für den Kurs in Cottbus keine Übung nennt; zwei Prüfungen von EvS stehen auf der Startseite.</span></li>
     </ul>
   </div>
 </section>
@@ -514,7 +532,7 @@ details.table table { margin-top: 8px; font-size: 13px; }
         <tr><th>Platzhalter · „Modul finden“</th><td>bleibt als Weg in den Katalog</td><td>Nur der Kalender weiß, was in die Woche passt; der Katalog filtert damit.</td></tr>
         <tr><th>Eigener Studiengang der Sitzung</th><td>fällt weg</td><td>„Mein Studiengang“ ist der Pflicht-Kalender; ein anderer Studiengang ist ein Profil oder ein weiterer Kalender.</td></tr>
         <tr><th>✓ ×, „Zeigen“, Standort, „Alle Termine“</th><td>bleibt</td><td>Das ist der Kern: Termine organisieren. Gruppen werden angehakt, so viele man will (Termin-Konzept, Runde 4: „So gibt es einen Ort zum Anpassen, nicht zwei“).</td></tr>
-        <tr><th>Woche, Termine, Prüfungen</th><td>bleibt, neu geordnet</td><td>Tag, Woche mit Datum, Semester, Prüfungen (<a href="#kontext">Darstellung</a>).</td></tr>
+        <tr><th>Woche, Termine, Prüfungen</th><td>bleibt; die Regelwoche zuerst</td><td>Der Kalender öffnet mit der Regelwoche, Tag und Woche mit Datum zeigt die Startseite (entschieden am 26.10.).</td></tr>
         <tr><th>.ics, Abonnieren, Teilen</th><td>bleibt, je Kalender</td><td>Eine Kalender-App zeigt jedes Abo als eigenen Kalender mit eigener Farbe.</td></tr>
         <tr><th>Plan speichern</th><td>offen</td><td>Varianten zum Vergleichen beim Einrichten, oder ein weiterer Kalender (<a href="#fragen">Frage 6</a>).</td></tr>
         <tr><th>Module mit LP rechts</th><td>LP ins Studium</td><td>Im Kalender zählt, welche Module mit welchem Ton dabei sind und was offen ist, nicht ihre LP.</td></tr>
@@ -914,7 +932,7 @@ details.table table { margin-top: 8px; font-size: 13px; }
   <h3>Regeln für die Darstellung</h3>
   <ol class="principles">
     <li><h3>Kontext vor Liste</h3>Ein Termin steht dort, wo er stattfindet: in seinem Tag, in seiner Woche. Eine Liste ist die zweite Lesart, für das Handy und für Screenreader, nie die einzige.<span class="ev">Der Ausfall steht heute nur in der Liste „Termine“.</span></li>
-    <li><h3>Die Woche hat ein Datum</h3>Im Semester ist die Woche diese Woche, mit KW, A oder B und heute. Die Regelwoche ist die Ansicht zum Einrichten.<span class="ev">83 % der Erstsemester-Pläne haben abweichende Wochen, Woche 1: 71 %.</span></li>
+    <li><h3>Die Regelwoche sagt, was nicht jede Woche ist</h3>Der Kalender zeigt die Regelwoche (entschieden am 26.10.), die Startseite die Woche mit Datum. Was erst später beginnt, früher endet oder nur an einem Tag ist, trägt das in der Regelwoche an sich: „ab 12.10.“, „bis 23.11.“, ein einzelnes Datum nicht als wöchentlicher Termin.<span class="ev">83 % der Erstsemester-Pläne haben abweichende Wochen, Woche 1: 71 %; bei 88 % der abweichenden Wochen beginnt oder endet eine Reihe.</span></li>
     <li><h3>Was anders ist, steht am Termin</h3>Ausfall durchgestrichen, Raumwechsel gelb, ein Einzeltermin in seiner Woche; im Kopf der Woche nur, wie viel anders ist. Die Zeichen sind die des Termin-Konzepts: Farbe trägt nur Bedeutung.<span class="ev">Termin-Konzept, Runde 4: Grün für bald und passt, Gelb für anders, Rot für fällt aus und überschneidet sich.</span></li>
     <li><h3>Form vor Text</h3>Status zeigen Rand, Muster und Zeichen; Text sagt nur was, wann, wo.<span class="ev">„möglichst ohne text … mit symboliken ohne cheap oder kindisch auszusehen“ (26.10.)</span></li>
     <li><h3>Entscheidungen im Kontext, solange sie offen sind</h3>Optionen stehen gestrichelt in der Woche, mit passt oder überschneidet sich; angehakt wird, so viel man will. Ist die Woche voll, steht eine Wahl im Vordergrund und die anderen treten zurück.<span class="ev">16 statt 12 Termine, im Lehramt 19 statt 9, solange gewählt wird. Runde 4: bis vier gestrichelt in der Woche, mehr nur im Termin.</span></li>
@@ -925,8 +943,8 @@ details.table table { margin-top: 8px; font-size: 13px; }
 
   <h3>Vier Abstände, vier Fragen</h3>
   <div class="zoom">
-    <div><b>Tag</b><span class="q">Was jetzt, was als Nächstes, wann bin ich fertig?</span>Handy, Alltag. K1, K2, K4.</div>
-    <div><b>Woche</b><span class="q">Wie sieht diese Woche aus, was ist anders, wo ist frei?</span>Die Hauptansicht, mit Datum; als Regelwoche zum Einrichten. K3, K7, K9–K11.</div>
+    <div><b>Tag</b><span class="q">Was jetzt, was als Nächstes, wann bin ich fertig?</span>Die Startseite. K1, K2, K4.</div>
+    <div><b>Regelwoche</b><span class="q">Wie sieht mein Semester aus, was ist offen, was passt?</span>Der Kalender öffnet damit (26.10.); die Woche mit Datum zeigt die Startseite. K3, K7, K9–K11.</div>
     <div><b>Semester</b><span class="q">Wo stehe ich, was kommt noch, wann sind Prüfungen?</span>Wochen, Pausen, Prüfungen, abweichende Wochen. K6, K17, K18.</div>
     <div><b>Termin</b><span class="q">Was gilt an diesem Tag, wer hält ihn, welche Gruppe?</span>Das Termin-Konzept, Runde 4: von der Modulseite zum Nachschlagen, aus Kalender und Startseite zum Anpassen. K5, K9.</div>
   </div>
@@ -941,7 +959,7 @@ details.table table { margin-top: 8px; font-size: 13px; }
     <div class="idea">
       <div class="left">
         <h3>Katalog, Studium, Kalender</h3>
-        <span class="verdict">trägt die Use Cases</span>
+        <span class="verdict">trägt die Use Cases · entschieden am 26.10.</span>
         <p>Das Einrichten (K8–K12) bleibt im Kalender, nur die Auswahl der Module wandert ins Studium. Das Datenmodell trägt es schon; es fallen Wege weg, keine Fähigkeiten.</p>
       </div>
       <ul class="pts">
@@ -953,8 +971,8 @@ details.table table { margin-top: 8px; font-size: 13px; }
     </div>
     <div class="idea">
       <div class="left">
-        <h3>Zusätzliche Module, nur zum Besuchen</h3>
-        <span class="verdict">schon entschieden, nie gebaut</span>
+        <h3>Besuchsmodule, nur zum Besuchen</h3>
+        <span class="verdict">entschieden am 19.10. und 26.10., nie gebaut</span>
         <p class="decided"><b>Merkliste-Konzept, Frage 3, entschieden am 19.10.:</b> „Ein geplantes Modul lässt sich auf „nur besuchen“ stellen: in der Woche ja, in den LP nicht. Gebaut mit dem Stundenplan, nicht mit der Merkliste.“</p>
       </div>
       <ul class="pts">
@@ -968,13 +986,14 @@ details.table table { margin-top: 8px; font-size: 13px; }
     <div class="idea">
       <div class="left">
         <h3>Mehrere Kalender, Mein Studiengang Pflicht</h3>
-        <span class="verdict">braucht eine Entscheidung, was ein Kalender ist</span>
-        <p>Keins der bisherigen Konzepte spricht davon. Je nach Lesart ist es eine kleine oder eine große Sache. Gemeinsam ist allen: eine Woche, mehrere Ebenen, jede an und aus, „Mein Studiengang“ immer an.</p>
+        <span class="verdict">entschieden am 26.10.: selbst angelegt</span>
+        <p>Weitere Kalender legt man selbst an, etwa einen für Freunde. Gemeinsam bleibt: eine Woche, mehrere Ebenen, jede an und aus, „Mein Studiengang“ immer an. Die Tabelle zeigt die Lesarten vor der Entscheidung; Besuchsmodule und ein geteilter Plan passen in einen selbst angelegten Kalender.</p>
       </div>
       <div class="scroll">
         <table>
           <thead><tr><th>Lesart</th><th>Use Case</th><th>Aufwand</th></tr></thead>
           <tbody>
+            <tr><th>Selbst angelegt, etwa für Freunde (entschieden)</th><td>K14, K15, K16; Module mit ihren Terminen, aus der Merkliste, dem Katalog oder einem geteilten Link</td><td><span class="cost m">mittel</span></td></tr>
             <tr><th>„Zusätzlich“: die nur besuchten Module</th><td>K15; aufgenommen selten, sichtbar täglich</td><td><span class="cost s">klein</span></td></tr>
             <tr><th>„Prüfungen“ als eigene Ebene und eigenes Abo</th><td>K6, K13; in der Kalender-App ein eigener Kalender</td><td><span class="cost s">klein</span></td></tr>
             <tr><th>Ein geteilter Plan: Freundin, Lerngruppe</th><td>K14; braucht die Gruppen im Link, der heute nur Module trägt</td><td><span class="cost m">mittel</span></td></tr>
@@ -995,14 +1014,14 @@ details.table table { margin-top: 8px; font-size: 13px; }
     <p class="sub">Anforderungen für die Konzepte der nächsten Runde. Wie sie aussehen, entscheidet die Runde; dass sie erfüllt sein müssen, folgt aus den Use Cases.</p>
   </header>
   <ul class="reqs">
-    <li><span class="k">A1</span><span><b>Drei Fragen ohne Tippen:</b> Was als Nächstes, und wo? Wie sieht heute aus? Wie sieht diese Woche aus? (K1–K3)</span></li>
-    <li><span class="k">A2</span><span><b>Im Semester eine Woche mit Datum</b>, mit heute, KW, A oder B; die Regelwoche zum Einrichten. (K3, K7, K9)</span></li>
+    <li><span class="k">A1</span><span><b>Drei Fragen ohne Tippen, auf der Startseite:</b> Was als Nächstes, und wo? Wie sieht heute aus? Wie sieht diese Woche aus? (K1–K3)</span></li>
+    <li><span class="k">A2</span><span><b>Der Kalender öffnet mit der Regelwoche</b> (26.10.), und sie sagt, was nicht jede Woche ist: ab, bis, einzelne Daten; die Woche mit Datum zeigt die Startseite. (K3, K7, K9)</span></li>
     <li><span class="k">A3</span><span><b>Änderungen am Termin</b>, im Tag und in der Woche, mit den Zeichen des Termin-Konzepts; im Kopf der Woche, wie viel anders ist. (K4)</span></li>
     <li><span class="k">A4</span><span><b>Offene Aufgaben sichtbar, solange sie offen sind:</b> Gruppen, Überschneidungen, Platzhalter, Module ohne Termine; danach weg. (K8–K12)</span></li>
-    <li><span class="k">A5</span><span><b>Module kommen aus „Mein Studium“.</b> Der Kalender verweist dorthin und in den Katalog, verwaltet sie nicht selbst. (K8, K12)</span></li>
-    <li><span class="k">A6</span><span><b>Ebenen in einer Woche:</b> Mein Studiengang immer, zusätzlich besuchte Module und weitere Kalender zuschaltbar, jede in eigener Form. (K15, K16)</span></li>
+    <li><span class="k">A5</span><span><b>Module des Studiums kommen nur aus „Mein Studium“</b> (26.10.). Der Kalender verweist dorthin und in den Katalog; planen lassen sich in ihm nur Besuchsmodule. (K8, K12, K15)</span></li>
+    <li><span class="k">A6</span><span><b>Ebenen in einer Woche:</b> Mein Studiengang immer, Besuchsmodule und selbst angelegte Kalender zuschaltbar, jede in eigener Form. (K15, K16)</span></li>
     <li><span class="k">A7</span><span><b>Das nächste Semester</b>, sobald es Termine hat; bis zur Prüfungszeit das laufende als Standard. (K17)</span></li>
-    <li><span class="k">A8</span><span><b>Auf dem Handy der Tag zuerst</b>, die Woche einen Wisch entfernt; gekürzt wird der Titel, nie der Raum. (K1, K2)</span></li>
+    <li><span class="k">A8</span><span><b>Auf dem Handy die Regelwoche über die volle Breite;</b> gekürzt wird der Titel, nie der Raum. Den Tag zeigt die Startseite. (K1, K2)</span></li>
     <li><span class="k">A9</span><span><b>Die Wahl bleibt lesbar, wenn die Woche voll ist</b>, auch bei 19 Terminen und 7 an einem Tag, und mehr als eine Gruppe darf bleiben (26.10.). (K9)</span></li>
     <li><span class="k">A10</span><span><b>Jede Aktion als Knopf,</b> Tasten nur als Abkürzung, Betulas eigene Tasten beim Knopf genannt (20.10.).</span></li>
     <li><span class="k">A11</span><span><b>Betula sagt nicht nein:</b> eine Überschneidung, ein Modul außerhalb, ein Semester ohne Termine geht, mit einem Hinweis. (18.10.)</span></li>
@@ -1014,13 +1033,13 @@ details.table table { margin-top: 8px; font-size: 13px; }
 <section class="sec" id="fragen">
   <header>
     <h2>Fragen an dich</h2>
-    <p class="sub">Jede mit meinem Vorschlag. Die ersten drei entscheiden, wie die Konzepte der nächsten Runde aussehen.</p>
+    <p class="sub">Die ersten vier sind am 26.10. entschieden, mit deinen Worten; die übrigen vier bleiben offen, mit meinem Vorschlag.</p>
   </header>
   <ol class="qs">
-    <li><p class="ask">Was sind die „anderen Kalender“ für dich?<small>Zusätzlich besuchte Module, Prüfungen, geteilte Pläne, Varianten, ein zweites Studium, eigene Termine (Tabelle bei den drei Ideen).</small></p><p class="rec"><b>Vorschlag:</b> zuerst „Zusätzlich“ und „Prüfungen“, beide klein und täglich nützlich; geteilte Pläne danach; eigene Termine nicht, das kann die Kalender-App.</p></li>
-    <li><p class="ask">Womit öffnet der Kalender im Semester?<small>Tag, Woche mit Datum oder Regelwoche.</small></p><p class="rec"><b>Vorschlag:</b> auf dem Handy der Tag, die Woche einen Wisch entfernt; am Desktop die Woche mit Datum. Die Regelwoche, solange Gruppen offen sind, und danach als Schalter.</p></li>
-    <li><p class="ask">Darf man im Kalender noch Module hinzufügen?<small>Heute geht es an drei Stellen.</small></p><p class="rec"><b>Vorschlag:</b> Module des Studiums nicht; der Kalender führt mit „Module ändern“ ins Studium. Zusätzlich besuchte Module ja, mit „In den Kalender“ auf der Modulseite und am Termin.</p></li>
-    <li><p class="ask">Gehören Startseite und Kalender zusammen?<small>Der Tag der Startseite ist heute der Kalender des Alltags.</small></p><p class="rec"><b>Vorschlag:</b> dieselben Bausteine. Der Kalender hat Tag und Woche zum Blättern, die Startseite zeigt den Ausschnitt von jetzt und führt hin.</p></li>
+    <li class="done"><p class="ask">Was sind die „anderen Kalender“ für dich?<small>Zusätzlich besuchte Module, Prüfungen, geteilte Pläne, Varianten, ein zweites Studium, eigene Termine (Tabelle bei den drei Ideen).</small></p><p class="rec"><b class="done">Entschieden:</b> „Das sind Kallender, die die nutzer selbst erstellen können, um zum beispiel für ihre freunde einen speraten kallender zu haben.“</p></li>
+    <li class="done"><p class="ask">Womit öffnet der Kalender im Semester?<small>Tag, Woche mit Datum oder Regelwoche.</small></p><p class="rec"><b class="done">Entschieden:</b> „Ich finde der Kallender sollte sich mit der Regelwoche öffnen. Den aktuellen Tag und woche kann man ja auf der Landingpage sehen.“</p></li>
+    <li class="done"><p class="ask">Darf man im Kalender noch Module hinzufügen?<small>Heute geht es an drei Stellen.</small></p><p class="rec"><b class="done">Entschieden:</b> „Nein aus dem Kallender soll man nicht module in den Studienplan aufnehmen können. Es soll nur möglich sein besuchsmodule zu planen. Damit es einen weg gibt, wie man sein studium plant und nicht 200 verschiedene.“</p></li>
+    <li class="done"><p class="ask">Gehören Startseite und Kalender zusammen?<small>Der Tag der Startseite ist heute der Kalender des Alltags.</small></p><p class="rec"><b class="done">Mit 2 entschieden:</b> Tag und Woche mit Datum zeigt die Startseite, der Kalender die Regelwoche.</p></li>
     <li><p class="ask">Ein ganzes Modul oder auch ein einzelner Termin „nur besuchen“?</p><p class="rec"><b>Vorschlag:</b> das ganze Modul, mit Ausblenden für Teile, wie bei Studium-Modulen. Ein einzelner Termin später, wenn er fehlt.</p></li>
     <li><p class="ask">Was wird aus „Plan speichern“?<small>Bis zu 30 gespeicherte Stundenpläne, je ein Semester.</small></p><p class="rec"><b>Vorschlag:</b> als Variante beim Einrichten behalten, zwei Wochen nebeneinander; nicht als Kalender im Alltag.</p></li>
     <li><p class="ask">Soll das Abo die gewählten Gruppen kennen?<small>Dann braucht es nach jeder Wahl eine neue Adresse, wie heute. Sonst stehen offene Gruppen als „vorläufig“ in der Kalender-App.</small></p><p class="rec"><b>Vorschlag:</b> die Gruppen kennen, aber erst anbieten, wenn die Wahlen gemacht sind, und eine veraltete Adresse im Kalender deutlich sagen. Danach ändert sich selten etwas.</p></li>

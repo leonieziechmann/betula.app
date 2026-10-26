@@ -12,8 +12,8 @@
     "max_body": 8589934592
   },
   "hosts": {
-    "qis.b-tu.de": {"pause": "500ms"},
-    "www.b-tu.de": {"pause": "500ms"},
+    "qis.b-tu.de": {"pause": "500ms", "reject": ["Zugriff auf die Webseite eingeschränkt"]},
+    "www.b-tu.de": {"pause": "500ms", "reject": ["Zugriff auf die Webseite eingeschränkt"]},
     "opus4.kobv.de": {"pause": "2s", "max_age": "720h", "expect_type": "application/pdf"},
     "huggingface.co": {"concurrency": 2},
     "cdn-lfs.huggingface.co": {"concurrency": 2}
