@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // DefaultUserAgent is what Cortex sends upstream when neither the client nor the policy names
@@ -33,19 +34,27 @@ var defaults = HostPolicy{
 }
 
 // builtinPolicy is the policy without a file (CORTEX_HOSTS_FILE empty): every public host with
-// the defaults above, and a pause of their own for the hosts Betula's Radix reads.
+// the defaults above, and a pause of their own for the hosts Betula's Radix reads. Their reject
+// text is the university's block page, which it served with 200 for every page in the night to
+// 2026-10-22 instead of the page asked for.
 const builtinPolicy = `{
   "allow": ["*"],
   "user_agent": "` + DefaultUserAgent + `",
   "hosts": {
-    "qis.b-tu.de":   {"pause": "500ms"},
-    "www.b-tu.de":   {"pause": "500ms"},
+    "qis.b-tu.de":   {"pause": "500ms", "reject": ["Zugriff auf die Webseite eingeschränkt"]},
+    "www.b-tu.de":   {"pause": "500ms", "reject": ["Zugriff auf die Webseite eingeschränkt"]},
     "opus4.kobv.de": {"pause": "2s", "max_age": "720h", "expect_type": "application/pdf"}
   }
 }`
 
 // maxPolicyBytes bounds what LoadPolicy reads: a policy is a few kilobytes.
 const maxPolicyBytes = 1 << 20
+
+// maxRejectTexts and maxRejectText bound a host's reject list: a few texts, each a sentence.
+const (
+	maxRejectTexts = 100
+	maxRejectText  = 1024
+)
 
 // maxBodyLimit is the largest max_body a policy may set (1 PiB): far above any disk Cortex
 // has, and far enough below the largest int64 that counting bytes against it cannot overflow.
@@ -69,8 +78,8 @@ type Policy struct {
 }
 
 // HostPolicy is the floor and the limits of one host. Through redirects, the answer at the end
-// of the chain is held to the ExpectType of the host asked first as well as its own, and to the
-// smaller MaxBody of the two.
+// of the chain is held to the ExpectType and the Reject of the host asked first as well as to its
+// own, and to the smaller MaxBody of the two.
 type HostPolicy struct {
 	// Name is the entry that applies: the host's own name, the "*.suffix" that matched, or ""
 	// for the default. It is the host label of the metrics, "other" for "".
@@ -85,6 +94,12 @@ type HostPolicy struct {
 	Timeout         time.Duration // the whole request, from sending it to the end of the body, up to 24 h
 	MaxBody         int64         // bytes of a body at most, decoded and as it came over the wire (ErrTooLarge), up to 1 PiB
 	ExpectType      string        // the media type a 2xx must have (ErrWrongType); "" takes any
+
+	// Reject are texts that give away a page the host serves in place of the one asked for: a
+	// block, maintenance or login page, often with 200. An answer whose content holds one of
+	// them, byte for byte, in its first RejectScan bytes is ErrRejected, whatever its status: it
+	// is not stored, and it counts against the host's breaker. Read-only, shared between copies.
+	Reject []string
 }
 
 // rawPolicy is the file as written: a field that is absent is nil and takes the default.
@@ -96,19 +111,21 @@ type rawPolicy struct {
 }
 
 type rawHost struct {
-	Concurrency     *int    `json:"concurrency"`
-	Pause           *string `json:"pause"`
-	MaxAge          *string `json:"max_age"`
-	QueueWait       *string `json:"queue_wait"`
-	BreakerFailures *int    `json:"breaker_failures"`
-	BreakerPause    *string `json:"breaker_pause"`
-	Timeout         *string `json:"timeout"`
-	MaxBody         *int64  `json:"max_body"`
-	ExpectType      *string `json:"expect_type"`
+	Concurrency     *int      `json:"concurrency"`
+	Pause           *string   `json:"pause"`
+	MaxAge          *string   `json:"max_age"`
+	QueueWait       *string   `json:"queue_wait"`
+	BreakerFailures *int      `json:"breaker_failures"`
+	BreakerPause    *string   `json:"breaker_pause"`
+	Timeout         *string   `json:"timeout"`
+	MaxBody         *int64    `json:"max_body"`
+	ExpectType      *string   `json:"expect_type"`
+	Reject          *[]string `json:"reject"`
 }
 
 // DefaultPolicy is the policy without a file: every public host may be fetched, with the
-// defaults; qis.b-tu.de and www.b-tu.de pause 500 ms, opus4.kobv.de 2 s and keeps only PDFs.
+// defaults; qis.b-tu.de and www.b-tu.de pause 500 ms and reject the university's block page,
+// opus4.kobv.de pauses 2 s and keeps only PDFs.
 func DefaultPolicy() *Policy {
 	p, err := ParsePolicy([]byte(builtinPolicy))
 	if err != nil {
@@ -119,9 +136,10 @@ func DefaultPolicy() *Policy {
 
 // ParsePolicy reads a policy file (JSON). Durations are Go durations ("500ms", "24h"). A field
 // the file leaves out takes the default: "allow" every host, "user_agent" DefaultUserAgent, a
-// field of "default" the built-in default, a field of a host's entry the "default" of the file.
-// The file's "hosts" replace the built-in ones. Unknown fields are an error, so a misspelt
-// setting does not go unnoticed.
+// field of "default" the built-in default, a field of a host's entry the "default" of the file
+// ("reject" as a whole: a host's list replaces the default's, [] rejects nothing). The file's
+// "hosts" replace the built-in ones. Unknown fields are an error, so a misspelt setting does not
+// go unnoticed.
 func ParsePolicy(data []byte) (*Policy, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
@@ -187,6 +205,9 @@ func (rh rawHost) apply(hp *HostPolicy) error {
 	}
 	if rh.ExpectType != nil {
 		hp.ExpectType = *rh.ExpectType
+	}
+	if rh.Reject != nil {
+		hp.Reject = append([]string{}, (*rh.Reject)...)
 	}
 	for _, d := range []struct {
 		name string
@@ -277,6 +298,15 @@ func (hp *HostPolicy) check() error {
 			return fmt.Errorf("expect_type %q: not a media type without parameters", hp.ExpectType)
 		}
 		hp.ExpectType = mt
+	}
+	if len(hp.Reject) > maxRejectTexts {
+		return fmt.Errorf("reject: %d texts, at most %d", len(hp.Reject), maxRejectTexts)
+	}
+	for _, text := range hp.Reject {
+		// An empty text is in every answer: the host could never be fetched.
+		if text == "" || len(text) > maxRejectText || !utf8.ValidString(text) {
+			return fmt.Errorf("reject %q: from 1 to %d bytes of UTF-8", text, maxRejectText)
+		}
 	}
 	return nil
 }

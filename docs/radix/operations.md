@@ -108,6 +108,11 @@ directly either way. What changes for Radix:
   archived as a 404. It is retried, given up and counted towards `crawl.aborted` as a failure of
   the university would be; its `Retry-After` is not read. A host Cortex paused for its breaker
   answers at once, so a stage can end as `crawl.aborted` until the pause is over.
+- **A block page is no page:** the university's „Zugriff auf die Webseite eingeschränkt“, which it
+  served with 200 for every page in the night to 2026-10-22, is a `502 rejected` of Cortex (the
+  `reject` of its host policy, `docs/cortex/cortex.md` §5): the archived page stays, the crawl
+  ends as `crawl.aborted`. Fetching directly, Radix would archive it as the page, which is how
+  16 programs fell out of the catalog that night until the pages were read again.
 - **`crawl.slow` warns more often**: the time includes Cortex's queue for the host. Radix's own
   pause after each request (`--module-delay`, `--qis-delay`) runs also after a page Cortex served
   from its store.
