@@ -1538,7 +1538,8 @@
   let shownSheet = null; // the sheet in the page as last seen
   let lostSheet = null; // the one that went without another in its place, for a moment: { sheet, at }
   let standin = null; // the skeleton kept on the screen: { sheet, timer }
-  const asksModule = () => /[?&]open=/.test(location.search);
+  // A module (`open=`) or a Termin in its own view (`termin=`, folia/crates/widgets/src/termin.rs).
+  const asksModule = () => /[?&](open|termin)=/.test(location.search);
   const dropStandin = () => {
     const s = standin;
     standin = null;

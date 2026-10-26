@@ -9,6 +9,7 @@
 use std::collections::BTreeMap;
 
 use folia_calendar::day::Day;
+use folia_calendar::rowkey::RowKey;
 use folia_locale::Locale;
 use folia_timetable::model::Timetable;
 use folia_timetable::views::{self, AgendaItem, AgendaWeek};
@@ -45,6 +46,8 @@ pub struct Entry {
     /// cut short.
     pub short: String,
     pub module: Option<String>,
+    /// The Termin a click opens in its own view (`url::home_termin_path`); `None` for an exam.
+    pub key: Option<RowKey>,
     /// The rooms, as short as Radix writes them („ZHG/HS.C"), joined by „ / ".
     pub room: Option<String>,
     /// QIS cancels the date, with its reason (empty when it gives none).
@@ -184,6 +187,7 @@ fn entry(table: &Timetable, item: &AgendaItem, day: Day, titles: &BTreeMap<Strin
             title,
             short,
             module: module.cloned(),
+            key: row.and_then(|row| row.key),
             room: join(rooms),
             cancelled: item.cancelled.clone(),
             note: item.note.clone(),
@@ -206,6 +210,7 @@ fn entry(table: &Timetable, item: &AgendaItem, day: Day, titles: &BTreeMap<Strin
         title,
         short,
         module: module.cloned(),
+        key: None,
         room: join(rooms),
         cancelled: item.cancelled.clone(),
         note: item.note.clone(),

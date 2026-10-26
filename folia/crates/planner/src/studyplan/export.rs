@@ -578,7 +578,7 @@ mod tests {
             attendance: Attendance::All,
             across: None,
             extra: false,
-            chosen: None,
+            chosen: BTreeSet::new(),
             rows: vec![row],
             hidden: None,
             source_url: None,

@@ -191,13 +191,15 @@ enum Item {
     /// A Termin (the rows of one row key: the same slot in two rooms is one Termin; the dates of
     /// a series of single dates at one time).
     Line(Line),
-    /// The event's choice: „1 von 4 wählen" while it is open, „Wahl aufheben" once it is made.
+    /// The event's choice: „1 von 4 wählen" while it is open, „Wahl aufheben" once one or more
+    /// options are ticked.
     Choice,
     /// The choice among the module's events the event is the first option of: „1 von 3 wählen",
     /// „Wahl aufheben", or that the program took one.
     Across,
-    /// An option of several Termine (a group), named: the row that chooses it, its Termine under it.
-    Option { name: String, key: Option<RowKey>, option: usize },
+    /// An option of several Termine (a group), named: the line that ticks it, with the keys of its
+    /// Termine (`Event::option_keys`), its Termine under it.
+    Option { name: String, keys: Vec<RowKey>, option: usize },
     /// An event QIS lists without any date.
     Undated,
 }
@@ -210,7 +212,7 @@ struct Line {
     /// (`EventDate::series`), which its eye hides and shows together.
     keys: Vec<RowKey>,
     text: RowText,
-    /// The option of a choice this line alone is: the line itself chooses it.
+    /// The option of a choice this line alone is: the line itself ticks it.
     choose: Option<usize>,
 }
 
@@ -278,10 +280,13 @@ struct ItemShown {
     hidden: Option<HiddenBy>,
     /// A Termin in a hard clash.
     clash: bool,
-    /// The option it is can be chosen now (its line is a choice).
+    /// The option it is can be ticked now (its line is a choice).
     choosable: bool,
-    /// It is the option chosen.
+    /// It is an option ticked.
     chosen: bool,
+    /// Another option of its choice is ticked: a tick puts this one beside it („Auch diesen
+    /// wählen").
+    also: bool,
     /// An exam sitting after the module's first: „2. Termin".
     second: bool,
     /// An option of an open choice among the module's events: whether it fits the plan („passt")
@@ -659,40 +664,34 @@ fn BlockView(ctx: PlanCtx, key: BlockKey, body: Memo<Body>, shown: Memo<Vec<Bloc
 }
 
 /// One item of an event: a Termin, or a line of its choice. In a choice („1 von 4 wählen") the
-/// line of an option is the choice itself, with a radio mark at its left (owner, 2026-09-25): a
-/// click chooses it, a click on the one chosen opens the choice again, as „Wahl aufheben" does.
-/// A choice changes what is shown, not what is listed, so the lines stay and so does the focus.
+/// line of an option is the choice itself, with a box at its left: a click ticks it, beside the
+/// options ticked so far, as many as one likes (owner, 2026-10-26: „mehr als eine Übung … im
+/// Kallender anzeigen lassen können ist ein must"), and a click on one ticked takes its tick away;
+/// without a tick the choice is open again, as „Wahl aufheben" makes it. A choice changes what is
+/// shown, not what is listed, so the lines stay and so does the focus.
 /// The choices of an item's block: its event's own, and the one among the module's events with
 /// the ids of all its events.
 type BlockChoices = (Memo<Option<(usize, bool)>>, Memo<Option<AcrossShown>>, StoredValue<Option<Vec<u32>>>);
 
 fn item_view(ctx: PlanCtx, sem: SemesterKey, event: Option<u32>, item: Item, state: Memo<ItemShown>, choices: BlockChoices, t: &'static i18n::Texts) -> AnyView {
     let (choice, across, across_events) = choices;
-    // A pick of an option of a choice among the module's events: beside what an open choice took
-    // so far, else instead of what it took (its other options' choices undone first). A click on
-    // the one taken takes it back, and with it the choice where that takes one.
-    let pick = move |key: Option<RowKey>| {
+    // A tick of an option, by the keys of its Termine: of the event's choice one of them ticks it
+    // and all of them taken away untick it; of a choice among the module's events the event is
+    // the option, taken beside the others and shown again where it was hidden, or taken back alone.
+    let pick = move |keys: StoredValue<Vec<RowKey>>| {
         move |_: leptos::ev::MouseEvent| {
-            let (Some(plan), Some(event), Some(key)) = (ctx.plan, event, key) else { return };
+            let (Some(plan), Some(event), Some(first)) = (ctx.plan, event, keys.with_value(|keys| keys.first().copied())) else { return };
             let chosen = state.with_untracked(|s| s.chosen);
-            match across_events.get_value() {
-                Some(events) => {
-                    let (open, pick) = across.with_untracked(|state| state.map_or((false, 1), |state| (state.open.is_some(), state.pick)));
-                    let undone = match (chosen, open, pick > 1) {
-                        (true, _, true) => vec![event],
-                        (false, true, _) => Vec::new(),
-                        _ => events,
-                    };
-                    plan.update(|doc| {
-                        undone.iter().for_each(|other| doc.choose(sem, *other, None));
-                        if !chosen {
-                            doc.set_event(sem, event, false);
-                            doc.choose(sem, event, Some(key));
-                        }
-                    });
+            let across = across_events.with_value(Option::is_some);
+            plan.update(|doc| match (across, chosen) {
+                (true, true) => doc.choose(sem, event, None),
+                (true, false) => {
+                    doc.set_event(sem, event, false);
+                    doc.choose(sem, event, Some(first));
                 }
-                None => plan.update(|doc| doc.choose(sem, event, (!chosen).then_some(key))),
-            }
+                (false, true) => keys.with_value(|keys| keys.iter().for_each(|key| doc.tick(sem, *key, false))),
+                (false, false) => doc.tick(sem, first, true),
+            });
         }
     };
     match item {
@@ -738,30 +737,31 @@ fn item_view(ctx: PlanCtx, sem: SemesterKey, event: Option<u32>, item: Item, sta
             })
             .into_any()
         }
-        Item::Option { name, key, .. } => {
+        Item::Option { name, keys, .. } => {
             let text = view! { <span class="rt"><b>{name}</b></span> };
-            view! { <div class="sp-rowline sp-option">{pick_button(state, pick(key), text, t)}</div> }.into_any()
+            view! { <div class="sp-rowline sp-option">{pick_button(state, pick(StoredValue::new(keys)), text, t)}</div> }.into_any()
         }
         Item::Undated => view! { <p class="sp-choice">{t.studyplan_aside.undated}</p> }.into_any(),
     }
 }
 
-/// The line of an option as its choice: a radio mark and the text, pressed while it is the one
-/// chosen.
+/// The line of an option as its choice: a box and the text, pressed while it is ticked.
 fn pick_button<H>(state: Memo<ItemShown>, pick: H, text: impl IntoView + 'static, t: &'static i18n::Texts) -> AnyView
 where
     H: Fn(leptos::ev::MouseEvent) + Send + Sync + 'static,
 {
     let chosen = Memo::new(move |_| state.with(|s| s.chosen));
     let choosable = Memo::new(move |_| state.with(|s| s.choosable));
-    let title = move || match (chosen.get(), choosable.get()) {
-        (true, true) => Some(t.studyplan_aside.clear_choice),
-        (false, true) => Some(t.studyplan_aside.choose_this),
+    let also = Memo::new(move |_| state.with(|s| s.also));
+    let title = move || match (chosen.get(), choosable.get(), also.get()) {
+        (true, true, _) => Some(t.studyplan_aside.unchoose_this),
+        (false, true, true) => Some(t.studyplan_aside.choose_too),
+        (false, true, false) => Some(t.studyplan_aside.choose_this),
         _ => None,
     };
     view! {
         <button class="rl pick" type="button" data-action="choose" on:click=pick disabled=move || !choosable.get() aria-pressed=move || if chosen.get() { "true" } else { "false" } title=title>
-            <i class="radio" aria-hidden="true"></i>
+            <i class="tick" aria-hidden="true"><Icon name="check"/></i>
             {text}
         </button>
     }
@@ -772,7 +772,7 @@ where
 /// of an option is its choice (`pick_button`).
 fn line_view<C, H>(ctx: PlanCtx, sem: SemesterKey, line: Line, state: Memo<ItemShown>, pick: C, t: &'static i18n::Texts) -> AnyView
 where
-    C: Fn(Option<RowKey>) -> H + Copy + Send + Sync + 'static,
+    C: Fn(StoredValue<Vec<RowKey>>) -> H + Copy + Send + Sync + 'static,
     H: Fn(leptos::ev::MouseEvent) + Copy + Send + Sync + 'static,
 {
     let key = line.keys.first().copied();
@@ -817,7 +817,7 @@ where
         </span>
     };
     let first = match line.choose {
-        Some(_) => pick_button(state, pick(key), lines, t),
+        Some(_) => pick_button(state, pick(keys), lines, t),
         None => view! { <span class="rl">{lines}</span> }.into_any(),
     };
     view! {
@@ -1090,8 +1090,7 @@ fn items_of(event: &Event, texts: &i18n::Texts) -> Vec<Item> {
             items.extend(option_lines.into_iter().map(|line| Item::Line(Line { choose: Some(option), ..line })));
             continue;
         }
-        let key = option_lines.first().and_then(|line| line.keys.first().copied());
-        items.push(Item::Option { name: option_name(event, options, option, groups, texts), key, option });
+        items.push(Item::Option { name: option_name(event, options, option, groups, texts), keys: event.option_keys(option), option });
         // Under the option's name its lines need not repeat it.
         items.extend(lines(rows, false).into_iter().map(Item::Line));
     }
@@ -1193,7 +1192,7 @@ fn shown_of(t: &Timetable, blocks: &[Block], texts: &i18n::Texts) -> Vec<BlockSh
                     .collect(),
                 Attendance::All => Vec::new(),
             };
-            let choice = (event.hidden.is_none() && (available.len() >= 2 || event.chosen.is_some())).then_some((available.len(), event.chosen.is_some()));
+            let choice = (event.hidden.is_none() && (available.len() >= 2 || !event.chosen.is_empty())).then_some((available.len(), !event.chosen.is_empty()));
             let can = |option: usize| choice.is_some() && available.contains(&option);
             // An option of a choice among the module's events: every option a Termin of which is
             // shown, or left out only by the choice, can be taken.
@@ -1210,40 +1209,49 @@ fn shown_of(t: &Timetable, blocks: &[Block], texts: &i18n::Texts) -> Vec<BlockSh
                     program: across.by == Some(TakenBy::Program),
                 }
             });
-            let across_line = |line: &Line| -> (bool, bool, Option<bool>) {
-                let Some((alt, across)) = across.filter(|_| line.choose.is_some()) else { return (false, false, None) };
+            let across_line = |line: &Line| -> (bool, bool, bool, Option<bool>) {
+                let Some((alt, across)) = across.filter(|_| line.choose.is_some()) else { return (false, false, false, None) };
                 // The option the program takes is pressed, but there is nothing to undo: the
                 // others take its place.
                 let chosen = across.by.is_some() && across.taken.contains(&alt.option);
                 let by_program = chosen && across.by == Some(TakenBy::Program);
                 let movable = matches!(event.hidden, None | Some(HiddenBy::Option | HiddenBy::Program)) && !line.keys.is_empty() && !by_program;
                 let fits = alt.open.then(|| !line.rows.iter().any(|row| meets.contains(&(block.index, *row))));
-                (movable, chosen, fits)
+                let also = !chosen && across.by == Some(TakenBy::Chosen);
+                (movable, chosen, also, fits)
             };
             let items = block
                 .items
                 .iter()
                 .map(|item| match item {
                     Item::Line(line) if across.is_some() && line.choose.is_some() => {
-                        let (choosable, chosen, fits) = across_line(line);
+                        let (choosable, chosen, also, fits) = across_line(line);
                         ItemShown {
                             hidden: line.rows.first().and_then(|row| event.rows.get(*row)).and_then(|row| row.hidden),
                             clash: line.rows.iter().any(|row| hard.contains(&(block.index, *row))),
                             choosable,
                             chosen,
+                            also,
                             second: false,
                             fits,
                         }
                     }
-                    Item::Line(line) => ItemShown {
-                        hidden: line.rows.first().and_then(|row| event.rows.get(*row)).and_then(|row| row.hidden),
-                        clash: line.rows.iter().any(|row| hard.contains(&(block.index, *row))),
-                        choosable: line.choose.is_some_and(can),
-                        chosen: line.choose.is_some() && line.choose == event.chosen,
-                        second: false,
-                        fits: None,
-                    },
-                    Item::Option { option, .. } => ItemShown { choosable: can(*option), chosen: event.chosen == Some(*option), ..ItemShown::default() },
+                    Item::Line(line) => {
+                        let chosen = line.choose.is_some_and(|option| event.chosen.contains(&option));
+                        ItemShown {
+                            hidden: line.rows.first().and_then(|row| event.rows.get(*row)).and_then(|row| row.hidden),
+                            clash: line.rows.iter().any(|row| hard.contains(&(block.index, *row))),
+                            choosable: line.choose.is_some_and(can),
+                            chosen,
+                            also: line.choose.is_some() && !chosen && !event.chosen.is_empty(),
+                            second: false,
+                            fits: None,
+                        }
+                    }
+                    Item::Option { option, .. } => {
+                        let chosen = event.chosen.contains(option);
+                        ItemShown { choosable: can(*option), chosen, also: !chosen && !event.chosen.is_empty(), ..ItemShown::default() }
+                    }
                     _ => ItemShown::default(),
                 })
                 .collect();
