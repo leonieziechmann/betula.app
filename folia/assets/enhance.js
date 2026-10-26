@@ -2265,7 +2265,8 @@
   // page the crown's leaves wait while its photo lies under the search, and slide down from above
   // as it leaves the bar, as far as the page has gone on past it, so that the page brings them
   // (owner, 2026-10-26: „dass sich die blätter von oben rein schieben beim handy. Als scroll
-  // animation aber mit einem max speed, wenn jemand schnell scrolled"): `--leaves` on the crown and
+  // animation aber mit einem max speed, wenn jemand schnell scrolled"; on a wide screen the same:
+  // „die animation für die Blätter gibt es auch immer noch nicht"): `--leaves` on the crown and
   // the frost, from 0 to 1 over the leaves' height of the scroll (LEAVES_WAY), the frost's colour
   // coming with them; but never faster than the whole way in a quarter of a second
   // (LEAVES_FAST), so that a quick swipe shows them come instead of just being there, and they
@@ -2327,14 +2328,14 @@
     frostBar = (area ? area.offsetWidth - area.clientWidth : 0) + "px";
     let gone = true;
     let leaves = 1;
-    if (phone()) {
-      const hero = [...(stage() || document).querySelectorAll(".day-hero")].find((el) => el.offsetParent !== null);
-      const bar = document.querySelector(".crown");
-      if (hero && bar) {
-        const past = bar.getBoundingClientRect().bottom - hero.getBoundingClientRect().bottom;
-        gone = past >= -1;
-        leaves = Math.min(Math.max(past / LEAVES_WAY, 0), 1);
-      }
+    // The start page's photo and the bar's lower edge: a phone's crown, a wide screen's head (where
+    // the page shows, its `scroll-padding`).
+    const hero = [...(stage() || document).querySelectorAll(".day-hero")].find((el) => el.offsetParent !== null);
+    const edge = !hero ? undefined : phone() ? document.querySelector(".crown")?.getBoundingClientRect().bottom : area ? area.getBoundingClientRect().top + (parseFloat(getComputedStyle(area).scrollPaddingTop) || 0) : undefined;
+    if (edge !== undefined) {
+      const past = edge - hero.getBoundingClientRect().bottom;
+      gone = past >= -1;
+      leaves = Math.min(Math.max(past / LEAVES_WAY, 0), 1);
     }
     if (root.hasAttribute("data-photo-gone") !== gone) root.toggleAttribute("data-photo-gone", gone);
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
