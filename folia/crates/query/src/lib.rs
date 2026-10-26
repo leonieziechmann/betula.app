@@ -489,6 +489,20 @@ pub fn teaching_semesters(db: &dyn Database, module_ids: &[String]) -> Result<Ve
     )
 }
 
+/// The modules that link the teaching event `event_id` (QIS's `veranstid`) and the semesters it
+/// is held in, a row per module and semester, newest semester first: what a Termin's own page
+/// (`/event/<key>`) loads the timetable of. One without a semester is left out, as in
+/// `module_schedule`.
+pub fn event_modules(db: &dyn Database, event_id: &str) -> Result<Vec<ModuleSemester>, DbError> {
+    fetch(
+        db,
+        "event_modules",
+        "SELECT DISTINCT module_id, semester_key FROM v_module_schedule \
+         WHERE event_id = ? AND semester_key IS NOT NULL ORDER BY semester_key DESC, module_id",
+        &[Value::from(event_id)],
+    )
+}
+
 /// The exam dates of a module, newest semester first; one without a semester is left out, as in
 /// `module_schedule`.
 pub fn module_exams(db: &dyn Database, module_id: &str) -> Result<Vec<EventDate>, DbError> {

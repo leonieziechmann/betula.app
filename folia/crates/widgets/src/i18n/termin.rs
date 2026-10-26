@@ -124,6 +124,29 @@ pub struct Texts {
     pub open_in_qis: &'static str,
     /// A Termin the plan has not (any more): „Diesen Termin hat dein Stundenplan nicht (mehr)."
     pub gone: &'static str,
+    /// To look up: the head's tag of a module outside the plan („nicht im Plan"); of one in it,
+    /// under its groups, how many of them the plan holds („Noch keine in deinem Stundenplan",
+    /// „Eine in deinem Stundenplan", „2 in deinem Stundenplan") and the way into the Stundenplan
+    /// („Anpassen"), which an event without groups has as a row of its own („Im Stundenplan
+    /// anpassen", „Gruppen, einzelne Termine, Kalender-Abo").
+    pub not_in_plan: &'static str,
+    pub in_your_plan: fn(usize) -> String,
+    pub adjust: &'static str,
+    pub adjust_row: &'static str,
+    pub adjust_sub: &'static str,
+    /// The Termin's dates as a file for one's calendar, of a module outside the plan: „In den
+    /// Kalender", its tooltip, and the file's name.
+    pub into_calendar: &'static str,
+    pub into_calendar_title: &'static str,
+    pub calendar_file: fn(&str) -> String,
+    /// A Termin's own page (`/event/<key>/<day>`): its title in the browser's tab and for link
+    /// previews („Übung · Mathematik IT-1 · Di 04.11."), what it says of itself („Übung
+    /// Mathematik IT-1 am Di 04.11. um 09:15, LG1A/304: die Termine der Reihe, laut QIS."), and
+    /// a Termin that does not exist.
+    pub page_title: fn(&str, &str, &str) -> String,
+    pub page_description: fn(&str, &str) -> String,
+    pub not_found: &'static str,
+    pub not_found_hint: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -223,6 +246,22 @@ pub const DE: Texts = Texts {
     source: "Quelle: QIS",
     open_in_qis: "In QIS öffnen",
     gone: "Diesen Termin hat dein Stundenplan nicht (mehr).",
+    not_in_plan: "nicht im Plan",
+    in_your_plan: |n| match n {
+        0 => "Noch keine in deinem Stundenplan".to_string(),
+        1 => "Eine in deinem Stundenplan".to_string(),
+        n => format!("{n} in deinem Stundenplan"),
+    },
+    adjust: "Anpassen",
+    adjust_row: "Im Stundenplan anpassen",
+    adjust_sub: "Gruppen, einzelne Termine, Kalender-Abo",
+    into_calendar: "In den Kalender",
+    into_calendar_title: "Die Termine als Kalenderdatei (.ics) herunterladen",
+    calendar_file: |name| format!("Termin {name}.ics"),
+    page_title: |kind, title, when| format!("{kind} · {title} · {when}"),
+    page_description: |what, when| format!("{what} am {when}, mit allen Terminen der Reihe und was an ihnen anders ist, laut QIS."),
+    not_found: "Diesen Termin gibt es nicht",
+    not_found_hint: "QIS kennt ihn nicht (mehr). Die Termine eines Moduls stehen auf seiner Seite im Katalog.",
 };
 
 pub const EN: Texts = Texts {
@@ -322,4 +361,20 @@ pub const EN: Texts = Texts {
     source: "Source: QIS",
     open_in_qis: "Open in QIS",
     gone: "Your timetable does not have this session (any more).",
+    not_in_plan: "not in your plan",
+    in_your_plan: |n| match n {
+        0 => "None in your timetable yet".to_string(),
+        1 => "One in your timetable".to_string(),
+        n => format!("{n} in your timetable"),
+    },
+    adjust: "Adjust",
+    adjust_row: "Adjust in your timetable",
+    adjust_sub: "Groups, single dates, calendar feed",
+    into_calendar: "Add to calendar",
+    into_calendar_title: "Download the dates as a calendar file (.ics)",
+    calendar_file: |name| format!("Session {name}.ics"),
+    page_title: |kind, title, when| format!("{kind} · {title} · {when}"),
+    page_description: |what, when| format!("{what} on {when}, with every date of the series and what differs, per QIS."),
+    not_found: "This session does not exist",
+    not_found_hint: "QIS does not know it (any more). A module's sessions are on its page in the catalog.",
 };

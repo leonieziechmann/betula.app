@@ -8,7 +8,7 @@ use folia_calendar::day::Day;
 use folia_calendar::rowkey::RowKey;
 use folia_shell::pending::same_page;
 use folia_shell::tabs::Tabs;
-use folia_widgets::termin::{module_facts, ticking_clock, TerminCtx, TerminLinks, TerminMode, TerminView};
+use folia_widgets::termin::{module_facts, ticking_clock, Against, TerminCtx, TerminLinks, TerminMode, TerminView};
 use leptos::prelude::*;
 
 use crate::i18n;
@@ -28,7 +28,7 @@ pub(super) fn PlanTerminPanel(ctx: PlanCtx) -> impl IntoView {
     });
     let termin = Callback::new(move |(key, on): (RowKey, Option<Day>)| ctx.url.with(|url| t.path(&url.with_termin(Some((key, on))).path())));
     let module = Callback::new(move |(id, key): (String, Option<RowKey>)| ctx.url.with(|url| t.path(&url.with_open(Some(&id), key).path())));
-    let links = TerminLinks { termin, module, close, back };
-    let view = TerminCtx { table: ctx.table, asked, modules, mode: TerminMode::Adjust, plan: ctx.plan, now: ticking_clock(), links };
+    let links = TerminLinks { termin, module, close, back, adjust: None };
+    let view = TerminCtx { table: ctx.table, asked, modules, mode: TerminMode::Adjust, plan: ctx.plan, now: ticking_clock(), planned: Signal::stored(Some(true)), against: Signal::stored(Against::Itself), links, page: false };
     view! { <TerminView ctx=view/> }
 }

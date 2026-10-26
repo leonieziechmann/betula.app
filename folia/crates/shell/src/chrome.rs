@@ -65,10 +65,11 @@ pub fn NavItems() -> impl IntoView {
     let tabs = Tabs::expect();
     // The tab of the page the app is going to is current at once, before the page is there.
     let pending = Pending::expect();
-    // The profile page is no area's: the way to it is current there (`ProfileButton`), no tab.
+    // The profile page is no area's: the way to it is current there (`ProfileButton`), no tab; nor
+    // is a Termin's own page, the other page of a while (`nav::passing`).
     let current = move |area: Area| {
         let path = pending.and_then(|p| p.path()).unwrap_or_else(|| location.pathname.get());
-        (path != url::PROFILE && Area::of(&path) == area).then_some("page")
+        (!crate::nav::passing(&path) && Area::of(&path) == area).then_some("page")
     };
     // The catalog's first entry of a session is the catalog of „Mein Studiengang", while its PO is
     // in the snapshot (A.10); nothing is known of it on the server, whose tab is the plain link (R9).
@@ -974,8 +975,10 @@ pub fn TopBar() -> impl IntoView {
     let area_now = Memo::new(move |_| Area::of(&path_now.get()));
     // „Mein Studium" is the visitor's study, not a list of programs: its search is the modules'.
     let study_now = Memo::new(move |_| path_now.get() == url::STUDY);
-    // The profile page is no area's, and names itself (the start page's area writes the wordmark).
+    // The profile page is no area's, and names itself (the start page's area writes the wordmark);
+    // so does a Termin's own page.
     let profile_now = Memo::new(move |_| path_now.get() == url::PROFILE);
+    let event_now = Memo::new(move |_| url::event_of(&path_now.get()).is_some());
     let pending = StoredValue::new(None::<TimeoutHandle>);
     // The way back at the head, and the way to the profile page giving way to it (`TopBack`).
     let back = top_back_shown();
@@ -1067,9 +1070,13 @@ pub fn TopBar() -> impl IntoView {
                     (false, true) => t.app.search_bookmarks,
                     (false, false) => t.app.search_modules,
                 };
-                let title = if profile_now.get() { t.app.profile } else { title };
+                let title = match (profile_now.get(), event_now.get()) {
+                    (true, _) => t.app.profile,
+                    (_, true) => t.app.termin,
+                    _ => title,
+                };
                 // The start page carries the name: next to the mark in the rail it reads as the logo.
-                let home = area_now.get() == Area::Home && !profile_now.get();
+                let home = area_now.get() == Area::Home && !profile_now.get() && !event_now.get();
                 let heading = if home {
                     view! { <h1><ui::Wordmark small=true/></h1><small>{t.common.tagline}</small> }.into_any()
                 } else {

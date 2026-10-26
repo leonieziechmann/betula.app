@@ -895,6 +895,18 @@ pub fn studyplan(db: &dyn Database, key: SemesterKey, ids: &[String], locale: Lo
     studyplan_in(db, key, ids, None, locale)
 }
 
+/// A Termin's own page (`/event/<key>`): the data of the timetable of the modules that link the
+/// event `event_id`, in the newest semester it is held in, without a program (R9: the page is the
+/// same for everybody); `None` for an event no module links.
+pub fn event(db: &dyn Database, event_id: &str, locale: Locale) -> Result<Option<StudyplanData>, DbError> {
+    let rows = queries::event_modules(db, event_id)?;
+    let Some((newest, key)) = rows.first().and_then(|row| Some((row.semester_key.clone(), SemesterKey::parse(&row.semester_key)?))) else {
+        return Ok(None);
+    };
+    let ids: Vec<String> = rows.iter().filter(|row| row.semester_key == newest).map(|row| row.module_id.clone()).collect();
+    studyplan_in(db, key, &ids, None, locale).map(Some)
+}
+
 /// `studyplan` for a plan of `program_id`: the week grid and the calendar name its modules by the
 /// abbreviations unique within that program (`queries::modules_abbrevs`), not only by each
 /// module's own. An id that is no program id (`url::is_program_id`) is none.

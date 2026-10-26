@@ -23,6 +23,20 @@ use crate::AppState;
 use crate::cache::HtmlCache;
 use crate::snapshot::{sync_once, SnapshotStore, Sync, SyncError};
 
+/// A Termin's own page (`/event/<key>/<day>`) of the snapshot: the first date of the first module
+/// with a Termin.
+fn an_event_page() -> String {
+    let db = NativeDatabase::open(&snapshot_file()).unwrap();
+    folia_query::module_ids(&db)
+        .unwrap()
+        .into_iter()
+        .find_map(|id| {
+            let date = folia_query::module_schedule(&db, &id).unwrap().into_iter().find(|date| folia_calendar::rowkey::RowKey::of(date).is_some() && date.first_date.is_some())?;
+            Some(folia_routes::url::event_path(folia_calendar::rowkey::RowKey::of(&date)?, folia_calendar::day::Day::parse(date.first_date.as_deref()?)))
+        })
+        .expect("a module with a Termin")
+}
+
 fn snapshot_file() -> PathBuf {
     if let Ok(path) = std::env::var("FOLIA_TEST_SNAPSHOT") {
         return PathBuf::from(path);
@@ -914,6 +928,21 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let profile = String::from_utf8(body).unwrap();
     assert!(status == StatusCode::OK && head(&profile).contains("noindex") && profile.contains("app-standin"), "{profile}");
     assert!(profile.contains("href=\"/profile\" rel=\"nofollow\""), "the rail's way to it: {profile}");
+    // A Termin's own page: a module's Termine lead there, never followed; the page is the same for
+    // everybody, the Termin to look up, and no page to list.
+    let event = an_event_page();
+    let (status, _, body) = request(&router, &event, &[]).await;
+    let page = String::from_utf8(body).unwrap();
+    assert!(status == StatusCode::OK && head(&page).contains("noindex") && page.contains("is-termin tm-page") && !page.contains("app-standin"), "{page}");
+    assert!(!sitemap.contains("/event/"));
+    let id = folia_routes::url::event_of(&event).map(|(key, _)| key).unwrap();
+    let module = {
+        let db = NativeDatabase::open(&snapshot_file()).unwrap();
+        folia_query::event_modules(&db, &id.event.to_string()).unwrap().first().map(|row| row.module_id.clone()).unwrap()
+    };
+    let (_, _, body) = request(&router, &folia_routes::url::module_path(&module), &[]).await;
+    let listing = String::from_utf8(body).unwrap();
+    assert!(listing.contains(&format!("href=\"/event/{}-", id.event)) && listing.contains("rel=\"nofollow\""), "{listing}");
 
     // The map of the programs is laid out once per snapshot and handed on as it is. Its ETag is
     // its content's: a new layout of the same catalog must not be a „304" from a browser's cache.
@@ -929,7 +958,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     assert_eq!(request(&router, folia_app::OG_IMAGE, &[]).await.0, StatusCode::OK);
 
     // Unknown things are 404 and never cached.
-    for path in ["/catalog/module/00000", "/programs/no-such-program", "/no-such-page"] {
+    for path in ["/catalog/module/00000", "/programs/no-such-program", "/no-such-page", "/event/1-00000", "/event/148370-zzzzz", "/event/999999999-abcde/2026-11-02"] {
         let (status, headers, _) = request(&router, path, &[]).await;
         assert_eq!((status, headers[header::CACHE_CONTROL].to_str().unwrap()), (StatusCode::NOT_FOUND, "no-store"), "{path}");
     }
@@ -1334,6 +1363,7 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
         folia_routes::url::PROFILE.to_string(),
         folia_routes::url::IMPRINT.to_string(),
         folia_routes::url::PRIVACY.to_string(),
+        an_event_page(),
     ];
     pages.extend(versioned.iter().flat_map(|versioned| [format!("/programs/{versioned}/plan"), format!("/programs/{versioned}/my-plan")]));
     // Every page is checked before the test fails, so that it lists all there is.
@@ -1442,6 +1472,7 @@ async fn a_page_rendered_beside_others_keeps_its_title() {
         .into_iter()
         .map(String::from)
         .collect();
+    pages.push(an_event_page());
     for slug in &slugs {
         pages.extend([format!("/catalog?program={slug}"), format!("/en/catalog?program={slug}&semester=1"), format!("/programs/{slug}/plan"), format!("/programs/{slug}/areas")]);
     }
@@ -1676,6 +1707,7 @@ async fn a_page_in_english_stays_in_english() {
         folia_routes::url::PROFILE.to_string(),
         folia_routes::url::IMPRINT.to_string(),
         folia_routes::url::PRIVACY.to_string(),
+        an_event_page(),
     ];
     // Every page is checked before the test fails, so that it lists what is left.
     let mut problems = Vec::new();

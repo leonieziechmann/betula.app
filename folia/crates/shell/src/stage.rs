@@ -108,7 +108,7 @@ impl Key {
     /// is on the stage of its own.
     pub fn of(path: &str, from: Key) -> Self {
         match Page::of(path) {
-            Page::About | Page::Profile | Page::Imprint | Page::Privacy | Page::NotFound => Key::Other,
+            Page::About | Page::Profile | Page::Event | Page::Imprint | Page::Privacy | Page::NotFound => Key::Other,
             Page::Module if from.area().is_some_and(Area::shows_in_place) => from,
             _ => Key::of_area(Area::of(path)),
         }
@@ -133,6 +133,8 @@ pub enum Page {
     Studyplan,
     Study,
     Profile,
+    /// `/event/:key` and `/event/:key/:day`, a Termin's own page (folia/design/termin).
+    Event,
     Imprint,
     Privacy,
     NotFound,
@@ -154,6 +156,7 @@ impl Page {
             ["studyplan"] => Page::Studyplan,
             ["study"] => Page::Study,
             ["profile"] => Page::Profile,
+            ["event", _] | ["event", _, _] => Page::Event,
             ["impressum"] => Page::Imprint,
             ["datenschutz"] => Page::Privacy,
             _ => Page::NotFound,
@@ -170,6 +173,11 @@ impl Page {
             (Page::ProgramTab, [_, slug, tab]) => {
                 params.insert("slug", (*slug).to_string());
                 params.insert("tab", (*tab).to_string());
+            }
+            (Page::Event, [_, key]) => params.insert("key", (*key).to_string()),
+            (Page::Event, [_, key, day]) => {
+                params.insert("key", (*key).to_string());
+                params.insert("day", (*day).to_string());
             }
             _ => {}
         }
@@ -722,6 +730,10 @@ mod tests {
         let program = Page::ProgramTab.params("/programs/bachelor-informatik-2008/areas");
         assert_eq!((program.get("slug").as_deref(), program.get("tab").as_deref()), (Some("bachelor-informatik-2008"), Some("areas")));
         assert_eq!(Page::Program.params("/programs/x").get("tab"), None);
+        assert_eq!((Page::of("/event/148370-eb017"), Page::of("/event/148370-eb017/2026-11-02"), Page::of("/event")), (Page::Event, Page::Event, Page::NotFound));
+        let event = Page::Event.params("/event/148370-eb017/2026-11-02");
+        assert_eq!((event.get("key").as_deref(), event.get("day").as_deref()), (Some("148370-eb017"), Some("2026-11-02")));
+        assert_eq!(Page::Event.params("/event/148370-eb017").get("day"), None);
     }
 
     /// A page is on its tab's stage; a module's own page stays on a tab that shows its modules in
@@ -738,6 +750,7 @@ mod tests {
         assert_eq!(Key::of("/catalog/module/11103", Key::Other), Key::Catalog);
         assert_eq!((Key::of("/study", Key::Home), Key::of("/programs/x/plan", Key::Catalog)), (Key::Programs, Key::Programs));
         assert_eq!((Key::of("/profile", Key::Catalog), Key::of("/impressum", Key::Home), Key::of("/nichts", Key::Home), Key::of("/about", Key::Home)), (Key::Other, Key::Other, Key::Other, Key::Other));
+        assert_eq!(Key::of("/event/148370-eb017/2026-11-02", Key::Catalog), Key::Other);
     }
 
     #[test]

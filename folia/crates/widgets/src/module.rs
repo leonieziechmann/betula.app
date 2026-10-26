@@ -990,9 +990,13 @@ fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
                     {(details || marker.is_none()).then(|| view! { <small title=room_long>{detail_line(head, dates, tail, t.locale)}</small> })}
                     {marker.map(|text| view! { <small class="odd"><Icon name="info"/><span>{text}</span></small> })}
                 };
-                Some(match d.source_url.clone() {
-                    Some(href) => view! { <a class="ev" class:faint=faint class:gap=gap id=id href=href rel="noopener" title=listed>{body}</a> }.into_any(),
-                    None => view! { <div class="ev" class:faint=faint class:gap=gap id=id title=listed>{body}</div> }.into_any(),
+                // A Termin leads to its own page, to look it up (folia/design/termin; owner,
+                // 2026-10-26: „die Informative ansicht für die Modulpage"); an exam date to QIS.
+                let termin = reading.is_none().then(|| RowKey::of(&d)).flatten();
+                Some(match (termin, d.source_url.clone()) {
+                    (Some(key), _) => view! { <a class="ev" class:faint=faint class:gap=gap id=id href=t.path(&url::event_path(key, None)) rel="nofollow" title=listed>{body}</a> }.into_any(),
+                    (None, Some(href)) => view! { <a class="ev" class:faint=faint class:gap=gap id=id href=href rel="noopener" title=listed>{body}</a> }.into_any(),
+                    (None, None) => view! { <div class="ev" class:faint=faint class:gap=gap id=id title=listed>{body}</div> }.into_any(),
                 })
             })
             .collect_view()
