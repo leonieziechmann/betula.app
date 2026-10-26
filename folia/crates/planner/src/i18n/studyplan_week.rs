@@ -56,6 +56,9 @@ pub struct Texts {
     pub not_this_group: &'static str,
     /// … the „✓" of the option taken takes the choice back („Gruppe abwählen") …
     pub drop_group: &'static str,
+    /// The end of the tooltip of a group of the choice in focus: what a click on it does.
+    pub tick_group: &'static str,
+    pub ticked_group: &'static str,
     /// The same of an option of a choice among a module's events: „Diese nehmen", „Nicht diese",
     /// „Wahl aufheben".
     pub take_option: &'static str,
@@ -142,6 +145,8 @@ pub const DE: Texts = Texts {
     take_group: "Diese Gruppe nehmen",
     not_this_group: "Nicht diese Gruppe",
     drop_group: "Gruppe abwählen",
+    tick_group: "Klicken zum Anhaken",
+    ticked_group: "angehakt · Klicken nimmt den Haken weg",
     take_option: "Diese nehmen",
     not_this_option: "Nicht diese",
     drop_option: "Wahl aufheben",
@@ -199,6 +204,8 @@ pub const EN: Texts = Texts {
     take_group: "Take this group",
     not_this_group: "Not this group",
     drop_group: "Deselect this group",
+    tick_group: "Click to tick",
+    ticked_group: "ticked · a click takes the tick away",
     take_option: "Take this one",
     not_this_option: "Not this one",
     drop_option: "Undo the choice",

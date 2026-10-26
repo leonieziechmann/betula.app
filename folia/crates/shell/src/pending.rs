@@ -801,11 +801,11 @@ fn program_change(from: &ProgramUrl, to: &ProgramUrl, phone: bool) -> Option<Cha
 }
 
 /// Within the Studienplan: another semester, view or Regelstudienplan being taken over is its
-/// column; the module beside it and a Termin in its own view (`termin`, `on`) are the aside (on a
-/// phone a sheet over the plan). „Vollbild" fills
-/// the page with the module's whole page (`PlanAddress`). The Übersicht shows every semester: there
-/// `sem` only says which of its semesters a module planned twice is shown in beside it, so it is
-/// the aside's.
+/// column; the module beside it, a Termin in its own view (`termin`, `on`) and the choice in focus
+/// over the week (`wahl`, `vergleich`) are the aside (on a phone a sheet over the plan). „Vollbild"
+/// fills the page with the module's whole page (`PlanAddress`). The Übersicht shows every semester:
+/// there `sem` only says which of its semesters a module planned twice is shown in beside it, so it
+/// is the aside's.
 fn studyplan_change(from: &PlanAddress, to: &PlanAddress) -> Option<Change> {
     if let Some(change) = local_change(from, to, Change::Column(Shape::Studyplan)) {
         return Some(change);
@@ -814,8 +814,11 @@ fn studyplan_change(from: &PlanAddress, to: &PlanAddress) -> Option<Change> {
     fn column_sem(url: &StudyplanUrl) -> Option<&str> {
         if url.view == PlanView::Overview { None } else { url.sem.as_deref() }
     }
-    fn beside(url: &StudyplanUrl) -> [Option<&str>; 5] {
-        [url.open.as_deref(), url.row.as_deref(), url.open.as_ref().and(url.sem.as_deref()), url.termin.as_deref(), url.on.as_deref()]
+    // The choice in focus stands over the week as the module beside it does: a step of its own,
+    // which „Fertig" takes back.
+    fn beside(url: &StudyplanUrl) -> ([Option<&str>; 6], bool) {
+        let at = [url.open.as_deref(), url.row.as_deref(), url.open.as_ref().and(url.sem.as_deref()), url.termin.as_deref(), url.on.as_deref(), url.wahl.as_deref()];
+        (at, url.vergleich)
     }
     if (column_sem(from), from.view, &from.import, from.variant) != (column_sem(to), to.view, &to.import, to.variant) {
         Some(Change::Column(Shape::Studyplan))
@@ -1061,17 +1064,21 @@ mod browser {
             // Closing what stands beside a page where the page without it is the step before (the
             // browser says it; else the app's guess, `data-back`): back there, the same entry as
             // before, so that Back does not bring it again and Forward does.
-            if action == "close-detail" && crate::nav::came_from(to.split('#').next().unwrap_or(&to), || link.get_attribute("data-back").as_deref() == Some("history")) {
+            // „Fertig" of the choice in focus over the plan's week closes it as that.
+            let closes = action == "close-detail" || action == "close-focus";
+            if closes && crate::nav::came_from(to.split('#').next().unwrap_or(&to), || link.get_attribute("data-back").as_deref() == Some("history")) {
                 pending.back_to(to, change);
                 return;
             }
             // Closing what stands beside a page where the page without it is not the step before,
             // and „Zurück" to the same page: in place of the current entry, so that Back does not
             // bring it again.
-            let closing = action == "close-detail" || (action == "back" && to_path == from_path);
+            let closing = closes || (action == "back" && to_path == from_path);
             // A step beside the page: on a phone in place of the current entry, on a wide screen
-            // one step for every pause (`Pending::in_place`).
-            let beside = pending.in_place(change, &from_path, &from_search, &to);
+            // one step for every pause (`Pending::in_place`). A link that only shows the same
+            // otherwise (`data-replace`: „Vergleichen" of the plan's choice in focus) takes the
+            // current entry's place too, so that „Fertig" after it is a step back.
+            let beside = pending.in_place(change, &from_path, &from_search, &to) || link.has_attribute("data-replace");
             pending.start(to, Via::Link { replace: closing || beside, scroll }, change, false);
         });
         // Back and Forward: the browser has moved already, the router hears of it a frame later.
@@ -1206,6 +1213,11 @@ mod tests {
         assert_eq!(change("/studyplan", "open=12104&full=1", "/studyplan", "open=12104", true), Some(Change::Column(Shape::Studyplan)));
         // Unknown names change nothing.
         assert_eq!(change("/studyplan", "sem=2026W", "/studyplan", "sem=2026W&week=2026-10-14", false), None);
+        // The choice in focus, compared or not, comes and goes as what stands beside the plan.
+        assert_eq!(change("/studyplan", "", "/studyplan", "wahl=e148304", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "wahl=e148304", "/studyplan", "wahl=e148304&vergleich=1", true), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "wahl=e148304", "/studyplan", "wahl=e148370", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "wahl=e148304&vergleich=1", "/studyplan", "", false), Some(Change::Aside));
     }
 
     /// The step before a module's sheet is the page it closes to, written either way.

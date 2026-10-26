@@ -639,34 +639,6 @@ pub(super) fn option_text(table: &Timetable, across: &Across, option: usize, loc
     })
 }
 
-/// The open choices among a module's events and their lines in the summary: „1 von 3 wählen: Übung
-/// · Höhere Mathematik - T3", and the blocked ones („0 von 3 Terminen frei: …", of a choice that
-/// asks for more „Zu wenige Termine frei für 2 von 5: …"), each leading to the first Termin of its
-/// first option still to choose.
-fn across_lines(table: &Timetable, about: &About, t: &i18n::Texts) -> Vec<Note> {
-    let h = &t.studyplan_head;
-    let mut lines = Vec::new();
-    for (index, across) in table.choices.iter().enumerate() {
-        let choosable = across.choosable(&table.events);
-        let Some(first) = choosable.first().and_then(|option| across.options.get(*option)?.first()).and_then(|event| table.events.get(*event)) else { continue };
-        let row = first.rows.iter().find(|row| row.hidden.is_none()).and_then(|row| row.key);
-        let (kind, title) = (kind_word(first, t.locale), about.title(&across.module, t));
-        let (module, take) = (Some(across.module.clone()), across.take(&table.events));
-        lines.push(match (table.blocked_choices.contains(&index), take) {
-            (true, 1) => Note::warn((h.blocked)(choosable.len(), &kind, title.trim()), module, row),
-            (true, _) => Note::warn((h.blocked_of)(take, choosable.len(), &kind, title.trim()), module, row),
-            (false, _) => Note::quiet((h.choose)(take, choosable.len(), &kind, &title), module, row),
-        });
-    }
-    lines
-}
-
-/// The first row of the first option still shown of a choice: where its line points.
-fn first_option_row(event: &Event) -> Option<RowKey> {
-    let option = event.visible_options().into_iter().next()?;
-    event.rows.iter().find(|row| row.option == Some(option) && row.hidden.is_none()).and_then(|row| row.key)
-}
-
 /// A campus as a hop between two exams names it: „Zentralcampus", „Sachsendorf", „Senftenberg".
 fn campus_name(campus: &Code<Campus>, t: &i18n::Texts) -> String {
     match campus.known() {
@@ -777,12 +749,12 @@ pub(super) fn ExamAlerts(ctx: PlanCtx) -> impl IntoView {
 
 // ---------- overlaps and open choices ----------
 
-/// The one quiet line of overlaps and open choices (owner, 2026-09-25: „es gibt x
-/// Überschneidungen pro Woche", aufklappbar): its parts, and opened, a line each.
+/// The one quiet line of overlaps (owner, 2026-09-25: „es gibt x Überschneidungen pro Woche",
+/// aufklappbar): its parts, and opened, a line each.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(super) struct Summary {
     /// „2 Überschneidungen pro Woche", „1 an einzelnen Tagen" (`true`: an overlap, drawn red),
-    /// „3 Wahlen offen", „Standort offen".
+    /// „Standort offen".
     pub parts: Vec<(bool, String)>,
     pub lines: Vec<Note>,
 }
@@ -815,11 +787,11 @@ fn overlap_line(table: &Timetable, about: &About, overlap: &Overlap, t: &i18n::T
     Some(Note::warn(text, b.modules.first().cloned(), row))
 }
 
-/// The line of overlaps and open choices of a timetable. Overlaps count per week (`clash::
-/// per_week`: a weekly overlap once, in the week `shown`, for „A/B" the larger of the A and the B
-/// week) and on single days apart; opened, the line lists the overlaps of that week and those of
-/// single days, then the choices without a free option, the choices still open, and the Standort
-/// to pick (`choice`: the one the visitor chose). Empty parts: no line.
+/// The line of overlaps of a timetable. Overlaps count per week (`clash::per_week`: a weekly
+/// overlap once, in the week `shown`, for „A/B" the larger of the A and the B week) and on single
+/// days apart; opened, the line lists the overlaps of that week and those of single days, and the
+/// Standort to pick (`choice`: the one the visitor chose). The choices still open are „Offen"'s
+/// (`open.rs`). Empty parts: no line.
 pub(super) fn summary(table: &Timetable, about: &About, overlaps: &[Overlap], shown: Weeks, choice: TownChoice, t: &i18n::Texts) -> Summary {
     let h = &t.studyplan_head;
     let mut parts = Vec::new();
@@ -839,28 +811,6 @@ pub(super) fn summary(table: &Timetable, about: &About, overlaps: &[Overlap], sh
         When::Day(_) => true,
     };
     let mut lines: Vec<Note> = overlaps.iter().filter(shows).filter_map(|overlap| overlap_line(table, about, overlap, t)).collect();
-
-    let mut open = 0;
-    for event in table.blocked.iter().filter_map(|index| table.events.get(*index)) {
-        open += 1;
-        lines.push(Note::warn(blocked_line(event, &about.title_of(event, t), t.locale), event.modules.first().cloned(), first_option_row(event)));
-    }
-    for (index, event) in table.events.iter().enumerate() {
-        if event.hidden.is_some() || !event.unresolved() || table.blocked.contains(&index) {
-            continue;
-        }
-        open += 1;
-        let text = (h.choose)(1, event.visible_options().len(), &kind_word(event, t.locale), &about.title_of(event, t));
-        lines.push(Note::quiet(text, event.modules.first().cloned(), first_option_row(event)));
-    }
-    // The choices among a module's events, blocked ones first.
-    let mut across = across_lines(table, about, t);
-    across.sort_by_key(|note| !note.warn);
-    open += across.len();
-    lines.extend(across);
-    if open > 0 {
-        parts.push((false, (h.choices_open)(open)));
-    }
     let open = table.towns_open();
     if !open.is_empty() && choice == TownChoice::Derive {
         let names: Vec<String> = open.iter().map(|module| about.title(module, t)).collect();
@@ -871,8 +821,8 @@ pub(super) fn summary(table: &Timetable, about: &About, overlaps: &[Overlap], sh
     Summary { parts, lines }
 }
 
-/// The one quiet line under the head, closed until asked: „2 Überschneidungen pro Woche · 3
-/// Wahlen offen · 2 ausgeblendet"; opened, a compact line each, which opens its module beside the
+/// The one quiet line under the head, closed until asked: „2 Überschneidungen pro Woche · 2
+/// ausgeblendet"; opened, a compact line each, which opens its module beside the
 /// plan, and what is hidden with its „Einblenden" (owner, 2026-09-25: not in the sidebar, whose
 /// groups keep their places). In „Woche" it counts the week the A/B switch shows; elsewhere „A/B".
 /// No line with nothing to say.
@@ -1342,27 +1292,19 @@ mod tests {
     }
 
     #[test]
-    fn one_line_counts_the_overlaps_per_week_and_the_open_choices() {
+    fn one_line_counts_the_overlaps_per_week() {
         let (table, about) = first_semester();
         let summary = summary(&table, &about, &[a_week_overlap()], Weeks::All, TownChoice::Derive, &DE);
+        // The choices still open are „Offen"'s, not the line's.
         assert_eq!(
             texts(&summary),
-            (
-                vec![(true, "1 Überschneidung pro Woche"), (false, "2 Wahlen offen")],
-                vec![
-                    (true, "Di 07:30–09:00 · Vorlesung Elektrische und elektronische … × Vorlesung Programmierpraktikum · A-Woche"),
-                    (true, "0 von 4 Terminen frei: Übung · Entwicklung von Softwaresystemen"),
-                    (false, "1 von 3 wählen: Übung · Mathematik IT-1"),
-                ]
-            )
+            (vec![(true, "1 Überschneidung pro Woche")], vec![(true, "Di 07:30–09:00 · Vorlesung Elektrische und elektronische … × Vorlesung Programmierpraktikum · A-Woche")])
         );
-        // An overlap opens the later module at its Termin, a choice its first option.
+        // An overlap opens the later module at its Termin.
         assert_eq!((summary.lines[0].module.as_deref(), summary.lines[0].row), (Some("12102"), Some(RowKey { event: 149408, fp: 2 })));
-        assert_eq!((summary.lines[2].module.as_deref(), summary.lines[2].row), (Some("11112"), Some(RowKey { event: 148304, fp: 20 })));
         // The B week has no overlap: it counts and lists none.
         let b = summary_of(&table, &about, &[a_week_overlap()], Weeks::B);
-        assert_eq!(b.parts.first().map(|(_, text)| text.as_str()), Some("2 Wahlen offen"));
-        assert!(!b.lines.iter().any(|note| note.text.contains('×')));
+        assert!(b.parts.is_empty() && b.lines.is_empty());
         // A single day counts apart, beside a weekly one or alone.
         let day = Overlap { when: When::Day(day("2026-11-03")), ..a_week_overlap() };
         let both = summary_of(&table, &about, &[a_week_overlap(), day.clone()], Weeks::All);
@@ -1375,20 +1317,15 @@ mod tests {
         assert_eq!(
             texts(&english),
             (
-                vec![(true, "1 clash per week"), (true, "1 on single days"), (false, "2 choices open")],
+                vec![(true, "1 clash per week"), (true, "1 on single days")],
                 vec![
                     (true, "Tue 07:30–09:00 · Vorlesung Elektrische und elektronische … × Vorlesung Programmierpraktikum · week A"),
                     (true, "Tue 3 Nov 07:30–09:00 · Vorlesung Elektrische und elektronische … × Vorlesung Programmierpraktikum"),
-                    (true, "0 of 4 sessions free: Übung · Entwicklung von Softwaresystemen"),
-                    (false, "Choose 1 of 3: Übung · Mathematik IT-1"),
                 ]
             )
         );
         // Nothing to say: no line.
-        let mut calm = table.clone();
-        calm.blocked.clear();
-        calm.events.retain(|event| !event.unresolved());
-        assert!(summary_of(&calm, &about, &[], Weeks::All).parts.is_empty());
+        assert!(summary_of(&table, &about, &[], Weeks::All).parts.is_empty());
     }
 
     fn summary_of(table: &Timetable, about: &About, overlaps: &[Overlap], shown: Weeks) -> Summary {
@@ -1468,7 +1405,7 @@ mod tests {
                 event.kinds = kinds_of(Some(type_raw));
             }
         };
-        let blocked = |table: &Timetable| summary_of(table, &about, &[], Weeks::All).lines[0].text.clone();
+        let blocked = |table: &Timetable| blocked_line(&table.events[1], &about.title_of(&table.events[1], &DE), Locale::De);
         // QIS's „Laborausbildung" stands after the colon as QIS writes it, never glued to the
         // Termine („Laborausbildungterminen").
         retype(&mut table, "Laborausbildung");
