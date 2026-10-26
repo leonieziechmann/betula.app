@@ -36,6 +36,8 @@ web-sys = { version = "0.3", optional = true, features = ["Window", "Document", 
 [dev-dependencies]
 # The tests that look a program up in a real snapshot (`FOLIA_TEST_SNAPSHOT`).
 folia-model = { path = "../model", features = ["sqlite"] }
+# The timetable's fixtures, for the Termin's view (`termin.rs`).
+folia-timetable = { path = "../timetable", features = ["fixtures"] }
 
 [lints.clippy]
 unwrap_used = "deny"

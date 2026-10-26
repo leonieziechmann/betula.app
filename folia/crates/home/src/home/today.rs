@@ -19,6 +19,7 @@
 use std::collections::BTreeMap;
 
 use folia_calendar::day::{self, Day};
+use folia_calendar::rowkey::RowKey;
 use folia_calendar::semester::{fachsemester, SemesterKey};
 use folia_model::rows::CatalogRow;
 use folia_pages::ask::{MetaAsk, PlanSourceAsk, StudyModulesAsk, StudyplanAsk, StudyplanModulesAsk};
@@ -30,11 +31,14 @@ use folia_timetable::clash::Weeks;
 use folia_timetable::facts::SemesterFacts;
 use folia_timetable::model::Timetable;
 use folia_timetable::views::AgendaWeek;
+use folia_widgets::termin::{module_facts, ticking_clock, TerminCtx, TerminLinks, TerminMode, TerminView};
 use leptos::prelude::*;
 
 use folia_data::use_ask;
 use folia_design::format;
 use folia_design::ui::Icon;
+use folia_shell::pending::same_page;
+use folia_shell::tabs::Tabs;
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::myprogram::MyProgram;
 use folia_stores::studyplan::Studyplan;
@@ -184,6 +188,7 @@ pub fn TodayView(guest: bool, welcome: RwSignal<Option<Done>>, on_setup: Callbac
     view! {
         <Hero ctx on_setup/>
         <Welcome welcome/>
+        {(!guest).then(|| view! { <TerminOver table data plan/> })}
         {move || {
             let phase = ctx.phase.get();
             let evening = now.get().1 >= 17 * 60;
@@ -271,6 +276,37 @@ fn greeting_text(minute: u16, t: &Texts) -> &'static str {
         Greeting::Evening => t.today.good_evening,
         Greeting::Night => t.today.good_night,
     }
+}
+
+/// The Termin of `entry` in its own view over the start page, on its day: the app's path in the
+/// page's language. `None` for an exam.
+fn termin_href(entry: &Entry, t: &Texts) -> Option<String> {
+    entry.key.map(|key| t.path(&url::home_termin_path(Some((key, Some(entry.day))))))
+}
+
+/// A Termin of the plan in its own view over the start page (`/?termin=<key>&on=<day>`; owner,
+/// 2026-10-26, folia/design/termin): the view that adjusts the plan, as from the Stundenplan,
+/// beside the page where it is wide and a sheet over it on a phone. „Zum Modul" leads to the
+/// module beside the Stundenplan; closing goes back a step where the start page without it is the
+/// step before.
+#[component]
+fn TerminOver(table: Memo<Option<Timetable>>, data: Memo<Option<StudyplanData>>, plan: Option<Studyplan>) -> impl IntoView {
+    let t = i18n::t();
+    let location = i18n::use_location();
+    let asked = Memo::new(move |_| location.search.with(|search| url::home_termin(search)));
+    let shown = Memo::new(move |_| asked.with(Option::is_some));
+    let modules = Memo::new(move |_| data.with(|data| data.as_ref().map(module_facts).unwrap_or_default()));
+    let tabs = Tabs::expect();
+    let close = Signal::derive(move || t.path(url::HOME));
+    let back = Signal::derive(move || {
+        let now = asked.with(|asked| url::home_termin_path(*asked));
+        tabs.is_some_and(|tabs| same_page(&tabs.before(&now), url::HOME)).then_some("history")
+    });
+    let termin = Callback::new(move |(key, on): (RowKey, Option<Day>)| t.path(&url::home_termin_path(Some((key, on)))));
+    let module = Callback::new(move |(id, key): (String, Option<RowKey>)| t.path(&StudyplanUrl::default().with_open(Some(&id), key).path()));
+    let links = TerminLinks { termin, module, close, back };
+    let ctx = TerminCtx { table, asked, modules, mode: TerminMode::Adjust, plan, now: ticking_clock(), links };
+    move || shown.get().then(|| view! { <div class="day-termin"><TerminView ctx/></div> })
 }
 
 /// „Mo 21.12.".
@@ -526,6 +562,11 @@ fn NextCard(ctx: Ctx, on_setup: Callback<()>) -> impl IntoView {
         let phase = ctx.phase.get();
         let focus = focus(ctx);
         let module_link = |entry: &Entry| entry.module.clone().map(|id| t.path(&StudyplanUrl { open: Some(id), ..Default::default() }.path()));
+        // The Termin in its own view over the page, else (an exam) its module beside the plan.
+        let link = |entry: &Entry| match termin_href(entry, t) {
+            Some(href) => Some(view! { <a class="btn sm" href=href data-noscroll="" data-command="">{tt.termin}</a> }),
+            None => module_link(entry).map(|href| view! { <a class="btn sm" href=href data-command="">{tt.module}</a> }),
+        };
         let card = ctx.today.with(|today| {
             if let Some((entry, running)) = &focus {
                 let running = *running;
@@ -545,7 +586,7 @@ fn NextCard(ctx: Ctx, on_setup: Callback<()>) -> impl IntoView {
                         <span class="where"><Icon name="map-pin"/><span>{place}{clash.map(|clash| format!(" · {clash}"))}</span></span>
                         {after.map(|after| view! { <span class="where dim">{(tt.after)(&time(after.from), &short_of(after), after.room.as_deref())}</span> })}
                         <span class="acts">
-                            {module_link(entry).map(|href| view! { <a class="btn sm" href=href data-command="">{tt.module}</a> })}
+                            {link(entry)}
                             <a class="btn sm" href=t.path(url::STUDYPLAN) data-command="">{tt.timetable}</a>
                         </span>
                     </div>
@@ -717,7 +758,7 @@ fn entry_row(entry: &Entry, minute: Option<u16>, others: &Today, t: &Texts) -> i
         _ => None,
     };
     let clash = (entry.firm() && minute.is_some()).then(|| others.at_once(entry).map(|other| format!("{} {}", tt.overlaps, short_of(other)))).flatten();
-    let href = entry.module.clone().map(|id| t.path(&StudyplanUrl { open: Some(id), ..Default::default() }.path())).unwrap_or_else(|| t.path(url::STUDYPLAN));
+    let href = termin_href(entry, t).or_else(|| entry.module.clone().map(|id| t.path(&StudyplanUrl { open: Some(id), ..Default::default() }.path()))).unwrap_or_else(|| t.path(url::STUDYPLAN));
     let state = match entry.state {
         State::Past if minute.is_some() => "past",
         State::Now if minute.is_some() => "now",
@@ -725,7 +766,7 @@ fn entry_row(entry: &Entry, minute: Option<u16>, others: &Today, t: &Texts) -> i
         _ => "",
     };
     view! {
-        <a class=format!("day-ev {state} {}", hue(entry.tone)) class:cancelled=entry.cancelled.is_some() class:open=entry.open href=href>
+        <a class=format!("day-ev {state} {}", hue(entry.tone)) class:cancelled=entry.cancelled.is_some() class:open=entry.open href=href data-noscroll="">
             <span class="day-ev-t num"><b>{time(entry.from)}</b><span>{time(entry.to)}</span></span>
             <span class="day-ev-bar" aria-hidden="true"></span>
             <span class="day-ev-w">
@@ -856,7 +897,14 @@ fn WeekPanel(ctx: Ctx) -> impl IntoView {
                 let (from, to) = (entry.from?, entry.to?);
                 let top = (f64::from(from.clamp(WEEK_FROM, WEEK_TO) - WEEK_FROM) / span * 100.0).clamp(0.0, 100.0);
                 let height = (f64::from(to.clamp(WEEK_FROM, WEEK_TO).saturating_sub(from.clamp(WEEK_FROM, WEEK_TO))) / span * 100.0).max(2.0);
-                Some(view! { <i class=format!("{}{}{}", hue(entry.tone), if entry.open { " open" } else { "" }, if entry.exam { " exam" } else { "" }) style=format!("top:{top:.1}%;height:{height:.1}%")></i> })
+                let class = format!("{}{}{}", hue(entry.tone), if entry.open { " open" } else { "" }, if entry.exam { " exam" } else { "" });
+                let style = format!("top:{top:.1}%;height:{height:.1}%");
+                let said = format!("{} {}–{} · {} · {}", weekday_date(entry.day, t), time(entry.from), time(entry.to), entry.kind, entry.title);
+                // A Termin leads to its own view over the page; an exam is a mark.
+                Some(match termin_href(entry, t) {
+                    Some(href) => view! { <a class=class style=style href=href data-noscroll="" title=said.clone() aria-label=said></a> }.into_any(),
+                    None => view! { <i class=class style=style title=said></i> }.into_any(),
+                })
             }).collect_view();
             view! {
                 <div class="day-wk-d" class:today=on == day>

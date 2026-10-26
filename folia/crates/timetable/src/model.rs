@@ -57,7 +57,7 @@ use crate::facts::SemesterFacts;
 use crate::occur::{self, Every, Occurrences};
 
 /// The group QIS gives a row that belongs to no group.
-const UNNAMED_GROUP: &str = "[unbenannt]";
+pub const UNNAMED_GROUP: &str = "[unbenannt]";
 
 /// Minutes of one SWS: a 90-minute slot every week is 2 SWS.
 const SWS_MINUTES: f64 = 45.0;

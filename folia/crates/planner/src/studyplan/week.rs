@@ -81,6 +81,8 @@ const LEFT_KEY: &str = "betula.studyplan.left";
 const DAYS_ID: &str = "sp-days";
 
 /// The module and the Termin the address puts beside the plan: what a slot or a row is marked by.
+/// The module beside the plan and the Termin its panel points at, or (no module) the Termin in its
+/// own view.
 type Picked = (Option<String>, Option<RowKey>);
 
 /// „Woche": the Regelwoche as a grid that fits the page's height (`WeekGrid`'s `fit`, in
@@ -524,12 +526,10 @@ fn base_of(ctx: PlanCtx) -> Memo<StudyplanUrl> {
 fn picked_of(ctx: PlanCtx) -> Memo<Picked> {
     let going = Pending::expect();
     Memo::new(move |_| {
+        let picked = |url: &StudyplanUrl| (url.open.clone(), url.row.clone().or_else(|| url.termin.clone()));
         let (open, row) = match going.and_then(|going| going.search_on(url::STUDYPLAN)) {
-            Some(search) => {
-                let to = StudyplanUrl::parse(&search);
-                (to.open, to.row)
-            }
-            None => ctx.url.with(|url| (url.open.clone(), url.row.clone())),
+            Some(search) => picked(&StudyplanUrl::parse(&search)),
+            None => ctx.url.with(picked),
         };
         (open, row.as_deref().and_then(RowKey::parse))
     })
@@ -727,10 +727,11 @@ struct DayRow {
 
 impl DayRow {
     /// Whether this is the Termin beside the plan: its module is open and the address points at
-    /// one of its rows.
+    /// one of its rows, or it is in its own view.
     fn is(&self, (open, row): &Picked) -> bool {
         match (open, row) {
             (Some(open), Some(row)) => self.modules.contains(open) && self.keys.contains(row),
+            (None, Some(row)) => self.keys.contains(row),
             _ => false,
         }
     }
@@ -827,7 +828,12 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
     let take = event.across.filter(|alt| alt.open).map_or(1, |alt| alt.take);
     let notes = qualifiers(&item.label, every, item.alt.map(|(options, _)| (take, options)), &table.facts, t);
     let hue = hue(event.tone);
-    let href = base.with_open(Some(module.as_str()), shown.key).path();
+    // A click opens the Termin in its own view, on its next date (owner, 2026-10-26: first what
+    // one wants to know, then what one adjusts); one without a key opens its module.
+    let href = match shown.key {
+        Some(key) => base.with_termin(Some((key, None))).path(),
+        None => base.with_open(Some(module.as_str()), None).path(),
+    };
     let place = rooms(rows.iter().map(|row| &row.date));
 
     // The tooltip says in full what the slot shortens: the kind as QIS names it, the whole time,
@@ -1528,7 +1534,10 @@ fn choice_item(table: &Timetable, base: &StudyplanUrl, e: usize, dates: &[(Day, 
         text,
         small,
         title: title.join(" · "),
-        href: base.with_open(Some(module.as_str()), first.and_then(|row| row.key)).path(),
+        href: match (first.and_then(|row| row.key), dates.first()) {
+            (Some(key), Some((day, _))) => base.with_termin(Some((key, Some(*day)))).path(),
+            (key, _) => base.with_open(Some(module.as_str()), key).path(),
+        },
         warn: false,
     })
 }
@@ -1575,7 +1584,10 @@ fn teaching_item(table: &Timetable, base: &StudyplanUrl, day: Day, item: &Agenda
         text,
         small: small.join(" · "),
         title: title.join(" · "),
-        href: base.with_open(Some(module.as_str()), first.key).path(),
+        href: match first.key {
+            Some(key) => base.with_termin(Some((key, Some(day)))).path(),
+            None => base.with_open(Some(module.as_str()), None).path(),
+        },
         warn: false,
     })
 }
@@ -2075,12 +2087,15 @@ mod tests {
         assert_eq!(slots.get(1).map(|slot| slot.slot.label.as_str()), Some("VL Entwicklung von Softwaresystemen"));
         let lecture = slots.get(1).unwrap();
         let key = table.events.iter().find(|event| event.id == "148701").and_then(|event| event.rows.first()).and_then(|row| row.key).unwrap();
-        assert_eq!(lecture.slot.href.as_deref(), Some(format!("/studyplan?sem=2026W&open=12104&row={}", key.text()).as_str()));
+        // A click opens the Termin in its own view, on its next date.
+        assert_eq!(lecture.slot.href.as_deref(), Some(format!("/studyplan?sem=2026W&termin={}", key.text()).as_str()));
         assert_eq!((lecture.slot.hue, lecture.row.class.as_str()), (Some("t-ice"), "t-ice"));
         assert_eq!((lecture.row.time.as_str(), lecture.row.text.as_str()), ("11:30–13:00", "Vorlesung · Entwicklung von Softwaresystemen"));
         assert_eq!(lecture.slot.title, "Vorlesung · Entwicklung von Softwaresystemen · Di 11:30–13:00 · HG 0.20");
-        // The slot is the one beside the plan when its module is open and the address names it.
+        // The slot is the one beside the plan when its module is open and the address names it, or
+        // when it is in its own view.
         assert!(lecture.row.is(&(Some("12104".into()), Some(key))));
+        assert!(lecture.row.is(&(None, Some(key))) && !lecture.row.is(&(Some("11112".into()), Some(key))));
         assert!(!lecture.row.is(&(Some("12107".into()), Some(key))));
         assert!(!lecture.row.is(&(Some("12104".into()), None)));
         assert!(!slots.first().unwrap().row.is(&(Some("12104".into()), Some(key))));
@@ -2114,7 +2129,7 @@ mod tests {
         assert_eq!((reason_text(HiddenBy::Kinds, event, en), reason_text(HiddenBy::Choice, event, en)), ("“Lecture” hidden".to_string(), "another group chosen".to_string()));
         // The slot keeps the app's path; the grid writes its link under `/en`.
         assert!(lecture.slot.href.as_deref().is_some_and(|href| href.starts_with("/studyplan?")));
-        assert!(linked(&lecture.slot, en).is_some_and(|href| href.starts_with("/en/studyplan?sem=2026W&open=12104&row=")));
+        assert!(linked(&lecture.slot, en).is_some_and(|href| href.starts_with("/en/studyplan?sem=2026W&termin=")));
         assert_eq!(linked(&lecture.slot, &i18n::DE), lecture.slot.href);
 
         // The agenda: the heads of its weeks, a day, the break.
@@ -2398,7 +2413,7 @@ mod tests {
         let (when, first) = items.first().unwrap();
         assert_eq!((when.as_str(), first.time.as_str(), first.text.as_str()), ("Di 06.10.", "11:30–13:00", "Vorlesung · Entwicklung von Softwaresystemen"));
         assert_eq!((first.class.as_str(), first.small.as_str()), ("t-ice", "HG 0.20"));
-        assert!(first.href.starts_with("/studyplan?sem=2026W&open=12104&row=148701-"), "{}", first.href);
+        assert!(first.href.starts_with("/studyplan?sem=2026W&termin=148701-") && first.href.ends_with("&on=2026-10-06"), "{}", first.href);
         let (_, gone) = items.iter().find(|(when, _)| when == "Di 13.10.").unwrap();
         assert_eq!((gone.class.as_str(), gone.small.as_str()), ("t-ice cancelled", "fällt aus · Projektwoche"));
         let (_, moved) = items.iter().find(|(when, _)| when == "Di 19.01.").unwrap();
@@ -2617,7 +2632,7 @@ mod tests {
         // A cancelled option is no day to attend: the line stands on the next.
         assert_eq!(week("kw-2026-42"), [line("Mi 14.10.", "", "1 von 4 (Mi, Do, Fr)")]);
         let (_, first) = agenda_items(&blocks).into_iter().next().unwrap();
-        assert!(first.href.starts_with("/studyplan?sem=2026W&open=12104&row=148370-"), "{}", first.href);
+        assert!(first.href.starts_with("/studyplan?sem=2026W&termin=148370-") && first.href.ends_with("&on=2026-10-05"), "{}", first.href);
         assert!(first.class.ends_with(" alt") && first.title.contains("Mo 11:30–13:00 · Mi 11:30–13:00"), "{first:?}");
 
         // Today keeps its line (review 2026-09-25): its options stand as they are, and on the day

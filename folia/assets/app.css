@@ -3560,6 +3560,175 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .sp-rowline .fit { align-self: center; padding: 0 6px; border-radius: 5px; font-size: 11px; font-weight: 650; white-space: nowrap; }
 .sp-rowline .fit.ok { background: var(--accent-soft); color: var(--accent-ink); }
 .sp-rowline .fit.no { background: var(--no-soft, var(--panel-2)); color: var(--no); }
+/* A Termin in its own view (folia/crates/widgets/src/termin.rs; folia/design/termin, the fourth
+   round): the module's chip in its tint, the ticket (the date with its arrows, where it stands, the
+   time and the room), who leads it and what is said of it, „Im Stundenplan" with the groups to
+   tick, then what one looks up. Everything is scoped: its short class names are the concept's. */
+.is-termin .tm-bar { gap: 8px; }
+.is-termin .tm-mod { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 6px; background: color-mix(in oklch, var(--tint) 15%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint) 45%, transparent); color: var(--text); font: 600 11.5px/1 var(--mono); white-space: nowrap; }
+.is-termin .tm-mod > i { width: 8px; height: 8px; border-radius: 50%; background: var(--tint); }
+.is-termin .tm-kind { min-width: 0; margin-right: auto; color: var(--text-2); font-size: 13.5px; font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.detail.aside.is-termin .hero h2.tm-title { margin: 6px 0 0; font-size: 20px; line-height: 1.22; letter-spacing: -.02em; }
+.is-termin .dbody.tm { container-type: inline-size; display: flex; flex-direction: column; gap: 16px; padding-top: 16px; }
+.is-termin .tk { position: relative; container-type: inline-size; border-radius: 14px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.is-termin .tk-date { display: flex; align-items: center; gap: 2px; min-height: 40px; padding: 6px 10px 0 6px; }
+.is-termin .tk-date > b { padding: 0 4px; font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.is-termin .pg { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; color: var(--text-2); }
+.is-termin a.pg:hover { background: var(--row-hover); color: var(--text); text-decoration: none; }
+.is-termin span.pg { opacity: .28; }
+.is-termin .pg .icon { width: 17px; height: 17px; }
+.is-termin .pill { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 12px; background: var(--panel-3); color: var(--text-2); font-size: 12px; font-weight: 650; white-space: nowrap; }
+.is-termin .pill.soon { background: var(--accent-soft); color: var(--accent-ink); }
+.is-termin .pill.live { background: var(--accent); color: var(--on-accent); }
+.is-termin .pill.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.is-termin .pill.no { background: var(--no-soft, var(--panel-3)); color: var(--no); }
+.is-termin .abg { display: inline-flex; margin-left: 6px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--line-strong); overflow: hidden; }
+.is-termin .abg > i { width: 18px; height: 18px; display: grid; place-items: center; color: var(--text-3); font: 700 10.5px/1 var(--font); font-style: normal; }
+.is-termin .abg > i.on { background: var(--invert); color: var(--on-invert); }
+.is-termin .tk-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
+.is-termin .tk-main > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 4px 16px 15px; }
+.is-termin .tk-room { box-shadow: inset 1px 0 0 var(--line-strong); }
+.is-termin .tk-time > b { font-size: 34px; line-height: 1.04; font-weight: 760; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+.is-termin .tk-time > b.unclear { font-size: 17px; line-height: 1.3; font-weight: 650; letter-spacing: 0; color: var(--text-2); }
+.is-termin .tk-main small { color: var(--text-2); font-size: 12.5px; line-height: 1.35; }
+.is-termin .plate { font: 700 24px/1.2 var(--mono); letter-spacing: -.02em; overflow-wrap: anywhere; }
+.is-termin .plate.none { font: 600 15px/1.3 var(--font); letter-spacing: 0; color: var(--text-2); }
+.is-termin .plate .sl { color: var(--text-3); font-weight: 400; }
+.is-termin .tk.note .tk-room { background: var(--warn-soft); }
+.is-termin .tk.cancel .tk-time > b, .is-termin .tk.off .tk-time > b { color: var(--text-3); text-decoration: line-through; text-decoration-thickness: 3px; }
+.is-termin .tk.cancel .plate, .is-termin .tk.off .plate { color: var(--text-3); }
+.is-termin .tk.past { opacity: .62; }
+.is-termin .tk-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--line); }
+.is-termin .tk-prog > i { display: block; height: 100%; background: var(--accent); }
+@container (max-width: 300px) {
+  .is-termin .tk-main { grid-template-columns: minmax(0, 1fr); }
+  .is-termin .tk-room { box-shadow: inset 0 1px 0 var(--line-strong); padding-top: 10px !important; }
+  .is-termin .tk-time > b { font-size: 30px; }
+  .is-termin .plate { font-size: 21px; }
+}
+.is-termin .who { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: center; }
+.is-termin .who .av { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
+.is-termin .who .av .icon { width: 17px; height: 17px; }
+.is-termin .who b { display: block; font-size: 14.5px; font-weight: 650; line-height: 1.25; }
+.is-termin .who small { display: block; color: var(--text-2); font-size: 12.5px; line-height: 1.3; }
+.is-termin .who.sm { grid-template-columns: 28px minmax(0, 1fr); }
+.is-termin .who.sm .av { width: 28px; height: 28px; }
+.is-termin .who.sm .av .icon { width: 14px; height: 14px; }
+.is-termin .who.sm b { font-size: 13.5px; }
+.is-termin .tm-hint { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; margin: -6px 0 0; color: var(--text-2); font-size: 13px; line-height: 1.4; }
+.is-termin .tm-hint > .icon { width: 15px; height: 15px; margin-top: 2px; color: var(--text-3); }
+.is-termin .tm-hint.no, .is-termin .tm-hint.no > .icon { color: var(--no); }
+.is-termin .tm-sec { display: flex; flex-direction: column; gap: 10px; }
+.is-termin .tm-sec > h4 { display: flex; align-items: center; gap: 8px; min-height: 22px; margin: 0; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.is-termin .tm-sec > h4 .r { margin-left: auto; color: var(--text-2); font-size: 12.5px; font-weight: 600; letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
+.is-termin .tm-sec.cal { gap: 12px; padding: 14px; border-radius: 14px; background: color-mix(in oklch, var(--accent) 5%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 22%, var(--line)); }
+.is-termin .tm-more { position: relative; display: flex; flex-direction: column; gap: 22px; padding-top: 18px; border-top: 1px dashed var(--line-strong); }
+/* The groups: a fixed grid of at most three columns (owner, 2026-10-26: „ein festes raster z.B. 3
+   Termine pro row"); in the Stundenplan each a box to tick, as many as one likes. */
+.is-termin .grp { display: flex; flex-direction: column; gap: 6px; }
+.is-termin .grp-h { display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 650; }
+.is-termin .grp-h .r { margin-left: auto; color: var(--text-2); font-size: 12.5px; font-weight: 600; }
+.is-termin .grp-seg { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 8px 4px; margin-top: 2px; padding: 4px; border-radius: 11px; background: var(--panel-3); }
+.is-termin .gs { position: relative; display: flex; flex-direction: column; align-items: flex-start; min-width: 0; padding: 7px 9px; border-radius: 8px; background: transparent; color: var(--text); text-align: left; text-decoration: none; }
+.is-termin .gs:hover { background: color-mix(in oklch, var(--panel) 60%, transparent); text-decoration: none; }
+.is-termin .gs > b { font-size: 13px; font-weight: 680; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.is-termin .gs > small { max-width: 100%; color: var(--text-3); font: 500 11px/1.4 var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.is-termin .gs > small.nm { font: 600 11px/1.4 var(--font); }
+.is-termin .gs.this { background: var(--panel); box-shadow: 0 1px 2px rgba(15, 23, 42, .1), inset 0 0 0 1px var(--line); }
+.is-termin .gs.on { background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.is-termin .gs.pick:not(.on) > b { color: var(--text-2); }
+.is-termin .gs .st { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; vertical-align: 2px; }
+.is-termin .gs .st.no { background: var(--no); }
+.is-termin .gs .st.ok { background: var(--ok); }
+.is-termin .gs > .ck, .is-termin .esl > .ck { position: absolute; top: -6px; right: -5px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 2px var(--panel-3); }
+.is-termin .esl > .ck { background: var(--tint); color: var(--panel); box-shadow: 0 0 0 2px var(--panel); }
+.is-termin .gs > .ck .icon, .is-termin .esl > .ck .icon { width: 11px; height: 11px; stroke-width: 3; }
+.is-termin .gs > .cb { position: absolute; top: -6px; right: -5px; width: 18px; height: 18px; border-radius: 50%; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--line-strong), 0 0 0 2px var(--panel-3); }
+.is-termin .gs.pick:hover > .cb { box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 2px var(--panel-3); }
+.is-termin .gs.more { align-items: center; justify-content: center; text-align: center; }
+.is-termin .gs.more > b { display: grid; place-items: center; font-size: 14px; }
+.is-termin .gs.more .icon.up { width: 16px; height: 16px; transform: rotate(180deg); }
+.is-termin .gs.more > small { font: 600 11px var(--font); }
+.is-termin .grp-n { margin: 0; color: var(--text-3); font-size: 12px; line-height: 1.4; }
+.is-termin .crow { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.is-termin .crow .ci { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
+.is-termin .crow .ci .icon { width: 16px; height: 16px; }
+.is-termin .crow b { display: block; font-size: 13.5px; font-weight: 650; line-height: 1.3; }
+.is-termin .crow small { display: block; color: var(--text-3); font-size: 12px; line-height: 1.3; }
+.is-termin .tg { position: relative; flex: none; width: 44px; height: 26px; padding: 0; border-radius: 13px; background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.is-termin .tg > i { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--panel); box-shadow: 0 1px 2px rgb(0 0 0 / .25); transition: left .18s; }
+.is-termin .tg.on { background: var(--accent); box-shadow: none; }
+.is-termin .tg.on > i { left: 21px; }
+.is-termin .sw { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 13px; font-weight: 620; white-space: nowrap; }
+.is-termin .sw:hover { background: var(--row-hover); }
+.is-termin .sw[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+/* „Der Tag": a ribbon from 7 to 19, this Termin filled in its tint. */
+.is-termin .rib { position: relative; height: 36px; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.is-termin .rb { position: absolute; display: flex; align-items: center; padding: 0 6px; border-radius: 6px; background: color-mix(in oklch, var(--tint) 24%, var(--panel)); box-shadow: inset 2px 0 0 var(--tint); color: var(--text); font: 650 10.5px/1 var(--mono); white-space: nowrap; overflow: hidden; text-decoration: none; }
+.is-termin a.rb:hover { background: color-mix(in oklch, var(--tint) 36%, var(--panel)); text-decoration: none; }
+.is-termin .rb.open { background: transparent; box-shadow: none; outline: 1px dashed var(--tint); outline-offset: -1px; }
+.is-termin .rb.me { background: var(--tint); color: var(--panel); box-shadow: none; outline: 0; }
+.is-termin .rb.gone { opacity: .45; text-decoration: line-through; }
+.is-termin .rt { position: relative; height: 14px; margin-top: -4px; }
+.is-termin .rt > span { position: absolute; translate: -50% 0; color: var(--text-3); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.is-termin .nx { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin: 0; color: var(--text-2); font-size: 13px; }
+.is-termin .nx > .icon { width: 15px; height: 15px; color: var(--text-3); }
+.is-termin .nx .w { margin-left: auto; color: var(--text-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* „Reihe": a dot per date. */
+.is-termin .sdots { display: flex; flex-wrap: wrap; gap: 8px 5px; align-items: center; padding-top: 6px; }
+.is-termin .sd { position: relative; flex: none; width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
+.is-termin a.sd:hover { box-shadow: inset 0 0 0 1.5px var(--text-2); }
+.is-termin .sd.past { background: color-mix(in oklch, var(--text) 26%, var(--panel)); box-shadow: none; }
+.is-termin .sd.note { background: var(--warn); box-shadow: none; }
+.is-termin .sd.hid { box-shadow: inset 0 0 0 1.5px var(--text-3); background: repeating-linear-gradient(135deg, var(--line-strong) 0 2px, transparent 2px 4px); }
+.is-termin .sd.cancel { box-shadow: inset 0 0 0 1.5px var(--no); }
+.is-termin .sd.cancel::after { content: ""; position: absolute; left: 1px; right: 1px; top: 6.25px; height: 1.5px; background: var(--no); transform: rotate(-45deg); }
+.is-termin .sd.off { height: 4px; border-radius: 2px; background: var(--line-strong); box-shadow: none; }
+.is-termin .sd.today::before { content: ""; position: absolute; left: 50%; top: -8px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--accent); }
+.is-termin .sd.sel { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--text); }
+.is-termin .sd.sel:not(.past):not(.note):not(.cancel):not(.hid) { background: var(--text); }
+.is-termin .mrow { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto 14px; gap: 12px; align-items: center; width: 100%; padding: 9px 10px; border-radius: 11px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); text-align: left; text-decoration: none; }
+.is-termin a.mrow:hover { background: var(--row-hover); text-decoration: none; }
+.is-termin .mrow.plain { grid-template-columns: 36px minmax(0, 1fr) auto; }
+.is-termin .mrow .ico { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
+.is-termin .mrow .ico .icon { width: 17px; height: 17px; }
+.is-termin .mrow b { display: block; font-size: 13.5px; font-weight: 650; line-height: 1.3; }
+.is-termin .mrow small { display: block; color: var(--text-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.is-termin .mrow .v { color: var(--text-2); font-size: 13px; font-weight: 650; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.is-termin .mrow > .icon { width: 14px; height: 14px; color: var(--text-3); }
+/* „Alle Veranstaltungen": each event's Termine three to a row. */
+.is-termin .evs { display: flex; flex-direction: column; gap: 12px; }
+.is-termin .evr { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 10px; align-items: start; }
+.is-termin .evh b { display: block; font-size: 13px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
+.is-termin .evh small { display: block; color: var(--text-3); font-size: 11.5px; }
+.is-termin .esls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.is-termin .esl { position: relative; display: flex; min-width: 0; flex-direction: column; align-items: flex-start; padding: 5px 10px; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); text-align: left; text-decoration: none; }
+.is-termin a.esl:hover { background: var(--row-hover); text-decoration: none; }
+.is-termin .esl > b { font-size: 12.5px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.is-termin .esl > small { max-width: 100%; color: var(--text-3); font: 500 11px/1.4 var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.is-termin .esl.me { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.is-termin .esl.me > small { color: color-mix(in srgb, var(--on-invert) 70%, transparent); }
+.is-termin .esl.more { align-items: center; justify-content: center; }
+.is-termin .esl.more > small { font-family: var(--font); }
+@container (max-width: 340px) { .is-termin .evr { grid-template-columns: minmax(0, 1fr); } }
+.is-termin .ppl { display: flex; flex-direction: column; gap: 8px; }
+.is-termin .rng { margin: 0; color: var(--text-2); font-size: 13px; line-height: 1.45; }
+.is-termin .exl2 { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.is-termin .exl2 > li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; color: var(--text-2); font-size: 13px; }
+.is-termin .exl2 b { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
+.is-termin .exl2 > li.note b { color: var(--warn); }
+.is-termin .exl2 > li.cancel b { color: var(--no); }
+.is-termin .tm-src { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 12px; line-height: 1.5; }
+.is-termin .tm-src > span + span::before { content: "·"; margin-right: 6px; color: var(--text-3); }
+.is-termin .tm-src a { display: inline-flex; align-items: center; gap: 2px; color: var(--text-2); font-weight: 600; }
+.is-termin .tm-src a .icon { width: 13px; height: 13px; }
+/* Over the start page (`TerminOver`, home/today.rs): on a wide screen it floats at the right edge
+   of the content area, as a module beside a list does; on a phone it is the sheet every module is
+   (`.detail.is-module`). */
+@media (min-width: 901px) {
+  .day-termin > .detail.is-termin { position: fixed; z-index: 30; top: calc(40px + 2 * var(--gap)); right: var(--gap); bottom: var(--gap); width: clamp(360px, 34vw, 480px); box-shadow: var(--shadow-pop); animation: preview-in .18s var(--ease); }
+  .day-termin > .detail.is-termin > .scroll { flex: 1 1 auto; min-height: 0; }
+}
 /* The eye: hide or show an event, a Termin, a sitting (aria-pressed: hidden). */
 .eye { --hit: 3px; flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: var(--r-s); color: var(--text-3); transition: background .12s, color .12s; }
 .eye:hover { background: var(--panel-3); color: var(--text); }
@@ -5914,9 +6083,11 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .day-wk-d.today > span { color: var(--accent-ink); }
 .day-wk-col { position: relative; height: 92px; overflow: hidden; border-radius: 7px; background: var(--panel-2); }
 .day-wk-d.today .day-wk-col { box-shadow: inset 0 0 0 1.5px var(--accent); }
-.day-wk-col i { position: absolute; left: 3px; right: 3px; border-radius: 3px; background: var(--tint); opacity: .85; }
-.day-wk-col i.open { opacity: .35; }
-.day-wk-col i.exam { background: repeating-linear-gradient(135deg, var(--tint) 0 3px, transparent 3px 6px); }
+.day-wk-col > :is(i, a) { position: absolute; left: 3px; right: 3px; border-radius: 3px; background: var(--tint); opacity: .85; }
+/* A Termin's bar opens it over the page (`TerminOver`). */
+.day-wk-col > a:hover { opacity: 1; box-shadow: 0 0 0 1.5px var(--panel), 0 0 0 3px var(--tint); }
+.day-wk-col > :is(i, a).open { opacity: .35; }
+.day-wk-col > :is(i, a).exam { background: repeating-linear-gradient(135deg, var(--tint) 0 3px, transparent 3px 6px); }
 .day-exl, .day-bml { display: grid; gap: 2px; padding: 2px 8px 10px; }
 .day-ex { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 8px; border-radius: var(--r-row); color: var(--text); text-decoration: none; }
 .day-ex:hover, .day-bm:hover { background: var(--row-hover); text-decoration: none; }

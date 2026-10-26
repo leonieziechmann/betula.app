@@ -3,6 +3,7 @@
 
 pub mod catalog;
 pub mod module;
+pub mod termin;
 pub mod week;
 
 pub use folia_design::i18n::{app_path, locale, of_address, use_location, Locale};
@@ -18,6 +19,7 @@ folia_design::texts! {
     planner = folia_stores::i18n::planner,
     plans_data = folia_plans::i18n,
     seo = folia_shell::i18n::seo,
+    termin = crate::i18n::termin,
     timetable_data = folia_timetable::i18n,
     ui = folia_design::i18n::ui,
     week = crate::i18n::week,
