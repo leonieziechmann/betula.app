@@ -9,6 +9,13 @@ pub struct Texts {
     pub panel: &'static str,
     /// The tooltip of „Schließen".
     pub close_title: &'static str,
+    /// „Teilen" and its tooltip: the link to the Termin's own page (`/event/<key>/<day>`), to the
+    /// device's share sheet on a touch screen, else copied.
+    pub share: &'static str,
+    pub share_title: &'static str,
+    /// „Ganze Seite" (V) and its tooltip: the Termin filling the page it stood beside.
+    pub full: &'static str,
+    pub full_title: &'static str,
     /// The arrows beside the date: „Voriger Termin", „Nächster Termin".
     pub earlier: &'static str,
     pub later: &'static str,
@@ -152,6 +159,10 @@ pub struct Texts {
 pub const DE: Texts = Texts {
     panel: "Termin",
     close_title: "Termin schließen",
+    share: "Teilen",
+    share_title: "Den Link zu diesem Termin teilen",
+    full: "Ganze Seite",
+    full_title: "Den Termin als ganze Seite zeigen",
     earlier: "Voriger Termin",
     later: "Nächster Termin",
     week_of: |week| format!("{week}-Woche"),
@@ -267,6 +278,10 @@ pub const DE: Texts = Texts {
 pub const EN: Texts = Texts {
     panel: "Session",
     close_title: "Close the session",
+    share: "Share",
+    share_title: "Share the link to this session",
+    full: "Full page",
+    full_title: "Show the session as a full page",
     earlier: "Previous date",
     later: "Next date",
     week_of: |week| format!("{week} week"),

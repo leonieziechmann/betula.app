@@ -73,7 +73,7 @@ use self::head::{marked_offered, DerivedLine, ExamAlerts, FromBookmarks, Nothing
 use self::modules::ModuleList;
 use self::open::{FocusBar, OpenLine, OpenPanel, PickSheet};
 use self::side::PlanSidebar;
-use self::termin::PlanTerminPanel;
+use self::termin::{PlanTerminFull, PlanTerminPanel};
 use self::week::{DatesView, WeekLoose, WeekView};
 
 /// When a module is planned, for „Mein Studium" as for the import here.
@@ -251,8 +251,9 @@ pub fn StudyplanPage() -> impl IntoView {
     });
 
     // What fills the page: the plan, or the module after „Vollbild" (until then the plan's panel of
-    // it stands beside the plan, on a phone a sheet over it).
+    // it stands beside the plan, on a phone a sheet over it), or a Termin after „Ganze Seite".
     let filling = Memo::new(move |_| address.with(folia_routes::local::filling));
+    let termin_full = Memo::new(move |_| address.with(PlanAddress::termin_full));
     let empty = Memo::new(move |_| plan.is_none_or(Studyplan::is_empty));
 
     // The module beside the plan, and a pick on its way there (`pending`): the panel follows the
@@ -287,6 +288,9 @@ pub fn StudyplanPage() -> impl IntoView {
     };
 
     let page = move || {
+        if termin_full.get() {
+            return view! { <PlanTerminFull ctx/> }.into_any();
+        }
         if let Some(id) = filling.get() {
             let back = address.with_untracked(folia_routes::local::back_href);
             return view! { <ModuleInPlace id area=Area::Studyplan back/> }.into_any();

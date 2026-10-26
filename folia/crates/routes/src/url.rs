@@ -133,6 +133,18 @@ pub fn home_termin_path(termin: Option<(RowKey, Option<Day>)>) -> String {
     }
 }
 
+/// The Termin over the start page fills the page („Ganze Seite", `&full=1`; folia/design/termin):
+/// `full=1` with a Termin (`home_termin`), nothing else.
+pub fn home_termin_full(raw_query: &str) -> bool {
+    let pairs = parse_pairs(raw_query);
+    home_termin(raw_query).is_some() && first_value(&pairs, "full").as_deref() == Some("1")
+}
+
+/// `/?termin=…&on=…&full=1`, the start page filled with the Termin („Ganze Seite").
+pub fn home_termin_full_path(key: RowKey, on: Option<Day>) -> String {
+    format!("{}&full=1", home_termin_path(Some((key, on))))
+}
+
 pub fn module_path(id: &str) -> String {
     format!("/catalog/module/{}", encode(id))
 }
@@ -1723,28 +1735,44 @@ pub fn decode(text: &str) -> String {
 /// Studienplan's area (tab, history and „Zurück" stay the plan's, the catalog's tab never hears of
 /// it). What stands beside the plan is the plan's own panel of the module (its Termine and what is
 /// chosen of them), not the module's preview: on a phone a sheet over the plan, and only `full`
-/// fills the page with the module. `StudyplanUrl` says the rest; `full` is written last.
+/// fills the page with the module. A Termin in its own view (`termin`) fills it the same way
+/// („Ganze Seite", folia/design/termin): the view that adjusts the plan, as a page of two
+/// columns. `StudyplanUrl` says the rest; `full` is written last.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PlanAddress {
     pub url: StudyplanUrl,
-    /// The module of `open` fills the page. Nothing without `open`.
+    /// The module of `open`, or the Termin of `termin`, fills the page. Nothing without either.
     pub full: bool,
 }
 
 impl PlanAddress {
-    /// Tolerant like every address: `full` only as `full=1` and only with a module in `open`.
+    /// Tolerant like every address: `full` only as `full=1` and only with a module in `open` or a
+    /// Termin in `termin`.
     pub fn parse(raw_query: &str) -> Self {
         let url = StudyplanUrl::parse(raw_query);
-        let (_, full) = local_from_pairs(&parse_pairs(raw_query));
-        Self { full: full && url.open.is_some(), url }
+        let pairs = parse_pairs(raw_query);
+        let (_, module) = local_from_pairs(&pairs);
+        let termin = url.termin.is_some() && first_value(&pairs, "full").as_deref() == Some("1");
+        Self { full: (module && url.open.is_some()) || termin, url }
     }
 
     pub fn path(&self) -> String {
         let path = self.url.path();
-        match (self.full, &self.url.open) {
-            (true, Some(_)) => format!("{path}&full=1"),
-            _ => path,
+        match self.full && (self.url.open.is_some() || self.url.termin.is_some()) {
+            true => format!("{path}&full=1"),
+            false => path,
         }
+    }
+
+    /// The Termin in its own view fills the page („Ganze Seite").
+    pub fn termin_full(&self) -> bool {
+        self.full && self.url.termin.is_some()
+    }
+
+    /// The plan with this Termin in its own view: beside it, or (`full`) filling the page.
+    pub fn with_termin(&self, termin: Option<(RowKey, Option<Day>)>, full: bool) -> Self {
+        let url = self.url.with_termin(termin);
+        Self { full: full && url.termin.is_some(), url }
     }
 }
 
@@ -1976,6 +2004,11 @@ mod tests {
         assert_eq!(home_termin_path(Some((key, Day::parse("2026-11-04")))), "/?termin=148369-aaf38&on=2026-11-04");
         assert_eq!(home_termin_path(Some((key, None))), "/?termin=148369-aaf38");
         assert_eq!(home_termin_path(None), "/");
+        // „Ganze Seite": the start page filled with it; `full` is nothing without a Termin.
+        let full = home_termin_full_path(key, Day::parse("2026-11-04"));
+        assert_eq!(full, "/?termin=148369-aaf38&on=2026-11-04&full=1");
+        assert!(home_termin_full(full.trim_start_matches("/?")));
+        assert!(!home_termin_full("termin=148369-aaf38&on=2026-11-04") && !home_termin_full("full=1") && !home_termin_full("termin=148369-aaf38&full=yes"));
     }
 
     /// A Termin in its own view (folia/design/termin): its key and day, in the module's place.
@@ -2343,5 +2376,13 @@ mod tests {
         assert_eq!(crate::local::filling(&full).as_deref(), Some("12104"));
         assert_eq!(crate::local::filling(&beside), None);
         assert_eq!(crate::local::back_href(&full), "/studyplan?sem=2026W&open=12104&row=148369-aaf38");
+        // „Ganze Seite" of a Termin in its own view: the plan filled with it, no module there.
+        let key = RowKey::parse("148369-aaf38").unwrap();
+        let termin = PlanAddress::parse("sem=2026W").with_termin(Some((key, Day::parse("2026-11-04"))), true);
+        assert_eq!(termin.path(), "/studyplan?sem=2026W&termin=148369-aaf38&on=2026-11-04&full=1");
+        assert_eq!(PlanAddress::parse("sem=2026W&termin=148369-aaf38&on=2026-11-04&full=1"), termin);
+        assert!(termin.termin_full() && crate::local::filling(&termin).is_none() && !full.termin_full());
+        assert_eq!(termin.with_termin(Some((key, None)), false).path(), "/studyplan?sem=2026W&termin=148369-aaf38");
+        assert!(!PlanAddress::parse("termin=148369-aaf38&full=yes").full);
     }
 }

@@ -15,7 +15,12 @@
 // - Esc closes it; „Zum Modul" opens the module beside the plan, pointing at the Termin.
 // - The start page: a Termin of its day opens over the page (`/?termin=…&on=…`), and closing it
 //   goes back to the page.
-// - A phone: the view is a sheet over the plan.
+// - „Teilen" copies the Termin's own page (`/event/<key>/<day>`; a wide screen has no share sheet)
+//   and says „Link kopiert"; V lets the Termin fill the plan's page („Ganze Seite", `&full=1`) in
+//   two columns, still the view that adjusts, its next date the whole page too, and Esc brings it
+//   back beside the plan on that day. Over the start page „Ganze Seite" fills the start page, and
+//   „Zurück" brings it back over the page.
+// - A phone: the view is a sheet over the plan, with „Teilen" and without „Ganze Seite".
 // - The Termin's own page to look up (`/event/<key>`): from a line of the Praktikum's module page, in
 //   the plan, its groups measured against it, „Anpassen ›" into the Stundenplan of its semester;
 //   Back leaves it. Enterprise Ressource Planning's exercise (12612, outside the plan): „nicht im
@@ -50,6 +55,8 @@ const open = async (path, viewport = { width: 1500, height: 1000 }) => {
   await page.evaluate(() => { window.__marker = 1; });
   return { page, context };
 };
+// The Praktikum's Termin as „Termine" leads to it (the Stundenplan's part finds it).
+let praktikum = "";
 const until = async (page, name, fn, arg) => {
   try {
     await page.waitForFunction(fn, arg, { timeout: 10000 });
@@ -94,6 +101,7 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   const href = await first.evaluate(() => document.querySelector(".sp-body [href*='termin=148370-']")?.getAttribute("href") ?? "");
   const key = new URLSearchParams(href.split("?")[1] ?? "").get("termin") ?? "";
   check(key.startsWith("148370-"), `a line of the Praktikum leads to its Termin: „${href}"`);
+  praktikum = key;
   await weekly.close();
   const { page, context } = await open(`/studyplan?termin=${key}`);
   await until(page, "the Termin beside the plan", () => Boolean(onPage("#preview.is-termin .tk")));
@@ -165,6 +173,52 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   await context.close();
 }
 
+// ---------- „Teilen" and „Ganze Seite" ----------
+{
+  const { page, context } = await open(`/studyplan?termin=${praktikum}&on=2026-11-02`);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: base });
+  await until(page, "the Termin beside the plan", () => Boolean(onPage("#preview.is-termin .tk")));
+  const full = await page.evaluate(() => onPage("#preview.is-termin .tm-full")?.getAttribute("href") ?? "");
+  check(full === `/studyplan?termin=${praktikum}&on=2026-11-02&full=1`, `„Ganze Seite": „${full}"`);
+  // „Teilen": the Termin's own page on the day shown, copied, and said so.
+  await page.click("#preview.is-termin .tm-share");
+  await until(page, '„Link kopiert"', () => onPage("#preview.is-termin .tm-share")?.textContent.includes("Link kopiert"));
+  const copied = await page.evaluate(() => navigator.clipboard.readText()).catch((error) => String(error));
+  check(copied === `${base}/event/${praktikum}/2026-11-02`, `„Teilen" copies the Termin's page: „${copied}"`);
+  // V: the Termin fills the plan's page, in two columns, „Im Stundenplan" still there.
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press("v");
+  await until(page, "the Termin filling the page", (href) => location.pathname + location.search === href && Boolean(onPage(".is-termin.tm-filling .tk")), full);
+  const columns = await page.evaluate(() => {
+    const body = onPage(".is-termin.tm-filling .dbody.tm");
+    return { columns: body ? getComputedStyle(body).gridTemplateColumns.split(" ").length : 0, adjust: Boolean(body?.querySelector(".tm-sec.cal .gs.pick")), back: onPage(".is-termin.tm-filling .hero-top > a.at-head")?.getAttribute("href") ?? "" };
+  });
+  check(columns.columns === 2 && columns.adjust && columns.back === `/studyplan?termin=${praktikum}&on=2026-11-02`, `the whole page: ${JSON.stringify(columns)}`);
+  if (shots) await page.screenshot({ path: `${shots}/termin-full.png` });
+  // The next date: still the whole page; Esc: beside the plan again, on that day.
+  await page.click(".is-termin.tm-filling .tk-date a.pg >> nth=-1");
+  await until(page, "the next date, filling the page", () => /[?&]on=2026-11-09/.test(location.search) && /[?&]full=1/.test(location.search) && Boolean(onPage(".is-termin.tm-filling .tk")));
+  await page.keyboard.press("Escape");
+  await until(page, "Esc: beside the plan again", () => !/full=/.test(location.search) && /[?&]on=2026-11-09/.test(location.search) && Boolean(onPage("#preview.is-termin .tk")));
+  check(await page.evaluate(() => window.__marker === 1), "the Stundenplan was loaded again");
+  await context.close();
+}
+{
+  // Over the start page: „Ganze Seite" fills it, „Zurück" brings the Termin back over it.
+  const { page, context } = await open("/");
+  await until(page, "a Termin of the day", () => Boolean(onPage(".day-ev[href*='termin='], .day-wk-col a[href*='termin=']")));
+  const href = await page.evaluate(() => onPage(".day-ev[href*='termin=']")?.getAttribute("href") ?? onPage(".day-wk-col a[href*='termin=']")?.getAttribute("href") ?? "");
+  await page.click(`[href="${href}"] >> visible=true`);
+  await until(page, "the Termin over the start page", () => Boolean(onPage(".day-termin #preview.is-termin .tk")));
+  await page.click(".day-termin .tm-full");
+  await until(page, "the start page filled", () => /[?&]full=1/.test(location.search) && Boolean(onPage(".day-termin.filling .is-termin.tm-filling .tk")) && !onPage(".day-hero")?.offsetParent);
+  if (shots) await page.screenshot({ path: `${shots}/termin-home-full.png` });
+  await page.click(".day-termin.filling .hero-top > a.at-head");
+  await until(page, "the Termin over the start page again", (href) => location.pathname + location.search === href && Boolean(onPage(".day-termin #preview.is-termin .tk")) && Boolean(onPage(".day-hero")?.offsetParent), href);
+  check(await page.evaluate(() => window.__marker === 1), "the start page was loaded again");
+  await context.close();
+}
+
 // ---------- a phone ----------
 {
   const { page, context } = await open("/studyplan", { width: 390, height: 844 });
@@ -181,6 +235,9 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
     const sheet = onPage("#preview.is-termin");
     return Boolean(sheet) && getComputedStyle(sheet).position === "fixed";
   });
+  // „Teilen" there; „Ganze Seite" not: all up the sheet is the whole screen already.
+  const tools = await page.evaluate(() => ({ share: Boolean(onPage("#preview.is-termin .tm-share")?.getClientRects().length), full: Boolean(onPage("#preview.is-termin .tm-full")?.getClientRects().length) }));
+  check(tools.share && !tools.full, `the sheet's head: ${JSON.stringify(tools)}`);
   if (shots) await page.screenshot({ path: `${shots}/termin-phone.png` });
   await context.close();
 }
