@@ -14,7 +14,18 @@
      Senftenberg rows of EvS left out, a data error being fixed), Denkmalpflege (13676) and Biologie
      (41103) as Besuchsmodule, BWL B.Sc. (PO 2024) 1. FS as Lena's calendar with groups she took.
      Tokens are Betula's (folia/assets/app.css), the devices those of folia/design/termin/konzepte.html;
-     Inter comes from Google Fonts here, the app self-hosts it. -->
+     Inter comes from Google Fonts here, the app self-hosts it. Decided on 2026-10-26 after round 2
+     (owner: „3. Keine ahnung, was du sagst. Aber module, die nicht in Mein studium eingetragen werden
+     zählen nicht zum studium. 7. Also chips sind wirklich in 90% der Zeit ein schlechtes UI tool. Bei
+     der handy version muss nochmal dringend daran gearbeitet werden, wie man das richtig macht mit dem
+     übung auswählen. … Ansosnten finde ich deine vorschläge gut.“): the proposals 1, 2, 4, 5 and 6
+     taken, „Weiter“ beside „Fertig“; a module from the calendar stands in „Mein Studium“ on „nur
+     besuchen“ (decided on 2026-10-19) and counts only once entered there; the phone without chips,
+     choosing a group rethought in folia/design/kalender/handy.html. Decided there the same day
+     (owner: „Deine Vorschläge passen, nimm H1 mit Vergleichen“): on a phone H1 with „Vergleichen“;
+     here a tap on a dashed group opens its choice, the rest of the week steps back to 42 %, and in the
+     focus „Vergleichen“ beside „Fertig“ shows the days on the right in place of „Offen“ (described,
+     not drawn). -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
@@ -242,8 +253,9 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .focusbar { display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 8px; border-radius: 10px; background: var(--invert); color: var(--on-invert); }
 .focusbar .what { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; white-space: nowrap; }
 .focusbar .what i { width: 9px; height: 9px; border-radius: 50%; background: var(--mc); }
-.focusbar .say { min-width: 0; font-size: 12.5px; color: color-mix(in srgb, var(--on-invert) 78%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.focusbar .btn { margin-left: auto; height: 28px; padding: 0 10px; border-radius: 7px; background: color-mix(in srgb, var(--on-invert) 14%, transparent); color: var(--on-invert); font-size: 12.5px; font-weight: 650; display: inline-flex; align-items: center; gap: 6px; }
+.focusbar .say { flex: 1; min-width: 0; font-size: 12.5px; color: color-mix(in srgb, var(--on-invert) 78%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.focusbar .what + .btn { margin-left: auto; }
+.focusbar .btn { flex: none; height: 28px; padding: 0 10px; border-radius: 7px; background: color-mix(in srgb, var(--on-invert) 14%, transparent); color: var(--on-invert); font-size: 12.5px; font-weight: 650; display: inline-flex; align-items: center; gap: 6px; }
 .focusbar .btn kbd { background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-invert) 30%, transparent); color: color-mix(in srgb, var(--on-invert) 75%, transparent); }
 .todo { display: flex; flex-direction: column; gap: 6px; }
 .td { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; gap: 9px; align-items: center; padding: 8px 10px; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 12.5px; }
@@ -317,7 +329,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .slot.friend { background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--mc); }
 .slot.friend b { color: var(--text-2); }
 .slot.friend span { color: var(--text-3); }
-.slot.dim { opacity: .26; }
+.slot.dim { opacity: .42; }
 .slot.focus { z-index: 2; background: var(--panel); box-shadow: 0 0 0 2px var(--text), 0 6px 16px -8px rgba(0, 0, 0, .4); outline: 0; }
 .slot.focus.chosen { background: color-mix(in oklab, var(--mc) 18%, var(--panel)); }
 .spur { position: absolute; right: 2px; width: 6px; top: calc(var(--t) * 1px); height: calc(var(--d) * 1px); border-radius: 3px; background: var(--mc); opacity: .85; }
@@ -398,6 +410,15 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .qs .rec { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
 .qs .rec b { color: var(--accent-ink); font-weight: 650; }
 .foot { color: var(--text-3); font-size: 13px; text-align: center; }
+.verdicts { padding: 18px 20px; border-radius: 14px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); display: flex; flex-direction: column; gap: 10px; }
+.verdicts .kicker { color: var(--accent-ink); }
+.verdicts ol { margin: 0; padding: 0; list-style: none; counter-reset: v; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 24px; }
+.verdicts li { counter-increment: v; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.verdicts li::before { content: counter(v); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; }
+.verdicts li b { color: var(--text); font-weight: 620; }
+.verdicts li span { min-width: 0; }
+.qs li.done .ask { color: var(--text-2); }
+.qs .rec b.done { color: var(--accent-ink); }
 
 @media (max-width: 1100px) {
   .signs, .states { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -409,6 +430,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 }
 @media (max-width: 860px) {
   .intro { grid-template-columns: minmax(0, 1fr); }
+  .verdicts ol { grid-template-columns: minmax(0, 1fr); }
   .qs li { grid-template-columns: 30px minmax(0, 1fr); }
   .qs .rec { grid-column: 2; }
 }
@@ -448,6 +470,20 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   </aside>
 </section>
 
+<section class="verdicts" id="entschieden" aria-label="Entschieden am 26.10.">
+  <div class="kicker">Entschieden am 26.10., nach der zweiten Runde · das Handy neu gedacht: <a href="https://claude.ai/artifact/BGZT8HNd4VPvmQ6JVRJPKi">Kalender am Handy</a></div>
+  <ol>
+    <li><span><b>Ein neuer Kalender steht voll,</b> ab mehr als acht Terminen in der Woche als Spur.</span></li>
+    <li><span><b>„Gemeinsam frei“ ist ein Schalter im Kopf der Woche,</b> sobald ein zweiter Kalender zu sehen ist.</span></li>
+    <li><span><b>Es zählt nur, was in „Mein Studium“ eingetragen ist.</b> Ein Modul aus dem Kalender steht dort auf „nur besuchen“, wie am 19.10. entschieden.</span></li>
+    <li><span><b>Die Startseite zeigt „Mein Studiengang“ immer,</b> einen eigenen Kalender mit „Auf der Startseite zeigen“.</span></li>
+    <li><span><b>Ein Modul darf in zwei Kalendern stehen,</b> jeder mit seiner Gruppenwahl.</span></li>
+    <li><span><b>Nach einem Haken bleibt der Fokus;</b> „Weiter“ neben „Fertig“ geht zur nächsten offenen Wahl.</span></li>
+    <li><span><b>Am Handy keine Chips,</b> und die Gruppenwahl neu: <a href="https://claude.ai/artifact/BGZT8HNd4VPvmQ6JVRJPKi">Kalender am Handy</a>.</span></li>
+    <li><span><b>Am Handy H1 mit „Vergleichen“.</b> Am Rechner öffnet ein Tipp auf eine gestrichelte Gruppe ihre Wahl, der Rest tritt auf 42 % zurück, und „Vergleichen“ neben „Fertig“ zeigt die Tage rechts an der Stelle von „Offen“.</span></li>
+  </ol>
+</section>
+
 <nav class="setbar" aria-label="Zustand und Abschnitte">
   <div class="group"><span class="kicker">Zustand</span><div class="seg" role="group" aria-label="Zustand des Prototyps" id="stateseg"></div></div>
   <div class="jump"><a href="#neu">Neu</a><a href="#prototyp">Prototyp</a><a href="#teile">Teile</a><a href="#studium">Im Studium</a><a href="#zustaende">Zustände</a><a href="#zeichen">Zeichen</a><a href="#fragen">Fragen</a></div>
@@ -478,7 +514,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   </header>
   <div class="stage">
     <figure class="device desk" data-dev="desk"><div class="frame"><div class="chrome"><i></i><i></i><i></i><span class="url">betula.app/kalender</span></div><div class="fit"><div class="screen"><div class="app"></div></div></div></div><figcaption>Am Rechner</figcaption></figure>
-    <figure class="device phone" data-dev="phone"><div class="frame"><div class="fit"><div class="screen"><div class="app"></div></div></div></div><figcaption>Am Handy</figcaption></figure>
+    <figure class="device phone" data-dev="phone"><div class="frame"><div class="fit"><div class="screen"><div class="app"></div></div></div></div><figcaption>Am Handy · ohne Chips neu gedacht in <a href="https://claude.ai/artifact/BGZT8HNd4VPvmQ6JVRJPKi">Kalender am Handy</a></figcaption></figure>
   </div>
   <div class="state-note" id="statenote"></div>
 </section>
@@ -502,7 +538,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     <div class="part">
       <span class="n">Offen und der Fokus</span>
       <div class="ui-wood" style="display: flex; flex-direction: column; gap: 10px">
-        <div class="focusbar" style="--mc: var(--m-mit)"><span class="what"><i></i>Übung MIT1 · 1 von 3</span><span class="say">Hake eine oder mehrere an. Alle drei passen.</span><span class="btn">Fertig <kbd>Esc</kbd></span></div>
+        <div class="focusbar" style="--mc: var(--m-mit)"><span class="what"><i></i>Übung MIT1 · 1 von 3</span><span class="btn">Weiter</span><span class="btn">Fertig <kbd>Esc</kbd></span></div>
         <div class="ui" style="padding: 10px">
           <div class="todo">
             <div class="td cur" style="--mc: var(--m-mit)"><i></i><span><b>Übung MIT1</b><small>im Fokus</small></span><span class="go">1 von 3</span></div>
@@ -511,7 +547,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
           </div>
         </div>
       </div>
-      <p>Ein Tipp auf eine Zeile unter <b>Offen</b> holt sie in den Fokus; über der Woche steht dann, was zu tun ist, mit dem Knopf <b>„Fertig“</b>, schneller mit <kbd>Esc</kbd>. Ohne Haken bleibt eine Wahl offen; angehakt wird, so viel man will.</p>
+      <p>Ein Tipp auf eine Zeile unter <b>Offen</b> holt sie in den Fokus; über der Woche steht dann, was zu tun ist. <b>„Weiter“</b> geht zur nächsten offenen Wahl, <b>„Fertig“</b> beendet den Fokus, schneller mit <kbd>Esc</kbd>. Ohne Haken bleibt eine Wahl offen; angehakt wird, so viel man will.</p>
     </div>
     <div class="part">
       <span class="n">+ Modul in einem Kalender</span>
@@ -533,7 +569,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 <section class="sec" id="studium">
   <header>
     <h2>Ein Besuchsmodul in „Mein Studium“</h2>
-    <p class="sub">Was in „Mein Studiengang“ aufgenommen wird, steht auch im Semester in „Mein Studium“, als Besuch: mit eigenem Zeichen, ohne LP, außerhalb der Bereiche. So bleibt „Mein Studium“ der eine Weg, das Studium zu planen, und sieht trotzdem alles, was in der Woche steht.</p>
+    <p class="sub">Was in „Mein Studiengang“ aufgenommen wird, steht auch im Semester in „Mein Studium“, auf „nur besuchen“: mit eigenem Zeichen, ohne LP, außerhalb der Bereiche. Es zählt nur, was in „Mein Studium“ eingetragen ist. So bleibt „Mein Studium“ der eine Weg, das Studium zu planen, und sieht trotzdem alles, was in der Woche steht.</p>
   </header>
   <div class="parts two">
     <div class="part">
@@ -545,7 +581,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
           <div class="st-row"><span><b>Elektrische und elektronische Grundlagen der Informatik</b><small>12107 · Informatik</small></span><span class="lp">6 LP</span><i class="st-glyph run"></i></div>
           <div class="st-row"><span><b>Programmierpraktikum</b><small>12102 · Informatik</small></span><span class="lp">4 LP</span><i class="st-glyph run"></i></div>
           <div class="st-row"><span><b>Mathematik IT-1 (Diskrete Mathematik)</b><small>11112 · Mathematik</small></span><span class="lp">8 LP</span><i class="st-glyph run"></i></div>
-          <div class="st-row"><span><b>Denkmalpflege</b><small>13676 · <span class="tag">Besuch</span> aus dem Kalender</small></span><span class="lp no">–</span><i class="st-glyph visit" title="Besuch"><svg class="i" viewBox="0 0 24 24"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg></i></div>
+          <div class="st-row"><span><b>Denkmalpflege</b><small>13676 · <span class="tag">nur besuchen</span> aus dem Kalender</small></span><span class="lp no">–</span><i class="st-glyph visit" title="Besuch"><svg class="i" viewBox="0 0 24 24"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg></i></div>
         </div>
       </div></div>
     </div>
@@ -554,11 +590,11 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       <div class="ui-wood"><div class="menu">
         <div class="h">Denkmalpflege · Besuch</div>
         <div class="mi"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Im Kalender öffnen</span></div>
-        <div class="mi"><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span>Zählen lassen<small>wird ein Modul des Studiums, mit 6 LP</small></span></div>
+        <div class="mi cur"><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span>Nur besuchen<small>angehakt: zählt nicht; ohne Haken eingetragen, mit 6 LP</small></span></div>
         <div class="sep"></div>
         <div class="mi" style="color: var(--no)"><svg class="i" viewBox="0 0 24 24" style="color: var(--no)"><path d="M18 6 6 18M6 6l12 12"/></svg><span>Entfernen<small>aus Kalender und Studium, mit Rückgängig</small></span></div>
       </div></div>
-      <p><b>Zählen lassen</b> ist der Weg vom Besuch ins Studium; er liegt in „Mein Studium“, nicht im Kalender. Bestanden markieren gibt es für einen Besuch nicht.</p>
+      <p><b>„Nur besuchen“</b> ist der Schalter vom 19.10.: angehakt in der Woche, nicht in den LP. Ohne den Haken ist das Modul in „Mein Studium“ eingetragen und zählt; das geht nur dort, nicht im Kalender. Bestanden markieren gibt es für einen Besuch nicht.</p>
     </div>
   </div>
 </section>
@@ -584,20 +620,20 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 <!-- ============================================================ Fragen -->
 <section class="sec" id="fragen">
   <header>
-    <h2>Fragen, mit Vorschlag</h2>
+    <h2>Fragen der zweiten Runde, entschieden</h2>
   </header>
   <ol class="qs">
-    <li><p class="ask">Wie steht ein neuer Kalender in der Woche?</p><p class="rec"><b>Vorschlag:</b> voll, bis er mehr als acht Termine in der Woche hat, dann als Spur. Der Schalter ändert es jederzeit.</p></li>
-    <li><p class="ask">Wo steht „Gemeinsam frei“?</p><p class="rec"><b>Vorschlag:</b> als Schalter im Kopf der Woche, sobald ein zweiter Kalender sichtbar ist; aus, bis man ihn einschaltet.</p></li>
-    <li><p class="ask">Ein Besuchsmodul in „Mein Studium“: so, mit „Zählen lassen“?</p><p class="rec"><b>Vorschlag:</b> ja. Es steht im Semester, zählt keine LP und in keinem Bereich; „Zählen lassen“ macht es zu einem Modul des Studiums.</p></li>
-    <li><p class="ask">Zeigt die Startseite die eigenen Kalender?<small>Seit der ersten Runde offen.</small></p><p class="rec"><b>Vorschlag:</b> „Mein Studiengang“ mit seinen Besuchsmodulen immer; ein eigener Kalender nur mit „Auf der Startseite zeigen“ in seinem Menü.</p></li>
-    <li><p class="ask">Ein Modul in zwei Kalendern?</p><p class="rec"><b>Vorschlag:</b> ja; jeder Kalender hat seine eigene Gruppenwahl. In der Woche steht es dann zweimal, einmal voll, einmal in der Form des anderen Kalenders.</p></li>
-    <li><p class="ask">Nach einem Haken im Fokus: weiter zur nächsten Wahl?</p><p class="rec"><b>Vorschlag:</b> nein, der Fokus bleibt, damit man mehr als eine Gruppe anhaken kann; „Weiter“ neben „Fertig“ springt zur nächsten offenen Wahl.</p></li>
-    <li><p class="ask">Am Handy: wie schaltet man einen Kalender?</p><p class="rec"><b>Vorschlag:</b> ein Tipp auf seinen Chip öffnet ein kleines Menü mit voll, Spur, aus; kein Wischen und kein langes Halten.</p></li>
+    <li class="done"><p class="ask">Wie steht ein neuer Kalender in der Woche?</p><p class="rec"><b class="done">Entschieden:</b> wie vorgeschlagen, voll, bis er mehr als acht Termine in der Woche hat, dann als Spur. Der Schalter ändert es jederzeit.</p></li>
+    <li class="done"><p class="ask">Wo steht „Gemeinsam frei“?</p><p class="rec"><b class="done">Entschieden:</b> wie vorgeschlagen, als Schalter im Kopf der Woche, sobald ein zweiter Kalender sichtbar ist; aus, bis man ihn einschaltet.</p></li>
+    <li class="done"><p class="ask">Ein Besuchsmodul in „Mein Studium“: so, mit „Zählen lassen“?<small>Gemeint war: Kann man einen Besuch in „Mein Studium“ doch zählen lassen?</small></p><p class="rec"><b class="done">Entschieden:</b> „module, die nicht in Mein studium eingetragen werden zählen nicht zum studium.“ Ein Modul aus dem Kalender steht dort auf „nur besuchen“, wie am 19.10. entschieden. Ohne den Haken ist es eingetragen und zählt; „Zählen lassen“ gibt es nicht.</p></li>
+    <li class="done"><p class="ask">Zeigt die Startseite die eigenen Kalender?</p><p class="rec"><b class="done">Entschieden:</b> wie vorgeschlagen, „Mein Studiengang“ mit seinen Besuchsmodulen immer; ein eigener Kalender nur mit „Auf der Startseite zeigen“ in seinem Menü.</p></li>
+    <li class="done"><p class="ask">Ein Modul in zwei Kalendern?</p><p class="rec"><b class="done">Entschieden:</b> wie vorgeschlagen, ja; jeder Kalender hat seine eigene Gruppenwahl. In der Woche steht es dann zweimal, einmal voll, einmal in der Form des anderen Kalenders.</p></li>
+    <li class="done"><p class="ask">Nach einem Haken im Fokus: weiter zur nächsten Wahl?</p><p class="rec"><b class="done">Entschieden:</b> wie vorgeschlagen, der Fokus bleibt; „Weiter“ neben „Fertig“ springt zur nächsten offenen Wahl. Im Prototyp jetzt so.</p></li>
+    <li class="done"><p class="ask">Am Handy: wie schaltet man einen Kalender?</p><p class="rec"><b class="done">Entschieden:</b> „Also chips sind wirklich in 90% der Zeit ein schlechtes UI tool. Bei der handy version muss nochmal dringend daran gearbeitet werden, wie man das richtig macht mit dem übung auswählen.“ Neu gedacht in <a href="https://claude.ai/artifact/BGZT8HNd4VPvmQ6JVRJPKi">Kalender am Handy</a>: die Kalender als Zeilen mit Voll · Spur · Aus, die Gruppen mit den Kacheln des Termins.</p></li>
   </ol>
 </section>
 
-<p class="foot">Konzept, nichts davon ist gebaut · Daten von canary, 26.10.2026 · Folia 1.45.2</p>
+<p class="foot">Konzept, nichts davon ist gebaut · Daten von canary, 26.10.2026 · Folia 1.45.3</p>
 </div>
 
 <script>
@@ -698,8 +734,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     yield: { name: "Besuch gibt nach", say: "Biologie trifft VL MIT1, ohne Rot.", chosen: { mitue: ["mitg1"], pprak: ["ppg1"] }, focus: null, visits: ["DP", "Bio"], lena: "strip", free: false, panel: null },
   };
   const NOTES = {
-    setup: ["Was man sieht", "Die Regelwoche mit den Gruppen gestrichelt, „1 von 3“ und „1 von 4“. <b>Offen</b> rechts nennt die zwei Wahlen und den Platzhalter; der Platzhalter führt nach „Mein Studium“.", "Was man tut", "Ein Tipp auf <b>„Übung MIT1“</b> unter Offen holt sie in den Fokus."],
-    focus: ["Was man sieht", "Die drei Gruppen der Übung umrandet, jede mit einem <b>Haken</b>; alles andere tritt zurück. Über der Woche steht, was zu tun ist.", "Was man tut", "Ein Haken nimmt eine Gruppe, ein zweiter eine weitere. <b>„Fertig“</b> oder <kbd>Esc</kbd> beendet den Fokus."],
+    setup: ["Was man sieht", "Die Regelwoche mit den Gruppen gestrichelt, „1 von 3“ und „1 von 4“. <b>Offen</b> rechts nennt die zwei Wahlen und den Platzhalter; der Platzhalter führt nach „Mein Studium“.", "Was man tut", "Ein Tipp auf <b>„Übung MIT1“</b> unter Offen holt sie in den Fokus, ebenso ein Tipp auf eine ihrer gestrichelten Gruppen in der Woche."],
+    focus: ["Was man sieht", "Die drei Gruppen der Übung umrandet, jede mit einem <b>Haken</b>; alles andere tritt zurück. Über der Woche steht, was zu tun ist.", "Was man tut", "Ein Haken nimmt eine Gruppe, ein zweiter eine weitere. <b>„Weiter“</b> geht zur nächsten offenen Wahl, <b>„Fertig“</b> oder <kbd>Esc</kbd> beendet den Fokus."],
     done: ["Was man sieht", "Die Woche ruhig: zwölf Termine. <b>Denkmalpflege</b> steht schraffiert am Donnerstag, in der Modulliste unter „Mein Studiengang“ als Besuch.", "Was man tut", "Unter Offen bleibt nur der Platzhalter. „Ändern“ öffnet die Wahl wieder im Fokus."],
     strip: ["Was man sieht", "<b>Lenas 13 Termine als Spur</b>: ein schmaler Streifen am rechten Rand jedes Tages, im Ton ihres Kalenders. Die eigene Woche behält ihre Breite.", "Was man tut", "Der Schalter am Kalender in der Leiste: voll, Spur, aus. Ein Zeigen auf die Spur nennt den Termin."],
     free: ["Was man sieht", "<b>Beide frei</b> grün umrandet: Montag und Donnerstag bis 11:30, Mittwoch 13:00 bis 15:30, Freitag ab 13:00.", "Was man tut", "Der Schalter <b>„Gemeinsam frei“</b> im Kopf der Woche, sobald ein zweiter Kalender sichtbar ist."],
@@ -784,7 +820,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     const body = o.phone
       ? `<b>${esc(s.mod)}</b>${it.lanes > 1 ? "" : `<span class="room">${wbr(s.room)}</span>`}`
       : `<b>${esc(`${s.k} ${s.mod}`)}</b><span>${esc(when)}</span><span>${esc(s.room)}</span>`;
-    return `<span class="${cls.join(" ")}" style="${style}" title="${esc(title)}">${body}${marks}</span>`;
+    return `<span class="${cls.join(" ")}" style="${style}" title="${esc(title)}"${open ? ` data-act="focus" data-v="${s.ch}"` : ""}>${body}${marks}</span>`;
   }
 
   // ---------- The frames ----------
@@ -800,7 +836,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   function focusOrSub() {
     if (ST.focus) {
       const c = CHOICES[ST.focus];
-      return `<div class="focusbar" style="--mc: var(--m-${MODS[c.mod].c})"><span class="what"><i></i>${c.label} · ${chosenOf(ST.focus).length ? `${chosenOf(ST.focus).length} angehakt` : `1 von ${c.n}`}</span><span class="say">Hake eine oder mehrere an. ${c.say}</span><span class="btn" data-act="done">Fertig <kbd>Esc</kbd></span></div>`;
+      const next = Object.keys(CHOICES).find((k) => k !== ST.focus && isOpen(k));
+      return `<div class="focusbar" style="--mc: var(--m-${MODS[c.mod].c})"><span class="what"><i></i>${c.label} · ${chosenOf(ST.focus).length ? `${chosenOf(ST.focus).length} angehakt` : `1 von ${c.n}`}</span><span class="say">Hake eine oder mehrere an. ${c.say}</span>${next ? `<span class="btn" data-act="next" data-v="${next}">Weiter: ${CHOICES[next].label}</span>` : ""}<span class="btn" data-act="done">Fertig <kbd>Esc</kbd></span></div>`;
     }
     return `<p class="msub">Regelwoche · Vorlesungszeit 05.10.–31.01., frei 21.12.–03.01. · Prüfungen ab 11.02.</p>`;
   }
@@ -898,6 +935,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     switch (el.dataset.act) {
       case "focus": ST.focus = ST.focus === v ? null : v; ST.panel = null; break;
       case "done": ST.focus = null; break;
+      case "next": ST.focus = v; ST.panel = null; break;
       case "tick": {
         const s = SLOTS.find((x) => x.id === v);
         const list = chosenOf(s.ch);
