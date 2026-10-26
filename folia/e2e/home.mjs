@@ -146,8 +146,8 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
   await alone.route("**/assets/boot.js*", (route) => route.abort());
   for (const [path, lang] of [["/", "de"], ["/en", "en"]]) {
     await alone.goto(base + path, { waitUntil: "load" });
-    const server = await alone.evaluate(`({ hero: (${bare})(document.querySelector(".day-sk-wrap .day-hero:not(.day-hero-sk)")), shown: Boolean(document.querySelector(".day-sk-wrap .day-hero")?.checkVisibility()), skeleton: Boolean(document.querySelector(".day-hero-sk")), line: document.querySelector(".day-sk-wrap [data-count=line]")?.textContent ?? null })`);
-    if (lang === "de") check(server.hero === app && server.shown && !server.skeleton && server.line !== "", `the server's page does not put in the app's day at once: ${JSON.stringify({ server, app })}`);
+    const server = await alone.evaluate(`({ hero: (${bare})(document.querySelector(".day-sk-wrap .day-hero:not(.day-hero-sk)")), shown: Boolean(document.querySelector(".day-sk-wrap .day-hero")?.checkVisibility()), skeleton: Boolean(document.querySelector(".day-hero-sk")), line: document.querySelector(".day-sk-wrap [data-count=line]")?.textContent ?? null, hidden: Boolean(document.querySelector(".day-sk-wrap .day-hero:not(.day-hero-sk)")?.closest('[aria-hidden="true"]')) })`);
+    if (lang === "de") check(server.hero === app && server.shown && !server.skeleton && server.line !== "" && !server.hidden, `the server's page does not put in the app's day at once, or hides it from screen readers: ${JSON.stringify({ server, app })}`);
     else check(server.skeleton && !server.hero, `the day in another language than it was made in: ${JSON.stringify(server)}`);
   }
   await alone.close();

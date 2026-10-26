@@ -137,7 +137,7 @@ pub fn HomePage() -> impl IntoView {
             // whose head script found a program kept.
             return view! {
                 <div class="day-first-wrap"><FirstVisit now on_done on_look home server=true/></div>
-                <div class="day-sk-wrap" aria-hidden="true"><TodaySkeleton/></div>
+                <div class="day-sk-wrap"><TodaySkeleton/></div>
             }
             .into_any();
         }
@@ -202,11 +202,11 @@ fn FirstVisit(now: Signal<Option<SemesterKey>>, on_done: Callback<Done>, on_look
 /// The day's skeleton, as the server writes it for a visitor with a program kept (`html.mine`):
 /// the picture as high as the day's, the panels as they come. Right after the picture the script
 /// that puts the day in its place where the browser app kept it (`ahead`), before anything is
-/// painted.
+/// painted. Its parts are hidden from screen readers, the day put in place of one is not.
 #[component]
 fn TodaySkeleton() -> impl IntoView {
     view! {
-        <section class="day-hero day-hero-sk">
+        <section class="day-hero day-hero-sk" aria-hidden="true">
             <div class="day-photo"></div>
             <div class="day-shade"></div>
             <div class="day-greet">
@@ -217,7 +217,7 @@ fn TodaySkeleton() -> impl IntoView {
             <div class="day-next day-next-sk"></div>
         </section>
         <script inner_html=ahead::SCRIPT></script>
-        <div class="day-cols">
+        <div class="day-cols" aria-hidden="true">
             <div class="day-col day-main"><div class="panel sk-sweep day-panel-sk tall"></div></div>
             <div class="day-col"><div class="panel sk-sweep day-panel-sk"></div><div class="panel sk-sweep day-panel-sk"></div></div>
         </div>
