@@ -489,11 +489,15 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 .ground-foot a { display: inline-flex; align-items: center; gap: 3px; color: var(--ground-muted); }
 .ground-foot .icon { width: 13px; height: 13px; }
 .frost { display: none; }
+/* The frost's colour: the page's at three quarters, as far as the leaves have come (a phone's
+   start page, below; else 1). */
+.frost::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--bg) 76%, transparent); opacity: var(--leaves, 1); }
 @media (max-width: 900px) {
   /* On a phone the crown hangs over the page and under the search, and under both lies the frost
      (`ground::Crown`): once the window is scrolled (`data-scrolled`, enhance.js), a blur over what
-     runs beneath, in the page's own colour at three quarters, reaching 34 px below the bar and
-     fading out there, so that what leaves the screen goes soft and quiet instead of being cut off
+     runs beneath, in the page's own colour at three quarters, reaching 14 px below the bar and
+     fading out over its last 24 (34 and 46 until the owner picked the shorter of three, 2026-10-26:
+     „setz mal bitte b um"), so that what leaves the screen goes soft and quiet instead of being cut off
      at an edge (owner, 2026-10-26: „einfach nur ein frost/blur effekt sein, ohne farbe und das auf
      allen seiten … hinter dem blätterdach"; then, on the blur alone: „unsauber … ein wenig mit so
      transparenz von den farben rumspielen, so dass die elemente sich noch richtig anfühlen. Aber es
@@ -506,12 +510,11 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
      body's column, „phone and tablet"). Not under the row of pages of „Mein Studium" (`.st-pager`,
      below). */
   .crown { z-index: 20; height: var(--bar); }
-  .frost { display: block; position: fixed; z-index: 19; top: 0; left: 0; right: 0; height: calc(var(--bar) + 34px); pointer-events: none; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); -webkit-mask: linear-gradient(#000 calc(100% - 46px), transparent); mask: linear-gradient(#000 calc(100% - 46px), transparent); opacity: 0; transition: opacity .2s; }
+  .frost { display: block; position: fixed; z-index: 19; top: 0; left: 0; right: 0; height: calc(var(--bar) + 14px); pointer-events: none; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); -webkit-mask: linear-gradient(#000 calc(100% - 24px), transparent); mask: linear-gradient(#000 calc(100% - 24px), transparent); opacity: 0; transition: opacity .2s; }
   :root[data-scrolled] .frost { opacity: 1; }
-  /* The leaves and the frost's colour come as far as `--leaves` says, from 0 to 1 (set on the
-     crown and the frost, enhance.js): 1 on every page, on the start page as far as it has gone on
-     past its photo (below). The leaves slide down from above the window, their whole height. */
-  .frost::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--bg) 76%, transparent); opacity: var(--leaves, 1); }
+  /* The leaves slide down from above the window, their whole height, as far as `--leaves` says,
+     from 0 to 1 (set on the crown and the frost, enhance.js): 1 on every page, on the start page
+     as far as it has gone on past its photo (below). The frost's colour comes with them. */
   .crown::before, .crown::after { translate: 0 calc((var(--leaves, 1) - 1) * 100%); }
   /* No title in the bar, so no clearing: the tile alone, from the left edge (the head's layer at
      no size, which draws nothing, as `none` would). */
@@ -520,10 +523,6 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   .ground-top { flex-direction: column; gap: 14px; padding: 22px 18px 0; }
   .ground-foot { position: relative; left: auto; right: auto; bottom: auto; flex-direction: column; gap: 6px; padding: 18px 18px 0; }
 }
-
-/* How far the top of a page of panels fades out on a wide screen (below): the area's own, so that
-   setting it in a frame of the scroll restyles the area alone, not what it holds. */
-@property --edge { syntax: "<length>"; inherits: false; initial-value: 0px; }
 
 /* ---------- one scroll area ----------
    Owner, 2026-09-29: the two steps — first the page scrolled, then the window for the ground — felt
@@ -553,6 +552,40 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 .ground-cap { display: none; }
 @media (min-width: 901px) {
   body { timeline-scope: --page; }
+  /* The bar's height with the room above and below it: where a page's content starts. */
+  :root { --head: calc(40px + 2 * var(--gap)); }
+  /* A page of panels runs under the bar (below), and once it is scrolled the frost lies behind the
+     bar as on a phone (`data-scrolled`, enhance.js): the same blur in the page's colour at three
+     quarters, reaching 14 px below the bar and fading out over its last 24, so that what goes
+     under the bar goes soft and the wordmark and the search stay on a calm ground (over the start
+     page's photo as well, which a phone keeps clear: there the bar has no words of its own). Below
+     the bar only over the column that scrolls: what is pinned beside it, the sidebar and the
+     module on the right, ends at the bar and stays whole. In front the rail, the bar and the
+     crown, the crown's leaves over the frost; then the frost over the page. */
+  .rail { z-index: 24; }
+  .topbar { position: relative; z-index: 23; }
+  /* The bar takes the wheel over it and the room around it, where the page shows as well, and
+     turns the page under it (enhance.js), as „Nach oben" does; not over the scrollbar. */
+  .topbar::before { content: ""; position: absolute; z-index: -1; inset: calc(-1 * var(--gap)) 0 calc(-1 * var(--gap)) calc(-1 * var(--gap)); }
+  .crown { z-index: 22; }
+  /* Not over the page's scrollbar (`--scrollbar`, its width, enhance.js), which stays clear. */
+  .frost {
+    display: block; position: fixed; z-index: 21; top: 0; left: var(--rail); right: var(--scrollbar, 0px); height: calc(var(--head) + 14px); pointer-events: none;
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); opacity: 0; transition: opacity .2s;
+    --frost-l: 0px; --frost-r: 0px;
+    mask-image: linear-gradient(#000 0 0), linear-gradient(#000 calc(100% - 24px), transparent), linear-gradient(#000 0 0);
+    mask-size: var(--frost-l) var(--head), calc(100% - var(--frost-l) - var(--frost-r)) 100%, var(--frost-r) var(--head);
+    mask-position: 0 0, var(--frost-l) 0, 100% 0; mask-repeat: no-repeat;
+  }
+  :root[data-scrolled] .frost { opacity: 1; }
+  :root:has(#content > .page-stage.front > .work.framed) .frost { --frost-l: calc(var(--gap) * 1.5 + var(--filters)); }
+  /* The panel on the right as wide as the page has it: the page's `100%` is the frost's less the
+     area's room on either side (`--pad-r`). */
+  :root:has(#content > .page-stage.front > .work.aside-picked) .frost {
+    --pad-r: max(0px, calc(var(--gap) - var(--scrollbar, 0px)));
+    --preview: clamp(360px, var(--preview-w), calc(100% - var(--gap) - var(--pad-r) - var(--filters) - var(--gap) - 120px));
+    --frost-r: calc(var(--gap) * 1.5 + var(--pad-r) + var(--preview));
+  }
   /* Asked of each body's own page: the takeover's picture is a second body (boot.js), and the
      app's first frame under it may not have its page yet. */
   body:has(> .main > .content > .page-stage.front > .work.flowing) > .ground { display: none; }
@@ -576,27 +609,20 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
     mask-position: 0 0, calc(var(--filters) + 2 * var(--gap) - 1px) 0, right -1px top -1px;
     mask-composite: subtract, add, add;
   }
-  /* A page of panels lets what its scroll takes up out of the area fade out over the last 40 px
-     below the bar instead of cutting it off there (owner, 2026-10-26, of the start page: „Am Pc gibt
-     es auch das problem, dass zeug abgeschnitten wird. Das sollte also auch mal gefixed werden"):
-     the area's own mask, so that what stands behind it, the wood and the ends of the crown, shows
-     through as it goes, and no band of a colour of its own lies over the page (one in the page's
-     colour, with or without a blur, drew an edge of its own across the wood; tried side by side in
-     both modes). The fade grows with the first 40 px of the scroll (`--edge`, enhance.js), so that
-     a page at its top stands as it is; there it has no mask at all (`data-edge` while the area is
-     scrolled), which costs a frame some time to draw. Not what is pinned beside the page, the sidebar and the
-     module on the right, nor the scrollbar: a layer each keeps them whole. Not a list's page nor
-     „Mein Studium"'s semesters, whose heads stay at the top (below) and take what scrolls under
-     them. */
-  .work.flowing[data-edge]:not(:has(> .list, > .page > .page-inner.study > .st-sems)) {
-    mask-image: linear-gradient(transparent, #000 var(--edge)), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
-    mask-size: 100% 100%, calc(var(--gap) + var(--filters) + var(--gap) / 2) 100%, calc(var(--pad-r) + var(--bar, 0px)) 100%;
-    mask-position: 0 0, 0 0, 100% 0; mask-repeat: no-repeat;
+  /* A page of panels runs under the bar as on a phone (owner, 2026-10-26, of the start page on a
+     PC, the greeting cut in half under the bar: „Am Pc gibt es auch das problem, dass zeug
+     abgeschnitten wird"; then, of the content fading out at the area's edge that followed: „Mach
+     das mal so wie bei der mobile version. Und aktuell ist der blur auch viel zu weit der kann
+     etwas kürzer sein"; of three lengths of the frost, folia/design/frost/varianten.html: „setz mal
+     bitte b um"). Its area reaches up behind the bar, and its content starts below the bar as
+     before: the area's padding, under which what is pinned sticks, and `scroll-padding`, which
+     keeps what is scrolled to (a section, the focus) below the bar as well. Once the page is
+     scrolled the frost lies behind the bar (`.frost`, above). Not a list's page nor „Mein
+     Studium"'s semesters: their heads stay at the top and take what scrolls under them. By its
+     classes, so that the takeover's picture (boot.js: a copy without ids) stands as the page. */
+  .content > .page-stage > .work.flowing:not(:has(> .list, > .page > .page-inner.study > .st-sems)) {
+    margin-top: calc(-1px - var(--head)); height: calc(100% + 2px + var(--head)); padding-top: calc(1px + var(--head)); scroll-padding-top: var(--head);
   }
-  .work.flowing.solo[data-edge]:not(:has(> .list, > .page > .page-inner.study > .st-sems)) { mask-size: 100% 100%, 0 0, calc(var(--pad-r) + var(--bar, 0px)) 100%; }
-  .work.flowing.aside-picked[data-edge]:not(:has(> .list, > .page > .page-inner.study > .st-sems)) { mask-size: 100% 100%, calc(var(--gap) + var(--filters) + var(--gap) / 2) 100%, calc(var(--preview) + var(--gap) / 2 + var(--pad-r) + var(--bar, 0px)) 100%; }
-  /* A picker's or a collection's popup lies in the area: nothing of it fades while it is open. */
-  .work.flowing:has(.combo[data-open], .collect-pop) { --edge: 0px !important; }
   .work.flowing:focus { outline: none; }
   /* The first row is never shorter than the area shows, whatever flows in it (a pinned short list
      stands in it and the ground's row at once). */

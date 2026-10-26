@@ -156,8 +156,10 @@ const movedSince = (page, mark) => page.evaluate((mark) => {
 }
 
 // ---------- a wide screen: a long page and the ground at its end ----------
+// „Über Betula": the start page is short for a first visit (its setup), and the text that made it
+// long is there now.
 {
-  const { context, page } = await open("/");
+  const { context, page } = await open("/about");
   const groundTop = () => page.evaluate(() => Math.round(document.querySelector("#content > .page-stage.front > .work.flowing > .ground").getBoundingClientRect().top));
   await scrollTo(page, 1);
   await page.waitForTimeout(400);
