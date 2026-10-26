@@ -3049,6 +3049,14 @@ the visitor now; what it said of Betula moved to „Über Betula" (`/about`, bel
   the server's page and the app's first frame); where less motion is wanted they are there or
   not, at once. The panels in one column; the actions of a step across the width, „Studium
   anlegen" first.
+- **A wide screen** does the same with its photo as it runs under the bar (owner, 2026-10-26, of
+  the frost in the page's colour over it: „links ist das abgeschnitten es sieht übelst dreckig aus
+  etc. Mach das mal ordentlich … die animation für die Blätter gibt es auch immer noch nicht"):
+  no leaves while the photo is to be seen below the bar's lower edge, the blur alone while it lies
+  under the bar, and the leaves sliding down as it leaves the bar, as fast at most, the frost's
+  colour with them; the bar's lower edge is where the page shows, 56 px down. The bar's words,
+  the wordmark and its line, go light while the photo lies under their middle
+  (`data-photo-under`), as the photo's own words are.
 - **The day at once** (`home/ahead.rs`; owner, 2026-10-26: „Damit leute das gerne benutzen muss
   das einfach ready sein. Bitte cache einfach alle werte, die du dafür brauchst und sorge dafür,
   dass das als erstes konstruiert wird, so dass eine person die nur wissen will was als nächstes
@@ -3420,12 +3428,14 @@ at the end of every page the ground with the roots. Picked on a design canvas of
   what reads where the page shows asks for it (the module's sections, the popups, „Nach oben",
   whose screen is what shows below the bar). Once the page is scrolled the frost lies behind the
   bar (above): the same blur and tint as on a phone, 14 px below the bar, so that what goes under
-  the bar goes soft and the wordmark and the search stay on a calm ground, over the start page's
-  photo as well (on a phone the photo stays clear: there the bar has no words of its own). Below
+  the bar goes soft and the wordmark and the search stay on a calm ground. Below
   the bar only over the column that scrolls: what is pinned beside it, a frame's sidebar and the
   module on the right, ends at the bar and stays whole, and the page's scrollbar stays clear
-  (`--scrollbar` on the frost, enhance.js). In front the rail, the bar and the crown, the leaves
-  over the frost, then the frost over the page. The wheel over the bar and the room around it,
+  (`--scrollbar` on the frost, enhance.js); not over the room beside the column either, as wide as
+  the bar: there the blur of the start page's photo ran out past the photo's edge and the rail cut
+  it off. In front the rail, the bar and the crown, the leaves over the frost, then the frost over
+  the page. Over the start page's photo the blur alone and no leaves, as on a phone (the start
+  page, „A wide screen"). The wheel over the bar and the room around it,
   where the page shows, turns the page as over „Nach oben" (enhance.js, a listener on the bar
   alone: the browser turned the page there once from its top and then no more). By its classes,
   so that the takeover's picture, a copy without ids, stands as the page. Not a list's page (the

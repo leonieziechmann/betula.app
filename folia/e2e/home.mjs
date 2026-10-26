@@ -155,17 +155,31 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
   await alone.close();
   // On a wide screen the start page runs under the bar as on a phone, and the frost lies behind the
   // bar once it is scrolled (owner, 2026-10-26: „Mach das mal so wie bei der mobile version");
-  // at its top the frost is away and the page stands where it stood.
+  // at its top the frost is away and the page stands where it stood. Its photo as on a phone
+  // (owner, the same day: „Mach das mal ordentlich … die animation für die Blätter"): under the bar
+  // the blur alone, no leaves and the bar's words light; past it the leaves and the frost's colour.
   const under = async (y) => {
     await page.evaluate((y) => document.querySelector("#content > .page-stage.front > .work.flowing").scrollTo(0, y), y);
     // The frost follows in the next frame and fades in a fifth of a second: a frame can be slow
     // on a busy machine.
     await page.waitForFunction((down) => document.documentElement.hasAttribute("data-scrolled") === down, y > 4, { timeout: 3000 }).catch(() => {});
     await page.waitForTimeout(400);
-    return page.evaluate(() => ({ frost: getComputedStyle(document.querySelector("body > .frost")).opacity, hero: Math.round(document.querySelector("#content > .page-stage.front .day-hero:not(.day-first)").getBoundingClientRect().top) }));
+    return page.evaluate(() => {
+      const frost = document.querySelector("body > .frost");
+      return {
+        frost: getComputedStyle(frost).opacity,
+        tint: getComputedStyle(frost, "::after").opacity,
+        leaves: getComputedStyle(document.querySelector("body > .crown")).getPropertyValue("--leaves").trim(),
+        word: getComputedStyle(document.querySelector(".topbar .crumb.brand .wordmark")).color,
+        hero: Math.round(document.querySelector("#content > .page-stage.front .day-hero:not(.day-first)").getBoundingClientRect().top),
+      };
+    });
   };
-  const bars = [await under(120), await under(0)];
-  check(bars[0].frost === "1" && bars[0].hero < 0 && bars[1].frost === "0" && bars[1].hero >= 56, `wide screen: the start page does not run under the bar with the frost behind it, or stands elsewhere at its top: ${JSON.stringify(bars)}`);
+  const bars = [await under(120), await under(560), await under(0)];
+  const [onPhoto, past, top] = bars;
+  check(onPhoto.frost === "1" && onPhoto.hero < 0 && top.frost === "0" && top.hero >= 56, `wide screen: the start page does not run under the bar with the frost behind it, or stands elsewhere at its top: ${JSON.stringify(bars)}`);
+  check(onPhoto.tint === "0" && onPhoto.leaves === "0" && onPhoto.word === "rgb(255, 255, 255)" && top.leaves === "0", `wide screen: over the photo the bar is not the photo's (the blur alone, no leaves, its words light), or leaves at the top: ${JSON.stringify(bars)}`);
+  check(past.frost === "1" && past.tint === "1" && past.leaves === "1" && past.word !== "rgb(255, 255, 255)", `wide screen: past the photo the leaves and the frost's colour did not come, or the bar's words stayed light: ${JSON.stringify(bars)}`);
   // „Rückgängig": the setup again, and what this browser kept before.
   await page.click(".day-welcome button:has-text('Rückgängig') >> visible=true");
   await page.waitForSelector(".ob >> visible=true", { timeout: 5000 }).catch(() => failures.push("„Rückgängig\" does not bring the setup back"));
