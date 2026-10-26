@@ -29,7 +29,7 @@ use folia_routes::filter::{
     CatalogQuery, ExamPart, FitIds, FitsFilter, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope,
     SortKey,
 };
-use folia_routes::url::{self, CatalogUrl, CollectionView, PAGE_SIZE, ProgramTab};
+use folia_routes::url::{self, CatalogUrl, CollectionView, PAGE_SIZE};
 use leptos::prelude::*;
 use folia_design::stage::Title;
 use leptos_router::hooks::use_navigate;
@@ -963,9 +963,6 @@ fn List(
                         <a class="sheet-toggle" href="#filters" data-action="sheet-open">
                             <Icon name="sliders-horizontal"/>{t.catalog.filters}{move || (active_count() > 0).then(|| view! { <em>{active_count()}</em> })}
                         </a>
-                        {data.program.as_ref().map(|p| view! {
-                            <a class="ghost" href=t.path(&url::program_path(&p.slug, ProgramTab::Plan))><Icon name="graduation-cap"/>{t.catalog.program_page}</a>
-                        })}
                     </div>
                 </div>
                 <div class="active-filters">
@@ -2173,6 +2170,15 @@ fn Filters(
     // A chosen person is a row: on the left the switch between + (wanted) and × (unwanted), on
     // the right the button that takes the person out again. Wanted persons are alternatives
     // (Meer or Köhler), unwanted ones are all left out (neither Lambers nor Hofstedt).
+    // By keyboard a person is one stop (owner, 2026-10-26: „dass man nicht mit in den Buttons
+    // navigiert, sondern mit up and down durch die Personen. Und dann kann man mit enter oder den
+    // pfeiltasten die selection ändern und halt del zum entfernen … die selection soll dann auf der
+    // ganzen person gezeigt werden"): its chosen switch, while the other one and the bin are the
+    // mouse's (`tabindex="-1"`). ↑ ↓ go from person to person (enhance.js, the filters' arrows),
+    // ← → and + − choose, Enter and the space bar turn it, Entf takes the person out and the
+    // keyboard goes on to the next one (else the one before, else the picker); the whole row is lit
+    // (app.css `.person`), and the bar at the foot names the keys.
+    let refocus = StoredValue::new(None::<String>);
     let person = move |name: String| {
         let place = move |q: &mut CatalogQuery, name: &str, wanted: Option<bool>| {
             q.lecturers_include.retain(|n| n != name);
@@ -2192,15 +2198,71 @@ fn Filters(
             let name = name.clone();
             move || query.with(|q| q.lecturers_exclude.contains(&name))
         };
-        let (unwanted_1, unwanted_2, unwanted_3) = (is_unwanted.clone(), is_unwanted.clone(), is_unwanted);
+        let (unwanted_1, unwanted_2, unwanted_3) = (is_unwanted.clone(), is_unwanted.clone(), is_unwanted.clone());
+        let (unwanted_4, unwanted_5) = (is_unwanted.clone(), is_unwanted);
+        let (plus, cross) = (NodeRef::<leptos::html::A>::new(), NodeRef::<leptos::html::A>::new());
+        // The person the keyboard goes on to after one was taken out, built anew with the list.
+        if refocus.with_value(|next| next.as_deref() == Some(name.as_str())) {
+            refocus.set_value(None);
+            let unwanted = query.with_untracked(|q| q.lecturers_exclude.contains(&name));
+            request_animation_frame(move || {
+                if let Some(switch) = (if unwanted { cross } else { plus }).get_untracked() {
+                    let _ = switch.focus();
+                }
+            });
+        }
+        let keyed = name.clone();
+        let on_key = move |ev: leptos::ev::KeyboardEvent| {
+            if ev.default_prevented() || ev.ctrl_key() || ev.meta_key() || ev.alt_key() || ev.is_composing() {
+                return;
+            }
+            let unwanted = query.with_untracked(|q| q.lecturers_exclude.contains(&keyed));
+            // Some(true): +, Some(false): ×, None: out.
+            let wanted = match ev.key().as_str() {
+                "ArrowLeft" | "+" => Some(true),
+                "ArrowRight" | "-" | "−" => Some(false),
+                "Enter" | " " => Some(unwanted),
+                "Delete" | "Backspace" => None,
+                _ => return,
+            };
+            ev.prevent_default();
+            match wanted {
+                // As it is already.
+                Some(want) if want != unwanted => return,
+                // The keyboard goes with the choice: its switch is the person's stop now.
+                Some(want) => {
+                    if let Some(switch) = (if want { plus } else { cross }).get_untracked() {
+                        let _ = switch.focus();
+                    }
+                }
+                None => {
+                    let names = chosen_lecturers.get_untracked();
+                    let at = names.iter().position(|other| *other == keyed);
+                    let next = at.and_then(|at| names.get(at + 1).or_else(|| at.checked_sub(1).and_then(|before| names.get(before)))).cloned();
+                    if next.is_none() {
+                        // The last one: back to the picker.
+                        request_animation_frame(|| {
+                            if let Some(picker) = leptos::web_sys::window().and_then(|window| window.document()).and_then(|document| document.get_element_by_id("pick-lecturer")) {
+                                if let Ok(picker) = leptos::wasm_bindgen::JsCast::dyn_into::<leptos::web_sys::HtmlElement>(picker) {
+                                    let _ = picker.focus();
+                                }
+                            }
+                        });
+                    }
+                    refocus.set_value(next);
+                }
+            }
+            go.run(changed(query, |q| place(q, &keyed, wanted)));
+        };
         view! {
             <div class="person" data-state=move || if unwanted_1() { "without" } else { "with" }>
-                <div class="seg mini" role="radiogroup" aria-label=name.clone()>
-                    <a href=link(Some(true)) role="radio" rel="nofollow" draggable="false" data-noscroll="" class="plus" title=t.catalog.with_person aria-label=t.catalog.with aria-checked=move || if unwanted_2() { "false" } else { "true" }><Icon name="plus"/></a>
-                    <a href=link(Some(false)) role="radio" rel="nofollow" draggable="false" data-noscroll="" class="cross" title=t.catalog.without_person aria-label=t.catalog.without aria-checked=move || if unwanted_3() { "true" } else { "false" }><Icon name="x"/></a>
+                <div class="seg mini" role="radiogroup" aria-label=name.clone() on:keydown=on_key>
+                    <a node_ref=plus href=link(Some(true)) role="radio" rel="nofollow" draggable="false" data-noscroll="" class="plus" title=t.catalog.with_person aria-label=t.catalog.with aria-keyshortcuts="Delete" aria-checked=move || if unwanted_2() { "false" } else { "true" } tabindex=move || unwanted_4().then_some("-1")><Icon name="plus"/></a>
+                    <a node_ref=cross href=link(Some(false)) role="radio" rel="nofollow" draggable="false" data-noscroll="" class="cross" title=t.catalog.without_person aria-label=t.catalog.without aria-keyshortcuts="Delete" aria-checked=move || if unwanted_3() { "true" } else { "false" } tabindex=move || (!unwanted_5()).then_some("-1")><Icon name="x"/></a>
                 </div>
                 <span class="person-name"><b>{name.clone()}</b>{(!title.is_empty()).then(|| view! { <small>{title}</small> })}</span>
-                <a class="icon-btn remove" href=link(None) rel="nofollow" draggable="false" data-noscroll="" title=t.catalog.remove aria-label=(t.catalog.remove_person)(&name)><Icon name="trash-2"/></a>
+                // The mouse's: the keyboard takes the person out with Entf.
+                <a class="icon-btn remove" href=link(None) rel="nofollow" draggable="false" data-noscroll="" tabindex="-1" title=t.catalog.remove aria-label=(t.catalog.remove_person)(&name)><Icon name="trash-2"/></a>
             </div>
         }
     };

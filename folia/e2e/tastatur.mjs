@@ -15,7 +15,9 @@
 // nothing then, and its hint is gone); the rail is one stop of Tab whose ↓ goes from tab to tab;
 // Esc in the search leads into the list; a combination is written with „+" on a PC and as signs on
 // a Mac; on the Merkliste ↓ goes from row to row, F into its sidebar as a mode, Esc back to the row,
-// Entf takes a row off with „Rückgängig“ and ? marks „In der Merkliste“. On the synthetic catalog
+// Entf takes a row off with „Rückgängig“ and ? marks „In der Merkliste“; a chosen lecturer is one
+// stop whose ← → Enter and Entf choose and take it out, the picker's list stays whole in the area.
+// On the synthetic catalog
 // (docs/folia/frontend.md §4) as on the real one.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node tastatur.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Fails on a console error or a step that does not come out as it should.
@@ -279,6 +281,74 @@ const url = (page, test, timeout = 5000) => page.waitForFunction(test, null, { t
   await context.close();
 }
 
+// ---------- the chosen lecturers ----------
+// A chosen person is one stop (owner, 2026-10-26: „mit up and down durch die Personen … mit enter
+// oder den pfeiltasten die selection ändern und halt del zum entfernen"): ↓ from the picker goes to
+// the first person and on to the next, never into its switch's other half or its bin; → makes it
+// „ohne", Enter „mit" again, the whole row is lit and the bar names ← → and Entf; Entf takes it out
+// and the keyboard goes on to the person before, the last one back to the picker. The picker's list
+// stands inside what shows the filters, with its search field, and the tag „Esc zum Verlassen" is
+// gone while it is open; the ring lies inside the panel's edge.
+{
+  const { context, page } = await open("/catalog");
+  await page.evaluate(() => { const more = onPage("#filters details.more"); if (more) more.open = true; });
+  await page.click("#pick-lecturer >> visible=true");
+  await page.waitForFunction(() => allOnPage("#pick-lecturer-list .combo-option").length > 3);
+  const people = await page.evaluate(() => allOnPage("#pick-lecturer-list .combo-option .combo-label").slice(0, 2).map((el) => el.textContent));
+  await press(page, "Escape", 200);
+  await page.goto(`${base}/catalog?${people.map((name) => `lecturer=${encodeURIComponent(name)}`).join("&")}`, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__betulaApp === true && allOnPage(".people .person").length === 2, null, { timeout: 60000 }).catch(() => problems.push("the lecturers: the two persons are not there"));
+  await page.waitForTimeout(400);
+  const here = () => page.evaluate(() => {
+    const a = document.activeElement;
+    const person = a?.closest?.(".person");
+    return { id: a?.id || "", label: a?.getAttribute("aria-label") || "", checked: a?.getAttribute("aria-checked") || "", person: person?.querySelector(".person-name b")?.textContent || "", lit: person ? getComputedStyle(person).boxShadow : "", bar: onPage("#filters > .key-bar[data-on]")?.textContent || "" };
+  });
+  await press(page, "f", 250);
+  const ring = await page.evaluate(() => getComputedStyle(onPage("#filters")).outlineOffset);
+  check(ring === "-2px", `the filters' ring does not lie inside the panel's edge (${ring})`);
+  await pressUntil(page, "Tab", (now) => /lecturers/.test(now.section));
+  let now = await here();
+  check(now.id === "pick-lecturer", `the lecturers: Tab did not come to the picker (${JSON.stringify(now)})`);
+  await press(page, "ArrowDown", 120);
+  now = await here();
+  check(now.person === people[0] && now.checked === "true", `the lecturers: ↓ from the picker is not at the first person (${JSON.stringify(now)})`);
+  check(/inset/.test(now.lit) && /entfernen/.test(now.bar), `the lecturers: the person is not lit, or the bar does not name Entf (${JSON.stringify(now)})`);
+  await press(page, "ArrowDown", 120);
+  now = await here();
+  check(now.person === people[1] && now.checked === "true", `the lecturers: ↓ did not go to the next person (${JSON.stringify(now)})`);
+  await press(page, "ArrowRight", 600);
+  now = await here();
+  const without = await page.evaluate(() => new URL(location.href).searchParams.getAll("not-lecturer"));
+  check(without.join() === people[1] && now.person === people[1] && now.label === "ohne" && now.checked === "true", `the lecturers: → did not make the person „ohne“ with the keyboard on it (${JSON.stringify({ without, now })})`);
+  await press(page, "Enter", 600);
+  now = await here();
+  const wanted = await page.evaluate(() => new URL(location.href).searchParams.getAll("lecturer"));
+  check(wanted.length === 2 && now.person === people[1] && now.label === "mit", `the lecturers: Enter did not make the person „mit“ again (${JSON.stringify({ wanted, now })})`);
+  await press(page, "ArrowUp", 120);
+  check((await here()).person === people[0], "the lecturers: ↑ did not go back to the first person");
+  await press(page, "ArrowDown", 120);
+  await press(page, "Delete", 700);
+  now = await here();
+  const left = await page.evaluate(() => new URL(location.href).searchParams.getAll("lecturer"));
+  check(left.join() === people[0] && now.person === people[0], `the lecturers: Entf did not take the last person out with the keyboard going to the one before (${JSON.stringify({ left, now })})`);
+  await press(page, "Delete", 700);
+  now = await here();
+  check(now.id === "pick-lecturer" && !(await page.evaluate(() => location.search.includes("lecturer"))), `the lecturers: Entf at the last person did not lead back to the picker (${JSON.stringify(now)})`);
+  // The picker's list, opened at the foot of the filters: inside what shows them, the tag gone.
+  await press(page, "Enter", 500);
+  const pop = await page.evaluate(() => {
+    const list = onPage(".combo[data-open] .combo-pop")?.getBoundingClientRect();
+    const search = onPage(".combo[data-open] .combo-search")?.getBoundingClientRect();
+    const area = onPage(".work.flowing")?.getBoundingClientRect();
+    const tag = document.querySelector(".mode-tag[data-on]");
+    return list && area && { inside: list.top >= area.top && list.bottom <= area.bottom, search: !!search && search.top >= area.top, tag: !!tag && tag.getClientRects().length > 0 };
+  });
+  check(pop && pop.inside && pop.search && !pop.tag, `the lecturers' picker: its list is cut off by the area or under the tag (${JSON.stringify(pop)})`);
+  await press(page, "Escape", 200);
+  await context.close();
+}
+
 // ---------- the Merkliste ----------
 // The same regions on the Merkliste (folia/design/tastatur/konzept.html, „Die anderen Seiten"): its
 // rows a stop whose ↓ goes from row to row, F into the sidebar (the collections and the filters) as
@@ -321,8 +391,8 @@ const url = (page, test, timeout = 5000) => page.waitForFunction(test, null, { t
 // ---------- the keys as each system writes them ----------
 for (const [platform, said] of [["Linux x86_64", /^Strg\+K$/], ["MacIntel", /^⌘K$/]]) {
   const { context, page } = await open("/catalog", platform);
-  const shown = await page.evaluate(() => [...document.querySelectorAll(".search .k-pc, .search .k-mac")].filter((k) => k.getClientRects().length).map((k) => k.textContent.replace(/\s+/g, "")).join("|"));
-  check(said.test(shown), `${platform}: the search names ${shown}`);
+  const shown = await page.evaluate(() => [...document.querySelectorAll(".cmd-btn .k-pc, .cmd-btn .k-mac")].filter((k) => k.getClientRects().length).map((k) => k.textContent.replace(/\s+/g, "")).join("|"));
+  check(said.test(shown), `${platform}: „Befehle“ names ${shown}`);
   await context.close();
 }
 
