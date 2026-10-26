@@ -6,8 +6,8 @@
 // ways into the catalog. „Studium anlegen" plans the semester's modules and marks those of the
 // semesters before as passed, and „Rückgängig" puts back what was; „Erst mal umschauen" shows the
 // day without a study. The app keeps the photo of the days ahead, which the server's page then
-// shows before the app has started. On a wide screen the top of the page fades out as it is
-// scrolled. The ground names who took the photo shown. On a phone the photo reaches up under the
+// shows before the app has started. On a wide screen the page runs under the bar as on a phone,
+// the frost behind the bar once it is scrolled. The ground names who took the photo shown. On a phone the photo reaches up under the
 // search without the crown's leaves, which slide down with the scroll as the photo leaves the bar,
 // no faster than their most on a quick swipe; once a page is scrolled the frost lies under the
 // search, on the start page as on the catalog's. Nothing loads a page. („Über Betula", what the
@@ -153,19 +153,16 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
     else check(server.skeleton && !server.hero, `the day in another language than it was made in: ${JSON.stringify(server)}`);
   }
   await alone.close();
-  // A page of panels fades out at its top as its scroll takes it up out of the area, more as the
-  // scroll goes on, up to 40 px (`--edge`, the area's mask; owner, 2026-10-26: „Am Pc gibt es auch
-  // das problem, dass zeug abgeschnitten wird"); at its top not at all.
-  const edge = async (y) => {
+  // On a wide screen the start page runs under the bar as on a phone, and the frost lies behind the
+  // bar once it is scrolled (owner, 2026-10-26: „Mach das mal so wie bei der mobile version");
+  // at its top the frost is away and the page stands where it stood.
+  const under = async (y) => {
     await page.evaluate((y) => document.querySelector("#content > .page-stage.front > .work.flowing").scrollTo(0, y), y);
-    await page.waitForTimeout(300);
-    return page.evaluate(() => {
-      const style = getComputedStyle(document.querySelector("#content > .page-stage.front > .work.flowing"));
-      return { edge: style.getPropertyValue("--edge").trim(), fades: style.maskImage.startsWith("linear-gradient(rgba(0, 0, 0, 0)") };
-    });
+    await page.waitForTimeout(400);
+    return page.evaluate(() => ({ frost: getComputedStyle(document.querySelector("body > .frost")).opacity, hero: Math.round(document.querySelector("#content > .page-stage.front .day-hero:not(.day-first)").getBoundingClientRect().top) }));
   };
-  const edges = [await edge(20), await edge(400), await edge(0)];
-  check(edges.map((at) => at.edge).join() === "20px,40px,0px" && edges[0].fades && edges[1].fades && !edges[2].fades, `wide screen: the top of the start page does not fade out as it is scrolled, or has a mask at its top: ${JSON.stringify(edges)}`);
+  const bars = [await under(120), await under(0)];
+  check(bars[0].frost === "1" && bars[0].hero < 0 && bars[1].frost === "0" && bars[1].hero >= 56, `wide screen: the start page does not run under the bar with the frost behind it, or stands elsewhere at its top: ${JSON.stringify(bars)}`);
   // „Rückgängig": the setup again, and what this browser kept before.
   await page.click(".day-welcome button:has-text('Rückgängig') >> visible=true");
   await page.waitForSelector(".ob >> visible=true", { timeout: 5000 }).catch(() => failures.push("„Rückgängig\" does not bring the setup back"));

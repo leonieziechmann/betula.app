@@ -1672,8 +1672,10 @@
   // its top, above the bar at the bottom; `lift` px higher for a sheet on its way all up.
   const viewOf = (scroller, lift) => {
     if (scroller !== document.scrollingElement) {
-      const r = scroller.getBoundingClientRect();
-      return { top: r.top - lift + scroller.clientTop, bottom: Math.min(innerHeight, r.top - lift + scroller.clientTop + scroller.clientHeight) };
+      // A page of panels runs under the bar on a wide screen: what it shows starts below the bar
+      // (its `scroll-padding`).
+      const r = scroller.getBoundingClientRect(), under = parseFloat(getComputedStyle(scroller).scrollPaddingTop) || 0;
+      return { top: r.top - lift + scroller.clientTop + under, bottom: Math.min(innerHeight, r.top - lift + scroller.clientTop + scroller.clientHeight) };
     }
     // A bar in the upper half of the screen covers what is above its bottom, one in the lower half
     // (a phone's, which floats over the edge) what is below its top.
@@ -2084,7 +2086,8 @@
     const scroller = byId("page-scroll");
     if (!nav || !scroller) return;
     const links = [...nav.querySelectorAll('a[href^="#"]')];
-    const line = scroller.getBoundingClientRect().top + 96;
+    // 96 px below where the page shows: below the bar, where a page of panels runs under it.
+    const line = scroller.getBoundingClientRect().top + (parseFloat(getComputedStyle(scroller).scrollPaddingTop) || 0) + 96;
     let current = links[0];
     for (const link of links) {
       const section = byId(link.getAttribute("href").slice(1));
@@ -2179,6 +2182,7 @@
   const areaFollow = () => {
     areaFrame = 0;
     if (phone()) return;
+    takeBarWheel();
     const area = flowing();
     const head = area?.querySelector(LIST_HEADS) ?? null;
     if (head !== headSeen) { headWatch.disconnect(); if (head) headWatch.observe(head); headSeen = head; }
@@ -2234,6 +2238,9 @@
   // the page where the glide is, whatever the list did in between, so it arrives at the top. A
   // wheel, a touch, a click or a key stops it; where less motion is wanted the page is up at once.
   const pageScroller = () => (phone() ? document.scrollingElement : flowing());
+  // How high the page shows: a page of panels runs under the bar on a wide screen, and shows what
+  // is below it (its `scroll-padding`).
+  const shownOf = (page) => page.clientHeight - (page === document.scrollingElement ? 0 : parseFloat(getComputedStyle(page).scrollPaddingTop) || 0);
   let topFrame = 0;
   let topPage = null; // the page and the button it was last worked out for
   let topButton = null;
@@ -2242,15 +2249,15 @@
     topPage = pageScroller();
     topButton = document.getElementById("to-top");
     if (!topButton) return;
-    const far = Boolean(topPage) && topPage.scrollTop > topPage.clientHeight;
+    const far = Boolean(topPage) && topPage.scrollTop > shownOf(topPage);
     if (topButton.hasAttribute("data-shown") !== far) topButton.toggleAttribute("data-shown", far);
   };
   const showTopSoon = () => { if (!topFrame) topFrame = requestAnimationFrame(showTop); };
   document.addEventListener("scroll", showTopSoon, { capture: true, passive: true });
   addEventListener("resize", showTopSoon);
 
-  // The frost under the bar on a phone (app.css `.frost`): once the window is scrolled, a blur
-  // lies under the crown and the search over what runs beneath (`data-scrolled`). On the start
+  // The frost under the bar (app.css `.frost`): once the page is scrolled, a blur lies under the
+  // crown and the search over what runs beneath (`data-scrolled`), on a phone as on a wide screen. On the start
   // page the crown's leaves wait while its photo lies under the search, and slide down from above
   // as it leaves the bar, as far as the page has gone on past it, so that the page brings them
   // (owner, 2026-10-26: „dass sich die blätter von oben rein schieben beim handy. Als scroll
@@ -2269,10 +2276,12 @@
   let leavesTarget = 1;
   let leavesFrame = 0;
   let leavesAt = 0;
+  let frostBar = "0px"; // the width of the page's scrollbar, which the frost leaves clear (app.css)
   const leavesPut = () => {
     const value = String(Math.round(leavesShown * 1000) / 1000);
     for (const el of document.querySelectorAll("body > .crown, body > .frost")) {
       if (el.style.getPropertyValue("--leaves") !== value) el.style.setProperty("--leaves", value);
+      if (el.classList.contains("frost") && el.style.getPropertyValue("--scrollbar") !== frostBar) el.style.setProperty("--scrollbar", frostBar);
     }
   };
   const leavesStep = (now) => {
@@ -2297,11 +2306,19 @@
     leavesPut();
     if (leavesShown !== leavesTarget && !leavesFrame) leavesFrame = requestAnimationFrame(leavesStep);
   };
+  // On a wide screen a page of panels runs under the bar (app.css), and the frost lies behind the
+  // bar once it is scrolled; not a list's page nor „Mein Studium"'s semesters, whose heads stay at
+  // the top (a browser without `:has` has none of it).
+  const runsUnderBar = (area) => {
+    try { return area.matches(":not(:has(> .list, > .page > .page-inner.study > .st-sems))"); } catch { return false; }
+  };
   let frostFrame = 0;
   const frost = () => {
     frostFrame = 0;
-    const scrolled = phone() && scrollY > 4;
+    const area = phone() ? null : flowing();
+    const scrolled = phone() ? scrollY > 4 : Boolean(area) && area.scrollTop > 4 && runsUnderBar(area);
     if (root.hasAttribute("data-scrolled") !== scrolled) root.toggleAttribute("data-scrolled", scrolled);
+    frostBar = (area ? area.offsetWidth - area.clientWidth : 0) + "px";
     let gone = true;
     let leaves = 1;
     if (phone()) {
@@ -2319,32 +2336,12 @@
   };
   const frostSoon = () => { if (!frostFrame) frostFrame = requestAnimationFrame(frost); };
   addEventListener("scroll", frostSoon, { passive: true });
+  document.addEventListener("scroll", (e) => { if (!phone() && e.target === flowing()) frostSoon(); }, { capture: true, passive: true });
   addEventListener("resize", frostSoon);
   addEventListener("betula:stage", frostSoon);
   new MutationObserver(frostSoon).observe(document.body, { childList: true });
   frost();
 
-  // The top of a page of panels on a wide screen (app.css: the area's mask): what the page's scroll
-  // takes up out of its area fades out over the last 40 px below the bar instead of being cut off
-  // there, a fade that grows with the first 40 px of the scroll (`--edge` on the area), so that a
-  // page at its top stands as it is. Each tab's page keeps its own; the one that comes in front is
-  // asked where it is.
-  const EDGE = 40;
-  let edgeFrame = 0;
-  const edge = () => {
-    edgeFrame = 0;
-    const area = flowing();
-    if (!area || phone()) return;
-    const down = Math.min(Math.max(Math.round(area.scrollTop), 0), EDGE);
-    if (area.style.getPropertyValue("--edge") !== down + "px") area.style.setProperty("--edge", down + "px");
-    // The mask itself only while the page is away from its top (it costs a frame time to draw).
-    if (area.hasAttribute("data-edge") !== down > 0) area.toggleAttribute("data-edge", down > 0);
-  };
-  const edgeSoon = () => { if (!edgeFrame) edgeFrame = requestAnimationFrame(edge); };
-  document.addEventListener("scroll", (e) => { if (e.target === flowing()) edgeSoon(); }, { capture: true, passive: true });
-  addEventListener("resize", edgeSoon);
-  addEventListener("betula:stage", edgeSoon);
-  edgeSoon();
   // The app's pages replace each other, and the app takes the page over with a button of its own.
   // Another page or another button starts at the page's top, where the button is hidden; a page
   // that comes back further down is scrolled there, and that scroll shows it. Asked where it is
@@ -2398,11 +2395,8 @@
     turning = 0;
     turn = null;
   };
-  document.addEventListener("wheel", (e) => {
-    if (e.ctrlKey || !e.target.closest?.("#to-top")) return;
-    const page = pageScroller();
-    if (!page || page === document.scrollingElement) return;
-    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * page.clientHeight : e.deltaY;
+  const turnPage = (page, e) => {
+    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * shownOf(page) : e.deltaY;
     if (Math.abs(dy) < 50 || glide() === "instant") { page.scrollBy({ top: dy, behavior: "instant" }); return; }
     const left = turn?.page === page ? turn.way - turn.gone : 0;
     turn = { page, way: left + dy, gone: 0, start: performance.now() };
@@ -2417,7 +2411,37 @@
       else stopTurning();
     };
     turning = requestAnimationFrame(step);
+  };
+  document.addEventListener("wheel", (e) => {
+    if (e.ctrlKey || !e.target.closest?.("#to-top")) return;
+    const page = pageScroller();
+    if (!page || page === document.scrollingElement) return;
+    turnPage(page, e);
   }, { passive: true });
+  // A page of panels runs under the bar on a wide screen (app.css), and the wheel over the bar and
+  // the room around it, where the page shows, turns it as well, as over the button. The browser
+  // turned it there only now and then (once from the page's top, then no more: the bar is no part
+  // of what scrolls), so the bar takes the wheel itself: a listener on the bar alone, as it holds
+  // the wheel back, so that the wheel anywhere else does not wait for the page's script. Not a
+  // list's page nor „Mein Studium"'s semesters, which do not run under the bar: there, as over the
+  // rail, the wheel over the bar does nothing. The app's bar is new at the takeover: whichever
+  // bar there is is asked for as the area follows the page (`areaFollow`).
+  let wheelBar = null;
+  const barWheel = (e) => {
+    if (e.ctrlKey || phone() || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    const page = flowing();
+    if (!page || !runsUnderBar(page)) return;
+    e.preventDefault();
+    turnPage(page, e);
+  };
+  function takeBarWheel() {
+    const bar = document.querySelector("body > .main > .topbar");
+    if (bar === wheelBar) return;
+    wheelBar?.removeEventListener("wheel", barWheel);
+    wheelBar = bar;
+    bar?.addEventListener("wheel", barWheel, { passive: false });
+  }
+  takeBarWheel();
   let rising = 0; // the next frame of a glide to the top
   const STOP_RISING = ["wheel", "touchstart", "pointerdown", "keydown"];
   const stopRising = () => {
@@ -2440,7 +2464,7 @@
       content?.addEventListener("blur", () => content.removeAttribute("tabindex"), { once: true });
       content?.focus({ preventScroll: true });
     }
-    const from = Math.min(page.scrollTop, page.clientHeight);
+    const from = Math.min(page.scrollTop, shownOf(page));
     if (glide() === "instant") { put(0); return; }
     put(from);
     const start = performance.now();

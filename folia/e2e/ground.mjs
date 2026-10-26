@@ -1,11 +1,14 @@
 // The ground at the end of every page (docs/folia/frontend.md „The birch", „One scroll area"). On a wide
 // screen every page is one scroll area right of the rail under the header: the page and the ground
-// after it scroll natively as one, the window never scrolls, and the wheel over the header or the
-// rail moves nothing. What stands beside the page (a sidebar, the filters, a module) is pinned: the
+// after it scroll natively as one, the window never scrolls, and the wheel over the rail moves
+// nothing, nor over the header of a list's page; a page of panels runs under the header, and the
+// wheel over it turns the page. What stands beside the page (a sidebar, the filters, a module) is pinned: the
 // ground slides over its lower end, and once the area stands still its content ends 8 px above the
 // ground, as the page's end does, and the panel ends there with round corners, which the ground
 // draws; the first scroll takes them away. The wood behind every page stands on the ground's edge
-// in every frame. Tab into the ground brings it into view. A phone scrolls the ground with the page, and
+// in every frame. A page of panels runs under the bar, the frost behind the bar once it is
+// scrolled, its sidebar pinned below the bar; a list's page does not. Tab into the ground brings
+// it into view. A phone scrolls the ground with the page, and
 // under a page shorter than the window the ground lies just past the window's lower edge.
 import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
@@ -112,10 +115,16 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   const { context, page } = await open("/");
   let f = await at(page);
   check(f.room === 0 && f.groundTop >= 900 && f.areaBottom === 893 && f.sideBottom === null, `the page at its top: the window has room, or the ground shows: ${JSON.stringify(f)}`);
-  await wheel(page, 700, 28, 100, 3);
   await wheel(page, 26, 400, 100, 3);
   f = await at(page);
-  check(f.inset === 0 && f.pageTop === 0, `the wheel over the header or the rail moved something: ${JSON.stringify(f)}`);
+  check(f.inset === 0 && f.pageTop === 0, `the wheel over the rail moved something: ${JSON.stringify(f)}`);
+  // The page runs under the header: the wheel over the header and the room around it, where the
+  // page shows, turns it, every notch (the browser's own wheel did once, from the top); the window
+  // stays.
+  await wheel(page, 700, 28, 100, 1);
+  await wheel(page, 700, 4, 100, 1);
+  f = await at(page);
+  check(f.inset === 0 && f.pageTop === 200, `the wheel over the header did not turn the page under it, notch by notch: ${JSON.stringify(f)}`);
   // Just short of the ground; then the wheel brings it as the end of the page, the wood on it.
   await page.evaluate((PAGE) => { const el = onPage(PAGE); el.scrollTop = el.scrollHeight - el.clientHeight - 300; }, PAGE);
   await page.waitForTimeout(300);
@@ -149,6 +158,21 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   const { context, page } = await open("/programs");
   let f = await at(page);
   check(f.sideBottom === 892 && f.groundTop >= 900, `a framed page: the sidebar does not end 8 px above the window's edge, or the ground shows: ${JSON.stringify(f)}`);
+  // The page runs under the bar, the frost behind the bar once it is scrolled (owner, 2026-10-26:
+  // „Mach das mal so wie bei der mobile version"); the sidebar stays pinned below the bar, and at
+  // the top the page stands where it stood.
+  const bar = () => page.evaluate((PAGE) => ({
+    frost: getComputedStyle(document.querySelector("body > .frost")).opacity,
+    side: Math.round(onPage(".sidebar").getBoundingClientRect().top),
+    page: Math.round(onPage(PAGE).querySelector(":scope > .page").getBoundingClientRect().top),
+  }), PAGE);
+  const still = await bar();
+  await page.evaluate((PAGE) => { onPage(PAGE).scrollTop = 200; }, PAGE);
+  await page.waitForTimeout(400);
+  const under = await bar();
+  check(still.frost === "0" && still.side === 56 && still.page >= 55 && still.page <= 57 && under.frost === "1" && under.side === 56 && under.page < 0, `a framed page: it does not run under the bar with the frost behind it, or the sidebar moves: ${JSON.stringify([still, under])}`);
+  await page.evaluate((PAGE) => { onPage(PAGE).scrollTop = 0; }, PAGE);
+  await page.waitForTimeout(300);
   await watchWood(page);
   await toEnd(page);
   await wheel(page, 900, 500, 100, 2);
@@ -179,6 +203,10 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   await wheel(page, 900, 400, 100, 4);
   f = await at(page);
   const after = await page.evaluate(() => Math.round(onPage("#rows .row").getBoundingClientRect().top));
+  // A list's page does not run under the bar (its head stays at the top): no frost behind the bar.
+  check(await page.evaluate(() => getComputedStyle(document.querySelector("body > .frost")).opacity) === "0", "the catalog: the frost lies behind the bar of a list's page, under which nothing runs");
+  await wheel(page, 700, 28, 100, 2);
+  check((await at(page)).pageTop === f.pageTop, "the catalog: the wheel over the header of a list's page moved it");
   check(f.inset === 0 && f.groundTop === 692 && rows === after && f.sideBottom === 892 && f.groundTop - f.sideBodyBottom === 8, `a short list: the ground did not come as the end of the page, or the rows moved: ${JSON.stringify(f)} (rows ${rows} → ${after})`);
   check(f.woodOff === 0 && f.woodBottom === f.groundTop, `a short list: the wood did not stand on the ground in every frame: ${JSON.stringify(f)}`);
   check(f.sideEnd === false, `a short list: the filters are not longer than their panel, so this tells nothing: ${JSON.stringify(f)}`);
