@@ -7,8 +7,10 @@
 //! 2026-10-20: „Beim PC darf sich das hero banner nicht verschieben"): the sentence about the day
 //! keeps to two lines and names modules by their few letters, the card beside it is as high as the
 //! picture. On a phone the photo reaches up under the search; what runs under the search on the way
-//! down goes soft under the frost every page has there, and the crown's leaves come once the photo
-//! has left the bar (owner, 2026-10-26; app.css `.frost`, enhance.js `data-photo-gone`).
+//! down goes soft under the frost every page has there, and the crown's leaves slide down from
+//! above with the scroll as the photo leaves the bar (owner, 2026-10-26; app.css `.frost`,
+//! enhance.js `--leaves`). On a wide screen what the scroll takes up out of the page's area fades
+//! out below the bar (app.css, `--edge`).
 //!
 //! Everything is the visitor's and the browser app's (R9, R20): the Stundenplan's timetable of the
 //! current semester (`StudyplanAsk`, the same as the Stundenplan's, so the two never disagree),
