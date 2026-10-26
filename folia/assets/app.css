@@ -496,6 +496,12 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
    0 to 1 (set on the crown and the frost, enhance.js): 1 on every page, on the start page as far as
    it has gone on past its photo (below). The frost's colour comes with them. */
 .crown::before, .crown::after { translate: 0 calc((var(--leaves, 1) - 1) * 100%); }
+/* Where less motion is wanted (the system's setting) they do not slide: they come and go in a
+   quarter of a second where they hang, the frost's colour with them (enhance.js sets them at
+   once). */
+@media (prefers-reduced-motion: reduce) {
+  .crown::before, .crown::after { translate: none; opacity: var(--leaves, 1); }
+}
 @media (max-width: 900px) {
   /* On a phone the crown hangs over the page and under the search, and under both lies the frost
      (`ground::Crown`): once the window is scrolled (`data-scrolled`, enhance.js), a blur over what
@@ -557,10 +563,10 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   /* A page of panels runs under the bar (below), and once it is scrolled the frost lies behind the
      bar as on a phone (`data-scrolled`, enhance.js): the same blur in the page's colour at three
      quarters, reaching 14 px below the bar and fading out over its last 24, so that what goes
-     under the bar goes soft and the wordmark and the search stay on a calm ground. Below the bar
-     only over the column that scrolls: what is pinned beside it, the sidebar and the
-     module on the right, ends at the bar and stays whole. In front the rail, the bar and the
-     crown, the crown's leaves over the frost; then the frost over the page. Over the start page's
+     under the bar goes soft and the wordmark and the search stay on a calm ground; over what
+     scrolls alone (`.frost`, below), so that what is pinned beside it, the sidebar and the
+     module on the right, stays whole. In front the rail, the bar and the crown, the crown's
+     leaves over the frost; then the frost over the page. Over the start page's
      photo as on a phone (owner, 2026-10-26, of the photo under the bar's frost on a PC: „links
      ist das abgeschnitten es sieht übelst dreckig aus etc. Mach das mal ordentlich", and: „die
      animation für die Blätter gibt es auch immer noch nicht"): the blur alone while the photo lies
@@ -572,23 +578,30 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
      turns the page under it (enhance.js), as „Nach oben" does; not over the scrollbar. */
   .topbar::before { content: ""; position: absolute; z-index: -1; inset: calc(-1 * var(--gap)) 0 calc(-1 * var(--gap)) calc(-1 * var(--gap)); }
   .crown { z-index: 22; }
-  /* Over the page's column, as wide as the bar: not over the room beside it, where the photo's blur
-     ran out past its edge and the rail cut it off, nor over the page's scrollbar (`--scrollbar`,
-     its width, enhance.js), which stays clear. */
+  /* Over what scrolls and a little room around it, and nothing else (owner, 2026-10-26: „wenn nur
+     die rechte seite scrolled, wie zum beispiel bei der Modulseite, dass dann auch nur der bereich
+     + ein wenig margin geblurred wird. Außerdem ist es weired, dass wenn es fill width blur gibt,
+     dass dann an der seite trotzdem noch was durchgucken kann"): a page without a frame from the
+     rail to the window's edge, so that nothing peeks through beside it; beside a frame's sidebar
+     the column that scrolls and half the room before it, up to the module on the right where it
+     is open. Not over the page's scrollbar (`--scrollbar`, its width, enhance.js), which stays
+     clear. */
   .frost {
-    display: block; position: fixed; z-index: 21; top: 0; left: calc(var(--rail) + var(--gap)); right: max(var(--gap), var(--scrollbar, 0px)); height: calc(var(--head) + 14px); pointer-events: none;
+    display: block; position: fixed; z-index: 21; top: 0; left: var(--rail); right: var(--scrollbar, 0px); height: calc(var(--head) + 14px); pointer-events: none;
     -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); opacity: 0; transition: opacity .2s;
-    --frost-l: 0px; --frost-r: 0px;
-    mask-image: linear-gradient(#000 0 0), linear-gradient(#000 calc(100% - 24px), transparent), linear-gradient(#000 0 0);
-    mask-size: var(--frost-l) var(--head), calc(100% - var(--frost-l) - var(--frost-r)) 100%, var(--frost-r) var(--head);
-    mask-position: 0 0, var(--frost-l) 0, 100% 0; mask-repeat: no-repeat;
+    -webkit-mask: linear-gradient(#000 calc(100% - 24px), transparent); mask: linear-gradient(#000 calc(100% - 24px), transparent);
   }
   :root[data-scrolled] .frost { opacity: 1; }
-  :root:has(#content > .page-stage.front > .work.framed) .frost { --frost-l: calc(var(--filters) + var(--gap) / 2); }
-  /* The panel on the right as wide as the page has it (the frost is as wide as the page). */
+  :root:has(#content > .page-stage.front > .work.framed) .frost { left: calc(var(--rail) + var(--gap) * 1.5 + var(--filters)); }
+  /* The module on the right floats over the page, which scrolls on under it: over the module the
+     frost stays in the bar and ends at the module's edge, so that the module stands whole below
+     it (as wide as the page has it: its `100%` the page's, the window less the rail, the room on
+     either side and the scrollbar). */
   :root:has(#content > .page-stage.front > .work.aside-picked) .frost {
-    --preview: clamp(360px, var(--preview-w), calc(100% - var(--filters) - var(--gap) - 120px));
-    --frost-r: var(--preview);
+    --preview: clamp(360px, var(--preview-w), calc(100vw - var(--rail) - var(--gap) - max(var(--gap), var(--scrollbar, 0px)) - var(--filters) - var(--gap) - 120px));
+    --aside: calc(max(var(--gap), var(--scrollbar, 0px)) - var(--scrollbar, 0px) + var(--preview));
+    -webkit-mask: linear-gradient(#000 calc(100% - 24px), transparent) 0 0 / calc(100% - var(--aside)) 100% no-repeat, linear-gradient(#000 0 0) 100% 0 / var(--aside) var(--head) no-repeat;
+    mask: linear-gradient(#000 calc(100% - 24px), transparent) 0 0 / calc(100% - var(--aside)) 100% no-repeat, linear-gradient(#000 0 0) 100% 0 / var(--aside) var(--head) no-repeat;
   }
   /* The bar's words over the start page's photo, which reaches up behind the bar (below), until it
      has left the bar (`data-photo-gone`, enhance.js; so on the server's page as well): light, as
@@ -5943,6 +5956,9 @@ a.st-rsp-name:hover { text-decoration: underline; }
    visitor scrolls (owner, 2026-09-30: with less motion it stayed down behind the ground). The start
    of the installed app keeps the fade that takes it away without enhance.js (.launch). */
 @media (prefers-reduced-motion: reduce) { *:not(.wood, .launch), *::before, *::after { animation: none !important; transition: none !important; } }
+/* But for the crown's leaves and the frost's colour, which fade where they hang instead of sliding
+   (the crown, above): a fade moves nothing, and without it they would just be there. */
+@media (prefers-reduced-motion: reduce) { .crown::before, .crown::after, .frost::after { transition: opacity .25s !important; } }
 @media print { .rail, .topbar, .filters, .bottomnav, .pager, .crown, .ground, .to-top, .wood { display: none !important; } body { display: block; background: #fff; } .main { height: auto; display: block; } }
 
 /* ---------- the start page: the day and the setup (concept A, 2026-10-20) ----------
@@ -6031,7 +6047,18 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
      bild"): the box higher by where the page starts (the area's 1 px and the head), its content
      where it stood, its upper corners square at the edge. Over it the bar is the photo's, no
      leaves and no frost until the page is scrolled, its words light (one scroll area). */
-  .day-hero { --up: calc(1px + var(--head)); margin-top: calc(-1 * var(--up)); height: calc(300px + var(--up)); padding-top: calc(24px + var(--up)); border-top-left-radius: 0; border-top-right-radius: 0; }
+  .day-hero {
+    --up: calc(1px + var(--head));
+    /* And across the whole width, from the rail to the window's edge (its scrollbar), as on a
+       phone, so that the frost over it has nothing else beside it: beyond the page's column, the
+       room beside it and the page's 1 px, and beyond the day's 1600 px on a wider window (`100%`
+       is the day's width where it is used). */
+    --side: calc((100vw - var(--rail) - var(--gap) - var(--bar, 0px) - var(--pad-r, 0px) - 2px - 100%) / 2);
+    margin: calc(-1 * var(--up)) calc(-1px - var(--pad-r, 0px) - var(--side)) 0 calc(-1px - var(--gap) - var(--side));
+    height: calc(300px + var(--up));
+    padding: calc(24px + var(--up)) calc(24px + 1px + var(--pad-r, 0px) + var(--side)) 24px calc(28px + 1px + var(--gap) + var(--side));
+    border-radius: 0 0 var(--r-panel) var(--r-panel);
+  }
   .day-first { height: calc(640px + var(--up)); }
 }
 

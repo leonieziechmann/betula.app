@@ -174,6 +174,8 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
         leaves: getComputedStyle(document.querySelector("body > .crown")).getPropertyValue("--leaves").trim(),
         word: getComputedStyle(document.querySelector(".topbar .crumb.brand .wordmark")).color,
         hero: Math.round(document.querySelector("#content > .page-stage.front .day-hero:not(.day-first)").getBoundingClientRect().top),
+        // The photo and the frost across the whole width, from the rail to the window's edge.
+        across: [document.querySelector("#content > .page-stage.front .day-hero:not(.day-first)"), frost].map((el) => { const r = el.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right)].join(); }).every((x) => x === `${Math.round(document.querySelector(".rail").getBoundingClientRect().right)},${innerWidth}`),
         greet: Math.round(document.querySelector("#content > .page-stage.front .day-hero:not(.day-first) .day-greet").getBoundingClientRect().top),
       };
     });
@@ -181,6 +183,7 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
   const bars = [await under(120), await under(560), await under(0)];
   const [onPhoto, past, top] = bars;
   check(onPhoto.frost === "1" && onPhoto.hero < 0 && top.frost === "0" && top.hero === 0 && top.greet >= 56 + 24, `wide screen: the start page does not run under the bar with the frost behind it, or its photo does not reach up to the window's edge with its greeting below the bar: ${JSON.stringify(bars)}`);
+  check(top.across && onPhoto.across, `wide screen: the photo or the frost does not reach from the rail to the window's edge: ${JSON.stringify(bars)}`);
   check(onPhoto.tint === "0" && onPhoto.leaves === "0" && onPhoto.word === "rgb(255, 255, 255)" && top.leaves === "0" && top.word === "rgb(255, 255, 255)", `wide screen: over the photo the bar is not the photo's (the blur alone, no leaves, its words light): ${JSON.stringify(bars)}`);
   check(past.frost === "1" && past.tint === "1" && past.leaves === "1" && past.word !== "rgb(255, 255, 255)", `wide screen: past the photo the leaves and the frost's colour did not come, or the bar's words stayed light: ${JSON.stringify(bars)}`);
   // „Rückgängig": the setup again, and what this browser kept before.
