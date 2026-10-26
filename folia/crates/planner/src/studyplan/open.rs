@@ -114,6 +114,8 @@ pub(super) fn lines(table: &Timetable, titles: &BTreeMap<String, String>, base: 
 /// A group of the choice in focus, as a tile and as a line of „Vergleichen".
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct Group {
+    /// Its place among the groups (`data-g`): a phone's sheet turns its tile into its line by it.
+    pub at: usize,
     /// The keys of its Termine: one ticks it, all of them untick it.
     pub keys: Vec<RowKey>,
     /// „Mi 09:15", and „Mi 09:15–10:45".
@@ -183,9 +185,10 @@ pub(super) struct Focus {
     pub groups: Vec<Group>,
     /// „Weiter: Praktikum PP" and where it leads: the next choice still open.
     pub next: Option<(String, String)>,
-    /// Where „Fertig" leads, and „Vergleichen" (on or off).
+    /// Where „Fertig" leads, „Vergleichen" (on or off), and back to the tiles from it.
     pub done: String,
     pub compare: String,
+    pub tiles: String,
     pub comparing: bool,
 }
 
@@ -225,11 +228,11 @@ pub(super) fn focus_of(table: &Timetable, event: usize, titles: &BTreeMap<String
                 .flatten()
                 .collect::<Vec<_>>()
                 .join(", ");
-            Some((weekday, from, Group { keys: tile.keys, when, span, room, name, who, ticked: tile.ticked, meets, day, label }))
+            Some((weekday, from, Group { at: 0, keys: tile.keys, when, span, room, name, who, ticked: tile.ticked, meets, day, label }))
         })
         .collect();
     groups.sort_by_key(|(weekday, from, _)| (*weekday, *from));
-    let groups: Vec<Group> = groups.into_iter().map(|(_, _, group)| group).collect();
+    let groups: Vec<Group> = groups.into_iter().enumerate().map(|(at, (_, _, group))| Group { at, ..group }).collect();
     let ticked = groups.iter().filter(|group| group.ticked).count();
     let fits: Vec<&Group> = groups.iter().filter(|group| group.meets.is_none()).collect();
     // Whether the groups fit, then what to do: tick one or more, or where some meet the plan, that
@@ -259,6 +262,7 @@ pub(super) fn focus_of(table: &Timetable, event: usize, titles: &BTreeMap<String
         next,
         done: base.path(),
         compare: url.with_vergleich(!url.vergleich).path(),
+        tiles: url.with_vergleich(false).path(),
         comparing: url.vergleich,
         groups,
     })
@@ -573,7 +577,7 @@ fn Tiles(ctx: PlanCtx, focus: Memo<Option<Focus>>, more: RwSignal<bool>) -> impl
     let tile = move |group: Group| {
         let dot = if group.meets.is_some() { "st no" } else { "st ok" };
         view! {
-            <button class="gs pick" class:on=group.ticked type="button" role="checkbox" aria-checked=if group.ticked { "true" } else { "false" } title=group.label.clone() aria-label=group.label.clone() on:click=ticks(ctx, focus, &group)>
+            <button class="gs pick" class:on=group.ticked type="button" role="checkbox" aria-checked=if group.ticked { "true" } else { "false" } data-g=group.at title=group.label.clone() aria-label=group.label.clone() on:click=ticks(ctx, focus, &group)>
                 <b>{group.when.clone()}<i class=dot></i></b>
                 <small>{group.room.clone()}</small>
                 {group.name.clone().map(|name| view! { <small class="nm">{name}</small> })}
@@ -605,7 +609,7 @@ fn CompareList(ctx: PlanCtx, focus: Memo<Option<Focus>>) -> impl IntoView {
         let sub: Vec<String> = [group.name.clone(), group.who.clone()].into_iter().flatten().collect();
         let day = group.day.clone();
         view! {
-            <button class="sp-cmp-row" class:on=group.ticked type="button" role="checkbox" aria-checked=if group.ticked { "true" } else { "false" } aria-label=group.label.clone() on:click=ticks(ctx, focus, &group)>
+            <button class="sp-cmp-row" class:on=group.ticked type="button" role="checkbox" aria-checked=if group.ticked { "true" } else { "false" } data-g=group.at aria-label=group.label.clone() on:click=ticks(ctx, focus, &group)>
                 <span class="cbx" aria-hidden="true">{group.ticked.then(|| view! { <Icon name="check"/> })}</span>
                 <span class="cm">
                     <span class="ct"><b>{group.span.clone()}</b><i class=if group.meets.is_some() { "st no" } else { "st ok" }></i><span class="cr">{group.room.clone()}</span></span>
@@ -662,7 +666,12 @@ fn pick_height(height: Option<f64>) {
 /// The sheet of a phone while a choice is in focus (H1 of handy.html): under the week, the groups
 /// as tiles, „Vergleichen", and one large action, „Weiter" to the next choice still open or
 /// „Fertig"; closing it is its ×, and Esc. Compared, it is all up and lists the groups with their
-/// days.
+/// days. A finger moves it as the module's sheet (enhance.js; owner, 2026-10-26: „Der Modale Dialog
+/// muss auf jeden Fall mit der swipe Geste nach unten geschlossen werden können und mit der swipe
+/// Geste nach oben maximiert werden können"): down from half up it goes away, up it goes all up and
+/// back, each tile turning into its line of „Vergleichen" as far as the sheet has come („Wenn man
+/// den Modal maximiert, sollen während dessen die Termine aus der 3 spalten Ansicht in die
+/// Vergleichsliste Morphen. Passend zum Progress").
 #[component]
 pub(super) fn PickSheet(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
@@ -712,9 +721,11 @@ pub(super) fn PickSheet(ctx: PlanCtx) -> impl IntoView {
         pick_height(None);
     });
     let compare_href = move || field(focus, |focus| t.path(&focus.compare));
-    let body = move || match comparing.get() {
-        true => view! { <div class="sp-pick-list"><CompareList ctx focus/></div> }.into_any(),
-        false => view! {
+    // Both ways of showing the groups are there, the sheet shows one (`.full`): a finger that moves
+    // the sheet between half up and all up turns each tile into its line as far as it has come
+    // (enhance.js, app.css `.sp-pick.morph`), by the place of its group (`data-g`).
+    let body = move || view! {
+        <div class="sp-pick-body">
             <div class="grp">
                 <div class="grp-h">
                     <span>{o.groups}</span>
@@ -724,19 +735,24 @@ pub(super) fn PickSheet(ctx: PlanCtx) -> impl IntoView {
                 <Tiles ctx focus more/>
                 <p class="grp-n">{move || field(focus, |focus| focus.note.clone().unwrap_or_else(|| focus.hint.clone()))}</p>
             </div>
-        }
-        .into_any(),
+            <div class="sp-pick-list"><CompareList ctx focus/></div>
+        </div>
     };
     let action = move || match field(focus, |focus| focus.next.clone()) {
         Some((label, href)) => view! { <a class="big" href=t.path(&href) data-noscroll="">{label}<Icon name="chevron-right"/></a> }.into_any(),
         None => done_link(focus, back, t, true).into_any(),
     };
-    let tiles_again = move || comparing.get().then(|| view! { <a class="ib" href=compare_href data-noscroll="" data-replace="" aria-label=o.tiles title=o.tiles><Icon name="chevron-left"/></a> });
+    // ‹ back to the tiles, shown all up (app.css): a finger moving the sheet up brings it in as far
+    // as the sheet has come.
+    let tiles_again = move || view! { <a class="ib to-tiles" href=move || field(focus, |focus| t.path(&focus.tiles)) data-noscroll="" data-replace="" aria-label=o.tiles title=o.tiles><Icon name="chevron-left"/></a> };
+    // The tone alone sets the classes, which then hold what the script adds while a finger moves
+    // the sheet (`.morph`): a tick does not set them again.
+    let hue = Memo::new(move |_| field(focus, |focus| focus.hue));
     move || {
         open.get().is_some().then(|| {
             view! {
                 <section
-                    class=move || field(focus, |focus| format!("sp-pick {}", focus.hue))
+                    class=move || format!("sp-pick {}", hue.get())
                     class:full=move || comparing.get()
                     node_ref=sheet
                     aria-label=move || field(focus, |focus| focus.name.clone())
@@ -748,7 +764,7 @@ pub(super) fn PickSheet(ctx: PlanCtx) -> impl IntoView {
                         <span class="kd">{move || field(focus, |focus| focus.kind.clone())}</span>
                         <a class="ib end" href=move || field(focus, |focus| t.path(&focus.done)) data-action="close-focus" data-back=move || back.get() data-noscroll="" aria-label=o.close title=o.close><Icon name="x"/></a>
                     </div>
-                    {body}
+                    {body()}
                     {action}
                 </section>
             }
@@ -849,14 +865,16 @@ mod tests {
         assert_eq!(monday.bars.iter().map(|bar| (bar.label.as_str(), bar.own, bar.lanes)).collect::<Vec<_>>(), [("EvS", false, 1), ("EvS", true, 1)]);
         assert_eq!((monday.icon, monday.warn), ("clock-3", false));
         assert_eq!(focus.groups[2].day.as_ref().map(|day| (day.icon, day.warn, day.bars.iter().filter(|bar| bar.hit).count())), Some(("triangle-alert", true, 1)));
-        // The only choice: no „Weiter"; „Fertig" leaves the focus, „Vergleichen" compares.
-        assert_eq!((focus.next.clone(), focus.done.as_str(), focus.compare.as_str()), (None, "/studyplan?sem=2026W", "/studyplan?sem=2026W&wahl=e148370&vergleich=1"));
+        // The only choice: no „Weiter"; „Fertig" leaves the focus, „Vergleichen" compares, ‹ goes
+        // back to the tiles; each group by its place, which its tile and its line carry.
+        assert_eq!((focus.next.clone(), focus.done.as_str(), focus.compare.as_str(), focus.tiles.as_str()), (None, "/studyplan?sem=2026W", "/studyplan?sem=2026W&wahl=e148370&vergleich=1", "/studyplan?sem=2026W&wahl=e148370"));
+        assert_eq!(focus.groups.iter().map(|group| group.at).collect::<Vec<_>>(), [0, 1, 2, 3]);
         // Ticked: how many, without the note of an untouched choice.
         let first = table.events[e].rows[0].key.unwrap();
         doc.tick(key(), first, true);
         let ticked = plan_table(&doc);
         let focus = focus_of(&ticked, e, &short(), &url.with_vergleich(true), &i18n::DE).unwrap();
-        assert_eq!((focus.state.as_str(), focus.note.clone(), focus.comparing, focus.compare.as_str()), ("1 von 4 angehakt", None, true, "/studyplan?sem=2026W&wahl=e148370"));
+        assert_eq!((focus.state.as_str(), focus.note.clone(), focus.comparing, focus.compare.as_str(), focus.tiles.as_str()), ("1 von 4 angehakt", None, true, "/studyplan?sem=2026W&wahl=e148370", "/studyplan?sem=2026W&wahl=e148370"));
         assert!(focus.groups[0].ticked && focus.groups[0].day.as_ref().is_some_and(|day| day.bars.iter().any(|bar| bar.own && bar.ticked)));
         assert_eq!(focus.groups.iter().filter(|group| group.ticked).count(), 1);
     }

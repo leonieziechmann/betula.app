@@ -3258,8 +3258,8 @@ button.pm-new-way { width: 100%; text-align: left; }
    are a carousel as the pictures of the start page are (`--at`, -2 … 2, week.rs `WeekCarousel`):
    the week shown fills the band, its neighbours wait beside it out of sight, smaller and veiled,
    and come in with the finger that carries the weeks sideways (`--drag`, without their spring
-   while it does; up and down it scrolls the page). The tabs under them (div.seg.sp-weektabs) name
-   the weeks, the mark of the one shown slides to it (--i). */
+   while it does; up and down it scrolls the page). The switch in the head beside „Anpassen"
+   (div.sp-weekpick, owner 2026-10-26: „Woche: A, B, A/B") names the weeks. */
 @property --drag { syntax: "<length>"; inherits: false; initial-value: 0px; }
 .sp-carousel { --bleed: 26px; --w: 100cqw; --side: .92; --step: calc(var(--w) * (1 + var(--side)) / 2 + 6px); position: relative; container-type: inline-size; height: clamp(340px, calc(100vh - 240px), 560px); height: clamp(340px, calc(100svh - 240px), 560px); margin: 0 calc(-1 * var(--bleed)); overflow: hidden; touch-action: pan-y pinch-zoom; user-select: none; -webkit-user-select: none; }
 .sp-slide { position: absolute; top: 0; left: 50%; width: var(--w); height: 100%; display: flex; flex-direction: column; z-index: var(--z, 3); transform: translateX(calc(-50% + var(--at, 0) * var(--step) + var(--drag, 0px))) scale(var(--scale, 1)); transition: transform .5s var(--spring), opacity .3s, z-index .5s linear; }
@@ -3281,10 +3281,6 @@ button.pm-new-way { width: 100%; text-align: left; }
 /* The red mark of a clash stands in the bottom corner, which the lines of a slot leave free: in a
    day's narrow lane the name reaches the top corner. */
 .sp-carousel .sp-slide .slot.clash::after, .sp-carousel .sp-slide .slot-frame::after { top: auto; bottom: 3px; }
-.sp-weektabs { position: relative; width: min(100%, 380px); margin: 0 auto; }
-.sp-weekmark { position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / 3); border-radius: 7px; background: var(--panel); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); transform: translateX(calc(var(--i, 0) * 100%)); transition: transform .4s var(--spring); }
-.seg.sp-weektabs button { position: relative; z-index: 1; }
-.seg.sp-weektabs button[aria-checked="true"] { background: transparent; box-shadow: none; }
 @container page (min-width: 900px) {
   .sp-body { grid-template-columns: minmax(0, 1fr) clamp(250px, 28%, 340px); grid-template-rows: auto 1fr; gap: 0 24px; }
   .sp-body > .sp-fold { grid-area: 1 / 1; }
@@ -3306,9 +3302,10 @@ button.pm-new-way { width: 100%; text-align: left; }
 .sp-body > .state p { text-wrap: balance; }
 .state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 /* The head: „Stundenplan WiSe 2026/27" (h1, the semester in its span), on a phone „Anpassen" at
-   the right, and „A-Woche · B-Woche · A/B" where it applies, which the head is always as tall as:
-   the week does not move when it comes. Under it the program and the numbers: „Informatik B.Sc.
-   · 5 Module" (p.sp-sum). The import's head (h2) has ‹ › around it. */
+   the right with „Woche: A, B, A/B" before it, and „A-Woche · B-Woche · A/B" where it applies,
+   which the head is always as tall as: the week does not move when it comes. Under it the program
+   and the numbers: „Informatik B.Sc. · 5 Module" (p.sp-sum). The import's head (h2) has ‹ ›
+   around it. */
 .sp-head { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-height: 36px; margin-left: -8px; }
 .sp-head h2 { font-size: 21px; font-weight: 700; letter-spacing: -.025em; line-height: 1.2; padding: 0 4px; }
 .sp-head h1 { margin: 0; padding-left: 8px; font-size: 21px; font-weight: 700; letter-spacing: -.025em; line-height: 1.2; }
@@ -3569,6 +3566,9 @@ i.sp-key { width: 14px; padding: 0; }
    end out over the sheet. Compared (.full), the sheet is all up and its list scrolls inside it. */
 .sp-pick { position: fixed; z-index: 32; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 10px; max-height: calc(100dvh - 64px); padding: 0 14px calc(12px + env(safe-area-inset-bottom)); border-radius: 22px 22px 0 0; background: var(--panel); box-shadow: var(--shadow-pop); animation: pick-up .24s var(--ease); }
 .sp-pick.full { top: calc(env(safe-area-inset-top, 0px) + 10px); max-height: none; }
+/* A finger moves it (enhance.js): half up wherever it touches it, all up on its head; its list all
+   up scrolls, which a move down at its top hands to the sheet. */
+.sp-pick:not(.full), .sp-pick > .grab, .sp-pick > .sp-pick-head { touch-action: none; }
 @keyframes pick-up { from { transform: translateY(32px); opacity: 0; } }
 .sp-pick > .grab { flex: none; position: relative; display: block; height: 16px; }
 .sp-pick > .grab::before { content: ""; position: absolute; left: 50%; top: 7px; width: 40px; height: 5px; margin-left: -20px; border-radius: 3px; background: var(--line-strong); }
@@ -3593,13 +3593,20 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-pick .big:hover { filter: brightness(1.06); text-decoration: none; }
 .sp-pick .big .icon { width: 17px; height: 17px; }
 .sp-pick-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 0 -4px; padding: 2px 4px 4px; }
+/* Its body (div.sp-pick-body) holds the groups both ways, the tiles (div.grp) and „Vergleichen"
+   (div.sp-pick-list), and shows one: the tiles half up, „Vergleichen" all up. */
+.sp-pick-body { position: relative; flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.sp-pick.full > .sp-pick-body { flex: 1 1 auto; }
+.sp-pick:not(.full) > .sp-pick-body > .sp-pick-list, .sp-pick.full > .sp-pick-body > .grp:not(.sp-morph) { display: none; }
 @media (max-width: 900px) {
-  .sp:has(.sp-pick:not(.full)) .sp-carousel { height: clamp(220px, calc(100svh - var(--bar) - var(--pick-h, 320px) - 12px), 560px); }
+  /* While a finger moves the sheet (.morph) the week is already as the sheet half up leaves it. */
+  .sp:has(.sp-pick:is(:not(.full), .morph)) .sp-carousel { height: clamp(220px, calc(100svh - var(--bar) - var(--pick-h, 320px) - 12px), 560px); }
   .sp:has(.sp-pick) { padding-bottom: var(--pick-h, 320px); }
 }
-/* „Plan · Alle Termine" and „A-Woche · B-Woche · A/B" above the week: as wide as their words. */
-.seg.sp-weeks, .seg.sp-all { justify-self: start; margin-top: 0; }
-.seg.sp-weeks button, .seg.sp-all button { padding: 0 12px; }
+/* „Plan · Alle Termine" and „A-Woche · B-Woche · A/B" above the week: as wide as their words. On a
+   phone „Plan · Alle Termine" is in „Anpassen", as wide as it (side.rs ViewGroup). */
+.sp-head .seg.sp-weeks, .sp-head .seg.sp-all { justify-self: start; margin-top: 0; }
+.sp-head .seg.sp-weeks button, .sp-head .seg.sp-all button { padding: 0 12px; }
 /* A slot that overlaps another in the week shown: a red frame and a red mark at its top right. */
 .sp-body .slot.clash { box-shadow: inset 3px 0 0 var(--no), inset 0 0 0 1.5px var(--no); }
 .sp-body .slot.clash::after { content: "!"; position: absolute; top: 3px; right: 3px; width: 13px; height: 13px; border-radius: 50%; background: var(--no); color: var(--panel); font-size: 10px; font-weight: 800; line-height: 13px; text-align: center; }
@@ -3889,6 +3896,46 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 :is(.is-termin, .sp-pick) .gs.more .icon.up { width: 16px; height: 16px; transform: rotate(180deg); }
 :is(.is-termin, .sp-pick) .gs.more > small { font: 600 11px var(--font); }
 :is(.is-termin, .sp-pick) .grp-n { margin: 0; color: var(--text-3); font-size: 12px; line-height: 1.4; }
+/* A finger moving the sheet of a choice between half up and all up (enhance.js adds .morph; owner,
+   2026-10-26: „Wenn man den Modal maximiert, sollen während dessen die Termine aus der 3 spalten
+   Ansicht in die Vergleichsliste Morphen. Passend zum Progress"): the sheet stands where the finger
+   has it (its top, inline), `--p` says how far up it is (0 half up, 1 all up). Both ways of its body
+   are laid out under it unseen, at its top, and over them their copy (div.sp-morph): each group a
+   card (div.mc) on its way from its tile (--x0, --y0, --w0, --h0) to its line (--x1 … --h1), the
+   tile's look and face fading into the line's, the line's face as wide as the line from the start
+   and shown as far as the card has grown; what the tiles alone have (div.mf: their heading, their
+   track, „+N", the line under them) fades. */
+.sp-pick.morph { max-height: none; }
+.sp-pick.morph > .sp-pick-body { flex: 1 1 auto; }
+.sp-pick.morph > .sp-pick-body > .grp:not(.sp-morph), .sp-pick.morph > .sp-pick-body > .sp-pick-list { position: absolute; top: 0; left: 0; right: 0; visibility: hidden; }
+.sp-pick.morph > .sp-pick-body > .grp:not(.sp-morph) { display: flex; }
+.sp-pick.morph > .sp-pick-body > .sp-pick-list { display: block; bottom: 0; }
+/* ‹ back to the tiles stands all up; on the way it comes in from the left as far as the sheet has
+   come, the chip moving over for it. */
+.sp-pick:not(.full):not(.morph) > .sp-pick-head > .ib.to-tiles { display: none; }
+.sp-pick.morph > .sp-pick-head > .ib.to-tiles { margin-left: calc(-44px * (1 - var(--p, 1))); opacity: var(--p, 1); }
+.sp-pick .sp-morph { position: absolute; inset: 0 -4px; display: block; overflow: hidden; pointer-events: none; }
+.sp-morph > .mf, .sp-morph > .mc { position: absolute; }
+.sp-morph > .mf { left: var(--x0); top: var(--y0); width: var(--w0); height: var(--h0); opacity: clamp(0, calc(1 - var(--p, 0) * 2.5), 1); }
+.sp-morph > .mf > * { width: 100%; height: 100%; margin: 0; }
+.sp-morph > .mf.track { border-radius: 11px; background: var(--panel-3); opacity: clamp(0, calc(1 - var(--p, 0) * 1.4), 1); }
+/* Each card on its own way (`--q`): the lower ones first, out of the way of the first one, which
+   grows over the row of tiles last (`--s`, where it starts, and `--span`, how long it takes, of the
+   sheet's way; enhance.js). Its look turns quickly, its faces cross over in the middle. */
+.sp-morph > .mc {
+  --q: clamp(0, calc((var(--p, 0) - var(--s, 0)) / var(--span, 1)), 1);
+  left: calc(var(--x0) + (var(--x1) - var(--x0)) * var(--q)); top: calc(var(--y0) + (var(--y1) - var(--y0)) * var(--q));
+  width: calc(var(--w0) + (var(--w1) - var(--w0)) * var(--q)); height: calc(var(--h0) + (var(--h1) - var(--h0)) * var(--q));
+  border-radius: calc(8px + 4px * var(--q));
+}
+.sp-morph > .mc::before, .sp-morph > .mc::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.sp-morph > .mc::before { opacity: clamp(0, calc(1 - var(--q) * 2.5), 1); }
+.sp-morph > .mc.on::before { background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--tint, var(--accent)); }
+.sp-morph > .mc::after { opacity: clamp(0, calc(var(--q) * 2.5), 1); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.sp-morph > .mc.on::after { background: color-mix(in oklch, var(--tint, var(--accent)) 9%, var(--panel)); box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--tint, var(--accent)) 60%, transparent); }
+.sp-morph > .mc > .mc-clip { position: absolute; z-index: 1; inset: 0; overflow: hidden; border-radius: inherit; }
+.sp-pick .sp-morph > .mc .sp-cmp-row, .sp-pick .sp-morph > .mc .sp-cmp-row.on { position: absolute; left: 0; top: 0; width: var(--w1); height: var(--h1); background: none; box-shadow: none; opacity: clamp(0, calc((var(--q) - .25) * 3), 1); }
+.sp-pick .sp-morph > .mc > .gs, .sp-pick .sp-morph > .mc > .gs.on { position: absolute; z-index: 1; left: 0; top: 0; width: var(--w0); height: var(--h0); min-height: 0; background: none; box-shadow: none; opacity: clamp(0, calc(1 - var(--q) * 3), 1); }
 .is-termin .crow { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
 .is-termin .crow .ci { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
 .is-termin .crow .ci .icon { width: 16px; height: 16px; }
@@ -4920,7 +4967,13 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .sp-head .sheet-toggle, .sp-body > .sheet-toggle { padding: 0 12px; }
   /* An empty plan taking a Regelstudienplan over has no head: „Anpassen" stands where one has it. */
   .sp-body > .sheet-toggle { justify-self: end; }
-  .sp-head .seg { flex: 1 1 100%; margin-top: 4px; }
+  /* Under the title, or beside it where the row has room: the switch of the weeks, „Woche" and „A",
+     „B", „A/B" (div.sp-weekpick, owner 2026-10-26: in the row of „Anpassen"), and „Anpassen" at
+     the right end. */
+  .sp-head { row-gap: 8px; }
+  .sp-weekpick { display: flex; align-items: center; gap: 8px; margin-left: 8px; }
+  .sp-weekpick > .l { color: var(--text-2); font-size: 14px; font-weight: 600; }
+  .sp-head .sp-weekpick .seg.sp-weeks button { min-width: 46px; padding: 0 10px; }
   .sp-sum { margin-top: -8px; }
   .sp-row { min-height: 56px; padding-right: 50px; }
   .sp-list-head, .sp-area-head { padding-right: 50px; }

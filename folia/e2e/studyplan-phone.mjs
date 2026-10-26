@@ -1,12 +1,13 @@
 // Checks the Stundenplan on a phone (owner, 2026-09-27; folia/crates/planner/src/studyplan/week.rs
 // `WeekCarousel`): „Woche" is a grid there too, as wide as the window; where the plan has Termine of
-// A or B weeks only, a carousel of „A-Woche", „B-Woche" and „A/B" with its tabs under it (none in
-// the head), which a finger swipes and carries while it moves, the page scrolling under any other
-// move; each slot says where it is held and opens its module, and closed again the week is where
-// it was; the list of the week's days is closed until its line opens it, counts the week shown and
-// follows it; „Kalender" stands under the Termine in every view and not in the sheet „Anpassen",
-// while a wide screen keeps it in the sidebar and the switch of the weeks in the head. A plan
-// without A or B weeks has the grid alone.
+// A or B weeks only, a carousel of „A-Woche", „B-Woche" and „A/B", switched in the head beside
+// „Anpassen" („Woche: A, B, A/B", owner 2026-10-26), which a finger swipes and carries while it
+// moves, the page scrolling under any other move; each slot says where it is held and opens its
+// module, and closed again the week is where it was; the list of the week's days is closed until
+// its line opens it, counts the week shown and follows it; „Plan · Alle Termine" is in the sheet
+// „Anpassen", not in the head (owner, 2026-10-26); „Kalender" stands under the Termine in every view
+// and not in the sheet „Anpassen", while a wide screen keeps it in the sidebar and both switches in
+// the head. A plan without A or B weeks has the grid alone, and no switch of the weeks.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node studyplan-phone.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Works on any snapshot: it plans modules of the snapshot's current semester that meet in A
 // weeks, in B weeks and every week, found in the snapshot itself (`/api/db`, read with the app's
@@ -59,7 +60,7 @@ const open = async (options, path, plan) => {
 const toCarousel = (page) => page.evaluate(() => { const c = document.querySelector(".sp-carousel"); scrollTo(0, c.getBoundingClientRect().top + scrollY - 100); });
 // The page as a finger meets it: the week shown, the tabs, the line of the list and the list.
 const state = (page) => page.evaluate(() => ({
-  tab: document.querySelector(".sp-weektabs [aria-checked=true]")?.textContent ?? null,
+  tab: document.querySelector(".sp-head .sp-weekpick [aria-checked=true]")?.textContent ?? null,
   shown: document.querySelector(".sp-slide.is-current")?.getAttribute("aria-label") ?? null,
   path: location.pathname + location.search,
   scroll: Math.round(scrollY),
@@ -92,12 +93,13 @@ if (!semester || inA.length === 0 || inB.length === 0 || weekly.length === 0) {
   // ---- the week: three of them, A/B shown, as wide as the window
   const first = await page.evaluate(() => ({
     weeks: [...document.querySelectorAll(".sp-slide")].map((slide) => [slide.getAttribute("aria-label"), slide.inert]),
-    tabs: [...document.querySelectorAll(".sp-weektabs button")].map((b) => b.textContent),
-    head: Boolean(document.querySelector(".sp-head .sp-weeks")),
+    tabs: [...document.querySelectorAll(".sp-head .sp-weekpick button")].map((b) => [b.textContent, b.getAttribute("aria-label")]),
+    beside: (() => { const a = document.querySelector(".sp-head .sp-weekpick")?.getBoundingClientRect(), b = document.querySelector(".sp-head .sheet-toggle")?.getBoundingClientRect(); return Boolean(a && b && Math.abs(a.top + a.height / 2 - (b.top + b.height / 2)) < 6 && a.right < b.left); })(),
+    all: Boolean(document.querySelector(".sp-head .sp-all")),
     band: (() => { const r = document.querySelector(".sp-slide.is-current .week").getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), innerWidth]; })(),
   }));
   check(JSON.stringify(first.weeks) === JSON.stringify([["A-Woche", true], ["B-Woche", true], ["A/B", false]]), `phone: not three weeks with A/B shown, the others out of reach: ${JSON.stringify(first.weeks)}`);
-  check(JSON.stringify(first.tabs) === JSON.stringify(["A-Woche", "B-Woche", "A/B"]) && !first.head, `phone: the tabs under the week are not the switch of the weeks, or the head has one too: ${JSON.stringify(first)}`);
+  check(JSON.stringify(first.tabs) === JSON.stringify([["A", "A-Woche"], ["B", "B-Woche"], ["A/B", "A- und B-Woche"]]) && first.beside && !first.all, `phone: the head has no „Woche: A, B, A/B" beside „Anpassen", or „Plan · Alle Termine" still: ${JSON.stringify(first)}`);
   check(first.band[0] === 0 && first.band[1] === first.band[2], `phone: the week does not take the window's whole width: ${JSON.stringify(first.band)}`);
   // Each slot tall enough for it says where it is held.
   const rooms = await page.evaluate(() => [...document.querySelectorAll(".sp-slide.is-current .slot")].filter((slot) => slot.querySelector("small.p") && slot.getBoundingClientRect().height > 44).map((slot) => getComputedStyle(slot.querySelector("small.p")).display));
@@ -107,6 +109,15 @@ if (!semester || inA.length === 0 || inB.length === 0 || weekly.length === 0) {
   let s = await state(page);
   const all = s.counted;
   check(s.tab === "A/B" && s.open === "false" && s.listed === 0 && all > 0, `phone: the list of days is not closed under a counting line: ${JSON.stringify(s)}`);
+  // „Plan · Alle Termine" in „Anpassen", under „Ansicht".
+  await page.tap(".sp-head .sheet-toggle");
+  await page.waitForTimeout(600);
+  const sheet = await page.evaluate(() => [...document.querySelectorAll(".sidebar .sp-all button")].map((b) => [b.textContent, b.getAttribute("aria-checked"), b.getAttribute("aria-disabled")]));
+  check(JSON.stringify(sheet) === JSON.stringify([["Plan", "true", null], ["Alle Termine", "false", null]]), `phone: „Anpassen" has no „Plan · Alle Termine": ${JSON.stringify(sheet)}`);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(600);
+  await toCarousel(page);
+  await page.waitForTimeout(300);
 
   // ---- a swipe to the right: the week before, carried by the finger, opening nothing
   const box = await page.locator(".sp-carousel").boundingBox();
@@ -116,34 +127,34 @@ if (!semester || inA.length === 0 || inB.length === 0 || weekly.length === 0) {
     check(carried.dragging && carried.drag > 100, `phone: the finger does not carry the weeks: ${JSON.stringify(carried)}`);
   });
   s = await state(page);
-  check(s.tab === "B-Woche" && s.shown === "B-Woche" && s.path === "/studyplan", `phone: a swipe to the right does not bring the B-Woche alone: ${JSON.stringify(s)}`);
+  check(s.tab === "B" && s.shown === "B-Woche" && s.path === "/studyplan", `phone: a swipe to the right does not bring the B-Woche alone: ${JSON.stringify(s)}`);
   check(s.counted > 0 && s.counted < all, `phone: the line does not count the B-Woche (${s.counted} of ${all})`);
   await swipe(80, y, 240, y);
   await swipe(80, y, 240, y);
   s = await state(page);
-  check(s.tab === "A-Woche", `phone: two more swipes do not end at the A-Woche: ${JSON.stringify(s)}`);
+  check(s.tab === "A", `phone: two more swipes do not end at the A-Woche: ${JSON.stringify(s)}`);
   await swipe(200, y, 170, y);
   s = await state(page);
-  check(s.tab === "A-Woche", `phone: a short move changes the week: ${JSON.stringify(s)}`);
+  check(s.tab === "A", `phone: a short move changes the week: ${JSON.stringify(s)}`);
   // Up and down the page scrolls.
   const before = s.scroll;
   await swipe(200, y, 210, y - 200);
   s = await state(page);
-  check(s.tab === "A-Woche" && s.scroll > before + 50, `phone: a finger moving up does not scroll the page, or changes the week (${before} → ${JSON.stringify(s)})`);
+  check(s.tab === "A" && s.scroll > before + 50, `phone: a finger moving up does not scroll the page, or changes the week (${before} → ${JSON.stringify(s)})`);
   await toCarousel(page);
 
-  // ---- the tabs, and the list following the week
-  await page.tap(".sp-weektabs button:nth-of-type(3)");
+  // ---- the head's switch, and the list following the week
+  await page.tap(".sp-head .sp-weekpick button:nth-of-type(3)");
   await page.waitForTimeout(600);
   await page.tap(".sp-days-toggle");
   await page.waitForTimeout(300);
   s = await state(page);
-  check(s.tab === "A/B" && s.open === "true" && s.listed === all, `phone: the tab A/B and the line do not show the list of all ${all} Termine: ${JSON.stringify(s)}`);
-  await page.tap(".sp-weektabs button:nth-of-type(1)");
+  check(s.tab === "A/B" && s.open === "true" && s.listed === all, `phone: the switch's A/B and the line do not show the list of all ${all} Termine: ${JSON.stringify(s)}`);
+  await page.tap(".sp-head .sp-weekpick button:nth-of-type(1)");
   await page.waitForTimeout(600);
   s = await state(page);
-  check(s.tab === "A-Woche" && s.listed === s.counted && s.counted < all, `phone: the open list does not follow the A-Woche: ${JSON.stringify(s)}`);
-  await page.tap(".sp-weektabs button:nth-of-type(3)");
+  check(s.tab === "A" && s.shown === "A-Woche" && s.listed === s.counted && s.counted < all, `phone: the week and the open list do not follow the A-Woche: ${JSON.stringify(s)}`);
+  await page.tap(".sp-head .sp-weekpick button:nth-of-type(3)");
   await page.waitForTimeout(600);
   await page.tap(".sp-days-toggle");
   await page.waitForTimeout(300);
@@ -181,8 +192,8 @@ if (!semester || inA.length === 0 || inB.length === 0 || weekly.length === 0) {
   // ---- a wide screen keeps „Kalender" in the sidebar and the switch of the weeks in the head
   const wide = await open({ viewport: { width: 1440, height: 900 } }, "/studyplan", planOf([...weekly, ...inA, ...inB]));
   await wide.page.waitForSelector(".sp-week .slot", { timeout: 8000 }).catch(() => problems.push("wide: the week shows no slot"));
-  const seen = await wide.page.evaluate(() => ({ sidebar: Boolean(document.querySelector(".sidebar #sp-abo")), export: Boolean(document.querySelector(".sp-export")), head: Boolean(document.querySelector(".sp-head .sp-weeks")), carousel: Boolean(document.querySelector(".sp-carousel")) }));
-  check(seen.sidebar && !seen.export && seen.head && !seen.carousel, `wide: not the sidebar's „Kalender" and the head's switch: ${JSON.stringify(seen)}`);
+  const seen = await wide.page.evaluate(() => ({ sidebar: Boolean(document.querySelector(".sidebar #sp-abo")), export: Boolean(document.querySelector(".sp-export")), head: Boolean(document.querySelector(".sp-head .sp-weeks")), all: Boolean(document.querySelector(".sp-head .sp-all")) && !document.querySelector(".sidebar .sp-all"), carousel: Boolean(document.querySelector(".sp-carousel")) }));
+  check(seen.sidebar && !seen.export && seen.head && seen.all && !seen.carousel, `wide: not the sidebar's „Kalender" and the head's switches: ${JSON.stringify(seen)}`);
   await wide.context.close();
 }
 
@@ -190,8 +201,8 @@ if (!semester || inA.length === 0 || inB.length === 0 || weekly.length === 0) {
 if (semester && weekly.length > 0) {
   const { page, context } = await open(phone, "/studyplan", planOf(weekly));
   await page.waitForSelector(".sp-carousel .slot", { timeout: 8000 }).catch(() => problems.push("phone, every week: the week shows no slot"));
-  const alone = await page.evaluate(() => ({ slides: document.querySelectorAll(".sp-slide").length, tabs: Boolean(document.querySelector(".sp-weektabs")), head: Boolean(document.querySelector(".sp-head .sp-weeks")) }));
-  check(alone.slides === 1 && !alone.tabs && !alone.head, `phone, every week: not the grid alone: ${JSON.stringify(alone)}`);
+  const alone = await page.evaluate(() => ({ slides: document.querySelectorAll(".sp-slide").length, head: Boolean(document.querySelector(".sp-head .sp-weeks")) }));
+  check(alone.slides === 1 && !alone.head, `phone, every week: not the grid alone: ${JSON.stringify(alone)}`);
   await context.close();
 }
 

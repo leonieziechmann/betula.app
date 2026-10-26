@@ -19,6 +19,11 @@ pub struct Texts {
     pub tab_b: &'static str,
     /// … and both („A/B").
     pub tab_ab: &'static str,
+    /// The same on a phone, beside „Anpassen" after „Woche" (owner, 2026-10-26: „Woche: A, B,
+    /// A/B"): „A", „B" and „A/B", and what a screen reader names the last („A- und B-Woche").
+    pub short_a: &'static str,
+    pub short_b: &'static str,
+    pub both_weeks: &'static str,
     /// The name of the switch of the weeks for screen readers: „Woche".
     pub week: &'static str,
     /// What a week of a phone's carousel is to a screen reader („Woche", a role: lower case in
@@ -127,6 +132,9 @@ pub const DE: Texts = Texts {
     tab_a: "A-Woche",
     tab_b: "B-Woche",
     tab_ab: "A/B",
+    short_a: "A",
+    short_b: "B",
+    both_weeks: "A- und B-Woche",
     week: "Woche",
     week_role: "Woche",
     carousel_role: "Karussell",
@@ -186,6 +194,9 @@ pub const EN: Texts = Texts {
     tab_a: "Week A",
     tab_b: "Week B",
     tab_ab: "A/B",
+    short_a: "A",
+    short_b: "B",
+    both_weeks: "Weeks A and B",
     week: "Week",
     week_role: "week",
     carousel_role: "carousel",
