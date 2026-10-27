@@ -3762,6 +3762,19 @@
       if (panel) setWidth(hit.edge, panel.getBoundingClientRect().width + step);
       return;
     }
+    // ← and → while a Termin stands in its own view (folia/crates/widgets/src/termin.rs): the date
+    // before and after it, as the arrows beside its date (owner, 2026-10-27: „bau als Nächstes die
+    // Tasten ← → fürs Datum"). Not in a field, nor where the arrows are another's (a mode, a group
+    // of one stop, a panel's edge: above; the note of a module planned). One date a press: a key
+    // held does not run through the series.
+    if (arrow && !vertical && !mode && !texty(el) && !document.querySelector(".planning-note")) {
+      const to = find(`.is-termin .tk-date a[data-step="${e.key === "ArrowLeft" ? "prev" : "next"}"]`);
+      if (to) {
+        e.preventDefault();
+        if (!e.repeat) to.click();
+        return;
+      }
+    }
     if (plain && e.key === "Escape") {
       // One Esc, one thing: nothing it closes here goes on as a close request to a watcher.
       if (filters()?.classList.contains("open")) { e.preventDefault(); closeSheet(); return; }
@@ -3809,7 +3822,7 @@
       if (!button) return;
       e.preventDefault();
       const region = regionName(el);
-      const from = region === "side" ? "side" : el.closest?.("#preview") ? "module" : region === "content" ? "list" : region || "";
+      const from = region === "side" ? "side" : el.closest?.(".is-termin") ? "termin" : el.closest?.("#preview") ? "module" : region === "content" ? "list" : region || "";
       button.setAttribute("data-from", from);
       button.click();
       return;

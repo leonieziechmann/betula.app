@@ -527,8 +527,9 @@ fn TicketView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
     let ticket = Memo::new(move |_| shown.with(|s| s.as_ref().map(|s| (s.key, s.ticket.clone()))));
     move || {
         ticket.get().map(|(key, ticket)| {
-            let step = |day: Option<Day>, label: &'static str, icon: &'static str| match day {
-                Some(day) => view! { <a class="pg" href=ctx.links.termin.run((key, Some(day))) rel="nofollow" data-noscroll="" aria-label=label title=label><Icon name=icon/></a> }.into_any(),
+            // The date before and after: ← and → press them (enhance.js, `data-step`).
+            let step = |day: Option<Day>, label: &'static str, (icon, way, shortcut): (&'static str, &'static str, &'static str)| match day {
+                Some(day) => view! { <a class="pg" href=ctx.links.termin.run((key, Some(day))) rel="nofollow" data-noscroll="" data-step=way aria-keyshortcuts=shortcut aria-label=label title=label><Icon name=icon/></a> }.into_any(),
                 None => view! { <span class="pg" aria-hidden="true"><Icon name=icon/></span> }.into_any(),
             };
             let ab = ticket.weeks.map(|weeks| {
@@ -550,9 +551,9 @@ fn TicketView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
             view! {
                 <section class=format!("tk {}", ticket.state) aria-label=t.termin.panel>
                     <div class="tk-date">
-                        {step(ticket.prev, t.termin.earlier, "chevron-left")}
+                        {step(ticket.prev, t.termin.earlier, ("chevron-left", "prev", "ArrowLeft"))}
                         <b>{ticket.date}</b>
-                        {step(ticket.next, t.termin.later, "chevron-right")}
+                        {step(ticket.next, t.termin.later, ("chevron-right", "next", "ArrowRight"))}
                         {ab}
                         {pill}
                     </div>

@@ -23,6 +23,9 @@ pub struct Texts {
     pub filters_rows: &'static [Row],
     pub module: &'static str,
     pub module_rows: &'static [Row],
+    /// A Termin in its own view (folia/crates/widgets/src/termin.rs).
+    pub termin: &'static str,
+    pub termin_rows: &'static [Row],
     /// The Merkliste's list and its sidebar (the collections and the filters).
     pub marked: &'static str,
     pub marked_rows: &'static [Row],
@@ -75,6 +78,12 @@ pub const DE: Texts = Texts {
         (&["←", "→"], "von Knopf zu Knopf"),
         (&["Tab"], "die Knöpfe, der Text, dann wieder die Spalten"),
         (&["Esc"], "schließen"),
+    ],
+    termin: "Im Termin",
+    termin_rows: &[
+        (&["←", "→"], "das Datum davor, das danach"),
+        (&["V"], "ganze Seite"),
+        (&["Esc"], "schließen, von der ganzen Seite zurück"),
     ],
     marked: "In der Merkliste",
     marked_rows: &[
@@ -146,6 +155,12 @@ pub const EN: Texts = Texts {
         (&["←", "→"], "from button to button"),
         (&["Tab"], "the buttons, the text, then the columns again"),
         (&["Esc"], "close"),
+    ],
+    termin: "In a session",
+    termin_rows: &[
+        (&["←", "→"], "the date before, the date after"),
+        (&["V"], "full page"),
+        (&["Esc"], "close, back from the full page"),
     ],
     marked: "In the saved modules",
     marked_rows: &[

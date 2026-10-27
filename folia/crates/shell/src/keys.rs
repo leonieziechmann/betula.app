@@ -1,8 +1,10 @@
 //! The overview of the keys (folia/design/tastatur/konzept.html, step 4 „Hilfe": „Der Knopf
 //! „Tasten" und ? mit den Tasten des Ortes, … der Schalter für die einzelnen Tasten"): a dialog
 //! with what the keys do everywhere and, on a page that has more, at its places (the catalog: the
-//! list, the filters, the module beside it; the Merkliste: its list, its collections and filters), the group of where the keyboard was first and marked
-//! „Hier"; under them the switch for Betula's single keys (`folia_design::keys::LettersSwitch`).
+//! list, the filters, the module beside it; the Merkliste: its list, its collections and filters;
+//! a Termin in its own view, wherever it stands), the group of where the keyboard was first and
+//! marked „Hier"; under them the switch for Betula's single keys
+//! (`folia_design::keys::LettersSwitch`).
 //!
 //! The button that opens it stands in the rail (`KeysButton`; no action is a key's alone, CLAUDE.md
 //! „Design"); `?` presses it (enhance.js, „the keyboard"), which hands over where the keyboard was
@@ -16,6 +18,7 @@ use folia_design::ui::{DialogClose, Icon};
 
 use crate::i18n::{self, keys::Row, Texts};
 use crate::tabs::Area;
+use folia_routes::url;
 
 /// Whether the overview is open, and from where (`data-from` of the button: a place of
 /// `Place::of`, or nothing for a click).
@@ -41,6 +44,7 @@ enum Group {
     Module,
     Marked,
     Sidebar,
+    Termin,
 }
 
 impl Group {
@@ -52,6 +56,7 @@ impl Group {
             Group::Module => t.keys.module,
             Group::Marked => t.keys.marked,
             Group::Sidebar => t.keys.sidebar,
+            Group::Termin => t.keys.termin,
         }
     }
 
@@ -63,6 +68,7 @@ impl Group {
             Group::Module => t.keys.module_rows,
             Group::Marked => t.keys.marked_rows,
             Group::Sidebar => t.keys.sidebar_rows,
+            Group::Termin => t.keys.termin_rows,
         }
     }
 
@@ -74,18 +80,29 @@ impl Group {
             ("side", _) => Some(Group::Filters),
             ("list", _) => Some(Group::List),
             ("module", _) => Some(Group::Module),
+            ("termin", _) => Some(Group::Termin),
             _ => None,
         }
     }
 }
 
-/// The groups of a page, its own after those of everywhere.
-fn groups(area: Area) -> Vec<Group> {
-    match area {
+/// The groups of a page, its own after those of everywhere; a Termin's where one stands in its
+/// own view (`termin`: beside the page, filling it, or as its own page).
+fn groups(area: Area, termin: bool) -> Vec<Group> {
+    let mut groups = match area {
         Area::Catalog => vec![Group::Everywhere, Group::List, Group::Filters, Group::Module],
         Area::Bookmarks => vec![Group::Everywhere, Group::Marked, Group::Sidebar, Group::Module],
         _ => vec![Group::Everywhere],
+    };
+    if termin {
+        groups.push(Group::Termin);
     }
+    groups
+}
+
+/// A Termin stands in its own view at this address: its own page, or `termin=` over a page.
+fn termin_at(path: &str, search: &str) -> bool {
+    url::event_of(path).is_some() || url::parse_pairs(search).iter().any(|(key, value)| key == "termin" && !value.trim().is_empty())
 }
 
 /// The key caps of a row: its keys as alternatives; `Nav` the navigation's, written by the
@@ -147,9 +164,10 @@ pub fn KeysHelp() -> impl IntoView {
     let close = move || open.set(None);
     let body = move || {
         open.get().map(|from| {
-            let area = Area::of(&location.pathname.get_untracked());
+            let path = location.pathname.get_untracked();
+            let area = Area::of(&path);
             let here = Group::of(&from, area);
-            let mut shown = groups(area);
+            let mut shown = groups(area, termin_at(&path, &location.search.get_untracked()));
             // Where the keyboard was comes first.
             if let Some(here) = here.filter(|here| shown.contains(here)) {
                 shown.retain(|group| *group != here);
@@ -214,4 +232,21 @@ pub fn KeysHelp() -> impl IntoView {
         </dialog>
     }
     .into_any()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Where a Termin stands in its own view, the overview has its keys too.
+    #[test]
+    fn a_termin_brings_its_keys() {
+        assert!(termin_at("/event/148370-eb017/2026-11-02", ""));
+        assert!(termin_at("/studyplan", "?termin=148370-eb017&on=2026-11-02&full=1"));
+        assert!(termin_at("/", "?termin=148370-eb017"));
+        assert!(!termin_at("/studyplan", "?open=12104") && !termin_at("/profile", "") && !termin_at("/", "?termin="));
+        assert_eq!(groups(Area::Studyplan, true), [Group::Everywhere, Group::Termin]);
+        assert_eq!(groups(Area::Catalog, false), [Group::Everywhere, Group::List, Group::Filters, Group::Module]);
+        assert_eq!(Group::of("termin", Area::Home), Some(Group::Termin));
+    }
 }
