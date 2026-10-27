@@ -3112,7 +3112,9 @@ every module of it (`ranking.rs`' `dump_for_the_prototype`).
   semantic search from develop, folia/crates/semantic/README.md): under the rows, after the note on the filters,
   the modules whose descriptions mean what the search says, as rows of the list under the heading
   „Ähnliche Module“ — marking, the preview, swiping and the arrow keys work as on the list's rows
-  (they are `a.row`s in `.rows`, after the list). With every search of three letters or digits and
+  (they are `a.row`s in `.rows`, after the list; a stop of the Tab key of their own since the
+  keyboard's regions of 2026-10-20, which ↓ from the list's last result goes on into and ↑ from
+  their first back out of, enhance.js `goesOn`). With every search of three letters or digits and
   more (`pages::searches_similar`); the filters apply as to the results; the results themselves are
   left out; at most 10, the closest first (`pages::similar`, `queries::similar_rows`). The semantic
   search is asked for the text as the list searched it, a typo corrected (`pages::similar_text`),

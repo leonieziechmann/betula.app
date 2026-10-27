@@ -4051,6 +4051,25 @@
   };
 
   // ---- the arrows in a group that is one stop ----
+  // „Ähnliche Module" go on under the list's last result, and back up into it: rows of the list
+  // after it, the arrows as on its rows (docs/folia/frontend.md „Ähnliche Module"), though a stop of
+  // the Tab key of their own (catalog.rs). Only from its last result, not from the last row a
+  // virtual list has drawn.
+  const isLast = (row) => Boolean(row?.hasAttribute("aria-setsize")) && row.getAttribute("aria-posinset") === row.getAttribute("aria-setsize");
+  const goesOn = (group, el, down) => {
+    const rows = group.parentElement?.matches(".rows") ? group.parentElement : null;
+    if (!rows) return null;
+    if (down && group.matches(".vlist") && isLast(el)) {
+      const similar = rows.querySelector(":scope > .similar[data-stop]");
+      return similar ? itemsOf(similar)[0] ?? null : null;
+    }
+    if (!down && group.matches(".similar")) {
+      const list = rows.querySelector(":scope > .vlist[data-stop]");
+      const last = list ? itemsOf(list).at(-1) : null;
+      return isLast(last) ? last : null;
+    }
+    return null;
+  };
   const groupKey = (e, el) => {
     const group = el.closest("[data-stop]");
     if (!group || modeOf(group)) return false;
@@ -4061,7 +4080,8 @@
     if (!x && !y) return false;
     const items = itemsOf(group);
     const at = items.indexOf(el);
-    const to = items[at + (e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : -1)];
+    const down = e.key === "ArrowDown" || e.key === "ArrowRight";
+    const to = items[at + (down ? 1 : -1)] ?? (y ? goesOn(group, el, down) : null);
     e.preventDefault();
     if (to) focusOn(to);
     return true;
