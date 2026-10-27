@@ -225,7 +225,9 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
         });
     });
     let selecting = Memo::new(move |_| !chosen.with(Vec::is_empty));
-    let empty = Memo::new(move |_| keys.with(Vec::is_empty));
+    // The modules only visited in it, after its rows (`VisitRow`), by their numbers.
+    let visits = Memo::new(move |_| ctx.with_ready(|ready| ready.study.semester(semester).map(|semester| semester.visits.iter().map(|visit| visit.id.clone()).collect::<Vec<_>>())).flatten().unwrap_or_default());
+    let empty = Memo::new(move |_| keys.with(Vec::is_empty) && visits.with(Vec::is_empty));
     let add = move || ctx.open(Dialog::Add { semester, catalog: false, chosen: Vec::new() });
     let pages = use_context::<Pages>();
     let go = move |to: Option<SemesterKey>| turn(ctx, pages, to);
@@ -300,6 +302,7 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
                     on:touchmove=touch_move
                 >
                     <For each=move || keys.get() key=|key| key.clone() children=move |key: String| view! { <ItemRow ctx semester key order=keys draw/> }/>
+                    <For each=move || visits.get() key=|id| id.clone() children=move |id: String| view! { <VisitRow ctx semester id/> }/>
                     {move || if empty.get() {
                         view! {
                             <li class="st-empty">
@@ -795,7 +798,12 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
     };
     let menu_open = Memo::new(move |_| ctx.menu.with(|menu| menu.as_ref().is_some_and(|menu| matches!(&menu.what, MenuFor::Item { semester: there, key: of, .. } if *there == semester && key.with_value(|key| key == of)))));
 
-    let name = first.name.clone();
+    // Its name may come after it is drawn: on a page loaded afresh the catalog's rows of a module
+    // outside the program come later.
+    let name = {
+        let first = first.name.clone();
+        Memo::new(move |_| row.with(|row| row.as_ref().map(|row| row.item.name.clone())).unwrap_or_else(|| first.clone()))
+    };
     let code = first.module_id().map(str::to_string);
     // The box's link: the module beside the page, or a row's modules in the catalog.
     let current = {
@@ -806,14 +814,13 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
     let title = match code.clone() {
         Some(id) => view! {
             <a class="st-name st-open" href=move || module_href(ctx, &id, t) data-noscroll="" draggable="false" aria-current=move || current.get().then_some("true")>
-                {name.clone()}
+                {move || name.get()}
                 {move || selected.get().then(|| view! { <span class="visually-hidden">{format!(" ({})", s.is_selected)}</span> })}
             </a>
         }
         .into_any(),
-        None => view! { <span class="st-name">{name.clone()}</span> }.into_any(),
+        None => view! { <span class="st-name">{move || name.get()}</span> }.into_any(),
     };
-    let label = first.name.clone();
     view! {
         <li
             class="st-row row-wrap"
@@ -858,7 +865,7 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
                 type="button"
                 aria-haspopup="menu"
                 aria-expanded=move || if menu_open.get() { "true" } else { "false" }
-                aria-label=move || (s.status_of)(status.get().word(t), &label)
+                aria-label=move || (s.status_of)(status.get().word(t), &name.get())
                 title=move || status.get().word(t)
                 on:click=move |ev: MouseEvent| menu::open_at_button(ctx, MenuFor::Item { semester, key: key.get_value(), view: false }, &ev)
             >
@@ -867,6 +874,79 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
         </li>
     }
     .into_any()
+}
+
+/// A module only visited in the semester (`study::VisitItem`; folia/design/kalender/konzepte.html,
+/// „Ein Besuchsmodul in „Mein Studium“": „auf „nur besuchen“: mit eigenem Zeichen, ohne LP,
+/// außerhalb der Bereiche"): a row as the others are, its name the module's link, under it its
+/// number and „nur besuchen · aus dem Kalender", „–" for its credits, and at its end, where the
+/// others have their status, the sign of a visit: the button of its menu (`MenuFor::Visit`; a
+/// right click opens it too). It is none of the study's rows, so it is not selected with them.
+#[component]
+fn VisitRow(ctx: StudyCtx, semester: SemesterKey, id: String) -> impl IntoView {
+    let t = i18n::t();
+    let s = &t.study;
+    // What it is and the catalog's facts of it may come after it is drawn: on a page loaded afresh
+    // the catalog's rows of a module outside the program come later.
+    let visit = {
+        let id = id.clone();
+        Memo::new(move |_| ctx.with_ready(|ready| ready.study.semester(semester).and_then(|semester| semester.visits.iter().find(|visit| visit.id == id).cloned())).flatten())
+    };
+    let facts = {
+        let id = id.clone();
+        Memo::new(move |_| ctx.rows.with(|rows| Facts::of(rows.iter().find(|row| row.id == id), t.locale)))
+    };
+    let name = {
+        let id = id.clone();
+        Memo::new(move |_| visit.with(|visit| visit.as_ref().map(|visit| visit.name.clone())).unwrap_or_else(|| id.clone()))
+    };
+    let unoffered = Memo::new(move |_| visit.with(|visit| visit.as_ref().is_some_and(|visit| visit.unoffered)));
+    let current = {
+        let id = id.clone();
+        Memo::new(move |_| ctx.url.with(|url| url.open.as_deref() == Some(id.as_str())))
+    };
+    let menu_open = {
+        let id = id.clone();
+        Memo::new(move |_| ctx.menu.with(|menu| menu.as_ref().is_some_and(|menu| matches!(&menu.what, MenuFor::Visit { semester: there, id: of } if *there == semester && *of == id))))
+    };
+    let href = {
+        let id = id.clone();
+        move || module_href(ctx, &id, t)
+    };
+    let open_menu = {
+        let id = id.clone();
+        move |ev: MouseEvent| menu::open_at_button(ctx, MenuFor::Visit { semester, id: id.clone() }, &ev)
+    };
+    let context = {
+        let id = id.clone();
+        move |ev: MouseEvent| {
+            ev.prevent_default();
+            menu::open_at_pointer(ctx, MenuFor::Visit { semester, id: id.clone() }, &ev);
+        }
+    };
+    view! {
+        <li class="st-row row-wrap st-visit" data-key=format!("v:{id}") on:contextmenu=context>
+            <div class="row" aria-current=move || current.get().then_some("true")>
+                <div class="t">
+                    <b>
+                        <a class="st-name st-open" href=href data-noscroll="" draggable="false" aria-current=move || current.get().then_some("true")>{move || name.get()}</a>
+                    </b>
+                    <small>
+                        <span class="mono">{id.clone()}</span>
+                        <span class="flag neutral st-visit-line">{s.visit_line}</span>
+                        {move || unoffered.get().then(|| view! { <span class="flag">{(s.unoffered)(season_word(semester, t))}</span> })}
+                        {move || facts.with(|facts| facts.narrow())}
+                    </small>
+                </div>
+                {move || facts.with(|facts| facts.lead())}
+                <span class="lp num">"–"</span>
+                {move || facts.with(|facts| facts.trail())}
+            </div>
+            <button class="st-status" type="button" aria-haspopup="menu" aria-expanded=move || if menu_open.get() { "true" } else { "false" } aria-label=move || (s.status_of)(s.status_visit, &name.get()) title=s.status_visit on:click=open_menu>
+                <span class="st-glyph visit" aria-hidden="true"></span>
+            </button>
+        </li>
+    }
 }
 
 /// Adds `pick` to semester `s` at once, with a note to take it back.

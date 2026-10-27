@@ -42,10 +42,14 @@ use super::PlanCtx;
 pub(super) fn ShareAction(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let s = &t.studyplan_share;
-    // The groups ticked of the semester shown: the selection is a sibling of `wanted` (R16).
+    // The groups ticked of the semester shown: the selection is a sibling of `wanted` (R16). The
+    // link carries the planned modules, not the visits: whoever takes it over plans what it holds.
     let link = Memo::new(move |_| {
-        let chosen = ctx.selection.with(|(_, selection)| selection.chosen_rows.clone());
-        ctx.wanted.with(|(key, ids, program)| share_path(*key, ids, program.as_deref(), chosen))
+        let (chosen, visits) = ctx.selection.with(|(_, selection)| (selection.chosen_rows.clone(), selection.visits.clone()));
+        ctx.wanted.with(|(key, ids, program)| {
+            let planned: Vec<String> = ids.iter().filter(|id| !visits.contains(*id)).cloned().collect();
+            share_path(*key, &planned, program.as_deref(), chosen)
+        })
     });
     move || match link.get() {
         Some(link) => view! {

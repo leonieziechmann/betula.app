@@ -86,6 +86,13 @@ pub struct Texts {
     /// Under a calendar's modules: „aus einem Link · mit den Gruppen", „aus einem Link".
     pub from_link: &'static str,
     pub from_link_groups: &'static str,
+    /// The menu's „Modul aufnehmen" (its „+ Modul"); a module's × in the calendar's part, and the
+    /// note after it („„Denkmalpflege“ aus „Lena“ genommen"); a part without a module of the
+    /// semester („Noch keine Module im WiSe 2026/27").
+    pub add_module: &'static str,
+    pub remove_module: fn(&str, &str) -> String,
+    pub module_removed: fn(&str, &str) -> String,
+    pub none_in: fn(&str) -> String,
 }
 
 pub const DE: Texts = Texts {
@@ -156,6 +163,10 @@ pub const DE: Texts = Texts {
 
     from_link: "aus einem Link",
     from_link_groups: "aus einem Link · mit den Gruppen",
+    add_module: "Modul aufnehmen",
+    remove_module: |title, calendar| format!("„{title}“ aus „{calendar}“ nehmen"),
+    module_removed: |title, calendar| format!("„{title}“ aus „{calendar}“ genommen"),
+    none_in: |semester| format!("Noch keine Module im {semester}"),
 };
 
 pub const EN: Texts = Texts {
@@ -226,4 +237,8 @@ pub const EN: Texts = Texts {
 
     from_link: "from a link",
     from_link_groups: "from a link · with the groups",
+    add_module: "Add a module",
+    remove_module: |title, calendar| format!("Remove “{title}” from “{calendar}”"),
+    module_removed: |title, calendar| format!("“{title}” removed from “{calendar}”"),
+    none_in: |semester| format!("No modules in {semester} yet"),
 };

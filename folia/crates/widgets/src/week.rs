@@ -86,6 +86,10 @@ pub struct GridSlot {
     pub clash: bool,
     /// An extra beside a module's compulsory part (dotted and lighter, app.css `.slot.extra`).
     pub extra: bool,
+    /// A module only visited (hatched in its tone, app.css `.slot.visit`), and one that gives way
+    /// where it meets the plan (`gives`, a yellow edge instead of a clash's red).
+    pub visit: bool,
+    pub gives: bool,
     /// Where a click leads: `Some` draws a link that keeps the page's scroll, `None` a plain box.
     pub href: Option<String>,
     /// The lines of the list under the grid that the slot stands for, by their ids (a module's
@@ -181,6 +185,8 @@ impl GridSlot {
             if self.alt { "alt" } else { "" },
             if self.clash { "clash" } else { "" },
             if self.extra { "extra" } else { "" },
+            if self.visit { "visit" } else { "" },
+            if self.gives { "gives" } else { "" },
             if brief { "brief" } else { "" },
             if self.pick.is_some() { "pick" } else { "" },
             if self.pick == Some(true) { "on" } else { "" },

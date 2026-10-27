@@ -121,6 +121,12 @@ pub struct Selection {
     /// Regelstudienplan, so that an elective added later does not turn the town (owner review
     /// 2026-09-25); `None` for every planned module (a plan without an import, a subscription).
     pub town_from: Option<BTreeSet<String>>,
+    /// The modules of the timetable that are only visited („nur besuchen", owner 2026-10-19: „in
+    /// der Woche ja, in den LP nicht"; 2026-10-26: „+ Modul" in „Mein Studiengang"): their Termine
+    /// stand in the week and meet nothing in a clash, a visit gives way (`clash::yield_pairs` of
+    /// the timetable), and they bring no exam. Empty for a subscription, whose code names none.
+    #[serde(default)]
+    pub visits: BTreeSet<String>,
 }
 
 /// Why an event, an exam or a row is not shown: the first rule that holds, in this order (C.9).

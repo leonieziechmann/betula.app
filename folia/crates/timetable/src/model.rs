@@ -33,7 +33,9 @@
 //! hat"); the options left out are hidden (`HiddenBy::Option`, `HiddenBy::Program`). An open choice
 //! shows every option, and its options meet nothing as long as one of them is free (`clash`). An
 //! extra beside a module's compulsory part (`Event::extra`) is attended by whoever wants to: it
-//! meets nothing.
+//! meets nothing. A module only visited (`Selection::visits`, „nur besuchen") stands in the week
+//! like any other, but its events meet nothing in a clash and give way where they meet the plan's
+//! (`Event::visit`, `clash::yield_pairs`), and it brings no exam.
 //!
 //! Then the visitor's selection: hidden events, kinds and Termine, and made choices. Every event
 //! and row says why it is not shown (`HiddenBy`, the first rule that holds). The clashes of what
@@ -108,11 +110,17 @@ pub struct Timetable {
     pub facts: SemesterFacts,
     /// The planned module ids, in plan order, each once.
     pub modules: Vec<String>,
+    /// Those of them only visited (`Selection::visits`): their events give way (`Event::visit`),
+    /// and they bring no exam.
+    pub visits: BTreeSet<String>,
     /// By the plan position of the first module that links them, then title, then event id as a
     /// number.
     pub events: Vec<Event>,
     /// The planned modules' exams (`exams::exams_of`).
     pub exams: Vec<Exam>,
+    /// The event ids of the exams left out as those of visits alone: a subscription hides them
+    /// (`export::subscription_of`), so that the feed shows what the page shows.
+    pub visit_exams: Vec<String>,
     /// The planned modules held as courses at two places, of which a student attends one: those
     /// with courses (`courses`), and, where the rows carry none, those with a lecture and a
     /// non-lecture event in each town.
@@ -276,6 +284,11 @@ pub struct Event {
     /// An extra beside its module's compulsory part (`EventDate::extra`): attended by whoever
     /// wants to, it meets nothing (`clash`).
     pub extra: bool,
+    /// Every planned module that links it is only visited (`Selection::visits`): it meets nothing
+    /// in a clash, and where it meets the plan's Termine it gives way (`clash::yield_pairs`; owner,
+    /// 2026-10-26: „ein Besuch gibt bei einer Überschneidung nach"). An event a planned module
+    /// shares with a visit is the plan's.
+    pub visit: bool,
     /// The options of `Attendance::OneOf` the visitor ticked (`Selection::chosen_rows`), as many as
     /// they like, each shown and counted alike (owner, 2026-10-26); empty while the choice is open.
     pub chosen: BTreeSet<usize>,
@@ -397,9 +410,11 @@ impl Timetable {
     /// left out, and an event keeps only its planned modules.
     pub fn build(input: &Input<'_>, selection: &Selection) -> Timetable {
         let modules = plan_order(input.modules);
+        let visits: BTreeSet<String> = modules.iter().filter(|module| selection.visits.contains(*module)).cloned().collect();
         let mut events = gather(input.schedule, &modules, input.facts);
         for event in &mut events {
             decide(event, input.sws);
+            event.visit = !event.modules.is_empty() && event.modules.iter().all(|module| visits.contains(module));
         }
         let mut choices = choices_of(input.choices, &mut events, &modules, input.key);
         let courses = courses(input.schedule, &modules);
@@ -413,7 +428,10 @@ impl Timetable {
         take(&mut choices, &mut events, input.listed, selection);
         let (clashes, blocked, blocked_choices) = clash::clashes(&events);
         let towns: BTreeMap<String, BTreeSet<Town>> = shown.iter().map(|(module, shown)| (module.clone(), shown.towns.clone())).collect();
-        let exams = exams::exams_of(input.exams, input.semester, &modules, selection, &towns);
+        // A visit brings no exam: nobody sits one of a module they only visit.
+        let (visit_exams, exams): (Vec<Exam>, Vec<Exam>) =
+            exams::exams_of(input.exams, input.semester, &modules, selection, &towns).into_iter().partition(|exam| exam.modules.iter().all(|module| visits.contains(module)));
+        let visit_exams = visit_exams.into_iter().map(|exam| exam.event_id).collect();
         let (exam_warnings, place_unknown) = exams::exam_warnings(&exams, &modules);
         let without_dates = modules
             .iter()
@@ -424,8 +442,10 @@ impl Timetable {
             key: input.key,
             facts: input.facts.clone(),
             modules,
+            visits,
             events,
             exams,
+            visit_exams,
             tracks,
             courses,
             shown,
@@ -537,6 +557,7 @@ fn gather(schedule: &[DateRow], modules: &[String], facts: &SemesterFacts) -> Ve
             attendance: Attendance::All,
             across: None,
             extra: rows.iter().any(|row| row.date.extra),
+            visit: false,
             chosen: BTreeSet::new(),
             // A row without `ord` is the view's line for an event without dates: no row at all.
             rows: rows.iter().filter(|row| row.ord.is_some()).map(|row| Row::of(row, facts)).collect(),
@@ -785,7 +806,8 @@ fn shown(
 /// modules without tracks, else none. It is derived even when no planned module has tracks: the
 /// finder resolves a candidate's tracks with it. `from` narrows the modules it is derived from
 /// to those taken over from the Regelstudienplan (`Selection::town_from`): one elective of the
-/// other town planned beside them then does not turn it, nor does a candidate of the finder.
+/// other town planned beside them then does not turn it, nor does a candidate of the finder. A
+/// visit's events (`Event::visit`) count for nothing: they give way, the town too.
 fn effective_town(choice: TownChoice, events: &[Event], tracks: &BTreeSet<String>, from: Option<&BTreeSet<String>>) -> (Option<Town>, bool) {
     match choice {
         TownChoice::Only(town) => (Some(town), false),
@@ -793,7 +815,7 @@ fn effective_town(choice: TownChoice, events: &[Event], tracks: &BTreeSet<String
         TownChoice::Derive => {
             let (mut cottbus, mut senftenberg) = (0usize, 0usize);
             let counts = |module: &String| !tracks.contains(module) && from.is_none_or(|from| from.contains(module));
-            for event in events.iter().filter(|event| event.modules.iter().any(counts)) {
+            for event in events.iter().filter(|event| !event.visit && event.modules.iter().any(counts)) {
                 match event.town() {
                     Some(Town::Cottbus) => cottbus += 1,
                     Some(Town::Senftenberg) => senftenberg += 1,
@@ -1377,6 +1399,7 @@ pub mod tests {
             let (ea, eb) = (&t.events[clash.a.0], &t.events[clash.b.0]);
             let (ra, rb) = (&ea.rows[clash.a.1], &eb.rows[clash.b.1]);
             assert!(!ea.extra && !eb.extra, "{} × {}: an extra meets nothing", ea.id, eb.id);
+            assert!(!ea.visit && !eb.visit, "{} × {}: a visit meets nothing", ea.id, eb.id);
             assert!(clash.a.0 < clash.b.0);
             assert!(ea.modules.iter().all(|m| !eb.modules.contains(m)), "{} × {}", ea.id, eb.id);
             assert!(ea.hidden.is_none() && eb.hidden.is_none() && ra.hidden.is_none() && rb.hidden.is_none());
@@ -1838,6 +1861,10 @@ pub mod tests {
         elective.push(teaching("S", "141", 1, "Seminar", 2, "13:45", "15:15").campus(senftenberg));
         let all = table(&elective, &["T", "L", "M", "C", "S"], &[], &Selection::default());
         assert_eq!((all.town, all.town_derived), (Some(Town::Senftenberg), true), "every module decides");
+        // A visit decides nothing: S only visited leaves it to the others.
+        let visited = Selection { visits: BTreeSet::from(["S".to_string()]), ..Selection::default() };
+        let t = table(&elective, &["T", "L", "M", "C", "S"], &[], &visited);
+        assert_eq!((t.town, t.town_derived), (Some(Town::Cottbus), true), "a visit of the other town");
         let t = table(&elective, &["T", "L", "M", "C", "S"], &[], &from(&["T", "L", "M", "C"]));
         assert_eq!((t.town, t.town_derived), (Some(Town::Cottbus), true), "the imported ones decide");
         assert_eq!(event(&t, "102").hidden, Some(HiddenBy::Town(Town::Cottbus)));
@@ -2209,5 +2236,56 @@ pub mod tests {
         assert_eq!(take(&t), (false, 0, 0));
         let hidden: Vec<(&str, Option<HiddenBy>)> = t.events.iter().map(|event| (event.id.as_str(), event.hidden)).collect();
         assert_eq!(hidden, [("511", None), ("512", Some(HiddenBy::Option)), ("513", None), ("514", Some(HiddenBy::Option))]);
+    }
+
+    #[test]
+    fn a_visit_meets_nothing_gives_way_and_brings_no_exam() {
+        // The plan's lecture on Tuesday 13:45 (12104); Denkmalpflege only visited, its lecture on
+        // Tuesday 14:00 and its Übung on Thursday (13676); Biologie only visited, on Tuesday 13:45
+        // too (41103).
+        let rows = [
+            teaching("12104", "1", 1, "Vorlesung", 2, "13:45", "15:15"),
+            teaching("13676", "2", 1, "Vorlesung", 2, "14:00", "15:30"),
+            teaching("13676", "3", 1, "Übung", 4, "13:45", "15:15"),
+            teaching("41103", "4", 1, "Vorlesung", 2, "13:45", "15:15"),
+        ];
+        let modules = ["12104", "13676", "41103"];
+        let visits = Selection { visits: ["13676".to_string(), "41103".to_string(), "99999".to_string()].into(), ..Selection::default() };
+        let t = table(&rows, &modules, &[], &visits);
+        assert_eq!(t.visits, BTreeSet::from(["13676".to_string(), "41103".to_string()]), "of the timetable's modules alone");
+        assert_eq!(["1", "2", "3", "4"].map(|id| event(&t, id).visit), [false, true, true, true]);
+        // No clash, nothing blocked: the visits give way where they meet the plan's lecture, and
+        // leave each other alone.
+        assert!(t.clashes.is_empty() && clash::overlaps(&t.events).is_empty() && clash::hard_rows(&t.events).is_empty());
+        let at = |id: &str| t.events.iter().position(|event| event.id == id).unwrap();
+        let yields: Vec<(usize, usize, u8, u16, u16)> = clash::yields(&t.events).iter().map(|y| (y.a.0, y.b.0, y.weekday, y.from, y.to)).collect();
+        assert_eq!(yields, [(at("2"), at("1"), 2, 14 * 60, 15 * 60 + 15), (at("4"), at("1"), 2, 13 * 60 + 45, 15 * 60 + 15)]);
+        // In the week at the visit's slot, the plan's slot as it was.
+        let week = t.regular_week();
+        let slot = |id: &str| week.iter().find(|item| item.event == at(id)).unwrap();
+        assert!(slot("2").visit && !slot("2").clash && slot("2").yields_in(clash::Weeks::All) == [at("1")]);
+        assert!(slot("3").visit && slot("3").yields.is_empty());
+        assert!(!slot("1").visit && !slot("1").clash && slot("1").yields.is_empty());
+        // Planned, the same modules clash as any.
+        let planned = table(&rows, &modules, &[], &Selection::default());
+        assert!(planned.visits.is_empty() && !planned.clashes.is_empty() && clash::yields(&planned.events).is_empty());
+
+        // An exam of the visit is none of the timetable's; one of the plan's module stays.
+        let exam = |module: &str, event: &str| {
+            let mut row = teaching(module, event, 1, "Prüfung", 3, "10:00", "12:00").0;
+            row.date.event_type = None;
+            row.date.rhythm = None;
+            row.date.rhythm_raw = None;
+            row.date.first_date = Some("2027-02-10".into());
+            row.date.last_date = Some("2027-02-10".into());
+            row
+        };
+        let facts = winter();
+        let schedule: Vec<DateRow> = rows.iter().map(|row| row.0.clone()).collect();
+        let (ids, exams) = (ids(&modules), [exam("12104", "8"), exam("13676", "9")]);
+        let input = Input { key: facts.key, semester: None, facts: &facts, modules: &ids, schedule: &schedule, exams: &exams, sws: &[], taken: &[], choices: &[], listed: &[] };
+        let exams_of = |selection: &Selection| Timetable::build(&input, selection).exams.iter().map(|exam| exam.event_id.clone()).collect::<Vec<_>>();
+        assert_eq!(exams_of(&visits), ["8"]);
+        assert_eq!(exams_of(&Selection::default()), ["8", "9"]);
     }
 }

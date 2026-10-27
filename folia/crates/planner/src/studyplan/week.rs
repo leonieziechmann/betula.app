@@ -858,7 +858,7 @@ fn focus_slots(table: &Timetable, event: usize, base: &StudyplanUrl, titles: &BT
         .iter()
         .filter(|item| item.in_week(shown))
         .filter_map(|item| {
-            let mut slot = drawn_slot(&drawn, base, item, titles, &item.against_in(shown), t)?;
+            let mut slot = drawn_slot(&drawn, base, item, titles, &item.against_in(shown), &item.yields_in(shown), t)?;
             slot.slot.href = None;
             slot.slot.asks = false;
             if item.event != event {
@@ -876,7 +876,10 @@ fn focus_slots(table: &Timetable, event: usize, base: &StudyplanUrl, titles: &BT
                 false => SlotAct::take(words.take_group, Act::Tick { event: id, row, rows: keys }),
             }];
             slot.slot.alt = false;
-            slot.slot.clash = meets.is_some();
+            // A group of a visit gives way where it meets the plan: yellow, never a clash's red.
+            let visit = drawn.events.get(event).is_some_and(|event| event.visit);
+            slot.slot.clash = meets.is_some() && !visit;
+            slot.slot.gives = meets.is_some() && visit;
             slot.slot.pick = Some(ticked);
             slot.slot.title = format!("{} · {}", slot.slot.title, if ticked { words.ticked_group } else { words.tick_group });
             let mut slot = keyed(slot, 'f', item);
@@ -932,7 +935,7 @@ fn join_ab(slots: Vec<PlanSlot>) -> Vec<PlanSlot> {
 /// with its menu (`plan_acts`). `items` is the plan's whole Regelwoche, which says how many slots
 /// the slot's event has.
 fn plan_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &BTreeMap<String, String>, week: Weeks, items: &[WeekItem], t: &i18n::Texts) -> Option<PlanSlot> {
-    let mut slot = drawn_slot(table, base, item, titles, &item.against_in(week), t)?;
+    let mut slot = drawn_slot(table, base, item, titles, &item.against_in(week), &item.yields_in(week), t)?;
     let slots = items.iter().filter(|other| other.event == item.event).count();
     slot.acts = plan_acts(table, item, &slot.row.keys, slots, t);
     // A slot with a „✓" stands with its buttons in view: an open choice asks for a decision, and
@@ -962,9 +965,11 @@ fn keyed(mut slot: PlanSlot, kind: char, item: &WeekItem) -> PlanSlot {
 }
 
 /// A slot as the grid draws it and a phone lists it, without a key or buttons; `against` are the
-/// events it overlaps, which draw it red and which its tooltip names. Its link is the app's path
-/// (`linked` writes it in the page's language).
-fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &BTreeMap<String, String>, against: &[usize], t: &i18n::Texts) -> Option<PlanSlot> {
+/// events it overlaps, which draw it red and which its tooltip names, and of a visit `gives` the
+/// plan's events it gives way to, a yellow edge and a line of its tooltip (owner, 2026-10-26: „ein
+/// Besuch gibt bei einer Überschneidung nach"). Its link is the app's path (`linked` writes it in
+/// the page's language).
+fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &BTreeMap<String, String>, against: &[usize], gives: &[usize], t: &i18n::Texts) -> Option<PlanSlot> {
     let event = table.events.get(item.event)?;
     let shown = event.rows.get(item.row)?;
     let module = event.modules.first()?;
@@ -1015,6 +1020,20 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
     if item.extra {
         title.push(t.studyplan_week.extra.to_string());
     }
+    if item.visit {
+        title.push(t.studyplan_week.visit.to_string());
+    }
+    let mut yielded: Vec<String> = Vec::new();
+    for other in gives.iter().filter_map(|e| table.events.get(*e)) {
+        let label = slot_label(other, titles, t.locale);
+        if !yielded.contains(&label) {
+            yielded.push(label);
+        }
+    }
+    let yields = !yielded.is_empty();
+    if yields {
+        title.push((t.studyplan_week.gives_way)(&yielded.join(", ")));
+    }
 
     let slot = GridSlot {
         day: item.day,
@@ -1030,6 +1049,8 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
         alt: item.alt.is_some(),
         clash,
         extra: item.extra,
+        visit: item.visit,
+        gives: yields,
         href: Some(href.clone()),
         lines: Vec::new(),
         current: false,
@@ -1044,7 +1065,7 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
     };
     let row = DayRow {
         day: item.day,
-        class: classes(hue, &[(item.alt.is_some(), "alt"), (clash, "clash"), (item.extra, "extra")]),
+        class: classes(hue, &[(item.alt.is_some(), "alt"), (clash, "clash"), (item.extra, "extra"), (item.visit, "visit"), (yields, "gives")]),
         time: format!("{}–{}", clock(item.from), clock(item.to)),
         text: event_text(event, t.locale),
         note: place.into_iter().chain(notes).collect::<Vec<_>>().join(" · "),
@@ -1070,7 +1091,7 @@ pub(super) fn calendar_slots(table: &Timetable, titles: &BTreeMap<String, String
         .iter()
         .filter(|item| item.in_week(shown) && (!strip || (item.alt.is_none() && !item.extra)))
         .filter_map(|item| {
-            let slot = drawn_slot(table, &base, item, titles, &[], t)?.slot;
+            let slot = drawn_slot(table, &base, item, titles, &[], &[], t)?.slot;
             Some(GridSlot {
                 class: if strip { "strip" } else { "cal" },
                 hue: Some(calendar.hue),
@@ -1104,20 +1125,23 @@ fn ghost_slots(table: &Timetable, base: &StudyplanUrl, titles: &BTreeMap<String,
             let hidden = table.events.get(item.event)?;
             let reasons: Vec<HiddenBy> = slot_rows(event, item, every).into_iter().map(|r| hidden.rows.get(r)?.hidden).collect::<Option<_>>()?;
             let reason = *reasons.first()?;
+            // What it would meet of the plan: a visit's Termin gives way, so it meets nothing, and
+            // one of a visit gives way where it meets the plan (yellow, not red).
             let meets: Vec<usize> = plan
                 .iter()
-                .filter(|other| other.event != item.event && other.day == item.day && other.from < item.to && item.from < other.to)
+                .filter(|other| other.event != item.event && !other.visit && other.day == item.day && other.from < item.to && item.from < other.to)
                 .filter(|other| same_weeks(other.weeks, item.weeks))
                 .map(|other| other.event)
                 .collect();
-            let mut slot = drawn_slot(&all, base, item, titles, &meets, t)?;
+            let (against, gives) = if event.visit { (Vec::new(), meets) } else { (meets, Vec::new()) };
+            let mut slot = drawn_slot(&all, base, item, titles, &against, &gives, t)?;
             let why = reason_text(reason, hidden, t);
             let hue = slot.slot.hue.unwrap_or_default();
             slot.slot.class = "faint";
             slot.slot.alt = false;
             slot.slot.asks = true;
             slot.slot.title = format!("{why} · {}", slot.slot.title);
-            slot.row.class = classes(hue, &[(true, "faint"), (slot.slot.clash, "clash")]);
+            slot.row.class = classes(hue, &[(true, "faint"), (slot.slot.clash, "clash"), (slot.slot.gives, "gives")]);
             slot.row.note = std::iter::once(why).chain(Some(slot.row.note.clone()).filter(|note| !note.is_empty())).collect::<Vec<_>>().join(" · ");
             slot.acts = ghost_acts(table, hidden, item, &slot.row.keys, reason, t);
             Some(keyed(slot, 'g', item))
@@ -2948,5 +2972,39 @@ pub(super) mod tests {
         nothing.date = EventDate { weekday: None, start_time: None, end_time: None, rhythm: None, first_date: None, last_date: None, room: None, ..nothing.date };
         assert_eq!(row_facts(&nothing.date, &i18n::DE), "nicht angegeben");
         assert_eq!(row_facts(&nothing.date, &i18n::EN), "not stated");
+    }
+
+    #[test]
+    fn a_visit_is_hatched_and_gives_way_in_the_week() {
+        // The plan's lecture on Tuesday 13:45; Denkmalpflege only visited, its lecture on Tuesday
+        // 14:00 and its Übung on Thursday.
+        let lecture = row("148702", 1, "Vorlesung", "weekly", 2, ("13:45", "15:15"), ("2026-10-06", "2027-01-26"));
+        let mut visit = row("150500", 1, "Vorlesung", "weekly", 2, ("14:00", "15:30"), ("2026-10-06", "2027-01-26"));
+        visit.module_id = "13676".into();
+        visit.date.event_title = "Denkmalpflege".into();
+        let mut exercise = row("150501", 1, "Übung", "weekly", 4, ("13:45", "15:15"), ("2026-10-08", "2027-01-28"));
+        exercise.module_id = "13676".into();
+        exercise.date.event_title = "Denkmalpflege".into();
+        let facts = winter();
+        let modules: Vec<String> = vec!["12104".into(), "13676".into()];
+        let schedule = [lecture, visit, exercise];
+        let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[], taken: &[], choices: &[], listed: &[] };
+        let selection = Selection { visits: ["13676".to_string()].into(), ..Selection::default() };
+        let table = Timetable::build(&input, &selection);
+        let titles = BTreeMap::from([("12104".to_string(), "EvS".to_string()), ("13676".to_string(), "Denkmalpflege".to_string())]);
+        let slots = week_slots(&table, &plain(), &titles, Weeks::All, false, None, &i18n::DE);
+        let of = |event: &str| slots.iter().find(|slot| slot.key.starts_with(&format!("p{}-", table.events.iter().position(|e| e.id == event).unwrap()))).unwrap();
+        let (plan, visit, exercise) = (of("148702"), of("150500"), of("150501"));
+        // The visit: hatched, giving way, never red; its tooltip says so.
+        assert!(visit.slot.visit && visit.slot.gives && !visit.slot.clash, "{:?}", visit.slot);
+        assert!(visit.slot.title.contains("Besuch, zählt nicht") && visit.slot.title.ends_with("trifft VL EvS, der Besuch gibt nach"), "{}", visit.slot.title);
+        assert!(visit.slot.classes().contains("visit gives") && visit.row.class.contains("visit") && visit.row.class.contains("gives"));
+        assert!(exercise.slot.visit && !exercise.slot.gives);
+        // The plan's lecture as it was.
+        assert!(!plan.slot.visit && !plan.slot.gives && !plan.slot.clash);
+        // „Offen" says where it gives way, to the visit's Termin.
+        let lines = super::super::open::lines(&table, &titles, &plain(), None, &i18n::DE);
+        let gives: Vec<(&str, &str, bool)> = lines.iter().filter(|line| line.gives).map(|line| (line.name.as_str(), line.say.as_str(), line.href.contains("termin=150500-"))).collect();
+        assert_eq!(gives, [("Denkmalpflege trifft VL EvS", "Di 14:00 · der Besuch gibt nach", true)]);
     }
 }

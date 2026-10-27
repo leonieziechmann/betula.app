@@ -7,10 +7,11 @@
 // the bookmark; „Module hinzufügen" has three tabs with short names (on a phone side by side), a
 // marked module of the plan's tab says so with its collections, „Merkliste" lists the marked modules
 // by collection and search, what is ticked in one tab is ticked in the other, „Einfügen" plans them;
-// the Gesamtplan's cell lists the area's marked module first. The Stundenplan's „Aus der Merkliste":
-// what the winter offers each with how it sits in the plan, the summer's folded with „nur SoSe", a
-// search, a collection, „2 gemerkte Module übernehmen" and „Rückgängig". Nothing of the marks, the
-// names of the collections or what is typed is in a request.
+// the Gesamtplan's cell lists the area's marked module first. The Stundenplan's „+ Modul" of „Mein
+// Studiengang", its Merkliste: what the winter offers each with how it sits in the week, the
+// summer's folded with „nur SoSe", a search, a collection, „2 gemerkte Module aufnehmen" (as visits)
+// and „Rückgängig", Esc. Nothing of the marks, the names of the collections or what is typed is in a
+// request.
 // Needs a snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
 // console error, or a step that does not show up.
 import { chromium } from "playwright-core";
@@ -201,10 +202,11 @@ const leaks = requests.filter((r) => marked.some((id) => r.includes(id)) || r.in
 check(leaks.length === 0, `the marks, a collection or the search went into a request: ${leaks.slice(0, 3).join(" | ")}`);
 await context.close();
 
-// ---------- the Stundenplan's „Aus der Merkliste" ----------
+// ---------- the Stundenplan's „+ Modul", its Merkliste ----------
 // The first semester's four modules planned into WiSe 2026/27; marked: Analysis I and Theoretische
 // Informatik, both of the winter, in „Kandidatenkiste", and Algorithmieren und Programmieren, a
-// summer's, in „Für Lenachen".
+// summer's, in „Für Lenachen". What „+ Modul" of „Mein Studiengang" takes in is a visit (a `v`
+// line), never a module of the study (owner, 2026-10-26).
 {
   const { context, page, go, step, requests } = await open({ viewport: { width: 1440, height: 900 } });
   await go("/catalog");
@@ -217,28 +219,35 @@ await context.close();
   }, [KEY, SHELF, PLAN, fs1, [analysis, theory, programming], now, KANDIDATEN, LENA]);
   requests.length = 0;
   await go("/studyplan");
-  await page.waitForFunction(() => document.querySelector(".sp-marked > summary")?.textContent === "Aus der Merkliste (3)", null, { timeout: 20000 }).catch(() => problems.push("the Stundenplan does not offer the three marked modules"));
-  const lis = (selector = ".sp-marked-list li") => page.evaluate((selector) => [...document.querySelectorAll(`.sp-marked ${selector}`)].map((li) => ({ id: li.dataset.id, fit: li.querySelector(".sp-fit")?.textContent ?? null, kind: li.querySelector(".sp-fit")?.className ?? null })), selector);
-  await step("Aus der Merkliste", () => page.click(".sp-marked > summary"), (n) => document.querySelectorAll(".sp-marked[open] .sp-marked-list li").length === n, 2);
-  const chips = await page.evaluate(() => [...document.querySelectorAll(".sp-marked-chips button")].map((b) => `${b.firstChild.textContent} ${b.querySelector(".n")?.textContent}${b.getAttribute("aria-pressed") === "true" ? "*" : ""}`));
-  check(JSON.stringify(chips) === JSON.stringify(["Alle 3*", `${KANDIDATEN} 2`, `${LENA} 1`]), `the collections of „Aus der Merkliste“: ${JSON.stringify(chips)}`);
-  // How each sits in the plan, once the list is open: „passt", or what it overlaps with.
-  await page.waitForFunction((id) => document.querySelector(`.sp-marked li[data-id="${id}"] .sp-fit`), analysis, { timeout: 8000 }).catch(() => {});
+  await page.waitForSelector(".sp-list .sp-add-mod", { timeout: 20000 }).catch(() => problems.push("„Mein Studiengang“ has no „+ Modul“"));
+  const lis = (selector = ".sp-addp-list li") => page.evaluate((selector) => [...document.querySelectorAll(`.sp-addp ${selector}`)].map((li) => ({ id: li.dataset.id, fit: li.querySelector(".sp-fit")?.textContent ?? null, kind: li.querySelector(".sp-fit")?.className ?? null })), selector);
+  await step("+ Modul", () => page.click(".sp-list .sp-add-mod"), () => document.querySelector('.sp-addp [role="tab"][aria-selected="true"]')?.textContent === "Merkliste (3)" && document.querySelectorAll(".sp-addp .sp-addp-list li").length === 2 && document.querySelector(".sp-addp-says")?.textContent === "Zählt in „Mein Studium“ als Besuch, ohne LP.");
+  const chips = await page.evaluate(() => [...document.querySelectorAll(".sp-addp .sp-marked-chips button")].map((b) => `${b.firstChild.textContent} ${b.querySelector(".n")?.textContent}${b.getAttribute("aria-pressed") === "true" ? "*" : ""}`));
+  check(JSON.stringify(chips) === JSON.stringify(["Alle 3*", `${KANDIDATEN} 2`, `${LENA} 1`]), `the collections of „+ Modul“: ${JSON.stringify(chips)}`);
+  // How each sits in the week, once the panel is open: „passt", or what it overlaps with.
+  await page.waitForFunction((id) => document.querySelector(`.sp-addp li[data-id="${id}"] .sp-fit`), analysis, { timeout: 8000 }).catch(() => {});
   const offered = await lis();
   timings.fits = offered.map((li) => `${li.id}: ${li.fit}`).join(" | ");
   check(same(offered.map((li) => li.id), [analysis, theory]), `what the winter offers: ${JSON.stringify(offered)}`);
-  check(offered.some((li) => /sp-fit (ok|warn)/.test(li.kind || "") && /^(passt|Überschneidet sich mit: .+)$/.test(li.fit || "")), `no module says how it sits in the plan: ${JSON.stringify(offered)}`);
+  check(offered.some((li) => /sp-fit (ok|warn)/.test(li.kind || "") && /^(passt|Überschneidet sich mit: .+)$/.test(li.fit || "")), `no module says how it sits in the week: ${JSON.stringify(offered)}`);
   // What the winter does not offer, folded, with why.
-  const fold = await page.evaluate(() => document.querySelector(".sp-marked .sp-marked-fold")?.textContent);
+  const fold = await page.evaluate(() => document.querySelector(".sp-addp .sp-marked-fold")?.textContent);
   check(fold === "Im WiSe 2026/27 nicht angeboten · 1", `the fold: ${fold}`);
-  await step("what the winter does not offer", () => page.click(".sp-marked .sp-marked-fold"), (id) => document.querySelector(`.sp-marked li[data-id="${id}"] .sp-fit`)?.textContent === "nur SoSe", programming);
+  await step("what the winter does not offer", () => page.click(".sp-addp .sp-marked-fold"), (id) => document.querySelector(`.sp-addp li[data-id="${id}"] .sp-fit`)?.textContent === "nur SoSe", programming);
   // The search, then a collection, then all of it at once.
-  await step("the search of „Aus der Merkliste“", () => page.fill(".sp-marked-search input", "theoret"), (id) => [...document.querySelectorAll(".sp-marked li")].map((li) => li.dataset.id).join() === id, theory);
-  await page.fill(".sp-marked-search input", "");
-  await step(`the collection ${KANDIDATEN}`, () => page.click(`.sp-marked-chips button:has-text("${KANDIDATEN}")`), () => document.querySelectorAll(".sp-marked li").length === 2 && !document.querySelector(".sp-marked .sp-marked-fold"));
-  check((await page.evaluate(() => document.querySelector(".sp-marked .sp-take")?.textContent)) === "2 gemerkte Module übernehmen", "no „2 gemerkte Module übernehmen“ for the collection");
-  await step("übernehmen", () => page.click(".sp-marked .sp-take"), ([key, ids]) => ids.every((id) => (localStorage.getItem(key) || "").includes(`m\t2026W\t${id}\t`)) && document.querySelector(".sp-marked-note")?.textContent.includes("2 gemerkte Module übernommen") && document.querySelector(".sp-marked > summary")?.textContent === "Aus der Merkliste (1)", [PLAN, [analysis, theory]]);
-  await step("Rückgängig the take", () => page.click(".sp-marked-note .mini"), ([key, ids]) => ids.every((id) => !(localStorage.getItem(key) || "").includes(`\t${id}\t`)) && document.querySelector(".sp-marked > summary")?.textContent === "Aus der Merkliste (3)", [PLAN, [analysis, theory]]);
+  await step("the search of the Merkliste", () => page.fill(".sp-addp .sp-marked-search input", "theoret"), (id) => [...document.querySelectorAll(".sp-addp li")].map((li) => li.dataset.id).join() === id, theory);
+  await page.fill(".sp-addp .sp-marked-search input", "");
+  await step(`the collection ${KANDIDATEN}`, () => page.click(`.sp-addp .sp-marked-chips button:has-text("${KANDIDATEN}")`), () => document.querySelectorAll(".sp-addp li").length === 2 && !document.querySelector(".sp-addp .sp-marked-fold"));
+  check((await page.evaluate(() => document.querySelector(".sp-addp .sp-take")?.textContent)) === "2 gemerkte Module aufnehmen", "no „2 gemerkte Module aufnehmen“ for the collection");
+  await step("aufnehmen", () => page.click(".sp-addp .sp-take"), ([key, ids]) => {
+    const text = localStorage.getItem(key) || "";
+    return ids.every((id) => text.includes(`v\t2026W\t${id}\t`) && !text.includes(`m\t2026W\t${id}\t`))
+      && document.querySelector(".sp-addp .sp-marked-note")?.textContent.includes("2 gemerkte Module in „Mein Studiengang“ aufgenommen")
+      && document.querySelector('.sp-addp [role="tab"][aria-selected="true"]')?.textContent === "Merkliste (1)"
+      && document.querySelectorAll(".sp-list .sp-row.visit").length === 2;
+  }, [PLAN, [analysis, theory]]);
+  await step("Rückgängig the take", () => page.click(".sp-addp .sp-marked-note .mini"), ([key, ids]) => ids.every((id) => !(localStorage.getItem(key) || "").includes(`\t${id}\t`)) && document.querySelector('.sp-addp [role="tab"][aria-selected="true"]')?.textContent === "Merkliste (3)" && !document.querySelector(".sp-list .sp-row.visit"), [PLAN, [analysis, theory]]);
+  await step("Esc closes „+ Modul“", async () => { await page.focus(".sp-addp .sp-marked-search input"); await page.keyboard.press("Escape"); }, () => !document.querySelector(".sp-addp") && document.querySelector(".sp-list .sp-add-mod")?.getAttribute("aria-expanded") === "false");
   const leaks = requests.filter((r) => [analysis, theory, programming].some((id) => r.includes(id)) || r.includes(KANDIDATEN) || r.includes(encodeURIComponent(KANDIDATEN)) || r.includes("Lenachen") || r.includes("theoret"));
   check(leaks.length === 0, `the Stundenplan's Merkliste went into a request: ${leaks.slice(0, 3).join(" | ")}`);
   await context.close();

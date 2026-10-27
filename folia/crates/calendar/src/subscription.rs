@@ -192,6 +192,7 @@ impl Subscription {
             hidden_dates: self.key().map(|key| self.hidden_dates.iter().filter_map(|value| date_of(key, *value)).collect()).unwrap_or_default(),
             town: TownChoice::from_code(self.town),
             town_from: None,
+            visits: std::collections::BTreeSet::new(),
         }
     }
 }

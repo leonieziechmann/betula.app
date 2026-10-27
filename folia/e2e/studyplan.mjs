@@ -274,7 +274,7 @@ async function areas() {
       modules: [...box.querySelectorAll(".sp-row .mono")].map((id) => id.textContent),
       more: box.querySelector("a.sp-area-add")?.getAttribute("href") ?? null,
     })),
-    open: [...document.querySelectorAll(".sp-list > a.open-slot:not(.sp-add) b")].map((b) => b.textContent),
+    open: [...document.querySelectorAll(".sp-list > a.open-slot b")].map((b) => b.textContent),
   }));
   const [komplex, seminar] = seen.boxes;
   check(JSON.stringify(seen.own) === JSON.stringify(["12333"]), `the list's own rows: ${JSON.stringify(seen)}`);
