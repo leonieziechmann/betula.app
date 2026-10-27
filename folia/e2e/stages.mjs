@@ -22,7 +22,8 @@
 //   semester of „Mein Studium“, its Regelstudienplan and a module's own page leave none on the
 //   other tabs, where the way to the profile page is in reach again, and have it again as their tab
 //   comes back as it was left; where the browser has no Navigation API (the way back's link leads
-//   on), the way back of a page on another tab leaves the semester of „Mein Studium“ behind it.
+//   on), the way back of a page on another tab leaves the semester of „Mein Studium“ behind it, and
+//   the Regelstudienplan's leads to the overview after its tab was left and came back.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -415,7 +416,8 @@ const linkTo = (page, path) => page.evaluate((path) => { const a = Object.assign
 
 // ---- a phone whose browser has no Navigation API: where the step before is not known, the way
 // back follows its link, and the page whose box it is hears it pressed (`TopBack::presses`). The
-// way back of a page on another tab leaves „Mein Studium" behind it as it was left.
+// way back of a page on another tab leaves „Mein Studium" behind it as it was left, and that of a
+// view of „Mein Studium" whose tab was left leads to the overview, not to the other tab's page.
 {
   const phone = true;
   const { context, page } = await studying(() => Object.defineProperty(window, "navigation", { value: undefined, configurable: true }));
@@ -438,6 +440,21 @@ const linkTo = (page, path) => page.evaluate((path) => { const a = Object.assign
   await tab(page, "programs", phone);
   await settle(page);
   check(await rowAt(page, true), `${during}: the row is not at the semester it was left at`);
+  // The Regelstudienplan come to from the overview, its tab left and come back to: the way back
+  // leads to the overview, not through the history to the other tab's page under it.
+  during = "phone without the Navigation API: the Regelstudienplan, its tab left and come back to";
+  await page.tap(".topbar .top-back.on");
+  check(await rowAt(page, false), `${during}: the way back did not bring the overview`);
+  await page.tap('#content > .page-stage.front .st-mine-panel .st-ways a[href="/study?view=plan"]');
+  await page.waitForFunction(() => location.search === "?view=plan" && document.querySelector("#content > .page-stage.front .st-rsp-phone"), null, { timeout: 10000 }).catch(() => problems.push(`${during}: did not come (${page.url()})`));
+  await settle(page);
+  await tab(page, "catalog", phone);
+  await settle(page);
+  await tab(page, "programs", phone);
+  await settle(page);
+  check(new URL(page.url()).search === "?view=plan", `${during}: at ${page.url()}`);
+  await page.tap(".topbar .top-back.on");
+  await page.waitForFunction(() => location.pathname === "/study" && location.search === "" && document.querySelector("#content > .page-stage.front .st-pager"), null, { timeout: 10000 }).catch(() => problems.push(`${during}: the way back led to ${page.url()}, not to the overview`));
   if (await reloaded(page)) problems.push(`${during}: the page was loaded again`);
   await context.close();
 }
