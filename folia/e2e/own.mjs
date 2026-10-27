@@ -11,7 +11,7 @@
 // - A click on a free stretch of a day: the form with that day and time.
 // - Its view: „Eigener Termin", no „Teilen", „Im Stundenplan · nicht in Datei und Abo", „Jede
 //   Woche · …, die Vorlesungszeit"; „Nur am … ausblenden" skips the day, „Bearbeiten" changes its
-//   place, „Löschen" closes the view with „Rückgängig".
+//   place (keys typed keep the field and the title), „Löschen" closes the view with „Rückgängig".
 // - A module without Termine (Praktikum Betriebssysteme): „Termin eintragen", the form with the
 //   module chosen, the slot in the module's tone; without a name it goes by the module („PBS" in
 //   the week, the list and the note; its view with the module's title, „Von dir angelegt").
@@ -166,6 +166,12 @@ const spot = (page, day, minute) => page.evaluate(([day, minute]) => {
   // „Bearbeiten": the form with its fields, „Speichern".
   await page.click('.is-termin [data-action="own-edit"]');
   await until(page, "its form", (form) => onPage(`${form} #own-form-title`)?.textContent === "„Arbeit“ bearbeiten" && onPage(`${form} #own-where`)?.value === "Café Mosaik" && onPage(`${form} #own-day`)?.value === "4", form);
+  // Keys typed one by one keep the field and the title: the form is built once as it opens.
+  await page.click(`${form} #own-what`);
+  await page.keyboard.press("End");
+  await page.keyboard.type("!", { delay: 30 });
+  check(await page.evaluate((form) => document.activeElement?.id === "own-what" && onPage(`${form} #own-form-title`)?.textContent === "„Arbeit“ bearbeiten" && onPage(`${form} #own-what`)?.value === "Arbeit!", form), "a key typed moved the focus or the title");
+  await page.keyboard.press("Backspace");
   await fill(page, { place: "Mensa" });
   await page.click(`dialog.own-form .st-dlg-foot .primary`);
   await until(page, "„Speichern“", ([key]) => (localStorage.getItem(key) ?? "").includes("t\t1\t0\t2026W\tw\t4\t13:00-17:00\t\t\t\tArbeit\tMensa\t\n") && onPage(".own-note")?.textContent.includes("„Arbeit“ gespeichert"), [PLAN]);

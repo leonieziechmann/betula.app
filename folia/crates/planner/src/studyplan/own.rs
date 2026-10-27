@@ -492,7 +492,8 @@ fn spot_at(x: i32, y: i32) -> Option<(u8, u16)> {
 pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let o = &t.studyplan_own;
-    let open = Signal::derive(move || ctx.own.with(Option::is_some));
+    // A memo: the dialog's content is built once as it opens, not again with every key typed.
+    let open = Signal::from(Memo::new(move |_| ctx.own.with(Option::is_some)));
     let close = Callback::new(move |()| ctx.own.set(None));
     let shown = kept(move || ctx.own.get());
     // The field a change goes to.
