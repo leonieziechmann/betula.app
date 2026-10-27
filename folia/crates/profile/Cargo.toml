@@ -1,6 +1,6 @@
 [package]
 name = "folia-profile"
-version = "1.58.0"
+version = "1.58.1"
 edition = "2021"
 description = "Betula's profile page: the profiles of a browser, what the active one keeps, the settings"
 
