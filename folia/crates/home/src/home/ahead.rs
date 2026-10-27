@@ -309,7 +309,7 @@ fn cuts(live: Ctx, first: Day, last: Day, start: i32, end: i32) -> Vec<i32> {
     use super::photo;
 
     let t = crate::i18n::t();
-    let words = daymodel::Words { locale: t.locale, exam: t.today.exam };
+    let words = daymodel::Words { locale: t.locale, exam: t.today.exam, own: t.termin.own_chip };
     let mut cuts = BTreeSet::from([start, end]);
     for n in first.0..=last.0 {
         let day = Day(n);

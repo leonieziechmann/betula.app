@@ -11,7 +11,7 @@ pub struct Texts {
     /// A planned module the catalog has no title for, by its number: „Modul 12104".
     pub module_numbered: fn(&str) -> String,
     /// Under a module's title: the catalog does not know it („nicht im Modulkatalog"), or the
-    /// semester has dates, the module none („keine Termine").
+    /// semester has dates, the module none in QIS („keine Termine in QIS", beside „Termin eintragen").
     pub not_in_catalog: &'static str,
     pub no_dates: &'static str,
     /// The placeholder of another semester a module counts for: „für „Anwendungsfach“".
@@ -51,7 +51,7 @@ pub const DE: Texts = Texts {
     list: "Module im Stundenplan",
     module_numbered: |id| format!("Modul {id}"),
     not_in_catalog: "nicht im Modulkatalog",
-    no_dates: "keine Termine",
+    no_dates: "keine Termine in QIS",
     counts_for: |name| format!("für „{name}“"),
     remove: "Aus dem Stundenplan nehmen",
     remove_named: |title| format!("„{title}“ aus dem Stundenplan nehmen"),
@@ -73,7 +73,7 @@ pub const EN: Texts = Texts {
     list: "Modules in the timetable",
     module_numbered: |id| format!("Module {id}"),
     not_in_catalog: "not in the module catalogue",
-    no_dates: "no dates",
+    no_dates: "no dates in QIS",
     counts_for: |name| format!("for “{name}”"),
     remove: "Remove from the timetable",
     remove_named: |title| format!("Remove “{title}” from the timetable"),

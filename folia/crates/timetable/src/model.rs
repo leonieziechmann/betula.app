@@ -37,6 +37,11 @@
 //! like any other, but its events meet nothing in a clash and give way where they meet the plan's
 //! (`Event::visit`, `clash::yield_pairs`), and it brings no exam.
 //!
+//! The Termine of one's own the visitor added (`Selection::own`, folia/design/kalender/termine.html)
+//! are events of their own (`Event::own`): rows as QIS's of their rhythm would be, keyed by their
+//! own key, linked by no module, so that they meet every Termin of the plan, firm as a module's
+//! (owner, 2026-10-27: „Passt alles", the third question's „fest, wie ein Modul").
+//!
 //! Then the visitor's selection: hidden events, kinds and Termine, and made choices. Every event
 //! and row says why it is not shown (`HiddenBy`, the first rule that holds). The clashes of what
 //! is left are `clash`'s, the exams and their warnings `exams`'.
@@ -44,16 +49,17 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
-use folia_calendar::day::Day;
+use folia_calendar::day::{clock, Day};
 use folia_calendar::kind::{class_of, kinds_of, Class, EventKind, KindSet};
+use folia_calendar::own::{OwnRhythm, OwnTermin};
 use folia_calendar::rowkey::RowKey;
 use folia_calendar::select::{town_of, town_of_campus, HiddenBy, Selection, Town, TownChoice};
 use folia_calendar::semester::SemesterKey;
-use folia_model::labels::{Campus, ChoiceKind};
+use folia_model::labels::{Campus, ChoiceKind, Code, Rhythm};
 use folia_model::rows::Semester;
 use folia_model::rows_detail::{ChoiceFamily, ChoiceOption, DateRow, EventDate, ModuleSws, TrackProgram};
 
-use crate::clash::{self, Clash};
+use crate::clash::{self, Clash, Weeks};
 use crate::exams::{self, Exam, ExamWarning};
 use crate::facts::SemesterFacts;
 use crate::occur::{self, Every, Occurrences};
@@ -296,6 +302,11 @@ pub struct Event {
     pub rows: Vec<Row>,
     pub hidden: Option<HiddenBy>,
     pub source_url: Option<String>,
+    /// The Termin of one's own it is (`Selection::own`): no module links it (`modules` is empty),
+    /// so it meets every Termin of the plan and a choice takes it as one more; its `tone` is the
+    /// tone of the module it belongs to where that is in the week, else 0, none. `None` for every
+    /// event of QIS.
+    pub own: Option<OwnTermin>,
 }
 
 /// Which of an event's rows a student attends.
@@ -426,6 +437,7 @@ impl Timetable {
             choose(event, selection);
         }
         take(&mut choices, &mut events, input.listed, selection);
+        events.extend(selection.own.iter().filter(|own| own.is_valid()).map(|own| own_event(own, &modules, input.facts)));
         let (clashes, blocked, blocked_choices) = clash::clashes(&events);
         let towns: BTreeMap<String, BTreeSet<Town>> = shown.iter().map(|(module, shown)| (module.clone(), shown.towns.clone())).collect();
         // A visit brings no exam: nobody sits one of a module they only visit.
@@ -563,6 +575,7 @@ fn gather(schedule: &[DateRow], modules: &[String], facts: &SemesterFacts) -> Ve
             rows: rows.iter().filter(|row| row.ord.is_some()).map(|row| Row::of(row, facts)).collect(),
             hidden: None,
             source_url: date.source_url.clone(),
+            own: None,
         };
         events.push((position, event));
     }
@@ -570,6 +583,96 @@ fn gather(schedule: &[DateRow], modules: &[String], facts: &SemesterFacts) -> Ve
         p.cmp(q).then_with(|| a.title.cmp(&b.title)).then_with(|| (a.id.len(), &a.id).cmp(&(b.id.len(), &b.id)))
     });
     events.into_iter().map(|(_, event)| event).collect()
+}
+
+/// The event of a Termin of one's own: a row as QIS's of its rhythm would be — every week, or in
+/// the A or the B weeks, from its first day to its last, else through the lecture period
+/// (`occur`) — or a single date for each of its dates; keyed by its own key, the days it skips
+/// taken out of its days as a hidden date is (`Occurrences::hidden`). Its tone is the module's it
+/// belongs to where that is in the week (`modules`), else 0.
+fn own_event(own: &OwnTermin, modules: &[String], facts: &SemesterFacts) -> Event {
+    let key = own.key();
+    let date = |weekday: u8, rhythm: Rhythm, range: Option<(Day, Day)>| EventDate {
+        semester_key: facts.key.key(),
+        semester_label: String::new(),
+        event_id: key.event.to_string(),
+        event_number: None,
+        event_title: own.name.clone(),
+        event_type: None,
+        group_name: None,
+        weekday: Some(i64::from(weekday)),
+        start_time: Some(clock(own.from)),
+        end_time: Some(clock(own.to)),
+        rhythm: Some(Code::Known(rhythm)),
+        rhythm_raw: None,
+        first_date: range.map(|(first, _)| first.iso()),
+        last_date: range.map(|(_, last)| last.iso()),
+        room: Some(own.place.clone()).filter(|place| !place.is_empty()),
+        campus: None,
+        instructor: None,
+        comment: None,
+        source_url: None,
+        room_short: None,
+        series: None,
+        track: None,
+        choice: None,
+        option: None,
+        extra: false,
+    };
+    let dates = match own.rhythm {
+        OwnRhythm::Dates => own.dates.iter().map(|day| date(day.weekday(), Rhythm::Single, Some((*day, *day)))).collect(),
+        OwnRhythm::Week => vec![date(own.weekday, Rhythm::Weekly, own.period)],
+        OwnRhythm::AWeek | OwnRhythm::BWeek => {
+            let (weeks, rhythm) = if own.rhythm == OwnRhythm::AWeek { (Weeks::A, Rhythm::WeekA) } else { (Weeks::B, Rhythm::WeekB) };
+            // A period of its own begins on its first day of its weeks; without the A weeks
+            // known, it is a pattern (`occur`).
+            let range = own.period.and_then(|(first, last)| Some((first_in(weeks, own.weekday, first, facts)?, last)));
+            vec![date(own.weekday, rhythm, range)]
+        }
+    };
+    let rows = dates
+        .into_iter()
+        .enumerate()
+        .map(|(ord, date)| {
+            let mut row = Row::of(&DateRow { module_id: String::new(), ord: i64::try_from(ord).ok(), cancelled_dates: None, date }, facts);
+            row.key = Some(key);
+            let (gone, kept): (Vec<Day>, Vec<Day>) = row.occ.days.iter().partition(|day| own.skip.contains(day));
+            row.occ.days = kept;
+            row.occ.hidden = gone;
+            row
+        })
+        .collect();
+    let tone = own.module.as_ref().and_then(|module| modules.iter().position(|planned| planned == module)).map_or(0, tone);
+    Event {
+        id: key.event.to_string(),
+        number: None,
+        title: own.name.clone(),
+        type_raw: None,
+        kinds: KindSet::default(),
+        class: Class::Other,
+        modules: Vec::new(),
+        course: None,
+        tone,
+        attendance: Attendance::All,
+        across: None,
+        extra: false,
+        visit: false,
+        chosen: BTreeSet::new(),
+        rows,
+        hidden: None,
+        source_url: None,
+        own: Some(own.clone()),
+    }
+}
+
+/// The first day on or after `from` on `weekday` in the A weeks or the B weeks (`weeks`), counted
+/// as `SemesterFacts::ab_week` counts them; `None` where the A weeks are unknown.
+fn first_in(weeks: Weeks, weekday: u8, from: Day, facts: &SemesterFacts) -> Option<Day> {
+    let a_week = facts.a_week?.monday();
+    let theirs = if weeks == Weeks::B { a_week.plus(7) } else { a_week };
+    let monday = from.monday();
+    let day = monday.plus((theirs.0 - monday.0).rem_euclid(14)).plus(i32::from(weekday) - 1);
+    Some(if day < from { day.plus(14) } else { day })
 }
 
 /// The tone of the module at `position` in the plan: 1..=8, then round again.
@@ -1305,12 +1408,24 @@ pub mod tests {
             |id: &str| t.modules.iter().position(|m| m == id).unwrap_or_else(|| panic!("{id} is not planned"));
         let distinct: BTreeSet<&str> = t.events.iter().map(|e| e.id.as_str()).collect();
         assert_eq!(distinct.len(), t.events.len(), "an event twice");
-        let firsts: Vec<usize> = t.events.iter().map(|e| position(&e.modules[0])).collect();
+        // QIS's first, in plan order; then the Termine of one's own, which no module links.
+        let qis = t.events.iter().take_while(|e| e.own.is_none()).count();
+        assert!(t.events.iter().skip(qis).all(|e| e.own.is_some()), "the Termine of one's own last");
+        let firsts: Vec<usize> = t.events.iter().take(qis).map(|e| position(&e.modules[0])).collect();
         assert!(firsts.windows(2).all(|w| w[0] <= w[1]), "events in plan order");
         for (i, e) in t.events.iter().enumerate() {
+            if let Some(own) = &e.own {
+                assert!(e.modules.is_empty() && e.across.is_none() && !e.visit && !e.extra && e.hidden.is_none(), "{}", e.id);
+                assert!(e.rows.iter().all(|r| r.key == Some(own.key()) && r.hidden.is_none()), "{}: its rows keyed by its own key", e.id);
+                let tone = own.module.as_ref().and_then(|m| t.modules.iter().position(|planned| planned == m)).map_or(0, |at| at % TONES + 1);
+                assert_eq!(usize::from(e.tone), tone, "{}", e.id);
+                assert!(own.skip.iter().all(|day| e.rows.iter().all(|r| !r.occ.days.contains(day))), "{}: a day it skips is no day of it", e.id);
+            }
             let positions: Vec<usize> = e.modules.iter().map(|m| position(m)).collect();
             assert!(positions.windows(2).all(|w| w[0] < w[1]), "{}: modules in plan order, each once", e.id);
-            assert_eq!(usize::from(e.tone), positions[0] % TONES + 1, "{}", e.id);
+            if let Some(first) = positions.first() {
+                assert_eq!(usize::from(e.tone), first % TONES + 1, "{}", e.id);
+            }
             assert_eq!(e.class, class_of(e.kinds));
             assert!(e.rows.windows(2).all(|w| w[0].ord < w[1].ord), "{}: rows once, by ord", e.id);
             assert!(e.rows.iter().all(|r| r.ord.is_some() && r.from.is_some() == r.to.is_some()));
@@ -1686,6 +1801,92 @@ pub mod tests {
         // An event whose rows are all required has no choice.
         let t = table(&rows, &["A"], &[], &Selection { chosen_rows: [rows[0].key()].into(), ..Selection::default() });
         assert!(t.events[0].chosen.is_empty() && t.events[0].rows.iter().all(|r| r.hidden.is_none()));
+    }
+
+    /// A Termin of one's own of 2026W: Friday 13:00–17:00 every week of the lecture period.
+    #[cfg(test)]
+    fn job(number: u32) -> OwnTermin {
+        OwnTermin {
+            number,
+            rhythm: OwnRhythm::Week,
+            weekday: 5,
+            dates: Vec::new(),
+            from: 13 * 60,
+            to: 17 * 60,
+            period: None,
+            module: None,
+            name: "Arbeit".into(),
+            place: "Café Mosaik".into(),
+            skip: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn a_termin_of_ones_own_stands_in_the_week_firm_as_a_modules() {
+        let rows = [teaching("A", "80", 1, "Vorlesung", 5, "09:15", "10:45"), teaching("B", "81", 1, "Übung", 5, "14:00", "15:30")];
+        let selection = Selection { own: vec![job(1), OwnTermin { weekday: 1, from: 8 * 60, to: 9 * 60, module: Some("B".into()), name: String::new(), ..job(2) }], ..Selection::default() };
+        let t = table(&rows, &["A", "B"], &[], &selection);
+        invariants(&t);
+        let own: Vec<&Event> = t.events.iter().filter(|e| e.own.is_some()).collect();
+        assert_eq!(own.iter().map(|e| (e.id.as_str(), e.title.as_str(), e.tone)).collect::<Vec<_>>(), [("4000000001", "Arbeit", 0), ("4000000002", "", 2)]);
+        let row = &own[0].rows[0];
+        assert_eq!((row.from, row.to, row.date.room.as_deref(), row.key.map(RowKey::text)), (Some(780), Some(1020), Some("Café Mosaik"), Some("4000000001-00000".into())));
+        // Every Friday of the lecture period but the break; 30.10. is no holiday in Brandenburg's law,
+        // so the job is held then, as a weekly row of QIS would be.
+        assert_eq!((row.occ.days.first().copied(), row.occ.days.last().copied()), (Some(d("2026-10-09")), Some(d("2027-01-29"))));
+        assert!(row.occ.assumed && !row.occ.days.contains(&d("2026-12-25")));
+        // It meets B's Übung, which no module of it shares: a clash, as two modules' Termine are.
+        assert_eq!(t.clashes.len(), 1);
+        let clash = &t.clashes[0];
+        assert_eq!((t.events[clash.a.0].id.as_str(), t.events[clash.b.0].id.as_str()), ("81", "4000000001"));
+        // Its slot in the week, as any other.
+        assert!(t.regular_week().iter().any(|item| t.events[item.event].own.is_some() && item.day == 5 && item.from == 780 && item.clash));
+    }
+
+    #[test]
+    fn a_choice_of_groups_takes_a_termin_of_ones_own_as_the_plans() {
+        // Two groups of an Übung, one at the job's time: the choice stays open, its group at the
+        // job meets it, the other is free (`clash::option_meetings`).
+        let rows = [teaching("A", "80", 1, "Übung", 5, "13:45", "15:15").group("1"), teaching("A", "80", 2, "Übung", 4, "09:15", "10:45").group("2")];
+        let selection = Selection { own: vec![job(1)], ..Selection::default() };
+        let t = table(&rows, &["A"], &[], &selection);
+        invariants(&t);
+        assert!(t.events[0].unresolved() && t.clashes.is_empty() && t.blocked.is_empty(), "the other group is free");
+        let meetings = clash::option_meetings(&t.events);
+        assert!(meetings.contains(&(0, 0)) && !meetings.contains(&(0, 1)), "{meetings:?}");
+        // With the job on Thursday morning too, no group is free: the choice is blocked.
+        let both = Selection { own: vec![job(1), OwnTermin { weekday: 4, from: 9 * 60, to: 11 * 60, ..job(2) }], ..Selection::default() };
+        let blocked = table(&rows, &["A"], &[], &both);
+        assert_eq!(blocked.blocked, [0]);
+    }
+
+    #[test]
+    fn a_termin_of_ones_own_keeps_to_its_weeks_its_period_and_the_days_it_skips() {
+        let a = OwnTermin { rhythm: OwnRhythm::AWeek, weekday: 2, period: Some((d("2026-10-14"), d("2026-12-18"))), skip: vec![d("2026-11-03")], ..job(1) };
+        let b = OwnTermin { rhythm: OwnRhythm::BWeek, weekday: 2, ..job(2) };
+        let block = OwnTermin { rhythm: OwnRhythm::Dates, weekday: 0, dates: vec![d("2026-12-23"), d("2027-02-12")], ..job(3) };
+        let t = table(&[], &[], &[], &Selection { own: vec![a, b, block], ..Selection::default() });
+        invariants(&t);
+        let days = |e: usize| t.events[e].rows.iter().flat_map(|row| row.occ.days.iter().map(|day| day.iso())).collect::<Vec<_>>();
+        // A weeks from 05.10. on, every other week: the first Tuesday of one from 14.10. on is 20.10.;
+        // 03.11. skipped, held up to the period's end.
+        assert_eq!(days(0), ["2026-10-20", "2026-11-17", "2026-12-01", "2026-12-15"]);
+        assert_eq!(t.events[0].rows[0].occ.hidden, [d("2026-11-03")]);
+        // B weeks through the lecture period, without the break.
+        assert_eq!(days(1).first().map(String::as_str), Some("2026-10-13"));
+        assert!(days(1).iter().all(|day| !day.starts_with("2026-12-2")));
+        // Dates of its own, in the break and after the lectures too: a single date is never skipped.
+        assert_eq!(days(2), ["2026-12-23", "2027-02-12"]);
+        assert_eq!(t.events[2].rows.len(), 2);
+    }
+
+    #[test]
+    fn a_termin_of_ones_own_without_the_weeks_known_is_a_pattern() {
+        let facts = SemesterFacts::derive(SemesterKey::parse("2026W").unwrap(), None, &[]);
+        let own = OwnTermin { rhythm: OwnRhythm::AWeek, period: Some((d("2026-10-14"), d("2026-12-18"))), ..job(1) };
+        let event = own_event(&own, &[], &facts);
+        assert_eq!(event.rows[0].occ.template.map(|t| (t.weekday, t.every)), Some((5, Every::AWeek)));
+        assert!(event.rows[0].occ.days.is_empty());
     }
 
     #[test]

@@ -193,6 +193,8 @@ impl Subscription {
             town: TownChoice::from_code(self.town),
             town_from: None,
             visits: std::collections::BTreeSet::new(),
+            // A code carries no Termin of one's own (their own step, „Eigene Termine mitnehmen").
+            own: Vec::new(),
         }
     }
 }

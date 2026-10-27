@@ -69,6 +69,9 @@
   /* The ways into the catalog on the start page: a soft hue each, at the faculties' lightness. */
   --t-ice: oklch(.55 .09 240); --t-sun: oklch(.64 .12 75); --t-violet: oklch(.53 .1 300); --t-teal: oklch(.56 .08 190);
   --t-green: oklch(.56 .1 150); --t-coral: oklch(.6 .12 35); --t-rose: oklch(.56 .1 355); --t-slate: oklch(.55 .04 260);
+  /* A Termin of one's own of no module of the week (`Event::own`, folia/design/kalender/termine.html):
+     a grey without a hue, apart from the eighth module's slate. */
+  --t-own: oklch(.5 .006 250);
   /* The calendars of one's own beside the plan (planner studyplan/calendars.rs, `k-1` … `k-6`): a
      little more chroma than the modules' tones, which they stand beside in the week. */
   --k-1: oklch(.56 .13 355); --k-2: oklch(.58 .13 45); --k-3: oklch(.55 .12 135); --k-4: oklch(.55 .11 215); --k-5: oklch(.53 .13 290); --k-6: oklch(.6 .12 95);
@@ -147,7 +150,7 @@
     --logo-leaf: #10151f;
     --accent: oklch(.53 .07 149);
     --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-3: oklch(.79 .1 70); --fac-4: oklch(.76 .1 330); --fac-5: oklch(.77 .08 212); --fac-6: oklch(.75 .1 30);
-    --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-green: oklch(.8 .09 150); --t-coral: oklch(.8 .09 35); --t-rose: oklch(.78 .09 355); --t-slate: oklch(.78 .04 260);
+    --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-green: oklch(.8 .09 150); --t-coral: oklch(.8 .09 35); --t-rose: oklch(.78 .09 355); --t-slate: oklch(.78 .04 260); --t-own: oklch(.76 .006 250);
     --k-1: oklch(.78 .11 355); --k-2: oklch(.8 .11 45); --k-3: oklch(.8 .11 135); --k-4: oklch(.8 .09 215); --k-5: oklch(.78 .11 290); --k-6: oklch(.84 .11 95);
     --accent-ink: oklch(.8 .06 149);
     --on-accent: #ffffff;
@@ -205,7 +208,7 @@
   --logo-leaf: #10151f;
   --accent: oklch(.53 .07 149);
   --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-3: oklch(.79 .1 70); --fac-4: oklch(.76 .1 330); --fac-5: oklch(.77 .08 212); --fac-6: oklch(.75 .1 30);
-  --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-green: oklch(.8 .09 150); --t-coral: oklch(.8 .09 35); --t-rose: oklch(.78 .09 355); --t-slate: oklch(.78 .04 260);
+  --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-green: oklch(.8 .09 150); --t-coral: oklch(.8 .09 35); --t-rose: oklch(.78 .09 355); --t-slate: oklch(.78 .04 260); --t-own: oklch(.76 .006 250);
   --k-1: oklch(.78 .11 355); --k-2: oklch(.8 .11 45); --k-3: oklch(.8 .11 135); --k-4: oklch(.8 .09 215); --k-5: oklch(.78 .11 290); --k-6: oklch(.84 .11 95);
   --accent-ink: oklch(.8 .06 149);
   --on-accent: #ffffff;
@@ -2508,6 +2511,7 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 /* The ways into the catalog in their soft hues, the faculties in their colours from the map. */
 .t-ice { --tint: var(--t-ice); } .t-sun { --tint: var(--t-sun); } .t-violet { --tint: var(--t-violet); } .t-teal { --tint: var(--t-teal); }
 .t-green { --tint: var(--t-green); } .t-coral { --tint: var(--t-coral); } .t-rose { --tint: var(--t-rose); } .t-slate { --tint: var(--t-slate); }
+.t-own { --tint: var(--t-own); }
 
 /* What the app does: a grid of equal cells with rules, not cards. */
 .ability-grid { display: grid; grid-template-columns: minmax(0, 1fr); border-top: 1px solid var(--line); }
@@ -3675,6 +3679,82 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-way { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; margin-top: 4px; padding: 6px 42px 6px 12px; border-radius: var(--r-row); color: var(--text-2); font-size: 13px; text-decoration: none; }
 .sp-way:hover { background: var(--row-hover); color: var(--text); text-decoration: none; }
 .sp-way .icon { width: 16px; height: 16px; color: var(--text-3); }
+/* Termine of one's own (folia/crates/planner/src/studyplan/own.rs; folia/design/kalender/termine.html,
+   owner 2026-10-27: „Passt alles, bau Schritt 1 jetzt in Folia"). In the week a slot of one's own
+   is a slot of the plan in its tone (its module's, else its own grey, .t-own) with the mark „von
+   dir" in its corner (i.slot-own), as a calendar's slot carries its initial; while the form is open
+   its draft stands where it will, dashed in the accent (.slot.draft), over a free stretch the
+   pointer says that a click makes one there. */
+.slot > .slot-own { position: absolute; right: 3px; bottom: 3px; display: grid; place-items: center; width: 15px; height: 15px; border-radius: 4px; background: var(--panel); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint, var(--text-3)) 60%, transparent); color: var(--tint, var(--text-3)); }
+.slot > .slot-own .icon { width: 10px; height: 10px; stroke-width: 2.4; }
+.slot.brief > .slot-own { display: none; }
+.slot.draft { z-index: 3; background: color-mix(in oklch, var(--accent) 12%, var(--panel)); color: var(--accent-ink); box-shadow: none; outline: 1.5px dashed var(--accent); outline-offset: -1.5px; pointer-events: none; }
+.slot.draft > .slot-own { color: var(--accent); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 60%, transparent); }
+.sp-body .sp-week .week .col { cursor: copy; }
+.sp-body .sp-week .week .col :is(.slot, .band) { cursor: pointer; }
+/* On a phone a finger held on the week is a Termin there: nothing of the page is selected. */
+.sp-carousel .week { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+
+/* „+ Termin": at the right end of the week's head (button.sp-own-head), under a calendar's
+   modules (button.sp-own-add), at a module without Termine („Termin eintragen", button.sp-enter
+   under its row), and on a phone the round button over the bar (button.sp-own-fab), lifted over a
+   note that waits. */
+.sp-head .sp-own-head { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+.sp-own-head .icon, .sp-own-add .icon, .sp-enter .icon { width: 14px; height: 14px; }
+.sp-own { display: flex; flex-direction: column; margin-top: 6px; }
+.sp-own-h { margin: 6px 0 2px; padding: 0 12px; color: var(--text-3); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.sp-own .sp-row.own { width: 100%; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; padding-right: 12px; }
+.sp-own .sp-row.own:hover { background: var(--row-hover); }
+.sp-own .sp-row.own[aria-current="true"] { background: color-mix(in oklch, var(--tint, var(--accent)) 10%, var(--panel)); box-shadow: inset 2.5px 0 0 var(--tint, var(--accent)); }
+.sp-own button.sp-row.own > .icon { width: 14px; height: 14px; color: var(--text-3); }
+.sp-key.own { display: inline-grid; place-items: center; width: 16px; height: 16px; padding: 0; border-radius: 4px; background: color-mix(in oklch, var(--tint, var(--text-3)) 16%, var(--panel)); color: var(--tint, var(--text-3)); }
+.sp-key.own .icon { width: 10px; height: 10px; stroke-width: 2.4; }
+.sp-own-add, .sp-enter { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; min-height: 34px; padding: 0 12px; border: 0; border-radius: var(--r-row); background: none; color: var(--accent-ink); font: 600 13px var(--font); cursor: pointer; }
+.sp-own-add:hover, .sp-enter:hover { background: var(--row-hover); }
+.sp-row-wrap.has-enter > .sp-row { padding-bottom: 2px; min-height: 44px; }
+.sp-row-wrap.has-enter > .sp-enter { min-height: 28px; margin: 0 0 4px 2px; font-size: 12.5px; }
+.sp-own-fab { position: fixed; z-index: 28; right: 14px; bottom: calc(88px + env(safe-area-inset-bottom)); display: inline-flex; align-items: center; gap: 6px; height: 48px; padding: 0 18px 0 14px; border: 0; border-radius: 24px; background: var(--invert); color: var(--on-invert); box-shadow: var(--shadow-pop); font: 650 14.5px var(--font); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.sp-own-fab .icon { width: 18px; height: 18px; stroke-width: 2.4; }
+.sp-own-fab:active { transform: scale(.97); }
+:root:has(.wait-note) .sp-own-fab { bottom: calc(146px + env(safe-area-inset-bottom)); }
+:root:has(#content > .page-stage.front .detail.is-module) .sp-own-fab { display: none; }
+
+/* The form (dialog.st-dialog.m.own-form, folia_design::modal): on a wide screen at the right of the
+   window, over a dim light enough to see the week and the draft in it; on a phone a sheet. Its
+   fields as a column of label and field (div.own-fld), „Wann" above what it changes (wide), and at
+   its end what the Termin meets (p.own-fit: ok, warn — it meets a Termin, which is no error —, no). */
+@media (min-width: 901px) {
+  .st-dialog.m.own-form { width: min(460px, calc(100vw - 48px)); height: auto; max-height: calc(100dvh - 48px); margin: auto 24px auto auto; }
+  .st-dialog.own-form::backdrop { background: rgba(10, 12, 17, .16); }
+}
+.own-body { display: flex; flex-direction: column; gap: 12px; }
+.own-fld { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 10px; align-items: center; }
+.own-fld.wide { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.own-fld > label, .own-fld > .own-lb { color: var(--text-2); font-size: 12.5px; font-weight: 650; }
+.own-fld input[type="text"], .own-fld input[type="time"], .own-fld input[type="date"], .own-fld select { width: 100%; min-width: 0; height: 36px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: 500 14px var(--font); }
+.own-fld :is(input, select):focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+.own-fld .seg.own-seg { margin-top: 0; }
+.own-two { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px; align-items: center; color: var(--text-3); font-size: 12.5px; }
+.own-dates { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.own-date { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; width: 100%; }
+.own-hint { color: var(--text-2); font-size: 13px; }
+.own-period { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.own-body button.link, .own-hint button.link { padding: 0; border: 0; background: none; color: var(--accent-ink); font: 650 13px var(--font); cursor: pointer; }
+.own-body button.link:hover { text-decoration: underline; }
+.own-fit { display: flex; align-items: flex-start; gap: 8px; margin: 2px 0 0; padding: 9px 12px; border-radius: 10px; font-size: 13px; font-weight: 600; line-height: 1.4; }
+.own-fit .icon { flex: none; width: 15px; height: 15px; margin-top: 2px; }
+.own-fit.ok { background: color-mix(in oklch, var(--ok) 12%, var(--panel)); color: var(--ok); }
+.own-fit.warn { background: color-mix(in oklch, var(--no) 10%, var(--panel)); color: var(--no); }
+.own-fit.no { background: var(--panel-3); color: var(--text-2); }
+@media (max-width: 560px) {
+  .own-fld { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+}
+
+/* The Termin's view of a Termin of one's own (`folia_widgets::termin`'s own section): „Bearbeiten",
+   the date skipped, „Löschen" red. */
+.is-termin .tm-sec.cal.own .sw .icon { width: 14px; height: 14px; }
+.is-termin .sw.danger { color: var(--no); }
+.is-termin .sw.danger:hover { background: color-mix(in oklch, var(--no) 10%, var(--panel)); }
 /* Over the week while a choice is in focus (div.sp-focusbar.t-…, a screen wider than a phone):
    dark, in two lines the choice with its dot and how many are ticked, and whether its groups fit
    and what to do (span.fb-text); „Weiter: …", „Vergleichen" (pressed while compared) and „Fertig"
@@ -3897,6 +3977,9 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .agenda-item.exam .icon { width: 14px; height: 14px; align-self: center; color: var(--warn); }
 .agenda-item.alt { color: var(--text-2); }
 .agenda-item.cancelled > span:not(.t) { color: var(--text-3); text-decoration: line-through; }
+/* A Termin of one's own: the mark „von dir" after its name, as its slot has. */
+.agenda-item .ag-own { display: inline-grid; place-items: center; width: 16px; height: 16px; margin-left: 6px; vertical-align: -3px; border-radius: 4px; background: color-mix(in oklch, var(--tint, var(--text-3)) 16%, var(--panel)); color: var(--tint, var(--text-3)); }
+.agenda-item .ag-own .icon { width: 10px; height: 10px; stroke-width: 2.4; }
 .agenda-break { padding: 8px 12px; border-radius: var(--r-row); background: var(--panel-2); color: var(--text-3); font-size: 12.5px; scroll-margin-top: 12px; }
 
 /* „Prüfungen": a sitting a row (.sp-exam: .when, what and where, the eye), „2. Termin" small;
@@ -3965,6 +4048,7 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .is-termin .tm-bar { gap: 8px; }
 .is-termin .tm-mod { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 6px; background: color-mix(in oklch, var(--tint) 15%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint) 45%, transparent); color: var(--text); font: 600 11.5px/1 var(--mono); white-space: nowrap; }
 .is-termin .tm-mod > i { width: 8px; height: 8px; border-radius: 50%; background: var(--tint); }
+.is-termin .tm-mod.words { font: 600 12px/1 var(--font); }
 .is-termin .tm-kind { min-width: 0; margin-right: auto; color: var(--text-2); font-size: 13.5px; font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* To look up a module outside the plan: its chip dashed, the tag „nicht im Plan" after the kind. */
 .is-termin .tm-mod.out { background: transparent; box-shadow: inset 0 0 0 1.5px var(--tint); }
@@ -4026,6 +4110,7 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .is-termin .abg > i { width: 18px; height: 18px; display: grid; place-items: center; color: var(--text-3); font: 700 10.5px/1 var(--font); font-style: normal; }
 .is-termin .abg > i.on { background: var(--invert); color: var(--on-invert); }
 .is-termin .tk-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
+.is-termin .tk-main.alone { grid-template-columns: minmax(0, 1fr); }
 .is-termin .tk-main > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 4px 16px 15px; }
 .is-termin .tk-room { box-shadow: inset 1px 0 0 var(--line-strong); }
 .is-termin .tk-time > b { font-size: 34px; line-height: 1.04; font-weight: 760; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
@@ -4033,6 +4118,8 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .is-termin .tk-main small { color: var(--text-2); font-size: 12.5px; line-height: 1.35; }
 .is-termin .plate { font: 700 24px/1.2 var(--mono); letter-spacing: -.02em; overflow-wrap: anywhere; }
 .is-termin .plate.none { font: 600 15px/1.3 var(--font); letter-spacing: 0; color: var(--text-2); }
+/* The place of a Termin of one's own is words, not a room's code. */
+.is-termin .plate.words { font: 700 20px/1.25 var(--font); letter-spacing: -.01em; }
 .is-termin .plate .sl { color: var(--text-3); font-weight: 400; }
 .is-termin .tk.note .tk-room { background: var(--warn-soft); }
 .is-termin .tk.cancel .tk-time > b, .is-termin .tk.off .tk-time > b { color: var(--text-3); text-decoration: line-through; text-decoration-thickness: 3px; }

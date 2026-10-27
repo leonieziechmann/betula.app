@@ -684,6 +684,7 @@ mod tests {
             rows,
             hidden: None,
             source_url: None,
+            own: None,
         }
     }
 

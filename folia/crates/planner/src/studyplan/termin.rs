@@ -14,7 +14,7 @@ use folia_routes::url::PlanAddress;
 use folia_shell::frame::Plain;
 use folia_shell::pending::same_page;
 use folia_shell::tabs::{Area, Tabs};
-use folia_widgets::termin::{module_facts, page_head, ticking_clock, Against, TerminCtx, TerminLinks, TerminMode, TerminPlace, TerminView};
+use folia_widgets::termin::{module_facts, page_head, ticking_clock, Against, OwnActs, TerminCtx, TerminLinks, TerminMode, TerminPlace, TerminView};
 use leptos::prelude::*;
 
 use crate::i18n;
@@ -23,6 +23,12 @@ use super::PlanCtx;
 /// The address of the plan with the Termin on a day beside it, or (`full`) filling the page.
 fn termin_path(ctx: PlanCtx, (key, on): (RowKey, Option<Day>), full: bool) -> String {
     ctx.url.with(|url| PlanAddress { url: url.clone(), full: false }.with_termin(Some((key, on)), full).path())
+}
+
+/// What the view does with a Termin of one's own here: „Bearbeiten" opens its form over the plan,
+/// „Löschen" takes it away with „Rückgängig" (`own.rs`).
+fn own_acts(ctx: PlanCtx) -> OwnActs {
+    OwnActs { edit: Callback::new(move |number| super::own::ask_edit(ctx, number)), remove: Callback::new(move |number| super::own::remove(ctx, number)) }
 }
 
 #[component]
@@ -52,6 +58,7 @@ pub(super) fn PlanTerminPanel(ctx: PlanCtx) -> impl IntoView {
         against: Signal::stored(Against::Itself),
         links,
         place: TerminPlace::Beside,
+        own: Some(own_acts(ctx)),
     };
     view! { <TerminView ctx=view/> }
 }
@@ -80,6 +87,7 @@ pub(super) fn PlanTerminFull(ctx: PlanCtx) -> impl IntoView {
         against: Signal::stored(Against::Itself),
         links,
         place: TerminPlace::Full(Area::Studyplan),
+        own: Some(own_acts(ctx)),
     };
     // The tab's title names the Termin on the day shown.
     let title = Memo::new(move |_| {

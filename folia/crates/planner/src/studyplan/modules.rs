@@ -64,7 +64,7 @@ struct ModuleItem {
     title: String,
     /// „6", „7,5"; none where the catalog states none.
     credits: Option<String>,
-    /// „keine Termine" (the semester has dates, the module none), „nicht im Modulkatalog".
+    /// „keine Termine in QIS" (the semester has dates, the module none), „nicht im Modulkatalog".
     note: Option<&'static str>,
     /// The placeholder of another semester it counts for („für „Anwendungsfach“"), where its row
     /// has none in this one; one of this semester holds the module in its box instead.
@@ -72,6 +72,9 @@ struct ModuleItem {
     hue: &'static str,
     /// Only visited (`Selection::visits`): its credits count for nothing.
     visit: bool,
+    /// The semester has dates and the module none in QIS („keine Termine in QIS"): it offers
+    /// „Termin eintragen", a Termin of one's own of it (folia/design/kalender/termine.html).
+    undated: bool,
 }
 
 /// The rows of a semester's modules, in plan order, each in the tone the week gives it; those of
@@ -101,6 +104,7 @@ fn module_items(data: &StudyplanData, visits: &BTreeSet<String>, t: &'static i18
                 counts_for: None,
                 hue: hue(tone_at(position)),
                 visit: visits.contains(id),
+                undated: row.is_some() && undated,
             }
         })
         .collect()
@@ -491,8 +495,18 @@ pub(super) fn ModuleList(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl 
             // A visit says so, and counts no credits.
             let visit = item.visit.then(|| view! { <span>{words.visit}</span> });
             let credits = item.credits.filter(|_| !item.visit);
+            // „Termin eintragen": a Termin of one's own of a module QIS has none for, its module
+            // chosen (folia/design/kalender/termine.html).
+            let enter = item.undated.then(|| {
+                let (module, title) = (item.id.clone(), (t.studyplan_own.enter_title)(&item.title));
+                view! {
+                    <button class="sp-enter" type="button" title=title on:click=move |_| super::own::ask_today(ctx, 0, Some(module.clone()))>
+                        <Icon name="calendar-plus"/>{t.studyplan_own.enter}
+                    </button>
+                }
+            });
             view! {
-                <div class="sp-row-wrap">
+                <div class="sp-row-wrap" class:has-enter=item.undated>
                     <a class=format!("sp-row {}", item.hue) class:visit=item.visit href=href aria-current=current data-noscroll="">
                         <span class="t">
                             <b>{item.title}</b>
@@ -504,6 +518,7 @@ pub(super) fn ModuleList(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl 
                     <button class="icon-btn sp-remove" type="button" title=words.remove aria-label=label on:click=move |_| remove(id.clone())>
                         <Icon name="x"/>
                     </button>
+                    {enter}
                 </div>
             }
             .into_any()
@@ -589,6 +604,8 @@ pub(super) fn ModuleList(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl 
             <For each=move || rows.get() key=|entry| entry.clone() children=row/>
             <For each=move || areas.get() key=|area| area.clone() children=area/>
             <For each=move || visit_rows.get() key=|entry| entry.clone() children=row/>
+            // The Termine of one's own of „Mein Studiengang", with „+ Termin" (`own.rs`).
+            <super::own::OwnList ctx calendar=0 hue=Signal::stored("t-own")/>
             // The modules of the study come from „Mein Studium" (owner, 2026-10-26).
             <a class="sp-way" href=study>
                 <span>{words.to_study}</span><Icon name="chevron-right"/>
@@ -713,6 +730,7 @@ mod tests {
             counts_for: None,
             hue,
             visit: false,
+            undated: note == Some(i18n::DE.studyplan_modules.no_dates),
         };
         assert_eq!(
             module_items(&first_semester(), &BTreeSet::new(), &i18n::DE),
@@ -720,7 +738,7 @@ mod tests {
                 item("12104", Some("EvS"), "Entwicklung von Softwaresystemen", Some("6"), None, "t-ice"),
                 // An abbreviation two planned modules share names neither: the week says its name.
                 item("12107", None, "Elektrische und elektronische Grundlagen der Informatik", Some("7,5"), None, "t-sun"),
-                item("11112", None, "Mathematik IT-1", Some("8"), Some("keine Termine"), "t-violet"),
+                item("11112", None, "Mathematik IT-1", Some("8"), Some("keine Termine in QIS"), "t-violet"),
                 item("13000", None, "Modul 13000", None, Some("nicht im Modulkatalog"), "t-teal"),
             ]
         );
@@ -733,7 +751,7 @@ mod tests {
             english,
             [
                 ("Elektrische und elektronische Grundlagen der Informatik".to_string(), Some("7.5".to_string()), None),
-                ("Mathematik IT-1".to_string(), Some("8".to_string()), Some("no dates")),
+                ("Mathematik IT-1".to_string(), Some("8".to_string()), Some("no dates in QIS")),
                 ("Module 13000".to_string(), None, Some("not in the module catalogue")),
             ]
         );

@@ -32,7 +32,9 @@
 //!
 //! What a student may not attend is marked tentative: a date in a range QIS does not state, an
 //! option of a choice not made yet, an exam's second sitting and a retake. What is hidden, a row
-//! without a clear time and a row that names no date are left out.
+//! without a clear time and a row that names no date are left out, and so are the Termine of one's
+//! own (`Event::own`): they reach a calendar with a step of their own, „Eigene Termine mitnehmen"
+//! (folia/design/kalender/termine.html), whose subscription code carries them.
 //!
 //! A subscription's code carries the semester, the planned modules and what is hidden. It keeps
 //! only what the loaded timetable has, so hide rules of Termine QIS has since removed do not make
@@ -115,7 +117,7 @@ pub fn calendar_of(
     let stamp = dtstamp(stamp);
     let names = Names { titles, short: names };
     let mut entries: Vec<Entry> = Vec::new();
-    for event in t.events.iter().filter(|event| event.hidden.is_none()) {
+    for event in t.events.iter().filter(|event| event.hidden.is_none() && event.own.is_none()) {
         entries.extend(teaching(t, event, &names, locale));
     }
     let mut exams = Entries::default();
@@ -252,7 +254,8 @@ pub fn same_subscription(stored: &str, current: &Subscription, table: &Timetable
     seen(&stored) == seen(current)
 }
 
-/// The events and row keys of a timetable, teaching and exams, hidden ones included.
+/// The events and row keys of a timetable, teaching and exams, hidden ones included; not those of
+/// the Termine of one's own, which a code does not carry.
 struct Known {
     events: BTreeSet<u32>,
     rows: BTreeSet<RowKey>,
@@ -260,9 +263,9 @@ struct Known {
 
 impl Known {
     fn of(t: &Timetable) -> Known {
-        let ids =
-            t.events.iter().map(|event| event.id.as_str()).chain(t.exams.iter().map(|exam| exam.event_id.as_str()));
-        let teaching = t.events.iter().flat_map(|event| event.rows.iter().filter_map(|row| row.key));
+        let qis = || t.events.iter().filter(|event| event.own.is_none());
+        let ids = qis().map(|event| event.id.as_str()).chain(t.exams.iter().map(|exam| exam.event_id.as_str()));
+        let teaching = qis().flat_map(|event| event.rows.iter().filter_map(|row| row.key));
         let exams = t.exams.iter().flat_map(|exam| exam.rows.iter().filter_map(|row| row.key));
         Known { events: ids.filter_map(canonical).collect(), rows: teaching.chain(exams).collect() }
     }
@@ -1686,6 +1689,7 @@ mod tests {
             town: TownChoice::Only(Town::Senftenberg),
             town_from: None,
             visits: Default::default(),
+            own: Vec::new(),
         };
         let modules = ids(&[B, "FÜS", A, B, "0123", "FÜS"]);
         let (subscription, other) = subscription_of(t.key, &modules, Some("079-82-2008"), &selection, Some(&t));
@@ -1753,6 +1757,34 @@ mod tests {
         assert!(theirs.iter().all(|id| code.hidden_events.contains(&id.parse::<u32>().unwrap())), "{:?}", code.hidden_events);
         let feed = build(&rows(), &exams(), &[A, B], &two_sws(), &code.selection());
         assert_eq!(calendar(&feed), calendar(&page));
+    }
+
+    #[test]
+    fn termine_of_ones_own_stay_out_of_the_download_and_the_code() {
+        // Their own step brings them („Eigene Termine mitnehmen"): until then the calendar is the
+        // plan's of QIS alone, the download as the feed of its code.
+        let own = folia_calendar::own::OwnTermin {
+            number: 1,
+            rhythm: folia_calendar::own::OwnRhythm::Week,
+            weekday: 5,
+            dates: Vec::new(),
+            from: 13 * 60,
+            to: 17 * 60,
+            period: None,
+            module: None,
+            name: "Arbeit".into(),
+            place: String::new(),
+            skip: vec![d("2026-10-30")],
+        };
+        let with = Selection { own: vec![own], ..selection() };
+        let page = build(&rows(), &exams(), &[A, B], &two_sws(), &with);
+        assert!(page.events.iter().any(|event| event.own.is_some()));
+        assert_eq!(calendar(&page), calendar(&semester()));
+        let (code, _) = subscription_of(page.key, &page.modules, None, &with, Some(&page));
+        let (without, _) = subscription_of(page.key, &page.modules, None, &selection(), Some(&semester()));
+        assert_eq!(code, without);
+        assert!(code.selection().own.is_empty());
+        assert!(same_subscription(&without.code().unwrap(), &code, &page));
     }
 
     #[test]

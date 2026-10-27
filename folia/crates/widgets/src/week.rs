@@ -26,6 +26,11 @@
 //! a slot under an hour), then ends in „…"; a first word too wide for the slot is cut with „…"
 //! and ends the label.
 //!
+//! A Termin of one's own (folia/design/kalender/termine.html) carries the mark „von dir" in its
+//! corner (`own`); the grid names the minutes its hours begin and end at (`data-first`,
+//! `data-last` on `.week`), so that the Stundenplan finds the time of a click on a free stretch of
+//! a day (its „+ Termin" there).
+//!
 //! A calendar of one's own beside the Stundenplan's (folia/design/kalender, owner 2026-10-26: „A mit
 //! Fokus und Spur aus C") stands in the week in full (`cal`: its Termine among the plan's, in their
 //! lanes, outlined in its colour with its initial) or as a strip (`strip`): a band at the right edge
@@ -119,6 +124,9 @@ pub struct GridSlot {
     pub pre: Option<String>,
     /// The initial of the calendar of one's own a slot in full belongs to („L"), in its corner.
     pub badge: Option<String>,
+    /// A Termin of one's own (folia/design/kalender/termine.html): the mark „von dir" in its corner
+    /// (`.slot-own`), and the slot `own`.
+    pub own: bool,
 }
 
 /// A stretch of a day drawn behind the slots, from `from` to `to` (minutes): the time every
@@ -191,6 +199,7 @@ impl GridSlot {
             if self.pick.is_some() { "pick" } else { "" },
             if self.pick == Some(true) { "on" } else { "" },
             if self.dim { "dim" } else { "" },
+            if self.own { "own" } else { "" },
         ];
         for part in parts.into_iter().filter(|part| !part.is_empty()) {
             classes.push(' ');
@@ -475,7 +484,7 @@ pub fn WeekGrid(
                 .collect_view();
             Some(
                 view! {
-                    <div class="week" class:fit=fit style=week>
+                    <div class="week" class:fit=fit style=week data-first=span.first data-last=span.last>
                         <span></span>
                         {heads.into_iter().map(|head| view! { <span class="d">{head}</span> }).collect_view()}
                         <div class="hours">{(span.first / 60..span.last / 60).map(|hour| view! { <span>{hour}</span> }).collect_view()}</div>
@@ -505,7 +514,11 @@ fn slot_view(slot: &GridSlot, style: String, framed: bool) -> AnyView {
     let label = view! { <span class="l">{words(&slot.label)}</span> };
     let small = (!slot.small.is_empty()).then(|| view! { <small>{slot.small.clone()}</small> });
     let place = (!slot.place.is_empty()).then(|| view! { <small class="p">{slot.place.clone()}</small> });
-    let place = view! { {place}{slot.badge.clone().map(|badge| view! { <i class="slot-who" aria-hidden="true">{badge}</i> })} };
+    let place = view! {
+        {place}
+        {slot.badge.clone().map(|badge| view! { <i class="slot-who" aria-hidden="true">{badge}</i> })}
+        {slot.own.then(|| view! { <i class="slot-own" aria-hidden="true"><Icon name="user-round"/></i> })}
+    };
     // Beside the link, not inside it, in a box of the slot's size (its style), which lets every
     // click but those on its buttons through to the link.
     let act = (!slot.acts.is_empty()).then(|| view! { <div class="slot-acts" class:asks=slot.asks style=style.clone()>{slot_buttons(&slot.acts)}</div> });

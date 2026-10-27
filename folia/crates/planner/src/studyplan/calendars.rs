@@ -160,7 +160,8 @@ fn shown_of(entry: &Entry, source: StoredValue<Option<DataClient>>, before: Opti
     let name = if entry.name.is_empty() { (t.studyplan_calendars.unnamed)(entry.id) } else { entry.name.clone() };
     let initial = name.chars().next().map(|first| first.to_uppercase().collect::<String>()).unwrap_or_default();
     let ask = |source: &DataClient| source.now(&StudyplanAsk { key: entry.key, ids: entry.modules.clone(), program: entry.program.clone(), locale: t.locale });
-    let answer = (!entry.modules.is_empty()).then(|| source.with_value(|source| source.as_ref().map(ask))).flatten();
+    // A calendar of Termine of one's own alone has a timetable too, of no module.
+    let answer = (!entry.modules.is_empty() || !entry.selection.own.is_empty()).then(|| source.with_value(|source| source.as_ref().map(ask))).flatten();
     let earlier = before.and_then(|before| before.iter().find(|shown| shown.id == entry.id && shown.modules == entry.modules));
     let (table, titles, full, state) = match answer {
         None => (None, BTreeMap::new(), BTreeMap::new(), State::Empty),
@@ -755,6 +756,8 @@ fn CalendarPart(ctx: PlanCtx, id: u8, marked: Memo<Vec<MarkedModule>>) -> impl I
                 </p>
             })}
             {rows}
+            // Its Termine of one's own, with „+ Termin" this calendar chosen (`own.rs`).
+            <super::own::OwnList ctx calendar=id hue=Signal::derive(move || hue.get())/>
         </section>
     }
 }

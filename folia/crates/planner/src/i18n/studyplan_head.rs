@@ -9,6 +9,8 @@ pub struct Texts {
     pub placeholders: fn(usize) -> String,
     /// „1 Besuch", „2 Besuche": the modules of the week only visited, in the same line.
     pub visits: fn(usize) -> String,
+    /// „1 eigener Termin", „3 eigene Termine", in the same line.
+    pub own: fn(usize) -> String,
     /// „WiSe 2025/26 ist vorbei; vergangene Termine fehlen im Datenstand.": a semester before the
     /// current one (its name).
     pub past: fn(&str) -> String,
@@ -119,6 +121,10 @@ pub const DE: Texts = Texts {
         1 => "1 Besuch".to_string(),
         n => format!("{n} Besuche"),
     },
+    own: |n| match n {
+        1 => "1 eigener Termin".to_string(),
+        n => format!("{n} eigene Termine"),
+    },
     past: |semester| format!("{semester} ist vorbei; vergangene Termine fehlen im Datenstand."),
     unpublished: |semester| format!("{semester}: noch keine Termine veröffentlicht."),
 
@@ -189,6 +195,10 @@ pub const EN: Texts = Texts {
     visits: |n| match n {
         1 => "1 visit".to_string(),
         n => format!("{n} visits"),
+    },
+    own: |n| match n {
+        1 => "1 event of your own".to_string(),
+        n => format!("{n} events of your own"),
     },
     past: |semester| format!("{semester} is over; past dates are missing from the data."),
     unpublished: |semester| format!("{semester}: no dates published yet."),
