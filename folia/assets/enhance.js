@@ -1436,11 +1436,13 @@
     glideSheet(sheet, y, v, "gone", then ?? (() => kind.close(sheet)));
   };
   // All up, or back half up: a tap on its grabber; on its way, from where it is and as fast.
+  // Whether it moved (a sheet of one stop or on its way out does not).
   const toggleSheet = (sheet) => {
     const g = glides.get(sheet);
     const going = g ? g.to : sheet.classList.contains("is-full") ? "full" : "half";
-    if (going === "gone" || !stopsOf(sheet).half) return;
+    if (going === "gone" || !stopsOf(sheet).half) return false;
     glideSheet(sheet, sheetY(sheet), g ? glideV(g) : 0, going === "full" ? "half" : "full");
+    return true;
   };
   // All up: where what is in it asks for more of it (a field to type in, what the keyboard went to
   // below the screen's foot, the wheel).
@@ -1579,10 +1581,10 @@
   };
   document.addEventListener("touchmove", moveSheet, { passive: false });
   // Let go: to where it would come to rest thrown as fast as the finger went (`goalOf`); a tap on
-  // its grabber all up and back.
+  // its grabber all up and back (true: the tap was the grabber's).
   const releaseSheet = (s, at) => {
-    if (!s?.sheet?.isConnected) return;
-    if (!s.mode && s.inside && s.grabber && at - s.at < 400) { toggleSheet(s.sheet); return; }
+    if (!s?.sheet?.isConnected) return false;
+    if (!s.mode && s.inside && s.grabber && at - s.at < 400) return toggleSheet(s.sheet);
     if (s.mode !== "drag") return;
     const y = s.trail.length ? s.trail[s.trail.length - 1][1] : s.from;
     const v = fingerSpeed(s.trail, at);
@@ -1601,7 +1603,9 @@
     if (e.touches.length) return;
     const s = sheetTouch;
     sheetTouch = null;
-    releaseSheet(s, e.timeStamp);
+    // A tap that moved the sheet was its grabber's alone: no click follows it, on what lies under
+    // the grabber or on the dim beside the sheet, should its top have moved under the finger.
+    if (releaseSheet(s, e.timeStamp) && e.cancelable) e.preventDefault();
   };
   const cancelSheet = () => {
     const s = sheetTouch;

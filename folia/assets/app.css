@@ -6273,8 +6273,14 @@ a.st-rsp-name:hover { text-decoration: underline; }
   :root[data-keyboard] [data-sheet] :is([data-sheet-body], .st-dlg-body), :root[data-keyboard] [data-sheet] > .body, :root[data-keyboard] [data-sheet] > form > .body { overflow-y: auto; }
   /* The dim behind it: less the further down from half up it is (`--sheet-shade`, enhance.js). */
   dialog[data-sheet]::backdrop { background: rgba(10, 12, 17, .5); opacity: var(--sheet-shade, 1); }
-  /* Its ×: out of sight, there for screen readers and where the keyboard brings it. */
-  [data-sheet] :is(.dlg-close, .sheet-close):not(:focus-visible) { position: absolute; width: 1px; height: 1px; min-height: 0; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  /* Its ×: out of sight, there for screen readers and where the keyboard brings it, in its corner
+     over what it holds. Out of the flow either way, so that a finger that takes the focus from it
+     moves nothing: shown in the head, it made the head taller, and as a tap on the grabber of a
+     dialog the keyboard had opened took the × out of sight, the dialog's top came down under the
+     finger, and the tap's click fell beside it, closing it. */
+  [data-sheet] :is(.dlg-close, .sheet-close) { position: absolute; z-index: 4; top: 8px; right: 8px; margin: 0; }
+  [data-sheet] :is(.dlg-close, .sheet-close):focus-visible { background: var(--panel); }
+  [data-sheet] :is(.dlg-close, .sheet-close):not(:focus-visible) { width: 1px; height: 1px; min-height: 0; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   /* A dialog: one sheet whatever its size on a wide screen; „m" and „l" the whole height. */
   .st-dialog[data-sheet] { width: auto; max-width: none; height: auto; max-height: calc(100dvh - var(--sheet-top)); border-radius: 18px 18px 0 0; }
   .st-dialog[data-sheet]:is(.m, .l) { height: calc(100dvh - var(--sheet-top)); }

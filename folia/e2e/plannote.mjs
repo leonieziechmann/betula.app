@@ -99,7 +99,7 @@ const dialog = (page) => page.evaluate(() => {
     rows: [...el.querySelectorAll(".st-srow")].map((row) => ({ value: row.querySelector(".st-fs-value")?.textContent || null, note: row.querySelector(".st-srow-note")?.textContent || "" })),
     warn: el.querySelector(".plan-setup-warn")?.textContent || null,
     go: !el.querySelector("#plan-setup-go")?.disabled,
-    box: { left: r.left, right: r.right, top: r.top, bottom: r.bottom },
+    box: { left: r.left, right: r.right, top: r.top, bottom: r.bottom, height: r.height },
   };
 });
 const open = async (page, id) => {
