@@ -215,6 +215,18 @@ pub struct Texts {
     pub status_passed: &'static str,
     pub status_failed: &'static str,
     pub status_of: fn(&str, &str) -> String,
+    /// A module only visited (folia/design/kalender/konzepte.html, „Ein Besuchsmodul in „Mein
+    /// Studium“"): its sign's word („Besuch"), its line („nur besuchen · aus dem Kalender"); in its
+    /// menu „Im Kalender öffnen" and „Nur besuchen", which a planned module's menu has too, with
+    /// what its tick means; the notes after the tick goes („„Denkmalpflege“ zählt jetzt") or comes
+    /// („„Denkmalpflege“ nur besuchen").
+    pub status_visit: &'static str,
+    pub visit_line: &'static str,
+    pub in_calendar: &'static str,
+    pub only_visit: &'static str,
+    pub only_visit_hint: &'static str,
+    pub visit_counts: fn(&str) -> String,
+    pub made_visit: fn(&str) -> String,
     /// The marks of a row: „Wiederholung · aus 1. FS", „im SoSe nicht angeboten", „nur WiSe" …
     pub chip_retake: fn(&str) -> String,
     pub unoffered: fn(&str) -> String,
@@ -515,6 +527,13 @@ pub const DE: Texts = Texts {
     status_passed: "Bestanden",
     status_failed: "Nicht bestanden",
     status_of: |status, name| format!("{status} – Menü zu {name}"),
+    status_visit: "Besuch",
+    visit_line: "nur besuchen · aus dem Kalender",
+    in_calendar: "Im Kalender öffnen",
+    only_visit: "Nur besuchen",
+    only_visit_hint: "zählt nicht, ohne LP",
+    visit_counts: |name| format!("„{name}“ zählt jetzt"),
+    made_visit: |name| format!("„{name}“ nur besuchen"),
     chip_retake: |from| format!("Wiederholung · aus {from}"),
     unoffered: |season| format!("im {season} nicht angeboten"),
     only_winter: "nur WiSe",
@@ -777,6 +796,13 @@ pub const EN: Texts = Texts {
     status_passed: "Passed",
     status_failed: "Not passed",
     status_of: |status, name| format!("{status} – menu of {name}"),
+    status_visit: "Visit",
+    visit_line: "only visited · from the calendar",
+    in_calendar: "Open in the calendar",
+    only_visit: "Only visit",
+    only_visit_hint: "does not count, no credits",
+    visit_counts: |name| format!("\u{201c}{name}\u{201d} counts now"),
+    made_visit: |name| format!("\u{201c}{name}\u{201d} only visited"),
     chip_retake: |from| format!("Retake · from {from}"),
     unoffered: |season| format!("not offered in {season}"),
     only_winter: "winter only",

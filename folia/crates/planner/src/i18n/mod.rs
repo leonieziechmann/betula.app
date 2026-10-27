@@ -3,6 +3,7 @@
 pub mod study;
 pub mod study_views;
 pub mod studyplan;
+pub mod studyplan_add;
 pub mod studyplan_aside;
 pub mod studyplan_calendars;
 pub mod studyplan_exams;
@@ -33,6 +34,7 @@ folia_design::texts! {
     study = crate::i18n::study,
     study_views = crate::i18n::study_views,
     studyplan = crate::i18n::studyplan,
+    studyplan_add = crate::i18n::studyplan_add,
     studyplan_aside = crate::i18n::studyplan_aside,
     studyplan_calendars = crate::i18n::studyplan_calendars,
     studyplan_exams = crate::i18n::studyplan_exams,

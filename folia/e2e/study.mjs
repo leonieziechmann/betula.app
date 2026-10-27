@@ -306,7 +306,7 @@ if (current !== "2026W") {
   await step("the row's menu", () => page.click(".st-card-sem .st-row >> nth=0 >> .st-status"), () => document.querySelector(".st-pop.root #st-menu-passed"));
   const entries = await page.evaluate(() => [...document.querySelectorAll(".st-pop.root [role^=menuitem]")].map((item) => item.textContent.trim()));
   // Not the module: a click on the row opens it (owner, 2026-10-05).
-  check(entries.join("|") === "Als bestanden markieren|Verschieben nach|Auswählen|Entfernen", `the row's menu: ${JSON.stringify(entries)}`);
+  check(entries.join("|") === "Als bestanden markieren|Verschieben nach|Nur besuchenzählt nicht, ohne LP|Auswählen|Entfernen", `the row's menu: ${JSON.stringify(entries)}`);
   await step("Als bestanden markieren", () => page.click("#st-menu-passed"), () => !document.querySelector(".st-pop") && document.querySelector(".st-headline")?.textContent === "8 von 180 LP bestanden");
   const after = await rows(page);
   check(after[0]?.name === before[0]?.name && after[0]?.done && after.length === before.length, `marking moved the row: ${JSON.stringify(after.map((row) => row.name))}`);
@@ -753,7 +753,7 @@ if (current !== "2026W") {
   await step("a row's menu as a sheet", () => page.tap(`${HERE} .st-row >> nth=0 >> .st-status`), () => document.querySelector(".st-pop.root #st-menu-move"));
   await page.waitForTimeout(400);
   const menuSheet = await page.evaluate(() => { const box = document.querySelector(".st-pop.root").getBoundingClientRect(); return { bottom: Math.round(innerHeight - box.bottom), width: Math.round(box.width), entries: [...document.querySelectorAll(".st-pop.root [role^=menuitem]")].map((item) => item.id).join() }; });
-  check(menuSheet.bottom === 0 && menuSheet.width === 390 && menuSheet.entries === "st-menu-passed,st-menu-move,st-menu-select,st-menu-remove", `a row's menu on a phone: ${JSON.stringify(menuSheet)}`);
+  check(menuSheet.bottom === 0 && menuSheet.width === 390 && menuSheet.entries === "st-menu-passed,st-menu-move,st-menu-visit,st-menu-select,st-menu-remove", `a row's menu on a phone: ${JSON.stringify(menuSheet)}`);
   await step("Verschieben nach on a phone", () => page.tap("#st-menu-move"), () => document.querySelector(".st-pop.sub .st-pop-back") && getComputedStyle(document.querySelector(".st-pop.root")).display === "none");
   await step("back to the menu", () => page.tap(".st-pop.sub .st-pop-back"), () => !document.querySelector(".st-pop.sub") && getComputedStyle(document.querySelector(".st-pop.root")).display !== "none");
   await step("close the menu", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-pop"));

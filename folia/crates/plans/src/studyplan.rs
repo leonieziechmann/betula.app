@@ -103,9 +103,9 @@ const MAX_EVENT: u32 = 999_999_999;
 /// The sixth field of an `m` line for a module taken over from the Regelstudienplan.
 const FROM_PLAN: &str = "plan";
 
-/// What `PlanDoc::holds_saved` compares of a semester: the modules, the placeholders' plan rows and
-/// what is hidden or chosen.
-type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>, Option<&'a SemesterHides>);
+/// What `PlanDoc::holds_saved` compares of a semester: the modules, the visits, the placeholders'
+/// plan rows and what is hidden or chosen.
+type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>, Option<&'a SemesterHides>);
 
 /// The visitor's Studienplan: modules and placeholders per calendar semester, and per semester
 /// what is hidden, what was chosen and the subscription code last handed out.
@@ -116,6 +116,7 @@ type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>, Option<&'a Semest
 /// ```text
 /// g  <program_id>
 /// m  <semester>  <module_id>  <added_secs>  <fills>  [plan]
+/// v  <semester>  <module_id>  <added_secs>
 /// p  <pid>  <semester>  <program_id>  <ord>  <from>-<to>  <credits>  <kind>  <caption>  <name>
 /// k  <semester>  <kind>,<kind>,…
 /// e  <semester>  <event_id>
@@ -142,6 +143,11 @@ type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>, Option<&'a Semest
 /// The `m` and `p` lines are the semesters of „Mein Studium" as well (`study`): a semester's
 /// timetable is its part of the study, one plan for both pages.
 ///
+/// `v` is a module only visited in a semester („nur besuchen", `Visit`): in its week, counting
+/// for nothing. A module is planned or visited in a semester, never both. A build before it keeps
+/// the lines as lines of a tag it does not know: it shows the visit nowhere and counts nothing of
+/// it, the safe direction, and the next build has it again.
+///
 /// `d` and `q` are what „Mein Studium" counts as done (`study`, owner 2026-10-04): a module passed
 /// („bestanden") and a row of a Regelstudienplan without a module that is done („erledigt"), each
 /// with the semester it was done in. They belong to no timetable: „Plan leeren" leaves them, and a
@@ -163,6 +169,8 @@ pub struct PlanDoc {
     pub program: Option<String>,
     /// By semester, and within one in the order they were planned (`m`).
     pub modules: Vec<Planned>,
+    /// The modules only visited, by semester, and within one in the order they came (`v`).
+    pub visits: Vec<Visit>,
     /// By pid (`p`).
     pub placeholders: Vec<Placeholder>,
     /// What each semester hides and has chosen (`k`, `e`, `r`, `c`); no semester without any.
@@ -303,6 +311,22 @@ pub struct Planned {
     pub from_plan: bool,
 }
 
+/// A module only visited in a semester („nur besuchen", decided 2026-10-19: „Ein geplantes Modul
+/// lässt sich auf „nur besuchen“ stellen: in der Woche ja, in den LP nicht"; 2026-10-26: „+ Modul"
+/// in „Mein Studiengang" makes one, „Besuchmodul kann pro kallender gemacht werden … Aber beim
+/// Studien Plan zählt es dann als besucher modul"). Its Termine stand in the week of its semester
+/// and give way where they meet the plan's; it counts no credits, for no area and no placeholder,
+/// and is never passed. „Mein Studium" lists it apart, where its „Nur besuchen" taken away makes
+/// it a planned module (`count_visit`), and „Nur besuchen" on a planned one makes it a visit
+/// (`make_visit`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Visit {
+    pub semester: SemesterKey,
+    pub module_id: String,
+    /// When it came, in seconds since 1970; 0 where unknown.
+    pub at: u64,
+}
+
 /// A row of a Regelstudienplan without a module, taken over into a semester under its own name.
 /// It keeps its own text, so it always shows whatever became of the plan since, and
 /// `resolve_placeholder` finds its row again.
@@ -382,6 +406,12 @@ impl PlanDoc {
                         if field(5) == FROM_PLAN {
                             doc.mark_from_plan(s, field(2));
                         }
+                    }
+                }
+                "v" => {
+                    // After the `m` lines: a module planned there as well stays planned.
+                    if let Some(s) = semester {
+                        doc.visit(s, field(2), number(field(3)).unwrap_or(0));
                     }
                 }
                 "p" => {
@@ -472,7 +502,7 @@ impl PlanDoc {
     }
 
     /// The text `restored` reads back as this plan: `g`; `m` by semester, then in planning order;
-    /// `p` by pid; `d` and `q` in the order they were marked; then per semester `k`, `e`, `r`,
+    /// `v` the same; `p` by pid; `d` and `q` in the order they were marked; then per semester `k`, `e`, `r`,
     /// `c`, `h` (one line per Termin), `a`; per calendar its `l`, its `n` in the order they came and
     /// its `o`; then the lines of unknown tags. Control characters in names become spaces, so a
     /// name never splits its line.
@@ -497,6 +527,11 @@ impl PlanDoc {
             let fills = m.fills.map(|pid| pid.to_string()).unwrap_or_default();
             let from = if m.from_plan { format!("\t{FROM_PLAN}") } else { String::new() };
             let _ = writeln!(out, "m\t{}\t{}\t{}\t{}{from}", m.semester.key(), m.module_id, m.at, fills);
+        }
+        let mut visits: Vec<&Visit> = self.visits.iter().filter(|v| url::is_module_id(&v.module_id)).collect();
+        visits.sort_by_key(|v| v.semester);
+        for v in visits {
+            let _ = writeln!(out, "v\t{}\t{}\t{}", v.semester.key(), v.module_id, v.at);
         }
         let mut placeholders: Vec<&Placeholder> = self.placeholders.iter().filter(|p| url::is_program_id(&p.program_id)).collect();
         placeholders.sort_by_key(|p| p.pid);
@@ -569,22 +604,95 @@ impl PlanDoc {
         out
     }
 
-    /// Nothing planned: no module and no placeholder. The stored text may still hold what a
-    /// semester hides, a code or lines of a newer build; the store's key goes only when `stored`
+    /// Nothing planned: no module, no visit and no placeholder. The stored text may still hold what
+    /// a semester hides, a code or lines of a newer build; the store's key goes only when `stored`
     /// is empty.
     pub fn is_empty(&self) -> bool {
-        self.modules.is_empty() && self.placeholders.is_empty()
+        self.modules.is_empty() && self.visits.is_empty() && self.placeholders.is_empty()
     }
 
-    /// The semesters the plan holds modules or placeholders in, in order.
+    /// The semesters the plan holds modules, visits or placeholders in, in order.
     pub fn semesters(&self) -> Vec<SemesterKey> {
-        let held: BTreeSet<SemesterKey> = self.modules.iter().map(|m| m.semester).chain(self.placeholders.iter().map(|p| p.semester)).collect();
+        let held: BTreeSet<SemesterKey> =
+            self.modules.iter().map(|m| m.semester).chain(self.visits.iter().map(|v| v.semester)).chain(self.placeholders.iter().map(|p| p.semester)).collect();
         held.into_iter().collect()
     }
 
     /// The modules of a semester, in the order they were planned.
     pub fn modules_in(&self, s: SemesterKey) -> Vec<String> {
         self.modules.iter().filter(|m| m.semester == s).map(|m| m.module_id.clone()).collect()
+    }
+
+    /// The modules only visited in a semester, in the order they came.
+    pub fn visits_in(&self, s: SemesterKey) -> Vec<String> {
+        self.visits.iter().filter(|v| v.semester == s).map(|v| v.module_id.clone()).collect()
+    }
+
+    /// What the week of a semester holds: its planned modules, then its visits.
+    pub fn week_in(&self, s: SemesterKey) -> Vec<String> {
+        let mut ids = self.modules_in(s);
+        ids.extend(self.visits_in(s));
+        ids
+    }
+
+    pub fn is_visited(&self, s: SemesterKey, id: &str) -> bool {
+        self.visits.iter().any(|v| v.semester == s && v.module_id == id)
+    }
+
+    /// How many modules a semester's week holds, planned and visited: at most `MAX_MODULES`,
+    /// what a subscription carries.
+    fn held_in(&self, s: SemesterKey) -> usize {
+        self.modules.iter().filter(|m| m.semester == s).count() + self.visits.iter().filter(|v| v.semester == s).count()
+    }
+
+    /// Takes a module into a semester only to visit it (`Visit`). One passed in that semester
+    /// (its mark stays when it is taken out of the week) comes back planned: a visit is never
+    /// passed, and the module counts there. `false` when nothing changed: the id is no module id,
+    /// the module is planned or visited there already (a planned one becomes a visit by
+    /// `make_visit`), or a cap is reached (the semester's week holds 60 modules, 24 semesters).
+    pub fn visit(&mut self, s: SemesterKey, id: &str, at: u64) -> bool {
+        if !url::is_module_id(id) || self.is_planned(s, id) || self.is_visited(s, id) {
+            return false;
+        }
+        if self.passed_in(id) == Some(s) {
+            return self.plan(s, id, at, None);
+        }
+        if self.held_in(s) >= MAX_MODULES || self.visits.len() >= MAX_PLANNED || !self.admits(s) {
+            return false;
+        }
+        let at_index = self.visits.partition_point(|v| v.semester <= s);
+        self.visits.insert(at_index, Visit { semester: s, module_id: id.to_string(), at });
+        true
+    }
+
+    /// Takes a visit out of a semester, together with what the semester hides and has chosen of
+    /// `only_its_events`, as `unplan` does.
+    pub fn unvisit(&mut self, s: SemesterKey, id: &str, only_its_events: &[u32]) {
+        self.visits.retain(|v| !(v.semester == s && v.module_id == id));
+        self.forget_events(s, only_its_events);
+    }
+
+    /// „Nur besuchen" taken away: the visit becomes a module planned into the semester, which
+    /// counts, keeping when it came and what the semester has chosen of it. `false` when nothing
+    /// changed (no such visit).
+    pub fn count_visit(&mut self, s: SemesterKey, id: &str) -> bool {
+        let Some(at) = self.visits.iter().find(|v| v.semester == s && v.module_id == id).map(|v| v.at) else { return false };
+        self.plan(s, id, at, None)
+    }
+
+    /// „Nur besuchen" on a planned module: it leaves the study and stays in the week as a visit,
+    /// keeping when it was planned and what the semester has chosen of it; what it counted for
+    /// counts for nothing now. Not for a module passed in that semester (a visit is never passed).
+    /// `false` when nothing changed.
+    pub fn make_visit(&mut self, s: SemesterKey, id: &str) -> bool {
+        if self.passed_in(id) == Some(s) || self.visits.len() >= MAX_PLANNED {
+            return false;
+        }
+        let Some(index) = self.modules.iter().position(|m| m.semester == s && m.module_id == id) else { return false };
+        let planned = self.modules.remove(index);
+        let at_index = self.visits.partition_point(|v| v.semester <= s);
+        self.visits.insert(at_index, Visit { semester: s, module_id: planned.module_id, at: planned.at });
+        true
     }
 
     pub fn is_planned(&self, s: SemesterKey, id: &str) -> bool {
@@ -613,10 +721,11 @@ impl PlanDoc {
         self.placeholders.iter().filter(|q| q.program_id == p.program_id && q.ord == p.ord).collect()
     }
 
-    /// What the visitor chose to see of a semester, with the town of Mein Studiengang. A town left
-    /// to derive is derived from the semester's modules taken over from the Regelstudienplan that
-    /// count for no placeholder, where it has any (`Selection::town_from`): an elective planned
-    /// beside them, or one found for a placeholder, never turns it.
+    /// What the visitor chose to see of a semester, with the town of Mein Studiengang and the
+    /// modules only visited (`Selection::visits`). A town left to derive is derived from the
+    /// semester's modules taken over from the Regelstudienplan that count for no placeholder,
+    /// where it has any (`Selection::town_from`): an elective planned beside them, or one found
+    /// for a placeholder, never turns it.
     pub fn selection(&self, s: SemesterKey, town: TownChoice) -> Selection {
         let hides = self.hidden.get(&s);
         let imported: BTreeSet<String> =
@@ -629,19 +738,26 @@ impl PlanDoc {
             hidden_dates: hides.map(|h| h.dates.clone()).unwrap_or_default(),
             town,
             town_from: (!imported.is_empty()).then_some(imported),
+            visits: self.visits_in(s).into_iter().collect(),
         }
     }
 
     /// Plans a module into a semester, counting for the placeholder `fills` when the plan holds
-    /// it. `false` when nothing changed: the id is no module id, the module is planned there
-    /// already, or a cap is reached (60 modules in the semester, 400 in all, 24 semesters).
+    /// it; a visit of it there becomes the planned module (planning it is what makes it count).
+    /// `false` when nothing changed: the id is no module id, the module is planned there
+    /// already, or a cap is reached (60 modules in the semester's week, 400 in all, 24
+    /// semesters).
     pub fn plan(&mut self, s: SemesterKey, id: &str, at: u64, fills: Option<u32>) -> bool {
         if !url::is_module_id(id) || self.is_planned(s, id) {
             return false;
         }
-        let here = self.modules.iter().filter(|m| m.semester == s).count();
+        let visited = self.visits.iter().position(|v| v.semester == s && v.module_id == id);
+        let here = self.held_in(s) - usize::from(visited.is_some());
         if here >= MAX_MODULES || self.modules.len() >= MAX_PLANNED || !self.admits(s) {
             return false;
+        }
+        if let Some(index) = visited {
+            self.visits.remove(index);
         }
         let fills = fills.filter(|pid| self.placeholders.iter().any(|p| p.pid == *pid));
         // After the semester's last module: the list stays in the order `stored` writes it.
@@ -662,13 +778,18 @@ impl PlanDoc {
     /// from its rows). Hidden kinds stay; they are about the semester, not the module.
     pub fn unplan(&mut self, s: SemesterKey, id: &str, only_its_events: &[u32]) {
         self.modules.retain(|m| !(m.semester == s && m.module_id == id));
+        self.forget_events(s, only_its_events);
+    }
+
+    /// What semester `s` hides and has chosen of `events`, taken away. Hidden kinds stay.
+    fn forget_events(&mut self, s: SemesterKey, events: &[u32]) {
         if let Some(hides) = self.hidden.get_mut(&s) {
-            for event in only_its_events {
+            for event in events {
                 hides.events.remove(event);
             }
-            hides.rows.retain(|row| !only_its_events.contains(&row.event));
-            hides.chosen.retain(|row| !only_its_events.contains(&row.event));
-            hides.dates.retain(|(row, _)| !only_its_events.contains(&row.event));
+            hides.rows.retain(|row| !events.contains(&row.event));
+            hides.chosen.retain(|row| !events.contains(&row.event));
+            hides.dates.retain(|(row, _)| !events.contains(&row.event));
         }
         self.prune(s);
     }
@@ -905,6 +1026,22 @@ impl PlanDoc {
         }
     }
 
+    /// „+ Modul" in a calendar of one's own: the module in its semester `s`, counting nowhere
+    /// (owner, 2026-10-26: „bei jedem kallender kann man auch andere module hinyufügen"). `false`
+    /// when nothing changed: no such calendar, no module id, the module there already, or the cap.
+    pub fn add_to_calendar(&mut self, id: u8, s: SemesterKey, module: &str) -> bool {
+        self.calendars.iter_mut().find(|calendar| calendar.id == id).is_some_and(|calendar| calendar.add_module(s, module))
+    }
+
+    /// Takes a module out of a calendar of one's own in semester `s`, with the groups ticked of
+    /// `only_its_events` there (the events no other module of the calendar links).
+    pub fn remove_from_calendar(&mut self, id: u8, s: SemesterKey, module: &str, only_its_events: &[u32]) {
+        if let Some(calendar) = self.calendars.iter_mut().find(|calendar| calendar.id == id) {
+            calendar.modules.retain(|(semester, held)| !(*semester == s && held == module));
+            calendar.chosen.retain(|(semester, row)| !(*semester == s && only_its_events.contains(&row.event)));
+        }
+    }
+
     /// Ticks a group in a calendar of one's own, or takes the tick away; its own choice, apart from
     /// the plan's (`tick`).
     pub fn tick_in_calendar(&mut self, id: u8, s: SemesterKey, row: RowKey, on: bool) {
@@ -929,9 +1066,9 @@ impl PlanDoc {
         true
     }
 
-    /// Empties the timetable of semester `s` („Plan leeren"): its modules and placeholders (what
-    /// counted for them elsewhere counts for nothing), what it hides and has chosen. The other
-    /// semesters stay, and so do the program, what was passed or done, the code of the
+    /// Empties the timetable of semester `s` („Plan leeren"): its modules, visits and placeholders
+    /// (what counted for them elsewhere counts for nothing), what it hides and has chosen. The
+    /// other semesters stay, and so do the program, what was passed or done, the code of the
     /// subscription (the page tells that the plan has moved on from it) and the lines of a newer
     /// build.
     pub fn clear_semester(&mut self, s: SemesterKey) {
@@ -940,6 +1077,7 @@ impl PlanDoc {
             self.remove_placeholder(pid);
         }
         self.modules.retain(|m| m.semester != s);
+        self.visits.retain(|v| v.semester != s);
         self.hidden.remove(&s);
     }
 
@@ -992,19 +1130,22 @@ impl PlanDoc {
             .map(|m| Planned { fills: m.fills.filter(|pid| placeholders.iter().any(|p| p.pid == *pid)), ..m.clone() })
             .collect();
         let hidden = self.hidden.get(&s).map(|hides| BTreeMap::from([(s, hides.clone())])).unwrap_or_default();
-        PlanDoc { program: self.program.clone(), modules, placeholders, hidden, ..PlanDoc::default() }
+        let visits = self.visits.iter().filter(|v| v.semester == s).cloned().collect();
+        PlanDoc { program: self.program.clone(), modules, visits, placeholders, hidden, ..PlanDoc::default() }
     }
 
     /// Replaces the timetable of semester `s` by a saved one (`semester_only`, of whatever
-    /// semester it was saved in): its modules, placeholders (numbered anew, what counts for them
-    /// with them), what it hides and has chosen, and its program. The other semesters stay, and so
-    /// does the subscription code (the page tells that the plan has moved on from it).
+    /// semester it was saved in): its modules, visits, placeholders (numbered anew, what counts
+    /// for them with them), what it hides and has chosen, and its program. The other semesters
+    /// stay, and so does the subscription code (the page tells that the plan has moved on from
+    /// it).
     pub fn put_semester(&mut self, s: SemesterKey, saved: &PlanDoc) {
         let gone: Vec<u32> = self.placeholders.iter().filter(|p| p.semester == s).map(|p| p.pid).collect();
         for pid in gone {
             self.remove_placeholder(pid);
         }
         self.modules.retain(|m| m.semester != s);
+        self.visits.retain(|v| v.semester != s);
         self.hidden.remove(&s);
         self.program = saved.program.clone();
         let mut pids: BTreeMap<u32, u32> = BTreeMap::new();
@@ -1018,6 +1159,9 @@ impl PlanDoc {
             if self.plan(s, &m.module_id, m.at, m.fills.and_then(|pid| pids.get(&pid).copied())) && m.from_plan {
                 self.mark_from_plan(s, &m.module_id);
             }
+        }
+        for v in &saved.visits {
+            self.visit(s, &v.module_id, v.at);
         }
         for hides in saved.hidden.values() {
             for kind in hides.kinds.iter() {
@@ -1053,8 +1197,9 @@ impl PlanDoc {
     /// What `holds_saved` compares of semester `s`.
     fn shape(&self, s: SemesterKey) -> Shape<'_> {
         let modules = self.modules.iter().filter(|m| m.semester == s).map(|m| m.module_id.as_str()).collect();
+        let visits = self.visits.iter().filter(|v| v.semester == s).map(|v| v.module_id.as_str()).collect();
         let rows = self.placeholders.iter().filter(|p| p.semester == s).map(|p| (p.program_id.as_str(), p.ord)).collect();
-        (modules, rows, self.hidden.get(&s))
+        (modules, visits, rows, self.hidden.get(&s))
     }
 
     /// Adds a placeholder in pid order, when it is valid, its pid is new, its plan row has none in
@@ -1112,6 +1257,7 @@ impl PlanDoc {
             .modules
             .iter()
             .map(|m| m.semester)
+            .chain(self.visits.iter().map(|v| v.semester))
             .chain(self.placeholders.iter().map(|p| p.semester))
             .chain(self.hidden.keys().copied())
             .chain(self.subscribed.keys().copied())
@@ -2424,6 +2570,105 @@ mod tests {
         }
         assert_eq!(doc.add_calendar("Neun", None, key("2026W"), &[], &[]), None);
         assert!(doc.calendars.iter().all(|calendar| calendar.modules.len() == MAX_CALENDAR_MODULES && calendar.chosen.len() == MAX_CALENDAR_TICKS));
+        assert_eq!(PlanDoc::restored(&doc.stored()), doc);
+    }
+
+    #[test]
+    fn a_visit_stands_in_the_week_counts_nothing_and_reads_back_whole() {
+        let (w, s) = (key("2026W"), key("2027S"));
+        let mut doc = PlanDoc::default();
+        assert!(doc.plan(w, "12104", 10, None));
+        // „+ Modul" in „Mein Studiengang": Denkmalpflege, only visited.
+        assert!(doc.visit(w, "13676", 20));
+        assert!(!doc.visit(w, "13676", 21), "once a semester");
+        assert!(!doc.visit(w, "12104", 22), "a planned module becomes a visit by „Nur besuchen“ alone");
+        assert!(!doc.visit(w, "../13676", 22));
+        assert!(doc.visit(s, "13676", 23), "another semester visits it again");
+        // One passed in the semester, taken out of its week (the mark stays), comes back planned.
+        let mut passed = PlanDoc::default();
+        assert!(passed.plan(w, "11103", 1, None) && passed.pass(w, "11103"));
+        passed.unplan(w, "11103", &[]);
+        assert!(passed.visit(w, "11103", 2));
+        assert!(passed.is_planned(w, "11103") && !passed.is_visited(w, "11103") && passed.passed_in("11103") == Some(w));
+        assert_eq!(doc.modules_in(w), ["12104"]);
+        assert_eq!((doc.visits_in(w), doc.week_in(w)), (vec!["13676".to_string()], vec!["12104".to_string(), "13676".to_string()]));
+        assert!(!doc.is_planned(w, "13676") && doc.is_visited(w, "13676") && doc.planned_in("13676").is_empty(), "a visit is planned nowhere");
+        assert_eq!(doc.selection(w, TownChoice::Derive).visits, BTreeSet::from(["13676".to_string()]));
+        assert!(doc.selection(key("2027W"), TownChoice::Derive).visits.is_empty());
+        assert_eq!(doc.semesters(), [w, s]);
+        assert!(!PlanDoc { modules: Vec::new(), ..doc.clone() }.is_empty(), "visits alone are a plan");
+        // The text: after the planned modules, and back whole.
+        let text = doc.stored();
+        assert_eq!(text, "m\t2026W\t12104\t10\t\nv\t2026W\t13676\t20\nv\t2027S\t13676\t23\n");
+        assert_eq!(PlanDoc::restored(&text), doc);
+        // Planned and visited in one semester, in either order: planned.
+        for text in ["v\t2026W\t12104\t5\nm\t2026W\t12104\t1\t\n", "m\t2026W\t12104\t1\t\nv\t2026W\t12104\t5\n", "v\t2026W\t12104\t5\nv\t2026W\t12104\t6\n"] {
+            let read = PlanDoc::restored(text);
+            assert_eq!(read.week_in(w), ["12104"], "{text}");
+        }
+
+        // „Nur besuchen" taken away (in „Mein Studium"): it counts, when it came kept.
+        let mut counted = doc.clone();
+        assert!(counted.count_visit(w, "13676"));
+        assert_eq!(counted.modules.iter().find(|m| m.module_id == "13676").map(|m| (m.semester, m.at)), Some((w, 20)));
+        assert!(!counted.is_visited(w, "13676") && counted.is_visited(s, "13676"));
+        assert!(!counted.count_visit(w, "13676"), "no visit left there");
+        // Planning a visited module (the catalog's „Einplanen") makes it count as well.
+        let mut planned = doc.clone();
+        assert!(planned.plan(w, "13676", 30, None));
+        assert_eq!((planned.week_in(w), planned.visits_in(s)), (vec!["12104".to_string(), "13676".to_string()], vec!["13676".to_string()]));
+
+        // „Nur besuchen" on a planned module: it leaves the study and stays in the week, what it
+        // counted for is gone; one passed there stays as it is.
+        let mut visited = doc.clone();
+        let pid = visited.next_pid();
+        assert!(visited.add_placeholder(Placeholder { pid, ..placeholder() }));
+        visited.set_fills(w, "12104", Some(pid));
+        visited.tick(w, termin(148369, 0xa4d12), true);
+        assert!(visited.make_visit(w, "12104"));
+        assert!(visited.modules_in(w).is_empty() && visited.fillers(pid).is_empty());
+        assert_eq!(visited.visits_in(w), ["13676", "12104"]);
+        assert_eq!(visited.visits.iter().find(|v| v.module_id == "12104").map(|v| v.at), Some(10));
+        assert_eq!(visited.selection(w, TownChoice::Derive).chosen_rows.len(), 1, "what the semester chose of it stays");
+        assert!(!visited.make_visit(w, "12104"));
+        assert!(visited.count_visit(w, "12104") && visited.pass(w, "12104"));
+        assert!(!visited.make_visit(w, "12104"), "a passed module is no visit");
+
+        // Taken out: with what the semester hides and chose of its own events alone.
+        let mut out = doc.clone();
+        out.tick(w, termin(150210, 0x1a2b3), true);
+        out.tick(w, termin(148369, 0xa4d12), true);
+        out.unvisit(w, "13676", &[150210]);
+        assert!(out.visits_in(w).is_empty() && out.is_visited(s, "13676"));
+        assert_eq!(out.selection(w, TownChoice::Derive).chosen_rows, BTreeSet::from([termin(148369, 0xa4d12)]));
+
+        // „Plan leeren" empties the week, visits and all; a saved plan keeps them and puts them back.
+        let saved = doc.semester_only(w);
+        assert_eq!(saved.visits_in(w), ["13676"]);
+        let mut cleared = doc.clone();
+        cleared.clear_semester(w);
+        assert!(cleared.week_in(w).is_empty() && cleared.is_visited(s, "13676"));
+        assert!(!cleared.holds_saved(w, &saved));
+        cleared.put_semester(w, &saved);
+        assert_eq!(cleared.week_in(w), ["12104", "13676"]);
+        assert!(cleared.holds_saved(w, &saved));
+        let mut other = cleared.clone();
+        other.unvisit(w, "13676", &[]);
+        assert!(!other.holds_saved(w, &saved), "a visit less is another plan");
+    }
+
+    #[test]
+    fn a_semesters_week_holds_sixty_modules_planned_and_visited() {
+        let w = key("2026W");
+        let mut doc = PlanDoc::default();
+        for n in 0..MAX_MODULES - 1 {
+            assert!(doc.plan(w, &(10_000 + n).to_string(), 1, None));
+        }
+        assert!(doc.visit(w, "20000", 2));
+        assert!(!doc.visit(w, "20001", 2) && !doc.plan(w, "20001", 2, None), "the week is full");
+        // A visit that becomes planned keeps its place.
+        assert!(doc.count_visit(w, "20000"));
+        assert_eq!(doc.modules_in(w).len(), MAX_MODULES);
         assert_eq!(PlanDoc::restored(&doc.stored()), doc);
     }
 

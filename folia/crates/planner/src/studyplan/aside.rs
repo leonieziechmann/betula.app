@@ -74,7 +74,8 @@ struct Place {
     shown: SemesterKey,
     /// The semester the panel shows (`home_semester`); `None` when the module is planned nowhere.
     sem: Option<SemesterKey>,
-    /// The modules planned in `sem`, in plan order: that semester's timetable is theirs.
+    /// The modules of the week of `sem`, in plan order, then its visits: that semester's timetable
+    /// is theirs.
     ids: Vec<String>,
     /// „jetzt": `meta.current_semester`.
     current: Option<SemesterKey>,
@@ -130,6 +131,8 @@ struct Choices {
     fills: Option<u32>,
     /// The other semesters it is planned in (a module over two semesters, a retake).
     elsewhere: Vec<SemesterKey>,
+    /// Only visited in `sem`: it counts for no placeholder, and „Entfernen" takes the visit away.
+    visit: bool,
 }
 
 /// What the panel lists: the module's events and exams in its semester, with their Termine and
@@ -340,7 +343,7 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
         Some(plan.with(|doc| {
             let shown = key_of(&url, current, doc, ctx.today);
             let sem = home_semester(doc, shown, &id);
-            let ids = sem.map(|sem| doc.modules_in(sem)).unwrap_or_default();
+            let ids = sem.map(|sem| doc.week_in(sem)).unwrap_or_default();
             Place { id, shown, sem, ids, current, town }
         }))
     });
@@ -411,12 +414,14 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
             let shown = key_of(&url, current, doc, ctx.today);
             let sem = home_semester(doc, shown, &id)?;
             let fills = doc.modules.iter().find(|m| m.semester == sem && m.module_id == id).and_then(|m| m.fills);
+            let visit = doc.is_visited(sem, &id);
             Some(Choices {
-                placeholders: placeholder_choices(doc, sem, start, fills, t),
+                placeholders: if visit { Vec::new() } else { placeholder_choices(doc, sem, start, fills, t) },
                 elsewhere: doc.planned_in(&id).into_iter().filter(|other| *other != sem).collect(),
                 id,
                 sem,
                 fills,
+                visit,
             })
         })
     });
@@ -519,6 +524,7 @@ fn Actions(
     let placeholders = Memo::new(move |_| choices.with(|c| c.as_ref().map(|c| c.placeholders.clone()).unwrap_or_default()));
     let fills = Memo::new(move |_| choices.with(|c| c.as_ref().and_then(|c| c.fills)));
     let elsewhere = Memo::new(move |_| choices.with(|c| c.as_ref().map(|c| c.elsewhere.clone()).unwrap_or_default()));
+    let visit = Memo::new(move |_| choices.with(|c| c.as_ref().is_some_and(|c| c.visit)));
     let removing = RwSignal::new(false);
     let tabs = Tabs::expect();
 
@@ -539,7 +545,11 @@ fn Actions(
         let page = ctx.url.with_untracked(|url| url.with_open(None, None).path());
         let now = ctx.url.with_untracked(|url| url.path());
         folia_shell::nav::close_to(going, &page, || tabs.is_some_and(|tabs| same_page(&tabs.before(&now), &page)));
-        plan.update_after_paint(move |doc| doc.unplan(sem, &id, &events));
+        let visited = visit.get_untracked();
+        plan.update_after_paint(move |doc| match visited {
+            true => doc.unvisit(sem, &id, &events),
+            false => doc.unplan(sem, &id, &events),
+        });
     };
 
     let selects = move || {
@@ -587,7 +597,9 @@ fn Actions(
     view! {
         {move || credits.get().map(|credits| view! {
             <div class="sp-actions">
-                <span class="badge strong num">{credits}</span>
+                <span class="badge strong num" class:visit=move || visit.get()>{credits}</span>
+                // A visit says what it is beside the credits it does not count.
+                {move || visit.get().then(|| view! { <span class="sp-visit-note">{t.studyplan_modules.visit}</span> })}
                 {selects}
             </div>
         })}
@@ -864,10 +876,11 @@ fn unavailable() -> DataError {
     DataError { unavailable: true, message: "no data source was provided".to_string() }
 }
 
-/// The semester the panel shows a module in: the page's when the module is planned there, else
-/// the one it is planned in nearest to the page's (of two as near, the earlier), else none.
+/// The semester the panel shows a module in: the page's when the module is planned or visited
+/// there, else the one it is planned in nearest to the page's (of two as near, the earlier), else
+/// none.
 fn home_semester(doc: &PlanDoc, shown: SemesterKey, id: &str) -> Option<SemesterKey> {
-    if doc.is_planned(shown, id) {
+    if doc.is_planned(shown, id) || doc.is_visited(shown, id) {
         return Some(shown);
     }
     doc.planned_in(id).into_iter().min_by_key(|sem| (sem.index().abs_diff(shown.index()), *sem))
