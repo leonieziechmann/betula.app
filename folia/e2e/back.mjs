@@ -324,7 +324,9 @@ await part("a link from outside", async () => {
     const { page } = await open(PHONE, "/catalog/module/12104");
     during = "only read";
     check((await where(page)).at === 0, "the link from outside is not the first entry");
-    await page.evaluate(() => history.back());
+    // Back after the script has answered: it leaves the document, and a script still running in
+    // it would be cut off with it („Execution context was destroyed").
+    await page.evaluate(() => { setTimeout(() => history.back()); });
     await page.waitForFunction(() => location.href === "about:blank", null, { timeout: 5000 }).catch(() => problems.push(`Back on a link only read did not leave Betula (${page.url()})`));
   }
   const { page, step } = await open(PHONE, "/catalog/module/12104");
