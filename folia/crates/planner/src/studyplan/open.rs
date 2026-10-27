@@ -64,8 +64,12 @@ fn choice_name(event: &Event, titles: &BTreeMap<String, String>, t: &i18n::Texts
     format!("{} {}", kind_word(event, t.locale), short_title(title))
 }
 
-/// „Ü MIT1": a Termin of the plan in a few letters, as a slot names it.
+/// „Ü MIT1": a Termin of the plan in a few letters, as a slot names it; one of one's own by its name
+/// („HiWi").
 fn slot_name(event: &Event, titles: &BTreeMap<String, String>, t: &i18n::Texts) -> String {
+    if let Some(own) = &event.own {
+        return super::own::shown_name(own, titles, i18n::texts(t.locale));
+    }
     let title = event.modules.first().and_then(|module| titles.get(module)).map_or(event.title.as_str(), String::as_str);
     match kind_short(event, t.locale) {
         short if short.is_empty() => short_title(title),
@@ -361,7 +365,11 @@ fn day_of(table: &Timetable, around: &Around, ticked: bool, titles: &BTreeMap<St
         .iter()
         .filter_map(|beside| {
             let event = table.events.get(beside.event)?;
-            Some((beside.from, beside.to, Bar { label: short_title(event.modules.first().and_then(|module| titles.get(module)).map_or(event.title.as_str(), String::as_str)), hue: hue(event.tone), left: 0.0, width: 0.0, lane: 0, lanes: 1, own: false, ticked: false, hit: around.meets.contains(&beside.event) }))
+            let label = match &event.own {
+                Some(mine) => super::own::shown_name(mine, titles, i18n::texts(t.locale)),
+                None => short_title(event.modules.first().and_then(|module| titles.get(module)).map_or(event.title.as_str(), String::as_str)),
+            };
+            Some((beside.from, beside.to, Bar { label, hue: hue(event.tone), left: 0.0, width: 0.0, lane: 0, lanes: 1, own: false, ticked: false, hit: around.meets.contains(&beside.event) }))
         })
         .collect();
     let own_title = own.modules.first().and_then(|module| titles.get(module)).map_or(own.title.as_str(), String::as_str);

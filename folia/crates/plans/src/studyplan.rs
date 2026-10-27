@@ -19,8 +19,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
-use folia_calendar::day::Day;
+use folia_calendar::day::{clock, minutes, Day};
 use folia_calendar::kind::{EventKind, KindSet};
+use folia_calendar::own::{OwnRhythm, OwnTermin, MAX_OWN_DATES, MAX_OWN_NUMBER, MAX_OWN_TEXT};
 use folia_calendar::rowkey::RowKey;
 use folia_calendar::select::{MAX_HIDDEN, MAX_MODULES, Selection, Town, TownChoice};
 use folia_calendar::semester::{of_fachsemester, SemesterKey};
@@ -39,9 +40,10 @@ use crate::variants::{self, PlanVariant};
 /// below it (a test fills a store to every cap); a longer text is read up to the last line break
 /// before the limit, so a store never reads as empty because of its size and the next change
 /// cannot wipe a plan. What lies beyond is dropped with the next write, which only text Betula did
-/// not write can lose. 512 KiB until 2026-10-26, when the hidden dates (`h`) came: a build before
-/// them reads the first 512 KiB, which hold everything but a store full to the new caps.
-pub const MAX_STORED: usize = 640 * 1024;
+/// not write can lose. 512 KiB until 2026-10-26, when the hidden dates (`h`) came, and 640 KiB
+/// until 2026-10-27, when the Termine of one's own (`t`) came: a build before them reads the first
+/// 640 KiB, which hold everything but a store full to the new caps.
+pub const MAX_STORED: usize = 1024 * 1024;
 
 /// The same for `betula.myprogram.v1`, a handful of short lines.
 pub const MAX_MINE: usize = 4 * 1024;
@@ -79,6 +81,12 @@ pub const MAX_CALENDAR_TICKS: usize = 200;
 /// The largest number of a calendar: two digits keep its lines short.
 const MAX_CALENDAR_ID: u8 = 99;
 
+/// The most Termine of one's own (`t`) of one calendar in one semester, and of all calendars and
+/// semesters together (folia/design/kalender/termine.html: „im Vorschlag 100 eigene Termine im
+/// Semester"). A week holds a handful; the caps keep the store within its limit.
+pub const MAX_OWN: usize = 100;
+pub const MAX_OWN_ALL: usize = 200;
+
 /// Lines of a tag this build does not know: how many are kept, and how long each may be in bytes.
 const MAX_EXTRA_LINES: usize = 100;
 const MAX_EXTRA_BYTES: usize = 1_000;
@@ -104,8 +112,8 @@ const MAX_EVENT: u32 = 999_999_999;
 const FROM_PLAN: &str = "plan";
 
 /// What `PlanDoc::holds_saved` compares of a semester: the modules, the visits, the placeholders'
-/// plan rows and what is hidden or chosen.
-type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>, Option<&'a SemesterHides>);
+/// plan rows, what is hidden or chosen, and the Termine of one's own without their numbers.
+type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>, Option<&'a SemesterHides>, BTreeSet<OwnTermin>);
 
 /// The visitor's Studienplan: modules and placeholders per calendar semester, and per semester
 /// what is hidden, what was chosen and the subscription code last handed out.
@@ -129,6 +137,7 @@ type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>
 /// l  <calendar>  <view>  <program_id>  <name>
 /// n  <calendar>  <semester>  <module_id>
 /// o  <calendar>  <semester>  <event_id>-<fp 5 hex>
+/// t  <number>  <calendar>  <semester>  <rhythm>  <weekday|dates>  <from>-<to>  <first>  <last>  <module>  <name>  <place>  <skip>
 /// ```
 ///
 /// `g` is the program the timetable is planned for (`program`): in a saved plan, not in the text
@@ -160,6 +169,16 @@ type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>
 /// semester; a group ticked in it. They belong to no timetable of the plan's own: „Plan leeren", a
 /// saved plan and a shared one leave them out. A build before them keeps them as lines of a tag it
 /// does not know.
+///
+/// `t` is a Termin of one's own (`Own`, folia/design/kalender/termine.html; owner, 2026-10-27:
+/// „Passt alles, bau Schritt 1 jetzt in Folia"): its number (its key, `OwnTermin::key`), its
+/// calendar (0 the plan's, else a calendar of one's own by its number, whose `l` line comes
+/// first), its semester, how it recurs (`w`, `a`, `b`, or `d` on dates of its own), its weekday or
+/// its dates joined by commas, its time, the first and the last day of one that recurs where they
+/// are not the lecture period's (else empty), the module it belongs to (empty for none), its name
+/// and place, and the days it is not held on („Nur am … ausblenden"), joined by commas. The plan's
+/// go with its semester: „Plan leeren" takes them, a saved plan carries them; a calendar's go with
+/// it. A build before them keeps them as lines of a tag it does not know (at most 100 of them).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PlanDoc {
     /// The program the timetable is planned for, picked in its sidebar or taken with a
@@ -181,8 +200,11 @@ pub struct PlanDoc {
     pub passed: Vec<Passed>,
     /// The rows of a Regelstudienplan without a module that are done, one per row (`q`).
     pub done_rows: Vec<DoneRow>,
-    /// The calendars of one's own, in the order they were made (`l`, `n`, `o`).
+    /// The calendars of one's own, in the order they were made (`l`, `n`, `o`, their `t`).
     pub calendars: Vec<Calendar>,
+    /// The Termine of one's own of the plan's calendar, „Mein Studiengang", in the order they came
+    /// (`t` of calendar 0).
+    pub own: Vec<Own>,
     /// Lines of tags this build does not know, as they were read.
     pub extra: Vec<String>,
 }
@@ -236,6 +258,25 @@ pub struct Calendar {
     pub modules: Vec<(SemesterKey, String)>,
     /// The groups ticked in it, by semester (as `SemesterHides::chosen` of the plan's own).
     pub chosen: BTreeSet<(SemesterKey, RowKey)>,
+    /// Its Termine of one's own, in the order they came (its `t` lines).
+    pub own: Vec<Own>,
+}
+
+/// A Termin of one's own in a semester (`t`): of the plan's calendar (`PlanDoc::own`) or of one of
+/// one's own (`Calendar::own`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Own {
+    pub semester: SemesterKey,
+    pub termin: OwnTermin,
+}
+
+/// A Termin of one's own taken away (`PlanDoc::remove_own`): its calendar, where it stood in its
+/// list, and it, for „Rückgängig" (`PlanDoc::put_own`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RemovedOwn {
+    pub calendar: u8,
+    pub at: usize,
+    pub own: Own,
 }
 
 impl Calendar {
@@ -244,10 +285,11 @@ impl Calendar {
         self.modules.iter().filter(|(semester, _)| *semester == s).map(|(_, id)| id.clone()).collect()
     }
 
-    /// What it shows of semester `s`: its own ticks, in the town its modules are held in.
+    /// What it shows of semester `s`: its own ticks and its Termine of one's own, in the town its
+    /// modules are held in.
     pub fn selection(&self, s: SemesterKey) -> Selection {
         let chosen_rows = self.chosen.iter().filter(|(semester, _)| *semester == s).map(|(_, row)| *row).collect();
-        Selection { chosen_rows, ..Selection::default() }
+        Selection { chosen_rows, own: own_of_semester(&self.own, s), ..Selection::default() }
     }
 
     /// Adds a module in semester `s`, within the caps; `false` where nothing changed.
@@ -465,7 +507,7 @@ impl PlanDoc {
                     let id = number(field(1)).and_then(|id| u8::try_from(id).ok());
                     if let Some(id) = id.filter(|id| (1..=MAX_CALENDAR_ID).contains(id) && doc.calendar(*id).is_none() && doc.calendars.len() < MAX_CALENDARS) {
                         let program = Some(field(3)).filter(|program| url::is_program_id(program)).map(str::to_string);
-                        doc.calendars.push(Calendar { id, name: calendar_name(field(4)), view: CalendarView::from_code(field(2)), program, modules: Vec::new(), chosen: BTreeSet::new() });
+                        doc.calendars.push(Calendar { id, name: calendar_name(field(4)), view: CalendarView::from_code(field(2)), program, modules: Vec::new(), chosen: BTreeSet::new(), own: Vec::new() });
                     }
                 }
                 "n" => {
@@ -478,6 +520,12 @@ impl PlanDoc {
                     let id = number(field(1)).and_then(|id| u8::try_from(id).ok());
                     if let (Some(calendar), Some(s), Some(row)) = (id.and_then(|id| doc.calendars.iter_mut().find(|calendar| calendar.id == id)), SemesterKey::parse(field(2)), RowKey::parse(field(3))) {
                         calendar.set_tick(s, row, true);
+                    }
+                }
+                "t" => {
+                    // After the `l` line of its calendar; the first line of a number counts.
+                    if let Some((calendar, own)) = own_of(&fields) {
+                        doc.insert_own(calendar, own);
                     }
                 }
                 "q" => {
@@ -503,8 +551,8 @@ impl PlanDoc {
 
     /// The text `restored` reads back as this plan: `g`; `m` by semester, then in planning order;
     /// `v` the same; `p` by pid; `d` and `q` in the order they were marked; then per semester `k`, `e`, `r`,
-    /// `c`, `h` (one line per Termin), `a`; per calendar its `l`, its `n` in the order they came and
-    /// its `o`; then the lines of unknown tags. Control characters in names become spaces, so a
+    /// `c`, `h` (one line per Termin), `a`; the plan's `t` in the order they came; per calendar its
+    /// `l`, its `n` in the order they came, its `o` and its `t`; then the lines of unknown tags. Control characters in names become spaces, so a
     /// name never splits its line.
     pub fn stored(&self) -> String {
         self.text(self.program.as_deref())
@@ -585,6 +633,9 @@ impl PlanDoc {
                 let _ = writeln!(out, "a\t{key}\t{code}");
             }
         }
+        for own in &self.own {
+            let _ = writeln!(out, "{}", own_line(0, own));
+        }
         for calendar in &self.calendars {
             let id = calendar.id;
             let view = calendar.view.map(CalendarView::code).unwrap_or_default();
@@ -596,6 +647,9 @@ impl PlanDoc {
             for (semester, row) in &calendar.chosen {
                 let _ = writeln!(out, "o\t{id}\t{}\t{}", semester.key(), row.text());
             }
+            for own in &calendar.own {
+                let _ = writeln!(out, "{}", own_line(id, own));
+            }
         }
         for line in self.extra.iter().filter(|line| !line.contains(['\n', '\r'])) {
             out.push_str(line);
@@ -604,11 +658,11 @@ impl PlanDoc {
         out
     }
 
-    /// Nothing planned: no module, no visit and no placeholder. The stored text may still hold what
-    /// a semester hides, a code or lines of a newer build; the store's key goes only when `stored`
-    /// is empty.
+    /// Nothing planned: no module, no visit, no placeholder and no Termin of one's own of the plan's
+    /// calendar. The stored text may still hold what a semester hides, a code, the calendars of
+    /// one's own or lines of a newer build; the store's key goes only when `stored` is empty.
     pub fn is_empty(&self) -> bool {
-        self.modules.is_empty() && self.visits.is_empty() && self.placeholders.is_empty()
+        self.modules.is_empty() && self.visits.is_empty() && self.placeholders.is_empty() && self.own.is_empty()
     }
 
     /// The semesters the plan holds modules, visits or placeholders in, in order.
@@ -739,6 +793,7 @@ impl PlanDoc {
             town,
             town_from: (!imported.is_empty()).then_some(imported),
             visits: self.visits_in(s).into_iter().collect(),
+            own: own_of_semester(&self.own, s),
         }
     }
 
@@ -996,7 +1051,7 @@ impl PlanDoc {
         }
         let id = (1..=MAX_CALENDAR_ID).find(|id| self.calendar(*id).is_none())?;
         let program = program.filter(|program| url::is_program_id(program)).map(str::to_string);
-        let mut calendar = Calendar { id, name: calendar_name(name), view: None, program, modules: Vec::new(), chosen: BTreeSet::new() };
+        let mut calendar = Calendar { id, name: calendar_name(name), view: None, program, modules: Vec::new(), chosen: BTreeSet::new(), own: Vec::new() };
         for module in modules {
             calendar.add_module(s, module);
         }
@@ -1066,6 +1121,142 @@ impl PlanDoc {
         true
     }
 
+    /// The Termine of one's own of calendar `calendar` (0 the plan's, „Mein Studiengang") in
+    /// semester `s`, in the order they came.
+    pub fn own_in(&self, calendar: u8, s: SemesterKey) -> Vec<&OwnTermin> {
+        self.own_list(calendar).map(|list| list.iter().filter(|own| own.semester == s).map(|own| &own.termin).collect()).unwrap_or_default()
+    }
+
+    /// A Termin of one's own by its number, with its calendar (0 the plan's).
+    pub fn own_termin(&self, number: u32) -> Option<(u8, &Own)> {
+        let plan = self.own.iter().find(|own| own.termin.number == number).map(|own| (0, own));
+        plan.or_else(|| self.calendars.iter().find_map(|calendar| calendar.own.iter().find(|own| own.termin.number == number).map(|own| (calendar.id, own))))
+    }
+
+    /// „+ Termin": a Termin of one's own in calendar `calendar` (0 the plan's) and semester `s`,
+    /// numbered anew, its texts as the store keeps them. Its number; `None` where it is no Termin
+    /// (`OwnTermin::is_valid`), the calendar is none of the plan's, or a cap is reached.
+    pub fn add_own(&mut self, calendar: u8, s: SemesterKey, termin: OwnTermin) -> Option<u32> {
+        let number = self.next_own_number()?;
+        let termin = kept_own(OwnTermin { number, ..termin })?;
+        self.insert_own(calendar, Own { semester: s, termin }).then_some(number)
+    }
+
+    /// „Speichern" of a Termin of one's own changed: what it is, and the calendar it stands in, its
+    /// number and semester kept (a changed calendar takes it at its end, within the caps). `false`
+    /// where nothing changed: no such Termin, no Termin now, or a cap of the calendar asked for.
+    pub fn set_own(&mut self, number: u32, calendar: u8, termin: OwnTermin) -> bool {
+        let Some(termin) = kept_own(OwnTermin { number, ..termin }) else { return false };
+        let Some((from, semester)) = self.own_termin(number).map(|(from, own)| (from, own.semester)) else { return false };
+        if from != calendar {
+            let Some(removed) = self.remove_own(number) else { return false };
+            if self.insert_own(calendar, Own { semester, termin }) {
+                return true;
+            }
+            self.put_own(removed);
+            return false;
+        }
+        let held = self.own_list_mut(calendar).and_then(|list| list.iter_mut().find(|own| own.termin.number == number));
+        match held {
+            Some(own) if own.termin != termin => {
+                own.termin = termin;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// „Nur am … ausblenden" of a Termin of one's own: the day is skipped, or (`skipped` false)
+    /// held again. `false` where nothing changed: no such Termin, the day skipped already, or the
+    /// cap of its skipped days.
+    pub fn skip_own(&mut self, number: u32, day: Day, skipped: bool) -> bool {
+        let Some(calendar) = self.own_termin(number).map(|(calendar, _)| calendar) else { return false };
+        let Some(own) = self.own_list_mut(calendar).and_then(|list| list.iter_mut().find(|own| own.termin.number == number)) else { return false };
+        let skip = &mut own.termin.skip;
+        match (skipped, skip.binary_search(&day)) {
+            (true, Err(at)) if skip.len() < MAX_OWN_DATES => skip.insert(at, day),
+            (false, Ok(at)) => {
+                skip.remove(at);
+            }
+            _ => return false,
+        }
+        true
+    }
+
+    /// Takes a Termin of one's own away („Löschen"); it, its calendar and where it stood, for
+    /// „Rückgängig" (`put_own`).
+    pub fn remove_own(&mut self, number: u32) -> Option<RemovedOwn> {
+        let (calendar, _) = self.own_termin(number)?;
+        let list = self.own_list_mut(calendar)?;
+        let at = list.iter().position(|own| own.termin.number == number)?;
+        Some(RemovedOwn { calendar, at, own: list.remove(at) })
+    }
+
+    /// Puts a Termin of one's own taken away back where it stood; `false` where its number is
+    /// taken by now, its calendar is gone, or a cap is reached.
+    pub fn put_own(&mut self, removed: RemovedOwn) -> bool {
+        let RemovedOwn { calendar, at, own } = removed;
+        if !self.own_fits(calendar, &own) {
+            return false;
+        }
+        match self.own_list_mut(calendar) {
+            Some(list) => {
+                list.insert(at.min(list.len()), own);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Adds a Termin of one's own as read or made, at the end of its calendar's list, where it fits
+    /// (`own_fits`).
+    fn insert_own(&mut self, calendar: u8, own: Own) -> bool {
+        if !self.own_fits(calendar, &own) {
+            return false;
+        }
+        match self.own_list_mut(calendar) {
+            Some(list) => {
+                list.push(own);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Whether a Termin of one's own may be added to calendar `calendar`: it is one, its number is
+    /// free, the calendar is the plan's or one of one's own, the caps allow it, and the plan's
+    /// semesters admit its semester.
+    fn own_fits(&self, calendar: u8, own: &Own) -> bool {
+        let Some(list) = self.own_list(calendar) else { return false };
+        let here = list.iter().filter(|held| held.semester == own.semester).count();
+        let all = self.own.len() + self.calendars.iter().map(|calendar| calendar.own.len()).sum::<usize>();
+        own.termin.is_valid() && self.own_termin(own.termin.number).is_none() && here < MAX_OWN && all < MAX_OWN_ALL && (calendar != 0 || self.admits(own.semester))
+    }
+
+    /// The number a new Termin of one's own gets: one more than the largest, else the smallest one
+    /// free.
+    fn next_own_number(&self) -> Option<u32> {
+        let numbers: BTreeSet<u32> = self.own.iter().chain(self.calendars.iter().flat_map(|calendar| calendar.own.iter())).map(|own| own.termin.number).collect();
+        match numbers.last().copied().unwrap_or(0) {
+            largest if largest < MAX_OWN_NUMBER => Some(largest + 1),
+            _ => (1..=MAX_OWN_NUMBER).find(|number| !numbers.contains(number)),
+        }
+    }
+
+    fn own_list(&self, calendar: u8) -> Option<&Vec<Own>> {
+        match calendar {
+            0 => Some(&self.own),
+            id => self.calendar(id).map(|calendar| &calendar.own),
+        }
+    }
+
+    fn own_list_mut(&mut self, calendar: u8) -> Option<&mut Vec<Own>> {
+        match calendar {
+            0 => Some(&mut self.own),
+            id => self.calendars.iter_mut().find(|calendar| calendar.id == id).map(|calendar| &mut calendar.own),
+        }
+    }
+
     /// Empties the timetable of semester `s` („Plan leeren"): its modules, visits and placeholders
     /// (what counted for them elsewhere counts for nothing), what it hides and has chosen. The
     /// other semesters stay, and so do the program, what was passed or done, the code of the
@@ -1078,6 +1269,7 @@ impl PlanDoc {
         }
         self.modules.retain(|m| m.semester != s);
         self.visits.retain(|v| v.semester != s);
+        self.own.retain(|own| own.semester != s);
         self.hidden.remove(&s);
     }
 
@@ -1131,7 +1323,8 @@ impl PlanDoc {
             .collect();
         let hidden = self.hidden.get(&s).map(|hides| BTreeMap::from([(s, hides.clone())])).unwrap_or_default();
         let visits = self.visits.iter().filter(|v| v.semester == s).cloned().collect();
-        PlanDoc { program: self.program.clone(), modules, visits, placeholders, hidden, ..PlanDoc::default() }
+        let own = self.own.iter().filter(|own| own.semester == s).cloned().collect();
+        PlanDoc { program: self.program.clone(), modules, visits, placeholders, hidden, own, ..PlanDoc::default() }
     }
 
     /// Replaces the timetable of semester `s` by a saved one (`semester_only`, of whatever
@@ -1146,6 +1339,7 @@ impl PlanDoc {
         }
         self.modules.retain(|m| m.semester != s);
         self.visits.retain(|v| v.semester != s);
+        self.own.retain(|own| own.semester != s);
         self.hidden.remove(&s);
         self.program = saved.program.clone();
         let mut pids: BTreeMap<u32, u32> = BTreeMap::new();
@@ -1162,6 +1356,10 @@ impl PlanDoc {
         }
         for v in &saved.visits {
             self.visit(s, &v.module_id, v.at);
+        }
+        // Numbered anew: the numbers of another time may be taken by now.
+        for own in &saved.own {
+            self.add_own(0, s, own.termin.clone());
         }
         for hides in saved.hidden.values() {
             for kind in hides.kinds.iter() {
@@ -1184,8 +1382,8 @@ impl PlanDoc {
     }
 
     /// Whether semester `s` holds the timetable `saved` holds (`semester_only`, of any semester):
-    /// the same modules, placeholder rows and what is hidden and chosen, whenever each was planned
-    /// and however the placeholders are numbered. A loaded plan is marked while this holds. The
+    /// the same modules, placeholder rows, Termine of one's own and what is hidden and chosen,
+    /// whenever each was planned and however the placeholders and the Termine are numbered. A loaded plan is marked while this holds. The
     /// program is not compared: the Stundenplan's is the session's (2026-10-15), and the plan is
     /// the same one in the next session and with another program picked.
     pub fn holds_saved(&self, s: SemesterKey, saved: &PlanDoc) -> bool {
@@ -1199,7 +1397,8 @@ impl PlanDoc {
         let modules = self.modules.iter().filter(|m| m.semester == s).map(|m| m.module_id.as_str()).collect();
         let visits = self.visits.iter().filter(|v| v.semester == s).map(|v| v.module_id.as_str()).collect();
         let rows = self.placeholders.iter().filter(|p| p.semester == s).map(|p| (p.program_id.as_str(), p.ord)).collect();
-        (modules, visits, rows, self.hidden.get(&s))
+        let own = self.own.iter().filter(|own| own.semester == s).map(|own| OwnTermin { number: 0, ..own.termin.clone() }).collect();
+        (modules, visits, rows, self.hidden.get(&s), own)
     }
 
     /// Adds a placeholder in pid order, when it is valid, its pid is new, its plan row has none in
@@ -1259,6 +1458,7 @@ impl PlanDoc {
             .map(|m| m.semester)
             .chain(self.visits.iter().map(|v| v.semester))
             .chain(self.placeholders.iter().map(|p| p.semester))
+            .chain(self.own.iter().map(|own| own.semester))
             .chain(self.hidden.keys().copied())
             .chain(self.subscribed.keys().copied())
             .collect();
@@ -2066,6 +2266,92 @@ fn calendar_name(name: &str) -> String {
     }
 }
 
+/// The Termine of one's own of a list in semester `s`, in the order they came.
+fn own_of_semester(list: &[Own], s: SemesterKey) -> Vec<OwnTermin> {
+    list.iter().filter(|own| own.semester == s).map(|own| own.termin.clone()).collect()
+}
+
+/// A Termin of one's own as the store keeps it: its name and place as text fields (`clean`), at
+/// most `MAX_OWN_TEXT` characters; `None` where it is no Termin then.
+fn kept_own(termin: OwnTermin) -> Option<OwnTermin> {
+    let text = |text: &str| {
+        let text = clean(text);
+        match text.char_indices().nth(MAX_OWN_TEXT) {
+            Some((at, _)) => text.get(..at).unwrap_or(&text).trim_end().to_string(),
+            None => text,
+        }
+    };
+    let module = termin.module.filter(|module| url::is_module_id(module));
+    let termin = OwnTermin { name: text(&termin.name), place: text(&termin.place), module, ..termin };
+    termin.is_valid().then_some(termin)
+}
+
+/// The `t` line of a Termin of one's own of calendar `calendar`.
+fn own_line(calendar: u8, own: &Own) -> String {
+    let termin = &own.termin;
+    let days = |days: &[Day]| days.iter().map(|day| day.iso()).collect::<Vec<_>>().join(",");
+    let when = match termin.rhythm {
+        OwnRhythm::Dates => days(&termin.dates),
+        _ => termin.weekday.to_string(),
+    };
+    let (first, last) = termin.period.map(|(first, last)| (first.iso(), last.iso())).unwrap_or_default();
+    format!(
+        "t\t{}\t{calendar}\t{}\t{}\t{when}\t{}-{}\t{first}\t{last}\t{}\t{}\t{}\t{}",
+        termin.number,
+        own.semester.key(),
+        termin.rhythm.code(),
+        clock(termin.from),
+        clock(termin.to),
+        termin.module.as_deref().unwrap_or_default(),
+        clean(&termin.name),
+        clean(&termin.place),
+        days(&termin.skip),
+    )
+}
+
+/// The Termin of one's own of a `t` line and its calendar; `None` for a line that is none. Dates
+/// are taken in order and each once; a name or a place too long is cut as the store cuts it.
+fn own_of(fields: &[&str]) -> Option<(u8, Own)> {
+    let field = |i: usize| fields.get(i).copied().unwrap_or_default();
+    let number = number(field(1)).and_then(|n| u32::try_from(n).ok())?;
+    let calendar = number_of_calendar(field(2))?;
+    let semester = SemesterKey::parse(field(3))?;
+    let rhythm = OwnRhythm::from_code(field(4))?;
+    let days = |text: &str| -> Option<Vec<Day>> {
+        let days: BTreeSet<Day> = text.split(',').map(str::trim).filter(|iso| !iso.is_empty()).map(Day::parse).collect::<Option<_>>()?;
+        Some(days.into_iter().collect())
+    };
+    let (weekday, dates) = match rhythm {
+        OwnRhythm::Dates => (0, days(field(5))?),
+        _ => (field(5).parse::<u8>().ok()?, Vec::new()),
+    };
+    let (from, to) = field(6).split_once('-')?;
+    let period = match (field(7), field(8)) {
+        ("", "") => None,
+        (first, last) => Some((Day::parse(first)?, Day::parse(last)?)),
+    };
+    let module = Some(field(9)).filter(|module| !module.is_empty()).map(str::to_string);
+    let termin = OwnTermin {
+        number,
+        rhythm,
+        weekday,
+        dates,
+        from: minutes(from)?,
+        to: minutes(to)?,
+        period,
+        module,
+        name: field(10).to_string(),
+        place: field(11).to_string(),
+        skip: days(field(12))?,
+    };
+    Some((calendar, Own { semester, termin: kept_own(termin)? }))
+}
+
+/// The calendar a `t` line names: 0 for the plan's, or the number of one of one's own.
+fn number_of_calendar(text: &str) -> Option<u8> {
+    number(text).and_then(|id| u8::try_from(id).ok()).filter(|id| *id <= MAX_CALENDAR_ID)
+}
+
 /// A decimal number of ASCII digits only (no sign, no space).
 fn number(text: &str) -> Option<u64> {
     let digits = !text.is_empty() && text.len() <= 20 && text.bytes().all(|b| b.is_ascii_digit());
@@ -2394,6 +2680,28 @@ mod tests {
             let id = doc.add_calendar(&"😀".repeat(MAX_CALENDAR_NAME), Some("00000000-ABCDEFGH-ABCDEFGH-ABCDEFGH-ABCDEFGH"), semesters[23], &modules, &ticks).unwrap();
             doc.set_calendar_view(id, CalendarView::Strip);
         }
+        // The Termine of one's own at their caps, the longest each can be: 4-byte characters, every
+        // date and every skipped day, half of them in the plan's last semester and half in a calendar.
+        let dates: Vec<Day> = (0..MAX_OWN_DATES as i32).map(|n| semesters[23].bounds().0.plus(n)).collect();
+        let longest = OwnTermin {
+            number: 0,
+            rhythm: OwnRhythm::Dates,
+            weekday: 0,
+            dates: dates.clone(),
+            from: 0,
+            to: 24 * 60,
+            period: None,
+            module: Some(format!("M{:031}", 0)),
+            name: "😀".repeat(MAX_OWN_TEXT),
+            place: "😀".repeat(MAX_OWN_TEXT),
+            skip: dates,
+        };
+        let last = doc.calendars.last().map(|calendar| calendar.id).unwrap();
+        for n in 0..MAX_OWN_ALL {
+            let calendar = if n < MAX_OWN { 0 } else { last };
+            assert!(doc.add_own(calendar, semesters[23], OwnTermin { from: n as u16, ..longest.clone() }).is_some(), "{n}");
+        }
+        assert_eq!(doc.own.iter().chain(doc.calendars.iter().flat_map(|calendar| calendar.own.iter())).map(|own| own.termin.number).max(), Some(MAX_OWN_ALL as u32));
         for n in 0..MAX_EXTRA_LINES {
             doc.extra.push(format!("z{n:03}\t{}", "y".repeat(MAX_EXTRA_BYTES - 5)));
         }
@@ -2479,6 +2787,158 @@ mod tests {
     fn lenas(doc: &mut PlanDoc) -> u8 {
         let modules: Vec<String> = ["11109", "13977", "12160", "12229"].iter().map(|id| id.to_string()).collect();
         doc.add_calendar("Lena", Some("013-82-2018"), key("2026W"), &modules, &[termin(150210, 0x1a2b3), termin(150211, 0x00001)]).unwrap()
+    }
+
+    fn day(iso: &str) -> Day {
+        Day::parse(iso).unwrap()
+    }
+
+    /// Friday's job, 13:00–17:00, every week of the lecture period.
+    fn job() -> OwnTermin {
+        OwnTermin {
+            number: 0,
+            rhythm: OwnRhythm::Week,
+            weekday: 5,
+            dates: Vec::new(),
+            from: 13 * 60,
+            to: 17 * 60,
+            period: None,
+            module: None,
+            name: "Arbeit".to_string(),
+            place: "Café Mosaik".to_string(),
+            skip: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn termine_of_ones_own_read_back_whole() {
+        let w = key("2026W");
+        let mut doc = example();
+        let lena = lenas(&mut doc);
+        assert_eq!(doc.add_own(0, w, job()), Some(1));
+        let group = OwnTermin { rhythm: OwnRhythm::AWeek, weekday: 2, from: 17 * 60 + 15, to: 18 * 60 + 45, module: Some("13700".to_string()), name: "Lerngruppe".to_string(), place: "IKMZ 2.12".to_string(), ..job() };
+        assert_eq!(doc.add_own(0, w, group), Some(2));
+        let block = OwnTermin { rhythm: OwnRhythm::Dates, weekday: 0, dates: vec![day("2026-11-12"), day("2026-11-19")], from: 9 * 60, to: 24 * 60, name: "Block\tseminar".to_string(), place: String::new(), ..job() };
+        assert_eq!(doc.add_own(0, w, block), Some(3));
+        let volleyball = OwnTermin { weekday: 4, from: 18 * 60, to: 19 * 60 + 30, period: Some((day("2026-10-15"), day("2027-01-28"))), name: "Volleyball".to_string(), place: "Sporthalle 1".to_string(), ..job() };
+        assert_eq!(doc.add_own(0, w, volleyball), Some(4));
+        let theirs = OwnTermin { rhythm: OwnRhythm::BWeek, weekday: 3, from: 13 * 60, to: 17 * 60, name: String::new(), place: String::new(), ..job() };
+        assert_eq!(doc.add_own(lena, w, theirs), Some(5));
+        assert!(doc.skip_own(1, day("2026-10-30"), true));
+        assert!(doc.skip_own(1, day("2026-11-06"), true));
+        let text = doc.stored();
+        assert!(text.starts_with(EXAMPLE), "{text}");
+        for line in [
+            "t\t1\t0\t2026W\tw\t5\t13:00-17:00\t\t\t\tArbeit\tCafé Mosaik\t2026-10-30,2026-11-06\n",
+            "t\t2\t0\t2026W\ta\t2\t17:15-18:45\t\t\t13700\tLerngruppe\tIKMZ 2.12\t\n",
+            "t\t3\t0\t2026W\td\t2026-11-12,2026-11-19\t09:00-24:00\t\t\t\tBlock seminar\t\t\n",
+            "t\t4\t0\t2026W\tw\t4\t18:00-19:30\t2026-10-15\t2027-01-28\t\tVolleyball\tSporthalle 1\t\n",
+            "o\t1\t2026W\t150211-00001\nt\t5\t1\t2026W\tb\t3\t13:00-17:00\t\t\t\t\t\t\n",
+        ] {
+            assert!(text.contains(line), "{line:?} in {text}");
+        }
+        let back = PlanDoc::restored(&text);
+        assert_eq!(back, doc);
+        // The plan's semester shows the plan's, Lena's calendar its own.
+        let plan = back.selection(w, TownChoice::Derive).own;
+        assert_eq!(plan.iter().map(|own| own.number).collect::<Vec<_>>(), [1, 2, 3, 4]);
+        assert_eq!(plan.first().map(|own| own.skip.len()), Some(2));
+        assert_eq!(back.calendar(lena).unwrap().selection(w).own.iter().map(|own| own.number).collect::<Vec<_>>(), [5]);
+        assert!(back.selection(key("2027S"), TownChoice::Derive).own.is_empty());
+        assert_eq!(back.own_in(0, w).len(), 4);
+        assert_eq!(back.own_termin(5).map(|(calendar, own)| (calendar, own.semester)), Some((lena, w)));
+        // A Termin of one's own plans nothing and counts for nothing.
+        assert_eq!(back.semesters(), doc.semesters());
+        assert!(!back.is_planned(w, "13700") && !back.is_visited(w, "13700"));
+    }
+
+    #[test]
+    fn a_termin_of_ones_own_is_changed_skipped_and_taken_away_with_a_way_back() {
+        let w = key("2026W");
+        let mut doc = PlanDoc::default();
+        let lena = lenas(&mut doc);
+        let job = doc.add_own(0, w, job()).unwrap();
+        let named = OwnTermin { name: format!("  {}  ", "Arbeit".repeat(20)), place: "Café\nMosaik".to_string(), module: Some("not a module".to_string()), ..self::job() };
+        assert!(doc.set_own(job, 0, named));
+        let (_, own) = doc.own_termin(job).unwrap();
+        assert_eq!((own.termin.name.chars().count(), own.termin.place.as_str(), own.termin.module.as_deref(), own.termin.number), (MAX_OWN_TEXT, "Café Mosaik", None, job));
+        assert!(!doc.set_own(job, 0, own.termin.clone()), "nothing changed");
+        assert!(!doc.set_own(job, 0, OwnTermin { from: 17 * 60, to: 13 * 60, ..self::job() }), "no Termin");
+        assert!(!doc.set_own(99, 0, self::job()), "no such Termin");
+        // Into Lena's calendar and back, its number kept.
+        assert!(doc.set_own(job, lena, self::job()));
+        assert_eq!((doc.own_in(0, w).len(), doc.own_in(lena, w).len(), doc.own_termin(job).map(|(calendar, _)| calendar)), (0, 1, Some(lena)));
+        assert!(!doc.set_own(job, 9, self::job()), "no such calendar");
+        assert!(doc.set_own(job, 0, self::job()));
+        // A day skipped, held again; the cap of the days.
+        assert!(doc.skip_own(job, day("2026-10-30"), true));
+        assert!(!doc.skip_own(job, day("2026-10-30"), true));
+        assert!(doc.skip_own(job, day("2026-10-30"), false));
+        assert!(!doc.skip_own(job, day("2026-10-30"), false));
+        for n in 0..MAX_OWN_DATES as i32 {
+            assert!(doc.skip_own(job, day("2026-10-02").plus(7 * n), true));
+        }
+        assert!(!doc.skip_own(job, day("2027-12-31"), true), "{MAX_OWN_DATES} days");
+        // Away, and back where it stood; a new one takes the next number.
+        let second = doc.add_own(0, w, OwnTermin { weekday: 1, ..self::job() }).unwrap();
+        assert_eq!(second, job + 1);
+        let gone = doc.remove_own(job).unwrap();
+        assert_eq!((gone.calendar, gone.at, doc.own_in(0, w).len()), (0, 0, 1));
+        assert!(doc.remove_own(job).is_none());
+        assert!(doc.put_own(gone.clone()));
+        assert_eq!(doc.own_in(0, w).iter().map(|own| own.number).collect::<Vec<_>>(), [job, second]);
+        assert!(!doc.put_own(gone), "its number is taken");
+        // A calendar's go with it, and come back with it.
+        let theirs = doc.add_own(lena, w, self::job()).unwrap();
+        let (at, calendar) = doc.remove_calendar(lena).unwrap();
+        assert!(doc.own_termin(theirs).is_none());
+        assert!(doc.put_calendar(at, calendar));
+        assert_eq!(doc.own_termin(theirs).map(|(calendar, _)| calendar), Some(lena));
+        // „Plan leeren" takes the plan's of the semester, and leaves the calendars' and the others.
+        let later = doc.add_own(0, key("2027S"), self::job()).unwrap();
+        doc.clear_semester(w);
+        assert_eq!((doc.own_termin(job), doc.own_termin(theirs).is_some(), doc.own_termin(later).is_some()), (None, true, true));
+    }
+
+    #[test]
+    fn a_saved_plan_carries_its_termine_of_ones_own() {
+        let w = key("2026W");
+        let mut doc = example();
+        doc.add_own(0, w, job()).unwrap();
+        doc.add_own(0, key("2027S"), OwnTermin { weekday: 2, ..job() }).unwrap();
+        let saved = doc.semester_only(w);
+        assert_eq!(saved.own.len(), 1);
+        assert!(doc.holds_saved(w, &saved));
+        // Into another plan whose numbers are taken: numbered anew, and still the same plan.
+        let mut other = PlanDoc::default();
+        let first = other.add_own(0, key("2027S"), OwnTermin { weekday: 3, ..job() }).unwrap();
+        other.put_semester(w, &saved);
+        assert_eq!(other.own_in(0, w).iter().map(|own| (own.number, own.weekday)).collect::<Vec<_>>(), [(first + 1, 5)]);
+        assert!(other.holds_saved(w, &saved));
+        other.skip_own(first + 1, day("2026-10-30"), true);
+        assert!(!other.holds_saved(w, &saved), "a skipped day is a change");
+    }
+
+    #[test]
+    fn termine_of_ones_own_keep_to_their_caps_and_hostile_lines_drop_alone() {
+        let w = key("2026W");
+        let mut doc = PlanDoc::default();
+        for n in 0..MAX_OWN {
+            assert!(doc.add_own(0, w, OwnTermin { from: n as u16, to: n as u16 + 1, ..job() }).is_some());
+        }
+        assert_eq!(doc.add_own(0, w, job()), None, "{MAX_OWN} in a calendar's semester");
+        let lena = lenas(&mut doc);
+        for n in 0..MAX_OWN {
+            assert!(doc.add_own(lena, key("2027S"), OwnTermin { from: n as u16, to: n as u16 + 1, ..job() }).is_some());
+        }
+        assert_eq!(doc.add_own(0, key("2027W"), job()), None, "{MAX_OWN_ALL} in all");
+        assert_eq!(doc.add_own(7, w, job()), None, "no such calendar");
+
+        let text = "t\t1\t0\t2026W\tw\t5\t13:00-17:00\t\t\t\tArbeit\t\t\n                    t\t1\t0\t2026W\tw\t1\t08:00-09:00\t\t\t\tsame number\t\t\n                    t\t2\t3\t2026W\tw\t5\t13:00-17:00\t\t\t\tno calendar 3\t\t\n                    t\t3\t0\t2026W\tw\t8\t13:00-17:00\t\t\t\tno weekday\t\t\n                    t\t4\t0\t2026W\tw\t5\t17:00-13:00\t\t\t\tbackwards\t\t\n                    t\t5\t0\t2026W\tx\t5\t13:00-17:00\t\t\t\tno rhythm\t\t\n                    t\t6\t0\t2026W\td\t\t13:00-17:00\t\t\t\tno date\t\t\n                    t\t7\t0\t2026W\td\t2026-11-19,2026-11-12,2026-11-12\t13:00-17:00\t\t\t\tdates in any order\t\t\n                    t\t8\t0\t2026W\tw\t5\t13:00-17:00\t2026-10-15\t\t\tone end\t\t\n                    t\t0\t0\t2026W\tw\t5\t13:00-17:00\t\t\t\tnumber 0\t\t\n                    t\t100000\t0\t2026W\tw\t5\t13:00-17:00\t\t\t\ttoo large\t\t\n                    t\t9\t0\t2026W\tw\t5\t13:00-17:00\t\t\t../x\tbad module\t\t2026-10-30,nope\n                    t\t10\t0\t2026W\tw\t5\t13:00-17:00\t\t\t../x\tbad module, no skip\t\t\n                    t\t11\t0\t2026W\tw\t5\t1:00-17:00\t\t\t\tclock\t\t\n";
+        let read = PlanDoc::restored(text);
+        let names: Vec<(u32, &str, Option<&str>)> = read.own.iter().map(|own| (own.termin.number, own.termin.name.as_str(), own.termin.module.as_deref())).collect();
+        assert_eq!(names, [(1, "Arbeit", None), (7, "dates in any order", None), (10, "bad module, no skip", None)]);
+        assert_eq!(read.own_termin(7).map(|(_, own)| own.termin.dates.len()), Some(2));
     }
 
     #[test]

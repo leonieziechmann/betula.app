@@ -179,6 +179,7 @@ impl LookUp {
             against: self.against.into(),
             links,
             place,
+            own: None,
         }
     }
 }

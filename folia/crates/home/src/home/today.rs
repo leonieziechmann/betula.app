@@ -109,7 +109,7 @@ fn minute_parts(now: RwSignal<(Day, u16)>, table: Memo<Option<Timetable>>, agend
     let t = i18n::t();
     let today = Memo::new(move |_| {
         let (day, minute) = now.get();
-        let words = daymodel::Words { locale: t.locale, exam: t.today.exam };
+        let words = daymodel::Words { locale: t.locale, exam: t.today.exam, own: t.termin.own_chip };
         table.with(|table| {
             let Some(table) = table else { return Today::default() };
             agenda.with(|agenda| names.with(|(titles, names)| daymodel::today(table, agenda, titles, names, day, minute, &words)))
@@ -365,10 +365,10 @@ pub(super) fn Hero(ctx: Ctx, on_setup: Callback<()>) -> impl IntoView {
 }
 
 /// The colour of a module of the plan by its tone (1–8), as the Stundenplan gives it
-/// (`folia_planner::studyplan::head::hue`): the classes that set `--tint`.
+/// (`folia_planner::studyplan::head::hue`): the classes that set `--tint`; tone 0 a Termin of one's
+/// own of no module (`t-own`).
 fn hue(tone: u8) -> &'static str {
-    const HUES: [&str; 8] = ["t-ice", "t-sun", "t-violet", "t-teal", "t-green", "t-coral", "t-rose", "t-slate"];
-    HUES.get(usize::from(tone.saturating_sub(1)) % HUES.len()).copied().unwrap_or("t-ice")
+    folia_widgets::termin::hue(tone)
 }
 
 /// „Dienstag, 20. Oktober · KW 43".
@@ -423,6 +423,7 @@ fn TerminOver(table: Memo<Option<Timetable>>, data: Memo<Option<StudyplanData>>,
         against: Signal::stored(Against::Itself),
         links,
         place,
+        own: None,
     };
     let beside = move || {
         let close = Signal::derive(move || t.path(url::HOME));
@@ -1040,7 +1041,7 @@ fn WeekPanel(ctx: Ctx) -> impl IntoView {
             Weeks::All => None,
         });
         let names = (BTreeMap::new(), BTreeMap::new());
-        let words = daymodel::Words { locale: t.locale, exam: tt.exam };
+        let words = daymodel::Words { locale: t.locale, exam: tt.exam, own: t.termin.own_chip };
         let days: Vec<(Day, Vec<Entry>)> = ctx.table.with(|table| {
             ctx.agenda.with(|agenda| {
                 let week: Vec<AgendaWeek> = agenda.iter().filter(|week| week.monday == monday).cloned().collect();

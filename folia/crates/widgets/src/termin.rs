@@ -39,6 +39,7 @@ use std::collections::BTreeMap;
 
 use folia_calendar::day::{clock, Day};
 use folia_calendar::kind::EventKind;
+use folia_calendar::own::{OwnRhythm, OwnTermin};
 use folia_calendar::rowkey::RowKey;
 use folia_calendar::select::HiddenBy;
 use folia_pages::StudyplanData;
@@ -149,6 +150,17 @@ pub struct TerminCtx {
     pub against: Signal<Against>,
     pub links: TerminLinks,
     pub place: TerminPlace,
+    /// What the page does with a Termin of one's own (`Event::own`): „Bearbeiten" and „Löschen";
+    /// `None` where it does neither (the start page, which leads to the Stundenplan for them).
+    pub own: Option<OwnActs>,
+}
+
+/// What a page does with a Termin of one's own, by its number (`OwnTermin::number`): „Bearbeiten"
+/// opens its form, „Löschen" takes it away with „Rückgängig" (the Stundenplan's).
+#[derive(Clone, Copy)]
+pub struct OwnActs {
+    pub edit: Callback<u32>,
+    pub remove: Callback<u32>,
 }
 
 /// What the view measures a Termin against: whether a group fits, what the date meets, the day
@@ -236,6 +248,18 @@ struct Shown {
     /// To look up a Termin outside the plan: its dates as a calendar file („In den Kalender") and
     /// the file's name.
     file: Option<(String, String)>,
+    /// A Termin of one's own: what its section says and changes, instead of `plan`.
+    own: Option<OwnPart>,
+}
+
+/// „Im Stundenplan" of a Termin of one's own: its number, how it recurs and when, and the date
+/// shown to skip or to hold again (its words, its day, whether it is skipped).
+#[derive(Clone, Debug, PartialEq)]
+struct OwnPart {
+    number: u32,
+    rhythm: String,
+    when: String,
+    date: Option<(String, Day, bool)>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -249,6 +273,8 @@ struct Head {
     /// segment marked under the head (`Pick::events`), and the title is the module's.
     kind_at_head: bool,
     title: String,
+    /// The chip is words („Eigener Termin"), not a module's code.
+    words: bool,
 }
 
 /// What picks the Termin the view shows, above everything it changes (owner, 2026-10-27: „Wenn
@@ -302,6 +328,9 @@ struct Ticket {
     state: &'static str,
     /// How far a running date has run, in percent.
     live: Option<u16>,
+    /// Of a Termin of one's own: its place is words of one's own, not a room's code, and without
+    /// one it says nothing.
+    own: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -418,6 +447,8 @@ struct ModulePart {
 
 #[derive(Clone, Debug, PartialEq)]
 struct SourcePart {
+    /// „Quelle: QIS", or of a Termin of one's own „Von dir angelegt".
+    label: &'static str,
     what: String,
     qis: Option<String>,
 }
@@ -446,10 +477,13 @@ pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
     // calls it.
     let at = Memo::new(move |_| shown.with(|s| s.as_ref().map(|s| (s.key, s.day))));
     let called = Memo::new(move |_| shown.with(|s| s.as_ref().map(|s| format!("{} · {} · {}", s.head.kind, s.head.title, s.ticket.date)).unwrap_or_default()));
+    // A Termin of one's own lives in this browser alone: no page of its own to hand on.
+    let own = Memo::new(move |_| shown.with(|s| s.as_ref().is_some_and(|s| s.own.is_some())));
+    let share = move |labeled: bool| move || (!own.get()).then(|| view! { <ShareButton at called labeled/> });
 
     let top = move || {
         let head = head.get();
-        let chip = head.as_ref().map(|head| view! { <span class=format!("tm-mod {}", hue(head.tone)) class:out=head.out><i></i>{head.chip.clone()}</span> });
+        let chip = head.as_ref().map(|head| view! { <span class=format!("tm-mod {}", hue(head.tone)) class:out=head.out class:words=head.words><i></i>{head.chip.clone()}</span> });
         // Of a module with more than one event the kind is the segment marked under the head,
         // which picks it.
         let kind = head.as_ref().filter(|head| head.kind_at_head).map(|head| view! { <span class="tm-kind">{head.kind.clone()}</span> });
@@ -468,7 +502,7 @@ pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
             // „Schließen" in words as on the module's panel. „Ganze Seite" not on a phone's sheet,
             // which goes all up itself (app.css, `.full-view`).
             TerminPlace::Beside => view! {
-                <ShareButton at called labeled=false/>
+                {share(false)}
                 {ctx.links.full.map(|full| view! {
                     <a class="ghost full-view tm-full" href=move || at.get().map(|(key, day)| full.run((key, Some(day)))).unwrap_or_default() rel="nofollow" data-action="fullscreen" title=t.termin.full_title aria-label=t.termin.full>
                         <Icon name="maximize-2"/><Shortcut keys="V"/>
@@ -477,7 +511,7 @@ pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
                 <a class="ghost tm-close" href=move || close.get() rel="nofollow" data-action="close-detail" data-back=move || back.get() data-noscroll="" title=t.termin.close_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
             }
             .into_any(),
-            TerminPlace::Full(_) | TerminPlace::Page => view! { <ShareButton at called labeled=true/> }.into_any(),
+            TerminPlace::Full(_) | TerminPlace::Page => view! { {share(true)} }.into_any(),
         };
         view! {
             <div class="hero-top tm-bar">
@@ -493,6 +527,7 @@ pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
     // What one adjusts (from the Stundenplan and the start page), or to look up the plan's line and
     // „In den Kalender".
     let middle = move || match ctx.mode {
+        TerminMode::Adjust if own.get() => view! { <OwnView ctx shown/> }.into_any(),
         TerminMode::Adjust => view! { <PlanView ctx shown/> }.into_any(),
         TerminMode::LookUp => view! { <PlanLine ctx shown/><CalendarFile ctx shown/> }.into_any(),
     };
@@ -667,11 +702,16 @@ fn TicketView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
                 Some((from, to)) => view! { <b>{from}</b><small>{to}</small> }.into_any(),
                 None => view! { <b class="unclear">{t.termin.no_time}</b> }.into_any(),
             };
-            let rooms = match ticket.rooms.is_empty() {
-                true => view! { <b class="plate none">{t.termin.no_room}</b> }.into_any(),
-                false => ticket.rooms.iter().map(|room| view! { <b class="plate">{plate(room)}</b> }).collect_view().into_any(),
+            // A Termin of one's own without a place has no room box: nothing is missing.
+            let roomless = ticket.own && ticket.rooms.is_empty() && ticket.place.is_empty();
+            let rooms = match (ticket.rooms.is_empty(), ticket.own) {
+                (true, true) => ().into_any(),
+                (true, false) => view! { <b class="plate none">{t.termin.no_room}</b> }.into_any(),
+                (false, true) => ticket.rooms.iter().map(|place| view! { <b class="plate words">{place.clone()}</b> }).collect_view().into_any(),
+                (false, false) => ticket.rooms.iter().map(|room| view! { <b class="plate">{plate(room)}</b> }).collect_view().into_any(),
             };
             let place = (!ticket.place.is_empty()).then(|| view! { <small>{ticket.place.join(" · ")}</small> });
+            let room = (!roomless).then(|| view! { <div class="tk-room">{rooms}{place}</div> });
             let live = ticket.live.map(|pct| view! { <div class="tk-prog" aria-hidden="true"><i style=format!("width: {pct}%")></i></div> });
             view! {
                 <section class=format!("tk {}", ticket.state) aria-label=t.termin.panel>
@@ -682,9 +722,9 @@ fn TicketView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
                         {ab}
                         {pill}
                     </div>
-                    <div class="tk-main">
+                    <div class="tk-main" class:alone=roomless>
                         <div class="tk-time">{time}</div>
-                        <div class="tk-room">{rooms}{place}</div>
+                        {room}
                     </div>
                     {live}
                 </section>
@@ -756,6 +796,67 @@ fn PlanView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
                         <button class="tg" class:on=on type="button" role="switch" aria-checked=if on { "true" } else { "false" } aria-label=label data-action="show-event" on:click=switch><i></i></button>
                     </div>
                     {on.then_some(date_row)}
+                </section>
+            }
+        })
+    }
+}
+
+/// „Im Stundenplan" of a Termin of one's own (folia/design/kalender/termine.html): how it recurs
+/// and when with „Bearbeiten", the date shown skipped or held again, and „Löschen" with
+/// „Rückgängig" — where the page does them (`TerminCtx::own`); from the start page the way to them
+/// in the Stundenplan. It reaches no file and no subscription yet („nicht in Datei und Abo").
+#[component]
+fn OwnView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
+    let t = i18n::t();
+    let part = Memo::new(move |_| shown.with(|s| s.as_ref().and_then(|s| s.own.clone())));
+    let at = Memo::new(move |_| shown.with(|s| s.as_ref().map(|s| (s.key, s.day))));
+    let skip = move |_: leptos::ev::MouseEvent| {
+        let (Some(plan), Some(part)) = (ctx.plan, part.get_untracked()) else { return };
+        let Some((_, day, skipped)) = part.date else { return };
+        plan.update(|doc| doc.skip_own(part.number, day, !skipped));
+    };
+    move || {
+        part.get().map(|part| {
+            let number = part.number;
+            let date_row = part.date.clone().map(|(words, _, skipped)| {
+                view! {
+                    <div class="crow">
+                        <span class="ci"><Icon name="calendar-minus"/></span>
+                        <span><b>{(t.termin.only_on)(&words)}</b><small>{if skipped { t.termin.hidden_others_stay } else { t.termin.others_stay }}</small></span>
+                        <button class="sw" type="button" data-action="hide-date" aria-pressed=if skipped { "true" } else { "false" } on:click=skip>{if skipped { t.termin.show } else { t.termin.hide }}</button>
+                    </div>
+                }
+            });
+            let edit = match ctx.own {
+                Some(acts) => view! {
+                    <button class="sw" type="button" data-action="own-edit" title=t.termin.own_edit_title on:click=move |_| acts.edit.run(number)><Icon name="pencil"/>{t.termin.own_edit}</button>
+                }
+                .into_any(),
+                None => view! {
+                    <a class="sw" href=move || at.get().map(|at| t.path(&url::StudyplanUrl::default().with_termin(Some((at.0, Some(at.1)))).path())).unwrap_or_default()>{t.termin.own_change}<Icon name="chevron-right"/></a>
+                }
+                .into_any(),
+            };
+            let remove = ctx.own.map(|acts| {
+                view! {
+                    <div class="crow">
+                        <span class="ci"><Icon name="trash-2"/></span>
+                        <span><b>{t.termin.own_remove}</b><small>{t.termin.own_remove_sub}</small></span>
+                        <button class="sw danger" type="button" data-action="own-remove" on:click=move |_| acts.remove.run(number)>{t.termin.own_remove}</button>
+                    </div>
+                }
+            });
+            view! {
+                <section class="tm-sec cal own">
+                    <h4>{t.termin.in_plan}<span class="r">{t.termin.own_feed}</span></h4>
+                    <div class="crow">
+                        <span class="ci"><Icon name="repeat"/></span>
+                        <span><b>{part.rhythm.clone()}</b><small>{part.when.clone()}</small></span>
+                        {edit}
+                    </div>
+                    {date_row}
+                    {remove}
                 </section>
             }
         })
@@ -1086,8 +1187,8 @@ fn SourceView(shown: Memo<Option<Shown>>) -> impl IntoView {
         part.get().map(|part| {
             view! {
                 <footer class="tm-src">
-                    <span>{t.termin.source}</span>
-                    <span>{part.what}</span>
+                    <span>{part.label}</span>
+                    {(!part.what.is_empty()).then(|| view! { <span>{part.what.clone()}</span> })}
                     {part.qis.map(|href| view! { <span><a href=href rel="noopener" target="_blank">{t.termin.open_in_qis}<Icon name="arrow-up-right"/></a></span> })}
                 </footer>
             }
@@ -1098,10 +1199,55 @@ fn SourceView(shown: Memo<Option<Shown>>) -> impl IntoView {
 // ---------- what is shown, worked out ----------
 
 /// The colour of a module of the plan by its tone (1–8), as the Stundenplan gives it: the classes
-/// that set `--tint`.
+/// that set `--tint`. Tone 0 is a Termin of one's own that belongs to no module of the week
+/// (`Event::own`): its own grey („t-own").
 pub fn hue(tone: u8) -> &'static str {
     const HUES: [&str; 8] = ["t-ice", "t-sun", "t-violet", "t-teal", "t-green", "t-coral", "t-rose", "t-slate"];
-    HUES.get(usize::from(tone.saturating_sub(1)) % HUES.len()).copied().unwrap_or("t-ice")
+    match tone {
+        0 => "t-own",
+        tone => HUES.get(usize::from(tone - 1) % HUES.len()).copied().unwrap_or("t-ice"),
+    }
+}
+
+/// What a Termin is called beside another: a module's kind and chip („Ü EvS"), a Termin of one's
+/// own by its name.
+fn called(event: &Event, modules: &BTreeMap<String, ModuleFacts>, t: &'static Texts) -> String {
+    match &event.own {
+        Some(own) => own_name(own, modules, t),
+        None => format!("{} {}", kind_short(event, t.locale), chip_of(event.modules.first(), modules)).trim().to_string(),
+    }
+}
+
+/// A Termin of one's own by its name; without one by its module's chip, else „Eigener Termin".
+fn own_name(own: &OwnTermin, modules: &BTreeMap<String, ModuleFacts>, t: &'static Texts) -> String {
+    match (own.name.trim(), &own.module) {
+        ("", Some(module)) => chip_of(Some(module), modules),
+        ("", None) => t.termin.own_chip.to_string(),
+        (name, _) => name.to_string(),
+    }
+}
+
+/// How a Termin of one's own recurs: „Jede Woche", „A-Woche", „B-Woche", „Einmal", „An 3 Tagen".
+fn own_rhythm(own: &OwnTermin, t: &'static Texts) -> String {
+    match own.rhythm {
+        OwnRhythm::Week => t.termin.own_week.to_string(),
+        OwnRhythm::AWeek => t.termin.own_a_week.to_string(),
+        OwnRhythm::BWeek => t.termin.own_b_week.to_string(),
+        OwnRhythm::Dates => (t.termin.own_dates)(own.dates.len()),
+    }
+}
+
+/// When a Termin of one's own is held: its period („15.10.–28.01."), or the lecture period's
+/// („05.10.–31.01., die Vorlesungszeit"), or its dates („12.11., 19.11.").
+fn own_when(own: &OwnTermin, table: &Timetable, today: Option<Day>, t: &'static Texts) -> String {
+    let locale = t.locale;
+    let span = |(first, last): (Day, Day)| format!("{}–{}", first.day_month(locale), last.day_month(locale));
+    match (own.rhythm, own.period, table.facts.lecture) {
+        (OwnRhythm::Dates, ..) => own.dates.iter().map(|day| day_words(*day, today, locale)).collect::<Vec<_>>().join(", "),
+        (_, Some(period), _) => span(period),
+        (_, None, Some(lecture)) => (t.termin.own_lectures)(&span(lecture)),
+        (_, None, None) => String::new(),
+    }
 }
 
 fn weekday(day: u8, locale: Locale) -> &'static str {
@@ -1153,21 +1299,37 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
     let o = Occasion::at(table, key, on, now)?;
     let event = table.events.get(o.event)?;
     let first = event.rows.get(*o.rows.first()?)?;
-    let module = event.modules.first();
-    let kind = type_text(event, locale);
+    // A Termin of one's own names the module it belongs to, where it belongs to one.
+    let own = event.own.as_ref();
+    let module = own.map_or(event.modules.first(), |own| own.module.as_ref());
+    let kind = if own.is_some() { String::new() } else { type_text(event, locale) };
     let first_kind = event.kinds.iter().next();
     let own_title = event.title.trim().to_string();
     let module_title = module.and_then(|id| modules.get(id)).map(|facts| facts.title.trim().to_string()).filter(|title| !title.is_empty());
     // The module's events where it has more than one, which pick the Termin under the head: the
     // head then names the module, which no pick changes, and the event's own title stands under
     // them.
-    let tabs = module.map(|id| event_tabs(table, id, &o, module_title.as_deref(), t)).unwrap_or_default();
-    let title = match (tabs.is_empty(), own_title.is_empty()) {
-        (false, _) | (true, true) => module_title.clone().unwrap_or_else(|| own_title.clone()),
-        (true, false) => own_title.clone(),
+    let tabs = match own {
+        Some(_) => Vec::new(),
+        None => module.map(|id| event_tabs(table, id, &o, module_title.as_deref(), t)).unwrap_or_default(),
+    };
+    let title = match (own, tabs.is_empty(), own_title.is_empty()) {
+        // One of one's own by its name, else by its module's title.
+        (Some(own), ..) => match (own.name.trim().is_empty(), &module_title) {
+            (true, Some(title)) => title.clone(),
+            _ => own_name(own, modules, t),
+        },
+        (None, false, _) | (None, true, true) => module_title.clone().unwrap_or_else(|| own_title.clone()),
+        (None, true, false) => own_title.clone(),
     };
     let own_title = (!tabs.is_empty() && !own_title.is_empty() && !same_words(&own_title, &title)).then_some(own_title);
-    let head = Head { out: mode == TerminMode::LookUp && planned == Some(false), tone: event.tone, chip: chip_of(module, modules), kind: kind.clone(), kind_at_head: tabs.is_empty(), title };
+    // A Termin of one's own: its module's chip in its tone, else „Eigener Termin" in its own.
+    let chip = match (own, module) {
+        (Some(_), None) => t.termin.own_chip.to_string(),
+        _ => chip_of(module, modules),
+    };
+    let words = own.is_some() && module.is_none();
+    let head = Head { out: mode == TerminMode::LookUp && planned == Some(false), tone: event.tone, chip, kind: kind.clone(), kind_at_head: tabs.is_empty() && own.is_none(), title, words };
 
     // The ticket.
     let past = now.is_some_and(|(day, minute)| o.day < day || (o.day == day && o.to.is_some_and(|to| to <= minute)));
@@ -1225,6 +1387,7 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
         place: names.into_iter().chain(campus).collect(),
         state,
         live,
+        own: own.is_some(),
     };
 
     // Who leads it.
@@ -1234,7 +1397,7 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
         }
         all
     });
-    let responsible = module.and_then(|id| modules.get(id)).and_then(|facts| facts.responsible.clone()).filter(|name| !name.trim().is_empty());
+    let responsible = module.filter(|_| own.is_none()).and_then(|id| modules.get(id)).and_then(|facts| facts.responsible.clone()).filter(|name| !name.trim().is_empty());
     let people: Vec<Person> = match (leads.is_empty(), &responsible) {
         (false, _) => vec![Person { name: leads.join(" / "), role: (t.termin.leads)(first_kind).to_string() }],
         (true, Some(name)) => vec![Person { name: full_name(name), role: t.termin.responsible.to_string() }],
@@ -1245,7 +1408,7 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
     let mut hints = Vec::new();
     if let Some((plan, met)) = measure.and_then(|plan| Some((plan, termin::clash_on(table, &o, beside)?))) {
         let other = plan.events.get(met.event);
-        let what = other.map(|other| format!("{} {}, {}–{}", kind_short(other, locale), chip_of(other.modules.first(), modules), clock(met.from), clock(met.to))).unwrap_or_default();
+        let what = other.map(|other| format!("{}, {}–{}", called(other, modules, t), clock(met.from), clock(met.to))).unwrap_or_default();
         hints.push(Hint { warn: true, icon: "triangle-alert", text: (t.termin.meets)(&what) });
     }
     match &o.state {
@@ -1283,6 +1446,7 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
     let pick = Pick { events: tabs, title: own_title, slots };
     let plan = match mode {
         TerminMode::LookUp => None,
+        TerminMode::Adjust if own.is_some() => None,
         TerminMode::Adjust => event.id.parse::<u32>().ok().map(|id| {
             let shown = event.hidden != Some(HiddenBy::Event);
             let sub = match (shown, matches!(event.attendance, Attendance::OneOf { .. })) {
@@ -1302,8 +1466,14 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
     // The series.
     let series = series_part(&o, today, t);
 
-    // The period and what differs.
-    let range = range_part(event, &o, today, t);
+    // The period and what differs; a Termin of one's own says its period itself.
+    let mut range = range_part(event, &o, today, t);
+    range.assumed &= own.is_none();
+    let own_part = own.filter(|_| mode == TerminMode::Adjust).map(|own| {
+        let hideable = matches!(o.state, DateState::Held | DateState::Note(_) | DateState::Hidden) && o.dates.iter().filter(|dated| dated.state.held()).count() > 1;
+        let skipped = own.skip.contains(&o.day);
+        OwnPart { number: own.number, rhythm: own_rhythm(own, t), when: own_when(own, table, today, t), date: (hideable || skipped).then(|| (day_words(o.day, today, locale), o.day, skipped)) }
+    });
 
     // The module and its exam.
     let module_part = module.map(|id| {
@@ -1330,11 +1500,14 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
         ModulePart { id: id.clone(), line, exams }
     });
 
-    // Who teaches.
-    let staff = staff_part(table, id_or_empty(module), responsible.as_deref(), t);
+    // Who teaches; nobody of a Termin of one's own.
+    let staff = if own.is_some() { Vec::new() } else { staff_part(table, id_or_empty(module), responsible.as_deref(), t) };
 
     let what = [Some(kind.clone()), event.number.clone()].into_iter().flatten().collect::<Vec<_>>().join(" ");
-    let source = SourcePart { what, qis: event.source_url.clone().or_else(|| first.date.source_url.clone()) };
+    let source = match own {
+        Some(_) => SourcePart { label: t.termin.own_source, what: String::new(), qis: None },
+        None => SourcePart { label: t.termin.source, what, qis: event.source_url.clone().or_else(|| first.date.source_url.clone()) },
+    };
     // Its dates for one's own calendar, to look up a Termin outside the plan: the feed's entries of
     // a timetable that holds it alone.
     let file = (mode == TerminMode::LookUp && planned == Some(false)).then(|| {
@@ -1344,7 +1517,7 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
         let name = format!("{} {}", head.chip, kind);
         (ics::write(&calendar), (t.termin.calendar_file)(name.trim()))
     });
-    Some(Shown { key, day: o.day, head, pick, ticket, people, hints, plan, groups, the_day, series, range, module: module_part, staff, source, file })
+    Some(Shown { key, day: o.day, head, pick, ticket, people, hints, plan, groups, the_day, series, range, module: module_part, staff, source, file, own: own_part })
 }
 
 /// What a page of the Termin says of itself, on the date the view shows at `now`: the browser
@@ -1443,7 +1616,6 @@ fn group_word(name: &str) -> String {
 /// plan, where `table` is not it; the Termin then stands among the plan's, hatched where its
 /// module is `out` of the plan.
 fn day_part(table: &Timetable, beside: Option<&Timetable>, o: &Occasion, named: (&BTreeMap<String, ModuleFacts>, bool), t: &'static Texts) -> DayPart {
-    let locale = t.locale;
     let (modules, out) = named;
     let plan = beside.unwrap_or(table);
     // Each Termin with whether it is this one, which stands in `table`; the others in `plan`.
@@ -1470,15 +1642,18 @@ fn day_part(table: &Timetable, beside: Option<&Timetable>, o: &Occasion, named: 
                 *end = beside.to;
             }
             let event = if *me { table } else { plan }.events.get(beside.event);
-            let chip = chip_of(event.and_then(|event| event.modules.first()), modules);
+            let chip = match event.and_then(|event| event.own.as_ref()) {
+                Some(own) => own_name(own, modules, t),
+                None => chip_of(event.and_then(|event| event.modules.first()), modules),
+            };
             let room = event.and_then(|event| event.rows.get(beside.row)).and_then(|row| row.date.room_shown()).unwrap_or_default();
-            let kind = event.map(|event| kind_short(event, locale)).unwrap_or_default();
+            let what = event.map(|event| called(event, modules, t)).unwrap_or_default();
             RibbonItem {
                 from: beside.from,
                 to: beside.to,
                 lane,
                 short: chip.clone(),
-                label: format!("{}–{} · {kind} {chip} · {room}", clock(beside.from), clock(beside.to)),
+                label: format!("{}–{} · {what} · {room}", clock(beside.from), clock(beside.to)),
                 tone: event.map_or(1, |event| event.tone),
                 me: *me,
                 gone: beside.cancelled,
@@ -1494,7 +1669,7 @@ fn day_part(table: &Timetable, beside: Option<&Timetable>, o: &Occasion, named: 
                 let event = plan.events.get(next.event);
                 let row = event.and_then(|event| event.rows.get(next.row));
                 let room = row.and_then(|row| row.date.room_shown()).unwrap_or_default();
-                let what = format!("{} {} {} · {room}", clock(next.from), event.map(|event| kind_short(event, locale)).unwrap_or_default(), chip_of(event.and_then(|event| event.modules.first()), modules));
+                let what = format!("{} {} · {room}", clock(next.from), event.map(|event| called(event, modules, t)).unwrap_or_default());
                 let gap = o.to.map(|to| (t.termin.pause)(&(t.termin.minutes)(next.from.saturating_sub(to))));
                 (what, gap)
             }

@@ -583,6 +583,7 @@ mod tests {
             rows: vec![row],
             hidden: None,
             source_url: None,
+            own: None,
         }
     }
 
