@@ -1,10 +1,13 @@
-//! Texts of „Über Betula" (`home/about.rs`), what the start page said until concept A, in the
-//! order of the page: what search engines read, the first panel, the pictures and the map, the
-//! ways into the catalog, what Betula does, and the questions (on their own page since
-//! 2026-10-27, `home/topics.rs`). The chapters of the topics have a group of their own
-//! (`home_detail`), and so have the topics (`topics`). The start page's own words are `today` and `setup`; its
-//! description and title for search engines are still these (`description`, `seo_title`), and so
-//! are the ways into the catalog it shows under „Entdecken".
+//! Texts of „Über Betula" (`home/about.rs` until 2026-10-27), what the start page said until
+//! concept A, in the order of that page: what search engines read, the first panel, the pictures
+//! and the map, the ways into the catalog, what Betula does, and the questions. Since 2026-10-27
+//! they stand on the pages of the topics (`home/topics.rs`): the first panel, the pictures and
+//! what Betula does on the overview (`home/overview.rs`), the ways into the catalog on „Module
+//! finden", the faculties on „Studium planen", the questions on a page of their own. The chapters
+//! of the topics have a group of their own (`home_detail`), and so have the topics (`topics`),
+//! with the heading and the line under it of the overview's first panel. The start page's own
+//! words are `today` and `setup`; its description and title for search engines are still these
+//! (`description`, `seo_title`), and so are the ways into the catalog it shows under „Entdecken".
 //!
 //! Everything here says what the app really does, and says it plainly (owner, 2026-09-28: the page
 //! is what search engines and the assistants built on them know of Betula; comparing it with other
@@ -17,11 +20,6 @@ pub struct Texts {
     pub description: &'static str,
     /// Its title for link previews (the tab shows the site's own title, `app::default_title`).
     pub seo_title: &'static str,
-    /// „Über Betula" (`about.rs`), where this text stands since concept A: its name in the tab,
-    /// its title for link previews and its description.
-    pub about_title: &'static str,
-    pub about_seo_title: &'static str,
-    pub about_description: &'static str,
     /// Other names of the site, as the structured data gives them („Betula Modulkatalog").
     pub alternate_names: [&'static str; 2],
     /// What it takes to run Betula, as the structured data of the app says it
@@ -29,12 +27,9 @@ pub struct Texts {
     pub browser_requirements: &'static str,
 
     // The first panel
-    /// „Inoffiziell · für die BTU Cottbus-Senftenberg", over the heading.
+    /// „Inoffiziell · für die BTU Cottbus-Senftenberg", over the heading (which is the
+    /// overview's, `topics::Topic`).
     pub eyebrow: &'static str,
-    /// The heading, before and after the university's name (which does not break).
-    pub title_before: &'static str,
-    pub title_after: &'static str,
-    pub lead: &'static str,
     pub browse_modules: &'static str,
     /// „Studiengang wählen": a button, the action of a picture, and what an answer quotes.
     pub choose_program: &'static str,
@@ -182,16 +177,10 @@ pub struct Faq {
 pub const DE: Texts = Texts {
     description: "Alle Module und Studiengänge der BTU Cottbus-Senftenberg an einem Ort: durchsuchen und filtern, Regelstudienpläne aus den Prüfungsordnungen, dein Stundenplan mit Kalender-Abo. Kostenlos, ohne Konto, auch offline. Inoffiziell, mit Link zum Original.",
     seo_title: "Betula · Modulkatalog für die BTU Cottbus-Senftenberg",
-    about_title: "Über Betula",
-    about_seo_title: "Über Betula · der inoffizielle Modulkatalog für die BTU Cottbus-Senftenberg",
-    about_description: "Was Betula ist und kann: alle Module und Studiengänge der BTU Cottbus-Senftenberg durchsuchen und filtern, Regelstudienpläne aus den Prüfungsordnungen, ein Stundenplan mit Kalender-Abo. Kostenlos, ohne Konto, auch offline und ohne JavaScript. Mit Fragen und Antworten.",
     alternate_names: ["Betula Modulkatalog", "Modulkatalog BTU Cottbus-Senftenberg (inoffiziell)"],
     browser_requirements: "Läuft in jedem aktuellen Browser, auch ohne JavaScript. Mit JavaScript lädt die App den Katalog als SQLite-Datenbank in den Browser (WebAssembly), antwortet ohne Ladezeiten und funktioniert offline.",
 
     eyebrow: "Inoffiziell · für die BTU Cottbus-Senftenberg",
-    title_before: "Alle Module und Studiengänge der ",
-    title_after: ", an einem Ort.",
-    lead: "Module mit Inhalten, Voraussetzungen, Prüfung und Terminen, Studiengänge mit dem Regelstudienplan aus ihrer Prüfungsordnung, dazu dein eigener Stundenplan: durchsuchbar und filterbar, statt Modulhandbücher zu wälzen.",
     browse_modules: "Module durchsuchen",
     choose_program: "Studiengang wählen",
     figure_modules: "Module",
@@ -344,7 +333,7 @@ pub const DE: Texts = Texts {
         questions: &[
             (
                 "Wie finde ich schnell das richtige Modul?",
-                "Tippe oben in die Suche einen Titel oder eine Modulnummer (Strg+K oder / springt hinein), oder fang mit einem Filter an: Studiengang, Bereich, Fachsemester, Turnus, Prüfungsform, Leistungspunkte, Sprache, Standort, Lehrende und mehr. Alle Filter lassen sich kombinieren und fast alle umkehren, etwa zu „alles außer Klausur“. Jede Auswahl steht in der Adresse, lässt sich also teilen, als Lesezeichen speichern und mit „Zurück“ zurücknehmen. Jeden Filter einzeln erklärt die Seite „Module finden“ unter „Über Betula“.",
+                "Tippe oben in die Suche einen Titel oder eine Modulnummer (Strg+K oder / springt hinein), oder fang mit einem Filter an: Studiengang, Bereich, Fachsemester, Turnus, Prüfungsform, Leistungspunkte, Sprache, Standort, Lehrende und mehr. Alle Filter lassen sich kombinieren und fast alle umkehren, etwa zu „alles außer Klausur“. Jede Auswahl steht in der Adresse, lässt sich also teilen, als Lesezeichen speichern und mit „Zurück“ zurücknehmen. Jeden Filter einzeln erklärt die Seite „Module finden“, zu der auf der Startseite „Mehr über Betula“ führt.",
             ),
             (
                 "Was kann der Stundenplan?",
@@ -407,16 +396,10 @@ pub const DE: Texts = Texts {
 pub const EN: Texts = Texts {
     description: "Every module and degree programme of BTU Cottbus-Senftenberg in one place: search and filter, standard study plans from the examination regulations, your timetable with a calendar subscription. Free, no account, works offline. Unofficial, with a link to the original.",
     seo_title: "Betula · Module catalogue for BTU Cottbus-Senftenberg",
-    about_title: "About Betula",
-    about_seo_title: "About Betula · the unofficial module catalogue for BTU Cottbus-Senftenberg",
-    about_description: "What Betula is and does: search and filter every module and degree programme of BTU Cottbus-Senftenberg, standard study plans from the examination regulations, a timetable with a calendar subscription. Free, no account, works offline and without JavaScript. With questions and answers.",
     alternate_names: ["Betula module catalogue", "Module catalogue of BTU Cottbus-Senftenberg (unofficial)"],
     browser_requirements: "Runs in any current browser, also without JavaScript. With JavaScript the app loads the catalogue into the browser as an SQLite database (WebAssembly), answers without loading times and works offline.",
 
     eyebrow: "Unofficial · for BTU Cottbus-Senftenberg",
-    title_before: "Every module and degree programme of ",
-    title_after: ", in one place.",
-    lead: "Modules with their contents, prerequisites, assessment and dates, degree programmes with the standard study plan from their examination regulations, and your own timetable: searchable and filterable, instead of wading through module handbooks.",
     browse_modules: "Browse modules",
     choose_program: "Choose a degree programme",
     figure_modules: "Modules",
@@ -567,7 +550,7 @@ pub const EN: Texts = Texts {
         questions: &[
             (
                 "How do I find the right module quickly?",
-                "Type a title or a module number into the search at the top (Ctrl+K or / jumps there), or start with a filter: degree programme, area, semester, offering, form of assessment, credit points, language, location, lecturers and more. All filters can be combined and almost all inverted, for example into “everything but a written exam”. Every selection is part of the address, so you can share it, bookmark it and go back with the browser's Back button. The page “Finding modules” under “About Betula” explains every filter.",
+                "Type a title or a module number into the search at the top (Ctrl+K or / jumps there), or start with a filter: degree programme, area, semester, offering, form of assessment, credit points, language, location, lecturers and more. All filters can be combined and almost all inverted, for example into “everything but a written exam”. Every selection is part of the address, so you can share it, bookmark it and go back with the browser's Back button. The page “Finding modules”, which “More about Betula” on the start page leads to, explains every filter.",
             ),
             (
                 "What can the timetable do?",

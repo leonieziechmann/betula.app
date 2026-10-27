@@ -382,7 +382,7 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
             <div class="ob-foot">
                 <button type="button" class="ob-link" title=s.look_around_title on:click=move |_| on_look.run(()) data-command=""><Icon name="search"/>{s.look_around}</button>
                 <a class="ob-link" href=t.path(url::PROFILE) rel="nofollow" title=s.take_profile_title data-command=""><Icon name="upload"/>{s.take_profile}</a>
-                <a class="ob-link ob-about" href=t.path(url::ABOUT) data-command="">{t.today.what_is_betula}<Icon name="arrow-right"/></a>
+                <a class="ob-link ob-about" href=t.path(&url::AboutTopic::Overview.path()) data-command="">{t.today.what_is_betula}<Icon name="arrow-right"/></a>
             </div>
         }
     };
@@ -584,7 +584,7 @@ pub fn ServerCard(faculties: Signal<Option<Counted>>) -> impl IntoView {
             <div class="ob-foot">
                 <a class="ob-link" href=t.path(url::CATALOG)><Icon name="search"/>{s.look_around}</a>
                 <a class="ob-link" href=t.path(url::PROFILE) rel="nofollow" title=s.take_profile_title><Icon name="upload"/>{s.take_profile}</a>
-                <a class="ob-link ob-about" href=t.path(url::ABOUT)>{t.today.what_is_betula}<Icon name="arrow-right"/></a>
+                <a class="ob-link ob-about" href=t.path(&url::AboutTopic::Overview.path())>{t.today.what_is_betula}<Icon name="arrow-right"/></a>
             </div>
         </div>
     }

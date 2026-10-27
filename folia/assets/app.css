@@ -2203,7 +2203,7 @@ a.ms-col:hover { background: var(--row-hover); text-decoration: none; }
    the chapter's lead; a screen of 1920 px still shows a strip of the wood on either side. */
 .home { container: home / inline-size; width: 100%; max-width: 1600px; margin: 0 auto; }
 @media (min-width: 901px) { .home-page { overflow-x: hidden; } }
-.home > .panel, .home-lists { scroll-margin-top: 14px; }
+.home > .panel { scroll-margin-top: 14px; }
 /* A long page draws only what is near the screen: a panel far off it is neither styled nor laid
    out until it comes close, and then keeps the height it was drawn with (`auto`). The start page
    is 17 screens of a phone, the program overview 10; built whole, each cost a phone the better
@@ -2212,9 +2212,9 @@ a.ms-col:hover { background: var(--row-hover); text-decoration: none; }
    brings changes nothing. Only its height is a guess: a width of its own (`contain-intrinsic-size`
    with one value sets both) widened the page past a phone's screen, which then showed it smaller. */
 .home > .panel { content-visibility: auto; contain-intrinsic-block-size: auto 1200px; }
-/* The tiles of the topics at a page's end are a few lines: drawn at once, where a guess of 1200 px
-   would stand for them until they come close. */
-.home > .panel.about-ways { content-visibility: visible; }
+/* The tiles at a page's end and the ways in are a few lines: drawn at once, where a guess of
+   1200 px would stand for them until they come close. */
+.home > .panel:is(.about-ways, .topic-ways) { content-visibility: visible; }
 /* A jump to a section of the page draws them all on its way (enhance.js, `jump`). */
 .jumping .home > .panel { content-visibility: visible; }
 .block-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 18px 12px 14px 24px; }
@@ -2496,31 +2496,11 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 .map-hot circle.other { fill: var(--text-3); }
 .map-hot circle.self { fill: var(--pick, var(--accent)); }
 
-/* Two lists side by side, their rows on the same lines (every row is 56px). */
-.home-lists { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gap); }
-.rowlist { border-top: 1px solid var(--line); padding-bottom: 6px; }
-.rowlist li + li { border-top: 1px solid var(--line); }
-.rowlink { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto 16px; align-items: center; gap: 12px; height: 56px; padding: 0 16px 0 24px; color: inherit; text-decoration: none; transition: background .1s; }
-/* Every other row is shaded, as the rows of the catalog's list; the two lists side by side keep
-   their stripes on the same lines as their rows. */
-.rowlink:where(.rowlist li:nth-child(even) > *) { background: var(--row-shade); }
-.rowlink:hover { background: var(--row-hover); text-decoration: none; }
-.rowlink .ico, .ability .ico { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: var(--panel-2); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line); }
-.rowlink .ico .icon, .ability .ico .icon { width: 16px; height: 16px; }
-.rowlink .ico.code { font-size: 11.5px; font-weight: 700; letter-spacing: .02em; color: var(--text); }
-.rowlink:hover .ico { background: var(--panel); }
+.ability .ico { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: var(--panel-2); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line); }
+.ability .ico .icon { width: 16px; height: 16px; }
 /* The ways into the catalog in their soft hues, the faculties in their colours from the map. */
 .t-ice { --tint: var(--t-ice); } .t-sun { --tint: var(--t-sun); } .t-violet { --tint: var(--t-violet); } .t-teal { --tint: var(--t-teal); }
 .t-green { --tint: var(--t-green); } .t-coral { --tint: var(--t-coral); } .t-rose { --tint: var(--t-rose); } .t-slate { --tint: var(--t-slate); }
-.rowlink .ico[class*="t-"] { background: color-mix(in oklch, var(--tint) 14%, var(--panel)); color: var(--tint); box-shadow: none; }
-.rowlink:hover .ico[class*="t-"] { background: color-mix(in oklch, var(--tint) 22%, var(--panel)); }
-.rowlink .ico.code[class*="fac-"] { background: color-mix(in oklch, var(--fac) 14%, var(--panel)); color: var(--fac); box-shadow: none; }
-.rowlink:hover .ico.code[class*="fac-"] { background: color-mix(in oklch, var(--fac) 22%, var(--panel)); }
-.rowlink-text { min-width: 0; display: grid; line-height: 1.3; }
-.rowlink-text b { font-weight: 600; font-size: 14.5px; letter-spacing: -.012em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rowlink-text small { color: var(--text-3); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rowlink-count { font-weight: 650; font-size: 15px; }
-.rowlink > .icon { width: 16px; height: 16px; color: var(--text-3); }
 
 /* What the app does: a grid of equal cells with rules, not cards. */
 .ability-grid { display: grid; grid-template-columns: minmax(0, 1fr); border-top: 1px solid var(--line); }
@@ -2552,15 +2532,20 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
   .faq details p { text-align: start; }
 }
 
-/* ---------- „Über Betula"'s topics (home/topics.rs, home/detail.rs; owner, 2026-10-27) ---------- */
+/* ---------- the pages about Betula (home/topics.rs, home/overview.rs, home/detail.rs; owner, 2026-10-27) ---------- */
 /* „Mehr über Betula": the tiles of the topics („Das soll aufgeteilt werden in mehrere kontent
-   pages … Wovon auch ein wenig auf der Landing page verlinkt werden kann"), on „Über Betula",
-   under each topic's page and on the start page after „Entdecken", with its head there
-   (`.on-day`). As many tiles a row as there are (`--n`, four or five), two where the page is
-   narrower (the last of an odd number across the row, so that no cell stays empty), one on a
-   phone. */
-.about-ways { padding: 0 14px 14px; }
-.about-ways > .block-head { padding: 18px 0 14px 10px; }
+   pages … Wovon auch ein wenig auf der Landing page verlinkt werden kann"), under each topic's
+   page and on the start page after „Entdecken", with its head there (`.on-day`). As many tiles a
+   row as there are (`--n`, five), two where the page is narrower (the last of an odd number
+   across the row, so that no cell stays empty), one on a phone. The ways into the catalog on
+   „Module finden" and the faculties on „Studium planen" (`.topic-ways`) stand in a panel of the
+   same make, as tiles of the start page's „Entdecken" (`.day-ways`). */
+.about-ways, .topic-ways { padding: 0 14px 14px; }
+:is(.about-ways, .topic-ways) > .block-head { padding: 18px 0 14px 10px; }
+/* A faculty's tile: its number in its colour from the map, its name in full over as many lines as
+   it needs. */
+.faculty-ways .day-way-i { --tint: var(--text-3); font-size: 11.5px; font-weight: 700; letter-spacing: .02em; }
+.faculty-ways .day-way-i[class*="fac-"] { --tint: var(--fac); }
 .about-ways.on-day > .day-head { padding-left: 2px; padding-right: 0; }
 /* On a phone the line under the head has a line of its own, and all of it. */
 @media (max-width: 900px) { .about-ways.on-day > .day-head .sub { white-space: normal; } }
@@ -2576,15 +2561,16 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
   .about-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .about-tile:nth-child(odd):last-child { grid-column: 1 / -1; }
 }
-/* A topic's page: the way back to „Über Betula" over its heading, the line under it, and the row
-   of the topics, the one shown filled in its tint. */
+/* A topic's page: „Zurück" to the start page over its heading (`frame::BackLink`, Esc follows it;
+   owner, the same day: „den shortcut mit esc, um wieder bei der landing page zu bleiben"), the
+   line under it, and the row of the topics, the one shown filled in its tint. The overview has
+   both in its first panel (`.home-hero-text`). */
 .topic-head { padding: 20px 24px 22px; }
-.topic-back { align-self: flex-start; display: inline-flex; align-items: center; gap: 2px; margin-left: -6px; padding: 4px 10px 4px 4px; border-radius: 8px; color: var(--accent-ink); font-size: 13px; font-weight: 620; text-decoration: none; }
-.topic-back:hover { background: var(--row-hover); text-decoration: none; }
-.topic-back .icon { width: 16px; height: 16px; }
+:is(.topic-head, .home-hero-text) > .at-head { margin: -8px 0 6px -10px; }
 .topic-head h1 { margin-top: 8px; font-size: clamp(26px, 2.9cqi, 34px); line-height: 1.12; font-weight: 720; letter-spacing: -.034em; text-wrap: balance; }
 .topic-head .lead { margin-top: 10px; color: var(--text-2); font-size: 15.5px; line-height: 1.55; max-width: 64ch; text-wrap: pretty; }
 .topic-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
+.home-hero-text > .topic-nav { margin-top: 22px; }
 .topic-nav a { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 13px 0 10px; border-radius: 999px; background: color-mix(in oklch, var(--tint) 8%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint) 24%, transparent); color: var(--text); font-size: 13px; font-weight: 580; text-decoration: none; transition: background .12s; }
 .topic-nav a:hover { background: color-mix(in oklch, var(--tint) 15%, var(--panel)); text-decoration: none; }
 .topic-nav a[aria-current="page"] { background: color-mix(in oklch, var(--tint) 22%, var(--panel)); box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--tint) 60%, transparent); font-weight: 650; }
@@ -2935,9 +2921,6 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
   .ability:nth-child(odd) { border-right: 1px solid var(--line); }
   .ability:nth-child(odd):last-child { grid-column: 1 / -1; border-right: 0; }
   .ability p { max-width: 80ch; }
-}
-@container home (min-width: 900px) {
-  .home-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 /* From a notebook's width on the birch with the figures stands beside the text. */
 @container home (min-width: 700px) {
@@ -4733,7 +4716,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   /* A page's own „Zurück" (frame.rs `BackLink`) while the head has the way back, which it put
      there (owner, 2026-10-15: „mach den zurückbutton mal überall nach oben neben die suche"): one
      way back. What stood beside it takes its place at the left (the path of a program's page). */
-  .topbar.backed ~ .content .hero-top > .at-head { display: none; }
+  .topbar.backed ~ .content :is(.hero-top, .topic-head, .home-hero-text) > .at-head { display: none; }
   .topbar.backed ~ .content .hero-top > .at-head + .crumbs { margin-left: 10px; }
   /* The way back of a page or of its step (chrome.rs `TopBack`; owner, 2026-10-05: „oben links
      neben der search bar im gleichen style eine quadratische box … mit einem zurück pfeil"): a box
@@ -5095,7 +5078,6 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .intro-actions { align-items: flex-start; }
   .faq-group { padding-left: 16px; }
   .block-head { padding: 16px 8px 12px 16px; }
-  .rowlink { height: 60px; padding: 0 12px 0 16px; }
   .ability { padding-left: 16px; padding-right: 16px; }
   .intro-actions .pick-combo { flex: 1 1 auto; }
   .intro-actions .pick-combo .combo-trigger { width: 100%; min-height: 50px; justify-content: center; }
@@ -5104,8 +5086,8 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .faq details p { padding: 0 16px 16px; }
   .soon-line { padding: 14px 16px 16px; }
   .about-tiles { grid-template-columns: minmax(0, 1fr); }
-  .about-ways { padding: 0 10px 10px; }
-  .about-ways > .block-head { padding: 16px 0 12px 6px; }
+  .about-ways, .topic-ways { padding: 0 10px 10px; }
+  :is(.about-ways, .topic-ways) > .block-head { padding: 16px 0 12px 6px; }
   .topic-head { padding: 16px 16px 18px; }
   /* The board is a picture of the sheet, not the sheet: its chips keep about their size from the
      computer (and still a finger's, 34 px). */
@@ -6609,7 +6591,9 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .day-way-t b { display: block; font-size: 13.5px; font-weight: 620; }
 .day-way-t small { color: var(--text-3); font-size: 12px; }
 .day-way-n { font-size: 14px; font-weight: 700; }
-@container day (max-width: 1080px) { .day-ways { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Two a row where the page is narrower: on the start page and on „Module finden" and „Studium
+   planen", whose ways in and faculties are these tiles too (`.topic-ways`). */
+@container (max-width: 1080px) { .day-ways { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 /* One column: the panels in the order they are read, whichever column the wide screen gives them
    (the week and the exams before „Mein Studium" and the Merkliste); without a study as before. */
 @container day (max-width: 980px) {

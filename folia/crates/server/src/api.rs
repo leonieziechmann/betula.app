@@ -242,8 +242,8 @@ pub fn sitemap_pages(snapshot: &crate::snapshot::Snapshot) -> Result<Vec<String>
         });
     })?;
     let (modules, programs) = listed?;
-    let mut paths = vec![folia_routes::url::HOME.to_string(), folia_routes::url::ABOUT.to_string()];
-    // The pages of „Über Betula" on its topics (2026-10-27).
+    let mut paths = vec![folia_routes::url::HOME.to_string()];
+    // The pages about Betula, one per topic (2026-10-27; `/about` itself leads to the overview).
     paths.extend(folia_routes::url::AboutTopic::ALL.iter().map(|topic| topic.path()));
     paths.extend([folia_routes::url::CATALOG.to_string(), folia_routes::url::PROGRAMS.to_string()]);
     for (program, plans) in &programs {

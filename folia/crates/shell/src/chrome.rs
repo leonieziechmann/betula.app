@@ -815,11 +815,14 @@ pub enum Up {
 /// (`TopBack`), by their address, and where it leads until the page says where (the server's
 /// page, where it is the link of its „Zurück" as well): a program's page — with whatever fills it,
 /// which has a way back of its own — and a module's own page up to the list of their area, the
-/// program overview up to „Mein Studium", the profile page to where the visitor was before. A page
-/// with a `BackLink` that the server renders is named here, or the bar changes when the app takes
-/// over.
+/// program overview up to „Mein Studium", the profile page to where the visitor was before, a
+/// page about Betula to the start page (owner, 2026-10-27: „den shortcut mit esc, um wieder bei der
+/// landing page zu bleiben"). A page with a `BackLink` that the server renders is named here, or
+/// the bar changes when the app takes over.
 pub fn back_at_head(path: &str) -> Option<Up> {
-    if path == url::PROGRAMS {
+    if url::AboutTopic::of_path(path).is_some() {
+        Some(Up::List(Area::Home))
+    } else if path == url::PROGRAMS {
         Some(Up::Study)
     } else if crate::nav::passing(path) {
         Some(Up::Before)
@@ -1117,8 +1120,8 @@ mod tests {
 
     /// A program's page and a module's own page have their way back at the head from their first
     /// paint, by their address, up to their area's list, the program overview up to „Mein
-    /// Studium", and the profile page to where the visitor was before; the other lists, „Mein
-    /// Studium" and the other pages do not.
+    /// Studium", the profile page to where the visitor was before, and a page about Betula to the
+    /// start page; the other lists, „Mein Studium" and the other pages do not.
     #[test]
     fn the_pages_with_a_way_back_have_it_at_the_head() {
         for path in ["/programs/bachelor-informatik-2008", "/programs/bachelor-informatik-2008/areas", "/programs/bachelor-informatik-2008/plan"] {
@@ -1127,7 +1130,9 @@ mod tests {
         assert_eq!(back_at_head("/catalog/module/11103"), Some(Up::List(Area::Catalog)));
         assert_eq!(back_at_head("/programs"), Some(Up::Study));
         assert_eq!(back_at_head("/profile"), Some(Up::Before));
-        for path in ["/programs/", "/study", "/catalog", "/catalog/module", "/catalog/module/", "/bookmarks", "/studyplan", "/profile/x", "/", "/impressum"] {
+        assert_eq!(back_at_head("/about/overview"), Some(Up::List(Area::Home)));
+        assert_eq!(back_at_head("/about/questions"), Some(Up::List(Area::Home)));
+        for path in ["/programs/", "/study", "/catalog", "/catalog/module", "/catalog/module/", "/bookmarks", "/studyplan", "/profile/x", "/", "/impressum", "/about", "/about/nothing"] {
             assert_eq!(back_at_head(path), None, "{path}");
         }
     }

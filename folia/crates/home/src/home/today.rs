@@ -230,7 +230,7 @@ pub fn TodayView(guest: bool, welcome: RwSignal<Option<Done>>, on_setup: Callbac
             }.into_any()
         }}
         <Discover home/>
-        <super::topics::MoreAbout topics=super::topics::ON_THE_START_PAGE.to_vec() all=true day=true/>
+        <super::topics::MoreAbout topics=super::topics::ON_THE_START_PAGE.to_vec() day=true/>
     }
 }
 

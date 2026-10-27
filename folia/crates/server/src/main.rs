@@ -246,9 +246,25 @@ fn in_every_language() -> Router<AppState> {
             .route(&at("/cards/studyplan/{file}"), get(api::shared_plan_card))
             // A Studienplan as a calendar subscription. No page of the app lives under `/calendar/`
             // (axum refuses two routes for one path at startup).
-            .route(&at("/calendar/{file}"), get(api::calendar));
+            .route(&at("/calendar/{file}"), get(api::calendar))
+            .route(&at(folia_routes::url::ABOUT), get(move |uri: axum::http::Uri| about_redirect(locale, uri)));
     }
     router
+}
+
+/// `/about`, where „Über Betula" stood until 2026-10-27 (owner: „die /about seite muss komplett
+/// raus nur die about/<slug> seiten sind ok. Was du als erhaltenswert siehst dann noch als eigene
+/// page"): what it kept is the overview, and the address leads there for good, in its language
+/// and with its query, so that what links to it and what search engines know of it still leads
+/// somewhere. The browser app does the same (`folia_home::home::topics::AboutRedirect`).
+async fn about_redirect(locale: folia_locale::Locale, uri: axum::http::Uri) -> Response {
+    use axum::response::IntoResponse;
+    let target = locale.path(&folia_routes::url::AboutTopic::Overview.path());
+    let target = match uri.query() {
+        Some(query) => format!("{target}?{query}"),
+        None => target,
+    };
+    axum::response::Redirect::permanent(&target).into_response()
 }
 
 /// The files of the site: its stylesheet, scripts, pictures and the browser app, and nothing in
