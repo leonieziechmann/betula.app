@@ -573,6 +573,16 @@ pub fn StudyPage() -> impl IntoView {
         }
         now
     });
+    // Until its tab is left: the page stays built behind (`folia_shell::stage`), and when the tab
+    // comes back the step before is the other tab's page. Where the browser says what the step
+    // before is (the Navigation API), its way back asks it; where it does not, every change of
+    // tabs is a new entry, and the way back went there instead of to the overview.
+    let front = folia_design::stage::front();
+    Effect::new(move |_| {
+        if !front.get() && ctx.view_back.get_untracked() {
+            ctx.view_back.set(false);
+        }
+    });
     // What lies over the page (folia_shell::nav): the menu, the rows selected, the dialog. On a
     // phone whose browser has `CloseWatcher` (Android) Back closes the newest, as Esc does
     // elsewhere; a new address closes them.
