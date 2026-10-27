@@ -1456,7 +1456,11 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   2026-10-27: „Wenn man in der handy app auf mein studienplan geht, und dann per nav bar irgendwo
   anders hingeht, dann hat man überall noch eine back pfeil, der da nicht sein sollte"; until Folia
   1.53.1 a semester of „Mein Studium", one of its views or a page's „Zurück" left its box on every
-  other tab, and the way to the profile page out of reach there). On the way to another page the bar
+  other tab, and the way to the profile page out of reach there). A view of „Mein Studium" come to
+  from the overview goes back to it through the history, and where the browser does not say what
+  the step before is (no Navigation API), the page remembers that it came from there; it forgets
+  it as its tab is left, since the tab that comes back is then a new entry on top of the other
+  tab's page (until Folia 1.54.1 its way back led there). On the way to another page the bar
   follows the click, the box there or gone at once. **The server writes the bar before the page**
   and knows nothing of its links, so the address says which pages have the box from their first
   paint (`chrome::back_at_head`: a program's page whatever fills it, and a module's own page,
@@ -5600,7 +5604,8 @@ of a phone's page the page in front's: a semester of „Mein Studium", its Regel
 module's own page leave none on the other tabs, where the way to the profile page is in reach, and
 have it again as their tab comes back as it was left, and without the Navigation API (the way back's
 link leads on) the way back of a module's page on another tab leaves the semester of „Mein Studium"
-where it was. All of it once the start is
+where it was, and the Regelstudienplan's leads to the overview after its tab was left and came back,
+not to the other tab's page. All of it once the start is
 over; the start itself: every tab built behind the first page (a study set up, so that „Studium" is
 „Mein Studium"), each first visit in the first frame after the tap without a skeleton and at its
 top, the longest task meanwhile (with the CPU four times slower as well), the row of „Mein Studium"
