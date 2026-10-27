@@ -7,25 +7,28 @@
 //! Merkliste (`today.rs`). Whoever has set nothing up yet finds the setup there instead, three
 //! steps on a card over a taller photo with Betula's mark and name beside it (`setup.rs`), and
 //! under it what goes without one: the ways into the catalog. What the page said of Betula until
-//! then moved to „Über Betula" (`about.rs`), for new visitors and for search engines.
+//! then moved to „Über Betula", for new visitors and for search engines, and is on the pages about
+//! Betula since 2026-10-27 (`topics.rs`, `overview.rs`), which the start page leads to under
+//! „Mehr über Betula".
 //!
 //! The picture never moves (owner, the same day: „Beim PC darf sich das hero banner nicht
 //! verschieben … bei eingerichtet weniger platz … als bei uneingerichtet"): 640 px with the setup,
 //! 300 px with the day, at every hour and in every step. The server writes the same page for
 //! everybody (R9): the setup's first step, and the day's skeleton, which the stylesheet shows
 //! instead where the head script found a program kept (`html.mine`), so that nothing jumps when the
-//! app takes over. Like „Über Betula" the page is the one without a frame (R17): one scroll area,
+//! app takes over. Like the pages about Betula the page is without a frame (R17): one scroll area,
 //! the ground at its end, which names who took the photo.
 
-pub mod about;
 mod ahead;
 mod clock;
 mod day;
 mod detail;
+mod overview;
 mod photo;
 mod setup;
 mod start;
 mod today;
+pub mod topics;
 
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::Season;
@@ -190,12 +193,15 @@ fn FirstVisit(now: Signal<Option<SemesterKey>>, on_done: Callback<Done>, on_look
                     <span class="day-brand-tag">{t.common.tagline}</span>
                 </div>
                 <p class="day-brand-say">
-                    <b>{t.home.title_before}<span class="nowrap">"BTU Cottbus-Senftenberg"</span>{t.home.title_after}</b>
+                    <b>{topics::unbroken(t.topics.overview.title)}</b>
                     <span>{figures}</span>
                 </p>
             </div>
         </section>
         <today::Discover home first=true/>
+        // What Betula is, a step further (owner, 2026-10-27: „Wovon auch ein wenig auf der Landing
+        // page verlinkt werden kann").
+        <topics::MoreAbout topics=topics::ON_THE_START_PAGE.to_vec() day=true/>
     }
 }
 

@@ -77,6 +77,11 @@ pub struct Texts {
     pub also_option: &'static str,
     /// The tooltip of an extra beside a module's compulsory part: „zusätzlich, freiwillig".
     pub extra: &'static str,
+    /// The tooltip of a module only visited: „Besuch, zählt nicht" …
+    pub visit: &'static str,
+    /// … and where it meets the plan, what it gives way to (the plan's slots by their labels):
+    /// „trifft VL MIT1, der Besuch gibt nach".
+    pub gives_way: fn(&str) -> String,
     /// … „×" hides one Termin of an event of several slots („Termin ausblenden") …
     pub hide_session: &'static str,
     /// … or the whole event, named by its type as QIS writes it: „Vorlesung ausblenden" …
@@ -163,6 +168,8 @@ pub const DE: Texts = Texts {
     only_option: "Nur diese",
     also_option: "Auch diese",
     extra: "zusätzlich, freiwillig",
+    visit: "Besuch, zählt nicht",
+    gives_way: |others| format!("trifft {others}, der Besuch gibt nach"),
     hide_session: "Termin ausblenden",
     hide_event: |kind| format!("{kind} ausblenden"),
     show_kind: |kind| format!("„{kind}“ wieder einblenden"),
@@ -225,6 +232,8 @@ pub const EN: Texts = Texts {
     only_option: "Only this one",
     also_option: "This one too",
     extra: "additional, optional",
+    visit: "visit, does not count",
+    gives_way: |others| format!("meets {others}, the visit gives way"),
     hide_session: "Hide this session",
     hide_event: |kind| format!("Hide {kind}"),
     show_kind: |kind| format!("Show “{kind}” again"),

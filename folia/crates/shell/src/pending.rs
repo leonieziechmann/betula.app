@@ -64,8 +64,10 @@ pub const PAUSE_MS: f64 = 1000.0;
 pub enum Shape {
     /// The start page: the set-up, or the visitor's day.
     Home,
-    /// „Über Betula".
-    About,
+    /// The overview about Betula (`url::AboutTopic::Overview`), and `/about`, which leads there.
+    Overview,
+    /// Another page about Betula on one topic (`url::AboutTopic`).
+    Topic,
     Catalog,
     Module,
     Programs,
@@ -87,8 +89,10 @@ impl Shape {
     fn of(path: &str) -> Self {
         if path == url::HOME {
             Shape::Home
-        } else if path == url::ABOUT {
-            Shape::About
+        } else if path == url::ABOUT || url::AboutTopic::of_path(path) == Some(url::AboutTopic::Overview) {
+            Shape::Overview
+        } else if url::AboutTopic::of_path(path).is_some() {
+            Shape::Topic
         } else if path == url::CATALOG {
             Shape::Catalog
         } else if path.starts_with("/catalog/module/") {
@@ -769,7 +773,7 @@ pub fn change(from_path: &str, from_search: &str, to_path: &str, to_search: &str
             let (slug, tab) = program(to_path)?;
             program_change(&ProgramUrl::parse(&slug, tab, from_search), &ProgramUrl::parse(&slug, tab, to_search), phone)
         }
-        Shape::Home | Shape::About | Shape::Module | Shape::Profile | Shape::Event | Shape::Text => None,
+        Shape::Home | Shape::Overview | Shape::Topic | Shape::Module | Shape::Profile | Shape::Event | Shape::Text => None,
     }
 }
 

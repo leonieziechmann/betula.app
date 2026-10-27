@@ -10,8 +10,8 @@
 // the frost behind the bar once it is scrolled. The ground names who took the photo shown. On a phone the photo reaches up under the
 // search without the crown's leaves, which slide down the whole way once the photo has left the
 // bar, in 150 ms, on a quick swipe as well; once a page is scrolled the frost lies under the
-// search, on the start page as on the catalog's. Nothing loads a page. („Über Betula", what the
-// start page said until then, is `e2e/about.mjs`.)
+// search, on the start page as on the catalog's. Nothing loads a page. (The pages about Betula,
+// with what the start page said until then, are `e2e/about.mjs`.)
 // Needs radix serve-snapshot + folia running and a fresh `bash scripts/build-client.sh`.
 //   node e2e/home.mjs [base-url]
 import { fileURLToPath } from "node:url";
@@ -56,7 +56,7 @@ check(html.includes('class="day-first-wrap"') && html.includes('class="day-sk-wr
 // (Who took each photo stands in the page's ground and in the app's, which a phone shows.)
 check(html.includes('"@type":"WebSite"') && (html.match(/class="photo-credit"/g) || []).length === 10, "server HTML: no WebSite data, or not who took each photo");
 check(!html.includes("day-welcome") && !html.includes('class="day-ev'), "server HTML: something of a visitor's day");
-check(html.includes('href="/about"') && html.includes('href="/impressum"') && html.includes('href="/datenschutz"'), "server HTML: „Über Betula\" or the legal pages are not linked");
+check(html.includes('href="/about/overview"') && !html.includes('href="/about"') && html.includes('href="/impressum"') && html.includes('href="/datenschutz"'), "server HTML: the overview about Betula or the legal pages are not linked, or /about still is");
 
 // ---------- a first visit ----------
 {
@@ -78,6 +78,16 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
     return { season, image: getComputedStyle(onPage(".day-photo")).backgroundImage, shown };
   });
   check(photo.image.includes(`/assets/season/${photo.season}.webp`) && photo.shown.join() === photo.season, `the photo is not the season's, or the ground names another: ${JSON.stringify(photo)}`);
+  // Under the ways into the catalog the pages about Betula (owner, 2026-10-27: „Wovon auch ein wenig
+  // auf der Landing page verlinkt werden kann"), the overview first; no way to `/about`, which is no
+  // page any more („die /about seite muss komplett raus"), and nothing of them in the ground.
+  const about = await page.evaluate(() => ({
+    tiles: [...allOnPage(".about-ways .about-tile")].map((a) => a.getAttribute("href")).join(),
+    old: allOnPage('a[href="/about"]').length,
+    what: onPage(".ob-about")?.getAttribute("href"),
+    ground: [...document.querySelectorAll(".ground-legal a")].some((a) => a.getAttribute("href").startsWith("/about")),
+  }));
+  check(about.tiles === "/about/overview,/about/finding,/about/planning,/about/data,/about/questions" && about.old === 0 && about.what === "/about/overview" && !about.ground, `the start page does not lead to the pages about Betula, or to /about, or the ground still does: ${JSON.stringify(about)}`);
 
   // Step 1: the programs in the app's picker; a pick goes on to step 2 at once.
   await page.click("#ob-program >> visible=true");

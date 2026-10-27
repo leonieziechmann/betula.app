@@ -15,6 +15,12 @@
 //! arrow keys go through it, Escape and a click beside it close it, and the focus goes back to what
 //! opened it.
 //!
+//! A module only visited has a menu of its own at its sign (`MenuFor::Visit`; folia/design/kalender/
+//! konzepte.html, „Das Menü des Besuchs"): „Im Kalender öffnen", „Nur besuchen" ticked (taken away,
+//! the module is planned and counts: that is done here, not in the calendar) and „Entfernen"; a
+//! planned module's menu has „Nur besuchen" too, unticked (decided 2026-10-19: „Ein geplantes Modul
+//! lässt sich auf „nur besuchen“ stellen").
+//!
 //! What a menu does (`Act`) is the same for one row and for the rows selected (`focus.rs`), and
 //! „Rückgängig" takes it back.
 
@@ -45,6 +51,8 @@ pub(crate) enum MenuFor {
     Semester(SemesterKey),
     /// The list of every semester under the name of the one shown (`focus.rs`, `SemesterPick`).
     Pick(SemesterKey),
+    /// A module only visited in a semester, by its number (`focus.rs`, `VisitRow`).
+    Visit { semester: SemesterKey, id: String },
 }
 
 /// Where a menu opens.
@@ -82,6 +90,12 @@ pub(super) enum Act {
     Leave { semester: SemesterKey, leave: bool },
     /// Takes the last semester out again: added beyond the plan, and empty.
     RemoveSemester(SemesterKey),
+    /// „Nur besuchen" on a planned module (by its item's key): it stays in the week, counting for
+    /// nothing; taken away from a visit (by its number): it is planned and counts.
+    MakeVisit { semester: SemesterKey, key: String },
+    CountVisit { semester: SemesterKey, id: String },
+    /// Takes a visit out of its semester.
+    Unvisit { semester: SemesterKey, id: String },
 }
 
 /// An entry of a menu.
@@ -225,11 +239,34 @@ pub(super) fn selected_keys(ctx: StudyCtx, s: SemesterKey) -> Vec<String> {
     ctx.state.with_untracked(|state| state.ready().and_then(|ready| ready.study.semester(s)).map(|semester| semester.items.iter().map(Item::key).filter(|key| chosen.contains(key)).collect()).unwrap_or_default())
 }
 
+/// The name of the module visited in semester `s`, as the study has it.
+fn visit_name(ctx: StudyCtx, s: SemesterKey, id: &str) -> String {
+    ctx.with_ready(|ready| ready.study.semester(s).and_then(|semester| semester.visits.iter().find(|visit| visit.id == id)).map(|visit| visit.name.clone())).flatten().unwrap_or_else(|| id.to_string())
+}
+
 /// Does `act`, with a note „Rückgängig" takes it back by where it changes the plan. The rows
 /// selected are done with then.
 pub(super) fn act(ctx: StudyCtx, act: Act, t: &'static Texts) {
     let s = &t.study;
     match act {
+        Act::MakeVisit { semester, key } => {
+            let Some(item) = items_of(ctx, semester, std::slice::from_ref(&key)).into_iter().next() else { return };
+            let Some(id) = item.module_id().map(str::to_string) else { return };
+            ctx.selection.set(Selection::default());
+            ctx.change_noted(Some((s.made_visit)(&item.name)), move |doc, _| {
+                doc.make_visit(semester, &id);
+            }, || {});
+        }
+        Act::CountVisit { semester, id } => {
+            let name = visit_name(ctx, semester, &id);
+            ctx.change_noted(Some((s.visit_counts)(&name)), move |doc, _| {
+                doc.count_visit(semester, &id);
+            }, || {});
+        }
+        Act::Unvisit { semester, id } => {
+            let name = visit_name(ctx, semester, &id);
+            ctx.change_noted(Some((s.removed)(&name)), move |doc, _| doc.unvisit(semester, &id, &[]), || {});
+        }
         Act::Passed { semester, keys, passed } => {
             let items = items_of(ctx, semester, &keys);
             let note = match (items.as_slice(), passed) {
@@ -385,6 +422,10 @@ fn content(ctx: StudyCtx, what: &MenuFor, t: &'static Texts) -> Option<Content> 
             if !targets.is_empty() {
                 entries.push(Entry::new(Some("st-menu-move"), Some("arrow-right-left"), s.move_to, Does::Sub((s.move_title)(&item.name), targets)));
             }
+            // A module not passed there may be only visited: in the week, counting for nothing.
+            if item.module_id().is_some() && !item.passed {
+                entries.push(Entry { hint: Some(s.only_visit_hint), ..Entry::new(Some("st-menu-visit"), None, s.only_visit, Does::Check(false, Act::MakeVisit { semester, key: key.clone() })) });
+            }
             if !*view {
                 entries.push(Entry::new(Some("st-menu-select"), Some("list-checks"), s.select_one, Does::Act(Act::Select { semester, key: key.clone() })));
             }
@@ -446,6 +487,19 @@ fn content(ctx: StudyCtx, what: &MenuFor, t: &'static Texts) -> Option<Content> 
                 }
                 Content { width: PICK_WIDTH, ..Content::new(s.choose_semester, entries) }
             })
+        }
+        MenuFor::Visit { semester, id } => {
+            let (semester, id) = (*semester, id.clone());
+            let name = ctx.with_ready(|ready| ready.study.semester(semester)?.visits.iter().find(|visit| visit.id == id).map(|visit| visit.name.clone())).flatten()?;
+            let calendar = t.path(&StudyplanUrl { sem: Some(semester.key()), open: Some(id.clone()), ..Default::default() }.path());
+            let entries = vec![
+                Entry::new(Some("st-menu-calendar"), Some("calendar-range"), s.in_calendar, Does::Link(calendar, false)),
+                Entry::line(),
+                Entry { hint: Some(s.only_visit_hint), ..Entry::new(Some("st-menu-visit"), None, s.only_visit, Does::Check(true, Act::CountVisit { semester, id: id.clone() })) },
+                Entry::line(),
+                Entry { danger: true, ..Entry::new(Some("st-menu-remove"), Some("trash-2"), s.remove, Does::Act(Act::Unvisit { semester, id })) },
+            ];
+            Some(Content::new(name, entries))
         }
     }
 }

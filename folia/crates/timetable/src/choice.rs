@@ -156,8 +156,11 @@ pub fn around(table: &Timetable, week: &[WeekItem], event: usize, row: usize) ->
         }
     }
     day_items.sort_by_key(|beside| (beside.from, beside.to, beside.event));
+    // What it meets: a visit's Termin gives way, so it is none (as for a clash), whichever side
+    // the group is on; it is still of the day.
+    let visit = |event: usize| table.events.get(event).is_some_and(|event| event.visit);
     let mut meets: Vec<usize> = Vec::new();
-    for beside in day_items.iter().filter(|beside| beside.from < to && from < beside.to) {
+    for beside in day_items.iter().filter(|beside| beside.from < to && from < beside.to && !visit(beside.event)) {
         if !meets.contains(&beside.event) {
             meets.push(beside.event);
         }

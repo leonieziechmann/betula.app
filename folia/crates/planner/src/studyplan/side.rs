@@ -382,7 +382,7 @@ fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Op
         let Some(plan) = ctx.plan else { return (false, None) };
         plan.with(|doc| {
             let key = key_of(&url, current, doc, ctx.today);
-            let any = !doc.modules_in(key).is_empty() || !doc.placeholders_in(key).is_empty();
+            let any = !doc.week_in(key).is_empty() || !doc.placeholders_in(key).is_empty();
             let marked = saved.with(|saved| saved.plans.iter().find(|p| p.town == town && doc.holds_saved(key, &p.doc)).map(|p| p.name.clone()));
             (any, marked)
         })
@@ -679,6 +679,7 @@ mod tests {
             attendance: if options.is_empty() { Attendance::All } else { Attendance::OneOf { options, basis: folia_timetable::model::Basis::Groups } },
             across: None,
             extra: false,
+            visit: false,
             chosen: chosen.into_iter().collect(),
             rows,
             hidden: None,
@@ -692,8 +693,10 @@ mod tests {
             key: key("2026W"),
             facts: folia_timetable::facts::SemesterFacts::derive(key("2026W"), None, &[]),
             modules: Vec::new(),
+            visits: BTreeSet::new(),
             events: vec![event("1", "Vorlesung", "1", Vec::new(), None)],
             exams: Vec::new(),
+            visit_exams: Vec::new(),
             tracks: BTreeSet::new(),
             courses: Default::default(),
             shown: Default::default(),

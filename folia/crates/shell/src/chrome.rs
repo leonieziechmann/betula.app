@@ -776,9 +776,11 @@ pub fn ProfileSwitcher() -> impl IntoView {
 /// `frame::BackLink` puts it there, leading where the link leads, and steps aside itself (app.css).
 /// A page with a step below its first one that has no such link (a semester of „Mein Studium", on
 /// either side of its overview) puts it there while that step shows and takes it away when it goes;
-/// both through `follow`, the browser app's alone. The server writes the bar before the page and
-/// knows nothing of its links, so the address says which pages have the box from their first paint
-/// (`back_at_head`): the server writes it as the app has it, and nothing moves at the takeover.
+/// both through `follow`, the browser app's alone, and only while the page is in front: a tab left
+/// takes it away, and brings it back as it comes back. The server writes the bar before the page
+/// and knows nothing of its links, so the address says which pages have the box from their first
+/// paint (`back_at_head`): the server writes it as the app has it, and nothing moves at the
+/// takeover.
 /// The page hears it pressed as well (`presses`): where it leads where the app is already (the
 /// page's step not in the address yet), the page goes back itself.
 #[derive(Clone, Copy)]
@@ -813,11 +815,14 @@ pub enum Up {
 /// (`TopBack`), by their address, and where it leads until the page says where (the server's
 /// page, where it is the link of its „Zurück" as well): a program's page — with whatever fills it,
 /// which has a way back of its own — and a module's own page up to the list of their area, the
-/// program overview up to „Mein Studium", the profile page to where the visitor was before. A page
-/// with a `BackLink` that the server renders is named here, or the bar changes when the app takes
-/// over.
+/// program overview up to „Mein Studium", the profile page to where the visitor was before, a
+/// page about Betula to the start page (owner, 2026-10-27: „den shortcut mit esc, um wieder bei der
+/// landing page zu bleiben"). A page with a `BackLink` that the server renders is named here, or
+/// the bar changes when the app takes over.
 pub fn back_at_head(path: &str) -> Option<Up> {
-    if path == url::PROGRAMS {
+    if url::AboutTopic::of_path(path).is_some() {
+        Some(Up::List(Area::Home))
+    } else if path == url::PROGRAMS {
         Some(Up::Study)
     } else if crate::nav::passing(path) {
         Some(Up::Before)
@@ -857,11 +862,18 @@ impl TopBack {
     /// Shows the box where a page (its `BackLink`, its step) wants it, leading where `back` says
     /// whenever that changes, and takes it away with the page. What another page put there in the
     /// meantime stays: the page the app goes to may say where before the one it leaves is gone.
+    ///
+    /// Only while the page's stage is in front (`folia_design::stage::front`): a page whose tab is
+    /// left stays built behind, and its way back is not the way back of the page in front (owner,
+    /// 2026-10-27: „Wenn man in der handy app auf mein studienplan geht, und dann per nav bar
+    /// irgendwo anders hingeht, dann hat man überall noch eine back pfeil"). It is there again when
+    /// the tab comes back as it was left.
     pub fn follow(back: impl Fn() -> Option<Back> + 'static) {
         let Some(top) = Self::expect() else { return };
         let me = top.given.get_value().wrapping_add(1);
         top.given.set_value(me);
-        Effect::new(move |_| top.put(me, back()));
+        let front = folia_design::stage::front();
+        Effect::new(move |_| top.put(me, if front.get() { back() } else { None }));
         on_cleanup(move || top.put(me, None));
     }
 
@@ -1108,8 +1120,8 @@ mod tests {
 
     /// A program's page and a module's own page have their way back at the head from their first
     /// paint, by their address, up to their area's list, the program overview up to „Mein
-    /// Studium", and the profile page to where the visitor was before; the other lists, „Mein
-    /// Studium" and the other pages do not.
+    /// Studium", the profile page to where the visitor was before, and a page about Betula to the
+    /// start page; the other lists, „Mein Studium" and the other pages do not.
     #[test]
     fn the_pages_with_a_way_back_have_it_at_the_head() {
         for path in ["/programs/bachelor-informatik-2008", "/programs/bachelor-informatik-2008/areas", "/programs/bachelor-informatik-2008/plan"] {
@@ -1118,7 +1130,9 @@ mod tests {
         assert_eq!(back_at_head("/catalog/module/11103"), Some(Up::List(Area::Catalog)));
         assert_eq!(back_at_head("/programs"), Some(Up::Study));
         assert_eq!(back_at_head("/profile"), Some(Up::Before));
-        for path in ["/programs/", "/study", "/catalog", "/catalog/module", "/catalog/module/", "/bookmarks", "/studyplan", "/profile/x", "/", "/impressum"] {
+        assert_eq!(back_at_head("/about/overview"), Some(Up::List(Area::Home)));
+        assert_eq!(back_at_head("/about/questions"), Some(Up::List(Area::Home)));
+        for path in ["/programs/", "/study", "/catalog", "/catalog/module", "/catalog/module/", "/bookmarks", "/studyplan", "/profile/x", "/", "/impressum", "/about", "/about/nothing"] {
             assert_eq!(back_at_head(path), None, "{path}");
         }
     }

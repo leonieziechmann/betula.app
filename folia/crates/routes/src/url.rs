@@ -65,9 +65,64 @@ use crate::filter::{
 pub use folia_model::ids::{is_module_id, is_program_id};
 
 pub const HOME: &str = "/";
-/// „Über Betula": what the start page said of Betula before it began with the visitor's day
-/// (concept A, owner 2026-10-20), for new visitors and for search engines.
+/// Where the pages about Betula lie (`AboutTopic`). Until 2026-10-27 „Über Betula" itself, what
+/// the start page said of Betula before it began with the visitor's day (concept A, owner
+/// 2026-10-20), and the way into the pages of its topics; then (owner, the same day: „die /about
+/// seite muss komplett raus nur die about/<slug> seiten sind ok") no page of its own any more: the
+/// address leads to the overview (`AboutTopic::Overview`) for good, on the server
+/// (`folia-server`) and in the browser app.
 pub const ABOUT: &str = "/about";
+
+/// A page about Betula on one topic, `/about/<slug>` (owner, 2026-10-27: „dass die Über Betula
+/// Seite geändert wird. Das soll aufgeteilt werden in mehrere kontent pages … Wovon auch ein wenig
+/// auf der Landing page verlinkt werden kann"): what was one long page, by what a visitor wants to
+/// know.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AboutTopic {
+    /// „Überblick": what Betula is, the pictures and the map of the programs, what it does — what
+    /// „Über Betula" kept until it went (`ABOUT`).
+    Overview,
+    /// „Module finden": the way to a module, the filters, the ways into the catalog.
+    Finding,
+    /// „Studium planen": the Regelstudienpläne, the Stundenplan, the programs by faculty.
+    Planning,
+    /// „Deine Daten": no account, and where the catalog's data comes from.
+    Data,
+    /// „Technik": with and without JavaScript, offline, on every device.
+    Technology,
+    /// „Häufige Fragen".
+    Questions,
+}
+
+impl AboutTopic {
+    pub const ALL: [AboutTopic; 6] = [AboutTopic::Overview, AboutTopic::Finding, AboutTopic::Planning, AboutTopic::Data, AboutTopic::Technology, AboutTopic::Questions];
+
+    /// The last segment of its address, the same in every language as every path is.
+    pub fn slug(self) -> &'static str {
+        match self {
+            AboutTopic::Overview => "overview",
+            AboutTopic::Finding => "finding",
+            AboutTopic::Planning => "planning",
+            AboutTopic::Data => "data",
+            AboutTopic::Technology => "technology",
+            AboutTopic::Questions => "questions",
+        }
+    }
+
+    pub fn of_slug(slug: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|topic| topic.slug() == slug)
+    }
+
+    /// `/about/<slug>`.
+    pub fn path(self) -> String {
+        format!("{ABOUT}/{}", self.slug())
+    }
+
+    /// The topic of a path of the app (without the language's prefix), if it is one's page.
+    pub fn of_path(path: &str) -> Option<Self> {
+        path.strip_prefix(ABOUT)?.strip_prefix('/').and_then(Self::of_slug)
+    }
+}
 pub const CATALOG: &str = "/catalog";
 pub const PROGRAMS: &str = "/programs";
 /// „Merkliste": the modules the visitor has marked. The list itself lives in the browser.
@@ -2409,5 +2464,18 @@ mod tests {
         assert!(termin.termin_full() && crate::local::filling(&termin).is_none() && !full.termin_full());
         assert_eq!(termin.with_termin(Some((key, None)), false).path(), "/studyplan?sem=2026W&termin=148369-aaf38");
         assert!(!PlanAddress::parse("termin=148369-aaf38&full=yes").full);
+    }
+
+    #[test]
+    fn the_topics_of_about_have_an_address_each() {
+        for topic in AboutTopic::ALL {
+            assert_eq!(AboutTopic::of_path(&topic.path()), Some(topic));
+            assert!(topic.path().starts_with("/about/"));
+        }
+        assert_eq!(AboutTopic::Overview.path(), "/about/overview");
+        assert_eq!(AboutTopic::of_path("/about"), None);
+        assert_eq!(AboutTopic::of_path("/about/"), None);
+        assert_eq!(AboutTopic::of_path("/about/nothing"), None);
+        assert_eq!(AboutTopic::of_path("/aboutfinding"), None);
     }
 }

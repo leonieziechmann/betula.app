@@ -1,12 +1,20 @@
-//! „Über Betula" (`/about`): what the start page said of Betula until concept A (owner,
-//! 2026-10-20: „Ja setz Konzept A jetzt mal in die tat um"; folia/design/startseite/konzepte.html,
-//! „Was aus dem Text der Startseite wird"). The start page begins with the visitor's day now
-//! (`super`), and this text is what search engines and the assistants built on them know of
-//! Betula (owner, 2026-09-28), so it moved here whole instead of going away: it answers what this
-//! is (the catalog of one university, unofficial), what is in it (numbers, and pictures of the
-//! app), and says in plain text what the app does, with the questions people ask search engines
-//! about the modules of the BTU and about studying there. Linked from the start page's setup
-//! („Was ist Betula?"), from the ground of every page and from the sitemap.
+//! The overview about Betula (`/about/overview`, `url::AboutTopic::Overview`): what „Über Betula"
+//! (`/about`) kept until it went (owner, 2026-10-27: „die /about seite muss komplett raus nur die
+//! about/<slug> seiten sind ok. Was du als erhaltenswert siehst dann noch als eigene page"): its
+//! first panel, the pictures with the map of the programs (shown nowhere else), and what Betula
+//! does, with the structured data of the app. It is a topic's page as the others are
+//! (`topics::TopicPage`): the way back to the start page and the row of the topics in its first
+//! panel, the other topics as tiles at its end. Of the rest the ways into the catalog went to
+//! „Module finden" and the faculties to „Studium planen" (`Ways`, `Faculties`, below); the tiles in
+//! the middle, which led to the topics, are the row in the first panel now.
+//!
+//! „Über Betula" was what the start page said of Betula until concept A (owner, 2026-10-20: „Ja
+//! setz Konzept A jetzt mal in die tat um"; folia/design/startseite/konzepte.html, „Was aus dem
+//! Text der Startseite wird"). The start page begins with the visitor's day now (`super`), and
+//! this text is what search engines and the assistants built on them know of Betula (owner,
+//! 2026-09-28), so it moved there whole instead of going away: it answers what this is (the catalog
+//! of one university, unofficial), what is in it (numbers, and pictures of the app), and says in
+//! plain text what the app does.
 //!
 //! Owner, 2026-09-21 („unaufgeräumt und anstrengend für die Augen"; the sidebar and the big map
 //! did not work; a little more colour; then: save height in the head, a carousel that behaves like
@@ -20,18 +28,17 @@
 //! when) until the pause button stops it, and goes round endlessly. A click on the current picture
 //! opens its page; the map opens large in a dialog (the page behind it stands still), where it is
 //! the interactive map it was, with the legend and what is shown beside it on a wide screen.
-//! Colour comes from the palette of the faculties. The questions open one at a time, in three
-//! groups: about Betula, using it, and for the first semesters.
+//! Colour comes from the palette of the faculties.
 //!
 //! Owner, 2026-09-28: the page is what search engines, and the assistants that answer with them,
 //! know of Betula. Asked to compare it with other tools they took the missing account for missing
 //! functions, and saw neither that it works without JavaScript nor that the study plans are read
 //! from the regulations. So the page says all of it plainly: nine abilities (the account, the pages
-//! without JavaScript and offline, the Stundenplan, the plans from the regulations among them),
+//! without JavaScript and offline, the Stundenplan, the plans from the regulations among them);
 //! „Betula im Detail" (`detail.rs`), a chapter per feature with a picture made of the app's own
-//! parts, and at the end of the page questions on exactly these points (owner, 2026-09-29: the
-//! FAQ at the end). The structured data names Betula as a web app with the same abilities
-//! (`WebApplication`), free and running without JavaScript.
+//! parts, and the questions on exactly these points (owner, 2026-09-29) are on the pages of the
+//! other topics since 2026-10-27. The structured data names Betula as a web app with the same
+//! abilities (`WebApplication`), free and running without JavaScript.
 //!
 //! Owner, the same day: the sidebar made the page confusing and odd to look at („sehr verwirrend",
 //! „sorgt dafür, dass die Seite komisch aussieht"); a new visitor has to find their way, and the
@@ -40,19 +47,20 @@
 //! still reads well, in the middle). Until concept A the way in for a first visit stood under the
 //! first panel, three steps; the start page's setup does them now (`super::setup`). Then: one
 //! click („Studiengang wählen" picks the program in place, in the first panel), a birch down the
-//! first panel's right edge with the figures on its branches (`Hero`). The room beside the column on a wide screen is the wood's, which stands behind every
-//! page (`ground::Wood`, owner, 2026-09-29); it took the place of the branches with small crowns
-//! of leaves that grew out of the panels.
+//! first panel's right edge with the figures on its branches (`Hero`). The room beside the column
+//! on a wide screen is the wood's, which stands behind every page (`ground::Wood`, owner,
+//! 2026-09-29); it took the place of the branches with small crowns of leaves that grew out of the
+//! panels.
 //!
 //! The map (`folia_pages::graph`) is laid out by the web server once per snapshot, on a 4:3 sheet and
 //! a tall one for phones; this page only draws it (`data::ProgramMapHandle`). The dialog is in the
 //! server's HTML too (closed), so its dots are links that search engines follow; without
 //! JavaScript the picture of the map leads to the program overview.
 //!
-//! The words of the page are in `i18n/home.rs` and `i18n/home_detail.rs`, in every language; the
-//! names of the programs and the faculties are the BTU's, in every language (docs/folia/i18n.md).
+//! The words of the page are in `i18n/home.rs` and `i18n/topics.rs`, in every language; the names
+//! of the programs and the faculties are the BTU's, in every language (docs/folia/i18n.md).
 
-use super::{detail, start};
+use super::{start, topics};
 
 use std::sync::Arc;
 
@@ -60,22 +68,19 @@ use folia_calendar::semester::SemesterKey;
 use folia_locale::Locale;
 use folia_model::labels::Campus;
 use folia_model::rows::Semester;
-use folia_pages::ask::HomeAsk;
 use folia_pages::graph::{Cycle, Layout, ProgramMap};
 use folia_pages::HomeData;
 use folia_routes::CatalogQuery;
 use folia_routes::filter::{ExamPart, Language, TurnusFilter};
-use folia_routes::url::{self, CatalogUrl, ProgramTab};
+use folia_routes::url::{self, AboutTopic, CatalogUrl, ProgramTab};
 use leptos::prelude::*;
-use folia_design::stage::Title;
 
-use folia_design::combobox::ClosePopups;
-use folia_data::{use_ask, PageStatus, ProgramMapHandle};
 use folia_design::format;
 use crate::i18n::{self, Texts};
 use folia_design::nav;
-use folia_shell::seo::{self, Seo};
-use folia_shell::frame::ErrorState;
+use folia_shell::frame::BackLink;
+use folia_shell::seo;
+use folia_shell::tabs::Area;
 use folia_design::ui::{DialogClose, Icon, Mark, Wordmark};
 
 /// A way into the catalog: a filter people come for, with the number of modules behind it. The
@@ -103,6 +108,12 @@ fn entries(t: &'static Texts) -> Vec<Entry> {
     ]
 }
 
+/// The ways into the catalog as a topic's page asks how many modules each finds, in their order
+/// (`HomeAsk::entries`; their counts come first in the answer).
+pub(super) fn queries(t: &'static Texts) -> Vec<CatalogQuery> {
+    entries(t).into_iter().map(|entry| entry.query).collect()
+}
+
 /// Where the browser remembers that the pictures were stopped (`localStorage`, R20).
 const PAUSED_KEY: &str = "betula.showcase";
 
@@ -122,146 +133,42 @@ fn abilities(t: &'static Texts) -> [(&'static str, &'static i18n::home::Ability)
     ]
 }
 
-/// Questions and answers, in three groups: about Betula, using it, and about studying (for first
-/// semesters).
-fn questions(t: &'static Texts) -> [&'static i18n::home::Faq; 3] {
-    [&t.home.about_betula, &t.home.using_betula, &t.home.for_studies]
-}
-
 /// The name of a semester in the page's language (the snapshot's `label` is German).
 fn semester_name(semester: &Semester, locale: Locale) -> String {
     SemesterKey::parse(&semester.key).map_or_else(|| semester.label.clone(), |key| key.label(locale))
 }
 
-#[component]
-pub fn AboutPage() -> impl IntoView {
-    let t = i18n::t();
-    let status = PageStatus::capture();
-    let entries = entries(t);
-    // The ways in, and after them the selection the filter board of „Betula im Detail" shows: its
-    // count comes with theirs, in the same loader.
-    let queries: Vec<CatalogQuery> = entries.iter().map(|entry| entry.query.clone()).chain([detail::example()]).collect();
-    let asked = use_ask(move || Some(HomeAsk { entries: queries.clone() }));
-    let map = use_context::<ProgramMapHandle>().map(|handle| handle.0);
-    // The page, once its answer is there (the shell holds the page before it meanwhile); its title
-    // at once, so that the tab does not name the site meanwhile.
-    let page = move || asked.get().map(|loaded| {
-    let entries = self::entries(t);
-    let (status, map) = (status.clone(), map.clone());
-    // „Betula im Detail" says how many of the current programs have a checked plan, and how many
-    // modules its example finds.
-    let plans = loaded.as_ref().ok().map(|home| (home.overview.plans, home.overview.programs));
-    let example = loaded.as_ref().ok().and_then(|home| home.entry_counts.get(entries.len()).copied());
-
-    let data = vec![
-        // Betula as the app it is: what it does is what the page lists as its abilities, and it is
-        // free and runs in any browser, with or without JavaScript.
-        serde_json::json!({
-            "@type": "WebApplication",
-            "@id": seo::absolute("/#app"),
-            "url": seo::absolute(url::HOME),
-            "name": seo::SITE_NAME,
-            "description": t.home.description,
-            "applicationCategory": "EducationalApplication",
-            "browserRequirements": t.home.browser_requirements,
-            "featureList": abilities(t).into_iter().map(|(_, ability)| format!("{}. {}", ability.title, ability.text)).collect::<Vec<_>>(),
-            "inLanguage": Locale::ALL.iter().map(|locale| locale.code()).collect::<Vec<_>>(),
-            "isAccessibleForFree": true,
-            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
-            "about": { "@type": "CollegeOrUniversity", "name": seo::UNIVERSITY, "url": seo::UNIVERSITY_URL },
-        }),
-        serde_json::json!({
-            "@type": "FAQPage",
-            "mainEntity": questions(t).into_iter().flat_map(|faq| faq.questions.iter()).map(|(question, answer)| serde_json::json!({
-                "@type": "Question",
-                "name": question,
-                "acceptedAnswer": { "@type": "Answer", "text": answer },
-            })).collect::<Vec<_>>(),
-        }),
-    ];
-
-    // A picker's popup stands where its button was: scrolling the page takes it away, as the
-    // filter panel of the catalog does.
-    let close_popups = RwSignal::new(0u32);
-    provide_context(ClosePopups(close_popups));
-
-    // No frame and no sidebar (see above): as `ui::Plain`, one scroll area (`#page-scroll`) with
-    // the ground at its end (app.css „one scroll area"). The wood (`ground::Wood`) stands still
-    // behind it.
-    view! {
-        <div class="work flowing solo" id="page-scroll" on:scroll=move |_| close_popups.update(|n| *n = n.wrapping_add(1))>
-        <div class="page home-page"><div class="page-inner home">
-        <Seo title=t.home.about_seo_title description=t.home.about_description path=url::ABOUT data/>
-        {match loaded {
-            Err(error) => {
-                status.for_error(&error);
-                view! { <Hero home=None/><Showcase map modules=None/><ErrorState error/> }.into_any()
-            }
-            Ok(home) => {
-                let modules = Some(home.overview.modules);
-                view! {
-                    <Hero home=Some(home.clone())/>
-                    <Showcase map modules/>
-                    <Entries entries home=home.clone()/>
-                }.into_any()
-            }
-        }}
-        <section class="panel abilities" id="funktionen" aria-labelledby="funktionen-titel">
-            <header class="block-head">
-                <h2 id="funktionen-titel">{t.home.abilities}</h2>
-                <p>{t.home.abilities_lead}</p>
-            </header>
-            <ul class="ability-grid">
-                {abilities(t).into_iter().map(|(icon, ability)| view! {
-                    <li class="ability">
-                        <span class="ico"><Icon name=icon/></span>
-                        <h3>{ability.title}</h3>
-                        <p>{ability.text}</p>
-                    </li>
-                }).collect_view()}
-            </ul>
-            <p class="soon-line">
-                <span class="label">{t.home.in_progress}</span>
-                <span><Icon name="circle-check-big"/>{t.home.coming}</span>
-            </p>
-        </section>
-        <detail::Details plans example/>
-        // The questions are the list; an answer opens in place. The text is in the page either way
-        // (and in the FAQPage data above).
-        <section class="panel questions" id="fragen" aria-labelledby="fragen-titel">
-            <header class="block-head">
-                <h2 id="fragen-titel">{t.home.questions}</h2>
-            </header>
-            {questions(t).into_iter().map(|faq| view! {
-                <div class="faq">
-                    <h3 class="faq-group label">{faq.name}</h3>
-                    {faq.questions.iter().map(|(question, answer)| view! {
-                        <details>
-                            <summary>{*question}<Icon name="plus"/></summary>
-                            <p>{*answer}</p>
-                        </details>
-                    }).collect_view()}
-                </div>
-            }).collect_view()}
-        </section>
-        </div></div>
-        <folia_shell::ground::Ground/>
-        </div>
-    }
-    });
-    view! { <Title text=t.home.about_title/>{page} }
+/// Betula as the app it is, for search engines (`WebApplication`): what it does is what the page
+/// lists as its abilities, and it is free and runs in any browser, with or without JavaScript.
+pub(super) fn app_data(t: &'static Texts) -> serde_json::Value {
+    serde_json::json!({
+        "@type": "WebApplication",
+        "@id": seo::absolute("/#app"),
+        "url": seo::absolute(url::HOME),
+        "name": seo::SITE_NAME,
+        "description": t.home.description,
+        "applicationCategory": "EducationalApplication",
+        "browserRequirements": t.home.browser_requirements,
+        "featureList": abilities(t).into_iter().map(|(_, ability)| format!("{}. {}", ability.title, ability.text)).collect::<Vec<_>>(),
+        "inLanguage": Locale::ALL.iter().map(|locale| locale.code()).collect::<Vec<_>>(),
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+        "about": { "@type": "CollegeOrUniversity", "name": seo::UNIVERSITY, "url": seo::UNIVERSITY_URL },
+    })
 }
 
-/// The first panel, flat: what this is and the two ways in on the left, and a birch down its
-/// right edge with the figures hanging to its left on branches of it (owner, 2026-09-28: „rechts am
-/// Rand so ein dickerer Birkenstamm und dann nach links die Stats"; before, a small birch with a
-/// crown and a ground of its own stood beside the text, and doubled the page's crown). The birch
-/// and its figures stand beside the text from a notebook's width on; on a phone the panel is its
-/// text alone (they took the height the way in needs there). At night the trunk is the moon's
-/// grey, as the wood behind the page is dark (`--hero-bark`).
+/// The first panel, flat: the way back to the start page, what this is and the two ways in on
+/// the left, under them the row of the topics, and a birch down its right edge with the figures
+/// hanging to its left on branches of it (owner, 2026-09-28: „rechts am Rand so ein dickerer
+/// Birkenstamm und dann nach links die Stats"; before, a small birch with a crown and a ground of
+/// its own stood beside the text, and doubled the page's crown). The birch and its figures stand
+/// beside the text from a notebook's width on; on a phone the panel is its text alone (they took
+/// the height the way in needs there). At night the trunk is the moon's grey, as the wood behind
+/// the page is dark (`--hero-bark`).
 #[component]
-fn Hero(home: Option<HomeData>) -> impl IntoView {
+pub(super) fn Hero(home: Option<HomeData>) -> impl IntoView {
     let t = i18n::t();
+    let words = &t.topics.overview;
     let figures = home.map(|home| {
         // The faculties are the numbered ones; centres that offer programs too are listed below.
         let faculties = home.faculties.iter().filter(|(department, _)| department.as_ref().is_some_and(|d| d.code.chars().all(|c| c.is_ascii_digit()))).count();
@@ -283,22 +190,52 @@ fn Hero(home: Option<HomeData>) -> impl IntoView {
     view! {
         <section class="panel home-hero" id="ueberblick">
             <div class="home-hero-text">
+                <BackLink area=Area::Home/>
                 // On a phone the page carries the brand: the phone has no rail. (The way to the
                 // profile page, with the language, is at the head of every page, `chrome::ProfileButton`.)
                 <div class="brand-phone"><span class="logo"><Mark/></span><span><Wordmark small=true/><small>{t.common.tagline}</small></span></div>
                 <p class="eyebrow-pill"><i></i>{t.home.eyebrow}</p>
-                <h1>{t.home.title_before}<span class="nowrap">"BTU Cottbus-Senftenberg"</span>{t.home.title_after}</h1>
-                <p class="lead">{t.home.lead}</p>
+                <h1>{topics::unbroken(words.title)}</h1>
+                <p class="lead">{words.lead}</p>
                 // „Studiengang wählen" picks the program in place, or leads to all of them
                 // (`start::ProgramPick`).
                 <div class="intro-actions">
                     <a class="btn primary" href=t.path(url::CATALOG)><Icon name="layout-list"/>{t.home.browse_modules}</a>
                     <start::ProgramPick id="home-program" class="btn secondary"/>
                 </div>
+                <topics::TopicNav current=AboutTopic::Overview/>
             </div>
             {figures}
             // The trunk, its bark drawn by the stylesheet (`.hero-trunk`).
             <div class="hero-trunk" aria-hidden="true"></div>
+        </section>
+    }
+}
+
+/// What Betula does: nine abilities, three rows of three on a wide page, and what is in the
+/// works.
+#[component]
+pub(super) fn Abilities() -> impl IntoView {
+    let t = i18n::t();
+    view! {
+        <section class="panel abilities" id="funktionen" aria-labelledby="funktionen-titel">
+            <header class="block-head">
+                <h2 id="funktionen-titel">{t.home.abilities}</h2>
+                <p>{t.home.abilities_lead}</p>
+            </header>
+            <ul class="ability-grid">
+                {abilities(t).into_iter().map(|(icon, ability)| view! {
+                    <li class="ability">
+                        <span class="ico"><Icon name=icon/></span>
+                        <h3>{ability.title}</h3>
+                        <p>{ability.text}</p>
+                    </li>
+                }).collect_view()}
+            </ul>
+            <p class="soon-line">
+                <span class="label">{t.home.in_progress}</span>
+                <span><Icon name="circle-check-big"/>{t.home.coming}</span>
+            </p>
         </section>
     }
 }
@@ -345,7 +282,7 @@ fn place(i: usize, current: usize, count: usize, dir: i32, staged: Option<i32>) 
 /// and while the map is open), by the arrows, the tabs, the arrow keys, a swipe, or a click on a
 /// neighbour.
 #[component]
-fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView {
+pub(super) fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView {
     let t = i18n::t();
     let home = &t.home;
     let mut slides: Vec<Slide> = Vec::new();
@@ -645,58 +582,67 @@ fn MapPreview(map: Arc<ProgramMap>) -> impl IntoView {
     }
 }
 
-/// The entry links with their counts, and the faculties: two lists on the same lines.
+/// The ways into the catalog, with how many modules each finds: on „Module finden" since
+/// 2026-10-27 (on „Über Betula" until then, beside the faculties), as tiles the way the start page
+/// shows its own under „Entdecken" (`today::Discover`), four a row on a wide page. Their counts
+/// come first in the answer (`queries`).
 #[component]
-fn Entries(entries: Vec<Entry>, home: HomeData) -> impl IntoView {
+pub(super) fn Ways(home: HomeData) -> impl IntoView {
     let t = i18n::t();
     let counts = home.entry_counts.clone();
     view! {
-        <div class="home-lists" id="einstiege">
-            <section class="panel linklist-panel" aria-labelledby="einstiege-titel">
-                <header class="block-head">
-                    <h2 id="einstiege-titel">{t.home.ways_in}</h2>
-                    <a class="ghost" href=t.path(url::CATALOG)>{(t.home.all_modules_count)(&format::count(home.overview.modules, t.locale))}<Icon name="chevron-right"/></a>
-                </header>
-                <ul class="rowlist">
-                    {entries.into_iter().zip(counts).map(|(entry, count)| {
-                        let href = t.path(&CatalogUrl { query: entry.query, ..Default::default() }.path());
-                        view! {
-                            <li><a class="rowlink" href=href rel="nofollow">
-                                <span class=format!("ico {}", entry.tint)><Icon name=entry.icon/></span>
-                                <span class="rowlink-text"><b>{entry.label}</b><small>{entry.hint}</small></span>
-                                <span class="rowlink-count num">{format::count(count, t.locale)}</span>
-                                <Icon name="chevron-right"/>
-                            </a></li>
-                        }
-                    }).collect_view()}
-                </ul>
-            </section>
-            <section class="panel linklist-panel" aria-labelledby="fakultaeten-titel">
-                <header class="block-head">
-                    <h2 id="fakultaeten-titel">{t.home.programs_by_faculty}</h2>
-                    <a class="ghost" href=t.path(url::PROGRAMS)>{(t.home.all_programs_count)(&format::count(home.overview.programs, t.locale))}<Icon name="chevron-right"/></a>
-                </header>
-                <ul class="rowlist">
-                    {home.faculties.iter().map(|(department, programs)| {
-                        // A numbered faculty wears its colour, the same as on the map (`fac-1` … `fac-6`).
-                        let (code, name, anchor, class) = match department {
-                            Some(d) if d.code.chars().all(|c| c.is_ascii_digit()) => (format!("F{}", d.code), d.name_de.clone(), format!("fakultaet-{}", d.id), format!("ico code fac-{}", d.code)),
-                            Some(d) => (d.code.clone(), d.name_de.clone(), format!("fakultaet-{}", d.id), "ico code".to_string()),
-                            None => ("–".to_string(), t.home.no_faculty.to_string(), "ohne-fakultaet".to_string(), "ico code".to_string()),
-                        };
-                        let full_name = name.clone();
-                        view! {
-                            <li><a class="rowlink" href=t.path(&format!("{}#{anchor}", url::PROGRAMS)) title=full_name>
-                                <span class=class>{code}</span>
-                                <span class="rowlink-text"><b>{name}</b></span>
-                                <span class="rowlink-count num">{*programs}</span>
-                                <Icon name="chevron-right"/>
-                            </a></li>
-                        }
-                    }).collect_view()}
-                </ul>
-            </section>
-        </div>
+        <section class="panel topic-ways" id="einstiege" aria-labelledby="einstiege-titel" data-commands=t.home.ways_in>
+            <header class="block-head">
+                <h2 id="einstiege-titel">{t.home.ways_in}</h2>
+                <a class="ghost" href=t.path(url::CATALOG)>{(t.home.all_modules_count)(&format::count(home.overview.modules, t.locale))}<Icon name="chevron-right"/></a>
+            </header>
+            <div class="day-ways">
+                {entries(t).into_iter().zip(counts).map(|(entry, count)| {
+                    let href = t.path(&CatalogUrl { query: entry.query, ..Default::default() }.path());
+                    view! {
+                        <a class=format!("day-way {}", entry.tint) href=href rel="nofollow" data-command=entry.label>
+                            <span class="day-way-i"><Icon name=entry.icon/></span>
+                            <span class="day-way-t"><b>{entry.label}</b><small>{entry.hint}</small></span>
+                            <span class="day-way-n num">{format::count(count, t.locale)}</span>
+                        </a>
+                    }
+                }).collect_view()}
+            </div>
+        </section>
+    }
+}
+
+/// The programs by faculty, how many each offers: on „Studium planen" since 2026-10-27, as tiles
+/// like the ways into the catalog, each faculty in its colour from the map, leading to its
+/// programs on the overview.
+#[component]
+pub(super) fn Faculties(home: HomeData) -> impl IntoView {
+    let t = i18n::t();
+    view! {
+        <section class="panel topic-ways" id="fakultaeten" aria-labelledby="fakultaeten-titel" data-commands=t.home.programs_by_faculty>
+            <header class="block-head">
+                <h2 id="fakultaeten-titel">{t.home.programs_by_faculty}</h2>
+                <a class="ghost" href=t.path(url::PROGRAMS)>{(t.home.all_programs_count)(&format::count(home.overview.programs, t.locale))}<Icon name="chevron-right"/></a>
+            </header>
+            <div class="day-ways faculty-ways">
+                {home.faculties.iter().map(|(department, programs)| {
+                    // A numbered faculty wears its colour, the same as on the map (`fac-1` … `fac-6`).
+                    let (code, name, anchor, class) = match department {
+                        Some(d) if d.code.chars().all(|c| c.is_ascii_digit()) => (format!("F{}", d.code), d.name_de.clone(), format!("fakultaet-{}", d.id), format!("day-way-i code fac-{}", d.code)),
+                        Some(d) => (d.code.clone(), d.name_de.clone(), format!("fakultaet-{}", d.id), "day-way-i code".to_string()),
+                        None => ("–".to_string(), t.home.no_faculty.to_string(), "ohne-fakultaet".to_string(), "day-way-i code".to_string()),
+                    };
+                    let command = name.clone();
+                    view! {
+                        <a class="day-way" href=t.path(&format!("{}#{anchor}", url::PROGRAMS)) data-command=command>
+                            <span class=class>{code}</span>
+                            <span class="day-way-t"><b>{name}</b></span>
+                            <span class="day-way-n num">{*programs}</span>
+                        </a>
+                    }
+                }).collect_view()}
+            </div>
+        </section>
     }
 }
 

@@ -171,6 +171,10 @@ pub struct WeekItem {
     /// What its rows are in a hard clash with (`clash::hard_pairs`): the other event and the
     /// weeks they meet in (`None`: on single days), in the order of the events.
     pub against: Vec<(usize, Option<Weeks>)>,
+    /// Its event is of a module only visited (`Event::visit`).
+    pub visit: bool,
+    /// Of a visit: the plan's events it gives way to (`clash::yield_pairs`), as `against`.
+    pub yields: Vec<(usize, Option<Weeks>)>,
 }
 
 impl WeekItem {
@@ -182,9 +186,19 @@ impl WeekItem {
 
     /// The events it clashes with in the week `shown`; one on single days in every week.
     pub fn against_in(&self, shown: Weeks) -> Vec<usize> {
-        let meets = |weeks: &Option<Weeks>| weeks.is_none_or(|weeks| weeks.in_week(shown));
-        self.against.iter().filter(|(_, weeks)| meets(weeks)).map(|(event, _)| *event).collect()
+        in_weeks(&self.against, shown)
     }
+
+    /// Of a visit, the events it gives way to in the week `shown`, as `against_in`.
+    pub fn yields_in(&self, shown: Weeks) -> Vec<usize> {
+        in_weeks(&self.yields, shown)
+    }
+}
+
+/// The events of `pairs` met in the week `shown`; one on single days in every week.
+fn in_weeks(pairs: &[(usize, Option<Weeks>)], shown: Weeks) -> Vec<usize> {
+    let meets = |weeks: &Option<Weeks>| weeks.is_none_or(|weeks| weeks.in_week(shown));
+    pairs.iter().filter(|(_, weeks)| meets(weeks)).map(|(event, _)| *event).collect()
 }
 
 /// What the small text of a Regelwoche slot says about its dates.
@@ -354,6 +368,8 @@ struct Slot {
     clash: bool,
     /// What its rows clash with, and in which weeks (`WeekItem::against`).
     against: BTreeSet<(usize, Option<Weeks>)>,
+    /// Of a visit, what its rows give way to (`WeekItem::yields`).
+    yields: BTreeSet<(usize, Option<Weeks>)>,
 }
 
 impl Slot {
@@ -367,6 +383,7 @@ impl Slot {
             pattern: false,
             clash: false,
             against: BTreeSet::new(),
+            yields: BTreeSet::new(),
         }
     }
 
@@ -409,6 +426,11 @@ impl Timetable {
             hard.entry(a).or_default().insert((b.0, weeks));
             hard.entry(b).or_default().insert((a.0, weeks));
         }
+        // Where a visit gives way: at the visit's slot alone, the plan's stays as it is.
+        let mut gives: Against = BTreeMap::new();
+        for (visit, plan, weeks) in clash::yield_pairs(&self.events) {
+            gives.entry(visit).or_default().insert((plan.0, weeks));
+        }
         let open: Vec<Option<usize>> =
             self.events.iter().map(|event| event.unresolved().then(|| event.visible_options().len())).collect();
         // Of the open choices among a module's events, how many options are left to choose
@@ -425,6 +447,7 @@ impl Timetable {
             };
             let against = hard.get(&(e, r));
             let clashes = against.is_some();
+            let yields = gives.get(&(e, r));
             let every = row.every;
             if every.is_some() {
                 let Some(day) = row.slot_day() else {
@@ -435,6 +458,7 @@ impl Timetable {
                 slot.pattern |= row.occ.template.is_some();
                 slot.clash |= clashes;
                 slot.against.extend(against.into_iter().flatten().copied());
+                slot.yields.extend(yields.into_iter().flatten().copied());
                 if let Some(held) = row.occ.days.first() {
                     slot.held_on(*held, r);
                 }
@@ -447,6 +471,7 @@ impl Timetable {
                     let slot = slots.entry(key).or_insert_with(|| Slot::new(None, r));
                     slot.clash |= clashes;
                     slot.against.extend(against.into_iter().flatten().copied());
+                    slot.yields.extend(yields.into_iter().flatten().copied());
                     slot.held.insert(*held);
                     slot.held_on(*held, r);
                 }
@@ -489,6 +514,8 @@ impl Timetable {
                     clash: slot.clash,
                     weeks: Weeks::of(slot.every),
                     against: slot.against.into_iter().collect(),
+                    visit: of.is_some_and(|event| event.visit),
+                    yields: slot.yields.into_iter().collect(),
                 })
             })
             .collect()

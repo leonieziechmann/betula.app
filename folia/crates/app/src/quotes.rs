@@ -19,7 +19,8 @@ mod tests {
             let home = &t.home;
             let answer = |question: usize, faq: &folia_home::i18n::home::Faq| faq.questions.get(question).map(|(_, answer)| *answer).unwrap_or_default();
             let pairs = [
-                (answer(0, &home.using_betula), quoted(t.home_detail.heading)),
+                (answer(0, &home.using_betula), quoted(t.topics.finding.name)),
+                (answer(0, &home.using_betula), quoted(t.topics.more)),
                 (answer(1, &home.using_betula), quoted(t.studyplan_head.plan)),
                 (answer(1, &home.using_betula), quoted(t.catalog.fits)),
                 (answer(2, &home.using_betula), quoted(t.catalog.saved_chip)),

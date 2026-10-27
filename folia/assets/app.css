@@ -2203,7 +2203,7 @@ a.ms-col:hover { background: var(--row-hover); text-decoration: none; }
    the chapter's lead; a screen of 1920 px still shows a strip of the wood on either side. */
 .home { container: home / inline-size; width: 100%; max-width: 1600px; margin: 0 auto; }
 @media (min-width: 901px) { .home-page { overflow-x: hidden; } }
-.home > .panel, .home-lists { scroll-margin-top: 14px; }
+.home > .panel { scroll-margin-top: 14px; }
 /* A long page draws only what is near the screen: a panel far off it is neither styled nor laid
    out until it comes close, and then keeps the height it was drawn with (`auto`). The start page
    is 17 screens of a phone, the program overview 10; built whole, each cost a phone the better
@@ -2212,6 +2212,9 @@ a.ms-col:hover { background: var(--row-hover); text-decoration: none; }
    brings changes nothing. Only its height is a guess: a width of its own (`contain-intrinsic-size`
    with one value sets both) widened the page past a phone's screen, which then showed it smaller. */
 .home > .panel { content-visibility: auto; contain-intrinsic-block-size: auto 1200px; }
+/* The tiles at a page's end and the ways in are a few lines: drawn at once, where a guess of
+   1200 px would stand for them until they come close. */
+.home > .panel:is(.about-ways, .topic-ways) { content-visibility: visible; }
 /* A jump to a section of the page draws them all on its way (enhance.js, `jump`). */
 .jumping .home > .panel { content-visibility: visible; }
 .block-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 18px 12px 14px 24px; }
@@ -2493,31 +2496,11 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 .map-hot circle.other { fill: var(--text-3); }
 .map-hot circle.self { fill: var(--pick, var(--accent)); }
 
-/* Two lists side by side, their rows on the same lines (every row is 56px). */
-.home-lists { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gap); }
-.rowlist { border-top: 1px solid var(--line); padding-bottom: 6px; }
-.rowlist li + li { border-top: 1px solid var(--line); }
-.rowlink { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto 16px; align-items: center; gap: 12px; height: 56px; padding: 0 16px 0 24px; color: inherit; text-decoration: none; transition: background .1s; }
-/* Every other row is shaded, as the rows of the catalog's list; the two lists side by side keep
-   their stripes on the same lines as their rows. */
-.rowlink:where(.rowlist li:nth-child(even) > *) { background: var(--row-shade); }
-.rowlink:hover { background: var(--row-hover); text-decoration: none; }
-.rowlink .ico, .ability .ico { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: var(--panel-2); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line); }
-.rowlink .ico .icon, .ability .ico .icon { width: 16px; height: 16px; }
-.rowlink .ico.code { font-size: 11.5px; font-weight: 700; letter-spacing: .02em; color: var(--text); }
-.rowlink:hover .ico { background: var(--panel); }
+.ability .ico { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: var(--panel-2); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line); }
+.ability .ico .icon { width: 16px; height: 16px; }
 /* The ways into the catalog in their soft hues, the faculties in their colours from the map. */
 .t-ice { --tint: var(--t-ice); } .t-sun { --tint: var(--t-sun); } .t-violet { --tint: var(--t-violet); } .t-teal { --tint: var(--t-teal); }
 .t-green { --tint: var(--t-green); } .t-coral { --tint: var(--t-coral); } .t-rose { --tint: var(--t-rose); } .t-slate { --tint: var(--t-slate); }
-.rowlink .ico[class*="t-"] { background: color-mix(in oklch, var(--tint) 14%, var(--panel)); color: var(--tint); box-shadow: none; }
-.rowlink:hover .ico[class*="t-"] { background: color-mix(in oklch, var(--tint) 22%, var(--panel)); }
-.rowlink .ico.code[class*="fac-"] { background: color-mix(in oklch, var(--fac) 14%, var(--panel)); color: var(--fac); box-shadow: none; }
-.rowlink:hover .ico.code[class*="fac-"] { background: color-mix(in oklch, var(--fac) 22%, var(--panel)); }
-.rowlink-text { min-width: 0; display: grid; line-height: 1.3; }
-.rowlink-text b { font-weight: 600; font-size: 14.5px; letter-spacing: -.012em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rowlink-text small { color: var(--text-3); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rowlink-count { font-weight: 650; font-size: 15px; }
-.rowlink > .icon { width: 16px; height: 16px; color: var(--text-3); }
 
 /* What the app does: a grid of equal cells with rules, not cards. */
 .ability-grid { display: grid; grid-template-columns: minmax(0, 1fr); border-top: 1px solid var(--line); }
@@ -2532,6 +2515,8 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 
 /* Questions and answers, in groups: the questions are the list, an answer opens in place. */
 .questions { padding-bottom: 6px; }
+/* On their own page (2026-10-27) the questions have no head of their own: the page's is theirs. */
+.questions > .faq:first-child { border-top: 0; }
 .faq { container: faq / inline-size; border-top: 1px solid var(--line); }
 .faq-group { padding: 16px 24px 8px; }
 .faq details { border-top: 1px solid var(--line); }
@@ -2547,17 +2532,59 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
   .faq details p { text-align: start; }
 }
 
-/* ---------- „Betula im Detail" (pages/home/detail.rs; owner, 2026-09-28) ---------- */
-/* After the questions: a panel that names the chapters, then a panel per chapter. A chapter is its
-   words — its name in its tint, a headline, the line under it, four points — and a picture made of
-   the app's own parts (chips, fields, the week grid, the bark of the mark, the crown and the
-   ground) on a wash of its tint, as the carousel's pictures stand on the faculties' washes. On a
-   wide page the picture stands beside the words, every other one on the left; below that under
-   them. The pictures lay themselves out by their own width (container `picture`). */
-.detail-nav { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 24px 20px; }
-.detail-nav a { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 13px 0 10px; border-radius: 999px; background: color-mix(in oklch, var(--tint) 8%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint) 24%, transparent); color: var(--text); font-size: 13px; font-weight: 580; text-decoration: none; transition: background .12s; }
-.detail-nav a:hover { background: color-mix(in oklch, var(--tint) 15%, var(--panel)); text-decoration: none; }
-.detail-nav .icon { width: 15px; height: 15px; color: var(--tint); }
+/* ---------- the pages about Betula (home/topics.rs, home/overview.rs, home/detail.rs; owner, 2026-10-27) ---------- */
+/* „Mehr über Betula": the tiles of the topics („Das soll aufgeteilt werden in mehrere kontent
+   pages … Wovon auch ein wenig auf der Landing page verlinkt werden kann"), under each topic's
+   page and on the start page after „Entdecken", with its head there (`.on-day`). As many tiles a
+   row as there are (`--n`, five), two where the page is narrower (the last of an odd number
+   across the row, so that no cell stays empty), one on a phone. The ways into the catalog on
+   „Module finden" and the faculties on „Studium planen" (`.topic-ways`) stand in a panel of the
+   same make, as tiles of the start page's „Entdecken" (`.day-ways`). */
+.about-ways, .topic-ways { padding: 0 14px 14px; }
+:is(.about-ways, .topic-ways) > .block-head { padding: 18px 0 14px 10px; }
+/* A faculty's tile: its number in its colour from the map, its name in full over as many lines as
+   it needs. */
+.faculty-ways .day-way-i { --tint: var(--text-3); font-size: 11.5px; font-weight: 700; letter-spacing: .02em; }
+.faculty-ways .day-way-i[class*="fac-"] { --tint: var(--fac); }
+.about-ways.on-day > .day-head { padding-left: 2px; padding-right: 0; }
+/* On a phone the line under the head has a line of its own, and all of it. */
+@media (max-width: 900px) { .about-ways.on-day > .day-head .sub { white-space: normal; } }
+.about-tiles { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: 8px; }
+.about-tile { display: grid; grid-template-columns: 34px minmax(0, 1fr) 16px; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); text-decoration: none; transition: background .12s; }
+.about-tile:hover { background: var(--panel-2); text-decoration: none; }
+.about-tile > .icon { width: 16px; height: 16px; color: var(--text-3); }
+.about-tile-i { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: color-mix(in oklch, var(--tint) 14%, var(--panel)); color: var(--tint); }
+.about-tile-t { min-width: 0; }
+.about-tile-t b { display: block; font-size: 13.5px; font-weight: 620; }
+.about-tile-t small { display: block; color: var(--text-3); font-size: 12px; line-height: 1.35; }
+@container (max-width: 1080px) {
+  .about-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .about-tile:nth-child(odd):last-child { grid-column: 1 / -1; }
+}
+/* A topic's page: „Zurück" to the start page over its heading (`frame::BackLink`, Esc follows it;
+   owner, the same day: „den shortcut mit esc, um wieder bei der landing page zu bleiben"), the
+   line under it, and the row of the topics, the one shown filled in its tint. The overview has
+   both in its first panel (`.home-hero-text`). */
+.topic-head { padding: 20px 24px 22px; }
+:is(.topic-head, .home-hero-text) > .at-head { margin: -8px 0 6px -10px; }
+.topic-head h1 { margin-top: 8px; font-size: clamp(26px, 2.9cqi, 34px); line-height: 1.12; font-weight: 720; letter-spacing: -.034em; text-wrap: balance; }
+.topic-head .lead { margin-top: 10px; color: var(--text-2); font-size: 15.5px; line-height: 1.55; max-width: 64ch; text-wrap: pretty; }
+.topic-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
+.home-hero-text > .topic-nav { margin-top: 22px; }
+.topic-nav a { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 13px 0 10px; border-radius: 999px; background: color-mix(in oklch, var(--tint) 8%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint) 24%, transparent); color: var(--text); font-size: 13px; font-weight: 580; text-decoration: none; transition: background .12s; }
+.topic-nav a:hover { background: color-mix(in oklch, var(--tint) 15%, var(--panel)); text-decoration: none; }
+.topic-nav a[aria-current="page"] { background: color-mix(in oklch, var(--tint) 22%, var(--panel)); box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--tint) 60%, transparent); font-weight: 650; }
+.topic-nav .icon { width: 15px; height: 15px; color: var(--tint); }
+.sk-topic { min-height: 480px; }
+
+/* ---------- the chapters of the topics (home/detail.rs; „Betula im Detail" until 2026-10-27; owner, 2026-09-28) ---------- */
+/* A panel per chapter, two to a topic's page (a panel named the eight while they stood together
+   after the questions). A chapter is its words — its name in its tint, a headline, the line under
+   it, four points — and a picture made of the app's own parts (chips, fields, the week grid, the
+   bark of the mark, the crown and the ground) on a wash of its tint, as the carousel's pictures
+   stand on the faculties' washes. On a wide page the picture stands beside the words, the second
+   chapter's on the left; below that under them. The pictures lay themselves out by their own
+   width (container `picture`). */
 
 /* `clip`, not the panel's `hidden`: a panel that hides its overflow is a scroll container of its
    own, and the board's count (`.board-foot`) would stick to it instead of to the view. */
@@ -2894,9 +2921,6 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
   .ability:nth-child(odd) { border-right: 1px solid var(--line); }
   .ability:nth-child(odd):last-child { grid-column: 1 / -1; border-right: 0; }
   .ability p { max-width: 80ch; }
-}
-@container home (min-width: 900px) {
-  .home-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 /* From a notebook's width on the birch with the figures stands beside the text. */
 @container home (min-width: 700px) {
@@ -3335,13 +3359,13 @@ button.pm-new-way { width: 100%; text-align: left; }
 .sp-sum { margin-top: -8px; color: var(--text-2); font-size: 13.5px; font-variant-numeric: tabular-nums; }
 .sp-sum small { color: var(--text-3); font-size: 12.5px; }
 /* The planned modules (section.sp-list, modules.rs), as the catalog's list and the Merkliste have
-   them (owner, 2026-09-25): a head („Module" and the credits of the planned modules at the right,
+   them (owner, 2026-09-25): a head („Mein Studiengang", „+ Modul" and the credits of the planned modules at the right,
    above theirs), then a row per module (div.sp-row-wrap > a.sp-row.t-… > span.t > b + small,
    span.lp; and button.sp-remove), a link to the module beside the plan, the open one marked as the
    catalog marks it. Under the title the key the week names the module by, in its tone as a slot
    of the week (span.sp-key, empty where the week says its name), its number and what else is to
    know; its credits at the right, left of the ×. The placeholders no module fills are dashed
-   (a.open-slot), and so is „Modul hinzufügen" at the end (a.sp-add). */
+   (a.open-slot); the visits and the way to „Mein Studium" follow (see „Modules only visited"). */
 .sp-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; align-content: start; }
 .sp-list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; padding: 0 42px 0 12px; margin-bottom: 3px; }
 .sp-list-head .lp { font-weight: 700; font-size: 15px; white-space: nowrap; letter-spacing: -.01em; }
@@ -3368,10 +3392,6 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-row.open-slot { outline: 1px dashed var(--line-strong); outline-offset: -1px; }
 .sp-row.open-slot .t b { color: var(--text-2); font-weight: 560; }
 .sp-row.open-slot .lp { color: var(--text-2); font-weight: 600; }
-.sp-row.sp-add { min-height: 44px; margin-top: 2px; }
-.sp-row.sp-add .t b { display: flex; align-items: center; gap: 8px; }
-.sp-row.sp-add .icon { width: 16px; height: 16px; color: var(--text-3); }
-.sp-row.sp-add:hover .t b, .sp-row.sp-add:hover .icon { color: var(--text); }
 /* A placeholder a module counts for (div.sp-area, owner 2026-09-26: „sehen, dass das ein Bereich
    ist, wo ein Modul ausgewählt ist"): the dashed line of the open one around its head (the row's
    name, what it asks for at the right, under it the Fachsemester of a row over several and what
@@ -3403,39 +3423,46 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-row.gone { padding-right: 6px; }
 .sp-row.gone:hover { background: none; }
 .sp-row.gone .t b { color: var(--text-3); font-weight: 560; text-decoration: line-through; text-decoration-color: var(--line-strong); }
-/* „Aus der Merkliste (n)": closed until asked, a line per module with its „Einplanen"; after the
-   empty week's „übernehmen" its note with „Rückgängig" (p.sp-marked-note). */
+/* The note of a take with „Rückgängig" (p.sp-marked-note): the empty week's „übernehmen", „+ Modul"'s
+   „Aufnehmen", a module taken out of a calendar. */
 .sp-marked-note { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 9px; margin: 0; padding: 4px 4px 4px 10px; color: var(--text-2); }
-.sp-marked > summary { cursor: pointer; min-height: 28px; display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-weight: 580; font-size: 13px; }
-.sp-marked > summary::after { content: "+"; color: var(--text-3); font-weight: 500; }
-.sp-marked[open] > summary::after { content: "–"; }
-.sp-marked ul { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin-top: 6px; }
-.sp-marked li { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 4px 0 10px; border-radius: var(--r-s); font-size: 13px; }
-.sp-marked li:where(:nth-child(even)) { background: var(--row-shade); }
-.sp-marked li:hover { background: var(--row-hover); }
-.sp-marked li .mini { margin-left: auto; }
-/* „Aus der Merkliste" by collection and search (head.rs `FromBookmarks`; folia/design/merken/
-   konzept.html, „Von überall"): the collections as the chips of „Mein Studium", a small search,
-   each module with how it sits in the plan (passt, the clash in the warning's colour), and folded
-   under them what the semester does not offer, each with why. */
-.sp-marked > summary .icon { width: 14px; height: 14px; }
-.sp-marked-chips { margin-top: 8px; }
-.sp-marked-search { display: flex; align-items: center; gap: 6px; height: 32px; margin-top: 8px; padding: 0 10px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-3); }
+/* „+ Modul" (section.sp-addp, add.rs), under the head of a calendar's part of the list: its name and
+   ×, what a module taken in is, the note after „Aufnehmen", the Merkliste and the catalog as two
+   ways (div.sp-addp-ways), a line per module with how it sits in the week and „Aufnehmen"
+   (ul.sp-addp-list), and the way to the whole catalog. The Merkliste as „Aus der Merkliste" had it
+   (folia/design/merken/konzept.html, „Von überall"): the collections as the chips of „Mein
+   Studium", a small search, each module with how it sits in the week (passt, the clash in the
+   warning's colour), all of them at once, and folded what the semester does not offer, each with
+   why. */
+.sp-addp { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 2px 0 8px; padding: 10px 10px 8px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.sp-addp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
+.sp-addp-head b { font-size: 14px; font-weight: 650; letter-spacing: -.01em; }
+.sp-addp-says { margin: 0; color: var(--text-2); font-size: 12.5px; }
+.sp-addp-ways { margin-top: 0; }
+.sp-addp-ways button[aria-selected="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); }
+.sp-addp-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 0; padding: 0; list-style: none; }
+.sp-addp-list li { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 5px 4px 5px 10px; border-radius: var(--r-s); font-size: 13px; }
+.sp-addp-list li:where(:nth-child(even)) { background: var(--row-shade); }
+.sp-addp-list li:hover { background: var(--row-hover); }
+.sp-addp-list li .mini { flex: none; margin-left: auto; }
+.sp-addp .sp-way { margin-top: 0; padding-right: 8px; }
+.sp-addp .sp-take { justify-self: start; margin-top: 0; }
+.sp-marked-chips { margin-top: 0; }
+.sp-marked-search { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-3); }
 .sp-marked-search:focus-within { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .sp-marked-search .icon { width: 14px; height: 14px; flex: none; }
 .sp-marked-search input { flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; color: var(--text); font: inherit; font-size: 13px; }
-.sp-marked li { padding-top: 5px; padding-bottom: 5px; }
 .sp-marked-t { display: grid; gap: 1px; min-width: 0; }
 .sp-marked-t b { font-weight: 560; overflow-wrap: anywhere; }
+.sp-addp-id { color: var(--text-3); font-weight: 450; font-size: 11.5px; white-space: nowrap; }
 .sp-fit { display: inline-flex; align-items: flex-start; gap: 4px; color: var(--text-2); font-size: 12px; line-height: 1.35; }
 .sp-fit.ok { color: var(--ok); }
 .sp-fit.warn { color: var(--warn); }
 .sp-fit .icon { width: 12px; height: 12px; flex: none; margin-top: 2px; }
-.sp-take { margin-top: 6px; }
-.sp-marked-fold { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; padding: 0; border: 0; background: none; color: var(--text-2); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.sp-marked-fold { display: inline-flex; align-items: center; justify-self: start; gap: 4px; padding: 0; border: 0; background: none; color: var(--text-2); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
 .sp-marked-fold .icon { width: 14px; height: 14px; transition: transform .12s; }
 .sp-marked-fold[aria-expanded="true"] .icon { transform: rotate(90deg); }
-.sp-marked-none { margin: 8px 0 0; color: var(--text-3); font-size: 12.5px; }
+.sp-marked-none { margin: 0; color: var(--text-3); font-size: 12.5px; }
 /* The notes of a semester: warnings (p.note, a triangle) first, then quiet lines; each a link to
    the module beside the plan. At most four, „+2 weitere" (button.mini) shows the rest in place. */
 .sp-notes { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; justify-items: start; }
@@ -3613,9 +3640,34 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-cal-mods { display: grid; gap: 4px; margin-top: 4px; }
 .sp-cal-mods > .sp-list-head h2 { display: inline-flex; align-items: center; gap: 7px; }
 .sp-cal-mods > .sp-list-head .sw { width: 10px; height: 10px; border-radius: 3px; background: var(--cal); }
-.sp-cal-abbrs { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; padding: 0 12px; }
-.sp-cal-abbrs > .abbr { padding: 3px 7px; border-radius: 6px; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--cal); color: var(--text-2); font: 600 11.5px var(--mono); }
+/* A calendar's modules are rows of the list, each key in the calendar's colour. */
+.sp-cal-mods { --tint: var(--cal); }
 .sp-cal-came { margin: 0; padding: 0 12px; color: var(--text-3); font-size: 11.5px; }
+/* Modules only visited (owner, 2026-10-19 and 2026-10-26: „nur besuchen", studyplan.rs `Visit`):
+   in the week hatched in their module's tone, so that what counts and what is only visited tell
+   apart by their form, not by their colour alone (.slot.visit); where a visit meets the plan it
+   gives way, a yellow edge instead of a clash's red (.slot.gives, „der Besuch gibt nach"). The
+   phone's list of days the same; in the list of modules the visit's key is hatched alike
+   (.sp-row.visit), and it counts no credits; „Offen" names where one gives way (.sp-open-row.gives). */
+.sp-body .slot.visit { background: repeating-linear-gradient(135deg, color-mix(in oklch, var(--tint, var(--text-3)) 24%, var(--panel)) 0 5px, var(--panel) 5px 10px); color: var(--text); }
+.sp-body .slot.visit.alt { background: repeating-linear-gradient(135deg, color-mix(in oklch, var(--tint, var(--text-3)) 12%, transparent) 0 5px, transparent 5px 10px); }
+.sp-body .slot.gives { box-shadow: inset 2.5px 0 0 var(--warn), inset 0 0 0 1.5px color-mix(in srgb, var(--warn) 70%, transparent); }
+.sp-daylist a.visit { background: repeating-linear-gradient(135deg, color-mix(in oklch, var(--tint, var(--text-3)) 16%, var(--panel-2)) 0 5px, var(--panel-2) 5px 10px); }
+.sp-daylist a.gives { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 1px color-mix(in srgb, var(--warn) 45%, transparent); }
+.sp-row.visit .sp-key { background: repeating-linear-gradient(135deg, color-mix(in oklch, var(--tint, var(--text-3)) 30%, var(--panel)) 0 3px, var(--panel) 3px 6px); }
+.sp-actions .badge.visit { color: var(--text-3); }
+.sp-visit-note { color: var(--text-3); font-size: 12.5px; }
+.sp-open-row.gives > .od { border-radius: 2px; background: repeating-linear-gradient(135deg, var(--tint, var(--text-3)) 0 2px, transparent 2px 4px); box-shadow: inset 0 0 0 1px var(--tint, var(--text-3)); }
+.sp-open-row.gives small { color: var(--warn); }
+/* „+ Modul" in the head of a calendar's part of the list (button.sp-add-mod, `add.rs`), pressed
+   while its choice of modules is open, and the way to „Mein Studium" at the end of „Mein
+   Studiengang"'s part (a.sp-way): the modules of the study are planned there. */
+.sp-list-head .sp-add-mod { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+.sp-add-mod .icon { width: 14px; height: 14px; }
+.sp-add-mod[aria-expanded="true"] { background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--accent); }
+.sp-way { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; margin-top: 4px; padding: 6px 42px 6px 12px; border-radius: var(--r-row); color: var(--text-2); font-size: 13px; text-decoration: none; }
+.sp-way:hover { background: var(--row-hover); color: var(--text); text-decoration: none; }
+.sp-way .icon { width: 16px; height: 16px; color: var(--text-3); }
 /* Over the week while a choice is in focus (div.sp-focusbar.t-…, a screen wider than a phone):
    dark, in two lines the choice with its dot and how many are ticked, and whether its groups fit
    and what to do (span.fb-text); „Weiter: …", „Vergleichen" (pressed while compared) and „Fertig"
@@ -3641,6 +3693,8 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-body .slot.pick:hover { background: color-mix(in oklch, var(--tint) 14%, var(--panel)); }
 .sp-body .slot.pick.on { background: color-mix(in oklch, var(--tint) 22%, var(--panel)); outline: 2px solid var(--tint); outline-offset: -2px; box-shadow: 0 3px 10px -4px rgba(15, 23, 42, .3); }
 .sp-body .slot.pick.clash { outline-color: var(--no); }
+/* A group of a visit gives way where it meets the plan: its outline yellow, never red. */
+.sp-body .slot.pick.gives { outline-color: var(--warn); }
 .slot > .pick-box { position: absolute; right: 4px; bottom: 4px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--tint); color: var(--panel); }
 .slot.on > .pick-box { background: var(--tint); box-shadow: none; }
 .slot > .pick-box .icon { width: 11px; height: 11px; stroke-width: 3; }
@@ -3665,6 +3719,7 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-cmp-row .st { flex: none; width: 7px; height: 7px; margin-left: 7px; border-radius: 50%; }
 .sp-cmp-row .st.no { background: var(--no); }
 .sp-cmp-row .st.ok { background: var(--ok); }
+.sp-cmp-row .st.gives { background: var(--warn); }
 .sp-cmp-row .cr { min-width: 0; margin-left: auto; padding-left: 8px; color: var(--text-2); font: 500 11.5px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sp-cmp-row .cs { color: var(--text-2); font-size: 12px; line-height: 1.35; }
 .sp-cmp-row .rib { position: relative; display: block; height: 30px; border-radius: 8px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
@@ -3672,11 +3727,14 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-cmp-row .rb.cand { background: repeating-linear-gradient(135deg, color-mix(in oklch, var(--tint) 30%, var(--panel)) 0 4px, var(--panel) 4px 8px); box-shadow: inset 0 0 0 1.5px var(--tint); }
 .sp-cmp-row .rb.me { background: var(--tint); color: var(--panel); box-shadow: none; }
 .sp-cmp-row .rb.hit { box-shadow: inset 0 0 0 1.5px var(--no); }
+.sp-cmp-row .rib.gives .rb.hit { box-shadow: inset 0 0 0 1.5px var(--warn); }
 .sp-cmp-row .rt { position: relative; display: block; height: 12px; margin-top: -3px; }
 .sp-cmp-row .rt span { position: absolute; translate: -50% 0; color: var(--text-3); font-size: 9.5px; font-variant-numeric: tabular-nums; }
 .sp-cmp-row .cn { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 12.5px; font-weight: 560; }
 .sp-cmp-row .cn .icon { flex: none; width: 14px; height: 14px; color: var(--text-3); }
 .sp-cmp-row .cn.warn, .sp-cmp-row .cn.warn .icon { color: var(--no); }
+/* A visit's group gives way where it meets the plan: yellow, never red. */
+.sp-cmp-row .cn.warn.gives, .sp-cmp-row .cn.warn.gives .icon { color: var(--warn); }
 /* The sheet of a phone while a choice is in focus (section.sp-pick.t-…, open.rs PickSheet; H1 of
    folia/design/kalender/handy.html): fixed at the bottom, over the tabs; its handle, the chip of
    the module, the kind and × at its right; the groups as the Termin's tiles with „Vergleichen ›",
@@ -4008,6 +4066,7 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 :is(.is-termin, .sp-pick) .gs .st { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; vertical-align: 2px; }
 :is(.is-termin, .sp-pick) .gs .st.no { background: var(--no); }
 :is(.is-termin, .sp-pick) .gs .st.ok { background: var(--ok); }
+:is(.is-termin, .sp-pick) .gs .st.gives { background: var(--warn); }
 :is(.is-termin, .sp-pick) .gs > .ck, .is-termin .esl > .ck { position: absolute; top: -6px; right: -5px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 2px var(--panel-3); }
 .is-termin .esl > .ck { background: var(--tint); color: var(--panel); box-shadow: 0 0 0 2px var(--panel); }
 :is(.is-termin, .sp-pick) .gs > .ck .icon, .is-termin .esl > .ck .icon { width: 11px; height: 11px; stroke-width: 3; }
@@ -4696,7 +4755,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   /* A page's own „Zurück" (frame.rs `BackLink`) while the head has the way back, which it put
      there (owner, 2026-10-15: „mach den zurückbutton mal überall nach oben neben die suche"): one
      way back. What stood beside it takes its place at the left (the path of a program's page). */
-  .topbar.backed ~ .content .hero-top > .at-head { display: none; }
+  .topbar.backed ~ .content :is(.hero-top, .topic-head, .home-hero-text) > .at-head { display: none; }
   .topbar.backed ~ .content .hero-top > .at-head + .crumbs { margin-left: 10px; }
   /* The way back of a page or of its step (chrome.rs `TopBack`; owner, 2026-10-05: „oben links
      neben der search bar im gleichen style eine quadratische box … mit einem zurück pfeil"): a box
@@ -5062,7 +5121,6 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .intro-actions { align-items: flex-start; }
   .faq-group { padding-left: 16px; }
   .block-head { padding: 16px 8px 12px 16px; }
-  .rowlink { height: 60px; padding: 0 12px 0 16px; }
   .ability { padding-left: 16px; padding-right: 16px; }
   .intro-actions .pick-combo { flex: 1 1 auto; }
   .intro-actions .pick-combo .combo-trigger { width: 100%; min-height: 50px; justify-content: center; }
@@ -5070,7 +5128,10 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .faq summary { padding-left: 16px; }
   .faq details p { padding: 0 16px 16px; }
   .soon-line { padding: 14px 16px 16px; }
-  .detail-nav { padding: 0 16px 16px; }
+  .about-tiles { grid-template-columns: minmax(0, 1fr); }
+  .about-ways, .topic-ways { padding: 0 10px 10px; }
+  :is(.about-ways, .topic-ways) > .block-head { padding: 16px 0 12px 6px; }
+  .topic-head { padding: 16px 16px 18px; }
   /* The board is a picture of the sheet, not the sheet: its chips keep about their size from the
      computer (and still a finger's, 34 px). */
   .board .chip { min-height: 34px; padding: 0 10px 0 8px; font-size: 13.5px; border-radius: var(--r-s); gap: 7px; }
@@ -5376,6 +5437,10 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .st-glyph.passed { color: var(--ok); background: currentColor; box-shadow: none; }
 .st-glyph.passed > .g-passed { display: block; color: var(--panel); }
 .st-glyph.failed { color: var(--no); }
+/* A module only visited („nur besuchen", focus.rs `VisitRow`): its sign hatched as its slots are in
+   the week, a ring of stripes; its credits „–", its line a quiet mark. */
+.st-glyph.visit { color: var(--text-3); background: repeating-linear-gradient(135deg, currentColor 0 1.5px, transparent 1.5px 4px); }
+.st-visit .lp { color: var(--text-3); }
 .st-glyph.failed > .g-failed { display: block; width: 11px; height: 11px; }
 /* An empty semester (owner, 2026-10-05: „keine Module sollte mit icon und gleich modul hinzufügen
    sein"): a mark, two words, and „Module hinzufügen" right under them. */
@@ -6611,7 +6676,9 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .day-way-t b { display: block; font-size: 13.5px; font-weight: 620; }
 .day-way-t small { color: var(--text-3); font-size: 12px; }
 .day-way-n { font-size: 14px; font-weight: 700; }
-@container day (max-width: 1080px) { .day-ways { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Two a row where the page is narrower: on the start page and on „Module finden" and „Studium
+   planen", whose ways in and faculties are these tiles too (`.topic-ways`). */
+@container (max-width: 1080px) { .day-ways { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 /* One column: the panels in the order they are read, whichever column the wide screen gives them
    (the week and the exams before „Mein Studium" and the Merkliste); without a study as before. */
 @container day (max-width: 980px) {

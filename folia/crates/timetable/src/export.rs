@@ -183,7 +183,17 @@ pub fn subscription_of(
         modules: numeric,
         program: program.filter(|id| is_program_id(id)).map(str::to_string),
         hidden_kinds: selection.hidden_kinds.known().0,
-        hidden_events: selection.hidden_events.iter().copied().filter(has_event).collect(),
+        // What the page hides, and the exams of visits alone, which the page leaves out: the
+        // feed knows nothing of visits.
+        hidden_events: selection
+            .hidden_events
+            .iter()
+            .copied()
+            .filter(has_event)
+            .chain(table.iter().flat_map(|table| table.visit_exams.iter().filter_map(|id| canonical(id))))
+            .collect::<BTreeSet<u32>>()
+            .into_iter()
+            .collect(),
         hidden_rows: rows(&selection.hidden_rows),
         chosen_rows: rows(&selection.chosen_rows),
         town: town_of(selection, table).code(),
@@ -198,13 +208,13 @@ pub fn subscription_of(
 }
 
 /// The town a code carries. A town the page derived from the modules taken over from the
-/// Regelstudienplan (`Selection::town_from`) goes in as the town it is, or as both towns where it
-/// derives none: the feed derives from every module of the code, and an elective planned beside
-/// them could turn its town and make the calendar differ from the page. Otherwise the choice, and
-/// „derive" stays „derive".
+/// Regelstudienplan (`Selection::town_from`), or without the visits (which count for nothing),
+/// goes in as the town it is, or as both towns where it derives none: the feed derives from every
+/// module of the code, and an elective planned beside them or a visit could turn its town and make
+/// the calendar differ from the page. Otherwise the choice, and „derive" stays „derive".
 fn town_of(selection: &Selection, table: Option<&Timetable>) -> TownChoice {
     match (selection.town, table) {
-        (TownChoice::Derive, Some(t)) if selection.town_from.is_some() && !t.tracks.is_empty() => t.town.map_or(TownChoice::Both, TownChoice::Only),
+        (TownChoice::Derive, Some(t)) if (selection.town_from.is_some() || !t.visits.is_empty()) && !t.tracks.is_empty() => t.town.map_or(TownChoice::Both, TownChoice::Only),
         (choice, _) => choice,
     }
 }
@@ -1675,6 +1685,7 @@ mod tests {
             hidden_dates: [(rows[5].key(), d("2026-11-04")), (RowKey { event: 999, fp: 1 }, d("2026-11-04"))].into(),
             town: TownChoice::Only(Town::Senftenberg),
             town_from: None,
+            visits: Default::default(),
         };
         let modules = ids(&[B, "FÜS", A, B, "0123", "FÜS"]);
         let (subscription, other) = subscription_of(t.key, &modules, Some("079-82-2008"), &selection, Some(&t));
@@ -1723,6 +1734,25 @@ mod tests {
         // A chosen town is the choice.
         let chosen = Selection { town: TownChoice::Only(Town::Senftenberg), ..imported.clone() };
         assert_eq!(town(&chosen, &with_tracks(Some(Town::Cottbus))), TownChoice::Only(Town::Senftenberg).code());
+        // Derived without a visit, which the feed would count: written as it is too.
+        let visited = Timetable { visits: [B.to_string()].into(), ..with_tracks(Some(Town::Cottbus)) };
+        assert_eq!(town(&Selection::default(), &visited), TownChoice::Only(Town::Cottbus).code());
+    }
+
+    #[test]
+    fn the_feed_of_a_plan_with_a_visit_shows_what_the_page_shows() {
+        // B only visited: the page leaves its exams out, and the code hides them, so that the feed,
+        // which knows nothing of visits, makes the same calendar.
+        let theirs: Vec<String> = semester().exams.iter().filter(|exam| exam.modules == [B.to_string()]).map(|exam| exam.event_id.clone()).collect();
+        assert!(!theirs.is_empty());
+        let visited = Selection { visits: [B.to_string()].into(), ..selection() };
+        let page = build(&rows(), &exams(), &[A, B], &two_sws(), &visited);
+        assert_eq!(page.visit_exams, theirs);
+        assert!(page.exams.iter().all(|exam| exam.modules != [B.to_string()]));
+        let (code, _) = subscription_of(page.key, &page.modules, None, &visited, Some(&page));
+        assert!(theirs.iter().all(|id| code.hidden_events.contains(&id.parse::<u32>().unwrap())), "{:?}", code.hidden_events);
+        let feed = build(&rows(), &exams(), &[A, B], &two_sws(), &code.selection());
+        assert_eq!(calendar(&feed), calendar(&page));
     }
 
     #[test]

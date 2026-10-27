@@ -306,8 +306,10 @@ struct TileShown {
     name: Option<String>,
     ticked: bool,
     current: bool,
-    /// The dot: green where it fits (`Some(true)`), red where it meets the plan.
+    /// The dot: green where it fits (`Some(true)`), red where it meets the plan; yellow where a
+    /// group of a visit meets it and gives way (`gives`).
     dot: Option<bool>,
+    gives: bool,
     label: String,
 }
 
@@ -664,7 +666,7 @@ fn GroupsView(ctx: TerminCtx, shown: Memo<Option<Shown>>, adjust: bool) -> impl 
             let views = tiles
                 .into_iter()
                 .map(|tile| {
-                    let dot = tile.dot.map(|fits| view! { <i class=if fits { "st ok" } else { "st no" }></i> });
+                    let dot = tile.dot.map(|fits| view! { <i class=match (fits, tile.gives) { (true, _) => "st ok", (false, false) => "st no", (false, true) => "st gives" }></i> });
                     let body = view! {
                         <b>{tile.when.clone()}{dot}</b>
                         <small>{tile.room.clone()}</small>
@@ -1344,7 +1346,8 @@ fn groups_of(table: &Timetable, plans: (Option<&Timetable>, Option<&Timetable>),
             };
             let at = if room.is_empty() { String::new() } else { format!(", {room}") };
             let label = format!("{}{when}{at}{said}{}", name.as_ref().map(|name| format!("{name}, ")).unwrap_or_default(), if tile.ticked { t.termin.ticked_said } else { "" });
-            Some(TileShown { option: tile.option, key: tile.session.key, keys: tile.keys.clone(), when, room, name, ticked: tile.ticked, current: Some(tile.option) == own_option, dot, label })
+            let gives = meets.is_some() && event.visit;
+            Some(TileShown { option: tile.option, key: tile.session.key, keys: tile.keys.clone(), when, room, name, ticked: tile.ticked, current: Some(tile.option) == own_option, dot, gives, label })
         })
         .collect();
     let right = match (mode, open) {

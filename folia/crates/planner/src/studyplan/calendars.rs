@@ -40,7 +40,8 @@ use folia_timetable::model::Timetable;
 use folia_widgets::week::{GridBand, GridSlot};
 use leptos::prelude::*;
 
-use super::head::weekday_name;
+use super::add::{AddPanel, AddTo};
+use super::head::{weekday_name, MarkedModule};
 use super::{key_of, PlanCtx};
 use crate::i18n;
 
@@ -93,6 +94,8 @@ pub(crate) enum State {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Shown {
     pub id: u8,
+    /// The semester shown, as the plan works it out (`key_of`).
+    pub key: SemesterKey,
     /// Its name; one without a name is named by its number („Kalender 2").
     pub name: String,
     /// Its colour (`hue_of`) and the initial a slot in full carries.
@@ -106,9 +109,15 @@ pub(crate) struct Shown {
     pub names: Vec<String>,
     /// How many groups are ticked in it in the semester shown.
     pub groups: usize,
-    /// Its timetable once the catalog answers, and what its slots name the modules by.
+    /// Its timetable once the catalog answers, what its slots name the modules by, and the
+    /// modules' titles.
     pub table: Option<Timetable>,
     pub titles: BTreeMap<String, String>,
+    pub full: BTreeMap<String, String>,
+    /// Its own ticks of the semester (`Calendar::selection`) and its program: how „+ Modul" holds
+    /// a module against it (`add.rs`).
+    pub selection: Selection,
+    pub program: Option<String>,
     /// Its Termine a week, the groups of a choice still open left out.
     pub termine: usize,
     pub state: State,
@@ -153,20 +162,21 @@ fn shown_of(entry: &Entry, source: StoredValue<Option<DataClient>>, before: Opti
     let ask = |source: &DataClient| source.now(&StudyplanAsk { key: entry.key, ids: entry.modules.clone(), program: entry.program.clone(), locale: t.locale });
     let answer = (!entry.modules.is_empty()).then(|| source.with_value(|source| source.as_ref().map(ask))).flatten();
     let earlier = before.and_then(|before| before.iter().find(|shown| shown.id == entry.id && shown.modules == entry.modules));
-    let (table, titles, state) = match answer {
-        None => (None, BTreeMap::new(), State::Empty),
-        Some(Ok(data)) => (Some(data.timetable(&entry.selection)), data.slot_names(), State::Ready),
+    let (table, titles, full, state) = match answer {
+        None => (None, BTreeMap::new(), BTreeMap::new(), State::Empty),
+        Some(Ok(data)) => (Some(data.timetable(&entry.selection)), data.slot_names(), data.titles(), State::Ready),
         Some(Err(error)) if error.is_pending() => match earlier {
-            Some(earlier) => (earlier.table.clone(), earlier.titles.clone(), earlier.state),
-            None => (None, BTreeMap::new(), State::Loading),
+            Some(earlier) => (earlier.table.clone(), earlier.titles.clone(), earlier.full.clone(), earlier.state),
+            None => (None, BTreeMap::new(), BTreeMap::new(), State::Loading),
         },
-        Some(Err(_)) => (None, BTreeMap::new(), State::Failed),
+        Some(Err(_)) => (None, BTreeMap::new(), BTreeMap::new(), State::Failed),
     };
     let termine = table.as_ref().map_or(0, |table| table.regular_week().iter().filter(|item| item.alt.is_none() && !item.extra).count());
     let view = entry.view.unwrap_or(if termine > FULL_UP_TO { CalendarView::Strip } else { CalendarView::Full });
     let names = entry.modules.iter().map(|id| titles.get(id).cloned().unwrap_or_else(|| id.clone())).collect();
     Shown {
         id: entry.id,
+        key: entry.key,
         name,
         hue: hue_of(entry.id),
         initial,
@@ -177,6 +187,9 @@ fn shown_of(entry: &Entry, source: StoredValue<Option<DataClient>>, before: Opti
         groups: entry.selection.chosen_rows.len(),
         table,
         titles,
+        full,
+        selection: entry.selection.clone(),
+        program: entry.program.clone(),
         termine,
         state,
         elsewhere: entry.elsewhere,
@@ -321,8 +334,9 @@ fn view_switch(ctx: PlanCtx, calendar: &Shown, words: bool, t: &'static i18n::Te
     view! { <span class="sp-cal-seg" role="radiogroup" aria-label=(t.studyplan_calendars.in_week)(&calendar.name)>{buttons}</span> }
 }
 
-/// A calendar's menu, open under its row: „Umbenennen" (the name in a field, „Sichern" and Enter
-/// keep it, „Abbrechen" and Esc leave it) and „Löschen", which takes it away with „Rückgängig".
+/// A calendar's menu, open under its row: „Modul aufnehmen" (its „+ Modul" in the list beside the
+/// week, `add.rs`), „Umbenennen" (the name in a field, „Sichern" and Enter keep it, „Abbrechen"
+/// and Esc leave it) and „Löschen", which takes it away with „Rückgängig".
 /// The menu closes at once and the plan changes after the next frame (R21).
 #[component]
 fn CalendarMenu(ctx: PlanCtx, id: u8, name: String, open: RwSignal<Option<u8>>, removed: RwSignal<Option<(usize, Calendar)>>) -> impl IntoView {
@@ -368,6 +382,7 @@ fn CalendarMenu(ctx: PlanCtx, id: u8, name: String, open: RwSignal<Option<u8>>, 
         .into_any(),
         false => view! {
             <div class="sp-cal-menu">
+                <button class="mini" type="button" on:click=move |_| { ctx.adding.set(Some(AddTo::Calendar(id))); open.set(None); }><Icon name="plus"/>{c.add_module}</button>
                 <button class="mini" type="button" on:click=move |_| renaming.set(true)><Icon name="pencil"/>{c.rename}</button>
                 <button class="mini" type="button" on:click=remove><Icon name="trash-2"/>{c.remove}</button>
             </div>
@@ -627,31 +642,120 @@ pub(super) fn NewCalendar(ctx: PlanCtx) -> impl IntoView {
     }
 }
 
-/// The calendars' part of the module list beside the week: per calendar with modules in the
-/// semester its name in its colour, its modules by their abbreviations, and where they came from
-/// („aus einem Link · mit den Gruppen").
+/// How the note of a module taken out of a calendar of one's own begins (`PlanCtx::undo`, which
+/// the import, „Plan leeren" and the list's × share), the calendar's number after it: never shown.
+const CALENDAR_REMOVED: &str = "Aus dem Kalender: ";
+
+/// The calendars' parts of the module list beside the week, one per calendar in their order: a
+/// part keeps its place (and its „+ Modul" what was typed) while the calendar does.
 #[component]
-pub(super) fn CalendarModules(ctx: PlanCtx) -> impl IntoView {
+pub(super) fn CalendarModules(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl IntoView {
+    let ids = Memo::new(move |_| ctx.calendars.with(|calendars| calendars.iter().map(|calendar| calendar.id).collect::<Vec<u8>>()));
+    view! { <For each=move || ids.get() key=|id| *id children=move |id| view! { <CalendarPart ctx id marked/> }/> }
+}
+
+/// A calendar's part of the module list: its name in its colour with „+ Modul" (`add.rs`), its
+/// modules of the semester as rows of the list (its key in its colour; a click shows the module
+/// beside the plan, its × takes it out of the calendar with „Rückgängig"), and where they came from
+/// („aus einem Link · mit den Gruppen"), or that it holds none in the semester.
+#[component]
+fn CalendarPart(ctx: PlanCtx, id: u8, marked: Memo<Vec<MarkedModule>>) -> impl IntoView {
     let t = i18n::t();
     let c = &t.studyplan_calendars;
-    move || {
-        ctx.calendars
-            .get()
-            .into_iter()
-            .filter(|calendar| !calendar.modules.is_empty())
-            .map(|calendar| {
-                let came = if calendar.groups > 0 { c.from_link_groups } else { c.from_link };
-                view! {
-                    <section class=format!("sp-cal-mods {}", calendar.hue) aria-label=calendar.name.clone()>
-                        <div class="sp-list-head"><h2 class="label"><i class="sw" aria-hidden="true"></i>{calendar.name.clone()}</h2></div>
-                        <p class="sp-cal-abbrs">
-                            {calendar.names.iter().map(|name| view! { <span class="abbr">{name.clone()}</span> }).collect_view()}
-                        </p>
-                        <p class="sp-cal-came">{came}</p>
-                    </section>
-                }
-            })
-            .collect_view()
+    let shown = Memo::new(move |_| ctx.calendars.with(|calendars| calendars.iter().find(|calendar| calendar.id == id).cloned()));
+    let name = Memo::new(move |_| shown.with(|shown| shown.as_ref().map(|calendar| calendar.name.clone()).unwrap_or_default()));
+    let hue = Memo::new(move |_| shown.with(|shown| shown.as_ref().map_or("k-1", |calendar| calendar.hue)));
+    let semester = Memo::new(move |_| ctx.key.get().label(t.locale));
+    let adding = Memo::new(move |_| ctx.adding.get() == Some(AddTo::Calendar(id)));
+    let add = move |_| ctx.adding.update(|adding| *adding = if *adding == Some(AddTo::Calendar(id)) { None } else { Some(AddTo::Calendar(id)) });
+
+    // The note of a module taken out of this calendar.
+    let note = Memo::new(move |_| {
+        ctx.undo.with(|undo| {
+            let rest = undo.as_ref()?.0.strip_prefix(CALENDAR_REMOVED)?;
+            let (of, text) = rest.split_once(' ')?;
+            (of.parse::<u8>().ok() == Some(id)).then(|| text.to_string())
+        })
+    });
+    let restoring = RwSignal::new(false);
+    let restore = move |_| {
+        if restoring.get_untracked() {
+            return;
+        }
+        let (Some(plan), Some((_, before))) = (ctx.plan, ctx.undo.get_untracked()) else { return };
+        restoring.set(true);
+        let undo = ctx.undo;
+        plan.update_after_paint(move |doc| {
+            *doc = before;
+            let _ = undo.try_set(None);
+            let _ = restoring.try_set(false);
+        });
+    };
+    let remove = move |module: String, title: String| {
+        let Some(plan) = ctx.plan else { return };
+        let key = ctx.key.get_untracked();
+        let events = shown.with_untracked(|shown| shown.as_ref().and_then(|calendar| calendar.table.as_ref()).map(|table| super::aside::only_its_events(table, &module)).unwrap_or_default());
+        let text = (c.module_removed)(&title, &name.get_untracked());
+        ctx.undo.set(Some((format!("{CALENDAR_REMOVED}{id} {text}"), plan.with_untracked(Clone::clone))));
+        plan.update_after_paint(move |doc| doc.remove_from_calendar(id, key, &module, &events));
+    };
+
+    // The address without a module beside the plan, the links' start: a sibling of `shown`, both
+    // following the address, never read with the address itself (R16).
+    let base = Memo::new(move |_| ctx.url.with(|url| url.with_open(None, None)));
+    let rows = move || {
+        shown.with(|shown| {
+            let Some(calendar) = shown.as_ref() else { return ().into_any() };
+            if calendar.modules.is_empty() {
+                return view! { <p class="sp-cal-came">{(c.none_in)(&semester.get())}</p> }.into_any();
+            }
+            let came = if calendar.groups > 0 { c.from_link_groups } else { c.from_link };
+            let rows = calendar
+                .modules
+                .iter()
+                .zip(&calendar.names)
+                .map(|(module, short)| {
+                    let title = calendar.full.get(module).cloned().unwrap_or_else(|| (t.studyplan_modules.module_numbered)(module));
+                    let href = base.with(|base| t.path(&base.with_open(Some(module), None).path()));
+                    let label = (c.remove_module)(&title, &calendar.name);
+                    let (module, gone) = (module.clone(), title.clone());
+                    view! {
+                        <div class="sp-row-wrap">
+                            <a class="sp-row" href=href data-noscroll="">
+                                <span class="t">
+                                    <b>{title}</b>
+                                    <small><span class="sp-key">{short.clone()}</span><span class="mono">{module.clone()}</span></small>
+                                </span>
+                            </a>
+                            <button class="icon-btn sp-remove" type="button" title=label.clone() aria-label=label on:click=move |_| remove(module.clone(), gone.clone())>
+                                <Icon name="x"/>
+                            </button>
+                        </div>
+                    }
+                })
+                .collect_view();
+            view! { {rows}<p class="sp-cal-came">{came}</p> }.into_any()
+        })
+    };
+    let add_label = move || (t.studyplan_modules.add_named)(&name.get());
+    view! {
+        <section class=move || format!("sp-cal-mods {}", hue.get()) aria-label=move || name.get()>
+            <div class="sp-list-head">
+                <h2 class="label"><i class="sw" aria-hidden="true"></i>{move || name.get()}</h2>
+                <button class="mini sp-add-mod" type="button" aria-expanded=move || if adding.get() { "true" } else { "false" } aria-label=add_label title=add_label on:click=add>
+                    <Icon name="plus"/>{t.studyplan_modules.add}
+                </button>
+            </div>
+            {move || adding.get().then(|| view! { <AddPanel ctx to=AddTo::Calendar(id) marked/> })}
+            {move || note.get().map(|note| view! {
+                <p class="action note-action sp-marked-note">
+                    <Icon name="check"/>
+                    <span>{note}</span>
+                    <button class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
+                </p>
+            })}
+            {rows}
+        </section>
     }
 }
 
@@ -705,6 +809,7 @@ mod tests {
         let theirs = built(&[row("150210", 1, "Übung", "weekly", 1, ("11:30", "13:00"), ("2026-10-05", "2027-01-25")), group(1, 2, "2026-10-06"), group(2, 3, "2026-10-07")]);
         let lena = |view: CalendarView| Shown {
             id: 1,
+            key: SemesterKey::parse("2026W").unwrap(),
             name: "Lena".into(),
             hue: hue_of(1),
             initial: "L".into(),
@@ -715,6 +820,9 @@ mod tests {
             groups: 0,
             table: Some(theirs.clone()),
             titles: BTreeMap::new(),
+            full: BTreeMap::new(),
+            selection: Selection::default(),
+            program: None,
             termine: 1,
             state: State::Ready,
             elsewhere: None,
