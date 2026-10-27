@@ -3947,18 +3947,22 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .sp-rowline .fit.ok { background: var(--accent-soft); color: var(--accent-ink); }
 .sp-rowline .fit.no { background: var(--no-soft, var(--panel-2)); color: var(--no); }
 /* A Termin in its own view (folia/crates/widgets/src/termin.rs; folia/design/termin, the fourth
-   round): the module's chip in its tint, the ticket (the date with its arrows, where it stands, the
-   time and the room), who leads it and what is said of it, „Im Stundenplan" with the groups to
-   tick, then what one looks up. Everything is scoped: its short class names are the concept's. */
+   round, in the order of the fifth): the module's chip in its tint, what picks the Termin above
+   everything it changes, the ticket (the date with its arrows, where it stands, the time and the
+   room), who leads it and what is said of it, „Im Stundenplan" with the groups to tick, then what
+   one looks up. Everything is scoped: its short class names are the concept's. */
 .is-termin .tm-bar { gap: 8px; }
 .is-termin .tm-mod { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 6px; background: color-mix(in oklch, var(--tint) 15%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint) 45%, transparent); color: var(--text); font: 600 11.5px/1 var(--mono); white-space: nowrap; }
 .is-termin .tm-mod > i { width: 8px; height: 8px; border-radius: 50%; background: var(--tint); }
 .is-termin .tm-kind { min-width: 0; margin-right: auto; color: var(--text-2); font-size: 13.5px; font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* To look up a module outside the plan: its chip dashed, the tag „nicht im Plan" after the kind. */
 .is-termin .tm-mod.out { background: transparent; box-shadow: inset 0 0 0 1.5px var(--tint); }
+/* Of a module with more than one event the kind is the segment marked under the head: the chip
+   alone holds the tools to the right. */
+.is-termin .tm-bar:not(:has(> .tm-kind, > .np)) > .tm-mod { margin-right: auto; }
 .is-termin .tm-kind:has(+ .np) { margin-right: 0; }
 .is-termin .np { margin-right: auto; padding: 2px 7px; border-radius: 5px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
-/* Under the groups of a module in the plan: how many it holds, and „Anpassen ›". */
+/* Under the ticket of a module in the plan: how many of the groups it holds, and „Anpassen ›". */
 .is-termin .grp-f { display: flex; align-items: center; gap: 8px; margin: 2px 0 0; color: var(--text-2); font-size: 12.5px; }
 .is-termin .go2 { margin-left: auto; display: inline-flex; align-items: center; gap: 1px; color: var(--accent-ink); font-size: 13px; font-weight: 600; white-space: nowrap; }
 .is-termin .go2 .icon { width: 15px; height: 15px; }
@@ -3977,9 +3981,10 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .is-termin .tm-share.said { color: var(--accent-ink); }
 .is-termin .tm-full { padding: 0 8px; }
 /* As a page — its own (`/event/<key>/<day>`), or filling the page it stood beside after „Ganze
-   Seite" (`tm-filling`) —: the head over two columns where the page is wide, on the left the day
-   (the ticket, who, „Im Stundenplan" or the groups, the day, the series, the period), on the right
-   what one looks up (folia/design/termin, „Die Seite"); one column where it is narrow. */
+   Seite" (`tm-filling`) —: the head over two columns where the page is wide, on the left the Termin
+   (what picks it, the ticket, who, „Im Stundenplan" or the plan's line, the day, the series, the
+   period), on the right the module and who teaches, which no pick changes, and the source
+   (folia/design/termin, „Die Seite"); one column where it is narrow. */
 .is-termin.tm-page { container: termin / inline-size; width: 100%; max-width: 1120px; margin: 0 auto; }
 .is-termin.tm-page .hero h2.tm-title { font-size: 24px; }
 .is-termin.tm-page .tm-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -4044,9 +4049,16 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .is-termin .tm-sec > h4 .r { margin-left: auto; color: var(--text-2); font-size: 12.5px; font-weight: 600; letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
 .is-termin .tm-sec.cal { gap: 12px; padding: 14px; border-radius: 14px; background: color-mix(in oklch, var(--accent) 5%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 22%, var(--line)); }
 .is-termin .tm-more { position: relative; display: flex; flex-direction: column; gap: 22px; padding-top: 18px; border-top: 1px dashed var(--line-strong); }
+/* What picks the Termin, above everything it changes (owner, 2026-10-27: „Wenn man solche Buttons
+   hat, dann ändern die nur den Inhalt unter ihnen"): the module's events as segments (rows of four
+   where it has more), the event's own title, to look up its groups or its Termine. */
+.is-termin .tm-pick { display: flex; flex-direction: column; gap: 10px; }
+.is-termin .seg.tm-evs { margin: 0; grid-auto-flow: row; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 3px; }
+.is-termin .tm-sub { margin: -2px 0 0; color: var(--text-2); font-size: 13px; font-weight: 560; line-height: 1.35; }
 /* The groups: a fixed grid of at most three columns (owner, 2026-10-26: „ein festes raster z.B. 3
-   Termine pro row"); in the Stundenplan each a box to tick, as many as one likes. The phone's sheet
-   of a choice in focus has the same tiles (section.sp-pick, below). */
+   Termine pro row"); in the Stundenplan each a box to tick, as many as one likes, to look up each a
+   way to its Termin, as an event's Termine are. The phone's sheet of a choice in focus has the same
+   tiles (section.sp-pick, below). */
 :is(.is-termin, .sp-pick) .grp { display: flex; flex-direction: column; gap: 6px; }
 :is(.is-termin, .sp-pick) .grp-h { display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 650; }
 :is(.is-termin, .sp-pick) .grp-h .r { margin-left: auto; color: var(--text-2); font-size: 12.5px; font-weight: 600; }
@@ -4063,9 +4075,8 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 :is(.is-termin, .sp-pick) .gs .st.no { background: var(--no); }
 :is(.is-termin, .sp-pick) .gs .st.ok { background: var(--ok); }
 :is(.is-termin, .sp-pick) .gs .st.gives { background: var(--warn); }
-:is(.is-termin, .sp-pick) .gs > .ck, .is-termin .esl > .ck { position: absolute; top: -6px; right: -5px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 2px var(--panel-3); }
-.is-termin .esl > .ck { background: var(--tint); color: var(--panel); box-shadow: 0 0 0 2px var(--panel); }
-:is(.is-termin, .sp-pick) .gs > .ck .icon, .is-termin .esl > .ck .icon { width: 11px; height: 11px; stroke-width: 3; }
+:is(.is-termin, .sp-pick) .gs > .ck { position: absolute; top: -6px; right: -5px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 2px var(--panel-3); }
+:is(.is-termin, .sp-pick) .gs > .ck .icon { width: 11px; height: 11px; stroke-width: 3; }
 :is(.is-termin, .sp-pick) .gs > .cb { position: absolute; top: -6px; right: -5px; width: 18px; height: 18px; border-radius: 50%; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--line-strong), 0 0 0 2px var(--panel-3); }
 :is(.is-termin, .sp-pick) .gs.pick:hover > .cb { box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 2px var(--panel-3); }
 :is(.is-termin, .sp-pick) .gs.more { align-items: center; justify-content: center; text-align: center; }
@@ -4125,10 +4136,9 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .is-termin .sw { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 13px; font-weight: 620; white-space: nowrap; }
 .is-termin .sw:hover { background: var(--row-hover); }
 .is-termin .sw[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); box-shadow: none; }
-/* „Der Tag": a ribbon from 7 to 19, this Termin filled in its tint. */
+/* „Der Tag": a ribbon from 7 to 19, this Termin filled in its tint; a picture, which picks nothing. */
 .is-termin .rib { position: relative; height: 36px; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
 .is-termin .rb { position: absolute; display: flex; align-items: center; padding: 0 6px; border-radius: 6px; background: color-mix(in oklch, var(--tint) 24%, var(--panel)); box-shadow: inset 2px 0 0 var(--tint); color: var(--text); font: 650 10.5px/1 var(--mono); white-space: nowrap; overflow: hidden; text-decoration: none; }
-.is-termin a.rb:hover { background: color-mix(in oklch, var(--tint) 36%, var(--panel)); text-decoration: none; }
 .is-termin .rb.open { background: transparent; box-shadow: none; outline: 1px dashed var(--tint); outline-offset: -1px; }
 .is-termin .rb.me { background: var(--tint); color: var(--panel); box-shadow: none; outline: 0; }
 .is-termin .rb.gone { opacity: .45; text-decoration: line-through; }
@@ -4139,10 +4149,9 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .is-termin .nx { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin: 0; color: var(--text-2); font-size: 13px; }
 .is-termin .nx > .icon { width: 15px; height: 15px; color: var(--text-3); }
 .is-termin .nx .w { margin-left: auto; color: var(--text-2); font-weight: 600; font-variant-numeric: tabular-nums; }
-/* „Reihe": a dot per date. */
+/* „Reihe": a dot per date, a picture as the day is (the arrows beside the date step). */
 .is-termin .sdots { display: flex; flex-wrap: wrap; gap: 8px 5px; align-items: center; padding-top: 6px; }
 .is-termin .sd { position: relative; flex: none; width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
-.is-termin a.sd:hover { box-shadow: inset 0 0 0 1.5px var(--text-2); }
 .is-termin .sd.past { background: color-mix(in oklch, var(--text) 26%, var(--panel)); box-shadow: none; }
 .is-termin .sd.note { background: var(--warn); box-shadow: none; }
 .is-termin .sd.hid { box-shadow: inset 0 0 0 1.5px var(--text-3); background: repeating-linear-gradient(135deg, var(--line-strong) 0 2px, transparent 2px 4px); }
@@ -4161,21 +4170,6 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .is-termin .mrow small { display: block; color: var(--text-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .is-termin .mrow .v { color: var(--text-2); font-size: 13px; font-weight: 650; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .is-termin .mrow > .icon { width: 14px; height: 14px; color: var(--text-3); }
-/* „Alle Veranstaltungen": each event's Termine three to a row. */
-.is-termin .evs { display: flex; flex-direction: column; gap: 12px; }
-.is-termin .evr { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 10px; align-items: start; }
-.is-termin .evh b { display: block; font-size: 13px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; hyphens: auto; }
-.is-termin .evh small { display: block; color: var(--text-3); font-size: 11.5px; }
-.is-termin .esls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.is-termin .esl { position: relative; display: flex; min-width: 0; flex-direction: column; align-items: flex-start; padding: 5px 10px; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); text-align: left; text-decoration: none; }
-.is-termin a.esl:hover { background: var(--row-hover); text-decoration: none; }
-.is-termin .esl > b { font-size: 12.5px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.is-termin .esl > small { max-width: 100%; color: var(--text-3); font: 500 11px/1.4 var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.is-termin .esl.me { background: var(--invert); color: var(--on-invert); box-shadow: none; }
-.is-termin .esl.me > small { color: color-mix(in srgb, var(--on-invert) 70%, transparent); }
-.is-termin .esl.more { align-items: center; justify-content: center; }
-.is-termin .esl.more > small { font-family: var(--font); }
-@container (max-width: 340px) { .is-termin .evr { grid-template-columns: minmax(0, 1fr); } }
 .is-termin .ppl { display: flex; flex-direction: column; gap: 8px; }
 .is-termin .rng { margin: 0; color: var(--text-2); font-size: 13px; line-height: 1.45; }
 .is-termin .exl2 { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }

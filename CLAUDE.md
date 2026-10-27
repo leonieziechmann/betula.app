@@ -48,6 +48,14 @@ da sein, welches auch per button bedient werden kann."):
 - What every program does by a key (Ctrl+C, Ctrl+V, Esc, Enter, the arrows, F2, Entf) needs no
   visible hint; Betula's own keys are named beside their button or entry.
 
+What picks stands above what it changes (owner, 2026-10-27, of the Termin's view: „Einfaches
+Prinzip. Wenn man solche Buttons hat, dann ändern die nur den Inhalt unter ihnen. Ansonsten muss man
+nochmal über das Konzept nachdenken."):
+
+- A control that picks what a view shows (segments, tabs, the tiles of groups, the arrows of a date)
+  changes only what stands below it, never what stands above it. A view whose pick would change
+  what stands above it needs another order, not a tweak.
+
 ## Versions
 
 Folia, Radix and Cortex each have a version by SemVer, and every change raises the version of
