@@ -1,5 +1,5 @@
 //! The calendar of a Studienplan: days and holidays, semesters, the kinds of events, the keys of a
-//! plan's rows, a plan's selection, cancelled dates, and the codes of a shared plan and of a
+//! plan's rows, the Termine of one's own, a plan's selection, cancelled dates, and the codes of a shared plan and of a
 //! calendar subscription. What the addresses and the filter need of the timetable; its engine is
 //! `folia-timetable`.
 //!
@@ -11,6 +11,7 @@ pub mod cancel;
 pub mod day;
 pub mod i18n;
 pub mod kind;
+pub mod own;
 pub mod rowkey;
 pub mod select;
 pub mod semester;
