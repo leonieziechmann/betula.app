@@ -20,6 +20,9 @@
 //   two columns, still the view that adjusts, its next date the whole page too, and Esc brings it
 //   back beside the plan on that day. Over the start page „Ganze Seite" fills the start page, and
 //   „Zurück" brings it back over the page.
+// - ← and → step to the date after and before as the arrows beside the date do, one date a press,
+//   beside the plan, filling the page and on the Termin's own page; not while the keyboard is in
+//   the search. `?` there shows the overview with „Im Termin" first.
 // - A phone: the view is a sheet over the plan, with „Teilen" and without „Ganze Seite".
 // - The Termin's own page to look up (`/event/<key>`): from a line of the Praktikum's module page, in
 //   the plan, its groups measured against it, „Anpassen ›" into the Stundenplan of its semester;
@@ -180,6 +183,23 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   await until(page, "the Termin beside the plan", () => Boolean(onPage("#preview.is-termin .tk")));
   const full = await page.evaluate(() => onPage("#preview.is-termin .tm-full")?.getAttribute("href") ?? "");
   check(full === `/studyplan?termin=${praktikum}&on=2026-11-02&full=1`, `„Ganze Seite": „${full}"`);
+  // ← and →: the date after and back, one a press; in the search → moves in the text.
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press("ArrowRight");
+  await until(page, "→: the next date", () => /[?&]on=2026-11-09/.test(location.search) && Boolean(onPage("#preview.is-termin .tk-date > b")?.textContent.includes("09.11.")));
+  await page.keyboard.press("ArrowLeft");
+  await until(page, "←: the date before", () => /[?&]on=2026-11-02/.test(location.search) && Boolean(onPage("#preview.is-termin .tk-date > b")?.textContent.includes("02.11.")));
+  await page.focus("#topsearch");
+  await page.keyboard.press("ArrowRight");
+  await page.waitForTimeout(300);
+  check(/[?&]on=2026-11-02/.test(await page.evaluate(() => location.search)), "→ in the search stays in the search");
+  // `?` from within the Termin: the overview, „Im Termin" first.
+  await page.focus("#preview.is-termin .tk-date a.pg >> nth=-1");
+  await page.keyboard.press("?");
+  await until(page, "the keys of a Termin", () => document.querySelector(".keys-dialog[open] .keys-group.here h3")?.textContent.startsWith("Im Termin"));
+  await page.keyboard.press("Escape");
+  await until(page, "the overview closed", () => !document.querySelector(".keys-dialog[open]") && Boolean(onPage("#preview.is-termin .tk")));
+  await page.evaluate(() => document.activeElement?.blur());
   // „Teilen": the Termin's own page on the day shown, copied, and said so.
   await page.click("#preview.is-termin .tm-share");
   await until(page, '„Link kopiert"', () => onPage("#preview.is-termin .tm-share")?.textContent.includes("Link kopiert"));
@@ -270,6 +290,13 @@ const follow = async (page, prefix) => {
   await until(page, "the module's Termine", () => Boolean(onPage("a.ev[href^='/event/148370-']")));
   const href = await follow(page, "/event/148370-");
   await until(page, "the Termin's page", (href) => location.pathname === href && Boolean(onPage(".is-termin.tm-page .tk")), href);
+  // → on the Termin's own page: the date after, the day in its address.
+  const shownDay = await page.evaluate(() => onPage(".is-termin.tm-page .tk-date > b")?.textContent ?? "");
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press("ArrowRight");
+  await until(page, "→ on the Termin's page", ([href, day]) => location.pathname.startsWith(href + "/") && /\/\d{4}-\d\d-\d\d$/.test(location.pathname) && onPage(".is-termin.tm-page .tk-date > b")?.textContent !== day, [href, shownDay]);
+  await page.goBack();
+  await until(page, "back to the first date", (href) => location.pathname === href, href);
   let v = await lookUp(page);
   check(v.title === "Programmierpraktikum" && !v.out && !v.file, `in the plan: ${JSON.stringify(v)}`);
   check(v.dots.length === 4 && v.dots.includes("ok") && v.dots.every((dot) => dot === "ok" || dot === "no"), `the groups measured against the plan: ${JSON.stringify(v)}`);

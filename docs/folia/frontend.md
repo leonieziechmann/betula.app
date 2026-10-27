@@ -2082,8 +2082,14 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     to the view beside the page on the day shown, „Teilen" in words at the right. The start page's
     own parts make way meanwhile (app.css; its photo leaves the bar, `betula:frost`). A Termin's own
     page has the same two columns and „Teilen".
-  - **Not yet:** the Termin over a module's page (`/catalog/module/<id>?termin=…`), and keys for the
-    arrows.
+  - **← and →** (owner, 2026-10-27: „bau als Nächstes die Tasten ← → fürs Datum"): the date
+    before and after, as the arrows beside the date (`data-step`, enhance.js), beside the page,
+    filling it and on its own page; one date a press, a key held does not run through the series.
+    Not in a field, nor where the arrows are another's (a mode, a group of one stop, a panel's
+    edge, the note of a module planned). The arrows need no hint (CLAUDE.md, „Design"); the
+    overview of the keys has „Im Termin" wherever a Termin stands in its own view, first where `?`
+    was pressed in it (←, →, V, Esc).
+  - **Not yet:** the Termin over a module's page (`/catalog/module/<id>?termin=…`).
 - **Offen and the choice in focus** (owner, 2026-10-26, after two rounds of
   `folia/design/kalender/konzepte.html` and `handy.html`: „A mit Fokus und Spur aus C", „nimm H1
   mit Vergleichen"; `folia_timetable::choice`, the planner's `studyplan/open.rs`, `week.rs`
@@ -4348,7 +4354,8 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
     enhance.js leaves alone.
   - **The overview** (`folia_shell::keys`): the rail's button „Tasten" and `?` open it, the group of
     where the keyboard was first; a page with keys of its own adds its groups to `keys::groups` and
-    their rows to the shell's texts (`i18n/keys.rs`).
+    their rows to the shell's texts (`i18n/keys.rs`). A Termin in its own view adds „Im Termin"
+    wherever it stands (`keys::termin_at`).
   - **The list** is a list box (`Row`'s `position`: `role="option"`, its place, the open one
     selected; its buttons beside the link are the mouse's and hidden from screen readers), and what
     a screen reader hears when it changes is a status of the count outside it, not the whole list.
