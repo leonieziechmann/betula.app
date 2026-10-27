@@ -219,6 +219,14 @@ fn frame(shape: Shape) -> AnyView {
                 <div class="panel sk-sweep sk-stage"></div>
             </div>
         }.into_any()),
+        // A page of „Über Betula" on one topic: its head, then a chapter, its words beside its
+        // picture.
+        Shape::Topic => solo("", view! {
+            <div class="page-inner">
+                <div class="panel sk-sweep sk-block">{bar("sk-pill")}{lines(&["sk-w4 sk-big", "sk-w6"])}</div>
+                <div class="panel sk-sweep sk-block sk-topic">{lines(&["sk-w2", "sk-w5 sk-big", "sk-w6", "sk-w5", "sk-w6", "sk-w4"])}</div>
+            </div>
+        }.into_any()),
         // A Termin's own page: one panel, its head, the ticket and lines under it.
         Shape::Event => solo("", view! {
             <div class="page-inner">

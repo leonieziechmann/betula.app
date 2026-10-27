@@ -66,6 +66,8 @@ pub enum Shape {
     Home,
     /// „Über Betula".
     About,
+    /// A page of „Über Betula" on one topic (`url::AboutTopic`).
+    Topic,
     Catalog,
     Module,
     Programs,
@@ -89,6 +91,8 @@ impl Shape {
             Shape::Home
         } else if path == url::ABOUT {
             Shape::About
+        } else if url::AboutTopic::of_path(path).is_some() {
+            Shape::Topic
         } else if path == url::CATALOG {
             Shape::Catalog
         } else if path.starts_with("/catalog/module/") {
@@ -769,7 +773,7 @@ pub fn change(from_path: &str, from_search: &str, to_path: &str, to_search: &str
             let (slug, tab) = program(to_path)?;
             program_change(&ProgramUrl::parse(&slug, tab, from_search), &ProgramUrl::parse(&slug, tab, to_search), phone)
         }
-        Shape::Home | Shape::About | Shape::Module | Shape::Profile | Shape::Event | Shape::Text => None,
+        Shape::Home | Shape::About | Shape::Topic | Shape::Module | Shape::Profile | Shape::Event | Shape::Text => None,
     }
 }
 

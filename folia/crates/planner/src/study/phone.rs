@@ -65,11 +65,14 @@ pub(super) fn Phone(ctx: StudyCtx) -> impl IntoView {
     // an die standard position gehen"). Where the address says a semester, the link (or Back
     // through the history) changes it, and the row follows the address; where it says the overview
     // still (the row on its way from it, or come to a semester a moment ago), the link leads where
-    // the app is, and the row goes back here.
+    // the app is, and the row goes back here. Only while the page is in front: the way back of a
+    // page on another tab, pressed while the row rests at a semester behind it, is not this page's,
+    // and the tab comes back as it was left.
     let again = TabAgain::expect();
+    let front = folia_design::stage::front();
     Effect::new(move |before: Option<(u32, u32)>| {
         let now = (again.map_or(0, |again| again.count(Area::Programs)), back.map_or(0, TopBack::presses));
-        if before.is_some_and(|before| before != now) && !ctx.url.with_untracked(|url| url.plan) {
+        if before.is_some_and(|before| before != now) && front.get_untracked() && !ctx.url.with_untracked(|url| url.plan) {
             pages.home();
         }
         now

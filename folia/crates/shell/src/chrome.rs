@@ -776,9 +776,11 @@ pub fn ProfileSwitcher() -> impl IntoView {
 /// `frame::BackLink` puts it there, leading where the link leads, and steps aside itself (app.css).
 /// A page with a step below its first one that has no such link (a semester of „Mein Studium", on
 /// either side of its overview) puts it there while that step shows and takes it away when it goes;
-/// both through `follow`, the browser app's alone. The server writes the bar before the page and
-/// knows nothing of its links, so the address says which pages have the box from their first paint
-/// (`back_at_head`): the server writes it as the app has it, and nothing moves at the takeover.
+/// both through `follow`, the browser app's alone, and only while the page is in front: a tab left
+/// takes it away, and brings it back as it comes back. The server writes the bar before the page
+/// and knows nothing of its links, so the address says which pages have the box from their first
+/// paint (`back_at_head`): the server writes it as the app has it, and nothing moves at the
+/// takeover.
 /// The page hears it pressed as well (`presses`): where it leads where the app is already (the
 /// page's step not in the address yet), the page goes back itself.
 #[derive(Clone, Copy)]
@@ -857,11 +859,18 @@ impl TopBack {
     /// Shows the box where a page (its `BackLink`, its step) wants it, leading where `back` says
     /// whenever that changes, and takes it away with the page. What another page put there in the
     /// meantime stays: the page the app goes to may say where before the one it leaves is gone.
+    ///
+    /// Only while the page's stage is in front (`folia_design::stage::front`): a page whose tab is
+    /// left stays built behind, and its way back is not the way back of the page in front (owner,
+    /// 2026-10-27: „Wenn man in der handy app auf mein studienplan geht, und dann per nav bar
+    /// irgendwo anders hingeht, dann hat man überall noch eine back pfeil"). It is there again when
+    /// the tab comes back as it was left.
     pub fn follow(back: impl Fn() -> Option<Back> + 'static) {
         let Some(top) = Self::expect() else { return };
         let me = top.given.get_value().wrapping_add(1);
         top.given.set_value(me);
-        Effect::new(move |_| top.put(me, back()));
+        let front = folia_design::stage::front();
+        Effect::new(move |_| top.put(me, if front.get() { back() } else { None }));
         on_cleanup(move || top.put(me, None));
     }
 

@@ -36,6 +36,7 @@ folia_design::texts! {
     studyplan_side = folia_planner::i18n::studyplan_side,
     studyplan_week = folia_planner::i18n::studyplan_week,
     timetable_data = folia_timetable::i18n,
+    topics = folia_home::i18n::topics,
     ui = folia_design::i18n::ui,
     week = folia_widgets::i18n::week,
 }

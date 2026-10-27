@@ -1,7 +1,8 @@
 //! Texts of „Über Betula" (`home/about.rs`), what the start page said until concept A, in the
 //! order of the page: what search engines read, the first panel, the pictures and the map, the
-//! ways into the catalog, what Betula does, and the questions. „Betula im Detail" at the end has a
-//! group of its own (`home_detail`). The start page's own words are `today` and `setup`; its
+//! ways into the catalog, what Betula does, and the questions (on their own page since
+//! 2026-10-27, `home/topics.rs`). The chapters of the topics have a group of their own
+//! (`home_detail`), and so have the topics (`topics`). The start page's own words are `today` and `setup`; its
 //! description and title for search engines are still these (`description`, `seo_title`), and so
 //! are the ways into the catalog it shows under „Entdecken".
 //!
@@ -343,7 +344,7 @@ pub const DE: Texts = Texts {
         questions: &[
             (
                 "Wie finde ich schnell das richtige Modul?",
-                "Tippe oben in die Suche einen Titel oder eine Modulnummer (Strg+K oder / springt hinein), oder fang mit einem Filter an: Studiengang, Bereich, Fachsemester, Turnus, Prüfungsform, Leistungspunkte, Sprache, Standort, Lehrende und mehr. Alle Filter lassen sich kombinieren und fast alle umkehren, etwa zu „alles außer Klausur“. Jede Auswahl steht in der Adresse, lässt sich also teilen, als Lesezeichen speichern und mit „Zurück“ zurücknehmen. Jeden Filter einzeln erklärt der Abschnitt „Betula im Detail“ am Ende dieser Seite.",
+                "Tippe oben in die Suche einen Titel oder eine Modulnummer (Strg+K oder / springt hinein), oder fang mit einem Filter an: Studiengang, Bereich, Fachsemester, Turnus, Prüfungsform, Leistungspunkte, Sprache, Standort, Lehrende und mehr. Alle Filter lassen sich kombinieren und fast alle umkehren, etwa zu „alles außer Klausur“. Jede Auswahl steht in der Adresse, lässt sich also teilen, als Lesezeichen speichern und mit „Zurück“ zurücknehmen. Jeden Filter einzeln erklärt die Seite „Module finden“ unter „Über Betula“.",
             ),
             (
                 "Was kann der Stundenplan?",
@@ -566,7 +567,7 @@ pub const EN: Texts = Texts {
         questions: &[
             (
                 "How do I find the right module quickly?",
-                "Type a title or a module number into the search at the top (Ctrl+K or / jumps there), or start with a filter: degree programme, area, semester, offering, form of assessment, credit points, language, location, lecturers and more. All filters can be combined and almost all inverted, for example into “everything but a written exam”. Every selection is part of the address, so you can share it, bookmark it and go back with the browser's Back button. The section “Betula in detail” at the end of this page explains every filter.",
+                "Type a title or a module number into the search at the top (Ctrl+K or / jumps there), or start with a filter: degree programme, area, semester, offering, form of assessment, credit points, language, location, lecturers and more. All filters can be combined and almost all inverted, for example into “everything but a written exam”. Every selection is part of the address, so you can share it, bookmark it and go back with the browser's Back button. The page “Finding modules” under “About Betula” explains every filter.",
             ),
             (
                 "What can the timetable do?",

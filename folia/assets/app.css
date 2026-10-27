@@ -2212,6 +2212,9 @@ a.ms-col:hover { background: var(--row-hover); text-decoration: none; }
    brings changes nothing. Only its height is a guess: a width of its own (`contain-intrinsic-size`
    with one value sets both) widened the page past a phone's screen, which then showed it smaller. */
 .home > .panel { content-visibility: auto; contain-intrinsic-block-size: auto 1200px; }
+/* The tiles of the topics at a page's end are a few lines: drawn at once, where a guess of 1200 px
+   would stand for them until they come close. */
+.home > .panel.about-ways { content-visibility: visible; }
 /* A jump to a section of the page draws them all on its way (enhance.js, `jump`). */
 .jumping .home > .panel { content-visibility: visible; }
 .block-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 18px 12px 14px 24px; }
@@ -2532,6 +2535,8 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 
 /* Questions and answers, in groups: the questions are the list, an answer opens in place. */
 .questions { padding-bottom: 6px; }
+/* On their own page (2026-10-27) the questions have no head of their own: the page's is theirs. */
+.questions > .faq:first-child { border-top: 0; }
 .faq { container: faq / inline-size; border-top: 1px solid var(--line); }
 .faq-group { padding: 16px 24px 8px; }
 .faq details { border-top: 1px solid var(--line); }
@@ -2547,17 +2552,53 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
   .faq details p { text-align: start; }
 }
 
-/* ---------- „Betula im Detail" (pages/home/detail.rs; owner, 2026-09-28) ---------- */
-/* After the questions: a panel that names the chapters, then a panel per chapter. A chapter is its
-   words — its name in its tint, a headline, the line under it, four points — and a picture made of
-   the app's own parts (chips, fields, the week grid, the bark of the mark, the crown and the
-   ground) on a wash of its tint, as the carousel's pictures stand on the faculties' washes. On a
-   wide page the picture stands beside the words, every other one on the left; below that under
-   them. The pictures lay themselves out by their own width (container `picture`). */
-.detail-nav { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 24px 20px; }
-.detail-nav a { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 13px 0 10px; border-radius: 999px; background: color-mix(in oklch, var(--tint) 8%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint) 24%, transparent); color: var(--text); font-size: 13px; font-weight: 580; text-decoration: none; transition: background .12s; }
-.detail-nav a:hover { background: color-mix(in oklch, var(--tint) 15%, var(--panel)); text-decoration: none; }
-.detail-nav .icon { width: 15px; height: 15px; color: var(--tint); }
+/* ---------- „Über Betula"'s topics (home/topics.rs, home/detail.rs; owner, 2026-10-27) ---------- */
+/* „Mehr über Betula": the tiles of the topics („Das soll aufgeteilt werden in mehrere kontent
+   pages … Wovon auch ein wenig auf der Landing page verlinkt werden kann"), on „Über Betula",
+   under each topic's page and on the start page after „Entdecken", with its head there
+   (`.on-day`). As many tiles a row as there are (`--n`, four or five), two where the page is
+   narrower (the last of an odd number across the row, so that no cell stays empty), one on a
+   phone. */
+.about-ways { padding: 0 14px 14px; }
+.about-ways > .block-head { padding: 18px 0 14px 10px; }
+.about-ways.on-day > .day-head { padding-left: 2px; padding-right: 0; }
+/* On a phone the line under the head has a line of its own, and all of it. */
+@media (max-width: 900px) { .about-ways.on-day > .day-head .sub { white-space: normal; } }
+.about-tiles { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: 8px; }
+.about-tile { display: grid; grid-template-columns: 34px minmax(0, 1fr) 16px; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); text-decoration: none; transition: background .12s; }
+.about-tile:hover { background: var(--panel-2); text-decoration: none; }
+.about-tile > .icon { width: 16px; height: 16px; color: var(--text-3); }
+.about-tile-i { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: color-mix(in oklch, var(--tint) 14%, var(--panel)); color: var(--tint); }
+.about-tile-t { min-width: 0; }
+.about-tile-t b { display: block; font-size: 13.5px; font-weight: 620; }
+.about-tile-t small { display: block; color: var(--text-3); font-size: 12px; line-height: 1.35; }
+@container (max-width: 1080px) {
+  .about-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .about-tile:nth-child(odd):last-child { grid-column: 1 / -1; }
+}
+/* A topic's page: the way back to „Über Betula" over its heading, the line under it, and the row
+   of the topics, the one shown filled in its tint. */
+.topic-head { padding: 20px 24px 22px; }
+.topic-back { align-self: flex-start; display: inline-flex; align-items: center; gap: 2px; margin-left: -6px; padding: 4px 10px 4px 4px; border-radius: 8px; color: var(--accent-ink); font-size: 13px; font-weight: 620; text-decoration: none; }
+.topic-back:hover { background: var(--row-hover); text-decoration: none; }
+.topic-back .icon { width: 16px; height: 16px; }
+.topic-head h1 { margin-top: 8px; font-size: clamp(26px, 2.9cqi, 34px); line-height: 1.12; font-weight: 720; letter-spacing: -.034em; text-wrap: balance; }
+.topic-head .lead { margin-top: 10px; color: var(--text-2); font-size: 15.5px; line-height: 1.55; max-width: 64ch; text-wrap: pretty; }
+.topic-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
+.topic-nav a { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 13px 0 10px; border-radius: 999px; background: color-mix(in oklch, var(--tint) 8%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint) 24%, transparent); color: var(--text); font-size: 13px; font-weight: 580; text-decoration: none; transition: background .12s; }
+.topic-nav a:hover { background: color-mix(in oklch, var(--tint) 15%, var(--panel)); text-decoration: none; }
+.topic-nav a[aria-current="page"] { background: color-mix(in oklch, var(--tint) 22%, var(--panel)); box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--tint) 60%, transparent); font-weight: 650; }
+.topic-nav .icon { width: 15px; height: 15px; color: var(--tint); }
+.sk-topic { min-height: 480px; }
+
+/* ---------- the chapters of the topics (home/detail.rs; „Betula im Detail" until 2026-10-27; owner, 2026-09-28) ---------- */
+/* A panel per chapter, two to a topic's page (a panel named the eight while they stood together
+   after the questions). A chapter is its words — its name in its tint, a headline, the line under
+   it, four points — and a picture made of the app's own parts (chips, fields, the week grid, the
+   bark of the mark, the crown and the ground) on a wash of its tint, as the carousel's pictures
+   stand on the faculties' washes. On a wide page the picture stands beside the words, the second
+   chapter's on the left; below that under them. The pictures lay themselves out by their own
+   width (container `picture`). */
 
 /* `clip`, not the panel's `hidden`: a panel that hides its overflow is a scroll container of its
    own, and the board's count (`.board-foot`) would stick to it instead of to the view. */
@@ -5095,7 +5136,10 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .faq summary { padding-left: 16px; }
   .faq details p { padding: 0 16px 16px; }
   .soon-line { padding: 14px 16px 16px; }
-  .detail-nav { padding: 0 16px 16px; }
+  .about-tiles { grid-template-columns: minmax(0, 1fr); }
+  .about-ways { padding: 0 10px 10px; }
+  .about-ways > .block-head { padding: 16px 0 12px 6px; }
+  .topic-head { padding: 16px 16px 18px; }
   /* The board is a picture of the sheet, not the sheet: its chips keep about their size from the
      computer (and still a finger's, 34 px). */
   .board .chip { min-height: 34px; padding: 0 10px 0 8px; font-size: 13.5px; border-radius: var(--r-s); gap: 7px; }

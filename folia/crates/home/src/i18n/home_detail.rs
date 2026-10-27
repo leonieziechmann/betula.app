@@ -1,15 +1,11 @@
-//! Texts of „Betula im Detail", the chapters at the end of „Über Betula" (`home/detail.rs`):
-//! a chapter per feature, each a name, a headline, a line under it and four points, and the words
-//! of its picture. Where a picture shows a part of the app (a button, a filter, a chip), the page
-//! takes its words from that part's own group (`catalog`, `studyplan_export` …), so that they are
-//! the same; what stands here is only what no other part says.
+//! Texts of the chapters of „Über Betula"'s topics (`home/detail.rs`; „Betula im Detail" at the
+//! end of its one page until 2026-10-27): a chapter per feature, each a name, a headline, a line
+//! under it and four points, and the words of its picture. Where a picture shows a part of the app
+//! (a button, a filter, a chip), the page takes its words from that part's own group (`catalog`,
+//! `studyplan_export` …), so that they are the same; what stands here is only what no other part
+//! says.
 
 pub struct Texts {
-    pub heading: &'static str,
-    pub lead: &'static str,
-    /// The row of links to the chapters under the heading, for screen readers.
-    pub chapters: &'static str,
-
     // From a question to the module
     pub flow: Chapter,
     /// The questions people come with, one per way; the steps of each way are the app's own
@@ -144,10 +140,6 @@ pub struct Hints {
 }
 
 pub const DE: Texts = Texts {
-    heading: "Betula im Detail",
-    lead: "Was Betula kann und wie es gebaut ist, Kapitel für Kapitel, mit Bildern aus der App selbst.",
-    chapters: "Kapitel",
-
     flow: Chapter {
         name: "Der Weg zum Modul",
         title: "Jede Frage hat einen kurzen Weg",
@@ -318,10 +310,6 @@ pub const DE: Texts = Texts {
 };
 
 pub const EN: Texts = Texts {
-    heading: "Betula in detail",
-    lead: "What Betula does and how it is built, chapter by chapter, with pictures from the app itself.",
-    chapters: "Chapters",
-
     flow: Chapter {
         name: "The way to a module",
         title: "Every question has a short way",
