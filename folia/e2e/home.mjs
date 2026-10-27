@@ -78,6 +78,14 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
     return { season, image: getComputedStyle(onPage(".day-photo")).backgroundImage, shown };
   });
   check(photo.image.includes(`/assets/season/${photo.season}.webp`) && photo.shown.join() === photo.season, `the photo is not the season's, or the ground names another: ${JSON.stringify(photo)}`);
+  // Under the ways into the catalog the topics of „Über Betula" (owner, 2026-10-27: „Wovon auch ein
+  // wenig auf der Landing page verlinkt werden kann"), and the way to it; not in the ground any more.
+  const about = await page.evaluate(() => ({
+    tiles: [...allOnPage(".about-ways .about-tile")].map((a) => a.getAttribute("href")).join(),
+    all: Boolean(onPage('.about-ways a.ghost[href="/about"]')),
+    ground: [...document.querySelectorAll(".ground-legal a")].some((a) => a.getAttribute("href") === "/about"),
+  }));
+  check(about.tiles === "/about/finding,/about/planning,/about/data,/about/questions" && about.all && !about.ground, `the start page does not lead to the topics of „Über Betula", or the ground still does: ${JSON.stringify(about)}`);
 
   // Step 1: the programs in the app's picker; a pick goes on to step 2 at once.
   await page.click("#ob-program >> visible=true");

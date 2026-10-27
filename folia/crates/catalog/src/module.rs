@@ -78,9 +78,6 @@ pub fn ModulePage() -> impl IntoView {
     // addresses keep the page's hint.
     let kept = Memo::new(move |_| ModuleHint::parse(&location.search.get()));
     let termin = Memo::new(move |_| if APP { location.search.with(|search| url::termin_of(search)) } else { None });
-    if APP {
-        provide_context(TerminBeside(Callback::new(move |key: RowKey| id.with_untracked(|id| kept.with_untracked(|kept| t.path(&url::module_termin_path(id, kept, Some((key, None)))))))));
-    }
     let picked = Signal::derive(move || termin.with(Option::is_some));
     let aside = ViewFn::from(move || view! { <ModuleTermin id kept asked=termin/> });
 
@@ -96,6 +93,15 @@ pub fn ModulePage() -> impl IntoView {
                 view! { <Plain><NotFound title=t.module.not_found hint=t.module.not_found_hint/></Plain> }.into_any()
             }
             Ok(Some(data)) => {
+                // Where a line of its Termine leads (`TerminBeside`), for the page drawn here and
+                // nothing else: provided in the page's body it stood in the stage's own scope,
+                // which the catalog's list drawn there after Esc shares, and the preview beside
+                // the list called the page's way after the page was gone (a panic, the app dead:
+                // „you tried to access a reactive value … already disposed").
+                if APP {
+                    let page = id.clone();
+                    provide_context(TerminBeside(Callback::new(move |key: RowKey| kept.with_untracked(|kept| t.path(&url::module_termin_path(&page, kept, Some((key, None))))))));
+                }
                 // „Zurück" leads where the visitor came from: the program whose page had this
                 // module open beside it (its „Vollbild"), else the catalog's list as it was left.
                 let back = back_to(&id);
