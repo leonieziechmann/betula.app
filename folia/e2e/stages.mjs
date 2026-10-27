@@ -18,6 +18,11 @@
 //   Back leaves the page with it open (an iPhone, no CloseWatcher), it goes with the page, and
 //   nothing stays dimmed;
 // 6 Back on a phone leads up to Start (nav.rs), which comes as it was left.
+// 7 the way back at the head of a phone's page is the page in front's (chrome.rs, `TopBack`): a
+//   semester of „Mein Studium“, its Regelstudienplan and a module's own page leave none on the
+//   other tabs, where the way to the profile page is in reach again, and have it again as their tab
+//   comes back as it was left; where the browser has no Navigation API (the way back's link leads
+//   on), the way back of a page on another tab leaves the semester of „Mein Studium“ behind it.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -28,10 +33,12 @@ const check = (ok, message) => { if (!ok) problems.push(message); };
 let during = "";
 const timings = {};
 
-const open = async (options, path) => {
+// `init`: a script of its own before every page's (a browser without something).
+const open = async (options, path, init) => {
   const context = await browser.newContext({ locale: "de-DE", ...options });
   // „Einplanen" and the rest stay out of the way: nothing here plans.
   await context.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
+  if (init) await context.addInitScript(init);
   const page = await context.newPage();
   page.on("console", (m) => { if (m.type() === "error") problems.push(`console (${during}): ` + m.text().slice(0, 300)); });
   page.on("pageerror", (e) => problems.push(`pageerror (${during}): ` + String(e).slice(0, 300)));
@@ -314,6 +321,123 @@ for (const slow of [1, 4]) {
   check(await allBuilt(page, 90000), `${during}: not every tab was built (${JSON.stringify(await stages(page))})`);
   check(await same(page, "programs", "__programs"), `${during}: „Mein Studium“ was built anew`);
   await oneInFront(page, "programs", { phone });
+  if (await reloaded(page)) problems.push(`${during}: the page was loaded again`);
+  await context.close();
+}
+
+// ---- a phone: the way back at the head is the page in front's (owner, 2026-10-27: „Wenn man in
+// der handy app auf mein studienplan geht, und dann per nav bar irgendwo anders hingeht, dann hat
+// man überall noch eine back pfeil, der da nicht sein sollte")
+// The head of a phone's page: where its way back leads (`null` where there is none), and whether the
+// way to the profile page is in reach (it gives way to the way back).
+const atHead = (page) => page.evaluate(() => ({
+  back: document.querySelector(".topbar .top-back.on")?.getAttribute("href") ?? null,
+  profile: document.querySelector(".topbar .top-profile")?.inert === false,
+}));
+// Until the row of „Mein Studium" in front rests at a semester (`semester`) or at its overview.
+const rowAt = (page, semester) => page.waitForFunction((semester) => {
+  const here = document.querySelector("#content > .page-stage.front .st-pager > .st-slot[data-here]");
+  return Boolean(here) && !document.querySelector(".st-pager.is-gliding") && here.classList.contains("is-overview") !== semester;
+}, semester, { timeout: 10000 }).then(() => true, () => false);
+// A study set up, on a phone (`init` as `open` takes it).
+const studying = async (init) => {
+  const { context, page } = await open({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, "/", init);
+  await page.evaluate((entries) => { for (const [key, text] of entries) localStorage.setItem(key, text); }, [MINE, PLAN]);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
+  await film(page);
+  return { context, page };
+};
+// A link to a module's own page, as a shared one or the search's.
+const linkTo = (page, path) => page.evaluate((path) => { const a = Object.assign(document.createElement("a"), { href: path }); document.body.append(a); a.click(); a.remove(); }, path);
+{
+  const phone = true;
+  const { context, page } = await studying();
+  const head = async (back) => {
+    const now = await atHead(page);
+    check(now.back === back && now.profile === (back === null), `${during}: the head has ${JSON.stringify(now)}, not the way back ${back}`);
+  };
+  // The tabs away from the page, and back to it: the way back as it was left.
+  const away = async (from, tabs) => {
+    for (const name of tabs) {
+      during = `phone, the way back: ${name} after ${from}`;
+      await tab(page, name, phone);
+      await settle(page);
+      await head(null);
+    }
+  };
+
+  during = "phone, the way back: a semester of „Mein Studium“";
+  await tab(page, "programs", phone);
+  await settle(page);
+  await page.tap("#content > .page-stage.front .st-planbox-head");
+  check(await rowAt(page, true), `${during}: the row did not turn to a semester`);
+  await head("/study");
+  await away("the semester", ["catalog", "bookmarks", "studyplan", "home"]);
+  during = "phone, the way back: „Mein Studium“ again";
+  await tab(page, "programs", phone);
+  await settle(page);
+  check(await rowAt(page, true), `${during}: the row is not at the semester it was left at`);
+  await head("/study");
+  await page.tap(".topbar .top-back.on");
+  check(await rowAt(page, false), `${during}: the way back did not bring the overview`);
+  await head(null);
+
+  during = "phone, the way back: the Regelstudienplan of „Mein Studium“";
+  await page.tap('#content > .page-stage.front .st-mine-panel .st-ways a[href="/study?view=plan"]');
+  await page.waitForFunction(() => location.search === "?view=plan" && document.querySelector("#content > .page-stage.front .st-rsp-phone"), null, { timeout: 10000 }).catch(() => problems.push(`${during}: did not come (${page.url()})`));
+  await settle(page);
+  await head("/study");
+  await away("the Regelstudienplan", ["catalog"]);
+  during = "phone, the way back: the Regelstudienplan again";
+  await tab(page, "programs", phone);
+  await settle(page);
+  check(new URL(page.url()).search === "?view=plan", `${during}: at ${page.url()}`);
+  await head("/study");
+
+  during = "phone, the way back: a module's own page";
+  await tab(page, "home", phone);
+  await settle(page);
+  await linkTo(page, "/catalog/module/12104");
+  await page.waitForFunction(() => location.pathname === "/catalog/module/12104" && document.querySelector("#content > .page-stage.front .module-page h2"), null, { timeout: 10000 }).catch(() => problems.push(`${during}: did not come (${page.url()})`));
+  await settle(page);
+  const module = await atHead(page);
+  check(module.back?.startsWith("/catalog") && !module.profile, `${during}: the head has ${JSON.stringify(module)}`);
+  await away("the module's page", ["studyplan"]);
+  during = "phone, the way back: the module's page again";
+  await tab(page, "catalog", phone);
+  await settle(page);
+  check(new URL(page.url()).pathname === "/catalog/module/12104", `${during}: at ${page.url()}`);
+  await head(module.back);
+  if (await reloaded(page)) problems.push("phone, the way back: the page was loaded again");
+  await context.close();
+}
+
+// ---- a phone whose browser has no Navigation API: where the step before is not known, the way
+// back follows its link, and the page whose box it is hears it pressed (`TopBack::presses`). The
+// way back of a page on another tab leaves „Mein Studium" behind it as it was left.
+{
+  const phone = true;
+  const { context, page } = await studying(() => Object.defineProperty(window, "navigation", { value: undefined, configurable: true }));
+  during = "phone without the Navigation API: a semester of „Mein Studium“";
+  check(await page.evaluate(() => window.navigation === undefined), `${during}: the browser has the Navigation API`);
+  await tab(page, "programs", phone);
+  await settle(page);
+  await page.tap("#content > .page-stage.front .st-planbox-head");
+  check(await rowAt(page, true), `${during}: the row did not turn to a semester`);
+  during = "phone without the Navigation API: a module's page from Start, its way back";
+  await tab(page, "home", phone);
+  await settle(page);
+  await linkTo(page, "/catalog/module/12104");
+  await page.waitForFunction(() => location.pathname === "/catalog/module/12104" && document.querySelector(".topbar .top-back.on"), null, { timeout: 10000 }).catch(() => problems.push(`${during}: did not come (${page.url()})`));
+  await settle(page);
+  await page.tap(".topbar .top-back.on");
+  await page.waitForFunction(() => location.pathname === "/catalog", null, { timeout: 10000 }).catch(() => problems.push(`${during}: did not lead to the list (${page.url()})`));
+  await settle(page);
+  during = "phone without the Navigation API: „Mein Studium“ again";
+  await tab(page, "programs", phone);
+  await settle(page);
+  check(await rowAt(page, true), `${during}: the row is not at the semester it was left at`);
   if (await reloaded(page)) problems.push(`${during}: the page was loaded again`);
   await context.close();
 }
