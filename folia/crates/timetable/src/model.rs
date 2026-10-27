@@ -1804,6 +1804,7 @@ pub mod tests {
     }
 
     /// A Termin of one's own of 2026W: Friday 13:00–17:00 every week of the lecture period.
+    #[cfg(test)]
     fn job(number: u32) -> OwnTermin {
         OwnTermin {
             number,

@@ -42,6 +42,7 @@ use folia_widgets::finder::finder_on;
 use folia_design::ui::Icon;
 use super::calendars::TogetherSwitch;
 use super::week::{has_ab, AllSwitch, WeekSwitch};
+use super::own::AddOwn;
 use super::{key_of, PlanCtx, SheetToggle};
 
 /// The tones of the plan's modules, in the order of `app.css`'s `t-…` classes: the first planned
@@ -50,7 +51,11 @@ const HUES: [&str; 8] = ["t-ice", "t-sun", "t-violet", "t-teal", "t-green", "t-c
 
 /// The class of a module's tone (`Event::tone`, 1–8); a tone out of range is the first.
 pub(super) fn hue(tone: u8) -> &'static str {
-    HUES.get(usize::from(tone.saturating_sub(1)) % HUES.len()).copied().unwrap_or("t-ice")
+    match tone {
+        // A Termin of one's own of no module in the week (`Event::own`): its own grey.
+        0 => "t-own",
+        tone => HUES.get(usize::from(tone - 1) % HUES.len()).copied().unwrap_or("t-ice"),
+    }
 }
 
 /// The tone of the module at `position` in the semester's plan: the tone the timetable gives the
@@ -107,7 +112,7 @@ fn open_placeholders(doc: &PlanDoc, key: SemesterKey) -> usize {
 /// Besuch · 1 Platzhalter"). Visits and placeholders only where there are any. The credits are the
 /// head's of the list of modules (owner, 2026-09-25: „die Summe aus allen geplanten Modulen", oben
 /// rechts), so they are not said here again. Empty with nothing to count and no program.
-pub(super) fn sum_line(program: Option<&str>, modules: usize, visits: usize, placeholders: usize, t: &i18n::Texts) -> String {
+pub(super) fn sum_line(program: Option<&str>, modules: usize, visits: usize, placeholders: usize, own: usize, t: &i18n::Texts) -> String {
     let mut parts = Vec::new();
     if let Some(program) = program.filter(|program| !program.is_empty()) {
         parts.push(program.to_string());
@@ -120,6 +125,9 @@ pub(super) fn sum_line(program: Option<&str>, modules: usize, visits: usize, pla
     }
     if placeholders > 0 {
         parts.push((t.studyplan_head.placeholders)(placeholders));
+    }
+    if own > 0 {
+        parts.push((t.studyplan_head.own)(own));
     }
     parts.join(" · ")
 }
@@ -177,9 +185,9 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
     let sum = Memo::new(move |_| {
         let (placeholders, program) = (held.get(), program.get());
         // The week's modules, of which the selection's visits (a sibling of the data, R16).
-        let visits = ctx.selection.with(|(_, selection)| selection.visits.len());
+        let (visits, own) = ctx.selection.with(|(_, selection)| (selection.visits.len(), selection.own.len()));
         let modules = ctx.data.with(|data| data.as_ref().map_or(0, |data| data.ids.len())).saturating_sub(visits);
-        sum_line(program.as_deref(), modules, visits, placeholders, t)
+        sum_line(program.as_deref(), modules, visits, placeholders, own, t)
     });
     let line = Memo::new(move |_| ctx.data.with(|data| data.as_ref().ok().and_then(head_line)));
     // „A-Woche · B-Woche · A/B" at the head's right end, beside the week it switches, where the
@@ -203,6 +211,9 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
             {move || (weekly.get() && !phone.get()).then(|| view! { <TogetherSwitch ctx/> })}
             {move || (weekly.get() && planned.get() && !phone.get()).then(|| view! { <AllSwitch all=ctx.all/> })}
             {move || (weekly.get() && ab.get() && !phone.get()).then(|| view! { <WeekSwitch weeks=ctx.weeks/> })}
+            // „+ Termin" (folia/design/kalender/termine.html; on a phone the round button over the
+            // bar, `own.rs`).
+            {move || (!phone.get()).then(|| view! { <AddOwn ctx/> })}
         </div>
         {move || {
             let text = sum.get();
@@ -410,8 +421,12 @@ impl About {
         self.titles.get(module).cloned().unwrap_or_else(|| (t.studyplan_head.module_numbered)(module))
     }
 
-    /// The title an event goes by in a line: its first planned module's.
+    /// The title an event goes by in a line: its first planned module's; a Termin of one's own's
+    /// name.
     fn title_of(&self, event: &Event, t: &i18n::Texts) -> String {
+        if let Some(own) = &event.own {
+            return super::own::shown_name(own, &self.titles, i18n::texts(t.locale));
+        }
         event.modules.first().map_or_else(|| event.title.clone(), |module| self.title(module, t))
     }
 }
@@ -1436,20 +1451,23 @@ mod tests {
         // A position's tone in the legend is the tone the timetable gives the module's events.
         let hues: Vec<&str> = (0..10).map(|position| hue(tone_at(position))).collect();
         assert_eq!(hues, vec!["t-ice", "t-sun", "t-violet", "t-teal", "t-green", "t-coral", "t-rose", "t-slate", "t-ice", "t-sun"]);
-        assert_eq!((hue(0), hue(9)), ("t-ice", "t-ice"));
+        // Tone 0 is a Termin of one's own of no module in the week: its own grey.
+        assert_eq!((hue(0), hue(9)), ("t-own", "t-ice"));
     }
 
     #[test]
     fn the_head_counts_numbers_first() {
         let informatik = Some("Informatik B.Sc.");
-        assert_eq!(sum_line(informatik, 5, 0, 0, &DE), "Informatik B.Sc. · 5 Module");
-        assert_eq!(sum_line(informatik, 4, 0, 1, &DE), "Informatik B.Sc. · 4 Module · 1 Platzhalter");
-        assert_eq!(sum_line(None, 1, 0, 0, &DE), "1 Modul");
-        assert_eq!(sum_line(informatik, 4, 2, 0, &DE), "Informatik B.Sc. · 4 Module · 2 Besuche");
-        assert_eq!(sum_line(None, 0, 1, 0, &EN), "1 visit");
-        assert_eq!((sum_line(informatik, 4, 0, 1, &EN), sum_line(None, 1, 0, 2, &EN)), ("Informatik B.Sc. · 4 modules · 1 placeholder".to_string(), "1 module · 2 placeholders".to_string()));
+        assert_eq!(sum_line(informatik, 5, 0, 0, 0, &DE), "Informatik B.Sc. · 5 Module");
+        assert_eq!(sum_line(informatik, 4, 0, 1, 0, &DE), "Informatik B.Sc. · 4 Module · 1 Platzhalter");
+        assert_eq!(sum_line(None, 1, 0, 0, 0, &DE), "1 Modul");
+        assert_eq!(sum_line(informatik, 4, 2, 0, 0, &DE), "Informatik B.Sc. · 4 Module · 2 Besuche");
+        assert_eq!(sum_line(informatik, 4, 0, 0, 3, &DE), "Informatik B.Sc. · 4 Module · 3 eigene Termine");
+        assert_eq!(sum_line(None, 0, 0, 0, 1, &EN), "1 event of your own");
+        assert_eq!(sum_line(None, 0, 1, 0, 0, &EN), "1 visit");
+        assert_eq!((sum_line(informatik, 4, 0, 1, 0, &EN), sum_line(None, 1, 0, 2, 0, &EN)), ("Informatik B.Sc. · 4 modules · 1 placeholder".to_string(), "1 module · 2 placeholders".to_string()));
         // Nothing planned: the program alone, or nothing.
-        assert_eq!((sum_line(informatik, 0, 0, 0, &DE), sum_line(None, 0, 0, 0, &DE)), ("Informatik B.Sc.".to_string(), String::new()));
+        assert_eq!((sum_line(informatik, 0, 0, 0, 0, &DE), sum_line(None, 0, 0, 0, 0, &DE)), ("Informatik B.Sc.".to_string(), String::new()));
         // A placeholder counts in its own semester, a row over several in each it stands in, and
         // only while nothing counts for its row.
         let placeholder = |pid: u32, span: (u8, u8), credits: &str| Placeholder {

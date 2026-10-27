@@ -658,11 +658,11 @@ impl PlanDoc {
         out
     }
 
-    /// Nothing planned: no module, no visit and no placeholder. The stored text may still hold what
-    /// a semester hides, a code or lines of a newer build; the store's key goes only when `stored`
-    /// is empty.
+    /// Nothing planned: no module, no visit, no placeholder and no Termin of one's own of the plan's
+    /// calendar. The stored text may still hold what a semester hides, a code, the calendars of
+    /// one's own or lines of a newer build; the store's key goes only when `stored` is empty.
     pub fn is_empty(&self) -> bool {
-        self.modules.is_empty() && self.visits.is_empty() && self.placeholders.is_empty()
+        self.modules.is_empty() && self.visits.is_empty() && self.placeholders.is_empty() && self.own.is_empty()
     }
 
     /// The semesters the plan holds modules, visits or placeholders in, in order.
