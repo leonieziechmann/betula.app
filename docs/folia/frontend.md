@@ -2127,17 +2127,34 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     „Heute" and „Morgen", the card's „Termin ansehen", a bar of the week) opens over the start page
     (`/?termin=…&on=…`, `url::home_termin`), floating at the right edge where the screen is wide.
     On a phone it is the sheet a module is (`.detail.is-module`, enhance.js waits for `termin=` as for
-    `open=`). Each date, group and event in it leads to its own Termin by such an address, so Back
-    steps back through them; Esc and „Schließen" close it (back a step where the page without it is
-    the step before). An exam and a Termin without a date open their module, as before.
-  - **First what one wants to know.** The module's chip in its tone, the kind and the title; the
-    date with arrows to the dates before and after it (the break and the holidays skipped), the
-    A/B week where it is held every other week, where it stands („in 40 min", „läuft · noch 20
-    min", „morgen", „vorbei", „Fällt aus", „ausgeblendet"), the time and the room in large type,
-    QIS's name of the room and the campus under it. Then who leads it (the Termin's instructor, else
-    „verantwortet das Modul"), and in lines of their own a clash in red (`termin::clash_on`), why QIS
-    cancels the date and the day it moves to, a note of the room, why the plan leaves it out, QIS's
-    remark.
+    `open=`). Each event, group and date that picks it leads to its own Termin by such an address,
+    so Back steps back through them; Esc and „Schließen" close it (back a step where the page without
+    it is the step before). An exam and a Termin without a date open their module, as before.
+  - **What picks it stands above everything it changes** (owner, 2026-10-27, after trying the fourth
+    round on canary: „Also eine Sache, die komplett unverständlich ist, ist der Fakt, dass man unten
+    auswählt, welchen Termin man sich genau angucken möchte und sich dann die Seite nur marginal
+    ändert. Einfaches Prinzip. Wenn man solche Buttons hat, dann ändern die nur den Inhalt unter
+    ihnen. Ansonsten muss man nochmal über das Konzept nachdenken."; the fifth round, CLAUDE.md
+    „Design"). The head names the module, its chip in its tone and its title, and no pick changes
+    it; the kind stands beside the chip only where the module has one event. Under the head the
+    module's events as a row of segments where it has more than one (`folia_widgets::termin::Pick`;
+    each by its kind, of two of a kind by the weekday of their first Termin, else its time, else a
+    number; those for another campus or program left out as the module's page leaves them out, the
+    one shown always there): the one shown marked, another leading to its Termin the plan holds (a
+    group ticked), else to its first. Under them the event's own title where it is not the module's,
+    and to look up the event's groups (below) or, of an event held at several times without groups,
+    its Termine („Termine · beide"). Then the ticket, whose arrows pick its date above the time and
+    room they change. Below the ticket nothing picks: the day and the series are pictures, and the
+    switches of „Im Stundenplan" change the plan, not what the view shows. „Alle Veranstaltungen" at
+    the end, which picked a Termin from the bottom, is gone: the segments and the groups are it, at
+    the top.
+  - **Then what one wants to know.** The date with arrows to the dates before and after it (the
+    break and the holidays skipped), the A/B week where it is held every other week, where it stands
+    („in 40 min", „läuft · noch 20 min", „morgen", „vorbei", „Fällt aus", „ausgeblendet"), the time
+    and the room in large type, QIS's name of the room and the campus under it. Then who leads it
+    (the Termin's instructor, else „verantwortet das Modul"), and in lines of their own a clash in
+    red (`termin::clash_on`), why QIS cancels the date and the day it moves to, a note of the room,
+    why the plan leaves it out, QIS's remark.
   - **Then what one adjusts: „Im Stundenplan · auch im Kalender-Abo"** (from the Stundenplan and the
     start page, `TerminMode::Adjust`): the groups of the event's choice as tiles in a fixed grid of
     at most three columns (owner: „Mach da einfach ein festes raster z.B. 3 Termine pro row"), each
@@ -2153,13 +2170,12 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     hidden dates as a field appended to its frozen layout, `subscription::date_value`, so a code
     without any is the same as before).
   - **Then what one looks up:** „Der Tag" (the plan's Termine of the day on a ribbon from 7 to 19,
-    this one filled, and what comes after it with the time between), „Reihe" (a dot per date, each
-    a link: past, cancelled, noted, hidden, the break; „5 von 15 · noch 12"), „Modul" („Zum Modul":
-    the module's panel beside the plan, pointing at the Termin, and its exam in days), and after a
-    dashed line „Alle Veranstaltungen" of the module (each event's Termine three to a row, the
-    Termin's own filled), „Lehrende laut QIS" and „Zeitraum und Ausnahmen" (the rhythm, weekday,
-    time, first and last date, how many, and every date that differs), at the end „Quelle: QIS" with
-    the event's number and „In QIS öffnen".
+    this one filled, and what comes after it with the time between), „Reihe" (a dot per date: past,
+    cancelled, noted, hidden, the break; „5 von 15 · noch 12"), both pictures that open nothing,
+    „Modul" („Zum Modul": the module's panel beside the plan, pointing at the Termin, and its exam in
+    days), and after a dashed line „Lehrende laut QIS" and „Zeitraum und Ausnahmen" (the rhythm,
+    weekday, time, first and last date, how many, and every date that differs), at the end „Quelle:
+    QIS" with the event's number and „In QIS öffnen".
   - **The panel and the week** follow the same ticks: an option's line in the panel beside the plan
     is a box (a click ticks it or takes its tick away); „Ausgeblendet" over the week lists every
     option ticked („nur Mo 15:30, Di 11:30") and each hidden date with its own „Einblenden".
@@ -2167,12 +2183,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     the concept's „Zum Nachschlagen"), where a line of a module's „Termine" leads from the server's
     page, a preview and „Vollbild" in another area (an exam still to QIS; on the module's own page
     the Termin opens beside it, below), and „Ganze Seite" of that. Its data is `EventAsk`: the timetable of the modules that link the event, in the newest
-    semester it is held in. The same view without „Im Stundenplan": under the ticket the groups to
+    semester it is held in. The same view without „Im Stundenplan": above the ticket the groups to
     look at (a tap opens the group's Termin, „eine von 4"). The app adds the visitor's plan of that
     semester (the Stundenplan's own `StudyplanAsk`): a module in it is read in the plan, its groups
-    ticked as there, „Noch keine / Eine / 2 in deinem Stundenplan" and „Anpassen ›" into the
-    Stundenplan of that semester (`?sem=…&termin=…&on=…`; one place to adjust, the owner's yes to
-    the third proposal); one outside it has its chip dashed and „nicht im Plan", is measured against
+    ticked as there, under the ticket „Noch keine / Eine / 2 in deinem Stundenplan" (of an event
+    without groups „Im Stundenplan") and „Anpassen ›" into the Stundenplan of that semester
+    (`?sem=…&termin=…&on=…`; one place to adjust, the owner's yes to the third proposal); one
+    outside it has its chip dashed and „nicht im Plan", is measured against
     the plan (`folia_widgets::termin::Against::Plan`: its groups green and red, a clash a line of
     its own, the Termin hatched among the plan's day) and has one big button, „In den Kalender",
     its dates as a calendar file of their own (`termin::alone`, made ahead as a Blob URL). Without
@@ -2187,9 +2204,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (enhance.js, `share-link`; it needs JavaScript, R15). „Ganze Seite" lets the Termin fill the
     page it stood beside (`/studyplan?…&termin=…&on=…&full=1`, `/?termin=…&on=…&full=1`), as
     „Vollbild" does a module: the same view, still the one that adjusts, in two columns where the
-    page is wide (folia/design/termin, „Die Seite": on the left the ticket, who, „Im Stundenplan",
-    the day, the series and the period; on the right the module, all its events, who teaches and
-    the source), its dates and groups leading to their Termin filling the page too, „Zurück" (Esc)
+    page is wide (folia/design/termin, „Die Seite": on the left what picks the Termin, the ticket,
+    who, „Im Stundenplan", the day, the series and the period; on the right the module and who
+    teaches, which no pick changes, and the source), its events, groups and dates leading to their
+    Termin filling the page too, „Zurück" (Esc)
     to the view beside the page on the day shown, „Teilen" in words at the right. The start page's
     own parts make way meanwhile (app.css; its photo leaves the bar, `betula:frost`). A Termin's own
     page has the same two columns and „Teilen".
@@ -2206,7 +2224,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (`?termin=<key>&on=<day>`, `url::module_termin_path`, the page's hint kept), floating at its
     right as a module beside a list does (the frame's aside), on a phone a sheet over it: the view
     to look up, measured against the visitor's plan as on its own page (`folia_catalog::lookup`,
-    which both read). Its dates and groups open beside the page as well, „Zum Modul" closes it,
+    which both read). Its events, groups and dates open beside the page as well, „Zum Modul" closes it,
     „Ganze Seite" (V) is the Termin's own page, „Schließen" (Esc) the page without it. The page
     gives its lines that way (`folia_widgets::module::TerminBeside`); the server's lines, a preview
     beside a list and „Vollbild" in another area lead to the Termin's own page.
