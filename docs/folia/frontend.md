@@ -5737,7 +5737,9 @@ cd e2e && node pwa.mjs
 installs the app with the network (the worker has the shell, the bundle included; no status
 pill once the app runs), then cuts the network and loads pages afresh: the catalog with a
 filter, a module page never seen before, the program page seen before, and a step inside the
-app out of the local catalog.
+app out of the local catalog. It and `schema.mjs` need a server without `--live-assets` (the
+`target/debug/folia` that `dev.sh` built, started without the flag): the worker of a server with
+it keeps nothing, so nothing is there without the network.
 
 ```bash
 cd e2e && node launch.mjs
