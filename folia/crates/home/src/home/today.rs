@@ -185,43 +185,150 @@ pub fn TodayView(guest: bool, welcome: RwSignal<Option<Done>>, on_setup: Callbac
         super::ahead::keep(ctx);
     }
 
+    // Which panel stands in which column: built anew only where that changes, not with every
+    // minute; the panels follow the minute themselves.
+    let marks = Bookmarks::expect();
+    let layout = Memo::new(move |_| {
+        let counts = ctx.today.with(|today| Counts {
+            today: today.entries.len(),
+            next: today.next_day.as_ref().map(|(_, entries)| entries.len()),
+            exams: today.exams.len(),
+            day_over: today.coming().count() == 0 && today.running().is_none(),
+            marks: marks.map_or(0, Bookmarks::count).min(MARKS_SHOWN),
+            study: ctx.progress.with(Option::is_some),
+        });
+        columns(ctx.phase.get(), now.get().1 >= 17 * 60, counts)
+    });
+    let panel = move |panel: Panel| match panel {
+        Panel::Day => view! { <DayPanel ctx/> }.into_any(),
+        Panel::NextDay => view! { <NextDayPanel ctx/> }.into_any(),
+        Panel::YourExams => view! { <ExamsPanel ctx big=true/> }.into_any(),
+        Panel::Exams => view! { <ExamsPanel ctx big=false/> }.into_any(),
+        Panel::Week => view! { <WeekPanel ctx/> }.into_any(),
+        Panel::Study => view! { <StudyPanel ctx/> }.into_any(),
+        Panel::Marks => view! { <MarksPanel/> }.into_any(),
+    };
     view! {
         <Hero ctx on_setup/>
         <Welcome welcome/>
         {(!guest).then(|| view! { <TerminOver table data plan now/> })}
         {move || {
-            let phase = ctx.phase.get();
-            let evening = now.get().1 >= 17 * 60;
-            let day_over = ctx.today.with(|today| today.coming().count() == 0 && today.running().is_none());
-            let has_exams = ctx.today.with(|today| !today.exams.is_empty());
             if guest {
                 return view! {
-                    <div class="day-cols">
+                    <div class="day-cols guest">
                         <div class="day-col"><MarksPanel/></div>
                         <div class="day-col"><GuestPanel on_setup/></div>
                     </div>
                 }.into_any();
             }
-            let main = match phase {
-                Phase::Exams => view! { <ExamsPanel ctx big=true/><DayPanel ctx/> }.into_any(),
-                Phase::Break => view! { <DayPanel ctx/><NextDayPanel ctx/> }.into_any(),
-                Phase::Lectures if day_over => view! { <NextDayPanel ctx/><DayPanel ctx/> }.into_any(),
-                Phase::Lectures if evening => view! { <DayPanel ctx/><NextDayPanel ctx/> }.into_any(),
-                _ => view! { <DayPanel ctx/> }.into_any(),
-            };
-            let side = match phase {
-                Phase::Exams | Phase::Over => view! { <StudyPanel ctx/><MarksPanel/> }.into_any(),
-                _ => view! { <WeekPanel ctx/>{has_exams.then(|| view! { <ExamsPanel ctx big=false/> })}<StudyPanel ctx/><MarksPanel/> }.into_any(),
-            };
+            let Columns { main, side } = layout.get();
             view! {
                 <div class="day-cols">
-                    <div class="day-col day-main">{main}</div>
-                    <div class="day-col">{side}</div>
+                    <div class="day-col day-main">{main.into_iter().map(panel).collect_view()}</div>
+                    <div class="day-col">{side.into_iter().map(panel).collect_view()}</div>
                 </div>
             }.into_any()
         }}
         <Discover home/>
     }
+}
+
+/// A panel under the photo.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Panel {
+    /// „Heute".
+    Day,
+    /// The next day with Termine („Morgen", „Am Freitag", „Ab 04.01.").
+    NextDay,
+    /// The exams in front, while they run („Deine Prüfungen").
+    YourExams,
+    /// The exams beside the day.
+    Exams,
+    Week,
+    Study,
+    Marks,
+}
+
+/// What the panels hold that makes them taller: the rows of today and of the next day, the exams
+/// to come, the marks shown, „Mein Studium" at all (none without its numbers).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Counts {
+    today: usize,
+    next: Option<usize>,
+    exams: usize,
+    /// Nothing of today runs or comes any more.
+    day_over: bool,
+    marks: usize,
+    study: bool,
+}
+
+/// The panels under the photo, the day's column (the wide one) and the one beside it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct Columns {
+    main: Vec<Panel>,
+    side: Vec<Panel>,
+}
+
+/// How tall a panel stands on a wide screen, in pixels: its head (54) and its rows, as app.css
+/// draws them (`.day-head`, `.day-list` with `.day-ev` and the line of the hour, `.day-exl`,
+/// `.day-bml`; one line each). Only to lay the panels out (`columns`); none where it shows nothing.
+fn tall(panel: Panel, counts: Counts) -> u32 {
+    let n = |count: usize| u32::try_from(count).unwrap_or(u32::MAX / 128);
+    match panel {
+        Panel::Day if counts.today == 0 => 132,
+        Panel::Day => 87 + 59 * n(counts.today),
+        Panel::NextDay => counts.next.map_or(0, |next| 64 + 59 * n(next)),
+        Panel::YourExams | Panel::Exams => 66 + 63 * n(counts.exams),
+        Panel::Week => 185,
+        Panel::Study if counts.study => 153,
+        Panel::Study => 0,
+        Panel::Marks if counts.marks == 0 => 95,
+        Panel::Marks => 64 + 58 * n(counts.marks),
+    }
+}
+
+/// A column's height: its panels and the gaps of 8 px between those that show.
+fn column_height(panels: &[Panel], counts: Counts) -> u32 {
+    let shown: Vec<u32> = panels.iter().map(|&panel| tall(panel, counts)).filter(|&height| height > 0).collect();
+    shown.iter().sum::<u32>() + 8 * u32::try_from(shown.len().saturating_sub(1)).unwrap_or(0)
+}
+
+/// Which panels stand under the photo, and in which column. The day's go in the wide one, by the
+/// phase of the semester and the hour: while the exams run the exams first, in the evening and
+/// once the day is done the next day with Termine as well (first once the day is done); the rest
+/// beside them, the week, the exams to come, „Mein Studium", the Merkliste. Of these the last two
+/// go under the day where that makes the columns end more nearly even (owner, 2026-10-27: „dass
+/// gerne mal riesige Lücken in dem UI sind. Bitte verbesser das mal, so dass das relativ uniform
+/// ist"): with a day of few Termine the day's column ended up to 650 px above the other, the
+/// page's ground in the hole. A panel moves only for more than a gap's worth of evenness (24 px
+/// each), so that the page does not change its order for a few pixels; the stylesheet makes the
+/// columns end on one line (app.css `.day-cols`). On a phone, one column, they come in this
+/// order whatever their column (`order`).
+fn columns(phase: Phase, evening: bool, counts: Counts) -> Columns {
+    let main = match phase {
+        Phase::Exams => vec![Panel::YourExams, Panel::Day],
+        Phase::Break => vec![Panel::Day, Panel::NextDay],
+        Phase::Lectures if counts.day_over => vec![Panel::NextDay, Panel::Day],
+        Phase::Lectures if evening => vec![Panel::Day, Panel::NextDay],
+        _ => vec![Panel::Day],
+    };
+    let side = match phase {
+        Phase::Exams | Phase::Over => vec![Panel::Study, Panel::Marks],
+        _ if counts.exams > 0 => vec![Panel::Week, Panel::Exams, Panel::Study, Panel::Marks],
+        _ => vec![Panel::Week, Panel::Study, Panel::Marks],
+    };
+    let moves: [&[Panel]; 4] = [&[], &[Panel::Marks], &[Panel::Study], &[Panel::Study, Panel::Marks]];
+    moves
+        .iter()
+        .map(|moved| {
+            let main = main.iter().chain(moved.iter()).copied().collect::<Vec<_>>();
+            let side = side.iter().filter(|panel| !moved.contains(panel)).copied().collect::<Vec<_>>();
+            let apart = column_height(&main, counts).abs_diff(column_height(&side, counts));
+            (apart + 24 * u32::try_from(moved.len()).unwrap_or(0), Columns { main, side })
+        })
+        .min_by_key(|(cost, _)| *cost)
+        .map(|(_, columns)| columns)
+        .unwrap_or_default()
 }
 
 /// The photo with the day on it: the date, the greeting, the day in a sentence, the semester's
@@ -1025,7 +1132,7 @@ fn StudyPanel(ctx: Ctx) -> impl IntoView {
             let open = (p.total - p.passed - p.planned).max(0.0);
             let share = |value: f64| format!("width:{:.2}%", (value / total * 100.0).clamp(0.0, 100.0));
             view! {
-                <section class="panel day-panel">
+                <section class="panel day-panel day-study">
                     <header class="day-head"><h2>{tt.my_study}</h2><span class="sub">{(tt.study_sub)(&p.program, p.fs)}</span><a class="ghost" href=t.path(url::STUDY)>{tt.open}<Icon name="arrow-right"/></a></header>
                     <div class="day-prog">
                         <p class="day-prog-fig"><b class="num">{format::number(p.passed, t.locale)}</b><span>{(tt.passed_of)(&format::number(p.total, t.locale))}</span></p>
@@ -1068,7 +1175,7 @@ fn MarksPanel() -> impl IntoView {
             }
         }).collect_view();
         view! {
-            <section class="panel day-panel">
+            <section class="panel day-panel day-marks">
                 <header class="day-head"><h2>{tt.bookmarks}</h2><span class="sub">{(tt.modules)(count)}</span><a class="ghost" href=t.path(url::BOOKMARKS)>{tt.all}<Icon name="arrow-right"/></a></header>
                 {if count == 0 { view! { <p class="day-empty-line">{tt.no_bookmarks}</p> }.into_any() } else { view! { <div class="day-bml">{listed}</div> }.into_any() }}
             </section>
@@ -1135,4 +1242,65 @@ pub fn Discover(home: Signal<Option<HomeData>>, #[prop(optional)] first: bool) -
 /// The faculties of the drawing as `HomeData` counts them: none until the answer is there.
 pub fn faculties_of(home: Signal<Option<HomeData>>) -> Signal<Option<Counted>> {
     Signal::derive(move || home.get().map(|home| home.faculties))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TUESDAY: Counts = Counts { today: 7, next: Some(2), exams: 3, day_over: false, marks: 3, study: true };
+
+    #[test]
+    fn a_full_day_takes_the_study_under_it() {
+        let columns = columns(Phase::Lectures, false, TUESDAY);
+        assert_eq!(columns.main, [Panel::Day, Panel::Study]);
+        assert_eq!(columns.side, [Panel::Week, Panel::Exams, Panel::Marks]);
+    }
+
+    #[test]
+    fn a_short_day_takes_the_merkliste_under_it() {
+        let two = columns(Phase::Lectures, false, Counts { today: 2, ..TUESDAY });
+        assert_eq!(two.main, [Panel::Day, Panel::Marks]);
+        assert_eq!(two.side, [Panel::Week, Panel::Exams, Panel::Study]);
+        // Without Termine and without exams to come as well.
+        let none = columns(Phase::Lectures, false, Counts { today: 0, exams: 0, ..TUESDAY });
+        assert_eq!(none.main, [Panel::Day, Panel::Marks]);
+        assert_eq!(none.side, [Panel::Week, Panel::Study]);
+    }
+
+    #[test]
+    fn nothing_moves_for_a_few_pixels() {
+        // The evening: today and the next day are about as tall as the column beside them.
+        let columns = columns(Phase::Lectures, true, TUESDAY);
+        assert_eq!(columns.main, [Panel::Day, Panel::NextDay]);
+        assert_eq!(columns.side, [Panel::Week, Panel::Exams, Panel::Study, Panel::Marks]);
+    }
+
+    #[test]
+    fn the_day_over_puts_the_next_day_first() {
+        let columns = columns(Phase::Lectures, false, Counts { day_over: true, ..TUESDAY });
+        assert_eq!(columns.main.first(), Some(&Panel::NextDay));
+    }
+
+    #[test]
+    fn the_exams_come_first_while_they_run() {
+        let columns = columns(Phase::Exams, false, Counts { today: 0, exams: 2, ..TUESDAY });
+        assert_eq!(columns.main, [Panel::YourExams, Panel::Day]);
+        assert_eq!(columns.side, [Panel::Study, Panel::Marks]);
+    }
+
+    #[test]
+    fn the_columns_end_about_even() {
+        for today in 0..9 {
+            for exams in 0..6 {
+                for marks in 0..=MARKS_SHOWN {
+                    let counts = Counts { today, exams, marks, next: None, ..TUESDAY };
+                    let Columns { main, side } = columns(Phase::Lectures, false, counts);
+                    let apart = column_height(&main, counts).abs_diff(column_height(&side, counts));
+                    // At most a panel's worth apart, or the day alone is taller than all beside it.
+                    assert!(apart <= 240 || main == [Panel::Day], "{counts:?}: {main:?} | {side:?} {apart} apart");
+                }
+            }
+        }
+    }
 }

@@ -1,7 +1,8 @@
 // Checks a module in its two sizes, on the desktop and on a phone.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node module.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Desktop: preview → full page keeps the frame (sidebar exactly where the filter panel was), the
-// sidebar jumps to sections without history entries, Esc goes back to the list at the row.
+// sidebar jumps to sections without history entries, Esc goes back to the list at the row. The
+// page's two halves end on one line, the times and facts going along with the text.
 // Phone: a tap opens the module's page directly (never the preview), the page has the order of the
 // preview (times and facts, then the description), back returns to the tapped row, and a shared
 // link with a preview becomes the page.
@@ -97,6 +98,33 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
   check(back === true, `back on the list the row of the module is ${back === null ? "not loaded" : "not in view"}`);
   check(Math.abs((await page.evaluate(() => onPage("#filters").getBoundingClientRect().width)) - (sidebar[1] + 40)) <= 2, "the filter panel does not have the width the sidebar was given");
   await page.evaluate(() => localStorage.removeItem("betula.filters.width"));
+  await context.close();
+}
+
+// ---------- the two halves of a wide page ----------
+// Side by side they end on one line, and the times and facts go along with the text (owner,
+// 2026-10-27: „dass gerne mal riesige Lücken in dem UI sind … so dass das relativ uniform ist"):
+// below the bar where they fit in the area, as far up as their end shows, 8 px above the area's,
+// where they do not. 11284 has a long description beside few facts.
+{
+  const { page, context } = await open({ viewport: { width: 1500, height: 900 } }, "/catalog/module/11284");
+  await page.waitForFunction(() => Boolean(onPage(".module-side")), null, { timeout: 15000 }).catch(() => problems.push("wide page: the module's page of 11284 does not show"));
+  const along = (y) => page.evaluate(async (y) => {
+    const area = document.querySelector("#content > .page-stage.front > .work.flowing");
+    const side = onPage(".module-side"), aside = side.parentElement, main = onPage(".module-grid > div");
+    area.scrollTop = y;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const r = (el) => el.getBoundingClientRect();
+    const shows = r(area).top + parseFloat(getComputedStyle(area).paddingTop);
+    return { even: Math.round(r(main).bottom) === Math.round(r(aside).bottom), top: Math.round(r(side).top - shows), end: Math.round(r(area).bottom - r(side).bottom), room: Math.round(r(aside).height - side.offsetHeight) };
+  }, y);
+  const fits = [await along(0), await along(700)];
+  check(fits.every((at) => at.even), `wide page: the description and the facts beside it do not end on one line: ${JSON.stringify(fits)}`);
+  check(fits[1].room > 700 && fits[1].top === 0, `wide page: the facts do not go along with the text below the bar: ${JSON.stringify(fits)}`);
+  await page.setViewportSize({ width: 1500, height: 480 });
+  await page.waitForTimeout(300);
+  const tall = [await along(0), await along(900)];
+  check(tall[0].top > 100 && tall[1].top < 0 && tall[1].end === 8, `wide page: facts taller than the area do not go up as far as their end shows: ${JSON.stringify(tall)}`);
   await context.close();
 }
 

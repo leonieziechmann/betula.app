@@ -292,6 +292,17 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     Auslauffunktion"): the fifth runs out under „Alle 12 anzeigen", which unfolds the rest and goes,
     the focus on the sixth; without JavaScript all of them. On a phone a program's kind stands under
     its line, where the name keeps its width and a long kind is whole („Wahlpflich…" was cut off).
+- **Side by side the two halves end on one line** (owner, 2026-10-27, of the wide screen: „dass
+  gerne mal riesige Lücken in dem UI sind. Bitte verbesser das mal, so dass das relativ uniform
+  ist"; app.css `.module-grid`, enhance.js). Measured on 24 modules across the catalog at 1440 px,
+  the times and facts ended 20 to 1,600 px above the end of the description, on most 600 to 900,
+  the page's ground in the hole beside the text. Both halves are as tall as the taller now, and the
+  times and facts go along with the text as it is read (`.module-side`, sticky): their top where
+  the page shows under the bar; where they are taller than the area shows (a week of Termine on a
+  low window), they go up with the page until their end shows, 8 px above the area's, and stay
+  there (`--stick`, the room they lack), so that none of them is out of reach. The panel clips them
+  with `overflow: clip` instead of `hidden`, which would have made it a scroll area of their own.
+  On a phone and in a narrower frame one column as before.
 - **A module held at two campuses shows the course of the program** (owner, 2026-10-19: „das Modul
   Prgrammierpraktikum [ist] teil von mehreren Studiengängen, wobei ein Teil der Studiengänge in
   Cottbus und ein andere teil in Senftenberg ist. Deswegen gibt es zwei Vorlesungen … Aber es wird
@@ -3129,6 +3140,20 @@ the visitor now; what it said of Betula moved to „Über Betula" (`/about`, bel
   three) and „Entdecken" (the ways into the catalog of the season). The minute is the browser's
   clock, read again every 30 s; the Termine are the Stundenplan's (`Timetable`, `views::agenda`)
   for the current semester.
+- **The panels in two columns that end on one line** (owner, 2026-10-27: „bei der PC version gibt
+  es das problem, dass gerne mal riesige Lücken in dem UI sind. Bitte verbesser das mal, so dass
+  das relativ uniform ist"). The day's column (today, the next day, the exams while they run) and
+  the one beside it (the week, the exams to come, „Mein Studium", the Merkliste) ended as far apart
+  as the day held less: on the days of a week in October 160 to 650 px, the page's ground in the
+  hole under „Heute". Now „Mein Studium" and the Merkliste go under the day where that evens the
+  columns out (`today.rs` `columns`, by the panels' heights as app.css draws them: a head of 54 px,
+  a Termin's row 59, an exam's 63, a mark's 58), each only for more than 24 px of evenness, so that
+  the page does not change its order for a few pixels; and the last panel of each column reaches
+  down to the other's end (app.css `.day-cols`). Which panel stands where is worked out again as
+  the minute goes, the panels built anew only where it changes. On a phone and in a narrow window,
+  one column, they come in the order they are read whatever their column (the columns
+  `display: contents`, „Mein Studium" and the Merkliste last by `order`); without a study as
+  before.
 - **The photo** (`home/photo.rs`): birches in spring, summer, autumn and winter, and fog while the
   exams run, from Unsplash (WebP, 140–350 kB each, embedded in the binary, served as
   `/assets/season/<code>.webp` and asked for again every time as the birch is; the service worker
@@ -3222,7 +3247,8 @@ server's page with the app's photo in it before the app has started, but not in 
 language), on a wide screen the page under the bar with the frost behind it once scrolled (at its
 top the page where it stood, the frost gone), the photo up to the window's edge with the bar's
 words light and no leaves, the blur alone over it, past it the leaves and the frost's colour, a
-jump past it sliding them in where less motion is wanted as well, and on a phone the photo under the search, the frost once scrolled, the
+jump past it sliding them in where less motion is wanted as well, the columns of panels ending on one line,
+and on a phone the panels in the order they are read, the photo under the search, the frost once scrolled, the
 leaves switching where the photo leaves the bar (none 8 px short of it, all the way 4 px past
 it), in 150 ms on a quick swipe, and the catalog's bar with its leaves and the frost under them.
 
@@ -5180,7 +5206,9 @@ cd e2e && node module.mjs
 
 drives a module in its two sizes. Desktop: preview → page with the sidebar exactly where the
 filter panel was, the same order of sections in both, jumps without history entries, one width
-for sidebar and filter panel, Esc back to the list with the row in view. Phone: a tap opens the
+for sidebar and filter panel, Esc back to the list with the row in view; the page's two halves
+ending on one line, the times and facts beside a long text going along with it below the bar
+and, on a low window, as far up as their end shows. Phone: a tap opens the
 page directly, the page starts with times and facts, back returns to the tapped row deep in the
 endless list, a shared preview link becomes the page; „Einplanen" and „Merken" on a line of
 their own under the badges, filling it half each. On both, a shared preview link of a module far

@@ -131,6 +131,10 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
     marker: window.__marker === 1 && location.pathname === "/",
   }));
   check(day.hero && day.clock > 5 && day.panels.length >= 4 && day.mine && day.marker, `the day does not follow the setup: ${JSON.stringify(day)}`);
+  // The panels under the photo in two columns that end on one line, whatever the day holds (owner,
+  // 2026-10-27: „dass gerne mal riesige Lücken in dem UI sind … so dass das relativ uniform ist").
+  const ends = await page.evaluate(() => [...allOnPage(".day-cols > .day-col")].map((col) => Math.round(col.lastElementChild?.getBoundingClientRect().bottom ?? -1)));
+  check(ends.length === 2 && ends[0] > 0 && ends[0] === ends[1], `wide screen: the columns of panels under the photo do not end on one line: ${ends}`);
   // The day at once (owner, 2026-10-26: „so dass eine person die nur wissen will was als nächstes
   // ansteht das sofort sieht"): the app keeps the photo of the days ahead, and the server's page
   // puts it in before the app has started, as the app's page shows it but for what goes by the
@@ -236,6 +240,11 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
     return { under: hero.top <= 0 && hero.bottom > bar.bottom, wide: Math.round(hero.width) === innerWidth };
   });
   check(top.under && top.wide, `phone: the photo does not reach up under the search: ${JSON.stringify(top)}`);
+  // One column: the panels in the order they are read, „Mein Studium" and the Merkliste last,
+  // whichever column a wide screen gives them.
+  await page.waitForFunction(() => allOnPage(".day-cols .day-head h2").length >= 3, null, { timeout: 15000 }).catch(() => {});
+  const read = await page.evaluate(() => [...allOnPage(".day-cols .day-head h2")].sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top).map((head) => head.textContent));
+  check(read.slice(-2).join(" · ") === "Mein Studium · Merkliste", `phone: the panels under the photo are not in the order they are read: ${read.join(" · ")}`);
   // The bar: how far the leaves have come down (`--leaves`, 0 to 1) and where they stand, the frost
   // under them and its colour, and the crown's box whatever they do.
   const bar = () => page.evaluate(() => {
