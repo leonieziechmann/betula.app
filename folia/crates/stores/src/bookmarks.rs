@@ -749,7 +749,8 @@ pub fn MarkButton(
             // app takes over (R15).
             view! {
                 <span class="mark-pair split">
-                    <button class="mark-toggle mark-switch hit" type="button" data-action="mark" data-id=id data-title=title on:click=toggle aria-pressed=pressed title=hint data-command=command data-command-keys="M">
+                    // `with-note` while it says where it marks (app.css), as the plan's switch.
+                    <button class="mark-toggle mark-switch hit" class:with-note=move || small.with(Option::is_some) type="button" data-action="mark" data-id=id data-title=title on:click=toggle aria-pressed=pressed title=hint data-command=command data-command-keys="M">
                         <Icon name="bookmark"/><span>{label}</span>{move || small.get().map(|small| view! { <small>{small}</small> })}<Shortcut keys="M"/>
                     </button>
                     <button class="mark-more hit" type="button" data-action="collect" aria-label=t.marks.collect title=t.marks.collect_hint aria-haspopup="dialog" on:click=collect data-command=t.marks.collect data-command-keys="Shift+M" data-command-icon="layers">

@@ -57,7 +57,9 @@ for (const hint of ["V", "Esc"]) {
 // The number at the head of a module, and beside it its abbreviation (owner, 2026-10-19), here
 // the one of the program the list is filtered by: a chip each, the second named „Kürzel" for
 // screen readers.
-const headChips = (where) => page.evaluate((where) => [...allOnPage(`${where} .hero-top .ids > .mono`)].map((chip) => chip.lastChild?.textContent ?? ""), where);
+// A chip's own words: its text, not the name for screen readers (`.visually-hidden`) nor the empty
+// markers the app leaves after it (`<!---->`, which `lastChild` read).
+const headChips = (where) => page.evaluate((where) => [...allOnPage(`${where} .hero-top .ids > .mono`)].map((chip) => [...chip.childNodes].filter((node) => node.nodeType === Node.TEXT_NODE).map((node) => node.textContent).join("").trim()), where);
 const numberAndAbbrev = (chips) => chips.length === 2 && /^\d{5}$/.test(chips[0]) && /^\S{2,10}$/.test(chips[1]);
 if (!numberAndAbbrev(await headChips(".detail"))) problems.push(`the preview's head names no number and abbreviation: ${JSON.stringify(await headChips(".detail"))}`);
 

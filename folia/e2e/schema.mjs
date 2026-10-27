@@ -50,6 +50,20 @@ try {
         tx.onerror = () => reject(tx.error);
       };
     });
+    // Every ETag the app's data answers from, in turn (boot.js, `betulaData.etag`): the one it
+    // started on first, then the server's, which the worker takes in the background. Read where it
+    // started: on this machine's own server the server's copy comes before the app has taken over.
+    window.__etags = [];
+    let data;
+    Object.defineProperty(window, "betulaData", {
+      configurable: true,
+      get: () => data,
+      set: (value) => {
+        let etag = value?.etag;
+        if (value && typeof value === "object") Object.defineProperty(value, "etag", { configurable: true, enumerable: true, get: () => etag, set: (now) => { etag = now; window.__etags.push(now); } });
+        data = value;
+      },
+    });
     // The copy (a Blob under `catalog`, boot.js): its ETag and the schema its header names.
     window.__copy = async () => {
       const copy = await store("readonly", (snapshots) => snapshots.get("catalog"));
@@ -119,7 +133,7 @@ try {
   await page.evaluate((args) => window.__plant(args), ['"an-older-export"', schema]);
   await page.reload({ waitUntil: "domcontentloaded" });
   check(await started(60000), "the build's schema, an older ETag: the app did not start");
-  check((await page.evaluate(() => window.betulaData?.etag)) === '"an-older-export"', "the build's schema, an older ETag: the app did not start on the copy it had");
+  check((await page.evaluate(() => window.__etags[0])) === '"an-older-export"', `the build's schema, an older ETag: the app did not start on the copy it had (${JSON.stringify(await page.evaluate(() => window.__etags))})`);
   const followed = await until((etag) => window.__copy().then((copy) => copy?.etag === etag), server.etag, 60000);
   check(followed, "the build's schema, an older ETag: the server's copy did not replace it in the background");
 

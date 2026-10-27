@@ -494,7 +494,9 @@ pub fn PlanButton(
         PlanLook::Hero => {
             // The app's alone: where a session plans depends on the day (R9).
             let note = move || APP.then(|| aim.with(|aim| hero_note(aim, start.get(), t))).map(|note| view! { <small>{note}</small> });
-            ("plan-toggle mark-switch hit", view! { <span>{label}</span>{note}<Shortcut keys="P"/> }.into_any())
+            // `with-note` while it has the line (app.css), not `:has(> small)`: a `<small>` put in
+            // anywhere then had Chrome restyle every switch's icon on the page.
+            (if APP { "plan-toggle mark-switch hit with-note" } else { "plan-toggle mark-switch hit" }, view! { <span>{label}</span>{note}<Shortcut keys="P"/> }.into_any())
         }
         PlanLook::Action => {
             let line = move || aim.with(|aim| semester_line(aim, start.get(), t));

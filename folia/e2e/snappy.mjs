@@ -6,7 +6,8 @@
 // feedback (the tab of the rail, the toggle, the row, the view of a program, „Einplanen" with
 // „Passt in meinen Stundenplan" on), a skeleton where the page, the list or the preview is being
 // built (the first change of each kind has no measured duration yet, so it always gets one), and
-// a later one the result without a skeleton. Then the
+// a later one the result without a skeleton. Each interaction comes with the page at rest, its
+// frames watched before it: what the step before still does is not its. Then the
 // same on a phone and with the CPU slowed down four times, where the skeletons are what bridges
 // the wait. Fails on a page load after takeover, a console error, or a frame that does not show
 // what it should.
@@ -45,6 +46,8 @@ async function open(context, path) {
       window.__back = () => { left = location.href; history.back(); };
       const skeleton = () => Boolean(document.querySelector(".pending-page, .rows-pending, .sk-detail"));
       const started = performance.now();
+      // Listening: the check acts only now (`watch`).
+      window.__armed = true;
       const tick = () => {
         const now = performance.now();
         if (at === null && left !== null && location.href !== left) at = now;
@@ -68,7 +71,14 @@ async function open(context, path) {
 // after it, `result` in the last. `skeleton`: a skeleton has to be in the first frame (`true`),
 // or may be (`null`).
 async function watch(page, name, act, { feedback, result, skeleton = null }, slow = 1) {
+  // The page at rest first: what the step before still does after its result is not this step's,
+  // and a click that waits for it came after it by chance (the CPU four times slower, up to 130 ms
+  // more). And the frames are watched before it acts: a key pressed before the watch listened was
+  // never seen (Esc, the CPU four times slower: no frames).
+  await page.evaluate(() => new Promise((resolve) => requestIdleCallback(() => resolve(), { timeout: 3000 })));
+  await page.evaluate(() => { window.__armed = false; });
   const frames = page.evaluate(([f, r]) => window.__watch(f, r), [feedback.toString(), result.toString()]);
+  await page.waitForFunction(() => window.__armed === true, null, { timeout: 5000 }).catch(() => problems.push(`${name}: the frames were not watched`));
   await page.waitForTimeout(30);
   await act();
   const seen = await frames;
