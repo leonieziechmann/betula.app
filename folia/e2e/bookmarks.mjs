@@ -594,20 +594,22 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
 
 // ---------- without the app ----------
 {
-  // No JavaScript: nothing of it shows, and the page of the list explains itself.
+  // No JavaScript: nothing of it shows, and the page of the list explains itself. Each page read
+  // once its stylesheet is there (`load`): without a script, `domcontentloaded` comes before it,
+  // and a page read then, unstyled, showed everything (a busy machine).
   const context = await browser.newContext({ viewport: { width: 1500, height: 900 }, javaScriptEnabled: false });
   const page = await context.newPage();
-  await page.goto(base + "/catalog", { waitUntil: "domcontentloaded" });
+  await page.goto(base + "/catalog", { waitUntil: "load" });
   const plain = await page.evaluate(() => ({ marks: [...document.querySelectorAll(".mark-toggle")].filter((el) => el.getClientRects().length).length, rail: document.querySelector('.rail .nav[data-area="bookmarks"]')?.getClientRects().length ?? 0 }));
   check(plain.marks === 0 && plain.rail === 0, `without JavaScript something of „Merken“ shows: ${JSON.stringify(plain)}`);
   // (The logo's class is `mark`: what hides the buttons must not hide it.)
   check(await page.evaluate(() => { const logo = document.querySelector(".rail .logo svg"); return logo.getClientRects().length === 1 && getComputedStyle(logo).visibility === "visible"; }), "without JavaScript the logo is gone");
-  const response = await page.goto(base + "/bookmarks", { waitUntil: "domcontentloaded" });
+  const response = await page.goto(base + "/bookmarks", { waitUntil: "load" });
   // A route of the app (docs/folia/folia-refactor.md §4.2): its skeleton is the app's, and without
   // JavaScript the <noscript> says what the list needs.
   check(response.status() === 200 && (await page.evaluate(() => document.querySelector(".state")?.textContent.includes("JavaScript") && !document.querySelector(".app-standin")?.getClientRects().length)), "without JavaScript the page of the list does not explain itself");
   check((await page.evaluate(() => document.querySelector('meta[name="robots"]')?.content ?? "")).startsWith("noindex"), "the page of the list is offered to search engines");
-  await page.goto(base + "/catalog/module/11101", { waitUntil: "domcontentloaded" });
+  await page.goto(base + "/catalog/module/11101", { waitUntil: "load" });
   check((await page.evaluate(() => [...document.querySelectorAll(".mark-switch, .action.mark-toggle")].filter((el) => el.getClientRects().length).length)) === 0, "without JavaScript the module's page shows a dead switch");
   await context.close();
 

@@ -124,6 +124,12 @@ pub fn HomePage() -> impl IntoView {
     });
     let on_look = Callback::new(move |()| looking.set(true));
     let on_setup = Callback::new(move |()| looking.set(false));
+    // The start page filled with its Termin („Ganze Seite", `today::TerminOver`, there with a
+    // study set up): its own parts make way (app.css). A class of the page, not a `:has()` of it:
+    // a `:has()` whose subject was every child but one had each node put in anywhere restyle the
+    // whole document, in the first frame of every click.
+    let location = i18n::use_location();
+    let termin_full = Memo::new(move |_| kept.get() && location.search.with(|search| url::home_termin_full(search)));
     // The head script's `html.mine` (a program kept) follows a study set up or undone here, so that
     // the start page's skeleton is the one the page then is (folia-shell, `skeleton`).
     #[cfg(feature = "csr")]
@@ -154,7 +160,7 @@ pub fn HomePage() -> impl IntoView {
     view! {
         <Title text=""/>
         <div class="work flowing solo day-page" id="page-scroll" on:scroll=move |_| close_popups.update(|n| *n = n.wrapping_add(1))>
-            <div class="page"><div class="page-inner day">
+            <div class="page"><div class="page-inner day" class:termin-full=move || termin_full.get()>
                 <Seo title=t.home.seo_title description=t.home.description path=url::HOME data/>
                 {body}
             </div></div>

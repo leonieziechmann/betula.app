@@ -1,6 +1,6 @@
 [package]
 name = "folia-widgets"
-version = "1.58.0"
+version = "1.58.1"
 edition = "2021"
 description = "The widgets the pages of Betula's app share: a module's view, rows, chips, the week"
 

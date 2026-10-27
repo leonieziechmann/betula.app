@@ -3176,7 +3176,9 @@ every module of it (`ranking.rs`' `dump_for_the_prototype`).
   semantic search from develop, folia/crates/semantic/README.md): under the rows, after the note on the filters,
   the modules whose descriptions mean what the search says, as rows of the list under the heading
   „Ähnliche Module“ — marking, the preview, swiping and the arrow keys work as on the list's rows
-  (they are `a.row`s in `.rows`, after the list). With every search of three letters or digits and
+  (they are `a.row`s in `.rows`, after the list; a stop of the Tab key of their own since the
+  keyboard's regions of 2026-10-20, which ↓ from the list's last result goes on into and ↑ from
+  their first back out of, enhance.js `goesOn`). With every search of three letters or digits and
   more (`pages::searches_similar`); the filters apply as to the results; the results themselves are
   left out; at most 10, the closest first (`pages::similar`, `queries::similar_rows`). The semantic
   search is asked for the text as the list searched it, a typo corrected (`pages::similar_text`),
@@ -5819,7 +5821,9 @@ cd e2e && node pwa.mjs
 installs the app with the network (the worker has the shell, the bundle included; no status
 pill once the app runs), then cuts the network and loads pages afresh: the catalog with a
 filter, a module page never seen before, the program page seen before, and a step inside the
-app out of the local catalog.
+app out of the local catalog. It and `schema.mjs` need a server without `--live-assets` (the
+`target/debug/folia` that `dev.sh` built, started without the flag): the worker of a server with
+it keeps nothing, so nothing is there without the network.
 
 ```bash
 cd e2e && node launch.mjs
@@ -5964,7 +5968,9 @@ a toggle, a row, Esc, the rail into the program overview, a program, one of its 
 start page and the catalog as it was left, two toggles before the first has reached the list;
 then on a phone, once the start is over and every tab built, the bottom bar and a module. It
 clicks what is seen (`>> visible=true`: the stages behind have parts of the same name), and an
-interaction nothing comes of ends after 15 s. The first frame after each has to come within 80 ms
+interaction nothing comes of ends after 15 s. Each comes with the page at rest (`requestIdleCallback`)
+and its frames watched before it: what the step before still did after its result held a click up
+by chance, and a key pressed before the watch listened was never seen (2026-10-27). The first frame after each has to come within 80 ms
 and show what was clicked in its new state (and a skeleton, where the page or the list is being
 built for the first time), a later one the result without a skeleton, and no skeleton stays.
 All of it once more with the CPU slowed down four times (200 ms for the first frame), where the

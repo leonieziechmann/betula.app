@@ -80,6 +80,10 @@ await step("the keyboard goes on from the results into them", async () => {
   await page.locator(".vlist .vrow a.row").last().focus();
   await page.keyboard.press("ArrowDown");
 }, () => document.activeElement?.closest(".similar") && document.activeElement.dataset.id === "12101");
+// And back up into the results, at their last (since 2026-10-20 the similar ones are a stop of the
+// Tab key of their own; the arrows still go on as in one list).
+await step("and back up into the results", () => page.keyboard.press("ArrowUp"),
+  () => document.activeElement?.closest(".vlist") && document.activeElement === [...document.querySelectorAll(".vlist .vrow a.row")].pop());
 // The semantic search is asked for the text as the list searched it.
 await step("a typo is corrected", () => page.fill("#topsearch", "algoritmen"),
   () => (document.querySelector(".search-line")?.textContent || "").includes("algorithmen") && document.querySelectorAll(".vlist a.row").length > 0
