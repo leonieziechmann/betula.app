@@ -1,7 +1,9 @@
 //! A Termin's own page (`/event/<key>[/<day>]`; folia/design/termin, the fourth round; owner,
 //! 2026-10-26: „Wir sollten das wahrscheinlich Trennen zwischen der Informativen ansicht für die
 //! Modulpage und mein studiengang und dann der ansicht bei der Kalender page"): the Termin to look
-//! up (`TerminMode::LookUp`), where a line of a module's Termine leads.
+//! up (`TerminMode::LookUp`, `lookup`), where a line of a module's Termine leads from its preview
+//! and from „Vollbild" in another area (on the module's own page the Termin opens beside it),
+//! „Ganze Seite" of the Termin beside its module's page, and „Teilen".
 //!
 //! Its data is the timetable of the modules that link the event, in the newest semester it is held
 //! in (`EventAsk`): one answer for every Termin and date of the event. The server renders it the
@@ -18,64 +20,21 @@
 //! addresses. A page of a while (`nav::passing`): it lies on the tab it was opened from, and Back
 //! leaves it.
 
-use std::collections::BTreeMap;
-
 use folia_calendar::day::Day;
 use folia_calendar::rowkey::RowKey;
-use folia_calendar::select::Selection;
-use folia_data::{use_data, DataError, PageStatus};
+use folia_data::PageStatus;
 use folia_design::i18n::use_params_map;
 use folia_design::stage::Title;
 use folia_design::ui::NotFound;
-use folia_pages::ask::{EventAsk, StudyplanAsk};
-use folia_pages::StudyplanData;
-use folia_routes::url::{self, StudyplanUrl};
+use folia_routes::url;
 use folia_shell::frame::{ErrorState, Plain};
 use folia_shell::seo::Seo;
-use folia_stores::myprogram::MyProgram;
-use folia_stores::studyplan::Studyplan;
 use folia_timetable::model::Timetable;
-use folia_widgets::termin::{module_facts, page_head, ticking_clock, Against, TerminCtx, TerminLinks, TerminMode, TerminPlace, TerminView};
+use folia_widgets::termin::{page_head, ticking_clock, TerminLinks, TerminPlace, TerminView};
 use leptos::prelude::*;
 
 use crate::i18n;
-
-/// The browser app (`csr`), or the server rendering the page the same for everybody.
-const APP: bool = cfg!(feature = "csr");
-
-/// What the page has to show: an address of no Termin or an event no module links (404), an
-/// error, or the Termin.
-#[derive(Clone, Debug, PartialEq)]
-enum Loaded {
-    Missing,
-    Failed(DataError),
-    Found(Box<Found>),
-}
-
-/// The Termin and day asked for, with the timetable of the event's modules and the visitor's plan
-/// of its semester where they have one (the app's alone, R9). They stay together while the answer
-/// for another event is on its way, so the view never reads one Termin in another event's
-/// timetable (R16).
-#[derive(Clone, Debug, PartialEq)]
-struct Found {
-    key: RowKey,
-    day: Option<Day>,
-    event: StudyplanData,
-    plan: Option<StudyplanData>,
-}
-
-impl Found {
-    /// The Termin's module is in the visitor's plan of the event's semester.
-    fn planned(&self, plan: Option<Studyplan>) -> bool {
-        APP && plan.is_some_and(|plan| self.event.ids.iter().any(|id| plan.is_planned(self.event.key, id)))
-    }
-
-    /// The plan's timetable, as the Stundenplan shows it.
-    fn plan_table(&self, plan: Option<Studyplan>, mine: Option<MyProgram>) -> Option<Timetable> {
-        let (data, plan) = (self.plan.as_ref()?, plan?);
-        Some(data.timetable(&plan.selection(self.event.key, mine.map(MyProgram::town).unwrap_or_default())))
-    }
-}
+use crate::lookup::look_up;
 
 #[component]
 pub fn EventPage() -> impl IntoView {
@@ -88,103 +47,21 @@ pub fn EventPage() -> impl IntoView {
             Some((key, params.get("day").and_then(|day| Day::parse(&day))))
         })
     });
-    let client = use_data();
-    let plan = Studyplan::expect();
-    let mine = MyProgram::expect();
-    let loaded = Memo::new(move |before: Option<&Option<Loaded>>| {
-        let Some((key, day)) = asked.get() else { return Some(Loaded::Missing) };
-        // On its way: what was shown stays, its own Termin with it.
-        let kept = || before.cloned().flatten();
-        let client = match client.as_ref() {
-            Ok(client) => client,
-            Err(error) => return Some(Loaded::Failed(error.clone())),
-        };
-        let event = match client.get(&EventAsk { event: key.event.to_string(), locale: t.locale }) {
-            None => return kept(),
-            Some(Ok(Some(event))) => event,
-            Some(Ok(None)) => return Some(Loaded::Missing),
-            Some(Err(error)) => return Some(Loaded::Failed(error)),
-        };
-        // The visitor's plan of the event's semester, asked as the Stundenplan asks it.
-        let ids = match (APP, plan) {
-            (true, Some(plan)) => plan.modules_in(event.key),
-            _ => Vec::new(),
-        };
-        if ids.is_empty() {
-            return Some(Loaded::Found(Box::new(Found { key, day, event, plan: None })));
-        }
-        let program = plan.and_then(|plan| plan.with(|doc| doc.program.clone())).or_else(|| mine.and_then(|mine| mine.with(|doc| doc.program.clone())));
-        match client.get(&StudyplanAsk { key: event.key, ids, program, locale: t.locale }) {
-            None => kept(),
-            Some(Ok(data)) => Some(Loaded::Found(Box::new(Found { key, day, event, plan: Some(data) }))),
-            Some(Err(error)) => Some(Loaded::Failed(error)),
-        }
-    });
+    let found = look_up(asked);
     let status = PageStatus::capture();
-    // Which of the three the page is: the view below stands while only its Termin changes.
-    let phase = Memo::new(move |_| {
-        loaded.with(|loaded| match loaded {
-            None => None,
-            Some(Loaded::Missing) => Some(Ok(false)),
-            Some(Loaded::Failed(error)) => Some(Err(error.clone())),
-            Some(Loaded::Found(_)) => Some(Ok(true)),
-        })
-    });
-    let found = move |read: &dyn Fn(&Found) -> Option<Timetable>| loaded.with(|loaded| if let Some(Loaded::Found(found)) = loaded { read(found) } else { None });
-    // A module of the plan is read in the plan, one outside it in its own timetable, as QIS has it.
-    let table = Memo::new(move |_| found(&|found| if found.planned(plan) { found.plan_table(plan, mine) } else { Some(found.event.timetable(&Selection::default())) }));
-    let against = Memo::new(move |_| {
-        loaded.with(|loaded| match loaded {
-            Some(Loaded::Found(found)) if found.planned(plan) => Against::Itself,
-            Some(Loaded::Found(found)) => found.plan_table(plan, mine).map_or(Against::Nothing, |table| Against::Plan(Box::new(table))),
-            _ => Against::Nothing,
-        })
-    });
-    // Whether it is in the plan: on the server not known (R9).
-    let planned = Memo::new(move |_| loaded.with(|loaded| if let Some(Loaded::Found(found)) = loaded { APP.then(|| found.planned(plan)) } else { None }));
-    let shown_asked = Memo::new(move |_| loaded.with(|loaded| if let Some(Loaded::Found(found)) = loaded { Some((found.key, found.day)) } else { None }));
-    // The modules of both, by id: the chips of the plan's Termine too.
-    let modules = Memo::new(move |_| {
-        loaded.with(|loaded| match loaded {
-            Some(Loaded::Found(found)) => {
-                let mut all: BTreeMap<_, _> = found.plan.as_ref().map(module_facts).unwrap_or_default();
-                for (id, facts) in module_facts(&found.event) {
-                    all.entry(id).or_insert(facts);
-                }
-                all
-            }
-            _ => BTreeMap::new(),
-        })
-    });
-    let semester = Memo::new(move |_| loaded.with(|loaded| if let Some(Loaded::Found(found)) = loaded { Some(found.event.key) } else { None }));
     let termin = Callback::new(move |(key, on): (RowKey, Option<Day>)| t.path(&url::event_path(key, on)));
     let module = Callback::new(move |(id, _): (String, Option<RowKey>)| t.path(&url::module_path(&id)));
-    // „Anpassen ›": the Termin in the Stundenplan of the event's semester.
-    let adjust = Callback::new(move |(key, on): (RowKey, Option<Day>)| {
-        let at = StudyplanUrl { sem: semester.get_untracked().map(|semester| semester.key()), ..StudyplanUrl::default() };
-        t.path(&at.with_termin(Some((key, on))).path())
-    });
-    let links = TerminLinks { termin, module, close: Signal::stored(String::new()), back: Signal::stored(None), adjust: Some(adjust), full: None };
+    let links = TerminLinks { termin, module, close: Signal::stored(String::new()), back: Signal::stored(None), adjust: Some(found.adjust()), full: None };
     let now = ticking_clock();
-    let ctx = TerminCtx {
-        table,
-        asked: shown_asked,
-        modules,
-        mode: TerminMode::LookUp,
-        plan: None,
-        now,
-        planned: planned.into(),
-        against: against.into(),
-        links,
-        place: TerminPlace::Page,
-    };
+    let ctx = found.ctx(links, TerminPlace::Page, now);
     // The page's title and what it says of itself, on the day shown.
     let head = Memo::new(move |_| {
         let now = now.get();
-        table.with(|table| shown_asked.with(|asked| head_of(table.as_ref()?, (*asked)?, now, t)))
+        found.table.with(|table| found.asked.with(|asked| head_of(table.as_ref()?, (*asked)?, now, t)))
     });
 
-    move || match phase.get() {
+    // Which of the three the page is: the view below stands while only its Termin changes.
+    move || match found.phase.get() {
         // The first answer is on its way: the shell holds the page meanwhile.
         None => ().into_any(),
         Some(Err(error)) => {
