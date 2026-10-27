@@ -219,6 +219,10 @@ const spot = (page, day, minute) => page.evaluate(([day, minute]) => {
   await until(page, "Lena's part", () => Boolean(onPage(".sp-cal-mods .sp-own-add")));
   await page.click(".sp-cal-mods .sp-own-add");
   await until(page, "the form for Lena", (form) => onPage(`${form} #own-cal`)?.value === "1" && onPage(`${form} .st-dlg-head p`)?.textContent === "In „Lena“, WiSe 2026/27", form);
+  // The line under the title follows „Kalender".
+  await page.selectOption(`${form} #own-cal`, "0");
+  await until(page, "the line follows „Kalender“", (form) => onPage(`${form} .st-dlg-head p`)?.textContent === "In „Mein Studiengang“, WiSe 2026/27", form);
+  await page.selectOption(`${form} #own-cal`, "1");
   await fill(page, { name: "Arbeit", day: 3, from: "13:00", to: "17:00" });
   await until(page, "what it counts for", (form) => onPage(`${form} .own-fit.ok`)?.textContent === "Zählt für „Gemeinsam frei“ mit Lena", form);
   await page.click(`dialog.own-form .st-dlg-foot .primary`);
