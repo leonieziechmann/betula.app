@@ -108,7 +108,7 @@ impl Key {
     /// is on the stage of its own.
     pub fn of(path: &str, from: Key) -> Self {
         match Page::of(path) {
-            Page::About | Page::Profile | Page::Event | Page::Imprint | Page::Privacy | Page::NotFound => Key::Other,
+            Page::About | Page::AboutTopic | Page::Profile | Page::Event | Page::Imprint | Page::Privacy | Page::NotFound => Key::Other,
             Page::Module if from.area().is_some_and(Area::shows_in_place) => from,
             _ => Key::of_area(Area::of(path)),
         }
@@ -121,6 +121,8 @@ pub enum Page {
     Home,
     /// `/about`, „Über Betula".
     About,
+    /// `/about/:topic`, a page of „Über Betula" on one topic (`url::AboutTopic`).
+    AboutTopic,
     Catalog,
     /// `/catalog/module/:id`
     Module,
@@ -147,6 +149,7 @@ impl Page {
         match segments.as_slice() {
             [] => Page::Home,
             ["about"] => Page::About,
+            ["about", _] => Page::AboutTopic,
             ["catalog"] => Page::Catalog,
             ["catalog", "module", _] => Page::Module,
             ["programs"] => Page::Programs,
@@ -169,6 +172,7 @@ impl Page {
         let mut params = ParamsMap::new();
         match (self, segments.as_slice()) {
             (Page::Module, [_, _, id]) => params.insert("id", (*id).to_string()),
+            (Page::AboutTopic, [_, topic]) => params.insert("topic", (*topic).to_string()),
             (Page::Program, [_, slug]) => params.insert("slug", (*slug).to_string()),
             (Page::ProgramTab, [_, slug, tab]) => {
                 params.insert("slug", (*slug).to_string());
@@ -715,6 +719,7 @@ mod tests {
     fn the_page_of_a_path() {
         assert_eq!(Page::of("/"), Page::Home);
         assert_eq!(Page::of("/about"), Page::About);
+        assert_eq!(Page::of("/about/planning"), Page::AboutTopic);
         assert_eq!(Page::of("/catalog"), Page::Catalog);
         assert_eq!(Page::of("/catalog/"), Page::Catalog);
         assert_eq!(Page::of("/catalog/module/11103"), Page::Module);
@@ -731,6 +736,7 @@ mod tests {
         assert_eq!((program.get("slug").as_deref(), program.get("tab").as_deref()), (Some("bachelor-informatik-2008"), Some("areas")));
         assert_eq!(Page::Program.params("/programs/x").get("tab"), None);
         assert_eq!((Page::of("/event/148370-eb017"), Page::of("/event/148370-eb017/2026-11-02"), Page::of("/event")), (Page::Event, Page::Event, Page::NotFound));
+        assert_eq!(Page::AboutTopic.params("/about/planning").get("topic").as_deref(), Some("planning"));
         let event = Page::Event.params("/event/148370-eb017/2026-11-02");
         assert_eq!((event.get("key").as_deref(), event.get("day").as_deref()), (Some("148370-eb017"), Some("2026-11-02")));
         assert_eq!(Page::Event.params("/event/148370-eb017").get("day"), None);

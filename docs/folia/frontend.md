@@ -43,7 +43,8 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | URL | Page |
 |---|---|
 | `/` | The start page (concept A, 2026-10-20; „The start page" below): on a first visit the setup — the program, the semester the study began in, the modules of the Fachsemester that follows — over the photo of the season; once a study is set up the visitor's day (the next thing, the day, the week, the exams, the study, the Merkliste, the ways into the catalog). The server writes the setup's first step and the day's skeleton for everybody (R9); the stylesheet shows the skeleton where the head script finds a program kept (`html.mine`), and a script puts the day the app kept into it before the first paint (`home/ahead.rs`). `?termin=<key>&on=<day>`: a Termin of the plan over the page in its own view, `&full=1` filling the page with it („Ganze Seite"), the app's alone (the server's page is the same for every query) |
-| `/about` | „Über Betula" (`folia/crates/home/src/home/about.rs`): what the start page said of Betula until concept A, whole — the first panel with the figures on a birch, the carousel with the map, what the app can do, the questions, „Betula im Detail" (see „„Über Betula" and the map of the programs" below). Linked from the setup („Was ist Betula?") and from the ground of every page; in the sitemap; the stage of no tab (`stage::Key::Other`), as the legal pages |
+| `/about` | „Über Betula" (`folia/crates/home/src/home/about.rs`): what the start page said of Betula until concept A — the first panel with the figures on a birch, the carousel with the map, the ways into the catalog and the faculties, what the app can do — and since 2026-10-27 the way into its topics (the tiles of „Mehr über Betula"; „Betula im Detail" and the questions stood here until then; see „„Über Betula" and the map of the programs" below). Linked from the start page (the setup's „Was ist Betula?", the tiles' „Alles über Betula") and from the topics' pages, from the ground of every page until 2026-10-27; in the sitemap; the stage of no tab (`stage::Key::Other`), as the legal pages |
+| `/about/<topic>` | A topic of „Über Betula" on a page of its own (`url::AboutTopic`, `folia/crates/home/src/home/topics.rs`; 2026-10-27): `finding` („Module finden": the way to a module, the filters with their board), `planning` („Studium planen": the Regelstudienpläne, the Stundenplan), `data` („Deine Daten": no account, where the data comes from), `technology` („Technik": with and without JavaScript, the devices), `questions` („Häufige Fragen", with the `FAQPage` data). Each with its own title and description, in the sitemap, the stage of no tab; another name after `/about/` is a 404. The start page's tiles lead to four of them, „Über Betula"'s to all five |
 | `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `area`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `events`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `marked`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation). `area=<id>[,<id>…]` are areas of the selected program's module tree („Wahlpflichtmodule Praktische Informatik"): the modules the tree places in any of them or below one (several come from a row of the plan that means several areas, opened from the program's page; the picker then says „5 Bereiche", one tag per area above the list) |
 | `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone the preview is a sheet from below over the list, without „Vollbild" (2026-10-06, 2026-10-16, „A module on a phone" below; until then a tap on a row opened the module's page, and the app turned a shared `open` link into it). The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen. `?termin=<key>&on=<day>`: a Termin of it beside the page to look up, on a phone a sheet over it (the app's alone; „A Termin in its own view") |
@@ -3247,10 +3248,12 @@ the visitor now; what it said of Betula moved to „Über Betula" (`/about`, bel
   a semester by its name, „Anderes Fachsemester", the switch with „an", „Studium anlegen", „Ohne
   Module weiter", „Erst mal umschauen", „Profil übernehmen", „Was ist Betula?"), the buttons of the
   photo and of the note of a study set up under „Dein Tag", the ways into the catalog under
-  „Entdecken" („Ohne Einrichtung" on a first visit).
+  „Entdecken" („Ohne Einrichtung" on a first visit), the topics of „Über Betula" and „Alles über
+  Betula" under „Mehr über Betula" (2026-10-27).
 
 `node folia/e2e/home.mjs` drives it: the server's page, the three steps (the picker, the six
-semesters, a Fachsemester out of range said, a row unticked), „Studium anlegen" (the plan and the
+semesters, a Fachsemester out of range said, a row unticked), the tiles of „Über Betula"'s
+topics under the ways into the catalog and none of it in the ground, „Studium anlegen" (the plan and the
 passed semesters kept, the day shown, no page load), „Rückgängig", „Erst mal umschauen" and back,
 the season's photo with its name in the ground, the day at once (the days ahead kept, and the
 server's page with the app's photo in it before the app has started, but not in another
@@ -3263,6 +3266,38 @@ leaves switching where the photo leaves the bar (none 8 px short of it, all the 
 it), in 150 ms on a quick swipe, and the catalog's bar with its leaves and the frost under them.
 
 ### „Über Betula" and the map of the programs (2026-09-20; the start page until 2026-10-20)
+
+**A page per topic (2026-10-27).** Owner: „dass die Über Betula Seite geändert wird. Das soll
+aufgeteilt werden in mehrere kontent pages geteilt werden. Wovon auch ein wenig auf der Landing
+page verlinkt werden kann oder so", and „nimm das bitte Über Betula aus dem Footer raus". The one
+page was some 13,000 px long at 1440 px: the first panel, the pictures, the ways in, what Betula
+does, „Betula im Detail" in eight chapters and the questions. Now:
+- **„Über Betula"** (`/about`) keeps what makes it the way in — the first panel with the figures
+  on the birch, the pictures with the map, the ways into the catalog and the faculties, what
+  Betula does — and under the pictures „Mehr über Betula", a tile per topic (`topics::MoreAbout`:
+  its icon in its tint, its name, a few words). Its structured data is the `WebApplication`.
+- **A page per topic** (`/about/<topic>`, `topics::TopicPage`): „Module finden" (the way to a
+  module, the filters and their board), „Studium planen" (the Regelstudienpläne with the number
+  of checked plans, the Stundenplan), „Deine Daten" (no account with its four zeros, the birch
+  from Radix to Folia), „Technik" (with and without JavaScript, the devices and languages) and
+  „Häufige Fragen" (the three groups, the `FAQPage` data). The chapters are those of „Betula im
+  Detail" (`detail::Chapters`, two to a topic, the second's picture on the left) and the questions
+  those of the page, moved, not rewritten; the panel that named the chapters went (its words
+  with it). A page is as „Über Betula" is, without a frame: its head leads back to „Über Betula"
+  over its heading and the line under it, and names every topic in a row of chips in their tints,
+  the one shown filled (`aria-current`); under its chapters the tiles of the other four. Its title,
+  description and canonical address are its own, and it is in the sitemap; the app opens it from
+  a tile or a chip without loading a page (its skeleton `Shape::Topic`). The texts are
+  `i18n/topics.rs`.
+- **The start page** shows „Mehr über Betula" after „Entdecken" („Ohne Einrichtung" on a first
+  visit), in its look there, with four topics — „Module finden", „Studium planen", „Deine Daten",
+  „Häufige Fragen" — and „Alles über Betula" in its head; „Was ist Betula?" in the head of „Ohne
+  Einrichtung" went, the setup's card keeps it.
+- **The ground** no longer names „Über Betula" (it did from concept A on); its legal links are
+  Impressum and Datenschutz again.
+- As many tiles a row as there are (four, or five on „Über Betula"), two where the page is
+  narrower than 1080 px (the last of an odd number across the row, so that no cell is left
+  empty), one on a phone.
 
 `/about` (`folia/crates/home/src/home/about.rs`; `/` until concept A, „The start page" above)
 answers three questions at a glance: what this is (headline, „inoffiziell"
@@ -3534,7 +3569,8 @@ at the end of every page the ground with the roots. Picked on a design canvas of
   Lausitz sand with a little depth towards the bottom; dark, a cool depth from the tone of the
   panels to almost black („Tiefe") — the brown soil of the first draft was „ein absolutes No-Go"
   against the cool dark UI. It holds the wordmark with „Modulkatalog · inoffiziell", „Betula ist ein
-  inoffizielles Projekt und gehört nicht zur BTU.", Impressum and Datenschutz, the versions of Folia
+  inoffizielles Projekt und gehört nicht zur BTU.", Impressum and Datenschutz („Über Betula" before
+  them from concept A to 2026-10-27, owner: „nimm das bitte Über Betula aus dem Footer raus"), the versions of Folia
   and Radix (the roots: Radix brings the data; a snapshot without Radix's version leaves it out),
   the date of the data, the semester and the source. In autumn fallen leaves lie on its edge.
 - **How it comes** („Kopfzeile bleibt, Tafeln werden kürzer", and after the first build: „der
@@ -3728,8 +3764,8 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   Cottbus-Senftenberg · Betula", „<Studiengang> (<Abschluss>): Regelstudienplan · BTU
   Cottbus-Senftenberg · Betula" (each view of a program has its own title).
 - **Structured data states only what the page shows:** `WebSite` with its search on the start
-  page, `WebApplication` with the abilities the page lists (2026-09-28, „„Über Betula"" above) and
-  `FAQPage` on „Über Betula", `Course` and `BreadcrumbList` on a module, `EducationalOccupationalProgram`
+  page, `WebApplication` with the abilities the page lists (2026-09-28, „„Über Betula"" above) on
+  „Über Betula" and `FAQPage` on its „Häufige Fragen" (on „Über Betula" itself until 2026-10-27), `Course` and `BreadcrumbList` on a module, `EducationalOccupationalProgram`
   and `BreadcrumbList` on a program. Since 2026-09-26 it carries what search engines answer
   questions with (owner: Google's AI answers should know when a module's Termine and exams are and
   in which semester a plan places it — as much as sensible, without bloating the page):
@@ -5593,7 +5629,13 @@ cd e2e && node about.mjs
 drives „Über Betula": the map is part of the server's HTML (dots are links); the app draws it
 from what `boot.js` handed over; a pointer over a dot shows its relatives; a click opens the
 program without loading a page; the head has one description and one canonical address and both
-follow a navigation; a phone gets the tall sheet and nothing scrolls sideways.
+follow a navigation; a phone gets the tall sheet and nothing scrolls sideways. Its topics: a tile
+each under the pictures, the ground without „Über Betula"; „Häufige Fragen" opened from its tile
+without a page load, marked in the row of topics, its address its own, a question opening in
+place, the `FAQPage` data there and not on „Über Betula"; „Technik" with the devices' pictures
+of the theme shown; „Module finden" with its two chapters and the board of the filters (its
+chips switching in place, the count following, its button opening the catalog with that
+selection; on a phone the first groups and „Alle Filter zeigen").
 
 ```bash
 cd e2e && node snappy.mjs
