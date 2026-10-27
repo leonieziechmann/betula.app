@@ -3154,12 +3154,20 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 .module-page > .hero { border-bottom: 0; padding: 10px 18px 18px; }
 .module-page > .hero h2 { font-size: 30px; }
 /* The same parts in the same order as the preview (times and facts, then the description);
-   with room for it the two halves stand side by side, the description on the left. */
+   with room for it the two halves stand side by side, the description on the left. Side by side
+   they end on one line, however long either is (owner, 2026-10-27: „dass gerne mal riesige
+   Lücken in dem UI sind. Bitte verbesser das mal, so dass das relativ uniform ist": beside most
+   descriptions the times and facts ended 600 to 1,600 px above them, the page's ground in the
+   hole), and the times and facts go along with the text as it is read, their top where the page
+   shows under the bar; where they are taller than the area shows, as far up as their end shows
+   (`--stick`, how much room they lack, enhance.js). `overflow: clip` instead of the panel's
+   `hidden`, which would hold them in the panel as in a scroll area of its own. */
 .module-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gap); align-items: start; }
 @container module (min-width: 900px) {
-  .module-grid { grid-template-columns: minmax(0, 1fr) minmax(360px, 36%); }
-  .module-grid > aside { grid-column: 2; grid-row: 1; }
+  .module-grid { grid-template-columns: minmax(0, 1fr) minmax(360px, 36%); align-items: stretch; }
+  .module-grid > aside { grid-column: 2; grid-row: 1; overflow: clip; }
   .module-grid > div { grid-column: 1; grid-row: 1; }
+  .module-side { position: sticky; top: var(--stick, 0px); }
 }
 .module-grid .prose { max-width: 80ch; }
 .fatal { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 100; padding: 12px 16px; border-radius: var(--r-ctl); background: var(--invert); color: var(--on-invert); box-shadow: var(--shadow-pop); }
@@ -6471,8 +6479,14 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .day-welcome-x { width: 34px; height: 34px; }
 
 /* The panels under the picture: today and the next day on the left, the rest on the right. */
-.day-cols { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: var(--gap); align-items: start; }
-.day-col { display: grid; gap: var(--gap); min-width: 0; }
+/* The panels under the photo in two columns that end on one line (owner, 2026-10-27: „dass gerne
+   mal riesige Lücken in dem UI sind. Bitte verbesser das mal, so dass das relativ uniform ist":
+   beside a day of few Termine the day's column ended up to 650 px above the other). The page
+   puts „Mein Studium" and the Merkliste under the day where that evens the columns out
+   (today.rs `columns`), and the last panel of each column reaches down to the other's end. */
+.day-cols { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: var(--gap); }
+.day-col { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
+.day-col > :last-child { flex-grow: 1; }
 .day-panel { min-width: 0; }
 .day-head { display: flex; align-items: center; gap: 10px; padding: 12px 8px 6px 16px; }
 .day-head h2 { font-size: 15px; font-weight: 660; letter-spacing: -.01em; white-space: nowrap; }
@@ -6552,7 +6566,14 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .day-way-t small { color: var(--text-3); font-size: 12px; }
 .day-way-n { font-size: 14px; font-weight: 700; }
 @container day (max-width: 1080px) { .day-ways { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@container day (max-width: 980px) { .day-cols { grid-template-columns: minmax(0, 1fr); } }
+/* One column: the panels in the order they are read, whichever column the wide screen gives them
+   (the week and the exams before „Mein Studium" and the Merkliste); without a study as before. */
+@container day (max-width: 980px) {
+  .day-cols { grid-template-columns: minmax(0, 1fr); }
+  .day-col { display: contents; }
+  .day-cols:not(.guest) .day-study { order: 1; }
+  .day-cols:not(.guest) .day-marks { order: 2; }
+}
 
 /* The day's skeleton (the server's page for a visitor with a program kept). */
 .day-hero-sk .day-greet { align-content: end; gap: 12px; }
@@ -6599,7 +6620,6 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
   .ob-actions .ob-create { order: -1; min-height: 46px; }
   .ob-actions .ob-without { align-self: center; }
   .day-cols { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-  .day-col { gap: 10px; }
   .day-ev { grid-template-columns: 54px 4px minmax(0, 1fr); padding: 9px 8px; }
   .day-ev-st { grid-column: 3; justify-content: flex-start; margin-top: 4px; }
   .day-ev-t b { font-size: 14px; }

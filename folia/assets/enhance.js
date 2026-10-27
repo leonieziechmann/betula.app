@@ -2475,6 +2475,15 @@
       if (area.style.getPropertyValue("--bar") !== bar + "px") area.style.setProperty("--bar", bar + "px");
       if (covered) { const cover = coverOf(area); if (cover < covered) putCover(area, cover); }
     }
+    // The times and facts beside a module's text go along with it (app.css `.module-side`); where
+    // they are taller than the area shows, they go up with the page until their end shows, 8 px
+    // above the area's, and stay there.
+    const side = area?.querySelector(".module-grid > aside > .module-side");
+    if (side) {
+      const room = area.clientHeight - (parseFloat(getComputedStyle(area).paddingTop) || 0) - 8;
+      const stick = Math.min(0, Math.round(room - side.offsetHeight)) + "px";
+      if (side.style.getPropertyValue("--stick") !== stick) side.style.setProperty("--stick", stick);
+    }
     // A list short enough to stand whole above the ground is pinned like the filter panel: the
     // ground slides over its empty end and its rows stay where they are, as before. A longer one
     // flows with the page and its end comes before the ground.
