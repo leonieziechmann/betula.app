@@ -116,8 +116,12 @@ pub struct Texts {
     pub no_exceptions: &'static str,
     pub assumed: &'static str,
     pub falls_out: &'static str,
-    /// „Alle Veranstaltungen" of the module.
-    pub all_events: &'static str,
+    /// What picks the Termin, under the head: the module's events, for screen readers
+    /// („Veranstaltungen des Moduls"); the Termine of an event held at several times without groups
+    /// („Termine", „beide", „alle 3").
+    pub events: &'static str,
+    pub slots: &'static str,
+    pub all_held: fn(usize) -> String,
     /// „Modul": „Zum Modul", and its exam: „Prüfung", „in 23 Tagen", „heute", „vorbei".
     pub module: &'static str,
     pub to_module: &'static str,
@@ -132,15 +136,12 @@ pub struct Texts {
     /// A Termin the plan has not (any more): „Diesen Termin hat dein Stundenplan nicht (mehr)."
     pub gone: &'static str,
     /// To look up: the head's tag of a module outside the plan („nicht im Plan"); of one in it,
-    /// under its groups, how many of them the plan holds („Noch keine in deinem Stundenplan",
-    /// „Eine in deinem Stundenplan", „2 in deinem Stundenplan") and the way into the Stundenplan
-    /// („Anpassen"), which an event without groups has as a row of its own („Im Stundenplan
-    /// anpassen", „Gruppen, einzelne Termine, Kalender-Abo").
+    /// under the ticket, how many of the event's groups the plan holds („Noch keine in deinem
+    /// Stundenplan", „Eine in deinem Stundenplan", „2 in deinem Stundenplan"; of an event without
+    /// groups „Im Stundenplan") and the way into the Stundenplan („Anpassen").
     pub not_in_plan: &'static str,
     pub in_your_plan: fn(usize) -> String,
     pub adjust: &'static str,
-    pub adjust_row: &'static str,
-    pub adjust_sub: &'static str,
     /// The Termin's dates as a file for one's calendar, of a module outside the plan: „In den
     /// Kalender", its tooltip, and the file's name.
     pub into_calendar: &'static str,
@@ -247,7 +248,9 @@ pub const DE: Texts = Texts {
     no_exceptions: "keine Ausnahmen",
     assumed: "QIS nennt keine Daten; angenommen ist die Vorlesungszeit.",
     falls_out: "fällt aus",
-    all_events: "Alle Veranstaltungen",
+    events: "Veranstaltungen des Moduls",
+    slots: "Termine",
+    all_held: |n| if n == 2 { "beide".to_string() } else { format!("alle {n}") },
     module: "Modul",
     to_module: "Zum Modul",
     exam: "Prüfung",
@@ -264,8 +267,6 @@ pub const DE: Texts = Texts {
         n => format!("{n} in deinem Stundenplan"),
     },
     adjust: "Anpassen",
-    adjust_row: "Im Stundenplan anpassen",
-    adjust_sub: "Gruppen, einzelne Termine, Kalender-Abo",
     into_calendar: "In den Kalender",
     into_calendar_title: "Die Termine als Kalenderdatei (.ics) herunterladen",
     calendar_file: |name| format!("Termin {name}.ics"),
@@ -366,7 +367,9 @@ pub const EN: Texts = Texts {
     no_exceptions: "no exceptions",
     assumed: "QIS gives no dates; the lecture period is assumed.",
     falls_out: "cancelled",
-    all_events: "All classes",
+    events: "The module's classes",
+    slots: "Sessions",
+    all_held: |n| if n == 2 { "both".to_string() } else { format!("all {n}") },
     module: "Module",
     to_module: "To the module",
     exam: "Exam",
@@ -383,8 +386,6 @@ pub const EN: Texts = Texts {
         n => format!("{n} in your timetable"),
     },
     adjust: "Adjust",
-    adjust_row: "Adjust in your timetable",
-    adjust_sub: "Groups, single dates, calendar feed",
     into_calendar: "Add to calendar",
     into_calendar_title: "Download the dates as a calendar file (.ics)",
     calendar_file: |name| format!("Session {name}.ics"),

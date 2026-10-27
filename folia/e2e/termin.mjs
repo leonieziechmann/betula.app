@@ -1,12 +1,14 @@
 // A Termin in its own view (owner, 2026-10-26; docs/folia/frontend.md, „A Termin in its own view";
-// folia/design/termin/konzepte.html, the fourth round), on canary's data of 2026W with Informatik
-// B.Sc.'s first semester planned (Programmierpraktikum 148370 in four groups, Mo, Mi, Do 11:30 and
-// Fr 13:45).
+// folia/design/termin/konzepte.html, the fourth round, in the order of the fifth: what picks the
+// Termin stands above everything it changes), on canary's data of 2026W with Informatik B.Sc.'s
+// first semester planned (Programmierpraktikum 148370 in four groups, Mo, Mi, Do 11:30 and Fr
+// 13:45, and its lecture).
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node termin.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // - The Stundenplan: a dashed group of the week takes its choice into focus (`wahl=`), a line of
 //   „Termine" and its address open the Termin beside the plan (`termin=`), its slot marked; the view
-//   names the module, the kind and the title, the date with its arrows, the time and the room; „Im
-//   Stundenplan" has the four groups as boxes, none ticked.
+//   names the module and its title, the module's events as segments above the ticket (the
+//   Praktikum marked), the date with its arrows, the time and the room; „Im Stundenplan" has the
+//   four groups as boxes, none ticked; the day and the series are pictures, which pick nothing.
 // - Two groups ticked, as many as one likes: both stand solid in the week, the others leave it, the
 //   store keeps two ticks; the tick of one taken back leaves the other.
 // - The arrow to the next date names it in the address; „Ausblenden" hides this date alone (the
@@ -25,9 +27,11 @@
 //   the search. `?` there shows the overview with „Im Termin" first.
 // - A phone: the view is a sheet over the plan, with „Teilen" and without „Ganze Seite".
 // - To look up: a line of the Praktikum's module page opens the Termin beside the page
-//   (`?termin=<key>`), in the plan, its groups measured against it, „Anpassen ›" into the
-//   Stundenplan of its semester, → its next date; „Ganze Seite" is its own page (`/event/<key>
-//   /<day>`) in two columns, → there too; Back leads back beside the module's page, Esc closes it.
+//   (`?termin=<key>`), in the plan, its groups above the ticket measured against it, „Anpassen ›"
+//   under it into the Stundenplan of its semester; a group picked changes the ticket under the
+//   groups and nothing above them, the lecture's segment the lecture's ticket; → its next date;
+//   „Ganze Seite" is its own page (`/event/<key>/<day>`) in two columns, → there too; Back leads back
+//   beside the module's page, Esc closes it.
 //   Enterprise Ressource Planning's exercise (12612, outside the plan): „nicht im Plan", its second
 //   group red against the plan's lecture, the Termin hatched among the plan's day, „In den
 //   Kalender" a file of its own. On a phone the Termin is a sheet over its module's page.
@@ -78,7 +82,11 @@ const view = (page) => page.evaluate(() => {
   const text = (selector) => panel?.querySelector(selector)?.textContent.replace(/\s+/g, " ").trim() ?? "";
   return {
     chip: text(".tm-mod"),
-    kind: text(".tm-kind"),
+    kind: text(".tm-kind") || text(".tm-evs > [aria-checked='true']"),
+    events: [...(panel?.querySelectorAll(".tm-evs > a") ?? [])].map((a) => a.textContent.trim()),
+    // What picks the Termin above the ticket, and the pictures that pick nothing.
+    above: (() => { const pick = panel?.querySelector(".tm-pick"), tk = panel?.querySelector(".tk"); return Boolean(pick && tk && pick.getBoundingClientRect().bottom <= tk.getBoundingClientRect().top); })(),
+    pictures: (panel?.querySelectorAll(".rib a, .sdots a") ?? []).length === 0 && Boolean(panel?.querySelector(".rib, .sdots")),
     title: text(".tm-title"),
     date: text(".tk-date > b"),
     pill: text(".tk-date .pill"),
@@ -112,6 +120,7 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   await until(page, "the Termin beside the plan", () => Boolean(onPage("#preview.is-termin .tk")));
   let v = await view(page);
   check(v.chip === "PP" && v.kind === "Praktikum" && v.title === "Programmierpraktikum", `the head: ${JSON.stringify(v)}`);
+  check(v.events.join(" | ") === "Vorlesung | Praktikum" && v.above && v.pictures, `the module's events above the ticket, the day and the series pictures: ${JSON.stringify(v)}`);
   check(/^(Mo|Di|Mi|Do|Fr) \d\d\.\d\d\./.test(v.date) && /^\d\d:\d\d/.test(v.time) && v.room.includes("0.03"), `the ticket: ${JSON.stringify(v)}`);
   check(v.groups.length === 4 && v.groups.every(([, on]) => on === "false") && v.right === "noch keine", `four groups, none ticked: ${JSON.stringify(v)}`);
   check(await page.evaluate(() => Boolean(document.querySelector(".sp-body .week .slot.cur, .sp-body .week [aria-current='true']"))), "its slot is marked");
@@ -279,6 +288,12 @@ const lookUp = (page, where) => page.evaluate((where) => {
     file: panel?.querySelector("a.tm-big")?.getAttribute("download") ?? "",
     blob: (panel?.querySelector("a.tm-big")?.getAttribute("href") ?? "").startsWith("blob:"),
     day: [...(panel?.querySelectorAll(".rb") ?? [])].map((bar) => bar.className),
+    // The head, the segments and where the groups stand: what a pick must leave as it is.
+    head: text(".hero"),
+    events: [...(panel?.querySelectorAll(".tm-evs > a") ?? [])].map((a) => (a.getAttribute("aria-checked") === "true" ? "*" : "") + a.textContent.trim()),
+    groupsAt: Math.round(panel?.querySelector(".tm-pick .grp")?.getBoundingClientRect().top ?? -1),
+    ticketAt: Math.round(panel?.querySelector(".tk")?.getBoundingClientRect().top ?? -1),
+    when: text(".tk-date > b") + " " + text(".tk-time"),
   };
 }, where);
 // A line of a module's Termine (they stand folded) as the visitor follows it.
@@ -300,7 +315,23 @@ const follow = async (page, prefix) => {
   check(v.foot === "Noch keine in deinem Stundenplan" && /^\/studyplan\?sem=2026W&termin=148370-[0-9a-f]{5}&on=\d{4}-\d\d-\d\d$/.test(v.adjust), `„Anpassen ›": ${JSON.stringify(v)}`);
   check(v.day.length > 1, `the plan's day around it: ${JSON.stringify(v)}`);
   check(/^\/event\/148370-[0-9a-f]{5}\/\d{4}-\d\d-\d\d$/.test(v.full), `„Ganze Seite" is its own page: ${JSON.stringify(v)}`);
+  check(v.events.join(" | ") === "Vorlesung | *Praktikum" && v.groupsAt >= 0 && v.groupsAt < v.ticketAt, `the events and the groups above the ticket: ${JSON.stringify(v)}`);
   if (shots) await page.screenshot({ path: `${shots}/termin-beside-module.png` });
+  // A group picked (owner, 2026-10-27: „Wenn man solche Buttons hat, dann ändern die nur den Inhalt
+  // unter ihnen"): the ticket under the groups is the group's, nothing above them changes.
+  const second = await page.evaluate(() => onPage("#preview.is-termin .tm-pick .gs:not(.this)")?.getAttribute("href") ?? "");
+  await page.click(`#preview.is-termin .tm-pick .gs[href="${second}"]`);
+  await until(page, "the second group", (second) => location.pathname + location.search === second && onPage("#preview.is-termin .tm-pick .gs.this")?.getAttribute("href") === second, second);
+  const picked = await lookUp(page, "#preview.is-termin");
+  check(picked.head === v.head && picked.events.join() === v.events.join() && picked.groupsAt === v.groupsAt && picked.when !== v.when, `a group picked changes the ticket alone: ${JSON.stringify([v, picked])}`);
+  // The lecture's segment: the lecture's ticket under the head, which stays.
+  await page.click("#preview.is-termin .tm-evs > a:not([aria-checked='true'])");
+  await until(page, "the lecture", () => onPage("#preview.is-termin .tm-evs > a[aria-checked='true']")?.textContent.trim() === "Vorlesung" && !onPage("#preview.is-termin .tm-pick .grp"));
+  const lecture = await lookUp(page, "#preview.is-termin");
+  check(lecture.head === v.head && lecture.when !== v.when, `the lecture's segment changes what stands under it: ${JSON.stringify(lecture)}`);
+  await page.goBack();
+  await page.goBack();
+  await until(page, "back on the first group", (href) => location.pathname + location.search === href, href);
   // → beside the page: the date after, in the module page's address.
   await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("ArrowRight");
