@@ -849,15 +849,16 @@ details.r1 .in { padding: 0 24px 24px; }
 <div class="page">
   <header class="intro">
     <div>
-      <p class="kicker">Betula · Konzepte · vierte Runde · 26.10.2026</p>
+      <p class="kicker">Betula · Konzepte · fünfte Runde · 27.10.2026</p>
       <h1>Nachschlagen oder anpassen</h1>
       <p class="lead">Derselbe Termin, zwei Ansichten. Von der Modulseite aus zum Nachschlagen. Aus dem Stundenplan erst die Infos, dann das Anpassen: so viele Gruppen anhaken, wie du willst, eine Veranstaltung oder ein Datum ausblenden. Gruppen und Veranstaltungen stehen in einem festen Raster, auch wenn es sieben sind.</p>
       <p class="quote">„Für den Kalender braucht es aber noch ein paar mehr Optionen … <b>auch mehr als eine Übung</b> sich anzeigen zu lassen … Module mit <b>sehr vielen Übungen</b> … trennen zwischen der <b>informativen Ansicht</b> für die Modulpage und Mein Studiengang und dann der <b>Ansicht bei der Kalender-Page</b> … Mach da einfach <b>ein festes Raster</b>.“</p>
     </div>
     <aside class="rules" aria-labelledby="rules-title">
-      <p class="kicker" id="rules-title">Die Regeln, mit der vierten Runde</p>
+      <p class="kicker" id="rules-title">Die Regeln, mit der fünften Runde</p>
       <ol>
-        <li><span><b>Wann und wo zuerst, am größten,</b> als Ticket; was anders ist, verändert das Ticket.</span></li>
+        <li><span><b>Was wählt, steht oben:</b> ein Knopf ändert nur, was unter ihm steht.</span></li>
+        <li><span><b>Wann und wo am größten,</b> als Ticket gleich unter dem, was es wählt; was anders ist, verändert das Ticket.</span></li>
         <li><span><b>Zwei Ansichten:</b> von der Modulseite zum Nachschlagen, aus Stundenplan und Startseite zum Anpassen.</span></li>
         <li><span><b>Im Stundenplan steht, was du anhakst:</b> so viele Gruppen, wie du willst; ohne Haken bleibt die Wahl offen.</span></li>
         <li><span><b>Ein festes Raster,</b> drei je Reihe, für Gruppen und Veranstaltungen; ab sieben eingeklappt, passende zuerst.</span></li>
@@ -884,8 +885,26 @@ details.r1 .in { padding: 0 24px 24px; }
         <button type="button" data-set="under" data-v="module" aria-pressed="false">Modulseite <small>nachschlagen</small></button>
       </div>
     </div>
-    <div class="jump"><a href="#runde4">Neu</a><a href="#a">A</a><a href="#ansichten">Zwei Ansichten</a><a href="#mehrere">Mehrere Gruppen</a><a href="#viele">Viele Gruppen</a><a href="#zustaende">Zustände</a><a href="#rang">Rangfolge</a><a href="#fragen">Fragen</a></div>
+    <div class="jump"><a href="#runde5">Neu</a><a href="#runde4">Runde 4</a><a href="#a">A</a><a href="#ansichten">Zwei Ansichten</a><a href="#mehrere">Mehrere Gruppen</a><a href="#viele">Viele Gruppen</a><a href="#zustaende">Zustände</a><a href="#rang">Rangfolge</a><a href="#fragen">Fragen</a></div>
   </nav>
+
+  <section class="sec" id="runde5" aria-labelledby="r5-title">
+    <h2 id="r5-title">Was die fünfte Runde ändert</h2>
+    <p class="sub">Was wählt, steht oben. Diesmal gebaut, nicht gezeichnet: derselbe Termin neben seiner Modulseite, links Folia 1.54.0, rechts 1.56.0.</p>
+    <div class="dec">
+      <div class="ba">
+        <figure><figcaption>Vierte Runde</figcaption><img src="bilder/runde4.webp" width="480" height="1120" alt="Die vierte Runde neben der Modulseite: oben das Ticket, darunter die Praktikumsgruppen, der Tag, die Reihe, das Modul, ganz unten „Alle Veranstaltungen“, aus denen man den Termin wählt." loading="lazy"></figure>
+        <figure><figcaption>Fünfte Runde</figcaption><img src="bilder/runde5.webp" width="480" height="1120" alt="Die fünfte Runde: unter dem Kopf mit dem Modul die Veranstaltungen als Segmente, Vorlesung und Praktikum, darunter die Praktikumsgruppen, dann das Ticket, die Person, „Anpassen“, der Tag und die Reihe." loading="lazy"></figure>
+      </div>
+      <ul class="fb">
+        <li><q>dass man unten auswählt, welchen Termin man sich genau angucken möchte und sich dann die Seite nur marginal ändert</q><span>Die Veranstaltungen des Moduls stehen jetzt oben als Segmente, darunter die Gruppen. Ein Tipp ändert das Ticket darunter, nichts darüber. „Alle Veranstaltungen“ am Ende gibt es nicht mehr: es sind die Segmente und die Gruppen, oben.</span></li>
+        <li><q>Wenn man solche Buttons hat, dann ändern die nur den Inhalt unter ihnen</q><span>Der Kopf nennt das Modul und ändert sich mit keiner Wahl. Das Datum wählen die Pfeile am Ticket, über Zeit und Raum, die sie ändern.</span></li>
+        <li><q>Ansonsten muss man nochmal über das Konzept nachdenken</q><span>Unter dem Ticket wählt nichts mehr: der Tag und die Reihe sind Bilder. Im Stundenplan bleiben die Haken unter den Infos; sie stellen den Plan ein, nicht die Ansicht.</span></li>
+        <li><q>Einfaches Prinzip</q><span>Steht jetzt in Betulas Regeln (CLAUDE.md, „Design“), für jede Ansicht.</span></li>
+      </ul>
+    </div>
+    <p class="sub">Die Prototypen weiter unten zeigen noch die Ordnung der vierten Runde.</p>
+  </section>
 
   <section class="sec" id="runde4" aria-labelledby="r4-title">
     <h2 id="r4-title">Was die vierte Runde ändert</h2>
