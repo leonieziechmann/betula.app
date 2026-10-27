@@ -1,6 +1,6 @@
-//! The design of the app: the building blocks every page uses (`ui`, `icons`, `combobox`, and
-//! `waitnote`, a note that waits for interaction), how numbers, dates and keys are written (`format`,
-//! `keys`),
+//! The design of the app: the building blocks every page uses (`ui`, `icons`, `combobox`, `modal`,
+//! the dialogs — a sheet from below on a phone —, and `waitnote`, a note that waits for
+//! interaction), how numbers, dates and keys are written (`format`, `keys`),
 //! the browser's own means (`nav`: storage, sizes, popups; `keyboard`: the screen's keyboard of a
 //! phone) and the languages with the texts of these parts (`i18n`, and `texts!`, with which every
 //! crate of the app puts its texts together). Below the shell and the features: it knows no page,
@@ -12,6 +12,7 @@ pub mod i18n;
 pub mod icons;
 pub mod keyboard;
 pub mod keys;
+pub mod modal;
 pub mod nav;
 pub mod stage;
 pub mod ui;

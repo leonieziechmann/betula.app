@@ -509,7 +509,8 @@ const LINE = ".fx-desk a.prog-line";
   check(opened.entries.slice(0, opened.at).join(" ") === "/ /study /programs /programs/bachelor-elektrotechnik-2022" && opened.entries[opened.at].includes("open=") && opened.at === opened.entries.length - 1,
     `phone: opening a module took more than one history entry, or the first use did not lay the way up under the program (${JSON.stringify(opened)})`);
   await page.waitForTimeout(400);
-  await page.tap('.detail.is-module [data-action="close-detail"]');
+  // A tap beside the sheet closes it (its × is out of sight on a phone).
+  await page.touchscreen.tap(195, 150);
   await page.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module") && document.querySelector("table.planlist"), null, { timeout: 8000 }).catch(() => problems.push("phone: closing the module did not leave the program"));
   const closed = await stack();
   check(closed.at === opened.at - 1 && closed.entries.length === opened.entries.length, `phone: closing the module added a step to the history (${JSON.stringify(closed)})`);
@@ -527,7 +528,7 @@ const LINE = ".fx-desk a.prog-line";
   await page.evaluate(() => document.querySelector('#preview .linklist a[data-walk="module"]')?.click());
   await page.waitForFunction(() => location.search.includes("area=") && location.search.includes("open=") && document.querySelector(".detail.is-module h2") && document.querySelector(".picked-page .linklist .pre"), null, { timeout: 8000 }).catch(() => problems.push("phone: a module out of an area did not come up over it"));
   await page.waitForTimeout(400);
-  await page.tap('.detail.is-module [data-action="close-detail"]');
+  await page.touchscreen.tap(195, 150);
   await page.waitForFunction(() => location.search.includes("area=") && !location.search.includes("open=") && !document.querySelector(".detail.is-module") && document.querySelector("#preview .linklist .pre"), null, { timeout: 8000 }).catch(() => problems.push("phone: closing the module did not leave the area"));
   await context.close();
 }

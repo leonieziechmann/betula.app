@@ -2371,7 +2371,7 @@ fn Filters(
         // out with the panel's name.
         // In „Befehle" (folia_shell::commands) the panel is „Filter" of „Gehe zu" with its key, and
         // its filters are found by typing, each named by its group („Prüfung: Klausur").
-        <aside class="panel filters" id="filters" aria-label=t.catalog.filters aria-describedby="filters-leave" aria-keyshortcuts="F" data-region="side" data-mode="" data-draft="" on:click=into_draft data-command=t.catalog.filters data-command-icon="sliders-horizontal" data-command-group="go" data-command-keys="F" data-command-act="go side" data-commands=t.catalog.filters data-commands-typed="">
+        <aside class="panel filters" id="filters" data-sheet="" aria-label=t.catalog.filters aria-describedby="filters-leave" aria-keyshortcuts="F" data-region="side" data-mode="" data-draft="" on:click=into_draft data-command=t.catalog.filters data-command-icon="sliders-horizontal" data-command-group="go" data-command-keys="F" data-command-act="go side" data-commands=t.catalog.filters data-commands-typed="">
             <span class="visually-hidden" id="filters-leave">{t.catalog.filters_leave}</span>
             <form on:submit=move |ev| ev.prevent_default()>
                 <div class="panel-head" data-section="plain">
@@ -2490,7 +2490,7 @@ fn Filters(
                         </div>
                     </details>
                 </div>
-                <div class="filter-actions">
+                <div class="filter-actions" data-sheet-foot="">
                     <button class="btn primary apply" type="submit">{t.catalog.apply}</button>
                     <a class="btn primary show" href="#" data-action="sheet-apply">{move || facts.with(|f| (t.catalog.show)(f.total, &format::count(f.total, t.locale)))}</a>
                 </div>

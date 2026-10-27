@@ -712,7 +712,7 @@ pub(super) fn MenuHost(ctx: StudyCtx) -> impl IntoView {
             let (x, y) = place_beside((left, top), entry_top, size, view_size);
             let label = title.clone();
             Some(view! {
-                <div class="st-pop sub" role="menu" aria-label=label style=format!("--x:{x:.0}px;--y:{y:.0}px") on:keydown=sub_keys on:pointerenter=move |_| stay()>
+                <div data-sheet="" class="st-pop sub" role="menu" aria-label=label style=format!("--x:{x:.0}px;--y:{y:.0}px") on:keydown=sub_keys on:pointerenter=move |_| stay()>
                     <button class="st-pop-back st-phone" type="button" on:click=move |_| close_sub()><Icon name="chevron-left"/><span>{title}</span></button>
                     {sub_entries.into_iter().map(|sub_entry| entry(None, sub_entry)).collect_view()}
                 </div>
@@ -721,7 +721,7 @@ pub(super) fn MenuHost(ctx: StudyCtx) -> impl IntoView {
         let (title, label) = (content.title.clone(), content.title.clone());
         Some(view! {
             <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close() on:contextmenu=move |ev: leptos::ev::MouseEvent| { ev.prevent_default(); close(); } on:wheel=move |_| ctx.menu.set(None)></div>
-            <div class="st-pop root" class:has-sub=move || sub.get().is_some() role="menu" aria-label=label style=format!("--x:{left:.0}px;--y:{top:.0}px;--w:{width:.0}px") on:keydown=root_keys>
+            <div data-sheet="" class="st-pop root" class:has-sub=move || sub.get().is_some() role="menu" aria-label=label style=format!("--x:{left:.0}px;--y:{top:.0}px;--w:{width:.0}px") on:keydown=root_keys>
                 <p class="st-pop-title st-phone">{title}</p>
                 {content.entries.into_iter().enumerate().map(|(i, root_entry)| entry(Some(i), root_entry)).collect_view()}
             </div>

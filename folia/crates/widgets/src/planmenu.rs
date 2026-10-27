@@ -414,7 +414,7 @@ fn PlanMenu(ask: MenuAsk, planning: Planning) -> impl IntoView {
                 let entry = entry.clone();
                 let (label, back_label) = (move_title.clone(), move_title.clone());
                 view! {
-                    <div class="st-pop sub plan-menu" role="menu" aria-label=label style=format!("--x:{x:.0}px;--y:{y:.0}px;--w:{SUB_WIDTH:.0}px") on:keydown=sub_keys on:pointerenter=move |_| stay()>
+                    <div data-sheet="" class="st-pop sub plan-menu" role="menu" aria-label=label style=format!("--x:{x:.0}px;--y:{y:.0}px;--w:{SUB_WIDTH:.0}px") on:keydown=sub_keys on:pointerenter=move |_| stay()>
                         <button class="st-pop-back st-phone" type="button" on:click=move |_| close_sub()><Icon name="chevron-left"/><span>{back_label}</span></button>
                         {subs.clone().into_iter().map(|semester| entry(true, semester)).collect_view()}
                     </div>
@@ -424,7 +424,7 @@ fn PlanMenu(ask: MenuAsk, planning: Planning) -> impl IntoView {
     };
     view! {
         <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close() on:contextmenu=move |ev: leptos::ev::MouseEvent| { ev.prevent_default(); close(); } on:wheel=move |_| planning.close_menu()></div>
-        <div class="st-pop root plan-menu" class:has-sub=move || sub.get() role="menu" aria-label=format!("{} · {}", t.planner.more, title) style=format!("--x:{left:.0}px;--y:{top:.0}px;--w:{WIDTH:.0}px") on:keydown=root_keys>
+        <div data-sheet="" class="st-pop root plan-menu" class:has-sub=move || sub.get() role="menu" aria-label=format!("{} · {}", t.planner.more, title) style=format!("--x:{left:.0}px;--y:{top:.0}px;--w:{WIDTH:.0}px") on:keydown=root_keys>
             <p class="st-pop-title st-phone">{title.clone()}</p>
             {root.into_iter().map(|root_entry| entry(false, root_entry)).collect_view()}
         </div>
