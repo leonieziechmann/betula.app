@@ -430,6 +430,7 @@ pub fn BookmarksPage() -> impl IntoView {
                 <aside
                     class="panel sidebar sheet"
                     id="sidebar"
+                    data-sheet=""
                     aria-label=t.bookmarks.title
                     aria-describedby="sidebar-leave"
                     aria-keyshortcuts="F"
@@ -1743,7 +1744,7 @@ fn Sidebar(
                 {orders}
             </nav>
         </Show>
-        <div class="filter-actions sheet-only">
+        <div class="filter-actions sheet-only" data-sheet-foot="">
             <a class="btn primary show" href="#" data-action="sheet-apply">{move || {
                 let n = sheet_count.get() as u64;
                 (t.catalog.show)(n, &format::count(n, t.locale))
@@ -2257,7 +2258,7 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                     let height = 2.0 * MENU_ITEM + 60.0 + if kept > 0 { 18.0 } else { 0.0 };
                     return Some(view! {
                         <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close()></div>
-                        <div class="st-pop root view-menu ask" role="alertdialog" aria-label=label style=menu_style(at, height) on:keydown=keys>
+                        <div data-sheet="" class="st-pop root view-menu ask" role="alertdialog" aria-label=label style=menu_style(at, height) on:keydown=keys>
                             <p class="view-menu-ask">{question}{(kept > 0).then(|| view! { <small>{(b.delete_keeps)(kept)}</small> })}</p>
                             <div class="view-menu-answers">
                                 <button class="mini danger hit" type="button" role="menuitem" id="delete-yes" on:click=move |_| delete.run(())>{b.delete}</button>
@@ -2296,7 +2297,7 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                     let label = head.clone();
                     return Some(view! {
                         <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close()></div>
-                        <div class="st-pop root view-menu share-menu" role="menu" aria-label=label style=menu_style(at, 3.0 * MENU_ITEM + 9.0 + 12.0 + 26.0) on:keydown=keys>
+                        <div data-sheet="" class="st-pop root view-menu share-menu" role="menu" aria-label=label style=menu_style(at, 3.0 * MENU_ITEM + 9.0 + 12.0 + 26.0) on:keydown=keys>
                             <p class="view-menu-head">{head}</p>
                             <button class="st-pop-item" type="button" role="menuitem" disabled=count == 0 on:click=copy_link>
                                 <Icon name="link"/><span class="st-pop-label"><span>{b.copy_link}</span></span>
@@ -2342,7 +2343,7 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                 if ui.confirming.get() {
                     return Some(view! {
                         <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close()></div>
-                        <div class="st-pop root view-menu ask" role="alertdialog" aria-label=b.clear style=menu_style(at, 2.0 * MENU_ITEM + 60.0) on:keydown=keys>
+                        <div data-sheet="" class="st-pop root view-menu ask" role="alertdialog" aria-label=b.clear style=menu_style(at, 2.0 * MENU_ITEM + 60.0) on:keydown=keys>
                             <p class="view-menu-ask">{(b.clear_question)(count)}</p>
                             <div class="view-menu-answers">
                                 <button class="mini danger hit" type="button" role="menuitem" id="clear-yes" on:click=move |_| {
@@ -2441,7 +2442,7 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
         let label = title.clone();
         Some(view! {
             <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close() on:contextmenu=move |ev: leptos::ev::MouseEvent| { ev.prevent_default(); close(); }></div>
-            <div class="st-pop root view-menu" role="menu" aria-label=label style=menu_style(at, height) on:keydown=keys>
+            <div data-sheet="" class="st-pop root view-menu" role="menu" aria-label=label style=menu_style(at, height) on:keydown=keys>
                 <p class="st-pop-title st-phone">{title}</p>
                 {entries.into_iter().map(|Entry { icon, label, hint, key, danger, does }| view! {
                     {danger.then(|| view! { <hr/> })}

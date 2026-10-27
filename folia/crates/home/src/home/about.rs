@@ -587,18 +587,16 @@ fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView
                 </button>
             </div>
             {map_for_dialog.map(|map| view! {
+                // On a phone a sheet from below, as every dialog there (enhance.js „the sheets of a
+                // phone"): its picture all up, thrown away by a finger.
                 <dialog
                     class="map-dialog"
                     node_ref=dialog
+                    data-sheet=""
                     aria-labelledby="karte-titel"
                     on:close=move |_| map_open.set(false)
-                    // A click on the dim backdrop is a click on the dialog itself.
                     on:click=move |ev: leptos::ev::MouseEvent| {
-                        let on_backdrop = ev.target().and_then(|target| dialog.get_untracked().map(|dialog| {
-                            let dialog: &leptos::web_sys::EventTarget = dialog.as_ref();
-                            dialog == &target
-                        }));
-                        if on_backdrop == Some(true) {
+                        if folia_design::modal::on_backdrop(dialog, &ev) {
                             close_map();
                         }
                     }

@@ -39,6 +39,7 @@ use std::collections::BTreeSet;
 use leptos::prelude::*;
 
 use folia_design::nav::{room, Room};
+use folia_design::modal::Modal;
 use folia_design::ui::Icon;
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::collections::{Anchor, CollectAsk, Collecting, Collections, Refused, Shelf};
@@ -208,39 +209,19 @@ fn CollectPop(ask: CollectAsk, collecting: Collecting) -> impl IntoView {
     .into_any()
 }
 
-/// On a phone: a sheet from below, a draft until „Fertig".
+/// On a phone: a sheet from below (`folia_design::modal`), a draft until „Fertig". It shows as long
+/// as the menu is asked for: closed (Esc, Back, a click beside it, a finger's throw, „Fertig"), the
+/// menu goes, and the sheet with it, gliding away (enhance.js).
 #[component]
 fn CollectSheet(ask: CollectAsk, collecting: Collecting) -> impl IntoView {
     let t = i18n::t();
     let Some(collections) = Collections::expect() else { return ().into_any() };
     let bookmarks = Bookmarks::expect();
-    let node = NodeRef::<leptos::html::Dialog>::new();
     // What the shelf was when the sheet opened: what the draft adds to it is what „Fertig" keeps.
     let before = collections.with_untracked(Clone::clone);
     let draft = RwSignal::new(before.clone());
-    node.on_load(move |dialog| {
-        if !dialog.open() {
-            let _ = dialog.show_modal();
-            // The sheet has the focus, not its field (a browser gives a dialog's first field the
-            // focus as it opens), so that the screen's keyboard does not come at once.
-            let _ = dialog.focus();
-        }
-    });
     folia_shell::nav::layer_while(move || collecting.asked().is_some(), move || collecting.close(), folia_shell::nav::Kind::Dialog);
-    // The dialog closes as a dialog does, so that it leaves the top layer before it leaves the
-    // page; its `close` lets the menu go.
-    let shut = move || match node.get_untracked() {
-        Some(dialog) if dialog.open() => dialog.close(),
-        _ => collecting.close(),
-    };
-    on_cleanup(move || {
-        if let Some(dialog) = node.try_get_untracked().flatten() {
-            if dialog.open() {
-                dialog.close();
-            }
-        }
-    });
-    let close = Callback::new(move |()| shut());
+    let close = Callback::new(move |()| collecting.close());
     let (modules, title, many) = (ask.modules(), ask.title.clone(), ask.many());
     let from_note = ask.from_note;
     let done = move |_| {
@@ -254,36 +235,24 @@ fn CollectSheet(ask: CollectAsk, collecting: Collecting) -> impl IntoView {
         if let Some(serial) = from_note {
             collecting.end_note(serial);
         }
-        shut();
+        collecting.close();
     };
-    let on_backdrop = move |ev: leptos::ev::MouseEvent| {
-        let on_backdrop = ev.target().and_then(|target| {
-            node.get_untracked().map(|dialog| {
-                let dialog: &leptos::web_sys::EventTarget = dialog.as_ref();
-                dialog == &target
-            })
-        });
-        if on_backdrop == Some(true) {
-            shut();
-        }
-    };
+    let label = format!("{} · {}", if ask.many() { t.marks.collection } else { t.marks.menu_title }, ask.title);
+    // The sheet takes the focus itself as it opens, not its field, so that the screen's keyboard
+    // does not cover the collections at once (oberflaeche.html: „Das Feld bekommt den Fokus erst
+    // beim Antippen").
     view! {
-        // `autofocus` on the dialog itself: it takes the focus as it opens, not its field, so that the
-        // screen's keyboard does not cover the collections at once (oberflaeche.html: „Das Feld
-        // bekommt den Fokus erst beim Antippen").
-        <dialog class="st-dialog collect-sheet" data-sheet="" autofocus=true tabindex="-1" node_ref=node aria-label=format!("{} · {}", if ask.many() { t.marks.collection } else { t.marks.menu_title }, ask.title) on:close=move |_| collecting.close() on:click=on_backdrop>
-            <div class="st-dlg">
-                <header class="st-dlg-head collect-sheet-head">
-                    <b>{ask.title.clone()}</b>
-                </header>
-                <div class="st-dlg-body collect-sheet-body">
-                    <CollectBody ask=ask.clone() work=Work::Draft(draft) phone=true close/>
-                </div>
-                <footer class="st-dlg-foot collect-sheet-foot">
-                    <button class="btn primary" type="button" id="collect-done" on:click=done>{t.marks.done}</button>
-                </footer>
+        <Modal open=true on_close=close class="collect-sheet" label=label focus_itself=true>
+            <header class="st-dlg-head collect-sheet-head">
+                <b>{ask.title.clone()}</b>
+            </header>
+            <div class="st-dlg-body collect-sheet-body">
+                <CollectBody ask=ask.clone() work=Work::Draft(draft) phone=true close/>
             </div>
-        </dialog>
+            <footer class="st-dlg-foot collect-sheet-foot">
+                <button class="btn primary" type="button" id="collect-done" on:click=done.clone()>{t.marks.done}</button>
+            </footer>
+        </Modal>
     }
     .into_any()
 }

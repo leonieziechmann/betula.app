@@ -329,7 +329,11 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
   check(await page.evaluate(() => Boolean(onPage(".topbar .top-back.on")) && !onPage('.module-page [data-action="back"]')?.offsetHeight && onPage(".topbar .top-profile").inert), "phone: the module's page has no „Zurück\" at the head");
   await step("phone: back returns to the list with the sheet", () => page.tap(".top-back.on >> visible=true"), (id) => location.pathname === "/catalog" && location.search.includes(`open=${id}`) && onPage(".detail.is-module h2") && !onPage(".top-back.on"), id);
   await page.waitForTimeout(500);
-  await step("phone: the sheet closed", () => page.tap('.detail.is-module [data-action="close-detail"] >> visible=true'), () => !location.search.includes("open=") && !onPage(".detail.is-module") && onPage(".rows a.row"));
+  // Closed by a tap beside it: its × is out of sight on a phone, the grabber its one decoration
+  // (owner, 2026-10-27).
+  await page.waitForTimeout(500);
+  check(await page.evaluate(() => getComputedStyle(onPage('.detail.is-module [data-action="close-detail"]')).clipPath === "inset(50%)"), "phone: the module's sheet shows its ×");
+  await step("phone: the sheet closed", () => page.touchscreen.tap(195, 150), () => !location.search.includes("open=") && !onPage(".detail.is-module") && onPage(".rows a.row"));
   await page.waitForTimeout(500);
   const seen = await page.evaluate((id) => { const row = onPage(`a.row[data-id="${id}"]`)?.getBoundingClientRect(); return row ? row.top >= 0 && row.bottom <= innerHeight : null; }, id);
   check(seen === true, `phone: back on the list the tapped row is ${seen === null ? "not loaded" : "not in view"}`);

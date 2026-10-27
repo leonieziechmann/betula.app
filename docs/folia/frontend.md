@@ -36,7 +36,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr`, asking the data worker. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `folia/scripts/build-client.sh` into `site/pkg`. |
 | `worker/` | The data worker (WASM, no Leptos) and its script: the catalog in sql.js, every question of the app's pages answered beside the page's thread; built with the client. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets, the drawn cards. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what is meant first and marked, a lecturer written another way, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `courses.mjs` (a module held at two campuses: every course in its colour, Mein Studiengang's alone with „Auch zeigen", another program's highlighted, the Stundenplan's line naming the course), `choices.mjs` (a module's choices and extras: the exercises of HM T3 dashed and Mein Studiengang's taken with „Auch zeigen", the Aufbaukurs dotted, the groups of Musiktheorie, the 14 projects of Berufspraktische Profilierung in the list alone, the catalog's row; the Stundenplan with HM T3: the choice open, made with „✓" and opened again, „Zusatz", Bauingenieurwesen's exercise preselected and another taken in the panel), `termin.mjs` (a Termin in its own view: a slot of the Stundenplan opening it beside the plan, its head, ticket and groups, two groups ticked and both solid in the week, one taken back, the next date, one date hidden and shown again, the event off and on, „Zum Modul", Esc; a Termin of the start page over it and closed again; the sheet on a phone), `programs.mjs`, `bookmarks.mjs`, `arrows.mjs` („Knopf mit Pfeil": a row's arrow beside its bookmark and ⇧M, S and N gone, M with Caps Lock, a module's arrows marked or not, ⇧P and „Einplanen in …" — at its switch beside the rail, a semester chosen, „Rückgängig" —, the planned arrow's menu, ⌘ on a Mac), `befehle.mjs` („Befehle", R25: the button in the search field with its keys and a click, Ctrl + K, „Gehe zu" with the tabs' keys, / and F, a module's commands first and „Merken" with „Geht auch mit M", ↓ ↑, a filter folded by its group — Enter „mit" and off, Shift + Enter „ohne" —, a module by its number beside the list and as its page, a module page's sections, the settings saying what holds now, „Filter" and „Suchfeld", nothing found, Ctrl + K closing it, the single keys off), `tastatur.mjs` (the keyboard of the catalog and of what is global, R24: ↓ into the list at the open module, F into the filters with their ring, „Esc zum Verlassen" and the lit section, Tab from section to section opening „Weitere Filter" and stopping at either end, the arrows across the filters, + − Entf at a chip and the bar that names them, the bubble „Finden" with its marks, a typo, Enter, Shift + Enter and Esc, the knobs of the credits — + − Bild ↓ Ende, one taking the other along, a digit's field, the arrows going on —, ← → at an option group, Esc out into the list, Tab round the content and back to its row, V and Enter on the open row in full, Ctrl + F6 from region to region, the rail as one stop, Esc in the search, ? and the overview with its switch for the single keys, „Strg + K" on a PC and „⌘K" on a Mac), `selection.mjs` (several modules at once on the Merkliste: Ctrl, Shift, drawn with the mouse, the keys, the bar's „Sammlung", „Einplanen", „Teilen" and „Entfernen" with „Rückgängig", a row's menu, a finger held on a phone), `share.mjs` („Weitergeben": a collection's „Teilen" with its head, „Link kopieren", „Notizen mitnehmen", the text with each module's link; its link on another device kept as a collection, again with the notes under „Anderer Name …", which refuses a name there is; the whole list for a third device with every collection and note; the selection's link of modules alone; nothing of it in a request), `everywhere.mjs` (the Merkliste from elsewhere: the tab's menu of its views, the catalog's „Gemerkt" per collection and „nicht in …", „Mein Studium"'s Wahlpflicht with the marked module first, „Module hinzufügen" with „Merkliste" by collection and search, the Gesamtplan's cell, the three tabs on a phone, the Stundenplan's „Aus der Merkliste" with „passt", the folded summer's, a collection taken over and „Rückgängig", nothing of it in a request), `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `back.mjs` (Back on a phone as Android and an iPhone have it and on a wide screen: what lies over a page, the semester of „Mein Studium", the filters' draft, a module closed, a stack for each tab, the profile as a page of a while, a link from outside), `stages.mjs` (the tabs that stay built: a tab seen before in the next frame as it was left, scrolled as far, the title and the tags of the page in front), `achse.mjs` (a change of tab on a phone, the pages on an axis: a tap, Back to Start, taps on the way, a finger along the bar, the ground and the dots with their page, less motion, a wide screen), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", the arrow's menu — passed and back, moved, ⇧P and its keys, taken out —, a row swiped on a phone), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the semester at the top of its box and the list of the semesters at its name, the box the catalog's list staying at the top, the rows as the catalog's with their status, the rows' menus, selecting several without boxes, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `home.mjs` (the start page: the setup, „Studium anlegen" and „Rückgängig", the day, the photo and its name, the page under the bar on a wide screen, the phone's frost and leaves), `about.mjs` („Über Betula"), `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box with „Neues Profil“, the profile page on top of the list it was opened from and its arrow back to it, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what is meant first and marked, a lecturer written another way, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `courses.mjs` (a module held at two campuses: every course in its colour, Mein Studiengang's alone with „Auch zeigen", another program's highlighted, the Stundenplan's line naming the course), `choices.mjs` (a module's choices and extras: the exercises of HM T3 dashed and Mein Studiengang's taken with „Auch zeigen", the Aufbaukurs dotted, the groups of Musiktheorie, the 14 projects of Berufspraktische Profilierung in the list alone, the catalog's row; the Stundenplan with HM T3: the choice open, made with „✓" and opened again, „Zusatz", Bauingenieurwesen's exercise preselected and another taken in the panel), `termin.mjs` (a Termin in its own view: a slot of the Stundenplan opening it beside the plan, its head, ticket and groups, two groups ticked and both solid in the week, one taken back, the next date, one date hidden and shown again, the event off and on, „Zum Modul", Esc; a Termin of the start page over it and closed again; the sheet on a phone), `programs.mjs`, `bookmarks.mjs`, `arrows.mjs` („Knopf mit Pfeil": a row's arrow beside its bookmark and ⇧M, S and N gone, M with Caps Lock, a module's arrows marked or not, ⇧P and „Einplanen in …" — at its switch beside the rail, a semester chosen, „Rückgängig" —, the planned arrow's menu, ⌘ on a Mac), `befehle.mjs` („Befehle", R25: the button in the search field with its keys and a click, Ctrl + K, „Gehe zu" with the tabs' keys, / and F, a module's commands first and „Merken" with „Geht auch mit M", ↓ ↑, a filter folded by its group — Enter „mit" and off, Shift + Enter „ohne" —, a module by its number beside the list and as its page, a module page's sections, the settings saying what holds now, „Filter" and „Suchfeld", nothing found, Ctrl + K closing it, the single keys off), `tastatur.mjs` (the keyboard of the catalog and of what is global, R24: ↓ into the list at the open module, F into the filters with their ring, „Esc zum Verlassen" and the lit section, Tab from section to section opening „Weitere Filter" and stopping at either end, the arrows across the filters, + − Entf at a chip and the bar that names them, the bubble „Finden" with its marks, a typo, Enter, Shift + Enter and Esc, the knobs of the credits — + − Bild ↓ Ende, one taking the other along, a digit's field, the arrows going on —, ← → at an option group, Esc out into the list, Tab round the content and back to its row, V and Enter on the open row in full, Ctrl + F6 from region to region, the rail as one stop, Esc in the search, ? and the overview with its switch for the single keys, „Strg + K" on a PC and „⌘K" on a Mac), `selection.mjs` (several modules at once on the Merkliste: Ctrl, Shift, drawn with the mouse, the keys, the bar's „Sammlung", „Einplanen", „Teilen" and „Entfernen" with „Rückgängig", a row's menu, a finger held on a phone), `share.mjs` („Weitergeben": a collection's „Teilen" with its head, „Link kopieren", „Notizen mitnehmen", the text with each module's link; its link on another device kept as a collection, again with the notes under „Anderer Name …", which refuses a name there is; the whole list for a third device with every collection and note; the selection's link of modules alone; nothing of it in a request), `everywhere.mjs` (the Merkliste from elsewhere: the tab's menu of its views, the catalog's „Gemerkt" per collection and „nicht in …", „Mein Studium"'s Wahlpflicht with the marked module first, „Module hinzufügen" with „Merkliste" by collection and search, the Gesamtplan's cell, the three tabs on a phone, the Stundenplan's „Aus der Merkliste" with „passt", the folded summer's, a collection taken over and „Rückgängig", nothing of it in a request), `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `sheets.mjs` (the sheets of a phone: two stops, nothing scrolling half up, the grabber, thrown by the speed as the finger lets go, a dialog over a module's sheet, a menu, the copy that glides away), `back.mjs` (Back on a phone as Android and an iPhone have it and on a wide screen: what lies over a page, the semester of „Mein Studium", the filters' draft, a module closed, a stack for each tab, the profile as a page of a while, a link from outside), `stages.mjs` (the tabs that stay built: a tab seen before in the next frame as it was left, scrolled as far, the title and the tags of the page in front), `achse.mjs` (a change of tab on a phone, the pages on an axis: a tap, Back to Start, taps on the way, a finger along the bar, the ground and the dots with their page, less motion, a wide screen), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", the arrow's menu — passed and back, moved, ⇧P and its keys, taken out —, a row swiped on a phone), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the semester at the top of its box and the list of the semesters at its name, the box the catalog's list staying at the top, the rows as the catalog's with their status, the rows' menus, selecting several without boxes, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `home.mjs` (the start page: the setup, „Studium anlegen" and „Rückgängig", the day, the photo and its name, the page under the bar on a wide screen, the phone's frost and leaves), `about.mjs` („Über Betula"), `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box with „Neues Profil“, the profile page on top of the list it was opened from and its arrow back to it, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`folia/crates/routes/src/url.rs`)
 
@@ -216,14 +216,14 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     still find an area when typed. An area filters to the modules the tree places in it or in
     an area below it; that is how the elective modules of a program are listed, whatever the plan
     says about their semester.
-  - **On a phone the panel is a sheet** from below, opened by the list's „Filter" button, and
-    closed the way a sheet is expected to close: swiped down (owner, 2026-09-22: „braucht
-    unbedingt eine Geste"; it follows the finger and is let go when pulled far or flicked, else
-    it slides back), with a tap on the page behind it, with its buttons, or with Esc
-    (`enhance.js`; a page's dialog that a phone shows as a sheet from below, `dialog[data-sheet]`,
-    is dragged down the same way and closes as its × does, owner, 2026-10-05). A touch decides with its first move: downwards where nothing inside the sheet
-    is scrolled down (the head, the row of buttons, the top of its list) it drags the sheet,
-    anything else inside scrolls the sheet's list. **The page behind an open sheet stands still**
+  - **On a phone the panel is a sheet** from below, one of the sheets of a phone („The sheets of a
+    phone" below), opened by the list's „Filter" button: it comes up half up, „N Module anzeigen" at
+    the screen's foot, and a finger or a tap on its grabber takes it all up. It closes the way a
+    sheet is expected to close: thrown down (owner, 2026-09-22: „braucht unbedingt eine Geste"), with
+    a tap on the page behind it, with its buttons, or with Esc (`enhance.js`). A touch decides with
+    its first move: half up it takes the sheet; all up, downwards where nothing inside the sheet is
+    scrolled down (the head, the row of buttons, the top of its list) it takes the sheet, anything
+    else inside scrolls the sheet's list. **The page behind an open sheet stands still**
     (owner: scrolling it along felt „richtig clunky"): `html.sheet-open` takes the page's
     scrolling away, the sheet's list keeps its scroll to itself (`overscroll-behavior`), and a
     touch on the dimmed page moves nothing.
@@ -233,7 +233,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (`pages::catalog_summary`, which says what `pages::catalog` says about the same filter, the
     semester of a plan included), and the list and the address follow once, when „Module
     anzeigen" applies it, as one history entry, not one per tap. Any other way of closing the
-    sheet — its ×, a swipe, a tap beside it, Esc, Back — throws the draft away and leaves the list
+    sheet — a swipe, a tap beside it, Esc, Back, its × for screen readers — throws the draft away and leaves the list
     as it was (owner, 2026-10-18: „Die Filter sollen bei der Mobile Version verworfen werden, wenn
     man das Fenster schließt ist zurück macht"; until then each way applied it). The links of the
     panel stay links (they work without JavaScript and on the desktop, where every change still
@@ -1142,6 +1142,80 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   or a row of the plan picked is the page there (`Filling` in `folia/crates/programs/src/program.rs`), „Zurück"
   leading to the program, and a module picked out of it comes up over it. Without the app the same
   HTML (the panel beside the page) is shown as the page by the stylesheet (`.aside-picked`).
+- **The sheets of a phone** (owner, 2026-10-27: „es kommt vor, dass immer mehr modal Dialoge
+  verwendet werden und gerade auf dem Handy ist die erste variante immer etwas komisch
+  implementiert. Ich möchte, dass wir das system anpassen, so dass die alle ein konsistentes
+  verhalten vorlegen und das die entwicklung einfacher wird"; app.css and `enhance.js` „the sheets
+  of a phone", `folia_design::modal`). Whatever is modal on a phone is a sheet from below („Ein
+  modal beim handy ist dieses swipebare menü, dass sich von unten öffnet") and moves one way: a
+  page's dialog, a menu, the catalog's filters and a page's sidebar of filters, a module or a Termin
+  over a page, the map of the start page. Until then each kind moved its own way — the module's
+  sheet on springs between two stops, a dialog, the filters and the collections dragged down only
+  and dropped on a fixed curve, a menu not at all — and had a head of its own, a × here, a grabber
+  there; a dialog opened over a module's sheet (the collections, „Einplanen", a menu of the arrow)
+  did not scroll under a finger, which the module's sheet held.
+  - **One frame, the grabber its one decoration** („Weil es die swipe actions gibt und das auch
+    bekannt ist, sollen die decorations für das fenster einfach nur der handle strich sein und das
+    wars"): as wide as the screen, its upper corners round (18 px), a grabber of 40 × 4 px at its
+    top. Its ×, „Schließen" or „Vollbild" stays in the page out of sight, for screen readers, and
+    shows where the keyboard's focus brings it. A tap on the grabber takes it all up and back.
+  - **Two stops** („zwei einrastpunkte einmal so ca bis zur mitte des bildschirms und dann voll
+    nach ganz oben"), as a phone's own sheets have them (iOS's medium and large detents, Material's
+    half-expanded state): half up, its top at 48 % of the screen, and all up, 10 px under the safe
+    area. It comes up from below to half up. One no taller than half the screen (most menus, a
+    question) has one stop, as tall as it is; one that holds less than the screen goes all up to its
+    own height; a dialog of the size „m" or „l", the filters, a module and the map take the whole
+    height, so that they do not grow and shrink with what they hold.
+  - **Half up nothing in it scrolls** („Im kleinen modus soll man nicht scrollen können nur im full
+    modus"): a finger moves the sheet wherever it touches it, up or down; all up its content scrolls
+    and keeps its scroll to itself, and a move down where it is at its top takes the sheet. Pulled up
+    past all up, the rest of the finger's way scrolls the content; with nothing to scroll the sheet
+    gives a little and comes back. Sideways the finger is the content's. The wheel down over a sheet
+    half up, and the keyboard's focus going below what it shows, take it all up first.
+  - **Thrown, it goes where it would come to rest** („Wenn man im Full modus ist soll man je nach
+    swipe acceleration und speed in den mid und schließen wechseln können"): let go, it goes on from
+    where it is and as fast as the finger went as it let go, to where it would come to rest thrown at
+    that speed, slowing down by 0.0025 px per ms² — all up in the upper half of the way to half up,
+    half up down to a third of the way on to the bottom, below that away; a flick (0.45 px per ms)
+    goes at least to the next stop its way. How fast the finger went is the slope, where it let go,
+    of a parabola laid through its last 100 ms (least squares, as Android's `VelocityTracker` reads a
+    fling; a straight line where a few points make no curve): a swipe still speeding up is thrown as
+    fast as it was at the end, one slowing down as slowly, not both at their mean (until then the
+    mean of the last 100 ms). From all up a swipe of 284 px, as quick on average, goes away speeding
+    up and comes to rest half up slowing down (`e2e/sheets.mjs`).
+  - **Every move a damped spring** („Animationen sollen physikalischen Simulationen entsprechen, so
+    dass es sich natürlich anfühlt"): to a stop with a swing too small to see (0.42 s, damping 0.86),
+    away softer and without one (0.6 s, 0.99), each from where the sheet is and as fast as it goes,
+    played as Web Animations, which the compositor runs while the page builds what the sheet shows.
+    A finger catches it on its way, where it is (one that has all but come to rest is at rest). With
+    reduced motion every move is short and without a swing. The dim behind it fades as it goes down
+    from half up.
+  - **Its foot at the screen's foot**: what holds its buttons (a dialog's `footer.st-dlg-foot`,
+    `[data-sheet-foot]`: „Fertig", „Übernehmen", „N Module anzeigen") stands at the foot of the
+    screen while the sheet is half up, lifted as far as the sheet is down, over what scrolls under
+    it, and goes along with it below.
+  - **Closed, it leaves as a sheet does**: a finger throws it away, and a tap beside it, Esc and Back
+    close it as before. What the page takes away at once — a menu's choice, a dialog's button, Esc, a
+    new address — leaves a copy of itself as it was, which glides away in its place (`ghostSheet`:
+    inert, without ids, its fields as typed in, scrolled as far; a submenu and its menu take each
+    other's place without one).
+  - **The screen's keyboard**: the sheet whose field brought it up goes all up with it, into the
+    part of the screen the keyboard leaves („The screen's keyboard" below), and back half up as the
+    keyboard goes, in one move with its height; meanwhile a finger scrolls it rather than moving it.
+  - **What makes one** (for the next one): a dialog is `folia_design::modal::Modal` — shown while its
+    `open` says so, its owner asked to close it by `on_close` (Esc, Back, a tap beside it, a throw,
+    its ×), its size `ModalSize::{S, M, L}` (app.css „The dialogs"), its head `ModalHead` (the title,
+    a line, „× Schließen Esc" on a wide screen), its body a `div.st-dlg-body`, its buttons a
+    `footer.st-dlg-foot`; what it shows read from what its owner gave last (`modal::kept`), so that
+    it goes in one piece. Nothing else is needed: on a wide screen it is a dialog in the middle of the
+    window, on a phone a sheet. Each dialog wrote its own showing, closing and click beside it
+    before; „Mein Studium"'s, the keys', „Einplanen"'s and the collections' are `Modal` now, the map
+    a dialog of its own with `data-sheet`. A menu is a sheet with `data-sheet` on its `.st-pop`
+    (`menu.rs`, `planmenu.rs`, `planinto.rs`, the Merkliste's); anything else with `data-sheet`, its
+    foot `data-sheet-foot`, what scrolls `data-sheet-body`.
+  - Not moved by it: the sheet of a choice over the Stundenplan's week (`open.rs` `PickSheet`, no
+    modal, its own morph on the same springs), which has the grabber alone too, its × out of sight;
+    the menus of a tab held and of the profiles, which stand at what opened them.
 - **A module on a phone** (owner, 2026-10-06: „Aktuell wird ja wenn man auf ein modul klickt gleich
   die volle seite aufgemacht. Aber ich finde es währe viel besser, wenn man wie bei der Übersicht
   nach bereichen so ein menu bekommt, dass sich dann von unten öffnet. Hierbei finde ich, dass es
@@ -1158,11 +1232,12 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   scrolls inside the sheet and keeps its scroll to itself, and a finger down where the content is
   at its top takes the sheet down. Pulled up past all up, the rest of the finger's way scrolls the
   content, and let go there the content goes on as the finger went, slower and slower. A tap on
-  the grabber takes it all up and back. Its × stays at its top right while the content scrolls.
+  the grabber takes it all up and back. Its × is out of sight, for screen readers (the grabber its
+  one decoration, „The sheets of a phone" above).
   It has no „Vollbild" (owner, 2026-10-16: „Vollbild als knopf ergibt keinen sinn, der muss
   raus"): all up it is the whole screen already; beside a wide page the module keeps it, and the
   Stundenplan's sheet keeps „Modul ansehen", which leads to what its panel does not show. Closed
-  by a finger, its × or a tap beside it, it slides down and its close link is followed — back
+  by a finger or a tap beside it (or its ×), it slides down and its close link is followed — back
   through the history where the page without the module is the step before (as the browser says
   it, else `data-back="history"`; § „Back"), so that Back does not bring it again; Back and Esc
   close it at once.
@@ -1396,11 +1471,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   all round, its body scrolling inside. Until then the width was the kind's and the height the
   content's: „Module hinzufügen" shrank from 720 to 310 px when its tab changed, „Studiengang
   wechseln" grew and shrank with the program picked. The head says what the dialog is and has its
-  way out, „× Schließen Esc" as a module beside a list has it (on a phone the × alone; the map of
-  the start page, a picture as large as the window allows and no dialog of these sizes, has the
-  same way out); the foot has the buttons on the right, the primary last, and what it says about
-  them on their left. On a phone a dialog is a sheet as wide as the screen — s as tall as its
-  content, m three quarters of the screen, l all but its top — whose buttons share its width, the
+  way out, „× Schließen Esc" as a module beside a list has it (on a phone out of sight, the
+  sheet's grabber its one decoration; the map of the start page, a picture as large as the window
+  allows and no dialog of these sizes, has the same way out); the foot has the buttons on the
+  right, the primary last, and what it says about them on their left. It is one component,
+  `folia_design::modal::Modal` with `ModalHead`. On a phone a dialog is a sheet of a phone („The
+  sheets of a phone" above) — s as tall as what it holds, m and l the whole height all up, half up
+  first — whose buttons share its width, the
   cancel too, at least 24 px over the screen's foot (`max(24px, 14px + safe-area)`; owner: „Beim
   handy müssen die buttons etwas weiter vom boden weg sein. Und die volle breite (zusammen)
   einnehmen"); a search field in it spans it 8 px off its edges, as a picker does.
@@ -1414,7 +1491,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   points; on a computer the window as it is): never with a keyboard of wire or radio, which covers
   nothing, nor on a computer whose window is made lower. The root then carries `data-keyboard` and
   where that part is (`--vv-top`, `--vv-height`). On a phone a dialog is then that part, from edge
-  to edge, and so is the catalog's filters or another sheet; the dialog's foot (the buttons), the
+  to edge, and so is the catalog's filters or another sheet, all up (a sheet half up goes all up as
+  the keyboard comes and back half up as it goes, `enhance.js`; the keyboard's glide measures it
+  without the sheet's own move, its transform, which the sheets' engine glides at the same time); the dialog's foot (the buttons), the
   sheet's („1.200 Module anzeigen") and the tab bar wait for the keyboard to go. What is typed in
   goes to the top of what scrolls it, its name over it (a dialog's body, a sheet's, the page under
   its bar of the search), what scrolls it having the room to while the keyboard is up, so that what
@@ -1695,11 +1774,11 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     pages (owner, 2026-10-19: „wenn man nach unten scrolled zum footer und dann weiter swiped dann
     gibt es ganz komisches behavior. Ich würde den footer bei den semester ansichten einfach raus
     nehmen. Der hat da eh keinen Mehrwert"), and its end stands above the dots. The dialogs („Bereiche",
-    „Studiengang wechseln", „Module hinzufügen") are sheets from below that a finger drags down to
-    close them, as the catalog's filters (owner, the same day: „Das muss auch unbedingt dazu, dass
-    man die einfach wieder runter sliden kann"; `dialog[data-sheet]`, `enhance.js`): the sheet
-    follows the finger and the dim behind it fades, let go far enough or flicked it goes on down and
-    closes, short of it it slides back. „Studiengang wechseln" says no more in its head than its
+    „Studiengang wechseln", „Module hinzufügen") are sheets of a phone („The sheets of a phone"):
+    half up first, a finger takes them all up or throws them away (owner, the same day: „Das muss
+    auch unbedingt dazu, dass man die einfach wieder runter sliden kann"; until 2026-10-27 dragged
+    down only, as the catalog's filters): the sheet follows the finger and the dim behind it fades,
+    let go it goes on to where it would come to rest, a short pull back where it was. „Studiengang wechseln" says no more in its head than its
     title (owner, the same day, of its lead „Das machst du selten …": „Mach den weg").
   - **The semesters** (`focus.rs`, the view „Semester"; in the catalog's look since 2026-10-19, Folia
     1.31.0, its box the catalog's list since 2026-10-20, Folia 1.41.1): on a desktop the semester in
@@ -1840,8 +1919,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     semester in „Passt in dieses Semester"); a long press selects a row, and the finger held on
     and drawn up or down selects every row it passes (the page does not scroll meanwhile), a tap on
     a row selects it or lets it go; the bar takes the tab bar's place over it (owner,
-    2026-10-05: „Mach das mal so, dass die die navbar überdeckt"), and a menu is a sheet from below
-    whose submenu takes its place (with „‹" back). After the last semester a page adds one („WiSe
+    2026-10-05: „Mach das mal so, dass die die navbar überdeckt"), and a menu is a sheet of a phone
+    („The sheets of a phone"), as tall as what it holds, a finger throws it away, whose submenu takes
+    its place (with „‹" back). After the last semester a page adds one („WiSe
     2028/29 anfügen · 7. Fachsemester", as a semester of leave if ticked). A row's marks:
     „Wiederholung · aus 1. FS", „im SoSe nicht angeboten · nur WiSe", what it asks for and is not in
     place („setzt voraus … – noch nicht eingeplant", `picker::needs_text`, only what is asked for,
@@ -1960,8 +2040,18 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     and back, down a third to half, down and away (the list where it was, the history as before the
     module), a flick up, let go slowly on its way down from all up gliding to half up no faster than
     1.6 px per ms, a gentle flick down from all up to half up and a quick one away, a tap beside it,
-    its ×, Back; and a tab held: „Studium"'s three ways (the finger's release going nowhere, a tap
-    beside closing them, a way taken), a short tap as ever, the catalog's list with its filters.
+    its × (out of sight, there for screen readers), Back; the catalog's filters half up with their
+    foot at the screen's foot, a finger half up taking the sheet and not its list, the grabber taking
+    it all up, from all up a swipe of the head to half up and a second one away; and a tab held:
+    „Studium"'s three ways (the finger's release going nowhere, a tap beside closing them, a way
+    taken), a short tap as ever, the catalog's list with its filters.
+  - `node folia/e2e/sheets.mjs` checks the sheets of a phone: a dialog coming up from below in one
+    move to half the screen, its frame the sheets' (the grabber, its × out of sight); half up a short
+    slow pull moving the sheet and not its content and coming back; the grabber all up, half up and
+    all up again; all up its content scrolling, over a module's sheet too; from all up a swipe
+    slowing down as it lets go coming to rest half up and one as long and as quick on average
+    speeding up throwing it away; Esc leaving a copy that glides away; a menu a sheet of one stop as
+    tall as it is, thrown away by a finger, and closed by its choice leaving a copy that glides away.
 - **The search in the top bar belongs to the page:** modules everywhere, programs on `/programs`.
   In the browser app it filters while typing (history entry replaced, not added). How it finds and
   orders modules: „The search of the catalog“ below.

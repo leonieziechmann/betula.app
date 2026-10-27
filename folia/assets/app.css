@@ -1079,7 +1079,7 @@ i.alt { margin: 0 5px; }
 .slider .lp-edit input { position: static; width: 36px; height: 22px; border: 0; border-radius: 5px; background: var(--panel-2); color: var(--text); font: 600 13px/1 var(--mono); text-align: center; appearance: auto; pointer-events: auto; outline: none; }
 /* The overview of the keys (folia/crates/shell/src/keys.rs): what they do everywhere and at the
    page's places, where the keyboard was first; the switch for the single keys under them. */
-.st-dialog.keys-dialog { width: min(800px, calc(100vw - 48px)); }
+@media (min-width: 901px) { .st-dialog.keys-dialog { width: min(800px, calc(100vw - 48px)); } }
 .keys-body { display: grid; gap: 18px; }
 .keys-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px 26px; align-items: start; }
 .keys-group h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
@@ -2961,7 +2961,8 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
   .cslide.is-current .stage-go { opacity: 1; transform: none; }
   .cap { height: auto; min-height: 50px; padding: 8px 12px 8px 14px; }
   .cap-text { flex-direction: column; align-items: stretch; gap: 0; }
-  .map-dialog { width: 100vw; height: 100dvh; max-height: none; border-radius: 0; }
+  /* On a phone the map is a sheet as tall as the screen all up („the sheets of a phone"). */
+  .map-dialog[data-sheet] { height: calc(100dvh - var(--sheet-top)); max-height: none; }
   .map-dialog .map-live { height: auto; }
 }
 .freshness { color: var(--text-3); font-size: 12.5px; padding: 4px 6px; }
@@ -3689,7 +3690,10 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-pick:not(.full), .sp-pick > .grab, .sp-pick > .sp-pick-head { touch-action: none; }
 @keyframes pick-up { from { transform: translateY(32px); opacity: 0; } }
 .sp-pick > .grab { flex: none; position: relative; display: block; height: 16px; }
-.sp-pick > .grab::before { content: ""; position: absolute; left: 50%; top: 7px; width: 40px; height: 5px; margin-left: -20px; border-radius: 3px; background: var(--line-strong); }
+.sp-pick > .grab::before { content: ""; position: absolute; left: 50%; top: 7px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
+/* Its × out of sight, as every sheet's of a phone („the sheets of a phone"): the grabber its one
+   decoration; „Fertig", a finger's throw and Esc close the choice. */
+.sp-pick .ib.end:not(:focus-visible) { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
 .sp-pick-head { display: flex; align-items: center; gap: 8px; min-height: 40px; }
 .sp-pick-head .mod { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: 7px; background: color-mix(in oklch, var(--tint) 15%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint) 45%, transparent); font: 600 12px var(--mono); }
 .sp-pick-head .mod i { width: 8px; height: 8px; border-radius: 50%; background: var(--tint); }
@@ -4810,22 +4814,20 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .row-wrap[data-armed][data-side="plan"] > .swipe-ground[data-planned]::before { opacity: 1; }
   .row-wrap[data-armed] .swipe-act .icon { animation: swipe-spring .36s var(--spring); }
   .row-wrap[data-done] .swipe-act.fills .icon { fill: currentColor; }
-  .filters { position: fixed; inset: auto 0 0 0; z-index: 40; max-height: 84vh; border-radius: 18px 18px 0 0; box-shadow: var(--shadow-pop); transform: translateY(105%); transition: transform .3s var(--ease); }
-  .filters:target, .filters.open { transform: none; }
-  .filters .panel-head::before { content: ""; position: absolute; left: 50%; top: 8px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
+  /* The catalog's filters are a sheet of a phone (`data-sheet`, „the sheets of a phone" below),
+     opened by the list's „Filter" button: closed it waits below the screen, open it comes up half
+     up, a finger takes it all up or away. Without JavaScript `:target` opens it all up, sliding in.
+     A tap beside it closes it, on the page it dims (less the further down it is, `--sheet-shade`). */
+  .filters { z-index: 40; }
+  .filters:not(.open, :target) { transform: translateY(105%); }
+  html:not(.js) .filters { transition: transform .3s var(--ease); }
   .filters .panel-head { position: relative; padding-top: 22px; }
-  /* The sheet is closed the way one expects of a sheet, too: swiped down (anywhere its list is
-     at the top; the head never scrolls, so the browser must not take a touch there), or with a
-     tap beside it, on the page it dims. */
-  .filters .panel-head, .sidebar.sheet .panel-head { touch-action: none; cursor: grab; }
-  .filters.dragging, .sidebar.sheet.dragging { transition: none; }
   /* Closed, a sheet's content is neither styled nor laid out (the catalog's filters are a third
      of its page): it is drawn as the sheet opens, and stays until it has slid down again. Meanwhile
      it keeps the height it had (at first its highest): with none, the sheet that waits below the
      screen (105 % of its height) stood on its bottom edge. */
   .filters:not(.open, :target), .sidebar.sheet:not(.open, :target) { content-visibility: hidden; contain-intrinsic-block-size: auto 84vh; }
-  .filters:not(.dragging), .sidebar.sheet:not(.dragging) { transition: transform .3s var(--ease), content-visibility .3s allow-discrete; }
-  html.sheet-open::after { content: ""; position: fixed; inset: 0; z-index: 39; background: rgba(15, 23, 42, .34); }
+  html.sheet-open::after { content: ""; position: fixed; inset: 0; z-index: 39; background: rgba(15, 23, 42, .34); opacity: var(--sheet-shade, 1); animation: fade-in .24s; }
   /* Open, a sheet holds the page behind it still: the page does not scroll (a touch on it moves
      nothing, enhance.js), and the sheet's list keeps its scroll to itself at either end. */
   html.sheet-open { overflow: hidden; overscroll-behavior: none; }
@@ -4898,11 +4900,12 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .framed > .page { padding: 0 12px 12px; }
   .sidebar { order: 2; margin: 0 12px 24px; }
   .framed.sidebar-first .sidebar { order: 0; margin: 0 12px 12px; }
-  /* A sidebar of filters is a sheet from below, opened by the page's „Filter" button. */
-  .sidebar.sheet { position: fixed; inset: auto 0 0 0; z-index: 40; order: 0; margin: 0; max-height: 84vh; border-radius: 18px 18px 0 0; box-shadow: var(--shadow-pop); transform: translateY(105%); transition: transform .3s var(--ease); }
-  .sidebar.sheet:target, .sidebar.sheet.open { transform: none; }
+  /* A sidebar of filters is a sheet of a phone, as the catalog's filters (above), opened by the
+     page's „Filter" button; its foot (`.sheet-only`) at the end of what scrolls. */
+  .sidebar.sheet { z-index: 40; order: 0; margin: 0; }
+  .sidebar.sheet:not(.open, :target) { transform: translateY(105%); }
+  html:not(.js) .sidebar.sheet { transition: transform .3s var(--ease); }
   .sidebar.sheet .panel-head { display: flex; position: relative; padding-top: 22px; }
-  .sidebar.sheet .panel-head::before { content: ""; position: absolute; left: 50%; top: 8px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
   .sidebar.sheet .body { overflow-y: auto; padding: 0 8px 12px; }
   .sidebar.sheet .sheet-only { display: flex; position: sticky; bottom: 0; margin: 12px -8px -12px; background: var(--panel); }
   .sidebar.sheet .order-list { display: grid; }
@@ -4961,12 +4964,17 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   /* The picture of the page held in front of the next one (pending.rs, `hold`) without the sheet:
      the sheet is in front of it, on its way. */
   :root.app .pending-page.held .detail.is-module { display: none; }
-  :root.app .detail.is-module::before { content: ""; position: absolute; z-index: 2; left: 50%; top: 7px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
+  :root.app .detail.is-module::before { content: ""; position: absolute; z-index: 3; left: 50%; top: 7px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); pointer-events: none; }
   :root.app .detail.is-module > .scroll { position: static; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  /* Half up nothing in it scrolls („the sheets of a phone" below). */
+  :root.app .detail.is-module:not(.is-full) > .scroll { overflow-y: hidden; }
   :root.app .detail.is-module .hero { padding-top: 20px; }
-  :root.app .detail.is-module .hero-top { padding-right: 40px; }
   :root.app .detail.is-module .back { display: none !important; }
+  /* Its × is out of sight, the grabber its one decoration (owner, 2026-10-27: „die decorations für
+     das fenster einfach nur der handle strich sein und das wars"): there for screen readers, and
+     at its top right where the keyboard brings it. */
   :root.app .detail.is-module .hero-top > [data-action="close-detail"] { position: absolute; z-index: 2; top: 16px; right: 10px; width: 40px; height: 40px; min-height: 0; padding: 0; justify-content: center; border-radius: 50%; background: var(--panel-3); color: var(--text); font-size: 0; }
+  :root.app .detail.is-module .hero-top > [data-action="close-detail"]:not(:focus-visible) { clip-path: inset(50%); }
   :root.app .detail.is-module .hero-top > [data-action="close-detail"] .icon { width: 18px; height: 18px; }
   :root.app .detail.is-module .hero-top > [data-action="close-detail"] kbd { display: none; }
   /* No „Vollbild" on the sheet (owner, 2026-10-16: „Vollbild als knopf ergibt keinen sinn, der muss
@@ -6124,9 +6132,8 @@ a.st-rsp-name:hover { text-decoration: underline; }
   .st-act { flex-direction: column; justify-content: center; gap: 2px; height: 48px; padding: 0 6px; font-size: 11px; }
   .st-act .icon { width: 18px; height: 18px; }
   .st-act-close { width: 40px; height: 48px; }
-  /* A menu: a sheet from below; a submenu takes its place. */
-  .st-pop-shade { background: rgba(10, 12, 17, .5); animation: fade-in .2s ease-out; }
-  .st-pop { left: 0; right: 0; top: auto; bottom: 0; width: auto; max-height: 80dvh; padding: 6px 8px calc(10px + env(safe-area-inset-bottom)); border-radius: 16px 16px 0 0; animation: sheet-in .2s var(--ease); }
+  /* A menu: a sheet of a phone („the sheets of a phone" below); a submenu takes its place. */
+  .st-pop-shade { background: rgba(10, 12, 17, .5); opacity: var(--sheet-shade, 1); animation: fade-in .2s ease-out; }
   .st-pop.root.has-sub { display: none; }
   .st-pop-item, .st-pop-item.with-hint { height: auto; min-height: 50px; font-size: 15px; }
   .st-pop-title { margin: 8px 10px 6px; font-size: 13px; font-weight: 600; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -6134,22 +6141,10 @@ a.st-rsp-name:hover { text-decoration: underline; }
   .st-pop-back .icon { width: 18px; height: 18px; }
   .st-new-body { padding: 16px 4px 18px; }
   .st-new-body .btn { width: 100%; }
-  /* Dialogs are sheets from below, which a finger drags down as the catalog's filters (enhance.js,
-     `data-sheet`): the sheet follows it (.dragging), the dim behind it fading as it goes (--drag,
-     its share of the way); let go short of closing, it slides back up; let go far enough, or
-     flicked, it goes on down (.dropped) and closes. */
-  .st-dialog, .st-dialog.m, .st-dialog.l { width: 100vw; max-width: 100vw; height: auto; max-height: 92dvh; margin: auto 0 0; border-radius: 16px 16px 0 0; }
-  .st-dialog.m { height: 75dvh; }
-  .st-dialog.l { height: 92dvh; }
-  .st-dialog[open] { animation: sheet-in .22s var(--ease); }
-  .st-dialog:not(.dragging) { transition: transform .3s var(--ease); }
-  .st-dialog::backdrop { opacity: calc(1 - var(--drag, 0) * .9); }
-  .st-dialog.dropped { transform: translateY(100%); transition: transform .2s cubic-bezier(.4, 0, 1, 1); }
-  .st-dialog.dropped::backdrop { opacity: 0; transition: opacity .2s; }
-  .st-grip { display: block; position: absolute; top: 6px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--line-strong); }
-  .st-dlg-head { position: relative; padding: 18px 8px 10px 16px; touch-action: none; cursor: grab; }
+  /* Dialogs are sheets of a phone („the sheets of a phone" below): the head says what the dialog
+     is under the grabber, its × out of sight. */
+  .st-dlg-head { position: relative; padding: 20px 16px 10px; }
   .st-dlg-head > div { padding-top: 0; }
-  .st-dlg-head .dlg-close { margin: -10px 0 0; }
   .st-dlg-head h2 { font-size: 17px; }
   .st-dlg-bar, .st-dlg-body, .st-dlg-foot { padding-left: 16px; padding-right: 16px; }
   /* The buttons side by side across the sheet, the primary on the right, and off the screen's
@@ -6164,7 +6159,7 @@ a.st-rsp-name:hover { text-decoration: underline; }
      to edge (as a sheet, above), its foot back with the keyboard gone; it glides there and back
      (`folia_design::keyboard`). */
   :root[data-keyboard] .st-dialog[open] { inset: var(--vv-top, 0px) 0 auto; height: var(--vv-height, 100dvh); max-height: none; margin: 0; border-radius: 0; }
-  :root[data-keyboard] .st-dialog .st-dlg-head { padding-top: max(18px, env(safe-area-inset-top)); }
+  :root[data-keyboard] .st-dialog .st-dlg-head { padding-top: max(20px, env(safe-area-inset-top)); }
   :root[data-keyboard] .st-dialog .st-dlg-foot { display: none; }
   .st-setup { padding: 18px 16px; }
   /* The card on a phone: a row's name over its value, the sentence two lines. */
@@ -6181,6 +6176,58 @@ a.st-rsp-name:hover { text-decoration: underline; }
   .st-fill { min-height: 96px; }
   .st-undo { bottom: calc(76px + env(safe-area-inset-bottom)); }
   .st-undo.over-dock { bottom: calc(104px + env(safe-area-inset-bottom)); }
+}
+/* ---------- the sheets of a phone (enhance.js „the sheets of a phone"; owner, 2026-10-27) ----------
+   Whatever is modal on a phone is a sheet from below (`data-sheet`): a page's dialog
+   (folia_design::modal::Modal), a menu (`.st-pop`), the catalog's filters and a page's sidebar of
+   filters; a module or a Termin over a page is one with a frame of its own (`.detail.is-module`,
+   above). One frame for all (owner, 2026-10-27: „Ein modal beim handy ist dieses swipebare menü,
+   dass sich von unten öffnet. Weil es die swipe actions gibt und das auch bekannt ist, sollen die
+   decorations für das fenster einfach nur der handle strich sein und das wars"): as wide as the
+   screen, its upper corners round, the grabber the one thing on it. Its ×, „Schließen" or
+   „Vollbild" stays in the page out of sight, for screen readers, and shows where the keyboard
+   brings it. Here it stands where it rests: half up, as much of it as the lower 52 % of the screen
+   shows (`--sheet-peek`), all of it where it is shorter; all up (`.is-full`), at most 10 px under
+   the safe area; away below the screen (`.is-gone`). Every way between is enhance.js's, on
+   springs. Half up nothing in it scrolls (owner, the same day: „Im kleinen modus soll man nicht
+   scrollen können nur im full modus"), and its foot — the buttons — stands at the screen's foot,
+   lifted as far as the sheet is down (`--sheet-half-y`, enhance.js). Its panel's colour goes on
+   under it for the little it gives above all up. A dialog of the kind „m" or „l" takes the whole
+   height from the start, so that it does not grow and shrink with what it holds (owner,
+   2026-10-16: „Modale menus springen zu viel in der größe"); one of the kind „s" and a menu are as
+   tall as what they hold. */
+@media (max-width: 900px) {
+  :root { --sheet-peek: 52dvh; --sheet-top: calc(env(safe-area-inset-top, 0px) + 10px); }
+  [data-sheet] { position: fixed; inset: auto 0 0 0; width: auto; max-width: none; height: auto; max-height: calc(100dvh - var(--sheet-top)); margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; overflow: hidden; overscroll-behavior: contain; border-radius: 18px 18px 0 0; background: var(--panel); color: var(--text); box-shadow: 0 24px 0 var(--panel), var(--shadow-pop); transform: translateY(max(0px, calc(100% - var(--sheet-peek)))); animation: none; transition: none; touch-action: pan-x; }
+  dialog[data-sheet]:not([open]) { display: none; }
+  [data-sheet].is-full, [data-sheet]:target { transform: none; touch-action: auto; }
+  [data-sheet].is-gone { transform: translateY(100%); }
+  /* Its grabber, over what it holds. */
+  [data-sheet]::before { content: ""; position: absolute; z-index: 3; left: 50%; top: 7px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); pointer-events: none; }
+  /* Its foot over what it holds, at the screen's foot while it is half up. */
+  :is([data-sheet-foot], [data-sheet] .st-dlg-foot) { position: relative; z-index: 2; background: var(--panel); }
+  [data-sheet]:not(.is-full, :target) :is([data-sheet-foot], .st-dlg-foot) { transform: translateY(calc(-1 * var(--sheet-half-y, 0px))); }
+  /* Half up nothing in it scrolls. */
+  [data-sheet]:not(.is-full, :target) :is([data-sheet-body], .st-dlg-body), [data-sheet]:not(.is-full, :target) > .body, [data-sheet]:not(.is-full, :target) > form > .body { overflow-y: hidden; }
+  /* The screen's keyboard up, it is all up (enhance.js): its content scrolls from the moment the
+     keyboard comes, so that what is typed in goes to its top (folia_design::keyboard). */
+  :root[data-keyboard] [data-sheet] :is([data-sheet-body], .st-dlg-body), :root[data-keyboard] [data-sheet] > .body, :root[data-keyboard] [data-sheet] > form > .body { overflow-y: auto; }
+  /* The dim behind it: less the further down from half up it is (`--sheet-shade`, enhance.js). */
+  dialog[data-sheet]::backdrop { background: rgba(10, 12, 17, .5); opacity: var(--sheet-shade, 1); }
+  /* Its ×: out of sight, there for screen readers and where the keyboard brings it. */
+  [data-sheet] :is(.dlg-close, .sheet-close):not(:focus-visible) { position: absolute; width: 1px; height: 1px; min-height: 0; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  /* A dialog: one sheet whatever its size on a wide screen; „m" and „l" the whole height. */
+  .st-dialog[data-sheet] { width: auto; max-width: none; height: auto; max-height: calc(100dvh - var(--sheet-top)); border-radius: 18px 18px 0 0; }
+  .st-dialog[data-sheet]:is(.m, .l) { height: calc(100dvh - var(--sheet-top)); }
+  dialog[data-sheet][open] { animation: none; }
+  .st-grip { display: none; }
+  /* A menu scrolls itself all up; under the grabber its title. */
+  .st-pop[data-sheet] { overflow-y: auto; padding: 18px 8px calc(10px + env(safe-area-inset-bottom)); }
+  .st-pop[data-sheet]:not(.is-full) { overflow-y: hidden; }
+  /* A copy of a sheet the page took away at once, gliding away in its place (enhance.js
+     `ghostSheet`), over a dim that goes with it. */
+  .sheet-ghost { z-index: 80; pointer-events: none; }
+  .sheet-ghost-scrim { position: fixed; inset: 0; z-index: 79; background: rgba(10, 12, 17, .5); pointer-events: none; }
 }
 /* ---------- profiles (folia/crates/profile, folia/crates/stores/src/profiles.rs; owner, 2026-10-14) ----------
    The profile page: the profiles in the sidebar, where a click switches; the active profile at the
@@ -6273,7 +6320,6 @@ a.st-rsp-name:hover { text-decoration: underline; }
   .pf-item { min-height: 56px; }
   .pf-row { min-height: 52px; }
 }
-@keyframes sheet-in { from { transform: translateY(40%); opacity: .4; } }
 @keyframes st-bar-up { from { transform: translateY(20px); opacity: 0; } }
 
 .back { display: none; }

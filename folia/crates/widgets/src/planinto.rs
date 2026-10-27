@@ -172,7 +172,7 @@ fn PlanInto(ask: PlanAsk, planning: Planning) -> impl IntoView {
     let label = format!("{}: {}", p.plan_into, what.title);
     view! {
         <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close() on:contextmenu=move |ev: leptos::ev::MouseEvent| { ev.prevent_default(); close(); }></div>
-        <div class="st-pop root view-menu plan-into" role="menu" aria-label=label style=style on:keydown=keys>
+        <div data-sheet="" class="st-pop root view-menu plan-into" role="menu" aria-label=label style=style on:keydown=keys>
             <p class="st-pop-title st-phone">{what.title.clone()}</p>
             <p class="view-menu-head">{p.plan_into}</p>
             {ahead_view}

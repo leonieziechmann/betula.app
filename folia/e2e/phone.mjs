@@ -1,7 +1,9 @@
-// Checks the phone layout of the catalog in the browser app: the filter sheet (the page behind it
-// stands still while the sheet's list scrolls by itself; swiped down wherever its list is at the
-// top, it closes; a short slow pull lets it snap back; a tap beside it and a mouse at its head
-// close it too), what is picked in the sheet is a draft (the sheet counts, the list and the
+// Checks the phone layout of the catalog in the browser app: the filter sheet, a sheet of a phone
+// (owner, 2026-10-27: it comes up half up, its foot at the screen's foot, its × out of sight; half
+// up a finger takes the sheet and not its list, all up its list scrolls; a tap on its grabber takes
+// it all up; the page behind it stands still while the sheet's list scrolls by itself; swiped down
+// wherever its list is at the top, it closes; a short slow pull lets it snap back; a tap beside it
+// and a mouse at its head close it too), what is picked in the sheet is a draft (the sheet counts, the list and the
 // address follow once, with one history entry, when „Module anzeigen" applies it; any other way of
 // closing the sheet throws it away, owner, 2026-10-18; Back closes it as Android has it, a close
 // request, and an iPhone's Back leaves the list with it), the picker staying open while
@@ -35,24 +37,43 @@ async function swipe(x, from, to, { steps = 10, ms = 16 } = {}) {
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await page.waitForTimeout(450); // a fling, a slide back or away
 }
-// The sheet slides in: a finger on it only counts once it stands still.
-const settled = () => document.getElementById("filters").classList.contains("open") && document.documentElement.classList.contains("sheet-open") && getComputedStyle(document.getElementById("filters")).transform === "none";
-const openSheet = async (what, { inPlace = false } = {}) => {
+// The sheet comes up: a finger on it only counts once it stands still, half up or all up.
+const settled = () => {
+  const sheet = document.getElementById("filters");
+  return sheet.classList.contains("open") && document.documentElement.classList.contains("sheet-open") && !sheet.getAnimations().some((a) => a.playState === "running");
+};
+const sheetAt = () => page.evaluate(() => {
+  const sheet = document.getElementById("filters"), foot = sheet.querySelector(".filter-actions");
+  return { top: Math.round(sheet.getBoundingClientRect().top), full: sheet.classList.contains("is-full"), foot: Math.round(foot.getBoundingClientRect().bottom), list: Math.round(sheet.querySelector(".body").scrollTop) };
+});
+const openSheet = async (what, { inPlace = false, full = false } = {}) => {
   // A step before that failed to close the sheet is reported there; the walk goes on.
   await page.evaluate(() => { if (document.getElementById("filters").classList.contains("open")) document.querySelector("#filters .sheet-close").click(); });
-  await page.waitForTimeout(350);
+  await page.waitForFunction(() => !document.getElementById("filters").classList.contains("open"), null, { timeout: 3000 }).catch(() => {});
   // A tap scrolls the button into view first; `inPlace` leaves the page where it is.
   if (inPlace) await page.evaluate(() => document.querySelector(".sheet-toggle").click());
   else await page.tap(".sheet-toggle");
   await page.waitForFunction(settled, null, { timeout: 5000 }).catch(() => problems.push(`${what}: the sheet did not open (or the page is not dimmed)`));
+  // Half up (owner, 2026-10-27: „zwei einrastpunkte einmal so ca bis zur mitte des bildschirms
+  // und dann voll nach ganz oben"), its foot at the screen's foot.
+  const at = await sheetAt();
+  check(!at.full && Math.abs(at.top - 844 * 0.48) < 4 && at.foot === 844, `${what}: the sheet does not come up half up with its foot at the screen's foot: ${JSON.stringify(at)}`);
+  if (!full) return;
+  // A tap on its grabber takes it all up.
+  await page.touchscreen.tap(195, at.top + 8);
+  await page.waitForFunction(() => document.getElementById("filters").classList.contains("is-full") && !document.getElementById("filters").getAnimations().some((a) => a.playState === "running"), null, { timeout: 4000 }).catch(() => problems.push(`${what}: a tap on the grabber did not take the sheet all up`));
 };
-const isOpen = () => page.evaluate(settled);
+const isOpen = () => page.evaluate(() => document.getElementById("filters").classList.contains("open") && !document.getElementById("filters").classList.contains("is-gone") && document.documentElement.classList.contains("sheet-open"));
 const closed = (what) => page.waitForFunction(() => !document.getElementById("filters").classList.contains("open") && !document.documentElement.classList.contains("sheet-open"), null, { timeout: 5000 }).catch(() => problems.push(`${what}: the sheet did not close`));
 const number = (text) => Number(String(text ?? "").replace(/\D/g, ""));
 const pageAt = () => page.evaluate(() => Math.round(scrollY));
 const body = () => page.evaluate(() => { const b = document.querySelector("#filters .body"); return { top: Math.round(b.scrollTop), max: b.scrollHeight - b.clientHeight }; });
-// Where a finger can start inside the sheet's list: the middle of what is visible of it.
-const bodyPoint = () => page.evaluate(() => { const r = document.querySelector("#filters .body").getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; });
+// Where a finger can start inside the sheet's list: the middle of what is visible of it, above its
+// foot.
+const bodyPoint = () => page.evaluate(() => {
+  const r = document.querySelector("#filters .body").getBoundingClientRect(), foot = document.querySelector("#filters .filter-actions").getBoundingClientRect();
+  return { x: Math.round(r.left + r.width / 2), y: Math.round((Math.max(0, r.top) + Math.min(r.bottom, foot.top)) / 2) };
+});
 
 // ---- the page behind the open sheet stands still, the sheet's list scrolls by itself
 await page.evaluate(() => scrollTo(0, 600));
@@ -66,6 +87,14 @@ check(sheetTop > 110, `lock: no room above the sheet to touch the dimmed page ($
 await swipe(195, 12, sheetTop - 8); // down, on the dimmed page above the sheet
 await swipe(195, sheetTop - 8, 12); // and up
 check((await pageAt()) === behind && (await isOpen()), `lock: a swipe on the dimmed page moved the page (${behind} → ${await pageAt()}) or closed the sheet`);
+// Half up a finger takes the sheet, not its list (owner, 2026-10-27: „Im kleinen modus soll man
+// nicht scrollen können nur im full modus"): up, all up it goes, its list where it was.
+const halfway = await bodyPoint();
+await swipe(halfway.x, halfway.y + 60, halfway.y - 200);
+const raised = await sheetAt();
+check(raised.full && raised.top === 10 && raised.list === 0 && raised.foot === 844, `half up: a swipe up in the sheet did not take it all up, or scrolled its list: ${JSON.stringify(raised)}`);
+check((await pageAt()) === behind, `half up: taking the sheet up moved the page (${behind} → ${await pageAt()})`);
+// All up its list scrolls.
 const inside = await bodyPoint();
 await swipe(inside.x, inside.y + 150, inside.y - 150); // up, inside the sheet
 const scrolled = await body();
@@ -122,7 +151,7 @@ await page.mouse.click(195, 60);
 await closed("a tap beside it");
 
 // ---- the picker on a phone: the keyboard shrinks the viewport, the popup stays
-await openSheet("picker");
+await openSheet("picker", { full: true });
 await page.tap("#pick-area");
 await page.waitForFunction(() => document.activeElement?.id === "pick-area-search" && document.querySelector("#pick-area-list"), null, { timeout: 5000 }).catch(() => problems.push("picker: did not open on the phone"));
 await page.setViewportSize({ width: 390, height: 500 }); // the on-screen keyboard
@@ -167,7 +196,7 @@ await page.waitForFunction(() => window.__betulaApp === true && document.querySe
 const state = () => page.evaluate(() => ({ list: document.querySelector(".count")?.textContent, show: document.querySelector("#filters .show")?.textContent, search: location.search, same: document.querySelector(".vlist")?.__same === true, entries: history.length }));
 await page.evaluate(() => { document.querySelector(".vlist").__same = true; });
 const start = await state();
-await openSheet("draft");
+await openSheet("draft", { full: true });
 for (const label of ["Winter", "Vorlesung"]) {
   const chip = `#filters a.chip:has-text("${label}")`;
   const shown = (await state()).show;
@@ -190,25 +219,36 @@ check((await state()).entries === start.entries + 1, `draft: the sheet left ${(a
 // Any other way of closing the sheet throws what was picked away (owner, 2026-10-18: „Die Filter
 // sollen bei der Mobile Version verworfen werden, wenn man das Fenster schließt"): a swipe down …
 const applied = await state();
-await openSheet("draft by swipe");
+await openSheet("draft by swipe", { full: true });
 const before = (await state()).show;
 await page.tap('#filters a.chip:has-text("Übung")');
 await page.waitForFunction((shown) => document.querySelector("#filters .show")?.textContent !== shown, before, { timeout: 5000 }).catch(() => problems.push("draft: a tap on Übung did not change the count in the sheet"));
+// From all up a swipe of its head takes it half up, as slow as it is (owner, 2026-10-27: „Wenn man
+// im Full modus ist soll man je nach swipe acceleration und speed in den mid und schließen wechseln
+// können"), the draft kept; from there one more takes it away.
 const top = await page.locator("#filters .panel-head h2").boundingBox();
 await swipe(top.x + 20, top.y + 8, top.y + 200, { steps: 6, ms: 12 });
+await page.waitForTimeout(400);
+const halfAgain = await sheetAt();
+check((await isOpen()) && !halfAgain.full && Math.abs(halfAgain.top - 844 * 0.48) < 4, `draft: a swipe down from all up did not take the sheet half up: ${JSON.stringify(halfAgain)}`);
+const again = await page.locator("#filters .panel-head h2").boundingBox();
+await swipe(again.x + 20, again.y + 8, again.y + 200, { steps: 6, ms: 12 });
 await closed("draft: a swipe");
 let now = await state();
 check(now.search === applied.search && now.entries === applied.entries, `draft: the swipe applied the draft or wrote an entry (${now.search}, ${now.entries - applied.entries})`);
-await openSheet("draft thrown away");
+await openSheet("draft thrown away", { full: true });
 check(!(await page.$eval('#filters a.chip:has-text("Übung")', (el) => el.dataset.state === "with")), "draft: the sheet opened again with the draft a swipe threw away");
-// … its ×, after „Zurücksetzen" in the sheet; „Module anzeigen" after it shows the whole catalog.
+// … a tap beside it, after „Zurücksetzen" in the sheet; „Module anzeigen" after it shows the whole
+// catalog. Its × is out of sight (owner, 2026-10-27: „die decorations für das fenster einfach nur
+// der handle strich sein und das wars"), there for screen readers.
+check(await page.$eval("#filters .sheet-close", (el) => getComputedStyle(el).clipPath === "inset(50%)" && el.getAttribute("aria-label")), "the sheet shows its ×, or has none for screen readers");
 await page.tap("#filters .panel-head a.ghost");
 await page.waitForFunction((n) => Number(document.querySelector("#filters .show")?.textContent.replace(/\D/g, "")) === n, number(start.show), { timeout: 5000 }).catch(() => problems.push("reset: the sheet does not count the whole catalog"));
 check((await state()).search === applied.search, "reset: the address changed before the sheet was closed");
-await page.tap("#filters .sheet-close");
-await closed("reset: its close button");
+await page.mouse.click(195, 4);
+await closed("reset: a tap beside it");
 now = await state();
-check(now.search === applied.search && now.entries === applied.entries, `reset: its × applied the reset (${now.search})`);
+check(now.search === applied.search && now.entries === applied.entries, `reset: a tap beside it applied the reset (${now.search})`);
 await openSheet("reset applied");
 await page.tap("#filters .panel-head a.ghost");
 await page.waitForFunction((n) => Number(document.querySelector("#filters .show")?.textContent.replace(/\D/g, "")) === n, number(start.show), { timeout: 5000 }).catch(() => problems.push("reset: the sheet does not count the whole catalog"));
@@ -219,7 +259,7 @@ check((await state()).entries === applied.entries + 1, "reset: „Module anzeige
 // … and Back, as Android has it: a close request to the sheet (Escape in Chromium), which stays on
 // the list and writes nothing.
 const beforeBack = await state();
-await openSheet("back");
+await openSheet("back", { full: true });
 await page.tap('#filters a.chip:has-text("Seminar")');
 await page.waitForFunction((shown) => document.querySelector("#filters .show")?.textContent !== shown, beforeBack.show, { timeout: 5000 }).catch(() => problems.push("back: a tap on Seminar did not change the count in the sheet"));
 await page.keyboard.press("Escape");
@@ -231,7 +271,7 @@ await page.evaluate(() => history.back());
 await page.waitForFunction(() => /turnus=winter/.test(location.search) && /form=lecture/.test(location.search), null, { timeout: 5000 }).catch(() => problems.push(`back: did not return to the list the sheet applied before (${page.url()})`));
 // An iPhone's Back is the history: it leaves the list for the one before, and the sheet goes with
 // it, what was picked thrown away.
-await openSheet("an iPhone's Back");
+await openSheet("an iPhone's Back", { full: true });
 await page.tap('#filters a.chip:has-text("Seminar")');
 await page.evaluate(() => history.back());
 await page.waitForFunction(() => location.pathname === "/catalog" && !/turnus|seminar/.test(location.search) && !document.documentElement.classList.contains("sheet-open") && !document.querySelector("#filters.open"), null, { timeout: 5000 }).catch(() => problems.push(`an iPhone's Back: did not leave the list for the one before with the sheet closed (${page.url()})`));
@@ -345,16 +385,18 @@ check((await sheetOf())?.full, "sheet: a flick up does not take it all up again"
 await swipe(200, 150, 520, { steps: 3, ms: 8 });
 await page.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module"), null, { timeout: 4000 }).catch(() => problems.push("sheet: a quick flick down from all up did not take it away"));
 check((await listAt()).y === listed.y, "sheet: the list did not stay where it was");
-// A tap beside it, its × and Back close it.
+// A tap beside it, its × (out of sight, for screen readers) and Back close it.
 await page.touchscreen.tap(rowAt.x, rowAt.y);
 await page.waitForFunction(() => document.querySelector(".detail.is-module h2"), null, { timeout: 8000 }).catch(() => problems.push("sheet: it did not come once more"));
 await page.waitForTimeout(500);
 await page.touchscreen.tap(200, 150);
 await page.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module"), null, { timeout: 4000 }).catch(() => problems.push("sheet: a tap beside it did not close it"));
 await page.touchscreen.tap(rowAt.x, rowAt.y);
-await page.waitForFunction(() => document.querySelector('.detail.is-module [data-action="close-detail"]'), null, { timeout: 8000 });
+await page.waitForFunction(() => document.querySelector(".detail.is-module h2") && document.querySelector('.detail.is-module [data-action="close-detail"]'), null, { timeout: 8000 });
 await page.waitForTimeout(500);
-await page.tap('.detail.is-module [data-action="close-detail"]');
+const closeShown = await page.evaluate(() => { const close = document.querySelector('.detail.is-module [data-action="close-detail"]'); return close ? getComputedStyle(close).clipPath : null; });
+check(closeShown === "inset(50%)", `sheet: it shows its × (the grabber is its one decoration): ${closeShown}`);
+await page.evaluate(() => document.querySelector('.detail.is-module [data-action="close-detail"]')?.click());
 await page.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module"), null, { timeout: 4000 }).catch(() => problems.push("sheet: its × did not close it"));
 await page.touchscreen.tap(rowAt.x, rowAt.y);
 await page.waitForFunction(() => document.querySelector(".detail.is-module h2"), null, { timeout: 8000 });

@@ -158,24 +158,28 @@
 
   // The sheet of the phone layout: the catalog's filter panel, or a page's sidebar of filters.
   // Open, the page behind it is dimmed and stands still (html.sheet-open), and a tap on it closes
-  // the sheet. A sheet whose page takes what is picked there as a draft (`data-draft`: the catalog
+  // the sheet; it is one of the sheets of a phone („the sheets of a phone" below): it comes up from
+  // below half up, a finger takes it all up, half up or away, and however it closes it glides away
+  // first. A sheet whose page takes what is picked there as a draft (`data-draft`: the catalog
   // in the browser app) applies it only with its button („Module anzeigen", `sheet-apply`): the
-  // page hears `betula:sheet-applied`, and the list follows as one step of the history. Any other
-  // way it goes (its ×, a swipe down, a tap beside it, Esc, Back) throws the draft away (owner,
-  // 2026-10-18: „Die Filter sollen bei der Mobile Version verworfen werden, wenn man das Fenster
-  // schließt"): the page hears `betula:sheet-closed`, or `betula:sheet-left` where Back left the
-  // page with the sheet open. The sheet has no entry in the history: where the browser has
-  // `CloseWatcher` (Android), Back closes it as it closes what else lies over a page
-  // (folia/crates/shell/src/nav.rs); without it (an iPhone) Back leaves the page, and the sheet
-  // goes with it.
+  // page hears `betula:sheet-applied` as the sheet sets off, and the list follows as one step of
+  // the history. Any other way it goes (a swipe down, a tap beside it, Esc, Back, its × for screen
+  // readers) throws the draft away (owner, 2026-10-18: „Die Filter sollen bei der Mobile Version
+  // verworfen werden, wenn man das Fenster schließt"): the page hears `betula:sheet-closed` once
+  // the sheet is away, or `betula:sheet-left` at once where Back left the page with the sheet open.
+  // The sheet has no entry in the history: where the browser has `CloseWatcher` (Android), Back
+  // closes it as it closes what else lies over a page (folia/crates/shell/src/nav.rs); without it
+  // (an iPhone) Back leaves the page, and the sheet goes with it.
   const filters = () => byId("filters") || find(".sidebar.sheet");
   let sheetWatch = null; // the open sheet's CloseWatcher
   const dropWatch = () => { const w = sheetWatch; sheetWatch = null; try { w?.destroy(); } catch {} };
   const openSheet = () => {
     const sheet = filters();
     if (!sheet) return;
+    const shown = sheet.classList.contains("open") && !glides.has(sheet);
     sheet.classList.add("open");
     root.classList.add("sheet-open");
+    if (!shown && phone()) showSheet(sheet);
     if (!sheetWatch && phone() && typeof window.CloseWatcher === "function") {
       try {
         sheetWatch = new CloseWatcher();
@@ -183,13 +187,29 @@
       } catch { sheetWatch = null; }
     }
   };
+  // Closed at once: the page hears how, unless it heard it as the sheet set off („applied").
+  const shutSheet = (sheet, how = "closed") => {
+    stopSheet(sheet);
+    const was = sheet.classList.contains("open");
+    sheet.classList.remove("open");
+    root.classList.remove("sheet-open");
+    root.style.removeProperty("--sheet-shade");
+    dropWatch();
+    if (was && how !== "applied") sheet.dispatchEvent(new Event("betula:sheet-" + how, { bubbles: true }));
+  };
+  // Closed (`how`: "closed", "applied" by „Module anzeigen", "left" where Back left the page with
+  // it): on a phone away it glides first, once.
   const closeSheet = (how = "closed") => {
     const sheet = filters();
-    const was = sheet?.classList.contains("open");
-    sheet?.classList.remove("open");
-    root.classList.remove("sheet-open");
-    dropWatch();
-    if (was) sheet.dispatchEvent(new Event("betula:sheet-" + how, { bubbles: true }));
+    if (!sheet?.classList.contains("open")) {
+      root.classList.remove("sheet-open");
+      dropWatch();
+      return;
+    }
+    if (how !== "left" && glides.get(sheet)?.to === "gone") return; // on its way already
+    if (how === "applied") sheet.dispatchEvent(new Event("betula:sheet-applied", { bubbles: true }));
+    if (how === "left" || !phone() || !sheet.isConnected) shutSheet(sheet, how);
+    else dismissSheet(sheet, sheetY(sheet), 0, () => shutSheet(sheet, how));
   };
   // The app may replace the page under an open sheet (Back, a tab): nothing may stay dimmed.
   const tidySheet = () => { if (root.classList.contains("sheet-open") && !find(".filters.open, .sidebar.sheet.open")) { root.classList.remove("sheet-open"); dropWatch(); } };
@@ -310,107 +330,6 @@
     tidySheet();
     if (root.classList.contains("sheet-open") && e.target === root) { e.preventDefault(); closeSheet(); }
   }, true);
-
-  // The sheet is swiped down to close it: it follows the finger, and is let go when it was pulled
-  // far enough, or flicked; otherwise it slides back. `to` takes how far the finger is below
-  // where the drag began, `since` is when the finger came down (a quick flick may reach the page
-  // as one single move, whose speed is then measured from there). How far down it is, as a share
-  // of its height, is `--drag` on it: a dialog's dim backdrop fades by it.
-  function dragSheet(sheet, since) {
-    let dy = 0, at = since, speed = 0;
-    const height = sheet.offsetHeight || 1;
-    sheet.classList.add("dragging");
-    return {
-      to(offset) {
-        const now = performance.now(), next = Math.max(0, offset);
-        // px per ms, mostly of the last moves: a flick at the end counts, a slow start does not.
-        if (now > at) speed = 0.7 * ((next - dy) / (now - at)) + 0.3 * speed;
-        dy = next;
-        at = now;
-        sheet.style.transform = `translateY(${dy}px)`;
-        sheet.style.setProperty("--drag", Math.min(1, dy / height).toFixed(3));
-      },
-      release() {
-        const flicked = performance.now() - at < 100 && speed > 0.45;
-        sheet.style.transform = "";
-        sheet.style.removeProperty("--drag");
-        sheet.classList.remove("dragging");
-        if (dy > Math.min(160, height * 0.3) || (dy > 16 && flicked)) (sheet.tagName === "DIALOG" ? dropDialog(sheet) : closeSheet());
-      },
-    };
-  }
-  // A page's dialog that a phone shows as a sheet from below (`dialog[data-sheet]`: the areas of
-  // „Mein Studium", „Studiengang wechseln", „Module hinzufügen") is dragged down as the filter
-  // sheet is (owner, 2026-10-05: „dass man die einfach wieder runter sliden kann"). Let go, it goes
-  // on down from where the finger left it (app.css, `.dropped`) and closes, as its × and Esc close
-  // it: the page hears the dialog's `close`.
-  const dropDialog = (dialog) => {
-    dialog.classList.add("dropped");
-    setTimeout(() => {
-      if (dialog.open) dialog.close();
-      dialog.classList.remove("dropped");
-    }, 200);
-  };
-  const openSheetNow = () => (phone() ? find(".filters.open, .sidebar.sheet.open, dialog[data-sheet][open]:not(.dropped)") : null);
-  // What scrolls between the finger and the sheet: its body, or a picker's list in it.
-  const scrollerIn = (el, sheet) => {
-    for (let node = el; node && node !== sheet; node = node.parentElement) {
-      if (node.scrollHeight > node.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(node).overflowY)) return node;
-    }
-    return null;
-  };
-  // Touches decide with their first move. Inside the sheet, one that starts downwards where
-  // nothing is scrolled down (the head, the button row, the top of the list) drags the sheet;
-  // everything else there scrolls the sheet's own list, which keeps the scroll to itself
-  // (`overscroll-behavior`). A touch on the dimmed page moves nothing: the stylesheet takes the
-  // page's scrolling away (`overflow: hidden`), this also holds browsers that scroll it anyway.
-  let touch = null;
-  document.addEventListener("touchstart", (e) => {
-    touch = null;
-    const sheet = openSheetNow();
-    if (!sheet || e.touches.length !== 1) return;
-    const inside = sheet.contains(e.target);
-    touch = { sheet, inside, scroller: inside ? scrollerIn(e.target, sheet) : null, x: e.touches[0].clientX, y: e.touches[0].clientY, at: performance.now(), mode: null, drag: null };
-  }, { passive: true });
-  document.addEventListener("touchmove", (e) => {
-    if (!touch) return;
-    if (e.touches.length !== 1) { touch.drag?.release(); touch = null; return; }
-    const dx = e.touches[0].clientX - touch.x, dy = e.touches[0].clientY - touch.y;
-    if (!touch.mode) {
-      const down = dy > 0 && dy >= Math.abs(dx);
-      if (!touch.inside) touch.mode = "hold";
-      else if (e.target.closest?.('input[type="range"]')) touch.mode = "own"; // the knobs of the credit slider
-      // (A touch the browser does not let go of, one that lands in a fling, keeps scrolling.)
-      else if (down && e.cancelable && !(touch.scroller?.scrollTop > 0)) { touch.mode = "drag"; touch.drag = dragSheet(touch.sheet, touch.at); }
-      else touch.mode = touch.scroller ? "own" : "hold";
-    }
-    if (touch.mode !== "own" && e.cancelable) e.preventDefault();
-    if (touch.mode === "drag") touch.drag.to(dy - 6); // a tap that wobbles does not move the sheet
-  }, { passive: false });
-  const endTouch = () => { touch?.drag?.release(); touch = null; };
-  document.addEventListener("touchend", (e) => { if (!e.touches.length) endTouch(); });
-  document.addEventListener("touchcancel", endTouch);
-  // A mouse (a narrow window on a desktop) drags the sheet at its head.
-  document.addEventListener("pointerdown", (e) => {
-    if (e.pointerType === "touch" || e.button !== 0) return;
-    const head = e.target.closest?.(".filters .panel-head, .sidebar.sheet .panel-head, dialog[data-sheet] header");
-    const sheet = head?.closest(".filters, .sidebar.sheet, dialog[data-sheet]");
-    if (!sheet || sheet !== openSheetNow() || e.target.closest("a, button, input")) return;
-    e.preventDefault();
-    const startY = e.clientY;
-    const drag = dragSheet(sheet, performance.now());
-    try { sheet.setPointerCapture(e.pointerId); } catch {}
-    const move = (ev) => drag.to(ev.clientY - startY);
-    const stop = () => {
-      sheet.removeEventListener("pointermove", move);
-      sheet.removeEventListener("pointerup", stop);
-      sheet.removeEventListener("pointercancel", stop);
-      drag.release();
-    };
-    sheet.addEventListener("pointermove", move);
-    sheet.addEventListener("pointerup", stop);
-    sheet.addEventListener("pointercancel", stop);
-  });
 
   // ---- a change of tab on a phone: the pages on an axis (Achse) ----
   // (owner, 2026-10-18, of the ways of the prototype: „Ich muss sagen ich finde achse fühlt sich am
@@ -1266,39 +1185,52 @@
   }, true);
   document.addEventListener("dragstart", (e) => { if (e.target.closest?.(".bottomnav")) e.preventDefault(); });
 
-  // ---- a module's sheet on a phone ----
-  // (owner, 2026-10-06: „wenn man wie bei der Übersicht nach bereichen so ein menu bekommt, dass
-  // sich dann von unten öffnet. Hierbei finde ich, dass es sinn ergeben würde, wenn es sich erstmal
-  // bis zur hälfte oder einemdrittel öffnet und dann kann man nach unten swipen oder es nach oben um
-  // es zu schließen oder den vollen bereich zu verwenden. Achte dabei darauf, dass man auch noch
-  // scrollen können muss in dem fenster.") A module picked in a list comes up from below to half
-  // the screen (app.css `.detail.is-module`), as a phone's own sheets do. A finger on it moves it:
-  // half up, any move up or down, and the content does not scroll yet; all up (`is-full`), a move
-  // down where the content is at its top, else the content scrolls and keeps its scroll to itself.
-  // Pulled up past all up, the rest of the finger's way scrolls the content, and let go there the
-  // content goes on as the finger went. A tap on its grabber takes it all up and back. Closed
-  // (pulled away, its ×, a tap beside it), it slides down and its close link is followed: back
-  // through the history where the page without the module is the step before (`data-back`), so
-  // that Back does not bring it again. Esc and Back close it at once (the page follows the
-  // address). A touch beside it moves nothing.
+  // ---- the sheets of a phone ----
+  // (owner, 2026-10-27: „es kommt vor, dass immer mehr modal Dialoge verwendet werden und gerade auf
+  // dem Handy ist die erste variante immer etwas komisch implementiert. Ich möchte, dass wir das
+  // system anpassen, so dass die alle ein konsistentes verhalten vorlegen und das die entwicklung
+  // einfacher wird"; until then every kind moved its own way: the module's sheet on springs between
+  // two stops, a dialog, the filters and the collections only dragged down and dropped on a fixed
+  // curve, a menu not at all.) Whatever is modal on a phone is a sheet from below (the same day:
+  // „Ein modal beim handy ist dieses swipebare menü, dass sich von unten öffnet"), and this one
+  // engine moves them all: a page's dialog (`dialog[data-sheet]`, folia_design::modal), a menu
+  // (`.st-pop[data-sheet]`), the catalog's filters and a page's sidebar of filters (`openSheet`
+  // above), a module or a Termin over a page (`.detail.is-module`, below). What makes one is the
+  // attribute and the stylesheet's frame (app.css „the sheets of a phone"); nothing else is needed.
   //
-  // Each of its moves is one damped spring (owner, 2026-10-16: „Wenn man etwas anklickt, dann
-  // sollte es eine animation geben, wie es sich öffnet … wenn man mit genug speed oder swipe weite
-  // das zu macht, dann soll von ganz oben nach ganz zu gehen. Ja und dann muss die animation zu der
-  // mitte auch physics based sein … Das muss sich einfach natürlich anfühlen"; a fixed curve took
-  // over at its own speed whatever the finger's, a flick down from all up stopped at half up, and
-  // the skeleton's entrance ended where the module came, which then stood there at once): it comes
-  // up from below on it, and let go it goes on from where it is and as fast as it went. Where to is
-  // where it would come to rest thrown at that speed, slowing down by SHEET_FRICTION: all up in the
-  // upper half of the way to half up, half up down to a third of the way from there to the bottom,
-  // below that away; and a flick goes at least to the next stop its way. So a slow pull ends at the
-  // stop it is nearest, and a quick or a long swipe down from all up takes it away, past half up
-  // (from about 1.4 px per ms where a finger lets go 100 to 200 px down from all up). The page
-  // behind it is less dimmed the further down from half up it is. The glide is Web Animations,
-  // which the compositor runs while the module is being built; a finger that catches it takes the
-  // sheet where it is. A sheet that comes in the place of another (the module in the place of its
-  // skeleton, another module through a link in it) goes on where that one was: on its way, at rest
-  // all up or half up, or under the finger.
+  // - Two stops („zwei einrastpunkte einmal so ca bis zur mitte des bildschirms und dann voll nach
+  //   ganz oben"), as a phone's own sheets have them (the medium and large detents of iOS, the
+  //   half-expanded state of Material's bottom sheet): half up, its top at 48 % of the screen, and
+  //   all up, 10 px under the safe area. It comes up from below half up. One no taller than half
+  //   the screen has one stop, as tall as it is; one that holds less than the screen goes all up to
+  //   its own height.
+  // - Half up a finger moves the sheet wherever it touches it, and nothing in it scrolls („Im
+  //   kleinen modus soll man nicht scrollen können nur im full modus"); all up its content scrolls
+  //   and keeps its scroll to itself, and a move down where it is at its top takes the sheet. Pulled
+  //   up past all up, the rest of the finger's way scrolls the content (let go, it goes on as the
+  //   finger went); with nothing to scroll the sheet gives a little and comes back. Sideways the
+  //   finger is the content's (a week, a row of chips), and a touch beside the sheet moves nothing.
+  // - Let go, it goes on from where it is and as fast as the finger went, on a damped spring
+  //   („Animationen sollen physikalischen Simulationen entsprechen, so dass es sich natürlich
+  //   anfühlt"), to where it would come to rest thrown at that speed (`goalOf`): all up in the upper
+  //   half of the way to half up, half up down to a third of the way on to the bottom, below that
+  //   away; a flick goes at least to the next stop its way. So from all up („je nach swipe
+  //   acceleration und speed in den mid und schließen") a slow pull comes to rest half up, a quick
+  //   or a long one takes it away. How fast the finger went is its speed as it let go, read off a
+  //   curve laid through its last 100 ms (`fingerSpeed`): a swipe still speeding up is thrown as
+  //   fast as it went at the end, not at its mean.
+  // - Its one decoration is its grabber („die decorations für das fenster einfach nur der handle
+  //   strich sein und das wars"): no ×, no „Vollbild"; the ×s stay in the page, out of sight, for
+  //   screen readers and the keyboard (app.css). A tap on the grabber takes it all up and back.
+  // - What holds its buttons (`[data-sheet-foot]`, a dialog's `.st-dlg-foot`) stays at the
+  //   screen's foot while the sheet is half up (`--sheet-half-y`, app.css).
+  // - A tap beside it, Esc and Back close it as before; a finger closes it by throwing it away.
+  //   Whatever closes it, it leaves the screen as a sheet does: what the page took away at once (a
+  //   menu's choice, a dialog's button, Esc) leaves a copy of itself that glides away in its place
+  //   (`ghostSheet`).
+  // - Moved by a finger from its first move, a sheet never waits for the page: each of its glides
+  //   is Web Animations, which the compositor runs while the page's thread builds what it shows.
+  //   With reduced motion every move is short and without a swing.
   // The springs as the bar's (TAB_SPRING): to a stop with a swing too small to see; away softer and
   // without one, so that a thrown sheet keeps going rather than shooting off; without motion short.
   const SHEET_SPRING = { response: 0.42, damping: 0.86 };
@@ -1307,112 +1239,217 @@
   const SHEET_FRICTION = 0.0025; // px per ms²: how fast a sheet thrown would slow down, to choose its stop
   const SHEET_FLICK = 0.45; // px per ms: a let-go this fast goes at least to the next stop its way (the bar's swipe: 0.45)
   const SHEET_PAST = 150; // px past the bottom the spring of a sheet that goes away aims, so that it leaves at speed
-  // The module's sheet in the page in front; not its copy in the picture of the page held in front
-  // of the next one (`.pending-page.held`, which app.css does not show), nor one open on a page kept
-  // behind (folia/crates/shell/src/stage.rs).
-  const modules = document.getElementsByClassName("is-module");
-  const liveSheet = () => {
-    for (const el of modules) if (el.classList.contains("detail") && !el.closest(".pending-page") && !el.closest("#content > .page-stage:not(.front)")) return el;
+  const SHEET_PEEK = 0.52; // of the screen a sheet half up shows (app.css --sheet-peek)
+  const SHEET_ONE = 24; // px: a sheet no more than this taller than half up has one stop
+  const SHEET_GRAB = 26; // px from its top: its grabber, where a tap takes it all up and back
+  const SHEET_GIVE = 24; // px a sheet with nothing to scroll gives above all up, at most
+  const calmMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // On the stage in front: not in the picture of the page held in front of the next one
+  // (`.pending-page.held`, which app.css does not show), nor on a page kept behind
+  // (folia/crates/shell/src/stage.rs).
+  const onFront = (el) => !el.closest(".pending-page") && !el.closest("#content > .page-stage:not(.front)");
+  // A menu's scrim, which closes it (it stands before the menu, and before a submenu's menu).
+  const scrimOf = (el) => {
+    for (let at = el.previousElementSibling; at; at = at.previousElementSibling) if (at.classList.contains("st-pop-shade")) return at;
     return null;
   };
-  const moduleSheet = () => (phone() && appRuns() ? liveSheet() : null);
-  // How far down the sheet is drawn (px; 0 all up), on its way included: where its glide has it
-  // (`glideY`, below), else where its style puts it.
-  const sheetY = (sheet) => (sheetGlide?.sheet === sheet ? glideY(sheetGlide) : new DOMMatrixReadOnly(getComputedStyle(sheet).transform).m42);
-  // Where it stands half up (app.css --sheet-half: 48 % of the screen from the top), and where it is
-  // out of sight, its top at the bottom of the screen.
-  const sheetHalf = (sheet) => Math.max(0, innerHeight * 0.48 - sheet.offsetTop);
-  const sheetAway = (sheet) => Math.max(1, innerHeight - sheet.offsetTop);
+  // The kinds of sheets: which is one, when it is shown, what dims the page behind it (and takes
+  // `--sheet-shade` there), what closes it once it has glided away.
+  const SHEET_KINDS = [
+    {
+      // A module or a Termin over a page: the app's alone (the server's page shows it as the page).
+      name: "module",
+      is: (el) => el.classList.contains("detail") && el.classList.contains("is-module"),
+      shown: (el) => appRuns() && onFront(el),
+      shade: () => root,
+      close: () => followModuleClose(),
+    },
+    {
+      // A page's dialog, shown modally: its backdrop is its dim.
+      name: "dialog",
+      is: (el) => el.tagName === "DIALOG" && el.hasAttribute("data-sheet"),
+      shown: (el) => el.open,
+      shade: (el) => el,
+      close: (el) => { if (el.open) el.close(); },
+    },
+    {
+      // A menu over a page; a submenu takes its place (app.css), and the menu hides meanwhile.
+      name: "menu",
+      is: (el) => el.classList.contains("st-pop") && el.hasAttribute("data-sheet") && !el.classList.contains("sheet-ghost"),
+      shown: (el) => el.isConnected && !el.classList.contains("has-sub") && onFront(el),
+      shade: (el) => scrimOf(el),
+      close: (el) => scrimOf(el)?.click(),
+    },
+    {
+      // The catalog's filters, a page's sidebar of filters (`openSheet`, `closeSheet` above).
+      name: "filters",
+      is: (el) => el.classList.contains("filters") || (el.classList.contains("sidebar") && el.classList.contains("sheet")),
+      shown: (el) => el.classList.contains("open") && onFront(el),
+      shade: () => root,
+      close: (el) => shutSheet(el),
+    },
+  ];
+  const kindOf = (el) => SHEET_KINDS.find((kind) => kind.is(el)) ?? null;
+  // `el` a sheet shown on a phone.
+  const isSheet = (el) => {
+    const kind = el?.classList ? kindOf(el) : null;
+    return Boolean(kind && phone() && kind.shown(el));
+  };
+  // The sheet a finger touched: the innermost shown one around it (a dialog over a module's sheet is
+  // a sheet of its own, outside the module's).
+  const sheetAround = (target) => {
+    for (let el = target; el && el !== document.body && el !== root; el = el.parentElement) if (isSheet(el)) return el;
+    return null;
+  };
+  // What scrolls between the finger and the sheet: its content, or a picker's list in it.
+  const scrollerIn = (el, sheet) => {
+    for (let node = el; node && node !== sheet.parentElement; node = node.parentElement) {
+      if (node.scrollHeight > node.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(node).overflowY)) return node;
+      if (node === sheet) break;
+    }
+    return null;
+  };
+  // What scrolls its content, half up too (where it does not scroll then).
+  const bodyOf = (sheet) => sheet.querySelector(":scope > .scroll, :scope > form > .body, :scope > .body") ?? sheet.querySelector("[data-sheet-body], .st-dlg-body") ?? (sheet.classList.contains("st-pop") ? sheet : null);
+  // What holds its buttons: at the screen's foot while it is half up.
+  const footOf = (sheet) => sheet.querySelector("[data-sheet-foot], .st-dlg-foot");
+
+  // A sheet's stops, in px down from all up (its transform): half up (0 where it has one stop) and
+  // away (its top at the screen's foot). Half up its foot is lifted as far (`--sheet-half-y`).
+  const stopsOf = (sheet, height = sheet.offsetHeight) => {
+    const over = height - innerHeight * SHEET_PEEK;
+    const half = over < SHEET_ONE ? 0 : over;
+    sheet.style.setProperty("--sheet-half-y", dots(half) + "px");
+    return { half, away: Math.max(1, innerHeight - sheet.offsetTop) };
+  };
   // The page behind is dimmed while the sheet is half up or higher, and less the further down from
-  // there it is (`--sheet-shade`, app.css): the sheet at `y`, its stops at `half` and `away`.
-  const shadeSheet = (y, half, away) => {
+  // there it is: the sheet at `y`, its stops at `half` and `away`.
+  const shadeSheet = (sheet, y, half, away) => {
+    const el = kindOf(sheet)?.shade(sheet);
+    if (!el) return;
     const shade = y <= half ? 1 : unit((away - y) / Math.max(1, away - half));
-    if (shade >= 1) root.style.removeProperty("--sheet-shade");
-    else root.style.setProperty("--sheet-shade", shade.toFixed(3));
+    if (shade >= 1) el.style.removeProperty("--sheet-shade");
+    else el.style.setProperty("--sheet-shade", shade.toFixed(3));
   };
   // Where a sheet let go at `y` going `v` (px per ms, downwards positive) comes to rest, its stops
-  // all up (0), half up (`half`) and away (`away`); the module's sheet and the sheet of a choice.
+  // all up (0), half up (`half`, 0 for none) and away (`away`); a sheet's, and the sheet of a choice.
   const goalOf = (y, v, half, away) => {
     const end = y + (v * Math.abs(v)) / (2 * SHEET_FRICTION);
+    if (!half) {
+      // One stop: away from a third of the way down, or flicked down past a wobble.
+      if (v > SHEET_FLICK && y > 12) return "gone";
+      return v < -SHEET_FLICK || end < away / 3 ? "full" : "gone";
+    }
     let to = end < half / 2 ? "full" : end < half + (away - half) / 3 ? "half" : "gone";
     const at = { full: 0, half, gone: away };
     if (v > SHEET_FLICK && at[to] <= y) to = y < half ? "half" : "gone";
     else if (v < -SHEET_FLICK && at[to] >= y) to = y > half ? "half" : "full";
     return to;
   };
-  const sheetGoal = (sheet, y, v) => goalOf(y, v, sheetHalf(sheet), sheetAway(sheet));
-  let sheetGlide = null; // the sheet on its way: { sheet, to, half, away, ys, frames, timing, anim, begun, frame, then, coming }
-  // Where the glide has the sheet now.
-  const glideY = (g) => {
+  const glides = new Map(); // a sheet on its way → { sheet, to, half, away, ys, anim, foot, begun, frame, then, coming }
+  // Where the glide has the sheet now, and how fast it goes there (px per ms).
+  const glideAt = (g) => {
     const began = g.anim.startTime ?? g.begun;
-    return sampleAt(g.ys, began == null ? 0 : (document.timeline.currentTime - began) / 1000 / TAB_DT);
+    return began == null ? 0 : (document.timeline.currentTime - began) / 1000 / TAB_DT;
   };
-  const stopSheet = () => {
-    const g = sheetGlide;
+  const glideY = (g) => sampleAt(g.ys, glideAt(g));
+  const glideV = (g) => {
+    const k = glideAt(g);
+    return k >= g.ys.length - 1 ? 0 : (sampleAt(g.ys, k + 1) - sampleAt(g.ys, k)) / (TAB_DT * 1000);
+  };
+  // How far down the sheet is drawn (px; 0 all up), on its way included.
+  const sheetY = (sheet) => {
+    const g = glides.get(sheet);
+    return g ? glideY(g) : new DOMMatrixReadOnly(getComputedStyle(sheet).transform).m42;
+  };
+  const stopSheet = (sheet) => {
+    const g = glides.get(sheet);
     if (!g) return;
-    sheetGlide = null;
+    glides.delete(sheet);
     cancelAnimationFrame(g.frame);
     g.anim.cancel();
+    g.foot?.cancel();
   };
   // There: its classes hold it where the glide ended (app.css), and what was to follow follows.
   const restSheet = (g) => {
-    if (sheetGlide !== g) return;
-    stopSheet();
-    shadeSheet(g.to === "gone" ? g.away : 0, g.half, g.away);
+    if (glides.get(g.sheet) !== g) return;
+    stopSheet(g.sheet);
+    shadeSheet(g.sheet, g.to === "gone" ? g.away : 0, g.half, g.away);
     g.then?.();
   };
   // Every frame of a glide the page behind takes the shade of where the sheet is; as the sheet comes
-  // up, the page's thread may be building the module, and the page darkens by itself (app.css).
+  // up, the page's thread may be building what it shows, and the dim fades in by itself (app.css).
   const tickSheet = (g) => {
-    if (sheetGlide !== g || g.coming) return;
-    shadeSheet(glideY(g), g.half, g.away);
+    if (glides.get(g.sheet) !== g || g.coming) return;
+    shadeSheet(g.sheet, glideY(g), g.half, g.away);
     g.frame = requestAnimationFrame(() => tickSheet(g));
   };
   const runSheet = (g, sheet) => {
     g.sheet = sheet;
-    g.anim = sheet.animate(g.frames, g.timing);
+    const timing = { duration: Math.max(1, (g.ys.length - 1) * TAB_DT * 1000), easing: "linear", fill: "forwards" };
+    g.anim = sheet.animate(g.ys.map((y) => ({ transform: `translateY(${dots(y)}px)` })), timing);
     g.anim.onfinish = () => restSheet(g);
+    // Its foot stays at the screen's foot as long as the sheet is half up or higher.
+    const foot = g.half ? footOf(sheet) : null;
+    g.foot = foot ? foot.animate(g.ys.map((y) => ({ transform: `translateY(${dots(-Math.min(Math.max(0, y), g.half))}px)` })), timing) : null;
     sheet.classList.toggle("is-full", g.to === "full");
     sheet.classList.toggle("is-gone", g.to === "gone");
     sheet.style.removeProperty("transform");
+    foot?.style.removeProperty("transform");
   };
   // The sheet from `y` (px from all up) going `v` px per ms to `to` ("full", "half" or "gone") on
   // the spring: keyframes every TAB_DT for the compositor. Its classes say where it goes from the
   // first frame on, so that where the glide ends is where they hold it. `then` once it is there;
   // `coming`: it comes up from below.
-  const glideSheet = (sheet, y, v, to, then, coming = false) => {
-    stopSheet();
-    const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const half = sheetHalf(sheet), away = sheetAway(sheet);
+  const glideSheet = (sheet, y, v, to, then, coming = false, height = undefined) => {
+    stopSheet(sheet);
+    const calm = calmMotion();
+    const { half, away } = stopsOf(sheet, height);
+    if (to === "half" && !half) to = "full";
     let ys = springTo(y, calm ? 0 : v * 1000, to === "full" ? 0 : to === "half" ? half : away + SHEET_PAST, calm ? SHEET_CALM : to === "gone" ? SHEET_AWAY : SHEET_SPRING);
-    // All up is as high as it goes, and away it is once out of sight.
-    if (to === "full") ys = ys.map((y) => Math.max(0, y));
-    const out = to === "gone" ? ys.findIndex((y) => y >= away) : -1;
+    // All up is as high as it goes (from where it gave above it, no higher than that), and away it
+    // is once out of sight.
+    if (to === "full") ys = ys.map((at) => Math.max(Math.min(0, y), at));
+    const out = to === "gone" ? ys.findIndex((at) => at >= away) : -1;
     if (out > 0) ys = ys.slice(0, out + 1);
-    const g = sheetGlide = {
-      to, half, away, ys, then, coming, frame: 0,
-      frames: ys.map((y) => ({ transform: `translateY(${dots(y)}px)` })),
-      timing: { duration: Math.max(1, (ys.length - 1) * TAB_DT * 1000), easing: "linear", fill: "forwards" },
-    };
+    const g = { to, half, away, ys, then, coming, frame: 0, begun: null };
+    glides.set(sheet, g);
     runSheet(g, sheet);
     // When it begins: with the first frame that draws it, which the page's thread knows before it
     // hears from the compositor (too busy building the module, it may hear only much later).
     requestAnimationFrame((at) => { if (g.begun == null) g.begun = at; });
     tickSheet(g);
   };
-  // Away it goes, then the close link of the sheet that is there then is followed. A note that
-  // waits for interaction over it goes down with it at once (`sheet-away`, folia_design::waitnote;
-  // owner, 2026-10-18: „wenn man da die Modul Ansicht schließt sollte die notification auch mit eher
-  // Animation nach unten raus geschlossen werden").
-  const closeModule = (sheet, y = sheetY(sheet), v = 0) => {
-    if (!sheet.querySelector('[data-action="close-detail"]') || sheet.classList.contains("is-gone")) return;
-    document.dispatchEvent(new Event("sheet-away"));
-    glideSheet(sheet, y, v, "gone", () => {
-      const link = liveSheet()?.querySelector('[data-action="close-detail"]');
-      if (!link) return;
-      if (cameFrom(link)) history.back(); else link.click();
-    });
+  // A sheet that comes: up from below, half up, or all up where it has one stop; the dim behind it
+  // whole again (a dialog thrown away before kept it at none), fading in by itself (app.css).
+  const showSheet = (sheet) => {
+    const { half, away } = stopsOf(sheet);
+    shadeSheet(sheet, 0, half, away);
+    glideSheet(sheet, away, 0, half ? "half" : "full", null, true);
   };
+  // Away it glides, as fast as it was let go, then what closes it closes it (`then`, else its
+  // kind's). A module's sheet goes its own way (`closeModule`, below).
+  const dismissSheet = (sheet, y = sheetY(sheet), v = 0, then = null) => {
+    const kind = kindOf(sheet);
+    if (!kind || (sheet.classList.contains("is-gone") && glides.has(sheet))) return;
+    if (kind.name === "module") { closeModule(sheet, y, v); return; }
+    glideSheet(sheet, y, v, "gone", then ?? (() => kind.close(sheet)));
+  };
+  // All up, or back half up: a tap on its grabber; on its way, from where it is and as fast.
+  const toggleSheet = (sheet) => {
+    const g = glides.get(sheet);
+    const going = g ? g.to : sheet.classList.contains("is-full") ? "full" : "half";
+    if (going === "gone" || !stopsOf(sheet).half) return;
+    glideSheet(sheet, sheetY(sheet), g ? glideV(g) : 0, going === "full" ? "half" : "full");
+  };
+  // All up: where what is in it asks for more of it (a field to type in, what the keyboard went to
+  // below the screen's foot, the wheel).
+  const raiseSheet = (sheet) => {
+    const g = glides.get(sheet);
+    if ((g ? g.to : sheet.classList.contains("is-full") ? "full" : "half") !== "half" || !stopsOf(sheet).half) return;
+    glideSheet(sheet, sheetY(sheet), g ? glideV(g) : 0, "full");
+  };
+
   // The content going on after the finger let go (px per ms, the finger's way), slower and slower
   // as a phone's own scrolling does, until an end or a finger stops it.
   let fling = null;
@@ -1436,89 +1473,391 @@
     };
     f.frame = requestAnimationFrame(step);
   };
-  // How fast the finger went at the end (px per ms, downwards positive), over its last 100 ms:
-  // nothing if it rested before it let go.
+  // How fast the finger went as it let go (px per ms, downwards positive): the slope at its last
+  // point of a parabola laid through its last 100 ms by least squares (as Android's VelocityTracker
+  // reads a fling), so that a swipe still speeding up — or slowing down — as it lets go is taken
+  // at the speed it had then, not at its mean; a straight line where a few points make no curve;
+  // nothing where it rested before it let go.
   const fingerSpeed = (trail, at) => {
-    const a = trail[0], b = trail[trail.length - 1];
-    if (!a || a === b || at - b[0] > 80 || b[0] - a[0] < 8) return 0;
-    return Math.max(-8, Math.min(8, (b[1] - a[1]) / (b[0] - a[0])));
+    const last = trail[trail.length - 1];
+    if (!last || at - last[0] > 80) return 0;
+    const points = trail.filter(([t]) => last[0] - t <= 100);
+    const first = points[0];
+    if (points.length < 2 || last[0] - first[0] < 8) return 0;
+    let speed = (last[1] - first[1]) / (last[0] - first[0]);
+    if (points.length >= 4 && last[0] - first[0] >= 24) {
+      // y = a + b t + c t², t and y from the last point: b is the speed there.
+      let s1 = 0, s2 = 0, s3 = 0, s4 = 0, r0 = 0, r1 = 0, r2 = 0;
+      const n = points.length;
+      for (const [t0, y0] of points) {
+        const t = t0 - last[0], y = y0 - last[1], tt = t * t;
+        s1 += t; s2 += tt; s3 += tt * t; s4 += tt * tt; r0 += y; r1 += y * t; r2 += y * tt;
+      }
+      const det = n * (s2 * s4 - s3 * s3) - s1 * (s1 * s4 - s3 * s2) + s2 * (s1 * s3 - s2 * s2);
+      if (Math.abs(det) > 1e-6) speed = (n * (r1 * s4 - s3 * r2) - r0 * (s1 * s4 - s3 * s2) + s2 * (s1 * r2 - r1 * s2)) / det;
+    }
+    return Math.max(-8, Math.min(8, speed));
   };
+
+  // A finger on a sheet. It decides with its first move: on the sheet half up (or on its way) it
+  // takes the sheet, under the point it touched; all up it takes it where it moves down and what it
+  // touched is at its top, else the content scrolls; sideways it is the content's; beside the sheet
+  // it moves nothing. Touches on what is no sheet are the page's (and the sheet of a choice's,
+  // below).
   let sheetTouch = null;
+  const touchAt = (sheet, target, x, y, at) => {
+    // What scrolls under the finger: what it touched in the content (half up its content does not
+    // scroll yet, and still counts); nothing on the sheet's head.
+    const body = bodyOf(sheet), rect = sheet.getBoundingClientRect(), scroller = scrollerIn(target, sheet) ?? (body?.contains(target) ? body : null);
+    return {
+      sheet, inside: x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom, scroller, x, y, at,
+      // All up, and there already: the content may scroll.
+      full: sheet.classList.contains("is-full") && rect.top - sheet.offsetTop < 1, scrolled: scroller?.scrollTop || 0,
+      grabber: y - rect.top < SHEET_GRAB, mode: null, from: 0, half: 0, away: 0, scrolls: false, trail: [],
+    };
+  };
   document.addEventListener("touchstart", (e) => {
     sheetTouch = null;
-    const sheet = moduleSheet();
-    if (!sheet || e.touches.length !== 1) return;
-    stopFling();
+    if (e.touches.length !== 1 || !phone()) return;
     const t = e.touches[0];
-    const scroller = sheet.querySelector(":scope > .scroll");
-    const top = sheet.getBoundingClientRect().top;
-    sheetTouch = {
-      sheet, inside: sheet.contains(e.target), scroller, x: t.clientX, y: t.clientY, at: e.timeStamp,
-      // All up, and there already: the content may scroll.
-      full: sheet.classList.contains("is-full") && top - sheet.offsetTop < 1, scrolled: scroller?.scrollTop || 0,
-      grabber: t.clientY - top < 26, mode: null, from: 0, half: 0, away: 0, trail: [],
-    };
+    const sheet = sheetAround(e.target);
+    if (sheet) {
+      stopFling();
+      sheetTouch = touchAt(sheet, e.target, t.clientX, t.clientY, e.timeStamp);
+    } else if ((e.target === root && (root.classList.contains("sheet-open") || moduleSheet())) || e.target.classList?.contains("st-pop-shade")) {
+      // On the dimmed page beside a sheet: nothing moves.
+      sheetTouch = { sheet: null, mode: "hold" };
+    }
   }, { passive: true });
+  // The finger takes the sheet: at rest under the point it touched, on its way where it is (one
+  // that has all but come to rest, its spring's last fraction of a pixel to go, is at rest).
+  const takeSheet = (s, dy) => {
+    s.mode = "drag";
+    const g = glides.get(s.sheet), goal = g?.ys[g.ys.length - 1];
+    const settling = g && Math.abs(glideY(g) - goal) < 1.5 && Math.abs(glideV(g)) < 0.05;
+    s.from = settling ? goal : sheetY(s.sheet) - (g ? dy : 0);
+    ({ half: s.half, away: s.away } = stopsOf(s.sheet));
+    s.scrolls = Boolean(s.scroller && s.scroller.scrollHeight > s.scroller.clientHeight + 1);
+    stopSheet(s.sheet);
+  };
+  // The sheet under the finger, `y` px down from all up: past all up its content scrolls on with
+  // the finger, or, with nothing to scroll, the sheet gives a little.
+  const putSheet = (s, y) => {
+    let at = Math.max(0, y);
+    if (y < 0) {
+      if (s.scrolls) s.scroller.scrollTop = s.scrolled - y;
+      else at = -band(-y, SHEET_GIVE);
+    }
+    s.sheet.style.transform = `translateY(${dots(at)}px)`;
+    const foot = s.half ? footOf(s.sheet) : null;
+    if (foot) foot.style.transform = `translateY(${dots(-Math.min(Math.max(0, at), s.half))}px)`;
+    shadeSheet(s.sheet, y, s.half, s.away);
+  };
   const moveSheet = (e) => {
     const s = sheetTouch;
     if (!s) return;
+    if (s.mode === "hold") { if (e.cancelable) e.preventDefault(); return; }
     if (e.touches.length !== 1 || !s.sheet.isConnected) { sheetTouch = null; return; }
     const t = e.touches[0];
     const dx = t.clientX - s.x, dy = t.clientY - s.y;
     if (!s.mode) {
       if (!s.inside || s.sheet.classList.contains("is-gone")) s.mode = "hold"; // on its way out, nothing stops it
+      else if (e.target.closest?.('input[type="range"]')) s.mode = "own"; // the knobs of the credit slider
       else if (Math.abs(dx) > Math.abs(dy)) s.mode = "own"; // sideways: the content's (a week, a table)
       else if (!e.cancelable) s.mode = "own"; // the browser scrolls already
-      else if (!s.full || (dy > 0 && s.scrolled <= 0)) {
-        // The finger takes the sheet: at rest under the point it touched, on its way where it is.
-        s.mode = "drag";
-        s.from = sheetY(s.sheet) - (sheetGlide?.sheet === s.sheet ? dy : 0);
-        s.half = sheetHalf(s.sheet);
-        s.away = sheetAway(s.sheet);
-        stopSheet();
-      } else s.mode = "own";
+      else if (root.hasAttribute("data-keyboard")) s.mode = "own"; // the keyboard up: the content's
+      else if (!s.full || (dy > 0 && !(s.scroller?.scrollTop > 0))) takeSheet(s, dy);
+      else s.mode = "own";
     }
     if (s.mode === "own") return;
     if (e.cancelable) e.preventDefault();
     if (s.mode !== "drag") return;
     const y = s.from + dy;
-    // Past all up the content scrolls on with the finger.
-    if (y < 0 && s.scroller) s.scroller.scrollTop = s.scrolled - y;
-    s.sheet.style.transform = `translateY(${Math.max(0, y)}px)`;
-    shadeSheet(y, s.half, s.away);
+    putSheet(s, y);
     s.trail.push([e.timeStamp, y]);
     while (s.trail.length > 2 && e.timeStamp - s.trail[0][0] > 100) s.trail.shift();
   };
   document.addEventListener("touchmove", moveSheet, { passive: false });
-  const letGoSheet = (at) => {
-    const s = sheetTouch;
-    sheetTouch = null;
-    if (!s || !s.sheet.isConnected) return;
-    if (!s.mode && s.inside && s.grabber && at - s.at < 400) {
-      const going = sheetGlide?.sheet === s.sheet ? sheetGlide.to : s.sheet.classList.contains("is-full") ? "full" : "half";
-      if (going !== "gone") glideSheet(s.sheet, sheetY(s.sheet), 0, going === "full" ? "half" : "full");
-      return;
-    }
+  // Let go: to where it would come to rest thrown as fast as the finger went (`goalOf`); a tap on
+  // its grabber all up and back.
+  const releaseSheet = (s, at) => {
+    if (!s?.sheet?.isConnected) return;
+    if (!s.mode && s.inside && s.grabber && at - s.at < 400) { toggleSheet(s.sheet); return; }
     if (s.mode !== "drag") return;
     const y = s.trail.length ? s.trail[s.trail.length - 1][1] : s.from;
     const v = fingerSpeed(s.trail, at);
-    // Pulled past all up: all up it stays, and the content goes on as the finger went.
-    const to = y < 0 ? "full" : sheetGoal(s.sheet, y, v);
-    if (to === "gone") closeModule(s.sheet, y, v);
-    else glideSheet(s.sheet, Math.max(0, y), y < 0 ? 0 : v, to);
-    if (y < 0) flingContent(s.scroller, v);
+    if (y < 0) {
+      // Pulled past all up: all up it stays, the content going on as the finger went, or the sheet
+      // coming back from where it gave.
+      if (s.scrolls) { glideSheet(s.sheet, 0, 0, "full"); flingContent(s.scroller, v); }
+      else glideSheet(s.sheet, -band(-y, SHEET_GIVE), Math.max(0, v), "full");
+      return;
+    }
+    const to = goalOf(y, v, s.half, s.away);
+    if (to === "gone") dismissSheet(s.sheet, y, v);
+    else glideSheet(s.sheet, y, v, to);
   };
-  const endSheet = (e) => { if (!e.touches.length) letGoSheet(e.timeStamp); };
+  const endSheet = (e) => {
+    if (e.touches.length) return;
+    const s = sheetTouch;
+    sheetTouch = null;
+    releaseSheet(s, e.timeStamp);
+  };
   const cancelSheet = () => {
     const s = sheetTouch;
     sheetTouch = null;
     if (s?.mode !== "drag" || !s.sheet.isConnected) return;
     // Taken from the finger: to the stop it is nearest, but not away.
-    const y = Math.max(0, s.trail.length ? s.trail[s.trail.length - 1][1] : s.from), to = sheetGoal(s.sheet, y, 0);
-    glideSheet(s.sheet, y, 0, to === "gone" ? "half" : to);
+    const y = Math.max(0, s.trail.length ? s.trail[s.trail.length - 1][1] : s.from), to = goalOf(y, 0, s.half, s.away);
+    glideSheet(s.sheet, y, 0, to === "gone" ? (s.half ? "half" : "full") : to);
   };
   document.addEventListener("touchend", endSheet);
   document.addEventListener("touchcancel", cancelSheet);
+  // A mouse (a narrow window on a desktop) moves a sheet by its grabber or its head, as a finger.
+  document.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "touch" || e.button !== 0 || !phone()) return;
+    const sheet = sheetAround(e.target);
+    if (!sheet || e.target.closest("a, button, input, select, textarea, label, [contenteditable]")) return;
+    const top = sheet.getBoundingClientRect().top;
+    if (e.clientY - top >= SHEET_GRAB && !e.target.closest(".st-dlg-head, .panel-head, .st-pop-title")) return;
+    e.preventDefault();
+    const s = touchAt(sheet, e.target, e.clientX, e.clientY, e.timeStamp);
+    stopFling();
+    try { sheet.setPointerCapture(e.pointerId); } catch {}
+    const move = (ev) => {
+      const dy = ev.clientY - s.y;
+      if (!s.mode && Math.abs(dy) < 3) return;
+      if (!s.mode) takeSheet(s, dy);
+      const y = s.from + dy;
+      putSheet(s, y);
+      s.trail.push([ev.timeStamp, y]);
+      while (s.trail.length > 2 && ev.timeStamp - s.trail[0][0] > 100) s.trail.shift();
+    };
+    const stop = (ev) => {
+      sheet.removeEventListener("pointermove", move);
+      sheet.removeEventListener("pointerup", stop);
+      sheet.removeEventListener("pointercancel", stop);
+      if (ev.type === "pointercancel" && s.mode === "drag") { sheetTouch = s; cancelSheet(); return; }
+      releaseSheet(s, ev.timeStamp);
+    };
+    sheet.addEventListener("pointermove", move);
+    sheet.addEventListener("pointerup", stop);
+    sheet.addEventListener("pointercancel", stop);
+  });
+  // Half up, the wheel down over a sheet takes it all up first (half up its content does not
+  // scroll), and so does the focus going below what it shows (the keyboard's Tab).
+  document.addEventListener("wheel", (e) => {
+    const sheet = e.deltaY > 0 && phone() ? sheetAround(e.target) : null;
+    if (sheet) raiseSheet(sheet);
+  }, { passive: true });
+  document.addEventListener("focusin", (e) => {
+    const sheet = phone() ? sheetAround(e.target) : null;
+    if (!sheet || e.target === sheet || !sheet.contains(e.target)) return;
+    // Below what the sheet shows half up (and its foot hides): measured as it will stand there.
+    const { half } = stopsOf(sheet), foot = footOf(sheet);
+    if (e.target.getBoundingClientRect().bottom - sheetY(sheet) + half > innerHeight - (foot?.offsetHeight ?? 0)) raiseSheet(sheet);
+  });
+
+  // A dialog or a menu that comes is seen before it is drawn: it comes up from below. One that goes
+  // without having glided away (its button, a choice, Esc, Back, a new address) leaves a copy of
+  // itself that does (`ghostSheet`). Its height is kept as it changes, for its foot and its copy.
+  const dialogsAll = document.getElementsByTagName("dialog");
+  const popsAll = document.getElementsByClassName("st-pop");
+  let sheetsSeen = new Map(); // a dialog or a menu shown as a sheet → { height, half }
+  const sizes = typeof ResizeObserver === "function" ? new ResizeObserver((entries) => {
+    for (const { target } of entries) {
+      const seen = sheetsSeen.get(target);
+      if (!seen || !target.isConnected || !target.offsetHeight) continue;
+      seen.height = target.offsetHeight;
+      seen.half = stopsOf(target).half;
+      // Grown short of two stops while half up: as tall as it is.
+      if (!seen.half && !glides.has(target) && !target.classList.contains("is-gone")) target.classList.add("is-full");
+    }
+  }) : null;
+  // Where an element scrolled to last, for the copy of what goes (a removed element forgets it).
+  const scrolledTo = new WeakMap();
+  document.addEventListener("scroll", (e) => { if (e.target instanceof Element && sheetsSeen.size) scrolledTo.set(e.target, e.target.scrollTop); }, { capture: true, passive: true });
+  // A copy of `nodes` (what a sheet held) as they were, to look at only: no ids, what was typed in,
+  // as far as they had scrolled.
+  const copyOf = (node) => {
+    const copy = node.cloneNode(true);
+    if (!(node instanceof Element)) return copy;
+    const walk = (a, b) => {
+      if (b.id) b.removeAttribute("id");
+      if ("value" in a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.tagName === "SELECT")) { b.value = a.value; if ("checked" in a) b.checked = a.checked; }
+      for (let x = a.firstElementChild, y = b.firstElementChild; x && y; x = x.nextElementSibling, y = y.nextElementSibling) walk(x, y);
+    };
+    walk(node, copy);
+    return copy;
+  };
+  const scrollCopy = (node, copy) => {
+    if (!(node instanceof Element)) return;
+    const top = scrolledTo.get(node);
+    if (top) copy.scrollTop = top;
+    for (let x = node.firstElementChild, y = copy.firstElementChild; x && y; x = x.nextElementSibling, y = y.nextElementSibling) scrollCopy(x, y);
+  };
+  const ghostSheet = (sheet, nodes, seen, y, v, shade) => {
+    if (!seen?.height || calmMotion()) return;
+    const ghost = document.createElement("div");
+    ghost.className = sheet.className;
+    ghost.classList.remove("is-full", "is-gone", "has-sub");
+    ghost.classList.add("sheet-ghost");
+    ghost.setAttribute("data-sheet", "");
+    ghost.setAttribute("open", "");
+    ghost.setAttribute("aria-hidden", "true");
+    ghost.inert = true;
+    const style = sheet.getAttribute("style");
+    if (style) ghost.setAttribute("style", style);
+    ghost.style.height = seen.height + "px";
+    ghost.style.removeProperty("transform");
+    const copies = nodes.map(copyOf);
+    ghost.append(...copies);
+    const scrim = document.createElement("div");
+    scrim.className = "sheet-ghost-scrim";
+    document.body.append(scrim, ghost);
+    nodes.forEach((node, i) => scrollCopy(node, copies[i]));
+    const away = Math.max(1, innerHeight - ghost.offsetTop);
+    let ys = springTo(y, v * 1000, away + SHEET_PAST, SHEET_AWAY);
+    const out = ys.findIndex((at) => at >= away);
+    if (out > 0) ys = ys.slice(0, out + 1);
+    const timing = { duration: Math.max(1, (ys.length - 1) * TAB_DT * 1000), easing: "linear", fill: "forwards" };
+    const anim = ghost.animate(ys.map((at) => ({ transform: `translateY(${dots(at)}px)` })), timing);
+    const half = seen.half || 0;
+    scrim.animate(ys.map((at) => ({ opacity: shade * (at <= half ? 1 : unit((away - at) / Math.max(1, away - half))) })), timing);
+    const done = () => { ghost.remove(); scrim.remove(); };
+    anim.onfinish = done;
+    anim.oncancel = done;
+    setTimeout(done, 3000);
+  };
+  // Gone without having glided away: what it held, the copy from where it was.
+  const sheetGone = (sheet, seen, records) => {
+    sizes?.unobserve(sheet);
+    const g = glides.get(sheet);
+    // Away already, or a menu's root while its submenu stands in its place.
+    if ((!g && sheet.classList.contains("is-gone")) || (sheet.isConnected && sheet.classList.contains("has-sub"))) { stopSheet(sheet); return; }
+    const y = g ? glideY(g) : sheet.classList.contains("is-full") ? 0 : seen.half || 0;
+    const v = g ? Math.max(0, glideV(g)) : 0;
+    stopSheet(sheet);
+    const shadeEl = kindOf(sheet)?.shade(sheet);
+    const shade = Number.parseFloat(shadeEl?.style.getPropertyValue("--sheet-shade") || "1") || 1;
+    // What the page took out of it now, or, gone itself, all it held.
+    let nodes = sheet.isConnected ? records.filter((r) => r.type === "childList" && r.target === sheet).flatMap((r) => [...r.removedNodes]) : [];
+    if (!nodes.length) nodes = [...sheet.childNodes];
+    ghostSheet(sheet, nodes, seen, y, v, shade);
+  };
+  // The screen's keyboard (folia_design::keyboard, `data-keyboard` on the root): the sheet a field
+  // in it brought it up for goes all up with it, into the part of the screen the keyboard leaves
+  // (owner, 2026-10-17: „das modal kann ruhig full screen werden, wenn man das Keyboard öffnet.
+  // (Aber nur bei onscreen keyboard)"), its content scrolling; meanwhile a finger scrolls it and
+  // does not move it. The keyboard gone, it goes back half up where it was half up, as the
+  // keyboard's glide gives it its height again (one move).
+  let typedIn = null; // { sheet, was }
+  new MutationObserver(() => {
+    const up = root.hasAttribute("data-keyboard");
+    if (up && !typedIn) {
+      const sheet = phone() ? sheetAround(document.activeElement) : null;
+      if (!sheet) return;
+      const g = glides.get(sheet);
+      typedIn = { sheet, was: g ? g.to : sheet.classList.contains("is-full") ? "full" : "half" };
+      raiseSheet(sheet);
+    } else if (!up && typedIn) {
+      const { sheet, was } = typedIn;
+      typedIn = null;
+      if (was !== "half" || !isSheet(sheet) || sheetTouch?.sheet === sheet || glides.get(sheet)?.to === "gone") return;
+      // The height the keyboard's glide gives it back.
+      const growing = sheet.getAnimations().find((a) => a.id === "keyboard-glide")?.effect?.getKeyframes?.();
+      const height = Number.parseFloat(growing?.[growing.length - 1]?.height) || undefined;
+      glideSheet(sheet, sheetY(sheet), 0, "half", null, false, height);
+    }
+  }).observe(root, { attributes: true, attributeFilter: ["data-keyboard"] });
+  const watchSheets = (records) => {
+    if (!phone()) {
+      if (sheetsSeen.size) { sizes?.disconnect(); sheetsSeen = new Map(); }
+      return;
+    }
+    const now = new Map();
+    for (const el of dialogsAll) if (el.open && el.hasAttribute("data-sheet")) now.set(el, sheetsSeen.get(el) ?? null);
+    for (const el of popsAll) if (el.hasAttribute("data-sheet") && !el.classList.contains("has-sub") && !el.classList.contains("sheet-ghost") && onFront(el)) now.set(el, sheetsSeen.get(el) ?? null);
+    const gone = [...sheetsSeen.keys()].filter((el) => !now.has(el));
+    const come = [...now.keys()].filter((el) => !now.get(el));
+    // A submenu in its menu's place, or the menu back in the submenu's: the one sheet stays, what
+    // it holds changes in place.
+    const isMenu = (el) => el.classList.contains("st-pop");
+    const inPlace = come.some(isMenu) && gone.some(isMenu);
+    for (const el of gone) {
+      if (inPlace && isMenu(el)) { sizes?.unobserve(el); stopSheet(el); }
+      else sheetGone(el, sheetsSeen.get(el), records);
+    }
+    for (const el of come) {
+      if (inPlace && isMenu(el)) {
+        const { half } = stopsOf(el);
+        el.classList.toggle("is-full", !half);
+        el.classList.remove("is-gone");
+      } else showSheet(el);
+      now.set(el, { height: el.offsetHeight, half: stopsOf(el).half });
+      sizes?.observe(el);
+    }
+    sheetsSeen = now;
+  };
+  new MutationObserver(watchSheets).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["open"] });
+  // A window that grows past a phone's width or shrinks to it: every sheet stands where the page's
+  // layout puts it, without anything of a glide.
+  narrow.addEventListener("change", () => {
+    for (const sheet of [...glides.keys()]) stopSheet(sheet);
+    stopFling();
+    for (const sheet of document.querySelectorAll("[data-sheet], .detail.is-module")) {
+      sheet.style.removeProperty("transform");
+      sheet.style.removeProperty("--sheet-shade");
+      footOf(sheet)?.style.removeProperty("transform");
+    }
+    for (const scrim of document.querySelectorAll(".st-pop-shade")) scrim.style.removeProperty("--sheet-shade");
+    root.style.removeProperty("--sheet-shade");
+    watchSheets([]);
+  });
+
+  // ---- a module's sheet on a phone ----
+  // (owner, 2026-10-06: „wenn man wie bei der Übersicht nach bereichen so ein menu bekommt, dass
+  // sich dann von unten öffnet. Hierbei finde ich, dass es sinn ergeben würde, wenn es sich erstmal
+  // bis zur hälfte oder einemdrittel öffnet und dann kann man nach unten swipen oder es nach oben um
+  // es zu schließen oder den vollen bereich zu verwenden. Achte dabei darauf, dass man auch noch
+  // scrollen können muss in dem fenster.") A module picked in a list comes up from below to half
+  // the screen (app.css `.detail.is-module`), one of the sheets of a phone (above), the first of
+  // them. Closed (pulled away, a tap beside it, its × for screen readers), it slides down and its
+  // close link is followed: back through the history where the page without the module is the
+  // step before (`data-back`), so that Back does not bring it again. Esc and Back close it at once
+  // (the page follows the address).
+  //
+  // (owner, 2026-10-16: „Wenn man etwas anklickt, dann sollte es eine animation geben, wie es sich
+  // öffnet … wenn man mit genug speed oder swipe weite das zu macht, dann soll von ganz oben nach
+  // ganz zu gehen. Ja und dann muss die animation zu der mitte auch physics based sein … Das muss
+  // sich einfach natürlich anfühlen"; a fixed curve took over at its own speed whatever the
+  // finger's, a flick down from all up stopped at half up, and the skeleton's entrance ended where
+  // the module came, which then stood there at once.) The glide is Web Animations, which the
+  // compositor runs while the module is being built; a finger that catches it takes the sheet where
+  // it is. A sheet that comes in the place of another (the module in the place of its skeleton,
+  // another module through a link in it) goes on where that one was: on its way, at rest all up or
+  // half up, or under the finger.
+  const modules = document.getElementsByClassName("is-module");
+  const liveSheet = () => {
+    for (const el of modules) if (el.classList.contains("detail") && onFront(el)) return el;
+    return null;
+  };
+  const moduleSheet = () => (phone() && appRuns() ? liveSheet() : null);
+  // The close link of the sheet that is there then is followed.
+  const followModuleClose = () => {
+    const link = liveSheet()?.querySelector('[data-action="close-detail"]');
+    if (!link) return;
+    if (cameFrom(link)) history.back(); else link.click();
+  };
+  // Away it goes, then its close link is followed. A note that waits for interaction over it goes
+  // down with it at once (`sheet-away`, folia_design::waitnote; owner, 2026-10-18: „wenn man da die
+  // Modul Ansicht schließt sollte die notification auch mit eher Animation nach unten raus
+  // geschlossen werden").
+  const closeModule = (sheet, y = sheetY(sheet), v = 0) => {
+    if (!sheet.querySelector('[data-action="close-detail"]') || sheet.classList.contains("is-gone")) return;
+    document.dispatchEvent(new Event("sheet-away"));
+    glideSheet(sheet, y, v, "gone", followModuleClose);
+  };
   // Its ×, and a tap beside it: down it slides, then the close link is followed.
   document.addEventListener("click", (e) => {
     const sheet = e.isTrusted ? moduleSheet() : null;
@@ -1551,18 +1890,22 @@
     s.sheet.remove();
   };
   const takeOver = (sheet, before) => {
-    if (sheetGlide?.sheet === before) {
-      const was = sheetGlide.anim;
-      runSheet(sheetGlide, sheet);
+    const g = glides.get(before);
+    if (g) {
+      const was = g.anim, wasFoot = g.foot;
+      glides.delete(before);
+      glides.set(sheet, g);
+      runSheet(g, sheet);
       // Where the one before is, though the page's thread may not have heard yet that it began;
       // not drawn yet, this one begins with the frame that draws it.
-      const began = was.startTime ?? sheetGlide.begun;
-      if (began != null) sheetGlide.anim.startTime = began;
+      const began = was.startTime ?? g.begun;
+      if (began != null) g.anim.startTime = began;
       was.cancel();
+      wasFoot?.cancel();
     } else sheet.classList.toggle("is-full", before.classList.contains("is-full"));
     if (sheetTouch?.sheet !== before) return;
     sheetTouch.sheet = sheet;
-    sheetTouch.scroller = sheet.querySelector(":scope > .scroll");
+    sheetTouch.scroller = bodyOf(sheet);
     if (sheetTouch.mode === "drag") sheet.style.transform = before.style.transform;
     // The finger's events go on to where it touched, which left the page with the sheet that went:
     // the document no longer hears them there.
@@ -1600,22 +1943,18 @@
       root.style.removeProperty("--sheet-shade");
       const lost = lostSheet;
       // Nothing came in its place: its glide ends with it (a finished one has followed already).
-      setTimeout(() => { if (lostSheet === lost && !shownSheet && sheetGlide?.sheet === lost?.sheet) stopSheet(); }, 150);
+      setTimeout(() => { if (lostSheet === lost && !shownSheet && lost && glides.has(lost.sheet)) stopSheet(lost.sheet); }, 150);
       return;
     }
     const was = lostSheet && now - lostSheet.at < 150 ? lostSheet.sheet : null;
     lostSheet = null;
-    if (was && (sheetGlide?.sheet === was || !was.classList.contains("is-gone"))) takeOver(sheet, was);
-    else glideSheet(sheet, sheetAway(sheet), 0, "half", null, true);
+    if (was && (glides.has(was) || !was.classList.contains("is-gone"))) takeOver(sheet, was);
+    else showSheet(sheet);
   }).observe(document.body, { childList: true, subtree: true });
   // A window that grows past a phone's width or shrinks to it: the module stands where the page's
   // layout puts it at once, without anything of a glide, and without coming up from below.
   narrow.addEventListener("change", () => {
     dropStandin();
-    stopSheet();
-    stopFling();
-    root.style.removeProperty("--sheet-shade");
-    for (const el of modules) el.style.removeProperty("transform");
     shownSheet = moduleSheet();
   });
 
@@ -2665,6 +3004,7 @@
   addEventListener("betula:stage", () => {
     // A sheet left open on the page that went behind goes, as when Back leaves a page with it.
     for (const sheet of document.querySelectorAll("#content > .page-stage:not(.front) :is(.filters.open, .sidebar.sheet.open)")) {
+      stopSheet(sheet);
       sheet.classList.remove("open");
       sheet.dispatchEvent(new Event("betula:sheet-left", { bubbles: true }));
     }

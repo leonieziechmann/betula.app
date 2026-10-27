@@ -559,9 +559,17 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
   await page.waitForFunction(() => document.querySelectorAll("dialog.plan-setup .plan-setup-offers > button").length > 0, null, { timeout: 5000 }).catch(() => problems.push("phone: the module's programs never came"));
   await settled(page);
   const d = await dialog(page);
-  check(d && Math.abs(d.box.left) <= 1 && Math.abs(d.box.right - 390) <= 1 && Math.abs(d.box.bottom - 844) <= 1, `phone: the dialog is no sheet from below (${JSON.stringify(d?.box)})`);
+  // A sheet of a phone (owner, 2026-10-27): half up where it is taller than half the screen, else
+  // as tall as it is.
+  check(d && Math.abs(d.box.left) <= 1 && Math.abs(d.box.right - 390) <= 1 && Math.abs(d.box.top - Math.max(844 - d.box.height, 844 * 0.48)) <= 2, `phone: the dialog is no sheet from below (${JSON.stringify(d?.box)})`);
   check(d && near(d.searchBox?.left, d.offerBox?.left) && near(d.searchBox?.right, d.offerBox?.right) && near(d.searchBox?.height, d.offerBox?.height), `phone: the search is not as wide as the programs (${JSON.stringify([d?.searchBox, d?.offerBox])})`);
-  await page.tap("#plan-setup-search");
+  // Its grabber takes it all up, where the search is within reach.
+  if (d && d.box.top > 844 - d.box.height + 2) {
+    await page.touchscreen.tap(195, d.box.top + 8);
+    await page.waitForFunction(() => document.querySelector("dialog.plan-setup[open]")?.classList.contains("is-full"), null, { timeout: 3000 }).catch(() => problems.push("phone: the grabber did not take the dialog all up"));
+    await settled(page);
+  }
+  await page.tap("#plan-setup-search", { timeout: 5000 });
   await page.waitForTimeout(400);
   const searching = await page.evaluate(() => ({ trigger: document.querySelector("#plan-setup-search").getBoundingClientRect().toJSON(), list: document.querySelector("dialog.plan-setup .combo-pop")?.getBoundingClientRect().toJSON() }));
   check(near(searching.trigger.left, d?.searchBox?.left) && near(searching.trigger.right, d?.searchBox?.right) && searching.list && near(searching.list.left, searching.trigger.left) && near(searching.list.right, searching.trigger.right), `phone: the search grows as it opens (${JSON.stringify([searching, d?.searchBox])})`);
@@ -569,7 +577,7 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
   await page.waitForTimeout(200);
   check((await plannedIn(page, id0)).length === 0, "phone: the swipe planned before the dialog's answer");
   await shot(page, "phone-dialog");
-  await page.tap("dialog.plan-setup .plan-setup-without");
+  await page.tap("dialog.plan-setup .plan-setup-without", { timeout: 5000 });
   await page.waitForTimeout(400);
   check((await plannedIn(page, id0)).length === 1, "phone: „Ohne Studium einplanen“ planned nothing");
   check(await page.evaluate(() => sessionStorage.getItem("betula.plan.asked")) === "1", "phone: the session will ask again");
@@ -647,7 +655,8 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
   await noteThere(page, "phone, planned from the sheet");
   await page.waitForTimeout(700);
   await page.evaluate(() => { window.__tops = []; const tick = () => { const n = document.querySelector(".wait-note"); window.__tops.push(n ? n.getBoundingClientRect().top : null); if (window.__tops.length < 60) requestAnimationFrame(tick); }; requestAnimationFrame(tick); });
-  await page.tap(".detail.is-module [data-action=close-detail]");
+  // Closed by a tap beside it (its × is out of sight on a phone, the grabber its one decoration).
+  await page.touchscreen.tap(195, 150);
   await noteGone(page, "phone, the sheet closed");
   await page.waitForTimeout(1100);
   const tops = (await page.evaluate(() => window.__tops)).filter((top) => top !== null);

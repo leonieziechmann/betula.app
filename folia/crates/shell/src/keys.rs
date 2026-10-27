@@ -14,7 +14,8 @@
 use leptos::prelude::*;
 
 use folia_design::keys::{Keys, LettersSwitch};
-use folia_design::ui::{DialogClose, Icon};
+use folia_design::modal::{kept, Modal, ModalHead};
+use folia_design::ui::Icon;
 
 use crate::i18n::{self, keys::Row, Texts};
 use crate::tabs::Area;
@@ -145,25 +146,18 @@ pub fn KeysButton() -> impl IntoView {
 }
 
 /// The overview, once in the app: a dialog shown modally (in the middle of the window, a sheet on
-/// a phone), Esc and a click beside it close it, and the focus goes back where it was.
+/// a phone; `folia_design::modal`), Esc and a click beside it close it, and the focus goes back
+/// where it was.
 #[component]
 pub fn KeysHelp() -> impl IntoView {
     let t = i18n::t();
     let Some(KeysOpen(open)) = KeysOpen::expect() else { return ().into_any() };
-    let node = NodeRef::<leptos::html::Dialog>::new();
     let location = folia_design::i18n::router_location();
-    Effect::new(move |_| {
-        let shown = open.with(Option::is_some);
-        let Some(element) = node.get() else { return };
-        if shown && !element.open() {
-            let _ = element.show_modal();
-        } else if !shown && element.open() {
-            element.close();
-        }
-    });
+    // Where the keyboard was when it opened; kept while it goes.
+    let from = kept(move || open.get());
     let close = move || open.set(None);
     let body = move || {
-        open.get().map(|from| {
+        from.get().map(|from| {
             let path = location.pathname.get_untracked();
             let area = Area::of(&path);
             let here = Group::of(&from, area);
@@ -194,42 +188,19 @@ pub fn KeysHelp() -> impl IntoView {
         })
     };
     view! {
-        <dialog
-            class="st-dialog keys-dialog"
-            node_ref=node
-            data-sheet=""
-            aria-labelledby="keys-title"
-            on:close=move |_| close()
-            // A click on the dim backdrop is a click on the dialog itself.
-            on:click=move |ev: leptos::ev::MouseEvent| {
-                let on_backdrop = ev.target().and_then(|target| node.get_untracked().map(|dialog| {
-                    let dialog: &leptos::web_sys::EventTarget = dialog.as_ref();
-                    dialog == &target
-                }));
-                if on_backdrop == Some(true) {
-                    close();
-                }
-            }
-        >
-            <div class="st-dlg">
-                <header class="st-dlg-head">
-                    <span class="st-grip" aria-hidden="true"></span>
-                    <div>
-                        <h2 id="keys-title">{t.keys.title}</h2>
-                        <p>{t.keys.lead}</p>
-                    </div>
-                    <DialogClose on_close=Callback::new(move |()| close())/>
-                </header>
-                <div class="st-dlg-body keys-body">
-                    <div class="keys-groups">{body}</div>
-                    <div class="keys-letters">
-                        <p class="label" id="keys-letters">{t.ui.letters}</p>
-                        <LettersSwitch labelled_by="keys-letters"/>
-                        <p class="keys-letters-hint">{t.ui.letters_hint}</p>
-                    </div>
+        <Modal open=Signal::derive(move || open.with(Option::is_some)) on_close=close class="keys-dialog" labelled_by="keys-title">
+            <ModalHead id="keys-title" title=t.keys.title on_close=close>
+                <p>{t.keys.lead}</p>
+            </ModalHead>
+            <div class="st-dlg-body keys-body">
+                <div class="keys-groups">{body}</div>
+                <div class="keys-letters">
+                    <p class="label" id="keys-letters">{t.ui.letters}</p>
+                    <LettersSwitch labelled_by="keys-letters"/>
+                    <p class="keys-letters-hint">{t.ui.letters_hint}</p>
                 </div>
             </div>
-        </dialog>
+        </Modal>
     }
     .into_any()
 }

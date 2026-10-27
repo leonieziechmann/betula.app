@@ -580,7 +580,7 @@ pub(crate) fn PickMenus(picking: Picking) -> impl IntoView {
         let label = title.clone();
         Some(view! {
             <div class="st-pop-shade" on:mousedown=|ev: MouseEvent| ev.prevent_default() on:click=move |_| close() on:contextmenu=move |ev: MouseEvent| { ev.prevent_default(); close(); }></div>
-            <div class="st-pop root view-menu pick-menu" role="menu" aria-label=label style=style on:keydown=keys>
+            <div data-sheet="" class="st-pop root view-menu pick-menu" role="menu" aria-label=label style=style on:keydown=keys>
                 <p class="st-pop-title st-phone">{title}</p>
                 {parts.into_iter().map(|part| match part {
                     Part::Line => view! { <hr/> }.into_any(),

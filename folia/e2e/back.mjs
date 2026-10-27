@@ -217,10 +217,13 @@ await part("Android", async () => {
   // 5 a module's sheet
   await step("a module", () => page.tap(".rows a.row >> nth=0"), () => /[?&]open=/.test(location.search) && document.querySelector(".detail.is-module h2"));
   const opened = await where(page);
-  await step("its ×", () => page.tap('.detail.is-module [data-action="close-detail"]'), () => !/[?&]open=/.test(location.search) && !document.querySelector(".detail.is-module:not(.is-gone)"));
+  // Closed as its × closes it (out of sight on a phone, the grabber its one decoration: owner,
+  // 2026-10-27): a tap beside it.
+  await page.waitForTimeout(400);
+  await step("a tap beside it", () => page.touchscreen.tap(195, 150), () => !/[?&]open=/.test(location.search) && !document.querySelector(".detail.is-module:not(.is-gone)"));
   now = await where(page);
-  check(now.at === opened.at - 1 && now.length === opened.length, `the × did not go back a step: ${JSON.stringify(opened)} → ${JSON.stringify(now)}`);
-  check(await page.evaluate(() => navigation.canGoForward), "after the × Forward cannot bring the module");
+  check(now.at === opened.at - 1 && now.length === opened.length, `closing it did not go back a step: ${JSON.stringify(opened)} → ${JSON.stringify(now)}`);
+  check(await page.evaluate(() => navigation.canGoForward), "after closing it Forward cannot bring the module");
 });
 
 // ---------- a stack for each tab ----------
