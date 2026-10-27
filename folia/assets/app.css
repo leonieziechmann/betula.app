@@ -270,6 +270,10 @@ table { border-collapse: collapse; width: 100%; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .skip-link { position: absolute; left: 12px; top: -100px; z-index: 60; background: var(--panel); padding: 10px 14px; border-radius: var(--r-ctl); box-shadow: var(--shadow-pop); }
 .skip-link:focus { top: 10px; }
+/* What comes and goes over the page (folia-app's `.overlays`; enhance.js puts its copies of sheets
+   there too): a frame without a box, so that a note or a menu put into it moves no part of the page
+   in the body's order, which had Chrome restyle all of the page for its `:nth-child`s. */
+.overlays { display: contents; }
 /* A side panel keeps its wheel: only the end of the page itself (`.page`, the list) goes on to
    the window, where the ground comes (see „the birch"). */
 .scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; overscroll-behavior-y: contain; }
@@ -1573,16 +1577,19 @@ button.coll-item.add:hover { background: var(--row-hover); }
 .module-note-edit { flex: none; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--text-3); cursor: pointer; }
 .module-note-edit > .icon { width: 14px; height: 14px; }
 .note-prose { flex: 1 1 auto; min-width: 0; max-width: none; padding-top: 2px; color: var(--text); font-size: 13.5px; line-height: 1.45; }
-.note-prose > * + * { margin-top: .35em; }
+.note-prose > :where(:not(:first-child)) { margin-top: .35em; }
 .note-prose :is(ul, ol) { padding-left: 1.3em; }
 .note-prose li + li { margin-top: .1em; }
 .note-prose blockquote { margin: 0; padding-left: 9px; border-left: 2px solid var(--line-strong); color: var(--text-2); }
 @media (max-width: 900px) {
   .mark-pair > .mark-switch { justify-content: center; }
   :is(.mark-more, .plan-more) { width: 42px; min-height: 44px; }
-  .mark-pair > .mark-switch:has(> small) { display: inline-grid; grid-template-columns: auto minmax(0, max-content); justify-content: center; gap: 0 8px; align-content: center; }
-  .mark-pair > .mark-switch:has(> small) > .icon { grid-row: span 2; }
-  .mark-pair > .mark-switch:has(> small) > span:first-of-type { line-height: 19px; }
+  /* `.with-note`: a switch with its small line (folia-stores), where `:has(> small)` was: a `<small>`
+     put in anywhere had Chrome restyle every switch of the page. `button…:where()` weighs what
+     `:has(> small)` weighed. */
+  .mark-pair > button.mark-switch:where(.with-note) { display: inline-grid; grid-template-columns: auto minmax(0, max-content); justify-content: center; gap: 0 8px; align-content: center; }
+  .mark-pair > button.mark-switch:where(.with-note) > .icon { grid-row: span 2; }
+  .mark-pair > button.mark-switch:where(.with-note) > span:first-of-type { line-height: 19px; }
   .mark-pair > .mark-switch > small { max-width: none; font-size: 12.5px; line-height: 16px; }
   .module-note { margin-top: 12px; font-size: 14.5px; }
 }
@@ -1626,7 +1633,7 @@ button.coll-item.add:hover { background: var(--row-hover); }
 @media (min-width: 901px) {
   .switches .mark-switch > small { flex: 1 1 auto; max-width: none; }
   .switches .mark-switch kbd { margin-left: auto; }
-  .switches .plan-toggle.mark-switch:has(> small) { grid-template-columns: auto auto minmax(0, 1fr) auto; }
+  .switches button.plan-toggle.mark-switch:where(.with-note) { grid-template-columns: auto auto minmax(0, 1fr) auto; }
 }
 .module-page > .hero .hero-line { --switches-end: 2px; }
 html:not(.js) .hero-line > .switches { display: none; }
@@ -1651,11 +1658,11 @@ html:not(.js) .hero-line > .badges { padding: 0; row-gap: 6px; }
   /* The small line has a column of its own, which takes what the label and the shortcut leave and
      gives way (`.switches` above). Its gap is inside the column (::before), so that an empty column
      adds none. */
-  .plan-toggle.mark-switch:has(> small) { display: inline-grid; grid-template-columns: auto auto minmax(0, max-content) auto; gap: 0; }
-  .plan-toggle.mark-switch:has(> small) > .icon { margin-right: 8px; }
-  .plan-toggle.mark-switch:has(> small) > small { grid-column: 3; }
-  .plan-toggle.mark-switch:has(> small) > small::before { content: ""; padding-left: 8px; }
-  .plan-toggle.mark-switch:has(> small) kbd { grid-column: 4; margin-left: 8px; }
+  button.plan-toggle.mark-switch:where(.with-note) { display: inline-grid; grid-template-columns: auto auto minmax(0, max-content) auto; gap: 0; }
+  button.plan-toggle.mark-switch:where(.with-note) > .icon { margin-right: 8px; }
+  button.plan-toggle.mark-switch:where(.with-note) > small { grid-column: 3; }
+  button.plan-toggle.mark-switch:where(.with-note) > small::before { content: ""; padding-left: 8px; }
+  button.plan-toggle.mark-switch:where(.with-note) kbd { grid-column: 4; margin-left: 8px; }
 }
 /* On a phone the pair takes a line of its own under the badges and fills it, each switch half of
    it with its content in the middle (owner, 2026-09-27: kept at the line's right end, the two
@@ -1677,9 +1684,9 @@ html:not(.js) .hero-line > .badges { padding: 0; row-gap: 6px; }
   .hero-line .switches .mark-switch { display: inline-grid; grid-template-columns: auto minmax(0, 6.5em); justify-content: center; align-content: center; gap: 0 8px; }
   .hero-line .switches .mark-switch > .icon { grid-row: span 2; }
   .plan-toggle.mark-switch > span:first-of-type { min-width: 77px; }
-  .plan-toggle.mark-switch:has(> small) { display: inline-grid; grid-template-columns: auto minmax(0, max-content); justify-content: center; gap: 0 8px; align-content: center; }
-  .plan-toggle.mark-switch:has(> small) > .icon { grid-row: span 2; }
-  .plan-toggle.mark-switch:has(> small) > span:first-of-type { line-height: 19px; }
+  button.plan-toggle.mark-switch:where(.with-note) { display: inline-grid; grid-template-columns: auto minmax(0, max-content); justify-content: center; gap: 0 8px; align-content: center; }
+  button.plan-toggle.mark-switch:where(.with-note) > .icon { grid-row: span 2; }
+  button.plan-toggle.mark-switch:where(.with-note) > span:first-of-type { line-height: 19px; }
   .plan-toggle.mark-switch > small { font-size: 12.5px; line-height: 16px; }
 }
 /* Among the actions of a sidebar, and what else a sidebar's action can be: a button, a question. */
@@ -1965,7 +1972,7 @@ html.js .linklist.runout:not(.all) > :nth-child(5) { -webkit-mask-image: linear-
    German text on the English page breaks as German. A heading (a paragraph all strong) is neither
    justified nor hyphenated. */
 .prose { container: prose / inline-size; color: var(--text-2); font-size: 14px; line-height: 1.6; max-width: 72ch; overflow-wrap: break-word; }
-.prose > * + * { margin-top: .75em; }
+.prose > :where(:not(:first-child)) { margin-top: .75em; }
 .prose > p + :is(ul, ol) { margin-top: .4em; }
 /* Blocksatz (owner, 2026-10-01: „support für Blocksatz", „Ja mach mal Blocksatz überall ab wo es
    sinnvoll ist/gut aussieht"): running text — paragraphs of several lines that are read through —
@@ -2882,7 +2889,7 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 .legal-part h2 { font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
 /* One measure for the text, the label | text rows included, so the parts share their right edge. */
 .legal-part > * { max-width: 704px; }
-.legal-part > * + *, .legal-facts dd > * + * { margin-top: 10px; }
+.legal-part > :where(:not(:first-child)), .legal-facts dd > :where(:not(:first-child)) { margin-top: 10px; }
 .legal-part p, .legal-part li, .legal-facts dd { color: var(--text-2); font-size: 14.5px; line-height: 1.6; }
 .legal-part p, .legal-facts dd { text-wrap: pretty; }
 .legal-part ul { display: grid; gap: 3px; }
@@ -3997,8 +4004,11 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
   .is-termin.tm-page .dbody.tm { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px 40px; align-items: start; }
   .is-termin.tm-page .hero h2.tm-title { font-size: 28px; }
 }
-/* The start page filled with its Termin („Ganze Seite", home/today.rs): its own parts make way. */
-.page-inner.day:has(> .day-termin.filling) > :not(.day-termin) { display: none; }
+/* The start page filled with its Termin („Ganze Seite", home/today.rs): its own parts make way.
+   A class of the page (home/mod.rs), not `:has(> .day-termin.filling)`: a `:has()` before a subject
+   as wide as `:not(.day-termin)` made Chrome restyle the whole document whenever a node was put in
+   anywhere, in the first frame of every click (snappy.mjs). */
+.page-inner.day.termin-full > :not(.day-termin) { display: none; }
 .is-termin .dbody.tm { container-type: inline-size; display: flex; flex-direction: column; gap: 16px; padding-top: 16px; }
 .is-termin .tk { position: relative; container-type: inline-size; border-radius: 14px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
 .is-termin .tk-date { display: flex; align-items: center; gap: 2px; min-height: 40px; padding: 6px 10px 0 6px; }

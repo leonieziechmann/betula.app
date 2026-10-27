@@ -1700,6 +1700,9 @@
     if (top) copy.scrollTop = top;
     for (let x = node.firstElementChild, y = copy.firstElementChild; x && y; x = x.nextElementSibling, y = y.nextElementSibling) scrollCopy(x, y);
   };
+  // Where what comes and goes over the page goes (app.css `.overlays`): put into the body itself,
+  // it moved every part of the page in the body's order, and Chrome restyled all of it.
+  const overlays = () => document.querySelector("body > .overlays") || document.body;
   const ghostSheet = (sheet, nodes, seen, y, v, shade) => {
     if (!seen?.height || calmMotion()) return;
     const ghost = document.createElement("div");
@@ -1718,7 +1721,7 @@
     ghost.append(...copies);
     const scrim = document.createElement("div");
     scrim.className = "sheet-ghost-scrim";
-    document.body.append(scrim, ghost);
+    overlays().append(scrim, ghost);
     nodes.forEach((node, i) => scrollCopy(node, copies[i]));
     const away = Math.max(1, innerHeight - ghost.offsetTop);
     let ys = springTo(y, v * 1000, away + SHEET_PAST, SHEET_AWAY);
@@ -1937,7 +1940,7 @@
       if (!sheet && !standin && asksModule() && before.classList.contains("sk-detail") && !before.classList.contains("is-gone")) {
         shownSheet = before;
         standin = { sheet: before, timer: setTimeout(dropStandin, 3000) };
-        document.body.append(before);
+        overlays().append(before);
         takeOver(before, before);
         return;
       }
@@ -2744,9 +2747,9 @@
   // the ground cut off end above it with round corners, which the ground draws (owner, 2026-10-04);
   // the first scroll takes them away (owner, 2026-09-30: drawn along with the ground they looked
   // off). The heads of the list's columns stay under the list's head: its height is
-  // `--list-head-h`; „Mein Studium"'s semester is such a list in the page, under the overview
-  // (`LISTS`, app.css „Mein Studium"). The scrollbar's width is `--bar`: it stands in the gap right
-  // of the page.
+  // `--list-head-h`, on the list; „Mein Studium"'s semester is such a list in the page, under the
+  // overview (`LISTS`, app.css „Mein Studium"). The scrollbar's width is `--bar`: it stands in the
+  // gap right of the page.
   // A phone scrolls the window, and none of this applies there (app.css has all of it for wide
   // screens only): it measured every page as it was built, a layout in each of its frames, and gave
   // each new page `--bar` and `--cover`, which restyled the whole page once more; a quarter of what
@@ -2760,9 +2763,11 @@
   let areaTimer = 0, areaFrame = 0, woodMoved = false, headSeen = null, covered = 0, coveredArea = null, areaOn = false;
   const headWatch = new ResizeObserver(([entry]) => {
     // Its height as drawn, with the fraction a scaled screen gives it: rounded, the heads of the
-    // columns stood a pixel off it and the rows showed through.
-    const area = flowing(), height = entry?.borderBoxSize?.[0]?.blockSize ?? entry?.target.getBoundingClientRect().height;
-    if (area && height) area.style.setProperty("--list-head-h", height + "px");
+    // columns stood a pixel off it and the rows showed through. On the list, where all that reads
+    // it is: on the area, a tag that made the head taller restyled every part of the page (the
+    // filters too) in the frame of the click.
+    const list = flowing() && entry?.target.closest(".list, .st-sems"), height = entry?.borderBoxSize?.[0]?.blockSize ?? entry?.target.getBoundingClientRect().height;
+    if (list && height && list.style.getPropertyValue("--list-head-h") !== height + "px") list.style.setProperty("--list-head-h", height + "px");
   });
   // How much of the pinned panels the ground covers: from 8 px above it to their end.
   const coverOf = (area) => {
@@ -2795,9 +2800,10 @@
     headWatch.disconnect();
     headSeen = null;
     const area = flowing();
-    for (const prop of ["--bar", "--cover", "--list-head-h"]) area?.style.removeProperty(prop);
+    for (const prop of ["--bar", "--cover"]) area?.style.removeProperty(prop);
     area?.removeAttribute("data-rest");
     area?.querySelector(LISTS)?.classList.remove("short");
+    area?.querySelector(LISTS)?.style.removeProperty("--list-head-h");
     document.getElementById("to-top")?.style.removeProperty("--lift");
     covered = 0;
     coveredArea = null;
@@ -3439,7 +3445,10 @@
   // The tag on the ring, over the mode's top edge: on the page itself, since what scrolls the page
   // (the catalog's one scroll area) cuts off whatever of the panel stands above it; placed where
   // the mode is, there while the keyboard is in it (and only after a key: app.css, `data-kb`).
-  let tagEl = null;
+  // What it says is written only when it changes: put into the page anew with each focus, its keys
+  // had Chrome check the `:has()`s of the whole page again (each row's switch then), a restyle of
+  // hundreds of elements between a click's press and the click (snappy.mjs).
+  let tagEl = null, tagSays = null;
   const placeTag = () => {
     const mode = modeOf(document.activeElement);
     if (!tagEl) {
@@ -3449,7 +3458,8 @@
       document.body.append(tagEl);
     }
     if (!mode || !shown(mode)) return tagEl.removeAttribute("data-on");
-    tagEl.innerHTML = kb().leave(caps("Esc"));
+    const says = kb().leave(caps("Esc"));
+    if (says !== tagSays) tagEl.innerHTML = tagSays = says;
     const r = mode.getBoundingClientRect();
     tagEl.style.left = `${Math.round(r.left + 10)}px`;
     tagEl.style.top = `${Math.round(r.top - 9)}px`;
@@ -3889,6 +3899,9 @@
     if (control.type === "range") return "slider";
     return null;
   };
+  // What a bar says, written only when it changes (as the mode's tag, `placeTag`): its keys put in
+  // anew with each focus had the `:has()`s of the whole page checked again.
+  const barSays = new WeakMap();
   const updateBar = () => {
     const el = document.activeElement;
     const mode = modeOf(el);
@@ -3897,7 +3910,11 @@
     const { bar } = modeParts(mode);
     const kind = barKind(el);
     const keys = kind && kb().bar[kind];
-    bar.innerHTML = keys ? keys.map(([k, w]) => `<span>${k.split(" ").map(caps).join("")}${escHtml(w)}</span>`).join("") : "";
+    const says = keys ? keys.map(([k, w]) => `<span>${k.split(" ").map(caps).join("")}${escHtml(w)}</span>`).join("") : "";
+    if (barSays.get(bar) !== says) {
+      bar.innerHTML = says;
+      barSays.set(bar, says);
+    }
     bar.toggleAttribute("data-on", !!keys);
   };
   // The section with the keyboard, lit as the open row of a list (owner, 2026-10-20: „mit der bg

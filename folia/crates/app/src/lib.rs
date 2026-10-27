@@ -235,19 +235,25 @@ pub fn App() -> impl IntoView {
             // there too (the stylesheet shows the line while the start page is in front).
             <Ground credit=ViewFn::from(|| view! { <Credits/> })/>
             <nav class="bottomnav" aria-label=t.app.navigation data-region="nav" data-stop="x"><NavItems/></nav>
-            <TabMenu/>
-            <ProfileSwitcher/>
-            <folia_shell::keys::KeysHelp/>
-            <folia_shell::commands::CommandPalette/>
-            // What „Einplanen" did, the dialog that sets up the study on the way, and the menu at
-            // the arrow of a module planned.
-            <PlanNote/>
-            <PlanSetup/>
-            <folia_widgets::planmenu::PlanMenuHost/>
-            <folia_widgets::planinto::PlanIntoHost/>
-            // What marking did, and the menu of a module's collections and note.
-            <folia_widgets::marknote::MarkNote/>
-            <folia_widgets::collect::CollectHost/>
+            // What comes and goes over the page, in a frame of its own that has no box (app.css,
+            // `.overlays`): a note or a menu put into the body itself moved the place of every part
+            // of the page beside it, and Chrome restyled all of the page for its `:nth-child`s and
+            // `:last-child`s, in the first frame of „Einplanen".
+            <div class="overlays">
+                <TabMenu/>
+                <ProfileSwitcher/>
+                <folia_shell::keys::KeysHelp/>
+                <folia_shell::commands::CommandPalette/>
+                // What „Einplanen" did, the dialog that sets up the study on the way, and the menu
+                // at the arrow of a module planned.
+                <PlanNote/>
+                <PlanSetup/>
+                <folia_widgets::planmenu::PlanMenuHost/>
+                <folia_widgets::planinto::PlanIntoHost/>
+                // What marking did, and the menu of a module's collections and note.
+                <folia_widgets::marknote::MarkNote/>
+                <folia_widgets::collect::CollectHost/>
+            </div>
         </Router>
     }
 }
