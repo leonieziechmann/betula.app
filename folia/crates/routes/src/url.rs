@@ -144,9 +144,28 @@ pub fn share_path(code: &str) -> String {
 /// (`StudyplanUrl::termin`). The app's alone: the server renders the start page the same for
 /// every query (R9). `None` for an address without a Termin, or with nonsense in its place.
 pub fn home_termin(raw_query: &str) -> Option<(RowKey, Option<Day>)> {
+    termin_of(raw_query)
+}
+
+/// The Termin and the day of it an address names beside its page (`termin=<key>&on=<day>`), as
+/// the Stundenplan's, the start page's and a module page's do; `None` without a Termin, or with
+/// nonsense in its place.
+pub fn termin_of(raw_query: &str) -> Option<(RowKey, Option<Day>)> {
     let pairs = parse_pairs(raw_query);
     let key = first_value(&pairs, "termin").and_then(|key| RowKey::parse(&key.to_ascii_lowercase()))?;
     Some((key, first_value(&pairs, "on").and_then(|day| Day::parse(&day))))
+}
+
+/// A module's page with a Termin of it beside it, to look up (`/catalog/module/<id>?termin=<key>
+/// &on=<day>`; folia/design/termin: „über /catalog/module/11112?termin=… zum Nachschlagen"), its
+/// hint kept (`ModuleHint`); `None`: the page without it. The app's alone: the server keys a module
+/// page by its path.
+pub fn module_termin_path(id: &str, hint: &ModuleHint, termin: Option<(RowKey, Option<Day>)>) -> String {
+    let page = format!("{}{}", module_path(id), hint.query());
+    let Some((key, on)) = termin else { return page };
+    let and = if page.contains('?') { '&' } else { '?' };
+    let on = on.map(|day| format!("&on={}", day.iso())).unwrap_or_default();
+    format!("{page}{and}termin={}{on}", key.text())
 }
 
 /// The prefix of a Termin's own page (`/event/<key>[/<day>]`).
@@ -2052,6 +2071,12 @@ mod tests {
         assert_eq!(home_termin_path(Some((key, Day::parse("2026-11-04")))), "/?termin=148369-aaf38&on=2026-11-04");
         assert_eq!(home_termin_path(Some((key, None))), "/?termin=148369-aaf38");
         assert_eq!(home_termin_path(None), "/");
+        // Beside a module's page, its hint kept.
+        let hint = ModuleHint::parse("plan=2026W&fill=p3");
+        assert_eq!(module_termin_path("12104", &hint, Some((key, Day::parse("2026-11-04")))), "/catalog/module/12104?plan=2026W&fill=p3&termin=148369-aaf38&on=2026-11-04");
+        assert_eq!(module_termin_path("12104", &ModuleHint::default(), Some((key, None))), "/catalog/module/12104?termin=148369-aaf38");
+        assert_eq!(module_termin_path("12104", &hint, None), "/catalog/module/12104?plan=2026W&fill=p3");
+        assert_eq!(termin_of("plan=2026W&termin=148369-aaf38&on=2026-11-04"), Some((key, Day::parse("2026-11-04"))));
         // „Ganze Seite": the start page filled with it; `full` is nothing without a Termin.
         let full = home_termin_full_path(key, Day::parse("2026-11-04"));
         assert_eq!(full, "/?termin=148369-aaf38&on=2026-11-04&full=1");

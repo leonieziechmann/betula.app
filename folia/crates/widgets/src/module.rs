@@ -535,6 +535,13 @@ fn Sidebar(data: ModuleData, hint: Signal<Option<PlanHint>>) -> impl IntoView {
     }
 }
 
+/// Where a line of the module's Termine leads, given by the page that shows the module: its own
+/// page opens the Termin beside itself (`?termin=<key>`, folia_catalog::module). Without it, as in
+/// a preview beside a list and in „Vollbild" in another area, the line leads to the Termin's own
+/// page (`/event/<key>`). The app's alone: the server's lines lead to the Termin's page (R9).
+#[derive(Clone, Copy)]
+pub struct TerminBeside(pub Callback<RowKey, String>);
+
 /// The module's whole page: the frame with the module's sidebar, the module on the rest of the
 /// screen. One component wherever the page is shown; `back_area` and `back_to` say where
 /// „Zurück" leads (the list of the area, or the page `back_to` names: a path of the app, which
@@ -551,6 +558,11 @@ pub fn ModuleFull(
     /// The slug of the program the page is shown in (a program's page): as `ModulePanel`'s.
     #[prop(optional_no_strip)]
     program: Option<String>,
+    /// What stands beside the page while `aside_picked` (a Termin of the module, its own page's).
+    #[prop(optional, into)]
+    aside: Option<ViewFn>,
+    #[prop(optional, into)]
+    aside_picked: Signal<bool>,
 ) -> impl IntoView {
     let t = i18n::t();
     let derived = derive(&data, t);
@@ -562,6 +574,8 @@ pub fn ModuleFull(
             title=t.module.sidebar_title
             head={ let id = data.module.id.clone(); move || view! { <span class="mono">{id.clone()}</span> } }
             sidebar={ let data = data.clone(); move || view! { <Sidebar data=data.clone() hint/> } }
+            aside=aside.unwrap_or_default()
+            aside_picked
         >
                 <Seo
                     title=format!("{} ({})", data.module.title, data.module.id)
@@ -820,6 +834,7 @@ fn DataClient(data: ModuleData) -> impl IntoView {
 fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
     let t = i18n::t();
     let words = &t.module;
+    let beside = use_context::<TerminBeside>();
     let m = &data.module;
     // The semesters as the page's language names them, not as the snapshot does.
     let newest = data.schedule.first().map(|d| (d.semester_key.clone(), semester_name(&d.semester_key, &d.semester_label, t.locale)));
@@ -991,11 +1006,16 @@ fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
                     {(details || marker.is_none()).then(|| view! { <small title=room_long>{detail_line(head, dates, tail, t.locale)}</small> })}
                     {marker.map(|text| view! { <small class="odd"><Icon name="info"/><span>{text}</span></small> })}
                 };
-                // A Termin leads to its own page, to look it up (folia/design/termin; owner,
-                // 2026-10-26: „die Informative ansicht für die Modulpage"); an exam date to QIS.
+                // A Termin leads to the view that looks it up (folia/design/termin; owner,
+                // 2026-10-26: „die Informative ansicht für die Modulpage"): beside the module's own
+                // page where it gives the way (`TerminBeside`), else its own page; an exam date to
+                // QIS.
                 let termin = reading.is_none().then(|| RowKey::of(&d)).flatten();
                 Some(match (termin, d.source_url.clone()) {
-                    (Some(key), _) => view! { <a class="ev" class:faint=faint class:gap=gap id=id href=t.path(&url::event_path(key, None)) rel="nofollow" title=listed>{body}</a> }.into_any(),
+                    (Some(key), _) => match beside {
+                        Some(TerminBeside(beside)) => view! { <a class="ev" class:faint=faint class:gap=gap id=id href=beside.run(key) rel="nofollow" data-noscroll="" title=listed>{body}</a> }.into_any(),
+                        None => view! { <a class="ev" class:faint=faint class:gap=gap id=id href=t.path(&url::event_path(key, None)) rel="nofollow" title=listed>{body}</a> }.into_any(),
+                    },
                     (None, Some(href)) => view! { <a class="ev" class:faint=faint class:gap=gap id=id href=href rel="noopener" title=listed>{body}</a> }.into_any(),
                     (None, None) => view! { <div class="ev" class:faint=faint class:gap=gap id=id title=listed>{body}</div> }.into_any(),
                 })

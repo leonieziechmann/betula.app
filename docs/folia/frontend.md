@@ -47,7 +47,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/about/<topic>` | A topic of „Über Betula" on a page of its own (`url::AboutTopic`, `folia/crates/home/src/home/topics.rs`; 2026-10-27): `finding` („Module finden": the way to a module, the filters with their board), `planning` („Studium planen": the Regelstudienpläne, the Stundenplan), `data` („Deine Daten": no account, where the data comes from), `technology` („Technik": with and without JavaScript, the devices), `questions` („Häufige Fragen", with the `FAQPage` data). Each with its own title and description, in the sitemap, the stage of no tab; another name after `/about/` is a 404. The start page's tiles lead to four of them, „Über Betula"'s to all five |
 | `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `area`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `events`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `marked`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation). `area=<id>[,<id>…]` are areas of the selected program's module tree („Wahlpflichtmodule Praktische Informatik"): the modules the tree places in any of them or below one (several come from a row of the plan that means several areas, opened from the program's page; the picker then says „5 Bereiche", one tag per area above the list) |
 | `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone the preview is a sheet from below over the list, without „Vollbild" (2026-10-06, 2026-10-16, „A module on a phone" below; until then a tap on a row opened the module's page, and the app turned a shared `open` link into it). The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
-| `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
+| `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen. `?termin=<key>&on=<day>`: a Termin of it beside the page to look up, on a phone a sheet over it (the app's alone; „A Termin in its own view") |
 | `/event/<key>[/<day>]` | A Termin's own page to look up (`url::event_path`, 2026-10-26; „A Termin in its own view" below), where a line of a module's Termine leads: the key a `RowKey`, the day a date of it (without one the next, the server's the first). The server renders it the same for everybody, `noindex`, not in the sitemap, its links to other dates `nofollow`; an event no module links is a 404. A page of a while: it lies on the tab it was opened from |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
 | `/study[?view=plan\|areas][&open=<id>][&full=1]` | „Mein Studium“ (`StudyUrl`, 2026-10-04): the visitor's study semester by semester, the first page of the Studium tab in the app (see „Mein Studium“ below). What is passed and planned lives in the browser; the address says only how it is shown: which view (`view`, 2026-10-14: `plan` the Regelstudienplan, `areas` the Wahlpflicht, none the semesters; on a phone each a page of its own that Back leaves), which module stands beside the page, and whether it fills it. The semester a phone's row shows rather than the overview is no part of the address since 2026-10-18 but the state of its entry of the history, which a reload, Back and Forward bring along and which writes no step („Back" below); from 2026-10-05 it was `plan=1`, a step after the overview, which is still read (and links the box „Studium planen" without JavaScript) and gives way to `/study` once the row is back at the overview; a desktop shows both at once. The server renders one stand-in for everybody, `noindex`, not in the sitemap |
@@ -2066,8 +2066,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     is a box (a click ticks it or takes its tick away); „Ausgeblendet" over the week lists every
     option ticked („nur Mo 15:30, Di 11:30") and each hidden date with its own „Einblenden".
   - **To look up: its own page** `/event/<key>[/<day>]` (`folia_catalog::event`, `TerminMode::LookUp`;
-    the concept's „Zum Nachschlagen"), where a line of a module's „Termine" leads (an exam still to
-    QIS). Its data is `EventAsk`: the timetable of the modules that link the event, in the newest
+    the concept's „Zum Nachschlagen"), where a line of a module's „Termine" leads from the server's
+    page, a preview and „Vollbild" in another area (an exam still to QIS; on the module's own page
+    the Termin opens beside it, below), and „Ganze Seite" of that. Its data is `EventAsk`: the timetable of the modules that link the event, in the newest
     semester it is held in. The same view without „Im Stundenplan": under the ticket the groups to
     look at (a tap opens the group's Termin, „eine von 4"). The app adds the visitor's plan of that
     semester (the Stundenplan's own `StudyplanAsk`): a module in it is read in the plan, its groups
@@ -2101,7 +2102,16 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     edge, the note of a module planned). The arrows need no hint (CLAUDE.md, „Design"); the
     overview of the keys has „Im Termin" wherever a Termin stands in its own view, first where `?`
     was pressed in it (←, →, V, Esc).
-  - **Not yet:** the Termin over a module's page (`/catalog/module/<id>?termin=…`).
+  - **Beside its module's page** (owner, 2026-10-27: „bau als Nächstes den Termin als Sheet über
+    der Modulseite"; the concept: „über /catalog/module/11112?termin=… zum Nachschlagen"): on the
+    module's own page in the app a line of its „Termine" opens the Termin beside the page
+    (`?termin=<key>&on=<day>`, `url::module_termin_path`, the page's hint kept), floating at its
+    right as a module beside a list does (the frame's aside), on a phone a sheet over it: the view
+    to look up, measured against the visitor's plan as on its own page (`folia_catalog::lookup`,
+    which both read). Its dates and groups open beside the page as well, „Zum Modul" closes it,
+    „Ganze Seite" (V) is the Termin's own page, „Schließen" (Esc) the page without it. The page
+    gives its lines that way (`folia_widgets::module::TerminBeside`); the server's lines, a preview
+    beside a list and „Vollbild" in another area lead to the Termin's own page.
 - **Offen and the choice in focus** (owner, 2026-10-26, after two rounds of
   `folia/design/kalender/konzepte.html` and `handy.html`: „A mit Fokus und Spur aus C", „nimm H1
   mit Vergleichen"; `folia_timetable::choice`, the planner's `studyplan/open.rs`, `week.rs`
