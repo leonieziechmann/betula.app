@@ -1,5 +1,5 @@
-//! The chapters of „Über Betula"'s topics (`topics.rs`; until 2026-10-27 „Betula im Detail", the
-//! end of its one page, and until concept A of the start page). Owner,
+//! The chapters of the pages about Betula (`topics.rs`; until 2026-10-27 „Betula im Detail", the
+//! end of the one page of „Über Betula", and until concept A of the start page). Owner,
 //! 2026-09-28: the first version was one long text — „das ist so langweilig und einfach nur eine
 //! wall of text. Mach das mal so, dass es für normale User auch interessant zu betrachten ist,
 //! während das Betula-Theme nicht gebrochen wird." So each chapter is a panel of its own (a
@@ -78,13 +78,14 @@ const TECHNOLOGY: Look = Look { id: "technik", tint: "t-slate", icon: "code", po
 const DATA: Look = Look { id: "daten", tint: "t-green", icon: "tree-deciduous", points: ["clock-3", "badge-check", "eye", "arrow-up-right"] };
 const DEVICES: Look = Look { id: "geraete", tint: "t-rose", icon: "monitor-smartphone", points: ["languages", "moon", "keyboard", "share-2"] };
 
-/// The chapters of a topic's page of „Über Betula" (`topics.rs`; owner, 2026-10-27: „Das soll
+/// The chapters of a topic's page about Betula (`topics.rs`; owner, 2026-10-27: „Das soll
 /// aufgeteilt werden in mehrere kontent pages"): until then all eight stood one under the other
-/// under „Betula im Detail" at the end of its one page, with a panel that named them; now two to
-/// a topic, the picture of the first on the right and of the second on the left (the board of the
-/// filters across the width under its words). `plans`: the current programs with a checked plan
-/// and all current programs; `example`: what the board's selection finds. Both are the
-/// snapshot's, and missing where it could not be read. The questions have no chapter.
+/// under „Betula im Detail" at the end of the one page of „Über Betula", with a panel that named
+/// them; now two to a topic, the picture of the first on the right and of the second on the left
+/// (the board of the filters across the width under its words). `plans`: the current programs
+/// with a checked plan and all current programs; `example`: what the board's selection finds. Both
+/// are the snapshot's, and missing where it could not be read. The overview and the questions have
+/// no chapter.
 #[component]
 pub fn Chapters(topic: AboutTopic, plans: Option<(u64, u64)>, example: Option<u64>) -> impl IntoView {
     let t = i18n::t();
@@ -130,7 +131,7 @@ pub fn Chapters(topic: AboutTopic, plans: Option<(u64, u64)>, example: Option<u6
             <Feature look=&DEVICES words=&d.devices flip=true picture=devices(t).into_any()/>
         }
         .into_any(),
-        AboutTopic::Questions => ().into_any(),
+        AboutTopic::Overview | AboutTopic::Questions => ().into_any(),
     }
 }
 

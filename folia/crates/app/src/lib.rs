@@ -22,7 +22,7 @@ use leptos_router::path;
 use folia_bookmarks::bookmarks::BookmarksPage;
 use folia_catalog::catalog::CatalogPage;
 use folia_design::ui;
-use folia_home::home::{about::AboutPage, topics::TopicPage, Credits, HomePage};
+use folia_home::home::{topics::{AboutRedirect, TopicPage}, Credits, HomePage};
 use folia_home::legal::{ImprintPage, PrivacyPage};
 use folia_planner::study::StudyPage;
 use folia_planner::studyplan::StudyplanPage;
@@ -122,7 +122,6 @@ fn pages() -> impl IntoView {
         <div class="page-stage front">
             <Routes fallback=move || view! { <Plain><ui::NotFound title=t.app.not_found_title hint=t.app.not_found_hint/></Plain> }>
                 <Route path=path!("/") view=HomePage ssr=SsrMode::Async/>
-                <Route path=path!("/about") view=AboutPage ssr=SsrMode::Async/>
                 <Route path=path!("/about/:topic") view=TopicPage ssr=SsrMode::Async/>
                 <Route path=path!("/catalog") view=CatalogPage ssr=SsrMode::Async/>
                 <Route path=path!("/catalog/module/:id") view=ModulePage ssr=SsrMode::Async/>
@@ -148,7 +147,7 @@ fn page(page: Page) -> AnyView {
     let t = i18n::t();
     match page {
         Page::Home => view! { <HomePage/> }.into_any(),
-        Page::About => view! { <AboutPage/> }.into_any(),
+        Page::About => view! { <AboutRedirect/> }.into_any(),
         Page::AboutTopic => view! { <TopicPage/> }.into_any(),
         Page::Catalog => view! { <CatalogPage/> }.into_any(),
         Page::Module => view! { <ModulePage/> }.into_any(),

@@ -205,11 +205,13 @@ fn frame(shape: Shape) -> AnyView {
                 </div>
             </div>
         }.into_any()),
-        // „Über Betula": what the start page said of Betula, its figures, the stage of pictures.
-        Shape::About => solo("", view! {
+        // The overview about Betula: what Betula is under the way back, its figures, the stage of
+        // pictures.
+        Shape::Overview => solo("", view! {
             <div class="page-inner">
                 <div class="panel sk-sweep sk-home">
                     <div class="sk-block">
+                        {bar("sk-pill")}
                         {bar("sk-pill sk-wide-pill")}
                         {lines(&["sk-w5 sk-big", "sk-w4 sk-big", "sk-w6", "sk-w4"])}
                         <div class="sk-chips">{bar("sk-button")}{bar("sk-button")}</div>
@@ -219,8 +221,7 @@ fn frame(shape: Shape) -> AnyView {
                 <div class="panel sk-sweep sk-stage"></div>
             </div>
         }.into_any()),
-        // A page of „Über Betula" on one topic: its head, then a chapter, its words beside its
-        // picture.
+        // Another page about Betula: its head, then a chapter, its words beside its picture.
         Shape::Topic => solo("", view! {
             <div class="page-inner">
                 <div class="panel sk-sweep sk-block">{bar("sk-pill")}{lines(&["sk-w4 sk-big", "sk-w6"])}</div>
