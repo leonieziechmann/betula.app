@@ -433,7 +433,7 @@ pub fn ProgramsPage() -> impl IntoView {
                 }).collect_view()}
                 <p class="hint">{t.programs.faculties_hint}</p>
             </nav>
-            <div class="filter-actions sheet-only">
+            <div class="filter-actions sheet-only" data-sheet-foot="">
                 <a class="btn primary" href="#" data-action="sheet-close">
                     {move || {
                         let n = shown.with(|s| s.programs as u64);

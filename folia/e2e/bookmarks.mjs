@@ -563,13 +563,24 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   // (The page in front's: the catalog's slides away under it for half a second after the tab.)
   await step("phone: „Filter“ opens the sheet", () => page.tap("#content > .page-stage.front .list-head .sheet-toggle"), () => onPage("#sidebar").classList.contains("open") && Boolean(onPage("#sidebar .order-list")?.getClientRects().length));
   await page.waitForTimeout(400);
+  // Half up, as the sheets of a phone come (owner, 2026-10-27); its grabber takes it all up, where
+  // the orders are within reach.
+  const allUp = async (what) => {
+    const top = await page.evaluate(() => Math.round(onPage("#sidebar").getBoundingClientRect().top));
+    check(Math.abs(top - Math.round(844 * 0.48)) < 4, `${what}: the sheet does not come up half up (${top})`);
+    await step(`${what}: its grabber takes it all up`, () => page.touchscreen.tap(195, top + 8), () => onPage("#sidebar").classList.contains("is-full") && !onPage("#sidebar").getAnimations().some((a) => a.playState === "running"));
+  };
+  await allUp("phone: the sheet");
   await step("phone: an order in the sheet is a draft", () => page.tap('#sidebar .order-list a:has-text("Leistungspunkte") >> visible=true'), () => location.search === "" && onPage('#sidebar .order-list a[aria-current="page"]')?.textContent.startsWith("Leistungspunkte") && onPage("#sidebar .filter-actions .show")?.textContent === "2 Module anzeigen");
   await step("phone: „2 Module anzeigen“ applies it", () => page.tap("#sidebar .filter-actions .show >> visible=true"), () => location.search === "?sort=ects" && !onPage("#sidebar").classList.contains("open"));
   await step("phone: „Filter“ counts the order", () => page.waitForTimeout(400), () => onPage(".list-head .sheet-toggle em")?.textContent === "1");
   await step("phone: the sheet again", () => page.tap(".list-head .sheet-toggle >> visible=true"), () => onPage("#sidebar").classList.contains("open"));
   await page.waitForTimeout(400);
-  await step("phone: another order, then the sheet closed with its ×", async () => { await page.tap('#sidebar .order-list a:has-text("Zuletzt gemerkt") >> visible=true'); await page.tap("#sidebar .sheet-close >> visible=true"); }, () => !onPage("#sidebar").classList.contains("open") && location.search === "?sort=ects");
-  check(await page.evaluate(() => onPage('#sidebar .order-list a[aria-current="page"]')?.textContent.startsWith("Leistungspunkte")), "phone: a sheet closed with its × kept its draft");
+  await allUp("phone: the sheet again");
+  // Closed another way than „… anzeigen" (a tap beside it; its × is out of sight on a phone):
+  // the draft goes.
+  await step("phone: another order, then the sheet closed by a tap beside it", async () => { await page.tap('#sidebar .order-list a:has-text("Zuletzt gemerkt") >> visible=true'); await page.mouse.click(195, 4); }, () => !onPage("#sidebar").classList.contains("open") && location.search === "?sort=ects");
+  check(await page.evaluate(() => onPage('#sidebar .order-list a[aria-current="page"]')?.textContent.startsWith("Leistungspunkte")), "phone: a sheet closed by a tap beside it kept its draft");
   // The module comes up as a sheet over the list (2026-10-06): the address and the tab stay the
   // list's, and the list stays under it.
   await step("phone: a tap opens the module's sheet over the list", () => page.tap(`a.row[data-id="${ids[1]}"] >> visible=true`), (id) => location.pathname === "/bookmarks" && location.search === `?sort=ects&open=${id}` && Boolean(onPage(".detail.is-module .mark-toggle")) && allOnPage(".rows a.row").length === 2, ids[1]);
@@ -577,7 +588,7 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   await page.waitForTimeout(500);
   const button = await page.evaluate(() => { const mark = onPage(".detail.is-module .mark-toggle"); const r = mark.getBoundingClientRect(); return { height: r.height, pressed: mark.getAttribute("aria-pressed"), seen: r.top < innerHeight && r.bottom <= innerHeight }; });
   check(button.height >= 44 && button.pressed === "true" && button.seen, `phone: the switch in the module's sheet: ${JSON.stringify(button)}`);
-  await step("phone: closing it returns to the marked modules", () => page.tap('.detail.is-module [data-action="close-detail"] >> visible=true'), () => location.pathname === "/bookmarks" && location.search === "?sort=ects" && !onPage(".detail.is-module") && allOnPage(".rows a.row").length === 2);
+  await step("phone: closing it returns to the marked modules", () => page.touchscreen.tap(195, 150), () => location.pathname === "/bookmarks" && location.search === "?sort=ects" && !onPage(".detail.is-module") && allOnPage(".rows a.row").length === 2);
   await context.close();
 }
 

@@ -54,7 +54,7 @@ pub fn Frame(
         // One scroll area with the ground at its end (app.css „one scroll area"): the sidebar and
         // the panel on the right are pinned beside the page.
         <div class="work framed flowing" id="page-scroll" class:sidebar-first=sidebar_first class:with-aside=has_aside class:aside-picked=move || has_aside && aside_picked.get()>
-            <aside class="panel sidebar" class:sheet=sheet id="sidebar" aria-label=label>
+            <aside class="panel sidebar" class:sheet=sheet data-sheet=sheet.then_some("") id="sidebar" aria-label=label>
                 <div class="panel-head">
                     <h2>{title}</h2>
                     {head.run()}

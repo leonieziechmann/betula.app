@@ -166,10 +166,14 @@ mod browser {
     }
 
     impl Spot {
+        /// Where its box stands, less how far its transform moves it: a sheet of a phone half up
+        /// is moved down (enhance.js „the sheets of a phone"), and glides there on its own.
         fn of(window: &Window, element: &Element) -> Self {
             let rect = element.get_bounding_client_rect();
-            let corner = window.get_computed_style(element).ok().flatten().and_then(|style| style.get_property_value("border-top-left-radius").ok()).unwrap_or_default();
-            Self { top: rect.top(), height: rect.height(), corner }
+            let style = window.get_computed_style(element).ok().flatten();
+            let corner = style.as_ref().and_then(|style| style.get_property_value("border-top-left-radius").ok()).unwrap_or_default();
+            let moved = style.and_then(|style| style.get_property_value("transform").ok()).map_or(0.0, |transform| moved_down(&transform));
+            Self { top: rect.top() - moved, height: rect.height(), corner }
         }
 
         /// A keyframe of it: placed by its top alone, whatever placed it before.
@@ -189,6 +193,15 @@ mod browser {
             }
             frame
         }
+    }
+
+    /// How far down a computed transform moves a box (`matrix(…)`'s sixth value, `matrix3d(…)`'s
+    /// fourteenth); none for `none`.
+    fn moved_down(transform: &str) -> f64 {
+        let Some((kind, rest)) = transform.split_once('(') else { return 0.0 };
+        let values: Vec<f64> = rest.trim_end_matches(')').split(',').filter_map(|value| value.trim().parse().ok()).collect();
+        let at = if kind.trim() == "matrix3d" { 13 } else { 5 };
+        values.get(at).copied().unwrap_or(0.0)
     }
 
     /// Calls the method `name` of `target` with `args`, if it has one.

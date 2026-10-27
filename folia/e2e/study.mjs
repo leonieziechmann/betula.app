@@ -825,9 +825,10 @@ if (current !== "2026W") {
     await step("close the areas", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
   }
   await step("Bereiche", () => page.tap(".st-progress-top .st-link"), () => document.querySelector(".st-dialog[open] .st-area-list"));
-  await page.waitForTimeout(500);
+  await page.waitForFunction(() => !document.querySelector(".st-dialog[open]")?.getAnimations().some((a) => a.playState === "running"), null, { timeout: 3000 }).catch(() => {});
   const sheet = await page.evaluate(() => { const box = document.querySelector(".st-dialog[open]").getBoundingClientRect(); return { bottom: Math.round(innerHeight - box.bottom), width: Math.round(box.width), top: Math.round(box.top) }; });
-  check(sheet.bottom === 0 && sheet.width === 390, `the areas are no sheet from below: ${JSON.stringify(sheet)}`);
+  // A sheet of a phone (owner, 2026-10-27): half up, as tall as the screen all up.
+  check(Math.abs(sheet.top - 844 * 0.48) < 4 && sheet.bottom === -(844 - 10 - (844 - sheet.top)) && sheet.width === 390, `the areas are no sheet from below, half up: ${JSON.stringify(sheet)}`);
   // A finger drags the sheet down (owner, 2026-10-05: „dass man die einfach wieder runter sliden
   // kann"): it follows the finger; a short pull, let go, slides back; drawn far enough, it closes.
   const drag = async (by, { steps = 8, hold = 0 } = {}) => {

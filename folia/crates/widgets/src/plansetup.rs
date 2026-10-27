@@ -23,8 +23,8 @@
 //! sagen"). Where „Weitere Module auch nach …" aimed the click, the module's row says so, with
 //! „Aufheben".
 //!
-//! A native `<dialog>` shown modally, in the frame of the app's dialogs (app.css „The dialogs"): in
-//! the middle of the window on a desktop, a sheet from below on a phone.
+//! A dialog shown modally (`folia_design::modal`), in the frame of the app's dialogs (app.css „The
+//! dialogs"): in the middle of the window on a desktop, a sheet from below on a phone.
 
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::{DegreeLevel, Labelled, ModuleKind, Relation, ResolveStatus};
@@ -39,7 +39,8 @@ use leptos::prelude::*;
 
 use folia_data::use_data;
 use folia_design::combobox::{with_first, ComboItem, Combobox};
-use folia_design::ui::{DialogClose, Icon};
+use folia_design::modal::{kept, Modal, ModalHead};
+use folia_design::ui::Icon;
 use folia_stores::myprogram::{po_of, program_name, MyProgram};
 use folia_stores::studyplan::fit::{self, Filled, FsFrom, Known};
 use folia_stores::studyplan::{target_semester, Planning, SetupAsk, Studyplan};
@@ -57,38 +58,12 @@ const MOST_FS: u8 = 30;
 #[component]
 pub fn PlanSetup() -> impl IntoView {
     let Some(planning) = Planning::expect() else { return ().into_any() };
-    let node = NodeRef::<leptos::html::Dialog>::new();
-    let ask = Memo::new(move |_| planning.setup());
-    let open = Memo::new(move |_| ask.with(Option::is_some));
-    Effect::new(move |_| {
-        let open = open.get();
-        let Some(element) = node.get() else { return };
-        if open && !element.open() {
-            let _ = element.show_modal();
-        } else if !open && element.open() {
-            element.close();
-        }
-    });
+    // What it asks stays while it goes (a phone's sheet glides away with it).
+    let ask = kept(move || planning.setup());
     view! {
-        <dialog
-            class="st-dialog plan-setup"
-            node_ref=node
-            data-sheet=""
-            aria-labelledby="plan-setup-title"
-            on:close=move |_| planning.close_setup()
-            // A click on the dim backdrop is a click on the dialog itself.
-            on:click=move |ev: leptos::ev::MouseEvent| {
-                let on_backdrop = ev.target().and_then(|target| node.get_untracked().map(|dialog| {
-                    let dialog: &leptos::web_sys::EventTarget = dialog.as_ref();
-                    dialog == &target
-                }));
-                if on_backdrop == Some(true) {
-                    planning.close_setup();
-                }
-            }
-        >
-            {move || ask.get().map(|ask| view! { <div class="st-dlg"><SetupDialog ask planning/></div> })}
-        </dialog>
+        <Modal open=Signal::derive(move || planning.setup().is_some()) on_close=move || planning.close_setup() class="plan-setup" labelled_by="plan-setup-title">
+            {move || ask.get().map(|ask| view! { <SetupDialog ask planning/> })}
+        </Modal>
     }
     .into_any()
 }
@@ -339,14 +314,9 @@ fn SetupDialog(ask: SetupAsk, planning: Planning) -> impl IntoView {
     let warning = move || warning_of(filled.get(), place.get().and_then(|(n, _)| n), now, semester_set.with(Option::is_some), t);
 
     view! {
-        <header class="st-dlg-head">
-            <span class="st-grip" aria-hidden="true"></span>
-            <div>
-                <h2 id="plan-setup-title">{(p.setup_title)(&what.title)}</h2>
-                <p>{move || if program_id.with(Option::is_some) && from.get() != From::Picked { p.setup_lead_filled } else { p.setup_lead }}</p>
-            </div>
-            <DialogClose on_close=Callback::new(move |()| close())/>
-        </header>
+        <ModalHead id="plan-setup-title" title=(p.setup_title)(&what.title) on_close=move || close()>
+            <p>{move || if program_id.with(Option::is_some) && from.get() != From::Picked { p.setup_lead_filled } else { p.setup_lead }}</p>
+        </ModalHead>
         <div class="st-dlg-body plan-setup-body">
             <section class="st-study" aria-label=p.program_row>
                 <p class="st-study-say" aria-live="polite">{say}</p>
