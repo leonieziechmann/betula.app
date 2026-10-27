@@ -579,9 +579,10 @@ pub fn ModuleFull(
                         </div>
                         <Heading data=data.clone() hint/>
                     </header>
-                    // Same parts, same order as the preview; side by side where there is room.
+                    // Same parts, same order as the preview; side by side where there is room, the
+                    // times and facts going along with the text (app.css `.module-side`).
                     <div class="module-grid">
-                        <aside class="panel dbody"><Side data=data.clone() program=program/></aside>
+                        <aside class="panel dbody"><div class="module-side"><Side data=data.clone() program=program/></div></aside>
                         <div class="panel dbody"><Main data=data.clone()/><DataClient data=data.clone()/></div>
                     </div>
                 </article>
