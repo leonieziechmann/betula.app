@@ -230,6 +230,7 @@ pub fn TodayView(guest: bool, welcome: RwSignal<Option<Done>>, on_setup: Callbac
             }.into_any()
         }}
         <Discover home/>
+        <super::topics::MoreAbout topics=super::topics::ON_THE_START_PAGE.to_vec() all=true day=true/>
     }
 }
 
@@ -1224,7 +1225,6 @@ pub fn Discover(home: Signal<Option<HomeData>>, #[prop(optional)] first: bool) -
             <section class="panel day-discover" id="entdecken" data-commands=head>
                 <header class="day-head">
                     <h2>{head}</h2><span class="sub">{sub}</span>
-                    {first.then(|| view! { <a class="ghost" href=t.path(url::ABOUT)>{tt.what_is_betula}<Icon name="arrow-right"/></a> })}
                 </header>
                 <div class="day-ways">
                     {tiles}

@@ -44,10 +44,10 @@ pub fn Wood() -> impl IntoView {
 /// the window; under the row of pages of „Mein Studium" on a phone there is none (owner,
 /// 2026-10-19: a swipe from down in the ground went wrong, „Der hat da eh keinen Mehrwert";
 /// app.css `.st-pager`). It holds what belongs at the bottom of a site — who is behind it, the legal pages,
-/// the versions of Folia and Radix (the roots: Radix brings the data) and how fresh the data is,
-/// and „Über Betula" before the legal pages (concept A: what the start page said of Betula moved
-/// there). A page may add a line of its own to the facts (`credit`: the start page names who took
-/// its photo).
+/// the versions of Folia and Radix (the roots: Radix brings the data) and how fresh the data is.
+/// „Über Betula" stood before the legal pages from concept A to 2026-10-27 (owner: „nimm das
+/// bitte Über Betula aus dem Footer raus"); the start page leads to it. A page may add a line of
+/// its own to the facts (`credit`: the start page names who took its photo).
 #[component]
 pub fn Ground(#[prop(optional, into)] credit: Option<ViewFn>) -> impl IntoView {
     let t = i18n::t();
@@ -72,7 +72,6 @@ pub fn Ground(#[prop(optional, into)] credit: Option<ViewFn>) -> impl IntoView {
                     <p class="ground-note">{t.ground.note}</p>
                 </div>
                 <nav class="ground-legal" aria-label=t.ground.legal>
-                    <a href=t.path(url::ABOUT)>{t.ground.about}</a>
                     <a href=t.path(url::IMPRINT)>{t.ground.imprint}</a>
                     <a href=t.path(url::PRIVACY)>{t.ground.privacy}</a>
                 </nav>

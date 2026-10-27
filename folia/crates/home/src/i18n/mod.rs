@@ -5,6 +5,7 @@ pub mod home_detail;
 pub mod legal;
 pub mod setup;
 pub mod today;
+pub mod topics;
 
 pub use folia_design::i18n::{app_path, locale, of_address, use_location, Locale};
 
@@ -28,6 +29,7 @@ folia_design::texts! {
     termin = folia_widgets::i18n::termin,
     timetable_data = folia_timetable::i18n,
     today = crate::i18n::today,
+    topics = crate::i18n::topics,
     ui = folia_design::i18n::ui,
     week = folia_widgets::i18n::week,
 }

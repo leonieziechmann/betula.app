@@ -5,8 +5,9 @@
 //! Betula (owner, 2026-09-28), so it moved here whole instead of going away: it answers what this
 //! is (the catalog of one university, unofficial), what is in it (numbers, and pictures of the
 //! app), and says in plain text what the app does, with the questions people ask search engines
-//! about the modules of the BTU and about studying there. Linked from the start page's setup
-//! („Was ist Betula?"), from the ground of every page and from the sitemap.
+//! about the modules of the BTU and about studying there (on pages of their own since
+//! 2026-10-27, below). Linked from the start page („Was ist Betula?", „Mehr über Betula") and from
+//! the sitemap; from the ground of every page until 2026-10-27.
 //!
 //! Owner, 2026-09-21 („unaufgeräumt und anstrengend für die Augen"; the sidebar and the big map
 //! did not work; a little more colour; then: save height in the head, a carousel that behaves like
@@ -49,10 +50,20 @@
 //! server's HTML too (closed), so its dots are links that search engines follow; without
 //! JavaScript the picture of the map leads to the program overview.
 //!
-//! The words of the page are in `i18n/home.rs` and `i18n/home_detail.rs`, in every language; the
-//! names of the programs and the faculties are the BTU's, in every language (docs/folia/i18n.md).
+//! Owner, 2026-10-27: „dass die Über Betula Seite geändert wird. Das soll aufgeteilt werden in
+//! mehrere kontent pages … Wovon auch ein wenig auf der Landing page verlinkt werden kann oder
+//! so", and „nimm das bitte Über Betula aus dem Footer raus". What the page explained at length
+//! went to pages of its own, one per topic (`topics.rs`): „Betula im Detail" two chapters to a
+//! topic, the questions one; this page keeps what makes it the way in — the first panel, the
+//! pictures, the ways into the catalog and the faculties, what Betula does — and under the
+//! pictures the tiles of the topics („Mehr über Betula"), which the start page shows as well.
+//! The ground no longer links it; the start page does („Was ist Betula?", the tiles).
+//!
+//! The words of the page are in `i18n/home.rs`, `i18n/home_detail.rs` and `i18n/topics.rs`, in
+//! every language; the names of the programs and the faculties are the BTU's, in every language
+//! (docs/folia/i18n.md).
 
-use super::{detail, start};
+use super::{start, topics};
 
 use std::sync::Arc;
 
@@ -65,7 +76,7 @@ use folia_pages::graph::{Cycle, Layout, ProgramMap};
 use folia_pages::HomeData;
 use folia_routes::CatalogQuery;
 use folia_routes::filter::{ExamPart, Language, TurnusFilter};
-use folia_routes::url::{self, CatalogUrl, ProgramTab};
+use folia_routes::url::{self, AboutTopic, CatalogUrl, ProgramTab};
 use leptos::prelude::*;
 use folia_design::stage::Title;
 
@@ -122,12 +133,6 @@ fn abilities(t: &'static Texts) -> [(&'static str, &'static i18n::home::Ability)
     ]
 }
 
-/// Questions and answers, in three groups: about Betula, using it, and about studying (for first
-/// semesters).
-fn questions(t: &'static Texts) -> [&'static i18n::home::Faq; 3] {
-    [&t.home.about_betula, &t.home.using_betula, &t.home.for_studies]
-}
-
 /// The name of a semester in the page's language (the snapshot's `label` is German).
 fn semester_name(semester: &Semester, locale: Locale) -> String {
     SemesterKey::parse(&semester.key).map_or_else(|| semester.label.clone(), |key| key.label(locale))
@@ -138,9 +143,8 @@ pub fn AboutPage() -> impl IntoView {
     let t = i18n::t();
     let status = PageStatus::capture();
     let entries = entries(t);
-    // The ways in, and after them the selection the filter board of „Betula im Detail" shows: its
-    // count comes with theirs, in the same loader.
-    let queries: Vec<CatalogQuery> = entries.iter().map(|entry| entry.query.clone()).chain([detail::example()]).collect();
+    // The ways in, with how many modules each finds.
+    let queries: Vec<CatalogQuery> = entries.iter().map(|entry| entry.query.clone()).collect();
     let asked = use_ask(move || Some(HomeAsk { entries: queries.clone() }));
     let map = use_context::<ProgramMapHandle>().map(|handle| handle.0);
     // The page, once its answer is there (the shell holds the page before it meanwhile); its title
@@ -148,10 +152,6 @@ pub fn AboutPage() -> impl IntoView {
     let page = move || asked.get().map(|loaded| {
     let entries = self::entries(t);
     let (status, map) = (status.clone(), map.clone());
-    // „Betula im Detail" says how many of the current programs have a checked plan, and how many
-    // modules its example finds.
-    let plans = loaded.as_ref().ok().map(|home| (home.overview.plans, home.overview.programs));
-    let example = loaded.as_ref().ok().and_then(|home| home.entry_counts.get(entries.len()).copied());
 
     let data = vec![
         // Betula as the app it is: what it does is what the page lists as its abilities, and it is
@@ -170,14 +170,6 @@ pub fn AboutPage() -> impl IntoView {
             "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
             "about": { "@type": "CollegeOrUniversity", "name": seo::UNIVERSITY, "url": seo::UNIVERSITY_URL },
         }),
-        serde_json::json!({
-            "@type": "FAQPage",
-            "mainEntity": questions(t).into_iter().flat_map(|faq| faq.questions.iter()).map(|(question, answer)| serde_json::json!({
-                "@type": "Question",
-                "name": question,
-                "acceptedAnswer": { "@type": "Answer", "text": answer },
-            })).collect::<Vec<_>>(),
-        }),
     ];
 
     // A picker's popup stands where its button was: scrolling the page takes it away, as the
@@ -195,13 +187,14 @@ pub fn AboutPage() -> impl IntoView {
         {match loaded {
             Err(error) => {
                 status.for_error(&error);
-                view! { <Hero home=None/><Showcase map modules=None/><ErrorState error/> }.into_any()
+                view! { <Hero home=None/><Showcase map modules=None/><ErrorState error/><topics::MoreAbout topics=AboutTopic::ALL.to_vec()/> }.into_any()
             }
             Ok(home) => {
                 let modules = Some(home.overview.modules);
                 view! {
                     <Hero home=Some(home.clone())/>
                     <Showcase map modules/>
+                    <topics::MoreAbout topics=AboutTopic::ALL.to_vec()/>
                     <Entries entries home=home.clone()/>
                 }.into_any()
             }
@@ -224,25 +217,6 @@ pub fn AboutPage() -> impl IntoView {
                 <span class="label">{t.home.in_progress}</span>
                 <span><Icon name="circle-check-big"/>{t.home.coming}</span>
             </p>
-        </section>
-        <detail::Details plans example/>
-        // The questions are the list; an answer opens in place. The text is in the page either way
-        // (and in the FAQPage data above).
-        <section class="panel questions" id="fragen" aria-labelledby="fragen-titel">
-            <header class="block-head">
-                <h2 id="fragen-titel">{t.home.questions}</h2>
-            </header>
-            {questions(t).into_iter().map(|faq| view! {
-                <div class="faq">
-                    <h3 class="faq-group label">{faq.name}</h3>
-                    {faq.questions.iter().map(|(question, answer)| view! {
-                        <details>
-                            <summary>{*question}<Icon name="plus"/></summary>
-                            <p>{*answer}</p>
-                        </details>
-                    }).collect_view()}
-                </div>
-            }).collect_view()}
         </section>
         </div></div>
         <folia_shell::ground::Ground/>

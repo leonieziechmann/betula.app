@@ -681,8 +681,32 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     assert_eq!(status, StatusCode::OK);
     assert!(head(&about).contains("href=\"https://catalog.example/about\" rel=\"canonical\"") && !head(&about).contains("noindex"), "{}", head(&about));
     assert!(about.contains("class=\"map map-wide\"") && about.contains("class=\"map map-tall\""), "„Über Betula\" draws the map the snapshot was opened with");
-    assert!(about.contains("\"@type\":\"WebApplication\"") && about.contains("\"@type\":\"FAQPage\"") && !about.contains("\"@type\":\"WebSite\""), "„Über Betula\"'s structured data");
-    assert!(about.contains("id=\"im-detail\"") && about.matches("class=\"panel feature t-").count() == 8 && about.matches("class=\"bgroup").count() == 12, "„Betula im Detail\"");
+    assert!(about.contains("\"@type\":\"WebApplication\"") && !about.contains("\"@type\":\"FAQPage\"") && !about.contains("\"@type\":\"WebSite\""), "„Über Betula\"'s structured data");
+    // Since 2026-10-27 a page per topic (owner: „Das soll aufgeteilt werden in mehrere kontent
+    // pages"): „Über Betula" leads to each; the chapters of „Betula im Detail" and the questions
+    // stand there, none of them here.
+    assert!(!about.contains("id=\"im-detail\"") && !about.contains("class=\"panel feature t-") && !about.contains("id=\"fragen\""), "„Über Betula\" without the chapters and the questions");
+    let mut features = 0;
+    for topic in folia_routes::url::AboutTopic::ALL {
+        let path = topic.path();
+        assert!(about.contains(&format!("href=\"{path}\"")), "„Über Betula\" leads to {path}");
+        let (status, _, body) = request(&router, &path, &[]).await;
+        let page = String::from_utf8(body).unwrap();
+        assert_eq!(status, StatusCode::OK, "{path}");
+        assert!(head(&page).contains(&format!("href=\"https://catalog.example{path}\" rel=\"canonical\"")) && !head(&page).contains("noindex"), "{path}: {}", head(&page));
+        assert!(page.contains(&format!("aria-current=\"page\" href=\"{path}\"")) || page.contains(&format!("href=\"{path}\" aria-current=\"page\"")), "{path} names itself in the row of topics");
+        assert!(page.contains(&format!("href=\"{}\"", folia_routes::url::ABOUT)) && page.matches("class=\"about-tile ").count() == 4, "{path} leads back to „Über Betula\" and to the other topics");
+        let scroll_area = ["<div class=\"work flowing solo\" id=\"page-scroll\">", "<div id=\"page-scroll\" class=\"work flowing solo\">"].iter().map(|area| page.matches(&format!("{area}<div class=\"page home-page\">")).count()).sum::<usize>();
+        assert!(!page.contains("id=\"sidebar\"") && scroll_area == 1 && woods(&page) == 1, "{path} has no frame");
+        assert_eq!(page.contains("\"@type\":\"FAQPage\""), topic == folia_routes::url::AboutTopic::Questions, "{path}: the questions as structured data where they stand");
+        features += page.matches("class=\"panel feature t-").count();
+        if topic == folia_routes::url::AboutTopic::Finding {
+            assert_eq!(page.matches("class=\"bgroup").count(), 12, "{path}: the board of the filters");
+        }
+    }
+    assert_eq!(features, 8, "the chapters of „Betula im Detail\", two to a topic");
+    let (status, _, _) = request(&router, "/about/nothing", &[]).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "an address of no topic");
     let scroll_area = ["<div class=\"work flowing solo\" id=\"page-scroll\">", "<div id=\"page-scroll\" class=\"work flowing solo\">"].iter().map(|area| about.matches(&format!("{area}<div class=\"page home-page\">")).count()).sum::<usize>();
     assert!(!about.contains("id=\"sidebar\"") && about.matches("id=\"page-scroll\"").count() == 1 && scroll_area == 1, "„Über Betula\" has no frame");
     assert!(about.contains("<a id=\"home-program\" href=\"/programs\"") && about.matches("program-pick\"").count() == 1 && about.contains("<dl class=\"tree-figures\">") && about.contains("class=\"hero-trunk\"") && woods(&about) == 1 && !about.contains("class=\"branch") && !about.contains("start-step"), "„Über Betula\"'s button, figures and wood");
@@ -1313,7 +1337,7 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
     assert!(!robots_allow(example, "Googlebot", "/index.php") && robots_allow(example, "Googlebot", "/index.php?x=1"));
     assert!(!robots_allow(example, "Googlebot", "/fish.html") && robots_allow(example, "Googlebot", "/fish/salmon/1") && robots_allow(example, "Googlebot", "/Fish"));
 
-    for page in ["/", "/en", "/about", "/en/about", "/catalog", "/catalog?page=2", "/catalog?page=24", "/en/catalog?page=2", "/catalog/module/11101", "/programs", "/programs/x/plan?variant=2", "/bookmarks", "/studyplan", "/studyplan?share=x", "/profile", "/en/profile", "/calendar/x.ics", "/en/calendar/x.ics", "/cards/module/11101.png", "/sitemap.xml"] {
+    for page in ["/", "/en", "/about", "/en/about", "/about/data", "/en/about/technology", "/catalog", "/catalog?page=2", "/catalog?page=24", "/en/catalog?page=2", "/catalog/module/11101", "/programs", "/programs/x/plan?variant=2", "/bookmarks", "/studyplan", "/studyplan?share=x", "/profile", "/en/profile", "/calendar/x.ics", "/en/calendar/x.ics", "/cards/module/11101.png", "/sitemap.xml"] {
         assert!(robots_allow(&robots, "Googlebot", page), "{page}: {robots}");
     }
     for view in ["/catalog?turnus=winter", "/catalog?turnus=winter&page=2", "/catalog?sort=title", "/catalog?q=analysis", "/catalog?page=2&open=11101", "/en/catalog?form=lecture", "/en/catalog?page=2&sort=ects", "/programs?level=master", "/en/programs?plan=1", "/bookmarks?turnus=winter", "/api/db", "/api/status"] {
@@ -1345,6 +1369,7 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
     let mut pages = vec![
         "/".to_string(),
         "/about".to_string(),
+        "/about/planning".to_string(),
         "/catalog".to_string(),
         "/catalog?page=2".to_string(),
         "/catalog?turnus=winter".to_string(),
@@ -1468,7 +1493,7 @@ async fn a_page_rendered_beside_others_keeps_its_title() {
         let db = NativeDatabase::open(&snapshot_file()).unwrap();
         folia_query::programs(&db).unwrap().into_iter().filter(|p| p.is_latest_po).map(|p| p.slug).take(2).collect()
     };
-    let mut pages: Vec<String> = ["/", "/about", "/en/about", "/catalog", "/catalog?turnus=winter", "/en/catalog?page=2", "/catalog/module/11101", "/catalog/module/00000", "/programs", "/bookmarks", "/studyplan", "/study", "/impressum", "/en/datenschutz"]
+    let mut pages: Vec<String> = ["/", "/about", "/en/about", "/about/finding", "/en/about/questions", "/catalog", "/catalog?turnus=winter", "/en/catalog?page=2", "/catalog/module/11101", "/catalog/module/00000", "/programs", "/bookmarks", "/studyplan", "/study", "/impressum", "/en/datenschutz"]
         .into_iter()
         .map(String::from)
         .collect();

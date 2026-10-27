@@ -1,9 +1,11 @@
-//! „Betula im Detail", the end of „Über Betula" (until concept A, of the start page). Owner,
+//! The chapters of „Über Betula"'s topics (`topics.rs`; until 2026-10-27 „Betula im Detail", the
+//! end of its one page, and until concept A of the start page). Owner,
 //! 2026-09-28: the first version was one long text — „das ist so langweilig und einfach nur eine
 //! wall of text. Mach das mal so, dass es für normale User auch interessant zu betrachten ist,
-//! während das Betula-Theme nicht gebrochen wird." So a panel names the chapters, and each
-//! chapter is a panel of its own: its name in its tint over a headline, a line under it and four
-//! points, and beside them a picture made of the app's own parts, not a drawing of them:
+//! während das Betula-Theme nicht gebrochen wird." So each chapter is a panel of its own (a
+//! panel named them while they stood on one page): its name in its tint over a headline, a line
+//! under it and four points, and beside them a picture made of the app's own parts, not a
+//! drawing of them:
 //!
 //! - the way from four questions to the one module page,
 //! - the filter panel laid out as a board, its chips in the panel's look, with an example chosen
@@ -17,8 +19,9 @@
 //!   sand of the site's frame,
 //! - screenshots on a computer and a phone.
 //!
-//! On a wide page the picture stands beside the words, every other chapter on the left; the board
-//! of the filters takes the whole width under them; on a narrow page everything stacks. What a
+//! On a wide page the picture stands beside the words, the second chapter of a topic's on the
+//! left; the board of the filters takes the whole width under them; on a narrow page everything
+//! stacks. What a
 //! picture shows that the app has words for is said in the app's words (`catalog::Texts`, and
 //! what it quotes of the other areas as `home_detail::quoted_*`), the rest is
 //! `i18n/home_detail.rs`. Everything looks the same with and
@@ -30,7 +33,7 @@ use folia_calendar::kind::EventKind;
 use folia_model::labels::{Campus, Code, Labelled, ModuleKind, TeachingForm};
 use folia_routes::CatalogQuery;
 use folia_routes::filter::{ExamPart, Language, TurnusFilter};
-use folia_routes::url::{self, CatalogUrl, ProgramTab};
+use folia_routes::url::{self, AboutTopic, CatalogUrl, ProgramTab};
 use folia_pages::ask::CatalogCountAsk;
 use leptos::prelude::*;
 
@@ -75,55 +78,59 @@ const TECHNOLOGY: Look = Look { id: "technik", tint: "t-slate", icon: "code", po
 const DATA: Look = Look { id: "daten", tint: "t-green", icon: "tree-deciduous", points: ["clock-3", "badge-check", "eye", "arrow-up-right"] };
 const DEVICES: Look = Look { id: "geraete", tint: "t-rose", icon: "monitor-smartphone", points: ["languages", "moon", "keyboard", "share-2"] };
 
-/// The chapters in their order, with their words.
-fn chapters(t: &'static Texts) -> [(&'static Look, &'static Words); 8] {
-    let d = &t.home_detail;
-    [(&FLOW, &d.flow), (&FILTERS, &d.filters), (&PLANS, &d.plans), (&TIMETABLE, &d.timetable), (&ACCOUNT, &d.account), (&TECHNOLOGY, &d.javascript), (&DATA, &d.data), (&DEVICES, &d.devices)]
-}
-
-/// The panel that names the chapters, then the chapters. `plans`: the current programs with a
-/// checked plan and all current programs; `example`: what the board's selection finds. Both are
-/// the snapshot's, and missing where it could not be read.
+/// The chapters of a topic's page of „Über Betula" (`topics.rs`; owner, 2026-10-27: „Das soll
+/// aufgeteilt werden in mehrere kontent pages"): until then all eight stood one under the other
+/// under „Betula im Detail" at the end of its one page, with a panel that named them; now two to
+/// a topic, the picture of the first on the right and of the second on the left (the board of the
+/// filters across the width under its words). `plans`: the current programs with a checked plan
+/// and all current programs; `example`: what the board's selection finds. Both are the
+/// snapshot's, and missing where it could not be read. The questions have no chapter.
 #[component]
-pub fn Details(plans: Option<(u64, u64)>, example: Option<u64>) -> impl IntoView {
+pub fn Chapters(topic: AboutTopic, plans: Option<(u64, u64)>, example: Option<u64>) -> impl IntoView {
     let t = i18n::t();
     let d = &t.home_detail;
-    let count = |n: u64| format::count(n, t.locale);
-    // The number of programs with a checked plan, in the look of the start page's figures.
-    let plan_figure = plans.filter(|(plans, _)| *plans > 0).map(|(plans, programs)| {
-        view! {
-            <dl class="figures one">
-                <div><dt>{d.plans_figure}<small>{(d.plans_of)(&count(programs))}</small></dt><dd class="num">{count(plans)}</dd></div>
-            </dl>
+    let count = move |n: u64| format::count(n, t.locale);
+    match topic {
+        AboutTopic::Finding => view! {
+            <Feature look=&FLOW words=&d.flow link=(d.to_catalog, url::CATALOG) picture=flow(t).into_any()/>
+            <Feature look=&FILTERS words=&d.filters wide=true figure=steps(t).into_any() picture=board(t, example).into_any()/>
         }
-        .into_any()
-    });
-    let zeros = view! {
-        <dl class="figures">
-            {d.zeros.iter().map(|(figure, what)| view! { <div><dt>{*what}</dt><dd class="num">{*figure}</dd></div> }).collect_view()}
-        </dl>
-    }
-    .into_any();
-    view! {
-        <section class="panel detail-intro" id="im-detail" aria-labelledby="im-detail-titel">
-            <header class="block-head">
-                <h2 id="im-detail-titel">{d.heading}</h2>
-                <p>{d.lead}</p>
-            </header>
-            <nav class="detail-nav" aria-label=d.chapters>
-                {chapters(t).into_iter().map(|(look, words)| view! {
-                    <a class=look.tint href=format!("#{}", look.id) data-action="jump"><Icon name=look.icon/>{words.name}</a>
-                }).collect_view()}
-            </nav>
-        </section>
-        <Feature look=&FLOW words=&d.flow link=(d.to_catalog, url::CATALOG) picture=flow(t).into_any()/>
-        <Feature look=&FILTERS words=&d.filters wide=true figure=steps(t).into_any() picture=board(t, example).into_any()/>
-        <Feature look=&PLANS words=&d.plans flip=true figure=plan_figure.into_any() link=(d.to_programs, url::PROGRAMS) picture=plan(t).into_any()/>
-        <Feature look=&TIMETABLE words=&d.timetable link=(d.to_studyplan, url::STUDYPLAN) picture=week(t).into_any()/>
-        <Feature look=&ACCOUNT words=&d.account flip=true figure=zeros link=(d.to_privacy, url::PRIVACY) picture=places(t).into_any()/>
-        <Feature look=&TECHNOLOGY words=&d.javascript picture=modes(t).into_any()/>
-        <Feature look=&DATA words=&d.data flip=true bare=true picture=tree(t).into_any()/>
-        <Feature look=&DEVICES words=&d.devices picture=devices(t).into_any()/>
+        .into_any(),
+        AboutTopic::Planning => {
+            // The number of programs with a checked plan, in the look of the start page's figures.
+            let plan_figure = plans.filter(|(plans, _)| *plans > 0).map(|(plans, programs)| {
+                view! {
+                    <dl class="figures one">
+                        <div><dt>{d.plans_figure}<small>{(d.plans_of)(&count(programs))}</small></dt><dd class="num">{count(plans)}</dd></div>
+                    </dl>
+                }
+                .into_any()
+            });
+            view! {
+                <Feature look=&PLANS words=&d.plans figure=plan_figure.into_any() link=(d.to_programs, url::PROGRAMS) picture=plan(t).into_any()/>
+                <Feature look=&TIMETABLE words=&d.timetable flip=true link=(d.to_studyplan, url::STUDYPLAN) picture=week(t).into_any()/>
+            }
+            .into_any()
+        }
+        AboutTopic::Data => {
+            let zeros = view! {
+                <dl class="figures">
+                    {d.zeros.iter().map(|(figure, what)| view! { <div><dt>{*what}</dt><dd class="num">{*figure}</dd></div> }).collect_view()}
+                </dl>
+            }
+            .into_any();
+            view! {
+                <Feature look=&ACCOUNT words=&d.account figure=zeros link=(d.to_privacy, url::PRIVACY) picture=places(t).into_any()/>
+                <Feature look=&DATA words=&d.data flip=true bare=true picture=tree(t).into_any()/>
+            }
+            .into_any()
+        }
+        AboutTopic::Technology => view! {
+            <Feature look=&TECHNOLOGY words=&d.javascript picture=modes(t).into_any()/>
+            <Feature look=&DEVICES words=&d.devices flip=true picture=devices(t).into_any()/>
+        }
+        .into_any(),
+        AboutTopic::Questions => ().into_any(),
     }
 }
 

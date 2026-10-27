@@ -26,6 +26,7 @@ mod photo;
 mod setup;
 mod start;
 mod today;
+pub mod topics;
 
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::Season;
@@ -196,6 +197,9 @@ fn FirstVisit(now: Signal<Option<SemesterKey>>, on_done: Callback<Done>, on_look
             </div>
         </section>
         <today::Discover home first=true/>
+        // What Betula is, a step further (owner, 2026-10-27: „Wovon auch ein wenig auf der Landing
+        // page verlinkt werden kann").
+        <topics::MoreAbout topics=topics::ON_THE_START_PAGE.to_vec() all=true day=true/>
     }
 }
 
