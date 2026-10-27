@@ -114,6 +114,8 @@ impl Today {
 pub struct Words<'a> {
     pub locale: Locale,
     pub exam: &'a str,
+    /// What a Termin of one's own without a name is called („Eigener Termin").
+    pub own: &'a str,
 }
 
 /// The day `day` at `minute` of `table` (its agenda `agenda`, said in `words`), the modules named
@@ -173,8 +175,18 @@ fn entry(table: &Timetable, item: &AgendaItem, day: Day, titles: &BTreeMap<Strin
     let tone = |module: Option<&String>| -> u8 { module.and_then(|id| table.modules.iter().position(|planned| planned == id)).map_or(1, |at| u8::try_from(at % 8 + 1).unwrap_or(1)) };
     if let Some(e) = item.event {
         let event = table.events.get(e)?;
-        let module = event.modules.first();
-        let (title, short) = named(module, &event.title);
+        // A Termin of one's own by its name (the module it belongs to its chip), else „Eigener
+        // Termin"; it has no kind.
+        let own = event.own.as_ref();
+        let module = own.map_or(event.modules.first(), |own| own.module.as_ref());
+        let (title, short) = match own {
+            Some(own) => {
+                let name = Some(own.name.trim()).filter(|name| !name.is_empty()).map(str::to_string);
+                let name = name.or_else(|| module.and_then(|id| names.get(id).cloned())).unwrap_or_else(|| words.own.to_string());
+                (name.clone(), name)
+            }
+            None => named(module, &event.title),
+        };
         let rooms = item.rows.iter().filter_map(|r| event.rows.get(*r)).filter_map(|row| row.date.room_short.clone().or_else(|| row.date.room.clone())).collect();
         let row = event.rows.get(item.row);
         let open = (event.unresolved() && row.is_some_and(|row| row.option.is_some())) || event.across.is_some_and(|alt| alt.open);
@@ -182,8 +194,8 @@ fn entry(table: &Timetable, item: &AgendaItem, day: Day, titles: &BTreeMap<Strin
             day,
             from: item.from,
             to: item.to,
-            kind: views::type_text(event, words.locale),
-            kind_short: views::kind_short(event, words.locale),
+            kind: if own.is_some() { String::new() } else { views::type_text(event, words.locale) },
+            kind_short: if own.is_some() { String::new() } else { views::kind_short(event, words.locale) },
             title,
             short,
             module: module.cloned(),
@@ -248,7 +260,7 @@ mod tests {
     use super::*;
 
     fn words() -> Words<'static> {
-        Words { locale: Locale::De, exam: "Prüfung" }
+        Words { locale: Locale::De, exam: "Prüfung", own: "Eigener Termin" }
     }
 
     /// A Tuesday of three lectures: at 10:00 the first is over, the second runs, the third comes;

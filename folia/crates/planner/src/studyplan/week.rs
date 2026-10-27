@@ -99,8 +99,9 @@ type Layer = Memo<(Vec<GridSlot>, Vec<GridBand>)>;
 /// `div.sp-days`, closed until its line opens it, `PlanCtx::days`), a carousel of its weeks where
 /// the plan has A or B weeks (`WeekCarousel`); with „Alle Termine" what the plan leaves out
 /// besides, faint. A slot's buttons change the plan right there (`SlotAct`), on a phone a row's.
-/// Without a planned module, the empty week and in its middle what is to do (`NothingPlanned`,
-/// with the marked modules the semester could take, `marked`), on a phone what is to do alone.
+/// Without a planned module or a Termin of one's own, the empty week and in its middle what is to
+/// do (`NothingPlanned`, with the marked modules the semester could take, `marked`), on a phone
+/// what is to do alone.
 /// What has no fixed time stands under the page's fold (`WeekLoose`), the switches of the Termine
 /// shown and of A and B weeks in the head (`AllSwitch`, `WeekSwitch`; on a phone the switch of the
 /// weeks beside „Anpassen" and „Plan · Alle Termine" in „Anpassen").
@@ -152,7 +153,8 @@ pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl In
         let shown = ctx.weeks.get();
         WEEKS.iter().position(|week| *week == shown).and_then(|at| layers.get(at)).map(|layer| layer.get()).unwrap_or_default()
     });
-    let empty = Memo::new(move |_| ctx.wanted.with(|wanted| wanted.1.is_empty()));
+    // Nothing planned: no module and no Termin of one's own (siblings of the plan, R16).
+    let empty = Memo::new(move |_| ctx.wanted.with(|wanted| wanted.1.is_empty()) && ctx.selection.with(|(_, selection)| selection.own.is_empty()));
     let nothing = move || empty.get().then(|| view! { <NothingPlanned ctx marked/> });
     // The buttons of the slots, one listener for all of them: a click changes the plan after the
     // next frame (R21), and the week follows. A dashed group's link ticks its group as it is
@@ -161,7 +163,15 @@ pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl In
         if preselect(ctx, slots, &ev) {
             return;
         }
-        let Some(key) = act_under(ev.target()) else { return };
+        let Some(key) = act_under(ev.target()) else {
+            // A click on a free stretch of a day: a Termin of one's own there (owner, the first
+            // question of folia/design/kalender/termine.html: „ein Klick auf eine freie Stelle der
+            // Woche füllt Tag und Zeit vor").
+            if let Some((day, minute)) = super::own::free_at(&ev) {
+                super::own::ask_new(ctx, 0, day, minute, None);
+            }
+            return;
+        };
         ev.stop_propagation();
         let (Some(plan), Some(act)) = (ctx.plan, slots.with_untracked(|slots| act_of(slots, &key))) else { return };
         let semester = ctx.key.get_untracked();
@@ -209,8 +219,14 @@ pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl In
         }
         let grid = Signal::derive(move || {
             let picked = picked.get();
-            let mut grid: Vec<GridSlot> = slots.with(|slots| slots.iter().map(|slot| GridSlot { current: slot.row.is(&picked), href: linked(&slot.slot, t), ..slot.slot.clone() }).collect());
+            // While the form of a Termin of one's own is open, its draft stands where it will, in
+            // the place of the Termin it changes.
+            let (draft, editing) = ctx.own.with(|ask| ask.as_ref().map(|ask| (super::own::draft_slots(ask, ctx.weeks.get(), t), super::own::editing_key(ask))).unwrap_or_default());
+            let mut grid: Vec<GridSlot> = slots.with(|slots| {
+                slots.iter().filter(|slot| editing.is_none_or(|key| !slot.row.keys.contains(&key))).map(|slot| GridSlot { current: slot.row.is(&picked), href: linked(&slot.slot, t), ..slot.slot.clone() }).collect()
+            });
             layer.with(|(calendars, _)| grid.extend(calendars.iter().cloned()));
+            grid.extend(draft);
             grid
         });
         let bands = Signal::derive(move || layer.with(|(_, bands)| bands.clone()));
@@ -255,14 +271,25 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
     let current = Memo::new(move |_| week_at(ctx.weeks.get()));
     // A grid of the carousel: its slots, the one beside the plan marked, without buttons, and what
     // the calendars of one's own add to its week.
-    let grid = move |slots: Memo<Vec<PlanSlot>>, layer: Layer| {
+    let grid = move |slots: Memo<Vec<PlanSlot>>, layer: Layer, week: Weeks| {
         Signal::derive(move || {
             let picked = picked.get();
-            let mut grid: Vec<GridSlot> = slots.with(|slots| slots.iter().map(|slot| GridSlot { current: slot.row.is(&picked), href: linked(&slot.slot, t), acts: Vec::new(), asks: false, ..slot.slot.clone() }).collect());
+            let (draft, editing) = ctx.own.with(|ask| ask.as_ref().map(|ask| (super::own::draft_slots(ask, week, t), super::own::editing_key(ask))).unwrap_or_default());
+            let mut grid: Vec<GridSlot> = slots.with(|slots| {
+                slots
+                    .iter()
+                    .filter(|slot| editing.is_none_or(|key| !slot.row.keys.contains(&key)))
+                    .map(|slot| GridSlot { current: slot.row.is(&picked), href: linked(&slot.slot, t), acts: Vec::new(), asks: false, ..slot.slot.clone() })
+                    .collect()
+            });
             layer.with(|(calendars, _)| grid.extend(calendars.iter().cloned()));
+            grid.extend(draft);
             grid
         })
     };
+    // A finger held on a free stretch of the week: a Termin of one's own there (owner: „am Handy
+    // langes Drücken").
+    let hold = super::own::Hold::new(ctx);
     let bands = |layer: Layer| Signal::derive(move || layer.with(|(_, bands)| bands.clone()));
     // To the week at `to` of `WEEKS`; the ends stay where they are.
     let go = move |to: usize| {
@@ -281,8 +308,10 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
     let down = move |ev: leptos::ev::PointerEvent| {
         carried.set_value(false);
         start.set_value(Some((ev.client_x(), ev.client_y())));
+        hold.down(&ev);
     };
     let moving = move |ev: leptos::ev::PointerEvent| {
+        hold.moved(&ev);
         let Some((x, y)) = start.get_value() else { return };
         let (dx, dy) = (ev.client_x() - x, ev.client_y() - y);
         if !dragging.get_untracked() {
@@ -297,6 +326,7 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
         drag.set(if beyond { dx / 3 } else { dx });
     };
     let up = move |ev: leptos::ev::PointerEvent| {
+        hold.up();
         let Some((x, y)) = start.get_value() else { return };
         start.set_value(None);
         dragging.set(false);
@@ -309,11 +339,15 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
         }
     };
     let cancel = move |_| {
+        hold.up();
         start.set_value(None);
         dragging.set(false);
         drag.set(0);
     };
     let click = move |ev: leptos::ev::MouseEvent| {
+        if hold.swallow(&ev) {
+            return;
+        }
         if carried.get_value() {
             carried.set_value(false);
             ev.prevent_default();
@@ -323,7 +357,7 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
         remember(Within::Grid, &ev);
     };
     // A week of the carousel, named by `label`; the grid alone has no name but the page's.
-    let slide = move |at: Signal<i32>, label: Option<&'static str>, slots: Memo<Vec<PlanSlot>>, layer: Layer| {
+    let slide = move |at: Signal<i32>, label: Option<&'static str>, slots: Memo<Vec<PlanSlot>>, layer: Layer, week: Weeks| {
         view! {
             <div
                 class="sp-slide"
@@ -337,7 +371,7 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
                 inert=move || (at.get() != 0).then_some("")
             >
                 <div class="sp-week">
-                    <WeekGrid slots=grid(slots, layer) bands=bands(layer) fit=true/>
+                    <WeekGrid slots=grid(slots, layer, week) bands=bands(layer) fit=true/>
                 </div>
             </div>
         }
@@ -348,12 +382,20 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
             return view! {
                 <div
                     class="sp-carousel"
+                    on:pointerdown=move |ev| hold.down(&ev)
+                    on:pointermove=move |ev| hold.moved(&ev)
+                    on:pointerup=move |_| hold.up()
+                    on:pointerleave=move |_| hold.up()
+                    on:pointercancel=move |_| hold.up()
                     on:click=move |ev| {
+                        if hold.swallow(&ev) {
+                            return;
+                        }
                         preselect(ctx, shown, &ev);
                         remember(Within::Grid, &ev);
                     }
                 >
-                    {slide(Signal::stored(0), None, shown, layer)}
+                    {slide(Signal::stored(0), None, shown, layer, ctx.weeks.get_untracked())}
                 </div>
             }
             .into_any();
@@ -367,7 +409,7 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
                 // Its place counted from the week shown: 0 in the middle, ±1 at the sides, ±2 out of
                 // sight at the side it lies on.
                 let at = Signal::derive(move || place_of(i, current.get()));
-                slide(at, Some(week_label(week, t)), slots, layer)
+                slide(at, Some(week_label(week, t)), slots, layer, week)
             })
             .collect_view();
         view! {
@@ -434,9 +476,11 @@ fn place_of(i: usize, current: usize) -> i32 {
 pub(super) fn WeekLoose(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let base = base_of(ctx);
+    // What the lines name the modules by: a sibling of the timetable (R16).
+    let titles = Memo::new(move |_| ctx.data.with(|data| data.as_ref().map(|data| data.slot_names()).unwrap_or_default()));
     let loose = Memo::new(move |_| {
         let base = base.get();
-        ctx.table.with(|table| table.as_ref().map(|table| loose_lines(table, &base, &table.loose(), t)).unwrap_or_default())
+        titles.with(|titles| ctx.table.with(|table| table.as_ref().map(|table| loose_lines(table, &base, titles, &table.loose(), t)).unwrap_or_default()))
     });
     view! { <Loose title=t.studyplan_week.no_fixed_time lines=loose/> }
 }
@@ -558,17 +602,21 @@ pub(super) fn DatesView(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let base = base_of(ctx);
     let today = ctx.today;
+    // What the lines name the modules by: a sibling of the timetable (R16).
+    let titles = Memo::new(move |_| ctx.data.with(|data| data.as_ref().map(|data| data.slot_names()).unwrap_or_default()));
     let blocks = Memo::new(move |_| {
         let base = base.get();
-        ctx.table.with(|table| table.as_ref().map(|table| agenda_blocks(table, &table.agenda(t.locale), &base, today, t)).unwrap_or_default())
+        titles.with(|titles| ctx.table.with(|table| table.as_ref().map(|table| agenda_blocks(table, &table.agenda(t.locale), &base, titles, today, t)).unwrap_or_default()))
     });
     let loose = Memo::new(move |_| {
         let base = base.get();
-        ctx.table.with(|table| {
-            table
-                .as_ref()
-                .map(|table| loose_lines(table, &base, &undated(table), t).into_iter().chain(open_exams(table, &base, t)).collect())
-                .unwrap_or_default()
+        titles.with(|titles| {
+            ctx.table.with(|table| {
+                table
+                    .as_ref()
+                    .map(|table| loose_lines(table, &base, titles, &undated(table), t).into_iter().chain(open_exams(table, &base, t)).collect())
+                    .unwrap_or_default()
+            })
         })
     });
     // The current week, as the agenda has it now; `None` without a clock.
@@ -972,7 +1020,8 @@ fn keyed(mut slot: PlanSlot, kind: char, item: &WeekItem) -> PlanSlot {
 fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &BTreeMap<String, String>, against: &[usize], gives: &[usize], t: &i18n::Texts) -> Option<PlanSlot> {
     let event = table.events.get(item.event)?;
     let shown = event.rows.get(item.row)?;
-    let module = event.modules.first()?;
+    // A Termin of one's own belongs to no module; it has its key.
+    let module = event.modules.first();
     let every = shown.every;
     let once = matches!(item.label, WeekLabel::Once { .. });
     let rows: Vec<&Row> = slot_rows(event, item, every).into_iter().filter_map(|r| event.rows.get(r)).collect();
@@ -988,14 +1037,14 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
     let href = match shown.key {
         Some(_) if groups => base.with_wahl(Some(&choice::code(event))).path(),
         Some(key) => base.with_termin(Some((key, None))).path(),
-        None => base.with_open(Some(module.as_str()), None).path(),
+        None => base.with_open(Some(module?.as_str()), None).path(),
     };
     let place = rooms(rows.iter().map(|row| &row.date));
 
     // The tooltip says in full what the slot shortens: the kind as QIS names it, the whole time,
     // the rooms, and the dates of single ones and of a series of single dates (its range spans
     // the weeks it leaves out).
-    let mut title = vec![event_text(event, t.locale), format!("{} {}–{}", day_short(item.day, t), clock(item.from), clock(item.to))];
+    let mut title = vec![event_text(event, titles, t.locale), format!("{} {}–{}", day_short(item.day, t), clock(item.from), clock(item.to))];
     title.extend(notes.iter().cloned());
     title.extend(rooms_long(rows.iter().map(|row| &row.date)));
     let series = !once && rows.iter().any(|row| row.date.series.is_some());
@@ -1022,6 +1071,10 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
     }
     if item.visit {
         title.push(t.studyplan_week.visit.to_string());
+    }
+    let own = event.own.is_some();
+    if own {
+        title.push(t.studyplan_own.by_you.to_string());
     }
     let mut yielded: Vec<String> = Vec::new();
     for other in gives.iter().filter_map(|e| table.events.get(*e)) {
@@ -1062,12 +1115,13 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
         dim: false,
         pre: None,
         badge: None,
+        own,
     };
     let row = DayRow {
         day: item.day,
-        class: classes(hue, &[(item.alt.is_some(), "alt"), (clash, "clash"), (item.extra, "extra"), (item.visit, "visit"), (yields, "gives")]),
+        class: classes(hue, &[(item.alt.is_some(), "alt"), (clash, "clash"), (item.extra, "extra"), (item.visit, "visit"), (yields, "gives"), (own, "own")]),
         time: format!("{}–{}", clock(item.from), clock(item.to)),
-        text: event_text(event, t.locale),
+        text: event_text(event, titles, t.locale),
         note: place.into_iter().chain(notes).collect::<Vec<_>>().join(" · "),
         href,
         pre: None,
@@ -1313,6 +1367,10 @@ fn across_of<'t>(table: &'t Timetable, event: &Event) -> Option<(Vec<u32>, &'t A
 fn plan_acts(table: &Timetable, item: &WeekItem, keys: &[RowKey], slots: usize, t: &i18n::Texts) -> Vec<SlotAct> {
     let words = &t.studyplan_week;
     let Some(event) = table.events.get(item.event) else { return Vec::new() };
+    // A Termin of one's own has no „×": its view changes it („Bearbeiten", „Löschen").
+    if event.own.is_some() {
+        return Vec::new();
+    }
     let Ok(id) = event.id.parse::<u32>() else { return Vec::new() };
     let shown = event.rows.get(item.row);
     let (option, row) = (shown.and_then(|row| row.option), shown.and_then(|row| row.key));
@@ -1580,6 +1638,8 @@ struct ItemLine {
     href: String,
     /// An exam the plan's exam warnings name.
     warn: bool,
+    /// A Termin of one's own: the mark „von dir" after its name, as its slot has.
+    own: bool,
 }
 
 /// The anchor of a week: `kw-2026-41`. The year belongs to it: rows can run for more than a year,
@@ -1596,7 +1656,7 @@ fn week_head(monday: Day, week: u8, t: &i18n::Texts) -> String {
 
 /// The agenda as the page shows it: a block per week, and the weeks of a break that hold nothing
 /// (not even a single date; a holiday alone does not count) as one line. In the words of `t`.
-fn agenda_blocks(table: &Timetable, weeks: &[AgendaWeek], base: &StudyplanUrl, today: Option<Day>, t: &i18n::Texts) -> Vec<Block> {
+fn agenda_blocks(table: &Timetable, weeks: &[AgendaWeek], base: &StudyplanUrl, titles: &BTreeMap<String, String>, today: Option<Day>, t: &i18n::Texts) -> Vec<Block> {
     let words = &t.studyplan_week;
     let mut blocks = Vec::new();
     let ab = has_ab(table);
@@ -1633,18 +1693,18 @@ fn agenda_blocks(table: &Timetable, weeks: &[AgendaWeek], base: &StudyplanUrl, t
             let mut items = Vec::new();
             for item in &day.items {
                 let Some(e) = open_option(table, item) else {
-                    items.extend(agenda_item(table, base, day.day, item, t));
+                    items.extend(agenda_item(table, base, titles, day.day, item, t));
                     continue;
                 };
                 let dates = choices.get(&e).map_or(&[][..], Vec::as_slice);
                 // A cancelled date is no day to attend, unless the week has no other.
                 if (item.cancelled.is_none() || dates.is_empty()) && !said.contains_key(&e) {
                     said.insert(e, day.day);
-                    items.extend(choice_item(table, base, e, dates, t));
+                    items.extend(choice_item(table, base, titles, e, dates, t));
                 } else if is_today && said.get(&e) != Some(&day.day) {
                     // Today keeps its line: the options that meet today stand as they are
                     // („1 von 4 · LG 10/214"), below the week's line on an earlier day.
-                    items.extend(agenda_item(table, base, day.day, item, t));
+                    items.extend(agenda_item(table, base, titles, day.day, item, t));
                 }
             }
             if items.is_empty() && day.holiday.is_none() {
@@ -1673,9 +1733,9 @@ fn agenda_blocks(table: &Timetable, weeks: &[AgendaWeek], base: &StudyplanUrl, t
     blocks
 }
 
-fn agenda_item(table: &Timetable, base: &StudyplanUrl, day: Day, item: &AgendaItem, t: &i18n::Texts) -> Option<ItemLine> {
+fn agenda_item(table: &Timetable, base: &StudyplanUrl, titles: &BTreeMap<String, String>, day: Day, item: &AgendaItem, t: &i18n::Texts) -> Option<ItemLine> {
     match (item.event, item.exam) {
-        (Some(e), _) => teaching_item(table, base, day, item, e, t),
+        (Some(e), _) => teaching_item(table, base, titles, day, item, e, t),
         (None, Some(x)) => exam_item(table, base, day, item, x, t),
         (None, None) => None,
     }
@@ -1710,7 +1770,7 @@ fn open_choices<'a>(table: &Timetable, week: &'a AgendaWeek) -> BTreeMap<usize, 
 /// of them share one. It opens the module at the first of them, where „Nur diesen" makes the
 /// choice. `dates` are the week's dates of its options (`open_choices`); none when all of them
 /// are cancelled.
-fn choice_item(table: &Timetable, base: &StudyplanUrl, e: usize, dates: &[(Day, &AgendaItem)], t: &i18n::Texts) -> Option<ItemLine> {
+fn choice_item(table: &Timetable, base: &StudyplanUrl, titles: &BTreeMap<String, String>, e: usize, dates: &[(Day, &AgendaItem)], t: &i18n::Texts) -> Option<ItemLine> {
     let words = &t.studyplan_week;
     let event = table.events.get(e)?;
     let module = event.modules.first()?;
@@ -1731,7 +1791,7 @@ fn choice_item(table: &Timetable, base: &StudyplanUrl, e: usize, dates: &[(Day, 
         true => format!("{} · {}", (words.one_of)(1, options), words.cancelled),
         false => format!("{} ({})", (words.one_of)(1, options), days.join(", ")),
     };
-    let text = event_text(event, t.locale);
+    let text = event_text(event, titles, t.locale);
     let whens = dates.iter().map(|(day, item)| match (item.from, item.to) {
         (Some(from), Some(to)) => format!("{} {}–{}", day_short(day.weekday(), t), clock(from), clock(to)),
         _ => day_short(day.weekday(), t).to_string(),
@@ -1749,14 +1809,17 @@ fn choice_item(table: &Timetable, base: &StudyplanUrl, e: usize, dates: &[(Day, 
             (key, _) => base.with_open(Some(module.as_str()), key).path(),
         },
         warn: false,
+        own: false,
     })
 }
 
-fn teaching_item(table: &Timetable, base: &StudyplanUrl, day: Day, item: &AgendaItem, e: usize, t: &i18n::Texts) -> Option<ItemLine> {
+fn teaching_item(table: &Timetable, base: &StudyplanUrl, titles: &BTreeMap<String, String>, day: Day, item: &AgendaItem, e: usize, t: &i18n::Texts) -> Option<ItemLine> {
     let words = &t.studyplan_week;
     let event = table.events.get(e)?;
     let first = event.rows.get(item.row)?;
-    let module = event.modules.first()?;
+    // A Termin of one's own belongs to no module of the timetable: it leads to its view alone.
+    let module = event.modules.first();
+    let own = event.own.is_some();
     let rows: Vec<&Row> = item.rows.iter().filter_map(|r| event.rows.get(*r)).collect();
     let alt = event.unresolved() && first.option.is_some();
     let time = match (item.from, item.to) {
@@ -1764,7 +1827,7 @@ fn teaching_item(table: &Timetable, base: &StudyplanUrl, day: Day, item: &Agenda
         _ if rows.iter().any(|row| row.occ.all_day) => words.all_day.to_string(),
         _ => words.time_open.to_string(),
     };
-    let text = event_text(event, t.locale);
+    let text = event_text(event, titles, t.locale);
     let rooms = rooms(rows.iter().map(|row| &row.date));
 
     let mut small = Vec::new();
@@ -1788,17 +1851,22 @@ fn teaching_item(table: &Timetable, base: &StudyplanUrl, day: Day, item: &Agenda
     let mut title = vec![text.clone(), format!("{} {time}", day.date(t.locale))];
     title.extend(rooms);
     title.extend(said);
+    if own {
+        title.push(t.studyplan_own.by_you.to_string());
+    }
     Some(ItemLine {
-        class: classes(hue(event.tone), &[(alt, "alt"), (item.cancelled.is_some(), "cancelled")]),
+        class: classes(hue(event.tone), &[(alt, "alt"), (item.cancelled.is_some(), "cancelled"), (own, "own")]),
         time,
         text,
         small: small.join(" · "),
         title: title.join(" · "),
-        href: match first.key {
-            Some(key) => base.with_termin(Some((key, Some(day)))).path(),
-            None => base.with_open(Some(module.as_str()), None).path(),
+        href: match (first.key, module) {
+            (Some(key), _) => base.with_termin(Some((key, Some(day)))).path(),
+            (None, Some(module)) => base.with_open(Some(module.as_str()), None).path(),
+            (None, None) => return None,
         },
         warn: false,
+        own,
     })
 }
 
@@ -1830,6 +1898,7 @@ fn exam_item(table: &Timetable, base: &StudyplanUrl, day: Day, item: &AgendaItem
         title: title.join(" · "),
         href: base.with_open(Some(module.as_str()), first.key).path(),
         warn,
+        own: false,
     })
 }
 
@@ -1881,7 +1950,7 @@ fn item_view(item: ItemLine, t: &'static i18n::Texts) -> impl IntoView {
             <i></i>
             <span class="t">{item.time}</span>
             {item.warn.then(|| view! { <Icon name="triangle-alert"/> })}
-            <span>{item.text}</span>
+            <span>{item.text}{item.own.then(|| view! { <b class="ag-own" aria-hidden="true"><Icon name="user-round"/></b> })}</span>
             {small}
         </a>
     }
@@ -1903,7 +1972,7 @@ struct LooseLine {
 
 /// The lines of `entries` (`(event, row)`, `None` for an event without dates), in their order,
 /// which is the plan's: by module.
-fn loose_lines(table: &Timetable, base: &StudyplanUrl, entries: &[(usize, Option<usize>)], t: &i18n::Texts) -> Vec<LooseLine> {
+fn loose_lines(table: &Timetable, base: &StudyplanUrl, titles: &BTreeMap<String, String>, entries: &[(usize, Option<usize>)], t: &i18n::Texts) -> Vec<LooseLine> {
     entries
         .iter()
         .filter_map(|(e, r)| {
@@ -1912,7 +1981,7 @@ fn loose_lines(table: &Timetable, base: &StudyplanUrl, entries: &[(usize, Option
             let row = r.and_then(|r| event.rows.get(r));
             Some(LooseLine {
                 hue: hue(event.tone),
-                text: event_text(event, t.locale),
+                text: event_text(event, titles, t.locale),
                 small: row.map_or_else(|| t.studyplan_week.without_dates.to_string(), |row| row_facts(&row.date, t)),
                 href: base.with_open(Some(module.as_str()), row.and_then(|row| row.key)).path(),
             })
@@ -2031,8 +2100,12 @@ fn classes(hue: &'static str, flags: &[(bool, &'static str)]) -> String {
 }
 
 /// „Übung · Entwicklung von Softwaresystemen": what an event is (as QIS types it, else its kinds
-/// in `locale`), then its title.
-fn event_text(event: &Event, locale: Locale) -> String {
+/// in `locale`), then its title; a Termin of one's own by its name, else by its module as `titles`
+/// name it.
+fn event_text(event: &Event, titles: &BTreeMap<String, String>, locale: Locale) -> String {
+    if let Some(own) = &event.own {
+        return super::own::shown_name(own, titles, i18n::texts(locale));
+    }
     kind_and_title(&type_text(event, locale), &event.title)
 }
 
@@ -2041,6 +2114,10 @@ fn event_text(event: &Event, locale: Locale) -> String {
 /// else its short name (`StudyplanData::slot_names`): „VL EvS", „Prak Programmierpraktikum",
 /// „Ü Mathematik IT-1". The event's own title where the plan's data has no title of its module.
 fn slot_label(event: &Event, titles: &BTreeMap<String, String>, locale: Locale) -> String {
+    // A Termin of one's own by its name, else by the module it belongs to, else „Eigener Termin".
+    if let Some(own) = &event.own {
+        return super::own::shown_name(own, titles, i18n::texts(locale));
+    }
     let title = event.modules.first().and_then(|module| titles.get(module)).map_or(event.title.as_str(), String::as_str);
     let name = short_title(title);
     match kind_short(event, locale) {
@@ -2200,6 +2277,38 @@ pub(super) mod tests {
             .collect()
     }
 
+    /// A Termin of one's own stands in „Termine" as in the week: by its name, its place under it,
+    /// the mark „von dir", leading to its view; a plan of one alone has its agenda.
+    #[test]
+    fn a_termin_of_ones_own_stands_in_the_agenda_with_its_mark() {
+        use folia_calendar::own::{OwnRhythm, OwnTermin};
+        let facts = winter();
+        let input = Input { key: key(), semester: None, facts: &facts, modules: &[], schedule: &[], exams: &[], sws: &[], taken: &[], choices: &[], listed: &[] };
+        let chor = OwnTermin {
+            number: 1,
+            rhythm: OwnRhythm::Week,
+            weekday: 2,
+            dates: Vec::new(),
+            from: 17 * 60,
+            to: 19 * 60,
+            period: None,
+            module: None,
+            name: "Chor".into(),
+            place: "Aula".into(),
+            skip: Vec::new(),
+        };
+        let table = Timetable::build(&input, &Selection { own: vec![chor], ..Selection::default() });
+        let blocks = agenda_blocks(&table, &table.agenda(Locale::De), &plain(), &titles(), None, &i18n::DE);
+        let items = agenda_items(&blocks);
+        let lines: Vec<&ItemLine> = items.iter().map(|(_, item)| *item).filter(|item| item.text == "Chor").collect();
+        assert!(lines.len() > 10, "{items:?}");
+        for line in lines {
+            assert!(line.own && line.class.split(' ').any(|class| class == "own") && line.class.starts_with("t-own"), "{line:?}");
+            assert_eq!((line.time.as_str(), line.small.as_str()), ("17:00–19:00", "Aula"));
+            assert!(line.title.ends_with("von dir, nicht in Datei und Abo") && line.href.contains("termin="), "{line:?}");
+        }
+    }
+
     pub(crate) fn plain() -> StudyplanUrl {
         StudyplanUrl::parse("sem=2026W")
     }
@@ -2343,7 +2452,7 @@ pub(super) mod tests {
         assert_eq!(linked(&lecture.slot, &i18n::DE), lecture.slot.href);
 
         // The agenda: the heads of its weeks, a day, the break.
-        let blocks = agenda_blocks(&table, &table.agenda(Locale::En), &plain(), None, en);
+        let blocks = agenda_blocks(&table, &table.agenda(Locale::En), &plain(), &titles(), None, en);
         let heads: Vec<&str> = blocks
             .iter()
             .filter_map(|block| match block {
@@ -2580,7 +2689,7 @@ pub(super) mod tests {
             week("2026-12-28", true, vec![holiday("2027-01-01", "Neujahr")]),
             week("2027-01-04", false, Vec::new()),
         ];
-        let blocks = agenda_blocks(&table, &weeks, &plain(), Some(d("2026-12-15")), &i18n::DE);
+        let blocks = agenda_blocks(&table, &weeks, &plain(), &titles(), Some(d("2026-12-15")), &i18n::DE);
         let shown: Vec<(&str, String)> = blocks
             .iter()
             .map(|block| match block {
@@ -2603,7 +2712,7 @@ pub(super) mod tests {
         if let Some(day) = busy.get_mut(0).and_then(|week| week.days.get_mut(0)) {
             day.items.push(AgendaItem { event: None, exam: None, row: 0, rows: Vec::new(), from: None, to: None, cancelled: None, note: None });
         }
-        let blocks = agenda_blocks(&table, &busy, &plain(), None, &i18n::DE);
+        let blocks = agenda_blocks(&table, &busy, &plain(), &titles(), None, &i18n::DE);
         assert!(matches!(blocks.first(), Some(Block::Week { head, .. }) if head == "KW 52 · 21.–27.12.2026 · vorlesungsfrei"), "{blocks:?}");
         assert!(matches!(blocks.get(1), Some(Block::Break { text, id, .. }) if text == "28.12.–03.01. vorlesungsfrei" && id == "kw-2026-53"), "{blocks:?}");
     }
@@ -2612,7 +2721,7 @@ pub(super) mod tests {
     fn the_agenda_opens_at_the_current_week() {
         let table = table(&[]);
         let weeks: Vec<AgendaWeek> = ["2026-10-05", "2026-10-12", "2026-10-26"].into_iter().map(|monday| week(monday, false, Vec::new())).collect();
-        let blocks = agenda_blocks(&table, &weeks, &plain(), None, &i18n::DE);
+        let blocks = agenda_blocks(&table, &weeks, &plain(), &titles(), None, &i18n::DE);
         // Before the semester, and in its first week, the agenda stays at its start.
         assert_eq!(scroll_target(&blocks, d("2026-09-24")), None);
         assert_eq!(scroll_target(&blocks, d("2026-10-07")), None);
@@ -2629,7 +2738,7 @@ pub(super) mod tests {
         let mut lecture = row("148701", 1, "Vorlesung", "weekly", 2, ("11:30", "13:00"), ("2026-10-06", "2027-01-26"));
         lecture.cancelled_dates = Some("13.10.2026: Projektwoche 19.01.2027: Raumwechsel".into());
         let table = table(&[lecture]);
-        let blocks = agenda_blocks(&table, &table.agenda(folia_locale::Locale::De), &plain(), Some(d("2026-10-06")), &i18n::DE);
+        let blocks = agenda_blocks(&table, &table.agenda(folia_locale::Locale::De), &plain(), &titles(), Some(d("2026-10-06")), &i18n::DE);
         let items = agenda_items(&blocks);
         let (when, first) = items.first().unwrap();
         assert_eq!((when.as_str(), first.time.as_str(), first.text.as_str()), ("Di 06.10.", "11:30–13:00", "Vorlesung · Entwicklung von Softwaresystemen"));
@@ -2660,7 +2769,7 @@ pub(super) mod tests {
             exam("12107", "95", 2, "Klausur Statistik", None, ("", ""), Some("HG 0.19")),
         ];
         let table = planned(&["12104", "12107"], &[], &exams);
-        let blocks = agenda_blocks(&table, &table.agenda(folia_locale::Locale::De), &plain(), None, &i18n::DE);
+        let blocks = agenda_blocks(&table, &table.agenda(folia_locale::Locale::De), &plain(), &titles(), None, &i18n::DE);
         let shown: Vec<(String, &str, &str, &str, &str, bool)> = agenda_items(&blocks)
             .into_iter()
             .map(|(when, item)| (when, item.time.as_str(), item.text.as_str(), item.small.as_str(), item.class.as_str(), item.warn))
@@ -2691,7 +2800,7 @@ pub(super) mod tests {
         assert!(open.iter().all(|line| line.href.starts_with("/studyplan?sem=2026W&open=12107")), "{open:?}");
 
         // In English.
-        let blocks = agenda_blocks(&table, &table.agenda(Locale::En), &plain(), None, &i18n::EN);
+        let blocks = agenda_blocks(&table, &table.agenda(Locale::En), &plain(), &titles(), None, &i18n::EN);
         let english: Vec<(String, String, String, String)> = agenda_items(&blocks).into_iter().map(|(when, item)| (when, item.time.clone(), item.text.clone(), item.small.clone())).collect();
         let line = |when: &str, time: &str, text: &str, small: &str| (when.to_string(), time.to_string(), text.to_string(), small.to_string());
         assert_eq!(english.first(), Some(&line("Mon 1 Feb", "until 5 Feb", "Exam · Hausarbeit", "")));
@@ -2709,7 +2818,7 @@ pub(super) mod tests {
         tutorial.date.event_title = "Tutorium Höhere Mathematik W-1".into();
         let table = table(&[tutorial, row("148701", 1, "Vorlesung", "weekly", 2, ("11:30", "13:00"), ("2026-10-06", "2027-01-26"))]);
         let math = BTreeMap::from([("12104".to_string(), "Höhere Mathematik W-1 (Analysis)".to_string())]);
-        let labels: Vec<(String, String)> = table.events.iter().map(|event| (slot_label(event, &math, Locale::De), event_text(event, Locale::De))).collect();
+        let labels: Vec<(String, String)> = table.events.iter().map(|event| (slot_label(event, &math, Locale::De), event_text(event, &math, Locale::De))).collect();
         // A slot names the module in its short name after the kind's few letters.
         assert!(labels.contains(&("Tut Höhere Mathematik W-1".to_string(), "Tutorium Höhere Mathematik W-1".to_string())), "{labels:?}");
         assert!(labels.contains(&("VL Höhere Mathematik W-1".to_string(), "Vorlesung · Entwicklung von Softwaresystemen".to_string())), "{labels:?}");
@@ -2835,7 +2944,7 @@ pub(super) mod tests {
         let build = |selection: &Selection| Timetable::build(&Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[], taken: &[], choices: &[], listed: &[] }, selection);
 
         let open = build(&Selection::default());
-        let blocks = agenda_blocks(&open, &open.agenda(folia_locale::Locale::De), &plain(), None, &i18n::DE);
+        let blocks = agenda_blocks(&open, &open.agenda(folia_locale::Locale::De), &plain(), &titles(), None, &i18n::DE);
         let week = |id: &str| -> Vec<(String, String, String, String)> {
             blocks
                 .iter()
@@ -2859,7 +2968,7 @@ pub(super) mod tests {
         // Today keeps its line (review 2026-09-25): its options stand as they are, and on the day
         // of the week's line nothing comes twice.
         let on = |today: &str| {
-            let blocks = agenda_blocks(&open, &open.agenda(folia_locale::Locale::De), &plain(), Some(d(today)), &i18n::DE);
+            let blocks = agenda_blocks(&open, &open.agenda(folia_locale::Locale::De), &plain(), &titles(), Some(d(today)), &i18n::DE);
             let days: Vec<(String, bool, Vec<String>)> = blocks
                 .into_iter()
                 .filter_map(|block| match block {
@@ -2890,7 +2999,7 @@ pub(super) mod tests {
         // Chosen: that group's dates, one line each, as every other Termin.
         let chosen = open.events.iter().flat_map(|event| &event.rows).find(|row| row.date.weekday == Some(3)).and_then(|row| row.key).unwrap();
         let decided = build(&Selection { chosen_rows: [chosen].into(), ..Selection::default() });
-        let blocks = agenda_blocks(&decided, &decided.agenda(folia_locale::Locale::De), &plain(), None, &i18n::DE);
+        let blocks = agenda_blocks(&decided, &decided.agenda(folia_locale::Locale::De), &plain(), &titles(), None, &i18n::DE);
         let items = agenda_items(&blocks);
         assert!(items.iter().all(|(when, item)| when.starts_with("Mi") && item.time == "11:30–13:00" && !item.small.starts_with("1 von")), "{items:?}");
         assert!(items.len() > 10);
@@ -2952,7 +3061,7 @@ pub(super) mod tests {
         dateless.date.first_date = None;
         dateless.date.last_date = None;
         let table = table(&[arranged, dateless]);
-        let lines = loose_lines(&table, &plain(), &table.loose(), &i18n::DE);
+        let lines = loose_lines(&table, &plain(), &titles(), &table.loose(), &i18n::DE);
         let shown: Vec<(&str, &str)> = lines.iter().map(|line| (line.text.as_str(), line.small.as_str())).collect();
         assert_eq!(
             shown,
@@ -2963,7 +3072,7 @@ pub(super) mod tests {
         );
         assert_eq!(lines.last().map(|line| line.href.as_str()), Some("/studyplan?sem=2026W&open=12104"));
         // In English: QIS's own words for the rhythm stay.
-        let english: Vec<String> = loose_lines(&table, &plain(), &table.loose(), &i18n::EN).into_iter().map(|line| line.small).collect();
+        let english: Vec<String> = loose_lines(&table, &plain(), &titles(), &table.loose(), &i18n::EN).into_iter().map(|line| line.small).collect();
         assert_eq!(english, ["Mon · nach Vereinbarung · 12 Oct–25 Jan · HG 0.20", "no dates"]);
         // The agenda places neither, so its „Ohne Datum" has both.
         assert_eq!(undated(&table), table.loose());

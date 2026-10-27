@@ -5,7 +5,8 @@
 //! what the visitor said for one semester: kinds switched off, whole events, single Termine and
 //! single dates of a Termin hidden, the options of a choice ticked (as many as the visitor likes,
 //! all alike: owner, 2026-10-26), and the town whose course a module with two city tracks is taken
-//! in. The store (`studyplan`) and the subscription code carry it; the
+//! in, and the Termine of one's own the visitor added (`own`). The store (`studyplan`) and the
+//! subscription code carry it (the code not the Termine of one's own); the
 //! timetable (`model`) applies it and says per event and row which rule hid it (`HiddenBy`).
 
 use std::collections::BTreeSet;
@@ -15,6 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::day::Day;
 use crate::kind::KindSet;
+use crate::own::OwnTermin;
 use crate::rowkey::RowKey;
 
 /// The most modules of one semester: the store's cap and the subscription code's.
@@ -127,6 +129,12 @@ pub struct Selection {
     /// the timetable), and they bring no exam. Empty for a subscription, whose code names none.
     #[serde(default)]
     pub visits: BTreeSet<String>,
+    /// The Termine of one's own of the semester's calendar (`own`; folia/design/kalender/termine.html,
+    /// owner 2026-10-27): the timetable takes each as a Termin of the plan, firm as a module's.
+    /// Empty for a subscription, whose code names none (the feed leaves them out until their own
+    /// step, „Eigene Termine mitnehmen").
+    #[serde(default)]
+    pub own: Vec<OwnTermin>,
 }
 
 /// Why an event, an exam or a row is not shown: the first rule that holds, in this order (C.9).

@@ -37,6 +37,7 @@ mod head;
 mod import;
 mod modules;
 mod open;
+mod own;
 mod share;
 mod side;
 mod termin;
@@ -75,6 +76,7 @@ use self::export::CalendarGroup;
 use self::head::{marked_offered, DerivedLine, ExamAlerts, MarkedNote, NothingPlanned, Overlaps, SemesterHead};
 use self::modules::ModuleList;
 use self::open::{FocusBar, OpenLine, OpenPanel, PickSheet};
+use self::own::{OwnFab, OwnForm, OwnNote};
 use self::side::PlanSidebar;
 use self::termin::{PlanTerminFull, PlanTerminPanel};
 use self::week::{DatesView, WeekLoose, WeekView};
@@ -143,6 +145,9 @@ pub(super) struct PlanCtx {
     pub together: RwSignal<bool>,
     /// The calendar whose „+ Modul" is open (`add.rs`). A view setting of the page, not stored.
     pub adding: RwSignal<Option<add::AddTo>>,
+    /// The form of a Termin of one's own while it is open, and what its fields hold (`own.rs`;
+    /// folia/design/kalender/termine.html). Not stored.
+    pub own: RwSignal<Option<own::OwnAsk>>,
 }
 
 /// The semester the page shows: the one the catalog has dates for, the snapshot's current one
@@ -254,6 +259,7 @@ pub fn StudyplanPage() -> impl IntoView {
         calendars: calendars::shown_calendars(url, current, plan, source, today),
         together: RwSignal::new(false),
         adding: RwSignal::new(None),
+        own: RwSignal::new(None),
     };
     // What „Rückgängig" puts back is the plan of the profile it was taken from: with another
     // profile (chosen here or in another tab, `folia_stores::profiles`) there is nothing to undo.
@@ -337,7 +343,10 @@ pub fn StudyplanPage() -> impl IntoView {
 /// say only that.
 #[component]
 fn SemesterView(ctx: PlanCtx) -> impl IntoView {
-    let planned = Memo::new(move |_| ctx.wanted.with(|wanted| !wanted.1.is_empty()));
+    // A module in the week, or a Termin of one's own: „Termine" and „Prüfungen" have something
+    // to say (siblings of the plan, R16). The calendar file has modules' alone.
+    let modules = Memo::new(move |_| ctx.wanted.with(|wanted| !wanted.1.is_empty()));
+    let planned = Memo::new(move |_| modules.get() || ctx.selection.with(|(_, selection)| !selection.own.is_empty()));
     let failed = Memo::new(move |_| ctx.data.with(|data| data.as_ref().err().cloned()));
     let fine = Memo::new(move |_| failed.with(Option::is_none));
     let shown = Memo::new(move |_| ctx.url.with(|url| url.view));
@@ -384,10 +393,15 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
                     // On a phone the calendar stands under the Termine, in every view (owner,
                     // 2026-09-27: in „Anpassen", among what is shown, nobody finds it); with
                     // nothing planned there is nothing to export.
-                    {move || (ctx.phone.get() && planned.get()).then(|| view! { <section class="sp-export"><CalendarGroup ctx/></section> })}
+                    {move || (ctx.phone.get() && modules.get()).then(|| view! { <section class="sp-export"><CalendarGroup ctx/></section> })}
+                    // On a phone „+ Termin" is the round button over the bar (`own.rs`).
+                    {move || ctx.phone.get().then(|| view! { <OwnFab ctx/> })}
                 }
                 .into_any(),
             }}
+            // The form of a Termin of one's own and the note after it (`own.rs`).
+            <OwnForm ctx/>
+            <OwnNote ctx/>
         </div>
         {move || {
             fine.get().then(|| {
