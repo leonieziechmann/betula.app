@@ -283,7 +283,7 @@ pub fn tiles(table: &Timetable, event: usize, beside: Option<&Timetable>) -> Vec
 }
 
 /// The first event of the plan the row `row` of `event` meets: a Termin of another event the plan
-/// holds firmly (shown, no extra, no option of an open choice) on a day both are held, at times
+/// holds firmly (shown, no extra, no visit, no option of an open choice) on a day both are held, at times
 /// that overlap. An option of the event's own choice is weighed the same whether it is ticked or
 /// not, so that a tile says what ticking it would cost.
 pub fn meets(table: &Timetable, event: usize, row: usize) -> Option<usize> {
@@ -308,10 +308,10 @@ fn met(plan: &Timetable, mine: &Row, own: Option<usize>) -> Option<usize> {
     })
 }
 
-/// Whether an event takes part in the plan's clashes: shown, no extra beside its module, no
-/// option of an open choice among its module's events.
+/// Whether an event takes part in the plan's clashes: shown, no extra beside its module, no visit
+/// (it gives way), no option of an open choice among its module's events.
 fn holds(event: &Event) -> bool {
-    event.hidden.is_none() && !event.extra && !event.across.is_some_and(|alt| alt.open)
+    event.hidden.is_none() && !event.extra && !event.visit && !event.across.is_some_and(|alt| alt.open)
 }
 
 /// A Termin of the plan on a day, as „Der Tag" draws it.

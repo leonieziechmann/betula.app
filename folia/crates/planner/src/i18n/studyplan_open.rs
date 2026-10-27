@@ -19,6 +19,13 @@ pub struct Texts {
     pub choose: &'static str,
     pub in_focus: &'static str,
     pub in_module: &'static str,
+    /// Where a visit gives way (owner, 2026-10-26): „Biologie trifft VL MIT1", under it when
+    /// („Di 13:45") and „der Besuch gibt nach"; a click shows its Termin („Ansehen"). The phone's
+    /// line where nothing else is open: „1 Besuch gibt nach".
+    pub visit_meets: fn(&str, &str) -> String,
+    pub gives_way: &'static str,
+    pub look: &'static str,
+    pub gives_count: fn(usize) -> String,
 
     // ---- the choice in focus ----
     /// Its state: „noch keine angehakt", „2 von 3 angehakt".
@@ -97,6 +104,13 @@ pub const DE: Texts = Texts {
     choose: "Wählen",
     in_focus: "im Fokus",
     in_module: "Im Modul",
+    visit_meets: |visit, plan| format!("{visit} trifft {plan}"),
+    gives_way: "der Besuch gibt nach",
+    look: "Ansehen",
+    gives_count: |n| match n {
+        1 => "1 Besuch gibt nach".to_string(),
+        n => format!("{n} Besuche geben nach"),
+    },
 
     none_yet: "noch keine angehakt",
     ticked_of: |ticked, of| format!("{ticked} von {of} angehakt"),
@@ -145,6 +159,13 @@ pub const EN: Texts = Texts {
     choose: "Choose",
     in_focus: "in focus",
     in_module: "In the module",
+    visit_meets: |visit, plan| format!("{visit} meets {plan}"),
+    gives_way: "the visit gives way",
+    look: "Look",
+    gives_count: |n| match n {
+        1 => "1 visit gives way".to_string(),
+        n => format!("{n} visits give way"),
+    },
 
     none_yet: "none ticked yet",
     ticked_of: |ticked, of| format!("{ticked} of {of} ticked"),

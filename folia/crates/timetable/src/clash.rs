@@ -16,7 +16,10 @@
 //! An option of an open choice („1 von 4 wählen") that clashes is no conflict while the student
 //! can take another one, whether the options are an event's Termine or a module's events (one of
 //! three exercises, `model::Across`; of a choice of two, two picks). An extra beside a module's
-//! compulsory part (`Event::extra`) meets nothing: whoever attends it fits it in. The plan's open choices are weighed together: an option is free when it
+//! compulsory part (`Event::extra`) meets nothing: whoever attends it fits it in. Neither does an
+//! event of a module only visited (`Event::visit`): where it meets the plan's Termine, the visit
+//! gives way (owner, 2026-10-26: „ein Besuch gibt bei einer Überschneidung nach", a note, no red
+//! warning; `yield_pairs`, `yields`). The plan's open choices are weighed together: an option is free when it
 //! meets no required Termin, and when every open choice can take a free option with no two picks
 //! meeting, none of their clashes counts (two Übungen whose Friday slots meet leave each other
 //! their other slots). A choice whose every option meets a required Termin is blocked („0 von 4
@@ -247,10 +250,15 @@ pub struct Overlap {
 /// the weeks either of them meets. Where one side does not recur, each common day is an overlap
 /// of its own. Weekly ones first, each kind in the order of the events.
 pub fn overlaps(events: &[Event]) -> Vec<Overlap> {
+    week_of(events, &weigh(events).hard)
+}
+
+/// Meetings `found` as a week has them (`overlaps`).
+fn week_of(events: &[Event], found: &[Found]) -> Vec<Overlap> {
     let mut weekly: BTreeMap<(usize, usize, u8, u16), Overlap> = BTreeMap::new();
     let mut single: BTreeMap<(usize, usize, Day, u16), Overlap> = BTreeMap::new();
     let row = |(event, row): (usize, usize)| events.get(event).and_then(|e| e.rows.get(row));
-    for f in &weigh(events).hard {
+    for f in found {
         let (Some(a), Some(b)) = (row(f.a), row(f.b)) else { continue };
         let (Some(to_a), Some(to_b)) = (a.to, b.to) else { continue };
         let to = to_a.min(to_b);
@@ -468,41 +476,74 @@ fn place(
     false
 }
 
-/// Every two visible, timed rows that meet: of different events without a common planned module,
-/// overlapping in time, on a common held day.
-fn meetings(events: &[Event]) -> Vec<Found> {
-    let placed: Vec<Placed<'_>> = events
+/// The visible, timed rows of the events `keep` lets through.
+fn placed<'e>(events: &'e [Event], keep: impl Fn(&Event, &Row) -> bool) -> Vec<Placed<'e>> {
+    events
         .iter()
         .enumerate()
-        .filter(|(_, event)| event.hidden.is_none() && !event.extra)
+        .filter(|(_, event)| event.hidden.is_none())
         .flat_map(|(event, e)| {
+            let keep = &keep;
             e.rows.iter().enumerate().filter_map(move |(index, row)| {
-                if row.hidden.is_some() {
+                if row.hidden.is_some() || !keep(e, row) {
                     return None;
                 }
                 Some(Placed { event, index, row, from: row.from?, to: row.to? })
             })
         })
-        .collect();
+        .collect()
+}
 
+/// Whether two placed rows meet: of different events without a common planned module,
+/// overlapping in time, on a common held day.
+fn meet(events: &[Event], a: &Placed<'_>, b: &Placed<'_>) -> Option<Found> {
+    if a.event == b.event || !(a.from < b.to && b.from < a.to) {
+        return None;
+    }
+    let (ea, eb) = (events.get(a.event)?, events.get(b.event)?);
+    if ea.modules.iter().any(|module| eb.modules.contains(module)) {
+        return None;
+    }
+    let meeting = meeting(a.row, b.row)?;
+    Some(Found { a: (a.event, a.index), b: (b.event, b.index), from: a.from.max(b.from), meeting })
+}
+
+/// Every two visible, timed rows that meet (`meet`), extras and visits left out.
+fn meetings(events: &[Event]) -> Vec<Found> {
+    let placed = placed(events, |event, _| !event.extra && !event.visit);
     let mut found: Vec<Found> = Vec::new();
     for (x, a) in placed.iter().enumerate() {
         for b in placed.iter().skip(x + 1) {
-            if a.event == b.event || !(a.from < b.to && b.from < a.to) {
-                continue;
-            }
-            let (Some(ea), Some(eb)) = (events.get(a.event), events.get(b.event)) else {
-                continue;
-            };
-            if ea.modules.iter().any(|module| eb.modules.contains(module)) {
-                continue;
-            }
-            if let Some(meeting) = meeting(a.row, b.row) {
-                found.push(Found { a: (a.event, a.index), b: (b.event, b.index), from: a.from.max(b.from), meeting });
-            }
+            found.extend(meet(events, a, b));
         }
     }
     found
+}
+
+/// A row that stands firm: no option of a choice still open (it may be left for another).
+fn firm(event: &Event, row: &Row) -> bool {
+    !event.across.is_some_and(|alt| alt.open) && !(event.unresolved() && row.option.is_some())
+}
+
+/// Where a visit meets the plan: every firm row of a visited event (`Event::visit`) that meets a
+/// firm row of the plan's (an extra's neither), `a` the visit's, `b` the plan's. A visit never meets
+/// another visit here: neither counts, the visitor goes to the one they like.
+fn visit_meetings(events: &[Event]) -> Vec<Found> {
+    let visits = placed(events, |event, row| event.visit && firm(event, row));
+    let plan = placed(events, |event, row| !event.visit && !event.extra && firm(event, row));
+    visits.iter().flat_map(|a| plan.iter().filter_map(|b| meet(events, a, b))).collect()
+}
+
+/// Every row of a visit that meets a Termin of the plan, as `(visit, plan, weeks)` (`HardPair`'s
+/// shape): the visit gives way, which the Regelwoche says at the visit's slot, never red.
+pub fn yield_pairs(events: &[Event]) -> Vec<HardPair> {
+    visit_meetings(events).iter().map(|f| (f.a, f.b, pair_weeks(events, f))).collect()
+}
+
+/// Where the visits give way, as a week has it (`overlaps`' rules), `a` the visit's row: what
+/// „Offen" lists („Biologie trifft VL MIT1 · Di 13:45 · der Besuch gibt nach").
+pub fn yields(events: &[Event]) -> Vec<Overlap> {
+    week_of(events, &visit_meetings(events))
 }
 
 /// The rows and days of one reported clash.

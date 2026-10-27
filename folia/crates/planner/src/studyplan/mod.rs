@@ -28,6 +28,7 @@
 //! `wanted` and `data` (the queries of `pages::studyplan`, answered from the visit's cache the
 //! second time).
 
+mod add;
 mod aside;
 mod calendars;
 mod exams;
@@ -71,7 +72,7 @@ use self::aside::PlanModulePanel;
 use self::calendars::{CalendarLine, CalendarModules};
 use self::exams::ExamsView;
 use self::export::CalendarGroup;
-use self::head::{marked_offered, DerivedLine, ExamAlerts, FromBookmarks, NothingPlanned, Overlaps, SemesterHead};
+use self::head::{marked_offered, DerivedLine, ExamAlerts, MarkedNote, NothingPlanned, Overlaps, SemesterHead};
 use self::modules::ModuleList;
 use self::open::{FocusBar, OpenLine, OpenPanel, PickSheet};
 use self::side::PlanSidebar;
@@ -97,9 +98,10 @@ pub(super) struct PlanCtx {
     pub url: Memo<StudyplanUrl>,
     /// `meta.current_semester` of the local snapshot (a cached answer): „jetzt".
     pub current: Memo<Option<SemesterKey>>,
-    /// The semester shown, its planned modules in the order they were planned, and the program
-    /// the timetable is for (the plan's, else „Mein Studiengang"), whose abbreviations the week
-    /// grid names the modules by.
+    /// The semester shown, the modules of its week (the planned ones in the order they were
+    /// planned, then those only visited, `PlanDoc::week_in`), and the program the timetable is for
+    /// (the plan's, else „Mein Studiengang"), whose abbreviations the week grid names the modules
+    /// by.
     pub wanted: Memo<(SemesterKey, Vec<String>, Option<String>)>,
     /// The semester shown (`wanted.0`), for the views.
     pub key: Memo<SemesterKey>,
@@ -139,6 +141,8 @@ pub(super) struct PlanCtx {
     /// „Gemeinsam frei": the week draws the time every calendar in it has free. A view setting of
     /// the page, off until switched on, not stored.
     pub together: RwSignal<bool>,
+    /// The calendar whose „+ Modul" is open (`add.rs`). A view setting of the page, not stored.
+    pub adding: RwSignal<Option<add::AddTo>>,
 }
 
 /// The semester the page shows: the one the catalog has dates for, the snapshot's current one
@@ -202,7 +206,7 @@ pub fn StudyplanPage() -> impl IntoView {
             Some(plan) => plan.with(|doc| {
                 let key = key_of(&url, current, doc, today);
                 let program = doc.program.clone().or_else(|| mine.and_then(|mine| mine.with(|mine| mine.program.clone())));
-                (key, doc.modules_in(key), program)
+                (key, doc.week_in(key), program)
             }),
             None => (key_of(&url, current, &PlanDoc::default(), today), Vec::new(), None),
         }
@@ -249,6 +253,7 @@ pub fn StudyplanPage() -> impl IntoView {
         days: RwSignal::new(false),
         calendars: calendars::shown_calendars(url, current, plan, source, today),
         together: RwSignal::new(false),
+        adding: RwSignal::new(None),
     };
     // What „Rückgängig" puts back is the plan of the profile it was taken from: with another
     // profile (chosen here or in another tab, `folia_stores::profiles`) there is nothing to undo.
@@ -337,8 +342,8 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
     let fine = Memo::new(move |_| failed.with(Option::is_none));
     let shown = Memo::new(move |_| ctx.url.with(|url| url.view));
     let weekly = Memo::new(move |_| matches!(shown.get(), PlanView::Week | PlanView::Overview));
-    // The marked modules the semester could take, for the empty week's „übernehmen" and the list's
-    // „Aus der Merkliste": one query of the Merkliste for both.
+    // The marked modules, for the empty week's „übernehmen" and „+ Modul"'s „Merkliste" (`add.rs`):
+    // one query of the Merkliste for both.
     let marked = marked_offered(ctx);
     let view = move || match shown.get() {
         PlanView::Week | PlanView::Overview => view! { <WeekView ctx marked/> }.into_any(),
@@ -389,9 +394,9 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
                 view! {
                     <div class="sp-side">
                         <OpenPanel ctx/>
-                        <ModuleList ctx/>
-                        <CalendarModules ctx/>
-                        <FromBookmarks ctx list=marked/>
+                        <ModuleList ctx marked/>
+                        <CalendarModules ctx marked/>
+                        <MarkedNote ctx/>
                     </div>
                 }
             })

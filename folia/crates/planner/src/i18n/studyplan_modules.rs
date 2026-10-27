@@ -1,11 +1,11 @@
 //! Texts of the Stundenplan's modules (`pages/studyplan/modules.rs`): the list of the planned
-//! modules beside the week, their placeholders and „Modul hinzufügen". What a placeholder is
+//! modules beside the week, their placeholders, the visits and „+ Modul". What a placeholder is
 //! called is the data contract's (`folia_plans::i18n`), the unit of credits the app's
 //! (`common`).
 
 pub struct Texts {
-    /// The heading of the list („Module") and its name for screen readers („Module im
-    /// Stundenplan").
+    /// The heading of the list, the calendar's name („Mein Studiengang", owner 2026-10-26: a part
+    /// per calendar), and its name for screen readers („Module im Stundenplan").
     pub heading: &'static str,
     pub list: &'static str,
     /// A planned module the catalog has no title for, by its number: „Modul 12104".
@@ -36,12 +36,18 @@ pub struct Texts {
     pub area: fn(&str) -> String,
     /// The link of a box whose row takes more: „Weiteres Modul".
     pub another_module: &'static str,
-    /// The last row of the list, to the catalog's modules that fit the week: „Modul hinzufügen".
-    pub add_module: &'static str,
+    /// „+ Modul" in the head of a calendar's part: its words after the „+", and its name with the
+    /// calendar's („Modul in „Mein Studiengang“ aufnehmen").
+    pub add: &'static str,
+    pub add_named: fn(&str) -> String,
+    /// Under the title of a module only visited: „Besuch · zählt nicht".
+    pub visit: &'static str,
+    /// The last line of „Mein Studiengang"'s part: where the modules of the study are planned.
+    pub to_study: &'static str,
 }
 
 pub const DE: Texts = Texts {
-    heading: "Module",
+    heading: "Mein Studiengang",
     list: "Module im Stundenplan",
     module_numbered: |id| format!("Modul {id}"),
     not_in_catalog: "nicht im Modulkatalog",
@@ -56,11 +62,14 @@ pub const DE: Texts = Texts {
     credits_planned: |credits| format!("{credits}\u{a0}LP geplant"),
     area: |name| format!("Bereich „{name}“"),
     another_module: "Weiteres Modul",
-    add_module: "Modul hinzufügen",
+    add: "Modul",
+    add_named: |calendar| format!("Modul in „{calendar}“ aufnehmen"),
+    visit: "Besuch · zählt nicht",
+    to_study: "Module des Studiums in „Mein Studium“",
 };
 
 pub const EN: Texts = Texts {
-    heading: "Modules",
+    heading: "My programme",
     list: "Modules in the timetable",
     module_numbered: |id| format!("Module {id}"),
     not_in_catalog: "not in the module catalogue",
@@ -75,5 +84,8 @@ pub const EN: Texts = Texts {
     credits_planned: |credits| format!("{credits}\u{a0}CP planned"),
     area: |name| format!("Area “{name}”"),
     another_module: "Another module",
-    add_module: "Add a module",
+    add: "Module",
+    add_named: |calendar| format!("Add a module to “{calendar}”"),
+    visit: "visit · does not count",
+    to_study: "Modules of the study in “My studies”",
 };

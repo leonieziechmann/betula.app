@@ -155,7 +155,9 @@ pub fn TodayView(guest: bool, welcome: RwSignal<Option<Done>>, on_setup: Callbac
     let meta = use_ask(|| Some(MetaAsk {}));
     let key = Memo::new(move |_| meta.with(|meta| meta.as_ref().and_then(|meta| meta.as_ref().ok()).and_then(|meta| meta.current_semester.as_deref().and_then(SemesterKey::parse))));
     let planned = Memo::new(move |_| match (plan, key.get()) {
-        (Some(plan), Some(key)) if !guest => plan.modules_in(key),
+        // The week's modules, the visits too (owner, 2026-10-26: „Mein Studiengang" with its
+        // visits on the start page always).
+        (Some(plan), Some(key)) if !guest => plan.week_in(key),
         _ => Vec::new(),
     });
     let program = Memo::new(move |_| plan.and_then(|plan| plan.with(|doc| doc.program.clone())).or_else(|| mine.and_then(|mine| mine.with(|doc| doc.program.clone()))));

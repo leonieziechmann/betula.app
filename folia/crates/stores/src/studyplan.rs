@@ -142,15 +142,26 @@ impl Studyplan {
         self.0.with(planned_modules)
     }
 
-    /// How many modules are planned into a semester: what the timetable of that semester holds.
-    /// Tracked: read it in a memo.
+    /// How many modules a semester's timetable holds, planned and only visited. Tracked: read it
+    /// in a memo.
     pub fn count_in(self, s: SemesterKey) -> usize {
-        self.0.with(|doc| doc.modules.iter().filter(|m| m.semester == s).count())
+        self.0.with(|doc| doc.week_in(s).len())
     }
 
     /// The modules planned into a semester, in the order they were planned. Tracked.
     pub fn modules_in(self, s: SemesterKey) -> Vec<String> {
         self.0.with(|doc| doc.modules_in(s))
+    }
+
+    /// What the week of a semester holds: its planned modules, then its visits (`PlanDoc::week_in`).
+    /// Tracked.
+    pub fn week_in(self, s: SemesterKey) -> Vec<String> {
+        self.0.with(|doc| doc.week_in(s))
+    }
+
+    /// Whether the module is only visited in the semester. Tracked.
+    pub fn is_visited(self, s: SemesterKey, id: &str) -> bool {
+        self.0.with(|doc| doc.is_visited(s, id))
     }
 
     /// Whether the module is planned into the semester. Tracked: read it in a memo per button (R5).
@@ -768,10 +779,11 @@ pub fn move_targets(at: SemesterKey, current: SemesterKey, floor: SemesterKey, u
 }
 
 /// What tells which events of `id` no other module of the plan has (`events_alone`): the rows of
-/// the module and of the plan's others in `semester`. Where the catalog cannot say, none, which
-/// keeps the semester's own lines (the safe direction).
+/// the module and of the week's others in `semester`, the visits among them (their choices are
+/// the semester's lines too). Where the catalog cannot say, none, which keeps the semester's own
+/// lines (the safe direction).
 fn only_its_events_ask(doc: &PlanDoc, semester: SemesterKey, id: &str) -> PlanRowsAsk {
-    let others: Vec<String> = doc.modules_in(semester).into_iter().filter(|other| other != id).collect();
+    let others: Vec<String> = doc.week_in(semester).into_iter().filter(|other| other != id).collect();
     PlanRowsAsk { key: semester, own: vec![id.to_string()], others }
 }
 

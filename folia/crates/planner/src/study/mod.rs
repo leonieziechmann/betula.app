@@ -489,10 +489,12 @@ pub fn StudyPage() -> impl IntoView {
         let now = source.with_value(|source| source.as_ref().map(|source| source.now(&MetaAsk {})))?;
         folia_pages::ask::unless_pending(now, before, |meta| meta.ok().and_then(|meta| meta.current_semester.as_deref().and_then(SemesterKey::parse)))
     });
-    // The modules of the plan and of the semesters: their rows (for the ones the plan does not
-    // name) and what they ask for of others.
+    // The modules of the plan and of the semesters, the visits among them: their rows (for the
+    // ones the plan does not name) and what they ask for of others.
     let ids = Memo::new(move |_| {
-        let mut ids: Vec<String> = plan.map(|plan| plan.with(|doc| doc.modules.iter().map(|m| m.module_id.clone()).chain(doc.passed.iter().map(|p| p.module_id.clone())).collect())).unwrap_or_default();
+        let mut ids: Vec<String> = plan
+            .map(|plan| plan.with(|doc| doc.modules.iter().map(|m| m.module_id.clone()).chain(doc.visits.iter().map(|v| v.module_id.clone())).chain(doc.passed.iter().map(|p| p.module_id.clone())).collect()))
+            .unwrap_or_default();
         plans.with(|plans| {
             if let Plans::Found(source) = plans {
                 ids.extend(source.linked.iter().map(|row| row.id.clone()));
