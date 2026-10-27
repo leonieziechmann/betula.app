@@ -563,6 +563,22 @@ impl Item {
     }
 }
 
+/// A module only visited in a semester (`studyplan::Visit`, „nur besuchen"): in its week, apart
+/// from its items, counting for nothing — no credits, no area, never passed (folia/design/kalender/
+/// konzepte.html, „Ein Besuchsmodul in „Mein Studium“": „mit eigenem Zeichen, ohne LP, außerhalb
+/// der Bereiche").
+#[derive(Clone, Debug, PartialEq)]
+pub struct VisitItem {
+    pub id: String,
+    /// The catalog's title, else the plan's name of it.
+    pub name: String,
+    /// What it would count once „Nur besuchen" is taken away: the plan's, else the catalog's.
+    pub credits: Option<f64>,
+    pub offer: Offer,
+    /// The semester does not offer it (its turnus).
+    pub unoffered: bool,
+}
+
 /// Where a semester stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum When {
@@ -582,6 +598,8 @@ pub struct Semester {
     pub when: When,
     /// What is taken again first, then in the order it was put in; modules before rows.
     pub items: Vec<Item>,
+    /// The modules only visited in it, in the order they came: none of its items, counted nowhere.
+    pub visits: Vec<VisitItem>,
     /// What its items come to, each with one number of its own; what of it is passed.
     pub credits: f64,
     pub passed: f64,
@@ -687,6 +705,7 @@ pub fn study(input: &Input) -> Study {
         .modules
         .iter()
         .map(|m| m.semester)
+        .chain(doc.visits.iter().map(|v| v.semester))
         .chain(doc.placeholders.iter().map(|p| p.semester))
         .chain(doc.passed.iter().map(|p| p.semester))
         .chain(doc.done_rows.iter().map(|q| q.semester))
@@ -715,6 +734,18 @@ pub fn study(input: &Input) -> Study {
             over: 0.0,
             plan_fs: row.map(|row| row.first),
             fillers: Vec::new(),
+        }
+    };
+    let visit_item = |id: &str, s: SemesterKey| -> VisitItem {
+        let linked = catalog.get(id).copied();
+        let row = module_rows.get(id).copied();
+        let offer = linked.map(Offer::of).unwrap_or_default();
+        VisitItem {
+            id: id.to_string(),
+            name: linked.map(|row| row.title.clone()).or_else(|| row.map(|row| plan::shown_name(&row.entry.module_name).to_string())).unwrap_or_else(|| id.to_string()),
+            credits: row.and_then(|row| row.entry.credits.or(row.entry.min_credits)).or(linked.and_then(|row| row.credits)),
+            offer,
+            unoffered: !offer.offered(s),
         }
     };
     let row_item = |pid: Option<u32>, program_id: &str, caption: &str, ord: i64, name: &str, span: (u8, u8), credits: Option<String>, kind: Option<&str>, s: SemesterKey| -> Item {
@@ -782,6 +813,7 @@ pub fn study(input: &Input) -> Study {
                 std::cmp::Ordering::Greater => When::Later,
             },
             items,
+            visits: doc.visits.iter().filter(|v| v.semester == s).map(|v| visit_item(&v.module_id, s)).collect(),
             credits: 0.0,
             passed: 0.0,
             partial: false,
@@ -1572,6 +1604,30 @@ mod tests {
         assert!([5, 6, 7].iter().all(|id| fach.tree.contains(id)), "{:?}", fach.tree);
         assert_eq!(area_name("Komplex Informatik"), "Informatik");
         assert_eq!(area_name("Wahlpflichtmodule Praktische Mathematik"), "Praktische Mathematik");
+    }
+
+    #[test]
+    fn a_visit_stands_apart_and_counts_for_nothing() {
+        let w = world();
+        let mut doc = PlanDoc::default();
+        // 11001 planned, 12330 only visited beside it, 11009 only visited in a semester beyond the
+        // Regelstudienzeit that nothing else holds.
+        assert!(doc.plan(key("2026W"), "11001", 1, None));
+        assert!(doc.visit(key("2026W"), "12330", 2));
+        assert!(doc.visit(key("2028W"), "11009", 3));
+        let without = PlanDoc { visits: Vec::new(), ..doc.clone() };
+        let (with, alone) = (study(&input(&w, &doc, "2025W", "2026W")), study(&input(&w, &without, "2025W", "2026W")));
+        let winter = with.semester(key("2026W")).unwrap();
+        assert_eq!(keys(&with, "2026W"), ["m:11001"], "no item of the semester");
+        let visits: Vec<(&str, Option<f64>, bool)> = winter.visits.iter().map(|visit| (visit.id.as_str(), visit.credits, visit.unoffered)).collect();
+        assert_eq!(visits, [("12330", Some(6.0), false)]);
+        // Nothing of it counts: the semester's credits, the areas, what is open, as without it.
+        let figures = |study: &Study| (study.semester(key("2026W")).map(|s| (s.credits, s.partial)), study.planned, study.open, study.outside, study.progress.clone());
+        assert_eq!(figures(&with), figures(&alone));
+        // A semester that holds a visit alone is one of the study, with nothing in it that counts.
+        let later = with.semester(key("2028W")).unwrap();
+        assert!(later.items.is_empty() && later.visits.len() == 1 && later.credits == 0.0);
+        assert!(alone.semester(key("2028W")).is_none());
     }
 
     #[test]

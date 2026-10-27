@@ -12,7 +12,8 @@
 //!
 //! A tick acts at once, as the Termin's tiles do (`PlanDoc::tick`), and the Kalender-Abo follows.
 //! A choice among a module's events is listed too; its module beside the plan decides it, as
-//! before. What the parts show is built as plain values first (`Line`, `Focus`), which the tests
+//! before. Last, where a visit meets the plan's Termine it gives way, and „Offen" says so (owner,
+//! 2026-10-26: „Biologie trifft VL MIT1 · Di 13:45 · der Besuch gibt nach"), a line to its Termin. What the parts show is built as plain values first (`Line`, `Focus`), which the tests
 //! read without rendering.
 
 use std::collections::BTreeMap;
@@ -23,6 +24,7 @@ use folia_routes::url::{PlanView, StudyplanUrl};
 use folia_shell::pending::same_page;
 use folia_shell::tabs::Tabs;
 use folia_timetable::choice::{self, Around, Open};
+use folia_timetable::clash::{self, When};
 use folia_timetable::model::{Event, Timetable, UNNAMED_GROUP};
 use folia_timetable::termin;
 use folia_timetable::views::{kind_short, short_title};
@@ -52,6 +54,8 @@ pub(super) struct Line {
     pub warn: bool,
     /// A choice among a module's events: its module beside the plan decides it.
     pub module: bool,
+    /// Where a visit gives way, not a choice: a click shows the visit's Termin.
+    pub gives: bool,
 }
 
 /// „Übung MIT1": the kind as QIS names it and the module's short name, as the week names it.
@@ -92,6 +96,7 @@ pub(super) fn lines(table: &Timetable, titles: &BTreeMap<String, String>, base: 
                     current: focus == Some(*index),
                     warn: *blocked,
                     module: false,
+                    gives: false,
                 },
                 Open::Across { take, options, blocked, .. } => {
                     let module = event.modules.first()?;
@@ -104,11 +109,51 @@ pub(super) fn lines(table: &Timetable, titles: &BTreeMap<String, String>, base: 
                         current: false,
                         warn: *blocked,
                         module: true,
+                        gives: false,
                     }
                 }
             })
         })
+        .chain(gives_lines(table, titles, base, t))
         .collect()
+}
+
+/// Where the visits give way (`clash::yields`), one line per visit and Termin of the plan it
+/// meets, at the first time they meet: „Biologie trifft VL MIT1", „Di 13:45 · der Besuch gibt
+/// nach", to the visit's Termin.
+fn gives_lines(table: &Timetable, titles: &BTreeMap<String, String>, base: &StudyplanUrl, t: &i18n::Texts) -> Vec<Line> {
+    let o = &t.studyplan_open;
+    let mut seen: Vec<(usize, usize)> = Vec::new();
+    let mut lines = Vec::new();
+    for overlap in clash::yields(&table.events) {
+        let pair = (overlap.a.0, overlap.b.0);
+        if seen.contains(&pair) {
+            continue;
+        }
+        seen.push(pair);
+        let (Some(visit), Some(plan)) = (table.events.get(overlap.a.0), table.events.get(overlap.b.0)) else { continue };
+        let Some(module) = visit.modules.first() else { continue };
+        let name = titles.get(module).map_or(visit.title.as_str(), String::as_str);
+        let when = match overlap.when {
+            When::Weekly(_) => format!("{} {}", weekday_name(overlap.weekday, t.locale), clock(overlap.from)),
+            When::Day(day) => format!("{} {} {}", weekday_name(overlap.weekday, t.locale), day.date(t.locale), clock(overlap.from)),
+        };
+        let href = match visit.rows.get(overlap.a.1).and_then(|row| row.key) {
+            Some(key) => base.with_termin(Some((key, None))).path(),
+            None => base.with_open(Some(module), None).path(),
+        };
+        lines.push(Line {
+            name: (o.visit_meets)(&short_title(name), &slot_name(plan, titles, t)),
+            say: format!("{when} · {}", o.gives_way),
+            hue: hue(visit.tone),
+            href,
+            current: false,
+            warn: false,
+            module: false,
+            gives: true,
+        });
+    }
+    lines
 }
 
 /// A group of the choice in focus, as a tile and as a line of „Vergleichen".
@@ -128,8 +173,10 @@ pub(super) struct Group {
     /// Who leads it, as QIS names it.
     pub who: Option<String>,
     pub ticked: bool,
-    /// The plan's Termin it meets („VL MIT1"); `None` where it fits.
+    /// The plan's Termin it meets („VL MIT1"); `None` where it fits. A group of a visit gives way
+    /// where it meets one (`gives`): yellow, never a clash's red.
     pub meets: Option<String>,
+    pub gives: bool,
     /// Its day, for „Vergleichen".
     pub day: Option<Day>,
     /// What a tooltip and a screen reader say of it.
@@ -143,9 +190,10 @@ pub(super) struct Day {
     pub bars: Vec<Bar>,
     pub note: String,
     /// The line's sign: „map-pin" alone at the campus, „route" another campus, „triangle-alert"
-    /// a Termin it meets, else „clock-3".
+    /// a Termin it meets, else „clock-3"; of a visit's group the meeting gives way (`gives`).
     pub icon: &'static str,
     pub warn: bool,
+    pub gives: bool,
 }
 
 /// A Termin on a group's band, in per cent of the day from 7 to 19, in its lane.
@@ -192,6 +240,16 @@ pub(super) struct Focus {
     pub comparing: bool,
 }
 
+/// A group's dot: green where it fits, red where it meets the plan, yellow where a visit's group
+/// gives way.
+fn dot_of(group: &Group) -> &'static str {
+    match (group.meets.is_some(), group.gives) {
+        (false, _) => "st ok",
+        (true, false) => "st no",
+        (true, true) => "st gives",
+    }
+}
+
 /// QIS's „2-Gruppe" as one reads it: „Gruppe 2"; another name as it is.
 fn group_word(name: &str) -> String {
     match name.strip_suffix("-Gruppe") {
@@ -220,15 +278,17 @@ pub(super) fn focus_of(table: &Timetable, event: usize, titles: &BTreeMap<String
             let meets = tile.meets.and_then(|other| table.events.get(other)).map(|other| slot_name(other, titles, t));
             let day = choice::around(table, &week, event, tile.session.row).map(|around| day_of(table, &around, tile.ticked, titles, of, t));
             let said = match &meets {
+                Some(what) if of.visit => format!("{} · {}", (o.meets)(what), o.gives_way),
                 Some(what) => (o.meets)(what),
                 None => o.fits.to_string(),
             };
+            let gives = meets.is_some() && of.visit;
             let label = [name.clone(), Some(span.clone()), Some(room.clone()).filter(|room| !room.is_empty()), Some(said), tile.ticked.then(|| o.ticked.to_string())]
                 .into_iter()
                 .flatten()
                 .collect::<Vec<_>>()
                 .join(", ");
-            Some((weekday, from, Group { at: 0, keys: tile.keys, when, span, room, name, who, ticked: tile.ticked, meets, day, label }))
+            Some((weekday, from, Group { at: 0, keys: tile.keys, when, span, room, name, who, ticked: tile.ticked, meets, gives, day, label }))
         })
         .collect();
     groups.sort_by_key(|(weekday, from, _)| (*weekday, *from));
@@ -275,7 +335,8 @@ fn day_of(table: &Timetable, around: &Around, ticked: bool, titles: &BTreeMap<St
     let name = |event: usize| table.events.get(event).map(|event| slot_name(event, titles, t)).unwrap_or_default();
     let (icon, warn, note) = if !around.meets.is_empty() {
         let what = around.meets.iter().map(|event| name(*event)).collect::<Vec<_>>().join(", ");
-        ("triangle-alert", true, (o.meets)(&what))
+        let note = if own.visit { format!("{} · {}", (o.meets)(&what), o.gives_way) } else { (o.meets)(&what) };
+        ("triangle-alert", true, note)
     } else if around.alone() {
         ("map-pin", false, (o.alone)(&weekday_long(around.day, t)))
     } else {
@@ -331,7 +392,7 @@ fn day_of(table: &Timetable, around: &Around, ticked: bool, titles: &BTreeMap<St
             Bar { left, width, lane, lanes: count, ..bar }
         })
         .collect();
-    Day { bars, note, icon, warn }
+    Day { bars, note, icon, warn, gives: warn && own.visit }
 }
 
 /// „Mittwoch": the weekday in full, after „am".
@@ -413,13 +474,14 @@ fn back_of(ctx: PlanCtx) -> Signal<Option<&'static str>> {
 /// A line of „Offen" as a link.
 fn line_view(line: Line, t: &'static i18n::Texts) -> impl IntoView {
     let o = &t.studyplan_open;
-    let go = match (line.current, line.module) {
-        (true, _) => o.in_focus,
-        (false, true) => o.in_module,
-        (false, false) => o.choose,
+    let go = match (line.current, line.module, line.gives) {
+        (true, ..) => o.in_focus,
+        (false, _, true) => o.look,
+        (false, true, false) => o.in_module,
+        (false, false, false) => o.choose,
     };
     view! {
-        <a class=format!("sp-open-row {}", line.hue) class:current=line.current class:warn=line.warn href=t.path(&line.href) data-noscroll="" aria-current=line.current.then_some("true")>
+        <a class=format!("sp-open-row {}", line.hue) class:current=line.current class:warn=line.warn class:gives=line.gives href=t.path(&line.href) data-noscroll="" aria-current=line.current.then_some("true")>
             <i class="od" aria-hidden="true"></i>
             <span class="t"><b>{line.name}</b><small>{line.say}</small></span>
             <span class="go">{go}{(!line.current).then(|| view! { <Icon name="chevron-right"/> })}</span>
@@ -443,7 +505,7 @@ pub(super) fn OpenPanel(ctx: PlanCtx) -> impl IntoView {
     let lines = Memo::new(move |_| {
         built.with(|(lines, focus)| {
             let ticked = focus.as_ref().is_some_and(|focus| focus.groups.iter().any(|group| group.ticked));
-            (lines.clone(), lines.iter().filter(|line| !line.current || !ticked).count())
+            (lines.clone(), lines.iter().filter(|line| !line.gives && (!line.current || !ticked)).count())
         })
     });
     let list = move || {
@@ -483,12 +545,18 @@ pub(super) fn OpenLine(ctx: PlanCtx) -> impl IntoView {
     move || {
         let open = open.get();
         (!open.is_empty()).then(|| {
-            let names = open.iter().map(|line| line.name.clone()).collect::<Vec<_>>().join(" · ");
+            // What is to choose first; where nothing is, where a visit gives way.
+            let choices = open.iter().filter(|line| !line.gives).count();
+            let said = match choices {
+                0 => (t.studyplan_open.gives_count)(open.len()),
+                n => (t.studyplan_open.open_count)(n),
+            };
+            let names = open.iter().filter(|line| choices == 0 || !line.gives).map(|line| line.name.clone()).collect::<Vec<_>>().join(" · ");
             view! {
                 <details class="sp-open-line">
                     <summary>
                         <span class="ic" aria-hidden="true"><Icon name="list-checks"/></span>
-                        <span class="t"><b>{(t.studyplan_open.open_count)(open.len())}</b><small>{names}</small></span>
+                        <span class="t"><b>{said}</b><small>{names}</small></span>
                         <Icon name="chevron-down" class="chev"/>
                     </summary>
                     <div class="sp-open-rows">{open.into_iter().map(|line| line_view(line, t)).collect_view()}</div>
@@ -575,7 +643,7 @@ fn Tiles(ctx: PlanCtx, focus: Memo<Option<Focus>>, more: RwSignal<bool>) -> impl
         })
     };
     let tile = move |group: Group| {
-        let dot = if group.meets.is_some() { "st no" } else { "st ok" };
+        let dot = dot_of(&group);
         view! {
             <button class="gs pick" class:on=group.ticked type="button" role="checkbox" aria-checked=if group.ticked { "true" } else { "false" } data-g=group.at title=group.label.clone() aria-label=group.label.clone() on:click=ticks(ctx, focus, &group)>
                 <b>{group.when.clone()}<i class=dot></i></b>
@@ -612,10 +680,10 @@ fn CompareList(ctx: PlanCtx, focus: Memo<Option<Focus>>) -> impl IntoView {
             <button class="sp-cmp-row" class:on=group.ticked type="button" role="checkbox" aria-checked=if group.ticked { "true" } else { "false" } data-g=group.at aria-label=group.label.clone() on:click=ticks(ctx, focus, &group)>
                 <span class="cbx" aria-hidden="true">{group.ticked.then(|| view! { <Icon name="check"/> })}</span>
                 <span class="cm">
-                    <span class="ct"><b>{group.span.clone()}</b><i class=if group.meets.is_some() { "st no" } else { "st ok" }></i><span class="cr">{group.room.clone()}</span></span>
+                    <span class="ct"><b>{group.span.clone()}</b><i class=dot_of(&group)></i><span class="cr">{group.room.clone()}</span></span>
                     {(!sub.is_empty()).then(|| view! { <span class="cs">{sub.join(" · ")}</span> })}
                     {day.map(|day| view! {
-                        <span class="rib" aria-hidden="true">
+                        <span class="rib" class:gives=day.gives aria-hidden="true">
                             {day.bars.into_iter().map(|bar| {
                                 let class = format!("rb {}{}{}", bar.hue, if bar.own { if bar.ticked { " me" } else { " cand" } } else { "" }, if bar.hit { " hit" } else { "" });
                                 let style = format!("left: {:.2}%; width: calc({:.2}% - 2px); --lane: {}; --lanes: {}", bar.left, bar.width, bar.lane, bar.lanes);
@@ -623,7 +691,7 @@ fn CompareList(ctx: PlanCtx, focus: Memo<Option<Focus>>) -> impl IntoView {
                             }).collect_view()}
                         </span>
                         <span class="rt" aria-hidden="true">{[8u16, 10, 12, 14, 16, 18].into_iter().map(|hour| view! { <span style=format!("left: {:.2}%", (f32::from(hour) - 7.0) / 12.0 * 100.0)>{hour}</span> }).collect_view()}</span>
-                        <span class="cn" class:warn=day.warn><Icon name=day.icon/>{day.note}</span>
+                        <span class="cn" class:warn=day.warn class:gives=day.gives><Icon name=day.icon/>{day.note}</span>
                     })}
                 </span>
             </button>

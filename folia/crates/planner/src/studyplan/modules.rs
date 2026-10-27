@@ -1,6 +1,7 @@
 //! The planned modules of the Stundenplan (owner, 2026-09-25: „im Style wie beim Modulkatalog oder
-//! dem Merken", right of the plan where the screen is wide enough): a head („Module", the credits of
-//! the planned modules at the right), then a row per module in plan order, as a row of the
+//! dem Merken", right of the plan where the screen is wide enough): a head („Mein Studiengang", the
+//! calendar this part of the list is, owner 2026-10-26: a part per calendar; „+ Modul"; the
+//! credits of the planned modules at the right), then a row per module in plan order, as a row of the
 //! catalog's list reads — its title, under it the key the week names it by in its tone („EvS"), its
 //! number and what else is to know, its credits at the right. A row opens the module beside the
 //! plan; its × at the end takes it out of the plan (as „Merken" does in the Merkliste), and the row
@@ -11,7 +12,11 @@
 //! ein Bereich ist, wo ein Modul ausgewählt ist"), with „Weiteres Modul" while its row takes more
 //! (`studyplan::takes_more`: a range of credits, not one module). A row over several Fachsemester
 //! stands in each semester it was taken over into, and its box shows what counts for it in the
-//! others too. Last, dashed as well, „Modul hinzufügen": the catalog's modules that fit the week.
+//! others too. Then the modules only visited (`Visit`, „Besuch · zählt nicht", hatched as in the
+//! week), which count for no credits, each with its × as well. Last, the way to „Mein Studium",
+//! where the modules of the study are planned (owner, 2026-10-26: „Nein aus dem Kallender soll man
+//! nicht module in den Studienplan aufnehmen können. Es soll nur möglich sein besuchsmodule zu
+//! planen"); „+ Modul" in the head takes a module in only to visit it (`add.rs`).
 //!
 //! The rows are built as plain values first (`ModuleItem`, `AreaPlan`, `Area`, `Entry`), which the
 //! tests read without rendering, and keyed by them (R5). What the plan's placeholders say comes
@@ -38,8 +43,9 @@ use folia_stores::myprogram::MineResolved;
 use folia_widgets::finder::finder_on;
 use folia_shell::pending::{Change, Pending};
 use folia_design::ui::Icon;
+use super::add::{AddPanel, AddTo};
 use super::aside::only_its_events;
-use super::head::{add_module_href, hue, is_past, tone_at};
+use super::head::{hue, is_past, tone_at, MarkedModule};
 use super::{key_of, PlanCtx};
 
 /// How the note of a module taken out of the list begins (`PlanCtx::undo`), the module's id after
@@ -64,12 +70,15 @@ struct ModuleItem {
     /// has none in this one; one of this semester holds the module in its box instead.
     counts_for: Option<String>,
     hue: &'static str,
+    /// Only visited (`Selection::visits`): its credits count for nothing.
+    visit: bool,
 }
 
-/// The rows of a semester's planned modules, in plan order, each in the tone the week gives it. A
-/// module without a dated Termin says so where the semester's dates are there to be had (neither
-/// past, whose dates are gone, nor unpublished, which the head says for all of them).
-fn module_items(data: &StudyplanData, t: &'static i18n::Texts) -> Vec<ModuleItem> {
+/// The rows of a semester's modules, in plan order, each in the tone the week gives it; those of
+/// `visits` only visited. A module without a dated Termin says so where the semester's dates are
+/// there to be had (neither past, whose dates are gone, nor unpublished, which the head says for
+/// all of them).
+fn module_items(data: &StudyplanData, visits: &BTreeSet<String>, t: &'static i18n::Texts) -> Vec<ModuleItem> {
     let dated = !data.counts.is_empty() && !is_past(data);
     let names = data.slot_names();
     data.ids
@@ -91,6 +100,7 @@ fn module_items(data: &StudyplanData, t: &'static i18n::Texts) -> Vec<ModuleItem
                 note,
                 counts_for: None,
                 hue: hue(tone_at(position)),
+                visit: visits.contains(id),
             }
         })
         .collect()
@@ -107,12 +117,14 @@ fn credits_text(credits: &[Option<f64>], locale: Locale) -> String {
 }
 
 /// The credits of the planned modules, the head's sum (owner, 2026-09-25: „die Summe aus allen
-/// geplanten Modulen"): „32", „≥ 26" where a module states none (R12). None without a module.
-fn credits_sum(data: &StudyplanData, locale: Locale) -> Option<String> {
-    if data.ids.is_empty() {
+/// geplanten Modulen"): „32", „≥ 26" where a module states none (R12). None without a module; a
+/// visit counts for nothing.
+fn credits_sum(data: &StudyplanData, visits: &BTreeSet<String>, locale: Locale) -> Option<String> {
+    let planned: Vec<&String> = data.ids.iter().filter(|id| !visits.contains(*id)).collect();
+    if planned.is_empty() {
         return None;
     }
-    let credits: Vec<Option<f64>> = data.ids.iter().map(|id| data.modules.iter().find(|row| row.id == *id).and_then(|row| row.credits)).collect();
+    let credits: Vec<Option<f64>> = planned.iter().map(|id| data.modules.iter().find(|row| row.id == **id).and_then(|row| row.credits)).collect();
     Some(credits_text(&credits, locale))
 }
 
@@ -123,14 +135,22 @@ enum Entry {
     Gone { id: String, title: String },
 }
 
-/// The module just taken out: the placeholder of the semester whose box it stood in (none: the
-/// list's own rows), where its row stood there, its id and its title.
-type Gone = (Option<u32>, usize, String, String);
+/// A part of the list a row stands in: the list's own rows, the box of a placeholder of the
+/// semester (by its pid), or the visits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Group {
+    Own,
+    Area(u32),
+    Visits,
+}
 
-/// The rows of one part of the list — its own rows (`group` none), or the box of placeholder
-/// `group` — with the module just taken out in its place: in the click, while the plan still holds
-/// it, instead of its row, and then where its row stood.
-fn entries(items: &[ModuleItem], gone: Option<&Gone>, group: Option<u32>) -> Vec<Entry> {
+/// The module just taken out: the part of the list it stood in, where its row stood there, its id
+/// and its title.
+type Gone = (Group, usize, String, String);
+
+/// The rows of one part of the list (`group`) with the module just taken out in its place: in the
+/// click, while the plan still holds it, instead of its row, and then where its row stood.
+fn entries(items: &[ModuleItem], gone: Option<&Gone>, group: Group) -> Vec<Entry> {
     let gone = gone.filter(|(of, ..)| *of == group);
     let gone_row = |id: &str, title: &str| Entry::Gone { id: id.to_string(), title: title.to_string() };
     let mut entries: Vec<Entry> = items
@@ -277,17 +297,19 @@ impl Area {
     }
 }
 
-/// The list: the modules that count for no placeholder of the semester, then the placeholders.
+/// The list: the modules that count for no placeholder of the semester, then the placeholders,
+/// then the visits.
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Listed {
     rows: Vec<Entry>,
     areas: Vec<Area>,
+    visits: Vec<Entry>,
 }
 
 impl Listed {
-    /// Where a planned module's row stands, and its title: the box it is in (none: the list's own
-    /// rows) and its place among the modules there.
-    fn place_of(&self, id: &str) -> Option<(Option<u32>, usize, String)> {
+    /// Where a module's row stands, and its title: the part of the list it is in and its place
+    /// among the modules there.
+    fn place_of(&self, id: &str) -> Option<(Group, usize, String)> {
         let find = |entries: &[Entry]| {
             entries
                 .iter()
@@ -300,15 +322,16 @@ impl Listed {
                 .map(|(at, item)| (at, item.title.clone()))
         };
         find(&self.rows)
-            .map(|(at, title)| (None, at, title))
-            .or_else(|| self.areas.iter().find_map(|area| find(&area.entries).map(|(at, title)| (Some(area.pid), at, title))))
+            .map(|(at, title)| (Group::Own, at, title))
+            .or_else(|| self.areas.iter().find_map(|area| find(&area.entries).map(|(at, title)| (Group::Area(area.pid), at, title))))
+            .or_else(|| find(&self.visits).map(|(at, title)| (Group::Visits, at, title)))
     }
 }
 
-/// The list of a semester: its data, what the store says of its placeholders, and the module just
-/// taken out.
-fn listed(data: &StudyplanData, held: &Held, gone: Option<&Gone>, t: &'static i18n::Texts) -> Listed {
-    let items = module_items(data, t);
+/// The list of a semester: its data, what the store says of its placeholders, the module just
+/// taken out, and the modules only visited.
+fn listed(data: &StudyplanData, held: &Held, gone: Option<&Gone>, visits: &BTreeSet<String>, t: &'static i18n::Texts) -> Listed {
+    let (visited, items): (Vec<ModuleItem>, Vec<ModuleItem>) = module_items(data, visits, t).into_iter().partition(|item| item.visit);
     let credits_here = |id: &str| data.modules.iter().find(|row| row.id == id).and_then(|row| row.credits);
     let boxed: BTreeSet<&str> = held.areas.iter().flat_map(|area| area.members.iter().map(String::as_str)).collect();
     let own: Vec<ModuleItem> = items
@@ -340,14 +363,14 @@ fn listed(data: &StudyplanData, held: &Held, gone: Option<&Gone>, t: &'static i1
                 credits: area.credits.clone(),
                 span: area.span.clone(),
                 href: area.href.clone(),
-                entries: entries(&members, gone, Some(area.placeholder.pid)),
+                entries: entries(&members, gone, Group::Area(area.placeholder.pid)),
                 others,
                 chosen: (!chosen.is_empty()).then(|| credits_text(&chosen, t.locale)),
                 more: studyplan::takes_more(&area.placeholder, &chosen),
             }
         })
         .collect();
-    Listed { rows: entries(&own, gone, None), areas }
+    Listed { rows: entries(&own, gone, Group::Own), areas, visits: entries(&visited, gone, Group::Visits) }
 }
 
 /// The module beside the plan, and while one is on its way there (`pending`), that one: its row is
@@ -363,13 +386,15 @@ fn open_shown(ctx: PlanCtx) -> Memo<Option<String>> {
     })
 }
 
-/// „Module" and the credits of the planned modules, a row per module with its ×, the placeholders
-/// with what counts for them, and „Modul hinzufügen".
+/// „Mein Studiengang" with „+ Modul" and the credits of the planned modules, a row per module with
+/// its ×, the placeholders with what counts for them, the visits, and the way to „Mein Studium".
 #[component]
-pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
+pub(super) fn ModuleList(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl IntoView {
     let t = i18n::t();
     let words = &t.studyplan_modules;
-    let sum = Memo::new(move |_| ctx.data.with(|data| data.as_ref().ok().and_then(|data| credits_sum(data, t.locale))));
+    // The modules only visited: of the selection, a sibling of the data (R16).
+    let visits = Memo::new(move |_| ctx.selection.with(|(_, selection)| selection.visits.clone()));
+    let sum = Memo::new(move |_| visits.with(|visits| ctx.data.with(|data| data.as_ref().ok().and_then(|data| credits_sum(data, visits, t.locale)))));
     let resolved = MineResolved::expect();
     let held = Memo::new(move |before: Option<&Held>| {
         let (url, current) = (ctx.url.get(), ctx.current.get());
@@ -389,7 +414,7 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
         held
     });
     let open = open_shown(ctx);
-    let add = move || t.path(&add_module_href(resolved, ctx.key.get()));
+    let study = t.path(&folia_routes::url::StudyUrl { plan: true, ..Default::default() }.path());
 
     // The module just taken out keeps its place while its note is the plan's last (another
     // „Rückgängig" replaces it: the import, „Plan leeren", another module taken out).
@@ -403,10 +428,11 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
     // plan (R16).
     let list = Memo::new(move |_| {
         let gone = gone_shown.get();
-        held.with(|held| ctx.data.with(|data| data.as_ref().map(|data| listed(data, held, gone.as_ref(), t)).unwrap_or_default()))
+        visits.with(|visits| held.with(|held| ctx.data.with(|data| data.as_ref().map(|data| listed(data, held, gone.as_ref(), visits, t)).unwrap_or_default())))
     });
     let rows = Memo::new(move |_| list.with(|list| list.rows.clone()));
     let areas = Memo::new(move |_| list.with(|list| list.areas.clone()));
+    let visit_rows = Memo::new(move |_| list.with(|list| list.visits.clone()));
 
     let going = Pending::expect();
     let tabs = folia_shell::tabs::Tabs::expect();
@@ -423,7 +449,10 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
             let now = ctx.url.with_untracked(|url| url.path());
             folia_shell::nav::close_to(going, &page, || tabs.is_some_and(|tabs| folia_shell::pending::same_page(&tabs.before(&now), &page)));
         }
-        plan.update_after_paint(move |doc| doc.unplan(key, &id, &events));
+        plan.update_after_paint(move |doc| match group {
+            Group::Visits => doc.unvisit(key, &id, &events),
+            Group::Own | Group::Area(_) => doc.unplan(key, &id, &events),
+        });
     };
     let restoring = RwSignal::new(false);
     let restore = move |_| {
@@ -459,14 +488,17 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
             };
             let counts_for = item.counts_for.map(|name| view! { <span>{(words.counts_for)(&name)}</span> });
             let (id, label) = (item.id.clone(), (words.remove_named)(&item.title));
+            // A visit says so, and counts no credits.
+            let visit = item.visit.then(|| view! { <span>{words.visit}</span> });
+            let credits = item.credits.filter(|_| !item.visit);
             view! {
                 <div class="sp-row-wrap">
-                    <a class=format!("sp-row {}", item.hue) href=href aria-current=current data-noscroll="">
+                    <a class=format!("sp-row {}", item.hue) class:visit=item.visit href=href aria-current=current data-noscroll="">
                         <span class="t">
                             <b>{item.title}</b>
-                            <small>{key}<span class="mono">{item.id}</span>{item.note.map(|note| view! { <span>{note}</span> })}{counts_for}</small>
+                            <small>{key}{visit}<span class="mono">{item.id}</span>{item.note.map(|note| view! { <span>{note}</span> })}{counts_for}</small>
                         </span>
-                        <span class="lp num">{item.credits.map(|credits| view! { {credits}<small>{t.common.credits_unit}</small> })}</span>
+                        <span class="lp num">{credits.map(|credits| view! { {credits}<small>{t.common.credits_unit}</small> })}</span>
                     </a>
                     // Beside the row's link, not inside it (as „Merken" beside a row of the list).
                     <button class="icon-btn sp-remove" type="button" title=words.remove aria-label=label on:click=move |_| remove(id.clone())>
@@ -539,17 +571,27 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
         }
         .into_any()
     };
+    // „+ Modul": a module into „Mein Studiengang" only to visit it (`add.rs`); pressed while its
+    // picker is open.
+    let adding = Memo::new(move |_| ctx.adding.get() == Some(AddTo::Mine));
+    let add = move |_| ctx.adding.update(|adding| *adding = if *adding == Some(AddTo::Mine) { None } else { Some(AddTo::Mine) });
+    let add_label = (words.add_named)(words.heading);
     view! {
         <section class="sp-list" aria-label=words.list>
             <div class="sp-list-head">
                 <h2 class="label">{words.heading}</h2>
+                <button class="mini sp-add-mod" type="button" aria-expanded=move || if adding.get() { "true" } else { "false" } aria-label=add_label.clone() title=add_label on:click=add>
+                    <Icon name="plus"/>{words.add}
+                </button>
                 {move || sum.get().map(|sum| view! { <span class="lp num">{sum}<small>{t.common.credits_unit}</small></span> })}
             </div>
+            {move || adding.get().then(|| view! { <AddPanel ctx to=AddTo::Mine marked/> })}
             <For each=move || rows.get() key=|entry| entry.clone() children=row/>
             <For each=move || areas.get() key=|area| area.clone() children=area/>
-            // „+ Modul" as a box like the placeholders' (owner, 2026-09-25): the modules that fit.
-            <a class="sp-row open-slot sp-add" href=add>
-                <span class="t"><b><Icon name="plus"/>{words.add_module}</b></span>
+            <For each=move || visit_rows.get() key=|entry| entry.clone() children=row/>
+            // The modules of the study come from „Mein Studium" (owner, 2026-10-26).
+            <a class="sp-way" href=study>
+                <span>{words.to_study}</span><Icon name="chevron-right"/>
             </a>
         </section>
     }
@@ -670,9 +712,10 @@ mod tests {
             note,
             counts_for: None,
             hue,
+            visit: false,
         };
         assert_eq!(
-            module_items(&first_semester(), &i18n::DE),
+            module_items(&first_semester(), &BTreeSet::new(), &i18n::DE),
             [
                 item("12104", Some("EvS"), "Entwicklung von Softwaresystemen", Some("6"), None, "t-ice"),
                 // An abbreviation two planned modules share names neither: the week says its name.
@@ -683,9 +726,9 @@ mod tests {
         );
         // A semester without published dates says nothing of a module's own.
         let unpublished = StudyplanData { counts: Vec::new(), ..first_semester() };
-        assert_eq!(module_items(&unpublished, &i18n::DE).get(2).and_then(|item| item.note), None);
+        assert_eq!(module_items(&unpublished, &BTreeSet::new(), &i18n::DE).get(2).and_then(|item| item.note), None);
         // In English: the words, and the credits as English writes them.
-        let english: Vec<(String, Option<String>, Option<&str>)> = module_items(&first_semester(), &i18n::EN).into_iter().map(|item| (item.title, item.credits, item.note)).skip(1).collect();
+        let english: Vec<(String, Option<String>, Option<&str>)> = module_items(&first_semester(), &BTreeSet::new(), &i18n::EN).into_iter().map(|item| (item.title, item.credits, item.note)).skip(1).collect();
         assert_eq!(
             english,
             [
@@ -699,11 +742,11 @@ mod tests {
     #[test]
     fn the_head_sums_the_planned_modules() {
         // 6 + 7,5 + 8; 13000 states none, so the sum is the least they come to.
-        assert_eq!(credits_sum(&first_semester(), Locale::De).as_deref(), Some("≥\u{a0}21,5"));
-        assert_eq!(credits_sum(&first_semester(), Locale::En).as_deref(), Some("≥\u{a0}21.5"));
+        assert_eq!(credits_sum(&first_semester(), &BTreeSet::new(), Locale::De).as_deref(), Some("≥\u{a0}21,5"));
+        assert_eq!(credits_sum(&first_semester(), &BTreeSet::new(), Locale::En).as_deref(), Some("≥\u{a0}21.5"));
         let known = StudyplanData { ids: vec!["12104".into(), "12107".into()], ..first_semester() };
-        assert_eq!(credits_sum(&known, Locale::De).as_deref(), Some("13,5"));
-        assert_eq!(credits_sum(&StudyplanData { ids: Vec::new(), ..first_semester() }, Locale::De), None);
+        assert_eq!(credits_sum(&known, &BTreeSet::new(), Locale::De).as_deref(), Some("13,5"));
+        assert_eq!(credits_sum(&StudyplanData { ids: Vec::new(), ..first_semester() }, &BTreeSet::new(), Locale::De), None);
     }
 
     fn ids(entries: &[Entry]) -> Vec<String> {
@@ -718,20 +761,20 @@ mod tests {
 
     #[test]
     fn a_module_taken_out_keeps_its_place() {
-        let items = module_items(&first_semester(), &i18n::DE);
-        let gone: Gone = (None, 1, "12107".into(), "Elektrische und elektronische Grundlagen der Informatik".into());
+        let items = module_items(&first_semester(), &BTreeSet::new(), &i18n::DE);
+        let gone: Gone = (Group::Own, 1, "12107".into(), "Elektrische und elektronische Grundlagen der Informatik".into());
         // In the click, while the plan still holds it: in place of its row.
-        assert_eq!(ids(&entries(&items, Some(&gone), None)), ["12104", "-12107", "11112", "13000"]);
+        assert_eq!(ids(&entries(&items, Some(&gone), Group::Own)), ["12104", "-12107", "11112", "13000"]);
         // Once the plan has let it go: where its row stood.
         let without: Vec<ModuleItem> = items.iter().filter(|item| item.id != "12107").cloned().collect();
-        assert_eq!(ids(&entries(&without, Some(&gone), None)), ["12104", "-12107", "11112", "13000"]);
+        assert_eq!(ids(&entries(&without, Some(&gone), Group::Own)), ["12104", "-12107", "11112", "13000"]);
         // A place past the end is the end; nothing taken out, nothing in between.
-        assert_eq!(ids(&entries(&without, Some(&(None, 9, "12107".into(), String::new())), None)), ["12104", "11112", "13000", "-12107"]);
-        assert_eq!(ids(&entries(&items, None, None)), ["12104", "12107", "11112", "13000"]);
+        assert_eq!(ids(&entries(&without, Some(&(Group::Own, 9, "12107".into(), String::new())), Group::Own)), ["12104", "11112", "13000", "-12107"]);
+        assert_eq!(ids(&entries(&items, None, Group::Own)), ["12104", "12107", "11112", "13000"]);
         // One taken out of a placeholder's box stays in that box, and nowhere else.
-        let boxed: Gone = (Some(4), 0, "12107".into(), String::new());
-        assert_eq!(ids(&entries(&without, Some(&boxed), None)), ["12104", "11112", "13000"]);
-        assert_eq!(ids(&entries(&[], Some(&boxed), Some(4))), ["-12107"]);
+        let boxed: Gone = (Group::Area(4), 0, "12107".into(), String::new());
+        assert_eq!(ids(&entries(&without, Some(&boxed), Group::Own)), ["12104", "11112", "13000"]);
+        assert_eq!(ids(&entries(&[], Some(&boxed), Group::Area(4))), ["-12107"]);
     }
 
     fn placeholder(pid: u32, kind: &str, name: &str, credits: &str) -> Placeholder {
@@ -833,7 +876,7 @@ mod tests {
     #[test]
     fn a_module_for_a_placeholder_stands_in_its_box() {
         let (doc, data) = fifth_semester();
-        let list = listed(&data, &areas_of(&doc, key("2026W"), None, &i18n::DE), None, &i18n::DE);
+        let list = listed(&data, &areas_of(&doc, key("2026W"), None, &i18n::DE), None, &BTreeSet::new(), &i18n::DE);
         // The Bachelor-Arbeit counts for none: a row of the list's own.
         assert_eq!(ids(&list.rows), ["12333"]);
         let [first, second] = list.areas.as_slice() else { panic!("{list:?}") };
@@ -842,14 +885,14 @@ mod tests {
         assert!(first.href.ends_with("fill=p1"));
         // The other Komplex: nothing counts for it, the dashed row.
         assert!(second.is_open() && second.more && second.chosen.is_none());
-        assert_eq!(list.place_of("12339"), Some((Some(1), 0, "Betriebssysteme II".to_string())));
-        assert_eq!(list.place_of("12333"), Some((None, 0, "Bachelor-Arbeit".to_string())));
+        assert_eq!(list.place_of("12339"), Some((Group::Area(1), 0, "Betriebssysteme II".to_string())));
+        assert_eq!(list.place_of("12333"), Some((Group::Own, 0, "Bachelor-Arbeit".to_string())));
         // Taken out of its box: it stays there with „Rückgängig", and the box stays a box.
-        let gone: Gone = (Some(1), 0, "12339".into(), "Betriebssysteme II".into());
+        let gone: Gone = (Group::Area(1), 0, "12339".into(), "Betriebssysteme II".into());
         let mut without = doc.clone();
         without.unplan(key("2026W"), "12339", &[]);
         let data_without = StudyplanData { ids: vec!["12333".into()], ..data.clone() };
-        let after = listed(&data_without, &areas_of(&without, key("2026W"), None, &i18n::DE), Some(&gone), &i18n::DE);
+        let after = listed(&data_without, &areas_of(&without, key("2026W"), None, &i18n::DE), Some(&gone), &BTreeSet::new(), &i18n::DE);
         assert_eq!((ids(&after.rows), ids(&after.areas[0].entries)), (vec!["12333".to_string()], vec!["-12339".to_string()]));
         assert!(!after.areas[0].is_open());
     }
@@ -872,13 +915,13 @@ mod tests {
         let mut held = areas_of(&doc, w, None, &i18n::DE);
         assert_eq!(held.areas[0].others, [(s, "12342".to_string())]);
         held.rows = vec![catalog_row("12342", "Datenbanken II", Some(6.0))];
-        let list = listed(&data, &held, None, &i18n::DE);
+        let list = listed(&data, &held, None, &BTreeSet::new(), &i18n::DE);
         let komplex = &list.areas[0];
         assert_eq!(ids(&komplex.entries), ["12339", "12340", "12341"]);
         assert_eq!(komplex.others, [Other { id: "12342".into(), title: "Datenbanken II".into(), credits: Some("6".into()), semester: "SoSe 2027".into() }]);
         assert_eq!((komplex.chosen.as_deref(), komplex.more), (Some("24"), false));
         // In English the span of Fachsemester and the other semester read as English writes them.
-        let english = listed(&data, &Held { rows: held.rows.clone(), ..areas_of(&doc, w, None, &i18n::EN) }, None, &i18n::EN);
+        let english = listed(&data, &Held { rows: held.rows.clone(), ..areas_of(&doc, w, None, &i18n::EN) }, None, &BTreeSet::new(), &i18n::EN);
         assert_eq!((english.areas[0].span.as_deref(), english.areas[0].others[0].semester.as_str()), (Some("semesters\u{a0}5–6"), "Summer 2027"));
         // In the summer: its own module in its box, the winter's three beside it.
         let summer = areas_of(&doc, s, None, &i18n::DE);
@@ -894,7 +937,7 @@ mod tests {
         doc.set_fills(w, "12333", Some(7));
         let held = areas_of(&doc, w, None, &i18n::DE);
         assert_eq!(held.elsewhere, BTreeMap::from([("12333".to_string(), "Wahlpflichtmodul Informatik".to_string())]));
-        let list = listed(&data, &held, None, &i18n::DE);
+        let list = listed(&data, &held, None, &BTreeSet::new(), &i18n::DE);
         assert!(matches!(list.rows.as_slice(), [Entry::Module(item)] if item.counts_for.as_deref() == Some("Wahlpflichtmodul Informatik")), "{list:?}");
     }
 }
