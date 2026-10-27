@@ -177,6 +177,17 @@ impl Draft {
     }
 }
 
+/// Where the dates of one on dates of its own begin: today within the lecture period of the
+/// semester shown, else its first day (of a semester to come or gone), else today.
+fn first_from(today: Option<Day>, lectures: Option<(Day, Day)>) -> Day {
+    match (today, lectures) {
+        (Some(today), Some((first, last))) if (first..=last).contains(&today) => today,
+        (_, Some((first, _))) => first,
+        (Some(today), None) => today,
+        (None, None) => Day(0),
+    }
+}
+
 /// The form for a new Termin of calendar `calendar` on `weekday` from `from` (minutes), belonging
 /// to `module` where it is given.
 pub(super) fn ask_new(ctx: PlanCtx, calendar: u8, weekday: u8, from: u16, module: Option<String>) {
@@ -481,7 +492,8 @@ fn spot_at(x: i32, y: i32) -> Option<(u8, u16)> {
 pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let o = &t.studyplan_own;
-    let open = Signal::derive(move || ctx.own.with(Option::is_some));
+    // A memo: the dialog's content is built once as it opens, not again with every key typed.
+    let open = Signal::from(Memo::new(move |_| ctx.own.with(Option::is_some)));
     let close = Callback::new(move |()| ctx.own.set(None));
     let shown = kept(move || ctx.own.get());
     // The field a change goes to.
@@ -588,12 +600,11 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
             let on = Memo::new(move |_| rhythm.get() == value);
             view! {
                 <button type="button" role="radio" aria-checked=move || if on.get() { "true" } else { "false" } class:on=move || on.get() on:click=move |_| {
-                    let today = ctx.today;
+                    let from = first_from(ctx.today, lectures.get_untracked());
                     set(Box::new(move |draft| {
                         draft.rhythm = value;
                         // Dates of its own begin with the next day of its weekday.
                         if value == OwnRhythm::Dates && draft.dates.iter().all(|date| Day::parse(date).is_none()) {
-                            let from = today.unwrap_or(Day(0));
                             let next = from.plus(i32::from((draft.weekday + 7 - from.weekday()) % 7));
                             draft.dates = vec![next.iso()];
                         }
@@ -721,7 +732,10 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
 
     view! {
         <Modal open on_close=close size=ModalSize::M class="own-form" labelled_by="own-form-title">
-            <ModalHead id="own-form-title" title=title.get_untracked() sub=Some(sub.get_untracked()) on_close=close/>
+            // The title names the Termin as it was opened; the line follows „Kalender".
+            <ModalHead id="own-form-title" title=title.get_untracked() on_close=close>
+                <p>{move || sub.get()}</p>
+            </ModalHead>
             <form class="st-dlg-body own-body" id="own-form" on:submit=submit>
                 <div class="own-fld">
                     <label for="own-what">{o.what}</label>
@@ -914,6 +928,15 @@ mod tests {
 
     fn d(iso: &str) -> Day {
         Day::parse(iso).unwrap()
+    }
+
+    #[test]
+    fn dates_of_its_own_begin_in_the_semester_shown() {
+        let winter = Some((d("2026-10-12"), d("2027-02-05")));
+        assert_eq!(first_from(Some(d("2026-11-03")), winter), d("2026-11-03"), "today, within its lectures");
+        assert_eq!(first_from(Some(d("2026-11-03")), Some((d("2027-04-12"), d("2027-07-16")))), d("2027-04-12"), "a semester to come");
+        assert_eq!(first_from(Some(d("2026-09-01")), winter), d("2026-10-12"), "before its lectures");
+        assert_eq!(first_from(Some(d("2026-11-03")), None), d("2026-11-03"), "no lecture period known");
     }
 
     #[test]

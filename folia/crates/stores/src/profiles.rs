@@ -50,9 +50,9 @@ pub const STORAGE_KEY: &str = "betula.profiles.v1";
 /// The number of the first profile, whose stores keep the plain keys.
 pub const FIRST: u16 = 1;
 
-/// The most profiles. A profile keeps at most about a megabyte (the caps of its plan and of its
-/// saved plans, `folia_plans::studyplan::MAX_STORED`, `MAX_SAVED_STORED`), a real one a few
-/// kilobytes, and a browser keeps around five megabytes for a site.
+/// The most profiles. A profile keeps at most about one and a half megabytes (the caps of its plan
+/// and of its saved plans, `folia_plans::studyplan::MAX_STORED`, `MAX_SAVED_STORED`), a real one a
+/// few kilobytes, and a browser keeps around five megabytes for a site.
 pub const MAX_PROFILES: usize = 8;
 
 /// The most characters of a profile's name.
