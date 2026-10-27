@@ -24,11 +24,13 @@
 //   beside the plan, filling the page and on the Termin's own page; not while the keyboard is in
 //   the search. `?` there shows the overview with „Im Termin" first.
 // - A phone: the view is a sheet over the plan, with „Teilen" and without „Ganze Seite".
-// - The Termin's own page to look up (`/event/<key>`): from a line of the Praktikum's module page, in
-//   the plan, its groups measured against it, „Anpassen ›" into the Stundenplan of its semester;
-//   Back leaves it. Enterprise Ressource Planning's exercise (12612, outside the plan): „nicht im
-//   Plan", its second group red against the plan's lecture, the Termin hatched among the plan's
-//   day, „In den Kalender" a file of its own.
+// - To look up: a line of the Praktikum's module page opens the Termin beside the page
+//   (`?termin=<key>`), in the plan, its groups measured against it, „Anpassen ›" into the
+//   Stundenplan of its semester, → its next date; „Ganze Seite" is its own page (`/event/<key>
+//   /<day>`) in two columns, → there too; Back leads back beside the module's page, Esc closes it.
+//   Enterprise Ressource Planning's exercise (12612, outside the plan): „nicht im Plan", its second
+//   group red against the plan's lecture, the Termin hatched among the plan's day, „In den
+//   Kalender" a file of its own. On a phone the Termin is a sheet over its module's page.
 // Needs the snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
 // console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
@@ -262,10 +264,10 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   await context.close();
 }
 
-// ---------- the Termin's own page ----------
-// The page as it reads: the head, the groups' dots, the foot, the ways out.
-const lookUp = (page) => page.evaluate(() => {
-  const panel = onPage(".is-termin.tm-page");
+// ---------- to look up: beside the module's page, and its own page ----------
+// The view as it reads, beside a page or as one: the head, the groups' dots, the foot, the ways out.
+const lookUp = (page, where) => page.evaluate((where) => {
+  const panel = onPage(where);
   const text = (selector) => panel?.querySelector(selector)?.textContent.replace(/\s+/g, " ").trim() ?? "";
   return {
     title: text(".tm-title"),
@@ -273,58 +275,92 @@ const lookUp = (page) => page.evaluate(() => {
     dots: [...(panel?.querySelectorAll(".gs") ?? [])].map((tile) => tile.querySelector("i.st")?.className.replace("st ", "") ?? ""),
     foot: text(".grp-f > span"),
     adjust: panel?.querySelector(".grp-f a.go2")?.getAttribute("href") ?? "",
+    full: panel?.querySelector(".tm-full")?.getAttribute("href") ?? "",
     file: panel?.querySelector("a.tm-big")?.getAttribute("download") ?? "",
     blob: (panel?.querySelector("a.tm-big")?.getAttribute("href") ?? "").startsWith("blob:"),
     day: [...(panel?.querySelectorAll(".rb") ?? [])].map((bar) => bar.className),
   };
-});
+}, where);
 // A line of a module's Termine (they stand folded) as the visitor follows it.
 const follow = async (page, prefix) => {
   const href = await page.evaluate((prefix) => onPage(`a.ev[href^="${prefix}"]`)?.getAttribute("href") ?? "", prefix);
-  check(href.startsWith(prefix) && await page.evaluate((href) => onPage(`a.ev[href="${href}"]`)?.getAttribute("rel") === "nofollow", href), `a Termin of the module page leads to its page: „${href}"`);
+  check(href.startsWith(prefix) && await page.evaluate((href) => onPage(`a.ev[href="${href}"]`)?.getAttribute("rel") === "nofollow", href), `a Termin of the module's page opens beside it: „${href}"`);
   await page.evaluate((href) => onPage(`a.ev[href="${href}"]`)?.click(), href);
   return href;
 };
 {
+  // The Praktikum, in the plan: beside its module's page; „Ganze Seite" its own page; Back.
   const { page, context } = await open("/catalog/module/12102");
-  await until(page, "the module's Termine", () => Boolean(onPage("a.ev[href^='/event/148370-']")));
-  const href = await follow(page, "/event/148370-");
-  await until(page, "the Termin's page", (href) => location.pathname === href && Boolean(onPage(".is-termin.tm-page .tk")), href);
-  // → on the Termin's own page: the date after, the day in its address.
-  const shownDay = await page.evaluate(() => onPage(".is-termin.tm-page .tk-date > b")?.textContent ?? "");
-  await page.evaluate(() => document.activeElement?.blur());
-  await page.keyboard.press("ArrowRight");
-  await until(page, "→ on the Termin's page", ([href, day]) => location.pathname.startsWith(href + "/") && /\/\d{4}-\d\d-\d\d$/.test(location.pathname) && onPage(".is-termin.tm-page .tk-date > b")?.textContent !== day, [href, shownDay]);
-  await page.goBack();
-  await until(page, "back to the first date", (href) => location.pathname === href, href);
-  let v = await lookUp(page);
+  await until(page, "the module's Termine", () => Boolean(onPage("a.ev[href^='/catalog/module/12102?termin=148370-']")));
+  const href = await follow(page, "/catalog/module/12102?termin=148370-");
+  await until(page, "the Termin beside the module's page", (href) => location.pathname + location.search === href && Boolean(onPage("#preview.is-termin .tk")) && Boolean(onPage("#preview.is-termin .grp-f")), href);
+  let v = await lookUp(page, "#preview.is-termin");
   check(v.title === "Programmierpraktikum" && !v.out && !v.file, `in the plan: ${JSON.stringify(v)}`);
   check(v.dots.length === 4 && v.dots.includes("ok") && v.dots.every((dot) => dot === "ok" || dot === "no"), `the groups measured against the plan: ${JSON.stringify(v)}`);
   check(v.foot === "Noch keine in deinem Stundenplan" && /^\/studyplan\?sem=2026W&termin=148370-[0-9a-f]{5}&on=\d{4}-\d\d-\d\d$/.test(v.adjust), `„Anpassen ›": ${JSON.stringify(v)}`);
   check(v.day.length > 1, `the plan's day around it: ${JSON.stringify(v)}`);
+  check(/^\/event\/148370-[0-9a-f]{5}\/\d{4}-\d\d-\d\d$/.test(v.full), `„Ganze Seite" is its own page: ${JSON.stringify(v)}`);
+  if (shots) await page.screenshot({ path: `${shots}/termin-beside-module.png` });
+  // → beside the page: the date after, in the module page's address.
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press("ArrowRight");
+  await until(page, "→ beside the module's page", () => location.pathname === "/catalog/module/12102" && /[?&]on=\d{4}-\d\d-\d\d/.test(location.search) && Boolean(onPage("#preview.is-termin .tk")));
+  await page.goBack();
+  await until(page, "back to the first date", (href) => location.pathname + location.search === href, href);
+  // „Ganze Seite": the Termin's own page, in two columns.
+  await page.click("#preview.is-termin .tm-full");
+  await until(page, "the Termin's own page", () => location.pathname.startsWith("/event/148370-") && Boolean(onPage(".is-termin.tm-page .tk")));
+  v = await lookUp(page, ".is-termin.tm-page");
+  check(v.title === "Programmierpraktikum" && v.foot === "Noch keine in deinem Stundenplan", `its own page: ${JSON.stringify(v)}`);
+  check(await page.evaluate(() => getComputedStyle(onPage(".is-termin.tm-page .dbody.tm")).gridTemplateColumns.split(" ").length === 2), "its own page in two columns");
   check(await page.evaluate(() => /Programmierpraktikum/.test(document.title)), `the title: ${await page.title()}`);
   if (shots) await page.screenshot({ path: `${shots}/termin-page.png` });
+  // → on its own page: the date after, the day in its address.
+  const shownDay = await page.evaluate(() => onPage(".is-termin.tm-page .tk-date > b")?.textContent ?? "");
+  const own = await page.evaluate(() => location.pathname);
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press("ArrowRight");
+  await until(page, "→ on the Termin's page", ([own, day]) => location.pathname !== own && /^\/event\/148370-[0-9a-f]{5}\/\d{4}-\d\d-\d\d$/.test(location.pathname) && onPage(".is-termin.tm-page .tk-date > b")?.textContent !== day, [own, shownDay]);
+  await page.goBack();
+  await until(page, "back on its first date", (own) => location.pathname === own, own);
+  // „Anpassen ›": the Termin in the Stundenplan; Back, Back: beside the module's page again.
   await page.click(".is-termin.tm-page .grp-f a.go2");
   await until(page, "the Termin in the Stundenplan", () => location.pathname === "/studyplan" && Boolean(onPage("#preview.is-termin .tk")) && Boolean(onPage("#preview.is-termin .gs.pick")));
   await page.goBack();
   await until(page, "back on the Termin's page", () => Boolean(onPage(".is-termin.tm-page .tk")));
   await page.goBack();
-  await until(page, "back on the module page", () => location.pathname === "/catalog/module/12102");
+  await until(page, "back beside the module's page", (href) => location.pathname + location.search === href && Boolean(onPage("#preview.is-termin .tk")), href);
+  // Esc: the module's page alone.
+  await page.keyboard.press("Escape");
+  await until(page, "Esc: the module's page alone", () => location.pathname === "/catalog/module/12102" && !/termin=/.test(location.search) && !onPage("#preview.is-termin"));
   check(await page.evaluate(() => window.__marker === 1), "the module page was loaded again");
   await context.close();
 }
 {
+  // Enterprise Ressource Planning's exercise, outside the plan: beside its module's page.
   const { page, context } = await open("/catalog/module/12612");
-  await until(page, "the module's Termine", () => Boolean(onPage("a.ev[href^='/event/150294-']")));
-  await follow(page, "/event/150294-");
-  await until(page, "the Termin's page", () => location.pathname.startsWith("/event/150294-") && Boolean(onPage(".is-termin.tm-page .tk")));
-  await until(page, "the calendar file", () => (onPage(".is-termin.tm-page a.tm-big")?.getAttribute("href") ?? "").startsWith("blob:"));
-  const v = await lookUp(page);
+  await until(page, "the module's Termine", () => Boolean(onPage("a.ev[href^='/catalog/module/12612?termin=150294-']")));
+  await follow(page, "/catalog/module/12612?termin=150294-");
+  await until(page, "the Termin beside the module's page", () => /[?&]termin=150294-/.test(location.search) && Boolean(onPage("#preview.is-termin .tk")));
+  await until(page, "the calendar file", () => (onPage("#preview.is-termin a.tm-big")?.getAttribute("href") ?? "").startsWith("blob:"));
+  const v = await lookUp(page, "#preview.is-termin");
   check(v.out === "nicht im Plan" && !v.foot && !v.adjust, `outside the plan: ${JSON.stringify(v)}`);
   check(v.dots.length === 3 && v.dots.filter((dot) => dot === "no").length === 1, `one group meets the plan: ${JSON.stringify(v)}`);
   check(v.day.some((bar) => bar.includes(" me") && bar.includes(" out")) && v.day.length > 1, `hatched among the plan's day: ${JSON.stringify(v)}`);
   check(v.file.endsWith(".ics") && v.blob, `„In den Kalender": ${JSON.stringify(v)}`);
-  if (shots) await page.screenshot({ path: `${shots}/termin-page-out.png` });
+  if (shots) await page.screenshot({ path: `${shots}/termin-beside-out.png` });
+  await context.close();
+}
+{
+  // A phone: the Termin a sheet over its module's page.
+  const { page, context } = await open("/catalog/module/12102", { width: 390, height: 844 });
+  await until(page, "the module's Termine", () => Boolean(onPage("a.ev[href^='/catalog/module/12102?termin=148370-']")));
+  await follow(page, "/catalog/module/12102?termin=148370-");
+  await until(page, "the sheet over the module's page", () => {
+    const sheet = onPage("#preview.is-termin");
+    return Boolean(sheet?.querySelector(".tk")) && getComputedStyle(sheet).position === "fixed";
+  });
+  if (shots) await page.screenshot({ path: `${shots}/termin-module-phone.png` });
   await context.close();
 }
 

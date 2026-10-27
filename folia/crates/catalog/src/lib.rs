@@ -8,4 +8,5 @@
 pub mod i18n;
 pub mod catalog;
 pub mod event;
+mod lookup;
 pub mod module;
