@@ -65,20 +65,26 @@ use crate::filter::{
 pub use folia_model::ids::{is_module_id, is_program_id};
 
 pub const HOME: &str = "/";
-/// „Über Betula": what the start page said of Betula before it began with the visitor's day
-/// (concept A, owner 2026-10-20), for new visitors and for search engines. Since 2026-10-27 the
-/// way into the pages of its topics (`AboutTopic`).
+/// Where the pages about Betula lie (`AboutTopic`). Until 2026-10-27 „Über Betula" itself, what
+/// the start page said of Betula before it began with the visitor's day (concept A, owner
+/// 2026-10-20), and the way into the pages of its topics; then (owner, the same day: „die /about
+/// seite muss komplett raus nur die about/<slug> seiten sind ok") no page of its own any more: the
+/// address leads to the overview (`AboutTopic::Overview`) for good, on the server
+/// (`folia-server`) and in the browser app.
 pub const ABOUT: &str = "/about";
 
-/// A page of „Über Betula" on one topic, `/about/<slug>` (owner, 2026-10-27: „dass die Über
-/// Betula Seite geändert wird. Das soll aufgeteilt werden in mehrere kontent pages … Wovon auch ein
-/// wenig auf der Landing page verlinkt werden kann"): what was one long page, by what a visitor
-/// wants to know.
+/// A page about Betula on one topic, `/about/<slug>` (owner, 2026-10-27: „dass die Über Betula
+/// Seite geändert wird. Das soll aufgeteilt werden in mehrere kontent pages … Wovon auch ein wenig
+/// auf der Landing page verlinkt werden kann"): what was one long page, by what a visitor wants to
+/// know.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AboutTopic {
-    /// „Module finden": the way to a module, the filters.
+    /// „Überblick": what Betula is, the pictures and the map of the programs, what it does — what
+    /// „Über Betula" kept until it went (`ABOUT`).
+    Overview,
+    /// „Module finden": the way to a module, the filters, the ways into the catalog.
     Finding,
-    /// „Studium planen": the Regelstudienpläne, the Stundenplan.
+    /// „Studium planen": the Regelstudienpläne, the Stundenplan, the programs by faculty.
     Planning,
     /// „Deine Daten": no account, and where the catalog's data comes from.
     Data,
@@ -89,11 +95,12 @@ pub enum AboutTopic {
 }
 
 impl AboutTopic {
-    pub const ALL: [AboutTopic; 5] = [AboutTopic::Finding, AboutTopic::Planning, AboutTopic::Data, AboutTopic::Technology, AboutTopic::Questions];
+    pub const ALL: [AboutTopic; 6] = [AboutTopic::Overview, AboutTopic::Finding, AboutTopic::Planning, AboutTopic::Data, AboutTopic::Technology, AboutTopic::Questions];
 
     /// The last segment of its address, the same in every language as every path is.
     pub fn slug(self) -> &'static str {
         match self {
+            AboutTopic::Overview => "overview",
             AboutTopic::Finding => "finding",
             AboutTopic::Planning => "planning",
             AboutTopic::Data => "data",
@@ -2465,6 +2472,7 @@ mod tests {
             assert_eq!(AboutTopic::of_path(&topic.path()), Some(topic));
             assert!(topic.path().starts_with("/about/"));
         }
+        assert_eq!(AboutTopic::Overview.path(), "/about/overview");
         assert_eq!(AboutTopic::of_path("/about"), None);
         assert_eq!(AboutTopic::of_path("/about/"), None);
         assert_eq!(AboutTopic::of_path("/about/nothing"), None);

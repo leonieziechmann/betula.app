@@ -119,9 +119,10 @@ impl Key {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Page {
     Home,
-    /// `/about`, „Über Betula".
+    /// `/about`, where „Über Betula" stood until 2026-10-27: the app goes on to the overview
+    /// (`url::ABOUT`), as the server's redirect does.
     About,
-    /// `/about/:topic`, a page of „Über Betula" on one topic (`url::AboutTopic`).
+    /// `/about/:topic`, a page about Betula on one topic (`url::AboutTopic`).
     AboutTopic,
     Catalog,
     /// `/catalog/module/:id`

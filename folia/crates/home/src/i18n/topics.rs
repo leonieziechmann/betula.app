@@ -1,23 +1,21 @@
-//! Texts of the pages of „Über Betula" on its topics (`home/topics.rs`; owner, 2026-10-27: „dass
+//! Texts of the pages about Betula, one per topic (`home/topics.rs`; owner, 2026-10-27: „dass
 //! die Über Betula Seite geändert wird. Das soll aufgeteilt werden in mehrere kontent pages …
 //! Wovon auch ein wenig auf der Landing page verlinkt werden kann"): each topic's name, the
 //! heading of its page and the line under it, what search engines show of it, and the hint under
 //! its name where a tile leads to it. What the pages say beyond that is what „Über Betula" said
-//! (`home`, `home_detail`): the chapters of „Betula im Detail" and the questions, moved, not
-//! rewritten.
+//! (`home`, `home_detail`): its first panel, the chapters of „Betula im Detail" and the
+//! questions, moved, not rewritten.
 
 use folia_routes::url::AboutTopic;
 
 pub struct Texts {
-    /// „Mehr über Betula": the tiles that lead to the topics, on „Über Betula", under a topic's
-    /// page and on the start page, and the line under it.
+    /// „Mehr über Betula": the tiles that lead to the topics, under a topic's page and on the
+    /// start page, and the line under it.
     pub more: &'static str,
     pub more_lead: &'static str,
-    /// „Alles über Betula": the way to „Über Betula" in the head of the tiles.
-    pub all_about: &'static str,
-    /// The way back to „Über Betula" over a topic's heading, and the name of the row of topics.
-    pub back: &'static str,
+    /// The name of the row of topics at the head of a topic's page.
     pub topics: &'static str,
+    pub overview: Topic,
     pub finding: Topic,
     pub planning: Topic,
     pub data: Topic,
@@ -27,6 +25,8 @@ pub struct Texts {
 
 /// A topic: its name (a tile, the tab, the row of topics), the heading of its page and the line
 /// under it, its title and description for search engines, and the hint under its name on a tile.
+/// The overview's heading names the university, which does not break (`topics::unbroken`); the
+/// start page says it as well, beside Betula's name.
 pub struct Topic {
     pub name: &'static str,
     pub title: &'static str,
@@ -39,6 +39,7 @@ pub struct Topic {
 impl Texts {
     pub fn of(&self, topic: AboutTopic) -> &Topic {
         match topic {
+            AboutTopic::Overview => &self.overview,
             AboutTopic::Finding => &self.finding,
             AboutTopic::Planning => &self.planning,
             AboutTopic::Data => &self.data,
@@ -51,9 +52,15 @@ impl Texts {
 pub const DE: Texts = Texts {
     more: "Mehr über Betula",
     more_lead: "Was Betula kann, wie es gebaut ist, und Antworten auf häufige Fragen.",
-    all_about: "Alles über Betula",
-    back: "Über Betula",
     topics: "Themen",
+    overview: Topic {
+        name: "Überblick",
+        title: "Alle Module und Studiengänge der BTU Cottbus-Senftenberg, an einem Ort.",
+        lead: "Module mit Inhalten, Voraussetzungen, Prüfung und Terminen, Studiengänge mit dem Regelstudienplan aus ihrer Prüfungsordnung, dazu dein eigener Stundenplan: durchsuchbar und filterbar, statt Modulhandbücher zu wälzen.",
+        seo_title: "Betula im Überblick · der inoffizielle Modulkatalog für die BTU Cottbus-Senftenberg",
+        description: "Was Betula ist und kann: alle Module und Studiengänge der BTU Cottbus-Senftenberg durchsuchen und filtern, Regelstudienpläne aus den Prüfungsordnungen, ein Stundenplan mit Kalender-Abo. Kostenlos, ohne Konto, auch offline und ohne JavaScript.",
+        hint: "Was Betula ist und kann",
+    },
     finding: Topic {
         name: "Module finden",
         title: "Vom Suchbegriff zum passenden Modul",
@@ -99,9 +106,15 @@ pub const DE: Texts = Texts {
 pub const EN: Texts = Texts {
     more: "More about Betula",
     more_lead: "What Betula does, how it is built, and answers to common questions.",
-    all_about: "All about Betula",
-    back: "About Betula",
     topics: "Topics",
+    overview: Topic {
+        name: "Overview",
+        title: "Every module and degree programme of BTU Cottbus-Senftenberg, in one place.",
+        lead: "Modules with their contents, prerequisites, assessment and dates, degree programmes with the standard study plan from their examination regulations, and your own timetable: searchable and filterable, instead of wading through module handbooks.",
+        seo_title: "Betula at a glance · the unofficial module catalogue for BTU Cottbus-Senftenberg",
+        description: "What Betula is and does: search and filter every module and degree programme of BTU Cottbus-Senftenberg, standard study plans from the examination regulations, a timetable with a calendar subscription. Free, no account, works offline and without JavaScript.",
+        hint: "What Betula is and does",
+    },
     finding: Topic {
         name: "Finding modules",
         title: "From a search term to the right module",
