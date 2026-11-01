@@ -315,7 +315,8 @@ impl AreaInfo {
         let study = &ready.study;
         let mut entries = Vec::new();
         for semester in &study.semesters {
-            for item in semester.items.iter().filter(|item| item.area == area && !item.failed) {
+            // A row that modules fill counts by them: they stand here in its place.
+            for item in semester.items.iter().filter(|item| item.area == area && !item.failed && item.fillers.is_empty()) {
                 let credits = item.credits.map(|credits| (s.credits)(&n(credits, t)));
                 let when = if item.passed { (s.passed_in)(&semester.key.label(t.locale)) } else { (s.planned_in)(&semester.key.label(t.locale)) };
                 entries.push(Entry { id: item.module_id().map(str::to_string), name: item.name.clone(), credits, passed: item.passed, when, over: item.over > 0.0 });

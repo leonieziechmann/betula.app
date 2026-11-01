@@ -107,7 +107,8 @@ impl Layout {
         columns.extend(study.ahead().map(head));
 
         let past_of = |area: Option<usize>| {
-            let items: Vec<&Item> = past.iter().flat_map(|semester| semester.items.iter()).filter(|item| item.area == area && item.passed).collect();
+            // A row that modules fill counts by them (`Item::counted`).
+            let items: Vec<&Item> = past.iter().flat_map(|semester| semester.items.iter()).filter(|item| item.area == area && item.passed && item.fillers.is_empty()).collect();
             (!items.is_empty()).then(|| (s.past_cell)(&n(items.iter().filter_map(|item| item.credits).sum(), t), &folia_design::format::modules(i64::try_from(items.len()).unwrap_or(0), t.locale)))
         };
         let mut rows: Vec<AreaRow> = study
