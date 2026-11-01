@@ -16,7 +16,7 @@ use folia_model::rows_detail::{PlanEntry, PlanTotal};
 use folia_routes::filter::{CatalogQuery, KindFilter, ProgramRelation, ProgramScope};
 use folia_routes::url;
 
-use crate::areas::CatalogArea;
+use crate::areas::{CatalogArea, FIXED_KINDS};
 use crate::plan;
 
 /// One study plan of a program. Most programs have exactly one; where the regulations print one
@@ -225,10 +225,11 @@ pub fn clip_plan_name(name: &str, locale: Locale) -> String {
 /// A row of the plan as a question to the catalog, and what the link to it says: the FÜS list for
 /// a FÜS row; a text search by its name for a row that means one module the catalog does not know
 /// under that name; the areas its name points at (`plan::areas_for_row`, all of them where it
-/// means several); else every elective of the program. The program page links a row of its plan
-/// this way, and a placeholder of the Studienplan („Modul finden") does too. `areas` are the
-/// program's (`pages::catalog_areas`); `program_slug` is what the catalog's URL carries. What
-/// the link says is in `locale`, but for the names of the data (a row's, an area's).
+/// means several); else what the program leaves to choose (`program_choices`). The program page
+/// links a row of its plan this way, and a placeholder of the Studienplan („Modul finden") does
+/// too. `areas` are the program's (`pages::catalog_areas`); `program_slug` is what the catalog's
+/// URL carries. What the link says is in `locale`, but for the names of the data (a row's, an
+/// area's).
 pub fn row_query(program_slug: &str, variant: &PlanVariant, entry: &PlanEntry, areas: &[CatalogArea], locale: Locale) -> (CatalogQuery, String) {
     let texts = crate::i18n::texts(locale);
     let base = ProgramScope { program_slug: program_slug.to_string(), ..Default::default() };
@@ -241,9 +242,30 @@ pub fn row_query(program_slug: &str, variant: &PlanVariant, entry: &PlanEntry, a
     }
     let found = plan::areas_for_row(entry, &variant.full, areas, &variant.entries);
     match found.areas.as_slice() {
-        [] => (scoped(ProgramScope { kinds: vec![KindFilter::Stated(ModuleKind::Elective)], ..base }), texts.program_electives.to_string()),
+        [] => program_choices(base, areas, locale),
         [one] => (scoped(ProgramScope { areas: vec![one.id], ..base }), one.name().to_string()),
         several => (scoped(ProgramScope { areas: several.iter().map(|area| area.id).collect(), ..base }), (texts.areas)(several.len())),
+    }
+}
+
+/// What a row of the plan whose name points at no area lists („Wahlpflichtmodule gemäß §6 (3)",
+/// „Wahlpflichtmodul 3"), and what the link says; never an empty list while the tree holds
+/// modules. The program's electives, where a source states any (`CatalogArea::electives`); else
+/// the modules not known to be Pflicht, the thesis or the internship, which the pickers read as a
+/// choice as well (`CatalogArea::choice`): where the plan names the compulsory modules and nothing
+/// states the others, those are the electives (the 18 of „Profilierung" in Bauingenieurwesen
+/// B.Sc.); else, where the tree holds nothing but what is fixed, or there is no tree, the whole
+/// curriculum. Until 2026-11-01 it was always the electives, and in 15 programs 106 rows led to an
+/// empty list.
+fn program_choices(base: ProgramScope, areas: &[CatalogArea], locale: Locale) -> (CatalogQuery, String) {
+    let texts = crate::i18n::texts(locale);
+    let scoped = |scope: ProgramScope| CatalogQuery { program: Some(scope), ..Default::default() };
+    if areas.iter().any(|area| area.electives > 0) {
+        (scoped(ProgramScope { kinds: vec![KindFilter::Stated(ModuleKind::Elective)], ..base }), texts.program_electives.to_string())
+    } else if areas.iter().any(|area| area.choice) {
+        (scoped(ProgramScope { kinds_exclude: FIXED_KINDS.map(KindFilter::Stated).to_vec(), ..base }), texts.program_not_compulsory.to_string())
+    } else {
+        (scoped(base), texts.program_modules.to_string())
     }
 }
 
@@ -480,7 +502,8 @@ mod tests {
         let meant: Vec<i64> = ["Mathematik", "Maschinenbau / Elektrotechnik", "Wirtschaftswissenschaften", "Bauingenieurwesen", "Physik"].iter().map(|label| id(label)).collect();
         assert_eq!(several, (scoped(ProgramScope { areas: meant, ..scope.clone() }), "5 Bereiche".to_string()));
 
-        // None: every elective of the program.
+        // None: every elective of the program, whose sources state them (where they state none,
+        // `a_row_that_points_at_no_area_lists_what_can_be_chosen`).
         let none = ask("Wahlpflichtmodul 3", Some(ModuleKind::Elective));
         assert_eq!(none, (scoped(ProgramScope { kinds: vec![KindFilter::Stated(ModuleKind::Elective)], ..scope }), "Wahlpflichtmodule des Studiengangs".to_string()));
         assert_eq!(path(none.0), "/catalog?program=bachelor-informatik-2008&kind=elective");
@@ -493,6 +516,80 @@ mod tests {
         assert_eq!(english("Wahlpflichtmodul 3", Some(ModuleKind::Elective)), "Compulsory elective modules of the degree programme");
         assert_eq!(english("Komplex Praktische Informatik", Some(ModuleKind::Elective)), "Praktische Informatik");
         assert_eq!(english("Bachelor-Arbeit", Some(ModuleKind::Thesis)), "Bachelor-Arbeit");
+    }
+
+    /// A row whose name points at no area, in a program whose sources state no elective: the
+    /// electives would be an empty list („Modul wählen" led there in 15 programs until 2026-11-01).
+    /// Bauingenieurwesen B.Sc. leaves the 18 modules of „Profilierung" to choose, the modules not
+    /// known to be fixed; a tree of nothing but what is fixed, or none, leaves the whole curriculum.
+    #[test]
+    fn a_row_that_points_at_no_area_lists_what_can_be_chosen() {
+        const SLUG: &str = "bachelor-bauingenieurwesen-2022-82";
+        let areas = real::areas(real::BAUINGENIEURWESEN_BSC);
+        let variant = plan_variants(&real::bauingenieurwesen_bsc_rows(), &[], Locale::De).remove(0);
+        let scope = ProgramScope { program_slug: SLUG.to_string(), ..Default::default() };
+        let scoped = |scope: ProgramScope| CatalogQuery { program: Some(scope), ..Default::default() };
+        let path = |query: &CatalogQuery| CatalogUrl { query: query.clone(), ..Default::default() }.path();
+        let parsed = |path: &str| CatalogUrl::parse(path.split_once('?').map_or("", |(_, query)| query)).query;
+
+        // What the program's tree says: no elective anywhere, one field to choose from.
+        assert!(areas.iter().all(|area| area.electives == 0));
+        let choices: Vec<(&str, usize)> = areas.iter().filter(|area| area.choice).map(|area| (area.label.as_str(), area.modules)).collect();
+        assert_eq!(choices, vec![("Profilierung", 18)]);
+
+        // Both rows: the program's modules that are not known to be Pflicht, the thesis or the
+        // internship, which the catalog shows as „ohne Pflicht" and so on, each to take away.
+        let not_fixed = scoped(ProgramScope {
+            kinds_exclude: vec![KindFilter::Stated(ModuleKind::Compulsory), KindFilter::Stated(ModuleKind::Thesis), KindFilter::Stated(ModuleKind::Internship)],
+            ..scope.clone()
+        });
+        for entry in &variant.entries {
+            assert!(plan::areas_for_row(entry, &variant.full, &areas, &variant.entries).areas.is_empty(), "{}", entry.module_name);
+            let (query, what) = row_query(SLUG, &variant, entry, &areas, Locale::De);
+            assert_eq!((&query, what.as_str()), (&not_fixed, "Module des Studiengangs ohne Pflichtmodule"));
+            assert_eq!(path(&query), "/catalog?program=bachelor-bauingenieurwesen-2022-82&not-kind=compulsory,thesis,internship");
+            assert_eq!(parsed(&path(&query)), query, "the address carries the whole question");
+            assert_eq!(row_query(SLUG, &variant, entry, &areas, Locale::En).1, "Non-compulsory modules of the degree programme");
+        }
+
+        // A tree of nothing but what is fixed, or no tree at all: the whole curriculum.
+        let entry = &variant.entries[0];
+        let fixed: Vec<CatalogArea> = areas.iter().filter(|area| !area.choice).cloned().collect();
+        let whole = (scoped(scope.clone()), "Alle Module des Studiengangs".to_string());
+        assert_eq!(row_query(SLUG, &variant, entry, &fixed, Locale::De), whole);
+        assert_eq!(row_query(SLUG, &variant, entry, &[], Locale::De), whole);
+        assert_eq!(path(&whole.0), "/catalog?program=bachelor-bauingenieurwesen-2022-82");
+        assert_eq!(row_query(SLUG, &variant, entry, &[], Locale::En).1, "All modules of the degree programme");
+
+        // One area that holds a module stated to be an elective is enough for the electives.
+        let mut stated = areas.clone();
+        stated.iter_mut().filter(|area| area.label == "Profilierung").for_each(|area| area.electives = 1);
+        let electives = (scoped(ProgramScope { kinds: vec![KindFilter::Stated(ModuleKind::Elective)], ..scope }), "Wahlpflichtmodule des Studiengangs".to_string());
+        assert_eq!(row_query(SLUG, &variant, entry, &stated, Locale::De), electives);
+    }
+
+    /// On the tests' snapshot, every row of every plan that leaves a module to choose leads to a
+    /// list that holds modules while its program has any (`row_query`; 106 rows did not on
+    /// 2026-11-01). A FÜS row leads to the program's FÜS list, which the data may lack: another
+    /// question.
+    #[test]
+    fn no_row_to_choose_for_leads_to_an_empty_list() {
+        let db = folia_test_support::open();
+        let mut rows = 0;
+        for program in queries::programs(&db).unwrap().into_iter().filter(|program| program.has_plan) {
+            let entries = queries::program_plan_entries(&db, &program.id).unwrap();
+            let areas = crate::areas::catalog_areas(&queries::program_areas(&db, &program.id).unwrap(), &queries::program_area_tree(&db, &program.id).unwrap());
+            for variant in plan_variants(&entries, &[], Locale::De) {
+                let to_choose = |entry: &&PlanEntry| !entry.module_id.as_deref().is_some_and(url::is_module_id) && !plan::is_fues(entry) && !plan::is_single_module(entry);
+                for entry in variant.entries.iter().filter(to_choose) {
+                    let (query, what) = row_query(&program.slug, &variant, entry, &areas, Locale::De);
+                    let listed = queries::catalog_count(&db, &query).unwrap();
+                    assert!(listed > 0 || program.curricular_modules == 0, "{}: „{}“ leads to „{what}“, which lists nothing", program.slug, entry.module_name);
+                    rows += 1;
+                }
+            }
+        }
+        assert!(rows > 0, "the snapshot has rows to choose for");
     }
 
     #[test]

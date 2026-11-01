@@ -3252,7 +3252,14 @@ area beside the page → the catalog narrowed down to that area; a row of the pl
 row means, the same derivation as the row's panel (`plan::areas_for_row`; „Anwendungsfach" →
 `area=348,350,351,352,349`, the five Nebenfächer), the FÜS list for a FÜS row, a search for the
 name of a single module, the program's electives where no area fits; nothing picked → the
-program. The second line of the link says what it lists („Praktische Informatik", „5 Bereiche",
+program. The electives only where a source states one (`CatalogArea::electives`): in 25 of the
+129 current programs with a plan none does — the tree states no kind, the plan names the
+compulsory modules — and until 2026-11-01 „Modul wählen" led 106 rows of 15 of them into an
+empty list. There a row lists the modules not known to be Pflicht, the thesis or the internship
+(`not-kind=compulsory,thesis,internship`, „Module des Studiengangs ohne Pflichtmodule"; the 18 of
+„Profilierung" in Bauingenieurwesen B.Sc.), and where the tree holds nothing but those, the whole
+curriculum („Alle Module des Studiengangs"); `variants::tests` checks every row of every plan of
+the snapshot. The second line of the link says what it lists („Praktische Informatik", „5 Bereiche",
 „109 Module"); the row's panel opens with the same way in, as its first button, and lists what
 can be chosen under it (owner, 2026-09-23: it stated credits, kind and semester twice, as badges
 and as facts, and put the catalog last). The catalog's area filter takes several

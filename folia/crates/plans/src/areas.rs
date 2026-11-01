@@ -26,6 +26,12 @@ pub struct CatalogArea {
     /// those modules are taken anyway — and no requirement row of a plan points at it (owner,
     /// 2026-09-21).
     pub choice: bool,
+    /// How many of the modules placed directly in it the program's sources state to be electives
+    /// (`v_program_module.kind`, what the catalog's „Wahlpflicht" finds). In 25 of the 129 current
+    /// programs with a plan (2026-11-01) no area has any — Bauingenieurwesen B.Sc.: its tree
+    /// states no kind, its plan names the compulsory modules —, and a plan row that points at no
+    /// area is not sent to the electives there, which would list nothing (`variants::row_query`).
+    pub electives: usize,
     /// The labels of the nodes above it, from the top of the tree down, from the tree itself
     /// (`program_area.parent_id`), never from splitting the path: a label may itself read
     /// „Maschinenbau / Elektrotechnik".
@@ -40,8 +46,8 @@ pub struct CatalogArea {
 }
 
 impl CatalogArea {
-    /// An area on its own, named by its label, under no heading; `catalog_areas` names and
-    /// places the areas of a whole tree.
+    /// An area on its own, named by its label, under no heading, none of its modules stated to be
+    /// an elective; `catalog_areas` names and places the areas of a whole tree.
     pub fn new(id: i64, label: &str, ancestors: &[&str], modules: usize, choice: bool) -> Self {
         let path = ancestors.iter().chain([&label]).copied().collect::<Vec<_>>().join(" / ");
         Self {
@@ -51,6 +57,7 @@ impl CatalogArea {
             depth: ancestors.len() as i64 + 1,
             modules,
             choice,
+            electives: 0,
             ancestors: ancestors.iter().map(|ancestor| ancestor.to_string()).collect(),
             name: short_name(label).to_string(),
             section: None,
@@ -126,12 +133,16 @@ fn display_label(label: &str) -> String {
     shown.to_string()
 }
 
+/// The kinds of the modules every student of a program takes: Pflicht, the thesis, the
+/// internship. A module of another kind, or of none stated, may be chosen (`is_choice`).
+pub const FIXED_KINDS: [ModuleKind; 3] = [ModuleKind::Compulsory, ModuleKind::Thesis, ModuleKind::Internship];
+
 /// Whether a student chooses among these modules (see `CatalogArea::choice`): any of them is
 /// not known to be compulsory, the thesis or the internship.
 pub fn is_choice<'a>(placements: impl IntoIterator<Item = &'a AreaPlacement>) -> bool {
     placements.into_iter().any(|placement| {
         let kind = placement.module_kind.as_ref().or(placement.kind.as_ref());
-        !kind.is_some_and(|kind| kind.is(ModuleKind::Compulsory) || kind.is(ModuleKind::Thesis) || kind.is(ModuleKind::Internship))
+        !kind.is_some_and(|kind| FIXED_KINDS.iter().any(|fixed| kind.is(*fixed)))
     })
 }
 
@@ -168,10 +179,13 @@ pub fn catalog_areas(placements: &[AreaPlacement], tree: &[AreaNode]) -> Vec<Cat
     let mut areas: Vec<CatalogArea> = Vec::new();
     for placement in placements {
         let choice = is_choice([placement]);
+        // As the catalog's filter reads it: the kind the sources settle on, not the tree's label.
+        let elective = usize::from(placement.module_kind.as_ref().is_some_and(|kind| kind.is(ModuleKind::Elective)));
         match areas.iter_mut().find(|area| area.id == placement.area_id) {
             Some(area) => {
                 area.modules += 1;
                 area.choice |= choice;
+                area.electives += elective;
             }
             None => areas.push(CatalogArea {
                 id: placement.area_id,
@@ -180,6 +194,7 @@ pub fn catalog_areas(placements: &[AreaPlacement], tree: &[AreaNode]) -> Vec<Cat
                 depth: placement.depth,
                 modules: 1,
                 choice,
+                electives: elective,
                 ancestors: Vec::new(),
                 name: short_name(&placement.area_label).to_string(),
                 section: None,
@@ -334,6 +349,8 @@ pub fn area_sections(areas: &[CatalogArea]) -> Vec<(Option<String>, Vec<CatalogA
 
 #[cfg(test)]
 mod tests {
+    use folia_model::labels::Code;
+
     use crate::area_fixtures as real;
     use super::*;
 
@@ -437,6 +454,27 @@ mod tests {
         for label in ["Komplex Nebenfach", "Studienrichtung Kommunikationstechnik (KT)", "Schwerpunkte", "Anwendungen", "Informatik-Vertiefung"] {
             assert!(!is_structural(label), "{label}");
         }
+    }
+
+    #[test]
+    fn an_area_counts_the_modules_stated_to_be_electives() {
+        // As the fixtures state them, area by area; a module of no stated kind is none.
+        for tree in [real::INFORMATIK_BSC, real::ELEKTROTECHNIK_MSC, real::BAUINGENIEURWESEN_BSC] {
+            let stated: Vec<(String, usize)> = tree
+                .iter()
+                .filter(|(_, _, modules)| !modules.is_empty())
+                .map(|(_, label, modules)| (label.to_string(), modules.iter().filter(|(_, kind)| *kind == Some(ModuleKind::Elective)).map(|(n, _)| *n).sum::<usize>()))
+                .collect();
+            let counted: Vec<(String, usize)> = real::areas(tree).iter().map(|area| (area.label.clone(), area.electives)).collect();
+            assert_eq!(counted, stated);
+        }
+        // What the sources settle on counts, as the catalog's filter reads it, not the tree's own
+        // label: a module only the label calls an elective is a choice, and no elective.
+        let (mut placements, tree) = real::build(&[(1, "Wahlpflichtmodule", &[(1, None)])]);
+        placements[0].kind = Some(Code::Known(ModuleKind::Elective));
+        let areas = catalog_areas(&placements, &tree);
+        assert!(areas[0].choice);
+        assert_eq!(areas[0].electives, 0);
     }
 
     #[test]
