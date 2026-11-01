@@ -26,7 +26,8 @@
 //! click opens it too). The whole box is the module's button („Es soll die gesamte modulbox als
 //! button funktionieren"): a click anywhere on it opens the module beside the page, its name no link
 //! of its own that underlines; a row of the plan that names no module leads to its modules in the
-//! catalog („Modul wählen"). Marking a module as passed is done once and not by the way (owner,
+//! catalog („Modul wählen"), and a module planned from there goes into the row's semester and fills
+//! it (`find_href`). Marking a module as passed is done once and not by the way (owner,
 //! 2026-10-04: „Das Abhaken von dem Modul ist viel zu einfach"): it is in the menu.
 //!
 //! Rows are selected for what is done to several at once (owner, 2026-10-04: „eine Multiselection
@@ -520,7 +521,7 @@ impl Row {
             _ => item.credits.map(|credits| n(credits, t)),
         };
         let find = match &item.subject {
-            Subject::Row { caption, ord, .. } if item.fillers.is_empty() => find_href(ctx, caption, *ord, t),
+            Subject::Row { pid, caption, ord, .. } if item.fillers.is_empty() => find_href(ctx, caption, *ord, *pid, t),
             _ => None,
         };
         let facts = Facts::of(item.module_id().and_then(|id| ctx.rows.with_untracked(|rows| rows.iter().find(|row| row.id == id).cloned())).as_ref(), t.locale);
@@ -529,14 +530,16 @@ impl Row {
     }
 }
 
-/// The catalog of a plan row's modules (`variants::row_query`).
-pub(super) fn find_href(ctx: StudyCtx, caption: &str, ord: i64, t: &Texts) -> Option<String> {
+/// The catalog of a plan row's modules (`variants::row_query`), „Modul wählen". With `fill`, the
+/// placeholder of the row a module found there fills (`fill=p<pid>`): „Einplanen" plans it into the
+/// placeholder's semester, where it counts instead of the placeholder (`studyplan::target_semester`).
+pub(super) fn find_href(ctx: StudyCtx, caption: &str, ord: i64, fill: Option<u32>, t: &Texts) -> Option<String> {
     ctx.plans.with_untracked(|plans| {
         let Plans::Found(source) = plans else { return None };
         let variant = source.variants.iter().find(|variant| variant.full == caption)?;
         let entry = variant.entries.iter().find(|entry| entry.ord == ord)?;
         let (query, _) = variants::row_query(&source.program.slug, variant, entry, &source.areas, t.locale);
-        Some(CatalogUrl { query, page: 1, open: None, fill: None }.path())
+        Some(CatalogUrl { query, page: 1, open: None, fill }.path())
     })
 }
 

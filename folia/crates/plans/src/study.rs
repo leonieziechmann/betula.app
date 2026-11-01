@@ -561,6 +561,16 @@ impl Item {
             Subject::Row { caption, ord, .. } => format!("r:{caption}:{ord}"),
         }
     }
+
+    /// The credits it counts, in its area and in its semester: its own, none for a row that
+    /// modules fill (`fillers`), which count instead of it.
+    pub fn counted(&self) -> Option<f64> {
+        if self.fillers.is_empty() {
+            self.credits
+        } else {
+            None
+        }
+    }
 }
 
 /// A module only visited in a semester (`studyplan::Visit`, „nur besuchen"): in its week, apart
@@ -600,10 +610,11 @@ pub struct Semester {
     pub items: Vec<Item>,
     /// The modules only visited in it, in the order they came: none of its items, counted nowhere.
     pub visits: Vec<VisitItem>,
-    /// What its items come to, each with one number of its own; what of it is passed.
+    /// What its items come to, each with one number of its own, a row that modules fill by them
+    /// (`Item::counted`); what of it is passed.
     pub credits: f64,
     pub passed: f64,
-    /// Some item states no single number (none, a range).
+    /// Some item states no single number (none, a range), a row that modules fill aside.
     pub partial: bool,
     /// What the Regelstudienplan puts into its Fachsemester.
     pub planned: Option<f64>,
@@ -861,7 +872,7 @@ pub fn study(input: &Input) -> Study {
         let found = candidates(item);
         item.area = found.first().copied();
         let counts = item.passed || !item.failed;
-        let credits = if item.fillers.is_empty() { item.credits.unwrap_or(0.0) } else { 0.0 };
+        let credits = item.counted().unwrap_or(0.0);
         if !counts || credits <= 0.0 {
             continue;
         }
@@ -893,10 +904,12 @@ pub fn study(input: &Input) -> Study {
         item.area = Some(target);
         item.over = credits - counted;
     }
+    // A row that modules fill counts by them, as in the areas: „Anwendungsfach" with the module
+    // chosen for it is that module's 6 LP, not 12.
     for semester in &mut semesters {
-        semester.credits = semester.items.iter().filter_map(|item| item.credits).sum();
-        semester.passed = semester.items.iter().filter(|item| item.passed).filter_map(|item| item.credits).sum();
-        semester.partial = semester.items.iter().any(|item| item.credits.is_none() || item.range);
+        semester.credits = semester.items.iter().filter_map(Item::counted).sum();
+        semester.passed = semester.items.iter().filter(|item| item.passed).filter_map(Item::counted).sum();
+        semester.partial = semester.items.iter().any(|item| item.fillers.is_empty() && (item.credits.is_none() || item.range));
     }
 
     // What was not passed and is not planned again.
@@ -1064,6 +1077,36 @@ pub fn add(doc: &mut PlanDoc, input: &Input, s: SemesterKey, picks: &[Pick], at:
                 }
             }
         }
+    }
+    added
+}
+
+/// The placeholders of the plan rows `rows` (each its plan's caption and `ord`) that no module of
+/// their own semester fills yet, by semester and then in the order of `rows`: what a module chosen
+/// for one of those rows fills (`add_for`; the catalog of a choice, `fill=p<pid>`).
+pub fn open_placeholders<'a>(doc: &'a PlanDoc, program_id: &str, rows: &[(String, i64)]) -> Vec<&'a Placeholder> {
+    let mut open: Vec<(SemesterKey, usize, &Placeholder)> = doc
+        .placeholders
+        .iter()
+        .filter(|p| p.program_id == program_id && !doc.modules.iter().any(|m| m.semester == p.semester && m.fills == Some(p.pid)))
+        .filter_map(|p| rows.iter().position(|(caption, ord)| p.caption == *caption && p.ord == *ord).map(|at| (p.semester, at, p)))
+        .collect();
+    open.sort_by_key(|(semester, at, _)| (*semester, *at));
+    open.into_iter().map(|(.., p)| p).collect()
+}
+
+/// Puts module `id` into semester `s` for one of the plan rows `rows`, as „+ In SoSe 27" of a
+/// choice of the Wahlpflicht does, and lets it count for the first placeholder of those rows that
+/// stands in `s` and that no module fills yet (`open_placeholders`): the row then counts once, by
+/// the module, not by both. The student chose the rows, so nothing is guessed (`Planned::fills`);
+/// without such a placeholder the module counts where the tree places it, as any other. As `add`
+/// otherwise; how many it added.
+pub fn add_for(doc: &mut PlanDoc, input: &Input, s: SemesterKey, id: &str, rows: &[(String, i64)], at: u64) -> usize {
+    let fills = open_placeholders(doc, input.program_id, rows).into_iter().find(|p| p.semester == s).map(|p| p.pid);
+    let added = add(doc, input, s, &[Pick::Module { id: id.to_string(), from_plan: false }], at);
+    // Moved here from a later semester, it counts for no placeholder there any more.
+    if added > 0 {
+        doc.set_fills(s, id, fills);
     }
     added
 }
@@ -1885,18 +1928,77 @@ mod tests {
         assert_eq!(items.iter().map(Item::key).collect::<Vec<_>>(), [":6", ":8"].map(|k| format!("r{k}").replacen("r:", "r::", 1)));
         assert_eq!((items[0].credits, items[0].range), (Some(6.0), true));
         assert_eq!(study_now.progress[3].planned, 10.0);
-        // A module filling the choice counts instead of it.
+        let semester = study_now.semester(key("2026W")).unwrap();
+        assert_eq!((semester.credits, semester.partial), (6.0 + 4.0, true), "the least of „6–14“, and that it is a range");
+        // A module filling the choice counts instead of it, in the area and in the semester: the
+        // row is the module's 6, not 6 besides it, and its range says nothing more.
         let pid = doc.placeholders[0].pid;
         doc.plan(key("2026W"), "12330", 2, Some(pid));
         let filled = study(&input(&w, &doc, "2025W", "2025W"));
-        assert_eq!(filled.semester(key("2026W")).unwrap().items[1].fillers, ["12330"]);
+        let semester = filled.semester(key("2026W")).unwrap();
+        assert_eq!(semester.items[1].fillers, ["12330"]);
+        assert_eq!((semester.items[1].counted(), semester.items[0].counted()), (None, Some(6.0)));
         assert_eq!(filled.progress[3].planned, 4.0 + 6.0);
+        assert_eq!((semester.credits, semester.partial), (6.0 + 4.0, false));
         // Done, the row is passed where it was done.
         let item = filled.semester(key("2026W")).unwrap().items[2].clone();
         assert!(set_passed(&mut doc, key("2026W"), &item, true));
         let done = study(&input(&w, &doc, "2025W", "2025W"));
         assert!(done.semester(key("2026W")).unwrap().items[2].passed);
         assert_eq!(done.progress[3].passed, 4.0);
+    }
+
+    /// „+ In WiSe 26/27" of a choice of the Wahlpflicht: the module fills a place of the choice
+    /// standing in that semester that nothing fills yet, so that the place counts once, by the
+    /// module; where none is left it counts where the tree places it.
+    #[test]
+    fn a_module_planned_for_a_choice_fills_its_open_place_in_that_semester() {
+        let w = world();
+        let mut doc = PlanDoc::default();
+        let row = |ord: i64| Pick::Row { caption: String::new(), ord };
+        let before = doc.clone();
+        assert_eq!(add(&mut doc, &input(&w, &before, "2025W", "2026W"), key("2026W"), &[row(6), row(7)], 1), 2);
+        let before = doc.clone();
+        assert_eq!(add(&mut doc, &input(&w, &before, "2025W", "2026W"), key("2027S"), &[row(6)], 1), 1);
+        let pid = |doc: &PlanDoc, s: &str, ord: i64| doc.placeholders.iter().find(|p| p.semester == key(s) && p.ord == ord).map(|p| p.pid);
+        let fills = |doc: &PlanDoc, s: &str, id: &str| doc.modules.iter().find(|m| m.semester == key(s) && m.module_id == id).and_then(|m| m.fills);
+        // The choice of rows 7 and 6: its open places by semester, then in the order of its rows;
+        // another program's rows and a row put in nowhere have none.
+        let rows = vec![(String::new(), 7), (String::new(), 6)];
+        let open = |doc: &PlanDoc| open_placeholders(doc, PROGRAM, &rows).iter().map(|p| p.pid).collect::<Vec<_>>();
+        assert_eq!(open(&doc), [pid(&doc, "2026W", 7), pid(&doc, "2026W", 6), pid(&doc, "2027S", 6)].map(Option::unwrap));
+        assert!(open_placeholders(&doc, "079-82-2015", &rows).is_empty());
+        assert!(open_placeholders(&doc, PROGRAM, &[(String::new(), 8)]).is_empty());
+
+        // Two modules for it in WiSe 2026/27 fill its two places there, the first first.
+        let before = doc.clone();
+        assert_eq!(add_for(&mut doc, &input(&w, &before, "2025W", "2026W"), key("2026W"), "12330", &rows, 2), 1);
+        assert_eq!(fills(&doc, "2026W", "12330"), pid(&doc, "2026W", 7));
+        let before = doc.clone();
+        assert_eq!(add_for(&mut doc, &input(&w, &before, "2025W", "2026W"), key("2026W"), "11003", &rows, 3), 1);
+        assert_eq!(fills(&doc, "2026W", "11003"), pid(&doc, "2026W", 6));
+        assert_eq!(open(&doc), [pid(&doc, "2027S", 6).unwrap()], "what is filled is open no more");
+        let filled = study(&input(&w, &doc, "2025W", "2026W"));
+        let semester = filled.semester(key("2026W")).unwrap();
+        assert_eq!(semester.credits, 6.0 + 8.0, "the two modules, not their places besides them");
+        // A third finds no place open there: it counts where the tree places it, filling nothing.
+        let before = doc.clone();
+        assert_eq!(add_for(&mut doc, &input(&w, &before, "2025W", "2026W"), key("2026W"), "12160", &rows, 4), 1);
+        assert_eq!(fills(&doc, "2026W", "12160"), None);
+        // Planned already there, nothing changes.
+        let before = doc.clone();
+        assert_eq!(add_for(&mut doc, &input(&w, &before, "2025W", "2026W"), key("2026W"), "12330", &rows, 5), 0);
+        assert_eq!(doc, before);
+
+        // A module filling the summer's place, put into the winter for the choice: it moves, and
+        // counts for no place of the summer any more, which counts again.
+        let mut doc = before;
+        doc.unplan(key("2026W"), "12160", &[]);
+        doc.plan(key("2027S"), "12160", 6, pid(&doc, "2027S", 6));
+        let before = doc.clone();
+        assert_eq!(add_for(&mut doc, &input(&w, &before, "2025W", "2026W"), key("2026W"), "12160", &rows, 7), 1);
+        assert_eq!((doc.planned_in("12160"), fills(&doc, "2026W", "12160")), (vec![key("2026W")], None));
+        assert_eq!(open(&doc), [pid(&doc, "2027S", 6).unwrap()]);
     }
 
     #[test]

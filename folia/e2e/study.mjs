@@ -24,6 +24,12 @@
 //   dialog; a module beside the page by its name and by its row, in full and back; the
 //   Gesamtplan, each cell as tall as what it lists, a module's menu, a grey line of the plan added
 //   with a click, the view kept; a reload keeps all of it; nothing of it in a request.
+// 2b a place filled (folia/design/hinzufuegen/konzepte.html, „Was heute schiefgeht"): the same study,
+//   „Anwendungsfach" alone put into WiSe 2026/27 by „Module hinzufügen"; „Modul wählen" at its row
+//   and in its menu leads to the catalog with the place (`fill=`), whose „Einplanen" aims at it and
+//   its semester; planned, Allgemeine BWL I fills it — the semester and Nebenfach count 6 LP, not 12,
+//   the place says „gefüllt mit" and offers „Modul wählen" no more; taken out again, the
+//   Wahlpflicht's „+ In WiSe 26/27" fills the place the same way.
 // 3 a phone: the overview first (owner, 2026-10-05), the bar with its legend, the program's card
 //   and its ways, the box „Studium planen" with a column per semester, the way to all programs, and
 //   no sidebar; one row of pages the browser scrolls (a real touch, CDP; owner, 2026-10-06): the
@@ -505,6 +511,66 @@ if (current !== "2026W") {
   for (const request of requests) {
     if (/12104|079-82-2008|11787%0A|d%092025W|start%09/.test(request.replace(/\/catalog\/module\/\d+|open=11787/g, ""))) problems.push(`a request carries the study: ${request.slice(0, 160)}`);
   }
+  await context.close();
+}
+
+// ---------- 2b: a place filled ----------
+{
+  const { page, step, seed, context } = await open({ viewport: { width: 1440, height: 900 } }, "/");
+  await seed([[MINE, THIRD], [PLAN, FILLED]]);
+  await step("Studium, for a place", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
+  // What the semester and Nebenfach count.
+  const counts = () => page.evaluate(() => ({
+    semester: document.querySelector(".st-card-sem .st-sem-sub b")?.textContent.replace(/ /g, " "),
+    nebenfach: [...document.querySelectorAll(".st-card")].find((card) => card.querySelector(".st-card-name")?.textContent === "Nebenfach")?.querySelector(".st-card-figure")?.textContent,
+  }));
+  // „Anwendungsfach" alone into WiSe 2026/27, as a place of 6 LP.
+  await step("Module hinzufügen, for a place", () => page.click(".st-card-sem .st-empty-add"), () => document.querySelector(".st-dialog[open] .st-choices"));
+  for (const tick of await page.$$('.st-dialog[open] .st-tick[aria-checked="true"]')) await tick.click();
+  await page.click('.st-dialog[open] .st-choice-row:has(.st-choice-name:text-is("Anwendungsfach")) .st-tick');
+  await step("the place put in", () => page.click("#st-insert"), () => !document.querySelector(".st-dialog[open]") && document.querySelectorAll(".st-card-sem .st-row").length === 1);
+  // The store follows the click after its frame (R21).
+  const place = (key) => (localStorage.getItem(key) || "").split("\n").map((line) => line.split("\t")).find((fields) => fields[0] === "p" && fields[2] === "2026W" && fields[9] === "Anwendungsfach")?.[1];
+  await page.waitForFunction(place, PLAN, { timeout: 4000 }).catch(() => {});
+  const pid = await page.evaluate(place, PLAN);
+  check(!!pid, `the place was not stored: ${JSON.stringify(await lines(page, "p\t"))}`);
+  const open6 = await counts();
+  check(open6.semester === "6 LP" && open6.nebenfach === "6/18", `the place alone: ${JSON.stringify(open6)}`);
+  // „Modul wählen", at the row and in its menu, names the place (`fill=`).
+  const find = await page.getAttribute(".st-card-sem .st-row .st-find", "href");
+  check(find?.endsWith(`&fill=p${pid}`), `„Modul wählen“ does not name the place: ${find}`);
+  await step("the place's menu", () => page.click(".st-card-sem .st-row .st-status"), () => document.querySelector(".st-pop.root #st-menu-view"));
+  const entry = await page.getAttribute(".st-pop.root #st-menu-view", "href");
+  check(entry === find, `the menu's „Modul wählen“: ${entry}`);
+  await step("its menu closed", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-pop"));
+  await step("Modul wählen", () => page.click(".st-card-sem .st-row .st-find"), (pid) => location.pathname === "/catalog" && new URLSearchParams(location.search).get("fill") === `p${pid}` && document.querySelector('.row[data-id="12160"]'), pid);
+  // „Einplanen" aims at the place and its semester, and plans the module to fill it.
+  const SWITCH = '.detail .hero .plan-toggle[data-action="plan"]';
+  await step("Allgemeine BWL I beside the list", () => page.click('.row[data-id="12160"]'), (selector) => document.querySelector(selector)?.checkVisibility(), SWITCH);
+  const aim = await page.evaluate((selector) => document.querySelector(selector)?.textContent.replace(/\s+/g, " "), SWITCH);
+  check(aim?.includes("WiSe 26/27") && aim.includes("für „Anwendungsfach“"), `„Einplanen“ does not aim at the place: ${aim}`);
+  await step("Einplanen, for the place", () => page.click(SWITCH), ([key, pid]) => (localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith("m\t2026W\t12160\t") && line.split("\t")[4] === pid), [PLAN, pid]);
+  // Back in „Mein Studium": one module of 6 LP for the place, counted once (it was 12 and 12/18:
+  // folia/design/hinzufuegen/konzepte.html, „Was heute schiefgeht"), the place saying what fills it.
+  await step("the semester, its place filled", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelectorAll(".st-card-sem .st-row").length === 2);
+  const filled = await counts();
+  check(filled.semester === "6 LP" && filled.nebenfach === "6/18", `one module for the place counts twice: ${JSON.stringify(filled)}`);
+  const placed = await rows(page);
+  check(placed.some((row) => row.name === "Anwendungsfach" && row.chips.some((chip) => chip.startsWith("gefüllt mit Allgemeine Betriebswirtschaftslehre I"))), `the place does not say what fills it: ${JSON.stringify(placed)}`);
+  check(!(await page.$(".st-card-sem .st-find")), "a filled place still offers „Modul wählen“");
+  // The module out again, the place open; the Wahlpflicht's „+ In WiSe 26/27" fills it as well.
+  await step("the module's menu, at the place", () => page.click('.st-card-sem .st-row[data-key="m:12160"] .st-status'), () => document.querySelector(".st-pop.root #st-menu-remove"));
+  await step("the module taken out", () => page.click("#st-menu-remove"), () => document.querySelectorAll(".st-card-sem .st-row").length === 1 && document.querySelector(".st-card-sem .st-find"));
+  await step("the Wahlpflicht, for a place", () => page.click('#sidebar .st-vl:has-text("Wahlpflicht")'), () => location.search === "?view=areas" && document.querySelector(".st-sl"));
+  await step("Anwendungsfach, its lists", () => page.click('.st-sl:has-text("Anwendungsfach")'), () => document.querySelector('.st-sl[aria-current="true"]')?.textContent.includes("Anwendungsfach") && document.querySelector(".st-wtable tbody tr:not(.taken) button.st-addb"));
+  const chosen = await page.evaluate(() => {
+    const tr = document.querySelector(".st-wtable tbody tr:not(.taken)");
+    return { id: tr?.querySelector(".id")?.textContent, credits: tr?.querySelector(".num")?.textContent, into: tr?.querySelector("button.st-addb")?.textContent };
+  });
+  check(chosen.into === "In WiSe 26/27", `the Wahlpflicht plans into ${chosen.into}`);
+  await step("+ In WiSe 26/27, for the place", () => page.click(".st-wtable tbody tr:not(.taken) button.st-addb >> nth=0"), ([key, id, pid]) => (localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith(`m\t2026W\t${id}\t`) && line.split("\t")[4] === pid), [PLAN, chosen.id, pid]);
+  await page.waitForFunction((credits) => [...document.querySelectorAll(".st-sl-h")].find((head) => head.textContent.includes("Nebenfach"))?.querySelector("small")?.textContent === `${credits}/18`, chosen.credits, { timeout: 4000 })
+    .catch(async () => problems.push(`the Wahlpflicht's module counts beside its place: Nebenfach ${await page.evaluate(() => [...document.querySelectorAll(".st-sl-h")].map((head) => head.textContent).join(" | "))}, the module ${chosen.credits} LP`));
   await context.close();
 }
 

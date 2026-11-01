@@ -23,7 +23,7 @@ use folia_model::labels::{Labelled, OfferStatus, TurnusSeason};
 use folia_model::rows::CatalogRow;
 use folia_pages::ask::StudyModulesAsk;
 use folia_plans::choices::{self, Choice, PlanView};
-use folia_plans::study::{self, Input, Offer, Pick};
+use folia_plans::study::{self, Input, Offer};
 use folia_routes::filter::{CatalogQuery, ProgramRelation, ProgramScope};
 use folia_routes::url::CatalogUrl;
 use leptos::prelude::*;
@@ -71,6 +71,9 @@ struct Item {
     due: SemesterKey,
     /// Where else to look: the FÜS list, the catalog of its row.
     catalog: Option<(String, &'static str)>,
+    /// Its rows of the plan, each its plan's caption and `ord`: what a module planned for it fills
+    /// where one of them stands in the semester (`study::add_for`).
+    rows: Vec<(String, i64)>,
 }
 
 /// An area of the progress with its choices.
@@ -145,11 +148,15 @@ impl Pane {
                     None if choice.taken.is_empty() => None,
                     None => Some((v.taken)(&n(choice.taken_credits(), t), &folia_plans::plan::credits_in(&choice.credits_text, t.locale))),
                 };
+                let rows: Vec<(String, i64)> = choice.lines.iter().filter_map(|at| view.lines.get(*at)).map(|line| (line.caption.clone(), line.ord)).collect();
                 let scope = ProgramScope { program_slug: ready.program.slug.clone(), ..Default::default() };
                 let catalog = if choice.fues {
                     Some((CatalogUrl { query: CatalogQuery { program: Some(ProgramScope { relation: ProgramRelation::Fues, ..scope }), ..Default::default() }, ..Default::default() }.path(), v.fues_catalog))
                 } else if choice.lists.is_empty() {
-                    choice.lines.first().and_then(|at| view.lines.get(*at)).and_then(|line| super::focus::find_href(ctx, &line.caption, line.ord, t)).map(|href| (href, v.search_catalog))
+                    // What is found there fills the first of its places put into a semester from the
+                    // current one on that nothing fills yet, in that semester.
+                    let fill = study::open_placeholders(input.doc, input.program_id, &rows).into_iter().find(|p| p.semester >= now).map(|p| p.pid);
+                    choice.lines.first().and_then(|at| view.lines.get(*at)).and_then(|line| super::focus::find_href(ctx, &line.caption, line.ord, fill, t)).map(|href| (href, v.search_catalog))
                 } else {
                     None
                 };
@@ -170,6 +177,7 @@ impl Pane {
                     complete: choice.complete(),
                     due: due_of(choice),
                     catalog,
+                    rows,
                 }
             })
             .collect();
@@ -299,31 +307,33 @@ fn marked_sign(t: &'static Texts) -> impl IntoView {
     view! { <span class="st-mk" title=v.marked><Icon name="bookmark"/><span class="visually-hidden">{v.marked}</span></span> }
 }
 
-/// Plans the module `id` into `s`, with a note „Rückgängig" takes it back by.
-fn plan(ctx: StudyCtx, id: String, title: String, s: SemesterKey, t: &'static Texts) {
+/// Plans the module `id` into `s` for the choice of the plan rows `rows`, with a note „Rückgängig"
+/// takes it back by. A place of the choice standing in `s` that nothing fills yet is filled by it
+/// (`study::add_for`): the choice counts once, by the module.
+fn plan(ctx: StudyCtx, id: String, title: String, s: SemesterKey, rows: Vec<(String, i64)>, t: &'static Texts) {
     let note = (t.study_views.planned_note)(&title, &s.label(t.locale));
     ctx.change_noted(
         Some(note),
         move |doc, input| {
-            study::add(doc, input, s, &[Pick::Module { id, from_plan: false }], now_secs());
+            study::add_for(doc, input, s, &id, &rows, now_secs());
         },
         || {},
     );
 }
 
-/// What a module of a list offers: its stand, or „In SoSe 27".
-fn module_act(ctx: StudyCtx, module: &Module, t: &'static Texts) -> AnyView {
+/// What a module of a list of the choice of the plan rows `rows` offers: its stand, or „In SoSe 27".
+fn module_act(ctx: StudyCtx, module: &Module, rows: &[(String, i64)], t: &'static Texts) -> AnyView {
     let v = &t.study_views;
     match module.has {
         Has::Passed => view! { <span class="st-chip ok"><Icon name="check"/>{v.chip_passed}</span> }.into_any(),
         Has::Planned(s) => view! { <span class="st-chip plan">{(v.chip_planned)(&s.short(t.locale))}</span> }.into_any(),
         Has::No => {
-            let (id, title, s) = (module.id.clone(), module.title.clone(), module.into);
+            let (id, title, s, rows) = (module.id.clone(), module.title.clone(), module.into, rows.to_vec());
             let label = (v.into)(&s.short(t.locale));
             let hint = label.clone();
             let aria = format!("{} · {}", module.title, (v.plan_into)(&s.label(t.locale)));
             view! {
-                <button class="st-addb" type="button" aria-label=aria title=hint on:click=move |_| plan(ctx, id.clone(), title.clone(), s, t)>
+                <button class="st-addb" type="button" aria-label=aria title=hint on:click=move |_| plan(ctx, id.clone(), title.clone(), s, rows.clone(), t)>
                     <Icon name="plus"/><span class="st-addb-t">{label}</span>
                 </button>
             }
@@ -506,7 +516,7 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
                                     <td class="nm"><a href=href data-noscroll="">{module.title.clone()}</a>{module.marked.then(|| marked_sign(t))}{module.phase_out.then(|| view! { <small>{OfferStatus::PhaseOut.label(t.locale)}</small> })}</td>
                                     <td class="r num">{module.credits.clone()}</td>
                                     <td><span class="st-turnus" class:match=module.fits && module.seasonal && target_now != Target::All>{module.turnus.clone()}</span></td>
-                                    <td class="r">{module_act(ctx, &module, t)}</td>
+                                    <td class="r">{module_act(ctx, &module, &item.rows, t)}</td>
                                 </tr>
                             }
                         }).collect_view()}
@@ -660,6 +670,7 @@ fn ChoiceGroup(ctx: StudyCtx, item: Item, has: BTreeMap<String, Has>, rows: Memo
         }
     });
     let item_lists = item.lists.clone();
+    let item_rows = item.rows.clone();
     let due = item.due;
     let cards = move || {
         let ids = item_lists.get(list.get().min(item_lists.len().saturating_sub(1))).map(|(_, modules)| modules.clone()).unwrap_or_default();
@@ -688,7 +699,7 @@ fn ChoiceGroup(ctx: StudyCtx, item: Item, has: BTreeMap<String, Has>, rows: Memo
                                 <span class="st-meta">{module.marked.then(|| marked_sign(t))}<span class="st-code mono">{module.id.clone()}</span><span class="st-turnus" class:match=module.fits && module.seasonal && target != Target::All>{module.turnus.clone()}</span></span>
                             </div>
                             <span class="st-lp">{module.credits.clone()}<small>{v.col_credits}</small></span>
-                            <span class="st-mcard-act">{module_act(ctx, &module, t)}</span>
+                            <span class="st-mcard-act">{module_act(ctx, &module, &item_rows, t)}</span>
                         </li>
                     }
                 }).collect_view()}
