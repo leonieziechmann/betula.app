@@ -60,6 +60,11 @@ pub struct Texts {
     pub fues_list: &'static str,
     /// … „Wahlpflichtmodule des Studiengangs" …
     pub program_electives: &'static str,
+    /// … „Module des Studiengangs ohne Pflichtmodule", where the program's sources state no
+    /// elective …
+    pub program_not_compulsory: &'static str,
+    /// … „Alle Module des Studiengangs", where its tree holds nothing to choose, or it has none …
+    pub program_modules: &'static str,
     /// … „5 Bereiche".
     pub areas: fn(usize) -> String,
 
@@ -94,6 +99,8 @@ pub const DE: Texts = Texts {
     unnamed_plan: "Regelstudienplan",
     fues_list: "FÜS-Liste des Studiengangs",
     program_electives: "Wahlpflichtmodule des Studiengangs",
+    program_not_compulsory: "Module des Studiengangs ohne Pflichtmodule",
+    program_modules: "Alle Module des Studiengangs",
     areas: |n| format!("{n} Bereiche"),
     faculty: |code| format!("Fakultät {code}"),
     faculty_named: |code, name| format!("Fakultät {code} · {name}"),
@@ -122,6 +129,8 @@ pub const EN: Texts = Texts {
     unnamed_plan: "Standard study plan",
     fues_list: "FÜS list of the degree programme",
     program_electives: "Compulsory elective modules of the degree programme",
+    program_not_compulsory: "Non-compulsory modules of the degree programme",
+    program_modules: "All modules of the degree programme",
     areas: |n| if n == 1 { "1 area".to_string() } else { format!("{n} areas") },
     faculty: |code| format!("Faculty {code}"),
     faculty_named: |code, name| format!("Faculty {code} · {name}"),
