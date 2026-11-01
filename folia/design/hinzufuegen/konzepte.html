@@ -724,7 +724,7 @@ table.cmp th.rec { color: var(--accent-ink); }
     <h3><svg class="i" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>Was heute schiefgeht, egal welches Konzept es wird</h3>
     <ul>
       <li><b>Ein gewähltes Modul füllt den Platz nicht.</b> „Modul wählen“ gibt dem Katalog weder den Platz noch das Semester mit: <code>find_href</code> in <code>planner/src/study/focus.rs</code> setzt kein <code>fill=</code>. Der Katalog kann es längst, die Suche des Stundenplans gibt es ihm mit. So zählen Modul und Platzhalter beide.</li>
-      <li><b>Ein leerer Katalog.</b> 106 Plätze in 15 Studiengängen (Bauingenieurwesen B.Sc., Angewandte Naturwissenschaften, Control of Renewable Energy Systems …) führen zu „Wahlpflichtmodule des Studiengangs“, und das findet kein Modul: ihr Modulbaum nennt keine Modulart.</li>
+      <li><b>Ein leerer Katalog.</b> 106 Plätze in 15 Studiengängen (Bauingenieurwesen B.Sc., Angewandte Naturwissenschaften, Control of Renewable Energy Systems …) führen zu „Wahlpflichtmodule des Studiengangs“, und das findet kein Modul: ihr Modulbaum nennt keine Modulart. <i>Behoben in Folia 1.59.1:</i> wo keine Quelle ein Wahlpflichtmodul nennt, führen sie zu „Module des Studiengangs ohne Pflichtmodule“, 8 bis 136 Module je Platz, und wo der Baum nur Pflicht hält, zum ganzen Curriculum (<code>variants::row_query</code>).</li>
       <li><b>Ins Semester der Sitzung.</b> Was man über „Modul wählen“ im Katalog einplant, landet im Semester, für das die Sitzung plant; ab dem 15. November ist das das SoSe 27, auch wenn man vom WiSe 26/27 kam.</li>
       <li><b>Ein Platz aus einem früheren Semester ist unsichtbar.</b> Das FÜS (laut Plan 1. FS), nie eingeplant, steht in „Module hinzufügen“ fürs 3. FS nirgends; nur wer „Plan-Semester: 1“ wählt, sieht es.</li>
     </ul>
@@ -919,7 +919,7 @@ table.cmp th.rec { color: var(--accent-ink); }
   </header>
   <div class="recbox">
     <ol>
-      <li class="zero"><span><b>Sofort, egal welches Konzept:</b> „Modul wählen“ gibt <code>fill=</code> und <code>plan=</code> mit, wie es die Suche des Stundenplans schon tut; der leere Rückfall „Wahlpflichtmodule des Studiengangs“ zeigt etwas (die Wahlpflicht des Curriculums, sonst das ganze); die Voraussetzung erkennt englische Zwillinge (Programming Laboratory = Programmierpraktikum).</span></li>
+      <li class="zero"><span><b>Sofort, egal welches Konzept:</b> „Modul wählen“ gibt <code>fill=</code> und <code>plan=</code> mit, wie es die Suche des Stundenplans schon tut; der leere Rückfall „Wahlpflichtmodule des Studiengangs“ zeigt etwas (die Wahlpflicht des Curriculums, sonst das ganze; umgesetzt in Folia 1.59.1); die Voraussetzung erkennt englische Zwillinge (Programming Laboratory = Programmierpraktikum).</span></li>
       <li><span><b>A, der Katalog mit Ziel:</b> die Leiste über der Liste, „Wählen“ und „+ WiSe 26/27“ an Zeile und Vorschau, „Fertig“ zurück ins Semester, im Reiter „Studium“. Der Katalog-Reiter des Dialogs und die Gesamtplan-Zelle gehen.</span></li>
       <li><span><b>B, die Plätze:</b> „Module hinzufügen“ nach Plätzen; die Wahl eines Platzes ist die Liste des Katalogs mit seinem Filter, die passenden vorn. Die Wahlpflicht-Ansicht und „Wählen ›“ im Regelstudienplan öffnen dieselbe Wahl.</span></li>
       <li><span><b>Später, wenn es sich zeigt: C</b> am breiten Bildschirm, die Plätze aus B links, der Katalog aus A rechts. Bis dahin ist nichts verbaut.</span></li>

@@ -199,6 +199,21 @@ pub const WIRTSCHAFTSINGENIEURWESEN_DUAL: &[Node] = &[
     (1, "Praxisintegrierendes Studium", &[(3, U)]),
 ];
 
+/// Bauingenieurwesen B.Sc., PO 2022 (`bachelor-bauingenieurwesen-2022-82`), from canary's
+/// snapshot of 2026-11-01: eight fields side by side, and no kind but the plan's, which names the
+/// compulsory modules and the thesis. No source states an elective: the 18 modules of
+/// „Profilierung" are what its rows „Wahlpflichtmodule gemäß §6 (3)" are chosen from.
+pub const BAUINGENIEURWESEN_BSC: &[Node] = &[
+    (1, "Mathematik, Informatik, Naturwissenschaften", &[(5, C)]),
+    (1, "Mechanik, Statik, Dynamik", &[(5, C)]),
+    (1, "Material, Tragwerk, Konstruktion", &[(5, C)]),
+    (1, "Gebäude, Stadt, Umwelt", &[(2, C)]),
+    (1, "Wirtschaft, Recht, Management", &[(1, C)]),
+    (1, "Gesellschaft, Geschichte", &[(1, C)]),
+    (1, "Profilierung", &[(18, U)]),
+    (1, "Projekte, Abschlussarbeit", &[(3, C), (1, T)]),
+];
+
 /// A row of a plan that names no module, as `v_program_plan_entry` has it.
 pub fn row(name: &str, semester: i64, kind: Option<ModuleKind>, plan: Option<&str>) -> PlanEntry {
     PlanEntry {
@@ -239,4 +254,13 @@ pub fn informatik_bsc_rows() -> Vec<PlanEntry> {
     .into_iter()
     .map(|(name, semester)| row(name, semester, E, None))
     .collect()
+}
+
+/// The two rows of the plan of Bauingenieurwesen B.Sc. that leave electives to choose: 24 LP in
+/// the 5th semester, 6 in the 6th, under a name that points at no area.
+pub fn bauingenieurwesen_bsc_rows() -> Vec<PlanEntry> {
+    vec![
+        PlanEntry { ord: 21, credits: Some(24.0), ..row("Wahlpflichtmodule gemäß §6 (3)", 5, E, None) },
+        PlanEntry { ord: 22, ..row("Wahlpflichtmodule gemäß §6 (3)", 6, E, None) },
+    ]
 }
