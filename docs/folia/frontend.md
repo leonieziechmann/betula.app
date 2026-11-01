@@ -3257,9 +3257,10 @@ program. The electives only where a source states one (`CatalogArea::electives`)
 compulsory modules — and until 2026-11-01 „Modul wählen" led 106 rows of 15 of them into an
 empty list. There a row lists the modules not known to be Pflicht, the thesis or the internship
 (`not-kind=compulsory,thesis,internship`, „Module des Studiengangs ohne Pflichtmodule"; the 18 of
-„Profilierung" in Bauingenieurwesen B.Sc.), and where the tree holds nothing but those, the whole
-curriculum („Alle Module des Studiengangs"); `variants::tests` checks every row of every plan of
-the snapshot. The second line of the link says what it lists („Praktische Informatik", „5 Bereiche",
+„Profilierung" in Bauingenieurwesen B.Sc.), and where the tree holds nothing but Pflicht, the
+thesis and the internship, or there is no tree, the whole curriculum („Alle Module des
+Studiengangs"); `variants::tests` checks every row of every plan of the snapshot. The second
+line of the link says what it lists („Praktische Informatik", „5 Bereiche",
 „109 Module"); the row's panel opens with the same way in, as its first button, and lists what
 can be chosen under it (owner, 2026-09-23: it stated credits, kind and semester twice, as badges
 and as facts, and put the catalog last). The catalog's area filter takes several
