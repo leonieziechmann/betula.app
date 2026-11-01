@@ -146,10 +146,11 @@ check(html.includes('href="/about/overview"') && !html.includes('href="/about"')
   const ends = await page.evaluate(() => [...allOnPage(".day-cols > .day-col")].map((col) => Math.round(col.lastElementChild?.getBoundingClientRect().bottom ?? -1)));
   check(ends.length === 2 && ends[0] > 0 && ends[0] === ends[1], `wide screen: the columns of panels under the photo do not end on one line: ${ends}`);
   // The day at once (owner, 2026-10-26: „so dass eine person die nur wissen will was als nächstes
-  // ansteht das sofort sieht"): the app keeps the photo of the days ahead, and the server's page
-  // puts it in before the app has started, as the app's page shows it but for what goes by the
-  // minute; in another language, where it was not made, the skeleton stays.
-  await page.waitForFunction(() => Boolean(localStorage.getItem("betula.today.v1")), null, { timeout: 15000 }).catch(() => failures.push("the start page does not keep the days ahead"));
+  // ansteht das sofort sieht"): the app keeps the photo of the days ahead, three weeks of them, a
+  // key a day, and the server's page puts today's in before the app has started, as the app's page
+  // shows it but for what goes by the minute; in another language, where it was not made, the
+  // skeleton stays.
+  await page.waitForFunction(() => Object.keys(localStorage).filter((key) => key.startsWith("betula.today.v2.")).length === 21, null, { timeout: 30000 }).catch(() => failures.push("the start page does not keep the three weeks ahead"));
   // The photo as it reads but for what goes by the minute (`data-count`), and for Leptos's marks.
   const bare = (hero) => {
     if (!hero) return null;
@@ -165,6 +166,23 @@ check(html.includes('href="/about/overview"') && !html.includes('href="/about"')
     const server = await alone.evaluate(`({ hero: (${bare})(document.querySelector(".day-sk-wrap .day-hero:not(.day-hero-sk)")), shown: Boolean(document.querySelector(".day-sk-wrap .day-hero")?.checkVisibility()), skeleton: Boolean(document.querySelector(".day-hero-sk")), line: document.querySelector(".day-sk-wrap [data-count=line]")?.textContent ?? null, hidden: Boolean(document.querySelector(".day-sk-wrap .day-hero:not(.day-hero-sk)")?.closest('[aria-hidden="true"]')) })`);
     if (lang === "de") check(server.hero === app && server.shown && !server.skeleton && server.line !== "" && !server.hidden, `the server's page does not put in the app's day at once, or hides it from screen readers: ${JSON.stringify({ server, app })}`);
     else check(server.skeleton && !server.hero, `the day in another language than it was made in: ${JSON.stringify(server)}`);
+  }
+  // Always at once (owner, 2026-11-01: „Es ist an der stelle auch erstmal egal ob die
+  // informationen outdated sind"): a day kept by another build, for a plan changed since, still
+  // stands at once; the app's page then puts it right.
+  // (In a browser of its own, so that the page of the app does not hear of the plan changed.)
+  {
+    const state = await context.storageState();
+    for (const entry of state.origins.flatMap((origin) => origin.localStorage)) {
+      if (entry.name.startsWith("betula.today.v2.")) entry.value = entry.value.replace(/"build":"[^"]*"/, '"build":"0.0.0-older"');
+      if (entry.name === "betula.studyplan.v1") entry.value += "m\t2026W\t99999\n";
+    }
+    const older = await browser.newContext({ viewport: { width: 1440, height: 900 }, timezoneId: "Europe/Berlin", storageState: state });
+    const before = await older.newPage();
+    await before.route("**/assets/boot.js*", (route) => route.abort());
+    await before.goto(base + "/", { waitUntil: "load" });
+    check(await before.evaluate(() => Boolean(document.querySelector(".day-sk-wrap .day-hero:not(.day-hero-sk)")?.checkVisibility()) && !document.querySelector(".day-hero-sk")), "a day kept by another build, for a plan changed since, does not stand at once");
+    await older.close();
   }
   await alone.close();
   // On a wide screen the start page runs under the bar as on a phone, and the frost lies behind the

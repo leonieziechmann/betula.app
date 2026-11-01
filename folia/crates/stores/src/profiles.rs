@@ -75,10 +75,25 @@ pub const STORES: usize = 5;
 pub const SESSION_KEYS: [&str; 1] = [crate::studyplan::PROGRAM_KEY];
 
 /// What the start page keeps of the active profile's next days, for its photo to stand at once
-/// (folia-home, `ahead`): worked out of the Stundenplan, one key for the active profile alone (the
-/// profile's number is in what it keeps), no part of a profile's file. It goes whenever a profile
-/// is emptied or deleted, and the start page writes it again.
-pub const AHEAD_KEY: &str = "betula.today.v1";
+/// (folia-home, `ahead`): worked out of the Stundenplan, for the active profile alone (the
+/// profile's number is in what it keeps), no part of a profile's file. A key per day
+/// (`ahead_key`), so that the page reads today's alone. It goes whenever a profile is emptied or
+/// deleted, and the start page writes it again.
+pub const AHEAD_KEY: &str = "betula.today.v2";
+
+/// The days the start page keeps ahead, today the first: three weeks, a break over Christmas
+/// included.
+pub const AHEAD_DAYS: i32 = 21;
+
+/// What the start page kept of the next days until 2026-11-01, under one key; taken out.
+pub const OLD_AHEAD_KEY: &str = "betula.today.v1";
+
+/// The key of `day` (counted from 1970-01-01, `folia_calendar::day::Day`) among the days ahead:
+/// one of `AHEAD_DAYS` slots, which the days of three weeks take in turn (the day is in what it
+/// keeps).
+pub fn ahead_key(day: i32) -> String {
+    format!("{AHEAD_KEY}.{}", day.rem_euclid(AHEAD_DAYS))
+}
 
 /// Takes out what this tab keeps for the session in profile `id` (`SESSION_KEYS`): emptied,
 /// deleted, or made anew under a number a deleted profile had. And the start page's days ahead
@@ -87,7 +102,10 @@ fn forget_session(id: u16) {
     for key in SESSION_KEYS {
         nav::session_set(&key_of(key, id), "");
     }
-    nav::local_set(AHEAD_KEY, "");
+    for day in 0..AHEAD_DAYS {
+        nav::local_set(&ahead_key(day), "");
+    }
+    nav::local_set(OLD_AHEAD_KEY, "");
 }
 
 /// The key under which profile `id` keeps what the first profile keeps under `key`:
@@ -768,9 +786,14 @@ mod tests {
             }
         }
         // And none of them is a key of the browser's settings or of the list.
-        for setting in ["betula.profiles.v1", "betula.theme", "betula.language", "betula.finder", "betula.tabs", "betula.plan.shape", "betula.study.view", AHEAD_KEY] {
-            assert!(!all.contains(setting), "{setting}");
+        let ahead = (0..AHEAD_DAYS).map(ahead_key).chain([OLD_AHEAD_KEY.to_string()]);
+        for setting in ["betula.profiles.v1", "betula.theme", "betula.language", "betula.finder", "betula.tabs", "betula.plan.shape", "betula.study.view"].map(String::from).into_iter().chain(ahead) {
+            assert!(!all.contains(&setting), "{setting}");
         }
+        // The days ahead take their slots in turn, before 1970 as well.
+        assert_eq!(ahead_key(20_752), "betula.today.v2.4");
+        assert_eq!(ahead_key(20_752 + AHEAD_DAYS), ahead_key(20_752));
+        assert_eq!(ahead_key(-1), format!("betula.today.v2.{}", AHEAD_DAYS - 1));
     }
 
     #[test]
