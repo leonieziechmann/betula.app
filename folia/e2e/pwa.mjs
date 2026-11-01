@@ -1,7 +1,8 @@
 // Checks that the app starts without a network: the service worker keeps the shell, IndexedDB
 // the catalog. A first visit with the network installs both; then the network is cut and pages
 // are loaded afresh (a full load, not a step of the app) — the catalog with a filter, a module,
-// a program — and the app has to take over and show them from what it kept.
+// a program — and the app has to take over and show them from what it kept. And the start page
+// comes from the cache at once, with a slow network as well.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node pwa.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 import { chromium } from "playwright-core";
 
@@ -38,6 +39,32 @@ const installed = await until(async () => {
   return false;
 }, 120000);
 check(installed, "the service worker did not cache the shell");
+
+// The start page comes from the cache at once (owner, 2026-11-01: „dass es immer sofort lädt.
+// Wenn man betula auf macht"), with a network that takes seconds as well, and the network's answer
+// is kept for the next start meanwhile; any other page still asks the network first.
+{
+  await page.goto(base + "/", { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });
+  let asked = 0;
+  let answered = Promise.resolve();
+  const slow = (route) => {
+    asked++;
+    answered = new Promise((resolve) => setTimeout(resolve, 3000)).then(() => route.continue()).catch(() => {});
+    return answered;
+  };
+  const start = (url) => url.pathname === "/" && !url.search;
+  await context.route(start, slow);
+  const begun = Date.now();
+  const response = await page.goto(base + "/", { waitUntil: "commit" });
+  const took = Date.now() - begun;
+  check(response.fromServiceWorker() && took < 1500, `the start page does not come from the cache at once: ${took} ms, from the service worker: ${response.fromServiceWorker()}`);
+  await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });
+  for (const end = Date.now() + 5000; asked === 0 && Date.now() < end; ) await new Promise((resolve) => setTimeout(resolve, 100));
+  check(asked === 1, `the start page was not asked of the network meanwhile (${asked} times)`);
+  await answered;
+  await context.unroute(start, slow);
+}
 
 // A page seen with the network is kept; the rest comes from the shell.
 await page.goto(base + "/programs/bachelor-informatik-2008/plan", { waitUntil: "domcontentloaded" });
