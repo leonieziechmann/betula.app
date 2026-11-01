@@ -152,7 +152,12 @@ fn plan_choices(ctx: StudyCtx, s: SemesterKey, fs: u8, t: &Texts) -> (Vec<Choice
                 total += suggestion.credits.unwrap_or(0.0);
                 let (key, find) = match &suggestion.pick {
                     Pick::Module { id, .. } => (format!("m:{id}"), None),
-                    Pick::Row { caption, ord } => (format!("r:{caption}:{ord}"), find_href(ctx, caption, *ord, t)),
+                    Pick::Row { caption, ord } => {
+                        // A row standing in the semester already: what is found for it fills it.
+                        // A row not yet put in has no placeholder to fill.
+                        let placed = doc.placeholders.iter().find(|p| p.semester == s && p.program_id == input.program_id && p.caption == *caption && p.ord == *ord).map(|p| p.pid);
+                        (format!("r:{caption}:{ord}"), find_href(ctx, caption, *ord, placed, t))
+                    }
                 };
                 let mut notes = Vec::new();
                 let mut done = None;
@@ -718,9 +723,10 @@ pub(super) fn CellDialog(ctx: StudyCtx, area: Option<usize>, semester: SemesterK
                 .filter(|line| line.suggestion.area == area && line.semester == semester)
                 .map(|line| {
                     let suggestion = &line.suggestion;
+                    // An open row of the plan, in no semester yet: no placeholder to fill.
                     let (key, find) = match &suggestion.pick {
                         Pick::Module { id, .. } => (format!("m:{id}"), None),
-                        Pick::Row { caption, ord } => (format!("r:{caption}:{ord}"), find_href(ctx, caption, *ord, t)),
+                        Pick::Row { caption, ord } => (format!("r:{caption}:{ord}"), find_href(ctx, caption, *ord, None, t)),
                     };
                     let note = match line.failed_in {
                         Some(failed) => (st.line_retake)(&failed.label(t.locale)),

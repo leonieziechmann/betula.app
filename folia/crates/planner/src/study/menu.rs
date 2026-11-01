@@ -403,8 +403,8 @@ fn content(ctx: StudyCtx, what: &MenuFor, t: &'static Texts) -> Option<Content> 
             match (&item.subject, item.module_id()) {
                 (_, Some(id)) if *view => entries.push(Entry::new(Some("st-menu-view"), Some("arrow-up-right"), s.view_module, Does::Link(module_href(ctx, id, t), true))),
                 (_, Some(_)) => {}
-                (Subject::Row { caption, ord, .. }, None) if item.fillers.is_empty() => {
-                    if let Some(href) = find_href(ctx, caption, *ord, t) {
+                (Subject::Row { pid, caption, ord, .. }, None) if item.fillers.is_empty() => {
+                    if let Some(href) = find_href(ctx, caption, *ord, *pid, t) {
                         entries.push(Entry::new(Some("st-menu-view"), Some("search"), s.choose_module, Does::Link(t.path(&href), false)));
                     }
                 }

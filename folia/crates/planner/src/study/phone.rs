@@ -25,7 +25,7 @@
 //! or a dialog of theirs. Over the tab bar the dots of the row stay (`Dock`).
 
 use folia_calendar::semester::SemesterKey;
-use folia_plans::study::When;
+use folia_plans::study::{Item, When};
 use folia_routes::url;
 use leptos::prelude::*;
 
@@ -176,11 +176,12 @@ impl Preview {
     fn of(ready: &Ready, t: &Texts) -> Self {
         let s = &t.study;
         let study = &ready.study;
-        // Passed and planned: what failed counts for nothing here, as on the bar.
+        // Passed and planned: what failed counts for nothing here, as on the bar, a row that
+        // modules fill nothing beside them (`Item::counted`).
         let parts: Vec<(f64, f64)> = study
             .semesters
             .iter()
-            .map(|semester| (semester.passed, semester.items.iter().filter(|item| !item.passed && !item.failed).filter_map(|item| item.credits).sum()))
+            .map(|semester| (semester.passed, semester.items.iter().filter(|item| !item.passed && !item.failed).filter_map(Item::counted).sum()))
             .collect();
         let top = study.semesters.iter().zip(&parts).map(|(semester, (passed, planned))| semester.planned.unwrap_or(0.0).max(passed + planned)).fold(1.0, f64::max);
         let columns = study
