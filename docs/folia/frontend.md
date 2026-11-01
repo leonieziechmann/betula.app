@@ -3463,22 +3463,45 @@ the pages about Betula since 2026-10-27 (`/about/<topic>`, below).
   dass das als erstes konstruiert wird, so dass eine person die nur wissen will was als nächstes
   ansteht das sofort sieht"). Measured on canary before, a phone (its processor four times slower
   than a notebook's, the files at hand) had the server's page after 0.2 s and the day on it after
-  1.5 to 3.9 s: the time the app's bundle, the catalog and the page's questions take. Now the app,
-  once the day stands, keeps the photo of the days ahead (`betula.today.v1`): from now to the end
-  of the next day with Termine (four days at most), the photo's HTML for each stretch in which
-  nothing on it changes but what goes by the minute (a Termin begins or ends, a new day, another
+  1.5 to 3.9 s: the time the app's bundle, the catalog and the page's questions take. So the app,
+  once the day stands, keeps the photo of the days ahead: the photo's HTML for each stretch in
+  which nothing on it changes but what goes by the minute (a Termin begins or ends, another
   greeting, another light), built by the page's own `Hero` at the stretch's start into an element
   of no page; and for what goes by the minute (`data-count`): the minutes the sentence counts down
-  (written with a stand-in for the number), what the card says minute by minute, how far the
+  (written with a stand-in for the number), what the card says of the minutes, how far the
   clock's running week is filled. Right after the skeleton's photo the server's page has a script
-  that puts in the stretch of now, gone on to the minute, before anything is painted, where all of
-  it still holds: the same build (the stylesheet's `?v=`), language and profile, and the same hash
-  of „Mein Studiengang", the Stundenplan and the Stundenplan's program of the tab where it is
-  another (`made_of`); else the skeleton stays. The app's page then takes over a page that already
-  shows what it shows. On the same phone the day now stands at the first paint (0.15 s on the
-  local server). The app writes the days again only where they no longer hold from now on (another
-  plan, build or catalog, or the days kept run out), four stretches at a time with the page's
-  thread free between them (on the debug build at CPU ×4 the whole was one task of 190 ms).
+  that puts in the stretch of now, gone on to the minute, before anything is painted. The app's
+  page then takes over a page that already shows what it shows. On the same phone the day stands
+  at the first paint (0.15 s on the local server).
+  **Always, outdated or not** (owner, 2026-11-01: „Aber das was eigentlich sein muss ist, dass es
+  immer sofort lädt … Es ist an der stelle auch erstmal egal ob die informationen outdated sind
+  … Wenn die richtigen daten dann geladen sind kann die cache ja nochmal überprüft werden um im
+  zweifelsfall dann das ui element rebuild werden"). Until then the script put the day in only
+  where all of it still held: the same build (so after every deploy not), the same hash of „Mein
+  Studiengang" and the Stundenplan, and a stretch for now among the days kept, from now to the end
+  of the next day with Termine (four at most, so not after a long weekend or a break); else the
+  skeleton stayed. Now:
+  - it keeps three weeks (`profiles::AHEAD_DAYS`, a break over Christmas included), a record a
+    day under a key of its own (`betula.today.v2.<slot>`, `profiles::ahead_key`: the day's number
+    modulo 21, the day itself in the record), so that the page reads today's alone;
+  - a day keeps the pieces of its HTML once each (the photo's parts, the clock, the card, split
+    two levels down) and its stretches as the numbers of their pieces, without Leptos's marks and
+    with what goes by the minute left empty; the card's minutes are a pattern („in {h} h {mm}
+    min" and „in {m} min", the minute it counts to) where they fit what it says at every minute,
+    which they do in both languages, else the list as before. A day is 3 to 7 kB, three weeks
+    some 110 kB (before: some 60 kB for a day and a half);
+  - the script puts in today's day wherever it is kept for this profile in this language, of
+    another build, for another plan or catalog as well. The app's page builds the photo of what is
+    true now as it takes over (boot.js's picture of the page in front until its first answers are
+    in): where nothing changed nothing moves, else the photo changes to what is true;
+  - the app writes a day anew only where it no longer holds (another plan, build, catalog,
+    profile or language, or today kept from a later minute), the nearest first, four stretches at
+    a time with the page's thread free between them, and keeps each day as it is done; once a day
+    that is the day that came into the three weeks. All three weeks take the debug build on a
+    notebook a second.
+  Measured: with the day kept by another build for a plan changed since, the photo stands at the
+  first paint and the app puts it right; with the start page answered 3 s late, the page comes
+  from the service worker after 0.04 s and the photo is in it at 0.07 s (`folia/assets/sw.js`).
 - **Nothing moves at the takeover** (`e2e/takeover.mjs`): the server writes the setup's first step
   and the day's skeleton (the photo, the card, the panels at their heights), and the stylesheet
   shows the skeleton where the head script found a program kept (`html.mine`), which the app keeps
@@ -3486,9 +3509,10 @@ the pages about Betula since 2026-10-27 (`/about/<topic>`, below).
   (`skeleton::Shape::Home`) is both as well. The card keeps one height through its steps
   (`--ob-h`).
 - **What stays in the browser** (R20): the setup writes „Mein Studiengang" and the Stundenplan as
-  their pages do; „Erst mal umschauen" lasts the visit. The days ahead (`betula.today.v1`,
-  `profiles::AHEAD_KEY`) are worked out of the active profile's Stundenplan, kept in this browser
-  alone, and go when a profile is emptied or deleted; the privacy notice names them (2026-10-26).
+  their pages do; „Erst mal umschauen" lasts the visit. The days ahead (`betula.today.v2.<slot>`,
+  `profiles::ahead_key`; `betula.today.v1` until 2026-11-01, taken out) are worked out of the
+  active profile's Stundenplan, kept in this browser alone, and go when a profile is emptied or
+  deleted; the privacy notice names them (2026-10-26).
   The skeleton's photo and panels are hidden from screen readers each, so that the day put in
   place of the photo is read.
 - **Its commands** („Befehle", R25): the setup's under „Studium einrichten" (the program's picker,
@@ -3503,9 +3527,9 @@ semesters, a Fachsemester out of range said, a row unticked), the tiles of the p
 Betula under the ways into the catalog (the overview first, none to `/about`, „Was ist Betula?"
 to the overview) and none of it in the ground, „Studium anlegen" (the plan and the
 passed semesters kept, the day shown, no page load), „Rückgängig", „Erst mal umschauen" and back,
-the season's photo with its name in the ground, the day at once (the days ahead kept, and the
-server's page with the app's photo in it before the app has started, but not in another
-language), on a wide screen the page under the bar with the frost behind it once scrolled (at its
+the season's photo with its name in the ground, the day at once (the three weeks ahead kept, and
+the server's page with the app's photo in it before the app has started, but not in another
+language; with the days kept by another build for a plan changed since as well), on a wide screen the page under the bar with the frost behind it once scrolled (at its
 top the page where it stood, the frost gone), the photo up to the window's edge with the bar's
 words light and no leaves, the blur alone over it, past it the leaves and the frost's colour, a
 jump past it sliding them in where less motion is wanted as well, the columns of panels ending on one line,
@@ -4276,6 +4300,17 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   the manifest — and nothing of the data: the catalog is in IndexedDB, where `boot.js` keeps it,
   and `/api/*` is never intercepted. Pages come from the network first and are kept for the way
   back (sixty of them); offline, the kept page, else the shell. Assets come from the cache first.
+  **The start page comes from the cache at once** (`/`, `/en`, without anything after the `?`;
+  owner, 2026-11-01: „das was eigentlich sein muss ist, dass es immer sofort lädt. Wenn man
+  betula auf macht. Das ist priority number 1"): the page kept, else for `/` the shell's, and the
+  network's answer kept for the next start meanwhile; the network only where nothing is kept yet.
+  It is what Betula is opened for, and a phone on the move waited for the network before
+  anything stood: with an answer 3 s late, the page stood after 3.1 s, now after 0.04 s
+  (`folia/e2e/pwa.mjs`). Its page is the same for everybody (R9) and its day comes from what the
+  browser keeps (`home/ahead.rs`), so the kept page of this build serves as well as the network's;
+  a new build shows from the start after the one on which the browser installed its worker
+  (the worker installs it in the background of that start). Nothing is kept that the server led
+  elsewhere (canary's gate).
   The semantic search's model (`/models/e5-de-en-<hash>.bin`, 15 MB; `folia/crates/semantic/README.md`, „In
   the app") is kept apart, in `betula-models`, which no build drops: its address names its
   content, so a deploy does not download it again, and a new model replaces the old one.
@@ -4321,7 +4356,7 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   the data on a first visit, and not why the app does not start offline (owner, 2026-10-15: „Ach
   mach das einfach weg. Das Laden geht schnell genug, so dass man es nicht sehen muss", „Ja, den
   Offline-Hinweis auch weg"; on a phone the words took the search's room beside them, „D…", and
-  gave it back at the takeover). `folia/e2e/pwa.mjs` cuts the network and loads pages afresh; `folia/e2e/schema.mjs` plants a copy of an older schema and starts with and without a network, and one that cannot be read.
+  gave it back at the takeover). `folia/e2e/pwa.mjs` cuts the network and loads pages afresh, and has the start page from the cache at once with a network 3 s late; `folia/e2e/schema.mjs` plants a copy of an older schema and starts with and without a network, and one that cannot be read.
 
 Not done: submitting the sitemap to the search consoles (needs the owner's accounts), English
 pages.

@@ -22,6 +22,16 @@
 // Pages: the network first, and what it answered kept for the way back; offline the kept page,
 // else the cached shell. Assets: the cache first, the network for what is not there yet.
 //
+// The start page is the exception (owner, 2026-11-01: „das was eigentlich sein muss ist, dass es
+// immer sofort lädt. Wenn man betula auf macht. Das ist priority number 1"): it is what one opens
+// Betula for, to see what comes next, and it comes from the cache at once, without waiting for the
+// network, which on a phone on the move takes seconds or never answers; the network's answer is
+// kept for the next start meanwhile. Its page is the same for everybody (R9), and its day is put
+// in by its own script from what this browser keeps (folia-home, `ahead`), so a kept page of this
+// build is as good as the network's; a new build is there from the start after the one on which
+// the browser installed its worker. The start page with something after the `?` (a Termin over
+// it) comes from the network as every page does.
+//
 // The semantic search's model (`/models/e5-de-en-<hash>.bin`, 15 MB; `boot.js` loads it once the
 // app runs) is kept apart from the shell, in a cache no build drops: its address names its
 // content, so a new build keeps it, and only a new model replaces it.
@@ -64,8 +74,12 @@ const ASSET = /^\/(assets\/|pkg\/|favicon\.ico$|apple-touch-icon(-precomposed)?\
 // A language's cards and calendar feeds too (`/en/cards/…`, `/en/calendar/…`).
 const NEVER = /^\/(api\/|access|sw\.js$|([a-z]{2}\/)?(cards|calendar)\/)/;
 
-// Did this build answer? Only such answers are kept.
-const ours = (response) => response.ok && response.headers.get("x-build") === VERSION;
+// The start page, in German and in each other language (`/en`).
+const START = /^\/([a-z]{2})?$/;
+
+// Did this build answer? Only such answers are kept (not where it was led elsewhere, as to the
+// gate of canary).
+const ours = (response) => response.ok && !response.redirected && response.headers.get("x-build") === VERSION;
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
@@ -98,7 +112,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin || NEVER.test(url.pathname)) return;
 
   if (request.mode === "navigate") {
-    event.respondWith(page(request));
+    event.respondWith(START.test(url.pathname) && !url.search ? start(event) : page(request));
   } else if (url.pathname.startsWith("/models/")) {
     event.respondWith(model(event));
   } else if (ASSET.test(url.pathname)) {
@@ -132,6 +146,18 @@ async function page(request) {
     if (shell) return shell;
     throw error;
   }
+}
+
+// The start page: as kept at once, and the network's answer kept for the next start meanwhile;
+// the network's answer where nothing is kept yet. The shell is the German start page, kept at the
+// install, so it stands in for `/` alone.
+async function start(event) {
+  const key = new URL(event.request.url);
+  key.hash = "";
+  const kept = (await caches.match(key.href, { cacheName: PAGES })) || (key.pathname === "/" ? await caches.match("/", { cacheName: SHELL }) : undefined);
+  if (!kept) return page(event.request);
+  event.waitUntil(page(event.request).catch(() => {}));
+  return kept;
 }
 
 // An asset of the shell: what the worker installed with, else the network (and then kept, if it
