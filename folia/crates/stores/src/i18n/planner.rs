@@ -156,12 +156,22 @@ pub struct Texts {
     pub cancel: &'static str,
     pub set_up_and_plan: &'static str,
     pub choose_first: &'static str,
+    /// The bar of the workbench of „Mein Studium" over the catalog while it is open
+    /// (`BenchBar`): „Planen", the subgroup („für Fachübergreifendes Studium"), the way back.
+    pub bench_mode: &'static str,
+    pub bench_for: fn(&str) -> String,
+    pub bench_back: &'static str,
+    pub bench_back_hint: &'static str,
 }
 
 pub const DE: Texts = Texts {
     plan: "Einplanen",
     planned: "Eingeplant",
     for_placeholder: |name| format!("für „{name}“"),
+    bench_mode: "Planen",
+    bench_for: |name| format!("für {name}"),
+    bench_back: "Zurück zur Werkbank",
+    bench_back_hint: "Zurück zu „Mein Studium“, wo du dieses Semester planst",
     planned_in: |semesters| format!("geplant: {semesters}"),
     unplan_hint: |semester| format!("Eingeplant in {semester}. Noch einmal nimmt das Modul aus dem Plan"),
     unplan: "Aus dem Plan nehmen",
@@ -258,6 +268,10 @@ pub const EN: Texts = Texts {
     plan: "Plan",
     planned: "Planned",
     for_placeholder: |name| format!("for \u{201c}{name}\u{201d}"),
+    bench_mode: "Planning",
+    bench_for: |name| format!("for {name}"),
+    bench_back: "Back to the workbench",
+    bench_back_hint: "Back to “My studies”, where you plan this semester",
     planned_in: |semesters| format!("planned: {semesters}"),
     unplan_hint: |semester| format!("Planned for {semester}. Once more removes the module from the plan"),
     unplan: "Remove from the plan",

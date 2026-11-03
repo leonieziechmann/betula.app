@@ -39,6 +39,7 @@ use folia_plans::studyplan::PlanDoc;
 use leptos::prelude::*;
 
 use super::{events_alone, move_in, now, only_its_events_ask, pass_in, toggle_in, Aim, PlanHint, Studyplan};
+use folia_plans::studyplan::RowRef;
 use crate::collections::Anchor;
 use crate::myprogram::MyProgram;
 use folia_design::nav;
@@ -137,12 +138,38 @@ pub struct SetupAsk {
     pub fill: Option<u32>,
 }
 
+/// The workbench of „Mein Studium" while it is open (folia/design/hinzufuegen/konzepte.html, third
+/// round; owner, 2026-11-03: „Passt so, bau das jetzt in Folia"): what „Einplanen" aims at
+/// elsewhere meanwhile — on a module's page, in the catalog it opened with „Im Katalog suchen",
+/// a module found by the search („Plant die Suche oben im Modus ins Semester der Werkbank? … ja"):
+/// its semester, and the subgroup it has picked where that is a choice — the placeholder of it
+/// standing in the semester that a module fills (`fill`), else its first row, which a module
+/// planned remembers (`Planned::counts`) —, with its name for the switch's line and the catalog's
+/// bar; and the way back to it („Zurück zur Werkbank"). Only the page's own hint aims elsewhere.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BenchAim {
+    pub semester: SemesterKey,
+    pub counts: Option<RowRef>,
+    pub fill: Option<u32>,
+    pub name: Option<String>,
+    pub back: String,
+}
+
+impl BenchAim {
+    /// The hint of a page that means this semester (`target_semester`).
+    pub fn hint(&self) -> PlanHint {
+        PlanHint { semester: Some(self.semester), fill: self.fill }
+    }
+}
+
 /// What „Einplanen" keeps for the tab's session, shared through context; provided once in the app,
 /// after the Studienplan and „Mein Studiengang".
 #[derive(Clone, Copy)]
 pub struct Planning {
     mine: Option<MyProgram>,
     session: Option<SemesterKey>,
+    /// The workbench of „Mein Studium" while it is open (`BenchAim`).
+    bench: RwSignal<Option<BenchAim>>,
     chosen: RwSignal<Option<SemesterKey>>,
     asked: RwSignal<bool>,
     note: RwSignal<Option<Note>>,
@@ -161,6 +188,7 @@ impl Planning {
         let planning = Planning {
             mine: MyProgram::expect(),
             session: session_semester(),
+            bench: RwSignal::new(None),
             chosen: RwSignal::new(nav::session_get(CHOSEN_KEY).as_deref().and_then(SemesterKey::parse)),
             asked: RwSignal::new(nav::session_get(ASKED_KEY).is_some()),
             note: RwSignal::new(None),
@@ -177,6 +205,7 @@ impl Planning {
             Effect::new(move |before: Option<u16>| {
                 let profile = plan.profile();
                 if before.is_some_and(|before| before != profile) {
+                    planning.bench.set(None);
                     planning.note.set(None);
                     planning.setup.set(None);
                     planning.menu.set(None);
@@ -205,6 +234,22 @@ impl Planning {
     pub fn base_untracked(self, current: SemesterKey) -> (SemesterKey, bool) {
         let chosen = self.chosen.get_untracked();
         (base_of(chosen, self.session, current), chosen.is_some())
+    }
+
+    /// The workbench of „Mein Studium" while it is open. Tracked.
+    pub fn bench(self) -> Option<BenchAim> {
+        self.bench.get()
+    }
+
+    pub fn bench_untracked(self) -> Option<BenchAim> {
+        self.bench.get_untracked()
+    }
+
+    /// The workbench opened, changed or closed (`None`).
+    pub fn set_bench(self, aim: Option<BenchAim>) {
+        if self.bench.with_untracked(|now| *now != aim) {
+            self.bench.set(aim);
+        }
     }
 
     /// The semester the session plans for (P1): the snapshot's current one where the browser has
@@ -316,7 +361,7 @@ impl Planning {
         }
         self.setup.set(None);
         let fill = ask.fill.filter(|_| at == ask.target).map(|pid| (pid, String::new()));
-        let aim = Aim { target: at, pressed: false, fill, elsewhere: Vec::new(), passed: None };
+        let aim = Aim { target: at, pressed: false, fill, elsewhere: Vec::new(), passed: None, counts: None };
         self.write(plan, source, ask.what.clone(), aim, || {});
     }
 
@@ -455,7 +500,7 @@ impl Planning {
     /// „Entfernen" in the switch's menu: what a press of the switch does (`press`), without asking
     /// for the study.
     pub fn remove(self, plan: Studyplan, source: Option<DataClient>, what: Pressed, at: SemesterKey) {
-        let aim = Aim { target: at, pressed: true, fill: None, elsewhere: Vec::new(), passed: None };
+        let aim = Aim { target: at, pressed: true, fill: None, elsewhere: Vec::new(), passed: None, counts: None };
         self.write(plan, source, what, aim, || {});
     }
 

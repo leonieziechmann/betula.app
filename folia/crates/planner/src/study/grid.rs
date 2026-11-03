@@ -1,10 +1,10 @@
 //! The Gesamtplan (the mockup's concept C, owner 2026-10-04: „hat Potential, genial zu werden …
 //! aber zu unsortiert und aufgeregt"): the areas as rows, the semesters as columns, calm — what is
 //! planned as plain lines, what the plan still has open in grey where it fits next (one click adds
-//! it), the semesters before the current one folded into „Bisher". A click into a cell offers the
-//! modules of that area for that semester (`picker::CellDialog`); a click on a module (or a right
-//! click) opens its menu (`menu.rs`); a module dragged into another column moves there. A
-//! desktop's view.
+//! it), the semesters before the current one folded into „Bisher". A click into a cell opens the
+//! workbench for that semester at that area (`bench.rs`; until Folia 1.64.0 a dialog of the area's
+//! modules); a click on a module (or a right click) opens its menu (`menu.rs`); a module dragged
+//! into another column moves there. A desktop's view.
 
 use folia_calendar::semester::SemesterKey;
 use folia_plans::study::{Item, Line, Pick, When};
@@ -313,7 +313,7 @@ fn Cell(ctx: StudyCtx, area: Option<usize>, semester: SemesterKey, now: bool) ->
                     </button>
                 }
             }).collect_view()}
-            <button type="button" class="st-cell-add" on:click=move |_| ctx.open(Dialog::Cell { area, semester })><Icon name="plus"/>{s.add_in_cell}</button>
+            <button type="button" class="st-cell-add" on:click=move |_| super::bench::enter(ctx, semester, area.map_or(super::bench::BenchPick::Plan, super::bench::BenchPick::Area))><Icon name="plus"/>{s.add_in_cell}</button>
         </div>
     }
 }

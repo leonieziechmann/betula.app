@@ -12,9 +12,11 @@
 //! switches between (`side.rs`). A phone has one row of pages the
 //! browser scrolls under a finger or by ‹ › (`pager.rs`): the semesters that are over, the overview
 //! with the program and its ways (`phone.rs`), the current semester and the ones to come. The
-//! semesters begin empty: „Module hinzufügen" (`picker.rs`) offers the rows of a Fachsemester of
-//! the plan, the Wiederholer and the catalog; a row's menu (`menu.rs`) marks it as passed, moves it
-//! and takes it out, and so does the bar of the rows selected for several at once (`focus.rs`).
+//! semesters begin empty: „Module hinzufügen" opens the workbench (`bench.rs`; owner, 2026-11-03:
+//! „Passt so, bau das jetzt in Folia"), a mode for one semester with the areas of the plan and
+//! their subgroups, what the plan puts into its Fachsemester, and the semester with what it holds;
+//! a row's menu (`menu.rs`) marks it as passed, moves it, lets it count for another subgroup and
+//! takes it out, and so does the bar of the rows selected for several at once (`focus.rs`).
 //! Betula blocks nothing (owner: „Die Nutzer sind erwachsene Menschen"): it says what it knows
 //! instead.
 //!
@@ -29,6 +31,7 @@
 //! what it needs of it through a memo of its own (R5). A click answers in the next frame and the
 //! store follows after it (R21, `StudyCtx::change`).
 
+mod bench;
 mod card;
 mod choose;
 mod dialog;
@@ -189,11 +192,10 @@ pub(super) enum View {
 /// The dialog open over the page, if any (`dialog.rs`).
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Dialog {
-    /// „Module hinzufügen" to a semester; `catalog` opens its search; `chosen` are picked
-    /// already (`Item::key`).
-    Add { semester: SemesterKey, catalog: bool, chosen: Vec<String> },
-    /// A cell of the Gesamtplan: the modules of an area (`None`: of no area) for a semester.
-    Cell { area: Option<usize>, semester: SemesterKey },
+    /// The workbench's areas on a phone (`bench.rs`).
+    BenchAreas,
+    /// What the workbench's semester holds, on a phone.
+    BenchSemester,
     /// An area of the progress (`Study::progress`); `None` for what counts towards none.
     Area(Option<usize>),
     /// The areas on a phone.
@@ -259,6 +261,8 @@ pub(super) struct StudyCtx {
     /// The choice the Wahlpflicht shows (an index of `PlanView::choices`): a row's „Wählen" picks
     /// it (`regular.rs`, `choose.rs`).
     pub choice: RwSignal<Option<usize>>,
+    /// The workbench, while it is open (`bench.rs`): planning one semester is a mode.
+    pub bench: RwSignal<Option<bench::Bench>>,
 }
 
 impl StudyCtx {
@@ -564,7 +568,16 @@ pub fn StudyPage() -> impl IntoView {
         undo: RwSignal::new(None),
         view_back: RwSignal::new(false),
         choice: RwSignal::new(None),
+        bench: RwSignal::new(None),
     };
+    // While the workbench is open, „Einplanen" elsewhere aims at its semester and subgroup
+    // (`Planning::bench`); its end ends that.
+    if let Some(planning) = folia_stores::studyplan::Planning::expect() {
+        Effect::new(move |_| planning.set_bench(bench::aim_of(ctx)));
+        on_cleanup(move || planning.set_bench(None));
+    }
+    // On a phone Back leaves the mode, as it closes what lies over the page: the page's own state.
+    folia_shell::nav::layer_while(move || ctx.phone.get() && ctx.bench.with(Option::is_some), move || bench::leave(ctx), folia_shell::nav::Kind::State);
     // A view come to from the overview (a phone's way to it): the step before it in the history.
     Effect::new(move |before: Option<(StudyView, bool)>| {
         let now = url.with(|url| (url.view, url.plan));
@@ -598,7 +611,7 @@ pub fn StudyPage() -> impl IntoView {
     Effect::new(move |_| {
         let handle = window_event_listener(leptos::ev::keydown, move |ev| {
             if (ev.ctrl_key() || ev.meta_key()) && !ev.alt_key() && !ev.shift_key() && ev.key().eq_ignore_ascii_case("a") {
-                let shown = ctx.url.with_untracked(|url| url.view == StudyView::Semesters);
+                let shown = ctx.url.with_untracked(|url| url.view == StudyView::Semesters) && ctx.bench.with_untracked(Option::is_none);
                 let free = shown && !ev.default_prevented() && in_front.get_untracked() && ctx.menu.with_untracked(Option::is_none) && ctx.dialog.with_untracked(Option::is_none) && !dom::typing(&ev);
                 let semester = ctx.focused_untracked().filter(|semester| untrack(|| ctx.with_ready(|ready| ready.study.semester(*semester).is_some_and(|semester| !semester.items.is_empty()))).unwrap_or(false));
                 if let Some(semester) = semester.filter(|_| free) {
@@ -700,8 +713,13 @@ fn StudyMain(ctx: StudyCtx) -> impl IntoView {
 #[component]
 fn StudyBody(ctx: StudyCtx) -> impl IntoView {
     let view = Memo::new(move |_| ctx.url.with(|url| url.view));
+    let benching = Memo::new(move |_| ctx.bench.with(Option::is_some));
     move || {
         let phone = ctx.phone.get();
+        // The workbench in the page's place, whatever view it was opened from.
+        if benching.get() {
+            return if phone { view! { <bench::BenchPhone ctx/> }.into_any() } else { view! { <bench::BenchDesk ctx/> }.into_any() };
+        }
         let body = match view.get() {
             StudyView::Semesters if phone => return view! { <phone::Phone ctx/> }.into_any(),
             StudyView::Semesters => view! { <Semesters ctx/> }.into_any(),

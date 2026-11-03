@@ -342,6 +342,24 @@ fn module_act(ctx: StudyCtx, module: &Module, rows: &[(String, i64)], t: &'stati
     }
 }
 
+/// „Planen ›": the choice in the workbench, for the semester the list shows or the one the plan
+/// puts it into (folia/design/hinzufuegen/konzepte.html, third round: „Die Ansicht „Wahlpflicht“
+/// bleibt der Überblick über alle Wahlen; „Planen ›“ an einer Wahl öffnet die Werkbank dort").
+fn plan_in_bench(ctx: StudyCtx, item: &Item, target: Target, t: &'static Texts) -> impl IntoView {
+    let s = match target {
+        Target::In(s) => s,
+        Target::All => item.due,
+    };
+    let at = item.index;
+    let label = t.study_bench.mode;
+    let title = format!("{label} · {}", s.label(t.locale));
+    (!item.complete).then(|| view! {
+        <button class="btn secondary small st-plan-bench" type="button" title=title on:click=move |_| super::bench::enter_choice(ctx, s, at)>
+            <Icon name="calendar-plus"/><span>{label}</span><Icon name="chevron-right"/>
+        </button>
+    })
+}
+
 /// The view.
 #[component]
 pub(super) fn Choose(ctx: StudyCtx) -> impl IntoView {
@@ -535,6 +553,8 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
                 <div class="st-pane-title">
                     <h3>{item.name.clone()}</h3>
                     <span class="st-chip tone"><span class="st-dot"></span>{format!("{} · {}", item.area_name, item.credits)}</span>
+                    <span class="st-grow"></span>
+                    {plan_in_bench(ctx, &item, target.get_untracked(), t)}
                 </div>
                 {(!item.lists.is_empty()).then(|| view! { <div class="st-season"><span>{v.offered_in}</span>{target_switch(target, item.due, false, t)}</div> })}
                 <p class="st-rule">{item.rule.clone()}</p>
@@ -714,6 +734,7 @@ fn ChoiceGroup(ctx: StudyCtx, item: Item, has: BTreeMap<String, Has>, rows: Memo
                 <b>{item.name.clone()}<span class="st-chip">{item.credits.clone()}</span></b>
                 <small>{head_sub}</small>
                 {(marked_count > 0).then(|| view! { <small class="st-sl-mk"><Icon name="bookmark"/>{(v.marked_here)(marked_count)}</small> })}
+                {plan_in_bench(ctx, &item, target, t)}
             </div>
             {item.rule_extra.clone().map(|rule| view! { <p class="st-rule"><Icon name="info"/><span>{rule}</span></p> })}
             {(!item.taken.is_empty() || item.taken_line.is_some()).then(|| view! {
