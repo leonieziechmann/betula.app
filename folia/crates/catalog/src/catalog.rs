@@ -308,11 +308,11 @@ pub fn CatalogPage() -> impl IntoView {
     view! {
         <Title text=title/>
         // The page's one scroll area (app.css, „one scroll area"): the filter panel and the module
-        // beside the list are pinned in it, the list and the ground after it scroll.
+        // beside the list are pinned in it, the list scrolls.
         //
         // It is the page's content region, round which Tab goes (enhance.js, „the keyboard";
         // owner, 2026-10-20: „so dass man mit n mal tab dann wieder beim content landet"): the heads
-        // of the columns, the list, the module beside it, its text, the ground, and the heads again.
+        // of the columns, the list, the module beside it, its text, and the heads again.
         // The filters in it are a region of their own.
         <div class="work flowing" id=SCROLL_ID data-keep-scroll="rows" data-region="content" data-cycle="" class:no-detail=move || open.get().is_none()>
             // What a screen reader hears when the list changes: how many modules it holds, once
@@ -404,8 +404,6 @@ pub fn CatalogPage() -> impl IntoView {
                     }.into_any(),
                 }
             }}
-            // The end of the page, in its scroll area (on a phone the app's own ground follows the page).
-            <folia_shell::ground::Ground/>
         </div>
     }
 }
@@ -1126,8 +1124,7 @@ fn pager_link(target: CatalogUrl, way: &'static str, text: &'static str, open: M
 }
 
 const ROWS_ID: &str = "rows";
-/// The page's one scroll area (app.css, „one scroll area"): the filter panel, the list and the
-/// ground after it scroll in it as one.
+/// The page's one scroll area (app.css, „one scroll area"): the filter panel and the list.
 const SCROLL_ID: &str = "catalog-scroll";
 /// The list's head (the number, the filters in force), which stays at the top of the scroll area.
 const TOP_ID: &str = "rows-top";

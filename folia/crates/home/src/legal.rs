@@ -178,8 +178,8 @@ fn LegalPage(page: Legal) -> impl IntoView {
                 }).collect_view()}
             </nav>
         })}
-        // That Betula is not the BTU's says the ground at the end of every page (`ground::Ground`),
-        // and the imprint at length.
+        // That Betula is not the BTU's says the ground at the end of the start page
+        // (`ground::Ground`), the profile page („Über diese Seite"), and the imprint at length.
     };
     view! {
         <Title text=page.title(texts)/>

@@ -1,9 +1,9 @@
 //! The shell of the app: what every page stands in and how the app moves between pages. The chrome
 //! (`chrome`: rail, top bar, the navigation of a phone), the frame
-//! of a page (`frame`: sidebar, page, panel, the ground after them), the memory of the areas
+//! of a page (`frame`: sidebar, page, panel), the memory of the areas
 //! (`tabs`), a click answered in the next frame with the page before held until its data is there
 //! (`pending`, `skeleton`), the tabs' pages kept built on stages of their own (`stage`), the way
-//! back (`nav`), the ground under every page (`ground`), the languages (`languages`),
+//! back (`nav`), the ground under the start page (`ground`), the languages (`languages`),
 //! the text of a page that searches itself and keeps it out of its address (`search`), the
 //! overview of the keys (`keys`), „Befehle" (`commands`), what search engines read (`seo`), the launch screens of iOS (`launch`) and what the document
 //! links (`document`). Above the design, the data and the stores, below the widgets and the

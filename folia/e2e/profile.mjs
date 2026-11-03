@@ -15,8 +15,10 @@
 // profile tapped there is the active one; a tap on the box opens the menu too, without a step, and
 // „Neues Profil“ there makes the active profile; the menu's way leads to the page, on top of the
 // list it was opened from, the profiles before the page, no sideways scrolling, and the arrow at
-// the head back to the list as it was left, scrolled as far. English. Without the app: the page explains itself, is
-// `noindex`, offers the other language, and the rail's way to it shows.
+// the head back to the list as it was left, scrolled as far. English. „Über diese Seite" at the end
+// of the page: that Betula is not the BTU's, Impressum and Datenschutz, Folia's version (the ground
+// held them until 2026-11-03, which the start page alone keeps). Without the app: the page explains
+// itself, is `noindex`, offers the other language and the legal pages, and the rail's way to it shows.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
 import { readFile, writeFile, mkdtemp } from "node:fs/promises";
@@ -98,6 +100,17 @@ const mark = async (page, id) => {
   await toProfile(step, page);
   let now = await shown(page);
   check(now.name === "Profil 1" && JSON.stringify(now.profiles) === JSON.stringify([["Profil 1", "true"]]) && now.rows["Merkliste"] === "2 Module", `the first profile: ${JSON.stringify(now)}`);
+  const about = await page.evaluate(() => {
+    const part = onPage(".pf-about");
+    return {
+      last: part?.parentElement.lastElementChild === part,
+      note: part?.textContent.includes("inoffizielles Projekt") ?? false,
+      legal: [...(part?.querySelectorAll("a.btn") ?? [])].map((a) => a.getAttribute("href")).join(),
+      version: /^\d+\.\d+\.\d+$/.test(part?.querySelector(".ver")?.textContent ?? ""),
+      ground: allOnPage(".ground").some((ground) => ground.checkVisibility()),
+    };
+  });
+  check(about.last && about.note && about.legal === "/impressum,/datenschutz" && about.version && !about.ground, `„Über diese Seite" on the profile page: ${JSON.stringify(about)}`);
   check(await page.evaluate(() => onPage(".rail .profile-btn").getAttribute("aria-current") === "page" && !onPage('.rail .nav[aria-current="page"]')), "the profile page is not the rail's current item, or a tab still is");
   check(await page.evaluate(() => onPage(".topbar h1")?.textContent === "Profil"), "the top bar does not name the page");
   check(await page.evaluate(() => onPage("#pf-delete").getAttribute("aria-disabled") === "true"), "the only profile can be deleted");
@@ -315,8 +328,8 @@ const mark = async (page, id) => {
   const context = await browser.newContext({ viewport: { width: 1500, height: 900 }, javaScriptEnabled: false });
   const page = await context.newPage();
   const response = await page.goto(base + "/profile", { waitUntil: "domcontentloaded" });
-  const plain = await page.evaluate(() => ({ explained: onPage(".state")?.textContent.includes("JavaScript") ?? false, robots: onPage('meta[name="robots"]')?.content ?? "", way: onPage(".rail .profile-btn")?.getClientRects().length ?? 0, english: onPage('.state a[data-language="en"]')?.getAttribute("href") ?? null }));
-  check(response.status() === 200 && plain.explained && plain.robots.startsWith("noindex") && plain.way === 1 && plain.english === "/en/profile", `without JavaScript: ${JSON.stringify(plain)}`);
+  const plain = await page.evaluate(() => ({ explained: onPage(".state")?.textContent.includes("JavaScript") ?? false, robots: onPage('meta[name="robots"]')?.content ?? "", way: onPage(".rail .profile-btn")?.getClientRects().length ?? 0, english: onPage('.state a[data-language="en"]')?.getAttribute("href") ?? null, legal: [...allOnPage('.state a[href="/impressum"], .state a[href="/datenschutz"]')].filter((a) => a.checkVisibility()).length }));
+  check(response.status() === 200 && plain.explained && plain.robots.startsWith("noindex") && plain.way === 1 && plain.english === "/en/profile" && plain.legal === 2, `without JavaScript: ${JSON.stringify(plain)}`);
   await context.close();
 }
 

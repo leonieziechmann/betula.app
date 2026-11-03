@@ -94,6 +94,7 @@ if (dir) {
     const scrolled = await page.evaluate(() => { const list = document.querySelector("#catalog-scroll, .work.flowing"); list.scrollTop = 400; return { top: list.scrollTop, height: list.scrollHeight, rows: document.querySelectorAll(".rows a.row").length }; });
     t = Date.now();
     await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    // The app's ground after the view holds the data's date on every page, shown or not.
     await page.waitForFunction(() => document.querySelector(".ground")?.textContent.includes("02.01.2031"), null, { timeout: 60000 });
     timings["a newer snapshot in place"] = Date.now() - t;
     const after = await page.evaluate(() => { const list = document.querySelector("#catalog-scroll, .work.flowing"); return { top: list.scrollTop, height: list.scrollHeight, rows: document.querySelectorAll(".rows a.row").length }; });
