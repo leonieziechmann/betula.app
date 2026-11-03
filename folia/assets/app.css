@@ -4974,7 +4974,11 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .main { position: static; display: block; flex-grow: 1; height: auto; min-height: 100vh; min-height: 100lvh; margin: 0; padding: 0; }
   /* The crown carries the bar's frosted ground (see „the birch"), so the bar itself lets it through. */
   .topbar { position: sticky; top: 0; z-index: 21; height: auto; padding: 20px 12px 10px; }
-  .crumb, .top-end, kbd, .kk { display: none; }
+  /* But „Tasten" names its keys on a phone too (`.keys-row`): who opens it there has a keyboard
+     (`?`, a tablet's, one of wire or radio), and without them it said what the keys do, not which
+     they are. Its caps are as on a wide screen then, a PC's or a Mac's (`.k-pc`, `.k-mac`); the
+     `:where` keeps what this rule weighed. */
+  .crumb, .top-end, kbd:where(:not(.keys-row *)), .kk:where(:not(.keys-row *)) { display: none; }
   .dlg-close { width: 40px; height: 40px; padding: 0; justify-content: center; }
   .dlg-close-word { display: none; }
   .brand-phone { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
