@@ -788,7 +788,7 @@ mod tests {
         }
         // And none of them is a key of the browser's settings or of the list.
         let ahead = (0..AHEAD_DAYS).map(ahead_key).chain([OLD_AHEAD_KEY.to_string()]);
-        for setting in ["betula.profiles.v1", "betula.theme", "betula.language", "betula.finder", "betula.tabs", "betula.plan.shape", "betula.study.view"].map(String::from).into_iter().chain(ahead) {
+        for setting in ["betula.profiles.v1", "betula.theme", "betula.language", "betula.finder", "betula.tabs", "betula.plan.shape", "betula.study.view", "betula.study.open"].map(String::from).into_iter().chain(ahead) {
             assert!(!all.contains(&setting), "{setting}");
         }
         // The days ahead take their slots in turn, before 1970 as well.
