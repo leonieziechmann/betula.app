@@ -55,7 +55,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/bookmarks?collection=…&turnus=…&stand=…&counts=1&lang=…&ects_min=…&campus=…&graded=yes&fits=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (the view — a collection by its number, `none` for „Ohne Sammlung", never its name —, half of the year, „Stand", „Zählt in meinem Studium", the few of the catalog's filters it has under the catalog's names, the order — `added`, `study`, `offer`, `title`, `ects`, `events`, each turned round with `desc=1` —, the previewed module), never what is on it: the marks live in the browser, and so does what is typed into the search at the head on this page (`folia_shell::search::LocalSearch`, R20). `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/widgets/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` is a sheet over the list (2026-10-06; until then it did what `full=1` does). The server renders an explanation, the same for everybody, `noindex` |
 | `/studyplan?sem=…&view=…&open=<id>&row=<key>&termin=<key>&on=<day>&wahl=e<event>&vergleich=1&import=…&variant=<n>[&share=<code>][&full=1]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20) — `termin` and `on` a Termin in its own view in the app's dialog over it, and with `full=1` filling the page („Ganze Seite", as `open=<id>&full=1` a module; `PlanAddress`; „A Termin in its own view"), `wahl` a choice of groups in focus over the week and `vergleich` its groups compared day by day („Offen and the choice in focus") —, with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
 | `/profile` | „Profil" (owner, 2026-10-14): the profiles of this browser and the active one's page — its name (renamed, deleted), „Mein Studiengang", what it keeps with the way to each and „Profil leeren", the settings every profile shares (light, dark or the system's; the language); in the sidebar the profiles (a click switches), „Neues Profil", and a profile kept as a file or made of one. What it shows lives in the browser; the address is the page and says nothing more. A page of a while: on a phone its arrow leads back to where the visitor was (2026-10-19). The server renders one stand-in for everybody, `noindex`, not in the sitemap („Profiles" below) |
-| `/impressum`, `/datenschutz` | The legal pages (`folia/crates/home/src/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of the start page and from the profile page („Über diese Seite" at its end), which every page leads to (the rail; on a phone the box at the head of the page); § 5 DDG: reachable at all times. Until 2026-11-03 the ground at the end of every page linked them („The birch"; owner: „ich würde gerne den footer raus nehmen aus den meisten seiten von betula. Um weiterhin compliant zu sein können wir bei der Profile page die links wieder machen und den footer bei der landing page lassen"). The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
+| `/impressum`, `/datenschutz` | The legal pages (`folia/crates/home/src/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of the start page and of the pages about Betula, and from the profile page („Über diese Seite" at its end), which every page leads to (the rail; on a phone the box at the head of the page); § 5 DDG: reachable at all times. Until 2026-11-03 the ground at the end of every page linked them („The birch"; owner: „ich würde gerne den footer raus nehmen aus den meisten seiten von betula. Um weiterhin compliant zu sein können wir bei der Profile page die links wieder machen und den footer bei der landing page lassen"). The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
 HTML form, nonsense ignored) and have one canonical spelling, which is also the cache key. A
@@ -3730,7 +3730,7 @@ Betula", „Betula nutzen" and „Fürs Studium" (first semesters); the text sta
 FAQPage data. Until 2026-09-28 a sidebar held the sections (the current one following the
 scroll, `nav[data-spy]` in `enhance.js`) and the Datenstand as label | value rows (see below). The versions and Impressum and Datenschutz
 moved into the ground at the end of every page on 2026-09-25 („The birch" below), and on
-2026-11-03 to the profile page and the start page's ground.
+2026-11-03 to the profile page and the ground of the pages of text.
 
 **What the page says of Betula itself (2026-09-28).** Owner: what is known of a tool is mostly what
 its own site says, and asked to compare Betula with other tools, search engines and the assistants
@@ -3951,19 +3951,25 @@ at the end of every page the ground with the roots. Picked on a design canvas of
   them from concept A to 2026-10-27, owner: „nimm das bitte Über Betula aus dem Footer raus"), the versions of Folia
   and Radix (the roots: Radix brings the data; a snapshot without Radix's version leaves it out),
   the date of the data, the semester and the source. In autumn fallen leaves lie on its edge.
-- **The start page's alone** (owner, 2026-11-03: „ich würde gerne den footer raus nehmen aus den
+- **Pages of text alone** (owner, 2026-11-03: „ich würde gerne den footer raus nehmen aus den
   meisten seiten von betula. Um weiterhin compliant zu sein können wir bei der Profile page die
-  links wieder machen und den footer bei der landing page lassen"): no other page has a ground
-  since. The profile page ends with „Über diese Seite" (`folia_profile`, `About`), which holds what
+  links wieder machen und den footer bei der landing page lassen", and after it had gone from the
+  start page's neighbours too: „alle seiten, die statischen content ohne sidebar haben können
+  ruhig den footer weiter haben. Bloß in der APP Ui ist das ein wenig wild"): the start page and
+  the pages about Betula (`/about/<topic>`) keep the ground; the pages of the app — the catalog,
+  the Merkliste, „Mein Studium", the Stundenplan, the programs, a module, a Termin, the profile,
+  and the legal pages with their sidebar — have none since. A page that has one puts it at the end
+  of its `.work`. The profile page ends with „Über diese Seite" (`folia_profile`, `About`), which holds what
   the ground held but the wordmark and the semester: the note that Betula is not the BTU's,
   Impressum and Datenschutz, the versions of Folia and Radix, the date of the data and the source;
-  without JavaScript its explanation offers the two legal pages. On a wide screen every other page
+  without JavaScript its explanation offers the two legal pages. On a wide screen a page without one
   ends 8 px above the window's edge, as the panels beside it do, and the wood stays on the window's
-  edge („One scroll area"); on a phone every other page ends 12 px above the bottom bar and the
+  edge („One scroll area"); on a phone such a page ends 12 px above the bottom bar and the
   view is as tall as the screen as it is (`dvh`), so that a short page does not scroll into
   nothing. The app's ground after the view stays in every page's HTML and shows only while the
-  page in front has one of its own (`body > .ground`, app.css „the birch"). What follows describes
-  the start page's.
+  page in front has one of its own (`body > .ground`, app.css „the birch"); it names who took the
+  photo only while the start page is in front. What follows describes the ground of a page that
+  has one.
 - **How it comes** („Kopfzeile bleibt, Tafeln werden kürzer", and after the first build: „der
   Content darf nur EINE Scrollbar haben", the rail must not move, the panel on the left is „nur
   abgeschnitten verkleinert"): on a wide screen every page is one scroll area with the ground as
@@ -4028,9 +4034,10 @@ at the end of every page the ground with the roots. Picked on a design canvas of
   what scrolls under them, and the wheel over their bar does nothing.
 - **One scroll area** (owner, 2026-09-29: the two steps — first the page, then the window for the
   ground — felt „unfassbar janky"; decided on a prototype, variant b, „vom Aussehen alles so wie
-  heute, bloß dass es sich besser anfühlt"). Since 2026-11-03 the start page alone has the ground
-  („The birch"): the area of every other page has nothing in its second row, no band, no round
-  corners at rest, and its wood does not rise; what follows of the ground is the start page's.
+  heute, bloß dass es sich besser anfühlt"). Since 2026-11-03 only a page of text without a sidebar
+  has the ground („The birch"): the area of a page of the app has nothing in its second row, no
+  band, no round corners at rest, and its wood does not rise; what follows of the ground is of a
+  page that has one.
   Every page flows (`.work.flowing`: the catalog, the
   Merkliste, `ui::Frame`, `ui::Plain` for a page without a frame, the start page): everything right of the rail
   under the top bar is one scroll area with one scrollbar at the window's right edge, and the page
