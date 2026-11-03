@@ -8,7 +8,8 @@
 //   „Termine" and its address open the Termin beside the plan (`termin=`), its slot marked; the view
 //   names the module and its title, the module's events as segments above the ticket (the
 //   Praktikum marked), the date with its arrows, the time and the room; „Im Stundenplan" has the
-//   four groups as boxes, none ticked; the day and the series are pictures, which pick nothing.
+//   four groups as boxes, none ticked; „Reihe" picks the date above the ticket, the day is a
+//   picture, which picks nothing.
 // - Two groups ticked, as many as one likes: both stand solid in the week, the others leave it, the
 //   store keeps two ticks; the tick of one taken back leaves the other.
 // - The arrow to the next date names it in the address; „Ausblenden" hides this date alone (the
@@ -29,7 +30,8 @@
 // - To look up: a line of the Praktikum's module page opens the Termin beside the page
 //   (`?termin=<key>`), in the plan, its groups above the ticket measured against it, „Anpassen ›"
 //   under it into the Stundenplan of its semester; a group picked changes the ticket under the
-//   groups and nothing above them, the lecture's segment the lecture's ticket; → its next date;
+//   groups and nothing above them, a date picked by its dot in „Reihe" the ticket alone, the
+//   lecture's segment the lecture's ticket; → its next date;
 //   „Ganze Seite" is its own page (`/event/<key>/<day>`) in two columns, → there too; Back leads back
 //   beside the module's page, Esc closes it.
 //   Enterprise Ressource Planning's exercise (12612, outside the plan): „nicht im Plan", its second
@@ -86,14 +88,15 @@ const view = (page) => page.evaluate(() => {
     events: [...(panel?.querySelectorAll(".tm-evs > a") ?? [])].map((a) => a.textContent.trim()),
     // What picks the Termin above the ticket, and the pictures that pick nothing.
     above: (() => { const pick = panel?.querySelector(".tm-pick"), tk = panel?.querySelector(".tk"); return Boolean(pick && tk && pick.getBoundingClientRect().bottom <= tk.getBoundingClientRect().top); })(),
-    pictures: (panel?.querySelectorAll(".rib a, .sdots a") ?? []).length === 0 && Boolean(panel?.querySelector(".rib, .sdots")),
+    picture: (panel?.querySelectorAll(".rib a") ?? []).length === 0 && Boolean(panel?.querySelector(".rib")),
+    series: (panel?.querySelectorAll(".tm-pick .sdots a.sdl") ?? []).length,
     title: text(".tm-title"),
     date: text(".tk-date > b"),
     pill: text(".tk-date .pill"),
     time: text(".tk-time"),
     room: text(".tk-room .plate"),
     groups: [...(panel?.querySelectorAll(".gs.pick") ?? [])].map((tile) => [tile.querySelector("b")?.textContent.trim(), tile.getAttribute("aria-checked")]),
-    right: text(".grp-h .r"),
+    right: text(".tm-sec.cal .grp-h .r"),
     shown: panel?.querySelector(".tg")?.getAttribute("aria-checked") ?? "",
     date_button: text("[data-action='hide-date']"),
   };
@@ -120,7 +123,7 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   await until(page, "the Termin beside the plan", () => Boolean(onPage("#preview.is-termin .tk")));
   let v = await view(page);
   check(v.chip === "PP" && v.kind === "Praktikum" && v.title === "Programmierpraktikum", `the head: ${JSON.stringify(v)}`);
-  check(v.events.join(" | ") === "Vorlesung | Praktikum" && v.above && v.pictures, `the module's events above the ticket, the day and the series pictures: ${JSON.stringify(v)}`);
+  check(v.events.join(" | ") === "Vorlesung | Praktikum" && v.above && v.picture && v.series > 1, `the module's events and „Reihe" above the ticket, the day a picture: ${JSON.stringify(v)}`);
   check(/^(Mo|Di|Mi|Do|Fr) \d\d\.\d\d\./.test(v.date) && /^\d\d:\d\d/.test(v.time) && v.room.includes("0.03"), `the ticket: ${JSON.stringify(v)}`);
   check(v.groups.length === 4 && v.groups.every(([, on]) => on === "false") && v.right === "noch keine", `four groups, none ticked: ${JSON.stringify(v)}`);
   check(await page.evaluate(() => Boolean(document.querySelector(".sp-body .week .slot.cur, .sp-body .week [aria-current='true']"))), "its slot is marked");
@@ -291,7 +294,8 @@ const lookUp = (page, where) => page.evaluate((where) => {
     // The head, the segments and where the groups stand: what a pick must leave as it is.
     head: text(".hero"),
     events: [...(panel?.querySelectorAll(".tm-evs > a") ?? [])].map((a) => (a.getAttribute("aria-checked") === "true" ? "*" : "") + a.textContent.trim()),
-    groupsAt: Math.round(panel?.querySelector(".tm-pick .grp")?.getBoundingClientRect().top ?? -1),
+    groupsAt: Math.round(panel?.querySelector(".tm-pick .grp:not(.tm-series)")?.getBoundingClientRect().top ?? -1),
+    seriesAt: Math.round(panel?.querySelector(".tm-pick .sdots")?.getBoundingClientRect().top ?? -1),
     ticketAt: Math.round(panel?.querySelector(".tk")?.getBoundingClientRect().top ?? -1),
     when: text(".tk-date > b") + " " + text(".tk-time"),
   };
@@ -315,7 +319,7 @@ const follow = async (page, prefix) => {
   check(v.foot === "Noch keine in deinem Stundenplan" && /^\/studyplan\?sem=2026W&termin=148370-[0-9a-f]{5}&on=\d{4}-\d\d-\d\d$/.test(v.adjust), `„Anpassen ›": ${JSON.stringify(v)}`);
   check(v.day.length > 1, `the plan's day around it: ${JSON.stringify(v)}`);
   check(/^\/event\/148370-[0-9a-f]{5}\/\d{4}-\d\d-\d\d$/.test(v.full), `„Ganze Seite" is its own page: ${JSON.stringify(v)}`);
-  check(v.events.join(" | ") === "Vorlesung | *Praktikum" && v.groupsAt >= 0 && v.groupsAt < v.ticketAt, `the events and the groups above the ticket: ${JSON.stringify(v)}`);
+  check(v.events.join(" | ") === "Vorlesung | *Praktikum" && v.groupsAt >= 0 && v.groupsAt < v.seriesAt && v.seriesAt < v.ticketAt, `the events, the groups and „Reihe" above the ticket: ${JSON.stringify(v)}`);
   if (shots) await page.screenshot({ path: `${shots}/termin-beside-module.png` });
   // A group picked (owner, 2026-10-27: „Wenn man solche Buttons hat, dann ändern die nur den Inhalt
   // unter ihnen"): the ticket under the groups is the group's, nothing above them changes.
@@ -324,9 +328,25 @@ const follow = async (page, prefix) => {
   await until(page, "the second group", (second) => location.pathname + location.search === second && onPage("#preview.is-termin .tm-pick .gs.this")?.getAttribute("href") === second, second);
   const picked = await lookUp(page, "#preview.is-termin");
   check(picked.head === v.head && picked.events.join() === v.events.join() && picked.groupsAt === v.groupsAt && picked.when !== v.when, `a group picked changes the ticket alone: ${JSON.stringify([v, picked])}`);
+  // A date picked by its dot (owner, 2026-11-03: „bau als Nächstes die Reihe als Auswahl über dem
+  // Ticket"): the ticket under „Reihe" is that date's, nothing above it moves.
+  await page.goBack();
+  await until(page, "back on the first group", (href) => location.pathname + location.search === href, href);
+  const nextDot = await page.evaluate(() => {
+    const dots = [...(onPage("#preview.is-termin .tm-pick .sdots")?.querySelectorAll("a.sdl") ?? [])];
+    return dots[dots.findIndex((a) => a.getAttribute("aria-current") === "true") + 1]?.getAttribute("href") ?? "";
+  });
+  await page.click(`#preview.is-termin .tm-pick .sdots a.sdl[href="${nextDot}"]`);
+  await until(page, "the date after by its dot", (next) => location.pathname + location.search === next && onPage("#preview.is-termin .sdots a.sdl[aria-current='true']")?.getAttribute("href") === next, nextDot);
+  const dated = await lookUp(page, "#preview.is-termin");
+  check(dated.head === v.head && dated.events.join() === v.events.join() && dated.groupsAt === v.groupsAt && dated.seriesAt === v.seriesAt && dated.when !== v.when, `a date picked changes the ticket alone: ${JSON.stringify([v, dated])}`);
+  await page.goBack();
+  await until(page, "back on the first date", (href) => location.pathname + location.search === href, href);
+  await page.click(`#preview.is-termin .tm-pick .gs[href="${second}"]`);
+  await until(page, "the second group again", (second) => location.pathname + location.search === second, second);
   // The lecture's segment: the lecture's ticket under the head, which stays.
   await page.click("#preview.is-termin .tm-evs > a:not([aria-checked='true'])");
-  await until(page, "the lecture", () => onPage("#preview.is-termin .tm-evs > a[aria-checked='true']")?.textContent.trim() === "Vorlesung" && !onPage("#preview.is-termin .tm-pick .grp"));
+  await until(page, "the lecture", () => onPage("#preview.is-termin .tm-evs > a[aria-checked='true']")?.textContent.trim() === "Vorlesung" && !onPage("#preview.is-termin .tm-pick .grp:not(.tm-series)"));
   const lecture = await lookUp(page, "#preview.is-termin");
   check(lecture.head === v.head && lecture.when !== v.when, `the lecture's segment changes what stands under it: ${JSON.stringify(lecture)}`);
   await page.goBack();

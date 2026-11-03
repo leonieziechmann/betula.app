@@ -2159,11 +2159,16 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     one shown always there): the one shown marked, another leading to its Termin the plan holds (a
     group ticked), else to its first. Under them the event's own title where it is not the module's,
     and to look up the event's groups (below) or, of an event held at several times without groups,
-    its Termine („Termine · beide"). Then the ticket, whose arrows pick its date above the time and
-    room they change. Below the ticket nothing picks: the day and the series are pictures, and the
-    switches of „Im Stundenplan" change the plan, not what the view shows. „Alle Veranstaltungen" at
-    the end, which picked a Termin from the bottom, is gone: the segments and the groups are it, at
-    the top.
+    its Termine („Termine · beide"). Last, right above the ticket, „Reihe" (owner, 2026-11-03: „Passt,
+    bau als Nächstes die Reihe als Auswahl über dem Ticket"): a dot per date, each leading to it
+    (past, cancelled, noted, hidden; the break a dash that leads nowhere), the one shown ringed, its
+    place in the series in its label („Di 10.11. · 6 von 14"); at its head how many dates it has and
+    how many are to come („14 Termine · noch 9"), which no pick changes. A date picked moves the ring
+    alone, the row stays drawn and the keyboard on it. Then the ticket, whose arrows step through the
+    same dates above the time and room they change. Below the ticket nothing picks: the day is a
+    picture, and the switches of „Im Stundenplan" change the plan, not what the view shows. „Alle
+    Veranstaltungen" at the end, which picked a Termin from the bottom, is gone: the segments and
+    the groups are it, at the top.
   - **Then what one wants to know.** The date with arrows to the dates before and after it (the
     break and the holidays skipped), the A/B week where it is held every other week, where it stands
     („in 40 min", „läuft · noch 20 min", „morgen", „vorbei", „Fällt aus", „ausgeblendet"), the time
@@ -2186,8 +2191,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     hidden dates as a field appended to its frozen layout, `subscription::date_value`, so a code
     without any is the same as before).
   - **Then what one looks up:** „Der Tag" (the plan's Termine of the day on a ribbon from 7 to 19,
-    this one filled, and what comes after it with the time between), „Reihe" (a dot per date: past,
-    cancelled, noted, hidden, the break; „5 von 15 · noch 12"), both pictures that open nothing,
+    this one filled, and what comes after it with the time between), a picture that opens nothing,
     „Modul" („Zum Modul": the module's panel beside the plan, pointing at the Termin, and its exam in
     days), and after a dashed line „Lehrende laut QIS" and „Zeitraum und Ausnahmen" (the rhythm,
     weekday, time, first and last date, how many, and every date that differs), at the end „Quelle:
@@ -2220,8 +2224,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (enhance.js, `share-link`; it needs JavaScript, R15). „Ganze Seite" lets the Termin fill the
     page it stood beside (`/studyplan?…&termin=…&on=…&full=1`, `/?termin=…&on=…&full=1`), as
     „Vollbild" does a module: the same view, still the one that adjusts, in two columns where the
-    page is wide (folia/design/termin, „Die Seite": on the left what picks the Termin, the ticket,
-    who, „Im Stundenplan", the day, the series and the period; on the right the module and who
+    page is wide (folia/design/termin, „Die Seite": on the left what picks the Termin with its
+    series, the ticket, who, „Im Stundenplan", the day and the period; on the right the module and who
     teaches, which no pick changes, and the source), its events, groups and dates leading to their
     Termin filling the page too, „Zurück" (Esc)
     to the view beside the page on the day shown, „Teilen" in words at the right. The start page's
