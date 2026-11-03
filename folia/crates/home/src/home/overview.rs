@@ -529,7 +529,7 @@ pub(super) fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> im
                 <dialog
                     class="map-dialog"
                     node_ref=dialog
-                    data-sheet=""
+                    data-sheet="full"
                     aria-labelledby="karte-titel"
                     on:close=move |_| map_open.set(false)
                     on:click=move |ev: leptos::ev::MouseEvent| {
