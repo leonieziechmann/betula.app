@@ -1004,6 +1004,109 @@ mod tests {
         assert_eq!(view.to_choose, 64.0);
     }
 
+    /// The workbench of Informatik B.Sc. in its third semester (folia/design/hinzufuegen/
+    /// konzepte.html, third round): the six areas of the overview with their subgroups, what the
+    /// plan puts into the 3. FS, and a module counted for the subgroup it was planned from — one
+    /// that two choices list as well, and „Zählt für" changing it.
+    #[test]
+    fn the_workbench_of_informatik() {
+        use folia_plans::bench::{self, Bench, Due, GroupKind};
+        use folia_plans::choices::plan_view;
+
+        let source = plans_of("079-82-2008");
+        let w = key("2026W");
+        let plan = [
+            "m\t2025W\t12104\t1\t\tplan", "m\t2025W\t12107\t1\t\tplan", "m\t2025W\t12102\t1\t\tplan", "m\t2025W\t11112\t1\t\tplan",
+            "m\t2026S\t12101\t1\t\tplan", "m\t2026S\t11903\t1\t\tplan", "m\t2026S\t11113\t1\t\tplan",
+            "d\t2025W\t12104", "d\t2025W\t12107", "d\t2025W\t12102", "d\t2025W\t11112", "d\t2026S\t12101", "d\t2026S\t11903", "d\t2026S\t11113",
+            "q\t2026S\t079-82-2008\t10\t\tProseminar oder Praktikum",
+        ]
+        .join("\n");
+        let mut doc = PlanDoc::restored(&plan);
+        let mine = MineDoc { caption: Some(String::new()), start: Some(key("2025W")), ..MineDoc::default() };
+        let (shown, core, page) = chosen(&source, mine.caption.as_deref(), None);
+        let setup = Setup { shown, core, page, start: key("2025W"), start_stored: true, now: w, leave: BTreeSet::new(), until: None };
+        let view_of = |doc: &PlanDoc| {
+            let input = input_of(&source, &setup, doc, &source.linked);
+            let study = study::study(&input);
+            let view = plan_view(&input, &study);
+            (Bench::of(&study, &view), view, study)
+        };
+        let (bench, view, study) = view_of(&doc);
+        // One row per area, as the overview has them; the Pflicht first, then the choices.
+        assert_eq!(bench.areas.len(), 6);
+        let kinds = |area: usize| bench.area(area).unwrap().groups.iter().map(|at| bench.groups[*at].kind).collect::<Vec<_>>();
+        let names = |area: usize| bench.area(area).unwrap().groups.iter().filter_map(|at| bench.groups[*at].choice()).map(|at| view.choices[at].name.clone()).collect::<Vec<_>>();
+        assert_eq!(kinds(0).first(), Some(&GroupKind::Pflicht), "Informatik: its Pflicht");
+        assert_eq!(names(0), ["Proseminar oder Praktikum"]);
+        assert_eq!(kinds(1), [GroupKind::Pflicht], "Mathematik: its Pflicht alone");
+        eprintln!("{:?}", (0..6).map(names).collect::<Vec<_>>());
+        assert_eq!(names(2), ["Anwendungsfach", "Modul aus dem Bereich Praktische Mathematik"], "Nebenfach: two choices, no Pflicht, by their Fachsemester");
+        assert_eq!(kinds(3).len(), 1, "the FÜS: one choice");
+        assert_eq!(names(4).len(), 5, "Fachstudium: the Wahlpflicht-Komplex, the three Komplexe, the Seminar: {:?}", names(4));
+        // The Nebenfach opens with what the 3. FS asks for: the Anwendungsfach.
+        let anw = bench.opens_with(&view, 2, Some(3)).unwrap();
+        assert_eq!(bench.groups[anw].choice().map(|at| view.choices[at].name.as_str()), Some("Anwendungsfach"));
+        // Laut Plan im 3. FS: three Pflichtmodule to take over, the Anwendungsfach, the FÜS of the
+        // 1. FS still open, the 4. FS to take now.
+        let due = Due::of(&view, Some(3), Some(3));
+        let pflicht: Vec<&str> = due.pflicht.iter().filter_map(|at| view.lines[*at].module_id.as_deref()).collect();
+        assert_eq!(pflicht, ["11787", "12202", "11213"]);
+        assert_eq!(due.takeover(&view, w), ["11787", "12202", "11213"]);
+        assert!(due.choices.iter().any(|at| view.choices[*at].name == "Anwendungsfach"));
+        assert!(due.earlier_choices.iter().any(|at| view.choices[*at].fues), "the FÜS of the 1. FS");
+        assert!(!due.next.is_empty(), "the 4. FS's Pflicht");
+        assert!(due.earlier.is_empty(), "the 1. and 2. FS are passed");
+        // A module both the Anwendungsfach and Praktische Mathematik list, planned from the second:
+        // it counts there, not in the first choice that lists it.
+        let pm = view.choices.iter().position(|choice| choice.name.ends_with("Praktische Mathematik")).unwrap();
+        let anw_choice = bench.groups[anw].choice().unwrap();
+        let in_pm: BTreeSet<&str> = view.choices[pm].modules().into_iter().collect();
+        let both = view.choices[anw_choice].modules().into_iter().find(|id| in_pm.contains(id)).expect("a module both list");
+        let pm_group = bench.of_choice(pm).unwrap();
+        let mut rows = source.linked.clone();
+        rows.extend(plans_of_rows(&[both]));
+        let before = doc.clone();
+        let input = input_of(&source, &setup, &before, &rows);
+        assert_eq!(bench::plan_for(&mut doc, &input, &view, w, both, Some(&bench.groups[pm_group]), 7), 1);
+        assert_eq!(doc.counts_of(w, both).map(|row| row.ord), view.choices[pm].lines.first().map(|at| view.lines[*at].ord));
+        let after = doc.clone();
+        let input = input_of(&source, &setup, &after, &rows);
+        let study_after = study::study(&input);
+        let view_after = plan_view(&input, &study_after);
+        let bench_after = Bench::of(&study_after, &view_after);
+        assert_eq!(bench::counted_in(&bench_after, &view_after, both, w), Some(pm_group), "counted for Praktische Mathematik");
+        assert!(view_after.choices[anw_choice].taken.is_empty(), "not for the Anwendungsfach");
+        let item = study_after.semester(w).unwrap().items.iter().find(|item| item.module_id() == Some(both)).unwrap();
+        assert_eq!(item.area, Some(2), "in the Nebenfach");
+        // „Zählt für ›": the Anwendungsfach.
+        bench::count_for(&mut doc, &view_after, w, both, Some(anw_choice), "079-82-2008");
+        let moved = doc.clone();
+        let input = input_of(&source, &setup, &moved, &rows);
+        let study_moved = study::study(&input);
+        let view_moved = plan_view(&input, &study_moved);
+        assert_eq!(bench::counted_in(&Bench::of(&study_moved, &view_moved), &view_moved, both, w), Some(anw));
+        // From the Pflicht a module comes from the plan; a stored placeholder of a choice in the
+        // semester is filled, not remembered.
+        let tool = bench.find(0, GroupKind::Pflicht).unwrap();
+        assert_eq!(bench::plan_for(&mut doc, &input, &view_moved, w, "11787", Some(&bench.groups[tool]), 8), 1);
+        assert!(doc.modules.iter().any(|m| m.module_id == "11787" && m.from_plan && m.counts.is_none()));
+        let fues = view.choices.iter().position(|choice| choice.fues).unwrap();
+        let fues_line = &view.lines[view.choices[fues].lines[0]];
+        let before = doc.clone();
+        let input = input_of(&source, &setup, &before, &rows);
+        study::add(&mut doc, &input, w, &[study::Pick::Row { caption: fues_line.caption.clone(), ord: fues_line.ord }], 9);
+        let pid = doc.placeholders.iter().find(|p| p.semester == w).map(|p| p.pid).unwrap();
+        let fues_id = source.fues.first().unwrap().clone();
+        let before = doc.clone();
+        let input = input_of(&source, &setup, &before, &rows);
+        let fues_group = bench.of_choice(fues).unwrap();
+        assert_eq!(bench::plan_for(&mut doc, &input, &view_moved, w, &fues_id, Some(&bench.groups[fues_group]), 10), 1);
+        let planned = doc.modules.iter().find(|m| m.module_id == fues_id).unwrap();
+        assert_eq!((planned.fills, planned.counts.as_ref()), (Some(pid), None));
+        let _ = study;
+    }
+
     /// Maschinenbau numbers its electives („Wahlpflichtmodul 1" … „4"): one choice of 24 LP, whose
     /// list is the tree of its area, the plan's rows naming none.
     #[test]
