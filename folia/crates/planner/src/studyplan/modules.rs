@@ -12,8 +12,8 @@
 //! ein Bereich ist, wo ein Modul ausgewählt ist"), with „Weiteres Modul" while its row takes more
 //! (`studyplan::takes_more`: a range of credits, not one module). A row over several Fachsemester
 //! stands in each semester it was taken over into, and its box shows what counts for it in the
-//! others too. Then the modules only visited (`Visit`, „Besuch · zählt nicht", hatched as in the
-//! week), which count for no credits, each with its × as well. Last, the way to „Mein Studium",
+//! others too. Then the modules only visited (`Visit`, „Besuch · zählt nicht", the key ringed as
+//! in the week), which count for no credits, each with its × as well. Last, the way to „Mein Studium",
 //! where the modules of the study are planned (owner, 2026-10-26: „Nein aus dem Kallender soll man
 //! nicht module in den Studienplan aufnehmen können. Es soll nur möglich sein besuchsmodule zu
 //! planen"); „+ Modul" in the head takes a module in only to visit it (`add.rs`).

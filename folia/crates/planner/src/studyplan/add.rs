@@ -4,11 +4,11 @@
 //! modul").
 //!
 //! A module taken into „Mein Studiengang" from here is only visited (`PlanDoc::visit`): in the
-//! week, hatched, giving way where it meets the plan, and in „Mein Studium" on „nur besuchen",
-//! without credits. The modules of the study come from „Mein Studium" alone (owner, 2026-10-26:
-//! „Nein aus dem Kallender soll man nicht module in den Studienplan aufnehmen können. Es soll nur
-//! möglich sein besuchsmodule zu planen. Damit es einen weg gibt, wie man sein studium plant und
-//! nicht 200 verschiedene."). One taken into a calendar of one's own counts nowhere
+//! week, ringed in its tone, giving way where it meets the plan, and in „Mein Studium" on „nur
+//! besuchen", without credits. The modules of the study come from „Mein Studium" alone (owner,
+//! 2026-10-26: „Nein aus dem Kallender soll man nicht module in den Studienplan aufnehmen können.
+//! Es soll nur möglich sein besuchsmodule zu planen. Damit es einen weg gibt, wie man sein studium
+//! plant und nicht 200 verschiedene."). One taken into a calendar of one's own counts nowhere
 //! (`PlanDoc::add_to_calendar`).
 //!
 //! The panel opens under the head of the calendar's part of the list beside the week (`AddPanel`):
