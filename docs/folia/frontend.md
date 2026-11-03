@@ -3397,20 +3397,53 @@ the pages about Betula since 2026-10-27 (`/about/<topic>`, below).
      programs under it (a dot each in its faculty's colour, `fac-N`, and the key), and at the
      card's foot „Erst mal umschauen", „Profil übernehmen" (the profile page: a profile as a file)
      and „Was ist Betula?" (the overview, `/about/overview`). A pick goes on at once.
-  2. „Seit wann studierst du?": the six semesters back from the current one, each with the
-     Fachsemester it makes, the program's usual start marked (its intake,
-     `studyplan::intake_season`); what is unusual is said beside a semester, never refused (beyond
-     the Regelstudienzeit, before the PO; CLAUDE.md, „Betula does not say no"); and a field for
-     another Fachsemester, 1 to 30, which says so of a number outside.
-  3. „Dein N. Fachsemester": the modules the Regelstudienplan puts there (`studyplan::import_fs`;
-     the plans as chips where a program has several study directions), all ticked, a placeholder
-     where the plan names a choice („als Platzhalter, später wählen"). „Bisherige Module als
-     bestanden markieren", on from the second Fachsemester, marks those of the semesters before as
-     passed (`study::fill_past`, `PlanDoc::pass`, `finish_row` for their placeholders). „Studium
+  2. „Seit wann studierst du?" (2026-11-03; owner: „nur die semester vorgeschlagen werden, die
+     auch zu dem aktuellen semester passen. Also im winter nur wise und sommer nur sose … ein
+     select + confirm ding … 4 semester vorschlagen die man direkt wählen kann und dann noch eine
+     5. box mit der Freien selection"): five radios and „Weiter". Four Studienbeginne a year apart
+     (`offered_starts`), in the half of the year the program's plans begin in (`intake_of`, the one
+     their `studyplan::intake_season` agree on), so that the Fachsemester they make fall into the
+     current half as the plan has them: in a winter the 1., 3., 5. and 7. FS of a program that
+     begins in winter, in a summer its 2., 4., 6. and 8.; where the plans do not say, or begin in
+     either (eight Masters, Maschinenbau M.Sc. among them, with a plan for a start in each), the
+     starts of the current half. The latest is picked to begin with; a pick goes on only with
+     „Weiter" (Enter on the radio picked; the arrows, Pos1 and Ende pick among them). The fifth
+     box, „Anderes Fachsemester", takes any Fachsemester from 1 to 30 by its field or by − and +,
+     begins with the first none of the four makes (the 2. FS in a winter), says the start it
+     makes („Beginn im SoSe 2026") and, beside its field, what it takes for a number outside.
+     What is unusual is said beside a start, never refused (beyond the Regelstudienzeit of the plan
+     it would have, before the PO; CLAUDE.md, „Betula does not say no"). A start of a program with
+     a plan for either half picks the plan of its half for step 3 (`plan_for`), unless a plan was
+     picked there. While the program's plans are on their way (5 to 20 ms) the radios wait, unseen,
+     instead of showing other semesters first.
+  3. „Was belegst du im WiSe 2026/27?" (owner, the same day: „bei der Modulwahl muss dann nochmal
+     klarer gemacht werden, dass es sich dabei um die Module handelt, die man jetzt wirklich
+     belegt"): the modules the Regelstudienplan puts into that Fachsemester
+     (`studyplan::import_fs`; the plans as chips where a program has several study directions),
+     all ticked, a placeholder where the plan names a choice („als Platzhalter, später wählen"),
+     and the sentence over them says where the ticks come from and what goes into the Stundenplan
+     („Vorausgewählt nach Regelstudienplan (3. FS). Lass nur angehakt, was du wirklich belegst:
+     4 Module, 30 LP kommen in deinen Stundenplan.", counting what stays ticked). „Bisherige Module
+     als bestanden markieren", on from the second Fachsemester, marks those of the semesters before
+     as passed (`study::fill_past`, `PlanDoc::pass`, `finish_row` for their placeholders). „Studium
      anlegen" (at the right, the confirming action; on a phone across the width, „Ohne Module
      weiter" under it) keeps the program and its start (`MyProgram`) and writes the plan, after the
      next paint (R21); a note says what was set up, with „Zum Stundenplan" and „Rückgängig", which
      puts back what this browser kept before.
+
+  What is long in a step scrolls inside the card, and the wheel goes on to the page at its ends,
+  and at once over what has nothing to scroll (owner, the same day: „Dazu gibt es ein scroll lock,
+  wenn man mit der maus über der semester selection ist. Das muss auch raus besonders, wenn es da
+  nichts zum scrollen gibt"): `overscroll-behavior: contain` on `.ob-fill` held the page in
+  Chromium even where the box had nothing to scroll (measured: 0 px of 1,000 with it, 1,000
+  without).
+
+  The views of step 2 each read one memo (`starts`, `other_said`): an effect that read both
+  `offered` and `source` missed the plans as they came, its notes staying away. reactive_graph
+  0.2.14 checks an effect's sources in turn; `offered`, checked first, brings `source` up to date,
+  which then has nothing left to report, and the effect is not marked dirty by it, being the
+  observer at the time. A memo checks its own state once more after its sources; an effect does
+  not.
 
   Beside the card on a wide screen (a container of 1100 px on) the mark, the wordmark, the tagline
   and what Betula is in one line with its figures. Without JavaScript the first step stands as the
@@ -3552,14 +3585,19 @@ the pages about Betula since 2026-10-27 (`/about/<topic>`, below).
   The skeleton's photo and panels are hidden from screen readers each, so that the day put in
   place of the photo is read.
 - **Its commands** („Befehle", R25): the setup's under „Studium einrichten" (the program's picker,
-  a semester by its name, „Anderes Fachsemester", the switch with „an", „Studium anlegen", „Ohne
-  Module weiter", „Erst mal umschauen", „Profil übernehmen", „Was ist Betula?"), the buttons of the
+  a semester by its name with „gewählt" for the one picked, „Anderes Fachsemester", „Weiter", the
+  switch with „an", „Studium anlegen", „Ohne Module weiter", „Erst mal umschauen", „Profil
+  übernehmen", „Was ist Betula?"), the buttons of the
   photo and of the note of a study set up under „Dein Tag", the ways into the catalog under
   „Entdecken" („Ohne Einrichtung" on a first visit), the pages about Betula under „Mehr über
   Betula" (2026-10-27).
 
-`node folia/e2e/home.mjs` drives it: the server's page, the three steps (the picker, the six
-semesters, a Fachsemester out of range said, a row unticked), the tiles of the pages about
+`node folia/e2e/home.mjs` drives it: the server's page, the three steps (the picker; four winter
+starts of Informatik a year apart, the latest picked, the last beyond the Regelstudienzeit, the
+fifth box with the first Fachsemester none of them makes, a pick that does not go on, the wheel
+over the radios turning the page, „Weiter", the start kept when the chip leads back, the arrows,
+a Fachsemester out of range said beside the fifth box and Enter waiting; what is taken in the
+current semester, a row unticked and the sentence saying one less), the tiles of the pages about
 Betula under the ways into the catalog (the overview first, none to `/about`, „Was ist Betula?"
 to the overview) and none of it in the ground, „Studium anlegen" (the plan and the
 passed semesters kept, the day shown, no page load), „Rückgängig", „Erst mal umschauen" and back,
