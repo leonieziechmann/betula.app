@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hinzufügen am Handy</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- How modules come into a semester of „Mein Studium“ on a phone. Fourth round (2026-11-03; owner, on
+     the workbench of Folia 1.64.0 on a phone: „Ja also die Handy Version ist leider total terrible. Das
+     Problem ist nämlich, dass man absolut nicht versteht was passiert wenn man auf Module drückt. Es
+     verschwindet der Back Pfeil und man ist plötzlich auf [einer anderen] Page etc. Das Konzept braucht
+     ein komplettes rework. Achte darauf, dass spatial consistency eingehalten wird und dass der Kontext
+     möglichst erhalten bleibt.“): what happens today on canary (the semester swapped for the
+     workbench, ← and the semester's head and the dots gone, the tab bar swapped for the workbench's
+     bar), six rules of place for the phone, and two variants side by side in nine steps on canary's
+     data of Informatik B.Sc. (PO 2008) in its 3. FS, WiSe 2026/27: A „Aufklappen im Semester“ (the
+     button unfolds where it stands, in the semester's page) and B „Blatt aus dem Knopf“ (a sheet grows
+     out of the button, half up with the semester above it). Then A's parts, the comparison and the
+     questions. The rounds before are folia/design/hinzufuegen/konzepte.html; what they decided (the
+     areas with their subgroups, „Laut Plan im 3. FS“, a module counted for the group it was planned
+     from, the catalog with a target) stays: only the phone's frame changes. Nothing of it is built.
+     Tokens are Betula's (folia/assets/app.css); Inter comes from Google Fonts here, the app self-hosts
+     it. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: a review desk. The brief and the rules of place; today with its picture; the prototype —
+   two phones in one step chosen above them, clickable —; A's parts, the comparison and the questions.
+   Tokens: Betula's own (light, then dark), the tones of the study's areas, the wood the phones lie on. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4;
+  --panel: #ffffff;
+  --panel-2: #f6f7f8;
+  --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08);
+  --line-strong: rgba(15, 23, 42, .15);
+  --text: #10151f;
+  --text-2: #4b5565;
+  --text-3: #8790a0;
+  --invert: #161b26;
+  --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149);
+  --accent-ink: oklch(.46 .07 149);
+  --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --ok: #0b7f58;
+  --ok-soft: color-mix(in srgb, #0b7f58 10%, var(--panel));
+  --warn: #8f5a0a;
+  --warn-dot: #d49a2a;
+  --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel));
+  --no: #b3261e;
+  --no-soft: color-mix(in srgb, #b3261e 8%, var(--panel));
+  --a-inf: oklch(.5 .11 262);
+  --a-mat: oklch(.5 .12 330);
+  --a-neb: oklch(.66 .12 75);
+  --a-fues: oklch(.57 .09 185);
+  --a-fach: oklch(.55 .14 32);
+  --a-ba: oklch(.55 .03 260);
+  --chart: #3a7c49;
+  --chart-gray: #a1a7b2;
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line), 0 14px 44px -12px rgba(15, 23, 42, .3);
+  --seg-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line);
+  --r-panel: 9px; --r-ctl: 9px; --r-s: 5px;
+  --wood: color-mix(in oklab, var(--text) 7%, var(--bg));
+  --device: #1b2130;
+  --device-ring: rgba(15, 23, 42, .25);
+  --shadow-device: 0 34px 70px -38px rgba(15, 23, 42, .6);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --ok: #4fd1a1; --ok-soft: color-mix(in srgb, #4fd1a1 12%, var(--panel));
+    --warn: #f0b861; --warn-dot: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+    --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+    --a-inf: oklch(.74 .1 262); --a-mat: oklch(.74 .1 330); --a-neb: oklch(.8 .11 75); --a-fues: oklch(.78 .08 185); --a-fach: oklch(.74 .12 32); --a-ba: oklch(.72 .03 260);
+    --chart: #5f9f6b; --chart-gray: #5f6676;
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+    --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+    --seg-shadow: 0 0 0 1px var(--line);
+    --wood: color-mix(in oklab, var(--text) 5.5%, var(--bg));
+    --device-ring: rgba(255, 255, 255, .12);
+    --shadow-device: 0 34px 70px -38px rgba(0, 0, 0, .9);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --ok: #4fd1a1; --ok-soft: color-mix(in srgb, #4fd1a1 12%, var(--panel));
+  --warn: #f0b861; --warn-dot: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+  --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+  --a-inf: oklch(.74 .1 262); --a-mat: oklch(.74 .1 330); --a-neb: oklch(.8 .11 75); --a-fues: oklch(.78 .08 185); --a-fach: oklch(.74 .12 32); --a-ba: oklch(.72 .03 260);
+  --chart: #5f9f6b; --chart-gray: #5f6676;
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+  --seg-shadow: 0 0 0 1px var(--line);
+  --wood: color-mix(in oklab, var(--text) 5.5%, var(--bg));
+  --device-ring: rgba(255, 255, 255, .12);
+  --shadow-device: 0 34px 70px -38px rgba(0, 0, 0, .9);
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+a { color: var(--accent-ink); }
+code { font: 500 .86em var(--mono); padding: 1px 5px; border-radius: 5px; background: var(--panel-3); overflow-wrap: anywhere; }
+kbd { display: inline-block; padding: 0 5px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-3); font: 500 10.5px/18px var(--mono); }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.85; stroke-linecap: round; stroke-linejoin: round; }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 22px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+
+/* The brief. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -.026em; font-weight: 770; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.intro .lead b { color: var(--text); font-weight: 650; }
+.quote { margin: 18px 0 0; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.quote b { color: var(--text); font-weight: 600; }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ol { margin: 12px 0 0; padding: 0; list-style: none; counter-reset: rule; display: flex; flex-direction: column; gap: 10px; }
+.rules li { counter-increment: rule; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); }
+.rules li::before { content: counter(rule); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.rules li b { color: var(--text); font-weight: 620; }
+
+/* The bar that sets the prototype. */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+.setbar { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow-pop); backdrop-filter: blur(10px); }
+.setbar .group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.setbar .kicker { font-size: 10.5px; }
+.seg { display: inline-flex; flex-wrap: wrap; max-width: 100%; gap: 2px; padding: 2px; border-radius: 8px; background: var(--panel-3); }
+.seg button { height: 30px; padding: 0 9px; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: var(--seg-shadow); }
+.seg button b { font-weight: 750; }
+.setbar .jump { margin-left: auto; display: flex; flex-wrap: wrap; gap: 2px; }
+.setbar .jump a { padding: 6px 6px; border-radius: 7px; color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.setbar .jump a:hover { background: var(--panel-3); color: var(--text); }
+
+/* A section. */
+.sec { padding: 24px 24px 26px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); scroll-margin-top: 100px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.sec > header { display: flex; flex-direction: column; gap: 8px; }
+.sec h2 { font-size: 23px; line-height: 1.2; letter-spacing: -.02em; font-weight: 730; }
+.sec .sub { max-width: 76ch; color: var(--text-2); text-wrap: pretty; }
+.sec .sub b { color: var(--text); font-weight: 620; }
+.sec h3 { font-size: 15px; font-weight: 700; letter-spacing: -.005em; }
+.prose { max-width: 76ch; color: var(--text-2); font-size: 14.5px; text-wrap: pretty; }
+.prose b { color: var(--text); font-weight: 620; }
+.prose.small { font-size: 13px; color: var(--text-3); }
+
+
+/* Tables. */
+.tablewrap { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+table.t { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.t th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line-strong); color: var(--text-3); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+table.t td { padding: 10px 10px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--text-2); text-wrap: pretty; }
+table.t td b { color: var(--text); font-weight: 640; }
+table.t td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.verdict { display: inline-flex; align-items: center; gap: 6px; font-weight: 650; white-space: nowrap; }
+.verdict i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.verdict.ok { color: var(--ok); } .verdict.ok i { background: var(--ok); }
+.verdict.meh { color: var(--warn); } .verdict.meh i { background: var(--warn-dot); }
+.verdict.no { color: var(--no); } .verdict.no i { background: var(--no); }
+table.cmp td:first-child { color: var(--text); font-weight: 620; white-space: nowrap; }
+table.cmp td.rec { background: var(--accent-soft); }
+table.cmp th.rec { color: var(--accent-ink); }
+.qs { margin: 0; padding: 0; list-style: none; counter-reset: q; display: flex; flex-direction: column; }
+.qs li { counter-increment: q; display: grid; grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px 18px; padding: 14px 0; border-top: 1px solid var(--line); }
+.qs li::before { content: counter(q); display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--panel-3); font-size: 12.5px; font-weight: 750; }
+.qs .ask { font-weight: 650; text-wrap: pretty; }
+.qs .ask small { display: block; margin-top: 4px; color: var(--text-3); font-weight: 500; font-size: 13px; }
+.qs .rec { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.qs .rec b { color: var(--accent-ink); font-weight: 700; }
+.foot { text-align: center; color: var(--text-3); font-size: 12.5px; }
+
+/* Today. */
+.today { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 20px 30px; align-items: start; }
+.today figure { margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.today img { display: block; width: 100%; height: auto; border-radius: 14px; box-shadow: var(--shadow-panel); background: var(--panel); }
+.today figcaption { font-size: 13px; color: var(--text-2); text-wrap: pretty; }
+.today figcaption b { color: var(--text); font-weight: 640; }
+.breaks { margin: 0; padding: 0; list-style: none; counter-reset: br; display: flex; flex-direction: column; }
+.breaks li { counter-increment: br; display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.breaks li:first-child { border-top: 0; padding-top: 0; }
+.breaks li::before { content: counter(br); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: var(--warn-soft); color: var(--warn); font-size: 12px; font-weight: 750; }
+.breaks li b { color: var(--text); font-weight: 640; }
+
+/* The prototype: the step bar, two phones on wood, the note of the step beside them. */
+.proto { padding: 0; overflow: hidden; gap: 0; }
+.proto > header { padding: 22px 24px 14px; }
+.stepbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 0 24px 16px; }
+.stepbar .seg button { display: inline-flex; align-items: center; gap: 6px; }
+.stepbar .seg button i { font-style: normal; display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; background: var(--panel-2); color: var(--text-3); font-size: 11px; font-weight: 750; }
+.stepbar .seg button[aria-pressed="true"] i { background: var(--invert); color: var(--on-invert); }
+.stepbar .show { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.stage { display: grid; grid-template-columns: minmax(0, 330px) minmax(0, 330px) minmax(0, 1fr); gap: 26px; align-items: start; padding: 26px 24px 28px; background: var(--wood); }
+.stage.only-a .dev-b, .stage.only-b .dev-a { display: none; }
+.stage.only-a, .stage.only-b { grid-template-columns: minmax(0, 340px) minmax(0, 1fr); }
+.device { margin: 0; min-width: 0; }
+.device figcaption { margin-top: 10px; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 8px; font-size: 13px; color: var(--text-2); text-align: center; }
+.device figcaption .letter { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--invert); color: var(--on-invert); font-size: 12px; font-weight: 800; }
+.device figcaption .rec { color: var(--accent-ink); font-weight: 650; }
+.fit { position: relative; width: 100%; height: calc(var(--h) * var(--s, 1) * 1px); --w: 390; --h: 844; }
+.screen { position: absolute; left: 0; top: 0; width: calc(var(--w) * 1px); height: calc(var(--h) * 1px); transform: scale(var(--s, 1)); transform-origin: 0 0; overflow: hidden; border-radius: 39px; }
+.frame { padding: 9px; border-radius: 48px; background: var(--device); box-shadow: var(--shadow-device), 0 0 0 1px var(--device-ring); }
+.note { position: sticky; top: 16px; align-self: start; display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); min-width: 0; }
+.note .k { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.note h3 { font-size: 19px; letter-spacing: -.015em; font-weight: 740; }
+.note .v { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.note .v b { color: var(--text); font-weight: 640; }
+.note .v .letter { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 800; }
+.note .v.a .letter { background: var(--accent); color: var(--on-accent); }
+.note .both { font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.note .both b { color: var(--text); font-weight: 640; }
+.note .tap { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-ink); font-size: 13.5px; font-weight: 650; text-wrap: pretty; }
+.note .tap svg.i { flex: none; }
+.note .nav { display: flex; gap: 8px; }
+.note .nav button { height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--panel-3); color: var(--text); font-size: 13px; font-weight: 650; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.note .nav button.pri { margin-left: auto; background: var(--invert); color: var(--on-invert); }
+.note .nav button:disabled { opacity: .4; cursor: default; }
+
+/* ---------- Betula inside the phones ---------- */
+.app { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-size: 13.5px; line-height: 1.45; text-align: left; }
+:where(.app button) { border: 0; background: none; padding: 0; cursor: pointer; font: inherit; color: inherit; text-align: inherit; }
+.app [data-go] { cursor: pointer; }
+.app .mono { font: 500 11.5px var(--mono); color: var(--text-3); }
+.hot { animation: hot 1.7s ease-in-out infinite; outline: 2px solid transparent; outline-offset: 2px; }
+@keyframes hot { 0%, 100% { outline-color: color-mix(in srgb, var(--accent) 85%, transparent); outline-offset: 2px; } 50% { outline-color: color-mix(in srgb, var(--accent) 10%, transparent); outline-offset: 6px; } }
+.p-status { position: absolute; left: 0; right: 0; top: 0; height: 47px; z-index: 80; display: flex; align-items: center; justify-content: space-between; padding: 8px 30px 0 36px; color: var(--text); font-size: 15.5px; font-weight: 650; pointer-events: none; }
+.p-status .bat { display: block; width: 24px; height: 12px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px currentColor; position: relative; }
+.p-status .bat::after { content: ""; position: absolute; inset: 2.5px 6px 2.5px 2.5px; border-radius: 2px; background: currentColor; }
+.p-top { position: absolute; left: 12px; right: 12px; top: 52px; height: 46px; display: flex; gap: 8px; z-index: 60; }
+.p-top .sq { flex: none; width: 46px; height: 46px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); display: grid; place-items: center; color: var(--text); }
+.p-top .sq svg.i { width: 20px; height: 20px; }
+.p-top .search { flex: 1; display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 12px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-3); font-size: 15px; min-width: 0; white-space: nowrap; overflow: hidden; }
+.p-scroll { position: absolute; left: 0; right: 0; top: 98px; bottom: 0; overflow-y: auto; overflow-x: hidden; padding: 8px 12px 120px; scrollbar-width: none; }
+.p-scroll::-webkit-scrollbar { display: none; }
+.p-nav { position: absolute; left: 10px; right: 10px; bottom: 12px; height: 64px; z-index: 20; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; padding: 6px; border-radius: 22px; background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow-pop); backdrop-filter: blur(10px); }
+.p-nav span { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 15px; color: var(--text-2); font-size: 10.5px; font-weight: 650; }
+.p-nav span svg.i { width: 20px; height: 20px; }
+.p-nav span.on { background: var(--invert); color: var(--on-invert); }
+.badge { position: absolute; top: 3px; right: 16px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px; background: var(--invert); color: var(--on-invert); box-shadow: 0 0 0 2px var(--bg); font-size: 9.5px; font-weight: 700; line-height: 15px; text-align: center; }
+.p-dots { position: absolute; left: 0; right: 0; bottom: 86px; display: flex; justify-content: center; gap: 6px; z-index: 15; pointer-events: none; }
+.p-dots i { width: 6px; height: 6px; border-radius: 3px; background: var(--line-strong); }
+.p-dots i.on { width: 22px; background: var(--accent); }
+
+/* The semester's page. */
+.semh { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; padding: 4px 4px 10px; }
+.semh h3 { display: flex; align-items: center; gap: 6px; font-size: 22px; font-weight: 770; letter-spacing: -.02em; line-height: 1.2; }
+.semh h3 svg.i { width: 16px; height: 16px; color: var(--text-3); }
+.semh small { display: block; color: var(--text-2); font-size: 13px; font-weight: 600; }
+.semh small b { display: inline-block; color: var(--text); }
+.semh .tools { display: flex; align-items: center; gap: 4px; color: var(--text-2); }
+.semh .tools span { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; }
+.semh .tools span.box { background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); }
+.now { display: inline-block; padding: 1px 6px; border-radius: 5px; background: var(--accent); color: var(--on-accent); font-size: 10.5px; font-weight: 700; line-height: 16px; letter-spacing: 0; }
+.cards { display: flex; flex-direction: column; gap: 8px; }
+.cards:not(:empty) { margin-bottom: 8px; }
+.mc { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); overflow: hidden; }
+.mc > div b { display: block; font-size: 15px; font-weight: 680; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc small { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin-top: 2px; color: var(--text-2); font-size: 12.5px; }
+.ar { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+.ar i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex: none; }
+.for { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 5px; background: var(--accent-soft); color: var(--accent-ink); font-size: 11px; font-weight: 650; white-space: nowrap; }
+.lpv { text-align: right; font-size: 11px; color: var(--text-3); white-space: nowrap; }
+.lpv b { margin-right: 2px; font-size: 15px; color: var(--text); font-weight: 700; }
+.ring { position: relative; width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1.7px var(--accent-ink); }
+.ring::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: linear-gradient(90deg, transparent 50%, var(--accent-ink) 50%); }
+.empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 0 16px; color: var(--text-2); font-weight: 650; font-size: 14.5px; overflow: hidden; }
+.empty .ico { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--panel-3); }
+.addb { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 48px; border-radius: 12px; background: var(--accent); color: var(--on-accent) !important; font-weight: 700 !important; font-size: 15px; }
+.addb.dash { background: transparent; outline: 1.5px dashed var(--line-strong); outline-offset: -1.5px; color: var(--accent-ink) !important; }
+.addb.dash.hot { outline-style: solid; }
+.addb.gone { visibility: hidden; }
+
+/* A: the part that unfolds out of the button. */
+.ad { position: relative; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.ad-h { position: sticky; top: -8px; z-index: 5; display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 8px 8px 8px 12px; border-radius: 14px 14px 0 0; background: color-mix(in srgb, var(--accent) 11%, var(--panel)); color: var(--text); box-shadow: 0 1px 0 var(--accent-line); }
+.ad-h .ic { flex: none; width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); }
+.ad-h .w { flex: 1; min-width: 0; }
+.ad-h b { display: block; font-size: 15px; font-weight: 740; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-h small { display: block; font-size: 12.5px; color: var(--text-2); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-h small b { display: inline; font-size: inherit; color: var(--text); font-weight: 720; }
+.fertig { flex: none; height: 38px; padding: 0 14px; border-radius: 10px; background: var(--invert) !important; color: var(--on-invert) !important; font-size: 14px; font-weight: 700; }
+.ad-sec { padding: 6px 0 4px; border-top: 1px solid var(--line); }
+.ad-sec:first-of-type { border-top: 0; }
+.ad-k { display: flex; align-items: baseline; gap: 8px; padding: 10px 12px 4px; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.ad-k small { margin-left: auto; font-size: 12px; letter-spacing: 0; text-transform: none; font-weight: 650; color: var(--text-2); }
+.ad-take { margin: 6px 12px 6px; width: calc(100% - 24px); }
+.ad-ok { display: flex; align-items: center; gap: 8px; margin: 4px 12px 6px; padding: 8px 10px; border-radius: 9px; background: var(--ok-soft); color: var(--ok); font-size: 13px; font-weight: 650; }
+.ad-ok .undo { margin-left: auto; color: var(--text-2); font-weight: 650; text-decoration: underline; text-underline-offset: 2px; }
+.ad-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; min-height: 54px; padding: 8px 12px; border-top: 1px solid var(--line); }
+.ad-row:first-child { border-top: 0; }
+.ad-row.leave { max-height: 70px; overflow: hidden; animation: leaverow .4s ease both; }
+@keyframes leaverow { to { opacity: 0; min-height: 0; max-height: 0; padding-top: 0; padding-bottom: 0; border-top-width: 0; } }
+.ad-row.hot { animation-name: hotin; outline-offset: -3px; }
+@keyframes hotin { 0%, 100% { outline-color: color-mix(in srgb, var(--accent) 85%, transparent); } 50% { outline-color: color-mix(in srgb, var(--accent) 15%, transparent); } }
+.ad-row .w { min-width: 0; }
+.ad-row .w b { display: block; font-size: 14.5px; font-weight: 660; line-height: 1.3; }
+.ad-row small { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin-top: 2px; font-size: 12.5px; color: var(--text-2); }
+.ad-row.ch { grid-template-columns: minmax(0, 1fr) auto; }
+.ad-row.ch.open { background: var(--panel-2); }
+.ad-row.on { background: var(--accent-soft); }
+.plus { flex: none; width: 38px; height: 34px; border-radius: 9px; display: grid; place-items: center; background: var(--panel-3) !important; color: var(--text) !important; }
+.plus.done { background: var(--accent-soft) !important; color: var(--accent-ink) !important; }
+.sm { display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 10px; border-radius: 9px; background: var(--panel) !important; box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13.5px; font-weight: 650; white-space: nowrap; }
+.sm svg.i { width: 14px; height: 14px; color: var(--text-3); }
+.sm.chosen { background: var(--accent-soft) !important; box-shadow: none; color: var(--accent-ink); }
+.ad-ex { background: var(--panel-2); border-top: 1px solid var(--line); padding: 4px 0 6px; }
+.ad-ex .ad-row { border-top-color: var(--line); padding-left: 16px; }
+.ad-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px 6px 16px; }
+.combo { display: flex; align-items: center; gap: 8px; width: 100%; height: 40px; padding: 0 10px; border-radius: 10px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 14px; font-weight: 650; }
+.combo small { color: var(--text-3); font-weight: 600; font-size: 12.5px; }
+.combo svg.i { margin-left: auto; color: var(--text-3); }
+.cbx { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 10px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; font-weight: 620; white-space: nowrap; }
+.cbx .cb { width: 15px; height: 15px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px var(--text-3); display: grid; place-items: center; flex: none; }
+.cbx.on .cb { background: var(--invert); box-shadow: none; color: var(--on-invert); }
+.cbx .cb svg.i { width: 10px; height: 10px; stroke-width: 3.2; }
+.ad-ctl .cat { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border-radius: 9px; color: var(--accent-ink); font-size: 13.5px; font-weight: 680; white-space: nowrap; }
+.fitd { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+.fitd i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); }
+.fitd.ok { color: var(--ok); } .fitd.ok i { background: var(--ok); }
+.fitd.meh { color: var(--warn); } .fitd.meh i { background: var(--warn-dot); }
+.ad-link { display: flex; align-items: center; gap: 8px; width: calc(100% - 28px); margin: 6px 12px 4px 16px; height: 42px; padding: 0 12px; border-radius: 10px; background: var(--panel) !important; box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--accent-ink) !important; font-weight: 680; font-size: 14px; }
+.ad-link small { color: var(--text-3); font-weight: 600; font-size: 12.5px; }
+.ad-link svg.i:last-child { margin-left: auto; color: var(--text-3); }
+.ad-area { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 46px; padding: 0 12px; font-size: 14.5px; }
+.ad-area > i { width: 9px; height: 9px; border-radius: 50%; background: var(--c); flex: none; margin: 0 2px; }
+.ad-area b { font-weight: 650; }
+.ad-area small { margin-left: auto; color: var(--text-2); font-size: 12.5px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.ad-area small.ok { color: var(--ok); display: inline-flex; }
+.ad-area svg.i { color: var(--text-3); }
+.ad-area > svg.i:first-child { color: var(--text-2); }
+.ad-foot { padding: 4px 12px 12px; font-size: 12.5px; color: var(--text-3); }
+
+/* The module's sheet, the catalog's page, the note at the bottom. */
+.p-dim { position: absolute; inset: 0; z-index: 42; background: rgba(10, 12, 17, .36); }
+.p-sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 30; border-radius: 22px 22px 0 0; background: var(--panel); box-shadow: 0 -10px 40px -10px rgba(0, 0, 0, .35); display: flex; flex-direction: column; overflow: hidden; }
+.p-sheet .grab { flex: none; width: 38px; height: 5px; border-radius: 3px; background: var(--line-strong); margin: 8px auto 2px; }
+.msheet { z-index: 45; height: 420px; }
+.msheet .mb { padding: 6px 18px 18px; display: flex; flex-direction: column; gap: 10px; }
+.msheet .ids { display: flex; gap: 6px; }
+.msheet .ids span, .msheet .tags span { display: inline-grid; place-items: center; height: 26px; padding: 0 8px; border-radius: 7px; box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 12.5px; font-weight: 650; color: var(--text-2); }
+.msheet .ids span { font: 500 12px var(--mono); }
+.msheet .tags { display: flex; gap: 6px; }
+.msheet .tags span.on { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.msheet h3 { font-size: 21px; font-weight: 760; letter-spacing: -.02em; line-height: 1.2; }
+.msheet .x { position: absolute; right: 14px; top: 16px; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--panel-3); color: var(--text-2); }
+.msheet .fitline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--text-2); }
+.msheet .acts { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 8px; }
+.msheet .acts > * { display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 12px; border-radius: 12px; font-weight: 700; font-size: 14.5px; }
+.msheet .acts .pl { background: var(--accent); color: var(--on-accent); }
+.msheet .acts .pl small { display: block; font-size: 12px; font-weight: 600; opacity: .85; line-height: 1.2; }
+.msheet .acts .mk { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.msheet .tk { margin-top: 6px; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.msheet .sl { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px; border-radius: 10px; background: var(--panel-2); font-size: 13.5px; color: var(--text-2); }
+.msheet .sl b { color: var(--text); font-weight: 650; min-width: 34px; }
+.p-page { position: absolute; left: 0; right: 0; top: 98px; bottom: 0; z-index: 18; overflow-y: auto; padding: 8px 12px 120px; background: var(--bg); scrollbar-width: none; }
+.p-page::-webkit-scrollbar { display: none; }
+.p-page.over { z-index: 50; padding-bottom: 30px; }
+.pg-t { display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 12px; border-radius: 12px; background: var(--invert); color: var(--on-invert); }
+.pg-t .w { flex: 1; min-width: 0; }
+.pg-t b { display: block; font-size: 14px; font-weight: 720; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pg-t small { display: block; font-size: 12px; color: color-mix(in srgb, var(--on-invert) 74%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pg-t .ic { flex: none; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: color-mix(in srgb, var(--on-invert) 13%, transparent); }
+.pg-h { display: flex; align-items: baseline; gap: 10px; padding: 14px 4px 8px; }
+.pg-h h3 { font-size: 20px; font-weight: 760; letter-spacing: -.02em; }
+.pg-h small { color: var(--text-2); font-size: 13px; font-weight: 600; }
+.pg-f { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 0 10px; }
+.pg-f .cbx svg.i { width: 13px; height: 13px; color: var(--text-3); }
+.pg-f .cbx.on { box-shadow: inset 0 0 0 1.5px var(--text); }
+.pc { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 10px 12px; margin-bottom: 8px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.pc > div b { display: block; font-size: 14.5px; font-weight: 670; line-height: 1.3; }
+.pc small { display: flex; flex-wrap: wrap; gap: 2px 8px; margin-top: 2px; font-size: 12.5px; color: var(--text-2); }
+.p-toast { position: absolute; left: 12px; right: 12px; bottom: 108px; z-index: 70; display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 6px 0 14px; border-radius: 13px; background: var(--invert); color: var(--on-invert); font-size: 13.5px; font-weight: 600; box-shadow: var(--shadow-pop); animation: toast .35s ease both, toastgo .35s ease 3.6s forwards; }
+.p-toast .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p-toast .u { flex: none; height: 38px; padding: 0 12px; border-radius: 9px; background: color-mix(in srgb, var(--on-invert) 14%, transparent); font-weight: 700; display: grid; place-items: center; }
+.p-toast svg.i { flex: none; }
+.p-toast.low { bottom: 26px; }
+@keyframes toast { from { opacity: 0; transform: translateY(10px); } }
+@keyframes toastgo { to { opacity: 0; transform: translateY(10px); visibility: hidden; } }
+
+/* B: the sheet out of the button. */
+.bsheet { top: var(--top); transition: top .38s cubic-bezier(.2, .8, .2, 1); }
+.bsheet .bh { flex: none; display: flex; align-items: center; gap: 10px; padding: 4px 10px 10px 16px; border-bottom: 1px solid var(--line); }
+.bsheet .bh .w { flex: 1; min-width: 0; }
+.bsheet .bh b { display: block; font-size: 16px; font-weight: 750; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bsheet .bh small { display: block; font-size: 12.5px; color: var(--text-2); font-weight: 600; }
+.bsheet .bh small b { display: inline; font-size: inherit; font-weight: 720; color: var(--text); }
+.bsheet .bb { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 30px; scrollbar-width: none; }
+.bsheet .bb::-webkit-scrollbar { display: none; }
+.tall { animation: tall .42s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes tall { from { top: 384px; } }
+.bsheet .ad-sec:first-child { border-top: 0; }
+
+/* The moves between the steps. */
+.unfold { animation: unfold .46s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes unfold { from { clip-path: inset(0 0 calc(100% - 48px) 0 round 12px); } to { clip-path: inset(0 0 0 0 round 14px); } }
+.unfold .ad-h { animation: headin .46s ease both; }
+@keyframes headin { from { background: var(--accent); color: var(--on-accent); box-shadow: none; } }
+.unfold .ad-sec { animation: fadein .4s ease .14s both; }
+.exp { animation: exp .4s cubic-bezier(.2, .8, .2, 1) both; overflow: hidden; }
+@keyframes exp { from { clip-path: inset(0 0 100% 0); opacity: 0; } to { clip-path: inset(0 0 0 0); opacity: 1; } }
+.arrive { animation: arrive .5s cubic-bezier(.2, .8, .2, 1) both, glow 2.4s ease .5s both; }
+@keyframes arrive { from { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; transform: translateY(-6px); } to { opacity: 1; max-height: 90px; } }
+@keyframes glow { from { background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent-line), var(--shadow-panel); } }
+.leave { animation: leave .4s ease both; }
+@keyframes leave { to { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; } }
+.empty.leave { max-height: 120px; }
+.bump { animation: bump .7s ease; }
+@keyframes bump { 35% { transform: scale(1.22); color: var(--accent-ink); } }
+.rise { animation: rise .42s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes rise { from { transform: translateY(100%); } }
+.sink { animation: sink .36s cubic-bezier(.4, 0, .8, .4) both; pointer-events: none; }
+@keyframes sink { to { transform: translateY(100%); } }
+.p-dim.in { animation: fadein .3s ease both; }
+.p-dim.out { animation: fadeout .36s ease both; pointer-events: none; }
+@keyframes fadein { from { opacity: 0; } }
+@keyframes fadeout { to { opacity: 0; } }
+.grow { animation: grow .5s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes grow { from { transform: translateY(var(--dy, 0px)); clip-path: inset(0 12px calc(100% - var(--bh, 48px)) 12px round 12px); background: var(--accent); } 40% { background: var(--panel); } to { transform: none; clip-path: inset(0 0 0 0 round 22px 22px 0 0); } }
+.grow > * { animation: fadein .35s ease .18s both; }
+.shrink { animation: shrink .46s cubic-bezier(.4, 0, .6, 1) both; pointer-events: none; }
+@keyframes shrink { 70% { background: var(--panel); opacity: 1; } to { transform: translateY(var(--dy, 0px)); clip-path: inset(0 12px calc(100% - var(--bh, 48px)) 12px round 12px); opacity: 0; } }
+.shrink > * { animation: fadeout .2s ease both; }
+.fold { animation: fold .5s cubic-bezier(.4, 0, .2, 1) both; }
+@keyframes fold { from { height: var(--fh, 300px); background: var(--panel); box-shadow: var(--shadow-panel); outline-color: transparent; color: transparent; } 70% { color: transparent; } }
+.settle { animation: fadein .3s ease .4s both; }
+
+/* A's parts, the comparison, the questions. */
+.pieces { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.piece { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: 6px; }
+.piece h3 { font-size: 14.5px; font-weight: 700; }
+.piece p { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.piece p b { color: var(--text); font-weight: 640; }
+.piece .go { align-self: flex-start; margin-top: auto; height: 30px; padding: 0 10px; border: 0; border-radius: 7px; background: var(--panel-3); color: var(--text); font-size: 12.5px; font-weight: 650; cursor: pointer; }
+.stays { padding: 14px 16px; border-radius: 12px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.stays b { color: var(--text); font-weight: 640; }
+
+@media (max-width: 1100px) {
+  .stage { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .stage .note { grid-column: 1 / -1; position: static; }
+  .stage.only-a, .stage.only-b { grid-template-columns: minmax(0, 340px) minmax(0, 1fr); }
+  .stage.only-a .note, .stage.only-b .note { grid-column: auto; position: sticky; }
+}
+@media (max-width: 980px) {
+  .intro, .today { grid-template-columns: minmax(0, 1fr); }
+  .pieces { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .qs li { grid-template-columns: 28px minmax(0, 1fr); }
+  .qs li .rec { grid-column: 2; }
+}
+@media (max-width: 640px) {
+  .pieces { grid-template-columns: minmax(0, 1fr); }
+  .sec { padding: 18px 16px 20px; }
+  .proto > header, .stepbar { padding-left: 16px; padding-right: 16px; }
+  .stage { padding: 18px 16px; }
+  .stage, .stage.only-a, .stage.only-b { grid-template-columns: minmax(0, 1fr); }
+  .stage .device { max-width: 330px; width: 100%; justify-self: center; }
+  .stage .note, .stage.only-a .note, .stage.only-b .note { position: static; grid-column: auto; }
+  .stepbar .show { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<main class="page">
+
+<section class="intro">
+  <div>
+    <p class="kicker">Mein Studium · Module hinzufügen · vierte Runde · Handy</p>
+    <h1>Hinzufügen am Handy, ohne das Semester zu verlassen</h1>
+    <p class="lead">Am Handy tauscht die Werkbank von Folia 1.64.0 das Semester gegen eine andere Seite: <b>der Zurück-Pfeil, der Kopf des Semesters und die Punkte verschwinden</b>, unten steht statt der Tab-Leiste eine dunkle Leiste, und was man einplant, sieht man erst, wenn man sie antippt. Diese Runde lässt das Semester stehen. „Module hinzufügen“ <b>klappt dort auf, wo man es antippt</b>, was man einplant, <b>landet sichtbar darüber</b>, und jeder Schritt zurück geht <b>genau eine Ebene</b> zurück. Zwei Varianten nebeneinander, in neun Schritten, auf den Daten von canary: Informatik B.Sc., 3. FS, WiSe 2026/27.</p>
+    <p class="quote">„Ja also die Handy Version ist leider total terrible. Das Problem ist nämlich, dass man absolut nicht versteht was passiert wenn man auf Module drückt. Es verschwindet der Back Pfeil und man ist plötzlich auf [einer anderen] Page etc. Das Konzept braucht ein komplettes rework. <b>Achte darauf, dass spatial consistency eingehalten wird und dass der Kontext möglichst erhalten bleibt.</b>“ <span style="color:var(--text-3)">— 03.11.</span></p>
+  </div>
+  <div class="rules">
+    <p class="kicker">Was am Handy gilt</p>
+    <ol>
+      <li><span><b>Eine Richtung, eine Bedeutung.</b> Seitwärts heißt Semester (wischen, ‹ ›, die Punkte); auf und ab heißt tiefer hinein und wieder heraus. Hinzufügen bewegt nichts seitwärts.</span></li>
+      <li><span><b>Der Rahmen bleibt.</b> ← und die Suche oben, der Kopf des Semesters, die Punkte und die Tab-Leiste unten stehen in jedem Schritt da, wo sie waren. Was man wählt, ändert nur, was darunter steht.</span></li>
+      <li><span><b>Was man antippt, öffnet sich dort.</b> Der Knopf klappt an seiner Stelle auf, eine Wahl in ihrer Zeile; ein Modul kommt als Blatt über die Liste, aus der es kam, und geht dorthin zurück.</span></li>
+      <li><span><b>Was eingeplant wird, sieht man ankommen.</b> Es erscheint im Semester darüber, und die Zeile, die das Semester nennt, zählt mit, auch wenn es gerade weggescrollt ist.</span></li>
+      <li><span><b>Zurück geht eine Ebene.</b> Erst das Modul, dann der Katalog, dann die offene Wahl, dann das Aufgeklappte, dann wie bisher. Nichts, was man offen gelassen hat, ist danach weg.</span></li>
+      <li><span><b>Kein Sprung in einen anderen Tab.</b> Auch der Katalog mit Ziel bleibt im Tab Studium: Er kommt von unten über das Semester und geht mit ← wieder nach unten.</span></li>
+    </ol>
+  </div>
+</section>
+
+<section class="sec" id="heute">
+  <header>
+    <h2>Was heute passiert</h2>
+    <p class="sub">Canary, Folia 1.64.0, am Handy (390 × 844): das leere WiSe 2026/27, ein Tipp auf „Module hinzufügen“, ein Modul geöffnet, „Fertig“.</p>
+  </header>
+  <div class="today">
+    <figure>
+      <img src="bilder/handy-heute.webp" alt="Vier Bildschirme von canary nebeneinander. Erstens das Semester WiSe 2026/27 mit ← oben links, dem Kopf mit ‹ ›, „Noch keine Module“ und dem grünen Knopf „Module hinzufügen“, unten die Punkte und die Tab-Leiste. Zweitens die Werkbank: oben links steht statt ← das Profil, der Kopf des Semesters und die Punkte fehlen, oben ein Feld „Bereich: Laut Plan im 3. FS“, unten statt der Tab-Leiste die Leiste „WiSe 26/27 · 0 von 30 LP“ mit „Fertig“. Drittens ein Modul als Sheet über der Werkbank. Viertens nach „Fertig“ wieder das Semester." width="1605" height="844" loading="lazy">
+      <figcaption><b>Semester → Werkbank → Modul → Fertig.</b> Zwischen dem ersten und dem zweiten Bild bewegt sich nichts: Die Seite wird ausgetauscht.</figcaption>
+    </figure>
+    <ol class="breaks">
+      <li><span><b>Der Ort wechselt ohne Weg.</b> Ein Tipp tauscht die Seite des Semesters gegen die Werkbank, ohne eine Bewegung, die sagt, woher sie kommt. Sie sieht aus wie die erste Seite eines anderen Tabs.</span></li>
+      <li><span><b>← geht.</b> Oben links steht jetzt das Profil. Wer zurück will, findet keinen Pfeil; die Zurück-Geste beendet die Werkbank, ohne dass man es vorher sieht.</span></li>
+      <li><span><b>Das Semester geht.</b> Sein Name mit ‹ ›, seine LP und die Punkte des Pagers sind weg. Dass man WiSe 2026/27 plant, steht nur noch klein in der Leiste unten.</span></li>
+      <li><span><b>Die Tab-Leiste geht.</b> Wo sonst Start, Module, Studium stehen, steht die Leiste der Werkbank. Der Anker unten ist ein anderer.</span></li>
+      <li><span><b>Was man einplant, sieht man nicht.</b> „+“ ändert eine Zahl in der Leiste; das Semester zeigt erst ein Sheet, das man öffnen muss.</span></li>
+      <li><span><b>Die Wahl liegt woanders.</b> Welche Liste man sieht, wählt ein Feld „Bereich ⌄“, das ein Sheet öffnet; „Im Katalog suchen“ springt seitwärts in den Tab Module.</span></li>
+    </ol>
+  </div>
+</section>
+
+<section class="sec proto" id="prototyp">
+  <header>
+    <h2>Der Prototyp: A und B im selben Schritt</h2>
+    <p class="sub">Links <b>A, Aufklappen im Semester</b>: Der Knopf klappt in der Seite des Semesters auf. Rechts <b>B, Blatt aus dem Knopf</b>: Aus dem Knopf wächst ein Blatt, halb hoch, das Semester darüber. Beide Telefone sind klickbar; der grün umrandete Teil führt zum nächsten Schritt, scrollen geht auch.</p>
+  </header>
+  <div class="stepbar">
+    <div class="seg" id="steps" role="group" aria-label="Schritt"></div>
+    <div class="show"><span class="kicker">Zeigen</span><div class="seg" id="show" role="group" aria-label="Varianten"><button type="button" data-show="ab" aria-pressed="true">A und B</button><button type="button" data-show="a" aria-pressed="false">nur A</button><button type="button" data-show="b" aria-pressed="false">nur B</button></div></div>
+  </div>
+  <div class="stage" id="stage">
+    <figure class="device dev-a"><div class="frame"><div class="fit"><div class="screen" id="scr-a"></div></div></div><figcaption><span class="letter">A</span> Aufklappen im Semester <span class="rec">· Vorschlag</span></figcaption></figure>
+    <figure class="device dev-b"><div class="frame"><div class="fit"><div class="screen" id="scr-b"></div></div></div><figcaption><span class="letter">B</span> Blatt aus dem Knopf</figcaption></figure>
+    <aside class="note" id="note" aria-live="polite"></aside>
+  </div>
+</section>
+
+<section class="sec" id="teile">
+  <header>
+    <h2>A im Einzelnen</h2>
+    <p class="sub">Was die Werkbank kann, bleibt; sie bekommt am Handy nur einen anderen Ort. „Zeigen“ springt in den Schritt.</p>
+  </header>
+  <div class="pieces">
+    <div class="piece"><h3>Der Knopf klappt auf</h3><p>„Module hinzufügen“ wird an seiner Stelle zum Kopf des aufgeklappten Teils, <b>„Hinzufügen zu WiSe 2026/27“</b>, mit „Fertig“; was darunter kommt, wächst nach unten. Über ihm bleibt das Semester, wie es ist: Kopf, Module, ‹ ›.</p><button class="go" type="button" data-step="2">Zeigen</button></div>
+    <div class="piece"><h3>Der Kopf bleibt stehen</h3><p>Scrollt man in die Listen, bleibt der Kopf des Teils oben stehen und nennt weiter, <b>wohin</b> man plant und <b>wie viel</b> schon drin ist: „24 von 30 LP · 3 Module“. Ein Tipp auf ihn scrollt hoch zum Semester. „Fertig“ ist immer da.</p><button class="go" type="button" data-step="4">Zeigen</button></div>
+    <div class="piece"><h3>Laut Plan oben</h3><p>Zuerst, was der Regelstudienplan für dieses FS vorsieht: <b>„Plan übernehmen“</b> für die Pflicht, ihre Zeilen mit +, dann die Wahlen des FS und was aus früheren FS offen ist (FÜS). Was übernommen ist, rückt hinauf ins Semester; im Teil bleibt, was noch offen ist.</p><button class="go" type="button" data-step="3">Zeigen</button></div>
+    <div class="piece"><h3>Eine Wahl klappt in ihrer Zeile auf</h3><p>„Wählen ⌄“ öffnet die Wahl, wo sie steht: <b>Fach</b>, „Im WiSe“, „Passt“, darunter ihre Module, was passt zuerst; daneben „Im Katalog“, mit dem Fach als Filter. Kein Feld „Bereich ⌄“, kein Sheet zum Auswählen.</p><button class="go" type="button" data-step="4">Zeigen</button></div>
+    <div class="piece"><h3>Alle Bereiche, eingeklappt</h3><p>Darunter die Bereiche des Überblicks als Zeilen, eine pro Bereich, mit ihren LP; ein Tipp klappt einen auf, mit seinen Untergruppen, wie in der dritten Runde. Danach <b>Gemerkt</b> und <b>Im Katalog suchen</b>.</p><button class="go" type="button" data-step="2">Zeigen</button></div>
+    <div class="piece"><h3>Ein Modul ist das Blatt von überall</h3><p>Ein Tipp auf eine Zeile öffnet das Modul als das Blatt, das es überall in Betula ist, halb hoch, die Zeile darüber noch zu sehen. „Einplanen“ plant <b>in dieses Semester</b> und zählt es für die Wahl, aus der es kam („für Anwendungsfach“).</p><button class="go" type="button" data-step="5">Zeigen</button></div>
+    <div class="piece"><h3>Der Katalog kommt von unten</h3><p>„Im Katalog suchen“ öffnet den Modulkatalog <b>im Tab Studium</b> als Seite über dem Semester, oben das Ziel „Für WiSe 2026/27 · Anwendungsfach“; ← oben links lässt ihn wieder sinken, und darunter steht alles, wie man es verlassen hat.</p><button class="go" type="button" data-step="7">Zeigen</button></div>
+    <div class="piece"><h3>Zurück, eine Ebene</h3><p>←, die Zurück-Geste und Esc nehmen eine Ebene weg: <b>das Modul, den Katalog, die offene Wahl, den Teil</b>, dann wie bisher. „Fertig“ klappt den Teil auf einmal zu.</p><button class="go" type="button" data-step="8">Zeigen</button></div>
+    <div class="piece"><h3>Seitwärts bleibt Semester</h3><p>Wischen oder ‹ › zeigt das Nachbarsemester, wie es ist; das Aufgeklappte bleibt in seinem Semester offen, bis „Fertig“. <b>Einstiege von woanders</b> (die Zelle im Gesamtplan, „Wählen ›“ im Regelstudienplan, „Modul wählen“ an einem Platzhalter) wischen zum Semester und klappen dort die Wahl auf.</p><button class="go" type="button" data-step="9">Zeigen</button></div>
+  </div>
+  <p class="stays"><b>Was gleich bleibt:</b> alles, was die dritte Runde entschieden hat und 1.64.0 kann — die Bereiche mit ihren Untergruppen, „Laut Plan im 3. FS“, „Plan übernehmen“ mit „Rückgängig“, ein Modul zählt für die Untergruppe, aus der es eingeplant wurde, das Semester zeigt nur, was belegt ist. Am Rechner bleibt die Werkbank, wie sie ist (Frage 5).</p>
+</section>
+
+<section class="sec" id="vergleich">
+  <header>
+    <h2>A und B</h2>
+    <p class="sub">Beide halten den Rahmen. Sie unterscheiden sich darin, wo die Listen Platz finden und wie tief man stapelt.</p>
+  </header>
+  <div class="tablewrap">
+    <table class="t cmp">
+      <thead><tr><th></th><th class="rec">A · Aufklappen im Semester</th><th>B · Blatt aus dem Knopf</th></tr></thead>
+      <tbody>
+        <tr><td>Rahmen</td><td class="rec">←, Kopf, Punkte und Tab-Leiste bleiben in jedem Schritt.</td><td>← und Kopf bleiben, solange das Blatt halb oben ist; Punkte und Tab-Leiste liegen darunter.</td></tr>
+        <tr><td>Wo es aufgeht</td><td class="rec">An der Stelle des Knopfs, in der Seite des Semesters.</td><td>Als Blatt, das aus dem Knopf wächst.</td></tr>
+        <tr><td>Was ankommt</td><td class="rec">Erscheint darüber im Semester; scrollt es weg, zählt der Kopf des Teils mit.</td><td>Erscheint über dem Blatt, solange es halb oben ist; ganz oben nur noch die Zahl im Kopf des Blatts.</td></tr>
+        <tr><td>Platz für Listen</td><td class="rec">Der ganze Bildschirm; die Seite scrollt wie jede Seite.</td><td>Halb hoch knapp fünf Zeilen; für eine Wahl geht es ganz hoch, und das Semester ist weg.</td></tr>
+        <tr><td>Ebenen</td><td class="rec">Eine: Das Blatt des Moduls ist das einzige Blatt.</td><td>Zwei Blätter übereinander, sobald man ein Modul öffnet; mit dem Katalog drei Ebenen.</td></tr>
+        <tr><td>Anderes Semester</td><td class="rec">Wischen zeigt das Nachbarsemester; das Aufgeklappte bleibt in seinem.</td><td>‹ › über dem Blatt richten es auf das andere Semester; was oben steht, wählt, was darunter ist.</td></tr>
+        <tr><td>Bauen</td><td class="rec">Ein Teil in der Seite des Semesters statt der Seite der Werkbank; die Listen von 1.64.0 ziehen hinein.</td><td>Ein Sheet mit zwei Höhen, das aus dem Knopf wächst; Sheets übereinander.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose"><b>Vorschlag: A.</b> Es hält alle sechs Regeln ohne Ausnahme und braucht keine neue Ebene: Man bleibt auf der Seite, auf der man den Knopf gedrückt hat, und sieht, was man einplant, auf derselben Seite ankommen. B ist stark, solange das Blatt halb oben steht; sobald eine Liste länger wird, verdeckt es das Semester doch, und mit dem Modul liegen zwei Blätter übereinander.</p>
+</section>
+
+<section class="sec" id="fragen">
+  <header><h2>Fragen der vierten Runde</h2></header>
+  <ol class="qs">
+    <li><p class="ask">A oder B?<small>A klappt in der Seite des Semesters auf, B ist ein Blatt aus dem Knopf.</small></p><p class="rec"><b>Vorschlag:</b> A, aus den Gründen über dieser Liste.</p></li>
+    <li><p class="ask">Wo steht „Fertig“?<small>Im Kopf des Teils, der beim Scrollen oben stehen bleibt; oder unten, über der Tab-Leiste.</small></p><p class="rec"><b>Vorschlag:</b> im Kopf, oben. Er nennt das Semester und steht über dem, was er ändert; unten bleibt die Tab-Leiste, wie sie ist.</p></li>
+    <li><p class="ask">Der Katalog mit Ziel im Tab Studium?<small>Statt in den Tab Module zu springen, kommt er als Seite von unten über das Semester.</small></p><p class="rec"><b>Vorschlag:</b> ja, am Handy und am Rechner. Der Tab Module bleibt der Katalog ohne Ziel.</p></li>
+    <li><p class="ask">Was passiert beim Wischen, während der Teil offen ist?<small>Das Nachbarsemester zeigen, wie es ist, oder den Teil mitnehmen und das Ziel wechseln.</small></p><p class="rec"><b>Vorschlag:</b> Das Nachbarsemester erscheint, wie es ist; der Teil bleibt in seinem Semester offen, bis „Fertig“. Wer dort auch planen will, tippt dort auf „Module hinzufügen“.</p></li>
+    <li><p class="ask">Und am Rechner?<small>Dort bleibt das Semester rechts neben der Werkbank stehen.</small></p><p class="rec"><b>Vorschlag:</b> Die Werkbank von 1.64.0 bleibt; nur der Katalog (Frage 3) ändert sich. Fühlt sie sich am Rechner genauso fremd an, bekommt die Spalte des Semesters dasselbe Aufklappen.</p></li>
+    <li><p class="ask">Einstiege von woanders?<small>Die Zelle im Gesamtplan, „Wählen ›“ im Regelstudienplan, „Modul wählen“ an einem Platzhalter.</small></p><p class="rec"><b>Vorschlag:</b> Sie wischen zum Semester und klappen den Teil dort auf, an der Wahl, um die es geht; ← bringt zurück, woher man kam.</p></li>
+  </ol>
+</section>
+
+<p class="foot">Betula · Folia · Mein Studium · Module hinzufügen, vierte Runde (Handy) · 03.11.2026 · Daten von canary, Folia 1.64.0</p>
+</main>
+
+<script>
+// The data: canary's Informatik B.Sc. (PO 2008), 3. FS in WiSe 2026/27, the Anwendungsfach in
+// Wirtschaftswissenschaften (fit beside Theoretische Informatik, Softwarepraktikum, Mathematik IT-3).
+const PLAN = [
+  { id: "11787", t: "Theoretische Informatik", lp: 8, a: "Informatik", c: "--a-inf", ev: 3 },
+  { id: "12202", t: "Softwarepraktikum", lp: 8, a: "Informatik", c: "--a-inf", ev: 2 },
+  { id: "11213", t: "Mathematik IT-3 (Analysis)", lp: 8, a: "Mathematik", c: "--a-mat", ev: 2 },
+];
+const WIWI = [
+  { id: "11947", t: "Einführung in die Volkswirtschaftslehre", lp: 6, tu: "W", ev: 2, fit: "ok", sl: [["VL", "Fr 09:15–10:45"], ["Ü", "Do 17:15–18:45"]] },
+  { id: "11949", t: "Grundzüge der Makroökonomik", lp: 6, tu: "W", ev: 2, fit: "meh" },
+  { id: "12160", t: "Allgemeine BWL I: Grundlagen der BWL", lp: 6, tu: "W", ev: 3, fit: "meh" },
+  { id: "12229", t: "Allgemeine BWL II: Buchführung und Handelsbilanzierung", lp: 6, tu: "W", ev: 2, fit: "meh" },
+  { id: "11945", t: "Allgemeine BWL V: Finanzierung, Investition und Steuern", lp: 6, tu: "W", ev: 2, fit: "meh" },
+  { id: "11966", t: "Allgemeine BWL VI: Unternehmensführung und Ethik", lp: 6, tu: "W", ev: 2, fit: "meh" },
+];
+const VWL = WIWI[0];
+
+const ICON = {
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  list: '<rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 6h7M14 9.5h5M14 16h7M14 19.5h5"/>',
+  cap: '<path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/>',
+  bookmark: '<path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+  cal: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  listc: '<path d="M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M12 6h8M12 12h8M12 18h8"/>',
+  chevL: '<path d="m15 18-6-6 6-6"/>',
+  chevR: '<path d="m9 18 6-6-6-6"/>',
+  chevD: '<path d="m6 9 6 6 6-6"/>',
+  chevU: '<path d="m18 15-6-6-6 6"/>',
+  arrowL: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  more: '<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>',
+  filter: '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".6"/>',
+  tap: '<path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10M12 10V8.5a1.5 1.5 0 0 1 3 0V11M15 11v-.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-.5a6 6 0 0 1-4.6-2.2L4.5 16a1.5 1.5 0 0 1 2.3-2L9 16V11"/>',
+};
+const I = (name, cls = "") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[name]}</svg>`;
+
+// The steps, and what each one holds.
+const STEPS = [
+  { name: "Semester", tap: "Tippe auf „Module hinzufügen“.",
+    both: "WiSe 2026/27, das 3. FS, noch leer. Oben ← und die Suche, darunter der Kopf des Semesters mit ‹ ›, unten die Punkte und die Tab-Leiste. <b>Das alles bleibt in jedem Schritt stehen.</b>" },
+  { name: "Aufklappen", tap: "Tippe auf „Plan übernehmen“.",
+    a: "Der Knopf <b>klappt an seiner Stelle auf</b>, nach unten: aus dem grünen Knopf wird der Kopf des Teils, „Hinzufügen zu WiSe 2026/27“, mit „Fertig“. Darüber bleibt alles, wie es war; die Seite scrollt wie jede Seite.",
+    b: "Aus dem Knopf <b>wächst ein Blatt</b>, halb hoch. Der Kopf des Semesters bleibt darüber zu sehen; Punkte und Tab-Leiste liegen darunter." },
+  { name: "Plan übernehmen", tap: "Tippe bei „Anwendungsfach“ auf „Wählen“.",
+    a: "Die drei Pflichtmodule <b>rücken aus dem Teil hinauf ins Semester</b>: Dort erscheinen sie, im Teil bleibt die Zeile „Die Pflicht steht im Semester“ mit „Rückgängig“, der Kopf zählt 24 LP. Darunter steht, was noch offen ist: die Wahl des Anwendungsfachs und das FÜS.",
+    b: "Die drei Module rücken ins Semester <b>über dem Blatt</b>, solange es halb oben steht; im Blatt bleibt, was noch offen ist, sein Kopf zählt 24 von 30 LP." },
+  { name: "Anwendungsfach", tap: "Tippe auf „Einführung in die Volkswirtschaftslehre“.",
+    a: "Die Wahl <b>klappt in ihrer Zeile auf</b>: Fach, „Im WiSe“, „Passt“, darunter ihre Module, was passt zuerst. Die Seite scrollt, bis die Wahl oben steht; <b>der Kopf des Teils bleibt stehen</b> und nennt weiter Semester und LP.",
+    b: "Das Blatt <b>geht ganz hoch</b>, damit die Liste Platz hat; das Semester liegt jetzt darunter, nur sein Name und die LP stehen noch im Kopf des Blatts." },
+  { name: "Modul", tap: "Tippe auf „Einplanen“.",
+    both: "Das Modul kommt als <b>das Blatt, das es überall in Betula ist</b>, und lässt die Zeile, aus der es kommt, darüber sehen. „Einplanen“ plant ins WiSe 2026/27 und zählt es für das Anwendungsfach.",
+    b: "Das Blatt des Moduls liegt <b>über dem ersten Blatt</b>: zwei Blätter übereinander." },
+  { name: "Eingeplant", tap: "Tippe über der Liste auf „Im Katalog“.",
+    a: "Das Blatt geht nach unten, woher es kam. Die Zeile trägt ✓, <b>der Kopf zählt 30 von 30 LP</b> und 4 Module; scrollt man hoch, steht das Modul im Semester, „für Anwendungsfach“.",
+    b: "Das obere Blatt geht, das untere zählt 30 von 30 LP. Das Semester darunter sieht man erst wieder, wenn das Blatt sinkt." },
+  { name: "Katalog", tap: "Tippe auf ← oben links.",
+    both: "Was viele Filter braucht, geht in den Modulkatalog, <b>im Tab Studium, nicht in Module</b>: Er kommt von unten als Seite über das Semester, oben das Ziel, das Fach schon als Filter. ← oben links bringt zurück.",
+    b: "In B liegt er auch über dem Blatt: die dritte Ebene." },
+  { name: "Zurück", tap: "Tippe auf „Fertig“.",
+    a: "Der Katalog sinkt, und <b>alles steht, wie man es verlassen hat</b>: das Semester, der Teil, die offene Wahl, die Stelle, an der man war.",
+    b: "Der Katalog sinkt, das Blatt steht ganz oben wie vorher, an derselben Stelle." },
+  { name: "Fertig", tap: null,
+    a: "Der Teil <b>klappt zurück in seinen Knopf</b>, die Seite scrollt hoch: vier Module, 30 LP, darunter wieder „Module hinzufügen“. ← und die Zurück-Geste hätten es Ebene für Ebene genauso getan.",
+    b: "Das Blatt <b>sinkt zurück in den Knopf</b>; das Semester mit vier Modulen und 30 LP liegt wieder frei." },
+];
+
+const sum = (list) => list.reduce((n, m) => n + m.lp, 0);
+function state(n) {
+  const planned = n >= 6 ? [...PLAN, VWL] : n >= 3 ? [...PLAN] : [];
+  return {
+    n, planned, lp: sum(planned),
+    open: n >= 2 && n <= 8,
+    choice: n >= 4 && n <= 8,
+    sheet: n === 5 ? "in" : n === 6 ? "out" : null,
+    page: n === 7 ? "in" : n === 8 ? "out" : null,
+    toast: n === 3 ? "3 Pflichtmodule eingeplant" : n === 6 ? "Einführung in die VWL eingeplant" : null,
+    fresh: n === 3 ? PLAN.map((m) => m.id) : [],
+  };
+}
+
+// The pieces both variants share.
+const statusBar = () => `<div class="p-status"><span>9:41</span><span class="bat"></span></div>`;
+const topBar = (s) => `<div class="p-top"><button class="sq ${s.n === 7 ? "hot" : ""}" ${s.n === 7 ? 'data-go="8"' : ""} aria-label="Zurück">${I("arrowL")}</button><div class="search">${I("search")}Modul, Nummer oder Thema suchen</div></div>`;
+const tabs = () => `<div class="p-nav"><span>${I("home")}Start</span><span>${I("list")}Module</span><span class="on">${I("cap")}Studium</span><span>${I("bookmark")}<i class="badge">2</i>Merkliste</span><span>${I("cal")}Stundenplan</span></div>`;
+const dots = () => `<div class="p-dots"><i></i><i></i><i></i><i class="on"></i><i></i><i></i><i></i><i></i></div>`;
+const lpText = (s, anim) => `<b class="${anim && s.fresh.length ? "bump" : ""}">${s.lp} LP</b>`;
+const semHead = (s, anim) => `<div class="semh"><div><h3>WiSe 2026/27 ${I("chevD")}<span class="now">jetzt</span></h3><small>3. Fachsemester · ${lpText(s, anim)} · Plan 30</small></div><div class="tools"><span>${I("chevL")}</span><span>${I("chevR")}</span><span class="box">${I("more")}</span></div></div>`;
+function card(m, s, anim) {
+  const fresh = anim && s.fresh.includes(m.id);
+  const area = m === VWL ? `<span class="ar" style="--c:var(--a-neb)"><i></i>Nebenfach</span><span class="for">für Anwendungsfach</span>` : `<span class="ar" style="--c:var(${m.c})"><i></i>${m.a}</span>`;
+  return `<div class="mc ${fresh ? "arrive" : ""}"><div style="min-width:0"><b>${m.t}</b><small><span class="mono">${m.id}</span>${area}<span>DE · ${m.ev} Termine</span></small></div><span class="lpv"><b>${m.lp}</b>LP</span><span class="ring"></span></div>`;
+}
+const cards = (s, anim) => `<div class="cards">${s.planned.map((m) => card(m, s, anim)).join("")}</div>`;
+function emptyOrNot(s, anim) {
+  if (s.planned.length === 0) return `<div class="empty"><span class="ico">${I("list")}</span>Noch keine Module</div>`;
+  if (anim && s.n === 3) return `<div class="empty leave"><span class="ico">${I("list")}</span>Noch keine Module</div>`;
+  return "";
+}
+const addButton = (s, extra = "") => s.planned.length
+  ? `<button class="addb dash ${extra}" ${s.n === 1 ? 'data-go="2"' : ""}>${I("plus")}Module hinzufügen</button>`
+  : `<button class="addb ${s.n === 1 ? "hot" : ""} ${extra}" data-go="2">${I("plus")}Module hinzufügen</button>`;
+const toast = (s, cls = "") => s.toast ? `<div class="p-toast ${cls}">${I("check")}<span class="t">${s.toast}</span><span class="u">Rückgängig</span>${I("x")}</div>` : "";
+const headLine = (s, anim) => `<b class="${anim && (s.n === 3 || s.n === 6) ? "bump" : ""}">${s.lp} von 30 LP</b> · ${s.planned.length} ${s.planned.length === 1 ? "Modul" : "Module"}`;
+
+// What the part (A) and the sheet (B) hold: the plan of the FS first, then all areas, then the rest.
+function body(s, anim) {
+  const done = s.planned.length >= 3;
+  const vwl = s.planned.includes(VWL);
+  const hot = (k) => (s.n === k ? "hot" : "");
+  const rows = done && !(anim && s.n === 3) ? "" : PLAN.map((m) => `<div class="ad-row ${done ? "leave" : ""}"><div class="w"><b>${m.t}</b><small><span class="ar" style="--c:var(${m.c})"><i></i>${m.a}</span>Pflicht · jedes WiSe</small></div><span class="lpv"><b>${m.lp}</b>LP</span><button class="plus ${done ? "done" : ""}" aria-label="${done ? "Eingeplant" : "Einplanen"}">${I(done ? "check" : "plus")}</button></div>`).join("");
+  const list = WIWI.map((m) => {
+    const fit = m.fit === "ok" ? `<span class="fitd ok"><i></i>passt</span>` : `<span class="fitd meh"><i></i>überschneidet sich</span>`;
+    const isV = m === VWL;
+    const planned = isV && vwl;
+    return `<div class="ad-row ${isV ? hot(4) : ""} ${isV && s.sheet ? "on" : ""}" ${isV && s.n === 4 ? 'data-go="5"' : ""}><div class="w"><b>${m.t}</b><small>${fit}<span>jedes WiSe · ${m.ev} Termine</span></small></div><span class="lpv"><b>${m.lp}</b>LP</span><button class="plus ${planned ? "done" : ""}" aria-label="Einplanen">${I(planned ? "check" : "plus")}</button></div>`;
+  }).join("");
+  const ex = s.choice ? `<div class="ad-ex ${anim && s.n === 4 ? "exp" : ""}">
+      <div class="ad-ctl"><span class="combo"><small>Fach</small>Wirtschaftswissenschaften${I("chevD")}</span></div>
+      <div class="ad-ctl" style="padding-top:0"><span class="cbx on"><span class="cb">${I("check")}</span>Im WiSe</span><span class="cbx"><span class="cb"></span>Passt</span><button class="cat ${hot(6)}" ${s.n === 6 ? 'data-go="7"' : ""}>${I("search")}Im Katalog</button></div>
+      ${list}
+      <p class="ad-foot" style="padding-left:16px">6 Module · mehr Filter und die freie Suche im Katalog</p>
+    </div>` : "";
+  const take = done
+    ? `<p class="ad-ok">${I("check")}Die Pflicht steht im Semester.<span class="undo">Rückgängig</span></p>`
+    : `<button class="addb ad-take ${hot(2)}" data-go="3">${I("listc")}Plan übernehmen · 3 Pflichtmodule</button>`;
+  const inf = done ? "54/66" : "38/66";
+  const mat = done ? `<small class="ok">${I("check")}</small>` : `<small>16/24</small>`;
+  const areas = [["--a-inf", "Informatik", `<small>${inf}</small>`], ["--a-mat", "Mathematik", mat], ["--a-neb", "Nebenfach", `<small>${vwl ? 6 : 0}/18</small>`], ["--a-fues", "FÜS", "<small>0/6</small>"], ["--a-fach", "Fachstudium", "<small>0/54</small>"], ["--a-ba", "Bachelor-Arbeit", "<small>0/12</small>"]]
+    .map(([c, name, fig]) => `<div class="ad-area"><i style="--c:var(${c})"></i><b>${name}</b>${fig}${I("chevD")}</div>`).join("");
+  return `
+    <div class="ad-sec">
+      <div class="ad-k"><span>Laut Plan im 3. FS</span><small>${Math.min(s.lp, 30)} von 30 LP</small></div>
+      ${take}
+      ${rows}
+      <div class="ad-row ch ${s.choice ? "open" : ""}" data-anchor="anw"><div class="w"><b>Anwendungsfach</b><small><span class="ar" style="--c:var(--a-neb)"><i></i>Nebenfach</span>Wahlpflicht · 6 LP laut Plan</small></div><button class="sm ${vwl ? "chosen" : ""} ${hot(3)}" ${s.n === 3 ? 'data-go="4"' : ""}>${vwl ? "6 von 6 LP" : "Wählen"}${I(s.choice ? "chevU" : "chevD")}</button></div>
+      ${ex}
+      <div class="ad-row ch"><div class="w"><b>Fachübergreifendes Studium</b><small><span class="ar" style="--c:var(--a-fues)"><i></i>FÜS</span>seit dem 1. FS offen · 6 LP</small></div><button class="sm">Wählen${I("chevD")}</button></div>
+    </div>
+    <div class="ad-sec"><div class="ad-k"><span>Alle Bereiche</span></div>${areas}</div>
+    <div class="ad-sec">
+      <div class="ad-area">${I("bookmark")}<b>Gemerkt</b><small>2</small>${I("chevD")}</div>
+      <div class="ad-area">${I("search")}<b>Im Katalog suchen</b><small>alle Filter</small>${I("chevR")}</div>
+    </div>
+    <p class="ad-foot">Am Rechner: dieselben Listen in der Werkbank.</p>`;
+}
+
+const msheet = (s, anim) => !s.sheet || (s.sheet === "out" && !anim) ? "" : `
+  <div class="p-dim ${s.sheet}"></div>
+  <div class="p-sheet msheet ${s.sheet === "in" ? "rise" : "sink"}">
+    <span class="grab"></span>
+    <span class="x">${I("x")}</span>
+    <div class="mb">
+      <div class="ids"><span>${VWL.id}</span><span>VWL</span></div>
+      <h3>${VWL.t}</h3>
+      <div class="tags"><span class="on">6 LP</span><span>WiSe</span><span>DE</span><span>MAP</span></div>
+      <div class="fitline"><span class="fitd ok"><i></i>passt in WiSe 2026/27</span><span class="for">zählt für Anwendungsfach</span></div>
+      <div class="acts"><button class="pl ${s.sheet === "in" ? "hot" : ""}" data-go="6">${I("cal")}<span>Einplanen<small>WiSe 26/27</small></span></button><span class="mk">${I("bookmark")}Merken</span></div>
+      <p class="tk">Termine · WiSe 2026/27</p>
+      ${VWL.sl.map(([k, v]) => `<div class="sl"><b>${k}</b>${v}</div>`).join("")}
+    </div>
+  </div>`;
+
+function page(s, over, anim) {
+  if (!s.page || (s.page === "out" && !anim)) return "";
+  const list = WIWI.map((m) => {
+    const planned = m === VWL;
+    const fit = m.fit === "ok" ? `<span class="fitd ok"><i></i>passt</span>` : `<span class="fitd meh"><i></i>überschneidet sich</span>`;
+    return `<div class="pc"><div style="min-width:0"><b>${m.t}</b><small><span class="mono">${m.id}</span>${fit}<span>WiSe · DE</span></small></div><span class="lpv"><b>${m.lp}</b>LP</span><button class="plus ${planned ? "done" : ""}">${I(planned ? "check" : "plus")}</button></div>`;
+  }).join("");
+  return `<div class="p-page ${over ? "over" : ""} ${s.page === "in" ? "rise" : "sink"}" data-scroller="cat">
+    <div class="pg-t"><span class="ic">${I("target")}</span><div class="w"><b>Für WiSe 2026/27 · Anwendungsfach</b><small>${s.lp} von 30 LP · „+“ plant dorthin</small></div></div>
+    <div class="pg-h"><h3>Modulkatalog</h3><small>6 Module</small></div>
+    <div class="pg-f"><span class="cbx on">Wirtschaftswissenschaften ${I("x")}</span><span class="cbx on">Im WiSe ${I("x")}</span><span class="cbx">${I("filter")}Filter</span></div>
+    ${list}
+  </div>`;
+}
+
+// A: the part unfolds in the semester's page.
+function phoneA(s, anim) {
+  let part = "";
+  if (s.open) {
+    part = `<section class="ad ${anim && s.n === 2 ? "unfold" : ""}">
+      <header class="ad-h"><span class="ic">${I("plus")}</span><div class="w"><b>Hinzufügen zu WiSe 2026/27</b><small>${headLine(s, anim)}</small></div><button class="fertig ${s.n === 8 ? "hot" : ""}" ${s.n === 8 ? 'data-go="9"' : ""}>Fertig</button></header>
+      ${body(s, anim)}
+    </section>`;
+  } else {
+    part = addButton(s, anim && s.n === 9 ? "fold" : "");
+  }
+  return `<div class="app">${statusBar()}${topBar(s)}
+    <div class="p-scroll" data-scroller="page">${semHead(s, anim)}${cards(s, anim)}${emptyOrNot(s, anim)}${part}</div>
+    ${s.page === "in" ? "" : dots()}${page(s, false, anim)}${tabs()}${toast(s)}${msheet(s, anim)}</div>`;
+}
+
+// B: a sheet grows out of the button, half up; for a choice it goes all the way up.
+const HALF = 384, FULL = 106;
+function phoneB(s, anim) {
+  let sheet = "";
+  const up = s.open || (anim && s.n === 9);
+  if (up) {
+    const full = s.n >= 4 && s.n <= 8;
+    const cls = anim && s.n === 2 ? "grow" : anim && s.n === 9 ? "shrink" : anim && s.n === 4 ? "tall" : "";
+    const topPx = s.n === 9 || full ? FULL : HALF;
+    sheet = `<div class="p-sheet bsheet ${cls}" style="--top:${topPx}px">
+      <span class="grab"></span>
+      <div class="bh"><div class="w"><b>Hinzufügen zu WiSe 2026/27</b><small>${headLine(s, anim)}</small></div><button class="fertig ${s.n === 8 ? "hot" : ""}" ${s.n === 8 ? 'data-go="9"' : ""}>Fertig</button></div>
+      <div class="bb" data-scroller="sheet">${body(s, anim)}</div>
+    </div>`;
+  }
+  const button = s.planned.length || s.n === 1 ? addButton(s, s.open ? "gone" : anim && s.n === 9 ? "settle" : "") : addButton(s, "gone");
+  return `<div class="app">${statusBar()}${topBar(s)}
+    <div class="p-scroll" data-scroller="page">${semHead(s, anim)}${cards(s, anim)}${emptyOrNot(s, anim)}${button}</div>
+    ${dots()}${tabs()}${sheet}${page(s, true, anim)}${toast(s, s.open ? "low" : "")}${msheet(s, anim)}</div>`;
+}
+
+// Rendering, with the moves between the steps.
+let step = 1;
+const screens = { a: document.getElementById("scr-a"), b: document.getElementById("scr-b") };
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function scaleOf(el) { return Number(getComputedStyle(el.closest(".fit")).getPropertyValue("--s")) || 1; }
+function render(prev) {
+  const s = state(step);
+  const anim = prev != null && step === prev + 1;
+  for (const v of ["a", "b"]) {
+    const scr = screens[v];
+    const saved = {};
+    for (const el of scr.querySelectorAll("[data-scroller]")) saved[el.dataset.scroller] = el.scrollTop;
+    const oldPart = scr.querySelector(".ad");
+    const partH = oldPart ? Math.min(oldPart.offsetHeight, 520) : 300;
+    scr.innerHTML = v === "a" ? phoneA(s, anim) : phoneB(s, anim);
+    for (const el of scr.querySelectorAll("[data-scroller]")) if (saved[el.dataset.scroller] != null) el.scrollTop = saved[el.dataset.scroller];
+    // A: the folded part shrinks from its own height into the button.
+    const fold = scr.querySelector(".fold");
+    if (fold) fold.style.setProperty("--fh", partH + "px");
+    // B: the sheet grows out of the button and shrinks back into it.
+    const grow = scr.querySelector(".grow, .shrink");
+    if (grow) {
+      const btn = scr.querySelector(".addb");
+      const k = scaleOf(scr);
+      const b = btn.getBoundingClientRect(), g = grow.getBoundingClientRect();
+      grow.style.setProperty("--dy", (b.top - g.top) / k + "px");
+      grow.style.setProperty("--bh", b.height / k + "px");
+    }
+    // Where each scroller goes: the open choice to the top under the part's head, else the top.
+    const scroller = v === "a" ? scr.querySelector('[data-scroller="page"]') : scr.querySelector('[data-scroller="sheet"]') || scr.querySelector('[data-scroller="page"]');
+    let target = 0;
+    const anchor = s.choice ? scroller.querySelector('[data-anchor="anw"]') : null;
+    if (anchor) {
+      const k = scaleOf(scr);
+      const head = v === "a" ? scroller.querySelector(".ad-h").offsetHeight : 0;
+      target = scroller.scrollTop + (anchor.getBoundingClientRect().top - scroller.getBoundingClientRect().top) / k - head - (v === "a" ? 2 : 0);
+    }
+    const pg = scr.querySelector('[data-scroller="page"]');
+    if (v === "b" && pg) pg.scrollTo({ top: 0, behavior: anim && !reduce ? "smooth" : "auto" });
+    scroller.scrollTo({ top: Math.max(0, target), behavior: anim && !reduce ? "smooth" : "auto" });
+  }
+  note(s);
+  for (const b of document.querySelectorAll("#steps button")) b.setAttribute("aria-pressed", String(Number(b.dataset.step) === step));
+}
+
+function note(s) {
+  const st = STEPS[step - 1];
+  const va = st.a ? `<div class="v a"><span class="letter">A</span><p>${st.a}</p></div>` : "";
+  const vb = st.b ? `<div class="v"><span class="letter">B</span><p>${st.b}</p></div>` : "";
+  document.getElementById("note").innerHTML = `
+    <p class="k">Schritt ${step} von ${STEPS.length}</p>
+    <h3>${st.name}</h3>
+    ${st.both ? `<p class="both">${st.both}</p>` : ""}${va}${vb}
+    ${st.tap ? `<p class="tap">${I("tap")}${st.tap}</p>` : ""}
+    <div class="nav"><button type="button" data-nav="-1" ${step === 1 ? "disabled" : ""}>${I("chevL")}Zurück</button><button type="button" class="pri" data-nav="1">${step === STEPS.length ? "Von vorn" : "Weiter"}${I("chevR")}</button></div>`;
+}
+
+function go(n) {
+  const prev = step;
+  step = Math.max(1, Math.min(STEPS.length, n));
+  render(prev);
+}
+document.getElementById("steps").innerHTML = STEPS.map((st, i) => `<button type="button" data-step="${i + 1}" aria-pressed="false"><i>${i + 1}</i>${st.name}</button>`).join("");
+document.addEventListener("click", (event) => {
+  const nav = event.target.closest("[data-nav]");
+  if (nav) { go(step === STEPS.length && nav.dataset.nav === "1" ? 1 : step + Number(nav.dataset.nav)); return; }
+  const pick = event.target.closest("#steps [data-step]");
+  if (pick) { go(Number(pick.dataset.step)); return; }
+  const jump = event.target.closest(".piece .go");
+  if (jump) {
+    const n = Number(jump.dataset.step);
+    step = n - 1; go(n);
+    document.getElementById("prototyp").scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    return;
+  }
+  const hit = event.target.closest(".screen [data-go]");
+  if (hit) go(Number(hit.dataset.go));
+});
+
+// Which phones to show.
+const stage = document.getElementById("stage");
+function show(which) {
+  stage.classList.toggle("only-a", which === "a");
+  stage.classList.toggle("only-b", which === "b");
+  for (const b of document.querySelectorAll("#show button")) b.setAttribute("aria-pressed", String(b.dataset.show === which));
+  scale();
+}
+document.getElementById("show").addEventListener("click", (event) => {
+  const b = event.target.closest("[data-show]");
+  if (b) show(b.dataset.show);
+});
+
+// The phones scale to their place.
+function scale() {
+  for (const fit of document.querySelectorAll(".fit")) {
+    const w = Number(getComputedStyle(fit).getPropertyValue("--w"));
+    if (fit.clientWidth) fit.style.setProperty("--s", String(fit.clientWidth / w));
+  }
+}
+new ResizeObserver(scale).observe(stage);
+scale();
+if (matchMedia("(max-width: 640px)").matches) show("a");
+render(null);
+</script>
+</body>
+</html>

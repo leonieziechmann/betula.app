@@ -63,7 +63,7 @@ use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
 use folia_design::format;
-use folia_design::modal::{Modal, ModalSize};
+use folia_design::modal::{Modal, ModalSize, Sheet};
 use folia_design::ui::{DialogClose, Icon, Shortcut};
 use folia_shell::frame::BackLink;
 use folia_shell::pending::Pending;
@@ -791,7 +791,9 @@ pub fn TerminModal(
         }
     });
     view! {
-        <Modal open=shown on_close=close size=ModalSize::M class="tm-modal" labelled_by=TITLE_ID>
+        // On a phone as tall as the Termin is while that fits, half up and all up past it
+        // (`Sheet::Auto`): one Termin is a date and a room, another its groups and a semester of dates.
+        <Modal open=shown on_close=close size=ModalSize::M sheet=Sheet::Auto class="tm-modal" labelled_by=TITLE_ID>
             {move || match missing.get() {
                 true => view! { <TerminMissing closing=close/> }.into_any(),
                 false => view! { <TerminView ctx closing=close/> }.into_any(),
@@ -842,7 +844,7 @@ fn PickView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
                     let (key, current) = (tab.key, tab.current);
                     let href = move || ctx.links.termin.run((key, if current { day.get() } else { None }));
                     view! {
-                        <a href=href role="radio" rel="nofollow" draggable="false" data-noscroll="" aria-checked=if current { "true" } else { "false" } title=tab.said>
+                        <a href=href role="radio" rel="nofollow" draggable="false" data-noscroll="" data-pick="" aria-checked=if current { "true" } else { "false" } title=tab.said>
                             <span class="seg-label">{tab.label}</span>
                         </a>
                     }
@@ -884,7 +886,7 @@ fn SlotsView(ctx: TerminCtx, slots: Memo<Option<Slots>>) -> impl IntoView {
             .into_iter()
             .map(|tile| {
                 view! {
-                    <a class="gs" class:this=tile.me href=ctx.links.termin.run((tile.key, None)) rel="nofollow" data-noscroll="" title=tile.label.clone() aria-label=tile.label aria-current=tile.me.then_some("true")>
+                    <a class="gs" class:this=tile.me href=ctx.links.termin.run((tile.key, None)) rel="nofollow" data-noscroll="" data-pick="" title=tile.label.clone() aria-label=tile.label aria-current=tile.me.then_some("true")>
                         <b>{tile.when}</b>
                         <small>{tile.room}</small>
                     </a>
@@ -913,7 +915,7 @@ fn TicketView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
         ticket.get().map(|(key, ticket)| {
             // The date before and after: ← and → press them (enhance.js, `data-step`).
             let step = |day: Option<Day>, label: &'static str, (icon, way, shortcut): (&'static str, &'static str, &'static str)| match day {
-                Some(day) => view! { <a class="pg" href=ctx.links.termin.run((key, Some(day))) rel="nofollow" data-noscroll="" data-step=way aria-keyshortcuts=shortcut aria-label=label title=label><Icon name=icon/></a> }.into_any(),
+                Some(day) => view! { <a class="pg" href=ctx.links.termin.run((key, Some(day))) rel="nofollow" data-noscroll="" data-pick="" data-step=way aria-keyshortcuts=shortcut aria-label=label title=label><Icon name=icon/></a> }.into_any(),
                 None => view! { <span class="pg" aria-hidden="true"><Icon name=icon/></span> }.into_any(),
             };
             let ab = ticket.weeks.map(|weeks| {
@@ -1410,7 +1412,7 @@ fn GroupsView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
                         {tile.name.clone().map(|name| view! { <small class="nm">{name}</small> })}
                     };
                     view! {
-                        <a class="gs" class:this=tile.current href=ctx.links.termin.run((tile.key, None)) rel="nofollow" data-noscroll="" title=tile.label.clone() aria-label=tile.label.clone() aria-current=tile.current.then_some("true")>
+                        <a class="gs" class:this=tile.current href=ctx.links.termin.run((tile.key, None)) rel="nofollow" data-noscroll="" data-pick="" title=tile.label.clone() aria-label=tile.label.clone() aria-current=tile.current.then_some("true")>
                             {body}
                             {tile.ticked.then(|| view! { <i class="ck"><Icon name="check"/></i> })}
                         </a>
@@ -1603,7 +1605,7 @@ fn SeriesView(ctx: TerminCtx, series: Memo<Option<(RowKey, SeriesPart)>>, day: M
                     let shown = move || day.get() == Some(at);
                     match dot.link {
                         true => view! {
-                            <a class="sdl" href=ctx.links.termin.run((key, Some(at))) rel="nofollow" data-noscroll="" title=dot.label.clone() aria-label=dot.label aria-current=move || shown().then_some("true")>
+                            <a class="sdl" href=ctx.links.termin.run((key, Some(at))) rel="nofollow" data-noscroll="" data-pick="" title=dot.label.clone() aria-label=dot.label aria-current=move || shown().then_some("true")>
                                 <i class=dot.class class:sel=shown></i>
                             </a>
                         }

@@ -12,7 +12,8 @@
 // mit 50% und Full screen. Und dann noch die Option für sofort full screen"): the keys' dialog half
 // up and all up, its top half up at half the screen; a menu and the dialog „Sammeln" fit, as tall
 // as they hold between 40 and 70 % of the screen, one stop that a pull comes back to and a tap on
-// the grabber leaves; „Plan einrichten" all up at once in one move, a pull bringing it back there,
+// the grabber leaves; „Sammeln" (`auto`) half up and all up once it holds more than fits, and
+// fitting again once it holds less; „Tasten" naming its keys; „Plan einrichten" all up at once in one move, a pull bringing it back there,
 // thrown away from there. A menu swiped down closes, and closed by its choice a copy of it glides
 // away.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node sheets.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
@@ -52,7 +53,7 @@ const dialogAt = (selector) => page.evaluate((selector) => {
   if (!dialog?.open) return null;
   const body = dialog.querySelector(".st-dlg-body");
   const r = dialog.getBoundingClientRect();
-  return { top: Math.round(r.top), bottom: Math.round(r.bottom), height: Math.round(r.height), way: dialog.dataset.sheet, full: dialog.classList.contains("is-full"), scrolled: Math.round(body?.scrollTop ?? -1), moving: dialog.getAnimations().some((a) => a.playState === "running") };
+  return { top: Math.round(r.top), bottom: Math.round(r.bottom), height: Math.round(r.height), way: dialog.dataset.sheet, as: dialog.dataset.sheetAs, full: dialog.classList.contains("is-full"), scrolled: Math.round(body?.scrollTop ?? -1), moving: dialog.getAnimations().some((a) => a.playState === "running") };
 }, selector);
 const resting = (selector) => page.waitForFunction((selector) => { const d = document.querySelector(selector); return !d?.open || !d.getAnimations().some((a) => a.playState === "running"); }, selector, { timeout: 4000 }).catch(() => problems.push(`${selector}: it does not come to rest`));
 // Its top frame by frame for `ms`.
@@ -94,6 +95,9 @@ const frame = await page.evaluate((selector) => {
   return { grip: `${grip.width}×${grip.height}`, close: Boolean(close?.getAttribute("aria-label")) && getComputedStyle(close).clipPath === "inset(50%)", radius: getComputedStyle(dialog).borderTopLeftRadius, wide: Math.round(dialog.getBoundingClientRect().width) };
 }, KEYS);
 check(frame.grip === "40px×4px" && frame.close && frame.radius === "18px" && frame.wide === 390, `a dialog's frame is not the sheets' (its grabber, its × out of sight for screen readers): ${JSON.stringify(frame)}`);
+// „Tasten" names its keys on a phone too (a phone hides keys elsewhere): each row's keys shown.
+const caps = await page.evaluate((selector) => [...document.querySelectorAll(`${selector} .keys-row dt`)].map((dt) => [...dt.querySelectorAll("kbd")].some((kbd) => kbd.getClientRects().length > 0)), KEYS);
+check(caps.length > 5 && caps.every(Boolean), `„Tasten“ shows no keys on a phone: ${caps.filter(Boolean).length} of ${caps.length} rows`);
 
 // ---- half up a finger takes the sheet, not its content; let go slowly it comes back
 await finger(195, HALF + 140, evenly(-80, 10), { ms: 24, hold: 120 });
@@ -178,9 +182,9 @@ const gone = await page.waitForFunction(() => document.querySelector(".sheet-gho
 check(gone, "a menu closed by its choice left no copy gliding away");
 await page.waitForFunction(() => !document.querySelector(".sheet-ghost") && !document.querySelector(".view-menu"), null, { timeout: 3000 }).catch(() => problems.push("the menu or its copy stayed"));
 
-// ---- a dialog that fits: „Sammeln" (folia_widgets::collect, `ModalSize::S`): as tall as it holds
-// between 40 and 70 % of the screen, at its foot; one stop, which a short pull comes back to and a
-// tap on the grabber leaves be
+// ---- a dialog of `auto` that fits: „Sammeln" (folia_widgets::collect, `Sheet::Auto`), holding
+// little: as tall as it holds between 40 and 70 % of the screen, at its foot; one stop, which a
+// short pull comes back to and a tap on the grabber leaves be
 const COLLECT = "dialog.collect-sheet";
 await page.goto(base + "/catalog/module/11103", { waitUntil: "domcontentloaded" });
 await page.waitForFunction(() => window.__betulaApp === true && document.querySelector(".page-stage.front .mark-more"), null, { timeout: 120000 }).catch(() => problems.push("the module's page has no „Sammeln“"));
@@ -189,7 +193,7 @@ await page.tap(".page-stage.front .mark-more");
 await page.waitForFunction((selector) => document.querySelector(selector)?.open, COLLECT, { timeout: 5000 }).catch(() => problems.push("„Sammeln“ did not open"));
 await resting(COLLECT);
 at = await dialogAt(COLLECT);
-check(at?.way === "fit" && at.full && at.bottom === 844 && at.height >= FIT[0] && at.height <= FIT[1], `a dialog that fits is not as tall as it holds between 40 and 70 % at the screen's foot: ${JSON.stringify(at)}`);
+check(at?.way === "auto" && at.as === "fit" && at.full && at.bottom === 844 && at.height >= FIT[0] && at.height <= FIT[1], `a dialog of auto holding little does not fit, as tall as it holds between 40 and 70 % at the screen's foot: ${JSON.stringify(at)}`);
 const fitTop = at?.top ?? 0;
 await page.touchscreen.tap(195, fitTop + 8);
 await resting(COLLECT);
@@ -199,6 +203,24 @@ await finger(195, fitTop + 60, evenly(70, 10), { ms: 24, hold: 120 });
 await resting(COLLECT);
 at = await dialogAt(COLLECT);
 check(at && Math.abs(at.top - fitTop) < 3 && at.full, `a dialog that fits did not come back from a short pull: ${JSON.stringify(at)}`);
+// ---- what it holds grows past what fits (owner, 2026-11-03: „ein Auto Modus, der zwischen fit und
+// Half entscheidet für dynamischen content"): half up and all up now — all up as it was, a pull
+// takes it half up; shrunk again it fits again, back at its height
+await page.evaluate((selector) => { document.querySelector(`${selector} .st-dlg-body`).style.paddingBottom = "520px"; }, COLLECT);
+await page.waitForTimeout(150);
+await resting(COLLECT);
+at = await dialogAt(COLLECT);
+check(at?.as === "half" && at.full && at.bottom === 844 && at.height > FIT[1], `a dialog of auto holding more than fits does not stand half up and all up, all up as it was: ${JSON.stringify(at)}`);
+await finger(195, (at?.top ?? 200) + 40, [30, 40, 50, 50, 40, 30, 20, 10], { ms: 24 });
+await page.waitForTimeout(80);
+await resting(COLLECT);
+at = await dialogAt(COLLECT);
+check(at?.as === "half" && !at.full && Math.abs(at.top - HALF) < 3, `a dialog of auto holding more than fits did not come to rest half up from a pull: ${JSON.stringify(at)}`);
+await page.evaluate((selector) => { document.querySelector(`${selector} .st-dlg-body`).style.removeProperty("padding-bottom"); }, COLLECT);
+await page.waitForTimeout(150);
+await resting(COLLECT);
+at = await dialogAt(COLLECT);
+check(at?.as === "fit" && at.full && Math.abs(at.top - fitTop) < 3, `a dialog of auto holding little again does not fit again at its height: ${JSON.stringify(at)}`);
 await finger(195, fitTop + 60, evenly(260, 8), { ms: 16 });
 await page.waitForFunction((selector) => !document.querySelector(selector)?.open, COLLECT, { timeout: 3000 }).catch(() => problems.push("a dialog that fits did not go when swiped down"));
 
