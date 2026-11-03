@@ -6,9 +6,11 @@
 //! The head names the module, its chip and its title, which no pick changes. Under it what picks
 //! the Termin (`Pick`): the module's events as a row of segments where it has more than one (the
 //! one shown marked; another leads to its Termin the plan holds, else to its first), the event's
-//! own title where it is not the module's, and to look up (`TerminMode::LookUp`) the event's groups
-//! as tiles measured against the plan, or its Termine where it is held at several times without
-//! groups. Then what one wants to know of the date (the owner, of the third round: „punkt 1 sind ein
+//! own title where it is not the module's, to look up (`TerminMode::LookUp`) the event's groups as
+//! tiles measured against the plan, or its Termine where it is held at several times without
+//! groups, and last, right above the ticket, „Reihe": a dot per date, each leading to it (owner,
+//! 2026-11-03: „bau als Nächstes die Reihe als Auswahl über dem Ticket"). Then what one wants to
+//! know of the date (the owner, of the third round: „punkt 1 sind ein
 //! paar mehr infos. Punkt 2 ist dann die Termine zu customizen"): the day with arrows to the dates
 //! before and after it, where it stands („in 40 min", „läuft · noch 20 min", „Fällt aus"), the time
 //! and the room; who leads it and what else is said of it (a clash in red, why QIS cancels it, a
@@ -17,9 +19,9 @@
 //! the choice stays open), the event shown or not, this one date hidden — switches that change the
 //! plan at once, and the Kalender-Abo too, not what the view shows. To look up, of a module in the
 //! plan, how many of the groups the plan holds and „Anpassen ›"; of one outside it „In den
-//! Kalender". Then what one looks up, the day of the plan around the date and the series of its
-//! dates as pictures that pick nothing, the module with its exam, who teaches, the period and every
-//! date that differs, and the source.
+//! Kalender". Then what one looks up, the day of the plan around the date as a picture that picks
+//! nothing, the module with its exam, who teaches, the period and every date that differs, and the
+//! source.
 //!
 //! Every pick leads to its Termin by an address of the page (`TerminLinks`), so Back steps back
 //! through them, `nofollow` (a Termin's own page is no page search engines list); the switches
@@ -30,7 +32,7 @@
 //! phone a sheet over it, with „Teilen", „Ganze Seite" (V) and „Schließen" (Esc) at its head (the
 //! owner, 2026-10-26: „bau als Nächstes Teilen und Ganze Seite"); after „Ganze Seite" filling the
 //! page it stood beside, the same view in two columns — on the left the Termin (what picks it, the
-//! ticket, who, „Im Stundenplan" or the plan's line, the day, the series, the period), on the right
+//! ticket, who, „Im Stundenplan" or the plan's line, the day, the period), on the right
 //! the module and who teaches, which no pick changes, and the source at the end — with „Zurück"
 //! (Esc) to the view beside the page; and as a page of its own (`/event/<key>/<day>`) in the same
 //! two columns. „Teilen" hands on that page's address.
@@ -409,16 +411,23 @@ struct RibbonItem {
     out: bool,
 }
 
+/// „Reihe" over the ticket: how many dates it has and how many are still to come, which no pick
+/// changes, and a dot per date.
 #[derive(Clone, Debug, PartialEq)]
 struct SeriesPart {
     right: String,
     dots: Vec<Dot>,
 }
 
+/// A date of the series as its dot: its state's class (the one shown is marked where it is drawn,
+/// so a date picked redraws no dot), what it says with its place in the series („Mo 09.11. · 6 von
+/// 15"), and whether it leads to its date (the break and the holidays do not).
 #[derive(Clone, Debug, PartialEq)]
 struct Dot {
+    day: Day,
     class: String,
     label: String,
+    link: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -546,7 +555,6 @@ pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
                 <WhoView shown/>
                 {middle()}
                 <DayView shown/>
-                <SeriesView shown/>
                 <ModuleView ctx shown/>
                 <div class="tm-more">
                     <StaffView shown/>
@@ -565,7 +573,6 @@ pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
                     <WhoView shown/>
                     {middle()}
                     <DayView shown/>
-                    <SeriesView shown/>
                     <RangeView shown/>
                 </div>
                 <div class="tm-col tm-look">
@@ -595,8 +602,9 @@ pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
 }
 
 /// What picks the Termin (`Pick`), above everything it changes: the module's events as a row of
-/// segments (rows of four where it has more), the event's own title, and to look up its groups
-/// (`GroupsView`) or its Termine (`SlotsView`). Each leads to its Termin by the page's address.
+/// segments (rows of four where it has more), the event's own title, to look up its groups
+/// (`GroupsView`) or its Termine (`SlotsView`), and last, right above the ticket, its dates
+/// (`SeriesView`). Each leads to its Termin by the page's address.
 #[component]
 fn PickView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
     let t = i18n::t();
@@ -606,8 +614,9 @@ fn PickView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
     let title = Memo::new(move |_| shown.with(|s| s.as_ref().and_then(|s| s.pick.title.clone())));
     let slots = Memo::new(move |_| shown.with(|s| s.as_ref().and_then(|s| s.pick.slots.clone())));
     let day = Memo::new(move |_| shown.with(|s| s.as_ref().map(|s| s.day)));
+    let series = Memo::new(move |_| shown.with(|s| s.as_ref().and_then(|s| s.series.clone().map(|series| (s.key, series)))));
     let grouped = Memo::new(move |_| ctx.mode == TerminMode::LookUp && shown.with(|s| s.as_ref().is_some_and(|s| s.groups.is_some())));
-    let any = Memo::new(move |_| grouped.get() || slots.with(Option::is_some) || title.with(Option::is_some) || tabs.with(|tabs| !tabs.is_empty()));
+    let any = Memo::new(move |_| grouped.get() || slots.with(Option::is_some) || title.with(Option::is_some) || tabs.with(|tabs| !tabs.is_empty()) || series.with(Option::is_some));
     let events = move || {
         let tabs = tabs.get();
         (!tabs.is_empty()).then(|| {
@@ -636,6 +645,7 @@ fn PickView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
                     {move || title.get().map(|title| view! { <p class="tm-sub">{title}</p> })}
                     {move || grouped.get().then(|| view! { <GroupsView ctx shown adjust=false/> })}
                     {move || (!grouped.get() && slots.with(Option::is_some)).then(|| view! { <SlotsView ctx slots/> })}
+                    <SeriesView ctx series day/>
                 </div>
             }
         })
@@ -1086,20 +1096,38 @@ fn DayView(shown: Memo<Option<Shown>>) -> impl IntoView {
     }
 }
 
-/// „Reihe": a dot per date, where this one stands among them. A picture, as the day is: the arrows
-/// beside the date step through the series, above all they change.
+/// „Reihe", the last of what picks, right above the ticket (owner, 2026-11-03: „bau als Nächstes
+/// die Reihe als Auswahl über dem Ticket"): a dot per date, each leading to it, the one shown
+/// marked; at its head how many dates it has and how many are to come, which no pick changes. The
+/// row is drawn once per series: a date picked moves the mark alone, and the keyboard stays where
+/// it was. The arrows beside the date in the ticket (← →) step through the same dates.
 #[component]
-fn SeriesView(shown: Memo<Option<Shown>>) -> impl IntoView {
+fn SeriesView(ctx: TerminCtx, series: Memo<Option<(RowKey, SeriesPart)>>, day: Memo<Option<Day>>) -> impl IntoView {
     let t = i18n::t();
-    let part = Memo::new(move |_| shown.with(|s| s.as_ref().and_then(|s| s.series.clone())));
     move || {
-        part.get().map(|part| {
-            let dots = part.dots.into_iter().map(|dot| view! { <span class=dot.class title=dot.label></span> }).collect_view();
+        series.get().map(|(key, part)| {
+            let dots = part
+                .dots
+                .into_iter()
+                .map(|dot| {
+                    let at = dot.day;
+                    let shown = move || day.get() == Some(at);
+                    match dot.link {
+                        true => view! {
+                            <a class="sdl" href=ctx.links.termin.run((key, Some(at))) rel="nofollow" data-noscroll="" title=dot.label.clone() aria-label=dot.label aria-current=move || shown().then_some("true")>
+                                <i class=dot.class class:sel=shown></i>
+                            </a>
+                        }
+                        .into_any(),
+                        false => view! { <span class="sdl" title=dot.label><i class=dot.class class:sel=shown></i></span> }.into_any(),
+                    }
+                })
+                .collect_view();
             view! {
-                <section class="tm-sec">
-                    <h4>{t.termin.series}<span class="r">{part.right}</span></h4>
+                <div class="grp tm-series">
+                    <div class="grp-h"><span>{t.termin.series}</span><span class="r">{part.right}</span></div>
                     <div class="sdots">{dots}</div>
-                </section>
+                </div>
             }
         })
     }
@@ -1679,17 +1707,16 @@ fn day_part(table: &Timetable, beside: Option<&Timetable>, o: &Occasion, named: 
     DayPart { items, lanes: lanes.len(), then }
 }
 
-/// „Reihe": a dot per date, and where this one stands among them.
+/// „Reihe": a dot per date, how many it has and how many are to come. Nothing of it depends on the
+/// date shown: it picks that date, and stands above what the pick changes.
 fn series_part(o: &Occasion, today: Option<Day>, t: &'static Texts) -> Option<SeriesPart> {
     let locale = t.locale;
     if o.dates.len() < 2 {
         return None;
     }
-    let (nth, count, left) = o.place(today);
-    let right = match nth {
-        Some(nth) => format!("{} · {}", (t.termin.nth_of)(nth, count), (t.termin.left)(left)),
-        None => format!("{} · {}", (t.termin.dates)(count), (t.termin.left)(left)),
-    };
+    let (_, count, left) = o.place(today);
+    let right = format!("{} · {}", (t.termin.dates)(count), (t.termin.left)(left));
+    let held: Vec<Day> = o.dates.iter().filter(|dated| dated.state.held()).map(|dated| dated.day).collect();
     let dots = o
         .dates
         .iter()
@@ -1703,9 +1730,10 @@ fn series_part(o: &Occasion, today: Option<Day>, t: &'static Texts) -> Option<Se
                 DateState::Held if gone => ("past", Some(t.termin.dot_past.to_string())),
                 DateState::Held => ("", None),
             };
-            let class = ["sd", state, if today == Some(dated.day) { "today" } else { "" }, if dated.day == o.day { "sel" } else { "" }].into_iter().filter(|class| !class.is_empty()).collect::<Vec<_>>().join(" ");
-            let label = format!("{}{}", day_words(dated.day, today, locale), said.map(|said| format!(" · {said}")).unwrap_or_default());
-            Dot { class, label }
+            let class = ["sd", state, if today == Some(dated.day) { "today" } else { "" }].into_iter().filter(|class| !class.is_empty()).collect::<Vec<_>>().join(" ");
+            let nth = held.iter().position(|day| *day == dated.day).filter(|_| dated.state.held()).map(|at| (t.termin.nth_of)(at + 1, count));
+            let label = [Some(day_words(dated.day, today, locale)), nth, said].into_iter().flatten().collect::<Vec<_>>().join(" · ");
+            Dot { day: dated.day, class, label, link: dated.state.steppable() }
         })
         .collect();
     Some(SeriesPart { right, dots })
@@ -2058,6 +2086,31 @@ mod tests {
         assert_eq!(lecture.pick.events.iter().map(|tab| tab.key).collect::<Vec<_>>(), [rows[0].key(), rows[2].key(), rows[3].key()]);
         let tutorial = shown_of(&ticked, &Against::Itself, rows[3].key(), None, None, &modules(), (TerminMode::Adjust, Some(true)), texts).unwrap();
         assert!(tutorial.pick.slots.is_none() && tutorial.pick.events.len() == 3);
+    }
+
+    #[test]
+    fn the_series_picks_its_date_above_the_ticket() {
+        // A lecture on Tuesdays through the semester: the break in it, one date cancelled.
+        let mut lecture = teaching("12104", "100", 1, "Vorlesung", 2, "09:15", "10:45");
+        lecture.0.cancelled_dates = Some("17.11.2026: Krankheit".into());
+        let rows = vec![lecture];
+        let t = table(&rows, &["12104"], &[], &Selection::default());
+        let texts = &i18n::DE;
+        let on = |day: &str| shown_of(&t, &Against::Itself, rows[0].key(), Some(d(day)), Some((d("2026-11-10"), 8 * 60)), &modules(), (TerminMode::Adjust, Some(true)), texts).unwrap();
+        // Nothing of it changes with the date shown, which it picks: its head, its dots.
+        let (tenth, later) = (on("2026-11-10"), on("2026-12-01"));
+        assert_eq!(tenth.series, later.series);
+        let series = tenth.series.unwrap();
+        assert_eq!(series.right, "14 Termine · noch 9");
+        let dot = |day: &str| series.dots.iter().find(|dot| dot.day == d(day)).cloned().unwrap();
+        // Each date its place in the series; the cancelled one leads to it too, the break not.
+        let today = dot("2026-11-10");
+        assert_eq!((today.label.as_str(), today.class.as_str(), today.link), ("Di 10.11. · 6 von 14", "sd today", true));
+        let cancelled = dot("2026-11-17");
+        assert_eq!((cancelled.label.as_str(), cancelled.class.as_str(), cancelled.link), ("Di 17.11. · fällt aus", "sd cancel", true));
+        let off = dot("2026-12-22");
+        assert!(!off.link && off.class == "sd off", "{off:?}");
+        assert_eq!(dot("2026-10-06").class, "sd past");
     }
 
     #[test]
