@@ -24,7 +24,11 @@
 //   removed and taken back; two rows selected by Ctrl and a click, moved by the bar, and back; a
 //   right click opens a row's menu, the semester's ⋯ selects all of it, Escape lets go; an area's
 //   dialog; a module beside the page by its name and by its row, in full and back; the
-//   Gesamtplan, each cell as tall as what it lists, a module's menu, a grey line of the plan added
+//   Gesamtplan as a roadmap (the band of the study years, Informatik's first semester by its
+//   abbreviations, the pieces as wide as their credits, the Bachelor-Arbeit's bar not before its
+//   semester, the line of today and its flag, ▸ unfolding Mathematik into its lanes, kept, „Alle
+//   zuklappen", „Bisher zuklappen" and back), each cell as tall as what it lists, a module's menu,
+//   the plan's open Betriebssysteme I dashed and planned
 //   with a click, the view kept; a reload keeps all of it; nothing of it in a request.
 // 2b a place filled (folia/design/hinzufuegen/konzepte.html, „Was heute schiefgeht"): the same study,
 //   „Anwendungsfach" alone put into WiSe 2026/27 by the workbench's „Vormerken"; „Modul wählen" in
@@ -465,21 +469,63 @@ if (current !== "2026W") {
   await step("Zurück", () => page.click('[data-action="back"]'), () => location.search === "?open=11787" && document.querySelector(".st-card-sem"));
   await step("close the module", () => page.click('#preview [data-action="close-detail"]'), () => location.search === "" && !document.querySelector("#preview"));
 
-  // The Gesamtplan: a grey line of the plan, added with a click; the view kept.
-  await step("Gesamtplan", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => document.querySelector(".st-grid") && document.querySelectorAll(".st-row-head").length === 6);
+  // The Gesamtplan as a roadmap (folia/design/gesamtplan/konzepte.html, A; owner, 2026-11-03):
+  // an area's bar of pieces named by their abbreviations, none where the area has nothing, the
+  // band of the study years, the line of today; ▸ unfolds a lane per module, kept, „Alle
+  // zuklappen" folds them; „Bisher zuklappen"; a module's menu; the plan's open module dashed and
+  // planned with a click; the view kept.
+  await step("Gesamtplan", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => document.querySelector(".st-rm-grid") && document.querySelectorAll(".st-row-head").length === 6 && document.querySelector(".st-rm-seg .st-rm-p"));
   // A cell as tall as what it lists (the Regelstudienplan's pills once took its class, and the
   // cells shrank to a pill, their modules over the semesters' heads).
-  const cut = await page.evaluate(() => [...document.querySelectorAll(".st-grid .st-cell")].filter((cell) => {
+  const cut = await page.evaluate(() => [...document.querySelectorAll(".st-grid .st-rm-cell")].filter((cell) => {
     const box = cell.getBoundingClientRect();
-    return [...cell.children].some((child) => { const r = child.getBoundingClientRect(); return r.top < box.top - 1 || r.bottom > box.bottom + 1; });
+    return [...cell.children].some((child) => { const r = child.getBoundingClientRect(); return r.height > 0 && (r.top < box.top - 1 || r.bottom > box.bottom + 1); });
   }).length);
   check(cut === 0, `${cut} cells of the Gesamtplan do not hold what they list`);
-  const line =await page.evaluate(() => [...document.querySelectorAll(".st-entry.line")].map((entry) => entry.getAttribute("aria-label")).find((label) => label?.startsWith("Betriebssysteme I")));
-  check(line?.includes("laut Regelstudienplan im 4. FS"), `the plan's line of Betriebssysteme I: ${line}`);
-  await step("a module's menu in the Gesamtplan", () => page.click(".st-entry:not(.line) >> nth=0"), () => document.querySelector(".st-pop.root #st-menu-remove"));
+  const roadmap = await page.evaluate(() => {
+    const grid = document.querySelector(".st-rm-grid");
+    const rows = [...grid.querySelectorAll(":scope > .st-row-head")];
+    const cells = (row) => {
+      const out = [];
+      for (let cell = row?.nextElementSibling; cell?.classList.contains("st-rm-cell"); cell = cell.nextElementSibling) out.push(cell);
+      return out;
+    };
+    const row = (name) => rows.find((head) => head.querySelector(".st-card-name")?.textContent === name);
+    const first = cells(row("Informatik"))[0];
+    const pieces = [...(first?.querySelectorAll(".st-rm-seg .st-rm-p") ?? [])];
+    const grow = (label) => Number(pieces.find((piece) => piece.textContent.trim() === label)?.style.flexGrow ?? 0);
+    return {
+      bands: [...grid.querySelectorAll(".st-rm-band")].map((band) => band.textContent),
+      first: pieces.map((piece) => piece.textContent.trim()),
+      // A piece's share of its semester: Entwicklung von Softwaresystemen has 8 LP, the
+      // Programmierpraktikum 4.
+      wider: grow("EvS") === 8 && grow("PP") === 4,
+      thesis: cells(row("Bachelor-Arbeit")).map((cell) => (cell.querySelector(".st-rm-seg") ? 1 : 0)).join(""),
+      today: grid.querySelectorAll(".st-rm-cell.rm-now").length === 6 && /^heute, \d\d\.\d\d\.$/.test(grid.querySelector(".st-rm-flag")?.textContent ?? ""),
+    };
+  });
+  check(roadmap.bands.join(" | ") === "1. Studienjahr · 2025/26 | 2. Studienjahr · 2026/27 | 3. Studienjahr · 2027/28", `the band of the study years: ${roadmap.bands.join(" | ")}`);
+  check(roadmap.first.join() === "EvS,EEG,PP" && roadmap.wider, `Informatik's first semester: ${roadmap.first.join()} (EvS wider than PP: ${roadmap.wider})`);
+  check(/^00/.test(roadmap.thesis) && roadmap.thesis.includes("1"), `the Bachelor-Arbeit's bar is not broken before its semester: ${roadmap.thesis}`);
+  check(roadmap.today, "the line of today does not run through the current semester, or its flag is missing");
+  await step("▸ Mathematik", () => page.click('.st-row-head:has(.st-card-name:text-is("Mathematik")) .st-rm-tog'), () => document.querySelector('.st-row-head.is-open .st-card-name')?.textContent === "Mathematik" && [...document.querySelectorAll(".st-rm-lane-name")].some((lane) => lane.textContent === "Mathematik IT-1"));
+  check((await stored(page, "betula.study.open")) === "Mathematik", `what is unfolded is not kept: ${JSON.stringify(await stored(page, "betula.study.open"))}`);
+  await step("Alle zuklappen", () => page.click('.st-sems-head button:has-text("Alle zuklappen")'), () => !document.querySelector(".st-rm-lane"));
+  check((await stored(page, "betula.study.open")) === null, "„Alle zuklappen“ kept something unfolded");
+  await step("Bisher zuklappen", () => page.click('.st-sems-head button:has-text("Bisher zuklappen")'), () => document.querySelector("div.st-col-head.past") && document.querySelector(".st-rm-cell.past .st-rm-p.stub"));
+  await step("Bisher aufklappen", () => page.click('.st-sems-head button:has-text("Bisher aufklappen")'), () => !document.querySelector("div.st-col-head.past"));
+  // Betriebssysteme I, open in the plan: a dashed piece by its abbreviation. Its semester holds
+  // more than fits beside each other here (the Wiederholer of the SoSe 26 too): „4 offen" stands
+  // for them, and Informatik's lanes have each.
+  const line = await page.evaluate(() => [...document.querySelectorAll(".st-rm-seg .st-rm-p.open")].map((piece) => piece.getAttribute("aria-label")).find((label) => label?.includes("Betriebssysteme I")));
+  check(line?.startsWith("BS1 – ") && line.includes("laut Regelstudienplan im 4. FS"), `the plan's open Betriebssysteme I: ${line}`);
+  const full = await page.evaluate(() => [...document.querySelectorAll(".st-rm-cell[data-full] .st-rm-sum")].map((sum) => sum.textContent.trim()));
+  check(full.length > 0 && full.every((sum) => /\d+ (Module|offen)/.test(sum)), `a semester too full for its labels: ${JSON.stringify(full)}`);
+  await step("a module's menu in the Gesamtplan", () => page.click(".st-rm-cell:not([data-full]) .st-rm-seg .st-rm-p:not(.open) >> nth=0"), () => document.querySelector(".st-pop.root #st-menu-remove"));
   await step("closed by a click beside it", () => page.click(".st-pop-shade", { position: { x: 5, y: 5 } }), () => !document.querySelector(".st-pop"));
-  await step("add a grey line", () => page.click('.st-entry.line[aria-label^="Betriebssysteme I"]'), () => document.querySelector(".st-undo")?.textContent.includes("hinzugefügt"));
-  check((await lines(page, "m\t2027S\t")).length === 1, `the grey line did not plan the module: ${JSON.stringify(await lines(page, "m\t2027S\t"))}`);
+  await step("▸ Informatik", () => page.click('.st-row-head:has(.st-card-name:text-is("Informatik")) .st-rm-tog'), () => document.querySelector('.st-rm-bar.open[aria-label*="Betriebssysteme I"]'));
+  await step("plan the open Betriebssysteme I", () => page.click('.st-rm-bar.open[aria-label*="Betriebssysteme I"]'), () => document.querySelector(".st-undo")?.textContent.includes("hinzugefügt"));
+  check((await lines(page, "m\t2027S\t")).length === 1, `the open module was not planned: ${JSON.stringify(await lines(page, "m\t2027S\t"))}`);
   check((await stored(page, "betula.study.view")) === "grid", "the view is not remembered");
 
   // A reload keeps all of it.

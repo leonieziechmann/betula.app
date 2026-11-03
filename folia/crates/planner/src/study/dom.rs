@@ -214,6 +214,28 @@ pub(super) fn drag_data(ev: &leptos::ev::DragEvent, keys: &[String]) {
     }
 }
 
+/// Marks every cell of the Gesamtplan whose pieces do not fit beside each other (`data-full`), so
+/// that it says „4 Module" instead (`grid.rs`). The pieces stay laid out, hidden, so the next
+/// measure sees them again: after every change of the plan and of the grid's width.
+#[allow(unused_variables)]
+pub(super) fn fit_pieces(root_id: &str) {
+    #[cfg(feature = "csr")]
+    {
+        let Some(root) = folia_design::stage::by_id(root_id) else { return };
+        let Ok(segments) = root.query_selector_all(".st-rm-seg") else { return };
+        for i in 0..segments.length() {
+            let Some(segment) = segments.item(i).and_then(|node| node.dyn_into::<web_sys::Element>().ok()) else { continue };
+            // A pixel of slack: a cell's width is not always a whole number.
+            let full = segment.scroll_width() > segment.client_width() + 1;
+            if let Some(cell) = segment.parent_element() {
+                if cell.has_attribute("data-full") != full {
+                    let _ = cell.toggle_attribute_with_force("data-full", full);
+                }
+            }
+        }
+    }
+}
+
 /// Where a row of cards that scrolls sideways stands: how far it is scrolled and how far apart its
 /// cards rest (px: the width of the first child, each card with its share of the space between
 /// them, app.css). `None` while it has no width.

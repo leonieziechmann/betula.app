@@ -1136,6 +1136,15 @@ pub fn study_modules(db: &dyn Database, ids: &[String]) -> Result<StudyModules, 
     Ok(StudyModules { prerequisites: queries::modules_prerequisites(db, &ids)?, rows, missing })
 }
 
+/// The abbreviations of the modules `ids` as the Gesamtplan of „Mein Studium" names them
+/// („AuP"): within `program_id` the one unique among that program's modules, else each module's
+/// own (`queries::modules_abbrevs`), by id. An id that is no program id is none.
+pub fn module_abbrevs(db: &dyn Database, ids: &[String], program_id: Option<&str>) -> Result<BTreeMap<String, String>, DbError> {
+    let ids = checked_ids(ids);
+    let program_id = program_id.filter(|id| folia_model::ids::is_program_id(id));
+    Ok(queries::modules_abbrevs(db, &ids, program_id)?.into_iter().map(|abbrev| (abbrev.module_id, abbrev.abbrev)).collect())
+}
+
 /// „Mein Studiengang" as the snapshot has it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MyProgramInfo {

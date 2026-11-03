@@ -2040,15 +2040,44 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     wählen": its modules in the catalog, `variants::row_query`), „gefüllt mit …", and in a semester
     that is over „nicht bestanden · wieder im …" or „… noch nicht wieder eingeplant · Einplanen".
   - **The Gesamtplan** (`grid.rs`, a desktop's second view, switched to in the sidebar and kept in
-    `localStorage` `betula.study.view`): the areas as rows (with their figures and a thin bar), the semesters as
-    columns (the ones before the current one folded into „Bisher", „Bisher aufklappen"), each cell
-    the area's modules in that semester as plain lines; in grey where it fits next what the plan
-    still has open (`study::open_lines`: a row at its first Fachsemester, not before the current
-    semester, in the next one that offers it; a Wiederholer in the next semester that offers it), a
-    click adds it; „Modul hinzufügen" on a cell's hover opens the workbench for that semester at
-    that area (until 1.64.0 a dialog of the area's modules, `picker::CellDialog`); a click on a
-    module (or a right click) opens its menu, the semesters' row menu; a module dragged into another
-    column moves there.
+    `localStorage` `betula.study.view`), since Folia 1.69.0 a roadmap (folia/design/gesamtplan/
+    konzepte.html, concept A; owner, 2026-11-03: „Option a ist perfekt bitte setze das um", asked
+    for as „eher wie ein progress tracker … so ähnlich wie bei star citizen … dass man die module
+    sehen kann. Also zummindest die abkürzungen" and „die progress bars können auch so sein, dass
+    sie unterbrochen sind, wenn man mal ein semester kein modul belegt"). The areas as rows (their
+    figures and a thin bar), the semesters as columns under the band of the study years („1.
+    Studienjahr · 2025/26": a winter and the summer after it, named by the academic year where the
+    study year begins in a winter), the line of today through the current semester at the share of
+    it gone by (`SemesterKey::bounds`) with its flag under the plan („heute, 03.11."). An area is
+    one bar over the semesters, broken where it has nothing in one: a piece per module, named by its
+    abbreviation in the program (`ModuleAbbrevsAsk`, `queries::modules_abbrevs`: the program's form,
+    else the module's own; a row of the plan without a module by its first word, the FÜS as „FÜS"),
+    as wide as its share of the semester's credits and never narrower than its label (flex: grow by
+    the credits, at least the content). Where the labels do not fit beside each other the semester
+    says „4 Module · 24 LP" (the credits where the cell has room) and what is open beside it
+    (`dom::fit_pieces` measures every cell after each change and when the grid's width changes, and
+    marks it `data-full`; the pieces stay laid out, hidden); a click on it unfolds the area. The
+    fuller, the further: passed full in the area's tone, what runs strong, what is planned light,
+    what the plan still has open dashed, not passed red with ✕, a retake with ↻, not offered ⚠,
+    beyond need hatched as in the overview's bars; a placeholder light and dashed with „?". What the
+    plan still has open (`study::open_lines`: a row at its first Fachsemester, not before the current
+    semester, in the next one that offers it; a Wiederholer in the next semester that offers it): a
+    module by its abbreviation, a click plans it; the open rows of an area in a semester together as
+    what the area still asks for („+10", „noch 10 LP offen laut Regelstudienplan"), none of them
+    where the area asks for nothing more, a click plans a single row and unfolds the area for
+    several. A row of the plan that a module fills stands no more beside it: the module carries it
+    („für „Anwendungsfach“" in its title). ▸ unfolds an area into a lane per module (by `Item::key`,
+    in the order they first come; its name and credits on the left, its piece in every semester it
+    is in with what it is, „bestanden", „läuft", „Wiederholung", „noch offen"), a retake tied to its
+    try before by a dashed arrow; „Alle aufklappen" and „Alle zuklappen" over the plan, what is
+    unfolded kept in `localStorage` `betula.study.open` (the areas' names, a view setting). The
+    semesters before the current one stand open; „Bisher zuklappen" folds them into one column,
+    each area's piece there what it passed („✓ 38", „✕ 1" for what it did not), a click on it
+    opens them again. „+" in a cell, the whole cell where it is empty and a round one at its end on
+    hover where it is not, opens the workbench for that semester at that area (until 1.64.0 a dialog
+    of the area's modules, `picker::CellDialog`); a click on a piece (or a right click) opens the
+    module's menu, the semesters' row menu; a piece dragged into another column moves there. Until
+    1.69.0 each cell listed the area's modules as plain lines, the plan's open ones in grey.
   - **Adding, moving, taking out** (owner: adding and removing were „eine absolute Krise"):
     „Module hinzufügen" opens the workbench (`bench.rs`, Folia 1.64.0; folia/design/hinzufuegen/
     konzepte.html, third round; owner, 2026-11-03: „Passt so, bau das jetzt in Folia"): planning
@@ -2151,8 +2180,11 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     and back, Escape and the focus back),
     selecting (the semester's „Alle auswählen", the rows hatched, a press drawn over three, the
     bar, Ctrl and a click, two rows moved by the bar, Escape), „Module hinzufügen", an area, a
-    module beside the page by its name and by a click at its credits, the Gesamtplan (each cell as
-    tall as what it lists, its menu, its grey lines), the phone
+    module beside the page by its name and by a click at its credits, the Gesamtplan as a roadmap (the
+    band of the study years, the pieces by abbreviation and credits, a bar broken before its
+    semester, the line of today, ▸ and „Alle zuklappen" kept, „Bisher zuklappen", a semester too
+    full for its labels, each cell as tall as what it lists, its menu, the plan's open module planned
+    from its lane), the phone
     (the overview in its order and
     without a sidebar, one row of the semesters that are over, the overview and the rest, the
     overview the page in view and no way back at the head, the row's dots on it; the box by a tap
