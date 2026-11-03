@@ -1250,7 +1250,12 @@ fn List(
     // (oberflaeche.html, „Bei 256 ist Schluss"); else no limit is seen anywhere.
     let whole = viewed == CollectionView::All && !searching && here.filters_set() == 0;
     let near = Memo::new(move |_| whole && all_marked.get() >= LIMIT_SHOWN);
-    let at_limit = move || near.get() && all_marked.get() >= LIMIT_WARN;
+    // The count before `near`, which is made of it: read after it, a count that crossed 250 left the
+    // warning as it was (R16).
+    let at_limit = move || {
+        let count = all_marked.get();
+        near.get() && count >= LIMIT_WARN
+    };
 
     // The heads of the columns are the order (folia/design/merken/oberflaeche.html, „die Sortierung
     // … eleganter"): a click on another one orders by it, its first way; a second turns it round.
@@ -1333,7 +1338,8 @@ fn List(
         <div class="list-head">
             <div class="count-row">
                 <span class="count num" class:warn=at_limit>{move || {
-                    if near.get() { format!("{} / {}", all_marked.get(), MAX_MARKS) } else { format::count(numbers.get().0, t.locale) }
+                    let count = all_marked.get();
+                    if near.get() { format!("{count} / {MAX_MARKS}") } else { format::count(numbers.get().0, t.locale) }
                 }}</span>
                 <span class="count-label">
                     {let view_name = view_name.clone(); move || match (searching, viewed, view_name.as_deref()) {
@@ -1707,7 +1713,8 @@ fn Sidebar(
                                 href=Signal::derive(link(|url| url.counts = !url.counts))
                             />
                         })}
-                        {move || fits_shown.get().then(|| current.get().map(|semester| view! {
+                        // The semester before `fits_shown`, which is made of it (R16).
+                        {move || { let semester = current.get(); fits_shown.get().then(|| semester.map(|semester| view! {
                             <ToggleLink
                                 label=t.catalog.fits
                                 on=Signal::derive(move || panel.with(|url| url.filter.fits.is_some()))
@@ -1717,7 +1724,7 @@ fn Sidebar(
                                     t.path(&next.path())
                                 })
                             />
-                        }))}
+                        })) }}
                     </div>
                 </div>
             </Show>

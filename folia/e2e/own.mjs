@@ -38,6 +38,8 @@ const MINE = "betula.myprogram.v1";
 const FS1 = ["12104", "12107", "12102", "11112"].map((id) => `m\t2026W\t${id}\t1790000000\t`).join("\n") + "\n";
 const INFORMATIK = "program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\ncaption\t\nstart\t2026W\n";
 const LENA = "l\t1\t\t013-82-2018\tLena\n" + ["11109", "13977"].map((id) => `n\t1\t2026W\t${id}`).join("\n") + "\n";
+// A second calendar of one's own, to go to from Lena's.
+const WG = "l\t2\t\t013-82-2018\tWG\nn\t2\t2026W\t13977\n";
 const PRAK_BS = "12340";
 
 const open = async (options, plan, path = "/studyplan") => {
@@ -221,7 +223,7 @@ const spot = (page, day, minute) => page.evaluate(([day, minute]) => {
 
 // ---------- Lena's calendar ----------
 {
-  const { page, context } = await open(wide, FS1 + LENA);
+  const { page, context } = await open(wide, FS1 + LENA + WG);
   await until(page, "Lena's part", () => Boolean(onPage(".sp-cal-mods .sp-own-add")));
   await page.click(".sp-cal-mods .sp-own-add");
   await until(page, "the form for Lena", (form) => onPage(`${form} #own-cal`)?.value === "1" && onPage(`${form} .st-dlg-head p`)?.textContent === "In „Lena“, WiSe 2026/27", form);
@@ -231,6 +233,12 @@ const spot = (page, day, minute) => page.evaluate(([day, minute]) => {
   await page.selectOption(`${form} #own-cal`, "1");
   await fill(page, { name: "Arbeit", day: 3, from: "13:00", to: "17:00" });
   await until(page, "what it counts for", (form) => onPage(`${form} .own-fit.ok`)?.textContent === "Zählt für „Gemeinsam frei“ mit Lena", form);
+  // From one calendar of one's own to another the line names the other one, as the line under the
+  // title does (it kept Lena's name: a closure that read what `calendar` makes before it, R16).
+  await page.selectOption(`${form} #own-cal`, "2");
+  await until(page, "the line follows „Kalender“ from Lena to the WG", (form) => onPage(`${form} .own-fit.ok`)?.textContent === "Zählt für „Gemeinsam frei“ mit WG" && onPage(`${form} .st-dlg-head p`)?.textContent === "In „WG“, WiSe 2026/27", form);
+  await page.selectOption(`${form} #own-cal`, "1");
+  await until(page, "and back to Lena", (form) => onPage(`${form} .own-fit.ok`)?.textContent === "Zählt für „Gemeinsam frei“ mit Lena", form);
   await page.click(`dialog.own-form .st-dlg-foot .primary`);
   await until(page, "in Lena's calendar", ([key]) => (localStorage.getItem(key) ?? "").includes("t\t1\t1\t2026W\tw\t3\t13:00-17:00\t\t\t\tArbeit\t\t\n") && onPage(".sp-cal-mods .sp-own button.sp-row.own")?.textContent.includes("Arbeit"), [PLAN]);
   check(!(await page.evaluate(() => onPage(".sp-list .sp-own .sp-row.own"))), "Lena's Termin in „Mein Studiengang“'s list");

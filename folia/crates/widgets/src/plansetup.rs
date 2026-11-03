@@ -296,11 +296,14 @@ fn SetupDialog(ask: SetupAsk, planning: Planning) -> impl IntoView {
     };
     let fs_value = move || filled.get().fs.map_or_else(|| "–".to_string(), |fs| (p.fs_long)(fs));
     let fs_note = move || fs_note_of(filled.get(), start.get(), filter_fs.get().map(|(_, at)| at), filter_semester, t);
-    // The module's row.
+    // The module's row. Each closure reads what a memo is made of before the memo (R16): the leave
+    // before `start`, the plan's place before `filled`. Read after them, the place of a module
+    // whose data came late, or a leave changed in another tab, could leave the row as it was.
     let module_value = move || {
         let filled = filled.get();
+        let leave = leave.get();
         let at = filled.semester;
-        let fs = start.get().map(|start| match study::fs_of(start, at, &leave.get()) {
+        let fs = start.get().map(|start| match study::fs_of(start, at, &leave) {
             Some(fs) => (p.fs_short)(fs),
             None => p.before_start.to_string(),
         });
@@ -311,9 +314,15 @@ fn SetupDialog(ask: SetupAsk, planning: Planning) -> impl IntoView {
     };
     let module_note = {
         let offer = what.offer;
-        move || module_note_of(filled.get(), place.get().and_then(|(n, _)| n), now, chosen_aim.get().then(|| aim.get()), clear, offer, t)
+        move || {
+            let planned_in = place.get().and_then(|(n, _)| n);
+            module_note_of(filled.get(), planned_in, now, chosen_aim.get().then(|| aim.get()), clear, offer, t)
+        }
     };
-    let warning = move || warning_of(filled.get(), place.get().and_then(|(n, _)| n), now, semester_set.with(Option::is_some), t);
+    let warning = move || {
+        let planned_in = place.get().and_then(|(n, _)| n);
+        warning_of(filled.get(), planned_in, now, semester_set.with(Option::is_some), t)
+    };
 
     view! {
         <ModalHead id="plan-setup-title" title=(p.setup_title)(&what.title) on_close=move || close()>
