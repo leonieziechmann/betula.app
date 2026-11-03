@@ -135,6 +135,10 @@ pub struct GridSlot {
     /// A Termin of one's own (folia/design/kalender/termine.html): the mark „von dir" in its corner
     /// (`.slot-own`), and the slot `own`.
     pub own: bool,
+    /// A Termin of QIS changed by hand (step 2): the pen in its corner (`.slot-pen`), and amber
+    /// where QIS says something else now, which the student decides (`conflict`).
+    pub edited: bool,
+    pub conflict: bool,
     /// A group of an event of groups, one of which a student attends (`Attendance::OneOf`, „eine
     /// von 4"): to choose (`alt`), or one's own, ticked in the plan (`chosen`: full, with a tick in
     /// its corner; folia/design/kalender/raster.html).
@@ -213,6 +217,8 @@ impl GridSlot {
             if self.pick == Some(true) { "on" } else { "" },
             if self.dim { "dim" } else { "" },
             if self.own { "own" } else { "" },
+            if self.edited { "edited" } else { "" },
+            if self.conflict { "conflict" } else { "" },
             if self.group { "group" } else { "" },
             if self.chosen { "chosen" } else { "" },
         ];
@@ -604,6 +610,7 @@ fn slot_view(slot: &GridSlot, style: String, marks: &Marks, framed: bool) -> Any
         {upright}
         {slot.badge.clone().map(|badge| view! { <i class="slot-who" aria-hidden="true">{badge}</i> })}
         {slot.own.then(|| view! { <i class="slot-own" aria-hidden="true"><Icon name="user-round"/></i> })}
+        {slot.edited.then(|| view! { <i class="slot-pen" aria-hidden="true"><Icon name="pencil"/></i> })}
         {slot.chosen.then(|| view! { <i class="slot-tick" aria-hidden="true"><Icon name="check"/></i> })}
     };
     // Beside the link, not inside it, in a box of the slot's size (its style), which lets every

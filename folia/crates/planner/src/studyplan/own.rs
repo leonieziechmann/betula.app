@@ -25,6 +25,7 @@
 
 use std::collections::BTreeMap;
 
+use folia_calendar::change::Change;
 use folia_calendar::day::{clock, minutes, Day};
 use folia_calendar::own::{OwnRhythm, OwnTermin, MAX_OWN_DATES, MAX_OWN_NUMBER, MAX_OWN_TEXT, OWN_EVENT_BASE};
 use folia_calendar::rowkey::RowKey;
@@ -336,11 +337,17 @@ pub(super) fn draft_days(ask: &OwnAsk) -> Vec<(u8, u16, u16)> {
 /// timetable of the semester with the draft in it, the draft's hard overlaps.
 fn meets_of(table: &Timetable, termin: &OwnTermin, names: &BTreeMap<String, String>, t: &'static Texts) -> Vec<String> {
     let Some(at) = table.events.iter().position(|event| event.own.as_ref().is_some_and(|own| own.number == termin.number)) else { return Vec::new() };
+    met_by(table, |(event, _)| event == at, names, t)
+}
+
+/// What the rows `mine` takes (by event and row) meet of `table`'s week, by name and when („Ü MIT1
+/// (Mi 09:15)"), each once.
+fn met_by(table: &Timetable, mine: impl Fn((usize, usize)) -> bool, names: &BTreeMap<String, String>, t: &'static Texts) -> Vec<String> {
     let mut met: Vec<String> = Vec::new();
     for overlap in clash::overlaps(&table.events) {
-        let other = match (overlap.a.0 == at, overlap.b.0 == at) {
-            (true, _) => overlap.b,
-            (_, true) => overlap.a,
+        let other = match (mine(overlap.a), mine(overlap.b)) {
+            (true, false) => overlap.b,
+            (false, true) => overlap.a,
             _ => continue,
         };
         let Some(event) = table.events.get(other.0) else { continue };
@@ -359,6 +366,57 @@ fn meets_of(table: &Timetable, termin: &OwnTermin, names: &BTreeMap<String, Stri
         }
     }
     met
+}
+
+/// What a change of a Termin of QIS being made meets of the plan's week (`ChangeActs::fit`): the
+/// semester's timetable with it in the place of the one of its Termin and scope, what the rows it
+/// makes meet; whether that is anything, and the line that says so („Trifft Ü MIT1 (Mi 09:15).
+/// Speichern geht trotzdem.", „Passt in deine Woche").
+pub(super) fn change_fit(ctx: PlanCtx, change: Change) -> (bool, String) {
+    let t = i18n::t();
+    let o = &t.studyplan_own;
+    let met = ctx.selection.with_untracked(|(key, selection)| {
+        ctx.data.with_untracked(|data| {
+            let data = data.as_ref().ok().filter(|data| data.key == *key)?;
+            let mut selection = selection.clone();
+            selection.changes.retain(|other| (other.key, other.scope) != (change.key, change.scope));
+            selection.changes.push(change.clone());
+            let table = data.timetable(&selection);
+            let mine = |(event, row): (usize, usize)| {
+                let row = table.events.get(event).and_then(|event| event.rows.get(row));
+                row.is_some_and(|row| row.changed.as_ref().is_some_and(|changed| changed.key == change.key && changed.scope == change.scope))
+            };
+            Some(met_by(&table, mine, &data.slot_names(), t))
+        })
+    });
+    match met.unwrap_or_default() {
+        met if met.is_empty() => (false, o.fits.to_string()),
+        met => (true, format!("{} {}", (o.meets)(&met.join(", ")), o.meets_anyway_edit)),
+    }
+}
+
+/// „Nachholtermin" of the Termin `key` on `day` (folia/design/kalender/termine.html, „Ein Tag
+/// anders": „ein eigener Termin zum Modul, einmal, mit Art und Raum"): its view closes, and the form
+/// opens for a Termin of one's own of the plan's calendar, of its module, on that date alone, at its
+/// time and in its room, named as its slot is („VL EvS").
+pub(super) fn ask_makeup(ctx: PlanCtx, key: RowKey, day: Day) {
+    let t = i18n::t();
+    let names = ctx.data.with_untracked(|data| data.as_ref().map(|data| data.slot_names()).unwrap_or_default());
+    let seed = ctx.table.with_untracked(|table| {
+        let event = table.as_ref()?.events.iter().find(|event| event.rows.iter().any(|row| row.key == Some(key)))?;
+        let row = event.rows.iter().find(|row| row.key == Some(key) && row.from.is_some() && row.to.is_some())?;
+        let module = event.modules.first()?.clone();
+        let short = names.get(&module).map_or_else(|| short_title(&event.title), |name| short_title(name));
+        let name = format!("{} {short}", kind_short(event, t.locale)).trim().to_string();
+        Some((module, name, row.from?, row.to?, row.date.room_shown().unwrap_or_default().to_string()))
+    });
+    let Some((module, name, from, to, place)) = seed else { return };
+    if let Some(going) = Pending::expect() {
+        let away = ctx.url.with_untracked(|url| t.path(&url.with_termin(None).path()));
+        going.go(&away, NavigateOptions { replace: true, scroll: false, ..Default::default() });
+    }
+    let draft = Draft { name, rhythm: OwnRhythm::Dates, dates: vec![day.iso()], to: clock(to), place, module, ..Draft::at(0, day.weekday(), from) };
+    ctx.own.set(Some(OwnAsk { number: None, draft }));
 }
 
 /// The day and the minute (down to a quarter of an hour) of a click on a free stretch of a day of

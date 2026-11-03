@@ -274,13 +274,14 @@ pub(super) fn plan_of_text(text: &str) -> Option<SharedPlan> {
     SharedPlan::from_code(code)
 }
 
-/// Makes a calendar of `plan` named `name` (one without a name is named by its number); its
-/// number, or `None` at the cap. A click runs it after the next frame (R21).
+/// Makes a calendar of `plan` named `name` (one without a name is named by its number), with its
+/// groups and its changes of Termine of QIS; its number, or `None` at the cap. A click runs it
+/// after the next frame (R21).
 pub(super) fn create(ctx: PlanCtx, plan: &SharedPlan, name: &str) -> Option<u8> {
     let store = ctx.plan?;
     let key = plan.key()?;
-    let (modules, chosen, program) = (plan.module_ids(), plan.chosen_rows(), plan.program.clone());
-    store.update(|doc| doc.add_calendar(name, program.as_deref(), key, &modules, &chosen))
+    let (modules, chosen, changes, program) = (plan.module_ids(), plan.chosen_rows(), plan.change_list(), plan.program.clone());
+    store.update(|doc| doc.add_calendar(name, program.as_deref(), key, &modules, &chosen, &changes))
 }
 
 // ---------- the parts ----------

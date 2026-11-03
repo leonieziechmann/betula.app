@@ -564,6 +564,7 @@ mod tests {
             to: Some(645),
             option: None,
             hidden: None,
+            changed: None,
         };
         Event {
             id: id.to_string(),
@@ -608,6 +609,8 @@ mod tests {
             exam_warnings: Vec::new(),
             place_unknown: Vec::new(),
             without_dates: Vec::new(),
+            changes: Vec::new(),
+            notes: Default::default(),
         }
     }
 

@@ -81,6 +81,27 @@ pub struct Texts {
     /// „angehakt".
     pub fits: &'static str,
     pub ticked: &'static str,
+    /// The changes of Termine of QIS that ask for something (folia/design/kalender/termine.html,
+    /// „Wenn QIS sich ändert"): QIS says something else now („VL EvS: QIS sagt jetzt ZHG/HS.B",
+    /// „Fr 09:15 · du: ZHG/HS.A"), it says what the student said („… dasselbe wie du", „… · deine
+    /// Änderung ist erledigt", „OK"), it moved the Termin („QIS hat den Termin verschoben", „jetzt
+    /// Mi 11:30 · deine Änderung hing an Mi 09:15", „Übernehmen"), it has it no more („den Termin
+    /// gibt es nicht mehr", „Als eigenen Termin behalten"), „Verwerfen"; on a phone's line „1
+    /// Änderung offen"; the note after one kept as one's own („„VL EvS“ als eigener Termin").
+    pub change_differs: fn(&str) -> String,
+    pub change_mine: fn(&str, &str) -> String,
+    pub change_done: &'static str,
+    pub change_done_say: fn(&str) -> String,
+    pub change_moved: &'static str,
+    pub change_now: fn(&str) -> String,
+    pub change_hung: fn(&str) -> String,
+    pub change_gone: &'static str,
+    pub ok: &'static str,
+    pub take: &'static str,
+    pub keep_own: &'static str,
+    pub discard: &'static str,
+    pub changes_count: fn(usize) -> String,
+    pub kept_own: fn(&str) -> String,
 }
 
 /// „45 min", „1 h 15", „3 h".
@@ -107,6 +128,23 @@ pub const DE: Texts = Texts {
     visit_meets: |visit, plan| format!("{visit} trifft {plan}"),
     gives_way: "der Besuch gibt nach",
     look: "Ansehen",
+    change_differs: |qis| format!("QIS sagt jetzt {qis}"),
+    change_mine: |when, mine| format!("{when} · du: {mine}"),
+    change_done: "QIS sagt jetzt dasselbe wie du",
+    change_done_say: |what| format!("{what} · deine Änderung ist erledigt"),
+    change_moved: "QIS hat den Termin verschoben",
+    change_now: |when| format!("jetzt {when}"),
+    change_hung: |when| format!("deine Änderung hing an {when}"),
+    change_gone: "den Termin gibt es nicht mehr",
+    ok: "OK",
+    take: "Übernehmen",
+    keep_own: "Als eigenen Termin behalten",
+    discard: "Verwerfen",
+    changes_count: |n| match n {
+        1 => "1 Änderung offen".to_string(),
+        n => format!("{n} Änderungen offen"),
+    },
+    kept_own: |name| format!("„{name}“ als eigener Termin"),
     gives_count: |n| match n {
         1 => "1 Besuch gibt nach".to_string(),
         n => format!("{n} Besuche geben nach"),
@@ -162,6 +200,23 @@ pub const EN: Texts = Texts {
     visit_meets: |visit, plan| format!("{visit} meets {plan}"),
     gives_way: "the visit gives way",
     look: "Look",
+    change_differs: |qis| format!("QIS now says {qis}"),
+    change_mine: |when, mine| format!("{when} · you: {mine}"),
+    change_done: "QIS now says what you said",
+    change_done_say: |what| format!("{what} · your change is done"),
+    change_moved: "QIS moved the session",
+    change_now: |when| format!("now {when}"),
+    change_hung: |when| format!("your change was for {when}"),
+    change_gone: "the session is gone",
+    ok: "OK",
+    take: "Take over",
+    keep_own: "Keep as your own event",
+    discard: "Discard",
+    changes_count: |n| match n {
+        1 => "1 change open".to_string(),
+        n => format!("{n} changes open"),
+    },
+    kept_own: |name| format!("“{name}” kept as your own event"),
     gives_count: |n| match n {
         1 => "1 visit gives way".to_string(),
         n => format!("{n} visits give way"),

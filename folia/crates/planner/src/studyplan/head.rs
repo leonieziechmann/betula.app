@@ -1027,6 +1027,7 @@ mod tests {
             to: minutes(time.1),
             option,
             hidden: None,
+            changed: None,
         }
     }
 
@@ -1118,6 +1119,8 @@ mod tests {
             ],
             place_unknown: vec![(day("2027-02-10"), vec!["12104".into(), "11112".into()])],
             without_dates: vec!["13000".into()],
+            changes: Vec::new(),
+            notes: Default::default(),
         };
         let titles = [
             ("12104", "Entwicklung von Softwaresystemen"),

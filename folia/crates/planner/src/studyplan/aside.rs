@@ -1111,9 +1111,9 @@ fn items_of(event: &Event, texts: &i18n::Texts) -> Vec<Item> {
 }
 
 /// The rows of one Termin together, in the order they first appear: those of one row key, and
-/// those of one series of single dates (`EventDate::series`) at one time, a date of it at another
-/// time apart; a row without a key alone. Returns each Termin's keys and its positions in the
-/// input.
+/// those of one series of single dates (`EventDate::series`) at one time as QIS has it, a date of
+/// it at another time apart; a row without a key alone. Returns each Termin's keys and its
+/// positions in the input.
 fn by_termin<'a>(rows: impl Iterator<Item = Option<&'a Row>>) -> Vec<(Vec<RowKey>, Vec<usize>)> {
     /// What makes rows one Termin: a series by the row of its first date, and its times.
     #[derive(PartialEq)]
@@ -1124,8 +1124,13 @@ fn by_termin<'a>(rows: impl Iterator<Item = Option<&'a Row>>) -> Vec<(Vec<RowKey
     }
     let mut groups: Vec<(Termin, Vec<RowKey>, Vec<usize>)> = Vec::new();
     for (position, row) in rows.enumerate() {
+        // A series by QIS's times: a change of some of its dates keeps it one (`Row::changed`).
+        let times = row.map(|row| match &row.changed {
+            Some(changed) => (Some(changed.qis.from), Some(changed.qis.to)),
+            None => (row.from, row.to),
+        });
         let termin = match (row.and_then(|row| row.date.series), row.and_then(|row| row.key)) {
-            (Some(series), _) => Termin::Series(series.first, row.and_then(|row| row.from), row.and_then(|row| row.to)),
+            (Some(series), _) => Termin::Series(series.first, times.and_then(|(from, _)| from), times.and_then(|(_, to)| to)),
             (None, Some(key)) => Termin::Key(key),
             (None, None) => Termin::Alone,
         };

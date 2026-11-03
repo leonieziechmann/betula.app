@@ -22,6 +22,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use folia_calendar::change::Scope;
 use folia_calendar::day::Day;
 use folia_calendar::rowkey::RowKey;
 use folia_locale::Locale;
@@ -445,6 +446,11 @@ impl Timetable {
             let (Some(from), Some(to)) = (row.from, row.to) else {
                 continue;
             };
+            // A room changed for one date stands in its series' slot, as QIS's note of a room
+            // does; a date moved to another day or time is a date of the week of its own.
+            if row.changed.as_ref().is_some_and(|change| matches!(change.scope, Scope::On(_)) && !change.moves) {
+                continue;
+            }
             let against = hard.get(&(e, r));
             let clashes = against.is_some();
             let yields = gives.get(&(e, r));

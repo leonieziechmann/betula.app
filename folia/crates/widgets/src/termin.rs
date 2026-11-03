@@ -42,7 +42,8 @@
 
 use std::collections::BTreeMap;
 
-use folia_calendar::day::{clock, Day};
+use folia_calendar::change::{room_text, Change, Scope, Values};
+use folia_calendar::day::{clock, minutes, Day};
 use folia_calendar::kind::EventKind;
 use folia_calendar::own::{OwnRhythm, OwnTermin};
 use folia_calendar::rowkey::RowKey;
@@ -50,6 +51,7 @@ use folia_calendar::select::HiddenBy;
 use folia_pages::StudyplanData;
 use folia_routes::url;
 use folia_stores::studyplan::Studyplan;
+use folia_timetable::change::{holding, qis_values, ChangeState};
 use folia_timetable::clash::Weeks;
 use folia_timetable::export;
 use folia_timetable::ics;
@@ -162,6 +164,20 @@ pub struct TerminCtx {
     /// What the page does with a Termin of one's own (`Event::own`): „Bearbeiten" and „Löschen";
     /// `None` where it does neither (the start page, which leads to the Stundenplan for them).
     pub own: Option<OwnActs>,
+    /// What the page adds to „Ändern" of a Termin of QIS: what a change meets of the plan's week and
+    /// „Nachholtermin"; `None` where it adds neither (the start page: „Ändern" without the line of
+    /// what it meets).
+    pub change: Option<ChangeActs>,
+}
+
+/// What a page adds to „Ändern" of a Termin of QIS (folia/design/kalender/termine.html, step 2):
+/// what a change being made meets of the plan's week (`fit`: whether it meets anything, and its
+/// line, „Passt in deine Woche", „Trifft Ü MIT1 (Mi 09:15). Speichern geht trotzdem."), and
+/// „Nachholtermin", the form of a Termin of one's own of the Termin's module on the date shown.
+#[derive(Clone, Copy)]
+pub struct ChangeActs {
+    pub fit: Callback<Change, (bool, String)>,
+    pub makeup: Callback<(RowKey, Day)>,
 }
 
 /// What a page does with a Termin of one's own, by its number (`OwnTermin::number`): „Bearbeiten"
@@ -259,6 +275,87 @@ struct Shown {
     file: Option<(String, String)>,
     /// A Termin of one's own: what its section says and changes, instead of `plan`.
     own: Option<OwnPart>,
+    /// A Termin of QIS with a time, to adjust: what „Ändern" starts from and what holds.
+    change: Option<ChangePart>,
+}
+
+/// What a Termin of QIS shows of a change and what „Ändern" starts from: its key and module, the
+/// date shown, what QIS says of it and what the date says, the change holding on the date and
+/// whether QIS says something else now, how many dates it has, and its note.
+#[derive(Clone, Debug, PartialEq)]
+struct ChangePart {
+    key: RowKey,
+    module: String,
+    day: Day,
+    qis: Values,
+    shown: Values,
+    holds: Option<(Change, bool)>,
+    dates: usize,
+    note: Option<String>,
+}
+
+/// For which dates „Ändern" changes the Termin (its „Für").
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ScopeWord {
+    On,
+    From,
+    All,
+}
+
+/// What „Ändern" holds while it is open, as typed: the Termin and the date it was opened on, „Für",
+/// the weekday, the time and the room.
+#[derive(Clone, Debug, PartialEq)]
+struct ChangeDraft {
+    key: RowKey,
+    day: Day,
+    scope: ScopeWord,
+    weekday: u8,
+    from: String,
+    to: String,
+    room: String,
+}
+
+impl ChangeDraft {
+    /// „Ändern" of the date shown: the scope of the change holding on it, else every date, and
+    /// what the date says.
+    fn of(part: &ChangePart) -> ChangeDraft {
+        let scope = match part.holds.as_ref().map(|(change, _)| change.scope) {
+            Some(Scope::On(_)) => ScopeWord::On,
+            Some(Scope::From(_)) => ScopeWord::From,
+            _ => ScopeWord::All,
+        };
+        let shown = &part.shown;
+        ChangeDraft { key: part.key, day: part.day, scope, weekday: shown.weekday, from: clock(shown.from), to: clock(shown.to), room: shown.room.clone() }
+    }
+
+    /// The scope it names: that of the change holding on the date where it is of the same kind
+    /// (changing that change), else from the date shown or on it.
+    fn scope(&self, part: &ChangePart) -> Scope {
+        match (self.scope, part.holds.as_ref().map(|(change, _)| change.scope)) {
+            (ScopeWord::All, _) => Scope::All,
+            (ScopeWord::From, Some(Scope::From(day))) => Scope::From(day),
+            (ScopeWord::On, Some(Scope::On(day))) => Scope::On(day),
+            (ScopeWord::From, _) => Scope::From(part.day),
+            (ScopeWord::On, _) => Scope::On(part.day),
+        }
+    }
+
+    /// The change it makes, `Ok(None)` where it says what QIS says; `Err` for a time that is none
+    /// (an end before its beginning, a time missing).
+    fn change(&self, part: &ChangePart) -> Result<Option<Change>, ()> {
+        let (Some(from), Some(to)) = (minutes(self.from.trim()), minutes(self.to.trim())) else { return Err(()) };
+        if to <= from {
+            return Err(());
+        }
+        let qis = &part.qis;
+        let weekday = (self.weekday != qis.weekday).then_some(self.weekday);
+        let time = ((from, to) != (qis.from, qis.to)).then_some((from, to));
+        let room = room_text(&self.room).filter(|room| *room != qis.room);
+        if weekday.is_none() && time.is_none() && room.is_none() {
+            return Ok(None);
+        }
+        Ok(Some(Change { key: part.key, scope: self.scope(part), weekday, time, room, was: qis.clone(), module: part.module.clone() }))
+    }
 }
 
 /// „Im Stundenplan" of a Termin of one's own: its number, how it recurs and when, and the date
@@ -340,6 +437,9 @@ struct Ticket {
     /// Of a Termin of one's own: its place is words of one's own, not a room's code, and without
     /// one it says nothing.
     own: bool,
+    /// A change holding on the date changes its time or weekday, its room: the pen beside each.
+    pen_time: bool,
+    pen_room: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -368,6 +468,9 @@ struct PlanPart {
     /// The date to hide or show, of what the plan holds: its words, its key, its day, whether it is
     /// hidden.
     date: Option<(String, RowKey, Day, bool)>,
+    /// The plan holds the Termin: an event without groups, the group ticked, or any while none is.
+    /// What changes it („Ändern", the note, „Nachholtermin") stands under the switch that does.
+    held: bool,
 }
 
 /// Of an event's groups the one the Termin shows, under „Im Stundenplan": its keys (one ticks it,
@@ -514,6 +617,9 @@ pub fn TerminView(
     // A Termin of one's own lives in this browser alone: no page of its own to hand on.
     let own = Memo::new(move |_| shown.with(|s| s.as_ref().is_some_and(|s| s.own.is_some())));
     let share = move |labeled: bool| move || (!own.get()).then(|| view! { <ShareButton at called labeled/> });
+    // „Ändern" of the Termin on the date shown while it is open: the view's body then.
+    let editing: RwSignal<Option<ChangeDraft>> = RwSignal::new(None);
+    let changing = Memo::new(move |_| editing.with(|draft| draft.as_ref().map(|draft| (draft.key, draft.day))).is_some_and(|open| Some(open) == at.get()));
 
     let top = move || {
         let head = head.get();
@@ -563,7 +669,7 @@ pub fn TerminView(
     // „In den Kalender".
     let middle = move || match ctx.mode {
         TerminMode::Adjust if own.get() => view! { <OwnView ctx shown/> }.into_any(),
-        TerminMode::Adjust => view! { <PlanView ctx shown/> }.into_any(),
+        TerminMode::Adjust => view! { <PlanView ctx shown editing/> }.into_any(),
         TerminMode::LookUp => view! { <PlanLine ctx shown/><CalendarFile ctx shown/> }.into_any(),
     };
     let body = move || {
@@ -573,11 +679,15 @@ pub fn TerminView(
                 false => view! { <p class="hint">{t.termin.gone}</p> }.into_any(),
             };
         }
+        if changing.get() {
+            return view! { <ChangeView ctx shown editing/> }.into_any();
+        }
         match ctx.place {
             // What picks the Termin first, then everything it changes.
             TerminPlace::Dialog => view! {
                 <PickView ctx shown/>
                 <TicketView ctx shown/>
+                <ChangedView ctx shown/>
                 <WhoView shown/>
                 {middle()}
                 <DayView shown/>
@@ -596,6 +706,7 @@ pub fn TerminView(
                 <div class="tm-col">
                     <PickView ctx shown/>
                     <TicketView ctx shown/>
+                    <ChangedView ctx shown/>
                     <WhoView shown/>
                     {middle()}
                     <DayView shown/>
@@ -811,17 +922,21 @@ fn TicketView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
                 view! { <span class="abg" title=said.clone() aria-label=said><i class:on=a>"A"</i><i class:on=b>"B"</i></span> }
             });
             let pill = ticket.pill.map(|(class, text)| view! { <span class=format!("pill {class}")>{text}</span> });
+            // A changed time or room carries the pen (`ChangedView` says what QIS says).
+            let pen = |on: bool| on.then(|| view! { <i class="tk-pen" title=t.termin.changed_title aria-label=t.termin.changed_title><Icon name="pencil"/></i> });
             let time = match ticket.time {
-                Some((from, to)) => view! { <b>{from}</b><small>{to}</small> }.into_any(),
+                Some((from, to)) => view! { <b>{from}{pen(ticket.pen_time)}</b><small>{to}</small> }.into_any(),
                 None => view! { <b class="unclear">{t.termin.no_time}</b> }.into_any(),
             };
             // A Termin of one's own without a place has no room box: nothing is missing.
             let roomless = ticket.own && ticket.rooms.is_empty() && ticket.place.is_empty();
+            // A changed room's pen beside its last plate, not on a line of its own.
+            let last = ticket.rooms.len().saturating_sub(1);
             let rooms = match (ticket.rooms.is_empty(), ticket.own) {
                 (true, true) => ().into_any(),
                 (true, false) => view! { <b class="plate none">{t.termin.no_room}</b> }.into_any(),
                 (false, true) => ticket.rooms.iter().map(|place| view! { <b class="plate words">{place.clone()}</b> }).collect_view().into_any(),
-                (false, false) => ticket.rooms.iter().map(|room| view! { <b class="plate">{plate(room)}</b> }).collect_view().into_any(),
+                (false, false) => ticket.rooms.iter().enumerate().map(|(at, room)| view! { <b class="plate">{plate(room)}{pen(ticket.pen_room && at == last)}</b> }).collect_view().into_any(),
             };
             let place = (!ticket.place.is_empty()).then(|| view! { <small>{ticket.place.join(" · ")}</small> });
             let room = (!roomless).then(|| view! { <div class="tk-room">{rooms}{place}</div> });
@@ -841,6 +956,199 @@ fn TicketView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
                     </div>
                     {live}
                 </section>
+            }
+        })
+    }
+}
+
+/// Under the ticket, of a date a change holds on (folia/design/kalender/termine.html, „Ein Termin
+/// aus QIS"): „Von dir geändert, alle Termine · QIS: ZHG/HS.C" with „Zurücksetzen"; where QIS says
+/// something else now, both values with „QIS übernehmen" and „Meine behalten" (question 5). Each
+/// changes the plan after the next frame (R21).
+#[component]
+fn ChangedView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
+    let t = i18n::t();
+    let part = Memo::new(move |_| shown.with(|s| s.as_ref().and_then(|s| s.change.clone())));
+    let sem = Memo::new(move |_| ctx.table.with(|table| table.as_ref().map(|table| table.key)));
+    let act = move |what: fn(&mut folia_plans::studyplan::PlanDoc, folia_calendar::semester::SemesterKey, &Change, &Values)| {
+        move |_: leptos::ev::MouseEvent| {
+            let (Some(plan), Some(sem), Some(part)) = (ctx.plan, sem.get_untracked(), part.get_untracked()) else { return };
+            let Some((change, _)) = part.holds.clone() else { return };
+            let qis = part.qis.clone();
+            plan.update_after_paint(move |doc| what(doc, sem, &change, &qis));
+        }
+    };
+    let reset = act(|doc, sem, change, _| {
+        doc.remove_change(sem, change.key, change.scope);
+    });
+    let keep = act(|doc, sem, change, qis| {
+        doc.keep_change(sem, change.key, change.scope, qis);
+    });
+    move || {
+        part.get().and_then(|part| {
+            let (change, differs) = part.holds.clone()?;
+            let locale = t.locale;
+            // What the change changes, as QIS says it and as the change does.
+            let said = |values: &Values| {
+                let mut parts = Vec::new();
+                if change.weekday.is_some() {
+                    parts.push(weekday(values.weekday, locale).to_string());
+                }
+                if change.time.is_some() {
+                    parts.push(format!("{}–{}", clock(values.from), clock(values.to)));
+                }
+                if change.room.is_some() {
+                    parts.push(if values.room.is_empty() { t.termin.no_room.to_string() } else { values.room.clone() });
+                }
+                parts.join(" · ")
+            };
+            let mine = said(&change.applied(&part.qis));
+            let acts = ctx.plan.is_some();
+            Some(match differs {
+                false => {
+                    let scope = match change.scope {
+                        Scope::All => t.termin.changed_all.to_string(),
+                        Scope::From(day) => (t.termin.changed_from)(&day_words(day, None, locale)),
+                        Scope::On(day) => (t.termin.changed_on)(&day_words(day, None, locale)),
+                    };
+                    let was = (t.termin.changed_qis)(&said(&change.was));
+                    view! {
+                        <p class="tm-changed">
+                            <Icon name="pencil"/>
+                            <span><b>{t.termin.changed_by_you}</b>", "{scope}" · "{was}</span>
+                            {acts.then(|| view! { <button class="link" type="button" data-action="change-reset" on:click=reset>{t.termin.reset}</button> })}
+                        </p>
+                    }
+                    .into_any()
+                }
+                true => {
+                    let now = said(&part.qis);
+                    view! {
+                        <div class="tm-differs">
+                            <p class="tm-changed warn"><Icon name="triangle-alert"/><span>{(t.termin.differs)(&now, &mine)}</span></p>
+                            <div class="tm-cmp">
+                                <div><small>{t.termin.qis_now}</small><b>{now.clone()}</b></div>
+                                <div class="mine"><small>{t.termin.yours}</small><b>{mine.clone()}</b></div>
+                            </div>
+                            {acts.then(|| view! {
+                                <div class="tm-cmp-acts">
+                                    <button class="mini" type="button" data-action="change-take" on:click=reset>{t.termin.take_qis}</button>
+                                    <button class="mini primary" type="button" data-action="change-keep" on:click=keep>{t.termin.keep_mine}</button>
+                                </div>
+                            })}
+                        </div>
+                    }
+                    .into_any()
+                }
+            })
+        })
+    }
+}
+
+/// „Ändern" of a Termin of QIS, the view's body while it is open (folia/design/kalender/
+/// termine.html: „Die Ansicht von VL EvS im Modus „Ändern": oben „Für", darunter Tag, Zeit und
+/// Raum, und was QIS sagt"): „Für" above the fields it changes (owner, 2026-10-27: „Wenn man solche
+/// Buttons hat, dann ändern die nur den Inhalt unter ihnen"), what QIS says, what the change meets
+/// where the page says it (`ChangeActs::fit`), „Abbrechen" and „Speichern", which changes the plan
+/// after the next frame (R21) and shows the Termin as changed. A change that says what QIS says
+/// is none: „Speichern" takes the one of its scope away.
+#[component]
+fn ChangeView(ctx: TerminCtx, shown: Memo<Option<Shown>>, editing: RwSignal<Option<ChangeDraft>>) -> impl IntoView {
+    let t = i18n::t();
+    let locale = t.locale;
+    let part = Memo::new(move |_| shown.with(|s| s.as_ref().and_then(|s| s.change.clone())));
+    let draft = Memo::new(move |_| editing.get());
+    let set = move |change: Box<dyn FnOnce(&mut ChangeDraft)>| editing.update(|draft| {
+        if let Some(draft) = draft {
+            change(draft);
+        }
+    });
+    let made = Memo::new(move |_| part.with(|part| draft.with(|draft| part.as_ref().zip(draft.as_ref()).map(|(part, draft)| draft.change(part)))));
+    let fit = Memo::new(move |_| {
+        let acts = ctx.change?;
+        match made.get()? {
+            Ok(Some(change)) => Some(acts.fit.run(change)),
+            _ => None,
+        }
+    });
+    let sem = Memo::new(move |_| ctx.table.with(|table| table.as_ref().map(|table| table.key)));
+    let save = move |ev: leptos::ev::SubmitEvent| {
+        ev.prevent_default();
+        let (Some(plan), Some(sem), Some(part), Some(draft)) = (ctx.plan, sem.get_untracked(), part.get_untracked(), editing.get_untracked()) else { return };
+        let Ok(change) = draft.change(&part) else { return };
+        let scope = draft.scope(&part);
+        editing.set(None);
+        plan.update_after_paint(move |doc| match change {
+            Some(change) => {
+                doc.set_change(sem, change);
+            }
+            None => {
+                doc.remove_change(sem, part.key, scope);
+            }
+        });
+    };
+    let cancel = move |_| editing.set(None);
+    move || {
+        part.get().map(|part| {
+            let day = format!("{} {}", weekday(part.day.weekday(), locale), part.day.day_month(locale));
+            let pick = |word: ScopeWord, label: String| {
+                let on = Memo::new(move |_| draft.with(|draft| draft.as_ref().is_some_and(|draft| draft.scope == word)));
+                view! {
+                    <button type="button" role="radio" aria-checked=move || if on.get() { "true" } else { "false" } class:on=move || on.get() on:click=move |_| set(Box::new(move |draft| draft.scope = word))>{label}</button>
+                }
+            };
+            let qis = &part.qis;
+            let qis_said = format!("{} {}–{}{}", weekday(qis.weekday, locale), clock(qis.from), clock(qis.to), if qis.room.is_empty() { String::new() } else { format!(" · {}", qis.room) });
+            let differs = move |of: fn(&ChangeDraft, &Values) -> bool| {
+                let qis = part.qis.clone();
+                move || draft.with(|draft| draft.as_ref().is_some_and(|draft| of(draft, &qis)))
+            };
+            let line = move || match made.get() {
+                Some(Err(())) => Some(view! { <p class="own-fit no" role="status"><Icon name="triangle-alert"/><span>{t.termin.change_end_before}</span></p> }.into_any()),
+                _ => fit.get().map(|(meets, text)| match meets {
+                    true => view! { <p class="own-fit warn" role="status"><Icon name="triangle-alert"/><span>{text}</span></p> }.into_any(),
+                    false => view! { <p class="own-fit ok" role="status"><Icon name="check"/><span>{text}</span></p> }.into_any(),
+                }),
+            };
+            view! {
+                <form class="tm-sec chg" id="tm-change" on:submit=save>
+                    <h4>{t.termin.change_head}<span class="r">{t.termin.in_feed}</span></h4>
+                    <div class="chg-fld wide">
+                        <span class="chg-lb" id="chg-for">{t.termin.change_for}</span>
+                        <div class="seg chg-seg" role="radiogroup" aria-labelledby="chg-for">
+                            {pick(ScopeWord::On, (t.termin.change_on)(&day))}
+                            {pick(ScopeWord::From, (t.termin.change_from)(&day))}
+                            {pick(ScopeWord::All, (t.termin.change_all)(part.dates))}
+                        </div>
+                    </div>
+                    <div class="chg-fld" class:changed=differs(|draft, qis| draft.weekday != qis.weekday)>
+                        <label for="chg-day">{t.termin.change_day}</label>
+                        <select id="chg-day" on:change=move |ev| { let value = event_target_value(&ev).parse::<u8>().unwrap_or(1); set(Box::new(move |draft| draft.weekday = value)); }>
+                            {(1..=7_u8).map(|day| {
+                                let name = locale.texts().weekday(i64::from(day)).unwrap_or_default();
+                                view! { <option value=day.to_string() selected=move || draft.with(|draft| draft.as_ref().is_some_and(|draft| draft.weekday == day))>{name}</option> }
+                            }).collect_view()}
+                        </select>
+                    </div>
+                    <div class="chg-fld" class:changed=differs(|draft, qis| minutes(draft.from.trim()) != Some(qis.from) || minutes(draft.to.trim()) != Some(qis.to))>
+                        <span class="chg-lb">{t.termin.change_time}</span>
+                        <span class="chg-two">
+                            <input type="time" step="300" aria-label=t.termin.change_time prop:value=move || draft.with(|draft| draft.as_ref().map(|draft| draft.from.clone()).unwrap_or_default()) on:input=move |ev| { let value = event_target_value(&ev); set(Box::new(move |draft| draft.from = value)); }/>
+                            <span>{t.termin.change_until}</span>
+                            <input type="time" step="300" aria-label=t.termin.change_until prop:value=move || draft.with(|draft| draft.as_ref().map(|draft| draft.to.clone()).unwrap_or_default()) on:input=move |ev| { let value = event_target_value(&ev); set(Box::new(move |draft| draft.to = value)); }/>
+                        </span>
+                    </div>
+                    <div class="chg-fld" class:changed=differs(|draft, qis| room_text(&draft.room).unwrap_or_default() != qis.room)>
+                        <label for="chg-room">{t.termin.change_room}</label>
+                        <input id="chg-room" type="text" autocomplete="off" maxlength=folia_calendar::change::MAX_ROOM prop:value=move || draft.with(|draft| draft.as_ref().map(|draft| draft.room.clone()).unwrap_or_default()) on:input=move |ev| { let value = event_target_value(&ev); set(Box::new(move |draft| draft.room = value)); }/>
+                    </div>
+                    <p class="chg-qis">{(t.termin.change_qis)(&qis_said)}</p>
+                    {line}
+                    <div class="chg-foot">
+                        <button class="mini" type="button" data-action="change-cancel" on:click=cancel>{t.termin.cancel}</button>
+                        <button class="mini primary" type="submit" data-action="change-save">{t.termin.save}</button>
+                    </div>
+                </form>
             }
         })
     }
@@ -879,9 +1187,10 @@ fn WhoView(shown: Memo<Option<Shown>>) -> impl IntoView {
 /// one likes, none ticked leaving the choice open; then this one date hidden, of what the plan
 /// holds. Each acts at once, and the Kalender-Abo follows the plan.
 #[component]
-fn PlanView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
+fn PlanView(ctx: TerminCtx, shown: Memo<Option<Shown>>, editing: RwSignal<Option<ChangeDraft>>) -> impl IntoView {
     let t = i18n::t();
     let part = Memo::new(move |_| shown.with(|s| s.as_ref().and_then(|s| s.plan.clone())));
+    let change = Memo::new(move |_| shown.with(|s| s.as_ref().and_then(|s| s.change.clone())));
     let sem = Memo::new(move |_| ctx.table.with(|table| table.as_ref().map(|table| table.key)));
     let switch = move |_: leptos::ev::MouseEvent| {
         let (Some(plan), Some(sem), Some(part)) = (ctx.plan, sem.get_untracked(), part.get_untracked()) else { return };
@@ -903,6 +1212,7 @@ fn PlanView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
         part.get().map(|part| {
             let label = (t.termin.show_kind)(&part.kind);
             let on = part.shown;
+            let held = part.held;
             let group_row = part.group.clone().map(|group| {
                 let ticked = group.ticked;
                 view! {
@@ -932,9 +1242,83 @@ fn PlanView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
                     </div>
                     {on.then_some(group_row)}
                     {on.then_some(date_row)}
+                    {move || change.get().filter(|_| on && held).map(|change| view! { <ChangeRows ctx part=change editing/> })}
                 </section>
             }
         })
+    }
+}
+
+/// The rows a Termin of QIS with a time adds to „Im Stundenplan" (folia/design/kalender/
+/// termine.html, „Ein Termin aus QIS: „Ändern", „Notiz"", „Ein Tag anders"): „Zeit, Tag oder Raum"
+/// with „Ändern", which opens `ChangeView`; the note, only the student's, with „Hinzufügen" or
+/// „Bearbeiten" opening its field; and where the page has it „Nachholtermin", a Termin of one's own
+/// of the module on one more date.
+#[component]
+fn ChangeRows(ctx: TerminCtx, part: ChangePart, editing: RwSignal<Option<ChangeDraft>>) -> impl IntoView {
+    let t = i18n::t();
+    let (key, day) = (part.key, part.day);
+    let start = {
+        let part = part.clone();
+        move |_| editing.set(Some(ChangeDraft::of(&part)))
+    };
+    let makeup = ctx.change.map(|acts| {
+        view! {
+            <div class="crow">
+                <span class="ci"><Icon name="calendar-plus"/></span>
+                <span><b>{t.termin.makeup}</b><small>{t.termin.makeup_sub}</small></span>
+                <button class="sw" type="button" data-action="makeup" on:click=move |_| acts.makeup.run((key, day))>{t.termin.makeup_add}</button>
+            </div>
+        }
+    });
+    view! {
+        <div class="crow">
+            <span class="ci"><Icon name="pencil"/></span>
+            <span><b>{t.termin.change_row}</b><small>{t.termin.change_row_sub}</small></span>
+            <button class="sw" type="button" data-action="change" on:click=start>{t.termin.change}</button>
+        </div>
+        <NoteRow ctx key note=part.note.clone()/>
+        {makeup}
+    }
+}
+
+/// The note at a Termin: its words, or what it is for („nur für dich, auch in der Datei"), and
+/// „Hinzufügen" or „Bearbeiten", which open its field with „Abbrechen" and „Speichern" (an empty one
+/// takes the note away). Saved after the next frame (R21).
+#[component]
+fn NoteRow(ctx: TerminCtx, key: RowKey, note: Option<String>) -> impl IntoView {
+    let t = i18n::t();
+    let open = RwSignal::new(false);
+    let text = RwSignal::new(note.clone().unwrap_or_default());
+    let sem = Memo::new(move |_| ctx.table.with(|table| table.as_ref().map(|table| table.key)));
+    let save = move |ev: leptos::ev::SubmitEvent| {
+        ev.prevent_default();
+        let (Some(plan), Some(sem)) = (ctx.plan, sem.get_untracked()) else { return };
+        let value = text.get_untracked();
+        open.set(false);
+        plan.update_after_paint(move |doc| {
+            doc.set_note(sem, key, &value);
+        });
+    };
+    let has = note.is_some();
+    let said = note.unwrap_or_else(|| t.termin.note_sub.to_string());
+    view! {
+        <div class="crow">
+            <span class="ci"><Icon name="file-text"/></span>
+            <span><b>{t.termin.note}</b><small class:tm-note-text=has>{said}</small></span>
+            <button class="sw" type="button" data-action="note" aria-expanded=move || if open.get() { "true" } else { "false" } on:click=move |_| open.update(|open| *open = !*open)>
+                {if has { t.termin.note_edit } else { t.termin.note_add }}
+            </button>
+        </div>
+        {move || open.get().then(|| view! {
+            <form class="tm-note" on:submit=save>
+                <textarea id="tm-note-field" rows="3" maxlength=folia_calendar::change::MAX_NOTE aria-label=t.termin.note placeholder=t.termin.note_placeholder prop:value=move || text.get() on:input=move |ev| text.set(event_target_value(&ev))></textarea>
+                <div class="chg-foot">
+                    <button class="mini" type="button" on:click=move |_| open.set(false)>{t.termin.cancel}</button>
+                    <button class="mini primary" type="submit" data-action="note-save">{t.termin.save}</button>
+                </div>
+            </form>
+        })}
     }
 }
 
@@ -1487,7 +1871,10 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
     let date_row = o.dates.iter().find(|dated| dated.day == o.day).and_then(|dated| event.rows.get(dated.row)).unwrap_or(first);
     let mut rooms: Vec<String> = Vec::new();
     let mut names: Vec<String> = Vec::new();
-    for row in event.rows.iter().filter(|row| row.key.is_some() && row.key == date_row.key) {
+    // The rooms of the rows of its key that have the day: one slot in two rooms; a change for
+    // some of its dates gives the others none of its room.
+    let has_day = |row: &Row| row.occ.days.contains(&o.day) || row.occ.hidden.contains(&o.day) || row.occ.cancelled.iter().any(|(day, ..)| *day == o.day) || row.occ.skipped.iter().any(|(day, _)| *day == o.day);
+    for row in event.rows.iter().filter(|row| row.key.is_some() && row.key == date_row.key && (has_day(row) || std::ptr::eq(*row, date_row))) {
         if let Some(room) = row.date.room_shown().map(str::to_string).filter(|room| !rooms.contains(room)) {
             rooms.push(room);
         }
@@ -1509,6 +1896,9 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
         (_, true) => "past",
         _ => "",
     };
+    // The change holding on the date shown, where one does.
+    let held = o.dates.iter().find(|dated| dated.day == o.day).and_then(|dated| holding(table, o.event, dated.row));
+    let shown_room = rooms.join(", ");
     let ticket = Ticket {
         date: day_words(o.day, today, locale),
         prev: o.step(true),
@@ -1521,6 +1911,24 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
         state,
         live,
         own: own.is_some(),
+        pen_time: held.is_some_and(|changed| changed.change.time.is_some() || changed.change.weekday.is_some()),
+        pen_room: held.is_some_and(|changed| changed.change.room.is_some()),
+    };
+    // A Termin of QIS with a time, to adjust: what „Ändern" starts from.
+    let change = match (mode, own, o.from.zip(o.to), module) {
+        // Of the change holding on the date its key (of a series of single dates the date's it
+        // was made on), so that changing it again replaces it.
+        (TerminMode::Adjust, None, Some((from, to)), Some(module)) => qis_values(table, o.key).map(|qis| ChangePart {
+            key: held.map_or(o.key, |changed| changed.change.key),
+            module: module.clone(),
+            day: o.day,
+            qis,
+            shown: Values { weekday: o.day.weekday(), from, to, room: shown_room },
+            holds: held.map(|changed| (changed.change.clone(), changed.state == ChangeState::Differs)),
+            dates: o.place(None).1,
+            note: table.notes.get(&o.key).cloned(),
+        }),
+        _ => None,
     };
 
     // Who leads it.
@@ -1598,7 +2006,7 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
             let held = group.as_ref().is_none_or(|(group, ticked)| group.ticked || *ticked == 0);
             let hideable = held && matches!(o.state, DateState::Held | DateState::Note(_) | DateState::Hidden) && o.dates.iter().filter(|dated| dated.state.held()).count() > 1;
             let date = o.date_key(table).filter(|_| hideable).map(|key| (day_words(o.day, today, locale), key, o.day, o.state == DateState::Hidden));
-            PlanPart { event: id, kind: kind.clone(), shown, sub: sub.to_string(), group: group.map(|(group, _)| group), date }
+            PlanPart { event: id, kind: kind.clone(), shown, sub: sub.to_string(), group: group.map(|(group, _)| group), date, held }
         }),
     };
 
@@ -1606,7 +2014,7 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
     let the_day = (o.from.is_some() && measure.is_some()).then(|| day_part(table, beside, &o, (modules, head.out), t));
 
     // The series.
-    let series = series_part(&o, today, t);
+    let series = series_part(&o, event, today, t);
 
     // The period and what differs; a Termin of one's own says its period itself.
     let mut range = range_part(event, &o, today, t);
@@ -1659,7 +2067,7 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
         let name = format!("{} {}", head.chip, kind);
         (ics::write(&calendar), (t.termin.calendar_file)(name.trim()))
     });
-    Some(Shown { key, day: o.day, head, pick, ticket, people, hints, plan, groups, the_day, series, range, module: module_part, staff, source, file, own: own_part })
+    Some(Shown { key, day: o.day, head, pick, ticket, people, hints, plan, groups, the_day, series, range, module: module_part, staff, source, file, own: own_part, change })
 }
 
 /// What a page of the Termin says of itself, on the date the view shows at `now`: the browser
@@ -1818,7 +2226,7 @@ fn day_part(table: &Timetable, beside: Option<&Timetable>, o: &Occasion, named: 
 
 /// „Reihe": a dot per date, how many it has and how many are to come. Nothing of it depends on the
 /// date shown: it picks that date, and stands above what the pick changes.
-fn series_part(o: &Occasion, today: Option<Day>, t: &'static Texts) -> Option<SeriesPart> {
+fn series_part(o: &Occasion, event: &Event, today: Option<Day>, t: &'static Texts) -> Option<SeriesPart> {
     let locale = t.locale;
     if o.dates.len() < 2 {
         return None;
@@ -1839,9 +2247,12 @@ fn series_part(o: &Occasion, today: Option<Day>, t: &'static Texts) -> Option<Se
                 DateState::Held if gone => ("past", Some(t.termin.dot_past.to_string())),
                 DateState::Held => ("", None),
             };
-            let class = ["sd", state, if today == Some(dated.day) { "today" } else { "" }].into_iter().filter(|class| !class.is_empty()).collect::<Vec<_>>().join(" ");
+            // A date changed on its own stands as a ring (folia/design/kalender/termine.html).
+            let alone = event.rows.get(dated.row).and_then(|row| row.changed.as_ref()).is_some_and(|change| matches!(change.scope, Scope::On(_)));
+            let class = ["sd", state, if alone { "chg" } else { "" }, if today == Some(dated.day) { "today" } else { "" }].into_iter().filter(|class| !class.is_empty()).collect::<Vec<_>>().join(" ");
             let nth = held.iter().position(|day| *day == dated.day).filter(|_| dated.state.held()).map(|at| (t.termin.nth_of)(at + 1, count));
-            let label = [Some(day_words(dated.day, today, locale)), nth, said].into_iter().flatten().collect::<Vec<_>>().join(" · ");
+            let changed = alone.then(|| t.termin.changed_title.to_string());
+            let label = [Some(day_words(dated.day, today, locale)), nth, said, changed].into_iter().flatten().collect::<Vec<_>>().join(" · ");
             Dot { day: dated.day, class, label, link: dated.state.steppable() }
         })
         .collect();
