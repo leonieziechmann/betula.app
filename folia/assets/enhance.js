@@ -1886,8 +1886,9 @@
   let shownSheet = null; // the sheet in the page as last seen
   let lostSheet = null; // the one that went without another in its place, for a moment: { sheet, at }
   let standin = null; // the skeleton kept on the screen: { sheet, timer }
-  // A module (`open=`) or a Termin in its own view (`termin=`, folia/crates/widgets/src/termin.rs).
-  const asksModule = () => /[?&](open|termin)=/.test(location.search);
+  // A module (`open=`). A Termin in its own view (`termin=`) is a dialog of its own
+  // (folia/crates/widgets/src/termin.rs, `TerminModal`), the sheet every dialog is.
+  const asksModule = () => /[?&]open=/.test(location.search);
   const dropStandin = () => {
     const s = standin;
     standin = null;
@@ -4102,6 +4103,26 @@
     if (e.key === " " && !e.defaultPrevented && e.target.matches?.('a[role="checkbox"], a[role="radio"]')) { e.preventDefault(); e.target.click(); return; }
     const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
     const over = !!e.target.closest?.(OVER) || modalOpen();
+    // The Termin's dialog keeps the keys of the Termin (folia/crates/widgets/src/termin.rs,
+    // `TerminModal`): ← and → its date as the arrows beside it, V its whole page, ? the keys with
+    // „Im Termin" first. Not in a field; with the keyboard nowhere (a click on its text), where it
+    // is the one dialog open, not under another (the keys' over it).
+    const dialogs = e.target.closest?.("dialog[open]") ? [e.target.closest("dialog[open]")] : [...document.querySelectorAll("dialog[open]")];
+    const termin = over && plain && !e.defaultPrevented && !texty(el) && dialogs.length === 1 ? dialogs[0] : null;
+    if (termin?.querySelector(".is-termin")) {
+      if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.shiftKey) {
+        const to = termin.querySelector(`.tk-date a[data-step="${e.key === "ArrowLeft" ? "prev" : "next"}"]`);
+        if (to) { e.preventDefault(); if (!e.repeat) to.click(); return; }
+      }
+      if (lettersOn() && !e.shiftKey && e.key.toLowerCase() === "v") {
+        const full = termin.querySelector('[data-action="fullscreen"]');
+        if (full?.getClientRects().length) { e.preventDefault(); full.click(); return; }
+      }
+      if (lettersOn() && e.key === "?") {
+        const button = find('[data-action="keys"]');
+        if (button) { e.preventDefault(); button.setAttribute("data-from", "termin"); button.click(); return; }
+      }
+    }
     // Ctrl + F6: the next region (Shift: the one before). F6 alone stays the browser's.
     if (e.key === "F6" && (e.ctrlKey || e.metaKey) && !e.altKey && !over) { e.preventDefault(); return cycleRegions(e.shiftKey ? -1 : 1); }
     if (e.defaultPrevented || over) return;

@@ -47,13 +47,13 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/about/<topic>` | A page about Betula on one topic (`url::AboutTopic`, `folia/crates/home/src/home/topics.rs`; 2026-10-27): `overview` („Überblick", `home/overview.rs`: what „Über Betula" kept — the first panel with the figures on a birch, the carousel with the map, what the app can do, the `WebApplication` data), `finding` („Module finden": the way to a module, the filters with their board, the ways into the catalog), `planning` („Studium planen": the Regelstudienpläne, the Stundenplan, the programs by faculty), `data` („Deine Daten": no account, where the data comes from), `technology` („Technik": with and without JavaScript, the devices), `questions` („Häufige Fragen", with the `FAQPage` data). Each with its own title and description, „Zurück" to the start page (Esc), the row of the topics and the others as tiles; in the sitemap, the stage of no tab (`stage::Key::Other`), as the legal pages; another name after `/about/` is a 404. The start page's tiles lead to five of them (all but „Technik"), the setup's „Was ist Betula?" to the overview |
 | `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `area`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `events`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `marked`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation). `area=<id>[,<id>…]` are areas of the selected program's module tree („Wahlpflichtmodule Praktische Informatik"): the modules the tree places in any of them or below one (several come from a row of the plan that means several areas, opened from the program's page; the picker then says „5 Bereiche", one tag per area above the list) |
 | `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone the preview is a sheet from below over the list, without „Vollbild" (2026-10-06, 2026-10-16, „A module on a phone" below; until then a tap on a row opened the module's page, and the app turned a shared `open` link into it). The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
-| `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen. `?termin=<key>&on=<day>`: a Termin of it beside the page to look up, on a phone a sheet over it (the app's alone; „A Termin in its own view") |
+| `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen. `?termin=<key>&on=<day>`: a Termin of it in the app's dialog over the page to look up, on a phone the sheet every dialog is (the app's alone; „A Termin in its own view") |
 | `/event/<key>[/<day>]` | A Termin's own page to look up (`url::event_path`, 2026-10-26; „A Termin in its own view" below), where a line of a module's Termine leads: the key a `RowKey`, the day a date of it (without one the next, the server's the first). The server renders it the same for everybody, `noindex`, not in the sitemap, its links to other dates `nofollow`; an event no module links is a 404. A page of a while: it lies on the tab it was opened from |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
 | `/study[?view=plan\|areas][&open=<id>][&full=1]` | „Mein Studium“ (`StudyUrl`, 2026-10-04): the visitor's study semester by semester, the first page of the Studium tab in the app (see „Mein Studium“ below). What is passed and planned lives in the browser; the address says only how it is shown: which view (`view`, 2026-10-14: `plan` the Regelstudienplan, `areas` the Wahlpflicht, none the semesters; on a phone each a page of its own that Back leaves), which module stands beside the page, and whether it fills it. The semester a phone's row shows rather than the overview is no part of the address since 2026-10-18 but the state of its entry of the history, which a reload, Back and Forward bring along and which writes no step („Back" below); from 2026-10-05 it was `plan=1`, a step after the overview, which is still read (and links the box „Studium planen" without JavaScript) and gives way to `/study` once the row is back at the overview; a desktop shows both at once. The server renders one stand-in for everybody, `noindex`, not in the sitemap |
 | `/programs/<slug>/plan\|areas\|my-plan[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar: the Regelstudienplan (`plan`) and „Wahlpflicht & Bereiche“ (`areas`). „Mein Plan“ (`my-plan`, the visitor's, `noindex` and not in the sitemap, `ProgramTab::indexed`) took the place of „Alle Module“ on 2026-09-25 (the program's modules are its catalog, `/catalog?program=<slug>`, and `…/modules` is a 404) and became „Mein Studium“ on 2026-10-04: the views no longer list it, the app goes on from its address to `/study` in the same history entry, and the server's page there says so. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all but `variant` (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key and its canonical address is the plain one. The plan of each further study direction is a page of its own (2026-09-26): `?variant=<n>` is its canonical address, listed in the sitemap, with the direction in its title; the first is the plain address, and a number past the last plan names the last. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone an area or a row of the plan picked is the page, and a module comes up as a sheet over the page or over what was picked (2026-10-06; until then `open` alone showed it in full there) |
 | `/bookmarks?collection=…&turnus=…&stand=…&counts=1&lang=…&ects_min=…&campus=…&graded=yes&fits=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (the view — a collection by its number, `none` for „Ohne Sammlung", never its name —, half of the year, „Stand", „Zählt in meinem Studium", the few of the catalog's filters it has under the catalog's names, the order — `added`, `study`, `offer`, `title`, `ects`, `events`, each turned round with `desc=1` —, the previewed module), never what is on it: the marks live in the browser, and so does what is typed into the search at the head on this page (`folia_shell::search::LocalSearch`, R20). `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/widgets/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` is a sheet over the list (2026-10-06; until then it did what `full=1` does). The server renders an explanation, the same for everybody, `noindex` |
-| `/studyplan?sem=…&view=…&open=<id>&row=<key>&termin=<key>&on=<day>&wahl=e<event>&vergleich=1&import=…&variant=<n>[&share=<code>][&full=1]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20) — `termin` and `on` a Termin beside it in its own view, in the module's place, and with `full=1` filling the page („Ganze Seite", as `open=<id>&full=1` a module; `PlanAddress`; „A Termin in its own view"), `wahl` a choice of groups in focus over the week and `vergleich` its groups compared day by day („Offen and the choice in focus") —, with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
+| `/studyplan?sem=…&view=…&open=<id>&row=<key>&termin=<key>&on=<day>&wahl=e<event>&vergleich=1&import=…&variant=<n>[&share=<code>][&full=1]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20) — `termin` and `on` a Termin in its own view in the app's dialog over it, and with `full=1` filling the page („Ganze Seite", as `open=<id>&full=1` a module; `PlanAddress`; „A Termin in its own view"), `wahl` a choice of groups in focus over the week and `vergleich` its groups compared day by day („Offen and the choice in focus") —, with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
 | `/profile` | „Profil" (owner, 2026-10-14): the profiles of this browser and the active one's page — its name (renamed, deleted), „Mein Studiengang", what it keeps with the way to each and „Profil leeren", the settings every profile shares (light, dark or the system's; the language); in the sidebar the profiles (a click switches), „Neues Profil", and a profile kept as a file or made of one. What it shows lives in the browser; the address is the page and says nothing more. A page of a while: on a phone its arrow leads back to where the visitor was (2026-10-19). The server renders one stand-in for everybody, `noindex`, not in the sitemap („Profiles" below) |
 | `/impressum`, `/datenschutz` | The legal pages (`folia/crates/home/src/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of every page („The birch"; § 5 DDG: reachable at all times), on a phone all but the row of pages of „Mein Studium", which has no ground (owner, 2026-10-19): there they are a tab further, at the end of any other page. The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
 
@@ -2136,16 +2136,26 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   page's `TerminOver`). The owner, of the round before: „Beim kallender workflow wenn man auf einen
   Termin klickt. Ich würde schätzen punkt 1 sind ein paar mehr infos. Punkt 2 ist dann die Termine
   zu customizen."
-  - **Where it opens.** A slot of the Stundenplan's week and a line of its „Termine" open the Termin
-    beside the plan, in the place of the module's panel (`/studyplan?termin=<key>&on=<day>`, the key
-    a `RowKey`, the day of a line its own, a slot's none: the view picks the next date, the day after
+  - **Where it opens: the app's dialog over the page** (owner, 2026-11-03, of the panel it was
+    until then: „Also erstmal muss das ein modal werden oder eine fullpage zeite mit zurück etc.
+    Aktuell ist das übelst cursed. Das muss neu"; `folia_widgets::termin::TerminModal`, the one
+    dialog `folia_design::modal::Modal` in its `m` size). A slot of the Stundenplan's week and a line
+    of its „Termine" open the Termin over the plan (`/studyplan?termin=<key>&on=<day>`, the key a
+    `RowKey`, the day of a line its own, a slot's none: the view picks the next date, the day after
     once today's is over); its slot is marked as the one open. A Termin of the start page (a line of
     „Heute" and „Morgen", the card's „Termin ansehen", a bar of the week) opens over the start page
-    (`/?termin=…&on=…`, `url::home_termin`), floating at the right edge where the screen is wide.
-    On a phone it is the sheet a module is (`.detail.is-module`, enhance.js waits for `termin=` as for
-    `open=`). Each event, group and date that picks it leads to its own Termin by such an address,
-    so Back steps back through them; Esc and „Schließen" close it (back a step where the page without
-    it is the step before). An exam and a Termin without a date open their module, as before.
+    (`/?termin=…&on=…`, `url::home_termin`), and a line of a module's „Termine" over the module's own
+    page (below). On a wide screen the dialog stands in the middle of the window, 600 × 600 px over
+    the page dimmed, its head staying while its body scrolls; on a phone it is the sheet from below
+    every dialog is. Until then it stood beside the page, over the page's right part (the
+    Stundenplan's Thursday and Friday, a module's Termine and „Einplanen"), the page in use around
+    it. The dialog stands while its address asks for it and its page is in front: a page kept
+    behind another (`folia_design::stage`) holds no dialog over that one, and Back brings it back
+    with its page. Each event, group and date that picks it leads to its own Termin by such an
+    address, so Back steps back through them; Esc, a click beside it, Back, a finger's throw and its
+    „Schließen" close it (back a step where the page without it is the step before, else to that
+    page), and so does what leads elsewhere („Zum Modul", „Anpassen ›", „Ganze Seite"). An exam and
+    a Termin without a date open their module, as before.
   - **What picks it stands above everything it changes** (owner, 2026-10-27, after trying the fourth
     round on canary: „Also eine Sache, die komplett unverständlich ist, ist der Fakt, dass man unten
     auswählt, welchen Termin man sich genau angucken möchte und sich dann die Seite nur marginal
@@ -2216,38 +2226,40 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     a plan of the semester no group is green or red and there is no day; the server, which knows
     no plan (R9), says nothing of it at all.
   - **„Teilen" and „Ganze Seite"** (owner, 2026-10-26: „Passt so, bau als Nächstes Teilen und Ganze
-    Seite"; `TerminPlace`). At the head of the view beside a page: „Teilen" (its sign), „Ganze
-    Seite" (its sign and V; not on a phone's sheet, which goes all up itself, as „Vollbild" of a
-    module is not there) and „Schließen" (Esc). „Teilen" hands on the Termin's own page on the day
+    Seite"; `TerminPlace`). At the head of the dialog: „Teilen" (its sign), „Ganze Seite" (its sign
+    and V; not on a phone's sheet, which goes all up itself, as „Vollbild" of a module is not there)
+    and the dialog's „Schließen" (Esc; on a phone the grabber's, as every dialog's). „Teilen" hands on the Termin's own page on the day
     shown (`/event/<key>/<day>`, a whole address in the page's language): to the device's share
     sheet on a touch screen, else into the clipboard, „Link kopiert" in its place for a moment
     (enhance.js, `share-link`; it needs JavaScript, R15). „Ganze Seite" lets the Termin fill the
-    page it stood beside (`/studyplan?…&termin=…&on=…&full=1`, `/?termin=…&on=…&full=1`), as
+    page it stood over (`/studyplan?…&termin=…&on=…&full=1`, `/?termin=…&on=…&full=1`), as
     „Vollbild" does a module: the same view, still the one that adjusts, in two columns where the
     page is wide (folia/design/termin, „Die Seite": on the left what picks the Termin with its
     series, the ticket, who, „Im Stundenplan", the day and the period; on the right the module and who
     teaches, which no pick changes, and the source), its events, groups and dates leading to their
     Termin filling the page too, „Zurück" (Esc)
-    to the view beside the page on the day shown, „Teilen" in words at the right. The start page's
+    to the dialog over the page on the day shown, „Teilen" in words at the right. The start page's
     own parts make way meanwhile (app.css; its photo leaves the bar, `betula:frost`). A Termin's own
     page has the same two columns and „Teilen".
   - **← and →** (owner, 2026-10-27: „bau als Nächstes die Tasten ← → fürs Datum"): the date
-    before and after, as the arrows beside the date (`data-step`, enhance.js), beside the page,
-    filling it and on its own page; one date a press, a key held does not run through the series.
-    Not in a field, nor where the arrows are another's (a mode, a group of one stop, a panel's
-    edge, the note of a module planned). The arrows need no hint (CLAUDE.md, „Design"); the
+    before and after, as the arrows beside the date (`data-step`, enhance.js), in the dialog over the
+    page, filling it and on its own page; one date a press, a key held does not run through the
+    series. Not in a field, nor where the arrows are another's (a mode, a group of one stop, a
+    panel's edge, the note of a module planned). The dialog keeps them, V and `?` while it is the one
+    dialog open (a dialog takes the page's keys away from the page otherwise; `?` puts the keys'
+    overview over it). The arrows need no hint (CLAUDE.md, „Design"); the
     overview of the keys has „Im Termin" wherever a Termin stands in its own view, first where `?`
     was pressed in it (←, →, V, Esc).
-  - **Beside its module's page** (owner, 2026-10-27: „bau als Nächstes den Termin als Sheet über
+  - **Over its module's page** (owner, 2026-10-27: „bau als Nächstes den Termin als Sheet über
     der Modulseite"; the concept: „über /catalog/module/11112?termin=… zum Nachschlagen"): on the
-    module's own page in the app a line of its „Termine" opens the Termin beside the page
-    (`?termin=<key>&on=<day>`, `url::module_termin_path`, the page's hint kept), floating at its
-    right as a module beside a list does (the frame's aside), on a phone a sheet over it: the view
-    to look up, measured against the visitor's plan as on its own page (`folia_catalog::lookup`,
-    which both read). Its events, groups and dates open beside the page as well, „Zum Modul" closes it,
-    „Ganze Seite" (V) is the Termin's own page, „Schließen" (Esc) the page without it. The page
-    gives its lines that way (`folia_widgets::module::TerminBeside`); the server's lines, a preview
-    beside a list and „Vollbild" in another area lead to the Termin's own page.
+    module's own page in the app a line of its „Termine" opens the Termin in the dialog over the page
+    (`?termin=<key>&on=<day>`, `url::module_termin_path`, the page's hint kept): the view to look up,
+    measured against the visitor's plan as on its own page (`folia_catalog::lookup`, which both
+    read). Its events, groups and dates open in the dialog as well, „Zum Modul" closes it, „Ganze
+    Seite" (V) is the Termin's own page, „Schließen" (Esc) the page without it; an address of no
+    Termin says so in the dialog. The page gives its lines that way
+    (`folia_widgets::module::TerminBeside`); the server's lines, a preview beside a list and
+    „Vollbild" in another area lead to the Termin's own page.
 - **Offen and the choice in focus** (owner, 2026-10-26, after two rounds of
   `folia/design/kalender/konzepte.html` and `handy.html`: „A mit Fokus und Spur aus C", „nimm H1
   mit Vergleichen"; `folia_timetable::choice`, the planner's `studyplan/open.rs`, `week.rs`

@@ -1235,8 +1235,8 @@ impl StudyplanUrl {
         Self { row: open.as_ref().and(row).map(RowKey::text), open, termin: None, on: None, wahl: None, vergleich: false, ..self.clone() }
     }
 
-    /// This Termin beside the plan in its own view, on this day of it (`None`: its next one), or
-    /// (`None`) nothing beside it; either way no module.
+    /// This Termin over the plan in its own view, on this day of it (`None`: its next one), or
+    /// (`None`) none; either way no module beside the plan.
     pub fn with_termin(&self, termin: Option<(RowKey, Option<Day>)>) -> Self {
         let (termin, on) = match termin {
             Some((key, on)) => (Some(key.text()), on.map(Day::iso)),

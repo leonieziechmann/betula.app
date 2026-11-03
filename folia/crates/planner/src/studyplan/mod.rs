@@ -78,7 +78,7 @@ use self::modules::ModuleList;
 use self::open::{FocusBar, OpenLine, OpenPanel, PickSheet};
 use self::own::{OwnFab, OwnForm, OwnNote};
 use self::side::PlanSidebar;
-use self::termin::{PlanTerminFull, PlanTerminPanel};
+use self::termin::{PlanTerminFull, PlanTerminModal};
 use self::week::{DatesView, WeekLoose, WeekView};
 
 /// When a module is planned, for „Mein Studium" as for the import here.
@@ -284,8 +284,9 @@ pub fn StudyplanPage() -> impl IntoView {
         let going = going.filter(|going| going.change() == Some(Change::Aside))?;
         Some(StudyplanUrl::parse(&going.search_on(url::STUDYPLAN)?))
     });
-    // Beside the plan a module (`open`) or a Termin in its own view (`termin`), never both.
-    let beside = |url: &StudyplanUrl| url.open.is_some() || url.termin.is_some();
+    // Beside the plan a module (`open`); a Termin in its own view (`termin`) stands over the plan in
+    // the app's dialog (`PlanTerminModal`), unless it fills the page.
+    let beside = |url: &StudyplanUrl| url.open.is_some();
     let open = Memo::new(move |_| url.with(beside));
     let termin = Memo::new(move |_| url.with(|url| url.termin.is_some()));
     let picked = Signal::derive(move || {
@@ -299,13 +300,9 @@ pub fn StudyplanPage() -> impl IntoView {
         let there = open.get();
         let coming = target.with(|to| to.as_ref().is_some_and(beside));
         if coming && (!there || going.is_some_and(|going| going.waits(Change::Aside))) {
-            // A Termin's view comes up as the module's panel does: on a phone a sheet over the plan.
             return view! { <DetailSkeleton aside=true calm=there module=true/> }.into_any();
         }
-        match termin.get() {
-            true => view! { <PlanTerminPanel ctx/> }.into_any(),
-            false => view! { <PlanModulePanel ctx/> }.into_any(),
-        }
+        view! { <PlanModulePanel ctx/> }.into_any()
     };
 
     let page = move || {
@@ -329,7 +326,13 @@ pub fn StudyplanPage() -> impl IntoView {
         }
         .into_any()
     };
-    page.into_any()
+    // The Termin's dialog stands with the page, so that it closes by its address alone.
+    let over = Signal::derive(move || termin.get() && !termin_full.get());
+    view! {
+        {page}
+        <PlanTerminModal ctx open=over/>
+    }
+    .into_any()
 }
 
 /// The semester, in three parts (`.sp-body` lays them out). Above the fold (`.sp-fold`): its head,

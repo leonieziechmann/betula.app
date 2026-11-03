@@ -5,7 +5,8 @@
 // 13:45, and its lecture).
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node termin.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // - The Stundenplan: a dashed group of the week takes its choice into focus (`wahl=`), a line of
-//   „Termine" and its address open the Termin beside the plan (`termin=`), its slot marked; the view
+//   „Termine" and its address open the Termin in the app's dialog over the plan (`termin=`; owner,
+//   2026-11-03: „muss das ein modal werden"), the page dimmed, its slot marked; the view
 //   names the module and its title, the module's events as segments above the ticket (the
 //   Praktikum marked), the date with its arrows, the time and the room; „Im Stundenplan" has the
 //   four groups as boxes, none ticked; „Reihe" picks the date above the ticket, the day is a
@@ -15,25 +16,26 @@
 // - The arrow to the next date names it in the address; „Ausblenden" hides this date alone (the
 //   store's `h` line, the pill „ausgeblendet"), „Zeigen" brings it back.
 // - The event's switch hides the whole Praktikum and shows it again.
-// - Esc closes it; „Zum Modul" opens the module beside the plan, pointing at the Termin.
-// - The start page: a Termin of its day opens over the page (`/?termin=…&on=…`), and closing it
-//   goes back to the page.
+// - Esc closes it; „Zum Modul" closes it and opens the module beside the plan, pointing at the
+//   Termin.
+// - The start page: a Termin of its day opens in the dialog over the page (`/?termin=…&on=…`), and
+//   its „Schließen" goes back to the page.
 // - „Teilen" copies the Termin's own page (`/event/<key>/<day>`; a wide screen has no share sheet)
 //   and says „Link kopiert"; V lets the Termin fill the plan's page („Ganze Seite", `&full=1`) in
 //   two columns, still the view that adjusts, its next date the whole page too, and Esc brings it
-//   back beside the plan on that day. Over the start page „Ganze Seite" fills the start page, and
+//   back over the plan on that day. Over the start page „Ganze Seite" fills the start page, and
 //   „Zurück" brings it back over the page.
 // - ← and → step to the date after and before as the arrows beside the date do, one date a press,
-//   beside the plan, filling the page and on the Termin's own page; not while the keyboard is in
-//   the search. `?` there shows the overview with „Im Termin" first.
-// - A phone: the view is a sheet over the plan, with „Teilen" and without „Ganze Seite".
-// - To look up: a line of the Praktikum's module page opens the Termin beside the page
+//   in the dialog over the plan, filling the page and on the Termin's own page. `?` in the dialog
+//   shows the overview with „Im Termin" first, over it.
+// - A phone: the dialog is the sheet every dialog is, with „Teilen" and without „Ganze Seite".
+// - To look up: a line of the Praktikum's module page opens the Termin in the dialog over the page
 //   (`?termin=<key>`), in the plan, its groups above the ticket measured against it, „Anpassen ›"
 //   under it into the Stundenplan of its semester; a group picked changes the ticket under the
 //   groups and nothing above them, a date picked by its dot in „Reihe" the ticket alone, the
 //   lecture's segment the lecture's ticket; → its next date;
 //   „Ganze Seite" is its own page (`/event/<key>/<day>`) in two columns, → there too; Back leads back
-//   beside the module's page, Esc closes it.
+//   to the dialog over the module's page, Esc closes it.
 //   Enterprise Ressource Planning's exercise (12612, outside the plan): „nicht im Plan", its second
 //   group red against the plan's lecture, the Termin hatched among the plan's day, „In den
 //   Kalender" a file of its own. On a phone the Termin is a sheet over its module's page.
@@ -80,7 +82,7 @@ const until = async (page, name, fn, arg) => {
 const stored = (page) => page.evaluate((key) => localStorage.getItem(key) ?? "", PLAN);
 // The view as it reads: its head, the ticket, the groups and the switches.
 const view = (page) => page.evaluate(() => {
-  const panel = onPage("#preview.is-termin");
+  const panel = onPage("dialog[open] .tm-dialog");
   const text = (selector) => panel?.querySelector(selector)?.textContent.replace(/\s+/g, " ").trim() ?? "";
   return {
     chip: text(".tm-mod"),
@@ -120,7 +122,7 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   praktikum = key;
   await weekly.close();
   const { page, context } = await open(`/studyplan?termin=${key}`);
-  await until(page, "the Termin beside the plan", () => Boolean(onPage("#preview.is-termin .tk")));
+  await until(page, "the Termin beside the plan", () => Boolean(onPage("dialog[open] .tm-dialog .tk")));
   let v = await view(page);
   check(v.chip === "PP" && v.kind === "Praktikum" && v.title === "Programmierpraktikum", `the head: ${JSON.stringify(v)}`);
   check(v.events.join(" | ") === "Vorlesung | Praktikum" && v.above && v.picture && v.series > 1, `the module's events and „Reihe" above the ticket, the day a picture: ${JSON.stringify(v)}`);
@@ -131,46 +133,46 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   if (shots) await page.screenshot({ path: `${shots}/termin-open.png` });
 
   // Two ticked: both solid, the others gone; one taken back leaves the other.
-  await page.click("#preview.is-termin .gs.pick >> nth=0");
-  await until(page, "the first tick", () => onPage("#preview.is-termin .gs.pick")?.getAttribute("aria-checked") === "true");
-  await page.click("#preview.is-termin .gs.pick >> nth=1");
-  await until(page, "the second tick", () => [...document.querySelectorAll("#preview.is-termin .gs.pick")].filter((tile) => tile.getAttribute("aria-checked") === "true").length === 2);
+  await page.click("dialog[open] .tm-dialog .gs.pick >> nth=0");
+  await until(page, "the first tick", () => onPage("dialog[open] .tm-dialog .gs.pick")?.getAttribute("aria-checked") === "true");
+  await page.click("dialog[open] .tm-dialog .gs.pick >> nth=1");
+  await until(page, "the second tick", () => [...document.querySelectorAll("dialog[open] .tm-dialog .gs.pick")].filter((tile) => tile.getAttribute("aria-checked") === "true").length === 2);
   v = await view(page);
   check(v.right === "2 von 4", `„2 von 4": ${JSON.stringify(v)}`);
   let week = await practicals(page);
   check(week.length === 2 && week.every((dashed) => !dashed), `two groups solid in the week: ${JSON.stringify(week)}`);
   check((await stored(page)).split("\n").filter((line) => line.startsWith("c\t2026W\t148370-")).length === 2, `two ticks kept: ${JSON.stringify(await stored(page))}`);
   if (shots) await page.screenshot({ path: `${shots}/termin-ticked.png` });
-  await page.click("#preview.is-termin .gs.pick >> nth=1");
-  await until(page, "one tick taken back", () => [...document.querySelectorAll("#preview.is-termin .gs.pick")].filter((tile) => tile.getAttribute("aria-checked") === "true").length === 1);
+  await page.click("dialog[open] .tm-dialog .gs.pick >> nth=1");
+  await until(page, "one tick taken back", () => [...document.querySelectorAll("dialog[open] .tm-dialog .gs.pick")].filter((tile) => tile.getAttribute("aria-checked") === "true").length === 1);
   week = await practicals(page);
   check(week.length === 1 && !week[0], `one group left: ${JSON.stringify(week)}`);
 
   // The next date, then this date alone hidden and shown again.
   const before = new URL(page.url()).searchParams.get("on");
-  await page.click("#preview.is-termin .tk-date a.pg >> nth=-1");
+  await page.click("dialog[open] .tm-dialog .tk-date a.pg >> nth=-1");
   await until(page, "the next date", (was) => new URL(location.href).searchParams.get("on") && new URL(location.href).searchParams.get("on") !== was, before);
-  await page.click("#preview.is-termin [data-action='hide-date']");
-  await until(page, "the date hidden", () => onPage("#preview.is-termin [data-action='hide-date']")?.getAttribute("aria-pressed") === "true");
+  await page.click("dialog[open] .tm-dialog [data-action='hide-date']");
+  await until(page, "the date hidden", () => onPage("dialog[open] .tm-dialog [data-action='hide-date']")?.getAttribute("aria-pressed") === "true");
   check((await stored(page)).split("\n").some((line) => line.startsWith("h\t2026W\t148370-")), `the date kept as hidden: ${JSON.stringify(await stored(page))}`);
   check((await view(page)).pill === "ausgeblendet", `the pill: ${JSON.stringify(await view(page))}`);
-  await page.click("#preview.is-termin [data-action='hide-date']");
-  await until(page, "the date shown again", () => onPage("#preview.is-termin [data-action='hide-date']")?.getAttribute("aria-pressed") === "false");
+  await page.click("dialog[open] .tm-dialog [data-action='hide-date']");
+  await until(page, "the date shown again", () => onPage("dialog[open] .tm-dialog [data-action='hide-date']")?.getAttribute("aria-pressed") === "false");
   check(!(await stored(page)).includes("\nh\t"), `no date hidden any more: ${JSON.stringify(await stored(page))}`);
 
   // The whole Praktikum off and on again.
-  await page.click("#preview.is-termin .tg");
+  await page.click("dialog[open] .tm-dialog .tg");
   await until(page, "the Praktikum hidden", () => ![...document.querySelectorAll(".sp-body .week .slot")].some((slot) => slot.textContent.includes("Prak PP")));
-  await page.click("#preview.is-termin .tg");
+  await page.click("dialog[open] .tm-dialog .tg");
   await until(page, "the Praktikum back", () => [...document.querySelectorAll(".sp-body .week .slot")].some((slot) => slot.textContent.includes("Prak PP")));
 
   // „Zum Modul": the module beside the plan, pointing at the Termin; Esc closes it.
-  await page.click("#preview.is-termin a.mrow");
+  await page.click("dialog[open] .tm-dialog a.mrow");
   await until(page, "the module beside the plan", () => Boolean(onPage("#preview.is-module:not(.is-termin)")) && /[?&]open=12102/.test(location.search) && /[?&]row=148370-/.test(location.search));
   await page.goBack();
-  await until(page, "back at the Termin", () => Boolean(onPage("#preview.is-termin .tk")));
+  await until(page, "back at the Termin", () => Boolean(onPage("dialog[open] .tm-dialog .tk")));
   await page.keyboard.press("Escape");
-  await until(page, "Esc closes it", () => !onPage("#preview.is-termin") && !/termin=/.test(location.search));
+  await until(page, "Esc closes it", () => !onPage("dialog[open] .tm-dialog") && !/termin=/.test(location.search));
   check(await page.evaluate(() => window.__marker === 1), "the Stundenplan was loaded again");
   await context.close();
 }
@@ -182,10 +184,10 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   const href = await page.evaluate(() => onPage(".day-ev[href*='termin=']")?.getAttribute("href") ?? onPage(".day-wk-col a[href*='termin=']")?.getAttribute("href") ?? "");
   check(/^\/\?termin=\d+-[0-9a-f]{5}&on=\d{4}-\d\d-\d\d$/.test(href), `its link: „${href}"`);
   await page.click(`[href="${href}"] >> visible=true`);
-  await until(page, "the Termin over the start page", () => Boolean(onPage(".day-termin #preview.is-termin .tk")));
+  await until(page, "the Termin over the start page", () => Boolean(onPage("dialog[open] .tm-dialog .tk")));
   if (shots) await page.screenshot({ path: `${shots}/termin-home.png` });
-  await page.click(".day-termin [data-action='close-detail']");
-  await until(page, "the start page again", () => !onPage(".day-termin #preview") && location.search === "");
+  await page.click("dialog[open] .tm-dialog .dlg-close");
+  await until(page, "the start page again", () => !onPage("dialog[open] .tm-dialog") && location.search === "");
   check(await page.evaluate(() => window.__marker === 1), "the start page was loaded again");
   await context.close();
 }
@@ -194,29 +196,26 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
 {
   const { page, context } = await open(`/studyplan?termin=${praktikum}&on=2026-11-02`);
   await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: base });
-  await until(page, "the Termin beside the plan", () => Boolean(onPage("#preview.is-termin .tk")));
-  const full = await page.evaluate(() => onPage("#preview.is-termin .tm-full")?.getAttribute("href") ?? "");
+  await until(page, "the Termin beside the plan", () => Boolean(onPage("dialog[open] .tm-dialog .tk")));
+  const full = await page.evaluate(() => onPage("dialog[open] .tm-dialog .tm-full")?.getAttribute("href") ?? "");
   check(full === `/studyplan?termin=${praktikum}&on=2026-11-02&full=1`, `„Ganze Seite": „${full}"`);
-  // ← and →: the date after and back, one a press; in the search → moves in the text.
+  // ← and →: the date after and back, one a press, in the dialog (the page behind it, its search
+  // too, takes no keys while it stands).
   await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("ArrowRight");
-  await until(page, "→: the next date", () => /[?&]on=2026-11-09/.test(location.search) && Boolean(onPage("#preview.is-termin .tk-date > b")?.textContent.includes("09.11.")));
+  await until(page, "→: the next date", () => /[?&]on=2026-11-09/.test(location.search) && Boolean(onPage("dialog[open] .tm-dialog .tk-date > b")?.textContent.includes("09.11.")));
   await page.keyboard.press("ArrowLeft");
-  await until(page, "←: the date before", () => /[?&]on=2026-11-02/.test(location.search) && Boolean(onPage("#preview.is-termin .tk-date > b")?.textContent.includes("02.11.")));
-  await page.focus("#topsearch");
-  await page.keyboard.press("ArrowRight");
-  await page.waitForTimeout(300);
-  check(/[?&]on=2026-11-02/.test(await page.evaluate(() => location.search)), "→ in the search stays in the search");
+  await until(page, "←: the date before", () => /[?&]on=2026-11-02/.test(location.search) && Boolean(onPage("dialog[open] .tm-dialog .tk-date > b")?.textContent.includes("02.11.")));
   // `?` from within the Termin: the overview, „Im Termin" first.
-  await page.focus("#preview.is-termin .tk-date a.pg >> nth=-1");
+  await page.focus("dialog[open] .tm-dialog .tk-date a.pg >> nth=-1");
   await page.keyboard.press("?");
   await until(page, "the keys of a Termin", () => document.querySelector(".keys-dialog[open] .keys-group.here h3")?.textContent.startsWith("Im Termin"));
   await page.keyboard.press("Escape");
-  await until(page, "the overview closed", () => !document.querySelector(".keys-dialog[open]") && Boolean(onPage("#preview.is-termin .tk")));
+  await until(page, "the overview closed", () => !document.querySelector(".keys-dialog[open]") && Boolean(onPage("dialog[open] .tm-dialog .tk")));
   await page.evaluate(() => document.activeElement?.blur());
   // „Teilen": the Termin's own page on the day shown, copied, and said so.
-  await page.click("#preview.is-termin .tm-share");
-  await until(page, '„Link kopiert"', () => onPage("#preview.is-termin .tm-share")?.textContent.includes("Link kopiert"));
+  await page.click("dialog[open] .tm-dialog .tm-share");
+  await until(page, '„Link kopiert"', () => onPage("dialog[open] .tm-dialog .tm-share")?.textContent.includes("Link kopiert"));
   const copied = await page.evaluate(() => navigator.clipboard.readText()).catch((error) => String(error));
   check(copied === `${base}/event/${praktikum}/2026-11-02`, `„Teilen" copies the Termin's page: „${copied}"`);
   // V: the Termin fills the plan's page, in two columns, „Im Stundenplan" still there.
@@ -233,7 +232,7 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   await page.click(".is-termin.tm-filling .tk-date a.pg >> nth=-1");
   await until(page, "the next date, filling the page", () => /[?&]on=2026-11-09/.test(location.search) && /[?&]full=1/.test(location.search) && Boolean(onPage(".is-termin.tm-filling .tk")));
   await page.keyboard.press("Escape");
-  await until(page, "Esc: beside the plan again", () => !/full=/.test(location.search) && /[?&]on=2026-11-09/.test(location.search) && Boolean(onPage("#preview.is-termin .tk")));
+  await until(page, "Esc: beside the plan again", () => !/full=/.test(location.search) && /[?&]on=2026-11-09/.test(location.search) && Boolean(onPage("dialog[open] .tm-dialog .tk")));
   check(await page.evaluate(() => window.__marker === 1), "the Stundenplan was loaded again");
   await context.close();
 }
@@ -243,12 +242,12 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   await until(page, "a Termin of the day", () => Boolean(onPage(".day-ev[href*='termin='], .day-wk-col a[href*='termin=']")));
   const href = await page.evaluate(() => onPage(".day-ev[href*='termin=']")?.getAttribute("href") ?? onPage(".day-wk-col a[href*='termin=']")?.getAttribute("href") ?? "");
   await page.click(`[href="${href}"] >> visible=true`);
-  await until(page, "the Termin over the start page", () => Boolean(onPage(".day-termin #preview.is-termin .tk")));
-  await page.click(".day-termin .tm-full");
+  await until(page, "the Termin over the start page", () => Boolean(onPage("dialog[open] .tm-dialog .tk")));
+  await page.click("dialog[open] .tm-dialog .tm-full");
   await until(page, "the start page filled", () => /[?&]full=1/.test(location.search) && Boolean(onPage(".day-termin.filling .is-termin.tm-filling .tk")) && !onPage(".day-hero")?.offsetParent);
   if (shots) await page.screenshot({ path: `${shots}/termin-home-full.png` });
   await page.click(".day-termin.filling .hero-top > a.at-head");
-  await until(page, "the Termin over the start page again", (href) => location.pathname + location.search === href && Boolean(onPage(".day-termin #preview.is-termin .tk")) && Boolean(onPage(".day-hero")?.offsetParent), href);
+  await until(page, "the Termin over the start page again", (href) => location.pathname + location.search === href && Boolean(onPage("dialog[open] .tm-dialog .tk")) && Boolean(onPage(".day-hero")?.offsetParent), href);
   check(await page.evaluate(() => window.__marker === 1), "the start page was loaded again");
   await context.close();
 }
@@ -266,11 +265,11 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   });
   check(tapped, "a Termin of the week in view");
   await until(page, "the sheet", () => {
-    const sheet = onPage("#preview.is-termin");
-    return Boolean(sheet) && getComputedStyle(sheet).position === "fixed";
+    const sheet = onPage("dialog[open][data-sheet]");
+    return Boolean(sheet?.querySelector(".tm-dialog .tk")) && getComputedStyle(sheet).position === "fixed" && Math.round(sheet.getBoundingClientRect().width) === innerWidth;
   });
   // „Teilen" there; „Ganze Seite" not: all up the sheet is the whole screen already.
-  const tools = await page.evaluate(() => ({ share: Boolean(onPage("#preview.is-termin .tm-share")?.getClientRects().length), full: Boolean(onPage("#preview.is-termin .tm-full")?.getClientRects().length) }));
+  const tools = await page.evaluate(() => ({ share: Boolean(onPage("dialog[open] .tm-dialog .tm-share")?.getClientRects().length), full: Boolean(onPage("dialog[open] .tm-dialog .tm-full")?.getClientRects().length) }));
   check(tools.share && !tools.full, `the sheet's head: ${JSON.stringify(tools)}`);
   if (shots) await page.screenshot({ path: `${shots}/termin-phone.png` });
   await context.close();
@@ -312,8 +311,8 @@ const follow = async (page, prefix) => {
   const { page, context } = await open("/catalog/module/12102");
   await until(page, "the module's Termine", () => Boolean(onPage("a.ev[href^='/catalog/module/12102?termin=148370-']")));
   const href = await follow(page, "/catalog/module/12102?termin=148370-");
-  await until(page, "the Termin beside the module's page", (href) => location.pathname + location.search === href && Boolean(onPage("#preview.is-termin .tk")) && Boolean(onPage("#preview.is-termin .grp-f")), href);
-  let v = await lookUp(page, "#preview.is-termin");
+  await until(page, "the Termin over the module's page", (href) => location.pathname + location.search === href && Boolean(onPage("dialog[open] .tm-dialog .tk")) && Boolean(onPage("dialog[open] .tm-dialog .grp-f")) && !onPage("dialog[open]").getAnimations().length, href);
+  let v = await lookUp(page, "dialog[open] .tm-dialog");
   check(v.title === "Programmierpraktikum" && !v.out && !v.file, `in the plan: ${JSON.stringify(v)}`);
   check(v.dots.length === 4 && v.dots.includes("ok") && v.dots.every((dot) => dot === "ok" || dot === "no"), `the groups measured against the plan: ${JSON.stringify(v)}`);
   check(v.foot === "Noch keine in deinem Stundenplan" && /^\/studyplan\?sem=2026W&termin=148370-[0-9a-f]{5}&on=\d{4}-\d\d-\d\d$/.test(v.adjust), `„Anpassen ›": ${JSON.stringify(v)}`);
@@ -323,31 +322,31 @@ const follow = async (page, prefix) => {
   if (shots) await page.screenshot({ path: `${shots}/termin-beside-module.png` });
   // A group picked (owner, 2026-10-27: „Wenn man solche Buttons hat, dann ändern die nur den Inhalt
   // unter ihnen"): the ticket under the groups is the group's, nothing above them changes.
-  const second = await page.evaluate(() => onPage("#preview.is-termin .tm-pick .gs:not(.this)")?.getAttribute("href") ?? "");
-  await page.click(`#preview.is-termin .tm-pick .gs[href="${second}"]`);
-  await until(page, "the second group", (second) => location.pathname + location.search === second && onPage("#preview.is-termin .tm-pick .gs.this")?.getAttribute("href") === second, second);
-  const picked = await lookUp(page, "#preview.is-termin");
+  const second = await page.evaluate(() => onPage("dialog[open] .tm-dialog .tm-pick .gs:not(.this)")?.getAttribute("href") ?? "");
+  await page.click(`dialog[open] .tm-dialog .tm-pick .gs[href="${second}"]`);
+  await until(page, "the second group", (second) => location.pathname + location.search === second && onPage("dialog[open] .tm-dialog .tm-pick .gs.this")?.getAttribute("href") === second, second);
+  const picked = await lookUp(page, "dialog[open] .tm-dialog");
   check(picked.head === v.head && picked.events.join() === v.events.join() && picked.groupsAt === v.groupsAt && picked.when !== v.when, `a group picked changes the ticket alone: ${JSON.stringify([v, picked])}`);
   // A date picked by its dot (owner, 2026-11-03: „bau als Nächstes die Reihe als Auswahl über dem
   // Ticket"): the ticket under „Reihe" is that date's, nothing above it moves.
   await page.goBack();
   await until(page, "back on the first group", (href) => location.pathname + location.search === href, href);
   const nextDot = await page.evaluate(() => {
-    const dots = [...(onPage("#preview.is-termin .tm-pick .sdots")?.querySelectorAll("a.sdl") ?? [])];
+    const dots = [...(onPage("dialog[open] .tm-dialog .tm-pick .sdots")?.querySelectorAll("a.sdl") ?? [])];
     return dots[dots.findIndex((a) => a.getAttribute("aria-current") === "true") + 1]?.getAttribute("href") ?? "";
   });
-  await page.click(`#preview.is-termin .tm-pick .sdots a.sdl[href="${nextDot}"]`);
-  await until(page, "the date after by its dot", (next) => location.pathname + location.search === next && onPage("#preview.is-termin .sdots a.sdl[aria-current='true']")?.getAttribute("href") === next, nextDot);
-  const dated = await lookUp(page, "#preview.is-termin");
+  await page.click(`dialog[open] .tm-dialog .tm-pick .sdots a.sdl[href="${nextDot}"]`);
+  await until(page, "the date after by its dot", (next) => location.pathname + location.search === next && onPage("dialog[open] .tm-dialog .sdots a.sdl[aria-current='true']")?.getAttribute("href") === next, nextDot);
+  const dated = await lookUp(page, "dialog[open] .tm-dialog");
   check(dated.head === v.head && dated.events.join() === v.events.join() && dated.groupsAt === v.groupsAt && dated.seriesAt === v.seriesAt && dated.when !== v.when, `a date picked changes the ticket alone: ${JSON.stringify([v, dated])}`);
   await page.goBack();
   await until(page, "back on the first date", (href) => location.pathname + location.search === href, href);
-  await page.click(`#preview.is-termin .tm-pick .gs[href="${second}"]`);
+  await page.click(`dialog[open] .tm-dialog .tm-pick .gs[href="${second}"]`);
   await until(page, "the second group again", (second) => location.pathname + location.search === second, second);
   // The lecture's segment: the lecture's ticket under the head, which stays.
-  await page.click("#preview.is-termin .tm-evs > a:not([aria-checked='true'])");
-  await until(page, "the lecture", () => onPage("#preview.is-termin .tm-evs > a[aria-checked='true']")?.textContent.trim() === "Vorlesung" && !onPage("#preview.is-termin .tm-pick .grp:not(.tm-series)"));
-  const lecture = await lookUp(page, "#preview.is-termin");
+  await page.click("dialog[open] .tm-dialog .tm-evs > a:not([aria-checked='true'])");
+  await until(page, "the lecture", () => onPage("dialog[open] .tm-dialog .tm-evs > a[aria-checked='true']")?.textContent.trim() === "Vorlesung" && !onPage("dialog[open] .tm-dialog .tm-pick .grp:not(.tm-series)"));
+  const lecture = await lookUp(page, "dialog[open] .tm-dialog");
   check(lecture.head === v.head && lecture.when !== v.when, `the lecture's segment changes what stands under it: ${JSON.stringify(lecture)}`);
   await page.goBack();
   await page.goBack();
@@ -355,11 +354,11 @@ const follow = async (page, prefix) => {
   // → beside the page: the date after, in the module page's address.
   await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("ArrowRight");
-  await until(page, "→ beside the module's page", () => location.pathname === "/catalog/module/12102" && /[?&]on=\d{4}-\d\d-\d\d/.test(location.search) && Boolean(onPage("#preview.is-termin .tk")));
+  await until(page, "→ beside the module's page", () => location.pathname === "/catalog/module/12102" && /[?&]on=\d{4}-\d\d-\d\d/.test(location.search) && Boolean(onPage("dialog[open] .tm-dialog .tk")));
   await page.goBack();
   await until(page, "back to the first date", (href) => location.pathname + location.search === href, href);
   // „Ganze Seite": the Termin's own page, in two columns.
-  await page.click("#preview.is-termin .tm-full");
+  await page.click("dialog[open] .tm-dialog .tm-full");
   await until(page, "the Termin's own page", () => location.pathname.startsWith("/event/148370-") && Boolean(onPage(".is-termin.tm-page .tk")));
   v = await lookUp(page, ".is-termin.tm-page");
   check(v.title === "Programmierpraktikum" && v.foot === "Noch keine in deinem Stundenplan", `its own page: ${JSON.stringify(v)}`);
@@ -376,14 +375,14 @@ const follow = async (page, prefix) => {
   await until(page, "back on its first date", (own) => location.pathname === own, own);
   // „Anpassen ›": the Termin in the Stundenplan; Back, Back: beside the module's page again.
   await page.click(".is-termin.tm-page .grp-f a.go2");
-  await until(page, "the Termin in the Stundenplan", () => location.pathname === "/studyplan" && Boolean(onPage("#preview.is-termin .tk")) && Boolean(onPage("#preview.is-termin .gs.pick")));
+  await until(page, "the Termin in the Stundenplan", () => location.pathname === "/studyplan" && Boolean(onPage("dialog[open] .tm-dialog .tk")) && Boolean(onPage("dialog[open] .tm-dialog .gs.pick")));
   await page.goBack();
   await until(page, "back on the Termin's page", () => Boolean(onPage(".is-termin.tm-page .tk")));
   await page.goBack();
-  await until(page, "back beside the module's page", (href) => location.pathname + location.search === href && Boolean(onPage("#preview.is-termin .tk")), href);
+  await until(page, "back beside the module's page", (href) => location.pathname + location.search === href && Boolean(onPage("dialog[open] .tm-dialog .tk")), href);
   // Esc: the module's page alone.
   await page.keyboard.press("Escape");
-  await until(page, "Esc: the module's page alone", () => location.pathname === "/catalog/module/12102" && !/termin=/.test(location.search) && !onPage("#preview.is-termin"));
+  await until(page, "Esc: the module's page alone", () => location.pathname === "/catalog/module/12102" && !/termin=/.test(location.search) && !onPage("dialog[open] .tm-dialog"));
   check(await page.evaluate(() => window.__marker === 1), "the module page was loaded again");
   await context.close();
 }
@@ -392,9 +391,9 @@ const follow = async (page, prefix) => {
   const { page, context } = await open("/catalog/module/12612");
   await until(page, "the module's Termine", () => Boolean(onPage("a.ev[href^='/catalog/module/12612?termin=150294-']")));
   await follow(page, "/catalog/module/12612?termin=150294-");
-  await until(page, "the Termin beside the module's page", () => /[?&]termin=150294-/.test(location.search) && Boolean(onPage("#preview.is-termin .tk")));
-  await until(page, "the calendar file", () => (onPage("#preview.is-termin a.tm-big")?.getAttribute("href") ?? "").startsWith("blob:"));
-  const v = await lookUp(page, "#preview.is-termin");
+  await until(page, "the Termin beside the module's page", () => /[?&]termin=150294-/.test(location.search) && Boolean(onPage("dialog[open] .tm-dialog .tk")));
+  await until(page, "the calendar file", () => (onPage("dialog[open] .tm-dialog a.tm-big")?.getAttribute("href") ?? "").startsWith("blob:"));
+  const v = await lookUp(page, "dialog[open] .tm-dialog");
   check(v.out === "nicht im Plan" && !v.foot && !v.adjust, `outside the plan: ${JSON.stringify(v)}`);
   check(v.dots.length === 3 && v.dots.filter((dot) => dot === "no").length === 1, `one group meets the plan: ${JSON.stringify(v)}`);
   check(v.day.some((bar) => bar.includes(" me") && bar.includes(" out")) && v.day.length > 1, `hatched among the plan's day: ${JSON.stringify(v)}`);
@@ -408,8 +407,8 @@ const follow = async (page, prefix) => {
   await until(page, "the module's Termine", () => Boolean(onPage("a.ev[href^='/catalog/module/12102?termin=148370-']")));
   await follow(page, "/catalog/module/12102?termin=148370-");
   await until(page, "the sheet over the module's page", () => {
-    const sheet = onPage("#preview.is-termin");
-    return Boolean(sheet?.querySelector(".tk")) && getComputedStyle(sheet).position === "fixed";
+    const sheet = onPage("dialog[open][data-sheet]");
+    return Boolean(sheet?.querySelector(".tm-dialog .tk")) && getComputedStyle(sheet).position === "fixed" && Math.round(sheet.getBoundingClientRect().width) === innerWidth;
   });
   if (shots) await page.screenshot({ path: `${shots}/termin-module-phone.png` });
   await context.close();
