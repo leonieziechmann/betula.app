@@ -567,7 +567,7 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   // the orders are within reach.
   const allUp = async (what) => {
     const top = await page.evaluate(() => Math.round(onPage("#sidebar").getBoundingClientRect().top));
-    check(Math.abs(top - Math.round(844 * 0.48)) < 4, `${what}: the sheet does not come up half up (${top})`);
+    check(Math.abs(top - Math.round(844 * 0.5)) < 4, `${what}: the sheet does not come up half up (${top})`);
     await step(`${what}: its grabber takes it all up`, () => page.touchscreen.tap(195, top + 8), () => onPage("#sidebar").classList.contains("is-full") && !onPage("#sidebar").getAnimations().some((a) => a.playState === "running"));
   };
   await allUp("phone: the sheet");

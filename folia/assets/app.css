@@ -5287,7 +5287,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
      the sheet is and as fast as it goes (owner, 2026-10-16: „die animation … muss … physics based
      sein"), its coming up from below included — the panel of the page beside a list on a wide
      screen has an entrance of its own, which is not the sheet's. */
-  :root.app .detail.is-module { --sheet-top: calc(env(safe-area-inset-top, 0px) + 10px); --sheet-half: calc(48dvh - var(--sheet-top)); position: fixed; z-index: 45; inset: var(--sheet-top) 0 auto 0; width: auto; height: calc(100dvh - var(--sheet-top)); margin: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 18px 18px 0 0; box-shadow: var(--shadow-pop); transform: translateY(var(--sheet-half)); animation: none; }
+  :root.app .detail.is-module { --sheet-top: calc(env(safe-area-inset-top, 0px) + 10px); --sheet-half: calc(50dvh - var(--sheet-top)); position: fixed; z-index: 45; inset: var(--sheet-top) 0 auto 0; width: auto; height: calc(100dvh - var(--sheet-top)); margin: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 18px 18px 0 0; box-shadow: var(--shadow-pop); transform: translateY(var(--sheet-half)); animation: none; }
   :root.app .detail.is-module.is-full { transform: none; }
   :root.app .detail.is-module.is-gone { transform: translateY(100%); }
   /* The picture of the page held in front of the next one (pending.rs, `hold`) without the sheet:
@@ -6665,7 +6665,7 @@ span.st-wb-go { cursor: default; }
   /* The screen's keyboard up: the dialog is the part of the screen the keyboard leaves, from edge
      to edge (as a sheet, above), its foot back with the keyboard gone; it glides there and back
      (`folia_design::keyboard`). */
-  :root[data-keyboard] .st-dialog[open] { inset: var(--vv-top, 0px) 0 auto; height: var(--vv-height, 100dvh); max-height: none; margin: 0; border-radius: 0; }
+  :root[data-keyboard] .st-dialog[open] { inset: var(--vv-top, 0px) 0 auto; height: var(--vv-height, 100dvh); min-height: 0; max-height: none; margin: 0; border-radius: 0; }
   :root[data-keyboard] .st-dialog .st-dlg-head { padding-top: max(20px, env(safe-area-inset-top)); }
   :root[data-keyboard] .st-dialog .st-dlg-foot { display: none; }
   .st-setup { padding: 18px 16px; }
@@ -6693,21 +6693,29 @@ span.st-wb-go { cursor: default; }
    decorations für das fenster einfach nur der handle strich sein und das wars"): as wide as the
    screen, its upper corners round, the grabber the one thing on it. Its ×, „Schließen" or
    „Vollbild" stays in the page out of sight, for screen readers, and shows where the keyboard
-   brings it. Here it stands where it rests: half up, as much of it as the lower 52 % of the screen
-   shows (`--sheet-peek`), all of it where it is shorter; all up (`.is-full`), at most 10 px under
-   the safe area; away below the screen (`.is-gone`). Every way between is enhance.js's, on
-   springs. Half up nothing in it scrolls (owner, the same day: „Im kleinen modus soll man nicht
-   scrollen können nur im full modus"), and its foot — the buttons — stands at the screen's foot,
-   lifted as far as the sheet is down (`--sheet-half-y`, enhance.js). Its panel's colour goes on
-   under it for the little it gives above all up. A dialog of the kind „m" or „l" takes the whole
-   height from the start, so that it does not grow and shrink with what it holds (owner,
-   2026-10-16: „Modale menus springen zu viel in der größe"); one of the kind „s" and a menu are as
-   tall as what they hold. */
+   brings it. It stands one of three ways (`data-sheet`, folia_design::modal::Sheet; owner,
+   2026-11-03: „dass es entweder fit ist, also so dass es nur ein kleines fenster ist. Da würde ich
+   die größe zwischen 40% bis 70% vom screen erlauben. Und da gibt es dann kein full screen. Dann
+   die Option mit 50% und Full screen. Und dann noch die Option für sofort full screen"):
+   - `half`: where it rests half up, as much of it as the lower half of the screen shows
+     (`--sheet-peek`), all of it where it is shorter; all up (`.is-full`), at most 10 px under the
+     safe area. Half up nothing in it scrolls (owner, 2026-10-27: „Im kleinen modus soll man nicht
+     scrollen können nur im full modus"), and its foot — the buttons — stands at the screen's foot,
+     lifted as far as the sheet is down (`--sheet-half-y`, enhance.js). A dialog takes the whole
+     height from the start, so that it does not grow and shrink with what it holds (owner,
+     2026-10-16: „Modale menus springen zu viel in der größe").
+   - `fit`: as tall as what it holds, between 40 and 70 % of the screen, and no higher: its one
+     stop, where its content scrolls where it holds more. A menu, a question, a note.
+   - `full`: all up at once, the whole height: its one stop.
+   Away it is below the screen (`.is-gone`). Every way between is enhance.js's, on springs. Its
+   panel's colour goes on under it for the little it gives above all up. */
 @media (max-width: 900px) {
-  :root { --sheet-peek: 52dvh; --sheet-top: calc(env(safe-area-inset-top, 0px) + 10px); }
+  :root { --sheet-peek: 50dvh; --sheet-top: calc(env(safe-area-inset-top, 0px) + 10px); }
   [data-sheet] { position: fixed; inset: auto 0 0 0; width: auto; max-width: none; height: auto; max-height: calc(100dvh - var(--sheet-top)); margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; overflow: hidden; overscroll-behavior: contain; border-radius: 18px 18px 0 0; background: var(--panel); color: var(--text); box-shadow: 0 24px 0 var(--panel), var(--shadow-pop); transform: translateY(max(0px, calc(100% - var(--sheet-peek)))); animation: none; transition: none; touch-action: pan-x; }
   dialog[data-sheet]:not([open]) { display: none; }
   [data-sheet].is-full, [data-sheet]:target { transform: none; touch-action: auto; }
+  /* One stop: where all up is, as tall as it fits or the whole height (below). */
+  [data-sheet]:is([data-sheet="fit"], [data-sheet="full"]) { transform: none; touch-action: auto; }
   [data-sheet].is-gone { transform: translateY(100%); }
   /* Its grabber, over what it holds. */
   [data-sheet]::before { content: ""; position: absolute; z-index: 3; left: 50%; top: 7px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); pointer-events: none; }
@@ -6729,9 +6737,12 @@ span.st-wb-go { cursor: default; }
   [data-sheet] :is(.dlg-close, .sheet-close) { position: absolute; z-index: 4; top: 8px; right: 8px; margin: 0; }
   [data-sheet] :is(.dlg-close, .sheet-close):focus-visible { background: var(--panel); }
   [data-sheet] :is(.dlg-close, .sheet-close):not(:focus-visible) { width: 1px; height: 1px; min-height: 0; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  /* A dialog: one sheet whatever its size on a wide screen; „m" and „l" the whole height. */
-  .st-dialog[data-sheet] { width: auto; max-width: none; height: auto; max-height: calc(100dvh - var(--sheet-top)); border-radius: 18px 18px 0 0; }
-  .st-dialog[data-sheet]:is(.m, .l) { height: calc(100dvh - var(--sheet-top)); }
+  /* A dialog: one sheet whatever its size on a wide screen, the whole height but where it fits. */
+  .st-dialog[data-sheet] { width: auto; max-width: none; height: calc(100dvh - var(--sheet-top)); max-height: calc(100dvh - var(--sheet-top)); border-radius: 18px 18px 0 0; }
+  /* As tall as what it holds between 40 and 70 % of the screen (`fit`), or the whole height at once
+     (`full`). */
+  :is([data-sheet], .st-dialog[data-sheet])[data-sheet="fit"] { height: auto; min-height: 40dvh; max-height: 70dvh; }
+  :is([data-sheet], .st-dialog[data-sheet])[data-sheet="full"] { height: calc(100dvh - var(--sheet-top)); max-height: none; }
   dialog[data-sheet][open] { animation: none; }
   .st-grip { display: none; }
   /* A menu scrolls itself all up; under the grabber its title. */

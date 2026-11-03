@@ -7,8 +7,14 @@
 // sheet and not its content, and let go slowly it comes back; a tap on its grabber takes it all up
 // and back; all up its content scrolls, over a module's sheet too; from all up a swipe that speeds
 // up as it lets go throws it away, one as long and as quick on average that slows down comes to
-// rest half up; Esc closes it and a copy of it glides away. A menu is a sheet of one stop, as tall
-// as what it holds: swiped down it closes, and closed by its choice a copy of it glides away.
+// rest half up; Esc closes it and a copy of it glides away. Three ways to stand (owner, 2026-11-03:
+// „dass es entweder fit ist … zwischen 40% bis 70% vom screen … kein full screen. Dann die Option
+// mit 50% und Full screen. Und dann noch die Option für sofort full screen"): the keys' dialog half
+// up and all up, its top half up at half the screen; a menu and the dialog „Sammeln" fit, as tall
+// as they hold between 40 and 70 % of the screen, one stop that a pull comes back to and a tap on
+// the grabber leaves; „Plan einrichten" all up at once in one move, a pull bringing it back there,
+// thrown away from there. A menu swiped down closes, and closed by its choice a copy of it glides
+// away.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node sheets.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Fails on a console error or a step that does not show up.
 import { chromium } from "playwright-core";
@@ -22,7 +28,9 @@ const page = await context.newPage();
 const cdp = await context.newCDPSession(page);
 page.on("console", (m) => { if (m.type() === "error") problems.push("console: " + m.text().slice(0, 600)); });
 page.on("pageerror", (e) => problems.push("pageerror: " + String(e).slice(0, 300)));
-const HALF = Math.round(844 * 0.48);
+const HALF = Math.round(844 * 0.5);
+// What a sheet that fits may be tall (owner, 2026-11-03: „zwischen 40% bis 70% vom screen").
+const FIT = [Math.floor(844 * 0.4), Math.ceil(844 * 0.7)];
 
 // A finger (Playwright itself only taps): down at (x, from), through the moves `by` (px each, one
 // every `ms`), up.
@@ -43,7 +51,8 @@ const dialogAt = (selector) => page.evaluate((selector) => {
   const dialog = document.querySelector(selector);
   if (!dialog?.open) return null;
   const body = dialog.querySelector(".st-dlg-body");
-  return { top: Math.round(dialog.getBoundingClientRect().top), full: dialog.classList.contains("is-full"), scrolled: Math.round(body?.scrollTop ?? -1), moving: dialog.getAnimations().some((a) => a.playState === "running") };
+  const r = dialog.getBoundingClientRect();
+  return { top: Math.round(r.top), bottom: Math.round(r.bottom), height: Math.round(r.height), way: dialog.dataset.sheet, full: dialog.classList.contains("is-full"), scrolled: Math.round(body?.scrollTop ?? -1), moving: dialog.getAnimations().some((a) => a.playState === "running") };
 }, selector);
 const resting = (selector) => page.waitForFunction((selector) => { const d = document.querySelector(selector); return !d?.open || !d.getAnimations().some((a) => a.playState === "running"); }, selector, { timeout: 4000 }).catch(() => problems.push(`${selector}: it does not come to rest`));
 // Its top frame by frame for `ms`.
@@ -158,7 +167,7 @@ await page.tap(".page-stage.front .view-more");
 await page.waitForFunction((selector) => document.querySelector(selector), MENU, { timeout: 5000 }).catch(() => problems.push("the Merkliste's ⋯ did not open its menu"));
 await page.waitForFunction((selector) => !document.querySelector(selector)?.getAnimations().some((a) => a.playState === "running"), MENU, { timeout: 3000 }).catch(() => {});
 const menu = await menuAt();
-check(menu?.sheet && menu.full && menu.bottom === 844 && menu.height < 844 * 0.52 && menu.grip === "40px", `a menu is no sheet of one stop as tall as it is: ${JSON.stringify(menu)}`);
+check(menu?.sheet && menu.full && menu.bottom === 844 && menu.height >= FIT[0] && menu.height <= FIT[1] && menu.grip === "40px", `a menu is no sheet of one stop that fits (40–70 % of the screen): ${JSON.stringify(menu)}`);
 await finger(195, menu.top + 30, evenly(160, 8), { ms: 16 });
 await page.waitForFunction((selector) => !document.querySelector(selector), MENU, { timeout: 3000 }).catch(() => problems.push("a menu swiped down did not close"));
 await page.tap(".page-stage.front .view-more");
@@ -168,6 +177,54 @@ await page.tap(`${MENU} .st-pop-item >> nth=0`);
 const gone = await page.waitForFunction(() => document.querySelector(".sheet-ghost.view-menu") ? true : false, null, { timeout: 1000, polling: "raf" }).then(() => true).catch(() => false);
 check(gone, "a menu closed by its choice left no copy gliding away");
 await page.waitForFunction(() => !document.querySelector(".sheet-ghost") && !document.querySelector(".view-menu"), null, { timeout: 3000 }).catch(() => problems.push("the menu or its copy stayed"));
+
+// ---- a dialog that fits: „Sammeln" (folia_widgets::collect, `ModalSize::S`): as tall as it holds
+// between 40 and 70 % of the screen, at its foot; one stop, which a short pull comes back to and a
+// tap on the grabber leaves be
+const COLLECT = "dialog.collect-sheet";
+await page.goto(base + "/catalog/module/11103", { waitUntil: "domcontentloaded" });
+await page.waitForFunction(() => window.__betulaApp === true && document.querySelector(".page-stage.front .mark-more"), null, { timeout: 120000 }).catch(() => problems.push("the module's page has no „Sammeln“"));
+await page.waitForTimeout(500);
+await page.tap(".page-stage.front .mark-more");
+await page.waitForFunction((selector) => document.querySelector(selector)?.open, COLLECT, { timeout: 5000 }).catch(() => problems.push("„Sammeln“ did not open"));
+await resting(COLLECT);
+at = await dialogAt(COLLECT);
+check(at?.way === "fit" && at.full && at.bottom === 844 && at.height >= FIT[0] && at.height <= FIT[1], `a dialog that fits is not as tall as it holds between 40 and 70 % at the screen's foot: ${JSON.stringify(at)}`);
+const fitTop = at?.top ?? 0;
+await page.touchscreen.tap(195, fitTop + 8);
+await resting(COLLECT);
+at = await dialogAt(COLLECT);
+check(at && Math.abs(at.top - fitTop) < 3, `a tap on the grabber moved a dialog that fits: ${JSON.stringify(at)}`);
+await finger(195, fitTop + 60, evenly(70, 10), { ms: 24, hold: 120 });
+await resting(COLLECT);
+at = await dialogAt(COLLECT);
+check(at && Math.abs(at.top - fitTop) < 3 && at.full, `a dialog that fits did not come back from a short pull: ${JSON.stringify(at)}`);
+await finger(195, fitTop + 60, evenly(260, 8), { ms: 16 });
+await page.waitForFunction((selector) => !document.querySelector(selector)?.open, COLLECT, { timeout: 3000 }).catch(() => problems.push("a dialog that fits did not go when swiped down"));
+
+// ---- all up at once: „Plan einrichten" (folia_widgets::plansetup, `Sheet::Full`; „Einplanen" on
+// the module's page, no study set up), from below in one move to all up, never half up; a short
+// pull comes back all up, a tap on the grabber leaves it, a swipe down throws it away
+const SETUP = "dialog.plan-setup";
+await page.waitForTimeout(400);
+await watch(SETUP, 1200);
+await page.tap(".page-stage.front .plan-toggle");
+await page.waitForFunction((selector) => document.querySelector(selector)?.open, SETUP, { timeout: 5000 }).catch(() => problems.push("„Einplanen“ did not open „Plan einrichten“"));
+await resting(SETUP);
+at = await dialogAt(SETUP);
+check(at?.way === "full" && at.full && at.top <= 12 && at.bottom === 844, `a dialog all up at once is not all up: ${JSON.stringify(at)}`);
+const up = (await tops()).filter((top) => top > 0);
+check(up.length > 4 && up[0] > HALF + 150 && up.at(-1) <= 12 && !up.some((top, i) => i > 0 && Math.abs(top - HALF) < 6 && Math.abs(up[i - 1] - top) < 1), `a dialog all up at once does not come up in one move: ${up.join(" ")}`);
+await page.touchscreen.tap(195, (at?.top ?? 10) + 8);
+await resting(SETUP);
+at = await dialogAt(SETUP);
+check(at?.full && at.top <= 12, `a tap on the grabber moved a dialog all up at once: ${JSON.stringify(at)}`);
+await finger(195, 120, evenly(90, 10), { ms: 24, hold: 120 });
+await resting(SETUP);
+at = await dialogAt(SETUP);
+check(at?.full && at.top <= 12, `a dialog all up at once did not come back all up from a short pull: ${JSON.stringify(at)}`);
+await finger(195, 120, [40, 60, 80, 100, 120], { ms: 16 });
+await page.waitForFunction((selector) => !document.querySelector(selector)?.open, SETUP, { timeout: 3000 }).catch(() => problems.push("a dialog all up at once did not go when thrown down"));
 
 await browser.close();
 console.log(JSON.stringify({ problems }, null, 2));

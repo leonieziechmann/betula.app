@@ -14,7 +14,7 @@
 use leptos::prelude::*;
 
 use folia_design::keys::{Keys, LettersSwitch};
-use folia_design::modal::{kept, Modal, ModalHead};
+use folia_design::modal::{kept, Modal, ModalHead, Sheet};
 use folia_design::ui::Icon;
 
 use crate::i18n::{self, keys::Row, Texts};
@@ -188,7 +188,8 @@ pub fn KeysHelp() -> impl IntoView {
         })
     };
     view! {
-        <Modal open=Signal::derive(move || open.with(Option::is_some)) on_close=close class="keys-dialog" labelled_by="keys-title">
+        // On a phone half up and all up (`Sheet::Half`): a long list to read, not a note that fits.
+        <Modal open=Signal::derive(move || open.with(Option::is_some)) on_close=close sheet=Sheet::Half class="keys-dialog" labelled_by="keys-title">
             <ModalHead id="keys-title" title=t.keys.title on_close=close>
                 <p>{t.keys.lead}</p>
             </ModalHead>
