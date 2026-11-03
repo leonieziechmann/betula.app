@@ -1,11 +1,11 @@
-//! A Termin beside the plan in its own view (`termin=<key>&on=<day>`, folia/design/termin; owner,
-//! 2026-10-26): the view that adjusts the plan (`folia_widgets::termin`), of the plan's timetable.
-//! A click on a Termin of the week or of „Termine" opens it in the place of the module's panel,
-//! and „Zum Modul" opens that panel in its place, pointing at the Termin; closing it goes back a
-//! step where the plan without it is the step before, as the module's panel does. „Ganze Seite"
-//! (`&full=1`, owner: „bau als Nächstes Teilen und Ganze Seite") lets it fill the plan's page, as
-//! „Vollbild" does a module: the same view in two columns, still the one that adjusts, with
-//! „Zurück" to it beside the plan.
+//! A Termin of the plan in its own view (`termin=<key>&on=<day>`, folia/design/termin; owner,
+//! 2026-10-26): the view that adjusts the plan (`folia_widgets::termin`), of the plan's timetable,
+//! in the app's dialog over the plan (owner, 2026-11-03: „muss das ein modal werden"). A click on a
+//! Termin of the week or of „Termine" opens it, „Zum Modul" closes it and opens the module's panel
+//! beside the plan, pointing at the Termin; closing it goes back a step where the plan without it
+//! is the step before, as the module's panel does. „Ganze Seite" (`&full=1`, owner: „bau als
+//! Nächstes Teilen und Ganze Seite") lets it fill the plan's page, as „Vollbild" does a module: the
+//! same view in two columns, still the one that adjusts, with „Zurück" to it over the plan.
 
 use folia_calendar::day::Day;
 use folia_calendar::rowkey::RowKey;
@@ -14,7 +14,7 @@ use folia_routes::url::PlanAddress;
 use folia_shell::frame::Plain;
 use folia_shell::pending::same_page;
 use folia_shell::tabs::{Area, Tabs};
-use folia_widgets::termin::{module_facts, page_head, ticking_clock, Against, OwnActs, TerminCtx, TerminLinks, TerminMode, TerminPlace, TerminView};
+use folia_widgets::termin::{module_facts, page_head, ticking_clock, Against, OwnActs, TerminCtx, TerminLinks, TerminMode, TerminModal, TerminPlace, TerminView};
 use leptos::prelude::*;
 
 use crate::i18n;
@@ -31,8 +31,10 @@ fn own_acts(ctx: PlanCtx) -> OwnActs {
     OwnActs { edit: Callback::new(move |number| super::own::ask_edit(ctx, number)), remove: Callback::new(move |number| super::own::remove(ctx, number)) }
 }
 
+/// The Termin over the plan in the app's dialog, while `open` (the address asks for it, and not
+/// for it filling the page).
 #[component]
-pub(super) fn PlanTerminPanel(ctx: PlanCtx) -> impl IntoView {
+pub(super) fn PlanTerminModal(ctx: PlanCtx, #[prop(into)] open: Signal<bool>) -> impl IntoView {
     let t = i18n::t();
     let asked = Memo::new(move |_| ctx.url.with(|url| url.termin_on()));
     let modules = Memo::new(move |_| ctx.data.with(|data| data.as_ref().ok().map(module_facts).unwrap_or_default()));
@@ -57,14 +59,14 @@ pub(super) fn PlanTerminPanel(ctx: PlanCtx) -> impl IntoView {
         planned: Signal::stored(Some(true)),
         against: Signal::stored(Against::Itself),
         links,
-        place: TerminPlace::Beside,
+        place: TerminPlace::Dialog,
         own: Some(own_acts(ctx)),
     };
-    view! { <TerminView ctx=view/> }
+    view! { <TerminModal ctx=view open/> }
 }
 
 /// The Termin filling the plan's page („Ganze Seite", `…&full=1`): its dates and groups lead to
-/// their Termin filling the page too, „Zurück" (Esc) to the Termin beside the plan on the day
+/// their Termin filling the page too, „Zurück" (Esc) to the Termin over the plan on the day
 /// shown. The tab, the area and the history stay the Stundenplan's.
 #[component]
 pub(super) fn PlanTerminFull(ctx: PlanCtx) -> impl IntoView {
