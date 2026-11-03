@@ -59,11 +59,12 @@ pub struct Texts {
     pub in_plan: &'static str,
     pub in_feed: &'static str,
     /// The groups of a choice: their word by the event's kind („Übungsgruppen" …, else
-    /// „Gruppen"), how many are ticked („2 von 7") or „noch keine", and while none is: „Bis du
-    /// eine anhakst, stehen alle 4 gestrichelt im Stundenplan."
+    /// „Gruppen"); under „Im Stundenplan" the one shown („Mo 10:00 im Stundenplan"), how many are
+    /// ticked („2 von 7 angehakt"), and while none is: „Bis du eine anhakst, stehen alle 4
+    /// gestrichelt im Stundenplan."
     pub groups: fn(Option<EventKind>) -> &'static str,
-    pub ticked_of: fn(usize, usize) -> String,
-    pub none_yet: &'static str,
+    pub group_in_plan: fn(&str) -> String,
+    pub ticked_count: fn(usize, usize) -> String,
     pub open_note: fn(usize) -> String,
     /// To look up: „eine von 7".
     pub one_of: fn(usize) -> String,
@@ -233,8 +234,8 @@ pub const DE: Texts = Texts {
         Some(EventKind::Seminar) => "Seminargruppen",
         _ => "Gruppen",
     },
-    ticked_of: |ticked, all| format!("{ticked} von {all}"),
-    none_yet: "noch keine",
+    group_in_plan: |when| format!("{when} im Stundenplan"),
+    ticked_count: |ticked, all| format!("{ticked} von {all} angehakt"),
     open_note: |n| format!("Bis du eine anhakst, stehen alle {n} gestrichelt im Stundenplan."),
     one_of: |n| format!("eine von {n}"),
     further: "weitere",
@@ -370,8 +371,8 @@ pub const EN: Texts = Texts {
         Some(EventKind::Seminar) => "Seminar groups",
         _ => "Groups",
     },
-    ticked_of: |ticked, all| format!("{ticked} of {all}"),
-    none_yet: "none yet",
+    group_in_plan: |when| format!("{when} in your timetable"),
+    ticked_count: |ticked, all| format!("{ticked} of {all} ticked"),
     open_note: |n| format!("Until you tick one, all {n} stand dashed in your timetable."),
     one_of: |n| format!("one of {n}"),
     further: "more",

@@ -1,0 +1,1455 @@
+<title>Gesamtplan-Konzepte</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- The Gesamtplan as a progress tracker. First round (2026-11-03; owner, the same day: „Hey claude
+     baue mal bitte den Gesamtplan so um, so dass es sich eher wie ein progress tracker verhält. Halt
+     so ähnlich wie bei star citizen oder so. Mach mal ein paar konzepte, wie man das visuell
+     Schöner machen kann. Idealer weise trotzdem noch so, dass man die module sehen kann. Also
+     zummindest die abkürzungen.“, with a screenshot of the Star Citizen roadmap's progress tracker;
+     then: „Ja und die progress bars können auch so sein, dass sie unterbrochen sind, wenn man mal
+     ein semester kein modul belegt.“). Today (canary, Folia 1.61.1, bilder/heute-gesamtplan.webp),
+     what the three concepts share (areas as rows, the semesters as columns, an area's bar broken
+     where it has no module in a semester, every module by the program's abbreviation, the fuller
+     the further), three concepts as the Gesamtplan's panel of a desktop at 1440 px, clickable —
+     A „Roadmap“ (collapsed an area is one bar of a piece per module, ▸ gives every module a lane of
+     its own, the line of today), B „Bausteine“ (a module is as wide as its credits, a semester 30 LP,
+     a rail through the semesters), C „Linien“ (an area is a line, a semester with modules a stop,
+     strong up to today) —, eight cases side by side, the comparison, the recommendation (A, with
+     the ruler of B) and seven questions. The data is canary's snapshot of 2026-11-03: Informatik B.Sc.
+     (PO 2008, 079-82-2008), begun in WiSe 2025/26, now in its 3rd Fachsemester, the abbreviations
+     the program's (v_program_module.abbrev); what the cases mark „Beispiel“ is made up. Tokens are
+     Betula's (folia/assets/app.css), the areas' tones as folia/crates/planner/src/study/mod.rs gives
+     them; Inter comes from Google Fonts here, the app self-hosts it. Nothing of it is built. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<style>
+/* Layout: a review desk. The brief and what the concepts share; today on canary; each concept as
+   the Gesamtplan's panel at its real width, clickable; the cases side by side; the comparison, the
+   recommendation, the questions. Tokens: Betula's own (light, then dark), the six tones of the
+   areas, the fills of the states, the toast. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --bg: #f1f2f4;
+  --panel: #ffffff;
+  --panel-2: #f6f7f8;
+  --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08);
+  --line-strong: rgba(15, 23, 42, .15);
+  --row-hover: color-mix(in oklab, var(--text) 5.2%, var(--panel));
+  --text: #10151f;
+  --text-2: #4b5565;
+  --text-3: #8790a0;
+  --invert: #161b26;
+  --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149);
+  --accent-ink: oklch(.46 .07 149);
+  --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 8%, var(--panel));
+  --ok: #0b7f58;
+  --warn: #8f5a0a;
+  --warn-dot: #d49a2a;
+  --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel));
+  --no: #b3261e;
+  --no-soft: color-mix(in srgb, #b3261e 7%, var(--panel));
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line), 0 12px 40px -10px rgba(15, 23, 42, .28);
+  --seg-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line);
+  --r-panel: 9px; --r-row: 7px; --r-s: 5px;
+  --desk: color-mix(in oklab, var(--text) 4%, var(--bg));
+  --toast: var(--invert);
+  --on-toast: var(--on-invert);
+  --toast-link: oklch(.82 .09 149);
+  /* The areas' tones (study/mod.rs: the plain areas in the order of TONES, the FÜS teal, the
+     thesis slate) and what text on their full surface takes: white, near black on the sun. */
+  --fac-1: oklch(.5 .12 262);
+  --fac-4: oklch(.5 .11 330);
+  --fac-6: oklch(.52 .12 30);
+  --t-sun: oklch(.64 .12 75);
+  --t-teal: oklch(.56 .08 190);
+  --t-slate: oklch(.55 .04 260);
+  --on-tone: #ffffff;
+  --on-sun: #10151f;
+  /* The fills of a module: what it is mixed with, how much of its tone a state takes. */
+  --mix-now: 36%;
+  --mix-plan: 14%;
+  --mix-ring: 42%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+    --ok: #4fd1a1; --warn: #f0b861; --warn-dot: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+    --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+    --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+    --seg-shadow: 0 0 0 1px var(--line);
+    --desk: color-mix(in oklab, var(--text) 4%, var(--bg));
+    --toast: #232938; --on-toast: #eceff5; --toast-link: oklch(.82 .08 149);
+    --fac-1: oklch(.76 .1 262); --fac-4: oklch(.76 .1 330); --fac-6: oklch(.75 .1 30);
+    --t-sun: oklch(.82 .1 80); --t-teal: oklch(.8 .07 190); --t-slate: oklch(.78 .04 260);
+    --on-tone: #0d1017; --on-sun: #0d1017;
+    --mix-now: 34%; --mix-plan: 16%; --mix-ring: 46%;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  --ok: #4fd1a1; --warn: #f0b861; --warn-dot: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+  --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+  --seg-shadow: 0 0 0 1px var(--line);
+  --desk: color-mix(in oklab, var(--text) 4%, var(--bg));
+  --toast: #232938; --on-toast: #eceff5; --toast-link: oklch(.82 .08 149);
+  --fac-1: oklch(.76 .1 262); --fac-4: oklch(.76 .1 330); --fac-6: oklch(.75 .1 30);
+  --t-sun: oklch(.82 .1 80); --t-teal: oklch(.8 .07 190); --t-slate: oklch(.78 .04 260);
+  --on-tone: #0d1017; --on-sun: #0d1017;
+  --mix-now: 34%; --mix-plan: 16%; --mix-ring: 46%;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+a { color: var(--accent-ink); }
+code { font: 500 .86em ui-monospace, "Cascadia Mono", Consolas, monospace; padding: 1px 5px; border-radius: 5px; background: var(--panel-3); overflow-wrap: anywhere; }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 22px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+
+/* The brief. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -.026em; font-weight: 770; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.intro .lead b { color: var(--text); font-weight: 650; }
+.quote { margin: 18px 0 0; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.quote + .quote { margin-top: 8px; }
+.quote span { color: var(--text-3); }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ul { margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.rules li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.rules li > i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text-2); }
+.rules li > i svg { width: 14px; height: 14px; }
+.rules li b { color: var(--text); font-weight: 620; }
+
+/* The bar: the theme and the ways down the page. */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+.setbar { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow-panel); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.setbar .group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.setbar .kicker { font-size: 10.5px; }
+.seg { display: inline-flex; flex-wrap: wrap; max-width: 100%; gap: 2px; padding: 2px; border-radius: 8px; background: var(--panel-3); }
+.seg button { height: 30px; padding: 0 9px; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: var(--seg-shadow); }
+.setbar .jump { margin-left: auto; display: flex; flex-wrap: wrap; gap: 2px; }
+.setbar .jump a { padding: 6px 6px; border-radius: 7px; color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.setbar .jump a:hover { background: var(--panel-3); color: var(--text); }
+
+/* A section. */
+.sec { padding: 24px 24px 26px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); scroll-margin-top: 100px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.sec > header { display: flex; flex-direction: column; gap: 8px; }
+.sec h2 { font-size: 23px; line-height: 1.2; letter-spacing: -.02em; font-weight: 730; }
+.sec h2 .tag { display: inline-grid; place-items: center; width: 30px; height: 30px; margin-right: 10px; border-radius: 8px; background: var(--invert); color: var(--on-invert); font-size: 15px; font-weight: 760; vertical-align: 2px; }
+.sec .sub { max-width: 78ch; color: var(--text-2); text-wrap: pretty; }
+.sec .sub b { color: var(--text); font-weight: 620; }
+.sec h3 { font-size: 15px; font-weight: 700; letter-spacing: -.005em; }
+.prose { max-width: 76ch; color: var(--text-2); font-size: 14.5px; text-wrap: pretty; }
+.prose b { color: var(--text); font-weight: 620; }
+
+/* Today: the screenshot and what goes wrong. */
+.today { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 22px 32px; align-items: start; }
+.shot { margin: 0; min-width: 0; }
+.shot img { display: block; width: 100%; height: auto; max-width: 100%; border-radius: 12px; box-shadow: var(--shadow-panel); background: #fff; }
+.shot figcaption { margin-top: 8px; font-size: 13px; color: var(--text-3); text-wrap: pretty; }
+.wrong { margin: 0; padding: 0; list-style: none; counter-reset: w; display: flex; flex-direction: column; }
+.wrong li { counter-increment: w; display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.wrong li:first-child { border-top: 0; padding-top: 0; }
+.wrong li::before { content: counter(w); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--no); color: var(--panel); font-size: 12px; font-weight: 760; }
+.wrong li b { display: block; margin-bottom: 2px; color: var(--text); font-weight: 650; }
+
+/* A concept: the desk with the panel at its real width, then what it does. */
+.stage { padding: 22px; border-radius: 14px; background: var(--desk); overflow-x: auto; overflow-y: hidden; }
+.stage > .gp { margin: 0 auto; }
+.tryit { font-size: 13px; color: var(--text-3); }
+.how { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 18px 28px; }
+.how > div { min-width: 0; }
+.how h3 { margin-bottom: 8px; }
+.how ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.how ul b { color: var(--text); font-weight: 620; }
+.how .weak h3 { color: var(--warn); }
+
+/* The cases: per case a row, what it is on the left, A, B and C under each other on the right. */
+.cases { display: flex; flex-direction: column; gap: 14px; }
+.case { padding: 16px 18px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: grid; grid-template-columns: minmax(0, 250px) minmax(0, 1fr); gap: 12px 26px; align-items: start; min-width: 0; }
+.case > div:first-child { display: flex; flex-direction: column; gap: 6px; }
+.case .minis { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+@media (max-width: 900px) { .case { grid-template-columns: minmax(0, 1fr); } }
+.case h3 { font-size: 14.5px; }
+.case p { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.case p .ex { display: inline-block; margin-right: 4px; padding: 0 6px; border-radius: 4px; background: var(--panel-3); color: var(--text-3); font-size: 11px; font-weight: 650; letter-spacing: .03em; text-transform: uppercase; vertical-align: 1px; }
+.case figure { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.case figure figcaption { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.case .fit { overflow-x: auto; overflow-y: hidden; }
+
+/* The comparison. */
+.tablewrap { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+table.t { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.t th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line-strong); color: var(--text-3); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+table.t td { padding: 10px 10px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--text-2); text-wrap: pretty; min-width: 150px; }
+table.t td:first-child { color: var(--text); font-weight: 620; min-width: 120px; }
+.verdict { display: inline-flex; align-items: baseline; gap: 7px; }
+.verdict i { flex: none; width: 8px; height: 8px; border-radius: 50%; translate: 0 -1px; }
+.verdict.ok i { background: var(--ok); }
+.verdict.meh i { background: var(--warn-dot); }
+.verdict.no i { background: var(--no); }
+
+/* The recommendation and the questions. */
+.reco { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px 32px; }
+.reco ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 14.5px; color: var(--text-2); text-wrap: pretty; }
+.reco ul b { color: var(--text); font-weight: 620; }
+.qs { margin: 0; padding: 0; list-style: none; counter-reset: q; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; }
+.qs li { counter-increment: q; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; padding: 12px 0 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.qs li::before { content: counter(q); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.qs li b { display: block; margin-bottom: 3px; color: var(--text); font-weight: 650; }
+.qs li .pro { display: block; margin-top: 5px; color: var(--accent-ink); font-weight: 560; }
+.foot { color: var(--text-3); font-size: 12.5px; text-wrap: pretty; }
+
+@media (max-width: 1000px) {
+  .intro, .today, .reco { grid-template-columns: minmax(0, 1fr); }
+  .how { grid-template-columns: minmax(0, 1fr); }
+  .qs { grid-template-columns: minmax(0, 1fr); }
+  .setbar .jump { margin-left: 0; }
+}
+@media (max-width: 560px) {
+  .sec { padding: 18px 14px 20px; }
+  .stage { padding: 12px; }
+  .case { padding: 12px 10px; }
+}
+
+/* ---------- The Gesamtplan: what all three share ----------
+   The script places everything of the plan in pixels (left, top, width, height) on a canvas as
+   wide as its columns: the area's head on the left, the semesters' heads on top, the modules in
+   their rows. A module's fill says how far it is: full when passed, strong while its semester
+   runs, light when planned, dashed when the plan has it open. */
+.gp { position: relative; padding: 14px 16px 12px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); font-size: 13px; line-height: 1.3; text-align: left; }
+.gp.mini { padding: 0; border-radius: 10px; box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
+.gp-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; padding-bottom: 10px; }
+.gp-bar h3 { margin-right: 6px; font-size: 16px; font-weight: 700; letter-spacing: -.005em; }
+.gp-grow { flex: 1; }
+.gp-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 9px; border: 0; border-radius: 7px; background: transparent; color: var(--accent-ink); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.gp-btn:hover { background: var(--accent-soft); }
+.gp-btn svg.i { width: 15px; height: 15px; }
+.gp-scroll { overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.gp-canvas { position: relative; }
+.gp-colbg { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--line); }
+.gp-colbg.past { background: var(--panel-2); }
+.gp-colbg.now { background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+.gp-colbg.leave { background: repeating-linear-gradient(135deg, var(--panel-2) 0 7px, var(--panel) 7px 14px); }
+.gp-hline { position: absolute; left: 0; right: 0; height: 1px; background: var(--line-strong); }
+.gp-band { position: absolute; top: 0; height: 22px; display: flex; align-items: center; padding: 0 8px; border-left: 1px solid var(--line); font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; }
+.gp-head { position: absolute; display: block; padding: 8px 8px 0; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.gp-head:hover .gp-head-name span:first-child { text-decoration: underline; text-underline-offset: 3px; }
+.gp-head.fold { cursor: default; }
+.gp-head.fold:hover .gp-head-name span:first-child { text-decoration: none; }
+.gp-head-name { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 650; white-space: nowrap; }
+.gp-head-sub { display: flex; justify-content: space-between; gap: 6px; margin-top: 1px; font-size: 11.5px; color: var(--text-2); white-space: nowrap; }
+.gp-head-sub b { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
+.gp-head-sub b.heavy { color: var(--warn); }
+.gp-head-sub b.ok { color: var(--ok); }
+.gp-load { display: flex; height: 3px; margin-top: 6px; border-radius: 2px; overflow: hidden; background: var(--panel-3); }
+.gp-load > span { flex-basis: 0; }
+.gp-load > span:first-child { background: color-mix(in oklab, var(--text) 64%, var(--panel)); }
+.gp-load.heavy > span:first-child { background: #c98a1a; }
+.gp-ruler { position: relative; height: 5px; margin-top: 6px; border-radius: 2px; background: var(--panel-3); }
+.gp-ruler > span { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
+.gp-ruler .done { background: color-mix(in oklab, var(--text) 64%, var(--panel)); }
+.gp-ruler .plan { background: color-mix(in oklab, var(--text) 26%, var(--panel)); }
+.gp-ruler .beyond { background: #c98a1a; }
+.gp-ruler .mark { top: -3px; bottom: -3px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--text-2); }
+.gp-now { display: inline-flex; align-items: center; padding: 0 6px; border-radius: 6px; background: var(--accent-ink); color: var(--on-accent); font-size: 10.5px; font-weight: 700; line-height: 1.6; }
+.gp-leave { display: inline-flex; align-items: center; padding: 0 6px; border-radius: 6px; background: var(--panel-3); color: var(--text-2); font-size: 10.5px; font-weight: 700; line-height: 1.6; }
+.gp-row { position: absolute; left: 0; right: 0; border-bottom: 1px solid var(--line); }
+.gp-row.lanes { border-bottom: 0; }
+.gp-area { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; justify-content: center; gap: 5px; padding: 0 12px 0 4px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.gp-area.has-tog { padding-left: 24px; padding-right: 8px; }
+.gp-area:hover .gp-area-name { text-decoration: underline; text-underline-offset: 3px; }
+.gp-area-top { display: flex; align-items: baseline; gap: 7px; min-width: 0; font-size: 13px; font-weight: 650; }
+.gp-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--c); align-self: center; }
+.gp-area-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gp-area-lp { flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 500; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.gp-area-lp.done { color: var(--ok); font-weight: 650; }
+.gp-area-lp.over { color: color-mix(in oklab, var(--c) 75%, var(--text)); font-weight: 650; }
+.gp-area-lp svg.i { width: 12px; height: 12px; stroke-width: 2.6; }
+.gp-mini { display: flex; height: 3px; margin-left: 16px; border-radius: 2px; overflow: hidden; background: var(--panel-3); }
+.gp-mini > span { flex-basis: 0; }
+.gp-mini > .p { background: var(--c); }
+.gp-mini > .q { background: color-mix(in oklab, var(--c) 36%, var(--panel)); }
+.gp-mini > .x { background: repeating-linear-gradient(135deg, var(--c) 0 2px, color-mix(in oklab, var(--c) 28%, var(--panel)) 2px 4px); }
+.gp-area.stack { gap: 4px; }
+.gp-area-foot { display: flex; align-items: center; gap: 8px; padding-left: 16px; }
+.gp-area-foot .gp-mini { flex: 1 1 auto; margin-left: 0; }
+.gp-tog { position: absolute; left: 0; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); cursor: pointer; }
+.gp-tog:hover { background: var(--row-hover); color: var(--text); }
+.gp-tog svg.i { width: 15px; height: 15px; transition: rotate .16s ease; }
+.gp-tog[aria-expanded="true"] svg.i { rotate: 90deg; }
+@media (prefers-reduced-motion: reduce) { .gp-tog svg.i { transition: none; } }
+.gp-lane-label { position: absolute; display: flex; align-items: center; gap: 6px; padding-left: 30px; padding-right: 12px; font-size: 12px; color: var(--text-2); white-space: nowrap; }
+.gp-lane-label .nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.gp-lane-label .lp { flex: none; font-variant-numeric: tabular-nums; }
+.gp-lanes-bg { position: absolute; left: 0; right: 0; background: color-mix(in oklab, var(--text) 1.6%, transparent); border-bottom: 1px solid var(--line); }
+
+/* A module: a button placed by the script. Its tone comes from its area (--c). */
+.a-inf { --c: var(--fac-1); --on-c: var(--on-tone); }
+.a-mat { --c: var(--fac-4); --on-c: var(--on-tone); }
+.a-neb { --c: var(--t-sun); --on-c: var(--on-sun); }
+.a-fues { --c: var(--t-teal); --on-c: var(--on-tone); }
+.a-fach { --c: var(--fac-6); --on-c: var(--on-tone); }
+.a-ba { --c: var(--t-slate); --on-c: var(--on-tone); }
+.m { position: absolute; display: flex; align-items: center; gap: 3px; padding: 0 6px; border: 0; border-radius: 4px; font-size: 11px; font-weight: 650; letter-spacing: .005em; white-space: nowrap; overflow: hidden; cursor: pointer; z-index: 1; }
+.m .lb { min-width: 0; }
+.m .nm { font-weight: 500; opacity: .86; }
+.m svg.i { width: 12px; height: 12px; stroke-width: 2.4; }
+.m.passed { background: var(--c); color: var(--on-c); }
+.m.now { background: color-mix(in oklab, var(--c) var(--mix-now), var(--panel)); color: var(--text); }
+.m.planned { background: color-mix(in oklab, var(--c) var(--mix-plan), var(--panel)); color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--c) var(--mix-ring), var(--panel)); }
+.m.failed { background: var(--no-soft); color: var(--no); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--no) 60%, var(--panel)); }
+.m.ghost { background: var(--panel); color: var(--text-2); box-shadow: none; outline: 1.5px dashed color-mix(in oklab, var(--c) 62%, var(--panel)); outline-offset: -1.5px; font-weight: 600; }
+.m.ghost.w-past { background: var(--panel-2); }
+.m.ghost.w-now { background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+.m.ph { background: color-mix(in oklab, var(--c) var(--mix-plan), var(--panel)); color: var(--text); outline: 1.5px dashed color-mix(in oklab, var(--c) 70%, var(--panel)); outline-offset: -1.5px; }
+.m.ph.now { background: color-mix(in oklab, var(--c) var(--mix-now), var(--panel)); }
+.m.over { background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--c) 34%, var(--panel)) 0 3px, color-mix(in oklab, var(--c) 9%, var(--panel)) 3px 6px); color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--c) var(--mix-ring), var(--panel)); }
+.m.over .lb { padding: 0 3px; border-radius: 3px; background: color-mix(in srgb, var(--panel) 86%, transparent); }
+.m.failed svg.i, .m svg.i.no { color: var(--no); }
+.m svg.i.warn { color: var(--warn); }
+.m.passed svg.i.warn { color: currentColor; }
+.m.sum { justify-content: flex-start; }
+.m:hover, .m:focus-visible { z-index: 4; box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px color-mix(in oklab, var(--c) 75%, var(--text)); outline-offset: 2px; }
+.m.ghost:hover, .m.ghost:focus-visible { outline: 1.5px dashed color-mix(in oklab, var(--c) 90%, var(--text)); background: color-mix(in oklab, var(--c) 8%, var(--panel)); color: var(--text); }
+.m:focus-visible { outline: 2px solid var(--accent); }
+.gp-badge { display: inline-grid; place-items: center; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px; background: var(--no); color: #fff; font-size: 9.5px; font-weight: 750; }
+.gp-add { position: absolute; display: flex; align-items: center; justify-content: center; gap: 4px; border: 1px dashed color-mix(in oklab, var(--accent) 60%, var(--panel)); border-radius: 6px; background: color-mix(in srgb, var(--accent) 5%, var(--panel)); color: var(--accent-ink); font-size: 11.5px; font-weight: 600; cursor: pointer; opacity: 0; transition: opacity .12s; z-index: 1; white-space: nowrap; }
+.gp-add svg.i { width: 13px; height: 13px; }
+.gp-add:hover, .gp-add:focus-visible { opacity: 1; }
+.gp-link { position: absolute; height: 0; border-top: 1.5px dashed color-mix(in srgb, var(--no) 70%, var(--panel)); z-index: 0; }
+.gp-link::after { content: ""; position: absolute; right: -1px; top: -5px; width: 0; height: 0; border-left: 6px solid color-mix(in srgb, var(--no) 70%, var(--panel)); border-top: 4.25px solid transparent; border-bottom: 4.25px solid transparent; }
+.m.wl::after { content: ""; position: absolute; left: 3px; right: 3px; bottom: 2px; height: 2px; border-radius: 1px; background: var(--warn); }
+/* Today runs behind the modules: it marks the time, their labels stay whole. */
+.gp-today { position: absolute; width: 0; border-left: 2px solid var(--accent); z-index: 0; pointer-events: none; }
+.gp-today-flag { position: absolute; translate: -50% 0; padding: 0 6px; border-radius: 5px; background: var(--accent); color: var(--on-accent); font-size: 10px; font-weight: 700; line-height: 16px; white-space: nowrap; z-index: 3; pointer-events: none; }
+.gp-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--text-2); }
+.gp-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.gp-legend .sw { position: relative; display: inline-block; flex: none; width: 18px; height: 11px; border-radius: 3px; }
+.gp-legend .sw.m { position: relative; padding: 0; cursor: default; }
+.gp-legend .sw.m:hover { box-shadow: none; }
+.gp-legend .sw.m.planned:hover { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--c) var(--mix-ring), var(--panel)); }
+.gp-legend .sw.today { width: 2px; height: 14px; border-radius: 1px; background: var(--accent); }
+.gp-legend .sw.rail { height: 2px; margin-top: 1px; border-radius: 1px; background: color-mix(in oklab, var(--c) 50%, var(--panel)); }
+.gp-legend .sw.line { height: 5px; border-radius: 3px; background: var(--c); }
+.gp-legend .sw.line.ahead { background: color-mix(in oklab, var(--c) 32%, var(--panel)); }
+.gp-legend svg.i { width: 13px; height: 13px; stroke-width: 2.3; }
+.gp-legend .no { color: var(--no); }
+.gp-legend .warn { color: var(--warn); }
+.gp-legend .help { margin-left: auto; color: var(--text-3); }
+.gp-legend .lg-k { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.gp-legend .lg-br { flex-basis: 100%; height: 0; }
+.gp-toast { position: absolute; left: 50%; bottom: 14px; translate: -50% 0; display: flex; align-items: center; gap: 14px; max-width: calc(100% - 32px); padding: 9px 12px 9px 14px; border-radius: 10px; background: var(--toast); color: var(--on-toast); font-size: 13px; box-shadow: 0 12px 30px -10px rgba(15, 23, 42, .45); z-index: 12; }
+.gp-toast button { padding: 2px 4px; border: 0; background: none; color: var(--toast-link); font-weight: 650; cursor: pointer; white-space: nowrap; }
+
+/* B: the rail an area's modules ride on. */
+.gp-rail { position: absolute; height: 2px; border-radius: 1px; background: color-mix(in oklab, var(--c) 48%, var(--panel)); z-index: 0; }
+
+/* C: an area's line, its stops, the abbreviations under it. */
+.gp-line { position: absolute; height: 5px; border-radius: 3px; background: var(--c); z-index: 0; }
+.gp-line.ahead { background: color-mix(in oklab, var(--c) 32%, var(--panel)); }
+.gp-line.cut-l { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.gp-line.cut-r { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.gp-stop { position: absolute; display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; z-index: 2; pointer-events: none; }
+.gp-stop svg.i { width: 10px; height: 10px; stroke-width: 3.2; }
+.gp-stop.passed { background: var(--c); color: var(--on-c); box-shadow: 0 0 0 2.5px var(--panel); }
+.gp-stop.planned { background: var(--panel); box-shadow: inset 0 0 0 2.5px var(--c), 0 0 0 2.5px var(--panel); }
+.gp-stop.now { background: linear-gradient(90deg, var(--c) 50%, var(--panel) 50%); box-shadow: inset 0 0 0 2.5px var(--c), 0 0 0 2.5px var(--panel); }
+.gp-stop.failed { background: var(--panel); color: var(--no); box-shadow: inset 0 0 0 2.5px var(--no), 0 0 0 2.5px var(--panel); }
+.gp-stop.ghost { background: var(--panel); box-shadow: 0 0 0 2.5px var(--panel); outline: 2px dashed color-mix(in oklab, var(--c) 70%, var(--panel)); outline-offset: -2px; }
+.gp-legend .sw.stop { width: 13px; height: 13px; border-radius: 50%; }
+.gp-legend .sw.stop.passed { background: var(--c); }
+.gp-legend .sw.stop.now { background: linear-gradient(90deg, var(--c) 50%, var(--panel) 50%); box-shadow: inset 0 0 0 2px var(--c); }
+.gp-legend .sw.stop.planned { background: var(--panel); box-shadow: inset 0 0 0 2px var(--c); }
+.gp-legend .sw.stop.failed { background: var(--panel); box-shadow: inset 0 0 0 2px var(--no); }
+
+/* What lies over the page: the tooltip of what the pointer is at, a module's menu. */
+.tip { position: fixed; z-index: 50; max-width: 300px; padding: 8px 11px 9px; border-radius: 9px; background: var(--panel); box-shadow: var(--shadow-pop); font-size: 12.5px; line-height: 1.4; color: var(--text-2); pointer-events: none; }
+.tip b { color: var(--text); font-weight: 650; }
+.tip .t1 { color: var(--text); }
+.tip .fl { margin-top: 3px; }
+.tip .fl.no { color: var(--no); }
+.tip .fl.warn { color: var(--warn); }
+.menu { position: fixed; z-index: 60; width: 260px; padding: 6px; border-radius: 11px; background: var(--panel); box-shadow: var(--shadow-pop); }
+.menu .mh { padding: 6px 10px 9px; margin-bottom: 4px; border-bottom: 1px solid var(--line); font-size: 12.5px; line-height: 1.35; color: var(--text-2); }
+.menu .mh b { display: block; color: var(--text); font-size: 13.5px; font-weight: 650; }
+.menu button { display: flex; align-items: center; gap: 10px; width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--text); font-size: 13.5px; text-align: left; cursor: pointer; }
+.menu button:hover, .menu button:focus-visible { background: var(--row-hover); outline: none; }
+.menu button svg.i { width: 15px; height: 15px; color: var(--text-2); }
+.menu button.danger { color: var(--no); }
+.menu button.danger svg.i { color: var(--no); }
+.menu button .k { margin-left: auto; color: var(--text-3); font-size: 12px; }
+</style>
+
+<div class="page">
+  <section class="intro" aria-labelledby="top-title">
+    <div>
+      <p class="kicker">Folia · Mein Studium · Gesamtplan · erste Runde, 3. November 2026</p>
+      <h1 id="top-title">Der Gesamtplan als Fortschritt</h1>
+      <p class="lead">Heute ist der Gesamtplan eine Tabelle: Bereiche mal Semester, in jeder Zelle die Namen der Module untereinander. Du möchtest ihn eher wie einen <b>Fortschritts-Tracker</b>, so wie die Roadmap von Star Citizen: jeder Bereich eine Zeile mit Balken über die Zeit, man sieht, wie weit man ist, und trotzdem jedes Modul, <b>mindestens mit seinem Kürzel</b>. Wo ein Bereich ein Semester lang nichts hat, ist sein Balken <b>unterbrochen</b>. Hier sind drei Konzepte dafür, alle mit demselben Studium: Informatik B.Sc. im 3. Fachsemester.</p>
+      <p class="quote">„Hey claude baue mal bitte den Gesamtplan so um, so dass es sich eher wie ein progress tracker verhält. Halt so ähnlich wie bei star citizen oder so. Mach mal ein paar konzepte, wie man das visuell Schöner machen kann. Idealer weise trotzdem noch so, dass man die module sehen kann. Also zummindest die abkürzungen.“</p>
+      <p class="quote">„Ja und die progress bars können auch so sein, dass sie unterbrochen sind, wenn man mal ein semester kein modul belegt.“ <span>— du, heute</span></p>
+    </div>
+    <div class="rules">
+      <p class="kicker">Was alle drei teilen</p>
+      <ul>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18M9 3v18"/></svg></i><span><b>Bereiche als Zeilen, Semester als Spalten</b>, wie heute. Die Zeit läuft nach rechts, das laufende Semester ist grün markiert.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M3 12h6M15 12h6"/></svg></i><span><b>Unterbrochen, wo nichts ist:</b> Hat ein Bereich in einem Semester kein Modul, hört sein Balken dort auf und fängt im nächsten Semester mit Modulen wieder an.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M12.6 2.6A2 2 0 0 0 11.2 2H4a2 2 0 0 0-2 2v7.2a2 2 0 0 0 .6 1.4l8.7 8.7a2.4 2.4 0 0 0 3.4 0l6.6-6.6a2.4 2.4 0 0 0 0-3.4Z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg></i><span><b>Jedes Modul mit Kürzel:</b> EvS, AuP, ThI, wie dein Studiengang sie nennt und wie der Stundenplan sie schon zeigt. Den vollen Namen gibt es beim Zeigen und im Menü.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" rx="2"/><path d="M10 8v8"/></svg></i><span><b>Je voller, desto weiter:</b> bestanden voll in der Farbe des Bereichs, was gerade läuft kräftig, Geplantes hell, was der Plan noch offen hat gestrichelt. Nicht bestanden ist rot mit ✕, eine Wiederholung trägt ↻, nicht angeboten ⚠, über Bedarf ist schraffiert wie in den Balken der Übersicht.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg></i><span><b>Was der Plan offen hat,</b> steht gestrichelt dort, wo es als Nächstes passt, ein Klick plant es ein. Ein Platzhalter, den ein Modul füllt, steht nicht mehr als zweite Zeile daneben: Das Modul trägt ihn („für Anwendungsfach“).</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M9 11V6a2 2 0 0 1 4 0v5"/><path d="M13 10a2 2 0 0 1 4 0v2"/><path d="M17 11a2 2 0 0 1 4 0v3a8 8 0 0 1-8 8h-1a7 7 0 0 1-6-3.4L3.6 15a2 2 0 0 1 3.3-2.2L9 15"/></svg></i><span><b>Was heute geht, bleibt:</b> Ein Klick auf ein Modul öffnet sein Menü, Ziehen verschiebt es, ein Klick auf eine leere Stelle bietet „Modul hinzufügen“ für Bereich und Semester, „Bisher“ klappt die vergangenen Semester zu.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <nav class="setbar" aria-label="Ansicht und Abschnitte">
+    <div class="group">
+      <span class="kicker">Ansicht</span>
+      <span class="seg" role="group" aria-label="Farbschema">
+        <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+        <button type="button" data-theme-set="light" aria-pressed="false">Hell</button>
+        <button type="button" data-theme-set="dark" aria-pressed="false">Dunkel</button>
+      </span>
+    </div>
+    <div class="jump">
+      <a href="#heute">Heute</a>
+      <a href="#a">A Roadmap</a>
+      <a href="#b">B Bausteine</a>
+      <a href="#c">C Linien</a>
+      <a href="#faelle">Die Fälle</a>
+      <a href="#vergleich">Vergleich</a>
+      <a href="#fragen">Fragen</a>
+    </div>
+  </nav>
+
+  <section class="sec" id="heute" aria-labelledby="heute-title">
+    <header>
+      <p class="kicker">Ausgangslage</p>
+      <h2 id="heute-title">Was heute ist</h2>
+      <p class="sub">Dasselbe Studium im heutigen Gesamtplan: Informatik B.Sc., seit dem WiSe 2025/26, jetzt im 3. Fachsemester. Die ersten beiden Semester sind vorbei, Mathematik IT-1 ist im ersten nicht bestanden und wird jetzt wiederholt.</p>
+    </header>
+    <div class="today">
+      <figure class="shot">
+        <img src="bilder/heute-gesamtplan.webp" width="1091" height="889" alt="Der heutige Gesamtplan: links sechs Bereiche mit dünnen Balken, oben sechs Semester von WiSe 25/26 bis SoSe 28, in den Zellen Modulnamen untereinander, viele abgeschnitten; unter Allgemeine Betriebswirtschaftslehre I steht Anwendungsfach als eigene Zeile; das Fachstudium hat im WiSe 27/28 neun Zeilen; rechts ist die letzte Spalte abgeschnitten.">
+        <figcaption>Der Gesamtplan auf canary (Folia 1.61.1), „Bisher“ aufgeklappt, in einem Fenster von 1440 px.</figcaption>
+      </figure>
+      <ol class="wrong">
+        <li><span><b>Namen statt Fortschritt.</b> Jede Zelle ist eine Liste von Namen, die meisten abgeschnitten („Allgemeine Betrie…“, „Grundlagen des …“). Wie weit du bist, steht nur links in den dünnen Balken.</span></li>
+        <li><span><b>Keine Zeit.</b> Wann ein Bereich läuft und wann er pausiert, sieht man nur an leeren Zellen. Dass Mathematik im SoSe 27 aussetzt, fällt nicht auf.</span></li>
+        <li><span><b>Doppelt gezählt?</b> Ein Platzhalter, den ein Modul füllt, steht als eigene Zeile darunter: „Anwendungsfach 6“ unter BWL I liest sich wie 12 LP, gezählt sind 6.</span></li>
+        <li><span><b>Ungleich hoch.</b> Eine Zeile ist so hoch wie ihre längste Zelle: Das Fachstudium braucht neun Zeilen, die Bachelor-Arbeit eine.</span></li>
+        <li><span><b>Abgeschnitten.</b> Bei 1440 px passt das SoSe 28 nicht mehr ganz hinein („32 LI“).</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="sec" id="a" aria-labelledby="a-title">
+    <header>
+      <p class="kicker">Konzept A</p>
+      <h2 id="a-title"><span class="tag">A</span>Roadmap</h2>
+      <p class="sub">So nah an Star Citizen wie möglich. <b>Zugeklappt ist jeder Bereich ein Balken</b> über die Semester, gebaut aus einem Stück je Modul mit seinem Kürzel, jedes so breit wie sein Anteil an den LP des Semesters. Mit ▸ klappst du einen Bereich auf, dann hat <b>jedes Modul seine eigene Zeile</b>, wie die Lieferungen eines Teams. Die grüne Linie ist heute, der 3. November.</p>
+    </header>
+    <div class="stage" data-mock="A"></div>
+    <p class="tryit">Zeig auf ein Stück für seinen Namen, klick es für sein Menü („Als bestanden markieren“ füllt es). ▸ klappt einen Bereich auf, das Gestrichelte im WiSe 27/28 plant ein, was noch fehlt.</p>
+    <div class="how">
+      <div>
+        <h3>Was man sieht</h3>
+        <ul>
+          <li>Informatik läuft vom 1. bis zum 4. FS durch. Mathematik setzt im SoSe 27 aus, dort ist ihr Balken unterbrochen, ebenso das Nebenfach im WiSe 27/28.</li>
+          <li>Die Stücke sind so breit wie ihre LP im Semester: AuP mit 10 LP ist mehr als doppelt so breit wie Pro mit 4.</li>
+          <li>Mathematik ist aufgeklappt: MIT1 im WiSe 25/26 rot mit ✕, ein Pfeil führt zur Wiederholung im WiSe 26/27.</li>
+          <li>Im WiSe 27/28 hat das Fachstudium mehr Module, als Kürzel hineinpassen. Dort steht „4 Module · 24 LP“, gestrichelt daneben die 10 LP, die noch fehlen. Aufgeklappt steht jedes einzeln da.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Wie es sich verhält</h3>
+        <ul>
+          <li>▸ klappt einen Bereich auf. „Alle aufklappen“ und „Alle zuklappen“ stehen über dem Plan, Betula merkt sich, was offen ist.</li>
+          <li>Ein Klick auf ein Stück öffnet das Menü des Moduls, wie heute. Ziehen verschiebt es in ein anderes Semester.</li>
+          <li>Ein Klick auf eine leere Stelle bietet „Modul hinzufügen“ für diesen Bereich und dieses Semester.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Worauf zu achten ist</h3>
+        <ul>
+          <li>Zugeklappt passen bei sechs Semestern etwa vier Kürzel in ein Semester, mehr werden zu „n Module“.</li>
+          <li>Aufgeklappt wird ein großer Bereich lang: Das Fachstudium hat acht Zeilen.</li>
+          <li>In einer Zeile gibt es zwei Ziele: ▸ klappt auf, der Name öffnet weiter den Dialog des Bereichs.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="b" aria-labelledby="b-title">
+    <header>
+      <p class="kicker">Konzept B</p>
+      <h2 id="b-title"><span class="tag">B</span>Bausteine</h2>
+      <p class="sub">Jedes Modul ist ein Baustein mit seinem Kürzel, <b>so breit wie seine Leistungspunkte</b>, und ein Semester ist 30 LP breit. Die Bausteine eines Bereichs bilden seinen Balken, <b>eine Schiene führt ihn durch die Semester</b>. So siehst du auf einen Blick, wie viel ein Bereich in einem Semester ausmacht und wie voll ein Semester ist.</p>
+    </header>
+    <div class="stage" data-mock="B"></div>
+    <p class="tryit">Zeig auf einen Baustein für seinen Namen, klick ihn für sein Menü. „Bisher aufklappen“ zeigt die ersten beiden Semester, dann scrollt der Plan seitwärts.</p>
+    <div class="how">
+      <div>
+        <h3>Was man sieht</h3>
+        <ul>
+          <li>Das Programmierpraktikum mit 4 LP ist ein schmaler Baustein, die Bachelor-Arbeit mit 12 LP ein breiter.</li>
+          <li>Im Kopf jedes Semesters ein Lineal mit einer Marke bei 30 LP. Das WiSe 27/28 geht mit 32 LP ein Stück darüber.</li>
+          <li>Die Schiene verbindet die Bausteine eines Bereichs. Im SoSe 27 hat Mathematik keinen, dort ist sie unterbrochen.</li>
+          <li>Gestrichelt: die 10 LP der Komplexe, die dem Fachstudium noch fehlen, so breit wie 10 LP.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Wie es sich verhält</h3>
+        <ul>
+          <li>Nichts klappt auf: Jedes Modul steht immer da. Zeigen nennt den vollen Namen, ein Klick öffnet das Menü.</li>
+          <li>„Bisher“ ist zugeklappt, denn Bausteine brauchen Breite. Aufgeklappt scrollt der Plan seitwärts.</li>
+          <li>Ziehen, „Modul hinzufügen“ und das Gestrichelte wie in A.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Worauf zu achten ist</h3>
+        <ul>
+          <li>Ein 4-LP-Modul ist 24 px breit. Lange Kürzel wie ABWL1 passen erst ab 6 LP, sonst wird die Schrift kleiner.</li>
+          <li>Es gibt keine Linie für heute, denn in einem Semester zählen hier LP, keine Wochen.</li>
+          <li>Breite heißt hier LP. Bei Star Citizen ist Breite Zeit.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="c" aria-labelledby="c-title">
+    <header>
+      <p class="kicker">Konzept C</p>
+      <h2 id="c-title"><span class="tag">C</span>Linien</h2>
+      <p class="sub">Wie ein Liniennetzplan: Jeder Bereich fährt <b>auf seiner Linie</b> durch die Semester, jedes Semester mit Modulen ist eine <b>Haltestelle</b>, darunter stehen die Kürzel. Bis heute ist die Linie kräftig, danach hell. Wo ein Bereich ein Semester lang nichts hat, endet sie und fängt neu an.</p>
+    </header>
+    <div class="stage" data-mock="C"></div>
+    <p class="tryit">Zeig auf ein Kürzel für seinen Namen, klick es für sein Menü.</p>
+    <div class="how">
+      <div>
+        <h3>Was man sieht</h3>
+        <ul>
+          <li>Eine Haltestelle ist voll mit ✓, wenn dort alles bestanden ist, halb, solange das Semester läuft, offen, wenn es geplant ist, und rot mit ✕, wenn dort etwas nicht bestanden wurde.</li>
+          <li>Mathematik endet nach dem WiSe 26/27 und fährt im WiSe 27/28 weiter.</li>
+          <li>Die Bachelor-Arbeit ist eine kurze Linie mit einer Haltestelle ganz am Ende.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Wie es sich verhält</h3>
+        <ul>
+          <li>Ein Klick auf ein Kürzel öffnet das Menü des Moduls, Ziehen verschiebt es.</li>
+          <li>Das Gestrichelte plant ein, eine leere Stelle bietet „Modul hinzufügen“, wie in A.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Worauf zu achten ist</h3>
+        <ul>
+          <li>Die Zeilen sind höher, weil die Kürzel unter der Linie umbrechen: Das Fachstudium braucht zwei Reihen.</li>
+          <li>Die LP sieht man nur beim Zeigen.</li>
+          <li>Verspielter als der Rest von Betula.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="faelle" aria-labelledby="faelle-title">
+    <header>
+      <h2 id="faelle-title">Die Fälle nebeneinander</h2>
+      <p class="sub">Ausschnitte von zwei oder drei Semestern, jeder Fall in A, B und C. Wo <b>Beispiel</b> steht, ist das Studium dafür abgewandelt.</p>
+    </header>
+    <div class="cases" id="cases"></div>
+  </section>
+
+  <section class="sec" id="vergleich" aria-labelledby="vergleich-title">
+    <header>
+      <h2 id="vergleich-title">Im Vergleich</h2>
+    </header>
+    <div class="tablewrap">
+      <table class="t">
+        <thead><tr><th></th><th>A Roadmap</th><th>B Bausteine</th><th>C Linien</th></tr></thead>
+        <tbody>
+          <tr><td>Module sehen</td><td><span class="verdict ok"><i></i>Kürzel im Balken, aufgeklappt jedes in seiner Zeile</span></td><td><span class="verdict ok"><i></i>jedes immer, als Baustein</span></td><td><span class="verdict ok"><i></i>Kürzel unter der Linie</span></td></tr>
+          <tr><td>Wie weit bin ich</td><td><span class="verdict ok"><i></i>voll, kräftig, hell, gestrichelt, dazu die Linie „heute“</span></td><td><span class="verdict ok"><i></i>voll, kräftig, hell, gestrichelt</span></td><td><span class="verdict ok"><i></i>Linie kräftig bis heute, Haltestellen voll oder offen</span></td></tr>
+          <tr><td>Leistungspunkte</td><td><span class="verdict meh"><i></i>als Anteil im Semester</span></td><td><span class="verdict ok"><i></i>Breite gleich LP, Lineal bis 30</span></td><td><span class="verdict no"><i></i>nur beim Zeigen</span></td></tr>
+          <tr><td>Lücken</td><td><span class="verdict ok"><i></i>Balken unterbrochen</span></td><td><span class="verdict ok"><i></i>Schiene unterbrochen</span></td><td><span class="verdict ok"><i></i>Linie endet und fängt neu an</span></td></tr>
+          <tr><td>Platz</td><td><span class="verdict ok"><i></i>zu flach, auf lang</span></td><td><span class="verdict meh"><i></i>flach, braucht Breite</span></td><td><span class="verdict meh"><i></i>höher</span></td></tr>
+          <tr><td>Wie Star Citizen</td><td><span class="verdict ok"><i></i>sehr nah</span></td><td><span class="verdict meh"><i></i>der Aufbau, nicht die Breite</span></td><td><span class="verdict meh"><i></i>ein eigener Weg</span></td></tr>
+          <tr><td>Aufwand</td><td><span class="verdict meh"><i></i>mittel bis groß: Aufklappen, eine Zeile je Modul</span></td><td><span class="verdict ok"><i></i>mittel</span></td><td><span class="verdict ok"><i></i>mittel</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="sec" id="empfehlung" aria-labelledby="empfehlung-title">
+    <header>
+      <h2 id="empfehlung-title">Empfehlung: A, mit dem Lineal aus B</h2>
+    </header>
+    <div class="reco">
+      <ul>
+        <li><b>A verhält sich wie der Tracker, den du gezeigt hast:</b> Zu ist es eine ruhige Übersicht mit einem Balken je Bereich, auf zeigt es jedes Modul. Das passt zu einem Studium, das man meist überblickt und manchmal im Detail plant.</li>
+        <li><b>Die Kürzel stehen im Balken.</b> Ist ein Semester zu voll für sie, steht dort „4 Module“, wie bei Star Citizen „51 deliverables“, und ein Klick klappt den Bereich auf.</li>
+        <li><b>Die Linie „heute“</b> macht aus der Tabelle eine Zeitleiste. Links davon ist erledigt, rechts kommt noch.</li>
+      </ul>
+      <ul>
+        <li><b>Aus B das Lineal im Kopf der Semester:</b> eine Marke bei 30 LP statt des Balkens, der heute nur am Plan misst. Dann fällt ein schweres Semester auf, auch im 5. und 6. FS, für die der Plan nur eine Summe hat.</li>
+        <li><b>C ist das schönste Bild,</b> aber es zeigt am wenigsten: keine LP, höhere Zeilen. Seine Haltestellen könnten später aufs Handy passen.</li>
+        <li><b>Gebaut wird erst nach deinem Feedback.</b> Zum Bauen gehört in grid.rs ein Raster mit Pixeln statt Zellen, die Kürzel des Studiengangs, die der Stundenplan schon lädt, und das Datum des Semesters für die Linie „heute“.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="sec" id="fragen" aria-labelledby="fragen-title">
+    <header>
+      <h2 id="fragen-title">Fragen an dich</h2>
+      <p class="sub">Jeweils mit meinem Vorschlag. Ein „passt“ reicht, wo du zustimmst.</p>
+    </header>
+    <ol class="qs">
+      <li><span><b>Welches Konzept?</b> A, B oder C, oder ein Stück aus einem anderen dazu?<span class="pro">Vorschlag: A, mit dem Lineal aus B.</span></span></li>
+      <li><span><b>Zu oder auf?</b> Wie sollen die Bereiche beim ersten Öffnen stehen?<span class="pro">Vorschlag: alle zu, danach so, wie du sie verlassen hast.</span></span></li>
+      <li><span><b>Bisher?</b> Heute sind die vergangenen Semester beim Öffnen zugeklappt. Mit Balken sind sie schmal und zeigen, was du schon geschafft hast.<span class="pro">Vorschlag: aufgeklappt, „Bisher zuklappen“ bleibt.</span></span></li>
+      <li><span><b>Was der Plan offen hat:</b> ein gestricheltes Stück mit den fehlenden LP („+10“) statt dreier grauer Zeilen „Komplex … 10–24“?<span class="pro">Vorschlag: ja, aufgeklappt stehen die Zeilen des Plans einzeln.</span></span></li>
+      <li><span><b>Ein Urlaubssemester</b> unterbricht alle Balken, die Spalte sagt „Urlaub“.<span class="pro">Vorschlag: ja, wie im Fall unten.</span></span></li>
+      <li><span><b>Module über zwei Semester:</b> 493 Module dauern laut Beschreibung zwei Semester. Heute steht so ein Modul in einem Semester; ein Balken könnte über beide gehen.<span class="pro">Vorschlag: später, es braucht mehr als den Gesamtplan.</span></span></li>
+      <li><span><b>Und das Handy?</b> Der Gesamtplan ist heute nur am Rechner.<span class="pro">Vorschlag: eine eigene Runde, wenn das Konzept steht.</span></span></li>
+    </ol>
+  </section>
+
+  <p class="foot">Daten: canary vom 3. November 2026, Informatik B.Sc. (PO 2008) mit den Kürzeln des Studiengangs, begonnen im WiSe 2025/26. Ausgedacht ist nur, was „Beispiel“ trägt. Gebaut ist davon nichts. folia/design/gesamtplan/konzepte.html</p>
+</div>
+
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<div class="menu" id="menu" role="menu" aria-label="Modul" hidden></div>
+
+<script>
+"use strict";
+
+// ---------- Helpers ----------
+const ICONS = {
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  repeat: '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
+  alert: '<path d="m21.7 18-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"/><path d="M12 9v4M12 17h.01"/>',
+  plus: '<path d="M5 12h14M12 5v14"/>',
+  help: '<circle cx="12" cy="12" r="9.5"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/>',
+  right: '<path d="m9 18 6-6-6-6"/>',
+  downs: '<path d="m7 6 5 5 5-5"/><path d="m7 13 5 5 5-5"/>',
+  ups: '<path d="m17 11-5-5-5 5"/><path d="m17 18-5-5-5 5"/>',
+  eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+  done: '<circle cx="12" cy="12" r="9.5"/><path d="m8 12.5 2.7 2.7L16 9.8"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
+  move: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  select: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="m8 12 3 3 5-6"/>',
+  trash: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
+  pick: '<path d="m21 21-4.3-4.3"/><circle cx="11" cy="11" r="7"/>',
+};
+const icon = (name, cls = "") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k === "style") el.style.cssText = v;
+    else if (k === "html") el.innerHTML = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat(Infinity)) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  return el;
+}
+const px = (n) => `${Math.round(n * 10) / 10}px`;
+const box = (x, y, w, hh) => `left:${px(x)};top:${px(y)};width:${px(w)};height:${px(hh)}`;
+const measure = document.createElement("canvas").getContext("2d");
+const textW = (s, size = 11, weight = 650) => { measure.font = `${weight} ${size}px Inter, "Inter Variable", system-ui, sans-serif`; return measure.measureText(s).width; };
+const fmt = (n) => String(Math.round(n * 10) / 10).replace(".", ",");
+
+// ---------- The semesters ----------
+const SEM = {
+  "2025W": { s: "WiSe 25/26", l: "WiSe 2025/26", w: true, y: "2025/26" },
+  "2026S": { s: "SoSe 26", l: "SoSe 2026", w: false, y: "2025/26" },
+  "2026W": { s: "WiSe 26/27", l: "WiSe 2026/27", w: true, y: "2026/27" },
+  "2027S": { s: "SoSe 27", l: "SoSe 2027", w: false, y: "2026/27" },
+  "2027W": { s: "WiSe 27/28", l: "WiSe 2027/28", w: true, y: "2027/28" },
+  "2028S": { s: "SoSe 28", l: "SoSe 2028", w: false, y: "2027/28" },
+};
+
+// ---------- The study of all three: Informatik B.Sc. (PO 2008), begun WiSe 2025/26 ----------
+// A module: its abbreviation in the program, its title, its credits, its semester, how far it is
+// (passed, failed, planned; ghost: what the plan still has open there; ph: a row of the plan
+// planned without a module), and what Betula says next to it.
+const M = (ab, name, lp, sem, st = "planned", more = {}) => ({ ab, name, lp, sem, st, ...more });
+const MAIN = {
+  now: "2026W", today: 0.18, todayText: "3. Nov.",
+  sems: [
+    { key: "2025W", fs: 1, when: "past", plan: 32 },
+    { key: "2026S", fs: 2, when: "past", plan: 28 },
+    { key: "2026W", fs: 3, when: "now", plan: 30 },
+    { key: "2027S", fs: 4, when: "next", plan: 30 },
+    { key: "2027W", fs: 5, when: "next" },
+    { key: "2028S", fs: 6, when: "next" },
+  ],
+  areas: [
+    { id: "inf", name: "Informatik", required: 66, items: [
+      M("EvS", "Entwicklung von Softwaresystemen", 8, "2025W", "passed"),
+      M("EEG", "Elektrische und elektronische Grundlagen der Informatik", 6, "2025W", "passed"),
+      M("PP", "Programmierpraktikum", 4, "2025W", "passed"),
+      M("AuP", "Algorithmieren und Programmieren", 10, "2026S", "passed"),
+      M("DT", "Digitaltechnik", 6, "2026S", "passed"),
+      M("Pro", "Proseminar", 4, "2026S", "passed", { fills: "Proseminar oder Praktikum" }),
+      M("ThI", "Theoretische Informatik", 8, "2026W"),
+      M("SWP", "Softwarepraktikum", 8, "2026W"),
+      M("BS1", "Betriebssysteme I", 8, "2027S"),
+      M("DTP", "Digitaltechnik-Praktikum", 4, "2027S"),
+    ] },
+    { id: "mat", name: "Mathematik", required: 24, items: [
+      M("MIT1", "Mathematik IT-1 (Diskrete Mathematik)", 8, "2025W", "failed", { again: "2026W" }),
+      M("MIT2", "Mathematik IT-2 (Lineare Algebra)", 8, "2026S", "passed"),
+      M("MIT1", "Mathematik IT-1 (Diskrete Mathematik)", 8, "2026W", "planned", { retake: "2025W" }),
+      M("MIT3", "Mathematik IT-3 (Analysis)", 8, "2027W"),
+    ] },
+    { id: "neb", name: "Nebenfach", required: 18, items: [
+      M("ABWL1", "Allgemeine Betriebswirtschaftslehre I: Grundlagen der BWL", 6, "2026W", "planned", { fills: "Anwendungsfach" }),
+      M("ABWL3", "Allgemeine Betriebswirtschaftslehre III: Beschaffung, Produktion und Absatz", 6, "2027S", "planned", { fills: "Anwendungsfach" }),
+      M("GWR", "Grundlagen des Wissenschaftlichen Rechnens", 6, "2028S", "planned", { fills: "Modul aus dem Bereich Praktische Mathematik" }),
+    ] },
+    { id: "fues", name: "FÜS", required: 6, items: [
+      M("En-B2", "English – Essential Business Skills (B2)", 6, "2027S", "planned", { fills: "Fachübergreifendes Studium" }),
+    ] },
+    { id: "fach", name: "Fachstudium", required: 54, items: [
+      M("DB", "Datenbanken", 6, "2027S", "planned", { fills: "Wahlpflicht des 4. FS" }),
+      M("GdR", "Grundlagen der Rechnernetze", 8, "2027W"),
+      M("EML", "Einführung in Maschinelles Lernen", 6, "2027W"),
+      M("PML", "Praktikum Maschinelles Lernen", 4, "2027W", "planned", { fills: "Seminar oder Praktikum" }),
+      M("GdC", "Grundzüge der Computergrafik", 6, "2027W"),
+      M("Komplexe", "Komplexe des Fachstudiums", 10, "2027W", "ghost", { plan: "5.–6. FS", rows: "Komplex Grundlagen der Informatik, Komplex Praktische Informatik, Komplex Angewandte und Technische Informatik (je 10–24 LP)" }),
+      M("EAl", "Effiziente Algorithmen", 8, "2028S"),
+      M("VPS1", "Verteilte und Parallele Systeme I (Grundlagen)", 6, "2028S", "planned", { unoffered: "im SoSe nicht angeboten · nur im WiSe" }),
+    ] },
+    { id: "ba", name: "Bachelor-Arbeit", required: 12, items: [
+      M("BA", "Bachelor-Arbeit", 12, "2028S"),
+    ] },
+  ],
+};
+function prepare(study) {
+  for (const area of study.areas) area.items.forEach((it, i) => { it.id = `${area.id}${i}`; });
+  return study;
+}
+prepare(MAIN);
+
+// ---------- What a panel's state makes of the study ----------
+// st: fold (the semesters before the current one in one column), open (A: the areas unfolded),
+// added (ghosts planned), toggled (passed or not), removed.
+function items(area, st) {
+  return area.items.filter((it) => !st.removed.has(it.id)).map((it) => {
+    let e = it;
+    if (it.st === "ghost" && st.added.has(it.id)) e = { ...it, st: "ph", fromGhost: true };
+    if (st.toggled.has(it.id)) {
+      if (e.st === "passed") e = { ...e, st: e.wasFailed ? "failed" : "planned" };
+      else if (e.st !== "ghost") e = { ...e, st: "passed", wasFailed: e.st === "failed" };
+    }
+    return e;
+  });
+}
+function areaFig(area, st) {
+  let p = area.base?.[0] ?? 0, q = area.base?.[1] ?? 0, x = 0;
+  for (const it of items(area, st)) {
+    if (it.st === "ghost" || it.st === "failed") continue;
+    const over = it.over || 0, lp = (it.lp || 0) - over;
+    if (it.st === "passed") p += lp; else q += lp;
+    x += over;
+  }
+  const o = Math.max(0, area.required - p - q);
+  return { p, q, o, x, text: `${fmt(p + q + x)}/${area.required}`, done: p >= area.required, over: x > 0 };
+}
+function semFig(study, sem, st) {
+  let credits = sem.extra ?? 0, passed = 0;
+  for (const area of study.areas) for (const it of items(area, st)) {
+    if (it.sem !== sem.key || it.st === "ghost") continue;
+    credits += it.lp || 0;
+    if (it.st === "passed") passed += it.lp || 0;
+  }
+  const plan = sem.plan;
+  const past = sem.when === "past";
+  return {
+    credits, passed,
+    text: sem.leave ? "" : past ? `${fmt(passed)} / ${fmt(credits)} LP` : plan ? `${fmt(credits)} / ${plan} LP` : `${fmt(credits)} LP`,
+    heavy: !past && !!plan && credits > plan + 0.5,
+    load: past ? [passed, Math.max(credits, 1)] : [credits, Math.max(plan ?? credits, credits, 1)],
+  };
+}
+const SEMNAME = (key) => SEM[key].l;
+function stateOf(it, when) {
+  if (it.st === "ghost") return "ghost";
+  if (it.st === "ph") return when === "now" ? "ph now" : "ph";
+  if (it.st === "passed") return "passed";
+  if (it.st === "failed") return "failed";
+  return when === "now" ? "now" : "planned";
+}
+// What a module shows: an icon before (✕, +, ?), its label, icons after (↻, ⚠, ✓).
+function marks(it) {
+  const pre = it.st === "failed" ? "x" : it.st === "ghost" ? "plus" : it.st === "ph" ? "help" : null;
+  const post = [];
+  if (it.retake) post.push("repeat");
+  if (it.unoffered) post.push("alert");
+  if (it.st === "passed") post.push("check");
+  return { pre, post, label: it.st === "ghost" ? fmt(it.lp) : it.ab };
+}
+const ICON_W = 15;
+const needW = (m, size = 11, pad = 6) => pad * 2 + (m.pre ? ICON_W : 0) + textW(m.label, size) + m.post.length * ICON_W;
+// The content that fits `w`. The label comes first: before it goes, the tick goes, then ↻, then
+// ⚠ (an amber line under the piece says it then), then ✕, and the type gets smaller and the
+// margins narrower. A piece too narrow even then says it all in its tooltip.
+const STEPS = [[11, 6], [10.5, 4], [10, 2], [9.5, 1]];
+function fitMarks(it, w) {
+  const m = marks(it);
+  const alert = m.post.includes("alert");
+  const tries = [
+    { pre: m.pre, post: m.post },
+    { pre: m.pre, post: m.post.filter((i) => i !== "check") },
+    { pre: m.pre, post: m.post.filter((i) => i === "alert") },
+    { pre: m.pre, post: [] },
+    { pre: null, post: [] },
+  ];
+  for (const [size, pad] of STEPS) {
+    for (const t0 of tries) {
+      const t = { ...m, ...t0, size, pad, show: true, warnLine: alert && !t0.post.includes("alert") };
+      if (needW(t, size, pad) <= w + 0.5) return t;
+    }
+  }
+  return { ...m, pre: null, post: [], size: 9.5, pad: 1, show: false, warnLine: alert };
+}
+// The least a piece needs for its label (and ✕), in the smaller type.
+const minW = (it) => Math.ceil(needW({ ...marks(it), post: [] }, 10.5, 4));
+const fitStyle = (t) => (t.size === 11 && t.pad === 6 ? "" : `;font-size:${t.size}px;padding:0 ${t.pad}px${t.pad <= 2 ? ";justify-content:center" : ""}`);
+const fitClass = (t) => (t.warnLine ? "wl" : "");
+function blockHtml(t, extra = "") {
+  const pre = t.pre ? icon(t.pre, t.pre === "x" ? "no" : "") : "";
+  const post = t.post.map((n) => icon(n, n === "alert" ? "warn" : "")).join("");
+  return pre + (t.show ? `<span class="lb">${esc(t.label)}${extra}</span>` : "") + post;
+}
+
+// ---------- The tooltip and the menu ----------
+const tipEl = document.getElementById("tip");
+const menuEl = document.getElementById("menu");
+function placeNear(el, anchor, below = true) {
+  const r = anchor.getBoundingClientRect();
+  el.hidden = false;
+  const w = el.offsetWidth, hh = el.offsetHeight;
+  let x = Math.min(Math.max(8, r.left), innerWidth - w - 8);
+  let y = below ? r.bottom + 8 : r.top - hh - 8;
+  if (y + hh > innerHeight - 8) y = r.top - hh - 8;
+  if (y < 8) y = r.bottom + 8;
+  el.style.left = px(x);
+  el.style.top = px(y);
+}
+function tip(el, html) {
+  const show = () => { if (!menuEl.hidden) return; tipEl.innerHTML = html(); placeNear(tipEl, el); };
+  const hide = () => { tipEl.hidden = true; };
+  el.addEventListener("pointerenter", show);
+  el.addEventListener("pointerleave", hide);
+  el.addEventListener("focus", show);
+  el.addEventListener("blur", hide);
+}
+function moduleTip(it, area, when) {
+  const lp = it.st === "ghost" ? `noch ${fmt(it.lp)} LP` : `${fmt(it.lp)} LP`;
+  const lines = [`<div><b>${esc(it.st === "ghost" ? it.name : it.ab)}</b> · ${lp}</div>`];
+  if (it.st !== "ghost") lines.push(`<div class="t1">${esc(it.name)}</div>`);
+  const where = SEMNAME(it.sem);
+  const state = {
+    passed: `bestanden im ${where}`,
+    failed: `nicht bestanden im ${where}${it.again ? ` · wieder im ${SEMNAME(it.again)}` : ""}`,
+    ghost: `laut Regelstudienplan im ${it.plan} · ein Klick plant es im ${where} ein`,
+    ph: it.fromGhost ? `Platzhalter im ${where} · „Modul wählen“ im Menü` : `Platzhalter im ${where}, noch ohne Modul · „Modul wählen“ im Menü`,
+  }[it.st] ?? (when === "now" ? `läuft im ${where}` : `geplant im ${where}`);
+  lines.push(`<div class="fl${it.st === "failed" ? " no" : ""}">${esc(area.name)} · ${esc(state)}</div>`);
+  if (it.rows) lines.push(`<div class="fl">${esc(it.rows)}</div>`);
+  if (it.fills) lines.push(`<div class="fl">für „${esc(it.fills)}“</div>`);
+  if (it.retake) lines.push(`<div class="fl">Wiederholung · aus dem ${esc(SEMNAME(it.retake))}</div>`);
+  if (it.unoffered) lines.push(`<div class="fl warn">${esc(it.unoffered)}</div>`);
+  if (it.over) lines.push(`<div class="fl">über Bedarf · ${esc(area.name)} hat schon ${area.required} LP</div>`);
+  return lines.join("");
+}
+function closeMenu() { menuEl.hidden = true; menuEl.replaceChildren(); }
+document.addEventListener("pointerdown", (ev) => { if (!menuEl.hidden && !menuEl.contains(ev.target)) closeMenu(); }, true);
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { closeMenu(); tipEl.hidden = true; } });
+addEventListener("scroll", () => { closeMenu(); tipEl.hidden = true; }, { passive: true });
+function openMenu(anchor, it, area, when, panel) {
+  tipEl.hidden = true;
+  const st = panel.st;
+  const act = (label, ico, fn, cls = "") => h("button", { type: "button", role: "menuitem", class: cls, onclick: () => { closeMenu(); fn(); anchor.focus?.(); } , html: icon(ico) + `<span>${label}</span>` });
+  const head = h("div", { class: "mh", html: `<b>${esc(it.ab)} · ${esc(it.name)}</b>${fmt(it.lp)} LP · ${esc(area.name)} · ${esc(SEMNAME(it.sem))}` });
+  const list = [head, act("Modul ansehen", "eye", () => panel.toast("Öffnet das Modul neben dem Plan, wie heute."))];
+  if (it.st === "ph") list.push(act("Modul wählen", "pick", () => panel.toast("Öffnet die Module, die diese Zeile füllen, wie heute.")));
+  list.push(act(it.st === "passed" ? "Nicht mehr bestanden" : "Als bestanden markieren", "done", () => {
+    st.toggled.has(it.id) ? st.toggled.delete(it.id) : st.toggled.add(it.id);
+    panel.draw();
+    panel.toast(`${it.ab} ${it.st === "passed" ? "nicht mehr bestanden" : "als bestanden markiert"}`, () => { st.toggled.has(it.id) ? st.toggled.delete(it.id) : st.toggled.add(it.id); panel.draw(); });
+  }));
+  list.push(act("Verschieben nach", "move", () => panel.toast("Ein Untermenü mit den Semestern, wie heute; oder das Modul ziehen.")));
+  list.push(act("Auswählen", "select", () => panel.toast("Wählt das Modul für die Leiste aus, wie heute.")));
+  list.push(act("Entfernen", "trash", () => {
+    st.removed.add(it.id);
+    panel.draw();
+    panel.toast(`${it.ab} entfernt`, () => { st.removed.delete(it.id); panel.draw(); });
+  }, "danger"));
+  menuEl.replaceChildren(...list);
+  placeNear(menuEl, anchor);
+  menuEl.querySelector("button")?.focus();
+}
+menuEl.addEventListener("keydown", (ev) => {
+  const buttons = [...menuEl.querySelectorAll("button")];
+  const at = buttons.indexOf(document.activeElement);
+  if (ev.key === "ArrowDown") { ev.preventDefault(); buttons[(at + 1) % buttons.length].focus(); }
+  if (ev.key === "ArrowUp") { ev.preventDefault(); buttons[(at - 1 + buttons.length) % buttons.length].focus(); }
+});
+
+// ---------- The panel ----------
+const ROW = { A: 46, lane: 30, headA: 50, band: 22, headB: 56, headC: 50, miniHead: 40 };
+function layout(concept, study, opt, st) {
+  const pastSems = study.sems.filter((s) => s.when === "past");
+  const fold = st.fold && pastSems.length > 0;
+  const shown = fold ? [{ fold: true, sems: pastSems }] : [];
+  for (const s of study.sems) if (!(fold && s.when === "past")) shown.push({ sem: s });
+  const areaW = opt.areaW;
+  const pastW = opt.pastW ?? 96;
+  const flexN = shown.filter((c) => !c.fold).length;
+  const colW = concept === "B" ? 30 * opt.k + 12 : (opt.colW ?? (opt.inner - areaW - (fold ? pastW : 0)) / flexN);
+  let x = areaW;
+  const cols = shown.map((c) => { const w = c.fold ? pastW : colW; const col = { ...c, x, w }; x += w; return col; });
+  const nowCol = cols.find((c) => c.sem?.when === "now");
+  const todayX = concept !== "B" && nowCol ? nowCol.x + study.today * nowCol.w : null;
+  return { cols, width: Math.max(x, opt.inner ?? 0), areaW, todayX, fold };
+}
+const inCol = (list, col) => (col.fold ? list.filter((it) => col.sems.some((s) => s.key === it.sem)) : list.filter((it) => it.sem === col.sem.key));
+const whenOf = (study, key) => study.sems.find((s) => s.key === key)?.when;
+
+function Panel(concept, study, opt) {
+  const st = { fold: !!opt.fold, open: new Set(opt.open || []), added: new Set(), toggled: new Set(), removed: new Set() };
+  const root = h("div", { class: `gp gp-${concept}${opt.mini ? " mini" : ""}` });
+  const panel = { st, root, draw, toast };
+  let toastEl = null, toastTimer = 0;
+  function toast(text, undo) {
+    toastEl?.remove();
+    clearTimeout(toastTimer);
+    toastEl = h("div", { class: "gp-toast", role: "status" }, h("span", null, text), undo && h("button", { type: "button", onclick: () => { undo(); toastEl?.remove(); toastEl = null; } }, "Rückgängig"));
+    root.append(toastEl);
+    toastTimer = setTimeout(() => { toastEl?.remove(); toastEl = null; }, 5200);
+  }
+  function draw() {
+    const L = layout(concept, study, opt, st);
+    const canvas = h("div", { class: "gp-canvas" });
+    const headTop = concept === "A" && !opt.mini ? ROW.band : 0;
+    const headH = opt.mini ? ROW.miniHead : concept === "B" ? ROW.headB : ROW.headA;
+    let y = headTop + headH;
+    // The columns' grounds, the band of the study years (A), the heads.
+    for (const col of L.cols) {
+      const cls = col.fold ? "past" : col.sem.leave ? "leave" : col.sem.when === "past" ? "past" : col.sem.when === "now" ? "now" : "";
+      canvas.append(h("div", { class: `gp-colbg ${cls}`, style: `left:${px(col.x)};width:${px(col.w)}` }));
+    }
+    if (headTop) bandOf(L, study).forEach((b) => canvas.append(h("div", { class: "gp-band", style: `left:${px(b.x)};width:${px(b.w)}` }, b.label)));
+    for (const col of L.cols) canvas.append(head(col, headTop, headH, L));
+    canvas.append(h("div", { class: "gp-hline", style: `top:${px(headTop + headH - 1)}` }));
+    if (headTop) canvas.append(h("div", { class: "gp-hline", style: `top:${px(headTop - 1)};background:var(--line)` }));
+    // The rows.
+    for (const area of study.areas) {
+      const row = (concept === "A" ? rowA : concept === "B" ? rowB : rowC)(area, L, y);
+      canvas.append(...row.nodes);
+      y += row.height;
+    }
+    const bottom = y;
+    const flag = L.todayX != null && !opt.mini;
+    if (L.todayX != null) {
+      const lift = opt.mini ? -4 : 6;
+      canvas.append(h("div", { class: "gp-today", style: `left:${px(L.todayX - 1)};top:${px(headTop + headH - lift)};height:${px(bottom - headTop - headH + lift + (flag ? 6 : 0))}` }));
+      if (flag) canvas.append(h("div", { class: "gp-today-flag", style: `left:${px(L.todayX)};top:${px(bottom + 4)}` }, `heute, ${study.todayText}`));
+    }
+    canvas.style.width = px(L.width);
+    canvas.style.height = px(bottom + (flag ? 24 : 0));
+    const parts = [];
+    if (!opt.mini) parts.push(bar());
+    parts.push(h("div", { class: "gp-scroll" }, canvas));
+    if (!opt.mini) parts.push(legend());
+    root.replaceChildren(...parts);
+    if (toastEl) root.append(toastEl);
+    root.style.width = opt.mini ? px(L.width) : px(opt.inner + 32);
+  }
+
+  // The bar over the plan: its name, then what picks what the plan shows.
+  function bar() {
+    const kids = [h("h3", null, "Gesamtplan"), h("span", { class: "gp-grow" })];
+    if (concept === "A") {
+      kids.push(h("button", { type: "button", class: "gp-btn", html: icon("downs") + "Alle aufklappen", onclick: () => { study.areas.forEach((a) => st.open.add(a.id)); draw(); } }));
+      kids.push(h("button", { type: "button", class: "gp-btn", html: icon("ups") + "Alle zuklappen", onclick: () => { st.open.clear(); draw(); } }));
+    }
+    kids.push(h("button", { type: "button", class: "gp-btn", "aria-expanded": String(!st.fold), onclick: () => { st.fold = !st.fold; draw(); } }, st.fold ? "Bisher aufklappen" : "Bisher zuklappen"));
+    return h("div", { class: "gp-bar" }, kids);
+  }
+  function legend() {
+    const sw = (cls) => h("span", { class: `sw m ${cls} a-inf`, "aria-hidden": "true" });
+    const kids = [];
+    if (concept === "C") {
+      kids.push(h("b", { class: "lg-k" }, "Linie"), h("span", null, h("span", { class: "sw line a-inf" }), "bis heute"), h("span", null, h("span", { class: "sw line ahead a-inf" }), "danach"));
+      kids.push(h("b", { class: "lg-k" }, "Haltestelle"), h("span", null, h("span", { class: "sw stop passed a-inf" }), "alles bestanden"), h("span", null, h("span", { class: "sw stop now a-inf" }), "läuft"), h("span", null, h("span", { class: "sw stop planned a-inf" }), "geplant"), h("span", null, h("span", { class: "sw stop failed a-inf" }), "etwas nicht bestanden"));
+      kids.push(h("span", { class: "lg-br" }), h("b", { class: "lg-k" }, "Kürzel"));
+    }
+    kids.push(h("span", null, sw("passed"), "bestanden"), h("span", null, sw("now"), "läuft"), h("span", null, sw("planned"), "geplant"), h("span", null, sw("ghost"), "noch offen laut Plan"));
+    kids.push(h("span", { html: `${icon("x", "no")}nicht bestanden` }), h("span", { html: `${icon("repeat")}Wiederholung` }), h("span", { html: `${icon("alert", "warn")}nicht angeboten` }), h("span", null, sw("over"), "über Bedarf"));
+    if (concept === "B") kids.push(h("span", null, h("span", { class: "sw rail a-inf" }), "Schiene"), h("span", null, "Breite = LP, ein Semester = 30 LP"));
+    else kids.push(h("span", null, h("span", { class: "sw today" }), "heute"));
+    kids.push(h("span", { class: "help" }, concept === "A" ? "▸ klappt auf · Klick auf ein Modul: sein Menü" : "Klick auf ein Modul: sein Menü"));
+    return h("p", { class: "gp-legend" }, kids);
+  }
+  // A semester's head: its name, its Fachsemester and figure, its load (A, C) or ruler (B).
+  function head(col, top, hh, L) {
+    if (col.fold) {
+      const fs = col.sems.map((s) => s.fs).filter(Boolean);
+      const passed = col.sems.reduce((sum, s) => sum + semFig(study, s, st).passed, 0);
+      return h("div", { class: "gp-head fold", style: box(col.x, top, col.w, hh) },
+        h("div", { class: "gp-head-name" }, h("span", null, "Bisher")),
+        h("div", { class: "gp-head-sub" }, h("span", null, fs.length ? `${fs[0]}.–${fs[fs.length - 1]}. FS` : ""), opt.mini ? null : h("b", { class: "ok" }, `✓ ${fmt(passed)}`)));
+    }
+    const s = col.sem, f = semFig(study, s, st);
+    const name = h("div", { class: "gp-head-name" }, h("span", null, SEM[s.key].s), s.when === "now" ? h("span", { class: "gp-now" }, "jetzt") : null, s.leave ? h("span", { class: "gp-leave" }, "Urlaub") : null);
+    const sub = h("div", { class: "gp-head-sub" }, h("span", null, s.leave ? "kein FS" : `${s.fs}. FS`), opt.mini || s.leave ? null : h("b", { class: f.heavy ? "heavy" : "" }, f.text));
+    const kids = [name, sub];
+    if (!opt.mini && !s.leave) {
+      if (concept === "B") {
+        const k = opt.k, done = s.when === "past" ? f.passed : 0;
+        const w30 = 30 * k, total = Math.min(f.credits, 34) * k;
+        kids.push(h("div", { class: "gp-ruler", style: `width:${px(w30)}` },
+          h("span", { class: "plan", style: `left:0;width:${px(Math.min(total, w30))}` }),
+          done ? h("span", { class: "done", style: `left:0;width:${px(Math.min(done * k, w30))}` }) : null,
+          total > w30 ? h("span", { class: "beyond", style: `left:${px(w30 + 2)};width:${px(total - w30 - 2)}` }) : null,
+          h("span", { class: "mark", style: `left:${px(w30)}` })));
+      } else {
+        kids.push(h("div", { class: `gp-load${f.heavy ? " heavy" : ""}` }, h("span", { style: `flex-grow:${f.load[0]}` }), h("span", { style: `flex-grow:${Math.max(0, f.load[1] - f.load[0])}` })));
+      }
+    }
+    const el = h("button", { type: "button", class: "gp-head", style: box(col.x, top, col.w, hh), onclick: () => toast(`Öffnet das ${SEMNAME(s.key)} als Semester, wie heute.`) }, kids);
+    return el;
+  }
+  // The area's head on the left: its dot, name, figure and thin bar; in A its ▸. Where the
+  // column is narrow (B), the figure goes under the name, beside the bar.
+  function areaHead(area, L, y, hh, tog) {
+    const f = areaFig(area, st);
+    const lp = f.done ? h("span", { class: "gp-area-lp done", html: icon("check") + esc(f.text) }) : h("span", { class: `gp-area-lp${f.over ? " over" : ""}` }, f.text);
+    const mini = opt.mini ? null : h("span", { class: "gp-mini" }, h("span", { class: "p", style: `flex-grow:${f.p}` }), h("span", { class: "q", style: `flex-grow:${f.q}` }), h("span", { class: "o", style: `flex-grow:${f.o}` }), h("span", { class: "x", style: `flex-grow:${f.x}` }));
+    const nodes = [];
+    const stack = opt.stack || opt.mini;
+    const btn = h("button", { type: "button", class: `gp-area a-${area.id}${tog ? " has-tog" : ""}${stack ? " stack" : ""}`, style: box(0, y, L.areaW, hh), onclick: () => toast(`Öffnet den Bereich ${area.name} mit allem, was er zählt, wie heute.`) },
+      h("span", { class: "gp-area-top" }, h("span", { class: "gp-dot" }), h("span", { class: "gp-area-name" }, area.name), stack ? null : lp),
+      stack ? h("span", { class: "gp-area-foot" }, mini, lp) : mini);
+    nodes.push(btn);
+    if (tog) {
+      const open = st.open.has(area.id);
+      nodes.push(h("button", { type: "button", class: "gp-tog", "aria-expanded": String(open), "aria-label": `${area.name} ${open ? "zuklappen" : "aufklappen"}`, style: `top:${px(y + (hh - 24) / 2)}`, html: icon("right"), onclick: () => { open ? st.open.delete(area.id) : st.open.add(area.id); draw(); } }));
+    }
+    return nodes;
+  }
+  // A module as a button, with its tooltip and its menu (a ghost plans itself). A piece that
+  // stands for several (`o.tip`, `o.click`) says what it holds and does what it says.
+  function moduleButton(it, area, when, style, inner, cls = "", o = {}) {
+    const b = h("button", { type: "button", class: `m ${stateOf(it, when)}${it.over ? " over" : ""} ${cls} a-${area.id} w-${when}`, style, html: inner, "aria-label": o.label ?? `${it.ab}, ${it.name}` });
+    tip(b, o.tip ?? (() => moduleTip(it, area, when)));
+    b.addEventListener("click", () => {
+      tipEl.hidden = true;
+      if (o.click) return o.click();
+      if (it.st === "ghost") {
+        st.added.add(it.id);
+        draw();
+        toast(`${it.name}: Platzhalter im ${SEMNAME(it.sem)} eingeplant`, () => { st.added.delete(it.id); draw(); });
+        return;
+      }
+      openMenu(b, it, area, when, panel);
+    });
+    return b;
+  }
+  // The semesters before the current one, folded: per area what is passed there, and how much not.
+  function foldPiece(here, area, col, style, cls = "") {
+    const passed = here.filter((it) => it.st === "passed"), failed = here.filter((it) => it.st === "failed");
+    const lp = passed.reduce((s, it) => s + it.lp, 0);
+    const sum = { ab: "Bisher", name: "", lp, sem: here[0].sem, st: passed.length ? "passed" : "failed" };
+    const inner = `${passed.length ? icon("check") : ""}<span class="lb">${fmt(lp)}</span>${failed.length ? `<span class="gp-badge">✕ ${failed.length}</span>` : ""}`;
+    const fs = col.sems.map((s) => s.fs).filter(Boolean);
+    return moduleButton(sum, area, "past", style, inner, `sum ${cls}`, {
+      label: `${area.name} bisher: ${fmt(lp)} LP bestanden`,
+      tip: () => `<div><b>${esc(area.name)} · bisher</b> (${fs[0]}.–${fs[fs.length - 1]}. FS)</div>`
+        + (passed.length ? `<div class="fl">bestanden: ${passed.map((it) => esc(it.ab)).join(", ")} · ${fmt(lp)} LP</div>` : "")
+        + (failed.length ? `<div class="fl no">nicht bestanden: ${failed.map((it) => esc(it.ab)).join(", ")}</div>` : "")
+        + `<div class="fl">„Bisher aufklappen“ zeigt die Semester einzeln.</div>`,
+      click: () => { st.fold = false; draw(); },
+    });
+  }
+  // „Modul hinzufügen" where an area has nothing in a semester.
+  function addButton(area, col, y, hh) {
+    const b = h("button", { type: "button", class: "gp-add", style: box(col.x + 5, y, col.w - 10, hh), html: icon("plus") + (col.w > 110 ? "Modul" : ""), "aria-label": `Modul hinzufügen: ${area.name}, ${SEMNAME(col.sem.key)}`, onclick: () => toast(`„Modul hinzufügen“ für ${area.name} im ${SEMNAME(col.sem.key)}: die passenden Module, wie heute.`) });
+    return b;
+  }
+
+  // ---------- A: a bar per area, a lane per module once it is unfolded ----------
+  function rowA(area, L, y0) {
+    const list = items(area, st);
+    const open = st.open.has(area.id);
+    const nodes = [];
+    const rh = opt.mini ? 40 : ROW.A;
+    const bh = opt.mini ? 24 : 28, by = (rh - bh) / 2;
+    nodes.push(...areaHead(area, L, y0, rh, true));
+    for (const col of L.cols) {
+      const here = inCol(list, col);
+      if (!here.length) { if (!col.fold && !col.sem.leave) nodes.push(addButton(area, col, y0 + by, bh)); continue; }
+      nodes.push(...segmentA(here, area, col, y0 + by, bh));
+    }
+    let height = rh;
+    const row = h("div", { class: "gp-row", style: `top:${px(y0)};height:${px(rh)}` });
+    if (open) {
+      const lanes = lanesA(list, area, L, y0 + rh);
+      nodes.push(h("div", { class: "gp-lanes-bg", style: `top:${px(y0 + rh)};height:${px(lanes.height)}` }), ...lanes.nodes);
+      height += lanes.height;
+      row.style.borderBottom = "0";
+    }
+    return { nodes: [row, ...nodes], height };
+  }
+  // A semester's piece of an area's bar: a piece per module, as wide as its share of the
+  // semester's credits and at least as wide as its label; where they do not fit, „n Module".
+  function segmentA(here, area, col, y, bh) {
+    const when = col.fold ? "past" : col.sem.when;
+    const x0 = col.x + 1, w0 = col.w - 2, gap = 2;
+    if (col.fold) return [foldPiece(here, area, col, box(x0, y, w0, bh))];
+    const parts = here.map((it) => ({ it, lp: Math.max(it.lp || 4, 2), min: minW(it) }));
+    const total = w0 - gap * (parts.length - 1);
+    if (parts.reduce((s, p) => s + p.min, 0) <= total) {
+      const ws = waterfill(parts, total);
+      let x = x0;
+      return parts.map((p, i) => {
+        const t = fitMarks(p.it, ws[i]);
+        const b = moduleButton(p.it, area, when, box(x, y, ws[i], bh) + fitStyle(t), blockHtml(t), fitClass(t));
+        x += ws[i] + gap;
+        return b;
+      });
+    }
+    // Too many for their labels: the modules as one piece, what is open beside it.
+    const real = here.filter((it) => it.st !== "ghost"), ghosts = here.filter((it) => it.st === "ghost");
+    const out = [];
+    let x = x0, right = x0 + w0;
+    for (const g of ghosts.reverse()) {
+      const w = Math.ceil(needW(marks(g)));
+      right -= w;
+      out.push(moduleButton(g, area, when, box(right, y, w, bh), blockHtml(fitMarks(g, w))));
+      right -= gap;
+    }
+    const lp = real.reduce((s, it) => s + it.lp, 0);
+    const failedAny = real.some((it) => it.st === "failed");
+    const allPassed = real.every((it) => it.st === "passed");
+    const sum = { ab: `${real.length} Module`, name: real.map((it) => it.ab).join(" · "), lp, sem: here[0].sem, st: allPassed ? "passed" : failedAny ? "failed" : "planned" };
+    const w = right - x;
+    const label = w > textW(`${real.length} Module · ${fmt(lp)} LP`) + 14 ? `${real.length} Module · ${fmt(lp)} LP` : `${real.length} Module`;
+    out.unshift(moduleButton(sum, area, when, box(x, y, w, bh), `<span class="lb">${esc(label)}</span>`, "sum", {
+      label: `${real.length} Module: ${real.map((it) => it.ab).join(", ")}, aufklappen`,
+      tip: () => `<div><b>${esc(area.name)} · ${esc(SEMNAME(sum.sem))}</b></div>` + real.map((it) => `<div class="fl">${esc(it.ab)} · ${esc(it.name)} · ${fmt(it.lp)} LP</div>`).join("") + `<div class="fl">Ein Klick klappt den Bereich auf.</div>`,
+      click: () => { st.open.add(area.id); draw(); },
+    }));
+    return out;
+  }
+  // Every module of an unfolded area in a lane of its own: its name on the left, its pieces in the
+  // semesters it is in, a retake tied to the try before by an arrow.
+  function lanesA(list, area, L, y0) {
+    const order = [], byKey = new Map();
+    const semIndex = (key) => study.sems.findIndex((s) => s.key === key);
+    for (const it of [...list].sort((a, b) => semIndex(a.sem) - semIndex(b.sem))) {
+      const key = it.st === "ghost" ? it.id : `${it.ab}|${it.name}`;
+      if (!byKey.has(key)) { byKey.set(key, []); order.push(key); }
+      byKey.get(key).push(it);
+    }
+    const lh = opt.mini ? 28 : ROW.lane, bh = opt.mini ? 20 : 22;
+    const nodes = [];
+    order.forEach((key, i) => {
+      const lane = byKey.get(key), first = lane[0], y = y0 + i * lh + 3;
+      // The title without its note in brackets, as the app's short titles have it.
+      const name = first.name.replace(/\s*\([^)]*\)\s*$/, "");
+      const lpText = first.st === "ghost" ? `+${fmt(first.lp)}` : fmt(first.lp);
+      nodes.push(h("div", { class: "gp-lane-label", style: box(0, y0 + i * lh, L.areaW, lh) }, h("span", { class: "nm", title: name }, name), h("span", { class: "lp" }, lpText)));
+      const bars = [];
+      for (const it of lane) {
+        const col = L.cols.find((c) => (c.fold ? c.sems.some((s) => s.key === it.sem) : c.sem.key === it.sem));
+        if (!col) continue;
+        const when = col.fold ? "past" : col.sem.when;
+        const x = col.x + 3, w = col.w - 6, yy = y + (lh - 6 - bh) / 2;
+        // In its lane a module's piece has room for what it is: „EvS bestanden", „MIT1 Wiederholung".
+        const word = { passed: "bestanden", failed: "nicht bestanden", ghost: `noch ${fmt(it.lp)} LP`, ph: "Platzhalter" }[it.st] ?? (it.retake ? "Wiederholung" : when === "now" ? "läuft" : "geplant");
+        const base = it.st === "ghost" ? { ...marks(it), label: it.ab } : marks(it);
+        let t = { ...base, size: 11, pad: 6, show: true, warnLine: false };
+        if (needW(t) > w) t = fitMarks(it, w);
+        const room = w - needW(t, t.size, t.pad) - 6;
+        const extra = t.show && !col.fold && room > textW(word, 10.5, 500) + 4 ? ` <span class="nm">${esc(word)}</span>` : "";
+        nodes.push(moduleButton(it, area, when, box(x, yy, w, bh) + fitStyle(t), blockHtml(t, extra), fitClass(t)));
+        bars.push({ it, x, w, yy });
+      }
+      const failed = bars.find((b) => b.it.st === "failed"), again = bars.find((b) => b.it.retake);
+      if (failed && again && again.x > failed.x) nodes.push(h("div", { class: "gp-link", style: `left:${px(failed.x + failed.w + 3)};top:${px(failed.yy + bh / 2)};width:${px(again.x - failed.x - failed.w - 8)}` }));
+    });
+    return { nodes, height: order.length * lh + 6 };
+  }
+
+  // ---------- B: building blocks as wide as their credits, on a rail ----------
+  function rowB(area, L, y0) {
+    const list = items(area, st);
+    const k = opt.k, pad = 6, gap = 2;
+    const bh = opt.mini ? 24 : 26, top = opt.mini ? 8 : 11, lineH = bh + 4;
+    const nodes = [], spans = [];
+    let lines = 1;
+    for (const col of L.cols) {
+      const here = inCol(list, col);
+      if (!here.length) { spans.push(null); continue; }
+      const when = col.fold ? "past" : col.sem.when;
+      if (col.fold) {
+        const x = col.x + pad, w = col.w - 2 * pad;
+        nodes.push(foldPiece(here, area, col, box(x, y0 + top, w, bh)));
+        spans.push({ first: x, last: x + w });
+        continue;
+      }
+      let x = col.x + pad, line = 0, first = null, last = null;
+      for (const it of here) {
+        const w = Math.max(8, (it.lp || 4) * k - gap);
+        if (x + w > col.x + col.w - pad + 0.5 && x > col.x + pad) { line++; x = col.x + pad; }
+        const t = fitMarks(it, w);
+        nodes.push(moduleButton(it, area, when, box(x, y0 + top + line * lineH, w, bh) + fitStyle(t), blockHtml(t), fitClass(t)));
+        if (line === 0) { first ??= x; last = x + w; }
+        x += w + gap;
+      }
+      lines = Math.max(lines, line + 1);
+      spans.push({ first, last });
+    }
+    // The rail: from a semester's last block to the next semester's first, where both have one.
+    for (let i = 0; i + 1 < spans.length; i++) {
+      const a = spans[i], b = spans[i + 1];
+      if (!a || !b) continue;
+      nodes.push(h("div", { class: `gp-rail a-${area.id}`, style: box(a.last + 2, y0 + top + bh / 2 - 1, b.first - a.last - 4, 2) }));
+    }
+    L.cols.forEach((col, i) => { if (!spans[i] && !col.fold && !col.sem.leave) nodes.push(addButton(area, col, y0 + top, bh)); });
+    const height = top + lines * lineH + (opt.mini ? 4 : 7);
+    nodes.unshift(...areaHead(area, L, y0, height, false));
+    return { nodes: [h("div", { class: "gp-row", style: `top:${px(y0)};height:${px(height)}` }), ...nodes], height };
+  }
+
+  // ---------- C: a line per area, a stop per semester, the abbreviations under it ----------
+  function rowC(area, L, y0) {
+    const list = items(area, st);
+    const lineY = opt.mini ? 14 : 17, chipY = opt.mini ? 28 : 32, ch = 20, gapX = 3, gapY = 3;
+    const nodes = [];
+    const act = L.cols.map((col) => inCol(list, col));
+    let lines = 1;
+    L.cols.forEach((col, i) => {
+      const here = act[i];
+      if (!here.length) return;
+      const when = col.fold ? "past" : col.sem.when;
+      if (col.fold) {
+        const failed = here.some((it) => it.st === "failed");
+        const lp = here.filter((it) => it.st === "passed").reduce((s, it) => s + it.lp, 0);
+        const w = 14 + textW(fmt(lp)) + ICON_W + (failed ? 30 : 0);
+        nodes.push(foldPiece(here, area, col, box(col.x + 8, y0 + chipY, Math.min(w, col.w - 14), ch)));
+        return;
+      }
+      let x = col.x + 8, line = 0;
+      for (const it of here) {
+        const m = marks(it);
+        const w = Math.ceil(needW(m, 11, 6));
+        if (x + w > col.x + col.w - 6 && x > col.x + 8) { line++; x = col.x + 8; }
+        nodes.push(moduleButton(it, area, when, box(x, y0 + chipY + line * (ch + gapY), w, ch), blockHtml({ ...m, show: true })));
+        x += w + gapX;
+      }
+      lines = Math.max(lines, line + 1);
+    });
+    // The line through the runs of semesters with modules, strong up to today.
+    const stopX = (col) => col.x + 15;
+    let i = 0;
+    while (i < L.cols.length) {
+      if (!act[i].length) { i++; continue; }
+      let j = i;
+      while (j + 1 < L.cols.length && act[j + 1].length) j++;
+      const x1 = stopX(L.cols[i]), x2 = L.cols[j].x + L.cols[j].w - 14;
+      const cut = L.todayX ?? (whenOf(study, L.cols[j].sem?.key) === "past" || L.cols[j].fold ? Infinity : -Infinity);
+      const pastEnd = Math.min(x2, cut), aheadStart = Math.max(x1, cut);
+      if (pastEnd > x1) nodes.push(h("div", { class: `gp-line a-${area.id}${aheadStart < x2 ? " cut-r" : ""}`, style: box(x1, y0 + lineY - 2.5, pastEnd - x1, 5) }));
+      if (x2 > aheadStart) nodes.push(h("div", { class: `gp-line ahead a-${area.id}${pastEnd > x1 ? " cut-l" : ""}`, style: box(aheadStart, y0 + lineY - 2.5, x2 - aheadStart, 5) }));
+      i = j + 1;
+    }
+    L.cols.forEach((col, i2) => {
+      const here = act[i2];
+      if (!here.length) { if (!col.fold && !col.sem.leave) nodes.push(addButton(area, col, y0 + chipY - 2, ch + 4)); return; }
+      const real = here.filter((it) => it.st !== "ghost");
+      const when = col.fold ? "past" : col.sem.when;
+      const state = !real.length ? "ghost" : real.some((it) => it.st === "failed") ? "failed" : real.every((it) => it.st === "passed") ? "passed" : when === "now" ? "now" : "planned";
+      const mark = state === "passed" ? icon("check") : state === "failed" ? icon("x") : "";
+      nodes.push(h("span", { class: `gp-stop ${state} a-${area.id}`, style: box(stopX(col) - 8.5, y0 + lineY - 8.5, 17, 17), html: mark }));
+    });
+    const height = chipY + lines * (ch + gapY) + (opt.mini ? 5 : 8);
+    nodes.unshift(...areaHead(area, L, y0, height, false));
+    return { nodes: [h("div", { class: "gp-row", style: `top:${px(y0)};height:${px(height)}` }), ...nodes], height };
+  }
+
+  draw();
+  return panel;
+}
+// Widths in proportion to the credits, none below its label: who would get less gets its least,
+// the rest share what is left.
+function waterfill(parts, total) {
+  const fixed = new Set();
+  let ws = [];
+  for (let round = 0; round <= parts.length; round++) {
+    const freeLp = parts.reduce((s, p, i) => s + (fixed.has(i) ? 0 : p.lp), 0);
+    const freeW = total - parts.reduce((s, p, i) => s + (fixed.has(i) ? p.min : 0), 0);
+    ws = parts.map((p, i) => (fixed.has(i) ? p.min : (p.lp / freeLp) * freeW));
+    let more = false;
+    parts.forEach((p, i) => { if (!fixed.has(i) && ws[i] < p.min - 0.01) { fixed.add(i); more = true; } });
+    if (!more) break;
+  }
+  return ws;
+}
+// The study years over the semesters (A): „1. Studienjahr · 2025/26", or „Bisher".
+function bandOf(L, study) {
+  const out = [];
+  for (const col of L.cols) {
+    const label = col.fold ? "Bisher" : `${Math.floor(study.sems.indexOf(col.sem) / 2) + 1}. Studienjahr · ${SEM[col.sem.key].y}`;
+    const last = out[out.length - 1];
+    if (last && last.label === label) last.w += col.w;
+    else out.push({ label, x: col.x, w: col.w });
+  }
+  return out;
+}
+
+// ---------- The three on the desk ----------
+const MAIN_OPT = {
+  A: { inner: 1058, areaW: 196, open: ["mat"] },
+  B: { inner: 1058, areaW: 150, k: 6.4, fold: true, pastW: 82, stack: true },
+  C: { inner: 1058, areaW: 190 },
+};
+const stages = [];
+for (const stage of document.querySelectorAll("[data-mock]")) {
+  const concept = stage.dataset.mock;
+  const panel = Panel(concept, MAIN, MAIN_OPT[concept]);
+  stage.append(panel.root);
+  stages.push({ stage, panel });
+}
+// A panel wider than its desk shrinks to fit it, down to 62 %; below that the desk scrolls.
+function fit() {
+  for (const { stage, panel } of stages) {
+    const cs = getComputedStyle(stage);
+    const room = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    panel.root.style.zoom = String(Math.max(0.62, Math.min(1, room / 1090)));
+  }
+  for (const fitBox of document.querySelectorAll(".case .fit")) {
+    const gp = fitBox.firstElementChild;
+    if (!gp) continue;
+    gp.style.zoom = "1";
+    gp.style.zoom = String(Math.max(0.7, Math.min(1, fitBox.clientWidth / gp.offsetWidth)));
+  }
+}
+
+// ---------- The cases ----------
+const S = (key, fs, when, more = {}) => ({ key, fs, when, ...more });
+const CASES = [
+  { title: "Ein Semester ohne Modul", text: "Mathematik hat im SoSe 27 nichts. Ihr Balken hört nach dem WiSe 26/27 auf und fängt im WiSe 27/28 wieder an, Informatik läuft bis zum 4. FS durch.",
+    study: { now: "2026W", today: 0.18, sems: [S("2026W", 3, "now"), S("2027S", 4, "next"), S("2027W", 5, "next")], areas: [
+      { id: "inf", name: "Informatik", required: 66, base: [38, 0], items: [M("ThI", "Theoretische Informatik", 8, "2026W"), M("SWP", "Softwarepraktikum", 8, "2026W"), M("BS1", "Betriebssysteme I", 8, "2027S"), M("DTP", "Digitaltechnik-Praktikum", 4, "2027S")] },
+      { id: "mat", name: "Mathematik", required: 24, base: [8, 0], items: [M("MIT1", "Mathematik IT-1 (Diskrete Mathematik)", 8, "2026W", "planned", { retake: "2025W" }), M("MIT3", "Mathematik IT-3 (Analysis)", 8, "2027W")] },
+    ] } },
+  { title: "Nicht bestanden, dann wiederholt", text: "MIT1 ist im WiSe 25/26 nicht bestanden und steht wieder im WiSe 26/27. In A ist Mathematik aufgeklappt, ein Pfeil führt vom ersten Versuch zur Wiederholung; in B und C trägt sie ↻.", open: ["mat"],
+    study: { now: "2026W", today: 0.18, sems: [S("2025W", 1, "past"), S("2026S", 2, "past"), S("2026W", 3, "now")], areas: [
+      { id: "mat", name: "Mathematik", required: 24, base: [0, 8], items: [M("MIT1", "Mathematik IT-1 (Diskrete Mathematik)", 8, "2025W", "failed", { again: "2026W" }), M("MIT2", "Mathematik IT-2 (Lineare Algebra)", 8, "2026S", "passed"), M("MIT1", "Mathematik IT-1 (Diskrete Mathematik)", 8, "2026W", "planned", { retake: "2025W" })] },
+    ] } },
+  { title: "Ein Urlaubssemester", example: true, text: "Im SoSe 27 ist Urlaub: Es zählt kein Fachsemester, die Spalte sagt „Urlaub“, alle Balken sind dort unterbrochen. Das WiSe 27/28 ist dann das 4. FS.",
+    study: { now: "2026W", today: 0.18, sems: [S("2026W", 3, "now"), S("2027S", null, "next", { leave: true }), S("2027W", 4, "next")], areas: [
+      { id: "inf", name: "Informatik", required: 66, base: [38, 12], items: [M("ThI", "Theoretische Informatik", 8, "2026W"), M("SWP", "Softwarepraktikum", 8, "2026W")] },
+      { id: "mat", name: "Mathematik", required: 24, base: [8, 0], items: [M("MIT1", "Mathematik IT-1 (Diskrete Mathematik)", 8, "2026W", "planned", { retake: "2025W" }), M("MIT3", "Mathematik IT-3 (Analysis)", 8, "2027W")] },
+      { id: "neb", name: "Nebenfach", required: 18, base: [0, 6], items: [M("ABWL1", "Allgemeine Betriebswirtschaftslehre I: Grundlagen der BWL", 6, "2026W", "planned", { fills: "Anwendungsfach" }), M("ABWL2", "Allgemeine Betriebswirtschaftslehre II: Buchführung und Handelsbilanzierung", 6, "2027W", "planned", { fills: "Anwendungsfach" })] },
+    ] } },
+  { title: "Über Bedarf", example: true, text: "ABWL4 ist mehr, als das Nebenfach braucht (18 LP). Es bleibt eingeplant und ist schraffiert, wie „über Bedarf“ in den Balken der Übersicht; der Bereich sagt 24/18.",
+    study: { now: "2026W", today: 0.18, sems: [S("2027S", 4, "next"), S("2027W", 5, "next"), S("2028S", 6, "next")], areas: [
+      { id: "neb", name: "Nebenfach", required: 18, base: [0, 6], items: [M("ABWL3", "Allgemeine Betriebswirtschaftslehre III: Beschaffung, Produktion und Absatz", 6, "2027S"), M("GWR", "Grundlagen des Wissenschaftlichen Rechnens", 6, "2028S"), M("ABWL4", "Allgemeine Betriebswirtschaftslehre IV: Kosten- und Leistungsrechnung", 6, "2028S", "planned", { over: 6 })] },
+    ] } },
+  { title: "Noch offen laut Plan", example: true, text: "Hier ist im Nebenfach noch nichts geplant. Was der Regelstudienplan vorsieht, steht gestrichelt dort, wo es als Nächstes passt. Ein Klick plant es als Platzhalter ein; probier es.",
+    study: { now: "2026W", today: 0.18, sems: [S("2026W", 3, "now"), S("2027S", 4, "next"), S("2027W", 5, "next")], areas: [
+      { id: "neb", name: "Nebenfach", required: 18, items: [M("Anwendungsfach", "Anwendungsfach", 6, "2026W", "ghost", { plan: "3. FS" }), M("Anwendungsfach", "Anwendungsfach", 6, "2027S", "ghost", { plan: "4. FS" }), M("Prakt. Mathe", "Modul aus dem Bereich Praktische Mathematik", 6, "2027S", "ghost", { plan: "4. FS" })] },
+    ] } },
+  { title: "Ein Platzhalter", example: true, text: "Die Wahlpflicht des 4. FS ist eingeplant, aber noch ohne Modul. Sie zählt mit, ist hell und gestrichelt umrandet, ihr Menü bietet „Modul wählen“. Ohne Modul hat sie kein Kürzel, „WP“ ist hier ausgedacht; gebaut stünde dort der Anfang ihres Namens.",
+    study: { now: "2026W", today: 0.18, sems: [S("2027S", 4, "next"), S("2027W", 5, "next")], areas: [
+      { id: "fach", name: "Fachstudium", required: 54, base: [0, 14], items: [M("WP", "Wahlpflicht: Komplex Grundlagen, Praktische oder Angewandte Informatik", 6, "2027S", "ph"), M("GdR", "Grundlagen der Rechnernetze", 8, "2027W"), M("EML", "Einführung in Maschinelles Lernen", 6, "2027W")] },
+    ] } },
+  { title: "Ein Bereich ist fertig", example: true, text: "Ein Jahr später, im SoSe 28: Mathematik ist ganz bestanden. Der Balken ist voll, der Bereich sagt ✓ 24/24, im SoSe 27 bleibt die Lücke.",
+    study: { now: "2028S", today: 0.18, sems: [S("2026W", 3, "past"), S("2027S", 4, "past"), S("2027W", 5, "past")], areas: [
+      { id: "mat", name: "Mathematik", required: 24, base: [8, 0], items: [M("MIT1", "Mathematik IT-1 (Diskrete Mathematik)", 8, "2026W", "passed", { retake: "2025W" }), M("MIT3", "Mathematik IT-3 (Analysis)", 8, "2027W", "passed")] },
+    ] } },
+  { title: "Bisher zugeklappt", text: "„Bisher zuklappen“ legt die Semester vor dem jetzigen in eine schmale Spalte. Dort steht je Bereich, was bestanden ist, und wie viel nicht.", fold: true,
+    study: { now: "2026W", today: 0.18, sems: [S("2025W", 1, "past"), S("2026S", 2, "past"), S("2026W", 3, "now"), S("2027S", 4, "next")], areas: [
+      { id: "inf", name: "Informatik", required: 66, items: [M("EvS", "Entwicklung von Softwaresystemen", 8, "2025W", "passed"), M("EEG", "Elektrische und elektronische Grundlagen der Informatik", 6, "2025W", "passed"), M("PP", "Programmierpraktikum", 4, "2025W", "passed"), M("AuP", "Algorithmieren und Programmieren", 10, "2026S", "passed"), M("DT", "Digitaltechnik", 6, "2026S", "passed"), M("Pro", "Proseminar", 4, "2026S", "passed"), M("ThI", "Theoretische Informatik", 8, "2026W"), M("SWP", "Softwarepraktikum", 8, "2026W"), M("BS1", "Betriebssysteme I", 8, "2027S"), M("DTP", "Digitaltechnik-Praktikum", 4, "2027S")] },
+      { id: "mat", name: "Mathematik", required: 24, base: [0, 8], items: [M("MIT1", "Mathematik IT-1 (Diskrete Mathematik)", 8, "2025W", "failed", { again: "2026W" }), M("MIT2", "Mathematik IT-2 (Lineare Algebra)", 8, "2026S", "passed"), M("MIT1", "Mathematik IT-1 (Diskrete Mathematik)", 8, "2026W", "planned", { retake: "2025W" })] },
+    ] } },
+];
+const NAMES = { A: "A · Roadmap", B: "B · Bausteine", C: "C · Linien" };
+const casesEl = document.getElementById("cases");
+for (const c of CASES) { prepare(c.study); c.study.todayText = "3. Nov."; }
+// Each case in A, B and C, drawn anew once Inter is there (the widths are measured in it).
+function buildCases() {
+  casesEl.replaceChildren();
+  for (const c of CASES) {
+    const minis = h("div", { class: "minis" });
+    for (const concept of ["A", "B", "C"]) {
+      const opt = { mini: true, areaW: 150, inner: 0, fold: !!c.fold, open: c.open || [], pastW: 84 };
+      if (concept === "B") opt.k = 6.4; else opt.colW = 140;
+      const panel = Panel(concept, c.study, opt);
+      minis.append(h("figure", null, h("figcaption", null, NAMES[concept]), h("div", { class: "fit" }, panel.root)));
+    }
+    casesEl.append(h("article", { class: "case" }, h("div", null, h("h3", null, c.title), h("p", { html: (c.example ? '<span class="ex">Beispiel</span>' : "") + esc(c.text) })), minis));
+  }
+}
+buildCases();
+
+// ---------- The theme ----------
+const root = document.documentElement;
+function setTheme(v) {
+  if (v === "system") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", v);
+  document.querySelectorAll("[data-theme-set]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.themeSet === v)));
+  try { localStorage.setItem("gesamtplan-konzepte.theme", v); } catch { /* the page works without it */ }
+}
+document.querySelectorAll("[data-theme-set]").forEach((b) => b.addEventListener("click", () => setTheme(b.dataset.themeSet)));
+try { const saved = localStorage.getItem("gesamtplan-konzepte.theme"); if (saved) setTheme(saved); } catch { /* the system's then */ }
+
+// The widths are measured in Inter: once it is there, everything is drawn again.
+addEventListener("resize", fit);
+fit();
+document.fonts?.ready.then(() => {
+  for (const { panel } of stages) panel.draw();
+  buildCases();
+  fit();
+});
+</script>

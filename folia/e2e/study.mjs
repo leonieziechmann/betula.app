@@ -1124,7 +1124,7 @@ if (current !== "2026W") {
     wide: document.documentElement.scrollWidth <= innerWidth + 1,
   }));
   check(sections.strip[2] === "3. FS · jetzt" && sections.cards === 23 && sections.wide, `the Regelstudienplan on a phone: ${JSON.stringify(sections)}`);
-  // No page but the start page has a ground (owner, 2026-11-03).
+  // No page of the app has a ground (owner, 2026-11-03).
   check(!(await grounded()), "the Regelstudienplan on a phone has a ground");
   // While the way back is at the head, the way to the profile page gives way to it (owner,
   // 2026-10-15), and it comes back with the overview.

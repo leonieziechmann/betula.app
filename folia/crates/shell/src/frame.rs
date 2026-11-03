@@ -24,8 +24,9 @@ use folia_design::ui::{Icon, Shortcut};
 ///
 /// On the desktop the frame is one scroll area (`#page-scroll`, app.css „one scroll area"): the
 /// page scrolls in it; the sidebar and the panel on the right are pinned. No ground at its end:
-/// the start page alone has one (owner, 2026-11-03: „ich würde gerne den footer raus nehmen aus den
-/// meisten seiten von betula"); the profile page leads to Impressum and Datenschutz instead.
+/// only a page of text without a sidebar has one, the start page and the pages about Betula (owner,
+/// 2026-11-03: „Bloß in der APP Ui ist das ein wenig wild"); the profile page leads to Impressum and
+/// Datenschutz.
 #[component]
 pub fn Frame(
     /// Heading of the sidebar.
@@ -76,7 +77,8 @@ pub fn Frame(
 
 /// A page without a frame (one that failed, one not found, an area picked on a phone): like a
 /// framed page one scroll area (app.css „one scroll area"), the page across the whole width. The
-/// start page builds the same itself, with the ground at its end.
+/// start page and the pages about Betula build the same themselves, with the ground at its end. A
+/// page of the app (a failure, a Termin, an area picked), so without a ground.
 #[component]
 pub fn Plain(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
     view! {

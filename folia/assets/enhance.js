@@ -2761,12 +2761,12 @@
   };
   document.addEventListener("scroll", () => { if (!spyFrame) spyFrame = requestAnimationFrame(spy); }, { capture: true, passive: true });
 
-  // ---- the ground: the footer after the end of the start page ----
+  // ---- the ground: the footer after the end of a page of text ----
   // On a wide screen every page is one scroll area (`.work.flowing`, app.css „one scroll area"),
-  // the start page's with the ground as its end: the browser scrolls page and ground as one (owner,
+  // a page of text's with the ground as its end: the browser scrolls page and ground as one (owner,
   // 2026-09-29: the two steps before — first the page, then the window for the ground — felt
-  // „unfassbar janky"). A phone scrolls page and ground with the window. No other page has a ground
-  // since 2026-11-03 (app.css „the birch"): the cover is nothing there, a list is short as long as it
+  // „unfassbar janky"). A phone scrolls page and ground with the window. No page of the app has a
+  // ground since 2026-11-03 (app.css „the birch"): the cover is nothing there, a list is short as long as it
   // stands whole in the area, and the wood stays on the window's edge. What is left to do is below.
   const flowing = () => document.querySelector("#content > .page-stage.front > .work.flowing");
   const glide = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth");

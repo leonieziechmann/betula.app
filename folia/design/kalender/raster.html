@@ -1,6 +1,18 @@
 <title>Wochenraster-Konzepte</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<!-- The week of a module's page, first round (2026-11-03; owner, the same day, on a screenshot of
+<!-- The week of a module's page. Second round (2026-11-03; owner, the same day: „Also ich finde die
+     ebenen am Besten (C). Aber ich würde gerne die Termine so haben, dass die normalen voll mit farbe
+     gezeigt werden und die optionalen/wahtermine mit schraffur oder anderer textur.“): C as it was
+     (the plan as the ground, the module's Termine as cards on it, 14 px left free where they lie on
+     the plan, the torn edge), the cards by their kind — what one has to attend full in the module's
+     tone, what one chooses hatched (the groups of an event one attends one of, `Attendance::OneOf`,
+     „eine von 4“ in the Termin view, and the options of a choice), what one may add dotted (extras),
+     single dates full and lighter, one's own group full with a tick once it is chosen in the plan;
+     the textures and the chosen group to switch above the week; PP's week on a desktop and a phone,
+     all kinds side by side, eleven cases beside today, four questions and what of round 1 holds.
+     Round 1 follows, folded. Built the same day (owner: „Passt alles, bau das jetzt in Folia"),
+     Folia 1.63.0, with the proposals of both rounds as they stand. First round (2026-11-03; owner,
+     the same day, on a screenshot of
      Programmierpraktikum's week: „bitte passe mal die farben und aufmachung von dem Kallender an.
      aktuell ist es nicht gut zu erkennen, was jetzt zu dem modul gehört. Dazu sollte es auch so
      sein, dass wenn sich ein termin überschneidet, dass der großteil zu dem Modultermin geht und da
@@ -78,6 +90,12 @@
   --clash-ring: color-mix(in srgb, var(--no) 45%, transparent);
   --card-shadow: 0 1px 1px rgba(15, 23, 42, .06), 0 3px 8px -4px rgba(15, 23, 42, .32);
   --lift-shadow: 0 2px 3px rgba(15, 23, 42, .08), 0 8px 18px -8px rgba(15, 23, 42, .45);
+  /* Round 2: the stripes and dots of what one chooses or adds, and a lighter full surface with
+     its text (single dates). */
+  --own-stripe: color-mix(in oklch, var(--own) 34%, transparent);
+  --own-stripe-weak: color-mix(in oklch, var(--own) 24%, transparent);
+  --own-light: color-mix(in oklch, var(--own) 40%, var(--panel));
+  --own-deep: oklch(.32 .09 300);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -111,6 +129,10 @@
     --clash-ring: color-mix(in srgb, var(--no) 50%, transparent);
     --card-shadow: 0 1px 1px rgba(0, 0, 0, .35), 0 4px 10px -4px rgba(0, 0, 0, .7);
     --lift-shadow: 0 2px 3px rgba(0, 0, 0, .4), 0 10px 22px -8px rgba(0, 0, 0, .8);
+    --own-stripe: color-mix(in oklch, var(--own) 36%, transparent);
+    --own-stripe-weak: color-mix(in oklch, var(--own) 24%, transparent);
+    --own-light: color-mix(in oklch, var(--own) 30%, var(--panel));
+    --own-deep: var(--text);
   }
 }
 :root[data-theme="dark"] {
@@ -144,6 +166,10 @@
   --clash-ring: color-mix(in srgb, var(--no) 50%, transparent);
   --card-shadow: 0 1px 1px rgba(0, 0, 0, .35), 0 4px 10px -4px rgba(0, 0, 0, .7);
   --lift-shadow: 0 2px 3px rgba(0, 0, 0, .4), 0 10px 22px -8px rgba(0, 0, 0, .8);
+  --own-stripe: color-mix(in oklch, var(--own) 36%, transparent);
+  --own-stripe-weak: color-mix(in oklch, var(--own) 24%, transparent);
+  --own-light: color-mix(in oklch, var(--own) 30%, var(--panel));
+  --own-deep: var(--text);
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -247,6 +273,10 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .case.wide { grid-template-columns: minmax(0, 1fr); }
 .case.wide > div:first-child p { max-width: 80ch; }
 @media (max-width: 860px) { .case { grid-template-columns: minmax(0, 1fr); } }
+.cases.two { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 540px), 1fr)); gap: 14px; }
+.cases.two .case { grid-template-columns: minmax(0, 190px) minmax(0, 1fr); }
+.cases.two .case.wide { grid-column: 1 / -1; grid-template-columns: minmax(0, 190px) minmax(0, 1fr); }
+@media (max-width: 640px) { .cases.two .case { grid-template-columns: minmax(0, 1fr); } }
 .case h3 { font-size: 14.5px; }
 .case p { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
 .case p .ex { display: inline-block; margin-right: 4px; padding: 0 6px; border-radius: 4px; background: var(--panel-3); color: var(--text-3); font-size: 11px; font-weight: 650; letter-spacing: .03em; text-transform: uppercase; vertical-align: 1px; }
@@ -383,26 +413,101 @@ table.t td:first-child { color: var(--text); font-weight: 620; }
 /* A narrow day (a phone of 360 px, 53 px a day): less padding at the sides, so that „Prak“ fits. */
 .wk.narrow .ev { padding-left: 4px; padding-right: 3px; }
 .wk-b.narrow .ev { padding-left: 6px; }
-@media (prefers-reduced-motion: reduce) { .wk .ev { transition: none; } }
+/* ---------- Round 2: C, what one has to attend full, what one chooses or adds textured ---------- */
+.wk-c2 { padding: 4px 0 14px; }
+.wk-c2 .lines { grid-row: 2; grid-column: 2 / -1; position: relative; pointer-events: none; }
+.wk-c2 .hd { padding-bottom: 10px; }
+.wk-c2 .pl { z-index: 1; padding: 4px 6px; border-radius: 6px; background: var(--ground); color: var(--text-3); font-size: 10.5px; font-weight: 620; }
+.wk-c2 .pl small { display: inline; font-size: 9.5px; font-weight: 560; }
+.wk-c2 .pl.clash { background: var(--clash-soft); color: var(--no); }
+.wk-c2 .pl.strip { padding: 0; border-radius: 4px; }
+.wk-c2 .pl.cutb { border-radius: 6px 6px 0 0; -webkit-mask: linear-gradient(#000 0 0) top / 100% calc(100% - 4px) no-repeat, conic-gradient(from -45deg at 50% 100%, #000 90deg, #0000 0) bottom / 8px 4px repeat-x; mask: linear-gradient(#000 0 0) top / 100% calc(100% - 4px) no-repeat, conic-gradient(from -45deg at 50% 100%, #000 90deg, #0000 0) bottom / 8px 4px repeat-x; }
+.wk-c2 .pl.cutt { border-radius: 0 0 6px 6px; -webkit-mask: linear-gradient(#000 0 0) bottom / 100% calc(100% - 4px) no-repeat, conic-gradient(from 135deg at 50% 0, #000 90deg, #0000 0) top / 8px 4px repeat-x; mask: linear-gradient(#000 0 0) bottom / 100% calc(100% - 4px) no-repeat, conic-gradient(from 135deg at 50% 0, #000 90deg, #0000 0) top / 8px 4px repeat-x; }
+.wk-c2 .ev { z-index: 2; padding: 4px 6px; border-radius: 6px; font-size: 11px; font-weight: 680; transition: box-shadow .12s, filter .12s; }
+.wk-c2 .ev small { font-size: 10px; font-weight: 540; }
+.wk-c2 button.ev:hover { filter: brightness(1.05); }
+/* What one has to attend: full in the module's tone. */
+.wk-c2 .ev.must { background-color: var(--own-solid); color: var(--on-own); box-shadow: var(--card-shadow); }
+.wk-c2 .ev.must small { opacity: .86; }
+/* What one chooses: a light card, ringed in the tone, with its texture (.tx-…). */
+.wk-c2 .ev.wahl { background-color: var(--own-card); color: var(--own-ink); box-shadow: inset 0 0 0 1.5px var(--own), var(--card-shadow); }
+.wk-c2 .ev.wahl small { color: var(--text-2); }
+/* On a texture each line of text stands on a plate of the card's own ground, so that the stripes
+   and dots go round the words, not through them. */
+.wk-c2 .ev:is(.wahl, .zusatz) > :is(.l, small) { align-self: flex-start; max-width: calc(100% + 4px); margin: 0 -2px; padding: 0 2px; border-radius: 3px; }
+.wk-c2 .ev.wahl > :is(.l, small) { background: var(--own-card); }
+.wk-c2 .ev.zusatz > :is(.l, small) { background: var(--panel); }
+/* What one may add: lighter still, its texture (.tz-…); „Rand“ is a dotted ring alone. */
+.wk-c2 .ev.zusatz { background-color: var(--panel); color: var(--text-2); box-shadow: inset 0 0 0 1.5px var(--own-ring), var(--card-shadow); }
+.wk-c2 .ev.zusatz.tz-rand { box-shadow: var(--card-shadow); outline: 1.5px dotted var(--own); outline-offset: -1.5px; }
+/* Single dates: full, lighter. */
+.wk-c2 .ev.once { background-color: var(--own-light); color: var(--own-deep); box-shadow: var(--card-shadow); }
+.wk-c2 .ev.once small { opacity: .8; }
+/* Open beside the week: a ring at a distance, the card lifted. */
+.wk-c2 .ev.sel { outline: 2px solid var(--own-solid); outline-offset: 2px; }
+.wk-c2 .ev.must.sel, .wk-c2 .ev.once.sel { box-shadow: var(--lift-shadow); }
+.wk-c2 .ev.wahl.sel { box-shadow: inset 0 0 0 1.5px var(--own), var(--lift-shadow); }
+/* One's own group, chosen in the plan: full, with a tick. */
+.wk-c2 .tick { position: absolute; right: 3px; bottom: 3px; display: grid; place-items: center; width: 14px; height: 14px; border-radius: 50%; background: var(--on-own); color: var(--own-solid); }
+.wk-c2 .tick svg { width: 9px; height: 9px; stroke-width: 3.4; }
+/* The textures, for a card and for its swatch. */
+.tx-schraffur { background-image: repeating-linear-gradient(45deg, var(--own-stripe) 0 1.6px, transparent 1.6px 6px); }
+.tx-fein { background-image: repeating-linear-gradient(45deg, var(--own-stripe) 0 1px, transparent 1px 3.6px); }
+.tx-kreuz { background-image: repeating-linear-gradient(45deg, var(--own-stripe-weak) 0 1px, transparent 1px 6px), repeating-linear-gradient(-45deg, var(--own-stripe-weak) 0 1px, transparent 1px 6px); }
+.tx-punkte { background-image: radial-gradient(circle, var(--own-stripe) 1.2px, transparent 1.6px); background-size: 5px 5px; }
+.tz-punkte { background-image: radial-gradient(circle, var(--own-stripe) 1px, transparent 1.4px); background-size: 6px 6px; }
+.tz-schraffur { background-image: repeating-linear-gradient(45deg, var(--own-stripe-weak) 0 1px, transparent 1px 7px); }
+.tz-rand { background-image: none; }
+.sw-must { background: var(--own-solid); }
+.sw-once { background: var(--own-light); }
+.sw-wahl { background-color: var(--own-card); box-shadow: inset 0 0 0 1.5px var(--own); }
+.sw-zusatz { background-color: var(--panel); box-shadow: inset 0 0 0 1.5px var(--own-ring); }
+.sw-zusatz.tz-rand { box-shadow: none; outline: 1.5px dotted var(--own); outline-offset: -1.5px; }
+.sw-tick { display: inline-grid; place-items: center; width: 15px; height: 11px; border-radius: 3px; background: var(--own-solid); color: var(--on-own); }
+.sw-tick svg { width: 8px; height: 8px; stroke-width: 3.6; }
+.desk.arten { width: auto; }
+
+/* The controls of round 2, above all they change. */
+.ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px; padding: 10px 12px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.ctl .cg { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+.ctl .seg button { display: inline-flex; align-items: center; gap: 6px; }
+.ctl .hint2 { font-size: 12.5px; color: var(--text-3); }
+.txs { display: inline-block; flex: none; width: 15px; height: 12px; border-radius: 3px; background-color: var(--own-card); box-shadow: inset 0 0 0 1px var(--own); }
+.txs.z { background-color: var(--panel); box-shadow: inset 0 0 0 1px var(--own-ring); }
+.txs.z.tz-rand { box-shadow: none; outline: 1.5px dotted var(--own); outline-offset: -1.5px; }
+.carried { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.carried ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--text-2); }
+
+/* Round 1, folded below round 2. */
+details.round { display: flex; flex-direction: column; gap: 22px; }
+details.round > summary { display: flex; align-items: center; gap: 14px; padding: 16px 20px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); cursor: pointer; list-style: none; }
+details.round > summary::-webkit-details-marker { display: none; }
+details.round > summary .chev { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--panel-3); transition: rotate .15s; }
+details.round[open] > summary .chev { rotate: 90deg; }
+details.round > summary b { display: block; font-size: 17px; font-weight: 720; letter-spacing: -.01em; }
+details.round > summary small { display: block; color: var(--text-3); font-size: 13px; }
+details.round > .inner { display: flex; flex-direction: column; gap: 22px; margin-top: 22px; }
+
+@media (prefers-reduced-motion: reduce) { .wk .ev { transition: none; } details.round > summary .chev { transition: none; } }
 </style>
 
 <div class="page">
   <section class="intro" aria-labelledby="top-title">
     <div>
-      <p class="kicker">Folia · Modulseite · Termine · erste Runde, 3. November 2026</p>
+      <p class="kicker">Folia · Modulseite · Termine · zweite Runde, 3. November 2026 · gebaut in Folia 1.63.0</p>
       <h1 id="top-title">Was zum Modul gehört</h1>
-      <p class="lead">Auf der Seite eines Moduls zeigt die Woche seine Termine und, sobald dein Stundenplan im selben Semester etwas hat, auch das, was daneben liegt. Heute ist schwer zu sehen, was davon das Modul ist: <b>Seine Praktika sind so grau wie dein Plan</b>, der Plan neben einem Termin ist ein leerer Rahmen, und was über den Rand der Woche hinausgeht, wird ohne Zeichen abgeschnitten. Hier sind drei Konzepte, wie es klarer und ruhiger wird, alle auf echten Daten: das <b>Programmierpraktikum</b> neben Theoretischer Informatik, Mathematik IT-3 und dem Softwarepraktikum, dein 3. FS im WiSe 2026/27.</p>
-      <p class="quote">„aktuell ist es nicht gut zu erkennen, was jetzt zu dem modul gehört. Dazu sollte es auch so sein, dass wenn sich ein termin überschneidet, dass der großteil zu dem Modultermin geht und da nur ein kleiner streifen daneben ist, mit vertikalem text. Es muss auch erkennbar sein, wenn termine abgeschnitten sind. Und ganz generell muss das ganze einfach cleaner werden.“ <span style="color: var(--text-3)">— du, heute</span></p>
+      <p class="lead">Auf der Seite eines Moduls zeigt die Woche seine Termine und daneben, was dein Stundenplan zur selben Zeit hat. In der ersten Runde hast du <b>C</b> gewählt: Dein Plan liegt als grauer Grund unten, die Termine des Moduls liegen als Karten darauf. Jetzt zeigen die Karten auch, was für Termine es sind. <b>Was man besuchen muss, ist voll in der Farbe des Moduls</b>, was man wählt oder dazunehmen kann, hat eine Textur. Beim Programmierpraktikum heißt das: Die Vorlesung ist voll, die vier Praktika sind schraffiert, denn du besuchst eine der vier Gruppen.</p>
+      <p class="quote">„Also ich finde die ebenen am Besten (C). Aber ich würde gerne die Termine so haben, dass die normalen voll mit farbe gezeigt werden und die optionalen/wahtermine mit schraffur oder anderer textur.“ <span style="color: var(--text-3)">— du, zur ersten Runde</span></p>
     </div>
-    <div class="rules" id="gemeinsam">
-      <p class="kicker">In allen drei Konzepten gleich</p>
+    <div class="rules" id="jetzt">
+      <p class="kicker">Was jetzt gilt</p>
       <ul>
-        <li><i><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg></i><span><b>Eine Farbe für das Modul.</b> Alle seine Termine in seiner Farbe aus deinem Stundenplan, hier Violett wie im Kopf der Termin-Ansicht. Was ein Termin ist (VL, Prak), sagt die Beschriftung, nicht die Farbe.</span></li>
-        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3"/></svg></i><span><b>Dein Plan ist grau</b> und trägt den Kurznamen seines Moduls: ThI, MIT3, SWP. Kein Rahmen mehr um jeden Termin des Plans.</span></li>
-        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 5h11v14H4z"/><path d="M18 5h2v14h-2z"/></svg></i><span><b>Überschneidung:</b> Der Termin des Moduls behält die Breite bis auf einen Streifen von 13 bis 14 px. Darin steht der Plan, sein Name senkrecht, von unten nach oben gelesen.</span></li>
-        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M12 8v5"/><path d="M12 16.5h.01"/><circle cx="12" cy="12" r="9"/></svg></i><span><b>Konflikt:</b> Rot ist nur, was kollidiert, also der Streifen des Plans, dazu ein „!“ am Termin des Moduls. Der rote Rahmen um den Termin fällt weg.</span></li>
-        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 4h16v10l-2 2-2-2-2 2-2-2-2 2-2-2-2 2-2-2z"/></svg></i><span><b>Abgeschnitten</b> ist sichtbar: eine offene Kante am Rand der Woche, darunter, bis wann es geht. Das Ende der Woche ist beschriftet (16).</span></li>
-        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg></i><span><b>Ruhiger:</b> keine Rahmen um gefüllte Flächen, leisere Stundenlinien, die Stunden an den Linien statt in den Zeilen.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3" fill="currentColor"/></svg></i><span><b>Pflicht ist voll</b> in der Farbe des Moduls, mit heller Schrift: alles, was man besuchen muss.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M8 16l8-8M5.5 12.5l7-7M11.5 18.5l7-7"/></svg></i><span><b>Wahl ist schraffiert:</b> die Gruppen einer Veranstaltung, von denen du eine besuchst (die vier Praktika, „eine von 4“), und die Optionen einer Wahl zwischen Veranstaltungen.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 9h.01M15 9h.01M9 15h.01M15 15h.01M12 12h.01"/></svg></i><span><b>Zusatz ist gepunktet:</b> Freiwilliges neben dem Pflichtteil, etwa ein Tutorium.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i><span><b>Deine Gruppe wird voll.</b> Steht das Modul in deinem Plan und ist dort eine Gruppe gewählt, wird sie voll und trägt ein ✓. Die anderen bleiben schraffiert.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 5h11v14H4z"/><path d="M18 5h2v14h-2z"/></svg></i><span><b>Wie in C:</b> dein Plan als grauer Grund, rechts 14 px frei mit seinem Namen senkrecht, rot nur, was kollidiert, die gerissene Kante mit der Uhrzeit darunter.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="9.5"/></svg></i><span><b>Offen neben der Woche</b> ist eine Karte mit Ring und Schatten, denn voll heißt jetzt Pflicht.</span></li>
       </ul>
     </div>
   </section>
@@ -417,15 +522,109 @@ table.t td:first-child { color: var(--text); font-weight: 620; }
       </span>
     </div>
     <div class="jump">
+      <a href="#runde2">Die Woche</a>
+      <a href="#faelle2">Die Fälle</a>
+      <a href="#fragen2">Fragen</a>
       <a href="#heute">Heute</a>
-      <a href="#konzept-a">A Kräftig</a>
-      <a href="#konzept-b">B Spur</a>
-      <a href="#konzept-c">C Ebenen</a>
-      <a href="#faelle">Die Fälle</a>
-      <a href="#vergleich">Vergleich</a>
-      <a href="#fragen">Fragen</a>
+      <a href="#runde1">Erste Runde</a>
     </div>
   </nav>
+
+  <section class="sec" id="runde2" aria-labelledby="r2-title">
+    <header>
+      <p class="kicker">Zweite Runde · C mit Pflicht, Wahl und Zusatz</p>
+      <h2 id="r2-title">Die Woche des Programmierpraktikums</h2>
+      <p class="sub">Die Vorlesung ist Pflicht und steht voll in der Farbe des Moduls. Die vier Praktika sind Gruppen, von denen du eine besuchst, deshalb sind sie schraffiert. Hier oben stellst du ein, welche Gruppe in deinem Stundenplan gewählt ist und welche Textur Wahl und Zusatz haben; alles darunter folgt.</p>
+    </header>
+    <div class="ctl" id="ctl2">
+      <div class="cg">
+        <span class="kicker">Im Stundenplan gewählt</span>
+        <span class="seg" data-ctl="chosen" role="group" aria-label="Gewählte Praktikumsgruppen">
+          <button type="button" data-v="mo" aria-pressed="false">Mo 11:30</button>
+          <button type="button" data-v="mi" aria-pressed="false">Mi 11:30</button>
+          <button type="button" data-v="do" aria-pressed="false">Do 11:30</button>
+          <button type="button" data-v="fr" aria-pressed="false">Fr 13:45</button>
+        </span>
+        <span class="hint2" id="chosen-note">keine, denn das PP steht nicht in deinem Plan</span>
+      </div>
+      <div class="cg">
+        <span class="kicker">Wahl</span>
+        <span class="seg" data-ctl="wahl" role="group" aria-label="Textur der Wahl">
+          <button type="button" data-v="schraffur" aria-pressed="true"><i class="txs tx-schraffur"></i>Schraffur</button>
+          <button type="button" data-v="fein" aria-pressed="false"><i class="txs tx-fein"></i>Fein</button>
+          <button type="button" data-v="kreuz" aria-pressed="false"><i class="txs tx-kreuz"></i>Kreuz</button>
+          <button type="button" data-v="punkte" aria-pressed="false"><i class="txs tx-punkte"></i>Punkte</button>
+        </span>
+      </div>
+      <div class="cg">
+        <span class="kicker">Zusatz</span>
+        <span class="seg" data-ctl="zusatz" role="group" aria-label="Textur des Zusatzes">
+          <button type="button" data-v="punkte" aria-pressed="true"><i class="txs z tz-punkte"></i>Punkte</button>
+          <button type="button" data-v="schraffur" aria-pressed="false"><i class="txs z tz-schraffur"></i>Schraffur</button>
+          <button type="button" data-v="rand" aria-pressed="false"><i class="txs z tz-rand"></i>Rand</button>
+        </span>
+      </div>
+    </div>
+    <div class="stage" data-mock="c2"></div>
+    <p class="tryit">Klick auf einen Termin des Moduls: So sieht er aus, wenn er neben der Woche offen ist.</p>
+    <div class="how">
+      <div>
+        <h3>Was man sieht</h3>
+        <ul>
+          <li>Montags und freitags sind die Praktika frei. Mittwochs und donnerstags liegt ThI darunter, das zeigt der graue Streifen.</li>
+          <li>Die Vorlesung am Freitag ist Pflicht und überschneidet sich mit dem Softwarepraktikum: voll, darunter rot, dazu ein „!“.</li>
+          <li>Wählst du oben die Gruppe am Donnerstag, wird sie voll und rot, denn ThI hat dort Vorlesung. Mit Montag passt alles.</li>
+          <li>Rechts bei „Alle Arten“: Pflicht, Einzeltermine, Wahl, deine Gruppe und Zusatz nebeneinander.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Woher Betula es weiß</h3>
+        <ul>
+          <li>Die Gruppen einer Veranstaltung kennt der Stundenplan schon: Die Termin-Ansicht sagt „Praktikumsgruppen · eine von 4“ (<code>Attendance::OneOf</code>).</li>
+          <li>Die Optionen einer Wahl und die Zusätze kennt die Modulseite schon. Heute sind sie gestrichelt und gepunktet umrandet.</li>
+          <li>Welche Gruppe du gewählt hast, steht in deinem Plan. Den lädt die Modulseite für die Überschneidungen ohnehin.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Worauf zu achten ist</h3>
+        <ul>
+          <li>Im Stundenplan heißt eine breite Schraffur heute „nur besuchen“. Die Schraffur der Wahl ist feiner und andersherum geneigt (Frage 4).</li>
+          <li>Schrift auf einer Textur braucht Kontrast. Deshalb bleiben die Streifen hell und die Schrift kräftig.</li>
+          <li>Steht das Modul nicht in deinem Plan, ist keine Gruppe gewählt, und alles, was zur Wahl steht, ist schraffiert.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="faelle2" aria-labelledby="faelle2-title">
+    <header>
+      <h2 id="faelle2-title">Die Fälle, heute und in der zweiten Runde</h2>
+      <p class="sub">Ausschnitte der Woche so breit wie am Rechner (ein Tag 74 px), „Am Handy“ so breit wie bei einem Handy von 360 px (53 px). Die Texturen folgen der Einstellung oben. Wo <b>Beispiel</b> steht, sind die Termine ausgedacht.</p>
+    </header>
+    <div class="cases two" id="cases2"></div>
+  </section>
+
+  <section class="sec" id="fragen2" aria-labelledby="fragen2-title">
+    <header>
+      <h2 id="fragen2-title">Fragen der zweiten Runde</h2>
+      <p class="sub">Jeweils mit meinem Vorschlag. Ein „passt“ reicht, wo du zustimmst.</p>
+    </header>
+    <ol class="qs">
+      <li><span><b>Welche Texturen?</b> Schraffur für die Wahl und Punkte für den Zusatz, oder eine andere Kombination von oben?<span class="pro">Vorschlag: Schraffur und Punkte.</span></span></li>
+      <li><span><b>Deine Gruppe voll?</b> Steht das Modul in deinem Plan und ist eine Gruppe gewählt, wird sie voll und trägt ein ✓, die anderen bleiben schraffiert.<span class="pro">Vorschlag: ja.</span></span></li>
+      <li><span><b>Einzeltermine?</b> Sie sind Pflicht, finden aber nicht jede Woche statt. Voll und heller, oder voll wie alles andere?<span class="pro">Vorschlag: voll und heller.</span></span></li>
+      <li><span><b>Schraffur im Stundenplan?</b> Dort heißt eine breite Schraffur heute „nur besuchen“. Soll die Wahl dort genauso aussehen wie hier (dann bräuchte der Besuch ein anderes Zeichen), oder bleibt der Stundenplan, wie er ist?<span class="pro">Vorschlag: vorerst nur die Modulseite, der Stundenplan bleibt.</span></span></li>
+    </ol>
+    <div class="carried">
+      <p class="kicker">Aus der ersten Runde so umgesetzt, bis du etwas anderes sagst</p>
+      <ul>
+        <li>Die Farbe des Moduls ist seine aus deinem Plan, ohne Plan Betulas Grün.</li>
+        <li>Der Name im Streifen liest sich von unten nach oben.</li>
+        <li>Eine Zeile Legende unter der Woche, wenn der Plan daneben steht.</li>
+        <li>Das ruhigere Raster (Stunden an den Linien, das Ende beschriftet, keine Rahmen um Flächen) gilt auch im Stundenplan; seine Farben bleiben.</li>
+      </ul>
+    </div>
+  </section>
 
   <section class="sec" id="heute" aria-labelledby="heute-title">
     <header>
@@ -449,6 +648,27 @@ table.t td:first-child { color: var(--text); font-weight: 620; }
       </ol>
     </div>
   </section>
+
+  <details class="round" id="runde1">
+    <summary><span class="chev" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span><span><b>Erste Runde: A Kräftig, B Spur, C Ebenen</b><small>Die drei Konzepte vom 3. November, die Fälle mit allen dreien, der Vergleich und die Fragen</small></span></summary>
+    <div class="inner">
+      <section class="sec" id="gemeinsam" aria-labelledby="r1-title">
+        <header>
+          <h2 id="r1-title">Was die erste Runde wollte</h2>
+          <p class="quote">„aktuell ist es nicht gut zu erkennen, was jetzt zu dem modul gehört. Dazu sollte es auch so sein, dass wenn sich ein termin überschneidet, dass der großteil zu dem Modultermin geht und da nur ein kleiner streifen daneben ist, mit vertikalem text. Es muss auch erkennbar sein, wenn termine abgeschnitten sind. Und ganz generell muss das ganze einfach cleaner werden.“ <span style="color: var(--text-3)">— du, zu deinem Screenshot</span></p>
+        </header>
+        <div class="rules">
+          <p class="kicker">In allen drei Konzepten gleich</p>
+          <ul>
+            <li><i><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg></i><span><b>Eine Farbe für das Modul.</b> Alle seine Termine in seiner Farbe aus deinem Stundenplan, hier Violett wie im Kopf der Termin-Ansicht. Was ein Termin ist (VL, Prak), sagt die Beschriftung, nicht die Farbe.</span></li>
+            <li><i><svg class="i" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3"/></svg></i><span><b>Dein Plan ist grau</b> und trägt den Kurznamen seines Moduls: ThI, MIT3, SWP. Kein Rahmen mehr um jeden Termin des Plans.</span></li>
+            <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 5h11v14H4z"/><path d="M18 5h2v14h-2z"/></svg></i><span><b>Überschneidung:</b> Der Termin des Moduls behält die Breite bis auf einen Streifen von 13 bis 14 px. Darin steht der Plan, sein Name senkrecht, von unten nach oben gelesen.</span></li>
+            <li><i><svg class="i" viewBox="0 0 24 24"><path d="M12 8v5"/><path d="M12 16.5h.01"/><circle cx="12" cy="12" r="9"/></svg></i><span><b>Konflikt:</b> Rot ist nur, was kollidiert, also der Streifen des Plans, dazu ein „!“ am Termin des Moduls. Der rote Rahmen um den Termin fällt weg.</span></li>
+            <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 4h16v10l-2 2-2-2-2 2-2-2-2 2-2-2-2 2-2-2z"/></svg></i><span><b>Abgeschnitten</b> ist sichtbar: eine offene Kante am Rand der Woche, darunter, bis wann es geht. Das Ende der Woche ist beschriftet (16).</span></li>
+            <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg></i><span><b>Ruhiger:</b> keine Rahmen um gefüllte Flächen, leisere Stundenlinien, die Stunden an den Linien statt in den Zeilen.</span></li>
+          </ul>
+    </div>
+      </section>
 
   <section class="sec" id="konzept-a" aria-labelledby="a-title">
     <header>
@@ -623,8 +843,10 @@ table.t td:first-child { color: var(--text); font-weight: 620; }
       <li><span><b>Eine Legende?</b> Eine Zeile unter der Woche, die sagt, was Farbe und was Grau ist, wenn der Plan daneben steht?<span class="pro">Vorschlag: ja, eine Zeile.</span></span></li>
     </ol>
   </section>
+    </div>
+  </details>
 
-  <p class="foot">Daten: betula.app, Snapshot vom 3. November 2026. Programmierpraktikum (12102) am Zentralcampus: Praktikum Mo, Mi, Do 11:30–13:00 und Fr 13:45–15:15, Vorlesung Fr 11:30–13:00 (A-Woche). Daneben, wie auf deinem Screenshot: Theoretische Informatik (Vorlesung Di und Do 11:30, Übung Mi 11:30, Tutorium Mo 15:30–17:00), Mathematik IT-3 (Vorlesung Mo 13:45 und Di 15:30–17:00, Übung Do 13:45), Softwarepraktikum (Praktikum Fr 11:30). Die Woche wird mit der Rechnung von <code>week.rs</code> gezeichnet: 48 px die Stunde, von 8:00 bis zur vollen Stunde nach dem letzten Termin des Moduls, der Plan daran abgeschnitten. Nichts davon ist gebaut.</p>
+  <p class="foot">Daten: betula.app, Snapshot vom 3. November 2026. Programmierpraktikum (12102) am Zentralcampus: Praktikum Mo, Mi, Do 11:30–13:00 und Fr 13:45–15:15, Vorlesung Fr 11:30–13:00 (A-Woche). Daneben, wie auf deinem Screenshot: Theoretische Informatik (Vorlesung Di und Do 11:30, Übung Mi 11:30, Tutorium Mo 15:30–17:00), Mathematik IT-3 (Vorlesung Mo 13:45 und Di 15:30–17:00, Übung Do 13:45), Softwarepraktikum (Praktikum Fr 11:30). Die Woche wird mit der Rechnung von <code>week.rs</code> gezeichnet: 48 px die Stunde, von 8:00 bis zur vollen Stunde nach dem letzten Termin des Moduls, der Plan daran abgeschnitten. Die zweite Runde ist gebaut (Folia 1.63.0, „Passt alles, bau das jetzt in Folia“), mit den Vorschlägen beider Runden.</p>
 </div>
 
 <script>
@@ -754,12 +976,42 @@ function place(look, own, plan, dw) {
   return boxes;
 }
 
-// A week: `look` (heute, a, b, c), the days, the frame in minutes, the module's own Termine and
-// the plan's, the day's width (`dw`) or the whole width (`width`), the Termin open beside it, and
-// whether its Termine are buttons.
+// What a Termin of the module is in round 2: what one has to attend (and one's own group, chosen
+// in the plan), what one chooses (a group of an event, an option of a choice), what one may add,
+// single dates.
+function kindOf(it) {
+  if (it.type === "group") return it.chosen ? "must" : "wahl";
+  if (it.type === "alt") return "wahl";
+  if (it.type === "extra") return "zusatz";
+  if (it.type === "once") return "once";
+  return "must";
+}
+
+// The classes of a Termin of the module: today's (a lecture or other teaching, single dates, an
+// option, an extra), round 1's, round 2's with the texture chosen for its kind (`tx`).
+function ownClasses(look, it, sel, tx) {
+  const out = ["ev"];
+  if (look === "heute") out.push(it.type === "group" || (!it.type && it.k !== "VL") ? "other" : it.type || "");
+  else if (look === "c2") {
+    const kind = kindOf(it);
+    out.push(kind);
+    if (kind === "wahl") out.push(`tx-${tx.wahl}`);
+    if (kind === "zusatz") out.push(`tz-${tx.zusatz}`);
+  } else out.push(it.type === "group" ? "" : it.type || "");
+  if (sel) out.push("sel");
+  if (it.clash) out.push("clash");
+  return out.filter(Boolean);
+}
+
+const ICON_TICK = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+
+// A week: `look` (heute, a, b, c, c2), the days, the frame in minutes, the module's own Termine and
+// the plan's, the day's width (`dw`) or the whole width (`width`), the Termin open beside it,
+// whether its Termine are buttons, and round 2's textures (`tx`).
 function week(o) {
   const look = o.look, days = o.days || [1, 2, 3, 4, 5], first = o.first ?? 480, last = o.last ?? 960, hour = 48;
-  const pad = look === "c" ? 0 : 14, gap = look === "c" ? 4 : 5, n = days.length;
+  const isC = look === "c" || look === "c2";
+  const pad = isC ? 0 : 14, gap = isC ? 4 : 5, n = days.length;
   const dw = o.dw ?? (o.width - pad - 30 - gap * n) / n;
   const H = (last - first) / 60 * hour, y = (m) => (m - first) / 60 * hour;
   const own = (o.own || []).map((x) => ({ ...x, f: mins(x.f), t: mins(x.t) }));
@@ -776,7 +1028,7 @@ function week(o) {
   const cols = days.map((d, ci) => {
     let html = "";
     if (look === "heute") html += lineAt(first / 60, last / 60 - 1);
-    else if (look !== "c") html += lineAt(first / 60, last / 60);
+    else if (!isC) html += lineAt(first / 60, last / 60);
     if (look === "b") html += `<i class="trk" style="left:${px(dw - strip(dw) - 1)};width:${strip(dw)}px"></i>`;
     const dayOwn = own.filter((x) => x.d === d), dayPlan = inside.filter((x) => x.d === d), dayAfter = after.filter((x) => x.d === d);
     const spills = [];
@@ -785,10 +1037,11 @@ function week(o) {
       const geo = `left:${px(b.x)};width:${px(b.w)};top:${px(top)};height:${px(h)}`;
       if (it.own) {
         const sel = !!it.id && o.sel === it.id;
-        const cls = ["ev", it.type || "", sel ? "sel" : "", it.clash ? "clash" : "", look === "heute" && it.k !== "VL" && !it.type ? "other" : ""].filter(Boolean).join(" ");
+        const cls = ownClasses(look, it, sel, o.tx).join(" ");
         const small = it.small ?? hhmm(it.f);
-        const tip = `${it.what} · Programmierpraktikum · ${DAY[it.d]} ${hhmm(it.f)}–${hhmm(it.t)}${it.room ? " · " + it.room : ""}${it.rhythm ? " · " + it.rhythm : ""}${it.clash ? " · überschneidet sich mit " + it.clash : ""}`;
-        const body = `<span class="l">${esc(it.k)}</span>${h >= 34 ? `<small>${esc(small)}</small>` : ""}${it.clash && look !== "heute" ? '<i class="bang" aria-hidden="true">!</i>' : ""}`;
+        const kind = it.type === "group" ? ` · eine von ${it.of ?? 4} Gruppen${it.chosen ? ", in deinem Plan gewählt" : ""}` : it.type === "alt" ? " · zur Wahl" : it.type === "extra" ? " · freiwillig" : "";
+        const tip = `${it.what} · ${it.mod ?? "Programmierpraktikum"} · ${DAY[it.d]} ${hhmm(it.f)}–${hhmm(it.t)}${it.room ? " · " + it.room : ""}${it.rhythm ? " · " + it.rhythm : ""}${kind}${it.clash ? " · überschneidet sich mit " + it.clash : ""}`;
+        const body = `<span class="l">${esc(it.k)}</span>${h >= 34 ? `<small>${esc(small)}</small>` : ""}${it.clash && look !== "heute" ? '<i class="bang" aria-hidden="true">!</i>' : ""}${look === "c2" && it.chosen ? `<i class="tick">${ICON_TICK}</i>` : ""}`;
         html += o.live && it.id
           ? `<button type="button" class="${cls}" data-id="${it.id}" aria-pressed="${sel}" title="${esc(tip)}" style="${geo}">${body}</button>`
           : `<div class="${cls}" title="${esc(tip)}" style="${geo}">${body}</div>`;
@@ -811,16 +1064,16 @@ function week(o) {
         else if (it.cutB) spills.push({ x: b.x, w: b.w, text: `bis ${hhmm(it.ot)}` });
       }
       if (look === "a" && b.strip && it.cutB) spills.push({ x: b.x - 6, w: b.w + 12, text: hhmm(it.ot) });
-      if (look === "c" && !b.strip) {
+      if (isC && !b.strip) {
         if (it.cutB) spills.push({ x: b.x, w: b.w, text: `bis ${hhmm(it.ot)}` });
         if (it.cutT && b.w >= 66) body = `<span class="nm">${esc(it.n)} <small>· ab ${hhmm(it.of)}</small></span>`;
       }
-      if (look === "c" && b.strip && it.cutB) spills.push({ x: b.x - 6, w: b.w + 12, text: hhmm(it.ot) });
+      if (isC && b.strip && it.cutB) spills.push({ x: b.x - 6, w: b.w + 12, text: hhmm(it.ot) });
       html += `<div class="${cls}" title="${esc(it.tip)}" style="${geo}">${body}</div>`;
     }
     for (const p of dayAfter) {
       next.push(p);
-      if (look === "a" || look === "c") spills.push({ x: 1, w: dw - 2, text: `+ ${p.n} ${hhmm(p.of)}` });
+      if (look === "a" || isC) spills.push({ x: 1, w: dw - 2, text: `+ ${p.n} ${hhmm(p.of)}` });
       if (look === "b") html += `<i class="tip" title="${esc(p.tip)}" style="left:${px(dw - strip(dw) - 1)};width:${strip(dw)}px;top:calc(100% + 3px)"></i>`;
     }
     spills.forEach((s, i) => { html += `<span class="spill" style="left:${px(s.x)};width:${px(s.w)};top:calc(100% + ${3 + i * 12}px)">${esc(s.text)}</span>`; });
@@ -829,7 +1082,7 @@ function week(o) {
   });
 
   const heads = days.map((d, ci) => `<span class="hd" style="grid-column:${ci + 2}">${DAY[d]}</span>`).join("");
-  const lines = look === "c" ? `<div class="lines">${lineAt(first / 60, last / 60)}</div>` : "";
+  const lines = isC ? `<div class="lines">${lineAt(first / 60, last / 60)}</div>` : "";
   const bottom = (look === "heute" ? 12 : 14) + (spillLines ? spillLines * 12 + 2 : 0) + (look === "b" && after.length ? 8 : 0);
   const style = `--n:${n};--dw:${px(dw)};--h:${px(H)};--gap:${gap}px;padding-bottom:${bottom}px`;
   return { html: `<div class="wk wk-${look}${dw < 60 ? " narrow" : ""}" style="${style}">${heads}<div class="hrs">${hours.join("")}</div>${lines}${cols.join("")}</div>`, next };
@@ -853,9 +1106,9 @@ const LEGEND = {
 };
 
 // The module's Termine on a desktop (the module beside the list, 480 px) and a phone.
-const chosen = { a: "do", b: "do", c: "do" };
+const SEL = { a: "do", b: "do", c: "do", c2: "do" };
 function termine(look, width) {
-  const w = week({ look, own: PP, plan: PLAN, width, sel: chosen[look], live: true });
+  const w = week({ look, own: PP, plan: PLAN, width, sel: SEL[look], live: true });
   return `<h4 class="mlabel">Termine <span>WiSe 2026/27</span></h4>${w.html}<p class="lg">${LEGEND[look]}</p>${look === "b" ? onward(w.next, 480, 960) : ""}<p class="note">${ICON_WARN}<span>Überschneidet sich mit: Softwarepraktikum (Fr 11:30)</span></p>`;
 }
 function drawMock(look) {
@@ -868,8 +1121,8 @@ document.addEventListener("click", (e) => {
   const ev = e.target.closest("[data-mock] button.ev[data-id]");
   if (!ev) return;
   const look = ev.closest("[data-mock]").dataset.mock;
-  chosen[look] = chosen[look] === ev.dataset.id ? null : ev.dataset.id;
-  drawMock(look);
+  SEL[look] = SEL[look] === ev.dataset.id ? null : ev.dataset.id;
+  if (look === "c2") drawR2(); else drawMock(look);
   fit();
   const again = document.querySelector(`[data-mock="${look}"] button.ev[data-id="${ev.dataset.id}"]`);
   if (again) again.focus({ preventScroll: true });
@@ -908,6 +1161,106 @@ function drawCases() {
   }).join("");
 }
 
+// ---------- Round 2 ----------
+// The textures chosen above the week, and the groups chosen in the plan (none: PP is not in it).
+const r2 = { chosen: new Set(), wahl: "schraffur", zusatz: "punkte" };
+const GROUP_ORDER = ["mo", "mi", "do", "fr"];
+
+// PP with its Praktika as the four groups they are, those chosen in the plan full; a chosen group
+// that meets the plan clashes with what it meets.
+function r2Week() {
+  const own = PP.map((x) => (x.k === "Prak" ? { ...x, type: "group", of: 4, chosen: r2.chosen.has(x.id) } : { ...x }));
+  const plan = PLAN.map((p) => ({ ...p }));
+  for (const o of own.filter((x) => x.chosen)) {
+    for (const p of plan) {
+      if (p.d === o.d && mins(p.f) < mins(o.t) && mins(p.t) > mins(o.f)) { p.clash = true; o.clash = p.full; }
+    }
+  }
+  return { own, plan };
+}
+
+// The line under the week: what of the kinds is in it, and the plan.
+function legend2(own, plan) {
+  const kinds = new Set(own.map(kindOf)), mine = own.some((x) => x.chosen);
+  const parts = [];
+  if (kinds.has("must")) parts.push(`<span><i class="sw sw-must"></i>${mine ? "Pflicht und deine Gruppe" : "Pflicht"}</span>`);
+  if (kinds.has("once")) parts.push('<span><i class="sw sw-once"></i>Einzeltermine</span>');
+  if (kinds.has("wahl")) parts.push(`<span><i class="sw sw-wahl tx-${r2.wahl}"></i>Wahl, eine der Gruppen</span>`);
+  if (kinds.has("zusatz")) parts.push(`<span><i class="sw sw-zusatz tz-${r2.zusatz}"></i>Zusatz, freiwillig</span>`);
+  if (plan.length) parts.push('<span><i class="sw sw-ground"></i>Darunter: dein Stundenplan</span>');
+  return parts.join("");
+}
+
+function termine2(own, plan, width) {
+  const w = week({ look: "c2", own, plan, width, sel: SEL.c2, live: true, tx: r2 });
+  const clashes = own.filter((x) => x.clash).sort((a, b) => a.d - b.d).map((x) => `${x.clash} (${DAY[x.d]} ${x.f})`);
+  const note = clashes.length ? `<p class="note">${ICON_WARN}<span>Überschneidet sich mit: ${esc(clashes.join(", "))}</span></p>` : "";
+  return `<h4 class="mlabel">Termine <span>WiSe 2026/27</span></h4>${w.html}<p class="lg">${legend2(own, plan)}</p>${note}`;
+}
+
+// Every kind side by side, made up: a lecture and a short exercise one has to attend, a lecture
+// on three days, an exercise of two groups (one of them chosen), a tutorial to add.
+const EX = { mod: "ein Beispielmodul" };
+const ARTEN2 = [
+  { d: 1, f: "09:15", t: "10:45", k: "VL", what: "Vorlesung", ...EX },
+  { d: 1, f: "11:00", t: "11:45", k: "Ü", what: "Übung", ...EX },
+  { d: 2, f: "09:15", t: "11:45", k: "VL", what: "Vorlesung an drei Tagen", type: "once", small: "3 Termine", ...EX },
+  { d: 3, f: "09:15", t: "10:45", k: "Ü", what: "Übung", type: "group", of: 2, ...EX },
+  { d: 3, f: "11:00", t: "11:45", k: "+ Tut", what: "Tutorium", type: "extra", ...EX },
+  { d: 4, f: "09:15", t: "10:45", k: "Ü", what: "Übung", type: "group", of: 2, chosen: true, ...EX },
+];
+function arten2() {
+  const w = week({ look: "c2", days: [1, 2, 3, 4], first: 540, last: 720, dw: 66, own: ARTEN2, plan: [], tx: r2 });
+  const lg = `<span><i class="sw sw-must"></i>Pflicht</span><span><i class="sw sw-once"></i>Einzeltermine</span><span><i class="sw sw-wahl tx-${r2.wahl}"></i>Wahl</span><span><i class="sw-tick">${ICON_TICK}</i>deine Gruppe</span><span><i class="sw sw-zusatz tz-${r2.zusatz}"></i>Zusatz</span>`;
+  return `<h4 class="mlabel">Alle Arten <span>Beispiel</span></h4>${w.html}<p class="lg">${lg}</p>`;
+}
+
+const G = (x, more = {}) => ({ ...x, type: "group", of: 4, ...more });
+const CASES2 = [
+  { title: "Eine Gruppe zur selben Zeit wie der Plan", text: "Mi 11:30: eine der vier Praktikumsgruppen und die Übung von ThI. Die Gruppe ist schraffiert, ThI schaut rechts heraus. Heute ein leerer Rahmen daneben.", days: [3], first: 660, last: 840, own: [G(P.mi)], plan: [pl(3, "11:30", "13:00", "ThI", THI, "Übung")] },
+  { title: "Offen neben der Woche", text: "Do 11:30, die Gruppe, die in der Termin-Ansicht daneben offen ist: ein Ring mit Abstand, die Karte hebt sich ab. Heute grün umrandet.", days: [4], first: 660, last: 840, own: [G(P.do)], plan: [PLAN[5]], sel: "do" },
+  { title: "Deine Gruppe", text: "Stünde das PP mit der Gruppe am Montag in deinem Plan: Montag voll mit ✓, Mittwoch bleibt schraffiert. Heute sehen beide gleich aus.", days: [1, 3], first: 660, last: 840, own: [G(P.mo, { chosen: true }), G(P.mi)], plan: [pl(3, "11:30", "13:00", "ThI", THI, "Übung")] },
+  { title: "Deine Gruppe im Konflikt", text: "Mit der Gruppe am Donnerstag: voll und rot, denn ThI hat dort Vorlesung.", days: [4], first: 660, last: 840, own: [G(P.do, { chosen: true, clash: THI })], plan: [pl(4, "11:30", "13:00", "ThI", THI, "Vorlesung", { clash: true })] },
+  { title: "Pflicht im Konflikt", text: "Fr 11:30: Die Vorlesung ist Pflicht und überschneidet sich mit dem Praktikum des Softwarepraktikums. Heute ein roter Rahmen um die Vorlesung.", days: [5], first: 660, last: 840, own: [P.vl], plan: [pl(5, "11:30", "13:00", "SWP", SWP, "Praktikum", { clash: true })] },
+  { title: "Teilweise", ex: true, text: "Eine Vorlesung 09:15–10:45 und eine Übung des Plans 10:00–11:30: Neben der Karte schaut die Übung rechts heraus, darunter liegt sie in voller Breite.", days: [2], first: 540, last: 720, own: [{ d: 2, f: "09:15", t: "10:45", k: "VL", what: "Vorlesung", ...EX }], plan: [pl(2, "10:00", "11:30", "EvS", "Entwicklung von Softwaresystemen", "Übung")] },
+  { title: "Zwei Module zugleich", ex: true, text: "Läge auch das Projekt des Softwarepraktikums (Mi 11:30) im Plan: ein Streifen, beide Namen.", days: [3], first: 660, last: 840, own: [G(P.mi)], plan: [pl(3, "11:30", "13:00", "ThI", THI, "Übung"), pl(3, "11:30", "13:00", "SWP", SWP, "Projekt")] },
+  { title: "Abgeschnitten unten", text: "Mo: Das Tutorium von ThI geht bis 17:00, die Woche endet um 16:00. Die Kante ist gerissen, die Uhrzeit steht darunter. Heute sieht es aus wie eine halbe Stunde.", days: [1], first: 780, last: 960, own: [], plan: [PLAN[0], PLAN[1]] },
+  { title: "Abgeschnitten oben", ex: true, text: "Ein Modul des Plans um 07:30–09:00. Die Woche beginnt um 8:00, weil das Modul erst um 09:15 anfängt.", days: [2], first: 480, last: 660, own: [{ d: 2, f: "09:15", t: "10:45", k: "VL", what: "Vorlesung", ...EX }], plan: [pl(2, "07:30", "09:00", "TI", "Technische Informatik", "Labor")] },
+  { title: "Ganz außerhalb", ex: true, text: "Wäre Allgemeine BWL I dein Anwendungsfach: Ihre Übung Di 17:30–19:00 steht unter der Woche. Heute fehlt sie ohne Zeichen.", days: [2], first: 780, last: 960, own: [], plan: [PLAN[3], pl(2, "17:30", "19:00", "ABWL1", "Allgemeine BWL I", "Übung")] },
+  { title: "Am Handy", text: "Mi und Do bei 53 px je Tag (ein Handy von 360 px): Die Gruppe behält 37 px, genug für „Prak“ und die Uhrzeit.", days: [3, 4], first: 660, last: 840, dw: 53, own: [G(P.mi), G(P.do)], plan: [PLAN[4], PLAN[5]] },
+];
+function drawCases2() {
+  document.getElementById("cases2").innerHTML = CASES2.map((c) => {
+    const figs = [["heute", "Heute"], ["c2", "Zweite Runde"]].map(([look, name]) => {
+      const w = week({ look, days: c.days, first: c.first, last: c.last, dw: c.dw ?? 74, own: c.own, plan: c.plan, sel: c.sel, tx: r2 });
+      return `<figure><figcaption>${name}</figcaption>${w.html}</figure>`;
+    }).join("");
+    return `<article class="case${c.days.length > 1 ? " wide" : ""}"><div><h3>${esc(c.title)}</h3><p>${c.ex ? '<span class="ex">Beispiel</span>' : ""}${esc(c.text)}</p></div><div class="row">${figs}</div></article>`;
+  }).join("");
+}
+
+function drawR2() {
+  const { own, plan } = r2Week();
+  document.querySelector('[data-mock="c2"]').innerHTML = `
+    <figure class="frame"><div class="desk">${termine2(own, plan, 440)}</div><figcaption><b>Am Rechner</b> · das Modul neben der Liste, 480 px</figcaption></figure>
+    <figure class="frame"><div class="phone"><div class="scr">${termine2(own, plan, 360)}</div></div><figcaption><b>Am Handy</b> · das Sheet des Moduls, 390 px breit</figcaption></figure>
+    <figure class="frame"><div class="desk arten">${arten2()}</div><figcaption><b>Alle Arten</b> · ausgedacht, ein Tag 66 px</figcaption></figure>`;
+  drawCases2();
+  document.querySelectorAll("#ctl2 [data-ctl] button").forEach((b) => {
+    const ctl = b.parentElement.dataset.ctl, v = b.dataset.v;
+    b.setAttribute("aria-pressed", String(ctl === "chosen" ? r2.chosen.has(v) : r2[ctl] === v));
+  });
+  const n = GROUP_ORDER.filter((k) => r2.chosen.has(k)).length;
+  document.getElementById("chosen-note").textContent = n ? `als stünde das PP mit ${n === 1 ? "dieser Gruppe" : "diesen Gruppen"} in deinem Plan` : "keine, denn das PP steht nicht in deinem Plan";
+}
+document.querySelectorAll("#ctl2 [data-ctl] button").forEach((b) => b.addEventListener("click", () => {
+  const ctl = b.parentElement.dataset.ctl, v = b.dataset.v;
+  if (ctl === "chosen") { if (r2.chosen.has(v)) r2.chosen.delete(v); else r2.chosen.add(v); }
+  else r2[ctl] = v;
+  drawR2();
+  fit();
+}));
+
 // The theme: the system's, or light or dark by choice (data-theme on the root).
 const root = document.documentElement;
 function setTheme(v) {
@@ -923,6 +1276,7 @@ setTheme(savedTheme);
 // A device wider than its desk (a phone looking at the page) is drawn smaller, whole.
 function fit() {
   document.querySelectorAll(".stage").forEach((stage) => {
+    if (!stage.clientWidth) return;
     const css = getComputedStyle(stage);
     const room = stage.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight);
     stage.querySelectorAll(".frame").forEach((frame) => {
@@ -934,6 +1288,10 @@ function fit() {
 }
 ["a", "b", "c"].forEach(drawMock);
 drawCases();
+drawR2();
 fit();
 window.addEventListener("resize", fit);
+const round1 = document.getElementById("runde1");
+round1.addEventListener("toggle", fit);
+document.querySelectorAll('a[href="#runde1"]').forEach((a) => a.addEventListener("click", () => { round1.open = true; }));
 </script>

@@ -242,6 +242,23 @@ pub struct Texts {
     pub choice_more: fn(usize) -> String,
     /// „für Bauingenieurwesen, Maschinenbau": whom QIS lists an option for, in its line and slot.
     pub choice_for: fn(&str) -> String,
+    /// The line under a week with the plan beside it (folia/design/kalender/raster.html): what one
+    /// has to attend, full in the module's colour …
+    pub legend_must: &'static str,
+    /// … with one's own group, chosen in the plan …
+    pub legend_must_mine: &'static str,
+    /// … single dates, full and lighter …
+    pub legend_once: &'static str,
+    /// … what one chooses, hatched: the groups of an event …
+    pub legend_groups: &'static str,
+    /// … or the options of a choice …
+    pub legend_choice: &'static str,
+    /// … what one may add, dotted …
+    pub legend_extra: &'static str,
+    /// … and the plan, the ground under it all.
+    pub legend_plan: &'static str,
+    /// In the tooltip of one's own group: it is ticked in the plan.
+    pub group_chosen: &'static str,
     /// An option without a time of the week, where the line over the week names its times.
     pub choice_no_time: &'static str,
     /// The line over the week. One event more than once, each for other programs: „Die Übung gibt
@@ -437,6 +454,14 @@ pub const DE: Texts = Texts {
     choice_extras: "Zusätzlich, freiwillig",
     choice_more: |n| format!("{n} weitere anzeigen"),
     choice_for: |programs| format!("für {programs}"),
+    legend_must: "Pflicht",
+    legend_must_mine: "Pflicht und deine Gruppe",
+    legend_once: "Einzeltermine",
+    legend_groups: "Wahl, eine der Gruppen",
+    legend_choice: "Wahl",
+    legend_extra: "Zusatz, freiwillig",
+    legend_plan: "Darunter: dein Stundenplan",
+    group_chosen: "in deinem Plan gewählt",
     choice_no_time: "ohne Termin",
     choice_program: |n, noun| format!("{} {} gibt es {}, je für andere Studiengänge. Du besuchst {}.", capital(de_the(noun.gender)), noun.one, de_times(n), de_pick(1, noun.gender)),
     choice_setup: "Mit deinem Studiengang in „Mein Studium“ zeigt Betula nur, was QIS für ihn nennt.",
@@ -614,6 +639,14 @@ pub const EN: Texts = Texts {
     choice_extras: "Additional, optional",
     choice_more: |n| format!("Show {n} more"),
     choice_for: |programs| format!("for {programs}"),
+    legend_must: "Required",
+    legend_must_mine: "Required and your group",
+    legend_once: "Single dates",
+    legend_groups: "Choice, one of the groups",
+    legend_choice: "Choice",
+    legend_extra: "Extra, optional",
+    legend_plan: "Underneath: your timetable",
+    group_chosen: "chosen in your plan",
     choice_no_time: "no date",
     choice_program: |n, noun| format!("The {} is held {}, each for other programmes. You attend one.", noun.one, en_times(n)),
     choice_setup: "With your degree programme set up in “My studies”, Betula shows only what QIS names for it.",

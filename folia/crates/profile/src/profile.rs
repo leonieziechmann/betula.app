@@ -13,7 +13,7 @@
 //!   können wir bei der Profile page die links wieder machen"): that Betula is not the BTU's, the
 //!   Impressum and the Datenschutz (§ 5 DDG: every page leads to the profile page, the rail and the
 //!   head of a phone's page), the versions and how fresh the data is (`About`). The start page
-//!   keeps its ground.
+//!   and the pages about Betula keep their ground.
 //! - A profile deleted or emptied here comes back with „Rückgängig" until the page is left.
 //! - A switch, a profile made, a file taken over answer in the next frame (R21): the sidebar marks
 //!   the profile at once, every store reads its texts after.
@@ -579,8 +579,8 @@ fn Settings() -> impl IntoView {
     }
 }
 
-/// „Über diese Seite": what the ground at the end of every page held until 2026-11-03, now that the
-/// start page alone has one (`folia_shell::ground`) — that Betula is not the BTU's, the Impressum and
+/// „Über diese Seite": what the ground at the end of every page held until 2026-11-03, now that only
+/// the start page and the pages about Betula have one (`folia_shell::ground`) — that Betula is not the BTU's, the Impressum and
 /// the Datenschutz, the versions of Folia and Radix, how fresh the data is and where it comes from.
 /// The data's facts once they are there; the rest stands from the first frame.
 #[component]

@@ -231,8 +231,8 @@ pub fn App() -> impl IntoView {
                     <ui::ToTop/>
                 </main>
             </div>
-            // The ground a phone shows under the start page, and under no other (app.css), with
-            // who took the start page's photo.
+            // The ground a phone shows under a page that has one of its own (app.css), with who
+            // took the start page's photo while it is in front.
             <Ground credit=ViewFn::from(|| view! { <Credits/> })/>
             <nav class="bottomnav" aria-label=t.app.navigation data-region="nav" data-stop="x"><NavItems/></nav>
             // What comes and goes over the page, in a frame of its own that has no box (app.css,
