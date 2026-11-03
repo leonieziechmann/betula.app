@@ -860,6 +860,8 @@ mod browser {
     use leptos::wasm_bindgen::{JsCast, JsValue};
     use leptos::web_sys;
 
+    use leptos_router::NavigateOptions;
+
     use super::{Pending, Via, REPLAY};
 
     pub(super) fn now() -> f64 {
@@ -1064,9 +1066,24 @@ mod browser {
             let Some(to_path) = crate::i18n::app_path(&pathname) else { return };
             let Some((from_path, from_search)) = here(&pending) else { return };
             let to = format!("{to_path}{}{}", target.search(), target.hash());
-            let Some(change) = super::change(&from_path, &from_search, to_path, &target.search(), folia_design::nav::is_phone()) else { return };
-            ev.prevent_default();
             let scroll = !link.has_attribute("noscroll") && !link.has_attribute("data-noscroll");
+            // A pick within what is shown (`data-pick`: the event, the group, the Termin or the
+            // date in a Termin's view) is on a phone no step of the history: it takes the current
+            // entry's place, whatever it changes, so that Back leaves what is shown instead of
+            // going back through every pick (owner, 2026-11-03: „die Auswahl von einem Termin
+            // sollte auch nicht beim Handy in die back history. Das sind nämlich nur buttons und
+            // keine Aktionen").
+            let pick = folia_design::nav::is_phone() && link.has_attribute("data-pick");
+            let Some(change) = super::change(&from_path, &from_search, to_path, &target.search(), folia_design::nav::is_phone()) else {
+                // What the page does itself (another date of a Termin's own page): the router's
+                // step, in place of the current entry where it is a pick.
+                if pick {
+                    ev.prevent_default();
+                    pending.go(&to, NavigateOptions { replace: true, scroll, ..Default::default() });
+                }
+                return;
+            };
+            ev.prevent_default();
             // On a phone a page of another tab is a change of tabs, and the first use of a page come
             // to from outside lays under it what lies above it (`nav::steer`).
             if crate::nav::steer(pending, &from_path, &from_search, &to) {
@@ -1090,7 +1107,7 @@ mod browser {
             // one step for every pause (`Pending::in_place`). A link that only shows the same
             // otherwise (`data-replace`: „Vergleichen" of the plan's choice in focus) takes the
             // current entry's place too, so that „Fertig" after it is a step back.
-            let beside = pending.in_place(change, &from_path, &from_search, &to) || link.has_attribute("data-replace");
+            let beside = pending.in_place(change, &from_path, &from_search, &to) || link.has_attribute("data-replace") || pick;
             pending.start(to, Via::Link { replace: closing || beside, scroll }, change, false);
         });
         // Back and Forward: the browser has moved already, the router hears of it a frame later.

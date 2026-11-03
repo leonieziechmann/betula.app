@@ -4242,6 +4242,11 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
    period), on the right the module and who teaches, which no pick changes, and the source
    (folia/design/termin, „Die Seite"); one column where it is narrow. */
 .is-termin.tm-page { container: termin / inline-size; width: 100%; max-width: 1120px; margin: 0 auto; }
+/* As a page it is as tall as what it holds and the page scrolls: its box scrolls nothing of its
+   own, so it is no scroller. As one (`.scroll`, `overscroll-behavior` contain) it kept a finger's
+   swipe on a phone from the page, which did not move (owner, 2026-11-03: „ich kann aber auf der
+   Termin Page immer noch nicht scrollen"). */
+.is-termin.tm-page > .scroll { overflow: visible; overscroll-behavior: auto; }
 .is-termin.tm-page .hero h2.tm-title { font-size: 24px; }
 .is-termin.tm-page .tm-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .is-termin.tm-page .tm-col.tm-look { gap: 22px; }
