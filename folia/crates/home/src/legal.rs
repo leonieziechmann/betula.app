@@ -23,7 +23,8 @@
 //!   `myprogram`, `profiles` and the profile page's backup file, `tabs`, what the finder compares in `pages/catalog`, `assets/enhance.js`,
 //!   `assets/boot.js`, `assets/sw.js`; the semantic search's model, `folia/crates/server/src/semantic.rs`);
 //! - „Kalender-Abo": `folia_calendar::subscription` (what a code carries), `folia/crates/server/src/api.rs`,
-//!   the ways to subscribe in `pages/studyplan/export.rs`;
+//!   the ways to subscribe in `pages/studyplan/export.rs`, what the file holds beyond the feed (the
+//!   notes at Termine, `folia_timetable::export`);
 //! - „Stundenplan teilen": `folia_calendar::share` (what a code carries), the page's tags and
 //!   its picture (`pages/studyplan/mod.rs`, `folia/crates/server/src/api.rs`), the link and the offer
 //!   (`pages/studyplan/share.rs`), Folia's log without the code (`access_log` in `folia/crates/server/src/main.rs`);
@@ -57,7 +58,7 @@ const AUTHORITY_URL: &str = "https://www.lda.brandenburg.de/";
 const AUTHORITY_SITE: &str = "www.lda.brandenburg.de";
 
 /// When the privacy notice last changed: day, month, year.
-const PRIVACY_AS_OF: (u32, u32, i32) = (26, 10, 2026);
+const PRIVACY_AS_OF: (u32, u32, i32) = (3, 11, 2026);
 
 /// The language whose text counts. A page in any other language is a translation and links to
 /// the page in this one (`legal::Texts::translated`).
@@ -431,8 +432,10 @@ mod tests {
         }
         let privacy = |locale| article(Legal::Privacy, &i18n::texts(locale).legal).to_html().replace("<!>", "");
         let (de, en) = (privacy(Locale::De), privacy(Locale::En));
-        assert!(de.contains("<h1>Datenschutzerklärung</h1>") && de.contains("Stand: 26. Oktober 2026"), "{de}");
-        assert!(en.contains("<h1>Privacy policy</h1>") && en.contains("As of 26 October 2026") && en.contains(">Datenschutzerklärung</a>"), "{en}");
+        assert!(de.contains("<h1>Datenschutzerklärung</h1>") && de.contains("Stand: 3. November 2026"), "{de}");
+        assert!(en.contains("<h1>Privacy policy</h1>") && en.contains("As of 3 November 2026") && en.contains(">Datenschutzerklärung</a>"), "{en}");
+        // What the codes of a subscription and of a shared link carry, as they carry it.
+        assert!(de.contains("deine Änderungen an Terminen aus QIS: Tag, Zeit und den Raum, den du eingibst") && de.contains("deine Notizen und deine eigenen Termine enthält er nicht"), "{de}");
         assert!(en.contains("Art. 6(1)(f) GDPR (DSGVO)") && !en.contains("Rechtsgrundlage"), "{en}");
     }
 }

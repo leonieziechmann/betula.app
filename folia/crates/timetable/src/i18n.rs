@@ -62,6 +62,10 @@ pub struct Texts {
     pub feed_one_of: fn(&str, usize) -> String,
     /// A room note QIS gives for the entry's date: „Hinweis: Raumwechsel".
     pub feed_note: fn(&str) -> String,
+    /// A date the student changed („Von dir geändert"), and the student's note at a Termin
+    /// („Deine Notiz: Folien vorher lesen"), in the file alone.
+    pub feed_changed: &'static str,
+    pub feed_my_note: fn(&str) -> String,
     /// The group QIS names: „Gruppe: 1-Gruppe".
     pub feed_group: fn(&str) -> String,
     /// A range QIS does not state, taken from the lecture period (first and last day, written
@@ -166,6 +170,8 @@ pub const DE: Texts = Texts {
     feed_lecturers: |names| format!("Lehrende: {names}"),
     feed_one_of: |label, n| format!("{label} · 1 von {n}"),
     feed_note: |note| format!("Hinweis: {note}"),
+    feed_changed: "Von dir geändert",
+    feed_my_note: |note| format!("Deine Notiz: {note}"),
     feed_group: |group| format!("Gruppe: {group}"),
     feed_assumed: |first, last| format!("Zeitraum in QIS nicht angegeben; angenommen: Vorlesungszeit {first}–{last}"),
     feed_choose: |n, groups| format!("Eine von {n} {groups}; in Betula wählen"),
@@ -229,6 +235,8 @@ pub const EN: Texts = Texts {
     feed_lecturers: |names| format!("Lecturers: {names}"),
     feed_one_of: |label, n| format!("{label} · 1 of {n}"),
     feed_note: |note| format!("Note: {note}"),
+    feed_changed: "Changed by you",
+    feed_my_note: |note| format!("Your note: {note}"),
     feed_group: |group| format!("Group: {group}"),
     feed_assumed: |first, last| format!("Period not stated in QIS; assumed: lecture period {first}–{last}"),
     feed_choose: |n, groups| format!("One of {n} {groups}; choose in Betula"),

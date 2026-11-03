@@ -36,6 +36,14 @@
 //! own (`Event::own`): they reach a calendar with a step of their own, „Eigene Termine mitnehmen"
 //! (folia/design/kalender/termine.html), whose subscription code carries them.
 //!
+//! A Termin of QIS the student changed (`crate::change`) is in the calendar as the page shows it,
+//! each date it changes saying so („Von dir geändert"). Changed for every date, the series is the
+//! change's; a date a change from a day on or of one date moves to another day or time stands in
+//! its series for the date it was, by its RECURRENCE-ID, and keeps its UID, so a subscribed
+//! calendar moves the date instead of adding one. The student's note at a Termin is in the file
+//! the browser makes alone („nur für dich, auch in der Datei"): a code carries none, so there the
+//! two calendars differ.
+//!
 //! A subscription's code carries the semester, the planned modules and what is hidden. It keeps
 //! only what the loaded timetable has, so hide rules of Termine QIS has since removed do not make
 //! the code longer, and such a removal does not make a subscription stale either.
@@ -50,12 +58,13 @@
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 
+use folia_calendar::change::Scope;
 use folia_calendar::day::Day;
 use folia_calendar::kind::{EventKind, KindSet};
 use folia_calendar::rowkey::{fingerprint, RowKey};
 use folia_calendar::select::{Selection, TownChoice};
 use folia_calendar::semester::SemesterKey;
-use folia_calendar::subscription::{date_of, date_value, Subscription};
+use folia_calendar::subscription::{date_of, date_value, CodeChange, Subscription};
 use folia_locale::Locale;
 use folia_model::ids::is_program_id;
 use folia_model::labels::{Code, Rhythm};
@@ -66,6 +75,7 @@ use crate::exam_reading::Reason;
 use crate::exams::{Exam, ExamRow, ExamShape};
 use crate::i18n::Texts;
 use crate::ics::{self, Calendar, Entry, Repeat, Rule, When};
+use crate::change::ChangeState;
 use crate::model::{Event, Row, Timetable};
 use crate::occur::{Every, Skipped};
 use crate::views::{kind_and_title, kind_short, short_title, type_text};
@@ -205,6 +215,18 @@ pub fn subscription_of(
             .filter(|(row, _)| known.as_ref().is_none_or(|known| known.rows.contains(row)))
             .filter_map(|(row, day)| date_value(key, *row, *day))
             .collect(),
+        // What the page shows changed („Änderungen an Terminen aus QIS gehen immer mit",
+        // question 6): a change it applies, not one QIS agrees with or whose Termin is gone.
+        changes: selection
+            .changes
+            .iter()
+            .filter(|change| {
+                table.is_none_or(|table| {
+                    table.changes.iter().any(|changed| (changed.change.key, changed.change.scope) == (change.key, change.scope) && matches!(changed.state, ChangeState::Holds | ChangeState::Differs))
+                })
+            })
+            .filter_map(|change| CodeChange::of(key, change))
+            .collect(),
     };
     (subscription, other)
 }
@@ -249,6 +271,7 @@ pub fn same_subscription(stored: &str, current: &Subscription, table: &Timetable
             rows(&s.chosen_rows),
             TownChoice::from_code(s.town),
             dates,
+            s.changes.iter().filter(|change| RowKey::unpack(change.key).is_some_and(|key| known.rows.contains(&key))).cloned().collect::<BTreeSet<CodeChange>>(),
         )
     };
     seen(&stored) == seen(current)
@@ -302,6 +325,11 @@ enum Part {
     Dropped,
     /// A note of the entry's date.
     Note,
+    /// That the student changed the date (`change`).
+    Changed,
+    /// The student's note at the Termin (`Timetable::notes`): in the file the browser makes, never
+    /// in a subscription, whose code carries none.
+    MyNote,
 }
 
 /// A line of a description and where it stands.
@@ -546,9 +574,22 @@ fn teaching(t: &Timetable, event: &Event, names: &Names, locale: Locale) -> Vec<
                 true => (texts.feed_one_of)(&label, event.visible_options().len()),
                 false => label.clone(),
             };
-            let lines: Vec<Line> = termin.iter().cloned().chain(row_lines(t, event, row, option, locale)).collect();
+            let mut lines: Vec<Line> = termin.iter().cloned().chain(row_lines(t, event, row, option, locale)).collect();
+            if row.changed.is_some() {
+                lines.push((Part::Changed, texts.feed_changed.to_string()));
+            }
+            if let Some(note) = row.key.and_then(|key| t.notes.get(&key)) {
+                lines.push((Part::MyNote, (texts.feed_my_note)(note)));
+            }
             let place = place(&row.date, locale);
             let key = key_text(&event.id, row.key, &row.date);
+            // A date a change moved to another day or time stands for the date of the series it
+            // was, within its week (`RowChange::shift`), and keeps its UID: one of a change from
+            // a day or of one date; of a series of single dates also one of every date.
+            let moved_from = |day: Day| -> Option<Day> {
+                let change = row.changed.as_ref().filter(|change| change.moves && (change.scope != Scope::All || row.date.series.is_some()))?;
+                Some(day.plus(-change.shift))
+            };
             for day in &row.occ.days {
                 let when = match times {
                     Some((from, to)) => When::Timed { day: *day, from, to },
@@ -560,8 +601,9 @@ fn teaching(t: &Timetable, event: &Event, names: &Names, locale: Locale) -> Vec<
                     .iter()
                     .filter(|(on, _)| on == day)
                     .map(|(_, note)| (Part::Note, (texts.feed_note)(note.trim())));
+                let instead_of = moved_from(*day);
                 let entry = Entry {
-                    uid: uid(&key, *day),
+                    uid: uid(&key, instead_of.unwrap_or(*day)),
                     when,
                     repeat: None,
                     overrides: Vec::new(),
@@ -572,6 +614,7 @@ fn teaching(t: &Timetable, event: &Event, names: &Names, locale: Locale) -> Vec<
                     categories: categories.clone(),
                     tentative: row.occ.assumed || option,
                     transparent: times.is_none(),
+                    instead_of,
                 };
                 dates.add(entry, place.clone(), lines.iter().cloned().chain(notes).collect());
             }
@@ -649,40 +692,53 @@ fn gaps(t: &Timetable, event: &Event, first: i64, held: &BTreeSet<Day>, rule: Op
 /// as they are where there is one, where no rule makes them, and where one of them is not of the
 /// rule, begins at another time, or is another number of whole days.
 fn series_of(uid: String, rule: Option<Rule>, mut dates: Vec<Entry>) -> Vec<Entry> {
-    dates.sort_by(|a, b| start(&a.when).cmp(&start(&b.when)).then_with(|| a.uid.cmp(&b.uid)));
-    let (Some(rule), Some(first), Some(last)) = (rule, dates.first(), dates.last()) else {
-        return dates;
+    // A date a change moved stands in the series for the date it was (`Entry::instead_of`); where
+    // every date moved (the change holds for them all), the moved dates are the series.
+    if dates.iter().all(|date| date.instead_of.is_some()) {
+        for date in &mut dates {
+            date.instead_of = None;
+        }
+    }
+    dates.sort_by(|a, b| (a.replaces(), start(&a.when).1).cmp(&(b.replaces(), start(&b.when).1)).then_with(|| a.uid.cmp(&b.uid)));
+    let (Some(rule), Some(first)) = (rule, dates.iter().find(|date| date.instead_of.is_none()).cloned()) else {
+        return without_moves(dates);
     };
-    let (first_day, last_day) = (start(&first.when).0, start(&last.when).0);
-    let fits = dates.iter().all(|date| rule.makes(first_day, start(&date.when).0) && same_shape(first.when, date.when));
+    let first_day = dates.iter().map(Entry::replaces).min().unwrap_or_else(|| first.when.day());
+    let last_day = dates.iter().map(Entry::replaces).max().unwrap_or_else(|| first.when.day());
+    let fits = dates.iter().all(|date| rule.makes(first_day, date.replaces()) && (date.instead_of.is_some() || same_shape(first.when, date.when)));
     if dates.len() < 2 || !fits {
-        return dates;
+        return without_moves(dates);
     }
     let forms: Vec<Entry> = dates.iter().map(form).collect();
-    // How many dates say each, and the first that does.
+    // How many of the dates not moved say each, and the first that does: the series says that.
     let mut said: BTreeMap<&Entry, (usize, usize)> = BTreeMap::new();
-    for (index, own) in forms.iter().enumerate() {
+    for (index, own) in forms.iter().enumerate().filter(|(index, _)| dates.get(*index).is_some_and(|date| date.instead_of.is_none())) {
         said.entry(own).or_insert((0, index)).0 += 1;
     }
     let most = said.values().max_by_key(|(count, first)| (*count, Reverse(*first))).map(|(_, first)| *first);
     let Some(master) = most.and_then(|first| forms.get(first)).cloned() else {
-        return dates;
+        return without_moves(dates);
     };
-    let held: BTreeSet<Day> = dates.iter().map(|date| start(&date.when).0).collect();
+    let held: BTreeSet<Day> = dates.iter().map(Entry::replaces).collect();
     let except = rule.days(first_day, last_day).into_iter().filter(|day| !held.contains(day)).collect();
     let overrides = dates
         .into_iter()
         .zip(&forms)
-        .filter(|(_, own)| **own != master)
+        .filter(|(date, own)| date.instead_of.is_some() || **own != master)
         .map(|(date, _)| Entry { uid: uid.clone(), ..date })
         .collect();
     let when = master.when.on(first_day);
-    vec![Entry { uid, when, repeat: Some(Repeat { rule, until: last_day, except }), overrides, ..master }]
+    vec![Entry { uid, when, repeat: Some(Repeat { rule, until: last_day, except }), overrides, instead_of: None, ..master }]
+}
+
+/// Dates as they are, where they make no series: a moved one is a date of its own then.
+fn without_moves(dates: Vec<Entry>) -> Vec<Entry> {
+    dates.into_iter().map(|date| Entry { instead_of: None, ..date }).collect()
 }
 
 /// A date's entry without its UID and its day: what a series compares its dates by.
 fn form(date: &Entry) -> Entry {
-    Entry { uid: String::new(), when: date.when.on(Day(0)), ..date.clone() }
+    Entry { uid: String::new(), when: date.when.on(Day(0)), instead_of: None, ..date.clone() }
 }
 
 /// Whether two dates can be of one series: both begin at one time of their days, or both are the
@@ -912,6 +968,7 @@ fn exam_dates(entries: &mut Entries, exam: &Exam, names: &Names, locale: Locale)
             categories: vec![EventKind::Exam.label(locale).to_string()],
             tentative: row.rank == 2 || exam.retake,
             transparent: matches!(when, When::AllDay { .. }),
+            instead_of: None,
         };
         entries.add(entry, place(&row.date, locale), lines);
     }
@@ -1709,6 +1766,7 @@ mod tests {
                 chosen_rows: vec![rows[5].key().packed()],
                 town: 2,
                 hidden_dates: vec![date_value(t.key, rows[5].key(), d("2026-11-04")).unwrap()],
+                changes: vec![],
             }
         );
         assert_eq!(other, ["FÜS", "0123"]);
@@ -1835,6 +1893,96 @@ mod tests {
         assert!(!same_subscription(&later.code().unwrap(), &current, &t));
         assert!(!same_subscription("", &current, &t));
         assert!(!same_subscription("x", &current, &t));
+    }
+
+    /// A change of the Termin of `row` for `scope` that changes nothing yet, made while QIS says
+    /// what it says.
+    fn change(row: &Fixture, scope: Scope) -> folia_calendar::change::Change {
+        let was = crate::change::qis_values(&semester(), row.key()).unwrap();
+        folia_calendar::change::Change { key: row.key(), scope, weekday: None, time: None, room: None, was, module: row.0.module_id.clone() }
+    }
+
+    fn changed(changes: Vec<folia_calendar::change::Change>) -> Timetable {
+        build(&rows(), &exams(), &[A, B], &two_sws(), &Selection { changes, ..selection() })
+    }
+
+    #[test]
+    fn a_change_of_every_date_is_the_series() {
+        let rows = rows();
+        let all = folia_calendar::change::Change { time: Some((8 * 60, 9 * 60 + 30)), ..change(&rows[0], Scope::All) };
+        let c = calendar(&changed(vec![all]));
+        let lecture = series(&c, &rows[0]);
+        assert_eq!(lecture.when, When::Timed { day: d("2026-10-06"), from: 480, to: 570 });
+        assert_eq!(lecture.repeat, series(&calendar(&semester()), &rows[0]).repeat);
+        assert!(lecture.overrides.is_empty(), "{:?}", lecture.overrides);
+        assert!(lecture.description.as_deref().is_some_and(|text| text.contains("\nVon dir geändert\n")), "{:?}", lecture.description);
+    }
+
+    #[test]
+    fn a_date_a_change_moves_stands_for_the_date_it_was() {
+        let rows = rows();
+        let plain = calendar(&semester());
+        // The lecture of 13.10. on the Wednesday: the series as it was, the date in its stead.
+        let one = folia_calendar::change::Change { weekday: Some(3), ..change(&rows[0], Scope::On(d("2026-10-13"))) };
+        let c = calendar(&changed(vec![one]));
+        let lecture = series(&c, &rows[0]);
+        assert_eq!((lecture.when, &lecture.repeat), (series(&plain, &rows[0]).when, &series(&plain, &rows[0]).repeat));
+        assert_eq!(lecture.overrides.iter().map(|date| (date.when.day(), date.replaces())).collect::<Vec<_>>(), [(d("2026-10-14"), d("2026-10-13"))]);
+        assert!(find_on(&c, &rows[0], "2026-10-13").is_none());
+        let moved = on(&c, &rows[0], "2026-10-14");
+        assert_eq!((moved.when, moved.location.as_deref()), (When::Timed { day: d("2026-10-14"), from: 690, to: 810 }, Some("ZHG/HS.A / ZHG/HS.B")));
+        assert!(moved.description.as_deref().is_some_and(|text| text.contains("Von dir geändert")));
+        assert!(!lecture.description.as_deref().is_some_and(|text| text.contains("Von dir geändert")));
+        assert_eq!(vevents(&c), vevents(&plain) + 1);
+        let text = ics::write(&c);
+        assert!(text.contains("RECURRENCE-ID;TZID=Europe/Berlin:20261013T113000\r\n"), "{text}");
+        assert!(text.contains("DTSTART;TZID=Europe/Berlin:20261014T113000\r\n"));
+        // From 03.11. on at 14:00: every later date in its date's stead, the earlier as they were.
+        let from = folia_calendar::change::Change { time: Some((14 * 60, 15 * 60 + 30)), ..change(&rows[0], Scope::From(d("2026-11-03"))) };
+        let c = calendar(&changed(vec![from]));
+        let lecture = series(&c, &rows[0]);
+        assert_eq!((lecture.when, &lecture.repeat), (series(&plain, &rows[0]).when, &series(&plain, &rows[0]).repeat));
+        assert_eq!(on(&c, &rows[0], "2026-10-27").when, When::Timed { day: d("2026-10-27"), from: 690, to: 810 });
+        assert_eq!(on(&c, &rows[0], "2026-11-10").when, When::Timed { day: d("2026-11-10"), from: 840, to: 930 });
+        assert_eq!(lecture.overrides.len(), 11);
+        assert!(lecture.overrides.iter().all(|date| date.when.day() >= d("2026-11-03") && date.replaces() == date.when.day()));
+        assert!(ics::write(&c).contains("RECURRENCE-ID;TZID=Europe/Berlin:20261110T113000\r\n"));
+        // Moved before the series' first date, it is still the date of the series it was.
+        let block = folia_calendar::change::Change { weekday: Some(2), ..change(&rows[3], Scope::On(d("2026-10-10"))) };
+        let c = calendar(&changed(vec![block]));
+        assert_eq!(on(&c, &rows[3], "2026-10-06").uid, series(&plain, &rows[3]).uid);
+    }
+
+    #[test]
+    fn a_note_is_in_the_file_alone_and_a_change_in_the_code() {
+        let rows = rows();
+        // QIS's room for every date: in the code, and its feed is the page's calendar.
+        let room = folia_calendar::change::Change { room: Some("HG/0.20".into()), ..change(&rows[8], Scope::All) };
+        let mut page_selection = Selection { changes: vec![room.clone()], ..selection() };
+        page_selection.hidden_events.clear();
+        let page = build(&rows, &exams(), &[A, B], &two_sws(), &page_selection);
+        let (code, _) = subscription_of(page.key, &page.modules, None, &page_selection, Some(&page));
+        assert_eq!(code.changes, [folia_calendar::subscription::CodeChange::of(page.key, &room).unwrap()]);
+        let feed = build(&rows, &exams(), &[A, B], &two_sws(), &code.selection());
+        assert_eq!(calendar(&feed), calendar(&page));
+        assert_eq!(series(&calendar(&page), &rows[8]).location.as_deref(), Some("HG/0.20"));
+        // A note: in the file, at every date of its Termin, and not in the code.
+        let noted = Selection { notes: vec![(rows[8].key(), "Folien vorher lesen".into())], ..page_selection.clone() };
+        let with_note = build(&rows, &exams(), &[A, B], &two_sws(), &noted);
+        let file = calendar(&with_note);
+        assert!(series(&file, &rows[8]).description.as_deref().is_some_and(|text| text.contains("\nDeine Notiz: Folien vorher lesen\n")));
+        let (noted_code, _) = subscription_of(with_note.key, &with_note.modules, None, &noted, Some(&with_note));
+        assert_eq!(noted_code, code);
+        assert!(same_subscription(&code.code().unwrap(), &noted_code, &with_note));
+        // QIS has taken the room over: nothing to carry, and the address is the same as without.
+        let mut taken = rows.clone();
+        taken[8].0.date.room_short = Some("HG/0.20".into());
+        let now = build(&taken, &exams(), &[A, B], &two_sws(), &page_selection);
+        let (done, _) = subscription_of(now.key, &now.modules, None, &page_selection, Some(&now));
+        assert!(done.changes.is_empty());
+        // Another change, or one taken back: stale.
+        let (plain, _) = subscription_of(page.key, &page.modules, None, &Selection { changes: vec![], ..page_selection.clone() }, Some(&page));
+        assert!(!same_subscription(&code.code().unwrap(), &plain, &page));
     }
 
     /// Two rows of one Termin as QIS has them for 149467 and 148732: other teachers, rooms, ends

@@ -90,6 +90,10 @@ pub const MAX_CALENDAR_NAME: usize = 40;
 pub const MAX_CALENDAR_MODULES: usize = 60;
 pub const MAX_CALENDAR_TICKS: usize = 200;
 
+/// The most changes of Termine of QIS in one calendar in all its semesters together: what links
+/// bring (`folia_calendar::share::MAX_CHANGES` each), and some to spare.
+pub const MAX_CALENDAR_CHANGES: usize = 40;
+
 /// The largest number of a calendar: two digits keep its lines short.
 const MAX_CALENDAR_ID: u8 = 99;
 
@@ -272,6 +276,9 @@ pub struct Calendar {
     pub chosen: BTreeSet<(SemesterKey, RowKey)>,
     /// Its Termine of one's own, in the order they came (its `t` lines).
     pub own: Vec<Own>,
+    /// The changes of Termine of QIS in it, by semester, Termin and scope (its `x` lines): those
+    /// its link brought (`SharedPlan::changes`), so that its week is its owner's.
+    pub changes: BTreeMap<(SemesterKey, RowKey, Scope), Change>,
 }
 
 /// A Termin of one's own in a semester (`t`): of the plan's calendar (`PlanDoc::own`) or of one of
@@ -297,11 +304,25 @@ impl Calendar {
         self.modules.iter().filter(|(semester, _)| *semester == s).map(|(_, id)| id.clone()).collect()
     }
 
-    /// What it shows of semester `s`: its own ticks and its Termine of one's own, in the town its
-    /// modules are held in.
+    /// What it shows of semester `s`: its own ticks, its Termine of one's own and its changes of
+    /// Termine of QIS, in the town its modules are held in.
     pub fn selection(&self, s: SemesterKey) -> Selection {
         let chosen_rows = self.chosen.iter().filter(|(semester, _)| *semester == s).map(|(_, row)| *row).collect();
-        Selection { chosen_rows, own: own_of_semester(&self.own, s), ..Selection::default() }
+        let changes = self.changes.iter().filter(|((semester, ..), _)| *semester == s).map(|(_, change)| change.clone()).collect();
+        Selection { chosen_rows, own: own_of_semester(&self.own, s), changes, ..Selection::default() }
+    }
+
+    /// Sets a change of a Termin of QIS of semester `s` in place of the one of its Termin and
+    /// scope, when it is one (`stored_change`) and the cap allows it; whether it is in the calendar
+    /// now.
+    fn set_change(&mut self, s: SemesterKey, change: Change) -> bool {
+        let Some(change) = stored_change(change) else { return false };
+        let at = (s, change.key, change.scope);
+        if !self.changes.contains_key(&at) && self.changes.len() >= MAX_CALENDAR_CHANGES {
+            return false;
+        }
+        self.changes.insert(at, change);
+        true
     }
 
     /// Adds a module in semester `s`, within the caps; `false` where nothing changed.
@@ -530,7 +551,7 @@ impl PlanDoc {
                     let id = number(field(1)).and_then(|id| u8::try_from(id).ok());
                     if let Some(id) = id.filter(|id| (1..=MAX_CALENDAR_ID).contains(id) && doc.calendar(*id).is_none() && doc.calendars.len() < MAX_CALENDARS) {
                         let program = Some(field(3)).filter(|program| url::is_program_id(program)).map(str::to_string);
-                        doc.calendars.push(Calendar { id, name: calendar_name(field(4)), view: CalendarView::from_code(field(2)), program, modules: Vec::new(), chosen: BTreeSet::new(), own: Vec::new() });
+                        doc.calendars.push(Calendar { id, name: calendar_name(field(4)), view: CalendarView::from_code(field(2)), program, modules: Vec::new(), chosen: BTreeSet::new(), own: Vec::new(), changes: BTreeMap::new() });
                     }
                 }
                 "n" => {
@@ -552,14 +573,17 @@ impl PlanDoc {
                     }
                 }
                 "x" => {
-                    // The plan's; a change of another calendar's Termin is a line of a build to
-                    // come, kept as it is.
+                    // The plan's, or after the `l` line of its calendar.
                     match change_of(&fields) {
                         Some((0, s, change)) => {
                             doc.set_change(s, change);
                         }
-                        Some(_) if doc.extra.len() < MAX_EXTRA_LINES && line.len() <= MAX_EXTRA_BYTES => doc.extra.push(line.clone()),
-                        _ => {}
+                        Some((id, s, change)) => {
+                            if let Some(calendar) = doc.calendars.iter_mut().find(|calendar| calendar.id == id) {
+                                calendar.set_change(s, change);
+                            }
+                        }
+                        None => {}
                     }
                 }
                 "b" => match (number_of_calendar(field(1)), SemesterKey::parse(field(2)), RowKey::parse(field(3))) {
@@ -591,11 +615,11 @@ impl PlanDoc {
     }
 
     /// The text `restored` reads back as this plan: `g`; `m` by semester, then in planning order;
-    /// `v` the same; `p` by pid; `d` and `q` in the order they were marked; then per semester `k`, `e`, `r`,
-    /// `c`, `h` (one line per Termin), `x` (by Termin and scope), `b` (by Termin), `a`; the plan's `t`
-    /// in the order they came; per calendar its
-    /// `l`, its `n` in the order they came, its `o` and its `t`; then the lines of unknown tags. Control characters in names become spaces, so a
-    /// name never splits its line.
+    /// `v` the same; `p` by pid; `d` and `q` in the order they were marked; then per semester `k`,
+    /// `e`, `r`, `c`, `h` (one line per Termin), `x` (by Termin and scope), `b` (by Termin), `a`;
+    /// the plan's `t` in the order they came; per calendar its `l`, its `n` in the order they came,
+    /// its `o`, its `t` and its `x` (by semester, Termin and scope); then the lines of unknown tags.
+    /// Control characters in names become spaces, so a name never splits its line.
     pub fn stored(&self) -> String {
         self.text(self.program.as_deref())
     }
@@ -697,6 +721,9 @@ impl PlanDoc {
             }
             for own in &calendar.own {
                 let _ = writeln!(out, "{}", own_line(id, own));
+            }
+            for ((semester, ..), change) in &calendar.changes {
+                let _ = writeln!(out, "{}", change_line(id, *semester, change));
             }
         }
         for line in self.extra.iter().filter(|line| !line.contains(['\n', '\r'])) {
@@ -1095,18 +1122,21 @@ impl PlanDoc {
     /// and the groups `chosen` of semester `s` (a plan handed on, `folia_calendar::share`) and the
     /// program `program`, standing as a new one stands. Its number, the smallest one free; `None`
     /// at the cap.
-    pub fn add_calendar(&mut self, name: &str, program: Option<&str>, s: SemesterKey, modules: &[String], chosen: &[RowKey]) -> Option<u8> {
+    pub fn add_calendar(&mut self, name: &str, program: Option<&str>, s: SemesterKey, modules: &[String], chosen: &[RowKey], changes: &[Change]) -> Option<u8> {
         if self.calendars.len() >= MAX_CALENDARS {
             return None;
         }
         let id = (1..=MAX_CALENDAR_ID).find(|id| self.calendar(*id).is_none())?;
         let program = program.filter(|program| url::is_program_id(program)).map(str::to_string);
-        let mut calendar = Calendar { id, name: calendar_name(name), view: None, program, modules: Vec::new(), chosen: BTreeSet::new(), own: Vec::new() };
+        let mut calendar = Calendar { id, name: calendar_name(name), view: None, program, modules: Vec::new(), chosen: BTreeSet::new(), own: Vec::new(), changes: BTreeMap::new() };
         for module in modules {
             calendar.add_module(s, module);
         }
         for row in chosen {
             calendar.set_tick(s, *row, true);
+        }
+        for change in changes {
+            calendar.set_change(s, change.clone());
         }
         self.calendars.push(calendar);
         Some(id)
@@ -1512,12 +1542,7 @@ impl PlanDoc {
     /// Termin and scope, when it is valid (`Change::is_valid`) and the caps allow it. Whether it
     /// is in the plan now.
     pub fn set_change(&mut self, s: SemesterKey, change: Change) -> bool {
-        let room = change.room.as_deref().and_then(change::room_text);
-        let was = Values { room: change::room_text(&change.was.room).unwrap_or_default(), ..change.was.clone() };
-        let change = Change { room, was, ..change };
-        if !change.is_valid() || !url::is_module_id(&change.module) {
-            return false;
-        }
+        let Some(change) = stored_change(change) else { return false };
         let at = (change.key, change.scope);
         let here = self.hidden.get(&s).map_or(0, |hides| hides.changes.len());
         let all = self.hidden.values().map(|hides| hides.changes.len()).sum::<usize>();
@@ -2415,6 +2440,15 @@ fn kept_own(termin: OwnTermin) -> Option<OwnTermin> {
     termin.is_valid().then_some(termin)
 }
 
+/// A change as the plan keeps it: its rooms as a line holds them (`change::room_text`); `None`
+/// for one that is none (`Change::is_valid`) or of no module id.
+fn stored_change(change: Change) -> Option<Change> {
+    let room = change.room.as_deref().and_then(change::room_text);
+    let was = Values { room: change::room_text(&change.was.room).unwrap_or_default(), ..change.was.clone() };
+    let change = Change { room, was, ..change };
+    (change.is_valid() && url::is_module_id(&change.module)).then_some(change)
+}
+
 /// The `x` line of a change of semester `s` in calendar `calendar`: its Termin, scope and day,
 /// weekday, time and room it says instead (empty: QIS's), what QIS said, and the module.
 fn change_line(calendar: u8, s: SemesterKey, change: &Change) -> String {
@@ -2858,7 +2892,7 @@ mod tests {
         let modules: Vec<String> = (0..MAX_CALENDAR_MODULES).map(|n| format!("M{n:031}")).collect();
         let ticks: Vec<RowKey> = (0..MAX_CALENDAR_TICKS as u32).map(|n| termin(u32::MAX - n, 0xfffff)).collect();
         for _ in 0..MAX_CALENDARS {
-            let id = doc.add_calendar(&"😀".repeat(MAX_CALENDAR_NAME), Some("00000000-ABCDEFGH-ABCDEFGH-ABCDEFGH-ABCDEFGH"), semesters[23], &modules, &ticks).unwrap();
+            let id = doc.add_calendar(&"😀".repeat(MAX_CALENDAR_NAME), Some("00000000-ABCDEFGH-ABCDEFGH-ABCDEFGH-ABCDEFGH"), semesters[23], &modules, &ticks, &[]).unwrap();
             doc.set_calendar_view(id, CalendarView::Strip);
         }
         // The Termine of one's own at their caps, the longest each can be: 4-byte characters, every
@@ -2902,6 +2936,21 @@ mod tests {
         for n in 0..MAX_NOTES_ALL {
             let s = semesters[22 + n / MAX_NOTES];
             assert!(doc.set_note(s, termin(u32::MAX - n as u32, 0xfffff), &"😀".repeat(change::MAX_NOTE)), "{n}");
+        }
+        // Every calendar with as many changes as it keeps, as long as the plan's.
+        for calendar in &mut doc.calendars {
+            for n in 0..=MAX_CALENDAR_CHANGES {
+                let change = Change {
+                    key: termin(u32::MAX - n as u32, 0xfffff),
+                    scope: Scope::On(semesters[23].bounds().1),
+                    weekday: Some(7),
+                    time: Some((1438, 1439)),
+                    room: Some(room.clone()),
+                    was: Values { weekday: 7, from: 1438, to: 1439, room: room.clone() },
+                    module: format!("M{:031}", 0),
+                };
+                assert_eq!(calendar.set_change(semesters[23], change), n < MAX_CALENDAR_CHANGES, "{n}");
+            }
         }
         for n in 0..MAX_EXTRA_LINES {
             doc.extra.push(format!("z{n:03}\t{}", "y".repeat(MAX_EXTRA_BYTES - 5)));
@@ -2987,7 +3036,7 @@ mod tests {
     /// Lena's plan as her link hands it on: four modules of 2026W and two groups ticked.
     fn lenas(doc: &mut PlanDoc) -> u8 {
         let modules: Vec<String> = ["11109", "13977", "12160", "12229"].iter().map(|id| id.to_string()).collect();
-        doc.add_calendar("Lena", Some("013-82-2018"), key("2026W"), &modules, &[termin(150210, 0x1a2b3), termin(150211, 0x00001)]).unwrap()
+        doc.add_calendar("Lena", Some("013-82-2018"), key("2026W"), &modules, &[termin(150210, 0x1a2b3), termin(150211, 0x00001)], &[]).unwrap()
     }
 
     fn day(iso: &str) -> Day {
@@ -3038,6 +3087,36 @@ mod tests {
         assert!(back.selection(key("2027S"), TownChoice::Derive).changes.is_empty());
         assert_eq!(back.changes_of(w, termin(148701, 0xb7025)).iter().map(|change| change.scope).collect::<Vec<_>>(), [Scope::All, Scope::From(day("2026-11-06"))]);
         assert_eq!(back.note_of(w, termin(148701, 0xb7025)), Some("Folien vorher lesen"));
+    }
+
+    #[test]
+    fn a_calendar_keeps_the_changes_its_link_brought() {
+        let w = key("2026W");
+        let mut doc = example();
+        let day = Change { key: termin(150210, 0x1a2b3), scope: Scope::On(day("2026-11-04")), weekday: Some(4), room: None, module: "0".to_string(), ..evs_room() };
+        let id = doc.add_calendar("Lena", None, w, &["11109".to_string()], &[], &[evs_room(), day.clone()]).unwrap();
+        let text = doc.stored();
+        for line in [
+            format!("x\t{id}\t2026W\t148701-b7025\tall\t\t\t\tZHG/HS.A\t5\t09:15-10:45\tZHG/HS.C\t12104\n"),
+            format!("x\t{id}\t2026W\t150210-1a2b3\ton\t2026-11-04\t4\t\t\t5\t09:15-10:45\tZHG/HS.C\t0\n"),
+        ] {
+            assert!(text.contains(&line), "{line:?} in {text}");
+        }
+        let back = PlanDoc::restored(&text);
+        assert_eq!(back, doc);
+        // The calendar's selection carries them, the plan's none of them.
+        let calendar = back.calendar(id).unwrap();
+        assert_eq!(calendar.selection(w).changes, [evs_room(), day.clone()]);
+        assert!(calendar.selection(key("2027S")).changes.is_empty());
+        assert!(back.selection(w, TownChoice::Derive).changes.is_empty());
+        // A line of a calendar that is none is dropped; so is one before its calendar's `l`.
+        let orphan = text.replace(&format!("x\t{id}\t"), "x\t42\t");
+        assert!(PlanDoc::restored(&orphan).calendars.iter().all(|calendar| calendar.changes.is_empty()));
+        assert!(!PlanDoc::restored(&orphan).stored().contains("x\t42\t"));
+        // Taking the calendar away takes them with it.
+        let mut doc = back;
+        assert!(doc.remove_calendar(id).is_some());
+        assert!(!doc.stored().contains("\nx\t"));
     }
 
     #[test]
@@ -3114,10 +3193,13 @@ mod tests {
         let doc = PlanDoc::restored(&text);
         assert_eq!(doc.hidden.get(&w).map(|hides| (hides.changes.len(), hides.notes.len())), Some((1, 0)));
         assert!(doc.extra.is_empty(), "{:?}", doc.extra);
-        // A change of another calendar is a line of a build to come: kept as it is.
+        // A change of a calendar that is none is dropped, as its ticks are; after its `l` line
+        // it is the calendar's.
         let theirs = good.replacen("x\t0", "x\t1", 1);
-        assert_eq!(PlanDoc::restored(&theirs).extra, [theirs.clone()]);
-        assert!(PlanDoc::restored(&theirs).stored().contains(&theirs));
+        assert!(PlanDoc::restored(&theirs).extra.is_empty() && !PlanDoc::restored(&theirs).stored().contains(&theirs));
+        let with = format!("l\t1\t\t\tLena\n{theirs}");
+        assert_eq!(PlanDoc::restored(&with).calendar(1).map(|calendar| calendar.changes.len()), Some(1));
+        assert!(PlanDoc::restored(&with).stored().contains(&theirs));
         // A room too long is cut as the store cuts it.
         let long = good.replace("ZHG/HS.A", &"A".repeat(change::MAX_ROOM + 5));
         assert_eq!(PlanDoc::restored(&long).changes_of(w, evs_room().key).first().and_then(|change| change.room.as_ref()).map(|room| room.chars().count()), Some(change::MAX_ROOM));
@@ -3285,7 +3367,7 @@ mod tests {
     fn calendars_of_ones_own_read_back_whole() {
         let mut doc = example();
         let lena = lenas(&mut doc);
-        let empty = doc.add_calendar("Lerngruppe\tMathe", None, key("2026W"), &[], &[]).unwrap();
+        let empty = doc.add_calendar("Lerngruppe\tMathe", None, key("2026W"), &[], &[], &[]).unwrap();
         assert_eq!((lena, empty), (1, 2));
         doc.set_calendar_view(empty, CalendarView::Strip);
         let text = doc.stored();
@@ -3321,11 +3403,11 @@ mod tests {
         doc.tick_in_calendar(lena, key("2026W"), termin(150212, 2), true);
         doc.tick_in_calendar(lena, key("2026W"), termin(150210, 0x1a2b3), false);
         assert_eq!(doc.calendar(lena).map(|calendar| (calendar.view, calendar.chosen.len())), Some((Some(CalendarView::Off), 2)));
-        let second = doc.add_calendar("Jonas", None, key("2026W"), &["12104".to_string()], &[]).unwrap();
+        let second = doc.add_calendar("Jonas", None, key("2026W"), &["12104".to_string()], &[], &[]).unwrap();
         let (at, gone) = doc.remove_calendar(lena).unwrap();
         assert_eq!((at, doc.calendars.len(), doc.calendar(lena)), (0, 1, None));
         // A new one takes the smallest number free; once it is taken, the old one cannot come back.
-        let third = doc.add_calendar("Kim", None, key("2026W"), &[], &[]).unwrap();
+        let third = doc.add_calendar("Kim", None, key("2026W"), &[], &[], &[]).unwrap();
         assert_eq!(third, lena);
         assert!(!doc.put_calendar(at, gone.clone()));
         doc.remove_calendar(third);
@@ -3366,9 +3448,9 @@ mod tests {
         let many: Vec<String> = (10_000..10_100).map(|id| id.to_string()).collect();
         let ticks: Vec<RowKey> = (0..300).map(|n| termin(150_000 + n, 0xfffff)).collect();
         for n in 0..MAX_CALENDARS {
-            assert!(doc.add_calendar(&format!("Kalender {n}"), Some("079-82-2008"), key("2026W"), &many, &ticks).is_some());
+            assert!(doc.add_calendar(&format!("Kalender {n}"), Some("079-82-2008"), key("2026W"), &many, &ticks, &[]).is_some());
         }
-        assert_eq!(doc.add_calendar("Neun", None, key("2026W"), &[], &[]), None);
+        assert_eq!(doc.add_calendar("Neun", None, key("2026W"), &[], &[], &[]), None);
         assert!(doc.calendars.iter().all(|calendar| calendar.modules.len() == MAX_CALENDAR_MODULES && calendar.chosen.len() == MAX_CALENDAR_TICKS));
         assert_eq!(PlanDoc::restored(&doc.stored()), doc);
     }
