@@ -2536,8 +2536,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (QIS gave the Termin another day, start, group or first date), it hangs („Moved", with the one
     Termin the event has, where it has one); both are gone. A change of a module not in the
     semester's plan says nothing.
-  - **The view** (`folia_widgets::termin`, `ChangeActs`): under „Im Stundenplan" „Zeit, Tag oder
-    Raum" with „Ändern", the note with „Hinzufügen" or „Bearbeiten", and „Nachholtermin". „Ändern"
+  - **The view** (`folia_widgets::termin`, `ChangeActs`): under „Im Stundenplan", of a Termin the
+    plan holds (under the switches of its event and its group, which take them away, as „Nur am …
+    ausblenden"), „Zeit, Tag oder Raum" with „Ändern", the note with „Hinzufügen" or „Bearbeiten",
+    and „Nachholtermin". „Ändern"
     opens the form in the view's body: „Für" (Nur am … · Ab … · Alle N; the scope of the change
     holding on the date, else „Alle") above Tag, Zeit and Raum, a field the change changes marked,
     „QIS sagt: Fr 09:15–10:45 · ZHG/HS.C", what it meets of the week worked out with the draft in

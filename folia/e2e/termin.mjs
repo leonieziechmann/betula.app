@@ -105,7 +105,8 @@ const view = (page) => page.evaluate(() => {
     // The groups above the ticket: [when, ticked, the one shown].
     groups: [...(panel?.querySelectorAll(".tm-pick .grp:not(.tm-series) .gs:not(.more)") ?? [])].map((tile) => [tile.querySelector("b")?.textContent.trim(), Boolean(tile.querySelector(".ck")), tile.classList.contains("this")]),
     right: text(".tm-pick .grp:not(.tm-series) .grp-h .r"),
-    // „Im Stundenplan": its switches in their order, the event's, the group's.
+    // „Im Stundenplan": its switches in their order, the event's, the group's, the date's, and
+    // under them „Ändern", the note and „Nachholtermin" of what the plan holds.
     switches: [...(panel?.querySelectorAll(".tm-sec.cal [data-action]") ?? [])].map((el) => el.dataset.action),
     shown: panel?.querySelector("[data-action='show-event']")?.getAttribute("aria-checked") ?? "",
     tick: panel?.querySelector("[data-action='tick']")?.getAttribute("aria-checked") ?? "",
@@ -139,7 +140,7 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   check(v.events.join(" | ") === "Vorlesung | Praktikum" && v.above && v.picture && v.series > 1, `the module's events and „Reihe" above the ticket, the day a picture: ${JSON.stringify(v)}`);
   check(/^(Mo|Di|Mi|Do|Fr) \d\d\.\d\d\./.test(v.date) && /^\d\d:\d\d/.test(v.time) && v.room.includes("0.03"), `the ticket: ${JSON.stringify(v)}`);
   check(v.groups.length === 4 && v.groups.every(([, ticked]) => !ticked) && v.groups.filter(([, , here]) => here).length === 1 && v.right === "eine von 4", `four groups above the ticket, none ticked, the one shown marked: ${JSON.stringify(v)}`);
-  check(v.switches.join() === "show-event,tick,hide-date" && v.shown === "true" && v.tick === "false" && /^(Mo|Mi|Do|Fr) \d\d:\d\d im Stundenplan$/.test(v.tick_said) && v.tick_sub === "Bis du eine anhakst, stehen alle 4 gestrichelt im Stundenplan.", `„Im Stundenplan": the Praktikum's switch above its group's and the date's: ${JSON.stringify(v)}`);
+  check(v.switches.join() === "show-event,tick,hide-date,change,note,makeup" && v.shown === "true" && v.tick === "false" && /^(Mo|Mi|Do|Fr) \d\d:\d\d im Stundenplan$/.test(v.tick_said) && v.tick_sub === "Bis du eine anhakst, stehen alle 4 gestrichelt im Stundenplan.", `„Im Stundenplan": the Praktikum's switch above its group's, the date's and what changes it: ${JSON.stringify(v)}`);
   check(await page.evaluate(() => Boolean(document.querySelector(".sp-body .week .slot.cur, .sp-body .week [aria-current='true']"))), "its slot is marked");
   check((await practicals(page)).filter(Boolean).length === 4, `the four groups dashed: ${JSON.stringify(await practicals(page))}`);
   if (shots) await page.screenshot({ path: `${shots}/termin-open.png` });
@@ -154,7 +155,7 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   await page.click(`dialog[open] .tm-dialog .tm-pick a.gs[href="${other}"]`);
   await until(page, "another group picked", (other) => location.pathname + location.search === other && onPage("dialog[open] .tm-dialog .tm-pick .gs.this")?.getAttribute("href") === other && onPage("dialog[open] .tm-dialog [data-action='tick']")?.getAttribute("aria-checked") === "false", other);
   v = await view(page);
-  check(v.switches.join() === "show-event,tick" && v.tick_sub === "1 von 4 angehakt", `a group not ticked, while another is, has no date to hide: ${JSON.stringify(v)}`);
+  check(v.switches.join() === "show-event,tick" && v.tick_sub === "1 von 4 angehakt", `a group not ticked, while another is, has no date to hide and nothing to change: ${JSON.stringify(v)}`);
   await page.click("dialog[open] .tm-dialog [data-action='tick']");
   await until(page, "the second tick", () => onPage("dialog[open] .tm-dialog [data-action='tick']")?.getAttribute("aria-checked") === "true" && document.querySelectorAll("dialog[open] .tm-dialog .tm-pick .gs .ck").length === 2);
   v = await view(page);

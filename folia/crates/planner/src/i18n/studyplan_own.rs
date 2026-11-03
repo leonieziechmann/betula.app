@@ -105,6 +105,8 @@ pub struct Texts {
     /// where QIS says something else now „… QIS sagt inzwischen etwas anderes".
     pub changed: &'static str,
     pub changed_differs: &'static str,
+    /// The same of a slot of a calendar of one's own: its change came with its link.
+    pub changed_elsewhere: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -178,6 +180,7 @@ pub const DE: Texts = Texts {
     hold_hint: "Finger auf eine freie Stelle halten: ein Termin dort",
     changed: "von dir geändert",
     changed_differs: "von dir geändert, QIS sagt inzwischen etwas anderes",
+    changed_elsewhere: "anders als in QIS",
 };
 
 pub const EN: Texts = Texts {
@@ -251,4 +254,5 @@ pub const EN: Texts = Texts {
     hold_hint: "Hold a finger on a free stretch: an event there",
     changed: "changed by you",
     changed_differs: "changed by you, QIS says something else now",
+    changed_elsewhere: "not as in QIS",
 };

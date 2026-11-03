@@ -202,8 +202,8 @@ let tuesday = "";
   // The one QIS says something else of leads to its Termin, where „Meine behalten" settles it.
   await page.click(`.sp-side a.sp-open-row.chg[href*="termin=${friday}"]`);
   await until(page, "its Termin, comparing", (dialog) => Boolean(onPage(`${dialog} .tm-differs`)), dialog);
-  const cmp = await text(page, `${dialog} .tm-cmp`);
-  check(cmp === "QIS jetzt ZHG/HS.C Deine Änderung ZHG/HS.A", `the comparison: „${cmp}“`);
+  const cmp = await page.evaluate((dialog) => [...(onPage(`${dialog} .tm-cmp`)?.children ?? [])].map((part) => [...part.children].map((el) => el.textContent.trim()).join(" ")), dialog);
+  check(JSON.stringify(cmp) === JSON.stringify(["QIS jetzt ZHG/HS.C", "Deine Änderung ZHG/HS.A"]), `the comparison: ${JSON.stringify(cmp)}`);
   await page.click(`${dialog} [data-action="change-keep"]`);
   await until(page, "„Meine behalten“", ([plan, key]) => (localStorage.getItem(plan) ?? "").includes(`x\t0\t2026W\t${key}\tall\t\t\t\tZHG/HS.A\t5\t09:15-10:45\tZHG/HS.C\t12104\n`) && !allOnPage(".sp-side .sp-open-row.chg").length, [PLAN, friday]);
   await context.close();

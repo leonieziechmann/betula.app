@@ -468,6 +468,9 @@ struct PlanPart {
     /// The date to hide or show, of what the plan holds: its words, its key, its day, whether it is
     /// hidden.
     date: Option<(String, RowKey, Day, bool)>,
+    /// The plan holds the Termin: an event without groups, the group ticked, or any while none is.
+    /// What changes it („Ändern", the note, „Nachholtermin") stands under the switch that does.
+    held: bool,
 }
 
 /// Of an event's groups the one the Termin shows, under „Im Stundenplan": its keys (one ticks it,
@@ -927,14 +930,16 @@ fn TicketView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
             };
             // A Termin of one's own without a place has no room box: nothing is missing.
             let roomless = ticket.own && ticket.rooms.is_empty() && ticket.place.is_empty();
+            // A changed room's pen beside its last plate, not on a line of its own.
+            let last = ticket.rooms.len().saturating_sub(1);
             let rooms = match (ticket.rooms.is_empty(), ticket.own) {
                 (true, true) => ().into_any(),
                 (true, false) => view! { <b class="plate none">{t.termin.no_room}</b> }.into_any(),
                 (false, true) => ticket.rooms.iter().map(|place| view! { <b class="plate words">{place.clone()}</b> }).collect_view().into_any(),
-                (false, false) => ticket.rooms.iter().map(|room| view! { <b class="plate">{plate(room)}</b> }).collect_view().into_any(),
+                (false, false) => ticket.rooms.iter().enumerate().map(|(at, room)| view! { <b class="plate">{plate(room)}{pen(ticket.pen_room && at == last)}</b> }).collect_view().into_any(),
             };
             let place = (!ticket.place.is_empty()).then(|| view! { <small>{ticket.place.join(" · ")}</small> });
-            let room = (!roomless).then(|| view! { <div class="tk-room">{rooms}{pen(ticket.pen_room)}{place}</div> });
+            let room = (!roomless).then(|| view! { <div class="tk-room">{rooms}{place}</div> });
             let live = ticket.live.map(|pct| view! { <div class="tk-prog" aria-hidden="true"><i style=format!("width: {pct}%")></i></div> });
             view! {
                 <section class=format!("tk {}", ticket.state) aria-label=t.termin.panel>
@@ -1207,6 +1212,7 @@ fn PlanView(ctx: TerminCtx, shown: Memo<Option<Shown>>, editing: RwSignal<Option
         part.get().map(|part| {
             let label = (t.termin.show_kind)(&part.kind);
             let on = part.shown;
+            let held = part.held;
             let group_row = part.group.clone().map(|group| {
                 let ticked = group.ticked;
                 view! {
@@ -1236,7 +1242,7 @@ fn PlanView(ctx: TerminCtx, shown: Memo<Option<Shown>>, editing: RwSignal<Option
                     </div>
                     {on.then_some(group_row)}
                     {on.then_some(date_row)}
-                    {move || change.get().filter(|_| on).map(|change| view! { <ChangeRows ctx part=change editing/> })}
+                    {move || change.get().filter(|_| on && held).map(|change| view! { <ChangeRows ctx part=change editing/> })}
                 </section>
             }
         })
@@ -2000,7 +2006,7 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
             let held = group.as_ref().is_none_or(|(group, ticked)| group.ticked || *ticked == 0);
             let hideable = held && matches!(o.state, DateState::Held | DateState::Note(_) | DateState::Hidden) && o.dates.iter().filter(|dated| dated.state.held()).count() > 1;
             let date = o.date_key(table).filter(|_| hideable).map(|key| (day_words(o.day, today, locale), key, o.day, o.state == DateState::Hidden));
-            PlanPart { event: id, kind: kind.clone(), shown, sub: sub.to_string(), group: group.map(|(group, _)| group), date }
+            PlanPart { event: id, kind: kind.clone(), shown, sub: sub.to_string(), group: group.map(|(group, _)| group), date, held }
         }),
     };
 

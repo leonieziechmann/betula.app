@@ -1163,8 +1163,11 @@ pub(super) fn calendar_slots(table: &Timetable, titles: &BTreeMap<String, String
                 hue: Some(calendar.hue),
                 mark: None,
                 href: None,
-                title: format!("{} · {}", calendar.name, slot.title),
+                title: format!("{} · {}", calendar.name, slot.title.replace(t.studyplan_own.changed_differs, t.studyplan_own.changed_elsewhere).replace(t.studyplan_own.changed, t.studyplan_own.changed_elsewhere)),
                 clash: false,
+                // Its changes came with its link, which carries nothing of what QIS said: none of
+                // them asks to be decided, the pen alone says they are changed.
+                conflict: false,
                 dim,
                 badge: (!strip).then(|| calendar.initial.clone()),
                 ..slot
