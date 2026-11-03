@@ -899,10 +899,23 @@ details.r1 .in { padding: 0 24px 24px; }
       <ul class="fb">
         <li><q>dass man unten auswählt, welchen Termin man sich genau angucken möchte und sich dann die Seite nur marginal ändert</q><span>Die Veranstaltungen des Moduls stehen jetzt oben als Segmente, darunter die Gruppen. Ein Tipp ändert das Ticket darunter, nichts darüber. „Alle Veranstaltungen“ am Ende gibt es nicht mehr: es sind die Segmente und die Gruppen, oben.</span></li>
         <li><q>Wenn man solche Buttons hat, dann ändern die nur den Inhalt unter ihnen</q><span>Der Kopf nennt das Modul und ändert sich mit keiner Wahl. Das Datum wählen die Pfeile am Ticket, über Zeit und Raum, die sie ändern.</span></li>
-        <li><q>Ansonsten muss man nochmal über das Konzept nachdenken</q><span>Unter dem Ticket wählt nichts mehr: der Tag ist ein Bild. Im Stundenplan bleiben die Haken unter den Infos; sie stellen den Plan ein, nicht die Ansicht.</span></li>
+        <li><q>Ansonsten muss man nochmal über das Konzept nachdenken</q><span>Unter dem Ticket wählt nichts mehr: der Tag ist ein Bild. Im Stundenplan stellen die Schalter unter den Infos den Plan ein, nicht die Ansicht.</span></li>
         <li><q>muss das ein modal werden oder eine fullpage Seite mit zurück etc. Aktuell ist das übelst cursed</q><span>Der Termin öffnet jetzt im Dialog der App: am Rechner in der Mitte über der abgedunkelten Seite, am Handy als das Sheet jedes Dialogs. Daneben, über dem rechten Teil der Seite, steht er nicht mehr. „Ganze Seite“ (V) bleibt der Weg zur ganzen Seite mit „Zurück“.</span></li>
         <li><q>bau als Nächstes die Reihe als Auswahl über dem Ticket</q><span>Die Reihe steht jetzt als Letztes über dem Ticket: ein Tipp auf einen Punkt zeigt sein Datum. Ihr Kopf sagt nur, wie viele Termine es gibt und wie viele noch kommen; der wievielte steht am Punkt.</span></li>
         <li><q>Einfaches Prinzip</q><span>Steht jetzt in Betulas Regeln (CLAUDE.md, „Design“), für jede Ansicht.</span></li>
+      </ul>
+    </div>
+    <p class="sub">Derselbe Termin im Stundenplan, die erste Gruppe angehakt: links Folia 1.60.1, rechts 1.62.0 mit den Gruppen als Auswahl unter den Segmenten.</p>
+    <div class="dec">
+      <div class="ba">
+        <figure><figcaption>Im Stundenplan, vorher</figcaption><img src="bilder/runde5-plan-vorher.webp" width="480" height="999" alt="Der Termin im Stundenplan in Folia 1.60.1: oben Vorlesung und Praktikum, darunter gleich die Reihe und das Ticket; die Praktikumsgruppen zum Anhaken erst unten in „Im Stundenplan“, über „Praktikum zeigen“." loading="lazy"></figure>
+        <figure><figcaption>Im Stundenplan, jetzt</figcaption><img src="bilder/runde5-plan.webp" width="480" height="1034" alt="Der Termin im Stundenplan in Folia 1.62.0: unter Vorlesung und Praktikum die Praktikumsgruppen, die erste mit Haken, darunter die Reihe und das Ticket; in „Im Stundenplan“ zuerst „Praktikum zeigen“, darunter „Mo 11:30 im Stundenplan“ mit „1 von 4 angehakt“ und „Nur am Mo 02.11.“." loading="lazy"></figure>
+      </div>
+      <ul class="fb">
+        <li><q>dass man zwar jetzt Übung und Vorlesung auswählen kann. Aber halt dann nicht die Gruppen/Tage als Subauswahl sind</q><span>Auch im Stundenplan stehen die Gruppen jetzt unter den Segmenten und wählen, welche man ansieht; ein Haken an der Kachel zeigt, welche im Plan sind. Darunter die Reihe für den Tag, dann das Ticket.</span></li>
+        <li><q>darunter kann man dann den Tag wählen und dann noch ob es im Kalender sein soll</q><span>„Im Stundenplan“ hat für die Gruppe, die man ansieht, einen Schalter: „Mo 11:30 im Stundenplan“. Eine zweite Gruppe wählt man oben und schaltet sie dort ein; unter dem Schalter steht „2 von 4 angehakt“.</span></li>
+        <li><q>der Schalter sollte über den Elementen stehen, die dann ausgeblendet werden</q><span>„Praktikum zeigen“ steht jetzt als Erstes. Was er mit ausblendet, der Schalter der Gruppe und „Nur am …“, steht darunter.</span></li>
+        <li><q>bei dem Tag einfach die ganzen Wochentage aufgelistet</q><span>Nicht genommen: eine Übung mit sieben Gruppen hätte in der Reihe an die hundert Termine. Erst die Gruppe, dann ihr Datum hält beides kurz, und die Kacheln lesen sich schon als Wochentage („Mo 11:30“).</span></li>
       </ul>
     </div>
     <p class="sub">Die Prototypen weiter unten zeigen noch die Ordnung der vierten Runde.</p>
