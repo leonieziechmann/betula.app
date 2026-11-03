@@ -298,7 +298,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   sein, wenn termine abgeschnitten sind"; the concepts' second round, folia/design/kalender/raster.html,
   „Passt alles, bau das jetzt in Folia"; Folia 1.63.0, `folia_widgets::week`, `module.rs`, app.css
   `#termine`). The week stands without a box, the hours at their lines and the frame's end named,
-  the lines across the days (the Stundenplan's grid too, and its look in 1.67.0). The module's
+  the lines across the days (the Stundenplan's grid too, and its look in 1.68.0). The module's
   Termine are cards in its colour: its tone in the plan beside the week, as the Termin view has it
   (its own place where it is planned, the next one where it is not), Betula's green without the
   plan. What one has to attend is full; single dates are full and lighter; what one chooses is
@@ -319,7 +319,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   „Wahl, eine der Gruppen", „Zusatz, freiwillig", „Darunter: dein Stundenplan").
 - **The Stundenplan's week in the same look** (owner, 2026-11-03: „Versuch das aussehen mal auch im
   allgemeinen Kalender zu übernehmen. Der ist nämlich auch noch ganz schön cluttered."; Folia
-  1.67.0, app.css). The colours of a slot are the module week's for every week (`.slot`: `--mod` and
+  1.68.0, app.css). The colours of a slot are the module week's for every week (`.slot`: `--mod` and
   what is made of it, `--lift` the shadow under a card), and the Stundenplan's states take its
   forms: what one attends is a card full in its module's tone with white words (`.tinted`), a single
   date full and lighter, an option of a choice not made hatched and ringed with its words on plates
@@ -2514,7 +2514,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (`PlanDoc::plan` turns a visit into the planned module). The modules of the study come from
     „Mein Studium", where the last line of „Mein Studiengang"'s part leads („Module des Studiums in
     „Mein Studium“"), in the place of „Modul hinzufügen" and „Aus der Merkliste".
-  - **In the week** a visit is a white card ringed in its module's tone (hatched until 1.67.0);
+  - **In the week** a visit is a white card ringed in its module's tone (hatched until 1.68.0);
     where it meets a module of the plan it gives way (those of its slots yellow, `gives`, their
     tooltip „Besuch, zählt nicht · trifft VL MIT1, der Besuch gibt nach"), never the red of a clash:
     visits are no part of the hard clashes, as extras are not (`clash::meetings`); `clash::yields`
