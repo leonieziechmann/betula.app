@@ -20,7 +20,7 @@ use folia_calendar::semester::SemesterKey;
 use folia_model::labels::Labelled;
 use folia_plans::choices::{self, PlanLine, RowState};
 use folia_plans::study::{self, Input, Pick, When};
-use folia_routes::url::{LocalView, ProgramTab, ProgramUrl, StudyUrl, StudyView};
+use folia_routes::url::{ProgramTab, ProgramUrl, StudyUrl};
 use leptos::prelude::*;
 
 use folia_design::ui::{EmptyState, Icon};
@@ -35,8 +35,9 @@ enum Act {
     None,
     /// „Einplanen" into that semester: the module of the row.
     Plan(String, SemesterKey),
-    /// „Wählen": the choice (an index of `PlanView::choices`), in the Wahlpflicht.
-    Choose(usize),
+    /// „Wählen ›": the choice (an index of `PlanView::choices`) in the workbench, for the semester
+    /// of the row's first Fachsemester, not before the current one (`bench::enter_choice`).
+    Choose(usize, SemesterKey),
 }
 
 /// A row as the view draws it.
@@ -190,7 +191,10 @@ impl Sheet {
                     let fallback = line.offer.next(study.now);
                     Act::Plan(id.clone(), next.unwrap_or(if study.semester(fallback).is_some() { fallback } else { study.now }))
                 }
-                (None, RowState::Open | RowState::Failed(_), Some((at, _))) => Act::Choose(at),
+                (None, RowState::Open | RowState::Failed(_), Some((at, _))) => {
+                    let due = study::semester_of_fs(study.start, line.first, &ready.setup.leave).map_or(study.now, |s| s.max(study.now));
+                    Act::Choose(at, due)
+                }
                 _ => Act::None,
             };
             Row {
@@ -381,11 +385,6 @@ fn plan_into(ctx: StudyCtx, id: String, name: String, s: SemesterKey, t: &'stati
     );
 }
 
-/// The address of the Wahlpflicht.
-fn choices_href(ctx: StudyCtx, t: &Texts) -> String {
-    t.path(&ctx.url.with_untracked(|url| url.with_view(StudyView::Choices).with_open(None).path()))
-}
-
 /// What a row offers: „Einplanen", „Wählen ›".
 fn act_view(ctx: StudyCtx, row: &Row, t: &'static Texts) -> AnyView {
     let v = &t.study_views;
@@ -400,10 +399,10 @@ fn act_view(ctx: StudyCtx, row: &Row, t: &'static Texts) -> AnyView {
             }
             .into_any()
         }
-        Act::Choose(at) => view! {
-            <a class="st-addb" href=choices_href(ctx, t) on:click=move |_| ctx.choice.set(Some(at))>
+        Act::Choose(at, s) => view! {
+            <button class="st-addb" type="button" title=format!("{} · {}", v.choose, s.label(t.locale)) on:click=move |_| super::bench::enter_choice(ctx, s, at)>
                 {v.choose}<Icon name="chevron-right"/>
-            </a>
+            </button>
         }
         .into_any(),
         Act::None => ().into_any(),
