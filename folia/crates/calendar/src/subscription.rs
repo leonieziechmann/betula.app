@@ -195,6 +195,9 @@ impl Subscription {
             visits: std::collections::BTreeSet::new(),
             // A code carries no Termin of one's own (their own step, „Eigene Termine mitnehmen").
             own: Vec::new(),
+            changes: Vec::new(),
+            // Notes stay in the browser: the calendar file has them, an address never.
+            notes: Vec::new(),
         }
     }
 }

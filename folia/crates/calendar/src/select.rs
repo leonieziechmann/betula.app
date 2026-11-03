@@ -14,6 +14,7 @@ use std::collections::BTreeSet;
 use folia_model::labels::{Campus, Code};
 use serde::{Deserialize, Serialize};
 
+use crate::change::Change;
 use crate::day::Day;
 use crate::kind::KindSet;
 use crate::own::OwnTermin;
@@ -135,6 +136,15 @@ pub struct Selection {
     /// step, „Eigene Termine mitnehmen").
     #[serde(default)]
     pub own: Vec<OwnTermin>,
+    /// The changes of Termine of QIS in the semester (`change`; folia/design/kalender/termine.html,
+    /// its second step, owner 2026-11-03): the timetable shows a Termin as changed for the dates a
+    /// change holds for, the week, the day, the clashes and the feed alike.
+    #[serde(default)]
+    pub changes: Vec<Change>,
+    /// The notes at the semester's Termine, by the Termin's key, each once (`change::note_text`):
+    /// only the student sees them, in the Termin's view and in the calendar file.
+    #[serde(default)]
+    pub notes: Vec<(RowKey, String)>,
 }
 
 /// Why an event, an exam or a row is not shown: the first rule that holds, in this order (C.9).

@@ -19,6 +19,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
+use folia_calendar::change::{self, Change, Scope, Values};
 use folia_calendar::day::{clock, minutes, Day};
 use folia_calendar::kind::{EventKind, KindSet};
 use folia_calendar::own::{OwnRhythm, OwnTermin, MAX_OWN_DATES, MAX_OWN_NUMBER, MAX_OWN_TEXT};
@@ -40,16 +41,27 @@ use crate::variants::{self, PlanVariant};
 /// below it (a test fills a store to every cap); a longer text is read up to the last line break
 /// before the limit, so a store never reads as empty because of its size and the next change
 /// cannot wipe a plan. What lies beyond is dropped with the next write, which only text Betula did
-/// not write can lose. 512 KiB until 2026-10-26, when the hidden dates (`h`) came, and 640 KiB
-/// until 2026-10-27, when the Termine of one's own (`t`) came: a build before them reads the first
-/// 640 KiB, which hold everything but a store full to the new caps.
-pub const MAX_STORED: usize = 1024 * 1024;
+/// not write can lose. 512 KiB until 2026-10-26, when the hidden dates (`h`) came, 640 KiB until
+/// 2026-10-27, when the Termine of one's own (`t`) came, and 1 MiB until 2026-11-03, when the
+/// changes of Termine of QIS (`x`) and the notes (`b`) came: a build before them reads the first
+/// MiB, which holds everything but a store full to the new caps (a real one is a few kilobytes).
+pub const MAX_STORED: usize = 2 * 1024 * 1024;
 
 /// The same for `betula.myprogram.v1`, a handful of short lines.
 pub const MAX_MINE: usize = 4 * 1024;
 
 /// The most semesters a plan has lines for: a long study with retakes, and some to spare.
 pub const MAX_SEMESTERS: usize = 24;
+
+/// The most changes of Termine of QIS in one semester (`x`; folia/design/kalender/termine.html,
+/// step 2), and in all semesters together: a change holds for one date, from one on or for all, and
+/// a Termin has at most one for each (question 4's „für diesen Tag, ab ihm oder alle").
+pub const MAX_CHANGES: usize = 100;
+pub const MAX_CHANGES_ALL: usize = 200;
+
+/// The most notes at Termine in one semester (`b`), and in all semesters together.
+pub const MAX_NOTES: usize = 100;
+pub const MAX_NOTES_ALL: usize = 200;
 
 /// The most placeholders. The plan of one program has at most 47 rows without a module (snapshot
 /// of 2026-09-23), so two programs' plans fit.
@@ -397,8 +409,9 @@ pub struct Placeholder {
     pub name: String,
 }
 
-/// What one semester hides (`k`, `e`, `r`, `h`) and has ticked (`c`). Named apart from
-/// `timetable::select::HiddenBy`, which says why something is not shown.
+/// What one semester hides (`k`, `e`, `r`, `h`), has ticked (`c`), changes of its Termine of QIS
+/// (`x`) and notes at its Termine (`b`). Named apart from `timetable::select::HiddenBy`, which says
+/// why something is not shown.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SemesterHides {
     /// Kinds switched off; an event is hidden only when all its kinds are.
@@ -408,11 +421,21 @@ pub struct SemesterHides {
     pub chosen: BTreeSet<RowKey>,
     /// Single dates of Termine hidden, by the Termin's key and the day.
     pub dates: BTreeSet<(RowKey, Day)>,
+    /// The changes of Termine of QIS, one per Termin and scope (`folia_calendar::change`).
+    pub changes: BTreeMap<(RowKey, Scope), Change>,
+    /// The notes at Termine, one per Termin (`change::note_text`).
+    pub notes: BTreeMap<RowKey, String>,
 }
 
 impl SemesterHides {
     pub fn is_empty(&self) -> bool {
-        self.kinds.is_empty() && self.events.is_empty() && self.rows.is_empty() && self.chosen.is_empty() && self.dates.is_empty()
+        self.kinds.is_empty()
+            && self.events.is_empty()
+            && self.rows.is_empty()
+            && self.chosen.is_empty()
+            && self.dates.is_empty()
+            && self.changes.is_empty()
+            && self.notes.is_empty()
     }
 }
 
@@ -528,6 +551,24 @@ impl PlanDoc {
                         doc.insert_own(calendar, own);
                     }
                 }
+                "x" => {
+                    // The plan's; a change of another calendar's Termin is a line of a build to
+                    // come, kept as it is.
+                    match change_of(&fields) {
+                        Some((0, s, change)) => {
+                            doc.set_change(s, change);
+                        }
+                        Some(_) if doc.extra.len() < MAX_EXTRA_LINES && line.len() <= MAX_EXTRA_BYTES => doc.extra.push(line.clone()),
+                        _ => {}
+                    }
+                }
+                "b" => match (number_of_calendar(field(1)), SemesterKey::parse(field(2)), RowKey::parse(field(3))) {
+                    (Some(0), Some(s), Some(key)) => {
+                        doc.set_note(s, key, field(4));
+                    }
+                    (Some(_), Some(_), Some(_)) if doc.extra.len() < MAX_EXTRA_LINES && line.len() <= MAX_EXTRA_BYTES => doc.extra.push(line.clone()),
+                    _ => {}
+                },
                 "q" => {
                     let ord = field(3).parse::<i64>().ok();
                     if let (Some(s), Some(ord)) = (semester, ord) {
@@ -551,7 +592,8 @@ impl PlanDoc {
 
     /// The text `restored` reads back as this plan: `g`; `m` by semester, then in planning order;
     /// `v` the same; `p` by pid; `d` and `q` in the order they were marked; then per semester `k`, `e`, `r`,
-    /// `c`, `h` (one line per Termin), `a`; the plan's `t` in the order they came; per calendar its
+    /// `c`, `h` (one line per Termin), `x` (by Termin and scope), `b` (by Termin), `a`; the plan's `t`
+    /// in the order they came; per calendar its
     /// `l`, its `n` in the order they came, its `o` and its `t`; then the lines of unknown tags. Control characters in names become spaces, so a
     /// name never splits its line.
     pub fn stored(&self) -> String {
@@ -627,6 +669,12 @@ impl PlanDoc {
                 }
                 for (row, days) in dates {
                     let _ = writeln!(out, "h\t{key}\t{}\t{}", row.text(), days.join(","));
+                }
+                for change in hides.changes.values() {
+                    let _ = writeln!(out, "{}", change_line(0, s, change));
+                }
+                for (row, note) in &hides.notes {
+                    let _ = writeln!(out, "b\t0\t{key}\t{}\t{}", row.text(), change::note_text(note));
                 }
             }
             if let Some(code) = self.subscribed.get(&s).filter(|code| is_code(code)) {
@@ -794,6 +842,8 @@ impl PlanDoc {
             town_from: (!imported.is_empty()).then_some(imported),
             visits: self.visits_in(s).into_iter().collect(),
             own: own_of_semester(&self.own, s),
+            changes: hides.map(|h| h.changes.values().cloned().collect()).unwrap_or_default(),
+            notes: hides.map(|h| h.notes.iter().map(|(key, note)| (*key, note.clone())).collect()).unwrap_or_default(),
         }
     }
 
@@ -1379,6 +1429,16 @@ impl PlanDoc {
                 self.set_date(s, *row, *day, true);
             }
         }
+        // What it changes and notes names Termine of its own semester: of another one, none of
+        // `s`'s has them.
+        if let Some(hides) = saved.hidden.get(&s) {
+            for change in hides.changes.values() {
+                self.set_change(s, change.clone());
+            }
+            for (key, note) in &hides.notes {
+                self.set_note(s, *key, note);
+            }
+        }
     }
 
     /// Whether semester `s` holds the timetable `saved` holds (`semester_only`, of any semester):
@@ -1440,6 +1500,75 @@ impl PlanDoc {
             write(hides).remove(item);
         }
         self.prune(s);
+    }
+
+    /// The changes of the Termin `key` of semester `s`, by scope: every date first, then from a
+    /// day and on a day, each by its day.
+    pub fn changes_of(&self, s: SemesterKey, key: RowKey) -> Vec<&Change> {
+        self.hidden.get(&s).map(|hides| hides.changes.range((key, Scope::All)..).take_while(|((of, _), _)| *of == key).map(|(_, change)| change).collect()).unwrap_or_default()
+    }
+
+    /// Sets a change of a Termin of QIS of semester `s` („Ändern"), in place of the one of its
+    /// Termin and scope, when it is valid (`Change::is_valid`) and the caps allow it. Whether it
+    /// is in the plan now.
+    pub fn set_change(&mut self, s: SemesterKey, change: Change) -> bool {
+        let room = change.room.as_deref().and_then(change::room_text);
+        let was = Values { room: change::room_text(&change.was.room).unwrap_or_default(), ..change.was.clone() };
+        let change = Change { room, was, ..change };
+        if !change.is_valid() || !url::is_module_id(&change.module) {
+            return false;
+        }
+        let at = (change.key, change.scope);
+        let here = self.hidden.get(&s).map_or(0, |hides| hides.changes.len());
+        let all = self.hidden.values().map(|hides| hides.changes.len()).sum::<usize>();
+        let new = !self.hidden.get(&s).is_some_and(|hides| hides.changes.contains_key(&at));
+        if new && (here >= MAX_CHANGES || all >= MAX_CHANGES_ALL || !self.admits(s)) {
+            return false;
+        }
+        self.hidden.entry(s).or_default().changes.insert(at, change);
+        true
+    }
+
+    /// Takes the change of the Termin `key` of semester `s` for `scope` away („Zurücksetzen",
+    /// „QIS übernehmen", „Verwerfen"). Whether there was one.
+    pub fn remove_change(&mut self, s: SemesterKey, key: RowKey, scope: Scope) -> bool {
+        let gone = self.hidden.get_mut(&s).and_then(|hides| hides.changes.remove(&(key, scope))).is_some();
+        self.prune(s);
+        gone
+    }
+
+    /// „Meine behalten": the change of the Termin `key` for `scope` takes what QIS says now (`qis`)
+    /// as what QIS said, so it holds again. Whether there was one.
+    pub fn keep_change(&mut self, s: SemesterKey, key: RowKey, scope: Scope, qis: &Values) -> bool {
+        let Some(change) = self.hidden.get_mut(&s).and_then(|hides| hides.changes.get_mut(&(key, scope))) else { return false };
+        change.was = Values { room: change::room_text(&qis.room).unwrap_or_default(), ..qis.clone() };
+        true
+    }
+
+    /// The note at the Termin `key` of semester `s`.
+    pub fn note_of(&self, s: SemesterKey, key: RowKey) -> Option<&str> {
+        self.hidden.get(&s).and_then(|hides| hides.notes.get(&key)).map(String::as_str)
+    }
+
+    /// Sets the note at the Termin `key` of semester `s` (`change::note_text`); an empty one takes
+    /// it away. Whether the plan holds the note now.
+    pub fn set_note(&mut self, s: SemesterKey, key: RowKey, text: &str) -> bool {
+        let note = change::note_text(text);
+        if note.is_empty() || key.event == 0 {
+            if let Some(hides) = self.hidden.get_mut(&s) {
+                hides.notes.remove(&key);
+            }
+            self.prune(s);
+            return false;
+        }
+        let here = self.hidden.get(&s).map_or(0, |hides| hides.notes.len());
+        let all = self.hidden.values().map(|hides| hides.notes.len()).sum::<usize>();
+        let new = !self.hidden.get(&s).is_some_and(|hides| hides.notes.contains_key(&key));
+        if new && (here >= MAX_NOTES || all >= MAX_NOTES_ALL || !self.admits(s)) {
+            return false;
+        }
+        self.hidden.entry(s).or_default().notes.insert(key, note);
+        true
     }
 
     /// A semester that hides nothing has no entry, as the text without its lines reads.
@@ -2286,6 +2415,58 @@ fn kept_own(termin: OwnTermin) -> Option<OwnTermin> {
     termin.is_valid().then_some(termin)
 }
 
+/// The `x` line of a change of semester `s` in calendar `calendar`: its Termin, scope and day,
+/// weekday, time and room it says instead (empty: QIS's), what QIS said, and the module.
+fn change_line(calendar: u8, s: SemesterKey, change: &Change) -> String {
+    let time = |(from, to): (u16, u16)| format!("{}-{}", clock(from), clock(to));
+    format!(
+        "x\t{calendar}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+        s.key(),
+        change.key.text(),
+        change.scope.code(),
+        change.scope.day().map(Day::iso).unwrap_or_default(),
+        change.weekday.map(|day| day.to_string()).unwrap_or_default(),
+        change.time.map(time).unwrap_or_default(),
+        change.room.as_deref().map(clean).unwrap_or_default(),
+        change.was.weekday,
+        time((change.was.from, change.was.to)),
+        clean(&change.was.room),
+        change.module,
+    )
+}
+
+/// The change of an `x` line, its calendar and semester; `None` for a line that is none. A room
+/// too long is cut as the store cuts it.
+fn change_of(fields: &[&str]) -> Option<(u8, SemesterKey, Change)> {
+    let field = |i: usize| fields.get(i).copied().unwrap_or_default();
+    let calendar = number_of_calendar(field(1))?;
+    let semester = SemesterKey::parse(field(2))?;
+    let key = RowKey::parse(field(3))?;
+    let day = match field(5) {
+        "" => None,
+        iso => Some(Day::parse(iso)?),
+    };
+    let scope = Scope::of(field(4), day)?;
+    let time = |text: &str| -> Option<(u16, u16)> {
+        let (from, to) = text.split_once('-')?;
+        Some((minutes(from.trim())?, minutes(to.trim())?))
+    };
+    let weekday = match field(6) {
+        "" => None,
+        day => Some(day.parse::<u8>().ok()?),
+    };
+    let changed = match field(7) {
+        "" => None,
+        text => Some(time(text)?),
+    };
+    // A room too long is cut as the store cuts it.
+    let room = change::room_text(field(8));
+    let (from, to) = time(field(10))?;
+    let was = Values { weekday: field(9).parse::<u8>().ok()?, from, to, room: change::room_text(field(11)).unwrap_or_default() };
+    let change = Change { key, scope, weekday, time: changed, room, was, module: field(12).to_string() };
+    change.is_valid().then_some((calendar, semester, change))
+}
+
 /// The `t` line of a Termin of one's own of calendar `calendar`.
 fn own_line(calendar: u8, own: &Own) -> String {
     let termin = &own.termin;
@@ -2702,6 +2883,26 @@ mod tests {
             assert!(doc.add_own(calendar, semesters[23], OwnTermin { from: n as u16, ..longest.clone() }).is_some(), "{n}");
         }
         assert_eq!(doc.own.iter().chain(doc.calendars.iter().flat_map(|calendar| calendar.own.iter())).map(|own| own.termin.number).max(), Some(MAX_OWN_ALL as u32));
+        // The changes of Termine of QIS and the notes at their caps, the longest each can be: rooms
+        // and notes of 4-byte characters, half in each of the last two semesters.
+        let room = "😀".repeat(change::MAX_ROOM);
+        for n in 0..MAX_CHANGES_ALL {
+            let s = semesters[22 + n / MAX_CHANGES];
+            let change = Change {
+                key: termin(u32::MAX - n as u32, 0xfffff),
+                scope: Scope::On(s.bounds().1),
+                weekday: Some(7),
+                time: Some((1438, 1439)),
+                room: Some(room.clone()),
+                was: Values { weekday: 7, from: 1438, to: 1439, room: room.clone() },
+                module: format!("M{:031}", 0),
+            };
+            assert!(doc.set_change(s, change), "{n}");
+        }
+        for n in 0..MAX_NOTES_ALL {
+            let s = semesters[22 + n / MAX_NOTES];
+            assert!(doc.set_note(s, termin(u32::MAX - n as u32, 0xfffff), &"😀".repeat(change::MAX_NOTE)), "{n}");
+        }
         for n in 0..MAX_EXTRA_LINES {
             doc.extra.push(format!("z{n:03}\t{}", "y".repeat(MAX_EXTRA_BYTES - 5)));
         }
@@ -2791,6 +2992,145 @@ mod tests {
 
     fn day(iso: &str) -> Day {
         Day::parse(iso).unwrap()
+    }
+
+    /// VL EvS on Friday 09:15–10:45 in ZHG/HS.C moved to ZHG/HS.A for every date.
+    fn evs_room() -> Change {
+        Change {
+            key: termin(148701, 0xb7025),
+            scope: Scope::All,
+            weekday: None,
+            time: None,
+            room: Some("ZHG/HS.A".to_string()),
+            was: Values { weekday: 5, from: 9 * 60 + 15, to: 10 * 60 + 45, room: "ZHG/HS.C".to_string() },
+            module: "12104".to_string(),
+        }
+    }
+
+    #[test]
+    fn changes_and_notes_read_back_whole() {
+        let w = key("2026W");
+        let mut doc = example();
+        assert!(doc.set_change(w, evs_room()));
+        let later = Change { scope: Scope::From(day("2026-11-06")), room: None, time: Some((10 * 60, 11 * 60 + 30)), ..evs_room() };
+        assert!(doc.set_change(w, later.clone()));
+        let thursday = Change { key: termin(148304, 0xe4bf3), scope: Scope::On(day("2026-11-04")), weekday: Some(4), room: Some(" LG1A/304\t".to_string()), was: Values { weekday: 3, from: 9 * 60 + 15, to: 10 * 60 + 45, room: String::new() }, module: "11112".to_string(), ..evs_room() };
+        assert!(doc.set_change(w, thursday));
+        assert!(doc.set_note(w, termin(148701, 0xb7025), "Folien\tvorher lesen\n"));
+        assert!(doc.set_note(w, RowKey { event: folia_calendar::own::OWN_EVENT_BASE + 1, fp: 0 }, "Schlüssel mitnehmen"), "a note at a Termin of one's own");
+        let text = doc.stored();
+        assert!(text.starts_with(EXAMPLE), "{text}");
+        for line in [
+            "x\t0\t2026W\t148304-e4bf3\ton\t2026-11-04\t4\t\tLG1A/304\t3\t09:15-10:45\t\t11112\n",
+            "x\t0\t2026W\t148701-b7025\tall\t\t\t\tZHG/HS.A\t5\t09:15-10:45\tZHG/HS.C\t12104\n",
+            "x\t0\t2026W\t148701-b7025\tfrom\t2026-11-06\t\t10:00-11:30\t\t5\t09:15-10:45\tZHG/HS.C\t12104\n",
+            "b\t0\t2026W\t148701-b7025\tFolien vorher lesen\n",
+            "b\t0\t2026W\t4000000001-00000\tSchlüssel mitnehmen\n",
+        ] {
+            assert!(text.contains(line), "{line:?} in {text}");
+        }
+        let back = PlanDoc::restored(&text);
+        assert_eq!(back, doc);
+        // The semester's selection carries them; another semester's none.
+        let selection = back.selection(w, TownChoice::Derive);
+        assert_eq!(selection.changes.len(), 3);
+        assert_eq!(selection.notes.first().map(|(_, note)| note.as_str()), Some("Folien vorher lesen"));
+        assert!(back.selection(key("2027S"), TownChoice::Derive).changes.is_empty());
+        assert_eq!(back.changes_of(w, termin(148701, 0xb7025)).iter().map(|change| change.scope).collect::<Vec<_>>(), [Scope::All, Scope::From(day("2026-11-06"))]);
+        assert_eq!(back.note_of(w, termin(148701, 0xb7025)), Some("Folien vorher lesen"));
+    }
+
+    #[test]
+    fn a_change_is_set_kept_and_taken_back() {
+        let w = key("2026W");
+        let mut doc = example();
+        assert!(doc.set_change(w, evs_room()));
+        // One per Termin and scope: the same scope again takes the place of the first.
+        assert!(doc.set_change(w, Change { room: Some("ZHG/HS.B".to_string()), ..evs_room() }));
+        assert_eq!(doc.changes_of(w, evs_room().key).iter().map(|change| change.room.as_deref()).collect::<Vec<_>>(), [Some("ZHG/HS.B")]);
+        // „Meine behalten": what QIS says now is what it said.
+        let now = Values { room: "ZHG/HS.D".to_string(), ..evs_room().was };
+        assert!(doc.keep_change(w, evs_room().key, Scope::All, &now));
+        assert_eq!(doc.changes_of(w, evs_room().key).first().map(|change| change.was.room.as_str()), Some("ZHG/HS.D"));
+        assert!(!doc.keep_change(w, evs_room().key, Scope::On(day("2026-11-06")), &now));
+        // „Zurücksetzen": the semester holds nothing of it any more.
+        assert!(doc.remove_change(w, evs_room().key, Scope::All));
+        assert!(!doc.remove_change(w, evs_room().key, Scope::All));
+        assert_eq!(doc, example());
+        // What can be no change is refused: nothing changed, a Termin of one's own, a module that is none.
+        assert!(!doc.set_change(w, Change { room: None, ..evs_room() }));
+        assert!(!doc.set_change(w, Change { key: RowKey { event: folia_calendar::own::OWN_EVENT_BASE + 1, fp: 0 }, ..evs_room() }));
+        assert!(!doc.set_change(w, Change { module: "12 104".to_string(), ..evs_room() }));
+        // An empty note takes the note away.
+        assert!(doc.set_note(w, evs_room().key, "Folien"));
+        assert!(!doc.set_note(w, evs_room().key, "  \n "));
+        assert_eq!(doc, example());
+    }
+
+    #[test]
+    fn changes_and_notes_go_with_their_semester() {
+        let w = key("2026W");
+        let mut doc = example();
+        assert!(doc.set_change(w, evs_room()));
+        assert!(doc.set_note(w, evs_room().key, "Folien"));
+        // „Plan speichern" keeps them, „Plan laden" brings them back, and the plan holds the saved one.
+        let saved = doc.semester_only(w);
+        assert_eq!(saved.changes_of(w, evs_room().key).len(), 1);
+        assert!(doc.holds_saved(w, &saved));
+        let mut other = example();
+        assert!(!other.holds_saved(w, &saved), "a change makes another plan");
+        other.put_semester(w, &saved);
+        assert_eq!(other.changes_of(w, evs_room().key).len(), 1);
+        assert_eq!(other.note_of(w, evs_room().key), Some("Folien"));
+        assert!(other.holds_saved(w, &saved));
+        // Put into another semester they name none of its Termine.
+        let summer = key("2027S");
+        other.put_semester(summer, &saved);
+        assert!(other.changes_of(summer, evs_room().key).is_empty() && other.note_of(summer, evs_room().key).is_none());
+        // „Plan leeren" takes them with the semester.
+        doc.clear_semester(w);
+        assert!(doc.changes_of(w, evs_room().key).is_empty() && doc.note_of(w, evs_room().key).is_none());
+    }
+
+    #[test]
+    fn hostile_change_lines_drop_alone_and_keep_to_their_caps() {
+        let w = key("2026W");
+        let good = "x\t0\t2026W\t148701-b7025\tall\t\t\t\tZHG/HS.A\t5\t09:15-10:45\tZHG/HS.C\t12104";
+        let bad = [
+            "x\t0\t2026W\tnonsense\tall\t\t\t\tZHG/HS.A\t5\t09:15-10:45\tZHG/HS.C\t12104",
+            "x\t0\t2026W\t148701-b7025\tsome\t\t\t\tZHG/HS.A\t5\t09:15-10:45\tZHG/HS.C\t12104",
+            "x\t0\t2026W\t148701-b7025\tfrom\t\t\t\tZHG/HS.A\t5\t09:15-10:45\tZHG/HS.C\t12104",
+            "x\t0\t2026W\t148701-b7025\ton\t2026-02-30\t\t\tZHG/HS.A\t5\t09:15-10:45\tZHG/HS.C\t12104",
+            "x\t0\t2026W\t148701-b7025\tall\t\t8\t\t\t5\t09:15-10:45\tZHG/HS.C\t12104",
+            "x\t0\t2026W\t148701-b7025\tall\t\t\t11:00-10:00\t\t5\t09:15-10:45\tZHG/HS.C\t12104",
+            "x\t0\t2026W\t148701-b7025\tall\t\t\t\t\t5\t09:15-10:45\tZHG/HS.C\t12104",
+            "x\t0\t2026W\t148701-b7025\tall\t\t\t\tZHG/HS.A\t\t09:15-10:45\tZHG/HS.C\t12104",
+            "x\t0\t2026W\t148701-b7025\tall\t\t\t\tZHG/HS.A\t5\t09:15-10:45\tZHG/HS.C\t",
+            "x\t0\t2026Q\t148701-b7025\tall\t\t\t\tZHG/HS.A\t5\t09:15-10:45\tZHG/HS.C\t12104",
+            "b\t0\t2026W\tnonsense\tFolien",
+            "b\t0\t2026W\t148701-b7025\t ",
+        ];
+        let text = std::iter::once(good).chain(bad).collect::<Vec<_>>().join("\n");
+        let doc = PlanDoc::restored(&text);
+        assert_eq!(doc.hidden.get(&w).map(|hides| (hides.changes.len(), hides.notes.len())), Some((1, 0)));
+        assert!(doc.extra.is_empty(), "{:?}", doc.extra);
+        // A change of another calendar is a line of a build to come: kept as it is.
+        let theirs = good.replacen("x\t0", "x\t1", 1);
+        assert_eq!(PlanDoc::restored(&theirs).extra, [theirs.clone()]);
+        assert!(PlanDoc::restored(&theirs).stored().contains(&theirs));
+        // A room too long is cut as the store cuts it.
+        let long = good.replace("ZHG/HS.A", &"A".repeat(change::MAX_ROOM + 5));
+        assert_eq!(PlanDoc::restored(&long).changes_of(w, evs_room().key).first().and_then(|change| change.room.as_ref()).map(|room| room.chars().count()), Some(change::MAX_ROOM));
+        // The caps: a hundred in one semester, a hundred notes.
+        let mut full = PlanDoc::default();
+        for n in 0..=MAX_CHANGES as u32 {
+            let added = full.set_change(w, Change { key: termin(150_000 + n, 1), ..evs_room() });
+            assert_eq!(added, (n as usize) < MAX_CHANGES, "{n}");
+            let noted = full.set_note(w, termin(150_000 + n, 1), "Folien");
+            assert_eq!(noted, (n as usize) < MAX_NOTES, "{n}");
+        }
+        // Changing one already there is no new one.
+        assert!(full.set_change(w, Change { key: termin(150_000, 1), room: Some("ZHG/HS.B".to_string()), ..evs_room() }));
     }
 
     /// Friday's job, 13:00–17:00, every week of the lecture period.
