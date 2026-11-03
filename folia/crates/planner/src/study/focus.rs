@@ -538,7 +538,7 @@ pub(super) fn find_href(ctx: StudyCtx, caption: &str, ord: i64, fill: Option<u32
         let Plans::Found(source) = plans else { return None };
         let variant = source.variants.iter().find(|variant| variant.full == caption)?;
         let entry = variant.entries.iter().find(|entry| entry.ord == ord)?;
-        let (query, _) = variants::row_query(&source.program.slug, variant, entry, &source.areas, t.locale);
+        let (query, _) = variants::row_query(&source.program, variant, entry, &source.areas, t.locale);
         Some(CatalogUrl { query, page: 1, open: None, fill }.path())
     })
 }

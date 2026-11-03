@@ -12,6 +12,7 @@
 use serde::{Deserialize, Serialize};
 use folia_locale::Locale;
 use folia_model::labels::ModuleKind;
+use folia_model::rows::Program;
 use folia_model::rows_detail::{PlanEntry, PlanTotal};
 use folia_routes::filter::{CatalogQuery, KindFilter, ProgramRelation, ProgramScope};
 use folia_routes::url;
@@ -223,19 +224,19 @@ pub fn clip_plan_name(name: &str, locale: Locale) -> String {
 }
 
 /// A row of the plan as a question to the catalog, and what the link to it says: the FÜS list for
-/// a FÜS row; a text search by its name for a row that means one module the catalog does not know
-/// under that name; the areas its name points at (`plan::areas_for_row`, all of them where it
-/// means several); else what the program leaves to choose (`program_choices`). The program page
-/// links a row of its plan this way, and a placeholder of the Studienplan („Modul finden") does
-/// too. `areas` are the program's (`pages::catalog_areas`); `program_slug` is what the catalog's
-/// URL carries. What the link says is in `locale`, but for the names of the data (a row's, an
-/// area's).
-pub fn row_query(program_slug: &str, variant: &PlanVariant, entry: &PlanEntry, areas: &[CatalogArea], locale: Locale) -> (CatalogQuery, String) {
+/// a FÜS row (`fues_list_for`); a text search by its name for a row that means one module the
+/// catalog does not know under that name; the areas its name points at (`plan::areas_for_row`,
+/// all of them where it means several); else what the program leaves to choose
+/// (`program_choices`). The program page links a row of its plan this way, and a placeholder of
+/// the Studienplan („Modul finden") does too. `program` is the one the plan is of: its slug is
+/// what the catalog's URL carries; `areas` are its own (`pages::catalog_areas`). What the link
+/// says is in `locale`, but for the names of the data (a row's, an area's).
+pub fn row_query(program: &Program, variant: &PlanVariant, entry: &PlanEntry, areas: &[CatalogArea], locale: Locale) -> (CatalogQuery, String) {
     let texts = crate::i18n::texts(locale);
-    let base = ProgramScope { program_slug: program_slug.to_string(), ..Default::default() };
+    let base = ProgramScope { program_slug: program.slug.clone(), ..Default::default() };
     let scoped = |scope: ProgramScope| CatalogQuery { program: Some(scope), ..Default::default() };
     if plan::is_fues(entry) {
-        return (scoped(ProgramScope { relation: ProgramRelation::Fues, ..base }), texts.fues_list.to_string());
+        return fues_list_for(program, locale);
     }
     if plan::is_single_module(entry) {
         return (CatalogQuery { text: entry.module_name.clone(), ..Default::default() }, entry.module_name.clone());
@@ -245,6 +246,22 @@ pub fn row_query(program_slug: &str, variant: &PlanVariant, entry: &PlanEntry, a
         [] => program_choices(base, areas, locale),
         [one] => (scoped(ProgramScope { areas: vec![one.id], ..base }), one.name().to_string()),
         several => (scoped(ProgramScope { areas: several.iter().map(|area| area.id).collect(), ..base }), (texts.areas)(several.len())),
+    }
+}
+
+/// The FÜS list a FÜS row of the program's plan leads to, and what the link says: the program's
+/// own; where the data holds none (20 of the 129 current programs with a plan on 2026-11-03, two
+/// of them with FÜS rows: Power Engineering, Urban Design and Sustainable Revitalization), the
+/// BTU's, as the row of Power Engineering itself says („Wähle 6 KP aus der BTU FÜS Liste"), and
+/// whose modules „Mein Studium" counts for the FÜS as well (`study::study`). Until then such a
+/// row led to an empty list. The Stundenplan's placeholders lead the same way.
+pub fn fues_list_for(program: &Program, locale: Locale) -> (CatalogQuery, String) {
+    let texts = crate::i18n::texts(locale);
+    if program.fues_modules > 0 {
+        let scope = ProgramScope { program_slug: program.slug.clone(), relation: ProgramRelation::Fues, ..Default::default() };
+        (CatalogQuery { program: Some(scope), ..Default::default() }, texts.fues_list.to_string())
+    } else {
+        (CatalogQuery { fues: Some(true), ..Default::default() }, texts.btu_fues_list.to_string())
     }
 }
 
@@ -474,12 +491,13 @@ mod tests {
     #[test]
     fn a_row_asks_the_catalog_what_the_program_page_asked() {
         const SLUG: &str = "bachelor-informatik-2008";
+        let own = program(SLUG, 117);
         let areas = real::areas(real::INFORMATIK_BSC);
         let variant = plan_variants(&real::informatik_bsc_rows(), &[], Locale::De).remove(0);
         let id = |label: &str| areas.iter().find(|area| area.label == label).map(|area| area.id).unwrap();
         let scope = ProgramScope { program_slug: SLUG.to_string(), ..Default::default() };
         let scoped = |scope: ProgramScope| CatalogQuery { program: Some(scope), ..Default::default() };
-        let ask = |name: &str, kind: Option<ModuleKind>| row_query(SLUG, &variant, &row(name, 3, kind, None), &areas, Locale::De);
+        let ask = |name: &str, kind: Option<ModuleKind>| row_query(&own, &variant, &row(name, 3, kind, None), &areas, Locale::De);
         let path = |query: CatalogQuery| CatalogUrl { query, ..Default::default() }.path();
 
         // FÜS: the program's FÜS list, by the name as well as by the kind.
@@ -510,7 +528,7 @@ mod tests {
 
         // In English the same questions, the link's words in English and the names of the data
         // as they are.
-        let english = |name: &str, kind: Option<ModuleKind>| row_query(SLUG, &variant, &row(name, 3, kind, None), &areas, Locale::En).1;
+        let english = |name: &str, kind: Option<ModuleKind>| row_query(&own, &variant, &row(name, 3, kind, None), &areas, Locale::En).1;
         assert_eq!(english("Fachübergreifendes Studium", Some(ModuleKind::Elective)), "FÜS list of the degree programme");
         assert_eq!(english("Anwendungsfach", Some(ModuleKind::Elective)), "5 areas");
         assert_eq!(english("Wahlpflichtmodul 3", Some(ModuleKind::Elective)), "Compulsory elective modules of the degree programme");
@@ -525,6 +543,7 @@ mod tests {
     #[test]
     fn a_row_that_points_at_no_area_lists_what_can_be_chosen() {
         const SLUG: &str = "bachelor-bauingenieurwesen-2022-82";
+        let own = program(SLUG, 145);
         let areas = real::areas(real::BAUINGENIEURWESEN_BSC);
         let variant = plan_variants(&real::bauingenieurwesen_bsc_rows(), &[], Locale::De).remove(0);
         let scope = ProgramScope { program_slug: SLUG.to_string(), ..Default::default() };
@@ -545,51 +564,98 @@ mod tests {
         });
         for entry in &variant.entries {
             assert!(plan::areas_for_row(entry, &variant.full, &areas, &variant.entries).areas.is_empty(), "{}", entry.module_name);
-            let (query, what) = row_query(SLUG, &variant, entry, &areas, Locale::De);
+            let (query, what) = row_query(&own, &variant, entry, &areas, Locale::De);
             assert_eq!((&query, what.as_str()), (&not_fixed, "Module des Studiengangs ohne Pflichtmodule"));
             assert_eq!(path(&query), "/catalog?program=bachelor-bauingenieurwesen-2022-82&not-kind=compulsory,thesis,internship");
             assert_eq!(parsed(&path(&query)), query, "the address carries the whole question");
-            assert_eq!(row_query(SLUG, &variant, entry, &areas, Locale::En).1, "Non-compulsory modules of the degree programme");
+            assert_eq!(row_query(&own, &variant, entry, &areas, Locale::En).1, "Non-compulsory modules of the degree programme");
         }
 
         // A tree of nothing but what is fixed, or no tree at all: the whole curriculum.
         let entry = &variant.entries[0];
         let fixed: Vec<CatalogArea> = areas.iter().filter(|area| !area.choice).cloned().collect();
         let whole = (scoped(scope.clone()), "Alle Module des Studiengangs".to_string());
-        assert_eq!(row_query(SLUG, &variant, entry, &fixed, Locale::De), whole);
-        assert_eq!(row_query(SLUG, &variant, entry, &[], Locale::De), whole);
+        assert_eq!(row_query(&own, &variant, entry, &fixed, Locale::De), whole);
+        assert_eq!(row_query(&own, &variant, entry, &[], Locale::De), whole);
         assert_eq!(path(&whole.0), "/catalog?program=bachelor-bauingenieurwesen-2022-82");
-        assert_eq!(row_query(SLUG, &variant, entry, &[], Locale::En).1, "All modules of the degree programme");
+        assert_eq!(row_query(&own, &variant, entry, &[], Locale::En).1, "All modules of the degree programme");
 
         // One area that holds a module stated to be an elective is enough for the electives.
         let mut stated = areas.clone();
         stated.iter_mut().filter(|area| area.label == "Profilierung").for_each(|area| area.electives = 1);
         let electives = (scoped(ProgramScope { kinds: vec![KindFilter::Stated(ModuleKind::Elective)], ..scope }), "Wahlpflichtmodule des Studiengangs".to_string());
-        assert_eq!(row_query(SLUG, &variant, entry, &stated, Locale::De), electives);
+        assert_eq!(row_query(&own, &variant, entry, &stated, Locale::De), electives);
+    }
+
+    /// A FÜS row of a program whose FÜS list the data does not hold (Urban Design and Sustainable
+    /// Revitalization M.Sc., its row 13 „FÜS"; Power Engineering) leads to the BTU's FÜS list, not
+    /// to an empty one; a program with a list of its own keeps it.
+    #[test]
+    fn a_fues_row_of_a_program_without_a_fues_list_leads_to_the_btu_s() {
+        const SLUG: &str = "master-urban-design-and-sustainable-revitalization-2024-d8";
+        let variant = plan_variants(&[PlanEntry { ord: 13, ..row("FÜS", 3, Some(ModuleKind::Fues), None) }], &[], Locale::De).remove(0);
+        let entry = &variant.entries[0];
+        let btu = (CatalogQuery { fues: Some(true), ..Default::default() }, "FÜS-Liste der BTU".to_string());
+        assert_eq!(row_query(&program(SLUG, 0), &variant, entry, &[], Locale::De), btu);
+        assert_eq!(CatalogUrl { query: btu.0.clone(), ..Default::default() }.path(), "/catalog?fues=only");
+        assert_eq!(row_query(&program(SLUG, 0), &variant, entry, &[], Locale::En).1, "FÜS list of the BTU");
+        let own = ProgramScope { program_slug: SLUG.to_string(), relation: ProgramRelation::Fues, ..Default::default() };
+        let listed = (CatalogQuery { program: Some(own), ..Default::default() }, "FÜS-Liste des Studiengangs".to_string());
+        assert_eq!(row_query(&program(SLUG, 1), &variant, entry, &[], Locale::De), listed);
     }
 
     /// On the tests' snapshot, every row of every plan that leaves a module to choose leads to a
-    /// list that holds modules while its program has any (`row_query`; 106 rows did not on
-    /// 2026-11-01). A FÜS row leads to the program's FÜS list, which the data may lack: another
-    /// question.
+    /// list that holds modules (`row_query`): a row to choose for while its program has modules
+    /// (106 rows did not on 2026-11-01), a FÜS row while the BTU has a FÜS list (3 did not on
+    /// 2026-11-03).
     #[test]
-    fn no_row_to_choose_for_leads_to_an_empty_list() {
+    fn no_place_leads_to_an_empty_list() {
         let db = folia_test_support::open();
-        let mut rows = 0;
+        let btu_fues = queries::catalog_count(&db, &CatalogQuery { fues: Some(true), ..Default::default() }).unwrap();
+        let (mut rows, mut fues_rows) = (0, 0);
         for program in queries::programs(&db).unwrap().into_iter().filter(|program| program.has_plan) {
             let entries = queries::program_plan_entries(&db, &program.id).unwrap();
             let areas = crate::areas::catalog_areas(&queries::program_areas(&db, &program.id).unwrap(), &queries::program_area_tree(&db, &program.id).unwrap());
             for variant in plan_variants(&entries, &[], Locale::De) {
-                let to_choose = |entry: &&PlanEntry| !entry.module_id.as_deref().is_some_and(url::is_module_id) && !plan::is_fues(entry) && !plan::is_single_module(entry);
-                for entry in variant.entries.iter().filter(to_choose) {
-                    let (query, what) = row_query(&program.slug, &variant, entry, &areas, Locale::De);
+                let place = |entry: &&PlanEntry| !entry.module_id.as_deref().is_some_and(url::is_module_id) && !plan::is_single_module(entry);
+                for entry in variant.entries.iter().filter(place) {
+                    let (query, what) = row_query(&program, &variant, entry, &areas, Locale::De);
                     let listed = queries::catalog_count(&db, &query).unwrap();
-                    assert!(listed > 0 || program.curricular_modules == 0, "{}: „{}“ leads to „{what}“, which lists nothing", program.slug, entry.module_name);
+                    let fues = plan::is_fues(entry);
+                    let anything = if fues { btu_fues > 0 } else { program.curricular_modules > 0 };
+                    assert!(listed > 0 || !anything, "{}: „{}“ leads to „{what}“, which lists nothing", program.slug, entry.module_name);
                     rows += 1;
+                    fues_rows += usize::from(fues);
                 }
             }
         }
-        assert!(rows > 0, "the snapshot has rows to choose for");
+        assert!(rows > fues_rows && fues_rows > 0, "the snapshot has places of both kinds");
+    }
+
+    /// The program a plan is of, as `queries::programs` has it; `row_query` reads its slug and
+    /// whether it has a FÜS list of its own.
+    fn program(slug: &str, fues_modules: i64) -> Program {
+        Program {
+            id: String::new(),
+            slug: slug.to_string(),
+            name: String::new(),
+            degree_level: Code::parse("master"),
+            study_variant: None,
+            degree_label: None,
+            degree_raw: String::new(),
+            degree_display: None,
+            po_version: String::new(),
+            po_year: None,
+            family_key: String::new(),
+            name_key: String::new(),
+            is_latest_po: true,
+            source_url: String::new(),
+            has_plan: true,
+            plan_status: None,
+            curricular_modules: 0,
+            fues_modules,
+            documents: 0,
+        }
     }
 
     #[test]
