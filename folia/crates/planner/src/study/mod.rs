@@ -301,6 +301,10 @@ impl StudyCtx {
     /// Tracked: the plan, the program's plans, the catalog's rows, the state.
     pub fn with_input<R>(self, f: impl FnOnce(&Input, &Ready) -> R) -> Option<R> {
         let doc = self.plan.map(|plan| plan.with(Clone::clone)).unwrap_or_default();
+        // The program's plans and the rows before the state they make (R16): an effect that calls
+        // this would miss a change of them that leaves the state as it was (the workbench's aim).
+        self.plans.track();
+        self.rows.track();
         self.state.with(|state| {
             let ready = state.ready()?;
             self.plans.with(|plans| {

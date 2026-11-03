@@ -204,10 +204,15 @@ pub(super) fn keep(live: Ctx) {
     // The run that is writing: a newer one ends it between two of its slices, as the page gone.
     let run = StoredValue::new(0u32);
     Effect::new(move |_| {
-        let ready = live.key.with(Option::is_some) && live.table.with(Option::is_some);
+        // What the others come of first (R16): the semester, then its modules, then the timetable,
+        // the facts and the names their data makes. Read after them, a change of the plan that left
+        // the timetable as it was (a module planned while its Termine are on their way) went unseen
+        // until something else changed.
+        let semester = live.key.with(Option::is_some);
+        live.planned.track();
+        let ready = semester && live.table.with(Option::is_some);
         live.facts.track();
         live.names.track();
-        live.planned.track();
         live.progress.track();
         day.track();
         run.update_value(|run| *run = run.wrapping_add(1));

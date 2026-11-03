@@ -95,6 +95,23 @@ pub(super) struct Ctx {
 }
 
 impl Ctx {
+    /// Reads what the day is made of in the order it is made (R16): the semester and its modules,
+    /// the timetable, its agenda, the names and the facts, then the day, its clock and its phase.
+    /// A view that reads several of them calls it first: read the other way round, the phase before
+    /// the day, a change of the day that left the phase as it was (a Termin hidden, a group chosen)
+    /// went unseen until the next minute.
+    pub(super) fn follow(&self) {
+        self.key.track();
+        self.planned.track();
+        self.table.track();
+        self.agenda.track();
+        self.names.track();
+        self.facts.track();
+        self.today.track();
+        self.clock.track();
+        self.phase.track();
+    }
+
     /// The same inputs at the minute `now` holds: the day, the clock and the phase of it
     /// (`ahead` works out the minutes to come this way).
     #[cfg_attr(not(feature = "csr"), allow(dead_code))]
@@ -540,6 +557,7 @@ pub(super) fn sentence(ctx: Ctx, t: &Texts) -> String {
     if ctx.guest {
         return tt.guest.to_string();
     }
+    ctx.follow();
     let (day, minute) = ctx.now.get();
     if ctx.key.get().is_some() && ctx.planned.with(Vec::is_empty) {
         return (tt.empty_plan)(&ctx.key.get().map(|key| key.label(t.locale)).unwrap_or_default());
@@ -715,6 +733,7 @@ fn NextCard(ctx: Ctx, on_setup: Callback<()>) -> impl IntoView {
             }
             .into_any();
         }
+        ctx.follow();
         if ctx.key.get().is_some() && ctx.planned.with(Vec::is_empty) {
             let import = StudyplanUrl { import: Some("mine".to_string()), ..Default::default() }.path();
             return view! {
@@ -960,6 +979,7 @@ fn DayPanel(ctx: Ctx) -> impl IntoView {
     let tt = &t.today;
     move || {
         let (day, minute) = ctx.now.get();
+        ctx.follow();
         let phase = ctx.phase.get();
         ctx.today.with(|today| {
             let firm = today.firm().count();
@@ -1008,6 +1028,7 @@ fn NextDayPanel(ctx: Ctx) -> impl IntoView {
     let tt = &t.today;
     move || {
         let (day, _) = ctx.now.get();
+        ctx.follow();
         let phase = ctx.phase.get();
         ctx.today.with(|today| {
             let (next, entries) = today.next_day.as_ref()?;
@@ -1030,6 +1051,7 @@ fn WeekPanel(ctx: Ctx) -> impl IntoView {
     let tt = &t.today;
     move || {
         let (day, _) = ctx.now.get();
+        ctx.follow();
         let phase = ctx.phase.get();
         // In a break the week it goes on in.
         let shown = match phase {
@@ -1169,9 +1191,12 @@ fn MarksPanel() -> impl IntoView {
         (!ids.is_empty()).then_some(StudyplanModulesAsk { ids })
     });
     move || {
+        // The marks before the rows asked for them (R16): read after them, the same three in
+        // another order stayed in the order before.
+        let shown_ids = ids.get();
         let count = count.get();
         let found: Vec<CatalogRow> = rows.with(|rows| rows.as_ref().and_then(|rows| rows.as_ref().ok()).map(|(rows, _)| rows.clone()).unwrap_or_default());
-        let listed = ids.get().into_iter().filter_map(|id| found.iter().find(|row| row.id == id).cloned()).map(|row| {
+        let listed = shown_ids.into_iter().filter_map(|id| found.iter().find(|row| row.id == id).cloned()).map(|row| {
             let turnus = row.turnus_season.is_some().then(|| format::turnus(row.turnus_season.as_ref(), row.turnus_parity.as_ref(), t.locale));
             let facts = [Some(row.id.clone()), row.credits.map(|credits| format!("{} {}", format::number(credits, t.locale), tt.credits)), turnus].into_iter().flatten().collect::<Vec<_>>().join(" · ");
             view! {
