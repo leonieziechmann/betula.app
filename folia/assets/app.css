@@ -681,9 +681,10 @@ body:not(:has(> .main > .content > .page-stage.front > .work > .ground)) > .grou
      before: the area's padding, under which what is pinned sticks, and `scroll-padding`, which
      keeps what is scrolled to (a section, the focus) below the bar as well. Once the page is
      scrolled the frost lies behind the bar (`.frost`, above). Not a list's page nor „Mein
-     Studium"'s semesters: their heads stay at the top and take what scrolls under them. By its
+     Studium"'s semesters and its workbench: their heads stay at the top and take what scrolls
+     under them. By its
      classes, so that the takeover's picture (boot.js: a copy without ids) stands as the page. */
-  .content > .page-stage > .work.flowing:not(:has(> .list, > .page > .page-inner.study > .st-sems)) {
+  .content > .page-stage > .work.flowing:not(:has(> .list, > .page > .page-inner.study > :is(.st-sems, .st-wb))) {
     margin-top: calc(-1px - var(--head)); height: calc(100% + 2px + var(--head)); padding-top: calc(1px + var(--head)); scroll-padding-top: var(--head);
   }
   .work.flowing:focus { outline: none; }
@@ -6216,6 +6217,144 @@ a.st-rsp-name:hover { text-decoration: underline; }
 .st-more-row .st-link { font-size: 12.5px; }
 @container semesters (max-width: 760px) { .st-split { grid-template-columns: 210px minmax(0, 1fr); } }
 
+/* The workbench (bench.rs; folia/design/hinzufuegen/konzepte.html, third round; owner, 2026-11-03:
+   „Passt so, bau das jetzt in Folia"): planning one semester is a mode. Its bar stands over all it
+   changes; under it on a desktop three columns — the areas of the plan where the sidebar is, as
+   wide, the subgroup picked in the middle, the semester on the right as wide as the module beside
+   the page, which floats over it when a row is opened. The page's sidebar steps aside meanwhile,
+   and the area starts under the bar at the top, so that the bar of the mode stays right under it. */
+.st-wb { display: grid; gap: var(--gap); align-content: start; min-width: 0; }
+.st-wb-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-height: 56px; padding: 8px 10px 8px 12px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel), inset 3px 0 0 var(--accent); }
+.st-wb-bar-ic { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-ink); }
+.st-wb-bar-ic .icon { width: 17px; height: 17px; }
+.st-wb-bar-t { font-size: 15px; font-weight: 750; }
+.st-wb-sem-pick { display: inline-flex; align-items: center; gap: 2px; }
+.st-wb-sem-pick em { padding: 0 4px; font-style: normal; font-size: 15px; font-weight: 700; white-space: nowrap; }
+.st-wb-bar-sub { color: var(--text-2); font-size: 12.5px; white-space: nowrap; }
+.st-wb-meter { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.st-wb-meter > span:first-child { flex: none; width: 110px; height: 6px; border-radius: 3px; background: var(--panel-3); overflow: hidden; }
+.st-wb-meter > span:first-child > i { display: block; width: var(--p, 0%); height: 100%; border-radius: 3px; background: var(--accent); transition: width .25s var(--ease); }
+.st-wb-meter.heavy > span:first-child > i { background: var(--warn); }
+.st-wb-meter b { font-weight: 650; }
+.st-wb-meter .over { color: var(--warn); font-weight: 750; }
+.st-wb-done { display: inline-flex; align-items: center; gap: 8px; }
+.st-wb-cols { display: grid; grid-template-columns: minmax(220px, var(--filters)) minmax(0, 1fr) minmax(300px, min(var(--preview), 36%)); gap: var(--gap); align-items: start; }
+.st-wb-areas { display: flex; flex-direction: column; gap: 1px; padding: 8px; }
+.st-wb-areas-h { display: flex; align-items: baseline; gap: 6px; padding: 6px 10px 8px; font-size: 15px; font-weight: 700; }
+.st-wb-areas-h small { color: var(--text-3); font-size: 12px; font-weight: 500; }
+.st-wb-a { display: grid; grid-template-columns: minmax(0, 1fr) auto 16px; align-items: center; gap: 8px; width: 100%; min-height: 38px; padding: 8px 8px 8px 10px; border: 0; border-radius: var(--r-s); background: none; color: var(--text); font: inherit; font-size: 14px; font-weight: 600; text-align: left; text-decoration: none; cursor: pointer; }
+.st-wb-a:hover { background: var(--row-hover); }
+.st-wb-a[aria-current="true"] { background: var(--panel-3); }
+.st-wb-a .nm { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.st-wb-a .nm > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-wb-a .nm .icon { flex: none; width: 16px; height: 16px; color: var(--text-2); }
+.st-wb-a .st-dot { width: 9px; height: 9px; }
+.st-wb-a small, .st-wb-s small { font-size: 12.5px; font-weight: 600; color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.st-wb-a small.ok, .st-wb-s small.ok { color: var(--ok); }
+.st-wb-a .chev { width: 15px; height: 15px; color: var(--text-3); }
+.st-wb-a.way { color: var(--accent-ink); }
+.st-wb-a.way .nm .icon { color: currentColor; }
+.st-wb-subs { display: flex; flex-direction: column; gap: 1px; margin: 1px 0 6px 14px; padding-left: 8px; border-left: 2px solid var(--line-strong); }
+.st-wb-s { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; padding: 7px 8px 7px 10px; border: 0; border-radius: var(--r-s); background: none; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 560; text-align: left; cursor: pointer; }
+.st-wb-s > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-wb-s:hover { background: var(--row-hover); color: var(--text); }
+.st-wb-s[aria-current="true"] { background: var(--panel-3); color: var(--text); font-weight: 650; }
+.st-wb-sep { margin: 6px 4px; border: 0; border-top: 1px solid var(--line); }
+.st-wb-pane { min-width: 0; padding: 14px 18px 16px; }
+.st-wb-ph { display: grid; gap: 4px; }
+.st-wb-pt { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.st-wb-pt h3 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.st-wb-crumb { color: var(--text-3); font-size: 13.5px; font-weight: 600; }
+.st-wb-fig { margin-left: auto; color: var(--text-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.st-wb-fig b { color: var(--text); font-weight: 700; }
+.st-wb-rule { margin: 0; color: var(--text-2); font-size: 13px; line-height: 1.45; }
+.st-wb-rule.pad { padding: 14px 4px 6px; }
+.st-wb-act { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 0 4px; }
+.st-wb-act small { color: var(--text-3); font-size: 12.5px; }
+.st-wb-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 12px 0 4px; }
+.st-wb-ctl .st-search-box { flex: 1 1 200px; height: 34px; }
+.st-wb-ctl .st-search-box input { font-size: 14px; }
+.st-wb-list { list-style: none; margin: 6px 0 0; padding: 0; }
+.st-wb-g { padding: 14px 8px 5px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-2); }
+.st-wb-g small { font-size: 11.5px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+.st-wb-fold { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.st-wb-fold .icon { width: 14px; height: 14px; }
+.st-wb-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto 52px auto; align-items: center; gap: 4px 14px; padding: 8px 8px; border-top: 1px solid var(--line); border-radius: var(--r-s); }
+.st-wb-g + .st-wb-row { border-top-color: transparent; }
+.st-wb-row:hover { background: var(--row-hover); }
+.st-wb-row.is-open { background: var(--panel-3); }
+.st-wb-go, .st-wb-go:hover { display: block; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
+span.st-wb-go { cursor: default; }
+:is(a, button).st-wb-go::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.st-wb-go b { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.st-wb-go b .icon { flex: none; width: 15px; height: 15px; color: var(--ok); }
+.st-wb-row.is-done .st-wb-go b { color: var(--text-2); }
+.st-wb-go small { display: flex; flex-wrap: wrap; gap: 1px 10px; margin-top: 2px; color: var(--text-3); font-size: 12px; }
+.st-wb-go small .mono { font-variant-numeric: tabular-nums; }
+.st-wb-else { color: var(--text-2); }
+.st-wb-fit { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; color: var(--text-2); font-size: 12px; white-space: nowrap; }
+.st-wb-fit > span { overflow: hidden; text-overflow: ellipsis; }
+.st-wb-fit > i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); }
+.st-wb-fit.ok > i { background: var(--ok); }
+.st-wb-fit.part > i { background: var(--warn); }
+.st-wb-fit.warn { color: var(--no); }
+.st-wb-fit.warn > i { background: var(--no); }
+.st-wb-fit.quiet { color: var(--text-3); }
+.st-wb-fit.quiet > i { background: none; box-shadow: inset 0 0 0 1.5px var(--text-3); }
+.st-wb-act .st-wb-fit { max-width: none; white-space: normal; font-size: 13px; }
+.st-wb-lp { color: var(--text-3); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.st-wb-lp b { margin-right: 3px; color: var(--text); font-size: 14px; font-weight: 650; }
+.st-wb-plus { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 112px; height: 30px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--accent-soft); color: var(--accent-ink); font: inherit; font-size: 13px; font-weight: 650; white-space: nowrap; cursor: pointer; }
+.st-wb-plus .icon { width: 15px; height: 15px; }
+.st-wb-plus:hover { box-shadow: inset 0 0 0 1px var(--accent-line); }
+.st-wb-plus.done { background: var(--ok-soft); color: var(--ok); }
+.st-wb-plus.quiet { background: none; color: var(--text-3); cursor: default; box-shadow: none; }
+.st-wb-plus.go { background: var(--panel-3); color: var(--text); }
+.st-wb-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--text-2); font-size: 13px; }
+.st-wb-foot .btn { display: inline-flex; align-items: center; gap: 6px; }
+.st-wb-foot .st-link { margin-left: auto; }
+.st-wb-sem { padding: 14px 14px 10px; }
+.st-wb-sh { display: grid; gap: 4px; padding-bottom: 8px; }
+.st-wb-sh h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 17px; font-weight: 700; }
+.st-wb-sh small { color: var(--text-2); font-size: 12.5px; }
+.st-wb-sh .st-wb-meter { margin: 6px 0 0; }
+.st-wb-sh .st-wb-meter > span:first-child { flex: 1 1 auto; width: auto; }
+.st-wb-over { margin: 2px 0 0; color: var(--warn); font-size: 12.5px; font-weight: 600; }
+.st-wb-turns { display: inline-flex; flex: none; gap: 2px; margin-left: 4px; }
+.st-wb-sl { list-style: none; margin: 0; padding: 0; }
+.st-wb-sr { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto 30px; align-items: center; gap: 8px; padding: 8px 2px 8px 4px; border-top: 1px solid var(--line); border-radius: var(--r-s); }
+.st-wb-sr:hover { background: var(--row-hover); }
+.st-wb-sr .st-wb-go b { font-size: 13.5px; }
+.st-wb-sr .st-area { display: inline-flex; align-items: center; gap: 5px; }
+.st-wb-sr .st-area .st-dot { width: 7px; height: 7px; }
+.st-wb-tag { color: var(--text-2); }
+.st-wb-rm { position: relative; z-index: 1; }
+.st-plan-bench { display: inline-flex; align-items: center; gap: 6px; }
+/* The workbench over the catalog that „Im Katalog suchen" opened (folia_stores::studyplan::BenchBar):
+   at the head of the list the way back first (the module beside the list covers the bar's right
+   end), „Planen", the semester and the subgroup. */
+.bench-bar { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; padding: 7px 10px 7px 7px; border-radius: var(--r-ctl); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--accent-ink); }
+.bench-bar-ic { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; background: var(--panel); }
+.bench-bar-ic .icon { width: 16px; height: 16px; }
+.bench-bar-w { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; font-size: 13px; }
+.bench-bar-w b { font-size: 14px; font-weight: 750; }
+.bench-bar .btn { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+@media (min-width: 901px) {
+  .work.flowing.framed:has(> .page > .page-inner.study > .st-wb) > :is(.sidebar, .resizer.between) { display: none; }
+  .work.flowing.framed:has(> .page > .page-inner.study > .st-wb) > .page { grid-column: 1 / -1; }
+  :root:has(#content > .page-stage.front > .work.framed > .page > .page-inner.study > .st-wb) .frost { left: var(--rail); }
+  html.js .st-wb > .st-wb-bar { position: sticky; top: 0; z-index: 8; }
+  html.js .st-wb-cols > :is(.st-wb-areas, .st-wb-sem) { position: sticky; top: calc(56px + var(--gap)); max-height: calc(100vh - 64px - 56px - var(--gap)); overflow: auto; overscroll-behavior: contain; }
+  .st-wb-cols > .st-wb-pane { min-height: calc(100vh - 64px - 56px - var(--gap)); }
+}
+@media (min-width: 901px) and (max-width: 1240px) {
+  .st-wb-cols { grid-template-columns: 220px minmax(0, 1fr) 280px; }
+  .st-wb-row { grid-template-columns: minmax(0, 1fr) 48px auto; }
+  .st-wb-row > .st-wb-fit { grid-column: 1; grid-row: 2; }
+  .st-wb-row > .st-wb-lp { grid-column: 2; grid-row: 1; }
+  .st-wb-row > .st-wb-plus { grid-column: 3; grid-row: 1; }
+}
+
 @media (max-width: 900px) {
   /* A view on a phone: a page of its own, its title over the search's line as a semester's is. */
   .st-vhead { padding: 4px 4px 2px; }
@@ -6457,6 +6596,45 @@ a.st-rsp-name:hover { text-decoration: underline; }
   /* The bar of the rows selected: in the tab bar's place, over it (owner, 2026-10-05: „Mach das
      mal so, dass die die navbar überdeckt"). */
   .st-selbar { position: fixed; z-index: 35; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); height: 62px; min-height: 0; padding: 5px; gap: 2px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--accent-line); animation: st-bar-up .2s var(--ease); }
+  /* The workbench on a phone (bench.rs): the area as a button over the list, which opens the
+     areas as a sheet; the rows as cards, „+" at their end; the bar of the mode in the tab bar's
+     place, over it, as the bar of the rows selected (owner, 2026-11-03, of the concept: „deckt die
+     Leiste des Modus die Tab-Leiste ab? … ja"). */
+  .st-wb.phone { gap: 10px; padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
+  .st-wb-pick { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 58px; padding: 9px 14px; border: 0; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+  .st-wb-pick-w { display: grid; gap: 1px; min-width: 0; }
+  .st-wb-pick .k { font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+  .st-wb-pick b { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 15.5px; font-weight: 700; }
+  .st-wb-pick b > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .st-wb-pick-f { display: flex; flex: none; align-items: center; gap: 6px; color: var(--text-3); font-size: 13px; font-weight: 600; }
+  .st-wb-pick-f .ok { color: var(--ok); }
+  .st-wb-pick-f .icon { width: 18px; height: 18px; }
+  .st-wb.phone > .st-wb-pane { padding: 14px 12px 12px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); }
+  .st-wb-row { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; padding: 10px 4px; }
+  .st-wb-row > .st-wb-fit { grid-column: 1; grid-row: 2; max-width: 100%; }
+  .st-wb-row > .st-wb-lp { grid-column: 2; grid-row: 1; align-self: start; padding-top: 2px; }
+  .st-wb-row > .st-wb-plus { grid-column: 2; grid-row: 2; min-width: 0; width: 40px; height: 34px; padding: 0; }
+  .st-wb-row > .st-wb-plus > span { display: none; }
+  .st-wb-row.choice > .st-wb-plus { width: auto; padding: 0 10px; }
+  .st-wb-row.choice > .st-wb-plus > span { display: inline; }
+  .st-wb-go small .st-wb-facts { flex-basis: 100%; }
+  .st-wb-act .btn { flex: 1 1 auto; justify-content: center; }
+  .st-wb-ctl { gap: 4px 14px; }
+  .st-wb-ctl .st-search-box { flex-basis: 100%; }
+  .st-wb-foot .st-link { margin-left: 0; }
+  .st-wb-areas.sheet { display: flex; flex-direction: column; gap: 1px; padding-top: 4px; }
+  .st-wb-areas.sheet .st-wb-a { min-height: 46px; font-size: 15px; }
+  .st-wb-areas.sheet .st-wb-s { min-height: 42px; font-size: 14px; }
+  .st-wb-sem.sheet { padding-top: 0; }
+  .st-wb-sem.sheet .st-wb-sh { padding-top: 0; }
+  .st-wb-pbar { position: fixed; z-index: 35; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px; height: 62px; padding: 6px 6px 6px 14px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--accent-line); animation: st-bar-up .2s var(--ease); }
+  .st-wb-pbar-w { flex: 1 1 auto; display: grid; gap: 2px; min-width: 0; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+  .st-wb-pbar-w b { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; white-space: nowrap; }
+  .st-wb-pbar-w b .icon { width: 15px; height: 15px; color: var(--text-3); }
+  .st-wb-pbar-w small { color: var(--text-3); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .st-wb-pbar-m { height: 4px; border-radius: 2px; background: var(--panel-3); overflow: hidden; }
+  .st-wb-pbar-m > i { display: block; width: var(--p, 0%); height: 100%; background: var(--accent); }
+  .st-wb-pbar .btn { flex: none; height: 48px; padding: 0 18px; border-radius: 12px; }
   .st-selbar-count { margin-left: 8px; font-size: 13px; }
   .st-act { flex-direction: column; justify-content: center; gap: 2px; height: 48px; padding: 0 6px; font-size: 11px; }
   .st-act .icon { width: 18px; height: 18px; }

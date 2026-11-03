@@ -835,17 +835,28 @@ pub fn study(input: &Input) -> Study {
         s = next;
     }
 
-    // Each item's area: the one of its plan row, else the ones the tree places its module in (the
-    // first with room left), else the FÜS for a module of the FÜS list or the catalog's FÜS.
+    // Each item's area: the one of its plan row, else the one of the row the student chose it for
+    // (the placeholder it fills, the row it was planned for: `Planned::fills`, `Planned::counts`),
+    // else the ones the tree places its module in (the first with room left), else the FÜS for a
+    // module of the FÜS list or the catalog's FÜS.
     let fues_area = areas.iter().position(|area| area.kind == AreaKind::Fues);
     let fues: BTreeSet<&str> = input.fues.iter().map(String::as_str).collect();
     let row_area = |caption: &str, ord: i64| areas.iter().position(|area| area.rows.iter().any(|(c, o)| c == caption && *o == ord));
-    let candidates = |item: &Item| -> Vec<usize> {
+    let chosen_area = |id: &str, s: SemesterKey| -> Option<usize> {
+        let planned = doc.modules.iter().find(|m| m.semester == s && m.module_id == id)?;
+        let filled = planned.fills.and_then(|pid| doc.placeholders.iter().find(|p| p.pid == pid)).filter(|p| p.program_id == input.program_id).and_then(|p| row_area(&p.caption, p.ord));
+        filled.or_else(|| planned.counts.as_ref().filter(|row| row.program_id == input.program_id).and_then(|row| row_area(&row.caption, row.ord)))
+    };
+    let candidates = |item: &Item, s: SemesterKey| -> Vec<usize> {
         match &item.subject {
             Subject::Row { caption, ord, .. } => row_area(caption, *ord).into_iter().collect(),
             Subject::Module { id } => {
                 if let Some(row) = module_rows.get(id.as_str()) {
                     return row_area(&row.variant.full, row.entry.ord).into_iter().collect();
+                }
+                // The student's choice holds, past what the area asks as well.
+                if let Some(chosen) = chosen_area(id, s) {
+                    return vec![chosen];
                 }
                 let placed: Vec<i64> = input.placements.iter().filter(|(module, _)| module == id).map(|(_, area)| *area).collect();
                 let found: Vec<usize> = areas.iter().enumerate().filter(|(_, area)| placed.iter().any(|at| area.tree.contains(at))).map(|(i, _)| i).collect();
@@ -868,8 +879,10 @@ pub fn study(input: &Input) -> Study {
     }
     order.sort_unstable();
     for (_, si, ii) in order {
-        let Some(item) = semesters.get_mut(si).and_then(|semester| semester.items.get_mut(ii)) else { continue };
-        let found = candidates(item);
+        let Some(semester) = semesters.get_mut(si) else { continue };
+        let key = semester.key;
+        let Some(item) = semester.items.get_mut(ii) else { continue };
+        let found = candidates(item, key);
         item.area = found.first().copied();
         let counts = item.passed || !item.failed;
         let credits = item.counted().unwrap_or(0.0);

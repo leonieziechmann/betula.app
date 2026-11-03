@@ -486,3 +486,16 @@ pub(super) fn on_open(ev: &leptos::ev::Event) -> bool {
     #[cfg(not(feature = "csr"))]
     false
 }
+
+/// The page at its top: the area that scrolls on a wide screen (`#page-scroll`), the window on a
+/// phone. For the workbench, which comes in place of the page where it was scrolled to.
+pub(super) fn page_to_top() {
+    #[cfg(feature = "csr")]
+    {
+        let Some(window) = web_sys::window() else { return };
+        if let Some(area) = window.document().and_then(|document| document.get_element_by_id("page-scroll")) {
+            area.set_scroll_top(0);
+        }
+        window.scroll_to_with_x_and_y(0.0, 0.0);
+    }
+}

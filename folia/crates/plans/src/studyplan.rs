@@ -384,6 +384,34 @@ pub struct Planned {
     /// A derived Standort is taken from these (`selection`). A build before this field writes the
     /// line back without it, and the Standort is then derived from every module, as it was.
     pub from_plan: bool,
+    /// The row of the Regelstudienplan it was planned for where no placeholder of that row stands
+    /// in its semester (the workbench's „+ Einplanen" in a subgroup, folia/design/hinzufuegen/
+    /// konzepte.html, third round: „es zählt in der Untergruppe, aus der es eingeplant wurde;
+    /// Betula merkt sich das am Modul"): it counts for that row's area and choice first
+    /// (`study::study`, `choices::plan_view`). Only the visitor sets it, as `fills`. Stored as the
+    /// seventh to ninth field (program, `ord`, caption); a build before it writes the line back
+    /// without them, and the module counts where the tree places it, as it did.
+    pub counts: Option<RowRef>,
+}
+
+/// A row of a program's Regelstudienplan: the program, the caption of its plan (`""` for the one
+/// unnamed plan of a program) and its `PlanEntry::ord`.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RowRef {
+    pub program_id: String,
+    pub caption: String,
+    pub ord: i64,
+}
+
+impl RowRef {
+    pub fn new(program_id: &str, caption: &str, ord: i64) -> Self {
+        RowRef { program_id: program_id.to_string(), caption: caption.to_string(), ord }
+    }
+
+    /// The same row as `caption` and `ord` of the program `program_id`.
+    pub fn is(&self, program_id: &str, caption: &str, ord: i64) -> bool {
+        self.program_id == program_id && self.caption == caption && self.ord == ord
+    }
 }
 
 /// A module only visited in a semester („nur besuchen", decided 2026-10-19: „Ein geplantes Modul
@@ -491,6 +519,9 @@ impl PlanDoc {
                         }
                         if field(5) == FROM_PLAN {
                             doc.mark_from_plan(s, field(2));
+                        }
+                        if let (true, Ok(ord)) = (url::is_program_id(field(6)), field(7).parse::<i64>()) {
+                            doc.set_counts(s, field(2), Some(RowRef { program_id: field(6).to_string(), caption: clean(field(8)), ord }));
                         }
                     }
                 }
@@ -639,8 +670,14 @@ impl PlanDoc {
         modules.sort_by_key(|m| m.semester);
         for m in modules {
             let fills = m.fills.map(|pid| pid.to_string()).unwrap_or_default();
-            let from = if m.from_plan { format!("\t{FROM_PLAN}") } else { String::new() };
-            let _ = writeln!(out, "m\t{}\t{}\t{}\t{}{from}", m.semester.key(), m.module_id, m.at, fills);
+            let counts = m.counts.as_ref().filter(|row| url::is_program_id(&row.program_id));
+            let from = match (m.from_plan, counts) {
+                (true, _) => format!("\t{FROM_PLAN}"),
+                (false, Some(_)) => "\t".to_string(),
+                (false, None) => String::new(),
+            };
+            let counts = counts.map(|row| format!("\t{}\t{}\t{}", row.program_id, row.ord, clean(&row.caption))).unwrap_or_default();
+            let _ = writeln!(out, "m\t{}\t{}\t{}\t{}{from}{counts}", m.semester.key(), m.module_id, m.at, fills);
         }
         let mut visits: Vec<&Visit> = self.visits.iter().filter(|v| url::is_module_id(&v.module_id)).collect();
         visits.sort_by_key(|v| v.semester);
@@ -894,8 +931,21 @@ impl PlanDoc {
         let fills = fills.filter(|pid| self.placeholders.iter().any(|p| p.pid == *pid));
         // After the semester's last module: the list stays in the order `stored` writes it.
         let at_index = self.modules.partition_point(|m| m.semester <= s);
-        self.modules.insert(at_index, Planned { semester: s, module_id: id.to_string(), at, fills, from_plan: false });
+        self.modules.insert(at_index, Planned { semester: s, module_id: id.to_string(), at, fills, from_plan: false, counts: None });
         true
+    }
+
+    /// The row a planned module was planned for (`Planned::counts`), where it was.
+    pub fn counts_of(&self, s: SemesterKey, id: &str) -> Option<&RowRef> {
+        self.modules.iter().find(|m| m.semester == s && m.module_id == id).and_then(|m| m.counts.as_ref())
+    }
+
+    /// Which row of the Regelstudienplan a planned module counts for (`Planned::counts`); `None`
+    /// lets it count where the tree places it.
+    pub fn set_counts(&mut self, s: SemesterKey, id: &str, counts: Option<RowRef>) {
+        if let Some(m) = self.modules.iter_mut().find(|m| m.semester == s && m.module_id == id) {
+            m.counts = counts;
+        }
     }
 
     /// Marks a planned module as taken over from the Regelstudienplan.
@@ -945,8 +995,11 @@ impl PlanDoc {
         }
         if !self.plan(to, id, moved.at, moved.fills) {
             self.modules.insert(at, moved);
-        } else if moved.from_plan {
-            self.mark_from_plan(to, id);
+        } else {
+            if moved.from_plan {
+                self.mark_from_plan(to, id);
+            }
+            self.set_counts(to, id, moved.counts);
         }
     }
 
@@ -1430,8 +1483,11 @@ impl PlanDoc {
             }
         }
         for m in &saved.modules {
-            if self.plan(s, &m.module_id, m.at, m.fills.and_then(|pid| pids.get(&pid).copied())) && m.from_plan {
-                self.mark_from_plan(s, &m.module_id);
+            if self.plan(s, &m.module_id, m.at, m.fills.and_then(|pid| pids.get(&pid).copied())) {
+                if m.from_plan {
+                    self.mark_from_plan(s, &m.module_id);
+                }
+                self.set_counts(s, &m.module_id, m.counts.clone());
             }
         }
         for v in &saved.visits {
@@ -2777,7 +2833,7 @@ mod tests {
         }
         let doc = PlanDoc::restored(&text);
         assert!(!doc.is_empty());
-        assert_eq!(doc.modules, vec![Planned { semester: w, module_id: "12104".to_string(), at: 0, fills: None, from_plan: false }]);
+        assert_eq!(doc.modules, vec![Planned { semester: w, module_id: "12104".to_string(), at: 0, fills: None, from_plan: false, counts: None }]);
         assert_eq!(
             doc.placeholders,
             vec![Placeholder { pid: 1, ord: 2, credits: None, kind: None, name: "Name".to_string(), ..placeholder() }],
@@ -3670,7 +3726,7 @@ mod tests {
         doc.apply(&with_placeholders(vec![placeholder()]), 0);
         assert!(doc.plan(w, "11103", 1, Some(1)));
         doc.move_to(w, s, "11103");
-        assert_eq!(doc.modules, vec![Planned { semester: s, module_id: "11103".to_string(), at: 1, fills: Some(1), from_plan: false }]);
+        assert_eq!(doc.modules, vec![Planned { semester: s, module_id: "11103".to_string(), at: 1, fills: Some(1), from_plan: false, counts: None }]);
         // Planned there already: it only leaves the other semester.
         assert!(doc.plan(w, "11103", 2, None));
         doc.move_to(w, s, "11103");
@@ -3695,6 +3751,42 @@ mod tests {
         let doc = PlanDoc::restored("p\t9999\t2026W\t079-82-2008\t1\t1-1\t6\t\t\tA\np\t1\t2026W\t079-82-2008\t2\t1-1\t6\t\t\tB\n");
         assert_eq!(doc.placeholders.iter().map(|p| p.pid).collect::<Vec<_>>(), [1, 9999]);
         assert_eq!(doc.next_pid(), 2);
+    }
+
+    /// The row a module was planned for in the workbench (`Planned::counts`) reads back, moves
+    /// with the module and stays with a saved semester; a line of a build before it has none, and
+    /// one it cannot read loses the row alone.
+    #[test]
+    fn the_row_a_module_counts_for_reads_back_and_moves_with_it() {
+        let (w, s) = (key("2026W"), key("2027S"));
+        let row = RowRef::new("079-82-2008", "", 23);
+        let mut doc = PlanDoc::default();
+        assert!(doc.plan(w, "11947", 5, None));
+        doc.set_counts(w, "11947", Some(row.clone()));
+        assert!(doc.plan(w, "12202", 6, None));
+        doc.mark_from_plan(w, "12202");
+        doc.set_counts(w, "12202", Some(RowRef::new("079-82-2008", "Vertiefung\tB", 4)));
+        let text = doc.stored();
+        assert!(text.contains("m\t2026W\t11947\t5\t\t\t079-82-2008\t23\t\n"), "{text}");
+        assert!(text.contains("m\t2026W\t12202\t6\t\tplan\t079-82-2008\t4\tVertiefung B\n"), "a tab in the caption is a space: {text}");
+        let back = PlanDoc::restored(&text);
+        assert_eq!(back.counts_of(w, "11947"), Some(&row));
+        assert_eq!(back.counts_of(w, "12202").map(|row| row.caption.as_str()), Some("Vertiefung B"));
+        assert!(back.modules.iter().any(|m| m.module_id == "12202" && m.from_plan));
+        // A build before it: six fields; a seventh it cannot read leaves the module as it was.
+        let old = PlanDoc::restored("m\t2026W\t11947\t5\t\t\nm\t2026W\t11213\t5\t\t\tno program\t3\tX\n");
+        assert_eq!((old.counts_of(w, "11947"), old.counts_of(w, "11213")), (None, None));
+        assert_eq!(old.modules.len(), 2);
+        // It moves with the module, and a saved semester keeps it.
+        let mut moved = back.clone();
+        moved.move_to(w, s, "11947");
+        assert_eq!(moved.counts_of(s, "11947"), Some(&row));
+        let saved = back.semester_only(w);
+        let mut other = PlanDoc::default();
+        other.put_semester(s, &saved);
+        assert_eq!(other.counts_of(s, "11947"), Some(&row));
+        doc.set_counts(w, "11947", None);
+        assert!(!doc.stored().contains("\t23\t"));
     }
 
     #[test]
