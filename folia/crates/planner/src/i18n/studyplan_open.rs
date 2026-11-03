@@ -42,7 +42,7 @@ pub struct Texts {
     pub none_fit: &'static str,
     /// … and where some meet the plan, that ticking goes all the same (Betula does not say no).
     pub anyway: &'static str,
-    /// What an untouched choice shows meanwhile: „Bis du eine anhakst, stehen alle 3 gestrichelt
+    /// What an untouched choice shows meanwhile: „Bis du eine anhakst, stehen alle 3 schraffiert
     /// im Stundenplan."
     pub open_note: fn(usize) -> String,
     /// The buttons: „Weiter: Übung MIT1", „Vergleichen", the tiles again, „Fertig", „Schließen".
@@ -161,7 +161,7 @@ pub const DE: Texts = Texts {
     some_fit: |fit, of| format!("{fit} von {of} passen, die anderen überschneiden sich."),
     none_fit: "Keine passt ohne Überschneidung.",
     anyway: "Anhaken geht trotzdem.",
-    open_note: |n| format!("Bis du eine anhakst, stehen alle {n} gestrichelt im Stundenplan."),
+    open_note: |n| format!("Bis du eine anhakst, stehen alle {n} schraffiert im Stundenplan."),
     next: |what| format!("Weiter: {what}"),
     compare: "Vergleichen",
     compare_close: "Vergleich schließen",
@@ -233,7 +233,7 @@ pub const EN: Texts = Texts {
     some_fit: |fit, of| format!("{fit} of {of} fit, the others clash."),
     none_fit: "None fits without a clash.",
     anyway: "You can tick one all the same.",
-    open_note: |n| format!("Until you tick one, all {n} stand dashed in the timetable."),
+    open_note: |n| format!("Until you tick one, all {n} stand hatched in the timetable."),
     next: |what| format!("Next: {what}"),
     compare: "Compare",
     compare_close: "Close the comparison",

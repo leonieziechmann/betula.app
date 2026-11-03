@@ -3,9 +3,9 @@
 // B.Sc.'s first semester planned (Programmierpraktikum 148370 in four groups, Mo, Mi, Do 11:30 and
 // Fr 13:45).
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node choice-sheet.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
-// - A wide screen: a click on a dashed group of the week takes its choice into focus with that group
+// - A wide screen: a click on a hatched group of the week takes its choice into focus with that group
 //   ticked („1 von 4 angehakt"; „Wenn man auf eine Übung klickt, dann soll die Preselected sein").
-// - A phone: a tap on a dashed group does the same, the sheet's tile of it ticked; the line under
+// - A phone: a tap on a hatched group does the same, the sheet's tile of it ticked; the line under
 //   the head no longer says what is hidden („Der Ausgeblendet Knopf kann weg").
 // - A finger moves the sheet: up from its head, the tiles on their way to „Vergleichen" while it
 //   touches (`.morph`, `--p` between half up and all up, a card for each group); let go all up, the
@@ -62,7 +62,7 @@ const ticks = (page) => page.evaluate((key) => (localStorage.getItem(key) ?? "")
   const { page, context } = await open({ viewport: { width: 1440, height: 900 } });
   await until(page, "the week", () => document.querySelectorAll(".sp-week .slot").length > 0);
   const group = page.locator(".sp-week a.slot.alt[data-pre]", { hasText: "Prak PP" }).first();
-  check(await group.count() === 1, "wide: no dashed group of the Praktikum to click");
+  check(await group.count() === 1, "wide: no hatched group of the Praktikum to click");
   await group.click();
   await until(page, "wide: the choice in focus", () => location.search.includes("wahl=e148370") && document.querySelector(".sp-focusbar"));
   await until(page, "wide: the group clicked ticked", () => /1 von 4/.test(document.querySelector(".sp-focusbar .what small")?.textContent ?? ""));
@@ -107,9 +107,9 @@ const ticks = (page) => page.evaluate((key) => (localStorage.getItem(key) ?? "")
   await until(page, "phone: the week", () => document.querySelectorAll(".sp-carousel .slot").length > 0);
   check(await page.evaluate(() => !document.querySelector(".sp-head .sp-all")), "phone: „Plan · Alle Termine\" still in the head");
 
-  // A tap on a dashed group: its choice in the sheet, that group ticked.
+  // A tap on a hatched group: its choice in the sheet, that group ticked.
   const group = page.locator(".sp-slide.is-current a.slot.alt[data-pre]", { hasText: "Prak" }).first();
-  check(await group.count() === 1, "phone: no dashed group of the Praktikum to tap");
+  check(await group.count() === 1, "phone: no hatched group of the Praktikum to tap");
   await group.tap();
   await until(page, "phone: the sheet", () => location.search.includes("wahl=e148370") && liveSheet());
   await until(page, "phone: the group tapped ticked", () => liveSheet()?.querySelector(".grp-h .r")?.textContent.includes("1 von 4"));

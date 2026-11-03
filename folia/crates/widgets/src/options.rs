@@ -11,7 +11,7 @@
 //! - In groups, or a topic to choose: every option open; where QIS lists the program at some,
 //!   those first and the others fainter („Optionen, bei denen QIS Mein Studiengang nicht nennt,
 //!   stehen blasser und zuletzt; wählbar bleiben sie").
-//! - An option to choose is dashed in the week, and one of a choice of more than `WEEK_OPTIONS`
+//! - An option to choose is hatched in the week, and one of a choice of more than `WEEK_OPTIONS`
 //!   stands in the list alone; an option taken is drawn as what everyone attends. An extra is
 //!   dotted, „+" before its kind, and listed under „Zusätzlich, freiwillig".
 

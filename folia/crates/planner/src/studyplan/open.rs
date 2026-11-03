@@ -351,7 +351,7 @@ pub(super) struct Focus {
     pub state: String,
     /// „Hake eine oder mehrere an. Alle 3 passen."
     pub hint: String,
-    /// „Bis du eine anhakst, stehen alle 3 gestrichelt im Stundenplan." while none is ticked.
+    /// „Bis du eine anhakst, stehen alle 3 schraffiert im Stundenplan." while none is ticked.
     pub note: Option<String>,
     /// By weekday and time.
     pub groups: Vec<Group>,
@@ -1075,7 +1075,7 @@ mod tests {
         let focus = focus_of(&table, e, &short(), &url, &i18n::DE).unwrap();
         assert_eq!((focus.name.as_str(), focus.chip.as_str(), focus.kind.as_str(), focus.state.as_str()), ("Praktikum EvS", "EvS", "Praktikum", "noch keine angehakt"));
         assert_eq!(focus.hint, "3 von 4 passen, die anderen überschneiden sich. Anhaken geht trotzdem.");
-        assert_eq!(focus.note.as_deref(), Some("Bis du eine anhakst, stehen alle 4 gestrichelt im Stundenplan."));
+        assert_eq!(focus.note.as_deref(), Some("Bis du eine anhakst, stehen alle 4 schraffiert im Stundenplan."));
         // By weekday: QIS's name of each group, what it meets, what it does to its day.
         let groups: Vec<(&str, Option<&str>, Option<&str>, &str)> = focus
             .groups
