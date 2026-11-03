@@ -536,7 +536,8 @@ fn Sidebar(data: ModuleData, hint: Signal<Option<PlanHint>>) -> impl IntoView {
 }
 
 /// Where a line of the module's Termine leads, given by the page that shows the module: its own
-/// page opens the Termin beside itself (`?termin=<key>`, folia_catalog::module). Without it, as in
+/// page opens the Termin in a dialog over itself (`?termin=<key>`, folia_catalog::module; the name
+/// is of the panel beside it the dialog took the place of). Without it, as in
 /// a preview beside a list and in „Vollbild" in another area, the line leads to the Termin's own
 /// page (`/event/<key>`). The app's alone: the server's lines lead to the Termin's page (R9).
 #[derive(Clone, Copy)]
@@ -558,11 +559,6 @@ pub fn ModuleFull(
     /// The slug of the program the page is shown in (a program's page): as `ModulePanel`'s.
     #[prop(optional_no_strip)]
     program: Option<String>,
-    /// What stands beside the page while `aside_picked` (a Termin of the module, its own page's).
-    #[prop(optional, into)]
-    aside: Option<ViewFn>,
-    #[prop(optional, into)]
-    aside_picked: Signal<bool>,
 ) -> impl IntoView {
     let t = i18n::t();
     let derived = derive(&data, t);
@@ -574,8 +570,6 @@ pub fn ModuleFull(
             title=t.module.sidebar_title
             head={ let id = data.module.id.clone(); move || view! { <span class="mono">{id.clone()}</span> } }
             sidebar={ let data = data.clone(); move || view! { <Sidebar data=data.clone() hint/> } }
-            aside=aside.unwrap_or_default()
-            aside_picked
         >
                 <Seo
                     title=format!("{} ({})", data.module.title, data.module.id)
@@ -1007,7 +1001,7 @@ fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
                     {marker.map(|text| view! { <small class="odd"><Icon name="info"/><span>{text}</span></small> })}
                 };
                 // A Termin leads to the view that looks it up (folia/design/termin; owner,
-                // 2026-10-26: „die Informative ansicht für die Modulpage"): beside the module's own
+                // 2026-10-26: „die Informative ansicht für die Modulpage"): over the module's own
                 // page where it gives the way (`TerminBeside`), else its own page; an exam date to
                 // QIS.
                 let termin = reading.is_none().then(|| RowKey::of(&d)).flatten();

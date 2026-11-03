@@ -1,7 +1,7 @@
 //! The module's own page (`/catalog/module/<id>`): the catalog's route, with the module's view
 //! (`folia_widgets::module::ModuleFull`) and the way back to where the visitor came from. In the
-//! browser app a line of its Termine opens the Termin beside the page (`?termin=<key>&on=<day>`,
-//! `ModuleTermin`), on a phone a sheet over it.
+//! browser app a line of its Termine opens the Termin in the app's dialog over the page
+//! (`?termin=<key>&on=<day>`, `ModuleTermin`), on a phone the sheet every dialog is.
 
 
 use folia_calendar::day::Day;
@@ -16,12 +16,11 @@ use crate::i18n::{self, use_location};
 use crate::lookup::look_up;
 use folia_stores::studyplan::PlanHint;
 use folia_shell::pending::same_page;
-use folia_shell::skeleton::DetailSkeleton;
 use folia_shell::tabs::{self, Area, Tabs};
 use folia_shell::frame::{ErrorState, Plain};
-use folia_design::ui::{Icon, NotFound, Shortcut};
+use folia_design::ui::NotFound;
 use folia_widgets::module::{ModuleFull, TerminBeside};
-use folia_widgets::termin::{ticking_clock, TerminLinks, TerminPlace, TerminView};
+use folia_widgets::termin::{ticking_clock, TerminLinks, TerminModal, TerminPlace};
 
 /// The browser app (`csr`): only there is a plan to meet.
 const APP: bool = cfg!(feature = "csr");
@@ -72,16 +71,15 @@ pub fn ModulePage() -> impl IntoView {
     // page by its path and renders the button as for everybody).
     let location = use_location();
     let hint = Memo::new(move |_| if APP { PlanHint::of(&ModuleHint::parse(&location.search.get())) } else { None });
-    // A Termin of the module beside its page (`?termin=<key>&on=<day>`; folia/design/termin: „über
-    // /catalog/module/11112?termin=… zum Nachschlagen"; owner, 2026-10-27): the app's alone, as
-    // everything beside a page (the server's lines lead to the Termin's own page, R9). Its
-    // addresses keep the page's hint.
+    // A Termin of the module over its page (`?termin=<key>&on=<day>`; folia/design/termin: „über
+    // /catalog/module/11112?termin=… zum Nachschlagen"; owner, 2026-10-27), in the app's dialog
+    // (owner, 2026-11-03: „muss das ein modal werden"): the app's alone (the server's lines lead to
+    // the Termin's own page, R9). Its addresses keep the page's hint. It stands with the page,
+    // whatever the module's answer does meanwhile.
     let kept = Memo::new(move |_| ModuleHint::parse(&location.search.get()));
     let termin = Memo::new(move |_| if APP { location.search.with(|search| url::termin_of(search)) } else { None });
-    let picked = Signal::derive(move || termin.with(Option::is_some));
-    let aside = ViewFn::from(move || view! { <ModuleTermin id kept asked=termin/> });
 
-    move || {
+    let page = move || {
         let id = id.get();
         match source.clone().and_then(|source| source.now(&ModuleAsk { id: id.clone() })) {
             Err(error) => {
@@ -105,17 +103,21 @@ pub fn ModulePage() -> impl IntoView {
                 // „Zurück" leads where the visitor came from: the program whose page had this
                 // module open beside it (its „Vollbild"), else the catalog's list as it was left.
                 let back = back_to(&id);
-                view! { <ModuleFull data back_area=back.0 back_to=back.1 hint aside=aside.clone() aside_picked=picked/> }.into_any()
+                view! { <ModuleFull data back_area=back.0 back_to=back.1 hint/> }.into_any()
             }
         }
+    };
+    view! {
+        {page}
+        {APP.then(|| view! { <ModuleTermin id kept asked=termin/> })}
     }
 }
 
-/// A Termin of the module beside its page (`?termin=<key>&on=<day>`): the view to look it up
-/// (`lookup`), measured against the visitor's plan as on its own page, on a phone a sheet over the
-/// page. Its dates and groups open beside the page as well, „Zum Modul" closes it (the module is
-/// the page), „Ganze Seite" (V) is the Termin's own page, „Schließen" (Esc) the page without it,
-/// back a step where that was the step before.
+/// A Termin of the module over its page (`?termin=<key>&on=<day>`), in the app's dialog: the view
+/// to look it up (`lookup`), measured against the visitor's plan as on its own page. Its events,
+/// groups and dates open in the dialog as well, „Zum Modul" closes it (the module is the page),
+/// „Ganze Seite" (V) is the Termin's own page, „Schließen" (Esc) the page without it, back a step
+/// where that was the step before. An address of no Termin (an old one, one typed) says so.
 #[component]
 fn ModuleTermin(id: Memo<String>, kept: Memo<ModuleHint>, asked: Memo<Option<(RowKey, Option<Day>)>>) -> impl IntoView {
     let t = i18n::t();
@@ -132,25 +134,8 @@ fn ModuleTermin(id: Memo<String>, kept: Memo<ModuleHint>, asked: Memo<Option<(Ro
     let module = Callback::new(move |(id, _): (String, Option<RowKey>)| t.path(&url::module_path(&id)));
     let full = Callback::new(move |(key, on): (RowKey, Option<Day>)| t.path(&url::event_path(key, on)));
     let links = TerminLinks { termin, module, close, back, adjust: Some(found.adjust()), full: Some(full) };
-    let ctx = found.ctx(links, TerminPlace::Beside, ticking_clock());
-    move || match found.phase.get() {
-        // Its answer on its way: the panel as a module's is while it comes.
-        None => view! { <DetailSkeleton aside=true module=true/> }.into_any(),
-        Some(Ok(true)) => view! { <TerminView ctx/> }.into_any(),
-        // An address of no Termin (an old one, one typed): says so, and closes as the view does.
-        Some(_) => view! {
-            <section class="panel detail aside is-module is-termin" id="preview" aria-label=t.termin.panel>
-                <div class="scroll">
-                    <header class="hero tm-head">
-                        <div class="hero-top tm-bar">
-                            <span class="tm-kind">{t.termin.not_found}</span>
-                            <a class="ghost tm-close" href=move || close.get() rel="nofollow" data-action="close-detail" data-back=move || back.get() data-noscroll="" title=t.termin.close_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
-                        </div>
-                    </header>
-                    <div class="dbody tm"><p class="hint">{t.termin.not_found_hint}</p></div>
-                </div>
-            </section>
-        }
-        .into_any(),
-    }
+    let ctx = found.ctx(links, TerminPlace::Dialog, ticking_clock());
+    let open = Signal::derive(move || asked.with(Option::is_some));
+    let missing = Signal::derive(move || matches!(found.phase.get(), Some(Ok(false) | Err(_))));
+    view! { <TerminModal ctx open missing/> }
 }

@@ -28,13 +28,15 @@
 //! change the plan in the click (it asks the catalog nothing: the store, the selection, the
 //! timetable).
 //!
-//! Where it stands (`TerminPlace`; the concept: „Sheet, das zur Seite wird"): beside a page, on a
-//! phone a sheet over it, with „Teilen", „Ganze Seite" (V) and „Schließen" (Esc) at its head (the
-//! owner, 2026-10-26: „bau als Nächstes Teilen und Ganze Seite"); after „Ganze Seite" filling the
-//! page it stood beside, the same view in two columns — on the left the Termin (what picks it, the
+//! Where it stands (`TerminPlace`): over a page in the app's one dialog (`TerminModal`; owner,
+//! 2026-11-03: „Also erstmal muss das ein modal werden oder eine fullpage Seite mit zurück etc."),
+//! on a wide screen in the middle of the window, on a phone the sheet every dialog is, with
+//! „Teilen", „Ganze Seite" (V) and „Schließen" (Esc) at its head (the owner, 2026-10-26: „bau als
+//! Nächstes Teilen und Ganze Seite"); after „Ganze Seite" filling the page it stood over, the same
+//! view in two columns — on the left the Termin (what picks it, the
 //! ticket, who, „Im Stundenplan" or the plan's line, the day, the period), on the right
 //! the module and who teaches, which no pick changes, and the source at the end — with „Zurück"
-//! (Esc) to the view beside the page; and as a page of its own (`/event/<key>/<day>`) in the same
+//! (Esc) to the view over the page; and as a page of its own (`/event/<key>/<day>`) in the same
 //! two columns. „Teilen" hands on that page's address.
 
 use std::collections::BTreeMap;
@@ -55,10 +57,13 @@ use folia_timetable::occur::Every;
 use folia_timetable::termin::{self, DateState, Occasion};
 use folia_timetable::views::{kind_short, short_title, type_text};
 use leptos::prelude::*;
+use leptos_router::NavigateOptions;
 
 use folia_design::format;
-use folia_design::ui::{Icon, Shortcut};
+use folia_design::modal::{Modal, ModalSize};
+use folia_design::ui::{DialogClose, Icon, Shortcut};
 use folia_shell::frame::BackLink;
+use folia_shell::pending::Pending;
 use folia_shell::tabs::Area;
 use crate::i18n::{self, Locale, Texts};
 
@@ -104,7 +109,7 @@ pub struct TerminLinks {
     pub termin: Callback<(RowKey, Option<Day>), String>,
     pub module: Callback<(String, Option<RowKey>), String>,
     pub close: Signal<String>,
-    /// „history" where closing goes back a step of the history (enhance.js), as the module's
+    /// „history" where closing goes back a step of the history (`TerminModal`), as the module's
     /// panel does.
     pub back: Signal<Option<&'static str>>,
     /// To look up, the Termin's view in the Stundenplan, where it is adjusted („Anpassen ›"):
@@ -118,12 +123,13 @@ pub struct TerminLinks {
 /// Where the view stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TerminPlace {
-    /// Beside a page (`#preview`), as the module's panel stands, on a phone a sheet over it: at
-    /// its head „Teilen", „Ganze Seite" where the page has a place for it, and „Schließen"
-    /// (`TerminLinks::close`, the page without the view).
-    Beside,
-    /// Filling the page of `Area` it stood beside („Ganze Seite"): two columns where the page is
-    /// wide, „Zurück" to the view beside the page (`TerminLinks::close`) and „Teilen".
+    /// Over a page in the app's one dialog (`TerminModal`): on a wide screen in the middle of the
+    /// window over the page dimmed, on a phone a sheet from below as every dialog is. At its head
+    /// „Teilen", „Ganze Seite" where the page has a place for it, and the dialog's „Schließen"
+    /// (Esc; `TerminModal`'s way out).
+    Dialog,
+    /// Filling the page of `Area` it stood over („Ganze Seite"): two columns where the page is
+    /// wide, „Zurück" to the view over the page (`TerminLinks::close`) and „Teilen".
     Full(Area),
     /// A page of its own (`/event/<key>/<day>`): the same two columns, and „Teilen".
     Page,
@@ -464,10 +470,15 @@ struct SourcePart {
 
 // ---------- the view ----------
 
-/// The view of the Termin `ctx.asked` (`section.panel.detail.aside.is-termin#preview`): beside the
-/// page where it is wide, as the module's panel stands, a sheet over it on a phone.
+/// The view of the Termin `ctx.asked`: in a dialog over a page (`section.is-termin.tm-dialog`,
+/// `TerminModal`), filling a page or as a page of its own (`TerminPlace`).
 #[component]
-pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
+pub fn TerminView(
+    ctx: TerminCtx,
+    /// In a dialog (`TerminPlace::Dialog`): what its „Schließen" does (`TerminModal`).
+    #[prop(optional)]
+    closing: Option<Callback<()>>,
+) -> impl IntoView {
     let t = i18n::t();
     let shown = Memo::new(move |_| {
         let (now, planned) = (ctx.now.get(), ctx.planned.get());
@@ -481,7 +492,6 @@ pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
     let loading = Memo::new(move |_| ctx.table.with(Option::is_none));
     let head = Memo::new(move |_| shown.with(|s| s.as_ref().map(|s| s.head.clone())));
     let close = ctx.links.close;
-    let back = ctx.links.back;
     // The Termin and the day shown, which „Teilen" and „Ganze Seite" name, and what a share sheet
     // calls it.
     let at = Memo::new(move |_| shown.with(|s| s.as_ref().map(|s| (s.key, s.day))));
@@ -507,17 +517,18 @@ pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
             _ => None,
         };
         let tools = match ctx.place {
-            // Beside a page: „Teilen" and „Ganze Seite" as their signs (the room is the kind's),
-            // „Schließen" in words as on the module's panel. „Ganze Seite" not on a phone's sheet,
-            // which goes all up itself (app.css, `.full-view`).
-            TerminPlace::Beside => view! {
+            // In the dialog: „Teilen" and „Ganze Seite" as their signs (the room is the kind's),
+            // „Schließen" the dialog's own, as every dialog has it (on a phone its sheet has the
+            // grabber alone). „Ganze Seite" not on a phone's sheet, which goes all up itself
+            // (app.css).
+            TerminPlace::Dialog => view! {
                 {share(false)}
                 {ctx.links.full.map(|full| view! {
-                    <a class="ghost full-view tm-full" href=move || at.get().map(|(key, day)| full.run((key, Some(day)))).unwrap_or_default() rel="nofollow" data-action="fullscreen" title=t.termin.full_title aria-label=t.termin.full>
+                    <a class="ghost tm-full" href=move || at.get().map(|(key, day)| full.run((key, Some(day)))).unwrap_or_default() rel="nofollow" data-action="fullscreen" title=t.termin.full_title aria-label=t.termin.full>
                         <Icon name="maximize-2"/><Shortcut keys="V"/>
                     </a>
                 })}
-                <a class="ghost tm-close" href=move || close.get() rel="nofollow" data-action="close-detail" data-back=move || back.get() data-noscroll="" title=t.termin.close_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
+                {closing.map(|closing| view! { <DialogClose on_close=closing label=t.termin.close_title/> })}
             }
             .into_any(),
             TerminPlace::Full(_) | TerminPlace::Page => view! { {share(true)} }.into_any(),
@@ -530,7 +541,7 @@ pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
                 {out}
                 {tools}
             </div>
-            {head.map(|head| view! { <h2 class="tm-title">{head.title}</h2> })}
+            {head.map(|head| view! { <h2 class="tm-title" id=(ctx.place == TerminPlace::Dialog).then_some(TITLE_ID)>{head.title}</h2> })}
         }
     };
     // What one adjusts (from the Stundenplan and the start page), or to look up the plan's line and
@@ -549,7 +560,7 @@ pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
         }
         match ctx.place {
             // What picks the Termin first, then everything it changes.
-            TerminPlace::Beside => view! {
+            TerminPlace::Dialog => view! {
                 <PickView ctx shown/>
                 <TicketView ctx shown/>
                 <WhoView shown/>
@@ -584,19 +595,96 @@ pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
             .into_any(),
         }
     };
-    // Beside a page `is-module`: on a phone a sheet over it, as a module's panel (app.css,
-    // enhance.js). As a page a panel of its own, the page's whole width.
-    let (class, id) = match ctx.place {
-        TerminPlace::Beside => ("panel detail aside is-module is-termin", Some("preview")),
-        TerminPlace::Full(_) => ("panel is-termin tm-page tm-filling", None),
-        TerminPlace::Page => ("panel is-termin tm-page", None),
-    };
-    view! {
-        <section class=class id=id aria-label=t.termin.panel>
-            <div class="scroll" id="termin-scroll">
+    // In a dialog its head stays while its body scrolls (on a phone once the sheet is all up,
+    // `data-sheet-body`; folia_design::modal). As a page a panel of its own, the page's whole width.
+    match ctx.place {
+        TerminPlace::Dialog => view! {
+            <section class="is-termin tm-dialog" aria-label=t.termin.panel>
                 <header class="hero tm-head">{top}</header>
-                <div class="dbody tm">{body}</div>
-            </div>
+                <div class="dbody tm st-dlg-body" data-sheet-body="">{body}</div>
+            </section>
+        }
+        .into_any(),
+        TerminPlace::Full(_) | TerminPlace::Page => {
+            let class = if matches!(ctx.place, TerminPlace::Full(_)) { "panel is-termin tm-page tm-filling" } else { "panel is-termin tm-page" };
+            view! {
+                <section class=class aria-label=t.termin.panel>
+                    <div class="scroll">
+                        <header class="hero tm-head">{top}</header>
+                        <div class="dbody tm">{body}</div>
+                    </div>
+                </section>
+            }
+            .into_any()
+        }
+    }
+}
+
+/// The id of the Termin's title in its dialog, which names the dialog.
+const TITLE_ID: &str = "tm-title";
+
+/// The Termin over a page in the app's one dialog (owner, 2026-11-03: „Also erstmal muss das ein
+/// modal werden oder eine fullpage Seite mit zurück etc. Aktuell ist das übelst cursed. Das muss
+/// neu"; `folia_design::modal::Modal`): on a wide screen in the middle of the window over the page
+/// dimmed (`m`, 600 × 600 px, its body scrolling), on a phone the sheet from below every dialog is.
+/// Until then it stood beside the page, over its right part, the page in use around it.
+///
+/// It stands while the address asks for it (`open`) and its page is in front: a page kept behind
+/// another (`folia_design::stage`) holds no dialog over that one, and the dialog comes back with
+/// its page. Esc, a click beside it, Back, a finger's throw and its „Schließen" go back a step
+/// where the page without it is the step before (`TerminLinks::back`), else to that page
+/// (`TerminLinks::close`); a dialog its address closes („Zum Modul", „Ganze Seite", another page)
+/// asks for nothing more. While the Termin's answer comes, its frame alone; `missing`: the address
+/// names no Termin (an old one, one typed), which the dialog says.
+#[component]
+pub fn TerminModal(
+    ctx: TerminCtx,
+    /// The address asks for the Termin.
+    #[prop(into)]
+    open: Signal<bool>,
+    /// The address names no Termin.
+    #[prop(optional, into)]
+    missing: Signal<bool>,
+) -> impl IntoView {
+    let front = folia_design::stage::front();
+    let pending = Pending::expect();
+    let shown = Signal::derive(move || open.get() && front.get());
+    let close = Callback::new(move |()| {
+        // Read without panicking: the dialog's `close` comes a moment after it closed, its page
+        // may be gone by then.
+        if !shown.try_get_untracked().unwrap_or(false) {
+            return;
+        }
+        match ctx.links.back.try_get_untracked().flatten() {
+            Some(_) => folia_shell::nav::back(),
+            None => {
+                if let (Some(pending), Some(to)) = (pending, ctx.links.close.try_get_untracked()) {
+                    pending.go(&to, NavigateOptions { scroll: false, ..Default::default() });
+                }
+            }
+        }
+    });
+    view! {
+        <Modal open=shown on_close=close size=ModalSize::M class="tm-modal" labelled_by=TITLE_ID>
+            {move || match missing.get() {
+                true => view! { <TerminMissing closing=close/> }.into_any(),
+                false => view! { <TerminView ctx closing=close/> }.into_any(),
+            }}
+        </Modal>
+    }
+}
+
+/// The dialog of an address that names no Termin: so it says, with a word where Termine are.
+#[component]
+fn TerminMissing(closing: Callback<()>) -> impl IntoView {
+    let t = i18n::t();
+    view! {
+        <section class="is-termin tm-dialog" aria-label=t.termin.panel>
+            <header class="hero tm-head">
+                <div class="hero-top tm-bar"><DialogClose on_close=closing label=t.termin.close_title/></div>
+                <h2 class="tm-title" id=TITLE_ID>{t.termin.not_found}</h2>
+            </header>
+            <div class="dbody tm st-dlg-body"><p class="hint">{t.termin.not_found_hint}</p></div>
         </section>
     }
 }
@@ -985,7 +1073,7 @@ fn adjust_link(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> Option<String> {
 /// „Teilen": the address of the Termin's own page on the day shown (`/event/<key>/<day>`, in the
 /// page's language), to the device's share sheet on a touch screen (`called` its title there),
 /// else into the clipboard with „Link kopiert" in its place for a moment (enhance.js,
-/// `share-link`). Beside a page its sign alone (`labeled`: with its word). It needs JavaScript
+/// `share-link`). In the dialog its sign alone (`labeled`: with its word). It needs JavaScript
 /// (R15).
 #[component]
 fn ShareButton(at: Memo<Option<(RowKey, Day)>>, called: Memo<String>, labeled: bool) -> impl IntoView {
