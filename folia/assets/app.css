@@ -4170,14 +4170,16 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .is-termin .tm-more { position: relative; display: flex; flex-direction: column; gap: 22px; padding-top: 18px; border-top: 1px dashed var(--line-strong); }
 /* What picks the Termin, above everything it changes (owner, 2026-10-27: „Wenn man solche Buttons
    hat, dann ändern die nur den Inhalt unter ihnen"): the module's events as segments (rows of four
-   where it has more), the event's own title, to look up its groups or its Termine. */
+   where it has more), the event's own title, its groups or its Termine (owner, 2026-11-03: „die
+   Gruppen/Tage als Subauswahl"), from the Stundenplan as to look up. */
 .is-termin .tm-pick { display: flex; flex-direction: column; gap: 10px; }
 .is-termin .seg.tm-evs { margin: 0; grid-auto-flow: row; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 3px; }
 .is-termin .tm-sub { margin: -2px 0 0; color: var(--text-2); font-size: 13px; font-weight: 560; line-height: 1.35; }
 /* The groups: a fixed grid of at most three columns (owner, 2026-10-26: „ein festes raster z.B. 3
-   Termine pro row"); in the Stundenplan each a box to tick, as many as one likes, to look up each a
-   way to its Termin, as an event's Termine are. The phone's sheet of a choice in focus has the same
-   tiles (section.sp-pick, below). */
+   Termine pro row"), each a way to its Termin as an event's Termine are, the ones the plan holds
+   ticked (what ticks one stands under the ticket, „Im Stundenplan"). The phone's sheet of a choice
+   in focus has the same tiles, there each a box to tick, as many as one likes (section.sp-pick,
+   below). */
 :is(.is-termin, .sp-pick) .grp { display: flex; flex-direction: column; gap: 6px; }
 :is(.is-termin, .sp-pick) .grp-h { display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 650; }
 :is(.is-termin, .sp-pick) .grp-h .r { margin-left: auto; color: var(--text-2); font-size: 12.5px; font-weight: 600; }

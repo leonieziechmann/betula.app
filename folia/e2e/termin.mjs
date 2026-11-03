@@ -8,14 +8,19 @@
 //   „Termine" and its address open the Termin in the app's dialog over the plan (`termin=`; owner,
 //   2026-11-03: „muss das ein modal werden"), the page dimmed, its slot marked; the view
 //   names the module and its title, the module's events as segments above the ticket (the
-//   Praktikum marked), the date with its arrows, the time and the room; „Im Stundenplan" has the
-//   four groups as boxes, none ticked; „Reihe" picks the date above the ticket, the day is a
-//   picture, which picks nothing.
-// - Two groups ticked, as many as one likes: both stand solid in the week, the others leave it, the
-//   store keeps two ticks; the tick of one taken back leaves the other.
+//   Praktikum marked), under them its four groups (owner, 2026-11-03: „die Gruppen/Tage als
+//   Subauswahl"), none ticked, the one shown marked; „Reihe" picks the date above the ticket, the
+//   date with its arrows, the time and the room; the day is a picture, which picks nothing. „Im
+//   Stundenplan" has the Praktikum's switch above its group's („Mo 11:30 im Stundenplan") and the
+//   date's.
+// - Two groups ticked, as many as one likes: the one shown by its switch, another picked above
+//   and ticked; both stand solid in the week, the others leave it, the store keeps two ticks; the
+//   tick of one taken back leaves the other. A group not ticked, while another is, has no date to
+//   hide.
 // - The arrow to the next date names it in the address; „Ausblenden" hides this date alone (the
 //   store's `h` line, the pill „ausgeblendet"), „Zeigen" brings it back.
-// - The event's switch hides the whole Praktikum and shows it again.
+// - The event's switch hides the whole Praktikum, and with it what stands under it (the group's
+//   switch, the date's), and shows it again.
 // - Esc closes it; „Zum Modul" closes it and opens the module beside the plan, pointing at the
 //   Termin.
 // - The start page: a Termin of its day opens in the dialog over the page (`/?termin=…&on=…`), and
@@ -97,9 +102,15 @@ const view = (page) => page.evaluate(() => {
     pill: text(".tk-date .pill"),
     time: text(".tk-time"),
     room: text(".tk-room .plate"),
-    groups: [...(panel?.querySelectorAll(".gs.pick") ?? [])].map((tile) => [tile.querySelector("b")?.textContent.trim(), tile.getAttribute("aria-checked")]),
-    right: text(".tm-sec.cal .grp-h .r"),
-    shown: panel?.querySelector(".tg")?.getAttribute("aria-checked") ?? "",
+    // The groups above the ticket: [when, ticked, the one shown].
+    groups: [...(panel?.querySelectorAll(".tm-pick .grp:not(.tm-series) .gs:not(.more)") ?? [])].map((tile) => [tile.querySelector("b")?.textContent.trim(), Boolean(tile.querySelector(".ck")), tile.classList.contains("this")]),
+    right: text(".tm-pick .grp:not(.tm-series) .grp-h .r"),
+    // „Im Stundenplan": its switches in their order, the event's, the group's.
+    switches: [...(panel?.querySelectorAll(".tm-sec.cal [data-action]") ?? [])].map((el) => el.dataset.action),
+    shown: panel?.querySelector("[data-action='show-event']")?.getAttribute("aria-checked") ?? "",
+    tick: panel?.querySelector("[data-action='tick']")?.getAttribute("aria-checked") ?? "",
+    tick_said: text(".crow:has([data-action='tick']) b"),
+    tick_sub: text(".crow:has([data-action='tick']) small"),
     date_button: text("[data-action='hide-date']"),
   };
 });
@@ -127,26 +138,38 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   check(v.chip === "PP" && v.kind === "Praktikum" && v.title === "Programmierpraktikum", `the head: ${JSON.stringify(v)}`);
   check(v.events.join(" | ") === "Vorlesung | Praktikum" && v.above && v.picture && v.series > 1, `the module's events and „Reihe" above the ticket, the day a picture: ${JSON.stringify(v)}`);
   check(/^(Mo|Di|Mi|Do|Fr) \d\d\.\d\d\./.test(v.date) && /^\d\d:\d\d/.test(v.time) && v.room.includes("0.03"), `the ticket: ${JSON.stringify(v)}`);
-  check(v.groups.length === 4 && v.groups.every(([, on]) => on === "false") && v.right === "noch keine", `four groups, none ticked: ${JSON.stringify(v)}`);
+  check(v.groups.length === 4 && v.groups.every(([, ticked]) => !ticked) && v.groups.filter(([, , here]) => here).length === 1 && v.right === "eine von 4", `four groups above the ticket, none ticked, the one shown marked: ${JSON.stringify(v)}`);
+  check(v.switches.join() === "show-event,tick,hide-date" && v.shown === "true" && v.tick === "false" && /^(Mo|Mi|Do|Fr) \d\d:\d\d im Stundenplan$/.test(v.tick_said) && v.tick_sub === "Bis du eine anhakst, stehen alle 4 gestrichelt im Stundenplan.", `„Im Stundenplan": the Praktikum's switch above its group's and the date's: ${JSON.stringify(v)}`);
   check(await page.evaluate(() => Boolean(document.querySelector(".sp-body .week .slot.cur, .sp-body .week [aria-current='true']"))), "its slot is marked");
   check((await practicals(page)).filter(Boolean).length === 4, `the four groups dashed: ${JSON.stringify(await practicals(page))}`);
   if (shots) await page.screenshot({ path: `${shots}/termin-open.png` });
 
-  // Two ticked: both solid, the others gone; one taken back leaves the other.
-  await page.click("dialog[open] .tm-dialog .gs.pick >> nth=0");
-  await until(page, "the first tick", () => onPage("dialog[open] .tm-dialog .gs.pick")?.getAttribute("aria-checked") === "true");
-  await page.click("dialog[open] .tm-dialog .gs.pick >> nth=1");
-  await until(page, "the second tick", () => [...document.querySelectorAll("dialog[open] .tm-dialog .gs.pick")].filter((tile) => tile.getAttribute("aria-checked") === "true").length === 2);
+  // Two ticked (owner, 2026-11-03: „darunter kann man dann den Tag wählen und dann noch ob es im
+  // Kalender sein soll"): the group shown by its switch, another picked above and ticked; both
+  // solid, the others gone; one taken back leaves the other.
+  await page.click("dialog[open] .tm-dialog [data-action='tick']");
+  await until(page, "the first tick", () => onPage("dialog[open] .tm-dialog [data-action='tick']")?.getAttribute("aria-checked") === "true" && Boolean(onPage("dialog[open] .tm-dialog .tm-pick .gs.this .ck")));
+  const ticked = await page.evaluate(() => location.pathname + location.search);
+  const other = await page.evaluate(() => onPage("dialog[open] .tm-dialog .tm-pick .grp:not(.tm-series) a.gs:not(.this)")?.getAttribute("href") ?? "");
+  await page.click(`dialog[open] .tm-dialog .tm-pick a.gs[href="${other}"]`);
+  await until(page, "another group picked", (other) => location.pathname + location.search === other && onPage("dialog[open] .tm-dialog .tm-pick .gs.this")?.getAttribute("href") === other && onPage("dialog[open] .tm-dialog [data-action='tick']")?.getAttribute("aria-checked") === "false", other);
   v = await view(page);
-  check(v.right === "2 von 4", `„2 von 4": ${JSON.stringify(v)}`);
+  check(v.switches.join() === "show-event,tick" && v.tick_sub === "1 von 4 angehakt", `a group not ticked, while another is, has no date to hide: ${JSON.stringify(v)}`);
+  await page.click("dialog[open] .tm-dialog [data-action='tick']");
+  await until(page, "the second tick", () => onPage("dialog[open] .tm-dialog [data-action='tick']")?.getAttribute("aria-checked") === "true" && document.querySelectorAll("dialog[open] .tm-dialog .tm-pick .gs .ck").length === 2);
+  v = await view(page);
+  check(v.tick_sub === "2 von 4 angehakt" && v.right === "eine von 4" && v.groups.filter(([, ticked]) => ticked).length === 2, `„2 von 4 angehakt": ${JSON.stringify(v)}`);
   let week = await practicals(page);
   check(week.length === 2 && week.every((dashed) => !dashed), `two groups solid in the week: ${JSON.stringify(week)}`);
   check((await stored(page)).split("\n").filter((line) => line.startsWith("c\t2026W\t148370-")).length === 2, `two ticks kept: ${JSON.stringify(await stored(page))}`);
   if (shots) await page.screenshot({ path: `${shots}/termin-ticked.png` });
-  await page.click("dialog[open] .tm-dialog .gs.pick >> nth=1");
-  await until(page, "one tick taken back", () => [...document.querySelectorAll("dialog[open] .tm-dialog .gs.pick")].filter((tile) => tile.getAttribute("aria-checked") === "true").length === 1);
+  await page.click("dialog[open] .tm-dialog [data-action='tick']");
+  await until(page, "one tick taken back", () => onPage("dialog[open] .tm-dialog [data-action='tick']")?.getAttribute("aria-checked") === "false" && document.querySelectorAll("dialog[open] .tm-dialog .tm-pick .gs .ck").length === 1);
   week = await practicals(page);
   check(week.length === 1 && !week[0], `one group left: ${JSON.stringify(week)}`);
+  // Back on the group ticked.
+  await page.goBack();
+  await until(page, "back on the group ticked", (ticked) => location.pathname + location.search === ticked && onPage("dialog[open] .tm-dialog [data-action='tick']")?.getAttribute("aria-checked") === "true", ticked);
 
   // The next date, then this date alone hidden and shown again.
   const before = new URL(page.url()).searchParams.get("on");
@@ -160,11 +183,14 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   await until(page, "the date shown again", () => onPage("dialog[open] .tm-dialog [data-action='hide-date']")?.getAttribute("aria-pressed") === "false");
   check(!(await stored(page)).includes("\nh\t"), `no date hidden any more: ${JSON.stringify(await stored(page))}`);
 
-  // The whole Praktikum off and on again.
-  await page.click("dialog[open] .tm-dialog .tg");
-  await until(page, "the Praktikum hidden", () => ![...document.querySelectorAll(".sp-body .week .slot")].some((slot) => slot.textContent.includes("Prak PP")));
-  await page.click("dialog[open] .tm-dialog .tg");
-  await until(page, "the Praktikum back", () => [...document.querySelectorAll(".sp-body .week .slot")].some((slot) => slot.textContent.includes("Prak PP")));
+  // The whole Praktikum off, and with it what stands under its switch (owner, 2026-11-03: „der
+  // Schalter sollte über den Elementen stehen, die dann ausgeblendet werden"); on again.
+  await page.click("dialog[open] .tm-dialog [data-action='show-event']");
+  await until(page, "the Praktikum hidden", () => ![...document.querySelectorAll(".sp-body .week .slot")].some((slot) => slot.textContent.includes("Prak PP")) && onPage("dialog[open] .tm-dialog [data-action='show-event']")?.getAttribute("aria-checked") === "false");
+  v = await view(page);
+  check(v.switches.join() === "show-event", `what the Praktikum's switch hides stands under it: ${JSON.stringify(v)}`);
+  await page.click("dialog[open] .tm-dialog [data-action='show-event']");
+  await until(page, "the Praktikum back", () => [...document.querySelectorAll(".sp-body .week .slot")].some((slot) => slot.textContent.includes("Prak PP")) && Boolean(onPage("dialog[open] .tm-dialog [data-action='tick']")));
 
   // „Zum Modul": the module beside the plan, pointing at the Termin; Esc closes it.
   await page.click("dialog[open] .tm-dialog a.mrow");
@@ -224,7 +250,7 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   await until(page, "the Termin filling the page", (href) => location.pathname + location.search === href && Boolean(onPage(".is-termin.tm-filling .tk")), full);
   const columns = await page.evaluate(() => {
     const body = onPage(".is-termin.tm-filling .dbody.tm");
-    return { columns: body ? getComputedStyle(body).gridTemplateColumns.split(" ").length : 0, adjust: Boolean(body?.querySelector(".tm-sec.cal .gs.pick")), back: onPage(".is-termin.tm-filling .hero-top > a.at-head")?.getAttribute("href") ?? "" };
+    return { columns: body ? getComputedStyle(body).gridTemplateColumns.split(" ").length : 0, adjust: Boolean(body?.querySelector(".tm-sec.cal [data-action='tick']")), back: onPage(".is-termin.tm-filling .hero-top > a.at-head")?.getAttribute("href") ?? "" };
   });
   check(columns.columns === 2 && columns.adjust && columns.back === `/studyplan?termin=${praktikum}&on=2026-11-02`, `the whole page: ${JSON.stringify(columns)}`);
   if (shots) await page.screenshot({ path: `${shots}/termin-full.png` });
@@ -375,7 +401,7 @@ const follow = async (page, prefix) => {
   await until(page, "back on its first date", (own) => location.pathname === own, own);
   // „Anpassen ›": the Termin in the Stundenplan; Back, Back: beside the module's page again.
   await page.click(".is-termin.tm-page .grp-f a.go2");
-  await until(page, "the Termin in the Stundenplan", () => location.pathname === "/studyplan" && Boolean(onPage("dialog[open] .tm-dialog .tk")) && Boolean(onPage("dialog[open] .tm-dialog .gs.pick")));
+  await until(page, "the Termin in the Stundenplan", () => location.pathname === "/studyplan" && Boolean(onPage("dialog[open] .tm-dialog .tk")) && Boolean(onPage("dialog[open] .tm-dialog [data-action='tick']")));
   await page.goBack();
   await until(page, "back on the Termin's page", () => Boolean(onPage(".is-termin.tm-page .tk")));
   await page.goBack();
