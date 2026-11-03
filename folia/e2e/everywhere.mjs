@@ -4,10 +4,10 @@
 // to one. The catalog's „Gemerkt": its views under the chip with their numbers, the address naming a
 // collection by its number alone, the list that collection's modules. „Mein Studium": the
 // Wahlpflicht says how many marked modules count in a choice and lists the marked one first, with
-// the bookmark; „Module hinzufügen" has three tabs with short names (on a phone side by side), a
-// marked module of the plan's tab says so with its collections, „Merkliste" lists the marked modules
-// by collection and search, what is ticked in one tab is ticked in the other, „Einfügen" plans them;
-// the Gesamtplan's cell lists the area's marked module first. The Stundenplan's „+ Modul" of „Mein
+// the bookmark; the workbench of „Module hinzufügen" says of a marked module of the plan that it is
+// marked, with its collections; its „Gemerkt" lists the marked modules by collection and search,
+// „+ Einplanen" plans one; the Gesamtplan's cell opens the workbench at its area with the marked
+// module first in its group; on a phone the workbench's areas are a sheet that has „Gemerkt". The Stundenplan's „+ Modul" of „Mein
 // Studiengang", its Merkliste: what the winter offers each with how it sits in the week, the
 // summer's folded with „nur SoSe", a search, a collection, „2 gemerkte Module aufnehmen" (as visits)
 // and „Rückgängig", Esc. Nothing of the marks, the names of the collections or what is typed is in a
@@ -148,33 +148,39 @@ const choice = await page.evaluate(() => ({
 }));
 check(/^(1 gemerktes zählt|\d+ gemerkte zählen) hier$/.test(choice.count || "") && choice.first === wp && choice.sign && choice.signs >= 1 && choice.area, `the Wahlpflicht and the marked module: ${JSON.stringify(choice)} (${wp})`);
 
-// „Module hinzufügen": three tabs; the plan's „Theoretische Informatik" marked, in its collection.
+// „Module hinzufügen": the workbench (folia/design/hinzufuegen/konzepte.html, third round); the
+// plan's „Theoretische Informatik" under „Laut Plan im 3. FS" marked, with its collection.
 await go("/study");
-await step("Module hinzufügen", () => page.click(".st-card-sem .st-empty-add"), () => document.querySelector(".st-dialog[open] .st-choices"));
-const tabs = await page.evaluate(() => [...document.querySelectorAll(".st-dialog[open] .st-tabs button")].map((b) => b.textContent + (b.getAttribute("aria-pressed") === "true" ? "*" : "")));
-check(tabs.join("|") === "Regelstudienplan*|Merkliste|Katalog", `the tabs of „Module hinzufügen“: ${tabs}`);
-const tiRow = await page.evaluate(() => {
-  const row = [...document.querySelectorAll(".st-dialog[open] .st-choice-row")].find((li) => li.querySelector(".st-choice-name")?.textContent === "Theoretische Informatik");
-  return row && { marked: row.querySelector(".st-marked")?.textContent, on: row.querySelector(".st-tick")?.getAttribute("aria-checked") };
-});
-check(tiRow?.marked === `gemerkt: ${KANDIDATEN}` && tiRow?.on === "true", `„Theoretische Informatik“ in the plan's tab: ${JSON.stringify(tiRow)}`);
-await step("Merkliste", () => page.click('.st-dialog[open] .st-tabs button:has-text("Merkliste")'), () => document.querySelectorAll(".st-dialog[open] .st-choice-row").length === 6);
-const chips = await page.evaluate(() => [...document.querySelectorAll(".st-dialog[open] .st-marked-chips button")].map((b) => `${b.firstChild.textContent} ${b.querySelector(".n")?.textContent}${b.getAttribute("aria-pressed") === "true" ? "*" : ""}`));
-check(JSON.stringify(chips) === JSON.stringify(["Alle 6*", `${KANDIDATEN} 2`, `${LENA} 1`]), `the collections in „Merkliste“: ${JSON.stringify(chips)}`);
-// What is ticked in one tab is ticked in the other.
-const tiThere = await page.evaluate(() => [...document.querySelectorAll(".st-dialog[open] .st-choice-row")].find((li) => li.querySelector(".st-choice-name")?.textContent === "Theoretische Informatik")?.querySelector(".st-tick")?.getAttribute("aria-checked"));
-check(tiThere === "true", `„Theoretische Informatik“ is not ticked in „Merkliste“ as it is in the plan's tab: ${tiThere}`);
-await step(`the collection ${KANDIDATEN}`, () => page.click(`.st-dialog[open] .st-marked-chips button:has-text("${KANDIDATEN}")`), () => document.querySelectorAll(".st-dialog[open] .st-choice-row").length === 2);
-const wpTitle = await page.evaluate((ti) => [...document.querySelectorAll(".st-dialog[open] .st-choice-name")].map((name) => name.textContent).find((name) => name !== "Theoretische Informatik"), ti);
+await step("Module hinzufügen", () => page.click(".st-card-sem .st-empty-add"), () => document.querySelector(".st-wb #st-wb-takeover"));
+const markOf = (title) => [...document.querySelectorAll(".st-wb-pane .st-wb-row")].find((li) => li.querySelector(".st-wb-go b")?.textContent === title)?.querySelector(".st-marked")?.textContent;
+const tiRow = await page.evaluate(markOf, "Theoretische Informatik");
+check(tiRow === `gemerkt: ${KANDIDATEN}`, `„Theoretische Informatik“ under „Laut Plan“: ${JSON.stringify(tiRow)}`);
+// „Gemerkt": every marked module, each with the subgroup it counts for; its collections to choose
+// from, its search.
+const markedRows = () => document.querySelectorAll(".st-wb-pane .st-wb-row").length;
+await step("Gemerkt", () => page.click('.st-wb-areas .st-wb-a:has-text("Gemerkt")'), () => document.querySelectorAll(".st-wb-pane .st-wb-row").length === 6 && document.querySelector("#st-wb-collection"));
+const choices = async () => {
+  await page.click("#st-wb-collection");
+  await page.waitForSelector(".combo[data-open] [role=option], [role=listbox] [role=option]", { timeout: 3000 }).catch(() => {});
+  return page.evaluate(() => [...document.querySelectorAll("[role=listbox] [role=option]")].map((option) => option.textContent.trim()));
+};
+const kept = await choices();
+check(JSON.stringify(kept.slice(0, 3).map((text) => text.replace(/\s+/g, " "))) === JSON.stringify(["Alle · 6", `${KANDIDATEN} · 2`, `${LENA} · 1`]), `the collections in „Gemerkt“: ${JSON.stringify(kept)}`);
+await step(`the collection ${KANDIDATEN}`, () => page.click(`[role=listbox] [role=option]:has-text("${KANDIDATEN}")`), () => document.querySelectorAll(".st-wb-pane .st-wb-row").length === 2);
+const wpTitle = await page.evaluate(() => [...document.querySelectorAll(".st-wb-pane .st-wb-row .st-wb-go b")].map((name) => name.textContent).find((name) => name !== "Theoretische Informatik"));
 const typed = wpTitle.split(/\s+/).find((word) => word.length >= 5) || wpTitle;
-await step("the search of „Merkliste“", () => page.fill("#st-marked-search", typed.slice(0, 5)), (title) => { const names = [...document.querySelectorAll(".st-dialog[open] .st-choice-name")].map((name) => name.textContent); return names.includes(title) && !names.includes("Theoretische Informatik"); }, wpTitle);
-await step("ticked", () => page.click(`.st-dialog[open] .st-choice-row:has(.st-choice-name:text-is("${wpTitle}")) .st-tick`), (title) => document.querySelector(`.st-dialog[open] .st-choice-row .st-tick[aria-label="${title} auswählen"]`)?.getAttribute("aria-checked") === "true", wpTitle);
-await step("nothing found", () => page.fill("#st-marked-search", "zzzqqq"), () => document.querySelector(".st-dialog[open] .st-pick p.st-sub")?.textContent === "Nichts gefunden.");
-await page.fill("#st-marked-search", "");
-await step("Einfügen", () => page.click("#st-insert"), ([key, wp, ti]) => !document.querySelector(".st-dialog[open]") && (localStorage.getItem(key) || "").includes(`m\t2026W\t${wp}\t`) && (localStorage.getItem(key) || "").includes(`m\t2026W\t${ti}\t`), [PLAN, wp, ti]);
+await step("the search of „Gemerkt“", () => page.fill("#st-wb-search", typed.slice(0, 5)), (title) => { const names = [...document.querySelectorAll(".st-wb-pane .st-wb-row .st-wb-go b")].map((name) => name.textContent); return names.includes(title) && !names.includes("Theoretische Informatik"); }, wpTitle);
+await step("+ Einplanen, from „Gemerkt“", () => page.click(`.st-wb-pane .st-wb-row:has(.st-wb-go b:text-is("${wpTitle}")) .st-wb-plus`), ([key, wp]) => (localStorage.getItem(key) || "").includes(`m\t2026W\t${wp}\t`), [PLAN, wp]);
+await step("nothing found", () => page.fill("#st-wb-search", "zzzqqq"), () => document.querySelector(".st-wb-pane p.st-wb-rule.pad")?.textContent === "Nichts gefunden.");
+await page.fill("#st-wb-search", "");
+await step("Laut Plan, again", () => page.click(".st-wb-areas .st-wb-a.top"), () => document.querySelector("#st-wb-takeover"));
+await step("+ Einplanen, Theoretische Informatik", () => page.click('.st-wb-pane .st-wb-row:has(.st-wb-go b:text-is("Theoretische Informatik")) .st-wb-plus'), ([key, ti]) => (localStorage.getItem(key) || "").includes(`m\t2026W\t${ti}\t`), [PLAN, ti]);
+await step("Fertig", () => page.click(".st-wb-done"), () => !document.querySelector(".st-wb"));
+void markedRows;
 
 // The Gesamtplan's cell of the area of the module of the Wahlpflicht in SoSe 2027 (it is planned
-// into WiSe 2026/27 now, so it is no done one there): the marked module first in its list, marked.
+// into WiSe 2026/27 now, so it is no done one there): the workbench for that semester at the
+// area, the marked module first in its group, marked.
 await go("/study");
 await step("Gesamtplan", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => document.querySelector(".st-grid .st-cell-add"));
 const found = await page.evaluate((area) => {
@@ -188,15 +194,18 @@ const found = await page.evaluate((area) => {
   return Boolean(cell?.querySelector(".st-cell-add"));
 }, choice.area);
 check(found, `no cell of ${choice.area} in SoSe 27`);
-await step("the cell", () => page.click('[data-check="cell"]'), () => document.querySelector(".st-dialog[open] .st-choice-row"));
-await page.click('.st-dialog[open] .st-pick > button.st-link[aria-expanded="false"]', { timeout: 1500 }).catch(() => {});
-await page.waitForTimeout(300);
-const inCell = await page.evaluate((title) => {
-  const row = [...document.querySelectorAll(".st-dialog[open] .st-choice-row")].find((li) => li.querySelector(".st-choice-name")?.textContent === title);
-  return row && { first: row.parentElement.firstElementChild === row, marked: row.querySelector(".st-marked")?.textContent };
+await step("the cell", () => page.click('[data-check="cell"]'), () => document.querySelector(".st-wb-bar em")?.textContent === "SoSe 2027" && document.querySelector(".st-wb-pane .st-wb-row"));
+const inCell = async () => page.evaluate((title) => {
+  const row = [...document.querySelectorAll(".st-wb-pane .st-wb-row")].find((li) => li.querySelector(".st-wb-go b")?.textContent === title);
+  const head = row?.previousElementSibling;
+  return row && { first: Boolean(head?.classList.contains("st-wb-g")), marked: row.querySelector(".st-marked")?.textContent };
 }, wpTitle);
-check(inCell?.first && inCell?.marked === `gemerkt: ${KANDIDATEN}`, `the cell does not list the marked module first, marked: ${JSON.stringify(inCell)}`);
-await page.keyboard.press("Escape");
+// Not offered in the summer, it is under „nicht im SoSe angeboten", which the switch shows.
+if (!(await inCell())) await page.click('.st-wb-ctl button[role="switch"] >> nth=0').catch(() => {});
+await page.waitForTimeout(300);
+const cell = await inCell();
+check(cell?.first && cell?.marked === `gemerkt: ${KANDIDATEN}`, `the cell does not list the marked module first, marked: ${JSON.stringify(cell)}`);
+await step("Fertig, the cell", () => page.click(".st-wb-done"), () => !document.querySelector(".st-wb"));
 
 const leaks = requests.filter((r) => marked.some((id) => r.includes(id)) || r.includes(encodeURIComponent(KANDIDATEN)) || r.includes(KANDIDATEN) || r.includes("Lenachen") || r.includes(typed.slice(0, 5)) || r.includes("zzzqqq"));
 check(leaks.length === 0, `the marks, a collection or the search went into a request: ${leaks.slice(0, 3).join(" | ")}`);
@@ -253,7 +262,7 @@ await context.close();
   await context.close();
 }
 
-// ---------- a phone: the three tabs side by side ----------
+// ---------- a phone: the workbench's areas as a sheet, „Gemerkt" in them ----------
 {
   const { context, page, go, step } = await open({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2.625 });
   await go("/catalog");
@@ -264,14 +273,20 @@ await context.close();
   }, [KEY, PLAN, MINE, THIRD, FILLED, marked, now]);
   await go("/study");
   await page.waitForTimeout(600);
-  await step("Module hinzufügen on a phone", () => page.tap(".st-page.is-current .st-empty-add, .st-empty-add >> visible=true"), () => document.querySelector(".st-dialog[open] .st-tabs"));
-  const line = await page.evaluate(() => {
-    const tabs = document.querySelector(".st-dialog[open] .st-tabs");
-    const buttons = [...tabs.querySelectorAll("button")].map((b) => b.getBoundingClientRect());
-    return { n: buttons.length, tops: new Set(buttons.map((b) => Math.round(b.top))).size, inside: tabs.getBoundingClientRect().right <= document.querySelector(".st-dialog[open]").getBoundingClientRect().right + 0.5, wraps: [...tabs.querySelectorAll("button")].some((b) => b.scrollWidth > b.clientWidth + 1) };
+  await step("Module hinzufügen on a phone", () => page.tap(".st-pager > .st-slot:not([inert]) .st-empty-add, .st-empty-add >> visible=true"), () => document.querySelector(".st-wb.phone .st-wb-pick"));
+  await step("the areas on a phone", () => page.tap(".st-wb-pick"), () => document.querySelector(".st-dialog[open] .st-wb-areas"));
+  const sheet = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll(".st-dialog[open] .st-wb-a")].map((row) => row.getBoundingClientRect());
+    return { n: rows.length, inside: rows.every((row) => row.right <= document.querySelector(".st-dialog[open]").getBoundingClientRect().right + 0.5), tall: rows.every((row) => row.height >= 44) };
   });
-  check(line.n === 3 && line.tops === 1 && line.inside && !line.wraps, `the three tabs on a phone: ${JSON.stringify(line)}`);
-  await step("Merkliste on a phone", () => page.tap('.st-dialog[open] .st-tabs button:has-text("Merkliste")'), () => document.querySelectorAll(".st-dialog[open] .st-choice-row").length === 6);
+  check(sheet.n >= 9 && sheet.inside && sheet.tall, `the workbench's areas on a phone: ${JSON.stringify(sheet)}`);
+  // The sheet half up has „Gemerkt" at its lower edge: once it rests, the finger takes it all up
+  // (as a finger would) and taps it.
+  const rests = () => page.waitForFunction(() => { const sheet = document.querySelector(".st-dialog[open]"); return sheet && !sheet.getAnimations({ subtree: true }).some((animation) => animation.playState === "running"); }, null, { timeout: 4000 }).catch(() => {});
+  await rests();
+  await page.evaluate(() => document.querySelector('.st-dialog[open] .st-wb-a:last-of-type')?.scrollIntoView({ block: "end" }));
+  await rests();
+  await step("Gemerkt on a phone", () => page.locator('.st-dialog[open] .st-wb-a:has-text("Gemerkt")').dispatchEvent("click"), () => !document.querySelector(".st-dialog[open]") && document.querySelectorAll(".st-wb-pane .st-wb-row").length === 6);
   await context.close();
 }
 
