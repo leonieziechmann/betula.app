@@ -17,7 +17,7 @@
 // list it was opened from, the profiles before the page, no sideways scrolling, and the arrow at
 // the head back to the list as it was left, scrolled as far. English. „Über diese Seite" at the end
 // of the page: that Betula is not the BTU's, Impressum and Datenschutz, Folia's version (the ground
-// held them until 2026-11-03, which the start page alone keeps). Without the app: the page explains
+// held them until 2026-11-03, which the start page and the pages about Betula keep). Without the app: the page explains
 // itself, is `noindex`, offers the other language and the legal pages, and the rail's way to it shows.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
