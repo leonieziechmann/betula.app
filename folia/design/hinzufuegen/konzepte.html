@@ -24,7 +24,15 @@
      1. and 2. FS passed, the FÜS still open; whether a module fits beside Theoretische Informatik,
      Softwarepraktikum and Mathematik IT-3 is what `pages::fit` says. Then the parts, the placeholders
      rethought, what goes into the workbench and what into the catalog, seven questions, and round
-     1's analysis below. Nothing of it is built. Tokens are Betula's (folia/assets/app.css), the
+     1's analysis below. Third round (2026-11-03; owner: „Hmm grundidee ist schon ganz gut. Aber das
+     ist super unruhig. Das muss nochmal angepasst werden. Mach das mal so, dass da die Bereicht sind,
+     die man auswählen kann und sich dann ausklappt mit den untergruppen, wenn es gibt. Das handy menu,
+     wo man das aktuelle semester sehen kann muss auch nochmal angepasst werden, Da sollte nur zu sehen
+     sein, was man alles belegt hat. Der rest ist ja dann bei anderen sachen zu sehen.“): the list on
+     the left one row per area of the overview, an area with subgroups folding out with them and
+     showing the one that is due, no headings, marks or figures in every row; the semester, on a
+     desktop and on a phone, only what is taken, what the plan still expects under „Laut Plan im
+     3. FS“ alone. Nothing of it is built. Tokens are Betula's (folia/assets/app.css), the
      devices those of folia/design/kalender/konzepte.html; Inter comes from Google Fonts here, the app
      self-hosts it. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -715,7 +723,7 @@ table.cmp th.rec { color: var(--accent-ink); }
 .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line-strong); }
 
 /* ---------- Round 2 inside the devices: the mode, the sections, the semester ---------- */
-.d-main.wb2 { grid-template-columns: 232px minmax(0, 1fr) 320px; grid-template-rows: 44px minmax(0, 1fr); }
+.d-main.wb2 { grid-template-columns: 240px minmax(0, 1fr) 316px; grid-template-rows: 44px minmax(0, 1fr); }
 .d-main.cat2 { grid-template-columns: 236px minmax(0, 1fr); grid-template-rows: 44px minmax(0, 1fr); }
 .d-main.cat2.open { grid-template-columns: 236px minmax(0, 1fr) 352px; }
 .modebar { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 0 7px 0 10px; border-radius: 10px; background: var(--invert); color: var(--on-invert); min-width: 0; }
@@ -813,6 +821,29 @@ table.cmp th.rec { color: var(--accent-ink); }
 .mp .ctx { padding: 7px 9px; border-radius: 8px; background: var(--panel-2); font-size: 12px; color: var(--text-2); }
 .mp .ctx b { color: var(--text); }
 
+/* Round 3: the areas, one row each, the open one with its subgroups. */
+.ar1 { display: grid; grid-template-columns: minmax(0, 1fr) auto 14px; gap: 8px; align-items: center; min-height: 36px; padding: 4px 8px 4px 10px; border-radius: 8px; font-size: 13px; font-weight: 640; color: var(--text); }
+.ar1 .nm { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.ar1 .nm span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ar1 .nm i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
+.ar1 .nm svg.i { width: 15px; height: 15px; }
+.ar1 small, .ar2 small { color: var(--text-3); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ar1 small.ok, .ar2 small.ok { color: var(--ok); }
+.ar1 .chev { width: 14px; height: 14px; color: var(--text-3); }
+.ar1:hover, .ar2:hover { background: var(--panel-2); }
+.ar1.open { background: var(--panel-2); }
+.ar1.on, .ar2.on { background: var(--invert); color: var(--on-invert); }
+.ar1.on small, .ar1.on .chev, .ar2.on small { color: color-mix(in srgb, var(--on-invert) 75%, transparent); }
+.ar1.top { grid-template-columns: minmax(0, 1fr) auto; margin-bottom: 8px; box-shadow: inset 0 0 0 1px var(--line-strong); }
+.ar1.top.on { box-shadow: none; }
+.ar1.way2 { color: var(--accent-ink); }
+.ar2s { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 6px 14px; padding-left: 9px; border-left: 1.5px solid var(--line-strong); }
+.ar2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 31px; padding: 3px 8px; border-radius: 7px; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.ar2 span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sv-h .crumb { color: var(--text-3); font-size: 13px; font-weight: 650; white-space: nowrap; }
+.p-sheet .ar1 { min-height: 46px; font-size: 15px; }
+.p-sheet .ar2 { min-height: 42px; font-size: 14px; }
+
 /* Round 2 on a phone. */
 .p-pick { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); }
 .p-pick .k { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
@@ -847,34 +878,39 @@ table.cmp th.rec { color: var(--accent-ink); }
 
 <section class="intro">
   <div>
-    <div class="kicker">Betula · Mein Studium · Module hinzufügen · Konzepte · zweite Runde · 02.11.2026</div>
-    <h1>Planen in Abschnitten, suchen im Katalog</h1>
-    <p class="lead">Die Werkbank aus C bleibt ein Modus, aber man wählt nicht mehr Plätze, sondern <b>Abschnitte des Regelstudienplans</b>: zuerst, was der Plan für dieses Semester empfiehlt, dann die Pflicht und jede Wahl, und daneben ihre Module. Was viele Filter braucht, läuft über den <b>Modulkatalog und die Suche</b>, mit dem Semester der Werkbank als Ziel (A). Ein Prototyp am Rechner und am Handy, in zehn Schritten, auf den Daten von canary: Informatik B.Sc. im 3. FS.</p>
-    <p class="quote">„An für sich finde ich es gut, dass wir mit modi arbeiten. Aber es gibt hier noch so das problem, wie platzhalter funktioneiren. Ich glaube es währe ein guter ansatz, <b>wenn man sections auswählen könnte, wie pflicht, das anwengungsfach etc, und man dann die module sehen kann, die da rein passen.</b> Das große ding ist halt. <b>Man soll sehen können, was der regelstudienplan empfiehlt und schnell dandach planen können.</b> … so einfache sachen, wie halt aus dem wp bereich zu wählen aus einem studiengang chill. Aber <b>wenn man sehr komplexe filter/suchen hat. Dann soll das über den Modulkatalog/Suche laufen.</b>“</p>
+    <div class="kicker">Betula · Mein Studium · Module hinzufügen · Konzepte · dritte Runde · 03.11.2026</div>
+    <h1>Planen nach Bereichen, suchen im Katalog</h1>
+    <p class="lead">Die Werkbank bleibt ein Modus für ein Semester. Links stehen jetzt nur noch die <b>Bereiche des Plans</b>, wie im Überblick; ein Klick klappt einen Bereich mit seinen <b>Untergruppen</b> auf (Nebenfach: Anwendungsfach, Praktische Mathematik) und zeigt gleich die Module der Untergruppe, die jetzt dran ist. Das Semester rechts und am Handy zeigt <b>nur noch, was du belegst</b>. Was viele Filter braucht, läuft weiter über den Modulkatalog mit der Werkbank als Ziel. Ein Prototyp am Rechner und am Handy, in zehn Schritten, auf den Daten von canary: Informatik B.Sc. im 3. FS.</p>
+    <p class="quote">„Hmm grundidee ist schon ganz gut. Aber das ist <b>super unruhig</b>. Das muss nochmal angepasst werden. Mach das mal so, dass da <b>die Bereicht sind, die man auswählen kann und sich dann ausklappt mit den untergruppen, wenn es gibt.</b> Das handy menu, wo man das aktuelle semester sehen kann muss auch nochmal angepasst werden, <b>Da sollte nur zu sehen sein, was man alles belegt hat.</b> Der rest ist ja dann bei anderen sachen zu sehen.“</p>
   </div>
-  <aside class="rules" aria-label="Die Regeln der zweiten Runde">
-    <div class="kicker">Die Regeln der zweiten Runde</div>
+  <aside class="rules" aria-label="Die Regeln der dritten Runde">
+    <div class="kicker">Die Regeln der dritten Runde</div>
     <ol>
       <li><span><b>Planen ist ein Modus.</b> „Module hinzufügen“ öffnet die Werkbank für ein Semester; „Fertig“ oder Esc schließen sie.</span></li>
-      <li><span><b>Links die Abschnitte des Plans,</b> oben „Laut Plan im 3. FS“, darunter die Pflicht und jede Wahl, nach Bereichen wie im Überblick, jeder mit seinen LP.</span></li>
-      <li><span><b>In der Mitte die Module des Abschnitts,</b> die im Semester angeboten und in der Woche frei sind zuerst. Was man dort einplant, zählt für diesen Abschnitt.</span></li>
-      <li><span><b>Rechts das Semester,</b> das entsteht, mit dem, was der Plan dort noch erwartet: „offen laut Plan“, gestrichelt, statt Platzhaltern.</span></li>
+      <li><span><b>Links die Bereiche,</b> oben „Laut Plan im 3. FS“, darunter Informatik, Mathematik, Nebenfach, FÜS, Fachstudium und Bachelor-Arbeit, jeder mit einer Zahl: seinen LP.</span></li>
+      <li><span><b>Ein Bereich mit Untergruppen klappt auf,</b> und die Mitte zeigt gleich die Untergruppe, die jetzt dran ist; ein Bereich ohne Untergruppen zeigt seine Module direkt.</span></li>
+      <li><span><b>Das Semester zeigt nur, was belegt ist,</b> am Rechner rechts und am Handy im Sheet der Leiste unten. Was der Plan noch erwartet, steht unter „Laut Plan im 3. FS“.</span></li>
       <li><span><b>Viele Filter und die freie Suche</b> führen in den Modulkatalog, mit der Werkbank als Ziel; „Zurück zur Werkbank“ führt zurück.</span></li>
     </ol>
   </aside>
 </section>
 
-<section class="verdicts" id="entschieden" aria-label="Entschieden am 02.11.">
+<section class="verdicts" id="entschieden" aria-label="Was entschieden ist">
   <div class="kicker">Entschieden am 02.11., nach der ersten Runde</div>
   <ol>
     <li><span><b>C ist der Rahmen: Planen ist ein Modus.</b><q>An für sich finde ich es gut, dass wir mit modi arbeiten.</q></span></li>
-    <li><span><b>Abschnitte statt Platzhalter.</b><q>wenn man sections auswählen könnte, wie pflicht, das anwengungsfach etc, und man dann die module sehen kann, die da rein passen</q></span></li>
+    <li><span><b>Abschnitte des Plans statt Platzhalter.</b><q>wenn man sections auswählen könnte, wie pflicht, das anwengungsfach etc, und man dann die module sehen kann, die da rein passen</q></span></li>
     <li><span><b>Zuerst die Empfehlung des Regelstudienplans, schnell übernommen.</b><q>Man soll sehen können, was der regelstudienplan empfiehlt und schnell dandach planen können.</q></span></li>
     <li><span><b>Einfaches in der Werkbank, Schweres im Katalog (A).</b><q>wenn man sehr komplexe filter/suchen hat. Dann soll das über den Modulkatalog/Suche laufen</q></span></li>
   </ol>
+  <div class="kicker" style="margin-top:14px">Entschieden am 03.11., nach der zweiten Runde</div>
+  <ol>
+    <li><span><b>Links die Bereiche, aufklappbar mit ihren Untergruppen.</b><q>dass da die Bereicht sind, die man auswählen kann und sich dann ausklappt mit den untergruppen, wenn es gibt</q></span></li>
+    <li><span><b>Das Semester zeigt nur, was belegt ist.</b><q>Da sollte nur zu sehen sein, was man alles belegt hat. Der rest ist ja dann bei anderen sachen zu sehen.</q></span></li>
+  </ol>
 </section>
 
-<nav class="setbar" aria-label="Prototyp und Abschnitte der Seite">
+<nav class="setbar" aria-label="Prototyp und Teile der Seite">
   <div class="group"><span class="kicker">Schritt</span><div class="seg" role="group" aria-label="Schritt des Prototyps" id="sseg"></div></div>
   <div class="jump"><a href="#neu">Neu</a><a href="#prototyp">Prototyp</a><a href="#teile">Teile</a><a href="#platzhalter">Platzhalter</a><a href="#wohin">Werkbank oder Katalog</a><a href="#fragen">Fragen</a><a href="#analyse">Analyse</a></div>
 </nav>
@@ -882,16 +918,15 @@ table.cmp th.rec { color: var(--accent-ink); }
 <!-- ============================================================ Neu -->
 <section class="sec" id="neu">
   <header>
-    <h2>Was die zweite Runde ändert</h2>
-    <p class="sub">Von C bleibt der Modus. Die Plätze verschwinden aus der Semesterspalte und werden zu Abschnitten links; aus A kommt der Katalog mit Ziel für alles, was mehr als ein paar Filter braucht.</p>
+    <h2>Was die dritte Runde ändert</h2>
+    <p class="sub">Die Ordnung der zweiten Runde bleibt; was sie unruhig machte, geht: die Überschriften jedes Bereichs mit allen Untergruppen darunter, die farbigen Marken und im Semester die gestrichelten Zeilen dessen, was noch fehlt. Offen ist immer nur ein Bereich.</p>
   </header>
   <div class="changes">
-    <figure><figcaption>Erste Runde · C, Ziel Anwendungsfach</figcaption><img src="bilder/runde1-c.webp" alt="Konzept C der ersten Runde: links das Semester mit den Pflichtmodulen und den Plätzen Anwendungsfach und Fachübergreifendes Studium, das Anwendungsfach als Ziel umrandet; rechts der Katalog mit der Leiste „Für Anwendungsfach“." width="1170" height="556" loading="lazy"></figure>
+    <figure><figcaption>Zweite Runde · die Abschnitte und das Semester am Handy</figcaption><img src="bilder/runde2.webp" alt="Die zweite Runde: links die Liste der Abschnitte mit Überschriften je Bereich, allen Untergruppen, Marken „3. FS“ und „seit 1. FS“ und einer Zahl in jeder Zeile; rechts das Semester-Sheet am Handy mit den drei Pflichtmodulen und darunter „Offen laut Plan: Anwendungsfach“ und „Aus früheren Semestern offen: Fachübergreifendes Studium“, gestrichelt." width="997" height="900" loading="lazy"></figure>
     <ul class="fb">
-      <li><q>wie platzhalter funktioneiren</q><b>Kein Platz mehr als Ziel in der Semesterspalte.</b> Man wählt einen Abschnitt; was der Plan im Semester noch erwartet, zeigt das Semester von selbst als „offen laut Plan“, und ein Klick darauf öffnet den Abschnitt.</li>
-      <li><q>sections auswählen … wie pflicht, das anwengungsfach</q><b>Links die Abschnitte des Plans</b> statt der Ansichten: Pflicht je Bereich und jede Wahl, mit LP und dem Fachsemester, in dem der Plan sie vorsieht.</li>
-      <li><q>was der regelstudienplan empfiehlt und schnell dandach planen</q><b>„Laut Plan im 3. FS“ steht oben und ist vorgewählt,</b> mit „Plan übernehmen“: ein Klick für die Pflicht, „Wählen ›“ für jede Wahl.</li>
-      <li><q>komplexe filter/suchen … über den Modulkatalog/Suche</q><b>Der Katalog rechts ist weg.</b> Ein Abschnitt filtert nur nach Fach, Angebot, Woche und Namen; „Im Katalog suchen ›“ und die Suche oben öffnen den Modulkatalog mit dem Semester und dem Abschnitt als Ziel.</li>
+      <li><q>super unruhig</q><b>Eine Zeile je Bereich, eine Zahl je Zeile.</b> Die sechs Bereiche des Überblicks mit ihrem Punkt in der Farbe des Bereichs und ihren LP; keine Überschriften in Großbuchstaben, keine Marken. Was jetzt dran ist, steht unter „Laut Plan im 3. FS“.</li>
+      <li><q>die Bereicht … die man auswählen kann und sich dann ausklappt mit den untergruppen, wenn es gibt</q><b>Ein Klick klappt einen Bereich auf</b> (ein Pfeil zeigt, dass er Untergruppen hat) und zeigt gleich die Untergruppe, die jetzt dran ist, sonst die erste offene. Es ist immer nur ein Bereich offen. FÜS, Bachelor-Arbeit und Mathematik haben keine Untergruppen und zeigen ihre Module direkt.</li>
+      <li><q>Da sollte nur zu sehen sein, was man alles belegt hat</q><b>Das Semester zeigt nur, was belegt ist,</b> mit seinen LP. Die gestrichelten Zeilen „offen laut Plan“ und „aus früheren Semestern offen“ sind weg, am Handy und am Rechner; dasselbe steht unter „Laut Plan im 3. FS“.</li>
     </ul>
   </div>
 </section>
@@ -917,11 +952,11 @@ table.cmp th.rec { color: var(--accent-ink); }
   </header>
   <div class="pieces">
     <div class="piece"><h3>Die Leiste des Modus</h3><p>Über allem, was sie ändert: <b>„Planen“, das Semester mit ‹ ›</b> (ein anderes Semester, ohne den Modus zu verlassen), seine LP gegen den Plan und <b>„Fertig“ <kbd>Esc</kbd></b>. Im Katalog heißt ihr Knopf „Zurück zur Werkbank“.</p><button class="go" type="button" data-step="r2">Zeigen</button></div>
-    <div class="piece"><h3>Die Abschnitte</h3><p>Oben <b>Laut Plan im 3. FS</b>, darunter die Bereiche des Überblicks mit ihren LP und in jedem die <b>Pflichtmodule</b> und jede <b>Wahl</b> (Anwendungsfach, Praktische Mathematik, FÜS, die Komplexe, Seminar oder Praktikum, Bachelor-Arbeit). Was jetzt dran ist, trägt „3. FS“, was überfällig ist „seit 1. FS“. Unten <b>Gemerkt</b> und <b>Im Katalog suchen</b>. Die Reihenfolge ändert sich nie; Erledigtes bleibt an seinem Platz, mit Haken.</p><button class="go" type="button" data-step="r4">Zeigen</button></div>
-    <div class="piece"><h3>Ein Abschnitt</h3><p>Kopf mit den LP und der Regel („12 LP aus einem Fach“, „laut Plan 6 LP im 3. FS“). Darunter, was die Liste ändert: <b>Fach</b>, <b>Im WiSe angeboten</b>, <b>Passt in meine Woche</b>, <b>Suche</b>. Die Liste in Gruppen: passen, treffen die Woche, ohne Termine, nicht im WiSe. Jede Zeile <b>+ Einplanen</b> (<kbd>P</kbd>), ein Klick auf sie zeigt das Modul.</p><button class="go" type="button" data-step="r5">Zeigen</button></div>
-    <div class="piece"><h3>Das Semester</h3><p>Rechts, was im Semester steht, jedes Modul mit dem Abschnitt, für den es zählt, und <b>×</b> zum Herausnehmen. Darunter gestrichelt <b>offen laut Plan</b>: was der Plan für das Fachsemester vorsieht und noch fehlt, und was aus früheren Semestern offen ist. Ein Klick darauf wählt den Abschnitt.</p><button class="go" type="button" data-step="r3">Zeigen</button></div>
-    <div class="piece"><h3>Der Katalog mit Ziel</h3><p><b>Im Katalog suchen ›</b> im Abschnitt, in der Liste links oder die <b>Suche</b> oben öffnen den Modulkatalog im Reiter „Studium“: alle Filter, die Vorschau, die Tasten. Seine Leiste sagt das Ziel („Planen · WiSe 2026/27 · für Fachübergreifendes Studium“), jede Zeile hat <b>+ Einplanen</b>.</p><button class="go" type="button" data-step="r8">Zeigen</button></div>
-    <div class="piece"><h3>Am Handy</h3><p>Oben der <b>Abschnitt</b> als ein Knopf über der Liste (ein Sheet mit allen Abschnitten, keine Chips), unten statt der Tab-Leiste die Leiste des Modus: <b>Semester und LP</b>, ein Tipp zeigt das Semester als Sheet, und <b>Fertig</b>.</p><button class="go" type="button" data-step="r9">Zeigen</button></div>
+    <div class="piece"><h3>Die Bereiche</h3><p>Oben <b>Laut Plan im 3. FS</b>, darunter die sechs Bereiche des Überblicks, jeder mit seinem Punkt und seinen LP; ein <b>Pfeil</b> zeigt Untergruppen. Ein Klick klappt den Bereich auf und zeigt die Untergruppe, die jetzt dran ist; ein Klick auf eine andere Untergruppe zeigt deren Module. Unten <b>Gemerkt</b> und <b>Im Katalog suchen</b>. Die Reihenfolge ändert sich nie; Erledigtes trägt einen Haken.</p><button class="go" type="button" data-step="r4">Zeigen</button></div>
+    <div class="piece"><h3>Eine Untergruppe</h3><p>Kopf mit dem Bereich, den LP und der Regel („12 LP aus einem Fach“, „laut Plan 6 LP im 3. FS“). Darunter, was die Liste ändert: <b>Fach</b>, <b>Im WiSe angeboten</b>, <b>Passt in meine Woche</b>, <b>Suche</b>. Die Liste in Gruppen: passen, treffen die Woche, ohne feste Termine. Jede Zeile <b>+ Einplanen</b> (<kbd>P</kbd>), ein Klick auf sie zeigt das Modul.</p><button class="go" type="button" data-step="r5">Zeigen</button></div>
+    <div class="piece"><h3>Das Semester</h3><p>Rechts nur, was im Semester belegt ist, jedes Modul mit der Untergruppe, für die es zählt („für Anwendungsfach“), und <b>×</b> zum Herausnehmen, darüber die LP gegen den Plan. Was noch fehlt, steht nicht hier, sondern unter <b>Laut Plan im 3. FS</b>.</p><button class="go" type="button" data-step="r6">Zeigen</button></div>
+    <div class="piece"><h3>Der Katalog mit Ziel</h3><p><b>Im Katalog suchen ›</b> in einer Untergruppe, unten in den Bereichen oder die <b>Suche</b> oben öffnen den Modulkatalog im Reiter „Studium“: alle Filter, die Vorschau, die Tasten. Seine Leiste sagt das Ziel („Planen · WiSe 2026/27 · für Fachübergreifendes Studium“), jede Zeile hat <b>+ Einplanen</b>.</p><button class="go" type="button" data-step="r8">Zeigen</button></div>
+    <div class="piece"><h3>Am Handy</h3><p>Oben der <b>Bereich</b> als ein Knopf über der Liste: ein Sheet mit denselben Bereichen, ein Tipp klappt einen auf, ein Tipp auf die Untergruppe zeigt ihre Module. Unten statt der Tab-Leiste die Leiste des Modus: <b>Semester und LP</b>, ein Tipp zeigt, was belegt ist, und <b>Fertig</b>.</p><button class="go" type="button" data-step="r9">Zeigen</button></div>
   </div>
 </section>
 
@@ -929,7 +964,7 @@ table.cmp th.rec { color: var(--accent-ink); }
 <section class="sec" id="platzhalter">
   <header>
     <h2>Platzhalter, neu gedacht</h2>
-    <p class="sub">Ein Platzhalter ist heute eine gespeicherte Zeile ohne Modul. Man legt ihn an, sucht später ein Modul, und erst wenn das ihn füllt, zählt nichts doppelt (seit Folia 1.59.2 tut es das über „Modul wählen“). In der zweiten Runde wählt man nie für einen Platzhalter, sondern für einen Abschnitt.</p>
+    <p class="sub">Ein Platzhalter ist heute eine gespeicherte Zeile ohne Modul. Man legt ihn an, sucht später ein Modul, und erst wenn das ihn füllt, zählt nichts doppelt (seit Folia 1.59.2 tut es das über „Modul wählen“). In der Werkbank wählt man nie für einen Platzhalter, sondern in einer Untergruppe.</p>
   </header>
   <div class="ba2">
     <div class="was">
@@ -946,18 +981,18 @@ table.cmp th.rec { color: var(--accent-ink); }
       </ol>
     </div>
     <div class="wird">
-      <h3>Zweite Runde</h3>
+      <h3>In der Werkbank</h3>
       <div class="mini">
-        <div class="h">WiSe 2026/27 · 30 von 30 LP</div>
+        <div class="h">Laut Plan im 3. FS</div>
+        <div class="r"><b>Anwendungsfach</b><span class="t2">Wahlpflicht</span><small>Wählen ›</small></div>
+        <div class="h">WiSe 2026/27 · belegt · 30 von 30 LP</div>
         <div class="r"><b>Einführung in die VWL</b><span class="t2 for">für Anwendungsfach</span><small>6 LP</small></div>
-        <div class="h">offen laut Plan</div>
-        <div class="r ph"><b>Anwendungsfach</b><span class="t2 for">erledigt</span><small>6 von 6 LP</small></div>
       </div>
       <ol>
-        <li><b>Nichts anlegen:</b> was der Plan im Fachsemester vorsieht und fehlt, zeigt die Werkbank von selbst als „offen laut Plan“; gespeichert wird es nicht.</li>
-        <li><b>Im Abschnitt wählen:</b> „Wählen ›“ an der gestrichelten Zeile öffnet den Abschnitt; „+ Einplanen“ plant ins Semester der Werkbank und merkt sich den Abschnitt am Modul.</li>
-        <li><b>Gespeicherte Platzhalter bleiben gültig</b> (alte Pläne, „Bisherige Module als bestanden markieren“, der Stundenplan): in der Werkbank stehen sie als „vorgemerkt“ beim Abschnitt, und was man dort für ihr Semester einplant, füllt sie. „Modul wählen“ an einem Platzhalter öffnet die Werkbank in seinem Abschnitt.</li>
-        <li><b>Vorplanen ohne Modul</b> bleibt möglich, etwa 10 LP Praktische Informatik im WiSe 27/28: „Vormerken“ im Kopf eines Abschnitts.</li>
+        <li><b>Nichts anlegen:</b> was der Plan im Fachsemester vorsieht, steht unter „Laut Plan im 3. FS“, jede Wahl mit „Wählen ›“; gespeichert wird davon nichts.</li>
+        <li><b>In der Untergruppe wählen:</b> „Wählen ›“ oder ein Klick auf den Bereich öffnet sie; „+ Einplanen“ plant ins Semester der Werkbank und merkt sich die Untergruppe am Modul.</li>
+        <li><b>Gespeicherte Platzhalter bleiben gültig</b> (alte Pläne, „Bisherige Module als bestanden markieren“, der Stundenplan): unter „Laut Plan“ stehen sie als „vorgemerkt“, und was man in ihrer Untergruppe für ihr Semester einplant, füllt sie. „Modul wählen“ an einem Platzhalter öffnet die Werkbank in seiner Untergruppe.</li>
+        <li><b>Vorplanen ohne Modul</b> bleibt möglich, etwa 10 LP Praktische Informatik im WiSe 27/28: „Vormerken“ im Kopf einer Untergruppe.</li>
       </ol>
     </div>
   </div>
@@ -967,41 +1002,41 @@ table.cmp th.rec { color: var(--accent-ink); }
 <section class="sec" id="wohin">
   <header>
     <h2>Was in die Werkbank gehört, was in den Katalog</h2>
-    <p class="sub">Die Grenze zieht die Liste: ein Abschnitt hat im Median 17 Module, im WiSe 9; das liest man. Das FÜS hat 117, der Katalog 3.232; dort braucht es Filter.</p>
+    <p class="sub">Die Grenze zieht die Liste: eine Untergruppe hat im Median 17 Module, im WiSe 9; das liest man. Das FÜS hat 117, der Katalog 3.232; dort braucht es Filter.</p>
   </header>
   <div class="tablewrap">
     <table class="t">
       <thead><tr><th>Wer will …</th><th>geht in</th><th>mit</th></tr></thead>
       <tbody>
         <tr><td><b>übernehmen, was der Plan sagt</b></td><td>Werkbank · Laut Plan</td><td>„Plan übernehmen“, ein Klick für die Pflicht; „Wählen ›“ für jede Wahl</td></tr>
-        <tr><td><b>aus einer Wahl wählen</b> (Anwendungsfach, Komplex, Seminar)</td><td>Werkbank · ihr Abschnitt</td><td>Fach, Im WiSe, Passt, Suche; die passenden vorn</td></tr>
-        <tr><td><b>wiederholen oder nachholen</b></td><td>Werkbank · Laut Plan</td><td>„Noch offen aus früheren Semestern“, „seit 1. FS“ an seinem Abschnitt</td></tr>
-        <tr><td><b>vorziehen</b> aus einem späteren Semester</td><td>Werkbank · Laut Plan oder der Abschnitt</td><td>„Aus dem 4. FS vorziehen“, aufgeklappt</td></tr>
+        <tr><td><b>aus einer Wahl wählen</b> (Anwendungsfach, Komplex, Seminar)</td><td>Werkbank · Bereich, Untergruppe</td><td>Fach, Im WiSe, Passt, Suche; die passenden vorn</td></tr>
+        <tr><td><b>wiederholen oder nachholen</b></td><td>Werkbank · Laut Plan</td><td>„Noch offen aus früheren Semestern“</td></tr>
+        <tr><td><b>vorziehen</b> aus einem späteren Semester</td><td>Werkbank · Laut Plan oder der Bereich</td><td>„Aus dem 4. FS vorziehen“, aufgeklappt</td></tr>
         <tr><td><b>das FÜS nach Zeit oder Namen</b></td><td>Werkbank · FÜS</td><td>Passt, Suche</td></tr>
         <tr><td><b>nach Sprache, Prüfungsform, LP, Lehrform …</b></td><td>Katalog mit Ziel</td><td>„Im Katalog suchen ›“; alle Filter, Vorschau, Tasten</td></tr>
         <tr><td><b>ein bestimmtes Modul</b> (Name, Nummer)</td><td>die Suche oben</td><td>plant im Modus ins Semester der Werkbank</td></tr>
-        <tr><td><b>stöbern, was noch passt</b></td><td>Katalog mit Ziel</td><td>„Im Katalog suchen“ unten in den Abschnitten: das Semester als Ziel</td></tr>
-        <tr><td><b>aus der Merkliste</b></td><td>Werkbank · Gemerkt</td><td>jede Zeile mit dem Abschnitt, für den sie zählt</td></tr>
+        <tr><td><b>stöbern, was noch passt</b></td><td>Katalog mit Ziel</td><td>„Im Katalog suchen“ unten in den Bereichen: das Semester als Ziel</td></tr>
+        <tr><td><b>aus der Merkliste</b></td><td>Werkbank · Gemerkt</td><td>jede Zeile mit der Untergruppe, für die sie zählt</td></tr>
       </tbody>
     </table>
   </div>
-  <p class="prose"><b>Was aus den heutigen Wegen wird:</b> „Module hinzufügen“ öffnet die Werkbank, der Dialog mit drei Reitern geht und mit ihm sein Katalog. Die Zelle des Gesamtplans öffnet die Werkbank für ihr Semester, im Abschnitt ihres Bereichs. „Wählen ›“ im Regelstudienplan und „Modul wählen“ an einem Platzhalter öffnen die Werkbank im Abschnitt. Die Ansicht „Wahlpflicht“ bleibt der Überblick über alle Wahlen; „Planen ›“ an einer Wahl öffnet die Werkbank dort. „Einplanen“ im Modulkatalog ohne Modus bleibt, wie es ist; zählt das Modul für einen offenen Abschnitt, bietet seine Notiz „Für Anwendungsfach zählen lassen“ an.</p>
+  <p class="prose"><b>Was aus den heutigen Wegen wird:</b> „Module hinzufügen“ öffnet die Werkbank, der Dialog mit drei Reitern geht und mit ihm sein Katalog. Die Zelle des Gesamtplans öffnet die Werkbank für ihr Semester, in ihrem Bereich. „Wählen ›“ im Regelstudienplan und „Modul wählen“ an einem Platzhalter öffnen die Werkbank in der Untergruppe. Die Ansicht „Wahlpflicht“ bleibt der Überblick über alle Wahlen; „Planen ›“ an einer Wahl öffnet die Werkbank dort. „Einplanen“ im Modulkatalog ohne Modus bleibt, wie es ist; zählt das Modul für eine offene Untergruppe, bietet seine Notiz „Für Anwendungsfach zählen lassen“ an.</p>
 </section>
 
 <!-- ============================================================ Fragen -->
 <section class="sec" id="fragen">
   <header>
-    <h2>Fragen der zweiten Runde</h2>
+    <h2>Fragen der dritten Runde</h2>
     <p class="sub">Jede mit einem Vorschlag; ein „passt“ reicht.</p>
   </header>
   <ol class="qs">
+    <li><p class="ask">Ein Klick auf einen Bereich mit Untergruppen zeigt gleich eine?<small>Oder erst nur aufklappen, und man wählt die Untergruppe selbst.</small></p><p class="rec"><b>Vorschlag:</b> ja, die, die jetzt dran ist (Nebenfach: Anwendungsfach), sonst die erste offene. Am Handy klappt ein Tipp nur auf, weil das Sheet dabei offen bleibt.</p></li>
     <li><p class="ask">Plant „+ Einplanen“ sofort?<small>Heute kreuzt man an und drückt „Einfügen“.</small></p><p class="rec"><b>Vorschlag:</b> ja, wie „Einplanen“ überall sonst, auch „Plan übernehmen“; jede Änderung mit „Rückgängig“, die Leiste zählt mit.</p></li>
-    <li><p class="ask">Platzhalter nur noch als „offen laut Plan“, abgeleitet?<small>Gespeicherte bleiben gültig, neue legt man nur noch über „Vormerken“ an.</small></p><p class="rec"><b>Vorschlag:</b> ja. Was der Plan vorsieht, zeigt die Werkbank von selbst; wer ohne Modul vorplanen will, merkt im Abschnitt vor.</p></li>
-    <li><p class="ask">Ein Modul, das in zwei Abschnitten zählen kann?<small>Mathematische Statistik steht in Praktische Mathematik und im Anwendungsfach.</small></p><p class="rec"><b>Vorschlag:</b> es zählt im Abschnitt, aus dem es eingeplant wurde; Betula merkt sich das am Modul, „Zählt für ›“ in seinem Menü ändert es.</p></li>
+    <li><p class="ask">Was der Plan noch erwartet, nur unter „Laut Plan“, nicht mehr im Semester?<small>Gespeicherte Platzhalter bleiben gültig, neue legt man nur über „Vormerken“ an.</small></p><p class="rec"><b>Vorschlag:</b> ja, am Rechner wie am Handy; das Semester zeigt nur, was belegt ist, „Laut Plan im 3. FS“ alles, was fehlt.</p></li>
+    <li><p class="ask">Ein Modul, das in zwei Untergruppen zählen kann?<small>Mathematische Statistik steht in Praktische Mathematik und im Anwendungsfach.</small></p><p class="rec"><b>Vorschlag:</b> es zählt in der Untergruppe, aus der es eingeplant wurde; Betula merkt sich das am Modul, „Zählt für ›“ in seinem Menü ändert es.</p></li>
     <li><p class="ask">Plant die Suche oben im Modus ins Semester der Werkbank?</p><p class="rec"><b>Vorschlag:</b> ja: solange der Modus offen ist, haben ihre Treffer „+ Einplanen“; ohne Modus bleibt sie, wie sie ist.</p></li>
     <li><p class="ask">Der Katalog mit Ziel: im Reiter „Studium“, mit „Zurück zur Werkbank“?</p><p class="rec"><b>Vorschlag:</b> ja. Der Modus bleibt offen, bis man „Fertig“ drückt; der Reiter „Module“ bleibt der Katalog ohne Ziel.</p></li>
     <li><p class="ask">Am Handy: deckt die Leiste des Modus die Tab-Leiste ab?<small>Wie die Leiste der Auswahl in „Mein Studium“.</small></p><p class="rec"><b>Vorschlag:</b> ja; „Fertig“ gibt die Tab-Leiste zurück.</p></li>
-    <li><p class="ask">Wechselt ‹ › in der Leiste das Semester, ohne den Modus zu verlassen?</p><p class="rec"><b>Vorschlag:</b> ja; „Laut Plan“ zeigt dann das Fachsemester des neuen Semesters, die Abschnitte bleiben, wo sie sind.</p></li>
   </ol>
 </section>
 
@@ -1111,7 +1146,7 @@ table.cmp th.rec { color: var(--accent-ink); }
 </section>
 
 
-<p class="foot">Konzept, nichts davon ist gebaut · zweite Runde 02.11.2026 · Daten und Bilder von canary, 01.11.2026 (Folia 1.58.2)</p>
+<p class="foot">Konzept, nichts davon ist gebaut · dritte Runde 03.11.2026 · Daten und Bilder von canary, 01.11.2026 (Folia 1.58.2)</p>
 </div>
 
 <script>
@@ -1160,6 +1195,10 @@ const SECTIONS = [
   { key: "marked", name: "Gemerkt", rule: "Was du gemerkt hast, mit dem Abschnitt, für den es zählt", list: () => [mod("13566"), mod("12160")] },
 ];
 const MARKED_FOR = { "13566": "sp", "12160": "anw" };
+// The areas of the overview and their subgroups: the Pflicht of an area and its choices. An area
+// with one subgroup has none to show: it is its Pflicht or its one choice.
+const AREA_SUBS = [["pf-inf", "prosem"], ["pf-mat"], ["anw", "pm"], ["fues"], ["wpk", "gdi", "pi", "ati", "sp"], ["ba"]];
+const areaOf = (key) => sec(key)?.area;
 const FUER = { anw: "fürs Anwendungsfach", pm: "für Praktische Mathematik", fues: "fürs Fachübergreifende Studium", wpk: "für den Wahlpflicht-Komplex", gdi: "für Grundlagen der Informatik", pi: "für Praktische Informatik", ati: "für Angewandte und Technische Informatik", sp: "für Seminar oder Praktikum", ba: "für die Bachelor-Arbeit", prosem: "für Proseminar oder Praktikum", "pf-inf": "als Pflicht", "pf-mat": "als Pflicht" };
 const SHORT = { anw: "Anwendungsfach", pm: "Prakt. Mathematik", fues: "FÜS", wpk: "Wahlpflicht-Komplex", gdi: "Grundlagen d. Inf.", pi: "Prakt. Informatik", ati: "Angew. u. Techn. Inf.", sp: "Seminar o. Praktikum", ba: "Bachelor-Arbeit", prosem: "Proseminar o. Praktikum" };
 // Where a module of the curriculum counts, by its place in the module tree.
@@ -1245,12 +1284,12 @@ const fitm = (m, cls = "") => { const f = fitOf(m); return `<span class="fitm ${
 // ---------- the state ----------
 const ANW = { id: "11947", sec: "anw" };
 const FUES = { id: "14011", sec: "fues" };
-const DEF = { view: "sem", sec: "plan", catFor: "fues", pf: [], picks: [], fit: false, wise: true, q: "", fach: -1, open: null, sheet: null, menu: null, toast: null, fresh: [], more: false, cEn: true, cFit: true };
+const DEF = { view: "sem", sec: "plan", exp: null, catFor: "fues", pf: [], picks: [], fit: false, wise: true, q: "", fach: -1, open: null, sheet: null, menu: null, toast: null, fresh: [], more: false, cEn: true, cFit: true };
 const STEPS = [
   { id: "r1", label: "Semester", s: { view: "sem" } },
   { id: "r2", label: "Werkbank", s: { view: "bench", sec: "plan" } },
   { id: "r3", label: "Plan übernommen", s: { view: "bench", sec: "plan", pf: PF, fresh: PF, toast: { t: "<b>3 Pflichtmodule</b> in WiSe 2026/27 eingeplant", u: "undo" } } },
-  { id: "r4", label: "Anwendungsfach", s: { view: "bench", sec: "anw", pf: PF } },
+  { id: "r4", label: "Nebenfach", s: { view: "bench", sec: "anw", pf: PF, sheet: "sections", exp: 2 } },
   { id: "r5", label: "Was passt", s: { view: "bench", sec: "anw", pf: PF, fit: true, open: "11947" } },
   { id: "r6", label: "Eingeplant", s: { view: "bench", sec: "anw", pf: PF, fit: true, picks: [ANW], fresh: ["11947"], toast: { t: "<b>Einführung in die Volkswirtschaftslehre</b> eingeplant · zählt fürs Anwendungsfach", u: "undo" } } },
   { id: "r7", label: "Das FÜS", s: { view: "bench", sec: "fues", pf: PF, picks: [ANW] } },
@@ -1260,14 +1299,14 @@ const STEPS = [
 ];
 const NOTES = {
   r1: ["Das Semester", "WiSe 2026/27 ist leer. <b>Module hinzufügen</b> öffnet die Werkbank für dieses Semester: einen Modus, den „Fertig“ oder Esc beenden, wie der Fokus im Kalender."],
-  r2: ["Die Werkbank", "Oben die Leiste des Modus: das Semester, mit ‹ › ein anderes, und seine LP. Links die <b>Abschnitte</b> des Regelstudienplans, nach den Bereichen des Überblicks; oben und vorgewählt <b>Laut Plan im 3. FS</b>. In der Mitte, was der Abschnitt anbietet; rechts das Semester, das entsteht, mit dem, was laut Plan noch offen ist."],
-  r3: ["Plan übernommen", "<b>Plan übernehmen</b>: die drei Pflichtmodule des 3. FS stehen im Semester, sofort, mit „Rückgängig“. Offen bleibt das Anwendungsfach: „Wählen ›“ in der Mitte oder die gestrichelte Zeile rechts öffnen seinen Abschnitt."],
-  r4: ["Das Anwendungsfach", "Der Abschnitt mit seiner Regel und seinen LP. Darüber, was die Liste ändert: das Fach, <b>Im WiSe angeboten</b>, <b>Passt in meine Woche</b>, eine Suche. Die 38 Module des WiSe in Gruppen: die passen, die die Woche treffen, die ohne Termine. Für mehr Filter: <b>Im Katalog suchen ›</b>."],
+  r2: ["Die Werkbank", "Oben die Leiste des Modus: das Semester, mit ‹ › ein anderes, und seine LP. Links die <b>Bereiche</b> des Plans, eine Zeile je Bereich wie im Überblick; oben und vorgewählt <b>Laut Plan im 3. FS</b>: was der Plan für dieses Semester vorsieht und was aus früheren offen ist. Rechts nur, was du belegst; noch nichts."],
+  r3: ["Plan übernommen", "<b>Plan übernehmen</b>: die drei Pflichtmodule des 3. FS stehen rechts im Semester, sofort, mit „Rückgängig“. Offen bleibt das Anwendungsfach; „Wählen ›“ öffnet es, ebenso ein Klick auf <b>Nebenfach</b> links."],
+  r4: ["Nebenfach", "Ein Klick auf <b>Nebenfach</b> klappt seine Untergruppen auf, Anwendungsfach und Praktische Mathematik, und zeigt gleich die, die jetzt dran ist: die 38 Module des Anwendungsfachs im WiSe, in Gruppen. Darüber, was die Liste ändert: Fach, <b>Im WiSe angeboten</b>, <b>Passt in meine Woche</b>, Suche. Am Handy klappt der Bereich im Sheet auf; ein Tipp auf die Untergruppe zeigt ihre Module."],
   r5: ["Was passt", "<b>Passt in meine Woche</b>: 8 von 38. Ein Klick auf eine Zeile zeigt das Modul rechts an der Stelle des Semesters, mit seinen Terminen gegen die Woche und „+ In WiSe 2026/27 einplanen · zählt fürs Anwendungsfach“."],
-  r6: ["Eingeplant", "<b>+ Einplanen</b>: das Modul steht im Semester, mit „für Anwendungsfach“, und zählt dort, wo es gewählt wurde. Die gestrichelte Zeile des Anwendungsfachs ist weg: 30 von 30 LP."],
-  r7: ["Das FÜS", "Das FÜS ist seit dem 1. FS offen; links steht es so. Seine 117 Module lassen sich hier nach Woche und Namen eingrenzen; wer nach Sprache oder Prüfungsform sucht, nimmt <b>Im Katalog suchen ›</b>."],
+  r6: ["Eingeplant", "<b>+ Einplanen</b>: das Modul steht rechts im Semester, mit „für Anwendungsfach“, und zählt dort, wo es gewählt wurde: 30 von 30 LP, Nebenfach 6 von 18."],
+  r7: ["Das FÜS", "Das FÜS hat keine Untergruppen: ein Klick zeigt seine 117 Module, die passenden zuerst; offen ist es seit dem 1. FS, das sagt „Laut Plan im 3. FS“. Nach Woche und Namen grenzt man hier ein; wer nach Sprache oder Prüfungsform sucht, nimmt <b>Im Katalog suchen ›</b>."],
   r8: ["Im Katalog", "Der Modulkatalog mit dem Ziel der Werkbank: <b>Planen · WiSe 2026/27 · für Fachübergreifendes Studium</b>. Vorbelegt: die FÜS-Liste und der Winter; dazu „Englisch“ und „Passt in meinen Stundenplan“: 11 Module. Jede Zeile hat „+ Einplanen“; <b>Zurück zur Werkbank</b> oder Esc führen zurück."],
-  r9: ["Zurück in der Werkbank", "Der Kurs steht im Semester, „für Fachübergreifendes Studium“: <b>36 von 30 LP</b>, und warum mehr, steht daneben. Am Handy zeigt ein Tipp auf die Leiste unten das Semester."],
+  r9: ["Zurück in der Werkbank", "Der Kurs steht im Semester, „für FÜS“: <b>36 von 30 LP</b>, und warum mehr, steht daneben. Am Handy zeigt ein Tipp auf die Leiste unten das Semester: nur, was belegt ist."],
   r10: ["Fertig", "<b>Fertig</b> beendet den Modus. Das Semester wie immer, jede Zeile mit dem Abschnitt, für den sie zählt; Nebenfach 6 von 18, FÜS 6 von 6."],
 };
 
@@ -1305,13 +1344,7 @@ function secFigure(s, x) {
   if (x.key === "marked") return { t: "2", ok: false };
   if (x.pflicht) { const open = x.pflicht.filter((id) => !PASSED.has(id) && !isPlanned(s, id)).length; return open ? { t: `${open} offen`, ok: false } : { t: "✓", ok: true }; }
   const have = secHave(s, x);
-  return have >= x.need ? { t: "✓", ok: true } : { t: `${have}/${x.needText || x.need}`, ok: false };
-}
-function secWhen(s, x) {
-  if (x.key === "fues" && !picked(s, "fues").length) return '<span class="when warn">seit 1. FS</span>';
-  if (x.key === "anw" && !picked(s, "anw").length) return '<span class="when">3. FS</span>';
-  if (x.pflicht && x.pflicht.some((id) => FS_OF[id] === 3 && !isPlanned(s, id))) return '<span class="when">3. FS</span>';
-  return "";
+  return have >= x.need ? { t: "✓", ok: true } : { t: `${have}/${x.need}`, ok: false };
 }
 function secList(s, x) {
   let list = x.list();
@@ -1388,22 +1421,33 @@ function modebar(s, cat) {
   }
   return `<div class="modebar"><span class="mb-ic">${I("cal")}</span><b>Planen</b><span class="mb-sem"><span>${I("chevL")}</span><em>WiSe 2026/27</em><span>${I("chevR")}</span></span><small>3. Fachsemester · jetzt</small><div class="tb-meter"><span><i style="--p:${Math.min(100, (100 * lp) / 30)}%"></i></span>${lp} von 30 LP${lp > 30 ? ` <span class="over">+${lp - 30}</span>` : ""}</div><button class="tb-btn pri" type="button" data-act="leave">Fertig <kbd>Esc</kbd></button></div>`;
 }
-function secListHTML(s, phone = false) {
-  const entry = (x) => {
-    const f = secFigure(s, x);
-    const name = x.pflicht ? "Pflichtmodule" : x.label || x.name;
-    return `<div class="se ${s.sec === x.key ? "on" : ""} ${f.ok && x.key !== "plan" ? "done" : ""}" data-act="sec:${x.key}"><span class="nm"><span>${esc(name)}</span>${secWhen(s, x)}</span><small class="${f.ok ? "ok" : ""}">${f.t}</small></div>`;
-  };
-  const by = areaPlanned(s);
-  const plan = sec("plan");
-  const f = secFigure(s, plan);
-  let html = `<div class="se top ${s.sec === "plan" ? "on" : ""}" data-act="sec:plan"><span class="nm">${I("plan")}<span>Laut Plan im 3. FS</span></span><small class="${f.ok ? "ok" : ""}">${f.t}</small></div>`;
+function areaFigure(s, i) {
+  const a = AREAS[i];
+  const have = a.passed + areaPlanned(s)[i];
+  return have >= a.req ? { t: "✓", ok: true } : { t: `${have}/${a.req}`, ok: false };
+}
+// The subgroup an area opens with: what the plan puts into this semester or what is overdue, else
+// the first one open, else the first.
+function firstSub(s, i) {
+  const subs = AREA_SUBS[i];
+  const due = subs.find((key) => { const x = sec(key); return (key === "anw" && !picked(s, "anw").length) || (key === "fues" && !picked(s, "fues").length) || (x.pflicht && x.pflicht.some((id) => FS_OF[id] === 3 && !isPlanned(s, id))); });
+  return due || subs.find((key) => !secFigure(s, sec(key)).ok) || subs[0];
+}
+function areaListHTML(s, phone = false) {
+  const openArea = phone ? s.exp : areaOf(s.sec);
+  const plan = secFigure(s, sec("plan"));
+  let html = `<div class="ar1 top ${s.sec === "plan" ? "on" : ""}" data-act="sec:plan"><span class="nm">${I("plan")}<span>Laut Plan im 3. FS</span></span><small class="${plan.ok ? "ok" : ""}">${plan.t}</small></div>`;
   AREAS.forEach((a, i) => {
-    html += `<div class="sg" style="--c:var(${a.c})"><i></i>${a.n}<small>${a.passed + by[i]}/${a.req}</small></div>`;
-    html += SECTIONS.filter((x) => x.area === i).map(entry).join("");
+    const subs = AREA_SUBS[i];
+    const many = subs.length > 1;
+    const f = areaFigure(s, i);
+    const isOpen = many && openArea === i;
+    const act = !many ? `sec:${subs[0]}` : phone ? `exp:${i}` : `area:${i}`;
+    html += `<div class="ar1 ${!many && s.sec === subs[0] ? "on" : ""} ${isOpen ? "open" : ""}" data-act="${act}" style="--c:var(${a.c})"><span class="nm"><i></i><span>${a.n}</span></span><small class="${f.ok ? "ok" : ""}">${f.t}</small>${many ? I(isOpen ? "chevD" : "chevR", "chev") : '<span class="chev"></span>'}</div>`;
+    if (isOpen) html += `<div class="ar2s">${subs.map((key) => { const x = sec(key); const g = secFigure(s, x); return `<div class="ar2 ${s.sec === key ? "on" : ""}" data-act="sec:${key}"><span>${esc(x.pflicht ? "Pflichtmodule" : x.label || x.name)}</span><small class="${g.ok ? "ok" : ""}">${g.t}</small></div>`; }).join("")}</div>`;
   });
-  html += `<div class="se-sep"></div>${entry(sec("marked"))}<div class="se way2" data-act="cat-sem"><span class="nm">${I("search")}<span>Im Katalog suchen</span></span><small>${I("chevR")}</small></div>`;
-  return phone ? html : `<div class="pnl secs"><div class="secs-h">Abschnitte<small>des Plans</small></div>${html}</div>`;
+  html += `<div class="se-sep"></div><div class="ar1 ${s.sec === "marked" ? "on" : ""}" data-act="sec:marked"><span class="nm">${I("bookmark")}<span>Gemerkt</span></span><small>2</small><span class="chev"></span></div><div class="ar1 way2" data-act="cat-sem"><span class="nm">${I("search")}<span>Im Katalog suchen</span></span><small></small>${I("chevR", "chev")}</div>`;
+  return phone ? html : `<div class="pnl secs"><div class="secs-h">Bereiche<small>des Plans</small></div>${html}</div>`;
 }
 function plusBtn(s, m, key, compact = false) {
   if (PASSED.has(m.id)) return `<span class="plusb quiet">${I("check")}${compact ? "" : "bestanden"}</span>`;
@@ -1440,10 +1484,10 @@ function sectionView(s) {
     const body = planBody(s);
     return `<div class="pnl secv"><div class="sv-h"><h3>Laut Regelstudienplan im 3. FS</h3><span class="fig"><b>${planLP(s)}</b> von 30 LP</span></div><p class="sv-rule">Was der Plan für dieses Semester vorsieht, und was aus früheren noch offen ist.</p>${body.act}<div class="sv-list" style="border-top:1px solid var(--line)">${body.list}</div></div>`;
   }
-  const head = x.area !== undefined ? `<span class="dot" style="--c:var(${AREAS[x.area].c})"></span>` : `<span class="dot" style="--c:var(--text-3)"></span>`;
+  const head = (x.area !== undefined ? `<span class="dot" style="--c:var(${AREAS[x.area].c})"></span>` : `<span class="dot" style="--c:var(--text-3)"></span>`) + (x.area !== undefined && AREA_SUBS[x.area].length > 1 ? `<span class="crumb">${AREAS[x.area].n} ›</span>` : "");
   if (x.pflicht) {
     const rows = [...x.pflicht].sort((a, b) => (PASSED.has(a) - PASSED.has(b)) || FS_OF[a] - FS_OF[b]).map((id) => modRow(s, mod(id), x.key, PASSED.has(id) ? `bestanden · ${FS_OF[id]}. FS` : `laut Plan ${FS_OF[id]}. FS`)).join("");
-    return `<div class="pnl secv"><div class="sv-h">${head}<h3>Pflichtmodule ${AREAS[x.area].n}</h3><span class="fig">${secFigure(s, x).t}</span></div><p class="sv-rule">Alle Pflichtmodule des Bereichs, nach dem Fachsemester, in das der Plan sie legt.</p><div class="sv-list" style="border-top:1px solid var(--line)">${rows}</div></div>`;
+    return `<div class="pnl secv"><div class="sv-h">${head}<h3>${AREA_SUBS[x.area].length > 1 ? "Pflichtmodule" : `${AREAS[x.area].n} · Pflichtmodule`}</h3><span class="fig">${secFigure(s, x).t}</span></div><p class="sv-rule">Alle Pflichtmodule des Bereichs, nach dem Fachsemester, in das der Plan sie legt.</p><div class="sv-list" style="border-top:1px solid var(--line)">${rows}</div></div>`;
   }
   const list = secList(s, x);
   const groups = grouped(list).map(([name, ms]) => `<div class="sv-g">${name} <small>· ${ms.length}</small></div>${ms.map((m) => modRow(s, m, x.key === "marked" ? MARKED_FOR[m.id] : x.key, x.key === "anw" ? SUBJ[m.ar] : x.key === "marked" ? `zählt für ${sec(MARKED_FOR[m.id]).name}` : "")).join("")}`).join("");
@@ -1454,21 +1498,11 @@ function sectionView(s) {
   const foot = x.key === "marked" ? "" : `<div class="sv-foot">${x.key === "fues" ? "Sprache, Prüfungsform, LP, Lehrform:" : "Mehr Filter:"}<button class="btn-o" type="button" data-act="cat">${I("search")}Im Katalog suchen ${I("chevR")}</button></div>`;
   return `<div class="pnl secv"><div class="sv-h">${head}<h3>${esc(x.name)}</h3><span class="fig">${fig}</span></div><p class="sv-rule">${esc(x.rule)}</p>${ctl}<div class="sv-list">${groups || '<p class="sv-rule" style="padding-top:12px">Nichts, was alle Schalter erfüllt.</p>'}</div>${foot}</div>`;
 }
-function gaps(s) {
-  const out = [];
-  for (const id of PF) if (!isPlanned(s, id)) out.push({ t: mod(id).t, lp: 8, area: id === "11213" ? 1 : 0, act: `plan:${id}:${id === "11213" ? "pf-mat" : "pf-inf"}`, word: "Einplanen", sec: id === "11213" ? "pf-mat" : "pf-inf" });
-  if (!picked(s, "anw").length) out.push({ t: "Anwendungsfach", lp: 6, area: 2, act: "sec:anw", word: "Wählen", sec: "anw" });
-  const late = picked(s, "fues").length ? [] : [{ t: "Fachübergreifendes Studium", lp: 6, area: 3, act: "sec:fues", word: "Wählen", sec: "fues", late: true }];
-  return { now: out, late };
-}
 function semColumn(s) {
   const lp = semLP(s);
-  const items = semItems(s);
-  const rows = items.map((item) => `<div class="sr ${s.fresh.includes(item.m.id) ? "fresh" : ""}"><div class="tt"><b>${esc(item.m.t)}</b><small><span class="ar" style="--c:var(${AREAS[item.area].c})"><i></i>${AREAS[item.area].n}</span>${item.sec ? `<span class="tag for">${esc(item.tag)}</span>` : `<span>${item.tag}</span>`}</small></div><span class="lpv"><b>${num(item.m.lp)}</b>LP</span><button class="rm" type="button" data-act="unplan:${item.m.id}" aria-label="${esc(item.m.t)} herausnehmen">${I("x")}</button></div>`).join("");
-  const g = gaps(s);
-  const gap = (x) => `<div class="sr gap ${s.sec === x.sec ? "hot" : ""}" style="--c:var(${AREAS[x.area].c})" data-act="${x.act}"><div class="tt"><b>${esc(x.t)}</b><small><span class="ar" style="--c:var(${AREAS[x.area].c})"><i></i>${AREAS[x.area].n}</span><span>${x.lp} LP ${x.late ? "· seit 1. FS" : "· laut Plan"}</span></small></div><span class="wb">${x.word === "Wählen" ? `Wählen${I("chevR")}` : `${I("plus")}Einplanen`}</span></div>`;
-  return `<div class="pnl semc"><div class="sc-h"><h3>WiSe 2026/27 <span class="now">jetzt</span></h3><small>3. Fachsemester · das Semester, das entsteht</small><div class="sc-m"><span><i style="--p:${Math.min(100, (100 * lp) / 30)}%"></i></span><b>${lp} von 30 LP</b></div>${lp > 30 ? `<p class="sc-note">${lp - 30} mehr als im Plan: das FÜS aus dem 1. FS</p>` : ""}</div>
-    <div class="sc-l">${rows || '<p class="sv-rule" style="padding:6px 4px">Noch keine Module.</p>'}${g.now.length ? `<div class="grouph">Offen laut Plan</div>${g.now.map(gap).join("")}` : ""}${g.late.length ? `<div class="grouph">Aus früheren Semestern offen</div>${g.late.map(gap).join("")}` : ""}</div></div>`;
+  const rows = semItems(s).map((item) => `<div class="sr ${s.fresh.includes(item.m.id) ? "fresh" : ""}"><div class="tt"><b>${esc(item.m.t)}</b><small><span class="ar" style="--c:var(${AREAS[item.area].c})"><i></i>${AREAS[item.area].n}</span>${item.sec ? `<span class="tag for">${esc(item.tag)}</span>` : `<span>${item.tag}</span>`}</small></div><span class="lpv"><b>${num(item.m.lp)}</b>LP</span><button class="rm" type="button" data-act="unplan:${item.m.id}" aria-label="${esc(item.m.t)} herausnehmen">${I("x")}</button></div>`).join("");
+  return `<div class="pnl semc"><div class="sc-h"><h3>WiSe 2026/27 <span class="now">jetzt</span></h3><small>3. Fachsemester · was du belegst</small><div class="sc-m"><span><i style="--p:${Math.min(100, (100 * lp) / 30)}%"></i></span><b>${lp} von 30 LP</b></div>${lp > 30 ? `<p class="sc-note">${lp - 30} mehr als im Plan: das FÜS aus dem 1. FS</p>` : ""}</div>
+    <div class="sc-l">${rows || '<p class="sv-rule" style="padding:8px 4px">Noch nichts belegt.</p>'}</div></div>`;
 }
 function modColumn(s, m, key) {
   const x = sec(key);
@@ -1490,7 +1524,7 @@ function modColumn(s, m, key) {
 }
 function deskBench(s) {
   const right = s.open ? modColumn(s, mod(s.open), s.sec === "marked" ? MARKED_FOR[s.open] : s.sec === "plan" ? (s.open === "11213" ? "pf-mat" : "pf-inf") : s.sec) : semColumn(s);
-  return rail() + topbar("Planen", "Suchen: plant ins WiSe 2026/27") + `<div class="d-main wb2">${modebar(s)}${secListHTML(s)}${sectionView(s)}${right}</div>` + toastHTML(s);
+  return rail() + topbar("Planen", "Suchen: plant ins WiSe 2026/27") + `<div class="d-main wb2">${modebar(s)}${areaListHTML(s)}${sectionView(s)}${right}</div>` + toastHTML(s);
 }
 function catList(s) {
   const base = s.catFor === "sem" ? D.cur : D.fues;
@@ -1551,7 +1585,8 @@ function phoneBench(s) {
   const x = sec(s.sec);
   const f = secFigure(s, x);
   const dot = x.area !== undefined ? `<i style="--c:var(${AREAS[x.area].c})"></i>` : "";
-  const pick = `<div class="p-pick" data-act="sheet:sections"><div><span class="k">Abschnitt</span><b>${dot}${esc(x.pflicht ? `Pflicht ${AREAS[x.area].n}` : x.name)}</b></div><span class="chev">${f.t}${I("chevD")}</span></div>`;
+  const pickName = x.key === "plan" || x.key === "marked" ? x.name : AREA_SUBS[x.area].length > 1 ? `${AREAS[x.area].n} › ${x.pflicht ? "Pflichtmodule" : x.label || x.name}` : x.pflicht ? `${AREAS[x.area].n} · Pflicht` : x.name;
+  const pick = `<div class="p-pick" data-act="sheet:sections"><div><span class="k">Bereich</span><b>${dot}${esc(pickName)}</b></div><span class="chev">${f.t}${I("chevD")}</span></div>`;
   let body = "";
   if (s.sec === "plan") {
     const open = PF.filter((id) => !isPlanned(s, id));
@@ -1564,7 +1599,7 @@ function phoneBench(s) {
     body = `<p class="p-rule">${esc(x.rule.split(" · ")[0])}</p>${ctl}${grouped(list).map(([, ms]) => ms.map((m) => pCardMod(s, m, x.key === "marked" ? MARKED_FOR[m.id] : x.key, x.key === "anw" ? SUBJ[m.ar] : "")).join("")).join("")}${x.key === "marked" ? "" : `<span class="btn-o" data-act="cat" style="flex:none">${I("search")}Im Katalog suchen ${I("chevR")}</span>`}`;
   }
   let sheet = "";
-  if (s.sheet === "sections") sheet = `<div class="p-dim" data-act="sheet:none"></div><div class="p-sheet" style="top:58px"><div class="grab"></div><div class="sh"><div><h3>Abschnitte</h3><small>des Regelstudienplans</small></div><span class="x" data-act="sheet:none">${I("x")}</span></div><div class="sb2" style="gap:1px">${secListHTML(s, true)}</div></div>`;
+  if (s.sheet === "sections") sheet = `<div class="p-dim" data-act="sheet:none"></div><div class="p-sheet" style="top:58px"><div class="grab"></div><div class="sh"><div><h3>Bereiche</h3><small>des Regelstudienplans</small></div><span class="x" data-act="sheet:none">${I("x")}</span></div><div class="sb2" style="gap:1px">${areaListHTML(s, true)}</div></div>`;
   if (s.sheet === "semester") sheet = `<div class="p-dim" data-act="sheet:none"></div><div class="p-sheet" style="height:520px;bottom:88px;border-radius:22px;left:8px;right:8px"><div class="grab"></div><div class="sb2" style="padding-top:4px">${semColumn(s).replace('<div class="pnl semc">', '<div style="display:flex;flex-direction:column">')}</div></div>`;
   const modSheet = s.open && !s.sheet ? pModSheet(s, mod(s.open), s.sec === "marked" ? MARKED_FOR[s.open] : s.sec === "plan" ? (s.open === "11213" ? "pf-mat" : "pf-inf") : s.sec) : "";
   return pStatus() + pTop("Suchen: plant ins WiSe 26/27") + `<div class="p-body">${pick}${body}</div>` + pMbar(s) + sheet + modSheet + toastHTML(s);
@@ -1595,7 +1630,9 @@ function act(name) {
     case "enter": Object.assign(s, { view: "bench", sec: "plan", open: null, sheet: null }); break;
     case "leave": Object.assign(s, { view: "sem", open: null, sheet: null, q: "", fit: false }); break;
     case "sec": Object.assign(s, { view: "bench", sec: arg, open: null, q: "", fit: false, wise: true, fach: -1, sheet: null }); break;
-    case "sheet": s.sheet = arg === "none" || S.sheet === arg ? null : arg; break;
+    case "sheet": s.sheet = arg === "none" || S.sheet === arg ? null : arg; if (s.sheet === "sections") s.exp = areaOf(S.sec) ?? null; break;
+    case "area": Object.assign(s, { view: "bench", sec: firstSub(S, Number(arg)), open: null, q: "", fit: false, wise: true, fach: -1, sheet: null }); break;
+    case "exp": s.exp = S.exp === Number(arg) ? null : Number(arg); break;
     case "more": s.more = !S.more; break;
     case "fit": s.fit = !S.fit; break;
     case "wise": s.wise = !S.wise; break;
