@@ -1076,6 +1076,12 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
     if own {
         title.push(t.studyplan_own.by_you.to_string());
     }
+    // A Termin of QIS changed by hand: the pen, amber where QIS says something else now.
+    let edited = rows.iter().any(|row| row.changed.is_some());
+    let conflict = rows.iter().any(|row| row.changed.as_ref().is_some_and(|changed| changed.differs));
+    if edited {
+        title.push(if conflict { t.studyplan_own.changed_differs } else { t.studyplan_own.changed }.to_string());
+    }
     let mut yielded: Vec<String> = Vec::new();
     for other in gives.iter().filter_map(|e| table.events.get(*e)) {
         let label = slot_label(other, titles, t.locale);
@@ -1116,10 +1122,12 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
         pre: None,
         badge: None,
         own,
+        edited,
+        conflict,
     };
     let row = DayRow {
         day: item.day,
-        class: classes(hue, &[(item.alt.is_some(), "alt"), (clash, "clash"), (item.extra, "extra"), (item.visit, "visit"), (yields, "gives"), (own, "own")]),
+        class: classes(hue, &[(item.alt.is_some(), "alt"), (clash, "clash"), (item.extra, "extra"), (item.visit, "visit"), (yields, "gives"), (own, "own"), (edited, "edited"), (conflict, "conflict")]),
         time: format!("{}–{}", clock(item.from), clock(item.to)),
         text: event_text(event, titles, t.locale),
         note: place.into_iter().chain(notes).collect::<Vec<_>>().join(" · "),

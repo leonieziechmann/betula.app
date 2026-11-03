@@ -146,15 +146,20 @@ impl Occasion {
 }
 
 /// The rows of the Termin of `first` in `event`: those of its key, and of a series of single dates
-/// every row of the series at the same times (as the panel's `by_termin` takes them), `first`
-/// first.
+/// every row of the series at the same times as QIS has them (as the panel's `by_termin` takes
+/// them), `first` first.
 pub fn termin_rows(event: &Event, first: usize) -> Vec<usize> {
     let Some(row) = event.rows.get(first) else { return Vec::new() };
-    let series = row.date.series.map(|series| (series.first, row.from, row.to));
+    // At QIS's times: a change of a Termin keeps its series together (`Row::changed`).
+    let times = |row: &Row| match &row.changed {
+        Some(changed) => (Some(changed.qis.from), Some(changed.qis.to)),
+        None => (row.from, row.to),
+    };
+    let series = row.date.series.map(|series| (series.first, times(row)));
     let mut rows = vec![first];
     for (index, other) in event.rows.iter().enumerate() {
         let same_key = other.key.is_some() && other.key == row.key;
-        let same_series = series.is_some() && other.date.series.map(|s| (s.first, other.from, other.to)) == series;
+        let same_series = series.is_some() && other.date.series.map(|s| (s.first, times(other))) == series;
         if index != first && (same_key || same_series) {
             rows.push(index);
         }

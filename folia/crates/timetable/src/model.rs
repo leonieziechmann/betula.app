@@ -2013,6 +2013,53 @@ pub mod tests {
         assert!(t.changes.is_empty());
     }
 
+    /// A Termin QIS lists date by date, a series of single dates: five Tuesdays at 13:45.
+    #[cfg(test)]
+    fn tuesdays() -> Vec<Fixture> {
+        let days = ["2026-10-13", "2026-10-20", "2026-10-27", "2026-11-03", "2026-11-10"];
+        days.iter().zip(1..).map(|(day, ord)| teaching("A", "40", ord, "Übung", 2, "13:45", "15:15").rhythm("single").range(day, day).series(1, 1)).collect()
+    }
+
+    #[test]
+    fn a_change_of_a_series_of_single_dates_changes_its_dates() {
+        let rows = tuesdays();
+        // Made on its third date („Alle 5"): every date of the series moves to Wednesday.
+        let all = Change { weekday: Some(3), ..change_of(&rows[2], Scope::All) };
+        let t = table(&rows, &["A"], &[], &Selection { changes: vec![all.clone()], ..Selection::default() });
+        let days: Vec<Day> = t.events[0].rows.iter().flat_map(|row| row.occ.days.iter().copied()).collect();
+        assert_eq!(days, ["2026-10-14", "2026-10-21", "2026-10-28", "2026-11-04", "2026-11-11"].map(d));
+        // Each date keeps its own key, and each finds the change and what QIS says.
+        assert!(t.events[0].rows.iter().zip(&rows).all(|(row, fixture)| row.key == Some(fixture.key())));
+        assert!((0..rows.len()).all(|row| change::holding(&t, 0, row).is_some_and(|changed| changed.change == all)));
+        assert_eq!(change::qis_values(&t, rows[4].key()).map(|qis| qis.weekday), Some(2));
+        // From its fourth date on at 10:00, made on its first: the first three stay at 13:45, and
+        // the Termin is the whole series still, by QIS's times.
+        let from = Change { time: Some((600, 690)), ..change_of(&rows[0], Scope::From(d("2026-11-03"))) };
+        let t = table(&rows, &["A"], &[], &Selection { changes: vec![from], ..Selection::default() });
+        let times: Vec<Option<u16>> = t.events[0].rows.iter().map(|row| row.from).collect();
+        assert_eq!(times, [Some(825), Some(825), Some(825), Some(600), Some(600)]);
+        assert_eq!(crate::termin::termin_rows(&t.events[0], 0).len(), 5);
+        assert_eq!(crate::termin::termin_rows(&t.events[0], 4).len(), 5);
+    }
+
+    #[test]
+    fn a_change_of_one_date_holds_on_top_of_one_of_every_date() {
+        let lecture = teaching("A", "80", 1, "Vorlesung", 2, "09:15", "10:45").room("ZHG/HS.C");
+        // Every Tuesday on Wednesday, and one of them (14.10., a Wednesday now) on Thursday at
+        // 10:00, whichever is listed first.
+        let all = Change { weekday: Some(3), ..change_of(&lecture, Scope::All) };
+        let one = Change { weekday: Some(4), time: Some((600, 690)), ..change_of(&lecture, Scope::On(d("2026-10-14"))) };
+        for changes in [vec![all.clone(), one.clone()], vec![one, all]] {
+            let t = table(&[lecture.clone()], &["A"], &[], &Selection { changes, ..Selection::default() });
+            let rows = &t.events[0].rows;
+            assert_eq!(rows.len(), 2);
+            assert!(rows[0].occ.days.iter().all(|day| day.weekday() == 3) && rows[0].occ.moved == [d("2026-10-14")]);
+            assert_eq!((rows[1].occ.days.as_slice(), rows[1].from, rows[1].date.room_shown()), ([d("2026-10-15")].as_slice(), Some(600), Some("ZHG/HS.C")));
+            assert_eq!(rows[1].changed.as_ref().map(|change| (change.scope, change.shift)), Some((Scope::On(d("2026-10-14")), 1)));
+            assert!(t.changes.iter().all(|changed| changed.state == ChangeState::Holds && changed.qis.as_ref().is_some_and(|qis| qis.weekday == 2)));
+        }
+    }
+
     #[test]
     fn ticks_and_hidden_dates_follow_a_changed_termin() {
         let one = teaching("A", "80", 1, "Übung", 3, "09:15", "10:45").group("1");

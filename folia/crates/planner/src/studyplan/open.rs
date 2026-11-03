@@ -18,11 +18,14 @@
 
 use std::collections::BTreeMap;
 
+use folia_calendar::change::{Change, Scope, Values};
 use folia_calendar::day::clock;
+use folia_calendar::own::{OwnRhythm, OwnTermin};
 use folia_calendar::rowkey::RowKey;
 use folia_routes::url::{PlanView, StudyplanUrl};
 use folia_shell::pending::same_page;
 use folia_shell::tabs::Tabs;
+use folia_timetable::change::ChangeState;
 use folia_timetable::choice::{self, Around, Open};
 use folia_timetable::clash::{self, When};
 use folia_timetable::model::{Event, Timetable, UNNAMED_GROUP};
@@ -56,6 +59,25 @@ pub(super) struct Line {
     pub module: bool,
     /// Where a visit gives way, not a choice: a click shows the visit's Termin.
     pub gives: bool,
+    /// A change of a Termin of QIS that asks for something (`change_lines`): what its buttons do,
+    /// where it has any; `None` for one whose Termin's view decides it (QIS says something else).
+    pub change: Option<ChangeLine>,
+    /// It is a change's line, not a choice's.
+    pub changed: bool,
+}
+
+/// What the buttons of a change's line in „Offen" do (folia/design/kalender/termine.html, „Wenn
+/// QIS sich ändert").
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(super) enum ChangeLine {
+    /// QIS says what the change says: „OK" takes it away.
+    Done(Change),
+    /// Its Termin is gone, its event is there: „Übernehmen" for the event's one Termin, where it
+    /// has one (with what QIS says of it), and „Verwerfen".
+    Moved(Change, Option<(RowKey, Values)>),
+    /// Its Termin and its event are gone: „Als eigenen Termin behalten" (with its name), and
+    /// „Verwerfen".
+    Gone(Change, String),
 }
 
 /// „Übung MIT1": the kind as QIS names it and the module's short name, as the week names it.
@@ -101,6 +123,8 @@ pub(super) fn lines(table: &Timetable, titles: &BTreeMap<String, String>, base: 
                     warn: *blocked,
                     module: false,
                     gives: false,
+                    change: None,
+                    changed: false,
                 },
                 Open::Across { take, options, blocked, .. } => {
                     let module = event.modules.first()?;
@@ -114,12 +138,106 @@ pub(super) fn lines(table: &Timetable, titles: &BTreeMap<String, String>, base: 
                         warn: *blocked,
                         module: true,
                         gives: false,
+                        change: None,
+                        changed: false,
                     }
                 }
             })
         })
         .chain(gives_lines(table, titles, base, t))
+        .chain(change_lines(table, titles, base, t))
         .collect()
+}
+
+/// The changes of Termine of QIS that ask for something (`ChangeState::asks`), a line each, by
+/// their Termine: QIS says something else now (to its view, which decides it), it says what the
+/// student said („OK"), it moved the Termin („Übernehmen", „Verwerfen") or has it no more („Als
+/// eigenen Termin behalten", „Verwerfen").
+fn change_lines(table: &Timetable, titles: &BTreeMap<String, String>, base: &StudyplanUrl, t: &i18n::Texts) -> Vec<Line> {
+    let o = &t.studyplan_open;
+    let when = |values: &Values| format!("{} {}", weekday_name(values.weekday, t.locale), clock(values.from));
+    table
+        .changes
+        .iter()
+        .filter(|changed| changed.state.asks())
+        .filter_map(|changed| {
+            let change = &changed.change;
+            // As the week names it: by its event where that is there, else by its module.
+            let id = change.key.event.to_string();
+            let event = changed.event.and_then(|e| table.events.get(e)).or_else(|| table.events.iter().find(|event| event.id == id));
+            let name = match event {
+                Some(event) => slot_name(event, titles, t),
+                None => titles.get(&change.module).map_or_else(|| change.module.clone(), |title| short_title(title)),
+            };
+            let tone = table.modules.iter().position(|module| *module == change.module).map_or(1, super::head::tone_at);
+            let qis = changed.qis.clone().unwrap_or_else(|| change.was.clone());
+            let mine = change.applied(&qis);
+            let termin = |key: RowKey| base.with_termin(Some((key, None))).path();
+            let (what, say, href, line) = match &changed.state {
+                ChangeState::Holds => return None,
+                ChangeState::Differs => ((o.change_differs)(&fields(change, &qis, t)), (o.change_mine)(&when(&qis), &fields(change, &mine, t)), termin(change.key), None),
+                ChangeState::Agrees => (o.change_done.to_string(), (o.change_done_say)(&format!("{} · {}", when(&mine), fields(change, &mine, t))), termin(change.key), Some(ChangeLine::Done(change.clone()))),
+                ChangeState::Moved { now } => {
+                    let hung = (o.change_hung)(&when(&change.was));
+                    let say = match now {
+                        Some((_, values)) => format!("{} · {hung}", (o.change_now)(&when(values))),
+                        None => hung,
+                    };
+                    let href = now.as_ref().map_or_else(|| base.with_open(Some(&change.module), None).path(), |(key, _)| termin(*key));
+                    (o.change_moved.to_string(), say, href, Some(ChangeLine::Moved(change.clone(), now.clone())))
+                }
+                ChangeState::Gone => (o.change_gone.to_string(), format!("{} · {}", when(&mine), fields(change, &mine, t)), base.with_open(Some(&change.module), None).path(), Some(ChangeLine::Gone(change.clone(), name.clone()))),
+            };
+            Some(Line { name: format!("{name}: {what}"), say, hue: hue(event.map_or(tone, |event| event.tone)), href, current: false, warn: false, module: false, gives: false, change: line, changed: true })
+        })
+        .collect()
+}
+
+/// What a change changes, as `values` say it: the weekday, the time, the room, each it changes.
+fn fields(change: &Change, values: &Values, t: &i18n::Texts) -> String {
+    let mut parts = Vec::new();
+    if change.weekday.is_some() {
+        parts.push(weekday_name(values.weekday, t.locale).to_string());
+    }
+    if change.time.is_some() {
+        parts.push(format!("{}–{}", clock(values.from), clock(values.to)));
+    }
+    if change.room.is_some() {
+        parts.push(values.room.clone());
+    }
+    parts.join(" · ")
+}
+
+/// What a button of a change's line does: the change taken away (`None`), or in its place one for
+/// the Termin QIS moved it to, or a Termin of one's own of what it said. After the next frame
+/// (R21); keeping it as one's own says so with „Rückgängig".
+fn act_on(ctx: PlanCtx, change: Change, instead: Option<(RowKey, Values)>, own: Option<String>) {
+    let t = i18n::t();
+    let Some(plan) = ctx.plan else { return };
+    let s = ctx.key.get_untracked();
+    let lecture = ctx.table.with_untracked(|table| table.as_ref().and_then(|table| table.facts.lecture));
+    if let Some(name) = own {
+        let values = change.applied(&change.was);
+        let (rhythm, weekday, dates, period) = match change.scope {
+            Scope::On(day) => (OwnRhythm::Dates, 0, vec![change.moved(day, change.was.weekday)], None),
+            Scope::From(day) => (OwnRhythm::Week, values.weekday, Vec::new(), lecture.map(|(_, last)| (change.moved(day, change.was.weekday), last))),
+            Scope::All => (OwnRhythm::Week, values.weekday, Vec::new(), None),
+        };
+        let termin = OwnTermin { number: 0, rhythm, weekday, dates, from: values.from, to: values.to, period, module: Some(change.module.clone()), name: name.clone(), place: values.room.clone(), skip: Vec::new() };
+        let before = plan.with_untracked(Clone::clone);
+        ctx.undo.set(Some((format!("{}{}", super::own::OWN_NOTE, (t.studyplan_open.kept_own)(&name)), before)));
+        plan.update_after_paint(move |doc| {
+            doc.add_own(0, s, termin);
+            doc.remove_change(s, change.key, change.scope);
+        });
+        return;
+    }
+    plan.update_after_paint(move |doc| {
+        doc.remove_change(s, change.key, change.scope);
+        if let Some((key, now)) = instead {
+            doc.set_change(s, Change { key, was: now, ..change });
+        }
+    });
 }
 
 /// Where the visits give way (`clash::yields`), one line per visit and Termin of the plan it
@@ -155,6 +273,8 @@ fn gives_lines(table: &Timetable, titles: &BTreeMap<String, String>, base: &Stud
             warn: false,
             module: false,
             gives: true,
+            change: None,
+            changed: false,
         });
     }
     lines
@@ -480,21 +600,53 @@ fn back_of(ctx: PlanCtx) -> Signal<Option<&'static str>> {
 }
 
 /// A line of „Offen" as a link.
-fn line_view(line: Line, t: &'static i18n::Texts) -> impl IntoView {
+fn line_view(ctx: PlanCtx, line: Line, t: &'static i18n::Texts) -> AnyView {
     let o = &t.studyplan_open;
+    if let Some(act) = line.change.clone() {
+        let button = |label: &'static str, action: &'static str, primary: bool, run: Box<dyn Fn() + Send + Sync>| {
+            view! { <button class="mini" class:primary=primary type="button" data-action=action on:click=move |_| run()>{label}</button> }
+        };
+        let buttons = match act {
+            ChangeLine::Done(change) => button(o.ok, "change-ok", true, Box::new(move || act_on(ctx, change.clone(), None, None))).into_any(),
+            ChangeLine::Moved(change, now) => {
+                let take = now.clone().map(|now| {
+                    let change = change.clone();
+                    button(o.take, "change-take-new", true, Box::new(move || act_on(ctx, change.clone(), Some(now.clone()), None)))
+                });
+                view! { {take}{button(o.discard, "change-discard", false, Box::new(move || act_on(ctx, change.clone(), None, None)))} }.into_any()
+            }
+            ChangeLine::Gone(change, name) => {
+                let keep = {
+                    let change = change.clone();
+                    button(o.keep_own, "change-keep-own", true, Box::new(move || act_on(ctx, change.clone(), None, Some(name.clone()))))
+                };
+                view! { {keep}{button(o.discard, "change-discard", false, Box::new(move || act_on(ctx, change.clone(), None, None)))} }.into_any()
+            }
+        };
+        return view! {
+            <div class=format!("sp-open-row chg {}", line.hue)>
+                <i class="od" aria-hidden="true"></i>
+                <a class="t" href=t.path(&line.href) data-noscroll=""><b>{line.name}</b><small>{line.say}</small></a>
+                <span class="go acts">{buttons}</span>
+            </div>
+        }
+        .into_any();
+    }
     let go = match (line.current, line.module, line.gives) {
         (true, ..) => o.in_focus,
         (false, _, true) => o.look,
         (false, true, false) => o.in_module,
         (false, false, false) => o.choose,
     };
+    let go = if line.changed { o.look } else { go };
     view! {
-        <a class=format!("sp-open-row {}", line.hue) class:current=line.current class:warn=line.warn class:gives=line.gives href=t.path(&line.href) data-noscroll="" aria-current=line.current.then_some("true")>
+        <a class=format!("sp-open-row {}", line.hue) class:current=line.current class:warn=line.warn class:gives=line.gives class:chg=line.changed href=t.path(&line.href) data-noscroll="" aria-current=line.current.then_some("true")>
             <i class="od" aria-hidden="true"></i>
             <span class="t"><b>{line.name}</b><small>{line.say}</small></span>
             <span class="go">{go}{(!line.current).then(|| view! { <Icon name="chevron-right"/> })}</span>
         </a>
     }
+    .into_any()
 }
 
 /// „Offen" beside the week (a page wide enough for the column beside it; app.css shows it there
@@ -522,7 +674,7 @@ pub(super) fn OpenPanel(ctx: PlanCtx) -> impl IntoView {
             view! {
                 <section class="sp-open" aria-label=o.open>
                     <div class="sp-list-head"><h2 class="label">{o.open}</h2><span class="lp num">{count}</span></div>
-                    <div class="sp-open-rows">{lines.into_iter().map(|line| line_view(line, t)).collect_view()}</div>
+                    <div class="sp-open-rows">{lines.into_iter().map(|line| line_view(ctx, line, t)).collect_view()}</div>
                 </section>
             }
         })
@@ -553,13 +705,16 @@ pub(super) fn OpenLine(ctx: PlanCtx) -> impl IntoView {
     move || {
         let open = open.get();
         (!open.is_empty()).then(|| {
-            // What is to choose first; where nothing is, where a visit gives way.
-            let choices = open.iter().filter(|line| !line.gives).count();
-            let said = match choices {
-                0 => (t.studyplan_open.gives_count)(open.len()),
-                n => (t.studyplan_open.open_count)(n),
+            // What is to choose first; then the changes to decide; where nothing is, where a visit
+            // gives way.
+            let choices = open.iter().filter(|line| !line.gives && !line.changed).count();
+            let changes = open.iter().filter(|line| line.changed).count();
+            let said = match (choices, changes) {
+                (0, 0) => (t.studyplan_open.gives_count)(open.len()),
+                (0, n) => (t.studyplan_open.changes_count)(n),
+                (n, _) => (t.studyplan_open.open_count)(n),
             };
-            let names = open.iter().filter(|line| choices == 0 || !line.gives).map(|line| line.name.clone()).collect::<Vec<_>>().join(" · ");
+            let names = open.iter().filter(|line| (choices == 0 && changes == 0) || !line.gives).map(|line| line.name.clone()).collect::<Vec<_>>().join(" · ");
             view! {
                 <details class="sp-open-line">
                     <summary>
@@ -567,7 +722,7 @@ pub(super) fn OpenLine(ctx: PlanCtx) -> impl IntoView {
                         <span class="t"><b>{said}</b><small>{names}</small></span>
                         <Icon name="chevron-down" class="chev"/>
                     </summary>
-                    <div class="sp-open-rows">{open.into_iter().map(|line| line_view(line, t)).collect_view()}</div>
+                    <div class="sp-open-rows">{open.into_iter().map(|line| line_view(ctx, line, t)).collect_view()}</div>
                 </details>
             }
         })

@@ -14,7 +14,7 @@ use folia_routes::url::PlanAddress;
 use folia_shell::frame::Plain;
 use folia_shell::pending::same_page;
 use folia_shell::tabs::{Area, Tabs};
-use folia_widgets::termin::{module_facts, page_head, ticking_clock, Against, OwnActs, TerminCtx, TerminLinks, TerminMode, TerminModal, TerminPlace, TerminView};
+use folia_widgets::termin::{module_facts, page_head, ticking_clock, Against, ChangeActs, OwnActs, TerminCtx, TerminLinks, TerminMode, TerminModal, TerminPlace, TerminView};
 use leptos::prelude::*;
 
 use crate::i18n;
@@ -29,6 +29,12 @@ fn termin_path(ctx: PlanCtx, (key, on): (RowKey, Option<Day>), full: bool) -> St
 /// „Löschen" takes it away with „Rückgängig" (`own.rs`).
 fn own_acts(ctx: PlanCtx) -> OwnActs {
     OwnActs { edit: Callback::new(move |number| super::own::ask_edit(ctx, number)), remove: Callback::new(move |number| super::own::remove(ctx, number)) }
+}
+
+/// What the view adds to „Ändern" of a Termin of QIS here: what the change meets of the plan's
+/// week, and „Nachholtermin", which opens the form of a Termin of one's own (`own.rs`).
+fn change_acts(ctx: PlanCtx) -> ChangeActs {
+    ChangeActs { fit: Callback::new(move |change| super::own::change_fit(ctx, change)), makeup: Callback::new(move |(key, day)| super::own::ask_makeup(ctx, key, day)) }
 }
 
 /// The Termin over the plan in the app's dialog, while `open` (the address asks for it, and not
@@ -61,6 +67,7 @@ pub(super) fn PlanTerminModal(ctx: PlanCtx, #[prop(into)] open: Signal<bool>) ->
         links,
         place: TerminPlace::Dialog,
         own: Some(own_acts(ctx)),
+        change: Some(change_acts(ctx)),
     };
     view! { <TerminModal ctx=view open/> }
 }
@@ -90,6 +97,7 @@ pub(super) fn PlanTerminFull(ctx: PlanCtx) -> impl IntoView {
         links,
         place: TerminPlace::Full(Area::Studyplan),
         own: Some(own_acts(ctx)),
+        change: Some(change_acts(ctx)),
     };
     // The tab's title names the Termin on the day shown.
     let title = Memo::new(move |_| {

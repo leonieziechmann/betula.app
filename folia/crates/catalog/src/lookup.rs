@@ -169,6 +169,7 @@ impl LookUp {
     /// The view of it with these links, standing there, at the time `now` says.
     pub fn ctx(self, links: TerminLinks, place: TerminPlace, now: Signal<Option<(Day, u16)>>) -> TerminCtx {
         TerminCtx {
+            change: None,
             table: self.table,
             asked: self.asked,
             modules: self.modules,

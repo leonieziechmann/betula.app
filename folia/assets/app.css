@@ -3685,6 +3685,19 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-visit-note { color: var(--text-3); font-size: 12.5px; }
 .sp-open-row.gives > .od { border-radius: 2px; background: repeating-linear-gradient(135deg, var(--tint, var(--text-3)) 0 2px, transparent 2px 4px); box-shadow: inset 0 0 0 1px var(--tint, var(--text-3)); }
 .sp-open-row.gives small { color: var(--warn); }
+/* A change of a Termin of QIS that asks for something (step 2, „Wenn QIS sich ändert"): its dot a
+   pen's ring, what QIS says in amber; one that its buttons decide („OK", „Übernehmen", „Als
+   eigenen Termin behalten", „Verwerfen") is a row of its own with the line to its Termin inside. */
+.sp-open-row.chg > .od { background: var(--panel); box-shadow: inset 0 0 0 2.5px var(--tint, var(--text-3)); }
+.sp-open-row.chg small { color: var(--warn); }
+div.sp-open-row.chg:hover { background: var(--panel-2); }
+div.sp-open-row.chg > a.t { color: inherit; text-decoration: none; }
+div.sp-open-row.chg > a.t:hover b { text-decoration: underline; }
+.sp-open-row > .go.acts { gap: 6px; }
+@media (max-width: 560px) {
+  div.sp-open-row.chg { grid-template-columns: 9px minmax(0, 1fr); }
+  div.sp-open-row.chg > .go.acts { grid-column: 2; flex-wrap: wrap; }
+}
 /* „+ Modul" in the head of a calendar's part of the list (button.sp-add-mod, `add.rs`), pressed
    while its choice of modules is open, and the way to „Mein Studium" at the end of „Mein
    Studiengang"'s part (a.sp-way): the modules of the study are planned there. */
@@ -3705,6 +3718,13 @@ i.sp-key { width: 14px; padding: 0; }
 .slot.brief > .slot-own { display: none; }
 .slot.draft { z-index: 3; background: color-mix(in oklch, var(--accent) 12%, var(--panel)); color: var(--accent-ink); box-shadow: none; outline: 1.5px dashed var(--accent); outline-offset: -1.5px; pointer-events: none; }
 .slot.draft > .slot-own { color: var(--accent); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 60%, transparent); }
+/* A Termin of QIS changed by hand (step 2): the pen in its corner (i.slot-pen); where QIS says
+   something else now an amber edge, something to decide (.slot.conflict). A clash's red stays. */
+.slot > .slot-pen { position: absolute; right: 3px; bottom: 3px; display: grid; place-items: center; width: 15px; height: 15px; border-radius: 4px; background: var(--panel); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint, var(--text-3)) 60%, transparent); color: var(--tint, var(--text-3)); }
+.slot > .slot-pen .icon { width: 10px; height: 10px; stroke-width: 2.4; }
+.slot.brief > .slot-pen { display: none; }
+.slot.conflict > .slot-pen { background: var(--warn-soft); color: var(--warn); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 60%, transparent); }
+.sp-body .slot.conflict:not(.clash) { box-shadow: inset 2.5px 0 0 var(--warn), inset 0 0 0 1.5px color-mix(in srgb, var(--warn) 70%, transparent); }
 .sp-body .sp-week .week .col { cursor: copy; }
 .sp-body .sp-week .week .col :is(.slot, .band) { cursor: pointer; }
 /* On a phone a finger held on the week is a Termin there: nothing of the page is selected. */
@@ -3770,6 +3790,47 @@ i.sp-key { width: 14px; padding: 0; }
 .is-termin .tm-sec.cal.own .sw .icon { width: 14px; height: 14px; }
 .is-termin .sw.danger { color: var(--no); }
 .is-termin .sw.danger:hover { background: color-mix(in oklch, var(--no) 10%, var(--panel)); }
+/* A Termin of QIS changed by hand (folia/design/kalender/termine.html, step 2): the pen beside the
+   time and the room the change changes (i.tk-pen), under the ticket the line of what QIS says with
+   „Zurücksetzen" (p.tm-changed), amber where QIS says something else now — something to decide,
+   which is the yellow's meaning — with both values and „QIS übernehmen", „Meine behalten"
+   (div.tm-differs). „Ändern" is the view's body while it is open (form.chg): „Für" above the
+   fields it changes, a field that says other than QIS ringed, what QIS says, what it meets. */
+.is-termin .tk-pen { display: inline-grid; place-items: center; width: 18px; height: 18px; margin-left: 6px; vertical-align: 6px; border-radius: 5px; background: color-mix(in oklch, var(--accent) 14%, var(--panel)); color: var(--accent-ink); }
+.is-termin .tk-room .tk-pen { vertical-align: 4px; }
+.is-termin .tk-pen .icon { width: 11px; height: 11px; stroke-width: 2.4; }
+.is-termin .tm-changed { display: flex; align-items: flex-start; gap: 8px; margin: -6px 0 0; padding: 9px 12px; border-radius: 10px; background: color-mix(in oklch, var(--accent) 7%, var(--panel)); color: var(--text-2); font-size: 13px; line-height: 1.4; }
+.is-termin .tm-changed > .icon { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--accent-ink); }
+.is-termin .tm-changed > span { flex: 1; min-width: 0; }
+.is-termin .tm-changed b { color: var(--text); font-weight: 650; }
+.is-termin .tm-changed button.link { flex: none; padding: 0; border: 0; background: none; color: var(--accent-ink); font: 650 13px var(--font); cursor: pointer; }
+.is-termin .tm-changed button.link:hover { text-decoration: underline; }
+.is-termin .tm-changed.warn { margin: 0; background: var(--warn-soft); color: var(--text); }
+.is-termin .tm-changed.warn > .icon { color: var(--warn); }
+.is-termin .tm-differs { display: flex; flex-direction: column; gap: 8px; margin-top: -6px; }
+.is-termin .tm-cmp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.is-termin .tm-cmp > div { padding: 9px 12px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.is-termin .tm-cmp > div.mine { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.is-termin .tm-cmp small { display: block; color: var(--text-3); font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.is-termin .tm-cmp b { display: block; margin-top: 2px; font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.is-termin .tm-cmp-acts, .is-termin .chg-foot { display: flex; justify-content: flex-end; gap: 8px; }
+.is-termin .chg { gap: 12px; padding: 14px; border-radius: 14px; background: color-mix(in oklch, var(--accent) 5%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 22%, var(--line)); }
+.is-termin .chg-fld { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 10px; align-items: center; }
+.is-termin .chg-fld.wide { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.is-termin .chg-fld > label, .is-termin .chg-fld > .chg-lb { color: var(--text-2); font-size: 12.5px; font-weight: 650; }
+.is-termin .chg-fld :is(input, select) { width: 100%; min-width: 0; height: 36px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: 500 14px var(--font); }
+.is-termin .chg-fld.changed :is(input, select) { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.is-termin .chg-fld :is(input, select):focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+.is-termin .seg.chg-seg { margin: 0; }
+.is-termin .chg-two { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px; align-items: center; color: var(--text-3); font-size: 12.5px; }
+.is-termin .chg-qis { margin: 0; color: var(--text-2); font-size: 13px; }
+.is-termin .crow small.tm-note-text { color: var(--text); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.is-termin .tm-note { display: flex; flex-direction: column; gap: 8px; margin-top: -4px; }
+.is-termin .tm-note textarea { width: 100%; min-height: 72px; padding: 8px 10px; border: 0; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: 500 14px/1.4 var(--font); resize: vertical; }
+.is-termin .tm-note textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+@media (max-width: 560px) {
+  .is-termin .chg-fld { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+}
 /* Over the week while a choice is in focus (div.sp-focusbar.t-…, a screen wider than a phone):
    dark, in two lines the choice with its dot and how many are ticked, and whether its groups fit
    and what to do (span.fb-text); „Weiter: …", „Vergleichen" (pressed while compared) and „Fertig"
@@ -4276,6 +4337,8 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .is-termin .sd.note { background: var(--warn); box-shadow: none; }
 .is-termin .sd.hid { box-shadow: inset 0 0 0 1.5px var(--text-3); background: repeating-linear-gradient(135deg, var(--line-strong) 0 2px, transparent 2px 4px); }
 .is-termin .sd.cancel { box-shadow: inset 0 0 0 1.5px var(--no); }
+/* A date changed on its own (a change „Nur am …"): a ring in the accent. */
+.is-termin .sd.chg { box-shadow: inset 0 0 0 2.5px var(--accent); background: var(--panel); }
 .is-termin .sd.cancel::after { content: ""; position: absolute; left: 1px; right: 1px; top: 6.25px; height: 1.5px; background: var(--no); transform: rotate(-45deg); }
 .is-termin .sd.off { height: 4px; border-radius: 2px; background: var(--line-strong); box-shadow: none; }
 .is-termin .sd.today::before { content: ""; position: absolute; left: 50%; top: -8px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--accent); }

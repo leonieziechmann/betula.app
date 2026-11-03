@@ -101,6 +101,10 @@ pub struct Texts {
     pub draft: &'static str,
     /// A finger held on a free stretch of a phone's week, said for a screen reader.
     pub hold_hint: &'static str,
+    /// The tooltip of a slot of a Termin of QIS changed by hand (step 2): „von dir geändert", and
+    /// where QIS says something else now „… QIS sagt inzwischen etwas anderes".
+    pub changed: &'static str,
+    pub changed_differs: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -172,6 +176,8 @@ pub const DE: Texts = Texts {
     by_you: "von dir, nicht in Datei und Abo",
     draft: "Neuer Termin",
     hold_hint: "Finger auf eine freie Stelle halten: ein Termin dort",
+    changed: "von dir geändert",
+    changed_differs: "von dir geändert, QIS sagt inzwischen etwas anderes",
 };
 
 pub const EN: Texts = Texts {
@@ -243,4 +249,6 @@ pub const EN: Texts = Texts {
     by_you: "yours, not in the file or the feed",
     draft: "New event",
     hold_hint: "Hold a finger on a free stretch: an event there",
+    changed: "changed by you",
+    changed_differs: "changed by you, QIS says something else now",
 };

@@ -127,6 +127,10 @@ pub struct GridSlot {
     /// A Termin of one's own (folia/design/kalender/termine.html): the mark „von dir" in its corner
     /// (`.slot-own`), and the slot `own`.
     pub own: bool,
+    /// A Termin of QIS changed by hand (step 2): the pen in its corner (`.slot-pen`), and amber
+    /// where QIS says something else now, which the student decides (`conflict`).
+    pub edited: bool,
+    pub conflict: bool,
 }
 
 /// A stretch of a day drawn behind the slots, from `from` to `to` (minutes): the time every
@@ -200,6 +204,8 @@ impl GridSlot {
             if self.pick == Some(true) { "on" } else { "" },
             if self.dim { "dim" } else { "" },
             if self.own { "own" } else { "" },
+            if self.edited { "edited" } else { "" },
+            if self.conflict { "conflict" } else { "" },
         ];
         for part in parts.into_iter().filter(|part| !part.is_empty()) {
             classes.push(' ');
@@ -518,6 +524,7 @@ fn slot_view(slot: &GridSlot, style: String, framed: bool) -> AnyView {
         {place}
         {slot.badge.clone().map(|badge| view! { <i class="slot-who" aria-hidden="true">{badge}</i> })}
         {slot.own.then(|| view! { <i class="slot-own" aria-hidden="true"><Icon name="user-round"/></i> })}
+        {slot.edited.then(|| view! { <i class="slot-pen" aria-hidden="true"><Icon name="pencil"/></i> })}
     };
     // Beside the link, not inside it, in a box of the slot's size (its style), which lets every
     // click but those on its buttons through to the link.

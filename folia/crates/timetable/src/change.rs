@@ -16,7 +16,7 @@
 //! another day, start, group or first date makes another key), or both are gone. A change of a
 //! module not in the semester's plan says nothing.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use folia_calendar::change::{Against, Change, Scope, Values};
 use folia_calendar::day::{clock, Day};
@@ -64,6 +64,9 @@ impl ChangeState {
 /// What a row shows of the change that made it (`Row::changed`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct RowChange {
+    /// The change's key and scope: of a series of single dates the key of the date it was made
+    /// on, which need not be the row's.
+    pub key: RowKey,
     pub scope: Scope,
     /// What QIS says of the Termin.
     pub qis: Values,
@@ -72,25 +75,34 @@ pub struct RowChange {
     /// It moves its date to another weekday or time: a date on its own is a date of the week, one
     /// of a room changed for a day stands in its series' slot.
     pub moves: bool,
+    /// By how many days the change moves the row's dates from those of the row it came of (its
+    /// weekday changed within the week): a date of it stands for the one so many days before.
+    pub shift: i32,
 }
 
 /// Applies `changes` to the rows of `events` (QIS's, before the Termine of one's own come), the
 /// modules of the semester's plan `modules`. Returns every change of a planned module with how it
 /// stands, in the order of the Termine and their scopes.
+///
+/// A change is of its Termin as its view shows it (`termin::termin_rows`): the rows of its key,
+/// and of a series of single dates every date of the series at its times, so „Alle 12" changes
+/// the twelve. What QIS says of each Termin is taken before any change rewrites a row; then the
+/// changes of every date come first, those from a day on by their days, those of one date last, so
+/// a change of one date holds on top of one of all (and changes only what it says), whichever of
+/// the series' dates each was made on.
 pub(crate) fn apply(events: &mut [Event], changes: &[Change], modules: &[String], facts: &SemesterFacts) -> Vec<Changed> {
     let mut sorted: Vec<&Change> = changes.iter().filter(|change| change.is_valid()).collect();
     sorted.sort_by_key(|change| (change.key, change.scope));
     sorted.dedup_by_key(|change| (change.key, change.scope));
-    // What QIS says of each Termin, before the first change of it rewrites its rows.
-    let mut qis: BTreeMap<RowKey, Option<(usize, Values)>> = BTreeMap::new();
+    // Of each key: its event, the keys of its Termin and what QIS says of it, before any change.
+    let mut found: BTreeMap<RowKey, Option<Termin>> = BTreeMap::new();
+    for change in &sorted {
+        found.entry(change.key).or_insert_with(|| termin_of(events, change.key));
+    }
     let mut out = Vec::new();
-    for change in sorted {
-        let found = qis.entry(change.key).or_insert_with(|| {
-            let e = events.iter().position(|event| event.rows.iter().any(|row| row.key == Some(change.key)))?;
-            let event = events.get(e)?;
-            Some((e, values_of(event.rows.iter().filter(|row| row.key == Some(change.key)))?))
-        });
-        let Some((e, values)) = found.clone() else {
+    let mut apply: Vec<(&Change, &Termin, RowChange)> = Vec::new();
+    for change in sorted.iter().copied() {
+        let Some(Some(termin)) = found.get(&change.key) else {
             if !modules.contains(&change.module) {
                 continue;
             }
@@ -102,20 +114,75 @@ pub(crate) fn apply(events: &mut [Event], changes: &[Change], modules: &[String]
             out.push(Changed { change: change.clone(), state, event: None, qis: None });
             continue;
         };
-        let state = match change.against(&values) {
+        let state = match change.against(&termin.qis) {
             Against::Agrees => ChangeState::Agrees,
             Against::Holds => ChangeState::Holds,
             Against::Differs => ChangeState::Differs,
         };
         if state != ChangeState::Agrees {
-            if let Some(event) = events.get_mut(e) {
-                let mark = RowChange { scope: change.scope, qis: values.clone(), differs: state == ChangeState::Differs, moves: change.weekday.is_some() || change.time.is_some() };
-                change_rows(event, change, &values, &mark, facts);
-            }
+            let mark = RowChange {
+                key: change.key,
+                scope: change.scope,
+                qis: termin.qis.clone(),
+                differs: state == ChangeState::Differs,
+                moves: change.weekday.is_some() || change.time.is_some(),
+                shift: 0,
+            };
+            apply.push((change, termin, mark));
         }
-        out.push(Changed { change: change.clone(), state, event: Some(e), qis: Some(values) });
+        out.push(Changed { change: change.clone(), state, event: Some(termin.event), qis: Some(termin.qis.clone()) });
+    }
+    apply.sort_by_key(|(change, ..)| (change.scope, change.key));
+    for (change, termin, mark) in apply {
+        if let Some(event) = events.get_mut(termin.event) {
+            change_rows(event, change, &termin.keys, &mark, facts);
+        }
     }
     out
+}
+
+/// A Termin of QIS as a change finds it: its event, the keys of its rows, and what QIS says of it.
+#[derive(Clone, Debug)]
+struct Termin {
+    event: usize,
+    keys: BTreeSet<RowKey>,
+    qis: Values,
+}
+
+/// The Termin of the row key `key` among `events` (`termin::termin_rows`), where a row has it and
+/// it has a weekday and a time.
+fn termin_of(events: &[Event], key: RowKey) -> Option<Termin> {
+    let (e, first) = events.iter().enumerate().find_map(|(e, event)| Some((e, event.rows.iter().position(|row| row.key == Some(key))?)))?;
+    let event = events.get(e)?;
+    let keys = termin_keys(event, first);
+    let qis = values_of(event.rows.iter().filter(|row| row.key.is_some_and(|key| keys.contains(&key))))?;
+    Some(Termin { event: e, keys, qis })
+}
+
+/// The keys of the rows of the Termin of the row `first` of `event` (`termin::termin_rows`).
+fn termin_keys(event: &Event, first: usize) -> BTreeSet<RowKey> {
+    crate::termin::termin_rows(event, first).into_iter().filter_map(|row| event.rows.get(row)?.key).collect()
+}
+
+/// What QIS says of the Termin `key` of `table`: as the changes holding on it found it before
+/// rewriting its rows, else as its rows say it. `None` for no Termin, or one without a weekday or
+/// a time.
+pub fn qis_values(table: &crate::model::Timetable, key: RowKey) -> Option<Values> {
+    let event = table.events.iter().find(|event| event.rows.iter().any(|row| row.key == Some(key)))?;
+    let first = event.rows.iter().position(|row| row.key == Some(key))?;
+    let keys = termin_keys(event, first);
+    let rows = || event.rows.iter().filter(|row| row.key.is_some_and(|key| keys.contains(&key)));
+    match rows().find_map(|row| row.changed.as_ref()) {
+        Some(changed) => Some(changed.qis.clone()),
+        None => values_of(rows()),
+    }
+}
+
+/// The change of `table` that holds on the row `row` of the event `event` (`Row::changed`), and
+/// how it stands.
+pub fn holding(table: &crate::model::Timetable, event: usize, row: usize) -> Option<&Changed> {
+    let mark = table.events.get(event)?.rows.get(row)?.changed.as_ref()?;
+    table.changes.iter().find(|changed| changed.change.key == mark.key && changed.change.scope == mark.scope)
 }
 
 /// What QIS says of the Termin of `rows` (its rows, of one key): the weekday of its slot, its time,
@@ -135,20 +202,22 @@ fn values_of<'a>(rows: impl Iterator<Item = &'a Row>) -> Option<Values> {
     Some(Values { weekday, from, to, room: rooms.join(", ") })
 }
 
-/// The one Termin an event has and what QIS says of it, where it has one.
+/// The one Termin an event has (a series of single dates is one) and what QIS says of it, where it
+/// has one: by the key of its first row.
 fn only_termin(event: &Event) -> Option<(RowKey, Values)> {
-    let mut keys = event.rows.iter().filter_map(|row| row.key);
-    let key = keys.next()?;
-    if keys.any(|other| other != key) {
+    let first = event.rows.iter().position(|row| row.key.is_some())?;
+    let key = event.rows.get(first)?.key?;
+    let keys = termin_keys(event, first);
+    if event.rows.iter().any(|row| row.key.is_some_and(|other| !keys.contains(&other))) {
         return None;
     }
-    Some((key, values_of(event.rows.iter().filter(|row| row.key == Some(key)))?))
+    Some((key, values_of(event.rows.iter().filter(|row| row.key.is_some_and(|key| keys.contains(&key))))?))
 }
 
-/// Rewrites the rows of `change`'s Termin in `event` as its scope says, QIS saying `qis` of it. A
-/// row it adds stands right after the one it comes of, with its `ord`, so the rows stay by `ord`.
-fn change_rows(event: &mut Event, change: &Change, qis: &Values, mark: &RowChange, facts: &SemesterFacts) {
-    let of_key: Vec<usize> = event.rows.iter().enumerate().filter(|(_, row)| row.key == Some(change.key)).map(|(at, _)| at).collect();
+/// Rewrites the rows of `change`'s Termin in `event` (those of `keys`) as its scope says. A row it
+/// adds stands right after the one it comes of, with its `ord`, so the rows stay by `ord`.
+fn change_rows(event: &mut Event, change: &Change, keys: &BTreeSet<RowKey>, mark: &RowChange, facts: &SemesterFacts) {
+    let of_key: Vec<usize> = event.rows.iter().enumerate().filter(|(_, row)| row.key.is_some_and(|key| keys.contains(&key))).map(|(at, _)| at).collect();
     let mut added: Vec<(usize, Row)> = Vec::new();
     // From the last, so that a row added after one leaves the places of those before it.
     for at in of_key.into_iter().rev() {
@@ -157,7 +226,7 @@ fn change_rows(event: &mut Event, change: &Change, qis: &Values, mark: &RowChang
             Scope::All => {
                 // A row whose range QIS leaves to the lecture period keeps it so.
                 let range = row.date.first_date.as_deref().and_then(Day::parse).zip(row.date.last_date.as_deref().and_then(Day::parse));
-                let new = changed_row(row, change, qis, range, false, mark, facts);
+                let new = changed_row(row, change, range, false, mark, facts);
                 if let Some(slot) = event.rows.get_mut(at) {
                     *slot = new;
                 }
@@ -168,13 +237,13 @@ fn change_rows(event: &mut Event, change: &Change, qis: &Values, mark: &RowChang
                     continue;
                 }
                 if first >= day {
-                    let new = changed_row(row, change, qis, Some((first, last)), false, mark, facts);
+                    let new = changed_row(row, change, Some((first, last)), false, mark, facts);
                     if let Some(slot) = event.rows.get_mut(at) {
                         *slot = new;
                     }
                     continue;
                 }
-                let later = changed_row(row, change, qis, Some((day, last)), false, mark, facts);
+                let later = changed_row(row, change, Some((day, last)), false, mark, facts);
                 let before = ranged_row(row, (first, day.plus(-1)), facts);
                 if let Some(slot) = event.rows.get_mut(at) {
                     *slot = before;
@@ -185,7 +254,7 @@ fn change_rows(event: &mut Event, change: &Change, qis: &Values, mark: &RowChang
                 if !row.occ.days.contains(&day) {
                     continue;
                 }
-                let moved = changed_row(row, change, qis, Some((day, day)), true, mark, facts);
+                let moved = changed_row(row, change, Some((day, day)), true, mark, facts);
                 if let Some(slot) = event.rows.get_mut(at) {
                     slot.occ.days.retain(|held| *held != day);
                     slot.occ.moved.push(day);
@@ -240,11 +309,14 @@ fn ranged_row(row: &Row, (first, last): (Day, Day), facts: &SemesterFacts) -> Ro
     new
 }
 
-/// `row` as `change` says it, its dates those of `range` (QIS's days, `None`: QIS's pattern) moved
-/// to the changed weekday within their weeks, as one date where `single`. The dates QIS cancels and
-/// its notes of a room in the range move with them; the key, the option and what hides the row stay.
-fn changed_row(row: &Row, change: &Change, qis: &Values, range: Option<(Day, Day)>, single: bool, mark: &RowChange, facts: &SemesterFacts) -> Row {
-    let shift = |day: Day| change.moved(day, qis.weekday);
+/// `row` as `change` says it, its dates those of `range` (the row's days, `None`: its pattern)
+/// moved to the changed weekday within their weeks, as one date where `single` (a date of a series
+/// of single dates stays of its series). The dates QIS cancels and its notes of a room in the range
+/// move with them; the key, the option and what hides the row stay. The row's weekday is the one
+/// it is moved from: QIS's, or that of a change of every date under one of a date.
+fn changed_row(row: &Row, change: &Change, range: Option<(Day, Day)>, single: bool, mark: &RowChange, facts: &SemesterFacts) -> Row {
+    let now = row.slot_day().or_else(|| row.date.weekday.and_then(|day| u8::try_from(day).ok())).unwrap_or(mark.qis.weekday);
+    let shift = |day: Day| change.moved(day, now);
     let mut date = row.date.clone();
     if let Some(weekday) = change.weekday {
         date.weekday = Some(i64::from(weekday));
@@ -264,14 +336,13 @@ fn changed_row(row: &Row, change: &Change, qis: &Values, range: Option<(Day, Day
     if single {
         date.rhythm = Some(Code::Known(Rhythm::Single));
         date.rhythm_raw = None;
-        date.series = None;
     }
     let within = |day: Day| range.is_none_or(|(first, last)| (first..=last).contains(&day));
     let mut new = Row::of(&DateRow { module_id: String::new(), ord: row.ord, cancelled_dates: None, date }, facts);
     new.key = row.key;
     new.option = row.option;
     new.hidden = row.hidden;
-    new.changed = Some(mark.clone());
+    new.changed = Some(RowChange { shift: change.weekday.map_or(0, |weekday| i32::from(weekday) - i32::from(now)), ..mark.clone() });
     // What QIS says of a date in the range follows it to its new day: a cancellation, a note.
     let cancelled: Vec<(Day, Option<String>, Option<Day>)> =
         row.occ.cancelled.iter().filter(|(day, ..)| within(*day)).map(|(day, why, instead)| (shift(*day), why.clone(), *instead)).collect();
