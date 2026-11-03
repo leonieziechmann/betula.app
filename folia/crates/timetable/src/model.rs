@@ -59,6 +59,7 @@ use folia_model::labels::{Campus, ChoiceKind, Code, Rhythm};
 use folia_model::rows::Semester;
 use folia_model::rows_detail::{ChoiceFamily, ChoiceOption, DateRow, EventDate, ModuleSws, TrackProgram};
 
+use crate::change::{self, Changed, RowChange};
 use crate::clash::{self, Clash, Weeks};
 use crate::exams::{self, Exam, ExamWarning};
 use crate::facts::SemesterFacts;
@@ -158,6 +159,11 @@ pub struct Timetable {
     pub place_unknown: Vec<(Day, Vec<String>)>,
     /// Planned modules without a dated teaching row this semester, in plan order.
     pub without_dates: Vec<String>,
+    /// The changes of Termine of QIS of the semester's plan and how each stands against what QIS
+    /// says now (`change::apply`), in the order of their Termine and scopes.
+    pub changes: Vec<Changed>,
+    /// The notes at the semester's Termine (`Selection::notes`), by the Termin's key.
+    pub notes: BTreeMap<RowKey, String>,
 }
 
 /// A choice among the events of a planned module (docs/radix/schema-v2.md, „Choices"): of its
@@ -346,6 +352,9 @@ pub struct Row {
     /// The option of `Attendance::OneOf` it belongs to; `None` for a required row.
     pub option: Option<usize>,
     pub hidden: Option<HiddenBy>,
+    /// The change of a Termin of QIS it shows (`change`): its dates say what the change says, not
+    /// QIS. `None` for a row as QIS has it.
+    pub changed: Option<RowChange>,
 }
 
 impl Event {
@@ -399,7 +408,7 @@ impl Row {
         held.or_else(|| self.date.series.and(self.occ.cancelled.first()).map(|(day, ..)| day.weekday()))
     }
 
-    fn of(row: &DateRow, facts: &SemesterFacts) -> Row {
+    pub(crate) fn of(row: &DateRow, facts: &SemesterFacts) -> Row {
         let times = occur::times(&row.date);
         Row {
             key: RowKey::of(&row.date),
@@ -412,6 +421,7 @@ impl Row {
             to: times.map(|(_, to)| to),
             option: None,
             hidden: None,
+            changed: None,
         }
     }
 }
@@ -427,6 +437,9 @@ impl Timetable {
             decide(event, input.sws);
             event.visit = !event.modules.is_empty() && event.modules.iter().all(|module| visits.contains(module));
         }
+        // What the student changed of Termine of QIS, before the ticks and the hidden dates, which
+        // name a Termin by its key and a day as the week shows it.
+        let changes = change::apply(&mut events, &selection.changes, &modules, input.facts);
         let mut choices = choices_of(input.choices, &mut events, &modules, input.key);
         let courses = courses(input.schedule, &modules);
         let tracks = tracks(&events, &modules, &courses);
@@ -470,6 +483,8 @@ impl Timetable {
             exam_warnings,
             place_unknown,
             without_dates,
+            changes,
+            notes: selection.notes.iter().cloned().collect(),
         }
     }
 
@@ -1134,6 +1149,10 @@ fn choose(event: &mut Event, selection: &Selection) {
 pub mod tests {
     use super::*;
     #[cfg(test)]
+    use crate::change::ChangeState;
+    #[cfg(test)]
+    use folia_calendar::change::{Change, Scope, Values};
+    #[cfg(test)]
     use folia_model::db::Database;
     use folia_model::labels::Code;
     #[cfg(test)]
@@ -1223,6 +1242,12 @@ pub mod tests {
 
         pub fn rhythm(mut self, rhythm: &str) -> Self {
             self.0.date.rhythm = Some(Code::parse(rhythm));
+            self
+        }
+
+        /// The room as a student reads it (`EventDate::room_shown`).
+        pub fn room(mut self, room: &str) -> Self {
+            self.0.date.room_short = Some(room.into());
             self
         }
 
@@ -1427,7 +1452,8 @@ pub mod tests {
                 assert_eq!(usize::from(e.tone), first % TONES + 1, "{}", e.id);
             }
             assert_eq!(e.class, class_of(e.kinds));
-            assert!(e.rows.windows(2).all(|w| w[0].ord < w[1].ord), "{}: rows once, by ord", e.id);
+            // A row a change adds stands after the one it comes of, with its `ord`.
+            assert!(e.rows.windows(2).all(|w| w[0].ord < w[1].ord || (w[0].ord == w[1].ord && w[1].changed.is_some())), "{}: rows once, by ord", e.id);
             assert!(e.rows.iter().all(|r| r.ord.is_some() && r.from.is_some() == r.to.is_some()));
             match &e.attendance {
                 Attendance::All => {
@@ -1887,6 +1913,121 @@ pub mod tests {
         let event = own_event(&own, &[], &facts);
         assert_eq!(event.rows[0].occ.template.map(|t| (t.weekday, t.every)), Some((5, Every::AWeek)));
         assert!(event.rows[0].occ.days.is_empty());
+    }
+
+    /// A change of the Termin of `fixture` for `scope` that changes nothing yet, QIS saying what
+    /// the fixture says.
+    #[cfg(test)]
+    fn change_of(fixture: &Fixture, scope: Scope) -> Change {
+        let date = &fixture.0.date;
+        let minute = |text: &Option<String>| folia_calendar::day::minutes(text.as_deref().unwrap()).unwrap();
+        Change {
+            key: fixture.key(),
+            scope,
+            weekday: None,
+            time: None,
+            room: None,
+            was: Values { weekday: u8::try_from(date.weekday.unwrap()).unwrap(), from: minute(&date.start_time), to: minute(&date.end_time), room: date.room_shown().unwrap_or_default().into() },
+            module: fixture.0.module_id.clone(),
+        }
+    }
+
+    #[test]
+    fn a_change_of_every_date_is_its_termin_with_its_key() {
+        let lecture = teaching("A", "80", 1, "Vorlesung", 5, "09:15", "10:45").room("ZHG/HS.C");
+        let exercise = teaching("B", "81", 1, "Übung", 4, "09:15", "10:45");
+        let change = Change { weekday: Some(4), room: Some("ZHG/HS.A".into()), ..change_of(&lecture, Scope::All) };
+        let rows = [lecture.clone(), exercise];
+        let plain = table(&rows, &["A", "B"], &[], &Selection::default());
+        assert!(plain.clashes.is_empty());
+        let t = table(&rows, &["A", "B"], &[], &Selection { changes: vec![change], ..Selection::default() });
+        let row = &t.events[0].rows[0];
+        assert_eq!(row.key, Some(lecture.key()));
+        assert_eq!((row.slot_day(), row.date.room_shown()), (Some(4), Some("ZHG/HS.A")));
+        assert!(!row.occ.days.is_empty() && row.occ.days.iter().all(|day| day.weekday() == 4));
+        assert!(row.changed.as_ref().is_some_and(|change| change.scope == Scope::All && !change.differs && change.moves && change.qis.room == "ZHG/HS.C"));
+        assert_eq!(t.changes.iter().map(|changed| &changed.state).collect::<Vec<_>>(), [&ChangeState::Holds]);
+        // Firm as QIS's: on Thursday the lecture meets the exercise, and the week has it there.
+        assert_eq!(t.clashes.len(), 1);
+        let week = t.regular_week();
+        assert!(week.iter().any(|item| item.event == 0 && item.day == 4) && !week.iter().any(|item| item.event == 0 && item.day == 5));
+    }
+
+    #[test]
+    fn a_change_from_a_date_ends_its_rows_the_day_before() {
+        let lecture = teaching("A", "80", 1, "Vorlesung", 5, "09:15", "10:45");
+        let from = d("2026-11-06");
+        let change = Change { time: Some((10 * 60, 11 * 60 + 30)), ..change_of(&lecture, Scope::From(from)) };
+        let t = table(&[lecture.clone()], &["A"], &[], &Selection { changes: vec![change], ..Selection::default() });
+        let rows = &t.events[0].rows;
+        assert_eq!(rows.len(), 2);
+        assert!(rows.iter().all(|row| row.key == Some(lecture.key()) && row.ord == Some(1)));
+        assert!(rows[0].occ.days.iter().all(|day| *day < from) && rows[0].changed.is_none() && rows[0].from == Some(555));
+        assert_eq!((rows[1].occ.days.first(), rows[1].from, rows[1].to), (Some(&from), Some(600), Some(690)));
+        // The week has both: QIS's until the day, the change's after.
+        assert_eq!(t.regular_week().iter().filter(|item| item.event == 0).count(), 2);
+    }
+
+    #[test]
+    fn a_change_of_one_date_moves_that_date_alone() {
+        let lecture = teaching("A", "80", 1, "Vorlesung", 5, "09:15", "10:45").room("ZHG/HS.C");
+        let on = d("2026-11-06");
+        let moved = Change { weekday: Some(4), ..change_of(&lecture, Scope::On(on)) };
+        let t = table(&[lecture.clone()], &["A"], &[], &Selection { changes: vec![moved], ..Selection::default() });
+        let rows = &t.events[0].rows;
+        assert_eq!(rows.len(), 2);
+        assert!(!rows[0].occ.days.contains(&on) && rows[0].occ.moved == [on]);
+        assert_eq!((rows[1].occ.days.as_slice(), rows[1].key), ([d("2026-11-05")].as_slice(), Some(lecture.key())));
+        // Moved to another day it is a date of the week of its own.
+        assert!(t.regular_week().iter().any(|item| item.event == 0 && item.day == 4 && matches!(item.label, crate::views::WeekLabel::Once { .. })));
+        // A room changed for one date stands in its series' slot.
+        let room = Change { room: Some("ZHG/HS.A".into()), ..change_of(&lecture, Scope::On(on)) };
+        let t = table(&[lecture.clone()], &["A"], &[], &Selection { changes: vec![room], ..Selection::default() });
+        assert_eq!((t.events[0].rows[1].occ.days.as_slice(), t.events[0].rows[1].date.room_shown()), ([on].as_slice(), Some("ZHG/HS.A")));
+        assert_eq!(t.regular_week().iter().filter(|item| item.event == 0).count(), 1);
+    }
+
+    #[test]
+    fn a_change_is_measured_against_what_qis_says_now() {
+        let lecture = teaching("A", "80", 1, "Vorlesung", 5, "09:15", "10:45").room("ZHG/HS.C");
+        let mine = Change { room: Some("ZHG/HS.A".into()), ..change_of(&lecture, Scope::All) };
+        let state = |rows: &[Fixture], change: &Change| {
+            let t = table(rows, &["A"], &[], &Selection { changes: vec![change.clone()], ..Selection::default() });
+            (t.changes.first().map(|changed| changed.state.clone()), t.events[0].rows[0].date.room_shown().map(str::to_string))
+        };
+        assert_eq!(state(&[lecture.clone()], &mine), (Some(ChangeState::Holds), Some("ZHG/HS.A".into())));
+        // QIS says what the student said: done, nothing to change.
+        assert_eq!(state(&[lecture.clone().room("ZHG/HS.A")], &mine), (Some(ChangeState::Agrees), Some("ZHG/HS.A".into())));
+        // Something else: the student's holds until they decide.
+        assert_eq!(state(&[lecture.clone().room("ZHG/HS.B")], &mine), (Some(ChangeState::Differs), Some("ZHG/HS.A".into())));
+        // Another start is another key: the change hangs on the old one, its event is there.
+        let later = teaching("A", "80", 1, "Vorlesung", 5, "11:30", "13:00").room("ZHG/HS.C");
+        let t = table(&[later.clone()], &["A"], &[], &Selection { changes: vec![mine.clone()], ..Selection::default() });
+        assert!(matches!(&t.changes[0].state, ChangeState::Moved { now: Some((key, values)) } if *key == later.key() && values.from == 690));
+        assert!(t.events[0].rows[0].changed.is_none());
+        // Its event gone too: gone. A change of a module not planned says nothing.
+        let other = teaching("A", "90", 1, "Vorlesung", 5, "09:15", "10:45");
+        let t = table(&[other.clone()], &["A"], &[], &Selection { changes: vec![mine.clone()], ..Selection::default() });
+        assert_eq!(t.changes.iter().map(|changed| &changed.state).collect::<Vec<_>>(), [&ChangeState::Gone]);
+        let t = table(&[other], &["A"], &[], &Selection { changes: vec![Change { module: "Z".into(), ..mine }], ..Selection::default() });
+        assert!(t.changes.is_empty());
+    }
+
+    #[test]
+    fn ticks_and_hidden_dates_follow_a_changed_termin() {
+        let one = teaching("A", "80", 1, "Übung", 3, "09:15", "10:45").group("1");
+        let two = teaching("A", "80", 2, "Übung", 4, "09:15", "10:45").group("2");
+        let change = Change { time: Some((10 * 60, 11 * 60 + 30)), ..change_of(&one, Scope::From(d("2026-11-04"))) };
+        let selection = Selection { changes: vec![change], chosen_rows: [one.key()].into(), hidden_dates: [(one.key(), d("2026-11-18"))].into(), ..Selection::default() };
+        let t = table(&[one.clone(), two], &["A"], &[], &selection);
+        let event = &t.events[0];
+        let ones: Vec<&Row> = event.rows.iter().filter(|row| row.key == Some(one.key())).collect();
+        // The rows of group 1, before the change and after it, are its option, and it is ticked.
+        assert_eq!(ones.len(), 2);
+        assert!(ones.iter().all(|row| row.hidden.is_none() && row.option == ones[0].option));
+        assert!(event.rows.iter().filter(|row| row.key != Some(one.key())).all(|row| row.hidden == Some(HiddenBy::Choice)));
+        // A day hidden is hidden in the row that holds it.
+        assert!(ones.iter().any(|row| row.occ.hidden == [d("2026-11-18")] && row.changed.is_some()));
     }
 
     #[test]

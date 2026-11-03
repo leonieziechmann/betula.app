@@ -123,6 +123,9 @@ pub struct Occurrences {
     /// takes them out of `days`, so the week, the day, the clashes and the feed leave them out,
     /// while the Termin's own view still names them. `occurrences` leaves it empty.
     pub hidden: Vec<Day>,
+    /// Held days a change for that one day moved to a row of their own (`change`): the date is
+    /// there, as that row says it. `occurrences` leaves it empty.
+    pub moved: Vec<Day>,
     /// The range is the lecture period's, because the row has none.
     pub assumed: bool,
     /// A recurring row without any concrete day: no range and nothing to assume one from.

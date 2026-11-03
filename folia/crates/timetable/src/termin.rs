@@ -102,9 +102,10 @@ impl Occasion {
         let day = pick(&dates, on, today)?;
         let dated = dates.iter().find(|dated| dated.day == day)?;
         let state = dated.state.clone();
-        let row = of.rows.get(first)?;
+        // The times of the date's own row: a change from a day on gives the later dates others.
+        let row = of.rows.get(dated.row).or_else(|| of.rows.get(first))?;
         let weeks = Weeks::of(row.every).filter(|weeks| *weeks != Weeks::All).and(table.facts.ab_week(day));
-        let hidden = of.hidden.or_else(|| of.rows.get(dated.row).and_then(|row| row.hidden));
+        let hidden = of.hidden.or(row.hidden);
         Some(Occasion { event, rows, key, day, state, dates, from: row.from, to: row.to, weeks, hidden })
     }
 

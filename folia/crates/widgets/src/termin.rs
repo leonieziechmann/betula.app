@@ -1470,7 +1470,10 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
     let date_row = o.dates.iter().find(|dated| dated.day == o.day).and_then(|dated| event.rows.get(dated.row)).unwrap_or(first);
     let mut rooms: Vec<String> = Vec::new();
     let mut names: Vec<String> = Vec::new();
-    for row in event.rows.iter().filter(|row| row.key.is_some() && row.key == date_row.key) {
+    // The rooms of the rows of its key that have the day: one slot in two rooms; a change for
+    // some of its dates gives the others none of its room.
+    let has_day = |row: &Row| row.occ.days.contains(&o.day) || row.occ.hidden.contains(&o.day) || row.occ.cancelled.iter().any(|(day, ..)| *day == o.day) || row.occ.skipped.iter().any(|(day, _)| *day == o.day);
+    for row in event.rows.iter().filter(|row| row.key.is_some() && row.key == date_row.key && (has_day(row) || std::ptr::eq(*row, date_row))) {
         if let Some(room) = row.date.room_shown().map(str::to_string).filter(|room| !rooms.contains(room)) {
             rooms.push(room);
         }

@@ -1690,6 +1690,8 @@ mod tests {
             town_from: None,
             visits: Default::default(),
             own: Vec::new(),
+            changes: Vec::new(),
+            notes: Vec::new(),
         };
         let modules = ids(&[B, "FÜS", A, B, "0123", "FÜS"]);
         let (subscription, other) = subscription_of(t.key, &modules, Some("079-82-2008"), &selection, Some(&t));
