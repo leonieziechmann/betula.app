@@ -1672,6 +1672,10 @@
   document.addEventListener("focusin", (e) => {
     const sheet = phone() ? sheetAround(e.target) : null;
     if (!sheet || e.target === sheet || !sheet.contains(e.target)) return;
+    // The keyboard's focus only (`:focus-visible`): a finger's tap on a button that the foot half
+    // hides, which focuses it as well, took the sheet up under the finger („Studiengang
+    // wechseln": its + and −).
+    if (!e.target.matches?.(":focus-visible")) return;
     // Below what the sheet shows half up (and its foot hides): measured as it will stand there.
     const { half } = stopsOf(sheet), foot = footOf(sheet);
     if (e.target.getBoundingClientRect().bottom - sheetY(sheet) + half > innerHeight - (foot?.offsetHeight ?? 0)) raiseSheet(sheet);
@@ -2374,9 +2378,12 @@
     // will be already) and the sheet they are in all up (`lift` px higher than it is), and how far
     // what scrolls has to go to show them: nothing where they are in sight, else as little as
     // brings them in, the first of them before the rest.
-    const scroller = scrollerOf(lines[0]);
+    // In a module's sheet what scrolls is its content, half up too, where it does not scroll yet
+    // (app.css): found by its overflow, the lines were taken to be the page's, and the sheet stayed
+    // half up, the line out of sight.
     const sheet = moduleSheet();
-    const inSheet = Boolean(sheet?.contains(scroller));
+    const inSheet = Boolean(sheet?.contains(lines[0]));
+    const scroller = (inSheet && sheet.querySelector(":scope > .scroll")) || scrollerOf(lines[0]);
     const lift = inSheet ? Math.max(0, sheetY(sheet)) : 0;
     const view = viewOf(scroller, lift), gap = 12;
     const first = lines[0].getBoundingClientRect().top - lift, last = lines[lines.length - 1].getBoundingClientRect().bottom - lift;
