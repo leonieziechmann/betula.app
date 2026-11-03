@@ -194,6 +194,10 @@ ask!(
     StudyModulesAsk { ids: Vec<String> } -> StudyModules, Lane::Page, |q, db, kept| crate::study_modules(db, &q.ids)
 );
 ask!(
+    /// The abbreviations of the modules „Mein Studium" shows, within its program (`program`).
+    ModuleAbbrevsAsk { ids: Vec<String>, program: Option<String> } -> std::collections::BTreeMap<String, String>, Lane::Page, |q, db, kept| crate::module_abbrevs(db, &q.ids, q.program.as_deref())
+);
+ask!(
     /// The plans of a program, for „Mein Studiengang" and the import.
     PlanSourceAsk { program_id: String, locale: Locale } -> Option<PlanSource>, Lane::Page, |q, db, kept| crate::plan_source(db, &q.program_id, q.locale)
 );
@@ -289,7 +293,7 @@ pub fn answer_json(name: &str, question: &str, db: &dyn Database, kept: &mut Kep
     }
     dispatch!(
         GroundAsk, HomeAsk, CatalogChoicesAsk, CatalogAsk, CatalogSummaryAsk, CatalogCountAsk, SimilarAsk, ProgramsOverviewAsk,
-        ProgramsAsk, ModuleAsk, ProgramAsk, BookmarksAsk, BookmarkPlacesAsk, StudyplanAsk, StudyplanModulesAsk, StudyModulesAsk, PlanSourceAsk, MyProgramAsk, FitAsk, CounterpartAsk,
+        ProgramsAsk, ModuleAsk, ProgramAsk, BookmarksAsk, BookmarkPlacesAsk, StudyplanAsk, StudyplanModulesAsk, StudyModulesAsk, ModuleAbbrevsAsk, PlanSourceAsk, MyProgramAsk, FitAsk, CounterpartAsk,
         OverlayAsk, FitLinesAsk, SharedPlanAsk, MetaAsk, ModuleSemestersAsk, NewestSemestersAsk, CatalogRowsAsk, CommandModulesAsk, CatalogPositionAsk, PlanRowsAsk,
         EventAsk,
     )
@@ -330,6 +334,8 @@ mod tests {
         same(PlanRowsAsk { key, own: vec!["12104".into()], others: vec!["12107".into()] });
         same(FitLinesAsk { key, others: vec!["12104".into(), "12107".into()], program: Some("079-82-2008".into()), ids: vec!["11103".into(), "12104".into()], selection: Default::default(), locale: Locale::De });
         same(StudyModulesAsk { ids: vec!["12204".into(), "12339".into(), "00000".into()] });
+        same(ModuleAbbrevsAsk { ids: vec!["12104".into(), "11112".into(), "00000".into()], program: Some("079-82-2008".into()) });
+        same(ModuleAbbrevsAsk { ids: vec!["12104".into()], program: Some("../etc".into()) });
         same(PlanSourceAsk { program_id: "079-82-2008".into(), locale: Locale::De });
         same(MetaAsk {});
         same(CommandModulesAsk { text: "algoritmen".into(), limit: 6 });

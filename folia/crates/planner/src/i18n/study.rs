@@ -320,16 +320,52 @@ pub struct Texts {
     pub view_semester: &'static str,
     pub view_grid: &'static str,
 
-    // The Gesamtplan.
+    // The Gesamtplan (a roadmap: folia/design/gesamtplan/konzepte.html, A).
     pub grid_title: &'static str,
     pub so_far: &'static str,
     pub expand_past: &'static str,
     pub collapse_past: &'static str,
-    /// „✓ 32 LP · 5 Module".
+    /// „Alle aufklappen", „Alle zuklappen"; an area's ▸: „Informatik aufklappen", „… zuklappen".
+    pub expand_all: &'static str,
+    pub collapse_all: &'static str,
+    pub expand_area: fn(&str) -> String,
+    pub collapse_area: fn(&str) -> String,
+    /// The band over the semesters: „1. Studienjahr · 2025/26", „1. Studienjahr" (a study begun
+    /// in a summer), „Vor dem Studium".
+    pub study_year: fn(i32, Option<&str>) -> String,
+    pub before_study: &'static str,
+    /// The flag of the line of today: „heute, 03.11.".
+    pub today_at: fn(&str) -> String,
+    /// „✓ 32 LP · 5 Module": what an area passed in the semesters before the current one, folded;
+    /// „1 nicht bestanden".
     pub past_cell: fn(&str, &str) -> String,
-    pub grid_grey: &'static str,
+    pub past_failed: fn(usize) -> String,
+    /// What a piece of a semester too full for its labels says: „4 Module · 24 LP".
+    pub n_modules_lp: fn(&str, &str) -> String,
+    /// What a module's piece says of itself in its lane and its title: „bestanden", „läuft",
+    /// „geplant", „nicht bestanden", „Wiederholung", „noch offen"; „für „Anwendungsfach“".
+    pub bar_passed: &'static str,
+    pub bar_running: &'static str,
+    pub bar_planned: &'static str,
+    pub bar_failed: &'static str,
+    pub bar_retake: &'static str,
+    pub bar_open: &'static str,
+    pub fills_row: fn(&str) -> String,
+    /// The plan's open rows of an area in a semester as one piece: „noch 10 LP offen laut
+    /// Regelstudienplan", and what a click on it does when it holds several.
+    pub open_credits: fn(&str) -> String,
+    pub open_rows_click: &'static str,
+    /// Several open pieces of a semester too full for its labels: „3 offen".
+    pub n_open: fn(usize) -> String,
+    /// The legend: what is running, what the plan has open, what is not passed, today.
+    pub legend_running: &'static str,
+    pub legend_plan_open: &'static str,
+    pub legend_failed: &'static str,
+    pub legend_today: &'static str,
     pub grid_help: &'static str,
     pub add_in_cell: &'static str,
+    /// What „+" in a cell is for: „Modul hinzufügen: Informatik, WiSe 2026/27".
+    pub add_in_cell_for: fn(&str, &str) -> String,
     /// The title of a grey line: „laut Regelstudienplan im 4. FS · Klick fügt hinzu", „Wiederholer:
     /// im SoSe 2026 nicht bestanden · Klick fügt hinzu".
     pub line_title: fn(&str) -> String,
@@ -559,14 +595,40 @@ pub const DE: Texts = Texts {
     view_semester: "Semester",
     view_grid: "Gesamtplan",
 
-    grid_title: "Bereiche × Semester",
+    grid_title: "Gesamtplan",
     so_far: "Bisher",
     expand_past: "Bisher aufklappen",
     collapse_past: "Bisher zuklappen",
+    expand_all: "Alle aufklappen",
+    collapse_all: "Alle zuklappen",
+    expand_area: |area| format!("{area} aufklappen"),
+    collapse_area: |area| format!("{area} zuklappen"),
+    study_year: |n, years| match years {
+        Some(years) => format!("{n}. Studienjahr · {years}"),
+        None => format!("{n}. Studienjahr"),
+    },
+    before_study: "Vor dem Studium",
+    today_at: |day| format!("heute, {day}"),
     past_cell: |credits, modules| format!("✓ {credits}\u{a0}LP · {modules}"),
-    grid_grey: "grau: laut Plan noch offen, ein Klick fügt hinzu",
-    grid_help: "Klick in eine Zelle: passende Module · Klick auf ein Modul: sein Menü",
+    past_failed: |n| format!("{n} nicht bestanden"),
+    n_modules_lp: |modules, credits| format!("{modules} · {credits}"),
+    bar_passed: "bestanden",
+    bar_running: "läuft",
+    bar_planned: "geplant",
+    bar_failed: "nicht bestanden",
+    bar_retake: "Wiederholung",
+    bar_open: "noch offen",
+    fills_row: |row| format!("für „{row}“"),
+    open_credits: |credits| format!("noch {credits} offen laut Regelstudienplan"),
+    open_rows_click: "Ein Klick klappt den Bereich auf",
+    n_open: |n| format!("{n} offen"),
+    legend_running: "Läuft",
+    legend_plan_open: "Noch offen laut Plan",
+    legend_failed: "Nicht bestanden",
+    legend_today: "Heute",
+    grid_help: "▸ klappt einen Bereich auf · Klick auf ein Modul: sein Menü",
     add_in_cell: "Modul hinzufügen",
+    add_in_cell_for: |area, semester| format!("Modul hinzufügen: {area}, {semester}"),
     line_title: |fs| format!("laut Regelstudienplan im {fs} · Klick fügt hinzu"),
     line_retake: |semester| format!("Wiederholer: im {semester} nicht bestanden · Klick fügt hinzu"),
 };
@@ -794,14 +856,40 @@ pub const EN: Texts = Texts {
     view_semester: "Semester",
     view_grid: "Whole plan",
 
-    grid_title: "Areas × semesters",
+    grid_title: "Whole plan",
     so_far: "So far",
     expand_past: "Expand so far",
     collapse_past: "Collapse so far",
+    expand_all: "Expand all",
+    collapse_all: "Collapse all",
+    expand_area: |area| format!("Expand {area}"),
+    collapse_area: |area| format!("Collapse {area}"),
+    study_year: |n, years| match years {
+        Some(years) => format!("Year {n} · {years}"),
+        None => format!("Year {n}"),
+    },
+    before_study: "Before the study",
+    today_at: |day| format!("today, {day}"),
     past_cell: |credits, modules| format!("✓ {credits}\u{a0}CP · {modules}"),
-    grid_grey: "grey: still open in the plan, a click adds it",
-    grid_help: "Click a cell: modules that fit · click a module: its menu",
+    past_failed: |n| format!("{n} not passed"),
+    n_modules_lp: |modules, credits| format!("{modules} · {credits}"),
+    bar_passed: "passed",
+    bar_running: "running",
+    bar_planned: "planned",
+    bar_failed: "not passed",
+    bar_retake: "retake",
+    bar_open: "still open",
+    fills_row: |row| format!("for \u{201c}{row}\u{201d}"),
+    open_credits: |credits| format!("{credits} still open in the standard study plan"),
+    open_rows_click: "A click expands the area",
+    n_open: |n| format!("{n} open"),
+    legend_running: "Running",
+    legend_plan_open: "Still open in the plan",
+    legend_failed: "Not passed",
+    legend_today: "Today",
+    grid_help: "▸ expands an area · click a module: its menu",
     add_in_cell: "Add module",
+    add_in_cell_for: |area, semester| format!("Add module: {area}, {semester}"),
     line_title: |fs| format!("standard study plan: {fs} · click adds it"),
     line_retake: |semester| format!("Retake: not passed in {semester} · click adds it"),
 };
