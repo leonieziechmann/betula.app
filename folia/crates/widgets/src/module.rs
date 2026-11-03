@@ -17,23 +17,25 @@
 //! „Merken" and among the sidebar's actions (`studyplan::PlanButton`), and the other modules
 //! planned into the semester of its Termine, drawn beside them in its week (`plan_overlay`).
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use folia_calendar::day::{clock, minutes, Day};
 use folia_calendar::kind::{class_of, kinds_of, Class, EventKind, KindSet};
 use folia_calendar::rowkey::RowKey;
+use folia_calendar::select::Selection;
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::{
     Campus, Labelled, OfferStatus, PrerequisiteKind, Relation, ResolveStatus, Rhythm, TeachingForm, TextItemKind,
     TurnusSeason,
 };
 use folia_model::rows::{Module, Prerequisite, Semester};
-use folia_model::rows_detail::{EventDate, ProgramLink, Series};
+use folia_model::rows_detail::{DateRow, EventDate, ModuleSws, ModuleTeachingForm, ProgramLink, Series};
 use folia_pages::ask::{OverlayAsk, ProgramsAsk};
 use folia_pages::{ModuleData, Overlay};
 use folia_routes::url::{self, ProgramTab};
 use folia_timetable::exam_reading::{self, ExamReading, Reason, Slot};
-use folia_timetable::grid;
+use folia_timetable::facts::SemesterFacts;
+use folia_timetable::model::{Attendance, Input, Timetable};
 use folia_timetable::ics::TZID;
 use leptos::prelude::*;
 use folia_design::stage::Title;
@@ -51,7 +53,7 @@ use folia_shell::frame::{BackLink, Frame};
 use folia_design::ui::{shows_minor, Fact, Icon, JsOnly, KindBadge, OfferBadge, Prose, Shortcut};
 use crate::courses::{self, campuses_text, course_heading, CourseView, Undecided};
 use crate::options::{self, OptState, OptionView, Sight, FOLD_OPTIONS, LISTED_OPTIONS, WEEK_OPTIONS};
-use crate::week::{GridSlot, WeekGrid, MIN_HOURS};
+use crate::week::{GridSlot, WeekGrid};
 use folia_timetable::choices::{Choice, Choices};
 use folia_timetable::courses::Courses;
 
@@ -885,7 +887,18 @@ fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
     // its lines (enhance.js „termin"). Without a week the list is all there is, and stays open: a
     // module whose events are all options of a long choice has none.
     let folded = shown.with_untracked(|shown| !shown.is_empty());
-    let slots = Memo::new(move |_| shown.with(|shown| overlay.with(|overlay| with_overlay(shown, overlay, t))));
+    // The groups of its events, one of which a student attends (folia/design/kalender/raster.html:
+    // hatched, one's own in the plan full), and the module's tone in the plan beside the week.
+    let newest_semester = newest_key.as_ref().and_then(|key| data.semesters.iter().find(|s| s.key == *key)).cloned();
+    let newest_parsed = newest_key.as_deref().and_then(SemesterKey::parse);
+    let ticks = plan_ticks(&m.id, newest_parsed);
+    let hue = plan_hue(&m.id, newest_parsed);
+    let group_rows = {
+        let (id, teaching, forms) = (m.id.clone(), teaching.clone(), data.teaching_forms.clone());
+        Memo::new(move |_| ticks.with(|ticks| groups_of(&id, newest_parsed, newest_semester.as_ref(), &teaching, &forms, ticks)))
+    };
+    let slots = Memo::new(move |_| shown.with(|shown| group_rows.with(|groups| overlay.with(|overlay| with_overlay(&with_groups(shown, groups, t), overlay, hue.get(), t)))));
+    let legend = move || slots.with(|slots| week_legend(slots, hue.get(), t));
     // The Termine list, grouped by course where the module has courses (`list_groups`).
     let lines: Vec<(String, Vec<EventDate>, Option<Campus>)> = termine(&teaching)
         .into_iter()
@@ -1024,6 +1037,7 @@ fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
             {choice_notes}
             {extras_note.map(|text| view! { <p class="note choices"><Icon name="plus"/><span>{text}</span></p> })}
             <WeekGrid slots/>
+            {legend}
             {week_line}
             {gap_note.map(|note| view! { <p class="note"><Icon name="info"/><span>{note}</span></p> })}
             {no_schedule_note.map(|note| view! { <p class="hint">{note}</p> })}
@@ -1772,30 +1786,34 @@ fn plan_overlay(id: &str, newest: Option<SemesterKey>, current: Option<SemesterK
     })
 }
 
-/// The module's own slots with the plan beside them (A.9): its slots in a hard clash marked, and
-/// the other planned modules' Termine as quiet `.planned` slots cut to the days and hours the
-/// module's own week spans, so that the grid never grows when the plan arrives. Planned Termine
-/// at the same time are one slot that names each module once, by its abbreviation
-/// (`StudyplanData::slot_names`, done in `pages::overlay`): the plan is the context here, and where it
-/// meets the module's own slots it takes a slim lane (`crate::week`). The names are the slot's
-/// label, not its small line, which phones hide: an outline without a name says nothing.
-fn with_overlay(own: &[(GridSlot, Vec<RowKey>)], overlay: &Overlay, t: &'static Texts) -> Vec<GridSlot> {
-    let mut slots: Vec<GridSlot> = own.iter().map(|(slot, rows)| GridSlot { clash: rows.iter().any(|row| overlay.clashing.contains(row)), ..slot.clone() }).collect();
+/// The module's own slots with the plan beside them (A.9; folia/design/kalender/raster.html): its
+/// slots in a hard clash marked and, with the plan beside them, in the module's tone in it (`hue`);
+/// the other planned modules' Termine as `.planned` slots, the ground under them, with their own
+/// times: the grid cuts them to the days and hours the module's own week spans, so that it never
+/// grows when the plan arrives, and says until when they go on (`crate::week`). Planned Termine at
+/// the same time are one slot that names each module once, by its abbreviation
+/// (`StudyplanData::slot_names`, done in `pages::overlay`); one that meets an own slot in a hard
+/// clash is red with it. The names are the slot's label, not its small line, which phones hide: a
+/// slot without a name says nothing.
+fn with_overlay(own: &[(GridSlot, Vec<RowKey>)], overlay: &Overlay, hue: Option<&'static str>, t: &'static Texts) -> Vec<GridSlot> {
+    let beside = !overlay.planned.is_empty();
+    let mut slots: Vec<GridSlot> = own
+        .iter()
+        .map(|(slot, rows)| GridSlot { clash: rows.iter().any(|row| overlay.clashing.contains(row)), hue: if beside { hue.or(slot.hue) } else { slot.hue }, ..slot.clone() })
+        .collect();
     if slots.is_empty() {
         return slots;
     }
-    let span = grid::span(&slots.iter().map(GridSlot::placed).collect::<Vec<_>>(), MIN_HOURS.saturating_mul(60));
-    /// Day, from and to as drawn; the modules' titles; each title with its whole time (the tooltip).
+    /// Day, from and to; the modules' titles; each title with its whole time (the tooltip).
     type Time<'a> = ((u8, u16, u16), Vec<&'a str>, Vec<String>);
     let mut times: Vec<Time<'_>> = Vec::new();
     for planned in &overlay.planned {
-        let (from, to) = (planned.from.max(span.first), planned.to.min(span.last));
-        if !(1..=span.days).contains(&planned.day) || to <= from {
+        if !(1..=7).contains(&planned.day) || planned.to <= planned.from {
             continue;
         }
         let when = format::time_slot(Some(i64::from(planned.day)), Some(&clock(planned.from)), Some(&clock(planned.to)), t.locale).unwrap_or_default();
         let line = format!("{} · {when}", planned.short);
-        let at = (planned.day, from, to);
+        let at = (planned.day, planned.from, planned.to);
         match times.iter_mut().find(|(known, ..)| *known == at) {
             Some((_, names, lines)) => {
                 if !names.contains(&planned.short.as_str()) {
@@ -1808,10 +1826,127 @@ fn with_overlay(own: &[(GridSlot, Vec<RowKey>)], overlay: &Overlay, t: &'static 
             None => times.push((at, vec![&planned.short], vec![line])),
         }
     }
-    slots.extend(
-        times.into_iter().map(|((day, from, to), names, lines)| GridSlot { day, from, to, label: names.join(" · "), title: lines.join("\n"), class: "planned", ..GridSlot::default() }),
-    );
+    let clashing: Vec<(u8, u16, u16)> = slots.iter().filter(|slot| slot.clash).map(|slot| (slot.day, slot.from, slot.to)).collect();
+    slots.extend(times.into_iter().map(|((day, from, to), names, lines)| {
+        let clash = clashing.iter().any(|(on, start, end)| *on == day && *start < to && from < *end);
+        GridSlot { day, from, to, label: names.join(" · "), title: lines.join("\n"), class: "planned", clash, ..GridSlot::default() }
+    }));
     slots
+}
+
+/// A group of an event of groups (`Attendance::OneOf`): how many groups the event has, and whether
+/// this one is ticked in the plan.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Group {
+    of: usize,
+    chosen: bool,
+}
+
+/// The module's rows that are groups of an event, one of which a student attends („eine von 4"),
+/// as the Stundenplan reads them: `Timetable::build` of the module alone, which takes the groups
+/// QIS names or the parallel slots the module's SWS make alternatives; each with whether it is of
+/// a group ticked in the plan (`ticks`, `plan_ticks`).
+fn groups_of(id: &str, key: Option<SemesterKey>, semester: Option<&Semester>, teaching: &[EventDate], forms: &[ModuleTeachingForm], ticks: &BTreeSet<RowKey>) -> BTreeMap<RowKey, Group> {
+    let Some(key) = key else { return BTreeMap::new() };
+    let facts = SemesterFacts::derive(key, semester, &[]);
+    let modules = [id.to_string()];
+    let schedule: Vec<DateRow> = teaching.iter().zip(0_i64..).map(|(date, ord)| DateRow { module_id: id.to_string(), ord: Some(ord), cancelled_dates: None, date: date.clone() }).collect();
+    let sws: Vec<ModuleSws> = forms.iter().filter_map(|form| Some(ModuleSws { module_id: id.to_string(), form: form.form.clone(), sws: form.sws? })).collect();
+    let input = Input { key, semester, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &sws, taken: &[], choices: &[], listed: &[] };
+    let table = Timetable::build(&input, &Selection { chosen_rows: ticks.clone(), ..Selection::default() });
+    let mut groups = BTreeMap::new();
+    for event in &table.events {
+        let Attendance::OneOf { options, .. } = &event.attendance else { continue };
+        for row in &event.rows {
+            if let (Some(option), Some(key)) = (row.option, row.key) {
+                groups.insert(key, Group { of: options.len(), chosen: event.chosen.contains(&option) });
+            }
+        }
+    }
+    groups
+}
+
+/// The module's own slots with their groups marked (`groups_of`): a group to choose `alt`, its
+/// tooltip saying of how many it is one; one's own, ticked in the plan, `chosen`. A faint slot
+/// (another course's, another program's option) stays as it is.
+fn with_groups(shown: &[(GridSlot, Vec<RowKey>)], groups: &BTreeMap<RowKey, Group>, t: &'static Texts) -> Vec<(GridSlot, Vec<RowKey>)> {
+    shown
+        .iter()
+        .map(|(slot, rows)| {
+            let of: Vec<Group> = rows.iter().filter_map(|row| groups.get(row).copied()).collect();
+            let (Some(first), false) = (of.first(), slot.class == "faint") else {
+                return (slot.clone(), rows.clone());
+            };
+            let slot = match of.iter().any(|group| group.chosen) {
+                true => GridSlot { group: true, chosen: true, alt: false, title: format!("{} · {}", slot.title, t.module.group_chosen), ..slot.clone() },
+                false => GridSlot { group: true, alt: true, title: format!("{} · {}", slot.title, (t.termin.one_of)(first.of)), ..slot.clone() },
+            };
+            (slot, rows.clone())
+        })
+        .collect()
+}
+
+/// The rows ticked in the plan of `newest` (`Selection::chosen_rows`) where the module is planned
+/// there: its groups among them are one's own (`groups_of`). None on the server, and where the
+/// module is not planned.
+fn plan_ticks(id: &str, newest: Option<SemesterKey>) -> Memo<BTreeSet<RowKey>> {
+    let plan = Studyplan::expect().filter(|_| APP);
+    let mine = MyProgram::expect();
+    let id = id.to_string();
+    Memo::new(move |_| {
+        let (Some(plan), Some(key)) = (plan, newest) else { return BTreeSet::new() };
+        let town = mine.map(MyProgram::town).unwrap_or_default();
+        plan.with(|doc| match doc.modules_in(key).contains(&id) {
+            true => doc.selection(key, town).chosen_rows,
+            false => BTreeSet::new(),
+        })
+    })
+}
+
+/// The module's tone in the plan of `newest`, as the Stundenplan and the Termin view beside the
+/// week give it (`folia_timetable`: the module at place `n` of the semester's planned modules has
+/// tone `n % 8 + 1`): its own place where it is planned, the next one where it is not. None on the
+/// server and without a plan in that semester; the week draws its own in Betula's green then.
+fn plan_hue(id: &str, newest: Option<SemesterKey>) -> Memo<Option<&'static str>> {
+    let plan = Studyplan::expect().filter(|_| APP);
+    let id = id.to_string();
+    Memo::new(move |_| {
+        let (plan, key) = (plan?, newest?);
+        let modules = plan.with(|doc| doc.modules_in(key));
+        let at = modules.iter().position(|module| *module == id).unwrap_or(modules.len());
+        Some(crate::termin::hue(u8::try_from(at % 8).unwrap_or(0) + 1))
+    })
+}
+
+/// The line under a week with the plan beside it (folia/design/kalender/raster.html): which of the
+/// module's kinds its week holds — what one has to attend (with one's own group), single dates,
+/// what one chooses, what one may add — and the plan underneath, in the module's tone (`hue`).
+/// None without the plan.
+fn week_legend(slots: &[GridSlot], hue: Option<&'static str>, t: &'static Texts) -> Option<AnyView> {
+    if !slots.iter().any(|slot| slot.class == "planned") {
+        return None;
+    }
+    let words = &t.module;
+    let own: Vec<&GridSlot> = slots.iter().filter(|slot| !matches!(slot.class, "planned" | "faint")).collect();
+    let must = own.iter().any(|slot| slot.chosen || (!slot.alt && !slot.extra && slot.class != "once"));
+    let mine = own.iter().any(|slot| slot.chosen);
+    let once = own.iter().any(|slot| slot.class == "once" && !slot.alt && !slot.extra);
+    let choice = own.iter().any(|slot| slot.alt);
+    let groups = own.iter().any(|slot| slot.alt && slot.group);
+    let extra = own.iter().any(|slot| slot.extra);
+    let item = |class: &'static str, text: &'static str| view! { <span><i class=class aria-hidden="true"></i>{text}</span> };
+    Some(
+        view! {
+            <p class=format!("week-legend {}", hue.unwrap_or_default())>
+                {must.then(|| item("lg-must", if mine { words.legend_must_mine } else { words.legend_must }))}
+                {once.then(|| item("lg-once", words.legend_once))}
+                {choice.then(|| item("lg-wahl", if groups { words.legend_groups } else { words.legend_choice }))}
+                {extra.then(|| item("lg-zusatz", words.legend_extra))}
+                {item("lg-plan", words.legend_plan)}
+            </p>
+        }
+        .into_any(),
+    )
 }
 
 /// „Mo 09:15–10:45", and „Mo bis 24:00" for a deadline (an end without a start).
@@ -1995,6 +2130,7 @@ fn Programs(data: ModuleData) -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use crate::i18n::{DE, EN};
+    use crate::week::MIN_HOURS;
     use super::*;
 
     fn exam(weekday: Option<i64>, start: Option<&str>, end: Option<&str>, day: Option<&str>) -> EventDate {
@@ -2400,7 +2536,7 @@ mod tests {
         let lines: Vec<(u8, Vec<&str>)> = slots.iter().map(|s| (s.day, s.lines.iter().map(String::as_str).collect())).collect();
         assert_eq!(lines, [(5, vec!["termin-1", "termin-3"]), (2, vec!["termin-2"])]);
         // The week with the plan beside it keeps where its own slots lead.
-        assert!(with_overlay(&pairs(own_groups(&rows, &DE)), &Overlay::default(), &DE).iter().all(|s| !s.lines.is_empty()));
+        assert!(with_overlay(&pairs(own_groups(&rows, &DE)), &Overlay::default(), None, &DE).iter().all(|s| !s.lines.is_empty()));
     }
 
     /// Two facts side by side where their values are short (owner, 2026-10-17); a long one takes the
@@ -2518,57 +2654,89 @@ mod tests {
         let own = pairs(own_groups(&rows, &DE));
         let clashing = own.first().and_then(|(_, rows)| rows.first().copied());
         let named = |name: &str, day, from: &str, to: &str| OverlaySlot { module: "12102".into(), short: name.into(), day, from: minutes(from).unwrap(), to: minutes(to).unwrap() };
-        let planned = |day, from: &str, to: &str| named("Programmierpraktikum", day, from, to);
+        let planned = |day, from: &str, to: &str| named("PP", day, from, to);
         let overlay = Overlay {
             planned: vec![
-                // Inside the frame, beside the Übung it clashes with; two modules at one time are
-                // one slot.
+                // Beside the Übung it clashes with; two modules at one time are one slot.
                 planned(2, "09:15", "10:45"),
-                named("Elektrische und elektronische Grundlagen der Informatik", 2, "09:15", "10:45"),
-                // Reaching past the frame: cut to it (08:00–13:00).
+                named("EEG", 2, "09:15", "10:45"),
+                // Reaching past the module's frame (08:00–13:00), wholly after it, or on a Saturday
+                // the week does not have: kept with their own times, the grid cuts them.
                 planned(4, "12:30", "14:00"),
                 planned(1, "07:30", "09:00"),
-                // Wholly outside it, or on a Saturday the week does not have: left out.
                 planned(3, "16:00", "17:30"),
                 planned(6, "09:00", "12:00"),
             ],
             clashing: clashing.into_iter().collect(),
             ..Overlay::default()
         };
-        let slots = with_overlay(&own, &overlay, &DE);
-        let shown: Vec<(u8, String, String, &str, bool)> = slots.iter().map(|s| (s.day, clock(s.from), clock(s.to), s.class, s.clash)).collect();
+        let slots = with_overlay(&own, &overlay, Some("t-violet"), &DE);
+        /// Day, from, to, look, clash, tone.
+        type Shown<'a> = (u8, String, String, &'a str, bool, Option<&'a str>);
+        let shown: Vec<Shown<'_>> = slots.iter().map(|s| (s.day, clock(s.from), clock(s.to), s.class, s.clash, s.hue)).collect();
         assert_eq!(
             shown,
             [
-                (2, "09:15".into(), "10:45".into(), "other", true),
-                (4, "11:30".into(), "13:00".into(), "", false),
-                (2, "09:15".into(), "10:45".into(), "planned", false),
-                // Half an hour after the cut: the grid gives it one line (`brief`).
-                (4, "12:30".into(), "13:00".into(), "planned", false),
-                (1, "08:00".into(), "09:00".into(), "planned", false),
+                // The module's own in its tone, the Übung in a clash; the plan's slot it meets red
+                // with it.
+                (2, "09:15".into(), "10:45".into(), "other", true, Some("t-violet")),
+                (4, "11:30".into(), "13:00".into(), "", false, Some("t-violet")),
+                (2, "09:15".into(), "10:45".into(), "planned", true, None),
+                (4, "12:30".into(), "14:00".into(), "planned", false, None),
+                (1, "07:30".into(), "09:00".into(), "planned", false, None),
+                (3, "16:00".into(), "17:30".into(), "planned", false, None),
+                (6, "09:00".into(), "12:00".into(), "planned", false, None),
             ]
         );
-        assert!(slots.get(3).is_some_and(|s| s.classes() == "slot planned brief"));
-        // On the Tuesday the planned slot takes the planned part beside the Übung's own.
-        let (_, styles) = crate::week::geometry(&slots, MIN_HOURS).unwrap();
-        assert!(styles[0].ends_with(";--mine:1;--theirs:1") && styles[2].ends_with(";--mine:1;--theirs:1;--beside:1"), "{styles:?}");
-        // The grid's frame is the module's own, with the plan beside it or not.
+        // On the Tuesday the plan is the ground in the day's width, the Übung over it leaves a
+        // lane of it free.
+        let (week, styles) = crate::week::geometry(&slots, MIN_HOURS).unwrap();
+        assert!(styles[0].ends_with("--lane:0;--lanes:1;--free:1") && styles[2].ends_with("--lane:0;--lanes:1"), "{styles:?}");
+        // The grid's frame is the module's own, with the plan beside it or not; what the frame
+        // cuts is named under its day (one line each on Thursday and Wednesday).
         let own_slots: Vec<GridSlot> = own.iter().map(|(slot, _)| slot.clone()).collect();
-        let frame = |slots: &[GridSlot]| crate::week::geometry(slots, MIN_HOURS).map(|(week, _)| week);
-        assert_eq!(frame(&slots), frame(&own_slots));
+        let alone = crate::week::geometry(&own_slots, MIN_HOURS).map(|(week, _)| week).unwrap();
+        assert_eq!(week, format!("{alone};--spill:1"));
         // A planned slot names its modules in its label (phones hide the small line), and their
         // times in the tooltip.
-        assert_eq!(
-            slots.get(2).map(|s| (s.label.as_str(), s.small.as_str(), s.title.as_str())),
-            Some((
-                "Programmierpraktikum · Elektrische und elektronische Grundlagen der Informatik",
-                "",
-                "Programmierpraktikum · Di 09:15–10:45\nElektrische und elektronische Grundlagen der Informatik · Di 09:15–10:45"
-            ))
-        );
-        assert_eq!(slots.get(3).map(|s| s.title.as_str()), Some("Programmierpraktikum · Do 12:30–14:00"));
-        // Without a plan the week is the module's alone.
-        assert_eq!(with_overlay(&own, &Overlay::default(), &DE), own_slots);
+        assert_eq!(slots.get(2).map(|s| (s.label.as_str(), s.small.as_str(), s.title.as_str())), Some(("PP · EEG", "", "PP · Di 09:15–10:45\nEEG · Di 09:15–10:45")));
+        assert_eq!(slots.get(3).map(|s| s.title.as_str()), Some("PP · Do 12:30–14:00"));
+        // Without a plan the week is the module's alone, in its own colours.
+        assert_eq!(with_overlay(&own, &Overlay::default(), Some("t-violet"), &DE), own_slots);
+    }
+
+    /// Programmierpraktikum's Praktikum at the Zentralcampus (148370): four parallel slots of 90
+    /// minutes, the module states 2 SWS for it, so they are four groups of which a student attends
+    /// one (`Timetable::build`'s rule by SWS, „eine von 4" in the Termin view); its lecture is not.
+    /// They are to choose (`alt`), until one of them is ticked in the plan: then that one is the
+    /// student's own (`chosen`), the others still to choose.
+    #[test]
+    fn the_groups_of_an_event_are_to_choose_and_one_s_own_is_full() {
+        let practical = |day, times| teaching("148370", "Praktikum", "[unbenannt]", day, times, "weekly", "2026-10-05", "2027-01-28");
+        let rows = [
+            practical(1, ("11:30", "13:00")),
+            practical(3, ("11:30", "13:00")),
+            practical(4, ("11:30", "13:00")),
+            teaching("148008", "Vorlesung", "[unbenannt]", 5, ("11:30", "13:00"), "week_a", "2026-10-09", "2027-01-29"),
+            practical(5, ("13:45", "15:15")),
+        ];
+        let form = |form: &str, sws: f64| ModuleTeachingForm { form: folia_model::labels::Code::parse(form), form_raw: String::new(), workload_raw: None, sws: Some(sws), hours: None };
+        let forms = [form("lecture", 1.0), form("practical", 2.0)];
+        let key = SemesterKey::parse("2026W");
+        let own = pairs(own_groups(&rows, &DE));
+        let groups = groups_of("12102", key, None, &rows, &forms, &BTreeSet::new());
+        assert_eq!(groups.len(), 4, "{groups:?}");
+        assert!(groups.values().all(|group| *group == Group { of: 4, chosen: false }));
+        let marked = |groups: &BTreeMap<RowKey, Group>| with_groups(&own, groups, &DE).into_iter().map(|(slot, _)| (slot.day, slot.alt, slot.chosen, slot.group)).collect::<Vec<_>>();
+        assert_eq!(marked(&groups), [(1, true, false, true), (3, true, false, true), (4, true, false, true), (5, false, false, false), (5, true, false, true)]);
+        assert!(with_groups(&own, &groups, &DE)[0].0.title.ends_with(" · eine von 4"));
+        // Thursday's group ticked in the plan: it is one's own, full; the others stay to choose.
+        let thursday: BTreeSet<RowKey> = RowKey::of(&rows[2]).into_iter().collect();
+        let ticked = groups_of("12102", key, None, &rows, &forms, &thursday);
+        assert_eq!(marked(&ticked), [(1, true, false, true), (3, true, false, true), (4, false, true, true), (5, false, false, false), (5, true, false, true)]);
+        assert!(with_groups(&own, &ticked, &DE)[2].0.title.ends_with(" · in deinem Plan gewählt"));
+        // Without the module's SWS the rule does not apply: every slot is to attend.
+        assert!(groups_of("12102", key, None, &rows, &[], &BTreeSet::new()).is_empty());
     }
 
     fn read(date: &EventDate) -> ExamReading {
