@@ -1,0 +1,939 @@
+<title>Wochenraster-Konzepte</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- The week of a module's page, first round (2026-11-03; owner, the same day, on a screenshot of
+     Programmierpraktikum's week: „bitte passe mal die farben und aufmachung von dem Kallender an.
+     aktuell ist es nicht gut zu erkennen, was jetzt zu dem modul gehört. Dazu sollte es auch so
+     sein, dass wenn sich ein termin überschneidet, dass der großteil zu dem Modultermin geht und da
+     nur ein kleiner streifen daneben ist, mit vertikalem text. Es muss auch erkennbar sein, wenn
+     termine abgeschnitten sind. Und ganz generell muss das ganze einfach cleaner werden. Bitte
+     erstelle mal ein paar konzepte und dann gebe ich dir dazu feedback.“). What goes wrong today
+     (the owner's screenshot, Folia 1.59.3, bilder/heute-modulwoche.webp), what all concepts share,
+     three concepts — A „Kräftig“ (the module in full colour, the plan flat grey, a strip of 13 px
+     where they meet), B „Spur“ (the plan always in a track at each day's edge), C „Ebenen“ (the plan
+     as the ground, the module's Termine as cards on it) — each on a desktop (the module beside the
+     list, 480 px) and a phone, then ten cases side by side with today, the comparison, the
+     recommendation (A with C's torn edge) and seven questions. The data is betula.app's snapshot of
+     2026-11-03: Programmierpraktikum (12102) at the Zentralcampus, WiSe 2026/27, beside Theoretische
+     Informatik (11787), Mathematik IT-3 (11213) and Softwarepraktikum (12202) as the screenshot shows
+     them; cases marked „Beispiel“ are made up. The week is drawn by the script below with the grid's
+     own arithmetic (folia/crates/widgets/src/week.rs: lanes, 48 px an hour, the frame from 08:00 at
+     the latest to the whole hour after the module's last Termin, the plan cut to it). Tokens are
+     Betula's (folia/assets/app.css), the module's tone t-violet, as the Termin view's head has it;
+     Inter comes from Google Fonts here, the app self-hosts it. Nothing of it is built. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: a review desk. The brief and what the concepts share; today on the owner's screenshot;
+   each concept as the module's Termine on a desktop and a phone, clickable; the cases side by side;
+   the comparison, the recommendation, the questions. Tokens: Betula's own (light, then dark), the
+   module's tone and what is made of it, the greys of the plan. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4;
+  --panel: #ffffff;
+  --panel-2: #f6f7f8;
+  --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08);
+  --line-strong: rgba(15, 23, 42, .15);
+  --text: #10151f;
+  --text-2: #4b5565;
+  --text-3: #8790a0;
+  --accent: oklch(.53 .07 149);
+  --accent-ink: oklch(.46 .07 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 8%, var(--panel));
+  --ok: #0b7f58;
+  --warn: #8f5a0a;
+  --warn-dot: #d49a2a;
+  --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel));
+  --no: #b3261e;
+  --no-soft: color-mix(in srgb, #b3261e 7%, var(--panel));
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --seg-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line);
+  --r-panel: 9px; --r-row: 7px; --r-s: 5px;
+  --desk: color-mix(in oklab, var(--text) 4%, var(--bg));
+  --device: #1b2130;
+  --device-ring: rgba(15, 23, 42, .25);
+  --shadow-device: 0 30px 60px -36px rgba(15, 23, 42, .55);
+  /* The module of the page, Programmierpraktikum, in its tone of the plan (t-violet): the tone,
+     text in it, the full surface and what stands on it, a tint, a card, a ring. */
+  --own: oklch(.53 .1 300);
+  --own-ink: oklch(.45 .1 300);
+  --own-solid: oklch(.53 .1 300);
+  --on-own: #ffffff;
+  --own-tint: color-mix(in oklch, var(--own) 15%, var(--panel));
+  --own-card: color-mix(in oklch, var(--own) 9%, var(--panel));
+  --own-ring: color-mix(in oklch, var(--own) 55%, transparent);
+  /* The plan beside it: a flat grey on the week's ground (A), a deeper one in a track (B) and the
+     track itself, the ground under the cards (C); the hour lines; a clash. */
+  --plan: color-mix(in oklab, var(--text) 8.5%, var(--panel-2));
+  --plan-strong: color-mix(in oklab, var(--text) 16%, var(--panel-2));
+  --track: color-mix(in oklab, var(--text) 2.5%, var(--panel-2));
+  --ground: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+  --grid: color-mix(in oklab, var(--text) 7%, transparent);
+  --clash-soft: color-mix(in srgb, var(--no) 13%, var(--panel));
+  --clash-ring: color-mix(in srgb, var(--no) 45%, transparent);
+  --card-shadow: 0 1px 1px rgba(15, 23, 42, .06), 0 3px 8px -4px rgba(15, 23, 42, .32);
+  --lift-shadow: 0 2px 3px rgba(15, 23, 42, .08), 0 8px 18px -8px rgba(15, 23, 42, .45);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+    --ok: #4fd1a1; --warn: #f0b861; --warn-dot: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+    --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+    --seg-shadow: 0 0 0 1px var(--line);
+    --desk: color-mix(in oklab, var(--text) 4%, var(--bg));
+    --device-ring: rgba(255, 255, 255, .12);
+    --shadow-device: 0 30px 60px -36px rgba(0, 0, 0, .9);
+    --own: oklch(.78 .09 300);
+    --own-ink: oklch(.84 .07 300);
+    --own-solid: oklch(.47 .11 300);
+    --on-own: #f3f0fa;
+    --own-tint: color-mix(in oklch, var(--own) 17%, var(--panel));
+    --own-card: color-mix(in oklch, var(--own) 12%, var(--panel));
+    --own-ring: color-mix(in oklch, var(--own) 55%, transparent);
+    --plan: color-mix(in oklab, var(--text) 10%, var(--panel-2));
+    --plan-strong: color-mix(in oklab, var(--text) 21%, var(--panel-2));
+    --track: color-mix(in oklab, var(--text) 3%, var(--panel-2));
+    --ground: color-mix(in oklab, var(--text) 8%, var(--panel));
+    --grid: color-mix(in oklab, var(--text) 7%, transparent);
+    --clash-soft: color-mix(in srgb, var(--no) 15%, var(--panel));
+    --clash-ring: color-mix(in srgb, var(--no) 50%, transparent);
+    --card-shadow: 0 1px 1px rgba(0, 0, 0, .35), 0 4px 10px -4px rgba(0, 0, 0, .7);
+    --lift-shadow: 0 2px 3px rgba(0, 0, 0, .4), 0 10px 22px -8px rgba(0, 0, 0, .8);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  --ok: #4fd1a1; --warn: #f0b861; --warn-dot: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+  --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --seg-shadow: 0 0 0 1px var(--line);
+  --desk: color-mix(in oklab, var(--text) 4%, var(--bg));
+  --device-ring: rgba(255, 255, 255, .12);
+  --shadow-device: 0 30px 60px -36px rgba(0, 0, 0, .9);
+  --own: oklch(.78 .09 300);
+  --own-ink: oklch(.84 .07 300);
+  --own-solid: oklch(.47 .11 300);
+  --on-own: #f3f0fa;
+  --own-tint: color-mix(in oklch, var(--own) 17%, var(--panel));
+  --own-card: color-mix(in oklch, var(--own) 12%, var(--panel));
+  --own-ring: color-mix(in oklch, var(--own) 55%, transparent);
+  --plan: color-mix(in oklab, var(--text) 10%, var(--panel-2));
+  --plan-strong: color-mix(in oklab, var(--text) 21%, var(--panel-2));
+  --track: color-mix(in oklab, var(--text) 3%, var(--panel-2));
+  --ground: color-mix(in oklab, var(--text) 8%, var(--panel));
+  --grid: color-mix(in oklab, var(--text) 7%, transparent);
+  --clash-soft: color-mix(in srgb, var(--no) 15%, var(--panel));
+  --clash-ring: color-mix(in srgb, var(--no) 50%, transparent);
+  --card-shadow: 0 1px 1px rgba(0, 0, 0, .35), 0 4px 10px -4px rgba(0, 0, 0, .7);
+  --lift-shadow: 0 2px 3px rgba(0, 0, 0, .4), 0 10px 22px -8px rgba(0, 0, 0, .8);
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+a { color: var(--accent-ink); }
+code { font: 500 .86em var(--mono); padding: 1px 5px; border-radius: 5px; background: var(--panel-3); overflow-wrap: anywhere; }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.85; stroke-linecap: round; stroke-linejoin: round; }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 22px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+
+/* The brief. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -.026em; font-weight: 770; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.intro .lead b { color: var(--text); font-weight: 650; }
+.quote { margin: 18px 0 0; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ul { margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.rules li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.rules li > i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text-2); }
+.rules li > i svg { width: 14px; height: 14px; }
+.rules li b { color: var(--text); font-weight: 620; }
+
+/* The bar: the theme and the ways down the page. */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+.setbar { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow-panel); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.setbar .group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.setbar .kicker { font-size: 10.5px; }
+.seg { display: inline-flex; flex-wrap: wrap; max-width: 100%; gap: 2px; padding: 2px; border-radius: 8px; background: var(--panel-3); }
+.seg button { height: 30px; padding: 0 9px; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: var(--seg-shadow); }
+.setbar .jump { margin-left: auto; display: flex; flex-wrap: wrap; gap: 2px; }
+.setbar .jump a { padding: 6px 6px; border-radius: 7px; color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.setbar .jump a:hover { background: var(--panel-3); color: var(--text); }
+
+/* A section. */
+.sec { padding: 24px 24px 26px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); scroll-margin-top: 100px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.sec > header { display: flex; flex-direction: column; gap: 8px; }
+.sec h2 { font-size: 23px; line-height: 1.2; letter-spacing: -.02em; font-weight: 730; }
+.sec h2 .tag { display: inline-grid; place-items: center; width: 30px; height: 30px; margin-right: 10px; border-radius: 8px; background: var(--invert, var(--text)); color: var(--panel); font-size: 15px; font-weight: 760; vertical-align: 2px; }
+.sec .sub { max-width: 76ch; color: var(--text-2); text-wrap: pretty; }
+.sec .sub b { color: var(--text); font-weight: 620; }
+.sec h3 { font-size: 15px; font-weight: 700; letter-spacing: -.005em; }
+.prose { max-width: 76ch; color: var(--text-2); font-size: 14.5px; text-wrap: pretty; }
+.prose b { color: var(--text); font-weight: 620; }
+.prose.small { font-size: 13px; color: var(--text-3); }
+
+/* Today: the screenshot with its marks, and what goes wrong. */
+.today { display: grid; grid-template-columns: minmax(0, 463px) minmax(0, 1fr); gap: 22px 32px; align-items: start; }
+.shot { margin: 0; }
+.shot .pic { position: relative; }
+.shot img { display: block; width: 100%; height: auto; max-width: 100%; border-radius: 12px; box-shadow: var(--shadow-panel); background: #fff; }
+.shot .mk { position: absolute; translate: -50% -50%; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--no); color: #fff; font-size: 12px; font-weight: 760; box-shadow: 0 0 0 2px #fff, 0 2px 6px rgba(15, 23, 42, .35); }
+.shot figcaption { margin-top: 8px; font-size: 13px; color: var(--text-3); text-wrap: pretty; }
+.wrong { margin: 0; padding: 0; list-style: none; counter-reset: w; display: flex; flex-direction: column; }
+.wrong li { counter-increment: w; display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.wrong li:first-child { border-top: 0; padding-top: 0; }
+.wrong li::before { content: counter(w); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--no); color: var(--panel); font-size: 12px; font-weight: 760; }
+.wrong li b { display: block; margin-bottom: 2px; color: var(--text); font-weight: 650; }
+
+/* A concept: the desk with the desktop and the phone, then what it does. */
+.stage { display: flex; flex-wrap: wrap; gap: 24px 32px; align-items: flex-start; padding: 26px; border-radius: 14px; background: var(--desk); overflow: hidden; }
+.frame { flex: none; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.frame figcaption { font-size: 12.5px; color: var(--text-3); }
+.frame figcaption b { color: var(--text-2); font-weight: 620; }
+.desk { width: 480px; padding: 18px 20px 20px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.phone { width: 408px; padding: 9px; border-radius: 34px; background: var(--device); box-shadow: 0 0 0 1px var(--device-ring), var(--shadow-device); }
+.phone .scr { position: relative; padding: 26px 15px 20px; border-radius: 26px; background: var(--panel); overflow: hidden; }
+.phone .scr::before { content: ""; position: absolute; top: 9px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--line-strong); }
+.mlabel { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 11.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.mlabel span { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 550; color: var(--text-2); font-size: 12.5px; }
+.lg { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 10px; font-size: 12.5px; color: var(--text-2); }
+.lg > span { display: inline-flex; align-items: center; gap: 7px; }
+.sw { display: inline-block; flex: none; width: 15px; height: 11px; border-radius: 3px; }
+.sw-a { background: var(--own-solid); }
+.sw-plan { background: var(--plan); box-shadow: inset 0 0 0 1px var(--line); }
+.sw-b { background: var(--own-tint); box-shadow: inset 3px 0 0 var(--own); }
+.sw-track { width: 6px; height: 13px; background: var(--plan-strong); }
+.sw-c { background: var(--own-card); box-shadow: inset 0 0 0 1.5px var(--own); }
+.sw-ground { background: var(--ground); box-shadow: inset 0 0 0 1px var(--line); }
+.mhint { margin-top: 6px; font-size: 12.5px; color: var(--text-3); }
+.note { display: flex; gap: 10px; margin-top: 10px; padding: 10px 12px; border-radius: var(--r-row); background: var(--warn-soft); color: var(--warn); font-size: 12.5px; font-weight: 520; }
+.note svg.i { margin-top: 1px; }
+.tryit { font-size: 13px; color: var(--text-3); }
+.how { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 18px 28px; }
+.how > div { min-width: 0; }
+.how h3 { margin-bottom: 8px; }
+.how ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.how ul b { color: var(--text); font-weight: 620; }
+.how .good h3 { color: var(--ok); }
+.how .weak h3 { color: var(--warn); }
+
+/* The cases: per case a card with today and A, B, C side by side. */
+.cases { display: flex; flex-direction: column; gap: 14px; }
+.case { padding: 16px 16px 18px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: grid; grid-template-columns: minmax(0, 250px) minmax(0, 1fr); gap: 12px 24px; align-items: start; min-width: 0; }
+.case > div:first-child { display: flex; flex-direction: column; gap: 6px; }
+.case.wide { grid-template-columns: minmax(0, 1fr); }
+.case.wide > div:first-child p { max-width: 80ch; }
+@media (max-width: 860px) { .case { grid-template-columns: minmax(0, 1fr); } }
+.case h3 { font-size: 14.5px; }
+.case p { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.case p .ex { display: inline-block; margin-right: 4px; padding: 0 6px; border-radius: 4px; background: var(--panel-3); color: var(--text-3); font-size: 11px; font-weight: 650; letter-spacing: .03em; text-transform: uppercase; vertical-align: 1px; }
+.case .row { display: flex; flex-wrap: wrap; gap: 14px 16px; align-items: flex-start; }
+.case figure { margin: 0; display: flex; flex-direction: column; gap: 6px; padding: 10px 10px 8px; border-radius: 10px; background: var(--panel); box-shadow: 0 0 0 1px var(--line); }
+.case figure figcaption { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.case figure figcaption em { font-style: normal; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+.case figure .say { max-width: 150px; font-size: 11.5px; line-height: 1.35; color: var(--text-3); text-wrap: pretty; }
+
+/* The comparison. */
+.tablewrap { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+table.t { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.t th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line-strong); color: var(--text-3); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+table.t td { padding: 10px 10px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--text-2); text-wrap: pretty; }
+table.t td:first-child { color: var(--text); font-weight: 620; }
+.verdict { display: inline-flex; align-items: baseline; gap: 7px; }
+.verdict i { flex: none; width: 8px; height: 8px; border-radius: 50%; translate: 0 -1px; }
+.verdict.ok i { background: var(--ok); }
+.verdict.meh i { background: var(--warn-dot); }
+.verdict.no i { background: var(--no); }
+
+/* The recommendation and the questions. */
+.reco { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px 32px; }
+.reco ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 14.5px; color: var(--text-2); text-wrap: pretty; }
+.reco ul b { color: var(--text); font-weight: 620; }
+.qs { margin: 0; padding: 0; list-style: none; counter-reset: q; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; }
+.qs li { counter-increment: q; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; padding: 12px 0 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.qs li::before { content: counter(q); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.qs li b { display: block; margin-bottom: 3px; color: var(--text); font-weight: 650; }
+.qs li .pro { display: block; margin-top: 5px; color: var(--accent-ink); font-weight: 560; }
+.foot { color: var(--text-3); font-size: 12.5px; text-wrap: pretty; }
+
+@media (max-width: 1000px) {
+  .intro, .today, .reco { grid-template-columns: minmax(0, 1fr); }
+  .how { grid-template-columns: minmax(0, 1fr); }
+  .qs { grid-template-columns: minmax(0, 1fr); }
+  .setbar .jump { margin-left: 0; }
+}
+@media (max-width: 560px) {
+  .sec { padding: 18px 14px 20px; }
+  .stage { padding: 14px; }
+}
+
+/* ---------- The week: what all looks share ----------
+   The script places every box in pixels (left, width, top, height), as week.rs's arithmetic does
+   in custom properties. A box is 2 px shorter than its time and 2 px narrower than its lane. */
+.wk { position: relative; display: grid; grid-template-columns: 30px repeat(var(--n), var(--dw)); grid-template-rows: auto var(--h); column-gap: var(--gap); width: max-content; font-family: var(--font); line-height: 1.25; }
+.wk .hd { grid-row: 1; padding-bottom: 8px; text-align: center; font-size: 11.5px; font-weight: 650; color: var(--text-3); }
+.wk .hrs { grid-row: 2; grid-column: 1; position: relative; }
+.wk .hrs span { position: absolute; right: 4px; font-size: 10.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.wk .hrs span.at { translate: 0 -50%; font-size: 10px; font-weight: 560; }
+.wk .col { grid-row: 2; position: relative; }
+.wk .ln { position: absolute; left: 0; right: 0; height: 1px; background: var(--grid); }
+.wk .ev, .wk .pl { position: absolute; margin: 0; border: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; text-align: left; font: inherit; line-height: 1.25; }
+.wk button.ev { cursor: pointer; }
+.wk .ev > .l, .wk .pl > .nm { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wk .ev small, .wk .pl small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The name of the plan in a strip: upright, read from the bottom up, at the strip's top. */
+.wk .vt { position: absolute; inset: 4px 0; display: flex; justify-content: center; align-items: flex-start; overflow: hidden; pointer-events: none; }
+.wk .vt.r { left: auto; width: 14px; right: 0; }
+.wk .vt > span { writing-mode: vertical-rl; rotate: 180deg; max-height: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9.5px; font-weight: 680; line-height: 1; letter-spacing: .01em; }
+.wk .bang { position: absolute; top: 3px; right: 3px; display: grid; place-items: center; width: 13px; height: 13px; border-radius: 50%; background: var(--no); color: var(--panel); font: 800 9.5px/1 var(--font); font-style: normal; box-shadow: 0 0 0 1.5px var(--panel); }
+.wk .spill { position: absolute; font-size: 9.5px; font-weight: 600; line-height: 12px; color: var(--text-3); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Today (Folia 1.59.3, app.css) ---------- */
+.wk-heute { padding: 10px 10px 12px 4px; border-radius: 7px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.wk-heute .ln { background: var(--line); }
+.wk-heute .hrs span { top: 0; }
+.wk-heute .ev { padding: 4px 6px; border-radius: 6px; background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 2.5px 0 0 var(--accent); font-size: 11px; font-weight: 600; }
+.wk-heute .ev small { font-weight: 500; opacity: .85; }
+.wk-heute .ev.other { background: var(--panel-3); color: var(--text-2); box-shadow: inset 2.5px 0 0 var(--text-3); }
+.wk-heute .ev.once { background: var(--panel-2); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.wk-heute .ev.alt { background: transparent; color: var(--text-2); box-shadow: none; outline: 1px dashed var(--text-3); outline-offset: -1px; }
+.wk-heute .ev.extra { background: var(--panel); color: var(--text-3); box-shadow: none; outline: 1px dotted var(--text-3); outline-offset: -1px; }
+.wk-heute .ev.clash { box-shadow: inset 2.5px 0 0 var(--no), inset 0 0 0 1.5px var(--no); }
+.wk-heute .ev.sel { outline: 2px solid var(--accent); outline-offset: -2px; }
+.wk-heute .pl { padding: 4px 6px; border-radius: 6px; background: transparent; color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 11px; font-weight: 500; }
+.wk-heute .pl.slim { padding: 0; }
+.wk-heute .pl.slim > .nm { visibility: hidden; }
+
+/* ---------- A „Kräftig“ ---------- */
+.wk-a { padding: 12px 10px 14px 4px; border-radius: 8px; background: var(--panel-2); }
+.wk-a .ev { padding: 4px 6px; border-radius: 6px; background: var(--own-solid); color: var(--on-own); font-size: 11px; font-weight: 650; transition: filter .12s; }
+.wk-a .ev small { font-size: 10px; font-weight: 560; opacity: .86; }
+.wk-a button.ev:hover { filter: brightness(1.07); }
+.wk-a .ev.sel { outline: 2px solid var(--own-solid); outline-offset: 2px; }
+.wk-a .ev.once { background: var(--own-tint); color: var(--own-ink); box-shadow: inset 0 0 0 1px var(--own-ring); }
+.wk-a .ev.alt { background: transparent; color: var(--own-ink); outline: 1.5px dashed var(--own); outline-offset: -1.5px; }
+.wk-a .ev.extra { background: transparent; color: var(--text-2); outline: 1.5px dotted var(--own); outline-offset: -1.5px; }
+.wk-a .ev.once small, .wk-a .ev.alt small, .wk-a .ev.extra small { opacity: 1; color: var(--text-2); }
+.wk-a .pl { padding: 4px 6px; border-radius: 6px; background: var(--plan); color: var(--text-2); font-size: 10.5px; font-weight: 600; }
+.wk-a .pl small { font-size: 9.5px; font-weight: 550; color: var(--text-3); }
+.wk-a .pl.strip { padding: 0; border-radius: 4px; }
+.wk-a .pl.clash { background: var(--clash-soft); color: var(--no); box-shadow: inset 0 0 0 1px var(--clash-ring); }
+.wk-a .pl.cutb { -webkit-mask-image: linear-gradient(#000 calc(100% - 16px), transparent); mask-image: linear-gradient(#000 calc(100% - 16px), transparent); }
+.wk-a .pl.cutt { -webkit-mask-image: linear-gradient(to top, #000 calc(100% - 16px), transparent); mask-image: linear-gradient(to top, #000 calc(100% - 16px), transparent); }
+
+/* ---------- B „Spur“ ---------- */
+.wk-b { padding: 12px 10px 14px 4px; border-radius: 8px; background: var(--panel-2); }
+.wk-b .trk { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: var(--track); }
+.wk-b .ev { padding: 4px 6px 4px 8px; border-radius: 6px; background: var(--own-tint); color: var(--text); box-shadow: inset 3px 0 0 var(--own); font-size: 11px; font-weight: 650; transition: background .12s; }
+.wk-b .ev small { font-size: 10px; font-weight: 540; color: var(--text-2); }
+.wk-b button.ev:hover { background: color-mix(in oklch, var(--own) 24%, var(--panel)); }
+.wk-b .ev.sel { background: var(--own-solid); color: var(--on-own); box-shadow: none; }
+.wk-b .ev.sel small { color: inherit; opacity: .86; }
+.wk-b .ev.once { background: var(--panel); box-shadow: inset 3px 0 0 var(--own), inset 0 0 0 1px var(--own-ring); }
+.wk-b .ev.alt { background: color-mix(in oklch, var(--own) 6%, var(--panel)); box-shadow: none; outline: 1.5px dashed var(--own); outline-offset: -1.5px; color: var(--text-2); }
+.wk-b .ev.extra { background: var(--panel); box-shadow: none; outline: 1.5px dotted var(--own); outline-offset: -1.5px; color: var(--text-2); }
+.wk-b .pl { border-radius: 3px; background: var(--plan-strong); color: var(--text-2); }
+.wk-b .pl.clash { background: var(--no); color: var(--panel); }
+.wk-b .pl.cutb { border-radius: 3px 3px 0 0; clip-path: polygon(0 0, 100% 0, 100% calc(100% - 6px), 50% 100%, 0 calc(100% - 6px)); }
+.wk-b .pl.cutt { border-radius: 0 0 3px 3px; clip-path: polygon(50% 0, 100% 6px, 100% 100%, 0 100%, 0 6px); }
+.wk-b .tip { position: absolute; height: 6px; background: var(--plan-strong); clip-path: polygon(0 0, 100% 0, 50% 100%); }
+
+/* ---------- C „Ebenen“ ---------- */
+.wk-c { padding: 4px 0 14px; }
+.wk-c .lines { grid-row: 2; grid-column: 2 / -1; position: relative; pointer-events: none; }
+.wk-c .hd { padding-bottom: 10px; }
+.wk-c .pl { z-index: 1; padding: 4px 6px; border-radius: 6px; background: var(--ground); color: var(--text-3); font-size: 10.5px; font-weight: 620; }
+.wk-c .pl small { display: inline; font-size: 9.5px; font-weight: 560; }
+.wk-c .pl.clash { background: var(--clash-soft); color: var(--no); }
+.wk-c .pl.strip { padding: 0; border-radius: 4px; }
+.wk-c .pl.cutb { border-radius: 6px 6px 0 0; -webkit-mask: linear-gradient(#000 0 0) top / 100% calc(100% - 4px) no-repeat, conic-gradient(from -45deg at 50% 100%, #000 90deg, #0000 0) bottom / 8px 4px repeat-x; mask: linear-gradient(#000 0 0) top / 100% calc(100% - 4px) no-repeat, conic-gradient(from -45deg at 50% 100%, #000 90deg, #0000 0) bottom / 8px 4px repeat-x; }
+.wk-c .pl.cutt { border-radius: 0 0 6px 6px; -webkit-mask: linear-gradient(#000 0 0) bottom / 100% calc(100% - 4px) no-repeat, conic-gradient(from 135deg at 50% 0, #000 90deg, #0000 0) top / 8px 4px repeat-x; mask: linear-gradient(#000 0 0) bottom / 100% calc(100% - 4px) no-repeat, conic-gradient(from 135deg at 50% 0, #000 90deg, #0000 0) top / 8px 4px repeat-x; }
+.wk-c .ev { z-index: 2; padding: 4px 6px; border-radius: 6px; background: var(--own-card); color: var(--own-ink); box-shadow: inset 0 0 0 1.5px var(--own), var(--card-shadow); font-size: 11px; font-weight: 680; transition: box-shadow .12s; }
+.wk-c .ev small { font-size: 10px; font-weight: 540; color: var(--text-2); }
+.wk-c button.ev:hover { box-shadow: inset 0 0 0 1.5px var(--own), var(--lift-shadow); }
+.wk-c .ev.sel { background: var(--own-solid); color: var(--on-own); box-shadow: var(--lift-shadow); }
+.wk-c .ev.sel small { color: inherit; opacity: .86; }
+.wk-c .ev.once { box-shadow: inset 0 0 0 1px var(--own-ring); background: var(--panel); }
+.wk-c .ev.alt { background: var(--panel); box-shadow: none; outline: 1.5px dashed var(--own); outline-offset: -1.5px; color: var(--text-2); }
+.wk-c .ev.extra { background: var(--panel); box-shadow: none; outline: 1.5px dotted var(--own); outline-offset: -1.5px; color: var(--text-3); }
+
+/* A narrow day (a phone of 360 px, 53 px a day): less padding at the sides, so that „Prak“ fits. */
+.wk.narrow .ev { padding-left: 4px; padding-right: 3px; }
+.wk-b.narrow .ev { padding-left: 6px; }
+@media (prefers-reduced-motion: reduce) { .wk .ev { transition: none; } }
+</style>
+
+<div class="page">
+  <section class="intro" aria-labelledby="top-title">
+    <div>
+      <p class="kicker">Folia · Modulseite · Termine · erste Runde, 3. November 2026</p>
+      <h1 id="top-title">Was zum Modul gehört</h1>
+      <p class="lead">Auf der Seite eines Moduls zeigt die Woche seine Termine und, sobald dein Stundenplan im selben Semester etwas hat, auch das, was daneben liegt. Heute ist schwer zu sehen, was davon das Modul ist: <b>Seine Praktika sind so grau wie dein Plan</b>, der Plan neben einem Termin ist ein leerer Rahmen, und was über den Rand der Woche hinausgeht, wird ohne Zeichen abgeschnitten. Hier sind drei Konzepte, wie es klarer und ruhiger wird, alle auf echten Daten: das <b>Programmierpraktikum</b> neben Theoretischer Informatik, Mathematik IT-3 und dem Softwarepraktikum, dein 3. FS im WiSe 2026/27.</p>
+      <p class="quote">„aktuell ist es nicht gut zu erkennen, was jetzt zu dem modul gehört. Dazu sollte es auch so sein, dass wenn sich ein termin überschneidet, dass der großteil zu dem Modultermin geht und da nur ein kleiner streifen daneben ist, mit vertikalem text. Es muss auch erkennbar sein, wenn termine abgeschnitten sind. Und ganz generell muss das ganze einfach cleaner werden.“ <span style="color: var(--text-3)">— du, heute</span></p>
+    </div>
+    <div class="rules" id="gemeinsam">
+      <p class="kicker">In allen drei Konzepten gleich</p>
+      <ul>
+        <li><i><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg></i><span><b>Eine Farbe für das Modul.</b> Alle seine Termine in seiner Farbe aus deinem Stundenplan, hier Violett wie im Kopf der Termin-Ansicht. Was ein Termin ist (VL, Prak), sagt die Beschriftung, nicht die Farbe.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3"/></svg></i><span><b>Dein Plan ist grau</b> und trägt den Kurznamen seines Moduls: ThI, MIT3, SWP. Kein Rahmen mehr um jeden Termin des Plans.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 5h11v14H4z"/><path d="M18 5h2v14h-2z"/></svg></i><span><b>Überschneidung:</b> Der Termin des Moduls behält die Breite bis auf einen Streifen von 13 bis 14 px. Darin steht der Plan, sein Name senkrecht, von unten nach oben gelesen.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M12 8v5"/><path d="M12 16.5h.01"/><circle cx="12" cy="12" r="9"/></svg></i><span><b>Konflikt:</b> Rot ist nur, was kollidiert, also der Streifen des Plans, dazu ein „!“ am Termin des Moduls. Der rote Rahmen um den Termin fällt weg.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 4h16v10l-2 2-2-2-2 2-2-2-2 2-2-2-2 2-2-2z"/></svg></i><span><b>Abgeschnitten</b> ist sichtbar: eine offene Kante am Rand der Woche, darunter, bis wann es geht. Das Ende der Woche ist beschriftet (16).</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg></i><span><b>Ruhiger:</b> keine Rahmen um gefüllte Flächen, leisere Stundenlinien, die Stunden an den Linien statt in den Zeilen.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <nav class="setbar" aria-label="Ansicht und Abschnitte">
+    <div class="group">
+      <span class="kicker">Ansicht</span>
+      <span class="seg" role="group" aria-label="Farbschema">
+        <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+        <button type="button" data-theme-set="light" aria-pressed="false">Hell</button>
+        <button type="button" data-theme-set="dark" aria-pressed="false">Dunkel</button>
+      </span>
+    </div>
+    <div class="jump">
+      <a href="#heute">Heute</a>
+      <a href="#konzept-a">A Kräftig</a>
+      <a href="#konzept-b">B Spur</a>
+      <a href="#konzept-c">C Ebenen</a>
+      <a href="#faelle">Die Fälle</a>
+      <a href="#vergleich">Vergleich</a>
+      <a href="#fragen">Fragen</a>
+    </div>
+  </nav>
+
+  <section class="sec" id="heute" aria-labelledby="heute-title">
+    <header>
+      <h2 id="heute-title">Was heute schiefgeht</h2>
+      <p class="sub">Dein Screenshot von heute (Folia 1.59.3): die Woche des Programmierpraktikums auf seiner Seite, daneben die Termine deines Plans. Do 11:30 ist der Termin, der gerade neben der Woche offen ist.</p>
+    </header>
+    <div class="today">
+      <figure class="shot">
+        <div class="pic"><img src="bilder/heute-modulwoche.webp" width="463" height="436" alt="Die Woche des Programmierpraktikums: Praktika Mo, Mi, Do 11:30 und Fr 13:45 grau, die VL Fr 11:30 hellgrün mit rotem Rahmen, das Praktikum Do grün umrandet; ThI und MIT3 als weiße umrandete Kästen, neben Mi, Do und Fr je ein schmaler leerer Rahmen; unten bei Mo und Di zwei flache Kästen ThI und MIT3.">
+        <span class="mk" style="left: 10.4%; top: 44.2%">1</span>
+        <span class="mk" style="left: 57.6%; top: 47.4%">2</span>
+        <span class="mk" style="left: 6.2%; top: 93.4%">3</span>
+        <span class="mk" style="left: 66.6%; top: 65.8%">4</span></div>
+        <figcaption>Programmierpraktikum (12102), WiSe 2026/27, Kurs am Zentralcampus</figcaption>
+      </figure>
+      <ol class="wrong">
+        <li><span><b>Zwei Farben für ein Modul.</b> Die VL ist hellgrün, die Praktika sind grau mit grauem Strich. Dieses Grau ist das Grau des Plans: Was zum Modul gehört, sieht aus wie das, was nicht dazugehört. Die Farbe sagt die Art (VL oder nicht), nicht das Modul.</span></li>
+        <li><span><b>Leere Streifen.</b> Mi, Do und Fr steht neben dem Termin ein Rahmen ohne Namen. Dort liegen ThI (Übung, Vorlesung) und das Softwarepraktikum. Der Streifen ist halb so breit wie der Termin, sein Name passt nicht hinein und wird ausgeblendet.</span></li>
+        <li><span><b>Ohne Zeichen abgeschnitten.</b> ThI am Montag (Tutorium) und MIT3 am Dienstag gehen bis 17:00. Die Woche endet um 16:00, und beide sehen aus wie halbstündige Termine. Was ganz nach 16:00 liegt, fehlt ohne Hinweis.</span></li>
+        <li><span><b>Rahmen um Rahmen.</b> Grün für den offenen Termin, Rot für den Konflikt, Grau um jeden Termin des Plans, dazu der Kasten der Woche und Stundenlinien durch die leeren Kästen. Alles ist umrandet, darum tritt nichts hervor.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="sec" id="konzept-a" aria-labelledby="a-title">
+    <header>
+      <h2 id="a-title"><span class="tag">A</span>Kräftig</h2>
+      <p class="sub">Das Modul in voller Farbe, dein Plan als flache graue Fläche. Neben einem Termin des Moduls wird der Plan zum Streifen.</p>
+    </header>
+    <div class="stage" data-mock="a"></div>
+    <p class="tryit">Klick auf einen Termin des Moduls: So sieht er aus, wenn er neben der Woche offen ist.</p>
+    <div class="how">
+      <div>
+        <h3>So geht es</h3>
+        <ul>
+          <li>Jeder Termin des Moduls ist eine <b>volle Fläche in seiner Farbe</b>, die Schrift hell. Was er ist, steht darauf: VL, Prak.</li>
+          <li>Dein Plan ist eine <b>flache graue Fläche</b> mit dem Kurznamen seines Moduls, ohne Rahmen.</li>
+          <li>Überschneiden sie sich, bleibt der Termin des Moduls breit, der Plan rückt in einen <b>Streifen von 13 px</b> am rechten Rand, senkrecht beschriftet.</li>
+          <li>Konflikt: Der Streifen wird rot, der Termin bekommt ein „!“.</li>
+          <li>Offen neben der Woche: ein Ring im Abstand von 2 px in der Farbe des Moduls.</li>
+          <li>Abgeschnitten: Die Fläche läuft zum Rand hin aus, unter der Woche steht „bis 17:00“.</li>
+        </ul>
+      </div>
+      <div class="good">
+        <h3>Gut</h3>
+        <ul>
+          <li>Am deutlichsten, was zum Modul gehört, auch aus dem Augenwinkel, in Graustufen und bei Farbsehschwäche.</li>
+          <li>Genau die Ordnung, die du beschrieben hast. Im Code die kleinste Änderung: Die schmale Spur gibt es schon, sie wird fest 13 px breit und beschriftet.</li>
+          <li>Grau heißt nur noch „dein Plan“.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Schwächer</h3>
+        <ul>
+          <li>Fünf volle violette Flächen sind laut.</li>
+          <li>Die vier Praktikumsgruppen (eine davon wählst du) wirken wie vier Pflichttermine. Das tun sie heute auch.</li>
+          <li>Das Auslaufen ist ein leises Zeichen. Erst die Uhrzeit darunter sagt sicher, dass es weitergeht.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="konzept-b" aria-labelledby="b-title">
+    <header>
+      <h2 id="b-title"><span class="tag">B</span>Spur</h2>
+      <p class="sub">Jeder Tag hat am rechten Rand eine Spur für deinen Plan. Das Modul hat den Rest des Tages für sich.</p>
+    </header>
+    <div class="stage" data-mock="b"></div>
+    <p class="tryit">Klick auf einen Termin des Moduls: So sieht er aus, wenn er neben der Woche offen ist.</p>
+    <div class="how">
+      <div>
+        <h3>So geht es</h3>
+        <ul>
+          <li>Rechts in jedem Tag läuft eine <b>schmale Spur</b> (13 px) von oben bis unten, wie die Spur eines eigenen Kalenders im Stundenplan.</li>
+          <li><b>Alles aus deinem Plan steht in dieser Spur</b>, senkrecht beschriftet, ob es sich mit dem Modul überschneidet oder nicht.</li>
+          <li>Die Termine des Moduls füllen den Rest, <b>getönt wie im Stundenplan</b>: Fläche und Strich links in seiner Farbe. Offen neben der Woche ist einer voll in der Farbe.</li>
+          <li>Konflikt: Das Stück der Spur ist rot, der Termin bekommt ein „!“.</li>
+          <li>Abgeschnitten: Das Stück endet am Rand in einer Spitze. Unter der Woche steht, was weitergeht und bis wann.</li>
+        </ul>
+      </div>
+      <div class="good">
+        <h3>Gut</h3>
+        <ul>
+          <li>Am ruhigsten: Jede Spalte hat dieselbe Ordnung, und keine Breite ändert sich, wenn der Plan nachgeladen ist.</li>
+          <li>Eine Überschneidung ist ein Termin mit einem grauen Stück direkt daneben, ein Konflikt einer mit einem roten.</li>
+          <li>Dieselbe Form wie eigene Kalender als Spur im Stundenplan.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Schwächer</h3>
+        <ul>
+          <li>Dein Plan ist überall nur ein Streifen, auch dienstags, wenn das Modul nichts hat. Wann du frei bist, liest man schlechter.</li>
+          <li>Ein Name passt erst in ein Stück ab etwa 40 Minuten. Kürzere zeigen ihn nur, wenn man darauf zeigt.</li>
+          <li>Weicht am weitesten von heute ab: Auch Termine des Plans ohne Überschneidung werden schmal.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="konzept-c" aria-labelledby="c-title">
+    <header>
+      <h2 id="c-title"><span class="tag">C</span>Ebenen</h2>
+      <p class="sub">Dein Plan liegt unten in voller Breite, die Termine des Moduls liegen als Karten darauf.</p>
+    </header>
+    <div class="stage" data-mock="c"></div>
+    <p class="tryit">Klick auf einen Termin des Moduls: So sieht er aus, wenn er neben der Woche offen ist.</p>
+    <div class="how">
+      <div>
+        <h3>So geht es</h3>
+        <ul>
+          <li>Dein Plan ist eine <b>graue Fläche über die ganze Breite</b> des Tages, hinter allem.</li>
+          <li>Die Termine des Moduls sind <b>Karten</b>: hell getönt, Rand in seiner Farbe, ein leichter Schatten. Offen neben der Woche ist eine voll in der Farbe.</li>
+          <li>Wo eine Karte auf dem Plan liegt, lässt sie rechts 14 px frei. <b>Dort schaut der Plan heraus</b>, mit seinem Namen senkrecht.</li>
+          <li>Überschneidet es sich nur zum Teil, sieht man den Plan außerhalb der Karte in voller Breite (unten bei „Teilweise“).</li>
+          <li>Konflikt: Was unter der Karte liegt, ist rot getönt, die Karte bekommt ein „!“.</li>
+          <li>Abgeschnitten: <b>Die Kante am Rand ist gerissen</b>, unter der Woche steht „bis 17:00“.</li>
+          <li>Die Woche ohne Kasten, die Linien über alle Tage.</li>
+        </ul>
+      </div>
+      <div class="good">
+        <h3>Gut</h3>
+        <ul>
+          <li>Die Ordnung erklärt sich selbst: vorne das Modul, hinten dein Plan.</li>
+          <li>Teilweise Überschneidungen sind genau, nicht ganz oder gar nicht.</li>
+          <li>Die gerissene Kante sagt am deutlichsten „hier geht es weiter“.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Schwächer</h3>
+        <ul>
+          <li>Schatten und Ebenen hat Betula sonst nur für Menüs und Sheets. Im Raster wären sie neu.</li>
+          <li>Hell getönte Karten treten weniger hervor als die vollen Flächen von A.</li>
+          <li>Mehr Arbeit: zwei Ebenen, die freie Kante je Karte, die gerissene Kante.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="faelle" aria-labelledby="faelle-title">
+    <header>
+      <h2 id="faelle-title">Die Fälle nebeneinander</h2>
+      <p class="sub">Ausschnitte der Woche, jeweils heute und in A, B und C, so breit wie am Rechner (ein Tag 74 px), „Am Handy“ so breit wie dort (53 px). Wo <b>Beispiel</b> steht, sind die Termine ausgedacht, alle anderen stammen aus dem Snapshot vom 3. November.</p>
+    </header>
+    <div class="cases" id="cases"></div>
+  </section>
+
+  <section class="sec" id="vergleich" aria-labelledby="vergleich-title">
+    <header>
+      <h2 id="vergleich-title">Im Vergleich</h2>
+    </header>
+    <div class="tablewrap">
+      <table class="t">
+        <thead><tr><th></th><th>A Kräftig</th><th>B Spur</th><th>C Ebenen</th></tr></thead>
+        <tbody>
+          <tr><td>Was zum Modul gehört</td><td><span class="verdict ok"><i></i>am deutlichsten: volle Fläche gegen Grau</span></td><td><span class="verdict ok"><i></i>deutlich: getönt, der Plan nur am Rand</span></td><td><span class="verdict ok"><i></i>deutlich: Karte vor grauem Grund</span></td></tr>
+          <tr><td>Überschneidung</td><td><span class="verdict ok"><i></i>Streifen mit Namen</span></td><td><span class="verdict ok"><i></i>immer dieselbe Spur</span></td><td><span class="verdict ok"><i></i>der Plan schaut heraus</span></td></tr>
+          <tr><td>Nur teilweise</td><td><span class="verdict meh"><i></i>der ganze Termin des Plans wird Streifen</span></td><td><span class="verdict ok"><i></i>in der Spur, genau</span></td><td><span class="verdict ok"><i></i>genau</span></td></tr>
+          <tr><td>Abgeschnitten</td><td><span class="verdict meh"><i></i>Auslaufen, die Zeit darunter</span></td><td><span class="verdict ok"><i></i>Spitze, eine Zeile darunter</span></td><td><span class="verdict ok"><i></i>gerissen, die Zeit darunter</span></td></tr>
+          <tr><td>Wann du frei bist</td><td><span class="verdict ok"><i></i>auf einen Blick</span></td><td><span class="verdict no"><i></i>nur als Streifen</span></td><td><span class="verdict ok"><i></i>auf einen Blick</span></td></tr>
+          <tr><td>Ruhe</td><td><span class="verdict meh"><i></i>laut, wo viele Termine sind</span></td><td><span class="verdict ok"><i></i>am ruhigsten</span></td><td><span class="verdict ok"><i></i>ruhig</span></td></tr>
+          <tr><td>Am Handy</td><td><span class="verdict ok"><i></i>gut lesbar</span></td><td><span class="verdict ok"><i></i>gut lesbar</span></td><td><span class="verdict meh"><i></i>Karten treten weniger hervor</span></td></tr>
+          <tr><td>Aufwand</td><td><span class="verdict ok"><i></i>klein</span></td><td><span class="verdict meh"><i></i>mittel</span></td><td><span class="verdict meh"><i></i>größer</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="sec" id="empfehlung" aria-labelledby="empfehlung-title">
+    <header>
+      <h2 id="empfehlung-title">Empfehlung: A, mit der gerissenen Kante aus C</h2>
+      <p class="sub">A trifft deinen Wunsch am direktesten. Dein Plan bleibt, wo er ist, und wird nur neben einem Termin des Moduls zum Streifen. Nirgends ist klarer, was zum Modul gehört.</p>
+    </header>
+    <div class="reco">
+      <ul>
+        <li><b>Abgeschnitten:</b> die gerissene Kante aus C, mit der Uhrzeit darunter. Das Auslaufen von A allein ist zu leise.</li>
+        <li><b>Lautstärke:</b> voll nur, was jede Woche stattfindet. Einzeltermine, Optionen einer Wahl und Zusätze bleiben hell (unten bei „Arten von Terminen“).</li>
+        <li><b>B</b> lohnt sich, wenn der Plan auf der Modulseite Nebensache sein soll. <b>C</b> lohnt sich, wenn teilweise Überschneidungen häufig sind; im Plan von heute gibt es keine.</li>
+      </ul>
+      <p class="prose">Gebaut würde es in <code>folia/crates/widgets/src/week.rs</code>: Die Spur des Plans wird fest 13 px breit statt halb so breit wie der Termin, ihr Name senkrecht, und was abgeschnitten ist, trägt seine Uhrzeit. Dazu kommt <code>app.css</code> mit den Terminen des Moduls in seinem Ton, der Kante und dem ruhigeren Raster. Der Stundenplan zeichnet mit demselben Raster. Seine Farben blieben, nur das ruhigere Raster gälte dort auch (Frage 6).</p>
+    </div>
+  </section>
+
+  <section class="sec" id="fragen" aria-labelledby="fragen-title">
+    <header>
+      <h2 id="fragen-title">Fragen an dich</h2>
+      <p class="sub">Jeweils mit meinem Vorschlag. Ein „passt“ reicht, wo du zustimmst.</p>
+    </header>
+    <ol class="qs">
+      <li><span><b>Welche Farbe hat das Modul?</b> Seine aus deinem Stundenplan (das PP violett wie in der Termin-Ansicht daneben) oder auf der Modulseite immer Betulas Grün?<span class="pro">Vorschlag: seine aus dem Plan, ohne Plan Grün.</span></span></li>
+      <li><span><b>Volle Fläche oder getönt?</b> Voll wie in A, oder getönt wie im Stundenplan (B)?<span class="pro">Vorschlag: voll, aber nur für wöchentliche Termine.</span></span></li>
+      <li><span><b>Leserichtung im Streifen?</b> Von unten nach oben wie ein deutscher Buchrücken, oder von oben nach unten?<span class="pro">Vorschlag: von unten nach oben.</span></span></li>
+      <li><span><b>Plan ohne Überschneidung?</b> In voller Breite (A, C) oder auch dort als Streifen (B)?<span class="pro">Vorschlag: volle Breite.</span></span></li>
+      <li><span><b>Welches Zeichen für abgeschnitten?</b> Gerissen (C), Auslaufen (A) oder Spitze (B), und soll die Uhrzeit darunter stehen?<span class="pro">Vorschlag: gerissen, mit „bis 17:00“ darunter.</span></span></li>
+      <li><span><b>Auch im Stundenplan?</b> Das ruhigere Raster (Stunden an den Linien, das Ende beschriftet, keine Rahmen um gefüllte Flächen) auch dort?<span class="pro">Vorschlag: ja, die Farben des Stundenplans bleiben.</span></span></li>
+      <li><span><b>Eine Legende?</b> Eine Zeile unter der Woche, die sagt, was Farbe und was Grau ist, wenn der Plan daneben steht?<span class="pro">Vorschlag: ja, eine Zeile.</span></span></li>
+    </ol>
+  </section>
+
+  <p class="foot">Daten: betula.app, Snapshot vom 3. November 2026. Programmierpraktikum (12102) am Zentralcampus: Praktikum Mo, Mi, Do 11:30–13:00 und Fr 13:45–15:15, Vorlesung Fr 11:30–13:00 (A-Woche). Daneben, wie auf deinem Screenshot: Theoretische Informatik (Vorlesung Di und Do 11:30, Übung Mi 11:30, Tutorium Mo 15:30–17:00), Mathematik IT-3 (Vorlesung Mo 13:45 und Di 15:30–17:00, Übung Do 13:45), Softwarepraktikum (Praktikum Fr 11:30). Die Woche wird mit der Rechnung von <code>week.rs</code> gezeichnet: 48 px die Stunde, von 8:00 bis zur vollen Stunde nach dem letzten Termin des Moduls, der Plan daran abgeschnitten. Nichts davon ist gebaut.</p>
+</div>
+
+<script>
+"use strict";
+const DAY = ["", "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+const mins = (s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m; };
+const hhmm = (n) => String(Math.floor(n / 60)).padStart(2, "0") + ":" + String(n % 60).padStart(2, "0");
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const px = (n) => Math.round(n * 10) / 10 + "px";
+const ICON_WARN = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
+
+// Programmierpraktikum (12102), its course at the Zentralcampus, WiSe 2026/27.
+const PP = [
+  { id: "mo", d: 1, f: "11:30", t: "13:00", k: "Prak", what: "Praktikum", room: "VG1C/0.03" },
+  { id: "mi", d: 3, f: "11:30", t: "13:00", k: "Prak", what: "Praktikum", room: "VG1C/0.03" },
+  { id: "do", d: 4, f: "11:30", t: "13:00", k: "Prak", what: "Praktikum", room: "VG1C/0.03" },
+  { id: "vl", d: 5, f: "11:30", t: "13:00", k: "VL", what: "Vorlesung", room: "ZHG/HS.C", rhythm: "A-Woche", clash: "Softwarepraktikum" },
+  { id: "fr", d: 5, f: "13:45", t: "15:15", k: "Prak", what: "Praktikum", room: "VG1C/0.03" },
+];
+// The other modules of the plan in WiSe 2026/27, as the owner's screenshot shows them.
+const THI = "Theoretische Informatik", MIT = "Mathematik IT-3 (Analysis)", SWP = "Softwarepraktikum";
+const PLAN = [
+  { d: 1, f: "13:45", t: "15:15", n: "MIT3", full: MIT, what: "Vorlesung" },
+  { d: 1, f: "15:30", t: "17:00", n: "ThI", full: THI, what: "Tutorium" },
+  { d: 2, f: "11:30", t: "13:00", n: "ThI", full: THI, what: "Vorlesung" },
+  { d: 2, f: "15:30", t: "17:00", n: "MIT3", full: MIT, what: "Vorlesung" },
+  { d: 3, f: "11:30", t: "13:00", n: "ThI", full: THI, what: "Übung" },
+  { d: 4, f: "11:30", t: "13:00", n: "ThI", full: THI, what: "Vorlesung" },
+  { d: 4, f: "13:45", t: "15:15", n: "MIT3", full: MIT, what: "Übung" },
+  { d: 5, f: "11:30", t: "13:00", n: "SWP", full: SWP, what: "Praktikum", clash: true },
+];
+
+// Lanes as folia_timetable::grid::lanes has them: by start, the longer first, each in the first
+// lane free at its start; a group is what overlaps transitively, its lanes the most it needs.
+function lanes(items) {
+  const order = items.map((_, i) => i).sort((a, b) => items[a].f - items[b].f || (items[b].t - items[b].f) - (items[a].t - items[a].f) || a - b);
+  const out = items.map(() => ({ lane: 0, lanes: 1, group: 0 }));
+  let ends = [], members = [], end = -1, group = -1;
+  const flush = () => { for (const i of members) out[i].lanes = ends.length; ends = []; members = []; };
+  for (const i of order) {
+    const x = items[i];
+    if (members.length && x.f >= end) flush();
+    if (!members.length) { group += 1; end = -1; }
+    let lane = ends.findIndex((e) => e <= x.f);
+    if (lane < 0) { lane = ends.length; ends.push(x.t); } else ends[lane] = x.t;
+    end = Math.max(end, x.t);
+    out[i] = { lane, lanes: 1, group };
+    members.push(i);
+  }
+  flush();
+  return out;
+}
+
+// The plan's Termine at one time are one slot naming each module once (pages::overlay), cut to
+// the frame; what lies wholly outside it is kept apart, before and after.
+function planIn(plan, first, last) {
+  const merged = [];
+  for (const p of plan) {
+    const of = mins(p.f), ot = mins(p.t);
+    const m = merged.find((x) => x.d === p.d && x.of === of && x.ot === ot);
+    if (m) { if (!m.names.includes(p.n)) m.names.push(p.n); m.rows.push(p); m.clash = m.clash || !!p.clash; }
+    else merged.push({ d: p.d, of, ot, names: [p.n], rows: [p], clash: !!p.clash });
+  }
+  const inside = [], after = [];
+  for (const p of merged) {
+    const f = Math.max(p.of, first), t = Math.min(p.ot, last);
+    const tip = p.rows.map((r) => `${r.full} · ${r.what} · ${DAY[p.d]} ${hhmm(p.of)}–${hhmm(p.ot)}`).join("\n");
+    if (t <= f) { if (p.of >= last) after.push({ ...p, n: p.names.join(" · "), tip }); continue; }
+    inside.push({ ...p, f, t, n: p.names.join(" · "), tip, cutT: p.of < first, cutB: p.ot > last });
+  }
+  return { inside, after };
+}
+
+// The width of the plan's strip (A, C) and of the track (B): 13 px, 12 px where a day is narrow.
+const strip = (dw) => (dw < 60 ? 12 : 13);
+
+// Where each box of a day stands, by the look: `x` and `w` in the day's pixels.
+function place(look, own, plan, dw) {
+  const boxes = [], sw = strip(dw), step = sw + 2;
+  const all = [...own.map((x) => ({ ...x, own: true })), ...plan.map((x) => ({ ...x, own: false }))];
+  if (look === "heute" || look === "a") {
+    const L = lanes(all), groups = new Map();
+    all.forEach((_, i) => { const g = L[i].group; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(i); });
+    for (const g of groups.values()) {
+      const oi = g.filter((i) => all[i].own), pi = g.filter((i) => !all[i].own);
+      if (oi.length && pi.length) {
+        const lo = lanes(oi.map((i) => all[i])), lp = lanes(pi.map((i) => all[i]));
+        const mine = Math.max(...lo.map((l) => l.lanes)), theirs = Math.max(...lp.map((l) => l.lanes));
+        // Today the planned part is half as wide as an own lane, but leaves an own lane 42 px
+        // (app.css --pw); in A it is a strip of 13 px and a gap of 2 px per lane.
+        const pw = look === "a" ? theirs * step : Math.min(dw * theirs / (2 * mine + theirs), Math.max(theirs * 10, dw - mine * 42));
+        const ow = dw - pw;
+        oi.forEach((i, k) => boxes.push({ item: all[i], x: 1 + ow * lo[k].lane / lo[k].lanes, w: ow / lo[k].lanes - 2 }));
+        pi.forEach((i, k) => boxes.push(look === "a"
+          ? { item: all[i], x: ow + 1 + lp[k].lane * step, w: sw, strip: true }
+          : { item: all[i], x: ow + 1 + pw * lp[k].lane / lp[k].lanes, w: pw / lp[k].lanes - 2, strip: true }));
+      } else {
+        g.forEach((i) => boxes.push({ item: all[i], x: 1 + dw * L[i].lane / L[i].lanes, w: dw / L[i].lanes - 2 }));
+      }
+    }
+  } else if (look === "b") {
+    // The track at the right edge of the day; the module has the rest.
+    const tw = sw, lo = lanes(own), lp = lanes(plan), ow = dw - tw - (dw < 60 ? 2 : 3);
+    own.forEach((o, k) => boxes.push({ item: { ...o, own: true }, x: 1 + ow * lo[k].lane / lo[k].lanes, w: ow / lo[k].lanes - 2 }));
+    plan.forEach((p, k) => boxes.push({ item: { ...p, own: false }, x: dw - tw - 1 + tw * lp[k].lane / lp[k].lanes, w: tw / lp[k].lanes - (lp[k].lanes > 1 ? 1 : 0), strip: true }));
+  } else {
+    // C: the plan as the ground, in the day's whole width; a card on it leaves 14 px free at its
+    // right per lane of the plan under it, where the plan names itself upright.
+    const lp = lanes(plan), lo = lanes(own);
+    const under = (o) => plan.filter((p) => p.f < o.t && p.t > o.f);
+    plan.forEach((p, k) => {
+      const cards = own.filter((o) => o.f < p.t && o.t > p.f);
+      const covered = own.some((o) => o.f <= p.f + 20 && o.t > p.f);
+      if (cards.length && lp[k].lanes > 1) {
+        // Several lanes of the plan under a card: strips at the right, as in A.
+        boxes.push({ item: { ...p, own: false }, x: dw - lp[k].lanes * step + 1 + lp[k].lane * step, w: sw, strip: true });
+      } else {
+        boxes.push({ item: { ...p, own: false }, x: 1 + dw * lp[k].lane / lp[k].lanes, w: dw / lp[k].lanes - 2, vlabel: covered });
+      }
+    });
+    own.forEach((o, k) => {
+      const u = under(o), n = u.length ? Math.max(...u.map((p) => lp[plan.indexOf(p)].lanes)) : 0;
+      const cw = dw - n * step;
+      boxes.push({ item: { ...o, own: true }, x: 1 + cw * lo[k].lane / lo[k].lanes, w: cw / lo[k].lanes - 2 });
+    });
+  }
+  return boxes;
+}
+
+// A week: `look` (heute, a, b, c), the days, the frame in minutes, the module's own Termine and
+// the plan's, the day's width (`dw`) or the whole width (`width`), the Termin open beside it, and
+// whether its Termine are buttons.
+function week(o) {
+  const look = o.look, days = o.days || [1, 2, 3, 4, 5], first = o.first ?? 480, last = o.last ?? 960, hour = 48;
+  const pad = look === "c" ? 0 : 14, gap = look === "c" ? 4 : 5, n = days.length;
+  const dw = o.dw ?? (o.width - pad - 30 - gap * n) / n;
+  const H = (last - first) / 60 * hour, y = (m) => (m - first) / 60 * hour;
+  const own = (o.own || []).map((x) => ({ ...x, f: mins(x.f), t: mins(x.t) }));
+  const { inside, after } = planIn(o.plan || [], first, last);
+  const next = [];
+  let spillLines = 0;
+
+  const hours = [];
+  if (look === "heute") { for (let h = first / 60; h < last / 60; h++) hours.push(`<span style="top:${px(y(h * 60))}">${h}</span>`); }
+  else { for (let h = first / 60; h <= last / 60; h++) hours.push(`<span class="at" style="top:${px(y(h * 60))}">${h}</span>`); }
+
+  const lineAt = (from, to) => { let s = ""; for (let h = from; h <= to; h++) s += `<i class="ln" style="top:${px(y(h * 60))}"></i>`; return s; };
+
+  const cols = days.map((d, ci) => {
+    let html = "";
+    if (look === "heute") html += lineAt(first / 60, last / 60 - 1);
+    else if (look !== "c") html += lineAt(first / 60, last / 60);
+    if (look === "b") html += `<i class="trk" style="left:${px(dw - strip(dw) - 1)};width:${strip(dw)}px"></i>`;
+    const dayOwn = own.filter((x) => x.d === d), dayPlan = inside.filter((x) => x.d === d), dayAfter = after.filter((x) => x.d === d);
+    const spills = [];
+    for (const b of place(look, dayOwn, dayPlan, dw)) {
+      const it = b.item, top = y(it.f), h = (it.t - it.f) / 60 * hour - 2;
+      const geo = `left:${px(b.x)};width:${px(b.w)};top:${px(top)};height:${px(h)}`;
+      if (it.own) {
+        const sel = !!it.id && o.sel === it.id;
+        const cls = ["ev", it.type || "", sel ? "sel" : "", it.clash ? "clash" : "", look === "heute" && it.k !== "VL" && !it.type ? "other" : ""].filter(Boolean).join(" ");
+        const small = it.small ?? hhmm(it.f);
+        const tip = `${it.what} · Programmierpraktikum · ${DAY[it.d]} ${hhmm(it.f)}–${hhmm(it.t)}${it.room ? " · " + it.room : ""}${it.rhythm ? " · " + it.rhythm : ""}${it.clash ? " · überschneidet sich mit " + it.clash : ""}`;
+        const body = `<span class="l">${esc(it.k)}</span>${h >= 34 ? `<small>${esc(small)}</small>` : ""}${it.clash && look !== "heute" ? '<i class="bang" aria-hidden="true">!</i>' : ""}`;
+        html += o.live && it.id
+          ? `<button type="button" class="${cls}" data-id="${it.id}" aria-pressed="${sel}" title="${esc(tip)}" style="${geo}">${body}</button>`
+          : `<div class="${cls}" title="${esc(tip)}" style="${geo}">${body}</div>`;
+        continue;
+      }
+      // The plan.
+      const slim = look === "heute" && b.w - 2 * Math.min(6, b.w / 4) <= 22;
+      const cls = ["pl", b.strip ? "strip" : "", it.clash && look !== "heute" ? "clash" : "", look !== "heute" && it.cutT ? "cutt" : "", look !== "heute" && it.cutB ? "cutb" : "", slim ? "slim" : ""].filter(Boolean).join(" ");
+      const upright = look !== "heute" && (b.strip || b.vlabel);
+      const fits = h >= it.n.length * 5.9 + 8;
+      let body;
+      if (upright) body = fits ? `<span class="vt${b.vlabel && !b.strip ? " r" : ""}"><span>${esc(it.n)}</span></span>` : "";
+      else body = `<span class="nm">${esc(it.n)}</span>`;
+      // What is cut says until when: at the bottom under the week (A, C), at the top in the box
+      // where there is room; in B in the line under the week.
+      if (it.cutB || it.cutT) next.push(it);
+      if (look === "a" && !b.strip) {
+        if (it.cutT && h >= 34) body += `<small>ab ${hhmm(it.of)}</small>`;
+        if (it.cutB && h >= 44) body += `<small>bis ${hhmm(it.ot)}</small>`;
+        else if (it.cutB) spills.push({ x: b.x, w: b.w, text: `bis ${hhmm(it.ot)}` });
+      }
+      if (look === "a" && b.strip && it.cutB) spills.push({ x: b.x - 6, w: b.w + 12, text: hhmm(it.ot) });
+      if (look === "c" && !b.strip) {
+        if (it.cutB) spills.push({ x: b.x, w: b.w, text: `bis ${hhmm(it.ot)}` });
+        if (it.cutT && b.w >= 66) body = `<span class="nm">${esc(it.n)} <small>· ab ${hhmm(it.of)}</small></span>`;
+      }
+      if (look === "c" && b.strip && it.cutB) spills.push({ x: b.x - 6, w: b.w + 12, text: hhmm(it.ot) });
+      html += `<div class="${cls}" title="${esc(it.tip)}" style="${geo}">${body}</div>`;
+    }
+    for (const p of dayAfter) {
+      next.push(p);
+      if (look === "a" || look === "c") spills.push({ x: 1, w: dw - 2, text: `+ ${p.n} ${hhmm(p.of)}` });
+      if (look === "b") html += `<i class="tip" title="${esc(p.tip)}" style="left:${px(dw - strip(dw) - 1)};width:${strip(dw)}px;top:calc(100% + 3px)"></i>`;
+    }
+    spills.forEach((s, i) => { html += `<span class="spill" style="left:${px(s.x)};width:${px(s.w)};top:calc(100% + ${3 + i * 12}px)">${esc(s.text)}</span>`; });
+    spillLines = Math.max(spillLines, spills.length);
+    return `<div class="col" style="grid-column:${ci + 2}">${html}</div>`;
+  });
+
+  const heads = days.map((d, ci) => `<span class="hd" style="grid-column:${ci + 2}">${DAY[d]}</span>`).join("");
+  const lines = look === "c" ? `<div class="lines">${lineAt(first / 60, last / 60)}</div>` : "";
+  const bottom = (look === "heute" ? 12 : 14) + (spillLines ? spillLines * 12 + 2 : 0) + (look === "b" && after.length ? 8 : 0);
+  const style = `--n:${n};--dw:${px(dw)};--h:${px(H)};--gap:${gap}px;padding-bottom:${bottom}px`;
+  return { html: `<div class="wk wk-${look}${dw < 60 ? " narrow" : ""}" style="${style}">${heads}<div class="hrs">${hours.join("")}</div>${lines}${cols.join("")}</div>`, next };
+}
+
+// The line under the week of B: what goes on past the frame.
+function onward(next, first, last) {
+  const clock = (m) => hhmm(m).replace(/^0/, "");
+  const before = next.filter((p) => p.of < first).map((p) => `${p.n} (${DAY[p.d]}) ab ${hhmm(p.of)}`);
+  const after = next.filter((p) => p.ot > last).map((p) => p.of >= last ? `${p.n} (${DAY[p.d]}) ${hhmm(p.of)}–${hhmm(p.ot)}` : `${p.n} (${DAY[p.d]}) bis ${hhmm(p.ot)}`);
+  const lines = [];
+  if (before.length) lines.push(`Vor ${clock(first)}: ${before.join(", ")}`);
+  if (after.length) lines.push(`Nach ${clock(last)}: ${after.join(", ")}`);
+  return lines.length ? `<p class="mhint">${esc(lines.join(" · "))}</p>` : "";
+}
+
+const LEGEND = {
+  a: '<span><i class="sw sw-a"></i>Programmierpraktikum</span><span><i class="sw sw-plan"></i>Dein Stundenplan</span>',
+  b: '<span><i class="sw sw-b"></i>Programmierpraktikum</span><span><i class="sw sw-track"></i>Am Rand: dein Stundenplan</span>',
+  c: '<span><i class="sw sw-c"></i>Programmierpraktikum</span><span><i class="sw sw-ground"></i>Darunter: dein Stundenplan</span>',
+};
+
+// The module's Termine on a desktop (the module beside the list, 480 px) and a phone.
+const chosen = { a: "do", b: "do", c: "do" };
+function termine(look, width) {
+  const w = week({ look, own: PP, plan: PLAN, width, sel: chosen[look], live: true });
+  return `<h4 class="mlabel">Termine <span>WiSe 2026/27</span></h4>${w.html}<p class="lg">${LEGEND[look]}</p>${look === "b" ? onward(w.next, 480, 960) : ""}<p class="note">${ICON_WARN}<span>Überschneidet sich mit: Softwarepraktikum (Fr 11:30)</span></p>`;
+}
+function drawMock(look) {
+  const stage = document.querySelector(`[data-mock="${look}"]`);
+  stage.innerHTML = `
+    <figure class="frame"><div class="desk">${termine(look, 440)}</div><figcaption><b>Am Rechner</b> · das Modul neben der Liste, 480 px</figcaption></figure>
+    <figure class="frame"><div class="phone"><div class="scr">${termine(look, 360)}</div></div><figcaption><b>Am Handy</b> · das Sheet des Moduls, 390 px breit</figcaption></figure>`;
+}
+document.addEventListener("click", (e) => {
+  const ev = e.target.closest("[data-mock] button.ev[data-id]");
+  if (!ev) return;
+  const look = ev.closest("[data-mock]").dataset.mock;
+  chosen[look] = chosen[look] === ev.dataset.id ? null : ev.dataset.id;
+  drawMock(look);
+  fit();
+  const again = document.querySelector(`[data-mock="${look}"] button.ev[data-id="${ev.dataset.id}"]`);
+  if (again) again.focus({ preventScroll: true });
+});
+
+// The cases.
+const P = Object.fromEntries(PP.map((x) => [x.id, x]));
+const pl = (d, f, t, n, full, what, more = {}) => ({ d, f, t, n, full, what, ...more });
+const CASES = [
+  { title: "Zur selben Zeit", text: "Mi 11:30: das Praktikum und die Übung von ThI zugleich. Heute ein leerer Rahmen daneben.", days: [3], first: 660, last: 840, own: [P.mi], plan: [pl(3, "11:30", "13:00", "ThI", THI, "Übung")] },
+  { title: "Teilweise", ex: true, text: "Eine Vorlesung 09:15–10:45 und eine Übung des Plans 10:00–11:30. In A wird die ganze Übung Streifen, in C nur, was unter der Karte liegt.", days: [2], first: 540, last: 720, own: [{ d: 2, f: "09:15", t: "10:45", k: "VL", what: "Vorlesung" }], plan: [pl(2, "10:00", "11:30", "EvS", "Entwicklung von Softwaresystemen", "Übung")] },
+  { title: "Zwei Module zugleich", ex: true, text: "Läge das Projekt des Softwarepraktikums (Mi 11:30, in Sachsendorf) auch im Plan: ein Streifen, beide Namen.", days: [3], first: 660, last: 840, own: [P.mi], plan: [pl(3, "11:30", "13:00", "ThI", THI, "Übung"), pl(3, "11:30", "13:00", "SWP", SWP, "Projekt")] },
+  { title: "Konflikt", text: "Fr 11:30: die Vorlesung (A-Woche) und das Praktikum des Softwarepraktikums, das keine andere Gruppe hat. Heute ein roter Rahmen um die Vorlesung.", days: [5], first: 660, last: 840, own: [P.vl], plan: [pl(5, "11:30", "13:00", "SWP", SWP, "Praktikum", { clash: true })] },
+  { title: "Abgeschnitten unten", text: "Mo: das Tutorium von ThI geht bis 17:00, die Woche endet um 16:00. Heute sieht es aus wie eine halbe Stunde.", days: [1], first: 780, last: 960, own: [], plan: [PLAN[0], PLAN[1]] },
+  { title: "Abgeschnitten oben", ex: true, text: "Ein Modul des Plans um 07:30–09:00; die Woche beginnt um 8:00, weil das Modul erst 09:15 anfängt.", days: [2], first: 480, last: 660, own: [{ d: 2, f: "09:15", t: "10:45", k: "VL", what: "Vorlesung" }], plan: [pl(2, "07:30", "09:00", "TI", "Technische Informatik", "Labor")] },
+  { title: "Ganz außerhalb", ex: true, text: "Wäre Allgemeine BWL I dein Anwendungsfach: ihre Übung Di 17:30–19:00. Heute fehlt sie ohne Zeichen.", days: [2], first: 780, last: 960, own: [], plan: [PLAN[3], pl(2, "17:30", "19:00", "ABWL1", "Allgemeine BWL I", "Übung")] },
+  { title: "Offen neben der Woche", text: "Do 11:30, das Praktikum, das in der Termin-Ansicht daneben offen ist. Heute grün umrandet, wie nichts sonst.", days: [4], first: 660, last: 840, own: [P.do], plan: [PLAN[5]], sel: "do" },
+  { title: "Arten von Terminen", ex: true, wide: true, text: "Wöchentlich (VL) und unter einer Stunde (Ü), Einzeltermine (VL an 3 Tagen), die Option einer Wahl (gestrichelt) und ein Zusatz (gepunktet). Voll ist nur, was jede Woche stattfindet.", days: [1, 2, 3], first: 540, last: 720, dw: 62, own: [
+    { d: 1, f: "09:15", t: "10:45", k: "VL", what: "Vorlesung" },
+    { d: 1, f: "11:00", t: "11:45", k: "Ü", what: "Übung" },
+    { d: 2, f: "09:15", t: "11:45", k: "VL", what: "Vorlesung an drei Tagen", type: "once", small: "3 Termine" },
+    { d: 3, f: "09:15", t: "10:45", k: "Ü", what: "Übung, eine von drei", type: "alt" },
+    { d: 3, f: "11:00", t: "11:45", k: "+ Tut", what: "Tutorium, freiwillig", type: "extra" },
+  ], plan: [] },
+  { title: "Am Handy", text: "Mi und Do bei 53 px je Tag: Das Praktikum behält 38 px, genug für „Prak“ und die Uhrzeit.", days: [3, 4], first: 660, last: 840, dw: 53, own: [P.mi, P.do], plan: [PLAN[4], PLAN[5]] },
+];
+const LOOKS = [["heute", "Heute"], ["a", "A"], ["b", "B"], ["c", "C"]];
+function drawCases() {
+  document.getElementById("cases").innerHTML = CASES.map((c) => {
+    const figs = LOOKS.map(([look, name]) => {
+      const w = week({ look, days: c.days, first: c.first, last: c.last, dw: c.dw ?? 74, own: c.own, plan: c.plan, sel: c.sel });
+      const more = look === "b" ? onward(w.next, c.first, c.last).replace('class="mhint"', 'class="say"') : "";
+      return `<figure><figcaption>${name}</figcaption>${w.html}${more}</figure>`;
+    }).join("");
+    return `<article class="case${c.wide ? " wide" : ""}"><div><h3>${esc(c.title)}</h3><p>${c.ex ? '<span class="ex">Beispiel</span>' : ""}${esc(c.text)}</p></div><div class="row">${figs}</div></article>`;
+  }).join("");
+}
+
+// The theme: the system's, or light or dark by choice (data-theme on the root).
+const root = document.documentElement;
+function setTheme(v) {
+  if (v === "system") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", v);
+  document.querySelectorAll("[data-theme-set]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.themeSet === v)));
+  try { localStorage.setItem("raster.theme", v); } catch (e) { /* the page works without it */ }
+}
+document.querySelectorAll("[data-theme-set]").forEach((b) => b.addEventListener("click", () => setTheme(b.dataset.themeSet)));
+let savedTheme = "system";
+try { savedTheme = localStorage.getItem("raster.theme") || "system"; } catch (e) { /* none kept */ }
+setTheme(savedTheme);
+
+// A device wider than its desk (a phone looking at the page) is drawn smaller, whole.
+function fit() {
+  document.querySelectorAll(".stage").forEach((stage) => {
+    const css = getComputedStyle(stage);
+    const room = stage.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight);
+    stage.querySelectorAll(".frame").forEach((frame) => {
+      frame.style.zoom = "";
+      const scale = Math.min(1, room / frame.offsetWidth);
+      if (scale < 1) frame.style.zoom = String(Math.floor(scale * 1000) / 1000);
+    });
+  });
+}
+["a", "b", "c"].forEach(drawMock);
+drawCases();
+fit();
+window.addEventListener("resize", fit);
+</script>
