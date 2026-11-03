@@ -6,13 +6,13 @@
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node choices.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Needs a snapshot built by a Radix that read the choices, schema 17 or newer (radix
 // TestChoicesOnSnapshot writes them into a copy of an older one).
-// - Nobody's: the line over the week, the exercises dashed, the Aufbaukurs dotted, the list's headings;
+// - Nobody's: the line over the week, the exercises hatched, the Aufbaukurs dotted, the list's headings;
 //   the server's page says the same.
 // - Mein Studiengang Bauingenieurwesen: its exercise taken, the others behind „Auch zeigen", which
 //   brings them back faint under „Für andere Studiengänge".
 // - The groups, and the catalogue of projects: no week, five in the list and the rest folded away.
 // - The catalog's row: „14 Projekte zur Wahl".
-// - The Stundenplan with 11206 planned, nobody's: the three exercises dashed „1 von 3", the
+// - The Stundenplan with 11206 planned, nobody's: the three exercises hatched „1 von 3", the
 //   Aufbaukurs lighter and behind the chip „Zusatz", the choice under „Offen" beside the week („1 von 3
 //   wählen", in the module), the panel's „1 von 3 wählen" with „passt"; „✓" on one takes it and
 //   leaves the others out, „Wahl aufheben" opens the choice again.
@@ -73,7 +73,7 @@ const alt = (slots) => slots.filter(([c]) => c.split(" ").includes("alt")).lengt
   const t = await termine(page);
   check(t.notes.some((n) => n.startsWith("Die Übung gibt es dreimal, je für andere Studiengänge. Du besuchst eine.")), `the line over the week: ${JSON.stringify(t.notes)}`);
   check(t.notes.some((n) => n.startsWith("Zusätzlich, freiwillig: Aufbaukurs Höhere Mathematik - T3")), `the extra's line: ${JSON.stringify(t.notes)}`);
-  check(alt(t.slots) === 3, `three exercises dashed: ${JSON.stringify(t.slots)}`);
+  check(alt(t.slots) === 3, `three exercises hatched: ${JSON.stringify(t.slots)}`);
   check(t.slots.some(([c, text]) => c.includes("extra") && text.startsWith("+")), `the Aufbaukurs dotted: ${JSON.stringify(t.slots)}`);
   check(["Pflicht", "Eine der 3 Übungen", "Zusätzlich, freiwillig"].every((h) => t.heads.includes(h)), `the list's headings: ${JSON.stringify(t.heads)}`);
   if (shots) await page.screenshot({ path: `${shots}/choices-all.png`, fullPage: true });
@@ -110,7 +110,7 @@ const alt = (slots) => slots.filter(([c]) => c.split(" ").includes("alt")).lengt
   const { page, context } = await open("/catalog/module/13151");
   await until(page, "the groups", () => (onPage("#termine .note.choices")?.textContent ?? "").includes("gibt es in 3 Gruppen"));
   const t = await termine(page);
-  check(alt(t.slots) === 6 && t.heads.includes("Eine der 3 Gruppen"), `six events of three groups dashed: ${JSON.stringify(t.slots)} ${JSON.stringify(t.heads)}`);
+  check(alt(t.slots) === 6 && t.heads.includes("Eine der 3 Gruppen"), `six events of three groups hatched: ${JSON.stringify(t.slots)} ${JSON.stringify(t.heads)}`);
   await context.close();
 }
 {
@@ -156,7 +156,7 @@ const plan = (page) => page.evaluate(() => ({
   choices: [...document.querySelectorAll(".sp-event .sp-choice")].map((line) => line.textContent.trim()),
   fits: [...document.querySelectorAll(".sp-rowline .fit")].map((fit) => fit.textContent.trim()),
 }));
-const dashed = (p) => p.slots.filter((slot) => slot.c.split(" ").includes("alt"));
+const hatched = (p) => p.slots.filter((slot) => slot.c.split(" ").includes("alt"));
 // The button `label` of the slot of `time`: the slot's buttons stand beside it, not in it.
 const act = (page, time, label) => page.locator(".sp-body .week .slot", { hasText: time }).first().locator("xpath=following-sibling::*[1]").locator(`.slot-act[aria-label="${label}"]`);
 const exercise = (p, time) => p.slots.find((slot) => slot.text.includes(time) && slot.text.includes("HG/0."));
@@ -164,7 +164,7 @@ const exercise = (p, time) => p.slots.find((slot) => slot.text.includes(time) &&
   const { page, context } = await planned(null, true);
   await until(page, "the open choice", () => document.querySelectorAll(".sp-body .week .slot.alt").length === 3);
   let p = await plan(page);
-  check(dashed(p).length === 3 && dashed(p).every((slot) => slot.title.includes("1 von 3")), `three exercises dashed, „1 von 3": ${JSON.stringify(p.slots)}`);
+  check(hatched(p).length === 3 && hatched(p).every((slot) => slot.title.includes("1 von 3")), `three exercises hatched, „1 von 3": ${JSON.stringify(p.slots)}`);
   check(p.slots.filter((slot) => slot.c.split(" ").includes("extra")).length === 1, `the Aufbaukurs lighter: ${JSON.stringify(p.slots)}`);
   check(p.open.length === 1 && p.open[0].includes("1 von 3 wählen") && p.open[0].includes("Im Modul"), `„Offen": ${JSON.stringify(p.open)}`);
   check(p.choices.includes("1 von 3 wählen") && p.fits.filter((fit) => fit === "passt").length === 3, `the panel: ${JSON.stringify(p.choices)} ${JSON.stringify(p.fits)}`);
@@ -192,7 +192,7 @@ const exercise = (p, time) => p.slots.find((slot) => slot.text.includes(time) &&
   const { page, context } = await planned(BAU, true);
   await until(page, "the program's exercise", () => (document.querySelector(".sp-derived")?.textContent ?? "").includes("Höhere Mathematik - T3: Übung Di 07:30 laut Studiengang"));
   let p = await plan(page);
-  check(dashed(p).length === 0 && exercise(p, "07:30") && !exercise(p, "13:45"), `Di 07:30 alone: ${JSON.stringify(p.slots)}`);
+  check(hatched(p).length === 0 && exercise(p, "07:30") && !exercise(p, "13:45"), `Di 07:30 alone: ${JSON.stringify(p.slots)}`);
   check(p.open.length === 0 && p.choices.some((line) => line.startsWith("Laut Studiengang")), `taken by the program: ${JSON.stringify(p.open)} ${JSON.stringify(p.choices)}`);
   if (shots) await page.screenshot({ path: `${shots}/choices-plan-program.png` });
   // A tap on Mi 13:45 in the panel takes it instead.

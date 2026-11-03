@@ -2002,7 +2002,7 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
                 Some((PlanGroup { keys: tile.keys.clone(), said: (t.termin.group_in_plan)(&tile.when), ticked: tile.ticked, sub }, ticked))
             });
             // A date of what the plan holds: of an event without groups, of the group ticked, or
-            // while none is (all stand dashed in the plan).
+            // while none is (all stand hatched in the plan).
             let held = group.as_ref().is_none_or(|(group, ticked)| group.ticked || *ticked == 0);
             let hideable = held && matches!(o.state, DateState::Held | DateState::Note(_) | DateState::Hidden) && o.dates.iter().filter(|dated| dated.state.held()).count() > 1;
             let date = o.date_key(table).filter(|_| hideable).map(|key| (day_words(o.day, today, locale), key, o.day, o.state == DateState::Hidden));
@@ -2525,7 +2525,7 @@ mod tests {
         let shown = shown_of(&open, &Against::Itself, rows[1].key(), None, Some((d("2026-11-04"), 600)), &modules(), (TerminMode::Adjust, Some(true)), texts).unwrap();
         // From the Stundenplan the groups pick the Termin as to look up, under the events; none
         // ticked yet: the switch of the one shown says what the plan does meanwhile, and its date
-        // can be hidden (all stand dashed in the plan).
+        // can be hidden (all stand hatched in the plan).
         let groups = shown.groups.clone().unwrap();
         assert_eq!((groups.word.as_str(), groups.right.as_str()), ("Übungsgruppen", "eine von 3"));
         assert_eq!(groups.tiles.iter().map(|tile| (tile.when.as_str(), tile.name.as_deref(), tile.dot, tile.current)).collect::<Vec<_>>(), [
@@ -2536,7 +2536,7 @@ mod tests {
         assert!(groups.tiles[1].label.contains("überschneidet sich mit VL EvS"), "{}", groups.tiles[1].label);
         let plan = shown.plan.unwrap();
         let group = plan.group.unwrap();
-        assert_eq!((group.said.as_str(), group.ticked, group.sub.as_str()), ("Mo 11:30 im Stundenplan", false, "Bis du eine anhakst, stehen alle 3 gestrichelt im Stundenplan."));
+        assert_eq!((group.said.as_str(), group.ticked, group.sub.as_str()), ("Mo 11:30 im Stundenplan", false, "Bis du eine anhakst, stehen alle 3 schraffiert im Stundenplan."));
         assert_eq!(group.keys, [rows[1].key()]);
         assert!(plan.date.is_some());
         // Two ticked: the tiles say which, green and red still where they fit and meet; the switch

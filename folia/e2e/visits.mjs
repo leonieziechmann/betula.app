@@ -5,11 +5,11 @@
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node visits.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // - „+ Modul" of „Mein Studiengang" with nothing marked: the catalog's search by number, the module
 //   with its number and how it sits in the week, „Aufnehmen" (a `v` line, nothing planned), its note.
-// - The week: the visit hatched, giving way where it meets the plan (its slots `gives`, no new red
-//   clash; in the focus of its own choice too), „Offen" saying so („EiP trifft VL MIT1 · Di 13:45 ·
-//   der Besuch gibt nach"), the head counting it apart („1 Besuch"), the list with it under the
-//   planned ones („Besuch · zählt nicht") and the same credits; its × takes it out, „Rückgängig"
-//   brings it back.
+// - The week: the visit ringed in its tone, giving way where it meets the plan (its slots `gives`,
+//   no new red clash; in the focus of its own choice too), „Offen" saying so („EiP trifft VL MIT1 ·
+//   Di 13:45 · der Besuch gibt nach"), the head counting it apart („1 Besuch"), the list with it
+//   under the planned ones („Besuch · zählt nicht") and the same credits; its × takes it out,
+//   „Rückgängig" brings it back.
 // - „Mein Studium": the visit with its name, „nur besuchen · aus dem Kalender" and „–"; its menu
 //   („Im Kalender öffnen", „Nur besuchen" ticked, „Entfernen"); without the tick it counts (an `m`
 //   line), the planned module's menu makes it a visit again, „Entfernen" with „Rückgängig".
@@ -91,7 +91,7 @@ const wide = { viewport: { width: 1440, height: 900 } };
       && !onPage(`.sp-addp li[data-id="${id}"]`);
   }, [PLAN, EIP, EIP_TITLE]);
 
-  // The week: hatched, giving way, no new clash.
+  // The week: ringed, giving way, no new clash.
   await until(page, "the visit in the week", () => allOnPage(".sp-week .slot.visit").length > 0 && allOnPage(".sp-week .slot.gives").length > 0);
   const week = await page.evaluate(() => ({
     gives: allOnPage(".sp-week .slot.gives").map((slot) => slot.title),

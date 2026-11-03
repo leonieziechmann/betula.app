@@ -23,7 +23,7 @@
 //! (owner: „schnell abwählen"); „×" leaves a Termin or an option out (`SlotAct`, written after the
 //! next frame, R21). The buttons of a slot with a „✓" stand in view, the „×" of any other slot
 //! comes when it is pointed at. A module's A-week and B-week slots at one time that clash stand
-//! together in one red frame (`join_ab`): together they compete with the other. A dashed group of
+//! together in one red frame (`join_ab`): together they compete with the other. A hatched group of
 //! a choice still open is a link that takes the choice into focus with the group ticked (its „✓",
 //! `GridSlot::pre`; owner, 2026-10-26). „Plan · Alle Termine" in the head (`AllSwitch`,
 //! `PlanCtx::all`; on a phone in „Anpassen") shows
@@ -157,7 +157,7 @@ pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl In
     let empty = Memo::new(move |_| ctx.wanted.with(|wanted| wanted.1.is_empty()) && ctx.selection.with(|(_, selection)| selection.own.is_empty()));
     let nothing = move || empty.get().then(|| view! { <NothingPlanned ctx marked/> });
     // The buttons of the slots, one listener for all of them: a click changes the plan after the
-    // next frame (R21), and the week follows. A dashed group's link ticks its group as it is
+    // next frame (R21), and the week follows. A hatched group's link ticks its group as it is
     // followed (`preselect`).
     let act = move |ev: leptos::ev::MouseEvent| {
         if preselect(ctx, slots, &ev) {
@@ -552,7 +552,7 @@ pub(super) fn AllSwitch(all: RwSignal<bool>, #[prop(optional)] wide: bool, #[pro
     }
 }
 
-/// A click on a dashed group's link (`a[data-pre]`, `GridSlot::pre`): its „✓" acts too, after the
+/// A click on a hatched group's link (`a[data-pre]`, `GridSlot::pre`): its „✓" acts too, after the
 /// next frame (R21), while the link takes the choice into focus, which then shows the group ticked.
 /// A click with a key held (a new tab, a new window) only follows the link. `slots` are the week
 /// the link is in; whether it acted.
@@ -1124,7 +1124,7 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
         own,
         edited,
         conflict,
-        // The Stundenplan draws a choice open dashed and a group chosen as any (`alt`, its focus);
+        // The Stundenplan draws a choice open hatched and a group chosen as any (`alt`, its focus);
         // the module's page alone marks groups (folia/design/kalender/raster.html).
         group: false,
         chosen: false,
@@ -2593,7 +2593,7 @@ pub(super) mod tests {
         let monday = at(&open, 1, "11:30");
         assert_eq!(act_of(&open, &format!("{}/1", monday.key)), Some(monday.acts[1].act.clone()));
         assert_eq!((act_of(&open, &format!("{}/2", monday.key)), act_of(&open, "p9-9-9-999/0")), (None, None));
-        // A dashed group's link takes its choice into focus with the group ticked (owner,
+        // A hatched group's link takes its choice into focus with the group ticked (owner,
         // 2026-10-26: „Wenn man auf eine Übung klickt, dann soll die Preselected sein"): its „✓",
         // by its key, in the grid and on a phone; no other slot has one.
         assert!(open.iter().all(|slot| slot.row.pre == slot.slot.pre));
@@ -2881,7 +2881,7 @@ pub(super) mod tests {
         let open_buttons = ["✓ Diese nehmen", "× Nicht diese"];
         let taken_buttons = ["✓ Wahl aufheben", "× Nicht diese"];
 
-        // One of three: each dashed, „1 von 3" in its tooltip, „✓" and „×".
+        // One of three: each hatched, „1 von 3" in its tooltip, „✓" and „×".
         let three = choice(1, 3);
         let mut doc = PlanDoc::default();
         assert!(doc.plan(key(), "12104", 1, None));
@@ -3099,7 +3099,7 @@ pub(super) mod tests {
     }
 
     #[test]
-    fn a_visit_is_hatched_and_gives_way_in_the_week() {
+    fn a_visit_is_ringed_and_gives_way_in_the_week() {
         // The plan's lecture on Tuesday 13:45; Denkmalpflege only visited, its lecture on Tuesday
         // 14:00 and its Übung on Thursday.
         let lecture = row("148702", 1, "Vorlesung", "weekly", 2, ("13:45", "15:15"), ("2026-10-06", "2027-01-26"));
@@ -3119,7 +3119,7 @@ pub(super) mod tests {
         let slots = week_slots(&table, &plain(), &titles, Weeks::All, false, None, &i18n::DE);
         let of = |event: &str| slots.iter().find(|slot| slot.key.starts_with(&format!("p{}-", table.events.iter().position(|e| e.id == event).unwrap()))).unwrap();
         let (plan, visit, exercise) = (of("148702"), of("150500"), of("150501"));
-        // The visit: hatched, giving way, never red; its tooltip says so.
+        // The visit: ringed, giving way, never red; its tooltip says so.
         assert!(visit.slot.visit && visit.slot.gives && !visit.slot.clash, "{:?}", visit.slot);
         assert!(visit.slot.title.contains("Besuch, zählt nicht") && visit.slot.title.ends_with("trifft VL EvS, der Besuch gibt nach"), "{}", visit.slot.title);
         assert!(visit.slot.classes().contains("visit gives") && visit.row.class.contains("visit") && visit.row.class.contains("gives"));

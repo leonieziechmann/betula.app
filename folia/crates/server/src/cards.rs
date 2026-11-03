@@ -372,7 +372,8 @@ fn title_lines(ruler: &Ruler, title: &str) -> (f32, f32, Vec<String>) {
 
 /// The tones of the Stundenplan's modules in the order they were planned (`t-ice` … `t-slate` in
 /// folia/assets/app.css, light theme; `studyplan::head::hue`): a tag's bar and its ground, as the
-/// plan's legend draws a module's key (`.sp-key`: the ground is 16 % of the tone on white).
+/// plan's legend drew a module's key until its week took the module week's look (2026-11-03,
+/// `.sp-key`: the ground 16 % of the tone on white; full in the tone since).
 const TONES: [(&str, &str); 8] = [
     ("#3a78a1", "#dfe9f0"),
     ("#b68028", "#f4eade"),

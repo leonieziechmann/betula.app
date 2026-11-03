@@ -61,7 +61,7 @@ pub struct Texts {
     /// The groups of a choice: their word by the event's kind („Übungsgruppen" …, else
     /// „Gruppen"); under „Im Stundenplan" the one shown („Mo 10:00 im Stundenplan"), how many are
     /// ticked („2 von 7 angehakt"), and while none is: „Bis du eine anhakst, stehen alle 4
-    /// gestrichelt im Stundenplan."
+    /// schraffiert im Stundenplan."
     pub groups: fn(Option<EventKind>) -> &'static str,
     pub group_in_plan: fn(&str) -> String,
     pub ticked_count: fn(usize, usize) -> String,
@@ -284,7 +284,7 @@ pub const DE: Texts = Texts {
     },
     group_in_plan: |when| format!("{when} im Stundenplan"),
     ticked_count: |ticked, all| format!("{ticked} von {all} angehakt"),
-    open_note: |n| format!("Bis du eine anhakst, stehen alle {n} gestrichelt im Stundenplan."),
+    open_note: |n| format!("Bis du eine anhakst, stehen alle {n} schraffiert im Stundenplan."),
     one_of: |n| format!("eine von {n}"),
     further: "weitere",
     fewer: "weniger",
@@ -457,7 +457,7 @@ pub const EN: Texts = Texts {
     },
     group_in_plan: |when| format!("{when} in your timetable"),
     ticked_count: |ticked, all| format!("{ticked} of {all} ticked"),
-    open_note: |n| format!("Until you tick one, all {n} stand dashed in your timetable."),
+    open_note: |n| format!("Until you tick one, all {n} stand hatched in your timetable."),
     one_of: |n| format!("one of {n}"),
     further: "more",
     fewer: "fewer",

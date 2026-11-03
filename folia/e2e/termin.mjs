@@ -4,7 +4,7 @@
 // first semester planned (Programmierpraktikum 148370 in four groups, Mo, Mi, Do 11:30 and Fr
 // 13:45, and its lecture).
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node termin.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
-// - The Stundenplan: a dashed group of the week takes its choice into focus (`wahl=`), a line of
+// - The Stundenplan: a hatched group of the week takes its choice into focus (`wahl=`), a line of
 //   „Termine" and its address open the Termin in the app's dialog over the plan (`termin=`; owner,
 //   2026-11-03: „muss das ein modal werden"), the page dimmed, its slot marked; the view
 //   names the module and its title, the module's events as segments above the ticket (the
@@ -115,17 +115,17 @@ const view = (page) => page.evaluate(() => {
     date_button: text("[data-action='hide-date']"),
   };
 });
-// The Praktikum's slots in the week: [day column text, dashed].
+// The Praktikum's slots in the week: [day column text, hatched].
 const practicals = (page) => page.evaluate(() => [...document.querySelectorAll(".sp-body .week .slot")].filter((slot) => slot.textContent.includes("Prak PP")).map((slot) => slot.className.split(" ").includes("alt")));
 
 // ---------- the Stundenplan ----------
 {
-  // A dashed group of the week takes its choice into focus (docs/folia/frontend.md, „Offen and the
+  // A hatched group of the week takes its choice into focus (docs/folia/frontend.md, „Offen and the
   // choice in focus"); a line of „Termine" opens the Termin, and so does its address.
   const { page: first, context: weekly } = await open("/studyplan");
   await until(first, "the week", () => document.querySelectorAll(".sp-body .week .slot").length > 0);
   const groups = await first.evaluate(() => [...document.querySelectorAll(".sp-body .week a.slot.alt")].filter((slot) => slot.textContent.includes("Prak PP")).map((a) => a.getAttribute("href")));
-  check(groups.length === 4 && groups.every((href) => href === "/studyplan?wahl=e148370"), `a dashed group of the Praktikum takes its choice into focus: ${JSON.stringify(groups)}`);
+  check(groups.length === 4 && groups.every((href) => href === "/studyplan?wahl=e148370"), `a hatched group of the Praktikum takes its choice into focus: ${JSON.stringify(groups)}`);
   await first.click('a[href="/studyplan?view=dates"]');
   await until(first, "„Termine\"", () => document.querySelector(".sp-body [href*='termin=148370-']"));
   const href = await first.evaluate(() => document.querySelector(".sp-body [href*='termin=148370-']")?.getAttribute("href") ?? "");
@@ -140,9 +140,9 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   check(v.events.join(" | ") === "Vorlesung | Praktikum" && v.above && v.picture && v.series > 1, `the module's events and „Reihe" above the ticket, the day a picture: ${JSON.stringify(v)}`);
   check(/^(Mo|Di|Mi|Do|Fr) \d\d\.\d\d\./.test(v.date) && /^\d\d:\d\d/.test(v.time) && v.room.includes("0.03"), `the ticket: ${JSON.stringify(v)}`);
   check(v.groups.length === 4 && v.groups.every(([, ticked]) => !ticked) && v.groups.filter(([, , here]) => here).length === 1 && v.right === "eine von 4", `four groups above the ticket, none ticked, the one shown marked: ${JSON.stringify(v)}`);
-  check(v.switches.join() === "show-event,tick,hide-date,change,note,makeup" && v.shown === "true" && v.tick === "false" && /^(Mo|Mi|Do|Fr) \d\d:\d\d im Stundenplan$/.test(v.tick_said) && v.tick_sub === "Bis du eine anhakst, stehen alle 4 gestrichelt im Stundenplan.", `„Im Stundenplan": the Praktikum's switch above its group's, the date's and what changes it: ${JSON.stringify(v)}`);
+  check(v.switches.join() === "show-event,tick,hide-date,change,note,makeup" && v.shown === "true" && v.tick === "false" && /^(Mo|Mi|Do|Fr) \d\d:\d\d im Stundenplan$/.test(v.tick_said) && v.tick_sub === "Bis du eine anhakst, stehen alle 4 schraffiert im Stundenplan.", `„Im Stundenplan": the Praktikum's switch above its group's, the date's and what changes it: ${JSON.stringify(v)}`);
   check(await page.evaluate(() => Boolean(document.querySelector(".sp-body .week .slot.cur, .sp-body .week [aria-current='true']"))), "its slot is marked");
-  check((await practicals(page)).filter(Boolean).length === 4, `the four groups dashed: ${JSON.stringify(await practicals(page))}`);
+  check((await practicals(page)).filter(Boolean).length === 4, `the four groups hatched: ${JSON.stringify(await practicals(page))}`);
   if (shots) await page.screenshot({ path: `${shots}/termin-open.png` });
 
   // Two ticked (owner, 2026-11-03: „darunter kann man dann den Tag wählen und dann noch ob es im
@@ -161,7 +161,7 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   v = await view(page);
   check(v.tick_sub === "2 von 4 angehakt" && v.right === "eine von 4" && v.groups.filter(([, ticked]) => ticked).length === 2, `„2 von 4 angehakt": ${JSON.stringify(v)}`);
   let week = await practicals(page);
-  check(week.length === 2 && week.every((dashed) => !dashed), `two groups solid in the week: ${JSON.stringify(week)}`);
+  check(week.length === 2 && week.every((hatched) => !hatched), `two groups solid in the week: ${JSON.stringify(week)}`);
   check((await stored(page)).split("\n").filter((line) => line.startsWith("c\t2026W\t148370-")).length === 2, `two ticks kept: ${JSON.stringify(await stored(page))}`);
   if (shots) await page.screenshot({ path: `${shots}/termin-ticked.png` });
   await page.click("dialog[open] .tm-dialog [data-action='tick']");

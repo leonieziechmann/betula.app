@@ -1864,8 +1864,6 @@ a.slot { text-decoration: none; }
 .slot-frame { position: absolute; z-index: 1; pointer-events: none; left: calc(var(--at) + var(--in) * var(--lane, 0) / var(--lanes, 1)); width: calc(var(--in) * var(--wide, 1) / var(--lanes, 1)); top: calc((var(--from) - var(--first)) * 24px - 1px); height: calc((var(--to) - var(--from)) * 24px); border-radius: 7px; box-shadow: inset 0 0 0 2px var(--no); }
 .week.fit .slot-frame { top: calc((var(--from) - var(--first)) * 100% / var(--span) - 1px); height: calc((var(--to) - var(--from)) * 100% / var(--span)); }
 .slot-frame::after { content: "!"; position: absolute; top: 4px; right: 4px; width: 13px; height: 13px; border-radius: 50%; background: var(--no); color: var(--panel); font-size: 10px; font-weight: 800; line-height: 13px; text-align: center; }
-.sp-body .slot.clash.framed { box-shadow: inset 2.5px 0 0 var(--tint, var(--accent)); }
-.sp-body .slot.clash.framed::after { content: none; }
 /* A „✓" that is on (aria-pressed): what was taken, filled; its click takes it back. */
 .slot-act[aria-pressed="true"] { background: var(--ok); color: var(--panel); box-shadow: none; }
 .slot-act[aria-pressed="true"]:hover { filter: brightness(.9); }
@@ -1888,15 +1886,41 @@ a.slot { text-decoration: none; }
 .slot > .l > .w:first-child:not(:last-child)::after { content: ""; display: block; width: calc(100% - 100cqw); aspect-ratio: 1 / 1000; max-height: 1.25em; }
 .slot small { display: block; font-weight: 500; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .slot.other { background: var(--panel-3); color: var(--text-2); box-shadow: inset 2.5px 0 0 var(--text-3); }
-/* A module of the Studienplan, in its tint (`t-…`). */
-.slot.tinted { background: color-mix(in oklch, var(--tint) 16%, var(--panel)); color: var(--text); box-shadow: inset 2.5px 0 0 var(--tint); }
+/* A slot's colours (folia/design/kalender/raster.html; the module's week, then the Stundenplan's,
+   owner 2026-11-03: „Versuch das aussehen mal auch im allgemeinen Kalender zu übernehmen"): its
+   tone (`--tint` of its `t-…`, a calendar's `--cal`, else Betula's green); the tone full at one
+   lightness (`--mod-l`; where the browser cannot set a lightness, a share of black), words in the
+   tone, the ground of a card to choose, its stripes, the dots of one to add; and the shadow under a
+   card (`--lift`), more under the one open beside the week. The key of a module in the list beside
+   the Stundenplan's week takes them too (.sp-key). */
+.slot, .week-legend i, .sp-key {
+  --mod: var(--tint, var(--accent));
+  --mod-fill: color-mix(in oklch, var(--mod) var(--mod-dim), #000);
+  --mod-ink: color-mix(in oklch, var(--mod) 78%, var(--mod-ink-mix));
+  --mod-tint: color-mix(in oklch, var(--mod) var(--mod-card), var(--panel));
+  --mod-hatch: repeating-linear-gradient(45deg, color-mix(in oklch, var(--mod) 34%, transparent) 0 1.6px, transparent 1.6px 6px);
+  --mod-dots: radial-gradient(circle, color-mix(in oklch, var(--mod) 34%, transparent) 1px, transparent 1.4px);
+  --lift: var(--card-shadow);
+}
+@supports (color: oklch(from red l c h)) {
+  .slot, .week-legend i, .sp-key { --mod-fill: oklch(from var(--mod) var(--mod-l) c h); --mod-ink: oklch(from var(--mod) var(--mod-ink-l) c h); }
+}
+/* A module of the Studienplan, in its tint (`t-…`): a card, full with white words — what one has
+   to attend. */
+.slot.tinted { background: var(--mod-fill); color: var(--on-mod); box-shadow: var(--lift); }
 /* Single dates: they do not happen every week, so they do not look like what does. */
 .slot.once { background: var(--panel-2); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
-/* An option of a choice not yet made. */
-.slot.alt { background: transparent; box-shadow: none; outline: 1px dashed var(--tint, var(--line-strong)); outline-offset: -1px; }
-.slot.clash { box-shadow: inset 2.5px 0 0 var(--no), inset 0 0 0 1.5px var(--no); }
-/* The slot of what is open beside the grid. */
-.slot[aria-current="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* An option of a choice not yet made: hatched in its tone and ringed. On a texture (what one
+   chooses, what one may add, a group of the choice in focus not ticked) each line of words stands
+   on a plate of the card's ground, so that the stripes go round the words. */
+.slot.alt { --plate: var(--mod-tint); background-color: var(--mod-tint); background-image: var(--mod-hatch); color: var(--mod-ink); box-shadow: inset 0 0 0 1.5px var(--mod), var(--lift); }
+.slot:is(.alt, .extra, .pick:not(.on)) small { opacity: 1; color: var(--text-2); }
+.slot:is(.alt, .extra, .pick:not(.on)) > :is(.l, small) { width: fit-content; max-width: calc(100% + 4px); margin-inline: -2px; padding-inline: 2px; border-radius: 3px; background: var(--plate); }
+/* A clash: a red ring inside the card (the Stundenplan's mark, „A slot that overlaps"). A slot in
+   a red frame with the slot it clashes with keeps its own look. */
+.slot.clash:not(.framed) { box-shadow: inset 0 0 0 2px var(--no), var(--lift); }
+/* The slot of what is open beside the grid: a ring at a distance, and it lifts. */
+.slot[aria-current="true"] { --lift: var(--lift-shadow); z-index: 2; outline: 2px solid var(--mod-fill); outline-offset: 2px; }
 /* The courses of a module held at two campuses or more (module.rs, courses.rs; owner, 2026-10-19:
    „mit klarer Erkennbarkeit, dass die einen in Cottbus sind und die anderen in Senftenberg"):
    where its page shows every course, each has its colour — a stripe on its slots, a dot before its
@@ -1912,7 +1936,8 @@ a.slot { text-decoration: none; }
    „+" before its kind. In the list, a heading per part with a dot before it (a dotted square for
    the extras), a gap before each option of several lines, and the options of a long choice after
    its first folded away. */
-.sp-body .slot.extra { background: var(--panel); color: var(--text-3); box-shadow: none; outline: 1px dotted color-mix(in oklch, var(--tint) 70%, var(--text-3)); outline-offset: -1px; }
+/* In the Stundenplan an extra is a card dotted in its tone (as in the module's week, below). */
+.sp-body .slot.extra { --plate: var(--panel); background-color: var(--panel); background-image: var(--mod-dots); background-size: 6px 6px; color: var(--text-2); box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--mod) 55%, transparent), var(--lift); }
 /* The week of a module's page (folia/design/kalender/raster.html; owner, 2026-11-03: „Passt alles,
    bau das jetzt in Folia"): without a box, the module's Termine as cards in its colour — its tone
    in the plan beside the week (`t-…` on the slot), Betula's green without — over the plan, a grey
@@ -1924,17 +1949,6 @@ a.slot { text-decoration: none; }
    card, which carries the „!"; the Termin open beside the week has a ring at a distance and
    lifts. Another course's or another program's option stays faint and dashed. */
 #termine .week { background: none; box-shadow: none; padding: 2px 0 calc(12px + var(--spill, 0) * 12px); }
-#termine .slot, #termine .week-legend i {
-  --mod: var(--tint, var(--accent));
-  --mod-fill: color-mix(in oklch, var(--mod) var(--mod-dim), #000);
-  --mod-ink: color-mix(in oklch, var(--mod) 78%, var(--mod-ink-mix));
-  --mod-tint: color-mix(in oklch, var(--mod) var(--mod-card), var(--panel));
-  --mod-hatch: repeating-linear-gradient(45deg, color-mix(in oklch, var(--mod) 34%, transparent) 0 1.6px, transparent 1.6px 6px);
-  --mod-dots: radial-gradient(circle, color-mix(in oklch, var(--mod) 34%, transparent) 1px, transparent 1.4px);
-}
-@supports (color: oklch(from red l c h)) {
-  #termine .slot, #termine .week-legend i { --mod-fill: oklch(from var(--mod) var(--mod-l) c h); --mod-ink: oklch(from var(--mod) var(--mod-ink-l) c h); }
-}
 #termine .slot { z-index: 1; background: var(--mod-fill); color: var(--on-mod); box-shadow: var(--card-shadow); font-weight: 680; }
 #termine .slot small { opacity: .86; }
 #termine .slot.once { background: color-mix(in oklch, var(--mod) var(--mod-once), var(--panel)); color: var(--text); }
@@ -3384,6 +3398,9 @@ button.pm-new-way { width: 100%; text-align: left; }
 .sp-side { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; min-width: 0; }
 .sp-below { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
 .sp-week { position: relative; display: flex; flex-direction: column; min-width: 0; }
+/* The week stands without a box, as a module's week does (folia/design/kalender/raster.html): its
+   cards over the lines. A phone's weeks keep theirs, which the carousel carries. */
+:not(.sp-slide) > .sp-week > .week { background: none; box-shadow: none; padding: 2px 0 12px; }
 @media (min-width: 901px) {
   .sp-fold { min-height: min(calc(100vh - 64px - 41px), 960px); }
   .sp-view, .sp-week { flex: 1 1 auto; }
@@ -3425,7 +3442,7 @@ button.pm-new-way { width: 100%; text-align: left; }
 @container (min-width: 80px) and (min-height: 26.5px) { .sp-slide .slot > small:not(.p) { display: block; } }
 /* The red mark of a clash stands in the bottom corner, which the lines of a slot leave free: in a
    day's narrow lane the name reaches the top corner. */
-.sp-carousel .sp-slide .slot.clash::after, .sp-carousel .sp-slide .slot-frame::after { top: auto; bottom: 3px; }
+.sp-carousel .sp-slide .slot.clash:not(.framed)::after, .sp-carousel .sp-slide .slot-frame::after { top: auto; bottom: 3px; }
 @container page (min-width: 900px) {
   .sp-body { grid-template-columns: minmax(0, 1fr) clamp(250px, 28%, 340px); grid-template-rows: auto 1fr; gap: 0 24px; }
   .sp-body > .sp-fold { grid-area: 1 / 1; }
@@ -3466,8 +3483,8 @@ button.pm-new-way { width: 100%; text-align: left; }
    them (owner, 2026-09-25): a head („Mein Studiengang", „+ Modul" and the credits of the planned modules at the right,
    above theirs), then a row per module (div.sp-row-wrap > a.sp-row.t-… > span.t > b + small,
    span.lp; and button.sp-remove), a link to the module beside the plan, the open one marked as the
-   catalog marks it. Under the title the key the week names the module by, in its tone as a slot
-   of the week (span.sp-key, empty where the week says its name), its number and what else is to
+   catalog marks it. Under the title the key the week names the module by, full in its tone as its
+   cards in the week (span.sp-key, empty where the week says its name), its number and what else is to
    know; its credits at the right, left of the ×. The placeholders no module fills are dashed
    (a.open-slot); the visits and the way to „Mein Studium" follow (see „Modules only visited"). */
 .sp-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; align-content: start; }
@@ -3491,7 +3508,7 @@ button.pm-new-way { width: 100%; text-align: left; }
 .sp-row .t small { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin-top: 3px; color: var(--text-3); font-size: 12px; }
 .sp-row .lp { font-weight: 650; font-size: 14px; white-space: nowrap; }
 .sp-row .lp small { margin-left: 2px; color: var(--text-3); font-weight: 500; font-size: 11px; }
-.sp-key { flex: none; display: inline-flex; align-items: center; min-width: 14px; height: 18px; padding: 0 6px 0 8px; border-radius: 4px; background: color-mix(in oklch, var(--tint, var(--text-3)) 16%, var(--panel)); box-shadow: inset 2.5px 0 0 var(--tint, var(--text-3)); color: var(--text); font-weight: 650; font-size: 11.5px; font-style: normal; letter-spacing: 0; }
+.sp-key { --mod: var(--tint, var(--text-3)); flex: none; display: inline-flex; align-items: center; min-width: 14px; height: 18px; padding: 0 6px; border-radius: 4px; background: var(--mod-fill); color: var(--on-mod); font-weight: 650; font-size: 11.5px; font-style: normal; letter-spacing: 0; }
 i.sp-key { width: 14px; padding: 0; }
 .sp-row.open-slot { outline: 1px dashed var(--line-strong); outline-offset: -1px; }
 .sp-row.open-slot .t b { color: var(--text-2); font-weight: 560; }
@@ -3652,9 +3669,10 @@ i.sp-key { width: 14px; padding: 0; }
    free), its words for a screen reader and its tooltip; „Gemeinsam frei" behind the slots, a
    dashed green stretch with „beide frei" in it (.band.free). */
 .k-1 { --cal: var(--k-1); } .k-2 { --cal: var(--k-2); } .k-3 { --cal: var(--k-3); } .k-4 { --cal: var(--k-4); } .k-5 { --cal: var(--k-5); } .k-6 { --cal: var(--k-6); }
-.sp-body .slot.cal { background: var(--panel); color: var(--text-2); box-shadow: inset 0 0 0 1.5px var(--cal); }
-.sp-body .slot.cal.alt { box-shadow: none; outline: 1.5px dashed var(--cal); outline-offset: -1.5px; }
-.sp-body .slot.cal.extra { box-shadow: none; outline: 1.5px dotted var(--cal); outline-offset: -1.5px; color: var(--text-3); }
+.slot.cal { --mod: var(--cal); }
+.sp-body .slot.cal { --plate: var(--panel); background: var(--panel); color: var(--text-2); box-shadow: inset 0 0 0 1.5px var(--cal), var(--lift); }
+.sp-body .slot.cal.alt { background-image: var(--mod-hatch); }
+.sp-body .slot.cal.extra { background-image: var(--mod-dots); background-size: 6px 6px; color: var(--text-3); box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--cal) 55%, transparent), var(--lift); }
 .slot > .slot-who { position: absolute; right: 3px; bottom: 3px; width: 15px; height: 15px; border-radius: 4px; background: var(--cal, var(--text-3)); color: var(--panel); font: 700 9.5px/15px var(--font); font-style: normal; text-align: center; }
 .sp-body .slot.strip { left: calc(100% - var(--sw) + 2px + (var(--sw) - 3px) * var(--lane, 0) / var(--lanes, 1)); width: max(2px, calc((var(--sw) - 3px) / var(--lanes, 1) - 1px)); padding: 0; border-radius: 3px; background: var(--cal); box-shadow: none; opacity: .85; }
 .sp-body .slot.strip > * { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -3746,22 +3764,25 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-cal-mods > .sp-list-head .sw { width: 10px; height: 10px; border-radius: 3px; background: var(--cal); }
 /* A calendar's modules are rows of the list, each key in the calendar's colour. */
 .sp-cal-mods { --tint: var(--cal); }
+.sp-cal-mods .sp-key { background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--cal); color: var(--text); }
 .sp-cal-came { margin: 0; padding: 0 12px; color: var(--text-3); font-size: 11.5px; }
 /* Modules only visited (owner, 2026-10-19 and 2026-10-26: „nur besuchen", studyplan.rs `Visit`):
-   in the week hatched in their module's tone, so that what counts and what is only visited tell
-   apart by their form, not by their colour alone (.slot.visit); where a visit meets the plan it
-   gives way, a yellow edge instead of a clash's red (.slot.gives, „der Besuch gibt nach"). The
-   phone's list of days the same; in the list of modules the visit's key is hatched alike
-   (.sp-row.visit), and it counts no credits; „Offen" names where one gives way (.sp-open-row.gives). */
-.sp-body .slot.visit { background: repeating-linear-gradient(135deg, color-mix(in oklch, var(--tint, var(--text-3)) 24%, var(--panel)) 0 5px, var(--panel) 5px 10px); color: var(--text); }
-.sp-body .slot.visit.alt { background: repeating-linear-gradient(135deg, color-mix(in oklch, var(--tint, var(--text-3)) 12%, transparent) 0 5px, transparent 5px 10px); }
-.sp-body .slot.gives { box-shadow: inset 2.5px 0 0 var(--warn), inset 0 0 0 1.5px color-mix(in srgb, var(--warn) 70%, transparent); }
-.sp-daylist a.visit { background: repeating-linear-gradient(135deg, color-mix(in oklch, var(--tint, var(--text-3)) 16%, var(--panel-2)) 0 5px, var(--panel-2) 5px 10px); }
+   in the week a white card ringed in their module's tone, so that what counts (full) and what is
+   only visited tell apart by their form, not by their colour alone (.slot.visit; hatched until the
+   week took the module week's look, 2026-11-03, where stripes are what one chooses); where a visit
+   meets the plan it gives way, a yellow ring instead of a clash's red (.slot.gives, „der Besuch
+   gibt nach"). The phone's list of days the same; in the list of modules the visit's key is ringed
+   alike (.sp-row.visit), and it counts no credits; „Offen" names where one gives way, its square
+   ringed (.sp-open-row.gives). */
+.sp-body .slot.visit { background: var(--panel); color: var(--text); box-shadow: inset 0 0 0 1.5px var(--mod), var(--lift); }
+.sp-body .slot.visit.alt { --plate: var(--panel); background-image: var(--mod-hatch); }
+.sp-body .slot.gives { box-shadow: inset 0 0 0 2px var(--warn), var(--lift); }
+.sp-daylist a.visit { background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--tint, var(--text-3)); }
 .sp-daylist a.gives { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 1px color-mix(in srgb, var(--warn) 45%, transparent); }
-.sp-row.visit .sp-key { background: repeating-linear-gradient(135deg, color-mix(in oklch, var(--tint, var(--text-3)) 30%, var(--panel)) 0 3px, var(--panel) 3px 6px); }
+.sp-row.visit .sp-key { background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--tint, var(--text-3)); color: var(--text); }
 .sp-actions .badge.visit { color: var(--text-3); }
 .sp-visit-note { color: var(--text-3); font-size: 12.5px; }
-.sp-open-row.gives > .od { border-radius: 2px; background: repeating-linear-gradient(135deg, var(--tint, var(--text-3)) 0 2px, transparent 2px 4px); box-shadow: inset 0 0 0 1px var(--tint, var(--text-3)); }
+.sp-open-row.gives > .od { border-radius: 2px; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--tint, var(--text-3)); }
 .sp-open-row.gives small { color: var(--warn); }
 /* A change of a Termin of QIS that asks for something (step 2, „Wenn QIS sich ändert"): its dot a
    pen's ring, what QIS says in amber; one that its buttons decide („OK", „Übernehmen", „Als
@@ -3809,7 +3830,9 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .slot.conflict > .slot-pen { background: var(--warn-soft); color: var(--warn); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 60%, transparent); }
 /* Beside a calendar's initial, not on it. */
 .slot > .slot-who ~ .slot-pen { right: 21px; }
-.sp-body .slot.conflict:not(.clash) { box-shadow: inset 2.5px 0 0 var(--warn), inset 0 0 0 1.5px color-mix(in srgb, var(--warn) 70%, transparent); }
+/* On a full card the marks are white, in the card's colour, as the tick of one's own group. */
+.slot.tinted:not(.alt, .extra, .visit, .conflict) > :is(.slot-own, .slot-pen) { background: var(--on-mod); box-shadow: none; color: var(--mod-fill); }
+.sp-body .slot.conflict:not(.clash) { box-shadow: inset 0 0 0 2px var(--warn), var(--lift); }
 .sp-body .sp-week .week .col { cursor: copy; }
 .sp-body .sp-week .week .col :is(.slot, .band) { cursor: pointer; }
 /* On a phone a finger held on the week is a Termin there: nothing of the page is selected. */
@@ -3827,7 +3850,7 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .sp-own .sp-row.own:hover { background: var(--row-hover); }
 .sp-own .sp-row.own[aria-current="true"] { background: color-mix(in oklch, var(--tint, var(--accent)) 10%, var(--panel)); box-shadow: inset 2.5px 0 0 var(--tint, var(--accent)); }
 .sp-own button.sp-row.own > .icon { width: 14px; height: 14px; color: var(--text-3); }
-.sp-key.own { display: inline-grid; place-items: center; width: 16px; height: 16px; padding: 0; border-radius: 4px; background: color-mix(in oklch, var(--tint, var(--text-3)) 16%, var(--panel)); color: var(--tint, var(--text-3)); }
+.sp-key.own { display: inline-grid; place-items: center; width: 16px; height: 16px; padding: 0; border-radius: 4px; }
 .sp-key.own .icon { width: 10px; height: 10px; stroke-width: 2.4; }
 .sp-own-add, .sp-enter { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; min-height: 34px; padding: 0 12px; border: 0; border-radius: var(--r-row); background: none; color: var(--accent-ink); font: 600 13px var(--font); cursor: pointer; }
 .sp-own-add:hover, .sp-enter:hover { background: var(--row-hover); }
@@ -3933,18 +3956,18 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .sp-focusbar kbd { padding: 1px 5px; background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-invert) 32%, transparent); color: color-mix(in srgb, var(--on-invert) 75%, transparent); }
 /* The week while a choice is in focus (week.rs `focus_slots`): its groups, each the box that ticks
    it (button.slot.pick, ticked .on, its box i.pick-box at its bottom right), over the rest of the
-   plan, which steps back (.dim, 42 %; owner, 2026-10-26). A group dashed in its tone while not
-   ticked, filled once ticked, red where it meets the plan. */
+   plan, which steps back (.dim, 42 %; owner, 2026-10-26). A group hatched in its tone while not
+   ticked, as what one chooses, full once ticked, as what one attends, and it lifts; red where it
+   meets the plan. */
 .sp-body .slot.dim { opacity: .42; }
 .sp-body button.slot { text-align: left; }
-.sp-body .slot.pick { z-index: 1; background: color-mix(in oklch, var(--tint) 7%, var(--panel)); color: var(--text); box-shadow: 0 1px 3px rgba(15, 23, 42, .1); outline: 1.5px dashed var(--tint); outline-offset: -1.5px; transition: background .12s; }
-.sp-body .slot.pick:hover { background: color-mix(in oklch, var(--tint) 14%, var(--panel)); }
-.sp-body .slot.pick.on { background: color-mix(in oklch, var(--tint) 22%, var(--panel)); outline: 2px solid var(--tint); outline-offset: -2px; box-shadow: 0 3px 10px -4px rgba(15, 23, 42, .3); }
-.sp-body .slot.pick.clash { outline-color: var(--no); }
-/* A group of a visit gives way where it meets the plan: its outline yellow, never red. */
-.sp-body .slot.pick.gives { outline-color: var(--warn); }
-.slot > .pick-box { position: absolute; right: 4px; bottom: 4px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--tint); color: var(--panel); }
-.slot.on > .pick-box { background: var(--tint); box-shadow: none; }
+.sp-body .slot.pick { z-index: 1; --plate: var(--mod-tint); background-color: var(--mod-tint); background-image: var(--mod-hatch); color: var(--mod-ink); box-shadow: inset 0 0 0 1.5px var(--mod), var(--lift); transition: background-color .12s, box-shadow .12s; }
+.sp-body .slot.pick:not(.on):hover { --plate: color-mix(in oklch, var(--mod) 18%, var(--panel)); background-color: var(--plate); }
+.sp-body .slot.pick.on { --lift: var(--lift-shadow); background: var(--mod-fill); color: var(--on-mod); box-shadow: var(--lift); }
+/* A group of a visit gives way where it meets the plan: its ring yellow, never red. */
+.sp-body .slot.pick.gives { box-shadow: inset 0 0 0 2px var(--warn), var(--lift); }
+.slot > .pick-box { position: absolute; right: 4px; bottom: 4px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--mod); color: var(--panel); }
+.slot.on > .pick-box { background: var(--on-mod); box-shadow: none; color: var(--mod-fill); }
 .slot > .pick-box .icon { width: 11px; height: 11px; stroke-width: 3; }
 /* On a phone the slots are too narrow for a box over their room, and the sheet under the week
    has the boxes: a group is dashed or filled, the red outline says a clash. */
@@ -4035,9 +4058,11 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
    phone „Plan · Alle Termine" is in „Anpassen", as wide as it (side.rs ViewGroup). */
 .sp-head .seg.sp-weeks, .sp-head .seg.sp-all { justify-self: start; margin-top: 0; }
 .sp-head .seg.sp-weeks button, .sp-head .seg.sp-all button { padding: 0 12px; }
-/* A slot that overlaps another in the week shown: a red frame and a red mark at its top right. */
-.sp-body .slot.clash { box-shadow: inset 3px 0 0 var(--no), inset 0 0 0 1.5px var(--no); }
-.sp-body .slot.clash::after { content: "!"; position: absolute; top: 3px; right: 3px; width: 13px; height: 13px; border-radius: 50%; background: var(--no); color: var(--panel); font-size: 10px; font-weight: 800; line-height: 13px; text-align: center; }
+/* A slot that overlaps another in the week shown: a red ring and a red mark at its top right,
+   ringed in the page's ground where it stands on a card's colour. In a red frame with the slot it
+   clashes with (.framed) the frame has both. */
+.sp-body .slot.clash:not(.framed) { box-shadow: inset 0 0 0 2px var(--no), var(--lift); }
+.sp-body .slot.clash:not(.framed)::after { content: "!"; position: absolute; top: 3px; right: 3px; width: 13px; height: 13px; border-radius: 50%; background: var(--no); color: var(--panel); font-size: 10px; font-weight: 800; line-height: 13px; text-align: center; box-shadow: 0 0 0 1.5px var(--panel); }
 /* What the plan leaves out, in „Alle Termine" (.slot.faint): pale and dashed in its tone; where it
    would meet a Termin of the plan, dashed red with the mark (.clash). */
 .sp-body .slot.faint { background: color-mix(in oklch, var(--tint) 6%, var(--panel)); color: var(--text-3); font-weight: 560; box-shadow: none; outline: 1px dashed color-mix(in oklch, var(--tint) 60%, var(--line-strong)); outline-offset: -1px; }
@@ -4061,7 +4086,8 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 @container (max-height: 52px) { .slot > .l { -webkit-line-clamp: 1; line-clamp: 1; max-height: 1.25em; } }
 @container (max-height: 38.5px) { .slot > small.p { display: none; } }
 @container (max-height: 26px) { .slot > small { display: none; } }
-.slot.once[class*=" t-"] { background: color-mix(in oklch, var(--tint) 7%, var(--panel)); color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint) 45%, transparent); }
+/* Single dates of a module: full and lighter, as in the module's week. */
+.slot.once[class*=" t-"]:not(.alt, .extra, .visit) { background: color-mix(in oklch, var(--mod) var(--mod-once), var(--panel)); color: var(--text); box-shadow: var(--lift); }
 a.slot { cursor: pointer; transition: filter .12s; }
 a.slot:hover { filter: brightness(.96); }
 /* On a phone the week's grid has its days as a list under it, closed until its line opens it
@@ -5707,8 +5733,10 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .st-glyph.passed { color: var(--ok); background: currentColor; box-shadow: none; }
 .st-glyph.passed > .g-passed { display: block; color: var(--panel); }
 .st-glyph.failed { color: var(--no); }
-/* A module only visited („nur besuchen", focus.rs `VisitRow`): its sign hatched as its slots are in
-   the week, a ring of stripes; its credits „–", its line a quiet mark. */
+/* A module only visited („nur besuchen", focus.rs `VisitRow`): its sign a ring of stripes (as its
+   slots were in the week until 2026-11-03, where stripes now are what one chooses and a visit is a
+   white card ringed in its tone; a ring alone is a module planned here); its credits „–", its line
+   a quiet mark. */
 .st-glyph.visit { color: var(--text-3); background: repeating-linear-gradient(135deg, currentColor 0 1.5px, transparent 1.5px 4px); }
 .st-visit .lp { color: var(--text-3); }
 .st-glyph.failed > .g-failed { display: block; width: 11px; height: 11px; }

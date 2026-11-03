@@ -298,7 +298,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   sein, wenn termine abgeschnitten sind"; the concepts' second round, folia/design/kalender/raster.html,
   „Passt alles, bau das jetzt in Folia"; Folia 1.63.0, `folia_widgets::week`, `module.rs`, app.css
   `#termine`). The week stands without a box, the hours at their lines and the frame's end named,
-  the lines across the days (the Stundenplan's grid too, its colours as they were). The module's
+  the lines across the days (the Stundenplan's grid too, and its look in 1.67.0). The module's
   Termine are cards in its colour: its tone in the plan beside the week, as the Termin view has it
   (its own place where it is planned, the next one where it is not), Betula's green without the
   plan. What one has to attend is full; single dates are full and lighter; what one chooses is
@@ -317,6 +317,27 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   week has a ring at a distance and lifts. A line under the week, only with the plan beside it,
   names what of this the week holds („Pflicht" or „Pflicht und deine Gruppe", „Einzeltermine",
   „Wahl, eine der Gruppen", „Zusatz, freiwillig", „Darunter: dein Stundenplan").
+- **The Stundenplan's week in the same look** (owner, 2026-11-03: „Versuch das aussehen mal auch im
+  allgemeinen Kalender zu übernehmen. Der ist nämlich auch noch ganz schön cluttered."; Folia
+  1.67.0, app.css). The colours of a slot are the module week's for every week (`.slot`: `--mod` and
+  what is made of it, `--lift` the shadow under a card), and the Stundenplan's states take its
+  forms: what one attends is a card full in its module's tone with white words (`.tinted`), a single
+  date full and lighter, an option of a choice not made hatched and ringed with its words on plates
+  (`.alt`, its „✓" and „×" as before), an extra dotted (`.extra`), a group of the choice in focus
+  hatched until it is ticked and full with a white tick once it is (`.pick`, `.on`, which lifts). A
+  visit, hatched before, is a white card ringed in its module's tone, as a calendar of one's own in
+  full is in its colour with its initial (`.visit`, `.cal`; a choice of either hatched, an extra
+  dotted): what counts is full, what does not is white, so that the two stay apart by their form now
+  that stripes are what one chooses. A clash is a red ring inside the card with the „!" (on a phone
+  at its bottom), giving way and a change of QIS to decide a yellow ring, the marks of one's own
+  Termin and of a Termin changed by hand white on a full card. What „Alle Termine" adds stays faint
+  and dashed; the Termin open beside the week has a ring at a distance and lifts. On a wide page the
+  week stands without a box, as a module's week (a phone's weeks keep theirs, which the carousel
+  carries). In the list beside the week a module's key is full in its tone as its cards (`.sp-key`),
+  a visit's ringed, a calendar's ringed in its colour, one's own full with its white mark; „Offen"
+  names where a visit gives way with a ringed square; the phone's list of days rings a visit too.
+  The Termin view and the focus say „stehen alle 4 schraffiert im Stundenplan". The demo week of
+  „Planen" (`/about/planning`) is the same grid.
 - **Side by side the two halves end on one line** (owner, 2026-10-27, of the wide screen: „dass
   gerne mal riesige Lücken in dem UI sind. Bitte verbesser das mal, so dass das relativ uniform
   ist"; app.css `.module-grid`, enhance.js). Measured on 24 modules across the catalog at 1440 px,
@@ -396,8 +417,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     für andere Studiengänge. Du besuchst eine.", „Kontrapunkt/Tonsatz I und Gehörbildung I gibt es
     in 3 Gruppen. Du besuchst eine, beide in derselben Gruppe.", „Wahlangebot: Du belegst eines der
     14 Projekte (je 4 SWS)." or „… Übungen für 6 SWS." — and one for the extras („Zusätzlich,
-    freiwillig: Aufbaukurs Höhere Mathematik - T3."). In the week an option to choose is dashed
-    (`.slot.alt`), its group or whom QIS lists it for in its third line („für Bauingenieurwesen"),
+    freiwillig: Aufbaukurs Höhere Mathematik - T3."). In the week an option to choose is hatched
+    (`.slot.alt`; dashed until 1.63.0), its group or whom QIS lists it for in its third line („für Bauingenieurwesen"),
     its choice in its tooltip; an extra dotted and lighter, „+" before its kind; the options of a
     choice of more than four stand in the list alone (`WEEK_OPTIONS`), and a week left without a
     slot leaves the list unfolded. The list falls into parts with headings: „Pflicht", per choice
@@ -425,7 +446,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   - **The Stundenplan** (step 2 of the concept; `folia_timetable::model` `Across`, `take`,
     `clash`, `fit`; the planner's `week.rs`, `aside.rs`, `head.rs`, `side.rs`): a choice among a
     module's events (`Timetable::choices`, from `StudyplanData::choices`, `modules_choices`) is open
-    until it is made. In the week its options are dashed with „1 von 3" in their tooltip (a choice
+    until it is made. In the week its options are hatched with „1 von 3" in their tooltip (a choice
     of two „2 von 4") and „✓ Diese nehmen" / „× Nicht diese"; a choice of more than four options
     stands only in the panel beside the plan (`WEEK_OPTIONS`), whose options say „passt" or
     „überschneidet sich" (`clash::option_meetings`). Over the week „1 Wahl offen", in its list „1
@@ -2289,8 +2310,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     tick away. Another group is picked above and ticked there, as many as one likes (owner: „mehr
     als eine Übung … im Kallender anzeigen lassen können ist ein must"; all ticked count alike,
     `Selection::chosen_rows`, `Event::chosen` a set), how many are under the switch („2 von 4
-    angehakt"); none ticked, the choice stays open and its groups stand dashed in the week („Bis du
-    eine anhakst, stehen alle 4 gestrichelt im Stundenplan."). Last „Nur am Mo 02.11. · Ausblenden",
+    angehakt"); none ticked, the choice stays open and its groups stand hatched in the week („Bis du
+    eine anhakst, stehen alle 4 schraffiert im Stundenplan."). Last „Nur am Mo 02.11. · Ausblenden",
     this one date of what the plan holds (of an event without groups, of the group ticked, or while
     none is; `Selection::hidden_dates`, the store's `h` lines, `PlanDoc::set_date`; the week, the
     day, the clashes and the feed leave it out, `Occurrences::hidden`), „Zeigen" brings it back. The
@@ -2373,14 +2394,14 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     phone it says nothing of what is hidden either (owner, 2026-10-26: „Der Ausgeblendet Knopf kann
     weg" — a group ticked counted as „1 ausgeblendet"), which comes back with „Alle Termine" in
     „Anpassen" and in its module.
-  - **The focus** (`wahl=e<event>`): a row of „Offen", and a dashed group in the week, take the
-    choice into focus; the dashed group comes ticked (owner, 2026-10-26: „Wenn man auf eine Übung
+  - **The focus** (`wahl=e<event>`): a row of „Offen", and a hatched group in the week, take the
+    choice into focus; the hatched group comes ticked (owner, 2026-10-26: „Wenn man auf eine Übung
     klickt, dann soll die Preselected sein, so dass man einfach direkt auf Fertig klicken kann"):
     its link carries the key of its „✓" (`GridSlot::pre`, `data-pre`), which acts after the next
     frame while the link is followed (a click with a key held only follows it), on a wide screen,
     in a phone's carousel and in its list of days. A row of „Offen" ticks nothing: no group was
-    picked there. Its groups all stand in the week, each a box to tick, dashed in its tone while
-    not ticked, filled once ticked, red where it meets the plan; the rest of the week steps back to
+    picked there. Its groups all stand in the week, each a box to tick, hatched in its tone while
+    not ticked, full once ticked, red where it meets the plan; the rest of the week steps back to
     42 % and leads nowhere. As many groups as one likes can be ticked (`PlanDoc::tick`, as the
     Termin's tiles do); the focus stays after a tick. Over the week of a wide screen a dark bar says
     what is chosen and what to do, whether the groups fit („Nur Do 09:15 passt, die anderen
@@ -2472,22 +2493,23 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (`PlanDoc::plan` turns a visit into the planned module). The modules of the study come from
     „Mein Studium", where the last line of „Mein Studiengang"'s part leads („Module des Studiums in
     „Mein Studium“"), in the place of „Modul hinzufügen" and „Aus der Merkliste".
-  - **In the week** a visit is hatched; where it meets a module of the plan it gives way (those of
-    its slots yellow, `gives`, their tooltip „Besuch, zählt nicht · trifft VL MIT1, der Besuch gibt
-    nach"), never the red of a clash: visits are no part of the hard clashes, as extras are not
-    (`clash::meetings`); `clash::yields` says where they give way. „Offen" lists each such meeting
-    after the choices („EiP trifft VL MIT1 · Di 13:45 · der Besuch gibt nach · Ansehen", which opens
-    the visit's Termin), its count the choices' alone. The head counts visits apart („4 Module · 1
-    Besuch"); the list has them after the planned modules („Besuch · zählt nicht", no LP, the sum
-    without them; the × takes one out, with „Rückgängig"); the page's exams leave out a visit's
-    (`Timetable::build`). A visit's groups are chosen as any module's (`Selection::visits` only
-    tells the week which modules are visits). The calendar file and the subscription carry a
-    visit's Termine as the week has them and leave its exams out, the same bytes as ever: the
-    subscription's code has no field for visits (one of its own would be refused by older
-    builds), so it carries a visit as a module, its exams among the hidden events
-    (`Timetable::visit_exams`), and a town the page derived without the visits as the town it is
-    (`export::town_of`). A visit's Termine count for nothing when the town is derived. The share
-    link leaves visits out, since the receiver's „Übernehmen" would plan them to count.
+  - **In the week** a visit is a white card ringed in its module's tone (hatched until 1.67.0);
+    where it meets a module of the plan it gives way (those of its slots yellow, `gives`, their
+    tooltip „Besuch, zählt nicht · trifft VL MIT1, der Besuch gibt nach"), never the red of a clash:
+    visits are no part of the hard clashes, as extras are not (`clash::meetings`); `clash::yields`
+    says where they give way. „Offen" lists each such meeting after the choices („EiP trifft VL MIT1
+    · Di 13:45 · der Besuch gibt nach · Ansehen", which opens the visit's Termin), its count the
+    choices' alone. The head counts visits apart („4 Module · 1 Besuch"); the list has them after
+    the planned modules („Besuch · zählt nicht", no LP, the sum without them; the × takes one out,
+    with „Rückgängig"); the page's exams leave out a visit's (`Timetable::build`). A visit's groups
+    are chosen as any module's (`Selection::visits` only tells the week which modules are visits).
+    The calendar file and the subscription carry a visit's Termine as the week has them and leave
+    its exams out, the same bytes as ever: the subscription's code has no field for visits (one of
+    its own would be refused by older builds), so it carries a visit as a module, its exams among
+    the hidden events (`Timetable::visit_exams`), and a town the page derived without the visits as
+    the town it is (`export::town_of`). A visit's Termine count for nothing when the town is
+    derived. The share link leaves visits out, since the receiver's „Übernehmen" would plan them to
+    count.
   - **In „Mein Studium"** a visit stands after the semester's rows (`study::VisitItem`): its name,
     its number, „nur besuchen · aus dem Kalender", the catalog's facts, „–" for its credits, a sign
     of its own; no area, no credits, never passed. Its menu: „Im Kalender öffnen", „Nur besuchen"
@@ -5906,7 +5928,7 @@ cd e2e && node choice-sheet.mjs
 
 drives the choice in focus with Informatik B.Sc.'s first semester planned (Programmierpraktikum in
 four groups; the snapshot whose current semester is WiSe 2026/27): on a wide screen a click on a
-dashed group takes its choice into focus with that group ticked; on a phone a tap does the same,
+hatched group takes its choice into focus with that group ticked; on a phone a tap does the same,
 the line under the head says nothing of what is hidden, a finger moving the sheet up holds the
 tiles on their way to „Vergleichen" (`.morph`, a card per group), let go all up the address says
 `vergleich=1`, down from its head it is back at the tiles, „Vergleichen ›" and ‹ take the same
@@ -5931,7 +5953,7 @@ cd e2e && node visits.mjs
 drives visits and „+ Modul" on the same data, Informatik B.Sc.'s first semester planned:
 „+ Modul" of „Mein Studiengang" with nothing marked opens on the catalog, whose search by number
 finds Einführung in die Programmierung with its number and how it sits in the week; „Aufnehmen"
-takes it in as a visit (a `v` line, nothing planned), with its note; the week hatches it and its
+takes it in as a visit (a `v` line, nothing planned), with its note; the week rings it and its
 slots give way where it meets the plan, without a new red clash; „Offen" says „EiP trifft VL MIT1
 · Di 13:45 · der Besuch gibt nach"; the head counts „1 Besuch", the list has it as „Besuch · zählt
 nicht" with the same credits, its × takes it out and „Rückgängig" brings it back; Esc closes the
