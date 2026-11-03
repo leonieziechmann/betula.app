@@ -5917,7 +5917,10 @@ div.st-col-head.past { cursor: default; }
 .st-rm-lc.is-now { background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
 .st-rm-lane.last, .st-rm-lc.last { height: 35px; padding-bottom: 9px; border-bottom: 1px solid var(--line); }
 .st-rm-lane.last { padding-bottom: 5px; }
-.st-rm-bar { width: 100%; height: 22px; }
+.st-rm-bar { width: 100%; height: 22px; overflow: hidden; }
+/* In a lane the label and its word take what the bar has: what does not fit ends in „…", the marks
+   after it stay. */
+.st-rm-bar .lb { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .st-rm-bar .st-rm-w { margin-left: 5px; font-weight: 500; opacity: .86; }
 @container (max-width: 128px) { .st-rm-bar .st-rm-w { display: none; } }
 /* A retake's arrow from its try before: through the semesters between, into the one it is in. */
