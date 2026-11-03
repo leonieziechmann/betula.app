@@ -12,7 +12,8 @@
 //! area opens what counts there (`AreaDialog`).
 
 use folia_plans::study::AreaKind;
-use folia_routes::filter::{CatalogQuery, ProgramRelation, ProgramScope};
+use folia_plans::variants;
+use folia_routes::filter::{CatalogQuery, ProgramScope};
 use folia_routes::url::{CatalogUrl, ProgramTab, ProgramUrl};
 use leptos::prelude::*;
 
@@ -358,7 +359,8 @@ impl AreaInfo {
             .collect();
         let scope = ProgramScope { program_slug: ready.program.slug.clone(), ..Default::default() };
         let catalog = match progress.area.kind {
-            AreaKind::Fues => Some((CatalogUrl { query: CatalogQuery { program: Some(ProgramScope { relation: ProgramRelation::Fues, ..scope }), ..Default::default() }, ..Default::default() }.path(), s.fues_catalog)),
+            // The program's FÜS list, the BTU's where it has none.
+            AreaKind::Fues => Some((CatalogUrl { query: variants::fues_list_for(&ready.program, t.locale).0, ..Default::default() }.path(), s.fues_catalog)),
             AreaKind::Plan | AreaKind::Other if !progress.area.tree.is_empty() => {
                 let areas: Vec<i64> = progress.area.tree.iter().copied().collect();
                 Some((CatalogUrl { query: CatalogQuery { program: Some(ProgramScope { areas, ..scope }), ..Default::default() }, ..Default::default() }.path(), s.area_catalog))

@@ -123,7 +123,7 @@ fn main() -> std::process::ExitCode {
                 let (mut candidates, mut offered_winter, mut offered_summer, mut query_text) = (String::new(), String::new(), String::new(), String::new());
                 if matches!(what, What::Fues | What::Choice) {
                     places += 1;
-                    let (query, label) = variants::row_query(&program.slug, variant, entry, &source.areas, Locale::De);
+                    let (query, label) = variants::row_query(program, variant, entry, &source.areas, Locale::De);
                     let count = queries::catalog_count(&db, &query).unwrap_or(0);
                     let rows = queries::catalog_page(&db, &query, 0, 5000).map(|page| page.rows).unwrap_or_default();
                     let in_winter = rows.iter().filter(|row| Offer::of(row).offered(winter)).count() as u64;

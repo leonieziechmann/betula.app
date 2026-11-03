@@ -24,7 +24,7 @@ use folia_model::rows::CatalogRow;
 use folia_pages::ask::StudyModulesAsk;
 use folia_plans::choices::{self, Choice, PlanView};
 use folia_plans::study::{self, Input, Offer};
-use folia_routes::filter::{CatalogQuery, ProgramRelation, ProgramScope};
+use folia_plans::variants;
 use folia_routes::url::CatalogUrl;
 use leptos::prelude::*;
 
@@ -149,9 +149,9 @@ impl Pane {
                     None => Some((v.taken)(&n(choice.taken_credits(), t), &folia_plans::plan::credits_in(&choice.credits_text, t.locale))),
                 };
                 let rows: Vec<(String, i64)> = choice.lines.iter().filter_map(|at| view.lines.get(*at)).map(|line| (line.caption.clone(), line.ord)).collect();
-                let scope = ProgramScope { program_slug: ready.program.slug.clone(), ..Default::default() };
                 let catalog = if choice.fues {
-                    Some((CatalogUrl { query: CatalogQuery { program: Some(ProgramScope { relation: ProgramRelation::Fues, ..scope }), ..Default::default() }, ..Default::default() }.path(), v.fues_catalog))
+                    // The program's FÜS list, the BTU's where it has none.
+                    Some((CatalogUrl { query: variants::fues_list_for(&ready.program, t.locale).0, ..Default::default() }.path(), v.fues_catalog))
                 } else if choice.lists.is_empty() {
                     // What is found there fills the first of its places put into a semester from the
                     // current one on that nothing fills yet, in that semester.

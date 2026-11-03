@@ -918,7 +918,7 @@ fn List(
     // of the columns stay at the top (owner, 2026-09-23: the note fixed above the list left room
     // for two rows).
     let head = view! {
-        {plan_note(data.semester_plan.as_ref(), &current, open, t)}
+        {plan_note(data.semester_plan.as_ref(), data.program.as_ref(), &current, open, t)}
         // The heads that sort: one stop of the Tab key, ← and → from one to the next (enhance.js).
         <div class="cols label" id=HEAD_ID role="toolbar" aria-label=t.catalog.sort_label data-stop="x">
             {sort_link(if with_program && !searching { SortKey::Default } else { SortKey::Title }, t.catalog.col_module, "")}
@@ -1000,7 +1000,7 @@ fn count_words(data: &CatalogData, query: &CatalogQuery, t: &'static i18n::Texts
 /// „Modul aus dem Bereich Praktische Mathematik"; owner, 2026-09-23: „Viel Redundanz"), and so
 /// are the areas the name fits less well. Where the modules are taken from is derived from the
 /// names, and the note says so; the areas are links to the list narrowed down to them.
-fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Option<String>>, t: &'static i18n::Texts) -> Option<AnyView> {
+fn plan_note(plan: Option<&SemesterPlan>, program: Option<&Program>, current: &CatalogUrl, open: Memo<Option<String>>, t: &'static i18n::Texts) -> Option<AnyView> {
     let plan = plan.filter(|plan| !plan.requirements.is_empty())?;
     let area_link = |id: i64, label: &str| {
         let mut target = current.with_page(1);
@@ -1019,9 +1019,14 @@ fn plan_note(plan: Option<&SemesterPlan>, current: &CatalogUrl, open: Memo<Optio
             })
             .collect_view()
     };
+    // The program's FÜS list; the BTU's where the program has none (`variants::fues_list_for`),
+    // with the other filters kept, as the note's other links keep them.
     let fues_list = {
         let mut target = current.with_page(1);
-        if let Some(scope) = target.query.program.as_mut() {
+        if program.is_some_and(|program| program.fues_modules == 0) {
+            target.query.program = None;
+            target.query.fues = Some(true);
+        } else if let Some(scope) = target.query.program.as_mut() {
             scope.relation = ProgramRelation::Fues;
             scope.areas.clear();
         }
