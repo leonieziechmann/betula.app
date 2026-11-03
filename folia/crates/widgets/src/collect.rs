@@ -39,7 +39,7 @@ use std::collections::BTreeSet;
 use leptos::prelude::*;
 
 use folia_design::nav::{room, Room};
-use folia_design::modal::Modal;
+use folia_design::modal::{Modal, Sheet};
 use folia_design::ui::Icon;
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::collections::{Anchor, CollectAsk, Collecting, Collections, Refused, Shelf};
@@ -242,7 +242,9 @@ fn CollectSheet(ask: CollectAsk, collecting: Collecting) -> impl IntoView {
     // does not cover the collections at once (oberflaeche.html: „Das Feld bekommt den Fokus erst
     // beim Antippen").
     view! {
-        <Modal open=true on_close=close class="collect-sheet" label=label focus_itself=true>
+        // On a phone as tall as what it holds while that fits, half up and all up past it
+        // (`Sheet::Auto`): the collections are as many as one made, and what is typed narrows them.
+        <Modal open=true on_close=close sheet=Sheet::Auto class="collect-sheet" label=label focus_itself=true>
             <header class="st-dlg-head collect-sheet-head">
                 <b>{ask.title.clone()}</b>
             </header>

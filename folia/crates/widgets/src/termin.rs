@@ -63,7 +63,7 @@ use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
 use folia_design::format;
-use folia_design::modal::{Modal, ModalSize};
+use folia_design::modal::{Modal, ModalSize, Sheet};
 use folia_design::ui::{DialogClose, Icon, Shortcut};
 use folia_shell::frame::BackLink;
 use folia_shell::pending::Pending;
@@ -791,7 +791,9 @@ pub fn TerminModal(
         }
     });
     view! {
-        <Modal open=shown on_close=close size=ModalSize::M class="tm-modal" labelled_by=TITLE_ID>
+        // On a phone as tall as the Termin is while that fits, half up and all up past it
+        // (`Sheet::Auto`): one Termin is a date and a room, another its groups and a semester of dates.
+        <Modal open=shown on_close=close size=ModalSize::M sheet=Sheet::Auto class="tm-modal" labelled_by=TITLE_ID>
             {move || match missing.get() {
                 true => view! { <TerminMissing closing=close/> }.into_any(),
                 false => view! { <TerminView ctx closing=close/> }.into_any(),

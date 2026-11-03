@@ -27,8 +27,9 @@
 //!
 //! On a phone it stands as its size says (`ModalSize::sheet`): `S` fits, `M` comes half up, `L`
 //! is all up at once; `sheet=Sheet::…` where what it holds asks for another way (a long list of
-//! keys half up, a form with a search all up). A menu, the filters and the map are sheets of their
-//! own (`data-sheet="fit"`, `"half"`, `"full"`).
+//! keys half up, a form with a search all up, what changes `Sheet::Auto`, which fits while it can
+//! and goes half up past that). A menu, the filters and the map are sheets of their own
+//! (`data-sheet="fit"`, `"half"`, `"full"`, `"auto"`).
 //!
 //! What holds its buttons is a `footer.st-dlg-foot` (or carries `data-sheet-foot`): on a phone it
 //! stays at the screen's foot while the sheet is half up. What scrolls is a `div.st-dlg-body` (or
@@ -91,6 +92,11 @@ pub enum Sheet {
     Half,
     /// All up at once, the whole screen: what needs all of it, a list to choose from.
     Full,
+    /// As what it holds says, for what changes (owner, 2026-11-03: „ein Auto Modus, der zwischen
+    /// fit und Half entscheidet für dynamischen content"): `Fit` while it holds no more than fits
+    /// (70 % of the screen), `Half` once it holds more, and back (enhance.js `autoMode`). A list
+    /// that grows and shrinks, a search's answers, what differs from one to the next.
+    Auto,
 }
 
 impl Sheet {
@@ -100,6 +106,7 @@ impl Sheet {
             Sheet::Fit => "fit",
             Sheet::Half => "half",
             Sheet::Full => "full",
+            Sheet::Auto => "auto",
         }
     }
 }
