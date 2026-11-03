@@ -1076,6 +1076,12 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
     if own {
         title.push(t.studyplan_own.by_you.to_string());
     }
+    // A Termin of QIS changed by hand: the pen, amber where QIS says something else now.
+    let edited = rows.iter().any(|row| row.changed.is_some());
+    let conflict = rows.iter().any(|row| row.changed.as_ref().is_some_and(|changed| changed.differs));
+    if edited {
+        title.push(if conflict { t.studyplan_own.changed_differs } else { t.studyplan_own.changed }.to_string());
+    }
     let mut yielded: Vec<String> = Vec::new();
     for other in gives.iter().filter_map(|e| table.events.get(*e)) {
         let label = slot_label(other, titles, t.locale);
@@ -1116,6 +1122,8 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
         pre: None,
         badge: None,
         own,
+        edited,
+        conflict,
         // The Stundenplan draws a choice open dashed and a group chosen as any (`alt`, its focus);
         // the module's page alone marks groups (folia/design/kalender/raster.html).
         group: false,
@@ -1123,7 +1131,7 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
     };
     let row = DayRow {
         day: item.day,
-        class: classes(hue, &[(item.alt.is_some(), "alt"), (clash, "clash"), (item.extra, "extra"), (item.visit, "visit"), (yields, "gives"), (own, "own")]),
+        class: classes(hue, &[(item.alt.is_some(), "alt"), (clash, "clash"), (item.extra, "extra"), (item.visit, "visit"), (yields, "gives"), (own, "own"), (edited, "edited"), (conflict, "conflict")]),
         time: format!("{}–{}", clock(item.from), clock(item.to)),
         text: event_text(event, titles, t.locale),
         note: place.into_iter().chain(notes).collect::<Vec<_>>().join(" · "),
@@ -1155,8 +1163,11 @@ pub(super) fn calendar_slots(table: &Timetable, titles: &BTreeMap<String, String
                 hue: Some(calendar.hue),
                 mark: None,
                 href: None,
-                title: format!("{} · {}", calendar.name, slot.title),
+                title: format!("{} · {}", calendar.name, slot.title.replace(t.studyplan_own.changed_differs, t.studyplan_own.changed_elsewhere).replace(t.studyplan_own.changed, t.studyplan_own.changed_elsewhere)),
                 clash: false,
+                // Its changes came with its link, which carries nothing of what QIS said: none of
+                // them asks to be decided, the pen alone says they are changed.
+                conflict: false,
                 dim,
                 badge: (!strip).then(|| calendar.initial.clone()),
                 ..slot

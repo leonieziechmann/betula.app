@@ -710,6 +710,8 @@ mod tests {
             exam_warnings: Vec::new(),
             place_unknown: Vec::new(),
             without_dates: Vec::new(),
+            changes: Vec::new(),
+            notes: Default::default(),
         };
         assert_eq!(combined_hint(&table, &DE), None);
         table.events.push(event("2", "Vorlesung/Übung", "1", Vec::new(), None));

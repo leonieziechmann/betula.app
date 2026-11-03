@@ -5,8 +5,9 @@
 //! The link is the visitor's own act, and the exception R20 makes for it is what it carries: the
 //! semester, the planned modules in their order, the timetable's program — so that the preview a
 //! messenger shows of it names the modules („MIT-1, AuP, EEG"), which the messenger can read from
-//! the address alone — and the groups ticked, so that whoever opens it can put the plan beside
-//! their own as a calendar with its owner's groups (`calendars.rs`). Nothing of what is hidden
+//! the address alone — the groups ticked and the changes of Termine of QIS, so that whoever opens
+//! it can put the plan beside their own as a calendar with its owner's groups and Termine as they
+//! changed them (`calendars.rs`). Nothing of what is hidden, no note and no Termin of one's own
 //! travels.
 //!
 //! The offer stands at the top of the plan while the address carries a code, as the Merkliste
@@ -42,13 +43,14 @@ use super::PlanCtx;
 pub(super) fn ShareAction(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let s = &t.studyplan_share;
-    // The groups ticked of the semester shown: the selection is a sibling of `wanted` (R16). The
-    // link carries the planned modules, not the visits: whoever takes it over plans what it holds.
+    // The groups ticked and the changes of the semester shown: the selection is a sibling of
+    // `wanted` (R16). The link carries the planned modules, not the visits: whoever takes it over
+    // plans what it holds.
     let link = Memo::new(move |_| {
-        let (chosen, visits) = ctx.selection.with(|(_, selection)| (selection.chosen_rows.clone(), selection.visits.clone()));
+        let (chosen, changes, visits) = ctx.selection.with(|(_, selection)| (selection.chosen_rows.clone(), selection.changes.clone(), selection.visits.clone()));
         ctx.wanted.with(|(key, ids, program)| {
             let planned: Vec<String> = ids.iter().filter(|id| !visits.contains(*id)).cloned().collect();
-            share_path(*key, &planned, program.as_deref(), chosen)
+            share_path(*key, &planned, program.as_deref(), chosen, &changes)
         })
     });
     move || match link.get() {
@@ -67,10 +69,16 @@ pub(super) fn ShareAction(ctx: PlanCtx) -> impl IntoView {
 }
 
 /// The address that hands the modules `ids` of the semester `key` on, named as in `program`, with
-/// the groups `chosen` ticked as far as the code carries them; `None` when no module can travel. A
-/// path of the app: the link writes it as `t.path(…)`.
-fn share_path(key: folia_calendar::semester::SemesterKey, ids: &[String], program: Option<&str>, chosen: impl IntoIterator<Item = folia_calendar::rowkey::RowKey>) -> Option<String> {
-    let code = SharedPlan::of(key, ids, program)?.with_chosen(chosen).code().ok()?;
+/// the groups `chosen` ticked and the changes `changes`, as far as the code carries them; `None`
+/// when no module can travel. A path of the app: the link writes it as `t.path(…)`.
+fn share_path(
+    key: folia_calendar::semester::SemesterKey,
+    ids: &[String],
+    program: Option<&str>,
+    chosen: impl IntoIterator<Item = folia_calendar::rowkey::RowKey>,
+    changes: &[folia_calendar::change::Change],
+) -> Option<String> {
+    let code = SharedPlan::of(key, ids, program)?.with_chosen(chosen).with_changes(changes).code().ok()?;
     Some(folia_routes::url::share_path(&code))
 }
 
@@ -309,12 +317,23 @@ mod tests {
     fn only_a_plan_with_a_module_is_handed_on() {
         let key = SemesterKey::parse("2026W").unwrap();
         let tick = folia_calendar::rowkey::RowKey { event: 148_370, fp: 0xeb017 };
-        let path = share_path(key, &["12104".to_string(), "11101".to_string()], Some("079-82-2008"), [tick]).unwrap();
+        // VL EvS in another room for every date: it travels as the calendar's code carries it.
+        let room = folia_calendar::change::Change {
+            key: folia_calendar::rowkey::RowKey { event: 148_701, fp: 0xb7025 },
+            scope: folia_calendar::change::Scope::All,
+            weekday: None,
+            time: None,
+            room: Some("ZHG/HS.A".into()),
+            was: folia_calendar::change::Values { weekday: 5, from: 555, to: 645, room: "ZHG/HS.C".into() },
+            module: "12104".into(),
+        };
+        let path = share_path(key, &["12104".to_string(), "11101".to_string()], Some("079-82-2008"), [tick], std::slice::from_ref(&room)).unwrap();
         let code = path.strip_prefix("/studyplan?share=").unwrap();
         // The link of an English page opens the plan in English.
         assert_eq!(EN.path(&path), format!("/en/studyplan?share={code}"));
         let plan = SharedPlan::from_code(code).unwrap();
         assert_eq!((plan.module_ids(), plan.program.as_deref(), plan.chosen_rows()), (vec!["12104".to_string(), "11101".to_string()], Some("079-82-2008"), vec![tick]));
-        assert_eq!(share_path(key, &[], None, []), None);
+        assert_eq!(plan.change_list().iter().map(|change| (change.key, change.room.as_deref())).collect::<Vec<_>>(), [(room.key, Some("ZHG/HS.A"))]);
+        assert_eq!(share_path(key, &[], None, [], &[]), None);
     }
 }

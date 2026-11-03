@@ -13,8 +13,10 @@
 //! were planned (their tones, on the page as on the card), the program whose abbreviations name
 //! them (the plan's, else „Mein Studiengang") and, since 2026-10-26, the groups ticked, so that a
 //! plan handed on can stand as a calendar of one's own with its owner's groups (owner, 2026-10-26:
-//! Lena's calendar „aus Lenas Link · mit ihren Gruppen"). Nothing of what is hidden, no
-//! placeholders, no Standort. Folia's own log writes the page's path without its query, and the
+//! Lena's calendar „aus Lenas Link · mit ihren Gruppen"); since 2026-11-03 the changes of Termine of
+//! QIS too, as far as the code holds them, for the same calendar (folia/design/kalender/
+//! termine.html: „sonst stimmt der Kalender bei Lena nicht"). Nothing of what is hidden, no note,
+//! no Termin of one's own, no placeholders, no Standort. Folia's own log writes the page's path without its query, and the
 //! card's path as one fixed text (`redacted_path`); the edge's access log keeps the address like
 //! every address. The privacy notice says so („Stundenplan teilen" in folia/crates/home/src/legal.rs): a
 //! field added here is a word added there.
@@ -26,9 +28,11 @@
 use folia_model::ids::is_program_id;
 use serde::{Deserialize, Serialize};
 
+use crate::change::{Change, MAX_ROOM};
 use crate::rowkey::RowKey;
 use crate::select::MAX_MODULES;
 use crate::semester::SemesterKey;
+use crate::subscription::CodeChange;
 
 /// The kind of every code of a shared plan. Frozen: it is part of every code's check characters,
 /// so a code of another kind (a calendar's, the Merkliste's) is never read as a shared plan.
@@ -44,6 +48,10 @@ pub const MAX_CODE: usize = 256;
 /// The most groups a code carries; fewer where the code would be longer than `MAX_CODE`
 /// (`SharedPlan::with_chosen`).
 pub const MAX_CHOSEN: usize = 60;
+
+/// The most changes of Termine of QIS a code carries; fewer where the code would be longer than
+/// `MAX_CODE` (`SharedPlan::with_changes`).
+pub const MAX_CHANGES: usize = 20;
 
 /// The Stundenplan's parameter that carries a code.
 pub const PARAM: &str = "share";
@@ -74,6 +82,10 @@ pub struct SharedPlan {
     /// written before 2026-10-26.
     #[serde(with = "folia_pack::set")]
     pub chosen: Vec<u64>,
+    /// The changes of Termine of QIS in the semester, as a calendar's code carries them
+    /// (`CodeChange`), at most `MAX_CHANGES`. Empty in a code written before 2026-11-03; a build
+    /// before it refuses a code with changes, which only a rollback meets.
+    pub changes: Vec<CodeChange>,
 }
 
 impl SharedPlan {
@@ -88,7 +100,7 @@ impl SharedPlan {
                 modules.push(number);
             }
         }
-        (!modules.is_empty()).then(|| SharedPlan { semester: key.index(), modules, program: program.filter(|id| is_program_id(id)).map(str::to_string), chosen: Vec::new() })
+        (!modules.is_empty()).then(|| SharedPlan { semester: key.index(), modules, program: program.filter(|id| is_program_id(id)).map(str::to_string), chosen: Vec::new(), changes: Vec::new() })
     }
 
     /// The plan with the groups `rows` ticked, as many of them as a code carries: the first
@@ -114,6 +126,32 @@ impl SharedPlan {
         self.chosen.iter().filter_map(|value| RowKey::unpack(*value)).collect()
     }
 
+    /// The plan with the changes `changes` of its semester's Termine of QIS, as many as the code
+    /// carries beside its groups: the first `MAX_CHANGES` by Termin and scope, each that still
+    /// fits in `MAX_CODE` (one with a long room may not, a later one may).
+    pub fn with_changes<'a>(self, changes: impl IntoIterator<Item = &'a Change>) -> SharedPlan {
+        let Some(key) = self.key() else { return self };
+        let mut list: Vec<CodeChange> = changes.into_iter().filter_map(|change| CodeChange::of(key, change)).collect();
+        list.sort_unstable();
+        list.dedup();
+        list.truncate(MAX_CHANGES);
+        let mut plan = SharedPlan { changes: Vec::new(), ..self };
+        for change in list {
+            let mut more = plan.clone();
+            more.changes.push(change);
+            if more.code().is_ok() {
+                plan = more;
+            }
+        }
+        plan
+    }
+
+    /// The changes it carries, made to hold whatever QIS says (`CodeChange::change`); one a reader
+    /// does not know is left out.
+    pub fn change_list(&self) -> Vec<Change> {
+        self.key().map(|key| self.changes.iter().filter_map(|change| change.change(key)).collect()).unwrap_or_default()
+    }
+
     /// The code of the plan, at most `MAX_CODE` characters of `folia_pack::ALPHABET`; `Err` for a plan
     /// no reader takes (no module, a semester outside 2000–2099, too many modules), so no code
     /// comes out that `from_code` would refuse.
@@ -131,7 +169,8 @@ impl SharedPlan {
     /// The plan of a code, or `None` for anything that is not one: the wrong length or
     /// characters, failed check characters, another kind or layout, a field this build does not
     /// know, a semester outside 2000–2099, no module, more than `MAX_MODULES`, one twice, more than
-    /// `MAX_CHOSEN` groups or one that is no key. A program that is no program id reads as none.
+    /// `MAX_CHOSEN` groups or one that is no key, more than `MAX_CHANGES` changes or one with a room
+    /// longer than a change's. A program that is no program id reads as none.
     pub fn from_code(code: &str) -> Option<SharedPlan> {
         // The cheap checks first: every page address with the parameter comes through here.
         let shaped = (1..=MAX_CODE).contains(&code.len()) && code.bytes().all(|byte| folia_pack::ALPHABET.as_bytes().contains(&byte));
@@ -147,6 +186,9 @@ impl SharedPlan {
             return None;
         }
         if plan.chosen.len() > MAX_CHOSEN || plan.chosen.iter().any(|value| RowKey::unpack(*value).is_none()) {
+            return None;
+        }
+        if plan.changes.len() > MAX_CHANGES || plan.changes.iter().any(|change| change.room.as_ref().is_some_and(|room| room.chars().count() > MAX_ROOM)) {
             return None;
         }
         plan.program = plan.program.filter(|id| is_program_id(id));
@@ -241,6 +283,54 @@ mod tests {
         assert!(fs1.chosen.len() >= 20 && fs1.code().is_ok(), "{} groups", fs1.chosen.len());
     }
 
+    /// VL EvS in another room, and its Übung of 04.11. on the Thursday at 10:00: what a calendar
+    /// made of the link shows as the plan's owner sees it.
+    #[test]
+    fn the_changes_travel_with_it() {
+        use crate::change::{Scope, Values};
+        use crate::day::Day;
+        let room = Change {
+            key: RowKey { event: 148_701, fp: 0xb7025 },
+            scope: Scope::All,
+            weekday: None,
+            time: None,
+            room: Some("ZHG/HS.A".into()),
+            was: Values { weekday: 5, from: 555, to: 645, room: "ZHG/HS.C".into() },
+            module: "12104".into(),
+        };
+        let day = Change { key: RowKey { event: 148_369, fp: 0xa4d12 }, scope: Scope::On(Day::parse("2026-11-04").unwrap()), weekday: Some(4), time: Some((600, 690)), room: None, ..room.clone() };
+        let plain = SharedPlan::of(winter(), &ids(&["12104", "12102", "11112"]), Some("079-82-2008")).unwrap().with_chosen([RowKey { event: 148_304, fp: 0x467cf }]);
+        let plan = plain.clone().with_changes([&day, &room, &day]);
+        assert_eq!(plan.changes.len(), 2, "each once");
+        let code = plan.code().unwrap();
+        assert!(code.len() < 100, "{} characters: {code}", code.len());
+        let back = SharedPlan::from_code(&code).unwrap();
+        assert_eq!(back, plan);
+        let changes = back.change_list();
+        assert_eq!(changes.iter().map(|change| (change.key, change.scope, change.weekday, change.time, change.room.clone())).collect::<Vec<_>>(), [
+            (day.key, day.scope, Some(4), Some((600, 690)), None),
+            (room.key, room.scope, None, None, Some("ZHG/HS.A".to_string())),
+        ]);
+        // Without changes a code is what it was before them.
+        assert_eq!(SharedPlan { changes: vec![], ..back }.code().unwrap(), plain.code().unwrap());
+        // As many as the code holds beside every module there may be and their groups.
+        let many: Vec<String> = (10_000..10_000 + MAX_MODULES as u32).map(|id| id.to_string()).collect();
+        let rooms: Vec<Change> = (0..40).map(|n| Change { key: RowKey { event: 140_000 + n * 997, fp: (n * 7919) & 0xfffff }, room: Some(format!("Raum {n} mit langem Namen")), ..room.clone() }).collect();
+        let full = SharedPlan::of(winter(), &many, Some("079-82-2008")).unwrap().with_changes(&rooms);
+        assert!(full.code().is_ok_and(|code| code.len() <= MAX_CODE) && full.changes.len() < MAX_CHANGES, "{} changes", full.changes.len());
+        let small = SharedPlan::of(winter(), &ids(&["12104"]), None).unwrap().with_changes(&rooms);
+        assert!(small.changes.len() > full.changes.len() && small.code().is_ok_and(|code| code.len() <= MAX_CODE), "{} changes", small.changes.len());
+        // More than the cap, or a room longer than a change's: no plan.
+        let one = SharedPlan::of(winter(), &ids(&["12104"]), None).unwrap();
+        let small_key = |n: u32| CodeChange { key: RowKey { event: 1, fp: n }.packed(), weekday: 1, ..CodeChange::default() };
+        let at_cap = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { changes: (0..MAX_CHANGES as u32).map(small_key).collect(), ..one.clone() }).unwrap();
+        let over = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { changes: (0..=MAX_CHANGES as u32).map(small_key).collect(), ..one.clone() }).unwrap();
+        let long = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { changes: vec![CodeChange { room: Some("x".repeat(MAX_ROOM + 1)), ..small_key(1) }], ..one }).unwrap();
+        assert!(over.len() <= MAX_CODE && long.len() <= MAX_CODE, "{} and {} characters", over.len(), long.len());
+        assert!(SharedPlan::from_code(&at_cap).is_some());
+        assert!(SharedPlan::from_code(&over).is_none() && SharedPlan::from_code(&long).is_none());
+    }
+
     #[test]
     fn what_a_code_cannot_carry_is_left_out() {
         // Ids that are no numbers, twice or past the cap: left out; nothing left, no plan.
@@ -262,10 +352,10 @@ mod tests {
         // Another kind with the same fields, another layout, a module twice, no module.
         let calendar = folia_pack::to_versioned_code("calendar", VERSION, &SharedPlan::of(winter(), &ids(&["12104"]), None).unwrap()).unwrap();
         let later = folia_pack::to_versioned_code(KIND, VERSION + 1, &SharedPlan::of(winter(), &ids(&["12104"]), None).unwrap()).unwrap();
-        let twice = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { semester: winter().index(), modules: vec![12104, 12104], program: None, chosen: vec![] }).unwrap();
-        let none = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { semester: winter().index(), modules: vec![], program: None, chosen: vec![] }).unwrap();
-        let no_semester = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { semester: 0, modules: vec![12104], program: None, chosen: vec![] }).unwrap();
-        let no_key = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { semester: winter().index(), modules: vec![12104], program: None, chosen: vec![0xfffff] }).unwrap();
+        let twice = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { semester: winter().index(), modules: vec![12104, 12104], program: None, chosen: vec![], changes: vec![] }).unwrap();
+        let none = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { semester: winter().index(), modules: vec![], program: None, chosen: vec![], changes: vec![] }).unwrap();
+        let no_semester = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { semester: 0, modules: vec![12104], program: None, chosen: vec![], changes: vec![] }).unwrap();
+        let no_key = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { semester: winter().index(), modules: vec![12104], program: None, chosen: vec![0xfffff], changes: vec![] }).unwrap();
         for code in [calendar, later, twice, none, no_semester, no_key] {
             assert!(SharedPlan::from_code(&code).is_none(), "{code}");
         }

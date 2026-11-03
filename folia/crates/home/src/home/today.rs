@@ -414,6 +414,7 @@ fn TerminOver(table: Memo<Option<Timetable>>, data: Memo<Option<StudyplanData>>,
     // The page's own clock, read every half minute (`TodayView`).
     let now = Signal::derive(move || Some(now.get()));
     let ctx = move |links: TerminLinks, place: TerminPlace| TerminCtx {
+        change: None,
         table,
         asked,
         modules,

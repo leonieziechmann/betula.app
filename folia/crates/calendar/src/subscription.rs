@@ -25,6 +25,7 @@ use folia_locale::Locale;
 use folia_model::ids::is_program_id;
 use serde::{Deserialize, Serialize};
 
+use crate::change::{room_text, Change, Scope, Values, MAX_ROOM};
 use crate::day::Day;
 use crate::kind::KindSet;
 use crate::rowkey::RowKey;
@@ -92,6 +93,81 @@ pub struct Subscription {
     /// before the field: every address handed out so far reads as it did.
     #[serde(with = "folia_pack::set")]
     pub hidden_dates: Vec<u64>,
+    /// The changes of Termine of QIS (appended 2026-11-03, folia/design/kalender/termine.html,
+    /// step 2: „Datei und Abo wie geändert, mit einem neuen Feld im Code"), what each says instead
+    /// of QIS (`CodeChange`). Not what QIS said when it was made: the feed applies every change, as
+    /// the page applies one QIS says something else to until the student decides, and one QIS
+    /// agrees with changes nothing. Empty, a code is the same as before the field; a build before
+    /// it refuses a code with changes (pack's `Trailing`), which only a rollback meets.
+    pub changes: Vec<CodeChange>,
+}
+
+/// A change of a Termin of QIS as a code carries it (`Subscription::changes`).
+///
+/// FROZEN LAYOUT (folia/crates/pack/src/lib.rs): fields only appended, zero = absent.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct CodeChange {
+    /// `RowKey::packed()` of its Termin.
+    pub key: u64,
+    /// For which dates: 0 every one, 1 from `day` on, 2 on `day` alone; a value a reader does not
+    /// know leaves the change out.
+    pub scope: u8,
+    /// The day's distance from the half-year's first day, as a hidden date's (`date_value`); 0 for
+    /// every date.
+    pub day: u16,
+    /// The weekday it says instead, 1 = Monday; 0 keeps QIS's.
+    pub weekday: u8,
+    /// Begin and end in minutes it says instead; both 0 keep QIS's.
+    pub from: u16,
+    pub to: u16,
+    /// The room it says instead; `None` keeps QIS's.
+    pub room: Option<String>,
+}
+
+impl CodeChange {
+    /// A change as a code of semester `key` carries it; `None` for one of a day outside the
+    /// half-year.
+    pub fn of(key: SemesterKey, change: &Change) -> Option<CodeChange> {
+        let (scope, day) = match change.scope {
+            Scope::All => (0, 0),
+            Scope::From(day) => (1, day_offset(key, day)?),
+            Scope::On(day) => (2, day_offset(key, day)?),
+        };
+        let (from, to) = change.time.unwrap_or((0, 0));
+        Some(CodeChange { key: change.key.packed(), scope, day, weekday: change.weekday.unwrap_or(0), from, to, room: change.room.clone() })
+    }
+
+    /// The change it carries, of semester `key`; `None` for one that is none (a key, a scope or a
+    /// day no change has, or a change that changes nothing). What QIS said is not carried: the
+    /// change is made to hold whatever QIS says (see `Subscription::changes`).
+    pub fn change(&self, key: SemesterKey) -> Option<Change> {
+        let row = RowKey::unpack(self.key)?;
+        let day = || key.bounds().0.plus(i32::from(self.day));
+        let scope = match self.scope {
+            0 => Scope::All,
+            1 => Scope::From(day()),
+            2 => Scope::On(day()),
+            _ => return None,
+        };
+        let change = Change {
+            key: row,
+            scope,
+            weekday: Some(self.weekday).filter(|weekday| *weekday > 0),
+            time: Some((self.from, self.to)).filter(|(from, to)| *from > 0 || *to > 0),
+            room: self.room.as_deref().and_then(room_text),
+            // Nothing QIS says: whatever it says, the change holds (`Against::Differs`) or agrees.
+            was: Values { weekday: 1, from: 0, to: 1, room: String::new() },
+            module: "0".to_string(),
+        };
+        let within = scope.day().is_none_or(|day| day <= key.bounds().1);
+        (within && change.is_valid()).then_some(change)
+    }
+}
+
+/// The distance of `day` from the first day of the half-year of `key`; `None` outside it.
+fn day_offset(key: SemesterKey, day: Day) -> Option<u16> {
+    let (first, last) = key.bounds();
+    u16::try_from(day.0.checked_sub(first.0)?).ok().filter(|_| day <= last)
 }
 
 /// How many bits of a hidden date's value hold its day: a half-year has at most 183 days.
@@ -152,9 +228,10 @@ impl Subscription {
         let mut subscription: Subscription = folia_pack::from_versioned_code(KIND, VERSION, code).ok()?;
         SemesterKey::from_index(subscription.semester)?;
         let within = (1..=MAX_MODULES).contains(&subscription.modules.len())
-            && [subscription.hidden_events.len(), subscription.hidden_rows.len(), subscription.chosen_rows.len(), subscription.hidden_dates.len()]
+            && [subscription.hidden_events.len(), subscription.hidden_rows.len(), subscription.chosen_rows.len(), subscription.hidden_dates.len(), subscription.changes.len()]
                 .iter()
-                .all(|len| *len <= MAX_HIDDEN);
+                .all(|len| *len <= MAX_HIDDEN)
+            && subscription.changes.iter().all(|change| change.room.as_ref().is_none_or(|room| room.chars().count() <= MAX_ROOM));
         if !within {
             return None;
         }
@@ -195,6 +272,9 @@ impl Subscription {
             visits: std::collections::BTreeSet::new(),
             // A code carries no Termin of one's own (their own step, „Eigene Termine mitnehmen").
             own: Vec::new(),
+            changes: self.key().map(|key| self.changes.iter().filter_map(|change| change.change(key)).collect()).unwrap_or_default(),
+            // Notes stay in the browser: the calendar file has them, an address never.
+            notes: Vec::new(),
         }
     }
 }
@@ -282,6 +362,7 @@ pub(crate) mod tests {
             chosen_rows: vec![RowKey { event: 148_369, fp: 0xa4d12 }.packed()],
             town: 0,
             hidden_dates: vec![],
+            changes: vec![],
         }
     }
 
@@ -303,6 +384,7 @@ pub(crate) mod tests {
             chosen_rows: vec![RowKey { event: 148_304, fp: 0x467cf }.packed(), RowKey { event: 148_370, fp: 0xf09d2 }.packed()],
             town: 2,
             hidden_dates: vec![],
+            changes: vec![],
         }
     }
 
@@ -372,6 +454,7 @@ pub(crate) mod tests {
             chosen_rows: vec![RowKey { event: 148_304, fp: 0xfffff }.packed()],
             town: 2,
             hidden_dates: vec![RowKey { event: 148_304, fp: 0xfffff }.packed() << 9 | 182],
+            changes: vec![],
         };
         assert_eq!(Subscription::from_code(&every.code().unwrap()), Some(every.clone()));
         for town in 0..=3 {
@@ -382,6 +465,41 @@ pub(crate) mod tests {
         let shuffled = Subscription { modules: vec![12107, 11112, 12104, 12102, 12104], ..first_semester() };
         assert_eq!(shuffled.code(), plan.code());
         assert_eq!(shuffled.module_ids(), ["11112", "12102", "12104", "12107"]);
+    }
+
+    /// The first plan with VL EvS in another room for every date and its Übung of 04.11. on the
+    /// Thursday: the field appended on 2026-11-03. Without changes a code is what it was.
+    #[test]
+    fn a_code_carries_the_changes_of_termine_of_qis() {
+        let key = SemesterKey::parse("2026W").unwrap();
+        let room = Change {
+            key: RowKey { event: 148_701, fp: 0xb7025 },
+            scope: Scope::All,
+            weekday: None,
+            time: None,
+            room: Some("ZHG/HS.A".into()),
+            was: Values { weekday: 5, from: 555, to: 645, room: "ZHG/HS.C".into() },
+            module: "12104".into(),
+        };
+        let day = Change { key: RowKey { event: 148_369, fp: 0xa4d12 }, scope: Scope::On(Day::parse("2026-11-04").unwrap()), weekday: Some(4), time: Some((600, 690)), room: None, ..room.clone() };
+        let plan = Subscription { changes: [&room, &day].iter().filter_map(|change| CodeChange::of(key, change)).collect(), ..first_semester() };
+        assert_eq!(plan.changes.len(), 2);
+        let code = plan.code().unwrap();
+        assert_ne!(code, FIRST_SEMESTER_CODE);
+        let back = Subscription::from_code(&code).unwrap();
+        assert_eq!(back, plan);
+        // What it carries is what the change says, made to hold whatever QIS says.
+        let changes = back.selection().changes;
+        assert_eq!(changes.iter().map(|change| (change.key, change.scope, change.weekday, change.time, change.room.clone())).collect::<Vec<_>>(), [
+            (room.key, room.scope, None, None, Some("ZHG/HS.A".to_string())),
+            (day.key, day.scope, Some(4), Some((600, 690)), None),
+        ]);
+        assert!(changes.iter().all(Change::is_valid));
+        assert_eq!(Subscription { changes: vec![], ..plan }.code().unwrap(), FIRST_SEMESTER_CODE);
+        // A scope or a day no change has leaves the change out.
+        let odd = CodeChange { scope: 7, ..CodeChange::of(key, &room).unwrap() };
+        assert_eq!(odd.change(key), None);
+        assert_eq!(CodeChange::of(key, &Change { scope: Scope::On(Day::parse("2027-06-01").unwrap()), ..day }), None);
     }
 
     #[test]

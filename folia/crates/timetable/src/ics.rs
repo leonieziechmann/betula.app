@@ -97,9 +97,19 @@ pub struct Entry {
     pub tentative: bool,
     /// `TRANSP:TRANSPARENT` instead of `OPAQUE`: the entry does not make its time busy.
     pub transparent: bool,
+    /// The date of its series it stands for where a change of a Termin of QIS moved it to another
+    /// day or time (`folia_timetable::change`): written as an override of its series, its
+    /// RECURRENCE-ID names that date at the series' start, so a calendar moves the date of the
+    /// series instead of adding one. `None`: it stands for its own day.
+    pub instead_of: Option<Day>,
 }
 
 impl Entry {
+    /// The day of its series it stands for: the one a change moved it from, else its own.
+    pub fn replaces(&self) -> Day {
+        self.instead_of.unwrap_or_else(|| self.when.day())
+    }
+
     /// The dates of the entry as a calendar shows them, each an entry of one date under its UID:
     /// itself, or every date its rule makes and does not leave out, as the series says it or as its
     /// override of that date does.
@@ -113,7 +123,7 @@ impl Entry {
             .into_iter()
             .filter(|day| !repeat.except.contains(day))
             .map(|day| {
-                let changed = self.overrides.iter().find(|date| date.when.day() == day);
+                let changed = self.overrides.iter().find(|date| date.replaces() == day);
                 let date = changed.cloned().unwrap_or_else(|| Entry { when: self.when.on(day), ..self.clone() });
                 Entry { uid: self.uid.clone(), repeat: None, overrides: Vec::new(), ..date }
             })
@@ -224,7 +234,7 @@ fn write_entry(out: &mut String, entry: &Entry, stamp: &str) {
     write_event(out, entry, &entry.uid, stamp, None);
     if entry.repeat.is_some() {
         for date in &entry.overrides {
-            write_event(out, date, &entry.uid, stamp, Some(&instance(entry.when, date.when)));
+            write_event(out, date, &entry.uid, stamp, Some(&instance(entry.when, date.when.on(date.replaces()))));
         }
     }
 }
@@ -421,7 +431,7 @@ mod tests {
     }
 
     fn entry(uid: &str, when: When, summary: &str) -> Entry {
-        Entry { uid: uid.into(), when, repeat: None, overrides: vec![], summary: summary.into(), location: None, description: None, url: None, categories: vec![], tentative: false, transparent: false }
+        Entry { uid: uid.into(), when, repeat: None, overrides: vec![], summary: summary.into(), location: None, description: None, url: None, categories: vec![], tentative: false, transparent: false, instead_of: None }
     }
 
     /// The physical lines of a written calendar, which must end in CRLF.
@@ -451,6 +461,7 @@ mod tests {
                     categories: vec!["Vorlesung".into()],
                     tentative: false,
                     transparent: false,
+                    instead_of: None,
                 },
                 Entry {
                     uid: "150664-12345-20270215@betula.app".into(),
@@ -464,6 +475,7 @@ mod tests {
                     categories: vec!["Prüfung".into(), "a,b".into()],
                     tentative: false,
                     transparent: true,
+                    instead_of: None,
                 },
                 Entry {
                     uid: "148005-0abcd-20270311@betula.app".into(),
@@ -477,6 +489,7 @@ mod tests {
                     categories: vec![],
                     tentative: true,
                     transparent: false,
+                    instead_of: None,
                 },
             ],
         };
