@@ -559,9 +559,9 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
   await page.waitForFunction(() => document.querySelectorAll("dialog.plan-setup .plan-setup-offers > button").length > 0, null, { timeout: 5000 }).catch(() => problems.push("phone: the module's programs never came"));
   await settled(page);
   const d = await dialog(page);
-  // A sheet of a phone (owner, 2026-10-27): half up where it is taller than half the screen, else
-  // as tall as it is.
-  check(d && Math.abs(d.box.left) <= 1 && Math.abs(d.box.right - 390) <= 1 && Math.abs(d.box.top - Math.max(844 - d.box.height, 844 * 0.48)) <= 2, `phone: the dialog is no sheet from below (${JSON.stringify(d?.box)})`);
+  // A sheet of a phone all up at once (owner, 2026-11-03: „die Option für sofort full screen";
+  // plansetup.rs `Sheet::Full`): a form with a search low in it, the whole height, 10 px under the top.
+  check(d && Math.abs(d.box.left) <= 1 && Math.abs(d.box.right - 390) <= 1 && Math.abs(d.box.top - 10) <= 2 && Math.abs(d.box.bottom - 844) <= 1, `phone: the dialog is no sheet from below all up (${JSON.stringify(d?.box)})`);
   check(d && near(d.searchBox?.left, d.offerBox?.left) && near(d.searchBox?.right, d.offerBox?.right) && near(d.searchBox?.height, d.offerBox?.height), `phone: the search is not as wide as the programs (${JSON.stringify([d?.searchBox, d?.offerBox])})`);
   // Its grabber takes it all up, where the search is within reach.
   if (d && d.box.top > 844 - d.box.height + 2) {

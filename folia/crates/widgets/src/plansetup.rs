@@ -39,7 +39,7 @@ use leptos::prelude::*;
 
 use folia_data::use_data;
 use folia_design::combobox::{with_first, ComboItem, Combobox};
-use folia_design::modal::{kept, Modal, ModalHead};
+use folia_design::modal::{kept, Modal, ModalHead, Sheet};
 use folia_design::ui::Icon;
 use folia_stores::myprogram::{po_of, program_name, MyProgram};
 use folia_stores::studyplan::fit::{self, Filled, FsFrom, Known};
@@ -61,7 +61,9 @@ pub fn PlanSetup() -> impl IntoView {
     // What it asks stays while it goes (a phone's sheet glides away with it).
     let ask = kept(move || planning.setup());
     view! {
-        <Modal open=Signal::derive(move || planning.setup().is_some()) on_close=move || planning.close_setup() class="plan-setup" labelled_by="plan-setup-title">
+        // On a phone all up at once (`Sheet::Full`): a form as tall as the screen, its search low in
+        // it, which half up the buttons at the screen's foot hid.
+        <Modal open=Signal::derive(move || planning.setup().is_some()) on_close=move || planning.close_setup() sheet=Sheet::Full class="plan-setup" labelled_by="plan-setup-title">
             {move || ask.get().map(|ask| view! { <SetupDialog ask planning/> })}
         </Modal>
     }

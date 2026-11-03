@@ -57,7 +57,7 @@ const openSheet = async (what, { inPlace = false, full = false } = {}) => {
   // Half up (owner, 2026-10-27: „zwei einrastpunkte einmal so ca bis zur mitte des bildschirms
   // und dann voll nach ganz oben"), its foot at the screen's foot.
   const at = await sheetAt();
-  check(!at.full && Math.abs(at.top - 844 * 0.48) < 4 && at.foot === 844, `${what}: the sheet does not come up half up with its foot at the screen's foot: ${JSON.stringify(at)}`);
+  check(!at.full && Math.abs(at.top - 844 * 0.5) < 4 && at.foot === 844, `${what}: the sheet does not come up half up with its foot at the screen's foot: ${JSON.stringify(at)}`);
   if (!full) return;
   // A tap on its grabber takes it all up.
   await page.touchscreen.tap(195, at.top + 8);
@@ -230,7 +230,7 @@ const top = await page.locator("#filters .panel-head h2").boundingBox();
 await swipe(top.x + 20, top.y + 8, top.y + 200, { steps: 6, ms: 12 });
 await page.waitForTimeout(400);
 const halfAgain = await sheetAt();
-check((await isOpen()) && !halfAgain.full && Math.abs(halfAgain.top - 844 * 0.48) < 4, `draft: a swipe down from all up did not take the sheet half up: ${JSON.stringify(halfAgain)}`);
+check((await isOpen()) && !halfAgain.full && Math.abs(halfAgain.top - 844 * 0.5) < 4, `draft: a swipe down from all up did not take the sheet half up: ${JSON.stringify(halfAgain)}`);
 const again = await page.locator("#filters .panel-head h2").boundingBox();
 await swipe(again.x + 20, again.y + 8, again.y + 200, { steps: 6, ms: 12 });
 await closed("draft: a swipe");
@@ -334,10 +334,10 @@ await page.waitForFunction(() => location.search.includes("open=") && document.q
 await page.waitForTimeout(500);
 let sheet = await sheetOf();
 let list = await listAt();
-check(sheet && !sheet.full && Math.abs(sheet.top - 844 * 0.48) < 4 && sheet.left === 0 && sheet.right === 390 && sheet.title, `sheet: the module does not come up to half the screen: ${JSON.stringify(sheet)}`);
+check(sheet && !sheet.full && Math.abs(sheet.top - 844 * 0.5) < 4 && sheet.left === 0 && sheet.right === 390 && sheet.title, `sheet: the module does not come up to half the screen: ${JSON.stringify(sheet)}`);
 check(list.y === listed.y && list.entries === listed.entries + 1, `sheet: the list moved under it, or the history took more than a step: ${JSON.stringify([listed, list])}`);
 const rising = (await sheetTops()).map(([, top]) => Math.round(top));
-check(rising.length > 4 && Math.max(...rising) > 844 * 0.48 + 150 && rising.every((top, i) => i === 0 || top <= rising[i - 1] + 3), `sheet: it does not come up from below in one move: ${rising.join(" ")}`);
+check(rising.length > 4 && Math.max(...rising) > 844 * 0.5 + 150 && rising.every((top, i) => i === 0 || top <= rising[i - 1] + 3), `sheet: it does not come up from below in one move: ${rising.join(" ")}`);
 check(await page.evaluate(() => { const full = document.querySelector('.detail.is-module [data-action="fullscreen"]'); return !full || getComputedStyle(full).display === "none"; }), "sheet: it shows „Vollbild“");
 await swipe(200, sheet.top + 80, sheet.top - 220, { steps: 10, ms: 24 });
 sheet = await sheetOf();
@@ -354,7 +354,7 @@ await page.evaluate(() => { document.querySelector(".detail.is-module > .scroll"
 await page.waitForTimeout(200);
 await swipe(200, 120, 380, { steps: 12, ms: 30 });
 sheet = await sheetOf();
-check(sheet && !sheet.full && Math.abs(sheet.top - 844 * 0.48) < 4, `sheet: drawn down a third from all up, it does not stay half up: ${JSON.stringify(sheet)}`);
+check(sheet && !sheet.full && Math.abs(sheet.top - 844 * 0.5) < 4, `sheet: drawn down a third from all up, it does not stay half up: ${JSON.stringify(sheet)}`);
 await swipe(200, sheet.top + 80, sheet.top + 420, { steps: 12, ms: 30 });
 await page.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module"), null, { timeout: 4000 }).catch(() => problems.push("sheet: drawn down from half up, it did not close"));
 list = await listAt();
@@ -375,11 +375,11 @@ await page.waitForTimeout(300);
 const slow = await sheetTops();
 const fastest = Math.max(...slow.slice(1).map(([at, top], i) => (top - slow[i][1]) / Math.max(1, at - slow[i][0])));
 sheet = await sheetOf();
-check(sheet && !sheet.full && Math.abs(sheet.top - 844 * 0.48) < 4 && fastest < 1.6, `sheet: let go slowly from all up, it does not glide to half up as slowly as it went (${fastest.toFixed(2)} px per ms at most): ${JSON.stringify(sheet)}`);
+check(sheet && !sheet.full && Math.abs(sheet.top - 844 * 0.5) < 4 && fastest < 1.6, `sheet: let go slowly from all up, it does not glide to half up as slowly as it went (${fastest.toFixed(2)} px per ms at most): ${JSON.stringify(sheet)}`);
 await swipe(200, 600, 400, { steps: 4, ms: 12 });
 await swipe(200, 200, 420, { steps: 12, ms: 20 });
 sheet = await sheetOf();
-check(sheet && !sheet.full && Math.abs(sheet.top - 844 * 0.48) < 4, `sheet: a gentle flick down from all up does not take it to half up: ${JSON.stringify(sheet)}`);
+check(sheet && !sheet.full && Math.abs(sheet.top - 844 * 0.5) < 4, `sheet: a gentle flick down from all up does not take it to half up: ${JSON.stringify(sheet)}`);
 await swipe(200, 600, 400, { steps: 4, ms: 12 });
 check((await sheetOf())?.full, "sheet: a flick up does not take it all up again");
 await swipe(200, 150, 520, { steps: 3, ms: 8 });
