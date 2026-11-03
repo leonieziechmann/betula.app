@@ -1198,12 +1198,18 @@
   // above), a module or a Termin over a page (`.detail.is-module`, below). What makes one is the
   // attribute and the stylesheet's frame (app.css „the sheets of a phone"); nothing else is needed.
   //
-  // - Two stops („zwei einrastpunkte einmal so ca bis zur mitte des bildschirms und dann voll nach
-  //   ganz oben"), as a phone's own sheets have them (the medium and large detents of iOS, the
-  //   half-expanded state of Material's bottom sheet): half up, its top at 48 % of the screen, and
-  //   all up, 10 px under the safe area. It comes up from below half up. One no taller than half
-  //   the screen has one stop, as tall as it is; one that holds less than the screen goes all up to
-  //   its own height.
+  // - Three ways to stand (`data-sheet`, folia_design::modal::Sheet; owner, 2026-11-03: „dass es
+  //   entweder fit ist, also so dass es nur ein kleines fenster ist. Da würde ich die größe zwischen
+  //   40% bis 70% vom screen erlauben. Und da gibt es dann kein full screen. Dann die Option mit 50%
+  //   und Full screen. Und dann noch die Option für sofort full screen"). `half`: two stops
+  //   („zwei einrastpunkte einmal so ca bis zur mitte des bildschirms und dann voll nach ganz
+  //   oben"), as a phone's own sheets have them (the medium and large detents of iOS, the
+  //   half-expanded state of Material's bottom sheet): half up, its top at half the screen, and all
+  //   up, 10 px under the safe area; it comes up from below half up, and one that holds less than
+  //   half the screen has one stop, as tall as it is. `fit`: one stop, as tall as what it holds
+  //   between 40 and 70 % of the screen (app.css), never higher; its content scrolls there where it
+  //   holds more. `full`: one stop, all up at once, the whole height. A sheet of one stop stands
+  //   where all up is: what is said of all up below is said of it.
   // - Half up a finger moves the sheet wherever it touches it, and nothing in it scrolls („Im
   //   kleinen modus soll man nicht scrollen können nur im full modus"); all up its content scrolls
   //   and keeps its scroll to itself, and a move down where it is at its top takes the sheet. Pulled
@@ -1214,14 +1220,16 @@
   //   („Animationen sollen physikalischen Simulationen entsprechen, so dass es sich natürlich
   //   anfühlt"), to where it would come to rest thrown at that speed (`goalOf`): all up in the upper
   //   half of the way to half up, half up down to a third of the way on to the bottom, below that
-  //   away; a flick goes at least to the next stop its way. So from all up („je nach swipe
+  //   away (one of one stop: away from a third of the way down); a flick goes at least to the next
+  //   stop its way. So from all up („je nach swipe
   //   acceleration und speed in den mid und schließen") a slow pull comes to rest half up, a quick
   //   or a long one takes it away. How fast the finger went is its speed as it let go, read off a
   //   curve laid through its last 100 ms (`fingerSpeed`): a swipe still speeding up is thrown as
   //   fast as it went at the end, not at its mean.
   // - Its one decoration is its grabber („die decorations für das fenster einfach nur der handle
   //   strich sein und das wars"): no ×, no „Vollbild"; the ×s stay in the page, out of sight, for
-  //   screen readers and the keyboard (app.css). A tap on the grabber takes it all up and back.
+  //   screen readers and the keyboard (app.css). A tap on the grabber takes one of two stops all up
+  //   and back.
   // - What holds its buttons (`[data-sheet-foot]`, a dialog's `.st-dlg-foot`) stays at the
   //   screen's foot while the sheet is half up (`--sheet-half-y`, app.css).
   // - A tap beside it, Esc and Back close it as before; a finger closes it by throwing it away.
@@ -1239,7 +1247,7 @@
   const SHEET_FRICTION = 0.0025; // px per ms²: how fast a sheet thrown would slow down, to choose its stop
   const SHEET_FLICK = 0.45; // px per ms: a let-go this fast goes at least to the next stop its way (the bar's swipe: 0.45)
   const SHEET_PAST = 150; // px past the bottom the spring of a sheet that goes away aims, so that it leaves at speed
-  const SHEET_PEEK = 0.52; // of the screen a sheet half up shows (app.css --sheet-peek)
+  const SHEET_PEEK = 0.5; // of the screen a sheet half up shows (app.css --sheet-peek)
   const SHEET_ONE = 24; // px: a sheet no more than this taller than half up has one stop
   const SHEET_GRAB = 26; // px from its top: its grabber, where a tap takes it all up and back
   const SHEET_GIVE = 24; // px a sheet with nothing to scroll gives above all up, at most
@@ -1314,11 +1322,18 @@
   // What holds its buttons: at the screen's foot while it is half up.
   const footOf = (sheet) => sheet.querySelector("[data-sheet-foot], .st-dlg-foot");
 
-  // A sheet's stops, in px down from all up (its transform): half up (0 where it has one stop) and
-  // away (its top at the screen's foot). Half up its foot is lifted as far (`--sheet-half-y`).
+  // How a sheet stands (`data-sheet`, folia_design::modal::Sheet): `fit`, `full`, else `half` (a
+  // module's sheet too, and one that names none).
+  const sheetMode = (sheet) => {
+    const mode = sheet.getAttribute("data-sheet");
+    return mode === "fit" || mode === "full" ? mode : "half";
+  };
+  // A sheet's stops, in px down from all up (its transform): half up (0 where it has one stop: one
+  // that fits or is all up at once, and one that holds less than half the screen) and away (its top
+  // at the screen's foot). Half up its foot is lifted as far (`--sheet-half-y`).
   const stopsOf = (sheet, height = sheet.offsetHeight) => {
     const over = height - innerHeight * SHEET_PEEK;
-    const half = over < SHEET_ONE ? 0 : over;
+    const half = sheetMode(sheet) !== "half" || over < SHEET_ONE ? 0 : over;
     sheet.style.setProperty("--sheet-half-y", dots(half) + "px");
     return { half, away: Math.max(1, innerHeight - sheet.offsetTop) };
   };
@@ -1709,7 +1724,7 @@
     ghost.className = sheet.className;
     ghost.classList.remove("is-full", "is-gone", "has-sub");
     ghost.classList.add("sheet-ghost");
-    ghost.setAttribute("data-sheet", "");
+    ghost.setAttribute("data-sheet", sheet.getAttribute("data-sheet") ?? "");
     ghost.setAttribute("open", "");
     ghost.setAttribute("aria-hidden", "true");
     ghost.inert = true;
@@ -1801,12 +1816,22 @@
         el.classList.toggle("is-full", !half);
         el.classList.remove("is-gone");
       } else showSheet(el);
-      now.set(el, { height: el.offsetHeight, half: stopsOf(el).half });
+      now.set(el, { height: el.offsetHeight, half: stopsOf(el).half, mode: sheetMode(el) });
       sizes?.observe(el);
+    }
+    // One whose way to stand changed while it was shown (a dialog that holds another kind now): to
+    // where it was where it still has that stop, else all up, its one stop.
+    for (const [el, seen] of now) {
+      if (!seen?.mode || seen.mode === sheetMode(el)) continue;
+      seen.mode = sheetMode(el);
+      const g = glides.get(el), at = g ? g.to : el.classList.contains("is-full") ? "full" : "half";
+      if (at === "gone") continue;
+      glideSheet(el, sheetY(el), g ? glideV(g) : 0, at);
+      seen.half = stopsOf(el).half;
     }
     sheetsSeen = now;
   };
-  new MutationObserver(watchSheets).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["open"] });
+  new MutationObserver(watchSheets).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["open", "data-sheet"] });
   // A window that grows past a phone's width or shrinks to it: every sheet stands where the page's
   // layout puts it, without anything of a glide.
   narrow.addEventListener("change", () => {

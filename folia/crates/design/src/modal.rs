@@ -4,8 +4,9 @@
 //! entwicklung einfacher wird"): one native `<dialog>` the page shows modally. On a wide screen it
 //! stands in the middle of the window, in one of three sizes (app.css „The dialogs"); on a phone it
 //! is a sheet from below (`data-sheet`), its grabber its one decoration, which `enhance.js` moves as
-//! every sheet of a phone („the sheets of a phone"): half up and all up, its content scrolling all
-//! up only, thrown away by a finger, gliding away however it closes.
+//! every sheet of a phone („the sheets of a phone"), standing one of three ways (`Sheet`): as tall
+//! as it fits, half up and all up, or all up at once; thrown away by a finger, gliding away however
+//! it closes.
 //!
 //! What every dialog needs is here once, where each dialog wrote it again before: it shows while
 //! `open` says so; Esc, Back, a click beside it and a finger's throw ask its owner to close it
@@ -24,11 +25,16 @@
 //! }
 //! ```
 //!
+//! On a phone it stands as its size says (`ModalSize::sheet`): `S` fits, `M` comes half up, `L`
+//! is all up at once; `sheet=Sheet::…` where what it holds asks for another way (a long list of
+//! keys half up, a form with a search all up). A menu, the filters and the map are sheets of their
+//! own (`data-sheet="fit"`, `"half"`, `"full"`).
+//!
 //! What holds its buttons is a `footer.st-dlg-foot` (or carries `data-sheet-foot`): on a phone it
 //! stays at the screen's foot while the sheet is half up. What scrolls is a `div.st-dlg-body` (or
-//! carries `data-sheet-body`): on a phone it scrolls all up only. What it shows should not go away
-//! before the dialog has closed: content read from what `on_close` empties is best read from what
-//! it was last (`kept`).
+//! carries `data-sheet-body`): on a phone it scrolls all up only, and where the sheet fits. What it
+//! shows should not go away before the dialog has closed: content read from what `on_close`
+//! empties is best read from what it was last (`kept`).
 
 use leptos::prelude::*;
 
@@ -37,8 +43,8 @@ use crate::ui::DialogClose;
 /// How large a dialog is on a wide screen, by what it holds (app.css „The dialogs"; owner,
 /// 2026-10-16: „Modale menus springen zu viel in der größe. Erstelle dir mal 3 verschiedene
 /// größen"): a question or a note (`S`, 440 px wide, as tall as what it says), a form or an
-/// overview (`M`, 600 × 600 px), a list to choose from (`L`, 840 × 720 px). On a phone `M` and `L`
-/// take the whole height of the screen all up, `S` is as tall as what it holds.
+/// overview (`M`, 600 × 600 px), a list to choose from (`L`, 840 × 720 px). On a phone each stands
+/// as its kind's `Sheet` does, unless the dialog says otherwise.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ModalSize {
     #[default]
@@ -54,6 +60,46 @@ impl ModalSize {
             ModalSize::S => "",
             ModalSize::M => "m",
             ModalSize::L => "l",
+        }
+    }
+
+    /// How a dialog of this size stands on a phone: a question or a note fits, a form or an
+    /// overview comes half up, a list to choose from all up at once.
+    pub fn sheet(self) -> Sheet {
+        match self {
+            ModalSize::S => Sheet::Fit,
+            ModalSize::M => Sheet::Half,
+            ModalSize::L => Sheet::Full,
+        }
+    }
+}
+
+/// How a sheet of a phone stands (`data-sheet`; enhance.js and app.css „the sheets of a phone";
+/// owner, 2026-11-03: „dass es entweder fit ist, also so dass es nur ein kleines fenster ist. Da
+/// würde ich die größe zwischen 40% bis 70% vom screen erlauben. Und da gibt es dann kein full
+/// screen. Dann die Option mit 50% und Full screen. Und dann noch die Option für sofort full
+/// screen"). A finger throws each away; each comes up from below.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Sheet {
+    /// A small window: as tall as what it holds, between 40 and 70 % of the screen, and no higher;
+    /// what it holds beyond scrolls in it. A question, a note, a menu.
+    Fit,
+    /// Half up as it comes, all up by a finger or its grabber; half up nothing in it scrolls, and
+    /// its buttons stand at the screen's foot. What is read and worked in beside the page: a form,
+    /// an overview, a module, the filters.
+    #[default]
+    Half,
+    /// All up at once, the whole screen: what needs all of it, a list to choose from.
+    Full,
+}
+
+impl Sheet {
+    /// Its `data-sheet`.
+    pub fn attr(self) -> &'static str {
+        match self {
+            Sheet::Fit => "fit",
+            Sheet::Half => "half",
+            Sheet::Full => "full",
         }
     }
 }
@@ -72,6 +118,10 @@ pub fn Modal(
     /// Its size on a wide screen (it may change with what it holds).
     #[prop(optional, into)]
     size: Signal<ModalSize>,
+    /// How it stands on a phone, where its size's way (`ModalSize::sheet`) does not suit what it
+    /// holds.
+    #[prop(optional, into)]
+    sheet: Option<Signal<Sheet>>,
     /// Classes of its own besides `st-dialog` and its size (`keys-dialog`).
     #[prop(optional)]
     class: &'static str,
@@ -122,7 +172,7 @@ pub fn Modal(
         <dialog
             class=class
             node_ref=node
-            data-sheet=""
+            data-sheet=move || sheet.map_or_else(|| size.get().sheet(), |sheet| sheet.get()).attr()
             aria-labelledby=labelled_by
             aria-label=move || label.map(|label| label.get())
             tabindex=focus_itself.then_some("-1")
