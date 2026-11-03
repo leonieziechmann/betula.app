@@ -33,7 +33,9 @@
 // - ← and → step to the date after and before as the arrows beside the date do, one date a press,
 //   in the dialog over the plan, filling the page and on the Termin's own page. `?` in the dialog
 //   shows the overview with „Im Termin" first, over it.
-// - A phone: the dialog is the sheet every dialog is, with „Teilen" and without „Ganze Seite".
+// - A phone: the dialog is the sheet every dialog is, with „Teilen" and without „Ganze Seite"; the
+//   next date and a date of „Reihe" picked in it take the history's entry, and Back leaves the
+//   Termin; the Termin's own page scrolls under a finger.
 // - To look up: a line of the Praktikum's module page opens the Termin in the dialog over the page
 //   (`?termin=<key>`), in the plan, its groups above the ticket measured against it, „Anpassen ›"
 //   under it into the Stundenplan of its semester; a group picked changes the ticket under the
@@ -299,6 +301,44 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
   const tools = await page.evaluate(() => ({ share: Boolean(onPage("dialog[open] .tm-dialog .tm-share")?.getClientRects().length), full: Boolean(onPage("dialog[open] .tm-dialog .tm-full")?.getClientRects().length) }));
   check(tools.share && !tools.full, `the sheet's head: ${JSON.stringify(tools)}`);
   if (shots) await page.screenshot({ path: `${shots}/termin-phone.png` });
+  // A pick in the sheet is no step of the history (owner, 2026-11-03: „die Auswahl von einem
+  // Termin sollte auch nicht beim Handy in die back history. Das sind nämlich nur buttons und keine
+  // Aktionen"): the next date and a date of „Reihe" take the entry's place, Back leaves the Termin.
+  const steps = await page.evaluate(() => history.length);
+  const was = await page.evaluate(() => location.search);
+  await page.evaluate(() => onPage("dialog[open] .tm-dialog .tk-date a.pg[data-step='next']")?.click());
+  await until(page, "the next date in the sheet", (was) => location.search !== was && /[?&]on=\d{4}-\d\d-\d\d/.test(location.search), was);
+  const dot = await page.evaluate(() => onPage("dialog[open] .tm-dialog .sdots a.sdl:not([aria-current])")?.getAttribute("href") ?? "");
+  await page.evaluate((dot) => onPage(`dialog[open] .tm-dialog .sdots a.sdl[href="${dot}"]`)?.click(), dot);
+  await until(page, "a date of „Reihe“ in the sheet", (dot) => location.pathname + location.search === dot, dot);
+  const after = await page.evaluate(() => history.length);
+  check(after === steps, `the picks took the entry's place: ${steps} entries before, ${after} after`);
+  await page.goBack();
+  await until(page, "Back leaves the Termin", () => !onPage("dialog[open] .tm-dialog") && !/termin=/.test(location.search));
+  await context.close();
+}
+
+// ---------- a phone: the Termin's own page scrolls under a finger ----------
+{
+  // Its box is no scroller of its own (owner, 2026-11-03: „ich kann aber auf der Termin Page immer
+  // noch nicht scrollen"): a swipe moves the page.
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  await context.addInitScript(ON_PAGE);
+  const page = await context.newPage();
+  page.on("console", (m) => { if (m.type() === "error") problems.push("console: " + m.text().slice(0, 300)); });
+  await page.goto(`${base}/event/${praktikum}/2026-11-02`, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the Termin's page: the browser app never took over"));
+  await until(page, "the Termin's page", () => Boolean(onPage(".is-termin.tm-page .tk")));
+  const cdp = await context.newCDPSession(page);
+  let y = 650;
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 200, y }] });
+  for (let i = 0; i < 15; i++) {
+    y -= 20;
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 200, y }] });
+    await new Promise((resolve) => setTimeout(resolve, 16));
+  }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await until(page, "a swipe scrolls the Termin's page", () => scrollY > 100);
   await context.close();
 }
 
