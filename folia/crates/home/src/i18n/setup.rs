@@ -1,7 +1,7 @@
 //! Texts of the start page's setup (`home/setup.rs`, concept A „Einrichtung"): three steps on one
 //! card, the program, the semester the study began in, and the modules of the Fachsemester that
-//! follows from it. What a step says follows the usual case and refuses nothing (CLAUDE.md, „Betula
-//! does not say no"): an unusual choice is said beside it.
+//! follows from it which are taken now. What a step says follows the usual case and refuses nothing
+//! (CLAUDE.md, „Betula does not say no"): an unusual choice is said beside it.
 
 pub struct Texts {
     /// The steps, as the chips at the top of the card name them.
@@ -29,6 +29,8 @@ pub struct Texts {
     // Step 2
     pub start_title: &'static str,
     pub start_lead: &'static str,
+    /// The group of the Studienbeginne, for screen readers.
+    pub start_label: &'static str,
     /// „Ich fange gerade an", „jetzt im 3. Fachsemester".
     pub starting: &'static str,
     pub now_in: fn(u8) -> String,
@@ -37,18 +39,24 @@ pub struct Texts {
     /// What is unusual about a semester: „über der Regelstudienzeit (6 Sem.)", „vor der PO 2008".
     pub beyond_regular: fn(u8) -> String,
     pub before_po: fn(&str) -> String,
+    /// The fifth box, its − and +, and what it takes.
     pub other_fs: &'static str,
+    pub fs_less: &'static str,
+    pub fs_more: &'static str,
     pub go_on: &'static str,
     pub fs_range: &'static str,
-    /// The custom field's semester, said under it: „Beginn im WiSe 2023/24".
+    /// The fifth box's semester, said under its name: „Beginn im WiSe 2023/24".
     pub began_in: fn(&str) -> String,
+    /// What „Befehle" says of the semester picked (R25).
+    pub picked: &'static str,
 
     // Step 3
-    /// „Dein 1. Fachsemester".
-    pub semester_title: fn(u8) -> String,
-    /// „Im WiSe 2026/27 laut Regelstudienplan: 5 Module, 32 LP. Abwählen, was du nicht belegst."
-    pub semester_lead: fn(&str, usize, &str) -> String,
-    pub semester_lead_empty: fn(&str) -> String,
+    /// „Was belegst du im WiSe 2026/27?"
+    pub semester_title: fn(&str) -> String,
+    /// „Vorausgewählt nach Regelstudienplan (3. FS). Lass nur angehakt, was du wirklich belegst:
+    /// 5 Module, 32 LP kommen in deinen Stundenplan." (the Fachsemester, what is ticked).
+    pub semester_lead: fn(u8, usize, &str) -> String,
+    pub semester_lead_empty: fn(u8) -> String,
     /// A row whose kind no source states.
     pub module: &'static str,
     pub placeholder: &'static str,
@@ -87,22 +95,27 @@ pub const DE: Texts = Texts {
 
     start_title: "Seit wann studierst du?",
     start_lead: "Daraus folgt dein Fachsemester.",
+    start_label: "Studienbeginn",
     starting: "Ich fange gerade an",
     now_in: |fs| format!("jetzt im {fs}. Fachsemester"),
     fs_short: "FS",
     beyond_regular: |semesters| format!("über der Regelstudienzeit ({semesters}\u{a0}Sem.)"),
     before_po: |year| format!("vor der PO {year}"),
     other_fs: "Anderes Fachsemester",
+    fs_less: "Ein Fachsemester weniger",
+    fs_more: "Ein Fachsemester mehr",
     go_on: "Weiter",
-    fs_range: "Eine Zahl von 1 bis 30: so weit zählt Betula Fachsemester.",
+    fs_range: "Von 1 bis 30: so weit zählt Betula Fachsemester",
     began_in: |semester| format!("Beginn im {semester}"),
+    picked: "gewählt",
 
-    semester_title: |fs| format!("Dein {fs}. Fachsemester"),
-    semester_lead: |semester, modules, credits| format!(
-        "Im {semester} laut Regelstudienplan: {modules} {}, {credits}\u{a0}LP. Abwählen, was du nicht belegst.",
-        if modules == 1 { "Modul" } else { "Module" }
-    ),
-    semester_lead_empty: |semester| format!("Im {semester}. Dein Stundenplan startet leer."),
+    semester_title: |semester| format!("Was belegst du im {semester}?"),
+    semester_lead: |fs, modules, credits| match modules {
+        0 => format!("Vorausgewählt nach Regelstudienplan ({fs}.\u{a0}FS). Nichts angehakt: Dein Stundenplan startet leer."),
+        1 => format!("Vorausgewählt nach Regelstudienplan ({fs}.\u{a0}FS). Lass nur angehakt, was du wirklich belegst: 1 Modul, {credits}\u{a0}LP kommt in deinen Stundenplan."),
+        n => format!("Vorausgewählt nach Regelstudienplan ({fs}.\u{a0}FS). Lass nur angehakt, was du wirklich belegst: {n} Module, {credits}\u{a0}LP kommen in deinen Stundenplan."),
+    },
+    semester_lead_empty: |fs| format!("Dein {fs}.\u{a0}Fachsemester."),
     module: "Modul",
     placeholder: "als Platzhalter, später wählen",
     span: |from, to| if from == to { format!("FS\u{a0}{from}") } else { format!("FS\u{a0}{from}–{to}") },
@@ -140,22 +153,27 @@ pub const EN: Texts = Texts {
 
     start_title: "When did you start?",
     start_lead: "That gives your semester of study.",
+    start_label: "Start of studies",
     starting: "I'm just starting",
     now_in: |fs| format!("now in semester {fs}"),
     fs_short: "sem.",
     beyond_regular: |semesters| format!("beyond the standard period ({semesters}\u{a0}sem.)"),
     before_po: |year| format!("before the {year} regulations"),
     other_fs: "Another semester",
+    fs_less: "One semester less",
+    fs_more: "One semester more",
     go_on: "Continue",
-    fs_range: "A number from 1 to 30: Betula counts semesters that far.",
+    fs_range: "1 to 30: Betula counts semesters that far",
     began_in: |semester| format!("Started in {semester}"),
+    picked: "picked",
 
-    semester_title: |fs| format!("Your semester {fs}"),
-    semester_lead: |semester, modules, credits| format!(
-        "In {semester} by the standard study plan: {modules} {}, {credits}\u{a0}ECTS. Untick what you do not take.",
-        if modules == 1 { "module" } else { "modules" }
-    ),
-    semester_lead_empty: |semester| format!("In {semester}. Your timetable starts empty."),
+    semester_title: |semester| format!("What are you taking in {semester}?"),
+    semester_lead: |fs, modules, credits| match modules {
+        0 => format!("Preselected from the standard study plan (semester\u{a0}{fs}). Nothing ticked: your timetable starts empty."),
+        1 => format!("Preselected from the standard study plan (semester\u{a0}{fs}). Keep ticked only what you really take: 1 module, {credits}\u{a0}ECTS goes into your timetable."),
+        n => format!("Preselected from the standard study plan (semester\u{a0}{fs}). Keep ticked only what you really take: {n} modules, {credits}\u{a0}ECTS go into your timetable."),
+    },
+    semester_lead_empty: |fs| format!("Your semester\u{a0}{fs}."),
     module: "Module",
     placeholder: "as a placeholder, choose later",
     span: |from, to| if from == to { format!("sem.\u{a0}{from}") } else { format!("sem.\u{a0}{from}–{to}") },

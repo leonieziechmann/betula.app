@@ -99,31 +99,83 @@ check(html.includes('href="/about/overview"') && !html.includes('href="/about"')
   await page.waitForFunction(() => /^Informatik/.test(onPage("#ob-program-option-0")?.textContent.trim() ?? ""), null, { timeout: 10000 }).catch(() => failures.push("the picker does not list Informatik first"));
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => onPage(".ob")?.dataset.step === "2", null, { timeout: 5000 }).catch(() => failures.push("a pick does not lead to the second step"));
-  // Step 2: the six semesters back from the current one, the first the usual start, and a field
-  // for another Fachsemester, which says what it takes instead of refusing in silence.
-  const semesters = await page.evaluate(() => ({
-    rows: [...allOnPage(".ob-sem")].map((row) => row.querySelector(".ob-fs")?.textContent.replace(/\s+/g, "")),
-    field: Boolean(onPage("#ob-fs")),
-    done: onPage(".ob-chip.done > span:last-child")?.textContent.trim(),
+  // Step 2 (owner, 2026-11-03: „im winter nur wise und sommer nur sose … ein select + confirm ding
+  // … 4 semester … und dann noch eine 5. box mit der Freien selection"): Informatik begins in
+  // winter, so four winter starts a year apart (the 1., 3., 5. and 7. FS in a winter, the 2., 4.,
+  // 6. and 8. in a summer), the latest picked; a fifth box with the first Fachsemester none of them
+  // makes; a pick does not go on, „Weiter" does.
+  const radios = () => page.evaluate(() => ({
+    step: onPage(".ob")?.dataset.step,
+    starts: [...allOnPage('.ob-sem[role="radio"]')].map((row) => `${row.querySelector("b")?.textContent.slice(0, 4)} ${row.querySelector(".ob-fs")?.textContent.replace(/\s+/g, "")}`),
+    checked: [...allOnPage('.ob-sems [role="radio"]')].map((row) => row.getAttribute("aria-checked")).join(),
+    other: onPage(".ob-other")?.classList.contains("on") ?? null,
+    field: onPage("#ob-fs")?.value ?? null,
+    focus: document.activeElement?.id ?? "",
   }));
-  check(semesters.rows.join() === "1.FS,2.FS,3.FS,4.FS,5.FS,6.FS" && semesters.field && /^Informatik/.test(semesters.done || ""), `the second step is not the semesters: ${JSON.stringify(semesters)}`);
+  await page.waitForFunction(() => onPage(".ob-sems") && !onPage(".ob-sems").classList.contains("wait"), null, { timeout: 5000 }).catch(() => failures.push("the semesters of step 2 do not come"));
+  // What is unusual is said beside a start once the plans are there: the last, the 7. or 8. FS,
+  // is beyond Informatik's six semesters (a view that missed the plans' coming left it out).
+  await page.waitForFunction(() => /über der Regelstudienzeit \(6\sSem\.\)/.test([...allOnPage('.ob-sem[role="radio"]')].at(-1)?.textContent ?? ""), null, { timeout: 5000 }).catch(() => failures.push("the last start of step 2 does not say it is beyond the Regelstudienzeit"));
+  const semesters = { ...(await radios()), done: await page.evaluate(() => onPage(".ob-chip.done > span:last-child")?.textContent.trim()) };
+  const fsOf = semesters.starts.map((start) => start.split(" ")[1]).join();
+  check(semesters.starts.length === 4 && semesters.starts.every((start) => start.startsWith("WiSe")) && ["1.FS,3.FS,5.FS,7.FS", "2.FS,4.FS,6.FS,8.FS"].includes(fsOf) && /^Informatik/.test(semesters.done || ""), `the second step does not offer four winter starts a year apart: ${JSON.stringify(semesters)}`);
+  check(semesters.checked === "true,false,false,false,false" && semesters.other === false && semesters.field === (fsOf.startsWith("1.") ? "2" : "1"), `the latest start is not picked, or the fifth box not as it begins: ${JSON.stringify(semesters)}`);
+  await page.click('.ob-sem[role="radio"] >> visible=true >> nth=1');
+  const second = await radios();
+  check(second.step === "2" && second.checked === "false,true,false,false,false", `a start picked goes on, or is not picked alone: ${JSON.stringify(second)}`);
+  // No scroll lock (owner, the same day: „Dazu gibt es ein scroll lock, wenn man mit der maus über
+  // der semester selection ist. Das muss auch raus"): the wheel over the semesters turns the page.
+  const work = () => page.evaluate(() => Math.round(document.querySelector("#content > .page-stage.front > .work.flowing").scrollTop));
+  const over = await page.evaluate(() => { const r = onPage(".ob-sems").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  await page.mouse.move(over.x, over.y);
+  for (let i = 0; i < 3; i++) { await page.mouse.wheel(0, 120); await page.waitForTimeout(60); }
+  await page.waitForTimeout(400);
+  const turned = await work();
+  await page.evaluate(() => document.querySelector("#content > .page-stage.front > .work.flowing").scrollTo(0, 0));
+  await page.waitForTimeout(300);
+  check(turned > 0, `the wheel over the semesters of step 2 does not turn the page (${turned} px)`);
+  await page.click(".ob-next >> visible=true");
+  await page.waitForFunction(() => onPage(".ob")?.dataset.step === "3", null, { timeout: 5000 }).catch(() => failures.push("„Weiter\" does not lead to the third step"));
+  const secondFs = fsOf.split(",")[1].replace(".FS", "");
+  const confirmed = await page.evaluate(() => onPage(".ob-lede")?.textContent.replace(/\s+/g, " "));
+  check(confirmed?.includes(`${secondFs}. F`), `„Weiter" does not take the start picked: ${confirmed}`);
+  // Back by the chip: the start picked still picked; the arrows pick among the radios.
+  await page.click(".ob-chip.done >> visible=true >> nth=1");
+  await page.waitForFunction(() => onPage(".ob")?.dataset.step === "2", null, { timeout: 5000 }).catch(() => failures.push("the chip does not lead back to the second step"));
+  check((await radios()).checked === "false,true,false,false,false", "back at the second step, the start confirmed is not picked");
+  await page.focus('.ob-sem[aria-checked="true"] >> visible=true');
+  await page.keyboard.press("ArrowUp");
+  const up = await radios();
+  await page.keyboard.press("ArrowDown");
+  const down = await radios();
+  check(up.checked === "true,false,false,false,false" && up.focus === "ob-begin-0" && down.checked === "false,true,false,false,false" && down.focus === "ob-begin-1", `the arrows do not pick among the starts: ${JSON.stringify([up, down])}`);
+  // The fifth box: typed into, it is picked; a Fachsemester out of range is said beside it, and
+  // Enter waits; one in range goes on.
   await page.fill("#ob-fs", "40");
   await page.keyboard.press("Enter");
-  check(await page.isVisible(".ob-note.warn >> visible=true"), "a Fachsemester out of range is not said");
+  const wrong = { ...(await radios()), said: await page.evaluate(() => Boolean(onPage(".ob-other .ob-warn")?.checkVisibility())) };
+  check(wrong.step === "2" && wrong.other && wrong.checked === "false,false,false,false,true" && wrong.said && wrong.focus === "ob-fs", `a Fachsemester out of range is not said beside the fifth box, or goes on: ${JSON.stringify(wrong)}`);
   await page.fill("#ob-fs", "3");
+  check(await page.evaluate(() => /^Beginn im (WiSe|SoSe) \d{4}/.test(onPage("#ob-other-what")?.textContent ?? "")), "the fifth box does not say the start its Fachsemester makes");
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => onPage(".ob")?.dataset.step === "3", null, { timeout: 5000 }).catch(() => failures.push("the custom Fachsemester does not lead to the third step"));
-  // Step 3: the modules of the third Fachsemester, all ticked, and the switch for the semesters
-  // before it on; a row unticked stays out.
+  // Step 3 (owner, the same day: „bei der Modulwahl muss dann nochmal klarer gemacht werden, dass
+  // es sich dabei um die Module handelt, die man jetzt wirklich belegt"): what is taken in the
+  // current semester, the modules of the third Fachsemester all ticked, and the switch for the
+  // semesters before it on; a row unticked stays out, and the sentence says one less.
+  const lede = () => page.evaluate(() => onPage(".ob-lede")?.textContent.replace(/\s+/g, " ") ?? "");
   const modules = await page.evaluate(() => ({
     title: onPage(".ob-title")?.textContent,
     rows: allOnPage(".ob-mod").length,
     ticked: allOnPage('.ob-mod[aria-checked="true"]').length,
     past: onPage(".ob-switch")?.getAttribute("aria-checked"),
   }));
-  check(modules.title === "Dein 3. Fachsemester" && modules.rows > 1 && modules.ticked === modules.rows && modules.past === "true", `the third step is not the semester's modules: ${JSON.stringify(modules)}`);
+  const said = await lede();
+  check(/^Was belegst du im (WiSe|SoSe) \d{4}(\/\d\d)?\?$/.test(modules.title || "") && said.includes("(3. FS)") && said.includes(`${modules.rows} Module`) && said.includes("Stundenplan") && modules.rows > 1 && modules.ticked === modules.rows && modules.past === "true", `the third step does not ask what is taken now, or not with the semester's modules: ${JSON.stringify({ ...modules, said })}`);
   await page.click(".ob-mod >> visible=true >> nth=0");
   check(await page.evaluate(() => onPage(".ob-mod")?.getAttribute("aria-checked") === "false"), "a row does not untick");
+  const fewer = await lede();
+  check(fewer.includes(`${modules.rows - 1} Modul`), `the sentence does not say what goes into the Stundenplan once a row is unticked: ${fewer}`);
   await page.click(".ob-create >> visible=true");
   await page.waitForSelector(".day-welcome >> visible=true", { timeout: 5000 }).catch(() => failures.push("„Studium anlegen\" leads nowhere"));
   const made = await stored(page);

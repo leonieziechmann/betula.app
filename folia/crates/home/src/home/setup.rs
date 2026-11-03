@@ -7,20 +7,31 @@
 //! 1. „Was studierst du?": the program out of the app's combobox, as everywhere (owner, 2026-10-20:
 //!    „die suche nach den studiengängen muss unbedingt eine Combobox sein, wie überall sonst"), and
 //!    under it a drawing of the programs, a dot each in its faculty's colour, with their numbers.
-//! 2. „Seit wann studierst du?": the six semesters back from now, each with its Fachsemester, and a
-//!    field for any other (owner, the same day: „die 6 Semester + ein custom feld"); the one the
-//!    program's plan usually begins in stands out.
-//! 3. „Dein n. Fachsemester": the rows of the Regelstudienplan in that Fachsemester, ticked, to
-//!    untick what is not taken; the earlier Fachsemester filled from the plan and marked as passed
-//!    (a switch, on: the usual case); „Studium anlegen" on the right, as a confirming action is in
-//!    Betula (owner, the same day), full width on a phone with „Ohne Module weiter" under it.
+//! 2. „Seit wann studierst du?": four Studienbeginne to pick and a fifth box for any other
+//!    Fachsemester, picked and then confirmed with „Weiter" (owner, 2026-11-03: „Dann muss die
+//!    auswahl auch ein select + confirm ding sein. Also schlage 4 semester vor die man direkt wählen
+//!    kann und dann noch eine 5. box mit der Freien selection"). The four fit the current semester
+//!    („im winter nur wise und sommer nur sose"): they begin in the half of the year the program's
+//!    plans begin in, a year apart, so that the plan's Fachsemester they make falls into this half
+//!    as well (a winter start in a summer: the 2., 4., 6. and 8. FS), and in this half where the
+//!    plans do not say or begin in either; the latest is picked to begin with. The fifth box takes
+//!    any Fachsemester from 1 to 30, by its field or by − and +.
+//! 3. „Was belegst du im WiSe 2026/27?": the rows of the Regelstudienplan in that Fachsemester,
+//!    ticked, to untick what is not taken now, which is what goes into the Stundenplan (owner, the
+//!    same day: „Und bei der Modulwahl muss dann nochmal klarer gemacht werden, dass es sich dabei um
+//!    die Module handelt, die man jetzt wirklich belegt"); the earlier Fachsemester filled from the
+//!    plan and marked as passed (a switch, on: the usual case); „Studium anlegen" on the right, as a
+//!    confirming action is in Betula (owner, 2026-09-28), full width on a phone with „Ohne Module
+//!    weiter" under it.
 //!
 //! „Studium anlegen" stores the program, its study direction and the Studienbeginn in „Mein
 //! Studiengang" and takes the rows over into the current semester of the Stundenplan, as its
 //! „Fachsemester übernehmen" does (`studyplan::import_fs`): one plan for the Stundenplan and „Mein
 //! Studium". Nothing is refused (CLAUDE.md, „Betula does not say no"): a semester before the
 //! regulation or beyond the Regelstudienzeit is said beside it. Each step goes back by its chip at
-//! the top. The card is as high in every step; what is long scrolls inside it.
+//! the top. The card is as high in every step; what is long scrolls inside it, and the wheel goes
+//! on to the page where it has nothing to scroll (owner, the same day: „Dazu gibt es ein scroll
+//! lock, wenn man mit der maus über der semester selection ist. Das muss auch raus").
 //!
 //! On the server (R9) the card is its first step, and without JavaScript „Studiengang wählen" leads
 //! to the programs.
@@ -28,7 +39,7 @@
 use std::collections::BTreeSet;
 
 use folia_calendar::semester::{fachsemester, SemesterKey};
-use folia_model::labels::{Code, Labelled, ModuleKind};
+use folia_model::labels::{Code, Labelled, ModuleKind, Season};
 use folia_model::rows::{CatalogRow, Department, Program};
 use folia_pages::ask::{PlanSourceAsk, ProgramsAsk};
 use folia_pages::PlanSource;
@@ -51,11 +62,19 @@ use crate::i18n::{self, Texts};
 /// The browser app (`csr`): only there is anything picked or stored.
 const APP: bool = cfg!(feature = "csr");
 
-/// How many semesters back step 2 offers; any other is the field's.
-const OFFERED: i32 = 6;
+/// How many Studienbeginne step 2 offers, a year apart; any other is the fifth box's.
+const OFFERED: i32 = 4;
 
 /// The most Fachsemester the field takes, as far as Betula counts them (`folia_calendar::semester`).
 const MOST_FS: u8 = 30;
+
+/// What step 2 has picked: one of the Studienbeginne it offers, or the Fachsemester of its fifth
+/// box.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Begin {
+    Offered(SemesterKey),
+    Other,
+}
 
 /// What the setup did, for the note after it and its „Rückgängig".
 #[derive(Clone, Debug, PartialEq)]
@@ -97,6 +116,52 @@ pub fn chosen(source: &PlanSource, index: usize) -> (Option<&PlanVariant>, Optio
         Some(supplement) => (source.variants.get(supplement.core), source.variants.get(supplement.page).map(|page| (page, supplement.ord))),
         None => (source.variants.get(shown), None),
     }
+}
+
+/// The half of the year in which the plans of a program begin (`studyplan::intake_season`): the
+/// one that those which say it agree on; none where none says it, or where a plan begins in
+/// either (Maschinenbau M.Sc.: „Beispiel für Start im Wintersemester", „… im Sommersemester").
+pub fn intake_of(source: &PlanSource) -> Option<Season> {
+    let mut found = None;
+    for season in seasons_of(source).into_iter().flatten() {
+        match found {
+            Some(known) if known != season => return None,
+            _ => found = Some(season),
+        }
+    }
+    found
+}
+
+/// The plan (an index of the program page's order) that begins in `season`, where the program has
+/// plans that begin in either half of the year; none where they all begin alike or do not say.
+pub fn plan_for(source: &PlanSource, season: Season) -> Option<usize> {
+    let seasons = seasons_of(source);
+    let either = seasons.contains(&Some(Season::Winter)) && seasons.contains(&Some(Season::Summer));
+    either.then(|| seasons.iter().position(|of| *of == Some(season))).flatten()
+}
+
+/// The half of the year each plan of `source` begins in, in the program page's order.
+fn seasons_of(source: &PlanSource) -> Vec<Option<Season>> {
+    (0..source.variants.len()).map(|index| chosen(source, index).0.and_then(|core| stored::intake_season(core, &source.linked))).collect()
+}
+
+/// The Studienbeginne step 2 offers in `now`: the latest in the half of the year the plans begin
+/// in (`intake`, else in now's), and the three before it in that half, each a year earlier.
+pub fn offered_starts(now: SemesterKey, intake: Option<Season>) -> Vec<SemesterKey> {
+    let latest = stored::intake_start(now, intake);
+    (0..OFFERED).filter_map(|year| latest.plus(-2 * year)).collect()
+}
+
+/// The Fachsemester the fifth box shows before anything is typed: the first that none of the
+/// four makes (the 2. FS in a winter, where they make the 1., 3., 5. and 7.).
+pub fn other_default(now: SemesterKey, offered: &[SemesterKey]) -> u8 {
+    let made: Vec<u8> = offered.iter().filter_map(|start| fachsemester(now, *start)).collect();
+    (1..=MOST_FS).find(|fs| !made.contains(fs)).unwrap_or(1)
+}
+
+/// The Fachsemester typed into the fifth box, if it is one Betula counts (1 to 30).
+fn typed_fs(text: &str) -> Option<u8> {
+    text.trim().parse::<u8>().ok().filter(|fs| (1..=MOST_FS).contains(fs))
 }
 
 /// The rows of the plan in Fachsemester `fs`, as „Fachsemester übernehmen" takes them
@@ -211,13 +276,16 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
     let step = RwSignal::new(1u8);
     let program = RwSignal::new(None::<String>);
     let start = RwSignal::new(None::<SemesterKey>);
-    let fs_text = RwSignal::new(String::new());
-    let fs_wrong = RwSignal::new(false);
+    // What step 2 has picked (none yet: the latest it offers), and the text of its fifth box (none
+    // yet: `other_default`).
+    let begin = RwSignal::new(None::<Begin>);
+    let other_text = RwSignal::new(None::<String>);
     // The rows unticked in step 3 (`SetupRow::key`), the switch of the earlier Fachsemester, the
-    // plan of a program with several (an index of its plans).
+    // plan of a program with several (an index of its plans) and whether it was picked there.
     let off = RwSignal::new(BTreeSet::<String>::new());
     let past = RwSignal::new(true);
     let direction = RwSignal::new(0usize);
+    let direction_picked = RwSignal::new(false);
 
     let programs = use_ask(move || APP.then_some(ProgramsAsk {}));
     let items = Signal::derive(move || {
@@ -234,41 +302,82 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
         let id = program.get()?;
         asked.with(|answer| answer.as_ref().and_then(|answer| answer.as_ref().ok()).cloned().flatten().filter(|source| source.program.id == id))
     });
+    // Whether the plans of the program picked are here, or known to be none: the semesters step 2
+    // offers follow them, so they wait for them (a moment: 5 to 20 ms in a browser after the pick)
+    // instead of showing others first.
+    let plans_known = Memo::new(move |_| {
+        let id = program.get();
+        asked.with(|answer| match answer {
+            None => false,
+            Some(Ok(Some(source))) => id.as_ref() == Some(&source.program.id),
+            Some(_) => true,
+        })
+    });
 
     let pick = Callback::new(move |picked: Option<String>| {
         let Some(picked) = picked else { return };
         if program.get_untracked().as_ref() != Some(&picked) {
             program.set(Some(picked));
             direction.set(0);
+            direction_picked.set(false);
             off.set(BTreeSet::new());
         }
         step.set(2);
     });
 
-    // The Studienbeginn the program's plan usually means now: the current semester, or the one
-    // before where the plan begins in the other half of the year.
-    let usual = Memo::new(move |_| {
+    // The Studienbeginne step 2 offers, the one picked, and the fifth box's Fachsemester and start.
+    let offered = Memo::new(move |_| {
         let now = now.get()?;
-        let intake = source.with(|source| {
-            let source = source.as_ref()?;
-            let (core, _) = chosen(source, direction.get());
-            stored::intake_season(core?, &source.linked)
-        });
-        Some(stored::intake_start(now, intake))
+        let intake = source.with(|source| source.as_ref().and_then(intake_of));
+        Some(offered_starts(now, intake))
     });
+    let picked = Memo::new(move |_| {
+        let offered = offered.get().unwrap_or_default();
+        match begin.get() {
+            Some(Begin::Offered(key)) if offered.contains(&key) => Some(Begin::Offered(key)),
+            Some(Begin::Other) => Some(Begin::Other),
+            // What was picked for another program that begins otherwise: the latest again.
+            _ => offered.first().copied().map(Begin::Offered),
+        }
+    });
+    let other_fs = Memo::new(move |_| match other_text.get() {
+        Some(text) => typed_fs(&text),
+        None => now.get().map(|now| other_default(now, &offered.get().unwrap_or_default())),
+    });
+    let other_start = Memo::new(move |_| now.get()?.plus(1 - i32::from(other_fs.get()?)));
     let fs_now = Memo::new(move |_| fachsemester(now.get()?, start.get()?));
     let choose_start = move |key: SemesterKey| {
+        if start.get_untracked() != Some(key) {
+            off.set(BTreeSet::new());
+        }
         start.set(Some(key));
-        fs_wrong.set(false);
-        off.set(BTreeSet::new());
+        // A program with a plan for a start in either half of the year: the one this start is in,
+        // unless one was picked in step 3.
+        let fitting = source.with_untracked(|source| source.as_ref().and_then(|source| plan_for(source, key.season())));
+        if let (false, Some(index)) = (direction_picked.get_untracked(), fitting) {
+            if direction.get_untracked() != index {
+                direction.set(index);
+                off.set(BTreeSet::new());
+            }
+        }
         step.set(3);
     };
-    let custom = move || {
-        let Some(now) = now.get_untracked() else { return };
-        match fs_text.get_untracked().trim().parse::<u8>().ok().filter(|fs| (1..=MOST_FS).contains(fs)).and_then(|fs| now.plus(1 - i32::from(fs))) {
+    // „Weiter": on with what is picked; a fifth box without a Fachsemester Betula counts says so
+    // beside its field and waits there.
+    let confirm = move || match picked.get_untracked() {
+        Some(Begin::Offered(key)) => choose_start(key),
+        Some(Begin::Other) => match other_start.get_untracked() {
             Some(key) => choose_start(key),
-            None => fs_wrong.set(true),
-        }
+            None => folia_design::nav::focus_by_id("ob-fs"),
+        },
+        None => {}
+    };
+    let pick_begin = move |choice: Begin| begin.set(Some(choice));
+    let step_other = move |by: i32| {
+        let typed = other_text.get_untracked().and_then(|text| text.trim().parse::<i32>().ok());
+        let from = typed.or_else(|| other_fs.get_untracked().map(i32::from)).unwrap_or(1);
+        other_text.set(Some((from + by).clamp(1, i32::from(MOST_FS)).to_string()));
+        pick_begin(Begin::Other);
     };
 
     let rows = Memo::new(move |_| {
@@ -410,62 +519,150 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
         }
     };
 
-    let step_two = move || {
+    // What is unusual about a Studienbeginn, said beside it: beyond the Regelstudienzeit of the plan
+    // it would have (`plan_for`), before the regulation.
+    let notes_of = move |key: SemesterKey| -> Vec<String> {
+        let Some(fs) = now.get().and_then(|now| fachsemester(now, key)) else { return Vec::new() };
+        source.with(|source| {
+            let Some(source) = source.as_ref() else { return Vec::new() };
+            let index = if direction_picked.get() { direction.get() } else { plan_for(source, key.season()).unwrap_or_else(|| direction.get()) };
+            let regular = chosen(source, index).0.and_then(|core| u8::try_from(core.semesters).ok()).filter(|n| *n > 0);
+            let mut notes = Vec::new();
+            if let Some(regular) = regular.filter(|regular| fs > *regular) {
+                notes.push((s.beyond_regular)(regular));
+            }
+            if let Some(year) = source.program.po_year.filter(|year| i64::from(key.year) < *year) {
+                notes.push((s.before_po)(&year.to_string()));
+            }
+            notes
+        })
+    };
+    let notes_view = |notes: Vec<String>| (!notes.is_empty()).then(|| view! { " · "<span class="ob-warn">{notes.join(", ")}</span> });
+    // The four as the list shows them, with their Fachsemester and notes, and the start of the
+    // fifth box with its notes: each one memo for its view. A view that read `offered` and
+    // `source` both missed the plans when they came: reactive_graph 0.2.14 checks an effect's
+    // sources in turn, and `offered`, checked first, brings `source` up to date, which then has
+    // nothing left to report (a memo checks itself once more; an effect does not).
+    let starts = Memo::new(move |_| {
         let now = now.get();
-        let usual = usual.get();
-        let (regular, po_year) = source.with(|source| {
-            source.as_ref().map_or((None, None), |source| {
-                let (core, _) = chosen(source, direction.get_untracked());
-                (core.and_then(|core| u8::try_from(core.semesters).ok()).filter(|n| *n > 0), source.program.po_year)
-            })
-        });
-        let semesters = now.map(|now| (0..OFFERED).filter_map(|back| now.plus(-back)).collect::<Vec<SemesterKey>>()).unwrap_or_default();
+        offered.get().unwrap_or_default().into_iter().map(|key| (key, now.and_then(|now| fachsemester(now, key)).unwrap_or(1), notes_of(key))).collect::<Vec<(SemesterKey, u8, Vec<String>)>>()
+    });
+    let other_said = Memo::new(move |_| other_start.get().map(|key| (key, notes_of(key))));
+
+    let step_two = move || {
+        // The radios in their order, for the arrows: the four, then the fifth box.
+        let order = move || offered.get_untracked().unwrap_or_default().into_iter().map(Begin::Offered).chain([Begin::Other]).collect::<Vec<Begin>>();
+        let id_of = |at: usize, choice: Begin| match choice {
+            Begin::Offered(_) => format!("ob-begin-{at}"),
+            Begin::Other => "ob-begin-other".to_string(),
+        };
+        // The keys of a group of radios (ARIA's): the arrows, Pos1 and Ende pick, Enter goes on.
+        // Only on a radio: in the fifth box's field ↑ and ↓ count its Fachsemester.
+        let on_key = move |ev: leptos::ev::KeyboardEvent| {
+            use leptos::wasm_bindgen::JsCast;
+            let on_radio = ev.target().and_then(|target| target.dyn_into::<leptos::web_sys::Element>().ok()).is_some_and(|el| el.get_attribute("role").as_deref() == Some("radio"));
+            if !on_radio || ev.ctrl_key() || ev.meta_key() || ev.alt_key() {
+                return;
+            }
+            let order = order();
+            let at = picked.get_untracked().and_then(|now| order.iter().position(|choice| *choice == now)).unwrap_or(0);
+            let to = match ev.key().as_str() {
+                "ArrowDown" | "ArrowRight" => (at + 1).min(order.len().saturating_sub(1)),
+                "ArrowUp" | "ArrowLeft" => at.saturating_sub(1),
+                "Home" => 0,
+                "End" => order.len().saturating_sub(1),
+                "Enter" => {
+                    ev.prevent_default();
+                    confirm();
+                    return;
+                }
+                _ => return,
+            };
+            ev.prevent_default();
+            if let Some(choice) = order.get(to).copied() {
+                pick_begin(choice);
+                folia_design::nav::focus_by_id(&id_of(to, choice));
+            }
+        };
+        let other_on = move || picked.get() == Some(Begin::Other);
+        let other_value = move || other_text.get().unwrap_or_else(|| other_fs.get().map(|fs| fs.to_string()).unwrap_or_default());
+        // Under the fifth box's name: the start its Fachsemester makes, or what it takes.
+        let other_what = move || match other_said.get() {
+            Some((key, notes)) => view! { {(s.began_in)(&key.label(t.locale))}{notes_view(notes)} }.into_any(),
+            None => {
+                let typed = other_text.with(|text| text.as_deref().is_some_and(|text| !text.trim().is_empty()));
+                view! { <span class:ob-warn=typed>{s.fs_range}</span> }.into_any()
+            }
+        };
         view! {
             <h1 class="ob-title">{s.start_title}</h1>
             <p class="ob-lede">{s.start_lead}</p>
-            <div class="ob-fill" data-scroll-shade="">
-                <div class="ob-sems">
-                    {semesters.into_iter().map(|key| {
-                        let fs = now.and_then(|now| fachsemester(now, key)).unwrap_or(1);
-                        let mut notes: Vec<String> = Vec::new();
-                        if regular.is_some_and(|regular| fs > regular) {
-                            notes.push((s.beyond_regular)(regular.unwrap_or(fs)));
-                        }
-                        if po_year.is_some_and(|year| i64::from(key.year) < year) {
-                            notes.push((s.before_po)(&po_year.map(|year| year.to_string()).unwrap_or_default()));
-                        }
-                        let what = if fs == 1 { s.starting.to_string() } else { (s.now_in)(fs) };
-                        let command = format!("{} · {what}", key.label(t.locale));
-                        view! {
-                            <button type="button" class="ob-sem" class:usual=usual == Some(key) on:click=move |_| choose_start(key) data-command=command>
-                                <b>{key.label(t.locale)}</b>
-                                <span class="ob-fs num">{fs}"."<small>{s.fs_short}</small></span>
-                                <small class="ob-sem-what">{what}{(!notes.is_empty()).then(|| view! { " · "<span class="ob-warn">{notes.join(", ")}</span> })}</small>
-                            </button>
-                        }
-                    }).collect_view()}
+            <div class="ob-fill">
+                <div class="ob-sems" role="radiogroup" aria-label=s.start_label class:wait=move || !plans_known.get() aria-busy=move || (!plans_known.get()).then_some("true") on:keydown=on_key>
+                    {move || {
+                        starts.get().into_iter().enumerate().map(|(at, (key, fs, notes))| {
+                            let what = if fs == 1 { s.starting.to_string() } else { (s.now_in)(fs) };
+                            let command = format!("{} · {what}", key.label(t.locale));
+                            let on = move || picked.get() == Some(Begin::Offered(key));
+                            view! {
+                                <button
+                                    type="button"
+                                    id=id_of(at, Begin::Offered(key))
+                                    class="ob-sem"
+                                    role="radio"
+                                    aria-checked=move || on().to_string()
+                                    tabindex=move || (!on()).then_some("-1")
+                                    on:click=move |_| pick_begin(Begin::Offered(key))
+                                    data-command=command
+                                    data-command-state=move || on().then_some(s.picked)
+                                >
+                                    <span class="ob-dot" aria-hidden="true"></span>
+                                    <b>{key.label(t.locale)}</b>
+                                    <span class="ob-fs num">{fs}"."<small>{s.fs_short}</small></span>
+                                    <small class="ob-sem-what">{what}{notes_view(notes)}</small>
+                                </button>
+                            }
+                        }).collect_view()
+                    }}
+                    // The fifth box: a radio of its own and the Fachsemester beside it, which picks
+                    // the box as it is typed or counted; a click anywhere on the box picks it too.
+                    <div class="ob-sem ob-other" class:on=other_on on:click=move |_| pick_begin(Begin::Other)>
+                        <button
+                            type="button"
+                            id="ob-begin-other"
+                            class="ob-other-pick"
+                            role="radio"
+                            aria-checked=move || other_on().to_string()
+                            tabindex=move || (!other_on()).then_some("-1")
+                        >
+                            <span class="ob-dot" aria-hidden="true"></span>
+                            <b>{s.other_fs}</b>
+                            <small class="ob-sem-what" id="ob-other-what">{other_what}</small>
+                        </button>
+                        <span class="ob-step" role="group" aria-label=s.other_fs>
+                            <button type="button" aria-label=s.fs_less title=s.fs_less disabled=move || other_fs.get().is_some_and(|fs| fs <= 1) on:click=move |_| step_other(-1)>"−"</button>
+                            <input
+                                id="ob-fs"
+                                aria-label=s.other_fs
+                                aria-describedby="ob-other-what"
+                                aria-invalid=move || other_fs.get().is_none().then_some("true")
+                                data-command=s.other_fs
+                                type="number"
+                                inputmode="numeric"
+                                min="1"
+                                max=MOST_FS.to_string()
+                                prop:value=other_value
+                                on:input=move |ev| { other_text.set(Some(event_target_value(&ev))); pick_begin(Begin::Other); }
+                                on:keydown=move |ev: leptos::ev::KeyboardEvent| if ev.key() == "Enter" { ev.prevent_default(); confirm(); }
+                            />
+                            <button type="button" aria-label=s.fs_more title=s.fs_more disabled=move || other_fs.get().is_some_and(|fs| fs >= MOST_FS) on:click=move |_| step_other(1)>"+"</button>
+                        </span>
+                    </div>
                 </div>
             </div>
-            <div class="ob-custom">
-                <label for="ob-fs">{s.other_fs}</label>
-                <span class="ob-num">
-                    <input
-                        id="ob-fs"
-                        data-command=s.other_fs
-                        type="number"
-                        inputmode="numeric"
-                        min="1"
-                        max=MOST_FS.to_string()
-                        placeholder="7"
-                        prop:value=move || fs_text.get()
-                        on:input=move |ev| { fs_text.set(event_target_value(&ev)); fs_wrong.set(false); }
-                        on:keydown=move |ev: leptos::ev::KeyboardEvent| if ev.key() == "Enter" { ev.prevent_default(); custom(); }
-                    />
-                    {s.fs_short}
-                </span>
-                <button type="button" class="btn secondary ob-go" on:click=move |_| custom()>{s.go_on}</button>
+            <div class="ob-actions">
+                <button type="button" class="btn primary ob-next" on:click=move |_| confirm() data-command="">{s.go_on}<Icon name="arrow-right"/></button>
             </div>
-            {move || fs_wrong.get().then(|| view! { <p class="ob-note warn" role="alert"><Icon name="triangle-alert"/><span>{s.fs_range}</span></p> })}
         }
     };
 
@@ -480,13 +677,13 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
             })
         });
         let listed = rows.get().unwrap_or_default();
-        // What is ticked changes the sentence, never the list (which keeps its scroll).
+        // What is ticked changes the sentence, never the list (which keeps its scroll): what goes
+        // into the Stundenplan.
         let lede = {
             let listed = listed.clone();
-            let semester = semester.clone();
             move || {
                 let (count, credits) = off.with(|off| listed.iter().filter(|row| !off.contains(&row.key)).fold((0, 0.0), |(n, sum), row| (n + 1, sum + row.weight)));
-                if listed.is_empty() { (s.semester_lead_empty)(&semester) } else { (s.semester_lead)(&semester, count, &format::number(credits, t.locale)) }
+                if listed.is_empty() { (s.semester_lead_empty)(fs) } else { (s.semester_lead)(fs, count, &format::number(credits, t.locale)) }
             }
         };
         let note = if !has_plan {
@@ -499,12 +696,12 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
         let earlier = before.get().unwrap_or_default();
         let earlier_credits: f64 = earlier.iter().map(|row| row.weight).sum();
         view! {
-            <h1 class="ob-title">{(s.semester_title)(fs)}</h1>
+            <h1 class="ob-title">{(s.semester_title)(&semester)}</h1>
             <p class="ob-lede">{lede}</p>
             {(!plans.is_empty()).then(|| view! {
                 <div class="ob-plans" role="radiogroup" aria-label=s.direction>
                     {plans.into_iter().enumerate().map(|(index, label)| view! {
-                        <button type="button" role="radio" class="ob-plan" aria-checked=move || (direction.get() == index).to_string() on:click=move |_| { direction.set(index); off.set(BTreeSet::new()); }>{label}</button>
+                        <button type="button" role="radio" class="ob-plan" aria-checked=move || (direction.get() == index).to_string() on:click=move |_| { direction.set(index); direction_picked.set(true); off.set(BTreeSet::new()); }>{label}</button>
                     }).collect_view()}
                 </div>
             })}
@@ -677,5 +874,57 @@ mod tests {
         let earlier = rows_before(&source, core, page, 3);
         assert!(earlier.len() > first.len() && earlier.iter().all(|row| row.span.0 < 3));
         assert!(rows_before(&source, core, page, 1).is_empty());
+    }
+
+    fn key(text: &str) -> SemesterKey {
+        SemesterKey::parse(text).unwrap()
+    }
+
+    /// Step 2 offers what fits the current semester (owner, 2026-11-03: „im winter nur wise und
+    /// sommer nur sose"): starts in the half of the year the plans begin in, a year apart, so that
+    /// the plan's Fachsemester they make fall into this half; in this half where the plans do not
+    /// say. The fifth box begins with the first Fachsemester none of them makes.
+    #[test]
+    fn the_starts_offered_fit_the_current_semester() {
+        let keys = |list: Vec<SemesterKey>| list.into_iter().map(SemesterKey::key).collect::<Vec<_>>();
+        let fs_of = |now: SemesterKey, list: &[SemesterKey]| list.iter().map(|start| fachsemester(now, *start).unwrap()).collect::<Vec<_>>();
+        let (winter, summer) = (key("2026W"), key("2027S"));
+        // A program that begins in winter: in a winter the 1., 3., 5. and 7. FS, in a summer the 2.,
+        // 4., 6. and 8.
+        let in_winter = offered_starts(winter, Some(Season::Winter));
+        assert_eq!(keys(in_winter.clone()), ["2026W", "2025W", "2024W", "2023W"]);
+        assert_eq!(fs_of(winter, &in_winter), [1, 3, 5, 7]);
+        let in_summer = offered_starts(summer, Some(Season::Winter));
+        assert_eq!(keys(in_summer.clone()), ["2026W", "2025W", "2024W", "2023W"]);
+        assert_eq!(fs_of(summer, &in_summer), [2, 4, 6, 8]);
+        // One that begins in summer, and one whose plans do not say: the summer's starts in a summer.
+        assert_eq!(keys(offered_starts(winter, Some(Season::Summer))), ["2026S", "2025S", "2024S", "2023S"]);
+        assert_eq!(keys(offered_starts(summer, None)), ["2027S", "2026S", "2025S", "2024S"]);
+        assert_eq!(keys(offered_starts(winter, None)), ["2026W", "2025W", "2024W", "2023W"]);
+        // The fifth box: the 2. FS in a winter, the 1. in a summer, beside a winter start's four.
+        assert_eq!(other_default(winter, &in_winter), 2);
+        assert_eq!(other_default(summer, &in_summer), 1);
+        // What its field takes: the Fachsemester Betula counts.
+        assert_eq!([" 3 ", "30", "1"].map(typed_fs), [Some(3), Some(30), Some(1)]);
+        assert_eq!(["0", "31", "", "drei", "-2", "2.5"].map(typed_fs), [None; 6]);
+    }
+
+    /// The half of the year a program's plans begin in, on a real snapshot: Informatik B.Sc. in
+    /// winter, and Maschinenbau M.Sc. (PO 2023) and Elektrotechnik M.Sc. in either, a plan each,
+    /// whose start picks the plan.
+    #[test]
+    fn a_start_picks_the_plan_that_begins_in_its_half_of_the_year() {
+        let informatik = plans_of("079-82-2008");
+        assert_eq!(intake_of(&informatik), Some(Season::Winter));
+        assert_eq!(plan_for(&informatik, Season::Winter), None);
+        assert_eq!(plan_for(&informatik, Season::Summer), None);
+        for id in ["104-88-2023", "048-90-2018"] {
+            let either = plans_of(id);
+            assert_eq!(intake_of(&either), None, "{id}");
+            let (winter, summer) = (plan_for(&either, Season::Winter), plan_for(&either, Season::Summer));
+            assert!(winter.is_some() && summer.is_some() && winter != summer, "{id}: {winter:?} {summer:?}");
+            let label = |index: Option<usize>| index.and_then(|index| either.variants.get(index)).map(|plan| plan.full.to_lowercase()).unwrap_or_default();
+            assert!(label(winter).contains("winter") && label(summer).contains("sommer"), "{id}: {} | {}", label(winter), label(summer));
+        }
     }
 }
