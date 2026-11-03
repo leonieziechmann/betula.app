@@ -1,6 +1,6 @@
 //! The birch around the app (owner, 2026-09-25; docs/folia/frontend.md „The birch"): its crown along the
 //! top of the view, a wood of birches behind every page (owner, 2026-09-29), and the ground at the
-//! end of every page with the roots in it. Both are drawn
+//! end of the start page with the roots in it. Both are drawn
 //! by the stylesheet from the masks in `assets/birch` (`design/birch/birch.mjs`), in the tone of
 //! the season the script in `<head>` names; this module only places them.
 
@@ -37,13 +37,15 @@ pub fn Wood() -> impl IntoView {
     view! { <div class="wood" aria-hidden="true"></div> }
 }
 
-/// The ground: the footer of every page, after all of its content. On the desktop a page that flows
-/// (the catalog) has it as the end of its own scroll area; on the others it comes up from the
-/// window's edge once the page is at its end, and the panels get shorter for it (`enhance.js`);
-/// on a phone it follows the page, and ends at the window's lower edge under a page shorter than
-/// the window; under the row of pages of „Mein Studium" on a phone there is none (owner,
-/// 2026-10-19: a swipe from down in the ground went wrong, „Der hat da eh keinen Mehrwert";
-/// app.css `.st-pager`). It holds what belongs at the bottom of a site — who is behind it, the legal pages,
+/// The ground: the footer of the start page, after all of its content; no other page has one
+/// (owner, 2026-11-03: „ich würde gerne den footer raus nehmen aus den meisten seiten von betula.
+/// Um weiterhin compliant zu sein können wir bei der Profile page die links wieder machen und den
+/// footer bei der landing page lassen"; the profile page leads to the legal pages, which every page
+/// leads to, `folia_profile`). Until then every page had it, the row of pages of „Mein Studium" on
+/// a phone excepted from 2026-10-19 („Der hat da eh keinen Mehrwert"). On the desktop it is the end
+/// of the start page's scroll area; on a phone it follows the page, and ends at the window's lower
+/// edge under a page shorter than the window (the app's own, after the view, which the stylesheet
+/// shows while the start page is in front). It holds what belongs at the bottom of a site — who is behind it, the legal pages,
 /// the versions of Folia and Radix (the roots: Radix brings the data) and how fresh the data is.
 /// „Über Betula" stood before the legal pages from concept A to 2026-10-27 (owner: „nimm das
 /// bitte Über Betula aus dem Footer raus"); the start page leads to it. A page may add a line of

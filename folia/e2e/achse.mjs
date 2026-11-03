@@ -18,8 +18,8 @@
 //   in front as the finger goes; let go past a third, it comes to rest in front; let go short, the
 //   page comes back and nothing changes. A quick swipe (a finger's moves every 8 ms) is seen as a
 //   motion: the page that comes takes 0.15 s at least from a tenth of it seen to nine tenths;
-// 6 the ground at the end of a page and the dots of „Mein Studium" move with their page, where
-//   they stood;
+// 6 the ground at the end of the start page and the dots of „Mein Studium" move with their page,
+//   where they stood;
 // 7 with less motion a fade, nothing slides; on a wide screen nothing moves; a tab whose page does
 //   not stand yet comes as before, without moving.
 // Fails on a console error, a page error, or a page load after the takeover.
@@ -277,16 +277,17 @@ const swipe = async (page, area, dx, ms) => {
   check(now.front === "studyplan" && now.moving === 0, `${during}: the tab changed: ${JSON.stringify(now)}`);
 
   during = "phone: the ground and the dots move with their page";
-  await tap(page, "bookmarks");
+  // The start page's, the one page with a ground (owner, 2026-11-03).
+  await tap(page, "home");
   await atRest(page);
   await page.evaluate(() => scrollTo(0, 1e6));
   await page.waitForTimeout(400);
   const ground = await page.evaluate(() => Math.round(document.querySelector("body > .ground").getBoundingClientRect().top));
   await page.evaluate(() => { window.__hold = 0; });
-  await tap(page, "home");
+  await tap(page, "bookmarks");
   await page.waitForFunction(() => (window.__held || []).length > 0, null, { timeout: 3000 }).catch(() => {});
-  const held = await page.evaluate(() => Math.round(document.querySelector('#content > .page-stage.moving[data-stage="bookmarks"] > .work > .ground')?.getBoundingClientRect().top ?? -1));
-  check(Math.abs(held - ground) <= 1, `${during}: the Merkliste's ground stood at ${ground} px, in its first frame on the way at ${held} px`);
+  const held = await page.evaluate(() => Math.round(document.querySelector('#content > .page-stage.moving[data-stage="home"] > .work > .ground')?.getBoundingClientRect().top ?? -1));
+  check(Math.abs(held - ground) <= 1, `${during}: the start page's ground stood at ${ground} px, in its first frame on the way at ${held} px`);
   await page.evaluate(() => { for (const a of window.__held || []) a.play(); window.__held = []; window.__hold = undefined; });
   await atRest(page);
   await tap(page, "programs");

@@ -1124,7 +1124,8 @@ if (current !== "2026W") {
     wide: document.documentElement.scrollWidth <= innerWidth + 1,
   }));
   check(sections.strip[2] === "3. FS · jetzt" && sections.cards === 23 && sections.wide, `the Regelstudienplan on a phone: ${JSON.stringify(sections)}`);
-  check(await grounded(), "the Regelstudienplan on a phone has no ground");
+  // No page but the start page has a ground (owner, 2026-11-03).
+  check(!(await grounded()), "the Regelstudienplan on a phone has a ground");
   // While the way back is at the head, the way to the profile page gives way to it (owner,
   // 2026-10-15), and it comes back with the overview.
   await step("the way back", () => page.tap(".top-back.on"), () => location.search === "" && document.querySelector(".st-pager") && !document.querySelector(".top-back.on") && !document.querySelector(".topbar .top-profile").inert);
@@ -1159,12 +1160,12 @@ if (current !== "2026W") {
   await watchRow();
   await step("all programs on a phone", () => page.tap('.st-rest a[href="/programs"]'), () => location.pathname === "/programs" && document.querySelector(".faccs") && document.querySelector(".top-back.on")?.getAttribute("href") === "/study" && document.querySelector(".topbar .top-profile").inert);
   await rowMoved("the way back coming");
-  // The row stays built behind (folia_design::stage): the page in front has its ground.
-  check(await grounded(), "all programs on a phone have no ground after „Mein Studium\"");
+  // The row stays built behind (folia_design::stage); the page in front has no ground either.
+  check(!(await grounded()), "all programs on a phone have a ground after „Mein Studium\"");
   await watchRow();
   await step("the way back from all programs", () => page.tap(".top-back.on"), () => location.pathname === "/study" && location.search === "" && document.querySelector(".st-pager") && !document.querySelector(".top-back.on") && !document.querySelector(".topbar .top-profile").inert);
   await rowMoved("the way back going");
-  check(!(await grounded()), "back at the row, the ground shows under it again");
+  check(!(await grounded()), "back at the row, a ground shows under it");
   check((await page.evaluate(() => history.length)) === before + 1, "the way back from all programs added a step to the history");
   await context.close();
 }

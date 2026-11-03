@@ -2729,11 +2729,13 @@
   };
   document.addEventListener("scroll", () => { if (!spyFrame) spyFrame = requestAnimationFrame(spy); }, { capture: true, passive: true });
 
-  // ---- the ground: the footer after the end of a page ----
-  // On a wide screen every page is one scroll area (`.work.flowing`, app.css „one scroll area")
-  // with the ground as its end: the browser scrolls page and ground as one (owner, 2026-09-29: the
-  // two steps before — first the page, then the window for the ground — felt „unfassbar janky").
-  // A phone scrolls page and ground with the window. What is left to do is below.
+  // ---- the ground: the footer after the end of the start page ----
+  // On a wide screen every page is one scroll area (`.work.flowing`, app.css „one scroll area"),
+  // the start page's with the ground as its end: the browser scrolls page and ground as one (owner,
+  // 2026-09-29: the two steps before — first the page, then the window for the ground — felt
+  // „unfassbar janky"). A phone scrolls page and ground with the window. No other page has a ground
+  // since 2026-11-03 (app.css „the birch"): the cover is nothing there, a list is short as long as it
+  // stands whole in the area, and the wood stays on the window's edge. What is left to do is below.
   const flowing = () => document.querySelector("#content > .page-stage.front > .work.flowing");
   const glide = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth");
 
@@ -2841,13 +2843,13 @@
     if (list) {
       const rows = list.querySelector(".rows, .st-rows"), last = rows?.lastElementChild;
       const needs = last ? last.getBoundingClientRect().bottom - list.getBoundingClientRect().top + 12 : 0;
-      const short = needs <= innerHeight - 64 - 208;
+      const short = needs <= innerHeight - 64 - (area.querySelector(":scope > .ground") ? 208 : 0);
       if (list.classList.contains("short") !== short) list.classList.toggle("short", short);
     }
     if (tiesWood) return;
     const wood = document.querySelector(".wood");
     if (!wood) return;
-    if (!area) { if (woodMoved) { wood.style.removeProperty("transform"); woodMoved = false; } return; }
+    if (!area?.querySelector(":scope > .ground")) { if (woodMoved) { wood.style.removeProperty("transform"); woodMoved = false; } return; }
     const reach = 208, rise = Math.min(reach, Math.max(0, area.scrollTop - (area.scrollHeight - area.clientHeight - reach)));
     wood.style.transform = rise ? `translateY(${-rise}px)` : "";
     woodMoved = true;

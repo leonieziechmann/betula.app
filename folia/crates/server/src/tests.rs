@@ -508,10 +508,12 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
 }
 
 /// Impressum and Datenschutz are there without a catalog, name who runs Betula and how to reach
-/// them, and every page leads to them (§ 5 DDG): the ground at its end. The privacy notice has
-/// every part its sidebar lists. Needs no snapshot.
+/// them, and every page leads to them (§ 5 DDG): the start page's ground, and the profile page,
+/// which every page leads to (the rail, the head of a phone's page; owner, 2026-11-03: „den footer
+/// raus nehmen aus den meisten seiten … bei der Profile page die links wieder machen"). The
+/// privacy notice has every part its sidebar lists. Needs no snapshot.
 #[tokio::test(flavor = "multi_thread")]
-async fn legal_pages_are_one_step_from_every_page() {
+async fn legal_pages_are_reached_from_every_page() {
     let router = crate::router(state(SnapshotStore::new(temp_dir("legal")).unwrap()));
     for path in [folia_routes::url::IMPRINT, folia_routes::url::PRIVACY] {
         let (status, _, body) = request(&router, path, &[]).await;
@@ -529,14 +531,21 @@ async fn legal_pages_are_one_step_from_every_page() {
         assert!(privacy.contains(&format!("id=\"{}\"", part.id)) && privacy.contains(&format!("href=\"#{}\"", part.id)), "{}: {}", part.id, (part.heading)(&folia_home::i18n::legal::DE));
     }
 
-    // Any other page, here the program overview, which says that it has no catalog: the ground at
-    // its end (`folia_shell::ground`) links both.
+    // Any other page, here the program overview, which says that it has no catalog: no ground of
+    // its own, only the app's after the view, which the stylesheet shows under the start page
+    // alone (`folia_shell::ground`); it leads to the profile page.
     let (status, _, body) = request(&router, folia_routes::url::PROGRAMS, &[]).await;
     let page = String::from_utf8(body).unwrap();
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
-    let ground = page.split("<footer class=\"ground\">").nth(1).and_then(|rest| rest.split("</footer>").next()).unwrap_or_default();
+    assert_eq!(page.matches("<footer class=\"ground\">").count(), 1, "the program overview has a ground of its own");
+    assert!(page.contains(&format!("href=\"{}\"", folia_routes::url::PROFILE)), "the program overview does not lead to the profile page");
+    // The profile page links both, without JavaScript too (the app's page is its `About`).
+    let (status, _, body) = request(&router, folia_routes::url::PROFILE, &[]).await;
+    let page = String::from_utf8(body).unwrap();
+    assert_eq!(status, StatusCode::OK);
+    let own = page.split("<noscript>").nth(1).and_then(|rest| rest.split("</noscript>").next()).unwrap_or_default();
     for path in [folia_routes::url::IMPRINT, folia_routes::url::PRIVACY] {
-        assert!(ground.contains(&format!("href=\"{path}\"")), "the ground: {ground}");
+        assert!(own.contains(&format!("href=\"{path}\"")), "the profile page without JavaScript: {own}");
     }
 }
 
@@ -724,8 +733,8 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     assert_eq!(features, 8, "the chapters of „Betula im Detail\", two to a topic");
     let (status, _, _) = request(&router, "/about/nothing", &[]).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "an address of no topic");
-    // Impressum and Datenschutz: linked from the ground at the end of every page, the start page's
-    // included (`legal_pages_are_one_step_from_every_page`), indexed once they are final
+    // Impressum and Datenschutz: linked from the ground at the end of the start page and from the
+    // profile page (`legal_pages_are_reached_from_every_page`), indexed once they are final
     // (deploy/ship.sh keeps an instance open to everybody from shipping while `PLACEHOLDER` is true).
     for path in [folia_routes::url::IMPRINT, folia_routes::url::PRIVACY] {
         assert!(home.contains(&format!("href=\"{path}\"")), "the start page links {path}");

@@ -81,7 +81,7 @@ pub(crate) const ROWS_ID: &str = "rows";
 /// as a warning (`MAX_MARKS`).
 const LIMIT_SHOWN: u64 = 240;
 const LIMIT_WARN: u64 = 250;
-/// The page's one scroll area: the list and the ground after it.
+/// The page's one scroll area: the list.
 const SCROLL_ID: &str = "bookmarks-scroll";
 
 /// The data worker's answer for the list, with the text it searched: what the page shows of a
@@ -414,7 +414,7 @@ pub fn BookmarksPage() -> impl IntoView {
         }
         view! {
             <Title text=t.bookmarks.title/>
-            // One scroll area with the ground at its end, as the catalog (app.css „one scroll area").
+            // One scroll area, as the catalog (app.css „one scroll area").
             // The page's regions for the keyboard as the catalog's (enhance.js, „the keyboard";
             // folia/design/tastatur/konzept.html, „Die anderen Seiten"): the content Tab goes round
             // in, the sidebar a mode F leads into.
@@ -513,7 +513,6 @@ pub fn BookmarksPage() -> impl IntoView {
                         }.into_any(),
                     }
                 }}
-                <folia_shell::ground::Ground/>
             </div>
         }
         .into_any()

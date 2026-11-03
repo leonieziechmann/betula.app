@@ -8,6 +8,12 @@
 //!   what it keeps, with the way to each and „Profil leeren"; and the settings of this browser,
 //!   which every profile shares (light or dark, the language; R13). On a phone, which has no
 //!   switch between light and dark, this is where they are.
+//! - At its end what the ground at the end of every page held until 2026-11-03 (owner: „ich würde
+//!   gerne den footer raus nehmen aus den meisten seiten von betula. Um weiterhin compliant zu sein
+//!   können wir bei der Profile page die links wieder machen"): that Betula is not the BTU's, the
+//!   Impressum and the Datenschutz (§ 5 DDG: every page leads to the profile page, the rail and the
+//!   head of a phone's page), the versions and how fresh the data is (`About`). The start page
+//!   keeps its ground.
 //! - A profile deleted or emptied here comes back with „Rückgängig" until the page is left.
 //! - A switch, a profile made, a file taken over answer in the next frame (R21): the sidebar marks
 //!   the profile at once, every store reads its texts after.
@@ -21,7 +27,7 @@ use folia_calendar::day::Day;
 use folia_calendar::select::TownChoice;
 use folia_calendar::semester::SemesterKey;
 use folia_locale::Locale;
-use folia_pages::ask::MetaAsk;
+use folia_pages::ask::{GroundAsk, MetaAsk};
 use folia_plans::study;
 use folia_routes::url;
 use folia_stores::bookmarks::Bookmarks;
@@ -98,6 +104,9 @@ pub fn ProfilePage() -> impl IntoView {
                         <Icon name="languages"/>{locale.name()}
                     </a>
                 }).collect_view()}
+                // The legal pages, which the page leads to without JavaScript as well.
+                <a class="btn secondary" href=t.path(url::IMPRINT)>{t.ground.imprint}</a>
+                <a class="btn secondary" href=t.path(url::PRIVACY)>{t.ground.privacy}</a>
             </AppStandin>
         }
         .into_any();
@@ -114,6 +123,7 @@ pub fn ProfilePage() -> impl IntoView {
                 <Program/>
                 <Kept note/>
                 <Settings/>
+                <About/>
             </div>
         </Frame>
     }
@@ -565,6 +575,34 @@ fn Settings() -> impl IntoView {
                 <folia_design::keys::LettersSwitch labelled_by="pf-letters"/>
                 <p class="pf-sub">{t.ui.letters_hint}</p>
             </div>
+        </section>
+    }
+}
+
+/// „Über diese Seite": what the ground at the end of every page held until 2026-11-03, now that the
+/// start page alone has one (`folia_shell::ground`) — that Betula is not the BTU's, the Impressum and
+/// the Datenschutz, the versions of Folia and Radix, how fresh the data is and where it comes from.
+/// The data's facts once they are there; the rest stands from the first frame.
+#[component]
+fn About() -> impl IntoView {
+    let t = i18n::t();
+    let facts = use_ask(|| Some(GroundAsk {}));
+    let radix = move || facts.get().and_then(Result::ok).and_then(|ground| ground.meta.radix_version.clone());
+    let changed = move || facts.get().and_then(Result::ok).and_then(|ground| ground.meta.data_changed_at.as_deref().map(|date| format::date(date, t.locale)));
+    view! {
+        <section class="panel pf-part pf-about" aria-labelledby="pf-about">
+            <h2 id="pf-about"><Icon name="info"/>{t.ground.legal}</h2>
+            <p class="pf-sub">{t.ground.note}</p>
+            <nav class="pf-ways" aria-label=t.ground.legal>
+                <a class="btn secondary" href=t.path(url::IMPRINT)><Icon name="file-text"/><span>{t.ground.imprint}</span></a>
+                <a class="btn secondary" href=t.path(url::PRIVACY)><Icon name="shield-check"/><span>{t.ground.privacy}</span></a>
+            </nav>
+            <p class="pf-build">
+                <span>"Folia "<span class="ver">{folia_shell::document::VERSION}</span></span>
+                {move || radix().map(|version| view! { <span>"Radix "<span class="ver">{version}</span></span> })}
+                {move || changed().map(|date| view! { <span>{(t.ground.data_of)(&date)}</span> })}
+                <a href=folia_shell::seo::UNIVERSITY_URL rel="noopener">{t.ground.source}<Icon name="arrow-up-right"/></a>
+            </p>
         </section>
     }
 }

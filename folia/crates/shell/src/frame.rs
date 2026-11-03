@@ -1,5 +1,4 @@
-//! The frame of a page: the sidebar, the page, the panel on the right and the ground after them
-//! (`Frame`), a page without a sidebar (`Plain`), and the way back up to an area's list
+//! The frame of a page: the sidebar, the page and the panel on the right (`Frame`), a page without a sidebar (`Plain`), and the way back up to an area's list
 //! (`BackLink`).
 
 use leptos::prelude::*;
@@ -24,7 +23,9 @@ use folia_design::ui::{Icon, Shortcut};
 /// little room for the page (owner, 2026-09-23).
 ///
 /// On the desktop the frame is one scroll area (`#page-scroll`, app.css „one scroll area"): the
-/// page and the ground after it scroll as one; the sidebar and the panel on the right are pinned.
+/// page scrolls in it; the sidebar and the panel on the right are pinned. No ground at its end:
+/// the start page alone has one (owner, 2026-11-03: „ich würde gerne den footer raus nehmen aus den
+/// meisten seiten von betula"); the profile page leads to Impressum and Datenschutz instead.
 #[component]
 pub fn Frame(
     /// Heading of the sidebar.
@@ -51,7 +52,7 @@ pub fn Frame(
     let label = title.clone();
     let has_aside = aside.is_some();
     view! {
-        // One scroll area with the ground at its end (app.css „one scroll area"): the sidebar and
+        // One scroll area (app.css „one scroll area"): the sidebar and
         // the panel on the right are pinned beside the page.
         <div class="work framed flowing" id="page-scroll" class:sidebar-first=sidebar_first class:with-aside=has_aside class:aside-picked=move || has_aside && aside_picked.get()>
             <aside class="panel sidebar" class:sheet=sheet data-sheet=sheet.then_some("") id="sidebar" aria-label=label>
@@ -69,20 +70,18 @@ pub fn Frame(
                 <div class="resizer preview-edge js-only" data-action="resize-preview" role="separator" aria-orientation="vertical" aria-controls="preview" aria-label=t.ui.resize_preview tabindex="0"></div>
                 {aside.run()}
             }))}
-            <crate::ground::Ground/>
         </div>
     }
 }
 
 /// A page without a frame (one that failed, one not found, an area picked on a phone): like a
-/// framed page one scroll area with the ground at its end (app.css „one scroll area"), the page
-/// across the whole width. The start page builds the same itself.
+/// framed page one scroll area (app.css „one scroll area"), the page across the whole width. The
+/// start page builds the same itself, with the ground at its end.
 #[component]
 pub fn Plain(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
     view! {
         <div class=format!("work flowing solo {class}") id="page-scroll">
             <div class="page">{children()}</div>
-            <crate::ground::Ground/>
         </div>
     }
 }

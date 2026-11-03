@@ -58,11 +58,12 @@ check(/<svg[^>]*class="map map-preview map-wide"/.test(html), "server HTML has n
 check(/<a href="\/programs\/[^"]+\/plan"[^>]*class="map-dot /.test(html), "server HTML: dots are not links to programs");
 check((html.match(/class="cslide /g) || []).length === 5, "server HTML: not four pictures and the spacer");
 check((html.match(/loading="lazy"/g) || []).length === 6 && (technology.match(/loading="lazy"/g) || []).length === 4, "server HTML: the screenshots are not all lazy");
-check(html.includes('href="/impressum"') && html.includes('href="/datenschutz"'), "server HTML: no legal links");
-// The ground no longer leads to „Über Betula" (owner, 2026-10-27: „nimm das bitte Über Betula aus
-// dem Footer raus"): its legal links are the two.
-const legal = (page) => page.split('class="ground-legal"')[1]?.split("</nav>")[0] ?? "";
-check(!legal(html).includes('href="/about') && !legal(finding).includes('href="/about') && legal(finding).includes('href="/impressum"'), "server HTML: the ground still leads to „Über Betula\"");
+// No ground of their own (owner, 2026-11-03: „den footer raus nehmen aus den meisten seiten"): the
+// one in their HTML is the app's after the view, which the stylesheet shows under the start page
+// alone (`e2e/home.mjs` checks the start page's, `e2e/ground.mjs` what shows); every page leads to
+// the profile page, which leads to Impressum and Datenschutz.
+const grounds = (page) => (page.match(/<footer class="ground">/g) || []).length;
+check(grounds(html) === 1 && grounds(finding) === 1 && html.includes('href="/profile"'), "server HTML: a topic's page has a ground of its own, or does not lead to the profile page");
 // Every topic's page: „Zurück" to the start page (Esc follows it), and no page leads to `/about`.
 check([html, finding, planning, technology, questions].every((page) => /<a [^>]*href="\/"[^>]*data-action="back"/.test(page) && !page.includes('href="/about"')), "server HTML: a topic's page has no „Zurück\" to the start page, or leads to /about");
 check(!questions.includes("Was bedeutet FÜS?") && questions.includes("Wie finde ich die Module für mein Studium?") && questions.includes('"@type":"FAQPage"'), "server HTML: the questions are the old ones, or not the page's structured data");
@@ -97,7 +98,7 @@ check(await page.evaluate(() => allOnPage("head link[rel=canonical]").length) ==
 // Two stylesheets could come from different places (the service worker, the network) and mix.
 check(await page.evaluate(() => allOnPage("link[rel=stylesheet]").length) === 1, "the document has not exactly one stylesheet after the takeover");
 check(await page.evaluate(() => allOnPage("link[rel=preload]").length) === 1, "the document has not exactly one preloaded font after the takeover");
-check(await page.evaluate(() => /^\d+\.\d+\.\d+/.test(onPage(".ground .ver")?.textContent || "")), "the ground does not name Folia's version");
+check(await page.evaluate(() => !allOnPage(".ground").some((ground) => ground.checkVisibility())), "the overview shows a ground");
 // The first panel: a birch down its right edge, the whole height, and the figures to its left,
 // beside the text, each on a branch reaching the trunk; behind the page the wood, from the rail to
 // the window's right edge and bottom, beneath everything, its masks those of the season.
