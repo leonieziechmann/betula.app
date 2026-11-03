@@ -508,7 +508,8 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
 }
 
 /// Impressum and Datenschutz are there without a catalog, name who runs Betula and how to reach
-/// them, and every page leads to them (§ 5 DDG): the start page's ground, and the profile page,
+/// them, and every page leads to them (§ 5 DDG): the ground of the start page and of the pages
+/// about Betula, and the profile page,
 /// which every page leads to (the rail, the head of a phone's page; owner, 2026-11-03: „den footer
 /// raus nehmen aus den meisten seiten … bei der Profile page die links wieder machen"). The
 /// privacy notice has every part its sidebar lists. Needs no snapshot.
@@ -532,8 +533,8 @@ async fn legal_pages_are_reached_from_every_page() {
     }
 
     // Any other page, here the program overview, which says that it has no catalog: no ground of
-    // its own, only the app's after the view, which the stylesheet shows under the start page
-    // alone (`folia_shell::ground`); it leads to the profile page.
+    // its own, only the app's after the view, which the stylesheet shows under a page with one
+    // (`folia_shell::ground`); it leads to the profile page.
     let (status, _, body) = request(&router, folia_routes::url::PROGRAMS, &[]).await;
     let page = String::from_utf8(body).unwrap();
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
