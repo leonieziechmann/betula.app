@@ -1958,7 +1958,7 @@ pub mod tests {
         let lecture = teaching("A", "80", 1, "Vorlesung", 5, "09:15", "10:45");
         let from = d("2026-11-06");
         let change = Change { time: Some((10 * 60, 11 * 60 + 30)), ..change_of(&lecture, Scope::From(from)) };
-        let t = table(&[lecture.clone()], &["A"], &[], &Selection { changes: vec![change], ..Selection::default() });
+        let t = table(std::slice::from_ref(&lecture), &["A"], &[], &Selection { changes: vec![change], ..Selection::default() });
         let rows = &t.events[0].rows;
         assert_eq!(rows.len(), 2);
         assert!(rows.iter().all(|row| row.key == Some(lecture.key()) && row.ord == Some(1)));
@@ -1973,7 +1973,7 @@ pub mod tests {
         let lecture = teaching("A", "80", 1, "Vorlesung", 5, "09:15", "10:45").room("ZHG/HS.C");
         let on = d("2026-11-06");
         let moved = Change { weekday: Some(4), ..change_of(&lecture, Scope::On(on)) };
-        let t = table(&[lecture.clone()], &["A"], &[], &Selection { changes: vec![moved], ..Selection::default() });
+        let t = table(std::slice::from_ref(&lecture), &["A"], &[], &Selection { changes: vec![moved], ..Selection::default() });
         let rows = &t.events[0].rows;
         assert_eq!(rows.len(), 2);
         assert!(!rows[0].occ.days.contains(&on) && rows[0].occ.moved == [on]);
@@ -1982,7 +1982,7 @@ pub mod tests {
         assert!(t.regular_week().iter().any(|item| item.event == 0 && item.day == 4 && matches!(item.label, crate::views::WeekLabel::Once { .. })));
         // A room changed for one date stands in its series' slot.
         let room = Change { room: Some("ZHG/HS.A".into()), ..change_of(&lecture, Scope::On(on)) };
-        let t = table(&[lecture.clone()], &["A"], &[], &Selection { changes: vec![room], ..Selection::default() });
+        let t = table(std::slice::from_ref(&lecture), &["A"], &[], &Selection { changes: vec![room], ..Selection::default() });
         assert_eq!((t.events[0].rows[1].occ.days.as_slice(), t.events[0].rows[1].date.room_shown()), ([on].as_slice(), Some("ZHG/HS.A")));
         assert_eq!(t.regular_week().iter().filter(|item| item.event == 0).count(), 1);
     }
@@ -1995,19 +1995,19 @@ pub mod tests {
             let t = table(rows, &["A"], &[], &Selection { changes: vec![change.clone()], ..Selection::default() });
             (t.changes.first().map(|changed| changed.state.clone()), t.events[0].rows[0].date.room_shown().map(str::to_string))
         };
-        assert_eq!(state(&[lecture.clone()], &mine), (Some(ChangeState::Holds), Some("ZHG/HS.A".into())));
+        assert_eq!(state(std::slice::from_ref(&lecture), &mine), (Some(ChangeState::Holds), Some("ZHG/HS.A".into())));
         // QIS says what the student said: done, nothing to change.
         assert_eq!(state(&[lecture.clone().room("ZHG/HS.A")], &mine), (Some(ChangeState::Agrees), Some("ZHG/HS.A".into())));
         // Something else: the student's holds until they decide.
         assert_eq!(state(&[lecture.clone().room("ZHG/HS.B")], &mine), (Some(ChangeState::Differs), Some("ZHG/HS.A".into())));
         // Another start is another key: the change hangs on the old one, its event is there.
         let later = teaching("A", "80", 1, "Vorlesung", 5, "11:30", "13:00").room("ZHG/HS.C");
-        let t = table(&[later.clone()], &["A"], &[], &Selection { changes: vec![mine.clone()], ..Selection::default() });
+        let t = table(std::slice::from_ref(&later), &["A"], &[], &Selection { changes: vec![mine.clone()], ..Selection::default() });
         assert!(matches!(&t.changes[0].state, ChangeState::Moved { now: Some((key, values)) } if *key == later.key() && values.from == 690));
         assert!(t.events[0].rows[0].changed.is_none());
         // Its event gone too: gone. A change of a module not planned says nothing.
         let other = teaching("A", "90", 1, "Vorlesung", 5, "09:15", "10:45");
-        let t = table(&[other.clone()], &["A"], &[], &Selection { changes: vec![mine.clone()], ..Selection::default() });
+        let t = table(std::slice::from_ref(&other), &["A"], &[], &Selection { changes: vec![mine.clone()], ..Selection::default() });
         assert_eq!(t.changes.iter().map(|changed| &changed.state).collect::<Vec<_>>(), [&ChangeState::Gone]);
         let t = table(&[other], &["A"], &[], &Selection { changes: vec![Change { module: "Z".into(), ..mine }], ..Selection::default() });
         assert!(t.changes.is_empty());
@@ -2050,7 +2050,7 @@ pub mod tests {
         let all = Change { weekday: Some(3), ..change_of(&lecture, Scope::All) };
         let one = Change { weekday: Some(4), time: Some((600, 690)), ..change_of(&lecture, Scope::On(d("2026-10-14"))) };
         for changes in [vec![all.clone(), one.clone()], vec![one, all]] {
-            let t = table(&[lecture.clone()], &["A"], &[], &Selection { changes, ..Selection::default() });
+            let t = table(std::slice::from_ref(&lecture), &["A"], &[], &Selection { changes, ..Selection::default() });
             let rows = &t.events[0].rows;
             assert_eq!(rows.len(), 2);
             assert!(rows[0].occ.days.iter().all(|day| day.weekday() == 3) && rows[0].occ.moved == [d("2026-10-14")]);
