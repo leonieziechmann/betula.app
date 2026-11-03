@@ -1124,6 +1124,10 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
         own,
         edited,
         conflict,
+        // The Stundenplan draws a choice open dashed and a group chosen as any (`alt`, its focus);
+        // the module's page alone marks groups (folia/design/kalender/raster.html).
+        group: false,
+        chosen: false,
     };
     let row = DayRow {
         day: item.day,

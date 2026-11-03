@@ -5,7 +5,7 @@
 // no page loaded; the wheel over the button turns the list under it; a wheel stops the way up; with
 // a module beside the list the button stands left of it; a keyboard goes on from the start of the
 // page; another page starts without it and Back to the list far down brings it again; a long page
-// at its end (the button in its corner, no ground: the start page alone has one); less motion: up at once.
+// with the ground at its end (the button above it, the ground going away with the page); less motion: up at once.
 // On a phone: the window, above the bottom bar, a tap; far down before the app takes over, the
 // app's button is there after it. The classic site (the app kept away) has it too; without
 // JavaScript it is not there.
@@ -155,21 +155,24 @@ const movedSince = (page, mark) => page.evaluate((mark) => {
   await context.close();
 }
 
-// ---------- a wide screen: a long page at its end ----------
+// ---------- a wide screen: a long page and the ground at its end ----------
 // The overview about Betula: the start page is short for a first visit (its setup), and the text
 // that made it long is on the pages about Betula now.
 {
   const { context, page } = await open("/about/overview");
+  const groundTop = () => page.evaluate(() => Math.round(document.querySelector("#content > .page-stage.front > .work.flowing > .ground").getBoundingClientRect().top));
   await scrollTo(page, 1);
   await page.waitForTimeout(400);
   await wheel(page, 900, 500, 100, 5);
   let w = await where(page);
   const b = await button(page);
-  check(w.end && w.inset === 0 && b.shown && b.seen && b.bottom <= 900 - 16, `the page's end: the button is not in its corner: ${JSON.stringify(b)}, ${JSON.stringify(w)}`);
+  const ground = await groundTop();
+  check(w.end && w.inset === 0 && ground === 692 && b.shown && b.seen && b.bottom <= ground - 16, `the ground in: the button is not above it: ${JSON.stringify(b)}, the ground from ${ground}, ${JSON.stringify(w)}`);
   await page.click("#to-top");
   await page.waitForTimeout(1200);
   w = await where(page);
-  check(w.top === 0 && w.inset === 0 && w.same, `after „Nach oben" the page is not at its top: ${JSON.stringify(w)}`);
+  const gone = await groundTop();
+  check(w.top === 0 && w.inset === 0 && gone >= 900 && w.same, `after „Nach oben" the page is not at its top, or the ground stayed: ${JSON.stringify(w)}, the ground from ${gone}`);
   await context.close();
 }
 

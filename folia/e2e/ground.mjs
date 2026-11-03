@@ -1,15 +1,16 @@
-// The ground at the end of the start page, and no other (docs/folia/frontend.md „The birch", „One scroll
-// area"; owner, 2026-11-03: „den footer raus nehmen aus den meisten seiten … bei der landing page
-// lassen"). On a wide screen every page is one scroll area right of the rail under the header: the
-// start page and the ground after it scroll natively as one, the window never scrolls, and the
-// wheel over the rail moves nothing, nor over the header of a list's page; a page of panels runs
-// under the header, and the wheel over it turns the page. The wood behind the start page stands on
-// the ground's edge in every frame. Every other page ends 8 px above the window's edge, as what is
+// The ground at the end of a page of text without a sidebar — the start page, the pages about Betula —,
+// and of no page of the app (docs/folia/frontend.md „The birch", „One scroll area"; owner,
+// 2026-11-03: „Bloß in der APP Ui ist das ein wenig wild"). On a wide screen every page is one
+// scroll area right of the rail under the header: the start page and the ground after it scroll
+// natively as one, the window never scrolls, and the wheel over the rail moves nothing, nor over
+// the header of a list's page; a page of panels runs under the header, and the wheel over it turns
+// the page. The wood behind the start page stands on the ground's edge in every frame; a page about
+// Betula ends in its ground as well. A page of the app ends 8 px above the window's edge, as what is
 // pinned beside it (a sidebar, the filters, a module) does, with no round corners drawn, and the
 // wood stays on the window's edge. A page of panels runs under the bar, the frost behind the bar
 // once it is scrolled, its sidebar pinned below the bar, and another page of the same tab starts
 // without the frost; a list's page does not run under it. Tab into the ground brings it into view.
-// A phone scrolls the start page's ground with the page; every other page ends 12 px above the
+// A phone scrolls the start page's ground with the page; a page of the app ends 12 px above the
 // bottom bar, and one shorter than the window does not scroll.
 import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
@@ -129,6 +130,18 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   await page.waitForTimeout(1000);
   f = await at(page);
   check(new URL(page.url()).pathname === "/impressum" && f.pageTop === 0 && f.groundTop === null, `the page opened from the ground does not start at its top, or has a ground: ${JSON.stringify(f)}`);
+  await context.close();
+}
+
+// ---------- a page about Betula: its ground at its end, on a wide screen and on a phone ----------
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  const { context, page } = await open("/about/finding", viewport);
+  await toEnd(page);
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(600);
+  const f = await at(page);
+  const credit = await page.evaluate(() => allOnPage(".photo-credit").filter((line) => line.checkVisibility()).length);
+  check(f.groundTop !== null && f.groundTop < viewport.height && credit === 0, `a page about Betula at ${viewport.width} px: its ground does not show at its end, or names a photo: ${JSON.stringify({ ...f, credit })}`);
   await context.close();
 }
 

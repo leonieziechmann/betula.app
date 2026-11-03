@@ -72,6 +72,14 @@
   /* A Termin of one's own of no module of the week (`Event::own`, folia/design/kalender/termine.html):
      a grey without a hue, apart from the eighth module's slate. */
   --t-own: oklch(.5 .006 250);
+  /* A module's week (folia/design/kalender/raster.html): the lightness of a full card in the
+     module's tone and of words in it (a share of the tone with black where the browser cannot set
+     a lightness), how much of the tone a lighter card and a card to choose take, the shadow under a
+     card and the lift of the one open beside the week. */
+  --mod-l: .5; --mod-ink-l: .42; --mod-dim: 86%; --mod-ink-mix: #000; --on-mod: #fff;
+  --mod-once: 40%; --mod-card: 9%;
+  --card-shadow: 0 1px 1px rgba(15, 23, 42, .06), 0 3px 8px -4px rgba(15, 23, 42, .32);
+  --lift-shadow: 0 2px 3px rgba(15, 23, 42, .08), 0 8px 18px -8px rgba(15, 23, 42, .45);
   /* The calendars of one's own beside the plan (planner studyplan/calendars.rs, `k-1` … `k-6`): a
      little more chroma than the modules' tones, which they stand beside in the week. */
   --k-1: oklch(.56 .13 355); --k-2: oklch(.58 .13 45); --k-3: oklch(.55 .12 135); --k-4: oklch(.55 .11 215); --k-5: oklch(.53 .13 290); --k-6: oklch(.6 .12 95);
@@ -151,6 +159,10 @@
     --accent: oklch(.53 .07 149);
     --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-3: oklch(.79 .1 70); --fac-4: oklch(.76 .1 330); --fac-5: oklch(.77 .08 212); --fac-6: oklch(.75 .1 30);
     --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-green: oklch(.8 .09 150); --t-coral: oklch(.8 .09 35); --t-rose: oklch(.78 .09 355); --t-slate: oklch(.78 .04 260); --t-own: oklch(.76 .006 250);
+    --mod-l: .46; --mod-ink-l: .86; --mod-dim: 58%; --mod-ink-mix: #fff;
+    --mod-once: 30%; --mod-card: 12%;
+    --card-shadow: 0 1px 1px rgba(0, 0, 0, .35), 0 4px 10px -4px rgba(0, 0, 0, .7);
+    --lift-shadow: 0 2px 3px rgba(0, 0, 0, .4), 0 10px 22px -8px rgba(0, 0, 0, .8);
     --k-1: oklch(.78 .11 355); --k-2: oklch(.8 .11 45); --k-3: oklch(.8 .11 135); --k-4: oklch(.8 .09 215); --k-5: oklch(.78 .11 290); --k-6: oklch(.84 .11 95);
     --accent-ink: oklch(.8 .06 149);
     --on-accent: #ffffff;
@@ -209,6 +221,10 @@
   --accent: oklch(.53 .07 149);
   --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-3: oklch(.79 .1 70); --fac-4: oklch(.76 .1 330); --fac-5: oklch(.77 .08 212); --fac-6: oklch(.75 .1 30);
   --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-green: oklch(.8 .09 150); --t-coral: oklch(.8 .09 35); --t-rose: oklch(.78 .09 355); --t-slate: oklch(.78 .04 260); --t-own: oklch(.76 .006 250);
+  --mod-l: .46; --mod-ink-l: .86; --mod-dim: 58%; --mod-ink-mix: #fff;
+  --mod-once: 30%; --mod-card: 12%;
+  --card-shadow: 0 1px 1px rgba(0, 0, 0, .35), 0 4px 10px -4px rgba(0, 0, 0, .7);
+  --lift-shadow: 0 2px 3px rgba(0, 0, 0, .4), 0 10px 22px -8px rgba(0, 0, 0, .8);
   --k-1: oklch(.78 .11 355); --k-2: oklch(.8 .11 45); --k-3: oklch(.8 .11 135); --k-4: oklch(.8 .09 215); --k-5: oklch(.78 .11 290); --k-6: oklch(.84 .11 95);
   --accent-ink: oklch(.8 .06 149);
   --on-accent: #ffffff;
@@ -479,14 +495,16 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 :root[data-season="autumn"] .crown::before { -webkit-mask-image: url("/assets/birch/autumn-crown-head.svg"), url("/assets/birch/autumn-crown.svg"); mask-image: url("/assets/birch/autumn-crown-head.svg"), url("/assets/birch/autumn-crown.svg"); }
 :root[data-season="winter"] .crown::before { -webkit-mask-image: url("/assets/birch/winter-crown-head.svg"), url("/assets/birch/winter-crown.svg"); mask-image: url("/assets/birch/winter-crown-head.svg"), url("/assets/birch/winter-crown.svg"); }
 
-/* The ground: the footer after all of the start page, across everything right of the rail; no
-   other page has one (owner, 2026-11-03: „ich würde gerne den footer raus nehmen aus den meisten
-   seiten von betula … den footer bei der landing page lassen"; the profile page leads to the legal
-   pages instead). The app's own after the view, which a phone shows, stands there only while the
-   page in front brings one of its own (the start page's, `.work > .ground`). The roots
+/* The ground: the footer after all of a page of text without a sidebar (the start page, the pages
+   about Betula), across everything right of the rail; the app's pages have none (owner,
+   2026-11-03: „ich würde gerne den footer raus nehmen aus den meisten seiten von betula … den
+   footer bei der landing page lassen", and after: „alle seiten, die statischen content ohne
+   sidebar haben können ruhig den footer weiter haben. Bloß in der APP Ui ist das ein wenig wild";
+   the profile page leads to the legal pages). The app's own after the view, which a phone shows,
+   stands there only while the page in front brings one of its own (`.work > .ground`). The roots
    grow into it from its edge and fade downwards (a mask, like the crown); in autumn the fallen
    leaves lie on its edge, in the gap above it. As it stands here it lies after the view, and the
-   window scrolls to it: so it follows the page on a phone. On a wide screen the start page has its
+   window scrolls to it: so it follows the page on a phone. On a wide screen such a page has its
    own at the end of its scroll area instead („one scroll area"). */
 body:not(:has(> .main > .content > .page-stage.front > .work > .ground)) > .ground { display: none; }
 .ground { position: relative; z-index: 1; grid-column: 2; grid-row: 2; margin: 0 var(--gap) var(--gap); min-height: var(--ground-h); border-radius: 12px; background: var(--ground); color: var(--ground-text); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ground-text) 6%, transparent); }
@@ -527,9 +545,9 @@ body:not(:has(> .main > .content > .page-stage.front > .work > .ground)) > .grou
      edge, and the start page had a dark veil). Over the start page's photo the blur alone, so
      that the photo does not go milky. At the top of a page nothing runs beneath, and the bar is
      the page's ground.
-     The start page's ground follows the page, full width, the bottom bar floating over its lower
-     part; under a page shorter than the window it lies just past the window's lower edge all the
-     same (the body's column, „phone and tablet"). Every other page ends 12 px above the bottom bar
+     The ground of a page that has one follows the page, full width, the bottom bar floating over
+     its lower part; under a page shorter than the window it lies just past the window's lower edge
+     all the same (the body's column, „phone and tablet"). A page without one ends 12 px above the bottom bar
      (its room, below), and the view is as tall as the screen as it is, not as at its largest (`lvh`,
      for the ground just past the window's edge): a page shorter than the screen does not scroll by
      the height of the browser's bars, into nothing (owner, 2026-10-19, of „Mein Studium"'s row:
@@ -549,9 +567,10 @@ body:not(:has(> .main > .content > .page-stage.front > .work > .ground)) > .grou
 }
 
 /* ---------- one scroll area ----------
-   Since 2026-11-03 the start page alone has a ground (see „the birch"): every other page ends 8 px
-   above the window's edge, as the panels beside it do, its area's second row is nothing, and the
-   wood stays on the window's edge; what is said of the ground here is the start page's.
+   Since 2026-11-03 only a page of text without a sidebar has a ground (see „the birch"): a page
+   without one ends 8 px above the window's edge, as the panels beside it do, its area's second row
+   is nothing, and the wood stays on the window's edge; what is said of the ground here is of a page
+   with one.
    Owner, 2026-09-29: the two steps — first the page scrolled, then the window for the ground — felt
    „unfassbar janky". Every page (`.work.flowing`: ui::Frame, ui::Plain, the catalog, the Merkliste,
    the start page) is ONE scroll area right
@@ -1793,28 +1812,31 @@ button.action:hover { background: var(--panel-3); }
 .fact.wide > div { min-width: 0; }
 .fact.wide dd { overflow-wrap: anywhere; text-wrap: wrap; }
 /* A column per day, equal ones; a fitted grid (the Stundenplan's) gives each day its share of the
-   week instead, more where modules stand side by side (--cols, folia/crates/widgets/src/week.rs). */
+   week instead, more where modules stand side by side (--cols, folia/crates/widgets/src/week.rs).
+   The hours stand at their lines, the frame's last one too (span[--at], half-hours after the
+   first), and the lines run across the days behind them, the frame's end a line as well
+   (div.lines; folia/design/kalender/raster.html, owner 2026-11-03: the calmer grid in every
+   week). */
 .week { display: grid; grid-template-columns: 30px var(--cols, repeat(var(--days, 5), minmax(0, 1fr))); gap: 0 5px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); padding: 10px 10px 12px 4px; }
 .week .d { text-align: center; font-size: 11.5px; font-weight: 650; color: var(--text-3); padding-bottom: 8px; }
-.week .hours { grid-row: 2; display: grid; grid-auto-rows: 48px; font-size: 10.5px; color: var(--text-3); text-align: right; padding-right: 4px; }
-.week .col { grid-row: 2; position: relative; background: repeating-linear-gradient(var(--line) 0 1px, transparent 1px 48px); height: calc(var(--span) * 24px); }
+.week .hours { grid-row: 2; grid-column: 1; position: relative; font-size: 10px; font-weight: 560; line-height: 1; color: var(--text-3); text-align: right; font-variant-numeric: tabular-nums; }
+.week .hours > span { position: absolute; right: 4px; top: calc(var(--at, 0) * 24px); translate: 0 -50%; }
+.week .lines { grid-row: 2; grid-column: 2 / -1; pointer-events: none; background: repeating-linear-gradient(var(--line) 0 1px, transparent 1px 48px); box-shadow: inset 0 -1px 0 var(--line); }
+.week .col { grid-row: 2; grid-column: var(--col, auto); position: relative; height: calc(var(--span) * 24px); }
 /* Slots that overlap on a day stand side by side: `--lane` of `--lanes` (week.rs), `--wide` lanes
    wide. One lane is the whole column less 1px each side, as before lanes; neighbours keep 2px
-   between them. Where the module's own slots meet another planned module (`--mine` own lanes,
-   `--theirs` planned ones), the column has two parts, and `--lane`, `--lanes` and `--wide` count
-   in the slot's part: the planned part (`--pw`, the slots with `--beside:1`) on the right, its
-   lanes half as wide as an own one, but never so wide that an own lane is left narrower than
-   42px („Prak" and its padding) while a planned lane is wider than 10px, an outline alone. The
-   side padding is at most a quarter of the slot's width (a percentage of the column, like `left`
-   and `width`): a border box is never narrower than its padding, so a fixed 6px made the slots of
-   five or more lanes 12px wide, over their neighbours and out of the column. */
-.slot, .slot-acts, .slot-frame {
+   between them. Over the plan beside a module's week (`.planned`, the ground in the day's whole
+   width), a card of the module's own leaves 14px per lane of the plan under it free at its right
+   (`--free`), where the plan shows: 13px of it and the gap. The side padding is at most a quarter
+   of the slot's width (a percentage of the column, like `left` and `width`): a border box is
+   never narrower than its padding, so a fixed 6px made the slots of five or more lanes 12px wide,
+   over their neighbours and out of the column. */
+.slot, .slot-acts, .slot-frame, .week .spill {
   /* A calendar of one's own as a strip (`--strip` on .week, week.rs): a band at each day's right
      edge, which the day's lanes leave free. */
   --sw: calc(var(--strip, 0) * 10px);
-  --pw: min((100% - var(--sw)) * var(--theirs, 0) / (2 * var(--mine, 1) + var(--theirs, 0)), max(var(--theirs, 0) * 10px, 100% - var(--sw) - var(--mine, 1) * 42px));
-  --at: calc(var(--beside, 0) * (100% - var(--sw) - var(--pw)));
-  --in: calc(var(--beside, 0) * var(--pw) + (1 - var(--beside, 0)) * (100% - var(--sw) - var(--pw)));
+  --at: 0px;
+  --in: calc(100% - var(--sw) - var(--free, 0) * 14px);
 }
 .slot {
   position: absolute; left: calc(1px + var(--at) + var(--in) * var(--lane, 0) / var(--lanes, 1)); width: calc(var(--in) * var(--wide, 1) / var(--lanes, 1) - 2px); top: calc((var(--from) - var(--first)) * 24px); height: calc((var(--to) - var(--from)) * 24px - 2px); border-radius: 6px; padding: 4px clamp(0px, calc((var(--in) * var(--wide, 1) / var(--lanes, 1) - 2px) / 4), 6px); font-size: 11px; line-height: 1.25; font-weight: 600; overflow: hidden; background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 2.5px 0 0 var(--accent); container-type: inline-size; overflow-wrap: normal; word-break: normal; hyphens: manual;
@@ -1863,20 +1885,12 @@ a.slot { text-decoration: none; }
 .slot > .l > .w:first-child { max-width: none; overflow: visible; }
 .slot > .l > .w:first-child > span { display: block; width: min(100%, 100cqw); overflow: hidden; text-overflow: ellipsis; }
 .slot > .l > .w:first-child:not(:last-child)::after { content: ""; display: block; width: calc(100% - 100cqw); aspect-ratio: 1 / 1000; max-height: 1.25em; }
-/* A slot a sliver wide (a planned module's slim lane in a narrow week) is an outline alone; its
-   tooltip and the line under the week name it. */
-@container (max-width: 22px) {
-  .slot.planned > .l { visibility: hidden; }
-}
 .slot small { display: block; font-weight: 500; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .slot.other { background: var(--panel-3); color: var(--text-2); box-shadow: inset 2.5px 0 0 var(--text-3); }
 /* A module of the Studienplan, in its tint (`t-…`). */
 .slot.tinted { background: color-mix(in oklch, var(--tint) 16%, var(--panel)); color: var(--text); box-shadow: inset 2.5px 0 0 var(--tint); }
 /* Single dates: they do not happen every week, so they do not look like what does. */
 .slot.once { background: var(--panel-2); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
-/* Another planned module beside a module's own slots: a quiet outline in a slim lane (week.rs),
-   its short name in a lighter weight than theirs. */
-.slot.planned { background: transparent; color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-weight: 500; }
 /* An option of a choice not yet made. */
 .slot.alt { background: transparent; box-shadow: none; outline: 1px dashed var(--tint, var(--line-strong)); outline-offset: -1px; }
 .slot.clash { box-shadow: inset 2.5px 0 0 var(--no), inset 0 0 0 1.5px var(--no); }
@@ -1890,8 +1904,6 @@ a.slot { text-decoration: none; }
 .course-1 { --course: var(--t-ice); } .course-2 { --course: var(--t-coral); } .course-3 { --course: var(--t-green); } .course-4 { --course: var(--t-violet); }
 .slot[class*=" course-"]:not(.clash) { box-shadow: inset 3px 0 0 var(--course); }
 .slot.once[class*=" course-"]:not(.clash) { box-shadow: inset 3px 0 0 var(--course), inset 0 0 0 1px var(--line-strong); }
-#termine .slot.faint { background: var(--panel-2); color: var(--text-3); box-shadow: none; outline: 1px dashed var(--line-strong); outline-offset: -1px; }
-#termine .slot.faint.clash { outline-color: var(--no); }
 .ev.faint { opacity: .55; }
 /* The choices among a module's events and its extras (module.rs, options.rs; owner, 2026-10-19,
    folia/design/wahlangebote/konzept.html): an option to choose is dashed, darker than a faint one
@@ -1899,10 +1911,74 @@ a.slot { text-decoration: none; }
    „+" before its kind. In the list, a heading per part with a dot before it (a dotted square for
    the extras), a gap before each option of several lines, and the options of a long choice after
    its first folded away. */
-#termine .slot.alt:not(.faint) { color: var(--text-2); outline-color: var(--text-3); }
-#termine .slot.extra, .sp-body .slot.extra { background: var(--panel); color: var(--text-3); box-shadow: none; outline: 1px dotted var(--text-3); outline-offset: -1px; }
-.sp-body .slot.extra { outline-color: color-mix(in oklch, var(--tint) 70%, var(--text-3)); }
-#termine .slot.extra.clash { outline-color: var(--no); }
+.sp-body .slot.extra { background: var(--panel); color: var(--text-3); box-shadow: none; outline: 1px dotted color-mix(in oklch, var(--tint) 70%, var(--text-3)); outline-offset: -1px; }
+/* The week of a module's page (folia/design/kalender/raster.html; owner, 2026-11-03: „Passt alles,
+   bau das jetzt in Folia"): without a box, the module's Termine as cards in its colour — its tone
+   in the plan beside the week (`t-…` on the slot), Betula's green without — over the plan, a grey
+   ground. What one has to attend is full, with white words (the tone at one lightness, `--mod-l`);
+   single dates are full and lighter; what one chooses is hatched (a group of an event, an option
+   of a choice: `.alt`), what one may add dotted (`.extra`); one's own group, ticked in the plan,
+   is full with a tick (`.chosen`). On a texture each line of words stands on a plate of the
+   card's ground, so that the stripes go round the words. A clash is red where the plan meets the
+   card, which carries the „!"; the Termin open beside the week has a ring at a distance and
+   lifts. Another course's or another program's option stays faint and dashed. */
+#termine .week { background: none; box-shadow: none; padding: 2px 0 calc(12px + var(--spill, 0) * 12px); }
+#termine .slot, #termine .week-legend i {
+  --mod: var(--tint, var(--accent));
+  --mod-fill: color-mix(in oklch, var(--mod) var(--mod-dim), #000);
+  --mod-ink: color-mix(in oklch, var(--mod) 78%, var(--mod-ink-mix));
+  --mod-tint: color-mix(in oklch, var(--mod) var(--mod-card), var(--panel));
+  --mod-hatch: repeating-linear-gradient(45deg, color-mix(in oklch, var(--mod) 34%, transparent) 0 1.6px, transparent 1.6px 6px);
+  --mod-dots: radial-gradient(circle, color-mix(in oklch, var(--mod) 34%, transparent) 1px, transparent 1.4px);
+}
+@supports (color: oklch(from red l c h)) {
+  #termine .slot, #termine .week-legend i { --mod-fill: oklch(from var(--mod) var(--mod-l) c h); --mod-ink: oklch(from var(--mod) var(--mod-ink-l) c h); }
+}
+#termine .slot { z-index: 1; background: var(--mod-fill); color: var(--on-mod); box-shadow: var(--card-shadow); font-weight: 680; }
+#termine .slot small { opacity: .86; }
+#termine .slot.once { background: color-mix(in oklch, var(--mod) var(--mod-once), var(--panel)); color: var(--text); }
+#termine .slot.alt { --plate: var(--mod-tint); background-color: var(--mod-tint); background-image: var(--mod-hatch); color: var(--mod-ink); box-shadow: inset 0 0 0 1.5px var(--mod), var(--card-shadow); }
+#termine .slot.extra { --plate: var(--panel); background-color: var(--panel); background-image: var(--mod-dots); background-size: 6px 6px; color: var(--text-2); box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--mod) 55%, transparent), var(--card-shadow); }
+#termine .slot:is(.alt, .extra) small { opacity: 1; color: var(--text-2); }
+#termine .slot:is(.alt, .extra) > :is(.l, small) { width: fit-content; max-width: calc(100% + 4px); margin-inline: -2px; padding-inline: 2px; border-radius: 3px; background: var(--plate); }
+#termine .slot > .slot-tick { position: absolute; right: 3px; bottom: 3px; display: grid; place-items: center; width: 14px; height: 14px; border-radius: 50%; background: var(--on-mod); color: var(--mod-fill); }
+#termine .slot > .slot-tick .icon { width: 9px; height: 9px; stroke-width: 3.4; }
+#termine .slot.brief > .slot-tick { display: none; }
+#termine .slot.faint { background: var(--panel-2); background-image: none; color: var(--text-3); box-shadow: none; outline: 1px dashed var(--line-strong); outline-offset: -1px; }
+#termine .slot.faint.clash { outline-color: var(--no); }
+#termine .slot.clash:not(.planned, .faint)::after { content: "!"; position: absolute; top: 3px; right: 3px; width: 13px; height: 13px; border-radius: 50%; background: var(--no); color: var(--panel); font-size: 10px; font-weight: 800; line-height: 13px; text-align: center; box-shadow: 0 0 0 1.5px var(--panel); }
+#termine .slot[aria-current="true"] { outline: 2px solid var(--mod-fill); outline-offset: 2px; box-shadow: var(--lift-shadow); }
+#termine .slot.alt[aria-current="true"] { box-shadow: inset 0 0 0 1.5px var(--mod), var(--lift-shadow); }
+/* The courses of a module held at two campuses or more, each in its colour (below): a stripe at
+   the card's left edge. */
+#termine .slot[class*=" course-"]::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--course); }
+/* The plan: the ground under the module's cards, in the day's whole width, its name at its top or,
+   where a card covers its start, upright in the 14px the card leaves free (span.vt, read from the
+   bottom up); of more than one lane under a card a strip at the right (`.edge`). Where the week's
+   frame cuts it, its edge is torn (`.cutt`, `.cutb`); until when it goes on stands under its day
+   (span.spill, as „+ ABWL1 17:30" what lies wholly after the frame), since when in its box. */
+#termine .slot.planned { z-index: 0; container-type: size; background: color-mix(in oklab, var(--text) 7%, var(--panel)); color: var(--text-3); box-shadow: none; font-size: 10.5px; font-weight: 620; }
+#termine .slot.planned small { opacity: 1; font-size: 9.5px; font-weight: 560; }
+@container (max-height: 32px) { #termine .slot.planned > small { display: none; } }
+#termine .slot.planned.clash { background: color-mix(in srgb, var(--no) 13%, var(--panel)); color: var(--no); }
+#termine .slot.planned.upright > .l { visibility: hidden; }
+#termine .slot.planned > .vt { position: absolute; top: 4px; bottom: 4px; right: 0; width: 14px; display: flex; justify-content: center; align-items: flex-start; overflow: hidden; }
+#termine .slot.planned > .vt > span { writing-mode: vertical-rl; rotate: 180deg; max-height: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9.5px; font-weight: 680; line-height: 1; letter-spacing: .01em; }
+#termine .slot.planned.edge { left: calc(100% - var(--sw) - (var(--lanes, 1) - var(--lane, 0)) * 14px + 1px); width: 12px; padding: 0; border-radius: 4px; }
+#termine .slot.planned.edge > .vt { left: 0; width: auto; }
+#termine .slot.planned.cutb { border-bottom-left-radius: 0; border-bottom-right-radius: 0; -webkit-mask: linear-gradient(#000 0 0) top / 100% calc(100% - 4px) no-repeat, conic-gradient(from -45deg at 50% 100%, #000 90deg, #0000 0) bottom / 8px 4px repeat-x; mask: linear-gradient(#000 0 0) top / 100% calc(100% - 4px) no-repeat, conic-gradient(from -45deg at 50% 100%, #000 90deg, #0000 0) bottom / 8px 4px repeat-x; }
+#termine .slot.planned.cutt { border-top-left-radius: 0; border-top-right-radius: 0; -webkit-mask: linear-gradient(#000 0 0) bottom / 100% calc(100% - 4px) no-repeat, conic-gradient(from 135deg at 50% 0, #000 90deg, #0000 0) top / 8px 4px repeat-x; mask: linear-gradient(#000 0 0) bottom / 100% calc(100% - 4px) no-repeat, conic-gradient(from 135deg at 50% 0, #000 90deg, #0000 0) top / 8px 4px repeat-x; }
+.week .spill.edge { left: auto; right: 0; width: 56px; text-align: right; }
+.week .spill { position: absolute; top: calc(100% + 3px + var(--row, 0) * 12px); left: calc(1px + var(--at) + var(--in) * var(--lane, 0) / var(--lanes, 1)); width: calc(var(--in) * var(--wide, 1) / var(--lanes, 1) - 2px); font-size: 9.5px; font-weight: 600; line-height: 12px; color: var(--text-3); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The line under the week with the plan beside it: a swatch per kind the week holds. */
+#termine .week-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 12.5px; color: var(--text-2); }
+#termine .week-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+#termine .week-legend i { flex: none; width: 15px; height: 11px; border-radius: 3px; }
+#termine .week-legend .lg-must { background: var(--mod-fill); }
+#termine .week-legend .lg-once { background: color-mix(in oklch, var(--mod) var(--mod-once), var(--panel)); }
+#termine .week-legend .lg-wahl { background-color: var(--mod-tint); background-image: var(--mod-hatch); box-shadow: inset 0 0 0 1.5px var(--mod); }
+#termine .week-legend .lg-zusatz { background-color: var(--panel); background-image: var(--mod-dots); background-size: 5px 5px; box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--mod) 55%, transparent); }
+#termine .week-legend .lg-plan { background: color-mix(in oklab, var(--text) 7%, var(--panel)); box-shadow: inset 0 0 0 1px var(--line); }
 .choice-head { display: flex; align-items: flex-start; gap: 7px; margin-top: 8px; font-size: 12px; font-weight: 620; color: var(--text-2); }
 .choice-head:first-child { margin-top: 2px; }
 .choice-head::before { content: ""; flex: none; width: 7px; height: 7px; margin-top: calc((1.45em - 7px) / 2); border-radius: 50%; background: var(--text-3); }
@@ -3313,8 +3389,9 @@ button.pm-new-way { width: 100%; text-align: left; }
   .sp-week { min-height: 340px; max-height: 800px; }
 }
 .week.fit { flex: 1 1 auto; grid-template-rows: auto minmax(0, 1fr); }
-.week.fit .hours { grid-auto-rows: minmax(0, 1fr); }
-.week.fit .col { height: auto; background: repeating-linear-gradient(var(--line) 0 1px, transparent 1px calc(200% / var(--span))); }
+.week.fit .hours > span { top: calc(var(--at, 0) * 100% / var(--span)); }
+.week.fit .lines { background: repeating-linear-gradient(var(--line) 0 1px, transparent 1px calc(200% / var(--span))); }
+.week.fit .col { height: auto; }
 .week.fit .slot { top: calc((var(--from) - var(--first)) * 100% / var(--span)); height: calc((var(--to) - var(--from)) * 100% / var(--span) - 2px); }
 /* On a phone and a small screen the week is a grid as well (div.sp-carousel > div.sp-slide >
    div.sp-week > .week.fit, owner 2026-09-27), as tall as the screen leaves it under the bar of the
@@ -4228,14 +4305,16 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .is-termin .tm-more { position: relative; display: flex; flex-direction: column; gap: 22px; padding-top: 18px; border-top: 1px dashed var(--line-strong); }
 /* What picks the Termin, above everything it changes (owner, 2026-10-27: „Wenn man solche Buttons
    hat, dann ändern die nur den Inhalt unter ihnen"): the module's events as segments (rows of four
-   where it has more), the event's own title, to look up its groups or its Termine. */
+   where it has more), the event's own title, its groups or its Termine (owner, 2026-11-03: „die
+   Gruppen/Tage als Subauswahl"), from the Stundenplan as to look up. */
 .is-termin .tm-pick { display: flex; flex-direction: column; gap: 10px; }
 .is-termin .seg.tm-evs { margin: 0; grid-auto-flow: row; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 3px; }
 .is-termin .tm-sub { margin: -2px 0 0; color: var(--text-2); font-size: 13px; font-weight: 560; line-height: 1.35; }
 /* The groups: a fixed grid of at most three columns (owner, 2026-10-26: „ein festes raster z.B. 3
-   Termine pro row"); in the Stundenplan each a box to tick, as many as one likes, to look up each a
-   way to its Termin, as an event's Termine are. The phone's sheet of a choice in focus has the same
-   tiles (section.sp-pick, below). */
+   Termine pro row"), each a way to its Termin as an event's Termine are, the ones the plan holds
+   ticked (what ticks one stands under the ticket, „Im Stundenplan"). The phone's sheet of a choice
+   in focus has the same tiles, there each a box to tick, as many as one likes (section.sp-pick,
+   below). */
 :is(.is-termin, .sp-pick) .grp { display: flex; flex-direction: column; gap: 6px; }
 :is(.is-termin, .sp-pick) .grp-h { display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 650; }
 :is(.is-termin, .sp-pick) .grp-h .r { margin-left: auto; color: var(--text-2); font-size: 12.5px; font-weight: 600; }
@@ -6229,7 +6308,7 @@ a.st-rsp-name:hover { text-decoration: underline; }
      it, cut off at the row's end, while the ground stood still under it, and at rest the window
      jumped up. The row is the end of the page: its last page ends where the dots' frosted ground
      begins (`.st-dock`: 26 + 6 + 84 px and the safe area), so that nothing of it stays under them.
-     Since 2026-11-03 no page but the start page has the ground („the birch"). With none after it,
+     Since 2026-11-03 no page of the app has the ground („the birch"). With none after it,
      the view is as tall as the screen as it is (`dvh`, „the birch"), and the row as tall, so that a
      page coming in shows as far down as the screen does. */
   /* The row reaches up under the bar at the top, its pages where they were: what it clips of a page
@@ -6905,16 +6984,23 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 /* Who took the photo, in the ground: the line of the photo shown. */
 .photo-credit { display: none; }
 .photo-credit a { color: inherit; }
-/* The line of the start page's photo (its stage's, or the server's page's): in the page's own ground and in the app's, which a phone
-   shows under the start page alone („the birch"). Whether the start page is in front or not: on
-   its way out of a change of tab its ground keeps the line, and so its height (until 2026-11-03 the
-   line went at once, and the page leaving from its end moved down by it). */
-:root:not([data-season]):has(#content > .page-stage:is(.front, [data-stage="home"]) .day-photo:not(.fog)) .photo-credit[data-photo="summer"],
-:root[data-season="spring"]:has(#content > .page-stage:is(.front, [data-stage="home"]) .day-photo:not(.fog)) .photo-credit[data-photo="spring"],
-:root[data-season="summer"]:has(#content > .page-stage:is(.front, [data-stage="home"]) .day-photo:not(.fog)) .photo-credit[data-photo="summer"],
-:root[data-season="autumn"]:has(#content > .page-stage:is(.front, [data-stage="home"]) .day-photo:not(.fog)) .photo-credit[data-photo="autumn"],
-:root[data-season="winter"]:has(#content > .page-stage:is(.front, [data-stage="home"]) .day-photo:not(.fog)) .photo-credit[data-photo="winter"],
-:root:has(#content > .page-stage:is(.front, [data-stage="home"]) .day-photo.fog) .photo-credit[data-photo="fog"] { display: inline; }
+/* The line of the start page's photo: in the start page's own ground, whether it is in front or
+   not (on its way out of a change of tab its ground keeps the line, and so its height; until
+   2026-11-03 the line went at once, and the page leaving from its end moved down by it), and in the
+   app's, which a phone shows, while the start page is in front (under a page about Betula, which
+   has a ground too, it names no photo). */
+:root:not([data-season]) .work:has(.day-photo:not(.fog)) > .ground .photo-credit[data-photo="summer"],
+:root[data-season="spring"] .work:has(.day-photo:not(.fog)) > .ground .photo-credit[data-photo="spring"],
+:root[data-season="summer"] .work:has(.day-photo:not(.fog)) > .ground .photo-credit[data-photo="summer"],
+:root[data-season="autumn"] .work:has(.day-photo:not(.fog)) > .ground .photo-credit[data-photo="autumn"],
+:root[data-season="winter"] .work:has(.day-photo:not(.fog)) > .ground .photo-credit[data-photo="winter"],
+.work:has(.day-photo.fog) > .ground .photo-credit[data-photo="fog"],
+:root:not([data-season]):has(#content > .page-stage.front .day-photo:not(.fog)) body > .ground .photo-credit[data-photo="summer"],
+:root[data-season="spring"]:has(#content > .page-stage.front .day-photo:not(.fog)) body > .ground .photo-credit[data-photo="spring"],
+:root[data-season="summer"]:has(#content > .page-stage.front .day-photo:not(.fog)) body > .ground .photo-credit[data-photo="summer"],
+:root[data-season="autumn"]:has(#content > .page-stage.front .day-photo:not(.fog)) body > .ground .photo-credit[data-photo="autumn"],
+:root[data-season="winter"]:has(#content > .page-stage.front .day-photo:not(.fog)) body > .ground .photo-credit[data-photo="winter"],
+:root:has(#content > .page-stage.front .day-photo.fog) body > .ground .photo-credit[data-photo="fog"] { display: inline; }
 .ground-legal { flex-wrap: wrap; }
 
 @media (max-width: 900px) {

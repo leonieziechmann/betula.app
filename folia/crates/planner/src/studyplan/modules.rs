@@ -33,7 +33,8 @@ use folia_model::rows::{CatalogRow, Program};
 use folia_pages::ask::StudyplanModulesAsk;
 use folia_pages::StudyplanData;
 use folia_plans::studyplan::{self, Placeholder, PlaceholderLine, PlanDoc};
-use folia_routes::filter::{CatalogQuery, KindFilter, ProgramRelation, ProgramScope, TurnusFilter};
+use folia_plans::variants;
+use folia_routes::filter::{CatalogQuery, KindFilter, ProgramScope, TurnusFilter};
 use folia_routes::url::{self, CatalogUrl, StudyplanUrl};
 use leptos::prelude::*;
 
@@ -223,12 +224,14 @@ fn areas_of(doc: &PlanDoc, key: SemesterKey, mine: Option<&Program>, t: &i18n::T
             let text = PlaceholderLine { credits: None, tail: None, ..line }.text();
             // As the program's page finds a row's modules (`variants::row_query`), as far as the
             // placeholder alone tells: the FÜS list, a module by its name, the electives. The
-            // program's lists only where it is „Mein Studiengang", whose slug the page has; else
-            // the BTU's FÜS modules, and whatever fits the week.
-            let program = mine.filter(|program| program.id == p.program_id).map(|program| ProgramScope { program_slug: program.slug.clone(), ..Default::default() });
+            // program's lists only where it is „Mein Studiengang", whose slug the page has, and its
+            // FÜS list only where it has one (`variants::fues_list_for`); else the BTU's FÜS
+            // modules, and whatever fits the week.
+            let own = mine.filter(|program| program.id == p.program_id);
+            let program = own.map(|program| ProgramScope { program_slug: program.slug.clone(), ..Default::default() });
             let query = if studyplan::is_fues_placeholder(p) {
-                match program {
-                    Some(scope) => CatalogQuery { program: Some(ProgramScope { relation: ProgramRelation::Fues, ..scope }), ..Default::default() },
+                match own {
+                    Some(own) => variants::fues_list_for(own, t.locale).0,
                     None => CatalogQuery { fues: Some(true), ..Default::default() },
                 }
             } else if single {
@@ -827,8 +830,8 @@ mod tests {
             source_url: String::new(),
             has_plan: true,
             plan_status: None,
-            curricular_modules: 0,
-            fues_modules: 0,
+            curricular_modules: 108,
+            fues_modules: 117,
             documents: 0,
         }
     }
@@ -869,6 +872,13 @@ mod tests {
         let alone = areas_of(&doc, key("2026W"), None, &i18n::DE);
         assert!(alone.areas.first().is_some_and(|area| area.href.contains("fues=only")), "{alone:?}");
         assert!(alone.areas.get(1).is_some_and(|area| !area.href.contains("program=")), "{alone:?}");
+        // „Mein Studiengang" without a FÜS list of its own in the data: the BTU's FÜS modules for
+        // its FÜS (`variants::fues_list_for`), its own electives as before.
+        let without_list = Program { fues_modules: 0, ..informatik() };
+        let held = areas_of(&doc, key("2026W"), Some(&without_list), &i18n::DE);
+        let hrefs: Vec<&str> = held.areas.iter().map(|area| area.href.as_str()).collect();
+        assert!(hrefs.first().is_some_and(|href| href.contains("fues=only") && !href.contains("program=") && href.ends_with("fill=p1")), "{hrefs:?}");
+        assert!(hrefs.get(1).is_some_and(|href| href.contains("program=bachelor-informatik-2008&kind=elective")), "{hrefs:?}");
         // Another semester has none of them.
         assert!(areas_of(&doc, key("2027S"), None, &i18n::DE).areas.is_empty());
     }

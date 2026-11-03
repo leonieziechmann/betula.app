@@ -6,22 +6,23 @@
 //! The head names the module, its chip and its title, which no pick changes. Under it what picks
 //! the Termin (`Pick`): the module's events as a row of segments where it has more than one (the
 //! one shown marked; another leads to its Termin the plan holds, else to its first), the event's
-//! own title where it is not the module's, to look up (`TerminMode::LookUp`) the event's groups as
-//! tiles measured against the plan, or its Termine where it is held at several times without
-//! groups, and last, right above the ticket, „Reihe": a dot per date, each leading to it (owner,
-//! 2026-11-03: „bau als Nächstes die Reihe als Auswahl über dem Ticket"). Then what one wants to
+//! own title where it is not the module's, the event's groups as tiles measured against the plan,
+//! the ones the plan holds ticked (owner, 2026-11-03: „die Gruppen/Tage als Subauswahl"), or its
+//! Termine where it is held at several times without groups, and last, right above the ticket,
+//! „Reihe": a dot per date, each leading to it (owner, 2026-11-03: „bau als Nächstes die Reihe als
+//! Auswahl über dem Ticket"). Then what one wants to
 //! know of the date (the owner, of the third round: „punkt 1 sind ein
 //! paar mehr infos. Punkt 2 ist dann die Termine zu customizen"): the day with arrows to the dates
 //! before and after it, where it stands („in 40 min", „läuft · noch 20 min", „Fällt aus"), the time
 //! and the room; who leads it and what else is said of it (a clash in red, why QIS cancels it, a
 //! note of the room, QIS's remark). From the Stundenplan (`TerminMode::Adjust`) „Im Stundenplan"
-//! follows: the groups of its event's choice as tiles to tick, as many as one likes (none ticked:
-//! the choice stays open), the event shown or not, this one date hidden — switches that change the
-//! plan at once, and the Kalender-Abo too, not what the view shows. To look up, of a module in the
-//! plan, how many of the groups the plan holds and „Anpassen ›"; of one outside it „In den
-//! Kalender". Then what one looks up, the day of the plan around the date as a picture that picks
-//! nothing, the module with its exam, who teaches, the period and every date that differs, and the
-//! source.
+//! follows, each switch above what it hides: the event shown or not, of its choice the group shown
+//! ticked or not (as many as one likes; none ticked, the choice stays open), this one date hidden —
+//! switches that change the plan at once, and the Kalender-Abo too, not what the view shows. To
+//! look up, of a module in the plan, how many of the groups the plan holds and „Anpassen ›"; of one
+//! outside it „In den Kalender". Then what one looks up, the day of the plan around the date as a
+//! picture that picks nothing, the module with its exam, who teaches, the period and every date
+//! that differs, and the source.
 //!
 //! Every pick leads to its Termin by an address of the page (`TerminLinks`), so Back steps back
 //! through them, `nofollow` (a Termin's own page is no page search engines list); the switches
@@ -454,7 +455,7 @@ struct Hint {
     text: String,
 }
 
-/// „Im Stundenplan": the event's switch and the date's, the groups to tick.
+/// „Im Stundenplan": the event's switch, the group's and the date's.
 #[derive(Clone, Debug, PartialEq)]
 struct PlanPart {
     event: u32,
@@ -462,8 +463,22 @@ struct PlanPart {
     /// The event is not hidden as a whole (by its eye).
     shown: bool,
     sub: String,
-    /// The date to hide or show: its words, its key, its day, whether it is hidden.
+    /// Of an event's groups the one shown.
+    group: Option<PlanGroup>,
+    /// The date to hide or show, of what the plan holds: its words, its key, its day, whether it is
+    /// hidden.
     date: Option<(String, RowKey, Day, bool)>,
+}
+
+/// Of an event's groups the one the Termin shows, under „Im Stundenplan": its keys (one ticks it,
+/// all take its tick away), „Mo 11:30 im Stundenplan", whether it is ticked, and under it how many
+/// are („1 von 3 angehakt") or, while none is, what the plan does.
+#[derive(Clone, Debug, PartialEq)]
+struct PlanGroup {
+    keys: Vec<RowKey>,
+    said: String,
+    ticked: bool,
+    sub: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -811,7 +826,7 @@ fn PickView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
     let slots = Memo::new(move |_| shown.with(|s| s.as_ref().and_then(|s| s.pick.slots.clone())));
     let day = Memo::new(move |_| shown.with(|s| s.as_ref().map(|s| s.day)));
     let series = Memo::new(move |_| shown.with(|s| s.as_ref().and_then(|s| s.series.clone().map(|series| (s.key, series)))));
-    let grouped = Memo::new(move |_| ctx.mode == TerminMode::LookUp && shown.with(|s| s.as_ref().is_some_and(|s| s.groups.is_some())));
+    let grouped = Memo::new(move |_| shown.with(|s| s.as_ref().is_some_and(|s| s.groups.is_some())));
     let any = Memo::new(move |_| grouped.get() || slots.with(Option::is_some) || title.with(Option::is_some) || tabs.with(|tabs| !tabs.is_empty()) || series.with(Option::is_some));
     let events = move || {
         let tabs = tabs.get();
@@ -839,7 +854,7 @@ fn PickView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
                 <div class="tm-pick">
                     {events}
                     {move || title.get().map(|title| view! { <p class="tm-sub">{title}</p> })}
-                    {move || grouped.get().then(|| view! { <GroupsView ctx shown adjust=false/> })}
+                    {move || grouped.get().then(|| view! { <GroupsView ctx shown/> })}
                     {move || (!grouped.get() && slots.with(Option::is_some)).then(|| view! { <SlotsView ctx slots/> })}
                     <SeriesView ctx series day/>
                 </div>
@@ -1159,8 +1174,13 @@ fn WhoView(shown: Memo<Option<Shown>>) -> impl IntoView {
     }
 }
 
-/// „Im Stundenplan": the groups to tick, the event shown or not, this one date hidden. Each acts at
-/// once, and the Kalender-Abo follows the plan.
+/// „Im Stundenplan": what the plan holds of the Termin shown, each switch above what it hides
+/// (owner, 2026-11-03: „hier gilt das gleiche Prinzip mit Übung anzeigen der Schalter sollte über
+/// den Elementen stehen, die dann ausgeblendet werden"): the event shown or not; of an event's
+/// groups the one shown in the plan or not (owner: „darunter kann man dann den Tag wählen und dann
+/// noch ob es im Kalender sein soll"; which group is shown is picked above, `PickView`), as many as
+/// one likes, none ticked leaving the choice open; then this one date hidden, of what the plan
+/// holds. Each acts at once, and the Kalender-Abo follows the plan.
 #[component]
 fn PlanView(ctx: TerminCtx, shown: Memo<Option<Shown>>, editing: RwSignal<Option<ChangeDraft>>) -> impl IntoView {
     let t = i18n::t();
@@ -1171,6 +1191,14 @@ fn PlanView(ctx: TerminCtx, shown: Memo<Option<Shown>>, editing: RwSignal<Option
         let (Some(plan), Some(sem), Some(part)) = (ctx.plan, sem.get_untracked(), part.get_untracked()) else { return };
         plan.update(|doc| doc.set_event(sem, part.event, part.shown));
     };
+    let tick = move |_: leptos::ev::MouseEvent| {
+        let (Some(plan), Some(sem), Some(group)) = (ctx.plan, sem.get_untracked(), part.with_untracked(|part| part.as_ref().and_then(|part| part.group.clone()))) else { return };
+        plan.update(|doc| match (group.ticked, group.keys.first()) {
+            (false, Some(first)) => doc.tick(sem, *first, true),
+            (false, None) => {}
+            (true, _) => group.keys.iter().for_each(|key| doc.tick(sem, *key, false)),
+        });
+    };
     let date = move |_: leptos::ev::MouseEvent| {
         let (Some(plan), Some(sem), Some((_, key, day, hidden))) = (ctx.plan, sem.get_untracked(), part.with_untracked(|part| part.as_ref().and_then(|part| part.date.clone()))) else { return };
         plan.update(|doc| doc.set_date(sem, key, day, !hidden));
@@ -1179,6 +1207,16 @@ fn PlanView(ctx: TerminCtx, shown: Memo<Option<Shown>>, editing: RwSignal<Option
         part.get().map(|part| {
             let label = (t.termin.show_kind)(&part.kind);
             let on = part.shown;
+            let group_row = part.group.clone().map(|group| {
+                let ticked = group.ticked;
+                view! {
+                    <div class="crow">
+                        <span class="ci"><Icon name="calendar-check-2"/></span>
+                        <span><b>{group.said.clone()}</b><small>{group.sub}</small></span>
+                        <button class="tg" class:on=ticked type="button" role="switch" aria-checked=if ticked { "true" } else { "false" } aria-label=group.said data-action="tick" on:click=tick><i></i></button>
+                    </div>
+                }
+            });
             let date_row = part.date.clone().map(|(words, _, _, hidden)| {
                 view! {
                     <div class="crow">
@@ -1191,12 +1229,12 @@ fn PlanView(ctx: TerminCtx, shown: Memo<Option<Shown>>, editing: RwSignal<Option
             view! {
                 <section class="tm-sec cal">
                     <h4>{t.termin.in_plan}<span class="r">{t.termin.in_feed}</span></h4>
-                    {on.then(|| view! { <GroupsView ctx shown adjust=true/> })}
                     <div class="crow">
                         <span class="ci">{if on { view! { <Icon name="eye"/> }.into_any() } else { view! { <Icon name="eye-off"/> }.into_any() }}</span>
                         <span><b>{label.clone()}</b><small>{part.sub.clone()}</small></span>
                         <button class="tg" class:on=on type="button" role="switch" aria-checked=if on { "true" } else { "false" } aria-label=label data-action="show-event" on:click=switch><i></i></button>
                     </div>
+                    {on.then_some(group_row)}
                     {on.then_some(date_row)}
                     {move || change.get().filter(|_| on).map(|change| view! { <ChangeRows ctx part=change editing/> })}
                 </section>
@@ -1339,23 +1377,16 @@ fn OwnView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
     }
 }
 
-/// The groups of the event's choice in a grid of at most three columns: in the Stundenplan
-/// (`adjust`) a tap ticks one or takes its tick away, to look up it opens the group's Termin. From
-/// seven on five and „+N", what fits first, the Termin's own among them.
+/// The groups of the event's choice in a grid of at most three columns, what picks the Termin under
+/// the event (owner, 2026-11-03: „die Gruppen/Tage als Subauswahl"): a tap opens the group's
+/// Termin, from the Stundenplan as to look up; the ones the plan holds ticked (from the Stundenplan
+/// „Im Stundenplan" ticks the one shown). From seven on five and „+N", what fits first, the
+/// Termin's own among them.
 #[component]
-fn GroupsView(ctx: TerminCtx, shown: Memo<Option<Shown>>, adjust: bool) -> impl IntoView {
+fn GroupsView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
     let t = i18n::t();
     let groups = Memo::new(move |_| shown.with(|s| s.as_ref().and_then(|s| s.groups.clone())));
     let more = RwSignal::new(false);
-    let sem = Memo::new(move |_| ctx.table.with(|table| table.as_ref().map(|table| table.key)));
-    let tick = move |keys: Vec<RowKey>, on: bool| {
-        let (Some(plan), Some(sem)) = (ctx.plan, sem.get_untracked()) else { return };
-        plan.update(|doc| match (on, keys.first()) {
-            (true, Some(first)) => doc.tick(sem, *first, true),
-            (true, None) => {}
-            (false, _) => keys.iter().for_each(|key| doc.tick(sem, *key, false)),
-        });
-    };
     move || {
         groups.get().map(|groups| {
             let all = groups.tiles.len();
@@ -1372,24 +1403,11 @@ fn GroupsView(ctx: TerminCtx, shown: Memo<Option<Shown>>, adjust: bool) -> impl 
                         <small>{tile.room.clone()}</small>
                         {tile.name.clone().map(|name| view! { <small class="nm">{name}</small> })}
                     };
-                    match adjust {
-                        true => {
-                            let (keys, on) = (tile.keys.clone(), !tile.ticked);
-                            view! {
-                                <button class="gs pick" class:on=tile.ticked class:this=tile.current type="button" role="checkbox" aria-checked=if tile.ticked { "true" } else { "false" } data-action="tick" title=tile.label.clone() aria-label=tile.label.clone() on:click=move |_| tick(keys.clone(), on)>
-                                    {body}
-                                    {if tile.ticked { view! { <i class="ck"><Icon name="check"/></i> }.into_any() } else { view! { <i class="cb"></i> }.into_any() }}
-                                </button>
-                            }
-                            .into_any()
-                        }
-                        false => view! {
-                            <a class="gs" class:this=tile.current href=ctx.links.termin.run((tile.key, None)) rel="nofollow" data-noscroll="" title=tile.label.clone() aria-label=tile.label.clone() aria-current=tile.current.then_some("true")>
-                                {body}
-                                {tile.ticked.then(|| view! { <i class="ck"><Icon name="check"/></i> })}
-                            </a>
-                        }
-                        .into_any(),
+                    view! {
+                        <a class="gs" class:this=tile.current href=ctx.links.termin.run((tile.key, None)) rel="nofollow" data-noscroll="" title=tile.label.clone() aria-label=tile.label.clone() aria-current=tile.current.then_some("true")>
+                            {body}
+                            {tile.ticked.then(|| view! { <i class="ck"><Icon name="check"/></i> })}
+                        </a>
                     }
                 })
                 .collect_view();
@@ -1401,7 +1419,6 @@ fn GroupsView(ctx: TerminCtx, shown: Memo<Option<Shown>>, adjust: bool) -> impl 
                 <div class="grp">
                     <div class="grp-h"><span>{groups.word.clone()}</span><span class="r">{groups.right.clone()}</span></div>
                     <div class="grp-seg" style=format!("--n: {}", all.clamp(1, 3))>{views}{fold}</div>
-                    {groups.note.clone().map(|note| view! { <p class="grp-n">{note}</p> })}
                 </div>
             }
         })
@@ -1958,9 +1975,9 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
 
     // The groups, and „Im Stundenplan".
     let groups = groups_of(table, (measure, beside), &o, event, (first_kind, modules), seen, t);
-    // What picks the Termin: to look up, of an event without groups its Termine where it is held at
-    // several times (from the Stundenplan they stand in the week).
-    let slots = (mode == TerminMode::LookUp && groups.is_none()).then(|| slots_of(event, &o, t)).flatten();
+    // What picks the Termin: of an event without groups its Termine where it is held at several
+    // times.
+    let slots = groups.is_none().then(|| slots_of(event, &o, t)).flatten();
     let pick = Pick { events: tabs, title: own_title, slots };
     let plan = match mode {
         TerminMode::LookUp => None,
@@ -1972,9 +1989,18 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
                 (true, true) => t.termin.with_ticked,
                 (true, false) => t.termin.every_day,
             };
-            let hideable = matches!(o.state, DateState::Held | DateState::Note(_) | DateState::Hidden) && o.dates.iter().filter(|dated| dated.state.held()).count() > 1;
+            let group = groups.as_ref().and_then(|groups| {
+                let tile = groups.tiles.iter().find(|tile| tile.current)?;
+                let ticked = groups.tiles.iter().filter(|tile| tile.ticked).count();
+                let sub = groups.note.clone().unwrap_or_else(|| (t.termin.ticked_count)(ticked, groups.tiles.len()));
+                Some((PlanGroup { keys: tile.keys.clone(), said: (t.termin.group_in_plan)(&tile.when), ticked: tile.ticked, sub }, ticked))
+            });
+            // A date of what the plan holds: of an event without groups, of the group ticked, or
+            // while none is (all stand dashed in the plan).
+            let held = group.as_ref().is_none_or(|(group, ticked)| group.ticked || *ticked == 0);
+            let hideable = held && matches!(o.state, DateState::Held | DateState::Note(_) | DateState::Hidden) && o.dates.iter().filter(|dated| dated.state.held()).count() > 1;
             let date = o.date_key(table).filter(|_| hideable).map(|key| (day_words(o.day, today, locale), key, o.day, o.state == DateState::Hidden));
-            PlanPart { event: id, kind: kind.clone(), shown, sub: sub.to_string(), date }
+            PlanPart { event: id, kind: kind.clone(), shown, sub: sub.to_string(), group: group.map(|(group, _)| group), date }
         }),
     };
 
@@ -2093,13 +2119,12 @@ fn groups_of(table: &Timetable, plans: (Option<&Timetable>, Option<&Timetable>),
             let room = format!("{}{}", row.date.room_shown().unwrap_or_default(), if tile.session.rooms > 0 { " +1" } else { "" });
             let name = row.date.group_name.as_deref().map(str::trim).filter(|name| !name.is_empty() && *name != folia_timetable::model::UNNAMED_GROUP).map(group_word);
             let meets = plan.and_then(|plan| plan.events.get(tile.meets?)).map(|other| format!("{} {}", kind_short(other, locale), chip_of(other.modules.first(), modules)));
-            // Green only where it helps to choose: nothing ticked yet, or to look up; neither
-            // without a plan to fit.
-            let dot = match (&meets, open || mode == TerminMode::LookUp) {
+            // Green where it fits, red where it meets the plan, ticked or not; neither without a
+            // plan to fit. What a group's tick changes stands under the groups.
+            let dot = match &meets {
                 _ if plan.is_none() => None,
-                (Some(_), _) => Some(false),
-                (None, true) => Some(true),
-                (None, false) => None,
+                Some(_) => Some(false),
+                None => Some(true),
             };
             let said = match (&meets, dot) {
                 (Some(what), _) => (t.termin.meets_said)(what),
@@ -2112,11 +2137,7 @@ fn groups_of(table: &Timetable, plans: (Option<&Timetable>, Option<&Timetable>),
             Some(TileShown { option: tile.option, key: tile.session.key, keys: tile.keys.clone(), when, room, name, ticked: tile.ticked, current: Some(tile.option) == own_option, dot, gives, label })
         })
         .collect();
-    let right = match (mode, open) {
-        (TerminMode::LookUp, _) => (t.termin.one_of)(shown.len()),
-        (TerminMode::Adjust, true) => t.termin.none_yet.to_string(),
-        (TerminMode::Adjust, false) => (t.termin.ticked_of)(ticked, shown.len()),
-    };
+    let right = (t.termin.one_of)(shown.len());
     let note = (mode == TerminMode::Adjust && open && event.hidden.is_none()).then(|| (t.termin.open_note)(shown.len()));
     let foot = (mode == TerminMode::LookUp && planned == Some(true)).then(|| (t.termin.in_your_plan)(ticked));
     Some(Groups { word: (t.termin.groups)(kind).to_string(), right, tiles: shown, note, foot })
@@ -2486,7 +2507,7 @@ mod tests {
     }
 
     #[test]
-    fn the_groups_are_tiles_to_tick() {
+    fn the_groups_pick_the_termin_and_its_switch_ticks_it() {
         let rows = vec![
             teaching("12104", "100", 1, "Vorlesung", 2, "09:15", "10:45"),
             teaching("12104", "200", 1, "Übung", 1, "11:30", "13:00").group("1-Gruppe"),
@@ -2496,21 +2517,37 @@ mod tests {
         let open = table(&rows, &["12104"], &[], &Selection::default());
         let texts = &i18n::DE;
         let shown = shown_of(&open, &Against::Itself, rows[1].key(), None, Some((d("2026-11-04"), 600)), &modules(), (TerminMode::Adjust, Some(true)), texts).unwrap();
-        let groups = shown.groups.unwrap();
-        assert_eq!((groups.word.as_str(), groups.right.as_str()), ("Übungsgruppen", "noch keine"));
-        assert_eq!(groups.note.as_deref(), Some("Bis du eine anhakst, stehen alle 3 gestrichelt im Stundenplan."));
+        // From the Stundenplan the groups pick the Termin as to look up, under the events; none
+        // ticked yet: the switch of the one shown says what the plan does meanwhile, and its date
+        // can be hidden (all stand dashed in the plan).
+        let groups = shown.groups.clone().unwrap();
+        assert_eq!((groups.word.as_str(), groups.right.as_str()), ("Übungsgruppen", "eine von 3"));
         assert_eq!(groups.tiles.iter().map(|tile| (tile.when.as_str(), tile.name.as_deref(), tile.dot, tile.current)).collect::<Vec<_>>(), [
             ("Mo 11:30", Some("Gruppe 1"), Some(true), true),
             ("Di 09:15", Some("Gruppe 2"), Some(false), false),
             ("Mi 11:30", Some("Gruppe 3"), Some(true), false),
         ]);
         assert!(groups.tiles[1].label.contains("überschneidet sich mit VL EvS"), "{}", groups.tiles[1].label);
-        // Two ticked: „2 von 3", no green where nothing is left to help choose.
+        let plan = shown.plan.unwrap();
+        let group = plan.group.unwrap();
+        assert_eq!((group.said.as_str(), group.ticked, group.sub.as_str()), ("Mo 11:30 im Stundenplan", false, "Bis du eine anhakst, stehen alle 3 gestrichelt im Stundenplan."));
+        assert_eq!(group.keys, [rows[1].key()]);
+        assert!(plan.date.is_some());
+        // Two ticked: the tiles say which, green and red still where they fit and meet; the switch
+        // of the one shown on, „2 von 3 angehakt".
         let ticked = table(&rows, &["12104"], &[], &Selection { chosen_rows: [rows[1].key(), rows[3].key()].into_iter().collect(), ..Selection::default() });
-        let groups = shown_of(&ticked, &Against::Itself, rows[1].key(), None, None, &modules(), (TerminMode::Adjust, Some(true)), texts).unwrap().groups.unwrap();
-        assert_eq!(groups.right, "2 von 3");
-        assert_eq!(groups.tiles.iter().map(|tile| (tile.ticked, tile.dot)).collect::<Vec<_>>(), [(true, None), (false, Some(false)), (true, None)]);
+        let adjust = |key: RowKey| shown_of(&ticked, &Against::Itself, key, None, None, &modules(), (TerminMode::Adjust, Some(true)), texts).unwrap();
+        let first = adjust(rows[1].key());
+        let groups = first.groups.unwrap();
+        assert_eq!(groups.right, "eine von 3");
+        assert_eq!(groups.tiles.iter().map(|tile| (tile.ticked, tile.dot)).collect::<Vec<_>>(), [(true, Some(true)), (false, Some(false)), (true, Some(true))]);
         assert_eq!(groups.note, None);
+        let plan = first.plan.unwrap();
+        assert!(plan.group.is_some_and(|group| group.ticked && group.sub == "2 von 3 angehakt") && plan.date.is_some());
+        // The group not ticked: its switch off, and no date to hide of what the plan does not hold.
+        let second = adjust(rows[2].key()).plan.unwrap();
+        assert!(second.group.is_some_and(|group| !group.ticked && group.said == "Di 09:15 im Stundenplan" && group.keys == [rows[2].key()]));
+        assert!(second.date.is_none());
         // To look up a module in the plan: „eine von 3", how many the plan holds, no file.
         let look = shown_of(&ticked, &Against::Itself, rows[1].key(), None, None, &modules(), (TerminMode::LookUp, Some(true)), texts).unwrap();
         let groups = look.groups.unwrap();
@@ -2573,12 +2610,18 @@ mod tests {
         let single = look(rows[5].key());
         assert!(single.pick == Pick::default() && single.head.kind_at_head && single.head.title == "Vorlesung 400", "{:?}", single.head);
         // From the Stundenplan: the segments lead to the Termin the plan holds (the group ticked),
-        // else to the first; no slots, which stand in the week.
+        // else to the first; under them, as to look up, the groups or the Termine (owner,
+        // 2026-11-03: „die Gruppen/Tage als Subauswahl").
         let ticked = table(&rows, &["12104", "12107"], &[], &Selection { chosen_rows: [rows[2].key()].into_iter().collect(), ..Selection::default() });
-        let lecture = shown_of(&ticked, &Against::Itself, rows[0].key(), None, None, &modules(), (TerminMode::Adjust, Some(true)), texts).unwrap();
+        let adjust = |key: RowKey| shown_of(&ticked, &Against::Itself, key, None, None, &modules(), (TerminMode::Adjust, Some(true)), texts).unwrap();
+        let lecture = adjust(rows[0].key());
         assert_eq!(lecture.pick.events.iter().map(|tab| tab.key).collect::<Vec<_>>(), [rows[0].key(), rows[2].key(), rows[3].key()]);
-        let tutorial = shown_of(&ticked, &Against::Itself, rows[3].key(), None, None, &modules(), (TerminMode::Adjust, Some(true)), texts).unwrap();
-        assert!(tutorial.pick.slots.is_none() && tutorial.pick.events.len() == 3);
+        let exercise = adjust(rows[2].key());
+        assert!(exercise.groups.as_ref().is_some_and(|groups| groups.tiles.iter().map(|tile| (tile.current, tile.ticked)).eq([(false, false), (true, true)])) && exercise.pick.slots.is_none());
+        let tutorial = adjust(rows[3].key());
+        assert!(tutorial.pick.slots.as_ref().is_some_and(|slots| slots.tiles.iter().map(|tile| tile.me).eq([true, false])) && tutorial.pick.events.len() == 3);
+        // An event without groups: no group's switch.
+        assert!(tutorial.plan.is_some_and(|plan| plan.group.is_none()));
     }
 
     #[test]

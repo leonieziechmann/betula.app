@@ -19,12 +19,19 @@
 //! one time, which never meet each other and clash together) are drawn in one red frame where their
 //! lanes lie side by side (`div.slot-frame`), each without a frame of its own (`framed`).
 //!
-//! Another planned module beside a module's own slots (`planned`) is the context, not the
-//! subject: where it meets the module's own slots it takes a slim lane at the right, half as wide
-//! as one of theirs, and in a narrow day less, down to a sliver, so that an own slot keeps room
-//! for „Prak". A slot's first line breaks between words only and holds two lines at most (one in
-//! a slot under an hour), then ends in „…"; a first word too wide for the slot is cut with „…"
-//! and ends the label.
+//! The plan beside a module's own slots (`planned`, folia/design/kalender/raster.html; owner,
+//! 2026-11-03: „Passt alles, bau das jetzt in Folia") is the context, not the subject: it is the
+//! ground of the module's week. Its slots have lanes among themselves in the day's whole width; the
+//! module's own stand over them as cards, each narrowed by 14 px per lane of the plan under it
+//! (`--free`), so that the plan shows at its right, its name upright there where the card covers
+//! its start (`upright`); of more than one lane under a card the plan stands as strips at the
+//! right instead (`edge`). The plan never makes the frame grow: it is cut to the module's hours,
+//! its cut edge torn (`cutt`, `cutb`) and its time named, where it ends under its day („bis
+//! 17:00"), where it begins in its box („ab 07:30"); a slot of the plan wholly after the frame is
+//! named under its day („+ ABWL1 17:30", `--spill` lines on `.week`), one wholly before it left
+//! out. The hours stand at their lines, the frame's last one too. A slot's first line breaks
+//! between words only and holds two lines at most (one in a slot under an hour), then ends in
+//! „…"; a first word too wide for the slot is cut with „…" and ends the label.
 //!
 //! A Termin of one's own (folia/design/kalender/termine.html) carries the mark „von dir" in its
 //! corner (`own`); the grid names the minutes its hours begin and end at (`data-first`,
@@ -49,6 +56,7 @@
 
 use std::collections::BTreeMap;
 
+use folia_calendar::day::clock;
 use folia_timetable::grid::{self, Placed, Span};
 use leptos::prelude::*;
 
@@ -131,6 +139,11 @@ pub struct GridSlot {
     /// where QIS says something else now, which the student decides (`conflict`).
     pub edited: bool,
     pub conflict: bool,
+    /// A group of an event of groups, one of which a student attends (`Attendance::OneOf`, „eine
+    /// von 4"): to choose (`alt`), or one's own, ticked in the plan (`chosen`: full, with a tick in
+    /// its corner; folia/design/kalender/raster.html).
+    pub group: bool,
+    pub chosen: bool,
 }
 
 /// A stretch of a day drawn behind the slots, from `from` to `to` (minutes): the time every
@@ -206,6 +219,8 @@ impl GridSlot {
             if self.own { "own" } else { "" },
             if self.edited { "edited" } else { "" },
             if self.conflict { "conflict" } else { "" },
+            if self.group { "group" } else { "" },
+            if self.chosen { "chosen" } else { "" },
         ];
         for part in parts.into_iter().filter(|part| !part.is_empty()) {
             classes.push(' ');
@@ -237,22 +252,45 @@ impl GridSlot {
 }
 
 /// What the grid of a set of slots needs: its frame, the style of `.week` and, per slot in the
-/// order of the input, the slot's style; the red frames around slots that stand together, by day,
-/// and per slot whether it is in one.
+/// order of the input, the slot's style and what the frame and the lanes made of it; the red
+/// frames around slots that stand together, by day, and per slot whether it is in one.
 struct Layout {
     span: Span,
     week: String,
     slots: Vec<String>,
+    marks: Vec<Marks>,
     frames: Vec<(u8, String)>,
     framed: Vec<bool>,
 }
+
+/// What the frame and the lanes made of a slot: its classes (`cutt`, `cutb` where the frame cuts a
+/// slot of the plan; `upright`, `edge` where the module's own stand over it), the times of a cut
+/// slot (`since`, where it begins before the frame; `until`, where it ends after it), and a slot
+/// of the plan wholly after the frame, named under its day (`after`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct Marks {
+    classes: Vec<&'static str>,
+    since: Option<u16>,
+    until: Option<u16>,
+    after: bool,
+}
+
+/// The width a lane of the plan takes beside a card of the module's own: 13 px and the gap.
+#[cfg(test)]
+const PLAN_LANE: u16 = 14;
 
 /// The hour a fitted grid shows the day until at least (it starts at 08:00 at the latest,
 /// `grid::span`).
 const FIT_UNTIL: u16 = 18 * 60;
 
 fn layout(slots: &[GridSlot], min_hours: u16, fit: bool) -> Option<Layout> {
-    let drawn: Vec<Placed> = slots.iter().filter(|slot| slot.drawn()).map(GridSlot::placed).collect();
+    // The frame is the module's own: the plan beside it (`planned`) never makes it grow, and is
+    // cut to it (`frame_cut`). A grid of the plan's slots alone takes their frame.
+    let framing: Vec<Placed> = slots.iter().filter(|slot| slot.drawn() && !slot.beside()).map(GridSlot::placed).collect();
+    let drawn: Vec<Placed> = match framing.is_empty() {
+        true => slots.iter().filter(|slot| slot.drawn()).map(GridSlot::placed).collect(),
+        false => framing,
+    };
     if drawn.is_empty() && !fit {
         return None;
     }
@@ -260,18 +298,28 @@ fn layout(slots: &[GridSlot], min_hours: u16, fit: bool) -> Option<Layout> {
     if fit {
         span.last = span.last.max(FIT_UNTIL);
     }
+    let (cut, mut marks) = frame_cut(slots, &span);
     let mut week = format!("--days:{};--first:{};--span:{}", span.days, halves(span.first), halves(span.last.saturating_sub(span.first)));
     if fit {
         week.push_str(";--cols:");
-        week.push_str(&columns(slots, span.days));
+        week.push_str(&columns(&cut, span.days));
     }
     // The band of the strips, at the edge of every day, where any is drawn.
-    if slots.iter().any(|slot| slot.strip() && slot.drawn()) {
+    if cut.iter().any(|slot| slot.strip() && slot.drawn()) {
         week.push_str(";--strip:1");
     }
-    let styles = slots
+    // The lines under the days that name what of the plan the frame cuts or leaves out after it.
+    let spill = (1..=span.days).map(|day| slots.iter().zip(&marks).filter(|(slot, marks)| slot.day == day && (marks.after || marks.until.is_some())).count()).max().unwrap_or(0);
+    if spill > 0 {
+        week.push_str(&format!(";--spill:{spill}"));
+    }
+    let (lanes, classes) = lanes_of(&cut);
+    for (marks, more) in marks.iter_mut().zip(classes) {
+        marks.classes.extend(more);
+    }
+    let styles = cut
         .iter()
-        .zip(lanes_of(slots))
+        .zip(lanes)
         .map(|(slot, lane)| {
             // The frame ends at 24:00; what would reach past it stops there.
             let to = slot.to.max(slot.from).min(span.last);
@@ -279,8 +327,36 @@ fn layout(slots: &[GridSlot], min_hours: u16, fit: bool) -> Option<Layout> {
             format!("--from:{};--to:{};{lane}", halves(from), halves(to))
         })
         .collect();
-    let (frames, framed) = frames_of(slots, span.last);
-    Some(Layout { span, week, slots: styles, frames, framed })
+    let (frames, framed) = frames_of(&cut, span.last);
+    Some(Layout { span, week, slots: styles, marks, frames, framed })
+}
+
+/// The slots as the frame shows them: a slot of the plan beside a module's week (`planned`) cut to
+/// the frame's hours, with what the cut did (`Marks`); one wholly outside them, or on a day the
+/// frame does not have, put on no day (0), and noted where it lies after the frame.
+fn frame_cut(slots: &[GridSlot], span: &Span) -> (Vec<GridSlot>, Vec<Marks>) {
+    slots
+        .iter()
+        .map(|slot| {
+            let mut marks = Marks::default();
+            if !slot.beside() || !slot.drawn() {
+                return (slot.clone(), marks);
+            }
+            if slot.day > span.days || slot.to <= span.first || slot.from >= span.last {
+                marks.after = slot.day <= span.days && slot.from >= span.last;
+                return (GridSlot { day: 0, ..slot.clone() }, marks);
+            }
+            if slot.from < span.first {
+                marks.classes.push("cutt");
+                marks.since = Some(slot.from);
+            }
+            if slot.to > span.last {
+                marks.classes.push("cutb");
+                marks.until = Some(slot.to);
+            }
+            (GridSlot { from: slot.from.max(span.first), to: slot.to.min(span.last), ..slot.clone() }, marks)
+        })
+        .unzip()
 }
 
 /// The red frames around slots that stand together (`GridSlot::joint`): per day and joint, where
@@ -320,79 +396,59 @@ fn frames_of(slots: &[GridSlot], last: u16) -> (Vec<(u8, String)>, Vec<bool>) {
     (frames, framed)
 }
 
-/// Per slot, where it stands in its day's column: `--lane:<n>;--lanes:<n>` for one of equal
-/// lanes, as `grid::lanes` has them. In a group of overlapping slots where the module's own slots
-/// meet planned ones, the column has two parts: the own slots' `--mine` lanes on the left, the
-/// planned slots' `--theirs` on the right (`--beside:1`); `--lane`, `--lanes` and `--wide` count
-/// lanes of the slot's part. `app.css` sizes the parts: a planned lane half as wide as an own
-/// one, and in a narrow day less, so that an own lane keeps room for its label.
-fn lanes_of(slots: &[GridSlot]) -> Vec<String> {
+/// How long after its start a slot of the plan still names itself at its top: where a card of the
+/// module's own begins later, the plan's name stands above it, where it begins earlier, upright in
+/// the plan's strip beside it.
+const NAME_ROOM: u16 = 20;
+
+/// Per slot, where it stands in its day's column (`--lane:<n>;--lanes:<n>`, as `grid::lanes` has
+/// them), and the classes that come of it. Where the plan stands beside a module's week (`planned`,
+/// see the module's doc) it is the ground: its slots have lanes among themselves in the day's
+/// whole width, the module's own lanes among theirs over it, each narrowed by a lane of the plan
+/// per lane of it under the slot (`--free`). A slot of the plan whose start a card covers names
+/// itself upright at its right (`upright`); one of more than one lane under a card stands as a
+/// strip at the right (`edge`), where the card would cover it.
+fn lanes_of(slots: &[GridSlot]) -> (Vec<String>, Vec<Vec<&'static str>>) {
     let placed: Vec<Placed> = slots.iter().map(GridSlot::in_lanes).collect();
     // Lanes are per day, so a slot that is not drawn shares a group with none that is; a slot
     // put on no day (0) is out of the other set's lanes.
-    let only = |beside: bool| -> Vec<(u8, u8)> {
-        let placed: Vec<Placed> = slots.iter().map(|slot| Placed { day: if slot.beside() == beside { slot.in_lanes().day } else { 0 }, ..slot.placed() }).collect();
+    let only = |ground: bool| -> Vec<(u8, u8)> {
+        let placed: Vec<Placed> = slots.iter().map(|slot| Placed { day: if slot.beside() == ground { slot.in_lanes().day } else { 0 }, ..slot.placed() }).collect();
         grid::lanes(&placed)
     };
-    let (all, own, planned) = (grid::lanes(&placed), only(false), only(true));
+    let (all, own, ground) = (grid::lanes(&placed), only(false), only(true));
     // The strips' lanes are among the strips, in the band at the day's edge.
     let strips = grid::lanes(&slots.iter().map(|slot| Placed { day: if slot.strip() { slot.day } else { 0 }, ..slot.placed() }).collect::<Vec<_>>());
-    let groups = groups_of(&placed);
-    // Per group: the most lanes its own slots and its planned slots need among themselves.
-    let mut need: Vec<(u8, u8)> = vec![(0, 0); groups.iter().copied().max().map_or(0, |last| last + 1)];
-    for (i, slot) in slots.iter().enumerate() {
-        let (Some(group), Some(own), Some(planned)) = (groups.get(i), own.get(i), planned.get(i)) else { continue };
-        if let Some(need) = need.get_mut(*group) {
-            match slot.beside() {
-                false => need.0 = need.0.max(own.1),
-                true => need.1 = need.1.max(planned.1),
-            }
-        }
-    }
+    let plan = slots.iter().any(|slot| slot.beside() && slot.drawn());
+    let meet = |a: &GridSlot, b: &GridSlot| a.drawn() && b.drawn() && a.day == b.day && a.from < b.to && b.from < a.to;
     slots
         .iter()
         .enumerate()
         .map(|(i, slot)| {
             if slot.strip() {
                 let (lane, lanes) = strips.get(i).copied().unwrap_or((0, 1));
-                return format!("--lane:{lane};--lanes:{lanes}");
+                return (format!("--lane:{lane};--lanes:{lanes}"), Vec::new());
             }
-            let group = groups.get(i).and_then(|group| need.get(*group)).copied().unwrap_or_default();
-            let (lane, lanes) = all.get(i).copied().unwrap_or((0, 1));
-            let (mine, theirs) = group;
-            if mine == 0 || theirs == 0 {
-                return format!("--lane:{lane};--lanes:{lanes}");
+            if !plan {
+                let (lane, lanes) = all.get(i).copied().unwrap_or((0, 1));
+                return (format!("--lane:{lane};--lanes:{lanes}"), Vec::new());
             }
-            // A slot of fewer lanes than its part has spans as many of them as its share.
-            let (part, (lane, lanes), beside) = match slot.beside() {
-                false => (mine, own.get(i).copied().unwrap_or((0, 1)), ""),
-                true => (theirs, planned.get(i).copied().unwrap_or((0, 1)), ";--beside:1"),
-            };
-            let unit = f64::from(part) / f64::from(lanes.max(1));
-            format!("--lane:{};--lanes:{part};--wide:{};--mine:{mine};--theirs:{theirs}{beside}", number(unit * f64::from(lane)), number(unit))
+            if slot.beside() {
+                let (lane, lanes) = ground.get(i).copied().unwrap_or((0, 1));
+                let cards: Vec<&GridSlot> = slots.iter().filter(|card| !card.beside() && !card.strip() && meet(card, slot)).collect();
+                let classes = match (cards.is_empty(), lanes > 1) {
+                    (false, true) => vec!["edge", "upright"],
+                    (false, false) if cards.iter().any(|card| card.from <= slot.from.saturating_add(NAME_ROOM)) => vec!["upright"],
+                    _ => Vec::new(),
+                };
+                return (format!("--lane:{lane};--lanes:{lanes}"), classes);
+            }
+            let (lane, lanes) = own.get(i).copied().unwrap_or((0, 1));
+            let free = slots.iter().zip(&ground).filter(|(under, _)| under.beside() && meet(under, slot)).map(|(_, (_, lanes))| *lanes).max().unwrap_or(0);
+            let free = if free > 0 { format!(";--free:{free}") } else { String::new() };
+            (format!("--lane:{lane};--lanes:{lanes}{free}"), Vec::new())
         })
-        .collect()
-}
-
-/// Per slot, the group of slots it overlaps transitively on its day (numbered from 0), as
-/// `grid::lanes` groups them.
-fn groups_of(placed: &[Placed]) -> Vec<usize> {
-    let mut order: Vec<(usize, &Placed)> = placed.iter().enumerate().collect();
-    order.sort_by_key(|(i, slot)| (slot.day, slot.from, std::cmp::Reverse(slot.to.saturating_sub(slot.from)), *i));
-    let mut groups = vec![0; placed.len()];
-    let (mut group, mut day, mut end) = (0usize, None, 0u16);
-    for (n, (i, slot)) in order.into_iter().enumerate() {
-        if n > 0 && (day != Some(slot.day) || slot.from >= end) {
-            group += 1;
-            end = 0;
-        }
-        day = Some(slot.day);
-        end = end.max(slot.to.max(slot.from));
-        if let Some(entry) = groups.get_mut(i) {
-            *entry = group;
-        }
-    }
-    groups
+        .unzip()
 }
 
 /// The share of the week an empty day takes (a day of one lane takes 1): it keeps its head.
@@ -469,23 +525,39 @@ pub fn WeekGrid(
     move || {
         let bands = bands.map(|bands| bands.get()).unwrap_or_default();
         slots.with(|slots| {
-            let Layout { span, week, slots: styles, frames, framed } = layout(slots, min_hours, fit)?;
+            let Layout { span, week, slots: styles, marks, frames, framed } = layout(slots, min_hours, fit)?;
             let days = &t.data.weekdays_short;
             let heads: Vec<String> = (0..usize::from(span.days))
                 .map(|i| heads.as_ref().and_then(|heads| heads.get(i).cloned()).or_else(|| days.get(i).map(|head| head.to_string())).unwrap_or_default())
                 .collect();
             let columns = (1..=span.days)
                 .map(|day| {
-                    let slots = slots
+                    let on: Vec<(&GridSlot, &String, &Marks, bool)> = slots
                         .iter()
                         .zip(&styles)
+                        .zip(&marks)
                         .zip(&framed)
-                        .filter(|((slot, _), _)| slot.day == day)
-                        .map(|((slot, style), framed)| slot_view(slot, style.clone(), *framed))
-                        .collect_view();
+                        .filter(|(((slot, _), _), _)| slot.day == day)
+                        .map(|(((slot, style), marks), framed)| (slot, style, marks, *framed))
+                        .collect();
+                    let drawn = on.iter().filter(|(_, _, marks, _)| !marks.after).map(|(slot, style, marks, framed)| slot_view(slot, style.to_string(), marks, *framed)).collect_view();
                     let frames = frames.iter().filter(|(on, _)| *on == day).map(|(_, style)| view! { <div class="slot-frame" style=style.clone()></div> }).collect_view();
                     let bands = bands.iter().filter(|band| band.day == day).map(|band| band_view(band, span.last)).collect_view();
-                    view! { <div class="col">{bands}{slots}{frames}</div> }
+                    // Under the day: until when what the frame cuts goes on, and what of the plan
+                    // lies wholly after it, line by line.
+                    let spills = on
+                        .iter()
+                        .filter_map(|(slot, style, marks, _)| match (marks.after, marks.until) {
+                            (true, _) => Some(((t.week.later)(&slot.label, &clock(slot.from)), "--lane:0;--lanes:1".to_string(), slot.title.clone(), false)),
+                            (false, Some(until)) => Some(((t.week.until)(&clock(until)), style.to_string(), slot.title.clone(), marks.classes.contains(&"edge"))),
+                            _ => None,
+                        })
+                        .enumerate()
+                        .map(|(row, (text, style, title, edge))| view! { <span class="spill" class:edge=edge style=format!("{style};--row:{row}") title=title>{text}</span> })
+                        .collect_view();
+                    // Each day in its own column of the grid (`--col`): the lines behind the days take
+                    // the row's cells, which auto-placement would leave the days beside.
+                    view! { <div class="col" style=format!("--col:{}", day + 1)>{bands}{drawn}{frames}{spills}</div> }
                 })
                 .collect_view();
             Some(
@@ -493,7 +565,8 @@ pub fn WeekGrid(
                     <div class="week" class:fit=fit style=week data-first=span.first data-last=span.last>
                         <span></span>
                         {heads.into_iter().map(|head| view! { <span class="d">{head}</span> }).collect_view()}
-                        <div class="hours">{(span.first / 60..span.last / 60).map(|hour| view! { <span>{hour}</span> }).collect_view()}</div>
+                        <div class="hours">{(span.first.div_ceil(60)..=span.last / 60).map(|hour| view! { <span style=format!("--at:{}", halves(hour * 60 - span.first))>{hour}</span> }).collect_view()}</div>
+                        <div class="lines" aria-hidden="true"></div>
                         {columns}
                     </div>
                 }
@@ -512,19 +585,33 @@ fn band_view(band: &GridBand, last: u16) -> impl IntoView {
     view! { <div class="band free" style=style title=title><span>{band.label.clone()}</span></div> }
 }
 
-/// A slot, and its buttons; `framed`: it stands in a red frame with others, which is its own.
-fn slot_view(slot: &GridSlot, style: String, framed: bool) -> AnyView {
-    let class = if framed { format!("{} framed", slot.classes()) } else { slot.classes() };
+/// A slot, and its buttons; `marks`: what the frame and the lanes made of it; `framed`: it stands in
+/// a red frame with others, which is its own.
+fn slot_view(slot: &GridSlot, style: String, marks: &Marks, framed: bool) -> AnyView {
+    let t = i18n::t();
+    let mut class = slot.classes();
+    for more in marks.classes.iter().copied().chain(framed.then_some("framed")) {
+        class.push(' ');
+        class.push_str(more);
+    }
     let title = (!slot.title.is_empty()).then(|| slot.title.clone());
     let current = slot.current.then_some("true");
     let label = view! { <span class="l">{words(&slot.label)}</span> };
-    let small = (!slot.small.is_empty()).then(|| view! { <small>{slot.small.clone()}</small> });
+    // A slot of the plan cut at the frame's start says since when, in its box.
+    let small = match marks.since {
+        Some(since) => Some((t.week.since)(&clock(since))),
+        None => (!slot.small.is_empty()).then(|| slot.small.clone()),
+    };
+    let small = small.map(|small| view! { <small>{small}</small> });
     let place = (!slot.place.is_empty()).then(|| view! { <small class="p">{slot.place.clone()}</small> });
+    let upright = marks.classes.contains(&"upright").then(|| view! { <span class="vt" aria-hidden="true"><span>{slot.label.clone()}</span></span> });
     let place = view! {
         {place}
+        {upright}
         {slot.badge.clone().map(|badge| view! { <i class="slot-who" aria-hidden="true">{badge}</i> })}
         {slot.own.then(|| view! { <i class="slot-own" aria-hidden="true"><Icon name="user-round"/></i> })}
         {slot.edited.then(|| view! { <i class="slot-pen" aria-hidden="true"><Icon name="pencil"/></i> })}
+        {slot.chosen.then(|| view! { <i class="slot-tick" aria-hidden="true"><Icon name="check"/></i> })}
     };
     // Beside the link, not inside it, in a box of the slot's size (its style), which lets every
     // click but those on its buttons through to the link.
@@ -623,41 +710,50 @@ mod tests {
     }
 
     #[test]
-    fn a_planned_module_beside_the_own_slots_is_slim() {
-        let planned = |day: u8, from: u16, to: u16| GridSlot { class: "planned", ..slot(day, from, to) };
+    fn the_plan_is_the_ground_under_a_module_s_own_slots() {
+        let planned = |day: u8, from: u16, to: u16| GridSlot { class: "planned", label: "ThI".into(), ..slot(day, from, to) };
         let lanes = |slots: &[GridSlot]| {
             let (_, styles) = geometry(slots, MIN_HOURS).unwrap();
             styles.into_iter().map(|style| style.split_once(";--lane").map(|(_, lane)| format!("--lane{lane}")).unwrap_or_default()).collect::<Vec<_>>()
         };
-        // One own lane, one planned: the own part and the planned part at the right, each a lane.
-        assert_eq!(
-            lanes(&[slot(2, 555, 645), planned(2, 555, 645)]),
-            ["--lane:0;--lanes:1;--wide:1;--mine:1;--theirs:1", "--lane:0;--lanes:1;--wide:1;--mine:1;--theirs:1;--beside:1"]
-        );
-        // Two planned beside one own: they share the planned part, the own slot keeps its own.
-        assert_eq!(
-            lanes(&[planned(2, 555, 645), slot(2, 555, 645), planned(2, 600, 700)]),
-            [
-                "--lane:0;--lanes:2;--wide:1;--mine:1;--theirs:2;--beside:1",
-                "--lane:0;--lanes:1;--wide:1;--mine:1;--theirs:2",
-                "--lane:1;--lanes:2;--wide:1;--mine:1;--theirs:2;--beside:1"
-            ]
-        );
-        // Two own lanes beside a planned one, and an own slot of the same group that meets only
-        // the planned one: the whole own part.
-        assert_eq!(
-            lanes(&[slot(3, 555, 645), slot(3, 555, 645), planned(3, 600, 720), slot(3, 690, 780)]),
-            [
-                "--lane:0;--lanes:2;--wide:1;--mine:2;--theirs:1",
-                "--lane:1;--lanes:2;--wide:1;--mine:2;--theirs:1",
-                "--lane:0;--lanes:1;--wide:1;--mine:2;--theirs:1;--beside:1",
-                "--lane:0;--lanes:2;--wide:2;--mine:2;--theirs:1"
-            ]
-        );
-        // Alone, or among themselves, planned slots take lanes as any do.
+        // One own slot on the plan: the plan in the day's whole width, the card over it narrowed by
+        // a lane of the plan.
+        assert_eq!(lanes(&[slot(2, 555, 645), planned(2, 555, 645)]), ["--lane:0;--lanes:1;--free:1", "--lane:0;--lanes:1"]);
+        // Two of the plan at different times under one card: their lanes are their own, the card
+        // leaves room for both.
+        assert_eq!(lanes(&[planned(2, 555, 645), slot(2, 555, 645), planned(2, 600, 700)]), ["--lane:0;--lanes:2", "--lane:0;--lanes:1;--free:2", "--lane:1;--lanes:2"]);
+        // Two own lanes over one of the plan, each narrowed.
+        assert_eq!(lanes(&[slot(3, 555, 645), slot(3, 555, 645), planned(3, 600, 720)]), ["--lane:0;--lanes:2;--free:1", "--lane:1;--lanes:2;--free:1", "--lane:0;--lanes:1"]);
+        // Among themselves the plan's slots take lanes as any do; an own slot apart from them is whole.
         assert_eq!(lanes(&[planned(4, 555, 645), planned(4, 555, 645), slot(5, 555, 645)]), ["--lane:0;--lanes:2", "--lane:1;--lanes:2", "--lane:0;--lanes:1"]);
-        assert_eq!(number(2.0), "2");
-        assert_eq!(number(2.0 / 3.0), "0.667");
+        // The plan names itself upright where a card covers its start, stands as strips at the
+        // right where it has two lanes under a card, and is plain where it is free.
+        let marks = |slots: &[GridSlot]| layout(slots, MIN_HOURS, false).unwrap().marks.into_iter().map(|marks| marks.classes).collect::<Vec<_>>();
+        assert_eq!(marks(&[slot(2, 555, 645), planned(2, 555, 645)]), [vec![], vec!["upright"]]);
+        assert_eq!(marks(&[slot(2, 600, 690), planned(2, 555, 645)]), [Vec::<&str>::new(), vec![]], "a card 45 minutes later: the name stands above it");
+        assert_eq!(marks(&[planned(2, 555, 645), slot(2, 555, 645), planned(2, 600, 700)]), [vec!["edge", "upright"], vec![], vec!["edge", "upright"]]);
+        assert_eq!(marks(&[planned(4, 555, 645), slot(5, 555, 645)]), [Vec::<&str>::new(), vec![]]);
+        assert_eq!(PLAN_LANE, 14, "app.css: a lane of the plan beside a card, 13 px and the gap");
+    }
+
+    #[test]
+    fn the_frame_cuts_the_plan_and_says_so() {
+        let planned = |day: u8, from: u16, to: u16| GridSlot { class: "planned", label: "ThI".into(), ..slot(day, from, to) };
+        // Programmierpraktikum's own Termine (Mo 11:30–13:00, Fr 13:45–15:15) frame its week
+        // 08:00–16:00. Of the plan, ThI's tutorial Mo 15:30–17:00 is cut at 16:00, a lab Di
+        // 07:30–09:00 at 08:00; an Übung Di 17:30–19:00 lies after the frame, one Mi 06:00–07:30
+        // before it, one on a Saturday off the week.
+        let slots = [slot(1, 690, 780), slot(5, 825, 915), planned(1, 930, 1020), planned(2, 450, 540), planned(2, 1050, 1140), planned(3, 360, 450), planned(6, 600, 690)];
+        let cut = layout(&slots, MIN_HOURS, false).unwrap();
+        let own = layout(&slots[..2], MIN_HOURS, false).unwrap();
+        assert_eq!(own.week, "--days:5;--first:16;--span:16");
+        assert_eq!(cut.week, "--days:5;--first:16;--span:16;--spill:1", "the module's frame, one line under a day");
+        assert_eq!(cut.marks[2], Marks { classes: vec!["cutb"], until: Some(1020), ..Marks::default() });
+        assert_eq!(cut.marks[3], Marks { classes: vec!["cutt"], since: Some(450), ..Marks::default() });
+        assert!(cut.marks[4].after && !cut.marks[5].after && !cut.marks[6].after, "{:?}", cut.marks);
+        assert!(cut.slots[2].starts_with("--from:31;--to:32;") && cut.slots[3].starts_with("--from:16;--to:18;"), "{:?}", cut.slots);
+        // What lies after the frame is on no day: it takes no lane, and no slot stands for it.
+        assert_eq!(cut.slots[4], "--from:32;--to:32;--lane:0;--lanes:1");
     }
 
     #[test]
