@@ -1208,8 +1208,11 @@
   //   up, 10 px under the safe area; it comes up from below half up, and one that holds less than
   //   half the screen has one stop, as tall as it is. `fit`: one stop, as tall as what it holds
   //   between 40 and 70 % of the screen (app.css), never higher; its content scrolls there where it
-  //   holds more. `full`: one stop, all up at once, the whole height. A sheet of one stop stands
-  //   where all up is: what is said of all up below is said of it.
+  //   holds more. `full`: one stop, all up at once, the whole height. `auto`, for what changes
+  //   (owner, the same day: „ein Auto Modus, der zwischen fit und Half entscheidet für dynamischen
+  //   content"): it fits while what it holds does, and stands half up and all up once it holds
+  //   more (`autoMode`). A sheet of one stop stands where all up is: what is said of all up below
+  //   is said of it.
   // - Half up a finger moves the sheet wherever it touches it, and nothing in it scrolls („Im
   //   kleinen modus soll man nicht scrollen können nur im full modus"); all up its content scrolls
   //   and keeps its scroll to itself, and a move down where it is at its top takes the sheet. Pulled
@@ -1249,6 +1252,7 @@
   const SHEET_PAST = 150; // px past the bottom the spring of a sheet that goes away aims, so that it leaves at speed
   const SHEET_PEEK = 0.5; // of the screen a sheet half up shows (app.css --sheet-peek)
   const SHEET_ONE = 24; // px: a sheet no more than this taller than half up has one stop
+  const SHEET_FIT = 0.7; // of the screen a sheet that fits is at most (app.css)
   const SHEET_GRAB = 26; // px from its top: its grabber, where a tap takes it all up and back
   const SHEET_GIVE = 24; // px a sheet with nothing to scroll gives above all up, at most
   const calmMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1322,11 +1326,25 @@
   // What holds its buttons: at the screen's foot while it is half up.
   const footOf = (sheet) => sheet.querySelector("[data-sheet-foot], .st-dlg-foot");
 
-  // How a sheet stands (`data-sheet`, folia_design::modal::Sheet): `fit`, `full`, else `half` (a
-  // module's sheet too, and one that names none).
+  // How a sheet stands (`data-sheet`, folia_design::modal::Sheet): `fit`, `full`, one of `auto` as
+  // what it holds says (`autoMode`), else `half` (a module's sheet too, and one that names none).
   const sheetMode = (sheet) => {
     const mode = sheet.getAttribute("data-sheet");
+    if (mode === "auto") return autoMode(sheet);
     return mode === "fit" || mode === "full" ? mode : "half";
+  };
+  // A sheet of `auto` fits while what it holds does — at most 70 % of the screen; its height is
+  // what it holds (app.css) — and stands half up and all up once it holds more; back to fitting
+  // once it is a grabber's height shorter again, so that what moves about that height does not turn
+  // it to and fro. Its way is on it, for the stylesheet (`data-sheet-as`). With the screen's
+  // keyboard up its height is the keyboard's (folia_design::keyboard), and its way stays.
+  const autoMode = (sheet) => {
+    const was = sheet.getAttribute("data-sheet-as");
+    if (was && root.hasAttribute("data-keyboard")) return was;
+    const height = sheet.offsetHeight, most = innerHeight * SHEET_FIT;
+    const mode = height > most + 0.5 || (was === "half" && height > most - SHEET_ONE) ? "half" : "fit";
+    if (mode !== was) sheet.setAttribute("data-sheet-as", mode);
+    return mode;
   };
   // A sheet's stops, in px down from all up (its transform): half up (0 where it has one stop: one
   // that fits or is all up at once, and one that holds less than half the screen) and away (its top
@@ -1686,12 +1704,25 @@
   // itself that does (`ghostSheet`). Its height is kept as it changes, for its foot and its copy.
   const dialogsAll = document.getElementsByTagName("dialog");
   const popsAll = document.getElementsByClassName("st-pop");
-  let sheetsSeen = new Map(); // a dialog or a menu shown as a sheet → { height, half }
+  let sheetsSeen = new Map(); // a dialog or a menu shown as a sheet → { height, half, mode }
+  // One whose way to stand changed while it was shown (a dialog that holds another kind now, one of
+  // `auto` whose content grew past what fits or shrank under it): to where it was where it still
+  // has that stop, else all up, its one stop. A sheet that fitted and holds more now stays all up
+  // as it grows; a finger takes it half up from there.
+  const restand = (el, seen) => {
+    const mode = sheetMode(el);
+    if (!seen?.mode || seen.mode === mode) return;
+    seen.mode = mode;
+    const g = glides.get(el), at = g ? g.to : el.classList.contains("is-full") ? "full" : "half";
+    if (at !== "gone") glideSheet(el, sheetY(el), g ? glideV(g) : 0, at);
+    seen.half = stopsOf(el).half;
+  };
   const sizes = typeof ResizeObserver === "function" ? new ResizeObserver((entries) => {
     for (const { target } of entries) {
       const seen = sheetsSeen.get(target);
       if (!seen || !target.isConnected || !target.offsetHeight) continue;
       seen.height = target.offsetHeight;
+      restand(target, seen);
       seen.half = stopsOf(target).half;
       // Grown short of two stops while half up: as tall as it is.
       if (!seen.half && !glides.has(target) && !target.classList.contains("is-gone")) target.classList.add("is-full");
@@ -1729,6 +1760,7 @@
     ghost.classList.remove("is-full", "is-gone", "has-sub");
     ghost.classList.add("sheet-ghost");
     ghost.setAttribute("data-sheet", sheet.getAttribute("data-sheet") ?? "");
+    if (sheet.hasAttribute("data-sheet-as")) ghost.setAttribute("data-sheet-as", sheet.getAttribute("data-sheet-as"));
     ghost.setAttribute("open", "");
     ghost.setAttribute("aria-hidden", "true");
     ghost.inert = true;
@@ -1814,25 +1846,20 @@
       if (inPlace && isMenu(el)) { sizes?.unobserve(el); stopSheet(el); }
       else sheetGone(el, sheetsSeen.get(el), records);
     }
+    // The menu in the other's place stands where that one stood: all up where it was all up (a
+    // submenu of `auto` longer than what fits does not drop half up under the finger).
+    const wasFull = inPlace && gone.some((el) => isMenu(el) && el.classList.contains("is-full"));
     for (const el of come) {
       if (inPlace && isMenu(el)) {
         const { half } = stopsOf(el);
-        el.classList.toggle("is-full", !half);
+        el.classList.toggle("is-full", wasFull || !half);
         el.classList.remove("is-gone");
       } else showSheet(el);
       now.set(el, { height: el.offsetHeight, half: stopsOf(el).half, mode: sheetMode(el) });
       sizes?.observe(el);
     }
-    // One whose way to stand changed while it was shown (a dialog that holds another kind now): to
-    // where it was where it still has that stop, else all up, its one stop.
-    for (const [el, seen] of now) {
-      if (!seen?.mode || seen.mode === sheetMode(el)) continue;
-      seen.mode = sheetMode(el);
-      const g = glides.get(el), at = g ? g.to : el.classList.contains("is-full") ? "full" : "half";
-      if (at === "gone") continue;
-      glideSheet(el, sheetY(el), g ? glideV(g) : 0, at);
-      seen.half = stopsOf(el).half;
-    }
+    // One whose way to stand changed while it was shown (`restand`).
+    for (const [el, seen] of now) restand(el, seen);
     sheetsSeen = now;
   };
   new MutationObserver(watchSheets).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["open", "data-sheet"] });
