@@ -1,4 +1,4 @@
-//! Texts of the ground at the end of every page (`ground.rs`).
+//! Texts of the ground at the end of the start page (`ground.rs`).
 
 pub struct Texts {
     pub note: &'static str,

@@ -220,7 +220,7 @@ pub fn TopicPage() -> impl IntoView {
                     .into_any()
                 }
             };
-            // No frame (R17), as the start page: one scroll area with the ground at its end.
+            // No frame (R17), as the start page: one scroll area, without the start page's ground.
             // The tab's title with the page, as every page that follows its address writes it: a
             // title that read the address later would read it after a page rendered beside
             // others on the server is gone (`a_page_rendered_beside_others_keeps_its_title`).
@@ -232,7 +232,6 @@ pub fn TopicPage() -> impl IntoView {
                 {body}
                 <MoreAbout topics=others/>
                 </div></div>
-                <folia_shell::ground::Ground/>
                 </div>
             }
             .into_any()

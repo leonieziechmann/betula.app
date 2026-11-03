@@ -479,11 +479,16 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 :root[data-season="autumn"] .crown::before { -webkit-mask-image: url("/assets/birch/autumn-crown-head.svg"), url("/assets/birch/autumn-crown.svg"); mask-image: url("/assets/birch/autumn-crown-head.svg"), url("/assets/birch/autumn-crown.svg"); }
 :root[data-season="winter"] .crown::before { -webkit-mask-image: url("/assets/birch/winter-crown-head.svg"), url("/assets/birch/winter-crown.svg"); mask-image: url("/assets/birch/winter-crown-head.svg"), url("/assets/birch/winter-crown.svg"); }
 
-/* The ground: the footer after all of a page, across everything right of the rail. The roots
+/* The ground: the footer after all of the start page, across everything right of the rail; no
+   other page has one (owner, 2026-11-03: „ich würde gerne den footer raus nehmen aus den meisten
+   seiten von betula … den footer bei der landing page lassen"; the profile page leads to the legal
+   pages instead). The app's own after the view, which a phone shows, stands there only while the
+   page in front brings one of its own (the start page's, `.work > .ground`). The roots
    grow into it from its edge and fade downwards (a mask, like the crown); in autumn the fallen
    leaves lie on its edge, in the gap above it. As it stands here it lies after the view, and the
-   window scrolls to it: so it follows the page on a phone. On a wide screen every page has its own
-   at the end of its scroll area instead („one scroll area"). */
+   window scrolls to it: so it follows the page on a phone. On a wide screen the start page has its
+   own at the end of its scroll area instead („one scroll area"). */
+body:not(:has(> .main > .content > .page-stage.front > .work > .ground)) > .ground { display: none; }
 .ground { position: relative; z-index: 1; grid-column: 2; grid-row: 2; margin: 0 var(--gap) var(--gap); min-height: var(--ground-h); border-radius: 12px; background: var(--ground); color: var(--ground-text); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ground-text) 6%, transparent); }
 .ground::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--ground-root); -webkit-mask: url("/assets/birch/roots.svg") repeat-x left top; mask: url("/assets/birch/roots.svg") repeat-x left top; pointer-events: none; }
 .ground::after { content: ""; display: none; position: absolute; left: 0; right: 0; top: -12px; height: 24px; background: var(--crown); -webkit-mask: url("/assets/birch/litter.svg") repeat-x left top; mask: url("/assets/birch/litter.svg") repeat-x left top; pointer-events: none; }
@@ -522,10 +527,14 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
      edge, and the start page had a dark veil). Over the start page's photo the blur alone, so
      that the photo does not go milky. At the top of a page nothing runs beneath, and the bar is
      the page's ground.
-     The ground follows the page, full width, the bottom bar floating over its lower part; under a
-     page shorter than the window it lies just past the window's lower edge all the same (the
-     body's column, „phone and tablet"). Not under the row of pages of „Mein Studium" (`.st-pager`,
-     below). */
+     The start page's ground follows the page, full width, the bottom bar floating over its lower
+     part; under a page shorter than the window it lies just past the window's lower edge all the
+     same (the body's column, „phone and tablet"). Every other page ends 12 px above the bottom bar
+     (its room, below), and the view is as tall as the screen as it is, not as at its largest (`lvh`,
+     for the ground just past the window's edge): a page shorter than the screen does not scroll by
+     the height of the browser's bars, into nothing (owner, 2026-10-19, of „Mein Studium"'s row:
+     „irgendwie kann man noch scrollen, obwohl da kein content ist"). The row of „Mein Studium"
+     makes its own room for the dots (`.st-pager`, below). */
   .crown { z-index: 20; height: var(--bar); }
   .frost { display: block; position: fixed; z-index: 19; top: 0; left: 0; right: 0; height: calc(var(--bar) + 14px); pointer-events: none; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); -webkit-mask: linear-gradient(#000 calc(100% - 24px), transparent); mask: linear-gradient(#000 calc(100% - 24px), transparent); opacity: 0; transition: opacity .2s; }
   :root[data-scrolled] .frost { opacity: 1; }
@@ -535,9 +544,14 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   .ground { margin: 12px 0 0; min-height: 0; border-radius: 18px 18px 0 0; padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
   .ground-top { flex-direction: column; gap: 14px; padding: 22px 18px 0; }
   .ground-foot { position: relative; left: auto; right: auto; bottom: auto; flex-direction: column; gap: 6px; padding: 18px 18px 0; }
+  .main:not(:has(> .content > .page-stage.front > .work > .ground)) { min-height: 100dvh; }
+  .main:not(:has(> .content > .page-stage.front > .work > .ground, > .content > .page-stage.front .st-pager)) { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
 }
 
 /* ---------- one scroll area ----------
+   Since 2026-11-03 the start page alone has a ground (see „the birch"): every other page ends 8 px
+   above the window's edge, as the panels beside it do, its area's second row is nothing, and the
+   wood stays on the window's edge; what is said of the ground here is the start page's.
    Owner, 2026-09-29: the two steps — first the page scrolled, then the window for the ground — felt
    „unfassbar janky". Every page (`.work.flowing`: ui::Frame, ui::Plain, the catalog, the Merkliste,
    the start page) is ONE scroll area right
@@ -619,11 +633,12 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
      app's first frame under it may not have its page yet. */
   body:has(> .main > .content > .page-stage.front > .work.flowing) > .ground { display: none; }
   .work.flowing {
-    display: grid; grid-template-columns: var(--filters) minmax(0, 1fr); grid-template-rows: max-content var(--ground-h);
+    display: grid; grid-template-columns: var(--filters) minmax(0, 1fr); grid-template-rows: max-content 0px; row-gap: 0;
     --pad-r: max(0px, calc(var(--gap) - var(--bar, 0px)));
     height: calc(100% + 2px); margin: -1px calc(-1 * var(--gap)); padding: 1px var(--pad-r) 1px var(--gap);
     overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: none; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
   }
+  .work.flowing:has(> .ground) { grid-template-rows: max-content var(--ground-h); row-gap: var(--gap); }
   /* The page in front alone names the timeline the wood rises on: a name two pages give is no
      timeline at all, and every tab's page stays built behind it (folia/crates/shell/src/stage.rs). */
   #content > .page-stage.front > .work.flowing { scroll-timeline: --page block; }
@@ -706,7 +721,7 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   /* The ground as the end of the page, on a band in the wood's front colour from 8 px above it
      and across the whole area (to the scrollbar): over the pinned panels, under the ground. */
   .work.flowing > .ground { display: block; position: relative; z-index: 20; grid-column: 1 / -1; grid-row: 2; height: var(--ground-h); min-height: 0; margin: 0; }
-  .work.flowing::after { content: ""; position: relative; z-index: 19; grid-column: 1 / -1; grid-row: 2; margin: calc(-1 * var(--gap)) calc(-1 * var(--pad-r)) 0 calc(-1 * var(--gap)); background: var(--wood-front); pointer-events: none; }
+  .work.flowing:has(> .ground)::after { content: ""; position: relative; z-index: 19; grid-column: 1 / -1; grid-row: 2; margin: calc(-1 * var(--gap)) calc(-1 * var(--pad-r)) 0 calc(-1 * var(--gap)); background: var(--wood-front); pointer-events: none; }
   /* Once the area stands still with the ground up (`data-rest`, enhance.js), the panels it cut off
      end where their content ends, 8 px above it, with round corners as the end of the list has
      (owner, 2026-10-04: „die Ecken abrunden, wenn der Footer oben ist"); while it moves they are
@@ -732,7 +747,7 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
      and the gap above it. */
   @keyframes wood-rise { to { transform: translateY(-208px); } }
   @supports (animation-timeline: scroll()) and (timeline-scope: --page) {
-    body:has(> .main > .content > .page-stage.front > .work.flowing) > .wood { animation: wood-rise linear both; animation-timeline: --page; animation-range: calc(100% - 208px) 100%; }
+    body:has(> .main > .content > .page-stage.front > .work.flowing > .ground) > .wood { animation: wood-rise linear both; animation-timeline: --page; animation-range: calc(100% - 208px) 100%; }
   }
   /* „Nach oben" stays above the ground once the page stands still (enhance.js). */
   .to-top { translate: 0 calc(-1 * var(--lift, 0px)); }
@@ -4799,8 +4814,8 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   /* The bar at the top: 20 px above the search for the crown, 48 for the search, 10 below. */
   :root { --bar: 78px; }
   /* The view and the ground one under the other. The view is at least as high as the window at its
-     largest (the browser's bars hidden, `lvh`; under the row of „Mein Studium", which has no ground,
-     as the window is, `.st-pager`): a page shorter than the window leaves its room
+     largest (the browser's bars hidden, `lvh`; under a page with no ground, which is every page but
+     the start page, as the window is, „the birch"): a page shorter than the window leaves its room
      above the ground, which lies just past the window's lower edge, the end of the page that is
      scrolled to and never seen before (owner, 2026-10-05: „der footer … mindestens genau außerhalb
      vom bild …, so dass man rein scrollen muss"; see „the birch"). */
@@ -6151,14 +6166,9 @@ a.st-rsp-name:hover { text-decoration: underline; }
      it, cut off at the row's end, while the ground stood still under it, and at rest the window
      jumped up. The row is the end of the page: its last page ends where the dots' frosted ground
      begins (`.st-dock`: 26 + 6 + 84 px and the safe area), so that nothing of it stays under them.
-     Every other page keeps the ground. */
-  body:has(> .main > .content > .page-stage.front .st-pager) > .ground { display: none; }
-  /* With no ground after it, the view is as tall as the screen as it is, not as at its largest
-     (`lvh`, „phone and tablet", for the ground just past the window's edge): a page shorter than
-     the screen does not scroll by the height of the browser's bars, into nothing (owner,
-     2026-10-19: „irgendwie kann man noch scrollen, obwohl da kein content ist"). The row is as
-     tall, so that a page coming in shows as far down as the screen does. */
-  .main:has(> .content > .page-stage.front .st-pager) { min-height: 100dvh; }
+     Since 2026-11-03 no page but the start page has the ground („the birch"). With none after it,
+     the view is as tall as the screen as it is (`dvh`, „the birch"), and the row as tall, so that a
+     page coming in shows as far down as the screen does. */
   /* The row reaches up under the bar at the top, its pages where they were: what it clips of a page
      drawn further up (the page it leaves, dom.rs `turn`) ends at the window's edge, under the bar, as
      the page did before. */
@@ -6452,6 +6462,11 @@ a.st-rsp-name:hover { text-decoration: underline; }
 .pf-facts dd { margin: 0; min-width: 0; font-weight: 560; overflow-wrap: anywhere; }
 .pf-facts dd small { margin-left: 8px; color: var(--warn); font-size: 12px; font-weight: 600; }
 .pf-ways { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+/* „Über diese Seite" (profile.rs `About`): under the legal pages the versions and the data's date,
+   small, as the ground had them. */
+.pf-build { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-top: 14px; color: var(--text-3); font-size: 12px; }
+.pf-build a { display: inline-flex; align-items: center; gap: 3px; color: var(--text-3); }
+.pf-build .icon { width: 13px; height: 13px; }
 /* What the profile keeps: a row each, the whole row the way to it. */
 .pf-rows { display: grid; margin: 10px -10px 0; }
 .pf-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px; min-height: 46px; padding: 0 10px; border-radius: var(--r-row); color: var(--text); font-size: 14px; text-decoration: none; }
@@ -6827,14 +6842,16 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 /* Who took the photo, in the ground: the line of the photo shown. */
 .photo-credit { display: none; }
 .photo-credit a { color: inherit; }
-/* The line of the photo shown, while the start page is in front: in the page's own ground and in
-   the app's, which a phone shows under every page. */
-:root:not([data-season]):has(#content > .page-stage.front .day-photo:not(.fog)) .photo-credit[data-photo="summer"],
-:root[data-season="spring"]:has(#content > .page-stage.front .day-photo:not(.fog)) .photo-credit[data-photo="spring"],
-:root[data-season="summer"]:has(#content > .page-stage.front .day-photo:not(.fog)) .photo-credit[data-photo="summer"],
-:root[data-season="autumn"]:has(#content > .page-stage.front .day-photo:not(.fog)) .photo-credit[data-photo="autumn"],
-:root[data-season="winter"]:has(#content > .page-stage.front .day-photo:not(.fog)) .photo-credit[data-photo="winter"],
-:root:has(#content > .page-stage.front .day-photo.fog) .photo-credit[data-photo="fog"] { display: inline; }
+/* The line of the start page's photo (its stage's, or the server's page's): in the page's own ground and in the app's, which a phone
+   shows under the start page alone („the birch"). Whether the start page is in front or not: on
+   its way out of a change of tab its ground keeps the line, and so its height (until 2026-11-03 the
+   line went at once, and the page leaving from its end moved down by it). */
+:root:not([data-season]):has(#content > .page-stage:is(.front, [data-stage="home"]) .day-photo:not(.fog)) .photo-credit[data-photo="summer"],
+:root[data-season="spring"]:has(#content > .page-stage:is(.front, [data-stage="home"]) .day-photo:not(.fog)) .photo-credit[data-photo="spring"],
+:root[data-season="summer"]:has(#content > .page-stage:is(.front, [data-stage="home"]) .day-photo:not(.fog)) .photo-credit[data-photo="summer"],
+:root[data-season="autumn"]:has(#content > .page-stage:is(.front, [data-stage="home"]) .day-photo:not(.fog)) .photo-credit[data-photo="autumn"],
+:root[data-season="winter"]:has(#content > .page-stage:is(.front, [data-stage="home"]) .day-photo:not(.fog)) .photo-credit[data-photo="winter"],
+:root:has(#content > .page-stage:is(.front, [data-stage="home"]) .day-photo.fog) .photo-credit[data-photo="fog"] { display: inline; }
 .ground-legal { flex-wrap: wrap; }
 
 @media (max-width: 900px) {
