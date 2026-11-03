@@ -251,10 +251,6 @@ pub struct Texts {
     pub leave_note: &'static str,
     pub remove_semester: &'static str,
 
-    // What the plan has open for a semester („Module hinzufügen").
-    pub fits_nothing: &'static str,
-    pub retakes: &'static str,
-
     // A semester more.
     pub new_semester: &'static str,
     pub after: fn(&str) -> String,
@@ -263,53 +259,13 @@ pub struct Texts {
     pub append_lead_plain: &'static str,
     pub append: fn(&str) -> String,
 
-    // „Module hinzufügen".
-    pub add_title: &'static str,
-    /// „SoSe 2027 · 4. Fachsemester · bisher 12 LP".
-    pub add_sub: fn(&str, &str, &str) -> String,
-    pub tab_plan: &'static str,
-    pub tab_catalog: &'static str,
-    pub plan_semester: &'static str,
-    pub plan_fs_heading: fn(&str) -> String,
-    pub select: fn(&str) -> String,
+    // What a semester says of a module (`picker.rs`), and „Modul wählen" at a row of the plan
+    // without a module.
     pub move_here: fn(&str) -> String,
-    pub placeholder_note: &'static str,
     pub choose_module: &'static str,
-    /// „schon geplant im WiSe 2026/27", „ – würde hierher verschoben", „hier geplant".
-    pub already_planned: fn(&str) -> String,
-    pub would_move: &'static str,
-    pub planned_here: &'static str,
     /// „jedes SoSe", „jedes Semester".
     pub every: fn(&str) -> String,
     pub every_semester: &'static str,
-    /// „früher nicht bestanden".
-    pub retakes_sub: &'static str,
-    /// „3 ausgewählt · 18 LP".
-    pub selected: fn(usize, &str) -> String,
-    /// „SoSe 2027 danach: 30 LP – so viel wie im Regelstudienplan" and the other two.
-    pub after_add: fn(&str, &str) -> String,
-    pub as_planned: &'static str,
-    pub more_than_plan: fn(&str) -> String,
-    pub less_than_plan: fn(&str) -> String,
-    pub insert: fn(usize) -> String,
-    pub search_placeholder: &'static str,
-    pub only_program: &'static str,
-    pub no_hits: &'static str,
-    pub type_to_search: &'static str,
-    /// The cell of the Gesamtplan: „Fachstudium · WiSe 2027/28", „Offen: 44 LP", „Alle".
-    pub cell_open: fn(&str) -> String,
-    pub all: &'static str,
-    pub not_offered_group: fn(&str, usize) -> String,
-    /// The Merkliste as a source: the three tabs' short names (with three they have to fit a
-    /// phone side by side), its search, its collections, a collection with nothing in it, and what
-    /// marks a module of the Merkliste in any list („gemerkt", then its collections).
-    pub tab_plan_short: &'static str,
-    pub tab_marked: &'static str,
-    pub tab_catalog_short: &'static str,
-    pub marked_search: &'static str,
-    pub collections: &'static str,
-    pub collection_empty: &'static str,
-    pub marked: &'static str,
 
     // What a module asks for.
     /// „empfiehlt", „setzt voraus" before the list.
@@ -551,8 +507,6 @@ pub const DE: Texts = Texts {
     leave_note: "zählt nicht als Fachsemester",
     remove_semester: "Semester entfernen",
 
-    fits_nothing: "Für dieses Fachsemester sieht der Plan nichts vor.",
-    retakes: "Wiederholer",
 
     new_semester: "Neues Semester",
     after: |semester| format!("nach {semester}"),
@@ -561,42 +515,10 @@ pub const DE: Texts = Texts {
     append_lead_plain: "Brauchst du länger, hängst du einfach eins an.",
     append: |semester| format!("{semester} anfügen"),
 
-    add_title: "Module hinzufügen",
-    add_sub: |semester, fs, credits| format!("{semester} · {fs} · bisher {credits}\u{a0}LP"),
-    tab_plan: "Aus dem Regelstudienplan",
-    tab_catalog: "Im Katalog suchen",
-    plan_semester: "Plan-Semester",
-    plan_fs_heading: |fs| format!("Laut Regelstudienplan im {fs}"),
-    select: |name| format!("{name} auswählen"),
     move_here: |name| format!("{name} hierher verschieben"),
-    placeholder_note: "Platzhalter – das Modul wählst du, wann du willst",
     choose_module: "Modul wählen",
-    already_planned: |semester| format!("schon geplant im {semester}"),
-    would_move: " – würde hierher verschoben",
-    planned_here: "hier geplant",
     every: |season| format!("jedes {season}"),
     every_semester: "jedes Semester",
-    retakes_sub: "früher nicht bestanden",
-    selected: |n, credits| format!("{n} ausgewählt · {credits}\u{a0}LP"),
-    after_add: |semester, credits| format!("{semester} danach: {credits}\u{a0}LP"),
-    as_planned: " – so viel wie im Regelstudienplan",
-    more_than_plan: |n| format!(" – {n} mehr als im Regelstudienplan"),
-    less_than_plan: |n| format!(" – {n} weniger als im Regelstudienplan"),
-    insert: |n| format!("Einfügen ({n})"),
-    search_placeholder: "Modul, Nummer oder Thema",
-    only_program: "Nur in meinem Studiengang",
-    no_hits: "Nichts gefunden.",
-    type_to_search: "Tippe, um im Katalog zu suchen.",
-    cell_open: |n| format!("Offen: {n}\u{a0}LP"),
-    all: "Alle",
-    not_offered_group: |semester, n| format!("Im {semester} nicht angeboten ({n})"),
-    tab_plan_short: "Regelstudienplan",
-    tab_marked: "Merkliste",
-    tab_catalog_short: "Katalog",
-    marked_search: "In der Merkliste suchen",
-    collections: "Sammlungen",
-    collection_empty: "In dieser Sammlung ist noch nichts.",
-    marked: "gemerkt",
 
     recommends: |list| format!("empfiehlt {list}"),
     requires: |list| format!("setzt voraus {list}"),
@@ -820,8 +742,6 @@ pub const EN: Texts = Texts {
     leave_note: "does not count as a semester of study",
     remove_semester: "Remove semester",
 
-    fits_nothing: "The plan has nothing for this semester of study.",
-    retakes: "Retakes",
 
     new_semester: "New semester",
     after: |semester| format!("after {semester}"),
@@ -830,42 +750,10 @@ pub const EN: Texts = Texts {
     append_lead_plain: "If you need longer, just add one.",
     append: |semester| format!("Add {semester}"),
 
-    add_title: "Add modules",
-    add_sub: |semester, fs, credits| format!("{semester} · {fs} · {credits}\u{a0}CP so far"),
-    tab_plan: "From the standard study plan",
-    tab_catalog: "Search the catalogue",
-    plan_semester: "Plan semester",
-    plan_fs_heading: |fs| format!("Standard study plan, {fs}"),
-    select: |name| format!("Select {name}"),
     move_here: |name| format!("Move {name} here"),
-    placeholder_note: "Placeholder – you choose the module whenever you like",
     choose_module: "Choose module",
-    already_planned: |semester| format!("planned in {semester} already"),
-    would_move: " – would be moved here",
-    planned_here: "planned here",
     every: |season| format!("every {season}"),
     every_semester: "every semester",
-    retakes_sub: "not passed before",
-    selected: |n, credits| format!("{n} selected · {credits}\u{a0}CP"),
-    after_add: |semester, credits| format!("{semester} then: {credits}\u{a0}CP"),
-    as_planned: " – as much as in the standard study plan",
-    more_than_plan: |n| format!(" – {n} more than in the standard study plan"),
-    less_than_plan: |n| format!(" – {n} less than in the standard study plan"),
-    insert: |n| format!("Add ({n})"),
-    search_placeholder: "Module, number or topic",
-    only_program: "Only in my programme",
-    no_hits: "Nothing found.",
-    type_to_search: "Type to search the catalogue.",
-    cell_open: |n| format!("Open: {n}\u{a0}CP"),
-    all: "All",
-    not_offered_group: |semester, n| format!("Not offered in {semester} ({n})"),
-    tab_plan_short: "Study plan",
-    tab_marked: "Saved",
-    tab_catalog_short: "Catalogue",
-    marked_search: "Search your saved modules",
-    collections: "Collections",
-    collection_empty: "Nothing in this collection yet.",
-    marked: "saved",
 
     recommends: |list| format!("recommends {list}"),
     requires: |list| format!("requires {list}"),

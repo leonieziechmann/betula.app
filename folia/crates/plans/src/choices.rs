@@ -9,8 +9,9 @@
 //! module stands as the student put it — its placeholders, the modules that fill them, its mark as
 //! done. What the student planned or passed of a choice's lists is said of the choice as a whole
 //! („8 von 12 LP"), as the progress counts a module towards an area by where the tree places it
-//! (`study::study`). A module counts towards one choice at most: the first, in the order of the
-//! plan, that lists it and has room left.
+//! (`study::study`). A module counts towards one choice at most: the one whose row it was planned
+//! for (`Planned::counts`, the workbench of folia/design/hinzufuegen/konzepte.html), else the
+//! first, in the order of the plan, that lists it and has room left.
 
 use std::collections::BTreeSet;
 
@@ -21,6 +22,7 @@ use folia_routes::url;
 use crate::areas::CatalogArea;
 use crate::plan;
 use crate::study::{self, AreaKind, Input, Offer, PlanRow, Study, EPSILON};
+use crate::studyplan::{PlanDoc, RowRef};
 
 /// Where a row of the plan stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -178,6 +180,9 @@ struct Held {
     taken: Taken,
     /// The area of the progress it counts towards.
     area: Option<usize>,
+    /// The row of the plan the student planned it for (`Planned::counts`), in the semester of
+    /// `taken`.
+    counts: Option<RowRef>,
 }
 
 /// The plan of `input` as „Mein Studium" shows it, with `study` (`study::study` of the same
@@ -318,14 +323,24 @@ fn choices_of(input: &Input, study: &Study, rows: &[PlanRow], lines: &mut [PlanL
         }
     }
 
-    // What the study holds of them: the modules that fill a row's placeholders count there, the
+    // What the study holds of them: the modules that fill a row's placeholders count there, then
+    // those planned for one of its rows (`Planned::counts`, the workbench's „+ Einplanen"), the
     // others where a list has them, in the order of the plan.
-    let held = held_of(study, rows);
+    let held = held_of(study, rows, doc);
     let mut counted: BTreeSet<String> = BTreeSet::new();
     for choice in &mut choices {
         for filler in choice.lines.iter().filter_map(|i| lines.get(*i)).flat_map(|line| line.fillers.iter()) {
             if counted.insert(filler.id.clone()) {
                 choice.taken.push(filler.clone());
+            }
+        }
+    }
+    for choice in &mut choices {
+        let own: Vec<(&str, i64)> = choice.lines.iter().filter_map(|i| lines.get(*i)).map(|line| (line.caption.as_str(), line.ord)).collect();
+        for module in &held {
+            let chosen = module.counts.as_ref().is_some_and(|row| own.iter().any(|(caption, ord)| row.is(input.program_id, caption, *ord)));
+            if chosen && counted.insert(module.taken.id.clone()) {
+                choice.taken.push(module.taken.clone());
             }
         }
     }
@@ -425,7 +440,7 @@ fn lists_of(input: &Input, study: &Study, row: &PlanRow, area: Option<usize>) ->
 
 /// The modules of the study that are passed, or planned and not failed, each once: what is passed
 /// first, then by semester. Not the ones the plan names in a row of their own: they count there.
-fn held_of(study: &Study, rows: &[PlanRow]) -> Vec<Held> {
+fn held_of(study: &Study, rows: &[PlanRow], doc: &PlanDoc) -> Vec<Held> {
     let named: BTreeSet<&str> = rows.iter().filter_map(|row| row.entry.module_id.as_deref()).collect();
     let mut held: Vec<Held> = Vec::new();
     for semester in &study.semesters {
@@ -435,10 +450,14 @@ fn held_of(study: &Study, rows: &[PlanRow]) -> Vec<Held> {
                 continue;
             }
             let taken = Taken { id: id.to_string(), name: item.name.clone(), credits: item.credits, semester: semester.key, passed: item.passed };
+            let counts = doc.counts_of(semester.key, id).cloned();
             match held.iter_mut().find(|known| known.taken.id == id) {
-                Some(known) if item.passed && !known.taken.passed => known.taken = taken,
+                Some(known) if item.passed && !known.taken.passed => {
+                    known.taken = taken;
+                    known.counts = counts;
+                }
                 Some(_) => {}
-                None => held.push(Held { area: item.area, taken }),
+                None => held.push(Held { area: item.area, taken, counts }),
             }
         }
     }

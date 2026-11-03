@@ -64,7 +64,7 @@ use super::dom;
 use super::menu::{self, Act, MenuFor};
 use super::pager::Pages;
 use super::picker::needs_text;
-use super::{item_of, module_href, n, now_secs, Dialog, Plans, Ready, Selection, StudyCtx};
+use super::{item_of, module_href, n, now_secs, Plans, Ready, Selection, StudyCtx};
 use crate::i18n::{self, Texts};
 
 #[component]
@@ -229,7 +229,7 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
     // The modules only visited in it, after its rows (`VisitRow`), by their numbers.
     let visits = Memo::new(move |_| ctx.with_ready(|ready| ready.study.semester(semester).map(|semester| semester.visits.iter().map(|visit| visit.id.clone()).collect::<Vec<_>>())).flatten().unwrap_or_default());
     let empty = Memo::new(move |_| keys.with(Vec::is_empty) && visits.with(Vec::is_empty));
-    let add = move || ctx.open(Dialog::Add { semester, catalog: false, chosen: Vec::new() });
+    let add = move || super::bench::enter(ctx, semester, super::bench::BenchPick::Plan);
     let pages = use_context::<Pages>();
     let go = move |to: Option<SemesterKey>| turn(ctx, pages, to);
     let c = &t.catalog;
@@ -456,8 +456,9 @@ struct Row {
     flags: Vec<(&'static str, String)>,
     /// A module not passed here and not planned again: where „Einplanen" puts it.
     again: Option<SemesterKey>,
-    /// The catalog of a row's modules.
-    find: Option<String>,
+    /// A row of the plan without a module: its plan's caption and `ord`, whose subgroup „Modul
+    /// wählen" opens the workbench at (`bench::enter_row`).
+    choose: Option<(String, i64)>,
     /// The module as the catalog's list says it: its columns.
     facts: Facts,
 }
@@ -520,13 +521,13 @@ impl Row {
             Subject::Row { credits: Some(text), .. } => Some(folia_plans::plan::credits_in(text, t.locale)),
             _ => item.credits.map(|credits| n(credits, t)),
         };
-        let find = match &item.subject {
-            Subject::Row { pid, caption, ord, .. } if item.fillers.is_empty() => find_href(ctx, caption, *ord, *pid, t),
+        let choose = match &item.subject {
+            Subject::Row { caption, ord, .. } if item.fillers.is_empty() => Some((caption.clone(), *ord)),
             _ => None,
         };
         let facts = Facts::of(item.module_id().and_then(|id| ctx.rows.with_untracked(|rows| rows.iter().find(|row| row.id == id).cloned())).as_ref(), t.locale);
         let when = study.semester(semester).map_or(When::Later, |it| it.when);
-        Row { status: Status::of(&item, when), area: ready.area_name(item.area, t), tone: ready.tone(item.area), credits, flags, again, find, facts, item }
+        Row { status: Status::of(&item, when), area: ready.area_name(item.area, t), tone: ready.tone(item.area), credits, flags, again, choose, facts, item }
     }
 }
 
@@ -541,6 +542,19 @@ pub(super) fn find_href(ctx: StudyCtx, caption: &str, ord: i64, fill: Option<u32
         let (query, _) = variants::row_query(&source.program, variant, entry, &source.areas, t.locale);
         Some(CatalogUrl { query, page: 1, open: None, fill }.path())
     })
+}
+
+/// „Einplanen" at a module not passed in a semester that is over and not planned again: into `to`
+/// at once (the next semester that offers it), with the note „Rückgängig" takes it back by.
+fn plan_again(ctx: StudyCtx, item: &Item, to: SemesterKey, t: &'static Texts) {
+    let pick = match &item.subject {
+        Subject::Module { id } => Pick::Module { id: id.clone(), from_plan: item.plan_fs.is_some() },
+        Subject::Row { caption, ord, .. } => Pick::Row { caption: caption.clone(), ord: *ord },
+    };
+    let note = (t.study_bench.planned_note)(&item.name, &to.label(t.locale));
+    ctx.change_noted(Some(note), move |doc, input| {
+        study::add(doc, input, to, &[pick], now_secs());
+    }, || {});
 }
 
 /// A selection drawn over the rows: the row it began at, whether it selects or lets go, what was
@@ -813,7 +827,7 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
         let id = code.clone();
         Memo::new(move |_| id.as_ref().is_some_and(|id| ctx.url.with(|url| url.open.as_deref() == Some(id.as_str()))))
     };
-    let opens = code.is_some() || row.with_untracked(|row| row.as_ref().is_some_and(|row| row.find.is_some()));
+    let opens = code.is_some() || row.with_untracked(|row| row.as_ref().is_some_and(|row| row.choose.is_some()));
     let title = match code.clone() {
         Some(id) => view! {
             <a class="st-name st-open" href=move || module_href(ctx, &id, t) data-noscroll="" draggable="false" aria-current=move || current.get().then_some("true")>
@@ -846,13 +860,17 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
                     <small>
                         {code.clone().map(|code| view! { <span class="mono">{code}</span> })}
                         {move || row.get().map(|row| {
-                            let item_key = row.item.key();
+                            let item = row.item.clone();
                             view! {
                                 <span class="kind st-area"><i style=format!("background: {}", row.tone)></i>{row.area.clone()}</span>
                                 {row.flags.into_iter().map(|(class, text)| view! { <span class=class>{text}</span> }).collect_view()}
-                                {row.find.map(|href| view! { <a class="st-find st-open" href=t.path(&href) rel="nofollow" draggable="false"><Icon name="search"/>{s.choose_module}</a> })}
+                                {row.choose.map(|(caption, ord)| view! {
+                                    <button class="st-find" type="button" draggable="false" on:click=move |ev: MouseEvent| { ev.stop_propagation(); super::bench::enter_row(ctx, semester, &caption, ord); }>
+                                        <Icon name="search"/>{s.choose_module}
+                                    </button>
+                                })}
                                 {row.again.map(|to| view! {
-                                    <button class="st-link" type="button" on:click=move |_| { ctx.focus.set(Some(to)); ctx.open(Dialog::Add { semester: to, catalog: false, chosen: vec![item_key.clone()] }); }>{s.plan_it}</button>
+                                    <button class="st-link" type="button" on:click=move |ev: MouseEvent| { ev.stop_propagation(); plan_again(ctx, &item, to, t); }>{s.plan_it}</button>
                                 })}
                                 {row.facts.narrow()}
                             }

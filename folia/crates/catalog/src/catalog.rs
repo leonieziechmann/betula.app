@@ -953,6 +953,8 @@ fn List(
     view! {
         <section class="panel list" data-pending=move || waiting().then_some("")>
             <div class="list-head" id=TOP_ID>
+                // The workbench of „Mein Studium" this catalog plans for, while it is open.
+                <folia_stores::studyplan::BenchBar/>
                 <div class="count-row">
                     <span class="count num">{format::count(total, t.locale)}</span>
                     <span class="count-label">{label}</span>

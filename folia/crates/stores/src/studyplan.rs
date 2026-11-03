@@ -40,7 +40,7 @@ use folia_calendar::semester::{fachsemester, SemesterKey};
 use folia_model::labels::{Code, TurnusParity, TurnusSeason};
 use folia_model::rows_detail::DateRow;
 use folia_plans::study::Offer;
-use folia_plans::studyplan::{PlanDoc, SavedPlans};
+use folia_plans::studyplan::{PlanDoc, RowRef, SavedPlans};
 use folia_routes::url::{self, ModuleHint};
 use folia_pages::ask::PlanRowsAsk;
 use leptos::prelude::*;
@@ -55,7 +55,7 @@ use folia_design::ui::{Icon, Shortcut};
 pub mod fit;
 mod planning;
 
-pub use planning::{planning_semester, MenuAsk, Note, NoteKind, PlanAsk, Planning, Pressed, SetupAsk};
+pub use planning::{planning_semester, BenchAim, MenuAsk, Note, NoteKind, PlanAsk, Planning, Pressed, SetupAsk};
 
 /// The first profile's key; another profile's has its number in it (`profiles::key_of`).
 pub const STORAGE_KEY: &str = "betula.studyplan.v1";
@@ -451,8 +451,10 @@ pub fn PlanButton(
         Memo::new(move |_| match plan {
             Some(plan) => {
                 let (base, chosen) = planning.map_or((current, false), |planning| planning.base(current));
-                let hint = hint.get();
-                plan.with(|doc| aim_of(&id, current, base, newest.filter(|_| !chosen), offer, hint.as_ref(), doc))
+                // The page's hint, else the workbench of „Mein Studium" while it is open.
+                let bench = planning.and_then(Planning::bench);
+                let hint = hint.get().or_else(|| bench.as_ref().map(BenchAim::hint));
+                with_bench(plan.with(|doc| aim_of(&id, current, base, newest.filter(|_| !chosen), offer, hint.as_ref(), doc)), bench.as_ref())
             }
             None => aim_of(&id, current, current, newest, offer, None, &PlanDoc::default()),
         })
@@ -562,6 +564,10 @@ pub struct Aim {
     elsewhere: Vec<SemesterKey>,
     /// The semester the module is passed in (`PlanDoc::passed`), wherever that is.
     passed: Option<SemesterKey>,
+    /// The row of the plan a press makes it count for (`Planned::counts`), and its name: the
+    /// subgroup the workbench of „Mein Studium" has picked, where no placeholder is filled
+    /// (`Planning::bench`).
+    counts: Option<(RowRef, String)>,
 }
 
 impl Aim {
@@ -587,12 +593,44 @@ impl Aim {
     }
 }
 
+/// The workbench of „Mein Studium" over another page while it is open (`Planning::bench`; the
+/// catalog that „Im Katalog suchen" opened): „Planen", the semester, the subgroup it plans for,
+/// and „Zurück zur Werkbank" (Esc, enhance.js clicks `data-action="close-focus"` once the module
+/// beside the list is closed). Nothing while it is not open; the app's alone.
+#[component]
+pub fn BenchBar() -> impl IntoView {
+    let t = i18n::t();
+    let planning = Planning::expect().filter(|_| APP);
+    let aim = Memo::new(move |_| planning.and_then(Planning::bench));
+    move || {
+        aim.get().map(|aim| {
+            let what = match &aim.name {
+                Some(name) => format!("{} · {}", aim.semester.label(t.locale), (t.planner.bench_for)(name)),
+                None => aim.semester.label(t.locale),
+            };
+            view! {
+                // The way back first: the module beside the list covers the bar's right end.
+                <div class="bench-bar" role="note">
+                    <a class="btn primary small" href=t.path(&aim.back) data-action="close-focus" title=t.planner.bench_back_hint>
+                        <Icon name="chevron-left"/>{t.planner.bench_back}<Shortcut keys="Esc"/>
+                    </a>
+                    <span class="bench-bar-ic" aria-hidden="true"><Icon name="calendar-plus"/></span>
+                    <span class="bench-bar-w"><b>{t.planner.bench_mode}</b><span>{what}</span></span>
+                </div>
+            }
+        })
+    }
+}
+
 /// What „Einplanen" aims at for a module now, asked once and not through a memo: for what presses
 /// it without being its switch, a row swiped to the right (`folia_widgets::swipe`), which asks when
 /// the finger starts. `current` and `newest` as for `PlanButton`.
 pub fn aim_now(plan: Studyplan, planning: Option<Planning>, id: &str, current: SemesterKey, newest: Option<SemesterKey>, offer: Offer, hint: Option<&PlanHint>) -> Aim {
     let (base, chosen) = planning.map_or((current, false), |planning| planning.base_untracked(current));
-    plan.with_untracked(|doc| aim_of(id, current, base, newest.filter(|_| !chosen), offer, hint, doc))
+    let bench = planning.and_then(Planning::bench_untracked);
+    let bench_hint = bench.as_ref().map(BenchAim::hint);
+    let hint = hint.or(bench_hint.as_ref());
+    with_bench(plan.with_untracked(|doc| aim_of(id, current, base, newest.filter(|_| !chosen), offer, hint, doc)), bench.as_ref())
 }
 
 /// Where a press plans, or what it takes out (verhalten.html, rule 2): with a page that means a
@@ -612,7 +650,17 @@ fn aim_of(id: &str, current: SemesterKey, base: SemesterKey, newest: Option<Seme
     };
     let target = planned_at.unwrap_or(target);
     let elsewhere = doc.planned_in(id).into_iter().filter(|semester| *semester != target).collect();
-    Aim { target, pressed: planned_at.is_some(), fill, elsewhere, passed: doc.passed_in(id) }
+    Aim { target, pressed: planned_at.is_some(), fill, elsewhere, passed: doc.passed_in(id), counts: None }
+}
+
+/// The aim with what the workbench of „Mein Studium" asks while it is open (`Planning::bench`):
+/// a module planned into its semester counts for the subgroup it has picked, where no placeholder
+/// is filled.
+fn with_bench(aim: Aim, bench: Option<&BenchAim>) -> Aim {
+    let counts = bench
+        .filter(|bench| bench.semester == aim.target && aim.fill.is_none() && !aim.pressed)
+        .and_then(|bench| Some((bench.counts.clone()?, bench.name.clone().unwrap_or_default())));
+    Aim { counts, ..aim }
 }
 
 /// How long a placeholder's name may be in the button's small line; the tooltip has it whole.
@@ -641,9 +689,11 @@ fn label_text(pressed: bool, t: &'static Texts) -> &'static str {
     }
 }
 
-/// „für „Anwendungsfach“" while the hint's placeholder is in the plan.
+/// „für „Anwendungsfach“" while the hint's placeholder is in the plan, or the workbench's subgroup
+/// the module would count for.
 fn fill_text(aim: &Aim, t: &'static Texts) -> Option<String> {
-    aim.fill.as_ref().map(|(_, name)| (t.planner.for_placeholder)(&shortened(name)))
+    let name = aim.fill.as_ref().map(|(_, name)| name).or(aim.counts.as_ref().map(|(_, name)| name)).filter(|name| !name.is_empty());
+    name.map(|name| (t.planner.for_placeholder)(&shortened(name)))
 }
 
 /// „geplant: SoSe 2027" when the plan holds the module in other semesters as well, the semesters
@@ -724,7 +774,11 @@ fn toggle_in(doc: &mut PlanDoc, id: &str, aim: &Aim, was_pressed: bool, only_its
     match aim.fill.as_ref().map(|(pid, _)| *pid) {
         Some(pid) if doc.is_planned(aim.target, id) => doc.set_fills(aim.target, id, Some(pid)),
         fills => {
-            doc.plan(aim.target, id, at, fills);
+            if doc.plan(aim.target, id, at, fills) {
+                if let Some((row, _)) = &aim.counts {
+                    doc.set_counts(aim.target, id, Some(row.clone()));
+                }
+            }
         }
     }
 }
@@ -1043,12 +1097,12 @@ mod tests {
         let three = aim_of("12330", now, now, Some(now), offer(None), None, &doc);
         assert_eq!(hero_note(&three, None, &DE), "SoSe 27 · bestanden: SoSe 26 · geplant: WiSe 27/28");
         // Taken out where it is passed: the mark goes with it, as „Entfernen" in „Mein Studium".
-        let there = Aim { target: key("2026S"), pressed: true, fill: None, elsewhere: Vec::new(), passed: doc.passed_in("12330") };
+        let there = Aim { target: key("2026S"), pressed: true, fill: None, elsewhere: Vec::new(), passed: doc.passed_in("12330"), counts: None };
         toggle_in(&mut doc, "12330", &there, true, &[], 9);
         assert_eq!((doc.passed_in("12330"), doc.is_planned(key("2026S"), "12330")), (None, false));
         // Taken out elsewhere, the mark stays.
         assert!(pass_in(&mut doc, "12330", key("2027W"), true));
-        let elsewhere = Aim { target: key("2027S"), pressed: true, fill: None, elsewhere: Vec::new(), passed: doc.passed_in("12330") };
+        let elsewhere = Aim { target: key("2027S"), pressed: true, fill: None, elsewhere: Vec::new(), passed: doc.passed_in("12330"), counts: None };
         toggle_in(&mut doc, "12330", &elsewhere, true, &[], 10);
         assert_eq!(doc.passed_in("12330"), Some(key("2027W")));
         assert!(pass_in(&mut doc, "12330", key("2027W"), false) && doc.passed_in("12330").is_none());
@@ -1110,7 +1164,7 @@ mod tests {
         assert_eq!(doc.fillers(3).iter().map(|m| (m.module_id.as_str(), m.at)).collect::<Vec<_>>(), [("12330", 7)]);
         assert!(aim_of("12330", now, now, Some(now), offer(None), Some(&hint), &doc).pressed);
         // Without a hint, a click on what is planned elsewhere does not touch what it counts for.
-        let aim = Aim { target: now, pressed: false, fill: None, elsewhere: Vec::new(), passed: None };
+        let aim = Aim { target: now, pressed: false, fill: None, elsewhere: Vec::new(), passed: None, counts: None };
         toggle_in(&mut doc, "12330", &aim, false, &[], 9);
         assert_eq!(doc.fillers(3).len(), 1);
         // Pressed: out of the semester, with what the semester hid of its own events.

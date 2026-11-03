@@ -15,7 +15,9 @@
 //   the first semester's rows, highlighted and hatched, and „×" lets go; a row's menu at its
 //   status marks it as passed (counted, the row in its place, the focus back on its status); a
 //   press drawn over three rows selects them, the bar marks them and „Rückgängig" takes it back;
-//   „Module hinzufügen" puts the plan's third semester in; the Stundenplan's tab counts it; the
+//   „Module hinzufügen" opens the workbench (its bar, the areas, „Laut Plan im 3. FS", the
+//   semester empty, the sidebar aside), whose „Plan übernehmen" puts the plan's third semester in
+//   and „Fertig" ends it; the Stundenplan's tab counts it; the
 //   semester's box a list as the catalog's, nothing beside it (owner, 2026-10-20), its head and the
 //   heads of its columns at the top when scrolled down, the box as tall as the area shows; a module
 //   moved by its menu's „Verschieben nach ›" and taken back,
@@ -25,11 +27,13 @@
 //   Gesamtplan, each cell as tall as what it lists, a module's menu, a grey line of the plan added
 //   with a click, the view kept; a reload keeps all of it; nothing of it in a request.
 // 2b a place filled (folia/design/hinzufuegen/konzepte.html, „Was heute schiefgeht"): the same study,
-//   „Anwendungsfach" alone put into WiSe 2026/27 by „Module hinzufügen"; „Modul wählen" at its row
-//   and in its menu leads to the catalog with the place (`fill=`), whose „Einplanen" aims at it and
-//   its semester; planned, Allgemeine BWL I fills it — the semester and Nebenfach count 6 LP, not 12,
-//   the place says „gefüllt mit" and offers „Modul wählen" no more; taken out again, the
-//   Wahlpflicht's „+ In WiSe 26/27" fills the place the same way.
+//   „Anwendungsfach" alone put into WiSe 2026/27 by the workbench's „Vormerken"; „Modul wählen" in
+//   its menu and at its row opens the workbench at its subgroup, whose „Im Katalog suchen" leads to
+//   the catalog with the place (`fill=`) and the bar of the workbench, whose „Einplanen" aims at it
+//   and its semester; planned, Allgemeine BWL I fills it — „Zurück zur Werkbank" shows it planned,
+//   the semester and Nebenfach count 6 LP, not 12, the place says „gefüllt mit" and offers „Modul
+//   wählen" no more; taken out again, the Wahlpflicht's „+ In WiSe 26/27" fills the place the same
+//   way.
 // 3 a phone: the overview first (owner, 2026-10-05), the bar with its legend, the program's card
 //   and its ways, the box „Studium planen" with a column per semester, the way to all programs, and
 //   no sidebar; one row of pages the browser scrolls (a real touch, CDP; owner, 2026-10-06): the
@@ -44,8 +48,10 @@
 //   as far apart as from the screen's edge: no ground under the row, on none of its pages (owner,
 //   2026-10-19), the Regelstudienplan and all programs with theirs, the dots fixed over
 //   the tab bar on the page's frosted ground, no box and no legend, an empty semester a mark and
-//   „Module hinzufügen" and nothing of the plan's open rows under it (owner, 2026-10-20), what it
-//   puts in with its note over the dots and „Rückgängig"; ‹ › scroll smoothly, past the overview
+//   „Module hinzufügen" and nothing of the plan's open rows under it (owner, 2026-10-20), which
+//   opens the workbench: the area a button over the list, the bar of the mode over the tab bar,
+//   „Plan übernehmen" with its note over that bar and „Rückgängig", the semester's sheet with what
+//   it holds and its × , „Fertig"; ‹ › scroll smoothly, past the overview
 //   from the current semester to the one before; a finger moves the row and a short pull goes
 //   back, a semester swiped to from the end of another, which ends above the dots, shows from its
 //   head, and one scrolled while the row moves stays as scrolled, up or down, with nothing of the
@@ -335,15 +341,27 @@ if (current !== "2026W") {
   check((await lines(page, "d\t")).length === 4, `the bar's mark: ${JSON.stringify(await lines(page, "d\t"))}`);
   await step("Rückgängig the mark", () => undo(page), () => document.querySelector(".st-headline")?.textContent === "8 von 180 LP bestanden");
 
-  // The current semester: „Module hinzufügen" offers the plan's third semester, its modules ticked.
+  // The current semester: „Module hinzufügen" opens the workbench (folia/design/hinzufuegen/
+  // konzepte.html, third round): the bar of the mode with the semester, the areas of the plan with
+  // „Laut Plan im 3. FS" picked, its Pflicht with „+ Einplanen" and „Plan übernehmen", the
+  // Anwendungsfach with „Wählen", the semester on the right and nothing in it; „Plan übernehmen"
+  // plans the Pflicht at once, „Fertig" ends the mode.
   await step("to now", () => pick(page, "WiSe 26/27"), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
   const empty = await page.evaluate(() => ({ words: document.querySelector(".st-card-sem .st-empty p")?.textContent, icon: Boolean(document.querySelector(".st-card-sem .st-empty-icon .icon")), rows: document.querySelectorAll(".st-card-sem .st-addrow").length }));
   check(empty.words === "Noch keine Module" && empty.icon && empty.rows === 0, `an empty semester is no mark with „Module hinzufügen“ under it: ${JSON.stringify(empty)}`);
-  await step("Module hinzufügen", () => page.click(".st-card-sem .st-empty-add"), () => document.querySelector(".st-dialog[open] .st-choices") && document.querySelector("#st-plan-fs")?.dataset.value === "3");
-  const offered = await page.evaluate(() => [...document.querySelectorAll(".st-dialog[open] .st-choice-row")].map((row) => ({ name: row.querySelector(".st-choice-name")?.textContent, on: row.querySelector(".st-tick")?.getAttribute("aria-checked") })));
-  check(offered.some((row) => row.name === "Theoretische Informatik" && row.on === "true") && offered.some((row) => row.name === "Anwendungsfach" && row.on === "false"), `what „Module hinzufügen“ offers: ${JSON.stringify(offered)}`);
-  const ticked = offered.filter((row) => row.on === "true").length;
-  await step("Einfügen", () => page.click("#st-insert"), (n) => !document.querySelector(".st-dialog[open]") && document.querySelectorAll(".st-card-sem .st-row").length === n, ticked);
+  await step("Module hinzufügen", () => page.click(".st-card-sem .st-empty-add"), () => document.querySelector(".st-wb .st-wb-bar em")?.textContent === "WiSe 2026/27" && document.querySelector('.st-wb-a.top[aria-current="true"]')?.textContent.includes("Laut Plan im 3. FS") && document.querySelector("#st-wb-takeover"));
+  const bench = await page.evaluate(() => ({
+    areas: [...document.querySelectorAll(".st-wb-areas .st-wb-a:not(.top) .nm > span:last-child")].map((name) => name.textContent).join("|"),
+    rows: [...document.querySelectorAll(".st-wb-pane .st-wb-row")].map((row) => ({ name: row.querySelector(".st-wb-go b")?.textContent, act: row.querySelector(".st-wb-plus")?.textContent.trim() })),
+    semester: document.querySelector(".st-wb-sem .st-wb-rule")?.textContent,
+    sidebar: getComputedStyle(document.querySelector("#sidebar")).display,
+  }));
+  check(bench.areas === "Informatik|Mathematik|Nebenfach|FÜS|Fachstudium|Bachelor-Arbeit|Gemerkt|Im Katalog suchen", `the workbench's areas: ${bench.areas}`);
+  check(bench.rows.some((row) => row.name === "Theoretische Informatik" && row.act === "Einplanen") && bench.rows.some((row) => row.name === "Anwendungsfach" && row.act === "Wählen"), `what the workbench offers: ${JSON.stringify(bench.rows)}`);
+  check(bench.semester === "Noch nichts belegt." && bench.sidebar === "none", `the workbench's semester and the page's sidebar: ${JSON.stringify(bench)}`);
+  const ticked = Number((await page.textContent("#st-wb-takeover")).match(/\d+/)?.[0] || 0);
+  await step("Plan übernehmen", () => page.click("#st-wb-takeover"), (n) => document.querySelectorAll(".st-wb-sem .st-wb-sr").length === n && document.querySelector(".st-undo"), ticked);
+  await step("Fertig", () => page.click(".st-wb-done"), (n) => !document.querySelector(".st-wb") && document.querySelectorAll(".st-card-sem .st-row").length === n, ticked);
   const planned = await lines(page, "m\t2026W\t");
   const count = await page.evaluate(() => document.querySelector('.rail .nav[data-area="studyplan"] .nav-count')?.textContent);
   check(Number(count) === planned.length && planned.length === ticked && ticked >= 2, `the Stundenplan's tab counts ${count}, the current semester holds ${planned.length} of ${ticked} ticked`);
@@ -485,7 +503,7 @@ if (current !== "2026W") {
       columns: [...document.querySelectorAll(".st-mx thead th.fs b")].map((b) => b.textContent).join(""),
       os: row("Betriebssysteme I")?.querySelector(".st-minec")?.textContent.trim(),
       passed: document.querySelectorAll(".st-mx .st-rsp-c.is-passed").length,
-      choose: document.querySelectorAll('.st-mx a.st-addb[href="/study?view=areas"]').length,
+      choose: [...document.querySelectorAll(".st-mx button.st-addb")].filter((button) => button.textContent.startsWith("Wählen")).length,
     };
   });
   check(regular.current === "Regelstudienplan" && regular.groups.slice(0, 2).join() === "Komplex Informatik,Komplex Mathematik" && regular.columns === "123456" && regular.os === "SoSe 27" && regular.passed > 0 && regular.choose > 3, `the Regelstudienplan: ${JSON.stringify(regular)}`);
@@ -497,7 +515,12 @@ if (current !== "2026W") {
   // The store follows the click after its frame (R21).
   await page.waitForFunction(([key, prefix]) => !(localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith(prefix)), [PLAN, "m\t2027S\t12214"], { timeout: 4000 }).catch(() => {});
   check((await lines(page, "m\t2027S\t12214")).length === 0, "„Rückgängig\" did not take the module out again");
-  await step("Wählen: the Wahlpflicht", () => page.click('.st-mx tr.st-rsp-row:has-text("Anwendungsfach") a.st-addb'), () => location.search === "?view=areas" && document.querySelector('.st-sl[aria-current="true"]')?.textContent.includes("Anwendungsfach"));
+  // „Wählen ›" opens the workbench at the choice, for the semester of its first Fachsemester
+  // (folia/design/hinzufuegen/konzepte.html, third round); „Fertig" leads back to the view.
+  await step("Wählen: the workbench", () => page.click('.st-mx tr.st-rsp-row:has-text("Anwendungsfach") button.st-addb'), () => document.querySelector(".st-wb-pt h3")?.textContent === "Anwendungsfach" && document.querySelector(".st-wb-bar em")?.textContent === "WiSe 2026/27");
+  await step("Fertig, the Regelstudienplan again", () => page.click(".st-wb-done"), () => !document.querySelector(".st-wb") && document.querySelector(".st-mx"));
+  await step("the Wahlpflicht", () => page.click('#sidebar .st-vl:has-text("Wahlpflicht")'), () => location.search === "?view=areas" && document.querySelector(".st-sl"));
+  await step("its Anwendungsfach", () => page.click('.st-sl:has-text("Anwendungsfach")'), () => document.querySelector('.st-sl[aria-current="true"]')?.textContent.includes("Anwendungsfach"));
   const choice = await page.evaluate(() => ({
     current: document.querySelector('#sidebar .st-vl[aria-current="page"] span')?.textContent,
     lists: [...document.querySelectorAll(".st-lists button")].map((b) => b.childNodes[0].textContent),
@@ -524,11 +547,11 @@ if (current !== "2026W") {
     semester: document.querySelector(".st-card-sem .st-sem-sub b")?.textContent.replace(/ /g, " "),
     nebenfach: [...document.querySelectorAll(".st-card")].find((card) => card.querySelector(".st-card-name")?.textContent === "Nebenfach")?.querySelector(".st-card-figure")?.textContent,
   }));
-  // „Anwendungsfach" alone into WiSe 2026/27, as a place of 6 LP.
-  await step("Module hinzufügen, for a place", () => page.click(".st-card-sem .st-empty-add"), () => document.querySelector(".st-dialog[open] .st-choices"));
-  for (const tick of await page.$$('.st-dialog[open] .st-tick[aria-checked="true"]')) await tick.click();
-  await page.click('.st-dialog[open] .st-choice-row:has(.st-choice-name:text-is("Anwendungsfach")) .st-tick');
-  await step("the place put in", () => page.click("#st-insert"), () => !document.querySelector(".st-dialog[open]") && document.querySelectorAll(".st-card-sem .st-row").length === 1);
+  // „Anwendungsfach" alone into WiSe 2026/27, as a place of 6 LP: „Vormerken" in its subgroup.
+  await step("Module hinzufügen, for a place", () => page.click(".st-card-sem .st-empty-add"), () => document.querySelector(".st-wb #st-wb-takeover"));
+  await step("Anwendungsfach in the workbench", () => page.click('.st-wb-pane .st-wb-row.choice:has-text("Anwendungsfach") .st-wb-plus'), () => document.querySelector(".st-wb-pt h3")?.textContent === "Anwendungsfach" && document.querySelector('.st-wb-s[aria-current="true"]')?.textContent.includes("Anwendungsfach"));
+  await step("the place put in", () => page.click('.st-wb-foot button:has-text("Vormerken")'), () => document.querySelector(".st-undo")?.textContent.includes("Anwendungsfach in WiSe 2026/27 vorgemerkt"));
+  await step("Fertig, for a place", () => page.click(".st-wb-done"), () => !document.querySelector(".st-wb") && document.querySelectorAll(".st-card-sem .st-row").length === 1);
   // The store follows the click after its frame (R21).
   const place = (key) => (localStorage.getItem(key) || "").split("\n").map((line) => line.split("\t")).find((fields) => fields[0] === "p" && fields[2] === "2026W" && fields[9] === "Anwendungsfach")?.[1];
   await page.waitForFunction(place, PLAN, { timeout: 4000 }).catch(() => {});
@@ -536,23 +559,28 @@ if (current !== "2026W") {
   check(!!pid, `the place was not stored: ${JSON.stringify(await lines(page, "p\t"))}`);
   const open6 = await counts();
   check(open6.semester === "6 LP" && open6.nebenfach === "6/18", `the place alone: ${JSON.stringify(open6)}`);
-  // „Modul wählen", at the row and in its menu, names the place (`fill=`).
-  const find = await page.getAttribute(".st-card-sem .st-row .st-find", "href");
-  check(find?.endsWith(`&fill=p${pid}`), `„Modul wählen“ does not name the place: ${find}`);
+  // „Modul wählen", in its menu and at the row, opens the workbench at the place's subgroup
+  // (folia/design/hinzufuegen/konzepte.html, third round: „„Modul wählen“ an einem Platzhalter
+  // öffnet die Werkbank in seiner Untergruppe"), whose „Im Katalog suchen" names the place (`fill=`).
+  const atAnwendungsfach = () => document.querySelector(".st-wb-pt h3")?.textContent === "Anwendungsfach" && document.querySelector(".st-wb-bar em")?.textContent === "WiSe 2026/27";
   await step("the place's menu", () => page.click(".st-card-sem .st-row .st-status"), () => document.querySelector(".st-pop.root #st-menu-view"));
-  const entry = await page.getAttribute(".st-pop.root #st-menu-view", "href");
-  check(entry === find, `the menu's „Modul wählen“: ${entry}`);
-  await step("its menu closed", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-pop"));
-  await step("Modul wählen", () => page.click(".st-card-sem .st-row .st-find"), (pid) => location.pathname === "/catalog" && new URLSearchParams(location.search).get("fill") === `p${pid}` && document.querySelector('.row[data-id="12160"]'), pid);
+  await step("its „Modul wählen“", () => page.click(".st-pop.root #st-menu-view"), atAnwendungsfach);
+  await step("Fertig, from the menu's way", () => page.click(".st-wb-done"), () => !document.querySelector(".st-wb") && document.querySelector(".st-card-sem .st-row .st-find"));
+  await step("Modul wählen", () => page.click(".st-card-sem .st-row .st-find"), atAnwendungsfach);
+  const find = await page.getAttribute(".st-wb-foot a.btn", "href");
+  check(find?.endsWith(`&fill=p${pid}`), `„Im Katalog suchen“ does not name the place: ${find}`);
+  await step("Im Katalog suchen", () => page.click(".st-wb-foot a.btn"), (pid) => location.pathname === "/catalog" && new URLSearchParams(location.search).get("fill") === `p${pid}` && document.querySelector(".bench-bar")?.textContent.includes("für Anwendungsfach") && document.querySelector('.row[data-id="12160"]'), pid);
   // „Einplanen" aims at the place and its semester, and plans the module to fill it.
   const SWITCH = '.detail .hero .plan-toggle[data-action="plan"]';
   await step("Allgemeine BWL I beside the list", () => page.click('.row[data-id="12160"]'), (selector) => document.querySelector(selector)?.checkVisibility(), SWITCH);
   const aim = await page.evaluate((selector) => document.querySelector(selector)?.textContent.replace(/\s+/g, " "), SWITCH);
   check(aim?.includes("WiSe 26/27") && aim.includes("für „Anwendungsfach“"), `„Einplanen“ does not aim at the place: ${aim}`);
   await step("Einplanen, for the place", () => page.click(SWITCH), ([key, pid]) => (localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith("m\t2026W\t12160\t") && line.split("\t")[4] === pid), [PLAN, pid]);
-  // Back in „Mein Studium": one module of 6 LP for the place, counted once (it was 12 and 12/18:
-  // folia/design/hinzufuegen/konzepte.html, „Was heute schiefgeht"), the place saying what fills it.
-  await step("the semester, its place filled", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelectorAll(".st-card-sem .st-row").length === 2);
+  // Back in „Mein Studium" („Zurück zur Werkbank", then „Fertig"): one module of 6 LP for the
+  // place, counted once (it was 12 and 12/18: folia/design/hinzufuegen/konzepte.html, „Was heute
+  // schiefgeht"), the place saying what fills it.
+  await step("Zurück zur Werkbank", () => page.click(".bench-bar a"), () => location.pathname === "/study" && document.querySelector(".st-wb-pane .st-wb-row.is-done")?.textContent.includes("Allgemeine Betriebswirtschaftslehre I"));
+  await step("the semester, its place filled", () => page.click(".st-wb-done"), () => !document.querySelector(".st-wb") && document.querySelectorAll(".st-card-sem .st-row").length === 2);
   const filled = await counts();
   check(filled.semester === "6 LP" && filled.nebenfach === "6/18", `one module for the place counts twice: ${JSON.stringify(filled)}`);
   const placed = await rows(page);
@@ -748,11 +776,30 @@ if (current !== "2026W") {
   check(empty.icon && empty.words === "Noch keine Module" && empty.add === "Module hinzufügen" && empty.addrow === 0 && empty.rows === 0 && empty.after, `an empty semester on a phone: ${JSON.stringify(empty)}`);
   // „Module hinzufügen" puts the plan's third semester in; the note of the change stands over the
   // dots, and its „Rückgängig" takes it back.
-  await step("Module hinzufügen on a phone", () => page.tap(`${HERE} .st-empty-add`), () => document.querySelector(".st-dialog[open] .st-choices") && !document.querySelector("#st-insert")?.disabled);
-  await step("Einfügen on a phone", () => page.tap("#st-insert"), () => !document.querySelector(".st-dialog[open]") && document.querySelectorAll(".st-pager > .st-slot:not([inert]) .st-row").length > 0 && document.querySelector(".st-undo"));
-  const undo = await page.evaluate(() => { const box = document.querySelector(".st-undo").getBoundingClientRect(); return Math.round(document.querySelector(".st-dock .st-dots").getBoundingClientRect().top - box.bottom); });
-  check(undo >= 4, `the note of the change is not over the dots: ${undo}`);
-  await step("Rückgängig on a phone", () => page.tap(".st-undo .mini"), () => document.querySelector(".st-pager > .st-slot:not([inert]) .st-empty") && !document.querySelector(".st-pager > .st-slot:not([inert]) .st-row"));
+  // The workbench on a phone: the area a button over the list, the bar of the mode in the tab
+  // bar's place; „Plan übernehmen" with its note over that bar and „Rückgängig"; a tap on the bar
+  // shows what the semester holds, „Fertig" gives the tab bar back.
+  await step("Module hinzufügen on a phone", () => page.tap(`${HERE} .st-empty-add`), () => document.querySelector(".st-wb.phone .st-wb-pick") && document.querySelector(".st-wb-pbar") && document.querySelector("#st-wb-takeover"));
+  const modeBar = await page.evaluate(() => { const [mode, tabs] = [document.querySelector(".st-wb-pbar"), document.querySelector(".bottomnav")].map((el) => el?.getBoundingClientRect()); return { fixed: getComputedStyle(document.querySelector(".st-wb-pbar")).position, over: tabs ? Math.round(mode.bottom - tabs.top) : 0 }; });
+  check(modeBar.fixed === "fixed" && modeBar.over > 0, `the bar of the mode is not over the tab bar: ${JSON.stringify(modeBar)}`);
+  // What „Plan übernehmen" takes: the Pflicht of the 3. FS that stands nowhere yet (Softwarepraktikum
+  // and Mathematik IT-3 are planned into SoSe 2027 here, and stay there).
+  const taking = Number((await page.textContent("#st-wb-takeover")).match(/\d+/)?.[0] || 0);
+  check(taking === 1, `„Plan übernehmen“ takes ${taking} modules, not Theoretische Informatik alone`);
+  const empty0 = () => document.querySelector(".st-wb-pbar-w b")?.textContent.startsWith("WiSe 26/27 · 0 von 30");
+  await step("Plan übernehmen on a phone", () => page.tap("#st-wb-takeover"), (empty0) => document.querySelector(".st-undo") && !new Function(`return (${empty0})()`)(), empty0.toString());
+  const undo = await page.evaluate(() => { const box = document.querySelector(".st-undo").getBoundingClientRect(); return Math.round(document.querySelector(".st-wb-pbar").getBoundingClientRect().top - box.bottom); });
+  check(undo >= 4, `the note of the change is not over the bar of the mode: ${undo}`);
+  await step("Rückgängig on a phone", () => page.tap(".st-undo .mini"), () => document.querySelector(".st-wb-pbar-w b")?.textContent.startsWith("WiSe 26/27 · 0 von 30"));
+  await step("Plan übernehmen again", () => page.tap("#st-wb-takeover"), () => !document.querySelector(".st-wb-pbar-w b")?.textContent.startsWith("WiSe 26/27 · 0 von 30"));
+  // The semester's sheet: what it holds, and only that; × takes a module out.
+  await step("the semester on a phone", () => page.tap(".st-wb-pbar-w"), (n) => document.querySelectorAll(".st-dialog[open] .st-wb-sr").length === n, taking);
+  for (let left = taking - 1; left >= 0; left--) {
+    await step(`× on a phone, ${left} left`, () => page.tap(".st-dialog[open] .st-wb-rm >> nth=0"), (left) => document.querySelectorAll(".st-dialog[open] .st-wb-sr").length === left, left);
+  }
+  check((await page.textContent(".st-dialog[open] .st-wb-rule").catch(() => "")) === "Noch nichts belegt.", "the semester's sheet does not say it holds nothing");
+  await step("its sheet closed", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
+  await step("Fertig on a phone", () => page.tap(".st-wb-pbar .btn"), () => !document.querySelector(".st-wb") && document.querySelector(".st-pager > .st-slot:not([inert]) .st-empty") && !document.querySelector(".st-pager > .st-slot:not([inert]) .st-row"));
   // ‹ scrolls the row to the semester before, smoothly, as a finger would: past the overview, which
   // lies between the current semester and the one before.
   await watch();

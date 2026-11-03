@@ -36,7 +36,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr`, asking the data worker. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `folia/scripts/build-client.sh` into `site/pkg`. |
 | `worker/` | The data worker (WASM, no Leptos) and its script: the catalog in sql.js, every question of the app's pages answered beside the page's thread; built with the client. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets, the drawn cards. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what is meant first and marked, a lecturer written another way, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `courses.mjs` (a module held at two campuses: every course in its colour, Mein Studiengang's alone with „Auch zeigen", another program's highlighted, the Stundenplan's line naming the course), `choices.mjs` (a module's choices and extras: the exercises of HM T3 hatched and Mein Studiengang's taken with „Auch zeigen", the Aufbaukurs dotted, the groups of Musiktheorie, the 14 projects of Berufspraktische Profilierung in the list alone, the catalog's row; the Stundenplan with HM T3: the choice open, made with „✓" and opened again, „Zusatz", Bauingenieurwesen's exercise preselected and another taken in the panel), `termin.mjs` (a Termin in its own view: a slot of the Stundenplan opening it in the dialog over the plan, its head, the groups above the ticket and its switches in their order, two groups ticked — the one shown by its switch, another picked above — and both solid in the week, one taken back, the next date, one date hidden and shown again, the event off with what stands under its switch and on, „Zum Modul", Esc; a Termin of the start page over it and closed again; the sheet on a phone), `programs.mjs`, `bookmarks.mjs`, `arrows.mjs` („Knopf mit Pfeil": a row's arrow beside its bookmark and ⇧M, S and N gone, M with Caps Lock, a module's arrows marked or not, ⇧P and „Einplanen in …" — at its switch beside the rail, a semester chosen, „Rückgängig" —, the planned arrow's menu, ⌘ on a Mac), `befehle.mjs` („Befehle", R25: the button in the search field with its keys and a click, Ctrl + K, „Gehe zu" with the tabs' keys, / and F, a module's commands first and „Merken" with „Geht auch mit M", ↓ ↑, a filter folded by its group — Enter „mit" and off, Shift + Enter „ohne" —, a module by its number beside the list and as its page, a module page's sections, the settings saying what holds now, „Filter" and „Suchfeld", nothing found, Ctrl + K closing it, the single keys off), `tastatur.mjs` (the keyboard of the catalog and of what is global, R24: ↓ into the list at the open module, F into the filters with their ring, „Esc zum Verlassen" and the lit section, Tab from section to section opening „Weitere Filter" and stopping at either end, the arrows across the filters, + − Entf at a chip and the bar that names them, the bubble „Finden" with its marks, a typo, Enter, Shift + Enter and Esc, the knobs of the credits — + − Bild ↓ Ende, one taking the other along, a digit's field, the arrows going on —, ← → at an option group, Esc out into the list, Tab round the content and back to its row, V and Enter on the open row in full, Ctrl + F6 from region to region, the rail as one stop, Esc in the search, ? and the overview with its switch for the single keys, „Strg + K" on a PC and „⌘K" on a Mac), `selection.mjs` (several modules at once on the Merkliste: Ctrl, Shift, drawn with the mouse, the keys, the bar's „Sammlung", „Einplanen", „Teilen" and „Entfernen" with „Rückgängig", a row's menu, a finger held on a phone), `share.mjs` („Weitergeben": a collection's „Teilen" with its head, „Link kopieren", „Notizen mitnehmen", the text with each module's link; its link on another device kept as a collection, again with the notes under „Anderer Name …", which refuses a name there is; the whole list for a third device with every collection and note; the selection's link of modules alone; nothing of it in a request), `everywhere.mjs` (the Merkliste from elsewhere: the tab's menu of its views, the catalog's „Gemerkt" per collection and „nicht in …", „Mein Studium"'s Wahlpflicht with the marked module first, „Module hinzufügen" with „Merkliste" by collection and search, the Gesamtplan's cell, the three tabs on a phone, the Merkliste of the Stundenplan's „+ Modul" with „passt", the folded summer's, a collection taken in as visits and „Rückgängig", nothing of it in a request), `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `sheets.mjs` (the sheets of a phone: the three ways — fit, half, full —, nothing scrolling half up, the grabber, thrown by the speed as the finger lets go, a dialog over a module's sheet, a menu, the copy that glides away), `back.mjs` (Back on a phone as Android and an iPhone have it and on a wide screen: what lies over a page, the semester of „Mein Studium", the filters' draft, a module closed, a stack for each tab, the profile as a page of a while, a link from outside), `stages.mjs` (the tabs that stay built: a tab seen before in the next frame as it was left, scrolled as far, the title and the tags of the page in front, the way back at the head of a phone's page the page in front's alone), `achse.mjs` (a change of tab on a phone, the pages on an axis: a tap, Back to Start, taps on the way, a finger along the bar, the ground and the dots with their page, less motion, a wide screen), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", the arrow's menu — passed and back, moved, ⇧P and its keys, taken out —, a row swiped on a phone), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `choice-sheet.mjs` (the choice in focus, its sheet on a phone), `calendars.mjs` (calendars of one's own), `visits.mjs` (visits and „+ Modul": in the week, in „Offen", in the list and in „Mein Studium", a calendar of one's own), `own.mjs` (Termine of one's own: „+ Termin", the form and its draft, a free stretch clicked or held, the view with „Bearbeiten" and „Löschen", „Termin eintragen", Lena's calendar, the start page), `study.mjs` („Mein Studium": the first visit, the areas, the semester at the top of its box and the list of the semesters at its name, the box the catalog's list staying at the top, the rows as the catalog's with their status, the rows' menus, selecting several without boxes, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, a place filled by „Modul wählen" and by the Wahlpflicht and counted once, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `home.mjs` (the start page: the setup, „Studium anlegen" and „Rückgängig", the day, the photo and its name, the page under the bar on a wide screen, the phone's frost and leaves), `about.mjs` (the pages about Betula, `/about` leading to the overview, Esc back to the start page), `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box with „Neues Profil“, the profile page on top of the list it was opened from and its arrow back to it, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what is meant first and marked, a lecturer written another way, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `courses.mjs` (a module held at two campuses: every course in its colour, Mein Studiengang's alone with „Auch zeigen", another program's highlighted, the Stundenplan's line naming the course), `choices.mjs` (a module's choices and extras: the exercises of HM T3 hatched and Mein Studiengang's taken with „Auch zeigen", the Aufbaukurs dotted, the groups of Musiktheorie, the 14 projects of Berufspraktische Profilierung in the list alone, the catalog's row; the Stundenplan with HM T3: the choice open, made with „✓" and opened again, „Zusatz", Bauingenieurwesen's exercise preselected and another taken in the panel), `termin.mjs` (a Termin in its own view: a slot of the Stundenplan opening it in the dialog over the plan, its head, the groups above the ticket and its switches in their order, two groups ticked — the one shown by its switch, another picked above — and both solid in the week, one taken back, the next date, one date hidden and shown again, the event off with what stands under its switch and on, „Zum Modul", Esc; a Termin of the start page over it and closed again; the sheet on a phone), `programs.mjs`, `bookmarks.mjs`, `arrows.mjs` („Knopf mit Pfeil": a row's arrow beside its bookmark and ⇧M, S and N gone, M with Caps Lock, a module's arrows marked or not, ⇧P and „Einplanen in …" — at its switch beside the rail, a semester chosen, „Rückgängig" —, the planned arrow's menu, ⌘ on a Mac), `befehle.mjs` („Befehle", R25: the button in the search field with its keys and a click, Ctrl + K, „Gehe zu" with the tabs' keys, / and F, a module's commands first and „Merken" with „Geht auch mit M", ↓ ↑, a filter folded by its group — Enter „mit" and off, Shift + Enter „ohne" —, a module by its number beside the list and as its page, a module page's sections, the settings saying what holds now, „Filter" and „Suchfeld", nothing found, Ctrl + K closing it, the single keys off), `tastatur.mjs` (the keyboard of the catalog and of what is global, R24: ↓ into the list at the open module, F into the filters with their ring, „Esc zum Verlassen" and the lit section, Tab from section to section opening „Weitere Filter" and stopping at either end, the arrows across the filters, + − Entf at a chip and the bar that names them, the bubble „Finden" with its marks, a typo, Enter, Shift + Enter and Esc, the knobs of the credits — + − Bild ↓ Ende, one taking the other along, a digit's field, the arrows going on —, ← → at an option group, Esc out into the list, Tab round the content and back to its row, V and Enter on the open row in full, Ctrl + F6 from region to region, the rail as one stop, Esc in the search, ? and the overview with its switch for the single keys, „Strg + K" on a PC and „⌘K" on a Mac), `selection.mjs` (several modules at once on the Merkliste: Ctrl, Shift, drawn with the mouse, the keys, the bar's „Sammlung", „Einplanen", „Teilen" and „Entfernen" with „Rückgängig", a row's menu, a finger held on a phone), `share.mjs` („Weitergeben": a collection's „Teilen" with its head, „Link kopieren", „Notizen mitnehmen", the text with each module's link; its link on another device kept as a collection, again with the notes under „Anderer Name …", which refuses a name there is; the whole list for a third device with every collection and note; the selection's link of modules alone; nothing of it in a request), `everywhere.mjs` (the Merkliste from elsewhere: the tab's menu of its views, the catalog's „Gemerkt" per collection and „nicht in …", „Mein Studium"'s Wahlpflicht with the marked module first, the workbench's marked modules marked and its „Gemerkt" by collection and search with „+ Einplanen", the Gesamtplan's cell opening the workbench with the marked module first, the workbench's areas as a sheet on a phone, the Merkliste of the Stundenplan's „+ Modul" with „passt", the folded summer's, a collection taken in as visits and „Rückgängig", nothing of it in a request), `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `sheets.mjs` (the sheets of a phone: the three ways — fit, half, full —, nothing scrolling half up, the grabber, thrown by the speed as the finger lets go, a dialog over a module's sheet, a menu, the copy that glides away), `back.mjs` (Back on a phone as Android and an iPhone have it and on a wide screen: what lies over a page, the semester of „Mein Studium", the filters' draft, a module closed, a stack for each tab, the profile as a page of a while, a link from outside), `stages.mjs` (the tabs that stay built: a tab seen before in the next frame as it was left, scrolled as far, the title and the tags of the page in front, the way back at the head of a phone's page the page in front's alone), `achse.mjs` (a change of tab on a phone, the pages on an axis: a tap, Back to Start, taps on the way, a finger along the bar, the ground and the dots with their page, less motion, a wide screen), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", the arrow's menu — passed and back, moved, ⇧P and its keys, taken out —, a row swiped on a phone), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `choice-sheet.mjs` (the choice in focus, its sheet on a phone), `calendars.mjs` (calendars of one's own), `visits.mjs` (visits and „+ Modul": in the week, in „Offen", in the list and in „Mein Studium", a calendar of one's own), `own.mjs` (Termine of one's own: „+ Termin", the form and its draft, a free stretch clicked or held, the view with „Bearbeiten" and „Löschen", „Termin eintragen", Lena's calendar, the start page), `study.mjs` („Mein Studium": the first visit, the areas, the semester at the top of its box and the list of the semesters at its name, the box the catalog's list staying at the top, the rows as the catalog's with their status, the rows' menus, selecting several without boxes, the workbench („Module hinzufügen": its bar, its areas, „Laut Plan im 3. FS" and „Plan übernehmen", „Fertig"; on a phone its sheets and its bar over the tab bar), moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, a place put in by „Vormerken", filled through „Modul wählen" (the workbench at its subgroup, „Im Katalog suchen" with the workbench's bar and „Zurück zur Werkbank") and by the Wahlpflicht and counted once, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `bench.mjs` (the workbench of „Mein Studium“ in the concept's ten steps: its bar over everything it changes, the areas of the overview under „Laut Plan im 3. FS“, „Plan übernehmen“, the Nebenfach folding out at its Anwendungsfach, „Fach“, „Passt in meine Woche“ and „Im WiSe angeboten“, „+ Einplanen“ counting for its subgroup and remembered, a module of two choices and „Zählt für ›“, a module of the FÜS beside the page aiming at the workbench and Esc, the catalog with the workbench's bar and „Zurück zur Werkbank“, Esc ending the mode, nothing of it in a request), `home.mjs` (the start page: the setup, „Studium anlegen" and „Rückgängig", the day, the photo and its name, the page under the bar on a wide screen, the phone's frost and leaves), `about.mjs` (the pages about Betula, `/about` leading to the overview, Esc back to the start page), `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box with „Neues Profil“, the profile page on top of the list it was opened from and its arrow back to it, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`folia/crates/routes/src/url.rs`)
 
@@ -646,9 +646,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       switched so, or them as text; since 1.39.0), „Entfernen", and ×. What it did the note at the bottom says — „3 eingeplant · 2 in
       WiSe 26/27, 1 in SoSe 27", „3 Module entfernt" — with „Rückgängig" for all of them.
     - **From elsewhere** (Folia 1.37.0; konzept.html, „Von überall"): wherever Betula asks for a
-      module, the marked ones are at hand with the same collections — in „Mein Studium" a third
-      source of „Module hinzufügen", first in a cell of the Gesamtplan and in the Wahlpflicht's
-      lists, with how many count in a choice („Mein Studium" below); the catalog's „Gemerkt" per
+      module, the marked ones are at hand with the same collections — in „Mein Studium" the
+      workbench's „Gemerkt" and first in its groups (until 1.64.0 a third source of „Module
+      hinzufügen" and first in a cell of the Gesamtplan), and in the Wahlpflicht's lists, with how
+      many count in a choice („Mein Studium" below); the catalog's „Gemerkt" per
       collection; the Merkliste's tab held or right clicked, a menu of its views. In the Stundenplan
       the Merkliste is one of the two ways of „+ Modul" in each calendar (Folia 1.52.0,
       `studyplan/add.rs`; „Visits and „+ Modul"" below; from 1.38.0 to 1.51.0 „Aus der Merkliste"
@@ -1200,14 +1201,15 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       dann voll nach ganz oben"), as a phone's own sheets have them (iOS's medium and large detents,
       Material's half-expanded state): half up, its top at half the screen, and all up, 10 px under
       the safe area; it comes up from below to half up. What is read and worked in beside the page:
-      a dialog of the size „m" (a Termin, „Termin eintragen", the areas, „Studiengang wechseln"),
+      a dialog of the size „m" (a Termin, „Termin eintragen", the areas, „Studiengang wechseln",
+      the workbench's areas and semester),
       the filters and a page's sidebar, a module over a page, „Tasten" (a long list). A dialog takes
       the whole height, so that it does not grow and shrink with what it holds; one that holds less
       than half the screen has one stop, as tall as it is.
-    - **`full`**, all up at once, the whole height: its one stop. What needs all of the screen: a
-      dialog of the size „l" (a list to choose modules from), the map, „Plan einrichten" (a form
-      as tall as the screen with its search low in it, which half up the buttons at the screen's
-      foot hid).
+    - **`full`**, all up at once, the whole height: its one stop. What needs all of the screen:
+      the map, „Plan einrichten" (a form as tall as the screen with its search low in it, which
+      half up the buttons at the screen's foot hid), a dialog of the size „l" (a list to choose
+      from).
 
     A `Modal` stands as its size says (`ModalSize::sheet`: „s" fits, „m" half, „l" full) unless it
     says otherwise (`sheet=Sheet::…`); what changes its kind while it is open (a dialog that holds
@@ -1524,7 +1526,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   dialog picks its size by what it holds and keeps it while it is open, whatever its content does:
   **s**, a question or a note, 440 px wide and as tall as what it says; **m**, a form or an
   overview, 600 × 600 px („Studiengang wechseln", the areas, an area); **l**, a list to choose
-  from, 840 × 720 px („Module hinzufügen", a choice's modules); each at most the window less 24 px
+  from, 840 × 720 px (a choice's modules; „Module hinzufügen" until it became the workbench in
+  1.64.0); each at most the window less 24 px
   all round, its body scrolling inside. Until then the width was the kind's and the height the
   content's: „Module hinzufügen" shrank from 720 to 310 px when its tab changed, „Studiengang
   wechseln" grew and shrank with the program picked. The head says what the dialog is and has its
@@ -1555,8 +1558,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   goes to the top of what scrolls it, its name over it (a dialog's body, a sheet's, the page under
   its bar of the search), what scrolls it having the room to while the keyboard is up, so that what
   follows it shows: a picker, whose list ends above the keyboard (`--kb-room`), and any other text
-  field, the buttons beside a profile's or a plan's name, the hits under „Module hinzufügen"'s
-  search (owner, the same day, of the dialog of „Mein Studiengang": „Aber das kann ruhig bei jeder
+  field, the buttons beside a profile's or a plan's name, the hits under the search of „Module
+  hinzufügen" as it was until 1.64.0 (owner, the same day, of the dialog of „Mein Studiengang": „Aber das kann ruhig bei jeder
   combobox/Textfeld passieren"); not one in what stays where it is (the bar of the search, a
   dialog's bar). Once the keyboard has gone, what scrolled is back where it was. Before, the sheet
   stayed at the screen's foot behind the keyboard, and the picker's list with it. **Nothing of it
@@ -1836,7 +1839,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     pages (owner, 2026-10-19: „wenn man nach unten scrolled zum footer und dann weiter swiped dann
     gibt es ganz komisches behavior. Ich würde den footer bei den semester ansichten einfach raus
     nehmen. Der hat da eh keinen Mehrwert"), and its end stands above the dots. The dialogs („Bereiche",
-    „Studiengang wechseln", „Module hinzufügen") are sheets of a phone („The sheets of a phone"):
+    „Studiengang wechseln", the workbench's areas and its semester) are sheets of a phone („The
+    sheets of a phone"):
     half up first, a finger takes them all up or throws them away (owner, the same day: „Das muss
     auch unbedingt dazu, dass man die einfach wieder runter sliden kann"; until 2026-10-27 dragged
     down only, as the catalog's filters): the sheet follows the finger and the dim behind it fades,
@@ -1882,7 +1886,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     only what the semester offers (owner, 2026-10-04: „Es darf nur vorgeschlagen werden, was in dem
     Semester oder zuvor angeboten wurde … im SoSe soll kein WiSe modul angezeigt werden"). Nothing of
     it is under the rows on a phone either (owner, the same day: „Ja, auf dem Handy auch raus"); the
-    plans' `study::fits` stays for „Module hinzufügen", which shows none of it yet.
+    plans' `study::fits` stays, which the workbench (`bench.rs`) does not use: its „Laut Plan im
+    3. FS" is `bench::Due`.
     *A row* is a module as the catalog's list has it (owner, 2026-10-19, on a phone: „das aussehen,
     von den Modulen im semesterplan zu weit von den modulen im Modulkatalog abweicht … Gestalte das
     so, das der aufbau komplett gleich ist. Also padding, margin, Titel, LP, und format von den
@@ -1909,8 +1914,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     so that the place counts once, by the module (Folia 1.59.2; until then the catalog had no
     target, the module went into the semester the session plans for and counted besides the place:
     „12 LP" and „Nebenfach 12/18" for one module of 6, folia/design/hinzufuegen/konzepte.html).
-    „Module hinzufügen" does the same for a row standing in its semester already; a row put in
-    nowhere yet has no place to fill. Filled, the place says „gefüllt mit …", offers „Modul wählen"
+    Since 1.64.0 „Modul wählen" opens the workbench at the place's subgroup in its semester
+    instead, whose „+ Einplanen" and „Im Katalog suchen ›" fill the place the same way. Filled, the place says „gefüllt mit …", offers „Modul wählen"
     no more and counts nothing of its own, in its area as in its semester (`Item::counted`). The status, or a right click
     on the row, opens its menu at the status or the pointer (`menu.rs`): „Modul wählen" for a
     placeholder, „Als bestanden markieren" (or „Bestanden zurücknehmen"), „Verschieben nach ›" (a
@@ -2004,36 +2009,70 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     the area's modules in that semester as plain lines; in grey where it fits next what the plan
     still has open (`study::open_lines`: a row at its first Fachsemester, not before the current
     semester, in the next one that offers it; a Wiederholer in the next semester that offers it), a
-    click adds it; „Modul hinzufügen" on a cell's hover offers that area's modules for that semester
-    (`picker::CellDialog`: the tree's areas below it as filters, those offered then first, the rest
-    folded; in each the area's marked modules first, marked — asked for of their own, so that no
-    limit of the list leaves one out); a click on a module (or a right click) opens its menu, the semesters' row menu; a
-    module dragged into another column moves there.
+    click adds it; „Modul hinzufügen" on a cell's hover opens the workbench for that semester at
+    that area (until 1.64.0 a dialog of the area's modules, `picker::CellDialog`); a click on a
+    module (or a right click) opens its menu, the semesters' row menu; a module dragged into another
+    column moves there.
   - **Adding, moving, taking out** (owner: adding and removing were „eine absolute Krise"):
-    „Module hinzufügen" (`picker.rs`) for a semester lists the rows of a Fachsemester of the plan
-    (its own; „Plan-Semester" picks another), each with where it stands (passed, planned elsewhere
-    „– würde hierher verschoben", planned here), its turnus, what it asks for of other modules
-    (`study::needs`, from the catalog's prerequisites: in place it reads „empfiehlt … ✓", where
-    something is missing only that, in the warning colour where it is asked for), then the
-    Wiederholer, and „Im Katalog suchen" (the catalog's search, the program's modules or all).
-    Once something is marked, the Merkliste is a third source between the two (Folia 1.37.0;
-    folia/design/merken/konzept.html, „Von überall"), and the three tabs have short names, so that
-    they fit a phone side by side: „Regelstudienplan", „Merkliste", „Katalog". „Merkliste" lists
-    the marked modules in the order of marking, by collection (chips with their numbers, where
-    there is one) and by a search of their titles, numbers, notes and collections, each with what
-    it means for the semester as the catalog's search says it (offered or „im SoSe nicht
-    angeboten", planned elsewhere „– würde hierher verschoben", passed, the area it counts in,
-    what it asks for); what the semester offers first, then what it does not, what is done last.
-    Its modules are asked for in the browser once the tab is opened (R9). What is ticked stays
-    ticked across the tabs. Wherever the dialog lists a marked module, it says so with its
-    collections („gemerkt: Wahlpflicht"). The plan's open modules that the semester offers come ticked for its own Fachsemester;
-    „Einfügen (n)" says what the semester comes to then against the plan. Marking as passed,
-    moving and taking out are a row's menu and the bar of the rows selected (`menu::Act`, the same
-    for one and for several); marking is no box to tick by the way any more (owner: „Das ist eine
-    Aktion, die man idealer weise nur einmal macht"). Every change answers in the next frame (R21);
-    each of them says so at the bottom with „Rückgängig". Nothing is refused: a module that the
-    semester does not offer, a semester heavier than the plan, credits beyond an area are said,
-    never blocked.
+    „Module hinzufügen" opens the workbench (`bench.rs`, Folia 1.64.0; folia/design/hinzufuegen/
+    konzepte.html, third round; owner, 2026-11-03: „Passt so, bau das jetzt in Folia"): planning
+    one semester is a mode, which „Fertig" or Esc end (Esc closes the module beside the page first;
+    enhance.js clicks `data-action="close-focus"`). Until 1.64.0 a dialog with three tabs did it
+    („Regelstudienplan", „Merkliste", „Katalog": rows to tick and „Einfügen", folia/design/
+    hinzufuegen/konzepte.html, the first round's analysis). Its bar stands over everything it
+    changes (CLAUDE.md, „What picks stands above what it changes"): „Planen", the semester with
+    ‹ › (another one, the mode staying), its Fachsemester, what it holds against the plan with a
+    meter, „Fertig". Under it on a desktop three columns, the page's sidebar aside meanwhile: the
+    areas of the plan as the overview has them (`folia_plans::bench`: one row per area with its dot
+    and its LP; an area's subgroups are its Pflicht and each of its choices, by the Fachsemester
+    they begin in; a click folds an area with subgroups out at the one that is due — a choice open
+    of the Fachsemester or one before it, a Pflicht with a row of them that stands nowhere —, else
+    the first one open; one area open at a time), „Laut Plan im 3. FS" above them, „Gemerkt" and
+    „Im Katalog suchen" under them; in the middle what is picked; on the right the semester, as wide
+    as the module beside the page, which floats over it when a row is opened, and only what is
+    taken in it (owner: „Da sollte nur zu sehen sein, was man alles belegt hat"), each module with
+    the subgroup it counts for („für Anwendungsfach", „Pflicht"), × to take it out, what is beyond
+    the plan said under the meter. *„Laut Plan im 3. FS"* (`bench::Due`): the Pflicht of the
+    Fachsemester with „Plan übernehmen" (those of its modules that stand nowhere yet and that the
+    semester offers, at once), its choices with „Wählen ›" (their subgroup) or „Ändern" once they
+    are complete, the stored placeholders of the semester as „Vorgemerkt", what is open from the
+    Fachsemester before it (the Pflicht's rows that stand nowhere, choices not complete — the FÜS of
+    the 1. FS —, what was not passed and is not planned again) and, folded, what the next
+    Fachsemester could take now. *A subgroup*: a choice's modules (its lists, the FÜS list for the
+    FÜS) or the Pflicht's (by the Fachsemester the plan puts them into), its head with the area,
+    what the plan asks and the rule; „Fach" where a choice has several lists, „Im WiSe angeboten",
+    „Passt in meine Woche" and a search above the list, which change only the list; the list in
+    groups by the student's week (`pages::fit` against the semester's plan: they fit, meet it, have
+    no fixed dates, the semester does not offer them by its turnus; a semester without dates groups
+    by its offer alone and says so), each row with its number, its „Fach" or its Fachsemester, its
+    turnus, language and Termine, where it is planned elsewhere, what it means for the week and
+    „+ Einplanen", which plans at once with the note and „Rückgängig" (`bench::plan_for`: a
+    placeholder of the choice standing in the semester that nothing fills is filled by it, else the
+    module remembers the choice's first row, `Planned::counts`, and counts there); a marked module
+    says so with its collections and comes first in its group (folia/design/merken/konzept.html,
+    „Von überall"). Under the list „Im Katalog suchen ›" (the choice's catalog as the program's page
+    has it, the semester's half of the year, `fill=` for its placeholder) and „Vormerken" (the
+    choice as a placeholder of the semester, for later). *„Gemerkt"*: the marked modules, by
+    collection and search, each with the subgroup it counts for. *The catalog with the workbench as
+    its target* (`folia_stores::studyplan::Planning::set_bench`): while the mode is open every
+    „Einplanen" without a page's own hint aims at its semester and lets the module count for the
+    subgroup picked, and the catalog's list has the mode's bar at its head („Planen · WiSe 2026/27 ·
+    für Fachübergreifendes Studium", `BenchBar`) with „Zurück zur Werkbank" (Esc). On a phone the
+    area is a button over the list that opens the same areas as a sheet, a tap folding an area out
+    and a tap on a subgroup showing it; the bar of the mode takes the tab bar's place (as the bar
+    of the rows selected does) with the semester's credits — a tap shows what it holds as a sheet,
+    with ‹ › — and „Fertig"; Back leaves the mode (`nav::Kind::State`). The Gesamtplan's cell opens
+    the workbench for its semester at its area, „Wählen ›" in the Regelstudienplan and „Planen ›" in
+    the Wahlpflicht at the choice, „Modul wählen" at a placeholder (at the row and in its menu) at
+    the placeholder's subgroup in its semester; „Einplanen" at a module not passed and not planned
+    again plans it at once. A module's menu has „Zählt für ›" (the choices whose lists hold it,
+    the one it counts for now checked, and where the tree counts it; `bench::count_for`). Marking
+    as passed, moving and taking out are a row's menu and the bar of the rows selected
+    (`menu::Act`, the same for one and for several); marking is no box to tick by the way any more
+    (owner: „Das ist eine Aktion, die man idealer weise nur einmal macht"). Every change answers in
+    the next frame (R21); each of them says so at the bottom with „Rückgängig". Nothing is refused:
+    a module that the semester does not offer, a semester heavier than the plan, credits beyond an
+    area are said, never blocked.
   - **The rule** (`folia_plans::study`, pure, tested on every plan of the snapshot). *The areas*
     (`areas`): a row of the plan belongs to the thesis, to the FÜS, or to a group by its
     `subject_area` (Informatik B.Sc.: „Komplex Informatik" …), else the top of the program's module
