@@ -19,7 +19,8 @@ use folia_model::rows::{CatalogRow, Prerequisite};
 use folia_pages::ask::{CatalogRowsAsk, StudyModulesAsk};
 use folia_plans::study::{self, AreaKind, Need, Offer, Pick, Stand, Standing};
 use folia_plans::studyplan::PlanDoc;
-use folia_routes::filter::{CatalogQuery, ProgramRelation, ProgramScope};
+use folia_plans::variants;
+use folia_routes::filter::{CatalogQuery, ProgramScope};
 use leptos::prelude::*;
 
 use folia_data::use_ask;
@@ -665,10 +666,12 @@ pub(super) fn CellDialog(ctx: StudyCtx, area: Option<usize>, semester: SemesterK
             let progress = area.and_then(|area| ready.study.progress.get(area));
             let base = ProgramScope { program_slug: ready.program.slug.clone(), ..Default::default() };
             match progress {
-                Some(progress) if progress.area.kind == AreaKind::Fues => Some((ProgramScope { relation: ProgramRelation::Fues, ..base }, Vec::new())),
+                // The program's FÜS list, the BTU's where it has none.
+                Some(progress) if progress.area.kind == AreaKind::Fues => Some((variants::fues_list_for(&ready.program, t.locale).0, Vec::new())),
                 Some(progress) if !progress.area.tree.is_empty() => {
                     let filters = sub_areas(ctx, &progress.area.tree);
-                    Some((ProgramScope { areas: progress.area.tree.iter().copied().collect(), ..base }, filters))
+                    let scope = ProgramScope { areas: progress.area.tree.iter().copied().collect(), ..base };
+                    Some((CatalogQuery { program: Some(scope), ..Default::default() }, filters))
                 }
                 _ => None,
             }
@@ -680,16 +683,16 @@ pub(super) fn CellDialog(ctx: StudyCtx, area: Option<usize>, semester: SemesterK
     let settled = typed_search(text);
     let asked = Memo::new(move |_| {
         let text = settled.get();
-        let program = match scope.get() {
-            Some((scope, _)) => Some(match filter.get() {
-                Some(id) => ProgramScope { areas: vec![id], ..scope },
-                None => scope,
-            }),
+        let mut query = match scope.get() {
+            Some((query, _)) => query,
             // An area without modules of its own (the thesis, what counts nowhere): the search.
-            None if text.trim().chars().count() >= 2 => None,
+            None if text.trim().chars().count() >= 2 => CatalogQuery::default(),
             None => return None,
         };
-        Some(CatalogQuery { text, program, ..Default::default() })
+        if let (Some(id), Some(scope)) = (filter.get(), query.program.as_mut()) {
+            scope.areas = vec![id];
+        }
+        Some(CatalogQuery { text, ..query })
     });
     let hits = use_ask(move || asked.get().map(|query| CatalogRowsAsk { query, offset: 0, limit: 200 }));
     // The marked modules of the area, asked for of their own, so that no limit of the list leaves

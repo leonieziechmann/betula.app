@@ -2600,8 +2600,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   area each row was taken to mean (as links to the list narrowed down to it), and that this is
   derived from names, never stated (R12). Rows stated as Pflicht, Abschlussarbeit or Praktikum
   without a module are one module the catalog does not know under that name; FÜS rows point to
-  the program's FÜS list. The URL still says only the semester; the derived areas are part of the
-  query the page ran (`CatalogData::effective`), which the endless list loads further pages with.
+  the program's FÜS list, the BTU's where the program has none. The URL still says only the
+  semester; the derived areas are part of the query the page ran (`CatalogData::effective`),
+  which the endless list loads further pages with.
   **The note is a line a row and scrolls with the list** (owner, 2026-09-23: fixed above the
   rows it left room for two of them on a laptop, and „viel Redundanz"): „≥ 6 LP Anwendungsfach:
   „Mathematik“, … oder „Physik“" — how much (a choice at least that much), what the plan calls
@@ -3273,27 +3274,33 @@ every module of it (`ranking.rs`' `dump_for_the_prototype`).
 
 ### From the program's page into the catalog (2026-09-21)
 
-Owner: the program's page and the catalog should work together, the way into the catalog first
-in the sidebar, with the right areas chosen. The first entry of the program's sidebar is
-„Im Modulkatalog" (`program::catalog_for`), and it takes along what is picked on the page: an
-area beside the page → the catalog narrowed down to that area; a row of the plan → the areas the
-row means, the same derivation as the row's panel (`plan::areas_for_row`; „Anwendungsfach" →
+Owner: the program's page and the catalog should work together, the way into the catalog first in
+the sidebar, with the right areas chosen. The first entry of the program's sidebar is „Im
+Modulkatalog" (`program::catalog_for`), and it takes along what is picked on the page: an area
+beside the page → the catalog narrowed down to that area; a row of the plan → the areas the row
+means, the same derivation as the row's panel (`plan::areas_for_row`; „Anwendungsfach" →
 `area=348,350,351,352,349`, the five Nebenfächer), the FÜS list for a FÜS row, a search for the
-name of a single module, the program's electives where no area fits; nothing picked → the
-program. The electives only where a source states one (`CatalogArea::electives`): in 25 of the
-129 current programs with a plan none does — the tree states no kind, the plan names the
-compulsory modules — and until 2026-11-01 „Modul wählen" led 106 rows of 15 of them into an
-empty list. There a row lists the modules not known to be Pflicht, the thesis or the internship
-(`not-kind=compulsory,thesis,internship`, „Module des Studiengangs ohne Pflichtmodule"; the 18 of
-„Profilierung" in Bauingenieurwesen B.Sc.), and where the tree holds nothing but Pflicht, the
-thesis and the internship, or there is no tree, the whole curriculum („Alle Module des
-Studiengangs"); `variants::tests` checks every row of every plan of the snapshot. The second
-line of the link says what it lists („Praktische Informatik", „5 Bereiche",
-„109 Module"); the row's panel opens with the same way in, as its first button, and lists what
-can be chosen under it (owner, 2026-09-23: it stated credits, kind and semester twice, as badges
-and as facts, and put the catalog last). The catalog's area filter takes several
-areas for that (`ProgramScope::areas`, any of them). The server's page picks nothing, so its link
-is the program's (no part of the cache key changes). `node folia/e2e/programs.mjs` walks it.
+name of a single module, the program's electives where no area fits; nothing picked → the program.
+The FÜS list is the program's own; where the data holds none (20 of the 129 current programs with
+a plan, two with FÜS rows: Power Engineering and Urban Design and Sustainable Revitalization,
+whose 3 FÜS rows led to an empty list until 2026-11-03), the BTU's (`fues=only`, „FÜS-Liste der
+BTU"), whose modules „Mein Studium" counts for the FÜS anyway. Every way to a FÜS list decides so
+(`variants::fues_list_for`): „Modul wählen", the program's page, the Stundenplan's placeholders,
+the FÜS of „Mein Studium" in its overview, its view of the choices and a cell of the Gesamtplan,
+and the catalog's note of a semester. The electives only where a source states one
+(`CatalogArea::electives`): in 25 of the 129 current programs with a plan none does — the tree
+states no kind, the plan names the compulsory modules — and until 2026-11-01 „Modul wählen" led
+106 rows of 15 of them into an empty list. There a row lists the modules not known to be Pflicht,
+the thesis or the internship (`not-kind=compulsory,thesis,internship`, „Module des Studiengangs
+ohne Pflichtmodule"; the 18 of „Profilierung" in Bauingenieurwesen B.Sc.), and where the tree
+holds nothing but Pflicht, the thesis and the internship, or there is no tree, the whole
+curriculum („Alle Module des Studiengangs"); `variants::tests` checks every row of every plan of
+the snapshot. The second line of the link says what it lists („Praktische Informatik", „5
+Bereiche", „109 Module"); the row's panel opens with the same way in, as its first button, and
+lists what can be chosen under it (owner, 2026-09-23: it stated credits, kind and semester twice,
+as badges and as facts, and put the catalog last). The catalog's area filter takes several areas
+for that (`ProgramScope::areas`, any of them). The server's page picks nothing, so its link is the
+program's (no part of the cache key changes). `node folia/e2e/programs.mjs` walks it.
 
 ### Exam dates the BTU cannot mean (`folia/crates/timetable/src/exam_reading.rs`, 2026-09-21)
 

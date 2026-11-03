@@ -1479,7 +1479,7 @@ fn catalog_for(data: &ProgramData, variant: usize, area: Option<i64>, req: Optio
     let Some((entry, plan)) = row else {
         return (scoped(base), (t.programs.modules)(data.program.curricular_modules));
     };
-    let (query, what) = variants::row_query(&data.program.slug, plan, entry, &known, crate::i18n::locale());
+    let (query, what) = variants::row_query(&data.program, plan, entry, &known, crate::i18n::locale());
     (path(query), what)
 }
 

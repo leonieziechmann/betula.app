@@ -58,6 +58,8 @@ pub struct Texts {
     pub unnamed_plan: &'static str,
     /// What the link from a row of a plan into the catalog says: „FÜS-Liste des Studiengangs" …
     pub fues_list: &'static str,
+    /// … „FÜS-Liste der BTU", where the program has no FÜS list of its own …
+    pub btu_fues_list: &'static str,
     /// … „Wahlpflichtmodule des Studiengangs" …
     pub program_electives: &'static str,
     /// … „Module des Studiengangs ohne Pflichtmodule", where the program's sources state no
@@ -98,6 +100,7 @@ pub const DE: Texts = Texts {
     all_electives: "alle Wahlpflichtmodule",
     unnamed_plan: "Regelstudienplan",
     fues_list: "FÜS-Liste des Studiengangs",
+    btu_fues_list: "FÜS-Liste der BTU",
     program_electives: "Wahlpflichtmodule des Studiengangs",
     program_not_compulsory: "Module des Studiengangs ohne Pflichtmodule",
     program_modules: "Alle Module des Studiengangs",
@@ -128,6 +131,7 @@ pub const EN: Texts = Texts {
     all_electives: "all compulsory elective modules",
     unnamed_plan: "Standard study plan",
     fues_list: "FÜS list of the degree programme",
+    btu_fues_list: "FÜS list of the BTU",
     program_electives: "Compulsory elective modules of the degree programme",
     program_not_compulsory: "Non-compulsory modules of the degree programme",
     program_modules: "All modules of the degree programme",
