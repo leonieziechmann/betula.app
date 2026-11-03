@@ -536,6 +536,16 @@ struct Parts {
 }
 
 impl Parts {
+    /// Reads what the model is made of before the model (R16): its semester, and the program's
+    /// plans, the rows and the page's state it is worked out from. A view that reads the model and
+    /// then any of them calls this first.
+    fn follow(&self, ctx: StudyCtx) {
+        self.semester.track();
+        ctx.plans.track();
+        ctx.rows.track();
+        ctx.state.track();
+    }
+
     fn new(ctx: StudyCtx) -> Self {
         let t = i18n::t();
         let semester = Memo::new(move |_| ctx.bench.with(|bench| bench.map(|bench| bench.semester)));
@@ -683,6 +693,7 @@ fn AreaList(ctx: StudyCtx, parts: Parts, phone: bool) -> impl IntoView {
         semester_catalog(ctx, s, t)
     });
     move || {
+        parts.follow(ctx);
         let Some(model) = parts.model.get() else { return ().into_any() };
         let pane = parts.pane.get();
         let open = folded.get();
@@ -1002,6 +1013,7 @@ fn PlanPane(ctx: StudyCtx, parts: Parts) -> impl IntoView {
     let b = &t.study_bench;
     let more = RwSignal::new(false);
     move || {
+        parts.follow(ctx);
         let (Some(model), Some(s)) = (parts.model.get(), parts.semester.get()) else { return ().into_any() };
         // Read so that a new answer redraws the rows.
         parts.rows.track();
@@ -1139,6 +1151,7 @@ fn PflichtPane(ctx: StudyCtx, parts: Parts, at: usize) -> impl IntoView {
     let t = i18n::t();
     let b = &t.study_bench;
     move || {
+        parts.follow(ctx);
         let (Some(model), Some(s)) = (parts.model.get(), parts.semester.get()) else { return ().into_any() };
         parts.rows.track();
         parts.week.track();
@@ -1291,6 +1304,7 @@ fn ListPane(ctx: StudyCtx, parts: Parts, group: Option<usize>) -> impl IntoView 
 
     // The list, as the answers and the switches have it.
     let body = move || {
+        parts.follow(ctx);
         let (Some(model), Some(s)) = (parts.model.get(), parts.semester.get()) else { return ().into_any() };
         let the_group = group.and_then(|at| model.groups.groups.get(at)).cloned();
         let choice = choice.get();
@@ -1390,6 +1404,7 @@ fn ListPane(ctx: StudyCtx, parts: Parts, group: Option<usize>) -> impl IntoView 
 
     // Under the list: the catalog with the subgroup and the semester, „Vormerken".
     let foot = move || {
+        parts.follow(ctx);
         let (Some(model), Some(s)) = (parts.model.get(), parts.semester.get()) else { return None };
         let the_group = group.and_then(|at| model.groups.groups.get(at)).cloned()?;
         let choice = choice.get();
@@ -1437,6 +1452,7 @@ fn SemesterColumn(
     let t = i18n::t();
     let b = &t.study_bench;
     move || {
+        parts.follow(ctx);
         let (Some(s), Some(model)) = (parts.semester.get(), parts.model.get()) else { return ().into_any() };
         let Some((label, sub, now, credits, planned, items, visits)) = ctx
             .with_ready(|ready| {

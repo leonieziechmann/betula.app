@@ -539,10 +539,8 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
     };
     let notes_view = |notes: Vec<String>| (!notes.is_empty()).then(|| view! { " · "<span class="ob-warn">{notes.join(", ")}</span> });
     // The four as the list shows them, with their Fachsemester and notes, and the start of the
-    // fifth box with its notes: each one memo for its view. A view that read `offered` and
-    // `source` both missed the plans when they came: reactive_graph 0.2.14 checks an effect's
-    // sources in turn, and `offered`, checked first, brings `source` up to date, which then has
-    // nothing left to report (a memo checks itself once more; an effect does not).
+    // fifth box with its notes: each one memo for its view. A view that read `offered` and then
+    // `source` missed the plans when they came (R16).
     let starts = Memo::new(move |_| {
         let now = now.get();
         offered.get().unwrap_or_default().into_iter().map(|key| (key, now.and_then(|now| fachsemester(now, key)).unwrap_or(1), notes_of(key))).collect::<Vec<(SemesterKey, u8, Vec<String>)>>()

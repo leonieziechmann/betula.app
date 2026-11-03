@@ -10,7 +10,8 @@
 // „Rückgängig" in the note at the bottom); collections („Sammlungen", step 2): made in the sidebar,
 // a view of the list with an address of its own, a name there never twice, a module put into one
 // from its switch's arrow with a note in Markdown, at its row and under its switches, deleted and
-// put back; the note after marking with its field; „Gemerkt" as a filter of the catalog; the rail's item as a tab; „Vollbild" of a
+// put back; the note after marking with its field; „Gemerkt" as a filter of the catalog; near the
+// limit „250 / 256" as a warning that follows the count; the rail's item as a tab; „Vollbild" of a
 // module opened from the marked modules in place, and „Zurück" from it; another tab of the same
 // browser; what the snapshot does not know; garbage in the storage.
 // Privacy: no request ever carries a marked id, what is typed into the Merkliste's search, a
@@ -524,6 +525,43 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   const said = await flat.evaluate(() => ({ title: document.querySelector(".rows .state-title")?.textContent ?? "", rows: document.querySelectorAll(".rows a.row").length, chip: [...document.querySelectorAll(".chip-label")].filter((el) => el.textContent === "Gemerkt" && el.getClientRects().length).length }));
   check(said.title.includes("kennt nur dein Browser") && said.rows === 0 && said.chip === 0, `without the app a shared „marked=only" link: ${JSON.stringify(said)}`);
   await plain.close();
+}
+
+// ---------- near the limit ----------
+// „250 / 256" as a warning from 250 on (oberflaeche.html, „Bei 256 ist Schluss"), and none below:
+// a mark taken away on the list takes the warning with it, and marking again brings it back (a
+// closure that read `near` before the count kept the warning at 249, R16).
+{
+  const ids = new Set();
+  for (let at = 1; ids.size < 250 && at < 20; at++) {
+    const html = await (await fetch(`${base}/catalog?page=${at}`)).text();
+    for (const found of html.matchAll(/data-id="(\d{5,6})"/g)) ids.add(found[1]);
+  }
+  const seed = [...ids].slice(0, 250).map((id, at) => `${id}\t${1790000000 + at}\n`).join("");
+  const context = await browser.newContext({ viewport: { width: 1500, height: 900 } });
+  await context.addInitScript(ON_PAGE);
+  await context.addInitScript(([key, seed]) => {
+    if (sessionStorage.getItem("seeded")) return;
+    localStorage.setItem(key, seed);
+    sessionStorage.setItem("seeded", "1");
+  }, [KEY, seed]);
+  const page = await context.newPage();
+  watch(page);
+  await page.goto(base + "/bookmarks", { waitUntil: "domcontentloaded" });
+  await takeover(page);
+  const head = () => page.evaluate(() => { const count = onPage(".list-head .count.num"); return { text: count?.textContent ?? "", warn: Boolean(count?.classList.contains("warn")) }; });
+  const says = (text) => page.waitForFunction((text) => onPage(".list-head .count.num")?.textContent === text, text, { timeout: 8000 }).catch(() => {});
+  await page.waitForFunction(() => onPage(".list-head .count.num")?.textContent === "250 / 256", null, { timeout: 20000 }).catch(() => problems.push(`near the limit: the head does not say „250 / 256" (${ids.size} modules found)`));
+  const full = await head();
+  const first = await page.evaluate(() => onPage(".rows a.row")?.dataset.id);
+  await page.click(`.row-wrap:has(a.row[data-id="${first}"]) > .mark-toggle >> visible=true`);
+  await says("249 / 256");
+  const fewer = await head();
+  await page.click(`.row-wrap:has(a.row[data-id="${first}"]) > .mark-toggle >> visible=true`);
+  await says("250 / 256");
+  const again = await head();
+  check(full.warn && fewer.text === "249 / 256" && !fewer.warn && again.text === "250 / 256" && again.warn, `near the limit: the warning does not follow the count: ${JSON.stringify([full, fewer, again])}`);
+  await context.close();
 }
 
 // ---------- phone ----------

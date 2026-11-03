@@ -179,21 +179,27 @@ pub(super) fn StudyCard(
         let count = fold.with(|(_, items, _)| items.len());
         note(direction_changed.get(), was, Part::Direction, (count > 1).then(|| (s.directions_line)(count)))
     };
-    let fs_value = move || match start.get() {
-        Some(start) if start > now.get() => (s.begins_in)(&start.label(t.locale)),
-        Some(start) => leave.with(|leave| study::fs_of(start, now.get(), leave)).map_or_else(|| s.leave.to_string(), |fs| (s.fs_long)(fs)),
-        None => (s.fs_long)(1),
+    // The current semester before the start, which may be made of it (the setup's start assumed
+    // from it, R16).
+    let fs_value = move || {
+        let at = now.get();
+        match start.get() {
+            Some(start) if start > at => (s.begins_in)(&start.label(t.locale)),
+            Some(start) => leave.with(|leave| study::fs_of(start, at, leave)).map_or_else(|| s.leave.to_string(), |fs| (s.fs_long)(fs)),
+            None => (s.fs_long)(1),
+        }
     };
     let fs_note = move || {
-        let plain = start.get().filter(|start| *start <= now.get()).map(|start| {
+        let at = now.get();
+        let plain = start.get().filter(|start| *start <= at).map(|start| {
             let since = (s.since)(&start.label(t.locale));
-            match leave.with(|leave| leave_between(start, now.get(), leave)) {
+            match leave.with(|leave| leave_between(start, at, leave)) {
                 0 => since,
                 n => format!("{since} · {}", (s.leave_line)(n)),
             }
         });
         let was = kept.with(|kept| kept.as_ref().map(|kept| {
-            let fs = leave.with(|leave| study::fs_of(kept.start, now.get(), leave));
+            let fs = leave.with(|leave| study::fs_of(kept.start, at, leave));
             fs.map_or_else(|| (s.begins_in)(&kept.start.label(t.locale)), |fs| (s.fs_long)(fs))
         }));
         // What it was, after where it starts now: both stay on the line.

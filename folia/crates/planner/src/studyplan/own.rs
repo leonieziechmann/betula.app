@@ -575,10 +575,11 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
         ctx.calendars.with(|calendars| all.extend(calendars.iter().map(|calendar| (calendar.id, calendar.name.clone()))));
         all
     });
-    let sub = Memo::new(move |_| {
-        let name = calendars.with(|all| all.iter().find(|(id, _)| *id == calendar.get()).map(|(_, name)| name.clone())).unwrap_or_default();
-        (o.form_sub)(&name, &ctx.key.get().label(t.locale))
-    });
+    // The name of its calendar: a memo of its own, beside `fit` and `full`, which read `calendar` as
+    // well. The line read `calendar` after them and kept the name of the calendar before when the
+    // draft went from one calendar of one's own to another (R16).
+    let calendar_name = Memo::new(move |_| calendars.with(|all| all.iter().find(|(id, _)| *id == calendar.get()).map(|(_, name)| name.clone())).unwrap_or_default());
+    let sub = Memo::new(move |_| (o.form_sub)(&calendar_name.get(), &ctx.key.get().label(t.locale)));
     // The modules it may belong to: those of its calendar's week, by their titles.
     let modules = Memo::new(move |_| {
         let id = calendar.get();
@@ -780,10 +781,7 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
                 let anyway = if editing.get().is_some() { o.meets_anyway_edit } else { o.meets_anyway_new };
                 view! { <p class="own-fit warn" role="status"><Icon name="triangle-alert"/><span>{(o.meets)(&met.join(", "))}" "{anyway}</span></p> }.into_any()
             }
-            Some(Err(())) => {
-                let name = calendars.with(|all| all.iter().find(|(id, _)| *id == calendar.get()).map(|(_, name)| name.clone())).unwrap_or_default();
-                view! { <p class="own-fit ok" role="status"><Icon name="users-round"/><span>{(o.in_calendar)(&name)}</span></p> }.into_any()
-            }
+            Some(Err(())) => view! { <p class="own-fit ok" role="status"><Icon name="users-round"/><span>{(o.in_calendar)(&calendar_name.get())}</span></p> }.into_any(),
             None => ().into_any(),
         }
     };

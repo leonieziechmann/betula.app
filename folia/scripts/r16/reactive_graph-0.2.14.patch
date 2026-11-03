@@ -1,0 +1,83 @@
+diff -ru a/src/computed/inner.rs b/src/computed/inner.rs
+--- a/src/computed/inner.rs
++++ b/src/computed/inner.rs
+@@ -147,6 +147,7 @@
+ 
+             /// codegen optimisation:
+             fn inner_2(
++                me: usize,
+                 changed: bool,
+                 mut reactivity_lock: RwLockWriteGuard<'_, MemoInnerReactivity>,
+             ) {
+@@ -161,13 +162,17 @@
+                         // run, it doesn't need to be re-triggered because of this change
+                         if !Observer::is(&sub) {
+                             sub.mark_dirty();
++                        } else if let Some((effect, checked)) = crate::graph::CHECKING.with(|c| c.get()) {
++                            if effect == sub.0 && checked != me {
++                                crate::graph::MISSED.with(|m| m.borrow_mut().push((effect, me, checked)));
++                            }
+                         }
+                     }
+                 } else {
+                     drop(reactivity_lock);
+                 }
+             }
+-            inner_2(changed, reactivity_lock);
++            inner_2(self as *const Self as *const () as usize, changed, reactivity_lock);
+ 
+             changed
+         } else {
+diff -ru a/src/effect/inner.rs b/src/effect/inner.rs
+--- a/src/effect/inner.rs
++++ b/src/effect/inner.rs
+@@ -40,9 +40,32 @@
+ 
+         drop(guard);
+ 
+-        sources
+-            .into_iter()
+-            .any(|source| source.update_if_necessary())
++        let me = self as *const Self as *const () as usize;
++        let mut changed = false;
++        for source in &sources {
++            let before = crate::graph::CHECKING.with(|c| c.replace(Some((me, source.0))));
++            let result = source.update_if_necessary();
++            crate::graph::CHECKING.with(|c| c.set(before));
++            if result {
++                changed = true;
++                break;
++            }
++        }
++        let missed: Vec<(usize, usize, usize)> = crate::graph::MISSED.with(|m| {
++            let mut m = m.borrow_mut();
++            let mine = m.iter().filter(|(e, ..)| *e == me).cloned().collect();
++            m.retain(|(e, ..)| *e != me);
++            mine
++        });
++        if !changed {
++            for (_, a, b) in missed {
++                let at = |id: usize| {
++                    (&sources).into_iter().find(|s| s.0 == id).and_then(|s| crate::traits::DefinedAt::defined_at(s)).map(|l| l.to_string()).unwrap_or_else(|| "?".to_string())
++                };
++                crate::log_warning(format_args!("BETULA-MISSED an effect missed a change of the memo at {} (checked the memo at {} first)", at(a), at(b)));
++            }
++        }
++        changed
+     }
+ 
+     fn mark_check(&self) {
+diff -ru a/src/graph.rs b/src/graph.rs
+--- a/src/graph.rs
++++ b/src/graph.rs
+@@ -10,3 +10,10 @@
+ pub(crate) use sets::*;
+ pub use source::*;
+ pub use subscriber::*;
++
++// DIAGNOSTIC (Betula, not upstream): which effect is checking which of its sources right now, and
++// the changes of memos an effect was not told of while it checked another source.
++thread_local! {
++    pub(crate) static CHECKING: std::cell::Cell<Option<(usize, usize)>> = const { std::cell::Cell::new(None) };
++    pub(crate) static MISSED: std::cell::RefCell<Vec<(usize, usize, usize)>> = const { std::cell::RefCell::new(Vec::new()) };
++}

@@ -124,13 +124,15 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
         let now = ctx.source.with_value(|source| source.as_ref().map(|source| source.now(&SharedPlanAsk { plan: plan.clone(), locale: t.locale })))?;
         folia_pages::ask::unless_pending(now, before, |now| Some((plan, now.ok()??)))
     });
+    // The offer and the semester it names, together: the view read `shared` for the label after
+    // `offer` and kept the label before when a new plan came with the same offer (R16).
     let offer = Memo::new(move |_| {
         let page = ctx.key.get();
         shared.with(|shared| {
             let (plan, data) = shared.as_ref()?;
             let theirs = plan.key()?;
             let planned = ctx.plan.map(|plan| plan.modules_in(theirs)).unwrap_or_default();
-            Some(offer_of(data, theirs == page, &planned))
+            Some((offer_of(data, theirs == page, &planned), data.label.clone()))
         })
     });
     let busy = RwSignal::new(false);
@@ -218,7 +220,7 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
     };
 
     move || {
-        let Some(offer) = offer.get() else {
+        let Some((offer, label)) = offer.get() else {
             return taken.get().map(|note| {
                 view! {
                     <div class="offer" role="status">
@@ -233,7 +235,6 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
         // A calendar of a plan whose modules the catalog knows.
         let known = !matches!(offer, Offer::Unknown);
         let (text, can_take) = offer_text(offer, t);
-        let label = shared.with(|shared| shared.as_ref().map(|(_, data)| data.label.clone())).unwrap_or_default();
         Some(view! {
             <div class="offer" role="status">
                 <Icon name="share-2"/>

@@ -498,8 +498,12 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
         })
     };
     let right = move || {
+        // The pane before the item picked of it (R16): read after it, a change of the pane that
+        // leaves the item as it was (a module of its list planned or passed) is not seen. Today the
+        // closure around it builds this anew with the pane; this one must not rely on that.
+        let has = pane.with(|pane| pane.as_ref().map(|pane| pane.has.clone()));
         let item = item.get()?;
-        let has = pane.with(|pane| pane.as_ref().map(|pane| pane.has.clone()))?;
+        let has = has?;
         let shown_list = list.get().min(item.lists.len().saturating_sub(1));
         let lists = (item.lists.len() > 1).then(|| {
             view! {
@@ -647,6 +651,8 @@ fn ChoosePhone(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Stri
         })
     };
     let groups = move || {
+        // The pane before the area shown of it (R16), as `right` on a wide screen.
+        pane.track();
         let area = shown.get()?;
         let (items, has) = pane.with(|pane| pane.as_ref().map(|pane| (area.choices.iter().filter_map(|at| pane.items.get(*at).cloned()).collect::<Vec<_>>(), pane.has.clone())))?;
         let target_now = target.get();
