@@ -435,6 +435,17 @@ await page.touchscreen.tap(...(await page.evaluate(() => { const box = document.
 await page.waitForFunction(() => location.pathname === "/study" && !document.querySelector(".tab-menu"), null, { timeout: 8000 }).catch(() => problems.push("a tab tapped: „Studium“ did not lead to „Mein Studium“"));
 await hold("catalog");
 await page.waitForFunction(() => location.pathname === "/catalog" && document.getElementById("filters")?.classList.contains("open"), null, { timeout: 8000 }).catch(() => problems.push("a tab held: the catalog did not open with its filters"));
+// Another tab than the current one held: its release goes nowhere either, the menu stays and the
+// page with it (until 2026-11-04 the bar's tap took the release's click and went to the tab, the
+// menu going with the page).
+await page.evaluate(() => document.querySelector("#filters .sheet-close")?.click());
+await page.waitForFunction(() => !document.getElementById("filters")?.classList.contains("open"), null, { timeout: 3000 }).catch(() => {});
+await page.waitForTimeout(600);
+const otherWays = await hold("programs");
+check(otherWays.length === 3 && (await page.evaluate(() => location.pathname === "/catalog" && Boolean(document.querySelector(".tab-menu")))), `a tab other than the current one held: its release went to the tab, or the menu went: ${JSON.stringify({ ways: otherWays, at: await page.evaluate(() => location.pathname) })}`);
+await page.touchscreen.tap(200, 200);
+await page.waitForFunction(() => !document.querySelector(".tab-menu"), null, { timeout: 2000 }).catch(() => problems.push("a tab other than the current one held: a tap beside the menu did not close it"));
+check(await page.evaluate(() => location.pathname === "/catalog"), "a tab other than the current one held: the tap beside the menu went somewhere");
 
 await browser.close();
 console.log(JSON.stringify({ problems }, null, 2));

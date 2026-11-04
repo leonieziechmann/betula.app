@@ -704,11 +704,12 @@
   };
   // A tap (a click, a key) on a tab of the bar whose page stands: the pages start now, and the app
   // gets the click once they are on their way (`later`). Not the click that ends a swipe (the bar's
-  // own, below).
+  // own, below), nor the one that ends a finger held on a tab, which opened its menu („a tab held"
+  // below): that one goes nowhere, the menu stays (it went to the tab, the menu with it).
   addEventListener("click", (e) => {
     if (!e.isTrusted || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
     const tab = e.target.closest?.(".bottomnav > .nav[data-area]");
-    if (!tab || performance.now() < tabSwiped) return;
+    if (!tab || performance.now() < tabSwiped || tabHeld) return;
     flushLater();
     const name = tab.dataset.area, cur = stage()?.dataset.stage;
     // The current tab tapped again (its page goes back to where it starts, chrome.rs `TabAgain`):
