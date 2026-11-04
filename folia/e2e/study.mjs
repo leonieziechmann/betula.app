@@ -74,7 +74,7 @@
 //   keyboard up (simulated: the part of the page shown shorter) the sheet that part without its
 //   foot, the picker at the top of its body, gliding there and scrolling up frame by frame, all as
 //   it was with the keyboard gone; nothing scrolls sideways; a row's status as tall as a finger.
-// 4 the Stundenplan: its import from „Mein Studium" takes the Wiederholer.
+// 4 (until 2026-11-04 the Stundenplan's import from „Mein Studium", which went with „Importieren").
 // 5 without the app: one page for everybody, for no index; the server's tab is the overview.
 // Needs a snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
 // console error, or a step that does not show up.
@@ -1424,18 +1424,6 @@ if (current !== "2026W") {
   await page.waitForTimeout(400);
   check((await page.evaluate((HERE) => document.querySelector(`${HERE} .st-sem-name`)?.textContent ?? "", HERE)).startsWith("WiSe 2026/27"), "„Abbrechen“ does not lead back to the semester the workbench plans");
   await step("Fertig after the catalog", () => page.tap(".st-wb-sheet-h .btn"), () => !document.querySelector(".st-wb-sheet") && !document.querySelector(".bench-dock"));
-  await context.close();
-}
-
-// ---------- 4: the Stundenplan takes the Wiederholer from „Mein Studium" ----------
-{
-  const { page, step, seed, context } = await open({ viewport: { width: 1440, height: 900 } }, "/");
-  await seed([[MINE, THIRD], [PLAN, FILLED]]);
-  await step("Stundenplan", () => page.click('.rail a[data-area="studyplan"]'), () => location.pathname === "/studyplan" && document.querySelector(".sp-import"));
-  await step("source „Mein Studium“", () => page.click('.sp-import .seg button:has-text("Mein Studium")'), () => document.querySelector('.sp-import .seg button[aria-checked="true"]')?.textContent === "Mein Studium" && document.querySelector("#sp-import-go:not([disabled])"));
-  await step("Übernehmen", () => page.click("#sp-import-go"), () => document.querySelector(".sp-import .note-action")?.textContent.startsWith("Übernommen:"));
-  const now = await lines(page, "m\t2026W\t");
-  check(now.length === 7 && now.some((line) => line.startsWith("m\t2026W\t12104\t")) && (await lines(page, "p\t")).length === 4, `the Wiederholer are not in the timetable: ${JSON.stringify(await stored(page, PLAN))}`);
   await context.close();
 }
 

@@ -17,8 +17,7 @@ pub struct Texts {
     pub clear: &'static str,
     pub nothing_planned: &'static str,
     /// „Plan geleert": the note „Rückgängig" answers. It is the whole note (`PlanCtx::undo`), so it
-    /// must differ from the other notes' beginnings (`studyplan_import::imported`,
-    /// `studyplan_share::taken`).
+    /// must differ from the other notes' beginnings (`studyplan_share::taken`, `head::FROM_MARKED`).
     pub cleared: &'static str,
 }
 

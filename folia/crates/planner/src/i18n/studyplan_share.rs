@@ -33,8 +33,10 @@ pub struct Texts {
     pub dismiss: &'static str,
     pub ok: &'static str,
     /// How the note after „Übernehmen" begins: „Aus dem Link übernommen: 6 Module". It must differ
-    /// from the other notes' beginnings (`studyplan_import::imported`, `studyplan_side::cleared`).
+    /// from the other notes' beginnings (`studyplan_side::cleared`, `head::FROM_MARKED`) …
     pub taken: &'static str,
+    /// … and „nichts" where nothing was taken over.
+    pub nothing: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -53,6 +55,7 @@ pub const DE: Texts = Texts {
     dismiss: "Verwerfen",
     ok: "In Ordnung",
     taken: "Aus dem Link übernommen: ",
+    nothing: "nichts",
 };
 
 pub const EN: Texts = Texts {
@@ -74,4 +77,5 @@ pub const EN: Texts = Texts {
     dismiss: "Dismiss",
     ok: "OK",
     taken: "Added from the link: ",
+    nothing: "nothing",
 };

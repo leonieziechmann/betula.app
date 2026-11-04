@@ -5,11 +5,12 @@
 //! explanation for every address (R9, cached by the path), and the browser app renders the plan
 //! from its store and the local copy of the catalog. The address says only how the plan is shown
 //! (`StudyplanUrl`): which semester, which view, the module beside the plan and the Termin it
-//! points at, and the Regelstudienplan being taken over; `full=1` lets that module fill the page
+//! points at (`import=` and `variant=`, of the Regelstudienplan the sidebar took over until
+//! 2026-11-04, are read past); `full=1` lets that module fill the page
 //! with its whole page, inside the plan's area (a local view, `folia_widgets::local`).
 //!
 //! The page is one frame (`ui::Frame`, R17): the sidebar „Anpassen" (`side.rs`: the calendars,
-//! `import.rs`, „Export", the plan as a whole and the saved plans),
+//! „Export", the plan as a whole and the saved plans),
 //! the plan in the main column (`head.rs`, `week.rs`, `exams.rs`) with its modules in a column
 //! beside it where the page is wide enough, else under it (`modules.rs`), and the module opened
 //! from it floating over the page at its right edge, as the catalog's preview does (`aside.rs`).
@@ -34,7 +35,6 @@ mod calendars;
 mod exams;
 mod export;
 mod head;
-mod import;
 mod modules;
 mod open;
 mod own;
@@ -84,8 +84,20 @@ use self::side::PlanSidebar;
 use self::termin::{PlanTerminFull, PlanTerminModal};
 use self::week::{DatesView, WeekLoose, WeekView};
 
-/// When a module is planned, for „Mein Studium" as for the import here.
-pub(crate) use self::import::now_secs;
+/// Seconds since 1970, for when a module is planned (here and in „Mein Studium"); 0 outside the
+/// browser.
+pub(crate) fn now_secs() -> u64 {
+    #[cfg(feature = "csr")]
+    {
+        let millis = web_sys::js_sys::Date::now();
+        if millis.is_finite() && millis > 0.0 {
+            // Whole seconds of a positive, finite number of milliseconds.
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            return (millis / 1000.0) as u64;
+        }
+    }
+    0
+}
 
 /// The browser app (`csr`), or the server rendering the one explanation it has.
 const APP: bool = cfg!(feature = "csr");
