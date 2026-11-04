@@ -577,8 +577,9 @@ pub fn StudyPage() -> impl IntoView {
         on_cleanup(move || planning.set_bench(None));
     }
     // On a phone Back leaves the mode, as it closes what lies over the page: the page's own state,
-    // which a module opened from its sheet (a new address) leaves alone.
-    folia_shell::nav::layer_while(move || ctx.phone.get() && ctx.bench.with(Option::is_some), move || bench::leave(ctx), folia_shell::nav::Kind::State);
+    // which a module opened from its sheet (a new address) leaves alone. While a module's sheet lies
+    // over it, that is closed first (a place of its own): the layer waits meanwhile.
+    folia_shell::nav::layer_while(move || ctx.phone.get() && ctx.bench.with(Option::is_some) && ctx.url.with(|url| url.open.is_none()), move || bench::leave(ctx), folia_shell::nav::Kind::State);
     // A view come to from the overview (a phone's way to it): the step before it in the history.
     Effect::new(move |before: Option<(StudyView, bool)>| {
         let now = url.with(|url| (url.view, url.plan));
