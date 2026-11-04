@@ -23,7 +23,17 @@
      without a module, the modules of its tree's areas (program_module_assertion) with their turnus;
      what is planned and marked is an example. Tokens are Betula's (folia/assets/app.css), the areas'
      tones as folia/crates/planner/src/study/mod.rs gives them; Inter comes from Google Fonts here,
-     the app self-hosts it. Nothing of it is built. -->
+     the app self-hosts it. Nothing of it is built.
+     Second round (the same day; owner, on A: „Ich finde option a an sich gut. … 1. Es braucht keine
+     semester angabe. Hier ist wirklich einfach nur der lookup, wie viel brauche ich aus dem bereich
+     und was gibt es da. 2. Es braucht keinen einplanen button. Es reicht hier, wenn man die
+     modulsidebar aufmachen kann. … 3. Was zur hölle ist die anzeige vollständig. … Mach doch
+     einfach die progress bar voll."), on top: A as the lookup — no semester, no button, a module's
+     row opens its sidebar (a sheet on a phone) with „Einplanen" and its menu of semesters, what is
+     done looks as what is open with a full bar, the areas in the plan's order, the student's
+     modules with the marks of the legend, the Komplexe as § 6 Abs. 8 of the regulation (ABl.
+     12/2024) has them: 50 LP of the three, each at least 10 —, then six questions; the first round
+     below it, its questions answered. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -510,6 +520,74 @@ table.t td.is { color: var(--text); font-weight: 650; min-width: 200px; }
 .ph-b-goal .ph-fold { margin-top: 0; }
 .ph-b-goal .linkb { justify-self: start; margin-left: -10px; }
 
+/* ---------- The second round: A as the lookup ----------
+   No semester and no button: a module's row opens its sidebar (on a phone a sheet), as the app's
+   module sidebar does (folia_widgets::module, its „Einplanen“ menu folia_widgets::planinto). */
+.rules.flat { background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+table.t.num td:not(:first-child) { font-variant-numeric: tabular-nums; min-width: 90px; }
+.wp.r2 { overflow: hidden; }
+.r2-rule { font-size: 13px; color: var(--text-2); }
+.r2-list { display: flex; flex-direction: column; margin-top: 6px; }
+.r2-row { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto 48px 14px; align-items: center; gap: 12px; width: 100%; min-height: 40px; padding: 4px 8px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--text); font-size: 13px; text-align: left; cursor: pointer; }
+.r2-row:first-child { border-top: 0; }
+.r2-row:hover { background: var(--row-hover); }
+.r2-row[aria-expanded="true"] { background: var(--panel-3); box-shadow: inset 3px 0 0 var(--c); }
+.r2-row .nm, .r2-card .nm { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
+.r2-row .nm b { font-weight: 560; }
+.r2-row.mine .nm b, .r2-card.mine .nm b { font-weight: 650; }
+.note { font-size: 11.5px; color: var(--text-3); }
+.r2-row .lp { text-align: right; color: var(--text-2); }
+.chev { display: grid; place-items: center; color: var(--text-3); }
+.chev svg.i { width: 14px; height: 14px; }
+.smark { display: inline-grid; place-items: center; width: 16px; height: 16px; color: var(--text-2); }
+.smark svg { width: 16px; height: 16px; }
+.r2-side { position: absolute; top: 0; right: 0; bottom: 0; z-index: 5; width: 392px; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px 18px; background: var(--panel); box-shadow: -1px 0 0 var(--line), -24px 0 40px -28px rgba(15, 23, 42, .5); overflow-y: auto; }
+.r2-sh { display: flex; align-items: center; gap: 6px; }
+.tag2 { padding: 2px 7px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--line-strong); font: 500 12px var(--mono); color: var(--text-2); }
+.r2-close { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 8px; border: 0; border-radius: 7px; background: none; color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; }
+.r2-close:hover { background: var(--row-hover); color: var(--text); }
+kbd { padding: 0 5px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line-strong); font: 500 11px/1.6 var(--mono); color: var(--text-3); }
+.r2-side h3, .r2-sheet h3 { font-size: 19px; font-weight: 740; letter-spacing: -.015em; line-height: 1.25; }
+.r2-facts { display: flex; flex-wrap: wrap; gap: 6px; }
+.fact { padding: 2px 8px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.fact.lp { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.r2-acts { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 8px; }
+.split { display: flex; min-width: 0; border-radius: 9px; box-shadow: inset 0 0 0 1px var(--line-strong); }
+.split button { border: 0; background: none; color: var(--text); cursor: pointer; }
+.split .main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 8px 0 10px; border-radius: 9px 0 0 9px; font-size: 13.5px; font-weight: 650; text-align: left; }
+.split .main > span { display: grid; line-height: 1.2; }
+.split .main small { font-size: 12px; font-weight: 500; color: var(--text-2); }
+.split .main kbd { margin-left: auto; }
+.split .more { flex: none; width: 34px; border-left: 1px solid var(--line-strong); border-radius: 0 9px 9px 0; color: var(--text-2); }
+.split button:hover { background: var(--row-hover); }
+.mkbtn { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 10px; border: 0; border-radius: 9px; box-shadow: inset 0 0 0 1px var(--line-strong); background: none; color: var(--text); font-size: 13.5px; font-weight: 650; cursor: pointer; }
+.mkbtn:hover { background: var(--row-hover); }
+.mkbtn kbd { margin-left: auto; }
+.mkbtn[aria-pressed="true"] svg.i { fill: currentColor; color: var(--accent-ink); }
+.r2-menu { display: flex; flex-direction: column; padding: 4px; border-radius: 10px; background: var(--panel); box-shadow: 0 0 0 1px var(--line-strong), var(--shadow-lift); }
+.r2-menu button { display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 34px; padding: 0 10px; border: 0; border-radius: 7px; background: none; color: var(--text); font-size: 13px; text-align: left; cursor: pointer; }
+.r2-menu button:hover { background: var(--row-hover); }
+.r2-menu small { color: var(--text-3); }
+.r2-menu small.warn { color: var(--warn); }
+.r2-done { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 8px 8px 8px 12px; border-radius: 9px; background: var(--panel-2); font-size: 13px; }
+.r2-done .grow { flex: 1; }
+.r2-skel { display: grid; gap: 8px; margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+.r2-skel i { display: block; height: 10px; border-radius: 4px; background: var(--panel-3); }
+.r2-skel p:not(.kicker) { font-size: 12.5px; color: var(--text-3); }
+.phone { position: relative; }
+.r2-dim { position: absolute; inset: 0; z-index: 4; background: rgba(10, 12, 17, .38); }
+.r2-sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; max-height: 80%; display: flex; flex-direction: column; gap: 12px; padding: 8px 18px 26px; border-radius: 22px 22px 0 0; background: var(--panel); box-shadow: 0 -16px 40px -16px rgba(0, 0, 0, .4); overflow-y: auto; }
+.r2-grab { align-self: center; width: 40px; height: 4px; margin-bottom: 4px; border-radius: 2px; background: var(--line-strong); }
+.r2-sheet .split .main, .r2-sheet .mkbtn { min-height: 46px; font-size: 14.5px; }
+.r2-cards { display: grid; gap: 8px; margin-top: 14px; }
+.r2-card { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto 14px; align-items: center; gap: 4px 12px; width: 100%; padding: 12px 12px 12px 14px; border: 0; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); text-align: left; cursor: pointer; }
+.r2-card .nm b { font-size: 15px; font-weight: 600; line-height: 1.3; }
+.r2-card .nm .nr { flex-basis: 100%; }
+.r2-card .lp { font-size: 15px; font-weight: 650; }
+.r2-card .lp small { margin-left: 2px; font-size: 11px; font-weight: 600; color: var(--text-3); }
+.r2-card[aria-expanded="true"] { box-shadow: inset 0 0 0 2px var(--c), var(--shadow-panel); }
+.ph-card .kid .fig, .a-kid .fig { white-space: nowrap; }
+
 /* The toast that says what was planned, with „Rückgängig". */
 .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 40; translate: -50% 0; display: flex; align-items: center; gap: 14px; width: max-content; max-width: calc(100vw - 32px); padding: 10px 12px 10px 16px; border-radius: 11px; background: var(--toast); color: var(--on-toast); font-size: 13.5px; box-shadow: 0 12px 30px -10px rgba(15, 23, 42, .45); }
 .toast button { padding: 3px 6px; border: 0; border-radius: 6px; background: none; color: var(--toast-link); font-weight: 650; cursor: pointer; white-space: nowrap; }
@@ -520,21 +598,19 @@ table.t td.is { color: var(--text); font-weight: 650; min-width: 200px; }
 <div class="page">
   <section class="intro" aria-labelledby="top-title">
     <div>
-      <p class="kicker">Folia · Mein Studium · Wahlpflicht · erste Runde, 4. November 2026</p>
+      <p class="kicker">Folia · Mein Studium · Wahlpflicht · zweite Runde, 4. November 2026</p>
       <h1 id="top-title">Die Wahlpflicht, aufgeräumt</h1>
-      <p class="lead">Die Ansicht „Wahlpflicht“ zeigt, was dein Plan dir zu wählen lässt und aus welchen Modulen. Der Aufbau trägt, aber sie ist unruhig: ein Name über drei Zeilen, zwei Umschalter übereinander, ein grauer Kasten und ein umrandeter Knopf in jeder Zeile, und die Komplexe des Fachstudiums stehen doppelt da. Hier sind drei Konzepte, die alle <b>dieselbe Aufgabe</b> haben: zeigen, welche Module es für eine Wahl gibt und <b>wie viele LP noch fehlen</b>, mit einem Balken je Wahl. Alle mit demselben Studium: Informatik B.Sc. im 1. Fachsemester, seit dem WiSe 2026/27.</p>
-      <p class="quote">„Ich finde ihn grundsätzlich eigentlich not bad. Aber es ist einfach noch unaufgeräumt und wuselig. Auch solche sachen, wie kombinierte komplexe ergibt kaum sinn, weil die ja einzeln gelisted sind. … Der planen knopf kann raus. … Ja bitte erstelle einfach ein ordentliches konzept, dass die aufgabe macht zu zeigen, welche module in dem bereich verfügbar sind. Gerne noch die information, wie viele noch benötigt sind. Also mit progressbar pro section aber wie auch immer.“ <span>— du, heute</span></p>
+      <p class="lead">Aus der ersten Runde hast du A gewählt, mit drei Änderungen. Die Ansicht ist jetzt <b>zum Nachschlagen</b> da: wie viel du aus einer Wahl brauchst und welche Module es dafür gibt. Kein Semester, kein Knopf zum Einplanen: <b>Ein Klick auf ein Modul öffnet seine Seitenleiste</b>, und dort plant man wie überall sonst. Eine fertige Wahl sieht aus wie jede andere, nur mit vollem Balken. Die erste Runde steht weiter unten.</p>
+      <p class="quote">„Ich finde option a an sich gut. … 1. Es braucht keine semester angabe. Hier ist wirklich einfach nur der lookup, wie viel brauche ich aus dem bereich und was gibt es da. 2. Es braucht keinen einplanen button. Es reicht hier, wenn man die modulsidebar aufmachen kann. Da kann man ja schon vernüftig in das semester einplanen 3. Was zur hölle ist die anzeige vollständig. … Mach das mal so, dass das design gleich bleibt. Mach doch einfach die progress bar voll.“ <span>— du, zur ersten Runde</span></p>
     </div>
     <div class="rules">
-      <p class="kicker">Was alle drei teilen</p>
+      <p class="kicker">Was die zweite Runde ändert</p>
       <ul>
-        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></i><span><b>„Planen“ ist raus.</b> Eingeplant wird mit dem Knopf am Modul. Die Werkbank bleibt über „Module hinzufügen“ im Semester erreichbar.</span></li>
-        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="6" rx="3"/><path d="M10 9v6"/></svg></i><span><b>Ein Balken je Wahl:</b> hell, was geplant ist, voll, was bestanden ist, daneben „6 / 12 LP“. Verlangt eine Wahl 10 bis 24 LP, markiert ein Strich die 10.</span></li>
-        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h6"/></svg></i><span><b>Kurze Namen:</b> Zählt der Name einer Wahl nur ihre Listen auf, heißt sie nach dem, was sie ist: „Wahlpflicht im 4. FS“. „Modul aus dem Bereich“ fällt weg, wie im Gesamtplan.</span></li>
-        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg></i><span><b>Die Komplexe als eine Gruppe:</b> Die Wahlpflicht im 4. FS und die drei Komplexe ziehen aus denselben drei Listen. Sie stehen zusammen, jede Liste einmal, jeder Komplex mit seinem Balken.</span></li>
-        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M3 6h18M6 12h12M10 18h4"/></svg></i><span><b>Sortiert statt versteckt:</b> was das Semester anbietet, was nach Ankündigung kommt, was es nicht anbietet. Das Letzte steht zugeklappt darunter, sein Knopf plant in das nächste Semester, das es anbietet. „Alle“ fällt weg.</span></li>
-        <li><i><svg class="i" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/><path d="m9 6 6 6-6 6" transform="translate(6 0)"/></svg></i><span><b>Das Semester mit Pfeilen:</b> ‹ SoSe 2028 › wählt, wohin geplant wird, vom ersten Semester des Studiums an. Das laut Plan ist markiert; ein früheres geht, dann steht „früher als laut Plan“ daneben.</span></li>
-        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i><span><b>Ruhige Zeilen und Erledigtes unten:</b> Name, Nummer, LP, Knopf. Was eine Gruppe gemeinsam hat, steht einmal in ihrem Kopf. Eine fertige Wahl rückt nach unten und braucht eine Zeile.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M10 13l4 4M14 13l-4 4"/></svg></i><span><b>Kein Semester.</b> Die Pfeile, „Im SoSe 28 angeboten“ und „laut Plan im 4. FS“ sind weg. Die Module einer Liste stehen in einer Reihe: deine zuerst, dann die gemerkten, dann alle nach dem Alphabet.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></i><span><b>Kein Knopf zum Einplanen.</b> Ein Klick auf eine Zeile öffnet die Seitenleiste des Moduls, am Handy als Blatt von unten. Dort stehen „Einplanen“ mit seinem Semester und „Merken“, wie heute.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="6" rx="3"/><path d="M5 12h14"/></svg></i><span><b>Fertig sieht aus wie offen.</b> Kein „✓ vollständig“, kein Grün, nichts rutscht nach unten. Der Balken ist voll, daneben steht „4 / 4 LP“. Die Bereiche bleiben in der Reihenfolge des Plans.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 5a7 7 0 0 1 0 14Z" fill="currentColor"/></svg></i><span><b>Deine Module tragen ihre Zeichen,</b> wie in der Legende der Seitenleiste von „Mein Studium“: Kreis geplant, halb voll läuft, Haken bestanden.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5Z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg></i><span><b>Die Komplexe, wie die Ordnung sie fasst:</b> 50 LP aus den drei, aus jedem mindestens 10. Die 6 LP, die der Plan ins 4. FS legt, sind kein eigener Topf. Die „Wahlpflicht im 4. FS“ fällt hier ganz weg.</span></li>
       </ul>
     </div>
   </section>
@@ -550,19 +626,120 @@ table.t td.is { color: var(--text); font-weight: 650; min-width: 200px; }
       <button type="button" class="linkb" id="reset">Beispiel zurücksetzen</button>
     </div>
     <div class="jump">
-      <a href="#heute">Heute</a>
-      <a href="#a">A Zwei Spalten</a>
-      <a href="#b">B Eine Seite</a>
-      <a href="#c">C Kacheln oben</a>
+      <a href="#runde2">Zweite Runde</a>
+      <a href="#komplexe">Die Komplexe</a>
+      <a href="#fragen2">Fragen</a>
+      <a href="#runde1">Erste Runde</a>
+      <a href="#a">A</a>
+      <a href="#b">B</a>
+      <a href="#c">C</a>
       <a href="#namen">Die Namen</a>
-      <a href="#vergleich">Vergleich</a>
-      <a href="#fragen">Fragen</a>
     </div>
   </nav>
 
+  <section class="sec" id="runde2" aria-labelledby="runde2-title">
+    <header>
+      <p class="kicker">Zweite Runde</p>
+      <h2 id="runde2-title"><span class="tag">A</span>Zum Nachschlagen</h2>
+      <p class="sub">Links die Wahlen nach Bereichen, jede mit ihrem Balken und wie viele Module es für sie gibt. Rechts die gewählte: was sie verlangt, ihre Listen als Reiter, darunter die Module. <b>Ein Klick auf ein Modul öffnet seine Seitenleiste</b>, wie überall in Betula, und dort wird eingeplant.</p>
+    </header>
+    <div class="stage" data-stage="R2"></div>
+    <p class="tryit">Klick ein Modul: Die Seitenleiste geht auf. „Einplanen“ plant in das Semester, das sie vorschlägt, ▾ in ein anderes. Plane bei Proseminar oder Praktikum ein zweites Modul ein: Der volle Balken wird schraffiert, mehr als nötig ist erlaubt. „Schließen“ oder Esc schließt die Seitenleiste.</p>
+    <div class="how">
+      <div>
+        <h3>Was man sieht</h3>
+        <ul>
+          <li>Links jede Wahl mit Namen, „0 / 6 LP“, Balken und „17 Module“. Am Bereich die Summe seiner Wahlen, „6 / 18 LP“.</li>
+          <li><b>Fertige Wahlen</b> (Proseminar oder Praktikum, das FÜS) sehen aus wie offene. Nur ihr Balken ist voll.</li>
+          <li><b>Die Komplexe</b> sind ein Eintrag mit 50 LP, darunter die drei, jeder mit Balken bis 30 LP und einem Strich bei 10.</li>
+          <li>Rechts der Name, der Stand, ein Satz, was die Wahl verlangt, die Listen als Reiter und die Module: Zeichen, Name, Nummer, LP. Zählt ein Modul schon für eine andere Wahl, steht das klein daneben.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Wie es sich verhält</h3>
+        <ul>
+          <li>Ein Klick auf eine Wahl oder einen Komplex wählt, was rechts steht.</li>
+          <li>Ein Klick auf ein Modul öffnet seine Seitenleiste über der rechten Spalte. Die Zeile bleibt markiert, solange sie offen ist; ein anderes Modul wechselt sie.</li>
+          <li><b>„Einplanen“ plant für die Wahl, aus der die Seitenleiste geöffnet wurde.</b> Liegt im Semester ein offener Platz der Wahl, füllt das Modul ihn, wie heute „+ In“.</li>
+          <li>Am Handy führt die Liste der Wahlen zur Seite der Wahl, das Modul öffnet sich als Blatt von unten.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Worauf zu achten ist</h3>
+        <ul>
+          <li>Wann ein Modul angeboten wird, steht nur noch in der Seitenleiste.</li>
+          <li>Wer mehrere Module vergleichen will, öffnet die Seitenleiste nacheinander.</li>
+          <li>Die Seitenleiste deckt die rechte Spalte zum Teil zu, die linke bleibt frei.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="komplexe" aria-labelledby="komplexe-title">
+    <header>
+      <p class="kicker">Zweite Runde</p>
+      <h2 id="komplexe-title">Was die Ordnung zu den Komplexen sagt</h2>
+      <p class="sub">Die offene Frage der ersten Runde (Nr. 3) beantwortet die Ordnung selbst, in § 6 Abs. 8 der Prüfungs- und Studienordnung (Lesefassung im Amtlichen Mitteilungsblatt 12/2024):</p>
+    </header>
+    <p class="quote">„In den drei Komplexen müssen insgesamt 50 LP durch Prüfungen erworben werden. Um eine gewisse Breite des Studiums zu garantieren, müssen in jedem Komplex jeweils mindestens 10 LP erworben werden.“</p>
+    <div class="tablewrap">
+      <table class="t num">
+        <thead><tr><th>Regelstudienplan (Anlage 2)</th><th>4. FS</th><th>5. und 6. FS</th><th>Summe</th></tr></thead>
+        <tbody>
+          <tr><td>Komplex Grundlagen der Informatik</td><td></td><td>10–24</td><td>10–30</td></tr>
+          <tr><td>Komplex Praktische Informatik</td><td>6</td><td>10–24</td><td>10–30</td></tr>
+          <tr><td>Komplex Angewandte und Technische Informatik</td><td></td><td>10–24</td><td>10–30</td></tr>
+          <tr><td>Summe Komplexe des Fachstudiums</td><td>6</td><td>44</td><td>50</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="namerule">
+      <li><b>Die 6 LP im 4. FS sind ein Modul aus einem der Komplexe, nur früh gelegt.</b> In der Tabelle stehen sie in der Zeile der Praktischen Informatik, im Plan, den Betula liest, als „Wahlpflicht: Komplex … / … / …“. Jeder Komplex kommt so auf 10 bis 30 LP.</li>
+      <li><b>In der Wahlpflicht steht deshalb genau das:</b> 50 LP aus den drei Komplexen, jeder mit seinem Balken bis 30 und dem Strich bei 10. Ein Modul zählt für den Komplex, auf dessen Liste es steht, egal in welchem Semester.</li>
+      <li><b>Heute zählt Betula anders:</b> ein Modul aus den Komplexen zuerst für die Zeile im 4. FS, dann bis 24 LP je Komplex. Zum Bauen gehört, dass die Wahlpflicht die Komplexe nach ihren Listen zählt. Regelstudienplan und Gesamtplan zeigen die Zeile im 4. FS weiter, so wie der Plan sie druckt.</li>
+    </ul>
+  </section>
+
+  <section class="sec" id="fragen2" aria-labelledby="fragen2-title">
+    <header>
+      <p class="kicker">Zweite Runde</p>
+      <h2 id="fragen2-title">Fragen an dich</h2>
+      <p class="sub">Jeweils mit meinem Vorschlag. Ein „passt“ reicht, wo du zustimmst.</p>
+    </header>
+    <ol class="qs">
+      <li><span><b>Bauen?</b> Passt A so, dass ich es in Folia baue, am Rechner und am Handy?<span class="pro">Vorschlag: ja.</span></span></li>
+      <li><span><b>Die Komplexe nach der Ordnung:</b> 50 LP aus den drei, jeder 10 bis 30, ein Modul zählt für den Komplex seiner Liste, die „Wahlpflicht im 4. FS“ steht hier nicht mehr.<span class="pro">Vorschlag: ja, in der Wahlpflicht. Regelstudienplan und Gesamtplan bleiben beim Plan.</span></span></li>
+      <li><span><b>Wofür „Einplanen“ plant:</b> Aus der Wahlpflicht geöffnet, plant die Seitenleiste für diese Wahl und füllt einen offenen Platz von ihr im Semester. Ohne das bliebe ein Platzhalter neben dem Modul stehen.<span class="pro">Vorschlag: ja.</span></span></li>
+      <li><span><b>Das Angebot in der Zeile:</b> „jedes WiSe“, „unregelmäßig“ steht jetzt nur in der Seitenleiste.<span class="pro">Vorschlag: so lassen.</span></span></li>
+      <li><span><b>Die Reihenfolge:</b> Die Bereiche stehen wie im Plan und bleiben stehen, wenn eine Wahl fertig ist.<span class="pro">Vorschlag: so.</span></span></li>
+      <li><span><b>Was woanders zählt:</b> Ein Modul, das schon für eine andere Wahl zählt, steht mit seinem Zeichen und „zählt für Praktische Mathematik“ in der Liste.<span class="pro">Vorschlag: so.</span></span></li>
+    </ol>
+  </section>
+
+  <section class="sec" id="runde1" aria-labelledby="runde1-title">
+    <header>
+      <p class="kicker">Erste Runde, 4. November 2026</p>
+      <h2 id="runde1-title">Drei Konzepte</h2>
+      <p class="sub">Die Ansicht „Wahlpflicht“ zeigt, was dein Plan dir zu wählen lässt und aus welchen Modulen. Der Aufbau trägt, aber sie ist unruhig: ein Name über drei Zeilen, zwei Umschalter übereinander, ein grauer Kasten und ein umrandeter Knopf in jeder Zeile, und die Komplexe des Fachstudiums stehen doppelt da. Drei Konzepte mit derselben Aufgabe: zeigen, welche Module es für eine Wahl gibt und <b>wie viele LP noch fehlen</b>, mit einem Balken je Wahl. Du hast A gewählt; was die zweite Runde daran ändert, steht oben.</p>
+    </header>
+    <p class="quote">„Ich finde ihn grundsätzlich eigentlich not bad. Aber es ist einfach noch unaufgeräumt und wuselig. Auch solche sachen, wie kombinierte komplexe ergibt kaum sinn, weil die ja einzeln gelisted sind. … Der planen knopf kann raus. … Ja bitte erstelle einfach ein ordentliches konzept, dass die aufgabe macht zu zeigen, welche module in dem bereich verfügbar sind. Gerne noch die information, wie viele noch benötigt sind. Also mit progressbar pro section aber wie auch immer.“ <span>— du</span></p>
+    <div class="rules flat">
+      <p class="kicker">Was alle drei teilen</p>
+      <ul>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></i><span><b>„Planen“ ist raus.</b> Eingeplant wird mit dem Knopf am Modul. Die Werkbank bleibt über „Module hinzufügen“ im Semester erreichbar.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="6" rx="3"/><path d="M10 9v6"/></svg></i><span><b>Ein Balken je Wahl:</b> hell, was geplant ist, voll, was bestanden ist, daneben „6 / 12 LP“. Verlangt eine Wahl 10 bis 24 LP, markiert ein Strich die 10.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h6"/></svg></i><span><b>Kurze Namen:</b> Zählt der Name einer Wahl nur ihre Listen auf, heißt sie nach dem, was sie ist: „Wahlpflicht im 4. FS“. „Modul aus dem Bereich“ fällt weg, wie im Gesamtplan.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg></i><span><b>Die Komplexe als eine Gruppe:</b> Die Wahlpflicht im 4. FS und die drei Komplexe ziehen aus denselben drei Listen. Sie stehen zusammen, jede Liste einmal, jeder Komplex mit seinem Balken.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M3 6h18M6 12h12M10 18h4"/></svg></i><span><b>Sortiert statt versteckt:</b> was das Semester anbietet, was nach Ankündigung kommt, was es nicht anbietet. Das Letzte steht zugeklappt darunter, sein Knopf plant in das nächste Semester, das es anbietet. „Alle“ fällt weg.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/><path d="m9 6 6 6-6 6" transform="translate(6 0)"/></svg></i><span><b>Das Semester mit Pfeilen:</b> ‹ SoSe 2028 › wählt, wohin geplant wird, vom ersten Semester des Studiums an. Das laut Plan ist markiert; ein früheres geht, dann steht „früher als laut Plan“ daneben.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i><span><b>Ruhige Zeilen und Erledigtes unten:</b> Name, Nummer, LP, Knopf. Was eine Gruppe gemeinsam hat, steht einmal in ihrem Kopf. Eine fertige Wahl rückt nach unten und braucht eine Zeile.</span></li>
+      </ul>
+    </div>
+  </section>
+
   <section class="sec" id="heute" aria-labelledby="heute-title">
     <header>
-      <p class="kicker">Ausgangslage</p>
+      <p class="kicker">Erste Runde · Ausgangslage</p>
       <h2 id="heute-title">Was heute ist</h2>
       <p class="sub">Dein Screenshot von heute, am Rechner auf der Wahl, um die es geht, und dieselbe Ansicht am Handy auf canary (Folia 1.70.2).</p>
     </header>
@@ -590,7 +767,7 @@ table.t td.is { color: var(--text); font-weight: 650; min-width: 200px; }
 
   <section class="sec" id="a" aria-labelledby="a-title">
     <header>
-      <p class="kicker">Konzept A</p>
+      <p class="kicker">Erste Runde · Konzept A</p>
       <h2 id="a-title"><span class="tag">A</span>Zwei Spalten</h2>
       <p class="sub">Der Aufbau von heute, nur ruhiger. Links stehen die Wahlen nach Bereichen, <b>jede mit ihrem Balken</b>, die Komplexe als eine Gruppe mit einer Zeile je Komplex. Rechts die gewählte Wahl: oben in zwei Zeilen, was sie verlangt, und das Semester, darunter die Listen als Reiter und <b>die Module in Gruppen nach ihrem Angebot</b>.</p>
     </header>
@@ -628,7 +805,7 @@ table.t td.is { color: var(--text); font-weight: 650; min-width: 200px; }
 
   <section class="sec" id="b" aria-labelledby="b-title">
     <header>
-      <p class="kicker">Konzept B</p>
+      <p class="kicker">Erste Runde · Konzept B</p>
       <h2 id="b-title"><span class="tag">B</span>Eine Seite</h2>
       <p class="sub">Alles Offene untereinander, ohne etwas zu wählen: jeder Bereich ein Abschnitt, jede Wahl mit ihrem Balken und <b>ihren Modulen als Kacheln</b>, die im Semester angebotenen zuerst. Die drei Komplexe stehen in <b>drei Spalten nebeneinander</b>. Am Handy ist es dieselbe Seite in einer Spalte, so wie heute schon.</p>
     </header>
@@ -664,7 +841,7 @@ table.t td.is { color: var(--text); font-weight: 650; min-width: 200px; }
 
   <section class="sec" id="c" aria-labelledby="c-title">
     <header>
-      <p class="kicker">Konzept C</p>
+      <p class="kicker">Erste Runde · Konzept C</p>
       <h2 id="c-title"><span class="tag">C</span>Kacheln oben</h2>
       <p class="sub">Oben eine Kachel je Wahl, mit Balken, nach Bereichen: <b>ein Brett, das zeigt, wie weit du bist</b>. Darunter die gewählte in voller Breite, ihre Module in <b>drei Spalten nach dem Angebot</b>: was das Semester anbietet, was nach Ankündigung kommt, was es nicht anbietet.</p>
     </header>
@@ -700,9 +877,9 @@ table.t td.is { color: var(--text); font-weight: 650; min-width: 200px; }
 
   <section class="sec" id="namen" aria-labelledby="namen-title">
     <header>
-      <p class="kicker">In allen drei</p>
+      <p class="kicker">Erste Runde · in allen drei</p>
       <h2 id="namen-title">Die Namen</h2>
-      <p class="sub">Die Pläne der BTU nennen eine Wahl oft so, wie sie in der Tabelle der Ordnung steht, und das ist nicht immer ein Name. Im Katalog stehen 196 Zeilen ohne Modul mit „/“ oder „oder“ im Namen, in vielen Studiengängen. Die Regel, nach der Betula sie kürzt:</p>
+      <p class="sub">Die Pläne der BTU nennen eine Wahl oft so, wie sie in der Tabelle der Ordnung steht, und das ist nicht immer ein Name. Im Katalog stehen 196 Zeilen ohne Modul mit „/“ oder „oder“ im Namen, in vielen Studiengängen. Die Regel, nach der Betula sie kürzt (in der zweiten Runde geht die „Wahlpflicht im 4. FS“ ganz in den Komplexen auf):</p>
     </header>
     <ol class="namerule">
       <li><b>„Modul aus dem Bereich …“ und „Modul aus dem Komplex …“</b> verlieren den Anfang, wie die Zeilen im Gesamtplan.</li>
@@ -728,6 +905,7 @@ table.t td.is { color: var(--text); font-weight: 650; min-width: 200px; }
 
   <section class="sec" id="vergleich" aria-labelledby="vergleich-title">
     <header>
+      <p class="kicker">Erste Runde</p>
       <h2 id="vergleich-title">Im Vergleich</h2>
     </header>
     <div class="tablewrap">
@@ -748,6 +926,7 @@ table.t td.is { color: var(--text); font-weight: 650; min-width: 200px; }
 
   <section class="sec" id="empfehlung" aria-labelledby="empfehlung-title">
     <header>
+      <p class="kicker">Erste Runde</p>
       <h2 id="empfehlung-title">Empfehlung: A</h2>
     </header>
     <div class="reco">
@@ -766,8 +945,9 @@ table.t td.is { color: var(--text); font-weight: 650; min-width: 200px; }
 
   <section class="sec" id="fragen" aria-labelledby="fragen-title">
     <header>
-      <h2 id="fragen-title">Fragen an dich</h2>
-      <p class="sub">Jeweils mit meinem Vorschlag. Ein „passt“ reicht, wo du zustimmst.</p>
+      <p class="kicker">Erste Runde</p>
+      <h2 id="fragen-title">Fragen der ersten Runde</h2>
+      <p class="sub">Beantwortet: 1 mit A und den Änderungen der zweiten Runde, 3 von der Ordnung (oben, „Die Komplexe“). 7 mit „nein, der Balken wird voll“. 4 bis 6 fallen mit Knopf und Semester weg.</p>
     </header>
     <ol class="qs">
       <li><span><b>Welches Konzept?</b> A, B oder C, oder ein Stück aus einem anderen dazu?<span class="pro">Vorschlag: A, am Rechner und am Handy.</span></span></li>
@@ -780,7 +960,7 @@ table.t td.is { color: var(--text); font-weight: 650; min-width: 200px; }
     </ol>
   </section>
 
-  <p class="foot">Daten: canary vom 4. November 2026 (Folia 1.70.2), Informatik B.Sc. (PO 2008), begonnen im WiSe 2026/27, mit den Zeilen ohne Modul aus dem Plan und den Modulen der Listen samt Turnus aus dem Katalog. Ausgedacht ist nur das Beispiel: Proseminar, Allgemeine BWL I und Grundzüge der Computergrafik sind eingeplant, Einführung in Maschinelles Lernen steht auf der Merkliste. Gebaut ist davon nichts. folia/design/wahlpflicht/konzepte.html</p>
+  <p class="foot">Daten: canary vom 4. November 2026 (Folia 1.70.2), Informatik B.Sc. (PO 2008), begonnen im WiSe 2026/27, mit den Zeilen ohne Modul aus dem Plan und den Modulen der Listen samt Turnus aus dem Katalog; die Ordnung: Amtliches Mitteilungsblatt der BTU 12/2024, § 6 Abs. 8 und Anlage 2. Ausgedacht ist nur das Beispiel, in beiden Runden dasselbe: Proseminar, Allgemeine BWL I und Grundzüge der Computergrafik sind eingeplant, der Platzhalter des FÜS liegt im laufenden Semester, Einführung in Maschinelles Lernen steht auf der Merkliste. Gebaut ist davon nichts. folia/design/wahlpflicht/konzepte.html</p>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
@@ -799,6 +979,8 @@ const ICONS = {
   back: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
   mark: '<path d="M17 3H7a2 2 0 0 0-2 2v16l7-4 7 4V5a2 2 0 0 0-2-2Z"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  calplus: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M12 12v6M9 15h6"/>',
 };
 const NS = "http://www.w3.org/2000/svg";
 function icon(name) {
@@ -1334,15 +1516,241 @@ function cPhone(st) {
     cBody(st, true));
 }
 
+// ---------- The second round: A as the lookup ----------
+// No semester and no button to plan: a module's row opens its sidebar (a sheet on a phone), whose
+// „Einplanen" plans it for the choice it was opened from. What is done looks as what is open, with
+// a full bar, and the areas keep the plan's order. The Komplexe as § 6 Abs. 8 has them: 50 LP of
+// the three, each at least 10 and so at most 30, a module counted for the Komplex whose list has
+// it. Its own example, the same as the first round's.
+const R2_ENTRY = {
+  pro: { name: "Proseminar oder Praktikum", least: 4, most: 4, lists: ["pro"], rule: "4 LP: ein Proseminar oder Praktikum." },
+  pm: { name: "Praktische Mathematik", least: 6, most: 6, lists: ["pm"], rule: "6 LP aus den Wahlpflichtmodulen der Praktischen Mathematik." },
+  anw: { name: "Anwendungsfach", least: 12, most: 12, lists: ["ma", "mbet", "wiwi", "bau", "ph"], noun: "Fächer", rule: "12 LP aus einem der fünf Fächer." },
+  fues: { name: "Fachübergreifendes Studium", least: 6, most: 6, lists: [], rule: "6 LP aus dem Katalog des Fachübergreifenden Studiums." },
+  kx: { name: "Komplexe", long: "Komplexe des Fachstudiums", least: 50, most: 50, lists: ["gdi", "pi", "ati"], noun: "Komplexe", rule: "50 LP aus den drei Komplexen, aus jedem mindestens 10." },
+  sem: { name: "Seminar oder Praktikum", least: 4, most: 4, lists: ["sem"], rule: "4 LP: ein Seminar oder Praktikum der Informatik." },
+};
+const R2_START = [
+  { id: "12111", sem: 1, entry: "pro" },
+  { id: "12160", sem: 2, entry: "anw" },
+  { id: "12311", sem: 4, entry: "kx" },
+];
+const NOW = 0;
+const r2 = { planned: R2_START.map((p) => ({ ...p })), marked: new Set(["13565"]) };
+const r2Fresh = () => ({ pick: "kx", page: null, tab: {}, open: null, menu: false });
+ui.R2 = { mode: "desk", ...r2Fresh() };
+
+const r2Has = (id) => r2.planned.find((p) => p.id === id);
+const r2Sum = (f) => r2.planned.filter(f).reduce((s, p) => s + MODS[p.id][1], 0);
+// The stand of an entry, or of a Komplex („k:gdi").
+function r2Prog(key) {
+  if (key.startsWith("k:")) { const l = key.slice(2); return { taken: r2Sum((p) => p.entry === "kx" && LISTS[l].includes(p.id)), least: 10, most: 30 }; }
+  if (key === "fues") return { taken: 6, least: 6, most: 6 };
+  const e = R2_ENTRY[key];
+  return { taken: r2Sum((p) => p.entry === key), least: e.least, most: e.most };
+}
+function r2Open(key) {
+  if (key === "kx") {
+    const ks = R2_ENTRY.kx.lists.map((l) => r2Prog(`k:${l}`).taken);
+    return Math.max(50 - ks.reduce((a, b) => a + b, 0), ks.reduce((a, t) => a + Math.max(0, 10 - t), 0), 0);
+  }
+  const p = r2Prog(key);
+  return Math.max(0, p.least - p.taken);
+}
+// The bar and the figure, the same whether a choice is open or done.
+function r2Bar(key, cls = "") {
+  const p = r2Prog(key);
+  const scale = Math.max(p.most, p.least, p.taken) || 1;
+  return h("span", { class: `bar ${cls}`, role: "img", "aria-label": `${fmt(p.taken)} von ${range(p)} LP` },
+    h("span", { class: "bar-in" }, h("span", { class: "bar-f" + (p.taken > p.most ? " over" : ""), style: `width:${(Math.min(p.taken, scale) / scale) * 100}%` })),
+    p.least < p.most ? h("span", { class: "bar-t", style: `left:calc(${(p.least / scale) * 100}% - 1px)` }) : null);
+}
+function r2Fig(key, cls = "") { const p = r2Prog(key); return h("span", { class: `fig ${cls}` }, fmt(p.taken), h("small", null, ` / ${range(p)} LP`)); }
+function r2AreaFig(area) {
+  const ps = area.entries.map(r2Prog);
+  return h("small", null, `${fmt(ps.reduce((s, p) => s + p.taken, 0))} / ${fmt(ps.reduce((s, p) => s + p.least, 0))} LP`);
+}
+function r2Count(k) {
+  const e = R2_ENTRY[k];
+  if (!e.lists.length) return "im Katalog des FÜS";
+  const n = new Set(e.lists.flatMap((l) => LISTS[l])).size;
+  return e.lists.length > 1 ? `${e.lists.length} ${e.noun} · ${n} Module` : `${n} Module`;
+}
+function r2Tab(st, k) {
+  if (st.tab[k] != null) return st.tab[k];
+  let best = 0, most = 0;
+  R2_ENTRY[k].lists.forEach((l, i) => { const n = LISTS[l].filter((id) => r2Has(id)).length; if (n > most) { most = n; best = i; } });
+  return best;
+}
+// The student's modules first, then the marked ones, then by title.
+const r2Order = (l) => [...LISTS[l]].sort((a, b) => (!!r2Has(b) - !!r2Has(a)) || (r2.marked.has(b) - r2.marked.has(a)) || MODS[a][0].localeCompare(MODS[b][0], "de"));
+// The marks of the legend of „Mein Studium": planned, runs (the current semester), passed.
+const MARKS = {
+  plan: '<circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  runs: '<circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2a6 6 0 0 1 0 12Z" fill="currentColor"/>',
+  passed: '<circle cx="8" cy="8" r="7" style="fill:var(--ok)"/><path d="m5 8.2 2 2 4-4.2" fill="none" style="stroke:var(--panel)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+};
+function markOf(state, title) {
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = MARKS[state];
+  return h("span", { class: "smark", title, role: "img", "aria-label": title }, svg);
+}
+function r2Mark(id) {
+  const p = r2Has(id);
+  if (!p) return h("span", { class: "smark" });
+  const state = p.sem < NOW ? "passed" : p.sem === NOW ? "runs" : "plan";
+  return markOf(state, `${state === "runs" ? "Läuft" : state === "passed" ? "Bestanden" : "Geplant"} im ${sem(p.sem).long}`);
+}
+// A module of a list: its mark, name, number, credits; a click opens its sidebar.
+function r2Row(st, k, id, phone) {
+  const p = r2Has(id);
+  const open = st.open?.id === id;
+  const note = p && p.entry !== k ? h("span", { class: "note" }, `zählt für ${R2_ENTRY[p.entry].name}`) : null;
+  const onclick = () => { st.open = open ? null : { id, entry: k }; st.menu = false; renderAll(); };
+  const cls = (phone ? "r2-card" : "r2-row") + (p ? " mine" : "");
+  if (phone) {
+    return h("button", { class: cls, type: "button", "data-mod": id, "aria-expanded": String(open), onclick },
+      r2Mark(id), h("span", { class: "nm" }, h("b", null, MODS[id][0]), markSign2(id), h("span", { class: "nr" }, id), note),
+      h("span", { class: "lp" }, fmt(MODS[id][1]), h("small", null, "LP")), h("span", { class: "chev" }, icon("right")));
+  }
+  return h("button", { class: cls, type: "button", "data-mod": id, "aria-expanded": String(open), onclick },
+    r2Mark(id), h("span", { class: "nm" }, h("b", null, MODS[id][0]), markSign2(id), note),
+    h("span", { class: "nr" }, id), h("span", { class: "lp" }, `${fmt(MODS[id][1])} LP`), h("span", { class: "chev" }, icon("right")));
+}
+function markSign2(id) { return r2.marked.has(id) ? h("span", { class: "mk", title: "Auf der Merkliste" }, icon("mark")) : null; }
+function r2Tabs(st, k, phone) {
+  const e = R2_ENTRY[k];
+  if (e.lists.length < 2) return null;
+  const at = r2Tab(st, k);
+  const set = (i) => { st.tab[k] = i; renderAll(); };
+  const label = k === "kx" ? "Komplexe" : "Fächer";
+  if (phone) {
+    return h("div", { class: "ph-chips", role: "group", "aria-label": label }, e.lists.map((l, i) =>
+      h("button", { type: "button", "aria-pressed": String(i === at), onclick: () => set(i) }, LIST_NAME[l], k === "kx" ? r2Bar(`k:${l}`, "thin") : h("small", null, LISTS[l].length))));
+  }
+  return h("div", { class: "tabs", role: "group", "aria-label": label }, e.lists.map((l, i) =>
+    h("button", { type: "button", "aria-pressed": String(i === at), onclick: () => set(i) },
+      h("span", null, LIST_NAME[l], k === "kx" ? null : h("small", null, LISTS[l].length)),
+      k === "kx" ? h("span", { class: "tab-p" }, r2Bar(`k:${l}`, "thin"), r2Fig(`k:${l}`)) : null)));
+}
+function r2Fues() {
+  return h("div", { class: "fues" },
+    h("div", { class: "line" }, markOf("runs", "Läuft im WiSe 2026/27"), h("span", null, "Platzhalter Fachübergreifendes Studium"), h("small", null, "6 LP")),
+    h("a", { class: "action", href: "#", onclick: noop }, icon("search"), "Im Katalog des FÜS suchen", icon("right")));
+}
+function r2Modules(st, k, phone) {
+  const e = R2_ENTRY[k];
+  if (!e.lists.length) return r2Fues();
+  const l = e.lists[r2Tab(st, k)];
+  return h("div", { class: phone ? "r2-cards" : "r2-list" }, r2Order(l).map((id) => r2Row(st, k, id, phone)));
+}
+const r2Lead = () => `Noch ${fmt(AREAS.reduce((s, a) => s + a.entries.reduce((t, k) => t + r2Open(k), 0), 0))} LP zu wählen`;
+function r2Head() { return h("header", { class: "wp-head" }, h("h3", null, "Wahlpflicht"), h("p", null, r2Lead())); }
+
+// The sidebar of a module, as the app's: its number and abbreviation, „Schließen", the title, its
+// credits and turnus, „Einplanen" with the semester it proposes and ▾ for the others, „Merken".
+function r2Side(st, phone) {
+  const o = st.open;
+  if (!o) return null;
+  const id = o.id;
+  const [title, lp, season, , ab] = MODS[id];
+  const p = r2Has(id);
+  const proposed = season === "I" ? NOW : nextYes(id, NOW);
+  const close = () => r2Close(st);
+  const doPlan = (s) => {
+    const entry = { id, sem: s, entry: o.entry };
+    r2.planned.push(entry);
+    st.menu = false;
+    toast(`${title} ist im ${sem(s).long} eingeplant.`, () => { r2.planned = r2.planned.filter((x) => x !== entry); renderAll(); });
+    renderAll();
+  };
+  const marked = r2.marked.has(id);
+  const kids = [
+    h("div", { class: "r2-sh" }, h("span", { class: "tag2" }, id), ab ? h("span", { class: "tag2" }, ab) : null,
+      h("button", { class: "r2-close", type: "button", onclick: close }, icon("x"), "Schließen", phone ? null : h("kbd", null, "Esc"))),
+    h("h3", null, title),
+    h("div", { class: "r2-facts" }, h("span", { class: "fact lp" }, `${fmt(lp)} LP`), h("span", { class: "fact" }, turnus(id))),
+    p
+      ? h("div", { class: "r2-done" }, r2Mark(id), h("span", null, `${p.sem === NOW ? "Läuft" : "Geplant"} im ${sem(p.sem).long}`, p.entry !== o.entry ? ` · zählt für ${R2_ENTRY[p.entry].name}` : ""), h("span", { class: "grow" }),
+          h("button", { class: "linkb", type: "button", onclick: () => { r2.planned = r2.planned.filter((x) => x !== p); renderAll(); } }, "Herausnehmen"))
+      : h("div", { class: "r2-acts" },
+          h("span", { class: "split" },
+            h("button", { class: "main", type: "button", onclick: () => doPlan(proposed) }, icon("calplus"), h("span", null, "Einplanen", h("small", null, sem(proposed).short)), phone ? null : h("kbd", null, "P")),
+            h("button", { class: "more", type: "button", "aria-label": "In ein anderes Semester", "aria-expanded": String(st.menu), onclick: () => { st.menu = !st.menu; renderAll(); } }, icon(st.menu ? "up" : "down"))),
+          h("button", { class: "mkbtn", type: "button", "aria-pressed": String(marked), onclick: () => { if (marked) r2.marked.delete(id); else r2.marked.add(id); renderAll(); } }, icon("mark"), marked ? "Gemerkt" : "Merken", phone ? null : h("kbd", null, "M"))),
+    st.menu && !p
+      ? h("div", { class: "r2-menu", role: "menu", "aria-label": "Einplanen in" }, SEMS.map((_, i) => i).filter((i) => i >= NOW).map((i) => {
+          const of = offer(id, i);
+          return h("button", { type: "button", role: "menuitem", onclick: () => doPlan(i) },
+            h("span", null, sem(i).long, h("small", null, ` · ${sem(i).fs}. FS${i === NOW ? " · jetzt" : ""}`)),
+            h("small", { class: of === "no" ? "warn" : "" }, of === "yes" ? "angeboten" : of === "maybe" ? "unregelmäßig" : "nicht angeboten"));
+        }))
+      : null,
+    h("div", { class: "r2-skel" }, h("p", { class: "kicker" }, "Termine"), h("i"), h("i", { style: "width:72%" }), h("p", { class: "kicker" }, "Auf einen Blick"), h("i", { style: "width:86%" }), h("i", { style: "width:58%" }), h("p", null, "Termine, Prüfung und Beschreibung wie heute.")),
+  ];
+  if (phone) return [h("div", { class: "r2-dim", onclick: close }), h("div", { class: "r2-sheet", role: "dialog", "aria-label": title }, h("span", { class: "r2-grab" }), kids)];
+  return h("aside", { class: "r2-side", "aria-label": title }, kids);
+}
+
+function r2NavEntry(st, k) {
+  const e = R2_ENTRY[k];
+  const cur = st.pick === k;
+  const main = h("button", { class: "a-ng", type: "button", "aria-current": cur ? "true" : null, onclick: () => { st.pick = k; renderAll(); } },
+    h("span", { class: "t" }, h("b", null, e.name), r2Fig(k)), r2Bar(k), h("small", null, r2Count(k)));
+  if (k !== "kx") return main;
+  return h("div", null, main, h("div", { class: "a-kids" }, e.lists.map((l, i) =>
+    h("button", { class: "a-kid", type: "button", "aria-current": cur && r2Tab(st, k) === i ? "true" : null, onclick: () => { st.pick = "kx"; st.tab.kx = i; renderAll(); } },
+      h("span", null, LIST_NAME[l]), r2Fig(`k:${l}`), r2Bar(`k:${l}`, "thin")))));
+}
+function r2Desk(st) {
+  const k = st.pick;
+  const e = R2_ENTRY[k];
+  const nav = h("nav", { class: "a-nav", "aria-label": "Wahlen" }, AREAS.map((area) => h("div", { style: `--c:${area.tone}` },
+    h("p", { class: "a-nh" }, h("span", { class: "dot" }), area.name, r2AreaFig(area)), area.entries.map((x) => r2NavEntry(st, x)))));
+  const pane = h("div", { class: "a-pane", style: `--c:${toneOf(k)}` },
+    h("div", { class: "a-ph" }, h("div", { class: "a-pt" }, h("h4", null, e.long ?? e.name), r2Fig(k, "big")), r2Bar(k, "big"), h("p", { class: "r2-rule" }, e.rule)),
+    r2Tabs(st, k, false), r2Modules(st, k, false));
+  return h("div", { class: "wp desk r2" }, r2Head(), h("div", { class: "a-split" }, nav, pane), r2Side(st, false));
+}
+function r2Phone(st) {
+  if (st.page) {
+    const k = st.page;
+    const e = R2_ENTRY[k];
+    const back = () => { st.page = null; st.open = null; st.toTop = true; renderAll(); };
+    return h("div", { style: `--c:${toneOf(k)}` }, phoneTop(st, back),
+      h("div", { class: "ph-head" }, h("div", { class: "t" }, h("h4", null, e.long ?? e.name), r2Fig(k, "big")), r2Bar(k, "big"), h("p", { class: "rule" }, e.rule)),
+      r2Tabs(st, k, true), r2Modules(st, k, true));
+  }
+  const open = (k) => () => { st.page = k; st.pick = k; st.toTop = true; renderAll(); };
+  return h("div", null, phoneTop(st, null), h("h1", { class: "ph-h1" }, "Wahlpflicht"), h("p", { class: "ph-lead" }, r2Lead()),
+    AREAS.map((area) => h("div", { style: `--c:${area.tone}` },
+      h("p", { class: "ph-sec" }, h("span", { class: "dot" }), area.name, r2AreaFig(area)),
+      area.entries.map((k) => h("button", { class: "ph-card", type: "button", onclick: open(k) },
+        h("span", { class: "t" }, h("b", null, R2_ENTRY[k].name), r2Fig(k), icon("right")), r2Bar(k), h("small", null, r2Count(k)),
+        k === "kx" ? R2_ENTRY.kx.lists.map((l) => h("span", { class: "kid" }, h("span", null, LIST_NAME[l]), r2Bar(`k:${l}`, "thin"), r2Fig(`k:${l}`))) : null)))));
+}
+function r2Close(st) {
+  const id = st.open?.id;
+  st.open = null;
+  st.menu = false;
+  renderAll();
+  document.querySelector(`[data-stage="R2"] [data-mod="${id}"]`)?.focus({ preventScroll: true });
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && ui.R2.open) r2Close(ui.R2);
+});
+
 // ---------- The stages ----------
-const RENDER = { A: { desk: aDesk, phone: aPhone }, B: { desk: bDesk, phone: bPhone }, C: { desk: cDesk, phone: cPhone } };
+const RENDER = { A: { desk: aDesk, phone: aPhone }, B: { desk: bDesk, phone: bPhone }, C: { desk: cDesk, phone: cPhone }, R2: { desk: r2Desk, phone: r2Phone, sheet: (st) => r2Side(st, true) } };
 function renderStage(C, el) {
   const st = ui[C];
   const bar = h("div", { class: "stage-bar" },
     h("span", { class: "seg", role: "group", "aria-label": "Gerät" }, ["desk", "phone"].map((m) => h("button", { type: "button", "aria-pressed": String(st.mode === m), onclick: () => { st.mode = m; st.toTop = true; renderAll(); } }, m === "desk" ? "Rechner" : "Handy"))),
     h("span", { class: "grow" }),
     h("span", { class: "kicker" }, st.mode === "desk" ? "das Panel bei 1440 px" : "ein Handy, 380 px"));
-  const view = st.mode === "desk" ? RENDER[C].desk(st) : h("div", { class: "phone" }, h("div", { class: "phone-scroll" }, RENDER[C].phone(st)));
+  const view = st.mode === "desk" ? RENDER[C].desk(st) : h("div", { class: "phone" }, h("div", { class: "phone-scroll" }, RENDER[C].phone(st)), RENDER[C].sheet?.(st));
   el.replaceChildren(bar, h("div", { class: "stage-in" }, view));
 }
 function renderAll() {
@@ -1366,7 +1774,10 @@ function renderAll() {
 }
 document.getElementById("reset").addEventListener("click", () => {
   planned = START.map((p) => ({ ...p }));
-  for (const C of Object.keys(ui)) Object.assign(ui[C], fresh(), C === "B" ? {} : { pick: "kx" }, C === "A" ? { page: null } : {});
+  for (const C of ["A", "B", "C"]) Object.assign(ui[C], fresh(), C === "B" ? {} : { pick: "kx" }, C === "A" ? { page: null } : {});
+  r2.planned = R2_START.map((p) => ({ ...p }));
+  r2.marked = new Set(["13565"]);
+  Object.assign(ui.R2, r2Fresh());
   toastEl.hidden = true;
   renderAll();
 });
