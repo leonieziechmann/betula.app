@@ -52,9 +52,10 @@ pub(super) fn Phone(ctx: StudyCtx) -> impl IntoView {
     let pages = Pages::new(ctx);
     provide_context(pages);
     // Off the overview, with no module's sheet over it (a place of its own, which Back closes
-    // first), the semester is the page's state that Back undoes: on Android Back brings the row to
-    // the overview, and so does the way back at the head on every phone (`folia_shell::nav`).
-    folia_shell::nav::layer_while(move || pages.away() && ctx.url.with(|url| url.open.is_none()), move || pages.home(), folia_shell::nav::Kind::State);
+    // first) and no workbench's sheet (`bench::BenchSheet`, which Back closes first), the semester
+    // is the page's state that Back undoes: on Android Back brings the row to the overview, and so
+    // does the way back at the head on every phone (`folia_shell::nav`).
+    folia_shell::nav::layer_while(move || pages.away() && ctx.url.with(|url| url.open.is_none()) && ctx.bench.with(Option::is_none), move || pages.home(), folia_shell::nav::Kind::State);
     // The way back at the head, as soon as the row leaves the overview and while it is anywhere
     // else (owner, 2026-10-06: „der sollte eigentlich sofort eingeblendet werden, wenn man weg
     // swiped, von der main page").

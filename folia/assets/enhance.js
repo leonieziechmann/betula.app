@@ -1195,7 +1195,8 @@
   // „Ein modal beim handy ist dieses swipebare menü, dass sich von unten öffnet"), and this one
   // engine moves them all: a page's dialog (`dialog[data-sheet]`, folia_design::modal), a menu
   // (`.st-pop[data-sheet]`), the catalog's filters and a page's sidebar of filters (`openSheet`
-  // above), a module or a Termin over a page (`.detail.is-module`, below). What makes one is the
+  // above), a page's own sheet under a module's (`.page-sheet[data-sheet]` after its scrim
+  // `.page-sheet-shade`), a module or a Termin over a page (`.detail.is-module`, below). What makes one is the
   // attribute and the stylesheet's frame (app.css „the sheets of a phone"); nothing else is needed.
   //
   // - Three ways to stand (`data-sheet`, folia_design::modal::Sheet; owner, 2026-11-03: „dass es
@@ -1265,6 +1266,11 @@
     for (let at = el.previousElementSibling; at; at = at.previousElementSibling) if (at.classList.contains("st-pop-shade")) return at;
     return null;
   };
+  // A page's sheet's scrim, which closes it (it stands right before the sheet).
+  const pageScrimOf = (el) => {
+    const at = el.previousElementSibling;
+    return at?.classList.contains("page-sheet-shade") ? at : null;
+  };
   // The kinds of sheets: which is one, when it is shown, what dims the page behind it (and takes
   // `--sheet-shade` there), what closes it once it has glided away.
   const SHEET_KINDS = [
@@ -1283,6 +1289,16 @@
       shown: (el) => el.open,
       shade: (el) => el,
       close: (el) => { if (el.open) el.close(); },
+    },
+    {
+      // A page's own sheet over it, under a module's (`.page-sheet`: the workbench of „Mein Studium"
+      // on a phone, folia/crates/planner/src/study/bench.rs): the scrim before it veils the page
+      // behind, which nothing moves meanwhile, and a tap on it closes the sheet.
+      name: "page",
+      is: (el) => el.classList.contains("page-sheet") && el.hasAttribute("data-sheet") && !el.classList.contains("sheet-ghost"),
+      shown: (el) => el.isConnected && onFront(el),
+      shade: (el) => pageScrimOf(el),
+      close: (el) => pageScrimOf(el)?.click(),
     },
     {
       // A menu over a page; a submenu takes its place (app.css), and the menu hides meanwhile.
@@ -1687,6 +1703,12 @@
     const sheet = e.deltaY > 0 && phone() ? sheetAround(e.target) : null;
     if (sheet) raiseSheet(sheet);
   }, { passive: true });
+  // What a page unfolds in its sheet asks for the room (`betula:sheet-raise` from inside it: a
+  // choice of the workbench opening its list, folia/crates/planner/src/study/dom.rs): all up.
+  document.addEventListener("betula:sheet-raise", (e) => {
+    const sheet = phone() ? sheetAround(e.target) : null;
+    if (sheet) raiseSheet(sheet);
+  });
   document.addEventListener("focusin", (e) => {
     const sheet = phone() ? sheetAround(e.target) : null;
     if (!sheet || e.target === sheet || !sheet.contains(e.target)) return;
@@ -1704,6 +1726,7 @@
   // itself that does (`ghostSheet`). Its height is kept as it changes, for its foot and its copy.
   const dialogsAll = document.getElementsByTagName("dialog");
   const popsAll = document.getElementsByClassName("st-pop");
+  const pageSheetsAll = document.getElementsByClassName("page-sheet");
   let sheetsSeen = new Map(); // a dialog or a menu shown as a sheet → { height, half, mode }
   // One whose way to stand changed while it was shown (a dialog that holds another kind now, one of
   // `auto` whose content grew past what fits or shrank under it): to where it was where it still
@@ -1836,6 +1859,7 @@
     const now = new Map();
     for (const el of dialogsAll) if (el.open && el.hasAttribute("data-sheet")) now.set(el, sheetsSeen.get(el) ?? null);
     for (const el of popsAll) if (el.hasAttribute("data-sheet") && !el.classList.contains("has-sub") && !el.classList.contains("sheet-ghost") && onFront(el)) now.set(el, sheetsSeen.get(el) ?? null);
+    for (const el of pageSheetsAll) if (el.hasAttribute("data-sheet") && !el.classList.contains("sheet-ghost") && onFront(el)) now.set(el, sheetsSeen.get(el) ?? null);
     const gone = [...sheetsSeen.keys()].filter((el) => !now.has(el));
     const come = [...now.keys()].filter((el) => !now.get(el));
     // A submenu in its menu's place, or the menu back in the submenu's: the one sheet stays, what
@@ -1873,7 +1897,7 @@
       sheet.style.removeProperty("--sheet-shade");
       footOf(sheet)?.style.removeProperty("transform");
     }
-    for (const scrim of document.querySelectorAll(".st-pop-shade")) scrim.style.removeProperty("--sheet-shade");
+    for (const scrim of document.querySelectorAll(".st-pop-shade, .page-sheet-shade")) scrim.style.removeProperty("--sheet-shade");
     root.style.removeProperty("--sheet-shade");
     watchSheets([]);
   });

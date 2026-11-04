@@ -6717,20 +6717,43 @@ span.st-wb-go { cursor: default; }
   /* The bar of the rows selected: in the tab bar's place, over it (owner, 2026-10-05: „Mach das
      mal so, dass die die navbar überdeckt"). */
   .st-selbar { position: fixed; z-index: 35; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); height: 62px; min-height: 0; padding: 5px; gap: 2px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--accent-line); animation: st-bar-up .2s var(--ease); }
-  /* The workbench on a phone (bench.rs): the area as a button over the list, which opens the
-     areas as a sheet; the rows as cards, „+" at their end; the bar of the mode in the tab bar's
-     place, over it, as the bar of the rows selected (owner, 2026-11-03, of the concept: „deckt die
-     Leiste des Modus die Tab-Leiste ab? … ja"). */
-  .st-wb.phone { gap: 10px; padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
-  .st-wb-pick { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 58px; padding: 9px 14px; border: 0; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-  .st-wb-pick-w { display: grid; gap: 1px; min-width: 0; }
-  .st-wb-pick .k { font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
-  .st-wb-pick b { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 15.5px; font-weight: 700; }
-  .st-wb-pick b > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .st-wb-pick-f { display: flex; flex: none; align-items: center; gap: 6px; color: var(--text-3); font-size: 13px; font-weight: 600; }
-  .st-wb-pick-f .ok { color: var(--ok); }
-  .st-wb-pick-f .icon { width: 18px; height: 18px; }
-  .st-wb.phone > .st-wb-pane { padding: 14px 12px 12px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); }
+  /* The workbench on a phone (bench.rs, `BenchSheet`; folia/design/hinzufuegen/handy.html,
+     variant B; owner, 2026-11-04: „weil da leichter zu erkennen ist, was jetzt geplant und was
+     vorgeschlagen ist"): a page's own sheet, half up under the semester, which stays to be read
+     through a light veil (`.page-sheet-shade`) and does not move while the sheet is open; under a
+     module's sheet (z-index 45), over the tab bar. Its head names what it plans into and what that
+     holds, „Fertig" at its end; in it „Laut Plan", all the areas and „Gemerkt", each a run of rows
+     that unfold their lists under them, a line of the accent down their left. */
+  .page-sheet-shade { position: fixed; inset: 0; z-index: 39; background: rgba(10, 12, 17, .16); opacity: var(--sheet-shade, 1); animation: fade-in .24s; touch-action: none; }
+  .sheet-ghost-scrim:has(+ .page-sheet) { background: rgba(10, 12, 17, .16); }
+  .st-wb-sheet[data-sheet] { z-index: 40; height: calc(100dvh - var(--sheet-top)); }
+  .st-wb-sheet:focus { outline: none; }
+  .st-wb-sheet-h { flex: none; display: flex; align-items: center; gap: 10px; padding: 20px 12px 10px 16px; border-bottom: 1px solid var(--line); }
+  .st-wb-sheet-h > div { flex: 1 1 auto; min-width: 0; }
+  .st-wb-sheet-h h2 { margin: 0; font-size: 17px; font-weight: 750; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .st-wb-sheet-h p { margin: 2px 0 0; color: var(--text-2); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .st-wb-sheet-h .btn { flex: none; height: 42px; padding: 0 18px; border-radius: 12px; }
+  .st-wb-sbody { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 12px calc(28px + env(safe-area-inset-bottom)); }
+  .st-wb-ss { padding: 6px 0 10px; border-top: 1px solid var(--line); }
+  .st-wb-ss:first-child { border-top: 0; }
+  .st-wb-sk { display: flex; align-items: baseline; gap: 8px; margin: 0; padding: 12px 4px 2px; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+  .st-wb-sk small { margin-left: auto; font-size: 12.5px; font-weight: 650; letter-spacing: 0; text-transform: none; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .st-wb-sk small.ok { color: var(--ok); }
+  .st-wb-sheet .st-wb-act { padding-top: 8px; }
+  .st-wb-sheet .st-wb-list { margin-top: 0; }
+  .st-wb-row.choice.is-unfolded { background: var(--panel-2); }
+  .st-wb-row.choice > span.st-wb-plus { pointer-events: none; }
+  .st-wb-in { list-style: none; margin: 0 0 8px 6px; padding: 6px 0 4px 10px; border-left: 2px solid var(--accent-line); }
+  .st-wb-in > .st-wb-rule { padding: 0 4px; }
+  .st-wb-in .st-wb-ctl { padding-top: 8px; }
+  .st-wb-in .st-wb-foot { margin-top: 8px; }
+  .st-wb-areas.sheet { display: flex; flex-direction: column; gap: 1px; padding: 4px 0 0; }
+  .st-wb-areas.sheet .st-wb-a { min-height: 46px; font-size: 15px; }
+  .st-wb-areas.sheet .st-wb-a[aria-expanded="true"] { background: var(--panel-2); }
+  .st-wb-areas.sheet .st-wb-s { grid-template-columns: minmax(0, 1fr) auto 15px; min-height: 42px; font-size: 14px; }
+  .st-wb-areas.sheet .st-wb-s .chev { width: 15px; height: 15px; color: var(--text-3); }
+  .st-wb-areas.sheet .st-wb-s[aria-expanded="true"] { background: var(--panel-2); color: var(--text); font-weight: 650; }
+  .st-wb-areas.sheet > .st-wb-in, .st-wb-subs > .st-wb-in { margin-top: 4px; }
   .st-wb-row { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; padding: 10px 4px; }
   .st-wb-row > .st-wb-fit { grid-column: 1; grid-row: 2; max-width: 100%; }
   .st-wb-row > .st-wb-lp { grid-column: 2; grid-row: 1; align-self: start; padding-top: 2px; }
@@ -6743,19 +6766,6 @@ span.st-wb-go { cursor: default; }
   .st-wb-ctl { gap: 4px 14px; }
   .st-wb-ctl .st-search-box { flex-basis: 100%; }
   .st-wb-foot .st-link { margin-left: 0; }
-  .st-wb-areas.sheet { display: flex; flex-direction: column; gap: 1px; padding-top: 4px; }
-  .st-wb-areas.sheet .st-wb-a { min-height: 46px; font-size: 15px; }
-  .st-wb-areas.sheet .st-wb-s { min-height: 42px; font-size: 14px; }
-  .st-wb-sem.sheet { padding-top: 0; }
-  .st-wb-sem.sheet .st-wb-sh { padding-top: 0; }
-  .st-wb-pbar { position: fixed; z-index: 35; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px; height: 62px; padding: 6px 6px 6px 14px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--accent-line); animation: st-bar-up .2s var(--ease); }
-  .st-wb-pbar-w { flex: 1 1 auto; display: grid; gap: 2px; min-width: 0; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-  .st-wb-pbar-w b { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; white-space: nowrap; }
-  .st-wb-pbar-w b .icon { width: 15px; height: 15px; color: var(--text-3); }
-  .st-wb-pbar-w small { color: var(--text-3); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .st-wb-pbar-m { height: 4px; border-radius: 2px; background: var(--panel-3); overflow: hidden; }
-  .st-wb-pbar-m > i { display: block; width: var(--p, 0%); height: 100%; background: var(--accent); }
-  .st-wb-pbar .btn { flex: none; height: 48px; padding: 0 18px; border-radius: 12px; }
   .st-selbar-count { margin-left: 8px; font-size: 13px; }
   .st-act { flex-direction: column; justify-content: center; gap: 2px; height: 48px; padding: 0 6px; font-size: 11px; }
   .st-act .icon { width: 18px; height: 18px; }
