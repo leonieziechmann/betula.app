@@ -658,8 +658,8 @@ if (current !== "2026W") {
   const SIDE = '.detail .hero .plan-toggle[data-action="plan"]';
   const offered = await page.evaluate(() => { const row = document.querySelector(".st-wrows .st-wrow:not(.has)"); return { id: row?.querySelector(".st-wrow-id")?.textContent, credits: parseFloat(row?.querySelector(".st-wrow-lp")?.textContent) }; });
   await step("a module of its list beside the page", () => page.click(".st-wrows .st-wrow:not(.has) >> nth=0"), (selector) => document.querySelector(selector)?.checkVisibility(), SIDE);
-  const aimed = await page.evaluate((selector) => document.querySelector(selector)?.textContent.replace(/\s+/g, " "), SIDE);
-  check(aimed?.includes("für „Anwendungsfach“"), `the sidebar does not plan for the choice: ${aimed}`);
+  const aimedChoice = await page.evaluate((selector) => document.querySelector(selector)?.textContent.replace(/\s+/g, " "), SIDE);
+  check(aimedChoice?.includes("für „Anwendungsfach“"), `the sidebar does not plan for the choice: ${aimedChoice}`);
   await step("Einplanen, for the choice", () => page.click(SIDE), ([key, id]) => (localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith("m\t") && line.split("\t")[2] === id), [PLAN, offered.id]);
   await page.waitForFunction((after) => document.querySelector('.st-sl[aria-current="true"] .st-wfig')?.textContent.startsWith(`${after} / 12`), String(figured + offered.credits).replace(".", ","), { timeout: 4000 }).catch(() => problems.push("the choice does not count the module planned out of its list"));
   await step("back to the semesters", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => location.search === "" && document.querySelector(".st-grid") && document.querySelector(".st-over .st-bar") && document.querySelector("#sidebar .st-legend-parts"));
