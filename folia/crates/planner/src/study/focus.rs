@@ -512,8 +512,13 @@ impl Row {
                 Some(later) => flags.push(("st-quiet", (s.failed_again)(&later.label(t.locale)))),
                 None => {
                     flags.push(("st-quiet warn", s.failed_open.to_string()));
-                    let next = item.offer.next(study.now);
-                    again = Some(if study.semester(next).is_some() { next } else { study.now });
+                    // A placeholder that modules fill is taken again by them: „Einplanen" is at
+                    // its modules, beside it (until Folia 1.70.1 it planned a second placeholder,
+                    // which counted beside the module taken again).
+                    if item.fillers.is_empty() {
+                        let next = item.offer.next(study.now);
+                        again = Some(if study.semester(next).is_some() { next } else { study.now });
+                    }
                 }
             }
         }

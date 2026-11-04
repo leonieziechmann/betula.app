@@ -355,8 +355,10 @@ pub struct Texts {
     /// Regelstudienplan", and what a click on it does when it holds several.
     pub open_credits: fn(&str) -> String,
     pub open_rows_click: &'static str,
-    /// Several open pieces of a semester too full for its labels: „3 offen".
+    /// Several open pieces of a semester too full for its labels: „3 offen"; its rows of the plan
+    /// without a module: „2 Platzhalter".
     pub n_open: fn(usize) -> String,
+    pub n_placeholders: fn(usize) -> String,
     /// The legend: what is running, what the plan has open, what is not passed, today.
     pub legend_running: &'static str,
     pub legend_plan_open: &'static str,
@@ -622,6 +624,7 @@ pub const DE: Texts = Texts {
     open_credits: |credits| format!("noch {credits} offen laut Regelstudienplan"),
     open_rows_click: "Ein Klick klappt den Bereich auf",
     n_open: |n| format!("{n} offen"),
+    n_placeholders: |n| format!("{n} Platzhalter"),
     legend_running: "Läuft",
     legend_plan_open: "Noch offen laut Plan",
     legend_failed: "Nicht bestanden",
@@ -883,6 +886,7 @@ pub const EN: Texts = Texts {
     open_credits: |credits| format!("{credits} still open in the standard study plan"),
     open_rows_click: "A click expands the area",
     n_open: |n| format!("{n} open"),
+    n_placeholders: |n| if n == 1 { "1 placeholder".to_string() } else { format!("{n} placeholders") },
     legend_running: "Running",
     legend_plan_open: "Still open in the plan",
     legend_failed: "Not passed",

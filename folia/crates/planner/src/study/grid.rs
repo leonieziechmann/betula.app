@@ -69,7 +69,9 @@ impl Fill {
             Fill::Failed => "failed",
             Fill::Running => "running",
             Fill::Planned => "planned",
-            Fill::Row => "row",
+            // Not `row`: that is the catalog's list row (app.css), whose grid and height it took
+            // until Folia 1.70.1.
+            Fill::Row => "is-ph",
             Fill::Open => "open",
         }
     }
@@ -94,6 +96,9 @@ struct Piece {
     retake: bool,
     unoffered: bool,
     over: bool,
+    /// A row of the plan (a placeholder, or one the plan has open): in its lane, whose name says
+    /// which, it says only what it is („Platzhalter", „noch offen").
+    row: bool,
     /// What a click on an open piece plans; empty where it stands for several rows (the click
     /// unfolds the area, whose lanes have them one by one).
     picks: Vec<Pick>,
@@ -120,6 +125,8 @@ struct SemesterCell {
 #[derive(Clone, Debug, PartialEq)]
 struct Lane {
     name: String,
+    /// The name in full, for its title.
+    title: String,
     credits: Option<String>,
     /// Per column: its piece there and what it says of itself („bestanden").
     bars: Vec<Option<(Piece, &'static str)>>,
@@ -201,9 +208,17 @@ fn study_year(s: SemesterKey, start: SemesterKey, t: &Texts) -> String {
     (t.study.study_year)(at / 2 + 1, years.as_deref())
 }
 
+/// A row of the plan's name without what such rows say first: „Modul aus dem Bereich Praktische
+/// Mathematik" is „Praktische Mathematik" in its lane.
+fn row_name(name: &str) -> &str {
+    ["Modul aus dem Bereich ", "Module aus dem Bereich ", "Modul aus ", "Module aus "].iter().find_map(|lead| name.strip_prefix(lead)).unwrap_or(name)
+}
+
 /// What a piece says of a module without an abbreviation, or of a row of the plan: its name up to
-/// the first colon or bracket where that is short, else its first word, cut („Proseminar…").
+/// the first colon or bracket where that is short, else its first word, cut („Proseminar…"); a
+/// row's „Modul aus dem Bereich" goes first („Praktische…").
 fn short_label(name: &str) -> String {
+    let name = row_name(name);
     let head = name.split([':', '(', '/']).next().unwrap_or(name).trim();
     if head.chars().count() <= 14 {
         return head.to_string();
@@ -311,6 +326,7 @@ fn piece_of(ready: &Ready, item: &Item, s: SemesterKey, when: When, fills: Optio
         retake: item.retake.is_some(),
         unoffered: item.unoffered && !item.passed,
         over: item.over > 0.0,
+        row,
         picks: Vec::new(),
     })
 }
@@ -406,11 +422,12 @@ impl Layout {
                 // The lanes by `Item::key`, in the order they first come.
                 let mut lanes: Vec<(String, Lane)> = Vec::new();
                 let columns_n = columns.len();
-                let lane_of = |lanes: &mut Vec<(String, Lane)>, key: String, name: &str, credits: Option<String>| -> usize {
+                let lane_of = |lanes: &mut Vec<(String, Lane)>, key: String, name: &str, row: bool, credits: Option<String>| -> usize {
                     if let Some(at) = lanes.iter().position(|(known, _)| *known == key) {
                         return at;
                     }
-                    lanes.push((key, Lane { name: short_title(name).to_string(), credits, bars: vec![None; columns_n], through: Vec::new(), into: None }));
+                    let short = short_title(if row { row_name(name) } else { name });
+                    lanes.push((key, Lane { name: short.to_string(), title: name.to_string(), credits, bars: vec![None; columns_n], through: Vec::new(), into: None }));
                     lanes.len() - 1
                 };
                 if fold {
@@ -430,7 +447,7 @@ impl Layout {
                         let fills = filled_rows(&semester.items);
                         for item in semester.items.iter().filter(|item| item.area == area) {
                             let Some(piece) = piece_of(ready, item, semester.key, When::Past, item.module_id().and_then(|id| fills.get(id).copied()), abbrevs, t) else { continue };
-                            let at = lane_of(&mut lanes, item.key(), &item.name, piece_credits(item, t));
+                            let at = lane_of(&mut lanes, item.key(), &item.name, piece.row, piece_credits(item, t));
                             let word = word_of(&piece, t);
                             if let Some(slot) = lanes.get_mut(at).and_then(|(_, lane)| lane.bars.first_mut()) {
                                 if slot.as_ref().is_none_or(|(before, _)| before.fill != Fill::Passed) {
@@ -447,7 +464,7 @@ impl Layout {
                     let mut pieces = Vec::new();
                     for item in semester.items.iter().filter(|item| item.area == area) {
                         let Some(piece) = piece_of(ready, item, semester.key, semester.when, item.module_id().and_then(|id| fills.get(id).copied()), abbrevs, t) else { continue };
-                        let at = lane_of(&mut lanes, item.key(), &item.name, piece_credits(item, t));
+                        let at = lane_of(&mut lanes, item.key(), &item.name, piece.row, piece_credits(item, t));
                         set_bar(&mut lanes, at, column, (piece.clone(), word_of(&piece, t)));
                         pieces.push(piece);
                     }
@@ -474,19 +491,20 @@ impl Layout {
                             retake: line.failed_in.is_some(),
                             unoffered: !line.suggestion.offer.offered(semester.key),
                             over: false,
+                            row: matches!(line.suggestion.pick, Pick::Row { .. }),
                             picks: vec![line.suggestion.pick.clone()],
                         };
                         match &line.suggestion.pick {
                             Pick::Module { id, .. } => {
                                 let open = piece(abbrevs.get(id).cloned().unwrap_or_else(|| short_label(short_title(&line.suggestion.name))));
-                                let at = lane_of(&mut lanes, format!("open:{id}"), &line.suggestion.name, credits);
+                                let at = lane_of(&mut lanes, format!("open:{id}"), &line.suggestion.name, false, credits);
                                 set_bar(&mut lanes, at, column, (open.clone(), s.bar_open));
                                 pieces.push(open);
                             }
                             Pick::Row { caption, ord } => {
                                 let open = piece(short_label(&line.suggestion.name));
                                 let lane = format!("open:{caption}:{ord}:{}", semester.key.key());
-                                let at = lane_of(&mut lanes, lane.clone(), &line.suggestion.name, credits);
+                                let at = lane_of(&mut lanes, lane.clone(), &line.suggestion.name, true, credits);
                                 set_bar(&mut lanes, at, column, (open, s.bar_open));
                                 rows_open.push(line);
                                 row_lanes.push(lane);
@@ -518,6 +536,7 @@ impl Layout {
                                 retake: false,
                                 unoffered: false,
                                 over: false,
+                                row: true,
                                 picks: match rows_open.as_slice() {
                                     [one] => vec![one.suggestion.pick.clone()],
                                     _ => Vec::new(),
@@ -832,6 +851,9 @@ fn cell_view(ctx: StudyCtx, cell: Cell, area: Option<usize>, area_name: &str, to
             // beside it.
             let sum_fill = if !real.is_empty() && real.iter().all(|piece| piece.fill == Fill::Passed) {
                 Fill::Passed
+            } else if !real.is_empty() && real.iter().all(|piece| piece.fill == Fill::Row) {
+                // Rows of the plan alone: dashed, as they are.
+                Fill::Row
             } else if cell.when == When::Now {
                 Fill::Running
             } else if cell.when == When::Past {
@@ -841,7 +863,15 @@ fn cell_view(ctx: StudyCtx, cell: Cell, area: Option<usize>, area_name: &str, to
             };
             let failed = real.iter().filter(|piece| piece.fill == Fill::Failed).count();
             let credits: f64 = real.iter().map(|piece| piece.grow).sum();
-            let count = folia_design::format::modules(i64::try_from(real.len()).unwrap_or(0), t.locale);
+            // The modules by their number, a row of the plan without one as what it is: „3 Module",
+            // „2 Platzhalter", „1 Modul · 1 Platzhalter".
+            let places = real.iter().filter(|piece| piece.fill == Fill::Row).count();
+            let modules = real.len() - places;
+            let count = match (modules, places) {
+                (_, 0) => folia_design::format::modules(i64::try_from(modules).unwrap_or(0), t.locale),
+                (0, _) => (s.n_placeholders)(places),
+                _ => format!("{} · {}", folia_design::format::modules(i64::try_from(modules).unwrap_or(0), t.locale), (s.n_placeholders)(places)),
+            };
             let sum_title = real.iter().map(|piece| format!("{} · {}", piece.label, piece.title)).collect::<Vec<_>>().join("\n");
             let open_title = open.iter().map(|piece| piece.title.clone()).collect::<Vec<_>>().join("\n");
             let open_count = open.len();
@@ -874,7 +904,7 @@ fn cell_view(ctx: StudyCtx, cell: Cell, area: Option<usize>, area_name: &str, to
                         </div>
                         <div class="st-rm-sum">
                             {(!real.is_empty()).then(|| view! {
-                                <button type="button" class=format!("st-rm-p sum {}", sum_fill.class()) title=sum_title.clone() aria-label=format!("{count} · {sum_credits}") on:click=move |_| unfold_sum()>
+                                <button type="button" class=format!("st-rm-p sum {}{}", sum_fill.class(), if cell.when == When::Now { " now" } else { "" }) title=sum_title.clone() aria-label=format!("{count} · {sum_credits}") on:click=move |_| unfold_sum()>
                                     <span class="lb">{count.clone()}<span class="st-rm-lp">" · "{sum_credits.clone()}</span></span>
                                     {(failed > 0).then(|| view! { <span class="st-rm-badge">"✕ "{failed}</span> })}
                                 </button>
@@ -937,7 +967,8 @@ fn piece_view(ctx: StudyCtx, piece: Piece, semester: SemesterKey, unfold: impl F
     .into_any()
 }
 
-/// What a piece shows: ✕, + or ? before its label, ↻ and ⚠ after it; in a lane its word between.
+/// What a piece shows: ✕, + or ? before its label, ↻ and ⚠ after it; in a lane its word between,
+/// a row of the plan's only its word (the lane's name says which row: „? Platzhalter").
 fn piece_inner(piece: &Piece, word: Option<&'static str>) -> AnyView {
     let pre = match piece.fill {
         Fill::Failed => Some("x"),
@@ -947,9 +978,13 @@ fn piece_inner(piece: &Piece, word: Option<&'static str>) -> AnyView {
     };
     let retake = piece.retake && piece.fill != Fill::Open;
     let check = word.is_some() && piece.fill == Fill::Passed;
+    let (label, word) = match word {
+        Some(word) if piece.row => (word.to_string(), None),
+        _ => (piece.label.clone(), word),
+    };
     view! {
         {pre.map(|name| view! { <Icon name=name/> })}
-        <span class="lb">{piece.label.clone()}{word.map(|word| view! { <span class="st-rm-w">{word}</span> })}</span>
+        <span class="lb">{label}{word.map(|word| view! { <span class="st-rm-w">{word}</span> })}</span>
         {retake.then(|| view! { <Icon name="repeat"/> })}
         {piece.unoffered.then(|| view! { <Icon name="triangle-alert" class="warn"/> })}
         {check.then(|| view! { <Icon name="check"/> })}
@@ -959,7 +994,7 @@ fn piece_inner(piece: &Piece, word: Option<&'static str>) -> AnyView {
 
 /// A lane: the module's name and credits, its piece in each semester it is in, a retake's arrow.
 fn lane_view(ctx: StudyCtx, lane: Lane, tone: &'static str, today_at: Option<usize>, kinds: &[&'static str], last: bool, t: &'static Texts) -> AnyView {
-    let (name, title) = (lane.name.clone(), lane.name.clone());
+    let (name, title) = (lane.name.clone(), lane.title.clone());
     view! {
         <div class="st-rm-lane" class:last=last style=tone_style(tone)>
             <span class="st-rm-lane-name" title=title>{name}</span>
@@ -1052,5 +1087,8 @@ mod tests {
         assert_eq!(short_label("Wahlpflicht: Komplex Grundlagen der Informatik / Komplex Praktische Informatik"), "Wahlpflicht");
         assert_eq!(short_label("Proseminar oder Praktikum"), "Proseminar…");
         assert_eq!(short_label("Fachübergreifendes Studium"), "Fachübergre…");
+        assert_eq!(short_label("Modul aus dem Bereich Praktische Mathematik"), "Praktische…");
+        assert_eq!(row_name("Modul aus dem Bereich Praktische Mathematik"), "Praktische Mathematik");
+        assert_eq!(row_name("Anwendungsfach"), "Anwendungsfach");
     }
 }
