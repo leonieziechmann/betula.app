@@ -234,7 +234,8 @@ pub fn App() -> impl IntoView {
             // The ground a phone shows under a page that has one of its own (app.css), with who
             // took the start page's photo while it is in front.
             <Ground credit=ViewFn::from(|| view! { <Credits/> })/>
-            <nav class="bottomnav" aria-label=t.app.navigation data-region="nav" data-stop="x"><NavItems/></nav>
+            // The bar's guard (app.css, `.bottomnav-guard`) catches a finger that misses it.
+            <nav class="bottomnav" aria-label=t.app.navigation data-region="nav" data-stop="x"><span class="bottomnav-guard" aria-hidden="true"></span><NavItems/></nav>
             // What comes and goes over the page, in a frame of its own that has no box (app.css,
             // `.overlays`): a note or a menu put into the body itself moved the place of every part
             // of the page beside it, and Chrome restyled all of the page for its `:nth-child`s and
