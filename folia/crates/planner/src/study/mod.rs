@@ -747,8 +747,10 @@ fn StudyMain(ctx: StudyCtx) -> impl IntoView {
 }
 
 /// The study: on a desktop the overview and the semesters, on a phone a row of pages; or a view of
-/// it, the Regelstudienplan or the Wahlpflicht (under the overview on a desktop, a page of its own
-/// on a phone).
+/// it, the Regelstudienplan or the Wahlpflicht, without the overview (owner, 2026-11-04: „Beim
+/// regelstudienplan und bei dem wahlpflicht teil soll die progress bar entfernt werden. Die ist
+/// nicht relevant für die beiden subpages"): on a desktop the view alone in the page, on a phone a
+/// page of its own.
 #[component]
 fn StudyBody(ctx: StudyCtx) -> impl IntoView {
     let view = Memo::new(move |_| ctx.url.with(|url| url.view));
@@ -760,20 +762,15 @@ fn StudyBody(ctx: StudyCtx) -> impl IntoView {
         if benching.get() && !phone {
             return view! { <bench::BenchDesk ctx/> }.into_any();
         }
-        let body = match view.get() {
-            StudyView::Semesters if phone => return view! { <phone::Phone ctx/> }.into_any(),
-            StudyView::Semesters => view! { <Semesters ctx/> }.into_any(),
+        match view.get() {
+            StudyView::Semesters if phone => view! { <phone::Phone ctx/> }.into_any(),
+            StudyView::Semesters => view! {
+                <overview::Overview ctx/>
+                <Semesters ctx/>
+            }
+            .into_any(),
             StudyView::Plan => view! { <regular::Regular ctx/> }.into_any(),
             StudyView::Choices => view! { <choose::Choose ctx/> }.into_any(),
-        };
-        if phone {
-            body
-        } else {
-            view! {
-                <overview::Overview ctx/>
-                {body}
-            }
-            .into_any()
         }
     }
 }
