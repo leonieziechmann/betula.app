@@ -316,7 +316,16 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   is red where the plan meets the card, and the card carries the „!"; the Termin open beside the
   week has a ring at a distance and lifts. A line under the week, only with the plan beside it,
   names what of this the week holds („Pflicht" or „Pflicht und deine Gruppe", „Einzeltermine",
-  „Wahl, eine der Gruppen", „Zusatz, freiwillig", „Darunter: dein Stundenplan").
+  „Wahl, eine der Gruppen", „Zusatz, freiwillig", „Darunter: dein Stundenplan"). Over the week,
+  under what picks its Termine (the line of its courses with „Auch zeigen", its choices'), stands
+  how it sits beside the plan — „Überschneidet sich mit: Elektrische und elektronische Grundlagen
+  der Informatik (Di 07:30)", „Passt mit Übung Do 13:45", „Passt in deinen Stundenplan (WiSe
+  2026/27)" — of the Termine the week draws alone (owner, 2026-11-04: „das die Warnung für
+  Überschneidungen über dem Kalender angezeigt wird … nur für die visuell angezeigten"): of
+  Programmierpraktikum its course at Zentralcampus, the one at Sachsendorf once „Auch zeigen" shows
+  it too. The page hides what it does not draw in the overlay's question
+  (`Selection::hidden_rows`, `widgets::module::plan_overlay`), so that what is red and what the
+  line names are one.
 - **The Stundenplan's week in the same look** (owner, 2026-11-03: „Versuch das aussehen mal auch im
   allgemeinen Kalender zu übernehmen. Der ist nämlich auch noch ganz schön cluttered."; Folia
   1.68.0, app.css). The colours of a slot are the module week's for every week (`.slot`: `--mod` and
@@ -680,7 +689,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       sits in the calendar's week — „passt", „Passt mit Übung Do 13:45", or „Überschneidet sich
       mit: Analysis I (Di 09:15)" in the warning's colour, as a module's week says it beside the
       plan (`pages::fit_lines`, the overlay's line for many at once, asked in the browser once the
-      panel is open) — and „Aufnehmen", „3 gemerkte Module aufnehmen" for all of them shown (of a
+      panel is open; of a module held at two campuses the course the plan's program takes, as the
+      Stundenplan would show it) — and „Aufnehmen", „3 gemerkte Module aufnehmen" for all of them shown (of a
       collection too), and folded under them „Im WiSe 2026/27 nicht angeboten · 2", each with why
       („nur SoSe", „nicht mehr angeboten", the turnus) and „Aufnehmen" all the same. In „Mein
       Studiengang" what it takes in is a visit.
