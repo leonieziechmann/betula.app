@@ -2361,7 +2361,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     foot at the screen's foot, a finger half up taking the sheet and not its list, the grabber taking
     it all up, from all up a swipe of the head to half up and a second one away; and a tab held:
     „Studium"'s three ways (the finger's release going nowhere, a tap beside closing them, a way
-    taken), a short tap as ever, the catalog's list with its filters.
+    taken), a short tap as ever, the catalog's list with its filters, and a tab other than the
+    current one held, its release going nowhere either (until 2026-11-04 the bar's tap took it
+    and went to the tab).
   - `node folia/e2e/sheets.mjs` checks the sheets of a phone: a dialog coming up from below in one
     move to half the screen, its frame the sheets' (the grabber, its × out of sight); half up a short
     slow pull moving the sheet and not its content and coming back; the grabber all up, half up and
