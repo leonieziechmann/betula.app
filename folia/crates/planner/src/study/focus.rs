@@ -557,9 +557,22 @@ fn plan_again(ctx: StudyCtx, item: &Item, to: SemesterKey, t: &'static Texts) {
         Subject::Row { caption, ord, .. } => Pick::Row { caption: caption.clone(), ord: *ord },
     };
     let note = (t.study_bench.planned_note)(&item.name, &to.label(t.locale));
-    ctx.change_noted(Some(note), move |doc, input| {
-        study::add(doc, input, to, &[pick], now_secs());
-    }, || {});
+    // A row of the plan comes again as a placeholder: its module choice then (`bench::choose_for`).
+    let row = match &pick {
+        Pick::Row { caption, ord } => Some((caption.clone(), *ord)),
+        Pick::Module { .. } => None,
+    };
+    ctx.change_noted(
+        Some(note),
+        move |doc, input| {
+            study::add(doc, input, to, &[pick], now_secs());
+        },
+        move || {
+            if let Some((caption, ord)) = row {
+                super::bench::choose_for(ctx, to, &caption, ord);
+            }
+        },
+    );
 }
 
 /// A selection drawn over the rows: the row it began at, whether it selects or lets go, what was
@@ -984,12 +997,33 @@ fn VisitRow(ctx: StudyCtx, semester: SemesterKey, id: String) -> impl IntoView {
     }
 }
 
-/// Adds `pick` to semester `s` at once, with a note to take it back.
+/// Adds `pick` to semester `s` at once, with a note to take it back; a single row of the plan, a
+/// placeholder then, with its module choice in front (`bench::choose_for`).
 pub(super) fn add_pick(ctx: StudyCtx, s: SemesterKey, picks: Vec<Pick>, t: &'static Texts) {
-    let note = (t.study.added)(picks.len());
-    ctx.change_noted(Some(note), move |doc, input| {
-        study::add(doc, input, s, &picks, now_secs());
-    }, || {});
+    let row = match picks.as_slice() {
+        [Pick::Row { caption, ord }] => Some((caption.clone(), *ord)),
+        _ => None,
+    };
+    // A placeholder says what it is, as „Vormerken" does: „Anwendungsfach in SoSe 27 vorgemerkt".
+    let name = untrack(|| match picks.as_slice() {
+        [pick @ Pick::Row { .. }] => ctx.with_ready(|ready| ready.lines.iter().find(|line| line.suggestion.pick == *pick).map(|line| line.suggestion.name.clone())).flatten(),
+        _ => None,
+    });
+    let note = match name {
+        Some(name) => (t.study_bench.reserved_note)(&name, &s.label(t.locale)),
+        None => (t.study.added)(picks.len()),
+    };
+    ctx.change_noted(
+        Some(note),
+        move |doc, input| {
+            study::add(doc, input, s, &picks, now_secs());
+        },
+        move || {
+            if let Some((caption, ord)) = row {
+                super::bench::choose_for(ctx, s, &caption, ord);
+            }
+        },
+    );
 }
 
 /// The page after the last semester: one more, as a semester of leave if the student says so.

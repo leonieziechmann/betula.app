@@ -533,6 +533,32 @@ if (current !== "2026W") {
   await step("plan the open Betriebssysteme I", () => page.click('.st-rm-bar.open[aria-label*="Betriebssysteme I"]'), () => document.querySelector(".study-note")?.textContent.includes("hinzugefügt"));
   check((await lines(page, "m\t2027S\t")).length === 1, `the open module was not planned: ${JSON.stringify(await lines(page, "m\t2027S\t"))}`);
   check((await stored(page, "betula.study.view")) === "grid", "the view is not remembered");
+  // A module dragged over the plan (owner, 2026-11-04: „soll einfach das gesamte semester die
+  // dropstelle sein und light gehighlighted werden mit der stelle, wo es final landen soll dann
+  // särker"): BS1 of its lane held over the head of WiSe 2027/28 lights that semester from its head
+  // down, Informatik's cell there and BS1's lane strongly; let go there, it moves; „Rückgängig".
+  const bs1 = (await lines(page, "m\t2027S\t"))[0]?.split("\t")[2];
+  const dragFrom = await page.locator('.st-rm-bar[aria-label^="BS1,"]').boundingBox();
+  const dragTo = await page.locator('.st-col-head[data-sem="2027W"]').boundingBox();
+  if (dragFrom && dragTo) {
+    await page.mouse.move(dragFrom.x + 20, dragFrom.y + dragFrom.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(dragFrom.x + 40, dragFrom.y + dragFrom.height / 2, { steps: 3 });
+    await page.mouse.move(dragTo.x + dragTo.width / 2, dragTo.y + dragTo.height / 2, { steps: 10 });
+    await page.waitForFunction(() => document.querySelector('.st-col-head[data-sem="2027W"]')?.classList.contains("rm-drop"), null, { timeout: 3000 }).catch(() => {});
+  }
+  const aimed = await page.evaluate(() => ({
+    column: [...document.querySelectorAll('[data-sem="2027W"]')].every((cell) => cell.classList.contains("rm-drop")),
+    others: document.querySelectorAll('.rm-drop:not([data-sem="2027W"])').length,
+    lands: [...document.querySelectorAll(".rm-drop-here")].map((cell) => {
+      let head = cell.previousElementSibling;
+      while (head && !head.matches(".st-row-head, .st-rm-lane")) head = head.previousElementSibling;
+      return `${cell.dataset.sem} ${head?.querySelector(".st-card-name, .st-rm-lane-name")?.textContent}`;
+    }),
+  }));
+  check(aimed.column && aimed.others === 0 && aimed.lands.join(" | ") === "2027W Informatik | 2027W Betriebssysteme I", `a module dragged over the head of WiSe 2027/28: ${JSON.stringify(aimed)}`);
+  await step("let go over the semester's head", () => page.mouse.up(), (id) => (localStorage.getItem("betula.studyplan.v1") || "").split("\n").some((line) => line.startsWith(`m\t2027W\t${id}\t`)) && !document.querySelector(".rm-drop, .rm-drop-here"), bs1);
+  await step("Rückgängig, the module back", () => page.click(".study-note .plan-toast-undo"), (id) => (localStorage.getItem("betula.studyplan.v1") || "").split("\n").some((line) => line.startsWith(`m\t2027S\t${id}\t`)), bs1);
   // The plan's head stays at the top (owner, 2026-11-04: „Ich möchte, dass da der header sticky
   // ist von dem Plan. Also ähnlich wie bei dem Semester plan."): scrolled down, the title, the band
   // of the study years and the semesters' heads at the top of the area, the areas under it; in a
@@ -682,8 +708,20 @@ if (current !== "2026W") {
     for (let cell = lane?.nextElementSibling; !bar && cell?.classList.contains("st-rm-lc"); cell = cell.nextElementSibling) bar = cell.querySelector(".st-rm-bar.is-ph");
     return bar?.textContent.trim() === "Platzhalter";
   });
+  // The rows of one name are one lane, their credits added up (owner, 2026-11-04: „warum gibt es
+  // hier zwei mal anwendungsfach als ein eintrag mit jeweils 6 punkten. Das sollte einmal mit 12
+  // sein"): the place of the 3rd FS and what the plan has open of the 4th.
+  const anwendungsfach = await page.evaluate(() => [...document.querySelectorAll(".st-rm-lane")].filter((lane) => lane.querySelector(".st-rm-lane-name")?.textContent === "Anwendungsfach").map((lane) => lane.querySelector(".st-rm-lane-lp")?.textContent));
+  check(anwendungsfach.join() === "12", `the lanes of the Anwendungsfach: ${JSON.stringify(anwendungsfach)}`);
+  // A placeholder put in leads into its module choice (owner, 2026-11-04: „wenn man einen
+  // platzhalter slot erstellt auch gleich in die modulauswahl dafür geschmissen werden"): the
+  // plan's open Anwendungsfach, a click, the workbench of its semester at its subgroup.
+  await step("the plan's open Anwendungsfach", () => page.click('.st-rm-bar.open[aria-label^="Anwendungsfach –"]'), () => document.querySelector(".st-wb-pt h3")?.textContent === "Anwendungsfach" && document.querySelector(".st-wb-bar em")?.textContent === "SoSe 2027" && document.querySelector(".study-note")?.textContent.includes("Anwendungsfach in SoSe 2027 vorgemerkt"));
+  await step("Rückgängig, in its module choice", () => page.click(".study-note .plan-toast-undo"), (key) => !(localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith("p\t") && line.split("\t")[2] === "2027S"), PLAN);
+  await step("Fertig, the Gesamtplan again", () => page.click(".st-wb-done"), () => !document.querySelector(".st-wb") && document.querySelector(".st-rm-grid"));
   await step("Alle zuklappen, for the place", () => page.click('.st-sems-head button:has-text("Alle zuklappen")'), () => !document.querySelector(".st-rm-lane"));
-  await step("back to the semester", () => page.click('#sidebar .st-vl:has-text("Semester")'), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
+  // Its semester's head shows it as the semester (the workbench's „Fertig" left SoSe 2027 in focus).
+  await step("back to the semester", () => page.click('.st-col-head[data-sem="2026W"]'), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
   // „Modul wählen", in its menu and at the row, opens the workbench at the place's subgroup
   // (folia/design/hinzufuegen/konzepte.html, third round: „„Modul wählen“ an einem Platzhalter
   // öffnet die Werkbank in seiner Untergruppe"), whose „Im Katalog suchen" names the place (`fill=`).

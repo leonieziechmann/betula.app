@@ -687,7 +687,7 @@ impl Study {
 }
 
 /// „6" → (6, 6), „10–24" → (10, 24).
-fn credits_range(text: &str) -> Option<(f64, f64)> {
+pub fn credits_range(text: &str) -> Option<(f64, f64)> {
     let number = |part: &str| part.trim().replace(',', ".").parse::<f64>().ok();
     match text.split_once(['–', '-']) {
         Some((low, high)) => Some((number(low)?, number(high)?)),

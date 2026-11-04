@@ -5901,7 +5901,11 @@ div.st-col-head.past { cursor: default; }
 .st-rm-cell { position: relative; isolation: isolate; min-width: 0; padding: 9px 1px; border-bottom: 1px solid var(--line); border-left: 1px solid var(--line); container-type: inline-size; }
 .st-rm-cell.past { background: var(--panel-2); }
 .st-rm-cell.leave { background: repeating-linear-gradient(135deg, var(--panel-2) 0 7px, var(--panel) 7px 14px); }
-.st-cell.is-drop { box-shadow: inset 0 0 0 2px var(--accent); background: var(--accent-soft); }
+/* A module dragged over the plan (grid.rs, `Aim`): the semester under the pointer lit lightly from
+   its head down, the cell it lands in (its area's, its lane's) strongly. A shadow inside, over the
+   cell's own ground (the hatch of a leave), under its pieces and the line of today. */
+.st-rm .rm-drop { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--accent) 8%, transparent); }
+.st-rm .rm-drop-here { box-shadow: inset 0 0 0 2px var(--accent), inset 0 0 0 100vmax color-mix(in srgb, var(--accent) 20%, transparent); }
 .st-rm-seg { position: relative; z-index: 1; display: flex; gap: 2px; height: 28px; overflow: hidden; }
 .st-rm-sum { position: absolute; z-index: 1; inset: 9px 1px; display: none; gap: 2px; }
 .st-rm-cell[data-full] > .st-rm-seg { visibility: hidden; }
@@ -5943,12 +5947,13 @@ div.st-col-head.past { cursor: default; }
 .st-rm-lane { display: flex; align-items: center; gap: 6px; min-width: 0; height: 30px; padding: 0 10px 0 30px; background: color-mix(in oklab, var(--text) 1.6%, var(--panel)); font-size: 12px; color: var(--text-2); }
 .st-rm-lane-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .st-rm-lane-lp { flex: none; font-variant-numeric: tabular-nums; }
-.st-rm-lc { position: relative; isolation: isolate; min-width: 0; height: 30px; padding: 4px 3px; border-left: 1px solid var(--line); background: color-mix(in oklab, var(--text) 1.6%, var(--panel)); container-type: inline-size; }
+.st-rm-lc { position: relative; isolation: isolate; min-width: 0; height: 30px; padding: 4px 3px; border-left: 1px solid var(--line); background: color-mix(in oklab, var(--text) 1.6%, var(--panel)); container-type: inline-size; display: flex; gap: 2px; }
 .st-rm-lc.past { background: color-mix(in oklab, var(--text) 1.6%, var(--panel-2)); }
 .st-rm-lc.is-now { background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
 .st-rm-lane.last, .st-rm-lc.last { height: 35px; padding-bottom: 9px; border-bottom: 1px solid var(--line); }
 .st-rm-lane.last { padding-bottom: 5px; }
-.st-rm-bar { width: 100%; height: 22px; overflow: hidden; }
+/* Its piece takes the cell; two rows of its name in one semester share it. */
+.st-rm-bar { flex: 1 1 0px; min-width: 0; height: 22px; overflow: hidden; }
 /* In a lane the label and its word take what the bar has: what does not fit ends in „…", the marks
    after it stay. */
 .st-rm-bar .lb { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
