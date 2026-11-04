@@ -214,6 +214,38 @@ pub(super) fn drag_data(ev: &leptos::ev::DragEvent, keys: &[String]) {
     }
 }
 
+/// The semester of the column of the Gesamtplan a drag is over: the `data-sem` of the cell under
+/// the pointer, its head, an area's cell or a lane's; none outside the semesters' columns.
+#[allow(unused_variables)]
+pub(super) fn semester_at(ev: &leptos::ev::DragEvent) -> Option<folia_calendar::semester::SemesterKey> {
+    #[cfg(feature = "csr")]
+    {
+        let target = ev.target()?;
+        let element = match target.dyn_ref::<web_sys::Element>() {
+            Some(element) => element.clone(),
+            None => target.dyn_into::<web_sys::Node>().ok()?.parent_element()?,
+        };
+        let cell = element.closest("[data-sem]").ok()??;
+        folia_calendar::semester::SemesterKey::parse(&cell.get_attribute("data-sem")?)
+    }
+    #[cfg(not(feature = "csr"))]
+    None
+}
+
+/// Whether a drag has left the box whose handler this is, for what lies outside it or for none
+/// (out of the window), not for one of its own boxes.
+#[allow(unused_variables)]
+pub(super) fn drag_left(ev: &leptos::ev::DragEvent) -> bool {
+    #[cfg(feature = "csr")]
+    {
+        let Some(root) = ev.current_target().and_then(|target| target.dyn_into::<web_sys::Node>().ok()) else { return true };
+        let into = ev.related_target().and_then(|target| target.dyn_into::<web_sys::Node>().ok());
+        !into.is_some_and(|into| root.contains(Some(&into)))
+    }
+    #[cfg(not(feature = "csr"))]
+    true
+}
+
 /// Marks every cell of the Gesamtplan whose pieces do not fit beside each other (`data-full`), so
 /// that it says „4 Module" instead (`grid.rs`). The pieces stay laid out, hidden, so the next
 /// measure sees them again: after every change of the plan and of the grid's width.

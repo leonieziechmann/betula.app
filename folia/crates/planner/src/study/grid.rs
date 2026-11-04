@@ -10,17 +10,20 @@
 //! as its share of the semester's credits and never narrower than its label; where the labels do
 //! not fit beside each other the semester says „4 Module · 24 LP" (`dom::fit_pieces`). The fuller,
 //! the further: passed full in the area's tone, what runs strong, what is planned light, what the
-//! plan has open dashed (a click plans it), not passed red with ✕, a retake with ↻, not offered ⚠,
-//! beyond need hatched. ▸ unfolds an area into a lane per module, a retake tied to its first try by
-//! an arrow; „Alle aufklappen" and „Alle zuklappen" over the plan, what is unfolded kept
-//! (`OPEN_KEY`). A row of the plan that a module fills is carried by that module („für
-//! „Anwendungsfach“"). The semesters before the current one stand open; „Bisher zuklappen" folds
-//! them into one column. A click on a module (or a right click) opens its menu (`menu.rs`), a
-//! module dragged into another column moves there, „+" in a cell opens the workbench for that
-//! semester at that area (`bench.rs`). The title, the band and the semesters' heads stay at the top
-//! while the areas scroll under them, as the semester's head does (owner, 2026-11-04: „Ich möchte,
-//! dass da der header sticky ist von dem Plan. Also ähnlich wie bei dem Semester plan."): a grid of
-//! their own over the areas', each in a box that scrolls sideways and follows the other (`follow`).
+//! plan has open dashed (a click plans it; a row of the plan, a placeholder then, with its module
+//! choice in front: `bench::choose_for`), not passed red with ✕, a retake with ↻, not offered ⚠,
+//! beyond need hatched. ▸ unfolds an area into a lane per module, the rows of the plan of one name
+//! one lane (`RowOf`), a retake tied to its first try by an arrow; „Alle aufklappen" and „Alle
+//! zuklappen" over the plan, what is unfolded kept (`OPEN_KEY`). A row of the plan that a module
+//! fills is carried by that module („für „Anwendungsfach“"). The semesters before the current one
+//! stand open; „Bisher zuklappen" folds them into one column. A click on a module (or a right
+//! click) opens its menu (`menu.rs`), a module dragged moves to the semester whose column it is let
+//! go over, which lights up, and more strongly where it lands (`Aim`), „+" in a cell opens the
+//! workbench for that semester at that area (`bench.rs`). The title, the band and the semesters'
+//! heads stay at the top while the areas scroll under them, as the semester's head does (owner,
+//! 2026-11-04: „Ich möchte, dass da der header sticky ist von dem Plan. Also ähnlich wie bei dem
+//! Semester plan."): a grid of their own over the areas', each in a box that scrolls sideways and
+//! follows the other (`follow`).
 //! Too wide for its panel, the plan scrolls sideways by itself to the current semester, the one
 //! before it first after the areas' names, which stay at the left (owner, the same day: „dass immer
 //! das aktuelle semester passend gezeigt wird"; `show_now`).
@@ -33,7 +36,7 @@ use folia_calendar::day::Day;
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::{ModuleKind, Season};
 use folia_pages::ask::ModuleAbbrevsAsk;
-use folia_plans::study::{Item, Pick, Subject, When};
+use folia_plans::study::{credits_range, Item, Pick, Subject, When};
 use leptos::html::Div;
 use leptos::prelude::*;
 
@@ -104,12 +107,22 @@ struct Piece {
     retake: bool,
     unoffered: bool,
     over: bool,
-    /// A row of the plan (a placeholder, or one the plan has open): in its lane, whose name says
-    /// which, it says only what it is („Platzhalter", „noch offen").
-    row: bool,
+    /// The row of the plan it stands for (a placeholder, or one the plan has open): in its lane,
+    /// whose name says which, it says only what it is („Platzhalter", „noch offen").
+    row: Option<RowOf>,
     /// What a click on an open piece plans; empty where it stands for several rows (the click
     /// unfolds the area, whose lanes have them one by one).
     picks: Vec<Pick>,
+}
+
+/// A row of the plan as its lane counts it: which (its caption and `ord`) and its credits (low,
+/// high). The rows of one name share a lane, which adds their credits up, each row once (two rows
+/// „Anwendungsfach" of 6 are one lane of 12; owner, 2026-11-04: „warum gibt es hier zwei mal
+/// anwendungsfach als ein eintrag mit jeweils 6 punkten. Das sollte einmal mit 12 sein").
+#[derive(Clone, Debug, PartialEq)]
+struct RowOf {
+    id: String,
+    credits: Option<(f64, f64)>,
 }
 
 /// A cell of an area's row.
@@ -128,16 +141,19 @@ struct SemesterCell {
     pieces: Vec<Piece>,
 }
 
-/// A lane of an unfolded area: a module (or a row of the plan, or what the plan has open) over the
-/// semesters it is in.
+/// A lane of an unfolded area: a module, what the plan has open of it included, or the rows of the
+/// plan of one name (`RowOf`), over the semesters they are in.
 #[derive(Clone, Debug, PartialEq)]
 struct Lane {
     name: String,
     /// The name in full, for its title.
     title: String,
     credits: Option<String>,
-    /// Per column: its piece there and what it says of itself („bestanden").
-    bars: Vec<Option<(Piece, &'static str)>>,
+    /// Per column: its pieces there (one, but for two rows of its name in one semester), each with
+    /// what it says of itself („bestanden").
+    bars: Vec<Vec<(Piece, &'static str)>>,
+    /// The keys of its pieces (`Item::key`): where a module dragged lands in it.
+    keys: BTreeSet<String>,
     /// A retake: the columns its arrow runs through from the try before, and the one it ends at.
     through: Vec<usize>,
     into: Option<usize>,
@@ -334,9 +350,20 @@ fn piece_of(ready: &Ready, item: &Item, s: SemesterKey, when: When, fills: Optio
         retake: item.retake.is_some(),
         unoffered: item.unoffered && !item.passed,
         over: item.over > 0.0,
-        row,
+        row: match &item.subject {
+            Subject::Row { caption, ord, credits, .. } => Some(RowOf { id: format!("{caption}:{ord}"), credits: credits.as_deref().and_then(credits_range).or(item.credits.map(|credits| (credits, credits))) }),
+            Subject::Module { .. } => None,
+        },
         picks: Vec::new(),
     })
+}
+
+/// The lane of an item: a module's by its id, a row of the plan's by its name (`RowOf`).
+fn lane_key(item: &Item) -> String {
+    match &item.subject {
+        Subject::Module { id } => format!("m:{id}"),
+        Subject::Row { .. } => format!("row:{}", item.name),
+    }
 }
 
 /// What lane a piece's word is („bestanden", „Wiederholung", „noch offen").
@@ -441,7 +468,7 @@ impl Layout {
             .into_iter()
             .map(|area| {
                 let mut cells = Vec::new();
-                // The lanes by `Item::key`, in the order they first come.
+                // The lanes by `lane_key`, in the order they first come.
                 let mut lanes: Vec<(String, Lane)> = Vec::new();
                 let columns_n = columns.len();
                 let lane_of = |lanes: &mut Vec<(String, Lane)>, key: String, name: &str, row: bool, credits: Option<String>| -> usize {
@@ -449,7 +476,7 @@ impl Layout {
                         return at;
                     }
                     let short = short_title(if row { row_name(name) } else { name });
-                    lanes.push((key, Lane { name: short.to_string(), title: name.to_string(), credits, bars: vec![None; columns_n], through: Vec::new(), into: None }));
+                    lanes.push((key, Lane { name: short.to_string(), title: name.to_string(), credits, bars: vec![Vec::new(); columns_n], keys: BTreeSet::new(), through: Vec::new(), into: None }));
                     lanes.len() - 1
                 };
                 if fold {
@@ -469,11 +496,13 @@ impl Layout {
                         let fills = filled_rows(&semester.items);
                         for item in semester.items.iter().filter(|item| item.area == area) {
                             let Some(piece) = piece_of(ready, item, semester.key, When::Past, item.module_id().and_then(|id| fills.get(id).copied()), abbrevs, t) else { continue };
-                            let at = lane_of(&mut lanes, item.key(), &item.name, piece.row, piece_credits(item, t));
+                            let at = lane_of(&mut lanes, lane_key(item), &item.name, piece.row.is_some(), piece_credits(item, t));
                             let word = word_of(&piece, t);
                             if let Some(slot) = lanes.get_mut(at).and_then(|(_, lane)| lane.bars.first_mut()) {
-                                if slot.as_ref().is_none_or(|(before, _)| before.fill != Fill::Passed) {
-                                    *slot = Some((piece, word));
+                                match slot.iter_mut().find(|(before, _)| before.key == piece.key) {
+                                    Some(before) if before.0.fill != Fill::Passed => *before = (piece, word),
+                                    Some(_) => {}
+                                    None => slot.push((piece, word)),
                                 }
                             }
                         }
@@ -486,7 +515,7 @@ impl Layout {
                     let mut pieces = Vec::new();
                     for item in semester.items.iter().filter(|item| item.area == area) {
                         let Some(piece) = piece_of(ready, item, semester.key, semester.when, item.module_id().and_then(|id| fills.get(id).copied()), abbrevs, t) else { continue };
-                        let at = lane_of(&mut lanes, item.key(), &item.name, piece.row, piece_credits(item, t));
+                        let at = lane_of(&mut lanes, lane_key(item), &item.name, piece.row.is_some(), piece_credits(item, t));
                         set_bar(&mut lanes, at, column, (piece.clone(), word_of(&piece, t)));
                         pieces.push(piece);
                     }
@@ -495,7 +524,8 @@ impl Layout {
                     // for nothing more.
                     let lines: Vec<&folia_plans::study::Line> = ready.lines.iter().filter(|line| line.suggestion.area == area && line.semester == semester.key).collect();
                     let mut rows_open: Vec<&folia_plans::study::Line> = Vec::new();
-                    let mut row_lanes: Vec<String> = Vec::new();
+                    // The lanes of the open rows, and which row each is.
+                    let mut row_lanes: Vec<(String, String)> = Vec::new();
                     for line in lines {
                         let title = match line.failed_in {
                             Some(failed) => (s.line_retake)(&failed.label(t.locale)),
@@ -513,23 +543,29 @@ impl Layout {
                             retake: line.failed_in.is_some(),
                             unoffered: !line.suggestion.offer.offered(semester.key),
                             over: false,
-                            row: matches!(line.suggestion.pick, Pick::Row { .. }),
+                            row: match &line.suggestion.pick {
+                                Pick::Row { caption, ord } => Some(RowOf {
+                                    id: format!("{caption}:{ord}"),
+                                    credits: line.suggestion.credits_text.as_deref().and_then(credits_range).or(line.suggestion.credits.map(|credits| (credits, credits))),
+                                }),
+                                Pick::Module { .. } => None,
+                            },
                             picks: vec![line.suggestion.pick.clone()],
                         };
                         match &line.suggestion.pick {
                             Pick::Module { id, .. } => {
                                 let open = piece(abbrevs.get(id).cloned().unwrap_or_else(|| short_label(short_title(&line.suggestion.name))));
-                                let at = lane_of(&mut lanes, format!("open:{id}"), &line.suggestion.name, false, credits);
+                                let at = lane_of(&mut lanes, format!("m:{id}"), &line.suggestion.name, false, credits);
                                 set_bar(&mut lanes, at, column, (open.clone(), s.bar_open));
                                 pieces.push(open);
                             }
                             Pick::Row { caption, ord } => {
                                 let open = piece(short_label(&line.suggestion.name));
-                                let lane = format!("open:{caption}:{ord}:{}", semester.key.key());
+                                let lane = format!("row:{}", line.suggestion.name);
                                 let at = lane_of(&mut lanes, lane.clone(), &line.suggestion.name, true, credits);
                                 set_bar(&mut lanes, at, column, (open, s.bar_open));
                                 rows_open.push(line);
-                                row_lanes.push(lane);
+                                row_lanes.push((lane, format!("{caption}:{ord}")));
                             }
                         }
                     }
@@ -558,26 +594,34 @@ impl Layout {
                                 retake: false,
                                 unoffered: false,
                                 over: false,
-                                row: true,
+                                row: None,
                                 picks: match rows_open.as_slice() {
                                     [one] => vec![one.suggestion.pick.clone()],
                                     _ => Vec::new(),
                                 },
                             });
                         } else {
-                            // Covered already: their lanes go too.
-                            lanes.retain(|(key, _)| !row_lanes.contains(key));
+                            // Covered already: they leave their lanes here too.
+                            for (key, row) in &row_lanes {
+                                if let Some(slot) = lanes.iter_mut().find(|(known, _)| known == key).and_then(|(_, lane)| lane.bars.get_mut(column)) {
+                                    slot.retain(|(piece, _)| !(piece.fill == Fill::Open && piece.row.as_ref().is_some_and(|of| of.id == *row)));
+                                }
+                            }
                         }
                     }
                     cells.push(Cell::Semester(SemesterCell { key: semester.key, when: semester.when, leave: semester.leave, pieces }));
                 }
 
-                // A retake's arrow: from the column it was not passed in to the one it is taken
-                // again in.
-                let mut lanes: Vec<Lane> = lanes.into_iter().map(|(_, lane)| lane).collect();
+                // A lane of rows says their credits added up; a retake's arrow runs from the column
+                // it was not passed in to the one it is taken again in.
+                let mut lanes: Vec<Lane> = lanes.into_iter().map(|(_, lane)| lane).filter(|lane| lane.bars.iter().any(|bar| !bar.is_empty())).collect();
                 for lane in &mut lanes {
-                    let failed = lane.bars.iter().position(|bar| bar.as_ref().is_some_and(|(piece, _)| piece.fill == Fill::Failed));
-                    let again = lane.bars.iter().enumerate().skip(failed.map_or(usize::MAX, |at| at + 1)).find(|(_, bar)| bar.as_ref().is_some_and(|(piece, _)| piece.retake)).map(|(at, _)| at);
+                    if let Some(credits) = rows_credits(lane, t) {
+                        lane.credits = Some(credits);
+                    }
+                    lane.keys = lane.bars.iter().flatten().map(|(piece, _)| piece.key.clone()).filter(|key| !key.is_empty()).collect();
+                    let failed = lane.bars.iter().position(|bar| bar.iter().any(|(piece, _)| piece.fill == Fill::Failed));
+                    let again = lane.bars.iter().enumerate().skip(failed.map_or(usize::MAX, |at| at + 1)).find(|(_, bar)| bar.iter().any(|(piece, _)| piece.retake)).map(|(at, _)| at);
                     if let (Some(from), Some(to)) = (failed, again) {
                         lane.through = (from + 1..to).collect();
                         lane.into = Some(to);
@@ -610,11 +654,22 @@ impl Layout {
     }
 }
 
-/// Puts `bar` into column `column` of lane `at`: the lane's piece there and its word.
+/// Puts `bar` into column `column` of lane `at`: a piece of the lane there and its word.
 fn set_bar(lanes: &mut [(String, Lane)], at: usize, column: usize, bar: (Piece, &'static str)) {
     if let Some(slot) = lanes.get_mut(at).and_then(|(_, lane)| lane.bars.get_mut(column)) {
-        *slot = Some(bar);
+        slot.push(bar);
     }
+}
+
+/// What a lane of rows of the plan says of its credits: theirs added up, each row once („12",
+/// „16–30"); nothing for a module's lane.
+fn rows_credits(lane: &Lane, t: &Texts) -> Option<String> {
+    let rows: BTreeMap<&str, Option<(f64, f64)>> = lane.bars.iter().flatten().filter_map(|(piece, _)| piece.row.as_ref()).map(|row| (row.id.as_str(), row.credits)).collect();
+    if rows.is_empty() || rows.values().any(Option::is_none) {
+        return None;
+    }
+    let (low, high) = rows.values().flatten().fold((0.0, 0.0), |(low, high), (l, h)| (low + l, high + h));
+    Some(if high - low < 0.01 { n(low, t) } else { format!("{}–{}", n(low, t), n(high, t)) })
 }
 
 /// What a module's lane says of its credits: the plan's text for a row („10–24"), else its credits.
@@ -650,6 +705,79 @@ fn column_class(column: &Column) -> &'static str {
 /// The areas unfolded, as the browser keeps them.
 fn kept_open() -> BTreeSet<String> {
     nav::local_get(OPEN_KEY).map(|text| text.lines().map(str::to_string).filter(|name| !name.is_empty()).collect()).unwrap_or_default()
+}
+
+/// A module dragged over the Gesamtplan (owner, 2026-11-04: „wenn man ein modul drag and dropped,
+/// soll einfach das gesamte semester die dropstelle sein und light gehighlighted werden mit der
+/// stelle, wo es final landen soll dann särker"): the semester under the pointer, anywhere in its
+/// column (`data-sem`: its head, the areas' cells, the lanes'), is where a drop moves it, lit
+/// lightly from its head down; the cell of its area there, where it lands, more strongly, and its
+/// lane's where the area is unfolded. Its own semester is none. Until Folia 1.73.3 only the cell
+/// under the pointer took a drop, whichever area's it was.
+#[derive(Clone, Copy)]
+struct Aim {
+    /// The module dragged: its semester, its key (`Item::key`) and the row of its area.
+    what: RwSignal<Option<(SemesterKey, String, Option<usize>)>>,
+    /// The semester under the pointer, where a drop moves it.
+    over: RwSignal<Option<SemesterKey>>,
+}
+
+impl Aim {
+    fn new() -> Self {
+        Aim { what: RwSignal::new(None), over: RwSignal::new(None) }
+    }
+
+    /// A piece taken up: the item `key` of semester `semester`, in the row of `area`.
+    fn start(self, ctx: StudyCtx, ev: &leptos::ev::DragEvent, semester: SemesterKey, key: String, area: Option<usize>) {
+        let keys = vec![key.clone()];
+        dom::drag_data(ev, &keys);
+        ctx.drag.set(Some((semester, keys)));
+        self.what.set(Some((semester, key, area)));
+    }
+
+    /// The drag over: dropped, or let go anywhere else.
+    fn end(self, ctx: StudyCtx) {
+        ctx.drag.set(None);
+        self.what.set(None);
+        self.over.set(None);
+    }
+
+    /// The pointer over the plan, into a box of it (`dragenter`, each time) or over it (`dragover`,
+    /// which a browser may hold back until the drop): the semester of its column, unless it is the
+    /// module's own.
+    fn follow(self, ev: &leptos::ev::DragEvent) {
+        let Some(from) = self.what.with_untracked(|what| what.as_ref().map(|(from, ..)| *from)) else { return };
+        let at = dom::semester_at(ev).filter(|at| *at != from);
+        if at.is_some() {
+            ev.prevent_default();
+        }
+        if self.over.get_untracked() != at {
+            self.over.set(at);
+        }
+    }
+
+    /// Let go over the plan: the module into the semester under the pointer.
+    fn drop(self, ctx: StudyCtx, ev: &leptos::ev::DragEvent, t: &'static Texts) {
+        let (Some(to), Some((from, keys))) = (self.over.get_untracked(), ctx.drag.get_untracked()) else { return };
+        ev.prevent_default();
+        self.end(ctx);
+        menu::act(ctx, Act::Move { semester: from, keys, to }, t);
+    }
+
+    /// Whether semester `s` is where a drop would move the module: its column lit.
+    fn column(self, s: SemesterKey) -> bool {
+        self.over.get() == Some(s)
+    }
+
+    /// Whether the cell of the row of `area` in semester `s` is where the module lands.
+    fn lands(self, s: SemesterKey, area: Option<usize>) -> bool {
+        self.column(s) && self.what.with(|what| what.as_ref().is_some_and(|(_, _, of)| *of == area))
+    }
+
+    /// Whether the lane of `keys` in the row of `area` is the module's, in semester `s`.
+    fn lands_in(self, s: SemesterKey, area: Option<usize>, keys: &BTreeSet<String>) -> bool {
+        self.lands(s, area) && self.what.with(|what| what.as_ref().is_some_and(|(_, key, _)| keys.contains(key)))
+    }
 }
 
 #[component]
@@ -688,6 +816,8 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
         nav::local_set(OPEN_KEY, &names.iter().cloned().collect::<Vec<_>>().join("\n"));
         open.set(names);
     };
+    // A module dragged over the plan: where it goes, and where it lands.
+    let aim = Aim::new();
     // The panel's head and the heads of the semesters stay at the top while the areas scroll under
     // them (app.css), so they scroll sideways in a box of their own: either box follows the other,
     // moved by a wheel, a finger, the keys or the focus. Both boxes stay as the plan changes (an
@@ -745,7 +875,15 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
         on_cleanup(move || drop(watch));
     });
     view! {
-        <section class="panel st-grid-panel st-rm" id=PANEL_ID aria-label=s.grid_title>
+        <section
+            class="panel st-grid-panel st-rm"
+            id=PANEL_ID
+            aria-label=s.grid_title
+            on:dragenter=move |ev: leptos::ev::DragEvent| aim.follow(&ev)
+            on:dragover=move |ev: leptos::ev::DragEvent| aim.follow(&ev)
+            on:dragleave=move |ev: leptos::ev::DragEvent| if dom::drag_left(&ev) { aim.over.set(None) }
+            on:drop=move |ev: leptos::ev::DragEvent| aim.drop(ctx, &ev, t)
+        >
             <div class="st-rm-top">
                 <div class="st-sems-head">
                     <h2>{s.grid_title}</h2>
@@ -766,7 +904,7 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
                                 <div class="st-rm-corner"></div>
                                 {layout.bands.iter().map(|band| view! { <div class="st-rm-band" style=format!("grid-column: span {}", band.span)>{band.label.clone()}</div> }).collect_view()}
                                 <div class="st-grid-corner"></div>
-                                {layout.columns.iter().cloned().enumerate().map(|(at, column)| head_view(ctx, column, today_at == Some(at), t)).collect_view()}
+                                {layout.columns.iter().cloned().enumerate().map(|(at, column)| head_view(ctx, column, today_at == Some(at), aim, t)).collect_view()}
                             </div>
                         }
                     })}
@@ -776,13 +914,20 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
                 {move || layout.get().map(|layout| {
                     let style = layout.style();
                     let today_at = layout.today.map(|(at, _)| at);
-                    let kinds: Vec<&'static str> = layout.columns.iter().map(column_class).collect();
+                    let columns: Vec<(&'static str, Option<SemesterKey>)> = layout
+                        .columns
+                        .iter()
+                        .map(|column| (column_class(column), match column {
+                            Column::Semester(head) => Some(head.key),
+                            Column::Past { .. } => None,
+                        }))
+                        .collect();
                     let opened = open.get();
                     view! {
                         <div class="st-grid st-rm-grid" style=style>
                             {layout.rows.into_iter().map(|row| {
                                 let unfolded = opened.contains(&row.name);
-                                row_view(ctx, row, unfolded, today_at, &kinds, open, keep, fold, t)
+                                row_view(ctx, row, unfolded, today_at, &columns, open, keep, fold, aim, t)
                             }).collect_view()}
                             {today_at.map(|at| view! {
                                 <div class="st-rm-foot rm-now" style=format!("grid-column: {}", at + 2)>
@@ -836,7 +981,7 @@ fn put_left(element: &leptos::web_sys::Element, put: StoredValue<Option<f64>>, x
 }
 
 /// A semester's head: its name, Fachsemester, figure and load; a click shows it as the semester.
-fn head_view(ctx: StudyCtx, column: Column, now_line: bool, t: &'static Texts) -> AnyView {
+fn head_view(ctx: StudyCtx, column: Column, now_line: bool, aim: Aim, t: &'static Texts) -> AnyView {
     let s = &t.study;
     match column {
         Column::Past { span, credits } => view! {
@@ -846,7 +991,7 @@ fn head_view(ctx: StudyCtx, column: Column, now_line: bool, t: &'static Texts) -
         Column::Semester(head) => {
             let key = head.key;
             view! {
-                <button type="button" class="st-col-head" class:is-now=head.now class:past=head.past class:rm-now=now_line on:click=move |_| {
+                <button type="button" class="st-col-head" class:is-now=head.now class:past=head.past class:rm-now=now_line class:rm-drop=move || aim.column(key) data-sem=key.key() on:click=move |_| {
                     ctx.focus.set(Some(key));
                     ctx.view.set(super::View::Semester);
                 }>
@@ -862,7 +1007,18 @@ fn head_view(ctx: StudyCtx, column: Column, now_line: bool, t: &'static Texts) -
 
 /// An area: its head and its bar over the semesters, then its lanes where it is unfolded.
 #[allow(clippy::too_many_arguments)]
-fn row_view(ctx: StudyCtx, row: AreaRow, unfolded: bool, today_at: Option<usize>, kinds: &[&'static str], open: RwSignal<BTreeSet<String>>, keep: impl Fn(BTreeSet<String>) + Copy + 'static, fold: RwSignal<bool>, t: &'static Texts) -> AnyView {
+fn row_view(
+    ctx: StudyCtx,
+    row: AreaRow,
+    unfolded: bool,
+    today_at: Option<usize>,
+    columns: &[(&'static str, Option<SemesterKey>)],
+    open: RwSignal<BTreeSet<String>>,
+    keep: impl Fn(BTreeSet<String>) + Copy + 'static,
+    fold: RwSignal<bool>,
+    aim: Aim,
+    t: &'static Texts,
+) -> AnyView {
     let s = &t.study;
     let (passed, planned, rest, over) = row.bar;
     let area = row.area;
@@ -906,8 +1062,8 @@ fn row_view(ctx: StudyCtx, row: AreaRow, unfolded: bool, today_at: Option<usize>
                 </span>
             </button>
         </div>
-        {cells.into_iter().enumerate().map(|(at, cell)| cell_view(ctx, cell, area, &name, row.tone, today_at == Some(at), unfold.clone(), fold, t)).collect_view()}
-        {unfolded.then(|| row.lanes.into_iter().enumerate().map(|(i, lane)| lane_view(ctx, lane, row.tone, today_at, kinds, i + 1 == last_lane, t)).collect_view())}
+        {cells.into_iter().enumerate().map(|(at, cell)| cell_view(ctx, cell, area, &name, row.tone, today_at == Some(at), unfold.clone(), fold, aim, t)).collect_view()}
+        {unfolded.then(|| row.lanes.into_iter().enumerate().map(|(i, lane)| lane_view(ctx, lane, area, row.tone, today_at, columns, i + 1 == last_lane, aim, t)).collect_view())}
     }
     .into_any()
 }
@@ -915,7 +1071,7 @@ fn row_view(ctx: StudyCtx, row: AreaRow, unfolded: bool, today_at: Option<usize>
 /// A cell of an area's bar: its pieces, „n Module" where they do not fit (`dom::fit_pieces`), and
 /// „+" for the workbench.
 #[allow(clippy::too_many_arguments)]
-fn cell_view(ctx: StudyCtx, cell: Cell, area: Option<usize>, area_name: &str, tone: &'static str, now_line: bool, unfold: impl Fn() + Clone + 'static, fold: RwSignal<bool>, t: &'static Texts) -> AnyView {
+fn cell_view(ctx: StudyCtx, cell: Cell, area: Option<usize>, area_name: &str, tone: &'static str, now_line: bool, unfold: impl Fn() + Clone + 'static, fold: RwSignal<bool>, aim: Aim, t: &'static Texts) -> AnyView {
     let s = &t.study;
     match cell {
         Cell::Past { passed, any_passed, failed, title } => view! {
@@ -931,15 +1087,6 @@ fn cell_view(ctx: StudyCtx, cell: Cell, area: Option<usize>, area_name: &str, to
         .into_any(),
         Cell::Semester(cell) => {
             let semester = cell.key;
-            let over = RwSignal::new(false);
-            let drop = move |ev: leptos::ev::DragEvent| {
-                ev.prevent_default();
-                over.set(false);
-                if let Some((from, keys)) = ctx.drag.get_untracked() {
-                    ctx.drag.set(None);
-                    menu::act(ctx, Act::Move { semester: from, keys, to: semester }, t);
-                }
-            };
             let real: Vec<&Piece> = cell.pieces.iter().filter(|piece| piece.fill != Fill::Open).collect();
             let open: Vec<&Piece> = cell.pieces.iter().filter(|piece| piece.fill == Fill::Open).collect();
             let empty = cell.pieces.is_empty();
@@ -988,15 +1135,14 @@ fn cell_view(ctx: StudyCtx, cell: Cell, area: Option<usize>, area_name: &str, to
                     class:past=cell.when == When::Past
                     class:leave=cell.leave
                     class:rm-now=now_line
-                    class:is-drop=move || over.get()
+                    class:rm-drop=move || aim.column(semester)
+                    class:rm-drop-here=move || aim.lands(semester, area)
                     style=tone_style(tone)
-                    on:dragover=move |ev: leptos::ev::DragEvent| if ctx.drag.with_untracked(|drag| drag.as_ref().is_some_and(|(from, _)| *from != semester)) { ev.prevent_default(); over.set(true); }
-                    on:dragleave=move |_| over.set(false)
-                    on:drop=drop
+                    data-sem=semester.key()
                 >
                     {(!empty).then(|| view! {
                         <div class="st-rm-seg">
-                            {pieces.into_iter().map(|piece| piece_view(ctx, piece, semester, unfold.clone(), t)).collect_view()}
+                            {pieces.into_iter().map(|piece| piece_view(ctx, piece, semester, area, unfold.clone(), aim, t)).collect_view()}
                         </div>
                         <div class="st-rm-sum">
                             {(!real.is_empty()).then(|| view! {
@@ -1024,7 +1170,7 @@ fn cell_view(ctx: StudyCtx, cell: Cell, area: Option<usize>, area_name: &str, to
 
 /// A piece of an area's bar: its menu, its drag; what the plan has open plans itself, or unfolds the
 /// area where it stands for several rows.
-fn piece_view(ctx: StudyCtx, piece: Piece, semester: SemesterKey, unfold: impl Fn() + Clone + 'static, t: &'static Texts) -> AnyView {
+fn piece_view(ctx: StudyCtx, piece: Piece, semester: SemesterKey, area: Option<usize>, unfold: impl Fn() + Clone + 'static, aim: Aim, t: &'static Texts) -> AnyView {
     let class = format!("st-rm-p {}{}{}", piece.fill.class(), if piece.now { " now" } else { "" }, if piece.over { " over" } else { "" });
     let style = format!("flex-grow: {}", piece.grow);
     let inner = piece_inner(&piece, None);
@@ -1047,12 +1193,8 @@ fn piece_view(ctx: StudyCtx, piece: Piece, semester: SemesterKey, unfold: impl F
             aria-label=format!("{}, {}", piece.label, piece.title)
             aria-haspopup="menu"
             draggable="true"
-            on:dragstart=move |ev: leptos::ev::DragEvent| {
-                let keys = vec![key.get_value()];
-                dom::drag_data(&ev, &keys);
-                ctx.drag.set(Some((semester, keys)));
-            }
-            on:dragend=move |_| ctx.drag.set(None)
+            on:dragstart=move |ev: leptos::ev::DragEvent| aim.start(ctx, &ev, semester, key.get_value(), area)
+            on:dragend=move |_| aim.end(ctx)
             on:click=move |ev: leptos::ev::MouseEvent| menu::open_at_button(ctx, MenuFor::Item { semester, key: key.get_value(), view: true }, &ev)
             on:contextmenu=move |ev: leptos::ev::MouseEvent| {
                 ev.prevent_default();
@@ -1075,7 +1217,7 @@ fn piece_inner(piece: &Piece, word: Option<&'static str>) -> AnyView {
     let retake = piece.retake && piece.fill != Fill::Open;
     let check = word.is_some() && piece.fill == Fill::Passed;
     let (label, word) = match word {
-        Some(word) if piece.row => (word.to_string(), None),
+        Some(word) if piece.row.is_some() => (word.to_string(), None),
         _ => (piece.label.clone(), word),
     };
     view! {
@@ -1089,8 +1231,10 @@ fn piece_inner(piece: &Piece, word: Option<&'static str>) -> AnyView {
 }
 
 /// A lane: the module's name and credits, its piece in each semester it is in, a retake's arrow.
-fn lane_view(ctx: StudyCtx, lane: Lane, tone: &'static str, today_at: Option<usize>, kinds: &[&'static str], last: bool, t: &'static Texts) -> AnyView {
+#[allow(clippy::too_many_arguments)]
+fn lane_view(ctx: StudyCtx, lane: Lane, area: Option<usize>, tone: &'static str, today_at: Option<usize>, columns: &[(&'static str, Option<SemesterKey>)], last: bool, aim: Aim, t: &'static Texts) -> AnyView {
     let (name, title) = (lane.name.clone(), lane.title.clone());
+    let keys = StoredValue::new(lane.keys.clone());
     view! {
         <div class="st-rm-lane" class:last=last style=tone_style(tone)>
             <span class="st-rm-lane-name" title=title>{name}</span>
@@ -1099,9 +1243,20 @@ fn lane_view(ctx: StudyCtx, lane: Lane, tone: &'static str, today_at: Option<usi
         {lane.bars.into_iter().enumerate().map(|(at, bar)| {
             let through = lane.through.contains(&at);
             let into = lane.into == Some(at);
+            let (kind, semester) = columns.get(at).copied().unwrap_or_default();
             view! {
-                <div class=format!("st-rm-lc {}", kinds.get(at).copied().unwrap_or_default()) class:last=last class:rm-now=today_at == Some(at) class:link=through class:link-in=into style=tone_style(tone)>
-                    {bar.map(|(piece, word)| lane_bar(ctx, piece, word, t))}
+                <div
+                    class=format!("st-rm-lc {kind}")
+                    class:last=last
+                    class:rm-now=today_at == Some(at)
+                    class:link=through
+                    class:link-in=into
+                    class:rm-drop=move || semester.is_some_and(|s| aim.column(s))
+                    class:rm-drop-here=move || semester.is_some_and(|s| keys.with_value(|keys| aim.lands_in(s, area, keys)))
+                    style=tone_style(tone)
+                    data-sem=semester.map(SemesterKey::key)
+                >
+                    {bar.into_iter().map(|(piece, word)| lane_bar(ctx, piece, word, area, aim, t)).collect_view()}
                 </div>
             }
         }).collect_view()}
@@ -1110,7 +1265,7 @@ fn lane_view(ctx: StudyCtx, lane: Lane, tone: &'static str, today_at: Option<usi
 }
 
 /// A module's piece in its lane: as in the bar, with what it is („bestanden").
-fn lane_bar(ctx: StudyCtx, piece: Piece, word: &'static str, t: &'static Texts) -> AnyView {
+fn lane_bar(ctx: StudyCtx, piece: Piece, word: &'static str, area: Option<usize>, aim: Aim, t: &'static Texts) -> AnyView {
     // A lane's piece is the bar's: the same menu and drag.
     let semester = piece.semester;
     let class = format!("st-rm-bar st-rm-p {}{}{}", piece.fill.class(), if piece.now { " now" } else { "" }, if piece.over { " over" } else { "" });
@@ -1131,12 +1286,8 @@ fn lane_bar(ctx: StudyCtx, piece: Piece, word: &'static str, t: &'static Texts) 
             aria-label=format!("{}, {}", piece.label, piece.title)
             aria-haspopup="menu"
             draggable="true"
-            on:dragstart=move |ev: leptos::ev::DragEvent| {
-                let keys = vec![key.get_value()];
-                dom::drag_data(&ev, &keys);
-                ctx.drag.set(Some((semester, keys)));
-            }
-            on:dragend=move |_| ctx.drag.set(None)
+            on:dragstart=move |ev: leptos::ev::DragEvent| aim.start(ctx, &ev, semester, key.get_value(), area)
+            on:dragend=move |_| aim.end(ctx)
             on:click=move |ev: leptos::ev::MouseEvent| menu::open_at_button(ctx, MenuFor::Item { semester, key: key.get_value(), view: true }, &ev)
             on:contextmenu=move |ev: leptos::ev::MouseEvent| {
                 ev.prevent_default();
