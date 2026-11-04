@@ -11,6 +11,10 @@
 //   highlighted, Sachsendorf faint.
 // - The Stundenplan of Medizininformatik with 12102 planned: the Zentralcampus's events hidden, and
 //   the line „Abgeleitet: …" names the course.
+// - Beside the plan of Informatik's first semester (EvS, EEG, MIT1): the line of how it sits stands
+//   over the week and speaks of what the week draws (owner, 2026-11-04: „nur für die visuell
+//   angezeigten"): not of Sachsendorf's Tuesday lecture, which meets EEG's at 07:30, until „Auch
+//   zeigen" draws it, and then of it.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
@@ -21,14 +25,17 @@ const ON_PAGE = { path: fileURLToPath(new URL("on-page.js", import.meta.url)) };
 const problems = [];
 const check = (ok, message) => { if (!ok) problems.push(message); };
 const MINE = "betula.myprogram.v1";
+const PLAN = "betula.studyplan.v1";
 const MEDINF = "program\t247-82-2016\nname\tMedizininformatik B.Sc. · PO 2016\ncaption\t\nstart\t2026W\n";
+const INFORMATIK = "program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\ncaption\t\nstart\t2026W\n";
 const shots = process.env.SMOKE_SHOTS;
 
-const open = async (path, mine) => {
+const open = async (path, mine, plan) => {
   const context = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
   await context.addInitScript(ON_PAGE);
   await context.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
   if (mine) await context.addInitScript(([key, value]) => { if (!localStorage.getItem(key)) localStorage.setItem(key, value); }, [MINE, mine]);
+  if (plan) await context.addInitScript(([key, value]) => { if (!localStorage.getItem(key)) localStorage.setItem(key, value); }, [PLAN, plan]);
   const page = await context.newPage();
   page.on("console", (m) => { if (m.type() === "error") problems.push("console: " + m.text().slice(0, 300)); });
   page.on("pageerror", (e) => problems.push("pageerror: " + String(e).slice(0, 300)));
@@ -120,6 +127,31 @@ const termine = (page) => page.evaluate(() => {
   await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the Stundenplan: the browser app never took over"));
   await until(page, "the derived line", () => (onPage(".sp-derived")?.textContent ?? "").includes("in Cottbus-Sachsendorf laut Studiengang"));
   if (shots) await page.screenshot({ path: `${shots}/courses-studyplan.png`, fullPage: true });
+  await context.close();
+}
+
+// ---------- beside the plan: the line over the week, of what the week draws ----------
+{
+  const fs1 = ["12104", "12107", "11112"].map((id) => `m\t2026W\t${id}\t1790000000\t`).join("\n") + "\n";
+  const { page, context } = await open("/catalog/module/12102", INFORMATIK, fs1);
+  const line = () => page.evaluate(() => {
+    const section = onPage("#termine");
+    const week = section?.querySelector(".week");
+    const said = [...(section?.querySelectorAll(":scope > p.note, :scope > p.hint") ?? [])].find((p) => /Überschneidet sich mit|Passt /.test(p.textContent));
+    return said ? { text: said.textContent.trim(), warns: said.classList.contains("note"), above: Boolean(week && said.compareDocumentPosition(week) & Node.DOCUMENT_POSITION_FOLLOWING) } : null;
+  });
+  await until(page, "the line of how it sits", () => [...(onPage("#termine")?.querySelectorAll(":scope > p.note, :scope > p.hint") ?? [])].some((p) => /Überschneidet sich mit|Passt /.test(p.textContent)));
+  let said = await line();
+  check(said?.above, `the line over the week: ${JSON.stringify(said)}`);
+  check(said && !said.text.includes("(Di 07:30)"), `Sachsendorf's lecture, not drawn, is not named: ${JSON.stringify(said)}`);
+  if (shots) await page.screenshot({ path: `${shots}/courses-line.png`, fullPage: true });
+  // „Auch zeigen": Sachsendorf's Termine drawn, and its Tuesday lecture with them.
+  await page.click("#termine .courses-toggle >> visible=true");
+  await until(page, "Sachsendorf's lecture named", () => /Überschneidet sich mit: .*\(Di 07:30\)/.test([...(onPage("#termine")?.querySelectorAll(":scope > p.note") ?? [])].map((p) => p.textContent).join(" ")));
+  said = await line();
+  check(said?.warns && said?.above, `the warning over the week: ${JSON.stringify(said)}`);
+  await page.click("#termine .courses-toggle >> visible=true");
+  await until(page, "hidden again, not named", () => ![...(onPage("#termine")?.querySelectorAll(":scope > p.note") ?? [])].some((p) => p.textContent.includes("(Di 07:30)")));
   await context.close();
 }
 

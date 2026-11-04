@@ -999,8 +999,9 @@ impl StudyplanData {
     /// SWS count once, and rows of other modules in the arguments are left out. `modules` and
     /// `missing` stay those of the plan. An id that is no module id changes nothing. `choices` are
     /// the module's choices among its events and the options of them QIS lists the plan's program
-    /// at (`modules_choices`, `modules_choice_listed`).
-    pub fn with_module(&self, id: &str, schedule: Vec<DateRow>, exams: Vec<DateRow>, sws: Vec<ModuleSws>, choices: (Vec<ChoiceOption>, Vec<ChoiceFamily>)) -> StudyplanData {
+    /// at (`modules_choices`, `modules_choice_listed`); `taken` the courses the program takes of it
+    /// where it is held at two campuses or more (`modules_tracks`; empty: every course).
+    pub fn with_module(&self, id: &str, schedule: Vec<DateRow>, exams: Vec<DateRow>, sws: Vec<ModuleSws>, choices: (Vec<ChoiceOption>, Vec<ChoiceFamily>), taken: Vec<TrackProgram>) -> StudyplanData {
         let mut data = self.clone();
         if !folia_model::ids::is_module_id(id) {
             return data;
@@ -1010,11 +1011,13 @@ impl StudyplanData {
         data.sws.retain(|row| row.module_id != id);
         data.choices.retain(|row| row.module_id != id);
         data.listed.retain(|row| row.module_id != id);
+        data.taken.retain(|row| row.module_id != id);
         data.schedule.extend(schedule.into_iter().filter(|row| row.module_id == id));
         data.exams.extend(exams.into_iter().filter(|row| row.module_id == id));
         data.sws.extend(sws.into_iter().filter(|row| row.module_id == id));
         data.choices.extend(choices.0.into_iter().filter(|row| row.module_id == id));
         data.listed.extend(choices.1.into_iter().filter(|row| row.module_id == id));
+        data.taken.extend(taken.into_iter().filter(|row| row.module_id == id));
         if !data.ids.iter().any(|known| known == id) {
             data.ids.push(id.to_string());
         }
@@ -1316,20 +1319,31 @@ pub struct OverlaySlot {
 /// decides whether an overlay is wanted at all (A.9: the semester is the current one or later,
 /// and the plan holds other modules in it). Its lines are in the language of `plan`
 /// (`StudyplanData::locale`), whose semester name they carry.
+///
+/// Every course of the module is in it: its page decides which of its Termine its week draws (its
+/// program's course, the others too after „Auch zeigen", the options shown) and hides the others
+/// in `selection` (`Selection::hidden_rows`), so that the line and the clashes speak of what the
+/// week shows alone (owner, 2026-11-04: „achte darauf, dass das nur für die visuell angezeigten
+/// gilt").
 pub fn overlay(db: &dyn Database, plan: &StudyplanData, module_id: &str, selection: &Selection) -> Result<Overlay, DbError> {
-    let data = plan_with(db, plan, module_id)?;
+    let data = plan_with(db, plan, module_id, false)?;
     let table = data.timetable(selection);
     Ok(overlay_of(&table, &data.titles(), &data.slot_names(), &data.label, module_id, data.locale))
 }
 
 /// `plan` with the module `module_id` in it: its own three single-id queries (and the lists of
-/// the plan's program it is on).
-fn plan_with(db: &dyn Database, plan: &StudyplanData, module_id: &str) -> Result<StudyplanData, DbError> {
+/// the plan's program it is on), and with `taken` the courses the program takes of it, so that it
+/// stands as the Stundenplan would show it (of 12102 its course at Zentralcampus, not the one at
+/// Sachsendorf); without, every course of it.
+fn plan_with(db: &dyn Database, plan: &StudyplanData, module_id: &str, taken: bool) -> Result<StudyplanData, DbError> {
     let id = [module_id.to_string()];
     let semester = plan.key.key();
-    let listed = match plan.program.as_deref() {
-        Some(program) => queries::modules_choice_listed(db, &id, &semester, program)?,
-        None => Vec::new(),
+    let (listed, courses) = match plan.program.as_deref() {
+        Some(program) => (
+            queries::modules_choice_listed(db, &id, &semester, program)?,
+            if taken { queries::modules_tracks(db, &id, &semester, program)? } else { Vec::new() },
+        ),
+        None => (Vec::new(), Vec::new()),
     };
     Ok(plan.with_module(
         module_id,
@@ -1337,6 +1351,7 @@ fn plan_with(db: &dyn Database, plan: &StudyplanData, module_id: &str) -> Result
         queries::modules_exams(db, &id, &semester)?,
         queries::modules_teaching_sws(db, &id)?,
         (queries::modules_choices(db, &id, &semester)?, listed),
+        courses,
     ))
 }
 
@@ -1357,12 +1372,13 @@ pub enum Sits {
 /// How each of `ids` that `others` does not hold would sit in the plan of `key` that `others` make
 /// (named by `program`, as `selection` shows it), in their order; `None` for one without a Termin
 /// with a time to compare. One plan for all of them, then each module's own three queries, as a
-/// module's overlay asks them (`overlay`).
+/// module's overlay asks them (`overlay`), and the courses `program` takes of it: a module held at
+/// two campuses sits as the Stundenplan would show it, its other course left out.
 pub fn fit_lines(db: &dyn Database, key: SemesterKey, others: &[String], program: Option<&str>, ids: &[String], selection: &Selection, locale: Locale) -> Result<Vec<(String, Option<Sits>)>, DbError> {
     let plan = studyplan_in(db, key, others, program, locale)?;
     let mut out = Vec::new();
     for id in checked_ids(ids).into_iter().filter(|id| !others.contains(id)) {
-        let data = plan_with(db, &plan, &id)?;
+        let data = plan_with(db, &plan, &id, true)?;
         let table = data.timetable(selection);
         let titles = data.titles();
         let own = |event: &Event| event.modules.contains(&id);
@@ -2000,7 +2016,7 @@ mod studyplan_tests {
         let rows = queries::modules_schedule(&db, &id, &key.key()).unwrap();
         let exams = queries::modules_exams(&db, &id, &key.key()).unwrap();
         let sws = queries::modules_teaching_sws(&db, &id).unwrap();
-        let with = plan.with_module("11103", rows.clone(), exams.clone(), sws.clone(), (Vec::new(), Vec::new()));
+        let with = plan.with_module("11103", rows.clone(), exams.clone(), sws.clone(), (Vec::new(), Vec::new()), Vec::new());
         assert_eq!(with.ids, ids(&["12104", "12107", "12102", "11112", "11103"]));
         assert_eq!(with.schedule, [plan.schedule.clone(), rows.clone()].concat());
         assert_eq!(with.exams, [plan.exams.clone(), exams.clone()].concat());
@@ -2008,11 +2024,11 @@ mod studyplan_tests {
         assert_eq!((&with.modules, &with.missing), (&plan.modules, &plan.missing));
         // A planned module added again replaces its rows: its SWS count once.
         let own = |data: &StudyplanData, id: &str| data.sws.iter().filter(|s| s.module_id == id).count();
-        let twice = with.with_module("11103", rows, exams, sws, (Vec::new(), Vec::new()));
+        let twice = with.with_module("11103", rows, exams, sws, (Vec::new(), Vec::new()), Vec::new());
         assert_eq!(twice.ids, with.ids);
         assert_eq!(own(&twice, "11103"), own(&with, "11103"));
         assert_eq!(twice.schedule.len(), with.schedule.len());
-        assert_eq!(plan.with_module("1 OR 1=1", Vec::new(), Vec::new(), Vec::new(), (Vec::new(), Vec::new())), plan);
+        assert_eq!(plan.with_module("1 OR 1=1", Vec::new(), Vec::new(), Vec::new(), (Vec::new(), Vec::new()), Vec::new()), plan);
 
         if is_pinned {
             // A semester the snapshot does not have: no row, no Termin.
@@ -2184,6 +2200,30 @@ mod studyplan_tests {
         assert_eq!(lines[2].1, None);
     }
 
+    /// A module held at two campuses sits in the Merkliste's line as the Stundenplan would show it:
+    /// with the course the plan's program takes of it (12102: Informatik takes the one at
+    /// Zentralcampus), so its other course changes nothing, whatever it meets (owner, 2026-11-04:
+    /// „dann ist die Warnung natürlich nur für den angezeigten Standort interessant").
+    #[test]
+    fn fit_lines_take_the_course_of_the_program() {
+        let (db, _, key) = snapshot("fit_lines_take_the_course_of_the_program");
+        let pp = ids(&["12102"]);
+        let taken = queries::modules_tracks(&db, &pp, &key.key(), INFORMATIK).unwrap();
+        let schedule = queries::modules_schedule(&db, &pp, &key.key()).unwrap();
+        let campuses: Vec<_> = taken.iter().map(|course| course.campus.clone()).collect();
+        let other: BTreeSet<u32> = schedule
+            .iter()
+            .filter(|row| row.date.track.as_ref().is_some_and(|track| !campuses.contains(track)))
+            .filter_map(|row| row.date.event_id.parse().ok())
+            .collect();
+        if taken.is_empty() || other.is_empty() {
+            return;
+        }
+        let plan = ids(&["12107", "11112", "12104"]);
+        let line = |selection: &Selection| fit_lines(&db, key, &plan, Some(INFORMATIK), &pp, selection, Locale::De).unwrap();
+        assert_eq!(line(&Selection::default()), line(&Selection { hidden_events: other, ..Selection::default() }));
+    }
+
     /// What avoids an exam overlap, as the pinned snapshot has it: the module's own earlier sitting
     /// or the planned module's; and the free Übungen of an open choice by time.
     #[test]
@@ -2257,16 +2297,41 @@ mod studyplan_tests {
 
     /// The same on a page in `locale`.
     fn overlay_in_language(rows: &[Fixture], exams: &[DateRow], modules: &[&str], locale: Locale) -> Overlay {
+        overlay_drawn(rows, exams, modules, &Selection::default(), locale)
+    }
+
+    /// The same as the page asks it, the Termine its week does not draw hidden in `selection`.
+    fn overlay_drawn(rows: &[Fixture], exams: &[DateRow], modules: &[&str], selection: &Selection, locale: Locale) -> Overlay {
         let facts = winter();
         let schedule: Vec<DateRow> = rows.iter().map(|row| row.0.clone()).collect();
         let modules = ids(modules);
         let input =
             Input { key: facts.key, semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams, sws: &[], taken: &[], choices: &[], listed: &[] };
-        let table = Timetable::build(&input, &Selection::default());
+        let table = Timetable::build(&input, selection);
         invariants(&table);
         let titles: BTreeMap<String, String> =
             [("P", "Analysis I"), ("Q", "Mathematik IT-1")].map(|(id, title)| (id.to_string(), title.to_string())).into();
         overlay_of(&table, &titles, &BTreeMap::new(), &facts.key.label(locale), "M", locale)
+    }
+
+    /// Only what the module's week draws (owner, 2026-11-04: „achte darauf, dass das nur für die
+    /// visuell angezeigten gilt"): its course at another campus meets P's lecture, and while the
+    /// page does not draw it (hidden in the selection, as `widgets::module` asks), the line says
+    /// the module fits and no slot of it is red; drawn, it warns again.
+    #[test]
+    fn the_overlay_speaks_of_what_the_week_draws() {
+        let plan = teaching("P", "1", 1, "Vorlesung", 2, "07:30", "09:00");
+        let here = teaching("M", "3", 1, "Vorlesung", 5, "11:30", "13:00");
+        let there = teaching("M", "4", 1, "Vorlesung", 2, "07:30", "09:00");
+        let rows = [plan, here, there.clone()];
+        let all = overlay_drawn(&rows, &[], &["P", "M"], &Selection::default(), Locale::De);
+        assert_eq!(all.line, Some((true, "Überschneidet sich mit: Analysis I (Di 07:30)".to_string())));
+        assert_eq!(all.clashing, [there.key()].into());
+        let drawn = Selection { hidden_rows: [there.key()].into(), ..Selection::default() };
+        let shown = overlay_drawn(&rows, &[], &["P", "M"], &drawn, Locale::De);
+        assert_eq!(shown.line, Some((false, "Passt in deinen Stundenplan (WiSe 2026/27)".to_string())));
+        assert!(shown.clashing.is_empty());
+        assert_eq!(shown.planned, all.planned, "the plan's ground stays");
     }
 
     #[test]
