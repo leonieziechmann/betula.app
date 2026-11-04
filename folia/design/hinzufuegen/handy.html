@@ -16,9 +16,11 @@
      data of Informatik B.Sc. (PO 2008) in its 3. FS, WiSe 2026/27: A „Aufklappen im Semester“ (the
      button unfolds where it stands, in the semester's page) and B „Blatt aus dem Knopf“ (a sheet grows
      out of the button, half up with the semester above it). Then A's parts, the comparison and the
-     questions. The rounds before are folia/design/hinzufuegen/konzepte.html; what they decided (the
+     questions. Decided the next day (owner, 2026-11-04: „Also ich finde Option B bedeutend besser,
+     weil da leichter zu erkennen ist, was jetzt geplant und was vorgeschlagen ist“) and built in
+     Folia 1.70.0: the block „Entschieden“ at the head. The rounds before are folia/design/hinzufuegen/konzepte.html; what they decided (the
      areas with their subgroups, „Laut Plan im 3. FS“, a module counted for the group it was planned
-     from, the catalog with a target) stays: only the phone's frame changes. Nothing of it is built.
+     from, the catalog with a target) stays: only the phone's frame changes.
      Tokens are Betula's (folia/assets/app.css); Inter comes from Google Fonts here, the app self-hosts
      it. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -194,6 +196,15 @@ table.cmp th.rec { color: var(--accent-ink); }
 .qs .rec { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
 .qs .rec b { color: var(--accent-ink); font-weight: 700; }
 .foot { text-align: center; color: var(--text-3); font-size: 12.5px; }
+
+/* What the owner decided. */
+.verdicts { padding: 16px 20px; border-radius: 14px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.verdicts ol { margin: 10px 0 0; padding: 0; list-style: none; counter-reset: v; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 28px; }
+.verdicts li { counter-increment: v; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.verdicts li::before { content: counter(v); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 700; }
+.verdicts li b { color: var(--text); font-weight: 640; }
+.verdicts li q { display: block; margin-top: 2px; color: var(--text-3); font-size: 13px; quotes: "„" "“"; }
+@media (max-width: 980px) { .verdicts ol { grid-template-columns: minmax(0, 1fr); } }
 
 /* Today. */
 .today { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 20px 30px; align-items: start; }
@@ -505,6 +516,19 @@ table.cmp th.rec { color: var(--accent-ink); }
       <li><span><b>Kein Sprung in einen anderen Tab.</b> Auch der Katalog mit Ziel bleibt im Tab Studium: Er kommt von unten über das Semester und geht mit ← wieder nach unten.</span></li>
     </ol>
   </div>
+</section>
+
+<section class="verdicts" id="entschieden" aria-label="Was entschieden ist">
+  <div class="kicker">Entschieden am 04.11., nach der vierten Runde, gebaut in Folia 1.70.0</div>
+  <ol>
+    <li><span><b>B: ein Blatt aus dem Knopf.</b><q>Also ich finde Option B bedeutend besser, weil da leichter zu erkennen ist, was jetzt geplant und was vorgeschlagen ist.</q></span></li>
+    <li><span><b>„Fertig“ steht im Kopf des Blatts; feinstimmen später.</b><q>Lass erstmal fertig da stehen. […] Erstmal die Grundlagen.</q></span></li>
+    <li><span><b>Der Katalog bleibt im Reiter „Module“, mit der Auswahl als Ziel.</b><q>Mach das beim Katalog mal bitte so, dass man in den Katalog Tab kommt und da die selection dann hat.</q></span></li>
+    <li><span><b>Hinter dem Blatt bewegt sich nichts, auch Wischen nicht.</b><q>Weil wir den modal verwenden ist das kein Problem. Das kann einfach gesperrt sein, so lange der [offen] ist.</q></span></li>
+    <li><span><b>Am Rechner bleibt die Werkbank, wie sie ist.</b><q>Fürs erste ja</q></span></li>
+    <li><span><b>Den Gesamtplan gibt es am Handy nicht.</b><q>Der Gesamtplan existiert für das Handy nicht dass betrifft uns nicht.</q></span></li>
+    <li><span><b>Gebaut:</b> das Blatt halb hoch unter dem Semester, hinter einem leichten Schleier, über der Tab-Leiste und unter dem Blatt eines Moduls; sein Kopf „Hinzufügen zu WiSe 2026/27 · 24 von 30 LP · 3 Module“ mit „Fertig“; „Laut Plan im 3. FS“ mit „Plan übernehmen“ (was eingeplant ist, steht im Semester darüber, nicht mehr im Blatt), die Wahlen mit „Wählen ⌄“, die ihre Liste in der Zeile aufklappen, das Blatt dabei ganz hoch; „Alle Bereiche“ mit ihren Untergruppen; „Gemerkt“; „Im Katalog suchen“. Ein Tipp neben das Blatt, ein Wurf, Zurück oder „Fertig“ beenden es.</span></li>
+  </ol>
 </section>
 
 <section class="sec" id="heute">

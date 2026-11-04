@@ -17,14 +17,14 @@ use leptos::prelude::*;
 
 use folia_design::modal::{kept, Modal, ModalHead, ModalSize};
 
-use super::{bench, overview, side, Dialog, StudyCtx};
+use super::{overview, side, Dialog, StudyCtx};
 
 /// The size of a dialog's kind (app.css „The dialogs"): „l" for a list to choose from, „m" for a
 /// form or an overview. The areas and an area are one size, so that a phone's sheet does not move
 /// when an area of the list is opened in it.
 fn size_of(dialog: &Dialog) -> ModalSize {
     match dialog {
-        Dialog::Switch | Dialog::Area(_) | Dialog::Areas | Dialog::BenchAreas | Dialog::BenchSemester => ModalSize::M,
+        Dialog::Switch | Dialog::Area(_) | Dialog::Areas => ModalSize::M,
     }
 }
 
@@ -36,8 +36,6 @@ pub(super) fn DialogHost(ctx: StudyCtx) -> impl IntoView {
     view! {
         <Modal open=Signal::derive(move || ctx.dialog.with(Option::is_some)) on_close=move || ctx.dialog.set(None) size labelled_by="st-dialog-title">
             {move || shown.get().map(|dialog| match dialog {
-                Dialog::BenchAreas => view! { <bench::AreasSheet ctx/> }.into_any(),
-                Dialog::BenchSemester => view! { <bench::SemesterSheet ctx/> }.into_any(),
                 Dialog::Area(area) => view! { <overview::AreaDialog ctx area/> }.into_any(),
                 Dialog::Areas => view! { <overview::AreasSheet ctx/> }.into_any(),
                 Dialog::Switch => view! { <side::SwitchDialog ctx/> }.into_any(),

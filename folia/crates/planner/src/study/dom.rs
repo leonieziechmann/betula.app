@@ -510,7 +510,7 @@ pub(super) fn on_open(ev: &leptos::ev::Event) -> bool {
 }
 
 /// The page at its top: the area that scrolls on a wide screen (`#page-scroll`), the window on a
-/// phone. For the workbench, which comes in place of the page where it was scrolled to.
+/// phone. For the workbench on a desktop, which comes in place of the page where it was scrolled to.
 pub(super) fn page_to_top() {
     #[cfg(feature = "csr")]
     {
@@ -519,5 +519,34 @@ pub(super) fn page_to_top() {
             area.set_scroll_top(0);
         }
         window.scroll_to_with_x_and_y(0.0, 0.0);
+    }
+}
+
+/// All up: the sheet of a phone that the button of `ev` stands in (enhance.js `betula:sheet-raise`),
+/// so that what it unfolds under the button has room; then, the sheet up, the button's row at the
+/// top of what scrolls there. The workbench's sheet, where a choice opens its list.
+#[allow(unused_variables)]
+pub(super) fn raise_sheet(ev: &leptos::ev::MouseEvent) {
+    #[cfg(feature = "csr")]
+    {
+        let Some(button) = ev.current_target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()) else { return };
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        if let Ok(event) = web_sys::Event::new_with_event_init_dict("betula:sheet-raise", &init) {
+            let _ = button.dispatch_event(&event);
+        }
+        let row = button.closest(".st-wb-row, .st-wb-a, .st-wb-s").ok().flatten().unwrap_or(button);
+        leptos::prelude::set_timeout(
+            move || {
+                if !row.is_connected() {
+                    return;
+                }
+                let place = web_sys::ScrollIntoViewOptions::new();
+                place.set_block(web_sys::ScrollLogicalPosition::Start);
+                place.set_behavior(web_sys::ScrollBehavior::Smooth);
+                row.scroll_into_view_with_scroll_into_view_options(&place);
+            },
+            std::time::Duration::from_millis(420),
+        );
     }
 }

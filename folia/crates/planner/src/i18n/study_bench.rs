@@ -145,11 +145,12 @@ pub struct Texts {
     /// „6 LP mehr als im Plan".
     pub over_note: fn(&str) -> String,
 
-    // A phone.
-    /// „Bereich": the button over the list that opens the areas.
-    pub area_pick: &'static str,
-    /// „Planen · ein Tipp zeigt das Semester".
-    pub tap_semester: &'static str,
+    // The sheet of a phone.
+    /// „Hinzufügen zu WiSe 2026/27": what it plans into; „3 Module": what that holds; „Alle
+    /// Bereiche" over the areas.
+    pub sheet_title: fn(&str) -> String,
+    pub modules_n: fn(usize) -> String,
+    pub all_areas: &'static str,
 
     // The menu of a row.
     /// „Zählt für ›", its entries and the one that leaves it to the tree; the note („Analysis II
@@ -252,8 +253,9 @@ pub const DE: Texts = Texts {
     remove: |name| format!("{name} herausnehmen"),
     over_note: |n| format!("{n} LP mehr als im Plan"),
 
-    area_pick: "Bereich",
-    tap_semester: "Planen · ein Tipp zeigt das Semester",
+    sheet_title: |semester| format!("Hinzufügen zu {semester}"),
+    modules_n: |n| if n == 1 { "1 Modul".to_string() } else { format!("{n} Module") },
+    all_areas: "Alle Bereiche",
 
     counts_menu: "Zählt für",
     counts_tree: "Wo der Modulbaum es zählt",
@@ -353,8 +355,9 @@ pub const EN: Texts = Texts {
     remove: |name| format!("Take {name} out"),
     over_note: |n| format!("{n} ECTS more than the plan"),
 
-    area_pick: "Area",
-    tap_semester: "Planning · tap to see the semester",
+    sheet_title: |semester| format!("Add to {semester}"),
+    modules_n: |n| if n == 1 { "1 module".to_string() } else { format!("{n} modules") },
+    all_areas: "All areas",
 
     counts_menu: "Counts for",
     counts_tree: "Where the module tree counts it",

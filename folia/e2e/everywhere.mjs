@@ -7,7 +7,7 @@
 // the bookmark; the workbench of „Module hinzufügen" says of a marked module of the plan that it is
 // marked, with its collections; its „Gemerkt" lists the marked modules by collection and search,
 // „+ Einplanen" plans one; the Gesamtplan's cell opens the workbench at its area with the marked
-// module first in its group; on a phone the workbench's areas are a sheet that has „Gemerkt". The Stundenplan's „+ Modul" of „Mein
+// module first in its group; on a phone the workbench is a sheet whose „Gemerkt" unfolds them. The Stundenplan's „+ Modul" of „Mein
 // Studiengang", its Merkliste: what the winter offers each with how it sits in the week, the
 // summer's folded with „nur SoSe", a search, a collection, „2 gemerkte Module aufnehmen" (as visits)
 // and „Rückgängig", Esc. Nothing of the marks, the names of the collections or what is typed is in a
@@ -262,7 +262,7 @@ await context.close();
   await context.close();
 }
 
-// ---------- a phone: the workbench's areas as a sheet, „Gemerkt" in them ----------
+// ---------- a phone: the workbench's sheet, „Gemerkt" unfolding in it ----------
 {
   const { context, page, go, step } = await open({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2.625 });
   await go("/catalog");
@@ -273,20 +273,15 @@ await context.close();
   }, [KEY, PLAN, MINE, THIRD, FILLED, marked, now]);
   await go("/study");
   await page.waitForTimeout(600);
-  await step("Module hinzufügen on a phone", () => page.tap(".st-pager > .st-slot:not([inert]) .st-empty-add, .st-empty-add >> visible=true"), () => document.querySelector(".st-wb.phone .st-wb-pick"));
-  await step("the areas on a phone", () => page.tap(".st-wb-pick"), () => document.querySelector(".st-dialog[open] .st-wb-areas"));
+  await step("Module hinzufügen on a phone", () => page.tap(".st-pager > .st-slot:not([inert]) .st-empty-add, .st-empty-add >> visible=true"), () => document.querySelector(".st-wb-sheet[data-sheet]"));
   const sheet = await page.evaluate(() => {
-    const rows = [...document.querySelectorAll(".st-dialog[open] .st-wb-a")].map((row) => row.getBoundingClientRect());
-    return { n: rows.length, inside: rows.every((row) => row.right <= document.querySelector(".st-dialog[open]").getBoundingClientRect().right + 0.5), tall: rows.every((row) => row.height >= 44) };
+    const rows = [...document.querySelectorAll(".st-wb-sheet .st-wb-areas.sheet > .st-wb-a")].map((row) => row.getBoundingClientRect());
+    return { n: rows.length, inside: rows.every((row) => row.right <= document.querySelector(".st-wb-sheet").getBoundingClientRect().right + 0.5), tall: rows.every((row) => row.height >= 44) };
   });
-  check(sheet.n >= 9 && sheet.inside && sheet.tall, `the workbench's areas on a phone: ${JSON.stringify(sheet)}`);
-  // The sheet half up has „Gemerkt" at its lower edge: once it rests, the finger takes it all up
-  // (as a finger would) and taps it.
-  const rests = () => page.waitForFunction(() => { const sheet = document.querySelector(".st-dialog[open]"); return sheet && !sheet.getAnimations({ subtree: true }).some((animation) => animation.playState === "running"); }, null, { timeout: 4000 }).catch(() => {});
-  await rests();
-  await page.evaluate(() => document.querySelector('.st-dialog[open] .st-wb-a:last-of-type')?.scrollIntoView({ block: "end" }));
-  await rests();
-  await step("Gemerkt on a phone", () => page.locator('.st-dialog[open] .st-wb-a:has-text("Gemerkt")').dispatchEvent("click"), () => !document.querySelector(".st-dialog[open]") && document.querySelectorAll(".st-wb-pane .st-wb-row").length === 6);
+  check(sheet.n >= 8 && sheet.inside && sheet.tall, `the workbench's areas on a phone: ${JSON.stringify(sheet)}`);
+  // „Gemerkt" at the sheet's foot, below what it shows half up: a tap unfolds what is marked under
+  // it, the sheet going all up.
+  await step("Gemerkt on a phone", () => page.locator('.st-wb-sheet .st-wb-a:has-text("Gemerkt")').dispatchEvent("click"), () => document.querySelectorAll(".st-wb-sheet .st-wb-in .st-wb-row").length === 6);
   await context.close();
 }
 

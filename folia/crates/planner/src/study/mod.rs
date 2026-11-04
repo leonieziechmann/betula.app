@@ -192,10 +192,6 @@ pub(super) enum View {
 /// The dialog open over the page, if any (`dialog.rs`).
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Dialog {
-    /// The workbench's areas on a phone (`bench.rs`).
-    BenchAreas,
-    /// What the workbench's semester holds, on a phone.
-    BenchSemester,
     /// An area of the progress (`Study::progress`); `None` for what counts towards none.
     Area(Option<usize>),
     /// The areas on a phone.
@@ -580,7 +576,8 @@ pub fn StudyPage() -> impl IntoView {
         Effect::new(move |_| planning.set_bench(bench::aim_of(ctx)));
         on_cleanup(move || planning.set_bench(None));
     }
-    // On a phone Back leaves the mode, as it closes what lies over the page: the page's own state.
+    // On a phone Back leaves the mode, as it closes what lies over the page: the page's own state,
+    // which a module opened from its sheet (a new address) leaves alone.
     folia_shell::nav::layer_while(move || ctx.phone.get() && ctx.bench.with(Option::is_some), move || bench::leave(ctx), folia_shell::nav::Kind::State);
     // A view come to from the overview (a phone's way to it): the step before it in the history.
     Effect::new(move |before: Option<(StudyView, bool)>| {
@@ -670,6 +667,7 @@ pub fn StudyPage() -> impl IntoView {
                     <StudyMain ctx/>
                 </div>
                 <dialog::DialogHost ctx/>
+                <bench::BenchSheet ctx/>
                 <menu::MenuHost ctx/>
                 <UndoNote ctx/>
             </Frame>
@@ -720,9 +718,10 @@ fn StudyBody(ctx: StudyCtx) -> impl IntoView {
     let benching = Memo::new(move |_| ctx.bench.with(Option::is_some));
     move || {
         let phone = ctx.phone.get();
-        // The workbench in the page's place, whatever view it was opened from.
-        if benching.get() {
-            return if phone { view! { <bench::BenchPhone ctx/> }.into_any() } else { view! { <bench::BenchDesk ctx/> }.into_any() };
+        // On a desktop the workbench in the page's place, whatever view it was opened from; on a
+        // phone the page stays, the workbench's sheet over it (`bench::BenchSheet`).
+        if benching.get() && !phone {
+            return view! { <bench::BenchDesk ctx/> }.into_any();
         }
         let body = match view.get() {
             StudyView::Semesters if phone => return view! { <phone::Phone ctx/> }.into_any(),
