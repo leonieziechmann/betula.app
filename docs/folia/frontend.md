@@ -2120,7 +2120,19 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     hover where it is not, opens the workbench for that semester at that area (until 1.64.0 a dialog
     of the area's modules, `picker::CellDialog`); a click on a piece (or a right click) opens the
     module's menu, the semesters' row menu; a piece dragged into another column moves there. Until
-    1.69.0 each cell listed the area's modules as plain lines, the plan's open ones in grey.
+    1.69.0 each cell listed the area's modules as plain lines, the plan's open ones in grey. Since
+    Folia 1.71.2 the plan's head stays at the top as the semester's does (owner, 2026-11-04: „Ich
+    möchte, dass da der header sticky ist von dem Plan. Also ähnlich wie bei dem Semester plan."):
+    the title with „Alle aufklappen", the band of the study years and the semesters' heads, one
+    block across the panel with the panel's ring and round corners at the top (`.st-rm-top`, the
+    area masked as for the semester, the page not under the bar), the areas scrolling under it.
+    The heads are a grid of their own over the areas' (the same columns, both at least as wide as
+    the columns take), each in a box that scrolls sideways and follows the other's scroll
+    (`grid::follow`, the fraction of a scaled screen kept); both boxes stay as the plan changes, so
+    an area unfolded keeps how far the plan is scrolled sideways (until then it went back to the
+    first column). What is focused under the head scrolls into view below it (`--rm-top`, its
+    height). With the area masked, a menu of the plan is under the rail and the bar as a semester's
+    is: a click there reaches them instead of only closing the menu.
   - **Adding, moving, taking out** (owner: adding and removing were „eine absolute Krise"):
     „Module hinzufügen" opens the workbench (`bench.rs`, Folia 1.64.0; folia/design/hinzufuegen/
     konzepte.html, third round; owner, 2026-11-03: „Passt so, bau das jetzt in Folia"): planning
@@ -2275,7 +2287,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     band of the study years, the pieces by abbreviation and credits, a bar broken before its
     semester, the line of today, ▸ and „Alle zuklappen" kept, „Bisher zuklappen", a semester too
     full for its labels, each cell as tall as what it lists, its menu, the plan's open module planned
-    from its lane), the phone
+    from its lane, its head at the top when scrolled down and going along sideways), the phone
     (the overview in its order and
     without a sidebar, one row of the semesters that are over, the overview and the rest, the
     overview the page in view and no way back at the head, the row's dots on it; the box by a tap
