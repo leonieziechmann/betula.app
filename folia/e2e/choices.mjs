@@ -13,7 +13,7 @@
 // - The groups, and the catalogue of projects: no week, five in the list and the rest folded away.
 // - The catalog's row: „14 Projekte zur Wahl".
 // - The Stundenplan with 11206 planned, nobody's: the three exercises hatched „1 von 3", the
-//   Aufbaukurs lighter and behind the chip „Zusatz", the choice under „Offen" beside the week („1 von 3
+//   Aufbaukurs lighter, the choice under „Offen" beside the week („1 von 3
 //   wählen", in the module), the panel's „1 von 3 wählen" with „passt"; „✓" on one takes it and
 //   leaves the others out, „Wahl aufheben" opens the choice again.
 // - The Stundenplan of Bauingenieurwesen: its exercise taken („Höhere Mathematik - T3: Übung Di
@@ -169,12 +169,6 @@ const exercise = (p, time) => p.slots.find((slot) => slot.text.includes(time) &&
   check(p.open.length === 1 && p.open[0].includes("1 von 3 wählen") && p.open[0].includes("Im Modul"), `„Offen": ${JSON.stringify(p.open)}`);
   check(p.choices.includes("1 von 3 wählen") && p.fits.filter((fit) => fit === "passt").length === 3, `the panel: ${JSON.stringify(p.choices)} ${JSON.stringify(p.fits)}`);
   if (shots) await page.screenshot({ path: `${shots}/choices-plan-open.png` });
-  // „Zusatz" hides the Aufbaukurs, and shows it again.
-  const chip = page.locator("button.chip", { hasText: "Zusatz" }).first();
-  await chip.click();
-  await until(page, "„Zusatz\" off", () => document.querySelectorAll(".sp-body .week .slot.extra").length === 0);
-  await chip.click();
-  await until(page, "„Zusatz\" on", () => document.querySelectorAll(".sp-body .week .slot.extra").length === 1);
   // ✓ on Mi 13:45: it is taken, the others are left out.
   const count = p.slots.length;
   await act(page, "13:45", "Diese nehmen").click();

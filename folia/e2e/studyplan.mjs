@@ -3,8 +3,8 @@
 // The blocks of the design (G.3), each a function, `--only=3` runs one of them:
 //   1 the desktop walk, 2 the overlay and the finder, 4 the phone, 6 privacy — with their features;
 //   3 persistence: the plan and „Mein Studiengang" live in this browser, survive a reload, follow
-//     another tab, read garbage as an empty plan, and never reach the server's HTML; the program
-//     picked in its sidebar is the tab's session's alone; the plan is an area of its own (its tab,
+//     another tab, read garbage as an empty plan, and never reach the server's HTML; the program is
+//     „Mein Studiengang"'s, without a picker in the sidebar; the plan is an area of its own (its tab,
 //     the module beside it and in full, „Zurück");
 //   5 without the app: the explanation, no „Plan" in the rail, and on a phone the app's frame;
 //   8 the week's labels: a cut first word ends a label, a module's own slots say their kinds;
@@ -148,31 +148,18 @@ async function persistence() {
   check(await page.evaluate(() => window.__marker === 1), "following another tab loaded the page again");
   await other.close();
 
-  // The Stundenplan's program is the session's (owner, 2026-10-15: „nur pro Tab … und Session
-  // gespeichert. Ansonsten wird der Mein Studiengang genommen"): „Mein Studiengang" until one is
-  // picked in the sidebar, which lists it first; a pick stays through a reload, in this tab's
-  // sessionStorage and in neither the plan nor „Mein Studiengang"; a new tab plans for „Mein
-  // Studiengang" again.
-  const programOf = (p) => p.evaluate(() => document.querySelector("#sp-program .combo-value")?.textContent ?? "");
-  await page.waitForFunction(() => (document.querySelector("#sp-program .combo-value")?.textContent ?? "").startsWith("Informatik"), null, { timeout: 8000 }).catch(() => problems.push("the Stundenplan's program is not „Mein Studiengang“"));
-  await step("the program picker lists „Mein Studiengang“ first", () => page.click("#sp-program"), () => document.querySelector("#sp-program-list .combo-group")?.textContent === "Mein Studiengang" && document.querySelector("#sp-program-list .combo-option .combo-label")?.textContent === "Informatik");
-  await page.fill("#sp-program-search", "elektrotechnik b.sc");
-  await page.waitForFunction(() => document.querySelector("#sp-program-list .combo-option .combo-label")?.textContent === "Elektrotechnik", null, { timeout: 5000 }).catch(() => {});
-  await step("a program picked for the Stundenplan", () => page.keyboard.press("Enter"), () => (document.querySelector("#sp-program .combo-value")?.textContent ?? "").startsWith("Elektrotechnik"));
-  const session = await page.evaluate(() => sessionStorage.getItem("betula.studyplan.program"));
-  check(/^\d{3}-\d{2}-\d{4}$/.test(session ?? "") && session !== "079-82-2008", `the pick is not the session's: ${session}`);
-  check((await stored(page, PLAN)) === FS1 && (await stored(page, MINE)) === MINE_FS1, "the pick changed the plan or „Mein Studiengang“");
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await takeover(page);
-  await page.waitForFunction(() => (document.querySelector("#sp-program .combo-value")?.textContent ?? "").startsWith("Elektrotechnik"), null, { timeout: 8000 }).catch(() => problems.push("a reload forgot the Stundenplan's program"));
-  await page.evaluate(() => { window.__marker = 1; });
-  const anotherTab = await context.newPage();
-  watch(anotherTab, requests);
-  await anotherTab.goto(base + "/studyplan", { waitUntil: "domcontentloaded" });
-  await takeover(anotherTab);
-  await anotherTab.waitForFunction(() => (document.querySelector("#sp-program .combo-value")?.textContent ?? "").startsWith("Informatik"), null, { timeout: 8000 }).catch(() => {});
-  check((await programOf(anotherTab)).startsWith("Informatik"), `a new tab plans for ${await programOf(anotherTab)} instead of „Mein Studiengang“`);
-  await anotherTab.close();
+  // The Stundenplan's program is „Mein Studiengang" (owner, 2026-11-04: the sidebar's
+  // „Studiengang" is „Mein Studium" now): no picker in the sidebar, and „Importieren" offers the
+  // plans of „Mein Studiengang". „Ansicht", „Zeigen", „Standort" and „Plan speichern" went from the
+  // sidebar the same day; „In deinen Kalender" is „Export".
+  await page.waitForFunction(() => document.querySelector("#sp-import #sp-import-fs"), null, { timeout: 8000 }).catch(() => problems.push("„Importieren“ offers no Fachsemester of „Mein Studiengang“"));
+  const side = await page.evaluate(() => ({
+    picker: Boolean(document.querySelector("#sp-program")),
+    labels: [...document.querySelectorAll(".sidebar .fgroup > .flabel")].map((label) => label.textContent),
+    save: [...document.querySelectorAll(".sidebar .action")].some((action) => action.textContent.includes("Plan speichern")),
+    chips: document.querySelectorAll(".sidebar .chips").length,
+  }));
+  check(!side.picker && !side.save && side.chips === 0 && !side.labels.some((label) => ["Studiengang", "Ansicht", "Zeigen", "Standort", "In deinen Kalender"].includes(label)) && side.labels.includes("Export"), `the sidebar still has what went, or no „Export“: ${JSON.stringify(side)}`);
 
   // The module beside the plan, and „Modul ansehen" in its place: the address and the tab stay the
   // plan's, the catalog's tab does not hear of the module, and Esc returns through the history.

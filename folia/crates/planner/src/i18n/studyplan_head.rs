@@ -68,8 +68,6 @@ pub struct Texts {
     pub clashes_on_days: fn(usize) -> String,
     /// … and after those per week only „1 an einzelnen Tagen" …
     pub more_on_days: fn(usize) -> String,
-    /// … „Standort offen" …
-    pub town_open: &'static str,
     /// … „2 ausgeblendet".
     pub hidden: fn(usize) -> String,
     /// After an overlap's times, the week it is in: „A-Woche", „B-Woche".
@@ -79,9 +77,6 @@ pub struct Texts {
     /// (how many options there are, the event's type as QIS writes it, the title); the neutral
     /// „Terminen", never glued to the type.
     pub blocked: fn(usize, &str, &str) -> String,
-    /// „Standort wählen: Entwicklung von Softwaresystemen · Cottbus oder Senftenberg": the modules
-    /// taught in both towns, their titles joined with „, ".
-    pub choose_town: fn(&str) -> String,
 
     // ---- what is hidden ----
     /// „Prüfung Mathematik IT-1": an exam by its module's title.
@@ -165,12 +160,10 @@ pub const DE: Texts = Texts {
         n => format!("{n} Überschneidungen an einzelnen Tagen"),
     },
     more_on_days: |n| format!("{n} an einzelnen Tagen"),
-    town_open: "Standort offen",
     hidden: |n| format!("{n} ausgeblendet"),
     week_a: "A-Woche",
     week_b: "B-Woche",
     blocked: |options, kind, title| format!("0 von {options} Terminen frei: {kind} · {title}"),
-    choose_town: |modules| format!("Standort wählen: {modules} · Cottbus oder Senftenberg"),
 
     exam_of: |title| format!("Prüfung {title}"),
     only: |when| format!("nur {when}"),
@@ -240,12 +233,10 @@ pub const EN: Texts = Texts {
         n => format!("{n} clashes on single days"),
     },
     more_on_days: |n| format!("{n} on single days"),
-    town_open: "Location open",
     hidden: |n| format!("{n} hidden"),
     week_a: "week A",
     week_b: "week B",
     blocked: |options, kind, title| format!("0 of {options} sessions free: {kind} · {title}"),
-    choose_town: |modules| format!("Choose a location: {modules} · Cottbus or Senftenberg"),
 
     exam_of: |title| format!("Exam {title}"),
     only: |when| format!("only {when}"),

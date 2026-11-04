@@ -178,10 +178,11 @@ enum Plans {
 }
 
 /// „Importieren": the source, the plan where there are several, the Fachsemester and
-/// „Übernehmen". `program` is the timetable's (`side::Programs::shown`); `imported` keeps the
-/// Fachsemester last taken over, for the name „Plan speichern" suggests.
+/// „Übernehmen". `program` is the timetable's (`side::timetable_program`): without one the group
+/// leads to „Mein Studium", where the program is chosen (owner, 2026-11-04: the sidebar's
+/// „Studiengang" is „Mein Studium" now).
 #[component]
-pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Option<u8>>) -> impl IntoView {
+pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>) -> impl IntoView {
     let t = i18n::t();
     let s = &t.studyplan_import;
     let id = Memo::new(move |_| program.with(|program| program.as_ref().map(|program| program.id.clone())));
@@ -291,7 +292,6 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
                 });
                 let _ = undo.try_set(Some(note));
             }
-            let _ = imported.try_set(Some(form.fs));
             if let (Some(going), Some(away)) = (going, away) {
                 going.go(&away, NavigateOptions { replace: true, ..Default::default() });
             }
@@ -378,7 +378,11 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
                     <a class="sp-more" href=t.path(url::STUDY)>{s.to_studies}</a>
                 }
                 .into_any(),
-                (false, 0) => view! { <p class="hint">{s.choose_program_first}</p> }.into_any(),
+                (false, 0) => view! {
+                    <p class="hint">{s.choose_program_first}</p>
+                    <a class="sp-more" href=t.path(url::STUDY)>{s.to_studies}</a>
+                }
+                .into_any(),
                 (false, 1) => view! { <p class="hint">{s.no_plan}</p> }.into_any(),
                 (false, _) => view! {
                     {move || {

@@ -98,9 +98,6 @@ pub struct Texts {
     /// Exams on one day whose place is open: how many, the day (written already): „Ort offen: 2
     /// Prüfungen am Fr 12.03.2027".
     pub room_open: fn(usize, &str) -> String,
-    /// A module taught in both towns while no Standort is chosen: „Standort wählen: Cottbus oder
-    /// Senftenberg".
-    pub choose_location: &'static str,
     /// Two exams at once (the day and time, then the modules, joined with „ · "): „Prüfungen
     /// gleichzeitig: Mo 08.02.2027 11:00 · …" …
     pub same_time: fn(&str) -> String,
@@ -203,7 +200,6 @@ pub const DE: Texts = Texts {
     location: |town| format!("Standort {town}"),
 
     room_open: |n, day| format!("Ort offen: {n} Prüfungen am {day}"),
-    choose_location: "Standort wählen: Cottbus oder Senftenberg",
     same_time: |what| format!("Prüfungen gleichzeitig: {what}"),
     tight: |gap, from, to, what| format!("{gap} min von {from} nach {to}: {what}"),
     ends: |module, time| format!("{module} bis {time}"),
@@ -290,7 +286,6 @@ pub const EN: Texts = Texts {
     location: |town| format!("Location: {town}"),
 
     room_open: |n, day| if n == 1 { format!("Room TBA: 1 exam on {day}") } else { format!("Room TBA: {n} exams on {day}") },
-    choose_location: "Choose a location: Cottbus or Senftenberg",
     same_time: |what| format!("Exams at the same time: {what}"),
     tight: |gap, from, to, what| format!("{gap} min from {from} to {to}: {what}"),
     ends: |module, time| format!("{module} until {time}"),

@@ -8,14 +8,14 @@
 //! points at, and the Regelstudienplan being taken over; `full=1` lets that module fill the page
 //! with its whole page, inside the plan's area (a local view, `folia_widgets::local`).
 //!
-//! The page is one frame (`ui::Frame`, R17): the sidebar „Anpassen" (`side.rs`: the program,
-//! `import.rs`, view, what is shown, Standort, calendar, the plan as a whole and the saved plans),
+//! The page is one frame (`ui::Frame`, R17): the sidebar „Anpassen" (`side.rs`: the calendars,
+//! `import.rs`, „Export", the plan as a whole and the saved plans),
 //! the plan in the main column (`head.rs`, `week.rs`, `exams.rs`) with its modules in a column
 //! beside it where the page is wide enough, else under it (`modules.rs`), and the module opened
 //! from it floating over the page at its right edge, as the catalog's preview does (`aside.rs`).
 //! The week is there before anything is planned (owner, 2026-09-25), with what to do in its middle.
 //! Its parts share one `PlanCtx`: the memos below, built once per page. On a phone the sidebar is
-//! a sheet, opened by „Anpassen" (`SheetToggle`), the calendar (`export.rs`) stands under the
+//! a sheet, opened by „Anpassen" (`SheetToggle`), „Export" (`export.rs`) stands under the
 //! Termine instead of in it, and the module beside the plan is the page.
 //!
 //! The memo graph keeps to R16 (docs/folia/frontend.md): no closure reads a source together with a memo
@@ -38,6 +38,9 @@ mod import;
 mod modules;
 mod open;
 mod own;
+// The server lays out no picture (`picture::save` is the browser's).
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+mod picture;
 mod share;
 mod side;
 mod termin;
