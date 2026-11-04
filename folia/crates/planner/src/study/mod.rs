@@ -70,7 +70,7 @@ use folia_shell::seo::Seo;
 use folia_shell::skeleton::{AppStandin, DetailSkeleton};
 use folia_shell::tabs::Area;
 use folia_stores::myprogram::{MyProgram, ProgramPlans};
-use folia_stores::studyplan::Studyplan;
+use folia_stores::studyplan::{PlanHint, Studyplan};
 use folia_widgets::list::phone_layout;
 use folia_widgets::local::ModuleInPlace;
 use folia_widgets::module::ModulePanel;
@@ -255,9 +255,16 @@ pub(super) struct StudyCtx {
     pub undo: RwSignal<Option<Undo>>,
     /// The same for a view (the Regelstudienplan, the Wahlpflicht) on a phone.
     pub view_back: RwSignal<bool>,
-    /// The choice the Wahlpflicht shows (an index of `PlanView::choices`): a row's „Wählen" picks
-    /// it (`regular.rs`, `choose.rs`).
+    /// The choice the Wahlpflicht shows on a wide screen (an index of `PlanView::choices`;
+    /// `choose.rs`). A phone's is in the address (`StudyUrl::choice`).
     pub choice: RwSignal<Option<usize>>,
+    /// A phone's choice of the Wahlpflicht was opened from its list, the step before in the
+    /// history: its way back goes back there.
+    pub choice_back: RwSignal<bool>,
+    /// What „Einplanen" of the module beside the page aims at where the Wahlpflicht opened it: the
+    /// module and the choice's placeholder and row (`PlanHint`, `choose.rs`). For that module
+    /// alone.
+    pub aside_hint: RwSignal<Option<(String, PlanHint)>>,
     /// The workbench, while it is open (`bench.rs`): planning one semester is a mode.
     pub bench: RwSignal<Option<bench::Bench>>,
     /// The pages of the workbench's sheet on a phone gone into from its root (`bench::Page`).
@@ -584,6 +591,8 @@ pub fn StudyPage() -> impl IntoView {
         undo: RwSignal::new(None),
         view_back: RwSignal::new(false),
         choice: RwSignal::new(None),
+        choice_back: RwSignal::new(false),
+        aside_hint: RwSignal::new(None),
         bench: RwSignal::new(None),
         trail: RwSignal::new(Vec::new()),
     };
@@ -851,7 +860,10 @@ fn StudyAside(ctx: StudyCtx, open: Memo<Option<String>>, target: Memo<Option<Stu
         match module.get() {
             Ok(Some(Some(data))) => {
                 let full_href = folia_routes::local::full_href(&here, &data.module.id);
-                view! { <ModulePanel data close_href=here.with_open(None).path() docked=true full_href=Some(full_href)/> }.into_any()
+                // Opened from a choice of the Wahlpflicht: „Einplanen" plans for it.
+                let id = data.module.id.clone();
+                let hint = Signal::derive(move || ctx.aside_hint.with(|hint| hint.as_ref().filter(|(of, _)| *of == id).map(|(_, hint)| hint.clone())));
+                view! { <ModulePanel data close_href=here.with_open(None).path() docked=true full_href=Some(full_href) hint/> }.into_any()
             }
             Ok(Some(None)) | Err(_) => view! {
                 <section class="panel detail aside is-module" id="preview">
@@ -1061,9 +1073,61 @@ mod tests {
         assert_eq!(komplex.together.as_ref().map(|(credits, others)| (*credits, others.len())), Some((44.0, 2)));
         let fues = view.choices.iter().find(|choice| choice.fues).unwrap();
         assert!(fues.complete() && fues.lists.is_empty());
-        // Left to choose: Praktische Mathematik 6, the Anwendungsfach 4 more, the 4. FS 6, the
-        // Komplexe 44 together, the Seminar 4.
+        // The three Komplexe and the Wahlpflicht im 4. FS, whose lists are theirs: one group of 50.
+        assert_eq!(view.groups.len(), 1);
+        let group = &view.groups[0];
+        let named = |ats: &[usize]| ats.iter().map(|at| view.choices[*at].name.clone()).collect::<Vec<_>>();
+        assert_eq!(named(&group.members), ["Komplex Grundlagen der Informatik", "Komplex Praktische Informatik", "Komplex Angewandte und Technische Informatik"]);
+        assert_eq!(named(&group.extras).len(), 1);
+        assert!(named(&group.extras)[0].starts_with("Wahlpflicht: Komplex"));
+        assert_eq!((group.label.as_str(), group.together, group.target(&view.choices)), ("Komplexe des Fachstudiums", 44.0, 50.0));
+        assert!(group.members(&view).iter().all(|member| member.room == folia_plans::choices::Room::Open && member.stand.most == 24.0));
+        // Left to choose: Praktische Mathematik 6, the Anwendungsfach 4 more, the Komplexe 50
+        // (the 4. FS 6 and 44 together), the Seminar 4.
         assert_eq!(view.to_choose, 64.0);
+    }
+
+    /// The Komplexe of Informatik B.Sc.: 24 each, one of them to 30 (owner, 2026-11-04: „nur eins
+    /// davon darf 30 haben"). Praktische Informatik with five modules of 6 is the one over 24 and
+    /// keeps the room to 30, whichever of the group's choices counted which; Grundlagen der
+    /// Informatik over 24 as well is over; a second Proseminar counts for none and stays spare.
+    #[test]
+    fn the_komplexe_take_24_one_of_them_30() {
+        use folia_plans::choices::{plan_view, Room};
+
+        let source = plans_of("079-82-2008");
+        let pi = ["14012", "13569", "12330", "14460", "12311"];
+        let lines: Vec<String> = pi.iter().map(|id| format!("m\t2028W\t{id}\t1\t\t")).chain(["m\t2027S\t12111\t1\t\t".to_string(), "m\t2027S\t12216\t1\t\t".to_string()]).collect();
+        let doc = PlanDoc::restored(&lines.join("\n"));
+        let mine = MineDoc { caption: Some(String::new()), start: Some(key("2026W")), ..MineDoc::default() };
+        let (shown, core, page) = chosen(&source, mine.caption.as_deref(), None);
+        let setup = Setup { shown, core, page, start: key("2026W"), start_stored: true, now: key("2026W"), leave: BTreeSet::new(), until: None };
+        let gdi = ["12329", "12350", "11450", "13565"];
+        let mut rows = source.linked.clone();
+        rows.extend(plans_of_rows(&pi.iter().chain(gdi.iter()).chain(["12111", "12216"].iter()).copied().collect::<Vec<_>>()));
+        let view_of = |doc: &PlanDoc| {
+            let input = input_of(&source, &setup, doc, &rows);
+            let study = study::study(&input);
+            plan_view(&input, &study)
+        };
+        let view = view_of(&doc);
+        let group = &view.groups[0];
+        let stands = |view: &folia_plans::choices::PlanView| view.groups[0].members(view).iter().map(|member| (member.stand.taken(), member.stand.most, member.room)).collect::<Vec<_>>();
+        assert_eq!(stands(&view), [(0.0, 24.0, Room::Gone), (30.0, 30.0, Room::Kept), (0.0, 24.0, Room::Gone)]);
+        // The 50 less 30, and at least the 10 each of the other two lack.
+        assert_eq!(group.open(&view), 20.0);
+        // Proseminar and Praktikum: the second counts for none, beyond the 4 asked.
+        let pro = view.choices.iter().position(|choice| choice.name == "Proseminar oder Praktikum").unwrap();
+        assert_eq!(view.spare_of(pro).len(), 1);
+        assert_eq!(view.stand_of(pro).taken(), 8.0);
+        // Grundlagen der Informatik with 30 as well: it is over, and counts to 24.
+        let mut doc = doc;
+        for id in gdi {
+            doc.plan(key("2029S"), id, 2, None);
+        }
+        let view = view_of(&doc);
+        assert_eq!(stands(&view), [(30.0, 24.0, Room::Over), (30.0, 30.0, Room::Kept), (0.0, 24.0, Room::Gone)]);
+        assert_eq!(view.groups[0].open(&view), 10.0, "the Angewandte und Technische Informatik's 10");
     }
 
     /// The workbench of Informatik B.Sc. in its third semester (folia/design/hinzufuegen/

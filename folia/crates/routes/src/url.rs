@@ -828,6 +828,10 @@ pub struct StudyUrl {
     /// The semesters, not the overview (`plan=1`): the view of the semesters only. A desktop shows
     /// both at once.
     pub plan: bool,
+    /// A choice of the Wahlpflicht, on a phone a page of its own behind the list of them
+    /// (`choice=<n>`, an index of the plan's choices; folia/design/wahlpflicht, second round).
+    /// Only with `view=areas`.
+    pub choice: Option<usize>,
     /// The module shown beside the page (`open=<id>`).
     pub open: Option<String>,
     /// The module of `open` fills the page (`full=1`). Nothing without `open`.
@@ -840,8 +844,14 @@ impl StudyUrl {
         let first = |name: &str| pairs.iter().find(|(key, _)| key == name).map(|(_, value)| value.trim().to_ascii_lowercase());
         let view = first("view").and_then(|code| StudyView::ALL.iter().copied().find(|view| *view != StudyView::Semesters && view.code() == code)).unwrap_or_default();
         let plan = view == StudyView::Semesters && first("plan").as_deref() == Some("1");
+        let choice = first("choice").filter(|_| view == StudyView::Choices).and_then(|text| text.parse::<usize>().ok()).filter(|at| *at < 1000);
         let (open, full) = local_from_pairs(&pairs);
-        Self { view, plan, open, full }
+        Self { view, plan, choice, open, full }
+    }
+
+    /// The Wahlpflicht with a choice of its own (`Some`), or its list (`None`).
+    pub fn with_choice(&self, choice: Option<usize>) -> Self {
+        Self { choice: choice.filter(|_| self.view == StudyView::Choices), ..self.clone() }
     }
 
     /// The same page with the semesters (`true`) or the overview.
@@ -852,7 +862,7 @@ impl StudyUrl {
     /// Another view, with the module beside it as it was; a phone's semesters are the first
     /// view's.
     pub fn with_view(&self, view: StudyView) -> Self {
-        Self { view, plan: false, ..self.clone() }
+        Self { view, plan: false, choice: None, ..self.clone() }
     }
 
     pub fn path(&self) -> String {
@@ -862,6 +872,9 @@ impl StudyUrl {
         }
         if self.plan && self.view == StudyView::Semesters {
             pairs.push(("plan", "1".to_string()));
+        }
+        if let Some(choice) = self.choice.filter(|_| self.view == StudyView::Choices) {
+            pairs.push(("choice", choice.to_string()));
         }
         pairs.extend(local_pairs(self.open.as_deref(), self.full));
         if pairs.is_empty() {
@@ -881,7 +894,7 @@ impl LocalView for StudyUrl {
     }
 
     fn with_module(&self, open: Option<&str>, full: bool) -> Self {
-        Self { view: self.view, plan: self.plan, open: open.map(str::to_string), full: full && open.is_some() }
+        Self { view: self.view, plan: self.plan, choice: self.choice, open: open.map(str::to_string), full: full && open.is_some() }
     }
 
     fn path(&self) -> String {
@@ -2320,6 +2333,14 @@ mod tests {
         assert_eq!(StudyUrl::parse("view=plan").view, StudyView::Plan);
         assert_eq!(StudyUrl::parse("view=AREAS&open=11101").path(), "/study?view=areas&open=11101");
         assert_eq!(StudyUrl::parse("view=plan&plan=1").path(), "/study?view=plan");
+        // A choice of the Wahlpflicht, the module beside it kept; nowhere else.
+        let choice = StudyUrl::parse("view=areas&choice=4&open=11101");
+        assert_eq!((choice.choice, choice.path().as_str()), (Some(4), "/study?view=areas&choice=4&open=11101"));
+        assert_eq!(choice.with_module(None, false).path(), "/study?view=areas&choice=4");
+        assert_eq!(choice.with_choice(None).path(), "/study?view=areas&open=11101");
+        assert_eq!(choice.with_view(StudyView::Plan).path(), "/study?view=plan&open=11101");
+        assert_eq!(StudyUrl::parse("view=plan&choice=4").path(), "/study?view=plan");
+        assert_eq!(StudyUrl::parse("view=areas&choice=x").choice, None);
         assert_eq!(StudyUrl::parse("view=semesters").path(), "/study");
         assert_eq!(StudyUrl::parse("view=").view, StudyView::Semesters);
         assert_eq!(StudyUrl::parse("plan=1&open=11101").with_view(StudyView::Choices).path(), "/study?view=areas&open=11101");

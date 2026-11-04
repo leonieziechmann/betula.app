@@ -81,53 +81,53 @@ pub struct Texts {
     pub fs_strip: &'static str,
 
     // The Wahlpflicht.
-    /// „Noch 72 LP zu wählen – nach deinen Bereichen, mit dem, was das Semester anbietet".
+    /// „Noch 72 LP zu wählen".
     pub choices_lead: fn(&str) -> String,
     pub choices_done_lead: &'static str,
     pub choices_none: &'static str,
     pub choices_none_hint: &'static str,
-    /// „Angeboten im" before the semesters; „Alle".
-    pub offered_in: &'static str,
-    pub all: &'static str,
-    /// What the plan says of a choice: „12 LP laut Plan im 3. und 4. FS.", a choice among
-    /// several lists („Aus einer der 5 Listen."), the sum it shares („Zusammen mit Praktische
-    /// Informatik und Angewandte und Technische Informatik 44 LP.").
-    pub rule: fn(&str, &str) -> String,
-    pub one_of: fn(usize) -> String,
+    /// What is held of what is asked: „6 / 10–24 LP".
+    pub figure: fn(&str, &str) -> String,
+    /// What a choice asks: „6 LP aus „Praktische Mathematik“.", „12 LP aus einer der 5 Listen.",
+    /// „4 LP.", the FÜS „6 LP aus dem FÜS-Katalog der BTU …"; the sum it shares („Zusammen mit
+    /// Praktische Informatik und Angewandte und Technische Informatik 44 LP.").
+    pub rule_list: fn(&str, &str) -> String,
+    pub rule_one_of: fn(&str, usize) -> String,
+    pub rule_plain: fn(&str) -> String,
+    pub fues_rule: fn(&str) -> String,
     pub together: fn(&str, &str) -> String,
     pub and: &'static str,
-    /// „Aus dem FÜS-Katalog der BTU." and the way there.
-    pub fues_rule: &'static str,
+    /// What a group asks (the Komplexe): „50 LP aus diesen drei, aus jedem 10 bis 24." (the sum,
+    /// how many, the least and the most of each), and where its extras give one of them more
+    /// („Einer darf bis 30: Die 6 LP von „Wahlpflicht“ im 4. FS, ein Modul aus einem der drei,
+    /// zählen nur bei einem."). A number as a word: „drei".
+    pub group_rule: fn(&str, &str, &str, &str) -> String,
+    pub group_extra: fn(&str, &str, &str, &str, &str) -> String,
+    pub count_word: fn(usize) -> String,
+    /// The hatched stretch of a group's members: open to each („24 bis 30 LP: nur für einen von
+    /// ihnen …"), kept by one, and two over the most (the others, whether several, the one
+    /// keeping it, the most, the room's end).
+    pub room_open: fn(&str, &str) -> String,
+    pub room_kept: fn(&str, &str, &str) -> String,
+    pub room_over: fn(&str, bool, &str, &str, &str) -> String,
+    /// The way to the FÜS's catalog.
     pub fues_catalog: &'static str,
     /// A choice whose list the tree does not have.
     pub no_list: &'static str,
     pub search_catalog: &'static str,
-    /// „8 von 12 LP gewählt", „Erledigt im SoSe 2026".
-    pub taken: fn(&str, &str) -> String,
-    pub done_in: fn(&str) -> String,
-    /// What is taken of it, as a heading.
-    pub yours: &'static str,
-    /// The table: „Nr.", „Modul", „LP", „Turnus".
-    pub col_id: &'static str,
-    pub col_turnus: &'static str,
-    /// „Jedes Semester", „Unregelmäßig": a turnus without one half of the year.
-    pub every_semester: &'static str,
-    pub turnus_unknown: &'static str,
-    /// A module's stand in the list: „geplant · SoSe 27", „bestanden".
-    pub chip_planned: fn(&str) -> String,
-    pub chip_passed: &'static str,
-    /// „In SoSe 27": the button that plans it.
-    pub into: fn(&str) -> String,
-    /// „16 weitere, nicht im SoSe angeboten", „alle zeigen".
-    pub more_unoffered: fn(usize, &str) -> String,
-    pub show_all: &'static str,
-    /// How many marked modules a choice's lists hold: „3 gemerkte zählen hier"; and what marks one.
-    pub marked_here: fn(usize) -> String,
-    pub marked: &'static str,
-    /// „17 Module".
+    /// „17 Module", „5 Listen · 59 Module", „im FÜS-Katalog", „1 gemerkt".
     pub modules: fn(usize) -> String,
-    /// „laut Plan im 4. FS".
-    pub plan_says: fn(&str) -> String,
+    pub lists_count: fn(usize, usize) -> String,
+    pub fues_count: &'static str,
+    pub marked_count: fn(usize) -> String,
+    /// A module of the list that counts for another choice: „zählt für Anwendungsfach".
+    pub counts_for: fn(&str) -> String,
+    /// A placeholder of the choice no module fills: „Platzhalter", „im WiSe 2026/27, noch ohne
+    /// Modul".
+    pub place: &'static str,
+    pub place_line: fn(&str) -> String,
+    /// What marks a module on the Merkliste.
+    pub marked: &'static str,
     /// The lists of a choice, for screen readers.
     pub lists: &'static str,
     /// The areas, for screen readers.
@@ -185,36 +185,41 @@ pub const DE: Texts = Texts {
     plan_source: "Der Plan beim Studiengang",
     fs_strip: "Fachsemester",
 
-    choices_lead: |credits| format!("Noch {credits}\u{a0}LP zu wählen – nach deinen Bereichen, mit dem, was das Semester anbietet"),
+    choices_lead: |credits| format!("Noch {credits}\u{a0}LP zu wählen"),
     choices_done_lead: "Alles gewählt. Tauschen kannst du trotzdem.",
     choices_none: "Nichts zu wählen",
     choices_none_hint: "Dieser Regelstudienplan nennt für jede Zeile ein Modul.",
-    offered_in: "Angeboten im",
-    all: "Alle",
-    rule: |credits, span| format!("{credits}\u{a0}LP laut Plan im {span}."),
-    one_of: |n| format!("Aus einer der {n} Listen."),
+    figure: |taken, range| format!("{taken} / {range}\u{a0}LP"),
+    rule_list: |credits, list| format!("{credits}\u{a0}LP aus „{list}“."),
+    rule_one_of: |credits, n| format!("{credits}\u{a0}LP aus einer der {n} Listen."),
+    rule_plain: |credits| format!("{credits}\u{a0}LP."),
+    fues_rule: |credits| format!("{credits}\u{a0}LP aus dem FÜS-Katalog der BTU: Module außerhalb deines Fachs."),
     together: |names, credits| format!("Zusammen mit {names} {credits}\u{a0}LP."),
     and: "und",
-    fues_rule: "Aus dem FÜS-Katalog der BTU: Module außerhalb deines Fachs.",
+    group_rule: |target, n, least, most| format!("{target}\u{a0}LP aus diesen {n}, aus jedem {least} bis {most}."),
+    group_extra: |top, credits, names, span, n| format!("Einer darf bis {top}: Die {credits}\u{a0}LP von „{names}“ im {span}, ein Modul aus einem der {n}, zählen nur bei einem."),
+    count_word: |n| match n {
+        2 => "beiden".to_string(),
+        3 => "drei".to_string(),
+        4 => "vier".to_string(),
+        5 => "fünf".to_string(),
+        6 => "sechs".to_string(),
+        n => n.to_string(),
+    },
+    room_open: |most, top| format!("{most} bis {top}\u{a0}LP: nur für einen von ihnen. Geht einer über {most}, gehört die Stelle ihm."),
+    room_kept: |name, most, top| format!("{most} bis {top}\u{a0}LP hat {name}; bei den anderen endet der Balken bei {most}."),
+    room_over: |names, several, kept, most, top| format!("Auch {names} {} mehr als {most}\u{a0}LP. Nur einer darf bis {top}, hier {kept}; bei {names} zählt nur bis {most}.", if several { "haben" } else { "hat" }),
     fues_catalog: "FÜS-Module im Katalog",
     no_list: "Welche Module hier zählen, sagt der Modulbaum des Studiengangs nicht.",
     search_catalog: "Im Katalog suchen",
-    taken: |taken, all| format!("{taken} von {all}\u{a0}LP gewählt"),
-    done_in: |semester| format!("Erledigt im {semester}"),
-    yours: "Deine Wahl",
-    col_id: "Nr.",
-    col_turnus: "Turnus",
-    every_semester: "jedes Sem.",
-    turnus_unknown: "–",
-    chip_planned: |semester| format!("geplant · {semester}"),
-    chip_passed: "bestanden",
-    into: |semester| format!("In {semester}"),
-    more_unoffered: |n, season| if n == 1 { format!("1 weiteres, nicht im {season} angeboten") } else { format!("{n} weitere, nicht im {season} angeboten") },
-    show_all: "alle zeigen",
-    marked_here: |n| if n == 1 { "1 gemerktes zählt hier".to_string() } else { format!("{n} gemerkte zählen hier") },
-    marked: "Gemerkt",
     modules: |n| if n == 1 { "1 Modul".to_string() } else { format!("{n} Module") },
-    plan_says: |span| format!("laut Plan im {span}"),
+    lists_count: |lists, modules| format!("{lists} Listen · {modules} Module"),
+    fues_count: "im FÜS-Katalog",
+    marked_count: |n| format!("{n} gemerkt"),
+    counts_for: |name| format!("zählt für {name}"),
+    place: "Platzhalter",
+    place_line: |semester| format!("im {semester}, noch ohne Modul"),
+    marked: "Gemerkt",
     lists: "Listen",
     areas: "Bereiche",
 };
@@ -270,36 +275,41 @@ pub const EN: Texts = Texts {
     plan_source: "The plan on the programme's page",
     fs_strip: "Semesters",
 
-    choices_lead: |credits| format!("{credits}\u{a0}CP left to choose – by your areas, with what the semester offers"),
+    choices_lead: |credits| format!("{credits}\u{a0}CP left to choose"),
     choices_done_lead: "All chosen. You can still swap.",
     choices_none: "Nothing to choose",
     choices_none_hint: "This standard study plan names a module for every row.",
-    offered_in: "Offered in",
-    all: "All",
-    rule: |credits, span| format!("{credits}\u{a0}CP per plan in {span}."),
-    one_of: |n| format!("From one of the {n} lists."),
+    figure: |taken, range| format!("{taken} / {range}\u{a0}CP"),
+    rule_list: |credits, list| format!("{credits}\u{a0}CP from \u{201c}{list}\u{201d}."),
+    rule_one_of: |credits, n| format!("{credits}\u{a0}CP from one of the {n} lists."),
+    rule_plain: |credits| format!("{credits}\u{a0}CP."),
+    fues_rule: |credits| format!("{credits}\u{a0}CP from BTU's FÜS catalogue: modules outside your subject."),
     together: |names, credits| format!("Together with {names}: {credits}\u{a0}CP."),
     and: "and",
-    fues_rule: "From BTU's FÜS catalogue: modules outside your subject.",
+    group_rule: |target, n, least, most| format!("{target}\u{a0}CP from these {n}, {least} to {most} from each."),
+    group_extra: |top, credits, names, span, n| format!("One of them may go to {top}: the {credits}\u{a0}CP of \u{201c}{names}\u{201d} in {span}, a module of one of the {n}, count for one alone."),
+    count_word: |n| match n {
+        2 => "two".to_string(),
+        3 => "three".to_string(),
+        4 => "four".to_string(),
+        5 => "five".to_string(),
+        6 => "six".to_string(),
+        n => n.to_string(),
+    },
+    room_open: |most, top| format!("{most} to {top}\u{a0}CP: for one of them alone. The one that goes over {most} has it."),
+    room_kept: |name, most, top| format!("{name} has {most} to {top}\u{a0}CP; the others' bars end at {most}."),
+    room_over: |names, several, kept, most, top| format!("{names} {} more than {most}\u{a0}CP as well. Only one may go to {top}, here {kept}; of {names} only {most} count.", if several { "have" } else { "has" }),
     fues_catalog: "FÜS modules in the catalogue",
     no_list: "The programme's module tree does not say which modules count here.",
     search_catalog: "Search the catalogue",
-    taken: |taken, all| format!("{taken} of {all}\u{a0}CP chosen"),
-    done_in: |semester| format!("Done in {semester}"),
-    yours: "Your choice",
-    col_id: "No.",
-    col_turnus: "Offered",
-    every_semester: "every sem.",
-    turnus_unknown: "–",
-    chip_planned: |semester| format!("planned · {semester}"),
-    chip_passed: "passed",
-    into: |semester| format!("In {semester}"),
-    more_unoffered: |n, season| if n == 1 { format!("1 more, not offered in {season}") } else { format!("{n} more, not offered in {season}") },
-    show_all: "show all",
-    marked_here: |n| format!("{n} saved count{} here", if n == 1 { "s" } else { "" }),
-    marked: "Saved",
     modules: |n| if n == 1 { "1 module".to_string() } else { format!("{n} modules") },
-    plan_says: |span| format!("per plan in {span}"),
+    lists_count: |lists, modules| format!("{lists} lists · {modules} modules"),
+    fues_count: "in the FÜS catalogue",
+    marked_count: |n| format!("{n} saved"),
+    counts_for: |name| format!("counts for {name}"),
+    place: "Placeholder",
+    place_line: |semester| format!("in {semester}, no module yet"),
+    marked: "Saved",
     lists: "Lists",
     areas: "Areas",
 };

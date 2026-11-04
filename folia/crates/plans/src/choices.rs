@@ -12,6 +12,14 @@
 //! (`study::study`). A module counts towards one choice at most: the one whose row it was planned
 //! for (`Planned::counts`, the workbench of folia/design/hinzufuegen/konzepte.html), else the
 //! first, in the order of the plan, that lists it and has room left.
+//!
+//! Choices the regulation sums over are one requirement, a `Group` (folia/design/wahlpflicht,
+//! second round): „Summe Komplexe des Fachstudiums 44" over the three Komplexe of „10–24", with the
+//! choice whose lists are theirs („Wahlpflicht: Komplex … / … / …", 6 LP in the 4. FS of Informatik
+//! B.Sc.) — 50 LP of the three, each 10 to 24, and the one over 24 may go to 30: the extra's
+//! credits count for one member alone (owner, 2026-11-04: „nur eins davon darf 30 haben"). What the
+//! study holds of a group falls to the member whose list has it, whichever of the group's choices
+//! counted it.
 
 use std::collections::BTreeSet;
 
@@ -170,9 +178,201 @@ pub struct PlanView {
     pub lines: Vec<PlanLine>,
     /// Its choices, in the order of their first row.
     pub choices: Vec<Choice>,
+    /// The choices the regulation sums over, each one requirement (`Group`).
+    pub groups: Vec<Group>,
+    /// The modules of the study on a choice's list that count for none, its room being full (a
+    /// second Proseminar): beyond what is asked, said where they are listed.
+    pub spare: Vec<Taken>,
     /// What the choices still ask for together that is not taken (a sum the regulation prints
-    /// over several of them counted once).
+    /// over several of them counted once, a group as `Group::open`).
     pub to_choose: f64,
+}
+
+/// What a choice or a group holds against what it asks: its bar.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Stand {
+    pub passed: f64,
+    /// Planned and not passed.
+    pub planned: f64,
+    pub least: f64,
+    /// The most it takes: the room of a group's member is the more for the one that keeps the
+    /// extras' credits (`Room::Kept`).
+    pub most: f64,
+}
+
+impl Stand {
+    pub fn taken(&self) -> f64 {
+        self.passed + self.planned
+    }
+
+    /// What is held of `taken`, as the bar splits it.
+    fn of<'a>(taken: impl IntoIterator<Item = &'a Taken>, least: f64, most: f64) -> Self {
+        let mut stand = Stand { least, most, ..Stand::default() };
+        for taken in taken {
+            match taken.passed {
+                true => stand.passed += taken.credits.unwrap_or(0.0),
+                false => stand.planned += taken.credits.unwrap_or(0.0),
+            }
+        }
+        stand
+    }
+}
+
+/// The room above a group member's most that the group's extras give one member: none where the
+/// group has no extras; open to each while no member is over its most; kept by the member over it
+/// with the most; gone for the others then; and over, for a member past its most besides the one
+/// that keeps it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Room {
+    None,
+    Open,
+    Kept,
+    Gone,
+    Over,
+}
+
+/// A member of a group as the Wahlpflicht shows it: what of the study falls on its lists, and the
+/// room above its most.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Member {
+    /// An index of `PlanView::choices`.
+    pub choice: usize,
+    pub taken: Vec<Taken>,
+    pub stand: Stand,
+    pub room: Room,
+}
+
+/// Choices the regulation prints one sum over (`together`), each with lists of its own, and the
+/// choices whose lists are all of theirs and nothing else (`extras`): one requirement.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Group {
+    /// Indexes of `PlanView::choices`, in the plan's order.
+    pub members: Vec<usize>,
+    pub extras: Vec<usize>,
+    /// What the sum asks of the members („44"), and the sum's label without „Summe"
+    /// („Komplexe des Fachstudiums").
+    pub together: f64,
+    pub label: String,
+}
+
+impl Group {
+    /// Every choice of it.
+    pub fn choices(&self) -> impl Iterator<Item = usize> + '_ {
+        self.members.iter().chain(self.extras.iter()).copied()
+    }
+
+    /// What the extras ask, the least and the most: the room one member has beyond its most.
+    pub fn extra(&self, choices: &[Choice]) -> (f64, f64) {
+        self.extras.iter().filter_map(|at| choices.get(*at)).fold((0.0, 0.0), |(least, most), choice| (least + choice.least, most + choice.most.max(choice.least)))
+    }
+
+    /// What it asks: the sum and the extras.
+    pub fn target(&self, choices: &[Choice]) -> f64 {
+        self.together + self.extra(choices).0
+    }
+
+    /// Its rows are all marked as done.
+    pub fn done(&self, choices: &[Choice]) -> bool {
+        self.choices().all(|at| choices.get(at).is_some_and(|choice| choice.done.is_some()))
+    }
+
+    /// Its members: what the group's choices count, and what counts for none (`PlanView::spare`),
+    /// falls to the member whose list has it; the member over its most with the most keeps the
+    /// extras' room.
+    pub fn members(&self, view: &PlanView) -> Vec<Member> {
+        let choices = &view.choices;
+        let room = self.extra(choices).1;
+        let mut seen: BTreeSet<&str> = BTreeSet::new();
+        let held: Vec<&Taken> = self.choices().filter_map(|at| choices.get(at)).flat_map(|choice| choice.taken.iter()).chain(view.spare.iter()).filter(|taken| seen.insert(taken.id.as_str())).collect();
+        let mut members: Vec<Member> = self
+            .members
+            .iter()
+            .filter_map(|at| choices.get(*at).map(|choice| (*at, choice)))
+            .map(|(at, choice)| {
+                let taken: Vec<Taken> = held.iter().filter(|taken| choice.list_of(&taken.id).is_some()).map(|taken| (*taken).clone()).collect();
+                let stand = Stand::of(&taken, choice.least, choice.most.max(choice.least));
+                Member { choice: at, taken, stand, room: if room > EPSILON { Room::Open } else { Room::None } }
+            })
+            .collect();
+        if room <= EPSILON {
+            return members;
+        }
+        let over: Vec<usize> = members.iter().enumerate().filter(|(_, member)| member.stand.taken() > member.stand.most + EPSILON).map(|(at, _)| at).collect();
+        // The one with the most keeps it; of two alike, the one over its most in an earlier
+        // semester, so that what is added later does not take it away.
+        let crossed = |member: &Member| {
+            let mut taken: Vec<&Taken> = member.taken.iter().collect();
+            taken.sort_by_key(|taken| taken.semester);
+            let mut sum = 0.0;
+            taken.into_iter().find(|taken| {
+                sum += taken.credits.unwrap_or(0.0);
+                sum > member.stand.most + EPSILON
+            }).map(|taken| taken.semester)
+        };
+        let keeps = over
+            .iter()
+            .filter_map(|at| members.get(*at).map(|member| (*at, member)))
+            .max_by(|(a, a_), (b, b_)| a_.stand.taken().total_cmp(&b_.stand.taken()).then_with(|| crossed(b_).cmp(&crossed(a_))).then(b.cmp(a)))
+            .map(|(at, _)| at);
+        for (at, member) in members.iter_mut().enumerate() {
+            member.room = match keeps {
+                None => Room::Open,
+                Some(kept) if kept == at => Room::Kept,
+                Some(_) if over.contains(&at) => Room::Over,
+                Some(_) => Room::Gone,
+            };
+            if member.room == Room::Kept {
+                member.stand.most += room;
+            }
+        }
+        members
+    }
+
+    /// Its stand as a whole: what its members hold, against what it asks.
+    pub fn stand(&self, view: &PlanView) -> Stand {
+        let target = self.target(&view.choices);
+        if self.done(&view.choices) {
+            return Stand { passed: target, planned: 0.0, least: target, most: target };
+        }
+        let members = self.members(view);
+        Stand { passed: members.iter().map(|member| member.stand.passed).sum(), planned: members.iter().map(|member| member.stand.planned).sum(), least: target, most: target }
+    }
+
+    /// What it still asks: of what it asks, what its members hold up to their most, and at least
+    /// what each still lacks of its least.
+    pub fn open(&self, view: &PlanView) -> f64 {
+        if self.done(&view.choices) {
+            return 0.0;
+        }
+        let members = self.members(view);
+        let held: f64 = members.iter().map(|member| member.stand.taken().min(member.stand.most)).sum();
+        let lacking: f64 = members.iter().map(|member| (member.stand.least - member.stand.taken()).max(0.0)).sum();
+        (self.target(&view.choices) - held).max(lacking).max(0.0)
+    }
+}
+
+impl PlanView {
+    /// The group a choice is part of.
+    pub fn group_of(&self, choice: usize) -> Option<&Group> {
+        self.groups.iter().find(|group| group.choices().any(|at| at == choice))
+    }
+
+    /// The stand of a choice that is part of no group: what it counts, and what of the study on
+    /// its lists counts for none where it is the first choice in the plan to list it.
+    pub fn stand_of(&self, at: usize) -> Stand {
+        let Some(choice) = self.choices.get(at) else { return Stand::default() };
+        let most = choice.most.max(choice.least);
+        if choice.done.is_some() {
+            return Stand { passed: choice.least, planned: 0.0, least: choice.least, most };
+        }
+        let spare = self.spare.iter().filter(|taken| self.choices.iter().position(|other| other.list_of(&taken.id).is_some()) == Some(at));
+        Stand::of(choice.taken.iter().chain(spare), choice.least, most)
+    }
+
+    /// The modules of the study on a choice's lists that count for none, there.
+    pub fn spare_of(&self, at: usize) -> Vec<&Taken> {
+        self.spare.iter().filter(|taken| self.choices.iter().position(|other| other.list_of(&taken.id).is_some()) == Some(at)).collect()
+    }
 }
 
 /// A module of the study: passed, or planned and not failed.
@@ -247,9 +447,44 @@ pub fn plan_view(input: &Input, study: &Study) -> PlanView {
         });
     }
 
-    let choices = choices_of(input, study, &rows, &mut lines);
-    let to_choose = to_choose(&rows, &choices);
-    PlanView { lines, choices, to_choose }
+    let (choices, spare) = choices_of(input, study, &rows, &mut lines);
+    let groups = groups_of(&rows, &choices);
+    let mut view = PlanView { lines, choices, groups, spare, to_choose: 0.0 };
+    view.to_choose = to_choose(&rows, &view);
+    view
+}
+
+/// The choices the regulation sums over: those tied by one sum (`study::choice_total`, two at
+/// least, each with lists of its own), and the choices of the same area whose lists are all of
+/// theirs and nothing else.
+fn groups_of(rows: &[PlanRow], choices: &[Choice]) -> Vec<Group> {
+    let mut groups: Vec<(&str, i64, Group)> = Vec::new();
+    for (at, choice) in choices.iter().enumerate() {
+        let Some((caption, total)) = choice.lines.iter().filter_map(|i| rows.get(*i)).find_map(|row| study::choice_total(row).map(|total| (row.variant.full.as_str(), total))) else { continue };
+        if choice.lists.is_empty() || choice.fues {
+            continue;
+        }
+        match groups.iter_mut().find(|(c, ord, _)| *c == caption && *ord == total.ord) {
+            Some((.., group)) => group.members.push(at),
+            None => {
+                let label = total.label.trim();
+                let label = label.strip_prefix("Summe ").or_else(|| label.strip_prefix("Sum ")).unwrap_or(label).trim().to_string();
+                let together = choice.together.as_ref().map_or(total.credits, |(credits, _)| *credits);
+                groups.push((caption, total.ord, Group { members: vec![at], extras: Vec::new(), together, label }));
+            }
+        }
+    }
+    let mut groups: Vec<Group> = groups.into_iter().map(|(.., group)| group).filter(|group| group.members.len() > 1).collect();
+    for group in &mut groups {
+        let ids = |at: &usize| choices.get(*at).map(|choice| choice.lists.iter().map(|list| list.id).collect::<BTreeSet<i64>>()).unwrap_or_default();
+        let theirs: BTreeSet<i64> = group.members.iter().flat_map(ids).collect();
+        let area = group.members.first().and_then(|at| choices.get(*at)).and_then(|choice| choice.area);
+        group.extras = (0..choices.len())
+            .filter(|at| !group.members.contains(at))
+            .filter(|at| choices.get(*at).is_some_and(|choice| choice.area == area && !choice.fues && choice.lists.len() > 1 && ids(at) == theirs))
+            .collect();
+    }
+    groups
 }
 
 /// Where a module stands: passed in `passed`, planned into `planned` (in order), `now` the current
@@ -268,8 +503,8 @@ fn module_state(passed: Option<SemesterKey>, planned: Vec<SemesterKey>, now: Sem
 }
 
 /// The choices of the plan's rows (`lines`, which learn theirs), with what of their lists the
-/// study holds.
-fn choices_of(input: &Input, study: &Study, rows: &[PlanRow], lines: &mut [PlanLine]) -> Vec<Choice> {
+/// study holds; and what of the study is on their lists but counts for none (`PlanView::spare`).
+fn choices_of(input: &Input, study: &Study, rows: &[PlanRow], lines: &mut [PlanLine]) -> (Vec<Choice>, Vec<Taken>) {
     let doc = input.doc;
     let mut choices: Vec<Choice> = Vec::new();
     for (index, (row, line)) in rows.iter().zip(lines.iter_mut()).enumerate() {
@@ -361,7 +596,9 @@ fn choices_of(input: &Input, study: &Study, rows: &[PlanRow], lines: &mut [PlanL
             }
         }
     }
-    choices
+    let listed: BTreeSet<&str> = choices.iter().filter(|choice| !choice.fues).flat_map(|choice| choice.modules()).collect();
+    let spare = held.iter().filter(|module| !counted.contains(&module.taken.id) && listed.contains(module.taken.id.as_str())).map(|module| module.taken.clone()).collect();
+    (choices, spare)
 }
 
 /// The names of the rows, by their `ord` and plan.
@@ -465,12 +702,16 @@ fn held_of(study: &Study, rows: &[PlanRow], doc: &PlanDoc) -> Vec<Held> {
     held
 }
 
-/// What the choices still ask for together: a sum the regulation prints over several counted
-/// once, less what is taken of all of them.
-fn to_choose(rows: &[PlanRow], choices: &[Choice]) -> f64 {
-    let mut sum = 0.0;
+/// What the choices still ask for together: a group as `Group::open`, a sum the regulation prints
+/// over several otherwise counted once, less what is taken of all of them.
+fn to_choose(rows: &[PlanRow], view: &PlanView) -> f64 {
+    let choices = &view.choices;
+    let mut sum: f64 = view.groups.iter().map(|group| group.open(view)).sum();
     let mut totals: Vec<(&str, i64)> = Vec::new();
-    for choice in choices {
+    for (at, choice) in choices.iter().enumerate() {
+        if view.group_of(at).is_some() {
+            continue;
+        }
         let tied = choice.lines.iter().filter_map(|i| rows.get(*i)).find_map(|row| study::choice_total(row).map(|total| (row.variant.full.as_str(), total)));
         match tied {
             Some((caption, total)) => {

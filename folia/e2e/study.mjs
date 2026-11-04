@@ -612,16 +612,30 @@ if (current !== "2026W") {
   await step("Fertig, the Regelstudienplan again", () => page.click(".st-wb-done"), () => !document.querySelector(".st-wb") && document.querySelector(".st-mx"));
   await step("the Wahlpflicht", () => page.click('#sidebar .st-vl:has-text("Wahlpflicht")'), () => location.search === "?view=areas" && document.querySelector(".st-sl"));
   await step("its Anwendungsfach", () => page.click('.st-sl:has-text("Anwendungsfach")'), () => document.querySelector('.st-sl[aria-current="true"]')?.textContent.includes("Anwendungsfach"));
+  // To look up how much a choice asks and what there is (folia/design/wahlpflicht, second round):
+  // no semester and no button to plan, the Komplexe one entry of 50 with the three under it, the
+  // Wahlpflicht im 4. FS no entry of its own.
   const choice = await page.evaluate(() => ({
     current: document.querySelector('#sidebar .st-vl[aria-current="page"] span')?.textContent,
-    lists: [...document.querySelectorAll(".st-lists button")].map((b) => b.childNodes[0].textContent),
-    rows: document.querySelectorAll(".st-wtable tbody tr:not(.st-more-row)").length,
-    season: document.querySelector('.st-season-seg button[aria-pressed="true"]')?.textContent,
+    lists: [...document.querySelectorAll(".st-wtabs button > span")].map((span) => span.childNodes[0].textContent),
+    rows: document.querySelectorAll(".st-wrows .st-wrow").length,
+    figure: document.querySelector('.st-sl[aria-current="true"] .st-wfig')?.textContent,
+    buttons: document.querySelectorAll(".st-split-r button.st-addb, .st-split-r .st-views, .st-split-r .btn").length,
+    entries: [...document.querySelectorAll(".st-sl .st-sl-t > b")].map((b) => b.textContent),
+    komplexe: [...document.querySelectorAll(".st-sl-kid > span:first-child")].map((span) => span.textContent),
     overview: document.querySelectorAll(".st-over, .st-bar, .st-legend-parts").length,
   }));
-  check(choice.current === "Wahlpflicht" && choice.lists.length === 5 && choice.lists[0] === "Mathematik" && choice.rows > 3 && choice.season === "WiSe 2026/27" && choice.overview === 0, `the Wahlpflicht: ${JSON.stringify(choice)}`);
-  await step("a module of its list planned", () => page.click(".st-wtable tbody tr:not(.taken) button.st-addb >> nth=0"), () => document.querySelector(".study-note")?.textContent.includes("ins WiSe 2026/27 eingeplant") && document.querySelector(".st-wtable tbody tr.taken"));
-  await page.waitForFunction(() => document.querySelector('.st-sl[aria-current="true"] small')?.textContent.includes("von 12\u00a0LP gewählt"), null, { timeout: 4000 }).catch(() => problems.push("the choice does not count the module planned out of its list"));
+  check(choice.current === "Wahlpflicht" && choice.lists.length === 5 && choice.lists[0] === "Mathematik" && choice.rows > 3 && /^\d+ \/ 12\u00a0LP$/.test(choice.figure || "") && choice.buttons === 0 && choice.overview === 0
+    && choice.entries.includes("Komplexe des Fachstudiums") && !choice.entries.some((name) => name.startsWith("Wahlpflicht")) && choice.komplexe.join() === "Grundlagen der Informatik,Praktische Informatik,Angewandte und Technische Informatik", `the Wahlpflicht: ${JSON.stringify(choice)}`);
+  // A module of the list opens beside the page; its „Einplanen" plans for the choice.
+  const figured = parseFloat(choice.figure);
+  const SIDE = '.detail .hero .plan-toggle[data-action="plan"]';
+  const offered = await page.evaluate(() => { const row = document.querySelector(".st-wrows .st-wrow:not(.has)"); return { id: row?.querySelector(".st-wrow-id")?.textContent, credits: parseFloat(row?.querySelector(".st-wrow-lp")?.textContent) }; });
+  await step("a module of its list beside the page", () => page.click(".st-wrows .st-wrow:not(.has) >> nth=0"), (selector) => document.querySelector(selector)?.checkVisibility(), SIDE);
+  const aimed = await page.evaluate((selector) => document.querySelector(selector)?.textContent.replace(/\s+/g, " "), SIDE);
+  check(aimed?.includes("für „Anwendungsfach“"), `the sidebar does not plan for the choice: ${aimed}`);
+  await step("Einplanen, for the choice", () => page.click(SIDE), ([key, id]) => (localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith("m\t") && line.split("\t")[2] === id), [PLAN, offered.id]);
+  await page.waitForFunction((after) => document.querySelector('.st-sl[aria-current="true"] .st-wfig')?.textContent.startsWith(`${after} / 12`), String(figured + offered.credits).replace(".", ","), { timeout: 4000 }).catch(() => problems.push("the choice does not count the module planned out of its list"));
   await step("back to the semesters", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => location.search === "" && document.querySelector(".st-grid") && document.querySelector(".st-over .st-bar") && document.querySelector("#sidebar .st-legend-parts"));
   for (const request of requests) {
     if (/12104|079-82-2008|11787%0A|d%092025W|start%09/.test(request.replace(/\/catalog\/module\/\d+|open=11787/g, ""))) problems.push(`a request carries the study: ${request.slice(0, 160)}`);
@@ -697,18 +711,23 @@ if (current !== "2026W") {
   const placed = await rows(page);
   check(placed.some((row) => row.name === "Anwendungsfach" && row.chips.some((chip) => chip.startsWith("gefüllt mit Allgemeine Betriebswirtschaftslehre I"))), `the place does not say what fills it: ${JSON.stringify(placed)}`);
   check(!(await page.$(".st-card-sem .st-find")), "a filled place still offers „Modul wählen“");
-  // The module out again, the place open; the Wahlpflicht's „+ In WiSe 26/27" fills it as well.
+  // The module out again, the place open; the Wahlpflicht's module, beside the page, fills it as
+  // well.
   await step("the module's menu, at the place", () => page.click('.st-card-sem .st-row[data-key="m:12160"] .st-status'), () => document.querySelector(".st-pop.root #st-menu-remove"));
   await step("the module taken out", () => page.click("#st-menu-remove"), () => document.querySelectorAll(".st-card-sem .st-row").length === 1 && document.querySelector(".st-card-sem .st-find"));
   await step("the Wahlpflicht, for a place", () => page.click('#sidebar .st-vl:has-text("Wahlpflicht")'), () => location.search === "?view=areas" && document.querySelector(".st-sl"));
-  await step("Anwendungsfach, its lists", () => page.click('.st-sl:has-text("Anwendungsfach")'), () => document.querySelector('.st-sl[aria-current="true"]')?.textContent.includes("Anwendungsfach") && document.querySelector(".st-wtable tbody tr:not(.taken) button.st-addb"));
+  await step("Anwendungsfach, its lists", () => page.click('.st-sl:has-text("Anwendungsfach")'), () => document.querySelector('.st-sl[aria-current="true"]')?.textContent.includes("Anwendungsfach") && document.querySelector(".st-wrows .st-wrow:not(.has)"));
   const chosen = await page.evaluate(() => {
-    const tr = document.querySelector(".st-wtable tbody tr:not(.taken)");
-    return { id: tr?.querySelector(".id")?.textContent, credits: tr?.querySelector(".num")?.textContent, into: tr?.querySelector("button.st-addb")?.textContent };
+    const row = document.querySelector(".st-wrows .st-wrow:not(.has)");
+    return { id: row?.querySelector(".st-wrow-id")?.textContent, credits: row?.querySelector(".st-wrow-lp")?.textContent.replace(/\s*LP$/, "") };
   });
-  check(chosen.into === "In WiSe 26/27", `the Wahlpflicht plans into ${chosen.into}`);
-  await step("+ In WiSe 26/27, for the place", () => page.click(".st-wtable tbody tr:not(.taken) button.st-addb >> nth=0"), ([key, id, pid]) => (localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith(`m\t2026W\t${id}\t`) && line.split("\t")[4] === pid), [PLAN, chosen.id, pid]);
-  await page.waitForFunction((credits) => [...document.querySelectorAll(".st-sl-h")].find((head) => head.textContent.includes("Nebenfach"))?.querySelector("small")?.textContent === `${credits}/18`, chosen.credits, { timeout: 4000 })
+  // The catalog stays built behind its tab: the switch beside „Mein Studium" is the one shown.
+  const shown = (selector) => [...document.querySelectorAll(selector)].find((el) => el.checkVisibility());
+  await step("the Wahlpflicht's module beside the page", () => page.click(".st-wrows .st-wrow:not(.has) >> nth=0"), ([selector, find]) => new Function(`return (${find})`)()(selector), [SWITCH, shown.toString()]);
+  const forPlace = await page.evaluate(([selector, find]) => new Function(`return (${find})`)()(selector)?.textContent.replace(/\s+/g, " "), [SWITCH, shown.toString()]);
+  check(forPlace?.includes("WiSe 26/27") && forPlace.includes("für „Anwendungsfach“"), `the Wahlpflicht's module does not aim at the place: ${forPlace}`);
+  await step("Einplanen, for the Wahlpflicht's place", () => page.click(`${SWITCH} >> visible=true`), ([key, id, pid]) => (localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith(`m\t2026W\t${id}\t`) && line.split("\t")[4] === pid), [PLAN, chosen.id, pid]);
+  await page.waitForFunction((credits) => [...document.querySelectorAll(".st-sl-h")].find((head) => head.textContent.includes("Nebenfach"))?.querySelector("small")?.textContent === `${credits} / 18\u00a0LP`, chosen.credits, { timeout: 4000 })
     .catch(async () => problems.push(`the Wahlpflicht's module counts beside its place: Nebenfach ${await page.evaluate(() => [...document.querySelectorAll(".st-sl-h")].map((head) => head.textContent).join(" | "))}, the module ${chosen.credits} LP`));
   await context.close();
 }
@@ -1356,9 +1375,18 @@ if (current !== "2026W") {
   // While the way back is at the head, the way to the profile page gives way to it (owner,
   // 2026-10-15), and it comes back with the overview.
   await step("the way back", () => page.tap(".top-back.on"), () => location.search === "" && document.querySelector(".st-pager") && !document.querySelector(".top-back.on") && !document.querySelector(".topbar .top-profile").inert);
-  await step("the Wahlpflicht on a phone", () => page.tap('.st-mine-panel .st-ways a[href="/study?view=areas"]'), () => location.search === "?view=areas" && document.querySelector(".st-wp-phone .st-fchip[aria-pressed=\"true\"]") && document.querySelector(".st-grp") && document.querySelectorAll(".st-mcard").length > 0);
+  // The Wahlpflicht on a phone: the choices as cards, each a page of its own behind them, whose way
+  // back leads to them; a module of it opens as the sheet, „Einplanen" there for the choice.
+  await step("the Wahlpflicht on a phone", () => page.tap('.st-mine-panel .st-ways a[href="/study?view=areas"]'), () => location.search === "?view=areas" && document.querySelectorAll(".st-wp-phone .st-wcard").length > 3);
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "the Wahlpflicht on a phone scrolls sideways");
-  await step("a module planned on a phone", () => page.tap(".st-mcard:not(.taken) button.st-addb >> nth=0"), () => document.querySelector(".study-note")?.textContent.includes("eingeplant"));
+  await step("a choice's page on a phone", () => page.tap('.st-wcard:has-text("Anwendungsfach")'), () => /^\?view=areas&choice=\d+$/.test(location.search) && document.querySelector(".st-wp-phone .st-wph h1")?.textContent === "Anwendungsfach" && document.querySelectorAll(".st-wcard-m").length > 0 && document.querySelector(".top-back.on"));
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "a choice's page on a phone scrolls sideways");
+  await step("its module as the sheet", () => page.tap(".st-wcard-m:not(.has) >> nth=0"), () => /&open=\d+/.test(location.search) && document.querySelector('.detail.is-module .plan-toggle[data-action="plan"]')?.textContent.includes("für „Anwendungsfach“"));
+  await step("the sheet closed", () => page.goBack(), () => /^\?view=areas&choice=\d+$/.test(location.search) && !document.querySelector(".detail.is-module"));
+  await step("the way back to the choices", () => page.tap(".top-back.on"), () => location.search === "?view=areas" && document.querySelectorAll(".st-wp-phone .st-wcard").length > 3);
+  // A choice once more: the steps back are in the history ahead of here no more, as the ones after
+  // count it.
+  await step("a choice's page once more", () => page.tap('.st-wcard:has-text("Praktische Mathematik")'), () => /^\?view=areas&choice=\d+$/.test(location.search) && document.querySelector(".st-wp-phone .st-wph h1")?.textContent === "Praktische Mathematik");
   // „Alle Studiengänge" has its way back at the head too, up to „Mein Studium" (owner, 2026-10-17:
   // „wenn man auf alle Studiengänge geht, dann fehlt da ein zurück button"): back through the
   // history, which does not grow, and the way to the profile page gives way meanwhile.

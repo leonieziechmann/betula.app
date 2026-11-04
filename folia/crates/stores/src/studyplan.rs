@@ -345,6 +345,12 @@ fn stored_text(doc: &PlanDoc) -> String {
 pub struct PlanHint {
     pub semester: Option<SemesterKey>,
     pub fill: Option<u32>,
+    /// The row of the plan a module planned from the page counts for where it fills no
+    /// placeholder (`Planned::counts`), and its name for the switch's line: the choice of „Mein
+    /// Studium"'s Wahlpflicht the module was opened from (folia/design/wahlpflicht, second round:
+    /// „„Einplanen“ plant für die Wahl, aus der die Seitenleiste geöffnet wurde"). The app's
+    /// alone, never in an address.
+    pub counts: Option<(RowRef, String)>,
 }
 
 impl PlanHint {
@@ -352,7 +358,7 @@ impl PlanHint {
     /// phone); `None` when it carries neither.
     pub fn of(hint: &ModuleHint) -> Option<Self> {
         let semester = hint.plan.as_deref().and_then(SemesterKey::parse);
-        (semester.is_some() || hint.fill.is_some()).then_some(Self { semester, fill: hint.fill })
+        (semester.is_some() || hint.fill.is_some()).then_some(Self { semester, fill: hint.fill, counts: None })
     }
 
     /// `?plan=2026W&fill=p3`, what follows a module's path to carry the hint there.
@@ -692,13 +698,19 @@ fn aim_of(id: &str, current: SemesterKey, base: SemesterKey, newest: Option<Seme
     };
     let target = planned_at.unwrap_or(target);
     let elsewhere = doc.planned_in(id).into_iter().filter(|semester| *semester != target).collect();
-    Aim { target, pressed: planned_at.is_some(), fill, elsewhere, passed: doc.passed_in(id), counts: None }
+    // The page's row, where the module fills no placeholder and is not planned there yet.
+    let counts = hint.and_then(|hint| hint.counts.clone()).filter(|_| fill.is_none() && planned_at.is_none());
+    Aim { target, pressed: planned_at.is_some(), fill, elsewhere, passed: doc.passed_in(id), counts }
 }
 
 /// The aim with what the workbench of „Mein Studium" asks while it is open (`Planning::bench`):
 /// a module planned into its semester counts for the subgroup it has picked, where no placeholder
 /// is filled.
 fn with_bench(aim: Aim, bench: Option<&BenchAim>) -> Aim {
+    if aim.counts.is_some() {
+        // The page's own row wins, as its hint does.
+        return aim;
+    }
     let counts = bench
         .filter(|bench| bench.semester == aim.target && aim.fill.is_none() && !aim.pressed)
         .and_then(|bench| Some((bench.counts.clone()?, bench.name.clone().unwrap_or_default())));
@@ -976,7 +988,7 @@ mod tests {
         let now = key("2026W");
         let doc = PlanDoc::default();
         // The page's hint wins, over the module's own data.
-        let hint = PlanHint { semester: Some(key("2027S")), fill: None };
+        let hint = PlanHint { semester: Some(key("2027S")), fill: None, counts: None };
         assert_eq!(target_semester(now, Some(now), offer(Some(TurnusSeason::Winter)), Some(&hint), &doc), key("2027S"));
         // The semester the session plans for (P1), where the module is offered then (rule 3).
         assert_eq!(target_semester(now, Some(now), offer(Some(TurnusSeason::Both)), None, &doc), now);
@@ -995,16 +1007,16 @@ mod tests {
         // A placeholder's hint without a semester plans into the placeholder's semester.
         let mut with_placeholder = PlanDoc::default();
         with_placeholder.placeholders.push(placeholder(3, "2027W", "Fachübergreifendes Studium"));
-        let fill = PlanHint { semester: None, fill: Some(3) };
+        let fill = PlanHint { semester: None, fill: Some(3), counts: None };
         assert_eq!(target_semester(now, Some(now), offer(None), Some(&fill), &with_placeholder), key("2027W"));
         // The finder checked another semester („Passt in meinen Stundenplan" off and on again,
         // `fill` kept): the placeholder still decides, so the module lands where it fills it.
-        let both = PlanHint { semester: Some(now), fill: Some(3) };
+        let both = PlanHint { semester: Some(now), fill: Some(3), counts: None };
         assert_eq!(target_semester(now, Some(now), offer(None), Some(&both), &with_placeholder), key("2027W"));
         // One the plan no longer has changes nothing: the finder's semester, else the module's.
-        let gone = PlanHint { semester: None, fill: Some(9) };
+        let gone = PlanHint { semester: None, fill: Some(9), counts: None };
         assert_eq!(target_semester(now, Some(now), offer(None), Some(&gone), &with_placeholder), now);
-        let gone_but_checked = PlanHint { semester: Some(key("2027S")), fill: Some(9) };
+        let gone_but_checked = PlanHint { semester: Some(key("2027S")), fill: Some(9), counts: None };
         assert_eq!(target_semester(now, Some(now), offer(None), Some(&gone_but_checked), &with_placeholder), key("2027S"));
     }
 
@@ -1027,7 +1039,7 @@ mod tests {
         let chosen = aim_of("12330", now, key("2025W"), None, offer(None), None, &past);
         assert_eq!((chosen.target, chosen.pressed), (key("2025W"), true));
         // A page that means a semester asks about that semester alone.
-        let finder = PlanHint { semester: Some(key("2027W")), fill: None };
+        let finder = PlanHint { semester: Some(key("2027W")), fill: None, counts: None };
         let asked = aim_of("12330", now, now, Some(now), offer(None), Some(&finder), &doc);
         assert_eq!((asked.target, asked.pressed, asked.elsewhere.clone()), (key("2027W"), false, vec![key("2027S")]));
     }
@@ -1048,13 +1060,13 @@ mod tests {
 
     #[test]
     fn a_module_address_hints_where_to_plan() {
-        assert_eq!(PlanHint::of(&ModuleHint::parse("plan=2027s&fill=p3")), Some(PlanHint { semester: Some(key("2027S")), fill: Some(3) }));
-        assert_eq!(PlanHint::of(&ModuleHint::parse("fill=p3")), Some(PlanHint { semester: None, fill: Some(3) }));
+        assert_eq!(PlanHint::of(&ModuleHint::parse("plan=2027s&fill=p3")), Some(PlanHint { semester: Some(key("2027S")), fill: Some(3), counts: None }));
+        assert_eq!(PlanHint::of(&ModuleHint::parse("fill=p3")), Some(PlanHint { semester: None, fill: Some(3), counts: None }));
         assert_eq!(PlanHint::of(&ModuleHint::parse("plan=nonsense")), None);
         assert_eq!(PlanHint::of(&ModuleHint::parse("")), None);
         // And back into an address: what a preview's „Vollbild" carries to the module's page.
-        assert_eq!(PlanHint { semester: Some(key("2027S")), fill: Some(3) }.query(), "?plan=2027S&fill=p3");
-        assert_eq!(PlanHint { semester: None, fill: Some(3) }.query(), "?fill=p3");
+        assert_eq!(PlanHint { semester: Some(key("2027S")), fill: Some(3), counts: None }.query(), "?plan=2027S&fill=p3");
+        assert_eq!(PlanHint { semester: None, fill: Some(3), counts: None }.query(), "?fill=p3");
     }
 
     #[test]
@@ -1083,7 +1095,7 @@ mod tests {
 
         // For a placeholder: pressed only while the module counts for it; the small line names
         // it, and where else the module is planned.
-        let hint = PlanHint { semester: None, fill: Some(3) };
+        let hint = PlanHint { semester: None, fill: Some(3), counts: None };
         assert!(doc.plan(now, "12330", 1, None));
         let fill = aim_of("12330", now, now, Some(now), offer(None), Some(&hint), &doc);
         assert_eq!((fill.pressed, label_text(fill.pressed, &DE)), (false, "Einplanen"));
@@ -1091,11 +1103,11 @@ mod tests {
         assert_eq!(semester_line(&fill, None, &DE), "WiSe 2026/27 · für „Fachübergreifendes Studium“ · geplant: SoSe 2027");
         assert_eq!(tooltip_text(&fill, false, &DE), "In WiSe 2026/27 einplanen, für „Fachübergreifendes Studium“ · geplant: SoSe 2027 (P)");
         // A long name is cut at a word in the small line; the tooltip keeps it whole.
-        let long = aim_of("12330", now, now, Some(now), offer(None), Some(&PlanHint { semester: None, fill: Some(4) }), &doc);
+        let long = aim_of("12330", now, now, Some(now), offer(None), Some(&PlanHint { semester: None, fill: Some(4), counts: None }), &doc);
         assert_eq!(hero_note(&long, None, &DE), "WiSe 26/27 · für „wählbar aus dem…“ · geplant: SoSe 27");
         assert!(tooltip_text(&long, false, &DE).contains("Prü/SL“"));
         // A placeholder the plan no longer has asks for nothing.
-        let gone = aim_of("12330", now, now, Some(now), offer(None), Some(&PlanHint { semester: None, fill: Some(9) }), &doc);
+        let gone = aim_of("12330", now, now, Some(now), offer(None), Some(&PlanHint { semester: None, fill: Some(9), counts: None }), &doc);
         assert_eq!((gone.fill.clone(), gone.pressed, label_text(gone.pressed, &DE)), (None, true, "Eingeplant"));
 
         // The same in English.
@@ -1169,6 +1181,28 @@ mod tests {
         assert_eq!(move_targets(key("2024W"), now, now, None).first(), Some(&key("2025S")));
     }
 
+    /// A module opened from a choice of the Wahlpflicht counts for its row where it fills no
+    /// placeholder, and the line says for which; a placeholder of the hint wins, and a module
+    /// planned there already is not counted anew.
+    #[test]
+    fn the_wahlpflicht_s_choice_counts_what_is_planned_from_it() {
+        let now = key("2026W");
+        let mut doc = PlanDoc::default();
+        doc.placeholders.push(placeholder(3, "2026W", "Anwendungsfach"));
+        let row = RowRef::new("079-82-2008", "", 14);
+        let counts = PlanHint { semester: None, fill: None, counts: Some((row.clone(), "Praktische Mathematik".to_string())) };
+        let aim = aim_of("11923", now, now, Some(now), offer(None), Some(&counts), &doc);
+        assert_eq!(aim.counts.as_ref().map(|(row, name)| (row.ord, name.as_str())), Some((14, "Praktische Mathematik")));
+        assert_eq!(swipe_words(&aim, &DE).1, "WiSe 2026/27 · für „Praktische Mathematik“");
+        toggle_in(&mut doc, "11923", &aim, false, &[], 1);
+        assert_eq!(doc.counts_of(now, "11923"), Some(&row));
+        // Planned: the switch takes it out, it counts for nothing new.
+        assert!(aim_of("11923", now, now, Some(now), offer(None), Some(&counts), &doc).counts.is_none());
+        // With the hint's placeholder: it fills that, and counts for nothing else.
+        let both = PlanHint { fill: Some(3), ..counts };
+        assert!(aim_of("12160", now, now, Some(now), offer(None), Some(&both), &doc).counts.is_none());
+    }
+
     #[test]
     fn a_swiped_row_says_what_the_swipe_does() {
         let now = key("2026W");
@@ -1179,7 +1213,7 @@ mod tests {
         assert_eq!(swipe_words(&plain, &DE), ("Einplanen", "WiSe 2026/27".to_string(), "Eingeplant"));
         assert_eq!(swipe_words(&plain, &EN), ("Plan", "Winter 2026/27".to_string(), "Planned"));
         // For the finder's placeholder, which the line names as the switch's does.
-        let fill = aim_of("12330", now, now, Some(now), offer(None), Some(&PlanHint { semester: None, fill: Some(3) }), &doc);
+        let fill = aim_of("12330", now, now, Some(now), offer(None), Some(&PlanHint { semester: None, fill: Some(3), counts: None }), &doc);
         assert_eq!(swipe_words(&fill, &DE).1, "WiSe 2026/27 · für „Fachübergreifendes Studium“");
         // Planned there: the swipe takes it out, and says out of which semester.
         assert!(doc.plan(now, "12330", 1, None));
@@ -1199,7 +1233,7 @@ mod tests {
         toggle_in(&mut doc, "12330", &aim, false, &[], 7);
         assert!(doc.is_planned(now, "12330") && doc.fillers(3).is_empty());
         // For the placeholder, a module planned there already starts counting for it.
-        let hint = PlanHint { semester: None, fill: Some(3) };
+        let hint = PlanHint { semester: None, fill: Some(3), counts: None };
         let aim = aim_of("12330", now, now, Some(now), offer(None), Some(&hint), &doc);
         assert!(!aim.pressed);
         toggle_in(&mut doc, "12330", &aim, false, &[], 8);

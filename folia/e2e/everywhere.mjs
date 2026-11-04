@@ -86,8 +86,8 @@ const ti = await page.evaluate(() => [...allOnPage(".rows a.row")].find((row) =>
 await page.evaluate(([plan, mine, third, filled]) => { localStorage.setItem(mine, third); localStorage.setItem(plan, filled); }, [PLAN, MINE, THIRD, FILLED]);
 await go("/study?view=areas");
 await page.click('.st-sl:has-text("Anwendungsfach")').catch(() => problems.push("the Wahlpflicht has no „Anwendungsfach“"));
-await page.waitForFunction(() => document.querySelectorAll(".st-wtable tbody tr:not(.st-more-row):not(.taken)").length >= 3, null, { timeout: 8000 }).catch(() => problems.push("„Anwendungsfach“ lists fewer than three modules"));
-const listed = await page.evaluate(() => [...document.querySelectorAll(".st-wtable tbody tr:not(.st-more-row):not(.taken) td.id")].map((td) => td.textContent.trim()));
+await page.waitForFunction(() => document.querySelectorAll(".st-wrows .st-wrow:not(.has)").length >= 3, null, { timeout: 8000 }).catch(() => problems.push("„Anwendungsfach“ lists fewer than three modules"));
+const listed = await page.evaluate(() => [...document.querySelectorAll(".st-wrows .st-wrow:not(.has) .st-wrow-id")].map((id) => id.textContent.trim()));
 const wp = listed[listed.length - 1];
 await go("/catalog");
 await page.waitForFunction(() => allOnPage(".rows a.row").length >= 8, null, { timeout: 20000 });
@@ -128,9 +128,9 @@ const without = await page.evaluate((ids) => ({ tag: [...allOnPage(".tag")].map(
 check(without.tag === `Merkliste nicht in ‚${LENA}‘` && without.others >= 1, `„nicht in Für Lena“: ${JSON.stringify(without)}`);
 
 // ---------- „Mein Studium" ----------
-// The Wahlpflicht: the choice says how many marked modules count in it; the marked one first, marked.
+// The Wahlpflicht: the choice says how many marked modules it lists; the marked one first, marked.
 await go("/study?view=areas");
-await step("the Wahlpflicht", () => page.click('.st-sl:has-text("Anwendungsfach")'), () => document.querySelector('.st-sl[aria-current="true"]')?.textContent.includes("Anwendungsfach") && document.querySelector(".st-wtable tbody tr"));
+await step("the Wahlpflicht", () => page.click('.st-sl:has-text("Anwendungsfach")'), () => document.querySelector('.st-sl[aria-current="true"]')?.textContent.includes("Anwendungsfach") && document.querySelector(".st-wrows .st-wrow"));
 const choice = await page.evaluate(() => ({
   // The area the choice is in: the head over it in the list of the choices.
   area: (() => {
@@ -141,12 +141,12 @@ const choice = await page.evaluate(() => ({
     }
     return null;
   })(),
-  count: document.querySelector('.st-sl[aria-current="true"] .st-sl-mk')?.textContent.trim(),
-  first: document.querySelector(".st-wtable tbody tr:not(.taken) td.id")?.textContent.trim(),
-  sign: Boolean(document.querySelector(".st-wtable tbody tr:not(.taken) td.nm .st-mk")),
-  signs: document.querySelectorAll(".st-wtable td.nm .st-mk").length,
+  count: document.querySelector('.st-sl[aria-current="true"] > small')?.textContent.trim(),
+  first: document.querySelector(".st-wrows .st-wrow:not(.has) .st-wrow-id")?.textContent.trim(),
+  sign: Boolean(document.querySelector(".st-wrows .st-wrow:not(.has) .st-wrow-nm .st-mk")),
+  signs: document.querySelectorAll(".st-wrows .st-wrow-nm .st-mk").length,
 }));
-check(/^(1 gemerktes zählt|\d+ gemerkte zählen) hier$/.test(choice.count || "") && choice.first === wp && choice.sign && choice.signs >= 1 && choice.area, `the Wahlpflicht and the marked module: ${JSON.stringify(choice)} (${wp})`);
+check(/ · \d+ gemerkt$/.test(choice.count || "") && choice.first === wp && choice.sign && choice.signs >= 1 && choice.area, `the Wahlpflicht and the marked module: ${JSON.stringify(choice)} (${wp})`);
 
 // „Module hinzufügen": the workbench (folia/design/hinzufuegen/konzepte.html, third round); the
 // plan's „Theoretische Informatik" under „Laut Plan im 3. FS" marked, with its collection.
