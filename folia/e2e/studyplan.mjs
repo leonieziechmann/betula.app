@@ -3,8 +3,8 @@
 // The blocks of the design (G.3), each a function, `--only=3` runs one of them:
 //   1 the desktop walk, 2 the overlay and the finder, 4 the phone, 6 privacy — with their features;
 //   3 persistence: the plan and „Mein Studiengang" live in this browser, survive a reload, follow
-//     another tab, read garbage as an empty plan, and never reach the server's HTML; the program
-//     picked in its sidebar is the tab's session's alone; the plan is an area of its own (its tab,
+//     another tab, read garbage as an empty plan, and never reach the server's HTML; the sidebar has
+//     none of the groups that went on 2026-11-04; the plan is an area of its own (its tab,
 //     the module beside it and in full, „Zurück");
 //   5 without the app: the explanation, no „Plan" in the rail, and on a phone the app's frame;
 //   8 the week's labels: a cut first word ends a label, a module's own slots say their kinds;
@@ -41,7 +41,7 @@ const FS1 = [
   "",
 ].join("\n");
 const MINE_FS1 = "program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\ncaption\t\nstart\t2026W\n";
-// Its fifth semester as „Importieren" takes it over, three modules chosen since: the
+// Its fifth semester as „Importieren" took it over (until 2026-11-04), three modules chosen since: the
 // Bachelor-Arbeit; Betriebssysteme II for the Komplex Grundlagen der Informatik (10–24 LP over the
 // fifth and sixth Fachsemester), which a summer before counted Foundations of Data Mining for; the
 // Proseminar for „Seminar oder Praktikum" (4 LP). The program it was taken from is the session's,
@@ -148,31 +148,22 @@ async function persistence() {
   check(await page.evaluate(() => window.__marker === 1), "following another tab loaded the page again");
   await other.close();
 
-  // The Stundenplan's program is the session's (owner, 2026-10-15: „nur pro Tab … und Session
-  // gespeichert. Ansonsten wird der Mein Studiengang genommen"): „Mein Studiengang" until one is
-  // picked in the sidebar, which lists it first; a pick stays through a reload, in this tab's
-  // sessionStorage and in neither the plan nor „Mein Studiengang"; a new tab plans for „Mein
-  // Studiengang" again.
-  const programOf = (p) => p.evaluate(() => document.querySelector("#sp-program .combo-value")?.textContent ?? "");
-  await page.waitForFunction(() => (document.querySelector("#sp-program .combo-value")?.textContent ?? "").startsWith("Informatik"), null, { timeout: 8000 }).catch(() => problems.push("the Stundenplan's program is not „Mein Studiengang“"));
-  await step("the program picker lists „Mein Studiengang“ first", () => page.click("#sp-program"), () => document.querySelector("#sp-program-list .combo-group")?.textContent === "Mein Studiengang" && document.querySelector("#sp-program-list .combo-option .combo-label")?.textContent === "Informatik");
-  await page.fill("#sp-program-search", "elektrotechnik b.sc");
-  await page.waitForFunction(() => document.querySelector("#sp-program-list .combo-option .combo-label")?.textContent === "Elektrotechnik", null, { timeout: 5000 }).catch(() => {});
-  await step("a program picked for the Stundenplan", () => page.keyboard.press("Enter"), () => (document.querySelector("#sp-program .combo-value")?.textContent ?? "").startsWith("Elektrotechnik"));
-  const session = await page.evaluate(() => sessionStorage.getItem("betula.studyplan.program"));
-  check(/^\d{3}-\d{2}-\d{4}$/.test(session ?? "") && session !== "079-82-2008", `the pick is not the session's: ${session}`);
-  check((await stored(page, PLAN)) === FS1 && (await stored(page, MINE)) === MINE_FS1, "the pick changed the plan or „Mein Studiengang“");
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await takeover(page);
-  await page.waitForFunction(() => (document.querySelector("#sp-program .combo-value")?.textContent ?? "").startsWith("Elektrotechnik"), null, { timeout: 8000 }).catch(() => problems.push("a reload forgot the Stundenplan's program"));
-  await page.evaluate(() => { window.__marker = 1; });
-  const anotherTab = await context.newPage();
-  watch(anotherTab, requests);
-  await anotherTab.goto(base + "/studyplan", { waitUntil: "domcontentloaded" });
-  await takeover(anotherTab);
-  await anotherTab.waitForFunction(() => (document.querySelector("#sp-program .combo-value")?.textContent ?? "").startsWith("Informatik"), null, { timeout: 8000 }).catch(() => {});
-  check((await programOf(anotherTab)).startsWith("Informatik"), `a new tab plans for ${await programOf(anotherTab)} instead of „Mein Studiengang“`);
-  await anotherTab.close();
+  // „Studiengang", „Importieren", „Ansicht", „Zeigen", „Standort" and „Plan speichern" went from the
+  // sidebar (owner, 2026-11-04: „Studiengang (das ist jetzt mein studium)", „der importieren
+  // abschnitt muss auch raus. Das ist ja auch in mein studium"); „In deinen Kalender" is „Export".
+  await page.waitForFunction(() => document.querySelector(".sidebar #sp-abo"), null, { timeout: 8000 }).catch(() => problems.push("the sidebar has no „Export“"));
+  // Only the page in front: the pages of the other tabs stay built behind it, with sidebars of
+  // their own (folia/crates/shell/src/stage.rs).
+  const side = await page.evaluate(() => {
+    const front = (selector) => [...document.querySelectorAll(selector)].filter((el) => !el.closest("#content > .page-stage:not(.front)"));
+    return {
+      picker: front("#sp-program, #sp-import").length > 0,
+      labels: front(".sidebar .fgroup > .flabel").map((label) => label.textContent),
+      save: front(".sidebar .action").some((action) => action.textContent.includes("Plan speichern")),
+      chips: front(".sidebar .chips").length,
+    };
+  });
+  check(!side.picker && !side.save && side.chips === 0 && !side.labels.some((label) => ["Studiengang", "Importieren", "Ansicht", "Zeigen", "Standort", "In deinen Kalender"].includes(label)) && side.labels.includes("Export"), `the sidebar still has what went, or no „Export“: ${JSON.stringify(side)}`);
 
   // The module beside the plan, and „Modul ansehen" in its place: the address and the tab stay the
   // plan's, the catalog's tab does not hear of the module, and Esc returns through the history.

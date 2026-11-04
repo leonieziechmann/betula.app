@@ -74,7 +74,7 @@
 //   keyboard up (simulated: the part of the page shown shorter) the sheet that part without its
 //   foot, the picker at the top of its body, gliding there and scrolling up frame by frame, all as
 //   it was with the keyboard gone; nothing scrolls sideways; a row's status as tall as a finger.
-// 4 the Stundenplan: its import from „Mein Studium" takes the Wiederholer.
+// 4 (until 2026-11-04 the Stundenplan's import from „Mein Studium", which went with „Importieren").
 // 5 without the app: one page for everybody, for no index; the server's tab is the overview.
 // Needs a snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
 // console error, or a step that does not show up.
@@ -1219,7 +1219,8 @@ if (current !== "2026W") {
   const rise = await page.evaluate(() => window.__rise);
   const [firstTop, lastTop, lastScroll] = [rise[0][0], rise[rise.length - 1][0], rise[rise.length - 1][1]];
   const ways = [new Set(rise.map(([top]) => top).filter((top) => top > lastTop + 2 && top < firstTop - 2)).size, new Set(rise.map(([, scroll]) => scroll).filter((scroll) => scroll > 2 && scroll < lastScroll - 2)).size];
-  check(ways[0] >= 3 && ways[1] >= 3, `the sheet jumps over the keyboard (${ways} frames on the way): ${rise.map((frame) => frame.join("/")).join(" ")}`);
+  // (All up at once since 2026-11-04, its top has but the 10 px under the safe area to go.)
+  check((ways[0] >= 3 || firstTop - lastTop <= 12) && ways[1] >= 3, `the sheet jumps over the keyboard (${ways} frames on the way): ${rise.map((frame) => frame.join("/")).join(" ")}`);
   const typing = await page.evaluate(() => {
     const at = (sel) => document.querySelector(sel).getBoundingClientRect();
     const [dialog, body, label, pop] = [".st-dialog[open]", ".st-dialog[open] .st-dlg-body", ".st-dialog[open] .st-srow:has(.combo[data-open]) > .label", ".st-dialog[open] .combo-pop"].map(at);
@@ -1465,18 +1466,6 @@ if (current !== "2026W") {
   check((await page.evaluate((HERE) => document.querySelector(`${HERE} .st-sem-name`)?.textContent ?? "", HERE)).startsWith("WiSe 2026/27"), "„Abbrechen“ does not lead back to the semester the workbench plans");
   // The sheet has no button to end it: a tap above it does, as a throw and Back.
   await step("a tap above the sheet after the catalog", () => page.touchscreen.tap(195, 120), () => !document.querySelector(".st-wb-sheet") && !document.querySelector(".bench-dock"));
-  await context.close();
-}
-
-// ---------- 4: the Stundenplan takes the Wiederholer from „Mein Studium" ----------
-{
-  const { page, step, seed, context } = await open({ viewport: { width: 1440, height: 900 } }, "/");
-  await seed([[MINE, THIRD], [PLAN, FILLED]]);
-  await step("Stundenplan", () => page.click('.rail a[data-area="studyplan"]'), () => location.pathname === "/studyplan" && document.querySelector(".sp-import"));
-  await step("source „Mein Studium“", () => page.click('.sp-import .seg button:has-text("Mein Studium")'), () => document.querySelector('.sp-import .seg button[aria-checked="true"]')?.textContent === "Mein Studium" && document.querySelector("#sp-import-go:not([disabled])"));
-  await step("Übernehmen", () => page.click("#sp-import-go"), () => document.querySelector(".sp-import .note-action")?.textContent.startsWith("Übernommen:"));
-  const now = await lines(page, "m\t2026W\t");
-  check(now.length === 7 && now.some((line) => line.startsWith("m\t2026W\t12104\t")) && (await lines(page, "p\t")).length === 4, `the Wiederholer are not in the timetable: ${JSON.stringify(await stored(page, PLAN))}`);
   await context.close();
 }
 

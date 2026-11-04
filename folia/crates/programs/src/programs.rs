@@ -40,6 +40,7 @@ use folia_shell::seo::Seo;
 use folia_shell::tabs::{self, Tabs};
 use folia_shell::skeleton::FilterGroupsStandin;
 use folia_shell::frame::{ErrorState, Frame, Plain};
+use folia_design::modal::Sheet;
 use folia_design::ui::{Icon, ToggleLink};
 
 /// The browser app (`csr`), or the server rendering the page for everybody.
@@ -453,7 +454,10 @@ pub fn ProgramsPage() -> impl IntoView {
 
     let page = view! {
         <Title text=t.programs.title/>
-        <Frame title=t.programs.filters head sidebar sheet=true>
+        // On a phone the filters fit (owner, 2026-11-04: „alle modal instanzen durchguckst und da
+        // einstellst, was am besten zu denen passt"): what they hold is little and the same, about
+        // 60 % of the screen, which half up hid its last row behind „… Studiengänge anzeigen".
+        <Frame title=t.programs.filters head sidebar sheet=true sheet_way=Sheet::Auto>
             <div class="page-inner">
                 {move || {
                     let here = url.get();

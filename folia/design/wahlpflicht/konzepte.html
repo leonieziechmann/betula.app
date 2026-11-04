@@ -33,7 +33,14 @@
      done looks as what is open with a full bar, the areas in the plan's order, the student's
      modules with the marks of the legend, the Komplexe as § 6 Abs. 8 of the regulation (ABl.
      12/2024) has them: 50 LP of the three, each at least 10 —, then six questions; the first round
-     below it, its questions answered. -->
+     below it, its questions answered. Its addendum (owner, on the second round: „wenn wir so ein mix
+     konzept haben aus verschiedenen bereichen, dann kann man sich die punkte nur bei einem der
+     bereiche anrechnen", then: „Was ich wollte war, dass man bei den bereichen grundlagen der
+     informatik, praktische informatik und technische informatik eigentlich nur 24 lp gemacht werden
+     können, nur eins davon darf 30 haben."): the 6 LP of the Wahlpflicht im 4. FS count for one
+     Komplex — each Komplex's bar to 30, the stretch from 24 to 30 hatched until one goes over 24,
+     then it is that one's and the others end at 24; two over 24 said, not refused. A first reading
+     of it (a module on the lists of two choices, „Zählt für" in the sidebar) was taken back. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -587,6 +594,24 @@ kbd { padding: 0 5px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line
 .r2-card .lp small { margin-left: 2px; font-size: 11px; font-weight: 600; color: var(--text-3); }
 .r2-card[aria-expanded="true"] { box-shadow: inset 0 0 0 2px var(--c), var(--shadow-panel); }
 .ph-card .kid .fig, .a-kid .fig { white-space: nowrap; }
+.r2-note { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; padding: 9px 12px; border-radius: 9px; background: var(--panel-2); font-size: 12.5px; line-height: 1.45; color: var(--text-2); text-wrap: pretty; }
+.r2-note svg.i { width: 15px; height: 15px; margin-top: 1px; color: var(--text-3); }
+.r2-note.warn { background: var(--warn-soft); color: var(--warn); }
+.r2-note.warn svg.i { color: var(--warn); }
+.a-ph .r2-note { margin-top: 0; }
+.r2-note + .r2-list, .r2-note + .r2-cards { margin-top: 8px; }
+.kbar .bar-in { background: none; }
+.bar-k { position: absolute; top: 0; bottom: 0; left: 0; background: var(--panel-3); }
+.bar-z { position: absolute; top: 0; bottom: 0; right: 0; }
+.bar-k.end { border-radius: 0 3px 3px 0; }
+.bar-z.free, .r2-legend .sw { background: var(--panel-3) repeating-linear-gradient(135deg, transparent 0 2px, color-mix(in oklab, var(--text-3) 55%, transparent) 2px 3px); }
+.bar-z.mine { background: var(--panel-3); }
+.bar-z.clash { background: var(--warn-soft); }
+.kbar .bar-f { z-index: 1; }
+.bar-x { position: absolute; top: 0; bottom: 0; z-index: 2; background: repeating-linear-gradient(135deg, var(--warn-dot) 0 2px, color-mix(in oklab, var(--warn-dot) 45%, transparent) 2px 4px); }
+.r2-legend { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); }
+.r2-legend .sw { flex: none; width: 22px; height: 6px; border-radius: 3px; }
+.prose { max-width: 80ch; color: var(--text-2); font-size: 14.5px; text-wrap: pretty; }
 
 /* The toast that says what was planned, with „Rückgängig". */
 .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 40; translate: -50% 0; display: flex; align-items: center; gap: 14px; width: max-content; max-width: calc(100vw - 32px); padding: 10px 12px 10px 16px; border-radius: 11px; background: var(--toast); color: var(--on-toast); font-size: 13.5px; box-shadow: 0 12px 30px -10px rgba(15, 23, 42, .45); }
@@ -598,10 +623,11 @@ kbd { padding: 0 5px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line
 <div class="page">
   <section class="intro" aria-labelledby="top-title">
     <div>
-      <p class="kicker">Folia · Mein Studium · Wahlpflicht · zweite Runde, 4. November 2026</p>
+      <p class="kicker">Folia · Mein Studium · Wahlpflicht · zweite Runde mit Nachtrag, 4. November 2026</p>
       <h1 id="top-title">Die Wahlpflicht, aufgeräumt</h1>
-      <p class="lead">Aus der ersten Runde hast du A gewählt, mit drei Änderungen. Die Ansicht ist jetzt <b>zum Nachschlagen</b> da: wie viel du aus einer Wahl brauchst und welche Module es dafür gibt. Kein Semester, kein Knopf zum Einplanen: <b>Ein Klick auf ein Modul öffnet seine Seitenleiste</b>, und dort plant man wie überall sonst. Eine fertige Wahl sieht aus wie jede andere, nur mit vollem Balken. Die erste Runde steht weiter unten.</p>
+      <p class="lead">Aus der ersten Runde hast du A gewählt, mit drei Änderungen. Die Ansicht ist jetzt <b>zum Nachschlagen</b> da: wie viel du aus einer Wahl brauchst und welche Module es dafür gibt. Kein Semester, kein Knopf zum Einplanen: <b>Ein Klick auf ein Modul öffnet seine Seitenleiste</b>, und dort plant man wie überall sonst. Eine fertige Wahl sieht aus wie jede andere, nur mit vollem Balken. Dazu der Nachtrag zu den Komplexen: <b>Jeder hat höchstens 24 LP, nur einer darf bis 30.</b> Die erste Runde steht weiter unten.</p>
       <p class="quote">„Ich finde option a an sich gut. … 1. Es braucht keine semester angabe. Hier ist wirklich einfach nur der lookup, wie viel brauche ich aus dem bereich und was gibt es da. 2. Es braucht keinen einplanen button. Es reicht hier, wenn man die modulsidebar aufmachen kann. Da kann man ja schon vernüftig in das semester einplanen 3. Was zur hölle ist die anzeige vollständig. … Mach das mal so, dass das design gleich bleibt. Mach doch einfach die progress bar voll.“ <span>— du, zur ersten Runde</span></p>
+      <p class="quote">„Ja an sich passt das jetzt so. Aber eine sache musst du noch bedenken und zwar, wenn wir so ein mix konzept haben aus verschiedenen bereichen, dann kann man sich die punkte nur bei einem der bereiche anrechnen. Das muss noch irgendwie kommuniziert werden.“ … „Was ich wollte war, dass man bei den bereichen grundlagen der informatik, praktische informatik und technische informatik eigentlich nur 24 lp gemacht werden können, nur eins davon darf 30 haben.“ <span>— du, zur zweiten Runde</span></p>
     </div>
     <div class="rules">
       <p class="kicker">Was die zweite Runde ändert</p>
@@ -610,7 +636,8 @@ kbd { padding: 0 5px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line
         <li><i><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></i><span><b>Kein Knopf zum Einplanen.</b> Ein Klick auf eine Zeile öffnet die Seitenleiste des Moduls, am Handy als Blatt von unten. Dort stehen „Einplanen“ mit seinem Semester und „Merken“, wie heute.</span></li>
         <li><i><svg class="i" viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="6" rx="3"/><path d="M5 12h14"/></svg></i><span><b>Fertig sieht aus wie offen.</b> Kein „✓ vollständig“, kein Grün, nichts rutscht nach unten. Der Balken ist voll, daneben steht „4 / 4 LP“. Die Bereiche bleiben in der Reihenfolge des Plans.</span></li>
         <li><i><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 5a7 7 0 0 1 0 14Z" fill="currentColor"/></svg></i><span><b>Deine Module tragen ihre Zeichen,</b> wie in der Legende der Seitenleiste von „Mein Studium“: Kreis geplant, halb voll läuft, Haken bestanden.</span></li>
-        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5Z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg></i><span><b>Die Komplexe, wie die Ordnung sie fasst:</b> 50 LP aus den drei, aus jedem mindestens 10. Die 6 LP, die der Plan ins 4. FS legt, sind kein eigener Topf. Die „Wahlpflicht im 4. FS“ fällt hier ganz weg.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5Z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg></i><span><b>Die Komplexe als ein Eintrag:</b> 50 LP aus den drei, aus jedem mindestens 10. Die „Wahlpflicht im 4. FS“ steht nicht mehr eigens da, ihre 6 LP stecken in dem Komplex, für den sie zählen.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 16v-4M12 8h.01"/></svg></i><span><b>Nachtrag: je 24, einer bis 30.</b> Die 6 LP der Wahlpflicht im 4. FS zählen nur bei einem Komplex. Jeder Balken geht bis 30, die Stelle über 24 ist schraffiert, bis einer der drei sie braucht; dann endet der Balken der anderen bei 24.</span></li>
       </ul>
     </div>
   </section>
@@ -644,14 +671,14 @@ kbd { padding: 0 5px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line
       <p class="sub">Links die Wahlen nach Bereichen, jede mit ihrem Balken und wie viele Module es für sie gibt. Rechts die gewählte: was sie verlangt, ihre Listen als Reiter, darunter die Module. <b>Ein Klick auf ein Modul öffnet seine Seitenleiste</b>, wie überall in Betula, und dort wird eingeplant.</p>
     </header>
     <div class="stage" data-stage="R2"></div>
-    <p class="tryit">Klick ein Modul: Die Seitenleiste geht auf. „Einplanen“ plant in das Semester, das sie vorschlägt, ▾ in ein anderes. Plane bei Proseminar oder Praktikum ein zweites Modul ein: Der volle Balken wird schraffiert, mehr als nötig ist erlaubt. „Schließen“ oder Esc schließt die Seitenleiste.</p>
+    <p class="tryit">Klick ein Modul: Die Seitenleiste geht auf. „Einplanen“ plant in das Semester, das sie vorschlägt, ▾ in ein anderes. Bei den Komplexen hat Praktische Informatik im Beispiel 24 LP: Plane dort ein weiteres Modul ein, dann füllt sein Balken die schraffierte Stelle, und bei den beiden anderen endet er bei 24. Plane bei Proseminar oder Praktikum ein zweites Modul ein: Der volle Balken wird schraffiert, mehr als nötig ist erlaubt. „Schließen“ oder Esc schließt die Seitenleiste.</p>
     <div class="how">
       <div>
         <h3>Was man sieht</h3>
         <ul>
           <li>Links jede Wahl mit Namen, „0 / 6 LP“, Balken und „17 Module“. Am Bereich die Summe seiner Wahlen, „6 / 18 LP“.</li>
           <li><b>Fertige Wahlen</b> (Proseminar oder Praktikum, das FÜS) sehen aus wie offene. Nur ihr Balken ist voll.</li>
-          <li><b>Die Komplexe</b> sind ein Eintrag mit 50 LP, darunter die drei, jeder mit Balken bis 30 LP und einem Strich bei 10.</li>
+          <li><b>Die Komplexe</b> sind ein Eintrag mit 50 LP, darunter die drei, jeder mit einem Strich bei 10 und der schraffierten Stelle von 24 bis 30, die nur einem gehört.</li>
           <li>Rechts der Name, der Stand, ein Satz, was die Wahl verlangt, die Listen als Reiter und die Module: Zeichen, Name, Nummer, LP. Zählt ein Modul schon für eine andere Wahl, steht das klein daneben.</li>
         </ul>
       </div>
@@ -677,11 +704,11 @@ kbd { padding: 0 5px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line
 
   <section class="sec" id="komplexe" aria-labelledby="komplexe-title">
     <header>
-      <p class="kicker">Zweite Runde</p>
-      <h2 id="komplexe-title">Was die Ordnung zu den Komplexen sagt</h2>
-      <p class="sub">Die offene Frage der ersten Runde (Nr. 3) beantwortet die Ordnung selbst, in § 6 Abs. 8 der Prüfungs- und Studienordnung (Lesefassung im Amtlichen Mitteilungsblatt 12/2024):</p>
+      <p class="kicker">Zweite Runde · Nachtrag</p>
+      <h2 id="komplexe-title">Die Komplexe: je 24, einer bis 30</h2>
+      <p class="sub">Die Wahlpflicht im 4. FS ist eine Mischung aus den drei Komplexen: ein Modul aus Grundlagen, Praktischer oder Angewandter und Technischer Informatik. Ihre 6 LP zählen nur bei einem der drei. Deshalb hat <b>jeder Komplex höchstens 24 LP, und nur einer darf bis 30</b>. Genau so steht es in der Tabelle der Ordnung, und so zeigt es A jetzt.</p>
     </header>
-    <p class="quote">„In den drei Komplexen müssen insgesamt 50 LP durch Prüfungen erworben werden. Um eine gewisse Breite des Studiums zu garantieren, müssen in jedem Komplex jeweils mindestens 10 LP erworben werden.“</p>
+    <p class="quote">„Was ich wollte war, dass man bei den bereichen grundlagen der informatik, praktische informatik und technische informatik eigentlich nur 24 lp gemacht werden können, nur eins davon darf 30 haben.“ <span>— du, zum Nachtrag</span></p>
     <div class="tablewrap">
       <table class="t num">
         <thead><tr><th>Regelstudienplan (Anlage 2)</th><th>4. FS</th><th>5. und 6. FS</th><th>Summe</th></tr></thead>
@@ -693,10 +720,13 @@ kbd { padding: 0 5px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line
         </tbody>
       </table>
     </div>
+    <p class="prose">Dazu § 6 Abs. 8 der Prüfungs- und Studienordnung (Lesefassung im Amtlichen Mitteilungsblatt 12/2024): „In den drei Komplexen müssen insgesamt 50 LP durch Prüfungen erworben werden. Um eine gewisse Breite des Studiums zu garantieren, müssen in jedem Komplex jeweils mindestens 10 LP erworben werden.“ Die 6 in der Spalte des 4. FS stehen in der Zeile der Praktischen Informatik, gemeint ist einer der drei; im Plan, den Betula liest, heißt die Zeile „Wahlpflicht: Komplex … / … / …“.</p>
     <ul class="namerule">
-      <li><b>Die 6 LP im 4. FS sind ein Modul aus einem der Komplexe, nur früh gelegt.</b> In der Tabelle stehen sie in der Zeile der Praktischen Informatik, im Plan, den Betula liest, als „Wahlpflicht: Komplex … / … / …“. Jeder Komplex kommt so auf 10 bis 30 LP.</li>
-      <li><b>In der Wahlpflicht steht deshalb genau das:</b> 50 LP aus den drei Komplexen, jeder mit seinem Balken bis 30 und dem Strich bei 10. Ein Modul zählt für den Komplex, auf dessen Liste es steht, egal in welchem Semester.</li>
-      <li><b>Heute zählt Betula anders:</b> ein Modul aus den Komplexen zuerst für die Zeile im 4. FS, dann bis 24 LP je Komplex. Zum Bauen gehört, dass die Wahlpflicht die Komplexe nach ihren Listen zählt. Regelstudienplan und Gesamtplan zeigen die Zeile im 4. FS weiter, so wie der Plan sie druckt.</li>
+      <li><b>Der Balken jedes Komplexes geht bis 30,</b> mit dem Strich bei 10. Bis 24 ist er wie jeder andere. <b>Die Stelle von 24 bis 30 ist schraffiert:</b> Sie steht jedem der drei offen, aber nur einem.</li>
+      <li><b>Geht ein Komplex über 24,</b> gehört ihm die Stelle: Sein Balken füllt sie, daneben steht „26 / 10–30 LP“. Bei den beiden anderen ist sie weg, ihr Balken endet bei 24, daneben „10–24 LP“.</li>
+      <li><b>Gehen zwei über 24,</b> sagt es ein Hinweis über den Komplexen: „Grundlagen der Informatik und Praktische Informatik haben beide mehr als 24 LP. Nur einer darf bis 30.“ Beim zweiten ist, was über 24 liegt, gelb; gesperrt wird nichts. Für „Noch … LP zu wählen“ zählt beim zweiten nur bis 24.</li>
+      <li><b>Ein Modul zählt für den Komplex, auf dessen Liste es steht.</b> Welches Modul die 6 LP aus dem 4. FS sind, muss niemand wählen: Es ist der Komplex, der über 24 geht. Die Wahlpflicht im 4. FS steht in dieser Ansicht nicht mehr eigens; Regelstudienplan und Gesamtplan zeigen ihre Zeile weiter, so wie der Plan sie druckt.</li>
+      <li><b>Betula rechnet heute schon fast so:</b> die 6 LP in einer eigenen Zeile, jeden Komplex bis 24. Nur nimmt die Zeile im 4. FS das erste Modul aus irgendeinem Komplex, auch wenn ein anderer später über 24 geht. Zum Bauen gehört, dass die 6 LP dem Komplex zufallen, der sie braucht.</li>
     </ul>
   </section>
 
@@ -707,12 +737,12 @@ kbd { padding: 0 5px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line
       <p class="sub">Jeweils mit meinem Vorschlag. Ein „passt“ reicht, wo du zustimmst.</p>
     </header>
     <ol class="qs">
-      <li><span><b>Bauen?</b> Passt A so, dass ich es in Folia baue, am Rechner und am Handy?<span class="pro">Vorschlag: ja.</span></span></li>
-      <li><span><b>Die Komplexe nach der Ordnung:</b> 50 LP aus den drei, jeder 10 bis 30, ein Modul zählt für den Komplex seiner Liste, die „Wahlpflicht im 4. FS“ steht hier nicht mehr.<span class="pro">Vorschlag: ja, in der Wahlpflicht. Regelstudienplan und Gesamtplan bleiben beim Plan.</span></span></li>
-      <li><span><b>Wofür „Einplanen“ plant:</b> Aus der Wahlpflicht geöffnet, plant die Seitenleiste für diese Wahl und füllt einen offenen Platz von ihr im Semester. Ohne das bliebe ein Platzhalter neben dem Modul stehen.<span class="pro">Vorschlag: ja.</span></span></li>
-      <li><span><b>Das Angebot in der Zeile:</b> „jedes WiSe“, „unregelmäßig“ steht jetzt nur in der Seitenleiste.<span class="pro">Vorschlag: so lassen.</span></span></li>
-      <li><span><b>Die Reihenfolge:</b> Die Bereiche stehen wie im Plan und bleiben stehen, wenn eine Wahl fertig ist.<span class="pro">Vorschlag: so.</span></span></li>
-      <li><span><b>Was woanders zählt:</b> Ein Modul, das schon für eine andere Wahl zählt, steht mit seinem Zeichen und „zählt für Praktische Mathematik“ in der Liste.<span class="pro">Vorschlag: so.</span></span></li>
+      <li><span><b>Je 24, einer bis 30:</b> Jeder Balken geht bis 30, die Stelle über 24 ist schraffiert, bis einer sie braucht; dann gehört sie ihm, und die anderen enden bei 24.<span class="pro">Vorschlag: so.</span></span></li>
+      <li><span><b>Zwei über 24:</b> ein Hinweis über den Komplexen, beim zweiten gelb, was über 24 liegt; nichts gesperrt.<span class="pro">Vorschlag: so.</span></span></li>
+      <li><span><b>Wer die 6 LP bekommt:</b> der Komplex, der über 24 geht, von selbst. Eine Wahl dafür in der Seitenleiste gibt es nicht.<span class="pro">Vorschlag: so; wählen müsste man nur, wenn zwei über 24 gehen, und dann zählt der größere.</span></span></li>
+      <li><span><b>Wofür „Einplanen“ plant:</b> für die Wahl, aus der die Seitenleiste geöffnet wurde, und es füllt einen offenen Platz von ihr im Semester. Ohne das bliebe ein Platzhalter neben dem Modul stehen.<span class="pro">Vorschlag: ja.</span></span></li>
+      <li><span><b>Module in zwei Wahlen:</b> 16 der 17 Module der Praktischen Mathematik stehen auch im Anwendungsfach. Mein erster Nachtrag dazu („Zählt für“) war ein Missverständnis und ist wieder raus.<span class="pro">Vorschlag: nur „zählt für …“ an der Zeile, wie in der zweiten Runde.</span></span></li>
+      <li><span><b>Das Angebot in der Zeile:</b> „jedes WiSe“, „unregelmäßig“ steht nur in der Seitenleiste.<span class="pro">Vorschlag: so lassen.</span></span></li>
     </ol>
   </section>
 
@@ -960,7 +990,7 @@ kbd { padding: 0 5px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line
     </ol>
   </section>
 
-  <p class="foot">Daten: canary vom 4. November 2026 (Folia 1.70.2), Informatik B.Sc. (PO 2008), begonnen im WiSe 2026/27, mit den Zeilen ohne Modul aus dem Plan und den Modulen der Listen samt Turnus aus dem Katalog; die Ordnung: Amtliches Mitteilungsblatt der BTU 12/2024, § 6 Abs. 8 und Anlage 2. Ausgedacht ist nur das Beispiel, in beiden Runden dasselbe: Proseminar, Allgemeine BWL I und Grundzüge der Computergrafik sind eingeplant, der Platzhalter des FÜS liegt im laufenden Semester, Einführung in Maschinelles Lernen steht auf der Merkliste. Gebaut ist davon nichts. folia/design/wahlpflicht/konzepte.html</p>
+  <p class="foot">Daten: canary vom 4. November 2026 (Folia 1.70.2), Informatik B.Sc. (PO 2008), begonnen im WiSe 2026/27, mit den Zeilen ohne Modul aus dem Plan und den Modulen der Listen samt Turnus aus dem Katalog; die Ordnung: Amtliches Mitteilungsblatt der BTU 12/2024, § 6 Abs. 8 und Anlage 2. Ausgedacht ist nur das Beispiel: Proseminar, Allgemeine BWL I und Grundzüge der Computergrafik sind eingeplant, in der zweiten Runde dazu Grundlagen des Wissenschaftlichen Rechnens für Praktische Mathematik und Datenbanken, Grundzüge der Kognition und Wahrnehmung und Einführung Information Retrieval für die Praktische Informatik, die so auf 24 LP kommt; der Platzhalter des FÜS liegt im laufenden Semester, Einführung in Maschinelles Lernen steht auf der Merkliste. Gebaut ist davon nichts. folia/design/wahlpflicht/konzepte.html</p>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
@@ -980,6 +1010,8 @@ const ICONS = {
   mark: '<path d="M17 3H7a2 2 0 0 0-2 2v16l7-4 7 4V5a2 2 0 0 0-2-2Z"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  info: '<circle cx="12" cy="12" r="9.5"/><path d="M12 16v-4M12 8h.01"/>',
+  alert: '<path d="m21.7 18-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"/><path d="M12 9v4M12 17h.01"/>',
   calplus: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M12 12v6M9 15h6"/>',
 };
 const NS = "http://www.w3.org/2000/svg";
@@ -1519,21 +1551,25 @@ function cPhone(st) {
 // ---------- The second round: A as the lookup ----------
 // No semester and no button to plan: a module's row opens its sidebar (a sheet on a phone), whose
 // „Einplanen" plans it for the choice it was opened from. What is done looks as what is open, with
-// a full bar, and the areas keep the plan's order. The Komplexe as § 6 Abs. 8 has them: 50 LP of
-// the three, each at least 10 and so at most 30, a module counted for the Komplex whose list has
-// it. Its own example, the same as the first round's.
+// a full bar, and the areas keep the plan's order. The Komplexe as § 6 Abs. 8 and Anlage 2 have
+// them: 50 LP of the three, each 10 to 24, one of them to 30 (the 6 LP of the Wahlpflicht im 4. FS
+// count for one), a module counted for the Komplex whose list has it. Its own example.
 const R2_ENTRY = {
   pro: { name: "Proseminar oder Praktikum", least: 4, most: 4, lists: ["pro"], rule: "4 LP: ein Proseminar oder Praktikum." },
   pm: { name: "Praktische Mathematik", least: 6, most: 6, lists: ["pm"], rule: "6 LP aus den Wahlpflichtmodulen der Praktischen Mathematik." },
   anw: { name: "Anwendungsfach", least: 12, most: 12, lists: ["ma", "mbet", "wiwi", "bau", "ph"], noun: "Fächer", rule: "12 LP aus einem der fünf Fächer." },
   fues: { name: "Fachübergreifendes Studium", least: 6, most: 6, lists: [], rule: "6 LP aus dem Katalog des Fachübergreifenden Studiums." },
-  kx: { name: "Komplexe", long: "Komplexe des Fachstudiums", least: 50, most: 50, lists: ["gdi", "pi", "ati"], noun: "Komplexe", rule: "50 LP aus den drei Komplexen, aus jedem mindestens 10." },
+  kx: { name: "Komplexe", long: "Komplexe des Fachstudiums", least: 50, most: 50, lists: ["gdi", "pi", "ati"], noun: "Komplexe", rule: "50 LP aus den drei Komplexen, aus jedem 10 bis 24. Einer darf bis 30: Die 6 LP der Wahlpflicht im 4. FS, ein Modul aus einem der drei, zählen nur bei einem." },
   sem: { name: "Seminar oder Praktikum", least: 4, most: 4, lists: ["sem"], rule: "4 LP: ein Seminar oder Praktikum der Informatik." },
 };
 const R2_START = [
   { id: "12111", sem: 1, entry: "pro" },
   { id: "12160", sem: 2, entry: "anw" },
   { id: "12311", sem: 4, entry: "kx" },
+  { id: "12330", sem: 5, entry: "kx" },
+  { id: "11911", sem: 5, entry: "kx" },
+  { id: "14460", sem: 5, entry: "kx" },
+  { id: "11923", sem: 3, entry: "pm" },
 ];
 const NOW = 0;
 const r2 = { planned: R2_START.map((p) => ({ ...p })), marked: new Set(["13565"]) };
@@ -1542,24 +1578,46 @@ ui.R2 = { mode: "desk", ...r2Fresh() };
 
 const r2Has = (id) => r2.planned.find((p) => p.id === id);
 const r2Sum = (f) => r2.planned.filter(f).reduce((s, p) => s + MODS[p.id][1], 0);
+// A Komplex: 10 to 24, one of the three to 30. Which one is the one over 24; until one is, the
+// stretch from 24 to 30 is open to each. Over 24 with two, the larger keeps it.
+const KX_CAP = 24, KX_ONE = 30;
+const r2KTaken = (l) => r2Sum((p) => p.entry === "kx" && LISTS[l].includes(p.id));
+const r2Over = () => R2_ENTRY.kx.lists.filter((l) => r2KTaken(l) > KX_CAP).sort((a, b) => r2KTaken(b) - r2KTaken(a));
+// What of a Komplex counts: up to 30 for the one that keeps the stretch, up to 24 for the others.
+const r2KCounts = (l) => Math.min(r2KTaken(l), r2Over()[0] === l ? KX_ONE : KX_CAP);
 // The stand of an entry, or of a Komplex („k:gdi").
 function r2Prog(key) {
-  if (key.startsWith("k:")) { const l = key.slice(2); return { taken: r2Sum((p) => p.entry === "kx" && LISTS[l].includes(p.id)), least: 10, most: 30 }; }
+  if (key.startsWith("k:")) { const l = key.slice(2); const over = r2Over(); return { taken: r2KTaken(l), least: 10, most: over[0] === l ? KX_ONE : KX_CAP, komplex: l, over }; }
   if (key === "fues") return { taken: 6, least: 6, most: 6 };
   const e = R2_ENTRY[key];
   return { taken: r2Sum((p) => p.entry === key), least: e.least, most: e.most };
 }
 function r2Open(key) {
   if (key === "kx") {
-    const ks = R2_ENTRY.kx.lists.map((l) => r2Prog(`k:${l}`).taken);
+    const ks = R2_ENTRY.kx.lists.map(r2KCounts);
     return Math.max(50 - ks.reduce((a, b) => a + b, 0), ks.reduce((a, t) => a + Math.max(0, 10 - t), 0), 0);
   }
   const p = r2Prog(key);
   return Math.max(0, p.least - p.taken);
 }
 // The bar and the figure, the same whether a choice is open or done.
+const ZONE = { free: "24 bis 30 LP: nur für einen der drei Komplexe", mine: "24 bis 30 LP: dieser Komplex", clash: "über 24 LP: auch ein anderer Komplex ist über 24", gone: "" };
 function r2Bar(key, cls = "") {
   const p = r2Prog(key);
+  if (p.komplex) {
+    // To 30 with the stretch from 24: hatched while it is open, filled where it is this one's,
+    // gone where another has it, yellow above 24 where another keeps it.
+    const keeps = p.over[0] === p.komplex;
+    const zone = p.over.includes(p.komplex) ? (keeps ? "mine" : "clash") : p.over.length ? "gone" : "free";
+    const at = (n) => `${(Math.min(n, KX_ONE) / KX_ONE) * 100}%`;
+    return h("span", { class: `bar kbar ${cls}`, role: "img", "aria-label": `${fmt(p.taken)} von ${range(p)} LP` + (ZONE[zone] ? `, ${ZONE[zone]}` : "") },
+      h("span", { class: "bar-in" },
+        h("span", { class: "bar-k" + (zone === "gone" ? " end" : ""), style: `width:${at(KX_CAP)}` }),
+        h("span", { class: `bar-z ${zone}`, style: `left:${at(KX_CAP)}`, title: ZONE[zone] || null }),
+        h("span", { class: "bar-f" + (p.taken > KX_ONE ? " over" : ""), style: `width:${at(p.taken)}` }),
+        zone === "clash" ? h("span", { class: "bar-x", style: `left:${at(KX_CAP)};width:calc(${at(p.taken)} - ${at(KX_CAP)})` }) : null),
+      h("span", { class: "bar-t", style: `left:calc(${at(10)} - 1px)` }));
+  }
   const scale = Math.max(p.most, p.least, p.taken) || 1;
   return h("span", { class: `bar ${cls}`, role: "img", "aria-label": `${fmt(p.taken)} von ${range(p)} LP` },
     h("span", { class: "bar-in" }, h("span", { class: "bar-f" + (p.taken > p.most ? " over" : ""), style: `width:${(Math.min(p.taken, scale) / scale) * 100}%` })),
@@ -1570,6 +1628,7 @@ function r2AreaFig(area) {
   const ps = area.entries.map(r2Prog);
   return h("small", null, `${fmt(ps.reduce((s, p) => s + p.taken, 0))} / ${fmt(ps.reduce((s, p) => s + p.least, 0))} LP`);
 }
+const andList = (xs) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} und ${xs[xs.length - 1]}`);
 function r2Count(k) {
   const e = R2_ENTRY[k];
   if (!e.lists.length) return "im Katalog des FÜS";
@@ -1579,7 +1638,7 @@ function r2Count(k) {
 function r2Tab(st, k) {
   if (st.tab[k] != null) return st.tab[k];
   let best = 0, most = 0;
-  R2_ENTRY[k].lists.forEach((l, i) => { const n = LISTS[l].filter((id) => r2Has(id)).length; if (n > most) { most = n; best = i; } });
+  R2_ENTRY[k].lists.forEach((l, i) => { const n = LISTS[l].filter((id) => r2Has(id)?.entry === k).length; if (n > most) { most = n; best = i; } });
   return best;
 }
 // The student's modules first, then the marked ones, then by title.
@@ -1646,6 +1705,14 @@ function r2Modules(st, k, phone) {
   const l = e.lists[r2Tab(st, k)];
   return h("div", { class: phone ? "r2-cards" : "r2-list" }, r2Order(l).map((id) => r2Row(st, k, id, phone)));
 }
+// The Komplexe: what the hatched stretch is, and two over 24 said, not refused.
+function r2KxNotes(k) {
+  if (k !== "kx") return null;
+  const over = r2Over();
+  const legend = h("p", { class: "r2-legend" }, h("span", { class: "sw" }), over.length ? `24 bis 30 LP hat ${LIST_NAME[over[0]]}; bei den anderen endet der Balken bei 24.` : "24 bis 30 LP: nur für einen der drei. Geht einer über 24, gehört die Stelle ihm.");
+  if (over.length < 2) return legend;
+  return [legend, h("p", { class: "r2-note warn" }, icon("alert"), h("span", null, `${andList(over.map((l) => LIST_NAME[l]))} haben beide mehr als 24 LP. Nur einer der drei darf bis 30; bei ${LIST_NAME[over[1]]} zählt nur bis 24.`))];
+}
 const r2Lead = () => `Noch ${fmt(AREAS.reduce((s, a) => s + a.entries.reduce((t, k) => t + r2Open(k), 0), 0))} LP zu wählen`;
 function r2Head() { return h("header", { class: "wp-head" }, h("h3", null, "Wahlpflicht"), h("p", null, r2Lead())); }
 
@@ -1710,7 +1777,7 @@ function r2Desk(st) {
   const nav = h("nav", { class: "a-nav", "aria-label": "Wahlen" }, AREAS.map((area) => h("div", { style: `--c:${area.tone}` },
     h("p", { class: "a-nh" }, h("span", { class: "dot" }), area.name, r2AreaFig(area)), area.entries.map((x) => r2NavEntry(st, x)))));
   const pane = h("div", { class: "a-pane", style: `--c:${toneOf(k)}` },
-    h("div", { class: "a-ph" }, h("div", { class: "a-pt" }, h("h4", null, e.long ?? e.name), r2Fig(k, "big")), r2Bar(k, "big"), h("p", { class: "r2-rule" }, e.rule)),
+    h("div", { class: "a-ph" }, h("div", { class: "a-pt" }, h("h4", null, e.long ?? e.name), r2Fig(k, "big")), r2Bar(k, "big"), h("p", { class: "r2-rule" }, e.rule), r2KxNotes(k)),
     r2Tabs(st, k, false), r2Modules(st, k, false));
   return h("div", { class: "wp desk r2" }, r2Head(), h("div", { class: "a-split" }, nav, pane), r2Side(st, false));
 }
@@ -1720,7 +1787,7 @@ function r2Phone(st) {
     const e = R2_ENTRY[k];
     const back = () => { st.page = null; st.open = null; st.toTop = true; renderAll(); };
     return h("div", { style: `--c:${toneOf(k)}` }, phoneTop(st, back),
-      h("div", { class: "ph-head" }, h("div", { class: "t" }, h("h4", null, e.long ?? e.name), r2Fig(k, "big")), r2Bar(k, "big"), h("p", { class: "rule" }, e.rule)),
+      h("div", { class: "ph-head" }, h("div", { class: "t" }, h("h4", null, e.long ?? e.name), r2Fig(k, "big")), r2Bar(k, "big"), h("p", { class: "rule" }, e.rule), r2KxNotes(k)),
       r2Tabs(st, k, true), r2Modules(st, k, true));
   }
   const open = (k) => () => { st.page = k; st.pick = k; st.toTop = true; renderAll(); };

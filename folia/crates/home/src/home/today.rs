@@ -26,7 +26,7 @@ use folia_pages::ask::{MetaAsk, PlanSourceAsk, StudyModulesAsk, StudyplanAsk, St
 use folia_pages::{HomeData, PlanSource, StudyplanData};
 use folia_plans::study;
 use folia_plans::studyplan::{self as stored, MineDoc, PlanDoc};
-use folia_routes::url::{self, PlanView, StudyplanUrl};
+use folia_routes::url::{self, PlanView, StudyUrl, StudyplanUrl};
 use folia_timetable::clash::Weeks;
 use folia_timetable::facts::SemesterFacts;
 use folia_timetable::model::Timetable;
@@ -735,7 +735,9 @@ fn NextCard(ctx: Ctx, on_setup: Callback<()>) -> impl IntoView {
         }
         ctx.follow();
         if ctx.key.get().is_some() && ctx.planned.with(Vec::is_empty) {
-            let import = StudyplanUrl { import: Some("mine".to_string()), ..Default::default() }.path();
+            // „Mein Studium"'s semesters, where a semester takes its Fachsemester over („Plan
+            // übernehmen"; the Stundenplan's „Importieren" went on 2026-11-04).
+            let import = StudyUrl::default().with_plan(true).path();
             return view! {
                 <div class="day-next">
                     <span class="k"><span>{tt.timetable}</span><span>{ctx.key.get().map(|key| key.label(t.locale))}</span></span>

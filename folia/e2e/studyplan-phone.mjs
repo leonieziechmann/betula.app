@@ -5,7 +5,7 @@
 // moves, the page scrolling under any other move; each slot says where it is held and opens its
 // module, and closed again the week is where it was; the list of the week's days is closed until
 // its line opens it, counts the week shown and follows it; „Plan · Alle Termine" is in the sheet
-// „Anpassen", not in the head (owner, 2026-10-26); „Kalender" stands under the Termine in every view
+// „Anpassen", not in the head (owner, 2026-10-26); „Export" stands under the Termine in every view
 // and not in the sheet „Anpassen", while a wide screen keeps it in the sidebar and both switches in
 // the head. A plan without A or B weeks has the grid alone, and no switch of the weeks.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node studyplan-phone.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
@@ -109,7 +109,7 @@ if (!semester || inA.length === 0 || inB.length === 0 || weekly.length === 0) {
   let s = await state(page);
   const all = s.counted;
   check(s.tab === "A/B" && s.open === "false" && s.listed === 0 && all > 0, `phone: the list of days is not closed under a counting line: ${JSON.stringify(s)}`);
-  // „Plan · Alle Termine" in „Anpassen", under „Ansicht".
+  // „Plan · Alle Termine" in „Anpassen", under „Termine" (since „Ansicht" went, 2026-11-04).
   await page.tap(".sp-head .sheet-toggle");
   await page.waitForTimeout(600);
   const sheet = await page.evaluate(() => [...document.querySelectorAll(".sidebar .sp-all button")].map((b) => [b.textContent, b.getAttribute("aria-checked"), b.getAttribute("aria-disabled")]));
@@ -177,7 +177,7 @@ if (!semester || inA.length === 0 || inB.length === 0 || weekly.length === 0) {
   s = await state(page);
   check(s.tab === "A/B" && back.top >= 0 && back.top < back.height / 2, `phone: back from the module the week is not in view as it was: ${JSON.stringify({ s, back })}`);
 
-  // ---- „Kalender": under the Termine in every view, not in the sheet
+  // ---- „Export": under the Termine in every view, not in the sheet
   for (const view of ["week", "dates", "exams"]) {
     if (view !== "week") {
       await page.goto(base + `/studyplan?view=${view}`, { waitUntil: "domcontentloaded" });
@@ -185,15 +185,15 @@ if (!semester || inA.length === 0 || inB.length === 0 || weekly.length === 0) {
       await page.waitForTimeout(500);
     }
     const where = await page.evaluate(() => ({ export: Boolean(document.querySelector(".sp-view + .sp-export #sp-abo")), sheet: Boolean(document.querySelector(".sidebar #sp-abo")) }));
-    check(where.export && !where.sheet, `phone (${view}): „Kalender" is not under the Termine alone: ${JSON.stringify(where)}`);
+    check(where.export && !where.sheet, `phone (${view}): „Export" is not under the Termine alone: ${JSON.stringify(where)}`);
   }
   await context.close();
 
-  // ---- a wide screen keeps „Kalender" in the sidebar and the switch of the weeks in the head
+  // ---- a wide screen keeps „Export" in the sidebar and the switch of the weeks in the head
   const wide = await open({ viewport: { width: 1440, height: 900 } }, "/studyplan", planOf([...weekly, ...inA, ...inB]));
   await wide.page.waitForSelector(".sp-week .slot", { timeout: 8000 }).catch(() => problems.push("wide: the week shows no slot"));
   const seen = await wide.page.evaluate(() => ({ sidebar: Boolean(document.querySelector(".sidebar #sp-abo")), export: Boolean(document.querySelector(".sp-export")), head: Boolean(document.querySelector(".sp-head .sp-weeks")), all: Boolean(document.querySelector(".sp-head .sp-all")) && !document.querySelector(".sidebar .sp-all"), carousel: Boolean(document.querySelector(".sp-carousel")) }));
-  check(seen.sidebar && !seen.export && seen.head && seen.all && !seen.carousel, `wide: not the sidebar's „Kalender" and the head's switches: ${JSON.stringify(seen)}`);
+  check(seen.sidebar && !seen.export && seen.head && seen.all && !seen.carousel, `wide: not the sidebar's „Export" and the head's switches: ${JSON.stringify(seen)}`);
   await wide.context.close();
 }
 

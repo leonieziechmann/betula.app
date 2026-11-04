@@ -1194,11 +1194,10 @@
   // curve, a menu not at all.) Whatever is modal on a phone is a sheet from below (the same day:
   // „Ein modal beim handy ist dieses swipebare menü, dass sich von unten öffnet"), and this one
   // engine moves them all: a page's dialog (`dialog[data-sheet]`, folia_design::modal), a menu
-  // (`.st-pop[data-sheet]`; the menus of a tab held and of the profiles, `.tab-menu[data-sheet]`),
-  // the catalog's filters and a page's sidebar of filters (`openSheet` above), a page's own sheet
-  // under a module's (`.page-sheet[data-sheet]` after its scrim `.page-sheet-shade`), a module or a
-  // Termin over a page (`.detail.is-module`, below). What makes one is the attribute and the
-  // stylesheet's frame (app.css „the sheets of a phone"); nothing else is needed.
+  // (`.st-pop[data-sheet]`), the catalog's filters and a page's sidebar of filters (`openSheet`
+  // above), a page's own sheet under a module's (`.page-sheet[data-sheet]` after its scrim
+  // `.page-sheet-shade`), a module or a Termin over a page (`.detail.is-module`, below). What makes one is the
+  // attribute and the stylesheet's frame (app.css „the sheets of a phone"); nothing else is needed.
   //
   // - Three ways to stand (`data-sheet`, folia_design::modal::Sheet; owner, 2026-11-03: „dass es
   //   entweder fit ist, also so dass es nur ein kleines fenster ist. Da würde ich die größe zwischen
@@ -1262,13 +1261,9 @@
   // (`.pending-page.held`, which app.css does not show), nor on a page kept behind
   // (folia/crates/shell/src/stage.rs).
   const onFront = (el) => !el.closest(".pending-page") && !el.closest("#content > .page-stage:not(.front)");
-  // A menu: a page's (`.st-pop`), or the menu of a tab held or of the profiles (`.tab-menu`,
-  // folia/crates/shell/src/chrome.rs `TabMenu`, `ProfileSwitcher`).
-  const isMenu = (el) => el.classList.contains("st-pop") || el.classList.contains("tab-menu");
-  const isMenuScrim = (el) => Boolean(el.classList?.contains("st-pop-shade") || el.classList?.contains("tab-scrim"));
   // A menu's scrim, which closes it (it stands before the menu, and before a submenu's menu).
   const scrimOf = (el) => {
-    for (let at = el.previousElementSibling; at; at = at.previousElementSibling) if (isMenuScrim(at)) return at;
+    for (let at = el.previousElementSibling; at; at = at.previousElementSibling) if (at.classList.contains("st-pop-shade")) return at;
     return null;
   };
   // A page's sheet's scrim, which closes it (it stands right before the sheet).
@@ -1308,7 +1303,7 @@
     {
       // A menu over a page; a submenu takes its place (app.css), and the menu hides meanwhile.
       name: "menu",
-      is: (el) => isMenu(el) && el.hasAttribute("data-sheet") && !el.classList.contains("sheet-ghost"),
+      is: (el) => el.classList.contains("st-pop") && el.hasAttribute("data-sheet") && !el.classList.contains("sheet-ghost"),
       shown: (el) => el.isConnected && !el.classList.contains("has-sub") && onFront(el),
       shade: (el) => scrimOf(el),
       close: (el) => scrimOf(el)?.click(),
@@ -1343,7 +1338,7 @@
     return null;
   };
   // What scrolls its content, half up too (where it does not scroll then).
-  const bodyOf = (sheet) => sheet.querySelector(":scope > .scroll, :scope > form > .body, :scope > .body") ?? sheet.querySelector("[data-sheet-body], .st-dlg-body") ?? (isMenu(sheet) ? sheet : null);
+  const bodyOf = (sheet) => sheet.querySelector(":scope > .scroll, :scope > form > .body, :scope > .body") ?? sheet.querySelector("[data-sheet-body], .st-dlg-body") ?? (sheet.classList.contains("st-pop") ? sheet : null);
   // What holds its buttons: at the screen's foot while it is half up.
   const footOf = (sheet) => sheet.querySelector("[data-sheet-foot], .st-dlg-foot");
 
@@ -1582,7 +1577,7 @@
     if (sheet) {
       stopFling();
       sheetTouch = touchAt(sheet, e.target, t.clientX, t.clientY, e.timeStamp);
-    } else if ((e.target === root && (root.classList.contains("sheet-open") || moduleSheet())) || isMenuScrim(e.target)) {
+    } else if ((e.target === root && (root.classList.contains("sheet-open") || moduleSheet())) || e.target.classList?.contains("st-pop-shade")) {
       // On the dimmed page beside a sheet: nothing moves.
       sheetTouch = { sheet: null, mode: "hold" };
     }
@@ -1679,7 +1674,7 @@
     const sheet = sheetAround(e.target);
     if (!sheet || e.target.closest("a, button, input, select, textarea, label, [contenteditable]")) return;
     const top = sheet.getBoundingClientRect().top;
-    if (e.clientY - top >= SHEET_GRAB && !e.target.closest(".st-dlg-head, .panel-head, .st-pop-title, .tab-menu-head")) return;
+    if (e.clientY - top >= SHEET_GRAB && !e.target.closest(".st-dlg-head, .panel-head, .st-pop-title")) return;
     e.preventDefault();
     const s = touchAt(sheet, e.target, e.clientX, e.clientY, e.timeStamp);
     stopFling();
@@ -1733,7 +1728,6 @@
   // itself that does (`ghostSheet`). Its height is kept as it changes, for its foot and its copy.
   const dialogsAll = document.getElementsByTagName("dialog");
   const popsAll = document.getElementsByClassName("st-pop");
-  const tabMenusAll = document.getElementsByClassName("tab-menu");
   const pageSheetsAll = document.getElementsByClassName("page-sheet");
   let sheetsSeen = new Map(); // a dialog or a menu shown as a sheet → { height, half, mode }
   // One whose way to stand changed while it was shown (a dialog that holds another kind now, one of
@@ -1867,23 +1861,22 @@
     const now = new Map();
     for (const el of dialogsAll) if (el.open && el.hasAttribute("data-sheet")) now.set(el, sheetsSeen.get(el) ?? null);
     for (const el of popsAll) if (el.hasAttribute("data-sheet") && !el.classList.contains("has-sub") && !el.classList.contains("sheet-ghost") && onFront(el)) now.set(el, sheetsSeen.get(el) ?? null);
-    for (const el of tabMenusAll) if (el.hasAttribute("data-sheet") && !el.classList.contains("sheet-ghost")) now.set(el, sheetsSeen.get(el) ?? null);
     for (const el of pageSheetsAll) if (el.hasAttribute("data-sheet") && !el.classList.contains("sheet-ghost") && onFront(el)) now.set(el, sheetsSeen.get(el) ?? null);
     const gone = [...sheetsSeen.keys()].filter((el) => !now.has(el));
     const come = [...now.keys()].filter((el) => !now.get(el));
     // A submenu in its menu's place, or the menu back in the submenu's: the one sheet stays, what
     // it holds changes in place.
-    const isPop = (el) => el.classList.contains("st-pop");
-    const inPlace = come.some(isPop) && gone.some(isPop);
+    const isMenu = (el) => el.classList.contains("st-pop");
+    const inPlace = come.some(isMenu) && gone.some(isMenu);
     for (const el of gone) {
-      if (inPlace && isPop(el)) { sizes?.unobserve(el); stopSheet(el); }
+      if (inPlace && isMenu(el)) { sizes?.unobserve(el); stopSheet(el); }
       else sheetGone(el, sheetsSeen.get(el), records);
     }
     // The menu in the other's place stands where that one stood: all up where it was all up (a
     // submenu of `auto` longer than what fits does not drop half up under the finger).
-    const wasFull = inPlace && gone.some((el) => isPop(el) && el.classList.contains("is-full"));
+    const wasFull = inPlace && gone.some((el) => isMenu(el) && el.classList.contains("is-full"));
     for (const el of come) {
-      if (inPlace && isPop(el)) {
+      if (inPlace && isMenu(el)) {
         const { half } = stopsOf(el);
         el.classList.toggle("is-full", wasFull || !half);
         el.classList.remove("is-gone");
@@ -1906,7 +1899,7 @@
       sheet.style.removeProperty("--sheet-shade");
       footOf(sheet)?.style.removeProperty("transform");
     }
-    for (const scrim of document.querySelectorAll(".st-pop-shade, .tab-scrim, .page-sheet-shade")) scrim.style.removeProperty("--sheet-shade");
+    for (const scrim of document.querySelectorAll(".st-pop-shade, .page-sheet-shade")) scrim.style.removeProperty("--sheet-shade");
     root.style.removeProperty("--sheet-shade");
     watchSheets([]);
   });
