@@ -29,9 +29,10 @@
 //   semester, the line of today and its flag, ▸ unfolding Mathematik into its lanes, kept, „Alle
 //   zuklappen", „Bisher zuklappen" and back), each cell as tall as what it lists, a module's menu,
 //   the plan's open Betriebssysteme I dashed and planned
-//   with a click, the view kept, the plan's head at the top when scrolled down and going along
-//   sideways with the areas, each head over its column; a reload keeps all of it; nothing of it in
-//   a request.
+//   with a click, the view kept, in a narrower window the plan scrolled sideways to the semester
+//   before the current one with the areas' names at the left, the plan's head at the top when
+//   scrolled down and going along sideways with the areas, each head over its column; a reload
+//   keeps all of it; nothing of it in a request.
 // 2b a place filled (folia/design/hinzufuegen/konzepte.html, „Was heute schiefgeht"): the same study,
 //   „Anwendungsfach" alone put into WiSe 2026/27 by the workbench's „Vormerken"; „Modul wählen" in
 //   its menu and at its row opens the workbench at its subgroup, whose „Im Katalog suchen" leads to
@@ -538,6 +539,16 @@ if (current !== "2026W") {
   // window too narrow for every semester, the areas scrolled sideways under it, the heads go along,
   // each over its column.
   await page.setViewportSize({ width: 1100, height: 800 });
+  // The current semester in view (owner, 2026-11-04: „dass immer das aktuelle semester passend
+  // gezeigt wird"): too narrow for every semester, the plan scrolls sideways by itself to the one
+  // before WiSe 2026/27, first after the areas' names, which stay at the left; the heads with it.
+  await page.waitForFunction(() => document.querySelector(".st-rm-top-scroll")?.scrollLeft > 0, null, { timeout: 3000 }).catch(() => {});
+  const shown = await page.evaluate(() => {
+    const box = document.querySelector(".st-grid-scroll:not(.st-rm-top-scroll)").getBoundingClientRect().left;
+    const left = (selector) => Math.round(document.querySelector(selector).getBoundingClientRect().left - box);
+    return { left: [...document.querySelectorAll(".st-grid-scroll")].map((scroller) => scroller.scrollLeft), now: left(".st-col-head.is-now"), name: left(".st-rm-grid > .st-row-head") };
+  });
+  check(shown.left.join() === "140,140" && shown.now === 336 && shown.name === 0, `the current semester in view: ${JSON.stringify(shown)}`);
   const stuck = await page.evaluate(() => new Promise((done) => {
     const area = document.querySelector("#content > .page-stage.front > .work.flowing");
     const body = document.querySelector(".st-grid-scroll:not(.st-rm-top-scroll)");
