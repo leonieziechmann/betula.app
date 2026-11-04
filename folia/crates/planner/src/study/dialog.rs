@@ -15,7 +15,7 @@
 
 use leptos::prelude::*;
 
-use folia_design::modal::{kept, Modal, ModalHead, ModalSize};
+use folia_design::modal::{kept, Modal, ModalHead, ModalSize, Sheet};
 
 use super::{overview, side, Dialog, StudyCtx};
 
@@ -28,13 +28,26 @@ fn size_of(dialog: &Dialog) -> ModalSize {
     }
 }
 
+/// How a dialog's kind stands on a phone: the areas and an area half up and all up, as their
+/// size says; „Studiengang wechseln" all up at once (owner, 2026-11-04: „alle modal instanzen
+/// durchguckst und da einstellst, was am besten zu denen passt"), a form with a search as „Plan
+/// einrichten" is: half up its Fachsemester stood behind its buttons, and what it holds changes as
+/// it is filled in, which a sheet that fits would follow up and down.
+fn sheet_of(dialog: &Dialog) -> Sheet {
+    match dialog {
+        Dialog::Switch => Sheet::Full,
+        Dialog::Area(_) | Dialog::Areas => size_of(dialog).sheet(),
+    }
+}
+
 #[component]
 pub(super) fn DialogHost(ctx: StudyCtx) -> impl IntoView {
     // What it shows stays while it goes (a phone's sheet glides away with it).
     let shown = kept(move || ctx.dialog.get());
     let size = Signal::derive(move || shown.with(|dialog| dialog.as_ref().map_or(ModalSize::S, size_of)));
+    let sheet = Signal::derive(move || shown.with(|dialog| dialog.as_ref().map_or(Sheet::Half, sheet_of)));
     view! {
-        <Modal open=Signal::derive(move || ctx.dialog.with(Option::is_some)) on_close=move || ctx.dialog.set(None) size labelled_by="st-dialog-title">
+        <Modal open=Signal::derive(move || ctx.dialog.with(Option::is_some)) on_close=move || ctx.dialog.set(None) size sheet labelled_by="st-dialog-title">
             {move || shown.get().map(|dialog| match dialog {
                 Dialog::Area(area) => view! { <overview::AreaDialog ctx area/> }.into_any(),
                 Dialog::Areas => view! { <overview::AreasSheet ctx/> }.into_any(),

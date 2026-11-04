@@ -1237,8 +1237,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       dann voll nach ganz oben"), as a phone's own sheets have them (iOS's medium and large detents,
       Material's half-expanded state): half up, its top at half the screen, and all up, 10 px under
       the safe area; it comes up from below to half up. What is read and worked in beside the page:
-      a dialog of the size „m" (a Termin, „Termin eintragen", the areas, „Studiengang wechseln"),
-      the filters and a page's sidebar, a page's own sheet (the workbench of „Mein Studium",
+      a dialog of the size „m" („Termin eintragen", over the week that shows its draft; the areas
+      and an area, one size, so that the sheet stays where it is from the one to the other), the
+      catalog's filters, the Merkliste's filters and orders, the Stundenplan's „Anpassen" (whose
+      calendars open their menus in it), a page's own sheet (the workbench of „Mein Studium",
       `.page-sheet`: the whole height, a light veil before it, under a module's), a module over a page,
       „Tasten" (a long list; it names its keys on a phone too, a PC's or a Mac's, since who opens
       it there has a keyboard). A dialog takes the whole height, so that it does not grow and
@@ -1246,8 +1248,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       it is.
     - **`full`**, all up at once, the whole height: its one stop. What needs all of the screen:
       the map, „Plan einrichten" (a form as tall as the screen with its search low in it, which
-      half up the buttons at the screen's foot hid), a dialog of the size „l" (a list to choose
-      from).
+      half up the buttons at the screen's foot hid), „Studiengang wechseln" (a form with a search
+      too: half up its Fachsemester stood behind its buttons, and what it holds changes as it is
+      filled in, which a sheet that fits would follow up and down), a dialog of the size „l" (a
+      list to choose from).
     - **`auto`**, for what changes (owner, the same day: „Ja und jetzt mach mal noch ein Auto
       Modus, der zwischen fit und Half entschiedet für dynamischen content"): as tall as what it
       holds, up to the whole height; it fits while that is at most 70 % of the screen and stands as
@@ -1256,13 +1260,21 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       it to and fro. Grown past what fits while it is shown it stays all up, now with half up
       under a finger; shrunk under it, it goes back to its height. While the screen's keyboard is
       up its way stays. „Sammeln" (the collections one made, narrowed by what is typed), a Termin
-      (a date and a room, or its groups and a semester of dates), the menus that list semesters or
+      (a date and a room, or its groups and a semester of dates), the programs' filters (about 60 %
+      of a phone's screen, more of a small one's: half up hid their last row), the menus that list semesters or
       collections („Einplanen in …", the arrow of „Eingeplant", „Mein Studium"'s menu with
       „Verschieben nach ›", the Merkliste's menu of several modules); a submenu in its menu's
       place stands where the menu stood.
 
+    Each way chosen by what the sheet holds, measured on a phone of 390 × 844 px (owner,
+    2026-11-04: „alle modal instanzen durchguckst und da einstellst, was am besten zu denen
+    passt"): a module 240 % of the screen, the catalog's filters 140 %, „Tasten" 145 %, an area
+    90 %, the areas and „Termin eintragen" 85 %, the Merkliste's filters 75 %, „Anpassen" 74 % and
+    up — half; the programs' filters 63 % — `auto`; „Studiengang wechseln" 62 %, changing — full;
+    „Sammeln" about half, changing — `auto`; the Merkliste's ⋯ under 40 % — fit.
+
     A `Modal` stands as its size says (`ModalSize::sheet`: „s" fits, „m" half, „l" full) unless it
-    says otherwise (`sheet=Sheet::…`); what changes its kind while it is open (a dialog that holds
+    says otherwise (`sheet=Sheet::…`; a frame's sidebar `sheet_way=Sheet::…`); what changes its kind while it is open (a dialog that holds
     another) goes to the stop of its new way, all up where it has no half up any more. A sheet of one
     stop is where all up is: it scrolls, a move down at its top takes it, and from a third of the way
     down (or flicked down) it goes away; a tap on its grabber leaves it be.
@@ -1699,7 +1711,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     2. FS nach Regelstudienplan füllen" (`study::fill_past`, the Stundenplan's import per
     Fachsemester; then only marking what was passed is left), in the first Fachsemester there and
     saying there are none. „Studium anlegen" stores it in one go (`MyProgram::set_study`).
-  - **„Studiengang wechseln"** (`side.rs`, a dialog of size m): the card with what is kept, and
+  - **„Studiengang wechseln"** (`side.rs`, a dialog of size m, on a phone all up at once): the card with what is kept, and
     under it, once the program or its direction changed, what of the plan counts there before
     anything changes („Bestanden 36 von 46 LP kommen dort vor", the first modules that count nowhere
     there, which stay as „ohne Bereich"); where only the Fachsemester changed, that the plan stays as
@@ -1895,7 +1907,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     nehmen. Der hat da eh keinen Mehrwert"), and its end stands above the dots. The dialogs („Bereiche",
     „Studiengang wechseln") and the workbench are sheets of a phone („The
     sheets of a phone"):
-    half up first, a finger takes them all up or throws them away (owner, the same day: „Das muss
+    half up first („Studiengang wechseln" all up at once since 2026-11-04), a finger takes them all up or throws them away (owner, the same day: „Das muss
     auch unbedingt dazu, dass man die einfach wieder runter sliden kann"; until 2026-10-27 dragged
     down only, as the catalog's filters): the sheet follows the finger and the dim behind it fades,
     let go it goes on to where it would come to rest, a short pull back where it was. „Studiengang wechseln" says no more in its head than its

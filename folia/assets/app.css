@@ -6932,6 +6932,9 @@ span.st-wb-go { cursor: default; }
   [data-sheet]:is([data-sheet="fit"], [data-sheet="full"]) { transform: none; touch-action: auto; }
   [data-sheet="auto"]:not([data-sheet-as="half"], .is-gone) { transform: none; touch-action: auto; }
   [data-sheet].is-gone { transform: translateY(100%); }
+  /* A panel of filters closed stays below the screen whatever its way: it stays in the page, and a
+     sheet of one stop stands where it is all up. */
+  :is(.filters, .sidebar.sheet)[data-sheet]:not(.open, :target) { transform: translateY(105%); }
   /* Its grabber, over what it holds. */
   [data-sheet]::before { content: ""; position: absolute; z-index: 3; left: 50%; top: 7px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); pointer-events: none; }
   /* Its foot over what it holds, at the screen's foot while it is half up. */

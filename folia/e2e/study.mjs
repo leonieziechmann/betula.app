@@ -1179,7 +1179,8 @@ if (current !== "2026W") {
   const rise = await page.evaluate(() => window.__rise);
   const [firstTop, lastTop, lastScroll] = [rise[0][0], rise[rise.length - 1][0], rise[rise.length - 1][1]];
   const ways = [new Set(rise.map(([top]) => top).filter((top) => top > lastTop + 2 && top < firstTop - 2)).size, new Set(rise.map(([, scroll]) => scroll).filter((scroll) => scroll > 2 && scroll < lastScroll - 2)).size];
-  check(ways[0] >= 3 && ways[1] >= 3, `the sheet jumps over the keyboard (${ways} frames on the way): ${rise.map((frame) => frame.join("/")).join(" ")}`);
+  // (All up at once since 2026-11-04, its top has but the 10 px under the safe area to go.)
+  check((ways[0] >= 3 || firstTop - lastTop <= 12) && ways[1] >= 3, `the sheet jumps over the keyboard (${ways} frames on the way): ${rise.map((frame) => frame.join("/")).join(" ")}`);
   const typing = await page.evaluate(() => {
     const at = (sel) => document.querySelector(sel).getBoundingClientRect();
     const [dialog, body, label, pop] = [".st-dialog[open]", ".st-dialog[open] .st-dlg-body", ".st-dialog[open] .st-srow:has(.combo[data-open]) > .label", ".st-dialog[open] .combo-pop"].map(at);
