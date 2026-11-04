@@ -1665,8 +1665,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     the first two one address and a setting of the browser's (R13), the others addresses of their
     own (`view`), and the one switch between them (since 2026-10-19 no switch over the semesters
     says it again); „Studiengang": its regulations and documents on its page, and „Alle
-    Studiengänge"; then the legend, the parts of the bar („Fortschrittsbalken") apart from the marks
-    of a module („Zeichen an Modulen"), a word each, and the storage hint. Nothing in it says again what the page or the tab
+    Studiengänge"; then the legend, the parts of the bar („Fortschrittsbalken"; with the semesters
+    alone, where the bar is, since 2026-11-04) apart from the marks of a module („Zeichen an
+    Modulen"), a word each, and the storage hint. Nothing in it says again what the page or the tab
     bar says (owner, 2026-10-04: „Mein Studium Sidebar ist noch sehr redundant und nicht platz
     effizient"): no label over the card, no way to the Stundenplan, whose tab is beside it. A
     phone has no sidebar: all of it is on its overview (below). A program's views are the
@@ -1744,8 +1745,11 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     Ansichten von „Mein Studium" – mit deinem Stand darin"; `regular.rs`, `choose.rs`, the data in
     `folia/crates/plans/src/choices.rs`). Until then both were the program's pages, another world
     with another title and another sidebar, where nothing of the student's showed and nothing
-    could be planned. Now, on a desktop under the overview, on a phone a page of its own behind it
-    (the way back at the head, through the history where the overview is the step before):
+    could be planned. Now, on a desktop in the page's place, on a phone a page of its own behind
+    the overview (the way back at the head, through the history where the overview is the step
+    before). The overview and its bar stand with the semesters alone (owner, 2026-11-04: „Beim
+    regelstudienplan und bei dem wahlpflicht teil soll die progress bar entfernt werden. Die ist
+    nicht relevant für die beiden subpages"); until then they stood above both views on a desktop:
     - **„Regelstudienplan"** (`view=plan`): the plan as its regulation prints it, a row a row of it,
       grouped by the areas of the progress in their colours (each with what is taken of what it
       asks), a column each Fachsemester with the semester it is for the student (the current one

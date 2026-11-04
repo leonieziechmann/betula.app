@@ -550,9 +550,11 @@ if (current !== "2026W") {
       os: row("Betriebssysteme I")?.querySelector(".st-minec")?.textContent.trim(),
       passed: document.querySelectorAll(".st-mx .st-rsp-c.is-passed").length,
       choose: [...document.querySelectorAll(".st-mx button.st-addb")].filter((button) => button.textContent.startsWith("Wählen")).length,
+      // The overview, its bar and the legend of the bar stay with the semesters (owner, 2026-11-04).
+      overview: document.querySelectorAll(".st-over, .st-bar, .st-legend-parts").length,
     };
   });
-  check(regular.current === "Regelstudienplan" && regular.groups.slice(0, 2).join() === "Komplex Informatik,Komplex Mathematik" && regular.columns === "123456" && regular.os === "SoSe 27" && regular.passed > 0 && regular.choose > 3, `the Regelstudienplan: ${JSON.stringify(regular)}`);
+  check(regular.current === "Regelstudienplan" && regular.groups.slice(0, 2).join() === "Komplex Informatik,Komplex Mathematik" && regular.columns === "123456" && regular.os === "SoSe 27" && regular.passed > 0 && regular.choose > 3 && regular.overview === 0, `the Regelstudienplan: ${JSON.stringify(regular)}`);
   await step("a row planned from the plan", () => page.click('.st-mx tr.st-rsp-row:has(.st-rsp-name:text-is("Digitaltechnik-Praktikum")) button.st-addb'), () => document.querySelector(".study-note")?.textContent.includes("„Digitaltechnik-Praktikum“ ins SoSe 2027 eingeplant"));
   await page.waitForFunction(() => [...document.querySelectorAll(".st-mx tbody tr.st-rsp-row")].find((tr) => tr.querySelector(".st-rsp-name")?.textContent === "Digitaltechnik-Praktikum")?.querySelector(".st-minec")?.textContent.trim() === "SoSe 27", null, { timeout: 4000 }).catch(() => problems.push("the row planned from the plan does not say where it is planned"));
   check((await lines(page, "m\t2027S\t12214")).length === 1, "„Einplanen\" of the plan did not plan the module");
@@ -572,11 +574,12 @@ if (current !== "2026W") {
     lists: [...document.querySelectorAll(".st-lists button")].map((b) => b.childNodes[0].textContent),
     rows: document.querySelectorAll(".st-wtable tbody tr:not(.st-more-row)").length,
     season: document.querySelector('.st-season-seg button[aria-pressed="true"]')?.textContent,
+    overview: document.querySelectorAll(".st-over, .st-bar, .st-legend-parts").length,
   }));
-  check(choice.current === "Wahlpflicht" && choice.lists.length === 5 && choice.lists[0] === "Mathematik" && choice.rows > 3 && choice.season === "WiSe 2026/27", `the Wahlpflicht: ${JSON.stringify(choice)}`);
+  check(choice.current === "Wahlpflicht" && choice.lists.length === 5 && choice.lists[0] === "Mathematik" && choice.rows > 3 && choice.season === "WiSe 2026/27" && choice.overview === 0, `the Wahlpflicht: ${JSON.stringify(choice)}`);
   await step("a module of its list planned", () => page.click(".st-wtable tbody tr:not(.taken) button.st-addb >> nth=0"), () => document.querySelector(".study-note")?.textContent.includes("ins WiSe 2026/27 eingeplant") && document.querySelector(".st-wtable tbody tr.taken"));
   await page.waitForFunction(() => document.querySelector('.st-sl[aria-current="true"] small')?.textContent.includes("von 12\u00a0LP gewählt"), null, { timeout: 4000 }).catch(() => problems.push("the choice does not count the module planned out of its list"));
-  await step("back to the semesters", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => location.search === "" && document.querySelector(".st-grid"));
+  await step("back to the semesters", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => location.search === "" && document.querySelector(".st-grid") && document.querySelector(".st-over .st-bar") && document.querySelector("#sidebar .st-legend-parts"));
   for (const request of requests) {
     if (/12104|079-82-2008|11787%0A|d%092025W|start%09/.test(request.replace(/\/catalog\/module\/\d+|open=11787/g, ""))) problems.push(`a request carries the study: ${request.slice(0, 160)}`);
   }

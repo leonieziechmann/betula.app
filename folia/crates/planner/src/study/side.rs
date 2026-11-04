@@ -2,8 +2,8 @@
 //! degree, the PO and the study direction, the Fachsemester now and the Studienbeginn; a click
 //! changes them), the views of the study (owner, 2026-10-14, concept A „Ansichten": „Semester",
 //! „Gesamtplan", „Regelstudienplan", „Wahlpflicht", each with a word of where it stands), the ways
-//! to the program's own page and to all programs, how the plan reads, and where all of it
-//! lives. Nothing in it says twice what the page or the tab bar says (owner, 2026-10-04: „Mein
+//! to the program's own page and to all programs, how the plan reads (the parts of the bar where
+//! the bar is, with the semesters), and where all of it lives. Nothing in it says twice what the page or the tab bar says (owner, 2026-10-04: „Mein
 //! Studium Sidebar ist noch sehr redundant und nicht platz effizient … Zum Stundenplan kann weg der
 //! link ist direkt daneben in der Navbar"). A phone has all of it on its overview instead
 //! (`phone.rs`), and no sidebar.
@@ -39,6 +39,8 @@ pub(super) fn StudySidebar(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
     let ready = Memo::new(move |_| ctx.with_ready(|ready| ready.setup.start_stored).unwrap_or(false));
+    // The bar stands with the semesters alone, and its legend with it (owner, 2026-11-04).
+    let bar = Memo::new(move |_| ctx.url.with(|url| url.view == StudyView::Semesters));
     let v = &t.study_views;
     move || {
         (!ctx.phone.get()).then(|| {
@@ -61,7 +63,7 @@ pub(super) fn StudySidebar(ctx: StudyCtx) -> impl IntoView {
                 </div>
                 {move || ready.get().then(|| view! {
                     <div class="fgroup st-legend">
-                        <LegendBar/>
+                        {move || bar.get().then(|| view! { <LegendBar/> })}
                         <LegendMarks/>
                     </div>
                 })}
