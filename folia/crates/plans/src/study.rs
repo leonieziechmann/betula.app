@@ -759,9 +759,19 @@ pub fn study(input: &Input) -> Study {
             unoffered: !offer.offered(s),
         }
     };
+    // A placeholder that modules fill is done where they are passed, all of them there (as the
+    // Regelstudienplan's view has it, `choices`): its own mark is not needed then. Until Folia
+    // 1.70.1 it counted as not passed in a semester that is over and came back as a Wiederholer
+    // beside its passed module.
+    let filled_passed = |pid: Option<u32>, at: SemesterKey| {
+        let fillers: Vec<&studyplan::Planned> = pid.map(|pid| doc.fillers(pid).into_iter().filter(|m| m.semester == at).collect()).unwrap_or_default();
+        !fillers.is_empty() && fillers.iter().all(|m| doc.passed_in(&m.module_id) == Some(at))
+    };
     let row_item = |pid: Option<u32>, program_id: &str, caption: &str, ord: i64, name: &str, span: (u8, u8), credits: Option<String>, kind: Option<&str>, s: SemesterKey| -> Item {
         let (low, high) = credits.as_deref().and_then(credits_range).map_or((None, false), |(low, high)| (Some(low), high > low));
         let done = doc.done_row(program_id, ord).map(|done| done.semester);
+        let fillers: Vec<String> = pid.map(|pid| doc.fillers(pid).into_iter().filter(|m| m.semester == s).map(|m| m.module_id.clone()).collect()).unwrap_or_default();
+        let passed = done == Some(s) || filled_passed(pid, s);
         Item {
             subject: Subject::Row { pid, program_id: program_id.to_string(), caption: caption.to_string(), ord, name: name.to_string(), span, credits },
             name: name.to_string(),
@@ -769,12 +779,12 @@ pub fn study(input: &Input) -> Study {
             range: high,
             kind: kind.and_then(|code| Code::<ModuleKind>::parse(code).known()),
             area: None,
-            passed: done == Some(s),
-            failed: s < now && done != Some(s),
+            passed,
+            failed: s < now && !passed,
             retake: doc
                 .placeholders
                 .iter()
-                .filter(|p| p.program_id == program_id && p.ord == ord && p.semester < s && done != Some(p.semester))
+                .filter(|p| p.program_id == program_id && p.ord == ord && p.semester < s && done != Some(p.semester) && !filled_passed(Some(p.pid), p.semester))
                 .map(|p| p.semester)
                 .max(),
             again: doc
@@ -783,13 +793,15 @@ pub fn study(input: &Input) -> Study {
                 .filter(|p| p.program_id == program_id && p.ord == ord)
                 .map(|p| p.semester)
                 .chain(done)
+                // One that modules fill comes again where they do.
+                .chain(fillers.iter().flat_map(|id| doc.planned_in(id).into_iter().chain(doc.passed_in(id))))
                 .filter(|later| *later > s)
                 .min(),
             offer: Offer::default(),
             unoffered: false,
             over: 0.0,
             plan_fs: (span.0 > 0).then_some(span.0),
-            fillers: pid.map(|pid| doc.fillers(pid).into_iter().filter(|m| m.semester == s).map(|m| m.module_id.clone()).collect()).unwrap_or_default(),
+            fillers,
         }
     };
 
@@ -928,7 +940,8 @@ pub fn study(input: &Input) -> Study {
     // What was not passed and is not planned again.
     let mut retakes: Vec<Retake> = Vec::new();
     for semester in semesters.iter().rev() {
-        for item in semester.items.iter().filter(|item| item.failed) {
+        // A row that modules fill is none of its own: its modules are the Wiederholer.
+        for item in semester.items.iter().filter(|item| item.failed && item.fillers.is_empty()) {
             let again = match &item.subject {
                 Subject::Module { id } => doc.passed_in(id).is_some() || doc.planned_in(id).into_iter().any(|s| s >= now),
                 Subject::Row { program_id, ord, .. } => {
@@ -1191,6 +1204,25 @@ pub fn set_passed(doc: &mut PlanDoc, s: SemesterKey, item: &Item, passed: bool) 
             }
         }
         Subject::Row { program_id, caption, ord, name, .. } => {
+            // A placeholder that modules fill is passed by them (`study`): its mark is theirs.
+            // Until Folia 1.70.1 it went to the placeholder alone (a `q` line), beside its modules'
+            // marks.
+            if !item.fillers.is_empty() {
+                if passed {
+                    // Every one of them, not only up to the first that changes.
+                    let mut changed = false;
+                    for id in &item.fillers {
+                        changed |= doc.pass(s, id);
+                    }
+                    return changed;
+                }
+                let here: Vec<String> = item.fillers.iter().filter(|id| doc.passed_in(id) == Some(s)).cloned().collect();
+                for id in &here {
+                    doc.unpass(id);
+                }
+                doc.reopen_row(program_id, *ord);
+                return true;
+            }
             if passed {
                 doc.finish_row(DoneRow { semester: s, program_id: program_id.clone(), ord: *ord, caption: caption.clone(), name: name.clone() })
             } else {
@@ -1959,6 +1991,52 @@ mod tests {
         let done = study(&input(&w, &doc, "2025W", "2025W"));
         assert!(done.semester(key("2026W")).unwrap().items[2].passed);
         assert_eq!(done.progress[3].passed, 4.0);
+    }
+
+    /// A placeholder that a module fills is done where that module is passed: in a semester that is
+    /// over it is no „nicht bestanden" then, and no Wiederholer (owner, 2026-11-04: „fix das mal mit
+    /// den Placeholdern"). Where the module was not passed, the module is the Wiederholer, the row it
+    /// fills is no second one.
+    #[test]
+    fn a_placeholder_is_done_where_the_modules_that_fill_it_are_passed() {
+        let w = world();
+        let mut doc = PlanDoc::default();
+        let before = doc.clone();
+        let picks = [Pick::Row { caption: String::new(), ord: 6 }];
+        assert_eq!(add(&mut doc, &input(&w, &before, "2025W", "2025W"), key("2025W"), &picks, 1), 1);
+        let pid = doc.placeholders[0].pid;
+        assert!(doc.plan(key("2025W"), "12330", 2, Some(pid)));
+        let row = |study: &Study| study.semester(key("2025W")).and_then(|semester| semester.items.iter().find(|item| matches!(item.subject, Subject::Row { .. })).cloned());
+        // Not passed: the module is the Wiederholer, alone.
+        let failed = study(&input(&w, &doc, "2025W", "2026W"));
+        let placeholder = row(&failed).unwrap();
+        assert!(placeholder.failed && !placeholder.passed);
+        assert_eq!(failed.retakes.iter().map(|retake| retake.item.key()).collect::<Vec<_>>(), ["m:12330"]);
+        // Passed: the place is done there, nothing comes back.
+        assert!(doc.pass(key("2025W"), "12330"));
+        let input_now = input(&w, &doc, "2025W", "2026W");
+        let passed = study(&input_now);
+        let placeholder = row(&passed).unwrap();
+        assert!(placeholder.passed && !placeholder.failed, "{placeholder:?}");
+        assert!(passed.retakes.is_empty(), "{:?}", passed.retakes);
+        assert!(open_lines(&input_now, &passed).iter().all(|line| line.failed_in.is_none()));
+        // The row's credits count once, by its module.
+        assert_eq!(passed.semester(key("2025W")).unwrap().passed, 6.0);
+        // Its mark is its module's: „Nicht mehr bestanden" at the place takes the module's away,
+        // „Als bestanden markieren" gives it back.
+        let mut marked = doc.clone();
+        assert!(set_passed(&mut marked, key("2025W"), &placeholder, false));
+        assert_eq!(marked.passed_in("12330"), None);
+        let open = row(&study(&input(&w, &marked, "2025W", "2026W"))).unwrap();
+        assert!(open.failed && !open.passed);
+        assert!(set_passed(&mut marked, key("2025W"), &open, true));
+        assert_eq!(marked.passed_in("12330"), Some(key("2025W")));
+        assert!(row(&study(&input(&w, &marked, "2025W", "2026W"))).unwrap().passed);
+        // Not passed and the module taken again: the place comes again with it.
+        let mut again = doc.clone();
+        again.unpass("12330");
+        assert!(again.plan(key("2026S"), "12330", 3, None));
+        assert_eq!(row(&study(&input(&w, &again, "2025W", "2026W"))).unwrap().again, Some(key("2026S")));
     }
 
     /// „+ In WiSe 26/27" of a choice of the Wahlpflicht: the module fills a place of the choice

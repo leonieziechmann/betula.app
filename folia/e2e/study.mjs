@@ -605,6 +605,25 @@ if (current !== "2026W") {
   check(!!pid, `the place was not stored: ${JSON.stringify(await lines(page, "p\t"))}`);
   const open6 = await counts();
   check(open6.semester === "6 LP" && open6.nebenfach === "6/18", `the place alone: ${JSON.stringify(open6)}`);
+  // In the Gesamtplan the place is a piece of its own, dashed, as tall as the others (until Folia
+  // 1.70.1 it took the catalog's list row's class, and with it its grid and height); its lane names
+  // it and says what it is.
+  await step("the place in the Gesamtplan", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => [...document.querySelectorAll(".st-rm-seg .st-rm-p.is-ph")].some((piece) => piece.textContent.trim() === "Anwendungsfach"));
+  const inPlan = await page.evaluate(() => {
+    const piece = [...document.querySelectorAll(".st-rm-seg .st-rm-p.is-ph")].find((piece) => piece.textContent.trim() === "Anwendungsfach");
+    const box = piece?.getBoundingClientRect();
+    const cell = piece?.closest(".st-rm-cell").getBoundingClientRect();
+    return box && { height: Math.round(box.height), inside: box.top >= cell.top && box.bottom <= cell.bottom };
+  });
+  check(inPlan?.height === 28 && inPlan.inside, `the place in the Gesamtplan: ${JSON.stringify(inPlan)}`);
+  await step("▸ Nebenfach, its place", () => page.click('.st-row-head:has(.st-card-name:text-is("Nebenfach")) .st-rm-tog'), () => {
+    const lane = [...document.querySelectorAll(".st-rm-lane")].find((lane) => lane.querySelector(".st-rm-lane-name")?.textContent === "Anwendungsfach");
+    let bar = null;
+    for (let cell = lane?.nextElementSibling; !bar && cell?.classList.contains("st-rm-lc"); cell = cell.nextElementSibling) bar = cell.querySelector(".st-rm-bar.is-ph");
+    return bar?.textContent.trim() === "Platzhalter";
+  });
+  await step("Alle zuklappen, for the place", () => page.click('.st-sems-head button:has-text("Alle zuklappen")'), () => !document.querySelector(".st-rm-lane"));
+  await step("back to the semester", () => page.click('#sidebar .st-vl:has-text("Semester")'), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
   // „Modul wählen", in its menu and at the row, opens the workbench at the place's subgroup
   // (folia/design/hinzufuegen/konzepte.html, third round: „„Modul wählen“ an einem Platzhalter
   // öffnet die Werkbank in seiner Untergruppe"), whose „Im Katalog suchen" names the place (`fill=`).
