@@ -5884,8 +5884,8 @@ div.st-col-head.past { cursor: default; }
 .st-rm-p.running { background: color-mix(in oklab, var(--c) 36%, var(--panel)); }
 .st-rm-p.planned { background: color-mix(in oklab, var(--c) 14%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--c) 42%, var(--panel)); }
 .st-rm-p.failed { background: var(--no-soft); color: var(--no); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--no) 60%, var(--panel)); }
-.st-rm-p.row { background: color-mix(in oklab, var(--c) 14%, var(--panel)); outline: 1.5px dashed color-mix(in oklab, var(--c) 70%, var(--panel)); outline-offset: -1.5px; }
-.st-rm-p.row.now { background: color-mix(in oklab, var(--c) 36%, var(--panel)); }
+.st-rm-p.is-ph { background: color-mix(in oklab, var(--c) 14%, var(--panel)); outline: 1.5px dashed color-mix(in oklab, var(--c) 70%, var(--panel)); outline-offset: -1.5px; }
+.st-rm-p.is-ph.now { background: color-mix(in oklab, var(--c) 36%, var(--panel)); }
 .st-rm-p.open { background: var(--panel); color: var(--text-2); outline: 1.5px dashed color-mix(in oklab, var(--c) 62%, var(--panel)); outline-offset: -1.5px; font-weight: 600; }
 .st-rm-cell.past .st-rm-p.open { background: var(--panel-2); }
 .st-rm-cell.is-now .st-rm-p.open, .st-rm-lc.is-now .st-rm-p.open { background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
@@ -5898,6 +5898,8 @@ div.st-col-head.past { cursor: default; }
 .st-rm-p:hover, .st-rm-p:focus-visible { z-index: 2; box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px color-mix(in oklab, var(--c) 75%, var(--text)); }
 .st-rm-p.open:hover, .st-rm-p.open:focus-visible { background: color-mix(in oklab, var(--c) 8%, var(--panel)); color: var(--text); outline-color: color-mix(in oklab, var(--c) 90%, var(--text)); }
 .st-rm-p.sum-open { flex: none; }
+.st-rm-p.sum { min-width: 0; overflow: hidden; }
+.st-rm-p.sum .lb { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .st-rm-cell.past > .st-rm-p.stub { width: 100%; height: 28px; }
 .st-rm-badge { display: inline-grid; place-items: center; min-width: 15px; height: 15px; margin-left: 4px; padding: 0 4px; border-radius: 8px; background: var(--no); color: var(--panel); font-size: 9.5px; font-weight: 750; letter-spacing: 0; }
 @container (max-width: 180px) { .st-rm-sum .st-rm-lp { display: none; } }
