@@ -888,12 +888,13 @@ if (current !== "2026W") {
   // „Module hinzufügen" puts the plan's third semester in; the note of the change stands over the
   // dots, and its „Rückgängig" takes it back.
   // The workbench on a phone (bench.rs `BenchSheet`; folia/design/hinzufuegen/handy.html, variant
-  // B): a sheet out of „Module hinzufügen", half up under the semester, over the tab bar, the page
-  // kept behind a veil that takes the touches (owner, 2026-11-04: „Das kann einfach gesperrt sein,
-  // so lange der [offen] ist"); its head names the semester and what it holds, with „Fertig".
-  // „Plan übernehmen" puts the Pflicht into the semester over it and leaves the sheet; „Rückgängig"
-  // takes it back; a choice unfolds its list under it, the sheet all up; a module of the list opens
-  // as its sheet over it; „Fertig" lets it go, the page as it was.
+  // B and its fifth round): a sheet out of „Module hinzufügen", half up under the semester, over
+  // the tab bar, the page kept behind a veil that takes the touches (owner, 2026-11-04: „Das kann
+  // einfach gesperrt sein, so lange der [offen] ist"); its head names the semester, the figure of
+  // what it holds over the bar of it, and no button („der btw nur für verwirrung sorgt"). „Plan
+  // übernehmen" puts the Pflicht into the semester over it and leaves the sheet, a part of the bar
+  // more; „Rückgängig" takes it back; a choice goes into its list, the sheet all up; a module of
+  // the list opens as its sheet over it; Esc at the root lets it go, the page as it was.
   await step("Module hinzufügen on a phone", () => page.tap(`${HERE} .st-empty-add`), () => document.querySelector(".st-wb-sheet[data-sheet] #st-wb-takeover") && !document.querySelector(".st-wb"));
   await page.waitForTimeout(800);
   const benchSheet = await page.evaluate((HERE) => {
@@ -908,17 +909,39 @@ if (current !== "2026W") {
       veiled: Boolean(onCard?.matches(".page-sheet-shade")),
       card: card ? Math.round((card.top / innerHeight) * 100) : -1,
       title: document.querySelector(".st-wb-sheet-h h2")?.textContent,
-      sub: document.querySelector(".st-wb-sheet-h p")?.textContent,
-      done: document.querySelector(".st-wb-sheet-h .btn")?.textContent,
+      figure: document.querySelector(".st-wb-sheet-h .st-wb-hfig")?.textContent,
+      bar: document.querySelector(".st-wb-sheet-h .st-wb-hbar")?.getAttribute("aria-label"),
+      pieces: document.querySelectorAll(".st-wb-hbar > :is(.planned, .passed, .place)").length,
+      button: Boolean(document.querySelector(".st-wb-sheet-h button, .st-wb-sheet-h .btn")),
     };
   }, HERE);
   check(benchSheet.top >= 40 && benchSheet.top <= 60 && benchSheet.covers && benchSheet.veiled && benchSheet.card >= 0 && benchSheet.card < 40
-    && benchSheet.title === "Hinzufügen zu WiSe 2026/27" && benchSheet.sub === "0 von 30 LP · 0 Module" && benchSheet.done === "Fertig", `the workbench's sheet on a phone: ${JSON.stringify(benchSheet)}`);
+    && benchSheet.title === "Hinzufügen zu WiSe 2026/27" && benchSheet.figure === "0 von 30 LP" && benchSheet.bar === "0 von 30 LP" && benchSheet.pieces === 0 && !benchSheet.button, `the workbench's sheet on a phone: ${JSON.stringify(benchSheet)}`);
+  // A module of the sheet (the fifth round: „wir müssen an dem konzept arbeiten, wie module
+  // dargestellt werden … unbalanciert"): its name and one line under it, its credits as the button
+  // in the middle of the row's right end; a choice dashed, with its bar.
+  const balanced = await page.evaluate(() => {
+    const row = document.querySelector(".st-wb-sheet .st-wb-row:not(.choice):not(.place)");
+    const plus = row?.querySelector(":scope > .st-wb-plus");
+    const box = row?.getBoundingClientRect();
+    const button = plus?.getBoundingClientRect();
+    const choice = document.querySelector(".st-wb-sheet .st-wb-row.choice");
+    return {
+      words: plus?.textContent.trim(),
+      middle: box && button ? Math.abs((box.top + box.bottom) / 2 - (button.top + button.bottom) / 2) : -1,
+      right: box && button ? Math.round(box.right - button.right) : -1,
+      lines: row ? row.querySelectorAll(".st-wb-go > small").length : -1,
+      dashed: choice ? getComputedStyle(choice).outlineStyle : "",
+      bar: Boolean(choice?.querySelector(".st-wb-fill")),
+      figure: choice?.querySelector(".st-wb-fig")?.textContent,
+    };
+  });
+  check(/^8\s*LP$/.test(balanced.words ?? "") && balanced.middle >= 0 && balanced.middle <= 2 && balanced.right <= 1 && balanced.lines === 1 && balanced.dashed === "dashed" && balanced.bar && /^\d+ \/ 12 LP$/.test(balanced.figure ?? ""), `a module and a choice in the sheet: ${JSON.stringify(balanced)}`);
   // What „Plan übernehmen" takes: the Pflicht of the 3. FS that stands nowhere yet (Softwarepraktikum
   // and Mathematik IT-3 are planned into SoSe 2027 here, and stay there).
   const taking = Number((await page.textContent("#st-wb-takeover")).match(/\d+/)?.[0] || 0);
   check(taking === 1, `„Plan übernehmen“ takes ${taking} modules, not Theoretische Informatik alone`);
-  await step("Plan übernehmen on a phone", () => page.tap("#st-wb-takeover"), ([HERE, n]) => document.querySelectorAll(`${HERE} .st-row`).length === n && document.querySelector(".study-note") && document.querySelector(".st-wb-sheet-h p")?.textContent === "8 von 30 LP · 1 Modul" && !document.querySelector("#st-wb-takeover") && document.querySelector(".st-wb-sheet .st-wb-act .st-wb-fit.ok"), [HERE, taking]);
+  await step("Plan übernehmen on a phone", () => page.tap("#st-wb-takeover"), ([HERE, n]) => document.querySelectorAll(`${HERE} .st-row`).length === n && document.querySelector(".study-note") && document.querySelector(".st-wb-hfig")?.textContent === "8 von 30 LP" && document.querySelectorAll(".st-wb-hbar > .planned").length === 1 && !document.querySelector("#st-wb-takeover") && document.querySelector(".st-wb-sheet .st-wb-act .st-wb-fit.ok"), [HERE, taking]);
   check(!(await page.evaluate(() => [...document.querySelectorAll(".st-wb-sheet .st-wb-row .st-wb-go b")].some((name) => name.textContent === "Theoretische Informatik"))), "what is planned still stands in the sheet");
   // The note of the change waits for interaction (owner, 2026-11-04: „stelle den auch mal auf diese
   // wait notification um"): at the screen's bottom over the sheet, no timer.
@@ -932,7 +955,7 @@ if (current !== "2026W") {
   check(noted.over && noted.bottom >= 0 && noted.bottom <= 24 && noted.text.includes("Rückgängig"), `the note of „Plan übernehmen“ over the sheet: ${JSON.stringify(noted)}`);
   await page.waitForTimeout(1500);
   check(await page.evaluate(() => Boolean(document.querySelector(".study-note:not(.leaving)"))), "the note of a change goes by itself");
-  await step("Rückgängig on a phone", () => page.tap(".study-note .plan-toast-undo"), (HERE) => document.querySelectorAll(`${HERE} .st-row`).length === 0 && document.querySelector(".st-wb-sheet-h p")?.textContent === "0 von 30 LP · 0 Module" && document.querySelector("#st-wb-takeover") && !document.querySelector(".study-note"), HERE);
+  await step("Rückgängig on a phone", () => page.tap(".study-note .plan-toast-undo"), (HERE) => document.querySelectorAll(`${HERE} .st-row`).length === 0 && document.querySelector(".st-wb-hfig")?.textContent === "0 von 30 LP" && !document.querySelector(".st-wb-hbar > .planned") && document.querySelector("#st-wb-takeover") && !document.querySelector(".study-note"), HERE);
   // A row with › goes into a page of the sheet (owner, 2026-11-04: „ein vertiefendes menu … mit >
   // in das quasi rein geht und das nicht ausklappt. Der modal soll offen bleiben. Oben einen Pfad
   // haben und auch einen back button"): the sheet stays, all up, its head as it was; over the page
@@ -944,8 +967,17 @@ if (current !== "2026W") {
     name: document.querySelector(".st-wb-pt > b")?.textContent,
     title: document.querySelector(".st-wb-sheet-h h2")?.textContent,
     way: document.querySelector(".st-wb-page")?.getAttribute("data-way"),
+    figure: document.querySelector(".st-wb-pt > .st-wb-fig")?.textContent,
+    bar: Boolean(document.querySelector(".st-wb-pth > .st-wb-fill")),
+    chips: [...document.querySelectorAll(".st-wb-page .st-wb-chips > .st-wb-chip")].map((chip) => (chip.querySelector(":scope > span") ?? chip).textContent.trim()).join("|"),
+    fach: document.querySelectorAll("#st-wb-fach > option").length,
   }));
-  check(into.crumbs === "Übersicht" && into.name === "Anwendungsfach" && into.title === "Hinzufügen zu WiSe 2026/27" && into.way === "in", `a choice's page in the sheet: ${JSON.stringify(into)}`);
+  check(into.crumbs === "Übersicht" && into.name === "Anwendungsfach" && into.title === "Hinzufügen zu WiSe 2026/27" && into.way === "in" && /^\d+ \/ 12 LP$/.test(into.figure ?? "") && into.bar
+    && into.chips === "Alle 5 Fächer|Im WiSe angeboten|Passt in meine Woche" && into.fach === 6, `a choice's page in the sheet: ${JSON.stringify(into)}`);
+  // „Fach" is a chip over the phone's own list (a `<select>`): a Fach picked, its modules alone.
+  const all = await page.evaluate(() => document.querySelectorAll(".st-wb-page .st-wb-row").length);
+  await step("a Fach picked", () => page.selectOption("#st-wb-fach", { index: 1 }), (all) => document.querySelector(".st-wb-chip.pick.on") && document.querySelectorAll(".st-wb-page .st-wb-row").length < all && document.querySelectorAll(".st-wb-page .st-wb-row").length > 0, all);
+  await step("all Fächer again", () => page.selectOption("#st-wb-fach", "all"), (all) => !document.querySelector(".st-wb-chip.pick.on") && document.querySelectorAll(".st-wb-page .st-wb-row").length === all, all);
   await step("a module of the list", () => page.tap(".st-wb-sheet .st-wb-page .st-wb-row a.st-wb-go >> nth=0"), () => document.querySelector(".detail.is-module h2") && document.querySelector(".st-wb-sheet"));
   const over = await page.evaluate(() => Number(getComputedStyle(document.querySelector(".detail.is-module")).zIndex) > Number(getComputedStyle(document.querySelector(".st-wb-sheet")).zIndex));
   check(over, "the module's sheet is not over the workbench's");
@@ -953,14 +985,22 @@ if (current !== "2026W") {
   // „Vormerken" at the foot of the list puts the placeholder into the semester behind the sheet.
   await step("Vormerken on a phone", () => page.tap('.st-wb-sheet .st-wb-foot button:has-text("Vormerken")'), (HERE) => document.querySelector(".study-note")?.textContent.includes("Anwendungsfach in WiSe 2026/27 vorgemerkt") && document.querySelector(`${HERE} .st-row.is-place`), HERE);
   await step("Esc a step back", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-wb-sheet .st-wb-path") && document.querySelector(".st-wb-sheet #st-wb-takeover") && document.querySelector(".st-wb-page")?.getAttribute("data-way") === "back");
-  // An area with subgroups goes into them, a subgroup into its list; the path has each step, and a
-  // step of it is a way back.
-  await step("an area goes into its subgroups", () => page.tap('.st-wb-sheet .st-wb-a:has-text("Nebenfach")'), () => document.querySelector(".st-wb-pt > b")?.textContent === "Nebenfach" && document.querySelectorAll(".st-wb-sheet .st-wb-page .st-wb-a").length >= 2);
-  await step("a subgroup into its list", () => page.tap(".st-wb-sheet .st-wb-page .st-wb-a >> nth=0"), () => document.querySelectorAll(".st-wb-crumbs > li").length === 2 && document.querySelector(".st-wb-crumbs > li:nth-child(2)")?.textContent === "Nebenfach");
+  // „Alle Bereiche" is a page of the tree, unfolded (owner, 2026-11-04: „die container, dass die da
+  // als ausgeklappter baum sind"): each area with its subgroups, the Fachstudium's „Wahlpflicht" of
+  // the three Komplexe not among them („keinen kombinierten bereich aus mehreren wp dingen"); a
+  // subgroup goes into its list at once; the path has each step, and a step of it is a way back.
+  await step("Alle Bereiche goes into the tree", () => page.tap("#st-wb-areas"), () => document.querySelector(".st-wb-pt > b")?.textContent === "Alle Bereiche" && document.querySelectorAll(".st-wb-page .st-wb-ta").length === 6);
+  const tree = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll(".st-wb-page .st-wb-ta")].map((area) => [
+    area.querySelector(".st-wb-th .st-wb-tn > span:not(.st-dot)")?.textContent,
+    [...area.querySelectorAll(".st-wb-ts .st-wb-tn > span")].map((sub) => sub.textContent),
+  ])));
+  check(JSON.stringify(tree.Nebenfach) === JSON.stringify(["Anwendungsfach", "Praktische Mathematik"]) && tree.Fachstudium?.length === 4 && !tree.Fachstudium.some((name) => name.startsWith("Wahlpflicht")) && tree.Mathematik?.length === 0,
+    `the tree of „Alle Bereiche“: ${JSON.stringify(tree)}`);
+  await step("a subgroup into its list", () => page.tap('.st-wb-page .st-wb-ta .st-wb-ts:has-text("Praktische Mathematik")'), () => document.querySelectorAll(".st-wb-crumbs > li").length === 2 && document.querySelector(".st-wb-crumbs > li:nth-child(2)")?.textContent === "Alle Bereiche" && document.querySelector(".st-wb-pt > b")?.textContent.endsWith("Praktische Mathematik"));
   await step("„Übersicht“ of the path", () => page.tap(".st-wb-crumbs > li:first-child button"), () => !document.querySelector(".st-wb-sheet .st-wb-path") && document.querySelector(".st-wb-sheet #st-wb-takeover"));
   await step("Gemerkt goes into its page", () => page.tap("#st-wb-marked"), () => document.querySelector(".st-wb-pt > b")?.textContent === "Gemerkt");
   await step("‹ a step back", () => page.tap(".st-wb-back"), () => !document.querySelector(".st-wb-sheet .st-wb-path") && document.querySelector("#st-wb-marked"));
-  await step("Fertig with the placeholder", () => page.tap(".st-wb-sheet-h .btn"), (HERE) => !document.querySelector(".st-wb-sheet") && document.querySelector(`${HERE} .st-row.is-place`), HERE);
+  await step("Esc at the root ends it, the placeholder in", () => page.keyboard.press("Escape"), (HERE) => !document.querySelector(".st-wb-sheet") && document.querySelector(`${HERE} .st-row.is-place`), HERE);
   // A placeholder stands apart from a module (owner, 2026-11-04: „Das design von platzhaltern muss
   // sich von dem der Module abheben"): its edge dashed, no card's shadow, „Modul wählen ›" under its
   // line; a tap on its box opens the sheet at its choice's list, all up.
@@ -976,7 +1016,7 @@ if (current !== "2026W") {
     if (box) await page.touchscreen.tap(box.x + box.width * 0.4, box.y + 14);
   }, () => document.querySelector(".st-wb-sheet[data-sheet-start='full'] .st-wb-path") && document.querySelector(".st-wb-pt > b")?.textContent === "Anwendungsfach" && document.querySelector(".st-wb-sheet .st-wb-page .st-wb-ctl"));
   await page.waitForFunction(() => document.querySelector(".st-wb-sheet")?.classList.contains("is-full") && document.querySelector(".st-wb-sheet").getAnimations().length === 0, null, { timeout: 4000 }).catch(() => problems.push("the sheet does not come all up at a placeholder's choice"));
-  await step("Back to the root, then Fertig", async () => { await page.keyboard.press("Escape"); await page.waitForTimeout(300); await page.tap(".st-wb-sheet-h .btn", { timeout: 4000 }).catch(() => {}); }, () => !document.querySelector(".st-wb-sheet"));
+  await step("Back to the root, then out", async () => { await page.keyboard.press("Escape"); await page.waitForTimeout(300); await page.keyboard.press("Escape"); }, () => !document.querySelector(".st-wb-sheet"));
   await step("the placeholder's menu", () => page.tap(`${HERE} .st-row.is-place .st-status`, { timeout: 4000 }).catch(() => {}), () => document.querySelector("#st-menu-remove"));
   await step("the placeholder taken out", () => page.tap("#st-menu-remove", { timeout: 4000 }).catch(() => {}), (HERE) => !document.querySelector(`${HERE} .st-row`), HERE);
   // ‹ scrolls the row to the semester before, smoothly, as a finger would: past the overview, which
@@ -1424,7 +1464,8 @@ if (current !== "2026W") {
   await step("Abbrechen", () => page.tap(".bench-dock-go"), () => location.pathname === "/study" && document.querySelector(".st-wb-sheet #st-wb-takeover") && !document.querySelector(".bench-dock"));
   await page.waitForTimeout(400);
   check((await page.evaluate((HERE) => document.querySelector(`${HERE} .st-sem-name`)?.textContent ?? "", HERE)).startsWith("WiSe 2026/27"), "„Abbrechen“ does not lead back to the semester the workbench plans");
-  await step("Fertig after the catalog", () => page.tap(".st-wb-sheet-h .btn"), () => !document.querySelector(".st-wb-sheet") && !document.querySelector(".bench-dock"));
+  // The sheet has no button to end it: a tap above it does, as a throw and Back.
+  await step("a tap above the sheet after the catalog", () => page.touchscreen.tap(195, 120), () => !document.querySelector(".st-wb-sheet") && !document.querySelector(".bench-dock"));
   await context.close();
 }
 

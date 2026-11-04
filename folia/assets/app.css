@@ -6774,36 +6774,130 @@ span.st-wb-go { cursor: default; }
      mal so, dass die die navbar überdeckt"). */
   .st-selbar { position: fixed; z-index: 35; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); height: 62px; min-height: 0; padding: 5px; gap: 2px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--accent-line); animation: st-bar-up .2s var(--ease); }
   /* The workbench on a phone (bench.rs, `BenchSheet`; folia/design/hinzufuegen/handy.html,
-     variant B; owner, 2026-11-04: „weil da leichter zu erkennen ist, was jetzt geplant und was
-     vorgeschlagen ist"): a page's own sheet, half up under the semester, which stays to be read
-     through a light veil (`.page-sheet-shade`) and does not move while the sheet is open; under a
-     module's sheet (z-index 45), over the tab bar. Its head names what it plans into and what that
-     holds, „Fertig" at its end; in it „Laut Plan", all the areas and „Gemerkt", rows with › that go
-     into a page of the sheet (the same day: „ein vertiefendes menu … Oben einen Pfad haben und auch
-     einen back button"). Over a page ‹ and the way to it, which do not scroll with it, its name
-     under them; the page comes in from the right going in, from the left coming back. */
+     variant B, and its fifth round; owner, 2026-11-04: „Am besten, indem wir nochmal über visuelle
+     hirarchie nachdenken und das alles polishen"): a page's own sheet, half up under the semester,
+     which stays to be read through a light veil (`.page-sheet-shade`) and does not move while the
+     sheet is open; under a module's sheet (z-index 45), over the tab bar. Its head names what it
+     plans into, the figure over the right end of the bar of what the semester holds: each item a
+     part in its area's colour, a placeholder hatched, what the plan still puts into it grey; no
+     button (a throw, a tap above it and Back end it). Under it one level of headings and two kinds
+     of rows: a module, its name and one line under it, its credits as the button in the middle of
+     its right end („+ 8 LP"); a place to fill, a choice of the plan or a row without a module,
+     dashed as a placeholder is in the semester, with its bar. The ways to the pages last. Over a
+     page ‹ and the way to it, which do not scroll with it, its name and a subgroup's bar under
+     them; the page comes in from the right going in, from the left coming back. */
   .page-sheet-shade { position: fixed; inset: 0; z-index: 39; background: rgba(10, 12, 17, .16); opacity: var(--sheet-shade, 1); animation: fade-in .24s; touch-action: none; }
   .sheet-ghost-scrim:has(+ .page-sheet) { background: rgba(10, 12, 17, .16); }
   .st-wb-sheet[data-sheet] { z-index: 40; height: calc(100dvh - var(--sheet-top)); }
   .st-wb-sheet:focus { outline: none; }
-  .st-wb-sheet-h { flex: none; display: flex; align-items: center; gap: 10px; padding: 20px 12px 10px 16px; border-bottom: 1px solid var(--line); }
-  .st-wb-sheet-h > div { flex: 1 1 auto; min-width: 0; }
-  .st-wb-sheet-h h2 { margin: 0; font-size: 17px; font-weight: 750; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .st-wb-sheet-h p { margin: 2px 0 0; color: var(--text-2); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .st-wb-sheet-h .btn { flex: none; height: 42px; padding: 0 18px; border-radius: 12px; }
-  .st-wb-sbody { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 12px calc(28px + env(safe-area-inset-bottom)); }
-  .st-wb-ss { padding: 6px 0 10px; border-top: 1px solid var(--line); }
-  .st-wb-ss:first-child { border-top: 0; }
-  .st-wb-sk { display: flex; align-items: baseline; gap: 8px; margin: 0; padding: 12px 4px 2px; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
-  .st-wb-sk small { margin-left: auto; font-size: 12.5px; font-weight: 650; letter-spacing: 0; text-transform: none; color: var(--text-2); font-variant-numeric: tabular-nums; }
-  .st-wb-sk small.ok { color: var(--ok); }
-  .st-wb-sheet .st-wb-act { padding-top: 8px; }
-  .st-wb-sheet .st-wb-list { margin-top: 0; }
-  .st-wb-row.choice > span.st-wb-plus { pointer-events: none; }
-  .st-wb-areas.sheet { display: flex; flex-direction: column; gap: 1px; padding: 4px 0 0; }
-  .st-wb-areas.sheet .st-wb-a { min-height: 48px; font-size: 15px; }
-  .st-wb-areas.sheet .st-wb-a:active, .st-wb-row.choice:active { background: var(--row-hover); }
-  .st-wb-path { flex: none; display: flex; align-items: flex-start; gap: 2px; padding: 6px 14px 10px 4px; border-bottom: 1px solid var(--line); }
+  .st-wb-sheet-h { flex: none; padding: 22px 16px 14px; border-bottom: 1px solid var(--line); }
+  .st-wb-hrow { display: flex; align-items: baseline; gap: 12px; }
+  .st-wb-hrow h2 { flex: 1 1 auto; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 750; letter-spacing: -.01em; }
+  .st-wb-hfig { flex: none; color: var(--text-2); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .st-wb-hfig b { color: var(--text); font-size: 15px; font-weight: 750; }
+  .st-wb-hfig.heavy, .st-wb-hfig.heavy b { color: var(--warn); }
+  .st-wb-hbar { position: relative; display: flex; gap: 2px; height: 10px; margin-top: 10px; overflow: hidden; border-radius: 5px; }
+  .st-wb-hbar > span { flex-basis: 0; min-width: 2px; transition: flex-grow .3s var(--ease); }
+  .st-wb-hbar > :is(.planned, .passed) { background: var(--c); animation: st-wb-piece .4s var(--ease); }
+  .st-wb-hbar > .place { background: repeating-linear-gradient(135deg, var(--c) 0 2px, color-mix(in oklab, var(--c) 22%, var(--panel)) 2px 6px); animation: st-wb-piece .4s var(--ease); }
+  .st-wb-hbar > .rest { min-width: 0; background: var(--panel-3); }
+  .st-wb-need { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--text); }
+  @keyframes st-wb-piece { from { flex-grow: 0; } }
+  .st-wb-sbody { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 16px calc(28px + env(safe-area-inset-bottom)); }
+  .st-wb-ss { padding: 0 0 6px; }
+  .st-wb-sk { margin: 0; padding: 18px 0 8px; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+  .st-wb-sheet .st-wb-act { padding: 2px 0 6px; }
+  .st-wb-sheet .st-wb-act .btn { flex: 1 1 auto; justify-content: center; height: 46px; border-radius: 12px; font-size: 15px; }
+  .st-wb-sheet .st-wb-act small { display: none; }
+  .st-wb-sheet .st-wb-act .st-wb-fit { font-size: 13.5px; }
+  .st-wb-sheet .st-wb-list { margin: 0; }
+  .st-wb-sheet .st-wb-g { padding: 18px 0 6px; font-size: 12px; color: var(--text-3); }
+  .st-wb-sheet .st-wb-g small { font-size: 12px; }
+  .st-wb-sheet .st-wb-rule { color: var(--text-2); font-size: 13.5px; }
+  .st-wb-page > .st-wb-rule:first-child { padding: 14px 0 0; }
+  /* A module: what it is on the left, its button in the middle of the right end. */
+  .st-wb-sheet .st-wb-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px; min-height: 60px; padding: 10px 0; border-top: 1px solid var(--line); border-radius: 4px; }
+  .st-wb-sheet .st-wb-list > .st-wb-row:first-child, .st-wb-sheet .st-wb-g + .st-wb-row, .st-wb-sheet :is(.choice, .place) + .st-wb-row { border-top-color: transparent; }
+  .st-wb-sheet .st-wb-row:hover { background: none; }
+  .st-wb-sheet .st-wb-row:has(> .st-wb-go:active), .st-wb-sheet .st-wb-row.is-open { background: var(--row-hover); box-shadow: 0 0 0 6px var(--row-hover); }
+  .st-wb-sheet .st-wb-go { -webkit-tap-highlight-color: transparent; }
+  .st-wb-sheet .st-wb-go b { display: block; font-size: 15px; font-weight: 600; line-height: 1.3; }
+  .st-wb-sheet .st-wb-go small { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin-top: 3px; color: var(--text-3); font-size: 12.5px; }
+  .st-wb-sheet .st-wb-go small > span { display: inline-flex; align-items: center; gap: 5px; }
+  .st-wb-sheet .st-wb-fit { max-width: 100%; font-size: 12.5px; }
+  .st-wb-sheet .st-wb-row.is-done .st-wb-go b { color: var(--text-2); }
+  .st-wb-sheet .st-wb-plus { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 74px; height: 36px; padding: 0 12px 0 9px; border-radius: 18px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--accent-ink); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; transition: transform .12s, background .15s, color .15s; }
+  .st-wb-sheet .st-wb-plus > .icon { width: 16px; height: 16px; stroke-width: 2.4; }
+  .st-wb-sheet .st-wb-plus > b { font-weight: 750; }
+  .st-wb-sheet .st-wb-plus > small { margin-left: 2px; font-size: 12px; font-weight: 600; }
+  .st-wb-sheet .st-wb-plus:active { transform: scale(.95); }
+  .st-wb-sheet .st-wb-plus.done { background: var(--ok-soft); box-shadow: none; color: var(--ok); }
+  .st-wb-sheet .st-wb-plus.quiet { min-width: 0; padding: 0; background: none; box-shadow: none; color: var(--text-3); font-size: 13px; font-weight: 600; }
+  .st-wb-sheet .st-wb-plus.reserve { min-width: 0; padding: 0 13px 0 11px; gap: 6px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 13.5px; font-weight: 650; }
+  .st-wb-sheet .st-wb-plus.reserve > .icon { width: 15px; height: 15px; stroke-width: 2; }
+  /* A place to fill: dashed, its bar. */
+  .st-wb-sheet .st-wb-row:is(.choice, .place) { gap: 10px; margin: 8px 0; padding: 12px 10px 12px 14px; border-top: 0; border-radius: 12px; outline: 1.5px dashed var(--line-strong); outline-offset: -1.5px; }
+  .st-wb-sheet .st-wb-row:is(.choice, .place):has(> .st-wb-go:active) { background: var(--row-hover); box-shadow: none; }
+  .st-wb-sheet .st-wb-row.choice > .chev { width: 18px; height: 18px; color: var(--text-3); }
+  .st-wb-ct { display: flex; align-items: baseline; gap: 10px; }
+  .st-wb-sheet .st-wb-ct > b { flex: 1 1 auto; min-width: 0; font-weight: 650; }
+  .st-wb-sheet .st-wb-row.choice .st-wb-fill { margin-top: 8px; }
+  .st-wb-sheet .st-wb-row.choice small { margin-top: 7px; }
+  .st-wb-sheet .st-area { display: inline-flex; align-items: center; gap: 5px; }
+  .st-wb-sheet .st-area .st-dot { width: 7px; height: 7px; }
+  .st-wb-sheet .st-wb-tag { color: var(--accent-ink); font-weight: 600; }
+  .st-wb-sheet .st-wb-fig, .st-wb-sheet .st-wb-go small.st-wb-fig { display: inline; flex: none; margin: 0; color: var(--text-2); font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .st-wb-sheet .st-wb-fig > b { display: inline; color: var(--text); font-size: inherit; font-weight: 750; line-height: inherit; }
+  .st-wb-fill { position: relative; display: flex; height: 6px; overflow: hidden; border-radius: 3px; background: var(--panel-3); }
+  .st-wb-fill > i { flex: none; height: 100%; transition: width .3s var(--ease); }
+  .st-wb-fill > .passed { background: var(--c); }
+  .st-wb-fill > .planned { background: color-mix(in oklab, var(--c) 45%, var(--panel)); }
+  .st-wb-fill > .need { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: color-mix(in oklab, var(--text) 45%, transparent); }
+  /* The ways at the root's end and a list's: one row each, its icon, its name, a count, ›. */
+  .st-wb-ways { display: flex; flex-direction: column; margin-top: 14px; border-top: 1px solid var(--line); }
+  .st-wb-sheet .st-wb-ways .st-wb-a { grid-template-columns: minmax(0, 1fr) auto 18px; gap: 12px; min-height: 54px; padding: 6px 0; border-bottom: 1px solid var(--line); border-radius: 4px; font-size: 15px; -webkit-tap-highlight-color: transparent; }
+  .st-wb-sheet .st-wb-ways .st-wb-a:last-child { border-bottom: 0; }
+  .st-wb-sheet .st-wb-ways .st-wb-a:hover { background: none; }
+  .st-wb-sheet .st-wb-ways .st-wb-a:active { background: var(--row-hover); box-shadow: 0 0 0 6px var(--row-hover); }
+  .st-wb-sheet .st-wb-ways .st-wb-a .nm { gap: 14px; }
+  .st-wb-sheet .st-wb-ways .st-wb-a .nm .icon { width: 19px; height: 19px; }
+  .st-wb-sheet .st-wb-ways .st-wb-a .nm small { display: block; margin-top: 1px; color: var(--text-3); font-size: 12.5px; font-weight: 500; white-space: normal; }
+  .st-wb-sheet .st-wb-ways .st-wb-a .chev { width: 18px; height: 18px; }
+  .st-wb-sheet .st-wb-foot.st-wb-ways { gap: 0; margin-top: 18px; padding-top: 0; color: var(--text); font-size: 15px; }
+  /* „Alle Bereiche": the tree, unfolded. */
+  .st-wb-areas-all { padding: 4px 0 0; }
+  .st-wb-ta { padding: 14px 0 8px; border-top: 1px solid var(--line); }
+  .st-wb-ta:first-child { border-top: 0; }
+  .st-wb-th { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; font: inherit; }
+  .st-wb-tn { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .st-wb-tn > span:not(.st-dot) { flex: 1 1 auto; min-width: 0; }
+  .st-wb-th .st-wb-tn > span:not(.st-dot) { font-size: 15.5px; font-weight: 700; }
+  .st-wb-tn .st-dot { width: 9px; height: 9px; }
+  button.st-wb-th.one { grid-template-columns: minmax(0, 1fr) 18px; column-gap: 10px; align-items: center; width: 100%; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--text); text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  button.st-wb-th.one > .st-wb-fill { margin: 8px 0 2px 18px; }
+  button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / span 2; width: 18px; height: 18px; color: var(--text-3); }
+  .st-wb-tree { margin: 6px 0 0 4px; padding: 0 0 0 14px; list-style: none; border-left: 2px solid color-mix(in oklab, var(--c) 30%, var(--panel)); }
+  .st-wb-ts { display: grid; grid-template-columns: minmax(0, 1fr) 18px; column-gap: 10px; align-items: center; width: 100%; min-height: 50px; padding: 9px 0; border: 0; border-top: 1px solid var(--line); border-radius: 4px; background: none; color: var(--text); font: inherit; font-size: 14.5px; font-weight: 560; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .st-wb-tree > li:first-child > .st-wb-ts { border-top-color: transparent; }
+  .st-wb-ts > .st-wb-fill { height: 4px; margin-top: 7px; }
+  :is(.st-wb-ts, button.st-wb-th.one):active { background: var(--row-hover); box-shadow: 0 0 0 6px var(--row-hover); }
+  /* A list's search and its chips. */
+  .st-wb-ctl.phone { display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 0 2px; }
+  .st-wb-ctl.phone .st-search-box { flex: none; height: 42px; border-radius: 12px; }
+  .st-wb-ctl.phone .st-search-box input { font-size: 16px; }
+  .st-wb-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .st-wb-chip { position: relative; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 34px; padding: 0 13px; border: 0; border-radius: 17px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: inherit; font-size: 13.5px; font-weight: 600; white-space: nowrap; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s, color .15s, box-shadow .15s, transform .12s; }
+  .st-wb-chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .st-wb-chip > .icon { flex: none; width: 15px; height: 15px; }
+  .st-wb-chip[aria-checked="false"] > .icon { display: none; }
+  .st-wb-chip:is([aria-checked="true"], .pick.on) { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent-line); color: var(--accent-ink); }
+  .st-wb-chip.pick { padding-right: 10px; }
+  .st-wb-chip.pick > .icon { color: var(--text-3); }
+  .st-wb-chip.pick.on > .icon { color: inherit; }
+  .st-wb-chip > select { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0; opacity: 0; font-size: 16px; cursor: pointer; appearance: none; }
+  .st-wb-chip:active { transform: scale(.97); }
+  /* The path over a page. */
+  .st-wb-path { flex: none; display: flex; align-items: flex-start; gap: 2px; padding: 8px 16px 12px 4px; border-bottom: 1px solid var(--line); }
   .st-wb-back { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 12px; background: none; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .st-wb-back:active { background: var(--row-hover); }
   .st-wb-back > .icon { width: 24px; height: 24px; }
@@ -6813,13 +6907,11 @@ span.st-wb-go { cursor: default; }
   .st-wb-crumbs > li:first-child { flex: none; }
   .st-wb-crumbs > li::after { content: "›"; flex: none; margin: 0 5px; }
   .st-wb-crumbs button { min-width: 0; padding: 2px 0; overflow: hidden; text-overflow: ellipsis; border: 0; background: none; color: var(--text-2); font: inherit; font-weight: 600; white-space: nowrap; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  .st-wb-pt { display: flex; align-items: center; gap: 8px; margin: 1px 0 0; min-width: 0; }
-  .st-wb-pt > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 750; letter-spacing: -.01em; }
-  .st-wb-pt > .st-dot { flex: none; width: 9px; height: 9px; }
-  .st-wb-pt > small { flex: none; margin-left: auto; color: var(--text-2); font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
-  .st-wb-pt > small.ok { color: var(--ok); }
-  .st-wb-page > .st-wb-rule:first-child { padding: 12px 4px 0; }
-  .st-wb-page > .st-wb-areas.sheet:first-child { padding-top: 8px; }
+  .st-wb-pt { display: flex; align-items: baseline; gap: 8px; margin: 1px 0 0; min-width: 0; }
+  .st-wb-pt > b { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 750; letter-spacing: -.01em; }
+  .st-wb-pt > .st-dot { flex: none; align-self: center; width: 9px; height: 9px; }
+  .st-wb-pt > .st-wb-fig { font-size: 13px; }
+  .st-wb-pth > .st-wb-fill { margin-top: 8px; }
   .st-wb-page[data-way="in"] { animation: st-wb-page-in .24s var(--ease); }
   .st-wb-page[data-way="back"] { animation: st-wb-page-back .24s var(--ease); }
   @keyframes st-wb-page-in { from { opacity: 0; transform: translateX(36px); } }
@@ -6828,17 +6920,6 @@ span.st-wb-go { cursor: default; }
      bottom over the sheet, as over a module's; the last rows scroll up above it. */
   :root:has(.st-wb-sheet[data-sheet]) .wait-note { z-index: 62; bottom: calc(10px + env(safe-area-inset-bottom)); }
   :root:has(.wait-note) .st-wb-sbody { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
-  .st-wb-row { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; padding: 10px 4px; }
-  .st-wb-row > .st-wb-fit { grid-column: 1; grid-row: 2; max-width: 100%; }
-  .st-wb-row > .st-wb-lp { grid-column: 2; grid-row: 1; align-self: start; padding-top: 2px; }
-  .st-wb-row > .st-wb-plus { grid-column: 2; grid-row: 2; min-width: 0; width: 40px; height: 34px; padding: 0; }
-  .st-wb-row > .st-wb-plus > span { display: none; }
-  .st-wb-row.choice > .st-wb-plus { width: auto; padding: 0 10px; }
-  .st-wb-row.choice > .st-wb-plus > span { display: inline; }
-  .st-wb-go small .st-wb-facts { flex-basis: 100%; }
-  .st-wb-act .btn { flex: 1 1 auto; justify-content: center; }
-  .st-wb-ctl { gap: 4px 14px; }
-  .st-wb-ctl .st-search-box { flex-basis: 100%; }
   .st-wb-foot .st-link { margin-left: 0; }
   .st-selbar-count { margin-left: 8px; font-size: 13px; }
   .st-act { flex-direction: column; justify-content: center; gap: 2px; height: 48px; padding: 0 6px; font-size: 11px; }
