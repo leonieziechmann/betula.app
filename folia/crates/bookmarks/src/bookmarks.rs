@@ -199,7 +199,7 @@ pub fn BookmarksPage() -> impl IntoView {
     let fitted = Memo::new(move |_| fits.get().map(|filter| fit_of(&filter, plan, mine, fit_source.as_ref(), t)).unwrap_or_default());
     let fit_view = Memo::new(move |_| fitted.with(|fitted| fitted.view.clone()));
     // „Einplanen" of a row aims at the semester the list is checked against.
-    let hint = Memo::new(move |_| fits.with(|fits| fits.as_ref().and_then(|fits| SemesterKey::parse(&fits.semester))).map(|semester| PlanHint { semester: Some(semester), fill: None }));
+    let hint = Memo::new(move |_| fits.with(|fits| fits.as_ref().and_then(|fits| SemesterKey::parse(&fits.semester))).map(|semester| PlanHint { semester: Some(semester), fill: None, counts: None }));
     provide_context(Finder { view: fit_view, hint });
 
     // Several at once (`pick`): the rows selected, and what „Einplanen" of them aims with — the

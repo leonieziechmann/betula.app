@@ -1,92 +1,99 @@
 //! „Wahlpflicht", a view of „Mein Studium" (`/study?view=areas`; owner, 2026-10-14, concept A
-//! „Ansichten"): what the plan leaves to choose (`folia_plans::choices`), by the areas of the
-//! progress — the same areas, colours and figures as the bar — each choice with its lists and what
-//! of them the semester offers, one click from being planned (owner, the same day: „Wahlpflicht
-//! wird planbar: jedes Modul mit „In SoSe 27""). Betula blocks nothing: whatever is planned here
-//! counts where the tree places it, and the list says what the student has of it.
+//! „Ansichten"): what the plan leaves to choose (`folia_plans::choices`), to look up how much is
+//! asked and what there is (folia/design/wahlpflicht, A as built after its second round; owner,
+//! 2026-11-04: „Hier ist wirklich einfach nur der lookup, wie viel brauche ich aus dem bereich und
+//! was gibt es da"). No semester and no button to plan: a module opens its sidebar, whose
+//! „Einplanen" plans it for the choice it was opened from (`StudyCtx::aside_hint`).
 //!
-//! On a desktop alone in the page (the overview and its bar stay with the semesters; owner,
-//! 2026-11-04): the choices on the left by area, the one picked on the right — what the plan says
-//! of it, the semester to plan into (the one the plan puts it into and the one
-//! after; „Alle" shows what neither offers as well), its lists as tabs where it has several
-//! („Anwendungsfach": Mathematik, Physik …), and the list's modules. On a phone a page of its own
-//! behind the overview: the areas as chips, the semester, and the area's choices one under the
-//! other, their modules as cards.
+//! On a desktop alone in the page (the overview and its bar stay with the semesters): the choices
+//! on the left by area, in the plan's order, each with its figure, its bar and how many modules
+//! there are; the one picked on the right — its name, its stand, what it asks, its lists as tabs
+//! and their modules. On a phone the list of the choices, and each a page of its own behind it
+//! (`StudyUrl::choice`), its modules as cards; a module opens as the sheet the sidebar is there.
+//! What is done looks as what is open, its bar full (owner, the same day: „Was zur hölle ist die
+//! anzeige vollständig … Mach doch einfach die progress bar voll").
 //!
-//! What is on the Merkliste comes first in a list and carries the bookmark, and each choice says
-//! how many marked modules count in it („3 gemerkte zählen hier"; folia/design/merken/konzept.html,
-//! „Von überall").
+//! The choices the regulation sums over are one entry (`choices::Group`): the Komplexe des
+//! Fachstudiums of Informatik B.Sc., 50 LP of the three, each 10 to 24, the one over 24 to 30 — its
+//! bar fills the hatched stretch above 24, which the others' then lose (owner: „nur eins davon darf
+//! 30 haben"). What is on the Merkliste comes first in a list and carries the bookmark.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use folia_calendar::semester::SemesterKey;
-use folia_model::labels::{Labelled, OfferStatus, TurnusSeason};
+use folia_model::labels::{Labelled, OfferStatus};
 use folia_model::rows::CatalogRow;
 use folia_pages::ask::StudyModulesAsk;
-use folia_plans::choices::{self, Choice, PlanView};
-use folia_plans::study::{self, Input, Offer};
-use folia_plans::variants;
-use folia_routes::url::CatalogUrl;
+use folia_plans::choices::{self, Choice, PlanView, Room, Stand};
+use folia_plans::study::{self, Input};
+use folia_plans::studyplan::RowRef;
+use folia_plans::{bench, variants};
+use folia_routes::url::{CatalogUrl, LocalView, StudyUrl};
+use folia_shell::chrome::{Back, TopBack};
+use folia_stores::bookmarks::Bookmarks;
+use folia_stores::studyplan::PlanHint;
 use leptos::prelude::*;
 
-use folia_design::format;
 use folia_design::ui::{EmptyState, Icon};
-use folia_stores::bookmarks::Bookmarks;
 
-use super::regular::view_back;
-use super::{n, now_secs, Ready, StudyCtx};
+use super::focus::{Glyph, Status};
+use super::{n, Ready, StudyCtx};
 use crate::i18n::{self, Texts};
 
-/// Where a module of a list stands for the student.
+/// Where a module of a list stands for the student, and what it counts for: an entry of the view.
 #[derive(Clone, Debug, PartialEq)]
-enum Has {
-    No,
-    Planned(SemesterKey),
-    Passed,
+struct Has {
+    status: Status,
+    semester: SemesterKey,
+    entry: Option<usize>,
 }
 
-/// A choice as the view shows it.
+/// A list of an entry, as its tab shows it.
 #[derive(Clone, Debug, PartialEq)]
-struct Item {
-    index: usize,
+struct Tab {
+    name: String,
+    modules: Vec<String>,
+    /// A group's member: its stand and its room above its most.
+    member: Option<(Stand, Room)>,
+    /// What a module of it opened from here is planned for: the first placeholder of its rows
+    /// from the current semester on that nothing fills, and the row it counts for, with its name.
+    fill: Option<u32>,
+    counts: RowRef,
+    counts_name: String,
+}
+
+/// What the Wahlpflicht lists: a choice of the plan, or the choices the regulation sums over.
+#[derive(Clone, Debug, PartialEq)]
+struct Entry {
+    /// Its first choice (an index of `PlanView::choices`): what picks it.
+    choice: usize,
+    choices: Vec<usize>,
     name: String,
     area: Option<usize>,
-    area_name: String,
     tone: &'static str,
-    /// „12 LP", „10–24 LP".
-    credits: String,
-    /// „laut Plan im 3. und 4. FS".
-    span: String,
-    /// What the plan says of it, in words; what it says beyond its credits and Fachsemester.
+    /// What it asks, in a sentence.
     rule: String,
-    rule_extra: Option<String>,
-    fues: bool,
-    /// Its lists: name and modules.
-    lists: Vec<(String, Vec<String>)>,
-    /// What is taken of it: name, credits, the stand.
-    taken: Vec<(String, String)>,
-    /// „8 von 12 LP gewählt", „Erledigt im SoSe 2026".
-    taken_line: Option<String>,
-    complete: bool,
-    /// The semester the plan puts it into, not before the current one.
-    due: SemesterKey,
-    /// Where else to look: the FÜS list, the catalog of its row.
+    stand: Stand,
+    /// A group's room above its members' most, which one of them keeps (`Room`).
+    room: f64,
+    /// „17 Module", „5 Listen · 59 Module".
+    count: String,
+    tabs: Vec<Tab>,
+    /// The FÜS's list is the BTU's catalog; where it has none, the catalog of its row.
     catalog: Option<(String, &'static str)>,
-    /// Its rows of the plan, each its plan's caption and `ord`: what a module planned for it fills
-    /// where one of them stands in the semester (`study::add_for`).
-    rows: Vec<(String, i64)>,
+    no_list: bool,
+    /// Its placeholders from the current semester on that no module fills.
+    places: Vec<SemesterKey>,
 }
 
-/// An area of the progress with its choices.
+/// An area of the progress with its entries, in the plan's order.
 #[derive(Clone, Debug, PartialEq)]
 struct Area {
-    area: Option<usize>,
     name: String,
     tone: &'static str,
-    /// „0/18".
+    /// „12 / 18 LP": what its entries hold of what they ask.
     figure: String,
-    complete: bool,
-    choices: Vec<usize>,
+    entries: Vec<usize>,
 }
 
 /// What the view shows.
@@ -94,12 +101,11 @@ struct Area {
 struct Pane {
     lead: String,
     areas: Vec<Area>,
-    items: Vec<Item>,
-    /// Every module of the lists, and where each stands for the student.
+    entries: Vec<Entry>,
+    /// Every module of the lists the study holds, and where it stands.
     has: BTreeMap<String, Has>,
-    /// The first choice not complete.
-    first: Option<usize>,
-    now: SemesterKey,
+    /// The first entry with something open, else the first.
+    first: usize,
 }
 
 impl Pane {
@@ -108,131 +114,224 @@ impl Pane {
         let study = &ready.study;
         let view: PlanView = choices::plan_view(input, study);
         let now = study.now;
-        let due_of = |choice: &Choice| study::semester_of_fs(study.start, choice.first, &ready.setup.leave).map_or(now, |s| s.max(now));
-        let items: Vec<Item> = view
-            .choices
-            .iter()
-            .enumerate()
-            .map(|(index, choice)| {
-                let credits = (t.study.credits)(&folia_plans::plan::credits_in(&choice.credits_text, t.locale));
-                let span = (v.plan_says)(&(t.study.fs_span)(choice.first, choice.last));
-                let mut extra: Vec<String> = Vec::new();
-                if choice.fues {
-                    extra.push(v.fues_rule.to_string());
-                }
-                if choice.lists.len() > 1 {
-                    extra.push((v.one_of)(choice.lists.len()));
-                }
-                if let Some((together, others)) = &choice.together {
-                    let names = match others.split_last() {
-                        Some((last, [])) => last.clone(),
-                        Some((last, rest)) => format!("{} {} {last}", rest.join(", "), v.and),
-                        None => String::new(),
-                    };
-                    if !names.is_empty() {
-                        extra.push((v.together)(&names, &n(*together, t)));
-                    }
-                }
-                let rule_extra = (!extra.is_empty()).then(|| extra.join(" "));
-                let rule = std::iter::once((v.rule)(&folia_plans::plan::credits_in(&choice.credits_text, t.locale), &(t.study.fs_span)(choice.first, choice.last))).chain(rule_extra.clone()).collect::<Vec<_>>().join(" ");
-                let taken = choice
-                    .taken
-                    .iter()
-                    .map(|taken| {
-                        let stand = if taken.passed { (v.state_passed)(&taken.semester.short(t.locale)) } else { (v.state_planned)(&taken.semester.short(t.locale)) };
-                        let credits = taken.credits.map(|credits| format!(" · {}", (t.study.credits)(&n(credits, t)))).unwrap_or_default();
-                        (taken.name.clone(), format!("{stand}{credits}"))
-                    })
-                    .collect();
-                let taken_line = match choice.done {
-                    Some(done) => Some((v.done_in)(&done.label(t.locale))),
-                    None if choice.taken.is_empty() => None,
-                    None => Some((v.taken)(&n(choice.taken_credits(), t), &folia_plans::plan::credits_in(&choice.credits_text, t.locale))),
-                };
-                let rows: Vec<(String, i64)> = choice.lines.iter().filter_map(|at| view.lines.get(*at)).map(|line| (line.caption.clone(), line.ord)).collect();
-                let catalog = if choice.fues {
-                    // The program's FÜS list, the BTU's where it has none.
-                    Some((CatalogUrl { query: variants::fues_list_for(&ready.program, t.locale).0, ..Default::default() }.path(), v.fues_catalog))
-                } else if choice.lists.is_empty() {
-                    // What is found there fills the first of its places put into a semester from the
-                    // current one on that nothing fills yet, in that semester.
-                    let fill = study::open_placeholders(input.doc, input.program_id, &rows).into_iter().find(|p| p.semester >= now).map(|p| p.pid);
-                    choice.lines.first().and_then(|at| view.lines.get(*at)).and_then(|line| super::focus::find_href(ctx, &line.caption, line.ord, fill, t)).map(|href| (href, v.search_catalog))
-                } else {
-                    None
-                };
-                Item {
-                    index,
-                    name: choice.name.clone(),
-                    area: choice.area,
-                    area_name: ready.area_name(choice.area, t),
-                    tone: ready.tone(choice.area),
-                    credits,
-                    span,
-                    rule,
-                    rule_extra,
-                    fues: choice.fues,
-                    lists: choice.lists.iter().map(|list| (list.name.clone(), list.modules.clone())).collect(),
-                    taken,
-                    taken_line,
-                    complete: choice.complete(),
-                    due: due_of(choice),
-                    catalog,
-                    rows,
-                }
+        let doc = input.doc;
+        let mut entries: Vec<Entry> = Vec::new();
+        for (at, choice) in view.choices.iter().enumerate() {
+            if entries.iter().any(|entry| entry.choices.contains(&at)) {
+                continue;
+            }
+            let entry = match view.group_of(at) {
+                Some(group) => group_entry(input, ready, &view, group, now, t),
+                None => choice_entry(input, ready, ctx, &view, at, choice, now, t),
+            };
+            entries.push(entry);
+        }
+
+        // The areas in the plan's order, as the progress has them.
+        let mut areas: Vec<(Option<usize>, Area)> = Vec::new();
+        for (at, entry) in entries.iter().enumerate() {
+            match areas.iter_mut().find(|(area, _)| *area == entry.area) {
+                Some((_, area)) => area.entries.push(at),
+                None => areas.push((entry.area, Area { name: ready.area_name(entry.area, t), tone: entry.tone, figure: String::new(), entries: vec![at] })),
+            }
+        }
+        areas.sort_by_key(|(area, _)| area.unwrap_or(usize::MAX));
+        let areas: Vec<Area> = areas
+            .into_iter()
+            .map(|(_, mut area)| {
+                let (taken, least) = area.entries.iter().filter_map(|at| entries.get(*at)).fold((0.0, 0.0), |(taken, least), entry| (taken + entry.stand.taken(), least + entry.stand.least));
+                area.figure = (v.figure)(&n(taken, t), &n(least, t));
+                area
             })
             .collect();
 
-        // The areas with choices, those with something open first.
-        let mut areas: Vec<Area> = Vec::new();
-        for item in &items {
-            match areas.iter_mut().find(|area| area.area == item.area) {
-                Some(area) => area.choices.push(item.index),
-                None => {
-                    let figure = item
-                        .area
-                        .and_then(|at| study.progress.get(at))
-                        .map(|progress| format!("{}/{}", n(progress.passed + progress.planned + progress.over, t), n(progress.area.required, t)))
-                        .unwrap_or_default();
-                    areas.push(Area { area: item.area, name: item.area_name.clone(), tone: item.tone, figure, complete: false, choices: vec![item.index] });
+        // Where each module of the lists stands, and the entry it counts for.
+        let entry_of = |choice: usize| entries.iter().position(|entry| entry.choices.contains(&choice));
+        let mut counted: BTreeMap<String, usize> = BTreeMap::new();
+        for (at, choice) in view.choices.iter().enumerate() {
+            for taken in &choice.taken {
+                if let Some(entry) = entry_of(at) {
+                    counted.entry(taken.id.clone()).or_insert(entry);
                 }
             }
         }
-        for area in &mut areas {
-            area.complete = area.choices.iter().all(|at| items.get(*at).is_some_and(|item| item.complete));
+        for taken in &view.spare {
+            if let Some(entry) = view.choices.iter().position(|choice| choice.list_of(&taken.id).is_some()).and_then(entry_of) {
+                counted.entry(taken.id.clone()).or_insert(entry);
+            }
         }
-        areas.sort_by_key(|area| area.complete);
-
-        let doc = input.doc;
-        let has = view
-            .choices
+        let has = entries
             .iter()
-            .flat_map(|choice| choice.modules())
-            .map(|id| {
-                let has = match doc.passed_in(id) {
-                    Some(_) => Has::Passed,
-                    None => doc.planned_in(id).into_iter().find(|s| *s >= now).map_or(Has::No, Has::Planned),
+            .flat_map(|entry| entry.tabs.iter().flat_map(|tab| tab.modules.iter()))
+            .filter_map(|id| {
+                let (status, semester) = match doc.passed_in(id) {
+                    Some(s) => (Status::Passed, s),
+                    None => {
+                        let s = doc.planned_in(id).into_iter().find(|s| *s >= now)?;
+                        (if s == now { Status::Running } else { Status::Planned }, s)
+                    }
                 };
-                (id.to_string(), has)
+                Some((id.clone(), Has { status, semester, entry: counted.get(id).copied() }))
             })
             .collect();
-        let first = areas.iter().flat_map(|area| area.choices.iter()).copied().find(|at| items.get(*at).is_some_and(|item| !item.complete));
-        let lead = if items.is_empty() {
+        let first = entries.iter().position(|entry| entry.stand.taken() + 1e-6 < entry.stand.least).unwrap_or(0);
+        let lead = if entries.is_empty() {
             v.choices_none.to_string()
         } else if view.to_choose > 0.0 {
             (v.choices_lead)(&n(view.to_choose, t))
         } else {
             v.choices_done_lead.to_string()
         };
-        Pane { lead, areas, items, has, first, now }
+        Pane { lead, areas, entries, has, first }
     }
 }
 
-/// The semester the list shows what is offered in, or all of it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Target {
-    In(SemesterKey),
-    All,
+/// The credits of a choice as the plan prints them, „10–24".
+fn credits_text(choice: &Choice, t: &Texts) -> String {
+    folia_plans::plan::credits_in(&choice.credits_text, t.locale)
+}
+
+/// „17 Module", „5 Listen · 59 Module".
+fn count_of(lists: usize, modules: usize, t: &Texts) -> String {
+    let v = &t.study_views;
+    if lists > 1 {
+        (v.lists_count)(lists, modules)
+    } else {
+        (v.modules)(modules)
+    }
+}
+
+/// Its rows: their plan's caption and `ord`.
+fn rows_of(view: &PlanView, choice: &Choice) -> Vec<(String, i64)> {
+    choice.lines.iter().filter_map(|at| view.lines.get(*at)).map(|line| (line.caption.clone(), line.ord)).collect()
+}
+
+/// The placeholders of `rows` from `now` on that no module fills, in order.
+fn open_places(input: &Input, rows: &[(String, i64)], now: SemesterKey) -> Vec<(u32, SemesterKey)> {
+    study::open_placeholders(input.doc, input.program_id, rows).into_iter().filter(|p| p.semester >= now).map(|p| (p.pid, p.semester)).collect()
+}
+
+/// An entry of one choice.
+#[allow(clippy::too_many_arguments)]
+fn choice_entry(input: &Input, ready: &Ready, ctx: StudyCtx, view: &PlanView, at: usize, choice: &Choice, now: SemesterKey, t: &'static Texts) -> Entry {
+    let v = &t.study_views;
+    let credits = credits_text(choice, t);
+    let rows = rows_of(view, choice);
+    let places = open_places(input, &rows, now);
+    let name = bench::short_name(&choice.name);
+    let first_row = rows.first().cloned().unwrap_or_default();
+    let counts = RowRef::new(input.program_id, &first_row.0, first_row.1);
+    let fill = places.first().map(|(pid, _)| *pid);
+    let tabs: Vec<Tab> = choice
+        .lists
+        .iter()
+        .map(|list| Tab { name: list.name.clone(), modules: list.modules.clone(), member: None, fill, counts: counts.clone(), counts_name: name.clone() })
+        .collect();
+    let mut rule = if choice.fues {
+        (v.fues_rule)(&credits)
+    } else {
+        match choice.lists.as_slice() {
+            [] => (v.rule_plain)(&credits),
+            [list] => (v.rule_list)(&credits, &list.name),
+            lists => (v.rule_one_of)(&credits, lists.len()),
+        }
+    };
+    if let Some((together, others)) = &choice.together {
+        let names = match others.split_last() {
+            Some((last, [])) => last.clone(),
+            Some((last, rest)) => format!("{} {} {last}", rest.join(", "), v.and),
+            None => String::new(),
+        };
+        if !names.is_empty() {
+            rule = format!("{rule} {}", (v.together)(&names, &n(*together, t)));
+        }
+    }
+    let catalog = if choice.fues {
+        // The program's FÜS list, the BTU's where it has none.
+        Some((CatalogUrl { query: variants::fues_list_for(&ready.program, t.locale).0, ..Default::default() }.path(), v.fues_catalog))
+    } else if choice.lists.is_empty() {
+        // What is found there fills the first open place of it from the current semester on.
+        super::focus::find_href(ctx, &first_row.0, first_row.1, fill, t).map(|href| (href, v.search_catalog))
+    } else {
+        None
+    };
+    let count = if choice.fues { v.fues_count.to_string() } else { count_of(choice.lists.len(), choice.modules().len(), t) };
+    Entry {
+        choice: at,
+        choices: vec![at],
+        name,
+        area: choice.area,
+        tone: ready.tone(choice.area),
+        rule,
+        stand: view.stand_of(at),
+        room: 0.0,
+        count,
+        tabs,
+        catalog,
+        no_list: choice.lists.is_empty() && !choice.fues,
+        places: places.into_iter().map(|(_, s)| s).collect(),
+    }
+}
+
+/// An entry of a group: its members as tabs, each with its stand and room.
+fn group_entry(input: &Input, ready: &Ready, view: &PlanView, group: &choices::Group, now: SemesterKey, t: &'static Texts) -> Entry {
+    let v = &t.study_views;
+    let choices = &view.choices;
+    let members = group.members(view);
+    let (extra_least, room) = group.extra(choices);
+    let extra_rows: Vec<(String, i64)> = group.extras.iter().filter_map(|at| choices.get(*at)).flat_map(|choice| rows_of(view, choice)).collect();
+    let mut places: Vec<SemesterKey> = Vec::new();
+    let tabs: Vec<Tab> = members
+        .iter()
+        .filter_map(|member| choices.get(member.choice).map(|choice| (member, choice)))
+        .map(|(member, choice)| {
+            let own = rows_of(view, choice);
+            let rows: Vec<(String, i64)> = extra_rows.iter().cloned().chain(own.iter().cloned()).collect();
+            let open = open_places(input, &rows, now);
+            places.extend(open.iter().map(|(_, s)| *s));
+            let first_row = own.first().cloned().unwrap_or_default();
+            let mut seen = BTreeSet::new();
+            let modules: Vec<String> = choice.lists.iter().flat_map(|list| list.modules.iter()).filter(|id| seen.insert(id.as_str())).cloned().collect();
+            let name = bench::short_name(&choice.name);
+            Tab {
+                name: name.clone(),
+                modules,
+                member: Some((member.stand, member.room)),
+                fill: open.first().map(|(pid, _)| *pid),
+                counts: RowRef::new(input.program_id, &first_row.0, first_row.1),
+                counts_name: name,
+            }
+        })
+        .collect();
+    places.sort();
+    places.dedup();
+    let first = members.first().and_then(|member| choices.get(member.choice));
+    let (least, most) = first.map_or((0.0, 0.0), |choice| (choice.least, choice.most.max(choice.least)));
+    let count_word = (v.count_word)(members.len());
+    let mut rule = (v.group_rule)(&n(group.target(choices), t), &count_word, &n(least, t), &n(most, t));
+    if room > 1e-6 {
+        let extras: Vec<&Choice> = group.extras.iter().filter_map(|at| choices.get(*at)).collect();
+        let names = extras.iter().map(|choice| bench::short_name(&choice.name)).collect::<Vec<_>>().join(", ");
+        let (first_fs, last_fs) = extras.iter().fold((u8::MAX, 0), |(first, last), choice| (first.min(choice.first), last.max(choice.last)));
+        rule = format!("{rule} {}", (v.group_extra)(&n(most + room, t), &n(extra_least, t), &names, &(t.study.fs_span)(first_fs, last_fs), &count_word));
+    }
+    let modules: BTreeSet<&str> = tabs.iter().flat_map(|tab| tab.modules.iter().map(String::as_str)).collect();
+    let area = first.and_then(|choice| choice.area);
+    Entry {
+        choice: group.choices().min().unwrap_or(0),
+        choices: group.choices().collect(),
+        name: group.label.clone(),
+        area,
+        tone: ready.tone(area),
+        rule,
+        stand: group.stand(view),
+        room,
+        count: count_of(tabs.len(), modules.len(), t),
+        tabs,
+        catalog: None,
+        no_list: false,
+        places,
+    }
 }
 
 /// A module of a list as the view draws it.
@@ -241,123 +340,124 @@ struct Module {
     id: String,
     title: String,
     credits: Option<String>,
-    turnus: String,
-    /// Offered in the semester shown.
-    fits: bool,
-    /// Its turnus names one half of the year: what fits, fits for sure.
-    seasonal: bool,
     phase_out: bool,
-    has: Has,
+    has: Option<Has>,
     /// On the Merkliste.
     marked: bool,
-    /// Where „In SoSe 27" plans it.
-    into: SemesterKey,
 }
 
-/// The modules of a list for `target`: what the student has first, then what is marked (whether
-/// the semester offers it or not: it was kept for a reason), then what the semester offers, then
-/// the rest.
-fn modules_of(ids: &[String], rows: &BTreeMap<String, CatalogRow>, has: &BTreeMap<String, Has>, marked: &BTreeSet<String>, target: Target, due: SemesterKey, t: &Texts) -> Vec<Module> {
-    let v = &t.study_views;
+/// The modules of a list: what the student has first, then what is marked, then the rest by title.
+/// What is not offered any more is left out, unless the student has it.
+fn modules_of(ids: &[String], rows: &BTreeMap<String, CatalogRow>, has: &BTreeMap<String, Has>, marked: &BTreeSet<String>, t: &Texts) -> Vec<Module> {
     let mut out: Vec<Module> = ids
         .iter()
         .filter_map(|id| {
             let row = rows.get(id)?;
-            let has = has.get(id).cloned().unwrap_or(Has::No);
-            let gone = row.offer_status.known() == Some(OfferStatus::NotOffered);
-            if gone && has == Has::No {
+            let has = has.get(id).cloned();
+            if row.offer_status.known() == Some(OfferStatus::NotOffered) && has.is_none() {
                 return None;
             }
-            let offer = Offer::of(row);
-            let (fits, into) = match target {
-                Target::In(s) => (offer.offered(s), s),
-                Target::All => (true, offer.next(due)),
-            };
-            let turnus = match offer.season {
-                Some(TurnusSeason::Winter) => t.format.winter_short.to_string(),
-                Some(TurnusSeason::Summer) => t.format.summer_short.to_string(),
-                _ if row.turnus_season.is_some() => format::turnus(row.turnus_season.as_ref(), None, t.locale),
-                _ => v.turnus_unknown.to_string(),
-            };
             Some(Module {
                 id: id.clone(),
                 title: row.title.clone(),
                 credits: row.credits.map(|credits| folia_design::format::number(credits, t.locale)),
-                turnus,
-                fits,
-                seasonal: offer.only().is_some(),
                 phase_out: row.offer_status.known() == Some(OfferStatus::PhaseOut),
                 has,
                 marked: marked.contains(id),
-                into,
             })
         })
         .collect();
-    out.sort_by_cached_key(|module| (module.has == Has::No, !module.marked, !module.fits, !module.seasonal, module.title.to_lowercase()));
+    out.sort_by_cached_key(|module| (module.has.is_none(), !module.marked, module.title.to_lowercase()));
     out
 }
 
-/// How many marked modules the lists of a choice hold.
-fn marked_in(item: &Item, marked: &BTreeSet<String>) -> usize {
-    item.lists.iter().flat_map(|(_, modules)| modules.iter()).filter(|id| marked.contains(*id)).collect::<BTreeSet<_>>().len()
+/// How many marked modules the lists of an entry hold.
+fn marked_in(entry: &Entry, marked: &BTreeSet<String>) -> usize {
+    entry.tabs.iter().flat_map(|tab| tab.modules.iter()).filter(|id| marked.contains(*id)).collect::<BTreeSet<_>>().len()
 }
 
-/// The bookmark of a marked module, with its word for a screen reader.
-fn marked_sign(t: &'static Texts) -> impl IntoView {
-    let v = &t.study_views;
-    view! { <span class="st-mk" title=v.marked><Icon name="bookmark"/><span class="visually-hidden">{v.marked}</span></span> }
-}
-
-/// Plans the module `id` into `s` for the choice of the plan rows `rows`, with a note „Rückgängig"
-/// takes it back by. A place of the choice standing in `s` that nothing fills yet is filled by it
-/// (`study::add_for`): the choice counts once, by the module.
-fn plan(ctx: StudyCtx, id: String, title: String, s: SemesterKey, rows: Vec<(String, i64)>, t: &'static Texts) {
-    let note = (t.study_views.planned_note)(&title, &s.label(t.locale));
-    ctx.change_noted(
-        Some(note),
-        move |doc, input| {
-            study::add_for(doc, input, s, &id, &rows, now_secs());
-        },
-        || {},
-    );
-}
-
-/// What a module of a list of the choice of the plan rows `rows` offers: its stand, or „In SoSe 27".
-fn module_act(ctx: StudyCtx, module: &Module, rows: &[(String, i64)], t: &'static Texts) -> AnyView {
-    let v = &t.study_views;
-    match module.has {
-        Has::Passed => view! { <span class="st-chip ok"><Icon name="check"/>{v.chip_passed}</span> }.into_any(),
-        Has::Planned(s) => view! { <span class="st-chip plan">{(v.chip_planned)(&s.short(t.locale))}</span> }.into_any(),
-        Has::No => {
-            let (id, title, s, rows) = (module.id.clone(), module.title.clone(), module.into, rows.to_vec());
-            let label = (v.into)(&s.short(t.locale));
-            let hint = label.clone();
-            let aria = format!("{} · {}", module.title, (v.plan_into)(&s.label(t.locale)));
-            view! {
-                <button class="st-addb" type="button" aria-label=aria title=hint on:click=move |_| plan(ctx, id.clone(), title.clone(), s, rows.clone(), t)>
-                    <Icon name="plus"/><span class="st-addb-t">{label}</span>
-                </button>
-            }
-            .into_any()
-        }
+/// „17 Module · 1 gemerkt".
+fn count_line(entry: &Entry, marked: &BTreeSet<String>, t: &'static Texts) -> String {
+    match marked_in(entry, marked) {
+        0 => entry.count.clone(),
+        count => format!("{} · {}", entry.count, (t.study_views.marked_count)(count)),
     }
 }
 
-/// „Planen ›": the choice in the workbench, for the semester the list shows or the one the plan
-/// puts it into (folia/design/hinzufuegen/konzepte.html, third round: „Die Ansicht „Wahlpflicht“
-/// bleibt der Überblick über alle Wahlen; „Planen ›“ an einer Wahl öffnet die Werkbank dort").
-fn plan_in_bench(ctx: StudyCtx, item: &Item, target: Target, t: &'static Texts) -> impl IntoView {
-    let s = match target {
-        Target::In(s) => s,
-        Target::All => item.due,
+/// What it asks: „6", „10–24".
+fn range_of(stand: &Stand, t: &Texts) -> String {
+    if stand.most > stand.least + 1e-6 {
+        format!("{}–{}", n(stand.least, t), n(stand.most, t))
+    } else {
+        n(stand.least, t)
+    }
+}
+
+/// The figure as a line beside a name: „6 / 10–24 LP".
+fn fig(stand: &Stand, t: &'static Texts) -> impl IntoView {
+    view! { <span class="st-wfig"><b>{n(stand.taken(), t)}</b>{format!(" / {}\u{a0}{}", range_of(stand, t), t.study_views.col_credits)}</span> }
+}
+
+/// The bar of a stand (app.css `.st-wbar`): what is passed in the area's tone, what is planned
+/// lighter, beyond what it takes hatched; the least marked where it asks a range. A group's member
+/// has its room above its most (`Room`): hatched while it is open to each, part of its bar where it
+/// keeps it, gone where another keeps it, yellow where it is over besides the one that keeps it.
+fn bar(stand: &Stand, room: Option<(Room, f64)>, class: &'static str, t: &'static Texts) -> impl IntoView {
+    let (state, extra) = room.unwrap_or((Room::None, 0.0));
+    // A member that keeps the room has it in its most already.
+    let cap = if state == Room::Kept { stand.most - extra } else { stand.most };
+    let scale = (if state == Room::None { stand.most } else { cap + extra }).max(stand.taken()).max(stand.least).max(1e-6);
+    let pct = move |x: f64| format!("{:.3}%", (x / scale * 100.0).clamp(0.0, 100.0));
+    let taken = stand.taken();
+    let limit = if state == Room::Over { cap } else { stand.most };
+    let track = if state == Room::Gone { cap.max(taken) } else { scale };
+    let label = (t.study_views.figure)(&n(taken, t), &range_of(stand, t));
+    // Its ends round where a part reaches them.
+    let passed_end = stand.passed + 1e-6 >= scale;
+    let planned_class = match (stand.passed <= 1e-6, taken + 1e-6 >= scale) {
+        (true, true) => "pl first end",
+        (true, false) => "pl first",
+        (false, true) => "pl end",
+        (false, false) => "pl",
     };
-    let at = item.index;
-    let label = t.study_bench.mode;
-    let title = format!("{label} · {}", s.label(t.locale));
-    (!item.complete).then(|| view! {
-        <button class="btn secondary small st-plan-bench" type="button" title=title on:click=move |_| super::bench::enter_choice(ctx, s, at)>
-            <Icon name="calendar-plus"/><span>{label}</span><Icon name="chevron-right"/>
-        </button>
+    view! {
+        <span class=format!("st-wbar {class}") role="img" aria-label=label>
+            <span class="tr" style=format!("width:{}", pct(track))></span>
+            {matches!(state, Room::Open | Room::Over).then(|| view! { <span class=if state == Room::Open { "zn" } else { "zn over" } style=format!("left:{};width:{}", pct(cap), pct(extra))></span> })}
+            <span class=if passed_end { "ps end" } else { "ps" } style=format!("width:{}", pct(stand.passed))></span>
+            <span class=planned_class style=format!("left:{};width:{}", pct(stand.passed), pct(stand.planned))></span>
+            {(taken > limit + 1e-6).then(|| view! { <span class=if state == Room::Over { "ov warn" } else { "ov" } style=format!("left:{};width:{}", pct(limit), pct(taken - limit))></span> })}
+            {(stand.least > 0.0 && stand.least + 1e-6 < cap).then(|| view! { <span class="lt" style=format!("left:{}", pct(stand.least))></span> })}
+        </span>
+    }
+}
+
+/// What a group's room is for, and where two members are over their most: said, not refused.
+fn room_notes(entry: &Entry, t: &'static Texts) -> Option<impl IntoView> {
+    let v = &t.study_views;
+    if entry.room <= 1e-6 {
+        return None;
+    }
+    let members: Vec<(&Tab, Stand, Room)> = entry.tabs.iter().filter_map(|tab| tab.member.map(|(stand, room)| (tab, stand, room))).collect();
+    let cap = members.iter().map(|(_, stand, room)| if *room == Room::Kept { stand.most - entry.room } else { stand.most }).fold(0.0, f64::max);
+    let (cap, top) = (n(cap, t), n(cap + entry.room, t));
+    let kept = members.iter().find(|(.., room)| *room == Room::Kept).map(|(tab, ..)| tab.name.clone());
+    let over: Vec<String> = members.iter().filter(|(.., room)| *room == Room::Over).map(|(tab, ..)| tab.name.clone()).collect();
+    let legend = match &kept {
+        Some(name) => (v.room_kept)(name, &cap, &top),
+        None => (v.room_open)(&cap, &top),
+    };
+    let warn = kept.filter(|_| !over.is_empty()).map(|kept| {
+        let names = match over.split_last() {
+            Some((last, [])) => last.clone(),
+            Some((last, rest)) => format!("{} {} {last}", rest.join(", "), v.and),
+            None => String::new(),
+        };
+        (v.room_over)(&names, over.len() > 1, &kept, &cap, &top)
+    });
+    Some(view! {
+        <p class="st-wlegend"><span class="sw" aria-hidden="true"></span><span>{legend}</span></p>
+        {warn.map(|warn| view! { <p class="st-wwarn" role="status"><Icon name="triangle-alert"/><span>{warn}</span></p> })}
     })
 }
 
@@ -365,7 +465,21 @@ fn plan_in_bench(ctx: StudyCtx, item: &Item, target: Target, t: &'static Texts) 
 #[component]
 pub(super) fn Choose(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
-    view_back(ctx);
+    let v = &t.study_views;
+    // The way back at the head of a phone's page: from a choice to the list, from the list to the
+    // overview, through the history where that is the step before.
+    TopBack::follow(move || {
+        if !ctx.phone.get() {
+            return None;
+        }
+        Some(match ctx.url.with(|url| url.choice) {
+            Some(_) => Back { href: ctx.url.with(|url| url.with_choice(None).with_module(None, false).path()), label: v.choices, history: ctx.choice_back.get() },
+            None => Back { href: StudyUrl::default().path(), label: v.to_overview, history: ctx.view_back.get() },
+        })
+    });
+    on_cleanup(move || {
+        ctx.aside_hint.try_set(None);
+    });
     let pane = Memo::new(move |_| ctx.with_input(|input, ready| Pane::of(input, ready, ctx, t)));
     // What is on the Merkliste, in this browser alone.
     let bookmarks = Bookmarks::expect();
@@ -373,8 +487,9 @@ pub(super) fn Choose(ctx: StudyCtx) -> impl IntoView {
     // The catalog's rows of every module of the lists.
     let ids = Memo::new(move |_| {
         pane.with(|pane| {
-            let mut ids: Vec<String> = pane.as_ref().map(|pane| pane.has.keys().cloned().collect()).unwrap_or_default();
+            let mut ids: Vec<String> = pane.as_ref().map(|pane| pane.entries.iter().flat_map(|entry| entry.tabs.iter().flat_map(|tab| tab.modules.iter().cloned())).collect()).unwrap_or_default();
             ids.sort();
+            ids.dedup();
             ids
         })
     });
@@ -390,17 +505,18 @@ pub(super) fn Choose(ctx: StudyCtx) -> impl IntoView {
             Err(_) => before.unwrap_or_default(),
         }
     });
-    // The choice picked: the one asked for (a row's „Wählen"), else the first not complete.
+    // The entry picked: the address's (a phone's page), else the one asked for, else the first
+    // with something open.
     let picked = Memo::new(move |_| {
-        let asked = ctx.choice.get();
+        let asked = ctx.url.with(|url| url.choice).or_else(|| ctx.choice.get());
         pane.with(|pane| {
             let pane = pane.as_ref()?;
-            asked.filter(|at| *at < pane.items.len()).or(pane.first).or((!pane.items.is_empty()).then_some(0))
+            asked.and_then(|at| pane.entries.iter().position(|entry| entry.choices.contains(&at))).or((!pane.entries.is_empty()).then_some(pane.first))
         })
     });
     move || {
         let phone = ctx.phone.get();
-        match pane.with(|pane| pane.as_ref().map(|pane| pane.items.is_empty())) {
+        match pane.with(|pane| pane.as_ref().map(|pane| pane.entries.is_empty())) {
             None => ().into_any(),
             Some(true) => view! {
                 <section class="panel">
@@ -414,55 +530,109 @@ pub(super) fn Choose(ctx: StudyCtx) -> impl IntoView {
     }
 }
 
-/// The semesters to plan into: the one the plan puts it into, the one after it, and all.
-fn targets(due: SemesterKey) -> Vec<Target> {
-    std::iter::once(Target::In(due)).chain(due.plus(1).map(Target::In)).chain(std::iter::once(Target::All)).collect()
+/// The list of an entry shown: the one the student has most of for it, else the first.
+fn tab_at(entry: &Entry, has: &BTreeMap<String, Has>, at: usize) -> usize {
+    entry
+        .tabs
+        .iter()
+        .enumerate()
+        .max_by_key(|(i, tab)| (tab.modules.iter().filter(|id| has.get(*id).is_some_and(|has| has.entry == Some(at))).count(), std::cmp::Reverse(*i)))
+        .map_or(0, |(i, _)| i)
 }
 
-/// „SoSe 2027 | WiSe 2027/28 | Alle".
-fn target_switch(target: RwSignal<Target>, due: SemesterKey, small: bool, t: &'static Texts) -> impl IntoView {
+/// What „Einplanen" of a module opened from `tab` aims at: its choice's placeholder and row. None
+/// for a module the student has: its sidebar says where it is.
+fn hint_of(tab: &Tab, module: &Module) -> Option<(String, PlanHint)> {
+    module.has.is_none().then(|| (module.id.clone(), PlanHint { semester: None, fill: tab.fill, counts: Some((tab.counts.clone(), tab.counts_name.clone())) }))
+}
+
+/// A module's mark: its status where the student has it, else nothing in its place.
+fn mark(module: &Module, t: &'static Texts) -> AnyView {
+    match &module.has {
+        Some(has) => {
+            let status = has.status;
+            let words = format!("{} · {}", status.word(t), has.semester.label(t.locale));
+            let title = words.clone();
+            view! { <span class="st-wmk" title=title><Glyph status=status/><span class="visually-hidden">{words}</span></span> }.into_any()
+        }
+        None => view! { <span class="st-wmk" aria-hidden="true"></span> }.into_any(),
+    }
+}
+
+/// The small words beside a module's name: marked, phasing out, counting for another entry.
+fn notes(module: &Module, pane: &Pane, at: usize, t: &'static Texts) -> impl IntoView {
     let v = &t.study_views;
+    let elsewhere = module.has.as_ref().and_then(|has| has.entry).filter(|entry| *entry != at).and_then(|entry| pane.entries.get(entry)).map(|entry| (v.counts_for)(&entry.name));
     view! {
-        <div class="st-views st-season-seg" class:sm=small role="group" aria-label=v.offered_in>
-            {targets(due).into_iter().map(|option| {
-                let label = match option {
-                    Target::In(s) if small => s.short(t.locale),
-                    Target::In(s) => s.label(t.locale),
-                    Target::All => v.all.to_string(),
-                };
-                view! { <button type="button" aria-pressed=move || if target.get() == option { "true" } else { "false" } on:click=move |_| target.set(option)>{label}</button> }
-            }).collect_view()}
+        {module.marked.then(|| view! { <span class="st-mk" title=v.marked><Icon name="bookmark"/><span class="visually-hidden">{v.marked}</span></span> })}
+        {module.phase_out.then(|| view! { <small class="warn">{OfferStatus::PhaseOut.label(t.locale)}</small> })}
+        {elsewhere.map(|note| view! { <small>{note}</small> })}
+    }
+}
+
+/// The placeholders of an entry no module fills: what the student put in for it.
+fn places_of(entry: &Entry, now: SemesterKey, phone: bool, t: &'static Texts) -> impl IntoView {
+    let v = &t.study_views;
+    entry
+        .places
+        .iter()
+        .map(|s| {
+            let status = if *s == now { Status::Running } else { Status::Planned };
+            let line = (v.place_line)(&s.label(t.locale));
+            view! {
+                <div class=if phone { "st-wplace card" } else { "st-wplace" }>
+                    <span class="st-wmk" title=status.word(t)><Glyph status=status/></span>
+                    <span class="st-wrow-nm"><b>{v.place}</b><small>{line}</small></span>
+                </div>
+            }
+        })
+        .collect_view()
+}
+
+/// The head of an entry: its name and figure, its bar, what it asks, a group's room.
+fn head(entry: &Entry, phone: bool, t: &'static Texts) -> impl IntoView {
+    view! {
+        <div class="st-wph" style=format!("--c: {}", entry.tone)>
+            <div class="st-wpt">
+                {if phone { view! { <h1>{entry.name.clone()}</h1> }.into_any() } else { view! { <h3>{entry.name.clone()}</h3> }.into_any() }}
+                {fig(&entry.stand, t)}
+            </div>
+            {bar(&entry.stand, None, "big", t)}
+            <p class="st-wrule">{entry.rule.clone()}</p>
+            {room_notes(entry, t)}
         </div>
     }
 }
 
-/// The list of a choice shown: the one the student has most of, else the first.
-fn list_at(item: &Item, has: &BTreeMap<String, Has>) -> usize {
-    item.lists
-        .iter()
-        .enumerate()
-        .max_by_key(|(at, (_, modules))| (modules.iter().filter(|id| has.get(*id).is_some_and(|has| *has != Has::No)).count(), std::cmp::Reverse(*at)))
-        .map_or(0, |(at, _)| at)
+/// Where an entry without a list looks: the FÜS's catalog, the catalog of its row.
+fn catalog_way(entry: &Entry, t: &'static Texts) -> impl IntoView {
+    let v = &t.study_views;
+    entry.catalog.clone().map(|(href, label)| {
+        view! {
+            <div class="st-wnote">
+                {entry.no_list.then(|| view! { <p class="hint">{v.no_list}</p> })}
+                <a class="action" href=t.path(&href)><Icon name="search"/><span>{label}</span><Icon name="chevron-right"/></a>
+            </div>
+        }
+    })
 }
 
-/// On a desktop: the choices on the left, the one picked on the right.
+/// On a wide screen: the entries on the left, the one picked on the right.
 #[component]
 fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<String, CatalogRow>>, picked: Memo<Option<usize>>, marked: Memo<BTreeSet<String>>) -> impl IntoView {
     let t = i18n::t();
     let v = &t.study_views;
-    let item = Memo::new(move |_| {
+    let entry = Memo::new(move |_| {
         let at = picked.get()?;
-        pane.with(|pane| pane.as_ref().and_then(|pane| pane.items.get(at).cloned()))
+        pane.with(|pane| pane.as_ref().and_then(|pane| pane.entries.get(at).cloned().map(|entry| (at, entry))))
     });
-    let target = RwSignal::new(Target::All);
-    let list = RwSignal::new(0usize);
-    // Another choice: its semester and its list.
+    let tab = RwSignal::new(0usize);
+    // Another entry: the list the student has most of for it.
     Effect::new(move |before: Option<Option<usize>>| {
-        let now = item.with(|item| item.as_ref().map(|item| item.index));
+        let now = entry.with(|entry| entry.as_ref().map(|(at, _)| *at));
         if before != Some(now) {
-            if let Some((due, at)) = item.with_untracked(|item| item.as_ref().map(|item| (item.due, pane.with_untracked(|pane| pane.as_ref().map_or(0, |pane| list_at(item, &pane.has)))))) {
-                target.set(Target::In(due));
-                list.set(at);
+            if let Some(at) = entry.with_untracked(|entry| entry.as_ref().map(|(at, entry)| pane.with_untracked(|pane| pane.as_ref().map_or(0, |pane| tab_at(entry, &pane.has, *at))))) {
+                tab.set(at);
             }
         }
         now
@@ -470,26 +640,36 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
     let left = move || {
         pane.with(|pane| {
             let pane = pane.as_ref()?;
-            let now = picked.get();
+            let picked = picked.get();
+            let shown_tab = tab.get();
             Some(
                 pane.areas
                     .iter()
                     .map(|area| {
                         view! {
-                            <p class="st-sl-h" style=format!("--c: {}", area.tone)><span class="st-dot"></span><span>{area.name.clone()}</span><small class:ok=area.complete>{area.figure.clone()}</small></p>
-                            {area.choices.iter().filter_map(|at| pane.items.get(*at)).map(|item| {
-                                let at = item.index;
-                                let sub = match (&item.taken_line, item.complete) {
-                                    (Some(line), true) => view! { <small class="ok"><Icon name="check"/>{line.clone()}</small> }.into_any(),
-                                    (Some(line), false) => view! { <small>{item.credits.clone()}" · "{line.clone()}</small> }.into_any(),
-                                    (None, _) => view! { <small>{item.credits.clone()}" · "{item.span.clone()}</small> }.into_any(),
-                                };
-                                let count = marked.with(|marked| marked_in(item, marked));
+                            <p class="st-sl-h" style=format!("--c: {}", area.tone)><span class="st-dot"></span><span>{area.name.clone()}</span><small>{area.figure.clone()}</small></p>
+                            {area.entries.iter().filter_map(|at| pane.entries.get(*at).map(|entry| (*at, entry))).map(|(at, entry)| {
+                                let choice = entry.choice;
+                                let current = picked == Some(at);
+                                let count = marked.with(|marked| count_line(entry, marked, t));
+                                let room = entry.room;
+                                let kids = entry.tabs.iter().any(|tab| tab.member.is_some()).then(|| view! {
+                                    <div class="st-sl-kids">
+                                        {entry.tabs.iter().enumerate().filter_map(|(i, tab_of)| tab_of.member.map(|member| (i, tab_of, member))).map(|(i, tab_of, (stand, state))| view! {
+                                            <button class="st-sl-kid" type="button" style=format!("--c: {}", entry.tone) aria-current=(current && shown_tab == i).then_some("true") on:click=move |_| { ctx.choice.set(Some(choice)); tab.set(i); }>
+                                                <span>{tab_of.name.clone()}</span>{fig(&stand, t)}
+                                                {bar(&stand, Some((state, room)), "thin", t)}
+                                            </button>
+                                        }).collect_view()}
+                                    </div>
+                                });
                                 view! {
-                                    <button class="st-sl" type="button" style=format!("--c: {}", item.tone) title=item.name.clone() aria-current=(now == Some(at)).then_some("true") on:click=move |_| ctx.choice.set(Some(at))>
-                                        <b>{item.name.clone()}</b>{sub}
-                                        {(count > 0).then(|| view! { <small class="st-sl-mk"><Icon name="bookmark"/>{(v.marked_here)(count)}</small> })}
+                                    <button class="st-sl" type="button" style=format!("--c: {}", entry.tone) title=entry.name.clone() aria-current=current.then_some("true") on:click=move |_| ctx.choice.set(Some(choice))>
+                                        <span class="st-sl-t"><b>{entry.name.clone()}</b>{fig(&entry.stand, t)}</span>
+                                        {bar(&entry.stand, None, "", t)}
+                                        <small>{count}</small>
                                     </button>
+                                    {kids}
                                 }
                             }).collect_view()}
                         }
@@ -499,88 +679,56 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
         })
     };
     let right = move || {
-        // The pane before the item picked of it (R16): read after it, a change of the pane that
-        // leaves the item as it was (a module of its list planned or passed) is not seen. Today the
-        // closure around it builds this anew with the pane; this one must not rely on that.
+        // The pane before the entry picked of it (R16), as `left`.
         let has = pane.with(|pane| pane.as_ref().map(|pane| pane.has.clone()));
-        let item = item.get()?;
+        let open = ctx.url.with(|url| url.open.clone());
+        let now = ctx.now.get();
+        let (at, entry) = entry.get()?;
         let has = has?;
-        let shown_list = list.get().min(item.lists.len().saturating_sub(1));
-        let lists = (item.lists.len() > 1).then(|| {
+        let shown = tab.get().min(entry.tabs.len().saturating_sub(1));
+        let tabs = (entry.tabs.len() > 1).then(|| {
+            let room = entry.room;
             view! {
-                <div class="st-views st-lists" role="group" aria-label=v.lists>
-                    {item.lists.iter().enumerate().map(|(at, (name, modules))| view! {
-                        <button type="button" aria-pressed=move || if list.get() == at { "true" } else { "false" } on:click=move |_| list.set(at)>
-                            {name.clone()}<small>{modules.len()}</small>
+                <div class="st-wtabs" role="group" aria-label=v.lists style=format!("--c: {}", entry.tone)>
+                    {entry.tabs.iter().enumerate().map(|(i, tab_of)| view! {
+                        <button type="button" aria-pressed=move || if tab.get() == i { "true" } else { "false" } on:click=move |_| tab.set(i)>
+                            <span>{tab_of.name.clone()}{tab_of.member.is_none().then(|| view! { <small>{tab_of.modules.len()}</small> })}</span>
+                            {tab_of.member.map(|(stand, state)| view! { <span class="st-wtab-p">{bar(&stand, Some((state, room)), "thin", t)}{fig(&stand, t)}</span> })}
                         </button>
                     }).collect_view()}
                 </div>
             }
         });
-        let ids = item.lists.get(shown_list).map(|(_, modules)| modules.clone()).unwrap_or_default();
-        let table = (!item.lists.is_empty()).then(|| {
-            let target_now = target.get();
-            let modules = marked.with(|marked| rows.with(|rows| modules_of(&ids, rows, &has, marked, target_now, item.due, t)));
-            let (fit, rest): (Vec<Module>, Vec<Module>) = modules.into_iter().partition(|module| module.fits || module.has != Has::No || module.marked);
-            let season = match target_now {
-                Target::In(s) => if s.winter { t.format.winter_short } else { t.format.summer_short },
-                Target::All => "",
-            };
-            let hidden = rest.len();
-            view! {
-                <table class="st-wtable">
-                    <thead><tr><th scope="col" class="id">{v.col_id}</th><th scope="col">{v.col_module}</th><th scope="col" class="r">{v.col_credits}</th><th scope="col">{v.col_turnus}</th><th scope="col" class="r"><span class="visually-hidden">{v.plan_it}</span></th></tr></thead>
-                    <tbody>
-                        {fit.into_iter().map(|module| {
+        let list = entry.tabs.get(shown).cloned().map(|tab_of| {
+            let modules = marked.with(|marked| rows.with(|rows| modules_of(&tab_of.modules, rows, &has, marked, t)));
+            pane.with(|pane| {
+                let pane = pane.as_ref()?;
+                Some(view! {
+                    <div class="st-wrows">
+                        {modules.into_iter().map(|module| {
                             let href = super::module_href(ctx, &module.id, t);
+                            let hint = hint_of(&tab_of, &module);
+                            let is_open = open.as_deref() == Some(module.id.as_str());
                             view! {
-                                <tr class:taken=module.has != Has::No>
-                                    <td class="id mono">{module.id.clone()}</td>
-                                    <td class="nm"><a href=href data-noscroll="">{module.title.clone()}</a>{module.marked.then(|| marked_sign(t))}{module.phase_out.then(|| view! { <small>{OfferStatus::PhaseOut.label(t.locale)}</small> })}</td>
-                                    <td class="r num">{module.credits.clone()}</td>
-                                    <td><span class="st-turnus" class:match=module.fits && module.seasonal && target_now != Target::All>{module.turnus.clone()}</span></td>
-                                    <td class="r">{module_act(ctx, &module, &item.rows, t)}</td>
-                                </tr>
+                                <a class="st-wrow" class:has=module.has.is_some() class:is-open=is_open href=href data-noscroll="" on:click=move |_| ctx.aside_hint.set(hint.clone())>
+                                    {mark(&module, t)}
+                                    <span class="st-wrow-nm"><b>{module.title.clone()}</b>{notes(&module, pane, at, t)}</span>
+                                    <span class="st-wrow-id mono">{module.id.clone()}</span>
+                                    <span class="st-wrow-lp num">{module.credits.clone().map(|credits| format!("{credits}\u{a0}{}", v.col_credits))}</span>
+                                    <Icon name="chevron-right"/>
+                                </a>
                             }
                         }).collect_view()}
-                        {(hidden > 0).then(|| view! {
-                            <tr class="st-more-row">
-                                <td></td>
-                                <td colspan="4">{(v.more_unoffered)(hidden, season)}" · "<button class="st-link" type="button" on:click=move |_| target.set(Target::All)>{v.show_all}</button></td>
-                            </tr>
-                        })}
-                    </tbody>
-                </table>
-            }
+                    </div>
+                })
+            })
         });
         Some(view! {
-            <div class="st-pane-h" style=format!("--c: {}", item.tone)>
-                <div class="st-pane-title">
-                    <h3>{item.name.clone()}</h3>
-                    <span class="st-chip tone"><span class="st-dot"></span>{format!("{} · {}", item.area_name, item.credits)}</span>
-                    <span class="st-grow"></span>
-                    {plan_in_bench(ctx, &item, target.get_untracked(), t)}
-                </div>
-                {(!item.lists.is_empty()).then(|| view! { <div class="st-season"><span>{v.offered_in}</span>{target_switch(target, item.due, false, t)}</div> })}
-                <p class="st-rule">{item.rule.clone()}</p>
-                {lists}
-            </div>
-            {(!item.taken.is_empty() || item.taken_line.is_some()).then(|| view! {
-                <div class="st-done-box" class:complete=item.complete>
-                    <Icon name=if item.complete { "circle-check-big" } else { "list-checks" }/>
-                    <div>
-                        <b>{item.taken_line.clone()}</b>
-                        <ul>{item.taken.iter().map(|(name, stand)| view! { <li>{name.clone()}<small>{stand.clone()}</small></li> }).collect_view()}</ul>
-                    </div>
-                </div>
-            })}
-            {item.catalog.clone().map(|(href, label)| view! {
-                <div class="st-pane-note">
-                    {item.lists.is_empty().then(|| (!item.fues).then(|| view! { <p class="hint">{v.no_list}</p> }))}
-                    <a class="action" href=t.path(&href)><Icon name="search"/><span>{label}</span><Icon name="chevron-right"/></a>
-                </div>
-            })}
-            {table}
+            {head(&entry, false, t)}
+            {tabs}
+            {catalog_way(&entry, t)}
+            {(!entry.places.is_empty()).then(|| view! { <div class="st-wrows st-wplaces">{places_of(&entry, now, false, t)}</div> })}
+            {list}
         })
     };
     view! {
@@ -599,224 +747,100 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
     }
 }
 
-/// On a phone: the areas as chips, the semester, the area's choices with their modules.
+/// On a phone: the entries as cards, each a page of its own (`StudyUrl::choice`).
 #[component]
 fn ChoosePhone(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<String, CatalogRow>>, picked: Memo<Option<usize>>, marked: Memo<BTreeSet<String>>) -> impl IntoView {
     let t = i18n::t();
     let v = &t.study_views;
-    // The area shown: the picked choice's.
-    let area = RwSignal::new(picked.get_untracked().and_then(|at| pane.with_untracked(|pane| pane.as_ref().and_then(|pane| pane.items.get(at).map(|item| item.area)))).flatten());
-    let shown = Memo::new(move |_| {
-        let wanted = area.get();
+    let page = Memo::new(move |_| ctx.url.with(|url| url.choice).and(picked.get()));
+    let list = move || {
         pane.with(|pane| {
             let pane = pane.as_ref()?;
-            pane.areas.iter().find(|candidate| candidate.area == wanted).or(pane.areas.first()).cloned()
-        })
-    });
-    // The semester: the first one an open choice of the area is due in.
-    let due = Memo::new(move |_| {
-        let area = shown.get()?;
-        pane.with(|pane| {
-            let pane = pane.as_ref()?;
-            let items: Vec<&Item> = area.choices.iter().filter_map(|at| pane.items.get(*at)).collect();
-            items.iter().filter(|item| !item.complete).map(|item| item.due).min().or(items.iter().map(|item| item.due).min())
-        })
-    });
-    let target = RwSignal::new(Target::All);
-    Effect::new(move |_| {
-        if let Some(due) = due.get() {
-            target.set(Target::In(due));
-        }
-    });
-    let chips = move || {
-        pane.with(|pane| {
-            let pane = pane.as_ref()?;
-            let now = shown.with(|shown| shown.as_ref().map(|shown| shown.area));
-            Some(
-                pane.areas
-                    .iter()
-                    .map(|candidate| {
-                        let at = candidate.area;
-                        // How many marked modules count in the area's choices, each once.
-                        let count = marked.with(|marked| candidate.choices.iter().filter_map(|at| pane.items.get(*at)).flat_map(|item| item.lists.iter().flat_map(|(_, modules)| modules.iter())).filter(|id| marked.contains(*id)).collect::<BTreeSet<_>>().len());
+            Some(view! {
+                <header class="st-vhead">
+                    <h1>{v.choices}</h1>
+                    <p>{pane.lead.clone()}</p>
+                </header>
+                {pane.areas.iter().map(|area| view! {
+                    <p class="st-wsec" style=format!("--c: {}", area.tone)><span class="st-dot"></span><span>{area.name.clone()}</span><small>{area.figure.clone()}</small></p>
+                    {area.entries.iter().filter_map(|at| pane.entries.get(*at)).map(|entry| {
+                        let href = ctx.url.with(|url| url.with_choice(Some(entry.choice)).with_module(None, false).path());
+                        let count = marked.with(|marked| count_line(entry, marked, t));
+                        let room = entry.room;
                         view! {
-                            <button class="st-fchip" type="button" style=format!("--c: {}", candidate.tone) aria-pressed=if now == Some(at) { "true" } else { "false" } on:click=move |_| area.set(at)>
-                                <span class="st-dot"></span>{candidate.name.clone()}
-                                <small>{if candidate.complete { "✓".to_string() } else { candidate.figure.clone() }}</small>
-                                {(count > 0).then(|| view! { <small class="st-fchip-mk" title=(v.marked_here)(count)><Icon name="bookmark"/>{count}<span class="visually-hidden">{format!(" · {}", (v.marked_here)(count))}</span></small> })}
-                            </button>
+                            <a class="st-wcard" href=t.path(&href) style=format!("--c: {}", entry.tone) on:click=move |_| ctx.choice_back.set(true)>
+                                <span class="st-wcard-t"><b>{entry.name.clone()}</b>{fig(&entry.stand, t)}<Icon name="chevron-right"/></span>
+                                {bar(&entry.stand, None, "", t)}
+                                <small>{count}</small>
+                                {entry.tabs.iter().filter_map(|tab| tab.member.map(|member| (tab, member))).map(|(tab, (stand, state))| view! {
+                                    <span class="st-wcard-kid"><span>{tab.name.clone()}</span>{fig(&stand, t)}{bar(&stand, Some((state, room)), "thin", t)}</span>
+                                }).collect_view()}
+                            </a>
                         }
-                    })
-                    .collect_view(),
-            )
+                    }).collect_view()}
+                }).collect_view()}
+            })
         })
     };
-    let groups = move || {
-        // The pane before the area shown of it (R16), as `right` on a wide screen.
-        pane.track();
-        let area = shown.get()?;
-        let (items, has) = pane.with(|pane| pane.as_ref().map(|pane| (area.choices.iter().filter_map(|at| pane.items.get(*at).cloned()).collect::<Vec<_>>(), pane.has.clone())))?;
-        let target_now = target.get();
-        Some(items.into_iter().map(|item| view! { <ChoiceGroup ctx item has=has.clone() rows target=target_now marked/> }).collect_view())
+    let detail = move |at: usize| {
+        let (entry, has) = pane.with(|pane| pane.as_ref().and_then(|pane| pane.entries.get(at).cloned().map(|entry| (entry, pane.has.clone()))))?;
+        let tab = RwSignal::new(tab_at(&entry, &has, at));
+        let room = entry.room;
+        let chips = (entry.tabs.len() > 1).then(|| {
+            view! {
+                <div class="st-chiprow small" role="group" aria-label=v.lists>
+                    {entry.tabs.iter().enumerate().map(|(i, tab_of)| view! {
+                        <button class="st-fchip" type="button" style=format!("--c: {}", entry.tone) aria-pressed=move || if tab.get() == i { "true" } else { "false" } on:click=move |_| tab.set(i)>
+                            {tab_of.name.clone()}
+                            {match tab_of.member {
+                                Some((stand, state)) => bar(&stand, Some((state, room)), "thin", t).into_any(),
+                                None => view! { <small>{tab_of.modules.len()}</small> }.into_any(),
+                            }}
+                        </button>
+                    }).collect_view()}
+                </div>
+            }
+        });
+        let tabs = entry.tabs.clone();
+        let tone = entry.tone;
+        let cards = move || {
+            let tab_of = tabs.get(tab.get().min(tabs.len().saturating_sub(1))).cloned()?;
+            let modules = marked.with(|marked| rows.with(|rows| modules_of(&tab_of.modules, rows, &has, marked, t)));
+            pane.with(|pane| {
+                let pane = pane.as_ref()?;
+                Some(view! {
+                    <div class="st-wcards" style=format!("--c: {tone}")>
+                        {modules.into_iter().map(|module| {
+                            let href = super::module_href(ctx, &module.id, t);
+                            let hint = hint_of(&tab_of, &module);
+                            view! {
+                                <a class="st-wcard-m" class:has=module.has.is_some() href=href data-noscroll="" on:click=move |_| ctx.aside_hint.set(hint.clone())>
+                                    {mark(&module, t)}
+                                    <span class="st-wrow-nm"><b>{module.title.clone()}</b>{notes(&module, pane, at, t)}<span class="st-wrow-id mono">{module.id.clone()}</span></span>
+                                    <span class="st-lp">{module.credits.clone()}<small>{v.col_credits}</small></span>
+                                    <Icon name="chevron-right"/>
+                                </a>
+                            }
+                        }).collect_view()}
+                    </div>
+                })
+            })
+        };
+        let now = ctx.now.get_untracked();
+        Some(view! {
+            {head(&entry, true, t)}
+            {chips}
+            {catalog_way(&entry, t)}
+            {(!entry.places.is_empty()).then(|| view! { <div class="st-wcards st-wplaces" style=format!("--c: {}", entry.tone)>{places_of(&entry, now, true, t)}</div> })}
+            {cards}
+        })
     };
     view! {
         <div class="st-phone-page st-wp-phone">
-            <header class="st-vhead">
-                <h1>{v.choices}</h1>
-                <p>{move || pane.with(|pane| pane.as_ref().map(|pane| pane.lead.clone()))}</p>
-            </header>
-            <div class="st-chiprow" role="group" aria-label=v.areas>{chips}</div>
-            {move || due.get().map(|due| view! { <div class="st-season"><span>{v.offered_in}</span>{target_switch(target, due, true, t)}</div> })}
-            {groups}
+            {move || match page.get() {
+                Some(at) => detail(at).into_any(),
+                None => list().into_any(),
+            }}
         </div>
-    }
-}
-
-/// How many modules a phone's group shows before „alle zeigen".
-const SHOWN: usize = 6;
-
-/// A choice on a phone: its head, what is taken, its lists, its modules as cards.
-#[component]
-fn ChoiceGroup(ctx: StudyCtx, item: Item, has: BTreeMap<String, Has>, rows: Memo<BTreeMap<String, CatalogRow>>, target: Target, marked: Memo<BTreeSet<String>>) -> impl IntoView {
-    let t = i18n::t();
-    let v = &t.study_views;
-    let list = RwSignal::new(list_at(&item, &has));
-    let all = RwSignal::new(false);
-    let count: usize = item.lists.iter().map(|(_, modules)| modules.len()).sum();
-    let head_sub = if item.lists.is_empty() { item.span.clone() } else { format!("{} · {}", item.span, (v.modules)(count)) };
-    let marked_count = marked.with_untracked(|marked| marked_in(&item, marked));
-    let lists = (item.lists.len() > 1).then(|| {
-        view! {
-            <div class="st-chiprow small" role="group" aria-label=v.lists>
-                {item.lists.iter().enumerate().map(|(at, (name, modules))| view! {
-                    <button class="st-fchip" type="button" aria-pressed=move || if list.get() == at { "true" } else { "false" } on:click=move |_| { list.set(at); all.set(false); }>
-                        {name.clone()}<small>{modules.len()}</small>
-                    </button>
-                }).collect_view()}
-            </div>
-        }
-    });
-    let item_lists = item.lists.clone();
-    let item_rows = item.rows.clone();
-    let due = item.due;
-    let cards = move || {
-        let ids = item_lists.get(list.get().min(item_lists.len().saturating_sub(1))).map(|(_, modules)| modules.clone()).unwrap_or_default();
-        if ids.is_empty() {
-            return None;
-        }
-        let modules = marked.with(|marked| rows.with(|rows| modules_of(&ids, rows, &has, marked, target, due, t)));
-        let (fit, rest): (Vec<Module>, Vec<Module>) = modules.into_iter().partition(|module| module.fits || module.has != Has::No || module.marked);
-        let total = fit.len();
-        let open = all.get();
-        let shown: Vec<Module> = if open { fit } else { fit.into_iter().take(SHOWN).collect() };
-        let more = (!open && total > SHOWN).then(|| view! { <button class="st-more-btn" type="button" on:click=move |_| all.set(true)>{format!("{} ({total})", v.show_all)}<Icon name="chevron-down"/></button> });
-        let season = match target {
-            Target::In(s) => if s.winter { t.format.winter_short } else { t.format.summer_short },
-            Target::All => "",
-        };
-        let hidden = (!rest.is_empty()).then(|| view! { <p class="hint st-hidden-n">{(v.more_unoffered)(rest.len(), season)}</p> });
-        Some(view! {
-            <ul class="st-mcards">
-                {shown.into_iter().map(|module| {
-                    let href = super::module_href(ctx, &module.id, t);
-                    view! {
-                        <li class="st-mcard" class:taken=module.has != Has::No>
-                            <div class="st-mcard-t">
-                                <a href=href data-noscroll="">{module.title.clone()}</a>
-                                <span class="st-meta">{module.marked.then(|| marked_sign(t))}<span class="st-code mono">{module.id.clone()}</span><span class="st-turnus" class:match=module.fits && module.seasonal && target != Target::All>{module.turnus.clone()}</span></span>
-                            </div>
-                            <span class="st-lp">{module.credits.clone()}<small>{v.col_credits}</small></span>
-                            <span class="st-mcard-act">{module_act(ctx, &module, &item_rows, t)}</span>
-                        </li>
-                    }
-                }).collect_view()}
-            </ul>
-            {more}
-            {hidden}
-        })
-    };
-    view! {
-        <section class="st-grp" style=format!("--c: {}", item.tone) aria-label=item.name.clone()>
-            <div class="st-grp-h">
-                <b>{item.name.clone()}<span class="st-chip">{item.credits.clone()}</span></b>
-                <small>{head_sub}</small>
-                {(marked_count > 0).then(|| view! { <small class="st-sl-mk"><Icon name="bookmark"/>{(v.marked_here)(marked_count)}</small> })}
-                {plan_in_bench(ctx, &item, target, t)}
-            </div>
-            {item.rule_extra.clone().map(|rule| view! { <p class="st-rule"><Icon name="info"/><span>{rule}</span></p> })}
-            {(!item.taken.is_empty() || item.taken_line.is_some()).then(|| view! {
-                <div class="st-done-box" class:complete=item.complete>
-                    <Icon name=if item.complete { "circle-check-big" } else { "list-checks" }/>
-                    <div>
-                        <b>{item.taken_line.clone()}</b>
-                        <ul>{item.taken.iter().map(|(name, stand)| view! { <li>{name.clone()}<small>{stand.clone()}</small></li> }).collect_view()}</ul>
-                    </div>
-                </div>
-            })}
-            {item.catalog.clone().map(|(href, label)| view! {
-                {(item.lists.is_empty() && !item.fues).then(|| view! { <p class="hint">{v.no_list}</p> })}
-                <a class="action" href=t.path(&href)><Icon name="search"/><span>{label}</span><Icon name="chevron-right"/></a>
-            })}
-            {lists}
-            {cards}
-        </section>
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use folia_model::labels::Code;
-
-    use super::*;
-
-    fn row(id: &str, title: &str, season: &str) -> CatalogRow {
-        CatalogRow {
-            id: id.into(),
-            title: title.into(),
-            title_de: None,
-            title_en: None,
-            credits: Some(6.0),
-            turnus_season: Some(Code::parse(season)),
-            turnus_parity: None,
-            offer_status: Code::parse("active"),
-            teaches_german: None,
-            teaches_english: None,
-            is_fues: false,
-            is_limited: None,
-            department: None,
-            teaching_events: 0,
-            exam_form: None,
-            responsible: None,
-            kind: None,
-            kind_source: None,
-            kind_basis: None,
-            plan_semester: None,
-            area: None,
-            courses: 0,
-            choices: Vec::new(),
-            marks: None,
-        }
-    }
-
-    /// What the student has comes first; then what is on the Merkliste, offered in the semester or
-    /// not; then what the semester offers; then the rest.
-    #[test]
-    fn the_marked_come_after_what_the_student_has() {
-        let rows: BTreeMap<String, CatalogRow> = [row("11001", "Algebra", "winter"), row("11002", "Botanik", "summer"), row("11003", "Chemie", "winter"), row("11004", "Didaktik", "summer"), row("11005", "Ethik", "winter")].into_iter().map(|row| (row.id.clone(), row)).collect();
-        let ids: Vec<String> = rows.keys().cloned().collect();
-        let winter = SemesterKey::parse("2026W").unwrap();
-        let has: BTreeMap<String, Has> = [("11005".to_string(), Has::Planned(winter))].into_iter().collect();
-        let marked: BTreeSet<String> = ["11002".to_string(), "11003".to_string()].into_iter().collect();
-        let order: Vec<(String, bool, bool)> = modules_of(&ids, &rows, &has, &marked, Target::In(winter), winter, &crate::i18n::DE).into_iter().map(|module| (module.id, module.marked, module.fits)).collect();
-        assert_eq!(
-            order,
-            [
-                ("11005".to_string(), false, true),
-                ("11003".to_string(), true, true),
-                ("11002".to_string(), true, false),
-                ("11001".to_string(), false, true),
-                ("11004".to_string(), false, false),
-            ]
-        );
     }
 }

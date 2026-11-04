@@ -100,7 +100,7 @@ pub fn CatalogPage() -> impl IntoView {
     let hint = Memo::new(move |_| {
         let here = url.get();
         let semester = here.query.fits.as_ref().and_then(|fits| SemesterKey::parse(&fits.semester));
-        (semester.is_some() || here.fill.is_some()).then_some(PlanHint { semester, fill: here.fill })
+        (semester.is_some() || here.fill.is_some()).then_some(PlanHint { semester, fill: here.fill, counts: None })
     });
     if APP {
         provide_context(Finder { view: fit_view, hint });
