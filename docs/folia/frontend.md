@@ -50,7 +50,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen. `?termin=<key>&on=<day>`: a Termin of it in the app's dialog over the page to look up, on a phone the sheet every dialog is (the app's alone; „A Termin in its own view") |
 | `/event/<key>[/<day>]` | A Termin's own page to look up (`url::event_path`, 2026-10-26; „A Termin in its own view" below), where a line of a module's Termine leads: the key a `RowKey`, the day a date of it (without one the next, the server's the first). The server renders it the same for everybody, `noindex`, not in the sitemap, its links to other dates `nofollow`; an event no module links is a 404. A page of a while: it lies on the tab it was opened from |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
-| `/study[?view=plan\|areas][&open=<id>][&full=1]` | „Mein Studium“ (`StudyUrl`, 2026-10-04): the visitor's study semester by semester, the first page of the Studium tab in the app (see „Mein Studium“ below). What is passed and planned lives in the browser; the address says only how it is shown: which view (`view`, 2026-10-14: `plan` the Regelstudienplan, `areas` the Wahlpflicht, none the semesters; on a phone each a page of its own that Back leaves), which module stands beside the page, and whether it fills it. The semester a phone's row shows rather than the overview is no part of the address since 2026-10-18 but the state of its entry of the history, which a reload, Back and Forward bring along and which writes no step („Back" below); from 2026-10-05 it was `plan=1`, a step after the overview, which is still read (and links the box „Studium planen" without JavaScript) and gives way to `/study` once the row is back at the overview; a desktop shows both at once. The server renders one stand-in for everybody, `noindex`, not in the sitemap |
+| `/study[?view=plan\|areas][&choice=<n>][&open=<id>][&full=1]` | „Mein Studium“ (`StudyUrl`, 2026-10-04): the visitor's study semester by semester, the first page of the Studium tab in the app (see „Mein Studium“ below). What is passed and planned lives in the browser; the address says only how it is shown: which view (`view`, 2026-10-14: `plan` the Regelstudienplan, `areas` the Wahlpflicht, none the semesters; on a phone each a page of its own that Back leaves), on a phone a choice of the Wahlpflicht as a page of its own behind its list (`choice`, an index of the plan's choices, Folia 1.74.0), which module stands beside the page, and whether it fills it. The semester a phone's row shows rather than the overview is no part of the address since 2026-10-18 but the state of its entry of the history, which a reload, Back and Forward bring along and which writes no step („Back" below); from 2026-10-05 it was `plan=1`, a step after the overview, which is still read (and links the box „Studium planen" without JavaScript) and gives way to `/study` once the row is back at the overview; a desktop shows both at once. The server renders one stand-in for everybody, `noindex`, not in the sitemap |
 | `/programs/<slug>/plan\|areas\|my-plan[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar: the Regelstudienplan (`plan`) and „Wahlpflicht & Bereiche“ (`areas`). „Mein Plan“ (`my-plan`, the visitor's, `noindex` and not in the sitemap, `ProgramTab::indexed`) took the place of „Alle Module“ on 2026-09-25 (the program's modules are its catalog, `/catalog?program=<slug>`, and `…/modules` is a 404) and became „Mein Studium“ on 2026-10-04: the views no longer list it, the app goes on from its address to `/study` in the same history entry, and the server's page there says so. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all but `variant` (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key and its canonical address is the plain one. The plan of each further study direction is a page of its own (2026-09-26): `?variant=<n>` is its canonical address, listed in the sitemap, with the direction in its title; the first is the plain address, and a number past the last plan names the last. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone an area or a row of the plan picked is the page, and a module comes up as a sheet over the page or over what was picked (2026-10-06; until then `open` alone showed it in full there) |
 | `/bookmarks?collection=…&turnus=…&stand=…&counts=1&lang=…&ects_min=…&campus=…&graded=yes&fits=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (the view — a collection by its number, `none` for „Ohne Sammlung", never its name —, half of the year, „Stand", „Zählt in meinem Studium", the few of the catalog's filters it has under the catalog's names, the order — `added`, `study`, `offer`, `title`, `ects`, `events`, each turned round with `desc=1` —, the previewed module), never what is on it: the marks live in the browser, and so does what is typed into the search at the head on this page (`folia_shell::search::LocalSearch`, R20). `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/widgets/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` is a sheet over the list (2026-10-06; until then it did what `full=1` does). The server renders an explanation, the same for everybody, `noindex` |
 | `/studyplan?sem=…&view=…&open=<id>&row=<key>&termin=<key>&on=<day>&wahl=e<event>&vergleich=1&import=…&variant=<n>[&share=<code>][&full=1]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20) — `termin` and `on` a Termin in its own view in the app's dialog over it, and with `full=1` filling the page („Ganze Seite", as `open=<id>&full=1` a module; `PlanAddress`; „A Termin in its own view"), `wahl` a choice of groups in focus over the week and `vergleich` its groups compared day by day („Offen and the choice in focus") —, with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
@@ -1764,26 +1764,40 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       each Fachsemester, and what the student has there. „Mein Stand" switches the stand off: the
       plan as printed. On a phone the Fachsemester are sections with a strip to jump to (sticky),
       a line of what is passed of the ones before and a retake, a card a row.
-    - **„Wahlpflicht"** (`view=areas`): what the plan leaves to choose (`choices::Choice`): its rows
-      without a module, those of one name in one area together („Anwendungsfach" in the 3. and the
-      4. FS, Maschinenbau's „Wahlpflichtmodul 1"–„4"), by the areas of the progress, those with
-      something open first; each with what the plan says of it (credits and Fachsemester, one of
-      several lists, a sum it shares with others: „Zusammen mit Praktische Informatik und
-      Angewandte und Technische Informatik 44 LP"), its lists (the tree's areas its name points at,
-      `plan::areas_for_row`, as tabs where there are several: „Mathematik", „Physik" …; else the
-      areas of its progress area where a student chooses; the FÜS the catalog's FÜS list), and the
-      list's modules with their turnus. The semester to plan into is the one the plan puts the
-      choice into (not before the current one) or the one after it: what it does not offer waits
-      under „N weitere, nicht im SoSe angeboten · alle zeigen", and „Alle" plans each into the next
-      semester that offers it. „+ In SoSe 27" plans the module (`study::add_for`) and lets it fill
-      a place of the choice standing in that semester that nothing fills yet (Folia 1.59.2), so that
-      the choice counts once, by the module; a choice without a list leads to the catalog with the
-      first such place from the current semester on (`fill=`). On a desktop the
-      choices on the left and the one picked on the right; on a phone the areas as chips and their
-      choices one under the other, six modules each before „alle zeigen". What is on the Merkliste
-      (Folia 1.37.0; konzept.html, „Von überall") comes first after what the student has, offered
-      in the semester or not (it was kept for a reason), with the bookmark; a choice says how many
-      marked modules its lists hold („1 gemerktes zählt hier"), on a phone its area's chip too.
+    - **„Wahlpflicht"** (`view=areas`; Folia 1.74.0, folia/design/wahlpflicht, A after its second
+      round; owner, 2026-11-04: „Hier ist wirklich einfach nur der lookup, wie viel brauche ich aus
+      dem bereich und was gibt es da"): what the plan leaves to choose (`choices::Choice`), to look
+      up how much each asks and what there is: its rows without a module, those of one name in one
+      area together („Anwendungsfach" in the 3. and the 4. FS, Maschinenbau's „Wahlpflichtmodul
+      1"–„4"), by the areas of the progress in the plan's order. Each with its figure („6 / 12
+      LP"), its bar (passed in the area's tone, planned lighter, beyond what it takes hatched, the
+      least marked where it asks a range) and how many modules it has („17 Module", „5 Listen · 59
+      Module", how many of them are marked); what is done looks as what is open, its bar full (no
+      „✓ vollständig", nothing moves: „Mach doch einfach die progress bar voll"). Its name without
+      „Modul aus dem Bereich" (`bench::short_name`); what it asks in a sentence („12 LP aus einer
+      der 5 Listen."); its lists as tabs (the tree's areas its name points at,
+      `plan::areas_for_row`; else the areas of its progress area where a student chooses; the FÜS
+      the catalog's FÜS list), their modules as rows: the student's mark (planned, running,
+      passed), the name, the number, the credits, „zählt für Anwendungsfach" where it counts for
+      another choice; what the student has first, then what is marked, then by title. No semester
+      and no button to plan: a row opens the module beside the page (a sheet on a phone), whose
+      „Einplanen" plans it for the choice it was opened from (`StudyCtx::aside_hint`,
+      `PlanHint::counts`): into the semester of the choice's first open place from the current
+      semester on, which it fills, else where the sidebar aims, counting for the choice's row
+      (`Planned::counts`), from „Einplanen in …" too. A placeholder of the choice no module fills
+      stands with its modules („Platzhalter · im WiSe 2026/27, noch ohne Modul"). The choices the
+      regulation sums over are one entry (`choices::Group`): the three Komplexe des Fachstudiums of
+      Informatik B.Sc. („Summe Komplexe des Fachstudiums 44", each „10–24") with the choice whose
+      lists are theirs („Wahlpflicht: Komplex … / … / …", 6 LP in the 4. FS) — 50 LP of the three,
+      each 10 to 24, the one over 24 to 30 (§ 6 Abs. 8 and Anlage 2 of the regulation; owner: „nur
+      eins davon darf 30 haben"). A member's stand is what of the group's choices and of the study
+      on no choice (`PlanView::spare`) falls on its list; its bar goes to 30, the stretch above 24
+      hatched while it is open to each, filled by the member over 24 with the most (of two alike
+      the one over it in an earlier semester), gone for the others; a second member over 24 is said
+      above the members and yellow above 24, and counts to 24 for what is left (`Group::open`). On a
+      desktop the choices on the left, a group with its members under it, the one picked on the
+      right; on a phone the choices as cards, each a page of its own (`choice=`) whose way back
+      leads to them.
     - **What is the student's.** Which module fills which row is never guessed (as everywhere,
       `studyplan::Planned::fills`): a row without a module stands as the student put it — its
       placeholders, the modules that fill them, its mark as done. A module planned for the row
@@ -1793,7 +1807,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       row of the plan too), as the progress counts a module towards an area by where the tree
       places it; a module counts towards one choice at most, the first in the order of the plan
       that lists it and has room. „Noch 64 LP zu wählen" is what the choices still ask for, a sum
-      several share counted once.
+      several share counted once, a group as one.
   - **On a phone** (`phone.rs`, owner, 2026-10-05, after a try on her phone: „die landing Page vom
     Studium relativ komisch und unübersichtlich. Mach das mal so, dass man oben die progressbar hat
     und darunter gleich die legende dazu. Danach kommt der Studiengang und Dann kommen die links zu

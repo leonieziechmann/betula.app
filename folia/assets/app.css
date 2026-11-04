@@ -6075,12 +6075,11 @@ div.st-col-head.past { cursor: default; }
 .st-filters .n { margin-left: 6px; font-weight: 500; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .st-filters [aria-pressed="true"] .n { color: inherit; }
 .st-marked-chips { margin-bottom: 10px; }
-.st-marked, .st-mk, .st-sl-mk { display: inline-flex; align-items: center; gap: 4px; }
+.st-marked, .st-mk { display: inline-flex; align-items: center; gap: 4px; }
 .st-marked { color: var(--text); font-weight: 560; }
-.st-marked .icon, .st-mk .icon, .st-sl-mk .icon { width: 12px; height: 12px; flex: none; fill: currentColor; }
+.st-marked .icon, .st-mk .icon { width: 12px; height: 12px; flex: none; fill: currentColor; }
 .st-mk { margin-left: 6px; vertical-align: -1px; color: var(--text-2); }
 .st-meta .st-mk { margin-left: 0; }
-.st-sl small.st-sl-mk, .st-grp-h small.st-sl-mk { color: var(--text-2); }
 /* An area. */
 .st-area-bar { position: relative; display: flex; height: 14px; margin: 6px 0 0; border-radius: 7px; background: var(--panel-3); }
 .st-area-bar > span:first-child { border-radius: 7px 0 0 7px; }
@@ -6327,60 +6326,93 @@ a.st-rsp-name:hover { text-decoration: underline; }
 .st-rsp-source { display: flex; align-items: center; gap: 6px; margin: 10px 20px 8px; }
 .st-rsp-source .icon { width: 14px; height: 14px; }
 
-/* The Wahlpflicht on a desktop: the choices by area on the left, the one picked on the right. */
-.st-split { display: grid; grid-template-columns: 260px minmax(0, 1fr); border-top: 1px solid var(--line); }
-.st-split-l { display: flex; flex-direction: column; gap: 1px; padding: 8px 8px 12px; border-right: 1px solid var(--line); }
-.st-sl-h { display: flex; align-items: center; gap: 7px; margin: 12px 8px 4px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-2); }
-.st-sl-h:first-child { margin-top: 4px; }
-.st-sl-h small { margin-left: auto; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-3); }
-.st-sl-h small.ok { color: var(--ok); }
-.st-sl { position: relative; display: grid; gap: 1px; width: 100%; padding: 7px 10px 8px 14px; border: 0; border-radius: var(--r-s); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+/* The Wahlpflicht (choose.rs; folia/design/wahlpflicht, A after its second round): to look up how
+   much a choice asks and what there is. On a desktop the choices by area on the left, each with its
+   figure, its bar and how many modules it has; the one picked on the right, its modules as rows a
+   click opens beside the page. What is done looks as what is open, its bar full. */
+.st-split { display: grid; grid-template-columns: 276px minmax(0, 1fr); border-top: 1px solid var(--line); }
+.st-split-l { display: flex; flex-direction: column; gap: 1px; padding: 6px 8px 14px; border-right: 1px solid var(--line); }
+.st-sl-h { display: flex; align-items: center; gap: 7px; margin: 12px 10px 4px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-2); }
+.st-sl-h:first-child { margin-top: 6px; }
+.st-sl-h small { margin-left: auto; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.st-sl { position: relative; display: grid; gap: 6px; width: 100%; padding: 8px 10px 9px 14px; border: 0; border-radius: var(--r-s); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .st-sl:hover { background: var(--row-hover); }
-.st-sl b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; font-size: 13px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
-.st-sl small { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-3); }
-.st-sl small.ok { color: var(--ok); }
-.st-sl small .icon { width: 12px; height: 12px; stroke-width: 2.6; }
+.st-sl-t { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.st-sl-t > b { flex: 1; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; font-size: 13px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.st-sl small { font-size: 12px; color: var(--text-3); }
 .st-sl[aria-current="true"] { background: var(--panel-3); }
-.st-sl[aria-current="true"]::before { content: ""; position: absolute; left: 4px; top: 7px; bottom: 7px; width: 3px; border-radius: 2px; background: var(--c); }
-.st-split-r { min-width: 0; padding: 14px 20px 16px; }
-.st-pane-h { display: grid; gap: 8px; }
-.st-pane-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
-.st-pane-title h3 { margin: 0; font-size: 16px; font-weight: 700; }
-.st-chip.tone { background: color-mix(in oklab, var(--c) 12%, var(--panel)); color: color-mix(in oklab, var(--c) 65%, var(--text)); }
-.st-chip.tone .st-dot { width: 7px; height: 7px; }
-.st-chip.ok { background: var(--ok-soft); color: var(--ok); }
-.st-chip.plan { background: var(--panel-3); color: var(--text); }
-.st-season { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12.5px; color: var(--text-2); }
-.st-season .st-views button { height: 26px; padding: 0 10px; font-size: 12.5px; }
-.st-rule { display: flex; gap: 6px; margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-2); }
-.st-rule .icon { flex: none; width: 14px; height: 14px; margin-top: 3px; }
-.st-lists { flex-wrap: wrap; max-width: 100%; }
-.st-lists button small { font-size: 11.5px; font-weight: 600; color: var(--text-3); }
-.st-done-box { display: flex; gap: 10px; margin: 12px 0 4px; padding: 10px 12px; border-radius: var(--r-ctl); background: var(--panel-2); font-size: 13px; }
-.st-done-box > .icon { flex: none; width: 18px; height: 18px; color: var(--text-2); }
-.st-done-box.complete > .icon, .st-done-box.complete b { color: var(--ok); }
-.st-done-box b { font-weight: 650; }
-.st-done-box ul { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 1px; }
-.st-done-box li small { margin-left: 8px; color: var(--text-3); }
-.st-pane-note { margin: 12px 0 0; display: grid; gap: 6px; }
-.st-pane-note .action, .st-grp > .action { box-shadow: inset 0 0 0 1px var(--line-strong); }
-.st-wtable { width: 100%; margin-top: 10px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.st-wtable th, .st-wtable td { padding: 6px 8px; border-top: 1px solid var(--line); font-size: 13px; text-align: left; vertical-align: middle; }
-.st-wtable thead th { border-top: 0; color: var(--text-3); font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
-.st-wtable th:first-child, .st-wtable td:first-child { padding-left: 0; }
-.st-wtable th:last-child, .st-wtable td:last-child { padding-right: 0; }
-.st-wtable .r { text-align: right; }
-.st-wtable td.id { width: 56px; color: var(--text-3); font-size: 12px; }
-.st-wtable td.nm a { color: var(--text); font-weight: 560; text-decoration-color: var(--line-strong); }
-.st-wtable td.nm a:hover { text-decoration: underline; }
-.st-wtable td.nm small { margin-left: 8px; font-size: 11.5px; color: var(--warn); }
-.st-wtable tbody tr:hover { background: var(--row-hover); }
-.st-wtable tr.taken td.nm a { font-weight: 650; }
-.st-turnus { display: inline-block; padding: 0 6px; border-radius: 5px; background: var(--panel-3); font-size: 11.5px; font-weight: 600; color: var(--text-2); white-space: nowrap; }
-.st-turnus.match { background: var(--ok-soft); color: var(--ok); }
-.st-more-row td { color: var(--text-3); font-size: 12.5px; }
-.st-more-row .st-link { font-size: 12.5px; }
-@container semesters (max-width: 760px) { .st-split { grid-template-columns: 210px minmax(0, 1fr); } }
+.st-sl[aria-current="true"]::before { content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px; width: 3px; border-radius: 2px; background: var(--c); }
+/* A group's members under it, each with its small bar. */
+.st-sl-kids { display: grid; margin: -2px 0 4px 14px; padding-left: 10px; border-left: 1px solid var(--line); }
+.st-sl-kid { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 8px; width: 100%; padding: 5px 8px 6px; border: 0; border-radius: var(--r-s); background: none; color: var(--text-2); font: inherit; font-size: 12.5px; line-height: 1.3; text-align: left; cursor: pointer; }
+.st-sl-kid:hover { background: var(--row-hover); color: var(--text); }
+.st-sl-kid[aria-current="true"] { background: var(--panel-2); color: var(--text); font-weight: 600; }
+.st-sl-kid .st-wbar { grid-column: 1 / -1; }
+.st-split-r { min-width: 0; padding: 16px 22px 18px; }
+@container semesters (max-width: 760px) { .st-split { grid-template-columns: 220px minmax(0, 1fr); } }
+/* „6 / 10–24 LP" beside a name. */
+.st-wfig { flex: none; font-size: 12px; font-weight: 500; color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.st-wfig b { font-weight: 650; color: var(--text-2); }
+/* A choice's bar (`bar`): its track, what is passed in its tone, what is planned lighter, beyond
+   what it takes hatched, its least marked where it asks a range. A group's member has a stretch
+   above its most that one of them keeps: hatched while open (`.zn`), yellow where another member is
+   over as well (`.zn.over`, `.ov.warn`); where another keeps it, the track ends before it. */
+.st-wbar { position: relative; display: block; height: 6px; min-width: 40px; }
+.st-wbar > span { position: absolute; top: 0; bottom: 0; left: 0; }
+.st-wbar > .tr { border-radius: 3px; background: var(--panel-3); }
+.st-wbar > .zn { border-radius: 0 3px 3px 0; background: var(--panel-3) repeating-linear-gradient(135deg, transparent 0 2px, color-mix(in oklab, var(--text-3) 55%, transparent) 2px 3px); }
+.st-wbar > .zn.over { background: var(--warn-soft); }
+.st-wbar > .ps { border-radius: 3px 0 0 3px; background: var(--c); }
+.st-wbar > .pl { background: color-mix(in oklab, var(--c) 36%, var(--panel)); }
+.st-wbar > .pl.first { border-top-left-radius: 3px; border-bottom-left-radius: 3px; }
+.st-wbar > .end { border-top-right-radius: 3px; border-bottom-right-radius: 3px; }
+.st-wbar > .ov { background: repeating-linear-gradient(135deg, var(--c) 0 2px, color-mix(in oklab, var(--c) 28%, var(--panel)) 2px 5px); }
+.st-wbar > .ov.warn { background: repeating-linear-gradient(135deg, var(--warn-dot, var(--warn)) 0 2px, color-mix(in oklab, var(--warn-dot, var(--warn)) 40%, transparent) 2px 4px); }
+.st-wbar > .lt { top: -3px; bottom: -3px; width: 2px; margin-left: -1px; border-radius: 1px; background: color-mix(in oklab, var(--text-2) 70%, transparent); }
+.st-wbar.big { height: 8px; }
+.st-wbar.big > .tr { border-radius: 4px; }
+.st-wbar.thin { height: 4px; min-width: 28px; }
+.st-wbar.thin > .lt { top: -2px; bottom: -2px; }
+/* The choice picked: its name and figure, its bar, what it asks, a group's stretch said. */
+.st-wph { display: grid; gap: 10px; }
+.st-wpt { display: flex; align-items: baseline; gap: 14px; }
+.st-wpt h3 { flex: 1; min-width: 0; margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.st-wpt .st-wfig { font-size: 14px; }
+.st-wrule { margin: 0; max-width: 80ch; font-size: 13px; line-height: 1.5; color: var(--text-2); text-wrap: pretty; }
+.st-wlegend { display: flex; align-items: center; gap: 8px; margin: -2px 0 0; font-size: 12px; color: var(--text-3); }
+.st-wlegend .sw { flex: none; width: 22px; height: 6px; border-radius: 3px; background: var(--panel-3) repeating-linear-gradient(135deg, transparent 0 2px, color-mix(in oklab, var(--text-3) 55%, transparent) 2px 3px); }
+.st-wwarn { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 9px 12px; border-radius: var(--r-ctl); background: var(--warn-soft); font-size: 12.5px; line-height: 1.45; color: var(--warn); }
+.st-wwarn .icon { flex: none; width: 15px; height: 15px; margin-top: 1px; }
+/* Its lists as tabs, underlined; a group's members with their bars. */
+.st-wtabs { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 16px; border-bottom: 1px solid var(--line); }
+.st-wtabs button { display: grid; gap: 6px; padding: 0 1px 9px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; }
+.st-wtabs button:hover { color: var(--text); }
+.st-wtabs button[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--c); }
+.st-wtabs button small { margin-left: 5px; font-size: 11.5px; font-weight: 600; color: var(--text-3); }
+.st-wtab-p { display: grid; grid-template-columns: 96px auto; align-items: center; gap: 8px; }
+/* Its modules: the student's mark, the name, the number, the credits; a click opens it beside the
+   page. A placeholder of it stands with them, not a link. */
+.st-wrows { display: flex; flex-direction: column; margin-top: 6px; }
+.st-wrows.st-wplaces { margin-top: 10px; }
+.st-wrow { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto 52px 14px; align-items: center; gap: 12px; min-height: 40px; padding: 4px 8px; border-top: 1px solid var(--line); border-radius: var(--r-s); color: var(--text); font-size: 13px; text-decoration: none; }
+.st-wrow:first-child { border-top-color: transparent; }
+.st-wrow:hover { background: var(--row-hover); text-decoration: none; }
+.st-wrow.is-open { background: var(--panel-3); }
+.st-wrow > .icon { width: 14px; height: 14px; color: var(--text-3); }
+/* A placeholder of the choice no module fills: what the student put in for it, not a link. */
+.st-wplace { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 12px; min-height: 40px; padding: 4px 8px; border-radius: var(--r-s); background: var(--panel-2); font-size: 13px; }
+.st-wplace + .st-wplace { margin-top: 4px; }
+.st-wmk { display: grid; place-items: center; width: 18px; height: 18px; }
+.st-wrow-nm { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
+.st-wrow-nm b { font-weight: 560; overflow-wrap: anywhere; }
+.st-wrow.has .st-wrow-nm b, .st-wcard-m.has .st-wrow-nm b { font-weight: 650; }
+.st-wrow-nm small { font-size: 11.5px; color: var(--text-3); }
+.st-wrow-nm small.warn { color: var(--warn); }
+.st-wrow-nm .st-mk { margin-left: 0; }
+.st-wrow-id { font-size: 11.5px; color: var(--text-3); white-space: nowrap; }
+.st-wrow-lp { text-align: right; color: var(--text-2); white-space: nowrap; }
+.st-wnote { display: grid; gap: 6px; margin: 14px 0 0; }
+.st-wnote .action { justify-self: start; box-shadow: inset 0 0 0 1px var(--line-strong); }
 
 /* The workbench (bench.rs; folia/design/hinzufuegen/konzepte.html, third round; owner, 2026-11-03:
    „Passt so, bau das jetzt in Folia"): planning one semester is a mode. Its bar stands over all it
@@ -6494,7 +6526,6 @@ span.st-wb-go { cursor: default; }
 .st-wb-sr .st-area .st-dot { width: 7px; height: 7px; }
 .st-wb-tag { color: var(--text-2); }
 .st-wb-rm { position: relative; z-index: 1; }
-.st-plan-bench { display: inline-flex; align-items: center; gap: 6px; }
 /* The workbench over the catalog that „Im Katalog suchen" opened (folia_stores::studyplan::BenchBar):
    at the head of the list the way back first (the module beside the list covers the bar's right
    end), „Planen", the semester and the subgroup. */
@@ -6555,7 +6586,7 @@ span.st-wb-go { cursor: default; }
   .st-sech small { font-size: 13px; font-weight: 500; color: var(--text-3); white-space: nowrap; }
   .st-sech .ln { flex: 1; min-width: 12px; height: 1px; align-self: center; background: var(--line-strong); }
   .st-sech .st-now { align-self: center; }
-  .st-pcards, .st-mcards { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; }
+  .st-pcards { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; }
   .st-pcard { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 68px; padding: 12px 14px 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
   .st-pcard.is-open { background: transparent; box-shadow: inset 0 0 0 1px var(--line-strong); }
   .st-pcard-t { display: grid; gap: 4px; min-width: 0; }
@@ -6563,43 +6594,45 @@ span.st-wb-go { cursor: default; }
   .st-pcard-note { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--text-2); }
   .st-pcard-note .icon { width: 12px; height: 12px; }
   .st-pcard-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
-  .st-pcard .st-chip, .st-mcard .st-chip { font-size: 12.5px; }
-  .st-pcard .st-addb, .st-mcard .st-addb { height: 32px; padding: 0 12px; border-radius: 16px; font-size: 13px; }
-  .st-pcard .st-lp, .st-mcard .st-lp { font-size: 15px; font-weight: 650; white-space: nowrap; }
-  .st-pcard .st-lp small, .st-mcard .st-lp small { margin-left: 2px; font-size: 11px; font-weight: 500; color: var(--text-3); }
-  /* The Wahlpflicht on a phone: the areas as chips, the semester, the area's choices. */
+  .st-pcard .st-chip { font-size: 12.5px; }
+  .st-pcard .st-addb { height: 32px; padding: 0 12px; border-radius: 16px; font-size: 13px; }
+  .st-pcard .st-lp, .st-wcard-m .st-lp { font-size: 15px; font-weight: 650; white-space: nowrap; }
+  .st-pcard .st-lp small, .st-wcard-m .st-lp small { margin-left: 2px; font-size: 11px; font-weight: 500; color: var(--text-3); }
+  /* The Wahlpflicht on a phone: the choices as cards, by area; a choice a page of its own, its
+     lists as chips, its modules as cards a tap opens as the sheet. */
+  .st-wsec { display: flex; align-items: center; gap: 7px; margin: 20px 4px 8px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-2); }
+  .st-wsec small { margin-left: auto; font-size: 12.5px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-3); font-variant-numeric: tabular-nums; }
+  .st-wcard { display: grid; gap: 8px; padding: 13px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); text-decoration: none; }
+  .st-wcard + .st-wcard { margin-top: 8px; }
+  .st-wcard:hover { text-decoration: none; }
+  .st-wcard-t { display: flex; align-items: center; gap: 10px; }
+  .st-wcard-t > b { flex: 1; min-width: 0; font-size: 15px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; hyphens: auto; }
+  .st-wcard-t .icon { width: 16px; height: 16px; color: var(--text-3); }
+  .st-wcard > small { font-size: 12.5px; color: var(--text-3); }
+  .st-wcard-kid { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 8px; font-size: 12.5px; color: var(--text-2); }
+  .st-wcard-kid .st-wbar { grid-column: 1 / -1; }
+  .st-wp-phone .st-wph { margin: 4px 4px 0; }
+  .st-wph h1 { flex: 1; min-width: 0; margin: 0; font-size: 22px; font-weight: 760; letter-spacing: -.015em; line-height: 1.2; overflow-wrap: anywhere; hyphens: auto; }
+  .st-wp-phone .st-wrule { font-size: 13.5px; }
   .st-chiprow { display: flex; gap: 6px; margin: 0 -12px; padding: 2px 12px 4px; overflow-x: auto; scrollbar-width: none; }
   .st-chiprow::-webkit-scrollbar { display: none; }
-  .st-chiprow.small { margin: 2px -2px 0; padding: 0 2px 2px; }
-  .st-fchip { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border: 0; border-radius: 18px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+  .st-chiprow.small { margin: 14px -12px 0; padding: 0 12px 2px; }
+  .st-fchip { flex: none; display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border: 0; border-radius: 18px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; }
   .st-fchip small { font-size: 12px; font-weight: 600; color: var(--text-3); }
+  .st-fchip .st-wbar { width: 44px; min-width: 44px; }
   .st-fchip[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); }
   .st-fchip[aria-pressed="true"] small { color: color-mix(in oklab, var(--on-invert) 70%, transparent); }
-  /* An area that marked modules count in: the bookmark, filled, and how many (choose.rs). */
-  .st-fchip .st-fchip-mk { display: inline-flex; align-items: center; gap: 2px; color: var(--text-2); }
-  .st-fchip .st-fchip-mk .icon { width: 12px; height: 12px; fill: currentColor; }
-  .st-chiprow.small .st-fchip { height: 32px; padding: 0 12px; font-size: 13px; }
-  /* The semester over the list, the switch the whole width under its label. */
-  .st-season { flex-direction: column; align-items: stretch; gap: 6px; padding: 0 4px; font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
-  .st-season .st-views { flex: 1; display: flex; }
-  .st-season .st-views button { flex: 1; justify-content: center; height: 34px; padding: 0 6px; font-size: 13.5px; letter-spacing: 0; text-transform: none; white-space: nowrap; }
-  .st-grp { display: grid; gap: 8px; margin-top: 6px; }
-  .st-grp-h { display: grid; gap: 2px; padding: 0 4px; }
-  .st-grp-h b { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 16px; font-weight: 700; line-height: 1.3; }
-  .st-grp-h small { font-size: 13px; color: var(--text-3); }
-  .st-grp .st-rule { padding: 8px 10px; border-radius: var(--r-ctl); background: var(--panel-2); }
-  .st-grp .st-done-box { margin: 0; }
-  .st-mcard { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; min-height: 64px; padding: 10px 10px 10px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
-  .st-mcard-t { display: grid; gap: 4px; min-width: 0; }
-  .st-mcard-t a { color: var(--text); font-size: 15px; font-weight: 600; line-height: 1.3; text-decoration: none; overflow-wrap: anywhere; hyphens: auto; }
-  /* „+": the semester it plans into is the one chosen above (the button's title says it). */
-  .st-mcard .st-addb { width: 40px; height: 40px; padding: 0; justify-content: center; border-radius: 50%; }
-  .st-mcard .st-addb .icon { width: 17px; height: 17px; }
-  .st-mcard .st-addb-t { display: none; }
-  .st-mcard.taken { box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--c) 45%, transparent), var(--shadow-panel); }
-  .st-more-btn { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; border: 0; border-radius: var(--r-panel); background: none; box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
-  .st-more-btn .icon { width: 16px; height: 16px; }
-  .st-hidden-n { margin: 0 4px; }
+  .st-chiprow.small .st-fchip { height: 34px; padding: 0 13px; font-size: 13.5px; }
+  .st-wcards { display: grid; gap: 8px; margin-top: 12px; }
+  .st-wcard-m { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto 14px; align-items: center; gap: 4px 12px; min-height: 60px; padding: 11px 12px 11px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); text-decoration: none; }
+  .st-wcard-m:hover { text-decoration: none; }
+  .st-wcard-m > .icon { width: 14px; height: 14px; color: var(--text-3); }
+  .st-wcard-m .st-wrow-nm b { font-size: 15px; font-weight: 600; line-height: 1.3; hyphens: auto; }
+  .st-wcard-m .st-wrow-id { flex-basis: 100%; font-size: 12.5px; }
+  .st-wplace.card { min-height: 56px; padding: 10px 14px; border-radius: var(--r-panel); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 14px; }
+  .st-wplace.card + .st-wplace.card { margin-top: 0; }
+  .st-wcard-m.has { box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--c, var(--accent)) 40%, transparent), var(--shadow-panel); }
+  .st-wp-phone .st-wnote { margin: 14px 4px 0; }
 }
 
 @media (max-width: 900px) {

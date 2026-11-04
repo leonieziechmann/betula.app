@@ -158,7 +158,7 @@ pub struct BenchAim {
 impl BenchAim {
     /// The hint of a page that means this semester (`target_semester`).
     pub fn hint(&self) -> PlanHint {
-        PlanHint { semester: Some(self.semester), fill: self.fill }
+        PlanHint { semester: Some(self.semester), fill: self.fill, counts: None }
     }
 }
 
@@ -329,6 +329,10 @@ impl Planning {
         let turn = self.next_turn();
         self.note.set(Some(Note { turn, shown: turn, what: what.clone(), kind: NoteKind::Planned { at: to, stepped: false } }));
         self.undo.set_value(None);
+        // For the page's placeholder where it stands in `to`, else for the page's row (a choice
+        // of the Wahlpflicht), as the switch plans.
+        let fill = what.hint.as_ref().and_then(|hint| hint.fill).filter(|pid| plan.with_untracked(|doc| doc.placeholders.iter().any(|p| p.pid == *pid && p.semester == to)));
+        let counts = what.hint.as_ref().and_then(|hint| hint.counts.as_ref()).map(|(row, _)| row.clone()).filter(|_| fill.is_none());
         let id = what.id;
         nav::after_paint(move || {
             if self.undone.try_get_value() == Some(turn) {
@@ -336,7 +340,11 @@ impl Planning {
             }
             let (before, after) = plan.update(|doc| {
                 let before = doc.clone();
-                doc.plan(to, &id, now(), None);
+                if doc.plan(to, &id, now(), fill) {
+                    if let Some(row) = &counts {
+                        doc.set_counts(to, &id, Some(row.clone()));
+                    }
+                }
                 (before, doc.clone())
             });
             if self.note.with_untracked(|note| note.as_ref().is_some_and(|note| note.turn == turn)) {
