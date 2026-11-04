@@ -3317,29 +3317,29 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 
 .bottomnav { display: none; }
 /* What a tab holds besides its page (chrome.rs `TabMenu`, enhance.js): a menu at the tab over the
-   page, dimmed a little, beside the rail on a wide screen; on a phone a sheet from below, as every
-   menu there („the sheets of a phone"). Its ways as tall as a finger needs. */
+   page, dimmed a little; above the bar on a phone (the bar stays as it is, its tab tapped again
+   goes there), beside the rail on a wide screen. Its ways as tall as a finger needs. */
 .tab-scrim { position: fixed; inset: 0; z-index: 29; background: rgba(15, 23, 42, .16); animation: fade-in .12s; }
 .tab-menu { position: fixed; z-index: 31; width: 248px; padding: 6px; border-radius: 14px; background: var(--panel); color: var(--text); box-shadow: var(--shadow-pop); transform-origin: 0 0; animation: tab-menu-in .16s var(--ease); }
+.tab-menu.on-bar { left: clamp(10px, calc(var(--tab-x) - 124px), calc(100% - 258px)); bottom: calc(80px + env(safe-area-inset-bottom)); transform-origin: 50% 100%; }
 .tab-menu-head { margin: 0; padding: 6px 10px 4px; overflow: hidden; color: var(--text-3); font-size: 12px; font-weight: 560; white-space: nowrap; text-overflow: ellipsis; }
 .tab-menu-way { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 10px; border-radius: 9px; color: var(--text); font-size: 15px; font-weight: 560; text-decoration: none; -webkit-tap-highlight-color: transparent; }
 .tab-menu-way > .icon { flex: none; width: 18px; height: 18px; color: var(--text-2); }
 .tab-menu-way:active { background: var(--row-hover); }
 .tab-menu-way:focus-visible { background: var(--row-hover); outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
-/* No link's underline: a finger leaves its hover on the way that glided under it as the sheet came. */
-.tab-menu-way:hover { text-decoration: none; }
-@media (hover: hover) { .tab-menu-way:hover { background: var(--row-hover); } }
+@media (hover: hover) { .tab-menu-way:hover { background: var(--row-hover); text-decoration: none; } }
 @keyframes tab-menu-in { from { opacity: 0; transform: translateY(6px) scale(.94); } }
 /* The Merkliste's tab, held (chrome.rs `TabMenu`): its views with how many each holds, at the end
    of the way; a long name of a collection gives way. As many collections as there are: the menu
    scrolls where the window has no room for all of them. */
 .tab-menu { max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; }
+.tab-menu.on-bar { max-height: calc(100dvh - 100px - env(safe-area-inset-bottom)); }
 .tab-menu-way > span:not(.tab-menu-n) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tab-menu-n { flex: none; margin-left: auto; color: var(--text-3); font-size: 13px; font-weight: 500; }
 /* The menu of the profiles (chrome.rs `ProfileMenu`): a menu as a tab's is, beside the rail's way to
-   the profile page and growing up from its foot, or from the phone's box a sheet from below. The
-   profiles as on the profile page (`.pf-item`), the active one checked; below them „Neues Profil",
-   the way to the profile page and the other language. */
+   the profile page and growing up from its foot, or hanging below the phone's box at its right
+   edge. The profiles as on the profile page (`.pf-item`), the active one checked; below them
+   „Neues Profil", the way to the profile page and the other language. */
 .profile-menu { width: 272px; max-width: calc(100vw - 20px); max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; transform-origin: 100% 0; }
 .profile-menu.at-rail { transform-origin: 0 100%; }
 .pm-list { display: grid; gap: 2px; }
@@ -6925,6 +6925,9 @@ span.st-wb-go { cursor: default; }
   [data-sheet]:is([data-sheet="fit"], [data-sheet="full"]) { transform: none; touch-action: auto; }
   [data-sheet="auto"]:not([data-sheet-as="half"], .is-gone) { transform: none; touch-action: auto; }
   [data-sheet].is-gone { transform: translateY(100%); }
+  /* A panel of filters closed stays below the screen whatever its way: it stays in the page, and a
+     sheet of one stop stands where it is all up. */
+  :is(.filters, .sidebar.sheet)[data-sheet]:not(.open, :target) { transform: translateY(105%); }
   /* Its grabber, over what it holds. */
   [data-sheet]::before { content: ""; position: absolute; z-index: 3; left: 50%; top: 7px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); pointer-events: none; }
   /* Its foot over what it holds, at the screen's foot while it is half up. */
@@ -6957,16 +6960,9 @@ span.st-wb-go { cursor: default; }
   :is([data-sheet], .st-dialog[data-sheet])[data-sheet="auto"]:not([data-sheet-as="half"]) { min-height: 40dvh; }
   dialog[data-sheet][open] { animation: none; }
   .st-grip { display: none; }
-  /* A menu scrolls itself all up; under the grabber its title. The menus of a tab held and of the
-     profiles (chrome.rs `TabMenu`, `ProfileSwitcher`) are menus as a page's are: over all of the
-     page, the bar too, their dim as a menu's, their ways as tall as a menu's items. */
-  :is(.st-pop, .tab-menu)[data-sheet] { overflow-y: auto; padding: 18px 8px calc(10px + env(safe-area-inset-bottom)); }
-  :is(.st-pop, .tab-menu)[data-sheet]:not(.is-full) { overflow-y: hidden; }
-  .tab-menu[data-sheet]:not(.sheet-ghost) { z-index: 71; }
-  .tab-menu[data-sheet] > .tab-menu-rule { flex: none; }
-  .tab-scrim { z-index: 70; background: rgba(10, 12, 17, .5); opacity: var(--sheet-shade, 1); animation: fade-in .2s ease-out; }
-  .tab-menu[data-sheet] .tab-menu-head { margin: 8px 10px 6px; padding: 0; color: var(--text-2); font-size: 13px; font-weight: 600; }
-  .tab-menu[data-sheet] :is(.tab-menu-way, .pm-new) { min-height: 50px; }
+  /* A menu scrolls itself all up; under the grabber its title. */
+  .st-pop[data-sheet] { overflow-y: auto; padding: 18px 8px calc(10px + env(safe-area-inset-bottom)); }
+  .st-pop[data-sheet]:not(.is-full) { overflow-y: hidden; }
   /* A copy of a sheet the page took away at once, gliding away in its place (enhance.js
      `ghostSheet`), over a dim that goes with it. */
   .sheet-ghost { z-index: 80; pointer-events: none; }
