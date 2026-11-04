@@ -4515,11 +4515,10 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 /* A note among the sittings keeps to their gap. */
 .sp-exams .note { margin-top: 0; }
 
-/* The Stundenplan's sidebar (side.rs, import.rs): the program picker with „Studium planen →"
-   under it; „Importieren" a source switch, the plan's select where it has several, then the
-   Fachsemester and „Übernehmen" on one line, what it adds under them; „Plan" the name field of
-   „Plan speichern" and one line per saved plan (name, modules, ×), the loaded one marked. */
-.sp-program .combo { width: 100%; }
+/* The Stundenplan's sidebar (side.rs, import.rs): „Importieren" a source switch, the plan's select
+   where it has several, then the Fachsemester and „Übernehmen" on one line, what it adds under
+   them, „Zu „Mein Studium“ →" under it; „Plan" one line per saved plan (name, modules, ×), the
+   loaded one marked. The name field `.sp-save` is the profile's „Neues Profil" (profile.rs). */
 .sp-more { display: inline-block; margin: 6px 2px 0; font-size: 13px; font-weight: 560; }
 .sp-import > .combo { margin-top: 8px; }
 .seg button small { margin-left: 5px; color: var(--text-3); font-size: 11px; font-weight: 500; }
@@ -4537,13 +4536,13 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .sp-saved > .icon-btn { flex: none; width: 32px; height: 32px; color: var(--text-3); }
 .sp-saved > .icon-btn:hover { color: var(--text); }
 
-/* A list that opens under an action: the four ways of „Abonnieren" in the sidebar's „Kalender"
+/* A list that opens under an action: the four ways of „Abonnieren" in the sidebar's „Export"
    (until 1.19.0 also the semesters of „Anderes Semester" in a module page's sidebar). */
 .sp-sub { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 2px 0 4px 17px; padding-left: 8px; border-left: 2px solid var(--line); }
 .sp-sub .hint { margin: 4px 0 2px 10px; }
 .sidebar .note { margin-top: 6px; }
-/* On a phone „Kalender" stands under the Termine (section.sp-export > div.fgroup.actions, the
-   sidebar's group, export.rs), set off from them by a rule: its two ways as framed buttons across
+/* On a phone „Export" stands under the Termine (section.sp-export > div.fgroup.actions, the
+   sidebar's group, export.rs), set off from them by a rule: its three ways as framed buttons across
    the page, what „Abonnieren" opens under them as in the sidebar. */
 .sp-export { padding-top: 14px; border-top: 1px solid var(--line); }
 .sp-export > .fgroup.actions { gap: 6px; padding: 0; }
@@ -4556,8 +4555,6 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .action[aria-disabled="true"]:hover { background: none; }
 /* A button in a note („Neue Adresse kopieren", „Alle einblenden") is a button, not warning text. */
 .note .mini { color: var(--text); }
-/* „Zeigen" without a Termin to show: the line in the chips' place. */
-.sidebar .sp-none { margin-top: 0; }
 
 /* „Einplanen" on a module's page: part of server HTML (R9, unpressed), kept in place but not shown
    until the app runs, and gone without JavaScript (R15) — the pattern of .mark-toggle, so nothing

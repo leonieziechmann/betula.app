@@ -394,13 +394,15 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     eingerichteten Studiengang entsprechend"; `folia_timetable::model`, `Shown`): of a planned
     module with courses it shows those the plan's program takes (`StudyplanData::taken`, the
     program its abbreviations are of: the plan's, else „Mein Studiengang"; a subscription carries
-    it, so the feed is the same). A town chosen in the sidebar („Standort") decides first, the
+    it, so the feed is the same). A town chosen (in the sidebar's „Standort" until 2026-11-04; a
+    saved plan still carries one) decides first, the
     program then among the courses in it — 12102's two are both in Cottbus —, else the town
     derived from the plan's other modules; „Beide" shows every course. A course hidden is named by
     its campus („Standort Cottbus-Sachsendorf", `HiddenBy::Course`) and counts for no chip, its
     exams by their town as before; the line „Abgeleitet: …" names what the program decided
-    („Programmierpraktikum in Cottbus-Sachsendorf laut Studiengang"), and „Standort offen" asks only
-    about a module whose courses are in both towns and that nothing decides. Rows that carry no
+    („Programmierpraktikum in Cottbus-Sachsendorf laut Studiengang"), and „Standort offen" asked,
+    until the sidebar's „Standort" went (2026-11-04), only about a module whose courses are in both
+    towns and that nothing decides. Rows that carry no
     course (a snapshot before schema 15) keep the reading of two towns' courses before it: a
     lecture and a non-lecture event in each town; on canary's data of 2026-10-19 those five
     modules are among Radix's eight. „Passt in meinen Stundenplan" judges a candidate's course by
@@ -476,8 +478,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     the plan is no overlap while another is free), and the calendar (.ics, subscription) holds what
     is attended and what is chosen, not the options of an open choice. Extras (`Event::extra`) are
     lighter in the week, „zusätzlich, freiwillig" in their tooltip, in no overlap, and the chip
-    „Zusatz" under „Zeigen" hides them (their events in `hidden_events`, so the calendar leaves them
-    out too). „Passt in meinen Stundenplan" judges a candidate's choice by its best options: it
+    „Zusatz" under „Zeigen" hid them until „Zeigen" went (2026-11-04; their events in
+    `hidden_events`, so the calendar leaves them out too). „Passt in meinen Stundenplan" judges a candidate's choice by its best options: it
     fits when as many of them are free as it asks for (`fit::Candidates::choices`), and the plan
     beside a module's week (the overlay) takes the module's choices as well.
 - **A module's number and its abbreviation** (owner, 2026-10-19: „auf der Modul page neben die
@@ -1072,7 +1074,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   keiner"). The catalog's is its filter (`program=`), in its address, which the tabs' memory keeps
   for the session; its first entry of a session is the catalog of „Mein Studiengang". „Studium"
   opens on „Mein Studium", the study of „Mein Studiengang", and returns to the program's page it
-  was left at. The Stundenplan's („Studiengang" in its sidebar, `PlanDoc::program`) is kept in the
+  was left at. The Stundenplan's (`PlanDoc::program`; „Studiengang" in its sidebar until 2026-11-04,
+  since then only what a Fachsemester taken over or a plan loaded brings) is kept in the
   tab's `sessionStorage` (`betula.studyplan.program`, each profile its own;
   `folia_stores::studyplan`), never in the plan's text, where a build before wrote it as `g` (read
   past since): a pick or a Fachsemester taken over there is the Stundenplan's alone, sets no „Mein
@@ -2392,16 +2395,39 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   a row without going round. Its switch stands in the head under the title, „Woche: A, B, A/B"
   beside „Anpassen" (owner, 2026-10-26: „Dann kann oben in die gleiche Reihe mit dem Anpassen
   Knopf die Handles"; until then tabs under the week), and „Plan · Alle Termine" is in „Anpassen",
-  under „Ansicht", greyed out where it would show nothing („Das ist keine Aktion, die man häufig
+  under „Termine" (under „Ansicht" until 2026-11-04), greyed out where it would show nothing („Das ist keine Aktion, die man häufig
   macht"); a wider screen keeps both switches in the head.
   Under the grid the list of the week's days (each Termin a row as tall as a finger, with its
   buttons) is closed until its line „Termine als Liste (8) +" opens it („standardmäßig
   eingeklappt"); the line counts the week shown, and the list stays open under a module opened
   from it, which comes up as a sheet over the plan („A module on a phone"). With nothing planned a phone shows no empty week, only „Noch keine
   Termine" and the ways to modules, as before: the page stays shorter than the screen.
-  „Kalender" (the .ics file and the subscription) stands under the Termine, in every view: in the
-  sheet „Anpassen", among what is shown, nobody looked for it. A wider screen keeps it in the
-  sidebar.
+  „Export" (the .ics file, „Als Bild speichern" and the subscription; „In deinen Kalender" until
+  2026-11-04) stands under the Termine, in every view: in the sheet „Anpassen", among what is
+  shown, nobody looked for it. A wider screen keeps it in the sidebar.
+- **The Stundenplan's sidebar, slimmed** (owner, 2026-11-04, `studyplan/side.rs`: „Komplett
+  entfernen, weil überholt das system" and „Später an einen anderen ort verlegen (jetzt einfach
+  entfernen ich kümmer mich später)"). „Anpassen" holds „Kalender", „Importieren", on a phone
+  „Termine" („Plan · Alle Termine"), „Export" and „Plan". Gone for good: „Studiengang" („das ist
+  jetzt mein studium": the timetable's program is the address's, else what this session took a
+  plan with, else „Mein Studiengang", chosen in „Mein Studium"; without one „Importieren" says so
+  and leads there) and „Plan speichern" („das sind jetzt hat man ja mehrere kallender"; the plans
+  saved before stay in „Plan" to be loaded and deleted). Gone until they have another place:
+  „Ansicht" (Woche · Termine · Prüfungen; „Termine" and „Prüfungen" are reached by their address,
+  the start page's links among them), „Zeigen" (to become masks in the content area; a kind hidden
+  before shows faint under „Alle Termine", whose „✓" brings it back) and „Standort" (a town chosen
+  before still decides; the line under the head and the module's panel no longer ask for one).
+- **„Als Bild speichern"** (owner, 2026-11-04: „In deinen Kalender soll zu export werden und da
+  soll auch noch der knopf als bild speichern rein"; `studyplan/picture.rs`): in „Export", over
+  „Abonnieren", the week as a PNG, made in the browser and downloaded („stundenplan-2026W.png"),
+  so nothing of the plan reaches the server. It is the week the grid shows, in the A-week, the
+  B-week or both as its switch has it („WiSe 2026/27 · A-Woche" under „Stundenplan", the site in
+  the corner), without links, buttons, calendars of one's own or „Alle Termine"'s faint slots: the
+  grid's geometry (days as wide as their lanes, 08:00 to 18:00 at least) at 1200 CSS pixels drawn
+  twice as large, in Inter, in the light theme's colours whatever the page shows (a module's card
+  full in its tone, single dates lighter, a choice hatched and ringed, an extra dashed, a clash red
+  with its „!"). The picture is laid out as plain values (`lay_out`), which the tests read, and
+  drawn on a canvas after the frame that shows the click (R21). Without a Termin it is greyed out.
 - **A Termin in its own view** (owner, 2026-10-26, after four rounds of
   `folia/design/termin/konzepte.html`: „Ja zu allen drei Vorschlägen, bau das jetzt in Folia";
   `folia_timetable::termin`, `folia_widgets::termin`, the planner's `studyplan/termin.rs`, the start
@@ -2560,7 +2586,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     in yellow („keine passt ohne Überschneidung"). Where the page has the column beside the week it
     stands at its top, over the modules; where it has not (a phone, a narrow window) it is one line
     over the week, „2 Wahlen offen" and their names, which opens into the same rows. The quiet line
-    under the head counts only the overlaps and the Standort now: the choices are „Offen"'s; on a
+    under the head counts only the overlaps now (and the Standort until 2026-11-04): the choices are „Offen"'s; on a
     phone it says nothing of what is hidden either (owner, 2026-10-26: „Der Ausgeblendet Knopf kann
     weg" — a group ticked counted as „1 ausgeblendet"), which comes back with „Alle Termine" in
     „Anpassen" and in its module.

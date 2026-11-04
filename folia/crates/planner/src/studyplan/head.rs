@@ -17,7 +17,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use folia_calendar::day::{clock, Day};
 use folia_calendar::rowkey::RowKey;
-use folia_calendar::select::TownChoice;
 use folia_model::labels::Labelled;
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::{Campus, Code, Rhythm};
@@ -445,10 +444,6 @@ impl Note {
     fn warn(text: String, module: Option<String>, row: Option<RowKey>) -> Self {
         Note { warn: true, text, module, row }
     }
-
-    fn quiet(text: String, module: Option<String>, row: Option<RowKey>) -> Self {
-        Note { warn: false, text, module, row }
-    }
 }
 
 /// What an event is called in a line: its type as QIS writes it (in every language), else its
@@ -636,7 +631,7 @@ fn overlap_line(table: &Timetable, about: &About, overlap: &Overlap, t: &i18n::T
 /// days apart; opened, the line lists the overlaps of that week and those of single days, and the
 /// Standort to pick (`choice`: the one the visitor chose). The choices still open are „Offen"'s
 /// (`open.rs`). Empty parts: no line.
-pub(super) fn summary(table: &Timetable, about: &About, overlaps: &[Overlap], shown: Weeks, choice: TownChoice, t: &i18n::Texts) -> Summary {
+pub(super) fn summary(table: &Timetable, about: &About, overlaps: &[Overlap], shown: Weeks, t: &i18n::Texts) -> Summary {
     let h = &t.studyplan_head;
     let mut parts = Vec::new();
     let (weekly, days) = (clash::per_week(overlaps, shown), clash::on_days(overlaps));
@@ -654,14 +649,7 @@ pub(super) fn summary(table: &Timetable, about: &About, overlaps: &[Overlap], sh
         When::Weekly(weeks) => weeks.in_week(shown),
         When::Day(_) => true,
     };
-    let mut lines: Vec<Note> = overlaps.iter().filter(shows).filter_map(|overlap| overlap_line(table, about, overlap, t)).collect();
-    let open = table.towns_open();
-    if !open.is_empty() && choice == TownChoice::Derive {
-        let names: Vec<String> = open.iter().map(|module| about.title(module, t)).collect();
-        parts.push((false, h.town_open.to_string()));
-        let text = (h.choose_town)(&names.join(", "));
-        lines.push(Note::quiet(text, open.first().map(|module| module.to_string()), None));
-    }
+    let lines: Vec<Note> = overlaps.iter().filter(shows).filter_map(|overlap| overlap_line(table, about, overlap, t)).collect();
     Summary { parts, lines }
 }
 
@@ -676,7 +664,6 @@ pub(super) fn summary(table: &Timetable, about: &About, overlaps: &[Overlap], sh
 pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let about = Memo::new(move |_| ctx.data.with(|data| data.as_ref().map(About::of).unwrap_or_default()));
-    let choice = Memo::new(move |_| ctx.selection.with(|(_, selection)| selection.town));
     let shown = Memo::new(move |_| {
         let week = ctx.url.with(|url| matches!(url.view, PlanView::Week | PlanView::Overview));
         if week {
@@ -686,11 +673,11 @@ pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
         }
     });
     let built = Memo::new(move |_| {
-        let (shown, choice) = (shown.get(), choice.get());
+        let shown = shown.get();
         ctx.table.with(|table| {
             table
                 .as_ref()
-                .map(|table| about.with(|about| summary(table, about, &clash::overlaps(&table.events), shown, choice, t)))
+                .map(|table| about.with(|about| summary(table, about, &clash::overlaps(&table.events), shown, t)))
                 .unwrap_or_default()
         })
     });
@@ -1150,7 +1137,7 @@ mod tests {
     #[test]
     fn one_line_counts_the_overlaps_per_week() {
         let (table, about) = first_semester();
-        let summary = summary(&table, &about, &[a_week_overlap()], Weeks::All, TownChoice::Derive, &DE);
+        let summary = summary(&table, &about, &[a_week_overlap()], Weeks::All, &DE);
         // The choices still open are „Offen"'s, not the line's.
         assert_eq!(
             texts(&summary),
@@ -1169,7 +1156,7 @@ mod tests {
         let alone = summary_of(&table, &about, &[day.clone(), day.clone()], Weeks::All);
         assert_eq!(alone.parts[0], (true, "2 Überschneidungen an einzelnen Tagen".to_string()));
         // In English, the weekdays and dates too; QIS's types and the titles stay as they are.
-        let english = super::summary(&table, &about, &[a_week_overlap(), day], Weeks::All, TownChoice::Derive, &EN);
+        let english = super::summary(&table, &about, &[a_week_overlap(), day], Weeks::All, &EN);
         assert_eq!(
             texts(&english),
             (
@@ -1185,7 +1172,7 @@ mod tests {
     }
 
     fn summary_of(table: &Timetable, about: &About, overlaps: &[Overlap], shown: Weeks) -> Summary {
-        summary(table, about, overlaps, shown, TownChoice::Derive, &DE)
+        summary(table, about, overlaps, shown, &DE)
     }
 
     #[test]
@@ -1268,37 +1255,6 @@ mod tests {
         assert_eq!(blocked(&table), "0 von 4 Terminen frei: Laborausbildung · Entwicklung von Softwaresystemen");
         retype(&mut table, "Vorlesung/Übung");
         assert_eq!(blocked(&table), "0 von 4 Terminen frei: Vorlesung/Übung · Entwicklung von Softwaresystemen");
-    }
-
-    #[test]
-    fn the_standort_is_asked_only_while_nothing_decides_it() {
-        let (mut table, about) = first_semester();
-        table.tracks = ["12104".to_string()].into_iter().collect();
-        let derived = Shown { campuses: BTreeSet::new(), towns: BTreeSet::from([Town::Cottbus]), by: ShownBy::Derived };
-        table.shown = [("12104".to_string(), derived)].into_iter().collect();
-        let open = |table: &Timetable, choice| summary(table, &about, &[], Weeks::All, choice, &DE).parts.contains(&(false, "Standort offen".to_string()));
-        let asks = |table: &Timetable, choice| {
-            open(table, choice)
-                && summary(table, &about, &[], Weeks::All, choice, &DE).lines.iter().any(|note| note.text == "Standort wählen: Entwicklung von Softwaresystemen · Cottbus oder Senftenberg")
-        };
-        // A derived town decides; so does a stored one, „Beide" included.
-        assert!(!asks(&table, TownChoice::Derive));
-        table.town = None;
-        table.town_derived = false;
-        table.shown.clear();
-        assert!(asks(&table, TownChoice::Derive));
-        assert!(!asks(&table, TownChoice::Both));
-        // Courses its program takes decide too (schema 15).
-        table.courses = [("12104".to_string(), BTreeSet::from([Campus::Zentralcampus, Campus::Senftenberg]))].into_iter().collect();
-        assert!(asks(&table, TownChoice::Derive));
-        let taken = Shown { campuses: BTreeSet::from([Campus::Senftenberg]), towns: BTreeSet::from([Town::Senftenberg]), by: ShownBy::Program };
-        table.shown = [("12104".to_string(), taken)].into_iter().collect();
-        assert!(!open(&table, TownChoice::Derive));
-        // Courses in one town are no choice of a town: 12102 at the Zentralcampus and in Sachsendorf.
-        table.shown.clear();
-        table.tracks = ["12102".to_string()].into_iter().collect();
-        table.courses = [("12102".to_string(), BTreeSet::from([Campus::Zentralcampus, Campus::Sachsendorf]))].into_iter().collect();
-        assert!(!open(&table, TownChoice::Derive));
     }
 
     #[test]
