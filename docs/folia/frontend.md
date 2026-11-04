@@ -2276,9 +2276,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     semesters of leave (`leave`) and the last semester added (`until`). The privacy notice lists
     them („Speicher im Browser").
   - **And the Stundenplan.** A semester planned here is the Stundenplan's semester and the other
-    way round; its tab counts the current semester's modules. Its „Importieren" has „Mein Studium"
-    as its second source: the Wiederholer into the semester shown (`study::retake_import`). „Plan
-    leeren" empties the semester shown and leaves the others and what was passed.
+    way round; its tab counts the current semester's modules. Its „Importieren" had „Mein Studium"
+    as its second source until it went (2026-11-04): the Wiederholer into the semester shown
+    (`study::retake_import`), which the workbench lists under „Noch offen aus früheren Semestern".
+    „Plan leeren" empties the semester shown and leaves the others and what was passed.
   - `node folia/e2e/study.mjs` checks the first visit, the overview (the credits, nothing else), the
     sidebar (the program's card and its dialog, no way to the Stundenplan, the legend in two
     parts, the statuses in the second), the semester at the top of its box with no strip and no
@@ -2399,12 +2400,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   shown, nobody looked for it. A wider screen keeps it in the sidebar.
 - **The Stundenplan's sidebar, slimmed** (owner, 2026-11-04, `studyplan/side.rs`: „Komplett
   entfernen, weil überholt das system" and „Später an einen anderen ort verlegen (jetzt einfach
-  entfernen ich kümmer mich später)"). „Anpassen" holds „Kalender", „Importieren", on a phone
-  „Termine" („Plan · Alle Termine"), „Export" and „Plan". Gone for good: „Studiengang" („das ist
-  jetzt mein studium": the timetable's program is the address's, else what this session took a
-  plan with, else „Mein Studiengang", chosen in „Mein Studium"; without one „Importieren" says so
-  and leads there) and „Plan speichern" („das sind jetzt hat man ja mehrere kallender"; the plans
-  saved before stay in „Plan" to be loaded and deleted). Gone until they have another place:
+  entfernen ich kümmer mich später)"). „Anpassen" holds „Kalender", on a phone „Termine" („Plan ·
+  Alle Termine"), „Export" and „Plan". Gone for good: „Studiengang" („das ist jetzt mein studium":
+  the timetable's program is what this session took a plan with, else „Mein Studiengang", chosen in
+  „Mein Studium"), „Importieren" (the same day: „Das ist ja auch in mein studium": a semester takes
+  its Fachsemester over there, „Plan übernehmen", and the start page's card leads there; an address
+  with `import=` is read past) and „Plan speichern" („das sind jetzt hat man ja mehrere kallender";
+  the plans saved before stay in „Plan" to be loaded and deleted). Gone until they have another place:
   „Ansicht" (Woche · Termine · Prüfungen; „Termine" and „Prüfungen" are reached by their address,
   the start page's links among them), „Zeigen" (to become masks in the content area; a kind hidden
   before shows faint under „Alle Termine", whose „✓" brings it back) and „Standort" (a town chosen
@@ -4242,8 +4244,9 @@ matters most — „organisch ohne Popup, einfach intuitiv". (The way in went wi
     button out of the panel.
   - „Module deines Studiengangs": the catalog of that program (`MineResolved::catalog_href`),
     „Zum Katalog" without one.
-  - „Fachsemester übernehmen": the Stundenplan with the program's Regelstudienplan ready to take
-    over (`/studyplan?import=mine`), while nothing is planned; else „Zum Stundenplan".
+  - „Zu „Mein Studium“" while nothing is planned: its semesters (`/study?plan=1`), where a semester
+    takes its Fachsemester over („Plan übernehmen"); until 2026-11-04 „Fachsemester übernehmen",
+    the Stundenplan's „Importieren" (`/studyplan?import=mine`). Else „Zum Stundenplan".
 - **It follows what this browser has done** (the app's alone, R9; the server's page is the one of
   a first visit): the program set as „Mein Studiengang" (while it is in the snapshot), a module on
   the Merkliste, a module in the Stundenplan each make their step done — a tick in the mark, the

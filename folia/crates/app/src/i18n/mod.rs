@@ -30,7 +30,6 @@ folia_design::texts! {
     studyplan_exams = folia_planner::i18n::studyplan_exams,
     studyplan_export = folia_planner::i18n::studyplan_export,
     studyplan_head = folia_planner::i18n::studyplan_head,
-    studyplan_import = folia_planner::i18n::studyplan_import,
     studyplan_modules = folia_planner::i18n::studyplan_modules,
     studyplan_share = folia_planner::i18n::studyplan_share,
     studyplan_side = folia_planner::i18n::studyplan_side,
