@@ -1,0 +1,1385 @@
+<title>Wahlpflicht-Konzepte</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- The view „Wahlpflicht" of „Mein Studium" (folia/crates/planner/src/study/choose.rs), tidied
+     up. First round (2026-11-04; owner, the same day, with a screenshot of the view on the choice
+     „Wahlpflicht: Komplex Grundlagen der Informatik / Komplex Praktische Informatik / Komplex
+     Angewandte und Technische Informatik": „Hey claude, bitte erstelle mal ein paar konzepte, wie
+     man den Wahlpflicht bereich visuell aufräumen kann. Ich finde ihn grundsätzlich eigentlich not
+     bad. Aber es ist einfach noch unaufgeräumt und wuselig. Auch solche sachen, wie kombinierte
+     komplexe ergibt kaum sinn, weil die ja einzeln gelisted sind. … Der planen knopf kann raus. Die
+     progressbar wird gerade schon von einem anderen agent entfernt wird. Ja bitte erstelle einfach
+     ein ordentliches konzept, dass die aufgabe macht zu zeigen, welche module in dem bereich
+     verfügbar sind. Gerne noch die information, wie viele noch benötigt sind. Also mit progressbar
+     pro section aber wie auch immer."). Today (the owner's screenshot and canary's phone, Folia
+     1.70.2, bilder/), what the three concepts share (no „Planen", a bar per choice, short names, the
+     Komplexe as one group, the modules sorted by what the semester offers instead of hidden, the
+     semester by arrows, quiet rows, what is done at the end), three concepts as the view's panel at
+     its width on a desktop and as a phone, clickable — A „Zwei Spalten" (today's split, quieter),
+     B „Eine Seite" (every open choice under each other with its modules as tiles, the Komplexe in
+     three columns), C „Kacheln oben" (a tile per choice on top, the one picked below in full width,
+     its modules in three columns by their offer) —, the rule of the names with cases of the catalog,
+     the comparison, the recommendation (A) and seven questions. The data is canary's snapshot of
+     2026-11-04: Informatik B.Sc. (PO 2008, 079-82-2008), begun in WiSe 2026/27, its plan's rows
+     without a module, the modules of its tree's areas (program_module_assertion) with their turnus;
+     what is planned and marked is an example. Tokens are Betula's (folia/assets/app.css), the areas'
+     tones as folia/crates/planner/src/study/mod.rs gives them; Inter comes from Google Fonts here,
+     the app self-hosts it. Nothing of it is built. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a review desk. The brief and what the concepts share; today; each concept as the view's
+   panel at its real width (or a phone), clickable; the names; the comparison, the recommendation,
+   the questions. Tokens: Betula's own (light, then dark), the tones of the areas, the toast. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4;
+  --panel: #ffffff;
+  --panel-2: #f6f7f8;
+  --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08);
+  --line-strong: rgba(15, 23, 42, .15);
+  --row-hover: color-mix(in oklab, var(--text) 5.2%, var(--panel));
+  --text: #10151f;
+  --text-2: #4b5565;
+  --text-3: #8790a0;
+  --invert: #161b26;
+  --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149);
+  --accent-ink: oklch(.46 .07 149);
+  --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 8%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --ok: #0b7f58;
+  --ok-soft: color-mix(in srgb, #0b7f58 9%, var(--panel));
+  --warn: #8f5a0a;
+  --warn-dot: #d49a2a;
+  --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel));
+  --no: #b3261e;
+  --no-soft: color-mix(in srgb, #b3261e 7%, var(--panel));
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --seg-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line);
+  --r-panel: 9px; --r-row: 7px; --r-s: 5px;
+  --desk: color-mix(in oklab, var(--text) 4%, var(--bg));
+  --toast: var(--invert);
+  --on-toast: var(--on-invert);
+  --toast-link: oklch(.82 .09 149);
+  --bezel: #161b26;
+  /* The areas' tones (study/mod.rs: the plain areas in the order of TONES, the FÜS teal). */
+  --fac-1: oklch(.5 .12 262);
+  --fac-4: oklch(.5 .11 330);
+  --fac-6: oklch(.52 .12 30);
+  --t-sun: oklch(.64 .12 75);
+  --t-teal: oklch(.56 .08 190);
+  /* A bar: what is planned is the tone this light, what is passed the full tone. */
+  --mix-plan: 46%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --ok: #4fd1a1; --ok-soft: color-mix(in srgb, #4fd1a1 12%, var(--panel));
+    --warn: #f0b861; --warn-dot: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+    --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+    --seg-shadow: 0 0 0 1px var(--line);
+    --desk: color-mix(in oklab, var(--text) 4%, var(--bg));
+    --toast: #232938; --on-toast: #eceff5; --toast-link: oklch(.82 .08 149);
+    --bezel: #2c3240;
+    --fac-1: oklch(.76 .1 262); --fac-4: oklch(.76 .1 330); --fac-6: oklch(.75 .1 30);
+    --t-sun: oklch(.82 .1 80); --t-teal: oklch(.8 .07 190);
+    --mix-plan: 52%;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --ok: #4fd1a1; --ok-soft: color-mix(in srgb, #4fd1a1 12%, var(--panel));
+  --warn: #f0b861; --warn-dot: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+  --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --seg-shadow: 0 0 0 1px var(--line);
+  --desk: color-mix(in oklab, var(--text) 4%, var(--bg));
+  --toast: #232938; --on-toast: #eceff5; --toast-link: oklch(.82 .08 149);
+  --bezel: #2c3240;
+  --fac-1: oklch(.76 .1 262); --fac-4: oklch(.76 .1 330); --fac-6: oklch(.75 .1 30);
+  --t-sun: oklch(.82 .1 80); --t-teal: oklch(.8 .07 190);
+  --mix-plan: 52%;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4, h5 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+a { color: var(--accent-ink); }
+code { font: 500 .86em var(--mono); padding: 1px 5px; border-radius: 5px; background: var(--panel-3); overflow-wrap: anywhere; }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 22px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+
+/* The brief. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -.026em; font-weight: 770; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.intro .lead b { color: var(--text); font-weight: 650; }
+.quote { margin: 18px 0 0; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.quote span { color: var(--text-3); }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ul { margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.rules li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.rules li > i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text-2); }
+.rules li > i svg { width: 14px; height: 14px; }
+.rules li b { color: var(--text); font-weight: 620; }
+
+/* The bar: the theme and the ways down the page. */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+.setbar { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow-panel); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.setbar .group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.setbar .kicker { font-size: 10.5px; }
+.seg { display: inline-flex; flex-wrap: wrap; max-width: 100%; gap: 2px; padding: 2px; border-radius: 8px; background: var(--panel-3); }
+.seg button { height: 30px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: var(--seg-shadow); }
+.setbar .jump { margin-left: auto; display: flex; flex-wrap: wrap; gap: 2px; }
+.setbar .jump a { padding: 6px 6px; border-radius: 7px; color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.setbar .jump a:hover { background: var(--panel-3); color: var(--text); }
+.linkb { height: 30px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--accent-ink); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.linkb:hover { background: var(--accent-soft); }
+
+/* A section. */
+.sec { padding: 24px 24px 26px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); scroll-margin-top: 100px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.sec > header { display: flex; flex-direction: column; gap: 8px; }
+.sec h2 { font-size: 23px; line-height: 1.2; letter-spacing: -.02em; font-weight: 730; }
+.sec h2 .tag { display: inline-grid; place-items: center; width: 30px; height: 30px; margin-right: 10px; border-radius: 8px; background: var(--invert); color: var(--on-invert); font-size: 15px; font-weight: 760; vertical-align: 2px; }
+.sec .sub { max-width: 80ch; color: var(--text-2); text-wrap: pretty; }
+.sec .sub b { color: var(--text); font-weight: 620; }
+.sec h3 { font-size: 15px; font-weight: 700; letter-spacing: -.005em; }
+
+/* Today: the screenshots and what goes wrong. */
+.today { display: grid; grid-template-columns: minmax(0, 1fr) 250px minmax(0, 1fr); gap: 22px 28px; align-items: start; }
+.today .wide { grid-column: 1 / -1; }
+.shot { margin: 0; min-width: 0; }
+.shot img { display: block; width: 100%; height: auto; max-width: 100%; border-radius: 12px; box-shadow: var(--shadow-panel); background: #fff; }
+.shot figcaption { margin-top: 8px; font-size: 13px; color: var(--text-3); text-wrap: pretty; }
+.wrong { margin: 0; padding: 0; list-style: none; counter-reset: w; display: flex; flex-direction: column; min-width: 0; }
+.wrong li { counter-increment: w; display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.wrong li:first-child { border-top: 0; padding-top: 0; }
+.wrong li::before { content: counter(w); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--no); color: var(--panel); font-size: 12px; font-weight: 760; }
+.wrong li b { display: block; margin-bottom: 2px; color: var(--text); font-weight: 650; }
+.wrong.two { grid-column: 3; }
+@media (max-width: 1000px) { .today { grid-template-columns: minmax(0, 1fr); } .wrong.two { grid-column: auto; } .today .phoneshot { max-width: 280px; } }
+
+/* A concept: the desk with the panel at its real width, then what it does. */
+.stage { border-radius: 14px; background: var(--desk); min-width: 0; }
+.stage-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 14px 0; }
+.stage-bar .grow { flex: 1; }
+.stage-in { padding: 14px 22px 22px; overflow-x: auto; overflow-y: hidden; }
+.tryit { font-size: 13px; color: var(--text-3); text-wrap: pretty; }
+.how { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 18px 28px; }
+.how > div { min-width: 0; }
+.how h3 { margin-bottom: 8px; }
+.how ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.how ul b { color: var(--text); font-weight: 620; }
+.how .weak h3 { color: var(--warn); }
+
+/* The names. */
+.tablewrap { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+table.t { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.t th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line-strong); color: var(--text-3); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+table.t td { padding: 10px 10px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--text-2); text-wrap: pretty; min-width: 150px; }
+table.t td:first-child { color: var(--text); font-weight: 620; min-width: 120px; }
+table.t td.was { color: var(--text-2); font-weight: 450; min-width: 260px; }
+table.t td.was small, table.t td small { display: block; margin-top: 2px; color: var(--text-3); font-size: 12.5px; font-weight: 450; }
+table.t td.is { color: var(--text); font-weight: 650; min-width: 200px; }
+.verdict { display: inline-flex; align-items: baseline; gap: 7px; }
+.verdict i { flex: none; width: 8px; height: 8px; border-radius: 50%; translate: 0 -1px; }
+.verdict.ok i { background: var(--ok); }
+.verdict.meh i { background: var(--warn-dot); }
+.verdict.no i { background: var(--no); }
+.namerule { margin: 0; padding: 0 0 0 20px; display: flex; flex-direction: column; gap: 6px; max-width: 86ch; font-size: 14.5px; color: var(--text-2); text-wrap: pretty; }
+.namerule b { color: var(--text); font-weight: 620; }
+
+/* The recommendation and the questions. */
+.reco { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px 32px; }
+.reco ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 14.5px; color: var(--text-2); text-wrap: pretty; }
+.reco ul b { color: var(--text); font-weight: 620; }
+.qs { margin: 0; padding: 0; list-style: none; counter-reset: q; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; }
+.qs li { counter-increment: q; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; padding: 12px 0 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.qs li::before { content: counter(q); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.qs li b { display: block; margin-bottom: 3px; color: var(--text); font-weight: 650; }
+.qs li .pro { display: block; margin-top: 5px; color: var(--accent-ink); font-weight: 560; }
+.foot { color: var(--text-3); font-size: 12.5px; text-wrap: pretty; }
+
+@media (max-width: 1000px) {
+  .intro, .reco { grid-template-columns: minmax(0, 1fr); }
+  .how { grid-template-columns: minmax(0, 1fr); }
+  .qs { grid-template-columns: minmax(0, 1fr); }
+  .setbar .jump { margin-left: 0; }
+}
+@media (max-width: 560px) {
+  .sec { padding: 18px 14px 20px; }
+  .stage-in { padding: 12px 10px 14px; }
+}
+
+/* ---------- The view: what all three share ----------
+   The panel as the app draws it (folia/assets/app.css, .panel and .st-*): its head, a bar per
+   choice, the semester's arrows, the module rows and their buttons. --c is the tone of the area. */
+.wp { position: relative; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); font-size: 13px; line-height: 1.35; text-align: left; }
+.wp.desk { width: 1080px; margin: 0 auto; }
+.wp a, .phone a { color: var(--text); text-decoration: none; }
+.wp a:hover, .phone a:hover { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.wp-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; padding: 16px 20px 14px; }
+.wp-head h3 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.wp-head p { color: var(--text-2); font-size: 13px; }
+.dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+
+.bar { position: relative; display: block; height: 6px; min-width: 40px; }
+.bar-in { position: absolute; inset: 0; border-radius: 3px; background: var(--panel-3); overflow: hidden; }
+.bar-f { position: absolute; top: 0; bottom: 0; left: 0; background: color-mix(in oklab, var(--c) var(--mix-plan), var(--panel)); }
+.bar-f.passed { background: var(--c); }
+.bar-f.over { background-image: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in oklab, var(--c) 60%, transparent) 3px 5px); }
+.bar-t { position: absolute; top: -3px; bottom: -3px; width: 2px; border-radius: 1px; background: color-mix(in oklab, var(--text-2) 70%, transparent); }
+.bar.big { height: 8px; }
+.bar.big .bar-in { border-radius: 4px; }
+.bar.thin { height: 4px; min-width: 28px; }
+.bar.thin .bar-t { top: -2px; bottom: -2px; }
+.fig { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 650; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fig small { font-size: inherit; font-weight: 500; color: var(--text-3); }
+.fig.ok { color: var(--ok); }
+.fig.ok small { color: inherit; }
+.fig svg.i { width: 13px; height: 13px; stroke-width: 2.6; }
+.fig.big { font-size: 14px; }
+.fig.big svg.i { width: 15px; height: 15px; }
+
+.step { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.step-k { font-size: 12.5px; color: var(--text-2); }
+.step-c { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 8px; background: var(--panel-3); }
+.step-b { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); cursor: pointer; }
+.step-b:hover:not(:disabled) { background: var(--panel); color: var(--text); }
+.step-b:disabled { opacity: .35; cursor: default; }
+.step-v { display: grid; min-width: 112px; padding: 0 6px; text-align: center; line-height: 1.15; }
+.step-v b { font-size: 13px; font-weight: 650; }
+.step-v small { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+.step-v small.warn { color: var(--warn); }
+.step-n { font-size: 12.5px; color: var(--text-3); }
+.step-n b { color: var(--text-2); font-weight: 600; }
+
+.mk { display: inline-grid; place-items: center; width: 14px; color: var(--accent-ink); }
+.mk svg.i { width: 12px; height: 12px; fill: currentColor; }
+.nr { font: 400 11.5px var(--mono); color: var(--text-3); white-space: nowrap; }
+.lp { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; border-radius: 10px; background: var(--panel-3); color: var(--text-2); font-size: 11.5px; font-weight: 600; line-height: 1.75; white-space: nowrap; }
+.chip.plan { background: color-mix(in oklab, var(--c, var(--accent)) 12%, var(--panel)); color: color-mix(in oklab, var(--c, var(--accent)) 62%, var(--text)); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+/* The button that plans a module: quiet, its semester beside the plus. */
+.add { display: inline-flex; align-items: center; gap: 3px; height: 28px; padding: 0 9px 0 7px; border: 0; border-radius: 7px; background: transparent; color: var(--accent-ink); font-size: 12.5px; font-weight: 650; white-space: nowrap; cursor: pointer; }
+.add:hover { background: var(--accent-soft); }
+.add svg.i { width: 14px; height: 14px; stroke-width: 2.4; }
+.add.round { width: 32px; height: 32px; padding: 0; justify-content: center; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--accent-line); background: var(--panel); }
+.add.round:hover { background: var(--accent-soft); }
+.add.round svg.i { width: 16px; height: 16px; }
+.add.soft { box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); }
+
+/* Groups of modules: what the student has, what the semester offers, irregular, not offered. */
+.mg { display: flex; flex-direction: column; }
+.mg-h { display: flex; align-items: baseline; gap: 8px; padding: 14px 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.mg-h .n { font-weight: 600; letter-spacing: 0; }
+.mg-h .s { margin-left: auto; font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.mg-fold { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 8px; padding: 9px 0; border: 0; border-top: 1px solid var(--line); background: none; color: var(--text-2); font-size: 12.5px; font-weight: 600; text-align: left; cursor: pointer; }
+.mg-fold:hover { color: var(--text); }
+.mg-fold small { color: var(--text-3); font-weight: 500; }
+.mg-fold svg.i { width: 15px; height: 15px; margin-left: auto; color: var(--text-3); }
+.mrow { display: grid; grid-template-columns: minmax(0, 1fr) 56px 128px; align-items: center; gap: 12px; min-height: 40px; padding: 4px 0; border-top: 1px solid var(--line); }
+.mrow .nm { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
+.mrow .nm a { font-weight: 560; }
+.mrow .lp { text-align: right; color: var(--text-2); }
+.mrow .act { display: flex; justify-content: flex-end; }
+.mrow.mine .nm a { font-weight: 650; }
+.mg.no .mrow .nm a { color: var(--text-2); }
+.warnline { font-size: 11.5px; color: var(--warn); }
+
+/* ---------- A: two columns ---------- */
+.a-split { display: grid; grid-template-columns: 276px minmax(0, 1fr); border-top: 1px solid var(--line); }
+.a-nav { display: flex; flex-direction: column; gap: 1px; padding: 6px 8px 14px; border-right: 1px solid var(--line); }
+.a-nh { display: flex; align-items: center; gap: 7px; margin: 12px 10px 4px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-2); }
+.a-nh small { margin-left: auto; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+.a-nh small.ok { color: var(--ok); }
+.a-ng { position: relative; display: grid; gap: 6px; width: 100%; padding: 8px 10px 9px 14px; border: 0; border-radius: var(--r-s); background: none; text-align: left; cursor: pointer; }
+.a-ng:hover { background: var(--row-hover); }
+.a-ng[aria-current="true"] { background: var(--panel-3); }
+.a-ng[aria-current="true"]::before { content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px; width: 3px; border-radius: 2px; background: var(--c); }
+.a-ng .t { display: flex; align-items: baseline; gap: 10px; }
+.a-ng b { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; line-height: 1.3; }
+.a-ng small { font-size: 12px; color: var(--text-3); }
+.a-ng.done { padding-block: 7px; }
+.a-ng.done b { font-weight: 500; color: var(--text-2); }
+.a-kids { display: grid; gap: 0; margin: -2px 0 4px 14px; padding-left: 10px; border-left: 1px solid var(--line); }
+.a-kid { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 8px; width: 100%; padding: 5px 8px; border: 0; border-radius: var(--r-s); background: none; font-size: 12.5px; color: var(--text-2); text-align: left; cursor: pointer; }
+.a-kid:hover { background: var(--row-hover); color: var(--text); }
+.a-kid[aria-current="true"] { color: var(--text); font-weight: 600; background: var(--panel-2); }
+.a-kid .fig { font-size: 11.5px; }
+.a-kid .bar { grid-column: 1 / -1; }
+.a-pane { display: flex; flex-direction: column; min-width: 0; padding: 16px 22px 18px; }
+.a-ph { display: grid; gap: 10px; }
+.a-pt { display: flex; align-items: baseline; gap: 14px; }
+.a-pt h4 { flex: 1; min-width: 0; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.a-pr { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 20px; }
+.a-pr .rule { flex: 1 1 260px; min-width: 0; font-size: 13px; color: var(--text-2); text-wrap: pretty; }
+.parts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 22px; padding: 10px 12px; border-radius: var(--r-ctl, 9px); background: var(--panel-2); }
+.part { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 10px; font-size: 12.5px; }
+.part > span:first-child { color: var(--text); font-weight: 600; }
+.part > span:first-child small { margin-left: 6px; color: var(--text-3); font-weight: 500; }
+.part .bar { grid-column: 1 / -1; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 16px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { flex: none; display: grid; gap: 6px; padding: 0 1px 9px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; color: var(--text-2); font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; }
+.tabs button:hover { color: var(--text); }
+.tabs button[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--c); }
+.tabs button small { margin-left: 5px; font-size: 11.5px; font-weight: 600; color: var(--text-3); }
+.tabs .tab-p { display: grid; grid-template-columns: 96px auto; align-items: center; gap: 8px; }
+.fues { margin-top: 14px; display: grid; gap: 10px; }
+.fues .line { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 9px; background: var(--panel-2); font-size: 13px; }
+.fues .line small { color: var(--text-3); }
+.action { display: inline-flex; align-items: center; gap: 8px; justify-self: start; height: 34px; padding: 0 12px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text) !important; font-size: 13px; font-weight: 600; text-decoration: none !important; }
+
+/* ---------- B: one page ---------- */
+.b-body { display: flex; flex-direction: column; gap: 18px; padding: 0 20px 20px; }
+.b-area { display: flex; flex-direction: column; }
+.b-ah { display: flex; align-items: center; gap: 8px; padding: 10px 0 8px; border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-2); }
+.b-ah small { margin-left: auto; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+.b-ah small.ok { color: var(--ok); }
+.b-goal { display: flex; flex-direction: column; gap: 10px; padding: 14px 0 16px; border-bottom: 1px solid var(--line); }
+.b-goal:last-child { border-bottom: 0; }
+.b-gh { display: grid; grid-template-columns: minmax(0, 1fr) 220px 92px; align-items: center; gap: 6px 18px; }
+.b-gh b { font-size: 14.5px; font-weight: 680; letter-spacing: -.005em; }
+.b-gh .sub { display: block; margin-top: 2px; font-size: 12.5px; color: var(--text-2); text-wrap: pretty; }
+.b-gh .fig { justify-self: end; }
+.b-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+.b-tools .grow { flex: 1; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border: 0; border-radius: 14px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.chips button small { color: var(--text-3); font-weight: 600; }
+.chips button[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.chips button[aria-pressed="true"] small { color: color-mix(in oklab, var(--on-invert) 70%, transparent); }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.tile { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 10px; min-height: 58px; padding: 8px 8px 8px 12px; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.tile .tt { display: flex; align-items: baseline; gap: 4px; min-width: 0; }
+.tile .tt a { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.tile .ts { grid-column: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 2px 8px; font-size: 11.5px; color: var(--text-3); }
+.tile .ts .on { display: inline-flex; align-items: center; gap: 5px; color: var(--ok); }
+.tile .ts .on::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.tile .act { grid-column: 2; grid-row: 1 / 3; }
+.tile .ts .chip { margin-left: -2px; }
+.crow.mine { grid-template-columns: minmax(0, 1fr) auto; padding: 6px 0; }
+.crow.mine .chip { grid-column: 1 / -1; justify-self: start; }
+.tile.mine { background: color-mix(in oklab, var(--c) 8%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--c) 30%, transparent); }
+.tile.no { background: var(--panel); }
+.b-more { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.b-done { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 11px 0; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--text-2); }
+.b-done:last-child { border-bottom: 0; }
+.b-done b { color: var(--text); font-weight: 600; }
+.b-done .grow { flex: 1; }
+.b-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.b-col { display: flex; flex-direction: column; min-width: 0; padding: 12px 12px 6px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.b-col h5 { font-size: 13px; font-weight: 680; }
+.b-col .cp { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; margin: 8px 0 6px; }
+.crow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; min-height: 38px; border-top: 1px solid var(--line); }
+.crow .nm { display: flex; align-items: baseline; gap: 4px; min-width: 0; }
+.crow .nm a { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-weight: 560; line-height: 1.3; }
+.crow .lp { font-size: 12px; color: var(--text-3); }
+.crow.no .nm a { color: var(--text-2); }
+.b-col .linkb { align-self: flex-start; margin: 4px 0 2px -10px; height: 28px; font-size: 12.5px; }
+
+/* ---------- C: tiles on top ---------- */
+.c-top { display: flex; flex-wrap: wrap; gap: 12px 22px; padding: 2px 20px 16px; border-bottom: 1px solid var(--line); }
+.c-area { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.c-al { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-2); }
+.c-al small { font-size: 11.5px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+.c-row { display: flex; gap: 6px; }
+.c-tile { display: flex; flex-direction: column; gap: 7px; width: 152px; min-height: 76px; padding: 9px 10px 9px; border: 0; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); text-align: left; cursor: pointer; }
+.c-tile:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.c-tile[aria-pressed="true"] { background: var(--panel); box-shadow: inset 0 0 0 2px var(--c), var(--shadow-lift); }
+.c-tile b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 12.5px; font-weight: 640; line-height: 1.3; }
+.c-tile .cf { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: auto; font-size: 11.5px; color: var(--text-3); }
+.c-tile.done { width: auto; min-width: 120px; }
+.c-body { display: flex; flex-direction: column; padding: 16px 20px 20px; }
+.c-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.c-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.c-col > header { display: flex; align-items: baseline; gap: 6px; padding: 0 2px 4px; border-bottom: 2px solid var(--line); font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.c-col > header .n { font-weight: 600; letter-spacing: 0; }
+.c-col.yes > header { border-bottom-color: color-mix(in oklab, var(--ok) 55%, transparent); color: var(--ok); }
+.c-col > .none { padding: 8px 2px; font-size: 12.5px; color: var(--text-3); }
+.c-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 8px; padding: 8px 6px 8px 11px; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.c-card .tt { display: flex; align-items: baseline; gap: 4px; min-width: 0; }
+.c-card .tt a { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-weight: 600; line-height: 1.3; }
+.c-card .ts { grid-column: 1; font-size: 11.5px; color: var(--text-3); }
+.c-card .act { grid-column: 2; grid-row: 1 / 3; }
+.c-col.no .c-card { background: var(--panel); }
+.c-mine { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 14px; font-size: 12.5px; color: var(--text-2); }
+.c-mine b { color: var(--text); font-weight: 600; }
+
+/* ---------- The phone ---------- */
+.phone { width: 380px; height: 760px; margin: 0 auto; border-radius: 34px; background: var(--bg); box-shadow: 0 0 0 9px var(--bezel), 0 24px 50px -20px rgba(15, 23, 42, .45); overflow: hidden; }
+.phone-scroll { height: 100%; overflow-y: auto; overscroll-behavior: contain; padding: 18px 14px 28px; scrollbar-width: none; }
+.phone-scroll::-webkit-scrollbar { display: none; }
+.phone .parts { grid-template-columns: minmax(0, 1fr); }
+.ph-top { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.ph-back { display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 12px 0 8px; border: 0; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; }
+.ph-search { flex: 1; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-3); font-size: 14px; }
+.ph-h1 { font-size: 26px; font-weight: 780; letter-spacing: -.02em; line-height: 1.15; }
+.ph-lead { margin-top: 4px; color: var(--text-2); font-size: 14px; }
+.ph-sec { margin: 20px 4px 8px; display: flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-2); }
+.ph-sec small { margin-left: auto; font-size: 12.5px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+.ph-sec small.ok { color: var(--ok); }
+.ph-card { display: grid; gap: 8px; width: 100%; padding: 13px 14px; border: 0; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); text-align: left; cursor: pointer; }
+.ph-card + .ph-card { margin-top: 8px; }
+.ph-card .t { display: flex; align-items: center; gap: 10px; }
+.ph-card .t b { flex: 1; min-width: 0; font-size: 15px; font-weight: 650; }
+.ph-card .t svg.i { color: var(--text-3); }
+.ph-card small { font-size: 12.5px; color: var(--text-3); }
+.ph-card .kid { display: grid; grid-template-columns: minmax(0, 1fr) 54px auto; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-2); }
+.ph-card.done { padding-block: 11px; }
+.ph-card.done .t b { font-weight: 550; color: var(--text-2); }
+.ph-head { display: grid; gap: 10px; margin-top: 4px; }
+.ph-head .t { display: flex; align-items: baseline; gap: 10px; }
+.ph-head h4 { flex: 1; min-width: 0; font-size: 22px; font-weight: 760; letter-spacing: -.015em; line-height: 1.2; }
+.ph-head .rule { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.ph-step { margin-top: 14px; display: grid; gap: 6px; }
+.ph-step .step { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.ph-step .step-c { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px; padding: 3px; border-radius: 11px; }
+.ph-step .step-b { width: 40px; height: 40px; border-radius: 9px; }
+.ph-step .step-v b { font-size: 14.5px; }
+.ph-step .step-k { font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.ph-chips { display: flex; gap: 6px; margin: 14px -14px 0; padding: 0 14px 2px; overflow-x: auto; scrollbar-width: none; }
+.ph-chips::-webkit-scrollbar { display: none; }
+.ph-chips button { flex: none; display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 13px; border: 0; border-radius: 18px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.ph-chips button small { color: var(--text-3); font-weight: 600; }
+.ph-chips button[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); }
+.ph-chips button[aria-pressed="true"] small { color: color-mix(in oklab, var(--on-invert) 70%, transparent); }
+.ph-chips .bar { width: 44px; min-width: 44px; }
+.ph-g { margin: 18px 4px 8px; display: flex; align-items: baseline; gap: 8px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.ph-g .n { font-weight: 600; letter-spacing: 0; }
+.mcard { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 4px 12px; padding: 12px 12px 12px 14px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.mcard + .mcard { margin-top: 8px; }
+.mcard .tt { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
+.mcard .tt a { font-size: 15px; font-weight: 600; line-height: 1.3; }
+.mcard .ts { grid-column: 1; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-3); }
+.mcard .lp { grid-column: 2; grid-row: 1 / 3; font-size: 15px; font-weight: 650; }
+.mcard .lp small { margin-left: 2px; font-size: 11px; font-weight: 600; color: var(--text-3); }
+.mcard .act { grid-column: 3; grid-row: 1 / 3; }
+.mcard .act .add.round { width: 42px; height: 42px; }
+.mcard .act .add:not(.round) { height: 34px; }
+.mcard.mine { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--c) 35%, transparent), var(--shadow-lift); }
+.mcard.mine .act { grid-column: 1 / -1; grid-row: auto; }
+.ph-fold { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 14px; padding: 13px 14px; border: 0; border-radius: 14px; background: var(--panel-3); color: var(--text-2); font-size: 13.5px; font-weight: 600; text-align: left; cursor: pointer; }
+.ph-fold svg.i { margin-left: auto; }
+.ph-tilesrow { display: flex; gap: 8px; margin: 14px -14px 0; padding: 2px 14px 6px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.ph-tilesrow::-webkit-scrollbar { display: none; }
+.ph-tilesrow .c-tile { flex: none; width: 148px; scroll-snap-align: start; background: var(--panel); box-shadow: var(--shadow-panel); }
+.ph-tilesrow .c-tile[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--c), var(--shadow-panel); }
+.ph-tilesrow .c-tile .al { display: flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.ph-b-goal { margin-top: 10px; padding: 14px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); display: grid; gap: 10px; }
+.ph-b-goal .t { display: flex; align-items: baseline; gap: 10px; }
+.ph-b-goal .t b { flex: 1; font-size: 16px; font-weight: 680; }
+.ph-b-goal .sub { font-size: 12.5px; color: var(--text-2); text-wrap: pretty; }
+.ph-b-goal .mcard { box-shadow: inset 0 0 0 1px var(--line); background: var(--panel-2); }
+.ph-b-goal .mcard.mine { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--c) 35%, transparent); background: color-mix(in oklab, var(--c) 7%, var(--panel)); }
+.ph-b-goal .ph-chips { margin: 0 -14px; }
+.ph-b-goal .ph-chips button { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.ph-b-goal .ph-chips button[aria-pressed="true"] { box-shadow: none; }
+.ph-b-goal .ph-step { margin-top: 0; }
+.ph-b-goal .ph-fold { margin-top: 0; }
+.ph-b-goal .linkb { justify-self: start; margin-left: -10px; }
+
+/* The toast that says what was planned, with „Rückgängig". */
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 40; translate: -50% 0; display: flex; align-items: center; gap: 14px; width: max-content; max-width: calc(100vw - 32px); padding: 10px 12px 10px 16px; border-radius: 11px; background: var(--toast); color: var(--on-toast); font-size: 13.5px; box-shadow: 0 12px 30px -10px rgba(15, 23, 42, .45); }
+.toast button { padding: 3px 6px; border: 0; border-radius: 6px; background: none; color: var(--toast-link); font-weight: 650; cursor: pointer; white-space: nowrap; }
+@media (prefers-reduced-motion: no-preference) { .toast:not([hidden]) { animation: rise .18s ease-out; } }
+@keyframes rise { from { opacity: 0; translate: -50% 8px; } }
+</style>
+
+<div class="page">
+  <section class="intro" aria-labelledby="top-title">
+    <div>
+      <p class="kicker">Folia · Mein Studium · Wahlpflicht · erste Runde, 4. November 2026</p>
+      <h1 id="top-title">Die Wahlpflicht, aufgeräumt</h1>
+      <p class="lead">Die Ansicht „Wahlpflicht“ zeigt, was dein Plan dir zu wählen lässt und aus welchen Modulen. Der Aufbau trägt, aber sie ist unruhig: ein Name über drei Zeilen, zwei Umschalter übereinander, ein grauer Kasten und ein umrandeter Knopf in jeder Zeile, und die Komplexe des Fachstudiums stehen doppelt da. Hier sind drei Konzepte, die alle <b>dieselbe Aufgabe</b> haben: zeigen, welche Module es für eine Wahl gibt und <b>wie viele LP noch fehlen</b>, mit einem Balken je Wahl. Alle mit demselben Studium: Informatik B.Sc. im 1. Fachsemester, seit dem WiSe 2026/27.</p>
+      <p class="quote">„Ich finde ihn grundsätzlich eigentlich not bad. Aber es ist einfach noch unaufgeräumt und wuselig. Auch solche sachen, wie kombinierte komplexe ergibt kaum sinn, weil die ja einzeln gelisted sind. … Der planen knopf kann raus. … Ja bitte erstelle einfach ein ordentliches konzept, dass die aufgabe macht zu zeigen, welche module in dem bereich verfügbar sind. Gerne noch die information, wie viele noch benötigt sind. Also mit progressbar pro section aber wie auch immer.“ <span>— du, heute</span></p>
+    </div>
+    <div class="rules">
+      <p class="kicker">Was alle drei teilen</p>
+      <ul>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></i><span><b>„Planen“ ist raus.</b> Eingeplant wird mit dem Knopf am Modul. Die Werkbank bleibt über „Module hinzufügen“ im Semester erreichbar.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="6" rx="3"/><path d="M10 9v6"/></svg></i><span><b>Ein Balken je Wahl:</b> hell, was geplant ist, voll, was bestanden ist, daneben „6 / 12 LP“. Verlangt eine Wahl 10 bis 24 LP, markiert ein Strich die 10.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h6"/></svg></i><span><b>Kurze Namen:</b> Zählt der Name einer Wahl nur ihre Listen auf, heißt sie nach dem, was sie ist: „Wahlpflicht im 4. FS“. „Modul aus dem Bereich“ fällt weg, wie im Gesamtplan.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg></i><span><b>Die Komplexe als eine Gruppe:</b> Die Wahlpflicht im 4. FS und die drei Komplexe ziehen aus denselben drei Listen. Sie stehen zusammen, jede Liste einmal, jeder Komplex mit seinem Balken.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M3 6h18M6 12h12M10 18h4"/></svg></i><span><b>Sortiert statt versteckt:</b> was das Semester anbietet, was nach Ankündigung kommt, was es nicht anbietet. Das Letzte steht zugeklappt darunter, sein Knopf plant in das nächste Semester, das es anbietet. „Alle“ fällt weg.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/><path d="m9 6 6 6-6 6" transform="translate(6 0)"/></svg></i><span><b>Das Semester mit Pfeilen:</b> ‹ SoSe 2028 › wählt, wohin geplant wird, vom ersten Semester des Studiums an. Das laut Plan ist markiert; ein früheres geht, dann steht „früher als laut Plan“ daneben.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></i><span><b>Ruhige Zeilen und Erledigtes unten:</b> Name, Nummer, LP, Knopf. Was eine Gruppe gemeinsam hat, steht einmal in ihrem Kopf. Eine fertige Wahl rückt nach unten und braucht eine Zeile.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <nav class="setbar" aria-label="Ansicht und Abschnitte">
+    <div class="group">
+      <span class="kicker">Ansicht</span>
+      <span class="seg" role="group" aria-label="Farbschema">
+        <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+        <button type="button" data-theme-set="light" aria-pressed="false">Hell</button>
+        <button type="button" data-theme-set="dark" aria-pressed="false">Dunkel</button>
+      </span>
+      <button type="button" class="linkb" id="reset">Beispiel zurücksetzen</button>
+    </div>
+    <div class="jump">
+      <a href="#heute">Heute</a>
+      <a href="#a">A Zwei Spalten</a>
+      <a href="#b">B Eine Seite</a>
+      <a href="#c">C Kacheln oben</a>
+      <a href="#namen">Die Namen</a>
+      <a href="#vergleich">Vergleich</a>
+      <a href="#fragen">Fragen</a>
+    </div>
+  </nav>
+
+  <section class="sec" id="heute" aria-labelledby="heute-title">
+    <header>
+      <p class="kicker">Ausgangslage</p>
+      <h2 id="heute-title">Was heute ist</h2>
+      <p class="sub">Dein Screenshot von heute, am Rechner auf der Wahl, um die es geht, und dieselbe Ansicht am Handy auf canary (Folia 1.70.2).</p>
+    </header>
+    <div class="today">
+      <figure class="shot wide">
+        <img src="bilder/heute-wahlpflicht.webp" width="1840" height="828" alt="Die heutige Wahlpflicht am Rechner: oben die Leiste der Bereiche, links die Wahlen nach Bereichen mit Zahlen wie 18/66, rechts die Überschrift „Wahlpflicht: Komplex Grundlagen der Informatik / Komplex Praktische Informatik / Komplex Angewandte und Technische Informatik“ über zwei Zeilen, ein Knopf „Planen“, ein Umschalter „SoSe 2028 | WiSe 2028/29 | Alle“, ein Satz, drei Reiter in zwei Zeilen und eine Tabelle mit grauen Kästen „unregelmäßig“ und Knöpfen „+ In SoSe 28“.">
+        <figcaption>Am Rechner: die Wahl „Wahlpflicht: Komplex …“ im Fachstudium.</figcaption>
+      </figure>
+      <ol class="wrong">
+        <li><span><b>Der Name nimmt den Platz.</b> „Wahlpflicht: Komplex Grundlagen der Informatik / Komplex Praktische Informatik / Komplex Angewandte und Technische Informatik“ zählt die drei Listen auf, die zwei Zeilen tiefer als Reiter noch einmal stehen. Links ist er nach drei Zeilen abgeschnitten.</span></li>
+        <li><span><b>Dieselben Listen doppelt.</b> Unter dieser Wahl stehen die drei Komplexe noch einmal als eigene Wahlen, mit denselben Modulen. Dass sie zusammen 44 LP sind, steht nur in einem Satz.</span></li>
+        <li><span><b>Kein Stand je Wahl.</b> Links stehen die Zahlen des ganzen Bereichs (Informatik 18/66, mit den Pflichtmodulen), nicht, was von einer Wahl noch fehlt.</span></li>
+      </ol>
+      <figure class="shot phoneshot">
+        <img src="bilder/heute-handy.webp" width="780" height="1540" alt="Die heutige Wahlpflicht am Handy: Überschrift, Chips der Bereiche, ein Umschalter der Semester, die Wahl Proseminar oder Praktikum mit einem breiten Knopf „Planen“ und drei Karten mit grauen Kästen und runden Plus-Knöpfen.">
+        <figcaption>Am Handy, mit demselben Studium.</figcaption>
+      </figure>
+      <ol class="wrong two" start="4" style="counter-reset: w 3">
+        <li><span><b>Zwei Umschalter übereinander.</b> „SoSe 2028 | WiSe 2028/29 | Alle“, darunter ein Satz, darunter die Listen, die in zwei Zeilen umbrechen. „Alle“ ist kein Semester, sondern das Ende eines Filters.</span></li>
+        <li><span><b>Jede Zeile gleich laut.</b> Ein grauer Kasten „unregelmäßig“ und ein umrandetes „+ In SoSe 28“ in jeder Zeile. Was besonders ist, fällt so nicht auf.</span></li>
+        <li><span><b>Zwei Wege zum Einplanen.</b> Groß oben rechts „Planen ›“ zur Werkbank, in jeder Zeile „+ In SoSe 28“. Am Handy ist „Planen“ der breiteste Knopf der Seite.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="sec" id="a" aria-labelledby="a-title">
+    <header>
+      <p class="kicker">Konzept A</p>
+      <h2 id="a-title"><span class="tag">A</span>Zwei Spalten</h2>
+      <p class="sub">Der Aufbau von heute, nur ruhiger. Links stehen die Wahlen nach Bereichen, <b>jede mit ihrem Balken</b>, die Komplexe als eine Gruppe mit einer Zeile je Komplex. Rechts die gewählte Wahl: oben in zwei Zeilen, was sie verlangt, und das Semester, darunter die Listen als Reiter und <b>die Module in Gruppen nach ihrem Angebot</b>.</p>
+    </header>
+    <div class="stage" data-stage="A"></div>
+    <p class="tryit">Klick links eine Wahl oder einen Komplex, rechts „+ SoSe 28“: Der Balken füllt sich. Mit ‹ › wechselst du das Semester. Bei den Komplexen zählt ein Modul bis zum SoSe 28 für die 6 LP im 4. FS, danach für seinen Komplex; das steht neben den Pfeilen.</p>
+    <div class="how">
+      <div>
+        <h3>Was man sieht</h3>
+        <ul>
+          <li>Links unter jeder Wahl ihr Balken, „0 / 6 LP“ und wann der Plan sie vorsieht. Am Bereich steht „noch 12 LP“ statt der Zahlen des ganzen Bereichs. Fertige Bereiche rutschen mit ✓ nach unten.</li>
+          <li><b>Die Komplexe sind ein Eintrag</b> mit einem Balken für alle 50 LP. Darunter je eine Zeile für das 4. FS und jeden Komplex, jede mit ihrem kleinen Balken und dem Strich bei 10 LP.</li>
+          <li>Rechts ein Kopf in zwei Zeilen statt fünf: Name und Stand, der Balken, was der Plan verlangt, das Semester.</li>
+          <li>Die Module in Gruppen: „Bei dir“, „Im SoSe 28 angeboten“, „Unregelmäßig“ und zugeklappt „Nicht im SoSe 28 angeboten“. Ein leiser Knopf „+ SoSe 28“, die Nummer klein hinter dem Namen.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Wie es sich verhält</h3>
+        <ul>
+          <li>Ein Klick links wählt die Wahl. Ein Komplex wählt dazu seinen Reiter, „Im 4. FS“ dazu das SoSe 28.</li>
+          <li>‹ › geht vom ersten Semester des Studiums an. Weicht es vom Plan ab, steht das daneben, gesperrt ist nichts.</li>
+          <li>„+“ plant ein und füllt einen offenen Platz der Wahl im Semester, wie heute.</li>
+          <li>Am Handy führt die Liste zur Seite der Wahl, „‹ Wahlpflicht“ zurück.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Worauf zu achten ist</h3>
+        <ul>
+          <li>Man sieht die Module von einer Wahl auf einmal. Wer zwei vergleichen will, klickt hin und her.</li>
+          <li>Mit den Balken wird die linke Spalte länger als heute.</li>
+          <li>Die Gruppe „Komplexe“ ist neu: In <code>folia_plans::choices</code> braucht sie eine Ebene über den Wahlen.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="b" aria-labelledby="b-title">
+    <header>
+      <p class="kicker">Konzept B</p>
+      <h2 id="b-title"><span class="tag">B</span>Eine Seite</h2>
+      <p class="sub">Alles Offene untereinander, ohne etwas zu wählen: jeder Bereich ein Abschnitt, jede Wahl mit ihrem Balken und <b>ihren Modulen als Kacheln</b>, die im Semester angebotenen zuerst. Die drei Komplexe stehen in <b>drei Spalten nebeneinander</b>. Am Handy ist es dieselbe Seite in einer Spalte, so wie heute schon.</p>
+    </header>
+    <div class="stage" data-stage="B"></div>
+    <p class="tryit">Plane eine Kachel mit „+“ ein, „Alle 17 zeigen“ klappt eine Wahl auf. Jede Wahl hat ihre eigenen Pfeile für das Semester.</p>
+    <div class="how">
+      <div>
+        <h3>Was man sieht</h3>
+        <ul>
+          <li><b>Jede offene Wahl auf einen Blick,</b> mit Balken und bis zu sechs Modulen. Wie viel im ganzen Bereich fehlt, steht an seinem Kopf.</li>
+          <li>Die Komplexe nebeneinander, jeder mit seinem Balken über 10 bis 24 LP. Über ihnen die beiden Teile: 6 LP im 4. FS und zusammen 44 LP im 5. und 6. FS.</li>
+          <li>Eine Kachel sagt Nummer, LP und Angebot. Was das gewählte Semester sicher anbietet, trägt einen grünen Punkt.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Wie es sich verhält</h3>
+        <ul>
+          <li>Jede Wahl hat ihre eigenen ‹ ›. „+“ plant in dieses Semester. Was es nicht anbietet, steht zugeklappt darunter.</li>
+          <li>Bei mehreren Listen (Anwendungsfach) wählen Chips über den Kacheln die Liste.</li>
+          <li>Am Handy wird aus den drei Spalten ein Umschalter der Komplexe über ihren Modulen.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Worauf zu achten ist</h3>
+        <ul>
+          <li>Die Seite ist lang, am Handy sehr lang.</li>
+          <li>Viele Knöpfe auf einmal: Das Wuselige kommt zurück, wenn ein Studiengang zehn offene Wahlen hat.</li>
+          <li>In der Kachel steht nur „+“. Das Semester steht über der Wahl, nicht am Modul.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="c" aria-labelledby="c-title">
+    <header>
+      <p class="kicker">Konzept C</p>
+      <h2 id="c-title"><span class="tag">C</span>Kacheln oben</h2>
+      <p class="sub">Oben eine Kachel je Wahl, mit Balken, nach Bereichen: <b>ein Brett, das zeigt, wie weit du bist</b>. Darunter die gewählte in voller Breite, ihre Module in <b>drei Spalten nach dem Angebot</b>: was das Semester anbietet, was nach Ankündigung kommt, was es nicht anbietet.</p>
+    </header>
+    <div class="stage" data-stage="C"></div>
+    <p class="tryit">Klick eine Kachel, dann „+ SoSe 28“ in einer Spalte. Mit ‹ › wandern die Module zwischen den Spalten, Physik ist im SoSe 28 zwei, null und zwei.</p>
+    <div class="how">
+      <div>
+        <h3>Was man sieht</h3>
+        <ul>
+          <li><b>Wie weit jede Wahl ist,</b> in einer Reihe oben, ohne zu scrollen.</li>
+          <li>Die ganze Breite für die Module: drei Spalten statt einer Tabelle.</li>
+          <li>Was das Semester nicht anbietet, steht in der dritten Spalte, mit dem Semester, in das sein Knopf plant.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Wie es sich verhält</h3>
+        <ul>
+          <li>Eine Kachel wählt, was darunter steht. Die Kacheln selbst bleiben stehen.</li>
+          <li>Bei den Komplexen tragen die Reiter ihren Balken.</li>
+          <li>Am Handy laufen die Kacheln seitwärts, die drei Spalten stehen untereinander.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Worauf zu achten ist</h3>
+        <ul>
+          <li>Mit vielen Wahlen werden die Kacheln zwei oder drei Reihen hoch.</li>
+          <li>Spalten mit ungleich vielen Modulen sehen leer aus.</li>
+          <li>Am weitesten weg von heute, am Handy sieht man die Kacheln nicht alle.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="namen" aria-labelledby="namen-title">
+    <header>
+      <p class="kicker">In allen drei</p>
+      <h2 id="namen-title">Die Namen</h2>
+      <p class="sub">Die Pläne der BTU nennen eine Wahl oft so, wie sie in der Tabelle der Ordnung steht, und das ist nicht immer ein Name. Im Katalog stehen 196 Zeilen ohne Modul mit „/“ oder „oder“ im Namen, in vielen Studiengängen. Die Regel, nach der Betula sie kürzt:</p>
+    </header>
+    <ol class="namerule">
+      <li><b>„Modul aus dem Bereich …“ und „Modul aus dem Komplex …“</b> verlieren den Anfang, wie die Zeilen im Gesamtplan.</li>
+      <li><b>Zählt der Name nur die Listen der Wahl auf,</b> bleibt, was ohne sie übrig ist („Wahlpflicht“, „Module aus dem gewählten Schwerpunkt“). Bleibt nichts, das Wort, das die Listen teilen („Schwerpunkt“). Dazu kommt das Fachsemester. Die Listen stehen dann einmal, als Reiter.</li>
+      <li><b>In einer Gruppe fällt das Wort der Gruppe weg:</b> In „Komplexe“ heißt „Komplex Grundlagen der Informatik“ nur „Grundlagen der Informatik“.</li>
+      <li><b>Sonst bleibt der Name,</b> auch mit „oder“: „Proseminar oder Praktikum“ ist eine Liste, und der Name sagt, was sie ist.</li>
+    </ol>
+    <div class="tablewrap">
+      <table class="t">
+        <thead><tr><th>Im Plan</th><th>In Betula</th><th>Warum</th></tr></thead>
+        <tbody>
+          <tr><td class="was">Wahlpflicht: Komplex Grundlagen der Informatik / Komplex Praktische Informatik / Komplex Angewandte und Technische Informatik<small>Informatik B.Sc., 4. FS</small></td><td class="is">Wahlpflicht im 4. FS<small>in der Gruppe „Komplexe“</small></td><td>Der Name zählt die drei Listen auf (2). Sie sind dieselben wie die der Komplexe, daher gehört die Wahl zu ihnen.</td></tr>
+          <tr><td class="was">Komplex Praktische Informatik<small>Informatik B.Sc., 5. und 6. FS</small></td><td class="is">Praktische Informatik<small>in der Gruppe „Komplexe“</small></td><td>Die Gruppe sagt schon „Komplexe“ (3).</td></tr>
+          <tr><td class="was">Modul aus dem Bereich Praktische Mathematik<small>Informatik B.Sc., 4. FS</small></td><td class="is">Praktische Mathematik</td><td>Wie im Gesamtplan (1).</td></tr>
+          <tr><td class="was">Modul aus dem Komplex Analysis/Algebra/ Kombinatorik<small>Angewandte Mathematik M.Sc., 2. FS</small></td><td class="is">Analysis / Algebra / Kombinatorik</td><td>Der Anfang fällt weg (1). Es ist eine Liste des Baums, die so heißt.</td></tr>
+          <tr><td class="was">Schwerpunkt Wirtschaftsmathematik oder Schwerpunkt Mathematik in Informatik, Naturwissenschaften und Technik<small>Angewandte Mathematik M.Sc., 1. bis 3. FS</small></td><td class="is">Schwerpunkt<small>mit den beiden Schwerpunkten als Reiter</small></td><td>Ohne die beiden Listen bleibt nichts, also das Wort, das sie teilen (2).</td></tr>
+          <tr><td class="was">Module aus dem gewählten Schwerpunkt „Wirtschaft, Arbeit und Unternehmenspraxis“, „Gesellschaft, Recht und Ethik im digitalen Wandel“ oder „Kommunikation, Medien und Technologiegestaltung“<small>Digitale Gesellschaft, Bachelor (PO 2026), 4. bis 6. FS</small></td><td class="is">Module aus dem gewählten Schwerpunkt</td><td>Der Rest ohne die drei Listen (2).</td></tr>
+          <tr><td class="was">Proseminar oder Praktikum<small>Informatik B.Sc., 2. FS</small></td><td class="is">Proseminar oder Praktikum</td><td>Eine Liste, kein Aufzählen (4).</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="sec" id="vergleich" aria-labelledby="vergleich-title">
+    <header>
+      <h2 id="vergleich-title">Im Vergleich</h2>
+    </header>
+    <div class="tablewrap">
+      <table class="t">
+        <thead><tr><th></th><th>A Zwei Spalten</th><th>B Eine Seite</th><th>C Kacheln oben</th></tr></thead>
+        <tbody>
+          <tr><td>Wie viel fehlt</td><td><span class="verdict ok"><i></i>links an jeder Wahl ein Balken</span></td><td><span class="verdict ok"><i></i>an jeder Wahl, am Bereich die Summe</span></td><td><span class="verdict ok"><i></i>oben in einer Reihe</span></td></tr>
+          <tr><td>Die Module einer Wahl</td><td><span class="verdict ok"><i></i>eine Tabelle in Gruppen</span></td><td><span class="verdict meh"><i></i>sechs, dann aufklappen</span></td><td><span class="verdict ok"><i></i>drei Spalten in voller Breite</span></td></tr>
+          <tr><td>Die Komplexe</td><td><span class="verdict ok"><i></i>ein Eintrag, Reiter mit Balken</span></td><td><span class="verdict ok"><i></i>drei Spalten nebeneinander</span></td><td><span class="verdict ok"><i></i>eine Kachel, Reiter mit Balken</span></td></tr>
+          <tr><td>Ruhe</td><td><span class="verdict ok"><i></i>eine Wahl auf einmal</span></td><td><span class="verdict meh"><i></i>alle Knöpfe auf einmal</span></td><td><span class="verdict ok"><i></i>eine Wahl auf einmal</span></td></tr>
+          <tr><td>Handy</td><td><span class="verdict ok"><i></i>Liste mit Balken, dann die Wahl</span></td><td><span class="verdict ok"><i></i>dieselbe Seite, lang</span></td><td><span class="verdict meh"><i></i>Kacheln seitwärts, nicht alle zu sehen</span></td></tr>
+          <tr><td>Nähe zu heute</td><td><span class="verdict ok"><i></i>der Aufbau bleibt</span></td><td><span class="verdict meh"><i></i>wie heute am Handy</span></td><td><span class="verdict no"><i></i>neu</span></td></tr>
+          <tr><td>Aufwand</td><td><span class="verdict ok"><i></i>klein bis mittel</span></td><td><span class="verdict meh"><i></i>mittel</span></td><td><span class="verdict meh"><i></i>mittel</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="sec" id="empfehlung" aria-labelledby="empfehlung-title">
+    <header>
+      <h2 id="empfehlung-title">Empfehlung: A</h2>
+    </header>
+    <div class="reco">
+      <ul>
+        <li><b>A ist, was du magst, ohne das Wuselige.</b> Der Aufbau bleibt, die Unruhe geht: ein kurzer Name, ein Kopf in zwei Zeilen, ein Umschalter weniger, ruhige Zeilen.</li>
+        <li><b>Der Balken je Wahl steht links,</b> dort, wo man wählt. So sieht man, was fehlt, bevor man klickt, und rechts, wie es sich füllt.</li>
+        <li><b>Die Komplexe als Gruppe</b> lösen das Doppelte: Jede Liste steht einmal, und die Zeile neben den Pfeilen sagt, wofür ein Modul zählt.</li>
+      </ul>
+      <ul>
+        <li><b>B zeigt am meisten auf einmal,</b> aber genau das macht es wieder unruhig, sobald ein Studiengang viele Wahlen hat.</li>
+        <li><b>C hat die schönste Idee</b> mit den Spalten nach dem Angebot. Die Gruppen in A sagen dasselbe, nur untereinander.</li>
+        <li><b>Gebaut wird erst nach deinem Feedback.</b> Dazu gehört in <code>folia_plans</code> die Gruppe über Wahlen mit einer gemeinsamen Summe und die Namensregel, in <code>choose.rs</code> die linke Spalte mit Balken, der Kopf, die Pfeile statt <code>target_switch</code> und die Gruppen statt „Alle“.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="sec" id="fragen" aria-labelledby="fragen-title">
+    <header>
+      <h2 id="fragen-title">Fragen an dich</h2>
+      <p class="sub">Jeweils mit meinem Vorschlag. Ein „passt“ reicht, wo du zustimmst.</p>
+    </header>
+    <ol class="qs">
+      <li><span><b>Welches Konzept?</b> A, B oder C, oder ein Stück aus einem anderen dazu?<span class="pro">Vorschlag: A, am Rechner und am Handy.</span></span></li>
+      <li><span><b>Die Komplexe als eine Gruppe,</b> mit der Wahlpflicht im 4. FS darin? Dasselbe gälte überall, wo die Ordnung eine Summe über mehrere Wahlen druckt.<span class="pro">Vorschlag: ja.</span></span></li>
+      <li><span><b>Wofür zählt ein Modul aus den Komplexen?</b> Heute zählt Betula es zuerst für die Wahlpflicht im 4. FS, wenn es nicht für einen Komplex eingeplant wurde, egal in welchem Semester es liegt. Ob die 6 LP auch zu den 10 bis 24 LP seines Komplexes zählen, sagt die Ordnung; weißt du es?<span class="pro">Vorschlag: nach dem Semester, bis zum 4. FS für die 6 LP im 4. FS, danach für seinen Komplex.</span></span></li>
+      <li><span><b>Der Knopf:</b> „+ SoSe 28“ leise wie in A und C, oder nur „+“, mit dem Semester über der Wahl, wie in B? Am 14. Oktober wolltest du „jedes Modul mit „In SoSe 27““.<span class="pro">Vorschlag: „+ SoSe 28“, leise.</span></span></li>
+      <li><span><b>Das Semester mit Pfeilen</b> statt „SoSe 2028 | WiSe 2028/29 | Alle“, vom ersten Semester des Studiums an?<span class="pro">Vorschlag: ja, mit „laut Plan“ oder „früher als laut Plan“ darunter.</span></span></li>
+      <li><span><b>Was das Semester nicht anbietet,</b> zugeklappt unten statt versteckt hinter „alle zeigen“?<span class="pro">Vorschlag: ja; sein Knopf plant in das nächste Semester, das es anbietet.</span></span></li>
+      <li><span><b>Fertige Wahlen</b> (hier Proseminar und FÜS) nach unten, auf eine Zeile?<span class="pro">Vorschlag: ja, ein Klick zeigt ihre Module wie zuvor.</span></span></li>
+    </ol>
+  </section>
+
+  <p class="foot">Daten: canary vom 4. November 2026 (Folia 1.70.2), Informatik B.Sc. (PO 2008), begonnen im WiSe 2026/27, mit den Zeilen ohne Modul aus dem Plan und den Modulen der Listen samt Turnus aus dem Katalog. Ausgedacht ist nur das Beispiel: Proseminar, Allgemeine BWL I und Grundzüge der Computergrafik sind eingeplant, Einführung in Maschinelles Lernen steht auf der Merkliste. Gebaut ist davon nichts. folia/design/wahlpflicht/konzepte.html</p>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+"use strict";
+
+// ---------- Helpers ----------
+const ICONS = {
+  plus: '<path d="M5 12h14M12 5v14"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  left: '<path d="m15 18-6-6 6-6"/>',
+  right: '<path d="m9 18 6-6-6-6"/>',
+  down: '<path d="m6 9 6 6 6-6"/>',
+  up: '<path d="m18 15-6-6-6 6"/>',
+  back: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
+  mark: '<path d="M17 3H7a2 2 0 0 0-2 2v16l7-4 7 4V5a2 2 0 0 0-2-2Z"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+};
+const NS = "http://www.w3.org/2000/svg";
+function icon(name) {
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("class", "i");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = ICONS[name];
+  return svg;
+}
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k === "style") el.style.cssText = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat(Infinity)) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  return el;
+}
+const fmt = (n) => String(Math.round(n * 10) / 10).replace(".", ",");
+const noop = (e) => e.preventDefault();
+
+// ---------- The catalog: Informatik B.Sc. (PO 2008) on canary, 2026-11-04 ----------
+// Each module: title, credits, turnus (W winter, S summer, B both, I irregular), the parity of the
+// year it is offered in (e even, o odd), the program's abbreviation, phasing out. Each list: the
+// modules of an area of the program's tree.
+const MODS = {"12111":["Proseminar",4.0,"B","","Pro",0],"12216":["Praktikum",4.0,"I","","Pra",0],"12344":["Proseminar Computers and Networks",4.0,"I","","PCN",0],"11102":["Lineare Algebra und analytische Geometrie II",8.0,"S","","LAAG2",0],"11217":["Wahrscheinlichkeitstheorie",8.0,"W","","WT",0],"11331":["Mathematische Statistik",8.0,"I","","MSt",0],"11405":["Algorithmische Graphentheorie",8.0,"I","","AGT",0],"11409":["Kombinatorik",8.0,"I","","Kom",0],"11415":["Graphentheorie",8.0,"W","o","GT",0],"11917":["Mathematik W-3 (Statistik)",6.0,"W","","MW3",0],"11918":["Mathematik W-4 (Modellierung und Optimierung)",6.0,"S","","MW4",0],"11923":["Grundlagen des Wissenschaftlichen Rechnens",6.0,"S","","GWR",0],"11925":["Grundlagen der Numerischen Mathematik",6.0,"W","","GNM",0],"11926":["Statistik für Anwender",6.0,"S","","SfA",0],"11942":["Numerische Mathematik",8.0,"W","","NMa",0],"13862":["Optimierung und Operations Research",8.0,"S","","OOR",0],"13874":["Introduction to Numerical Linear Algebra",6.0,"S","","NLA",0],"13911":["Algebra: Structures and Algorithms",6.0,"I","","Alg",0],"13912":["Coding Theory",6.0,"I","","CTh",0],"14085":["Graph Theory",8.0,"W","o","GrT",0],"11104":["Analysis II",8.0,"S","","An2",0],"11201":["Analysis III",8.0,"W","","An3",0],"11344":["Spezielle Themen der Stochastik",8.0,"I","","STS",0],"12826":["Mathematical Data Science",8.0,"I","","MDS",0],"13392":["Differenzierbare Optimierung",8.0,"I","","DOp",0],"13863":["Mathematical Statistics",8.0,"I","","MS",0],"13889":["Stochastic Processes",8.0,"S","o","SPr",0],"11865":["Allgemeine Physik I (Mechanik, Thermodynamik)",6.0,"W","","AP1",0],"11866":["Allgemeine Physik II (Elektrizität und Magnetismus)",6.0,"S","","AP2",0],"11867":["Allgemeine Physik III (Optik, Atome und Moleküle)",6.0,"W","","AP3",0],"11868":["Allgemeine Physik IV (Festkörperphysik)",6.0,"S","","AP4",0],"11352":["Informations- und Kodierungstheorie",6.0,"W","","IKT",0],"11388":["Audio- und Signalverarbeitung",6.0,"S","","ASV",0],"11744":["Kognitive Systeme: Perzeption und Aktion",6.0,"W","","KSy",0],"11908":["Systemtheorie I",6.0,"W","","ST1",0],"11909":["Systemtheorie II",6.0,"S","","ST2",0],"13841":["Speech Processing",6.0,"I","","SpP",0],"31102":["Technische Mechanik 1: Statik und Festigkeitslehre",6.0,"W","","TM1",0],"31105":["Technische Mechanik 2: Dynamik",6.0,"S","","TM2",0],"31205":["Strömungslehre",6.0,"S","","SL",0],"31303":["Höhere Strömungsmechanik",6.0,"W","","HSM",0],"31403":["Dynamik der Kraftfahrzeuge - Längsdynamik",6.0,"W","","DKL",0],"31408":["Dynamik der Kraftfahrzeuge - Querdynamik",6.0,"S","","DKQ",0],"35301":["Regelung elektrischer Antriebe",6.0,"W","","REA",0],"35302":["Elektrische Maschinen 2 - Betriebsverhalten",6.0,"S","","EM2",0],"35305":["Elektrische Maschinen 1 - Grundlagen",6.0,"W","","EM1",0],"36203":["Grundzüge der Regelungs- und Automatisierungstechnik",6.0,"W","","GRA",0],"11945":["Allgemeine Betriebswirtschaftslehre V: Finanzierung, Investition und Steuern",6.0,"W","","ABWL5",0],"11947":["Einführung in die Volkswirtschaftslehre",6.0,"W","","VWL",1],"11949":["Grundzüge der Makroökonomik",6.0,"W","","GdM",0],"11952":["Grundzüge der Mikroökonomik",6.0,"S","","GMÖ",0],"11957":["Allgemeine Betriebswirtschaftslehre III: Beschaffung, Produktion und Absatz",6.0,"S","","ABWL3",0],"11966":["Allgemeine Betriebswirtschaftslehre VI: Unternehmensführung und Ethik",6.0,"W","","ABWL6",0],"11971":["Allgemeine Betriebswirtschaftslehre IV: Kosten- und Leistungsrechnung",6.0,"S","","ABWL4",0],"12160":["Allgemeine Betriebswirtschaftslehre I: Grundlagen der BWL",6.0,"W","","ABWL1",0],"12229":["Allgemeine Betriebswirtschaftslehre II: Buchführung und Handelsbilanzierung",6.0,"W","","ABWL2",0],"11517":["Baumechanik - 1",6.0,"W","","BM1",0],"11518":["Baukonstruktion & Darstellungslehre",6.0,"W","","BuD",0],"11519":["Baumechanik - 2",6.0,"S","","BM2",0],"11520":["Baustoffe & Bauchemie",6.0,"W","","BuB",0],"11521":["Tragkonstruktion & Tragsicherheit",6.0,"W","","TuT",0],"11524":["Ingenieurgeologie & Bodenmechanik",6.0,"W","","IuB",0],"11525":["Statik - Stabtragwerke",6.0,"W","","Sta",0],"11450":["Effiziente Algorithmen",8.0,"S","o","EAl",0],"11881":["Foundations of Data Mining",6.0,"W","","FDM",0],"12329":["Approximationsalgorithmen",8.0,"W","o","AA",0],"12349":["Moderne Funktionale Programmierung",6.0,"I","","MFP",0],"12350":["Compilerbau",8.0,"I","","CB",0],"12351":["Grundlagen des Data Mining",6.0,"I","","DMi",0],"13565":["Einführung in Maschinelles Lernen",6.0,"W","","EML",0],"11811":["Künstliche Intelligenz in der Materialdiagnostik",6.0,"B","","KIM",0],"11911":["Grundzüge der Kognition und Wahrnehmung",6.0,"S","","GKW",0],"12311":["Grundzüge der Computergrafik",6.0,"W","","GdC",0],"12330":["Datenbanken",6.0,"B","","DB",0],"13500":["Introduction to Neural Signal Analysis",6.0,"I","","INSA",0],"13569":["Biological Neuronal Networks",6.0,"S","","BNN",0],"13849":["Introduction to Computational Neuroscience",6.0,"W","","ICN",0],"14012":["Angewandte Modellierung und Systemsimulation",6.0,"S","","AMS",0],"14023":["Modeling of Perception and Action",6.0,"S","","MPA",0],"14460":["Einführung Information Retrieval",6.0,"S","","EIR",0],"11454":["Grundlagen der Rechnernetze",8.0,"W","","GdR",0],"11684":["Sicherheitsengineering",6.0,"I","","SE",0],"11861":["Operating Systems II (Multi-Level Memory Management)",6.0,"W","o","OS2",0],"11864":["Wireless Sensor Networks: Concepts, Protocols and Applications",6.0,"W","","WSN",0],"12339":["Betriebssysteme II (Speicherverwaltung: Mechanismen und Strategien)",6.0,"W","e","BS2",0],"12341":["Verteilte und Parallele Systeme I (Grundlagen)",6.0,"W","","VPS1",0],"12352":["Mikroelektronik: Entwurfsautomatisierung für digitale Schaltungen",6.0,"S","","ME",0],"12882":["Embedded Real-Time Systems",6.0,"I","","ERTS",0],"14825":["Multimedia and Quality-of-Service for the Metaverse",6.0,"W","","MQS",0],"12317":["Seminar",4.0,"B","","Sem",0],"12340":["Praktikum Betriebssysteme",4.0,"I","","PBS",0],"12342":["Praktikum Verteilte und Parallele Systeme",4.0,"I","","PVPS",0],"12353":["Praktikum Programmiersprachen",4.0,"I","","PPS",0],"13566":["Praktikum Maschinelles Lernen",4.0,"W","","PML",0],"14894":["Bacheloroberseminar Graphische Systeme",6.0,"B","","BGS",0]};
+const LISTS = {"pro":["12216","12111","12344"],"pm":["13911","11405","13912","14085","11415","11925","11923","13874","11409","11102","11917","11918","11331","11942","13862","11926","11217"],"ma":["13911","11405","11104","11201","13912","13392","14085","11415","11925","11923","13874","11409","11102","12826","13863","11917","11918","11331","11942","13862","11344","13889","11217"],"ph":["11865","11866","11867","11868"],"mbet":["11388","31403","31408","35305","35302","36203","31303","11352","11744","35301","13841","31205","11908","11909","31102","31105"],"wiwi":["12160","12229","11957","11971","11945","11966","11947","11949","11952"],"bau":["11518","11517","11519","11520","11524","11525","11521"],"gdi":["12329","12350","11450","13565","11881","12351","12349"],"pi":["14012","13569","12330","14460","12311","11911","13849","13500","11811","14023"],"ati":["12339","12882","11454","12352","14825","11861","11684","12341","11864"],"sem":["14894","12340","13566","12353","12342","12317"]};
+const LIST_NAME = { pro: "Proseminar oder Praktikum", pm: "Praktische Mathematik", ma: "Mathematik", mbet: "Maschinenbau / Elektrotechnik", wiwi: "Wirtschaftswissenschaften", bau: "Bauingenieurwesen", ph: "Physik", gdi: "Grundlagen der Informatik", pi: "Praktische Informatik", ati: "Angewandte und Technische Informatik", sem: "Seminar oder Praktikum aus der Informatik" };
+
+// ---------- The semesters: the study began in WiSe 2026/27, which runs now ----------
+const SEMS = ["2026W", "2027S", "2027W", "2028S", "2028W", "2029S", "2029W", "2030S"];
+const FIRST = 0;
+const yy = (n) => String(n % 100).padStart(2, "0");
+function sem(i) {
+  const key = SEMS[i];
+  const y = Number(key.slice(0, 4));
+  const w = key[4] === "W";
+  return { i, w, y, fs: i + 1, short: w ? `WiSe ${yy(y)}/${yy(y + 1)}` : `SoSe ${yy(y)}`, long: w ? `WiSe ${y}/${yy(y + 1)}` : `SoSe ${y}`, half: w ? "WiSe" : "SoSe" };
+}
+const fsAt = (fs) => Math.min(SEMS.length - 1, Math.max(FIRST, fs - 1));
+// Whether a module is offered in a semester: yes, maybe (irregular), no.
+function offer(id, i) {
+  const [, , season, parity] = MODS[id];
+  const s = sem(i);
+  if (season === "B") return "yes";
+  if (season === "I") return "maybe";
+  if ((season === "W") !== s.w) return "no";
+  if (parity === "e" && s.y % 2 !== 0) return "no";
+  if (parity === "o" && s.y % 2 !== 1) return "no";
+  return "yes";
+}
+const nextYes = (id, from) => { for (let i = from; i < SEMS.length; i++) if (offer(id, i) === "yes") return i; return from; };
+function turnus(id) {
+  const [, , season, parity] = MODS[id];
+  if (season === "B") return "jedes Semester";
+  if (season === "I") return "unregelmäßig";
+  const half = season === "W" ? "jedes WiSe" : "jedes SoSe";
+  return parity ? `${half}, ${parity === "e" ? "gerade" : "ungerade"} Jahre` : half;
+}
+
+// ---------- What the plan leaves to choose ----------
+// An entry is what the views pick: a choice of the plan, or the group of the Komplexe, whose
+// goals are the Wahlpflicht im 4. FS and the three Komplexe.
+const AREAS = [
+  { key: "inf", name: "Informatik", tone: "var(--fac-1)", entries: ["pro"] },
+  { key: "neb", name: "Nebenfach", tone: "var(--t-sun)", entries: ["pm", "anw"] },
+  { key: "fues", name: "FÜS", tone: "var(--t-teal)", entries: ["fues"] },
+  { key: "fach", name: "Fachstudium", tone: "var(--fac-6)", entries: ["kx", "sem"] },
+];
+const ENTRY = {
+  pro: { name: "Proseminar oder Praktikum", least: 4, most: 4, fs: [2, 2], lists: [{ key: "pro", goal: "pro" }], rule: "4 LP laut Plan im 2. FS." },
+  pm: { name: "Praktische Mathematik", least: 6, most: 6, fs: [4, 4], lists: [{ key: "pm", goal: "pm" }], rule: "6 LP laut Plan im 4. FS." },
+  anw: { name: "Anwendungsfach", least: 12, most: 12, fs: [3, 4], lists: ["ma", "mbet", "wiwi", "bau", "ph"].map((key) => ({ key, goal: "anw" })), rule: "12 LP laut Plan im 3. und 4. FS, aus einem der fünf Fächer." },
+  fues: { name: "Fachübergreifendes Studium", least: 6, most: 6, fs: [1, 1], lists: [], rule: "6 LP laut Plan im 1. FS, aus dem Katalog des Fachübergreifenden Studiums." },
+  kx: { name: "Komplexe", long: "Komplexe des Fachstudiums", least: 50, most: 50, fs: [4, 6], lists: ["gdi", "pi", "ati"].map((key) => ({ key, goal: key })), rule: "6 LP im 4. FS aus einem der drei Komplexe, dann zusammen 44 LP im 5. und 6. FS, aus jedem Komplex 10 bis 24." },
+  sem: { name: "Seminar oder Praktikum", least: 4, most: 4, fs: [5, 6], lists: [{ key: "sem", goal: "sem" }], rule: "4 LP laut Plan im 5. und 6. FS." },
+};
+const KX = { wp4: { name: "Im 4. FS", least: 6, most: 6 }, gdi: { name: "Grundlagen der Informatik", least: 10, most: 24 }, pi: { name: "Praktische Informatik", least: 10, most: 24 }, ati: { name: "Angewandte und Technische Informatik", least: 10, most: 24 } };
+const GOAL_NAME = { pro: "Proseminar oder Praktikum", pm: "Praktische Mathematik", anw: "Anwendungsfach", wp4: "die 6 LP im 4. FS", gdi: "Grundlagen der Informatik", pi: "Praktische Informatik", ati: "Angewandte und Technische Informatik", sem: "Seminar oder Praktikum" };
+const GOAL_ENTRY = { pro: "pro", pm: "pm", anw: "anw", wp4: "kx", gdi: "kx", pi: "kx", ati: "kx", sem: "sem" };
+
+// ---------- The example: what is planned and marked ----------
+const START = [
+  { id: "12111", sem: 1, goal: "pro" },
+  { id: "12160", sem: 2, goal: "anw" },
+  { id: "12311", sem: 4, goal: "pi" },
+];
+const MARKED = new Set(["13565"]);
+let planned = START.map((p) => ({ ...p }));
+const fresh = () => ({ tab: {}, sem: {}, fold: {}, more: {}, done: {} });
+const ui = {
+  A: { mode: "desk", pick: "kx", page: null, ...fresh() },
+  B: { mode: "desk", ...fresh() },
+  C: { mode: "desk", pick: "kx", ...fresh() },
+};
+
+const takenOf = (goal) => planned.filter((p) => p.goal === goal).reduce((sum, p) => sum + MODS[p.id][1], 0);
+const plannedOf = (id) => planned.find((p) => p.id === id);
+// The stand of an entry, a goal of the Komplexe, or the 44 LP of the 5. and 6. FS.
+function prog(key) {
+  if (key === "kx") return { taken: ["wp4", "gdi", "pi", "ati"].reduce((s, g) => s + takenOf(g), 0), least: 50, most: 50 };
+  if (key === "k56") return { taken: ["gdi", "pi", "ati"].reduce((s, g) => s + takenOf(g), 0), least: 44, most: 44 };
+  if (key === "fues") return { taken: 6, least: 6, most: 6 };
+  if (KX[key]) return { taken: takenOf(key), least: KX[key].least, most: KX[key].most };
+  return { taken: takenOf(key), least: ENTRY[key].least, most: ENTRY[key].most };
+}
+// What is still missing: of the Komplexe the 6 LP of the 4. FS, and of the 44 at least what each
+// Komplex lacks of its 10.
+function openOf(key) {
+  if (key === "kx") {
+    const ks = ["gdi", "pi", "ati"].map(takenOf);
+    const sum = ks.reduce((a, b) => a + b, 0);
+    return Math.max(0, 6 - takenOf("wp4")) + Math.max(44 - sum, ks.reduce((a, t) => a + Math.max(0, 10 - t), 0), 0);
+  }
+  const p = prog(key);
+  return Math.max(0, p.least - p.taken);
+}
+const complete = (key) => openOf(key) <= 0;
+const areaOpen = (area) => area.entries.reduce((s, k) => s + openOf(k), 0);
+const totalOpen = () => AREAS.reduce((s, a) => s + areaOpen(a), 0);
+const orderedAreas = () => [...AREAS.filter((a) => areaOpen(a) > 0), ...AREAS.filter((a) => areaOpen(a) === 0)];
+// The semester the plan puts what is open of an entry into.
+function dueOf(k) {
+  if (k === "kx") return takenOf("wp4") < 6 ? fsAt(4) : fsAt(5);
+  const e = ENTRY[k];
+  const span = e.fs[1] - e.fs[0] + 1;
+  return fsAt(e.fs[0] + Math.min(span - 1, Math.floor(prog(k).taken / (e.least / span))));
+}
+// What a module of the list of `goal` planned into semester `s` counts for.
+const countFor = (k, goal, s) => (k === "kx" && s <= fsAt(4) && takenOf("wp4") < 6 ? "wp4" : goal);
+function fsText(k) {
+  const [a, b] = ENTRY[k].fs;
+  if (a === b) return `${a}. FS · ${sem(fsAt(a)).short}`;
+  return b - a === 1 ? `${a}. und ${b}. FS` : `${a}. bis ${b}. FS`;
+}
+const semOf = (st, k) => st.sem[k] ?? dueOf(k);
+function tabOf(st, k) {
+  if (st.tab[k] != null) return st.tab[k];
+  const lists = ENTRY[k].lists;
+  let best = 0, most = 0;
+  lists.forEach((l, i) => { const n = LISTS[l.key].filter((id) => plannedOf(id)).length; if (n > most) { most = n; best = i; } });
+  return best;
+}
+
+// The modules of a list for a semester: what the student has, then by what it offers. What is
+// on the Merkliste comes first in its group.
+function groupsOf(listKey, s) {
+  const g = { mine: [], yes: [], maybe: [], no: [] };
+  for (const id of LISTS[listKey]) {
+    if (plannedOf(id)) g.mine.push(id);
+    else g[offer(id, s)].push(id);
+  }
+  const by = (a, b) => (MARKED.has(b) - MARKED.has(a)) || MODS[a][0].localeCompare(MODS[b][0], "de");
+  for (const k of ["yes", "maybe", "no"]) g[k].sort(by);
+  return g;
+}
+
+// ---------- Planning, the toast and „Rückgängig" ----------
+const toastEl = document.getElementById("toast");
+let toastTimer = 0;
+function toast(text, undo) {
+  clearTimeout(toastTimer);
+  toastEl.replaceChildren(h("span", null, text), h("button", { type: "button", onclick: () => { undo(); toastEl.hidden = true; } }, "Rückgängig"));
+  toastEl.hidden = false;
+  toastTimer = setTimeout(() => { toastEl.hidden = true; }, 6000);
+}
+function plan(id, s, goal) {
+  const entry = { id, sem: s, goal };
+  planned.push(entry);
+  const where = GOAL_ENTRY[goal] === "kx" ? `, zählt für ${GOAL_NAME[goal]}` : "";
+  toast(`${MODS[id][0]} ist im ${sem(s).long} eingeplant${where}.`, () => { planned = planned.filter((p) => p !== entry); renderAll(); });
+  renderAll();
+}
+
+// ---------- The pieces all three draw ----------
+function range(p) { return p.least === p.most ? fmt(p.least) : `${fmt(p.least)}–${fmt(p.most)}`; }
+function bar(key, cls = "") {
+  const p = prog(key);
+  const scale = Math.max(p.most, p.least, p.taken) || 1;
+  return h("span", { class: `bar ${cls}`, role: "img", "aria-label": `${fmt(p.taken)} von ${range(p)} LP` },
+    h("span", { class: "bar-in" }, h("span", { class: "bar-f" + (p.taken > p.most ? " over" : ""), style: `width:${(Math.min(p.taken, scale) / scale) * 100}%` })),
+    p.least < p.most ? h("span", { class: "bar-t", style: `left:calc(${(p.least / scale) * 100}% - 1px)` }) : null);
+}
+function fig(key, cls = "") {
+  const p = prog(key);
+  const done = KX[key] || key === "k56" ? p.taken >= p.least : complete(key);
+  return h("span", { class: `fig ${cls}` + (done ? " ok" : "") }, done ? icon("check") : null, fmt(p.taken), h("small", null, ` / ${range(p)} LP`));
+}
+function markSign(id) { return MARKED.has(id) ? h("span", { class: "mk", title: "Auf der Merkliste" }, icon("mark")) : null; }
+function modLink(id) { return h("a", { href: "#", onclick: noop, title: MODS[id][0] }, MODS[id][0]); }
+// „geplant · WiSe 28/29", and what it counts for where that is not the list shown (`here`).
+function plannedChip(id, k, here) {
+  const p = plannedOf(id);
+  let other = "";
+  if (GOAL_ENTRY[p.goal] !== k) other = ` · für ${ENTRY[GOAL_ENTRY[p.goal]].name}`;
+  else if (k === "kx" && p.goal !== here) other = ` · für ${p.goal === "wp4" ? "das 4. FS" : KX[p.goal].name}`;
+  return h("span", { class: "chip plan" }, `geplant · ${sem(p.sem).short}${other}`);
+}
+// The button that plans: „+ SoSe 28", or only „+".
+function addBtn(id, s, goal, style = "text") {
+  const label = `${MODS[id][0]} im ${sem(s).long} einplanen`;
+  if (style === "round") return h("button", { class: "add round", type: "button", "aria-label": label, title: `In ${sem(s).short} einplanen`, onclick: () => plan(id, s, goal) }, icon("plus"));
+  return h("button", { class: "add" + (style === "soft" ? " soft" : ""), type: "button", "aria-label": label, onclick: () => plan(id, s, goal) }, icon("plus"), sem(s).short);
+}
+// ‹ SoSe 2028 ›: where to plan into, from the first semester of the study on.
+function stepper(st, k, opts = {}) {
+  const s = semOf(st, k);
+  // Within the Fachsemester the plan gives the entry is „laut Plan"; before or after it is said.
+  const [a, b] = ENTRY[k].fs.map(fsAt);
+  const inPlan = s >= a && s <= b;
+  const note = inPlan ? "laut Plan" : s < a ? "früher als laut Plan" : "später als laut Plan";
+  const set = (i) => { st.sem[k] = i; renderAll(); };
+  let count = null;
+  if (k === "kx" && opts.count !== false) {
+    const goal = opts.goal ?? ENTRY.kx.lists[tabOf(st, k)].goal;
+    const to = countFor("kx", goal, s);
+    count = h("span", { class: "step-n" }, "zählt für ", h("b", null, opts.anyKomplex && to !== "wp4" ? "seinen Komplex" : GOAL_NAME[to]));
+  }
+  return h("div", { class: "step" },
+    h("span", { class: "step-k" }, "Einplanen in"),
+    h("span", { class: "step-c" },
+      h("button", { class: "step-b", type: "button", "aria-label": "Semester davor", disabled: s <= FIRST, onclick: () => set(s - 1) }, icon("left")),
+      h("span", { class: "step-v", "aria-live": "polite" }, h("b", null, sem(s).long), h("small", { class: inPlan ? "" : "warn" }, `${sem(s).fs}. FS · ${note}`)),
+      h("button", { class: "step-b", type: "button", "aria-label": "Semester danach", disabled: s >= SEMS.length - 1, onclick: () => set(s + 1) }, icon("right"))),
+    count);
+}
+function viewHead() {
+  const n = totalOpen();
+  return h("header", { class: "wp-head" }, h("h3", null, "Wahlpflicht"), h("p", null, n > 0 ? `Noch ${fmt(n)} LP zu wählen` : "Alles gewählt"));
+}
+const foldKey = (C, k, l, s) => `${C}:${k}:${l}:${s}`;
+
+// ---------- A: two columns ----------
+function aNavEntry(st, k, area) {
+  const e = ENTRY[k];
+  const cur = st.pick === k;
+  const pick = () => { st.pick = k; renderAll(); };
+  if (complete(k) && k !== "kx") {
+    return h("button", { class: "a-ng done", type: "button", "aria-current": cur ? "true" : null, onclick: pick }, h("span", { class: "t" }, h("b", null, e.name), fig(k)));
+  }
+  const main = h("button", { class: "a-ng", type: "button", "aria-current": cur && k !== "kx" ? "true" : cur ? "true" : null, onclick: pick },
+    h("span", { class: "t" }, h("b", null, e.name), fig(k)), bar(k), h("small", null, fsText(k)));
+  if (k !== "kx") return main;
+  const s = semOf(st, k);
+  const kid = (goal, onclick, on) => h("button", { class: "a-kid", type: "button", "aria-current": on ? "true" : null, onclick },
+    h("span", null, KX[goal].name), fig(goal), bar(goal, "thin"));
+  return h("div", null, main, h("div", { class: "a-kids" },
+    kid("wp4", () => { st.pick = "kx"; st.sem.kx = fsAt(4); renderAll(); }, cur && s <= fsAt(4)),
+    ...["gdi", "pi", "ati"].map((g, i) => kid(g, () => { st.pick = "kx"; st.tab.kx = i; if ((st.sem.kx ?? dueOf("kx")) <= fsAt(4) && takenOf("wp4") >= 6) st.sem.kx = fsAt(5); renderAll(); }, cur && tabOf(st, "kx") === i && (s > fsAt(4) || takenOf("wp4") >= 6)))));
+}
+function aNav(st) {
+  return h("nav", { class: "a-nav", "aria-label": "Wahlen" }, orderedAreas().map((area) => {
+    const n = areaOpen(area);
+    return h("div", { style: `--c:${area.tone}` },
+      h("p", { class: "a-nh" }, h("span", { class: "dot" }), area.name, h("small", { class: n ? "" : "ok" }, n ? `noch ${fmt(n)} LP` : "✓ vollständig")),
+      area.entries.map((k) => aNavEntry(st, k, area)));
+  }));
+}
+function partsOf() {
+  return h("div", { class: "parts" },
+    h("div", { class: "part" }, h("span", null, "Im 4. FS", h("small", null, "ein Modul aus einem der drei")), fig("wp4"), bar("wp4")),
+    h("div", { class: "part" }, h("span", null, "Im 5. und 6. FS", h("small", null, "zusammen, je 10 bis 24")), fig("k56"), bar("k56")));
+}
+function listTabs(st, k, kind) {
+  const e = ENTRY[k];
+  if (e.lists.length < 2) return null;
+  const at = tabOf(st, k);
+  const set = (i) => { st.tab[k] = i; if (k === "kx" && semOf(st, k) <= fsAt(4) && takenOf("wp4") >= 6) st.sem[k] = fsAt(5); renderAll(); };
+  if (kind === "chips") {
+    return h("div", { class: "ph-chips", role: "group", "aria-label": k === "kx" ? "Komplexe" : "Listen" }, e.lists.map((l, i) =>
+      h("button", { type: "button", "aria-pressed": String(i === at), onclick: () => set(i) }, LIST_NAME[l.key], k === "kx" ? bar(l.goal, "thin") : h("small", null, LISTS[l.key].length))));
+  }
+  return h("div", { class: "tabs", role: "group", "aria-label": k === "kx" ? "Komplexe" : "Listen" }, e.lists.map((l, i) =>
+    h("button", { type: "button", "aria-pressed": String(i === at), onclick: () => set(i) },
+      h("span", null, LIST_NAME[l.key], k === "kx" ? null : h("small", null, LISTS[l.key].length)),
+      k === "kx" ? h("span", { class: "tab-p" }, bar(l.goal, "thin"), fig(l.goal)) : null)));
+}
+function fuesBody() {
+  return h("div", { class: "fues" },
+    h("div", { class: "line" }, icon("check"), h("span", null, "Platzhalter Fachübergreifendes Studium"), h("small", null, "6 LP · geplant im WiSe 26/27")),
+    h("a", { class: "action", href: "#", onclick: noop }, icon("search"), "Im Katalog des FÜS suchen", icon("right")));
+}
+function aRows(st, k, C = "A") {
+  const e = ENTRY[k];
+  const l = e.lists[tabOf(st, k)];
+  const s = semOf(st, k);
+  const g = groupsOf(l.key, s);
+  const goal = countFor(k, l.goal, s);
+  const row = (id, act, cls = "") => h("div", { class: `mrow ${cls}` },
+    h("span", { class: "nm" }, markSign(id), modLink(id), h("span", { class: "nr" }, id), MODS[id][5] ? h("span", { class: "warnline" }, "läuft aus") : null),
+    h("span", { class: "lp" }, `${fmt(MODS[id][1])} LP`),
+    h("span", { class: "act" }, act));
+  const group = (title, n, rows, cls = "", side = null) => h("div", { class: `mg ${cls}` }, h("p", { class: "mg-h" }, title, h("span", { class: "n" }, n), side ? h("span", { class: "s" }, side) : null), rows);
+  const out = [];
+  if (g.mine.length) out.push(group("Bei dir", g.mine.length, g.mine.map((id) => row(id, plannedChip(id, k, l.goal), "mine"))));
+  if (g.yes.length) out.push(group(`Im ${sem(s).short} angeboten`, g.yes.length, g.yes.map((id) => row(id, addBtn(id, s, goal)))));
+  if (g.maybe.length) out.push(group("Unregelmäßig", g.maybe.length, g.maybe.map((id) => row(id, addBtn(id, s, goal))), "", "nach Ankündigung, vielleicht auch im " + sem(s).short));
+  if (!g.yes.length && !g.maybe.length) out.push(h("p", { class: "mg-h" }, `Im ${sem(s).short} nichts aus dieser Liste`));
+  if (g.no.length) {
+    const fk = foldKey(C, k, l.key, s);
+    const open = !!st.fold[fk];
+    out.push(h("button", { class: "mg-fold", type: "button", "aria-expanded": String(open), onclick: () => { st.fold[fk] = !open; renderAll(); } },
+      `Nicht im ${sem(s).short} angeboten · ${g.no.length}`, h("small", null, "„+“ plant in das nächste Semester, das es anbietet"), icon(open ? "up" : "down")));
+    if (open) out.push(h("div", { class: "mg no" }, g.no.map((id) => { const to = nextYes(id, s); return row(id, addBtn(id, to, countFor(k, l.goal, to), "soft")); })));
+  }
+  return h("div", null, out);
+}
+function aPane(st) {
+  const k = st.pick;
+  const e = ENTRY[k];
+  const kids = [
+    h("div", { class: "a-ph" },
+      h("div", { class: "a-pt" }, h("h4", null, e.long ?? e.name), fig(k, "big")),
+      bar(k, "big"),
+      h("div", { class: "a-pr" }, h("p", { class: "rule" }, e.rule), e.lists.length ? stepper(st, k) : null)),
+  ];
+  if (k === "kx") kids.push(h("div", { style: "margin-top:12px" }, partsOf()));
+  if (!e.lists.length) kids.push(fuesBody());
+  else { kids.push(listTabs(st, k, "tabs")); kids.push(aRows(st, k)); }
+  return h("div", { class: "a-pane", style: `--c:${toneOf(k)}` }, kids);
+}
+const toneOf = (k) => AREAS.find((a) => a.entries.includes(k)).tone;
+function aDesk(st) {
+  return h("div", { class: "wp desk" }, viewHead(), h("div", { class: "a-split" }, aNav(st), aPane(st)));
+}
+
+// The phone: the choices, then one choice as its own page.
+function phoneTop(st, back) {
+  return h("div", { class: "ph-top" },
+    back ? h("button", { class: "ph-back", type: "button", onclick: back }, icon("left"), "Wahlpflicht") : null,
+    h("span", { class: "ph-search" }, icon("search"), back ? "Suchen" : "Modul, Nummer oder Thema suchen"));
+}
+function phoneRows(st, k, C) {
+  const e = ENTRY[k];
+  const l = e.lists[tabOf(st, k)];
+  const s = semOf(st, k);
+  const g = groupsOf(l.key, s);
+  const goal = countFor(k, l.goal, s);
+  const card = (id, act, extra = "") => h("div", { class: `mcard ${extra}` },
+    h("span", { class: "tt" }, markSign(id), modLink(id)),
+    h("span", { class: "ts" }, h("span", { class: "nr" }, id), extra === "mine" ? null : turnus(id)),
+    h("span", { class: "lp" }, fmt(MODS[id][1]), h("small", null, "LP")),
+    h("span", { class: "act" }, act));
+  const out = [];
+  if (g.mine.length) out.push(h("p", { class: "ph-g" }, "Bei dir", h("span", { class: "n" }, g.mine.length)), g.mine.map((id) => card(id, plannedChip(id, k, l.goal), "mine")));
+  if (g.yes.length) out.push(h("p", { class: "ph-g" }, `Im ${sem(s).short} angeboten`, h("span", { class: "n" }, g.yes.length)), g.yes.map((id) => card(id, addBtn(id, s, goal, "round"))));
+  if (g.maybe.length) out.push(h("p", { class: "ph-g" }, "Unregelmäßig", h("span", { class: "n" }, g.maybe.length)), g.maybe.map((id) => card(id, addBtn(id, s, goal, "round"))));
+  if (g.no.length) {
+    const fk = foldKey(C, k, l.key, s);
+    const open = !!st.fold[fk];
+    out.push(h("button", { class: "ph-fold", type: "button", "aria-expanded": String(open), onclick: () => { st.fold[fk] = !open; renderAll(); } }, `Nicht im ${sem(s).short} angeboten · ${g.no.length}`, icon(open ? "up" : "down")));
+    if (open) out.push(h("div", { style: "margin-top:8px" }, g.no.map((id) => { const to = nextYes(id, s); return card(id, addBtn(id, to, countFor(k, l.goal, to), "soft")); })));
+  }
+  return out;
+}
+function aPhone(st) {
+  if (st.page) {
+    const k = st.page;
+    const e = ENTRY[k];
+    const back = () => { st.page = null; st.toTop = true; renderAll(); };
+    return h("div", { style: `--c:${toneOf(k)}` }, phoneTop(st, back),
+      h("div", { class: "ph-head" }, h("div", { class: "t" }, h("h4", null, e.long ?? e.name), fig(k, "big")), bar(k, "big"), h("p", { class: "rule" }, e.rule)),
+      k === "kx" ? h("div", { style: "margin-top:12px" }, partsOf()) : null,
+      e.lists.length ? h("div", { class: "ph-step" }, stepper(st, k)) : null,
+      e.lists.length ? listTabs(st, k, "chips") : null,
+      e.lists.length ? phoneRows(st, k, "A") : fuesBody());
+  }
+  const open = (k) => () => { st.page = k; st.pick = k; st.toTop = true; renderAll(); };
+  return h("div", null, phoneTop(st, null),
+    h("h1", { class: "ph-h1" }, "Wahlpflicht"), h("p", { class: "ph-lead" }, `Noch ${fmt(totalOpen())} LP zu wählen`),
+    orderedAreas().map((area) => {
+      const n = areaOpen(area);
+      return h("div", { style: `--c:${area.tone}` },
+        h("p", { class: "ph-sec" }, h("span", { class: "dot" }), area.name, h("small", { class: n ? "" : "ok" }, n ? `noch ${fmt(n)} LP` : "✓")),
+        area.entries.map((k) => {
+          const e = ENTRY[k];
+          if (complete(k)) return h("button", { class: "ph-card done", type: "button", onclick: open(k) }, h("span", { class: "t" }, h("b", null, e.name), fig(k), icon("right")));
+          return h("button", { class: "ph-card", type: "button", onclick: open(k) },
+            h("span", { class: "t" }, h("b", null, e.name), fig(k), icon("right")), bar(k), h("small", null, fsText(k)),
+            k === "kx" ? ["wp4", "gdi", "pi", "ati"].map((g) => h("span", { class: "kid" }, h("span", null, KX[g].name), bar(g, "thin"), fig(g))) : null);
+        }));
+    }));
+}
+
+// ---------- B: one page ----------
+const SHOWN = 6;
+function tile(id, act, cls, s, phone) {
+  if (phone) {
+    return h("div", { class: `mcard ${cls}` },
+      h("span", { class: "tt" }, markSign(id), modLink(id)),
+      h("span", { class: "ts" }, h("span", { class: "nr" }, id), cls === "mine" ? null : offerNote(id, s)),
+      h("span", { class: "lp" }, fmt(MODS[id][1]), h("small", null, "LP")),
+      h("span", { class: "act" }, act));
+  }
+  const mine = cls === "mine";
+  return h("div", { class: `tile ${cls}` },
+    h("span", { class: "tt" }, markSign(id), modLink(id)),
+    h("span", { class: "ts" }, h("span", { class: "nr" }, id), `${fmt(MODS[id][1])} LP`, mine ? act : offerNote(id, s)),
+    mine ? null : h("span", { class: "act" }, act));
+}
+function offerNote(id, s) {
+  const o = offer(id, s);
+  if (o === "yes") return h("span", { class: "on" }, MODS[id][2] === "B" ? "jedes Semester" : sem(s).short);
+  return h("span", null, o === "maybe" ? "unregelmäßig" : turnus(id));
+}
+function bTiles(st, k, l, s, goal, phone, limit = SHOWN) {
+  const g = groupsOf(l.key, s);
+  const first = [...g.mine.map((id) => [id, "mine"]), ...g.yes.map((id) => [id, ""]), ...g.maybe.map((id) => [id, ""])];
+  const mk = `${k}:${l.key}`;
+  const all = !!st.more[mk];
+  const shown = all ? first : first.slice(0, limit);
+  const fk = foldKey("B", k, l.key, s);
+  const open = !!st.fold[fk];
+  const items = shown.map(([id, cls]) => tile(id, cls === "mine" ? plannedChip(id, k, l.goal) : addBtn(id, s, goal, "round"), cls, s, phone));
+  const nos = open ? g.no.map((id) => { const to = nextYes(id, s); return tile(id, addBtn(id, to, countFor(k, l.goal, to), "soft"), "no", s, phone); }) : [];
+  const more = [];
+  if (first.length > limit) more.push(h("button", { class: "linkb", type: "button", onclick: () => { st.more[mk] = !all; renderAll(); } }, all ? "Weniger zeigen" : `Alle ${first.length} zeigen`));
+  if (g.no.length) more.push(h("button", { class: phone ? "ph-fold" : "linkb", type: "button", "aria-expanded": String(open), onclick: () => { st.fold[fk] = !open; renderAll(); } }, `${g.no.length} nicht im ${sem(s).short} angeboten`, icon(open ? "up" : "down")));
+  if (phone) return [items, nos, more];
+  return [h("div", { class: "tiles" }, items, nos), more.length ? h("div", { class: "b-more" }, more) : null];
+}
+function bGoal(st, k, phone) {
+  const e = ENTRY[k];
+  const s = semOf(st, k);
+  const doneOpen = !!st.done[k];
+  if ((complete(k) && !doneOpen) || !e.lists.length) {
+    return h("div", { class: "b-done" }, h("b", null, e.name), fig(k), h("span", { class: "grow" }), e.lists.length ? h("button", { class: "linkb", type: "button", onclick: () => { st.done[k] = true; renderAll(); } }, "Module zeigen") : h("a", { class: "linkb", href: "#", onclick: noop, style: "display:inline-flex;align-items:center;text-decoration:none" }, "Im Katalog des FÜS suchen"));
+  }
+  if (k === "kx") return bKx(st, phone);
+  const l = e.lists[tabOf(st, k)];
+  const goal = countFor(k, l.goal, s);
+  if (phone) {
+    return h("div", { class: "ph-b-goal" },
+      h("div", { class: "t" }, h("b", null, e.name), fig(k)), bar(k), h("p", { class: "sub" }, e.rule),
+      h("div", { class: "ph-step" }, stepper(st, k)),
+      listTabs(st, k, "chips"),
+      bTiles(st, k, l, s, goal, true, 4));
+  }
+  return h("div", { class: "b-goal" },
+    h("div", { class: "b-gh" }, h("div", null, h("b", null, e.name), h("span", { class: "sub" }, e.rule)), bar(k), fig(k)),
+    h("div", { class: "b-tools" }, e.lists.length > 1 ? h("div", { class: "chips", role: "group", "aria-label": "Listen" }, e.lists.map((x, i) => h("button", { type: "button", "aria-pressed": String(i === tabOf(st, k)), onclick: () => { st.tab[k] = i; renderAll(); } }, LIST_NAME[x.key], h("small", null, LISTS[x.key].length)))) : null, h("span", { class: "grow" }), stepper(st, k)),
+    bTiles(st, k, l, s, goal, false));
+}
+function bKx(st, phone) {
+  const e = ENTRY.kx;
+  const s = semOf(st, "kx");
+  const head = phone
+    ? [h("div", { class: "t" }, h("b", null, e.long), fig("kx")), bar("kx"), h("p", { class: "sub" }, e.rule), partsOf(), h("div", { class: "ph-step" }, stepper(st, "kx", { anyKomplex: true }))]
+    : [h("div", { class: "b-gh" }, h("div", null, h("b", null, e.long), h("span", { class: "sub" }, e.rule)), bar("kx"), fig("kx")), h("div", { class: "b-tools" }, partsOf(), h("span", { class: "grow" }), stepper(st, "kx", { anyKomplex: true }))];
+  if (phone) {
+    const l = e.lists[tabOf(st, "kx")];
+    return h("div", { class: "ph-b-goal" }, head, listTabs(st, "kx", "chips"), bTiles(st, "kx", l, s, countFor("kx", l.goal, s), true, 4));
+  }
+  const cols = e.lists.map((l) => {
+    const g = groupsOf(l.key, s);
+    const goal = countFor("kx", l.goal, s);
+    const first = [...g.mine.map((id) => [id, "mine"]), ...g.yes.map((id) => [id, ""]), ...g.maybe.map((id) => [id, ""])];
+    const mk = `kx:${l.key}`;
+    const all = !!st.more[mk];
+    const fk = foldKey("B", "kx", l.key, s);
+    const open = !!st.fold[fk];
+    const crow = (id, act, cls = "") => h("div", { class: `crow ${cls}` }, h("span", { class: "nm" }, markSign(id), modLink(id)), h("span", { class: "lp" }, `${fmt(MODS[id][1])} LP`), act);
+    return h("div", { class: "b-col", style: "--c:var(--fac-6)" },
+      h("h5", null, LIST_NAME[l.key]),
+      h("div", { class: "cp" }, bar(l.goal), fig(l.goal)),
+      (all ? first : first.slice(0, 5)).map(([id, cls]) => crow(id, cls === "mine" ? plannedChip(id, "kx", l.goal) : addBtn(id, s, goal, "round"), cls)),
+      open ? g.no.map((id) => { const to = nextYes(id, s); return crow(id, addBtn(id, to, countFor("kx", l.goal, to), "soft"), "no"); }) : null,
+      first.length > 5 ? h("button", { class: "linkb", type: "button", onclick: () => { st.more[mk] = !all; renderAll(); } }, all ? "Weniger zeigen" : `Alle ${first.length} zeigen`) : null,
+      g.no.length ? h("button", { class: "linkb", type: "button", "aria-expanded": String(open), onclick: () => { st.fold[fk] = !open; renderAll(); } }, `${g.no.length} nicht im ${sem(s).short}`) : null);
+  });
+  return h("div", { class: "b-goal" }, head, h("div", { class: "b-cols" }, cols));
+}
+function bAreas(st, phone) {
+  return orderedAreas().map((area) => {
+    const n = areaOpen(area);
+    if (phone) return h("div", { style: `--c:${area.tone}` }, h("p", { class: "ph-sec" }, h("span", { class: "dot" }), area.name, h("small", { class: n ? "" : "ok" }, n ? `noch ${fmt(n)} LP` : "✓")), area.entries.map((k) => bGoal(st, k, true)));
+    return h("section", { class: "b-area", style: `--c:${area.tone}` }, h("h4", { class: "b-ah" }, h("span", { class: "dot" }), area.name, h("small", { class: n ? "" : "ok" }, n ? `noch ${fmt(n)} LP` : "✓ vollständig")), area.entries.map((k) => bGoal(st, k, false)));
+  });
+}
+function bDesk(st) { return h("div", { class: "wp desk" }, viewHead(), h("div", { class: "b-body" }, bAreas(st, false))); }
+function bPhone(st) {
+  return h("div", null, phoneTop(st, null), h("h1", { class: "ph-h1" }, "Wahlpflicht"), h("p", { class: "ph-lead" }, `Noch ${fmt(totalOpen())} LP zu wählen`), bAreas(st, true));
+}
+
+// ---------- C: tiles on top ----------
+function cTile(st, k, phone, area) {
+  const e = ENTRY[k];
+  const on = st.pick === k;
+  const pick = () => { st.pick = k; renderAll(); };
+  return h("button", { class: "c-tile" + (complete(k) && k !== "kx" ? " done" : ""), type: "button", "aria-pressed": String(on), style: `--c:${toneOf(k)}`, onclick: pick },
+    phone ? h("span", { class: "al" }, h("span", { class: "dot" }), area.name) : null,
+    h("b", null, e.name), complete(k) && k !== "kx" ? null : bar(k), h("span", { class: "cf" }, fig(k)));
+}
+function cCols(st, k, phone) {
+  const e = ENTRY[k];
+  const l = e.lists[tabOf(st, k)];
+  const s = semOf(st, k);
+  const g = groupsOf(l.key, s);
+  const goal = countFor(k, l.goal, s);
+  const card = (id, act) => h("div", { class: "c-card" }, h("span", { class: "tt" }, markSign(id), modLink(id)), h("span", { class: "ts" }, h("span", { class: "nr" }, id), ` · ${fmt(MODS[id][1])} LP`), h("span", { class: "act" }, act));
+  const col = (cls, title, ids, act) => h("div", { class: `c-col ${cls}` }, h("header", null, title, h("span", { class: "n" }, ids.length)), ids.length ? ids.map((id) => card(id, act(id))) : h("p", { class: "none" }, "Keins"));
+  const mine = g.mine.length ? h("div", { class: "c-mine" }, h("b", null, "Bei dir:"), g.mine.map((id) => h("span", null, MODS[id][0], " ", plannedChip(id, k, l.goal)))) : null;
+  return [mine, h("div", { class: "c-cols", style: phone ? "grid-template-columns:minmax(0,1fr)" : "" },
+    col("yes", `Im ${sem(s).short} angeboten`, g.yes, (id) => addBtn(id, s, goal)),
+    col("maybe", "Unregelmäßig", g.maybe, (id) => addBtn(id, s, goal)),
+    col("no", `Nicht im ${sem(s).short}`, g.no, (id) => { const to = nextYes(id, s); return addBtn(id, to, countFor(k, l.goal, to), "soft"); }))];
+}
+function cBody(st, phone) {
+  const k = st.pick;
+  const e = ENTRY[k];
+  return h("div", { class: "c-body", style: `--c:${toneOf(k)}` + (phone ? ";padding:16px 0 0" : "") },
+    h("div", { class: "a-ph" }, h("div", { class: "a-pt" }, h("h4", null, e.long ?? e.name), fig(k, "big")), bar(k, "big"), h("div", { class: "a-pr" }, h("p", { class: "rule" }, e.rule), e.lists.length && !phone ? stepper(st, k) : null)),
+    k === "kx" ? h("div", { style: "margin-top:12px" }, partsOf()) : null,
+    e.lists.length && phone ? h("div", { class: "ph-step" }, stepper(st, k)) : null,
+    e.lists.length ? listTabs(st, k, phone ? "chips" : "tabs") : null,
+    e.lists.length ? cCols(st, k, phone) : fuesBody());
+}
+function cDesk(st) {
+  return h("div", { class: "wp desk" }, viewHead(),
+    h("div", { class: "c-top" }, orderedAreas().map((area) => {
+      const n = areaOpen(area);
+      return h("div", { class: "c-area", style: `--c:${area.tone}` }, h("span", { class: "c-al" }, h("span", { class: "dot" }), area.name, h("small", null, n ? `noch ${fmt(n)} LP` : "✓")), h("div", { class: "c-row" }, area.entries.map((k) => cTile(st, k, false, area))));
+    })),
+    cBody(st, false));
+}
+function cPhone(st) {
+  return h("div", null, phoneTop(st, null), h("h1", { class: "ph-h1" }, "Wahlpflicht"), h("p", { class: "ph-lead" }, `Noch ${fmt(totalOpen())} LP zu wählen`),
+    h("div", { class: "ph-tilesrow" }, orderedAreas().flatMap((area) => area.entries.map((k) => cTile(st, k, true, area)))),
+    cBody(st, true));
+}
+
+// ---------- The stages ----------
+const RENDER = { A: { desk: aDesk, phone: aPhone }, B: { desk: bDesk, phone: bPhone }, C: { desk: cDesk, phone: cPhone } };
+function renderStage(C, el) {
+  const st = ui[C];
+  const bar = h("div", { class: "stage-bar" },
+    h("span", { class: "seg", role: "group", "aria-label": "Gerät" }, ["desk", "phone"].map((m) => h("button", { type: "button", "aria-pressed": String(st.mode === m), onclick: () => { st.mode = m; st.toTop = true; renderAll(); } }, m === "desk" ? "Rechner" : "Handy"))),
+    h("span", { class: "grow" }),
+    h("span", { class: "kicker" }, st.mode === "desk" ? "das Panel bei 1440 px" : "ein Handy, 380 px"));
+  const view = st.mode === "desk" ? RENDER[C].desk(st) : h("div", { class: "phone" }, h("div", { class: "phone-scroll" }, RENDER[C].phone(st)));
+  el.replaceChildren(bar, h("div", { class: "stage-in" }, view));
+}
+function renderAll() {
+  const active = document.activeElement;
+  let focus = null;
+  for (const C of Object.keys(ui)) {
+    const el = document.querySelector(`[data-stage="${C}"]`);
+    if (el.contains(active)) focus = { C, at: [...el.querySelectorAll("button, a")].indexOf(active) };
+    const top = el.querySelector(".phone-scroll")?.scrollTop ?? 0;
+    const left = el.querySelector(".stage-in")?.scrollLeft ?? 0;
+    renderStage(C, el);
+    const scroll = el.querySelector(".phone-scroll");
+    if (scroll) scroll.scrollTop = ui[C].toTop ? 0 : top;
+    el.querySelector(".stage-in").scrollLeft = left;
+    ui[C].toTop = false;
+  }
+  if (focus && focus.at >= 0) {
+    const all = [...document.querySelector(`[data-stage="${focus.C}"]`).querySelectorAll("button, a")];
+    all[Math.min(focus.at, all.length - 1)]?.focus({ preventScroll: true });
+  }
+}
+document.getElementById("reset").addEventListener("click", () => {
+  planned = START.map((p) => ({ ...p }));
+  for (const C of Object.keys(ui)) Object.assign(ui[C], fresh(), C === "B" ? {} : { pick: "kx" }, C === "A" ? { page: null } : {});
+  toastEl.hidden = true;
+  renderAll();
+});
+
+// ---------- The theme ----------
+const root = document.documentElement;
+function setTheme(v) {
+  if (v === "system") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", v);
+  document.querySelectorAll("[data-theme-set]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.themeSet === v)));
+  try { localStorage.setItem("wahlpflicht-konzepte.theme", v); } catch { /* the page works without it */ }
+}
+document.querySelectorAll("[data-theme-set]").forEach((b) => b.addEventListener("click", () => setTheme(b.dataset.themeSet)));
+try { const saved = localStorage.getItem("wahlpflicht-konzepte.theme"); if (saved) setTheme(saved); } catch { /* the system's then */ }
+
+renderAll();
+</script>
