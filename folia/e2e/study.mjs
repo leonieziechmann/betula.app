@@ -29,7 +29,9 @@
 //   semester, the line of today and its flag, ▸ unfolding Mathematik into its lanes, kept, „Alle
 //   zuklappen", „Bisher zuklappen" and back), each cell as tall as what it lists, a module's menu,
 //   the plan's open Betriebssysteme I dashed and planned
-//   with a click, the view kept; a reload keeps all of it; nothing of it in a request.
+//   with a click, the view kept, the plan's head at the top when scrolled down and going along
+//   sideways with the areas, each head over its column; a reload keeps all of it; nothing of it in
+//   a request.
 // 2b a place filled (folia/design/hinzufuegen/konzepte.html, „Was heute schiefgeht"): the same study,
 //   „Anwendungsfach" alone put into WiSe 2026/27 by the workbench's „Vormerken"; „Modul wählen" in
 //   its menu and at its row opens the workbench at its subgroup, whose „Im Katalog suchen" leads to
@@ -495,7 +497,7 @@ if (current !== "2026W") {
     const pieces = [...(first?.querySelectorAll(".st-rm-seg .st-rm-p") ?? [])];
     const grow = (label) => Number(pieces.find((piece) => piece.textContent.trim() === label)?.style.flexGrow ?? 0);
     return {
-      bands: [...grid.querySelectorAll(".st-rm-band")].map((band) => band.textContent),
+      bands: [...document.querySelectorAll(".st-rm-heads .st-rm-band")].map((band) => band.textContent),
       first: pieces.map((piece) => piece.textContent.trim()),
       // A piece's share of its semester: Entwicklung von Softwaresystemen has 8 LP, the
       // Programmierpraktikum 4.
@@ -522,11 +524,41 @@ if (current !== "2026W") {
   const full = await page.evaluate(() => [...document.querySelectorAll(".st-rm-cell[data-full] .st-rm-sum")].map((sum) => sum.textContent.trim()));
   check(full.length > 0 && full.every((sum) => /\d+ (Module|offen)/.test(sum)), `a semester too full for its labels: ${JSON.stringify(full)}`);
   await step("a module's menu in the Gesamtplan", () => page.click(".st-rm-cell:not([data-full]) .st-rm-seg .st-rm-p:not(.open) >> nth=0"), () => document.querySelector(".st-pop.root #st-menu-remove"));
-  await step("closed by a click beside it", () => page.click(".st-pop-shade", { position: { x: 5, y: 5 } }), () => !document.querySelector(".st-pop"));
+  // Beside it on the page, over the sidebar: since the plan's head stays at the top (Folia 1.71.2),
+  // the area is masked as the semester's is, a layer of its own under the rail and the bar, and a
+  // click on them reaches them, as it does from a semester's menu.
+  await step("closed by a click beside it", () => page.click(".st-pop-shade", { position: { x: 200, y: 850 } }), () => !document.querySelector(".st-pop"));
   await step("▸ Informatik", () => page.click('.st-row-head:has(.st-card-name:text-is("Informatik")) .st-rm-tog'), () => document.querySelector('.st-rm-bar.open[aria-label*="Betriebssysteme I"]'));
   await step("plan the open Betriebssysteme I", () => page.click('.st-rm-bar.open[aria-label*="Betriebssysteme I"]'), () => document.querySelector(".study-note")?.textContent.includes("hinzugefügt"));
   check((await lines(page, "m\t2027S\t")).length === 1, `the open module was not planned: ${JSON.stringify(await lines(page, "m\t2027S\t"))}`);
   check((await stored(page, "betula.study.view")) === "grid", "the view is not remembered");
+  // The plan's head stays at the top (owner, 2026-11-04: „Ich möchte, dass da der header sticky
+  // ist von dem Plan. Also ähnlich wie bei dem Semester plan."): scrolled down, the title, the band
+  // of the study years and the semesters' heads at the top of the area, the areas under it; in a
+  // window too narrow for every semester, the areas scrolled sideways under it, the heads go along,
+  // each over its column.
+  await page.setViewportSize({ width: 1100, height: 800 });
+  const stuck = await page.evaluate(() => new Promise((done) => {
+    const area = document.querySelector("#content > .page-stage.front > .work.flowing");
+    const body = document.querySelector(".st-grid-scroll:not(.st-rm-top-scroll)");
+    area.scrollTop = area.scrollHeight;
+    body.scrollLeft = 120;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const at = (el) => Math.round(el.getBoundingClientRect().top - area.getBoundingClientRect().top);
+      const out = {
+        top: at(document.querySelector(".st-rm-top")),
+        panel: at(document.getElementById("st-grid")),
+        heads: document.querySelector(".st-rm-top-scroll").scrollLeft,
+        body: body.scrollLeft,
+        now: [".st-col-head.is-now", ".st-rm-cell.is-now"].map((selector) => Math.round(document.querySelector(selector).getBoundingClientRect().left)),
+      };
+      area.scrollTop = 0;
+      body.scrollLeft = 0;
+      done(out);
+    }));
+  }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  check(stuck.panel < -50 && Math.abs(stuck.top + 1) <= 1 && stuck.body === 120 && stuck.heads === 120 && stuck.now[0] === stuck.now[1], `the plan's head at the top: ${JSON.stringify(stuck)}`);
 
   // A reload keeps all of it.
   await page.reload({ waitUntil: "domcontentloaded" });

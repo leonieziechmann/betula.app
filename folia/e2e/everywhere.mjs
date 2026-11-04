@@ -184,9 +184,9 @@ void markedRows;
 await go("/study");
 await step("Gesamtplan", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => document.querySelector(".st-grid .st-cell-add"));
 const found = await page.evaluate((area) => {
-  const grid = document.querySelector(".st-grid");
-  const column = [...grid.querySelectorAll(":scope > .st-col-head")].findIndex((head) => head.querySelector(".st-col-name")?.textContent.startsWith("SoSe 27"));
-  const head = [...grid.querySelectorAll(":scope > .st-row-head")].find((head) => head.querySelector(".st-card-name")?.textContent === area);
+  // The heads of the semesters are a grid of their own over the areas' (Folia 1.71.2).
+  const column = [...document.querySelectorAll(".st-rm-heads > .st-col-head")].findIndex((head) => head.querySelector(".st-col-name")?.textContent.startsWith("SoSe 27"));
+  const head = [...document.querySelectorAll(".st-rm-grid > .st-row-head")].find((head) => head.querySelector(".st-card-name")?.textContent === area);
   if (column < 0 || !head) return false;
   let cell = head;
   for (let i = 0; i <= column; i++) cell = cell.nextElementSibling;
