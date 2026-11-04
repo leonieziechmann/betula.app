@@ -523,8 +523,7 @@ pub(super) fn page_to_top() {
 }
 
 /// All up: the sheet of a phone that the button of `ev` stands in (enhance.js `betula:sheet-raise`),
-/// so that what it unfolds under the button has room; then, the sheet up, the button's row at the
-/// top of what scrolls there. The workbench's sheet, where a choice opens its list.
+/// so that the page it goes into has room. The workbench's sheet, a row with ›.
 #[allow(unused_variables)]
 pub(super) fn raise_sheet(ev: &leptos::ev::MouseEvent) {
     #[cfg(feature = "csr")]
@@ -535,18 +534,32 @@ pub(super) fn raise_sheet(ev: &leptos::ev::MouseEvent) {
         if let Ok(event) = web_sys::Event::new_with_event_init_dict("betula:sheet-raise", &init) {
             let _ = button.dispatch_event(&event);
         }
-        let row = button.closest(".st-wb-row, .st-wb-a, .st-wb-s").ok().flatten().unwrap_or(button);
-        leptos::prelude::set_timeout(
-            move || {
-                if !row.is_connected() {
-                    return;
-                }
-                let place = web_sys::ScrollIntoViewOptions::new();
-                place.set_block(web_sys::ScrollLogicalPosition::Start);
-                place.set_behavior(web_sys::ScrollBehavior::Smooth);
-                row.scroll_into_view_with_scroll_into_view_options(&place);
-            },
-            std::time::Duration::from_millis(420),
-        );
     }
+}
+
+/// How far what scrolls in the workbench's sheet is scrolled (px).
+pub(super) fn sheet_scrolled() -> i32 {
+    #[cfg(feature = "csr")]
+    {
+        sheet_body().map_or(0, |body| body.scroll_top())
+    }
+    #[cfg(not(feature = "csr"))]
+    0
+}
+
+/// What scrolls in the workbench's sheet at `top` once the page in front is drawn (the next frame,
+/// before it is shown): a page gone into from its top, one come back to where it was.
+#[allow(unused_variables)]
+pub(super) fn sheet_scroll_to(top: i32) {
+    #[cfg(feature = "csr")]
+    leptos::prelude::request_animation_frame(move || {
+        if let Some(body) = sheet_body() {
+            body.set_scroll_top(top);
+        }
+    });
+}
+
+#[cfg(feature = "csr")]
+fn sheet_body() -> Option<web_sys::Element> {
+    web_sys::window()?.document()?.query_selector(".st-wb-sheet > .st-wb-sbody").ok()?
 }

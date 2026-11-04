@@ -4588,6 +4588,8 @@ html:not(.js) .plan-toggle { display: none; }
 @keyframes wait-note-in { from { opacity: 0; transform: translateY(10px); } }
 .wait-note > :first-child { flex: 1 1 auto; min-width: 0; }
 @media (min-width: 901px) { :root:has(#content > .page-stage.front .work > :is(.filters, .sidebar)) .wait-note { left: calc(var(--rail) + var(--gap) + var(--filters) + var(--gap)); } }
+/* The workbench of „Mein Studium" hides the sidebar (bench.rs): right of the rail. */
+@media (min-width: 901px) { :root:has(#content > .page-stage.front .work > .page > .page-inner.study > .st-wb) .wait-note { left: calc(var(--rail) + var(--gap)); } }
 .wait-note[data-drag] { transition: none; }
 .wait-note.leaving { opacity: 0; pointer-events: none; transition: transform .2s cubic-bezier(.4, 0, 1, 1), opacity .2s; }
 .wait-note-close { flex: none; align-self: flex-end; display: grid; place-items: center; width: 34px; height: 40px; margin: 0 6px 4px 0; border: 0; border-radius: 9px; background: none; color: var(--on-toast); opacity: .72; cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -4733,6 +4735,9 @@ html:not(.js) .plan-toggle { display: none; }
 @media (hover: hover) { .mark-toast-field:hover, .mark-toast-act:hover { background: color-mix(in oklab, var(--on-toast) 17%, transparent); text-decoration: none; } }
 .mark-toast > .plan-toast-end { flex: none; padding: 0; }
 .wait-note.mark-note .wait-note-close { align-self: center; margin: 0 6px 0 0; }
+/* The note of a change in „Mein Studium" (study/mod.rs, `UndoNote`) says it whole, in two lines
+   where it is long: what was done stands at its end („… vorgemerkt", „… eingeplant"). */
+.study-note .mark-toast-said { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; line-height: 1.3; }
 @media (max-width: 900px) {
   .mark-toast { min-height: 56px; padding: 4px 6px 4px 12px; }
   .mark-toast-name.wide, .mark-toast-what.wide { display: none; }
@@ -5725,6 +5730,18 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .flag.long { white-space: normal; }
 .st-find { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; }
 .st-find .icon { width: 13px; height: 13px; }
+/* A placeholder still to be filled (focus.rs, `.is-place`; owner, 2026-11-04: „Das design von
+   platzhaltern muss sich von dem der Module abheben. Die primäre aufgabe von Platzhaltern soll es
+   sein, dass man da dann ein modul auswählen kann"): a place in the semester as „Module hinzufügen"
+   under the rows is one — its edge dashed, nothing of a module's ground or shadow —, its name, its
+   area and „Platzhalter", and under them „Modul wählen ›" in the accent, which lies over all of its
+   box and opens the choice of its module (`bench::enter_row`). */
+.st-row.is-place > .row { outline: 1.5px dashed var(--line-strong); outline-offset: -1.5px; background: transparent; box-shadow: none; }
+.st-row.is-place .st-find { display: inline-flex; height: 28px; margin-top: 7px; padding: 0 8px 0 10px; border: 0; border-radius: 14px; background: var(--accent-soft); color: var(--accent-ink); font: inherit; font-size: 12.5px; font-weight: 650; cursor: pointer; }
+.st-row.is-place .st-find > .icon { width: 14px; height: 14px; }
+.st-row.is-place .st-find > .st-find-go { margin-left: -1px; }
+@media (hover: hover) { .st-row.is-place:hover > .row { background: var(--row-hover); } .st-row.is-place:hover .st-find { box-shadow: inset 0 0 0 1px var(--accent-line); } }
+.st-row.is-place:active > .row { background: var(--row-hover); }
 /* A row selected (owner, 2026-10-19: „Die selection soll nicht mehr per checkbox umgesetzt
    werden, sondern per hervorheben/vlt texture funktionieren"): tinted in the accent, lined with
    it and hatched, under the pointer too. */
@@ -6162,12 +6179,6 @@ div.st-col-head.past { cursor: default; }
 .st-setup-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding-top: 4px; }
 .st-setup-foot .hint { flex: 1 1 auto; display: flex; align-items: center; gap: 8px; margin: 0; }
 .st-setup-foot .hint .icon { width: 16px; height: 16px; }
-/* The note with „Rückgängig". */
-.st-undo { position: fixed; z-index: 60; left: 50%; bottom: 20px; translate: -50% 0; display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 24px); padding: 6px 6px 6px 14px; border-radius: 10px; background: var(--invert); color: var(--on-invert); box-shadow: var(--shadow-pop); font-size: 13.5px; animation: pop-in .2s var(--ease); }
-.st-undo > .icon { flex: none; width: 16px; height: 16px; color: color-mix(in oklab, var(--ok) 60%, var(--on-invert)); }
-.st-undo > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.st-undo .mini { background: color-mix(in oklab, var(--on-invert) 14%, transparent); color: var(--on-invert); box-shadow: none; }
-.st-undo .icon-btn { color: var(--on-invert); }
 /* The sidebar: the program as one card, which is the button that changes it (side.rs), the ways
    to its pages under it; then the legend, the parts of the bar apart from the marks of a module,
    each under its own label. */
@@ -6469,6 +6480,20 @@ span.st-wb-go { cursor: default; }
 .bench-bar-w { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; font-size: 13px; }
 .bench-bar-w b { font-size: 14px; font-weight: 750; }
 .bench-bar .btn { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+/* The same on a phone in the tab bar's place and over it, as the bar of rows selected is
+   (folia_stores::studyplan::BenchDock; owner, 2026-11-04: „wenn unten die navbar mit ausgetauscht
+   wird mit einer interaction bar, wo man das dann abbrechen kann und wieder zurück zu mein studium
+   kommt"): what it adds to and for what, „Abbrechen" — „Fertig" once something was planned — at
+   its end; the bar over the list gives way to it. */
+.bench-dock { display: none; }
+@media (max-width: 900px) {
+  .bench-dock { position: fixed; z-index: 35; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 10px; height: 62px; padding: 6px 7px 6px 16px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--accent-line); animation: st-bar-up .2s var(--ease); }
+  .bench-dock-w { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+  .bench-dock-w > b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; font-weight: 700; }
+  .bench-dock-w > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); font-size: 12.5px; font-weight: 560; }
+  .bench-dock-go { flex: none; display: inline-flex; align-items: center; height: 46px; padding: 0 16px; border-radius: 12px; }
+  .bench-bar { display: none; }
+}
 @media (min-width: 901px) {
   .work.flowing.framed:has(> .page > .page-inner.study > .st-wb) > :is(.sidebar, .resizer.between) { display: none; }
   .work.flowing.framed:has(> .page > .page-inner.study > .st-wb) > .page { grid-column: 1 / -1; }
@@ -6723,6 +6748,9 @@ span.st-wb-go { cursor: default; }
   .st-add:hover { background: transparent; }
   .st-add:active { background: var(--row-hover); }
   .st-add-icon .icon { width: 18px; height: 18px; }
+  /* A placeholder's „Modul wählen" for a thumb. */
+  .st-row.is-place .st-find { height: 34px; margin-top: 9px; padding: 0 10px 0 12px; border-radius: 17px; font-size: 13.5px; }
+  .st-row.is-place .st-find > .icon { width: 15px; height: 15px; }
   /* The bar of the rows selected: in the tab bar's place, over it (owner, 2026-10-05: „Mach das
      mal so, dass die die navbar überdeckt"). */
   .st-selbar { position: fixed; z-index: 35; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); height: 62px; min-height: 0; padding: 5px; gap: 2px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--accent-line); animation: st-bar-up .2s var(--ease); }
@@ -6731,8 +6759,10 @@ span.st-wb-go { cursor: default; }
      vorgeschlagen ist"): a page's own sheet, half up under the semester, which stays to be read
      through a light veil (`.page-sheet-shade`) and does not move while the sheet is open; under a
      module's sheet (z-index 45), over the tab bar. Its head names what it plans into and what that
-     holds, „Fertig" at its end; in it „Laut Plan", all the areas and „Gemerkt", each a run of rows
-     that unfold their lists under them, a line of the accent down their left. */
+     holds, „Fertig" at its end; in it „Laut Plan", all the areas and „Gemerkt", rows with › that go
+     into a page of the sheet (the same day: „ein vertiefendes menu … Oben einen Pfad haben und auch
+     einen back button"). Over a page ‹ and the way to it, which do not scroll with it, its name
+     under them; the page comes in from the right going in, from the left coming back. */
   .page-sheet-shade { position: fixed; inset: 0; z-index: 39; background: rgba(10, 12, 17, .16); opacity: var(--sheet-shade, 1); animation: fade-in .24s; touch-action: none; }
   .sheet-ghost-scrim:has(+ .page-sheet) { background: rgba(10, 12, 17, .16); }
   .st-wb-sheet[data-sheet] { z-index: 40; height: calc(100dvh - var(--sheet-top)); }
@@ -6750,19 +6780,35 @@ span.st-wb-go { cursor: default; }
   .st-wb-sk small.ok { color: var(--ok); }
   .st-wb-sheet .st-wb-act { padding-top: 8px; }
   .st-wb-sheet .st-wb-list { margin-top: 0; }
-  .st-wb-row.choice.is-unfolded { background: var(--panel-2); }
   .st-wb-row.choice > span.st-wb-plus { pointer-events: none; }
-  .st-wb-in { list-style: none; margin: 0 0 8px 6px; padding: 6px 0 4px 10px; border-left: 2px solid var(--accent-line); }
-  .st-wb-in > .st-wb-rule { padding: 0 4px; }
-  .st-wb-in .st-wb-ctl { padding-top: 8px; }
-  .st-wb-in .st-wb-foot { margin-top: 8px; }
   .st-wb-areas.sheet { display: flex; flex-direction: column; gap: 1px; padding: 4px 0 0; }
-  .st-wb-areas.sheet .st-wb-a { min-height: 46px; font-size: 15px; }
-  .st-wb-areas.sheet .st-wb-a[aria-expanded="true"] { background: var(--panel-2); }
-  .st-wb-areas.sheet .st-wb-s { grid-template-columns: minmax(0, 1fr) auto 15px; min-height: 42px; font-size: 14px; }
-  .st-wb-areas.sheet .st-wb-s .chev { width: 15px; height: 15px; color: var(--text-3); }
-  .st-wb-areas.sheet .st-wb-s[aria-expanded="true"] { background: var(--panel-2); color: var(--text); font-weight: 650; }
-  .st-wb-areas.sheet > .st-wb-in, .st-wb-subs > .st-wb-in { margin-top: 4px; }
+  .st-wb-areas.sheet .st-wb-a { min-height: 48px; font-size: 15px; }
+  .st-wb-areas.sheet .st-wb-a:active, .st-wb-row.choice:active { background: var(--row-hover); }
+  .st-wb-path { flex: none; display: flex; align-items: flex-start; gap: 2px; padding: 6px 14px 10px 4px; border-bottom: 1px solid var(--line); }
+  .st-wb-back { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 12px; background: none; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .st-wb-back:active { background: var(--row-hover); }
+  .st-wb-back > .icon { width: 24px; height: 24px; }
+  .st-wb-trail { flex: 1 1 auto; min-width: 0; padding-top: 3px; }
+  .st-wb-crumbs { display: flex; align-items: center; min-width: 0; margin: 0; padding: 0; list-style: none; overflow: hidden; color: var(--text-3); font-size: 13px; white-space: nowrap; }
+  .st-wb-crumbs > li { display: flex; align-items: center; min-width: 0; }
+  .st-wb-crumbs > li:first-child { flex: none; }
+  .st-wb-crumbs > li::after { content: "›"; flex: none; margin: 0 5px; }
+  .st-wb-crumbs button { min-width: 0; padding: 2px 0; overflow: hidden; text-overflow: ellipsis; border: 0; background: none; color: var(--text-2); font: inherit; font-weight: 600; white-space: nowrap; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .st-wb-pt { display: flex; align-items: center; gap: 8px; margin: 1px 0 0; min-width: 0; }
+  .st-wb-pt > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 750; letter-spacing: -.01em; }
+  .st-wb-pt > .st-dot { flex: none; width: 9px; height: 9px; }
+  .st-wb-pt > small { flex: none; margin-left: auto; color: var(--text-2); font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .st-wb-pt > small.ok { color: var(--ok); }
+  .st-wb-page > .st-wb-rule:first-child { padding: 12px 4px 0; }
+  .st-wb-page > .st-wb-areas.sheet:first-child { padding-top: 8px; }
+  .st-wb-page[data-way="in"] { animation: st-wb-page-in .24s var(--ease); }
+  .st-wb-page[data-way="back"] { animation: st-wb-page-back .24s var(--ease); }
+  @keyframes st-wb-page-in { from { opacity: 0; transform: translateX(36px); } }
+  @keyframes st-wb-page-back { from { opacity: 0; transform: translateX(-36px); } }
+  /* A note that waits (the note of a change, „Einplanen" in a module's sheet) at the screen's
+     bottom over the sheet, as over a module's; the last rows scroll up above it. */
+  :root:has(.st-wb-sheet[data-sheet]) .wait-note { z-index: 62; bottom: calc(10px + env(safe-area-inset-bottom)); }
+  :root:has(.wait-note) .st-wb-sbody { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
   .st-wb-row { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; padding: 10px 4px; }
   .st-wb-row > .st-wb-fit { grid-column: 1; grid-row: 2; max-width: 100%; }
   .st-wb-row > .st-wb-lp { grid-column: 2; grid-row: 1; align-self: start; padding-top: 2px; }
@@ -6821,8 +6867,6 @@ span.st-wb-go { cursor: default; }
   .st-stepper button { width: 52px; height: 44px; }
   .st-effect { min-height: 0; }
   .st-fill { min-height: 96px; }
-  .st-undo { bottom: calc(76px + env(safe-area-inset-bottom)); }
-  .st-undo.over-dock { bottom: calc(104px + env(safe-area-inset-bottom)); }
 }
 /* ---------- the sheets of a phone (enhance.js „the sheets of a phone"; owner, 2026-10-27) ----------
    Whatever is modal on a phone is a sheet from below (`data-sheet`): a page's dialog

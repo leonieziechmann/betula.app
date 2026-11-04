@@ -162,6 +162,11 @@ pub struct Texts {
     pub bench_for: fn(&str) -> String,
     pub bench_back: &'static str,
     pub bench_back_hint: &'static str,
+    /// The same on a phone in the tab bar's place (`BenchDock`): what it adds to, and the way back
+    /// before and after something was planned there.
+    pub dock_title: fn(&str) -> String,
+    pub dock_cancel: &'static str,
+    pub dock_done: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -172,6 +177,9 @@ pub const DE: Texts = Texts {
     bench_for: |name| format!("für {name}"),
     bench_back: "Zurück zur Werkbank",
     bench_back_hint: "Zurück zu „Mein Studium“, wo du dieses Semester planst",
+    dock_title: |semester| format!("Hinzufügen zu {semester}"),
+    dock_cancel: "Abbrechen",
+    dock_done: "Fertig",
     planned_in: |semesters| format!("geplant: {semesters}"),
     unplan_hint: |semester| format!("Eingeplant in {semester}. Noch einmal nimmt das Modul aus dem Plan"),
     unplan: "Aus dem Plan nehmen",
@@ -272,6 +280,9 @@ pub const EN: Texts = Texts {
     bench_for: |name| format!("for {name}"),
     bench_back: "Back to the workbench",
     bench_back_hint: "Back to “My studies”, where you plan this semester",
+    dock_title: |semester| format!("Add to {semester}"),
+    dock_cancel: "Cancel",
+    dock_done: "Done",
     planned_in: |semesters| format!("planned: {semesters}"),
     unplan_hint: |semester| format!("Planned for {semester}. Once more removes the module from the plan"),
     unplan: "Remove from the plan",
