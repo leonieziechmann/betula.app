@@ -416,7 +416,7 @@ const hold = async (area, ms = 600) => {
   const at = await page.evaluate((area) => { const box = document.querySelector(`.bottomnav > .nav[data-area="${area}"]`).getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; }, area);
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: at.x, y: at.y }] });
   await page.waitForTimeout(ms);
-  const menu = await page.evaluate(() => [...document.querySelectorAll(".tab-menu .tab-menu-way")].map((a) => `${a.textContent.trim()} ${a.getAttribute("href")}`));
+  const menu = await page.evaluate(() => [...document.querySelectorAll(".tab-menu:not(.sheet-ghost) .tab-menu-way")].map((a) => `${a.textContent.trim()} ${a.getAttribute("href")}`));
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await page.waitForTimeout(500);
   return menu;
@@ -424,11 +424,15 @@ const hold = async (area, ms = 600) => {
 const ways = await hold("programs");
 check(ways.join("|") === "Regelstudienplan /study?view=plan|Wahlpflicht /study?view=areas|Alle Studiengänge /programs", `a tab held: „Studium“ does not offer its ways: ${JSON.stringify(ways)}`);
 check(await page.evaluate(() => location.pathname === "/study" && Boolean(document.querySelector(".tab-menu"))), "a tab held: the finger's release went somewhere, or the menu went");
+// The menu is a sheet from below (enhance.js „the sheets of a phone"): a tap on the dim above it
+// closes it, and a copy of it glides away.
+await page.waitForTimeout(400);
 await page.touchscreen.tap(200, 200);
-await page.waitForFunction(() => !document.querySelector(".tab-menu"), null, { timeout: 2000 }).catch(() => problems.push("a tab held: a tap beside the menu did not close it"));
+await page.waitForFunction(() => !document.querySelector(".tab-menu:not(.sheet-ghost)"), null, { timeout: 2000 }).catch(() => problems.push("a tab held: a tap beside the menu did not close it"));
 check(await page.evaluate(() => location.pathname === "/study"), "a tab held: the tap beside the menu went somewhere");
+await page.waitForFunction(() => !document.querySelector(".tab-menu"), null, { timeout: 3000 }).catch(() => {});
 await hold("programs");
-await page.tap(".tab-menu .tab-menu-way >> nth=1");
+await page.tap(".tab-menu:not(.sheet-ghost) .tab-menu-way >> nth=1");
 await page.waitForFunction(() => location.pathname === "/study" && location.search === "?view=areas" && document.querySelector(".st-wp-phone") && !document.querySelector(".tab-menu"), null, { timeout: 8000 }).catch(() => problems.push("a tab held: „Wahlpflicht“ did not lead there"));
 // A short tap is the tab as ever; the catalog held opens its list with the filters.
 await page.touchscreen.tap(...(await page.evaluate(() => { const box = document.querySelector('.bottomnav > .nav[data-area="programs"]').getBoundingClientRect(); return [box.left + box.width / 2, box.top + box.height / 2]; })));
