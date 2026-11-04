@@ -1,10 +1,10 @@
-//! Texts of the Stundenplan as a calendar (`pages/studyplan/export.rs`): the file to download and
-//! the calendar subscription. (The calendar's own words, and its name in Outlook, are the feed's:
-//! `folia_timetable::i18n`.)
+//! Texts of „Export" (`pages/studyplan/export.rs`): the calendar file to download, the calendar
+//! subscription, and the week as a picture (`picture.rs`). (The calendar's own words, and its name
+//! in Outlook, are the feed's: `folia_timetable::i18n`.)
 
 pub struct Texts {
-    /// „In deinen Kalender": the group's heading (the calendars of one's own are „Kalender",
-    /// `studyplan_calendars`).
+    /// „Export": the group's heading (the calendars of one's own are „Kalender",
+    /// `studyplan_calendars`; until 2026-11-04 it was „In deinen Kalender").
     pub calendar: &'static str,
     /// „.ics herunterladen" …
     pub download: &'static str,
@@ -31,10 +31,14 @@ pub struct Texts {
     pub stale: &'static str,
     pub copy_new: &'static str,
     pub new_copied: &'static str,
+    /// „Als Bild speichern": the week as a PNG, and the file's name by the semester's key
+    /// („stundenplan-2026W.png").
+    pub picture: &'static str,
+    pub picture_name: fn(&str) -> String,
 }
 
 pub const DE: Texts = Texts {
-    calendar: "In deinen Kalender",
+    calendar: "Export",
     download: ".ics herunterladen",
     not_yet: "noch keine Termine",
     none: "keine Termine",
@@ -49,10 +53,12 @@ pub const DE: Texts = Texts {
     stale: "Abo veraltet: Plan seitdem geändert",
     copy_new: "Neue Adresse kopieren",
     new_copied: "Neue Adresse kopiert",
+    picture: "Als Bild speichern",
+    picture_name: |key| format!("stundenplan-{key}.png"),
 };
 
 pub const EN: Texts = Texts {
-    calendar: "Into your calendar",
+    calendar: "Export",
     download: "Download .ics",
     not_yet: "no dates yet",
     none: "no dates",
@@ -67,4 +73,6 @@ pub const EN: Texts = Texts {
     stale: "Subscription out of date: plan changed since",
     copy_new: "Copy new address",
     new_copied: "New address copied",
+    picture: "Save as image",
+    picture_name: |key| format!("timetable-{key}.png"),
 };

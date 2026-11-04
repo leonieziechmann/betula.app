@@ -892,6 +892,14 @@ fn week_slots(table: &Timetable, base: &StudyplanUrl, titles: &BTreeMap<String, 
     join_ab(slots)
 }
 
+/// The slots of the week `shown` as „Als Bild speichern" draws them (`picture.rs`): the plan's, as
+/// the grid shows them without „Alle Termine" and without a choice in focus; a plan without A or B
+/// weeks shows them all whatever the switch said.
+pub(super) fn picture_slots(table: &Timetable, titles: &BTreeMap<String, String>, shown: Weeks, t: &i18n::Texts) -> Vec<GridSlot> {
+    let shown = if has_ab(table) { shown } else { Weeks::All };
+    week_slots(table, &StudyplanUrl::default(), titles, shown, false, None, t).into_iter().map(|slot| slot.slot).collect()
+}
+
 /// The week with a choice in focus (folia/design/kalender; owner, 2026-10-26: „A mit Fokus"): its
 /// groups all there, ticked or not, each the box that ticks it (`GridSlot::tick`), outlined and
 /// red-marked where it meets the plan; the rest of the plan behind them, without links or buttons

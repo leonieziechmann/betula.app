@@ -1,6 +1,8 @@
-//! The group „Kalender" (design A.8, D.9): the semester as an .ics file, and as an address a
-//! calendar service fetches by itself. It stands in the sidebar, on a phone under the Termine
-//! (`mod.rs`: the sidebar is the sheet „Anpassen" there).
+//! The group „Export" (design A.8, D.9; „In deinen Kalender" until 2026-11-04, owner: „In deinen
+//! Kalender soll zu export werden und da soll auch noch der knopf als bild speichern rein"): the
+//! semester as an .ics file, as an address a calendar service fetches by itself, and the week as a
+//! picture („Als Bild speichern", `picture.rs`). It stands in the sidebar, on a phone under the
+//! Termine (`mod.rs`: the sidebar is the sheet „Anpassen" there).
 //!
 //! The file is made in the browser, from the page's own data and timetable, by the function the
 //! feed uses (`StudyplanData::calendar`), so a download and a subscription of the same plan carry
@@ -48,7 +50,8 @@ use folia_data::DataError;
 use crate::i18n::{self, Locale};
 use folia_design::nav;
 use folia_design::ui::Icon;
-use super::PlanCtx;
+use folia_timetable::clash::Weeks;
+use super::{picture, week, PlanCtx};
 
 /// The id of the ways to subscribe, which „Abonnieren" opens.
 const WAYS_ID: &str = "sp-sub";
@@ -231,10 +234,36 @@ fn revoke(url: &str) {
     }
 }
 
-/// „Kalender": „.ics herunterladen", and „Abonnieren" with Apple, Google, Outlook and „Adresse
-/// kopieren"; a note when the plan has moved on from the address last handed out, or when more is
-/// hidden than an address carries. For a semester without a planned module both are greyed out:
-/// the group stays where it is (owner, 2026-09-25: the sidebar holds still).
+/// The week shown as „Als Bild speichern" draws it, under the words over it: „Stundenplan", the
+/// semester and, where the plan has A or B weeks, the week of the head's switch („A-Woche"), the
+/// site it is from, and the days' names. In the words of `t`; downloaded as
+/// „stundenplan-2026W.png".
+fn save_picture(ctx: PlanCtx, t: &'static i18n::Texts) {
+    let titles = ctx.data.with_untracked(|data| data.as_ref().map(|data| data.slot_names()).unwrap_or_default());
+    let weeks = ctx.weeks.get_untracked();
+    let Some((slots, ab)) = ctx.table.with_untracked(|table| table.as_ref().map(|table| (week::picture_slots(table, &titles, weeks, t), week::has_ab(table)))) else { return };
+    let key = ctx.key.get_untracked();
+    let w = &t.studyplan_week;
+    let subtitle = match (ab, weeks) {
+        (false, _) => key.label(t.locale),
+        (true, Weeks::A) => format!("{} · {}", key.label(t.locale), w.in_week_a),
+        (true, Weeks::B) => format!("{} · {}", key.label(t.locale), w.in_week_b),
+        (true, Weeks::All) => format!("{} · {}", key.label(t.locale), w.both_weeks),
+    };
+    let heading = picture::Heading {
+        title: t.studyplan.title.to_string(),
+        subtitle,
+        site: site().map_or_else(|| "betula.app".to_string(), |(_, host)| host),
+        days: std::array::from_fn(|i| i64::try_from(i + 1).ok().and_then(|day| t.data.weekday(day)).unwrap_or_default().to_string()),
+    };
+    picture::save(&slots, &heading, &(t.studyplan_export.picture_name)(&key.key()));
+}
+
+/// „Export": „.ics herunterladen", „Als Bild speichern" (the week as a PNG, `picture.rs`), and
+/// „Abonnieren" with Apple, Google, Outlook and „Adresse kopieren"; a note when the plan has moved
+/// on from the address last handed out, or when more is hidden than an address carries. For a
+/// semester without a planned module the file and the subscription are greyed out, and without a
+/// Termin the picture: the group stays where it is (owner, 2026-09-25: the sidebar holds still).
 #[component]
 pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
@@ -371,6 +400,20 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
             revoke(&url);
         }
     });
+    // ---- the picture: drawn after the frame that shows the click (R21), once at a time.
+    let drawable = Memo::new(move |_| ctx.table.with(|table| table.as_ref().is_some_and(|table| !table.events.is_empty())));
+    let drawing = RwSignal::new(false);
+    let draw = move |_| {
+        if drawing.get_untracked() || !drawable.get_untracked() {
+            return;
+        }
+        drawing.set(true);
+        nav::after_paint(move || {
+            save_picture(ctx, t);
+            let _ = drawing.try_set(false);
+        });
+    };
+
     let href = Memo::new(move |_| made.with(|made| link_of(made, ctx.key.get(), t).0));
     let none = Memo::new(move |_| made.with(|made| link_of(made, ctx.key.get(), t).1));
     // Named after the semester shown, with a file or without: the link is the same link.
@@ -410,6 +453,18 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
                 <Icon name="download"/>
                 <span>{s.download}{move || none.get().map(|text| view! { <small>{text}</small> })}</span>
             </a>
+            // Above „Abonnieren", so that what it opens moves nothing under it.
+            <button
+                class="action"
+                type="button"
+                aria-disabled=move || (!drawable.get()).then_some("true")
+                aria-busy=move || drawing.get().then_some("true")
+                title=move || (!drawable.get()).then_some(s.none)
+                on:click=draw
+            >
+                <Icon name="image"/>
+                <span>{s.picture}</span>
+            </button>
             <button
                 class="action"
                 type="button"

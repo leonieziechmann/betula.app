@@ -6,8 +6,8 @@
 //! campus, first–last. An eye button hides an event, a Termin or an exam sitting and shows it
 //! again; in a choice („1 von 4 wählen") the line of an option is the choice, with a radio mark: a
 //! click chooses it, a second click or „Wahl aufheben" opens the choice again. What hides an event
-//! from elsewhere (a kind switched off in the sidebar, the other town's course of a module taught
-//! in both towns) is said once under the event, and its Termine step back. Above, where the module
+//! from elsewhere (a kind hidden, which „Alle Termine" shows again; the other town's course of a
+//! module taught in both towns) is said once under the event, and its Termine step back. Above, where the module
 //! stands in the plan: its credits, the placeholder it counts for, and „Entfernen". At the end, the
 //! module's clashes and exam warnings in the words of the semester's notes, each leading to the
 //! other module where there is one.
@@ -960,7 +960,7 @@ fn shown_of_panel(info: &Info, table: Option<&Timetable>, texts: &i18n::Texts) -
     let blocks = blocks_of(t, &place.id, info.title.as_deref(), texts);
     Shown {
         blocks: shown_of(t, &blocks, texts),
-        notes: notes_of(t, &place.id, &info.titles, place.town, texts),
+        notes: notes_of(t, &place.id, &info.titles, texts),
         body: Body { sem: Some(sem), error: None, lead: lead_of(info, t, sem, texts), blocks },
     }
 }
@@ -1305,7 +1305,7 @@ fn reason_text(hidden: Option<HiddenBy>, kinds: KindSet, own: Option<Town>, text
 
 /// The module's notes in `t`, in the words of the semester's notes (A.5): its hard clashes, its
 /// choices without a free option and its hard exam warnings first, then the quiet lines.
-fn notes_of(t: &Timetable, id: &str, titles: &BTreeMap<String, String>, town: TownChoice, texts: &i18n::Texts) -> Vec<Note> {
+fn notes_of(t: &Timetable, id: &str, titles: &BTreeMap<String, String>, texts: &i18n::Texts) -> Vec<Note> {
     let own = |modules: &[String]| modules.iter().any(|module| module == id);
     let title = |module: &str| titles.get(module).cloned().unwrap_or_else(|| module.to_string());
     let (mut warnings, mut quiet): (Vec<Note>, Vec<Note>) = (Vec::new(), Vec::new());
@@ -1327,9 +1327,6 @@ fn notes_of(t: &Timetable, id: &str, titles: &BTreeMap<String, String>, town: To
     }
     for (day, modules) in t.place_unknown.iter().filter(|(_, modules)| own(modules)) {
         add(Note { warn: false, text: (texts.studyplan_aside.room_open)(modules.len(), &dated(*day, texts)), to: None });
-    }
-    if t.towns_open().iter().any(|module| *module == id) && town == TownChoice::Derive {
-        add(Note { warn: false, text: texts.studyplan_aside.choose_location.to_string(), to: None });
     }
     warnings.extend(quiet);
     warnings
@@ -2122,9 +2119,9 @@ mod tests {
         let titles = BTreeMap::from([("12102".to_string(), "Programmierpraktikum".to_string())]);
         // The clash stands at its rows („Überschneidung") and in the week, not as a card here
         // (owner's redesign of 2026-09-25).
-        assert!(notes_of(&t, "12102", &titles, TownChoice::Derive, &i18n::DE).is_empty());
+        assert!(notes_of(&t, "12102", &titles, &i18n::DE).is_empty());
         // A module without a clash has no note of it.
-        assert!(notes_of(&t, "12104", &titles, TownChoice::Derive, &i18n::DE).is_empty());
+        assert!(notes_of(&t, "12104", &titles, &i18n::DE).is_empty());
         // Removing 12102 takes what the store keeps of its own event along, not 12107's.
         assert_eq!(only_its_events(&t, "12102"), vec![149408]);
     }
