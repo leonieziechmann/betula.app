@@ -209,6 +209,7 @@ table.cmp th.rec { color: var(--accent-ink); }
 
 /* Today. */
 .today { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 20px 30px; align-items: start; }
+.today.pair { grid-template-columns: minmax(0, 1fr); }
 .today figure { margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .today img { display: block; width: 100%; height: auto; border-radius: 14px; box-shadow: var(--shadow-panel); background: var(--panel); }
 .today figcaption { font-size: 13px; color: var(--text-2); text-wrap: pretty; }
@@ -540,6 +541,35 @@ table.cmp th.rec { color: var(--accent-ink); }
     <li><span><b>„Rückgängig“ als Hinweis, der wartet.</b> Er bleibt stehen, bis man etwas anderes tut; nach unten wischen (am Rechner ×) schließt ihn; über dem Blatt am unteren Rand, wie über dem Blatt eines Moduls.<q>Also so, dass er angezeigt bleibt, wenn nichts passiert man es aber auch schließen kann und es allgemein besser mit modals funktioniert.</q></span></li>
     <li><span><b>Im Katalog unten eine Leiste statt der Tab-Leiste.</b> „Hinzufügen zu WiSe 2026/27“, „für Anwendungsfach“, und „Abbrechen“ zurück zu „Mein Studium“, „Fertig“, sobald etwas eingeplant ist; der Knopf über der Liste entfällt am Handy.<q>Aber ich fände es viel sinnvoller, wenn unten die navbar mit ausgetauscht wird mit einer interaction bar, wo man das dann abbrechen kann und wieder zurück zu mein studium kommt.</q></span></li>
   </ol>
+</section>
+
+<section class="verdicts" id="ordnung" aria-label="Die fünfte Runde: Ordnung">
+  <div class="kicker">Fünfte Runde, 04.11.: Ordnung und visuelle Hierarchie, gebaut in Folia 1.72.0</div>
+  <ol>
+    <li><span><b>Im Kopf ein Balken statt Text und „Fertig“.</b> Links „Hinzufügen zu WiSe 2026/27“, rechts darüber „22 von 30 LP“, darunter der Balken: jedes Modul ein Stück in der Farbe seines Bereichs, so breit wie seine LP, ein Platzhalter schraffiert, was der Plan noch vorsieht grau. Kein Knopf: Wischen, ein Tipp über das Blatt oder Zurück schließen es, wie jedes Blatt am Handy.<q>Zum beispiel hätte ich gerne beim header vom modal statt dem text und dem Fertig button, der btw nur für verwirrung sorgt lieber eine progressbar mit dem text dann halt oben rechts dadrüber.</q></span></li>
+    <li><span><b>Ein Modul: zwei Zeilen und ein Knopf in der Mitte.</b> Der Name, darunter eine Zeile mit Nummer, Bereich oder Fach und was es für die Woche heißt, wo die Gruppe es nicht schon sagt. Rechts, mittig zur Zeile, „+ 8 LP“: Der Knopf trägt die LP, die er hinzufügt; „✓ 8 LP“, sobald es im Semester steht.<q>Aber wir müssen an dem konzept arbeiten, wie module dargestellt werden. Hier ist auch wieder das problem visuell unordentlich und unbalanciert.</q></span></li>
+    <li><span><b>Eine Wahl: gestrichelt wie ein Platzhalter, mit Balken.</b> Name und „0 / 12 LP“ über dem Balken in der Farbe ihres Bereichs, darunter Bereich und Fachsemester, › am Ende. Ein Tipp führt in ihre Liste.<q>Das gleiche beim wp placeholder.</q></span></li>
+    <li><span><b>Der Aufbau, mit einer Ebene von Überschriften.</b> „Laut Plan im 3. FS“ mit „Plan übernehmen“, „Aus dem 4. FS vorziehen“ gleich darunter, dann die Wege „Alle Bereiche“, „Gemerkt“ und „Im Katalog suchen“. „Pflicht“ und „Wahlpflicht“ als zweite Überschrift fallen weg: Die Zeilen sagen es selbst.<q>Der aufbau soll also jetzt sein: Module aus dem semester, Module vorziehen, Page für alle Bereiche, Page gemerkt, Im katalog suchen</q></span></li>
+    <li><span><b>„Alle Bereiche“ als aufgeklappter Baum.</b> Jeder Bereich mit seinen Untergruppen, jede mit Zahl und Balken; ein Tipp führt direkt in ihre Liste. Die „Wahlpflicht“ aus den drei Komplexen des Fachstudiums steht nicht darin, die Komplexe stehen selbst da.<q>Also die container, dass die da als ausgeklappter baum sind und man dann damit ohne drei weitere klicks direkt in jeden bereich kommt. Auch hier braucht es keinen kombinierten bereich aus mehreren wp dingen, weil die ja von den bereichen selbst abgedeckt werden.</q></span></li>
+    <li><span><b>Die Liste einer Wahl, neu.</b> Oben im Pfad ihr Name, ihre Zahl und ihr Balken; darunter, was sie verlangt, die Suche und eine Reihe Chips: „Alle 5 Fächer ⌄“ öffnet die Auswahl des Handys, „Im WiSe angeboten“ und „Passt in meine Woche“ sind an oder aus. Am Ende „Im Katalog suchen“ und „Vormerken“.<q>Ja und dann noch wenn man in einem wp bereich oder bereich allgemein ist, da ist ja wirklich alles kaputt. Das muss nochmal neu designd werden.</q></span></li>
+  </ol>
+</section>
+
+<section class="sec" id="runde5">
+  <header>
+    <h2>Fünfte Runde: vorher und nachher</h2>
+    <p class="sub">Lokal auf den Daten von canary, 390 × 844: Informatik B.Sc., WiSe 2026/27 im 3. FS, die ersten beiden Semester bestanden.</p>
+  </header>
+  <div class="today pair">
+    <figure>
+      <img src="bilder/runde5-vorher.webp" alt="Vier Bildschirme von Folia 1.71.4 nebeneinander. Erstens das Blatt halb hoch: Kopf „Hinzufügen zu WiSe 2026/27, 0 von 30 LP · 0 Module“ mit dem grünen Knopf „Fertig“, darunter „Laut Plan im 3. FS“, „Plan übernehmen · 3 Pflichtmodule“, die Überschrift „Pflicht“ und Modulzeilen mit LP oben rechts und „+“ unten rechts. Zweitens das Blatt ganz hoch mit „Wahlpflicht: Anwendungsfach“ und dem Knopf „Wählen ›“. Drittens die Seite „Nebenfach“ mit zwei Untergruppen. Viertens die Liste „Anwendungsfach“ mit „Fach“, einer Auswahl, zwei Kästchen und der Suche." width="1605" height="844" loading="lazy">
+      <figcaption><b>Vorher, Folia 1.71.4.</b> Text und „Fertig“ im Kopf; „Laut Plan“, „Pflicht“ und „Wahlpflicht“ in derselben kleinen Schrift; LP oben rechts, „+“ unten rechts; ein Bereich als eigene Seite vor seinen Untergruppen; die Schalter einer Liste kreuz und quer.</figcaption>
+    </figure>
+    <figure>
+      <img src="bilder/runde5-nachher.webp" alt="Vier Bildschirme von Folia 1.72.0 nebeneinander. Erstens das Blatt: Kopf „Hinzufügen zu WiSe 2026/27“ mit „8 von 30 LP“ rechts über einem Balken mit einem blauen Stück; „Laut Plan im 3. FS“ mit „Plan übernehmen · 2 Pflichtmodule“, Modulzeilen mit „+ 8 LP“ rechts in der Mitte, die Wahl „Anwendungsfach“ gestrichelt mit „0 / 12 LP“ und Balken. Zweitens „Aus dem 4. FS vorziehen“ und die Wege „Alle Bereiche“, „Gemerkt“, „Im Katalog suchen“. Drittens „Alle Bereiche“ als Baum: Informatik, Mathematik, Nebenfach, FÜS, Fachstudium mit den drei Komplexen und Bachelor-Arbeit, jede Untergruppe mit Zahl und Balken. Viertens die Liste „Anwendungsfach“ mit Pfad, Balken, Suche und den Chips „Alle 5 Fächer“, „Im WiSe angeboten“, „Passt in meine Woche“." width="1605" height="844" loading="lazy">
+      <figcaption><b>Nachher, Folia 1.72.0.</b> Der Balken im Kopf zählt mit, wenn man „+ 8 LP“ tippt; eine Ebene von Überschriften; zwei Arten von Zeilen, ein Modul und ein Platz zum Füllen; der Baum aller Bereiche; Suche und Chips über der Liste.</figcaption>
+    </figure>
+  </div>
 </section>
 
 <section class="sec" id="heute">

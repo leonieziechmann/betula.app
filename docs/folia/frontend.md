@@ -2205,21 +2205,49 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     enhance.js, `.page-sheet` after its scrim `.page-sheet-shade`): half up under the semester,
     which shows what is planned through a light veil while the sheet shows what is suggested, over
     the tab bar, under a module's sheet. Nothing behind it moves while it is open (owner: „Das kann
-    einfach gesperrt sein, so lange der [offen] ist"): a tap there, a throw, Back
-    (`nav::Kind::State`, which a module opened from it leaves alone) or „Fertig" end the mode. Its
-    head names what it plans into and what that holds („Hinzufügen zu WiSe 2026/27", „24 von 30 LP ·
-    3 Module") with „Fertig" (owner: „Lass erstmal fertig da stehen"). In it „Laut Plan im 3. FS"
-    with „Plan übernehmen", the Pflicht not yet planned (what is planned stands in the semester
-    over it, not in the sheet), the choices with „Wählen ›" (one reserved in the semester says
-    „vorgemerkt"), what else is reserved, what is open from before and „Aus dem 4. FS vorziehen ›";
-    then „Alle Bereiche", „Gemerkt ›" and „Im Katalog suchen". Since 1.71.0 a row with › goes into
-    a page of the sheet (`bench::Page`, the trail `StudyCtx::trail`; owner, 2026-11-04: „ein
-    vertiefendes menu … mit > in das quasi rein geht und das nicht ausklappt. Der modal soll offen
-    bleiben. Oben einen Pfad haben und auch einen back button"): a choice's list with its rule and
-    its switches, an area's subgroups and each one's list, what the next Fachsemester could take
-    now, „Gemerkt". The sheet stays and goes all up (`betula:sheet-raise`); over the page, not
-    scrolling with it, ‹ and the way to it („Übersicht › Nebenfach ›", each step a way back) with
-    the page's name, its area's dot and its figure under them; the page comes in from the right
+    einfach gesperrt sein, so lange der [offen] ist"): a tap there, a throw or Back
+    (`nav::Kind::State`, which a module opened from it leaves alone) end the mode, as every sheet
+    of a phone; it has no button for it (until 1.72.0 „Fertig", owner, 2026-11-04: „der btw nur für
+    verwirrung sorgt"). Its head (since 1.72.0; folia/design/hinzufuegen/handy.html, fifth round;
+    the same day: „beim header vom modal statt dem text und dem Fertig button … lieber eine
+    progressbar mit dem text dann halt oben rechts dadrüber") names what it plans into, the figure
+    of what the semester holds over the right end of its bar („Hinzufügen zu WiSe 2026/27", „22 von
+    30 LP"): each item a part of the bar in its area's colour, as wide as the credits it counts, a
+    placeholder hatched, what the plan still puts in grey, more than the plan with a mark where the
+    plan ends; an item planned comes in as a part of its own (`For`). Its root has the owner's
+    order („Module aus dem semester, Module vorziehen, Page für alle Bereiche, Page gemerkt, Im
+    katalog suchen"): „Laut Plan im 3. FS" with „Plan übernehmen", the Pflicht not yet planned
+    (what is planned stands in the semester over it, not in the sheet), the choices (one reserved
+    in the semester says „vorgemerkt"), what else is reserved and what is open from before; „Aus
+    dem 4. FS vorziehen" with what the next Fachsemester puts in and is not in the semester yet
+    (1.71 a page of its own); then the ways „Alle Bereiche ›", „Gemerkt ›" and „Im Katalog
+    suchen". One level of headings, two kinds of rows (the same day: „wir müssen an dem konzept
+    arbeiten, wie module dargestellt werden. Hier ist auch wieder das problem visuell unordentlich
+    und unbalanciert … Das gleiche beim wp placeholder"): a module (`bench::sheet_line`) is its
+    name and one line under it — its number, its „Fach" or „Pflicht · Informatik", what it means
+    for the week where its group does not say it, where else it is planned, that it is marked —,
+    its credits the button in the middle of its right end („+ 8 LP"; ✓ once it is in the semester,
+    a tap taking it out again); a place to fill (`bench::sheet_choice`, a choice of the plan or a
+    row without a module) is dashed as a placeholder is in the semester, its name and „0 / 12 LP"
+    over its bar in its area's colour, its area and its span under it, › at its end. Since 1.71.0
+    a row with › goes into a page of the sheet (`bench::Page`, the trail `StudyCtx::trail`; owner,
+    2026-11-04: „ein vertiefendes menu … mit > in das quasi rein geht und das nicht ausklappt. Der
+    modal soll offen bleiben. Oben einen Pfad haben und auch einen back button"): „Alle Bereiche"
+    (since 1.72.0: „Alle bereiche muss eine eigene subpage werden, wo dann der modultree dargestellt
+    ist. Also die container, dass die da als ausgeklappter baum sind und man dann damit ohne drei
+    weitere klicks direkt in jeden bereich kommt"), every area unfolded with what it holds of what
+    it asks, each subgroup with its figure and its bar going into its list at once, an area of one
+    subgroup one row; a choice whose modules other choices of its area list all of (the
+    Fachstudium's „Wahlpflicht: Komplex … / … / …") is none of them („Auch hier braucht es keinen
+    kombinierten bereich aus mehreren wp dingen, weil die ja von den bereichen selbst abgedeckt
+    werden", `bench::shown_groups`); a subgroup's list, under its rule the search and a row of
+    chips (since 1.72.0: „da ist ja wirklich alles kaputt. Das muss nochmal neu designd werden"):
+    „Fach" and a collection a chip over the phone's own list (a `<select>`), „Im WiSe angeboten"
+    and „Passt in meine Woche" chips that are on or off; at its end „Im Katalog suchen" and
+    „Vormerken" as the root's ways; „Gemerkt". 1.71 had an area's subgroups as a page between. The
+    sheet stays and goes all up (`betula:sheet-raise`); over the page, not scrolling with it, ‹ and
+    the way to it („Übersicht › Alle Bereiche ›", each step a way back) with the page's name, its
+    area's dot and a subgroup's figure and bar under them; the page comes in from the right
     going in and from the left coming back, where it was scrolled to. Back and Esc take one step
     back (a layer of `nav::Kind::State` for each step), a module's sheet over the page first; at
     the root they end the mode. Until 1.71.0 a choice, a subgroup or „Gemerkt" unfolded its list
