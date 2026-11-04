@@ -283,6 +283,30 @@ pub(super) fn left_of(scroller: &leptos::web_sys::Element) -> f64 {
     0.0
 }
 
+/// How far the Gesamtplan's boxes are to be scrolled sideways for the current semester to show
+/// (px; `heads` is the box of its heads): the semester before it first after the areas' names,
+/// which stay at the left, where the room beside them takes three columns, else the current one
+/// first. `None` without a current semester (a study not begun, or over).
+#[allow(unused_variables)]
+pub(super) fn now_left(heads: &leptos::web_sys::Element) -> Option<f64> {
+    #[cfg(feature = "csr")]
+    {
+        let grid = heads.first_element_child()?;
+        let now = grid.query_selector(".st-col-head.is-now").ok()??;
+        let names = grid.query_selector(".st-grid-corner").ok()??.get_bounding_client_rect().width();
+        let room = f64::from(heads.client_width()) - names;
+        let width = now.get_bounding_client_rect().width();
+        let before = now.previous_element_sibling().filter(|element| element.class_list().contains("st-col-head"));
+        let first = match before {
+            Some(before) if room >= 3.0 * width => before,
+            _ => now,
+        };
+        Some((first.get_bounding_client_rect().left() - grid.get_bounding_client_rect().left() - names).max(0.0))
+    }
+    #[cfg(not(feature = "csr"))]
+    None
+}
+
 /// Scrolls a row sideways to `x` at once.
 #[allow(unused_variables)]
 pub(super) fn scroll_row_to(row: &leptos::web_sys::Element, x: f64) {
