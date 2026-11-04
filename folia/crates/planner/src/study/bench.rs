@@ -1606,7 +1606,9 @@ fn Sheet(ctx: StudyCtx) -> impl IntoView {
         })
         .flatten()
     });
-    // It takes the focus as it comes, for a screen reader.
+    // It takes the focus as it comes, for a screen reader. A region of the page, not a dialog: Esc
+    // and Back take what lies over the page in their order (enhance.js keeps the keys of a dialog
+    // to it), a module's sheet over it first, then the mode (`nav::Kind::State`).
     let node = NodeRef::<leptos::html::Section>::new();
     Effect::new(move |_| {
         if let Some(sheet) = node.get() {
@@ -1615,7 +1617,7 @@ fn Sheet(ctx: StudyCtx) -> impl IntoView {
     });
     view! {
         <div class="page-sheet-shade st-wb-shade" aria-hidden="true" on:click=move |_| leave(ctx)></div>
-        <section class="page-sheet st-wb-sheet" data-sheet="half" role="dialog" aria-modal="true" aria-labelledby="st-wb-title" tabindex="-1" node_ref=node>
+        <section class="page-sheet st-wb-sheet" data-sheet="half" role="region" aria-labelledby="st-wb-title" tabindex="-1" node_ref=node>
             <header class="st-wb-sheet-h">
                 <div>
                     <h2 id="st-wb-title">{move || head.get().map(|(title, _)| title)}</h2>
