@@ -178,12 +178,11 @@ fn NavKey(area: Area) -> impl IntoView {
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Held {
     area: Area,
-    /// The tab is one of the bar at the bottom of a phone (the menu stands above the bar), else
+    /// The tab is one of the bar at the bottom of a phone (the menu is a sheet from below), else
     /// one of the rail (the menu stands beside it).
     bar: bool,
     top: f64,
     right: f64,
-    middle: f64,
 }
 
 /// What a tab holds besides its page (owner, 2026-10-06: „wenn man die buttons in der nav bar lange
@@ -197,8 +196,12 @@ struct Held {
 /// with how many marked modules each holds. enhance.js hears
 /// the long press of a finger and the right click and names the tab (`betula:tab-menu` on it,
 /// where `NavItems` marked it `data-hold="menu"`); a tap beside the menu, Esc, a way taken or
-/// another page closes it. The browser app's alone. (The catalog's tab, held on a phone, opens
-/// the catalog with its filters: enhance.js does that by itself.)
+/// another page closes it. On a phone it is a sheet from below, as every menu there (owner,
+/// 2026-11-04: „guck mal bitte durch, wo das überall sinn ergibt das system zu verwenden";
+/// enhance.js „the sheets of a phone"): as tall as its ways while they fit, half up past that
+/// (`auto`: a Merkliste of many collections), thrown away by a finger. The browser app's alone.
+/// (The catalog's tab, held on a phone, opens the catalog with its filters: enhance.js does that
+/// by itself.)
 #[component]
 pub fn TabMenu() -> impl IntoView {
     let t = i18n::t();
@@ -211,7 +214,7 @@ pub fn TabMenu() -> impl IntoView {
             let Some(area) = tab.get_attribute("data-area").as_deref().and_then(Area::from_name) else { return };
             let rect = tab.get_bounding_client_rect();
             let bar = tab.closest(".bottomnav").ok().flatten().is_some();
-            held.set(Some(Held { area, bar, top: rect.top(), right: rect.right(), middle: rect.left() + rect.width() / 2.0 }));
+            held.set(Some(Held { area, bar, top: rect.top(), right: rect.right() }));
         });
         let keys = window_event_listener(leptos::ev::keydown, move |ev| {
             if ev.key() == "Escape" && held.with_untracked(Option::is_some) && !crate::nav::watched() {
@@ -295,11 +298,12 @@ pub fn TabMenu() -> impl IntoView {
             Area::Bookmarks => t.app.bookmarks,
             Area::Studyplan => t.app.studyplan,
         });
-        // Over the bar, above the tab (app.css keeps it on the screen); beside the rail, at the tab.
-        let place = if at.bar { format!("--tab-x: {:.0}px", at.middle) } else { format!("left: {:.0}px; top: {:.0}px", at.right + 8.0, at.top) };
+        // A sheet from below on a phone, whose bar it is (app.css „the sheets of a phone"); beside
+        // the rail, at the tab.
+        let place = (!at.bar).then(|| format!("left: {:.0}px; top: {:.0}px", at.right + 8.0, at.top));
         Some(view! {
             <div class="tab-scrim" on:click=close on:contextmenu=move |ev: leptos::ev::MouseEvent| { ev.prevent_default(); held.set(None) }></div>
-            <nav class="tab-menu" class:on-bar=at.bar aria-label=label style=place>
+            <nav class="tab-menu" data-sheet=at.bar.then_some("auto") aria-label=label style=place>
                 {name.map(|name| view! { <p class="tab-menu-head">{name}</p> })}
                 {ways.into_iter().enumerate().map(|(i, (icon, words, href, count, line))| {
                     let node = if i == 0 { first } else { NodeRef::new() };
@@ -342,10 +346,10 @@ pub fn Rail() -> impl IntoView {
 /// Konzept wie man an sein Profil rankommt"), as the way back of a page's step is a box at its left
 /// (`TopBack`). It shows the active profile's badge (`Avatar`) where there is more than one
 /// profile or the one there is has a name, else the icon of a person, and names the profile for
-/// those who do not see it. A mouse resting on it, a right click or a long press opens the menu of
-/// the profiles (`ProfileMenu`), and so does a tap on the phone's box (owner, 2026-10-19: „die
-/// häufigste Aktion wird sein, dass man das nur das Profil wechseln will"): there the page is one of
-/// the menu's ways. The profiles live in the browser (R20): the server writes the icon, the same for
+/// those who do not see it. A mouse resting on it in the rail, a right click or a long press opens
+/// the menu of the profiles (`ProfileMenu`), and so does a tap on the phone's box (owner,
+/// 2026-10-19: „die häufigste Aktion wird sein, dass man das nur das Profil wechseln will"): there
+/// the page is one of the menu's ways, and the menu a sheet from below. The profiles live in the browser (R20): the server writes the icon, the same for
 /// everybody (R9), and without JavaScript the way leads to the page's stand-in, which offers the
 /// other language (`folia_profile`).
 #[component]
@@ -385,13 +389,15 @@ pub fn ProfileButton(
             data-command-group="go"
             data-command-words=label
             node_ref=node
+            // A mouse resting on the rail's way opens the menu; on the box of a phone's head, whose
+            // menu is a sheet from below, out of the mouse's way, a click does.
             on:pointerenter=move |ev| {
-                if let Some(menu) = menu {
+                if let Some(menu) = menu.filter(|_| !top) {
                     menu.pointer_on(&ev, true);
                 }
             }
             on:pointerleave=move |ev| {
-                if let Some(menu) = menu {
+                if let Some(menu) = menu.filter(|_| !top) {
                     menu.pointer_off(&ev);
                 }
             }
@@ -435,16 +441,15 @@ const HOVER_CLOSE: std::time::Duration = std::time::Duration::from_millis(280);
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct MenuAt {
     /// At the rail's way: the menu stands beside it and grows up from its foot. Else at the box of
-    /// a phone's head: the menu hangs below it, at its right edge.
+    /// a phone's head: the menu is a sheet from below (`auto`), as every menu of a phone.
     rail: bool,
     /// A mouse resting on the way opened it, and it goes when the mouse has left the way and the
     /// menu. Else a right click, the menu key or a long press did: it stays until a choice, a tap
     /// beside it or Esc, and has the focus.
     hover: bool,
-    /// The way's box on the screen, and the size of the window.
+    /// The way's box on the screen, and the height of the window.
     bottom: f64,
     right: f64,
-    width: f64,
     height: f64,
 }
 
@@ -456,9 +461,10 @@ struct MenuAt {
 /// und dann halt profil Einstellungen, und vlt noch change lang"): a name in the menu, none
 /// („Profil 3"), and the new profile, empty, is the active one. Then the way to the profile page
 /// and the language (`languages::LanguageWays`), which lives in the profile since 2026-10-14. A
-/// mouse resting on a way to the profile page (`ProfileButton`) opens it there; a right click or
-/// the menu key on it does as well (as on a tab, `TabMenu`), and so do a tap and a finger held on
-/// the phone's box (enhance.js, `betula:profile-menu`). The browser app's alone.
+/// mouse resting on the rail's way to the profile page (`ProfileButton`) opens it there; a right
+/// click or the menu key on it does as well (as on a tab, `TabMenu`), and so do a tap and a finger
+/// held on the phone's box (enhance.js, `betula:profile-menu`), where it is a sheet from below. The
+/// browser app's alone.
 #[derive(Clone, Copy)]
 pub struct ProfileMenu {
     at: RwSignal<Option<MenuAt>>,
@@ -561,11 +567,11 @@ impl ProfileMenu {
     fn open_at(self, way: &leptos::web_sys::Element, hover: bool) {
         let rect = way.get_bounding_client_rect();
         let size = |value: Result<leptos::wasm_bindgen::JsValue, leptos::wasm_bindgen::JsValue>| value.ok().and_then(|value| value.as_f64()).unwrap_or(0.0);
-        let (width, height) = leptos::web_sys::window().map_or((0.0, 0.0), |window| (size(window.inner_width()), size(window.inner_height())));
+        let height = leptos::web_sys::window().map_or(0.0, |window| size(window.inner_height()));
         let rail = way.closest(".rail").ok().flatten().is_some();
         self.cancel();
         self.naming.set(false);
-        self.at.set(Some(MenuAt { rail, hover, bottom: rect.bottom(), right: rect.right(), width, height }));
+        self.at.set(Some(MenuAt { rail, hover, bottom: rect.bottom(), right: rect.right(), height }));
     }
 }
 
@@ -649,13 +655,13 @@ pub fn ProfileSwitcher() -> impl IntoView {
     });
     // Where the menu stands, and whether it stays (a click opened it, or a name is being typed into
     // it): two memos, so that a menu a mouse opened stays as it is when it is held (`hold`).
-    let placed = Memo::new(move |_| menu.and_then(|menu| menu.at.get()).map(|at| (at.rail, at.bottom, at.right, at.width, at.height)));
+    let placed = Memo::new(move |_| menu.and_then(|menu| menu.at.get()).map(|at| (at.rail, at.bottom, at.right, at.height)));
     let held = Memo::new(move |_| menu.is_some_and(|menu| menu.at.with(|at| at.is_some_and(|at| !at.hover))));
     let name = RwSignal::new(String::new());
     move || {
         let menu = menu?;
         let profiles = profiles?;
-        let (rail, bottom, right, width, height) = placed.get()?;
+        let (rail, bottom, right, height) = placed.get()?;
         let active = profiles.active();
         let lines = profiles.program_lines(t.locale);
         let choose = move |id: u16| {
@@ -666,8 +672,9 @@ pub fn ProfileSwitcher() -> impl IntoView {
             }
         };
         let close = move |_| menu.close();
-        // Beside the rail, its foot at the way's; below the phone's box, at its right edge.
-        let place = if rail { format!("left: {:.0}px; bottom: {:.0}px", right + 8.0, (height - bottom).max(8.0)) } else { format!("top: {:.0}px; right: {:.0}px", bottom + 8.0, (width - right).max(8.0)) };
+        // Beside the rail, its foot at the way's; from the phone's box a sheet from below (app.css
+        // „the sheets of a phone"), as tall as what it holds while that fits.
+        let place = rail.then(|| format!("left: {:.0}px; bottom: {:.0}px", right + 8.0, (height - bottom).max(8.0)));
         let items = profiles
             .all()
             .into_iter()
@@ -746,6 +753,7 @@ pub fn ProfileSwitcher() -> impl IntoView {
             <div
                 class="tab-menu profile-menu"
                 class:at-rail=rail
+                data-sheet=(!rail).then_some("auto")
                 role="group"
                 aria-label=t.app.switch_profile
                 style=place
