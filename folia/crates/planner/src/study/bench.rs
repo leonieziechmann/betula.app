@@ -1030,7 +1030,7 @@ fn plan_line_view(ctx: StudyCtx, parts: Parts, model: &Model, at: usize, sub: Op
                         {(!placed && matches!(state, RowState::Open | RowState::Failed(_))).then(|| {
                             let (caption, name) = (caption.clone(), name.clone());
                             view! {
-                                <button class="st-wb-plus" type="button" title=b.reserve_hint on:click=move |_| reserve(ctx, s, caption.clone(), ord, name.clone(), t)>
+                                <button class="st-wb-plus" type="button" title=b.reserve_hint on:click=move |ev| reserve(ctx, s, caption.clone(), ord, name.clone(), &ev, t)>
                                     <Icon name="bookmark-plus"/><span>{b.reserve}</span>
                                 </button>
                             }
@@ -1043,12 +1043,19 @@ fn plan_line_view(ctx: StudyCtx, parts: Parts, model: &Model, at: usize, sub: Op
     }
 }
 
-/// „Vormerken": a row of the plan put into `s` without a module (a placeholder), for later.
-fn reserve(ctx: StudyCtx, s: SemesterKey, caption: String, ord: i64, name: String, t: &'static Texts) {
+/// „Vormerken": a row of the plan put into `s` without a module (a placeholder), then its module
+/// choice in front (`choose_for`; on a phone the sheet all up for it, as a step into a list is).
+fn reserve(ctx: StudyCtx, s: SemesterKey, caption: String, ord: i64, name: String, ev: &leptos::ev::MouseEvent, t: &'static Texts) {
     let note = (t.study_bench.reserved_note)(&name, &s.label(t.locale));
-    ctx.change_noted(Some(note), move |doc, input| {
-        study::add(doc, input, s, &[Pick::Row { caption: caption.clone(), ord }], now_secs());
-    }, || {});
+    super::dom::raise_sheet(ev);
+    let row = caption.clone();
+    ctx.change_noted(
+        Some(note),
+        move |doc, input| {
+            study::add(doc, input, s, &[Pick::Row { caption: caption.clone(), ord }], now_secs());
+        },
+        move || choose_for(ctx, s, &row, ord),
+    );
 }
 
 /// „Laut Plan im 3. FS": what the plan puts into the semester's Fachsemester and what is open from
@@ -1592,7 +1599,7 @@ fn ListPane(
                             </a>
                         })}
                         {reserve_row.map(|(caption, ord, name)| view! {
-                            <button class="st-wb-a" type="button" on:click=move |_| reserve(ctx, s, caption.clone(), ord, name.clone(), t)>
+                            <button class="st-wb-a" type="button" on:click=move |ev| reserve(ctx, s, caption.clone(), ord, name.clone(), &ev, t)>
                                 <span class="nm"><Icon name="bookmark-plus"/><span>{b.reserve}<small>{b.reserve_hint}</small></span></span>
                                 <small></small>
                                 <span class="chev"></span>
@@ -1610,7 +1617,7 @@ fn ListPane(
                     <a class="btn secondary" href=t.path(&href) rel="nofollow"><Icon name="search"/>{b.in_catalog}<Icon name="chevron-right"/></a>
                 })}
                 {reserve_row.map(|(caption, ord, name)| view! {
-                    <button class="st-link" type="button" title=b.reserve_hint on:click=move |_| reserve(ctx, s, caption.clone(), ord, name.clone(), t)>
+                    <button class="st-link" type="button" title=b.reserve_hint on:click=move |ev| reserve(ctx, s, caption.clone(), ord, name.clone(), &ev, t)>
                         <Icon name="bookmark-plus"/>{b.reserve}
                     </button>
                 })}
@@ -2359,7 +2366,7 @@ fn sheet_plan_line(ctx: StudyCtx, parts: Parts, model: &Model, at: usize, sub: O
                         {(!placed && open).then(|| {
                             let (caption, name) = (caption.clone(), name.clone());
                             view! {
-                                <button class="st-wb-plus reserve" type="button" title=b.reserve_hint on:click=move |_| reserve(ctx, s, caption.clone(), ord, name.clone(), t)>
+                                <button class="st-wb-plus reserve" type="button" title=b.reserve_hint on:click=move |ev| reserve(ctx, s, caption.clone(), ord, name.clone(), &ev, t)>
                                     <Icon name="bookmark-plus"/><span>{b.reserve}</span>
                                 </button>
                             }
@@ -2504,6 +2511,36 @@ pub(super) fn enter_row(ctx: StudyCtx, s: SemesterKey, caption: &str, ord: i64) 
         group_of_line(&model, at).map(|(area, kind)| BenchPick::Group(area, kind))
     });
     enter(ctx, s, pick.unwrap_or(BenchPick::Plan));
+}
+
+/// The module choice for a placeholder of row `caption`/`ord` just put into semester `s` (owner,
+/// 2026-11-04: „wenn man einen platzhalter slot erstellt auch gleich in die modulauswahl dafür
+/// geschmissen werden"): its row's subgroup in front, whose „+ Einplanen" fills it
+/// (`study::add_for`); back from there it stays for later. In the workbench of `s` a step into the
+/// subgroup where it is not in front already; anywhere else the workbench at it (`enter_row`).
+/// Until Folia 1.73.3 the placeholder stood where it was put in, and „Modul wählen" at it led there.
+pub(super) fn choose_for(ctx: StudyCtx, s: SemesterKey, caption: &str, ord: i64) {
+    let Some(bench) = ctx.bench.get_untracked().filter(|bench| bench.semester == s) else {
+        enter_row(ctx, s, caption, ord);
+        return;
+    };
+    let group = untrack(|| {
+        let model = model_of(ctx, s)?;
+        let at = model.view.lines.iter().position(|line| line.caption == caption && line.ord == ord)?;
+        group_of_line(&model, at)
+    });
+    let Some((area, kind)) = group else { return };
+    if bench.pick == BenchPick::Group(area, kind) {
+        return;
+    }
+    if ctx.phone.get_untracked() {
+        let behind = super::dom::sheet_scrolled();
+        ctx.trail.update(|trail| trail.push(Step { page: Page::Group(area, kind), behind }));
+        follow_trail(ctx);
+        super::dom::sheet_scroll_to(0);
+    } else {
+        pick(ctx, BenchPick::Group(area, kind), Some(area));
+    }
 }
 
 /// The workbench for semester `s` at the choice `choice` of the plan (`PlanView::choices`): „Wählen ›"
