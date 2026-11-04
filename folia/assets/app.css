@@ -5363,6 +5363,13 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .bottomnav { position: fixed; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 30; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; height: 62px; padding: 5px; border-radius: 16px; background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(18px); box-shadow: var(--shadow-pop); }
   .bottomnav .nav { width: auto; font-size: 11px; font-weight: 560; gap: 0; align-content: center; }
   .bottomnav .nav .ind { height: 30px; width: 52px; }
+  /* Around the bar a strip that is the bar's own and does nothing when tapped (owner, 2026-11-04:
+     „Es passiert häufiger, dass man ausversehen an der seite vorbei eine aktion ausführt. Bitte
+     mach mal eine deadzone um die navbar, so dass man links, rechts und darunter nichts bedienen
+     kann und darüber nur ein kleines bisschen nichts"): to the edges of the screen at the sides and
+     below, 8px above. A tap there is no tap on what lies behind it, a swipe along it swipes the tabs
+     (enhance.js, it is in `.bottomnav`), one up and down scrolls the page. It hides with the bar. */
+  .bottomnav-guard { position: absolute; z-index: -1; top: -8px; left: -10px; right: -10px; bottom: calc(-10px - env(safe-area-inset-bottom)); -webkit-tap-highlight-color: transparent; }
   /* A swipe along the bar goes to the tab beside the current one (owner, 2026-09-30, the other way
      round the next day; enhance.js). The bar keeps a finger that moves sideways (up and down it
      scrolls the page, two fingers zoom), and no name is selected on the way. While the finger is
