@@ -153,12 +153,17 @@ async function persistence() {
   // plans of „Mein Studiengang". „Ansicht", „Zeigen", „Standort" and „Plan speichern" went from the
   // sidebar the same day; „In deinen Kalender" is „Export".
   await page.waitForFunction(() => document.querySelector("#sp-import #sp-import-fs"), null, { timeout: 8000 }).catch(() => problems.push("„Importieren“ offers no Fachsemester of „Mein Studiengang“"));
-  const side = await page.evaluate(() => ({
-    picker: Boolean(document.querySelector("#sp-program")),
-    labels: [...document.querySelectorAll(".sidebar .fgroup > .flabel")].map((label) => label.textContent),
-    save: [...document.querySelectorAll(".sidebar .action")].some((action) => action.textContent.includes("Plan speichern")),
-    chips: document.querySelectorAll(".sidebar .chips").length,
-  }));
+  // Only the page in front: the pages of the other tabs stay built behind it, with sidebars of
+  // their own (folia/crates/shell/src/stage.rs).
+  const side = await page.evaluate(() => {
+    const front = (selector) => [...document.querySelectorAll(selector)].filter((el) => !el.closest("#content > .page-stage:not(.front)"));
+    return {
+      picker: front("#sp-program").length > 0,
+      labels: front(".sidebar .fgroup > .flabel").map((label) => label.textContent),
+      save: front(".sidebar .action").some((action) => action.textContent.includes("Plan speichern")),
+      chips: front(".sidebar .chips").length,
+    };
+  });
   check(!side.picker && !side.save && side.chips === 0 && !side.labels.some((label) => ["Studiengang", "Ansicht", "Zeigen", "Standort", "In deinen Kalender"].includes(label)) && side.labels.includes("Export"), `the sidebar still has what went, or no „Export“: ${JSON.stringify(side)}`);
 
   // The module beside the plan, and „Modul ansehen" in its place: the address and the tab stay the
