@@ -15,7 +15,8 @@
 // the grabber leaves; „Sammeln" (`auto`) half up and all up once it holds more than fits, and
 // fitting again once it holds less; „Tasten" naming its keys; „Plan einrichten" all up at once in one move, a pull bringing it back there,
 // thrown away from there. A menu swiped down closes, and closed by its choice a copy of it glides
-// away.
+// away. Each modal stands as what it holds asks (owner, 2026-11-04): the programs' filters fit,
+// closed below the screen; „Studiengang wechseln" all up at once.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node sheets.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Fails on a console error or a step that does not show up.
 import { chromium } from "playwright-core";
@@ -247,6 +248,44 @@ at = await dialogAt(SETUP);
 check(at?.full && at.top <= 12, `a dialog all up at once did not come back all up from a short pull: ${JSON.stringify(at)}`);
 await finger(195, 120, [40, 60, 80, 100, 120], { ms: 16 });
 await page.waitForFunction((selector) => !document.querySelector(selector)?.open, SETUP, { timeout: 3000 }).catch(() => problems.push("a dialog all up at once did not go when thrown down"));
+
+// ---- each modal's way by what it holds (owner, 2026-11-04: „alle modal instanzen durchguckst und
+// da einstellst, was am besten zu denen passt"). The programs' filters fit (`auto`): closed below
+// the screen, open all of them shown at once, „… anzeigen" at the screen's foot, swiped away
+// below it again. „Studiengang wechseln" all up at once (`full`), nothing of it behind its buttons.
+const panelAt = (selector) => page.evaluate((selector) => {
+  const el = document.querySelector(`#content > .page-stage.front ${selector}`);
+  if (!el) return null;
+  const r = el.getBoundingClientRect(), foot = el.querySelector("[data-sheet-foot]")?.getBoundingClientRect(), body = el.querySelector(".body");
+  return { way: el.dataset.sheet, as: el.dataset.sheetAs ?? null, top: Math.round(r.top), bottom: Math.round(r.bottom), open: el.classList.contains("open"), full: el.classList.contains("is-full"), foot: foot ? Math.round(foot.bottom) : null, hidden: body ? body.scrollHeight - body.clientHeight : null };
+}, selector);
+await page.goto(base + "/programs", { waitUntil: "domcontentloaded" });
+await page.waitForFunction(() => window.__betulaApp === true && document.querySelector("#content > .page-stage.front .sheet-toggle"), null, { timeout: 120000 }).catch(() => problems.push("the programs have no „Filter“"));
+await page.waitForTimeout(500);
+let panel = await panelAt("#sidebar");
+check(panel?.way === "auto" && !panel.open && panel.top >= 844, `the programs' filters, closed, are not below the screen: ${JSON.stringify(panel)}`);
+await page.tap("#content > .page-stage.front .sheet-toggle");
+await page.waitForFunction(() => { const el = document.querySelector("#content > .page-stage.front #sidebar"); return el?.classList.contains("open") && !el.getAnimations().some((a) => a.playState === "running"); }, null, { timeout: 5000 }).catch(() => problems.push("the programs' filters did not open"));
+panel = await panelAt("#sidebar");
+check(panel?.as === "fit" && panel.full && panel.bottom === 844 && panel.top > 844 - FIT[1] && panel.top < 844 - FIT[0] + 1 && panel.hidden <= 1 && panel.foot >= 820, `the programs' filters do not fit, all of them shown with their button at the screen's foot: ${JSON.stringify(panel)}`);
+await finger(195, (panel?.top ?? 400) + 40, [30, 40, 60, 80, 100], { ms: 16 });
+await page.waitForFunction(() => !document.querySelector("#content > .page-stage.front #sidebar")?.classList.contains("open"), null, { timeout: 3000 }).catch(() => problems.push("the programs' filters swiped down did not close"));
+await page.waitForTimeout(600);
+panel = await panelAt("#sidebar");
+check(panel && panel.top >= 844, `the programs' filters, swiped away, are not below the screen: ${JSON.stringify(panel)}`);
+const SWITCH = "dialog.st-dialog";
+await page.evaluate(() => localStorage.setItem("betula.myprogram.v1", "program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\ncaption\t\nstart\t2025W\n"));
+await page.goto(base + "/study", { waitUntil: "domcontentloaded" });
+await page.waitForFunction(() => window.__betulaApp === true && document.querySelector("#content > .page-stage.front #st-mine"), null, { timeout: 120000 }).catch(() => problems.push("„Mein Studium“ has no card of the program"));
+await page.waitForTimeout(500);
+await page.tap("#content > .page-stage.front #st-mine >> visible=true");
+await page.waitForFunction(() => document.querySelector("dialog.st-dialog[open] #st-switch-program"), null, { timeout: 5000 }).catch(() => problems.push("„Studiengang wechseln“ did not open"));
+await resting(`${SWITCH}[open]`);
+at = await dialogAt(`${SWITCH}[open]`);
+const behind = await page.evaluate(() => { const d = document.querySelector("dialog.st-dialog[open]"), foot = d.querySelector(".st-dlg-foot").getBoundingClientRect(), last = d.querySelector(".st-dlg-body").lastElementChild.getBoundingClientRect(); return Math.round(last.bottom - foot.top); });
+check(at?.way === "full" && at.full && at.top <= 12 && at.bottom === 844 && behind <= 0, `„Studiengang wechseln“ is not all up at once with nothing behind its buttons: ${JSON.stringify({ ...at, behind })}`);
+await page.keyboard.press("Escape");
+await page.waitForFunction(() => !document.querySelector("dialog.st-dialog[open]"), null, { timeout: 3000 }).catch(() => problems.push("„Studiengang wechseln“ did not close by Esc"));
 
 await browser.close();
 console.log(JSON.stringify({ problems }, null, 2));
