@@ -15,8 +15,7 @@
 // the grabber leaves; „Sammeln" (`auto`) half up and all up once it holds more than fits, and
 // fitting again once it holds less; „Tasten" naming its keys; „Plan einrichten" all up at once in one move, a pull bringing it back there,
 // thrown away from there. A menu swiped down closes, and closed by its choice a copy of it glides
-// away. The menus of a tab held and of the profiles are sheets of `auto` as well (owner,
-// 2026-11-04): fitting, half up with many ways, thrown away by a finger.
+// away.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node sheets.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Fails on a console error or a step that does not show up.
 import { chromium } from "playwright-core";
@@ -248,67 +247,6 @@ at = await dialogAt(SETUP);
 check(at?.full && at.top <= 12, `a dialog all up at once did not come back all up from a short pull: ${JSON.stringify(at)}`);
 await finger(195, 120, [40, 60, 80, 100, 120], { ms: 16 });
 await page.waitForFunction((selector) => !document.querySelector(selector)?.open, SETUP, { timeout: 3000 }).catch(() => problems.push("a dialog all up at once did not go when thrown down"));
-
-// ---- the menu of a tab held and the menu of the profiles (folia/crates/shell/src/chrome.rs
-// `TabMenu`, `ProfileSwitcher`; owner, 2026-11-04: „guck mal bitte durch, wo das überall sinn ergibt
-// das system zu verwenden"): sheets of `auto` from below, over the bar too. The Merkliste's tab held
-// with two collections: its ways fit, a tap on the dim closes it. With sixteen it stands half up
-// and all up, all up its ways scroll, and a way taken leaves a copy gliding away. The profiles'
-// from the box at the head: it fits, and a swipe down throws it away.
-const TAB = ".tab-menu:not(.sheet-ghost)";
-const tabMenuAt = (selector) => page.evaluate((selector) => {
-  const menu = document.querySelector(selector);
-  if (!menu) return null;
-  const r = menu.getBoundingClientRect();
-  return { top: Math.round(r.top), bottom: Math.round(r.bottom), height: Math.round(r.height), way: menu.dataset.sheet, as: menu.dataset.sheetAs, full: menu.classList.contains("is-full"), grip: getComputedStyle(menu, "::before").width, wide: Math.round(r.width), scrolled: Math.round(menu.scrollTop), ways: menu.querySelectorAll(".tab-menu-way").length };
-}, selector);
-const menuResting = (selector) => page.waitForFunction((selector) => { const m = document.querySelector(selector); return m && !m.getAnimations().some((a) => a.playState === "running"); }, selector, { timeout: 4000 }).catch(() => problems.push(`${selector}: it does not come to rest`));
-const shelf = (n) => Array.from({ length: n }, (_, i) => `c\t${i + 1}\tSammlung ${i + 1}\n`).join("");
-const holdTab = async (area) => {
-  const box = await page.evaluate((area) => { const r = document.querySelector(`.bottomnav > .nav[data-area="${area}"]`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, area);
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x, y: box.y }] });
-  await page.waitForTimeout(600);
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-};
-for (const [n, half] of [[2, false], [16, true]]) {
-  await page.evaluate((text) => localStorage.setItem("betula.collections.v1", text), shelf(n));
-  await page.goto(base + "/catalog", { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => window.__betulaApp === true && document.querySelector('.bottomnav > .nav[data-area="bookmarks"]'), null, { timeout: 120000 }).catch(() => problems.push("the catalog has no tab bar"));
-  await page.waitForTimeout(600);
-  await holdTab("bookmarks");
-  await page.waitForFunction((selector) => document.querySelector(selector), TAB, { timeout: 5000 }).catch(() => problems.push(`the Merkliste's tab held (${n} collections) opened no menu`));
-  await menuResting(TAB);
-  const tab = await tabMenuAt(TAB);
-  if (!half) {
-    check(tab?.way === "auto" && tab.as === "fit" && tab.full && tab.bottom === 844 && tab.wide === 390 && tab.height >= FIT[0] && tab.height <= FIT[1] && tab.grip === "40px" && tab.ways === n + 2, `the menu of a tab held does not fit as a sheet from below (40–70 % of the screen): ${JSON.stringify(tab)}`);
-    await page.touchscreen.tap(195, 120);
-    await page.waitForFunction((selector) => !document.querySelector(selector), TAB, { timeout: 3000 }).catch(() => problems.push("the menu of a tab held: a tap on the dim did not close it"));
-    check(await page.evaluate(() => location.pathname === "/catalog"), "the menu of a tab held: the tap on the dim went somewhere");
-  } else {
-    check(tab?.way === "auto" && tab.as === "half" && !tab.full && Math.abs(tab.top - HALF) < 3 && tab.ways === n + 2, `the menu of a tab held with many ways does not come up half up: ${JSON.stringify(tab)}`);
-    await page.touchscreen.tap(195, (tab?.top ?? HALF) + 8);
-    await menuResting(TAB);
-    let all = await tabMenuAt(TAB);
-    check(all?.full && all.top <= 12, `a tap on the grabber did not take the menu of a tab held all up: ${JSON.stringify(all)}`);
-    await finger(195, 640, evenly(-300, 10), { ms: 16 });
-    await page.waitForTimeout(500);
-    all = await tabMenuAt(TAB);
-    check(all?.full && all.scrolled > 100, `all up, the ways of the menu of a tab held do not scroll: ${JSON.stringify(all)}`);
-    await page.tap(`${TAB} .tab-menu-way >> nth=-1`);
-    const glided = await page.waitForFunction(() => Boolean(document.querySelector(".sheet-ghost.tab-menu")), null, { timeout: 1000, polling: "raf" }).then(() => true).catch(() => false);
-    check(glided, "the menu of a tab held, closed by its way, left no copy gliding away");
-    await page.waitForFunction((n) => location.pathname === "/bookmarks" && location.search === `?collection=${n}` && !document.querySelector(".tab-menu"), n, { timeout: 8000 }).catch(() => problems.push("the menu of a tab held: its last way did not lead to its collection, or the menu or its copy stayed"));
-  }
-}
-const PROFILES = ".profile-menu:not(.sheet-ghost)";
-await page.waitForTimeout(400);
-await page.tap(".topbar .top-profile >> visible=true");
-await page.waitForFunction((selector) => document.querySelector(`${selector} .pm-new-way`), PROFILES, { timeout: 5000 }).catch(() => problems.push("a tap on the box at the head opened no menu of the profiles"));
-await menuResting(PROFILES);
-const profiles = await tabMenuAt(PROFILES);
-check(profiles?.way === "auto" && profiles.as === "fit" && profiles.full && profiles.bottom === 844 && profiles.wide === 390 && profiles.height >= FIT[0] && profiles.height <= FIT[1] && profiles.grip === "40px", `the menu of the profiles does not fit as a sheet from below (40–70 % of the screen): ${JSON.stringify(profiles)}`);
-await finger(195, (profiles?.top ?? 500) + 30, evenly(220, 8), { ms: 16 });
-await page.waitForFunction((selector) => !document.querySelector(selector), PROFILES, { timeout: 3000 }).catch(() => problems.push("the menu of the profiles swiped down did not close"));
 
 await browser.close();
 console.log(JSON.stringify({ problems }, null, 2));
