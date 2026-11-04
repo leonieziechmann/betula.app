@@ -4515,17 +4515,10 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 /* A note among the sittings keeps to their gap. */
 .sp-exams .note { margin-top: 0; }
 
-/* The Stundenplan's sidebar (side.rs, import.rs): „Importieren" a source switch, the plan's select
-   where it has several, then the Fachsemester and „Übernehmen" on one line, what it adds under
-   them, „Zu „Mein Studium“ →" under it; „Plan" one line per saved plan (name, modules, ×), the
-   loaded one marked. The name field `.sp-save` is the profile's „Neues Profil" (profile.rs). */
-.sp-more { display: inline-block; margin: 6px 2px 0; font-size: 13px; font-weight: 560; }
-.sp-import > .combo { margin-top: 8px; }
+/* The Stundenplan's sidebar (side.rs): „Plan" one line per saved plan (name, modules, ×), the
+   loaded one marked. The name field `.sp-save` is the profile's „Neues Profil" (profile.rs). A
+   segment's small words beside its label. */
 .seg button small { margin-left: 5px; color: var(--text-3); font-size: 11px; font-weight: 500; }
-.sp-import-go { display: flex; gap: 8px; margin-top: 8px; }
-.sp-import-go > .combo { flex: 1; min-width: 0; }
-.sp-import-go > .btn { flex: none; min-height: 36px; }
-.sp-import > .hint, .sp-import > .note-action { margin-top: 6px; }
 .sp-save { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0 6px; }
 .sp-save input { flex: 1 1 100%; min-width: 0; min-height: 36px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; }
 .sp-saved { display: flex; align-items: center; gap: 2px; }

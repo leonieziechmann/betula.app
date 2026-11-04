@@ -33,8 +33,7 @@ use leptos_router::NavigateOptions;
 use crate::i18n;
 use folia_shell::pending::Pending;
 use folia_design::ui::Icon;
-use super::import::{now_secs, taken_parts};
-use super::PlanCtx;
+use super::{now_secs, PlanCtx};
 
 /// „Link zum Teilen kopieren" in the sidebar's group „Plan": the address that hands the semester
 /// shown on, in the page's language, copied whole (`data-absolute`). Greyed out while nothing is
@@ -165,7 +164,7 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
                     if doc.program.is_none() {
                         doc.program = program;
                     }
-                    (format!("{}{}", s.taken, taken_parts(added, 0, t)), before)
+                    (format!("{}{}", s.taken, taken_count(added, t)), before)
                 });
                 let _ = undo.try_set(Some(note));
             }
@@ -268,6 +267,14 @@ fn offer_text(offer: Offer, t: &i18n::Texts) -> (String, bool) {
     }
 }
 
+/// „6 Module", „nichts": what the note of a plan taken over from a link says was added.
+fn taken_count(modules: usize, t: &i18n::Texts) -> String {
+    match modules {
+        0 => t.studyplan_share.nothing.to_string(),
+        n => folia_design::format::modules(i64::try_from(n).unwrap_or(i64::MAX), t.locale),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use folia_calendar::semester::SemesterKey;
@@ -307,7 +314,7 @@ mod tests {
         // The notes of the plan each begin their own way, in every language: none is where another
         // is looked for (`PlanCtx::undo`).
         for t in [&DE, &EN] {
-            let notes = [t.studyplan_share.taken, t.studyplan_import.imported, t.studyplan_side.cleared, super::super::head::FROM_MARKED];
+            let notes = [t.studyplan_share.taken, t.studyplan_side.cleared, super::super::head::FROM_MARKED];
             for (i, a) in notes.iter().enumerate() {
                 assert!(notes.iter().enumerate().all(|(j, b)| i == j || !a.starts_with(b)), "{a}");
             }

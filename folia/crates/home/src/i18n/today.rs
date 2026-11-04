@@ -316,7 +316,7 @@ pub const DE: Texts = Texts {
     of_credits: |credits| format!("von {credits}\u{a0}LP"),
     nothing_passed: "Noch nichts als bestanden eingetragen.",
     after_fs: |fs| format!("nach dem {fs}.\u{a0}FS"),
-    plan_empty_card: "Der Stundenplan ist leer: das Fachsemester aus dem Regelstudienplan übernehmen.",
+    plan_empty_card: "Der Stundenplan ist leer: in „Mein Studium“ das Fachsemester aus dem Regelstudienplan übernehmen.",
     not_set_up: "Noch nicht eingerichtet: Studiengang und Beginn, und der Tag steht hier.",
     set_up_study: "Studium einrichten",
     module: "Modul ansehen",
@@ -324,7 +324,7 @@ pub const DE: Texts = Texts {
     timetable: "Stundenplan",
     all_exams: "Alle Prüfungen",
     enter_results: "Prüfungen eintragen",
-    take_semester: "Fachsemester übernehmen",
+    take_semester: "Zu „Mein Studium“",
 
     today: "Heute",
     count_termine: |n| match n {
@@ -504,7 +504,7 @@ pub const EN: Texts = Texts {
     of_credits: |credits| format!("of {credits}\u{a0}ECTS"),
     nothing_passed: "Nothing entered as passed yet.",
     after_fs: |fs| format!("after semester {fs}"),
-    plan_empty_card: "Your timetable is empty: take over the semester of the standard study plan.",
+    plan_empty_card: "Your timetable is empty: take over the semester of the standard study plan in \u{201c}My studies\u{201d}.",
     not_set_up: "Not set up yet: your programme and when you began, and your day stands here.",
     set_up_study: "Set up your studies",
     module: "View module",
@@ -512,7 +512,7 @@ pub const EN: Texts = Texts {
     timetable: "Timetable",
     all_exams: "All exams",
     enter_results: "Enter your results",
-    take_semester: "Take over a semester",
+    take_semester: "To \u{201c}My studies\u{201d}",
 
     today: "Today",
     count_termine: |n| match n {

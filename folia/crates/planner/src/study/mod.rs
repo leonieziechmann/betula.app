@@ -468,16 +468,6 @@ fn rows_of(source: &PlanSource, extra: &[CatalogRow]) -> Vec<CatalogRow> {
     source.linked.iter().chain(extra.iter().filter(|row| !source.linked.iter().any(|linked| linked.id == row.id))).cloned().collect()
 }
 
-/// What „Mein Studium" takes into the timetable of `semester` (the Stundenplan's „Importieren" from
-/// „Mein Studium"): its Wiederholer, what was not passed and is not planned again
-/// (`study::retake_import`), seen from the current semester `now`. `None` before the
-/// Studienbeginn. The rest of a semester's timetable is its part of the study already: the two
-/// pages share one plan.
-pub(crate) fn current_import(source: &PlanSource, mine: &MineDoc, doc: &PlanDoc, semester: SemesterKey, now: SemesterKey) -> Option<stored::Import> {
-    let ready = ready(source, mine, now, doc, &source.linked, i18n::texts(folia_locale::Locale::De));
-    (semester >= ready.setup.start).then(|| study::retake_import(&ready.study, doc, semester))
-}
-
 #[component]
 pub fn StudyPage() -> impl IntoView {
     let t = i18n::t();
@@ -993,9 +983,6 @@ mod tests {
         assert!(modules > 5);
         let after = ready(&source, &mine, key("2026W"), &filled, &source.linked, t);
         assert_eq!(after.study.retakes.len(), after.study.semesters.iter().filter(|s| s.key < key("2026W")).map(|s| s.items.len()).sum::<usize>());
-        let import = current_import(&source, &mine, &filled, key("2026W"), key("2026W")).unwrap();
-        assert_eq!(import.modules.len(), modules);
-        assert!(current_import(&source, &mine, &filled, key("2025S"), key("2026W")).is_none(), "before the Studienbeginn");
     }
 
     /// Elektrotechnik B.Sc. 2022 has a plan per study direction: the one kept is the one studied.

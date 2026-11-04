@@ -1,17 +1,17 @@
 //! The sidebar of the Stundenplan, „Anpassen" (owner's redesign of 2026-09-25), top to bottom:
-//! „Kalender" (`calendars.rs`: „Mein Studiengang" and the calendars of one's own), „Importieren"
-//! (`import.rs`: a Fachsemester of its Regelstudienplan), on a phone „Plan · Alle Termine" (which a
-//! wide page has over the week), „Export" (`export.rs`: the calendar file, the subscription and
-//! the week as a picture), and last „Plan": load or delete a saved plan, hand it on by a link
-//! (`share.rs`), empty it. The storage hint under it is `mod.rs`'s, the same on the server. On a
+//! „Kalender" (`calendars.rs`: „Mein Studiengang" and the calendars of one's own), on a phone
+//! „Plan · Alle Termine" (which a wide page has over the week), „Export" (`export.rs`: the calendar
+//! file, the subscription and the week as a picture), and last „Plan": load or delete a saved
+//! plan, hand it on by a link (`share.rs`), empty it. The storage hint under it is `mod.rs`'s, the same on the server. On a
 //! phone the sidebar is a sheet, „Anpassen", and „Export" is not in it: it stands under the
 //! Termine (`mod.rs`, owner 2026-09-27: among what is shown nobody looks for it).
 //!
 //! What the sidebar had besides went on 2026-11-04 (owner: „Komplett entfernen, weil überholt das
 //! system" and „Später an einen anderen ort verlegen (jetzt einfach entfernen ich kümmer mich
-//! später)"): „Studiengang" (the program is „Mein Studium"'s now: `timetable_program`),
-//! „Plan speichern" (the calendars of one's own are there for several plans; the plans saved
-//! before stay to be loaded and deleted), „Ansicht", „Zeigen" and „Standort".
+//! später)"): „Studiengang" (the program is „Mein Studium"'s now), „Plan speichern" (the
+//! calendars of one's own are there for several plans; the plans saved before stay to be loaded
+//! and deleted), „Ansicht", „Zeigen" and „Standort"; and „Importieren" the same day („Das ist ja
+//! auch in mein studium": a semester takes over its Fachsemester there, „Plan übernehmen").
 //!
 //! The groups stay where they are, whatever is planned (owner, 2026-09-25: „Da sollte sich das
 //! Layout nicht viel shiften"): with nothing to show or to do a group says so or greys its control
@@ -23,9 +23,7 @@
 //! answered (`Studyplan::update_after_paint`). Each control reads a memo of its own (R5), and no
 //! closure reads a memo together with the one it is derived from (R16).
 
-use folia_model::rows::Program;
 use folia_routes::url::{self, StudyplanUrl};
-use folia_pages::ask::ProgramsAsk;
 use leptos::prelude::*;
 
 use folia_design::format;
@@ -37,7 +35,6 @@ use folia_stores::studyplan::Saved;
 use folia_design::ui::Icon;
 use super::calendars::CalendarsGroup;
 use super::export::CalendarGroup;
-use super::import::ImportGroup;
 use super::share::ShareAction;
 use super::week::AllSwitch;
 use super::{key_of, PlanCtx};
@@ -50,12 +47,10 @@ const LOAD_ID: &str = "sp-load-yes";
 
 #[component]
 pub(super) fn PlanSidebar(ctx: PlanCtx) -> impl IntoView {
-    let program = timetable_program(ctx);
     view! {
         // The calendars beside the week first (`calendars.rs`): „Mein Studiengang" and those of one's
         // own, and „Neuer Kalender"; on a phone in „Anpassen" too.
         <CalendarsGroup ctx/>
-        <ImportGroup ctx program/>
         // On a phone „Plan · Alle Termine", which a wide page has in the head over the week.
         {move || ctx.phone.get().then(|| view! { <SessionsGroup ctx/> })}
         // On a phone the sidebar is the sheet „Anpassen", and „Export" stands under the Termine
@@ -73,40 +68,6 @@ fn shown_url(ctx: PlanCtx) -> Memo<StudyplanUrl> {
         Some(search) => StudyplanUrl::parse(&search),
         None => ctx.url.get(),
     })
-}
-
-// ---------- the timetable's program ----------
-
-/// The timetable's program (`shown_program`), from the programs of the snapshot: what
-/// „Importieren" takes a Regelstudienplan of.
-fn timetable_program(ctx: PlanCtx) -> Memo<Option<Program>> {
-    let all = Memo::new(move |before| match ctx.source.with_value(|source| source.as_ref().map(|source| source.now(&ProgramsAsk {}))) {
-        Some(now) => folia_pages::ask::unless_pending(now, before, Result::unwrap_or_default),
-        None => Vec::new(),
-    });
-    let asked = Memo::new(move |_| ctx.url.with(|url| url.import.clone()));
-    let carried = Memo::new(move |_| ctx.plan.and_then(|plan| plan.with(|doc| doc.program.clone())));
-    let mine = Memo::new(move |_| ctx.mine.and_then(|mine| mine.with(|doc| doc.program.clone())));
-    Memo::new(move |_| {
-        let (asked, carried, mine) = (asked.get(), carried.get(), mine.get());
-        all.with(|all| shown_program(all, asked.as_deref(), carried.as_deref(), mine.as_deref()).cloned())
-    })
-}
-
-/// The timetable's program: the one the address names (`import=<slug>`, a program page's „In den
-/// Stundenplan"; `import=mine`), else the one this tab's session has taken a plan with
-/// (`PlanDoc::program`: a Fachsemester taken over from a program's page, a saved or a shared plan
-/// loaded; kept for the session alone, `folia_stores::studyplan`), else „Mein Studiengang", else
-/// none (owner, 2026-10-15); each only while the snapshot has it. „Mein Studiengang" is chosen in
-/// „Mein Studium" (owner, 2026-11-04: the sidebar's „Studiengang" went).
-fn shown_program<'a>(all: &'a [Program], asked: Option<&str>, carried: Option<&str>, mine: Option<&str>) -> Option<&'a Program> {
-    let by_id = |id: &str| all.iter().find(|program| program.id == id);
-    let named = match asked {
-        Some("mine") => mine.and_then(by_id),
-        Some(slug) => all.iter().find(|program| program.slug == slug),
-        None => None,
-    };
-    named.or_else(|| carried.and_then(by_id)).or_else(|| mine.and_then(by_id))
 }
 
 // ---------- on a phone: Plan · Alle Termine ----------
@@ -303,53 +264,5 @@ fn PlanGroup(ctx: PlanCtx) -> impl IntoView {
                 .into_any(),
             }}
         </div>
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use folia_model::labels::Code;
-
-    use super::*;
-
-    fn program(id: &str, slug: &str, name: &str) -> Program {
-        Program {
-            id: id.into(),
-            slug: slug.into(),
-            name: name.into(),
-            degree_level: Code::parse("bachelor"),
-            study_variant: None,
-            degree_label: Some("B.Sc.".into()),
-            degree_raw: "Bachelor".into(),
-            degree_display: Some("B.Sc.".into()),
-            po_version: "2008".into(),
-            po_year: Some(2008),
-            family_key: "079-82".into(),
-            name_key: name.to_lowercase(),
-            is_latest_po: true,
-            source_url: String::new(),
-            has_plan: true,
-            plan_status: None,
-            curricular_modules: 0,
-            fues_modules: 0,
-            documents: 0,
-        }
-    }
-
-    /// The address's, else the one this session took a plan with, else „Mein Studiengang", else
-    /// none (owner, 2026-10-15).
-    #[test]
-    fn the_timetables_program_is_the_addresss_the_sessions_or_mine() {
-        let all = [program("079-82-2008", "bachelor-informatik-2008", "Informatik"), program("048-82-2022", "bachelor-elektrotechnik-2022", "Elektrotechnik")];
-        let id = |found: Option<&Program>| found.map(|program| program.id.clone());
-        let (inf, et) = (Some("079-82-2008"), Some("048-82-2022"));
-        // Nothing taken in the session: „Mein Studiengang".
-        assert_eq!(id(shown_program(&all, None, None, et)), Some("048-82-2022".into()));
-        assert_eq!(id(shown_program(&all, None, inf, et)), Some("079-82-2008".into()));
-        assert_eq!(id(shown_program(&all, Some("bachelor-elektrotechnik-2022"), inf, None)), Some("048-82-2022".into()));
-        assert_eq!(id(shown_program(&all, Some("mine"), inf, et)), Some("048-82-2022".into()));
-        // What the snapshot no longer has falls through; nothing at all is no program.
-        assert_eq!(id(shown_program(&all, Some("gone"), Some("999-99-1999"), inf)), Some("079-82-2008".into()));
-        assert_eq!(id(shown_program(&all, None, None, None)), None);
     }
 }
