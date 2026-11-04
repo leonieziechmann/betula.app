@@ -7,6 +7,7 @@ use folia_design::stage::Title;
 
 use folia_data::DataError;
 use crate::i18n;
+use folia_design::modal::Sheet;
 use folia_design::ui::{Icon, Shortcut};
 
 /// The frame of a page (owner decision 2026-09-20: a basic element of the layout, R17): a sidebar
@@ -39,6 +40,9 @@ pub fn Frame(
     /// On a phone the sidebar is a sheet that a „Filter" button of the page opens
     /// (`data-action="sheet-open"`), like the filter panel of the catalog.
     #[prop(optional)] sheet: bool,
+    /// How that sheet stands (`folia_design::modal::Sheet`): half up and all up, unless what it
+    /// holds fits another way better (the programs' filters, which fit, `Sheet::Auto`).
+    #[prop(optional)] sheet_way: Sheet,
     /// The panel on the right, with its own handle. It brings its own box
     /// (`<section class="panel detail aside">`), so a module preview can be used as it is.
     #[prop(optional, into)] aside: Option<ViewFn>,
@@ -56,7 +60,7 @@ pub fn Frame(
         // One scroll area (app.css „one scroll area"): the sidebar and
         // the panel on the right are pinned beside the page.
         <div class="work framed flowing" id="page-scroll" class:sidebar-first=sidebar_first class:with-aside=has_aside class:aside-picked=move || has_aside && aside_picked.get()>
-            <aside class="panel sidebar" class:sheet=sheet data-sheet=sheet.then_some("half") id="sidebar" aria-label=label>
+            <aside class="panel sidebar" class:sheet=sheet data-sheet=sheet.then_some(sheet_way.attr()) id="sidebar" aria-label=label>
                 <div class="panel-head">
                     <h2>{title}</h2>
                     {head.run()}
