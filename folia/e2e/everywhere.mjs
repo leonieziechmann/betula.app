@@ -275,10 +275,10 @@ await context.close();
   await page.waitForTimeout(600);
   await step("Module hinzufügen on a phone", () => page.tap(".st-pager > .st-slot:not([inert]) .st-empty-add, .st-empty-add >> visible=true"), () => document.querySelector(".st-wb-sheet[data-sheet]"));
   const sheet = await page.evaluate(() => {
-    const rows = [...document.querySelectorAll(".st-wb-sheet .st-wb-areas.sheet > .st-wb-a")].map((row) => row.getBoundingClientRect());
+    const rows = [...document.querySelectorAll(".st-wb-sheet .st-wb-ways > .st-wb-a")].map((row) => row.getBoundingClientRect());
     return { n: rows.length, inside: rows.every((row) => row.right <= document.querySelector(".st-wb-sheet").getBoundingClientRect().right + 0.5), tall: rows.every((row) => row.height >= 44) };
   });
-  check(sheet.n >= 8 && sheet.inside && sheet.tall, `the workbench's areas on a phone: ${JSON.stringify(sheet)}`);
+  check(sheet.n === 3 && sheet.inside && sheet.tall, `the ways at the root of the workbench's sheet on a phone (all the areas, „Gemerkt", the catalog): ${JSON.stringify(sheet)}`);
   // „Gemerkt" at the sheet's foot, below what it shows half up: a tap goes into a page of what is
   // marked, the sheet going all up, ‹ and the way back over it.
   await step("Gemerkt on a phone", () => page.locator('.st-wb-sheet .st-wb-a:has-text("Gemerkt")').dispatchEvent("click"), () => document.querySelectorAll(".st-wb-sheet .st-wb-page .st-wb-row").length === 6 && document.querySelector(".st-wb-sheet .st-wb-path .st-wb-back"));

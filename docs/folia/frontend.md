@@ -1237,8 +1237,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       dann voll nach ganz oben"), as a phone's own sheets have them (iOS's medium and large detents,
       Material's half-expanded state): half up, its top at half the screen, and all up, 10 px under
       the safe area; it comes up from below to half up. What is read and worked in beside the page:
-      a dialog of the size „m" (a Termin, „Termin eintragen", the areas, „Studiengang wechseln"),
-      the filters and a page's sidebar, a page's own sheet (the workbench of „Mein Studium",
+      a dialog of the size „m" („Termin eintragen", over the week that shows its draft; the areas
+      and an area, one size, so that the sheet stays where it is from the one to the other), the
+      catalog's filters, the Merkliste's filters and orders, the Stundenplan's „Anpassen" (whose
+      calendars open their menus in it), a page's own sheet (the workbench of „Mein Studium",
       `.page-sheet`: the whole height, a light veil before it, under a module's), a module over a page,
       „Tasten" (a long list; it names its keys on a phone too, a PC's or a Mac's, since who opens
       it there has a keyboard). A dialog takes the whole height, so that it does not grow and
@@ -1246,8 +1248,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       it is.
     - **`full`**, all up at once, the whole height: its one stop. What needs all of the screen:
       the map, „Plan einrichten" (a form as tall as the screen with its search low in it, which
-      half up the buttons at the screen's foot hid), a dialog of the size „l" (a list to choose
-      from).
+      half up the buttons at the screen's foot hid), „Studiengang wechseln" (a form with a search
+      too: half up its Fachsemester stood behind its buttons, and what it holds changes as it is
+      filled in, which a sheet that fits would follow up and down), a dialog of the size „l" (a
+      list to choose from).
     - **`auto`**, for what changes (owner, the same day: „Ja und jetzt mach mal noch ein Auto
       Modus, der zwischen fit und Half entschiedet für dynamischen content"): as tall as what it
       holds, up to the whole height; it fits while that is at most 70 % of the screen and stands as
@@ -1256,13 +1260,21 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       it to and fro. Grown past what fits while it is shown it stays all up, now with half up
       under a finger; shrunk under it, it goes back to its height. While the screen's keyboard is
       up its way stays. „Sammeln" (the collections one made, narrowed by what is typed), a Termin
-      (a date and a room, or its groups and a semester of dates), the menus that list semesters or
+      (a date and a room, or its groups and a semester of dates), the programs' filters (about 60 %
+      of a phone's screen, more of a small one's: half up hid their last row), the menus that list semesters or
       collections („Einplanen in …", the arrow of „Eingeplant", „Mein Studium"'s menu with
       „Verschieben nach ›", the Merkliste's menu of several modules); a submenu in its menu's
       place stands where the menu stood.
 
+    Each way chosen by what the sheet holds, measured on a phone of 390 × 844 px (owner,
+    2026-11-04: „alle modal instanzen durchguckst und da einstellst, was am besten zu denen
+    passt"): a module 240 % of the screen, the catalog's filters 140 %, „Tasten" 145 %, an area
+    90 %, the areas and „Termin eintragen" 85 %, the Merkliste's filters 75 %, „Anpassen" 74 % and
+    up — half; the programs' filters 63 % — `auto`; „Studiengang wechseln" 62 %, changing — full;
+    „Sammeln" about half, changing — `auto`; the Merkliste's ⋯ under 40 % — fit.
+
     A `Modal` stands as its size says (`ModalSize::sheet`: „s" fits, „m" half, „l" full) unless it
-    says otherwise (`sheet=Sheet::…`); what changes its kind while it is open (a dialog that holds
+    says otherwise (`sheet=Sheet::…`; a frame's sidebar `sheet_way=Sheet::…`); what changes its kind while it is open (a dialog that holds
     another) goes to the stop of its new way, all up where it has no half up any more. A sheet of one
     stop is where all up is: it scrolls, a move down at its top takes it, and from a third of the way
     down (or flicked down) it goes away; a tap on its grabber leaves it be.
@@ -1699,7 +1711,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     2. FS nach Regelstudienplan füllen" (`study::fill_past`, the Stundenplan's import per
     Fachsemester; then only marking what was passed is left), in the first Fachsemester there and
     saying there are none. „Studium anlegen" stores it in one go (`MyProgram::set_study`).
-  - **„Studiengang wechseln"** (`side.rs`, a dialog of size m): the card with what is kept, and
+  - **„Studiengang wechseln"** (`side.rs`, a dialog of size m, on a phone all up at once): the card with what is kept, and
     under it, once the program or its direction changed, what of the plan counts there before
     anything changes („Bestanden 36 von 46 LP kommen dort vor", the first modules that count nowhere
     there, which stay as „ohne Bereich"); where only the Fachsemester changed, that the plan stays as
@@ -1909,7 +1921,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     nehmen. Der hat da eh keinen Mehrwert"), and its end stands above the dots. The dialogs („Bereiche",
     „Studiengang wechseln") and the workbench are sheets of a phone („The
     sheets of a phone"):
-    half up first, a finger takes them all up or throws them away (owner, the same day: „Das muss
+    half up first („Studiengang wechseln" all up at once since 2026-11-04), a finger takes them all up or throws them away (owner, the same day: „Das muss
     auch unbedingt dazu, dass man die einfach wieder runter sliden kann"; until 2026-10-27 dragged
     down only, as the catalog's filters): the sheet follows the finger and the dim behind it fades,
     let go it goes on to where it would come to rest, a short pull back where it was. „Studiengang wechseln" says no more in its head than its
@@ -2205,21 +2217,49 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     enhance.js, `.page-sheet` after its scrim `.page-sheet-shade`): half up under the semester,
     which shows what is planned through a light veil while the sheet shows what is suggested, over
     the tab bar, under a module's sheet. Nothing behind it moves while it is open (owner: „Das kann
-    einfach gesperrt sein, so lange der [offen] ist"): a tap there, a throw, Back
-    (`nav::Kind::State`, which a module opened from it leaves alone) or „Fertig" end the mode. Its
-    head names what it plans into and what that holds („Hinzufügen zu WiSe 2026/27", „24 von 30 LP ·
-    3 Module") with „Fertig" (owner: „Lass erstmal fertig da stehen"). In it „Laut Plan im 3. FS"
-    with „Plan übernehmen", the Pflicht not yet planned (what is planned stands in the semester
-    over it, not in the sheet), the choices with „Wählen ›" (one reserved in the semester says
-    „vorgemerkt"), what else is reserved, what is open from before and „Aus dem 4. FS vorziehen ›";
-    then „Alle Bereiche", „Gemerkt ›" and „Im Katalog suchen". Since 1.71.0 a row with › goes into
-    a page of the sheet (`bench::Page`, the trail `StudyCtx::trail`; owner, 2026-11-04: „ein
-    vertiefendes menu … mit > in das quasi rein geht und das nicht ausklappt. Der modal soll offen
-    bleiben. Oben einen Pfad haben und auch einen back button"): a choice's list with its rule and
-    its switches, an area's subgroups and each one's list, what the next Fachsemester could take
-    now, „Gemerkt". The sheet stays and goes all up (`betula:sheet-raise`); over the page, not
-    scrolling with it, ‹ and the way to it („Übersicht › Nebenfach ›", each step a way back) with
-    the page's name, its area's dot and its figure under them; the page comes in from the right
+    einfach gesperrt sein, so lange der [offen] ist"): a tap there, a throw or Back
+    (`nav::Kind::State`, which a module opened from it leaves alone) end the mode, as every sheet
+    of a phone; it has no button for it (until 1.72.0 „Fertig", owner, 2026-11-04: „der btw nur für
+    verwirrung sorgt"). Its head (since 1.72.0; folia/design/hinzufuegen/handy.html, fifth round;
+    the same day: „beim header vom modal statt dem text und dem Fertig button … lieber eine
+    progressbar mit dem text dann halt oben rechts dadrüber") names what it plans into, the figure
+    of what the semester holds over the right end of its bar („Hinzufügen zu WiSe 2026/27", „22 von
+    30 LP"): each item a part of the bar in its area's colour, as wide as the credits it counts, a
+    placeholder hatched, what the plan still puts in grey, more than the plan with a mark where the
+    plan ends; an item planned comes in as a part of its own (`For`). Its root has the owner's
+    order („Module aus dem semester, Module vorziehen, Page für alle Bereiche, Page gemerkt, Im
+    katalog suchen"): „Laut Plan im 3. FS" with „Plan übernehmen", the Pflicht not yet planned
+    (what is planned stands in the semester over it, not in the sheet), the choices (one reserved
+    in the semester says „vorgemerkt"), what else is reserved and what is open from before; „Aus
+    dem 4. FS vorziehen" with what the next Fachsemester puts in and is not in the semester yet
+    (1.71 a page of its own); then the ways „Alle Bereiche ›", „Gemerkt ›" and „Im Katalog
+    suchen". One level of headings, two kinds of rows (the same day: „wir müssen an dem konzept
+    arbeiten, wie module dargestellt werden. Hier ist auch wieder das problem visuell unordentlich
+    und unbalanciert … Das gleiche beim wp placeholder"): a module (`bench::sheet_line`) is its
+    name and one line under it — its number, its „Fach" or „Pflicht · Informatik", what it means
+    for the week where its group does not say it, where else it is planned, that it is marked —,
+    its credits the button in the middle of its right end („+ 8 LP"; ✓ once it is in the semester,
+    a tap taking it out again); a place to fill (`bench::sheet_choice`, a choice of the plan or a
+    row without a module) is dashed as a placeholder is in the semester, its name and „0 / 12 LP"
+    over its bar in its area's colour, its area and its span under it, › at its end. Since 1.71.0
+    a row with › goes into a page of the sheet (`bench::Page`, the trail `StudyCtx::trail`; owner,
+    2026-11-04: „ein vertiefendes menu … mit > in das quasi rein geht und das nicht ausklappt. Der
+    modal soll offen bleiben. Oben einen Pfad haben und auch einen back button"): „Alle Bereiche"
+    (since 1.72.0: „Alle bereiche muss eine eigene subpage werden, wo dann der modultree dargestellt
+    ist. Also die container, dass die da als ausgeklappter baum sind und man dann damit ohne drei
+    weitere klicks direkt in jeden bereich kommt"), every area unfolded with what it holds of what
+    it asks, each subgroup with its figure and its bar going into its list at once, an area of one
+    subgroup one row; a choice whose modules other choices of its area list all of (the
+    Fachstudium's „Wahlpflicht: Komplex … / … / …") is none of them („Auch hier braucht es keinen
+    kombinierten bereich aus mehreren wp dingen, weil die ja von den bereichen selbst abgedeckt
+    werden", `bench::shown_groups`); a subgroup's list, under its rule the search and a row of
+    chips (since 1.72.0: „da ist ja wirklich alles kaputt. Das muss nochmal neu designd werden"):
+    „Fach" and a collection a chip over the phone's own list (a `<select>`), „Im WiSe angeboten"
+    and „Passt in meine Woche" chips that are on or off; at its end „Im Katalog suchen" and
+    „Vormerken" as the root's ways; „Gemerkt". 1.71 had an area's subgroups as a page between. The
+    sheet stays and goes all up (`betula:sheet-raise`); over the page, not scrolling with it, ‹ and
+    the way to it („Übersicht › Alle Bereiche ›", each step a way back) with the page's name, its
+    area's dot and a subgroup's figure and bar under them; the page comes in from the right
     going in and from the left coming back, where it was scrolled to. Back and Esc take one step
     back (a layer of `nav::Kind::State` for each step), a module's sheet over the page first; at
     the root they end the mode. Until 1.71.0 a choice, a subgroup or „Gemerkt" unfolded its list
@@ -2278,9 +2318,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     semesters of leave (`leave`) and the last semester added (`until`). The privacy notice lists
     them („Speicher im Browser").
   - **And the Stundenplan.** A semester planned here is the Stundenplan's semester and the other
-    way round; its tab counts the current semester's modules. Its „Importieren" has „Mein Studium"
-    as its second source: the Wiederholer into the semester shown (`study::retake_import`). „Plan
-    leeren" empties the semester shown and leaves the others and what was passed.
+    way round; its tab counts the current semester's modules. Its „Importieren" had „Mein Studium"
+    as its second source until it went (2026-11-04): the Wiederholer into the semester shown
+    (`study::retake_import`), which the workbench lists under „Noch offen aus früheren Semestern".
+    „Plan leeren" empties the semester shown and leaves the others and what was passed.
   - `node folia/e2e/study.mjs` checks the first visit, the overview (the credits, nothing else), the
     sidebar (the program's card and its dialog, no way to the Stundenplan, the legend in two
     parts, the statuses in the second), the semester at the top of its box with no strip and no
@@ -2334,7 +2375,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     foot at the screen's foot, a finger half up taking the sheet and not its list, the grabber taking
     it all up, from all up a swipe of the head to half up and a second one away; and a tab held:
     „Studium"'s three ways (the finger's release going nowhere, a tap beside closing them, a way
-    taken), a short tap as ever, the catalog's list with its filters.
+    taken), a short tap as ever, the catalog's list with its filters, and a tab other than the
+    current one held, its release going nowhere either (until 2026-11-04 the bar's tap took it
+    and went to the tab).
   - `node folia/e2e/sheets.mjs` checks the sheets of a phone: a dialog coming up from below in one
     move to half the screen, its frame the sheets' (the grabber, its × out of sight); half up a short
     slow pull moving the sheet and not its content and coming back; the grabber all up, half up and
@@ -2401,12 +2444,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   shown, nobody looked for it. A wider screen keeps it in the sidebar.
 - **The Stundenplan's sidebar, slimmed** (owner, 2026-11-04, `studyplan/side.rs`: „Komplett
   entfernen, weil überholt das system" and „Später an einen anderen ort verlegen (jetzt einfach
-  entfernen ich kümmer mich später)"). „Anpassen" holds „Kalender", „Importieren", on a phone
-  „Termine" („Plan · Alle Termine"), „Export" and „Plan". Gone for good: „Studiengang" („das ist
-  jetzt mein studium": the timetable's program is the address's, else what this session took a
-  plan with, else „Mein Studiengang", chosen in „Mein Studium"; without one „Importieren" says so
-  and leads there) and „Plan speichern" („das sind jetzt hat man ja mehrere kallender"; the plans
-  saved before stay in „Plan" to be loaded and deleted). Gone until they have another place:
+  entfernen ich kümmer mich später)"). „Anpassen" holds „Kalender", on a phone „Termine" („Plan ·
+  Alle Termine"), „Export" and „Plan". Gone for good: „Studiengang" („das ist jetzt mein studium":
+  the timetable's program is what this session took a plan with, else „Mein Studiengang", chosen in
+  „Mein Studium"), „Importieren" (the same day: „Das ist ja auch in mein studium": a semester takes
+  its Fachsemester over there, „Plan übernehmen", and the start page's card leads there; an address
+  with `import=` is read past) and „Plan speichern" („das sind jetzt hat man ja mehrere kallender";
+  the plans saved before stay in „Plan" to be loaded and deleted). Gone until they have another place:
   „Ansicht" (Woche · Termine · Prüfungen; „Termine" and „Prüfungen" are reached by their address,
   the start page's links among them), „Zeigen" (to become masks in the content area; a kind hidden
   before shows faint under „Alle Termine", whose „✓" brings it back) and „Standort" (a town chosen
@@ -4244,8 +4288,9 @@ matters most — „organisch ohne Popup, einfach intuitiv". (The way in went wi
     button out of the panel.
   - „Module deines Studiengangs": the catalog of that program (`MineResolved::catalog_href`),
     „Zum Katalog" without one.
-  - „Fachsemester übernehmen": the Stundenplan with the program's Regelstudienplan ready to take
-    over (`/studyplan?import=mine`), while nothing is planned; else „Zum Stundenplan".
+  - „Zu „Mein Studium“" while nothing is planned: its semesters (`/study?plan=1`), where a semester
+    takes its Fachsemester over („Plan übernehmen"); until 2026-11-04 „Fachsemester übernehmen",
+    the Stundenplan's „Importieren" (`/studyplan?import=mine`). Else „Zum Stundenplan".
 - **It follows what this browser has done** (the app's alone, R9; the server's page is the one of
   a first visit): the program set as „Mein Studiengang" (while it is in the snapshot), a module on
   the Merkliste, a module in the Stundenplan each make their step done — a tick in the mark, the

@@ -119,6 +119,8 @@ pub struct Texts {
     /// „Mehr Filter:" and the FÜS's „Sprache, Prüfungsform, LP, Lehrform:" before „Im Katalog
     /// suchen".
     pub more_filters: &'static str,
+    /// Under „Im Katalog suchen" at the end of a list on a phone.
+    pub catalog_sub: &'static str,
     pub fues_filters: &'static str,
     /// „Vormerken": the subgroup put into the semester without a module, for later.
     pub reserve: &'static str,
@@ -146,10 +148,8 @@ pub struct Texts {
     pub over_note: fn(&str) -> String,
 
     // The sheet of a phone.
-    /// „Hinzufügen zu WiSe 2026/27": what it plans into; „3 Module": what that holds; „Alle
-    /// Bereiche" over the areas.
+    /// „Hinzufügen zu WiSe 2026/27": what it plans into; „Alle Bereiche": the page of the areas.
     pub sheet_title: fn(&str) -> String,
-    pub modules_n: fn(usize) -> String,
     pub all_areas: &'static str,
     /// The way to a page of it: its root („Übersicht"), ‹ and what it is for a screen reader.
     pub overview: &'static str,
@@ -157,9 +157,6 @@ pub struct Texts {
     pub path: &'static str,
     /// „vorgemerkt" at a choice reserved in the semester.
     pub reserved_mark: &'static str,
-    /// „Aus dem 4. FS vorziehen" gone into: what it lists, and that nothing is left.
-    pub next_rule: fn(&str) -> String,
-    pub next_empty: &'static str,
 
     // The menu of a row.
     /// „Zählt für ›", its entries and the one that leaves it to the tree; the note („Analysis II
@@ -245,6 +242,7 @@ pub const DE: Texts = Texts {
     plan_aria: |title, semester| format!("{title} in {semester} einplanen"),
     unplan_aria: |title, semester| format!("{title} aus {semester} herausnehmen"),
     more_filters: "Mehr Filter:",
+    catalog_sub: "mit allen Filtern des Katalogs",
     fues_filters: "Sprache, Prüfungsform, LP, Lehrform:",
     reserve: "Vormerken",
     reserve_hint: "ohne Modul, für später",
@@ -263,14 +261,11 @@ pub const DE: Texts = Texts {
     over_note: |n| format!("{n} LP mehr als im Plan"),
 
     sheet_title: |semester| format!("Hinzufügen zu {semester}"),
-    modules_n: |n| if n == 1 { "1 Modul".to_string() } else { format!("{n} Module") },
     all_areas: "Alle Bereiche",
     overview: "Übersicht",
     back: "Zurück",
     path: "Wo du bist",
     reserved_mark: "vorgemerkt",
-    next_rule: |fs| format!("Was der Plan ins {fs} legt und du schon in diesem Semester belegen kannst."),
-    next_empty: "Aus dem nächsten Semester ist nichts mehr offen.",
 
     counts_menu: "Zählt für",
     counts_tree: "Wo der Modulbaum es zählt",
@@ -353,6 +348,7 @@ pub const EN: Texts = Texts {
     plan_aria: |title, semester| format!("Plan {title} for {semester}"),
     unplan_aria: |title, semester| format!("Take {title} out of {semester}"),
     more_filters: "More filters:",
+    catalog_sub: "with every filter of the catalogue",
     fues_filters: "Language, exam, ECTS, teaching:",
     reserve: "Reserve",
     reserve_hint: "without a module, for later",
@@ -371,14 +367,11 @@ pub const EN: Texts = Texts {
     over_note: |n| format!("{n} ECTS more than the plan"),
 
     sheet_title: |semester| format!("Add to {semester}"),
-    modules_n: |n| if n == 1 { "1 module".to_string() } else { format!("{n} modules") },
     all_areas: "All areas",
     overview: "Overview",
     back: "Back",
     path: "Where you are",
     reserved_mark: "reserved",
-    next_rule: |fs| format!("What the plan puts into {fs} and you can take this semester already."),
-    next_empty: "Nothing of the next semester is open any more.",
 
     counts_menu: "Counts for",
     counts_tree: "Where the module tree counts it",
