@@ -6796,6 +6796,12 @@ span.st-wb-go { cursor: default; }
   .st-wb-hfig { flex: none; color: var(--text-2); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .st-wb-hfig b { color: var(--text); font-size: 15px; font-weight: 750; }
   .st-wb-hfig.heavy, .st-wb-hfig.heavy b { color: var(--warn); }
+  @media (max-width: 380px) {
+    .st-wb-hrow { gap: 8px; }
+    .st-wb-hrow h2 { font-size: 16px; letter-spacing: -.02em; }
+    .st-wb-hfig { font-size: 12.5px; }
+    .st-wb-hfig b { font-size: 14px; }
+  }
   .st-wb-hbar { position: relative; display: flex; gap: 2px; height: 10px; margin-top: 10px; overflow: hidden; border-radius: 5px; }
   .st-wb-hbar > span { flex-basis: 0; min-width: 2px; transition: flex-grow .3s var(--ease); }
   .st-wb-hbar > :is(.planned, .passed) { background: var(--c); animation: st-wb-piece .4s var(--ease); }
