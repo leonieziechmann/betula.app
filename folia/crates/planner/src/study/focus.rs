@@ -771,8 +771,12 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
         }
         draw.begin(ctx, semester, order, key.get_value(), ev.client_x(), ev.client_y(), touch);
     };
-    // A click opens the module (the box is its link); while rows are selected, or with Ctrl or ⌘,
-    // it selects the row or lets it go, with Shift the rows up to it.
+    // A placeholder still to be filled (owner, 2026-11-04: „Die primäre aufgabe von Platzhaltern soll
+    // es sein, dass man da dann ein modul auswählen kann. Wenn man das anklickt soll man gleich in dem
+    // menu/modal landen, wo man das auswählen kann"): its row of the plan, whose choice its box opens.
+    let place = Memo::new(move |_| row.with(|row| row.as_ref().and_then(|row| row.choose.clone())));
+    // A click opens the module (the box is its link), or a placeholder's choice; while rows are
+    // selected, or with Ctrl or ⌘, it selects the row or lets it go, with Shift the rows up to it.
     let click = move |ev: MouseEvent| {
         // Not one of the keys (Enter): those come without a press.
         if ev.detail() != 0 && draw.swallows() {
@@ -788,6 +792,8 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
         } else if ev.ctrl_key() || ev.meta_key() || selecting.get_untracked() {
             ev.prevent_default();
             toggle(ctx, semester, &key.get_value());
+        } else if let Some((caption, ord)) = place.get_untracked().filter(|_| dom::on_open(&ev)) {
+            super::bench::enter_row(ctx, semester, &caption, ord);
         }
     };
     // The space bar on the box selects the row or lets it go (Enter opens it, or does what a click
@@ -832,7 +838,7 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
         let id = code.clone();
         Memo::new(move |_| id.as_ref().is_some_and(|id| ctx.url.with(|url| url.open.as_deref() == Some(id.as_str()))))
     };
-    let opens = code.is_some() || row.with_untracked(|row| row.as_ref().is_some_and(|row| row.choose.is_some()));
+    let opens = code.is_some() || place.with_untracked(Option::is_some);
     let title = match code.clone() {
         Some(id) => view! {
             <a class="st-name st-open" href=move || module_href(ctx, &id, t) data-noscroll="" draggable="false" aria-current=move || current.get().then_some("true")>
@@ -851,6 +857,7 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
             class:is-passed=move || status.get() == Status::Passed
             class:is-failed=move || status.get() == Status::Failed
             class:is-selected=move || selected.get()
+            class:is-place=move || place.with(Option::is_some)
             on:pointerdown=down
             on:click=click
             on:keydown=keys
@@ -869,11 +876,6 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
                             view! {
                                 <span class="kind st-area"><i style=format!("background: {}", row.tone)></i>{row.area.clone()}</span>
                                 {row.flags.into_iter().map(|(class, text)| view! { <span class=class>{text}</span> }).collect_view()}
-                                {row.choose.map(|(caption, ord)| view! {
-                                    <button class="st-find" type="button" draggable="false" on:click=move |ev: MouseEvent| { ev.stop_propagation(); super::bench::enter_row(ctx, semester, &caption, ord); }>
-                                        <Icon name="search"/>{s.choose_module}
-                                    </button>
-                                })}
                                 {row.again.map(|to| view! {
                                     <button class="st-link" type="button" on:click=move |ev: MouseEvent| { ev.stop_propagation(); plan_again(ctx, &item, to, t); }>{s.plan_it}</button>
                                 })}
@@ -881,6 +883,13 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
                             }
                         })}
                     </small>
+                    // A placeholder's „Modul wählen" under its line, over all of its box
+                    // (`.st-open`): the row's click does what it says.
+                    {move || place.get().map(|_| view! {
+                        <button class="st-find st-open" type="button" draggable="false" aria-label=format!("{} · {}", s.choose_module, name.get_untracked())>
+                            <Icon name="search"/><span>{s.choose_module}</span><Icon name="chevron-right" class="st-find-go"/>
+                        </button>
+                    })}
                 </div>
                 {move || row.with(|row| row.as_ref().map(|row| row.facts.lead()))}
                 <span class="lp num">{move || row.with(|row| row.as_ref().and_then(|row| row.credits.clone()))}<small>{t.common.credits_unit}</small></span>

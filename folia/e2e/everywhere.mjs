@@ -279,9 +279,9 @@ await context.close();
     return { n: rows.length, inside: rows.every((row) => row.right <= document.querySelector(".st-wb-sheet").getBoundingClientRect().right + 0.5), tall: rows.every((row) => row.height >= 44) };
   });
   check(sheet.n >= 8 && sheet.inside && sheet.tall, `the workbench's areas on a phone: ${JSON.stringify(sheet)}`);
-  // „Gemerkt" at the sheet's foot, below what it shows half up: a tap unfolds what is marked under
-  // it, the sheet going all up.
-  await step("Gemerkt on a phone", () => page.locator('.st-wb-sheet .st-wb-a:has-text("Gemerkt")').dispatchEvent("click"), () => document.querySelectorAll(".st-wb-sheet .st-wb-in .st-wb-row").length === 6);
+  // „Gemerkt" at the sheet's foot, below what it shows half up: a tap goes into a page of what is
+  // marked, the sheet going all up, ‹ and the way back over it.
+  await step("Gemerkt on a phone", () => page.locator('.st-wb-sheet .st-wb-a:has-text("Gemerkt")').dispatchEvent("click"), () => document.querySelectorAll(".st-wb-sheet .st-wb-page .st-wb-row").length === 6 && document.querySelector(".st-wb-sheet .st-wb-path .st-wb-back"));
   await context.close();
 }
 

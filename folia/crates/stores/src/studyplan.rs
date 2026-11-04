@@ -622,6 +622,48 @@ pub fn BenchBar() -> impl IntoView {
     }
 }
 
+/// The workbench of „Mein Studium" over another page on a phone, in the tab bar's place and over it
+/// (owner, 2026-11-04: „ich fände es viel sinnvoller, wenn unten die navbar mit ausgetauscht wird
+/// mit einer interaction bar, wo man das dann abbrechen kann und wieder zurück zu mein studium
+/// kommt"): what „Einplanen" adds to — the semester, the subgroup — and the way back to it,
+/// „Abbrechen" while nothing was planned into the semester since the bar came, „Fertig" once
+/// something was. Not on „Mein Studium" itself, where the workbench is; the app's alone, shown on a
+/// phone alone (app.css, `.bench-dock`), where `BenchBar` gives way to it.
+#[component]
+pub fn BenchDock() -> impl IntoView {
+    let planning = Planning::expect().filter(|_| APP);
+    let plan = Studyplan::expect().filter(|_| APP);
+    let aim = Memo::new(move |_| planning.and_then(Planning::bench));
+    let location = folia_design::i18n::router_location();
+    // Elsewhere than at the workbench: the page its way back leads to.
+    let away = Memo::new(move |_| aim.with(|aim| aim.as_ref().is_some_and(|aim| location.pathname.with(|path| aim.back.split('?').next() != Some(path.as_str())))));
+    move || away.get().then(|| aim.get_untracked()).flatten().map(|aim| view! { <DockBar aim plan/> })
+}
+
+/// The bar: the semester and the subgroup, the way back.
+#[component]
+fn DockBar(aim: BenchAim, plan: Option<Studyplan>) -> impl IntoView {
+    let t = i18n::t();
+    let s = aim.semester;
+    // What the semester held as the bar came: once it holds more, „Fertig".
+    let before: Vec<String> = plan.map(|plan| untrack(|| plan.modules_in(s))).unwrap_or_default();
+    let more = Memo::new(move |_| plan.is_some_and(|plan| plan.modules_in(s).iter().any(|id| !before.contains(id))));
+    let what = aim.name.as_deref().map(|name| (t.planner.bench_for)(name));
+    view! {
+        <div class="bench-dock" role="toolbar" aria-label=t.planner.bench_mode>
+            <span class="bench-dock-w">
+                <b>{(t.planner.dock_title)(&s.label(t.locale))}</b>
+                {what.map(|what| view! { <span>{what}</span> })}
+            </span>
+            // Back through the history where „Mein Studium" is the step before, as „Zurück zur
+            // Werkbank" (`data-action`, folia_shell::pending): the page as it was left.
+            <a class=move || if more.get() { "btn primary bench-dock-go" } else { "btn secondary bench-dock-go" } href=t.path(&aim.back) data-action="close-focus" title=t.planner.bench_back_hint>
+                {move || if more.get() { t.planner.dock_done } else { t.planner.dock_cancel }}
+            </a>
+        </div>
+    }
+}
+
 /// What „Einplanen" aims at for a module now, asked once and not through a memo: for what presses
 /// it without being its switch, a row swiped to the right (`folia_widgets::swipe`), which asks when
 /// the finger starts. `current` and `newest` as for `PlanButton`.

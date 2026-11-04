@@ -254,6 +254,9 @@ pub fn App() -> impl IntoView {
                 // What marking did, and the menu of a module's collections and note.
                 <folia_widgets::marknote::MarkNote/>
                 <folia_widgets::collect::CollectHost/>
+                // The workbench of „Mein Studium" in the tab bar's place on a phone, while it plans
+                // from another page (the catalog of „Im Katalog suchen").
+                <folia_stores::studyplan::BenchDock/>
             </div>
         </Router>
     }

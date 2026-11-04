@@ -105,7 +105,7 @@ check(plan.rows.filter((row) => row.act === "Einplanen").map((row) => row.name).
 check(plan.rows.some((row) => row.name === "Fachübergreifendes Studium" && row.act === "Wählen"), "the FÜS of the 1. FS is not open from before");
 
 // 2: „Plan übernehmen".
-await step("Plan übernehmen", () => page.click("#st-wb-takeover"), () => document.querySelectorAll(".st-wb-sem .st-wb-sr").length === 3 && document.querySelector(".st-undo")?.textContent.includes("3 Pflichtmodule in WiSe 2026/27 eingeplant"));
+await step("Plan übernehmen", () => page.click("#st-wb-takeover"), () => document.querySelectorAll(".st-wb-sem .st-wb-sr").length === 3 && document.querySelector(".study-note")?.textContent.includes("3 Pflichtmodule in WiSe 2026/27 eingeplant"));
 check(JSON.stringify(await semester()) === JSON.stringify(["Theoretische Informatik|Pflicht", "Softwarepraktikum|Pflicht", "Mathematik IT-3 (Analysis)|Pflicht"]), `the semester after „Plan übernehmen“: ${JSON.stringify(await semester())}`);
 check((await lines("m\t2026W\t")).every((line) => line.split("\t")[5] === "plan"), "what „Plan übernehmen“ planned is not the plan's");
 
@@ -138,7 +138,7 @@ await page.click('.st-wb-ctl button:has-text("Im WiSe angeboten")');
 await step("Fertig, for its menu", () => page.click(".st-wb-done"), () => !document.querySelector(".st-wb"));
 await step("its menu", () => page.click(`.st-card-sem .st-row:has(.st-name:text-is("${stat}")) .st-status`), () => document.querySelector(".st-pop.root #st-menu-counts"));
 await step("Zählt für ›", () => page.click(".st-pop.root #st-menu-counts"), () => document.querySelector(".st-pop.sub") && [...document.querySelectorAll(".st-pop.sub [role=menuitem]")].some((item) => item.textContent.includes("Anwendungsfach")));
-await step("Zählt für Anwendungsfach", () => page.click('.st-pop.sub [role=menuitem]:has-text("Anwendungsfach")'), () => document.querySelector(".st-undo")?.textContent.includes("zählt für Anwendungsfach"));
+await step("Zählt für Anwendungsfach", () => page.click('.st-pop.sub [role=menuitem]:has-text("Anwendungsfach")'), () => document.querySelector(".study-note")?.textContent.includes("zählt für Anwendungsfach"));
 await step("Module hinzufügen, again", () => page.click(".st-card-sem .st-add"), () => document.querySelector(".st-wb-sem .st-wb-sr"));
 check((await semester()).includes(`${stat}|für Anwendungsfach`), `„Zählt für“ did not move it: ${JSON.stringify(await semester())}`);
 
