@@ -1471,10 +1471,12 @@
   };
   // A sheet that comes: up from below, half up, or all up where it has one stop; the dim behind it
   // whole again (a dialog thrown away before kept it at none), fading in by itself (app.css).
+  // A sheet that asks to come all up (`data-sheet-start="full"`: the workbench's opened at a page of
+  // it) keeps its stop half up for a finger.
   const showSheet = (sheet) => {
     const { half, away } = stopsOf(sheet);
     shadeSheet(sheet, 0, half, away);
-    glideSheet(sheet, away, 0, half ? "half" : "full", null, true);
+    glideSheet(sheet, away, 0, half && sheet.getAttribute("data-sheet-start") !== "full" ? "half" : "full", null, true);
   };
   // Away it glides, as fast as it was let go, then what closes it closes it (`then`, else its
   // kind's). A module's sheet goes its own way (`closeModule`, below).

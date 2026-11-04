@@ -63,6 +63,7 @@ use folia_design::stage::Title;
 use folia_data::{use_data, DataClient, DataError};
 use folia_design::nav;
 use folia_design::ui::Icon;
+use folia_design::waitnote::WaitNote;
 use folia_shell::frame::Frame;
 use folia_shell::pending::{Change, Pending, Shape};
 use folia_shell::seo::Seo;
@@ -250,8 +251,8 @@ pub(super) struct StudyCtx {
     /// The entries of the Gesamtplan being dragged to another semester: their semester and
     /// `Item::key`s.
     pub drag: RwSignal<Option<(SemesterKey, Vec<String>)>>,
-    /// The note of the last change that „Rückgängig" takes back, and the plan before it.
-    pub undo: RwSignal<Option<(String, PlanDoc)>>,
+    /// The last change, which „Rückgängig" takes back (`Undo`).
+    pub undo: RwSignal<Option<Undo>>,
     /// The same for a view (the Regelstudienplan, the Wahlpflicht) on a phone.
     pub view_back: RwSignal<bool>,
     /// The choice the Wahlpflicht shows (an index of `PlanView::choices`): a row's „Wählen" picks
@@ -259,7 +260,21 @@ pub(super) struct StudyCtx {
     pub choice: RwSignal<Option<usize>>,
     /// The workbench, while it is open (`bench.rs`): planning one semester is a mode.
     pub bench: RwSignal<Option<bench::Bench>>,
+    /// The pages of the workbench's sheet on a phone gone into from its root (`bench::Page`).
+    pub trail: RwSignal<Vec<bench::Step>>,
 }
+
+/// The last change that „Rückgängig" takes back: what its note says, the plan before it, and its
+/// turn, which tells its note from the note of a change after it.
+#[derive(Clone, Debug)]
+pub struct Undo {
+    pub note: String,
+    pub before: PlanDoc,
+    pub turn: u32,
+}
+
+/// The turn of the next change with a note.
+static UNDO_TURNS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
 impl StudyCtx {
     /// Changes the plan after the next frame (R21), then runs `then`: `change` gets the plan and
@@ -287,7 +302,8 @@ impl StudyCtx {
                 (*doc != before).then_some(before)
             });
             if let (Some(note), Some(before)) = (note, before) {
-                undo.try_set(Some((note, before)));
+                let turn = UNDO_TURNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                undo.try_set(Some(Undo { note, before, turn }));
             }
             then();
         });
@@ -569,6 +585,7 @@ pub fn StudyPage() -> impl IntoView {
         view_back: RwSignal::new(false),
         choice: RwSignal::new(None),
         bench: RwSignal::new(None),
+        trail: RwSignal::new(Vec::new()),
     };
     // While the workbench is open, „Einplanen" elsewhere aims at its semester and subgroup
     // (`Planning::bench`); its end ends that.
@@ -578,8 +595,27 @@ pub fn StudyPage() -> impl IntoView {
     }
     // On a phone Back leaves the mode, as it closes what lies over the page: the page's own state,
     // which a module opened from its sheet (a new address) leaves alone. While a module's sheet lies
-    // over it, that is closed first (a place of its own): the layer waits meanwhile.
-    folia_shell::nav::layer_while(move || ctx.phone.get() && ctx.bench.with(Option::is_some) && ctx.url.with(|url| url.open.is_none()), move || bench::leave(ctx), folia_shell::nav::Kind::State);
+    // over it, that is closed first (a place of its own): the layer waits meanwhile. A page gone
+    // into in the sheet is a step that Back and Esc take back first (`bench::back`), one at a time:
+    // the layer is the sheet's alone, its watcher made anew after each step, for a watcher hears one
+    // Back, and two made by one tap (a placeholder's „Modul wählen" opening the sheet at a page) are
+    // one group of the browser's, which one Back closes at once (`folia_shell::nav`).
+    let armed = RwSignal::new(true);
+    folia_shell::nav::layer_while(
+        move || armed.get() && ctx.phone.get() && ctx.bench.with(Option::is_some) && ctx.url.with(|url| url.open.is_none()),
+        move || {
+            if ctx.trail.with_untracked(Vec::is_empty) {
+                bench::leave(ctx);
+            } else {
+                bench::back(ctx);
+                armed.set(false);
+                request_animation_frame(move || {
+                    armed.try_set(true);
+                });
+            }
+        },
+        folia_shell::nav::Kind::State,
+    );
     // A view come to from the overview (a phone's way to it): the step before it in the history.
     Effect::new(move |before: Option<(StudyView, bool)>| {
         let now = url.with(|url| (url.view, url.plan));
@@ -749,42 +785,49 @@ fn Semesters(ctx: StudyCtx) -> impl IntoView {
     move || if grid.get() { view! { <grid::Grid ctx/> }.into_any() } else { view! { <focus::Focus ctx/> }.into_any() }
 }
 
-/// The note of the last change with „Rückgängig", at the bottom of the window until the next one
-/// or a while; over a phone's dots (`phone.rs`).
+/// The note of the last change with „Rückgängig": a note that waits for interaction
+/// (`folia_design::waitnote::WaitNote`; owner, 2026-11-04: „Bitte stelle den auch mal auf diese
+/// wait notification um … dass er angezeigt bleibt, wenn nichts passiert man es aber auch schließen
+/// kann und es allgemein besser mit modals funktioniert"): it stands until the student does
+/// something else, × (a wide screen) or a finger swiping it down puts it away. On a phone over the
+/// workbench's sheet at the bottom of the screen, as over a module's (app.css, `.study-note`).
 #[component]
 fn UndoNote(ctx: StudyCtx) -> impl IntoView {
+    // A new change makes a new note.
+    let turn = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().map(|undo| undo.turn)));
+    move || turn.get().map(|turn| view! { <UndoView ctx turn/> })
+}
+
+/// One note: a check, what was done, „Rückgängig" after a line.
+#[component]
+fn UndoView(ctx: StudyCtx, turn: u32) -> impl IntoView {
     let t = i18n::t();
-    let note = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().map(|(note, _)| note.clone())));
-    // Each note stands for a while; a newer one starts the while anew.
-    Effect::new(move |_| {
-        if let Some(note) = note.get() {
-            set_timeout(
-                move || {
-                    if ctx.undo.with_untracked(|undo| undo.as_ref().is_some_and(|(now, _)| *now == note)) {
-                        ctx.undo.try_set(None);
-                    }
-                },
-                std::time::Duration::from_secs(8),
-            );
+    let note = ctx.undo.with_untracked(|undo| undo.as_ref().map(|undo| undo.note.clone())).unwrap_or_default();
+    // This note goes, not a newer one that took its place.
+    let gone = Callback::new(move |()| {
+        if ctx.undo.with_untracked(|undo| undo.as_ref().is_some_and(|undo| undo.turn == turn)) {
+            ctx.undo.set(None);
         }
     });
-    let over_dock = Memo::new(move |_| ctx.phone.get());
+    // „Rückgängig": the plan as it was, and the note goes down and away.
+    let done = RwSignal::new(false);
     let restore = move |_| {
-        let (Some(plan), Some((_, before))) = (ctx.plan, ctx.undo.get_untracked()) else { return };
-        ctx.undo.set(None);
-        plan.update_after_paint(move |doc| *doc = before);
+        let (Some(plan), Some(undo)) = (ctx.plan, ctx.undo.get_untracked().filter(|undo| undo.turn == turn)) else { return };
+        done.set(true);
+        plan.update_after_paint(move |doc| *doc = undo.before);
     };
-    move || {
-        note.get().map(|note| {
-            view! {
-                <div class="st-undo" class:over-dock=move || over_dock.get() role="status">
-                    <Icon name="check"/>
-                    <span>{note}</span>
-                    <button class="mini hit" type="button" on:click=restore>{t.common.undo}</button>
-                    <button class="icon-btn hit" type="button" aria-label=t.study.close on:click=move |_| ctx.undo.set(None)><Icon name="x"/></button>
+    view! {
+        <WaitNote on_gone=gone away=Signal::derive(move || done.get()) class="mark-note study-note">
+            <div class="mark-toast">
+                <span class="plan-toast-mark out" aria-hidden="true"><Icon name="check"/></span>
+                <span class="mark-toast-said">{note}</span>
+                <span class="mark-toast-gap"></span>
+                <div class="plan-toast-end">
+                    <span class="plan-toast-sep" aria-hidden="true"></span>
+                    <button class="plan-toast-undo" type="button" on:click=restore>{t.common.undo}</button>
                 </div>
-            }
-        })
+            </div>
+        </WaitNote>
     }
 }
 
