@@ -29,7 +29,10 @@
 //   semester, the line of today and its flag, ▸ unfolding Mathematik into its lanes, kept, „Alle
 //   zuklappen", „Bisher zuklappen" and back), each cell as tall as what it lists, a module's menu,
 //   the plan's open Betriebssysteme I dashed and planned
-//   with a click, the view kept; a reload keeps all of it; nothing of it in a request.
+//   with a click, the view kept, in a narrower window the plan scrolled sideways to the semester
+//   before the current one with the areas' names at the left, the plan's head at the top when
+//   scrolled down and going along sideways with the areas, each head over its column; a reload
+//   keeps all of it; nothing of it in a request.
 // 2b a place filled (folia/design/hinzufuegen/konzepte.html, „Was heute schiefgeht"): the same study,
 //   „Anwendungsfach" alone put into WiSe 2026/27 by the workbench's „Vormerken"; „Modul wählen" in
 //   its menu and at its row opens the workbench at its subgroup, whose „Im Katalog suchen" leads to
@@ -495,7 +498,7 @@ if (current !== "2026W") {
     const pieces = [...(first?.querySelectorAll(".st-rm-seg .st-rm-p") ?? [])];
     const grow = (label) => Number(pieces.find((piece) => piece.textContent.trim() === label)?.style.flexGrow ?? 0);
     return {
-      bands: [...grid.querySelectorAll(".st-rm-band")].map((band) => band.textContent),
+      bands: [...document.querySelectorAll(".st-rm-heads .st-rm-band")].map((band) => band.textContent),
       first: pieces.map((piece) => piece.textContent.trim()),
       // A piece's share of its semester: Entwicklung von Softwaresystemen has 8 LP, the
       // Programmierpraktikum 4.
@@ -522,11 +525,51 @@ if (current !== "2026W") {
   const full = await page.evaluate(() => [...document.querySelectorAll(".st-rm-cell[data-full] .st-rm-sum")].map((sum) => sum.textContent.trim()));
   check(full.length > 0 && full.every((sum) => /\d+ (Module|offen)/.test(sum)), `a semester too full for its labels: ${JSON.stringify(full)}`);
   await step("a module's menu in the Gesamtplan", () => page.click(".st-rm-cell:not([data-full]) .st-rm-seg .st-rm-p:not(.open) >> nth=0"), () => document.querySelector(".st-pop.root #st-menu-remove"));
-  await step("closed by a click beside it", () => page.click(".st-pop-shade", { position: { x: 5, y: 5 } }), () => !document.querySelector(".st-pop"));
+  // Beside it on the page, over the sidebar: since the plan's head stays at the top (Folia 1.71.2),
+  // the area is masked as the semester's is, a layer of its own under the rail and the bar, and a
+  // click on them reaches them, as it does from a semester's menu.
+  await step("closed by a click beside it", () => page.click(".st-pop-shade", { position: { x: 200, y: 850 } }), () => !document.querySelector(".st-pop"));
   await step("▸ Informatik", () => page.click('.st-row-head:has(.st-card-name:text-is("Informatik")) .st-rm-tog'), () => document.querySelector('.st-rm-bar.open[aria-label*="Betriebssysteme I"]'));
   await step("plan the open Betriebssysteme I", () => page.click('.st-rm-bar.open[aria-label*="Betriebssysteme I"]'), () => document.querySelector(".study-note")?.textContent.includes("hinzugefügt"));
   check((await lines(page, "m\t2027S\t")).length === 1, `the open module was not planned: ${JSON.stringify(await lines(page, "m\t2027S\t"))}`);
   check((await stored(page, "betula.study.view")) === "grid", "the view is not remembered");
+  // The plan's head stays at the top (owner, 2026-11-04: „Ich möchte, dass da der header sticky
+  // ist von dem Plan. Also ähnlich wie bei dem Semester plan."): scrolled down, the title, the band
+  // of the study years and the semesters' heads at the top of the area, the areas under it; in a
+  // window too narrow for every semester, the areas scrolled sideways under it, the heads go along,
+  // each over its column.
+  await page.setViewportSize({ width: 1100, height: 800 });
+  // The current semester in view (owner, 2026-11-04: „dass immer das aktuelle semester passend
+  // gezeigt wird"): too narrow for every semester, the plan scrolls sideways by itself to the one
+  // before WiSe 2026/27, first after the areas' names, which stay at the left; the heads with it.
+  await page.waitForFunction(() => document.querySelector(".st-rm-top-scroll")?.scrollLeft > 0, null, { timeout: 3000 }).catch(() => {});
+  const shown = await page.evaluate(() => {
+    const box = document.querySelector(".st-grid-scroll:not(.st-rm-top-scroll)").getBoundingClientRect().left;
+    const left = (selector) => Math.round(document.querySelector(selector).getBoundingClientRect().left - box);
+    return { left: [...document.querySelectorAll(".st-grid-scroll")].map((scroller) => scroller.scrollLeft), now: left(".st-col-head.is-now"), name: left(".st-rm-grid > .st-row-head") };
+  });
+  check(shown.left.join() === "140,140" && shown.now === 336 && shown.name === 0, `the current semester in view: ${JSON.stringify(shown)}`);
+  const stuck = await page.evaluate(() => new Promise((done) => {
+    const area = document.querySelector("#content > .page-stage.front > .work.flowing");
+    const body = document.querySelector(".st-grid-scroll:not(.st-rm-top-scroll)");
+    area.scrollTop = area.scrollHeight;
+    body.scrollLeft = 120;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const at = (el) => Math.round(el.getBoundingClientRect().top - area.getBoundingClientRect().top);
+      const out = {
+        top: at(document.querySelector(".st-rm-top")),
+        panel: at(document.getElementById("st-grid")),
+        heads: document.querySelector(".st-rm-top-scroll").scrollLeft,
+        body: body.scrollLeft,
+        now: [".st-col-head.is-now", ".st-rm-cell.is-now"].map((selector) => Math.round(document.querySelector(selector).getBoundingClientRect().left)),
+      };
+      area.scrollTop = 0;
+      body.scrollLeft = 0;
+      done(out);
+    }));
+  }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  check(stuck.panel < -50 && Math.abs(stuck.top + 1) <= 1 && stuck.body === 120 && stuck.heads === 120 && stuck.now[0] === stuck.now[1], `the plan's head at the top: ${JSON.stringify(stuck)}`);
 
   // A reload keeps all of it.
   await page.reload({ waitUntil: "domcontentloaded" });
@@ -550,9 +593,11 @@ if (current !== "2026W") {
       os: row("Betriebssysteme I")?.querySelector(".st-minec")?.textContent.trim(),
       passed: document.querySelectorAll(".st-mx .st-rsp-c.is-passed").length,
       choose: [...document.querySelectorAll(".st-mx button.st-addb")].filter((button) => button.textContent.startsWith("Wählen")).length,
+      // The overview, its bar and the legend of the bar stay with the semesters (owner, 2026-11-04).
+      overview: document.querySelectorAll(".st-over, .st-bar, .st-legend-parts").length,
     };
   });
-  check(regular.current === "Regelstudienplan" && regular.groups.slice(0, 2).join() === "Komplex Informatik,Komplex Mathematik" && regular.columns === "123456" && regular.os === "SoSe 27" && regular.passed > 0 && regular.choose > 3, `the Regelstudienplan: ${JSON.stringify(regular)}`);
+  check(regular.current === "Regelstudienplan" && regular.groups.slice(0, 2).join() === "Komplex Informatik,Komplex Mathematik" && regular.columns === "123456" && regular.os === "SoSe 27" && regular.passed > 0 && regular.choose > 3 && regular.overview === 0, `the Regelstudienplan: ${JSON.stringify(regular)}`);
   await step("a row planned from the plan", () => page.click('.st-mx tr.st-rsp-row:has(.st-rsp-name:text-is("Digitaltechnik-Praktikum")) button.st-addb'), () => document.querySelector(".study-note")?.textContent.includes("„Digitaltechnik-Praktikum“ ins SoSe 2027 eingeplant"));
   await page.waitForFunction(() => [...document.querySelectorAll(".st-mx tbody tr.st-rsp-row")].find((tr) => tr.querySelector(".st-rsp-name")?.textContent === "Digitaltechnik-Praktikum")?.querySelector(".st-minec")?.textContent.trim() === "SoSe 27", null, { timeout: 4000 }).catch(() => problems.push("the row planned from the plan does not say where it is planned"));
   check((await lines(page, "m\t2027S\t12214")).length === 1, "„Einplanen\" of the plan did not plan the module");
@@ -572,11 +617,12 @@ if (current !== "2026W") {
     lists: [...document.querySelectorAll(".st-lists button")].map((b) => b.childNodes[0].textContent),
     rows: document.querySelectorAll(".st-wtable tbody tr:not(.st-more-row)").length,
     season: document.querySelector('.st-season-seg button[aria-pressed="true"]')?.textContent,
+    overview: document.querySelectorAll(".st-over, .st-bar, .st-legend-parts").length,
   }));
-  check(choice.current === "Wahlpflicht" && choice.lists.length === 5 && choice.lists[0] === "Mathematik" && choice.rows > 3 && choice.season === "WiSe 2026/27", `the Wahlpflicht: ${JSON.stringify(choice)}`);
+  check(choice.current === "Wahlpflicht" && choice.lists.length === 5 && choice.lists[0] === "Mathematik" && choice.rows > 3 && choice.season === "WiSe 2026/27" && choice.overview === 0, `the Wahlpflicht: ${JSON.stringify(choice)}`);
   await step("a module of its list planned", () => page.click(".st-wtable tbody tr:not(.taken) button.st-addb >> nth=0"), () => document.querySelector(".study-note")?.textContent.includes("ins WiSe 2026/27 eingeplant") && document.querySelector(".st-wtable tbody tr.taken"));
   await page.waitForFunction(() => document.querySelector('.st-sl[aria-current="true"] small')?.textContent.includes("von 12\u00a0LP gewählt"), null, { timeout: 4000 }).catch(() => problems.push("the choice does not count the module planned out of its list"));
-  await step("back to the semesters", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => location.search === "" && document.querySelector(".st-grid"));
+  await step("back to the semesters", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => location.search === "" && document.querySelector(".st-grid") && document.querySelector(".st-over .st-bar") && document.querySelector("#sidebar .st-legend-parts"));
   for (const request of requests) {
     if (/12104|079-82-2008|11787%0A|d%092025W|start%09/.test(request.replace(/\/catalog\/module\/\d+|open=11787/g, ""))) problems.push(`a request carries the study: ${request.slice(0, 160)}`);
   }

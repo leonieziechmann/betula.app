@@ -5,8 +5,9 @@
 //! wird planbar: jedes Modul mit „In SoSe 27""). Betula blocks nothing: whatever is planned here
 //! counts where the tree places it, and the list says what the student has of it.
 //!
-//! On a desktop under the overview: the choices on the left by area, the one picked on the right —
-//! what the plan says of it, the semester to plan into (the one the plan puts it into and the one
+//! On a desktop alone in the page (the overview and its bar stay with the semesters; owner,
+//! 2026-11-04): the choices on the left by area, the one picked on the right — what the plan says
+//! of it, the semester to plan into (the one the plan puts it into and the one
 //! after; „Alle" shows what neither offers as well), its lists as tabs where it has several
 //! („Anwendungsfach": Mathematik, Physik …), and the list's modules. On a phone a page of its own
 //! behind the overview: the areas as chips, the semester, and the area's choices one under the

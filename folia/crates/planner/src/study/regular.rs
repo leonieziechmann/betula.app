@@ -3,9 +3,10 @@
 //! Stand darin"). The plan as its regulation prints it, each row with where it stands in the study
 //! (`folia_plans::choices::plan_view`): passed, planned, taken again, not passed, open.
 //!
-//! On a desktop a table under the overview: a row a row of the plan, grouped by the areas of the
-//! progress and in their colours; a column each Fachsemester (the semester it is for the student
-//! under it, the current one marked); the credits in the cell of the row's Fachsemester, in the
+//! On a desktop a table, alone in the page (the overview and its bar stay with the semesters;
+//! owner, 2026-11-04): a row a row of the plan, grouped by the areas of the progress and in their
+//! colours; a column each Fachsemester (the semester it is for the student under it, the current
+//! one marked); the credits in the cell of the row's Fachsemester, in the
 //! look of where it stands, and where the student has it in another semester a cell there too; at
 //! the end „Bei dir": the semester it is passed or planned in, else what can be done — „Einplanen"
 //! into the semester it fits next, „Wählen" for a choice (the Wahlpflicht). „Mein Stand" switches

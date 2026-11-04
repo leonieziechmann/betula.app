@@ -17,8 +17,15 @@
 //! „Anwendungsfach“"). The semesters before the current one stand open; „Bisher zuklappen" folds
 //! them into one column. A click on a module (or a right click) opens its menu (`menu.rs`), a
 //! module dragged into another column moves there, „+" in a cell opens the workbench for that
-//! semester at that area (`bench.rs`). A desktop's view; until Folia 1.69.0 its cells listed the
-//! modules' names (the mockup's concept C, owner 2026-10-04).
+//! semester at that area (`bench.rs`). The title, the band and the semesters' heads stay at the top
+//! while the areas scroll under them, as the semester's head does (owner, 2026-11-04: „Ich möchte,
+//! dass da der header sticky ist von dem Plan. Also ähnlich wie bei dem Semester plan."): a grid of
+//! their own over the areas', each in a box that scrolls sideways and follows the other (`follow`).
+//! Too wide for its panel, the plan scrolls sideways by itself to the current semester, the one
+//! before it first after the areas' names, which stay at the left (owner, the same day: „dass immer
+//! das aktuelle semester passend gezeigt wird"; `show_now`).
+//! A desktop's view; until Folia 1.69.0 its cells listed the modules' names (the mockup's concept
+//! C, owner 2026-10-04).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -27,6 +34,7 @@ use folia_calendar::semester::SemesterKey;
 use folia_model::labels::{ModuleKind, Season};
 use folia_pages::ask::ModuleAbbrevsAsk;
 use folia_plans::study::{Item, Pick, Subject, When};
+use leptos::html::Div;
 use leptos::prelude::*;
 
 use folia_design::nav;
@@ -346,6 +354,20 @@ fn word_of(piece: &Piece, t: &Texts) -> &'static str {
 }
 
 impl Layout {
+    /// The style of the grid of the heads and of the areas' alike: the same columns, as wide in
+    /// both (at least the sum of what each column takes, never what their content asks), and where
+    /// today is in its semester.
+    fn style(&self) -> String {
+        let past_column = self.columns.iter().any(|column| matches!(column, Column::Past { .. }));
+        let semesters = self.columns.len() - usize::from(past_column);
+        let least = 196 + if past_column { 96 } else { 0 } + 140 * semesters;
+        format!(
+            "grid-template-columns: 196px {}repeat({semesters}, minmax(140px, 1fr)); min-width: {least}px; --today: {}",
+            if past_column { "96px " } else { "" },
+            self.today.map_or(0.0, |(_, gone)| gone),
+        )
+    }
+
     fn of(ready: &Ready, fold: bool, abbrevs: &BTreeMap<String, String>, today: Option<Day>, t: &Texts) -> Self {
         let s = &t.study;
         let study = &ready.study;
@@ -666,49 +688,98 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
         nav::local_set(OPEN_KEY, &names.iter().cloned().collect::<Vec<_>>().join("\n"));
         open.set(names);
     };
-    // Whether the pieces fit beside each other: measured after every change and whenever the
-    // grid's width changes (the window, the sidebar).
+    // The panel's head and the heads of the semesters stay at the top while the areas scroll under
+    // them (app.css), so they scroll sideways in a box of their own: either box follows the other,
+    // moved by a wheel, a finger, the keys or the focus. Both boxes stay as the plan changes (an
+    // area unfolded), and so does how far they are scrolled.
+    let heads = NodeRef::<Div>::new();
+    let body = NodeRef::<Div>::new();
+    // Where this last put each box (px): the scroll that sets off there is not followed back, which
+    // would pull a glide of the other one back by a frame.
+    let heads_put = StoredValue::new(None::<f64>);
+    let body_put = StoredValue::new(None::<f64>);
+    // Whether the plan was scrolled sideways otherwise than by `show_now`: by the student, the
+    // keys, the focus.
+    let by_hand = StoredValue::new(false);
+    // The current semester in view (owner, 2026-11-04: „die scrollposition von der seite so
+    // anzupassen, dass immer das aktuelle semester passend gezeigt wird"): the one before it first
+    // after the areas' names, then it and those to come (`dom::now_left`). Once the plan is there and
+    // as „Bisher" folds or unfolds the semesters before it (`force`); as its width changes only
+    // while nobody has scrolled it sideways, which it does not undo.
+    let show_now = move |force: bool| {
+        if !force && by_hand.get_value() {
+            return;
+        }
+        let Some(x) = heads.get_untracked().and_then(|heads| dom::now_left(&heads)) else { return };
+        by_hand.set_value(false);
+        for (node, put) in [(heads, heads_put), (body, body_put)] {
+            if let Some(element) = node.get_untracked() {
+                put_left(&element, put, x);
+            }
+        }
+    };
+    let placed = StoredValue::new(None::<bool>);
+    Effect::new(move |_| {
+        let fold = fold.get();
+        if layout.with(Option::is_some) && placed.get_value() != Some(fold) {
+            placed.set_value(Some(fold));
+            request_animation_frame(move || show_now(true));
+        }
+    });
+    // Whether the pieces fit beside each other, and how tall the head is that stays at the top:
+    // measured after every change and whenever the grid's width changes (the window, the sidebar).
+    let measure = || {
+        dom::fit_pieces(PANEL_ID);
+        dom::measure_top(PANEL_ID);
+    };
     Effect::new(move |_| {
         layout.track();
         open.track();
-        request_animation_frame(|| dom::fit_pieces(PANEL_ID));
+        request_animation_frame(measure);
     });
     Effect::new(move |_| {
-        let watch = nav::watch_size(PANEL_ID, || dom::fit_pieces(PANEL_ID));
+        let watch = nav::watch_size(PANEL_ID, move || {
+            measure();
+            show_now(false);
+        });
         on_cleanup(move || drop(watch));
     });
     view! {
         <section class="panel st-grid-panel st-rm" id=PANEL_ID aria-label=s.grid_title>
-            <div class="st-sems-head">
-                <h2>{s.grid_title}</h2>
-                <span class="st-grow"></span>
-                <button class="st-link st-rm-all" type="button" on:click=move |_| keep(names.get_untracked().into_iter().collect())><Icon name="chevrons-down"/>{s.expand_all}</button>
-                <button class="st-link st-rm-all" type="button" on:click=move |_| keep(BTreeSet::new())><Icon name="chevrons-up"/>{s.collapse_all}</button>
-                {move || any_past.get().then(|| view! {
-                    <button class="st-link" type="button" aria-expanded=move || if fold.get() { "false" } else { "true" } on:click=move |_| fold.update(|fold| *fold = !*fold)>
-                        {move || if fold.get() { s.expand_past } else { s.collapse_past }}
-                    </button>
-                })}
+            <div class="st-rm-top">
+                <div class="st-sems-head">
+                    <h2>{s.grid_title}</h2>
+                    <span class="st-grow"></span>
+                    <button class="st-link st-rm-all" type="button" on:click=move |_| keep(names.get_untracked().into_iter().collect())><Icon name="chevrons-down"/>{s.expand_all}</button>
+                    <button class="st-link st-rm-all" type="button" on:click=move |_| keep(BTreeSet::new())><Icon name="chevrons-up"/>{s.collapse_all}</button>
+                    {move || any_past.get().then(|| view! {
+                        <button class="st-link" type="button" aria-expanded=move || if fold.get() { "false" } else { "true" } on:click=move |_| fold.update(|fold| *fold = !*fold)>
+                            {move || if fold.get() { s.expand_past } else { s.collapse_past }}
+                        </button>
+                    })}
+                </div>
+                <div class="st-grid-scroll st-rm-top-scroll" node_ref=heads on:scroll=move |_| follow(heads, body, heads_put, body_put, by_hand)>
+                    {move || layout.get().map(|layout| {
+                        let today_at = layout.today.map(|(at, _)| at);
+                        view! {
+                            <div class="st-grid st-rm-heads" style=layout.style()>
+                                <div class="st-rm-corner"></div>
+                                {layout.bands.iter().map(|band| view! { <div class="st-rm-band" style=format!("grid-column: span {}", band.span)>{band.label.clone()}</div> }).collect_view()}
+                                <div class="st-grid-corner"></div>
+                                {layout.columns.iter().cloned().enumerate().map(|(at, column)| head_view(ctx, column, today_at == Some(at), t)).collect_view()}
+                            </div>
+                        }
+                    })}
+                </div>
             </div>
-            {move || layout.get().map(|layout| {
-                let past_column = layout.columns.iter().any(|column| matches!(column, Column::Past { .. }));
-                let semesters = layout.columns.len() - usize::from(past_column);
-                let today_at = layout.today.map(|(at, _)| at);
-                let style = format!(
-                    "grid-template-columns: 196px {}repeat({semesters}, minmax(140px, 1fr)); --today: {}",
-                    if past_column { "96px " } else { "" },
-                    layout.today.map_or(0.0, |(_, gone)| gone),
-                );
-                let columns = layout.columns.clone();
-                let kinds: Vec<&'static str> = columns.iter().map(column_class).collect();
-                let opened = open.get();
-                view! {
-                    <div class="st-grid-scroll">
+            <div class="st-grid-scroll" node_ref=body on:scroll=move |_| follow(body, heads, body_put, heads_put, by_hand)>
+                {move || layout.get().map(|layout| {
+                    let style = layout.style();
+                    let today_at = layout.today.map(|(at, _)| at);
+                    let kinds: Vec<&'static str> = layout.columns.iter().map(column_class).collect();
+                    let opened = open.get();
+                    view! {
                         <div class="st-grid st-rm-grid" style=style>
-                            <div class="st-rm-corner"></div>
-                            {layout.bands.iter().map(|band| view! { <div class="st-rm-band" style=format!("grid-column: span {}", band.span)>{band.label.clone()}</div> }).collect_view()}
-                            <div class="st-grid-corner"></div>
-                            {columns.iter().cloned().enumerate().map(|(at, column)| head_view(ctx, column, today_at == Some(at), t)).collect_view()}
                             {layout.rows.into_iter().map(|row| {
                                 let unfolded = opened.contains(&row.name);
                                 row_view(ctx, row, unfolded, today_at, &kinds, open, keep, fold, t)
@@ -719,9 +790,9 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
                                 </div>
                             })}
                         </div>
-                    </div>
-                }
-            })}
+                    }
+                })}
+            </div>
             <p class="st-grid-legend st-rm-legend">
                 <span><i class="st-rm-sw passed"></i>{s.legend_passed}</span>
                 <span><i class="st-rm-sw running"></i>{s.legend_running}</span>
@@ -736,6 +807,31 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
                 <span>{s.grid_help}</span>
             </p>
         </section>
+    }
+}
+
+/// Scrolls the box `to` sideways as far as `from` is, which has just scrolled: the heads with the
+/// areas, or the areas with the heads. Not where `from` is where this put it (`from_put`): that
+/// scroll followed the other box already. Any other scroll is the student's (`by_hand`).
+fn follow(from: NodeRef<Div>, to: NodeRef<Div>, from_put: StoredValue<Option<f64>>, to_put: StoredValue<Option<f64>>, by_hand: StoredValue<bool>) {
+    let (Some(from), Some(to)) = (from.get_untracked(), to.get_untracked()) else { return };
+    let x = dom::left_of(&from);
+    if from_put.try_update_value(Option::take).flatten().is_some_and(|put| (put - x).abs() < 0.5) {
+        return;
+    }
+    by_hand.set_value(true);
+    put_left(&to, to_put, x);
+}
+
+/// Scrolls a box of the Gesamtplan sideways to `x` and keeps where that put it (`put`), so that
+/// the scroll it sets off is not followed back (`follow`); nothing where it is there already, which
+/// sets off no scroll.
+fn put_left(element: &leptos::web_sys::Element, put: StoredValue<Option<f64>>, x: f64) {
+    let before = dom::left_of(element);
+    if (before - x).abs() >= 0.5 {
+        dom::scroll_row_to(element, x);
+        let now = dom::left_of(element);
+        put.set_value(((now - before).abs() >= 0.5).then_some(now));
     }
 }
 

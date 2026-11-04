@@ -1259,7 +1259,24 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       (a date and a room, or its groups and a semester of dates), the menus that list semesters or
       collections („Einplanen in …", the arrow of „Eingeplant", „Mein Studium"'s menu with
       „Verschieben nach ›", the Merkliste's menu of several modules); a submenu in its menu's
-      place stands where the menu stood.
+      place stands where the menu stood. And the menus of the app's frame (owner, 2026-11-04:
+      „guck mal bitte durch, wo das überall sinn ergibt das system zu verwenden"; chrome.rs): a
+      tab of the bar held (`TabMenu`: „Studium"'s ways, the Merkliste's collections, as many as
+      there are) and the profiles from the box at the head (`ProfileSwitcher`: the profiles,
+      „Neues Profil" with its field, the way to the profile page and the other language). They
+      stood at what opened them until then, a dropdown over the bar or below the box; they are
+      sheets over all of the page now, the bar too, their dim a menu's. A mouse resting on the box
+      at a phone's head opens nothing any more (its click does): the rail's way alone opens the
+      menu so, beside it.
+
+    Not sheets, and why: the palette of commands has no way in on a phone (no button, no keys); a
+    picker's list (`combobox`) unrolls in the flow under its button, in the form or the sheet it
+    is in; the sheet of a choice in focus (`.sp-pick`, the Stundenplan's groups) is no modal: the
+    week above it stays at hand, it moves on the same springs and throws with its own engine,
+    turning its tiles into the lines of „Vergleichen" as far as it has come; an area or a row of
+    the plan picked on a program's page is the page on a phone (a step of its own, `program.rs`);
+    a question asked in the page („Löschen?" of a profile, a calendar's menu under its row) stays
+    in the page; notes („Rückgängig") and bars (the workbench's, a selection's) are no modals.
 
     A `Modal` stands as its size says (`ModalSize::sheet`: „s" fits, „m" half, „l" full) unless it
     says otherwise (`sheet=Sheet::…`); what changes its kind while it is open (a dialog that holds
@@ -1651,8 +1668,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     the first two one address and a setting of the browser's (R13), the others addresses of their
     own (`view`), and the one switch between them (since 2026-10-19 no switch over the semesters
     says it again); „Studiengang": its regulations and documents on its page, and „Alle
-    Studiengänge"; then the legend, the parts of the bar („Fortschrittsbalken") apart from the marks
-    of a module („Zeichen an Modulen"), a word each, and the storage hint. Nothing in it says again what the page or the tab
+    Studiengänge"; then the legend, the parts of the bar („Fortschrittsbalken"; with the semesters
+    alone, where the bar is, since 2026-11-04) apart from the marks of a module („Zeichen an
+    Modulen"), a word each, and the storage hint. Nothing in it says again what the page or the tab
     bar says (owner, 2026-10-04: „Mein Studium Sidebar ist noch sehr redundant und nicht platz
     effizient"): no label over the card, no way to the Stundenplan, whose tab is beside it. A
     phone has no sidebar: all of it is on its overview (below). A program's views are the
@@ -1730,8 +1748,11 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     Ansichten von „Mein Studium" – mit deinem Stand darin"; `regular.rs`, `choose.rs`, the data in
     `folia/crates/plans/src/choices.rs`). Until then both were the program's pages, another world
     with another title and another sidebar, where nothing of the student's showed and nothing
-    could be planned. Now, on a desktop under the overview, on a phone a page of its own behind it
-    (the way back at the head, through the history where the overview is the step before):
+    could be planned. Now, on a desktop in the page's place, on a phone a page of its own behind
+    the overview (the way back at the head, through the history where the overview is the step
+    before). The overview and its bar stand with the semesters alone (owner, 2026-11-04: „Beim
+    regelstudienplan und bei dem wahlpflicht teil soll die progress bar entfernt werden. Die ist
+    nicht relevant für die beiden subpages"); until then they stood above both views on a desktop:
     - **„Regelstudienplan"** (`view=plan`): the plan as its regulation prints it, a row a row of it,
       grouped by the areas of the progress in their colours (each with what is taken of what it
       asks), a column each Fachsemester with the semester it is for the student (the current one
@@ -2102,7 +2123,28 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     hover where it is not, opens the workbench for that semester at that area (until 1.64.0 a dialog
     of the area's modules, `picker::CellDialog`); a click on a piece (or a right click) opens the
     module's menu, the semesters' row menu; a piece dragged into another column moves there. Until
-    1.69.0 each cell listed the area's modules as plain lines, the plan's open ones in grey.
+    1.69.0 each cell listed the area's modules as plain lines, the plan's open ones in grey. Since
+    Folia 1.71.2 the plan's head stays at the top as the semester's does (owner, 2026-11-04: „Ich
+    möchte, dass da der header sticky ist von dem Plan. Also ähnlich wie bei dem Semester plan."):
+    the title with „Alle aufklappen", the band of the study years and the semesters' heads, one
+    block across the panel with the panel's ring and round corners at the top (`.st-rm-top`, the
+    area masked as for the semester, the page not under the bar), the areas scrolling under it.
+    The heads are a grid of their own over the areas' (the same columns, both at least as wide as
+    the columns take), each in a box that scrolls sideways and follows the other's scroll
+    (`grid::follow`, the fraction of a scaled screen kept); both boxes stay as the plan changes, so
+    an area unfolded keeps how far the plan is scrolled sideways (until then it went back to the
+    first column). What is focused under the head scrolls into view below it (`--rm-top`, its
+    height). With the area masked, a menu of the plan is under the rail and the bar as a semester's
+    is: a click there reaches them instead of only closing the menu. Since Folia 1.71.3 the current
+    semester is in view (owner, 2026-11-04: „die scrollposition von der seite so anzupassen, dass
+    immer das aktuelle semester passend gezeigt wird"): where the plan is too wide for the panel it
+    scrolls sideways by itself so that the semester before the current one stands first after the
+    areas' names, then the current one and those to come (the current one first where the room
+    beside the names takes fewer than three columns; `dom::now_left`), once the plan is there and
+    again as „Bisher" folds or unfolds; as the width changes only while nobody has scrolled the plan
+    sideways, which it does not undo. The areas' names stay at the left meanwhile (sticky, the line
+    between them and the first semester theirs), so that the plan scrolled still says what each row
+    is.
   - **Adding, moving, taking out** (owner: adding and removing were „eine absolute Krise"):
     „Module hinzufügen" opens the workbench (`bench.rs`, Folia 1.64.0; folia/design/hinzufuegen/
     konzepte.html, third round; owner, 2026-11-03: „Passt so, bau das jetzt in Folia"): planning
@@ -2257,7 +2299,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     band of the study years, the pieces by abbreviation and credits, a bar broken before its
     semester, the line of today, ▸ and „Alle zuklappen" kept, „Bisher zuklappen", a semester too
     full for its labels, each cell as tall as what it lists, its menu, the plan's open module planned
-    from its lane), the phone
+    from its lane, in a narrower window scrolled to the semester before the current one with the
+    areas' names at the left, its head at the top when scrolled down and going along sideways), the
+    phone
     (the overview in its order and
     without a sidebar, one row of the semesters that are over, the overview and the rest, the
     overview the page in view and no way back at the head, the row's dots on it; the box by a tap
@@ -2304,7 +2348,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     that glides away; „Sammeln" (`auto`) a dialog that fits while it holds little, a tap on its
     grabber and a short pull leaving it where it is, half up and all up once it holds more (all up
     as it was, half up under a pull), fitting again once it holds less; „Tasten" naming its keys; „Plan einrichten" all up at once in one move, never half up, a short pull coming
-    back all up and a quick one throwing it away.
+    back all up and a quick one throwing it away; the Merkliste's tab held a sheet of `auto` from
+    below, fitting with two collections (a tap on the dim closing it) and half up with sixteen (the
+    grabber all up, its ways scrolling, its last way leading to its collection with a copy gliding
+    away); the profiles' menu from the box at the head fitting, thrown away by a finger.
 - **The search in the top bar belongs to the page:** modules everywhere, programs on `/programs`.
   In the browser app it filters while typing (history entry replaced, not added). How it finds and
   orders modules: „The search of the catalog“ below.

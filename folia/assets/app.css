@@ -681,10 +681,10 @@ body:not(:has(> .main > .content > .page-stage.front > .work > .ground)) > .grou
      before: the area's padding, under which what is pinned sticks, and `scroll-padding`, which
      keeps what is scrolled to (a section, the focus) below the bar as well. Once the page is
      scrolled the frost lies behind the bar (`.frost`, above). Not a list's page nor „Mein
-     Studium"'s semesters and its workbench: their heads stay at the top and take what scrolls
-     under them. By its
+     Studium"'s semesters, its Gesamtplan and its workbench: their heads stay at the top and take
+     what scrolls under them. By its
      classes, so that the takeover's picture (boot.js: a copy without ids) stands as the page. */
-  .content > .page-stage > .work.flowing:not(:has(> .list, > .page > .page-inner.study > :is(.st-sems, .st-wb))) {
+  .content > .page-stage > .work.flowing:not(:has(> .list, > .page > .page-inner.study > :is(.st-sems, .st-grid-panel, .st-wb))) {
     margin-top: calc(-1px - var(--head)); height: calc(100% + 2px + var(--head)); padding-top: calc(1px + var(--head)); scroll-padding-top: var(--head);
   }
   .work.flowing:focus { outline: none; }
@@ -3317,29 +3317,29 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 
 .bottomnav { display: none; }
 /* What a tab holds besides its page (chrome.rs `TabMenu`, enhance.js): a menu at the tab over the
-   page, dimmed a little; above the bar on a phone (the bar stays as it is, its tab tapped again
-   goes there), beside the rail on a wide screen. Its ways as tall as a finger needs. */
+   page, dimmed a little, beside the rail on a wide screen; on a phone a sheet from below, as every
+   menu there („the sheets of a phone"). Its ways as tall as a finger needs. */
 .tab-scrim { position: fixed; inset: 0; z-index: 29; background: rgba(15, 23, 42, .16); animation: fade-in .12s; }
 .tab-menu { position: fixed; z-index: 31; width: 248px; padding: 6px; border-radius: 14px; background: var(--panel); color: var(--text); box-shadow: var(--shadow-pop); transform-origin: 0 0; animation: tab-menu-in .16s var(--ease); }
-.tab-menu.on-bar { left: clamp(10px, calc(var(--tab-x) - 124px), calc(100% - 258px)); bottom: calc(80px + env(safe-area-inset-bottom)); transform-origin: 50% 100%; }
 .tab-menu-head { margin: 0; padding: 6px 10px 4px; overflow: hidden; color: var(--text-3); font-size: 12px; font-weight: 560; white-space: nowrap; text-overflow: ellipsis; }
 .tab-menu-way { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 10px; border-radius: 9px; color: var(--text); font-size: 15px; font-weight: 560; text-decoration: none; -webkit-tap-highlight-color: transparent; }
 .tab-menu-way > .icon { flex: none; width: 18px; height: 18px; color: var(--text-2); }
 .tab-menu-way:active { background: var(--row-hover); }
 .tab-menu-way:focus-visible { background: var(--row-hover); outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
-@media (hover: hover) { .tab-menu-way:hover { background: var(--row-hover); text-decoration: none; } }
+/* No link's underline: a finger leaves its hover on the way that glided under it as the sheet came. */
+.tab-menu-way:hover { text-decoration: none; }
+@media (hover: hover) { .tab-menu-way:hover { background: var(--row-hover); } }
 @keyframes tab-menu-in { from { opacity: 0; transform: translateY(6px) scale(.94); } }
 /* The Merkliste's tab, held (chrome.rs `TabMenu`): its views with how many each holds, at the end
    of the way; a long name of a collection gives way. As many collections as there are: the menu
    scrolls where the window has no room for all of them. */
 .tab-menu { max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; }
-.tab-menu.on-bar { max-height: calc(100dvh - 100px - env(safe-area-inset-bottom)); }
 .tab-menu-way > span:not(.tab-menu-n) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tab-menu-n { flex: none; margin-left: auto; color: var(--text-3); font-size: 13px; font-weight: 500; }
 /* The menu of the profiles (chrome.rs `ProfileMenu`): a menu as a tab's is, beside the rail's way to
-   the profile page and growing up from its foot, or hanging below the phone's box at its right
-   edge. The profiles as on the profile page (`.pf-item`), the active one checked; below them
-   „Neues Profil", the way to the profile page and the other language. */
+   the profile page and growing up from its foot, or from the phone's box a sheet from below. The
+   profiles as on the profile page (`.pf-item`), the active one checked; below them „Neues Profil",
+   the way to the profile page and the other language. */
 .profile-menu { width: 272px; max-width: calc(100vw - 20px); max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; transform-origin: 100% 0; }
 .profile-menu.at-rail { transform-origin: 0 100%; }
 .pm-list { display: grid; gap: 2px; }
@@ -5638,7 +5638,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
    (`.short`, enhance.js): the page reaches through the ground's row, with room at its end for the
    ground to slide over the box's empty end, and the box stays at the top meanwhile. */
 @media (min-width: 901px) {
-  .work.flowing:has(> .page > .page-inner.study > .st-sems) {
+  .work.flowing:has(> .page > .page-inner.study > :is(.st-sems, .st-grid-panel)) {
     mask-image: linear-gradient(#000 0 0), radial-gradient(circle at 10px 10px, transparent 9.6px, #000 10.4px), radial-gradient(circle at 0 10px, transparent 9.6px, #000 10.4px);
     mask-origin: border-box, border-box, content-box; mask-clip: border-box;
     mask-size: 100% 100%, 10px 10px, 10px 10px; mask-repeat: no-repeat;
@@ -5858,7 +5858,22 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .st-grid-panel .st-sems-head { flex-wrap: wrap; gap: 4px 16px; padding-bottom: 10px; }
 .st-rm-all .icon { width: 15px; height: 15px; }
 .st-grid-scroll { overflow-x: auto; scrollbar-width: thin; }
-.st-grid { display: grid; border-top: 1px solid var(--line-strong); min-width: min-content; }
+/* The heads are a grid of their own over the areas' (grid.rs), in a box of their own that scrolls
+   sideways with theirs and shows no bar; both grids at least as wide as their columns take
+   (`min-width`, grid.rs), so that their columns are as wide. */
+.st-rm-top-scroll { scrollbar-width: none; }
+.st-rm-top-scroll::-webkit-scrollbar { display: none; }
+.st-grid { display: grid; }
+.st-rm-heads { border-top: 1px solid var(--line-strong); }
+/* The areas' names stay at the left while the semesters scroll sideways under them, so that the
+   plan scrolled to the current semester (grid.rs, `show_now`) still says what each row is: the
+   column sticky on the panel's ground, the line between it and the first semester its own (the
+   first semester's left edge goes, which would show twice). What is focused right of it scrolls
+   into view beside it (the column's 196 px, grid.rs). */
+.st-rm-heads > :is(.st-rm-corner, .st-grid-corner), .st-rm-grid > :is(.st-row-head, .st-rm-lane) { position: sticky; left: 0; z-index: 2; box-shadow: inset -1px 0 0 var(--line); }
+.st-rm-heads > :is(.st-rm-corner, .st-grid-corner), .st-rm-grid > .st-row-head { background-color: var(--panel); }
+.st-rm-heads > :is(.st-rm-corner, .st-grid-corner) + *, .st-rm-grid > .st-row-head + .st-rm-cell, .st-rm-grid > .st-rm-lane + .st-rm-lc { border-left-color: transparent; }
+.st-rm-heads > .st-col-head, .st-rm-grid > :is(.st-rm-cell, .st-rm-lc) :is(button, [tabindex]) { scroll-margin-left: 204px; }
 .st-grid-corner { border-bottom: 1px solid var(--line-strong); }
 .st-rm-corner { border-bottom: 1px solid var(--line); }
 .st-rm-band { min-width: 0; padding: 4px 8px 3px; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -5972,6 +5987,20 @@ div.st-col-head.past { cursor: default; }
 .st-rm-sw.over { background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--c) 34%, var(--panel)) 0 3px, color-mix(in oklab, var(--c) 9%, var(--panel)) 3px 6px); }
 .st-rm-sw.today { width: 2px; height: 14px; border-radius: 1px; background: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .st-rm-tog .icon { transition: none; } }
+/* The plan's head stays at the top as the semester's does („Mein Studium", above; owner,
+   2026-11-04: „Ich möchte, dass da der header sticky ist von dem Plan. Also ähnlich wie bei dem
+   Semester plan."): the title with „Alle aufklappen", the band of the study years and the heads
+   of the semesters, one block across the panel with the panel's ring and round corners at the
+   top, the areas scrolling under it. The page does not run under the bar for it (`.work.flowing`,
+   „one scroll area"), its area lets the page behind the corners show (the mask of the semester's
+   box, above), and the panel lets the block out of it (a panel's `overflow: hidden` is a scroll
+   box, which the block would stick in). What is focused under it scrolls into view below it
+   (`--rm-top`, its height, grid.rs). */
+@media (min-width: 901px) {
+  .page-inner.study > .st-grid-panel { overflow: visible; }
+  .st-grid-panel > .st-rm-top { position: sticky; top: -1px; z-index: 6; margin: -15px -17px 0; padding: 14px 16px 0; border: 1px solid var(--ring-b); border-bottom: 0; border-radius: calc(var(--r-panel) + 1px) calc(var(--r-panel) + 1px) 0 0; background: var(--panel); }
+  .st-rm-grid :is(button, [tabindex]) { scroll-margin-top: calc(var(--rm-top, 0px) + 8px); }
+}
 
 /* The dialogs: in the middle of the window, a sheet from below on a phone. One frame in three
    sizes (owner, 2026-10-16: „Modale menus springen zu viel in der größe. Erstelle dir mal 3
@@ -6935,9 +6964,16 @@ span.st-wb-go { cursor: default; }
   :is([data-sheet], .st-dialog[data-sheet])[data-sheet="auto"]:not([data-sheet-as="half"]) { min-height: 40dvh; }
   dialog[data-sheet][open] { animation: none; }
   .st-grip { display: none; }
-  /* A menu scrolls itself all up; under the grabber its title. */
-  .st-pop[data-sheet] { overflow-y: auto; padding: 18px 8px calc(10px + env(safe-area-inset-bottom)); }
-  .st-pop[data-sheet]:not(.is-full) { overflow-y: hidden; }
+  /* A menu scrolls itself all up; under the grabber its title. The menus of a tab held and of the
+     profiles (chrome.rs `TabMenu`, `ProfileSwitcher`) are menus as a page's are: over all of the
+     page, the bar too, their dim as a menu's, their ways as tall as a menu's items. */
+  :is(.st-pop, .tab-menu)[data-sheet] { overflow-y: auto; padding: 18px 8px calc(10px + env(safe-area-inset-bottom)); }
+  :is(.st-pop, .tab-menu)[data-sheet]:not(.is-full) { overflow-y: hidden; }
+  .tab-menu[data-sheet]:not(.sheet-ghost) { z-index: 71; }
+  .tab-menu[data-sheet] > .tab-menu-rule { flex: none; }
+  .tab-scrim { z-index: 70; background: rgba(10, 12, 17, .5); opacity: var(--sheet-shade, 1); animation: fade-in .2s ease-out; }
+  .tab-menu[data-sheet] .tab-menu-head { margin: 8px 10px 6px; padding: 0; color: var(--text-2); font-size: 13px; font-weight: 600; }
+  .tab-menu[data-sheet] :is(.tab-menu-way, .pm-new) { min-height: 50px; }
   /* A copy of a sheet the page took away at once, gliding away in its place (enhance.js
      `ghostSheet`), over a dim that goes with it. */
   .sheet-ghost { z-index: 80; pointer-events: none; }

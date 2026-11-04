@@ -236,6 +236,23 @@ pub(super) fn fit_pieces(root_id: &str) {
     }
 }
 
+/// The height of the Gesamtplan's head, which stays at the top (`.st-rm-top`, `grid.rs`), as
+/// `--rm-top` on its panel: what is focused under it scrolls into view below it (app.css). Written
+/// only when it changes: a custom property restyles all the panel holds.
+#[allow(unused_variables)]
+pub(super) fn measure_top(root_id: &str) {
+    #[cfg(feature = "csr")]
+    {
+        let Some(root) = folia_design::stage::by_id(root_id) else { return };
+        let Some(top) = root.query_selector(".st-rm-top").ok().flatten() else { return };
+        let height = format!("{:.0}px", top.get_bounding_client_rect().height().ceil());
+        let style = root.unchecked_ref::<web_sys::HtmlElement>().style();
+        if style.get_property_value("--rm-top").ok().as_deref() != Some(height.as_str()) {
+            let _ = style.set_property("--rm-top", &height);
+        }
+    }
+}
+
 /// Where a row of cards that scrolls sideways stands: how far it is scrolled and how far apart its
 /// cards rest (px: the width of the first child, each card with its share of the space between
 /// them, app.css). `None` while it has no width.
@@ -245,6 +262,46 @@ pub(super) fn scrolled_cards(row: &leptos::web_sys::Element) -> Option<(f64, f64
     {
         let step = row.first_element_child()?.get_bounding_client_rect().width();
         (step > 0.0).then(|| (f64::from(row.scroll_left()), step))
+    }
+    #[cfg(not(feature = "csr"))]
+    None
+}
+
+/// How far a box that scrolls sideways is scrolled (px): its content's left edge against its own,
+/// with the fraction a scaled screen gives it (`scrollLeft` comes to Rust in whole pixels, and the
+/// Gesamtplan's heads stood up to a pixel beside the columns under them).
+#[allow(unused_variables)]
+pub(super) fn left_of(scroller: &leptos::web_sys::Element) -> f64 {
+    #[cfg(feature = "csr")]
+    {
+        match scroller.first_element_child() {
+            Some(content) => scroller.get_bounding_client_rect().left() + f64::from(scroller.client_left()) - content.get_bounding_client_rect().left(),
+            None => f64::from(scroller.scroll_left()),
+        }
+    }
+    #[cfg(not(feature = "csr"))]
+    0.0
+}
+
+/// How far the Gesamtplan's boxes are to be scrolled sideways for the current semester to show
+/// (px; `heads` is the box of its heads): the semester before it first after the areas' names,
+/// which stay at the left, where the room beside them takes three columns, else the current one
+/// first. `None` without a current semester (a study not begun, or over).
+#[allow(unused_variables)]
+pub(super) fn now_left(heads: &leptos::web_sys::Element) -> Option<f64> {
+    #[cfg(feature = "csr")]
+    {
+        let grid = heads.first_element_child()?;
+        let now = grid.query_selector(".st-col-head.is-now").ok()??;
+        let names = grid.query_selector(".st-grid-corner").ok()??.get_bounding_client_rect().width();
+        let room = f64::from(heads.client_width()) - names;
+        let width = now.get_bounding_client_rect().width();
+        let before = now.previous_element_sibling().filter(|element| element.class_list().contains("st-col-head"));
+        let first = match before {
+            Some(before) if room >= 3.0 * width => before,
+            _ => now,
+        };
+        Some((first.get_bounding_client_rect().left() - grid.get_bounding_client_rect().left() - names).max(0.0))
     }
     #[cfg(not(feature = "csr"))]
     None
