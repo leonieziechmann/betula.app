@@ -867,10 +867,10 @@ fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
     let views_of = option_views(choices.clone(), program);
     let reveal_options = RwSignal::new(false);
 
-    // The Studienplan beside the week (A.9): nothing on the server, so its HTML is the module's
-    // alone; in the app the other modules planned into the semester of these Termine.
-    let overlay = plan_overlay(&m.id, newest_key.as_deref().and_then(SemesterKey::parse), current.and_then(|c| SemesterKey::parse(&c.key)));
     let own = own_groups(&teaching, t);
+    // Every Termin of the week there may be (its rows' keys), of which `shown` draws those the
+    // page shows.
+    let all_keys: BTreeSet<RowKey> = own.iter().flat_map(|own| own.rows.iter().copied()).collect();
     let shown = {
         let (courses, choices, teaching) = (courses.clone(), choices.clone(), teaching.clone());
         Memo::new(move |_| {
@@ -882,6 +882,18 @@ fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
             })
         })
     };
+    // The Studienplan beside the week (A.9): nothing on the server, so its HTML is the module's
+    // alone; in the app the other modules planned into the semester of these Termine, measured
+    // against the Termine the week draws alone (owner, 2026-11-04: „achte darauf, dass das nur für
+    // die visuell angezeigten gilt"): of 12102 its course at Zentralcampus, the one at Sachsendorf
+    // once „Auch zeigen" shows it too.
+    let undrawn = Memo::new(move |_| {
+        shown.with(|shown| {
+            let drawn: BTreeSet<RowKey> = shown.iter().flat_map(|(_, keys)| keys.iter().copied()).collect();
+            all_keys.difference(&drawn).copied().collect::<BTreeSet<RowKey>>()
+        })
+    });
+    let overlay = plan_overlay(&m.id, newest_key.as_deref().and_then(SemesterKey::parse), current.and_then(|c| SemesterKey::parse(&c.key)), undrawn);
     // Under a week the list is folded (owner, 2026-10-17: „die Termine können ruhig ausklappbar
     // sein, so dass nicht so viel vertical space verschwendet wird"): a slot unfolds it and marks
     // its lines (enhance.js „termin"). Without a week the list is all there is, and stays open: a
@@ -1036,9 +1048,11 @@ fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
             {note}
             {choice_notes}
             {extras_note.map(|text| view! { <p class="note choices"><Icon name="plus"/><span>{text}</span></p> })}
+            // Over the week, under what picks its Termine (owner, 2026-11-04: „das die Warnung für
+            // Überschneidungen über dem Kalender angezeigt wird").
+            {week_line}
             <WeekGrid slots/>
             {legend}
-            {week_line}
             {gap_note.map(|note| view! { <p class="note"><Icon name="info"/><span>{note}</span></p> })}
             {no_schedule_note.map(|note| view! { <p class="hint">{note}</p> })}
             {(!teaching.is_empty()).then(|| {
@@ -1761,9 +1775,11 @@ fn overlay_wanted(newest: Option<SemesterKey>, current: Option<SemesterKey>, oth
 ///
 /// Two memos, so that a change of the plan elsewhere (another semester, a module's placeholder)
 /// asks the catalog nothing: `asked` reads the stores alone (R16) and keeps what the overlay is
-/// made of; the overlay reads `asked` alone. Its questions are the same for every module shown
-/// beside the same plan, so only the module's own three are new (`pages::overlay`).
-fn plan_overlay(id: &str, newest: Option<SemesterKey>, current: Option<SemesterKey>) -> Memo<Overlay> {
+/// made of; the overlay reads `asked` and the Termine the week does not draw (`undrawn`), which
+/// it hides in the plan's selection, so that its line and its clashes are of what the week shows
+/// (`pages::overlay`). Its questions are the same for every module shown beside the same plan, so
+/// only the module's own three are new.
+fn plan_overlay(id: &str, newest: Option<SemesterKey>, current: Option<SemesterKey>, undrawn: Memo<BTreeSet<RowKey>>) -> Memo<Overlay> {
     let plan = Studyplan::expect().filter(|_| APP);
     let mine = MyProgram::expect();
     let source = use_data().ok();
@@ -1779,9 +1795,10 @@ fn plan_overlay(id: &str, newest: Option<SemesterKey>, current: Option<SemesterK
     };
     let id = id.to_string();
     Memo::new(move |_| {
-        let (Some((key, others, selection, program)), Some(source)) = (asked.get(), source.as_ref()) else {
+        let (Some((key, others, mut selection, program)), Some(source)) = (asked.get(), source.as_ref()) else {
             return Overlay::default();
         };
+        undrawn.with(|undrawn| selection.hidden_rows.extend(undrawn.iter().copied()));
         source.now(&OverlayAsk { key, others, program, module_id: id.clone(), selection, locale: crate::i18n::locale() }).unwrap_or_default()
     })
 }
