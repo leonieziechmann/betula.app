@@ -2132,7 +2132,16 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     an area unfolded keeps how far the plan is scrolled sideways (until then it went back to the
     first column). What is focused under the head scrolls into view below it (`--rm-top`, its
     height). With the area masked, a menu of the plan is under the rail and the bar as a semester's
-    is: a click there reaches them instead of only closing the menu.
+    is: a click there reaches them instead of only closing the menu. Since Folia 1.71.3 the current
+    semester is in view (owner, 2026-11-04: „die scrollposition von der seite so anzupassen, dass
+    immer das aktuelle semester passend gezeigt wird"): where the plan is too wide for the panel it
+    scrolls sideways by itself so that the semester before the current one stands first after the
+    areas' names, then the current one and those to come (the current one first where the room
+    beside the names takes fewer than three columns; `dom::now_left`), once the plan is there and
+    again as „Bisher" folds or unfolds; as the width changes only while nobody has scrolled the plan
+    sideways, which it does not undo. The areas' names stay at the left meanwhile (sticky, the line
+    between them and the first semester theirs), so that the plan scrolled still says what each row
+    is.
   - **Adding, moving, taking out** (owner: adding and removing were „eine absolute Krise"):
     „Module hinzufügen" opens the workbench (`bench.rs`, Folia 1.64.0; folia/design/hinzufuegen/
     konzepte.html, third round; owner, 2026-11-03: „Passt so, bau das jetzt in Folia"): planning
@@ -2287,7 +2296,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     band of the study years, the pieces by abbreviation and credits, a bar broken before its
     semester, the line of today, ▸ and „Alle zuklappen" kept, „Bisher zuklappen", a semester too
     full for its labels, each cell as tall as what it lists, its menu, the plan's open module planned
-    from its lane, its head at the top when scrolled down and going along sideways), the phone
+    from its lane, in a narrower window scrolled to the semester before the current one with the
+    areas' names at the left, its head at the top when scrolled down and going along sideways), the
+    phone
     (the overview in its order and
     without a sidebar, one row of the semesters that are over, the overview and the rest, the
     overview the page in view and no way back at the head, the row's dots on it; the box by a tap

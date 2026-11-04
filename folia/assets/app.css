@@ -5868,6 +5868,15 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .st-rm-top-scroll::-webkit-scrollbar { display: none; }
 .st-grid { display: grid; }
 .st-rm-heads { border-top: 1px solid var(--line-strong); }
+/* The areas' names stay at the left while the semesters scroll sideways under them, so that the
+   plan scrolled to the current semester (grid.rs, `show_now`) still says what each row is: the
+   column sticky on the panel's ground, the line between it and the first semester its own (the
+   first semester's left edge goes, which would show twice). What is focused right of it scrolls
+   into view beside it (the column's 196 px, grid.rs). */
+.st-rm-heads > :is(.st-rm-corner, .st-grid-corner), .st-rm-grid > :is(.st-row-head, .st-rm-lane) { position: sticky; left: 0; z-index: 2; box-shadow: inset -1px 0 0 var(--line); }
+.st-rm-heads > :is(.st-rm-corner, .st-grid-corner), .st-rm-grid > .st-row-head { background-color: var(--panel); }
+.st-rm-heads > :is(.st-rm-corner, .st-grid-corner) + *, .st-rm-grid > .st-row-head + .st-rm-cell, .st-rm-grid > .st-rm-lane + .st-rm-lc { border-left-color: transparent; }
+.st-rm-heads > .st-col-head, .st-rm-grid > :is(.st-rm-cell, .st-rm-lc) :is(button, [tabindex]) { scroll-margin-left: 204px; }
 .st-grid-corner { border-bottom: 1px solid var(--line-strong); }
 .st-rm-corner { border-bottom: 1px solid var(--line); }
 .st-rm-band { min-width: 0; padding: 4px 8px 3px; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
