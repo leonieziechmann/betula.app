@@ -1256,7 +1256,24 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       (a date and a room, or its groups and a semester of dates), the menus that list semesters or
       collections („Einplanen in …", the arrow of „Eingeplant", „Mein Studium"'s menu with
       „Verschieben nach ›", the Merkliste's menu of several modules); a submenu in its menu's
-      place stands where the menu stood.
+      place stands where the menu stood. And the menus of the app's frame (owner, 2026-11-04:
+      „guck mal bitte durch, wo das überall sinn ergibt das system zu verwenden"; chrome.rs): a
+      tab of the bar held (`TabMenu`: „Studium"'s ways, the Merkliste's collections, as many as
+      there are) and the profiles from the box at the head (`ProfileSwitcher`: the profiles,
+      „Neues Profil" with its field, the way to the profile page and the other language). They
+      stood at what opened them until then, a dropdown over the bar or below the box; they are
+      sheets over all of the page now, the bar too, their dim a menu's. A mouse resting on the box
+      at a phone's head opens nothing any more (its click does): the rail's way alone opens the
+      menu so, beside it.
+
+    Not sheets, and why: the palette of commands has no way in on a phone (no button, no keys); a
+    picker's list (`combobox`) unrolls in the flow under its button, in the form or the sheet it
+    is in; the sheet of a choice in focus (`.sp-pick`, the Stundenplan's groups) is no modal: the
+    week above it stays at hand, it moves on the same springs and throws with its own engine,
+    turning its tiles into the lines of „Vergleichen" as far as it has come; an area or a row of
+    the plan picked on a program's page is the page on a phone (a step of its own, `program.rs`);
+    a question asked in the page („Löschen?" of a profile, a calendar's menu under its row) stays
+    in the page; notes („Rückgängig") and bars (the workbench's, a selection's) are no modals.
 
     A `Modal` stands as its size says (`ModalSize::sheet`: „s" fits, „m" half, „l" full) unless it
     says otherwise (`sheet=Sheet::…`); what changes its kind while it is open (a dialog that holds
@@ -2301,7 +2318,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     that glides away; „Sammeln" (`auto`) a dialog that fits while it holds little, a tap on its
     grabber and a short pull leaving it where it is, half up and all up once it holds more (all up
     as it was, half up under a pull), fitting again once it holds less; „Tasten" naming its keys; „Plan einrichten" all up at once in one move, never half up, a short pull coming
-    back all up and a quick one throwing it away.
+    back all up and a quick one throwing it away; the Merkliste's tab held a sheet of `auto` from
+    below, fitting with two collections (a tap on the dim closing it) and half up with sixteen (the
+    grabber all up, its ways scrolling, its last way leading to its collection with a copy gliding
+    away); the profiles' menu from the box at the head fitting, thrown away by a finger.
 - **The search in the top bar belongs to the page:** modules everywhere, programs on `/programs`.
   In the browser app it filters while typing (history entry replaced, not added). How it finds and
   orders modules: „The search of the catalog“ below.
