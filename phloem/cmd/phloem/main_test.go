@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -112,6 +113,8 @@ func TestServeHealthcheckAndStatus(t *testing.T) {
 	if code := runStatus(ctx, []string{"--url", "http://" + freeAddr(t) + "/status"}); code != 1 {
 		t.Errorf("status of nothing: %d", code)
 	}
+	// A problem in the log is counted in the stats file (serve installed the logger).
+	slog.Warn("a test's warning", "component", "test", "event", "test.warned")
 	prom := filepath.Join(stats, "phloem.prom")
 	for deadline := time.Now().Add(5 * time.Second); ; {
 		if data, err := os.ReadFile(prom); err == nil && strings.Contains(string(data), `phloem_up{stack="phloem-test"} 1`) {
@@ -132,7 +135,7 @@ func TestServeHealthcheckAndStatus(t *testing.T) {
 		t.Fatal("serve did not stop")
 	}
 	if data, _ := os.ReadFile(prom); !strings.Contains(string(data), `phloem_up{stack="phloem-test"} 0`) ||
-		!strings.Contains(string(data), `phloem_log_problems_total`) {
+		!strings.Contains(string(data), `phloem_log_problems_total{stack="phloem-test",level="WARN",event="test.warned"} 1`) {
 		t.Errorf("the last stats file:\n%s", data)
 	}
 }
