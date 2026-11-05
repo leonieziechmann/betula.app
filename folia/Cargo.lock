@@ -1266,6 +1266,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "folia-sync"
+version = "0.1.0"
+dependencies = [
+ "folia-calendar",
+ "folia-plans",
+]
+
+[[package]]
 name = "folia-test-support"
 version = "0.1.0"
 dependencies = [
