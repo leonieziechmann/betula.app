@@ -1286,7 +1286,8 @@ fn ChangeRows(ctx: TerminCtx, part: ChangePart, editing: RwSignal<Option<ChangeD
 
 /// The note at a Termin: its words, or what it is for („nur für dich, auch in der Datei"), and
 /// „Hinzufügen" or „Bearbeiten", which open its field with „Abbrechen" and „Speichern" (an empty one
-/// takes the note away). Saved after the next frame (R21).
+/// takes the note away). Saved after the next frame (R21). Under it the hint of Betula Sync where
+/// another device wrote into the note at the same time (`syncnote::TerminNoteConflict`).
 #[component]
 fn NoteRow(ctx: TerminCtx, key: RowKey, note: Option<String>) -> impl IntoView {
     let t = i18n::t();
@@ -1321,6 +1322,9 @@ fn NoteRow(ctx: TerminCtx, key: RowKey, note: Option<String>) -> impl IntoView {
                 </div>
             </form>
         })}
+        // What another device of the profile wrote into the same note at the same time (Betula
+        // Sync).
+        <crate::syncnote::TerminNoteConflict semester=Signal::derive(move || sem.get()) row=key/>
     }
 }
 

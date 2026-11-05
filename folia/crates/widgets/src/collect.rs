@@ -653,7 +653,9 @@ fn CollectBody(ask: CollectAsk, work: Work, phone: bool, close: Callback<()>) ->
 /// The note of a marked module, under its switches (oberflaeche.html, „Am Modul"): whole, its
 /// Markdown drawn (`NoteProse`: links open in a new tab, a picture only as a link, HTML as text).
 /// The pencil, or a click beside a link, edits it in the menu with the focus in the note, as N does.
-/// Nothing without a note; nothing on the server, which knows no notes (R9).
+/// Under it the hint of Betula Sync where another device of the profile wrote into the note at the
+/// same time (`syncnote::NoteConflict`). Nothing without a note or a hint; nothing on the server,
+/// which knows no notes (R9).
 #[component]
 pub fn ModuleNote(#[prop(into)] id: String, #[prop(into)] title: String) -> impl IntoView {
     let t = i18n::t();
@@ -662,6 +664,7 @@ pub fn ModuleNote(#[prop(into)] id: String, #[prop(into)] title: String) -> impl
         let id = id.clone();
         Memo::new(move |_| collections.and_then(|collections| collections.with(|shelf| shelf.note(&id).map(str::to_string))))
     };
+    let hinted = id.clone();
     let edit = move |ev: leptos::ev::MouseEvent| {
         // A link in the note is the link's.
         if folia_design::nav::link_under(ev.target()).is_some() {
@@ -671,7 +674,10 @@ pub fn ModuleNote(#[prop(into)] id: String, #[prop(into)] title: String) -> impl
             collecting.open(CollectAsk { id: id.clone(), title: title.clone(), more: Vec::new(), at: box_of(&ev), note: true, from_note: None });
         }
     };
-    move || {
+    // What another device of the profile wrote into the same note at the same time (Betula Sync),
+    // whether there is a note now or not.
+    let conflict = view! { <crate::syncnote::NoteConflict module=hinted/> };
+    let note = move || {
         let edit = edit.clone();
         note.get().map(|text| {
             view! {
@@ -681,7 +687,8 @@ pub fn ModuleNote(#[prop(into)] id: String, #[prop(into)] title: String) -> impl
                 </div>
             }
         })
-    }
+    };
+    view! { {note}{conflict} }
 }
 
 /// The box of the element an event was heard on.

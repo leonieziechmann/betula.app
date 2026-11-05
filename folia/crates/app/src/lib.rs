@@ -26,6 +26,7 @@ use folia_home::home::{topics::{AboutRedirect, TopicPage}, Credits, HomePage};
 use folia_home::legal::{ImprintPage, PrivacyPage};
 use folia_planner::study::StudyPage;
 use folia_planner::studyplan::StudyplanPage;
+use folia_profile::connect::ConnectPage;
 use folia_profile::profile::ProfilePage;
 use folia_programs::{program::ProgramPage, programs::ProgramsPage};
 use folia_shell::chrome::{FollowTabs, NavItems, ProfileMenu, ProfileSwitcher, Rail, TabMenu, TopBack, TopBar};
@@ -55,6 +56,8 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
     // ready (`assets/boot.js`), so no hydration scripts are needed here.
     let _ = options;
     let t = i18n::t();
+    // Betula Sync, where the server offers it: the browser reads where Phloem answers from here.
+    let sync = use_context::<SyncOffer>().map(|offer| view! { <meta name=folia_stores::sync::META content=offer.0.to_string()/> });
     view! {
         <!DOCTYPE html>
         <html lang=t.locale.code()>
@@ -77,6 +80,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <link rel="apple-touch-icon" href=TOUCH_ICON/>
                 // The app a home screen installs from this page: this language's (`/en/…`).
                 <link rel="manifest" href=t.path(MANIFEST)/>
+                {sync}
                 <script inner_html=HEAD_SCRIPT></script>
                 // The font and the stylesheet are the same on every page, so they are part of the
                 // document and not of `App`: the browser app does not hydrate, it mounts fresh, and
@@ -132,6 +136,7 @@ fn pages() -> impl IntoView {
                 <Route path=path!("/studyplan") view=StudyplanPage ssr=SsrMode::Async/>
                 <Route path=path!("/study") view=StudyPage ssr=SsrMode::Async/>
                 <Route path=path!("/profile") view=ProfilePage ssr=SsrMode::Async/>
+                <Route path=path!("/verbinden") view=ConnectPage ssr=SsrMode::Async/>
                 <Route path=path!("/event/:key") view=EventPage ssr=SsrMode::Async/>
                 <Route path=path!("/event/:key/:day") view=EventPage ssr=SsrMode::Async/>
                 <Route path=path!("/impressum") view=ImprintPage ssr=SsrMode::Async/>
@@ -157,6 +162,7 @@ fn page(page: Page) -> AnyView {
         Page::Studyplan => view! { <StudyplanPage/> }.into_any(),
         Page::Study => view! { <StudyPage/> }.into_any(),
         Page::Profile => view! { <ProfilePage/> }.into_any(),
+        Page::Connect => view! { <ConnectPage/> }.into_any(),
         Page::Event => view! { <EventPage/> }.into_any(),
         Page::Imprint => view! { <ImprintPage/> }.into_any(),
         Page::Privacy => view! { <PrivacyPage/> }.into_any(),

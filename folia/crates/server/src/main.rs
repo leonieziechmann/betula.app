@@ -82,6 +82,9 @@ pub struct AppState {
     /// When each page of the sitemap last changed (`lastmod`), recorded by the warm-up; `None`
     /// without it.
     pub changes: Option<Arc<lastmod::Changes>>,
+    /// Betula Sync offered (`--sync`): where the browser reaches Phloem, empty for `/sync/v1/` on
+    /// the page's own host (`--sync-url`); `None` while it is off.
+    pub sync: Option<Arc<str>>,
 }
 
 /// The header that names the build of the server on every answer (`AppState::build_id`).
@@ -168,10 +171,14 @@ pub fn pages(state: &AppState) -> Router<AppState> {
     // active snapshot was opened with.
     let provide = {
         let (store, site, build) = (state.store.clone(), folia_shell::seo::SiteUrl(state.public_url.clone()), folia_app::BuildId(state.build_id.clone()));
+        let sync = state.sync.clone().map(folia_app::SyncOffer);
         move || {
             provide_context(source.clone());
             provide_context(site.clone());
             provide_context(build.clone());
+            if let Some(sync) = &sync {
+                provide_context(sync.clone());
+            }
             if let Some(snapshot) = store.current() {
                 if let Some((map, ..)) = &snapshot.program_map {
                     provide_context(folia_data::ProgramMapHandle(map.clone()));
@@ -468,6 +475,7 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
         render_wait,
         feeds: Arc::new(busy::Places::new("calendar", places(config.feed_places), Duration::from_secs(10))),
         changes: config.warm_cache.then(|| Arc::new(lastmod::Changes::load(&config.data_dir))),
+        sync: config.sync.then(|| config.sync_url.trim().into()),
         leptos: LeptosOptions::builder()
             .output_name("folia-app")
             .site_root(config.site_root.to_string_lossy().into_owned())
@@ -503,6 +511,7 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
         feed_places = state.feeds.count(),
         html_cache_mb = config.html_cache_mb,
         warm_cache = config.warm_cache,
+        sync = state.sync.as_deref().map(|url| if url.is_empty() { "/sync/v1/" } else { url }).unwrap_or("off"),
         "web server started"
     );
     if config.warm_cache {
