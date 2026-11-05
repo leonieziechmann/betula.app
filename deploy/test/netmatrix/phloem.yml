@@ -1,7 +1,7 @@
 # The stand-in of the stack "phloem" for deploy/test/netmatrix.sh: what docs/phloem/protocol.md
 # says of Phloem's place, not Phloem (that is stacks/phloem.yml): its two networks, the router of
 # /sync/v1/ above Folia's, its stats file, nothing published. It runs as uid 65532 without any
-# capability from the start; the harness loads its firewall (netmatrix/firewall.nft) from outside.
+# capability from the start; the harness loads its firewall (phloem/deploy/firewall.nft, as `phloem start` would) from outside.
 # Variables: NETMATRIX_DIR (the harness's work directory), STACK_NAME (phloem or phloem-canary),
 # APP_HOST (betula.app or canary.betula.app).
 

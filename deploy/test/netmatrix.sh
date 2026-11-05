@@ -18,7 +18,7 @@
 #            (+cortex) and canary (+cortex +egress), and a stand-in of phloem (netmatrix/phloem.yml),
 #            each rendered from the real file and changed by netmatrix/transform.py: real
 #            Traefik, socket proxy, Prometheus, scraper and Alloy (the part of config.alloy that
-#            reads Phloem's file), stand-ins for the rest; Phloem's firewall (netmatrix/firewall.nft)
+#            reads Phloem's file), stand-ins for the rest; Phloem's firewall (phloem/deploy/firewall.nft)
 #            loaded into its stand-in, and the guard run once
 #   check    vps/91-verify-stacks.sh netmatrix phloem (no FAIL), the routes through Traefik
 #            (per site, /sync/v1/ above Folia, sync-ratelimit), folia_status of lib-stacks.sh,
@@ -34,6 +34,8 @@ set -Eeuo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(cd "${TEST_DIR}/.." && pwd)"
+# Phloem's own firewall, as `phloem start` loads it (the stand-in has none of its own).
+PHLOEM_FIREWALL="${DEPLOY_DIR}/../phloem/deploy/firewall.nft"
 # shellcheck source=../vps/lib.sh
 . "${DEPLOY_DIR}/vps/lib.sh"
 # shellcheck source=../vps/lib-stacks.sh
@@ -201,7 +203,7 @@ phloem_firewall_up() {
   if nsenter -t "${pid}" -n -- nft list table inet phloem >/dev/null 2>&1; then
     log "table inet phloem is in ${cid:0:12} already"
   else
-    nsenter -t "${pid}" -n -- nft -f "${TEST_DIR}/netmatrix/firewall.nft"
+    nsenter -t "${pid}" -n -- nft -f "${PHLOEM_FIREWALL}"
     log "table inet phloem loaded into ${cid:0:12}"
   fi
   bash "${DEPLOY_DIR}/vps/files/betula-phloem-guard.sh"
@@ -233,17 +235,17 @@ through_traefik() {
 # network of the plan, and 91-verify-stacks.sh says so, as it should; the harness only does not
 # count those FAILs as its own.
 foreign_stacks() {
-  local stack svc names=""
+  local stack svc foreign=""
   while IFS= read -r stack; do
     [[ -n "${stack}" ]] || continue
     while IFS= read -r svc; do
       if [[ -n "${svc}" && "$(service_label "${svc}" "${LABEL}")" != "1" ]]; then
-        names+="${names:+|}${stack}"
+        foreign+="${foreign:+|}${stack}"
         break
       fi
     done < <(stack_services "${stack}")
   done < <(docker stack ls --format '{{.Name}}' 2>/dev/null)
-  printf '%s' "${names}"
+  printf '%s' "${foreign}"
 }
 
 # verify SECTION... -> what 91-verify-stacks.sh says (stdout); returns the number of its FAILs that
@@ -346,7 +348,7 @@ check_mutations() {
   pid="$(container_pid "${cid}")"
   nsenter -t "${pid}" -n -- nft delete table inet phloem
   expect_fail "Phloem without its firewall" phloem
-  nsenter -t "${pid}" -n -- nft -f "${TEST_DIR}/netmatrix/firewall.nft"
+  nsenter -t "${pid}" -n -- nft -f "${PHLOEM_FIREWALL}"
   if verify netmatrix phloem >/dev/null; then
     ok "after both are undone: netmatrix and phloem have no FAIL again"
   else

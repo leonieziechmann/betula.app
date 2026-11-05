@@ -10,6 +10,7 @@ deploy/
   ship.sh                 workstation: build the images of a commit, load them on the server, deploy an instance
   ship-models.sh          workstation: the models of models.lock into the server's model store (section 13)
   ship-cortex.sh          workstation: build the Cortex image of a commit, load it on the server, 48-cortex.sh (section 14)
+  ship-phloem.sh          workstation: build Phloem's image, load it on the server, 49-phloem.sh (section 16)
   models.lock             the two models of the semantic search, pinned by sha256 (section 13)
   vps/                    host scripts, run on the server, in the order of their numbers
     10-base.sh            upgrade, user deploy, ufw, fail2ban, unattended-upgrades, journald, sysctl, swap
@@ -17,7 +18,9 @@ deploy/
     30-docker.sh          Docker Engine 29, swarm, the overlay networks of files/networks.conf, published-port filter, Phloem's guard
     40-stacks.sh          swarm secrets, stacks edge -> placeholder -> monitoring, waits for convergence
     45-seed.sh            once per instance, before its first deploy: a Radix database (tar on stdin) into its volume
+    47-phloem-host.sh     root, once per Phloem instance: its data file system and its stats tmpfs (section 16)
     48-cortex.sh          Cortex (stacks/cortex.yml) at a release tag, one instance at a time (section 14)
+    49-phloem.sh          a Phloem instance (stacks/phloem.yml + stacks/phloem/<stack>.env) at a release tag, then what it must not reach (section 16)
     50-app.sh             one instance of the application (stacks/betula.yml + stacks/<instance>.env) at a release tag
     55-switch.sh          blue-green: hand a host name to the other of its two instances (the rollback is the same)
     60-canary.sh          canary follows master: sqlite3, the timer, the GitHub token (section 12)
@@ -30,12 +33,13 @@ deploy/
   test/netmatrix.sh       the networks in a local swarm with stand-ins, checked as on the server (section 15)
   stacks/                 edge(.www).yml, placeholder.yml, monitoring(.public|.smtp).yml, cortex.yml,
                           betula(.gemini|.offline|.models|.cortex|.cortex-offline|.egress).yml, edge.legacy.yml,
-                          betula.env, canary(-green).env, monitoring.notify.example.yml, monitoring-secrets.sh
+                          betula.env, canary(-green).env, monitoring.notify.example.yml, monitoring-secrets.sh,
+                          phloem.yml with phloem/<stack>.env (section 16)
   config/                 bind-mounted read-only into the services: traefik/ placeholder/ monitoring/ cortex/ (hosts.json)
 ```
 
 All host scripts are idempotent and non-interactive; every one can simply be run again. Root scripts
-are run with `sudo bash ...`; `40-stacks.sh`, `48-cortex.sh`, `50-app.sh` and `91-verify-stacks.sh`
+are run with `sudo bash ...`; `40-stacks.sh`, `48-cortex.sh`, `49-phloem.sh`, `50-app.sh` and `91-verify-stacks.sh`
 run as `deploy` **without** sudo (sudo would drop the environment variables that select staging
 certificates, the Grafana host or an instance's values).
 
@@ -1143,3 +1147,44 @@ by itself, and the same for Cortex in `48-cortex.sh`). In this order:
 colour was switched); the old files find the old networks, which still exist. After step 7 the
 previous `30-docker.sh` makes `edge`, `monitoring` and `cortex` again first. The new networks may
 stay; they are empty without their services.
+
+## 16. Betula Sync: Phloem
+
+Phloem is the service of Betula Sync (`docs/phloem/phloem.md`, its protocol
+`docs/phloem/protocol.md`): one stack per site, `phloem` for https://betula.app and
+`phloem-canary` for https://canary.betula.app, each with nothing but Traefik on its network
+`<stack>_in` (section 15), a firewall inside its container and its data on a file system of its
+own. It is not part of the canary pipeline: a push to master does not touch it, and Folia offers
+Betula Sync only where its instance says `FOLIA_SYNC=on` and a Phloem serves the host (50-app.sh
+deploys it off otherwise, and says so).
+
+Once, in this order (the first three are section 15's steps 1 and 2, if they did not run yet):
+
+1. From the workstation: `deploy/sync.sh`.
+2. `sudo bash /opt/betula/vps/30-docker.sh`: the networks `phloem_in` and `phloem-canary_in` and
+   the guard (`betula-phloem-guard.timer`, which checks every minute from outside that the
+   firewall is there and that Phloem holds no rights).
+3. `bash /opt/betula/vps/40-stacks.sh edge monitoring`: Traefik on both networks (every site is
+   away for the few seconds of Traefik's restart), and Alloy reading Phloem's numbers (the
+   dashboard „Sync", the alerts `betula-phloem`).
+4. `sudo bash /opt/betula/vps/47-phloem-host.sh phloem-canary`: its data on an ext4 of its own
+   (`PHLOEM_DATA_SIZE` in `stacks/phloem/phloem-canary.env`) and its numbers on a tmpfs of 1 MiB,
+   both mounted at every boot before Docker.
+5. From the workstation: `SSH_TARGET=betula deploy/ship-phloem.sh phloem-canary`: builds the
+   image, loads it, deploys it with `vps/49-phloem.sh`, and then tries what is forbidden (from
+   inside: DNS, the internet, Traefik, the host; from outside: `/sync/v1/` reaches Phloem,
+   `/healthz` does not). A FAIL ends with exit 1 and names the rollback.
+6. `bash /opt/betula/vps/50-app.sh canary` (or the next release the canary agent deploys):
+   Folia with `FOLIA_SYNC=on` from `canary.env`. The profile page shows „Betula Sync aktivieren".
+
+For https://betula.app the same with `phloem` (steps 4 and 5), then `FOLIA_SYNC=on` in
+`betula.env` and `betula-green.env`, `deploy/sync.sh` and `50-app.sh` of each colour.
+
+- **Rollback** of the pages: `FOLIA_SYNC=off` in the instance's file, `deploy/sync.sh`,
+  `50-app.sh <instance>`. Every synced profile stays on its devices and is offline until it comes
+  back. Of Phloem: `bash /opt/betula/vps/49-phloem.sh <stack> <previous tag>`.
+- **Its data** is sealed by the devices (Phloem can open none of it): sizes, times and random ids
+  are all it knows. A space untouched for 395 days goes by itself; „Sync beenden" deletes one at
+  once. A backup of `phloem.db` is not written yet (`docs/phloem/phloem.md`, „Not yet").
+- **The privacy notice** describes it („Abgleich zwischen deinen Geräten (Betula Sync)",
+  `folia/crates/home/src/i18n/legal.rs`): change it with what Phloem keeps.

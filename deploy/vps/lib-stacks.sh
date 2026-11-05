@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Helpers shared by 40-stacks.sh, 48-cortex.sh, 50-app.sh and 91-verify-stacks.sh. Sourced AFTER
-# lib.sh, never executed.
+# Helpers shared by 40-stacks.sh, 47-phloem-host.sh, 48-cortex.sh, 49-phloem.sh, 50-app.sh and
+# 91-verify-stacks.sh (and the scripts beside them). Sourced AFTER lib.sh, never executed.
 # Both scripts run as the deploy user (group docker), not as root: "docker stack deploy"
 # substitutes ${VAR} in the stack files from the environment, and sudo would reset it.
 # shellcheck shell=bash
@@ -358,9 +358,9 @@ instance_names() {
   done
 }
 
-# load_instance NAME - reads stacks/NAME.env into INSTANCE_STACK, INSTANCE_HOST, INSTANCE_GATE and
-# INSTANCE_CRAWL (on, off or cortex-offline: stacks/betula.yml says what each means). The file is
-# read, never sourced: a value is data, whatever it looks like.
+# load_instance NAME - reads stacks/NAME.env into INSTANCE_STACK, INSTANCE_HOST, INSTANCE_GATE,
+# INSTANCE_CRAWL (on, off or cortex-offline) and INSTANCE_SYNC (on or off: stacks/betula.yml says
+# what each means). The file is read, never sourced: a value is data, whatever it looks like.
 load_instance() {
   local name=$1 file line key value
   file="${STACKS_DIR}/${name}.env"
@@ -371,6 +371,7 @@ load_instance() {
   INSTANCE_HOST=""
   INSTANCE_GATE="on"
   INSTANCE_CRAWL="on"
+  INSTANCE_SYNC="off"
   while IFS= read -r line || [[ -n "${line}" ]]; do
     [[ -n "${line}" && "${line}" != \#* ]] || continue
     [[ "${line}" == *=* ]] || die "${file}: '${line}' is not NAME=value"
@@ -381,7 +382,8 @@ load_instance() {
       APP_HOST) INSTANCE_HOST="${value}" ;;
       FOLIA_ACCESS_GATE) INSTANCE_GATE="${value}" ;;
       RADIX_CRAWL) INSTANCE_CRAWL="${value}" ;;
-      *) die "${file}: unknown setting ${key} (known: STACK_NAME, APP_HOST, FOLIA_ACCESS_GATE, RADIX_CRAWL)" ;;
+      FOLIA_SYNC) INSTANCE_SYNC="${value}" ;;
+      *) die "${file}: unknown setting ${key} (known: STACK_NAME, APP_HOST, FOLIA_ACCESS_GATE, RADIX_CRAWL, FOLIA_SYNC)" ;;
     esac
   done <"${file}"
   [[ "${INSTANCE_STACK}" == "${name}" ]] || die "${file}: STACK_NAME is '${INSTANCE_STACK}', the file says '${name}'; they have to agree"
@@ -394,6 +396,23 @@ load_instance() {
     on | off | cortex-offline) ;;
     *) die "${file}: RADIX_CRAWL is '${INSTANCE_CRAWL}', not on, off or cortex-offline" ;;
   esac
+  [[ "${INSTANCE_SYNC}" == "on" || "${INSTANCE_SYNC}" == "off" ]] || die "${file}: FOLIA_SYNC is '${INSTANCE_SYNC}', not on or off"
+}
+
+# phloem_for_host HOST - the stack of the Phloem instance that serves https://HOST/sync/v1/
+# (stacks/phloem/<stack>.env names its APP_HOST), nothing where none does.
+phloem_for_host() {
+  local host=$1 file line
+  for file in "${STACKS_DIR}"/phloem/*.env; do
+    [[ -f "${file}" ]] || continue
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+      if [[ "${line}" == "APP_HOST=${host}" ]]; then
+        file="${file##*/}"
+        printf '%s' "${file%.env}"
+        return 0
+      fi
+    done <"${file}"
+  done
 }
 
 # Blue-green: two instances whose files name the same APP_HOST are two colours of one site

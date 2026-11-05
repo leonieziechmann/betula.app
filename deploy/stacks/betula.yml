@@ -12,6 +12,9 @@
 #                      betula.offline.yml to this file. cortex-offline: it runs its cycles on
 #                      what Cortex has stored and fetches nothing (betula.cortex-offline.yml,
 #                      while Cortex runs; else 50-app.sh deploys it off). Default: on.
+#   FOLIA_SYNC         on: the pages offer Betula Sync, whose service Phloem answers on the same
+#                      host under /sync/v1/ (stacks/phloem.yml, docs/phloem/phloem.md); 50-app.sh
+#                      deploys it off while no Phloem serves the host. Default: off.
 #   RADIX_IMAGE, FOLIA_IMAGE   given per release (see "Images")
 #   ROUTER_PRIORITY    the priority of the web server's router, set by 50-app.sh: 0 (Traefik's
 #                      default) for an instance alone on its host. Blue-green: two instance files
@@ -144,6 +147,9 @@ services:
       # Closed unless somebody says "off": a deploy that forgets the variable must not publish
       # the site. On without the secret, the server refuses to start instead of serving it openly.
       FOLIA_ACCESS_GATE: "${FOLIA_ACCESS_GATE:-on}"
+      # Betula Sync (folia_stores::sync): the browser reaches Phloem at /sync/v1/ of this host,
+      # through Traefik like any outside client; Folia itself never talks to it.
+      FOLIA_SYNC: "${FOLIA_SYNC:-off}"
     secrets:
       # Found without configuration at /run/secrets/folia-access-password; listed even while the
       # gate is off, so that turning it on is one value. A new password ends every visit at once.

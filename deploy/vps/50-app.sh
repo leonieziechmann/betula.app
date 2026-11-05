@@ -286,7 +286,7 @@ preflight() {
   service_on_network edge_traefik "edge_${INSTANCE_STACK}" ||
     die "edge_traefik is not on the network edge_${INSTANCE_STACK}: it could not route to this instance's web server. bash ${BETULA_ROOT}/vps/40-stacks.sh edge first (stacks/edge.yml names it; README.md section 15)"
 
-  log "instance ${INSTANCE_STACK}: https://${INSTANCE_HOST}, closed testing ${INSTANCE_GATE}, crawling ${INSTANCE_CRAWL}, release ${TAG}"
+  log "instance ${INSTANCE_STACK}: https://${INSTANCE_HOST}, closed testing ${INSTANCE_GATE}, crawling ${INSTANCE_CRAWL}, Betula Sync ${INSTANCE_SYNC}, release ${TAG}"
   for image in "${RADIX_IMAGE}" "${FOLIA_IMAGE}"; do
     docker image inspect "${image}" >/dev/null 2>&1 ||
       die "image ${image} is not loaded on this server (deploy/ship.sh builds and loads it; loaded: $(docker image ls --format '{{.Repository}}:{{.Tag}}' "${image%%:*}" | tr '\n' ' '))"
@@ -406,7 +406,18 @@ deploy_app() {
     files+=("${OFFLINE_FILE}")
   fi
   # Substituted into the stack files by "docker stack deploy".
-  export STACK_NAME="${INSTANCE_STACK}" APP_HOST="${INSTANCE_HOST}" FOLIA_ACCESS_GATE="${INSTANCE_GATE}" RADIX_IMAGE FOLIA_IMAGE ROUTER_PRIORITY
+  # Betula Sync: offered only where a Phloem serves the host's /sync/v1/ (docs/phloem/phloem.md,
+  # "Deploy"). Without one the release goes out with it off, and says so: a button with no
+  # service behind it would fail every time it is pressed.
+  local phloem=""
+  if [[ "${INSTANCE_SYNC}" == "on" ]]; then
+    phloem="$(phloem_for_host "${INSTANCE_HOST}")"
+    if [[ -z "${phloem}" ]] || ! docker service inspect "${phloem}_sync" >/dev/null 2>&1; then
+      warn "FOLIA_SYNC=on, but no Phloem serves https://${INSTANCE_HOST}/sync/v1/ yet (${phloem:-no stacks/phloem/*.env names the host}): Betula Sync stays off in this deploy. Deploy Phloem first (docs/phloem/phloem.md, \"Deploy\"), then 50-app.sh ${INSTANCE_STACK} again"
+      INSTANCE_SYNC="off"
+    fi
+  fi
+  export STACK_NAME="${INSTANCE_STACK}" APP_HOST="${INSTANCE_HOST}" FOLIA_ACCESS_GATE="${INSTANCE_GATE}" FOLIA_SYNC="${INSTANCE_SYNC}" RADIX_IMAGE FOLIA_IMAGE ROUTER_PRIORITY
   # never: the default asks a registry for the digest of the tag, and no registry knows these images.
   STACK_DEPLOY_ARGS=(--resolve-image never)
   deploy_stack "${INSTANCE_STACK}" "${files[@]}"
