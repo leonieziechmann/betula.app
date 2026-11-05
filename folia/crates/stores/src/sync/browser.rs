@@ -795,6 +795,14 @@ impl Engine {
         });
     }
 
+    /// Lets the socket go (the network is gone); the engine tries again as after any close.
+    fn disconnect(&self) {
+        if let Some(socket) = self.socket.borrow().as_ref() {
+            let _ = socket.close();
+        }
+        self.status(None);
+    }
+
     fn close(&self) {
         if self.closed.replace(true) {
             return;
@@ -965,6 +973,13 @@ pub fn start_tab(sync: Sync, profiles: Profiles) {
             engine.connect();
         }
     });
+    // The browser knows it has no network: offline at once, not after the socket times out; what
+    // changes waits and goes out when the network is back.
+    let offline = window_event_listener_untyped("offline", move |_| {
+        if let Some(engine) = engine() {
+            engine.disconnect();
+        }
+    });
     let visible = window_event_listener_untyped("visibilitychange", move |_| {
         let shown = web_sys::window().and_then(|w| w.document()).is_some_and(|d| d.visibility_state() == web_sys::VisibilityState::Visible);
         if shown && !leads() {
@@ -982,6 +997,7 @@ pub fn start_tab(sync: Sync, profiles: Profiles) {
     on_cleanup(move || {
         storage.remove();
         online.remove();
+        offline.remove();
         visible.remove();
     });
 }

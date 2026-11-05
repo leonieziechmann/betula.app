@@ -1,51 +1,55 @@
-// Checks Betula Sync (folia/crates/stores/src/sync, docs/phloem/protocol.md) with two browsers of
-// one profile against a running Phloem:
-//   SMOKE_BASE_URL=http://127.0.0.1:8080 node --import ./chromium.mjs sync.mjs
+// Checks Betula Sync (folia/crates/stores/src/sync, folia/crates/profile/src/sync.rs,
+// docs/phloem/protocol.md) with three browsers of one profile against a running Phloem:
+//   SMOKE_BASE_URL=http://127.0.0.1:8080 SMOKE_PHLOEM_URL=http://127.0.0.1:8200 node --import ./chromium.mjs sync.mjs
 // Folia runs with FOLIA_SYNC=on (and FOLIA_SYNC_URL where Phloem answers on another port), Phloem
 // with PHLOEM_ORIGINS naming Folia's origin.
-// The first device switches Betula Sync on for a profile with a Merkliste and a note; the second
-// joins with the profile's key and holds the same marks and note; a mark set on one shows on the
-// other within a second; both change while the second is offline, and once it is back both hold
-// both changes; a note typed on both at once keeps the later one and the other version as a hint.
-// Privacy: no request or frame carries a module's number, a note or a key in the clear; nothing
-// goes to another host than Folia's and Phloem's. Fails on a console error or a step that does
-// not show up.
+// The first browser switches Betula Sync on for a profile with marks and a note („Betula Sync
+// aktivieren", „Aktivieren"), and the link for the next device opens by itself; the second opens
+// that link and holds the same marks and note in a new profile; a mark set on one shows on the
+// other within seconds; both mark while the second is offline, and once it is back both hold both;
+// the recovery code brings the profile into a third browser; „Sync beenden" makes every browser
+// private again with its copy. Privacy: no request or frame carries a module's number, the note
+// or the profile key in the clear, nothing reaches another host than Folia's and Phloem's, and the
+// link's part after # reaches no server. Fails on a console error or a step that does not show up.
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 
 const base = (process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
 const phloem = process.env.SMOKE_PHLOEM_URL || "";
 const browser = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge", headless: !process.env.SMOKE_HEADED });
+const ON_PAGE = { path: fileURLToPath(new URL("on-page.js", import.meta.url)) };
 const problems = [];
 const timings = {};
 const check = (ok, message) => { if (!ok) problems.push(message); };
-const MARKS = "betula.bookmarks.v1";
-const SHELF = "betula.collections.v1";
-const SECRET_NOTE = "Altklausur mit Lena rechnen";
-const MODULES = ["11787", "12101", "13977"];
+const NOTE = "Altklausur mit Lena rechnen";
+const SEED = ["11787", "12101", "13977"];
 
-/// Every request and frame a page sends, for the privacy check.
+/// Every request and frame a browser sends, for the privacy check.
 const sent = [];
-const watch = (page, name) => {
-  page.on("console", (m) => { if (m.type() === "error") problems.push(`${name} console: ${m.text().slice(0, 300)}`); });
+// The keys of the active profile, in the page: `store("betula.bookmarks.v1")`, `syncKey("status")`.
+const KEYS = () => {
+  const active = () => (localStorage.getItem("betula.profiles.v1") || "").match(/^active\t(\d+)/m)?.[1] || "1";
+  window.store = (key) => (active() === "1" ? key : key.replace("betula.", `betula.p${active()}.`));
+  window.syncKey = (what) => `betula.sync.p${active()}.${what}`;
+  window.marked = () => (localStorage.getItem(window.store("betula.bookmarks.v1")) || "").split("\n").filter(Boolean).map((l) => l.split("\t")[0]);
+};
+const device = async (name) => {
+  const context = await browser.newContext();
+  await context.addInitScript(ON_PAGE);
+  await context.addInitScript(KEYS);
+  const page = await context.newPage();
+  page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource|ERR_INTERNET_DISCONNECTED|WebSocket connection/.test(m.text())) problems.push(`${name} console: ${m.text().slice(0, 300)}`); });
   page.on("pageerror", (e) => problems.push(`${name} pageerror: ${String(e).slice(0, 300)}`));
   page.on("request", (r) => sent.push({ name, url: r.url(), body: r.postData() || "" }));
   page.on("websocket", (ws) => ws.on("framesent", (f) => sent.push({ name, url: ws.url(), body: String(f.payload) })));
-};
-
-const device = async (name) => {
-  const context = await browser.newContext();
-  const page = await context.newPage();
-  watch(page, name);
-  await page.goto(base + "/merkliste");
-  await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push(`${name}: the app never took over`));
   return { context, page, name };
 };
-
-const marks = (page) => page.evaluate((key) => (localStorage.getItem(key) || "").split("\n").filter(Boolean).map((l) => l.split("\t")[0]), MARKS);
-const shelf = (page) => page.evaluate((key) => localStorage.getItem(key) || "", SHELF);
-const state = (page) => page.evaluate(() => localStorage.getItem("betula.sync.p1.status") || "");
-
-const until = async (name, page, fn, arg, timeout = 8000) => {
+const app = (page) => page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push(`the app never took over (${page.url()})`));
+const go = async (page, path) => {
+  await page.goto(base + path);
+  await app(page);
+};
+const until = async (name, page, fn, arg, timeout = 10000) => {
   const started = Date.now();
   try {
     await page.waitForFunction(fn, arg, { timeout });
@@ -54,87 +58,101 @@ const until = async (name, page, fn, arg, timeout = 8000) => {
   }
   timings[name] = Date.now() - started;
 };
+const marksOf = (page) => page.evaluate(() => marked().sort());
+const shelfOf = (page) => page.evaluate(() => localStorage.getItem(store("betula.collections.v1")) || "");
 
-// The first device: a Merkliste with three marks and a note, as a person leaves them.
+/// Marks the first module of the catalog this browser has not marked; its number.
+const markOne = async (page, name, stay = false, avoid = []) => {
+  if (!stay) await go(page, "/catalog");
+  const id = await page.evaluate((avoid) => {
+    const rows = [...document.querySelectorAll(".row-wrap")].filter((w) => w.querySelector(":scope > .mark-toggle[aria-pressed=false]") && w.getBoundingClientRect().height > 0 && !avoid.includes(w.querySelector("a.row")?.dataset.id));
+    return rows[0]?.querySelector("a.row")?.dataset.id || "";
+  }, avoid);
+  if (!id) {
+    problems.push(`${name}: no module to mark on the catalog`);
+    return "";
+  }
+  await page.click(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle >> visible=true`);
+  await until(`${name} marks ${id}`, page, (id) => onPage(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`)?.getAttribute("aria-pressed") === "true", id, 5000);
+  return id;
+};
+
+// ---- the first browser: marks and a note, then „Betula Sync aktivieren" ----
 const a = await device("A");
-await a.page.evaluate(([marksKey, shelfKey, modules, note]) => {
-  localStorage.setItem(marksKey, modules.map((m, i) => `${m}\t${1790000000 - i}`).join("\n") + "\n");
-  localStorage.setItem(shelfKey, `n\t${modules[0]}\t${note}\n`);
-}, [MARKS, SHELF, MODULES, SECRET_NOTE]);
-await a.page.reload();
-await a.page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 });
-
-// „Betula Sync aktivieren" on the profile page.
-await a.page.goto(base + "/profil");
-await a.page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 });
+await go(a.page, "/bookmarks");
+await a.page.evaluate(([seed, note]) => {
+  localStorage.setItem("betula.bookmarks.v1", seed.map((m, i) => `${m}\t${1790000000 - i}`).join("\n") + "\n");
+  localStorage.setItem("betula.collections.v1", `n\t${seed[0]}\t${note}\n`);
+}, [SEED, NOTE]);
+await go(a.page, "/profile");
 const activate = a.page.getByRole("button", { name: /Betula Sync aktivieren/ }).first();
-check(await activate.isVisible().catch(() => false), "A: no „Betula Sync aktivieren“ on the profile page");
-await activate.click().catch(() => problems.push("A: „Betula Sync aktivieren“ cannot be clicked"));
-// The dialog asks once more.
-const confirm = a.page.getByRole("dialog").getByRole("button", { name: /aktivieren|Einschalten|Weiter/i }).first();
-if (await confirm.isVisible().catch(() => false)) await confirm.click();
+check(await activate.isVisible().catch(() => false), "A: no „Betula Sync aktivieren“ on the profile page (is FOLIA_SYNC on?)");
+await activate.click().catch(() => {});
+await a.page.getByRole("button", { name: /^Aktivieren$/ }).first().click().catch(() => problems.push("A: no „Aktivieren“ in the explanation"));
 await until("A synced", a.page, () => (localStorage.getItem("betula.sync.p1.status") || "").startsWith("online"), null, 15000);
+await until("the link for the next device", a.page, () => Boolean(onPage(".pf-pair-link code")?.textContent.includes("/verbinden#")), null, 10000);
+const link = (await a.page.locator(".pf-pair-link code").first().textContent().catch(() => "")).trim();
 const key = await a.page.evaluate(() => (localStorage.getItem("betula.sync.p1.v1") || "").split("\n").find((l) => l.startsWith("key\t"))?.slice(4) || "");
 check(key.length === 43, `A: no profile key kept (${key.length})`);
-// The snapshot is kept at Phloem before the next device asks.
-await a.page.waitForTimeout(500);
+check(link.startsWith(base + "/verbinden#"), `A: the link is ${link}`);
 
-// The second device joins with the profile's key (what the link's parcel hands on).
+// ---- the second browser opens the link ----
 const b = await device("B");
-await b.page.evaluate((key) => {
-  const device = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  localStorage.setItem("betula.sync.p1.v1", `key\t${key}\ndevice\t${device}\nslot\t0\n`);
-}, key);
-await b.page.reload();
-await b.page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 });
-await until("B joined", b.page, (n) => (localStorage.getItem("betula.bookmarks.v1") || "").split("\n").filter(Boolean).length === n, MODULES.length, 15000);
-check(JSON.stringify(await marks(b.page)) === JSON.stringify(await marks(a.page)), `B: other marks than A (${await marks(b.page)} / ${await marks(a.page)})`);
-check((await shelf(b.page)).includes(SECRET_NOTE), "B: the note did not come");
-check((await state(a.page)) === "online 1", `A: does not see B online (${await state(a.page)})`);
+await b.page.goto(link);
+await app(b.page);
+await until("B joined", b.page, (n) => marked().length === n, SEED.length, 20000);
+check(!b.page.url().includes("#"), `B: the link's key is still in the address (${b.page.url()})`);
+check(JSON.stringify(await marksOf(b.page)) === JSON.stringify(await marksOf(a.page)), `B: other marks than A (${await marksOf(b.page)} / ${await marksOf(a.page)})`);
+check((await shelfOf(b.page)).includes(NOTE), "B: the note did not come");
+await until("A sees B online", a.page, () => (localStorage.getItem("betula.sync.p1.status") || "") === "online 1", null, 10000);
 
-// Live: a mark set on B shows on A.
-await b.page.goto(base + "/module/12104");
-await b.page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 });
-const mark = b.page.getByRole("button", { name: /Merken/ }).first();
-if (await mark.isVisible().catch(() => false)) {
-  await mark.click();
-  await until("a mark of B on A", a.page, () => (localStorage.getItem("betula.bookmarks.v1") || "").includes("12104\t"), null, 5000);
-} else {
-  problems.push("B: no „Merken“ on a module's page");
-}
+// ---- live: a mark set on B shows on A ----
+const live = await markOne(b.page, "B");
+if (live) await until("B's mark on A", a.page, (id) => (localStorage.getItem("betula.bookmarks.v1") || "").includes(`${id}\t`), live, 5000);
 
-// Offline: B changes while away, A meanwhile; back online, both hold both.
+// ---- offline: both mark while B is away; back online, both hold both ----
+await go(b.page, "/catalog");
 await b.context.setOffline(true);
-await until("B offline", b.page, () => (localStorage.getItem("betula.sync.p1.status") || "") === "offline", null, 10000);
-await b.page.evaluate(() => {
-  const key = "betula.collections.v1";
-  localStorage.setItem(key, (localStorage.getItem(key) || "") + "n\t13977\tFolien von Woche 3\n");
-});
-await a.page.goto(base + "/module/11112");
-await a.page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 });
-const markA = a.page.getByRole("button", { name: /Merken/ }).first();
-if (await markA.isVisible().catch(() => false)) await markA.click();
-await b.page.reload().catch(() => {});
+await until("B offline", b.page, () => (localStorage.getItem(syncKey("status")) || "") === "offline", null, 60000);
+const awayB = await markOne(b.page, "B offline", true);
+const awayA = await markOne(a.page, "A while B is away", false, [awayB]);
+check(awayA !== awayB, "A and B marked the same module");
 await b.context.setOffline(false);
-await b.page.reload().catch(() => {});
-await b.page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => {});
-await until("A's mark on B after offline", b.page, () => (localStorage.getItem("betula.bookmarks.v1") || "").includes("11112\t"), null, 15000);
-await until("B's offline note on A", a.page, () => (localStorage.getItem("betula.collections.v1") || "").includes("Folien von Woche 3"), null, 15000);
+if (awayA) await until("A's mark on B after offline", b.page, (id) => marked().includes(id), awayA, 40000);
+if (awayB) await until("B's offline mark on A", a.page, (id) => (localStorage.getItem("betula.bookmarks.v1") || "").includes(`${id}\t`), awayB, 40000);
+check(JSON.stringify(await marksOf(b.page)) === JSON.stringify(await marksOf(a.page)), `after offline: A ${await marksOf(a.page)}, B ${await marksOf(b.page)}`);
 
-// Privacy: what left the browsers.
-const clear = sent.filter((s) => MODULES.concat(["12104", "11112", SECRET_NOTE, "Folien von Woche 3"]).some((secret) => s.body.includes(secret) || s.url.includes(SECRET_NOTE)));
-check(clear.length === 0, `in the clear: ${clear.slice(0, 3).map((s) => `${s.name} ${s.url} ${s.body.slice(0, 120)}`).join(" | ")}`);
-const keyLeaks = sent.filter((s) => s.body.includes(key) || s.url.includes(key));
-check(keyLeaks.length === 0, `the profile key left the browser: ${keyLeaks.slice(0, 2).map((s) => s.url).join(" ")}`);
-const hosts = new Set(sent.map((s) => new URL(s.url).host));
+// ---- the recovery code brings it into a third browser ----
+await go(a.page, "/profile");
+await a.page.getByRole("button", { name: /Wiederherstellungscode zeigen/ }).first().click().catch(() => problems.push("A: no „Wiederherstellungscode zeigen“"));
+await until("the recovery code", a.page, () => /^[0-9A-Z]{4}(-[0-9A-Z]{4}){12}$/.test(onPage(".pf-code code")?.textContent.trim() || ""), null, 5000);
+const code = (await a.page.locator(".pf-code code").first().textContent().catch(() => "")).trim();
+const c = await device("C");
+await go(c.page, "/profile");
+await c.page.getByLabel(/Wiederherstellungscode/).first().fill(code).catch(() => problems.push("C: no field for the recovery code"));
+await c.page.getByRole("button", { name: /Profil holen/ }).first().click().catch(() => problems.push("C: no „Profil holen“"));
+await until("C recovered", c.page, (n) => marked().length >= n, SEED.length, 20000);
+check(JSON.stringify(await marksOf(c.page)) === JSON.stringify(await marksOf(a.page)), `C: other marks than A (${await marksOf(c.page)})`);
+
+// ---- „Sync beenden": every browser private again, with its copy ----
+await a.page.getByRole("button", { name: /^Sync beenden/ }).first().click().catch(() => problems.push("A: no „Sync beenden“"));
+await a.page.getByRole("button", { name: /^Beenden$/ }).first().click().catch(() => problems.push("A: no „Beenden“ to confirm"));
+await until("A private", a.page, () => !localStorage.getItem("betula.sync.p1.v1"), null, 10000);
+await until("B ended", b.page, () => Object.keys(localStorage).some((k) => /^betula\.sync\.p\d+\.ended$/.test(k)), null, 10000);
+check((await marksOf(b.page)).length >= SEED.length, "B: the copy is gone after the end");
+
+// ---- privacy ----
+const secrets = SEED.concat([live, awayA, awayB, NOTE].filter(Boolean));
+const clear = sent.filter((s) => (phloem && s.url.startsWith(phloem.replace(/^http/, "ws"))) || s.url.includes("/sync/v1/")).filter((s) => secrets.some((secret) => s.body.includes(secret) || s.url.includes(secret)));
+check(clear.length === 0, `to Phloem in the clear: ${clear.slice(0, 3).map((s) => `${s.name} ${s.url} ${s.body.slice(0, 120)}`).join(" | ")}`);
+const keyLeaks = sent.filter((s) => s.body.includes(key) || s.url.includes(key) || (code && s.body.includes(code)));
+check(keyLeaks.length === 0, `the profile key left a browser: ${keyLeaks.slice(0, 2).map((s) => s.url).join(" ")}`);
+const fragment = link.split("#")[1] || "";
+check(!sent.some((s) => fragment && (s.url.includes(fragment) || s.body.includes(fragment))), "the link's part after # reached a server");
 const allowed = new Set([new URL(base).host].concat(phloem ? [new URL(phloem).host] : []));
-const foreign = [...hosts].filter((h) => !allowed.has(h));
+const foreign = [...new Set(sent.map((s) => new URL(s.url).host))].filter((h) => !allowed.has(h));
 check(foreign.length === 0, `requests to other hosts: ${foreign.join(", ")}`);
 
 await browser.close();
-console.log(JSON.stringify(timings));
-if (problems.length) {
-  console.error(problems.join("\n"));
-  process.exit(1);
-}
-console.log("sync: ok");
+console.log(JSON.stringify({ timings, problems }, null, 2));
+process.exit(problems.length ? 1 : 0);
