@@ -1,0 +1,12 @@
+# Installed by /opt/betula/vps/30-docker.sh as /etc/systemd/system/betula-phloem-guard.timer.
+
+[Unit]
+Description=Betula: look at Phloem's firewall every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
