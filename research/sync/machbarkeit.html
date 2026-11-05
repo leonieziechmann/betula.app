@@ -1,0 +1,908 @@
+<title>Machbarkeitsstudie Betula-Sync</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- Sync between devices, the feasibility study (2026-11-05; owner: „mach dir mal bitte gedanken
+     über ein sync system … mach mal eine machbarkeits studie, was wie gut umsetzbar wäre und wie
+     viel ressourcen das brauchen würde“). What Betula has today (R20, the profiles, the codes of the
+     calendar and of sharing), the parts of a sync with sealed parts on the server, the keys, the
+     switch between devices, live with and without WebRTC, the calendar's and the friends' parts,
+     what keeps it from being free storage, what encryption cannot do, where it runs, what it costs
+     the server and the steps. The numbers come from research/sync/measure (profile sizes in
+     Betula's own store formats; idle streams in axum as Folia's server and in a Go proxy as
+     Traefik). Tokens and layout are those of the concepts in folia/design (Inter, JetBrains Mono,
+     Betula's birch green); Inter comes from Google Fonts here, the app self-hosts it. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: a review desk, as the concepts in folia/design. The brief and the rules, the result,
+   then one panel per question the study answers, the numbers, the steps and the questions.
+   Tokens: Betula's own (light, then dark); the birch green marks what is new. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4;
+  --panel: #ffffff;
+  --panel-2: #f6f7f8;
+  --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08);
+  --line-strong: rgba(15, 23, 42, .18);
+  --text: #10151f;
+  --text-2: #4b5565;
+  --text-3: #7d8697;
+  --accent: oklch(.53 .07 149);
+  --accent-ink: oklch(.46 .07 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 45%, transparent);
+  --ok: #0b7f58;
+  --ok-soft: color-mix(in srgb, #0b7f58 10%, var(--panel));
+  --warn: #8f5a0a;
+  --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel));
+  --no: #b3261e;
+  --no-soft: color-mix(in srgb, #b3261e 8%, var(--panel));
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --r-panel: 9px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .2);
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #737d93;
+    --accent: oklch(.66 .08 149);
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 55%, transparent);
+    --ok: #4fd1a1; --ok-soft: color-mix(in srgb, #4fd1a1 12%, var(--panel));
+    --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+    --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .2);
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #737d93;
+  --accent: oklch(.66 .08 149);
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 55%, transparent);
+  --ok: #4fd1a1; --ok-soft: color-mix(in srgb, #4fd1a1 12%, var(--panel));
+  --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+  --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+a { color: var(--accent-ink); }
+code { font: 500 .86em var(--mono); padding: 1px 5px; border-radius: 5px; background: var(--panel-3); overflow-wrap: anywhere; }
+b { font-weight: 620; color: var(--text); }
+.page { max-width: 1140px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 24px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* The brief. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -.026em; font-weight: 770; }
+.intro .lead { margin-top: 14px; max-width: 64ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.quote { margin-top: 18px; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ol { margin: 12px 0 0; padding: 0; list-style: none; counter-reset: rule; display: flex; flex-direction: column; gap: 10px; }
+.rules li { counter-increment: rule; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); }
+.rules li::before { content: counter(rule); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.rules li span { min-width: 0; }
+
+/* The bar of the sections. */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+.setbar { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--shadow-panel); }
+.setbar .jump { display: flex; flex-wrap: wrap; gap: 2px; min-width: 0; }
+.setbar .jump a { padding: 6px 7px; border-radius: 7px; color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.setbar .jump a:hover { background: var(--panel-3); color: var(--text); }
+
+/* A section. */
+.sec { padding: 24px 24px 26px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); scroll-margin-top: 80px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.sec > header { display: flex; flex-direction: column; gap: 8px; }
+.sec h2 { font-size: 23px; line-height: 1.2; letter-spacing: -.02em; font-weight: 730; }
+.sec .sub { max-width: 78ch; color: var(--text-2); text-wrap: pretty; }
+.sec h3 { font-size: 15px; font-weight: 700; letter-spacing: -.005em; }
+.prose { display: flex; flex-direction: column; gap: 10px; max-width: 78ch; color: var(--text-2); text-wrap: pretty; }
+.block { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+/* Tables. */
+.tblw { overflow-x: auto; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 720px; }
+.tbl th, .tbl td { padding: 10px 14px; text-align: left; vertical-align: top; border-top: 1px solid var(--line); }
+.tbl thead th { border-top: 0; background: var(--panel-2); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; }
+.tbl tbody th { font-weight: 650; color: var(--text); }
+.tbl tbody th small { display: block; margin-top: 2px; font-weight: 450; font-size: 12.5px; color: var(--text-3); }
+.tbl td { color: var(--text-2); text-wrap: pretty; }
+.tbl td.r, .tbl th.r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tbl.k tbody th { width: 24%; }
+.pill { display: inline-block; padding: 1px 7px; border-radius: 6px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+.pill.yes { background: var(--ok-soft); color: var(--ok); }
+.pill.ask { background: var(--warn-soft); color: var(--warn); }
+.pill.no { background: var(--panel-3); color: var(--text-2); }
+.cost { display: inline-block; padding: 1px 7px; border-radius: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: none; white-space: nowrap; }
+.cost.s { background: var(--ok-soft); color: var(--ok); }
+.cost.m { background: var(--warn-soft); color: var(--warn); }
+.cost.l { background: var(--no-soft); color: var(--no); }
+
+/* The proposal of a section. */
+.rec { padding: 14px 16px; border-radius: 12px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--text-2); font-size: 14.5px; text-wrap: pretty; max-width: 92ch; }
+.rec b:first-child { color: var(--accent-ink); }
+
+/* Facts side by side. */
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.facts.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fact { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.fact h3 { font-size: 14.5px; }
+.fact p, .fact li { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.fact ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.fact .addr { font: 500 12.5px/1.5 var(--mono); color: var(--text); overflow-wrap: anywhere; }
+
+/* A sequence. */
+.flow { margin: 0; padding: 0; list-style: none; counter-reset: f; display: flex; flex-direction: column; gap: 8px; max-width: 86ch; }
+.flow li { counter-increment: f; display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.flow li::before { content: counter(f); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--accent-soft); color: var(--accent-ink); font-size: 12px; font-weight: 700; box-shadow: inset 0 0 0 1px var(--accent-line); }
+.flow li span { min-width: 0; }
+
+/* Diagrams: wider than a phone, so they scroll in their own frame there. */
+figure.dia { margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.diaw { overflow-x: auto; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.diaw svg { display: block; width: 100%; height: auto; min-width: 760px; color: var(--text-2); }
+figure.dia figcaption { max-width: 86ch; font-size: 13px; color: var(--text-3); text-wrap: pretty; }
+.dia .box { fill: var(--panel); stroke: var(--line-strong); stroke-width: 1; }
+.dia .new { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.3; }
+.dia .opt { fill: var(--panel); stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 4 3; }
+.dia .frame { fill: none; stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 4; }
+.dia .chip { fill: var(--panel); stroke: var(--accent-line); stroke-width: 1; }
+.dia .band { fill: var(--panel-3); }
+.dia .lane { stroke: var(--line-strong); stroke-width: 1; }
+.dia .h { fill: var(--text); font: 650 13px var(--font); }
+.dia .s { fill: var(--text-2); font: 500 11.5px var(--font); }
+.dia .l { fill: var(--text-2); font: 600 11px var(--font); }
+.dia .la { fill: var(--accent-ink); font: 650 11px var(--font); }
+.dia .m { fill: var(--text-3); font: 500 10.5px var(--mono); }
+.dia .kk { fill: var(--text-3); font: 700 10.5px var(--font); letter-spacing: .07em; }
+.dia .e { fill: none; stroke: var(--text-2); stroke-width: 1.4; }
+.dia .e.acc { stroke: var(--accent); stroke-width: 2; }
+.dia .e.dash { stroke-dasharray: 5 4; }
+.dia .e.dot { stroke-dasharray: 1.5 3.5; stroke-linecap: round; }
+.dia .pt { fill: var(--text); }
+.dia .pt.acc { fill: var(--accent); }
+.dia .ah { fill: var(--text-2); }
+.dia .ah-acc { fill: var(--accent); }
+
+/* Two sides of one thing. */
+.vs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.vs .side { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.vs .side.now { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.vs .side p { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.vs .side .addr { font: 500 12.5px/1.5 var(--mono); color: var(--text); overflow-wrap: anywhere; }
+
+/* Code. */
+.codeblk { margin: 0; padding: 12px 14px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); overflow-x: auto; font: 500 12.5px/1.65 var(--mono); color: var(--text); white-space: pre; }
+.codeblk .c { color: var(--text-3); }
+
+/* Measured numbers. */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.stat { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.stat .v { font-size: 26px; font-weight: 760; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat .v small { font-size: 15px; font-weight: 650; color: var(--text-2); }
+.stat p { font-size: 13px; color: var(--text-2); text-wrap: pretty; }
+.note { font-size: 13px; color: var(--text-3); max-width: 96ch; text-wrap: pretty; }
+
+/* Steps. */
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 12px; }
+.step { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.step .n { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.step h3 { font-size: 15px; }
+.step ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; color: var(--text-2); }
+.step p { font-size: 13px; color: var(--text-2); text-wrap: pretty; }
+
+/* Questions. */
+.qs { margin: 0; padding: 0; list-style: none; counter-reset: q; display: flex; flex-direction: column; }
+.qs li { counter-increment: q; display: grid; grid-template-columns: 30px minmax(0, 1fr) minmax(0, 1fr); gap: 8px 20px; padding: 14px 0; border-top: 1px solid var(--line); }
+.qs li:first-child { border-top: 0; padding-top: 4px; }
+.qs li::before { content: counter(q); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.qs .ask { font-size: 14.5px; color: var(--text); font-weight: 600; text-wrap: pretty; }
+.qs .ask small { display: block; margin-top: 4px; font-weight: 400; font-size: 13.5px; color: var(--text-2); }
+.qs .rec2 { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.qs .rec2 b { color: var(--accent-ink); font-weight: 650; }
+
+.srcs { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-2); }
+.srcs li { text-wrap: pretty; overflow-wrap: anywhere; }
+.foot { font-size: 12.5px; color: var(--text-3); text-align: center; }
+
+@media (max-width: 980px) {
+  .facts, .facts.two, .vs { grid-template-columns: minmax(0, 1fr); }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .intro { grid-template-columns: minmax(0, 1fr); }
+  .qs li { grid-template-columns: 30px minmax(0, 1fr); }
+  .qs .rec2 { grid-column: 2; }
+}
+@media (max-width: 560px) {
+  .page { padding-block: 24px 56px; }
+  .sec { padding: 18px 16px 20px; }
+  .setbar .jump { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+  .stats { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="page">
+<section class="intro">
+  <div>
+    <div class="kicker">Betula · Sync zwischen Geräten · Machbarkeitsstudie · 05.11.2026</div>
+    <h1>Am Rechner planen, am Handy weitermachen</h1>
+    <p class="lead">Du willst zwischen Rechner und Handy wechseln, ohne daran zu denken, mit einem Server, der dafür kaum etwas tut und nichts lesen kann. Das geht. Hier steht, wie: ein Sync-Dienst, der nur versiegelte Teile aufbewahrt, Geräte, die beim Öffnen holen und beim Weglegen schicken, eigene Schlüssel für den Kalender und für Freund:innen, Grenzen gegen Missbrauch, und wo WebRTC hilft und wo nicht. Dazu, was es den Server kostet und in welchen Schritten man es baut.</p>
+    <p class="quote">„dass man <b>seamless zwischen computer und handy switchen</b> [kann] … eine robuste architektur, die <b>möglichst wenig ressourcen</b> von meinem server braucht … <b>möglichst full client side encryption</b>, so dass ich keine sensitiven nutzdaten habe und die leaken kann“</p>
+  </div>
+  <aside class="rules" aria-label="Was diese Studie voraussetzt">
+    <div class="kicker">Was diese Studie voraussetzt</div>
+    <ol>
+      <li><span><b>Der Server hält nur Versiegeltes.</b> Er bewahrt Teile auf, die er nicht öffnen kann. Jeder Teil hat seinen eigenen Schlüssel.</span></li>
+      <li><span><b>Jedes Gerät hat alles.</b> Der Server ist Briefkasten und Sicherung, nicht das Original. Fällt er aus, arbeitet jedes Gerät weiter.</span></li>
+      <li><span><b>Betula sagt nicht nein.</b> Die Grenzen gegen Missbrauch folgen aus dem, was Betula selbst höchstens schreibt. Ein echtes Profil stößt nie an sie.</span></li>
+      <li><span><b>Gemessen, wo es geht.</b> Profilgrößen in Betulas eigenen Formaten, Verbindungen mit axum wie in Folia und einem Go-Proxy wie Traefik. Was geschätzt ist, steht als Schätzung da. Die Skripte liegen in <code>research/sync/measure</code>.</span></li>
+    </ol>
+  </aside>
+</section>
+
+<nav class="setbar" aria-label="Abschnitte">
+  <div class="jump"><a href="#ergebnis">Ergebnis</a><a href="#heute">Heute</a><a href="#aufbau">Aufbau</a><a href="#schluessel">Schlüssel</a><a href="#geraete">Geräte</a><a href="#wechsel">Wechsel</a><a href="#live">Live</a><a href="#kalender">Kalender</a><a href="#freunde">Freunde</a><a href="#missbrauch">Gratis-Speicher</a><a href="#grenzen">Grenzen</a><a href="#betrieb">Betrieb</a><a href="#ressourcen">Ressourcen</a><a href="#schritte">Schritte</a><a href="#fragen">Fragen</a></div>
+</nav>
+
+<!-- ============================================================ Ergebnis -->
+<section class="sec" id="ergebnis">
+  <header>
+    <h2>Das Ergebnis</h2>
+    <p class="sub">Alles, was du beschreibst, ist machbar, und nichts davon belastet den Server spürbar. Selbst wenn alle rund 7.500 Studierenden der BTU synchronisieren, sind es rund 300 MB auf der Platte, unter 10 GB Verkehr im Monat und drei Anfragen pro Sekunde. Was es kostet, ist Arbeit, ein neuer Dienst im Betrieb und eine gute Antwort auf die Frage, was passiert, wenn jemand seinen Schlüssel verliert.</p>
+  </header>
+  <div class="tblw">
+    <table class="tbl k">
+      <thead><tr><th>Baustein</th><th>Machbar</th><th>Aufwand</th><th>Server</th><th>Worauf es ankommt</th></tr></thead>
+      <tbody>
+        <tr><th>Versiegelter Speicher und Abgleich<small>die Geräte sind nicht gleichzeitig online</small></th><td><span class="pill yes">gut</span></td><td><span class="cost m">mittel</span></td><td>sehr wenig</td><td>Änderungen von zwei Geräten zusammenführen; den Schlüssel nicht verlieren</td></tr>
+        <tr><th>Wechsel ohne Warten<small>holen beim Öffnen, schicken beim Weglegen</small></th><td><span class="pill yes">gut</span></td><td><span class="cost s">klein</span></td><td>sehr wenig</td><td>trägt das Wechseln schon allein, ganz ohne Live-Kanal</td></tr>
+        <tr><th>Live über den Server<small>wenn beide Geräte offen sind</small></th><td><span class="pill yes">gut</span></td><td><span class="cost s">klein</span></td><td>wenig, mit Deckel</td><td>offene Verbindungen sind das Einzige, was Speicher kostet: gut 80 KB je Tab, und Traefik hat 512 MB</td></tr>
+        <tr><th>WebRTC direkt<small>STUN von Betula, TURN als Umweg</small></th><td><span class="pill ask">machbar</span></td><td><span class="cost l">groß</span></td><td>wenig</td><td>spart bei Betulas Kilobytes fast nichts; iOS trennt die Verbindung im Hintergrund; ein TURN-Server ist ein offenes Relais neben Cortex und Grafana</td></tr>
+        <tr><th>Kalender-Teil<small>für Google, Apple, Outlook</small></th><td><span class="pill yes">gut</span></td><td><span class="cost s">klein</span></td><td>wie heute</td><td>Google kann nicht entschlüsseln, also öffnet Folia den Teil beim Abruf im Speicher; das Zugriffsprotokoll muss für diese Adressen aus sein</td></tr>
+        <tr><th>Freundes-Teile<small>ein Stundenplan, der aktuell bleibt</small></th><td><span class="pill yes">gut</span></td><td><span class="cost s">klein</span></td><td>sehr wenig</td><td>echt Ende-zu-Ende; die Linkvorschau kann keine Module mehr zeigen</td></tr>
+        <tr><th>Kein Gratis-Speicher</th><td><span class="pill yes">gut</span></td><td><span class="cost m">mittel</span></td><td>–</td><td>Grenzen aus Betulas eigenen Speichergrenzen, Ablauf nach 13 Monaten, ein Gesamtbudget; Firefox Send ist das warnende Beispiel</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="rec"><b>Vorschlag:</b> in dieser Reihenfolge bauen. Zuerst der versiegelte Speicher mit Holen und Schicken; damit funktioniert der Wechsel schon. Dann Live über den Server, dann Kalender- und Freundes-Teile. WebRTC erst, wenn du einen Direktmodus ganz ohne Kopie auf dem Server willst oder große Daten dazukommen, etwa Dateien oder Fotos. Der Live-Kanal aus Schritt 2 ist genau die Signalisierung, die WebRTC braucht, also ist dann nichts davon umsonst gebaut.</p>
+</section>
+
+<!-- ============================================================ Heute -->
+<section class="sec" id="heute">
+  <header>
+    <h2>Was es heute gibt</h2>
+    <p class="sub">Betula hat keine Konten und bewahrt nichts von dir auf dem Server auf (R20). Zwischen Geräten geht es bisher nur von Hand, über Links und Dateien.</p>
+  </header>
+  <div class="tblw">
+    <table class="tbl k">
+      <thead><tr><th>Was</th><th>Heute</th><th>Mit Sync</th></tr></thead>
+      <tbody>
+        <tr><th>Profile<small>bis zu 8 je Browser</small></th><td>Merkliste, Stundenplan mit „Mein Studium“, gespeicherte Pläne, „Mein Studiengang“, Sammlungen und Notizen: fünf Speicher, nur in diesem Browser (<code>localStorage</code>)</td><td>auf jedem verbundenen Gerät, versiegelt auf dem Server</td></tr>
+        <tr><th>Ein Profil auf ein anderes Gerät</th><td>„Als Datei sichern“ und „Aus Datei laden“; die Merkliste per Link (<code>/bookmarks#m=…</code>)</td><td>von selbst, in beide Richtungen</td></tr>
+        <tr><th>Kalender-Abo</th><td><code>/calendar/&lt;code&gt;.ics</code>: der Code ist der Plan. Er steht bei Google und 7 Tage im Zugriffsprotokoll; jede Änderung und jedes neue Semester braucht eine neue Adresse; widerrufen geht nicht</td><td>eine Adresse, die bleibt; der Server hält nur den versiegelten Teil; widerrufbar</td></tr>
+        <tr><th>Stundenplan teilen</th><td><code>/studyplan?share=&lt;code&gt;</code>: ein fester Stand, bei Lena als „Kalender von …“</td><td>ein Link, der aktuell bleibt; der Schlüssel erreicht den Server nie</td></tr>
+        <tr><th>Safari</th><td>löscht alles, was eine Seite gespeichert hat, nach 7 Tagen Safari-Nutzung ohne Besuch; installierte Web-Apps nicht</td><td>die Daten sind sicher; das Gerät wird neu verbunden</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose">Gut für einen Sync: Die Speicher sind Zeilen von Text, und Betula liest sie, als kämen sie von außen. Eine Zeile, die nicht stimmt, fällt allein weg, und Zeilen einer neueren Version bleiben, wie sie sind. Was von einem anderen Gerät oder vom Server kommt, kann die App also nicht kaputtmachen, und zwei Stände lassen sich Zeile für Zeile zusammenführen.</p>
+</section>
+
+<!-- ============================================================ Aufbau -->
+<section class="sec" id="aufbau">
+  <header>
+    <h2>Der Aufbau</h2>
+    <p class="sub">Ein neuer Dienst auf dem Server, der Sync-Dienst, bewahrt versiegelte Teile auf und sagt Bescheid, wenn es etwas Neues gibt. Geöffnet wird auf den Geräten. Die einzige Ausnahme ist der Kalender: Google kann nicht entschlüsseln, also öffnet Folia den Kalender-Teil beim Abruf, mit dem Schlüssel aus der Abo-Adresse, und vergisst ihn wieder.</p>
+  </header>
+  <figure class="dia">
+    <div class="diaw">
+      <svg viewBox="0 0 960 470" role="img" aria-label="Rechner und Handy schicken und holen versiegelte Teile beim Sync-Dienst auf betula.app, der ihnen Hinweise auf neue Versionen gibt. Google holt den Kalender bei Folia, das den Kalender-Teil vom Sync-Dienst holt und im Speicher öffnet. Lenas Betula holt einen Freundes-Teil. Eine direkte WebRTC-Verbindung zwischen den Geräten mit STUN und TURN ist optional.">
+        <defs>
+          <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+          <marker id="a1g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-acc" d="M0,0 L10,5 L0,10 z"/></marker>
+        </defs>
+        <!-- the optional direct way -->
+        <path class="e dash" d="M115,186 C115,40 845,40 845,186" marker-start="url(#a1)" marker-end="url(#a1)"/>
+        <text class="l" x="480" y="60" text-anchor="middle">direkt über WebRTC (optional)</text>
+        <line class="e dot" x1="480" y1="77" x2="480" y2="118"/>
+        <!-- the server -->
+        <rect class="frame" x="290" y="92" width="380" height="330" rx="14"/>
+        <text class="kk" x="306" y="112">BETULA.APP · EIN VPS</text>
+        <rect class="opt" x="405" y="118" width="150" height="42" rx="8"/>
+        <text class="h" x="480" y="136" text-anchor="middle">STUN · TURN</text>
+        <text class="s" x="480" y="152" text-anchor="middle">nur für den direkten Weg</text>
+        <rect class="new" x="310" y="182" width="340" height="124" rx="10"/>
+        <text class="h" x="480" y="206" text-anchor="middle">Sync-Dienst (neu)</text>
+        <text class="s" x="480" y="223" text-anchor="middle">bewahrt Versiegeltes auf, sagt Bescheid</text>
+        <rect class="chip" x="326" y="238" width="120" height="26" rx="6"/>
+        <text class="l" x="386" y="255" text-anchor="middle">Profil · 5 Speicher</text>
+        <rect class="chip" x="452" y="238" width="84" height="26" rx="6"/>
+        <text class="l" x="494" y="255" text-anchor="middle">Kalender-Teil</text>
+        <rect class="chip" x="542" y="238" width="92" height="26" rx="6"/>
+        <text class="l" x="588" y="255" text-anchor="middle">Freundes-Teile</text>
+        <text class="m" x="480" y="290" text-anchor="middle">SQLite · nur Versiegeltes</text>
+        <rect class="box" x="310" y="340" width="160" height="62" rx="10"/>
+        <text class="h" x="390" y="365" text-anchor="middle">Folia</text>
+        <text class="s" x="390" y="383" text-anchor="middle">öffnet den Kalender-Teil</text>
+        <!-- devices -->
+        <rect class="box" x="20" y="182" width="190" height="124" rx="12"/>
+        <text class="h" x="115" y="210" text-anchor="middle">Rechner</text>
+        <text class="s" x="115" y="228" text-anchor="middle">Betula, alles im Browser</text>
+        <text class="m" x="115" y="258" text-anchor="middle">Profilschlüssel</text>
+        <text class="m" x="115" y="276" text-anchor="middle">5 Speicher, Stand v41</text>
+        <rect class="box" x="750" y="182" width="190" height="124" rx="12"/>
+        <text class="h" x="845" y="210" text-anchor="middle">Handy</text>
+        <text class="s" x="845" y="228" text-anchor="middle">Betula, alles im Browser</text>
+        <text class="m" x="845" y="258" text-anchor="middle">Profilschlüssel</text>
+        <text class="m" x="845" y="276" text-anchor="middle">5 Speicher, Stand v41</text>
+        <!-- device to service -->
+        <line class="e acc" x1="212" y1="226" x2="308" y2="226" marker-start="url(#a1g)" marker-end="url(#a1g)"/>
+        <text class="la" x="260" y="216" text-anchor="middle">schicken · holen</text>
+        <text class="s" x="260" y="242" text-anchor="middle">versiegelt</text>
+        <line class="e dash" x1="308" y1="280" x2="214" y2="280" marker-end="url(#a1)"/>
+        <text class="l" x="260" y="298" text-anchor="middle">Hinweis: v42</text>
+        <line class="e acc" x1="652" y1="226" x2="748" y2="226" marker-start="url(#a1g)" marker-end="url(#a1g)"/>
+        <text class="la" x="700" y="216" text-anchor="middle">schicken · holen</text>
+        <text class="s" x="700" y="242" text-anchor="middle">versiegelt</text>
+        <line class="e dash" x1="652" y1="280" x2="746" y2="280" marker-end="url(#a1)"/>
+        <text class="l" x="700" y="298" text-anchor="middle">Hinweis: v42</text>
+        <!-- calendar -->
+        <rect class="box" x="20" y="340" width="190" height="62" rx="12"/>
+        <text class="h" x="115" y="365" text-anchor="middle">Google · Apple · Outlook</text>
+        <text class="s" x="115" y="383" text-anchor="middle">Abo, alle paar Stunden</text>
+        <line class="e" x1="210" y1="371" x2="306" y2="371" marker-end="url(#a1)"/>
+        <text class="l" x="258" y="362" text-anchor="middle">holt .ics</text>
+        <line class="e" x1="400" y1="340" x2="400" y2="310" marker-end="url(#a1)"/>
+        <text class="l" x="408" y="330">holt den Kalender-Teil</text>
+        <!-- friend -->
+        <rect class="box" x="750" y="340" width="190" height="62" rx="12"/>
+        <text class="h" x="845" y="365" text-anchor="middle">Lenas Betula</text>
+        <text class="s" x="845" y="383" text-anchor="middle">Schlüssel nach # bei ihr</text>
+        <polyline class="e" points="750,371 600,371 600,310" marker-end="url(#a1)"/>
+        <text class="l" x="675" y="362" text-anchor="middle">holt den Freundes-Teil</text>
+      </svg>
+    </div>
+    <figcaption>Der Sync-Dienst bewahrt versiegelte Teile auf und sagt Bescheid, wenn es eine neue Version gibt; geöffnet wird auf den Geräten. Nur den Kalender-Teil öffnet Folia selbst, beim Abruf, weil Google nicht entschlüsseln kann. Der gestrichelte Bogen oben ist der optionale direkte Weg.</figcaption>
+  </figure>
+  <div class="facts">
+    <article class="fact"><h3>Ein Profil, ein Bereich</h3><p>Jedes Profil, das synchronisiert, hat auf dem Server einen Bereich mit fünf Teilen, einem je Speicher, dazu die Teile, die es teilt. Eine Änderung schickt nur den Speicher, der sich geändert hat, meist 1–3 KB.</p></article>
+    <article class="fact"><h3>Der Server ist nicht das Original</h3><p>Jedes Gerät hat alles. Geht auf dem Server etwas verloren, schickt das nächste Gerät, das sich meldet, seinen Stand wieder hin.</p></article>
+    <article class="fact"><h3>Eine Adresse, kein Dritter</h3><p>Alles läuft über <code>betula.app/sync/…</code>. Kennungen und Token stehen in Kopfzeilen, nicht im Pfad, damit das Zugriffsprotokoll keine enthält.</p></article>
+  </div>
+</section>
+
+<!-- ============================================================ Schlüssel -->
+<section class="sec" id="schluessel">
+  <header>
+    <h2>Schlüssel und Teile</h2>
+    <p class="sub">Der Profilschlüssel liegt nur auf deinen Geräten, und aus ihm leitet jedes Gerät drei Schlüssel ab. Kalender und Freund:innen bekommen eigene, zufällige Schlüssel, die nicht aus ihm folgen. Wer einen davon hat, kommt nicht weiter, und jeder lässt sich allein widerrufen. Das ist dein „jeder Teil mit eigenem Key“.</p>
+  </header>
+  <figure class="dia">
+    <div class="diaw">
+      <svg viewBox="0 0 960 330" role="img" aria-label="Aus dem Profilschlüssel werden Schreibtoken, Live-Schlüssel und Datenschlüssel abgeleitet. Der Datenschlüssel versiegelt das Profil auf dem Server. Kalender-Schlüssel und Freundes-Schlüssel sind eigene Zufallsschlüssel, die versiegelt im Profil liegen und bei Google beziehungsweise Lena stehen.">
+        <defs>
+          <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+          <marker id="a2g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-acc" d="M0,0 L10,5 L0,10 z"/></marker>
+        </defs>
+        <text class="kk" x="290" y="22">ABGELEITET (HKDF)</text>
+        <text class="kk" x="600" y="22">EIGENE, ZUFÄLLIGE</text>
+        <rect class="new" x="20" y="74" width="200" height="84" rx="12"/>
+        <text class="h" x="120" y="104" text-anchor="middle">Profilschlüssel</text>
+        <text class="s" x="120" y="122" text-anchor="middle">256 Bit, zufällig</text>
+        <text class="s" x="120" y="140" text-anchor="middle">nur auf deinen Geräten</text>
+        <polyline class="e acc" points="220,116 255,116"/>
+        <line class="e acc" x1="255" y1="56" x2="255" y2="176"/>
+        <line class="e acc" x1="255" y1="56" x2="288" y2="56" marker-end="url(#a2g)"/>
+        <line class="e acc" x1="255" y1="116" x2="288" y2="116" marker-end="url(#a2g)"/>
+        <line class="e acc" x1="255" y1="176" x2="288" y2="176" marker-end="url(#a2g)"/>
+        <rect class="box" x="290" y="32" width="220" height="48" rx="9"/>
+        <text class="h" x="304" y="52">Schreibtoken</text>
+        <text class="s" x="304" y="69">der Server kennt nur seinen Hash</text>
+        <rect class="box" x="290" y="92" width="220" height="48" rx="9"/>
+        <text class="h" x="304" y="112">Live-Schlüssel</text>
+        <text class="s" x="304" y="129">Hinweise und WebRTC-Signale</text>
+        <rect class="box" x="290" y="152" width="220" height="48" rx="9"/>
+        <text class="h" x="304" y="172">Datenschlüssel</text>
+        <text class="s" x="304" y="189">versiegelt die fünf Speicher</text>
+        <rect class="box" x="600" y="32" width="200" height="48" rx="9"/>
+        <text class="h" x="614" y="52">Kalender-Schlüssel</text>
+        <text class="s" x="614" y="69">einer je Abo-Adresse</text>
+        <rect class="box" x="600" y="92" width="200" height="48" rx="9"/>
+        <text class="h" x="614" y="112">Freundes-Schlüssel</text>
+        <text class="s" x="614" y="129">einer je Person oder Gruppe</text>
+        <line class="e" x1="802" y1="56" x2="830" y2="56" marker-end="url(#a2)"/>
+        <text class="h" x="838" y="52">Abo-Adresse</text>
+        <text class="s" x="838" y="68">bei Google</text>
+        <line class="e" x1="802" y1="116" x2="830" y2="116" marker-end="url(#a2)"/>
+        <text class="h" x="838" y="112">Link nach #</text>
+        <text class="s" x="838" y="128">bei Lena</text>
+        <rect class="new" x="290" y="250" width="510" height="60" rx="10"/>
+        <text class="h" x="545" y="275" text-anchor="middle">Profil auf dem Server, versiegelt</text>
+        <text class="s" x="545" y="293" text-anchor="middle">die fünf Speicher und, darin, die Schlüssel der Teile</text>
+        <line class="e acc" x1="400" y1="200" x2="400" y2="247" marker-end="url(#a2g)"/>
+        <text class="la" x="408" y="228">versiegelt</text>
+        <polyline class="e dash" points="600,56 584,56 584,247" marker-end="url(#a2)"/>
+        <line class="e dash" x1="600" y1="116" x2="584" y2="116"/>
+        <text class="l" x="592" y="200">liegen darin, versiegelt</text>
+      </svg>
+    </div>
+    <figcaption>Aus dem Profilschlüssel leitet jedes Gerät drei Schlüssel ab. Die Schlüssel der Teile sind eigene Zufallszahlen. Deine Geräte kennen sie, weil sie versiegelt im Profil liegen; Google und Lena kennen nur jeweils ihren. Von einem Teil-Schlüssel führt kein Weg zum Profil.</figcaption>
+  </figure>
+  <div class="tblw">
+    <table class="tbl">
+      <thead><tr><th>Teil</th><th>Was drin ist</th><th>Wer öffnet</th><th>Schlüssel liegt</th><th>Server sieht</th><th>Widerrufen</th></tr></thead>
+      <tbody>
+        <tr><th>Profil<small>fünf Speicher</small></th><td>Merkliste, Stundenplan, „Mein Studium“, Pläne, Sammlungen, Notizen, „Mein Studiengang“, die Schlüssel der Teile</td><td>deine Geräte</td><td>auf deinen Geräten</td><td>gerundete Größe, Zeit, Version</td><td>„Andere Geräte abmelden“: neuer Profilschlüssel</td></tr>
+        <tr><th>Kalender-Teil</th><td>der Code des Abos, derselbe wie heute in der Adresse</td><td>Folia, wenn Google abruft</td><td>in der Abo-Adresse; versiegelt im Profil</td><td>beim Abruf den Code, Millisekunden lang im Speicher</td><td>„Neue Abo-Adresse“: alter Teil gelöscht, alte Adresse leer</td></tr>
+        <tr><th>Freundes-Teil</th><td>der Code eines geteilten Stundenplans, derselbe wie heute im Link</td><td>Lenas Betula</td><td>im Link nach <code>#</code>, bei Lena; versiegelt im Profil</td><td>Größe und Zeit</td><td>„Nicht mehr teilen“: Teil gelöscht</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose">Versiegelt wird mit XChaCha20-Poly1305. Bereich, Teil und Version sind mit eingesiegelt, damit der Server nichts vertauschen und keinen alten Stand als neuen ausgeben kann. Aufgefüllt wird auf Größenstufen (1, 2, 4, 8 KB …), damit die Größe wenig verrät. Der Code dafür ist eine Rust-Crate im Folia-Workspace, die die App (WASM) und Folias Kalender-Route gemeinsam nutzen: eine Umsetzung, einmal getestet. Ed25519 und X25519 gibt es seit 2025 in allen großen Browsern direkt; damit kann später jedes Gerät einen eigenen Schlüssel bekommen.</p>
+</section>
+
+<!-- ============================================================ Geräte -->
+<section class="sec" id="geraete">
+  <header>
+    <h2>Geräte verbinden und verlieren</h2>
+    <p class="sub">Ohne Konto ist der Schlüssel das Konto. Das Verbinden muss also leicht sein, und der Verlust muss vorher klar sein.</p>
+  </header>
+  <div class="facts">
+    <article class="fact">
+      <h3>Verbinden</h3>
+      <p>Am Rechner „Gerät verbinden“: ein QR-Code und ein Link <span class="addr">betula.app/verbinden#…</span>. Die Kamera des Handys öffnet den Link, Betula braucht keinen eigenen Scanner. Hinter dem Link liegt ein Einmal-Code für ein versiegeltes Päckchen mit den Schlüsseln der Profile, die du ausgewählt hast. Es wartet 10 Minuten auf dem Server und wird beim ersten Abholen gelöscht; der Link im Verlauf ist danach verbraucht.</p>
+      <p>Zwei Rechner ohne Kamera: den Link an dich selbst schicken. Auf dem neuen Gerät wird jedes Profil ein neues oder mit einem vorhandenen zusammengeführt. Hat der Browser schon 8 Profile, sagt der Dialog das.</p>
+    </article>
+    <article class="fact">
+      <h3>Ein Gerät verlieren</h3>
+      <p>„Andere Geräte abmelden“ macht einen neuen Profilschlüssel und einen neuen Bereich; der alte wird gelöscht. Deine übrigen Geräte verbindest du neu. Mit einem eigenen Schlüssel je Gerät ginge das später ohne neues Verbinden.</p>
+      <p>„Profil löschen“ fragt dann: nur auf diesem Gerät oder überall? Überall löscht auch den Bereich.</p>
+    </article>
+    <article class="fact">
+      <h3>Alle Geräte verlieren</h3>
+      <p>Ohne Schlüssel ist die Kopie auf dem Server nicht zu öffnen. Das ist der Sinn der Sache. Dagegen hilft ein Wiederherstellungscode zum Ausdrucken oder für den Passwortmanager, angeboten, nicht erzwungen, oder die Datei, die es heute schon gibt.</p>
+    </article>
+  </div>
+  <p class="prose">Auf dem iPhone in Safari, nicht installiert, löscht Safari nach 7 Tagen Safari-Nutzung ohne Besuch bei Betula alles, was Betula gespeichert hat, auch den Schlüssel. Die Daten sind dann sicher auf dem Server und den anderen Geräten, aber das iPhone muss neu verbunden werden. Web-Apps auf dem Home-Bildschirm nimmt Safari davon aus. Der Dialog empfiehlt auf dem iPhone deshalb, Betula dort hinzuzufügen.</p>
+</section>
+
+<!-- ============================================================ Wechsel -->
+<section class="sec" id="wechsel">
+  <header>
+    <h2>Der Wechsel: holen und schicken</h2>
+    <p class="sub">Für den Wechsel braucht es keine Verbindung zwischen den Geräten. Der Rechner schickt, sobald du aufhörst zu tippen und spätestens beim Zuklappen; das Handy holt, sobald Betula vorne ist.</p>
+  </header>
+  <figure class="dia">
+    <div class="diaw">
+      <svg viewBox="0 0 960 250" role="img" aria-label="Zeitstrahl: Am Rechner wird um 14:02:10 ein Modul eingeplant, 1,5 Sekunden später wird Version 42 geschickt, beim Zuklappen ist nichts mehr offen. Um 14:05 wird das Handy entsperrt, es fragt nach etwas Neuerem als Version 41, bekommt Version 42 mit 2 KB und zeigt sie nach etwa 0,3 Sekunden.">
+        <defs>
+          <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+          <marker id="a3g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-acc" d="M0,0 L10,5 L0,10 z"/></marker>
+        </defs>
+        <rect class="band" x="448" y="14" width="64" height="222" rx="6"/>
+        <text class="m" x="480" y="128" text-anchor="middle">später</text>
+        <text class="h" x="20" y="74">Rechner</text>
+        <text class="h" x="20" y="134">Sync-Dienst</text>
+        <text class="h" x="20" y="194">Handy</text>
+        <line class="lane" x1="120" y1="70" x2="448" y2="70"/>
+        <line class="lane" x1="512" y1="70" x2="940" y2="70"/>
+        <line class="lane" x1="120" y1="130" x2="448" y2="130"/>
+        <line class="lane" x1="512" y1="130" x2="940" y2="130"/>
+        <line class="lane" x1="120" y1="190" x2="448" y2="190"/>
+        <line class="lane" x1="512" y1="190" x2="940" y2="190"/>
+        <circle class="pt" cx="160" cy="70" r="4.5"/>
+        <text class="m" x="160" y="34" text-anchor="middle">14:02:10</text>
+        <text class="s" x="160" y="52" text-anchor="middle">Modul eingeplant</text>
+        <circle class="pt acc" cx="262" cy="70" r="4.5"/>
+        <text class="m" x="262" y="34" text-anchor="middle">14:02:11,5</text>
+        <text class="s" x="262" y="52" text-anchor="middle">geschickt</text>
+        <line class="e acc" x1="262" y1="76" x2="262" y2="124" marker-end="url(#a3g)"/>
+        <text class="la" x="270" y="104">v42, 1,2 KB</text>
+        <circle class="pt acc" cx="262" cy="130" r="4.5"/>
+        <text class="s" x="262" y="152" text-anchor="middle">v42 liegt bereit</text>
+        <circle class="pt" cx="380" cy="70" r="4.5"/>
+        <text class="m" x="380" y="34" text-anchor="middle">14:02:40</text>
+        <text class="s" x="380" y="52" text-anchor="middle">zugeklappt, nichts offen</text>
+        <circle class="pt" cx="580" cy="190" r="4.5"/>
+        <text class="s" x="580" y="214" text-anchor="middle">entsperrt, Betula vorn</text>
+        <text class="m" x="580" y="230" text-anchor="middle">14:05:00</text>
+        <line class="e acc" x1="666" y1="184" x2="666" y2="136" marker-end="url(#a3g)"/>
+        <text class="la" x="658" y="164" text-anchor="end">neuer als v41?</text>
+        <line class="e acc" x1="724" y1="136" x2="724" y2="184" marker-end="url(#a3g)"/>
+        <text class="la" x="732" y="164">v42, 2 KB</text>
+        <circle class="pt acc" cx="820" cy="190" r="4.5"/>
+        <text class="s" x="820" y="214" text-anchor="middle">zusammengeführt, angezeigt</text>
+        <text class="m" x="820" y="230" text-anchor="middle">14:05:00,3</text>
+      </svg>
+    </div>
+    <figcaption>Der Rechner schickt 1,5 Sekunden nach der letzten Änderung und spätestens beim Zuklappen; das Handy holt, sobald Betula vorne ist. Dazwischen müssen die beiden Geräte nichts voneinander wissen. Die Zeiten sind ein Beispiel, die Größen gemessen.</figcaption>
+  </figure>
+  <div class="block">
+    <h3>Wie ein Gerät abgleicht</h3>
+    <ol class="flow">
+      <li><span>Du änderst etwas. Der Speicher schreibt wie heute in den Browser; nichts wird langsamer.</span></li>
+      <li><span>1,5 Sekunden nach der letzten Änderung, und sofort, wenn der Tab verschwindet: versiegeln und schicken, mit der Bedingung „nur, wenn auf dem Server noch Version 41 liegt“. Beim Zuklappen schickt der Browser bis zu 64 KB im Hintergrund weiter; ein Speicher hat 1–3 KB, ein volles Profil 15 KB.</span></li>
+      <li><span>Hat ein anderes Gerät inzwischen Version 42 geschickt, sagt der Server nein. Dann holen, zusammenführen und noch einmal schicken.</span></li>
+      <li><span>Beim Öffnen und bei jedem Zurückkommen in den Tab: „Gibt es etwas Neueres als 42?“ Meist heißt die Antwort nein, ein paar hundert Bytes.</span></li>
+      <li><span>Mehrere Tabs auf einem Gerät: Einer gleicht ab, die anderen hören es über den BroadcastChannel. So lädt der Daten-Worker den Katalog heute schon (ein Web Lock).</span></li>
+      <li><span>Ohne Netz warten die Änderungen und gehen raus, sobald es wieder Netz gibt.</span></li>
+    </ol>
+  </div>
+  <div class="block">
+    <h3>Zwei Geräte, beide geändert</h3>
+    <div class="prose">
+      <p>Jede Zeile der Speicher ist ein Eintrag mit Schlüssel: <code>m 2026W 11787 …</code> heißt „Theoretische Informatik im WiSe 2026/27 eingeplant“. Jedes Gerät merkt sich den Stand des letzten Abgleichs. Zusammenführen heißt dann: Was auf einer Seite dazukam, kommt dazu. Was auf einer Seite wegfiel, fällt weg. Hat sich dieselbe Zeile auf beiden Seiten verschieden geändert, gilt die jüngere Änderung, und die andere bleibt eine Weile über „Rückgängig“ erreichbar. Danach liest der Speicher das Ergebnis wie immer, mit seinen Grenzen und Regeln.</p>
+      <p>Ein Fall ohne klaren Sieger: Auf zwei Geräten wurde offline dasselbe Modul verschoben, einmal ins 3., einmal ins 4. Semester. Dann steht es in beiden, mit dem Hinweis „auf zwei Geräten verschieden geplant“, und du entscheidest. Verloren geht nichts.</p>
+      <p>Eine CRDT-Bibliothek (Automerge, Yjs, Loro) braucht es dafür nicht. Die Zeilen sind schon eine Menge von Einträgen mit Schlüssel, und eine Bibliothek würde die Formate ändern und das Bundle wachsen lassen. Sie lohnt sich erst, wenn mehrere Menschen gleichzeitig am selben Plan arbeiten. Der Server behält zu jedem Teil die letzten drei Stände, damit sich ein misslungenes Zusammenführen zurücknehmen lässt.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ Live -->
+<section class="sec" id="live">
+  <header>
+    <h2>Live, wenn beide offen sind</h2>
+    <p class="sub">Zwei Wege, damit eine Änderung am Rechner sofort auf dem offenen Handy erscheint. WebRTC fügt eine direkte Verbindung hinzu, braucht den Server aber weiter, für die Signale, mit denen sich die Geräte finden.</p>
+  </header>
+  <figure class="dia">
+    <div class="diaw">
+      <svg viewBox="0 0 960 278" role="img" aria-label="Weg A: Der Rechner schickt die Änderung an den Sync-Dienst, der dem Handy einen Hinweis gibt, und das Handy holt sie. Weg B: Rechner und Handy tauschen über den Sync-Dienst nur Signale aus und verbinden sich direkt über einen Datenkanal; für 15 bis 25 Prozent der Verbindungen geht der Weg über einen TURN-Server.">
+        <defs>
+          <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+          <marker id="a4g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-acc" d="M0,0 L10,5 L0,10 z"/></marker>
+        </defs>
+        <text class="h" x="20" y="26">A · Hinweis über den Server</text>
+        <text class="h" x="500" y="26">B · WebRTC direkt</text>
+        <line class="lane" x1="480" y1="12" x2="480" y2="266"/>
+        <!-- A -->
+        <rect class="new" x="150" y="52" width="160" height="54" rx="10"/>
+        <text class="h" x="230" y="76" text-anchor="middle">Sync-Dienst</text>
+        <text class="s" x="230" y="93" text-anchor="middle">trägt die Änderung</text>
+        <rect class="box" x="20" y="164" width="120" height="54" rx="10"/>
+        <text class="h" x="80" y="196" text-anchor="middle">Rechner</text>
+        <rect class="box" x="320" y="164" width="120" height="54" rx="10"/>
+        <text class="h" x="380" y="196" text-anchor="middle">Handy</text>
+        <polyline class="e acc" points="80,164 80,79 146,79" marker-end="url(#a4g)"/>
+        <text class="la" x="88" y="128">schickt 1–3 KB</text>
+        <polyline class="e acc" points="314,79 380,79 380,160" marker-end="url(#a4g)"/>
+        <text class="la" x="388" y="122">Hinweis,</text>
+        <text class="la" x="388" y="137">dann holen</text>
+        <!-- B -->
+        <rect class="opt" x="630" y="52" width="160" height="54" rx="10"/>
+        <text class="h" x="710" y="76" text-anchor="middle">Sync-Dienst</text>
+        <text class="s" x="710" y="93" text-anchor="middle">nur Signale</text>
+        <rect class="box" x="500" y="164" width="120" height="54" rx="10"/>
+        <text class="h" x="560" y="196" text-anchor="middle">Rechner</text>
+        <rect class="box" x="820" y="164" width="120" height="54" rx="10"/>
+        <text class="h" x="880" y="196" text-anchor="middle">Handy</text>
+        <polyline class="e dash" points="560,164 560,79 626,79" marker-start="url(#a4)" marker-end="url(#a4)"/>
+        <text class="l" x="568" y="128">Signale, ~5 KB</text>
+        <polyline class="e dash" points="794,79 880,79 880,160" marker-start="url(#a4)" marker-end="url(#a4)"/>
+        <text class="l" x="888" y="122">Signale</text>
+        <line class="e acc" x1="624" y1="184" x2="816" y2="184" marker-start="url(#a4g)" marker-end="url(#a4g)"/>
+        <text class="la" x="720" y="176" text-anchor="middle">Datenkanal, 1–3 KB</text>
+        <rect class="opt" x="635" y="220" width="170" height="46" rx="8"/>
+        <text class="h" x="720" y="239" text-anchor="middle">STUN · TURN</text>
+        <text class="s" x="720" y="256" text-anchor="middle">Umweg für 15–25 %</text>
+        <polyline class="e dot" points="580,218 580,243 631,243"/>
+        <polyline class="e dot" points="809,243 860,243 860,218"/>
+      </svg>
+    </div>
+    <figcaption>In beiden Fällen braucht es den Server: In A trägt er die Änderung, in B die Signale für den Aufbau. Bei Betulas 1–3 KB je Änderung ist das gleich wenig. B fügt die direkte Verbindung und STUN/TURN hinzu.</figcaption>
+  </figure>
+  <div class="tblw">
+    <table class="tbl k">
+      <thead><tr><th></th><th>A · Hinweis über den Server</th><th>B · WebRTC direkt</th></tr></thead>
+      <tbody>
+        <tr><th>Verzögerung</th><td>etwa 0,1–0,3 s (Hinweis, dann holen)</td><td>unter 0,1 s, nach 0,5–2 s Aufbau</td></tr>
+        <tr><th>Über den Server</th><td>ein Hinweis und 1–3 KB je Änderung</td><td>Signale, etwa 5 KB je Verbindung; bei 15–25 % der Verbindungen alles über TURN</td></tr>
+        <tr><th>Bei 2.000 Nutzenden</th><td>160 offene Tabs zur Spitze, 13 MB Speicher; 85 MB Verkehr am Tag</td><td>dieselben Verbindungen für die Signale; TURN etwa 1,2 GB im Monat</td></tr>
+        <tr><th>Handy im Hintergrund</th><td>die Verbindung endet; beim Zurückkommen holen</td><td>die Verbindung endet ebenso; iOS hält im Hintergrund keine Datenkanäle offen; neu aufbauen</td></tr>
+        <tr><th>Neu im Betrieb</th><td>eine Route im Sync-Dienst</td><td>STUN/TURN, UDP-Ports, Härtung, TURN-Zugangsdaten, Updates</td></tr>
+        <tr><th>Aufwand</th><td><span class="cost s">klein</span></td><td><span class="cost l">groß</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose">Der Wechsel selbst passiert immer dann, wenn die direkte Verbindung gerade nicht besteht: Das Handy wacht auf und hat noch keine. Was es in dieser Sekunde auf den neuesten Stand bringt, ist das Holen beim Öffnen. WebRTC hilft nur, solange beide Bildschirme gleichzeitig benutzt werden, und spart dann Kilobytes. Es spart viel, wo viel fließt, bei Video oder Dateien. Bei Betula ist die Signalisierung, die WebRTC sowieso über den Server braucht, so groß wie die Daten selbst.</p>
+  <div class="facts two">
+    <article class="fact">
+      <h3>Wann WebRTC sich lohnt</h3>
+      <ul>
+        <li><b>Direktmodus:</b> Wer gar keine Kopie auf dem Server will, gleicht nur ab, wenn beide Geräte offen sind. Der Server vermittelt dann nur.</li>
+        <li><b>Große Daten:</b> Dateien, Fotos von Notizen, ein ganzer Katalog von Gerät zu Gerät.</li>
+        <li><b>Ohne Server weiter:</b> Eine bestehende Verbindung läuft weiter, wenn der Server kurz weg ist.</li>
+      </ul>
+    </article>
+    <article class="fact">
+      <h3>Wenn WebRTC, dann so</h3>
+      <ul>
+        <li><b>STUN von Betula:</b> eine UDP-Antwort je Frage, kaum Last. Port 3478/udp im Host-Modus wie Traefiks Ports, damit STUN die echte Adresse sieht; <code>public-ports.conf</code> und ufw bekommen ihn (heute ist <code>PUBLIC_UDP_PORTS</code> leer).</li>
+        <li><b>TURN bei Cloudflare:</b> 0,05 $ je GB, die ersten 1.000 GB im Monat frei; Betula bräuchte 1–5 GB. Cloudflare sieht Adressen, keine Inhalte (DTLS von Gerät zu Gerät). Oder coturn auf einem eigenen kleinen VPS.</li>
+        <li><b>Nicht auf diesem VPS:</b> Ein TURN-Server leitet für jeden mit gültigem Zugang an beliebige Adressen weiter. Hier müsste er die Docker-Netze (10.0.0.0/8, 172.16.0.0/12), Loopback, 169.254.0.0/16, 100.64.0.0/10 und die eigene Adresse sperren, sonst erreicht man über ihn Grafana, Cortex oder ssh. coturn hatte 2026 zwei Lücken genau dort (CVE-2026-27624, CVE-2026-53450).</li>
+        <li><b>Zugang:</b> nur für gültige Bereiche, 10 Minuten gültig, gedrosselt auf 64 kbit/s: genug für Kilobytes, nutzlos als Proxy.</li>
+      </ul>
+    </article>
+  </div>
+  <p class="rec"><b>Die eine Grenze von Weg A:</b> Jede offene Verbindung kostet im Sync-Dienst knapp 19 KB und in einem Go-Proxy wie Traefik gut 60 KB (gemessen, research/sync/measure/sse). Traefik hat 512 MB und trägt jede Seite; wird er beendet, ist alles weg. Deshalb Verbindungen nur, solange der Tab sichtbar ist, ein Deckel bei etwa 2.000 (in Traefik rund 125 MB), und darüber eine Abfrage alle 30 Sekunden, die fast nichts kostet.</p>
+</section>
+
+<!-- ============================================================ Kalender -->
+<section class="sec" id="kalender">
+  <header>
+    <h2>Der Kalender-Teil für Google und Co.</h2>
+    <p class="sub">Kalenderdienste holen eine Adresse ab, ohne Kopfzeilen und ohne den Teil nach <code>#</code>. Also muss der Schlüssel im Pfad stehen, und jemand muss den Teil öffnen, bevor Google ihn liest. Das tut Folia, so kurz wie heute.</p>
+  </header>
+  <div class="vs">
+    <div class="side">
+      <div class="kicker">Heute</div>
+      <p class="addr">betula.app/calendar/&lt;code&gt;.ics</p>
+      <p>Der Code ist der Plan: Semester, Module, was ausgeblendet ist, der Standort. Er steht bei Google und 7 Tage im Zugriffsprotokoll. Jede Änderung braucht eine neue Adresse, jedes neue Semester auch. Widerrufen geht nicht.</p>
+    </div>
+    <div class="side now">
+      <div class="kicker">Mit Sync</div>
+      <p class="addr">betula.app/calendar/s/&lt;teil&gt;.&lt;schlüssel&gt;.ics</p>
+      <p>Die Adresse bleibt. Änderst du den Plan, erneuert dein Gerät den Teil, und beim nächsten Abruf holt Google den neuen Stand. Ein neues Semester ist ein neuer Inhalt, keine neue Adresse. „Neue Abo-Adresse“ löscht den alten Teil; die alte Adresse ist dann leer.</p>
+    </div>
+  </div>
+  <ol class="flow">
+    <li><span>Google fragt die Adresse an.</span></li>
+    <li><span>Folia holt den versiegelten Teil vom Sync-Dienst, im internen Netz.</span></li>
+    <li><span>Folia öffnet ihn mit dem Schlüssel aus dem Pfad und hat denselben Code wie heute.</span></li>
+    <li><span>Daraus macht es den Kalender wie heute (<code>folia_calendar::subscription</code>), aus dem aktuellen Katalog, mit den Prüfungen, die QIS später veröffentlicht.</span></li>
+    <li><span>Schlüssel und Code werden vergessen. Kosten wie heute: 10–12 ms auf dem Arbeitsrechner, rund 28 ms auf dem Server, dazu eine Abfrage im internen Netz.</span></li>
+  </ol>
+  <div class="prose">
+    <p>Was der Server sieht: gespeichert nichts Lesbares; beim Abruf den Code, Millisekunden lang im Speicher. Google sieht den Kalender, dafür ist er da. Das ist weniger als heute.</p>
+    <p><b>Voraussetzung:</b> Die Adressen unter <code>/calendar/</code> kommen nicht ins Zugriffsprotokoll, sonst stehen Teil und Schlüssel dort 7 Tage. Traefik kann das je Router seit 3.3 (<code>observability.accessLogs=false</code>), Betula hat 3.7.13. In <code>docs/folia/frontend.md</code> steht es schon als offen, weil der Router die Priorität für Blau-Grün braucht (<code>50-app.sh</code>, <code>55-switch.sh</code>, <code>lib-stacks.sh</code>, <code>91-verify-stacks.sh</code>). Gebaut hilft es auch den Abos von heute.</p>
+    <p>Erwogen und verworfen: Betula trägt die Termine selbst über die Google-Kalender-API ein, ganz ohne Server. Das bräuchte eine von Google geprüfte Anmeldung, ginge nur mit Google, und Prüfungstermine, die QIS später veröffentlicht, kämen erst an, wenn ein Gerät mit Betula läuft.</p>
+  </div>
+</section>
+
+<!-- ============================================================ Freunde -->
+<section class="sec" id="freunde">
+  <header>
+    <h2>Teile für Freund:innen</h2>
+    <p class="sub">Hier geht echte Ende-zu-Ende-Verschlüsselung, denn Lenas Betula kann selbst öffnen. Der Schlüssel steht im Link nach <code>#</code>, und diesen Teil schickt kein Browser an einen Server.</p>
+  </header>
+  <div class="facts two">
+    <article class="fact">
+      <h3>Der Link</h3>
+      <p class="addr">betula.app/studyplan?live=&lt;teil&gt;#&lt;schlüssel&gt;</p>
+      <p>Lenas Betula holt den versiegelten Teil, öffnet ihn und hat denselben Code wie heute im Link zum Teilen. Daraus wird ihr „Kalender von …“ wie heute, nur dass er aktuell bleibt: Änderst du deinen Plan, erneuert dein Gerät den Teil, und Lenas Betula holt ihn beim nächsten Öffnen, mit Live sofort.</p>
+      <p>Lenas Abo steht in ihrem Profil und kommt so auf ihre Geräte.</p>
+    </article>
+    <article class="fact">
+      <h3>Was sich ändert</h3>
+      <ul>
+        <li><b>Ein Teil je Person oder Gruppe:</b> Dann lässt sich eine Person allein austragen. Ein Teil ist ein paar hundert Bytes.</li>
+        <li><b>Die Vorschau in Messengern</b> zeigt heute die Module (<code>/cards/studyplan/&lt;code&gt;.png</code>). Mit dem Schlüssel nach <code>#</code> kennt der Server sie nicht; die Vorschau sagt „Stundenplan, live geteilt“. Module in der Vorschau gingen nur mit dem Schlüssel in der Adresse, und dann stünde er im Protokoll.</li>
+        <li><b>Nicht mehr teilen:</b> Der Teil wird gelöscht. Lenas Betula sagt „nicht mehr geteilt“ und behält den letzten Stand als festen Kalender (Frage 7).</li>
+      </ul>
+    </article>
+  </div>
+</section>
+
+<!-- ============================================================ Gratis-Speicher -->
+<section class="sec" id="missbrauch">
+  <header>
+    <h2>Kein Gratis-Speicher</h2>
+    <p class="sub">Ein Dienst, der verschlüsselt aufbewahrt und nicht hineinsehen kann, zieht Missbrauch an. Mozilla hat Firefox Send, einen Ende-zu-Ende-verschlüsselten Dienst zum Teilen von Dateien, 2020 abgeschaltet, nachdem er zum Verteilen von Schadsoftware benutzt wurde: keine Anmeldung, keine Meldestelle. Betula kann nicht hineinsehen, also müssen die Grenzen den Dienst für alles außer Profilen nutzlos machen, ohne je ein echtes Profil abzuweisen.</p>
+  </header>
+  <div class="tblw">
+    <table class="tbl">
+      <thead><tr><th>Grenze</th><th>Wert</th><th>Woher er kommt</th><th>Was ein echtes Profil merkt</th></tr></thead>
+      <tbody>
+        <tr><th>Größe je Speicher</th><td>Stundenplan 2 MiB, Sammlungen 2 MiB, Pläne 512 KiB, Merkliste und „Mein Studiengang“ wenige KB; zusammen gut 4,5 MiB je Profil, frühere Stände eingeschlossen</td><td>die Lesegrenzen der Speicher (<code>MAX_STORED</code>, <code>MAX_SAVED_STORED</code> …): Mehr liest Betula selbst nicht</td><td>nichts: Ein volles Profil ist versiegelt 15 KB groß</td></tr>
+        <tr><th>Teile</th><td>höchstens 4 KiB je Teil, 32 Teile je Profil</td><td>ein Code ist ein paar hundert Bytes</td><td>nichts</td></tr>
+        <tr><th>Kalender nur als Kalender</th><td>Folia liefert Kalender-Teile nie roh aus, nur als <code>.ics</code>, nachdem es den Code gelesen hat</td><td>–</td><td>nichts</td></tr>
+        <tr><th>Lesen</th><td>etwa 2.000 Abrufe und 50 MB am Tag je Bereich</td><td>ein Profil lesen zwei bis fünf Geräte</td><td>nichts; als Verteilstation unbrauchbar</td></tr>
+        <tr><th>Neue Bereiche</th><td>etwa 20 je Adresse und Stunde</td><td>ein Bereich je Profil, einmal</td><td>nichts</td></tr>
+        <tr><th>Ablauf</th><td>13 Monate ohne Abruf: gelöscht</td><td>ein Studienjahr und Puffer</td><td>nichts, solange ein Gerät das Profil einmal im Jahr öffnet; die Geräte behalten alles</td></tr>
+        <tr><th>Gesamtbudget</th><td>etwa 10 GB; ab der Hälfte ein Alarm; voll: keine neuen Bereiche, die bestehenden schreiben weiter</td><td>die Platte des VPS</td><td>nur im Angriffsfall: Wer dann neu verbindet, wartet</td></tr>
+        <tr><th>TURN<small>falls gebaut</small></th><td>Zugang 10 Minuten, 64 kbit/s, nur öffentliche Ziele</td><td>Sync braucht Kilobytes</td><td>nichts</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose">Was übrig bleibt: Jemand kann gut 4,5 MiB beliebiger Bytes je Bereich ablegen und sie ein paar Mal am Tag lesen. Als Speicher oder zum Verteilen ist das wertlos. Sollte doch jemand in Massen Bereiche anlegen, ist ein Rechenbeweis beim Anlegen schnell gebaut, eine Sekunde im Worker, ohne dass man es merkt. Vorher braucht es ihn nicht.</p>
+</section>
+
+<!-- ============================================================ Grenzen -->
+<section class="sec" id="grenzen">
+  <header>
+    <h2>Was die Verschlüsselung kann und was nicht</h2>
+    <p class="sub">Sie schützt alles, was der Server aufbewahrt: eine Kopie der Datenbank, eine Sicherung, eine gestohlene Platte, einen neugierigen Blick in die Tabellen. Sie schützt nicht vor jemandem, der die Auslieferung der App übernimmt.</p>
+  </header>
+  <div class="vs">
+    <div class="side">
+      <div class="kicker">Der Server weiß</div>
+      <p>zufällige Kennungen der Bereiche und Teile; gerundete Größen; wann geschrieben und gelesen wurde; wie viele Geräte gerade live sind; dass ein Kalenderdienst einen Kalender-Teil holt; Adressen im Zugriffsprotokoll, 7 Tage wie heute, ohne Kennungen, weil die in Kopfzeilen stehen.</p>
+    </div>
+    <div class="side now">
+      <div class="kicker">Der Server weiß nicht</div>
+      <p>Namen, Studiengänge, Module, Pläne, Notizen, Sammlungen; wer deine Freund:innen sind; welche Profile zu einer Person gehören (das verrät nur, wer sie zur selben Zeit von derselben Adresse abgleicht).</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>Die Grenze jeder Web-App mit Ende-zu-Ende-Verschlüsselung: Der Server liefert den Code, der verschlüsselt. Wer die Auslieferung übernimmt, kann eine App ausliefern, die Schlüssel verrät. Dagegen helfen das öffentliche Repository, die reproduzierbaren Nix-Builds (dieselben Bytes, gemessen), eine Content-Security-Policy (in <code>docs/folia/frontend.md</code> als offen notiert) und der Service Worker, der das Bundle behält. Mehr geht im Browser nicht.</p>
+    <p>R20, „nichts von dir auf dem Server“, braucht eine neue Ausnahme, wie das Kalender-Abo eine hat. Der Datenschutzhinweis bekommt einen Abschnitt „Abgleich“: was der Server aufbewahrt (versiegelte Teile, Größen, Zeiten), wann er es löscht (13 Monate ohne Abruf, sofort mit „Sync beenden“) und dass ohne deinen Schlüssel niemand es öffnen kann. Die Prüfung, die heute jede Anfrage nach Merkzetteln absucht (<code>e2e/bookmarks.mjs</code>), gilt weiter: Im Klartext steht nichts in einer Anfrage.</p>
+  </div>
+</section>
+
+<!-- ============================================================ Betrieb -->
+<section class="sec" id="betrieb">
+  <header>
+    <h2>Wo es läuft</h2>
+    <p class="sub">Ein eigener Dienst, einer je Server wie Cortex, nicht je Instanz. Canarys Farben werden bei jedem Build von master mit ihren Volumes ersetzt, und eine Blau-Grün-Farbe darf keine Daten von Menschen besitzen.</p>
+  </header>
+  <div class="facts">
+    <article class="fact"><h3>Name</h3><p>Arbeitstitel „Phloem“: das Leitgewebe der Birke, das in beide Richtungen transportiert, neben Rinde, Wurzel und Blättern.</p></article>
+    <article class="fact"><h3>Daten</h3><p>SQLite (WAL), die Teile als BLOBs, denn sie sind klein; ein Volume. Canary und betula.app in getrennten Datenbanken.</p></article>
+    <article class="fact"><h3>Ausfall</h3><p>Ein Hot Spare wie bei Cortex ist möglich, aber nicht nötig. Jedes Gerät hat alles, und was in der letzten Minute verloren ginge, schickt das nächste Gerät wieder.</p></article>
+    <article class="fact"><h3>Sicherung</h3><p>Jede Nacht; versiegelt, darf also außer Haus. Es wäre die erste Sicherung auf diesem Server (<code>deploy/README.md</code> §8: es gibt noch keine).</p></article>
+    <article class="fact"><h3>Code</h3><p>Das Format (Umschlag, Siegel, Zusammenführen) als Rust-Crate im Folia-Workspace, für App und Kalender-Route. Der Dienst selbst bewahrt nur auf: in Rust wie Folia oder in Go wie Cortex, dessen Muster (SQLite, Metriken, Journal, Hot Spare) passen.</p></article>
+    <article class="fact"><h3>Traefik und Überwachung</h3><p><code>/sync/</code> zum Dienst, mit eigenem Rate Limit; <code>/calendar/s/</code> ohne Zugriffsprotokoll. Metriken, ein Dashboard „Sync“, Alarme für Budget, Spitzen beim Anlegen und Fehler, ein Abschnitt in <code>91-verify-stacks.sh</code>.</p></article>
+  </div>
+  <pre class="codeblk"><span class="c"># Kopfzeilen: Betula-Space (Bereich), Betula-Token (Schreibtoken); nichts davon im Pfad</span>
+POST   /sync/v1/spaces               <span class="c">neuer Bereich; der Dienst merkt sich den Hash des Schreibtokens</span>
+GET    /sync/v1/objects/{speicher}   <span class="c">holen, If-None-Match: meist 304</span>
+PUT    /sync/v1/objects/{speicher}   <span class="c">schicken, If-Match: nur auf den Stand, den das Gerät kennt</span>
+GET    /sync/v1/events               <span class="c">Live (SSE): „plan ist jetzt Version 42“</span>
+PUT    /sync/v1/parts/{teil}         <span class="c">Teil erneuern (Kalender, Freund:in)</span>
+GET    /sync/v1/parts/{teil}         <span class="c">Teil holen, versiegelt (Lenas Betula)</span>
+POST   /sync/v1/pair                 <span class="c">Päckchen zum Verbinden ablegen (10 Minuten, einmal)</span>
+GET    /sync/v1/pair/{code}          <span class="c">Päckchen abholen, dann gelöscht</span>
+DELETE /sync/v1/spaces               <span class="c">„Sync beenden“: alles weg</span>
+GET    /parts/{teil}                 <span class="c">intern, für Folias /calendar/s/…</span>
+POST   /sync/v1/signal, /sync/v1/turn  <span class="c">später, für WebRTC: Signale, TURN-Zugang</span></pre>
+  <p class="prose">Versionen: Der Dienst bekommt eine eigene SemVer, als neue Zeile unter „Versions“ in <code>CLAUDE.md</code>. Folia bekommt ein MINOR für das Feature. Ein MAJOR ist nicht nötig, denn die Formate der Speicher ändern sich nicht.</p>
+</section>
+
+<!-- ============================================================ Ressourcen -->
+<section class="sec" id="ressourcen">
+  <header>
+    <h2>Was es den Server kostet</h2>
+    <p class="sub">Gerechnet für 500, 2.000 und alle rund 7.500 Studierenden der BTU. Zum Vergleich: Ein erster Besuch mit JavaScript lädt heute rund 10 MB. Der Sync-Verkehr eines ganzen Tages von 2.000 Nutzenden ist so viel wie acht bis neun erste Besuche.</p>
+  </header>
+  <div class="stats">
+    <div class="stat"><div class="v">2,3 <small>KB</small></div><p>ein typisches Profil, versiegelt (drei Semester, Bestandenes, ein Kalender von Lena)</p></div>
+    <div class="stat"><div class="v">15 <small>KB</small></div><p>ein sehr volles: das ganze Studium, 256 Merkzettel, 60 Notizen</p></div>
+    <div class="stat"><div class="v">19 + 62 <small>KiB</small></div><p>eine offene Live-Verbindung, im Dienst (axum) und im Proxy (Go)</p></div>
+    <div class="stat"><div class="v">3 <small>/ s</small></div><p>Anfragen im Mittel, wenn alle 7.500 synchronisieren</p></div>
+  </div>
+  <div class="tblw">
+    <table class="tbl">
+      <thead><tr><th>Nutzende</th><th class="r">Platte</th><th class="r">Verkehr am Tag</th><th class="r">im Monat</th><th class="r">Anfragen/s</th><th class="r">offene Tabs zur Spitze</th><th class="r">Speicher für Live</th><th class="r">TURN im Monat (mit WebRTC)</th></tr></thead>
+      <tbody>
+        <tr><th class="num">500</th><td class="r">20 MB</td><td class="r">21 MB</td><td class="r">0,6 GB</td><td class="r">0,2</td><td class="r">40</td><td class="r">3 MB</td><td class="r">0,3 GB</td></tr>
+        <tr><th class="num">2.000</th><td class="r">81 MB</td><td class="r">85 MB</td><td class="r">2,5 GB</td><td class="r">0,8</td><td class="r">160</td><td class="r">13 MB</td><td class="r">1,2 GB</td></tr>
+        <tr><th class="num">7.500</th><td class="r">303 MB</td><td class="r">318 MB</td><td class="r">9,5 GB</td><td class="r">3,1</td><td class="r">600</td><td class="r">49 MB</td><td class="r">4,5 GB</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Annahmen: 1,3 Profile je Person; 70 % typische (2,3 KB) und 30 % volle Profile (15 KB); vier Stände je Teil und 25 % Auffüllen; an einem Tag sind 40 % aktiv, mit 40 Mal schicken (1,5 KB), 40 Mal nachsehen ohne Neues (0,4 KB) und 10 Mal holen (3 KB); zur Spitze hat etwa jede:r Zwölfte einen sichtbaren Tab offen; WebRTC: eine Sitzung am Tag, 20 % über TURN, 0,25 MB je halbe Stunde (geschätzt: Prüfungen alle 5 Sekunden, Herzschläge, Daten). Gemessen sind die Profilgrößen und die Kosten einer Verbindung, der Rest ist Rechnung (<code>research/sync/measure/load.py</code>). Das Profil an seinen Lesegrenzen hätte gut 4,5 MiB; das schreibt niemand.</p>
+  <p class="prose">Dazu kommt der Dienst selbst mit einigen zehn MB Speicher; seine CPU ist kaum messbar. Der VPS (4 vCPU, knapp 6 GB RAM) merkt den Sync nicht, und die Kalender-Abos kosten so viel wie heute. Eine echte Grenze haben nur die offenen Live-Verbindungen in Traefik (512 MB, siehe Live).</p>
+</section>
+
+<!-- ============================================================ Schritte -->
+<section class="sec" id="schritte">
+  <header>
+    <h2>In vier Schritten, und einer davor</h2>
+    <p class="sub">Jeder Schritt ist für sich nützlich. Die Größen sind grob geschätzt, in Arbeitstagen mit Claude Code.</p>
+  </header>
+  <div class="steps">
+    <article class="step">
+      <span class="n">Vorher <span class="cost s">klein · 1–2 Tage</span></span>
+      <h3>Entscheidungen und Protokoll</h3>
+      <ul>
+        <li>R20 und der Datenschutzhinweis</li>
+        <li>der Router für <code>/calendar/</code> ohne Zugriffsprotokoll; hilft den Abos von heute</li>
+        <li>ein Plan für Sicherungen</li>
+      </ul>
+    </article>
+    <article class="step">
+      <span class="n">Schritt 1 <span class="cost l">groß · 2–3 Wochen</span></span>
+      <h3>Speicher und Abgleich</h3>
+      <ul>
+        <li>der Sync-Dienst mit Grenzen, Ablauf und Budget</li>
+        <li>die Rust-Crate: Siegel, Zusammenführen der fünf Speicher</li>
+        <li>holen beim Öffnen, schicken beim Weglegen</li>
+        <li>Geräte verbinden per QR-Code und Link</li>
+        <li>Wiederherstellungscode, „Sync beenden“</li>
+        <li>Deploy, Sicherung, Dashboard</li>
+      </ul>
+      <p><b>Damit funktioniert der Wechsel.</b></p>
+    </article>
+    <article class="step">
+      <span class="n">Schritt 2 <span class="cost s">klein · 2–3 Tage</span></span>
+      <h3>Live</h3>
+      <ul>
+        <li>Hinweise über SSE, solange der Tab sichtbar ist</li>
+        <li>Deckel, und Abfragen alle 30 Sekunden darüber</li>
+      </ul>
+    </article>
+    <article class="step">
+      <span class="n">Schritt 3 <span class="cost m">mittel · etwa 1 Woche</span></span>
+      <h3>Kalender und Freund:innen</h3>
+      <ul>
+        <li><code>/calendar/s/…</code> mit „Neue Abo-Adresse“</li>
+        <li>Links zum Teilen, die aktuell bleiben</li>
+        <li>„Nicht mehr teilen“</li>
+        <li>die Texte im Datenschutzhinweis</li>
+      </ul>
+    </article>
+    <article class="step">
+      <span class="n">Schritt 4 <span class="cost l">groß · 2–3 Wochen</span></span>
+      <h3>WebRTC, wenn gewollt</h3>
+      <ul>
+        <li>Signale über den Kanal aus Schritt 2</li>
+        <li>STUN von Betula, TURN bei Cloudflare oder auf eigenem VPS</li>
+        <li>UDP-Ports und Härtung</li>
+        <li>Prüfungen mit zwei Browsern</li>
+      </ul>
+      <p>Danach: Updates von STUN/TURN wie bei jedem Dienst mit offenem Port.</p>
+    </article>
+  </div>
+</section>
+
+<!-- ============================================================ Fragen -->
+<section class="sec" id="fragen">
+  <header>
+    <h2>Fragen an dich</h2>
+    <p class="sub">Zu jeder ein Vorschlag. Wo du „passt“ sagst, gilt er.</p>
+  </header>
+  <ol class="qs">
+    <li><p class="ask">Darf eine versiegelte Kopie auf dem Server liegen?<small>R20 sagt bisher: nichts von dir auf dem Server.</small></p><p class="rec2"><b>Vorschlag:</b> ja, als Ausnahme wie das Kalender-Abo: nur versiegelt, nur wer Sync einschaltet, gelöscht nach 13 Monaten ohne Abruf oder sofort mit „Sync beenden“.</p></li>
+    <li><p class="ask">Was synchronisiert: ein Profil oder der ganze Browser?</p><p class="rec2"><b>Vorschlag:</b> das Profil. Beim Verbinden wählst du, welche Profile mitkommen. Ein Browser, den zwei Menschen teilen, gleicht dann jedes Profil mit den Geräten seiner Person ab.</p></li>
+    <li><p class="ask">Ein Wiederherstellungscode?</p><p class="rec2"><b>Vorschlag:</b> anbieten, nicht erzwingen. Der Dialog sagt, dass ohne ihn die Kopie auf dem Server weg ist, wenn alle Geräte weg sind.</p></li>
+    <li><p class="ask">WebRTC jetzt oder später?</p><p class="rec2"><b>Vorschlag:</b> später, als Direktmodus ohne Kopie auf dem Server oder wenn große Daten kommen. Zuerst Live über den Server.</p></li>
+    <li><p class="ask">TURN selbst oder bei Cloudflare?<small>STUN kommt in jedem Fall von Betula.</small></p><p class="rec2"><b>Vorschlag:</b> TURN bei Cloudflare; die Menge liegt weit im freien Kontingent, und kein offenes Relais steht neben Cortex und Grafana.</p></li>
+    <li><p class="ask">Der Schlüssel des Kalenders in der Abo-Adresse?<small>Mit Google geht es nicht anders.</small></p><p class="rec2"><b>Vorschlag:</b> ja, mit dem Zugriffsprotokoll aus für diese Adressen und „Neue Abo-Adresse“ zum Widerrufen.</p></li>
+    <li><p class="ask">Was sieht Lena, wenn du nicht mehr teilst?</p><p class="rec2"><b>Vorschlag:</b> den letzten Stand als festen Kalender mit dem Hinweis „nicht mehr geteilt“; sie kann ihn löschen.</p></li>
+    <li><p class="ask">Die Vorschau eines Freundes-Links ohne Module?</p><p class="rec2"><b>Vorschlag:</b> ja; der Schlüssel bleibt nach <code>#</code>.</p></li>
+    <li><p class="ask">Canary und betula.app getrennt?</p><p class="rec2"><b>Vorschlag:</b> ja, zwei Datenbanken. Was auf canary verbunden ist, bleibt auf canary.</p></li>
+    <li><p class="ask">Wie heißt der Dienst, und in welcher Sprache?</p><p class="rec2"><b>Vorschlag:</b> „Phloem“. Rust oder Go ist deine Wahl; das Format ist in jedem Fall eine Rust-Crate, die App und Folia teilen.</p></li>
+  </ol>
+</section>
+
+<!-- ============================================================ Quellen -->
+<section class="sec" id="quellen">
+  <header>
+    <h2>Quellen</h2>
+  </header>
+  <ul class="srcs">
+    <li>Profilgrößen, Kosten einer Verbindung, die Rechnung: <code>research/sync/measure</code> (gemessen am 05.11.2026).</li>
+    <li>Die Speicher und ihre Grenzen: <code>folia/crates/plans/src/studyplan.rs</code>, <code>folia/crates/stores/src/</code>; R20, Abo und Teilen: <code>docs/folia/frontend.md</code>; Server, Traefik und Ports: <code>deploy/README.md</code>, <code>deploy/stacks/edge.yml</code>.</li>
+    <li>Wie oft TURN nötig ist: <a href="https://medium.com/the-making-of-whereby/what-kind-of-turn-server-is-being-used-d67dbfc2ff5d" target="_blank" rel="noopener">appear.in/Whereby 2017, 17,7 %</a>; Chrome-Messungen 20–25 %, zitiert bei <a href="https://getstream.io/resources/projects/webrtc/advanced/stun-turn" target="_blank" rel="noopener">Stream</a>.</li>
+    <li><a href="https://developers.cloudflare.com/realtime/turn/faq/" target="_blank" rel="noopener">Cloudflare Realtime TURN</a>: 0,05 $/GB, 1.000 GB im Monat frei, STUN frei.</li>
+    <li>TURN als Relais in interne Netze und die Lücken in coturn: <a href="https://enablesecurity.com/blog/turn-server-security-threats" target="_blank" rel="noopener">Enable Security, TURN Security Threats</a>.</li>
+    <li>Safaris 7 Tage: <a href="https://webkit.org/blog/10218/full-third-party-cookie-blocking-and-more/" target="_blank" rel="noopener">WebKit, März 2020</a>.</li>
+    <li>iOS und Netzwerk im Hintergrund: <a href="https://developer.apple.com/forums/thread/799259" target="_blank" rel="noopener">Apple Developer Forums</a>.</li>
+    <li>Firefox Send: <a href="https://en.wikipedia.org/wiki/Firefox_Send" target="_blank" rel="noopener">Wikipedia</a>.</li>
+    <li>Ed25519 und X25519 in WebCrypto: <a href="https://blogs.igalia.com/jfernandez/2025/08/25/ed25519-support-lands-in-chrome-what-it-means-for-developers-and-the-web" target="_blank" rel="noopener">Igalia, August 2025</a>.</li>
+    <li>Zugriffsprotokoll je Router: <a href="https://doc.traefik.io/traefik/reference/routing-configuration/http/routing/observability" target="_blank" rel="noopener">Traefik, Per-Router Observability</a>.</li>
+    <li>Ein Vorbild für versiegelte Stände und Änderungen: <a href="https://github.com/serenity-kit/secsync" target="_blank" rel="noopener">secsync</a>.</li>
+    <li>Studierende der BTU: <a href="https://b-tu.de/en/universitaet/die-btu/about-us/keynote" target="_blank" rel="noopener">b-tu.de</a>.</li>
+  </ul>
+</section>
+
+<p class="foot">Machbarkeitsstudie · nur Forschung, keine Version · Messungen in research/sync/measure · Stand Folia 1.74.2 · 05.11.2026</p>
+</div>
