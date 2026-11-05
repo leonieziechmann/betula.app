@@ -26,8 +26,9 @@
 //   dialog; a module beside the page by its name and by its row, in full and back; the
 //   Gesamtplan as a roadmap (the band of the study years, Informatik's first semester by its
 //   abbreviations, the pieces as wide as their credits, the Bachelor-Arbeit's bar not before its
-//   semester, the line of today and its flag, ▸ unfolding Mathematik into its lanes, kept, „Alle
-//   zuklappen", „Bisher zuklappen" and back), each cell as tall as what it lists, a module's menu,
+//   semester, the line of today and its flag, ▸ unfolding Mathematik into its lanes, kept, growing
+//   in with the focus on ▸, „Alle zuklappen" shrinking them away, „Bisher zuklappen" and back), each
+//   cell as tall as what it lists, a module's menu,
 //   the plan's open Betriebssysteme I dashed and planned
 //   with a click, the view kept, in a narrower window the plan scrolled sideways to the semester
 //   before the current one with the areas' names at the left, the plan's head at the top when
@@ -513,8 +514,23 @@ if (current !== "2026W") {
   check(roadmap.today, "the line of today does not run through the current semester, or its flag is missing");
   await step("▸ Mathematik", () => page.click('.st-row-head:has(.st-card-name:text-is("Mathematik")) .st-rm-tog'), () => document.querySelector('.st-row-head.is-open .st-card-name')?.textContent === "Mathematik" && [...document.querySelectorAll(".st-rm-lane-name")].some((lane) => lane.textContent === "Mathematik IT-1"));
   check((await stored(page, "betula.study.open")) === "Mathematik", `what is unfolded is not kept: ${JSON.stringify(await stored(page, "betula.study.open"))}`);
+  // Unfolding and folding move (owner, 2026-11-05: „animationen für das auf und zuklappen.
+  // unauffällig undd snappy einfach so, dass das leicher zu verstehen ist"): Mathematik's lanes grew
+  // in, the other areas stayed as they were and ▸ kept the focus; folded, they shrink away before
+  // they go.
+  const grew = await page.evaluate(() => ({
+    in: document.querySelectorAll(".st-rm-grid > .st-rm-lane.rm-in").length === document.querySelectorAll(".st-rm-grid > .st-rm-lane").length,
+    focus: document.activeElement?.matches(".st-rm-tog[aria-expanded=true]"),
+  }));
+  check(grew.in && grew.focus, `▸ Mathematik: its lanes did not grow in, or ▸ lost the focus: ${JSON.stringify(grew)}`);
+  await page.evaluate(() => {
+    window.__shrunk = false;
+    const seen = new MutationObserver(() => { if (document.querySelector(".st-rm-lane.rm-out")) { window.__shrunk = true; seen.disconnect(); } });
+    seen.observe(document.querySelector(".st-rm-grid"), { subtree: true, attributes: true, attributeFilter: ["class"] });
+  });
   await step("Alle zuklappen", () => page.click('.st-sems-head button:has-text("Alle zuklappen")'), () => !document.querySelector(".st-rm-lane"));
   check((await stored(page, "betula.study.open")) === null, "„Alle zuklappen“ kept something unfolded");
+  check(await page.evaluate(() => window.__shrunk), "„Alle zuklappen“: the lanes went at once, without shrinking away");
   await step("Bisher zuklappen", () => page.click('.st-sems-head button:has-text("Bisher zuklappen")'), () => document.querySelector("div.st-col-head.past") && document.querySelector(".st-rm-cell.past .st-rm-p.stub"));
   await step("Bisher aufklappen", () => page.click('.st-sems-head button:has-text("Bisher aufklappen")'), () => !document.querySelector("div.st-col-head.past"));
   // Betriebssysteme I, open in the plan: a dashed piece by its abbreviation. Its semester holds

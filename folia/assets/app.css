@@ -5962,6 +5962,22 @@ div.st-col-head.past { cursor: default; }
 /* A retake's arrow from its try before: through the semesters between, into the one it is in. */
 .st-rm-lc.link::before { content: ""; position: absolute; left: 0; right: 0; top: 15px; border-top: 1.5px dashed color-mix(in srgb, var(--no) 70%, var(--panel)); }
 .st-rm-lc.link-in::before { content: ""; position: absolute; z-index: 2; left: -2px; top: 15px; translate: 0 -50%; border-left: 6px solid color-mix(in srgb, var(--no) 70%, var(--panel)); border-top: 4px solid transparent; border-bottom: 4px solid transparent; }
+/* Unfolding and folding, quiet and quick (owner, 2026-11-05: „animationen für das auf und
+   zuklappen. unauffällig undd snappy einfach so, dass das leicher zu verstehen ist"): an area's
+   lanes grow from nothing to their height, every cell of a lane together, so that its row of the
+   grid grows and the areas under it move down with it, what they say fading in (`.rm-in`); folding,
+   they shrink away the same way, quicker, and take no clicks (`.rm-out`; `grid::Unfolded` keeps
+   them until then). What overflows a cell while it is lower is cut off only then. Shown anew (a
+   reload, a change of the plan), lanes stand at once. „Bisher" folded, its column comes in from
+   the right, where its semesters were; unfolded, those semesters come in from the left, where
+   „Bisher" was (`data-moved`, `grid::Past`). */
+.st-rm-grid > .rm-in { animation: rm-lane-in .2s cubic-bezier(.2, 0, 0, 1); }
+.st-rm-grid > .rm-out { animation: rm-lane-out .15s cubic-bezier(.4, 0, 1, 1) forwards; pointer-events: none; }
+@keyframes rm-lane-in { from { height: 0; padding-top: 0; padding-bottom: 0; border-bottom-width: 0; opacity: 0; clip-path: inset(0); } to { clip-path: inset(0); } }
+@keyframes rm-lane-out { from { clip-path: inset(0); } to { height: 0; padding-top: 0; padding-bottom: 0; border-bottom-width: 0; opacity: 0; clip-path: inset(0); } }
+.st-rm[data-moved] :is(.st-col-head, .st-rm-cell, .st-rm-lc).past:not(.rm-out) { animation: rm-past-in .2s var(--ease); }
+.st-rm[data-moved="fold"] { --rm-from: 12px; }
+@keyframes rm-past-in { from { opacity: 0; translate: var(--rm-from, -12px) 0; } }
 
 /* The line of today and its flag under the plan. A cell is a layer of its own (`isolation`), so
    that the line lies over its ground and behind its pieces. */
@@ -5984,7 +6000,10 @@ div.st-col-head.past { cursor: default; }
 .st-rm-sw.open { outline: 1.5px dashed color-mix(in oklab, var(--c) 62%, var(--panel)); outline-offset: -1.5px; }
 .st-rm-sw.over { background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--c) 34%, var(--panel)) 0 3px, color-mix(in oklab, var(--c) 9%, var(--panel)) 3px 6px); }
 .st-rm-sw.today { width: 2px; height: 14px; border-radius: 1px; background: var(--accent); }
-@media (prefers-reduced-motion: reduce) { .st-rm-tog .icon { transition: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .st-rm-tog .icon { transition: none; }
+  .st-rm-grid > :is(.rm-in, .rm-out), .st-rm[data-moved] :is(.st-col-head, .st-rm-cell, .st-rm-lc).past:not(.rm-out) { animation: none; }
+}
 /* The plan's head stays at the top as the semester's does („Mein Studium", above; owner,
    2026-11-04: „Ich möchte, dass da der header sticky ist von dem Plan. Also ähnlich wie bei dem
    Semester plan."): the title with „Alle aufklappen", the band of the study years and the heads

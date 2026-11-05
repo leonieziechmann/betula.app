@@ -2141,7 +2141,18 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     unfolded kept in `localStorage` `betula.study.open` (the areas' names, a view setting). The
     semesters before the current one stand open; „Bisher zuklappen" folds them into one column,
     each area's piece there what it passed („✓ 38", „✕ 1" for what it did not), a click on it
-    opens them again. „+" in a cell, the whole cell where it is empty and a round one at its end on
+    opens them again. Since Folia 1.74.3 what unfolds or folds moves, quiet and quick (owner,
+    2026-11-05: „animationen für das auf und zuklappen. unauffällig undd snappy einfach so, dass das
+    leicher zu verstehen ist"): an area's lanes grow from nothing to their height in .2 s, every
+    cell of a lane together, so that its row of the grid grows and the areas under it move down
+    with it, what they say fading in (app.css `.rm-in`); folding, they shrink away in .15 s and take
+    no clicks, kept until then (`.rm-out`, `grid::Unfolded`, each fold with its turn, so that a
+    fold's end leaves alone what was folded again since); „Bisher" folded, its column comes in from
+    the right, where its semesters were, unfolded, those semesters from the left, where „Bisher" was
+    (`data-moved` of the panel for a moment, `grid::Past`). Lanes shown anew (a reload, a change of
+    the plan) stand at once, and with less motion asked for nothing moves or waits. An area unfolded
+    or folded leaves the others as they are and its ▸ keeps the focus, its chevron turning (until
+    1.74.3 the whole plan was drawn anew). „+" in a cell, the whole cell where it is empty and a round one at its end on
     hover where it is not, opens the workbench for that semester at that area (until 1.64.0 a dialog
     of the area's modules, `picker::CellDialog`); a click on a piece (or a right click) opens the
     module's menu, the semesters' row menu. A piece dragged moves to the semester it is let go over,
@@ -2355,7 +2366,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     bar, Ctrl and a click, two rows moved by the bar, Escape), „Module hinzufügen", an area, a
     module beside the page by its name and by a click at its credits, the Gesamtplan as a roadmap (the
     band of the study years, the pieces by abbreviation and credits, a bar broken before its
-    semester, the line of today, ▸ and „Alle zuklappen" kept, „Bisher zuklappen", a semester too
+    semester, the line of today, ▸ and „Alle zuklappen" kept, the lanes growing in with the focus
+    on ▸ and shrinking away, „Bisher zuklappen", a semester too
     full for its labels, each cell as tall as what it lists, its menu, the plan's open module planned
     from its lane, in a narrower window scrolled to the semester before the current one with the
     areas' names at the left, its head at the top when scrolled down and going along sideways), the
