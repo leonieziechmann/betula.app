@@ -18,9 +18,11 @@
 #
 # Two drops are not counted, on purpose, since neither is anyone trying anything:
 #   - `phloem start`'s own check that the firewall holds: one DNS datagram to 127.0.0.11, sent as
-#     root before it drops its rights (meta skuid 0). Counted, every start (a reboot at night, a
-#     restart by swarm) would set off the alarm. Phloem itself never runs as root: as 65532, the
-#     same datagram is counted below.
+#     root before it drops its rights (meta skuid 0: the uid that made the socket). Counted,
+#     every start (a reboot at night, a restart by swarm) would set off the alarm. Phloem itself
+#     never runs as root: as 65532, the same datagram is counted below. Docker's NAT rewrites
+#     port 53 of its resolver to the one it listens on before this table sees the packet (nat
+#     comes before filter), so the rule asks conntrack for the port it was sent to.
 #   - packets conntrack cannot place (ct state invalid): late segments of a connection it let go
 #     already, which happen now and then in any normal traffic.
 #
@@ -47,7 +49,7 @@ table inet phloem {
 		meta nfproto ipv6 counter drop comment "IPv6: none, either way"
 		ct state established,related accept
 		ct state invalid drop comment "late packets conntrack cannot place: noise, not counted"
-		meta skuid 0 ip daddr 127.0.0.11 udp dport 53 drop comment "phloem start's own check, as root before the drop: not counted"
+		meta skuid 0 ip daddr 127.0.0.11 meta l4proto udp ct original proto-dst 53 drop comment "phloem start's own check, as root before the drop: not counted"
 		ip daddr 127.0.0.11 counter drop comment "Docker's resolver: a name looked up"
 		oif "lo" ip saddr 127.0.0.1 ip daddr 127.0.0.1 accept
 		counter drop comment "a connection or a datagram out"
