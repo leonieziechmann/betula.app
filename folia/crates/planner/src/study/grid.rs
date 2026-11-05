@@ -16,7 +16,11 @@
 //! one lane (`RowOf`), a retake tied to its first try by an arrow; „Alle aufklappen" and „Alle
 //! zuklappen" over the plan, what is unfolded kept (`OPEN_KEY`). A row of the plan that a module
 //! fills is carried by that module („für „Anwendungsfach“"). The semesters before the current one
-//! stand open; „Bisher zuklappen" folds them into one column. A click on a module (or a right
+//! stand open; „Bisher zuklappen" folds them into one column. What unfolds or folds moves, quiet
+//! and quick (owner, 2026-11-05: „animationen für das auf und zuklappen. unauffällig undd snappy
+//! einfach so, dass das leicher zu verstehen ist"): an area's lanes grow in, pushing the areas under
+//! them down, and shrink away (`Unfolded`); the columns „Bisher" changes come in from where they
+//! went or come from (`Past`). A click on a module (or a right
 //! click) opens its menu (`menu.rs`), a module dragged moves to the semester whose column it is let
 //! go over, which lights up, and more strongly where it lands (`Aim`), „+" in a cell opens the
 //! workbench for that semester at that area (`bench.rs`). The title, the band and the semesters'
@@ -31,6 +35,7 @@
 //! C, owner 2026-10-04).
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::time::Duration;
 
 use folia_calendar::day::Day;
 use folia_calendar::semester::SemesterKey;
@@ -58,6 +63,12 @@ const OPEN_KEY: &str = "betula.study.open";
 const PANEL_ID: &str = "st-grid";
 /// What a module without credits takes of its semester's bar, as if it had 4.
 const NO_CREDITS: f64 = 4.0;
+/// How long the lanes of an area folding stay: as long as they take to shrink away (app.css
+/// `rm-lane-out`, .15 s) and a few frames more, at no height then.
+const FOLD_OUT: Duration = Duration::from_millis(200);
+/// How long the panel says how „Bisher" went (`data-moved`): as long as the columns it changes take
+/// to come in (app.css `rm-past-in`, .2 s) and a few frames more.
+const PAST_IN: Duration = Duration::from_millis(260);
 
 /// How far a piece is: its fill.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -707,6 +718,100 @@ fn kept_open() -> BTreeSet<String> {
     nav::local_get(OPEN_KEY).map(|text| text.lines().map(str::to_string).filter(|name| !name.is_empty()).collect()).unwrap_or_default()
 }
 
+/// Which areas are unfolded (kept, `OPEN_KEY`), and which are folding: their lanes stay while they
+/// shrink away (app.css `.rm-out`), each with the turn that folded it, so that the end of a turn
+/// leaves alone what a later one folded again. An area unfolded grows its lanes in (`.rm-in`,
+/// `row_view`). With less motion asked for, nothing waits.
+#[derive(Clone, Copy)]
+struct Unfolded {
+    open: RwSignal<BTreeSet<String>>,
+    closing: RwSignal<BTreeMap<String, u32>>,
+    turn: StoredValue<u32>,
+}
+
+impl Unfolded {
+    fn new() -> Self {
+        Unfolded { open: RwSignal::new(kept_open()), closing: RwSignal::new(BTreeMap::new()), turn: StoredValue::new(0) }
+    }
+
+    /// The areas `names` unfolded, every other folded.
+    fn keep(self, names: BTreeSet<String>) {
+        nav::local_set(OPEN_KEY, &names.iter().cloned().collect::<Vec<_>>().join("\n"));
+        let gone: Vec<String> = if dom::still() { Vec::new() } else { self.open.with_untracked(|open| open.difference(&names).cloned().collect()) };
+        let turn = self.turn.get_value().wrapping_add(1);
+        self.turn.set_value(turn);
+        let changed = self.closing.with_untracked(|closing| !gone.is_empty() || closing.keys().any(|name| names.contains(name)));
+        if changed {
+            self.closing.update(|closing| {
+                closing.retain(|name, _| !names.contains(name));
+                closing.extend(gone.iter().map(|name| (name.clone(), turn)));
+            });
+        }
+        if !gone.is_empty() {
+            set_timeout(
+                move || {
+                    self.closing.try_update(|closing| closing.retain(|_, at| *at != turn));
+                },
+                FOLD_OUT,
+            );
+        }
+        self.open.set(names);
+    }
+
+    /// ▸: the area `name` unfolded, or folded where it is.
+    fn toggle(self, name: &str) {
+        let mut names = self.open.get_untracked();
+        if !names.remove(name) {
+            names.insert(name.to_string());
+        }
+        self.keep(names);
+    }
+
+    fn unfold(self, name: &str) {
+        let mut names = self.open.get_untracked();
+        if names.insert(name.to_string()) {
+            self.keep(names);
+        }
+    }
+}
+
+/// Whether the semesters before the current one are folded into „Bisher", and, for a moment after
+/// a click, which way they went: the panel's `data-moved` („fold", „unfold"), under which the
+/// columns of the semesters before the current one (`.past`) come in, „Bisher" from the right where
+/// its semesters were, those semesters from the left where „Bisher" was (app.css `rm-past-in`).
+#[derive(Clone, Copy)]
+struct Past {
+    fold: RwSignal<bool>,
+    moved: RwSignal<Option<&'static str>>,
+    turn: StoredValue<u32>,
+}
+
+impl Past {
+    fn new() -> Self {
+        Past { fold: RwSignal::new(false), moved: RwSignal::new(None), turn: StoredValue::new(0) }
+    }
+
+    fn set(self, fold: bool) {
+        if self.fold.get_untracked() == fold {
+            return;
+        }
+        if !dom::still() {
+            let turn = self.turn.get_value().wrapping_add(1);
+            self.turn.set_value(turn);
+            self.moved.set(Some(if fold { "fold" } else { "unfold" }));
+            set_timeout(
+                move || {
+                    if self.turn.try_get_value() == Some(turn) {
+                        self.moved.try_set(None);
+                    }
+                },
+                PAST_IN,
+            );
+        }
+        self.fold.set(fold);
+    }
+}
+
 /// A module dragged over the Gesamtplan (owner, 2026-11-04: „wenn man ein modul drag and dropped,
 /// soll einfach das gesamte semester die dropstelle sein und light gehighlighted werden mit der
 /// stelle, wo es final landen soll dann särker"): the semester under the pointer, anywhere in its
@@ -786,8 +891,8 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
     let s = &t.study;
     // The semesters before the current one stand open: with bars they are narrow and say what is
     // done already.
-    let fold = RwSignal::new(false);
-    let open = RwSignal::new(kept_open());
+    let past = Past::new();
+    let unfolded = Unfolded::new();
     let today = crate::studyplan::today();
     // The modules' abbreviations in the program: of every module planned, passed or open in the plan.
     let abbrevs = Memo::new(move |before: Option<&BTreeMap<String, String>>| {
@@ -807,15 +912,11 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
     });
     // The study before what is made of it (R16).
     let layout = Memo::new(move |_| {
-        let fold = fold.get();
+        let fold = past.fold.get();
         ctx.with_ready(|ready| abbrevs.with(|abbrevs| Layout::of(ready, fold, abbrevs, today, t)))
     });
     let any_past = Memo::new(move |_| ctx.with_ready(|ready| ready.study.semesters.iter().any(|semester| semester.when == When::Past)).unwrap_or(false));
     let names = Memo::new(move |_| layout.with(|layout| layout.as_ref().map(|layout| layout.rows.iter().map(|row| row.name.clone()).collect::<Vec<_>>()).unwrap_or_default()));
-    let keep = move |names: BTreeSet<String>| {
-        nav::local_set(OPEN_KEY, &names.iter().cloned().collect::<Vec<_>>().join("\n"));
-        open.set(names);
-    };
     // A module dragged over the plan: where it goes, and where it lands.
     let aim = Aim::new();
     // The panel's head and the heads of the semesters stay at the top while the areas scroll under
@@ -850,7 +951,7 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
     };
     let placed = StoredValue::new(None::<bool>);
     Effect::new(move |_| {
-        let fold = fold.get();
+        let fold = past.fold.get();
         if layout.with(Option::is_some) && placed.get_value() != Some(fold) {
             placed.set_value(Some(fold));
             request_animation_frame(move || show_now(true));
@@ -864,7 +965,7 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
     };
     Effect::new(move |_| {
         layout.track();
-        open.track();
+        unfolded.open.track();
         request_animation_frame(measure);
     });
     Effect::new(move |_| {
@@ -879,6 +980,7 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
             class="panel st-grid-panel st-rm"
             id=PANEL_ID
             aria-label=s.grid_title
+            data-moved=move || past.moved.get()
             on:dragenter=move |ev: leptos::ev::DragEvent| aim.follow(&ev)
             on:dragover=move |ev: leptos::ev::DragEvent| aim.follow(&ev)
             on:dragleave=move |ev: leptos::ev::DragEvent| if dom::drag_left(&ev) { aim.over.set(None) }
@@ -888,11 +990,11 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
                 <div class="st-sems-head">
                     <h2>{s.grid_title}</h2>
                     <span class="st-grow"></span>
-                    <button class="st-link st-rm-all" type="button" on:click=move |_| keep(names.get_untracked().into_iter().collect())><Icon name="chevrons-down"/>{s.expand_all}</button>
-                    <button class="st-link st-rm-all" type="button" on:click=move |_| keep(BTreeSet::new())><Icon name="chevrons-up"/>{s.collapse_all}</button>
+                    <button class="st-link st-rm-all" type="button" on:click=move |_| unfolded.keep(names.get_untracked().into_iter().collect())><Icon name="chevrons-down"/>{s.expand_all}</button>
+                    <button class="st-link st-rm-all" type="button" on:click=move |_| unfolded.keep(BTreeSet::new())><Icon name="chevrons-up"/>{s.collapse_all}</button>
                     {move || any_past.get().then(|| view! {
-                        <button class="st-link" type="button" aria-expanded=move || if fold.get() { "false" } else { "true" } on:click=move |_| fold.update(|fold| *fold = !*fold)>
-                            {move || if fold.get() { s.expand_past } else { s.collapse_past }}
+                        <button class="st-link" type="button" aria-expanded=move || if past.fold.get() { "false" } else { "true" } on:click=move |_| past.set(!past.fold.get_untracked())>
+                            {move || if past.fold.get() { s.expand_past } else { s.collapse_past }}
                         </button>
                     })}
                 </div>
@@ -922,13 +1024,11 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
                             Column::Past { .. } => None,
                         }))
                         .collect();
-                    let opened = open.get();
+                    // Each area follows what is unfolded by itself: one unfolded or folded, the
+                    // others stay as they are, and its ▸ keeps the focus.
                     view! {
                         <div class="st-grid st-rm-grid" style=style>
-                            {layout.rows.into_iter().map(|row| {
-                                let unfolded = opened.contains(&row.name);
-                                row_view(ctx, row, unfolded, today_at, &columns, open, keep, fold, aim, t)
-                            }).collect_view()}
+                            {layout.rows.into_iter().map(|row| row_view(ctx, row, today_at, &columns, unfolded, past, aim, t)).collect_view()}
                             {today_at.map(|at| view! {
                                 <div class="st-rm-foot rm-now" style=format!("grid-column: {}", at + 2)>
                                     <span class="st-rm-flag">{layout.today_flag.clone()}</span>
@@ -1005,53 +1105,56 @@ fn head_view(ctx: StudyCtx, column: Column, now_line: bool, aim: Aim, t: &'stati
     }
 }
 
-/// An area: its head and its bar over the semesters, then its lanes where it is unfolded.
+/// An area: its head and its bar over the semesters, then its lanes where it is unfolded, and while
+/// it folds.
 #[allow(clippy::too_many_arguments)]
-fn row_view(
-    ctx: StudyCtx,
-    row: AreaRow,
-    unfolded: bool,
-    today_at: Option<usize>,
-    columns: &[(&'static str, Option<SemesterKey>)],
-    open: RwSignal<BTreeSet<String>>,
-    keep: impl Fn(BTreeSet<String>) + Copy + 'static,
-    fold: RwSignal<bool>,
-    aim: Aim,
-    t: &'static Texts,
-) -> AnyView {
+fn row_view(ctx: StudyCtx, row: AreaRow, today_at: Option<usize>, columns: &[(&'static str, Option<SemesterKey>)], unfolded: Unfolded, past: Past, aim: Aim, t: &'static Texts) -> AnyView {
     let s = &t.study;
     let (passed, planned, rest, over) = row.bar;
     let area = row.area;
+    let tone = row.tone;
     let name = row.name.clone();
+    let open = {
+        let name = name.clone();
+        Memo::new(move |_| unfolded.open.with(|open| open.contains(&name)))
+    };
+    let folding = {
+        let name = name.clone();
+        Memo::new(move |_| unfolded.closing.with(|closing| closing.contains_key(&name)))
+    };
     let toggle = {
         let name = name.clone();
-        move |_| {
-            let mut now = open.get_untracked();
-            if !now.remove(&name) {
-                now.insert(name.clone());
-            }
-            keep(now);
-        }
+        move |_| unfolded.toggle(&name)
     };
     let unfold = {
         let name = name.clone();
-        move || {
-            let mut now = open.get_untracked();
-            now.insert(name.clone());
-            keep(now);
-        }
+        move || unfolded.unfold(&name)
     };
     let figure = if row.done {
         view! { <span class="st-card-lp done"><Icon name="check"/>{row.figure.clone()}</span> }.into_any()
     } else {
         view! { <span class="st-card-lp" class:over=row.over>{row.figure.clone()}</span> }.into_any()
     };
-    let label = if unfolded { (s.collapse_area)(&name) } else { (s.expand_area)(&name) };
-    let last_lane = row.lanes.len();
+    let label = {
+        let name = name.clone();
+        move || if open.get() { (s.collapse_area)(&name) } else { (s.expand_area)(&name) }
+    };
     let cells = row.cells.clone();
+    // The lanes: there at once as the plan is shown (a reload, a change of the plan), growing in as
+    // the area unfolds, shrinking away as it folds (app.css `.rm-in`, `.rm-out`).
+    let lanes = row.lanes;
+    let last_lane = lanes.len();
+    let columns = columns.to_vec();
+    let shown = Memo::new(move |_| open.get() || folding.get());
+    let first = StoredValue::new(true);
+    let lanes = move || {
+        let came = !first.get_value();
+        first.set_value(false);
+        shown.get().then(|| lanes.iter().cloned().enumerate().map(|(i, lane)| lane_view(ctx, lane, area, tone, today_at, &columns, i + 1 == last_lane, came, folding, aim, t)).collect_view())
+    };
     view! {
-        <div class="st-row-head st-rm-head" class:is-open=unfolded style=tone_style(row.tone)>
-            <button type="button" class="st-rm-tog" aria-expanded=if unfolded { "true" } else { "false" } aria-label=label on:click=toggle><Icon name="chevron-right"/></button>
+        <div class="st-row-head st-rm-head" class:is-open=move || open.get() style=tone_style(row.tone)>
+            <button type="button" class="st-rm-tog" aria-expanded=move || if open.get() { "true" } else { "false" } aria-label=label on:click=toggle><Icon name="chevron-right"/></button>
             <button type="button" class="st-rm-area" on:click=move |_| ctx.open(Dialog::Area(area))>
                 <span class="st-card-head"><span class="st-dot"></span><span class="st-card-name">{row.name.clone()}</span>{figure}</span>
                 <span class="st-mini">
@@ -1062,8 +1165,8 @@ fn row_view(
                 </span>
             </button>
         </div>
-        {cells.into_iter().enumerate().map(|(at, cell)| cell_view(ctx, cell, area, &name, row.tone, today_at == Some(at), unfold.clone(), fold, aim, t)).collect_view()}
-        {unfolded.then(|| row.lanes.into_iter().enumerate().map(|(i, lane)| lane_view(ctx, lane, area, row.tone, today_at, columns, i + 1 == last_lane, aim, t)).collect_view())}
+        {cells.into_iter().enumerate().map(|(at, cell)| cell_view(ctx, cell, area, &name, tone, today_at == Some(at), unfold.clone(), past, aim, t)).collect_view()}
+        {lanes}
     }
     .into_any()
 }
@@ -1071,13 +1174,13 @@ fn row_view(
 /// A cell of an area's bar: its pieces, „n Module" where they do not fit (`dom::fit_pieces`), and
 /// „+" for the workbench.
 #[allow(clippy::too_many_arguments)]
-fn cell_view(ctx: StudyCtx, cell: Cell, area: Option<usize>, area_name: &str, tone: &'static str, now_line: bool, unfold: impl Fn() + Clone + 'static, fold: RwSignal<bool>, aim: Aim, t: &'static Texts) -> AnyView {
+fn cell_view(ctx: StudyCtx, cell: Cell, area: Option<usize>, area_name: &str, tone: &'static str, now_line: bool, unfold: impl Fn() + Clone + 'static, past: Past, aim: Aim, t: &'static Texts) -> AnyView {
     let s = &t.study;
     match cell {
         Cell::Past { passed, any_passed, failed, title } => view! {
             <div class="st-cell st-rm-cell past" style=tone_style(tone)>
                 {(any_passed || failed > 0).then(|| view! {
-                    <button type="button" class="st-rm-p stub" class:passed=any_passed class:failed=!any_passed title=title.clone() aria-label=title on:click=move |_| fold.set(false)>
+                    <button type="button" class="st-rm-p stub" class:passed=any_passed class:failed=!any_passed title=title.clone() aria-label=title on:click=move |_| past.set(false)>
                         {any_passed.then(|| view! { <Icon name="check"/><span class="lb">{n(passed, t)}</span> })}
                         {(failed > 0).then(|| view! { <span class="st-rm-badge">"✕ "{failed}</span> })}
                     </button>
@@ -1231,12 +1334,26 @@ fn piece_inner(piece: &Piece, word: Option<&'static str>) -> AnyView {
 }
 
 /// A lane: the module's name and credits, its piece in each semester it is in, a retake's arrow.
+/// Each of its cells grows in where it `came` with its area unfolding, and shrinks away while the
+/// area is `folding`: all together, so that the row of the grid does.
 #[allow(clippy::too_many_arguments)]
-fn lane_view(ctx: StudyCtx, lane: Lane, area: Option<usize>, tone: &'static str, today_at: Option<usize>, columns: &[(&'static str, Option<SemesterKey>)], last: bool, aim: Aim, t: &'static Texts) -> AnyView {
+fn lane_view(
+    ctx: StudyCtx,
+    lane: Lane,
+    area: Option<usize>,
+    tone: &'static str,
+    today_at: Option<usize>,
+    columns: &[(&'static str, Option<SemesterKey>)],
+    last: bool,
+    came: bool,
+    folding: Memo<bool>,
+    aim: Aim,
+    t: &'static Texts,
+) -> AnyView {
     let (name, title) = (lane.name.clone(), lane.title.clone());
     let keys = StoredValue::new(lane.keys.clone());
     view! {
-        <div class="st-rm-lane" class:last=last style=tone_style(tone)>
+        <div class="st-rm-lane" class:last=last class:rm-in=came class:rm-out=move || folding.get() style=tone_style(tone)>
             <span class="st-rm-lane-name" title=title>{name}</span>
             <span class="st-rm-lane-lp">{lane.credits.clone()}</span>
         </div>
@@ -1248,6 +1365,8 @@ fn lane_view(ctx: StudyCtx, lane: Lane, area: Option<usize>, tone: &'static str,
                 <div
                     class=format!("st-rm-lc {kind}")
                     class:last=last
+                    class:rm-in=came
+                    class:rm-out=move || folding.get()
                     class:rm-now=today_at == Some(at)
                     class:link=through
                     class:link-in=into
