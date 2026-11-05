@@ -6373,6 +6373,9 @@ a.st-rsp-name:hover { text-decoration: underline; }
 .st-wbar.big > .tr { border-radius: 4px; }
 .st-wbar.thin { height: 4px; min-width: 28px; }
 .st-wbar.thin > .lt { top: -2px; bottom: -2px; }
+/* On a row picked or under the pointer, whose ground is the track's grey, the track is the panel's. */
+.st-sl[aria-current="true"] .st-wbar > .tr, .st-sl-kid[aria-current="true"] .st-wbar > .tr, .st-sl:hover .st-wbar > .tr, .st-sl-kid:hover .st-wbar > .tr { background: var(--panel); }
+.st-sl[aria-current="true"] .st-wbar > .zn:not(.over), .st-sl-kid[aria-current="true"] .st-wbar > .zn:not(.over), .st-sl:hover .st-wbar > .zn:not(.over), .st-sl-kid:hover .st-wbar > .zn:not(.over) { background-color: var(--panel); }
 /* The choice picked: its name and figure, its bar, what it asks, a group's stretch said. */
 .st-wph { display: grid; gap: 10px; }
 .st-wpt { display: flex; align-items: baseline; gap: 14px; }
@@ -6389,7 +6392,10 @@ a.st-rsp-name:hover { text-decoration: underline; }
 .st-wtabs button:hover { color: var(--text); }
 .st-wtabs button[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--c); }
 .st-wtabs button small { margin-left: 5px; font-size: 11.5px; font-weight: 600; color: var(--text-3); }
-.st-wtab-p { display: grid; grid-template-columns: 96px auto; align-items: center; gap: 8px; }
+/* A group's members, all of them or the one picked on the left, each under its name and stand. */
+.st-wsub { display: flex; align-items: baseline; gap: 12px; margin: 20px 8px 2px; font-size: 13px; font-weight: 650; color: var(--text); }
+.st-wsub .st-wfig { margin-left: auto; }
+.st-wph + .st-wsub { margin-top: 18px; }
 /* Its modules: the student's mark, the name, the number, the credits; a click opens it beside the
    page. A placeholder of it stands with them, not a link. */
 .st-wrows { display: flex; flex-direction: column; margin-top: 6px; }
@@ -6690,7 +6696,6 @@ span.st-wb-go { cursor: default; }
   .st-chiprow.small { margin: 14px -12px 0; padding: 0 12px 2px; }
   .st-fchip { flex: none; display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border: 0; border-radius: 18px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; }
   .st-fchip small { font-size: 12px; font-weight: 600; color: var(--text-3); }
-  .st-fchip .st-wbar { width: 44px; min-width: 44px; }
   .st-fchip[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); }
   .st-fchip[aria-pressed="true"] small { color: color-mix(in oklab, var(--on-invert) 70%, transparent); }
   .st-chiprow.small .st-fchip { height: 34px; padding: 0 13px; font-size: 13.5px; }
@@ -6704,6 +6709,7 @@ span.st-wb-go { cursor: default; }
   .st-wplace.card + .st-wplace.card { margin-top: 0; }
   .st-wcard-m.has { box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--c, var(--accent)) 40%, transparent), var(--shadow-panel); }
   .st-wp-phone .st-wnote { margin: 14px 4px 0; }
+  .st-wp-phone .st-wsub { margin: 20px 4px 0; font-size: 14px; }
 }
 
 @media (max-width: 900px) {

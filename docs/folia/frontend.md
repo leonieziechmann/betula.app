@@ -1796,7 +1796,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       the one over it in an earlier semester), gone for the others; a second member over 24 is said
       above the members and yellow above 24, and counts to 24 for what is left (`Group::open`). On a
       desktop the choices on the left, a group with its members under it, the one picked on the
-      right; on a phone the choices as cards, each a page of its own (`choice=`) whose way back
+      right; a group's members are picked there and not by tabs over its modules (Folia 1.74.2;
+      owner, 2026-11-05: „Mach mal die auswahl in dem fachbereich oben weg das ist redundant"): the
+      group picked shows all of its members' modules, each member's under its name and stand, a
+      member picked its own; on a phone the choices as cards, each a page of its own (`choice=`) whose way back
       leads to them.
     - **What is the student's.** Which module fills which row is never guessed (as everywhere,
       `studyplan::Planned::fills`): a row without a module stands as the student put it — its

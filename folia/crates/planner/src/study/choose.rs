@@ -540,6 +540,35 @@ fn tab_at(entry: &Entry, has: &BTreeMap<String, Has>, at: usize) -> usize {
         .map_or(0, |(i, _)| i)
 }
 
+/// A group's entry (the Komplexe): its tabs are its members, which the list on the left picks
+/// (owner, 2026-11-05: „Mach mal die auswahl in dem fachbereich oben weg das ist redundant").
+fn is_group(entry: &Entry) -> bool {
+    entry.tabs.iter().any(|tab| tab.member.is_some())
+}
+
+/// The list shown of an entry, `None` for all of a group's: what was picked of it (`picked`, the
+/// entry and the list), else the one the student has most of for it, a group's all.
+fn shown_of(picked: Option<(usize, Option<usize>)>, at: usize, entry: &Entry, has: &BTreeMap<String, Has>) -> Option<usize> {
+    match picked {
+        Some((of, shown)) if of == at => shown,
+        _ if is_group(entry) => None,
+        _ => Some(tab_at(entry, has, at)),
+    }
+}
+
+/// The lists shown, as sections: one, or all of a group's members, each under its name and stand.
+fn sections_of(entry: &Entry, shown: Option<usize>) -> Vec<Tab> {
+    match shown {
+        Some(at) => entry.tabs.get(at.min(entry.tabs.len().saturating_sub(1))).cloned().into_iter().collect(),
+        None => entry.tabs.clone(),
+    }
+}
+
+/// A group member's name and stand over its modules.
+fn section_head(tab: &Tab, t: &'static Texts) -> Option<impl IntoView> {
+    tab.member.map(|(stand, _)| view! { <p class="st-wsub"><span>{tab.name.clone()}</span>{fig(&stand, t)}</p> })
+}
+
 /// What „Einplanen" of a module opened from `tab` aims at: its choice's placeholder and row. None
 /// for a module the student has: its sidebar says where it is.
 fn hint_of(tab: &Tab, module: &Module) -> Option<(String, PlanHint)> {
@@ -626,22 +655,13 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
         let at = picked.get()?;
         pane.with(|pane| pane.as_ref().and_then(|pane| pane.entries.get(at).cloned().map(|entry| (at, entry))))
     });
-    let tab = RwSignal::new(0usize);
-    // Another entry: the list the student has most of for it.
-    Effect::new(move |before: Option<Option<usize>>| {
-        let now = entry.with(|entry| entry.as_ref().map(|(at, _)| *at));
-        if before != Some(now) {
-            if let Some(at) = entry.with_untracked(|entry| entry.as_ref().map(|(at, entry)| pane.with_untracked(|pane| pane.as_ref().map_or(0, |pane| tab_at(entry, &pane.has, *at))))) {
-                tab.set(at);
-            }
-        }
-        now
-    });
+    // The list picked of an entry (a member on the left, a tab), for that entry alone.
+    let list_picked = RwSignal::new(None::<(usize, Option<usize>)>);
     let left = move || {
         pane.with(|pane| {
             let pane = pane.as_ref()?;
             let picked = picked.get();
-            let shown_tab = tab.get();
+            let chosen = list_picked.get();
             Some(
                 pane.areas
                     .iter()
@@ -653,10 +673,11 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
                                 let current = picked == Some(at);
                                 let count = marked.with(|marked| count_line(entry, marked, t));
                                 let room = entry.room;
-                                let kids = entry.tabs.iter().any(|tab| tab.member.is_some()).then(|| view! {
+                                let shown = shown_of(chosen, at, entry, &pane.has);
+                                let kids = is_group(entry).then(|| view! {
                                     <div class="st-sl-kids">
                                         {entry.tabs.iter().enumerate().filter_map(|(i, tab_of)| tab_of.member.map(|member| (i, tab_of, member))).map(|(i, tab_of, (stand, state))| view! {
-                                            <button class="st-sl-kid" type="button" style=format!("--c: {}", entry.tone) aria-current=(current && shown_tab == i).then_some("true") on:click=move |_| { ctx.choice.set(Some(choice)); tab.set(i); }>
+                                            <button class="st-sl-kid" type="button" style=format!("--c: {}", entry.tone) aria-current=(current && shown == Some(i)).then_some("true") on:click=move |_| { ctx.choice.set(Some(choice)); list_picked.set(Some((at, Some(i)))); }>
                                                 <span>{tab_of.name.clone()}</span>{fig(&stand, t)}
                                                 {bar(&stand, Some((state, room)), "thin", t)}
                                             </button>
@@ -664,7 +685,7 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
                                     </div>
                                 });
                                 view! {
-                                    <button class="st-sl" type="button" style=format!("--c: {}", entry.tone) title=entry.name.clone() aria-current=current.then_some("true") on:click=move |_| ctx.choice.set(Some(choice))>
+                                    <button class="st-sl" type="button" style=format!("--c: {}", entry.tone) title=entry.name.clone() aria-current=current.then_some("true") on:click=move |_| { ctx.choice.set(Some(choice)); list_picked.set(None); }>
                                         <span class="st-sl-t"><b>{entry.name.clone()}</b>{fig(&entry.stand, t)}</span>
                                         {bar(&entry.stand, None, "", t)}
                                         <small>{count}</small>
@@ -685,25 +706,25 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
         let now = ctx.now.get();
         let (at, entry) = entry.get()?;
         let has = has?;
-        let shown = tab.get().min(entry.tabs.len().saturating_sub(1));
-        let tabs = (entry.tabs.len() > 1).then(|| {
-            let room = entry.room;
+        let shown = shown_of(list_picked.get(), at, &entry, &has);
+        // A group's members are picked on the left; other lists by their tabs.
+        let tabs = (entry.tabs.len() > 1 && !is_group(&entry)).then(|| {
             view! {
                 <div class="st-wtabs" role="group" aria-label=v.lists style=format!("--c: {}", entry.tone)>
                     {entry.tabs.iter().enumerate().map(|(i, tab_of)| view! {
-                        <button type="button" aria-pressed=move || if tab.get() == i { "true" } else { "false" } on:click=move |_| tab.set(i)>
-                            <span>{tab_of.name.clone()}{tab_of.member.is_none().then(|| view! { <small>{tab_of.modules.len()}</small> })}</span>
-                            {tab_of.member.map(|(stand, state)| view! { <span class="st-wtab-p">{bar(&stand, Some((state, room)), "thin", t)}{fig(&stand, t)}</span> })}
+                        <button type="button" aria-pressed=if shown == Some(i) { "true" } else { "false" } on:click=move |_| list_picked.set(Some((at, Some(i))))>
+                            <span>{tab_of.name.clone()}<small>{tab_of.modules.len()}</small></span>
                         </button>
                     }).collect_view()}
                 </div>
             }
         });
-        let list = entry.tabs.get(shown).cloned().map(|tab_of| {
+        let list = sections_of(&entry, shown).into_iter().map(|tab_of| {
             let modules = marked.with(|marked| rows.with(|rows| modules_of(&tab_of.modules, rows, &has, marked, t)));
             pane.with(|pane| {
                 let pane = pane.as_ref()?;
                 Some(view! {
+                    {section_head(&tab_of, t)}
                     <div class="st-wrows">
                         {modules.into_iter().map(|module| {
                             let href = super::module_href(ctx, &module.id, t);
@@ -722,7 +743,7 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
                     </div>
                 })
             })
-        });
+        }).collect_view();
         Some(view! {
             {head(&entry, false, t)}
             {tabs}
@@ -784,47 +805,47 @@ fn ChoosePhone(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Stri
     };
     let detail = move |at: usize| {
         let (entry, has) = pane.with(|pane| pane.as_ref().and_then(|pane| pane.entries.get(at).cloned().map(|entry| (entry, pane.has.clone()))))?;
-        let tab = RwSignal::new(tab_at(&entry, &has, at));
-        let room = entry.room;
-        let chips = (entry.tabs.len() > 1).then(|| {
+        let tab = RwSignal::new(shown_of(None, at, &entry, &has));
+        let chips = (entry.tabs.len() > 1 && !is_group(&entry)).then(|| {
             view! {
                 <div class="st-chiprow small" role="group" aria-label=v.lists>
                     {entry.tabs.iter().enumerate().map(|(i, tab_of)| view! {
-                        <button class="st-fchip" type="button" style=format!("--c: {}", entry.tone) aria-pressed=move || if tab.get() == i { "true" } else { "false" } on:click=move |_| tab.set(i)>
-                            {tab_of.name.clone()}
-                            {match tab_of.member {
-                                Some((stand, state)) => bar(&stand, Some((state, room)), "thin", t).into_any(),
-                                None => view! { <small>{tab_of.modules.len()}</small> }.into_any(),
-                            }}
+                        <button class="st-fchip" type="button" style=format!("--c: {}", entry.tone) aria-pressed=move || if tab.get() == Some(i) { "true" } else { "false" } on:click=move |_| tab.set(Some(i))>
+                            {tab_of.name.clone()}<small>{tab_of.modules.len()}</small>
                         </button>
                     }).collect_view()}
                 </div>
             }
         });
-        let tabs = entry.tabs.clone();
+        let shown_entry = entry.clone();
         let tone = entry.tone;
         let cards = move || {
-            let tab_of = tabs.get(tab.get().min(tabs.len().saturating_sub(1))).cloned()?;
-            let modules = marked.with(|marked| rows.with(|rows| modules_of(&tab_of.modules, rows, &has, marked, t)));
-            pane.with(|pane| {
-                let pane = pane.as_ref()?;
-                Some(view! {
-                    <div class="st-wcards" style=format!("--c: {tone}")>
-                        {modules.into_iter().map(|module| {
-                            let href = super::module_href(ctx, &module.id, t);
-                            let hint = hint_of(&tab_of, &module);
-                            view! {
-                                <a class="st-wcard-m" class:has=module.has.is_some() href=href data-noscroll="" on:click=move |_| ctx.aside_hint.set(hint.clone())>
-                                    {mark(&module, t)}
-                                    <span class="st-wrow-nm"><b>{module.title.clone()}</b>{notes(&module, pane, at, t)}<span class="st-wrow-id mono">{module.id.clone()}</span></span>
-                                    <span class="st-lp">{module.credits.clone()}<small>{v.col_credits}</small></span>
-                                    <Icon name="chevron-right"/>
-                                </a>
-                            }
-                        }).collect_view()}
-                    </div>
+            sections_of(&shown_entry, tab.get())
+                .into_iter()
+                .map(|tab_of| {
+                    let modules = marked.with(|marked| rows.with(|rows| modules_of(&tab_of.modules, rows, &has, marked, t)));
+                    pane.with(|pane| {
+                        let pane = pane.as_ref()?;
+                        Some(view! {
+                            {section_head(&tab_of, t)}
+                            <div class="st-wcards" style=format!("--c: {tone}")>
+                                {modules.into_iter().map(|module| {
+                                    let href = super::module_href(ctx, &module.id, t);
+                                    let hint = hint_of(&tab_of, &module);
+                                    view! {
+                                        <a class="st-wcard-m" class:has=module.has.is_some() href=href data-noscroll="" on:click=move |_| ctx.aside_hint.set(hint.clone())>
+                                            {mark(&module, t)}
+                                            <span class="st-wrow-nm"><b>{module.title.clone()}</b>{notes(&module, pane, at, t)}<span class="st-wrow-id mono">{module.id.clone()}</span></span>
+                                            <span class="st-lp">{module.credits.clone()}<small>{v.col_credits}</small></span>
+                                            <Icon name="chevron-right"/>
+                                        </a>
+                                    }
+                                }).collect_view()}
+                            </div>
+                        })
+                    })
                 })
-            })
+                .collect_view()
         };
         let now = ctx.now.get_untracked();
         Some(view! {
