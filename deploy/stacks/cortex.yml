@@ -56,11 +56,15 @@
 #     huggingface.co, cdn-lfs.huggingface.co   models (README.md section 13): two downloads at a time.
 #   Unknown fields are an error: a misspelt setting does not go unnoticed.
 #
-# Networks. "cortex" (vps/30-docker.sh) is internal: the application and Prometheus reach
-# http://cortex_a:8100 and http://cortex_b:8100 over it and nothing leaves the host that way.
-# Radix's own networks are internal, so Cortex is its way to the internet (but for Gemini, which
-# does not go through Cortex: stacks/betula.egress.yml). The stack's own "default" is not
-# internal: it is Cortex's way out. No port is published; /status for a human, on the server:
+# Networks (vps/files/networks.conf, README.md section 15). cortex_<instance> (vps/30-docker.sh),
+# one per instance, is internal: that instance's Radix reaches http://cortex_a:8100 and
+# http://cortex_b:8100 over it, and the scraper of the monitoring stack scrapes both; nothing leaves
+# the host that way, and no instance reaches another one's Radix. Radix's own networks are
+# internal, so Cortex is its way to the internet (but for Gemini, which does not go through Cortex:
+# stacks/betula.egress.yml). The stack's own "default" is not internal: it is Cortex's way out, and
+# the way between the two instances. "seed" (internal, attachable) is the way of
+# vps/cortex-seed.sh's one-off container to Cortex, and nothing else's. A new instance needs its
+# network here as well. No port is published; /status for a human, on the server:
 #   docker exec "$(docker ps -q -f name=cortex_a | head -n 1)" /bin/cortex status
 #
 # Logs: JSON lines with level / event / msg (the image sets CORTEX_LOG_FORMAT=json), read by the
@@ -76,7 +80,11 @@ x-cortex: &cortex
   read_only: true
   cap_drop: [ALL]
   networks:
-    cortex: {}
+    cortex_betula: {}
+    cortex_betula-green: {}
+    cortex_canary: {}
+    cortex_canary-green: {}
+    seed: {}
     default: {}
   # SIGTERM stops it; the lock it held goes to the other instance the moment the process ends.
   stop_grace_period: 30s
@@ -150,8 +158,20 @@ services:
           size: 16777216
 
 networks:
-  cortex:
+  # Made by vps/30-docker.sh: that instance's Radix, Cortex and the scraper.
+  cortex_betula:
     external: true
+  cortex_betula-green:
+    external: true
+  cortex_canary:
+    external: true
+  cortex_canary-green:
+    external: true
+  # Cortex and the container of vps/cortex-seed.sh while it runs; attachable for it alone.
+  seed:
+    driver: overlay
+    internal: true
+    attachable: true
   default:
     driver: overlay
 

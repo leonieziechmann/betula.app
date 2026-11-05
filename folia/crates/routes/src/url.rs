@@ -140,6 +140,10 @@ pub const STUDY: &str = "/study";
 /// „Profil" (owner, 2026-10-14): the profiles of this browser, what the active one keeps, and the
 /// settings every profile shares. What it shows lives in the browser; the address is the page.
 pub const PROFILE: &str = "/profile";
+/// „Gerät verbinden" (Betula Sync, `folia_stores::sync`): the page a link of another device opens,
+/// `/verbinden#<…>`. What follows `#` opens that device's profile and never reaches a server; the
+/// address itself says nothing, and no page links it.
+pub const CONNECT: &str = "/verbinden";
 
 /// The Stundenplan's address that hands the plan of `code` on (`share::SharedPlan`).
 pub fn share_path(code: &str) -> String {
@@ -306,7 +310,7 @@ pub fn listed(address: &str) -> bool {
     };
     let program_tab = path.strip_prefix("/programs/").and_then(|rest| rest.split_once('/')).and_then(|(_, tab)| ProgramTab::from_segment(tab));
     // A Termin's own page is no page search engines list: events times dates are many addresses.
-    if path == BOOKMARKS || path == STUDYPLAN || path == STUDY || path == PROFILE || path.starts_with("/event/") || program_tab.is_some_and(|tab| !tab.indexed()) {
+    if path == BOOKMARKS || path == STUDYPLAN || path == STUDY || path == PROFILE || path == CONNECT || path.starts_with("/event/") || program_tab.is_some_and(|tab| !tab.indexed()) {
         return false;
     }
     match query {
@@ -2393,6 +2397,8 @@ mod tests {
             STUDY.to_string(),
             StudyUrl::parse("open=11101").path(),
             PROFILE.to_string(),
+            CONNECT.to_string(),
+            format!("{CONNECT}#AAAA"),
             format!("{}{}", module_path("11101"), ModuleHint::parse("plan=2026W").query()),
             "/event/148370-eb017".to_string(),
             "/event/148370-eb017/2026-11-02".to_string(),

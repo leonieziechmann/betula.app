@@ -3,6 +3,7 @@
 
 pub mod catalog;
 pub mod module;
+pub mod sync;
 pub mod termin;
 pub mod week;
 
@@ -19,6 +20,7 @@ folia_design::texts! {
     planner = folia_stores::i18n::planner,
     plans_data = folia_plans::i18n,
     seo = folia_shell::i18n::seo,
+    sync = crate::i18n::sync,
     termin = crate::i18n::termin,
     timetable_data = folia_timetable::i18n,
     ui = folia_design::i18n::ui,

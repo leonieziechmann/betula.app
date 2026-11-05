@@ -15,5 +15,5 @@ Type=oneshot
 ExecStart=/usr/bin/docker image prune --force
 # Build cache is only ever created by an ad-hoc build on the server; a week is generous.
 ExecStart=/usr/bin/docker builder prune --force --all --filter until=168h
-# Never "docker system prune" / "network prune": they delete unused networks, and the overlay
-# networks edge and monitoring are unused whenever their stacks are down.
+# Never "docker system prune" / "network prune": they delete unused networks, and the networks
+# vps/30-docker.sh makes (files/networks.conf) are unused whenever their stacks are down.

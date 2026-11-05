@@ -1,48 +1,58 @@
 #!/usr/bin/env bash
 # 91-verify-stacks.sh - read-only audit of what 40-stacks.sh deployed. Run on the server as the
-# deploy user (group docker), no sudo needed:
+# deploy user (group docker), no sudo needed but for the probes of sections netmatrix and phloem
+# (sudo -n nsenter; without it they are skipped with a WARN):
 #
 #   bash /opt/betula/vps/91-verify-stacks.sh                 # everything
 #   bash /opt/betula/vps/91-verify-stacks.sh tls headers     # only some sections
 #
-# Sections: services http tls headers ports accesslog app cortex canary loki prometheus grafana alerts
+# Sections: services http tls headers ports accesslog app cortex canary netmatrix phloem loki
+#           prometheus grafana alerts
 # Prints one PASS / WARN / FAIL line per check and exits non-zero when anything FAILed.
-# Changes nothing. The only traffic it causes: a few requests to the site (which also put fresh
-# lines into Traefik's access log for the Loki check) and queries inside the monitoring stack.
+# Changes nothing, and writes one file: /run/betula/metrics/verify-probes.prom, the time of its
+# probes, for which the rule "Phloem: its firewall drops connections" keeps quiet for 15 minutes
+# (they test exactly that). The only traffic it causes: a few requests to the site (which also
+# put fresh lines into Traefik's access log for the Loki check), queries inside the monitoring
+# stack, and the probes: a TCP handshake from inside each container to each other service, to the
+# internet (NETPROBE_INTERNET, default 1.1.1.1:443) and one GET of Traefik's metrics.
 #
 # Ports that are not published (Loki 3100, Prometheus 9090, Grafana 3000) are reached with
-# "docker exec" into the Prometheus container: it is on the stack network next to them, on the
-# "monitoring" overlay next to Traefik's metrics port and on "cortex" next to Radix and Cortex, and
+# "docker exec" into the Prometheus container: it is on the stack's networks next to them, and
 # its image has busybox wget. What Cortex says of itself is asked with "docker exec" into its own
 # containers ("cortex status"), and so is what a release of Radix can do ("radix run -h", which
-# prints the flags and exits).
+# prints the flags and exits). The web server of an instance is asked from inside Traefik's
+# container (folia_status, lib-stacks.sh). Who may reach whom: vps/files/networks.conf.
 #
 # What this cannot prove: that the site is reachable from OUTSIDE. The requests below start on
 # the server itself and never pass the provider's network or ufw's INPUT rules. From the
 # workstation:  curl -sI http://betula.app/   and   curl -sI https://betula.app/
 #
 # Environment:
-#   GRAFANA_HOST   public name of Grafana, default grafana.betula.app (only used when its router is deployed)
+#   GRAFANA_HOST       public name of Grafana, default grafana.betula.app (only used when its router is deployed)
+#   NETPROBE_INTERNET  address:port the probes try as "the internet" (an address: no resolver there)
 set -Eeuo pipefail
 
 # shellcheck source=lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 # shellcheck source=lib-stacks.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib-stacks.sh"
+# shellcheck source=lib-networks.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib-networks.sh"
 betula_init
 require_ubuntu
 require_cmd docker curl openssl jq
 require_swarm_manager
 
-ALL_SECTIONS=(services http tls headers ports accesslog app cortex canary loki prometheus grafana alerts)
+ALL_SECTIONS=(services http tls headers ports accesslog app cortex canary netmatrix phloem loki prometheus grafana alerts)
 GRAFANA_PUBLIC_HOST="${GRAFANA_HOST:-${DEFAULT_GRAFANA_HOST}}"
 RULES_FILE="${CONFIG_DIR}/monitoring/grafana/provisioning/alerting/rules.yml"
-# Jobs that must be "up": six scraped by Prometheus (config/monitoring/prometheus.yml), two
-# pushed by Alloy through remote write (config/monitoring/alloy/config.alloy).
-EXPECTED_JOBS=(prometheus traefik loki grafana alloy cortex integrations/unix integrations/cadvisor)
+# Jobs that must be "up": five scraped by Prometheus (config/monitoring/prometheus.yml), two by
+# the scraper (config/monitoring/scraper.yml; cortex has its own case below), two pushed by
+# Alloy through remote write (config/monitoring/alloy/config.alloy).
+EXPECTED_JOBS=(prometheus scraper loki grafana alloy traefik cortex integrations/unix integrations/cadvisor)
 # Ports of the contract that must NOT listen on the host: Traefik ping and metrics, socket proxy,
-# Grafana, Loki, Prometheus, Alloy, Radix, Folia, Cortex.
-PRIVATE_PORTS=(8081 8082 2375 3000 3100 9090 12345 8090 8080 8100)
+# Grafana, Loki, Prometheus and the scraper, Alloy, Radix, Folia, Cortex, Phloem.
+PRIVATE_PORTS=(8081 8082 2375 3000 3100 9090 12345 8090 8080 8100 8200)
 # Seconds the follower of Cortex may be behind before this script warns (the alert waits for 300).
 CORTEX_LAG_WARN=60
 PASSED=0
@@ -191,31 +201,31 @@ check_colours() {
 }
 
 # check_standby NAME LIVE - an instance whose host another one serves (blue-green): its public URL
-# reaches LIVE, so it is asked directly, past Traefik - what 55-switch.sh asks before a switch.
+# reaches LIVE, so it is asked directly, past Traefik's routers, from inside Traefik's container
+# (folia_status, lib-stacks.sh) - what 55-switch.sh asks before a switch.
 check_standby() {
-  local name=$1 live=$2 address path code
+  local name=$1 live=$2 path code
   pass "${name}: standby for https://${INSTANCE_HOST}, which ${live} serves (router priority $(router_priority "${INSTANCE_STACK}") < $(router_priority "${live}"); switch: bash ${BETULA_ROOT}/vps/55-switch.sh ${name})"
-  address="$(folia_address "${INSTANCE_STACK}")"
-  if [[ -z "${address}" ]]; then
+  if [[ -z "$(folia_container "${INSTANCE_STACK}")" ]]; then
     fail "${name}: no running container of ${INSTANCE_STACK}_folia to ask (docker service ps --no-trunc ${INSTANCE_STACK}_folia)"
     return 0
   fi
-  code="$(curl -sS -o /dev/null --max-time 15 -w '%{http_code}' "http://${address}:8080/livez" 2>/dev/null || true)"
-  if [[ "${code}" == "200" ]]; then pass "${name}: /livez -> 200 (asked directly at ${address}:8080)"; else
-    fail "${name}: /livez -> ${code:-no answer} (asked directly at ${address}:8080; docker service logs ${INSTANCE_STACK}_folia)"
+  code="$(folia_status "${INSTANCE_STACK}" /livez)"
+  if [[ "${code}" == "200" ]]; then pass "${name}: /livez -> 200 (asked directly, from Traefik's container)"; else
+    fail "${name}: /livez -> ${code:-no answer} (asked directly, from Traefik's container: is edge_traefik on edge_${INSTANCE_STACK}? docker service logs ${INSTANCE_STACK}_folia)"
   fi
-  code="$(curl -sS -o /dev/null --max-time 15 -w '%{http_code}' "http://${address}:8080/healthz" 2>/dev/null || true)"
+  code="$(folia_status "${INSTANCE_STACK}" /healthz)"
   case "${code}" in
     200) pass "${name}: /healthz -> 200 (asked directly: a snapshot is served and Radix was heard from)" ;;
     503) warning "${name}: /healthz -> 503 (asked directly): no snapshot yet, or no answer from its Radix. Not ready to take ${INSTANCE_HOST} over" ;;
-    *) fail "${name}: /healthz -> ${code:-no answer} (asked directly at ${address}:8080)" ;;
+    *) fail "${name}: /healthz -> ${code:-no answer} (asked directly, from Traefik's container)" ;;
   esac
   if snapshot_outdated "${INSTANCE_STACK}"; then
     fail "${name}: its catalog is older than the schema its build reads (\"snapshot.outdated\" in the log of ${INSTANCE_STACK}_folia): build and export a new snapshot in ${INSTANCE_STACK}_radix before a switch (docker exec <its radix container> /bin/radix build --db /data/radix.db, then /bin/radix export --db /data/radix.db --out /data/snapshot)"
   fi
   if [[ "${INSTANCE_GATE}" == "on" ]]; then
     for path in /api/db /api/status; do
-      code="$(curl -sS -o /dev/null --max-time 15 -w '%{http_code}' "http://${address}:8080${path}" 2>/dev/null || true)"
+      code="$(folia_status "${INSTANCE_STACK}" "${path}")"
       if [[ "${code}" == "401" ]]; then pass "${name}: ${path} -> 401 without the password (asked directly)"; else
         fail "${name}: ${path} -> ${code:-no answer} without the password (asked directly), expected 401: a switch would make the catalog public"
       fi
@@ -243,10 +253,11 @@ check_services() {
   local stack svc state found site_owner
   site_owner="$(app_stack_for_host "${SITE_HOST}")"
   # shellcheck disable=SC2046  # instance names are single words
-  for stack in edge placeholder cortex $(instance_names) monitoring; do
+  for stack in edge placeholder cortex $(instance_names) phloem phloem-canary monitoring; do
     if ! stack_exists "${stack}"; then
       case "${stack}" in
         edge | monitoring) fail "stack ${stack} is not deployed (vps/40-stacks.sh)" ;;
+        phloem | phloem-canary) ;; # section phloem says it
         cortex) warning "stack cortex is not deployed (deploy/ship-cortex.sh): a Radix that crawls fetches from the university directly (section cortex)" ;;
         placeholder) [[ -n "${site_owner}" ]] || fail "neither stack placeholder nor an instance of the application serves https://${SITE_HOST}: nothing answers there" ;;
       esac
@@ -699,6 +710,10 @@ check_radix_ways() {
           fail "${name}: Radix is on ${net}, which is not internal: a way to the internet. Deployed from a betula.yml from before Cortex? bash ${BETULA_ROOT}/vps/50-app.sh ${name}"
           problems=1 outside=yes
           ;;
+        cortex)
+          fail "${name}: Radix is on the old network cortex, with every instance's Radix: deployed from a betula.yml from before vps/files/networks.conf. bash ${BETULA_ROOT}/vps/50-app.sh ${name} (README.md section 15)"
+          problems=1
+          ;;
         "${INSTANCE_STACK}_egress")
           egress=yes
           ;;
@@ -710,12 +725,12 @@ check_radix_ways() {
           ;;
       esac
     done < <(service_networks "${INSTANCE_STACK}_radix")
-    if [[ " ${nets}" != *" cortex "* || " ${nets}" != *" ${INSTANCE_STACK}_snapshot "* ]]; then
-      fail "${name}: Radix is on '${nets% }', not on cortex (Cortex, Prometheus) and ${INSTANCE_STACK}_snapshot (Folia): bash ${BETULA_ROOT}/vps/50-app.sh ${name}"
+    if [[ " ${nets}" != *" cortex_${INSTANCE_STACK} "* || " ${nets}" != *" ${INSTANCE_STACK}_snapshot "* ]]; then
+      fail "${name}: Radix is on '${nets% }', not on cortex_${INSTANCE_STACK} (Cortex, the scraper) and ${INSTANCE_STACK}_snapshot (Folia): bash ${BETULA_ROOT}/vps/50-app.sh ${name}"
       problems=1
     fi
-    if [[ " $(service_networks "${INSTANCE_STACK}_folia" | awk '{ print $1 }' | tr '\n' ' ')" == *" cortex "* ]]; then
-      fail "${name}: Folia is on the network cortex, where every instance's Radix is \"radix\": it may download another instance's snapshot (stacks/betula.yml)"
+    if [[ " $(service_networks "${INSTANCE_STACK}_folia" | awk '{ print $1 }' | tr '\n' ' ')" =~ \ cortex(_[a-z0-9-]+)?\  ]]; then
+      fail "${name}: Folia is on a network of Cortex, where a Radix is \"radix\": it may download another instance's snapshot (stacks/betula.yml)"
       problems=1
     fi
 
@@ -784,15 +799,19 @@ check_radix_ways() {
 
 check_cortex() {
   section "cortex (two instances, one leader, the follower in step, Radix only on internal networks)"
-  local x y svc state facts lock_a lock_b data_a data_b lead down=0
+  local x y svc state net lock_a lock_b data_a data_b lead down=0
   local -a leading=()
   CORTEX_RUNS=no
-  facts="$(docker network inspect cortex --format '{{.Driver}} {{.Scope}} {{.Attachable}} {{.Internal}}' 2>/dev/null || true)"
-  if [[ "${facts}" == "overlay swarm true true" ]]; then
-    pass "network cortex: overlay, swarm scope, attachable, internal (no way out of the host)"
-  else
-    fail "network cortex is '${facts:-missing}' (driver scope attachable internal), wanted 'overlay swarm true true' (sudo bash ${BETULA_ROOT}/vps/30-docker.sh)"
-  fi
+  # Each instance's way to Cortex: cortex_<instance>, internal (vps/files/networks.conf).
+  netplan_read
+  while IFS= read -r net; do
+    [[ "${net}" == cortex_* ]] || continue
+    if netplan_check "${net}"; then
+      pass "network ${net}: internal, not attachable (no way out of the host; one instance's Radix, Cortex, the scraper)"
+    else
+      fail "${NETPLAN_DETAIL} (sudo bash ${BETULA_ROOT}/vps/30-docker.sh)"
+    fi
+  done < <(netplan_host_networks)
 
   if ! stack_exists cortex; then
     warning "stack cortex is not deployed (deploy/ship-cortex.sh): a Radix that crawls fetches from the university directly"
@@ -1016,10 +1035,12 @@ check_prometheus() {
     value="$(jq -r --arg job "${job}" '[.data.result[] | select(.metric.job == $job) | .value[1]] | if length == 0 then "absent" else (map(tonumber) | min | tostring) end' <<<"${body}" 2>/dev/null || true)"
     case "${job}:${value}" in
       *:1) pass "up{job=\"${job}\"} = 1" ;;
-      traefik:*) fail "up{job=\"traefik\"} is ${value:-unknown}: Prometheus cannot scrape edge_traefik:8082 over the monitoring overlay" ;;
+      scraper:*) fail "up{job=\"scraper\"} is ${value:-unknown}: Prometheus cannot scrape monitoring_scraper:9090 over relay, so traefik, radix and cortex have no samples either (docker service ps --no-trunc monitoring_scraper)" ;;
+      traefik:absent) fail "up{job=\"traefik\"} is absent: the scraper writes nothing to Prometheus (docker service logs monitoring_scraper 2>&1 | grep -i remote)" ;;
+      traefik:*) fail "up{job=\"traefik\"} is ${value:-unknown}: the scraper cannot scrape edge_traefik:8082 over edge_metrics (is it on the network? Does Traefik's metrics router let its subnet in? config/traefik/dynamic/metrics.yml)" ;;
       cortex:*)
         if stack_exists cortex; then
-          fail "up{job=\"cortex\"} is ${value:-unknown}: Prometheus cannot scrape cortex_a:8100 and cortex_b:8100 over the network cortex (does each run? section cortex. Is monitoring_prometheus on the network? bash ${BETULA_ROOT}/vps/40-stacks.sh monitoring)"
+          fail "up{job=\"cortex\"} is ${value:-unknown}: the scraper cannot scrape cortex_a:8100 and cortex_b:8100 over cortex_<instance> (does each run? section cortex. Are both on the networks? section netmatrix)"
         else
           warning "up{job=\"cortex\"} is ${value:-unknown}: the stack cortex is not deployed (deploy/ship-cortex.sh). The rules for it (\"Monitoring target is down\" for job cortex, group betula-cortex) fire only for a Cortex that answered within the last 7 days: after removing it on purpose, silence them until then"
         fi
@@ -1036,7 +1057,7 @@ check_prometheus() {
     value="$(jq -r --arg stack "${stack}" '[.data.result[] | select(.metric.job == "radix" and .metric.stack == $stack) | .value[1]] | if length == 0 then "absent" else (map(tonumber) | min | tostring) end' <<<"${body}" 2>/dev/null || true)"
     case "${value}" in
       1) pass "up{job=\"radix\", stack=\"${stack}\"} = 1" ;;
-      absent) fail "${stack}_radix runs but Prometheus does not scrape it: is tasks.${stack}_radix in config/monitoring/prometheus.yml, and are the service and monitoring_prometheus both on the network cortex (stacks/betula.yml, stacks/monitoring.yml)?" ;;
+      absent) fail "${stack}_radix runs but the scraper does not scrape it: is tasks.${stack}_radix in config/monitoring/scraper.yml, and are the service and monitoring_scraper both on cortex_${stack} (stacks/betula.yml, stacks/monitoring.yml; section netmatrix)?" ;;
       *) fail "up{job=\"radix\", stack=\"${stack}\"} is ${value:-unknown}: an image from before GET /metrics answers 404 (ship a current one)" ;;
     esac
   done
@@ -1110,6 +1131,466 @@ check_alerts() {
     pass "SMTP override is deployed: alert e-mails can be sent (test: Grafana > Alerting > Contact points > betula-owner > Test)"
   else
     warning "the SMTP override is not deployed: unless another channel was wired in contact-points.yml, alerts are only visible in Grafana (README: notification channel)"
+  fi
+}
+
+# ---------------------------------------------------------------- networks
+
+# Filled by nm_containers: per service with a running container here, its container, the PID of
+# its first process and its addresses ("<network>=<address>" per network, space separated).
+# NM_SERVICES lists them in order.
+NM_SERVICES=()
+declare -A NM_CID=() NM_PID=() NM_ADDR=() NM_INTERNAL=()
+# What the probes found: per probe id, the answer, what was expected, and what was asked.
+declare -A NM_RESULT=() NM_EXPECT=() NM_ASKED=() NM_TARGET=()
+# Where the probe "to the internet" knocks: an address, never a name (the host's resolver is not
+# reachable from inside a container's network), and one that answers TCP on that port.
+NETPROBE_INTERNET="${NETPROBE_INTERNET:-1.1.1.1:443}"
+
+# network_internal NAME -> true or false (cached).
+network_internal() {
+  if [[ -z "${NM_INTERNAL[$1]:-}" ]]; then
+    NM_INTERNAL[$1]="$(docker network inspect "$1" --format '{{.Internal}}' 2>/dev/null || printf 'unknown')"
+  fi
+  printf '%s' "${NM_INTERNAL[$1]}"
+}
+
+# nm_containers - fills NM_* for every service of NETMAP_ALL_SERVICES that runs here.
+nm_containers() {
+  local svc cid pid net address
+  NM_SERVICES=()
+  for svc in "${NETMAP_ALL_SERVICES[@]}"; do
+    cid="$(service_container "${svc}")"
+    [[ -n "${cid}" ]] || continue
+    pid="$(container_pid "${cid}")"
+    [[ "${pid}" =~ ^[1-9][0-9]*$ ]] || continue
+    NM_SERVICES+=("${svc}")
+    NM_CID["${svc}"]="${cid}"
+    NM_PID["${svc}"]="${pid}"
+    NM_ADDR["${svc}"]=""
+    while read -r net address; do
+      [[ -n "${address}" ]] || continue
+      NM_ADDR["${svc}"]+="${net}=${address} "
+    done < <(container_addresses "${cid}")
+  done
+}
+
+# nm_address SERVICE [NETWORK] -> its address on NETWORK (without: on its first network).
+nm_address() {
+  local pair
+  for pair in ${NM_ADDR[$1]:-}; do
+    if [[ -z "${2:-}" || "${pair%%=*}" == "$2" ]]; then
+      printf '%s' "${pair#*=}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# nm_shared A B -> the first network the containers of A and B are both on (nothing: none).
+nm_shared() {
+  local a b
+  for a in ${NM_ADDR[$1]:-}; do
+    for b in ${NM_ADDR[$2]:-}; do
+      if [[ "${a%%=*}" == "${b%%=*}" ]]; then
+        printf '%s' "${a%%=*}"
+        return 0
+      fi
+    done
+  done
+  return 1
+}
+
+# nm_on SERVICE NETWORK - true when the container of SERVICE is on NETWORK.
+nm_on() { [[ " ${NM_ADDR[$1]:-}" == *" $2="* ]]; }
+
+# nm_planned_shared A B -> the first network the plan puts both A and B on (an optional member
+# only while it is on it); nothing, and false, when there is none.
+nm_planned_shared() {
+  local net how_a how_b
+  for net in "${NETPLAN_NETS[@]}"; do
+    how_a="$(netplan_planned "${net}" "$1")" || continue
+    how_b="$(netplan_planned "${net}" "$2")" || continue
+    [[ "${how_a}" == "required" ]] || nm_on "$1" "${net}" || continue
+    [[ "${how_b}" == "required" ]] || nm_on "$2" "${net}" || continue
+    printf '%s' "${net}"
+    return 0
+  done
+  return 1
+}
+
+# nm_planned_egress SERVICE - true when the plan gives SERVICE a network that is not internal (an
+# optional one only while it is on it).
+nm_planned_egress() {
+  local line net how
+  while read -r net how; do
+    [[ -n "${net}" && "${NETPLAN_INTERNAL[${net}]}" == "no" ]] || continue
+    [[ "${how}" == "required" ]] || nm_on "$1" "${net}" || continue
+    return 0
+  done < <(netplan_networks_of "$1")
+  return 1
+}
+
+# nm_probe_lines SOURCE -> the probes from SOURCE (netprobe_run's input), and NM_EXPECT, NM_TARGET
+# and NM_ASKED for each. What is expected comes from the plan, what is asked from the containers:
+# to every other service that listens, at its address on a network the two are on (where there is
+# one; else its first), open exactly where the plan puts the two on one network; the internet,
+# open exactly where the plan gives SOURCE a network that is not internal; Traefik's metrics where
+# SOURCE is on a network with Traefik (200 over edge_metrics, 403 over any other); for a service
+# that lets nothing out (noout) Docker's DNS. From a noout service everything is closed.
+nm_probe_lines() {
+  local src=$1 dst ports port shared planned address n=0 id expect noout=no
+  netplan_noout "${src}" && noout=yes
+  for dst in "${NM_SERVICES[@]}"; do
+    [[ "${dst}" != "${src}" ]] || continue
+    ports="$(netplan_ports "${dst}")"
+    [[ -n "${ports}" ]] || continue
+    port="${ports%% *}"
+    planned="$(nm_planned_shared "${src}" "${dst}" || true)"
+    if shared="$(nm_shared "${src}" "${dst}")"; then
+      address="$(nm_address "${dst}" "${shared}")"
+    elif [[ -n "${planned}" ]] && nm_on "${dst}" "${planned}"; then
+      address="$(nm_address "${dst}" "${planned}")"
+    else
+      address="$(nm_address "${dst}")" || continue
+    fi
+    expect=closed
+    [[ -n "${planned}" && "${noout}" == "no" ]] && expect=open
+    n=$((n + 1))
+    id="${src}#${n}"
+    NM_EXPECT["${id}"]="${expect}"
+    NM_TARGET["${id}"]="${dst}"
+    if [[ -n "${shared}" ]]; then
+      NM_ASKED["${id}"]="${dst} ${address}:${port} over ${shared}"
+    else
+      NM_ASKED["${id}"]="${dst} ${address}:${port} (no network in common)"
+    fi
+    printf '%s tcp %s %s\n' "${id}" "${address}" "${port}"
+  done
+  n=$((n + 1))
+  id="${src}#${n}"
+  expect=closed
+  if [[ "${noout}" == "no" ]] && nm_planned_egress "${src}"; then expect=open; fi
+  NM_EXPECT["${id}"]="${expect}"
+  NM_TARGET["${id}"]="the internet"
+  NM_ASKED["${id}"]="the internet (${NETPROBE_INTERNET})"
+  printf '%s tcp %s %s\n' "${id}" "${NETPROBE_INTERNET%:*}" "${NETPROBE_INTERNET##*:}"
+  if [[ "${src}" != "edge_traefik" ]] && shared="$(nm_shared "${src}" edge_traefik)"; then
+    n=$((n + 1))
+    id="${src}#${n}"
+    expect=403
+    [[ "${shared}" == "edge_metrics" ]] && expect=200
+    [[ "${noout}" == "no" ]] || expect=000
+    address="$(nm_address edge_traefik "${shared}")"
+    NM_EXPECT["${id}"]="${expect}"
+    NM_TARGET["${id}"]="Traefik's metrics"
+    NM_ASKED["${id}"]="Traefik's metrics, http://${address}:8082/metrics over ${shared}"
+    printf '%s http %s 8082 /metrics\n' "${id}" "${address}"
+  fi
+  if [[ "${noout}" == "yes" ]]; then
+    n=$((n + 1))
+    id="${src}#${n}"
+    NM_EXPECT["${id}"]=closed
+    NM_TARGET["${id}"]="Docker's DNS"
+    NM_ASKED["${id}"]="Docker's DNS, 127.0.0.11:53/tcp"
+    printf '%s tcp 127.0.0.11 53\n' "${id}"
+  fi
+}
+
+# nm_announce_probes - tells the monitoring that probes run now (the drops they cause in Phloem's
+# firewall are no alarm): betula_verify_probes_timestamp_seconds in /run/betula/metrics, which
+# Alloy reads (job phloem-guard).
+nm_announce_probes() {
+  printf '# TYPE betula_verify_probes_timestamp_seconds gauge\nbetula_verify_probes_timestamp_seconds %s\n' "$(date +%s)" |
+    netprobe_as_root sh -c 'install -d -m 0755 /run/betula/metrics && cat >/run/betula/metrics/.verify-probes.tmp && chmod 0644 /run/betula/metrics/.verify-probes.tmp && mv -f /run/betula/metrics/.verify-probes.tmp /run/betula/metrics/verify-probes.prom' ||
+    warning "could not write /run/betula/metrics/verify-probes.prom: the probes may set off the rule \"Phloem: its firewall drops connections\""
+}
+
+# nm_run_probes SERVICE... - the probes of nm_probe_lines from each, in parallel; fills NM_RESULT.
+nm_run_probes() {
+  local src dir id result
+  dir="$(mktemp -d "${TMPDIR:-/tmp}/betula-netprobe.XXXXXX")"
+  for src in "$@"; do
+    nm_probe_lines "${src}" >"${dir}/${src}.in"
+    netprobe_run "${NM_PID[${src}]}" <"${dir}/${src}.in" >"${dir}/${src}.out" 2>/dev/null &
+  done
+  wait
+  for src in "$@"; do
+    while read -r id result; do
+      [[ -n "${id}" ]] && NM_RESULT["${id}"]="${result}"
+    done <"${dir}/${src}.out"
+  done
+  rm -rf -- "${dir}"
+}
+
+# nm_report SERVICE - one PASS for the probes from SERVICE that went as planned, a FAIL for each
+# that did not.
+nm_report() {
+  local src=$1 id total=0 bad=0 reached=""
+  for id in "${!NM_EXPECT[@]}"; do
+    [[ "${id}" == "${src}#"* ]] || continue
+    total=$((total + 1))
+    if [[ "${NM_RESULT[${id}]:-none}" != "${NM_EXPECT[${id}]}" ]]; then
+      bad=$((bad + 1))
+      fail "${src} -> ${NM_ASKED[${id}]}: ${NM_RESULT[${id}]:-no answer from the probe}, the plan says ${NM_EXPECT[${id}]} (vps/files/networks.conf)"
+    elif [[ "${NM_EXPECT[${id}]}" == "open" || "${NM_EXPECT[${id}]}" == "200" ]]; then
+      reached+="${NM_TARGET[${id}]}, "
+    fi
+  done
+  reached="${reached%, }"
+  if [[ "${bad}" -eq 0 ]]; then
+    pass "${src}: ${total} probes as planned; reaches ${reached:-nothing}"
+  fi
+}
+
+# nm_traefik_metrics_self - Traefik's metrics, asked from inside Traefik's own network namespace
+# with each of its addresses as the source: 200 from the address on edge_metrics, 403 from every
+# other (config/traefik/dynamic/metrics.yml). Needs no other container on those networks.
+nm_traefik_metrics_self() {
+  local pair net address lines="" result id want
+  [[ -n "${NM_PID[edge_traefik]:-}" ]] || return 0
+  for pair in ${NM_ADDR[edge_traefik]}; do
+    net="${pair%%=*}" address="${pair#*=}"
+    lines+="${net} http ${address} 8082 /metrics ${address}"$'\n'
+  done
+  while read -r id result; do
+    [[ -n "${id}" ]] || continue
+    want=403
+    [[ "${id}" == "edge_metrics" ]] && want=200
+    if [[ "${result}" == "${want}" ]]; then
+      pass "Traefik's metrics answer a request from its own address on ${id} with ${result}"
+    else
+      fail "Traefik's metrics answer a request from its own address on ${id} with ${result}, wanted ${want} (config/traefik/dynamic/metrics.yml: the router edge-metrics, its ipAllowList; --metrics.prometheus.manualRouting in stacks/edge.yml)"
+    fi
+  done < <(netprobe_run "${NM_PID[edge_traefik]}" <<<"${lines}")
+}
+
+check_netmatrix() {
+  section "netmatrix (each network as vps/files/networks.conf plans it, and probes from every container)"
+  local net svc rc attached have planned label stack users
+  netplan_read
+  netmap_build
+  # 1. The networks: as planned, with their planned members and nobody else.
+  for net in "${NETPLAN_NETS[@]}"; do
+    rc=0
+    netplan_check "${net}" || rc=$?
+    if [[ "${rc}" -eq 1 ]]; then
+      if [[ "${NETPLAN_BY[${net}]}" == "host" ]]; then
+        fail "${NETPLAN_DETAIL}: sudo bash ${BETULA_ROOT}/vps/30-docker.sh"
+      fi
+      continue
+    elif [[ "${rc}" -eq 2 ]]; then
+      fail "${NETPLAN_DETAIL}: Docker never changes those; remove it once nothing uses it and deploy again (README.md section 15)"
+      continue
+    fi
+    attached="${NETMAP_SERVICES[${net}]:-}"
+    have=1
+    for svc in ${attached}; do
+      if ! netplan_planned "${net}" "${svc}" >/dev/null; then
+        fail "${svc} is on ${net}, and the plan does not put it there (vps/files/networks.conf; the stack file that gives it the network)"
+        have=0
+      fi
+    done
+    for planned in ${NETPLAN_MEMBERS[${net}]}; do
+      [[ "${planned}" != *\? ]] || continue
+      if [[ "${planned}" == *_\* ]]; then
+        stack="${planned%_\*}"
+        while IFS= read -r svc; do
+          [[ -n "${svc}" ]] || continue
+          if [[ " ${attached}" != *" ${svc} "* ]]; then
+            fail "${svc} is not on ${net}, where the plan puts it (vps/files/networks.conf)"
+            have=0
+          fi
+        done < <(stack_services "${stack}")
+      elif docker service inspect "${planned}" >/dev/null 2>&1 && [[ " ${attached}" != *" ${planned} "* ]]; then
+        fail "${planned} is not on ${net}, where the plan puts it (vps/files/networks.conf; deploy its stack again)"
+        have=0
+      fi
+    done
+    if [[ "${have}" -eq 1 ]]; then
+      pass "${net} (internal ${NETPLAN_INTERNAL[${net}]}): ${attached:-nobody yet}"
+    fi
+  done
+  # 2. Networks outside the plan.
+  while read -r net; do
+    [[ -n "${net}" && "${net}" != "ingress" ]] || continue
+    netplan_known "${net}" && continue
+    users="${NETMAP_SERVICES[${net}]:-}"
+    if netplan_is_old "${net}"; then
+      if [[ -z "${users}" ]]; then
+        warning "network ${net} is from before vps/files/networks.conf and unused: docker network rm ${net}"
+      elif { [[ "${net}" == "edge" ]] && ! network_used_by_others edge edge_traefik; } ||
+        { [[ "${net}" == "cortex" ]] && ! network_used_by_others cortex cortex_a cortex_b; }; then
+        warning "network ${net} is from before vps/files/networks.conf and only ${users% } is still on it: the move's last step (README.md section 15: bash ${BETULA_ROOT}/vps/$([[ "${net}" == edge ]] && printf '40-stacks.sh edge' || printf '48-cortex.sh'), then docker network rm ${net})"
+      else
+        fail "network ${net} is from before vps/files/networks.conf and still has ${users% }: deploy those again with today's stack files (README.md section 15)"
+      fi
+    elif [[ -n "${users}" ]]; then
+      fail "network ${net} is not in vps/files/networks.conf, and ${users% } are on it: a relation nobody planned"
+    else
+      warning "network ${net} is not in vps/files/networks.conf and unused: docker network rm ${net}"
+    fi
+  done < <(docker network ls --filter driver=overlay --format '{{.Name}}' 2>/dev/null)
+  # 3. Every service Traefik routes to names the network Traefik reaches it over.
+  for svc in "${NETMAP_ALL_SERVICES[@]}"; do
+    [[ "$(service_label "${svc}" traefik.enable)" == "true" ]] || continue
+    label="$(service_label "${svc}" traefik.swarm.network)"
+    if [[ -z "${label}" ]]; then
+      fail "${svc} is routed by Traefik but names no network (label traefik.swarm.network): Traefik picks any of its networks"
+    elif [[ " ${NETMAP_NETS[${svc}]:-}" != *" ${label} "* || " ${NETMAP_NETS[edge_traefik]:-}" != *" ${label} "* ]]; then
+      fail "${svc} names the network ${label} for Traefik, and the two are not both on it"
+    else
+      pass "${svc}: Traefik reaches it over ${label}"
+    fi
+  done
+  # 4. The probes: from inside every container, a TCP handshake to every other service, one to the
+  # internet, and a GET of Traefik's metrics where they share a network.
+  if ! netprobe_possible; then
+    warning "no probes: they enter the network namespace of each container with nsenter, which needs root (sudo -n), nsenter and curl"
+    return 0
+  fi
+  nm_containers
+  if [[ "${#NM_SERVICES[@]}" -eq 0 ]]; then
+    warning "no probes: no service has a running container on this node"
+    return 0
+  fi
+  nm_announce_probes
+  nm_run_probes "${NM_SERVICES[@]}"
+  for svc in "${NM_SERVICES[@]}"; do
+    nm_report "${svc}"
+  done
+  nm_traefik_metrics_self
+}
+
+# ---------------------------------------------------------------- Phloem
+
+check_phloem() {
+  section "phloem (Betula Sync's service, kept as if it were an outside one: docs/phloem/protocol.md)"
+  local stack svc nets want cid pid ports lines id result value deployed=0 target address users
+  netplan_read
+  [[ "${#NETMAP_ALL_SERVICES[@]}" -gt 0 ]] || netmap_build
+  [[ "${#NM_SERVICES[@]}" -gt 0 ]] || nm_containers
+  for stack in phloem phloem-canary; do
+    if ! stack_exists "${stack}"; then
+      warning "stack ${stack} is not deployed (docs/phloem/phloem.md); its networks wait for it: ${stack}_in $(netplan_check "${stack}_in" && printf 'as planned' || printf '(%s)' "${NETPLAN_DETAIL}")"
+      continue
+    fi
+    deployed=1
+    # Its networks: exactly <stack>_in (Traefik and it) and <stack>_out (it alone).
+    if netplan_check "${stack}_in"; then
+      pass "${stack}_in: internal, not attachable ($(network_facts "${stack}_in"))"
+    else
+      fail "${NETPLAN_DETAIL}"
+    fi
+    users="${NETMAP_SERVICES[${stack}_in]:-}"
+    want="$( { printf 'edge_traefik\n'; stack_services "${stack}"; } | sort | tr '\n' ' ')"
+    if [[ "$(tr ' ' '\n' <<<"${users}" | sed '/^$/d' | sort | tr '\n' ' ')" == "${want}" ]]; then
+      pass "${stack}_in holds exactly ${want% }"
+    else
+      fail "${stack}_in holds '${users% }', wanted exactly ${want% }"
+    fi
+    # <stack>_out is for TURN (step 2): where it is there, not internal and Phloem's alone.
+    if [[ -z "${NETMAP_SERVICES[${stack}_out]:-}" ]]; then
+      pass "${stack}_out: not used (step 1: Phloem has no way out, not even without its firewall)"
+    elif [[ "$(network_internal "${stack}_out")" == "false" ]]; then
+      pass "${stack}_out: its own way out (not internal; step 2, TURN), held by ${NETMAP_SERVICES[${stack}_out]% }"
+    else
+      fail "${stack}_out is '$(network_internal "${stack}_out")' internal, wanted false (docs/phloem/protocol.md section 1)"
+    fi
+    while IFS= read -r svc; do
+      [[ -n "${svc}" ]] || continue
+      nets="$(tr ' ' '\n' <<<"${NETMAP_NETS[${svc}]:-}" | sed '/^$/d' | sort | tr '\n' ' ')"
+      if [[ "${nets}" == "${stack}_in " || "${nets}" == "$(printf '%s\n' "${stack}_in" "${stack}_out" | sort | tr '\n' ' ')" ]]; then
+        pass "${svc} is on ${nets% } and nothing else"
+      else
+        fail "${svc} is on '${nets% }', wanted ${stack}_in and at most ${stack}_out (docs/phloem/protocol.md section 1)"
+      fi
+      ports="$(docker service inspect "${svc}" --format '{{range .Endpoint.Spec.Ports}}{{.PublishedPort}}/{{.Protocol}} {{end}}' 2>/dev/null || true)"
+      if [[ -z "${ports// /}" ]]; then pass "${svc} publishes nothing (step 1)"; else
+        fail "${svc} publishes ${ports% } (step 1 publishes nothing; docs/phloem/protocol.md section 1)"
+      fi
+      cid="${NM_CID[${svc}]:-}"
+      if [[ -z "${cid}" ]]; then
+        fail "${svc} has no running container here (docker service ps --no-trunc ${svc})"
+        continue
+      fi
+      if ! netprobe_possible; then
+        warning "${svc}: its firewall and the probes from it need root (sudo -n), nsenter and curl"
+        continue
+      fi
+      pid="${NM_PID[${svc}]}"
+      nm_announce_probes
+      if netprobe_as_root nsenter -t "${pid}" -n -- nft list table inet phloem >/dev/null 2>&1; then
+        pass "${svc}: the table inet phloem is in its network namespace"
+      else
+        fail "${svc}: no table inet phloem in its network namespace: its firewall is not there (\"phloem start\" sets it; docs/phloem/protocol.md section 2)"
+      fi
+      # From it: nothing answers, not even what shares a network with it.
+      lines=""
+      for target in edge_traefik monitoring_prometheus monitoring_grafana monitoring_loki monitoring_scraper cortex_a; do
+        address="$(nm_address "${target}" 2>/dev/null)" || continue
+        ports="$(netplan_ports "${target}")"
+        lines+="${target} tcp ${address} ${ports%% *}"$'\n'
+      done
+      for target in "${NM_SERVICES[@]}"; do
+        [[ "${target}" == *_folia || "${target}" == *_radix ]] || continue
+        address="$(nm_address "${target}")" || continue
+        lines+="${target} tcp ${address} $(netplan_ports "${target}" | cut -d' ' -f1)"$'\n'
+      done
+      address="$(nm_address edge_traefik "${stack}_in" 2>/dev/null || true)"
+      if [[ -n "${address}" ]]; then
+        lines+="traefik-over-${stack}_in tcp ${address} 443"$'\n'
+        lines+="traefik-metrics-over-${stack}_in tcp ${address} 8082"$'\n'
+      fi
+      if have_cmd ip && [[ -n "$(default_ipv4)" ]]; then
+        lines+="the-host's-ssh tcp $(default_ipv4) 22"$'\n'
+      fi
+      lines+="docker's-dns tcp 127.0.0.11 53"$'\n'
+      lines+="the-internet tcp ${NETPROBE_INTERNET%:*} ${NETPROBE_INTERNET##*:}"$'\n'
+      value=""
+      while read -r id result; do
+        [[ -n "${id}" ]] || continue
+        if [[ "${result}" == "closed" ]]; then value+="${id}, "; else
+          fail "${svc} reaches ${id} (${result}): its firewall lets it out (docs/phloem/protocol.md section 2)"
+        fi
+      done < <(netprobe_run "${pid}" <<<"${lines}")
+      [[ -z "${value}" ]] || pass "${svc} reaches none of: ${value%, }"
+      # Towards it: Traefik over <stack>_in, and Traefik's metrics refuse that network.
+      address="$(nm_address "${svc}" "${stack}_in" 2>/dev/null || true)"
+      if [[ -n "${address}" && -n "${NM_PID[edge_traefik]:-}" ]]; then
+        result="$(netprobe_run "${NM_PID[edge_traefik]}" <<<"x http ${address} 8200 /healthz" | awk '{ print $2 }')"
+        if [[ "${result}" == "200" ]]; then pass "Traefik reaches ${svc} over ${stack}_in (GET /healthz -> 200)"; else
+          fail "Traefik does not reach ${svc} over ${stack}_in (GET http://${address}:8200/healthz -> ${result:-nothing})"
+        fi
+        address="$(nm_address edge_traefik "${stack}_in" 2>/dev/null || true)"
+        result="$(netprobe_run "${NM_PID[edge_traefik]}" <<<"x http ${address} 8082 /metrics ${address}" | awk '{ print $2 }')"
+        if [[ "${result}" == "403" ]]; then pass "Traefik's metrics refuse ${stack}_in (403 from an address of it)"; else
+          fail "Traefik's metrics answer ${result:-nothing} to an address of ${stack}_in, wanted 403 (config/traefik/dynamic/metrics.yml)"
+        fi
+      fi
+    done < <(stack_services "${stack}")
+    # What the monitoring sees of it: its file (no network), and the guard's.
+    if find_prometheus; then
+      value="$(prom_value "max(phloem_up{job=\"phloem\", stack=\"${stack}\"})" || true)"
+      if [[ "${value}" == "1" ]]; then pass "phloem_up{stack=\"${stack}\"} = 1 in Prometheus (its stats file, read by Alloy)"; else
+        fail "phloem_up{stack=\"${stack}\"} is ${value:-absent} in Prometheus: is /run/betula/phloem/${stack}/stats/phloem.prom written (Phloem) and read (config/monitoring/alloy/config.alloy)?"
+      fi
+      value="$(prom_value "time() - max(node_textfile_mtime_seconds{job=\"phloem\", stack=\"${stack}\"})" || true)"
+      if [[ "${value}" =~ ^[0-9.]+$ ]] && awk -v v="${value}" 'BEGIN { exit !(v < 120) }'; then
+        pass "its stats file is $(printf '%.0f' "${value}") s old"
+      else
+        fail "its stats file is ${value:-?} s old: Phloem writes it every 15 s"
+      fi
+      value="$(prom_value "max(betula_phloem_guard_firewall{stack=\"${stack}\"}) * (1 - max(betula_phloem_guard_privileged{stack=\"${stack}\"}))" || true)"
+      if [[ "${value}" == "1" ]]; then pass "the guard sees its firewall, and no process of it with rights (betula-phloem-guard)"; else
+        fail "the guard says ${value:-nothing} for ${stack} (firewall present and no rights = 1): sudo betula-phloem-guard; cat /run/betula/metrics/phloem-guard.prom"
+      fi
+    else
+      warning "no running monitoring_prometheus container: phloem_up not checked"
+    fi
+  done
+  if [[ "${deployed}" -eq 0 ]]; then
+    warning "Phloem is not deployed: nothing more to check (docs/phloem/phloem.md)"
   fi
 }
 

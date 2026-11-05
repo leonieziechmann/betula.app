@@ -1,0 +1,1049 @@
+//! The browser half of Betula Sync: WebCrypto for the keys and the seals, Phloem over HTTP and its
+//! WebSocket, one tab of the browser that leads (Web Locks), and what a synced profile keeps in
+//! localStorage beside its stores.
+//!
+//! One tab leads: it alone writes a synced profile's records and talks to Phloem, for the active
+//! profile. Another tab's change of a store waits under `betula.sync.c.…` until the leader takes
+//! it (a storage event, or the next start), in the order it was made. What came from another
+//! device the leader writes into the stores' texts, and every tab's stores read them again
+//! (`Profiles::wrote`, storage events). A tab that becomes visible takes the lead: the phone in the
+//! hand is the one that is live.
+
+use std::cell::{Cell, RefCell};
+use std::collections::{BTreeSet, VecDeque};
+use std::rc::Rc;
+
+use folia_design::nav;
+use folia_sync::{codec, Store};
+use js_sys::{Array, Promise, Uint8Array};
+use leptos::prelude::*;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{CloseEvent, CryptoKey, MessageEvent, WebSocket};
+
+use super::codes::{b64, unb64, KEY};
+use super::core::{Core, DEVICE};
+use super::wire::{self, In, Out};
+use super::{Problem, State, Sync};
+use crate::profiles::{key_of, Profiles, KEYS};
+
+// ---- localStorage ----
+
+fn held_key(profile: u16) -> String {
+    format!("betula.sync.p{profile}.v1")
+}
+
+fn records_key(profile: u16) -> String {
+    format!("betula.sync.p{profile}.doc")
+}
+
+fn waiting_key(profile: u16) -> String {
+    format!("betula.sync.p{profile}.out")
+}
+
+/// What the leader says of a profile's connection: `online <n>` or `offline`.
+fn status_key(profile: u16) -> String {
+    format!("betula.sync.p{profile}.status")
+}
+
+/// A profile whose space is gone: private again (`State::Ended`) until it is read.
+fn ended_key(profile: u16) -> String {
+    format!("betula.sync.p{profile}.ended")
+}
+
+/// A tab that is not the leader asks it to leave the space for this device (`leave`).
+fn leave_key(profile: u16) -> String {
+    format!("betula.sync.p{profile}.leave")
+}
+
+const CHANGE_PREFIX: &str = "betula.sync.c.";
+
+/// The difference of the server's clock to this browser's, as the leader last heard it.
+const OFFSET_KEY: &str = "betula.sync.offset";
+
+pub fn syncs(profile: u16) -> bool {
+    nav::local_get(&held_key(profile)).is_some_and(|text| !text.trim().is_empty())
+}
+
+fn now() -> u64 {
+    js_sys::Date::now() as u64
+}
+
+/// The server's time now, as well as this browser knows it.
+fn wall() -> u64 {
+    let offset: i64 = nav::local_get(OFFSET_KEY).and_then(|o| o.parse().ok()).unwrap_or(0);
+    now().saturating_add_signed(offset)
+}
+
+fn random<const N: usize>() -> Option<[u8; N]> {
+    let mut bytes = [0u8; N];
+    web_sys::window()?.crypto().ok()?.get_random_values_with_u8_array(&mut bytes).ok()?;
+    Some(bytes)
+}
+
+fn batch_id() -> String {
+    random::<9>().map(|b| b64(&b)).unwrap_or_else(|| format!("{}", now()))
+}
+
+thread_local! {
+    /// The tab's own count of the changes it hands to the leader, for their order.
+    static COUNT: RefCell<u64> = const { RefCell::new(0) };
+    static ENGINE: RefCell<Option<Rc<Engine>>> = const { RefCell::new(None) };
+}
+
+fn engine() -> Option<Rc<Engine>> {
+    ENGINE.with(|e| e.borrow().clone())
+}
+
+// ---- what a store's change does ----
+
+/// A store of a synced profile changed in this tab: into the records at once where this tab leads
+/// for the profile, else for the leader to take.
+pub fn changed(profile: u16, key: &str, before: &str, after: &str) {
+    let Some(store) = Store::of_storage_key(key) else { return };
+    if before == after {
+        return;
+    }
+    if let Some(engine) = engine().filter(|e| e.leads(profile)) {
+        engine.change(store, before, after, wall());
+        return;
+    }
+    let count = COUNT.with(|c| {
+        let mut c = c.borrow_mut();
+        *c += 1;
+        *c
+    });
+    let tab = random::<4>().map(|b| b64(&b)).unwrap_or_default();
+    let item = format!("{CHANGE_PREFIX}{profile}.{:013}.{count:09}.{tab}", now());
+    nav::local_set(&item, &format!("{}\t{}\t{}\t{}", store.storage_key(), wall(), b64(before.as_bytes()), b64(after.as_bytes())));
+}
+
+/// A store's text was written: where this tab leads, the records may hold more than it (what
+/// came meanwhile), and the store is given that.
+pub fn wrote(profile: u16, key: &str) {
+    let Some(store) = Store::of_storage_key(key) else { return };
+    if let Some(engine) = engine().filter(|e| e.leads(profile)) {
+        engine.core.borrow_mut().touched.insert(store);
+        engine.project();
+    }
+}
+
+/// Profile `profile` goes from this device (deleted): it leaves its space where this tab leads it
+/// (else its slot stays taken until the space ends), the others keep it.
+pub fn forget(profile: u16) {
+    if !syncs(profile) {
+        return;
+    }
+    match engine().filter(|e| e.leads(profile)) {
+        Some(engine) => engine.leave(),
+        None => drop_state(profile),
+    }
+}
+
+/// „Nur dieses Gerät trennen": where this tab leads, at once; where another tab may lead (the
+/// active profile), it asks that one; else its slot stays taken until the space ends.
+pub fn leave(profile: u16, active: u16) {
+    if !syncs(profile) {
+        return;
+    }
+    match engine().filter(|e| e.leads(profile)) {
+        Some(engine) => engine.leave(),
+        None if profile == active => nav::local_set(&leave_key(profile), "1"),
+        None => drop_state(profile),
+    }
+}
+
+/// Takes what a synced profile keeps besides its stores out of this browser.
+fn drop_state(profile: u16) {
+    for key in [held_key(profile), records_key(profile), waiting_key(profile), status_key(profile), leave_key(profile)] {
+        nav::local_set(&key, "");
+    }
+}
+
+/// The state a page shows, from what the leader keeps.
+pub fn state_of(profile: u16) -> State {
+    if !syncs(profile) {
+        return if nav::local_get(&ended_key(profile)).is_some() { State::Ended } else { State::Private };
+    }
+    match nav::local_get(&status_key(profile)).as_deref().map(|s| s.split_whitespace().collect::<Vec<_>>()) {
+        Some(words) if words.first() == Some(&"online") => State::Online { devices: words.get(1).and_then(|n| n.parse().ok()).unwrap_or(0) },
+        _ => State::Offline,
+    }
+}
+
+// ---- WebCrypto ----
+
+/// What the profile key gives (protocol.md §5).
+pub struct Keys {
+    pub space: [u8; 16],
+    pub token: [u8; 32],
+    pub data: CryptoKey,
+}
+
+fn subtle() -> Option<web_sys::SubtleCrypto> {
+    Some(web_sys::window()?.crypto().ok()?.subtle())
+}
+
+async fn wait(promise: Result<Promise, JsValue>) -> Result<JsValue, JsValue> {
+    JsFuture::from(promise?).await
+}
+
+fn bytes_of(value: &JsValue) -> Vec<u8> {
+    Uint8Array::new(value).to_vec()
+}
+
+fn usages(list: &[&str]) -> JsValue {
+    list.iter().map(|u| JsValue::from_str(u)).collect::<Array>().into()
+}
+
+async fn aes_key(raw: &[u8]) -> Result<CryptoKey, JsValue> {
+    let subtle = subtle().ok_or(JsValue::NULL)?;
+    let key = wait(subtle.import_key_with_str("raw", &Uint8Array::from(raw), "AES-GCM", false, &usages(&["encrypt", "decrypt"]))).await?;
+    key.dyn_into::<CryptoKey>()
+}
+
+pub async fn derive(k: &[u8; KEY]) -> Result<Keys, JsValue> {
+    let subtle = subtle().ok_or(JsValue::NULL)?;
+    let base = wait(subtle.import_key_with_str("raw", &Uint8Array::from(&k[..]), "HKDF", false, &usages(&["deriveBits"]))).await?.dyn_into::<CryptoKey>()?;
+    let bits = |info: &'static str, length: u32| {
+        let params = web_sys::HkdfParams::new_with_str("HKDF", "SHA-256", &Uint8Array::from(info.as_bytes()), &Uint8Array::from(&b"betula-sync-v1"[..]));
+        subtle.derive_bits_with_object(&params, &base, length)
+    };
+    let space: [u8; 16] = bytes_of(&wait(bits("space", 128)).await?).try_into().map_err(|_| JsValue::NULL)?;
+    let token: [u8; 32] = bytes_of(&wait(bits("token", 256)).await?).try_into().map_err(|_| JsValue::NULL)?;
+    let data = aes_key(&bytes_of(&wait(bits("data", 256)).await?)).await?;
+    Ok(Keys { space, token, data })
+}
+
+pub async fn seal(key: &CryptoKey, aad: &[u8], plain: &[u8]) -> Result<Vec<u8>, JsValue> {
+    let subtle = subtle().ok_or(JsValue::NULL)?;
+    let nonce = random::<12>().ok_or(JsValue::NULL)?;
+    let params = web_sys::AesGcmParams::new("AES-GCM", &Uint8Array::from(&nonce[..]));
+    params.set_additional_data(&Uint8Array::from(aad));
+    let sealed = bytes_of(&wait(subtle.encrypt_with_object_and_u8_array(&params, key, plain)).await?);
+    Ok([&nonce[..], &sealed].concat())
+}
+
+pub async fn open(key: &CryptoKey, aad: &[u8], sealed: &[u8]) -> Result<Vec<u8>, JsValue> {
+    let subtle = subtle().ok_or(JsValue::NULL)?;
+    let (nonce, body) = sealed.split_at_checked(12).ok_or(JsValue::NULL)?;
+    let params = web_sys::AesGcmParams::new("AES-GCM", &Uint8Array::from(nonce));
+    params.set_additional_data(&Uint8Array::from(aad));
+    Ok(bytes_of(&wait(subtle.decrypt_with_object_and_u8_array(&params, key, body)).await?))
+}
+
+fn aad(space: &[u8; 16], what: &str, upto: Option<u64>) -> Vec<u8> {
+    let mut out = space.to_vec();
+    out.extend_from_slice(what.as_bytes());
+    if let Some(upto) = upto {
+        out.extend_from_slice(&upto.to_be_bytes());
+    }
+    out
+}
+
+// ---- HTTP ----
+
+/// Where Phloem answers: the meta tag's base, absolute.
+fn base() -> Option<String> {
+    let base = super::offered()?;
+    if base.starts_with("http") {
+        return Some(base);
+    }
+    let origin = web_sys::window()?.location().origin().ok()?;
+    Some(format!("{origin}{base}"))
+}
+
+fn socket_url() -> Option<String> {
+    let base = base()?;
+    let url = if let Some(rest) = base.strip_prefix("https://") { format!("wss://{rest}") } else { base.replacen("http://", "ws://", 1) };
+    Some(format!("{}ws", if url.ends_with('/') { url } else { format!("{url}/") }))
+}
+
+fn url(path: &str) -> Option<String> {
+    let base = base()?;
+    Some(format!("{}{path}", if base.ends_with('/') { base } else { format!("{base}/") }))
+}
+
+/// A request to Phloem: its status and body.
+async fn call(method: &str, path: &str, headers: &[(&str, String)], body: Option<String>) -> Result<(u16, String), Problem> {
+    let window = web_sys::window().ok_or(Problem::Unsupported)?;
+    let init = web_sys::RequestInit::new();
+    init.set_method(method);
+    let h = web_sys::Headers::new().map_err(|_| Problem::Unsupported)?;
+    for (name, value) in headers {
+        let _ = h.set(name, value);
+    }
+    if let Some(body) = &body {
+        let _ = h.set("Content-Type", "application/json");
+        init.set_body(&JsValue::from_str(body));
+    }
+    init.set_headers(&h);
+    let request = web_sys::Request::new_with_str_and_init(&url(path).ok_or(Problem::Unsupported)?, &init).map_err(|_| Problem::Unsupported)?;
+    let response = JsFuture::from(window.fetch_with_request(&request)).await.map_err(|_| Problem::Unreachable)?.dyn_into::<web_sys::Response>().map_err(|_| Problem::Unreachable)?;
+    let text = match response.text() {
+        Ok(promise) => JsFuture::from(promise).await.ok().and_then(|t| t.as_string()).unwrap_or_default(),
+        Err(_) => String::new(),
+    };
+    Ok((response.status(), text))
+}
+
+fn auth(keys: &Keys) -> Vec<(&'static str, String)> {
+    vec![("Betula-Space", b64(&keys.space)), ("Authorization", format!("Bearer {}", b64(&keys.token)))]
+}
+
+fn problem_of(status: u16, body: &str) -> Problem {
+    let code = serde_json::from_str::<wire::Failure>(body).map(|f| f.error).unwrap_or_default();
+    match (status, code.as_str()) {
+        (507, _) | (_, "budget") => Problem::Budget,
+        (429, _) | (_, "slow_down") => Problem::SlowDown,
+        (_, "full") => Problem::Full,
+        (404, _) | (401, _) | (403, _) => Problem::BadLink,
+        _ => Problem::Unreachable,
+    }
+}
+
+// ---- the actions ----
+
+/// „Betula Sync aktivieren": a key, a space, and the profile's records as the first snapshot.
+pub async fn activate(profile: u16) -> Result<(), Problem> {
+    let key = random::<KEY>().ok_or(Problem::Unsupported)?;
+    let device = random::<DEVICE>().ok_or(Problem::Unsupported)?;
+    let keys = derive(&key).await.map_err(|_| Problem::Unsupported)?;
+    let body = serde_json::to_string(&wire::NewSpace { space: b64(&keys.space), token: b64(&keys.token), device: b64(&device) }).map_err(|_| Problem::Unsupported)?;
+    let (status, text) = call("POST", "space", &[], Some(body)).await?;
+    if status != 201 {
+        return Err(problem_of(status, &text));
+    }
+    let slot = serde_json::from_str::<wire::Made>(&text).map(|m| m.slot).unwrap_or(1);
+    let mut core = Core::new(key, device);
+    core.set_slot(slot, batch_id);
+    for key in KEYS {
+        let Some(store) = Store::of_storage_key(key) else { continue };
+        let text = crate::profiles::checked(key, &nav::local_get(&key_of(key, profile)).unwrap_or_default());
+        core.change(store, "", &text, wall(), batch_id);
+    }
+    // The first records go as the first snapshot, not as entries.
+    core.outbox.clear();
+    core.snapshot_due = true;
+    keep(profile, &core);
+    nav::local_set(&ended_key(profile), "");
+    Ok(())
+}
+
+/// Keeps a profile's records, as a new device starts them (joining) or as they are.
+fn keep(profile: u16, core: &Core) {
+    nav::local_set(&records_key(profile), &core.records());
+    nav::local_set(&waiting_key(profile), &core.waiting());
+    // The key last: a tab that hears of it finds the rest.
+    nav::local_set(&held_key(profile), &core.held());
+}
+
+/// The key of a synced profile, as this browser keeps it.
+fn key_of_profile(profile: u16) -> Option<[u8; KEY]> {
+    let held = nav::local_get(&held_key(profile))?;
+    let line = held.lines().find_map(|l| l.strip_prefix("key\t"))?;
+    unb64(line)?.try_into().ok()
+}
+
+pub fn recovery_code(profile: u16) -> Option<String> {
+    Some(super::codes::recovery_code(&key_of_profile(profile)?))
+}
+
+/// A parcel for the next device: the link and until when it opens.
+pub async fn pair(profile: u16, name: String) -> Result<super::Pairing, Problem> {
+    let key = key_of_profile(profile).ok_or(Problem::Unsupported)?;
+    let keys = derive(&key).await.map_err(|_| Problem::Unsupported)?;
+    let id = random::<16>().ok_or(Problem::Unsupported)?;
+    let link_key = random::<32>().ok_or(Problem::Unsupported)?;
+    let contents = wire::Contents { v: 1, profiles: vec![wire::Shared { key: b64(&key), name }] };
+    let plain = serde_json::to_vec(&contents).map_err(|_| Problem::Unsupported)?;
+    let sealed = seal(&aes_key(&link_key).await.map_err(|_| Problem::Unsupported)?, b"pair", &plain).await.map_err(|_| Problem::Unsupported)?;
+    let body = serde_json::to_string(&wire::Parcel { id: b64(&id), sealed: b64(&sealed) }).map_err(|_| Problem::Unsupported)?;
+    let (status, text) = call("POST", "pair", &auth(&keys), Some(body)).await?;
+    if status != 201 {
+        return Err(problem_of(status, &text));
+    }
+    let origin = web_sys::window().and_then(|w| w.location().origin().ok()).unwrap_or_default();
+    Ok(super::Pairing { link: format!("{origin}/verbinden#{}", b64(&[&id[..], &link_key[..]].concat())), until: now() + 10 * 60 * 1000 })
+}
+
+/// The profiles a link of `pair` hands on.
+pub async fn unpack(fragment: &str) -> Result<Vec<([u8; KEY], String)>, Problem> {
+    let bytes = unb64(fragment.trim_start_matches('#')).filter(|b| b.len() == 48).ok_or(Problem::BadLink)?;
+    let (id, link_key) = bytes.split_at(16);
+    let (status, text) = call("GET", "pair", &[("Betula-Pair", b64(id))], None).await?;
+    if status != 200 {
+        return Err(if status == 404 { Problem::BadLink } else { problem_of(status, &text) });
+    }
+    let sealed = serde_json::from_str::<wire::Fetched>(&text).ok().and_then(|f| unb64(&f.sealed)).ok_or(Problem::BadLink)?;
+    let plain = open(&aes_key(link_key).await.map_err(|_| Problem::Unsupported)?, b"pair", &sealed).await.map_err(|_| Problem::BadLink)?;
+    let contents: wire::Contents = serde_json::from_slice(&plain).map_err(|_| Problem::BadLink)?;
+    Ok(contents.profiles.into_iter().filter_map(|p| Some((unb64(&p.key)?.try_into().ok()?, p.name))).collect())
+}
+
+/// A profile of this browser that starts syncing with the key of another device's: its stores
+/// come from Phloem.
+pub fn start(profile: u16, key: [u8; KEY]) -> Result<(), Problem> {
+    let device = random::<DEVICE>().ok_or(Problem::Unsupported)?;
+    keep(profile, &Core::new(key, device));
+    nav::local_set(&ended_key(profile), "");
+    Ok(())
+}
+
+/// „Sync beenden": the space goes at once; this device is private again with its copy.
+pub async fn stop(profile: u16) -> Result<(), Problem> {
+    let key = key_of_profile(profile).ok_or(Problem::Unsupported)?;
+    let keys = derive(&key).await.map_err(|_| Problem::Unsupported)?;
+    let (status, text) = call("DELETE", "space", &auth(&keys), None).await?;
+    if !(200..300).contains(&status) && status != 404 && status != 401 {
+        return Err(problem_of(status, &text));
+    }
+    if let Some(engine) = engine().filter(|e| e.leads(profile)) {
+        engine.close();
+    }
+    drop_state(profile);
+    Ok(())
+}
+
+// ---- the leader ----
+
+/// The leader's engine for the active profile, when it syncs.
+pub struct Engine {
+    profile: u16,
+    core: RefCell<Core>,
+    keys: Keys,
+    socket: RefCell<Option<WebSocket>>,
+    /// What came over the socket, to be read in order (opening a seal waits for WebCrypto).
+    inbox: RefCell<VecDeque<In>>,
+    reading: RefCell<bool>,
+    sync: Sync,
+    profiles: Profiles,
+    /// Tries since the last welcome, for the time to the next one.
+    tries: RefCell<u32>,
+    open: RefCell<bool>,
+    /// The records changed and are not kept yet.
+    dirty: RefCell<bool>,
+    closed: RefCell<bool>,
+    /// What was sent on this connection and waits for `stored` (batches) or `snapshotted`.
+    in_flight: RefCell<BTreeSet<String>>,
+    snapshot_sent: Cell<bool>,
+    /// The socket's handlers, dropped with it.
+    handlers: RefCell<Option<Handlers>>,
+}
+
+struct Handlers {
+    _open: Closure<dyn FnMut()>,
+    _message: Closure<dyn FnMut(MessageEvent)>,
+    _close: Closure<dyn FnMut(CloseEvent)>,
+}
+
+/// Phloem's close codes (protocol.md §4) after which a device does not come back on its own: a
+/// newer socket of the same device took over (4000), or what it sent was refused (1008: then a
+/// reload tries again).
+fn final_close(code: u16) -> bool {
+    code == 4000 || code == 1008
+}
+
+impl Engine {
+    fn leads(&self, profile: u16) -> bool {
+        self.profile == profile && !*self.closed.borrow()
+    }
+
+    fn status(&self, devices: Option<usize>) {
+        let text = match devices {
+            Some(n) => format!("online {n}"),
+            None => "offline".to_string(),
+        };
+        nav::local_set(&status_key(self.profile), &text);
+        self.sync.refresh(self.profile);
+    }
+
+    fn keep_waiting(&self) {
+        nav::local_set(&waiting_key(self.profile), &self.core.borrow().waiting());
+    }
+
+    /// Keeps the records, after the stores were given what they hold: what is kept never holds
+    /// more than the stores (a start would take what they lack for a deletion).
+    fn keep_records(&self) {
+        self.project();
+        nav::local_set(&records_key(self.profile), &self.core.borrow().records());
+        *self.dirty.borrow_mut() = false;
+    }
+
+    /// The records changed: kept soon, not with every keystroke.
+    fn later(self: &Rc<Self>) {
+        if self.dirty.replace(true) {
+            return;
+        }
+        let engine = Rc::clone(self);
+        set_timeout(move || {
+            if *engine.dirty.borrow() && !*engine.closed.borrow() {
+                engine.keep_records();
+            }
+        }, std::time::Duration::from_millis(800));
+    }
+
+    fn change(self: &Rc<Self>, store: Store, before: &str, after: &str, wall: u64) {
+        let made = self.core.borrow_mut().change(store, before, after, wall, batch_id);
+        if made {
+            self.keep_waiting();
+            self.later();
+            self.send_waiting();
+        }
+    }
+
+    /// Takes the changes other tabs left, in the order they were made.
+    fn take_changes(self: &Rc<Self>) {
+        let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) else { return };
+        let prefix = format!("{CHANGE_PREFIX}{}.", self.profile);
+        let mut items: Vec<String> = (0..storage.length().unwrap_or(0)).filter_map(|i| storage.key(i).ok().flatten()).filter(|k| k.starts_with(&prefix)).collect();
+        items.sort();
+        for item in items {
+            let text = storage.get_item(&item).ok().flatten().unwrap_or_default();
+            let _ = storage.remove_item(&item);
+            let fields: Vec<&str> = text.split('\t').collect();
+            let [store, wall, before, after] = fields.as_slice() else { continue };
+            let decoded = |b: &str| unb64(b).and_then(|bytes| String::from_utf8(bytes).ok());
+            if let (Some(store), Ok(wall), Some(before), Some(after)) = (Store::of_storage_key(store), wall.parse::<u64>(), decoded(before), decoded(after)) {
+                self.change(store, &before, &after, wall);
+            }
+        }
+        self.project();
+    }
+
+    /// Gives every store whose records changed their text, where it holds something else.
+    fn project(&self) {
+        let touched: Vec<Store> = std::mem::take(&mut self.core.borrow_mut().touched).into_iter().collect();
+        let mut wrote = false;
+        for store in touched {
+            let text = self.core.borrow().text(store);
+            let key = key_of(store.storage_key(), self.profile);
+            let now = nav::local_get(&key).unwrap_or_default();
+            if crate::profiles::checked(store.storage_key(), &now) != text {
+                nav::local_set(&key, &text);
+                wrote = true;
+            }
+        }
+        if wrote {
+            self.profiles.wrote();
+        }
+        self.sync.conflicts_of(&self.core.borrow().doc);
+    }
+
+    /// A store's text that differs from the records when the leader starts (written by a tab or a
+    /// build that did not sync): what it holds more is a change of this device.
+    fn catch_up(self: &Rc<Self>) {
+        for key in KEYS {
+            let Some(store) = Store::of_storage_key(key) else { continue };
+            let stored = crate::profiles::checked(key, &nav::local_get(&key_of(key, self.profile)).unwrap_or_default());
+            let records = crate::profiles::checked(key, &self.core.borrow().text(store));
+            if stored != records {
+                self.change(store, &records, &stored, wall());
+            }
+            self.core.borrow_mut().touched.insert(store);
+        }
+        self.project();
+    }
+
+    fn send(&self, out: &Out) -> bool {
+        match self.socket.borrow().as_ref() {
+            Some(socket) if *self.open.borrow() => socket.send_with_str(&out.text()).is_ok(),
+            _ => false,
+        }
+    }
+
+    /// Seals and sends what waits (after the welcome).
+    fn send_waiting(self: &Rc<Self>) {
+        if !*self.open.borrow() {
+            return;
+        }
+        let engine = Rc::clone(self);
+        leptos::task::spawn_local(async move {
+            let due = engine.core.borrow().snapshot_due;
+            if due && !engine.snapshot_sent.replace(true) {
+                engine.send_snapshot().await;
+            }
+            let waiting: Vec<_> = engine.core.borrow().outbox.iter().filter(|p| !engine.in_flight.borrow().contains(&p.id)).cloned().collect();
+            let aad = aad(&engine.keys.space, "batch", None);
+            for pending in waiting {
+                if !engine.in_flight.borrow_mut().insert(pending.id.clone()) {
+                    continue;
+                }
+                if let Ok(sealed) = seal(&engine.keys.data, &aad, &pending.batch).await {
+                    if !engine.send(&Out::Push { id: pending.id.clone(), data: b64(&sealed) }) {
+                        engine.in_flight.borrow_mut().remove(&pending.id);
+                    }
+                }
+            }
+        });
+    }
+
+    async fn send_snapshot(&self) {
+        let (upto, plain) = {
+            let core = self.core.borrow();
+            (core.nr, core.snapshot())
+        };
+        if let Ok(sealed) = seal(&self.keys.data, &aad(&self.keys.space, "snapshot", Some(upto)), &plain).await {
+            self.send(&Out::Snapshot { upto, data: b64(&sealed) });
+        }
+    }
+
+    fn connect(self: &Rc<Self>) {
+        if *self.closed.borrow() || self.socket.borrow().is_some() {
+            return;
+        }
+        let Some(url) = socket_url() else { return };
+        let Ok(socket) = WebSocket::new(&url) else {
+            self.retry();
+            return;
+        };
+        let engine = Rc::clone(self);
+        let on_open = Closure::<dyn FnMut()>::new(move || {
+            *engine.open.borrow_mut() = true;
+            let core = engine.core.borrow();
+            let hello = Out::Hello { space: b64(&engine.keys.space), token: b64(&engine.keys.token), device: b64(&core.device), since: core.nr };
+            drop(core);
+            engine.send(&hello);
+        });
+        let engine = Rc::clone(self);
+        let on_message = Closure::<dyn FnMut(MessageEvent)>::new(move |event: MessageEvent| {
+            if let Some(frame) = event.data().as_string().and_then(|t| In::read(&t)) {
+                engine.inbox.borrow_mut().push_back(frame);
+                engine.read();
+            }
+        });
+        let engine = Rc::clone(self);
+        let on_close = Closure::<dyn FnMut(CloseEvent)>::new(move |event: CloseEvent| {
+            *engine.open.borrow_mut() = false;
+            engine.socket.borrow_mut().take();
+            engine.in_flight.borrow_mut().clear();
+            engine.snapshot_sent.set(false);
+            if !*engine.closed.borrow() {
+                engine.status(None);
+                if !final_close(event.code()) {
+                    engine.retry();
+                }
+            }
+        });
+        socket.set_onopen(Some(on_open.as_ref().unchecked_ref()));
+        socket.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
+        socket.set_onclose(Some(on_close.as_ref().unchecked_ref()));
+        *self.handlers.borrow_mut() = Some(Handlers { _open: on_open, _message: on_message, _close: on_close });
+        *self.socket.borrow_mut() = Some(socket);
+    }
+
+    /// The next try: soon, then less often, at most every half minute.
+    fn retry(self: &Rc<Self>) {
+        let tries = {
+            let mut t = self.tries.borrow_mut();
+            *t = t.saturating_add(1);
+            *t
+        };
+        let wait = (500u64 << tries.min(6)).min(30_000) + random::<1>().map_or(0, |b| u64::from(b[0]) * 4);
+        let engine = Rc::clone(self);
+        set_timeout(move || engine.connect(), std::time::Duration::from_millis(wait));
+    }
+
+    /// Reads what came, one frame after the other.
+    fn read(self: &Rc<Self>) {
+        if self.reading.replace(true) {
+            return;
+        }
+        let engine = Rc::clone(self);
+        leptos::task::spawn_local(async move {
+            loop {
+                let next = engine.inbox.borrow_mut().pop_front();
+                let Some(frame) = next else { break };
+                engine.frame(frame).await;
+            }
+            *engine.reading.borrow_mut() = false;
+            engine.project();
+        });
+    }
+
+    async fn entry(&self, nr: u64, data: &str) {
+        let Some(sealed) = unb64(data) else { return };
+        let aad = aad(&self.keys.space, "batch", None);
+        match open(&self.keys.data, &aad, &sealed).await.ok().map(|plain| codec::read_batch(&plain)) {
+            Some(Ok(ops)) => {
+                self.core.borrow_mut().apply(&ops);
+            }
+            // A batch of a later build: read once the page has it (a reload).
+            Some(Err(codec::Error::Version(_))) => return,
+            _ => {}
+        }
+        self.core.borrow_mut().hold(nr);
+    }
+
+    async fn frame(self: &Rc<Self>, frame: In) {
+        match frame {
+            In::Welcome { slot, head, now: server, devices, snapshot, entries } => {
+                *self.tries.borrow_mut() = 0;
+                if server > 0 {
+                    nav::local_set(OFFSET_KEY, &(server as i64 - now() as i64).to_string());
+                }
+                if let Some(snapshot) = snapshot {
+                    let aad = aad(&self.keys.space, "snapshot", Some(snapshot.upto));
+                    if let Some(plain) = match unb64(&snapshot.data) {
+                        Some(sealed) => open(&self.keys.data, &aad, &sealed).await.ok(),
+                        None => None,
+                    } {
+                        let _ = self.core.borrow_mut().join(snapshot.upto, &plain);
+                    }
+                }
+                for entry in &entries {
+                    self.entry(entry.nr, &entry.data).await;
+                }
+                {
+                    let mut core = self.core.borrow_mut();
+                    core.held_up_to(head);
+                    let had = core.slot();
+                    core.set_slot(slot, batch_id);
+                    if had != slot {
+                        nav::local_set(&held_key(self.profile), &core.held());
+                    }
+                }
+                folia_plans::ids::set_slot(slot);
+                self.project();
+                self.keep_waiting();
+                self.keep_records();
+                self.status(Some(devices.iter().filter(|d| **d != slot).count()));
+                self.send_waiting();
+            }
+            In::Stored { id, nr } => {
+                self.in_flight.borrow_mut().remove(&id);
+                self.core.borrow_mut().stored(&id, nr);
+                self.keep_waiting();
+                self.later();
+            }
+            In::Entry { nr, data, .. } => {
+                self.entry(nr, &data).await;
+                self.later();
+            }
+            In::Snapshotted { .. } => {
+                self.snapshot_sent.set(false);
+                self.core.borrow_mut().snapshot_due = false;
+                self.keep_waiting();
+            }
+            In::Presence { devices } => {
+                let slot = self.core.borrow().slot();
+                self.status(Some(devices.iter().filter(|d| **d != slot).count()));
+            }
+            In::Compact => {
+                self.core.borrow_mut().snapshot_due = true;
+                self.send_waiting();
+            }
+            In::Error { code, id } => match code.as_str() {
+                "unauthorized" => self.ended(),
+                // A batch too large: the snapshot carries it. (The snapshot itself, above 6 MiB,
+                // which the stores' caps keep a profile below, is not sent again on this
+                // connection.)
+                "too_big" => {
+                    if let Some(id) = id {
+                        self.in_flight.borrow_mut().remove(&id);
+                        self.core.borrow_mut().outbox.retain(|p| p.id != id);
+                        self.core.borrow_mut().snapshot_due = true;
+                        self.keep_waiting();
+                        self.send_waiting();
+                    }
+                }
+                "compact_first" => {
+                    self.core.borrow_mut().snapshot_due = true;
+                    self.in_flight.borrow_mut().clear();
+                    self.send_waiting();
+                }
+                "slow_down" => {
+                    self.in_flight.borrow_mut().clear();
+                    let engine = Rc::clone(self);
+                    set_timeout(move || engine.send_waiting(), std::time::Duration::from_secs(2));
+                }
+                "full" => {
+                    self.sync.fail(self.profile, Problem::Full);
+                    self.close();
+                }
+                _ => {}
+            },
+            In::Gone => self.ended(),
+            In::Other => {}
+        }
+    }
+
+    /// The space is gone: private again, with all it holds.
+    fn ended(self: &Rc<Self>) {
+        self.close();
+        drop_state(self.profile);
+        nav::local_set(&ended_key(self.profile), "1");
+        self.sync.refresh(self.profile);
+    }
+
+    /// „Nur dieses Gerät trennen": what waits goes out first, then the slot is free.
+    fn leave(self: &Rc<Self>) {
+        let engine = Rc::clone(self);
+        leptos::task::spawn_local(async move {
+            let waiting = engine.core.borrow().outbox.clone();
+            let aad = aad(&engine.keys.space, "batch", None);
+            for pending in waiting {
+                if let Ok(sealed) = seal(&engine.keys.data, &aad, &pending.batch).await {
+                    engine.send(&Out::Push { id: pending.id.clone(), data: b64(&sealed) });
+                }
+            }
+            engine.send(&Out::Leave);
+            engine.close();
+            drop_state(engine.profile);
+            engine.sync.refresh(engine.profile);
+        });
+    }
+
+    /// Lets the socket go (the network is gone); the engine tries again as after any close.
+    fn disconnect(&self) {
+        if let Some(socket) = self.socket.borrow().as_ref() {
+            let _ = socket.close();
+        }
+        self.status(None);
+    }
+
+    fn close(&self) {
+        if self.closed.replace(true) {
+            return;
+        }
+        if *self.dirty.borrow() {
+            self.keep_records();
+        }
+        if let Some(socket) = self.socket.borrow_mut().take() {
+            socket.set_onopen(None);
+            socket.set_onmessage(None);
+            socket.set_onclose(None);
+            let _ = socket.close();
+        }
+        self.handlers.borrow_mut().take();
+    }
+}
+
+thread_local! {
+    /// Counts the starts of `lead`: one that waited for WebCrypto while a later one began gives way.
+    static GENERATION: Cell<u64> = const { Cell::new(0) };
+}
+
+/// Starts the engine for the active profile, where it syncs and this tab leads.
+async fn lead(sync: Sync, profiles: Profiles) {
+    let profile = profiles.active_untracked();
+    if let Some(old) = engine() {
+        if old.profile == profile && !*old.closed.borrow() && syncs(profile) {
+            return;
+        }
+        old.close();
+    }
+    ENGINE.with(|e| e.borrow_mut().take());
+    let generation = GENERATION.with(|g| {
+        g.set(g.get() + 1);
+        g.get()
+    });
+    if !syncs(profile) {
+        folia_plans::ids::set_slot(0);
+        return;
+    }
+    let held = nav::local_get(&held_key(profile)).unwrap_or_default();
+    let records = nav::local_get(&records_key(profile)).unwrap_or_default();
+    let waiting = nav::local_get(&waiting_key(profile)).unwrap_or_default();
+    let Some(core) = Core::restore(&held, &records, &waiting) else { return };
+    let Ok(keys) = derive(&core.key).await else {
+        sync.fail(profile, Problem::Unsupported);
+        return;
+    };
+    if profiles.active_untracked() != profile || !syncs(profile) || GENERATION.with(Cell::get) != generation || !leads() {
+        return;
+    }
+    folia_plans::ids::set_slot(core.slot());
+    let engine = Rc::new(Engine {
+        profile,
+        core: RefCell::new(core),
+        keys,
+        socket: RefCell::new(None),
+        inbox: RefCell::new(VecDeque::new()),
+        reading: RefCell::new(false),
+        sync,
+        profiles,
+        tries: RefCell::new(0),
+        open: RefCell::new(false),
+        dirty: RefCell::new(false),
+        closed: RefCell::new(false),
+        in_flight: RefCell::new(BTreeSet::new()),
+        snapshot_sent: Cell::new(false),
+        handlers: RefCell::new(None),
+    });
+    ENGINE.with(|e| *e.borrow_mut() = Some(Rc::clone(&engine)));
+    engine.take_changes();
+    if nav::local_get(&leave_key(profile)).is_some() {
+        engine.leave();
+        return;
+    }
+    engine.status(None);
+    engine.catch_up();
+    engine.connect();
+}
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = ["navigator", "locks"], js_name = request, catch)]
+    fn request_lock(name: &str, options: &JsValue, callback: &js_sys::Function) -> Result<Promise, JsValue>;
+}
+
+thread_local! {
+    static LEADS: RefCell<bool> = const { RefCell::new(false) };
+}
+
+/// Asks for the lead of this browser's tabs; `steal` takes it from another tab (this one became
+/// visible). Without Web Locks the tab leads alone.
+fn ask_lead(sync: Sync, profiles: Profiles, steal: bool) {
+    let options = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(&options, &"mode".into(), &"exclusive".into());
+    if steal {
+        let _ = js_sys::Reflect::set(&options, &"steal".into(), &JsValue::TRUE);
+    }
+    let callback = Closure::<dyn FnMut(JsValue) -> Promise>::new(move |_lock: JsValue| {
+        LEADS.with(|l| *l.borrow_mut() = true);
+        leptos::task::spawn_local(lead(sync, profiles));
+        // Held while the tab lives.
+        Promise::new(&mut |_, _| {})
+    });
+    match request_lock("betula.sync", &options, callback.as_ref().unchecked_ref()) {
+        Ok(promise) => {
+            callback.forget();
+            leptos::task::spawn_local(async move {
+                // Settles only when another tab took the lead.
+                let _ = JsFuture::from(promise).await;
+                LEADS.with(|l| *l.borrow_mut() = false);
+                if let Some(engine) = engine() {
+                    engine.close();
+                }
+                ENGINE.with(|e| e.borrow_mut().take());
+            });
+        }
+        Err(_) => {
+            LEADS.with(|l| *l.borrow_mut() = true);
+            leptos::task::spawn_local(lead(sync, profiles));
+        }
+    }
+}
+
+fn leads() -> bool {
+    LEADS.with(|l| *l.borrow())
+}
+
+/// Starts it in this tab: asks for the lead, follows the active profile, takes what other tabs
+/// leave, and comes back online when the network does.
+pub fn start_tab(sync: Sync, profiles: Profiles) {
+    ask_lead(sync, profiles, false);
+    // The active profile changes: the leader follows it.
+    Effect::new(move |_| {
+        let _ = profiles.active();
+        if leads() {
+            leptos::task::spawn_local(lead(sync, profiles));
+        }
+        sync.refresh_all(profiles);
+    });
+    let storage = window_event_listener_untyped("storage", move |event| {
+        let key = event.dyn_ref::<web_sys::StorageEvent>().and_then(|e| e.key()).unwrap_or_default();
+        let active = profiles.active_untracked();
+        if key.starts_with(CHANGE_PREFIX) {
+            if let Some(engine) = engine().filter(|e| e.leads(active)) {
+                engine.take_changes();
+            }
+        } else if key.starts_with("betula.sync.") {
+            if key == leave_key(active) && nav::local_get(&key).is_some() {
+                if let Some(engine) = engine().filter(|e| e.leads(active)) {
+                    engine.leave();
+                }
+            } else if key == held_key(active) && leads() {
+                leptos::task::spawn_local(lead(sync, profiles));
+            }
+            sync.refresh_all(profiles);
+        } else if let Some(engine) = engine().filter(|e| e.leads(active)) {
+            // Another tab wrote a store's text: the records may hold more.
+            if let Some(store) = KEYS.iter().find(|k| key_of(k, active) == key).and_then(|k| Store::of_storage_key(k)) {
+                engine.core.borrow_mut().touched.insert(store);
+                engine.project();
+            }
+        }
+    });
+    let online = window_event_listener_untyped("online", move |_| {
+        if let Some(engine) = engine() {
+            *engine.tries.borrow_mut() = 0;
+            engine.connect();
+        }
+    });
+    // The browser knows it has no network: offline at once, not after the socket times out; what
+    // changes waits and goes out when the network is back.
+    let offline = window_event_listener_untyped("offline", move |_| {
+        if let Some(engine) = engine() {
+            engine.disconnect();
+        }
+    });
+    let visible = window_event_listener_untyped("visibilitychange", move |_| {
+        let shown = web_sys::window().and_then(|w| w.document()).is_some_and(|d| d.visibility_state() == web_sys::VisibilityState::Visible);
+        if shown && !leads() {
+            ask_lead(sync, profiles, true);
+        } else if !shown {
+            if let Some(engine) = engine() {
+                if *engine.dirty.borrow() {
+                    engine.keep_records();
+                }
+            }
+        } else if let Some(engine) = engine() {
+            engine.connect();
+        }
+    });
+    on_cleanup(move || {
+        storage.remove();
+        online.remove();
+        offline.remove();
+        visible.remove();
+    });
+}
+
+
+/// Leads again where this tab leads: the active profile may sync now (activated, joined).
+pub fn lead_again(sync: Sync) {
+    if let Some(profiles) = sync.profiles {
+        if leads() {
+            leptos::task::spawn_local(lead(sync, profiles));
+        }
+    }
+}
+
+/// The hints a page has read (`dismiss`), in every tab.
+fn seen_key(profile: u16) -> String {
+    format!("betula.sync.p{profile}.seen")
+}
+
+fn mark(conflict: &super::Conflict) -> String {
+    match conflict {
+        super::Conflict::ModuleNote { module, at, .. } => format!("n|{module}|{at}"),
+        super::Conflict::TerminNote { semester, row, at, .. } => format!("b|{}|{}|{at}", semester.key(), row.text()),
+        super::Conflict::Moved { module, at, .. } => format!("m|{module}|{at}"),
+    }
+}
+
+pub fn dismiss(profile: u16, conflict: &super::Conflict) {
+    let mut seen = nav::local_get(&seen_key(profile)).unwrap_or_default();
+    seen.push_str(&mark(conflict));
+    seen.push('\n');
+    // The last hundred: older conflicts are gone from the records anyway (fifty at most).
+    let lines: Vec<&str> = seen.lines().collect();
+    let keep = lines.len().saturating_sub(100);
+    nav::local_set(&seen_key(profile), &lines.get(keep..).unwrap_or_default().join("\n"));
+}
+
+/// The conflicts of the leader's records, as a page shows them, without the ones read.
+pub fn shown_conflicts(sync: Sync, profile: u16, conflicts: &[folia_sync::Conflict]) -> Vec<super::Conflict> {
+    let seen = nav::local_get(&seen_key(profile)).unwrap_or_default();
+    super::shown(conflicts, |module| sync.planned_in(module)).into_iter().filter(|c| !seen.lines().any(|line| line == mark(c))).collect()
+}
+
+/// The same from what the leader keeps (any tab).
+pub fn conflicts(sync: Sync, profile: u16) -> Vec<super::Conflict> {
+    let records = nav::local_get(&records_key(profile)).unwrap_or_default();
+    let kept = records.lines().find_map(|l| l.strip_prefix("conflicts\t")).and_then(unb64).and_then(|bytes| codec::read_conflicts(&bytes).ok()).unwrap_or_default();
+    shown_conflicts(sync, profile, &kept)
+}

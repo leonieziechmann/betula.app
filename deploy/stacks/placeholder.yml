@@ -74,7 +74,7 @@ services:
         order: start-first
       labels:
         - "traefik.enable=true"
-        - "traefik.swarm.network=edge"
+        - "traefik.swarm.network=edge_placeholder"
         - "traefik.http.routers.placeholder.rule=Host(`betula.app`)"
         - "traefik.http.routers.placeholder.entrypoints=websecure"
         - "traefik.http.routers.placeholder.tls.certresolver=le"
@@ -83,5 +83,7 @@ services:
         - "traefik.http.services.placeholder.loadbalancer.server.port=8080"
 
 networks:
+  # Traefik and this page, nothing else (vps/files/networks.conf); internal: nginx needs no way out.
   edge:
     external: true
+    name: edge_placeholder

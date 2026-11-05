@@ -69,3 +69,17 @@ http:
             # For the day Traefik sees IPv6 addresses itself: one customer owns a whole /64, count it as
             # one client. Without effect until then.
             ipv6Subnet: 64
+
+    # Betula Sync's service, Phloem, at /sync/v1/ (docs/phloem/protocol.md), for its router. Per source
+    # address, like rate-limit: 20 requests a second and bursts of 60. A device opens one WebSocket and
+    # keeps it; what it pushes over it is one request for Traefik. The rest (a space, a pairing parcel)
+    # is a handful of requests, so this only stops a flood, before it reaches Phloem, whose own limits
+    # hold behind it (20 new spaces per address and hour, 50 pushes a second per space).
+    sync-ratelimit:
+      rateLimit:
+        average: 20
+        period: 1s
+        burst: 60
+        sourceCriterion:
+          ipStrategy:
+            ipv6Subnet: 64

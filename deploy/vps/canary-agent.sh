@@ -402,16 +402,16 @@ remove_colour() {
 }
 
 # wait_until_healthy NAME - until the colour's web server answers /healthz with 200, asked directly
-# (Traefik still sends the host to the other colour): it has a catalog and hears from its Radix.
+# (Traefik still sends the host to the other colour), from inside Traefik's container
+# (folia_status, lib-stacks.sh): it has a catalog and hears from its Radix.
 wait_until_healthy() {
-  local name=$1 address code="" deadline
+  local name=$1 code="" deadline
   deadline=$((SECONDS + HEALTH_TIMEOUT))
   while :; do
-    address="$(folia_address "${name}")"
-    if [[ -n "${address}" ]]; then
-      code="$(curl -sS -o /dev/null --max-time 10 -w '%{http_code}' "http://${address}:8080/healthz" 2>/dev/null || true)"
+    if [[ -n "$(folia_container "${name}")" ]]; then
+      code="$(folia_status "${name}" /healthz)"
       if [[ "${code}" == "200" ]]; then
-        log "${name}_folia answers /healthz with 200 (asked directly at ${address}:8080)"
+        log "${name}_folia answers /healthz with 200 (asked directly, from Traefik's container)"
         return 0
       fi
     fi

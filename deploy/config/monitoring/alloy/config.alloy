@@ -456,6 +456,109 @@ prometheus.scrape "host" {
   forward_to      = [prometheus.remote_write.prometheus.receiver]
 }
 
+// ---------------------------------------------------------------- Phloem
+
+// Phloem, Betula Sync's service (docs/phloem/protocol.md), shares no network with the monitoring:
+// as if it were an outside service, only the monitoring may look at it, and it cannot reach the
+// monitoring. It writes its numbers every 15 s to a file, /run/betula/phloem/<stack>/stats/
+// phloem.prom on the host (a tmpfs of its own), read here through /rootfs. One exporter per
+// instance, each with its labels job, stack and instance set here: the two must never mix (the
+// series of two files with the same names would be one), and what an instance writes is its own
+// word, so it cannot speak for the other one (Phloem puts stack="..." into its file as well; the
+// target's label wins, and Phloem's copy, exported_stack, is dropped below). An instance that does
+// not run leaves an old file or none: node_textfile_mtime_seconds and node_textfile_scrape_error
+// say which (rule "Phloem: not running"). The tmpfs of 1 MiB bounds what one file can bring.
+prometheus.exporter.unix "phloem" {
+  set_collectors = ["textfile"]
+
+  textfile {
+    directory = "/rootfs/run/betula/phloem/phloem/stats"
+  }
+}
+
+prometheus.exporter.unix "phloem_canary" {
+  set_collectors = ["textfile"]
+
+  textfile {
+    directory = "/rootfs/run/betula/phloem/phloem-canary/stats"
+  }
+}
+
+// What the host writes for the monitoring: betula-phloem-guard (vps/files/betula-phloem-guard.sh,
+// every minute as root) on Phloem's firewall and rights. A directory of root's that no container
+// mounts: what watches Phloem is not Phloem's to write.
+prometheus.exporter.unix "host_files" {
+  set_collectors = ["textfile"]
+
+  textfile {
+    directory = "/rootfs/run/betula/metrics"
+  }
+}
+
+discovery.relabel "phloem" {
+  targets = prometheus.exporter.unix.phloem.targets
+
+  rule {
+    target_label = "job"
+    replacement  = "phloem"
+  }
+
+  rule {
+    target_label = "stack"
+    replacement  = "phloem"
+  }
+
+  rule {
+    target_label = "instance"
+    replacement  = "phloem"
+  }
+}
+
+discovery.relabel "phloem_canary" {
+  targets = prometheus.exporter.unix.phloem_canary.targets
+
+  rule {
+    target_label = "job"
+    replacement  = "phloem"
+  }
+
+  rule {
+    target_label = "stack"
+    replacement  = "phloem-canary"
+  }
+
+  rule {
+    target_label = "instance"
+    replacement  = "phloem-canary"
+  }
+}
+
+discovery.relabel "host_files" {
+  targets = prometheus.exporter.unix.host_files.targets
+
+  rule {
+    target_label = "job"
+    replacement  = "phloem-guard"
+  }
+}
+
+prometheus.scrape "phloem" {
+  targets         = array.concat(discovery.relabel.phloem.output, discovery.relabel.phloem_canary.output, discovery.relabel.host_files.output)
+  scrape_interval = "30s"
+  // honor_labels stays false: a label of the target wins over one in the file, which is renamed
+  // exported_<name>.
+  forward_to = [prometheus.relabel.phloem.receiver]
+}
+
+prometheus.relabel "phloem" {
+  forward_to = [prometheus.remote_write.prometheus.receiver]
+
+  rule {
+    action = "labeldrop"
+    regex  = "exported_(job|instance|stack)"
+  }
+}
+
 // ---------------------------------------------------------------- container metrics
 
 prometheus.exporter.cadvisor "containers" {

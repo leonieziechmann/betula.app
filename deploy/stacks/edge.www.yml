@@ -17,7 +17,8 @@ services:
     deploy:
       labels:
         - "traefik.enable=true"
-        - "traefik.swarm.network=edge"
+        # A network of Traefik's own for the service below that is never used; any other would do.
+        - "traefik.swarm.network=edge_out"
         - "traefik.http.routers.edge-www.rule=Host(`www.betula.app`)"
         - "traefik.http.routers.edge-www.entrypoints=websecure"
         - "traefik.http.routers.edge-www.tls.certresolver=le"

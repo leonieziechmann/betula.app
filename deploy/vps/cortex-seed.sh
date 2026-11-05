@@ -16,8 +16,9 @@
 #   2. "radix seed-cortex" of a loaded release (default: the one the canary serves with) reads the
 #      copy as it is and gives Cortex every archived page whose page is the whole answer of its URL,
 #      with the archive's times (docs/radix/operations.md, "One-off commands"; docs/cortex/cortex.md
-#      §4.3). It runs in a container on the internal network "cortex", with nothing else: it
-#      reaches Cortex and nothing on the internet.
+#      §4.3). It runs in a container on the internal network cortex_seed (the stack cortex's,
+#      attachable for this alone; vps/files/networks.conf), with nothing else: it reaches Cortex
+#      and nothing on the internet, and no instance.
 #   3. The copy is removed.
 # Run again whenever it is worth it: what Cortex has, or has newer, changes nothing, so a second
 # run writes only what the archive got since. A release from before seed-cortex is refused.
@@ -30,6 +31,8 @@ set -Eeuo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 # shellcheck source=lib-stacks.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib-stacks.sh"
+# shellcheck source=lib-networks.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib-networks.sh"
 betula_init
 
 SQLITE=/usr/bin/sqlite3
@@ -109,8 +112,9 @@ help="$(docker run --rm --network none --cap-drop ALL "${IMAGE}" seed-cortex -h 
 grep -qxF 'Usage of seed-cortex:' <<<"${help}" ||
   die "release ${TAG} of Radix has no seed-cortex (one from before 2026-10-04): name a newer tag (docker image ls betula-radix)"
 cortex_look || die "Cortex does not run (${CORTEX_DETAIL}): deploy/ship-cortex.sh, or bash ${BETULA_ROOT}/vps/48-cortex.sh"
-facts="$(docker network inspect cortex --format '{{.Internal}} {{.Attachable}}' 2>/dev/null || true)"
-[[ "${facts}" == "true true" ]] || die "the network cortex is missing, or not internal and attachable ('${facts}'): sudo bash ${BETULA_ROOT}/vps/30-docker.sh"
+netplan_read
+netplan_check cortex_seed ||
+  die "${NETPLAN_DETAIL}: the stack cortex makes it (stacks/cortex.yml, internal and attachable): bash ${BETULA_ROOT}/vps/48-cortex.sh"
 log "the archive of ${INSTANCE_STACK} goes to Cortex (${CORTEX_DETAIL}), read by ${IMAGE}"
 
 step "A copy of ${INSTANCE_STACK}_radix-data/radix.db"
@@ -135,7 +139,7 @@ log "archived pages: $("${SQLITE}" -readonly -bail -batch "${WORK}/radix.db" "SE
 step "radix seed-cortex"
 # Word splitting is the interface of CORTEX_SEED_ARGS.
 read -r -a extra <<<"${CORTEX_SEED_ARGS:-}"
-docker run --rm --network cortex --cap-drop ALL --read-only --tmpfs /tmp -v "${WORK}:/seed:ro" "${IMAGE}" \
+docker run --rm --network cortex_seed --cap-drop ALL --read-only --tmpfs /tmp -v "${WORK}:/seed:ro" "${IMAGE}" \
   seed-cortex --db /seed/radix.db --cortex "${CORTEX_URLS}" --log-format text ${extra[@]+"${extra[@]}"} ||
   die "seed-cortex did not end well (above: what Cortex did not take). Running it again is safe"
 

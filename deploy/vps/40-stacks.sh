@@ -13,6 +13,8 @@
 #
 # What decides which files are deployed:
 #   edge.www.yml           only while www.betula.app resolves to this machine
+#   edge.legacy.yml        only while a service other than Traefik is still on the old network
+#                          "edge" (the move to vps/files/networks.conf, README.md section 15)
 #   placeholder            skipped as soon as an instance of the application serves betula.app (then
 #                          remove it: docker stack rm placeholder). An instance at another name,
 #                          like canary.betula.app, leaves it alone. The application itself is
@@ -39,6 +41,8 @@ set -Eeuo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 # shellcheck source=lib-stacks.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib-stacks.sh"
+# shellcheck source=lib-networks.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib-networks.sh"
 betula_init --tmp
 require_ubuntu
 
@@ -71,7 +75,6 @@ checksum_of() {
 
 preflight() {
   step "Preconditions"
-  local net facts
   if [[ "${EUID}" -eq 0 && -n "${SUDO_USER:-}" ]]; then
     die "run this as ${DEPLOY_USER} WITHOUT sudo: sudo resets the environment, and GRAFANA_HOST / ACME_STAGING given on the command line would silently not apply"
   fi
@@ -81,11 +84,10 @@ preflight() {
   require_cmd docker ip sha256sum find xargs
   require_swarm_manager
   have_cmd dig || warn "dig is missing (package bind9-dnsutils, vps/10-base.sh); falling back to getent, which also reads /etc/hosts"
-  # cortex: Prometheus scrapes Cortex and every instance's Radix over it (stacks/monitoring.yml).
-  for net in edge monitoring cortex; do
-    facts="$(docker network inspect "${net}" --format '{{.Driver}} {{.Scope}} {{.Attachable}}' 2>/dev/null || true)"
-    [[ "${facts}" == "overlay swarm true" ]] || die "overlay network ${net} is missing or not attachable (run vps/30-docker.sh)"
-  done
+  # Every network the stacks name "external" (vps/files/networks.conf): Traefik's to each site and
+  # to Phloem, edge_metrics, cortex_<instance> for the scraper.
+  netplan_read
+  require_host_networks
 
   if [[ "${ACME_STAGING:-0}" == "1" ]]; then
     if [[ -n "${ACME_CASERVER:-}" && "${ACME_CASERVER}" != "${ACME_STAGING_URL}" ]]; then
@@ -149,6 +151,14 @@ deploy_edge() {
   fi
   if ! resolves_here "${SITE_HOST}"; then
     warn "${RESOLVE_DETAIL}: the certificate order for ${SITE_HOST} will fail until DNS is fixed (see 'certresolver' in stacks/edge.yml for the retry)"
+  fi
+  # The move to the networks of the plan: while anything but Traefik is on the old "edge", Traefik
+  # stays there too, or that service would lose its traffic.
+  if network_used_by_others edge edge_traefik; then
+    warn "the old network edge still has $(tr ' ' '\n' <<<"${NETMAP_SERVICES[edge]:-}" | grep -vx edge_traefik | tr '\n' ' ')- adding edge.legacy.yml (Traefik stays on it until they have moved: README.md section 15)"
+    files+=("${STACKS_DIR}/edge.legacy.yml")
+  elif docker network inspect edge >/dev/null 2>&1; then
+    log "nothing but Traefik is on the old network edge any more: deploying without edge.legacy.yml; afterwards: docker network rm edge"
   fi
   deploy_stack edge "${files[@]}"
   wait_for_stack edge

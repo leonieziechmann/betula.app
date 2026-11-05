@@ -1,0 +1,24 @@
+[package]
+name = "folia-sync"
+version = "0.1.0"
+edition = "2021"
+description = "Betula Sync: the stores of a profile as records, merged between devices by the later write of each"
+
+[lib]
+name = "folia_sync"
+
+# Pure logic, no browser and no server: what a change writes, how writes merge, what text the
+# merged records give back, and how writes travel. The browser seals and sends them
+# (folia_stores::sync); Phloem keeps them sealed (docs/phloem/protocol.md).
+[dependencies]
+
+[dev-dependencies]
+# The real store formats: what the stores write must come back from the records as they read it.
+folia-plans = { path = "../plans" }
+folia-calendar = { path = "../calendar" }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"

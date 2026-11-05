@@ -689,6 +689,9 @@ pub fn StudyPage() -> impl IntoView {
         None => open.with(Option::is_some),
     });
     let aside = move || view! { <StudyAside ctx open target/> };
+    // A module moved on two devices of the profile at once (Betula Sync) stands in each semester it
+    // was moved to; the hint over the study names it by its title where the page has it.
+    let title = Callback::new(move |id: String| modules.with(|(rows, _)| rows.iter().find(|row| row.id == id).map(|row| row.title.clone())).unwrap_or(id));
 
     (move || {
         if let Some(id) = filling.get() {
@@ -700,6 +703,7 @@ pub fn StudyPage() -> impl IntoView {
             <Frame title=t.study.title sheet=true sidebar=move || view! { <side::StudySidebar ctx/> } aside aside_picked=picked>
                 <StudySeo/>
                 <div class="page-inner study">
+                    <folia_widgets::syncnote::MovedNotes title/>
                     <StudyMain ctx/>
                 </div>
                 <dialog::DialogHost ctx/>

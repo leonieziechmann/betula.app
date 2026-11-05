@@ -1,7 +1,7 @@
 # Betula
 
 An unofficial catalog of the modules, study programs and study plans of BTU Cottbus-Senftenberg
-(https://betula.app). Betula is the birch; its three parts are named after the tree:
+(https://betula.app). Betula is the birch; its four parts are named after the tree:
 
 - **Cortex** (the bark, Go): the cache between Betula and the internet. The crawl's requests
   pass through it (`RADIX_CORTEX_URL`): it fetches from public hosts at one polite pace per host
@@ -13,6 +13,9 @@ An unofficial catalog of the modules, study programs and study plans of BTU Cott
   over HTTP.
 - **Folia** (the leaves, Rust): the web server and the browser app. It fetches the snapshots and
   redistributes them to browsers, which query the database locally through documented read views.
+- **Phloem** (the inner bark that carries both ways, Go): the service of Betula Sync. Once a
+  profile is switched on, it keeps the profile's records sealed by its devices (it can open none
+  of them) and hands them between them, live over a WebSocket (`docs/phloem/phloem.md`).
 
 ```
 QIS (module descriptions, tree, events), b-tu.de/modul ──Cortex──crawl──▶ raw page archive ──build──▶ canonical tables + views ──validate──▶ export ──HTTP──▶ Folia ──▶ browsers
@@ -28,6 +31,9 @@ statute PDFs (OPUS) ──Cortex──download-statutes──scan-curriculum (PD
 | [docs/radix/backend-data-overhaul.md](docs/radix/backend-data-overhaul.md) | the brief this design follows |
 | [docs/folia/frontend.md](docs/folia/frontend.md) | Folia: the web server and the browser app, flags, endpoints, checks |
 | [docs/folia/folia-refactor.md](docs/folia/folia-refactor.md) | Folia's restructuring: site and app, shell, workers, crates |
+| [docs/folia/sync.md](docs/folia/sync.md) | Betula Sync in Folia: the records and their merge, the browser's part, the actions, the checks |
+| [docs/phloem/phloem.md](docs/phloem/phloem.md) | Phloem: development, commands, settings, limits, the firewall, numbers and logs, deploy |
+| [docs/phloem/protocol.md](docs/phloem/protocol.md) | Betula Sync's protocol: names, what may reach what, HTTP, the WebSocket, what the browser seals |
 
 ## Repository
 
@@ -35,8 +41,9 @@ statute PDFs (OPUS) ──Cortex──download-statutes──scan-curriculum (PD
 |---|---|
 | `radix/` | Radix, one Go module (`github.com/leonieziechmann/betula/radix`): `cmd/radix`, `internal/` |
 | `cortex/` | Cortex, one Go module (`github.com/leonieziechmann/betula/cortex`): `cmd/cortex`, `internal/`, and `client/`, the client Radix imports (`radix/go.mod` replaces the module with `../cortex`) |
+| `phloem/` | Phloem, one Go module (`github.com/leonieziechmann/betula/phloem`): `cmd/phloem`, `internal/`, `deploy/firewall.nft` |
 | `folia/` | Folia, one Cargo workspace: `crates/<crate>` (package `folia-<crate>`), `assets/` (stylesheet, scripts, icons the server embeds), `e2e/` (browser checks), `design/` (sources of drawings and icons), `scripts/` (builds, the dev server) |
-| `docs/` | `radix/`, `folia/`, `cortex/`, and `history/` for the briefs and plans that are done |
+| `docs/` | `radix/`, `folia/`, `cortex/`, `phloem/`, and `history/` for the briefs and plans that are done |
 | `deploy/` | the stacks, the server set-up, `ship.sh` |
 | `research/` | experiments that are not part of the product (the semantic search's training and demos) |
 | `flake.nix` | the three binaries and their container images |

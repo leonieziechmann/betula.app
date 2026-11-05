@@ -55,6 +55,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/bookmarks?collection=…&turnus=…&stand=…&counts=1&lang=…&ects_min=…&campus=…&graded=yes&fits=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (the view — a collection by its number, `none` for „Ohne Sammlung", never its name —, half of the year, „Stand", „Zählt in meinem Studium", the few of the catalog's filters it has under the catalog's names, the order — `added`, `study`, `offer`, `title`, `ects`, `events`, each turned round with `desc=1` —, the previewed module), never what is on it: the marks live in the browser, and so does what is typed into the search at the head on this page (`folia_shell::search::LocalSearch`, R20). `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/widgets/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` is a sheet over the list (2026-10-06; until then it did what `full=1` does). The server renders an explanation, the same for everybody, `noindex` |
 | `/studyplan?sem=…&view=…&open=<id>&row=<key>&termin=<key>&on=<day>&wahl=e<event>&vergleich=1&import=…&variant=<n>[&share=<code>][&full=1]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20) — `termin` and `on` a Termin in its own view in the app's dialog over it, and with `full=1` filling the page („Ganze Seite", as `open=<id>&full=1` a module; `PlanAddress`; „A Termin in its own view"), `wahl` a choice of groups in focus over the week and `vergleich` its groups compared day by day („Offen and the choice in focus") —, with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
 | `/profile` | „Profil" (owner, 2026-10-14): the profiles of this browser and the active one's page — its name (renamed, deleted), „Mein Studiengang", what it keeps with the way to each and „Profil leeren", the settings every profile shares (light, dark or the system's; the language); in the sidebar the profiles (a click switches), „Neues Profil", and a profile kept as a file or made of one. What it shows lives in the browser; the address is the page and says nothing more. A page of a while: on a phone its arrow leads back to where the visitor was (2026-10-19). The server renders one stand-in for everybody, `noindex`, not in the sitemap („Profiles" below) |
+| `/verbinden#<…>` | „Gerät verbinden" (Betula Sync, 2026-11-05; „Betula Sync in the browser" below): the page the link of another device opens. What follows `#` opens a sealed parcel with the profile's key; it never reaches a server, and it leaves the address and the history as soon as the page has read it. The server renders an explanation, the same for everybody, `noindex`; no page links it |
 | `/impressum`, `/datenschutz` | The legal pages (`folia/crates/home/src/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of the start page and of the pages about Betula, and from the profile page („Über diese Seite" at its end), which every page leads to (the rail; on a phone the box at the head of the page); § 5 DDG: reachable at all times. Until 2026-11-03 the ground at the end of every page linked them („The birch"; owner: „ich würde gerne den footer raus nehmen aus den meisten seiten von betula. Um weiterhin compliant zu sein können wir bei der Profile page die links wieder machen und den footer bei der landing page lassen"). The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
@@ -5049,6 +5050,57 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   later layout is refused, not half read. Neither reaches the server; the privacy notice says so
   („Speicher im Browser“).
 
+### Betula Sync in the browser (`folia/crates/stores/src/sync`, `folia/crates/profile`; 2026-11-05)
+
+Owner, 2026-11-05: „Also, das was ich möchte ist, dass wir initial im offline/private modus
+starten. Und ab dem punkt, wo man Betula sync aktiviert dann wird das profil auf dem server abgelegt
+und die clients syncronisiert" (research/sync/entwurf.html; the service and its protocol:
+docs/phloem/protocol.md; the merge: `folia/crates/sync`). Every profile is private until it is
+switched on; R20 has the exception.
+
+- **The flag.** `FOLIA_SYNC` (`--sync`, off by default) offers it: every page then names in its
+  head where the browser reaches Phloem, `<meta name="betula-sync" content="…">`
+  (`folia_shell::document::SyncOffer`, which the server provides to every page it renders;
+  `folia_stores::sync::META`, read by `folia_stores::sync::offered`), empty for `/sync/v1/` of the
+  page's own host as Traefik routes it, else `FOLIA_SYNC_URL` (`--sync-url`: Phloem on a port of its
+  own while working on the site, which then has to accept the site as an origin, `PHLOEM_ORIGINS`).
+  The meta tag depends on the server's flag alone, never on a visitor (R9), and the page cache keeps
+  it with the page. Off, no page says a word of it, the profile page has no part for it, and every
+  profile is private. Folia sends no Content-Security-Policy, so the WebSocket needs no rule there.
+- **The profile page's part** („Betula Sync", `folia_profile::sync::SyncPart`, between what the
+  profile keeps and the settings), for the active profile. Private: what it is, and „Betula Sync
+  aktivieren", which first says what the server then keeps (sealed changes with their sizes and
+  times, random ids; never what is in them; deleted after 13 months untouched or with „Sync
+  beenden") and that a recovery code is offered afterwards, not asked for (without it the copy on
+  the server is gone when every device is), then „Aktivieren" or „Abbrechen". Synced: its state
+  with a dot (online with how many other devices, offline, a failure with what to do), and the
+  actions as the sidebar has them: „Weiteres Gerät verbinden" (a QR code on a light tile of its own,
+  readable by a camera in either theme, `folia_profile::qr` with `qrcodegen`; the link to copy; how
+  many minutes it still opens, ten in all, once; gone, „Neuer Link"), „Wiederherstellungscode
+  zeigen" (with „Code kopieren" and „Verbergen"), „Nur dieses Gerät trennen" and „Sync beenden",
+  each of the last two after a question on a line of its own. Ended on another device: private
+  again with all it holds, „Wieder aktivieren". Under it what two devices did at once in the
+  profile (`Sync::conflicts`), a row each with the way to where its hint is, and „Profil von einem
+  anderen Gerät": the recovery code typed in brings the profile as a new one, which becomes the
+  active one. The sidebar's line about where profiles live names Betula Sync where the site offers
+  it. Every action is a button.
+- **„Gerät verbinden"** (`/verbinden`, `url::CONNECT`, `folia_profile::connect::ConnectPage`): the
+  page the link of another device opens. It reads the part after `#` once, as it is made, and
+  replaces the entry of the history with the same address without it before anything else
+  happens; then `Sync::join` brings the profile as a new one of this browser, the page switches to
+  it and says so, with the ways to the Stundenplan and the profile, or says why it did not and what
+  to do (every `Problem` a sentence). A page of a while (`nav::passing`), `noindex`, not listed
+  (`url::listed`), linked by no page; the server writes the same explanation for everybody.
+- **The hints where the thing is** (`folia_widgets::syncnote`): a module's note typed on two
+  devices at once, under the note on the module's page (`collect::ModuleNote`), and a Termin's,
+  under its note in the Termin's view (`termin::NoteRow`): „Gleichzeitig auf einem anderen Gerät
+  geändert", the other version, „Diese Fassung übernehmen" (the store's own change, then the hint
+  goes) and „Behalten". A module moved on two devices at once, over the semesters of „Mein
+  Studium": it stands in each semester it was moved to, „Nur in …" keeps it in one of them, „Alle
+  behalten" lets it stand; a hint whose module stands in one semester only is done. Nothing is
+  decided for the visitor (owner, the design's question 6: the later version stands, the other one
+  beside it).
+
 ## 2. Rules
 
 R1–R8 from `docs/history/frontend-rewrite.md` §5 apply. In short: navigation state reaches pages as
@@ -5256,6 +5308,16 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   nothing; Folia's own log writes the page's path without its query and the picture's as
   `/cards/studyplan/….png`; the edge's access log keeps the address like every address. The
   privacy notice's part is „Stundenplan teilen".
+  And Betula Sync (owner, 2026-11-05: „ab dem punkt, wo man Betula sync aktiviert dann wird das
+  profil auf dem server abgelegt und die clients syncronisiert"; „Betula Sync", below): a profile
+  switched on, one by one on the profile page, reaches Phloem, the service of Betula Sync, sealed
+  with a key only its devices have (docs/phloem/protocol.md): its records as sealed batches and a
+  sealed snapshot, with their sizes and times and the random ids of its space and its devices.
+  Phloem can open none of it, and it reaches no address, no request of Folia and no server HTML;
+  the key goes from device to device behind `#` (`/verbinden#…`, which no browser sends) or as the
+  recovery code the visitor writes down. Off, per profile, until it is switched on, and on a site
+  only where the server offers it (`FOLIA_SYNC`). The privacy notice's part is „Abgleich zwischen
+  deinen Geräten (Betula Sync)".
 - **R21. A click answers in the next frame** (2026-09-23, „A click answers first"). What the
   visitor starts goes through `Pending` — links do by themselves; a handler that navigates calls
   `Pending::go`, not the router's `navigate` (that is for what the app does on its own). A
@@ -5597,6 +5659,8 @@ keeps serving the last good one when Radix is away, also after a restart.
 | `--card-cache-mb` | `FOLIA_CARD_CACHE_MB` | `64` | finished link-preview cards kept in memory |
 | `--public-url` | `FOLIA_PUBLIC_URL` | `https://betula.app` | the site's address from outside: canonical links, link previews, sitemap |
 | `--access-gate` | `FOLIA_ACCESS_GATE` | `off` | closed testing: the whole site asks for one shared password (see below) |
+| `--sync` | `FOLIA_SYNC` | `off` | Betula Sync: every page names where the browser reaches Phloem (`<meta name="betula-sync">`), and the profile page offers it („Betula Sync in the browser"); off until Phloem runs for the site |
+| `--sync-url` | `FOLIA_SYNC_URL` | (none) | where the browser reaches Phloem when `--sync` is on: none for `/sync/v1/` on the page's own host, as Traefik routes it; another address while working on the site |
 | `--log-format`, `--log-level` | `FOLIA_LOG_FORMAT`, `FOLIA_LOG_LEVEL` | `text`, `info` | `json` in production |
 
 `folia healthcheck` is not the server but its probe (like `radix healthcheck`): it asks the server

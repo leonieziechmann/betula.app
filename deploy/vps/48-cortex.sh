@@ -32,6 +32,12 @@
 #
 # The host policy, config/cortex/hosts.json, needs no deploy: both instances read it again within
 # 30 s of a change (deploy/sync.sh brings it). This script only refuses one that is no JSON object.
+#
+# The networks are those of vps/files/networks.conf (cortex_<instance>, made by 30-docker.sh). While
+# another service is still on the old network "cortex" (a Radix deployed from a betula.yml from
+# before), both instances stay on it as well, so that it keeps reaching them: the move to the
+# networks of the plan, README.md section 15. Deployed with that or without it is a revision of its
+# own, so the first run after the last Radix has left takes both off it (one at a time, as always).
 # Rollback = the previous tag again; it is still loaded (docker image ls betula-cortex).
 #
 # Environment (all optional):
@@ -50,6 +56,8 @@ set -Eeuo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 # shellcheck source=lib-stacks.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib-stacks.sh"
+# shellcheck source=lib-networks.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib-networks.sh"
 betula_init --tmp
 require_ubuntu
 
@@ -58,7 +66,9 @@ STACK_FILE="${STACKS_DIR}/cortex.yml"
 HOSTS_FILE="${CONFIG_DIR}/cortex/hosts.json"
 # The services of STACK_FILE; cortex_a and cortex_b in the swarm.
 INSTANCES=(a b)
-NETWORK="cortex"
+# The network from before vps/files/networks.conf, and whether the instances stay on it (preflight).
+LEGACY_NETWORK="cortex"
+WITH_LEGACY="no"
 # The service label that keeps the revision of STACK_FILE a service was deployed from.
 REV_LABEL="app.betula.cortex-rev"
 TAG_PATTERN='^[A-Za-z0-9][A-Za-z0-9_.-]{0,100}$'
@@ -151,12 +161,39 @@ instance_file() {
   ' "${STACK_FILE}"
 }
 
+# legacy_file X... -> a file (in the temp dir) that puts the services X... on LEGACY_NETWORK as
+# well; given after STACK_FILE while WITH_LEGACY is yes. Nothing else: the services come from
+# STACK_FILE, and a file that named the other service would deploy it as well.
+legacy_file() {
+  local file x
+  file="$(betula_tmpfile)"
+  {
+    printf 'services:\n'
+    for x in "$@"; do
+      printf '  %s:\n    networks:\n      %s: {}\n' "${x}" "${LEGACY_NETWORK}"
+    done
+    printf 'networks:\n  %s:\n    external: true\n' "${LEGACY_NETWORK}"
+  } >"${file}"
+  printf '%s' "${file}"
+}
+
+# stack_files X... -> the -c arguments for the services X...: STACK_FILE (or what instance_file
+# made of it, given as $STACK_PART), and the legacy file while WITH_LEGACY is yes.
+stack_files() {
+  printf -- '-c\n%s\n' "${STACK_PART:-${STACK_FILE}}"
+  if [[ "${WITH_LEGACY}" == "yes" ]]; then
+    printf -- '-c\n%s\n' "$(legacy_file "$@")"
+  fi
+}
+
 # stack_rev -> the revision of STACK_FILE: a checksum of what "docker stack config" makes of it,
 # with the image and the revision itself left out. Comments and layout do not count; the same for
-# both instances.
+# both instances. With the legacy file (WITH_LEGACY) it is another revision.
 stack_rev() {
   local out
-  out="$(CORTEX_IMAGE=betula-cortex:rev CORTEX_REV=rev docker stack config -c "${STACK_FILE}" 2>/dev/null)" ||
+  local -a args
+  mapfile -t args < <(stack_files "${INSTANCES[@]}")
+  out="$(CORTEX_IMAGE=betula-cortex:rev CORTEX_REV=rev docker stack config "${args[@]}" 2>/dev/null)" ||
     die "docker stack config cannot read ${STACK_FILE} (run it by hand to see why)"
   sha256sum <<<"${out}" | cut -c1-12
 }
@@ -374,7 +411,7 @@ wait_for_roles() {
       if [[ -n "${stuck}" ]]; then
         explain_instances
         if [[ "${stall_nl}" == "yes" ]]; then
-          die "${STACK}_${follower} cannot reach the leader ${STACK}_${lead} at ${URL[$lead]}: it ${stuck} (${summary}). Waiting longer will not help: docker service logs ${STACK}_${follower} 2>&1 | grep replica.failed says why (above: the tasks, the last log lines and what each says). Fix the way between the two (the network ${NETWORK}, the URL the leader announces), then run this script again: it goes on where it stopped"
+          die "${STACK}_${follower} cannot reach the leader ${STACK}_${lead} at ${URL[$lead]}: it ${stuck} (${summary}). Waiting longer will not help: docker service logs ${STACK}_${follower} 2>&1 | grep replica.failed says why (above: the tasks, the last log lines and what each says). Fix the way between the two (the network ${STACK}_default, the URL the leader announces), then run this script again: it goes on where it stopped"
         fi
         die "${STACK}_${follower} does not get on with the leader ${STACK}_${lead} at ${URL[$lead]}: it ${stuck}, state ${STATE[$follower]} (${summary}). It cannot reach the leader, or is stuck on one entry (a blob it cannot fetch): docker service logs ${STACK}_${follower} 2>&1 | grep replica.failed says why (above: the tasks, the last log lines and what each says). Only if it fetches one very large blob: STALL_TIMEOUT=<seconds> bash ${BETULA_ROOT}/vps/48-cortex.sh ${TAG} goes on where this stopped"
       fi
@@ -509,7 +546,11 @@ deploy_all() {
   done
   # never: the default asks a registry for the digest of the tag, and no registry knows the image.
   STACK_DEPLOY_ARGS=(--resolve-image never)
-  deploy_stack "${STACK}" "${STACK_FILE}"
+  if [[ "${WITH_LEGACY}" == "yes" ]]; then
+    deploy_stack "${STACK}" "${STACK_FILE}" "$(legacy_file "${INSTANCES[@]}")"
+  else
+    deploy_stack "${STACK}" "${STACK_FILE}"
+  fi
   for x in "${INSTANCES[@]}"; do
     check_told "${x}"
   done
@@ -520,6 +561,7 @@ deploy_all() {
 # not touched, and that is checked as well.
 deploy_instance() {
   local x=$1 y file before
+  local -a args
   y="$(other "${x}")"
   file="$(betula_tmpfile)"
   instance_file "${x}" >"${file}"
@@ -528,9 +570,10 @@ deploy_instance() {
   require_bind_sources "${file}"
   before="$(service_image "${STACK}_${y}") $(service_label "${STACK}_${y}" "${REV_LABEL}")"
   undrift "${x}"
-  log "docker stack deploy ${STACK}: ${STACK_FILE##*/}, service ${x} alone"
+  mapfile -t args < <(STACK_PART="${file}" stack_files "${x}")
+  log "docker stack deploy ${STACK}: ${STACK_FILE##*/}, service ${x} alone$([[ "${WITH_LEGACY}" == "yes" ]] && printf ', on the old network %s as well' "${LEGACY_NETWORK}")"
   # Without --prune: the other service is not in this file, and stays as it is.
-  docker stack deploy --detach=true --resolve-image never -c "${file}" "${STACK}"
+  docker stack deploy --detach=true --resolve-image never "${args[@]}" "${STACK}"
   check_told "${x}"
   [[ "$(service_image "${STACK}_${y}") $(service_label "${STACK}_${y}" "${REV_LABEL}")" == "${before}" ]] ||
     die "deploying ${STACK}_${x} alone changed ${STACK}_${y} as well: look at the layout of ${STACK_FILE} (its head)"
@@ -588,7 +631,7 @@ update() {
 
 preflight() {
   step "Preconditions"
-  local facts svc services
+  local svc services net
   if [[ "${EUID}" -eq 0 && -n "${SUDO_USER:-}" ]]; then
     die "run this as ${DEPLOY_USER} WITHOUT sudo: docker stack deploy reads CORTEX_IMAGE from the environment, and sudo resets it"
   fi
@@ -599,10 +642,18 @@ preflight() {
   [[ "${STALL_TIMEOUT}" =~ ^[0-9]{1,5}$ ]] || die "STALL_TIMEOUT='${STALL_TIMEOUT}' is not a number of seconds"
   require_cmd docker jq timeout sha256sum awk
   require_swarm_manager
-  # Internal: the application's way to Cortex must not be a way to the internet (vps/30-docker.sh).
-  facts="$(docker network inspect "${NETWORK}" --format '{{.Driver}} {{.Scope}} {{.Attachable}} {{.Internal}}' 2>/dev/null || true)"
-  [[ "${facts}" == "overlay swarm true true" ]] ||
-    die "overlay network ${NETWORK} is missing or not internal and attachable ('${facts:-missing}', wanted 'overlay swarm true true'; run sudo bash ${BETULA_ROOT}/vps/30-docker.sh)"
+  # The instances' ways to Cortex (cortex_<instance>, internal: not a way to the internet), made by
+  # vps/30-docker.sh from vps/files/networks.conf.
+  netplan_read
+  while IFS= read -r net; do
+    [[ "${net}" == cortex_* ]] && require_host_networks "${net}"
+  done < <(netplan_host_networks)
+  if network_used_by_others "${LEGACY_NETWORK}" "${STACK}_a" "${STACK}_b"; then
+    WITH_LEGACY="yes"
+    warn "the old network ${LEGACY_NETWORK} still has $(tr ' ' '\n' <<<"${NETMAP_SERVICES[${LEGACY_NETWORK}]:-}" | grep -vxE "${STACK}_(a|b)" | tr '\n' ' ')- both instances stay on it as well until they have moved (README.md section 15)"
+  elif docker network inspect "${LEGACY_NETWORK}" >/dev/null 2>&1; then
+    log "nothing but Cortex is on the old network ${LEGACY_NETWORK} any more: deployed without it; once both instances have left it: docker network rm ${LEGACY_NETWORK}"
+  fi
 
   log "release ${TAG}"
   docker image inspect "${CORTEX_IMAGE}" >/dev/null 2>&1 ||
@@ -645,7 +696,7 @@ report() {
   step "Done"
   docker stack services "${STACK}" --format '{{.Name}}  {{.Replicas}}  {{.Image}}' | sed 's/^/  /'
   log "$(roles_summary)"
-  log "the application reaches it at http://${STACK}_a:8100 and http://${STACK}_b:8100 over the network ${NETWORK}; 50-app.sh <instance> points an instance's Radix at it while this stack runs"
+  log "the application reaches it at http://${STACK}_a:8100 and http://${STACK}_b:8100 over cortex_<instance>, each instance over its own; 50-app.sh <instance> points an instance's Radix at it while this stack runs"
   log "next: bash ${BETULA_ROOT}/vps/91-verify-stacks.sh cortex"
 }
 

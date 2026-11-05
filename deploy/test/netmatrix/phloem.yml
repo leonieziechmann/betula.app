@@ -1,0 +1,50 @@
+# The stand-in of the stack "phloem" for deploy/test/netmatrix.sh: what docs/phloem/protocol.md
+# says of Phloem's place, not Phloem (that is stacks/phloem.yml): its two networks, the router of
+# /sync/v1/ above Folia's, its stats file, nothing published. It runs as uid 65532 without any
+# capability from the start; the harness loads its firewall (phloem/deploy/firewall.nft, as `phloem start` would) from outside.
+# Variables: NETMATRIX_DIR (the harness's work directory), STACK_NAME (phloem or phloem-canary),
+# APP_HOST (betula.app or canary.betula.app).
+
+services:
+  sync:
+    image: alpine:3.22
+    user: "65532:65532"
+    command: ["sh", "/standin/standin.sh"]
+    environment:
+      NAME: "${STACK_NAME}_sync"
+      LISTEN: "8200"
+      STATS_DIR: /stats
+    volumes:
+      - type: bind
+        source: "${NETMATRIX_DIR}/standin"
+        target: /standin
+        read_only: true
+      - type: bind
+        source: "/run/betula/phloem/${STACK_NAME}/stats"
+        target: /stats
+    read_only: true
+    cap_drop: [ALL]
+    networks:
+      in: {}
+      out: {}
+    deploy:
+      endpoint_mode: dnsrr
+      # A list: compose substitutes variables in values only, and the names of routers are keys.
+      labels:
+        - "app.betula.netmatrix=1"
+        - "traefik.enable=true"
+        - "traefik.swarm.network=${STACK_NAME}_in"
+        - "traefik.http.routers.${STACK_NAME}-sync.rule=Host(`${APP_HOST}`) && PathPrefix(`/sync/v1/`)"
+        - "traefik.http.routers.${STACK_NAME}-sync.entrypoints=websecure"
+        - "traefik.http.routers.${STACK_NAME}-sync.tls.certresolver=le"
+        - "traefik.http.routers.${STACK_NAME}-sync.priority=1000"
+        - "traefik.http.routers.${STACK_NAME}-sync.middlewares=secure-headers@file,sync-ratelimit@file"
+        - "traefik.http.routers.${STACK_NAME}-sync.service=${STACK_NAME}-sync"
+        - "traefik.http.services.${STACK_NAME}-sync.loadbalancer.server.port=8200"
+
+networks:
+  in:
+    external: true
+    name: "${STACK_NAME}_in"
+  out:
+    driver: overlay

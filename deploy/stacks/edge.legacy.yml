@@ -1,0 +1,17 @@
+# Override for the move to the networks of vps/files/networks.conf (README.md section 15), and for
+# nothing else: Traefik stays on the old network "edge" as well, while another service is still on
+# it (an instance deployed from a betula.yml from before, the placeholder from a placeholder.yml
+# from before), so that the site does not go dark while it moves. vps/40-stacks.sh adds this file
+# exactly then, and leaves it out once Traefik would be the only one left there; after that deploy:
+#   docker network rm edge
+# The old network is not internal and joins every web server with every other one; nothing new
+# may use it.
+
+services:
+  traefik:
+    networks:
+      edge: {}
+
+networks:
+  edge:
+    external: true

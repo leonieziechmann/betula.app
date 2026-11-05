@@ -99,11 +99,11 @@ pub fn chain_of(url: &str) -> Vec<String> {
     chain
 }
 
-/// A page of a while (the profile page, a Termin's own page): no tab's, it lies on top of the tab
+/// A page of a while (the profile page, „Gerät verbinden", a Termin's own page): no tab's, it lies on top of the tab
 /// it was opened from for as long as the visitor is on it, and its way back leads to the page
 /// under it (`chrome::Up::Before`).
 pub fn passing(path: &str) -> bool {
-    path == folia_routes::url::PROFILE || folia_routes::url::event_of(path).is_some()
+    path == folia_routes::url::PROFILE || path == folia_routes::url::CONNECT || folia_routes::url::event_of(path).is_some()
 }
 
 /// The tab a page belongs to, come to from the tab `from`: its area's, but a module's own page
@@ -1167,7 +1167,7 @@ mod tests {
         // The profile page is a page of a while: it stays in the tab it was opened from.
         assert_eq!(tab_of_page("/profile", Area::Catalog), Area::Catalog);
         assert_eq!(tab_of_page("/profile", Area::Home), Area::Home);
-        assert!(passing("/profile") && !passing("/profile/x") && !passing("/") && !passing("/catalog"));
+        assert!(passing("/profile") && passing(folia_routes::url::CONNECT) && !passing("/profile/x") && !passing("/") && !passing("/catalog"));
         // A Termin's own page too.
         assert_eq!(tab_of_page("/event/148370-eb017/2026-11-02", Area::Catalog), Area::Catalog);
         assert!(passing("/event/148370-eb017") && !passing("/event/x"));
