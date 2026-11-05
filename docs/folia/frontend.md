@@ -2209,7 +2209,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     are complete, the stored placeholders of the semester as „Vorgemerkt", what is open from the
     Fachsemester before it (the Pflicht's rows that stand nowhere, choices not complete — the FÜS of
     the 1. FS —, what was not passed and is not planned again) and, folded, what the next
-    Fachsemester could take now. *A subgroup*: a choice's modules (its lists, the FÜS list for the
+    Fachsemester could take now (as on a phone, see below). *A subgroup*: a choice's modules (its lists, the FÜS list for the
     FÜS) or the Pflicht's (by the Fachsemester the plan puts them into), its head with the area,
     what the plan asks and the rule; „Fach" where a choice has several lists, „Im WiSe angeboten",
     „Passt in meine Woche" and a search above the list, which change only the list; the list in
@@ -2263,7 +2263,16 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (what is planned stands in the semester over it, not in the sheet), the choices (one reserved
     in the semester says „vorgemerkt"), what else is reserved and what is open from before; „Aus
     dem 4. FS vorziehen" with what the next Fachsemester puts in and is not in the semester yet
-    (1.71 a page of its own); then the ways „Alle Bereiche ›", „Gemerkt ›" and „Im Katalog
+    (1.71 a page of its own), since Folia 1.74.3 only what the semester can take (owner,
+    2026-11-05: „das ergibt ja nur sinn für module, die in dem ausgewählten semester auch angeboten
+    werden und wofür die voraussetzungen erfüllt sind"; `bench::Due::ahead`): a Pflichtmodul the
+    semester offers and has in place what it requires („setzt voraus", the same rule as the
+    semester's mark, `picker::lacks_required`; what is only recommended does not count), a choice
+    with one module of its lists that is so, or one already taken in the semester (the root asks for
+    the catalog's rows of those lists). Informatik's 4. FS seen from a WiSe suggests its two choices,
+    not Betriebssysteme I and the Digitaltechnik-Praktikum, which only a SoSe offers. What is not
+    suggested is no limit: it stays where the plan puts it and in its area's list, from where it can
+    be planned into the semester all the same; then the ways „Alle Bereiche ›", „Gemerkt ›" and „Im Katalog
     suchen". One level of headings, two kinds of rows (the same day: „wir müssen an dem konzept
     arbeiten, wie module dargestellt werden. Hier ist auch wieder das problem visuell unordentlich
     und unbalanciert … Das gleiche beim wp placeholder"): a module (`bench::sheet_line`) is its

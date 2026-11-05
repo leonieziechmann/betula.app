@@ -10,8 +10,9 @@
 //! (`folia_plans::bench`), one area open at a time; „Gemerkt" and „Im Katalog suchen" under them.
 //! In the middle what is picked: „Laut Plan" with „Plan übernehmen" (it plans at once, with
 //! „Rückgängig"), a choice with „Wählen ›", what is open from before and what the next Fachsemester
-//! could take now; a subgroup's modules in groups by the student's week (`pages::fit`: they fit,
-//! they meet it, they have no fixed dates, the semester does not offer them), with „Fach", „Im
+//! could take now (what the semester offers and has in place what it requires, `ahead`); a
+//! subgroup's modules in groups by the student's week (`pages::fit`: they fit, they meet it, they
+//! have no fixed dates, the semester does not offer them), with „Fach", „Im
 //! WiSe angeboten", „Passt in meine Woche" and a search above them, which change only what stands
 //! below them (CLAUDE.md, „What picks stands above what it changes"). Each row plans at once
 //! („+ Einplanen") and counts for the subgroup it was planned from (`bench::plan_for`); a click on
@@ -46,13 +47,13 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::OfferStatus;
-use folia_model::rows::CatalogRow;
+use folia_model::rows::{CatalogRow, Prerequisite};
 use folia_pages::ask::{FitAsk, StudyModulesAsk};
 use folia_pages::FitResult;
 use folia_plans::bench::{self as model, Bench as Groups, Due, Group, GroupKind};
 use folia_plans::choices::{self, PlanView, RowState};
 use folia_plans::study::{self, Offer, Pick, Subject, When};
-use folia_plans::studyplan::RowRef;
+use folia_plans::studyplan::{PlanDoc, RowRef};
 use folia_plans::variants;
 use folia_routes::filter::{CatalogQuery, FitsFilter, ProgramScope, TurnusFilter};
 use folia_routes::url::CatalogUrl;
@@ -64,7 +65,7 @@ use folia_design::ui::{Icon, Shortcut};
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::studyplan::BenchAim;
 
-use super::picker::offer_note;
+use super::picker::{lacks_required, offer_note};
 use super::{module_href, n, now_secs, Plans, Ready, StudyCtx};
 use crate::i18n::{self, Texts};
 
@@ -361,12 +362,14 @@ fn unplan_module(ctx: StudyCtx, s: SemesterKey, id: String, title: String, t: &'
 }
 
 /// The catalog's rows a pane asks for besides the ones the page has: a choice's lists, the FÜS
-/// list, the Merkliste.
+/// list, the Merkliste; for „Laut Plan" the lists of the next Fachsemester's choices, which
+/// „vorziehen" suggests where one of their modules can be taken (`ahead`).
 fn asked_ids(model: &Model, pane: Pane, fues: &[String], marked: &[String]) -> Vec<String> {
+    let lists_of = |group: &Group| model::candidates(&model.view, group, fues).into_iter().map(|(id, _)| id);
     let mut ids: Vec<String> = match pane {
-        Pane::Group(at) => model.groups.groups.get(at).map(|group| model::candidates(&model.view, group, fues).into_iter().map(|(id, _)| id).collect()).unwrap_or_default(),
+        Pane::Group(at) => model.groups.groups.get(at).map(|group| lists_of(group).collect()).unwrap_or_default(),
         Pane::Marked => marked.to_vec(),
-        Pane::Plan => Vec::new(),
+        Pane::Plan => model.due.next_choices.iter().filter_map(|choice| model.groups.of_choice(*choice)).filter_map(|at| model.groups.groups.get(at)).flat_map(lists_of).collect(),
     };
     ids.sort();
     ids.dedup();
@@ -581,6 +584,8 @@ struct Parts {
     pane: Memo<Option<Pane>>,
     /// The catalog's rows of what the pane lists, with the page's.
     rows: Memo<BTreeMap<String, CatalogRow>>,
+    /// What they ask for of other modules, with what the page's ask for.
+    needs: Memo<Vec<Prerequisite>>,
     week: Memo<Option<Week>>,
     /// „24/30": what the semester holds against what the plan puts into it.
     plan_figure: Memo<Option<(String, bool)>>,
@@ -637,6 +642,15 @@ impl Parts {
             });
             rows
         });
+        let needs = Memo::new(move |_| {
+            let mut needs = ctx.needs.get();
+            asked.with(|asked| {
+                if let Some(Ok(modules)) = asked {
+                    needs.extend(modules.prerequisites.iter().cloned());
+                }
+            });
+            needs
+        });
         // The week of the semester as the plan has it: what it plans, hides and has chosen there.
         let mine = folia_stores::myprogram::MyProgram::expect();
         let fit = use_ask(move || {
@@ -660,6 +674,7 @@ impl Parts {
             model,
             pane,
             rows,
+            needs,
             week,
             plan_figure,
             marked,
@@ -1070,6 +1085,7 @@ fn PlanPane(ctx: StudyCtx, parts: Parts) -> impl IntoView {
         let (Some(model), Some(s)) = (parts.model.get(), parts.semester.get()) else { return ().into_any() };
         // Read so that a new answer redraws the rows.
         parts.rows.track();
+        parts.needs.track();
         parts.week.track();
         let fs = fs_words(&model, t);
         let title = fs.as_deref().map_or_else(|| b.plan_title_plain.to_string(), |fs| (b.plan_title)(fs));
@@ -1100,11 +1116,12 @@ fn PlanPane(ctx: StudyCtx, parts: Parts) -> impl IntoView {
         let mut earlier: Vec<AnyView> = model.due.earlier.iter().filter_map(|at| plan_line_view(ctx, parts, &model, *at, plan_fs_of(*at), s, t)).collect();
         earlier.extend(model.due.earlier_choices.iter().filter_map(|at| choice_view(ctx, &model, *at, t)));
         earlier.extend(retake_rows(ctx, parts, &model, s, t));
-        let next_count = model.due.next.len() + model.due.next_choices.len();
+        let (ahead_rows, ahead_choices) = ahead(ctx, parts, &model, s);
+        let next_count = ahead_rows.len() + ahead_choices.len();
         let next_fs = model.fs.map(|fs| (t.study.fs)(fs + 1));
         let next = more.get().then(|| {
-            let mut views: Vec<AnyView> = model.due.next.iter().filter_map(|at| plan_line_view(ctx, parts, &model, *at, area_of(*at).map(|area| (b.of_area)(&area)), s, t)).collect();
-            views.extend(model.due.next_choices.iter().filter_map(|at| choice_view(ctx, &model, *at, t)));
+            let mut views: Vec<AnyView> = ahead_rows.iter().filter_map(|at| plan_line_view(ctx, parts, &model, *at, area_of(*at).map(|area| (b.of_area)(&area)), s, t)).collect();
+            views.extend(ahead_choices.iter().filter_map(|at| choice_view(ctx, &model, *at, t)));
             views
         });
         view! {
@@ -2062,6 +2079,32 @@ fn still_open(ctx: StudyCtx, model: &Model, at: usize, s: SemesterKey) -> bool {
     })
 }
 
+/// What „Aus dem 4. FS vorziehen" suggests for semester `s` (`Due::ahead`): the next
+/// Fachsemester's rows and choices with a module `s` can take — not passed, offered in `s`, what it
+/// requires („setzt voraus") in place by then (`picker::lacks_required`, what the semester warns
+/// of). A module whose catalog row has not come yet counts as offered, as a row of the plan
+/// without one does. The callers track `parts.rows` and `parts.needs`.
+fn ahead(ctx: StudyCtx, parts: Parts, model: &Model, s: SemesterKey) -> (Vec<usize>, Vec<usize>) {
+    let now = ctx.now.get_untracked();
+    let fues = fues_of(ctx);
+    let judge = |doc: &PlanDoc| {
+        parts.rows.with_untracked(|rows| {
+            parts.needs.with_untracked(|needs| {
+                let takes = |id: &str| {
+                    let row = rows.get(id);
+                    let own = row.map_or(id, |row| row.title.as_str());
+                    doc.passed_in(id).is_none() && row.map_or_else(Offer::default, Offer::of).offered(s) && !lacks_required(doc, needs, id, own, s, now)
+                };
+                model.due.ahead(&model.view, &model.groups, s, &fues, takes)
+            })
+        })
+    };
+    match ctx.plan {
+        Some(plan) => plan.with_untracked(judge),
+        None => judge(&PlanDoc::default()),
+    }
+}
+
 /// The root of the sheet (owner, 2026-11-04: „Der aufbau soll also jetzt sein: Module aus dem
 /// semester, Module vorziehen, Page für alle Bereiche, Page gemerkt, Im katalog suchen"): what the
 /// plan puts into the semester, what the next Fachsemester could take now, and the ways to all the
@@ -2119,8 +2162,8 @@ fn SheetPlan(ctx: StudyCtx, parts: Parts) -> impl IntoView {
 }
 
 /// „Aus dem 4. FS vorziehen" at the root, under what the semester's own Fachsemester asks: what the
-/// plan puts into the next one and is not in the semester yet, each planned at once, its choices
-/// going into their lists.
+/// plan puts into the next one, is not in the semester yet and the semester can take (`ahead`),
+/// each planned at once, its choices going into their lists.
 #[component]
 fn SheetNext(ctx: StudyCtx, parts: Parts) -> impl IntoView {
     let t = i18n::t();
@@ -2129,11 +2172,13 @@ fn SheetNext(ctx: StudyCtx, parts: Parts) -> impl IntoView {
         parts.follow(ctx);
         let (Some(model), Some(s)) = (parts.model.get(), parts.semester.get()) else { return ().into_any() };
         parts.rows.track();
+        parts.needs.track();
         parts.week.track();
         let Some(fs) = model.fs else { return ().into_any() };
+        let (next, next_choices) = ahead(ctx, parts, &model, s);
         let area_of = |at: usize| model.view.lines.get(at).and_then(|line| line.area).and_then(|area| ctx.with_ready(|ready| ready.area_name(Some(area), t)));
-        let mut rows: Vec<AnyView> = model.due.next.iter().filter(|at| still_open(ctx, &model, **at, s)).filter_map(|at| sheet_plan_line(ctx, parts, &model, *at, area_of(*at).map(|area| (b.of_area)(&area)), s, t)).collect();
-        rows.extend(model.due.next_choices.iter().filter_map(|at| sheet_choice(ctx, &model, *at, s, t)));
+        let mut rows: Vec<AnyView> = next.iter().filter(|at| still_open(ctx, &model, **at, s)).filter_map(|at| sheet_plan_line(ctx, parts, &model, *at, area_of(*at).map(|area| (b.of_area)(&area)), s, t)).collect();
+        rows.extend(next_choices.iter().filter_map(|at| sheet_choice(ctx, &model, *at, s, t)));
         if rows.is_empty() {
             return ().into_any();
         }
