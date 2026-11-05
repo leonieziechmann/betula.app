@@ -5,8 +5,8 @@
 # asked directly all the same (owner, 2026-10-02: Cortex is for data only).
 #
 # vps/50-app.sh adds this file while the stack cortex runs (both services converged; it waits a
-# while for one that is being updated). The network "cortex" is in betula.yml already, because
-# Prometheus scrapes Radix over it either way; only the URL waits for Cortex: through a Cortex
+# while for one that is being updated). The network cortex_<stack> is in betula.yml already, because
+# the scraper scrapes Radix over it either way; only the URL waits for Cortex: through a Cortex
 # that does not run, every fetch would fail. Without this file a Radix that crawls fetches
 # directly, through betula.egress.yml.
 #

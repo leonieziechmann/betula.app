@@ -1,4 +1,5 @@
-# Stack "monitoring": Grafana + Loki + Prometheus + Grafana Alloy.
+# Stack "monitoring": Grafana + Loki + Prometheus + Grafana Alloy, and the scraper (a Prometheus in agent
+# mode) in front of Prometheus.
 #
 #   bash /opt/betula/vps/40-stacks.sh monitoring     # the normal way: creates the admin secret, picks the
 #                                                    # overrides (DNS check, SMTP secrets), exports
@@ -29,8 +30,8 @@
 #                   ("betula" = your ssh alias for deploy@betula.app.) Without the secret the
 #                   deploy stops with "secret not found".
 #                   Login: user "betula" (GRAFANA_ADMIN_USER, see the grafana service) + that password.
-#   - overlay nets  monitoring and cortex (external, attachable, cortex internal; vps/30-docker.sh
-#                   creates them)
+#   - overlay nets  edge_metrics and cortex_<instance> (external, internal; vps/30-docker.sh makes
+#                   them from vps/files/networks.conf)
 #   - directories   /opt/betula/config/monitoring and /var/log/journal (journald Storage=persistent,
 #                   vps/10-base.sh). A missing bind source makes Swarm reject the task ("bind source
 #                   path does not exist"); 40-stacks.sh checks every bind source before it deploys.
@@ -41,13 +42,28 @@
 # Config files are bind mounts, so Swarm does not notice when one changes (and sync.sh replaces
 # a changed file, so a single-file mount like loki.yml even keeps showing the old one). Hence
 # MONITORING_CONFIG_REV: vps/40-stacks.sh exports a checksum of /opt/betula/config/monitoring,
-# and a new value restarts all four services. By hand:
+# and a new value restarts all five services. By hand:
 #   docker service update --force monitoring_<service>
+#
+# Networks (vps/files/networks.conf, README.md section 15). Each holds the members of one relation:
+#   query    Grafana, Prometheus, Loki: what the dashboards and alerts ask; Loki's ruler writes
+#            its numbers to Prometheus
+#   collect  Alloy, Prometheus, Loki: logs and host metrics come in. Alloy is root-equivalent on
+#            the host (see the service), so nothing public (Grafana) shares a network with it
+#   relay    the scraper and Prometheus
+#   notify   Grafana alone: its way out, for the notification channels
+# All but notify are internal: nothing else in this stack reaches the internet. Of the networks
+# outside the stack only the scraper is on any: edge_metrics (Traefik's metrics) and
+# cortex_<instance> (Cortex, the Radix of that instance). Those are networks with services that
+# face the internet, and a network has no direction: Prometheus, which takes writes from whoever
+# reaches it (--web.enable-remote-write-receiver) and answers any query, stays off them, and what
+# reaches the scraper from there finds nothing but its status pages. Grafana is public through
+# monitoring.public.yml (edge_grafana: Traefik and Grafana).
 #
 # Nothing here publishes a port; Grafana becomes public only through monitoring.public.yml
 # (its DNS record exists, so that override is part of the first deploy). Without it, or when
 # Traefik is the thing that is broken, use an SSH tunnel to the container's address on
-# docker_gwbridge:
+# docker_gwbridge (Grafana has one through "notify"):
 #   server:  cid=$(docker ps -q --no-trunc -f name=monitoring_grafana | head -n 1)
 #            docker network inspect docker_gwbridge -f "{{(index .Containers \"$cid\").IPv4Address}}"
 #   laptop:  ssh -N -L 3000:<that address without the /prefix>:3000 betula     (your ssh alias)
@@ -59,7 +75,8 @@
 #                                    node_filesystem_avail_bytes{mountpoint="/"}
 #   Grafana > Explore > Loki:        {job="docker"}  and  {job="journal"}
 #
-# Memory budget (limits): grafana 768M + loki 288M + prometheus 256M + alloy 288M = 1600M.
+# Memory budget (limits): grafana 768M + loki 288M + prometheus 256M + alloy 288M + scraper 128M
+# = 1728M.
 # Measured host: 4 vCPU, 5.9 GB RAM. The budget stays: the memory belongs to the application,
 # and Radix's build step is the big consumer. No reservations: a reservation that does
 # not fit keeps a task pending forever. CPU limits stay <= 1.0, so a query storm in the
@@ -127,7 +144,8 @@ services:
       - /opt/betula/config/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - /opt/betula/config/monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
     networks:
-      default: {}
+      query: {}
+      notify: {}
     labels:
       app.betula.config-rev: "${MONITORING_CONFIG_REV:-0}"
     cap_drop: [ALL]
@@ -162,7 +180,8 @@ services:
       # every minute and sees a changed file without a restart.
       - /opt/betula/config/monitoring/loki-rules:/etc/loki/rules:ro
     networks:
-      default: {}
+      query: {}
+      collect: {}
     labels:
       app.betula.config-rev: "${MONITORING_CONFIG_REV:-0}"
     cap_drop: [ALL]
@@ -195,14 +214,12 @@ services:
     volumes:
       - prometheus-data:/prometheus
       - /opt/betula/config/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    # The only member of this stack on the shared overlays: it scrapes edge_traefik:8082 over
-    # "monitoring", and Cortex (cortex_a:8100, cortex_b:8100) and every instance's Radix
-    # (tasks.<stack>_radix:8090) over "cortex", which is internal: Radix is on internal networks
-    # only (stacks/betula.yml).
+    # Only the networks of this stack: what lies outside it (Traefik, Cortex, Radix) is scraped by
+    # the scraper, which writes it here (relay).
     networks:
-      default: {}
-      monitoring: {}
-      cortex: {}
+      query: {}
+      collect: {}
+      relay: {}
     labels:
       app.betula.config-rev: "${MONITORING_CONFIG_REV:-0}"
     cap_drop: [ALL]
@@ -244,7 +261,7 @@ services:
     # image store) the embedded cAdvisor must also talk to containerd's gRPC socket, which
     # an HTTP socket proxy cannot filter, and it needs the host root at /rootfs anyway. A
     # proxy in front of docker.sock alone would not lower the privilege. What limits the
-    # risk: Alloy publishes no port, sits only on the stack-internal network, the image
+    # risk: Alloy publishes no port, sits only on "collect" (internal; Prometheus and Loki), the image
     # tag is pinned, and it runs as root (needed for the journal and /proc) but without
     # "privileged" (Swarm cannot grant it; the cost is no OOM events from /dev/kmsg and no
     # per-container disk usage - OOM kills are alerted on from the kernel journal instead).
@@ -266,7 +283,7 @@ services:
         bind:
           propagation: rslave                     # host unmounts propagate, nothing is kept busy
     networks:
-      default: {}
+      collect: {}
     labels:
       app.betula.config-rev: "${MONITORING_CONFIG_REV:-0}"
     healthcheck:
@@ -295,12 +312,75 @@ services:
           cpus: "0.75"
           memory: 288M
 
+  scraper:
+    # Prometheus in agent mode: it scrapes what lies outside this stack (config/monitoring/scraper.yml:
+    # Traefik over edge_metrics, Cortex and every instance's Radix over cortex_<instance>) and
+    # hands the samples to Prometheus over "relay" (remote write). It keeps nothing but a
+    # write-ahead log and answers no query: in agent mode the query API is off, and neither the
+    # remote-write receiver, the admin API nor --web.enable-lifecycle is on. What reaches it from
+    # the scraped networks finds its status pages and nothing else.
+    image: prom/prometheus:v3.13.3
+    command:
+      - --agent
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.agent.path=/prometheus
+    volumes:
+      # The write-ahead log: what Prometheus has not taken yet survives a restart of either.
+      - scraper-data:/prometheus
+      - /opt/betula/config/monitoring/scraper.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      relay: {}
+      edge_metrics: {}
+      cortex_betula: {}
+      cortex_betula-green: {}
+      cortex_canary: {}
+      cortex_canary-green: {}
+    labels:
+      app.betula.config-rev: "${MONITORING_CONFIG_REV:-0}"
+    read_only: true
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "--spider", "http://127.0.0.1:9090/-/healthy"]
+      interval: 30s
+      timeout: 6s
+      retries: 5
+      start_period: 60s
+    deploy:
+      replicas: 1
+      placement: *placement
+      restart_policy: *restart
+      update_config:
+        order: stop-first   # the write-ahead log is locked by one process
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
 networks:
-  default:
+  # vps/files/networks.conf has the members of each; the header says what each is for.
+  query:
     driver: overlay
-  monitoring:
+    internal: true
+  collect:
+    driver: overlay
+    internal: true
+  relay:
+    driver: overlay
+    internal: true
+  notify:
+    driver: overlay
+  # Made by vps/30-docker.sh: Traefik and the scraper.
+  edge_metrics:
     external: true
-  cortex:
+  # Made by vps/30-docker.sh: that instance's Radix, Cortex and the scraper. A new instance needs
+  # its network here (README.md section 15).
+  cortex_betula:
+    external: true
+  cortex_betula-green:
+    external: true
+  cortex_canary:
+    external: true
+  cortex_canary-green:
     external: true
 
 volumes:
@@ -308,6 +388,7 @@ volumes:
   loki-data: {}
   prometheus-data: {}
   alloy-data: {}
+  scraper-data: {}
 
 secrets:
   grafana-admin-password:

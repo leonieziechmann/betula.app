@@ -34,6 +34,12 @@
 # without either, Radix is deployed off instead, with a WARN. Checked after the deploy on what
 # swarm was told.
 #
+# The networks (vps/files/networks.conf, README.md section 15): the instance's own edge_<stack>
+# (Traefik and its web server) and cortex_<stack> (its Radix, Cortex, the scraper), made by
+# vps/30-docker.sh. Nothing is deployed while one is missing, while Traefik is not on edge_<stack>
+# (it could not route to the web server), or while Cortex runs without cortex_<stack> (Radix could
+# not reach it). Both services are on internal networks only, but for <stack>_egress.
+#
 # Environment (all optional):
 #   PUBLIC_ADDRESSES="..."  this machine's public addresses, if they are not on an interface (NAT)
 #   CONVERGE_TIMEOUT=600    seconds to wait for the stack (Radix counts as started after its
@@ -44,6 +50,8 @@ set -Eeuo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 # shellcheck source=lib-stacks.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib-stacks.sh"
+# shellcheck source=lib-networks.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib-networks.sh"
 betula_init
 require_ubuntu
 
@@ -261,7 +269,7 @@ radix_image_cortex() {
 
 preflight() {
   step "Preconditions"
-  local facts image owner
+  local image owner
   if [[ "${EUID}" -eq 0 && -n "${SUDO_USER:-}" ]]; then
     die "run this as ${DEPLOY_USER} WITHOUT sudo: docker stack deploy reads the instance's values from the environment, and sudo resets it"
   fi
@@ -270,17 +278,13 @@ preflight() {
   [[ "${CONVERGE_TIMEOUT}" =~ ^[0-9]{1,5}$ ]] || die "CONVERGE_TIMEOUT='${CONVERGE_TIMEOUT}' is not a number of seconds"
   require_cmd docker ip
   require_swarm_manager
-  local net
-  for net in edge monitoring cortex; do
-    facts="$(docker network inspect "${net}" --format '{{.Driver}} {{.Scope}} {{.Attachable}}' 2>/dev/null || true)"
-    [[ "${facts}" == "overlay swarm true" ]] || die "overlay network ${net} is missing or not attachable (run vps/30-docker.sh)"
-  done
-  # Radix's way to Cortex and Prometheus must not be a way to the internet. Docker sets the flag
-  # when it creates a network and never changes it.
-  facts="$(docker network inspect cortex --format '{{.Internal}}' 2>/dev/null || true)"
-  [[ "${facts}" == "true" ]] ||
-    die "overlay network cortex is not internal: it would give Radix a way to the internet. Remove it once nothing uses it (docker network inspect cortex), then run vps/30-docker.sh"
+  # The instance's two networks, as the plan has them: internal, so neither is a way to the
+  # internet (Docker sets the flag when it creates a network and never changes it).
+  netplan_read
+  require_host_networks "edge_${INSTANCE_STACK}" "cortex_${INSTANCE_STACK}"
   stack_exists edge || die "stack edge is not deployed: nothing would route to the application (run vps/40-stacks.sh)"
+  service_on_network edge_traefik "edge_${INSTANCE_STACK}" ||
+    die "edge_traefik is not on the network edge_${INSTANCE_STACK}: it could not route to this instance's web server. bash ${BETULA_ROOT}/vps/40-stacks.sh edge first (stacks/edge.yml names it; README.md section 15)"
 
   log "instance ${INSTANCE_STACK}: https://${INSTANCE_HOST}, closed testing ${INSTANCE_GATE}, crawling ${INSTANCE_CRAWL}, release ${TAG}"
   for image in "${RADIX_IMAGE}" "${FOLIA_IMAGE}"; do
@@ -343,7 +347,7 @@ deploy_app() {
   # cortex-offline came this far only with a Cortex that runs (decide_radix_mode).
   VIA_CORTEX="off"
   RADIX_SUPPORT=""
-  local direct="no Cortex"
+  local direct="no Cortex" x
   if [[ "${CORTEX_RUNS}" == "yes" ]]; then
     if [[ "${RADIX_MODE}" == "on" ]]; then
       RADIX_SUPPORT="$(radix_image_cortex)"
@@ -355,6 +359,11 @@ deploy_app() {
       warn "the stack cortex runs (${CORTEX_DETAIL}), but ${RADIX_IMAGE} is a release from before Cortex (its run has no --cortex): ${CORTEX_FILE##*/} is left out, and Radix fetches from the university directly, with a way out of its own. A newer release fetches through Cortex (deploy/ship.sh ${INSTANCE_STACK})"
     else
       VIA_CORTEX="on"
+      # Radix reaches Cortex over cortex_<stack> alone.
+      for x in a b; do
+        service_on_network "cortex_${x}" "cortex_${INSTANCE_STACK}" ||
+          die "the stack cortex runs, but cortex_${x} is not on the network cortex_${INSTANCE_STACK}: Radix could not reach it. bash ${BETULA_ROOT}/vps/48-cortex.sh first (stacks/cortex.yml names it; README.md section 15). Nothing was deployed"
+      done
       log "the stack cortex runs (${CORTEX_DETAIL}): adding ${CORTEX_FILE##*/} (Radix fetches through Cortex)"
       files+=("${CORTEX_FILE}")
       if [[ "${RADIX_MODE}" == "cortex-offline" ]]; then
@@ -462,8 +471,8 @@ deploy_app() {
       die "service ${INSTANCE_STACK}_radix was attached to the network ${name}, which is not internal (${internal}): a way to the internet no file of this deploy meant. Look at the networks of ${APP_FILE} and the files after it"
     fi
   done < <(service_networks "${INSTANCE_STACK}_radix")
-  [[ " ${attached}" == *" cortex "* && " ${attached}" == *" ${INSTANCE_STACK}_snapshot "* ]] ||
-    die "service ${INSTANCE_STACK}_radix is attached to '${attached% }', not to cortex (Cortex, Prometheus) and ${INSTANCE_STACK}_snapshot (Folia): look at the networks of ${APP_FILE}"
+  [[ " ${attached}" == *" cortex_${INSTANCE_STACK} "* && " ${attached}" == *" ${INSTANCE_STACK}_snapshot "* ]] ||
+    die "service ${INSTANCE_STACK}_radix is attached to '${attached% }', not to cortex_${INSTANCE_STACK} (Cortex, the scraper) and ${INSTANCE_STACK}_snapshot (Folia): look at the networks of ${APP_FILE}"
   if [[ "${egress}" != "${WITH_EGRESS}" ]]; then
     if [[ "${WITH_EGRESS}" == "on" ]]; then
       die "service ${INSTANCE_STACK}_radix was not attached to ${INSTANCE_STACK}_egress, the way to the internet it needs: look at ${EGRESS_FILE}"
@@ -471,6 +480,18 @@ deploy_app() {
     die "service ${INSTANCE_STACK}_radix was attached to ${INSTANCE_STACK}_egress although ${EGRESS_FILE##*/} was left out, so it has a way to the internet it must not have: look at the networks of ${APP_FILE} and the files after it"
   fi
   log "${INSTANCE_STACK}_radix is on ${attached% }: it ${RADIX_WAYS}"
+  # The web server: exactly edge_<stack> (Traefik) and <stack>_snapshot (Radix), both internal.
+  # It fetches nothing from outside, and a network more would join it with something else.
+  attached=""
+  while read -r name internal; do
+    [[ -n "${name}" ]] || continue
+    attached+="${name} "
+    [[ "${internal}" == "true" ]] ||
+      die "service ${INSTANCE_STACK}_folia was attached to the network ${name}, which is not internal (${internal}): a way to the internet it must not have. Look at the networks of ${APP_FILE}"
+  done < <(service_networks "${INSTANCE_STACK}_folia")
+  [[ "$(tr ' ' '\n' <<<"${attached}" | sed '/^$/d' | sort | tr '\n' ' ')" == "$(printf '%s\n' "edge_${INSTANCE_STACK}" "${INSTANCE_STACK}_snapshot" | sort | tr '\n' ' ')" ]] ||
+    die "service ${INSTANCE_STACK}_folia is attached to '${attached% }', not to exactly edge_${INSTANCE_STACK} (Traefik) and ${INSTANCE_STACK}_snapshot (Radix): look at the networks of ${APP_FILE}"
+  log "${INSTANCE_STACK}_folia is on ${attached% }: Traefik and its Radix, nothing else"
   wait_for_stack "${INSTANCE_STACK}"
 }
 
