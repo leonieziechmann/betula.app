@@ -1,6 +1,6 @@
 [package]
 name = "folia-design"
-version = "1.74.2"
+version = "1.75.0"
 edition = "2021"
 description = "The design of Betula's app: building blocks, icons, formats, the browser's means and the languages"
 
