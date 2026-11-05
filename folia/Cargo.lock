@@ -1247,6 +1247,7 @@ dependencies = [
 name = "folia-stores"
 version = "1.75.1"
 dependencies = [
+ "base64",
  "folia-calendar",
  "folia-data",
  "folia-design",
@@ -1258,11 +1259,13 @@ dependencies = [
  "folia-routes",
  "folia-sync",
  "folia-timetable",
+ "js-sys",
  "leptos",
  "leptos_router",
  "serde",
  "serde_json",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 

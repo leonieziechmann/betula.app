@@ -47,8 +47,9 @@ impl Entry {
 }
 
 /// Two writes of one text that saw nothing of each other (a note typed on two devices at once):
-/// the later one is kept, the other stays on the device to be looked at and taken over. Local:
-/// every device that sees both writes finds the same pair.
+/// the later one is kept, the other stays on the device to be looked at and taken over. Or a
+/// module taken out of its semester on two devices at once (`other` empty): moved twice, it may
+/// stand in two semesters now. Local: every device that sees both writes finds the same pair.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Conflict {
     pub key: String,
@@ -173,22 +174,27 @@ impl Doc {
             return Applied::Doubled;
         }
         let text = schema::is_text(&op.key);
+        let moves = schema::is_move(&op.key);
         let incoming = Entry::of(op);
         let current = self.entries.get(&op.key).cloned();
         match current {
             Some(current) if current.hlc >= incoming.hlc => {
-                if text && siblings(&current, &incoming) {
-                    if let Some(other) = incoming.val {
-                        self.remember(Conflict { key: op.key.clone(), kept: current.val, other, at: incoming.hlc });
+                if siblings(&current, &incoming) {
+                    match (&incoming.val, text, moves) {
+                        (Some(other), true, _) => self.remember(Conflict { key: op.key.clone(), kept: current.val, other: other.clone(), at: incoming.hlc }),
+                        (None, _, true) if current.val.is_none() => self.remember(Conflict { key: op.key.clone(), kept: None, other: String::new(), at: current.hlc }),
+                        _ => {}
                     }
                 }
                 Applied::Stale
             }
             current => {
                 if let Some(current) = current {
-                    if text && siblings(&current, &incoming) {
-                        if let Some(other) = current.val {
-                            self.remember(Conflict { key: op.key.clone(), kept: incoming.val.clone(), other, at: current.hlc });
+                    if siblings(&current, &incoming) {
+                        match (current.val, text, moves) {
+                            (Some(other), true, _) => self.remember(Conflict { key: op.key.clone(), kept: incoming.val.clone(), other, at: current.hlc }),
+                            (None, _, true) if incoming.val.is_none() => self.remember(Conflict { key: op.key.clone(), kept: None, other: String::new(), at: incoming.hlc }),
+                            _ => {}
                         }
                     }
                 }

@@ -94,6 +94,12 @@ pub fn is_text(key: &str) -> bool {
     key.starts_with("C|n|") || key.starts_with("P|b|")
 }
 
+/// A module planned (or visited) in a semester: taken out on two devices at once, it was moved
+/// twice, perhaps to two semesters (`Conflict` with no text).
+pub fn is_move(key: &str) -> bool {
+    key.starts_with("P|mv|")
+}
+
 /// A store's records in the order of its text: every key once, with its value (a line, or "1"
 /// for an element of a set).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

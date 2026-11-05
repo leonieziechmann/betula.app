@@ -32,6 +32,11 @@ fn a_module_moved_on_both_devices_is_lost_on_neither() {
     meet(&mut a, &on_a, &mut b, &on_b);
     same(&a, &b);
     assert_eq!((planned(&a, "2026W"), planned(&a, "2027S"), planned(&a, "2027W")), (vec![], vec!["11787".to_string()], vec!["11787".to_string()]));
+    // Both devices know it was moved twice, from where.
+    for device in [&a, &b] {
+        assert_eq!(device.doc.conflicts.iter().map(|c| (c.key.as_str(), c.other.as_str())).collect::<Vec<_>>(), [("P|mv|2026W|11787", "")]);
+    }
+    assert_eq!(a.doc.conflicts, b.doc.conflicts);
 }
 
 #[test]

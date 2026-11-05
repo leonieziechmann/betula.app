@@ -9,7 +9,7 @@ name = "folia_stores"
 
 [features]
 ssr = ["leptos/ssr", "leptos_router/ssr", "folia-design/ssr", "folia-data/ssr"]
-csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "folia-design/csr"]
+csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "dep:js-sys", "dep:wasm-bindgen-futures", "folia-design/csr"]
 
 [dependencies]
 leptos = "0.8.20"
@@ -26,10 +26,15 @@ folia-routes = { path = "../routes" }
 folia-timetable = { path = "../timetable" }
 folia-locale = { path = "../locale" }
 serde = { version = "1.0", features = ["derive"] }
+# Keys and sealed bytes in Phloem's frames (`sync::codes`).
+base64 = "0.22"
 # A profile as a file (`profiles::Backup`).
 serde_json = "1.0"
 wasm-bindgen = { version = "0.2", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Location", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior", "MouseEvent", "HtmlAnchorElement", "Url", "Performance", "History", "PopStateEvent", "PopStateEventInit", "Blob", "BlobPropertyBag", "AddEventListenerOptions"] }
+# Betula Sync in the browser (`sync::browser`): WebCrypto's promises, the clock, Web Locks.
+js-sys = { version = "0.3", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+web-sys = { version = "0.3", optional = true, features = ["Crypto", "SubtleCrypto", "CryptoKey", "HkdfParams", "AesGcmParams", "WebSocket", "MessageEvent", "CloseEvent", "Request", "RequestInit", "Headers", "Response", "StorageEvent", "VisibilityState", "Window", "Document", "Location", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior", "MouseEvent", "HtmlAnchorElement", "Url", "Performance", "History", "PopStateEvent", "PopStateEventInit", "Blob", "BlobPropertyBag", "AddEventListenerOptions"] }
 
 [dev-dependencies]
 # The tests that look a program up in a real snapshot (`FOLIA_TEST_SNAPSHOT`).

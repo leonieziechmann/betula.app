@@ -25,6 +25,16 @@ impl Writer {
         Writer { clock, seq: doc.seen.top(dev) }
     }
 
+    /// The same, going on after a write numbered `seq` and a clock at `last` that this device
+    /// gave before (what it keeps beside its records, for records it kept less often than its
+    /// writes): a number is never given twice, and no clock goes back.
+    pub fn resume(dev: u16, doc: &Doc, seq: u32, last: Hlc) -> Self {
+        let mut writer = Writer::new(dev, doc);
+        writer.seq = writer.seq.max(seq);
+        writer.clock.observe(last);
+        writer
+    }
+
     pub fn dev(&self) -> u16 {
         self.clock.dev()
     }
