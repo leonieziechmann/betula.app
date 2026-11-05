@@ -103,11 +103,12 @@ func dropPrivileges(uid, gid int) error {
 	return nil
 }
 
-// noNewPrivileges sets no_new_privs for the calling thread (and what it executes): no setuid
-// binary and no file capability can give a privilege back.
+// noNewPrivileges sets no_new_privs for every thread of the process (it belongs to a thread, and
+// what a thread executes keeps it): no setuid binary and no file capability can give a
+// privilege back.
 func noNewPrivileges() error {
 	const prSetNoNewPrivs = 38
-	if _, _, errno := syscall.RawSyscall6(syscall.SYS_PRCTL, prSetNoNewPrivs, 1, 0, 0, 0, 0); errno != 0 {
+	if _, _, errno := syscall.AllThreadsSyscall(syscall.SYS_PRCTL, prSetNoNewPrivs, 1, 0); errno != 0 {
 		return fmt.Errorf("prctl(PR_SET_NO_NEW_PRIVS): %w", errno)
 	}
 	return nil

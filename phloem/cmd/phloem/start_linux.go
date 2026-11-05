@@ -31,7 +31,8 @@ import (
 //
 // Log events: start.firewall, start.dropped, start.failed (ERROR).
 func runStart(ctx context.Context, args []string) int {
-	// no_new_privs belongs to a thread, and exec takes the thread that calls it.
+	// One thread from here to the exec: the checks of /proc/thread-self look at the thread that
+	// becomes serve.
 	runtime.LockOSThread()
 	fs := flag.NewFlagSet("start", flag.ContinueOnError)
 	rules := fs.String("firewall", envOr("PHLOEM_FIREWALL", "/etc/phloem/firewall.nft"),
