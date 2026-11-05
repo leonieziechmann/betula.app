@@ -318,3 +318,24 @@ fn a_device_that_comes_back_after_long_gets_what_it_missed_in_any_order() {
     same(&a, &b);
     assert_eq!(b.receive(&all), 0, "what came twice counts once");
 }
+
+#[test]
+fn a_row_imported_on_two_devices_at_once_has_one_placeholder_and_its_modules_count_for_it() {
+    use folia_plans::studyplan::{Import, Placeholder};
+    let (mut a, mut b) = pair();
+    let w = key("2026W");
+    let row = || Placeholder { pid: 0, semester: w, program_id: "079-82-2008".to_string(), ord: 17, span: (1, 1), credits: Some("6".to_string()), kind: None, caption: String::new(), name: "Wahlpflicht".to_string() };
+    let import = |d: &mut PlanDoc, module: &str| {
+        d.apply(&Import { placeholders: vec![row()], ..Default::default() }, 1);
+        let pid = d.placeholders.last().map(|p| p.pid);
+        assert!(d.plan(w, module, 1, pid));
+    };
+    let on_a = a.plan(1_000, |d| import(d, "12160"));
+    let on_b = b.plan(1_000, |d| import(d, "13977"));
+    meet(&mut a, &on_a, &mut b, &on_b);
+    same(&a, &b);
+    let doc = a.plan_doc();
+    assert_eq!(doc.placeholders.len(), 1);
+    let pid = doc.placeholders[0].pid;
+    assert_eq!(doc.fillers(pid).len(), 2, "both modules count for the one that stands");
+}

@@ -362,16 +362,46 @@ fn plan_project(doc: &Doc) -> Vec<String> {
         out.push(line.to_string());
     }
 
+    // A plan row has one placeholder in a semester (`PlanDoc::add_placeholder`): of two made on
+    // two devices at once, the one of the smaller pid stands, and what counted for the other
+    // counts for it. A module counts for no placeholder that is gone.
+    let mut placeholders: Vec<(u32, &str)> = doc.live_with("P|p|").filter_map(|(key, e)| Some((key.strip_prefix("P|p|")?.parse().ok()?, e.val.as_deref()?))).collect();
+    placeholders.sort();
+    let mut rows: BTreeMap<(&str, &str, &str), u32> = BTreeMap::new();
+    let mut instead: BTreeMap<u32, u32> = BTreeMap::new();
+    placeholders.retain(|(pid, line)| {
+        let f: Vec<&str> = line.split('\t').map(str::trim).collect();
+        let field = |i: usize| f.get(i).copied().unwrap_or_default();
+        match rows.get(&(field(2), field(3), field(4))) {
+            Some(first) => {
+                instead.insert(*pid, *first);
+                false
+            }
+            None => {
+                rows.insert((field(2), field(3), field(4)), *pid);
+                true
+            }
+        }
+    });
+    let standing: BTreeSet<u32> = placeholders.iter().map(|(pid, _)| *pid).collect();
+    let fills = |line: &str| -> String {
+        let mut f: Vec<String> = line.split('\t').map(str::to_string).collect();
+        if let Some(field) = f.get_mut(4) {
+            if let Ok(pid) = field.trim().parse::<u32>() {
+                let pid = instead.get(&pid).copied().unwrap_or(pid);
+                *field = if standing.contains(&pid) { pid.to_string() } else { String::new() };
+            }
+        }
+        f.join("\t")
+    };
+
     let mut planned: Vec<(&str, Hlc, &str)> = doc
         .live_with("P|mv|")
         .filter_map(|(key, e)| Some((*parts(key, "P|mv|").first()?, e.created, e.val.as_deref()?)))
         .collect();
     planned.sort();
-    out.extend(planned.iter().filter(|p| p.2.starts_with("m\t")).map(|p| p.2.to_string()));
+    out.extend(planned.iter().filter(|p| p.2.starts_with("m\t")).map(|p| fills(p.2)));
     out.extend(planned.iter().filter(|p| p.2.starts_with("v\t")).map(|p| p.2.to_string()));
-
-    let mut placeholders: Vec<(u32, &str)> = doc.live_with("P|p|").filter_map(|(key, e)| Some((key.strip_prefix("P|p|")?.parse().ok()?, e.val.as_deref()?))).collect();
-    placeholders.sort();
     out.extend(placeholders.into_iter().map(|(_, line)| line.to_string()));
 
     for prefix in ["P|d|", "P|q|"] {
