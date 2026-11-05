@@ -8,10 +8,11 @@
 //!
 //! What the plan puts into the semester's Fachsemester („Laut Plan im 3. FS", `Due`): its Pflicht
 //! and its choices, what is open from the Fachsemester before it, and what the next one could take
-//! now. A module planned from a choice counts for it (`plan_for`): where a placeholder of the
-//! choice's rows stands in the semester and nothing fills it, the module fills it (`study::add_for`),
-//! else it remembers the choice's first row (`Planned::counts`); the plan names a module of the
-//! Pflicht itself. Nothing is stored for what the plan only expects: it is worked out anew.
+//! now: what the semester offers and has in place what it requires (`Due::ahead`). A module
+//! planned from a choice counts for it (`plan_for`): where a placeholder of the choice's rows
+//! stands in the semester and nothing fills it, the module fills it (`study::add_for`), else it
+//! remembers the choice's first row (`Planned::counts`); the plan names a module of the Pflicht
+//! itself. Nothing is stored for what the plan only expects: it is worked out anew.
 
 use std::collections::BTreeSet;
 
@@ -224,6 +225,33 @@ impl Due {
             }
         }
         due
+    }
+
+    /// What „Aus dem 4. FS vorziehen" suggests of `next` and `next_choices` for semester `s`
+    /// (owner, 2026-11-05: „das ergibt ja nur sinn für module, die in dem ausgewählten semester
+    /// auch angeboten werden und wofür die voraussetzungen erfüllt sind"), `takes` saying of a
+    /// module that `s` can take it: the Pflicht's rows whose module it takes (a row without one
+    /// says nothing either way and stays); the choices that take one of their modules in `s`
+    /// already, or have one in their lists it takes (`fues`, the FÜS list, for the FÜS). A choice
+    /// without lists stays: nothing says it cannot be taken. What is not suggested stays where the
+    /// plan puts it and in its subgroup's list, from where it can be planned into `s` all the same.
+    pub fn ahead(&self, view: &PlanView, bench: &Bench, s: SemesterKey, fues: &[String], takes: impl Fn(&str) -> bool) -> (Vec<usize>, Vec<usize>) {
+        let rows = self.next.iter().copied().filter(|at| view.lines.get(*at).is_some_and(|line| line.module_id.as_deref().is_none_or(&takes))).collect();
+        let choices = self
+            .next_choices
+            .iter()
+            .copied()
+            .filter(|at| {
+                let Some(choice) = view.choices.get(*at) else { return false };
+                if choice.taken.iter().any(|taken| taken.semester == s) {
+                    return true;
+                }
+                let Some(group) = bench.of_choice(*at).and_then(|group| bench.groups.get(group)) else { return true };
+                let modules = candidates(view, group, fues);
+                modules.is_empty() || modules.iter().any(|(id, _)| takes(id))
+            })
+            .collect();
+        (rows, choices)
     }
 
     /// The modules „Plan übernehmen" plans into semester `s`: the Pflicht's rows of the
