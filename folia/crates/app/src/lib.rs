@@ -193,6 +193,9 @@ pub fn App() -> impl IntoView {
     Studyplan::provide();
     MyProgram::provide();
     MineResolved::provide();
+    // Betula Sync, after the profiles and their stores, whose texts it keeps alike on the devices
+    // of a synced profile (`folia_stores::sync`; nothing runs where the site does not offer it).
+    folia_stores::sync::Sync::provide();
     // The way back a page's step puts at the head of a phone's page (`chrome::TopBack`).
     TopBack::provide();
     // The menu of the profiles at the way to the profile page (`chrome::ProfileMenu`).

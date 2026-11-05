@@ -21,6 +21,7 @@ folia-model = { path = "../model" }
 folia-pack = { path = "../pack" }
 folia-pages = { path = "../pages" }
 folia-plans = { path = "../plans" }
+folia-sync = { path = "../sync" }
 folia-routes = { path = "../routes" }
 folia-timetable = { path = "../timetable" }
 folia-locale = { path = "../locale" }

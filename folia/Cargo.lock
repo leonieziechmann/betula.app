@@ -1256,6 +1256,7 @@ dependencies = [
  "folia-pages",
  "folia-plans",
  "folia-routes",
+ "folia-sync",
  "folia-timetable",
  "leptos",
  "leptos_router",
