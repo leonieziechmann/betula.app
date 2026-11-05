@@ -1,0 +1,12 @@
+[package]
+name = "sync-merge-proto"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Betula Sync: the merge of a profile's stores between devices, as a prototype (research only)"
+
+# Standard library only: the prototype shows the algorithm, not a crate choice.
+[dependencies]
+
+[profile.test]
+opt-level = 2
