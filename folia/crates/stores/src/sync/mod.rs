@@ -103,6 +103,10 @@ impl Conflict {
 /// wherever the site does not offer it.
 #[derive(Clone, Copy)]
 pub struct Sync {
+    /// The profiles and the Stundenplan, taken where it is made: what the engine does from a
+    /// socket or a promise has no context to find them in.
+    profiles: Option<crate::profiles::Profiles>,
+    plan: Option<crate::studyplan::Studyplan>,
     /// What this browser keeps of each profile's sync (the leader's word on its connection).
     states: RwSignal<Vec<(u16, State)>>,
     /// What an action of this tab is doing or failed at, above what is kept.
@@ -114,13 +118,19 @@ impl Sync {
     /// Starts Betula Sync for the profiles that sync (in the browser, where the site offers it)
     /// and provides it. Call it after `Profiles::provide` and the stores.
     pub fn provide() -> Self {
-        let sync = Sync { states: RwSignal::new(Vec::new()), actions: RwSignal::new(Vec::new()), conflicts: RwSignal::new(Vec::new()) };
+        let sync = Sync {
+            profiles: crate::profiles::Profiles::expect(),
+            plan: crate::studyplan::Studyplan::expect(),
+            states: RwSignal::new(Vec::new()),
+            actions: RwSignal::new(Vec::new()),
+            conflicts: RwSignal::new(Vec::new()),
+        };
         provide_context(sync);
         // Effects run in the browser only.
         #[cfg(all(feature = "csr", target_arch = "wasm32"))]
         Effect::new(move |started: Option<()>| {
             if started.is_none() && offered().is_some() {
-                if let Some(profiles) = crate::profiles::Profiles::expect() {
+                if let Some(profiles) = sync.profiles {
                     browser::start_tab(sync, profiles);
                     sync.refresh_all(profiles);
                 }
@@ -131,6 +141,12 @@ impl Sync {
 
     pub fn expect() -> Option<Self> {
         use_context::<Sync>()
+    }
+
+    /// Where a module stands in the Stundenplan (for the hint of a module moved twice).
+    #[cfg_attr(not(all(feature = "csr", target_arch = "wasm32")), allow(dead_code))]
+    pub(crate) fn planned_in(self, module: &str) -> Vec<SemesterKey> {
+        self.plan.map(|plan| plan.with_untracked(|doc| doc.planned_in(module))).unwrap_or_default()
     }
 
     /// What Betula Sync is for profile `id` here. Tracked.
@@ -149,8 +165,8 @@ impl Sync {
                 states.retain(|(p, _)| *p != id);
                 states.push((id, state));
             });
-            if crate::profiles::Profiles::expect().is_some_and(|p| p.active_untracked() == id) {
-                let shown = browser::conflicts(id);
+            if self.profiles.is_some_and(|p| p.active_untracked() == id) {
+                let shown = browser::conflicts(self, id);
                 if self.conflicts.with_untracked(|now| *now != shown) {
                     self.conflicts.set(shown);
                 }
@@ -183,8 +199,8 @@ impl Sync {
     #[cfg_attr(not(all(feature = "csr", target_arch = "wasm32")), allow(dead_code))]
     pub(crate) fn conflicts_of(self, doc: &folia_sync::Doc) {
         #[cfg(all(feature = "csr", target_arch = "wasm32"))]
-        if let Some(profiles) = crate::profiles::Profiles::expect() {
-            let shown = browser::shown_conflicts(profiles.active_untracked(), &doc.conflicts);
+        if let Some(profiles) = self.profiles {
+            let shown = browser::shown_conflicts(self, profiles.active_untracked(), &doc.conflicts);
             if self.conflicts.with_untracked(|now| *now != shown) {
                 self.conflicts.set(shown);
             }
@@ -225,7 +241,8 @@ impl Sync {
     pub fn pair(self, id: u16, done: impl FnOnce(Result<Pairing, Problem>) + 'static) {
         #[cfg(all(feature = "csr", target_arch = "wasm32"))]
         {
-            let name = crate::profiles::Profiles::expect()
+            let name = self
+                .profiles
                 .and_then(|profiles| profiles.all().into_iter().find(|p| p.id == id))
                 .map(|p| p.name)
                 .unwrap_or_default();
@@ -272,7 +289,7 @@ impl Sync {
     fn adopt(self, shared: Vec<([u8; codes::KEY], String)>) -> Result<u16, Problem> {
         #[cfg(all(feature = "csr", target_arch = "wasm32"))]
         {
-            let profiles = crate::profiles::Profiles::expect().ok_or(Problem::Unsupported)?;
+            let profiles = self.profiles.ok_or(Problem::Unsupported)?;
             let mut last = Err(Problem::BadLink);
             for (key, name) in shared {
                 let id = profiles.create(&name).ok_or(Problem::NoRoom)?;
@@ -308,7 +325,7 @@ impl Sync {
     /// „Nur dieses Gerät trennen": this device keeps its copy, privately; the others go on.
     pub fn leave(self, id: u16) {
         #[cfg(all(feature = "csr", target_arch = "wasm32"))]
-        if let Some(profiles) = crate::profiles::Profiles::expect() {
+        if let Some(profiles) = self.profiles {
             browser::leave(id, profiles.active_untracked());
         }
         self.act(id, None);
@@ -324,7 +341,7 @@ impl Sync {
     /// with the store's own methods before), in every tab.
     pub fn dismiss(self, conflict: &Conflict) {
         #[cfg(all(feature = "csr", target_arch = "wasm32"))]
-        if let Some(profiles) = crate::profiles::Profiles::expect() {
+        if let Some(profiles) = self.profiles {
             browser::dismiss(profiles.active_untracked(), conflict);
         }
         self.conflicts.update(|all| all.retain(|c| c != conflict));

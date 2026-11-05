@@ -980,7 +980,7 @@ pub fn start_tab(sync: Sync, profiles: Profiles) {
 
 /// Leads again where this tab leads: the active profile may sync now (activated, joined).
 pub fn lead_again(sync: Sync) {
-    if let Some(profiles) = Profiles::expect() {
+    if let Some(profiles) = sync.profiles {
         if leads() {
             leptos::task::spawn_local(lead(sync, profiles));
         }
@@ -1011,15 +1011,14 @@ pub fn dismiss(profile: u16, conflict: &super::Conflict) {
 }
 
 /// The conflicts of the leader's records, as a page shows them, without the ones read.
-pub fn shown_conflicts(profile: u16, conflicts: &[folia_sync::Conflict]) -> Vec<super::Conflict> {
+pub fn shown_conflicts(sync: Sync, profile: u16, conflicts: &[folia_sync::Conflict]) -> Vec<super::Conflict> {
     let seen = nav::local_get(&seen_key(profile)).unwrap_or_default();
-    let planned_in = |module: &str| crate::studyplan::Studyplan::expect().map(|plan| plan.with_untracked(|doc| doc.planned_in(module))).unwrap_or_default();
-    super::shown(conflicts, planned_in).into_iter().filter(|c| !seen.lines().any(|line| line == mark(c))).collect()
+    super::shown(conflicts, |module| sync.planned_in(module)).into_iter().filter(|c| !seen.lines().any(|line| line == mark(c))).collect()
 }
 
 /// The same from what the leader keeps (any tab).
-pub fn conflicts(profile: u16) -> Vec<super::Conflict> {
+pub fn conflicts(sync: Sync, profile: u16) -> Vec<super::Conflict> {
     let records = nav::local_get(&records_key(profile)).unwrap_or_default();
     let kept = records.lines().find_map(|l| l.strip_prefix("conflicts\t")).and_then(unb64).and_then(|bytes| codec::read_conflicts(&bytes).ok()).unwrap_or_default();
-    shown_conflicts(profile, &kept)
+    shown_conflicts(sync, profile, &kept)
 }
