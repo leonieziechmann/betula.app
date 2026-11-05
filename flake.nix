@@ -161,6 +161,86 @@
           };
         };
 
+        # ---------------------------------------------------------------- Phloem (Go)
+
+        # The service of Betula Sync (docs/phloem/phloem.md, stacks/phloem.yml): the Go module
+        # phloem/, a binary and an image of its own. What it is built from, relative to phloem/;
+        # deploy/ship-phloem.sh reads this line for the release tag, so it stays one line.
+        phloemPaths = [ "go.mod" "go.sum" "cmd" "internal" "deploy" ];
+
+        phloem = buildGoModule {
+          pname = "betula-phloem";
+          version = self.shortRev or self.dirtyShortRev or "dev";
+          src = pathsSource (map (p: "phloem/" + p) phloemPaths);
+          modRoot = "phloem";
+          subPackages = [ "cmd/phloem" ];
+
+          # Update after changing phloem/go.mod / go.sum: set to pkgs.lib.fakeHash, build, copy
+          # the hash Nix prints.
+          vendorHash = "sha256-eqQj+DxgNUvowfT24JLhZtP8W/4aIewZFUic1n93LUA=";
+
+          env.CGO_ENABLED = "0";
+          ldflags = [ "-s" "-w" ];
+          doCheck = true;
+
+          # The firewall `phloem start` loads, next to the binary.
+          postInstall = ''
+            install -Dm444 deploy/firewall.nft $out/etc/phloem/firewall.nft
+          '';
+
+          meta.mainProgram = "phloem";
+        };
+
+        # nft for `phloem start`: `nft -f` and `nft list` only, so without the interactive CLI
+        # (libedit) and without xtables (iptables, whose scripts would bring a shell along).
+        phloemNft = pkgs.nftables.override { withCli = false; withXtables = false; };
+
+        phloem-image = pkgs.dockerTools.buildLayeredImage {
+          name = "betula-phloem";
+          tag = "latest";
+          # /bin/phloem, /etc/phloem/firewall.nft and /bin/nft with the libraries it needs. No
+          # shell, no CA certificates: Phloem opens no connection.
+          contents = [ phloem phloemNft ];
+          # /data holds phloem.db, /stats the stats file (a volume and a tmpfs of the host,
+          # stacks/phloem.yml, both owned by 65532); /tmp for SQLite. The image runs as root:
+          # `phloem start` needs it for the firewall and drops to 65532 itself before it serves.
+          fakeRootCommands = ''
+            mkdir -p data stats tmp
+            chown 65532:65532 data stats
+            chmod 1777 tmp
+          '';
+          config = {
+            Entrypoint = [ "/bin/phloem" ];
+            Cmd = [ "start" ];
+            User = "0:0";
+            Env = [
+              "PATH=/bin"
+              "PHLOEM_ADDR=0.0.0.0:8200"
+              "PHLOEM_DATA=/data"
+              "PHLOEM_STATS_DIR=/stats"
+              "PHLOEM_FIREWALL=/etc/phloem/firewall.nft"
+              "PHLOEM_LOG_FORMAT=json"
+              "TZ=Europe/Berlin"
+            ];
+            ExposedPorts = { "8200/tcp" = { }; };
+            Volumes = { "/data" = { }; };
+            # Not /data: start runs as root without CAP_DAC_OVERRIDE (it cannot read Phloem's
+            # data, nor should it), and nothing in a directory Phloem can write may count as
+            # configuration (a development .env).
+            WorkingDir = "/";
+            # Liveness (/healthz over loopback, which the firewall lets through): the process
+            # serves and its store answers. The check drops root before it asks.
+            Healthcheck = {
+              Test = [ "CMD" "/bin/phloem" "healthcheck" ];
+              Interval = 10000000000; # 10 s, in nanoseconds
+              Timeout = 5000000000;
+              StartPeriod = 30000000000;
+              StartInterval = 2000000000;
+              Retries = 3;
+            };
+          };
+        };
+
         # ---------------------------------------------------------------- Folia (Rust)
 
         # Only the Cargo workspace folia/ (its crates and the assets the server embeds): a change
@@ -338,7 +418,7 @@
       in
       {
         packages = {
-          inherit radix radix-image cortex cortex-image folia folia-client folia-semantic folia-image;
+          inherit radix radix-image cortex cortex-image phloem phloem-image folia folia-client folia-semantic folia-image;
           default = radix;
         };
 

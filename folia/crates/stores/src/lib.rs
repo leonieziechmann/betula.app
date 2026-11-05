@@ -1,6 +1,7 @@
 //! What a visitor keeps in this browser, and the buttons that change it: the marked modules
 //! (`bookmarks`) with their collections and notes (`collections`), the Studienplan (`studyplan`) and „Mein Studiengang" (`myprogram`), each in the
-//! profile that is active (`profiles`). Nothing of it reaches the server (R9, R15). Above the
+//! profile that is active (`profiles`), and Betula Sync, which keeps a profile's devices alike once it is
+//! switched on (`sync`, sealed: the service opens none of it). Nothing else of it reaches the server (R9, R15). Above the
 //! shell, below the widgets and the features (docs/folia/folia-refactor.md §7.4).
 
 // Leptos view types nest deeply.
@@ -13,3 +14,4 @@ pub mod i18n;
 pub mod myprogram;
 pub mod profiles;
 pub mod studyplan;
+pub mod sync;

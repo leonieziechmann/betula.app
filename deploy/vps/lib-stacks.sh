@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Helpers shared by 40-stacks.sh, 48-cortex.sh, 50-app.sh and 91-verify-stacks.sh. Sourced AFTER
-# lib.sh, never executed.
+# Helpers shared by 40-stacks.sh, 47-phloem-host.sh, 48-cortex.sh, 49-phloem.sh, 50-app.sh and
+# 91-verify-stacks.sh (and the scripts beside them). Sourced AFTER lib.sh, never executed.
 # Both scripts run as the deploy user (group docker), not as root: "docker stack deploy"
 # substitutes ${VAR} in the stack files from the environment, and sudo would reset it.
 # shellcheck shell=bash
@@ -358,9 +358,9 @@ instance_names() {
   done
 }
 
-# load_instance NAME - reads stacks/NAME.env into INSTANCE_STACK, INSTANCE_HOST, INSTANCE_GATE and
-# INSTANCE_CRAWL (on, off or cortex-offline: stacks/betula.yml says what each means). The file is
-# read, never sourced: a value is data, whatever it looks like.
+# load_instance NAME - reads stacks/NAME.env into INSTANCE_STACK, INSTANCE_HOST, INSTANCE_GATE,
+# INSTANCE_CRAWL (on, off or cortex-offline) and INSTANCE_SYNC (on or off: stacks/betula.yml says
+# what each means). The file is read, never sourced: a value is data, whatever it looks like.
 load_instance() {
   local name=$1 file line key value
   file="${STACKS_DIR}/${name}.env"
@@ -371,6 +371,7 @@ load_instance() {
   INSTANCE_HOST=""
   INSTANCE_GATE="on"
   INSTANCE_CRAWL="on"
+  INSTANCE_SYNC="off"
   while IFS= read -r line || [[ -n "${line}" ]]; do
     [[ -n "${line}" && "${line}" != \#* ]] || continue
     [[ "${line}" == *=* ]] || die "${file}: '${line}' is not NAME=value"
@@ -381,7 +382,8 @@ load_instance() {
       APP_HOST) INSTANCE_HOST="${value}" ;;
       FOLIA_ACCESS_GATE) INSTANCE_GATE="${value}" ;;
       RADIX_CRAWL) INSTANCE_CRAWL="${value}" ;;
-      *) die "${file}: unknown setting ${key} (known: STACK_NAME, APP_HOST, FOLIA_ACCESS_GATE, RADIX_CRAWL)" ;;
+      FOLIA_SYNC) INSTANCE_SYNC="${value}" ;;
+      *) die "${file}: unknown setting ${key} (known: STACK_NAME, APP_HOST, FOLIA_ACCESS_GATE, RADIX_CRAWL, FOLIA_SYNC)" ;;
     esac
   done <"${file}"
   [[ "${INSTANCE_STACK}" == "${name}" ]] || die "${file}: STACK_NAME is '${INSTANCE_STACK}', the file says '${name}'; they have to agree"
@@ -394,6 +396,23 @@ load_instance() {
     on | off | cortex-offline) ;;
     *) die "${file}: RADIX_CRAWL is '${INSTANCE_CRAWL}', not on, off or cortex-offline" ;;
   esac
+  [[ "${INSTANCE_SYNC}" == "on" || "${INSTANCE_SYNC}" == "off" ]] || die "${file}: FOLIA_SYNC is '${INSTANCE_SYNC}', not on or off"
+}
+
+# phloem_for_host HOST - the stack of the Phloem instance that serves https://HOST/sync/v1/
+# (stacks/phloem/<stack>.env names its APP_HOST), nothing where none does.
+phloem_for_host() {
+  local host=$1 file line
+  for file in "${STACKS_DIR}"/phloem/*.env; do
+    [[ -f "${file}" ]] || continue
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+      if [[ "${line}" == "APP_HOST=${host}" ]]; then
+        file="${file##*/}"
+        printf '%s' "${file%.env}"
+        return 0
+      fi
+    done <"${file}"
+  done
 }
 
 # Blue-green: two instances whose files name the same APP_HOST are two colours of one site
@@ -476,14 +495,19 @@ folia_container() {
   docker ps -q --no-trunc --filter "label=com.docker.swarm.service.name=$1_folia" --filter status=running 2>/dev/null | head -n 1
 }
 
-# folia_address STACK -> the address of the stack's running web server on docker_gwbridge, where
-# this host reaches it directly, past Traefik (nothing when no task of it runs here).
-folia_address() {
-  local cid address
-  cid="$(folia_container "$1")"
+# folia_status STACK PATH -> the HTTP status the stack's web server answers for PATH, asked
+# directly, past Traefik's routers (which may send the host to the other colour), but from inside
+# Traefik's container: the web server is on internal networks only (vps/files/networks.conf), so
+# this host has no address to reach it at, and Traefik, on edge_<stack> with it, is where the
+# site's requests come from anyway. Nothing when there is no answer (no task of it, no Traefik).
+# busybox wget of the Traefik image prints the status line with -S, for 401 and 503 as well (and
+# then exits 1); the name ends with a dot for its resolver (91-verify-stacks.sh, mon_get).
+folia_status() {
+  local cid out
+  cid="$(service_container edge_traefik)"
   [[ -n "${cid}" ]] || return 0
-  address="$(docker network inspect docker_gwbridge --format "{{with index .Containers \"${cid}\"}}{{.IPv4Address}}{{end}}" 2>/dev/null || true)"
-  printf '%s' "${address%/*}"
+  out="$(timeout 20 docker exec "${cid}" wget -S -q -T 10 -O /dev/null "http://tasks.$1_folia.:8080$2" 2>&1 || true)"
+  sed -n 's#^ *HTTP/[0-9.]* \([0-9][0-9][0-9]\).*#\1#p' <<<"${out}" | tail -n 1
 }
 
 # snapshot_outdated STACK - true when the catalog the stack's web server shows is older than the

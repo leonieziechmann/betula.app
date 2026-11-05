@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# 30-docker.sh - Docker Engine, one-node swarm, overlay networks, published-port firewall, prune timer.
+# 30-docker.sh - Docker Engine, one-node swarm, the overlay networks of files/networks.conf,
+# published-port firewall, prune timer, Phloem's guard timer.
 #
 #   sudo bash /opt/betula/vps/30-docker.sh
 #
@@ -19,6 +20,8 @@ set -Eeuo pipefail
 
 # shellcheck source=lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=lib-networks.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib-networks.sh"
 betula_init --tmp
 require_root
 require_ubuntu
@@ -42,11 +45,8 @@ CONFLICTING_PACKAGES=(docker.io docker-doc docker-compose docker-compose-v2 dock
 
 SWARM_ADDR_POOL="${SWARM_ADDR_POOL:-10.200.0.0/16}"
 SWARM_ADDR_POOL_MASK=24
-OVERLAY_NETWORKS=(edge monitoring cortex)
-# Of those, the ones without a way out of the host. "cortex" joins Cortex (stacks/cortex.yml) and
-# the services that fetch through it: Radix's networks are internal, so Cortex, which has a
-# network with a way out of its own, is its way to the internet (docs/cortex/cortex.md).
-INTERNAL_NETWORKS=(cortex)
+# The overlay networks the stacks name "external" come from files/networks.conf (lines "net ...
+# host"): one per relation, each with exactly the services of that relation (README.md section 15).
 # Must match "default-address-pools" in files/docker-daemon.json (local bridges, docker_gwbridge).
 BRIDGE_POOL_REGEX='^172\.30\.'
 
@@ -73,7 +73,7 @@ install_prerequisites() {
 
 check_address_pools() {
   step "Address pools must not collide with the host's networks"
-  local addrs pool_regex
+  local addrs pool_regex net subnet
   addrs="$(ip -4 -o addr show scope global | awk '$2 !~ /^(docker|br-|veth)/ { print $4 }')"
   # Compared by the first two octets (the pools are /16 by convention here):
   # 10.200.0.0/16 -> ^10\.200\.
@@ -84,7 +84,17 @@ check_address_pools() {
   if contains_line "${addrs}" "${BRIDGE_POOL_REGEX}"; then
     die "a host address lies inside 172.30.0.0/16; change default-address-pools in files/docker-daemon.json (and BRIDGE_POOL_REGEX here)"
   fi
-  log "host addresses: ${addrs//$'\n'/ } - no overlap with 172.30.0.0/16 or ${SWARM_ADDR_POOL}"
+  # The fixed subnets of the plan (edge_metrics), compared by their first three octets: they are
+  # /24 or smaller, and outside the swarm's pool on purpose (no allocation can ever take them).
+  netplan_read
+  for net in "${NETPLAN_NETS[@]}"; do
+    subnet="${NETPLAN_SUBNET[${net}]}"
+    [[ "${subnet}" != "-" ]] || continue
+    if contains_line "${addrs}" "^$(cut -d. -f1-3 <<<"${subnet}" | sed 's/\./\\./g')\\."; then
+      die "a host address lies inside ${subnet}, the subnet of ${net} in files/networks.conf; choose another there (and in config/traefik/dynamic/metrics.yml)"
+    fi
+  done
+  log "host addresses: ${addrs//$'\n'/ } - no overlap with 172.30.0.0/16, ${SWARM_ADDR_POOL} or the fixed subnets of files/networks.conf"
 }
 
 remove_conflicting_packages() {
@@ -341,40 +351,23 @@ init_swarm() {
   docker swarm update --task-history-limit 2 >/dev/null
 }
 
-# is_internal_network NAME - true for the networks of INTERNAL_NETWORKS.
-is_internal_network() {
-  local net
-  for net in "${INTERNAL_NETWORKS[@]}"; do
-    [[ "$1" == "${net}" ]] && return 0
-  done
-  return 1
-}
-
 create_overlay_networks() {
-  step "Overlay networks: ${OVERLAY_NETWORKS[*]} (internal: ${INTERNAL_NETWORKS[*]})"
-  local net facts internal
-  local -a flags
-  for net in "${OVERLAY_NETWORKS[@]}"; do
-    internal=false
-    if is_internal_network "${net}"; then
-      internal=true
-    fi
-    # Checked, never changed: Docker sets "internal" when it creates a network and cannot change
-    # it afterwards, and a network that is in use cannot be removed.
-    if facts="$(docker network inspect "${net}" --format '{{.Driver}} {{.Scope}} {{.Attachable}} {{.Internal}}' 2>/dev/null)"; then
-      [[ "${facts}" == "overlay swarm true ${internal}" ]] ||
-        die "network ${net} exists but is '${facts}' (driver, scope, attachable, internal; wanted 'overlay swarm true ${internal}'); remove it by hand once nothing uses it"
-      log "network ${net} exists"
+  step "Overlay networks of files/networks.conf (the ones the stacks name external)"
+  local net users
+  # Checked, never changed: Docker sets "internal", "attachable" and the subnet when it creates a
+  # network and changes none of them later, and a network that is in use cannot be removed.
+  # Not attachable but for the plan's exceptions: only swarm services join them, never a one-off
+  # "docker run" (a look from inside: 91-verify-stacks.sh enters a container's network instead).
+  ensure_host_networks
+  # The networks from before the plan stay until nothing uses them (README.md section 15).
+  netmap_build
+  for net in ${NETPLAN_OLD[@]+"${NETPLAN_OLD[@]}"}; do
+    docker network inspect "${net}" >/dev/null 2>&1 || continue
+    users="${NETMAP_SERVICES[${net}]:-}"
+    if [[ -n "${users}" ]]; then
+      log "network ${net} is from before files/networks.conf and still has: ${users% } (README.md section 15, moving to the networks)"
     else
-      # Attachable: the stacks reference them as external networks, and a one-off
-      # "docker run --network edge ..." for debugging has to be possible.
-      flags=(--driver overlay --attachable)
-      if [[ "${internal}" == "true" ]]; then
-        flags+=(--internal)
-      fi
-      docker network create "${flags[@]}" \
-        --label "app.betula.managed-by=vps/30-docker.sh" "${net}" >/dev/null
-      log "network ${net} created (internal: ${internal})"
+      log "network ${net} is from before files/networks.conf and unused: docker network rm ${net}"
     fi
   done
 }
@@ -436,6 +429,31 @@ check_firewall() {
   fi
 }
 
+install_phloem_guard() {
+  step "Phloem's guard: its firewall and rights, looked at from outside every minute"
+  local changed=0
+  # Read by Alloy through /rootfs (config/monitoring/alloy/config.alloy, job phloem-guard). The
+  # directory is root's and no container mounts it: Phloem cannot write the numbers that watch it.
+  install -d -m 0755 -o root -g root /run/betula/metrics
+  install_file "${BETULA_FILES_DIR}/betula-phloem-guard.sh" /usr/local/sbin/betula-phloem-guard 0755
+  changed=$((changed + INSTALL_CHANGED))
+  install_file "${BETULA_FILES_DIR}/betula-phloem-guard.service" /etc/systemd/system/betula-phloem-guard.service 0644
+  changed=$((changed + INSTALL_CHANGED))
+  install_file "${BETULA_FILES_DIR}/betula-phloem-guard.timer" /etc/systemd/system/betula-phloem-guard.timer 0644
+  changed=$((changed + INSTALL_CHANGED))
+  if [[ "${changed}" -gt 0 ]]; then
+    systemctl daemon-reload
+    if unit_active betula-phloem-guard.timer; then
+      systemctl restart betula-phloem-guard.timer
+    fi
+  fi
+  systemctl enable --now betula-phloem-guard.timer >/dev/null 2>&1
+  # Once now, so that the file is there before the monitoring looks.
+  systemctl start betula-phloem-guard.service ||
+    warn "betula-phloem-guard did not run cleanly: journalctl -u betula-phloem-guard.service -n 20"
+  log "written every minute: /run/betula/metrics/phloem-guard.prom"
+}
+
 report() {
   step "Done"
   log "networks: $(docker network ls --filter driver=overlay --format '{{.Name}}' | tr '\n' ' ')"
@@ -464,5 +482,6 @@ add_deploy_to_docker_group
 init_swarm
 create_overlay_networks
 install_prune_timer
+install_phloem_guard
 check_firewall
 report

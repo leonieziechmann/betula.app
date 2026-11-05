@@ -81,6 +81,18 @@ pub struct Config {
     #[arg(long, env = "FOLIA_SEMANTIC_PASSAGE_MODEL")]
     pub semantic_passage_model: Option<String>,
 
+    /// Betula Sync (`folia_stores::sync`, docs/phloem/protocol.md): every page says in its head that
+    /// the site offers it (`<meta name="betula-sync">`), and a profile switched on in the browser
+    /// keeps its devices alike through Phloem (`on`/`off`). Off until Phloem runs for the site.
+    #[arg(long, env = "FOLIA_SYNC", default_value_t = false, num_args = 0..=1, default_missing_value = "true", action = clap::ArgAction::Set, value_parser = clap::builder::BoolishValueParser::new())]
+    pub sync: bool,
+
+    /// Where the browser reaches Phloem when Betula Sync is on: empty for `/sync/v1/` on the page's
+    /// own host, as Traefik routes it; another address while working on the site (Phloem on a port
+    /// of its own, which then has to accept the site as an origin: `PHLOEM_ORIGINS`).
+    #[arg(long, env = "FOLIA_SYNC_URL", default_value = "")]
+    pub sync_url: String,
+
     /// While working on the site: serve the stylesheet, the scripts and the SVGs from this
     /// directory (`folia/assets`) as they are on disk, instead of the minified copies built into the
     /// server, and keep nothing as immutable. An edit is there with the next reload; the service

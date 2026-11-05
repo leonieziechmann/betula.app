@@ -125,8 +125,9 @@ pub struct Texts {
     pub file_newer: &'static str,
     pub file_too_large: &'static str,
     pub file_full: fn(usize) -> String,
-    /// Where all of it lives.
+    /// Where all of it lives; where the site offers Betula Sync, with it.
     pub storage_hint: &'static str,
+    pub storage_hint_sync: &'static str,
 }
 
 /// „1 Modul", „2 Module".
@@ -234,6 +235,7 @@ pub const DE: Texts = Texts {
     file_too_large: "Diese Datei ist zu groß für eine Sicherung.",
     file_full: |max| format!("Es gibt schon {max} Profile. Lösche eines, dann lässt sich die Datei laden."),
     storage_hint: "Profile liegen nur in diesem Browser: kein Konto, nichts auf dem Server. Ein anderes Gerät hat seine eigenen; eine Sicherung als Datei bringt ein Profil hinüber.",
+    storage_hint_sync: "Profile liegen in diesem Browser, ohne Konto. Auf den Server kommt ein Profil nur mit Betula Sync, verschlüsselt mit einem Schlüssel, den nur deine Geräte haben.",
 };
 
 pub const EN: Texts = Texts {
@@ -332,4 +334,5 @@ pub const EN: Texts = Texts {
     file_too_large: "This file is too large to be a backup.",
     file_full: |max| format!("There are {max} profiles already. Delete one, then the file can be loaded."),
     storage_hint: "Profiles are kept only in this browser: no account, nothing on the server. Another device has its own; a backup file takes a profile there.",
+    storage_hint_sync: "Profiles are kept in this browser, without an account. A profile reaches the server only with Betula Sync, encrypted with a key only your devices have.",
 };

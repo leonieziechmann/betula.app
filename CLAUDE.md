@@ -58,7 +58,7 @@ nochmal über das Konzept nachdenken."):
 
 ## Versions
 
-Folia, Radix and Cortex each have a version by SemVer, and every change raises the version of
+Folia, Radix, Cortex and Phloem each have a version by SemVer, and every change raises the version of
 each of them whose shipped sources it changes, without being asked (owner, 2026-10-15: „immer wenn
 wir changes machen update die version number based on sem ver"):
 
@@ -69,7 +69,8 @@ wir changes machen update die version number based on sem ver"):
   die letzte nummer sein. In der mitte ist dann für größere changes/neue features da").
 - MAJOR for what breaks those who use it (Radix: a snapshot Folia cannot read, its flags or its
   environment; Cortex: its client's API; Folia: addresses that go away, what a browser keeps that
-  it cannot read any more), and never alone: a change that would raise it is talked over with the
+  it cannot read any more; Phloem: what a browser of an older build cannot speak to it, its
+  protocol in `docs/phloem/protocol.md`), and never alone: a change that would raise it is talked over with the
   owner first („die major version besprechen wir zusammen").
 - Docs, `design/`, `research/` and the checks alone raise nothing. A version the owner names wins.
 - The bump is a commit of the branch on top of `develop` as it is when the branch is merged: a
@@ -79,11 +80,12 @@ wir changes machen update die version number based on sem ver"):
   `folia/crates/server/Cargo.toml` (the libraries at 0.1.0 stay; `cargo` updates
   `folia/Cargo.lock`); the page's ground and `x-build` show it. Radix:
   `radix/internal/version/version.go`, which every snapshot carries (`radix_version`). Cortex:
-  `cortexVersion` in `cortex/cmd/cortex/main.go`.
+  `cortexVersion` in `cortex/cmd/cortex/main.go`. Phloem (Betula Sync's service):
+  `phloem/internal/version/version.go`.
 
 ## Layout
 
-`radix/` and `cortex/` are the two Go modules (run `go` in each; Radix imports `cortex/client` through a
+`radix/`, `cortex/` and `phloem/` are the Go modules (run `go` in each; Radix imports `cortex/client` through a
 `replace ../cortex` in `radix/go.mod`), `folia/` the Cargo workspace (run `cargo` and
 `folia/scripts/*` there; crates under `folia/crates/<crate>`, package `folia-<crate>`). Docs live
-in `docs/radix`, `docs/cortex`, `docs/folia`, `docs/history`; experiments in `research/`. The README has the table.
+in `docs/radix`, `docs/cortex`, `docs/folia`, `docs/phloem`, `docs/history`; experiments in `research/`. The README has the table.

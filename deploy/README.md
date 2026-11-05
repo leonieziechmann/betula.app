@@ -10,14 +10,17 @@ deploy/
   ship.sh                 workstation: build the images of a commit, load them on the server, deploy an instance
   ship-models.sh          workstation: the models of models.lock into the server's model store (section 13)
   ship-cortex.sh          workstation: build the Cortex image of a commit, load it on the server, 48-cortex.sh (section 14)
+  ship-phloem.sh          workstation: build Phloem's image, load it on the server, 49-phloem.sh (section 16)
   models.lock             the two models of the semantic search, pinned by sha256 (section 13)
   vps/                    host scripts, run on the server, in the order of their numbers
     10-base.sh            upgrade, user deploy, ufw, fail2ban, unattended-upgrades, journald, sysctl, swap
     20-ssh-lockdown.sh    key-only ssh for deploy, root login off (with automatic rollback until --confirm)
-    30-docker.sh          Docker Engine 29, swarm, overlay networks edge + monitoring + cortex (internal), published-port filter
+    30-docker.sh          Docker Engine 29, swarm, the overlay networks of files/networks.conf, published-port filter, Phloem's guard
     40-stacks.sh          swarm secrets, stacks edge -> placeholder -> monitoring, waits for convergence
     45-seed.sh            once per instance, before its first deploy: a Radix database (tar on stdin) into its volume
+    47-phloem-host.sh     root, once per Phloem instance: its data file system and its stats tmpfs (section 16)
     48-cortex.sh          Cortex (stacks/cortex.yml) at a release tag, one instance at a time (section 14)
+    49-phloem.sh          a Phloem instance (stacks/phloem.yml + stacks/phloem/<stack>.env) at a release tag, then what it must not reach (section 16)
     50-app.sh             one instance of the application (stacks/betula.yml + stacks/<instance>.env) at a release tag
     55-switch.sh          blue-green: hand a host name to the other of its two instances (the rollback is the same)
     60-canary.sh          canary follows master: sqlite3, the timer, the GitHub token (section 12)
@@ -25,15 +28,18 @@ deploy/
     models.sh             the model store: status, missing, receive (what ship-models.sh sends), prune
     cortex-seed.sh        give Cortex an instance's archive (radix seed-cortex on a copy of its radix.db; section 14)
     90-verify-host.sh     PASS/WARN/FAIL audit of 10-30      91-verify-stacks.sh  the same for 40 to 60
-    files/                config payloads the host scripts install;  lib*.sh, sync-receive.sh  helpers
+    files/                config payloads the host scripts install; networks.conf, who is on which network (section 15)
+    lib*.sh, sync-receive.sh  helpers (lib-networks.sh: the network plan, its checks and probes)
+  test/netmatrix.sh       the networks in a local swarm with stand-ins, checked as on the server (section 15)
   stacks/                 edge(.www).yml, placeholder.yml, monitoring(.public|.smtp).yml, cortex.yml,
-                          betula(.gemini|.offline|.models|.cortex|.cortex-offline|.egress).yml,
-                          betula.env, canary(-green).env, monitoring.notify.example.yml, monitoring-secrets.sh
+                          betula(.gemini|.offline|.models|.cortex|.cortex-offline|.egress).yml, edge.legacy.yml,
+                          betula.env, canary(-green).env, monitoring.notify.example.yml, monitoring-secrets.sh,
+                          phloem.yml with phloem/<stack>.env (section 16)
   config/                 bind-mounted read-only into the services: traefik/ placeholder/ monitoring/ cortex/ (hosts.json)
 ```
 
 All host scripts are idempotent and non-interactive; every one can simply be run again. Root scripts
-are run with `sudo bash ...`; `40-stacks.sh`, `48-cortex.sh`, `50-app.sh` and `91-verify-stacks.sh`
+are run with `sudo bash ...`; `40-stacks.sh`, `48-cortex.sh`, `49-phloem.sh`, `50-app.sh` and `91-verify-stacks.sh`
 run as `deploy` **without** sudo (sudo would drop the environment variables that select staging
 certificates, the Grafana host or an instance's values).
 
@@ -67,7 +73,7 @@ Run from the repository root in Git Bash. Steps 2 to 4 belong together: do not s
 | 4a | workstation | `ssh betula sudo bash /opt/betula/vps/20-ssh-lockdown.sh` | ends with `LOCKDOWN_CONFIRM_REQUIRED` |
 | 4b | workstation, **new** connection, within 10 minutes | `ssh -o ControlPath=none betula sudo bash /opt/betula/vps/20-ssh-lockdown.sh --confirm` | `lockdown confirmed` |
 | 4c | workstation | `ssh betula-root true` | `Permission denied` |
-| 5 | workstation | `ssh betula sudo bash /opt/betula/vps/30-docker.sh` | `swarm initialised`, `network edge created`, `network monitoring created`, `network cortex created` (internal), no `FATAL` |
+| 5 | workstation | `ssh betula sudo bash /opt/betula/vps/30-docker.sh` | `swarm initialised`, `network edge_betula created` and the other networks of `files/networks.conf` (section 15), no `FATAL` |
 | 6 | workstation | `ssh betula sudo systemctl reboot`, wait a minute, then `ssh betula true` | login works again |
 | 7 | workstation | `ssh betula sudo bash /opt/betula/vps/90-verify-host.sh` | `fail=0` |
 | 8 | workstation | `ssh betula bash /opt/betula/vps/40-stacks.sh` | `converged` three times |
@@ -127,10 +133,13 @@ Why this order, and what can go wrong:
   ssh betula 'cid=$(docker ps -q --no-trunc -f name=monitoring_grafana | head -n 1); docker network inspect docker_gwbridge -f "{{(index .Containers \"$cid\").IPv4Address}}"'
   ssh -N -L 3000:<that address without /24>:3000 betula        # then open http://localhost:3000
   ```
-  The same recipe reaches Prometheus (9090). Radix and Cortex have no address on `docker_gwbridge`
-  (their networks are internal); their `/status` is read from inside:
-  `docker exec "$(docker ps -q -f name=monitoring_prometheus | head -n 1)" wget -qO- http://<stack>_radix.:8090/status`
-  and `docker exec "$(docker ps -q -f name=cortex_a | head -n 1)" /bin/cortex status`.
+  Grafana has that address through its way out, `monitoring_notify`. Prometheus, Loki, Alloy, the
+  scraper, Radix and Folia have none (their networks are internal, section 15): Prometheus is asked
+  through Grafana (Explore) or from inside its container
+  (`docker exec "$(docker ps -q -f name=monitoring_prometheus | head -n 1)" wget -qO- http://127.0.0.1:9090/api/v1/query?query=up`),
+  Radix's `/status` from inside the scraper, which is on every `cortex_<instance>`:
+  `docker exec "$(docker ps -q -f name=monitoring_scraper | head -n 1)" wget -qO- http://<stack>_radix.:8090/status`,
+  and Cortex's with `docker exec "$(docker ps -q -f name=cortex_a | head -n 1)" /bin/cortex status`.
 - Dashboards and alert rules are files (`config/monitoring/grafana/`); the UI refuses to save them.
   Edit, export JSON, commit, sync, `40-stacks.sh monitoring`.
 - The dashboards are Grafana's v2 resources (`dashboard.grafana.app/v2`, since 2026-10-04): every
@@ -152,12 +161,12 @@ Why this order, and what can go wrong:
   Cortex paused; then pages that changed, the archive per endpoint (newest and oldest fetch),
   cycles and stages, builds and snapshots, warnings and errors by event. Cortex serves every
   instance, so its panels do not follow the Instance filter.
-  Prometheus reaches every instance's Radix over the `cortex` overlay (`stacks/betula.yml`; Radix
-  is no longer on `monitoring`); a new instance file needs its `tasks.<stack>_radix` line in
-  `config/monitoring/prometheus.yml`. An image from before `/metrics` answers 404 there, so the
+  The scraper (`monitoring_scraper`) reaches every instance's Radix over its `cortex_<instance>`
+  and writes to Prometheus (section 15); a new instance file needs its `tasks.<stack>_radix.` line in
+  `config/monitoring/scraper.yml`. An image from before `/metrics` answers 404 there, so the
   rule "Monitoring target is down" fires until a current one runs.
-- The dashboard "Cortex" (`betula-cortex.json`, Prometheus job `cortex`: `cortex_a:8100` and
-  `cortex_b:8100` over the `cortex` overlay) shows which instance leads, the follower's lag and
+- The dashboard "Cortex" (`betula-cortex.json`, job `cortex`: `cortex_a:8100` and `cortex_b:8100`,
+  scraped by the scraper over `cortex_<instance>`) shows which instance leads, the follower's lag and
   missing blobs (`cortex_blobs_missing`), every host's queue, requests in flight and breaker, the clients' requests by
   source and result, what went upstream by host and status, the store, the answers it was given
   by `radix seed-cortex` (`cortex_imports_total`), what clients that read its store alone (the
@@ -203,6 +212,7 @@ edit below deploy/  ->  SSH_TARGET=betula bash deploy/sync.sh  ->  the script th
 | `config/cortex/hosts.json` | nothing: both instances read it again within 30 s (log event `policy.loaded`; a broken file keeps the last good policy, `policy.invalid`) |
 | `config/traefik/dynamic/*` | nothing: Traefik watches the directory (check `docker service logs edge_traefik`) |
 | `vps/files/*`, `vps/10-base.sh` ... `30-docker.sh` | the numbered script again with `sudo bash`, then `90-verify-host.sh` |
+| `vps/files/networks.conf` (a network more, a member less) | `sudo bash 30-docker.sh` (it makes new networks, never changes one), then the stacks whose files name it (section 15), then `91-verify-stacks.sh netmatrix` |
 | `vps/files/public-ports.conf` | `10-base.sh` **and** `30-docker.sh` |
 
 `sync.sh` replaces only files whose content changed, removes what no longer exists in `deploy/`
@@ -241,8 +251,9 @@ way to the internet (`stacks/betula.egress.yml`, section 14).
 §1), and its networks are all internal. A crawling colour gets a way out of its own
 (`stacks/betula.egress.yml`) only while Cortex does not run, while the secret `gemini-api-key`
 exists, or while its release is from before Cortex (`50-app.sh` asks the image, `radix run -h`,
-and says so with a WARN). Afterwards it checks what swarm was told: Radix on `cortex` and
-`<stack>_snapshot`, the egress network exactly when it was added, every other network internal.
+and says so with a WARN). Afterwards it checks what swarm was told: Radix on `cortex_<stack>` and
+`<stack>_snapshot`, the egress network exactly when it was added, every other network internal;
+Folia on exactly `edge_<stack>` and `<stack>_snapshot` (section 15).
 
 Every release, from the repository root on the workstation (Git Bash on Windows; Nix runs in the WSL
 distribution `NixOS`, or on the PATH under Linux):
@@ -403,7 +414,7 @@ the container has `RADIX_CORTEX_URL`, in every colour.
 
 Swarm secrets are immutable; rotation means a new name. Cortex needs none: its clients are not
 authenticated (owner, 2026-10-02: „Offline ist wunsch des clients"), and only the internal
-`cortex` network reaches it.
+networks `cortex_<instance>` (one instance's Radix and the scraper each) and `cortex_seed` reach it.
 
 | Secret | Create / rotate |
 |---|---|
@@ -807,8 +818,9 @@ archive, read offline by the canary; the public site's crawling colour fetches t
 workstation   deploy/ship-cortex.sh: nix build .#cortex-image ─ssh─▶ docker load, tag <date>-<hash>
               ─▶ sync.sh ─▶ vps/48-cortex.sh <tag>
 
-server        Radix of every instance and colour, Prometheus
-                 │ overlay "cortex" (internal: true): http://cortex_a:8100, http://cortex_b:8100
+server        Radix of each instance and colour, the scraper of the monitoring stack
+                 │ overlay "cortex_<instance>", one per instance (internal: true):
+                 │ http://cortex_a:8100, http://cortex_b:8100
                  ▼
               ┌─ cortex_a ── volume cortex_a-data ─┐  the one that holds the flock on
               │                                    │  /lock/leader.lock (volume cortex_lock) leads;
@@ -822,6 +834,9 @@ server        Radix of every instance and colour, Prometheus
 
 ### Setting it up, once
 
+How it was set up in 2026-10, with the one network `cortex` of that time; since 2026-11 each instance
+has its own `cortex_<instance>` and the scraper scrapes them (section 15, which also says how a
+host moves over). On a new host, the bootstrap of section 1 makes every network at once.
 In this order; steps 1 and 2 belong together.
 
 1. `SSH_TARGET=betula bash deploy/sync.sh`. From here on **every `50-app.sh` stops in its
@@ -860,9 +875,10 @@ of two lines"): the canary's Radix of that day, and Folia 1.0.4, the public site
 2026-09-30 with the module texts as Markdown (branch `claude/main-folia-markdown`), so that the
 public site keeps its pages. `betula-green` (2026-09-30-436f93c) is the rollback: its Radix serves
 the snapshot it exported last, stopped with `docker service update --args "serve-snapshot …"`
-rather than 50-app.sh, which would put a Radix without `/metrics` on the network cortex (rule
-„Monitoring target is down"); `91-verify-stacks.sh cortex` keeps a FAIL for it (a way to the
-internet). Cortex now gets what the public site fetches, and the canary reads that.
+rather than 50-app.sh, which would put a Radix without `/metrics` on its network
+`cortex_betula-green` (rule „Monitoring target is down"); `91-verify-stacks.sh cortex` keeps a FAIL
+for it (a way to the internet). It stays on the networks from before section 15 until its next
+deploy, and with it Traefik's old `edge` (`stacks/edge.legacy.yml`). Cortex now gets what the public site fetches, and the canary reads that.
 
 ### Seeding Cortex with an archive
 
@@ -878,7 +894,8 @@ ssh betula bash /opt/betula/vps/cortex-seed.sh betula <tag>     # another instan
 It copies the instance's `radix.db` with the host's `sqlite3`, read-only, as one transaction
 (`VACUUM INTO`, as the canary agent does: its Radix is neither stopped nor slowed down), runs
 `radix seed-cortex` of a loaded release (default: the one the canary serves with; one from
-before 2026-10-04 has none) in a container on the network `cortex` alone, and removes the copy.
+before 2026-10-04 has none) in a container on the network `cortex_seed` alone (Cortex and that
+container; the stack cortex makes it, internal and attachable), and removes the copy.
 Each archived page whose page is the whole answer of its URL becomes Cortex's answer to that URL,
 first fetched when it last changed and last fetched when the archive last had it; the follower
 copies it from the journal. A second run writes only what the archive has newer (`unchanged`,
@@ -926,22 +943,24 @@ once. `CONVERGE_TIMEOUT` (600 s) bounds the wait for an instance to run.
 
 | Network | Who is on it | Why |
 |---|---|---|
-| `cortex` (host, `30-docker.sh`: overlay, attachable, internal) | `cortex_a`, `cortex_b`, every instance's Radix, Prometheus | Radix and Prometheus reach `http://cortex_a:8100` and `http://cortex_b:8100`; Prometheus scrapes Radix here too. Nothing leaves the host this way |
-| `cortex_default` (the stack's own, not internal) | `cortex_a`, `cortex_b` | Cortex's way to the internet |
+| `cortex_<instance>` (host, `30-docker.sh`: overlay, internal, one per instance) | `cortex_a`, `cortex_b`, that instance's Radix, the scraper | Radix reaches `http://cortex_a:8100` and `http://cortex_b:8100`; the scraper scrapes Radix and Cortex. Nothing leaves the host this way, and no instance reaches another one |
+| `cortex_default` (the stack's own, not internal) | `cortex_a`, `cortex_b` | Cortex's way to the internet, and the way between the two |
+| `cortex_seed` (the stack's own, internal, attachable) | `cortex_a`, `cortex_b`, the container of `cortex-seed.sh` while it runs | seeding (below) |
 | `<stack>_snapshot` (per instance, internal) | Radix, Folia | Folia's snapshot downloads from Radix |
 | `<stack>_egress` (per instance, not internal; `stacks/betula.egress.yml`) | Radix, only where `50-app.sh` adds it | Gemini, which does not go through Cortex (owner, 2026-10-02: „Cortex ist nur für daten da.") |
 
-Radix is on neither `<stack>_default` nor `monitoring` any more: Docker gives a container a way
-out as soon as one of its networks is not internal. Folia keeps `default` and `edge`; `monitoring`
-holds Traefik and Prometheus. `50-app.sh` adds the egress override when the instance's file says
+Radix is on no network that leads out but `<stack>_egress`: Docker gives a container a way out as
+soon as one of its networks is not internal. Folia is on `edge_<stack>` (Traefik) and
+`<stack>_snapshot` alone, both internal (section 15 has every network of the host). `50-app.sh`
+adds the egress override when the instance's file says
 `RADIX_CRAWL=on` and Cortex does not run, or the secret `gemini-api-key` exists, or the release is
 from before Cortex; an offline colour never gets it. Docker has no allowlist per host for a
 container's way out: while it is there, Radix can reach any host. So `radix scan-curriculum` with
 Gemini works only in the crawling colour with the key; elsewhere it reads the PDFs with the
 deterministic reader alone. A removed egress override leaves the empty network object
-`<stack>_egress` behind. `50-app.sh` and `91-verify-stacks.sh` (sections `app` and `cortex`) check
-what swarm was told: Radix on `cortex` and `<stack>_snapshot`, egress exactly where expected, every
-other network internal, Folia not on `cortex`.
+`<stack>_egress` behind. `50-app.sh` and `91-verify-stacks.sh` (sections `app`, `cortex` and
+`netmatrix`) check what swarm was told: Radix on `cortex_<stack>` and `<stack>_snapshot`, egress
+exactly where expected, every other network internal, Folia on no network of Cortex.
 
 ### Alerts and the dashboard
 
@@ -963,7 +982,7 @@ answers. Cortex's `ERROR` lines reach the log alert like every stack's (`stack=~
 - **A crash loses a moment.** Replication is asynchronous (owner, 2026-10-02: „Ja die letzen 5 min
   sind egal"): over 29 `kill -9` of the leader under load, no acknowledged write older than 5 s was
   lost, the oldest lost one was 0.7 s old. The alert fires at 5 minutes behind.
-- **Nothing reaches in.** No published port; the network `cortex` is internal and holds only the
+- **Nothing reaches in.** No published port; the networks `cortex_<instance>` are internal and hold only the
   host's own services; no secret, no token, no credential is stored or forwarded (`Cookie` and
   `Authorization` never go upstream).
 - **Nothing private goes out.** Cortex refuses every address that is not globally reachable,
@@ -979,3 +998,193 @@ answers. Cortex's `ERROR` lines reach the log alert like every stack's (`stack=~
 - **Not covered.** The host itself: both instances are on it. And backups: none exist yet
   (section 8); the volumes `cortex_a-data` and `cortex_b-data` are worth one (either is enough).
   The follower is no backup: a deletion, or a bug that writes wrong data, replicates to it.
+
+## 15. Networks: who reaches whom
+
+Every service reaches what it needs and nothing else (owner, 2026-11-05: „mach mal das netz safe, so
+dass jeder service auf exakt die elemente zugreifen kann, die benötigt werden und nichts mehr"). One
+file says it, `vps/files/networks.conf`: every overlay network, whether it leads out of the host,
+and exactly which services are on it. `30-docker.sh` makes the networks the stacks name
+`external` from it, the deploy scripts refuse to run while one is missing, and
+`91-verify-stacks.sh netmatrix` checks each network's members against it and then probes from
+inside every container. Docker gives a container a way out (`docker_gwbridge`) as soon as one of its
+networks is not internal, and an internal network leads nowhere but to its members.
+
+### The matrix
+
+| From → to | Port | Over | Why |
+|---|---|---|---|
+| internet → Traefik | 80, 443 (host mode) | `edge_out` | the sites; the only published ports |
+| Traefik → Let's Encrypt | 443 | `edge_out` | certificates |
+| Traefik → socket proxy | 2375 | `edge_socket` | the swarm provider (read-only API) |
+| Traefik → Folia of an instance | 8080 | `edge_<instance>` (one per instance) | the site |
+| Traefik → placeholder | 8080 | `edge_placeholder` | the page before the application |
+| Traefik → Grafana | 3000 | `edge_grafana` | `https://grafana.betula.app` (`monitoring.public.yml`) |
+| Traefik → Phloem | 8200 | `phloem_in`, `phloem-canary_in` | `/sync/v1/` (docs/phloem/protocol.md) |
+| Folia → its own Radix | 8090 | `<instance>_snapshot` | the snapshot |
+| Radix → Cortex | 8100 | `cortex_<instance>` (one per instance) | everything Radix fetches |
+| Radix → internet | any | `<instance>_egress` | only with `betula.egress.yml` (Gemini; no Cortex) |
+| Cortex → internet; `cortex_a` ↔ `cortex_b` | any; 8100 | `cortex_default` | upstream; the follower's journal |
+| `cortex-seed.sh`'s container → Cortex | 8100 | `cortex_seed` | the only attachable network |
+| scraper → Traefik's metrics | 8082 | `edge_metrics` (10.201.0.0/24) | Traefik answers this subnet alone |
+| scraper → Radix, Cortex | 8090, 8100 | `cortex_<instance>` | jobs `radix`, `cortex` |
+| scraper → Prometheus; Prometheus → scraper | 9090 | `monitoring_relay` | remote write; its health |
+| Grafana → Prometheus, Loki; Prometheus → Grafana, Loki; Loki → Prometheus | 9090, 3100, 3000 | `monitoring_query` | dashboards, alerts, their metrics, the ruler |
+| Alloy → Loki, Prometheus; Prometheus → Alloy | 3100, 9090, 12345 | `monitoring_collect` | logs, host metrics, Phloem's numbers |
+| Grafana → internet | any | `monitoring_notify` | notifications; its address on `docker_gwbridge` (section 2's tunnel) |
+| Alloy → Phloem's numbers | none | a file | `/run/betula/phloem/<stack>/stats`, read through `/rootfs` |
+| the host → Phloem's firewall | none | `nsenter` | `betula-phloem-guard`, every minute |
+
+A way out of the host: Traefik, Cortex, Grafana, a Radix with `<instance>_egress`, and Phloem's
+`<stack>_out` where it exists (for TURN, step 2; its firewall lets nothing out). Nothing else: not
+Folia, the placeholder, the socket proxy, Loki, Prometheus, the scraper or Alloy. Not in the matrix
+means no network in common: no instance reaches another one, Folia reaches neither Cortex nor the
+monitoring, Grafana (public) never shares a network with Alloy (root-equivalent on the host), and
+nothing but Traefik shares one with Phloem.
+
+A network has no direction: whoever shares one can open connections both ways. Where only one way
+is wanted, the other side gets nothing out of it:
+
+- **Prometheus is on no network outside its stack.** It takes writes from whoever reaches it
+  (`--web.enable-remote-write-receiver`) and answers any query, so the networks of Traefik, Radix
+  and Cortex, which face the internet, hold the **scraper** instead (`monitoring_scraper`, Prometheus
+  in agent mode, `config/monitoring/scraper.yml`): no query API, no receiver, no lifecycle API,
+  nothing but a write-ahead log. Its jobs keep their names, so the dashboards and rules read alike.
+- **Traefik's metrics answer `edge_metrics` alone.** The entrypoint `:8082` listens on every network
+  Traefik is on; with manual routing its one router (`config/traefik/dynamic/metrics.yml`) lets the
+  subnet of `edge_metrics` in and gives every other one 403 (by the address the connection comes
+  from, never a header). Its subnet is fixed for that: `10.201.0.0/24`, outside the swarm's pool.
+- **Phloem cannot reach the monitoring, and the monitoring needs no network to it** (owner,
+  2026-11-05: „Das einzigige, was intern laufen darf ist die anfragen von grafana an die stats api,
+  aber nicht anders herum"): Phloem writes its numbers to a file, Alloy reads it. In its container a
+  firewall lets no new connection out and no DNS (`docs/phloem/protocol.md` section 2);
+  `betula-phloem-guard` (`vps/files/betula-phloem-guard.sh`) checks it from outside every minute,
+  with its rights, and the rule group `betula-phloem` and the dashboard "Sync" show what it sees.
+  How Phloem itself is deployed: `docs/phloem/phloem.md`.
+- What stays: Cortex can reach the Radix of every instance (it serves them all), Grafana could write
+  to Prometheus, and a service on a network with Traefik reaches its public ports like anybody on the
+  internet does.
+
+### What checks it
+
+`30-docker.sh` refuses a network that exists with other properties (Docker never changes internal,
+attachable or the subnet of a network; remove it once nothing uses it). `40-stacks.sh`, `48-cortex.sh`
+and `50-app.sh` refuse to deploy while a network of the plan is missing; `50-app.sh` also while
+Traefik is not on the instance's `edge_<instance>` (it could not route there) or Cortex runs
+without `cortex_<instance>`, and after a deploy it checks that Folia is on exactly
+`edge_<instance>` and `<instance>_snapshot`. `90-verify-host.sh docker` checks the networks and the
+guard's timer. `91-verify-stacks.sh` (as `deploy`, with `sudo -n` for `nsenter`):
+
+- `netmatrix`: each network as planned, with its members and nobody else; a network outside the plan
+  is a FAIL while something uses it; every routed service names the network Traefik reaches it
+  over. Then from inside each container (`nsenter -n`, the host's bash and curl): a TCP handshake to
+  every other service, open exactly where the plan puts the two on one network; one to the internet
+  (`NETPROBE_INTERNET`, default `1.1.1.1:443`), open exactly where the plan gives a way out; a GET of
+  Traefik's metrics where the container shares a network with Traefik (200 over `edge_metrics`, 403
+  elsewhere); and from Traefik's own address on each of its networks.
+- `phloem`: per instance of Phloem, its networks (`<stack>_in` internal and not attachable with
+  exactly Traefik and Phloem; `<stack>_out`, if there, its alone), nothing published, the table `inet
+  phloem` in its container, nothing reachable from it (Traefik, Prometheus, Grafana, Loki, the
+  scraper, Cortex, every Folia and Radix, the host's ssh, Docker's DNS, the internet), Traefik
+  reaching it, Traefik's metrics refusing `<stack>_in`, and `phloem_up`, its file's age and the
+  guard's verdict in Prometheus. A Phloem that is not deployed is a WARN.
+
+`deploy/test/netmatrix.sh` builds all of it in a local one-node swarm, with stand-ins for what the
+networks do not depend on (real Traefik, socket proxy, Prometheus, scraper and Alloy), runs those
+two sections, the routes through Traefik and two mutations they must catch, and removes it again
+(as root, on a throwaway machine; never on the server).
+
+### A new instance
+
+An instance needs its two networks before its first deploy: lines `net edge_<name> ...` and
+`net cortex_<name> ...` in `vps/files/networks.conf` (copy those of `canary-green`), the two among
+Traefik's networks in `stacks/edge.yml`, `cortex_<name>` in `x-cortex` of `stacks/cortex.yml` and
+among the scraper's in `stacks/monitoring.yml`, its `tasks.<name>_radix.` in
+`config/monitoring/scraper.yml`; then `sudo bash vps/30-docker.sh`, `40-stacks.sh edge monitoring`,
+`48-cortex.sh`, and only then `50-app.sh <name>` (which refuses before).
+
+### Moving to these networks
+
+Before 2026-11-05 there were three networks for everything: `edge` (Traefik and every web server,
+not internal), `monitoring` (Traefik and Prometheus) and `cortex` (Cortex, every Radix, Prometheus);
+Folia had its stack's `default` (not internal) and the monitoring stack one `default` for all. The
+move keeps https://betula.app up: the old networks stay until nothing uses them, and Traefik and
+Cortex stay on them while anything else does (`stacks/edge.legacy.yml`, which `40-stacks.sh` adds
+by itself, and the same for Cortex in `48-cortex.sh`). In this order:
+
+1. `SSH_TARGET=betula bash deploy/sync.sh`, then `ssh betula sudo bash /opt/betula/vps/30-docker.sh`:
+   the 13 networks of the host (`network edge_betula created` ...) and the guard's timer. Nothing
+   restarts. `sudo bash /opt/betula/vps/90-verify-host.sh docker`.
+2. `bash /opt/betula/vps/40-stacks.sh edge`: Traefik on its new networks and still on `edge`
+   (`adding edge.legacy.yml`). Traefik restarts once: the few seconds of every update of it
+   (stop-first, host-mode ports).
+3. `bash /opt/betula/vps/48-cortex.sh` (the release that runs): Cortex on `cortex_<instance>` and
+   `cortex_seed`, and still on `cortex`; one instance at a time, as always, so there is no moment
+   without a leader.
+4. `bash /opt/betula/vps/40-stacks.sh monitoring`: the stack's new networks, the scraper,
+   Prometheus off `monitoring` and `cortex`. Its services restart once (a minute without metrics).
+5. Every instance once with the new `betula.yml`:
+   - The canary: its next release does it (the agent deploys the colour that does not serve and
+     switches, section 12); by hand the same, `50-app.sh <the other colour> <tag>` and
+     `55-switch.sh <it>`.
+   - The public site: `bash /opt/betula/vps/50-app.sh betula`, the release that runs, in place.
+     Its Folia restarts once; while it has no healthy task Traefik sends https://betula.app to the
+     standby `betula-green`, which it still reaches over the old `edge` (section 4: an in-place
+     update of the live colour leaves no gap while the other colour runs). `betula-green` moves
+     with its own next deploy; until then it keeps `edge` and `cortex` in use.
+6. `bash /opt/betula/vps/91-verify-stacks.sh`: section netmatrix names what is still on an old
+   network.
+7. The last step, once nothing but Traefik and Cortex are on the old networks (it can wait for the
+   next change of either; a placeholder that still runs holds `edge`: `docker stack rm placeholder`
+   once an instance serves betula.app): `bash /opt/betula/vps/40-stacks.sh edge` (Traefik leaves `edge`; again a
+   few seconds), `bash /opt/betula/vps/48-cortex.sh` (Cortex leaves `cortex`; no gap), then
+   `docker network rm edge monitoring cortex monitoring_default` and `docker network rm
+   <instance>_default` for each instance (Docker refuses to remove a network in use: nothing breaks
+   by trying). `91-verify-stacks.sh` again: `fail=0`.
+
+**Rollback** before step 7: sync the previous revision of `deploy/` and run the same scripts with it
+(`40-stacks.sh edge monitoring`, `48-cortex.sh`, `50-app.sh <instance>`, `55-switch.sh` back where a
+colour was switched); the old files find the old networks, which still exist. After step 7 the
+previous `30-docker.sh` makes `edge`, `monitoring` and `cortex` again first. The new networks may
+stay; they are empty without their services.
+
+## 16. Betula Sync: Phloem
+
+Phloem is the service of Betula Sync (`docs/phloem/phloem.md`, its protocol
+`docs/phloem/protocol.md`): one stack per site, `phloem` for https://betula.app and
+`phloem-canary` for https://canary.betula.app, each with nothing but Traefik on its network
+`<stack>_in` (section 15), a firewall inside its container and its data on a file system of its
+own. It is not part of the canary pipeline: a push to master does not touch it, and Folia offers
+Betula Sync only where its instance says `FOLIA_SYNC=on` and a Phloem serves the host (50-app.sh
+deploys it off otherwise, and says so).
+
+Once, in this order (the first three are section 15's steps 1 and 2, if they did not run yet):
+
+1. From the workstation: `deploy/sync.sh`.
+2. `sudo bash /opt/betula/vps/30-docker.sh`: the networks `phloem_in` and `phloem-canary_in` and
+   the guard (`betula-phloem-guard.timer`, which checks every minute from outside that the
+   firewall is there and that Phloem holds no rights).
+3. `bash /opt/betula/vps/40-stacks.sh edge monitoring`: Traefik on both networks (every site is
+   away for the few seconds of Traefik's restart), and Alloy reading Phloem's numbers (the
+   dashboard „Sync", the alerts `betula-phloem`).
+4. `sudo bash /opt/betula/vps/47-phloem-host.sh phloem-canary`: its data on an ext4 of its own
+   (`PHLOEM_DATA_SIZE` in `stacks/phloem/phloem-canary.env`) and its numbers on a tmpfs of 1 MiB,
+   both mounted at every boot before Docker.
+5. From the workstation: `SSH_TARGET=betula deploy/ship-phloem.sh phloem-canary`: builds the
+   image, loads it, deploys it with `vps/49-phloem.sh`, and then tries what is forbidden (from
+   inside: DNS, the internet, Traefik, the host; from outside: `/sync/v1/` reaches Phloem,
+   `/healthz` does not). A FAIL ends with exit 1 and names the rollback.
+6. `bash /opt/betula/vps/50-app.sh canary` (or the next release the canary agent deploys):
+   Folia with `FOLIA_SYNC=on` from `canary.env`. The profile page shows „Betula Sync aktivieren".
+
+For https://betula.app the same with `phloem` (steps 4 and 5), then `FOLIA_SYNC=on` in
+`betula.env` and `betula-green.env`, `deploy/sync.sh` and `50-app.sh` of each colour.
+
+- **Rollback** of the pages: `FOLIA_SYNC=off` in the instance's file, `deploy/sync.sh`,
+  `50-app.sh <instance>`. Every synced profile stays on its devices and is offline until it comes
+  back. Of Phloem: `bash /opt/betula/vps/49-phloem.sh <stack> <previous tag>`.
+- **Its data** is sealed by the devices (Phloem can open none of it): sizes, times and random ids
+  are all it knows. A space untouched for 395 days goes by itself; „Sync beenden" deletes one at
+  once. A backup of `phloem.db` is not written yet (`docs/phloem/phloem.md`, „Not yet").
+- **The privacy notice** describes it („Abgleich zwischen deinen Geräten (Betula Sync)",
+  `folia/crates/home/src/i18n/legal.rs`): change it with what Phloem keeps.

@@ -12,6 +12,8 @@ set -Eeuo pipefail
 
 # shellcheck source=lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=lib-networks.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib-networks.sh"
 betula_init
 require_root
 require_ubuntu
@@ -563,7 +565,7 @@ check_published_filter() {
 
 check_docker() {
   section "docker and swarm"
-  local version value net facts ports port conf_ok=1
+  local version value net ports port conf_ok=1
   if ! have_cmd docker; then
     fail "docker is not installed"
     return 0
@@ -620,11 +622,29 @@ check_docker() {
   else
     warning "swarm advertise address ${value} differs from the default IPv4 $(default_ipv4)"
   fi
-  # As vps/30-docker.sh creates them: cortex is internal (no way out of the host), the others are not.
-  for net in edge:false monitoring:false cortex:true; do
-    facts="$(docker network inspect "${net%%:*}" --format '{{.Driver}} {{.Scope}} {{.Attachable}} {{.Internal}}' 2>/dev/null || true)"
-    expect "network ${net%%:*} (driver scope attachable internal)" "${facts}" "overlay swarm true ${net#*:}"
+  # As vps/30-docker.sh makes them from files/networks.conf (README.md section 15). Who is on
+  # them, and the probes between containers: 91-verify-stacks.sh, section netmatrix.
+  netplan_read
+  while IFS= read -r net; do
+    if netplan_check "${net}"; then
+      pass "network ${net}: $(network_facts "${net}") (driver scope attachable internal subnet), as planned"
+    else
+      fail "${NETPLAN_DETAIL} (sudo bash ${BETULA_VPS_DIR}/30-docker.sh)"
+    fi
+  done < <(netplan_host_networks)
+  for net in ${NETPLAN_OLD[@]+"${NETPLAN_OLD[@]}"}; do
+    if docker network inspect "${net}" >/dev/null 2>&1; then
+      warning "network ${net} is from before files/networks.conf: it goes once nothing uses it (README.md section 15)"
+    fi
   done
+  as_shipped "Phloem's guard" /usr/local/sbin/betula-phloem-guard betula-phloem-guard.sh
+  as_shipped "Phloem's guard (service)" /etc/systemd/system/betula-phloem-guard.service betula-phloem-guard.service
+  as_shipped "Phloem's guard (timer)" /etc/systemd/system/betula-phloem-guard.timer betula-phloem-guard.timer
+  if systemctl is-active --quiet betula-phloem-guard.timer 2>/dev/null; then
+    pass "betula-phloem-guard.timer is on (Phloem's firewall and rights, every minute)"
+  else
+    fail "betula-phloem-guard.timer is not active (sudo bash ${BETULA_VPS_DIR}/30-docker.sh)"
+  fi
 
   # published-port filter
   load_public_ports "${BETULA_FILES_DIR}/public-ports.conf"

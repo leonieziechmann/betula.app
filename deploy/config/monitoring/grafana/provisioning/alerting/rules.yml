@@ -1799,7 +1799,377 @@ groups:
           severity: critical
         annotations:
           summary: "{{ $labels.job }} cannot be scraped"
-          description: "Prometheus has not been able to scrape {{ $labels.job }} ({{ $labels.instance }}) for 5 minutes. traefik: is the edge stack running and attached to the monitoring network? cortex: does the instance run (docker stack services cortex), and is Prometheus on the network cortex? integrations/unix or integrations/cadvisor: Alloy. Check docker stack services monitoring."
+          description: "{{ $labels.job }} ({{ $labels.instance }}) has not been scraped for 5 minutes. traefik, radix, cortex: the scraper (monitoring_scraper, config/monitoring/scraper.yml) scrapes them over edge_metrics and cortex_<instance> and writes them to Prometheus: does the target run, and are both on the network (bash /opt/betula/vps/91-verify-stacks.sh netmatrix)? traefik also answers its metrics to the subnet of edge_metrics alone (config/traefik/dynamic/metrics.yml). scraper: Prometheus reaches it over relay; while it is down the three jobs have no samples at all. cortex: does the instance run (docker stack services cortex)? integrations/unix or integrations/cadvisor, phloem, phloem-guard: Alloy. Check docker stack services monitoring."
+
+  - orgId: 1
+    name: betula-phloem
+    folder: Betula alerts
+    interval: "1m"
+    rules:
+
+      # Phloem (docs/phloem/protocol.md) is seen through the file it writes every 15 s, never over a
+      # network (config/monitoring/alloy/config.alloy). Down is: the file has not changed for two
+      # minutes, or it is gone though there was one in the last 7 days, or the file says phloem_up 0
+      # (what a Phloem that stops writes last). An instance whose file is older than 7 days, or that
+      # never had one (not deployed), is no data: OK. Each case carries the label why.
+      - uid: betula-phloem-down
+        title: "Phloem: not running"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "label_replace(((time() - max by (stack) (node_textfile_mtime_seconds{job=\"phloem\"})) > 120) and ((time() - max by (stack) (node_textfile_mtime_seconds{job=\"phloem\"})) < 604800), \"why\", \"stale\", \"\", \"\") or label_replace((max by (stack) (node_textfile_scrape_error{job=\"phloem\"}) > 0) and on (stack) max by (stack) (max_over_time(node_textfile_mtime_seconds{job=\"phloem\"}[7d])), \"why\", \"missing\", \"\", \"\") or label_replace(((1 - max by (stack) (phloem_up{job=\"phloem\"})) > 0) and on (stack) ((time() - max by (stack) (node_textfile_mtime_seconds{job=\"phloem\"})) < 604800), \"why\", \"stopped\", \"\", \"\")"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "2m"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-sync
+        panelId: 1
+        labels:
+          severity: critical
+        annotations:
+          summary: "Phloem ({{ $labels.stack }}): {{ if eq $labels.why \"stale\" }}its stats file has not changed for {{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }} s{{ else }}minutes{{ end }}{{ else if eq $labels.why \"missing\" }}its stats file is gone{{ else }}it stopped{{ end }}"
+          description: "Phloem, Betula Sync's service, writes /run/betula/phloem/{{ $labels.stack }}/stats/phloem.prom every 15 s; it shares no network with the monitoring, so that file is all Alloy sees of it. An old file means the process has stopped writing (it hangs, or its container is gone and the file stayed behind); a missing one, that the tmpfs is gone (a reboot before Phloem came back); phloem_up 0 is what a Phloem that stops on purpose writes last. Betula keeps working without it, offline, but no device syncs meanwhile. docker service ps --no-trunc {{ $labels.stack }}_sync; docker service logs {{ $labels.stack }}_sync; bash /opt/betula/vps/91-verify-stacks.sh phloem. Retired on purpose: remove the stats file, or wait 7 days; the rule forgets an instance whose file is older."
+
+      # The budget is Phloem's own number (PHLOEM_BUDGET_BYTES); its filesystem is fixed in size
+      # as well, and the disk rule of group betula-host covers that one like any other.
+      - uid: betula-phloem-budget
+        title: "Phloem: past half of its budget"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "100 * max by (stack) (phloem_bytes{job=\"phloem\"}) / max by (stack) (phloem_budget_bytes{job=\"phloem\"} > 0)"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [50]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "10m"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-sync
+        panelId: 5
+        labels:
+          severity: warning
+        annotations:
+          summary: "Phloem ({{ $labels.stack }}) holds {{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }} %{{ else }}more than half{{ end }} of its budget"
+          description: "What all spaces hold (phloem_bytes: entries, snapshots, parcels) against PHLOEM_BUDGET_BYTES (phloem_budget_bytes). At the budget Phloem makes no new space and takes no parcel (507 budget); the spaces it has go on. A typical profile is a few kB sealed (research/sync): more than that per space means someone stores what is no profile, or the snapshots are not compacted. Dashboard Sync (Budget used, Bytes coming in, Spaces made). More room: a larger budget and filesystem (docs/phloem/phloem.md)."
+
+      # What betula-phloem-guard sees from outside Phloem's container, every minute (job
+      # phloem-guard). Two minutes, so that the moment of a start, before "phloem start" has
+      # dropped its rights, is never one. The guard's own silence counts as well (why="guard").
+      - uid: betula-phloem-isolation
+        title: "Phloem: its firewall or its rights are not as they should be"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "label_replace((1 - max by (stack) (betula_phloem_guard_firewall)) > 0, \"why\", \"firewall\", \"\", \"\") or label_replace(max by (stack) (betula_phloem_guard_privileged) > 0, \"why\", \"rights\", \"\", \"\") or label_replace((time() - max(betula_phloem_guard_last_run_timestamp_seconds)) > 300, \"why\", \"guard\", \"stack\", \"\")"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "2m"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-sync
+        panelId: 13
+        labels:
+          severity: critical
+        annotations:
+          summary: "Phloem{{ if $labels.stack }} ({{ $labels.stack }}){{ end }}: {{ if eq $labels.why \"firewall\" }}no firewall in its container{{ else if eq $labels.why \"rights\" }}a process of its container has rights{{ else }}the guard has not looked for {{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }} s{{ else }}minutes{{ end }}{{ end }}"
+          description: "Phloem is kept as if it were an outside service (owner, 2026-11-05: Security first): in its container the table inet phloem lets no new connection out and no DNS, and \"phloem start\" drops to uid 65532 without capabilities before it serves. betula-phloem-guard (vps/files/betula-phloem-guard.sh, every minute as root) looks at that from outside. firewall: a running container of the stack has no such table (its firewall did not load, or was removed). rights: a process of its container runs as root or holds a capability. guard: its file /run/betula/metrics/phloem-guard.prom is older than 5 minutes (systemctl status betula-phloem-guard.timer). Until it is understood: docker service scale {{ $labels.stack }}_sync=0 stops Sync and nothing else. Then: sudo betula-phloem-guard; cat /run/betula/metrics/phloem-guard.prom; bash /opt/betula/vps/91-verify-stacks.sh phloem."
+
+      # The guard's counters of what Phloem's firewall dropped. Quiet for 15 minutes after the
+      # probes of 91-verify-stacks.sh (sections netmatrix and phloem), which test exactly that.
+      - uid: betula-phloem-drops
+        title: "Phloem: its firewall drops connections"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "sum by (stack, chain) (increase(betula_phloem_guard_dropped_packets_total[10m])) > 0 unless on () ((time() - max(betula_verify_probes_timestamp_seconds)) < 900)"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "0s"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-sync
+        panelId: 16
+        labels:
+          severity: warning
+        annotations:
+          summary: "Phloem ({{ $labels.stack }}): its firewall dropped {{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }}{{ else }}some{{ end }} packets ({{ $labels.chain }}) in 10 minutes"
+          description: "The counting drop rules of table inet phloem in Phloem's container dropped packets. output: something in the container tried to open a connection, which Phloem never does (no DNS, no connection out: docs/phloem/protocol.md section 2) - a bug, or someone in the container. input: something knocked on a port other than 8200, and only Traefik and this host reach it. Who: docker service logs {{ $labels.stack }}_sync; the packets themselves: sudo nsenter -t <pid of its container> -n nft list table inet phloem. Not counted: the 15 minutes after a run of 91-verify-stacks.sh, whose probes knock there on purpose (it says so in /run/betula/metrics/verify-probes.prom)."
+
+      # Phloem's limits hold by themselves (docs/phloem/protocol.md section 3); this only says that
+      # spaces are made at more than half the rate it allows.
+      - uid: betula-phloem-spaces
+        title: "Phloem: many spaces made"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "sum by (stack) (increase(phloem_spaces_created_total{job=\"phloem\"}[1h])) > 250"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "0s"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-sync
+        panelId: 9
+        labels:
+          severity: warning
+        annotations:
+          summary: "Phloem ({{ $labels.stack }}): {{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }}{{ else }}many{{ end }} spaces made in an hour"
+          description: "More than 250 profiles started Betula Sync within an hour: half of what Phloem takes at most (500 an hour, 20 per address). A launch, an announcement - or someone filling the budget with spaces of their own (each space is a token and a key nobody but its devices has). Phloem's own limits hold either way; the rule says only that it is unusual. Dashboard Sync (Spaces made, Refused by reason, Budget used); the addresses: Traefik's access log, {service=\"edge_traefik\"} |= \"/sync/v1/space\"."
 
 # Rules this file provisioned once and no longer defines (see the header). Grafana deletes them on
 # every provisioning run; a uid that is already gone is a no-op there, so an entry may stay.

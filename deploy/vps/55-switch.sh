@@ -9,8 +9,8 @@
 # In this order; nothing is changed unless the step before succeeded:
 #   1. The instance is deployed, its services are converged, its web server answers /livez and
 #      /healthz, keeps /api/status closed while FOLIA_ACCESS_GATE=on, and its catalog is not older
-#      than the schema its build reads. Asked directly on docker_gwbridge, past Traefik, which
-#      still sends the host to the other one.
+#      than the schema its build reads. Asked directly, past Traefik's routers (which still send
+#      the host to the other one), from inside Traefik's container (folia_status, lib-stacks.sh).
 #   2. Its router gets a priority above every other router for the host. That is a label of the
 #      service, not of its tasks: nothing restarts (with docker 29.8.0 or newer; raise_priority
 #      says why). Traefik reads it the next time it looks at the swarm (every 15 s).
@@ -28,6 +28,8 @@ set -Eeuo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 # shellcheck source=lib-stacks.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib-stacks.sh"
+# shellcheck source=lib-networks.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib-networks.sh"
 betula_init
 require_ubuntu
 
@@ -57,7 +59,7 @@ router_of_host() {
 
 preflight() {
   step "Is ${INSTANCE_STACK} ready to serve https://${INSTANCE_HOST}?"
-  local svc state address path code
+  local svc state path code
   if [[ "${EUID}" -eq 0 && -n "${SUDO_USER:-}" ]]; then
     die "run this as ${DEPLOY_USER} WITHOUT sudo"
   fi
@@ -72,16 +74,18 @@ preflight() {
     log "${svc}: ${state#* }"
   done < <(stack_services "${INSTANCE_STACK}")
 
-  address="$(folia_address "${INSTANCE_STACK}")"
-  [[ -n "${address}" ]] || die "no container of ${SERVICE} runs on this node (docker service ps --no-trunc ${SERVICE})"
+  [[ -n "$(folia_container "${INSTANCE_STACK}")" ]] || die "no container of ${SERVICE} runs on this node (docker service ps --no-trunc ${SERVICE})"
+  [[ -n "$(service_container edge_traefik)" ]] || die "no container of edge_traefik runs on this node: nothing could serve https://${INSTANCE_HOST} (bash ${BETULA_ROOT}/vps/40-stacks.sh edge)"
+  service_on_network edge_traefik "edge_${INSTANCE_STACK}" ||
+    die "edge_traefik is not on the network edge_${INSTANCE_STACK} and cannot reach ${SERVICE}: bash ${BETULA_ROOT}/vps/40-stacks.sh edge first (README.md section 15)"
   for path in /livez /healthz; do
-    code="$(curl -sS -o /dev/null --max-time 10 -w '%{http_code}' "http://${address}:8080${path}" 2>/dev/null || true)"
+    code="$(folia_status "${INSTANCE_STACK}" "${path}")"
     [[ "${code}" == "200" ]] ||
-      die "${SERVICE} answers ${path} with ${code:-nothing} (asked directly at ${address}:8080): it has no catalog to show, or no answer from its Radix. docker service logs ${SERVICE}"
-    log "${SERVICE} answers ${path} with 200 (asked directly at ${address}:8080)"
+      die "${SERVICE} answers ${path} with ${code:-nothing} (asked directly, from Traefik's container): it has no catalog to show, or no answer from its Radix. docker service logs ${SERVICE}"
+    log "${SERVICE} answers ${path} with 200 (asked directly, from Traefik's container)"
   done
   if [[ "${INSTANCE_GATE}" == "on" ]]; then
-    code="$(curl -sS -o /dev/null --max-time 10 -w '%{http_code}' "http://${address}:8080/api/status" 2>/dev/null || true)"
+    code="$(folia_status "${INSTANCE_STACK}" /api/status)"
     [[ "${code}" == "401" ]] ||
       die "${INSTANCE_STACK}.env says FOLIA_ACCESS_GATE=on, but ${SERVICE} answers /api/status with ${code:-nothing} without the password: it would open the site"
     log "closed testing is in force (/api/status -> 401 without the password)"

@@ -423,6 +423,8 @@ impl Profiles {
         let (next, profile, at) = self.registry.with_untracked(|registry| registry.without(id))?;
         let was_active = self.active_untracked() == id;
         let texts = texts_of(id);
+        // A synced profile goes from this device alone: the others keep it.
+        crate::sync::forget(id);
         // What it keeps goes first, then the profile: a tab that hears of the list without it
         // finds nothing left under its keys (and does not list the first profile again for it).
         for key in KEYS {
@@ -450,7 +452,10 @@ impl Profiles {
     /// then shows „Mein Studiengang" again).
     pub fn clear(self, id: u16) -> Cleared {
         let texts = texts_of(id);
-        for key in KEYS {
+        for (key, text) in KEYS.iter().zip(&texts) {
+            if crate::sync::syncs(id) {
+                crate::sync::changed(id, key, &checked(key, text), "");
+            }
             nav::local_set(&key_of(key, id), "");
         }
         forget_session(id);
@@ -464,6 +469,10 @@ impl Profiles {
             return;
         }
         for (key, text) in KEYS.iter().zip(&cleared.texts) {
+            if crate::sync::syncs(cleared.id) {
+                let now = nav::local_get(&key_of(key, cleared.id)).unwrap_or_default();
+                crate::sync::changed(cleared.id, key, &checked(key, &now), &checked(key, text));
+            }
             nav::local_set(&key_of(key, cleared.id), text);
         }
         self.wrote();
@@ -501,6 +510,16 @@ impl Profiles {
         })
     }
 
+    /// The first profile, where a browser has it alone, it holds nothing and it does not sync: a
+    /// browser new to Betula, into which a profile of another device comes (`sync::Sync::join`)
+    /// instead of beside it. Untracked.
+    #[cfg_attr(not(all(feature = "csr", target_arch = "wasm32")), allow(dead_code))]
+    pub(crate) fn empty_first(self) -> Option<u16> {
+        let alone = self.registry.with_untracked(|registry| registry.profiles.len() == 1 && registry.has(FIRST));
+        let empty = texts_of(FIRST).iter().all(|text| text.trim().is_empty());
+        (alone && empty && !crate::sync::syncs(FIRST)).then_some(FIRST)
+    }
+
     /// The number the next profile made gets, for the name it has until it is named („Profil 3");
     /// `None` with `MAX_PROFILES`. Tracked.
     pub fn next_id(self) -> Option<u16> {
@@ -512,7 +531,9 @@ impl Profiles {
         self.registry.set(registry);
     }
 
-    fn wrote(self) {
+    /// Something wrote into a profile's stores besides them (this module, or Betula Sync with what
+    /// came from another device): they read their texts again.
+    pub(crate) fn wrote(self) {
         self.written.update(|written| *written = written.wrapping_add(1));
     }
 }
@@ -555,6 +576,19 @@ pub(crate) struct Kept {
     key: &'static str,
     /// The profile whose text the store holds.
     profile: RwSignal<u16>,
+    /// The text the store holds: what it read last (as it came) or wrote last. A change of a
+    /// synced profile is what differs between it and the next write (`sync::changed`), never
+    /// what another tab or device wrote meanwhile.
+    last: StoredValue<Last>,
+}
+
+#[derive(Clone, Debug, Default)]
+enum Last {
+    /// Read as it came; the store holds it as it reads it (`checked`).
+    Read(String),
+    Wrote(String),
+    #[default]
+    None,
 }
 
 impl Kept {
@@ -562,18 +596,32 @@ impl Kept {
     /// profiles (a test).
     pub(crate) fn of(key: &'static str) -> Self {
         let profile = Profiles::expect().map_or(FIRST, Profiles::active_untracked);
-        Kept { key, profile: RwSignal::new(profile) }
+        Kept { key, profile: RwSignal::new(profile), last: StoredValue::new(Last::None) }
     }
 
     /// The text this browser keeps for the store; `None` on the server and where storage is
     /// refused.
     pub(crate) fn read(self) -> Option<String> {
-        nav::local_get(&key_of(self.key, self.profile.get_untracked()))
+        let text = nav::local_get(&key_of(self.key, self.profile.get_untracked()));
+        self.last.set_value(Last::Read(text.clone().unwrap_or_default()));
+        text
     }
 
-    /// Keeps the store's text; an empty one takes the key out (`nav::local_set`).
+    /// Keeps the store's text; an empty one takes the key out (`nav::local_set`). In a synced
+    /// profile what changed goes to the other devices (`sync::changed`).
     pub(crate) fn write(self, text: &str) {
-        nav::local_set(&key_of(self.key, self.profile.get_untracked()), text);
+        let profile = self.profile.get_untracked();
+        if crate::sync::syncs(profile) {
+            let before = match self.last.get_value() {
+                Last::Read(raw) => checked(self.key, &raw),
+                Last::Wrote(text) => text,
+                Last::None => checked(self.key, &nav::local_get(&key_of(self.key, profile)).unwrap_or_default()),
+            };
+            crate::sync::changed(profile, self.key, &before, text);
+        }
+        nav::local_set(&key_of(self.key, profile), text);
+        self.last.set_value(Last::Wrote(text.to_string()));
+        crate::sync::wrote(profile, self.key);
     }
 
     /// What this tab keeps beside the store's text for the session (`sessionStorage`, one of
@@ -705,7 +753,7 @@ impl Backup {
 }
 
 /// A store's text as its store reads it and writes it back (`KEYS`).
-fn checked(key: &str, text: &str) -> String {
+pub(crate) fn checked(key: &str, text: &str) -> String {
     if key == crate::bookmarks::STORAGE_KEY {
         crate::bookmarks::checked(text)
     } else if key == crate::studyplan::STORAGE_KEY {

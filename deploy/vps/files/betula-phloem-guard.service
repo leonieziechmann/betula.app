@@ -1,0 +1,23 @@
+# Installed by /opt/betula/vps/30-docker.sh as /etc/systemd/system/betula-phloem-guard.service.
+# Started every minute by betula-phloem-guard.timer: writes what Phloem's firewall and rights look
+# like from outside to /run/betula/metrics/phloem-guard.prom (files/betula-phloem-guard.sh says
+# what it reads). By hand: sudo systemctl start betula-phloem-guard.service
+
+[Unit]
+Description=Betula: look at Phloem's firewall and rights from outside its containers
+Documentation=file:///opt/betula/vps/files/betula-phloem-guard.sh
+After=docker.service
+# Do not start Docker for it; without the daemon there is nothing to look at.
+Requisite=docker.service
+
+[Service]
+Type=oneshot
+# Root: nsenter needs it to enter a container's network namespace, and /proc of a process of
+# another user. It reads, and writes nothing but its file below /run/betula/metrics.
+ExecStart=/usr/local/sbin/betula-phloem-guard
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=read-only
+TimeoutStartSec=50s
+Nice=10

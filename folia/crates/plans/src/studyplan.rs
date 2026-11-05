@@ -1173,13 +1173,13 @@ impl PlanDoc {
 
     /// Makes a calendar of one's own, the last of them: named `name`, with the modules `modules`
     /// and the groups `chosen` of semester `s` (a plan handed on, `folia_calendar::share`) and the
-    /// program `program`, standing as a new one stands. Its number, the smallest one free; `None`
-    /// at the cap.
+    /// program `program`, standing as a new one stands. Its number, the smallest one free (of the
+    /// device's class while the profile syncs, `ids`); `None` at the cap.
     pub fn add_calendar(&mut self, name: &str, program: Option<&str>, s: SemesterKey, modules: &[String], chosen: &[RowKey], changes: &[Change]) -> Option<u8> {
         if self.calendars.len() >= MAX_CALENDARS {
             return None;
         }
-        let id = (1..=MAX_CALENDAR_ID).find(|id| self.calendar(*id).is_none())?;
+        let id = crate::ids::smallest(u32::from(MAX_CALENDAR_ID), |id| u8::try_from(id).is_ok_and(|id| self.calendar(id).is_none())).and_then(|id| u8::try_from(id).ok())?;
         let program = program.filter(|program| url::is_program_id(program)).map(str::to_string);
         let mut calendar = Calendar { id, name: calendar_name(name), view: None, program, modules: Vec::new(), chosen: BTreeSet::new(), own: Vec::new(), changes: BTreeMap::new() };
         for module in modules {
@@ -1366,14 +1366,11 @@ impl PlanDoc {
         own.termin.is_valid() && self.own_termin(own.termin.number).is_none() && here < MAX_OWN && all < MAX_OWN_ALL && (calendar != 0 || self.admits(own.semester))
     }
 
-    /// The number a new Termin of one's own gets: one more than the largest, else the smallest one
-    /// free.
+    /// The number a new Termin of one's own gets: one after the largest, else the smallest one
+    /// free (of the device's class while the profile syncs, `ids`).
     fn next_own_number(&self) -> Option<u32> {
         let numbers: BTreeSet<u32> = self.own.iter().chain(self.calendars.iter().flat_map(|calendar| calendar.own.iter())).map(|own| own.termin.number).collect();
-        match numbers.last().copied().unwrap_or(0) {
-            largest if largest < MAX_OWN_NUMBER => Some(largest + 1),
-            _ => (1..=MAX_OWN_NUMBER).find(|number| !numbers.contains(number)),
-        }
+        crate::ids::after(numbers.last().copied().unwrap_or(0), MAX_OWN_NUMBER, |number| !numbers.contains(&number))
     }
 
     fn own_list(&self, calendar: u8) -> Option<&Vec<Own>> {
@@ -1406,13 +1403,11 @@ impl PlanDoc {
         self.hidden.remove(&s);
     }
 
-    /// The pid a new placeholder gets: one more than the largest, else the smallest one free.
+    /// The pid a new placeholder gets: one after the largest, else the smallest one free (of the
+    /// device's class while the profile syncs, `ids`).
     pub fn next_pid(&self) -> u32 {
         let largest = self.placeholders.iter().map(|p| p.pid).max().unwrap_or(0);
-        if largest < url::MAX_PID {
-            return largest + 1;
-        }
-        (1..=url::MAX_PID).find(|pid| !self.placeholders.iter().any(|p| p.pid == *pid)).unwrap_or(url::MAX_PID)
+        crate::ids::after(largest, url::MAX_PID, |pid| !self.placeholders.iter().any(|p| p.pid == pid)).unwrap_or(url::MAX_PID)
     }
 
     /// Takes an import over (`import`): its modules planned at `now`, its placeholders numbered.

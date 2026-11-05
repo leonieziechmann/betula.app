@@ -28,6 +28,12 @@
 //! - „Stundenplan teilen": `folia_calendar::share` (what a code carries), the page's tags and
 //!   its picture (`pages/studyplan/mod.rs`, `folia/crates/server/src/api.rs`), the link and the offer
 //!   (`pages/studyplan/share.rs`), Folia's log without the code (`access_log` in `folia/crates/server/src/main.rs`);
+//! - „Abgleich zwischen deinen Geräten (Betula Sync)": what Phloem keeps of a space (its sealed
+//!   entries and snapshot, sizes and times, the random ids of the space and its devices with their
+//!   slots, the hash of the token, a parcel for ten minutes; docs/phloem/protocol.md), that it holds
+//!   no address beyond a connection and its hourly count of spaces per address, the 395 days and
+//!   „Sync beenden"; the browser's key and state of it (`folia_stores::sync`), and how a link carries
+//!   the key behind `#` (`folia/crates/profile/src/connect.rs`);
 //! - „Cookies": the gate's cookie (`folia/crates/server/src/access.rs`), the only one;
 //! - „Namen von Lehrenden": `v_module_lecturer` (docs/radix/schema-v2.md), and how long Radix keeps what
 //!   it read (`--event-retention`, `--archive-grace`, docs/radix/operations.md).
@@ -58,7 +64,7 @@ const AUTHORITY_URL: &str = "https://www.lda.brandenburg.de/";
 const AUTHORITY_SITE: &str = "www.lda.brandenburg.de";
 
 /// When the privacy notice last changed: day, month, year.
-const PRIVACY_AS_OF: (u32, u32, i32) = (3, 11, 2026);
+const PRIVACY_AS_OF: (u32, u32, i32) = (5, 11, 2026);
 
 /// The language whose text counts. A page in any other language is a translation and links to
 /// the page in this one (`legal::Texts::translated`).
@@ -135,7 +141,7 @@ static IMPRINT: [Part; 3] = [
 ];
 
 /// The parts of the privacy notice, in the order of the page.
-pub static PRIVACY: [Part; 12] = [
+pub static PRIVACY: [Part; 13] = [
     Part { id: "kurz", heading: |t| t.summary.heading, body: privacy_summary },
     Part { id: "verantwortlich", heading: |t| t.controller.heading, body: privacy_controller },
     Part { id: "server", heading: |t| t.hosting.heading, body: privacy_hosting },
@@ -143,6 +149,7 @@ pub static PRIVACY: [Part; 12] = [
     Part { id: "browser", heading: |t| t.browser.heading, body: privacy_browser },
     Part { id: "kalender", heading: |t| t.calendar.heading, body: privacy_calendar },
     Part { id: "teilen", heading: |t| t.share.heading, body: privacy_share },
+    Part { id: "abgleich", heading: |t| t.sync.heading, body: privacy_sync },
     Part { id: "cookies", heading: |t| t.cookies.heading, body: privacy_cookies },
     Part { id: "e-mail", heading: |t| t.email.heading, body: privacy_email },
     Part { id: "lehrende", heading: |t| t.lecturers.heading, body: privacy_lecturers },
@@ -357,6 +364,28 @@ fn privacy_share(t: &'static Texts) -> AnyView {
     .into_any()
 }
 
+fn privacy_sync(t: &'static Texts) -> AnyView {
+    let (facts, sync) = (&t.facts, &t.sync);
+    view! {
+        <p>{sync.intro}</p>
+        <dl class="legal-facts">
+            <div>
+                <dt>{facts.data}</dt>
+                <dd>
+                    {points(sync.data)}
+                    <p>{sync.not_read}</p>
+                </dd>
+            </div>
+            {fact(facts.course, sync.course)}
+            {fact(facts.logs, sync.logs)}
+            {fact(facts.legal_basis, sync.legal_basis)}
+            {fact(facts.retention, sync.retention)}
+            {fact(facts.ending, sync.ending)}
+        </dl>
+    }
+    .into_any()
+}
+
 fn privacy_cookies(t: &'static Texts) -> AnyView {
     let cookies = &t.cookies;
     view! {
@@ -433,8 +462,11 @@ mod tests {
         }
         let privacy = |locale| article(Legal::Privacy, &i18n::texts(locale).legal).to_html().replace("<!>", "");
         let (de, en) = (privacy(Locale::De), privacy(Locale::En));
-        assert!(de.contains("<h1>Datenschutzerklärung</h1>") && de.contains("Stand: 3. November 2026"), "{de}");
-        assert!(en.contains("<h1>Privacy policy</h1>") && en.contains("As of 3 November 2026") && en.contains(">Datenschutzerklärung</a>"), "{en}");
+        assert!(de.contains("<h1>Datenschutzerklärung</h1>") && de.contains("Stand: 5. November 2026"), "{de}");
+        assert!(en.contains("<h1>Privacy policy</h1>") && en.contains("As of 5 November 2026") && en.contains(">Datenschutzerklärung</a>"), "{en}");
+        // Betula Sync: what its service keeps of a profile, and that it can open none of it.
+        assert!(de.contains("id=\"abgleich\"") && de.contains("öffnen kann er sie nicht") && de.contains("13 Monate"), "{de}");
+        assert!(en.contains("Syncing between your devices (Betula Sync)") && en.contains("it cannot open them"), "{en}");
         // What the codes of a subscription and of a shared link carry, as they carry it.
         assert!(de.contains("deine Änderungen an Terminen aus QIS: Tag, Zeit und den Raum, den du eingibst") && de.contains("deine Notizen und deine eigenen Termine enthält er nicht"), "{de}");
         assert!(en.contains("Art. 6(1)(f) GDPR (DSGVO)") && !en.contains("Rechtsgrundlage"), "{en}");
