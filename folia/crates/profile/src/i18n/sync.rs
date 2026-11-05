@@ -173,7 +173,7 @@ pub const DE: Texts = Texts {
     leave_question: "Dieses Gerät aus Betula Sync nehmen? Es behält seine Kopie, die anderen Geräte gleichen weiter ab.",
     leave_yes: "Trennen",
     stop: "Sync beenden",
-    stop_hint: "Löscht die Kopie auf dem Server, für alle Geräte",
+    stop_hint: "Löscht die Kopie auf dem Server",
     stop_question: "Sync für dieses Profil auf allen Geräten beenden? Die Kopie auf dem Server wird sofort gelöscht; jedes Gerät behält seine und ist wieder privat.",
     stop_yes: "Beenden",
 
@@ -264,7 +264,7 @@ pub const EN: Texts = Texts {
     leave_question: "Take this device out of Betula Sync? It keeps its copy, the other devices go on syncing.",
     leave_yes: "Disconnect",
     stop: "End Sync",
-    stop_hint: "Deletes the copy on the server, for every device",
+    stop_hint: "Deletes the copy on the server",
     stop_question: "End Sync for this profile on every device? The copy on the server is deleted at once; every device keeps its own and is private again.",
     stop_yes: "End",
 

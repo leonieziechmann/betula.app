@@ -285,7 +285,9 @@ impl Sync {
         }
     }
 
-    /// New profiles of this browser for the keys of another device's; the last of them active.
+    /// Profiles of this browser for the keys of another device's, the last of them active: a new
+    /// profile each, but in a browser new to Betula the first comes into its empty first profile
+    /// (a phone that opens the link holds the profile, not a second one beside an empty one).
     #[allow(unused_variables)]
     fn adopt(self, shared: Vec<([u8; codes::KEY], String)>) -> Result<u16, Problem> {
         #[cfg(all(feature = "csr", target_arch = "wasm32"))]
@@ -293,7 +295,14 @@ impl Sync {
             let profiles = self.profiles.ok_or(Problem::Unsupported)?;
             let mut last = Err(Problem::BadLink);
             for (key, name) in shared {
-                let id = profiles.create(&name).ok_or(Problem::NoRoom)?;
+                let id = match profiles.empty_first() {
+                    Some(first) => {
+                        profiles.rename(first, &name);
+                        profiles.switch(first);
+                        first
+                    }
+                    None => profiles.create(&name).ok_or(Problem::NoRoom)?,
+                };
                 browser::start(id, key)?;
                 self.refresh(id);
                 last = Ok(id);
