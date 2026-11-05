@@ -2141,7 +2141,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     unfolded kept in `localStorage` `betula.study.open` (the areas' names, a view setting). The
     semesters before the current one stand open; „Bisher zuklappen" folds them into one column,
     each area's piece there what it passed („✓ 38", „✕ 1" for what it did not), a click on it
-    opens them again. Since Folia 1.74.3 what unfolds or folds moves, quiet and quick (owner,
+    opens them again. Since Folia 1.75.1 what unfolds or folds moves, quiet and quick (owner,
     2026-11-05: „animationen für das auf und zuklappen. unauffällig undd snappy einfach so, dass das
     leicher zu verstehen ist"): an area's lanes grow from nothing to their height in .2 s, every
     cell of a lane together, so that its row of the grid grows and the areas under it move down
@@ -2152,8 +2152,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (`data-moved` of the panel for a moment, `grid::Past`). Lanes shown anew (a reload, a change of
     the plan) stand at once, and with less motion asked for nothing moves or waits. An area unfolded
     or folded leaves the others as they are and its ▸ keeps the focus, its chevron turning (until
-    1.74.3 the whole plan was drawn anew). „+" in a cell, the whole cell where it is empty and a round one at its end on
-    hover where it is not, opens the workbench for that semester at that area (until 1.64.0 a dialog
+    1.75.1 the whole plan was drawn anew). „+" in a cell, the whole cell where it is empty and a
+    round one at its end on hover where it is not, opens the workbench for that semester at that area (until 1.64.0 a dialog
     of the area's modules, `picker::CellDialog`); a click on a piece (or a right click) opens the
     module's menu, the semesters' row menu. A piece dragged moves to the semester it is let go over,
     anywhere in its column (owner, 2026-11-04: „wenn man ein modul drag and dropped, soll einfach
