@@ -246,15 +246,16 @@ figure.dia figcaption { max-width: 86ch; font-size: 13px; color: var(--text-3); 
 .dia .ln { fill: var(--no); font: 650 11px var(--font); }
 .dia .nobox { fill: var(--no-soft); stroke: var(--no); stroke-width: 1; stroke-dasharray: 4 3; }
 .tbl code.line { white-space: nowrap; }
+.pill.stop { background: var(--no-soft); color: var(--no); }
 .decided { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 6px; background: var(--ok-soft); color: var(--ok); font-size: 11px; font-weight: 700; vertical-align: 2px; white-space: nowrap; }
 </style>
 
 <div class="page">
 <section class="intro">
   <div>
-    <div class="kicker">Betula · Sync zwischen Geräten · Entwurf, zweite Runde · 05.11.2026</div>
+    <div class="kicker">Betula · Sync zwischen Geräten · Entwurf, zweite Runde, mit Abschottung · 05.11.2026</div>
     <h1>Privat, bis du Sync einschaltest. Dann live auf allen Geräten.</h1>
-    <p class="lead">Deine Antworten auf die Machbarkeitsstudie, umgesetzt: Betula bleibt privat, bis du „Betula Sync“ einschaltest. Ein eigener Dienst, Arbeitstitel Phloem, kümmert sich um die Verbindungen und den Speicher. Solange beide Geräte offen sind, läuft zwischen ihnen ein ständiger Strom von Änderungen über WebRTC. Mehrere Geräte dürfen gleichzeitig ändern, und Betula führt alles Eintrag für Eintrag zusammen. Das habe ich als Prototyp gebaut und mit 240 Zufallsläufen auf drei und vier Geräten geprüft.</p>
+    <p class="lead">Deine Antworten auf die Machbarkeitsstudie, umgesetzt: Betula bleibt privat, bis du „Betula Sync“ einschaltest. Ein eigener Dienst, Arbeitstitel Phloem, kümmert sich um die Verbindungen und den Speicher. Er läuft wie ein fremder Dienst: Mit keinem internen Dienst teilt er ein Netz, und das Monitoring liest seine Zahlen aus einer Datei. Solange beide Geräte offen sind, läuft zwischen ihnen ein ständiger Strom von Änderungen über WebRTC. Mehrere Geräte dürfen gleichzeitig ändern, und Betula führt alles Eintrag für Eintrag zusammen. Das habe ich als Prototyp gebaut und mit 240 Zufallsläufen auf drei und vier Geräten geprüft.</p>
     <p class="quote">„dass wir <b>initial im offline/private modus starten</b> … das ganze system <b>seinen eigenen service</b> bekommt … der link einfach den key enthalten. Der darf aber <b>nur die daten rausgeben, die wirklich in dem kallender angezeigt werden</b> … während der nutzung einen <b>stätigen datenstrem</b> zwischen den geräten … dass <b>mehrere geräte gleichzeitig daten ändern</b> können und konflikte behoben werden“</p>
   </div>
   <aside class="rules" aria-label="Deine Entscheidungen">
@@ -266,12 +267,13 @@ figure.dia figcaption { max-width: 86ch; font-size: 13px; color: var(--text-3); 
       <li><span><b>Das Kalender-Abo trägt den Schlüssel im Link</b> und gibt nur heraus, was der Kalender zeigt. Geteilte Links haben keine Vorschau mehr.</span></li>
       <li><span><b>Mehrere Geräte ändern gleichzeitig</b>, Konflikte löst Betula, Änderungen gehen einzeln hinaus.</span></li>
       <li><span><b>Platz ist da:</b> Traefik bekommt mehr Speicher, wenn nötig, und bis 50 GB für Profile sind kein Problem.</span></li>
+      <li><span><b>Phloem wie ein fremder Dienst:</b> eigene Netze; intern darf nur das Monitoring Phloems Zahlen abfragen, nie umgekehrt. Sicherheit zuerst.</span></li>
     </ol>
   </aside>
 </section>
 
 <nav class="setbar" aria-label="Abschnitte">
-  <div class="jump"><a href="#ablauf">Ablauf</a><a href="#dienst">Dienst</a><a href="#eintraege">Einträge</a><a href="#konflikte">Konflikte</a><a href="#prototyp">Prototyp</a><a href="#live">Live</a><a href="#turn">TURN</a><a href="#kalender">Kalender</a><a href="#teilen">Teilen</a><a href="#grenzen">Grenzen</a><a href="#betrieb">Betrieb</a><a href="#schritte">Schritte</a><a href="#fragen">Fragen</a></div>
+  <div class="jump"><a href="#ablauf">Ablauf</a><a href="#dienst">Dienst</a><a href="#abschottung">Abschottung</a><a href="#eintraege">Einträge</a><a href="#konflikte">Konflikte</a><a href="#prototyp">Prototyp</a><a href="#live">Live</a><a href="#turn">TURN</a><a href="#kalender">Kalender</a><a href="#teilen">Teilen</a><a href="#grenzen">Grenzen</a><a href="#betrieb">Betrieb</a><a href="#schritte">Schritte</a><a href="#fragen">Fragen</a></div>
 </nav>
 
 <!-- ============================================================ Ablauf -->
@@ -331,7 +333,7 @@ figure.dia figcaption { max-width: 86ch; font-size: 13px; color: var(--text-3); 
 <section class="sec" id="dienst">
   <header>
     <h2>Der Dienst: Verbindungen und Speicher</h2>
-    <p class="sub">Phloem ist, wie Cortex, ein Dienst je Server, kein Teil einer Instanz: Canarys Farben werden bei jedem Build ersetzt, und Daten von Menschen dürfen an keiner Farbe hängen. Phloem hält die Verbindungen der offenen Geräte, macht STUN und TURN und bewahrt die versiegelten Einträge auf. Öffnen kann er nichts davon.</p>
+    <p class="sub">Phloem ist ein eigener Stack, kein Teil einer Folia-Instanz: Canarys Farben werden bei jedem Build ersetzt, und Daten von Menschen dürfen an keiner Farbe hängen. Je Site läuft eine eigene Instanz, für betula.app und für canary. Phloem hält die Verbindungen der offenen Geräte, macht STUN und TURN und bewahrt die versiegelten Einträge auf. Öffnen kann er nichts davon, und mit keinem internen Dienst teilt er ein Netz (nächster Abschnitt).</p>
   </header>
   <figure class="dia">
     <div class="diaw">
@@ -357,12 +359,12 @@ figure.dia figcaption { max-width: 86ch; font-size: 13px; color: var(--text-3); 
         <rect class="box" x="486" y="246" width="168" height="50" rx="8"/>
         <text class="h" x="570" y="266" text-anchor="middle">Speicher</text>
         <text class="s" x="570" y="283" text-anchor="middle">SQLite, nur Versiegeltes</text>
-        <text class="m" x="306" y="338">Go · Pion · einer je Server</text>
+        <text class="m" x="306" y="338">Go · Pion · eigene Netze</text>
         <rect class="box" x="486" y="392" width="168" height="62" rx="10"/>
         <text class="h" x="570" y="417" text-anchor="middle">Folia</text>
         <text class="s" x="570" y="435" text-anchor="middle">öffnet den Kalender-Teil</text>
-        <line class="e" x1="570" y1="392" x2="570" y2="300" marker-end="url(#b2)"/>
-        <text class="l" x="562" y="380" text-anchor="end">holt den Kalender-Teil</text>
+        <polyline class="e" points="654,404 680,404 680,128 674,128" marker-end="url(#b2)"/>
+        <text class="l" x="570" y="472" text-anchor="middle">holt Kalender-Teile über Traefik</text>
         <rect class="box" x="20" y="170" width="190" height="96" rx="12"/>
         <text class="h" x="115" y="198" text-anchor="middle">Rechner</text>
         <text class="s" x="115" y="216" text-anchor="middle">Betula, alle Einträge</text>
@@ -383,25 +385,119 @@ figure.dia figcaption { max-width: 86ch; font-size: 13px; color: var(--text-3); 
         <rect class="box" x="750" y="392" width="190" height="62" rx="12"/>
         <text class="h" x="845" y="417" text-anchor="middle">Lenas Betula</text>
         <text class="s" x="845" y="435" text-anchor="middle">Link, Schlüssel nach #</text>
-        <polyline class="e" points="750,423 708,423 708,271 658,271" marker-end="url(#b2)"/>
-        <text class="l" x="716" y="350">holt den</text>
-        <text class="l" x="716" y="364">Freundes-Teil</text>
+        <polyline class="e" points="750,423 718,423 718,112 674,112" marker-end="url(#b2)"/>
+        <text class="l" x="726" y="350">holt den</text>
+        <text class="l" x="726" y="364">Freundes-Teil</text>
       </svg>
     </div>
-    <figcaption>Jedes offene Gerät hält einen WebSocket zu Phloem: Darüber erfährt es, wer noch da ist, tauscht die versiegelten Signale für WebRTC aus und schickt jede Änderung zur Aufbewahrung. Die Änderungen selbst laufen zusätzlich direkt von Gerät zu Gerät. Gelingt der direkte Weg nicht, geht er über TURN in Phloem.</figcaption>
+    <figcaption>Jedes offene Gerät hält einen WebSocket zu Phloem: Darüber erfährt es, wer noch da ist, tauscht die versiegelten Signale für WebRTC aus und schickt jede Änderung zur Aufbewahrung. Die Änderungen selbst laufen zusätzlich direkt von Gerät zu Gerät. Gelingt der direkte Weg nicht, geht er über TURN in Phloem. Alles über HTTP geht durch Traefik, auch Folias Abruf eines Kalender-Teils und Lenas Abruf eines Freundes-Teils; an Traefik vorbei gehen nur STUN und TURN.</figcaption>
   </figure>
   <div class="tblw">
     <table class="tbl k">
       <thead><tr><th>Wer</th><th>Tut</th><th>Sieht</th></tr></thead>
       <tbody>
-        <tr><th>Phloem<small>neu, Go</small></th><td>Bereiche anlegen und löschen; Einträge annehmen, durchnummerieren, aufbewahren und an die anderen Geräte weitergeben; Schnappschüsse; Teile für Kalender und Freund:innen; Päckchen zum Verbinden; Anwesenheit und Signale für WebRTC; STUN und TURN; Grenzen und Budget</td><td>zufällige Kennungen, Größen, Zeiten, die Adressen der verbundenen Geräte; nichts von dem, was drin steht</td></tr>
+        <tr><th>Phloem<small>neu, Go</small></th><td>Bereiche anlegen und löschen; Einträge annehmen, durchnummerieren, aufbewahren und an die anderen Geräte weitergeben; Schnappschüsse; Teile für Kalender und Freund:innen; Päckchen zum Verbinden; Anwesenheit und Signale für WebRTC; STUN und TURN; Grenzen und Budget; seine Zahlen als Datei für das Monitoring</td><td>zufällige Kennungen, Größen, Zeiten, die Adressen der verbundenen Geräte; nichts von dem, was drin steht</td></tr>
         <tr><th>Betula im Browser</th><td>Schlüssel, Versiegeln und Öffnen, aus Änderungen Einträge machen, Zusammenführen, WebRTC</td><td>alles, es ist dein Gerät</td></tr>
-        <tr><th>Folia<small>der Server</small></th><td>die App ausliefern; das Kalender-Abo: holt den Kalender-Teil bei Phloem, öffnet ihn mit dem Schlüssel aus dem Link und macht daraus den Kalender</td><td>beim Abruf eines Abos, Millisekunden lang, den Inhalt dieses einen Kalenders</td></tr>
-        <tr><th>Traefik</th><td>TLS; <code>/sync/</code> zu Phloem mit eigenem Rate Limit; <code>/calendar/s/</code> zu Folia ohne Zugriffsprotokoll; TURN über TLS auf 443 per SNI</td><td>Adressen und Pfade, in denen keine Kennungen stehen</td></tr>
+        <tr><th>Folia<small>der Server</small></th><td>die App ausliefern; das Kalender-Abo: holt den Kalender-Teil über Traefik wie jeder Client von außen, öffnet ihn mit dem Schlüssel aus dem Link und macht daraus den Kalender</td><td>beim Abruf eines Abos, Millisekunden lang, den Inhalt dieses einen Kalenders</td></tr>
+        <tr><th>Traefik</th><td>TLS; <code>/sync/</code> zu Phloem über <code>phloem_in</code>, mit eigenem Rate Limit; <code>/calendar/s/</code> zu Folia ohne Zugriffsprotokoll; TURN über TLS auf 443 per SNI</td><td>Adressen und Pfade, in denen keine Kennungen stehen</td></tr>
       </tbody>
     </table>
   </div>
   <p class="prose">Warum Go: Pion, die TURN-Bibliothek in Go, lässt bei jeder Weiterleitung fragen, ob das Ziel erlaubt ist (<code>PermissionHandler</code>). Das ist der Kern des sicheren TURN weiter unten, und Cortex zeigt, wie ein Go-Dienst hier läuft (SQLite, Metriken, Journal, Hot Spare). Das Format, also Siegel, Einträge und Zusammenführen, ist eine Rust-Crate, die die App (WASM) und Folias Kalender-Route teilen. Phloem braucht davon nichts, denn er öffnet nichts.</p>
+</section>
+
+<!-- ============================================================ Abschottung -->
+<section class="sec" id="abschottung">
+  <header>
+    <h2>Phloem wie ein fremder Dienst</h2>
+    <p class="sub">Phloem teilt mit keinem internen Dienst ein Netz. Hinein kommen nur Traefik und, für STUN und TURN, die Geräte. Phloem selbst öffnet keine Verbindung: Er antwortet nur, und als TURN schickt er Datagramme an die öffentlichen Adressen deiner Geräte. Das Monitoring liest Phloems Zahlen aus einer Datei, die Phloem schreibt. Einen Weg zurück gibt es nicht.</p>
+  </header>
+  <figure class="dia">
+    <div class="diaw">
+      <svg viewBox="0 0 960 340" role="img" aria-label="Traefik erreicht Phloem über phloem_in, die Geräte erreichen ihn über STUN und TURN. Phloem hat kein Netz zu internen Diensten wie Folia, Radix, Cortex, Prometheus und Grafana, in keine Richtung, und jede andere Verbindung von ihm aus wird abgelehnt. Er schreibt eine Stats-Datei, die Alloy nur liest und an Prometheus gibt.">
+        <defs>
+          <marker id="c5g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-acc" d="M0,0 L10,5 L0,10 z"/></marker>
+          <marker id="c5n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-no" d="M0,0 L10,5 L0,10 z"/></marker>
+        </defs>
+        <rect class="box" x="40" y="40" width="200" height="56" rx="12"/>
+        <text class="h" x="140" y="64" text-anchor="middle">Traefik</text>
+        <text class="s" x="140" y="82" text-anchor="middle">/sync/ und TURN über TLS</text>
+        <rect class="box" x="40" y="150" width="200" height="56" rx="12"/>
+        <text class="h" x="140" y="174" text-anchor="middle">Rechner, Handy</text>
+        <text class="s" x="140" y="192" text-anchor="middle">STUN, TURN</text>
+        <rect class="new" x="380" y="120" width="200" height="110" rx="12"/>
+        <text class="h" x="480" y="148" text-anchor="middle">Phloem</text>
+        <text class="s" x="480" y="168" text-anchor="middle">phloem_in · phloem_out</text>
+        <text class="s" x="480" y="186" text-anchor="middle">Firewall im Container</text>
+        <text class="s" x="480" y="204" text-anchor="middle">läuft ohne Rechte</text>
+        <line class="e acc" x1="242" y1="70" x2="376" y2="140" marker-end="url(#c5g)"/>
+        <text class="la" x="318" y="92">phloem_in, nur Traefik → Phloem</text>
+        <line class="e acc" x1="242" y1="178" x2="376" y2="178" marker-start="url(#c5g)" marker-end="url(#c5g)"/>
+        <text class="la" x="309" y="170" text-anchor="middle">3478 · Relais-Ports</text>
+        <rect class="box" x="720" y="30" width="200" height="82" rx="12"/>
+        <text class="h" x="820" y="56" text-anchor="middle">Intern</text>
+        <text class="s" x="820" y="74" text-anchor="middle">Folia, Radix, Cortex</text>
+        <text class="s" x="820" y="92" text-anchor="middle">Prometheus, Grafana</text>
+        <line class="e no" x1="584" y1="138" x2="716" y2="84" marker-start="url(#c5n)" marker-end="url(#c5n)"/>
+        <text class="ln" x="636" y="84" text-anchor="middle">kein Netz</text>
+        <text class="s" x="636" y="100" text-anchor="middle">in keine Richtung</text>
+        <rect class="nobox" x="720" y="150" width="200" height="56" rx="12"/>
+        <text class="h" x="820" y="174" text-anchor="middle">jede andere Adresse</text>
+        <text class="s" x="820" y="192" text-anchor="middle">TCP, DNS, private Netze</text>
+        <line class="e no" x1="584" y1="178" x2="716" y2="178" marker-end="url(#c5n)"/>
+        <text class="ln" x="650" y="170" text-anchor="middle">abgelehnt</text>
+        <polyline class="e acc" points="530,232 530,290 596,290" marker-end="url(#c5g)"/>
+        <text class="la" x="538" y="262">schreibt</text>
+        <rect class="box" x="600" y="262" width="110" height="56" rx="10"/>
+        <text class="h" x="655" y="286" text-anchor="middle">Stats-Datei</text>
+        <text class="s" x="655" y="304" text-anchor="middle">tmpfs, 1 MB</text>
+        <line class="e acc" x1="712" y1="290" x2="756" y2="290" marker-end="url(#c5g)"/>
+        <text class="la" x="734" y="282" text-anchor="middle">liest</text>
+        <rect class="box" x="760" y="262" width="160" height="56" rx="12"/>
+        <text class="h" x="840" y="286" text-anchor="middle">Alloy</text>
+        <text class="s" x="840" y="304" text-anchor="middle">gibt sie an Prometheus</text>
+      </svg>
+    </div>
+    <figcaption>Hinein nur Traefik über <code>phloem_in</code> und die Geräte über STUN und TURN. Hinaus nur Antworten und TURN-Datagramme an öffentliche Adressen. Das Monitoring liest eine Datei, die Phloem schreibt. Zu Folia, Radix, Cortex, Prometheus und Grafana hat Phloem kein Netz, in keine Richtung.</figcaption>
+  </figure>
+  <div class="tblw">
+    <table class="tbl k">
+      <thead><tr><th>Von → nach</th><th>Erlaubt</th><th>Wie, und was es sonst verhindert</th></tr></thead>
+      <tbody>
+        <tr><th>Internet → Traefik<small>443</small></th><td><span class="pill yes">ja</span></td><td>wie heute: <code>/sync/</code> mit den WebSockets, <code>/calendar/s/</code>, TURN über TLS</td></tr>
+        <tr><th>Internet → Phloem<small>3478 UDP und TCP, Relais-Ports UDP</small></th><td><span class="pill yes">ja</span></td><td>im Host-Modus veröffentlicht und in <code>public-ports.conf</code>; TURN nur mit einem Zugang aus dem WebSocket</td></tr>
+        <tr><th>Traefik → Phloem</th><td><span class="pill yes">ja</span></td><td>über <code>phloem_in</code>: internal, nur Traefik und Phloem. Das einzige Netz, das Phloem mit einem anderen Dienst teilt</td></tr>
+        <tr><th>Phloem → Traefik</th><td><span class="pill stop">nein</span></td><td>Phloems Firewall erlaubt keine neue TCP-Verbindung; Traefiks Metriken antworten zusätzlich nur dem Monitoring</td></tr>
+        <tr><th>Phloem → Internet</th><td><span class="pill ask">nur TURN</span></td><td>UDP aus den Relais-Ports an öffentliche Adressen, gedrosselt; sonst nur Antworten. Firewall und PermissionHandler, zwei Schichten</td></tr>
+        <tr><th>Phloem → Host<small>ssh, Swarm, Docker</small></th><td><span class="pill stop">nein</span></td><td>keine neue TCP-Verbindung, nichts an private Adressen</td></tr>
+        <tr><th>Phloem → Folia, Radix, Cortex, Monitoring</th><td><span class="pill stop">nein</span></td><td>kein gemeinsames Netz, und die Firewall</td></tr>
+        <tr><th>Folia → Phloem</th><td><span class="pill ask">über Traefik</span></td><td>Folia holt Kalender-Teile wie jeder Client von außen, über HTTPS und Traefik. Ein gemeinsames Netz gibt es nicht</td></tr>
+        <tr><th>Monitoring → Phloem</th><td><span class="pill ask">liest die Datei</span></td><td>Alloy liest <code>phloem.prom</code> aus einem tmpfs von 1 MB, nur lesend, mit dem Blick auf den Host, den es schon hat. Kein Netz</td></tr>
+        <tr><th>Phloem → Monitoring</th><td><span class="pill stop">nein</span></td><td>Phloem schreibt nur in sein tmpfs; vom Monitoring sieht er nichts</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="facts">
+    <article class="fact"><h3>Netze</h3><p><code>phloem_in</code>: Overlay, internal, nicht anschließbar, Mitglieder nur Traefik und Phloem. <code>phloem_out</code>: Phloems eigener Weg nach draußen, nur Phloem. Phloem ist in keinem anderen Netz: nicht in <code>edge</code>, <code>monitoring</code>, <code>cortex</code>, <code>socket</code> oder einem Netz einer Instanz.</p></article>
+    <article class="fact"><h3>Firewall im Container</h3><p>Ein Startskript setzt sie mit NET_ADMIN, bevor Phloem startet. Dann läuft Phloem als eigener Benutzer ohne jede Fähigkeit und kann sie nicht ändern. Keine neue TCP-Verbindung, kein DNS, auch nicht Dockers eingebautes, UDP nur aus den Relais-Ports an öffentliche Adressen und höchstens einige Mbit/s. IPv6 aus.</p></article>
+    <article class="fact"><h3>Statistik als Datei</h3><p>Phloem schreibt alle 15 s <code>phloem.prom</code> in ein tmpfs von 1 MB auf dem Host, das nur dafür eingehängt ist. Alloy liest es über <code>/rootfs</code>, das es heute schon nur lesend hat, und gibt die Zahlen wie bisher an Prometheus. Eine Stats-API bräuchte ein gemeinsames Netz, und Docker-Netze kennen keine Richtung: Phloem könnte dann auch Prometheus erreichen.</p></article>
+    <article class="fact"><h3>Härtung</h3><p>Nur lesbares Dateisystem, <code>cap_drop: ALL</code>, eigener Benutzer, kein Docker-Socket, Grenzen für Speicher, CPU und Prozesse. Eingehängt sind nur sein Volume und das tmpfs. Das Volume liegt auf einem eigenen Dateisystem fester Größe: Selbst ein übernommener Phloem füllt nur seinen eigenen Platz. Sein einziges Geheimnis ist der Schlüssel für TURN-Zugänge.</p></article>
+    <article class="fact"><h3>Zwei Instanzen</h3><p><code>phloem</code> für betula.app und <code>phloem-canary</code> für canary, jede mit eigenen Netzen, eigenem Volume und eigenen Ports (canary: 3479 und ein eigener Relais-Bereich). Was canary ausprobiert, berührt nie die Daten von betula.app.</p></article>
+    <article class="fact"><h3>Traefik</h3><p>Traefik kommt in <code>phloem_in</code>. Seine Metriken antworten dann nur noch dem Monitoring-Netz, über ein ipAllowList am Eingang <code>metrics</code>; heute kann sie jeder Container in <code>edge</code> lesen. Weitergeleiteten Kopfzeilen traut Traefik niemandem, wie bisher.</p></article>
+  </div>
+  <div class="block">
+    <h3>Wie das geprüft wird</h3>
+    <p class="prose">Ein Abschnitt <code>phloem</code> in <code>91-verify-stacks.sh</code>, nach jedem Deploy. Er prüft nicht nur, was eingestellt ist, sondern versucht, was verboten ist. Ein FAIL hält den Deploy an, wie bei Cortex.</p>
+    <ol class="flow">
+      <li><span>Phloems Netze sind genau <code>phloem_in</code> und <code>phloem_out</code>. <code>phloem_in</code> ist internal und hat nur Traefik und Phloem als Mitglieder, <code>phloem_out</code> nur Phloem.</span></li>
+      <li><span>Veröffentlicht sind genau 3478 UDP und TCP und der Relais-Bereich, im Host-Modus.</span></li>
+      <li><span>Die Firewall in Phloems Netz-Namespace ist die erwartete (<code>nsenter</code>, verglichen mit der Datei im Repository).</span></li>
+      <li><span>Aus Phloems Namespace heraus scheitern Verbindungen zu Traefik, Prometheus, Grafana, Radix, Cortex und Folia, zum Host (ssh, Swarm-Ports) und jede DNS-Anfrage. Ein UDP-Paket an eine private Adresse wird verworfen und gezählt.</span></li>
+      <li><span>Aus Folias Namespace führt kein Weg zu Phloem außer über Traefik.</span></li>
+      <li><span>Traefiks Metriken antworten aus <code>phloem_in</code> nicht.</span></li>
+      <li><span>Die Stats-Datei kommt in Prometheus an (<code>phloem_up</code>). Ein Zeitgeber auf dem Host liest jede Minute die Zähler der Firewall. Versucht Phloem je, nach innen zu kommen, gibt es einen Alarm.</span></li>
+    </ol>
+  </div>
 </section>
 
 <!-- ============================================================ Einträge -->
@@ -588,6 +684,7 @@ figure.dia figcaption { max-width: 86ch; font-size: 13px; color: var(--text-3); 
         <li><b>Zugang</b> nur für Geräte eines Bereichs, 10 Minuten gültig, aus dem WebSocket heraus vergeben.</li>
         <li><b>Nur UDP-Relais.</b> WebRTC braucht keine TCP-Relais (RFC 6062), also bleiben sie aus. Für sie hat Pion im Juni 2026 eine Lücke geschlossen (#570).</li>
         <li><b>Gedrosselt</b> auf etwa 1 Mbit/s je Belegung: weit mehr, als der Strom braucht, und wenig für alles andere.</li>
+        <li><b>Zweite Schicht:</b> Hätte der PermissionHandler einen Fehler, ließe Phloems Firewall trotzdem nur UDP aus den Relais-Ports an öffentliche Adressen hinaus (siehe Abschottung).</li>
       </ul>
     </article>
     <article class="fact">
@@ -668,7 +765,7 @@ figure.dia figcaption { max-width: 86ch; font-size: 13px; color: var(--text-3); 
   <div class="facts">
     <article class="fact"><h3>Daten und Sicherung</h3><p>SQLite (WAL): Bereiche, Einträge, Schnappschüsse, Teile, Päckchen. Jede Nacht eine Sicherung. Weil alles versiegelt ist, darf sie außer Haus, und es wäre die erste Sicherung auf diesem Server.</p></article>
     <article class="fact"><h3>Ausfall</h3><p>Fällt Phloem kurz aus, laufen direkte Verbindungen weiter, und die Geräte holen danach nach. Jedes Gerät hat alles, also heilt ein Verlust der letzten Sekunden sich beim nächsten Abgleich. Ein Hot Spare wie bei Cortex geht später.</p></article>
-    <article class="fact"><h3>Überwachung und Version</h3><p>Metriken, ein Dashboard „Sync“, Alarme für Budget, Spitzen beim Anlegen und Fehler, ein Abschnitt in <code>91-verify-stacks.sh</code>. Phloem bekommt eine eigene SemVer, als Zeile unter „Versions“ in <code>CLAUDE.md</code>; Folia ein MINOR für das Feature.</p></article>
+    <article class="fact"><h3>Überwachung und Version</h3><p>Zahlen über die Stats-Datei, ein Dashboard „Sync“, Alarme für Budget, Spitzen beim Anlegen, Fehler und jeden Versuch Phloems, nach innen zu kommen; die Prüfungen in <code>91-verify-stacks.sh phloem</code>. Phloem bekommt eine eigene SemVer, als Zeile unter „Versions“ in <code>CLAUDE.md</code>; Folia ein MINOR für das Feature.</p></article>
   </div>
   <pre class="codeblk"><span class="c"># WebSocket /sync/v1/ws: der Bereich und sein Token in der ersten Nachricht, nicht in der Adresse</span>
 hello    { space, token, device, since }     <span class="c">→ welcome { slot, devices, missed… }</span>
@@ -680,7 +777,7 @@ part     { id, sealed }                      <span class="c">Kalender- oder Freu
 <span class="c"># daneben über HTTP</span>
 POST   /sync/v1/spaces          <span class="c">Bereich anlegen</span>         DELETE /sync/v1/spaces   <span class="c">„Sync beenden“</span>
 POST   /sync/v1/pair            <span class="c">Päckchen ablegen</span>        GET    /sync/v1/pair/{code}  <span class="c">abholen, dann gelöscht</span>
-GET    /sync/v1/parts/{teil}    <span class="c">Lenas Betula</span>            GET    /parts/{teil}  <span class="c">intern, für Folias Kalender</span></pre>
+GET    /sync/v1/parts/{teil}    <span class="c">Lenas Betula und Folias Kalender-Abo, beide über Traefik; einen internen Weg gibt es nicht</span></pre>
 </section>
 
 <!-- ============================================================ Schritte -->
@@ -706,6 +803,7 @@ GET    /sync/v1/parts/{teil}    <span class="c">Lenas Betula</span>            G
         <li>die Rust-Crate aus dem Prototyp: Einträge, Siegel, Zusammenführen</li>
         <li>„Betula Sync aktivieren“, Geräte verbinden, Wiederherstellungscode, „Sync beenden“</li>
         <li>Hinweise bei Notizen und doppelt verschobenen Modulen</li>
+        <li>Abschottung: eigene Netze, Firewall im Container, Stats-Datei, die Prüfungen in <code>91-verify-stacks.sh</code></li>
         <li>Stack, Sicherung, Dashboard, Prüfungen mit zwei Browsern</li>
       </ul>
       <p><b>Danach: live mit 20–80 ms, offline sicher.</b></p>
@@ -716,7 +814,7 @@ GET    /sync/v1/parts/{teil}    <span class="c">Lenas Betula</span>            G
       <ul>
         <li>Signale über den WebSocket</li>
         <li>STUN und TURN in Phloem mit dem PermissionHandler</li>
-        <li>Ports, Traefiks TCP-Router, DNS für <code>turn.betula.app</code></li>
+        <li>Ports (<code>public-ports.conf</code> lernt dafür Bereiche), Traefiks TCP-Router, DNS für <code>turn.betula.app</code></li>
         <li>Prüfungen über zwei Netze</li>
       </ul>
       <p><b>Danach: 1–40 ms auf direktem Weg.</b></p>
@@ -737,7 +835,7 @@ GET    /sync/v1/parts/{teil}    <span class="c">Lenas Betula</span>            G
 <section class="sec" id="fragen">
   <header>
     <h2>Fragen an dich</h2>
-    <p class="sub">Was noch offen ist, zu jeder ein Vorschlag. Wo du „passt“ sagst, gilt er, und dann baue ich Schritt 1.</p>
+    <p class="sub">Was noch offen ist, zu jeder ein Vorschlag. Wo du „passt“ sagst, gilt er. Neu sind 10 und 11, zur Abschottung.</p>
   </header>
   <ol class="qs">
     <li><p class="ask">Heißt der Dienst „Phloem“?<small>Das Leitgewebe der Birke, das in beide Richtungen transportiert, neben Rinde (Cortex), Wurzel (Radix) und Blättern (Folia).</small></p><p class="rec2"><b>Vorschlag:</b> ja.</p></li>
@@ -749,8 +847,10 @@ GET    /sync/v1/parts/{teil}    <span class="c">Lenas Betula</span>            G
     <li><p class="ask">13 Monate ohne Abruf, dann gelöscht?</p><p class="rec2"><b>Vorschlag:</b> ja: ein Studienjahr und Puffer. Die Geräte behalten ihre Kopie.</p></li>
     <li><p class="ask">Soll der Strom mehr tragen als Änderungen?<small>Etwa welche Seite das andere Gerät gerade zeigt, um dort weiterzumachen.</small></p><p class="rec2"><b>Vorschlag:</b> erst, wenn es dafür einen Knopf gibt („Am Handy weitermachen“). Das kostet dann nur eine Nachricht.</p></li>
     <li><p class="ask">Folgt das Kalender-Abo von selbst dem aktuellen Semester?</p><p class="rec2"><b>Vorschlag:</b> ja, als Voreinstellung, abwählbar. Das löst auch das offene „ein Abo über mehrere Semester“.</p></li>
+    <li><p class="ask">Die Zahlen als Datei statt über eine Stats-API?<small>Docker-Netze kennen keine Richtung, eine Datei schon.</small></p><p class="rec2"><b>Vorschlag:</b> ja. Soll es doch HTTP sein, dann über Traefik mit einem Token, auch dann ohne gemeinsames Netz.</p></li>
+    <li><p class="ask">Traefiks Metriken gleich nur fürs Monitoring öffnen?<small>Heute kann sie jeder Container in <code>edge</code> lesen.</small></p><p class="rec2"><b>Vorschlag:</b> ja, schon vor Phloem: ein paar Zeilen in <code>edge.yml</code> und in Traefiks Konfiguration.</p></li>
   </ol>
 </section>
 
-<p class="foot">Entwurf · nur Forschung, keine Version · Grundlage: research/sync/machbarkeit.html · Prototyp und Messungen in research/sync · Stand Folia 1.75.1 · 05.11.2026</p>
+<p class="foot">Entwurf, mit Abschottung · nur Forschung, keine Version · Grundlage: research/sync/machbarkeit.html · Prototyp und Messungen in research/sync · Stand Folia 1.75.1 · 05.11.2026</p>
 </div>

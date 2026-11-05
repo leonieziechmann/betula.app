@@ -7,8 +7,11 @@ würde“): `machbarkeit.html`, in German like the concepts in `folia/design/`, 
 its numbers come from. Then the design with the owner's answers of the same day (private until
 „Betula Sync“ is switched on, a service of its own for the connections and the storage, WebRTC
 for a live stream with as little delay as possible, the calendar's link with its key giving out
-only what the calendar shows, several devices changing at once): `entwurf.html`, and
-`prototype/`, the merge it builds on.
+only what the calendar shows, several devices changing at once), and the isolation the owner asked
+for next („Phloem sollte bei dem docker deploy auch so behandelt werden, als wäre es ein externer
+dienst … Das einzigige, was intern laufen darf ist die anfragen von grafana an die stats api, aber
+nicht anders herum“: networks of its own, a firewall inside its container, its numbers as a file
+Alloy reads): `entwurf.html`, and `prototype/`, the merge it builds on.
 
 - `prototype/`: how the five stores of a profile merge between devices (Rust, standard library
   only). Every line becomes a record under what the store tells lines apart by, every write
