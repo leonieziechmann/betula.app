@@ -1,0 +1,65 @@
+#!/usr/sbin/nft -f
+# Phloem's own firewall (docs/phloem/phloem.md, „Firewall"; docs/phloem/protocol.md section 2).
+#
+# `phloem start` loads it in the container's network namespace, as root with NET_ADMIN, before
+# Phloem serves; Phloem then runs as 65532 without any capability and cannot change it. Step 1:
+# Phloem opens no connection at all.
+#
+#   in:  loopback (the health check, 127.0.0.1 to 127.0.0.1), replies, and new TCP
+#        connections to 8200 (Traefik, over <stack>_in: the only other member of that network)
+#   out: replies, and loopback to 127.0.0.1. No new connection, no DNS (Docker's resolver at
+#        127.0.0.11 neither), no IPv6.
+#
+# Every drop is counted in a named counter. A timer on the host reads them from the container's
+# namespace (deploy/vps/47-phloem-host.sh, phloem-firewall-stats): a packet Phloem tried to
+# send out shows there, and the monitoring alerts on it.
+#
+# One transaction: the table is made (if it is missing), deleted and made anew, so that loading
+# the file twice gives the same rules. Docker's own rules (its resolver's NAT) live in tables of
+# their own and stay; this table drops what they would let through.
+
+table inet phloem
+delete table inet phloem
+
+table inet phloem {
+	# New connections in that are not to 8200, and anything else unexpected on the way in.
+	counter in_dropped {
+	}
+	# Packets out that are no reply: a connection or a datagram Phloem tried to send.
+	counter out_dropped {
+	}
+	# Packets to Docker's resolver: a name Phloem tried to look up.
+	counter dns_dropped {
+	}
+	# Every IPv6 packet, either way.
+	counter ipv6_dropped {
+	}
+	# Packets conntrack cannot place, either way.
+	counter invalid_dropped {
+	}
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+		meta nfproto ipv6 counter name "ipv6_dropped" drop
+		ct state established,related accept
+		ct state invalid counter name "invalid_dropped" drop
+		iif "lo" ip saddr 127.0.0.1 ip daddr 127.0.0.1 accept
+		tcp dport 8200 ct state new accept
+		counter name "in_dropped" drop
+	}
+
+	chain output {
+		type filter hook output priority filter; policy drop;
+		meta nfproto ipv6 counter name "ipv6_dropped" drop
+		ct state established,related accept
+		ct state invalid counter name "invalid_dropped" drop
+		ip daddr 127.0.0.11 counter name "dns_dropped" drop
+		oif "lo" ip saddr 127.0.0.1 ip daddr 127.0.0.1 accept
+		counter name "out_dropped" drop
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+		counter name "in_dropped" drop
+	}
+}
