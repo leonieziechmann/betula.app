@@ -1,0 +1,144 @@
+# Stacks "phloem" and "phloem-canary": Phloem, the service of Betula Sync (docs/phloem/phloem.md,
+# the contract docs/phloem/protocol.md). One file for both instances; what differs is in
+# stacks/phloem/<stack>.env (phloem.env: https://betula.app, phloem-canary.env:
+# https://canary.betula.app). Each is a stack of its own, with its own network, data and numbers:
+# what canary tries never touches the data of betula.app.
+#
+# Phloem is run as if it were an outside service (owner, 2026-11-05: „als wäre es ein externer
+# dienst. Also eigenes virtuelles netzwerk etc. … Security first!!"):
+#   - Its one network is <stack>_in (vps/30-docker.sh: overlay, internal, not attachable), whose
+#     only other member is Traefik. No network with Folia, Radix, Cortex or the monitoring, and
+#     none that leads out: step 1 needs no way out at all, and on an internal network alone a
+#     container has no gateway. <stack>_out, the way out for TURN, comes with step 2.
+#   - A firewall of its own inside the container (phloem/deploy/firewall.nft): `phloem start`
+#     loads it with NET_ADMIN, then drops to 65532 without any capability before it serves. No
+#     new connection out, no DNS, no IPv6; in, 8200 only. Every drop that means someone tried
+#     something is counted; betula-phloem-guard (vps/30-docker.sh) reads that from outside every
+#     minute, with the rights of each process of the container.
+#   - Its numbers leave as a file, never over a network: /stats is the host's tmpfs
+#     /run/betula/phloem/<stack>/stats (1 MiB, vps/47-phloem-host.sh), which Alloy reads through
+#     /rootfs (config/monitoring/alloy/config.alloy). Nothing asks Phloem for anything.
+#   - Its data: /var/lib/betula/phloem/<stack>/data, a file system of fixed size of its own (a
+#     loop device, 47-phloem-host.sh): a Phloem taken over fills nothing but its own space.
+#
+# Deployed by vps/49-phloem.sh (as deploy, no sudo), which deploy/ship-phloem.sh calls after it has
+# built and loaded the image; never by vps/40-stacks.sh, and never by hand with "docker stack
+# deploy" (49-phloem.sh checks the network and the host's file systems first, and tries what is
+# forbidden afterwards). Before the first deploy of an instance: sudo bash
+# /opt/betula/vps/47-phloem-host.sh <stack>.
+#
+#   bash /opt/betula/vps/49-phloem.sh phloem 2026-11-05-ab12cd3
+#
+# Variables, set by 49-phloem.sh from stacks/phloem/<stack>.env and the release:
+#   STACK_NAME            phloem or phloem-canary: the stack, its network <stack>_in, its host
+#                         paths and its router
+#   APP_HOST              the site's host name: the router takes https://<APP_HOST>/sync/v1/
+#   PHLOEM_ORIGINS        the browser origins Phloem takes (the site's own)
+#   PHLOEM_BUDGET_BYTES   what all spaces may hold
+#   PHLOEM_IMAGE          given per release: betula-phloem:<date>-<hash>, never ":latest" (swarm
+#                         compares the service definition, not the image; stacks/betula.yml,
+#                         "Images")
+#   PHLOEM_REV            the revision of this file and of stacks/phloem/<stack>.env (a
+#                         checksum), kept as a service label
+#
+# The messages of "${NAME:?message}" below contain no "-" on purpose (stacks/betula.yml says why).
+#
+# Logs: JSON lines with level / event / msg (the image sets PHLOEM_LOG_FORMAT=json); no
+# "logging:" key, like the other stacks. Status for a human, on the server (the command drops to
+# Phloem's user before it asks):
+#   docker exec "$(docker ps -q -f label=com.docker.swarm.service.name=phloem_sync | head -n 1)" /bin/phloem status
+
+services:
+  sync:
+    # flake.nix builds "betula-phloem:latest" (nix build .#phloem-image); ship-phloem.sh gives it
+    # the tag. The image brings the rest: Entrypoint /bin/phloem start (as root: the firewall,
+    # then the drop to 65532 and exec phloem serve), PHLOEM_ADDR=0.0.0.0:8200, PHLOEM_DATA=/data,
+    # PHLOEM_STATS_DIR=/stats, PHLOEM_FIREWALL=/etc/phloem/firewall.nft, PHLOEM_LOG_FORMAT=json,
+    # TZ=Europe/Berlin, and HEALTHCHECK "phloem healthcheck" (/healthz over loopback every 10 s,
+    # 3 tries, 30 s start period), so no healthcheck is declared here.
+    image: "${PHLOEM_IMAGE:?PHLOEM_IMAGE is not set}"
+    environment:
+      # The label stack= of every series of the stats file.
+      PHLOEM_STACK: "${STACK_NAME:?STACK_NAME is not set}"
+      PHLOEM_ORIGINS: "${PHLOEM_ORIGINS:?PHLOEM_ORIGINS is not set}"
+      PHLOEM_BUDGET_BYTES: "${PHLOEM_BUDGET_BYTES:?PHLOEM_BUDGET_BYTES is not set}"
+      PHLOEM_LOG_LEVEL: info
+      # Go's heap stays below the memory limit with room for the rest (SQLite's page cache,
+      # the stacks of the sockets).
+      GOMEMLIMIT: 400MiB
+    volumes:
+      # phloem.db on the file system of fixed size of its own (47-phloem-host.sh mounts it,
+      # nosuid,nodev,noexec, owned by 65532). Sealed by the devices: worth a backup, and it may
+      # leave the house.
+      - type: bind
+        source: /var/lib/betula/phloem/${STACK_NAME}/data
+        target: /data
+      # The tmpfs of 1 MiB the stats file goes to (47-phloem-host.sh), nothing else.
+      - type: bind
+        source: /run/betula/phloem/${STACK_NAME}/stats
+        target: /stats
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 16777216
+    # Nothing is written outside /data, /stats and /tmp.
+    read_only: true
+    # What `phloem start` needs for the firewall and the drop, and nothing else; the process that
+    # serves has none of them (start checks /proc before it execs serve, and sets no_new_privs
+    # itself: swarm does not take security_opt).
+    cap_drop: [ALL]
+    cap_add: [NET_ADMIN, SETUID, SETGID]
+    # IPv6: the firewall drops all of it, and the network has none. No sysctl
+    # net.ipv6.conf.all.disable_ipv6: on a kernel without IPv6 the task would not start at all.
+    networks:
+      in: {}
+    # SIGTERM: no new connections, the requests in flight end, every device hears 1001 and comes
+    # back to the next task; within 10 s + 10 s.
+    stop_grace_period: 30s
+    deploy:
+      replicas: 1                 # one writer per database
+      placement:
+        constraints:
+          - node.role == manager  # the data lives on this node
+      restart_policy:
+        condition: any
+        delay: 5s
+      update_config:
+        order: stop-first         # never two writers on phloem.db
+        failure_action: rollback
+        monitor: 30s
+      rollback_config:
+        order: stop-first
+      resources:
+        limits:
+          # Sockets and small writes: little CPU, and memory for at most 4096 sockets and eight
+          # frames above 128 KiB at a time (docs/phloem/phloem.md, „Limits").
+          cpus: "1.0"
+          memory: 512M
+          pids: 128
+      labels:
+        # Service labels (deploy.labels): the swarm provider does not read container labels.
+        - "traefik.enable=true"
+        - "traefik.swarm.network=${STACK_NAME}_in"
+        # The site's own host, /sync/v1/ only; above Folia's router of the host (priority 0 or a
+        # colour's, vps/55-switch.sh), so that the path never reaches Folia.
+        - "traefik.http.routers.${STACK_NAME}-sync.rule=Host(`${APP_HOST:?APP_HOST is not set}`) && PathPrefix(`/sync/v1/`)"
+        - "traefik.http.routers.${STACK_NAME}-sync.priority=1000"
+        - "traefik.http.routers.${STACK_NAME}-sync.entrypoints=websecure"
+        - "traefik.http.routers.${STACK_NAME}-sync.tls.certresolver=le"
+        # secure-headers: HSTS and friends. sync-ratelimit (config/traefik/dynamic/middlewares.yml):
+        # 20 requests a second per address (an IPv6 /64), bursts of 60; a WebSocket is one
+        # request, and Phloem holds its own limits behind it. No compress: sealed bytes do not
+        # shrink.
+        - "traefik.http.routers.${STACK_NAME}-sync.middlewares=secure-headers@file,sync-ratelimit@file"
+        - "traefik.http.routers.${STACK_NAME}-sync.service=${STACK_NAME}-sync"
+        - "traefik.http.services.${STACK_NAME}-sync.loadbalancer.server.port=8200"
+        # A label of the service, not of its tasks: changing it restarts nothing.
+        - "app.betula.phloem-rev=${PHLOEM_REV:-0}"
+
+networks:
+  # Overlay, internal, not attachable: made by vps/30-docker.sh with Traefik as its only other
+  # member, so that no stack and no "docker run" can join it.
+  in:
+    external: true
+    name: "${STACK_NAME}_in"
