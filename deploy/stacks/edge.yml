@@ -21,11 +21,20 @@
 #                      "65534:$(getent group docker | cut -d: -f3)"
 #
 # ---- Contract for other stacks ------------------------------------------------------------------------------
-# networks      "edge"        Traefik <-> public-facing services   } external attachable overlays,
-#               "monitoring"  metrics scraping                      } created by the host scripts
+# networks      one per service Traefik routes to, with Traefik and that service on it and nothing else
+#               (vps/files/networks.conf, README.md section 15): edge_<instance> for the web server of
+#               each instance (betula, betula-green, canary, canary-green), edge_placeholder,
+#               edge_grafana, <stack>_in for Phloem (docs/phloem/protocol.md). All internal: the
+#               only way out is Traefik's own "out" (ACME, the published ports). Made by
+#               vps/30-docker.sh before this stack, external here; a service names its network in
+#               the label traefik.swarm.network, and there is no default (a forgotten label would
+#               let Traefik pick any network of the service).
+#               edge_metrics: Traefik and the scraper of the monitoring stack, a fixed subnet.
 # entrypoints   web :80 (redirects everything to https; also answers the ACME HTTP-01 challenge)
 #               websecure :443 (default entrypoint of every router)
-#               metrics :8082, not published: scrape http://edge_traefik:8082/metrics over "monitoring"
+#               metrics :8082, not published: http://edge_traefik:8082/metrics answers the subnet of
+#               edge_metrics alone and 403 to every other network Traefik is on (manual routing:
+#               config/traefik/dynamic/metrics.yml)
 # certresolver  "le". A router that names it makes Traefik order a certificate immediately, so only use it for
 #               host names whose DNS already points at this server: failed validations are rate limited
 #               (5 per host name per hour).
@@ -63,6 +72,8 @@
 #
 # Labels for a new public service. They belong under deploy.labels (service labels); container labels are not
 # seen by the swarm provider. Router, service and middleware names are global: prefix them with the stack name.
+# Its network first: a line "net edge_web host yes no - edge_traefik web_web" in vps/files/networks.conf,
+# sudo bash vps/30-docker.sh, then edge_web among Traefik's networks below and 40-stacks.sh edge.
 #
 #   services:
 #     web:
@@ -70,15 +81,16 @@
 #       deploy:
 #         labels:
 #           - "traefik.enable=true"
-#           - "traefik.swarm.network=edge"
-#           - "traefik.http.routers.folia.rule=Host(`betula.app`)"
-#           - "traefik.http.routers.folia.entrypoints=websecure"
-#           - "traefik.http.routers.folia.tls.certresolver=le"
-#           - "traefik.http.routers.folia.middlewares=secure-headers@file,compress@file"
-#           - "traefik.http.services.folia.loadbalancer.server.port=8080"   # mandatory: swarm has no port detection
+#           - "traefik.swarm.network=edge_web"
+#           - "traefik.http.routers.web.rule=Host(`web.betula.app`)"
+#           - "traefik.http.routers.web.entrypoints=websecure"
+#           - "traefik.http.routers.web.tls.certresolver=le"
+#           - "traefik.http.routers.web.middlewares=secure-headers@file,compress@file"
+#           - "traefik.http.services.web.loadbalancer.server.port=8080"   # mandatory: swarm has no port detection
 #   networks:
 #     edge:
 #       external: true
+#       name: edge_web
 #
 # (stacks/betula.yml is the full version of this for the application.)
 # A literal "$" in a label (regex replacement) must be written "$$", or stack deploy tries to substitute it.
@@ -154,12 +166,19 @@ services:
       - "--ping=true"
       - "--ping.entryPoint=ping"
       - "--metrics.prometheus=true"
+      # Named although the router below takes its place: without it Traefik would open an entrypoint
+      # "traefik" on :8080 for the metrics.
       - "--metrics.prometheus.entryPoint=metrics"
       - "--metrics.prometheus.addRoutersLabels=true"
+      # No router of its own for the metrics: config/traefik/dynamic/metrics.yml has the one, and it
+      # answers the scraper's network (edge_metrics) alone. The entrypoint listens on every network
+      # Traefik is on, and every service it routes to could ask it otherwise.
+      - "--metrics.prometheus.manualRouting=true"
 
       - "--providers.swarm.endpoint=tcp://socket-proxy:2375"
       - "--providers.swarm.exposedByDefault=false"
-      - "--providers.swarm.network=edge"
+      # No --providers.swarm.network: every routed service names its network in the label
+      # traefik.swarm.network (vps/91-verify-stacks.sh, section netmatrix, checks it).
       # The provider polls; a proxy that hangs must not block it forever.
       - "--providers.swarm.httpClientTimeout=15s"
       - "--providers.file.directory=/etc/traefik/dynamic"
@@ -186,10 +205,21 @@ services:
         published: 443
         protocol: tcp
         mode: host
+    # One network per service it routes to (vps/files/networks.conf). "out" is the only one with a
+    # way out of the host: Let's Encrypt, and the published ports (a container on internal networks
+    # alone has no address on docker_gwbridge, where host-mode ports arrive).
     networks:
-      - edge
-      - monitoring
+      - out
       - socket
+      - edge_metrics
+      - edge_placeholder
+      - edge_grafana
+      - edge_betula
+      - edge_betula-green
+      - edge_canary
+      - edge_canary-green
+      - phloem_in
+      - phloem-canary_in
     volumes:
       # Traefik creates the store file itself with mode 0600 and refuses a restored copy that is more open.
       # The volume root belongs to root, which is why Traefik runs as root (without capabilities, see below).
@@ -333,14 +363,33 @@ services:
         order: start-first
 
 networks:
-  edge:
-    external: true
-  monitoring:
-    external: true
+  # Traefik's way out, with nothing else on it: certificates from Let's Encrypt, and the address on
+  # docker_gwbridge that the published ports (host mode) are forwarded to.
+  out:
+    driver: overlay
   socket:
     # No route to the outside and no other members: the proxy is reachable from Traefik only.
     driver: overlay
     internal: true
+  # Made by vps/30-docker.sh (vps/files/networks.conf): internal, not attachable, two members each.
+  edge_metrics:
+    external: true
+  edge_placeholder:
+    external: true
+  edge_grafana:
+    external: true
+  edge_betula:
+    external: true
+  edge_betula-green:
+    external: true
+  edge_canary:
+    external: true
+  edge_canary-green:
+    external: true
+  phloem_in:
+    external: true
+  phloem-canary_in:
+    external: true
 
 volumes:
   # Real name: edge_acme. acme.json (production) is worth a backup; losing it means ordering every

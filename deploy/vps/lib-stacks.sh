@@ -476,14 +476,19 @@ folia_container() {
   docker ps -q --no-trunc --filter "label=com.docker.swarm.service.name=$1_folia" --filter status=running 2>/dev/null | head -n 1
 }
 
-# folia_address STACK -> the address of the stack's running web server on docker_gwbridge, where
-# this host reaches it directly, past Traefik (nothing when no task of it runs here).
-folia_address() {
-  local cid address
-  cid="$(folia_container "$1")"
+# folia_status STACK PATH -> the HTTP status the stack's web server answers for PATH, asked
+# directly, past Traefik's routers (which may send the host to the other colour), but from inside
+# Traefik's container: the web server is on internal networks only (vps/files/networks.conf), so
+# this host has no address to reach it at, and Traefik, on edge_<stack> with it, is where the
+# site's requests come from anyway. Nothing when there is no answer (no task of it, no Traefik).
+# busybox wget of the Traefik image prints the status line with -S, for 401 and 503 as well (and
+# then exits 1); the name ends with a dot for its resolver (91-verify-stacks.sh, mon_get).
+folia_status() {
+  local cid out
+  cid="$(service_container edge_traefik)"
   [[ -n "${cid}" ]] || return 0
-  address="$(docker network inspect docker_gwbridge --format "{{with index .Containers \"${cid}\"}}{{.IPv4Address}}{{end}}" 2>/dev/null || true)"
-  printf '%s' "${address%/*}"
+  out="$(timeout 20 docker exec "${cid}" wget -S -q -T 10 -O /dev/null "http://tasks.$1_folia.:8080$2" 2>&1 || true)"
+  sed -n 's#^ *HTTP/[0-9.]* \([0-9][0-9][0-9]\).*#\1#p' <<<"${out}" | tail -n 1
 }
 
 # snapshot_outdated STACK - true when the catalog the stack's web server shows is older than the

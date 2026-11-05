@@ -1,0 +1,31 @@
+# Traefik's own metrics, for the scraper of the monitoring stack alone (stacks/edge.yml:
+# --metrics.prometheus.manualRouting, so this router is the only way to them).
+#
+# The entrypoint "metrics" (:8082) listens on every network Traefik is on, and Traefik is on one
+# with every service it routes to (vps/files/networks.conf): without this, each of them could read
+# the router metrics of every site. The scraper asks over edge_metrics, Traefik's and its network
+# with a fixed subnet (made by vps/30-docker.sh); everything else gets 403. ipAllowList judges the
+# address the connection comes from, never X-Forwarded-For (no ipStrategy here): over an overlay
+# network that is the scraper's address, or the address of that network's load balancer, both in
+# the subnet. vps/91-verify-stacks.sh (section netmatrix) asks from every network Traefik is on.
+# The subnet here and the one in networks.conf are the same; change both or neither.
+
+http:
+  routers:
+    edge-metrics:
+      entryPoints:
+        - metrics
+      rule: "Path(`/metrics`)"
+      service: prometheus@internal
+      middlewares:
+        - edge-metrics-scraper-only
+      # Two scrapes a minute are no visitors: not in the access log. They stay in the router's
+      # metrics, and with them every 403 (dashboard "Security": responses by router and code).
+      observability:
+        accessLogs: false
+
+  middlewares:
+    edge-metrics-scraper-only:
+      ipAllowList:
+        sourceRange:
+          - 10.201.0.0/24

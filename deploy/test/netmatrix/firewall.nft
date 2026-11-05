@@ -1,0 +1,21 @@
+# The firewall of the Phloem stand-in (deploy/test/netmatrix.sh), in the shape
+# docs/phloem/protocol.md section 2 gives Phloem's own (phloem/deploy/firewall.nft): no new
+# connection out, no DNS (also not Docker's 127.0.0.11), replies only; in, its port alone. The
+# harness loads it into the container's network namespace from outside, where "phloem start"
+# would load it from inside before it drops its rights. Every drop is counted, for the guard.
+table inet phloem {
+  chain input {
+    type filter hook input priority filter; policy drop;
+    iif "lo" accept
+    ct state established,related accept
+    tcp dport 8200 ct state new accept
+    counter drop
+  }
+  chain output {
+    type filter hook output priority filter; policy drop;
+    ct state established,related accept
+    # Its own healthcheck, if it has one: itself on loopback, its port.
+    oif "lo" ip daddr 127.0.0.1 tcp dport 8200 accept
+    counter drop
+  }
+}
