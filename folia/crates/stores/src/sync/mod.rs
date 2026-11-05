@@ -150,7 +150,10 @@ impl Sync {
                 states.push((id, state));
             });
             if crate::profiles::Profiles::expect().is_some_and(|p| p.active_untracked() == id) {
-                self.conflicts.set(browser::conflicts(id));
+                let shown = browser::conflicts(id);
+                if self.conflicts.with_untracked(|now| *now != shown) {
+                    self.conflicts.set(shown);
+                }
             }
         }
     }
@@ -181,7 +184,10 @@ impl Sync {
     pub(crate) fn conflicts_of(self, doc: &folia_sync::Doc) {
         #[cfg(all(feature = "csr", target_arch = "wasm32"))]
         if let Some(profiles) = crate::profiles::Profiles::expect() {
-            self.conflicts.set(browser::shown_conflicts(profiles.active_untracked(), &doc.conflicts));
+            let shown = browser::shown_conflicts(profiles.active_untracked(), &doc.conflicts);
+            if self.conflicts.with_untracked(|now| *now != shown) {
+                self.conflicts.set(shown);
+            }
         }
     }
 
@@ -301,7 +307,10 @@ impl Sync {
 
     /// „Nur dieses Gerät trennen": this device keeps its copy, privately; the others go on.
     pub fn leave(self, id: u16) {
-        forget(id);
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        if let Some(profiles) = crate::profiles::Profiles::expect() {
+            browser::leave(id, profiles.active_untracked());
+        }
         self.act(id, None);
         self.refresh(id);
     }
@@ -405,10 +414,19 @@ fn unescape(note: &str) -> String {
 pub fn offered() -> Option<String> {
     #[cfg(all(feature = "csr", target_arch = "wasm32"))]
     {
-        let document = web_sys::window()?.document()?;
-        let meta = document.query_selector(&format!("meta[name=\"{META}\"]")).ok()??;
-        let base = meta.get_attribute("content").unwrap_or_default();
-        Some(if base.trim().is_empty() { "/sync/v1/".to_string() } else { base.trim().to_string() })
+        thread_local! {
+            static OFFERED: std::cell::OnceCell<Option<String>> = const { std::cell::OnceCell::new() };
+        }
+        OFFERED.with(|offered| {
+            offered
+                .get_or_init(|| {
+                    let document = web_sys::window()?.document()?;
+                    let meta = document.query_selector(&format!("meta[name=\"{META}\"]")).ok()??;
+                    let base = meta.get_attribute("content").unwrap_or_default();
+                    Some(if base.trim().is_empty() { "/sync/v1/".to_string() } else { base.trim().to_string() })
+                })
+                .clone()
+        })
     }
     #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
     None

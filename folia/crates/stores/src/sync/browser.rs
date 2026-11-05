@@ -9,8 +9,8 @@
 //! (`Profiles::wrote`, storage events). A tab that becomes visible takes the lead: the phone in the
 //! hand is the one that is live.
 
-use std::cell::RefCell;
-use std::collections::VecDeque;
+use std::cell::{Cell, RefCell};
+use std::collections::{BTreeSet, VecDeque};
 use std::rc::Rc;
 
 use folia_design::nav;
@@ -129,14 +129,28 @@ pub fn wrote(profile: u16, key: &str) {
     }
 }
 
-/// Profile `profile` goes from this device (deleted): it leaves its space, the others keep it.
+/// Profile `profile` goes from this device (deleted): it leaves its space where this tab leads it
+/// (else its slot stays taken until the space ends), the others keep it.
 pub fn forget(profile: u16) {
     if !syncs(profile) {
         return;
     }
     match engine().filter(|e| e.leads(profile)) {
         Some(engine) => engine.leave(),
-        None => nav::local_set(&leave_key(profile), "1"),
+        None => drop_state(profile),
+    }
+}
+
+/// „Nur dieses Gerät trennen": where this tab leads, at once; where another tab may lead (the
+/// active profile), it asks that one; else its slot stays taken until the space ends.
+pub fn leave(profile: u16, active: u16) {
+    if !syncs(profile) {
+        return;
+    }
+    match engine().filter(|e| e.leads(profile)) {
+        Some(engine) => engine.leave(),
+        None if profile == active => nav::local_set(&leave_key(profile), "1"),
+        None => drop_state(profile),
     }
 }
 
@@ -411,6 +425,17 @@ pub struct Engine {
     /// The records changed and are not kept yet.
     dirty: RefCell<bool>,
     closed: RefCell<bool>,
+    /// What was sent on this connection and waits for `stored` (batches) or `snapshotted`.
+    in_flight: RefCell<BTreeSet<String>>,
+    snapshot_sent: Cell<bool>,
+    /// The socket's handlers, dropped with it.
+    handlers: RefCell<Option<Handlers>>,
+}
+
+struct Handlers {
+    _open: Closure<dyn FnMut()>,
+    _message: Closure<dyn FnMut(MessageEvent)>,
+    _close: Closure<dyn FnMut()>,
 }
 
 impl Engine {
@@ -431,7 +456,10 @@ impl Engine {
         nav::local_set(&waiting_key(self.profile), &self.core.borrow().waiting());
     }
 
+    /// Keeps the records, after the stores were given what they hold: what is kept never holds
+    /// more than the stores (a start would take what they lack for a deletion).
     fn keep_records(&self) {
+        self.project();
         nav::local_set(&records_key(self.profile), &self.core.borrow().records());
         *self.dirty.borrow_mut() = false;
     }
@@ -526,14 +554,19 @@ impl Engine {
         let engine = Rc::clone(self);
         leptos::task::spawn_local(async move {
             let due = engine.core.borrow().snapshot_due;
-            if due {
+            if due && !engine.snapshot_sent.replace(true) {
                 engine.send_snapshot().await;
             }
-            let waiting = engine.core.borrow().outbox.clone();
+            let waiting: Vec<_> = engine.core.borrow().outbox.iter().filter(|p| !engine.in_flight.borrow().contains(&p.id)).cloned().collect();
             let aad = aad(&engine.keys.space, "batch", None);
             for pending in waiting {
+                if !engine.in_flight.borrow_mut().insert(pending.id.clone()) {
+                    continue;
+                }
                 if let Ok(sealed) = seal(&engine.keys.data, &aad, &pending.batch).await {
-                    engine.send(&Out::Push { id: pending.id.clone(), data: b64(&sealed) });
+                    if !engine.send(&Out::Push { id: pending.id.clone(), data: b64(&sealed) }) {
+                        engine.in_flight.borrow_mut().remove(&pending.id);
+                    }
                 }
             }
         });
@@ -577,6 +610,8 @@ impl Engine {
         let on_close = Closure::<dyn FnMut()>::new(move || {
             *engine.open.borrow_mut() = false;
             engine.socket.borrow_mut().take();
+            engine.in_flight.borrow_mut().clear();
+            engine.snapshot_sent.set(false);
             if !*engine.closed.borrow() {
                 engine.status(None);
                 engine.retry();
@@ -585,9 +620,7 @@ impl Engine {
         socket.set_onopen(Some(on_open.as_ref().unchecked_ref()));
         socket.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
         socket.set_onclose(Some(on_close.as_ref().unchecked_ref()));
-        on_open.forget();
-        on_message.forget();
-        on_close.forget();
+        *self.handlers.borrow_mut() = Some(Handlers { _open: on_open, _message: on_message, _close: on_close });
         *self.socket.borrow_mut() = Some(socket);
     }
 
@@ -663,13 +696,14 @@ impl Engine {
                     }
                 }
                 folia_plans::ids::set_slot(slot);
+                self.project();
                 self.keep_waiting();
                 self.keep_records();
                 self.status(Some(devices.iter().filter(|d| **d != slot).count()));
-                self.project();
                 self.send_waiting();
             }
             In::Stored { id, nr } => {
+                self.in_flight.borrow_mut().remove(&id);
                 self.core.borrow_mut().stored(&id, nr);
                 self.keep_waiting();
                 self.later();
@@ -679,6 +713,7 @@ impl Engine {
                 self.later();
             }
             In::Snapshotted { .. } => {
+                self.snapshot_sent.set(false);
                 self.core.borrow_mut().snapshot_due = false;
                 self.keep_waiting();
             }
@@ -692,17 +727,27 @@ impl Engine {
             }
             In::Error { code, id } => match code.as_str() {
                 "unauthorized" => self.ended(),
+                // A batch too large: the snapshot carries it. (The snapshot itself, above 6 MiB,
+                // which the stores' caps keep a profile below, is not sent again on this
+                // connection.)
                 "too_big" => {
                     if let Some(id) = id {
+                        self.in_flight.borrow_mut().remove(&id);
                         self.core.borrow_mut().outbox.retain(|p| p.id != id);
+                        self.core.borrow_mut().snapshot_due = true;
+                        self.keep_waiting();
+                        self.send_waiting();
                     }
-                    self.core.borrow_mut().snapshot_due = true;
-                    self.keep_waiting();
-                    self.send_waiting();
                 }
                 "compact_first" => {
                     self.core.borrow_mut().snapshot_due = true;
+                    self.in_flight.borrow_mut().clear();
                     self.send_waiting();
+                }
+                "slow_down" => {
+                    self.in_flight.borrow_mut().clear();
+                    let engine = Rc::clone(self);
+                    set_timeout(move || engine.send_waiting(), std::time::Duration::from_secs(2));
                 }
                 "full" => {
                     self.sync.fail(self.profile, Problem::Full);
@@ -716,42 +761,67 @@ impl Engine {
     }
 
     /// The space is gone: private again, with all it holds.
-    fn ended(&self) {
+    fn ended(self: &Rc<Self>) {
         self.close();
         drop_state(self.profile);
         nav::local_set(&ended_key(self.profile), "1");
         self.sync.refresh(self.profile);
     }
 
-    /// „Nur dieses Gerät trennen": what waits goes first, then its slot is free.
-    fn leave(&self) {
-        self.send(&Out::Leave);
-        self.close();
-        drop_state(self.profile);
-        self.sync.refresh(self.profile);
+    /// „Nur dieses Gerät trennen": what waits goes out first, then the slot is free.
+    fn leave(self: &Rc<Self>) {
+        let engine = Rc::clone(self);
+        leptos::task::spawn_local(async move {
+            let waiting = engine.core.borrow().outbox.clone();
+            let aad = aad(&engine.keys.space, "batch", None);
+            for pending in waiting {
+                if let Ok(sealed) = seal(&engine.keys.data, &aad, &pending.batch).await {
+                    engine.send(&Out::Push { id: pending.id.clone(), data: b64(&sealed) });
+                }
+            }
+            engine.send(&Out::Leave);
+            engine.close();
+            drop_state(engine.profile);
+            engine.sync.refresh(engine.profile);
+        });
     }
 
     fn close(&self) {
-        *self.closed.borrow_mut() = true;
-        if let Some(socket) = self.socket.borrow_mut().take() {
-            let _ = socket.close();
+        if self.closed.replace(true) {
+            return;
         }
         if *self.dirty.borrow() {
             self.keep_records();
         }
+        if let Some(socket) = self.socket.borrow_mut().take() {
+            socket.set_onopen(None);
+            socket.set_onmessage(None);
+            socket.set_onclose(None);
+            let _ = socket.close();
+        }
+        self.handlers.borrow_mut().take();
     }
+}
+
+thread_local! {
+    /// Counts the starts of `lead`: one that waited for WebCrypto while a later one began gives way.
+    static GENERATION: Cell<u64> = const { Cell::new(0) };
 }
 
 /// Starts the engine for the active profile, where it syncs and this tab leads.
 async fn lead(sync: Sync, profiles: Profiles) {
     let profile = profiles.active_untracked();
     if let Some(old) = engine() {
-        if old.profile == profile && !*old.closed.borrow() {
+        if old.profile == profile && !*old.closed.borrow() && syncs(profile) {
             return;
         }
         old.close();
     }
     ENGINE.with(|e| e.borrow_mut().take());
+    let generation = GENERATION.with(|g| {
+        g.set(g.get() + 1);
+        g.get()
+    });
     if !syncs(profile) {
         folia_plans::ids::set_slot(0);
         return;
@@ -764,7 +834,7 @@ async fn lead(sync: Sync, profiles: Profiles) {
         sync.fail(profile, Problem::Unsupported);
         return;
     };
-    if profiles.active_untracked() != profile || !syncs(profile) {
+    if profiles.active_untracked() != profile || !syncs(profile) || GENERATION.with(Cell::get) != generation || !leads() {
         return;
     }
     folia_plans::ids::set_slot(core.slot());
@@ -781,6 +851,9 @@ async fn lead(sync: Sync, profiles: Profiles) {
         open: RefCell::new(false),
         dirty: RefCell::new(false),
         closed: RefCell::new(false),
+        in_flight: RefCell::new(BTreeSet::new()),
+        snapshot_sent: Cell::new(false),
+        handlers: RefCell::new(None),
     });
     ENGINE.with(|e| *e.borrow_mut() = Some(Rc::clone(&engine)));
     engine.take_changes();
@@ -861,7 +934,11 @@ pub fn start_tab(sync: Sync, profiles: Profiles) {
                 engine.take_changes();
             }
         } else if key.starts_with("betula.sync.") {
-            if (key == held_key(active) || key == leave_key(active)) && leads() {
+            if key == leave_key(active) && nav::local_get(&key).is_some() {
+                if let Some(engine) = engine().filter(|e| e.leads(active)) {
+                    engine.leave();
+                }
+            } else if key == held_key(active) && leads() {
                 leptos::task::spawn_local(lead(sync, profiles));
             }
             sync.refresh_all(profiles);
