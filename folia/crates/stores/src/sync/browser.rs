@@ -20,7 +20,7 @@ use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{CryptoKey, MessageEvent, WebSocket};
+use web_sys::{CloseEvent, CryptoKey, MessageEvent, WebSocket};
 
 use super::codes::{b64, unb64, KEY};
 use super::core::{Core, DEVICE};
@@ -435,7 +435,14 @@ pub struct Engine {
 struct Handlers {
     _open: Closure<dyn FnMut()>,
     _message: Closure<dyn FnMut(MessageEvent)>,
-    _close: Closure<dyn FnMut()>,
+    _close: Closure<dyn FnMut(CloseEvent)>,
+}
+
+/// Phloem's close codes (protocol.md §4) after which a device does not come back on its own: a
+/// newer socket of the same device took over (4000), or what it sent was refused (1008: then a
+/// reload tries again).
+fn final_close(code: u16) -> bool {
+    code == 4000 || code == 1008
 }
 
 impl Engine {
@@ -607,14 +614,16 @@ impl Engine {
             }
         });
         let engine = Rc::clone(self);
-        let on_close = Closure::<dyn FnMut()>::new(move || {
+        let on_close = Closure::<dyn FnMut(CloseEvent)>::new(move |event: CloseEvent| {
             *engine.open.borrow_mut() = false;
             engine.socket.borrow_mut().take();
             engine.in_flight.borrow_mut().clear();
             engine.snapshot_sent.set(false);
             if !*engine.closed.borrow() {
                 engine.status(None);
-                engine.retry();
+                if !final_close(event.code()) {
+                    engine.retry();
+                }
             }
         });
         socket.set_onopen(Some(on_open.as_ref().unchecked_ref()));
