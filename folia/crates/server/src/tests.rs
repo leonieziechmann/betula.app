@@ -222,6 +222,7 @@ fn state(store: Arc<SnapshotStore>) -> AppState {
         render_wait: std::time::Duration::from_secs(3),
         feeds: Arc::new(crate::busy::Places::new("calendar", 2, std::time::Duration::from_secs(10))),
         changes: None,
+        sync: None,
         leptos: LeptosOptions::builder().output_name("folia-app").site_root("no-site").build(),
     }
 }
@@ -323,6 +324,26 @@ async fn the_semantic_model_is_served_under_its_hash() {
     let boot = String::from_utf8(boot).unwrap();
     let written = serde_json::json!({ "url": path, "passage": "0539da78bb98e8bb" }).to_string();
     assert!(boot.contains(&written) && !boot.contains("__SEMANTIC_MODEL__"), "{boot}");
+}
+
+/// Betula Sync is offered only where the server is told so (`--sync`): then every page names in its
+/// head where the browser reaches Phloem (`folia_stores::sync::META`), empty for `/sync/v1/` of the
+/// page's own host; off, no page says a word of it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_page_offers_betula_sync_only_where_the_server_does() {
+    let head = |page: Vec<u8>| String::from_utf8(page).unwrap().split("</head>").next().unwrap_or_default().to_string();
+    let off = crate::router(state(SnapshotStore::new(temp_dir("sync-off")).unwrap()));
+    for path in ["/", "/profile", "/en/profile", folia_routes::url::CONNECT] {
+        let page = head(request(&off, path, &[]).await.2);
+        assert!(!page.contains(folia_stores::sync::META), "{path}: {page}");
+    }
+    for (url, content) in [("", "content=\"\""), ("http://127.0.0.1:8200/sync/v1/", "content=\"http://127.0.0.1:8200/sync/v1/\"")] {
+        let on = crate::router(AppState { sync: Some(url.into()), ..state(SnapshotStore::new(temp_dir("sync-on")).unwrap()) });
+        for path in ["/", "/profile", "/en/catalog", folia_routes::url::CONNECT] {
+            let page = head(request(&on, path, &[]).await.2);
+            assert!(page.contains(&format!("<meta name=\"{}\" {content}>", folia_stores::sync::META)), "{path}: {page}");
+        }
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1410,6 +1431,7 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
         "/bookmarks".to_string(),
         "/studyplan".to_string(),
         folia_routes::url::PROFILE.to_string(),
+        folia_routes::url::CONNECT.to_string(),
         folia_routes::url::IMPRINT.to_string(),
         folia_routes::url::PRIVACY.to_string(),
         an_event_page(),
@@ -1754,6 +1776,7 @@ async fn a_page_in_english_stays_in_english() {
         "/bookmarks".to_string(),
         "/studyplan".to_string(),
         folia_routes::url::PROFILE.to_string(),
+        folia_routes::url::CONNECT.to_string(),
         folia_routes::url::IMPRINT.to_string(),
         folia_routes::url::PRIVACY.to_string(),
         an_event_page(),

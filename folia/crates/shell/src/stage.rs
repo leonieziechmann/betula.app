@@ -108,7 +108,7 @@ impl Key {
     /// is on the stage of its own.
     pub fn of(path: &str, from: Key) -> Self {
         match Page::of(path) {
-            Page::About | Page::AboutTopic | Page::Profile | Page::Event | Page::Imprint | Page::Privacy | Page::NotFound => Key::Other,
+            Page::About | Page::AboutTopic | Page::Profile | Page::Connect | Page::Event | Page::Imprint | Page::Privacy | Page::NotFound => Key::Other,
             Page::Module if from.area().is_some_and(Area::shows_in_place) => from,
             _ => Key::of_area(Area::of(path)),
         }
@@ -136,6 +136,8 @@ pub enum Page {
     Studyplan,
     Study,
     Profile,
+    /// `/verbinden`, where a link of another device joins its profile (Betula Sync).
+    Connect,
     /// `/event/:key` and `/event/:key/:day`, a Termin's own page (folia/design/termin).
     Event,
     Imprint,
@@ -160,6 +162,7 @@ impl Page {
             ["studyplan"] => Page::Studyplan,
             ["study"] => Page::Study,
             ["profile"] => Page::Profile,
+            ["verbinden"] => Page::Connect,
             ["event", _] | ["event", _, _] => Page::Event,
             ["impressum"] => Page::Imprint,
             ["datenschutz"] => Page::Privacy,
@@ -731,6 +734,7 @@ mod tests {
         assert_eq!(Page::of("/programs/a/b/c"), Page::NotFound);
         assert_eq!((Page::of("/bookmarks"), Page::of("/studyplan"), Page::of("/study")), (Page::Bookmarks, Page::Studyplan, Page::Study));
         assert_eq!((Page::of("/profile"), Page::of("/impressum"), Page::of("/datenschutz")), (Page::Profile, Page::Imprint, Page::Privacy));
+        assert_eq!((Page::of(folia_routes::url::CONNECT), Key::of(folia_routes::url::CONNECT, Key::Studyplan)), (Page::Connect, Key::Other));
         assert_eq!(Page::of("/nichts"), Page::NotFound);
         assert_eq!(Page::Module.params("/catalog/module/11103").get("id").as_deref(), Some("11103"));
         let program = Page::ProgramTab.params("/programs/bachelor-informatik-2008/areas");

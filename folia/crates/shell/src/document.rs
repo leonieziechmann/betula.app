@@ -180,6 +180,13 @@ pub const BOOT_SCRIPT: &str = "/assets/boot.js";
 /// registers it; the web server writes its build into it).
 pub const SERVICE_WORKER: &str = "/sw.js";
 
+/// Betula Sync offered by this site (the server's `--sync`): where the browser reaches Phloem,
+/// empty for `/sync/v1/` on the page's own host. The server provides it to every page it renders
+/// while Betula Sync is on, and the document says so in its head (`<meta name="betula-sync">`,
+/// `folia_stores::sync::offered`); without it every profile stays private.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SyncOffer(pub std::sync::Arc<str>);
+
 /// Runs before the first paint: marks the document as scripted, names the season the birch is
 /// drawn in (`data-season`: March–May spring, June–August summer, September–November autumn,
 /// December–February winter; the server's page is the same all year, R9), and applies what this browser

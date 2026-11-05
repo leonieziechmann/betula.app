@@ -5,7 +5,8 @@
 //!   to one, in every tab of the browser (`folia_stores::profiles`) —, „Neues Profil", and a
 //!   profile kept as a file or made of one („Sichern & übertragen").
 //! - The page is the active profile: its name, renamed or deleted at its head; „Mein Studiengang";
-//!   what it keeps, with the way to each and „Profil leeren"; and the settings of this browser,
+//!   what it keeps, with the way to each and „Profil leeren"; Betula Sync, where the site offers it
+//!   (`sync::SyncPart`); and the settings of this browser,
 //!   which every profile shares (light or dark, the language; R13). On a phone, which has no
 //!   switch between light and dark, this is where they are.
 //! - At its end what the ground at the end of every page held until 2026-11-03 (owner: „ich würde
@@ -122,6 +123,7 @@ pub fn ProfilePage() -> impl IntoView {
                 <Head note/>
                 <Program/>
                 <Kept note/>
+                <crate::sync::SyncPart/>
                 <Settings/>
                 <About/>
             </div>
@@ -611,11 +613,13 @@ fn About() -> impl IntoView {
 #[component]
 fn Sidebar(note: RwSignal<Option<Note>>) -> impl IntoView {
     let t = i18n::t();
+    // Where the site offers Betula Sync, a profile may reach the server, sealed.
+    let hint = if folia_stores::sync::offered().is_some() { t.profile.storage_hint_sync } else { t.profile.storage_hint };
     view! {
         <ProfileList note/>
         <BackupGroup note/>
         <div class="fgroup">
-            <p class="hint storage-hint"><Icon name="shield-check"/><span>{t.profile.storage_hint}</span></p>
+            <p class="hint storage-hint"><Icon name="shield-check"/><span>{hint}</span></p>
         </div>
     }
 }

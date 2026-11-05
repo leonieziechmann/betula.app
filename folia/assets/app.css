@@ -7237,6 +7237,55 @@ span.st-wb-go { cursor: default; }
   .pf-item { min-height: 56px; }
   .pf-row { min-height: 52px; }
 }
+/* Betula Sync on the profile page (folia/crates/profile/src/sync.rs): what it is, the state with a
+   dot (on: green; on its way: pulsing; off and ended: grey; failed: the warning colour), the
+   actions as the sidebar has them, and what is open under them. */
+.pf-sync-lead { max-width: 64ch; line-height: 1.5; text-wrap: pretty; }
+.pf-sync-state { display: flex; align-items: flex-start; gap: 9px; margin-top: 12px; font-size: 14px; font-weight: 560; line-height: 1.45; }
+.pf-sync-dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--text-3); }
+.pf-sync-state[data-state="on"] .pf-sync-dot { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+.pf-sync-state[data-state="warn"] .pf-sync-dot { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
+.pf-sync-state[data-state="warn"] { color: var(--text-2); font-weight: 500; }
+.pf-sync-state[data-state="wait"] .pf-sync-dot { animation: pf-sync-wait 1.2s ease-in-out infinite; }
+@keyframes pf-sync-wait { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .pf-sync-state[data-state="wait"] .pf-sync-dot { animation: none; } }
+.pf-sync-actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 2px 12px; margin: 10px -10px 0; }
+.pf-sync-explain { margin: 12px 0 0; padding: 12px 14px; line-height: 1.5; }
+.pf-sync-explain ul { display: grid; gap: 4px; margin: 0; padding-left: 1.2em; }
+.pf-sync-wait { margin-top: 10px; color: var(--text-2); font-size: 13px; }
+.pf-sync :is(.pf-ask, .pf-refused) { margin: 10px 0 0; }
+/* The link for the next device: the code on a light tile of its own in either theme (a camera
+   reads an inverted code badly), the link beside it, on a phone under it. */
+.pf-pair { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 18px; margin-top: 12px; padding: 14px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.pf-qr { flex: none; display: block; width: 176px; height: 176px; border-radius: 10px; background: #fff; fill: #10151f; }
+.pf-pair-text { flex: 1 1 240px; min-width: 0; display: grid; gap: 8px; color: var(--text-2); font-size: 13px; line-height: 1.5; }
+.pf-pair-link code { display: block; padding: 6px 8px; border-radius: var(--r-s); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); font-size: 12px; overflow-wrap: anywhere; user-select: all; }
+.pf-pair-left { color: var(--text-3); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.pf-pair-actions, .pf-sync-code > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.pf-pair-actions .mini, .pf-sync-code .mini { display: inline-flex; align-items: center; gap: 6px; }
+.pf-pair-actions .icon, .pf-sync-code .icon { width: 14px; height: 14px; }
+.pf-sync-code { margin: 12px 0 0; line-height: 1.5; }
+.pf-code code { display: inline-block; padding: 6px 10px; border-radius: var(--r-s); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); font-size: 15px; font-weight: 600; letter-spacing: .06em; overflow-wrap: anywhere; user-select: all; }
+.pf-sync-conflicts, .pf-sync-other { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); }
+.pf-recover { margin-top: 8px; }
+.pf-recover input { font-size: 15px; font-weight: 560; letter-spacing: .04em; }
+.pf-sync-other > .note-action { margin-top: 8px; }
+.pf-connect .pf-ways { margin-top: 14px; }
+/* A hint of Betula Sync where two devices changed a thing at once (folia/crates/widgets/src/
+   syncnote.rs): under the note, on „Mein Studium" over the semesters. */
+.sync-hint { display: flex; align-items: flex-start; gap: 9px; margin-top: 8px; padding: 9px 11px; border-radius: 9px; background: var(--warn-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 28%, transparent); color: var(--text); font-size: 13px; line-height: 1.45; }
+.sync-hint > .icon { flex: none; width: 16px; height: 16px; margin-top: 2px; color: var(--warn); }
+.sync-hint-body { flex: 1 1 auto; min-width: 0; display: grid; gap: 4px; }
+.sync-hint-said { color: var(--text-2); }
+.sync-hint-other { margin: 0; padding: 4px 0 4px 9px; border-left: 2px solid var(--line-strong); color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.sync-hint-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.sync-moved { display: grid; gap: 8px; }
+.sync-moved > .sync-hint { margin: 0; }
+@media (max-width: 900px) {
+  .pf-qr { width: 200px; height: 200px; }
+  .pf-sync-actions { grid-template-columns: minmax(0, 1fr); }
+}
+
 @keyframes st-bar-up { from { transform: translateY(20px); opacity: 0; } }
 
 .back { display: none; }

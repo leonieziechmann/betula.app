@@ -26,7 +26,9 @@ folia-routes = { path = "../routes" }
 wasm-bindgen = { version = "0.2", optional = true }
 # Reading a file the visitor picks (`Blob::text`, a promise).
 wasm-bindgen-futures = { version = "0.4", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Element", "HtmlElement", "HtmlInputElement", "HtmlAnchorElement", "Node", "Event", "EventTarget", "Storage", "Blob", "BlobPropertyBag", "Url", "File", "FileList"] }
+web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Element", "HtmlElement", "HtmlInputElement", "HtmlAnchorElement", "Node", "Event", "EventTarget", "Storage", "Blob", "BlobPropertyBag", "Url", "File", "FileList", "Location", "History", "Navigator", "Clipboard"] }
+# The QR code of a link for the next device (Betula Sync, `qr.rs`): pure Rust, drawn as SVG.
+qrcodegen = "1.8"
 
 [lints.clippy]
 unwrap_used = "deny"

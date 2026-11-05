@@ -3,8 +3,8 @@
 //! (`choices`), the finder's memory (`finder`), a row swiped on a phone (`swipe`), the week of a
 //! timetable (`week`), and what lies over a page: the menus at a module's switches (`collect`,
 //! `planinto` and `planmenu` for „Einplanen" not planned and planned), the notes after them
-//! (`marknote`, `plannote`). Above the stores, below the features
-//! (docs/folia/folia-refactor.md §7.4).
+//! (`marknote`, `plannote`), and the hints of Betula Sync at what two devices changed at once
+//! (`syncnote`). Above the stores, below the features (docs/folia/folia-refactor.md §7.4).
 
 // Leptos view types nest deeply.
 #![recursion_limit = "512"]
@@ -25,5 +25,6 @@ pub mod planmenu;
 pub mod plannote;
 pub mod plansetup;
 pub mod swipe;
+pub mod syncnote;
 pub mod termin;
 pub mod week;
