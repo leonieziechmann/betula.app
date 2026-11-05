@@ -2176,42 +2176,56 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   - **Adding, moving, taking out** (owner: adding and removing were „eine absolute Krise"):
     „Module hinzufügen" opens the workbench (`bench.rs`, Folia 1.64.0; folia/design/hinzufuegen/
     konzepte.html, third round; owner, 2026-11-03: „Passt so, bau das jetzt in Folia"): planning
-    one semester is a mode, which „Fertig" or Esc end (Esc closes the module beside the page first;
-    enhance.js clicks `data-action="close-focus"`). Until 1.64.0 a dialog with three tabs did it
+    one semester is a mode, which × („Planen beenden"; until 1.75.0 „Fertig") or Esc end (Esc
+    closes the module beside the page first; enhance.js clicks `data-action="close-focus"`). Until 1.64.0 a dialog with three tabs did it
     („Regelstudienplan", „Merkliste", „Katalog": rows to tick and „Einfügen", folia/design/
     hinzufuegen/konzepte.html, the first round's analysis). Its bar stands over everything it
-    changes (CLAUDE.md, „What picks stands above what it changes"): „Planen", the semester with
-    ‹ › (another one, the mode staying), its Fachsemester, what it holds against the plan with a
-    meter, „Fertig". Under it on a desktop three columns, the page's sidebar aside meanwhile: the
-    areas of the plan as the overview has them (`folia_plans::bench`: one row per area with its dot
-    and its LP; an area's subgroups are its Pflicht and each of its choices, by the Fachsemester
-    they begin in; a click folds an area with subgroups out at the one that is due — a choice open
-    of the Fachsemester or one before it, a Pflicht with a row of them that stands nowhere —, else
-    the first one open; one area open at a time), „Laut Plan im 3. FS" above them, „Gemerkt" and
-    „Im Katalog suchen" under them; in the middle what is picked; on the right the semester, as wide
-    as the module beside the page, which floats over it when a row is opened, and only what is
-    taken in it (owner: „Da sollte nur zu sehen sein, was man alles belegt hat"), each module with
-    the subgroup it counts for („für Anwendungsfach", „Pflicht"), × to take it out, what is beyond
-    the plan said under the meter. *„Laut Plan im 3. FS"* (`bench::Due`): the Pflicht of the
-    Fachsemester with „Plan übernehmen" (those of its modules that stand nowhere yet and that the
-    semester offers, at once), its choices with „Wählen ›" (their subgroup) or „Ändern" once they
-    are complete, the stored placeholders of the semester as „Vorgemerkt", what is open from the
+    changes (CLAUDE.md, „What picks stands above what it changes"), since 1.75.0 as the phone's
+    sheet has it (owner, 2026-11-05: „Mach das am Rechner bei der Werkbank auch so. Also mit
+    ähnlichen konzepten"): „Hinzufügen zu", the semester with ‹ › (another one, the mode staying),
+    its Fachsemester, what it holds against the plan at the right end over the bar of it
+    (`bench::SemesterBar`, the phone's) and ×; until then „Planen", a meter and „Fertig". Under it on
+    a desktop three columns, the page's sidebar aside meanwhile: the areas of the plan
+    (`folia_plans::bench`: an area's subgroups are its Pflicht and each of its choices, by the
+    Fachsemester they begin in), since 1.75.0 as the phone's „Alle Bereiche" has them — every area
+    unfolded with what it holds of what it asks, a click on its head picking the subgroup that is
+    due (a choice open of the Fachsemester or one before it, a Pflicht with a row of them that
+    stands nowhere, else the first one open), each subgroup with its figure and its bar, an area of
+    one subgroup one row with its bar, a choice that others of its area cover none of them
+    (`bench::shown_groups`); until then one area at a time folded out —, „Laut Plan im 3. FS"
+    above them, „Gemerkt" and „Im Katalog suchen" under them; in the middle what is picked; on the
+    right the semester, as wide as the module beside the page, which floats over it when a row is
+    opened, and only what is taken in it (owner: „Da sollte nur zu sehen sein, was man alles belegt
+    hat"), each module with the subgroup it counts for („für Anwendungsfach", „Pflicht"), × to take
+    it out, what is beyond the plan said under its name (how far it is stands in the head since
+    1.75.0, until then a meter of its own). *„Laut Plan im 3. FS"* (`bench::Due`), since 1.75.0 the
+    rows of the phone's root (`bench::plan_rows`, `bench::next_rows`): „Plan übernehmen" (those of
+    the Fachsemester's Pflicht that stand nowhere yet and that the semester offers, at once), the
+    Pflicht not yet planned, its choices as dashed cards with their bars going into their subgroup,
+    the stored placeholders of the semester whose choice is not among them, what is open from the
     Fachsemester before it (the Pflicht's rows that stand nowhere, choices not complete — the FÜS of
-    the 1. FS —, what was not passed and is not planned again) and, folded, what the next
-    Fachsemester could take now (as on a phone, see below). *A subgroup*: a choice's modules (its lists, the FÜS list for the
-    FÜS) or the Pflicht's (by the Fachsemester the plan puts them into), its head with the area,
-    what the plan asks and the rule; „Fach" where a choice has several lists, „Im WiSe angeboten",
-    „Passt in meine Woche" and a search above the list, which change only the list; the list in
-    groups by the student's week (`pages::fit` against the semester's plan: they fit, meet it, have
-    no fixed dates, the semester does not offer them by its turnus; a semester without dates groups
-    by its offer alone and says so), each row with its number, its „Fach" or its Fachsemester, its
-    turnus, language and Termine, where it is planned elsewhere, what it means for the week and
-    „+ Einplanen", which plans at once with the note and „Rückgängig" (`bench::plan_for`: a
+    the 1. FS —, what was not passed and is not planned again), then under „Aus dem 4. FS
+    vorziehen" what the next Fachsemester could take now (as on a phone, see below: what the
+    semester offers and has in place what it requires); until then the Pflicht planned stood in
+    it with ✓ under three headings, and the next Fachsemester folded. *A subgroup*: a choice's
+    modules (its lists, the FÜS list for the FÜS) or the Pflicht's (by the Fachsemester the plan puts
+    them into), its head with the area, its figure and its bar and the rule; the search and a row of
+    chips above the list (since 1.75.0: „Fach" where a choice has several lists, Betula's select as
+    a chip, „Im WiSe angeboten" and „Passt in meine Woche" chips that are on or off), which change
+    only the list; the list in groups by the student's week (`pages::fit` against the semester's
+    plan: they fit, meet it, have no fixed dates, the semester does not offer them by its turnus; a
+    semester without dates groups by its offer alone and says so), each row (`bench::module_line`,
+    the same in the phone's sheet) its name and one line — its number, its „Fach" or its
+    Fachsemester, where it is planned elsewhere, what it means for the week where its group does
+    not say it — and its credits as the button in the middle of its right end („+ 8 LP"; until
+    1.75.0 its turnus, language and Termine too, and „+ Einplanen" beside the credits), which plans
+    at once with the note and „Rückgängig" (`bench::plan_for`: a
     placeholder of the choice standing in the semester that nothing fills is filled by it, else the
     module remembers the choice's first row, `Planned::counts`, and counts there); a marked module
     says so with its collections and comes first in its group (folia/design/merken/konzept.html,
-    „Von überall"). Under the list „Im Katalog suchen ›" (the choice's catalog as the program's page
-    has it, the semester's half of the year, `fill=` for its placeholder) and „Vormerken" (the
+    „Von überall"). Under the list, as the ways of the phone's root, „Im Katalog suchen ›" (the
+    choice's catalog as the program's page has it, the semester's half of the year, `fill=` for its
+    placeholder) and „Vormerken" (the
     choice as a placeholder of the semester, its list then still in front to fill it, or kept for
     later; „Vormerken" at a row of „Laut Plan" goes into its subgroup, `bench::choose_for`). *„Gemerkt"*: the marked modules, by
     collection and search, each with the subgroup it counts for. *The catalog with the workbench as
@@ -2264,11 +2278,11 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     be planned into the semester all the same; then the ways „Alle Bereiche ›", „Gemerkt ›" and „Im Katalog
     suchen". One level of headings, two kinds of rows (the same day: „wir müssen an dem konzept
     arbeiten, wie module dargestellt werden. Hier ist auch wieder das problem visuell unordentlich
-    und unbalanciert … Das gleiche beim wp placeholder"): a module (`bench::sheet_line`) is its
+    und unbalanciert … Das gleiche beim wp placeholder"): a module (`bench::module_line`) is its
     name and one line under it — its number, its „Fach" or „Pflicht · Informatik", what it means
     for the week where its group does not say it, where else it is planned, that it is marked —,
     its credits the button in the middle of its right end („+ 8 LP"; ✓ once it is in the semester,
-    a tap taking it out again); a place to fill (`bench::sheet_choice`, a choice of the plan or a
+    a tap taking it out again); a place to fill (`bench::choice_card`, a choice of the plan or a
     row without a module) is dashed as a placeholder is in the semester, its name and „0 / 12 LP"
     over its bar in its area's colour, its area and its span under it, › at its end. Since 1.71.0
     a row with › goes into a page of the sheet (`bench::Page`, the trail `StudyCtx::trail`; owner,
