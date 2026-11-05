@@ -42,6 +42,8 @@ const WIDEST_DAY: f64 = 3.4;
 /// The fewest hours, and the hour the week shows the day until at least: as the page's grid.
 const MIN_MINUTES: u16 = 4 * 60;
 const UNTIL: u16 = 18 * 60;
+// `lay_out` clamps the day's end between UNTIL and midnight: the bounds must stay in order.
+const _: () = assert!(UNTIL <= 24 * 60);
 
 /// A colour with its opacity.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -254,25 +256,24 @@ fn lines_of(text: &str, width: f64, most: usize, font: Font, measure: &dyn Fn(&s
         }
     };
     let mut lines: Vec<String> = Vec::new();
-    let words: Vec<&str> = text.split_whitespace().collect();
-    let mut i = 0;
-    while i < words.len() && lines.len() < most {
-        let mut line = words[i].to_string();
-        i += 1;
+    let mut words = text.split_whitespace().peekable();
+    while lines.len() < most {
+        let Some(word) = words.next() else { break };
+        let mut line = word.to_string();
         if !fits(&line) {
             lines.push(cut(&line));
             // A word cut ends the label, as the page's grid ends it.
             return lines;
         }
-        while i < words.len() && fits(&format!("{line} {}", words[i])) {
-            line = format!("{line} {}", words[i]);
-            i += 1;
+        while let Some(word) = words.next_if(|word| fits(&format!("{line} {word}"))) {
+            line = format!("{line} {word}");
         }
         lines.push(line);
     }
-    if i < words.len() {
+    if words.peek().is_some() {
         if let Some(last) = lines.last_mut() {
-            *last = cut(&format!("{last} {}", words[i..].join(" ")));
+            let rest: Vec<&str> = words.collect();
+            *last = cut(&format!("{last} {}", rest.join(" ")));
         }
     }
     lines
@@ -284,7 +285,7 @@ pub(super) fn lay_out(slots: &[GridSlot], heading: &Heading, measure: &dyn Fn(&s
     let drawn: Vec<&GridSlot> = slots.iter().filter(|slot| (1..=7).contains(&slot.day) && slot.to > slot.from).collect();
     let placed: Vec<Placed> = drawn.iter().map(|slot| slot.placed()).collect();
     let mut span = grid::span(&placed, MIN_MINUTES);
-    span.last = span.last.max(UNTIL).min(24 * 60);
+    span.last = span.last.clamp(UNTIL, 24 * 60);
     let lanes = grid::lanes(&placed);
     let days = usize::from(span.days);
     let mut most = [0u8; 7];
