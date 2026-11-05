@@ -113,7 +113,8 @@ check(shape.areas === "Laut Plan im 3. FS|Informatik|Mathematik|Nebenfach|FÜS|F
 check(shape.empty === "Noch nichts belegt.", `the semester begins empty: ${shape.empty}`);
 const plan = await pane();
 // One level of headings: „Aus dem 4. FS vorziehen" alone, the rows say what they are.
-check(plan.groups.length === 0 && (await page.textContent(".st-wb-pane #st-wb-next")) === "Aus dem 4. FS vorziehen", `the headings of „Laut Plan“: ${JSON.stringify(plan.groups)}`);
+const nextHead = await page.evaluate(() => document.querySelector(".st-wb-pane #st-wb-next")?.textContent);
+check(plan.groups.length === 0 && nextHead === "Aus dem 4. FS vorziehen", `the headings of „Laut Plan“: ${JSON.stringify({ groups: plan.groups, next: nextHead })}`);
 check(plan.rows.filter((row) => /^\d+\s*LP$/.test(row.act ?? "")).slice(0, 3).map((row) => row.name).join("|") === "Theoretische Informatik|Softwarepraktikum|Mathematik IT-3 (Analysis)", `the Pflicht of the 3. FS: ${JSON.stringify(plan.rows)}`);
 check(plan.rows.some((row) => row.name === "Fachübergreifendes Studium" && row.choice), "the FÜS of the 1. FS is not open from before");
 const balanced = await page.evaluate(() => {
