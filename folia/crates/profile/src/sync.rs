@@ -107,15 +107,10 @@ pub fn SyncPart() -> impl IntoView {
     let id = Memo::new(move |_| profiles.map_or(FIRST, Profiles::active));
     let state = Memo::new(move |_| sync.state(id.get()));
     let open = RwSignal::new(Open::Nothing);
-    // Another profile: what was open was the other one's. A state that changes closes what
-    // belonged to the one before (the explanation once it is on, the questions once it is off).
-    Effect::new(move |before: Option<(u16, bool)>| {
-        let now = (id.get(), state.with(State::synced));
-        if before.is_some_and(|before| before != now) {
-            open.set(Open::Nothing);
-        }
-        now
-    });
+    // The profile „Aktivieren" was pressed for: once it syncs, the part shows the QR code and the
+    // link for the next device at once (entwurf.html: „Danach zeigt er QR-Code und Link für das
+    // nächste Gerät").
+    let activated = RwSignal::new(None::<u16>);
 
     let explain = move |_| {
         open.set(Open::Explain);
@@ -123,7 +118,9 @@ pub fn SyncPart() -> impl IntoView {
     };
     let activate = move |_| {
         open.set(Open::Nothing);
-        sync.activate(id.get_untracked());
+        let profile = id.get_untracked();
+        activated.set(Some(profile));
+        sync.activate(profile);
     };
     let cancel = move |back: &'static str| {
         open.set(Open::Nothing);
@@ -137,6 +134,24 @@ pub fn SyncPart() -> impl IntoView {
                 open.try_set(Open::Pair(Some(made)));
             }
         });
+    });
+    // Another profile: what was open was the other one's. A state that changes closes what
+    // belonged to the one before (the explanation once it is on, the questions once it is off),
+    // and a profile just switched on offers the next device.
+    Effect::new(move |before: Option<(u16, bool)>| {
+        let now = (id.get(), state.with(State::synced));
+        if before.is_some_and(|before| before != now) {
+            if now.1 && activated.get_untracked() == Some(now.0) {
+                activated.set(None);
+                pair.run(());
+            } else {
+                open.set(Open::Nothing);
+            }
+        }
+        if before.is_some_and(|before| before.0 != now.0) {
+            activated.set(None);
+        }
+        now
     });
     let show_code = move |_| {
         if let Some(code) = sync.recovery_code(id.get_untracked()) {
