@@ -662,6 +662,13 @@ if (current !== "2026W") {
   check(aimedChoice?.includes("für „Anwendungsfach“"), `the sidebar does not plan for the choice: ${aimedChoice}`);
   await step("Einplanen, for the choice", () => page.click(SIDE), ([key, id]) => (localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith("m\t") && line.split("\t")[2] === id), [PLAN, offered.id]);
   await page.waitForFunction((after) => document.querySelector('.st-sl[aria-current="true"] .st-wfig')?.textContent.startsWith(`${after} / 12`), String(figured + offered.credits).replace(".", ","), { timeout: 4000 }).catch(() => problems.push("the choice does not count the module planned out of its list"));
+  // The Komplexe: no tabs over their modules, all three's under their names; a Komplex picked on
+  // the left, its own (owner, 2026-11-05: „Mach mal die auswahl in dem fachbereich oben weg das ist
+  // redundant").
+  const sections = () => [...document.querySelectorAll(".st-split-r .st-wsub > span:first-child")].map((head) => head.textContent).join();
+  await step("the Komplexe", () => page.click('.st-sl:has-text("Komplexe des Fachstudiums")'), (all) => !document.querySelector(".st-split-r .st-wtabs") && new Function(`return (${all})`)()() === "Grundlagen der Informatik,Praktische Informatik,Angewandte und Technische Informatik", sections.toString());
+  await step("a Komplex of them", () => page.click('.st-sl-kid:has-text("Praktische Informatik")'), (all) => new Function(`return (${all})`)()() === "Praktische Informatik" && document.querySelector('.st-sl-kid[aria-current="true"]')?.textContent.includes("Praktische Informatik"), sections.toString());
+  await step("all of them again", () => page.click('.st-sl:has-text("Komplexe des Fachstudiums")'), (all) => new Function(`return (${all})`)()().split(",").length === 3 && !document.querySelector('.st-sl-kid[aria-current="true"]'), sections.toString());
   await step("back to the semesters", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => location.search === "" && document.querySelector(".st-grid") && document.querySelector(".st-over .st-bar") && document.querySelector("#sidebar .st-legend-parts"));
   for (const request of requests) {
     if (/12104|079-82-2008|11787%0A|d%092025W|start%09/.test(request.replace(/\/catalog\/module\/\d+|open=11787/g, ""))) problems.push(`a request carries the study: ${request.slice(0, 160)}`);
