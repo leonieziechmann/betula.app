@@ -10,9 +10,19 @@
 #   out: replies, and loopback to 127.0.0.1. No new connection, no DNS (Docker's resolver at
 #        127.0.0.11 neither), no IPv6.
 #
-# Every drop is counted in a named counter. A timer on the host reads them from the container's
-# namespace (deploy/vps/47-phloem-host.sh, phloem-firewall-stats): a packet Phloem tried to
-# send out shows there, and the monitoring alerts on it.
+# Every chain ends with a counting drop, and every drop that means someone tried something is
+# counted, in the chain it happened in. betula-phloem-guard (deploy/vps/files, every minute as
+# root on the host) reads the counters from outside, per chain; the monitoring alerts on any
+# packet they count (rule "Phloem: its firewall drops connections"). Drops by a chain's policy
+# would be invisible to it: the policy is only the backstop behind the last rule.
+#
+# Two drops are not counted, on purpose, since neither is anyone trying anything:
+#   - `phloem start`'s own check that the firewall holds: one DNS datagram to 127.0.0.11, sent as
+#     root before it drops its rights (meta skuid 0). Counted, every start (a reboot at night, a
+#     restart by swarm) would set off the alarm. Phloem itself never runs as root: as 65532, the
+#     same datagram is counted below.
+#   - packets conntrack cannot place (ct state invalid): late segments of a connection it let go
+#     already, which happen now and then in any normal traffic.
 #
 # One transaction: the table is made (if it is missing), deleted and made anew, so that loading
 # the file twice gives the same rules. Docker's own rules (its resolver's NAT) live in tables of
@@ -22,44 +32,29 @@ table inet phloem
 delete table inet phloem
 
 table inet phloem {
-	# New connections in that are not to 8200, and anything else unexpected on the way in.
-	counter in_dropped {
-	}
-	# Packets out that are no reply: a connection or a datagram Phloem tried to send.
-	counter out_dropped {
-	}
-	# Packets to Docker's resolver: a name Phloem tried to look up.
-	counter dns_dropped {
-	}
-	# Every IPv6 packet, either way.
-	counter ipv6_dropped {
-	}
-	# Packets conntrack cannot place, either way.
-	counter invalid_dropped {
-	}
-
 	chain input {
 		type filter hook input priority filter; policy drop;
-		meta nfproto ipv6 counter name "ipv6_dropped" drop
+		meta nfproto ipv6 counter drop comment "IPv6: none, either way"
 		ct state established,related accept
-		ct state invalid counter name "invalid_dropped" drop
+		ct state invalid drop comment "late packets conntrack cannot place: noise, not counted"
 		iif "lo" ip saddr 127.0.0.1 ip daddr 127.0.0.1 accept
 		tcp dport 8200 ct state new accept
-		counter name "in_dropped" drop
+		counter drop comment "a new connection to another port, or anything else"
 	}
 
 	chain output {
 		type filter hook output priority filter; policy drop;
-		meta nfproto ipv6 counter name "ipv6_dropped" drop
+		meta nfproto ipv6 counter drop comment "IPv6: none, either way"
 		ct state established,related accept
-		ct state invalid counter name "invalid_dropped" drop
-		ip daddr 127.0.0.11 counter name "dns_dropped" drop
+		ct state invalid drop comment "late packets conntrack cannot place: noise, not counted"
+		meta skuid 0 ip daddr 127.0.0.11 udp dport 53 drop comment "phloem start's own check, as root before the drop: not counted"
+		ip daddr 127.0.0.11 counter drop comment "Docker's resolver: a name looked up"
 		oif "lo" ip saddr 127.0.0.1 ip daddr 127.0.0.1 accept
-		counter name "out_dropped" drop
+		counter drop comment "a connection or a datagram out"
 	}
 
 	chain forward {
 		type filter hook forward priority filter; policy drop;
-		counter name "in_dropped" drop
+		counter drop comment "nothing is routed through"
 	}
 }
