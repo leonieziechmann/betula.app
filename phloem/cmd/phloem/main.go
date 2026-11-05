@@ -60,15 +60,14 @@ func run(args []string) int {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// Development convenience: a git-ignored .env file. The real environment wins.
-	if _, err := dotenv.LoadDotEnv(envOr("PHLOEM_ENV_FILE", ".env")); err != nil {
-		fmt.Fprintln(stderr, "Error:", err)
-		return 2
-	}
-
 	name := "serve"
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		name, args = args[0], args[1:]
+	}
+
+	if err := loadDevEnv(name); err != nil {
+		fmt.Fprintln(stderr, "Error:", err)
+		return 2
 	}
 	if name == "--help" || name == "-h" {
 		name = "help"
@@ -81,6 +80,18 @@ func run(args []string) int {
 	fmt.Fprintf(stderr, "Unknown command: %s\n\n", name)
 	printUsage(stderr)
 	return 2
+}
+
+// loadDevEnv reads the development convenience, a git-ignored .env file (PHLOEM_ENV_FILE); the
+// real environment wins. Never for start: what configures the step that runs as root (the
+// firewall, the nft it runs) comes from the image and the stack alone, not from a file that a
+// Phloem taken over could have written.
+func loadDevEnv(command string) error {
+	if command == "start" {
+		return nil
+	}
+	_, err := dotenv.LoadDotEnv(envOr("PHLOEM_ENV_FILE", ".env"))
+	return err
 }
 
 func printUsage(w io.Writer) {

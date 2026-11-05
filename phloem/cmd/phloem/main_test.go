@@ -157,6 +157,23 @@ func TestServeRefusesABadConfiguration(t *testing.T) {
 	}
 }
 
+// start takes nothing from a .env: Phloem's user could have written one, and start runs as root.
+func TestStartReadsNoEnvFile(t *testing.T) {
+	file := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(file, []byte("PHLOEM_FIREWALL=/data/mine.nft\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PHLOEM_ENV_FILE", file)
+	t.Setenv("PHLOEM_FIREWALL", "")
+	os.Unsetenv("PHLOEM_FIREWALL")
+	if err := loadDevEnv("start"); err != nil || os.Getenv("PHLOEM_FIREWALL") != "" {
+		t.Fatalf("start read the .env: %q %v", os.Getenv("PHLOEM_FIREWALL"), err)
+	}
+	if err := loadDevEnv("serve"); err != nil || os.Getenv("PHLOEM_FIREWALL") != "/data/mine.nft" {
+		t.Fatalf("serve, for development, reads it: %q %v", os.Getenv("PHLOEM_FIREWALL"), err)
+	}
+}
+
 func TestEnvironmentDefaults(t *testing.T) {
 	t.Setenv("PHLOEM_ADDR", "0.0.0.0:8200")
 	t.Setenv("PHLOEM_BUDGET_BYTES", strconv.Itoa(42))

@@ -224,7 +224,10 @@
             ];
             ExposedPorts = { "8200/tcp" = { }; };
             Volumes = { "/data" = { }; };
-            WorkingDir = "/data";
+            # Not /data: start runs as root without CAP_DAC_OVERRIDE (it cannot read Phloem's
+            # data, nor should it), and nothing in a directory Phloem can write may count as
+            # configuration (a development .env).
+            WorkingDir = "/";
             # Liveness (/healthz over loopback, which the firewall lets through): the process
             # serves and its store answers. The check drops root before it asks.
             Healthcheck = {
