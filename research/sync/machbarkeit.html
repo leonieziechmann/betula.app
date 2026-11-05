@@ -93,6 +93,7 @@ b { font-weight: 620; color: var(--text); }
 .intro { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
 .intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -.026em; font-weight: 770; }
 .intro .lead { margin-top: 14px; max-width: 64ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.intro .rec { margin-top: 14px; }
 .quote { margin-top: 18px; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
 .rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
 .rules ol { margin: 12px 0 0; padding: 0; list-style: none; counter-reset: rule; display: flex; flex-direction: column; gap: 10px; }
@@ -247,6 +248,7 @@ figure.dia figcaption { max-width: 86ch; font-size: 13px; color: var(--text-3); 
     <h1>Am Rechner planen, am Handy weitermachen</h1>
     <p class="lead">Du willst zwischen Rechner und Handy wechseln, ohne daran zu denken, mit einem Server, der dafür kaum etwas tut und nichts lesen kann. Das geht. Hier steht, wie: ein Sync-Dienst, der nur versiegelte Teile aufbewahrt, Geräte, die beim Öffnen holen und beim Weglegen schicken, eigene Schlüssel für den Kalender und für Freund:innen, Grenzen gegen Missbrauch, und wo WebRTC hilft und wo nicht. Dazu, was es den Server kostet und in welchen Schritten man es baut.</p>
     <p class="quote">„dass man <b>seamless zwischen computer und handy switchen</b> [kann] … eine robuste architektur, die <b>möglichst wenig ressourcen</b> von meinem server braucht … <b>möglichst full client side encryption</b>, so dass ich keine sensitiven nutzdaten habe und die leaken kann“</p>
+    <p class="rec"><b>Zweite Runde:</b> Deine Antworten vom 05.11. stehen im Entwurf, <code>research/sync/entwurf.html</code>, mit dem Prototyp des Zusammenführens. Wo er anders entscheidet als diese Studie, gilt der Entwurf: WebRTC trägt den ständigen Strom, TURN sitzt in Phloem und leitet nur zwischen deinen Geräten weiter, und jeder Kalender bekommt sein eigenes Abo.</p>
   </div>
   <aside class="rules" aria-label="Was diese Studie voraussetzt">
     <div class="kicker">Was diese Studie voraussetzt</div>
