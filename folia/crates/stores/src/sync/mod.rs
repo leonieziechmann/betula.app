@@ -105,6 +105,7 @@ impl Conflict {
 pub struct Sync {
     /// The profiles and the Stundenplan, taken where it is made: what the engine does from a
     /// socket or a promise has no context to find them in.
+    #[cfg_attr(not(all(feature = "csr", target_arch = "wasm32")), allow(dead_code))]
     profiles: Option<crate::profiles::Profiles>,
     plan: Option<crate::studyplan::Studyplan>,
     /// What this browser keeps of each profile's sync (the leader's word on its connection).
