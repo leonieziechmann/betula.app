@@ -196,6 +196,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .shots img { display: block; width: 100%; height: auto; max-width: 100%; border-radius: 12px; box-shadow: var(--shadow-panel); background: var(--panel); }
 .shots figcaption { font-size: 13px; color: var(--text-2); text-wrap: pretty; }
 .shots figcaption b { color: var(--text); font-weight: 640; }
+.shots.one { grid-template-columns: minmax(0, 1fr); }
 .shots .phones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .shots .phones img { border-radius: 18px; }
 .shots .stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
@@ -915,6 +916,24 @@ table.cmp th.rec { color: var(--accent-ink); }
     <li><span><b>Gebaut:</b> der Modus mit seiner Leiste, die Bereiche mit ihren Untergruppen, „Laut Plan im 3. FS“ mit „Plan übernehmen“, die Untergruppe mit „Fach“, „Im WiSe angeboten“, „Passt in meine Woche“ und Suche, „+ Einplanen“ sofort, das Modul zählt für die Untergruppe, aus der es kam („Zählt für ›“ im Menü ändert es), „Vormerken“, „Gemerkt“, das Semester nur mit dem, was belegt ist, am Handy die Bereiche und das Semester als Sheets und die Leiste über der Tab-Leiste; der Katalog mit der Werkbank als Ziel; die Wege aus Gesamtplan, Regelstudienplan, Wahlpflicht und Platzhalter.</span></li>
     <li><span><b>Noch nicht:</b> der Katalog mit Ziel steht im Reiter „Module“, nicht „Studium“; die Treffer der Suche oben haben kein eigenes „+ Einplanen“ (das Modul, das sie öffnen, plant aber ins Semester der Werkbank); „Für Anwendungsfach zählen lassen“ im Katalog ohne Modus; die Taste P an einer Zeile; „für Anwendungsfach“ an den Zeilen des Semesters außerhalb der Werkbank.</span></li>
   </ol>
+  <div class="kicker" style="margin-top:14px">Am Rechner nachgezogen am 05.11., nach der fünften Runde am Handy, gebaut in Folia 1.75.0</div>
+  <ol>
+    <li><span><b>Ein Kopf mit Balken statt der Leiste mit „Fertig“.</b> „Hinzufügen zu ‹ WiSe 2026/27 ›“ und das Fachsemester, rechts „22 von 30 LP“ über dem Balken des Semesters: jedes Modul ein Stück in der Farbe seines Bereichs, ein Platzhalter schraffiert, der Rest des Plans grau. × beendet den Modus, wie Esc.<q>Mach das am Rechner bei der Werkbank auch so. Also mit ähnlichen konzepten.</q></span></li>
+    <li><span><b>Links der Baum, aufgeklappt.</b> Jeder Bereich mit seinen Untergruppen, jede mit Zahl und Balken; ein Klick führt direkt in ihre Liste. Die „Wahlpflicht“ aus den drei Komplexen des Fachstudiums steht nicht darin.</span></li>
+    <li><span><b>In der Mitte die Zeilen des Handys.</b> Ein Modul mit „+ 8 LP“ rechts in der Mitte, eine Wahl gestrichelt mit Balken; „Aus dem 4. FS vorziehen“ gleich darunter statt zugeklappt. Was eingeplant ist, steht rechts im Semester, nicht mehr in der Mitte.</span></li>
+    <li><span><b>Die Liste einer Wahl.</b> Im Kopf Zahl und Balken, darunter Suche und Chips: „Alle 5 Fächer“, „Im WiSe angeboten“, „Passt in meine Woche“. Am Ende „Im Katalog suchen“ und „Vormerken“.</span></li>
+  </ol>
+</section>
+
+<section class="sec" id="rechner">
+  <header>
+    <h2>Am Rechner: vorher und nachher</h2>
+    <p class="sub">Lokal auf den Daten von canary, 1440 × 900: Informatik B.Sc., WiSe 2026/27 im 3. FS, die ersten beiden Semester bestanden; jeweils „Laut Plan im 3. FS“ und das Anwendungsfach nach „+“.</p>
+  </header>
+  <div class="shots one">
+    <figure><img src="bilder/rechner-vorher.webp" alt="Zwei Bildschirme der Werkbank von Folia 1.74.1 am Rechner. Oben die Leiste „Planen ‹ WiSe 2026/27 › … 0 von 30 LP“ mit dem grünen Knopf „Fertig“. Links die Bereiche als Liste, Nebenfach aufgeklappt; in der Mitte „Laut Regelstudienplan im 3. FS“ mit den Überschriften „Pflicht“, „Wahlpflicht“ und „Noch offen aus früheren Semestern“, Zeilen mit „passt“, LP und „+ Einplanen“ in eigenen Spalten, „Wählen ›“ an den Wahlen; „Aus dem 4. FS vorziehen“ zugeklappt. Rechts das Semester mit eigenem Balken. Im zweiten Bild das Anwendungsfach mit „Fach“, einer Auswahl, zwei Kästchen und der Suche." width="1800" height="557" loading="lazy"><figcaption><b>Vorher, Folia 1.74.1.</b> Die Leiste mit „Fertig“, ein Bereich nach dem anderen aufgeklappt, drei Ebenen kleiner Überschriften, LP und „+ Einplanen“ in zwei Spalten, die Schalter einer Liste nebeneinander.</figcaption></figure>
+    <figure><img src="bilder/rechner-nachher.webp" alt="Dieselben zwei Bildschirme in Folia 1.75.0. Oben der Kopf „Hinzufügen zu ‹ WiSe 2026/27 ›“ mit „0 von 30 LP“ und ×, darunter der Balken über die ganze Breite. Links der Baum aller Bereiche, jede Untergruppe mit Zahl und Balken. In der Mitte „Plan übernehmen“, die Module mit „+ 8 LP“, die Wahlen gestrichelt mit Balken, „Aus dem 4. FS vorziehen“ darunter. Im zweiten Bild das Anwendungsfach mit Zahl und Balken im Kopf, Suche und Chips, ein Modul mit „✓ 6 LP“, im Balken oben ein goldenes Stück." width="1800" height="557" loading="lazy"><figcaption><b>Nachher, Folia 1.75.0.</b> Der Balken im Kopf zählt mit, wenn man „+ 6 LP“ klickt; der Baum zeigt jede Untergruppe; eine Ebene von Überschriften; Suche und Chips über der Liste.</figcaption></figure>
+  </div>
 </section>
 
 <nav class="setbar" aria-label="Prototyp und Teile der Seite">

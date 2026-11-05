@@ -6415,81 +6415,127 @@ a.st-rsp-name:hover { text-decoration: underline; }
 .st-wnote .action { justify-self: start; box-shadow: inset 0 0 0 1px var(--line-strong); }
 
 /* The workbench (bench.rs; folia/design/hinzufuegen/konzepte.html, third round; owner, 2026-11-03:
-   „Passt so, bau das jetzt in Folia"): planning one semester is a mode. Its bar stands over all it
-   changes; under it on a desktop three columns — the areas of the plan where the sidebar is, as
-   wide, the subgroup picked in the middle, the semester on the right as wide as the module beside
-   the page, which floats over it when a row is opened. The page's sidebar steps aside meanwhile,
-   and the area starts under the bar at the top, so that the bar of the mode stays right under it. */
-.st-wb { display: grid; gap: var(--gap); align-content: start; min-width: 0; }
-.st-wb-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-height: 56px; padding: 8px 10px 8px 12px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel), inset 3px 0 0 var(--accent); }
-.st-wb-bar-ic { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-ink); }
+   „Passt so, bau das jetzt in Folia"; the phone's round of 2026-11-04 on its order carried to a
+   desktop the next day: „Mach das am Rechner bei der Werkbank auch so. Also mit ähnlichen
+   konzepten"): planning one semester is a mode. Its head stands over all it changes, the bar of
+   what the semester holds in it; under it on a desktop three columns — the areas of the plan as a
+   tree where the sidebar is, as wide, the subgroup picked in the middle, the semester on the right
+   as wide as the module beside the page, which floats over it when a row is opened. The page's
+   sidebar steps aside meanwhile, and the area starts under the head at the top, so that the head
+   of the mode stays right under it. */
+.st-wb { --wb-head: 80px; display: grid; gap: var(--gap); align-content: start; min-width: 0; }
+.st-wb-bar { display: flex; flex-direction: column; gap: 10px; padding: 10px 10px 12px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel), inset 3px 0 0 var(--accent); }
+.st-wb-bar > .st-wb-hrow { display: flex; align-items: center; gap: 6px 12px; min-height: 36px; }
+.st-wb-bar-ic { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-ink); }
 .st-wb-bar-ic .icon { width: 17px; height: 17px; }
-.st-wb-bar-t { font-size: 15px; font-weight: 750; }
-.st-wb-sem-pick { display: inline-flex; align-items: center; gap: 2px; }
-.st-wb-sem-pick em { padding: 0 4px; font-style: normal; font-size: 15px; font-weight: 700; white-space: nowrap; }
+.st-wb-bar-t { font-size: 15px; font-weight: 750; white-space: nowrap; }
+.st-wb-sem-pick { display: inline-flex; align-items: center; gap: 2px; margin-left: -6px; }
+.st-wb-sem-pick em { padding: 0 4px; font-style: normal; font-size: 15px; font-weight: 750; white-space: nowrap; }
 .st-wb-bar-sub { color: var(--text-2); font-size: 12.5px; white-space: nowrap; }
-.st-wb-meter { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.st-wb-meter > span:first-child { flex: none; width: 110px; height: 6px; border-radius: 3px; background: var(--panel-3); overflow: hidden; }
-.st-wb-meter > span:first-child > i { display: block; width: var(--p, 0%); height: 100%; border-radius: 3px; background: var(--accent); transition: width .25s var(--ease); }
-.st-wb-meter.heavy > span:first-child > i { background: var(--warn); }
-.st-wb-meter b { font-weight: 650; }
-.st-wb-meter .over { color: var(--warn); font-weight: 750; }
-.st-wb-done { display: inline-flex; align-items: center; gap: 8px; }
+.st-wb-bar .st-wb-hfig { margin-left: auto; }
+.st-wb-done { flex: none; }
+/* What the semester holds against the plan, and its bar (`SemesterBar`): each item a part in its
+   area's colour, a placeholder hatched, what the plan still puts in grey, more than the plan with a
+   mark where the plan ends; a part planned grows in. The head of the phone's sheet has the same. */
+.st-wb-hfig { flex: none; color: var(--text-2); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.st-wb-hfig b { color: var(--text); font-size: 15px; font-weight: 750; }
+.st-wb-hfig.heavy, .st-wb-hfig.heavy b { color: var(--warn); }
+.st-wb-hbar { position: relative; display: flex; gap: 2px; height: 10px; overflow: hidden; border-radius: 5px; }
+.st-wb-hbar > span { flex-basis: 0; min-width: 2px; transition: flex-grow .3s var(--ease); }
+.st-wb-hbar > :is(.planned, .passed) { background: var(--c); animation: st-wb-piece .4s var(--ease); }
+.st-wb-hbar > .place { background: repeating-linear-gradient(135deg, var(--c) 0 2px, color-mix(in oklab, var(--c) 22%, var(--panel)) 2px 6px); animation: st-wb-piece .4s var(--ease); }
+.st-wb-hbar > .rest { min-width: 0; background: var(--panel-3); }
+.st-wb-need { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--text); }
+@keyframes st-wb-piece { from { flex-grow: 0; } }
 .st-wb-cols { display: grid; grid-template-columns: minmax(220px, var(--filters)) minmax(0, 1fr) minmax(300px, min(var(--preview), 36%)); gap: var(--gap); align-items: start; }
+/* The areas on a desktop: „Laut Plan" first, then the tree, every area unfolded with its
+   subgroups, each with its figure and bar; „Gemerkt" and the catalog after them. */
 .st-wb-areas { display: flex; flex-direction: column; gap: 1px; padding: 8px; }
 .st-wb-areas-h { display: flex; align-items: baseline; gap: 6px; padding: 6px 10px 8px; font-size: 15px; font-weight: 700; }
 .st-wb-areas-h small { color: var(--text-3); font-size: 12px; font-weight: 500; }
-.st-wb-a { display: grid; grid-template-columns: minmax(0, 1fr) auto 16px; align-items: center; gap: 8px; width: 100%; min-height: 38px; padding: 8px 8px 8px 10px; border: 0; border-radius: var(--r-s); background: none; color: var(--text); font: inherit; font-size: 14px; font-weight: 600; text-align: left; text-decoration: none; cursor: pointer; }
+.st-wb-a { display: grid; grid-template-columns: minmax(0, 1fr) auto 16px; align-items: center; gap: 4px 8px; width: 100%; min-height: 38px; padding: 8px 8px 8px 10px; border: 0; border-radius: var(--r-s); background: none; color: var(--text); font: inherit; font-size: 14px; font-weight: 600; text-align: left; text-decoration: none; cursor: pointer; }
 .st-wb-a:hover { background: var(--row-hover); }
 .st-wb-a[aria-current="true"] { background: var(--panel-3); }
 .st-wb-a .nm { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .st-wb-a .nm > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-wb-a .nm .icon { flex: none; width: 16px; height: 16px; color: var(--text-2); }
 .st-wb-a .st-dot { width: 9px; height: 9px; }
-.st-wb-a small, .st-wb-s small { font-size: 12.5px; font-weight: 600; color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.st-wb-a small.ok, .st-wb-s small.ok { color: var(--ok); }
+.st-wb-a > small:not(.st-wb-fig) { font-size: 12.5px; font-weight: 600; color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.st-wb-a small.ok { color: var(--ok); }
 .st-wb-a .chev { width: 15px; height: 15px; color: var(--text-3); }
 .st-wb-a.way { color: var(--accent-ink); }
 .st-wb-a.way .nm .icon { color: currentColor; }
-.st-wb-subs { display: flex; flex-direction: column; gap: 1px; margin: 1px 0 6px 14px; padding-left: 8px; border-left: 2px solid var(--line-strong); }
-.st-wb-s { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; padding: 7px 8px 7px 10px; border: 0; border-radius: var(--r-s); background: none; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 560; text-align: left; cursor: pointer; }
-.st-wb-s > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-wb-a:is(.one, .area) { grid-template-columns: minmax(0, 1fr) auto; }
+.st-wb-a.area { margin-top: 4px; }
+.st-wb-a.one > .st-wb-fill { grid-column: 1 / -1; height: 4px; margin: 2px 0 1px 18px; }
+.st-wb-areas .st-wb-fig { font-size: 12px; color: var(--text-3); }
+.st-wb-areas .st-wb-fig > b { color: var(--text-2); font-weight: 700; }
+.st-wb-subs { display: flex; flex-direction: column; gap: 1px; margin: 0 0 2px 14px; padding-left: 8px; border-left: 2px solid color-mix(in oklab, var(--c) 30%, var(--panel)); }
+.st-wb-s { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 4px 8px; width: 100%; padding: 7px 8px 8px 10px; border: 0; border-radius: var(--r-s); background: none; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 560; text-align: left; cursor: pointer; }
+.st-wb-s > span:first-child { min-width: 0; overflow-wrap: anywhere; hyphens: auto; line-height: 1.35; }
+.st-wb-s > .st-wb-fill { grid-column: 1 / -1; height: 3px; }
 .st-wb-s:hover { background: var(--row-hover); color: var(--text); }
 .st-wb-s[aria-current="true"] { background: var(--panel-3); color: var(--text); font-weight: 650; }
 .st-wb-sep { margin: 6px 4px; border: 0; border-top: 1px solid var(--line); }
-.st-wb-pane { min-width: 0; padding: 14px 18px 16px; }
-.st-wb-ph { display: grid; gap: 4px; }
-.st-wb-pt { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
-.st-wb-pt h3 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+/* The middle: a pane's head (its name, a subgroup's figure and bar), its rule, one level of
+   headings, the rows. */
+.st-wb-pane { min-width: 0; padding: 16px 20px 18px; }
+.st-wb-ph { display: grid; gap: 6px; }
+.st-wb-pt { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.st-wb-pt > .st-dot { align-self: center; width: 9px; height: 9px; }
+.st-wb-pt h3 { margin: 0; font-size: 18px; font-weight: 720; letter-spacing: -.01em; }
 .st-wb-crumb { color: var(--text-3); font-size: 13.5px; font-weight: 600; }
-.st-wb-fig { margin-left: auto; color: var(--text-2); font-size: 13px; font-variant-numeric: tabular-nums; }
-.st-wb-fig b { color: var(--text); font-weight: 700; }
+.st-wb-pt > .st-wb-fig { margin-left: auto; font-size: 13px; }
+.st-wb-ph > .st-wb-fill { margin-top: 2px; }
 .st-wb-rule { margin: 0; color: var(--text-2); font-size: 13px; line-height: 1.45; }
 .st-wb-rule.pad { padding: 14px 4px 6px; }
-.st-wb-act { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 0 4px; }
-.st-wb-act small { color: var(--text-3); font-size: 12.5px; }
-.st-wb-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 12px 0 4px; }
-.st-wb-ctl .st-search-box { flex: 1 1 200px; height: 34px; }
+.st-wb-act { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 14px 0 6px; }
+.st-wb-act small { display: none; }
+.st-wb-act .st-wb-fit { max-width: none; white-space: normal; font-size: 13px; }
+.st-wb-sk { margin: 0; padding: 22px 0 4px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.st-wb-ctl { display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 14px 0 2px; }
+.st-wb-ctl .st-search-box { flex: none; height: 38px; }
 .st-wb-ctl .st-search-box input { font-size: 14px; }
-.st-wb-list { list-style: none; margin: 6px 0 0; padding: 0; }
-.st-wb-g { padding: 14px 8px 5px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-2); }
+/* A list's chips: a pick („Fach", a collection) and switches that are on or off. On a desktop the
+   pick is Betula's select, its button a chip; on a phone a chip over the phone's own list. */
+.st-wb-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.st-wb-chip { position: relative; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 32px; padding: 0 13px; border: 0; border-radius: 16px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s, color .15s, box-shadow .15s, transform .12s; }
+.st-wb-chip:hover { background: var(--row-hover); }
+.st-wb-chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.st-wb-chip > .icon { flex: none; width: 15px; height: 15px; }
+.st-wb-chip[aria-checked="false"] > .icon { display: none; }
+.st-wb-chip:is([aria-checked="true"], .pick.on) { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent-line); color: var(--accent-ink); }
+.st-wb-chip.pick { padding-right: 10px; }
+.st-wb-chip.pick > .icon { color: var(--text-3); }
+.st-wb-chip.pick.on > .icon { color: inherit; }
+.st-wb-chip > select { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0; opacity: 0; font-size: 16px; cursor: pointer; appearance: none; }
+.st-wb-chip:active { transform: scale(.97); }
+.st-wb-sel .combo-trigger { width: auto; min-height: 32px; height: 32px; gap: 6px; padding: 0 9px 0 13px; border-radius: 16px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; font-weight: 600; }
+.st-wb-sel .combo-trigger:hover { background: var(--row-hover); }
+.st-wb-sel.on .combo-trigger { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent-line); color: var(--accent-ink); }
+.st-wb-sel .combo-value { flex: none; }
+.st-wb-sel .combo-chevron { width: 14px; height: 14px; }
+/* The rows, the same on a desktop and in the phone's sheet (`module_line`, `choice_card`): a
+   module its name and one line under it, its credits as the button in the middle of its right end
+   („+ 8 LP", ✓ once in the semester); a place to fill dashed, as a placeholder is in the semester,
+   with its bar. On a phone larger (below). */
+.st-wb-list { list-style: none; margin: 4px 0 0; padding: 0; }
+.st-wb-g { padding: 16px 0 6px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
 .st-wb-g small { font-size: 11.5px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-3); }
-.st-wb-fold { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
-.st-wb-fold .icon { width: 14px; height: 14px; }
-.st-wb-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto 52px auto; align-items: center; gap: 4px 14px; padding: 8px 8px; border-top: 1px solid var(--line); border-radius: var(--r-s); }
-.st-wb-g + .st-wb-row { border-top-color: transparent; }
+.st-wb-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px; min-height: 54px; padding: 9px 8px; border-top: 1px solid var(--line); border-radius: var(--r-s); }
+.st-wb-list > .st-wb-row:first-child, .st-wb-g + .st-wb-row, :is(.choice, .place) + .st-wb-row { border-top-color: transparent; }
 .st-wb-row:hover { background: var(--row-hover); }
 .st-wb-row.is-open { background: var(--panel-3); }
 .st-wb-go, .st-wb-go:hover { display: block; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
 span.st-wb-go { cursor: default; }
 :is(a, button).st-wb-go::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
-.st-wb-go b { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
-.st-wb-go b .icon { flex: none; width: 15px; height: 15px; color: var(--ok); }
-.st-wb-row.is-done .st-wb-go b { color: var(--text-2); }
-.st-wb-go small { display: flex; flex-wrap: wrap; gap: 1px 10px; margin-top: 2px; color: var(--text-3); font-size: 12px; }
+.st-wb-go > b, .st-wb-ct > b { display: block; font-size: 14px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.st-wb-row.is-done .st-wb-go > b { color: var(--text-2); }
+.st-wb-go > small { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin-top: 3px; color: var(--text-3); font-size: 12px; }
+.st-wb-go > small > span { display: inline-flex; align-items: center; gap: 5px; }
 .st-wb-go small .mono { font-variant-numeric: tabular-nums; }
 .st-wb-else { color: var(--text-2); }
-.st-wb-fit { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; color: var(--text-2); font-size: 12px; white-space: nowrap; }
+.st-wb-fit { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; color: var(--text-2); font-size: 12px; white-space: nowrap; }
 .st-wb-fit > span { overflow: hidden; text-overflow: ellipsis; }
 .st-wb-fit > i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); }
 .st-wb-fit.ok > i { background: var(--ok); }
@@ -6498,30 +6544,59 @@ span.st-wb-go { cursor: default; }
 .st-wb-fit.warn > i { background: var(--no); }
 .st-wb-fit.quiet { color: var(--text-3); }
 .st-wb-fit.quiet > i { background: none; box-shadow: inset 0 0 0 1.5px var(--text-3); }
-.st-wb-act .st-wb-fit { max-width: none; white-space: normal; font-size: 13px; }
 .st-wb-lp { color: var(--text-3); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .st-wb-lp b { margin-right: 3px; color: var(--text); font-size: 14px; font-weight: 650; }
-.st-wb-plus { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 112px; height: 30px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--accent-soft); color: var(--accent-ink); font: inherit; font-size: 13px; font-weight: 650; white-space: nowrap; cursor: pointer; }
-.st-wb-plus .icon { width: 15px; height: 15px; }
-.st-wb-plus:hover { box-shadow: inset 0 0 0 1px var(--accent-line); }
-.st-wb-plus.done { background: var(--ok-soft); color: var(--ok); }
-.st-wb-plus.quiet { background: none; color: var(--text-3); cursor: default; box-shadow: none; }
-.st-wb-plus.go { background: var(--panel-3); color: var(--text); }
-.st-wb-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--text-2); font-size: 13px; }
-.st-wb-foot .btn { display: inline-flex; align-items: center; gap: 6px; }
-.st-wb-foot .st-link { margin-left: auto; }
+.st-wb-plus { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 70px; height: 32px; padding: 0 11px 0 8px; border: 0; border-radius: 16px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--accent-ink); font: inherit; font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .12s, background .15s, color .15s; }
+.st-wb-plus > .icon { width: 15px; height: 15px; stroke-width: 2.4; }
+.st-wb-plus > b { font-weight: 750; }
+.st-wb-plus > small { margin-left: 2px; font-size: 11.5px; font-weight: 600; }
+.st-wb-plus:hover { background: color-mix(in srgb, var(--accent) 15%, var(--panel)); }
+.st-wb-plus:active { transform: scale(.95); }
+.st-wb-plus.done { background: var(--ok-soft); box-shadow: none; color: var(--ok); }
+.st-wb-plus.done:hover { background: color-mix(in srgb, var(--ok) 17%, var(--panel)); }
+.st-wb-plus.quiet { min-width: 0; padding: 0; background: none; box-shadow: none; color: var(--text-3); font-size: 12.5px; font-weight: 600; cursor: default; }
+.st-wb-plus.reserve { min-width: 0; padding: 0 12px 0 10px; gap: 6px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 13px; font-weight: 650; }
+.st-wb-plus.reserve:hover { background: var(--row-hover); }
+.st-wb-plus.reserve > .icon { width: 15px; height: 15px; stroke-width: 2; }
+.st-wb-row:is(.choice, .place) { gap: 10px; margin: 8px 0; padding: 11px 10px 12px 14px; border-top: 0; border-radius: 10px; outline: 1.5px dashed var(--line-strong); outline-offset: -1.5px; }
+.st-wb-row.choice > .chev { width: 17px; height: 17px; color: var(--text-3); }
+.st-wb-ct { display: flex; align-items: baseline; gap: 10px; }
+.st-wb-ct > b { flex: 1 1 auto; min-width: 0; font-weight: 650; }
+.st-wb-row.choice .st-wb-fill { margin-top: 8px; }
+.st-wb-row.choice > .st-wb-go > small { margin-top: 7px; }
+.st-wb-row .st-area { display: inline-flex; align-items: center; gap: 5px; }
+.st-wb-row .st-area .st-dot { width: 7px; height: 7px; }
+.st-wb-row .st-wb-tag { color: var(--accent-ink); font-weight: 600; }
+.st-wb-fig { flex: none; color: var(--text-2); font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.st-wb-fig > b { display: inline; color: var(--text); font-size: inherit; font-weight: 750; line-height: inherit; }
+/* A fill's bar in its area's colour: passed full, planned light, a tick at the least of a range. */
+.st-wb-fill { position: relative; display: flex; height: 6px; overflow: hidden; border-radius: 3px; background: var(--panel-3); }
+.st-wb-fill > i { flex: none; height: 100%; transition: width .3s var(--ease); }
+.st-wb-fill > .passed { background: var(--c); }
+.st-wb-fill > .planned { background: color-mix(in oklab, var(--c) 36%, var(--panel)); }
+.st-wb-fill > .need { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: color-mix(in oklab, var(--text) 45%, transparent); }
+/* The ways at a list's end (and at the root of the phone's sheet): one row each, its icon, its
+   name with what it does under it, ›. */
+.st-wb-ways { display: flex; flex-direction: column; margin-top: 16px; border-top: 1px solid var(--line); }
+.st-wb-ways .st-wb-a { grid-template-columns: minmax(0, 1fr) auto 18px; gap: 12px; min-height: 50px; padding: 6px 8px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.st-wb-ways .st-wb-a:last-child { border-bottom: 0; }
+.st-wb-ways .st-wb-a .nm { gap: 12px; }
+.st-wb-ways .st-wb-a .nm .icon { width: 18px; height: 18px; }
+.st-wb-ways .st-wb-a .nm small { display: block; margin-top: 1px; color: var(--text-3); font-size: 12.5px; font-weight: 500; white-space: normal; }
+.st-wb-ways .st-wb-a .chev { width: 17px; height: 17px; }
+.st-wb-foot.st-wb-ways { margin-top: 18px; }
+/* The semester on the right: what it holds, each with what it counts for and ×; how far it is
+   stands in the head. */
 .st-wb-sem { padding: 14px 14px 10px; }
 .st-wb-sh { display: grid; gap: 4px; padding-bottom: 8px; }
 .st-wb-sh h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 17px; font-weight: 700; }
 .st-wb-sh small { color: var(--text-2); font-size: 12.5px; }
-.st-wb-sh .st-wb-meter { margin: 6px 0 0; }
-.st-wb-sh .st-wb-meter > span:first-child { flex: 1 1 auto; width: auto; }
 .st-wb-over { margin: 2px 0 0; color: var(--warn); font-size: 12.5px; font-weight: 600; }
 .st-wb-turns { display: inline-flex; flex: none; gap: 2px; margin-left: 4px; }
 .st-wb-sl { list-style: none; margin: 0; padding: 0; }
 .st-wb-sr { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto 30px; align-items: center; gap: 8px; padding: 8px 2px 8px 4px; border-top: 1px solid var(--line); border-radius: var(--r-s); }
 .st-wb-sr:hover { background: var(--row-hover); }
-.st-wb-sr .st-wb-go b { font-size: 13.5px; }
+.st-wb-sr .st-wb-go > b { font-size: 13.5px; }
 .st-wb-sr .st-area { display: inline-flex; align-items: center; gap: 5px; }
 .st-wb-sr .st-area .st-dot { width: 7px; height: 7px; }
 .st-wb-tag { color: var(--text-2); }
@@ -6554,15 +6629,11 @@ span.st-wb-go { cursor: default; }
   .work.flowing.framed:has(> .page > .page-inner.study > .st-wb) > .page { grid-column: 1 / -1; }
   :root:has(#content > .page-stage.front > .work.framed > .page > .page-inner.study > .st-wb) .frost { left: var(--rail); }
   html.js .st-wb > .st-wb-bar { position: sticky; top: 0; z-index: 8; }
-  html.js .st-wb-cols > :is(.st-wb-areas, .st-wb-sem) { position: sticky; top: calc(56px + var(--gap)); max-height: calc(100vh - 64px - 56px - var(--gap)); overflow: auto; overscroll-behavior: contain; }
-  .st-wb-cols > .st-wb-pane { min-height: calc(100vh - 64px - 56px - var(--gap)); }
+  html.js .st-wb-cols > :is(.st-wb-areas, .st-wb-sem) { position: sticky; top: calc(var(--wb-head) + var(--gap)); max-height: calc(100vh - 64px - var(--wb-head) - var(--gap)); overflow: auto; overscroll-behavior: contain; }
+  .st-wb-cols > .st-wb-pane { min-height: calc(100vh - 64px - var(--wb-head) - var(--gap)); }
 }
 @media (min-width: 901px) and (max-width: 1240px) {
   .st-wb-cols { grid-template-columns: 220px minmax(0, 1fr) 280px; }
-  .st-wb-row { grid-template-columns: minmax(0, 1fr) 48px auto; }
-  .st-wb-row > .st-wb-fit { grid-column: 1; grid-row: 2; }
-  .st-wb-row > .st-wb-lp { grid-column: 2; grid-row: 1; }
-  .st-wb-row > .st-wb-plus { grid-column: 3; grid-row: 1; }
 }
 
 @media (max-width: 900px) {
@@ -6816,98 +6887,61 @@ span.st-wb-go { cursor: default; }
      hirarchie nachdenken und das alles polishen"): a page's own sheet, half up under the semester,
      which stays to be read through a light veil (`.page-sheet-shade`) and does not move while the
      sheet is open; under a module's sheet (z-index 45), over the tab bar. Its head names what it
-     plans into, the figure over the right end of the bar of what the semester holds: each item a
-     part in its area's colour, a placeholder hatched, what the plan still puts into it grey; no
-     button (a throw, a tap above it and Back end it). Under it one level of headings and two kinds
-     of rows: a module, its name and one line under it, its credits as the button in the middle of
-     its right end („+ 8 LP"); a place to fill, a choice of the plan or a row without a module,
-     dashed as a placeholder is in the semester, with its bar. The ways to the pages last. Over a
-     page ‹ and the way to it, which do not scroll with it, its name and a subgroup's bar under
-     them; the page comes in from the right going in, from the left coming back. */
+     plans into, the figure over the right end of the bar of what the semester holds (as a
+     desktop's head has it, above); no button (a throw, a tap above it and Back end it). Under it
+     one level of headings, the rows of a desktop (above) larger for a thumb, the ways to the pages
+     last. Over a page ‹ and the way to it, which do not scroll with it, its name and a subgroup's
+     bar under them; the page comes in from the right going in, from the left coming back. */
   .page-sheet-shade { position: fixed; inset: 0; z-index: 39; background: rgba(10, 12, 17, .16); opacity: var(--sheet-shade, 1); animation: fade-in .24s; touch-action: none; }
   .sheet-ghost-scrim:has(+ .page-sheet) { background: rgba(10, 12, 17, .16); }
   .st-wb-sheet[data-sheet] { z-index: 40; height: calc(100dvh - var(--sheet-top)); }
   .st-wb-sheet:focus { outline: none; }
   .st-wb-sheet-h { flex: none; padding: 22px 16px 14px; border-bottom: 1px solid var(--line); }
-  .st-wb-hrow { display: flex; align-items: baseline; gap: 12px; }
-  .st-wb-hrow h2 { flex: 1 1 auto; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 750; letter-spacing: -.01em; }
-  .st-wb-hfig { flex: none; color: var(--text-2); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .st-wb-hfig b { color: var(--text); font-size: 15px; font-weight: 750; }
-  .st-wb-hfig.heavy, .st-wb-hfig.heavy b { color: var(--warn); }
+  .st-wb-sheet-h > .st-wb-hrow { display: flex; align-items: baseline; gap: 12px; }
+  .st-wb-sheet-h h2 { flex: 1 1 auto; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 750; letter-spacing: -.01em; }
+  .st-wb-sheet-h > .st-wb-hbar { margin-top: 10px; }
   @media (max-width: 380px) {
-    .st-wb-hrow { gap: 8px; }
-    .st-wb-hrow h2 { font-size: 16px; letter-spacing: -.02em; }
-    .st-wb-hfig { font-size: 12.5px; }
-    .st-wb-hfig b { font-size: 14px; }
+    .st-wb-sheet-h > .st-wb-hrow { gap: 8px; }
+    .st-wb-sheet-h h2 { font-size: 16px; letter-spacing: -.02em; }
+    .st-wb-sheet-h .st-wb-hfig { font-size: 12.5px; }
+    .st-wb-sheet-h .st-wb-hfig b { font-size: 14px; }
   }
-  .st-wb-hbar { position: relative; display: flex; gap: 2px; height: 10px; margin-top: 10px; overflow: hidden; border-radius: 5px; }
-  .st-wb-hbar > span { flex-basis: 0; min-width: 2px; transition: flex-grow .3s var(--ease); }
-  .st-wb-hbar > :is(.planned, .passed) { background: var(--c); animation: st-wb-piece .4s var(--ease); }
-  .st-wb-hbar > .place { background: repeating-linear-gradient(135deg, var(--c) 0 2px, color-mix(in oklab, var(--c) 22%, var(--panel)) 2px 6px); animation: st-wb-piece .4s var(--ease); }
-  .st-wb-hbar > .rest { min-width: 0; background: var(--panel-3); }
-  .st-wb-need { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--text); }
-  @keyframes st-wb-piece { from { flex-grow: 0; } }
   .st-wb-sbody { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 16px calc(28px + env(safe-area-inset-bottom)); }
   .st-wb-ss { padding: 0 0 6px; }
-  .st-wb-sk { margin: 0; padding: 18px 0 8px; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+  .st-wb-sheet .st-wb-sk { padding: 18px 0 8px; font-size: 12px; }
   .st-wb-sheet .st-wb-act { padding: 2px 0 6px; }
   .st-wb-sheet .st-wb-act .btn { flex: 1 1 auto; justify-content: center; height: 46px; border-radius: 12px; font-size: 15px; }
-  .st-wb-sheet .st-wb-act small { display: none; }
   .st-wb-sheet .st-wb-act .st-wb-fit { font-size: 13.5px; }
   .st-wb-sheet .st-wb-list { margin: 0; }
-  .st-wb-sheet .st-wb-g { padding: 18px 0 6px; font-size: 12px; color: var(--text-3); }
+  .st-wb-sheet .st-wb-g { padding: 18px 0 6px; font-size: 12px; }
   .st-wb-sheet .st-wb-g small { font-size: 12px; }
-  .st-wb-sheet .st-wb-rule { color: var(--text-2); font-size: 13.5px; }
+  .st-wb-sheet .st-wb-rule { font-size: 13.5px; }
   .st-wb-page > .st-wb-rule:first-child { padding: 14px 0 0; }
-  /* A module: what it is on the left, its button in the middle of the right end. */
-  .st-wb-sheet .st-wb-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px; min-height: 60px; padding: 10px 0; border-top: 1px solid var(--line); border-radius: 4px; }
-  .st-wb-sheet .st-wb-list > .st-wb-row:first-child, .st-wb-sheet .st-wb-g + .st-wb-row, .st-wb-sheet :is(.choice, .place) + .st-wb-row { border-top-color: transparent; }
+  .st-wb-sheet .st-wb-row { min-height: 60px; padding: 10px 0; border-radius: 4px; }
   .st-wb-sheet .st-wb-row:hover { background: none; }
   .st-wb-sheet .st-wb-row:has(> .st-wb-go:active), .st-wb-sheet .st-wb-row.is-open { background: var(--row-hover); box-shadow: 0 0 0 6px var(--row-hover); }
   .st-wb-sheet .st-wb-go { -webkit-tap-highlight-color: transparent; }
-  .st-wb-sheet .st-wb-go b { display: block; font-size: 15px; font-weight: 600; line-height: 1.3; }
-  .st-wb-sheet .st-wb-go small { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin-top: 3px; color: var(--text-3); font-size: 12.5px; }
-  .st-wb-sheet .st-wb-go small > span { display: inline-flex; align-items: center; gap: 5px; }
-  .st-wb-sheet .st-wb-fit { max-width: 100%; font-size: 12.5px; }
-  .st-wb-sheet .st-wb-row.is-done .st-wb-go b { color: var(--text-2); }
-  .st-wb-sheet .st-wb-plus { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 74px; height: 36px; padding: 0 12px 0 9px; border-radius: 18px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--accent-ink); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; transition: transform .12s, background .15s, color .15s; }
-  .st-wb-sheet .st-wb-plus > .icon { width: 16px; height: 16px; stroke-width: 2.4; }
-  .st-wb-sheet .st-wb-plus > b { font-weight: 750; }
-  .st-wb-sheet .st-wb-plus > small { margin-left: 2px; font-size: 12px; font-weight: 600; }
-  .st-wb-sheet .st-wb-plus:active { transform: scale(.95); }
-  .st-wb-sheet .st-wb-plus.done { background: var(--ok-soft); box-shadow: none; color: var(--ok); }
-  .st-wb-sheet .st-wb-plus.quiet { min-width: 0; padding: 0; background: none; box-shadow: none; color: var(--text-3); font-size: 13px; font-weight: 600; }
-  .st-wb-sheet .st-wb-plus.reserve { min-width: 0; padding: 0 13px 0 11px; gap: 6px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 13.5px; font-weight: 650; }
-  .st-wb-sheet .st-wb-plus.reserve > .icon { width: 15px; height: 15px; stroke-width: 2; }
-  /* A place to fill: dashed, its bar. */
-  .st-wb-sheet .st-wb-row:is(.choice, .place) { gap: 10px; margin: 8px 0; padding: 12px 10px 12px 14px; border-top: 0; border-radius: 12px; outline: 1.5px dashed var(--line-strong); outline-offset: -1.5px; }
-  .st-wb-sheet .st-wb-row:is(.choice, .place):has(> .st-wb-go:active) { background: var(--row-hover); box-shadow: none; }
-  .st-wb-sheet .st-wb-row.choice > .chev { width: 18px; height: 18px; color: var(--text-3); }
-  .st-wb-ct { display: flex; align-items: baseline; gap: 10px; }
-  .st-wb-sheet .st-wb-ct > b { flex: 1 1 auto; min-width: 0; font-weight: 650; }
-  .st-wb-sheet .st-wb-row.choice .st-wb-fill { margin-top: 8px; }
-  .st-wb-sheet .st-wb-row.choice small { margin-top: 7px; }
-  .st-wb-sheet .st-area { display: inline-flex; align-items: center; gap: 5px; }
-  .st-wb-sheet .st-area .st-dot { width: 7px; height: 7px; }
-  .st-wb-sheet .st-wb-tag { color: var(--accent-ink); font-weight: 600; }
-  .st-wb-sheet .st-wb-fig, .st-wb-sheet .st-wb-go small.st-wb-fig { display: inline; flex: none; margin: 0; color: var(--text-2); font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .st-wb-sheet .st-wb-fig > b { display: inline; color: var(--text); font-size: inherit; font-weight: 750; line-height: inherit; }
-  .st-wb-fill { position: relative; display: flex; height: 6px; overflow: hidden; border-radius: 3px; background: var(--panel-3); }
-  .st-wb-fill > i { flex: none; height: 100%; transition: width .3s var(--ease); }
-  .st-wb-fill > .passed { background: var(--c); }
-  .st-wb-fill > .planned { background: color-mix(in oklab, var(--c) 45%, var(--panel)); }
-  .st-wb-fill > .need { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: color-mix(in oklab, var(--text) 45%, transparent); }
-  /* The ways at the root's end and a list's: one row each, its icon, its name, a count, ›. */
-  .st-wb-ways { display: flex; flex-direction: column; margin-top: 14px; border-top: 1px solid var(--line); }
-  .st-wb-sheet .st-wb-ways .st-wb-a { grid-template-columns: minmax(0, 1fr) auto 18px; gap: 12px; min-height: 54px; padding: 6px 0; border-bottom: 1px solid var(--line); border-radius: 4px; font-size: 15px; -webkit-tap-highlight-color: transparent; }
-  .st-wb-sheet .st-wb-ways .st-wb-a:last-child { border-bottom: 0; }
+  .st-wb-sheet :is(.st-wb-go, .st-wb-ct) > b { font-size: 15px; line-height: 1.3; }
+  .st-wb-sheet .st-wb-go > small { font-size: 12.5px; }
+  .st-wb-sheet .st-wb-fit { font-size: 12.5px; }
+  .st-wb-sheet .st-wb-plus { min-width: 74px; height: 36px; padding: 0 12px 0 9px; border-radius: 18px; font-size: 14px; }
+  .st-wb-sheet .st-wb-plus:hover { background: var(--accent-soft); }
+  .st-wb-sheet .st-wb-plus.done:hover { background: var(--ok-soft); }
+  .st-wb-sheet .st-wb-plus > .icon { width: 16px; height: 16px; }
+  .st-wb-sheet .st-wb-plus > small { font-size: 12px; }
+  .st-wb-sheet .st-wb-plus.quiet { font-size: 13px; }
+  .st-wb-sheet .st-wb-plus.reserve { padding: 0 13px 0 11px; font-size: 13.5px; }
+  .st-wb-sheet .st-wb-row:is(.choice, .place) { padding: 12px 10px 12px 14px; border-radius: 12px; }
+  .st-wb-sheet .st-wb-row:is(.choice, .place):has(> .st-wb-go:active) { box-shadow: none; }
+  .st-wb-sheet .st-wb-row.choice > .chev { width: 18px; height: 18px; }
+  .st-wb-sheet .st-wb-ways { margin-top: 14px; }
+  .st-wb-sheet .st-wb-ways .st-wb-a { min-height: 54px; padding: 6px 0; border-radius: 4px; font-size: 15px; -webkit-tap-highlight-color: transparent; }
   .st-wb-sheet .st-wb-ways .st-wb-a:hover { background: none; }
   .st-wb-sheet .st-wb-ways .st-wb-a:active { background: var(--row-hover); box-shadow: 0 0 0 6px var(--row-hover); }
   .st-wb-sheet .st-wb-ways .st-wb-a .nm { gap: 14px; }
   .st-wb-sheet .st-wb-ways .st-wb-a .nm .icon { width: 19px; height: 19px; }
-  .st-wb-sheet .st-wb-ways .st-wb-a .nm small { display: block; margin-top: 1px; color: var(--text-3); font-size: 12.5px; font-weight: 500; white-space: normal; }
   .st-wb-sheet .st-wb-ways .st-wb-a .chev { width: 18px; height: 18px; }
-  .st-wb-sheet .st-wb-foot.st-wb-ways { gap: 0; margin-top: 18px; padding-top: 0; color: var(--text); font-size: 15px; }
+  .st-wb-sheet .st-wb-foot.st-wb-ways { font-size: 15px; }
   /* „Alle Bereiche": the tree, unfolded. */
   .st-wb-areas-all { padding: 4px 0 0; }
   .st-wb-ta { padding: 14px 0 8px; border-top: 1px solid var(--line); }
@@ -6925,21 +6959,13 @@ span.st-wb-go { cursor: default; }
   .st-wb-tree > li:first-child > .st-wb-ts { border-top-color: transparent; }
   .st-wb-ts > .st-wb-fill { height: 4px; margin-top: 7px; }
   :is(.st-wb-ts, button.st-wb-th.one):active { background: var(--row-hover); box-shadow: 0 0 0 6px var(--row-hover); }
-  /* A list's search and its chips. */
-  .st-wb-ctl.phone { display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 0 2px; }
-  .st-wb-ctl.phone .st-search-box { flex: none; height: 42px; border-radius: 12px; }
+  /* A list's search and its chips, for a thumb. */
+  .st-wb-ctl.phone { padding: 12px 0 2px; }
+  .st-wb-ctl.phone .st-search-box { height: 42px; border-radius: 12px; }
   .st-wb-ctl.phone .st-search-box input { font-size: 16px; }
-  .st-wb-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-  .st-wb-chip { position: relative; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 34px; padding: 0 13px; border: 0; border-radius: 17px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: inherit; font-size: 13.5px; font-weight: 600; white-space: nowrap; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s, color .15s, box-shadow .15s, transform .12s; }
-  .st-wb-chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .st-wb-chip > .icon { flex: none; width: 15px; height: 15px; }
-  .st-wb-chip[aria-checked="false"] > .icon { display: none; }
-  .st-wb-chip:is([aria-checked="true"], .pick.on) { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent-line); color: var(--accent-ink); }
-  .st-wb-chip.pick { padding-right: 10px; }
-  .st-wb-chip.pick > .icon { color: var(--text-3); }
-  .st-wb-chip.pick.on > .icon { color: inherit; }
-  .st-wb-chip > select { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0; opacity: 0; font-size: 16px; cursor: pointer; appearance: none; }
-  .st-wb-chip:active { transform: scale(.97); }
+  .st-wb-sheet .st-wb-chip { height: 34px; border-radius: 17px; font-size: 13.5px; }
+  .st-wb-sheet .st-wb-chip:hover { background: var(--panel); }
+  .st-wb-sheet .st-wb-chip:is([aria-checked="true"], .pick.on):hover { background: var(--accent-soft); }
   /* The path over a page. */
   .st-wb-path { flex: none; display: flex; align-items: flex-start; gap: 2px; padding: 8px 16px 12px 4px; border-bottom: 1px solid var(--line); }
   .st-wb-back { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 12px; background: none; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -6951,10 +6977,8 @@ span.st-wb-go { cursor: default; }
   .st-wb-crumbs > li:first-child { flex: none; }
   .st-wb-crumbs > li::after { content: "›"; flex: none; margin: 0 5px; }
   .st-wb-crumbs button { min-width: 0; padding: 2px 0; overflow: hidden; text-overflow: ellipsis; border: 0; background: none; color: var(--text-2); font: inherit; font-weight: 600; white-space: nowrap; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  .st-wb-pt { display: flex; align-items: baseline; gap: 8px; margin: 1px 0 0; min-width: 0; }
+  .st-wb-path .st-wb-pt { flex-wrap: nowrap; gap: 8px; margin: 1px 0 0; min-width: 0; }
   .st-wb-pt > b { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 750; letter-spacing: -.01em; }
-  .st-wb-pt > .st-dot { flex: none; align-self: center; width: 9px; height: 9px; }
-  .st-wb-pt > .st-wb-fig { font-size: 13px; }
   .st-wb-pth > .st-wb-fill { margin-top: 8px; }
   .st-wb-page[data-way="in"] { animation: st-wb-page-in .24s var(--ease); }
   .st-wb-page[data-way="back"] { animation: st-wb-page-back .24s var(--ease); }
@@ -6964,7 +6988,6 @@ span.st-wb-go { cursor: default; }
      bottom over the sheet, as over a module's; the last rows scroll up above it. */
   :root:has(.st-wb-sheet[data-sheet]) .wait-note { z-index: 62; bottom: calc(10px + env(safe-area-inset-bottom)); }
   :root:has(.wait-note) .st-wb-sbody { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
-  .st-wb-foot .st-link { margin-left: 0; }
   .st-selbar-count { margin-left: 8px; font-size: 13px; }
   .st-act { flex-direction: column; justify-content: center; gap: 2px; height: 48px; padding: 0 6px; font-size: 11px; }
   .st-act .icon { width: 18px; height: 18px; }

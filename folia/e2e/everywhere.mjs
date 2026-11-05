@@ -167,7 +167,9 @@ const choices = async () => {
 const kept = await choices();
 check(JSON.stringify(kept.slice(0, 3).map((text) => text.replace(/\s+/g, " "))) === JSON.stringify(["Alle · 6", `${KANDIDATEN} · 2`, `${LENA} · 1`]), `the collections in „Gemerkt“: ${JSON.stringify(kept)}`);
 await step(`the collection ${KANDIDATEN}`, () => page.click(`[role=listbox] [role=option]:has-text("${KANDIDATEN}")`), () => document.querySelectorAll(".st-wb-pane .st-wb-row").length === 2);
-const wpTitle = await page.evaluate(() => [...document.querySelectorAll(".st-wb-pane .st-wb-row .st-wb-go b")].map((name) => name.textContent).find((name) => name !== "Theoretische Informatik"));
+// A row says its module's number until the catalog's row of it has come: wait for the names.
+await page.waitForFunction(() => [...document.querySelectorAll(".st-wb-pane .st-wb-row .st-wb-go > b")].every((name) => !/^\d+$/.test(name.textContent)), null, { timeout: 8000 }).catch(() => problems.push("the rows of „Gemerkt“ keep their numbers for names"));
+const wpTitle = await page.evaluate(() => [...document.querySelectorAll(".st-wb-pane .st-wb-row .st-wb-go > b")].map((name) => name.textContent).find((name) => name !== "Theoretische Informatik"));
 const typed = wpTitle.split(/\s+/).find((word) => word.length >= 5) || wpTitle;
 await step("the search of „Gemerkt“", () => page.fill("#st-wb-search", typed.slice(0, 5)), (title) => { const names = [...document.querySelectorAll(".st-wb-pane .st-wb-row .st-wb-go b")].map((name) => name.textContent); return names.includes(title) && !names.includes("Theoretische Informatik"); }, wpTitle);
 await step("+ Einplanen, from „Gemerkt“", () => page.click(`.st-wb-pane .st-wb-row:has(.st-wb-go b:text-is("${wpTitle}")) .st-wb-plus`), ([key, wp]) => (localStorage.getItem(key) || "").includes(`m\t2026W\t${wp}\t`), [PLAN, wp]);

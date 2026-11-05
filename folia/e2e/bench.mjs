@@ -2,14 +2,16 @@
 // hinzufuegen/konzepte.html, third round; owner, 2026-11-03: „Passt so, bau das jetzt in Folia"),
 // its ten steps on Informatik B.Sc. in its third semester, the first two passed:
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node bench.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
-// 1 „Module hinzufügen" opens the mode for WiSe 2026/27: its bar over everything it changes
-//   („Planen", the semester with ‹ ›, its credits, „Fertig"), the page's sidebar aside, the areas of
-//   the overview one row each under „Laut Plan im 3. FS", which is picked, the semester empty.
+// 1 „Module hinzufügen" opens the mode for WiSe 2026/27: its head over everything it changes
+//   („Hinzufügen zu", the semester with ‹ ›, what it holds over the bar of it, ×), the page's
+//   sidebar aside, the areas of the overview as a tree, each with its subgroups unfolded, under
+//   „Laut Plan im 3. FS", which is picked; a module of the plan with its credits as its button, a
+//   choice dashed with its bar; the semester empty.
 // 2 „Plan übernehmen" plans the three Pflichtmodule of the 3. FS at once, the semester shows them
 //   with „Pflicht", the note says so with „Rückgängig".
-// 3 Nebenfach folds out at the Anwendungsfach, the subgroup due in the 3. FS, with its subgroups;
-//   the list in groups by the week, „Fach" with its five lists; „Passt in meine Woche" keeps what
-//   fits, „Im WiSe angeboten" off shows what the winter does not offer.
+// 3 Nebenfach picks the Anwendungsfach, the subgroup due in the 3. FS; the list in groups by the
+//   week, its head with its figure and bar, „Fach" with its five lists as a chip; „Passt in meine
+//   Woche" keeps what fits, „Im WiSe angeboten" off shows what the winter does not offer.
 // 4 „+ Einplanen" plans a module at once: it counts for the Anwendungsfach (the semester says „für
 //   Anwendungsfach", the Nebenfach and the subgroup count it), the store remembers the row.
 // 5 A module both choices list (Mathematische Statistik), planned from Praktische Mathematik,
@@ -19,7 +21,7 @@
 // 7 „Im Katalog suchen ›": the catalog with the FÜS list and the winter, the workbench's bar at the
 //   head of its list; a module planned from there counts for the FÜS; „Zurück zur Werkbank" leads
 //   back to the mode as it was.
-// 8 Esc ends the mode; the semester holds what was planned. Nothing of it in a request.
+// 8 Esc ends the mode (× does too); the semester holds what was planned. Nothing of it in a request.
 // Needs a snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
 // console error, or a step that does not show up.
 import { chromium } from "playwright-core";
@@ -74,7 +76,7 @@ const pane = () => page.evaluate(() => ({
   title: document.querySelector(".st-wb-pt h3")?.textContent,
   crumb: document.querySelector(".st-wb-crumb")?.textContent,
   groups: [...document.querySelectorAll(".st-wb-pane .st-wb-g")].map((g) => g.firstChild?.textContent.trim()),
-  rows: [...document.querySelectorAll(".st-wb-pane .st-wb-row")].map((row) => ({ name: row.querySelector(".st-wb-go b")?.textContent, act: row.querySelector(".st-wb-plus")?.textContent.trim(), fit: row.querySelector(".st-wb-fit")?.className })),
+  rows: [...document.querySelectorAll(".st-wb-pane .st-wb-row")].map((row) => ({ name: row.querySelector(".st-wb-go b")?.textContent, act: row.querySelector(".st-wb-plus")?.textContent.trim(), fit: row.querySelector(".st-wb-fit")?.className, choice: row.classList.contains("choice") })),
 }));
 const semester = () => page.evaluate(() => [...document.querySelectorAll(".st-wb-sem .st-wb-sr")].map((row) => `${row.querySelector(".st-wb-go b")?.textContent}|${row.querySelector(".st-wb-tag")?.textContent ?? ""}`));
 const area = (name) => page.evaluate((name) => [...document.querySelectorAll(".st-wb-areas .st-wb-a")].find((a) => a.querySelector(".nm > span:last-child")?.textContent === name)?.querySelector("small")?.textContent, name);
@@ -90,30 +92,51 @@ const shape = await page.evaluate(() => {
     across: bar && sem ? Math.round(bar.right - sem.right) : null,
     order: areas && middle && sem ? areas.right <= middle.left && middle.right <= sem.left : false,
     sidebar: getComputedStyle(document.querySelector("#sidebar")).display,
-    bar: [...document.querySelectorAll(".st-wb-bar > *")].map((el) => el.className).join(" "),
+    bar: [...document.querySelectorAll(".st-wb-bar *")].map((el) => el.getAttribute("class") ?? "").join(" "),
     areas: [...document.querySelectorAll(".st-wb-areas .st-wb-a .nm > span:last-child")].map((name) => name.textContent).join("|"),
     empty: document.querySelector(".st-wb-sem .st-wb-rule")?.textContent,
   };
 });
 check(shape.above && shape.across === 0 && shape.order && shape.sidebar === "none", `the workbench's columns are not under its bar, side by side: ${JSON.stringify(shape)}`);
-check(shape.bar.includes("st-wb-sem-pick") && shape.bar.includes("st-wb-meter") && shape.bar.includes("st-wb-done"), `the bar of the mode: ${shape.bar}`);
+check(shape.bar.includes("st-wb-sem-pick") && shape.bar.includes("st-wb-hfig") && shape.bar.includes("st-wb-hbar") && shape.bar.includes("st-wb-done"), `the head of the mode: ${shape.bar}`);
+const head = await page.evaluate(() => ({
+  title: document.querySelector(".st-wb-bar .st-wb-bar-t")?.textContent,
+  figure: document.querySelector(".st-wb-bar .st-wb-hfig")?.textContent,
+  bar: document.querySelector(".st-wb-bar .st-wb-hbar")?.getAttribute("aria-label"),
+  close: document.querySelector(".st-wb-bar .st-wb-done")?.getAttribute("aria-label"),
+  words: document.querySelector(".st-wb-bar .st-wb-done")?.textContent.trim(),
+  subs: [...document.querySelectorAll(".st-wb-areas .st-wb-subs")].map((subs) => subs.querySelectorAll(".st-wb-s").length).join(","),
+  wahlpflicht: [...document.querySelectorAll(".st-wb-areas .st-wb-s")].some((sub) => sub.textContent.startsWith("Wahlpflicht")),
+}));
+check(head.title === "Hinzufügen zu" && head.figure === "0 von 30 LP" && head.bar === "0 von 30 LP" && head.close === "Planen beenden" && head.words === "" && head.subs === "2,2,4" && !head.wahlpflicht, `the head and the tree: ${JSON.stringify(head)}`);
 check(shape.areas === "Laut Plan im 3. FS|Informatik|Mathematik|Nebenfach|FÜS|Fachstudium|Bachelor-Arbeit|Gemerkt|Im Katalog suchen", `the areas: ${shape.areas}`);
 check(shape.empty === "Noch nichts belegt.", `the semester begins empty: ${shape.empty}`);
 const plan = await pane();
-check(JSON.stringify(plan.groups.slice(0, 3)) === JSON.stringify(["Pflicht", "Wahlpflicht", "Noch offen aus früheren Semestern"]), `the groups of „Laut Plan“: ${JSON.stringify(plan.groups)}`);
-check(plan.rows.filter((row) => row.act === "Einplanen").map((row) => row.name).join("|") === "Theoretische Informatik|Softwarepraktikum|Mathematik IT-3 (Analysis)", `the Pflicht of the 3. FS: ${JSON.stringify(plan.rows)}`);
-check(plan.rows.some((row) => row.name === "Fachübergreifendes Studium" && row.act === "Wählen"), "the FÜS of the 1. FS is not open from before");
+// One level of headings: „Aus dem 4. FS vorziehen" alone, the rows say what they are.
+check(plan.groups.length === 0 && (await page.textContent(".st-wb-pane #st-wb-next")) === "Aus dem 4. FS vorziehen", `the headings of „Laut Plan“: ${JSON.stringify(plan.groups)}`);
+check(plan.rows.filter((row) => /^\d+\s*LP$/.test(row.act ?? "")).slice(0, 3).map((row) => row.name).join("|") === "Theoretische Informatik|Softwarepraktikum|Mathematik IT-3 (Analysis)", `the Pflicht of the 3. FS: ${JSON.stringify(plan.rows)}`);
+check(plan.rows.some((row) => row.name === "Fachübergreifendes Studium" && row.choice), "the FÜS of the 1. FS is not open from before");
+const balanced = await page.evaluate(() => {
+  const row = document.querySelector(".st-wb-pane .st-wb-row:not(.choice):not(.place)");
+  const box = row?.getBoundingClientRect();
+  const button = row?.querySelector(":scope > .st-wb-plus")?.getBoundingClientRect();
+  const card = document.querySelector(".st-wb-pane .st-wb-row.choice");
+  return { middle: box && button ? Math.abs((box.top + box.bottom) / 2 - (button.top + button.bottom) / 2) : -1, dashed: card ? getComputedStyle(card).outlineStyle : "", bar: Boolean(card?.querySelector(".st-wb-fill")) };
+});
+check(balanced.middle >= 0 && balanced.middle <= 2 && balanced.dashed === "dashed" && balanced.bar, `a module and a choice in the middle: ${JSON.stringify(balanced)}`);
 
-// 2: „Plan übernehmen".
-await step("Plan übernehmen", () => page.click("#st-wb-takeover"), () => document.querySelectorAll(".st-wb-sem .st-wb-sr").length === 3 && document.querySelector(".study-note")?.textContent.includes("3 Pflichtmodule in WiSe 2026/27 eingeplant"));
+// 2: „Plan übernehmen": the Pflicht into the semester on the right, out of the middle, a part of
+// the head's bar each.
+await step("Plan übernehmen", () => page.click("#st-wb-takeover"), () => document.querySelectorAll(".st-wb-sem .st-wb-sr").length === 3 && document.querySelector(".study-note")?.textContent.includes("3 Pflichtmodule in WiSe 2026/27 eingeplant") && document.querySelectorAll(".st-wb-hbar > .planned").length === 3 && document.querySelector(".st-wb-bar .st-wb-hfig")?.textContent === "24 von 30 LP" && !document.querySelector("#st-wb-takeover"));
 check(JSON.stringify(await semester()) === JSON.stringify(["Theoretische Informatik|Pflicht", "Softwarepraktikum|Pflicht", "Mathematik IT-3 (Analysis)|Pflicht"]), `the semester after „Plan übernehmen“: ${JSON.stringify(await semester())}`);
 check((await lines("m\t2026W\t")).every((line) => line.split("\t")[5] === "plan"), "what „Plan übernehmen“ planned is not the plan's");
 
 // 3: Nebenfach, its Anwendungsfach, the switches.
 // The groups once the week of the semester is checked (`pages::fit`, asked as the mode opens).
-await step("Nebenfach", () => page.click('.st-wb-areas .st-wb-a:has-text("Nebenfach")'), () => document.querySelector(".st-wb-pt h3")?.textContent === "Anwendungsfach" && document.querySelectorAll(".st-wb-subs .st-wb-s").length === 2 && document.querySelector(".st-wb-pane .st-wb-g")?.textContent.startsWith("passen in deine Woche"));
+await step("Nebenfach", () => page.click('.st-wb-areas .st-wb-a:has-text("Nebenfach")'), () => document.querySelector(".st-wb-pt h3")?.textContent === "Anwendungsfach" && document.querySelector('.st-wb-s[aria-current="true"]')?.textContent.startsWith("Anwendungsfach") && document.querySelector(".st-wb-pane .st-wb-g")?.textContent.startsWith("passen in deine Woche"));
 const anw = await pane();
-check(anw.crumb === "Nebenfach ›" && anw.groups[0] === "passen in deine Woche", `the Anwendungsfach: ${JSON.stringify({ crumb: anw.crumb, groups: anw.groups })}`);
+const anwHead = await page.evaluate(() => ({ figure: document.querySelector(".st-wb-ph .st-wb-fig")?.textContent, bar: Boolean(document.querySelector(".st-wb-ph > .st-wb-fill")), chips: [...document.querySelectorAll(".st-wb-ctl .st-wb-chips > *")].map((chip) => chip.textContent.trim()).join("|") }));
+check(anw.crumb === "Nebenfach ›" && anw.groups[0] === "passen in deine Woche" && anwHead.figure === "0 / 12 LP" && anwHead.bar && anwHead.chips === "Alle 5 Fächer|Im WiSe angeboten|Passt in meine Woche", `the Anwendungsfach: ${JSON.stringify({ crumb: anw.crumb, groups: anw.groups, ...anwHead })}`);
 const lists = await page.evaluate(() => document.querySelector("#st-wb-fach")?.textContent.trim());
 check(lists === "Alle 5 Fächer", `„Fach“: ${lists}`);
 const all = anw.rows.length;
@@ -126,7 +149,7 @@ const vwl = "Einführung in die Volkswirtschaftslehre";
 await step("+ Einplanen", () => page.click(`.st-wb-pane .st-wb-row:has(.st-wb-go b:text-is("${vwl}")) .st-wb-plus`), (vwl) => [...document.querySelectorAll(".st-wb-sem .st-wb-sr")].some((row) => row.textContent.includes(vwl) && row.textContent.includes("für Anwendungsfach")), vwl);
 const vwlLine = (await lines("m\t2026W\t11947\t"))[0]?.split("\t");
 check(vwlLine?.[6] === "079-82-2008" && vwlLine?.[7] && vwlLine?.length === 9, `the store does not remember the Anwendungsfach: ${JSON.stringify(vwlLine)}`);
-check((await area("Nebenfach")) === "6/18" && (await page.textContent('.st-wb-s[aria-current="true"] small')) === "6/12", `what the Nebenfach counts: ${await area("Nebenfach")}`);
+check((await area("Nebenfach")) === "6 / 18 LP" && (await page.textContent('.st-wb-s[aria-current="true"] small')) === "6 / 12 LP", `what the Nebenfach counts: ${await area("Nebenfach")}`);
 await step("its row planned", () => Promise.resolve(), (vwl) => document.querySelector(`.st-wb-pane .st-wb-row.is-done .st-wb-plus.done`)?.closest(".st-wb-row")?.textContent.includes(vwl), vwl);
 
 // 5: a module both choices list, planned from Praktische Mathematik; „Zählt für ›".
@@ -150,7 +173,7 @@ check(aim?.includes("WiSe 26/27") && aim.includes("für „Fachübergreifendes S
 await step("Esc, the module", () => page.keyboard.press("Escape"), () => !document.querySelector("#preview") && document.querySelector(".st-wb"));
 
 // 7: the catalog with the workbench as its target.
-await step("Im Katalog suchen", () => page.click(".st-wb-foot a.btn"), () => location.pathname === "/catalog" && document.querySelector(".bench-bar")?.textContent.includes("für Fachübergreifendes Studium") && document.querySelector(".rows a.row"));
+await step("Im Katalog suchen", () => page.click(".st-wb-foot a.st-wb-a.way"), () => location.pathname === "/catalog" && document.querySelector(".bench-bar")?.textContent.includes("für Fachübergreifendes Studium") && document.querySelector(".rows a.row"));
 const query = await page.evaluate(() => Object.fromEntries(new URLSearchParams(location.search)));
 check(Object.values(query).join(" ").includes("fues") || location.search.includes("fues"), `the catalog is not the FÜS list: ${JSON.stringify(query)}`);
 const fuesId = await page.getAttribute(".rows a.row >> nth=0", "data-id");

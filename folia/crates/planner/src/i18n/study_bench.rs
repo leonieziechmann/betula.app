@@ -150,6 +150,8 @@ pub struct Texts {
     // The sheet of a phone.
     /// „Hinzufügen zu WiSe 2026/27": what it plans into; „Alle Bereiche": the page of the areas.
     pub sheet_title: fn(&str) -> String,
+    /// „Hinzufügen zu" before the semester with ‹ › in the head of a desktop's workbench.
+    pub add_to: &'static str,
     pub all_areas: &'static str,
     /// The way to a page of it: its root („Übersicht"), ‹ and what it is for a screen reader.
     pub overview: &'static str,
@@ -261,6 +263,7 @@ pub const DE: Texts = Texts {
     over_note: |n| format!("{n} LP mehr als im Plan"),
 
     sheet_title: |semester| format!("Hinzufügen zu {semester}"),
+    add_to: "Hinzufügen zu",
     all_areas: "Alle Bereiche",
     overview: "Übersicht",
     back: "Zurück",
@@ -367,6 +370,7 @@ pub const EN: Texts = Texts {
     over_note: |n| format!("{n} ECTS more than the plan"),
 
     sheet_title: |semester| format!("Add to {semester}"),
+    add_to: "Add to",
     all_areas: "All areas",
     overview: "Overview",
     back: "Back",

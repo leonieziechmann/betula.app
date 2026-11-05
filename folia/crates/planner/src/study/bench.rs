@@ -60,7 +60,7 @@ use leptos::prelude::*;
 
 use folia_data::use_ask;
 use folia_design::combobox::{ComboItem, Select};
-use folia_design::ui::{Icon, Shortcut};
+use folia_design::ui::Icon;
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::studyplan::BenchAim;
 
@@ -178,6 +178,17 @@ fn go_in(ctx: StudyCtx, page: Page, ev: &leptos::ev::MouseEvent) {
     super::dom::sheet_scroll_to(0);
 }
 
+/// Into the list of subgroup `kind` of `area` from a row of it: on a phone a step into a page of the
+/// sheet, on a desktop what the middle shows, from its top.
+fn into_group(ctx: StudyCtx, area: usize, kind: GroupKind, ev: &leptos::ev::MouseEvent) {
+    if ctx.phone.get_untracked() {
+        go_in(ctx, Page::Group(area, kind), ev);
+    } else {
+        pick(ctx, BenchPick::Group(area, kind), Some(area));
+        super::dom::page_to_top();
+    }
+}
+
 /// One step back, to where the page behind was scrolled to: ‹, Back and Esc.
 pub(super) fn back(ctx: StudyCtx) {
     let Some(step) = ctx.trail.try_update(Vec::pop).flatten() else { return };
@@ -260,33 +271,6 @@ fn group_name(model: &Model, group: &Group, short: bool, t: &Texts) -> String {
                 false => choice.name.clone(),
             })
             .unwrap_or_default(),
-    }
-}
-
-/// What a subgroup's row says: „2 offen", „6/12", or a check once it is complete.
-fn group_figure(model: &Model, group: &Group, t: &Texts) -> (String, bool) {
-    match group.kind {
-        GroupKind::Pflicht if group.open == 0 => ("✓".to_string(), true),
-        GroupKind::Pflicht => ((t.study_bench.open_n)(group.open), false),
-        GroupKind::Choice(at) => {
-            let Some(choice) = model.view.choices.get(at) else { return (String::new(), false) };
-            if choice.complete() {
-                ("✓".to_string(), true)
-            } else {
-                (format!("{}/{}", n(choice.taken_credits(), t), folia_plans::plan::credits_in(&choice.credits_text, t.locale)), false)
-            }
-        }
-    }
-}
-
-/// What an area's row says: what is passed and planned of what it asks, or a check.
-fn area_figure(ready: &Ready, area: usize, t: &Texts) -> (String, bool) {
-    let Some(progress) = ready.study.progress.get(area) else { return (String::new(), false) };
-    let have = progress.passed + progress.planned;
-    if model::reaches(have, progress.area.required) {
-        ("✓".to_string(), true)
-    } else {
-        (format!("{}/{}", n(have, t), n(progress.area.required, t)), false)
     }
 }
 
@@ -681,11 +665,100 @@ impl Parts {
     }
 }
 
-/// The bar of the mode: „Planen", the semester with ‹ ›, its credits against the plan, „Fertig".
+/// What the semester holds against the plan, for the bar of the workbench's head: its credits, what
+/// the plan puts into it, and its items as the parts of the bar.
+type Held = Option<(f64, Option<f64>, Vec<Piece>)>;
+
+/// A part of the bar of the workbench's head: an item of the semester, as many credits wide as it
+/// counts, in its area's colour; a placeholder hatched (`kind` "place").
+#[derive(Clone, Debug, PartialEq)]
+struct Piece {
+    key: String,
+    credits: f64,
+    kind: &'static str,
+    tone: &'static str,
+}
+
+/// What the workbench's semester holds (`Held`), as the plan stands.
+fn held_of(ctx: StudyCtx, parts: Parts) -> Memo<Held> {
+    Memo::new(move |_| {
+        let s = parts.semester.get()?;
+        ctx.with_ready(|ready| {
+            let semester = ready.study.semester(s)?;
+            let pieces: Vec<Piece> = semester
+                .items
+                .iter()
+                .filter_map(|item| {
+                    let credits = item.counted().filter(|credits| *credits > 0.0)?;
+                    let kind = match &item.subject {
+                        Subject::Row { pid: Some(_), .. } => "place",
+                        _ if item.passed => "passed",
+                        _ => "planned",
+                    };
+                    Some(Piece { key: format!("{}:{credits}", item.key()), credits, kind, tone: ready.tone(item.area) })
+                })
+                .collect();
+            Some((semester.credits, semester.planned, pieces))
+        })
+        .flatten()
+    })
+}
+
+/// „22 von 30 LP" over the right end of the bar: what the semester holds against the plan, a
+/// warning where it is more.
+fn held_figure(held: Memo<Held>, t: &'static Texts) -> impl IntoView {
+    let b = &t.study_bench;
+    move || {
+        held.get().map(|(credits, planned, _)| {
+            let heavy = planned.is_some_and(|plan| credits > plan + 0.5);
+            let rest = match planned {
+                Some(plan) => (b.of_planned)("", &n(plan, t)).trim_start().to_string(),
+                None => t.common.credits_unit.to_string(),
+            };
+            view! { <span class="st-wb-hfig" class:heavy=heavy><b>{n(credits, t)}</b>" "{rest}</span> }
+        })
+    }
+}
+
+/// The bar of what the semester holds (owner, 2026-11-04: „wir arbeiten hier in betula viel mit
+/// progress bars, weil die das ganze system gut intuitiv veranschaulichen können"): each item a part
+/// in its area's colour, as wide as the credits it counts, a placeholder hatched, what the plan still
+/// puts in grey, more than the plan with a mark where the plan ends. Made once: an item planned comes
+/// in as a part of its own (`For`), the rest gives way.
+#[component]
+fn SemesterBar(held: Memo<Held>) -> impl IntoView {
+    let t = i18n::t();
+    let b = &t.study_bench;
+    let pieces = Memo::new(move |_| held.with(|held| held.as_ref().map(|(_, _, pieces)| pieces.clone()).unwrap_or_default()));
+    let has_plan = Memo::new(move |_| held.with(|held| held.as_ref().is_some_and(|(_, planned, _)| planned.is_some())));
+    let words = Memo::new(move |_| held.with(|held| held.as_ref().and_then(|(credits, planned, _)| planned.map(|plan| (b.of_planned)(&n(*credits, t), &n(plan, t))))).unwrap_or_default());
+    let rest = Memo::new(move |_| held.with(|held| held.as_ref().and_then(|(credits, planned, _)| planned.map(|plan| (plan - credits).max(0.0))).unwrap_or_default()));
+    let need = Memo::new(move |_| held.with(|held| held.as_ref().and_then(|(credits, planned, _)| planned.filter(|plan| *credits > plan + 0.5).map(|plan| plan / credits * 100.0))));
+    move || {
+        has_plan.get().then(|| {
+            view! {
+                <div class="st-wb-hbar" role="img" aria-label=move || words.get()>
+                    <For each=move || pieces.get() key=|piece| piece.key.clone() let:piece>
+                        <span class=piece.kind style=format!("flex-grow: {}; --c: {}", piece.credits, piece.tone)></span>
+                    </For>
+                    <span class="rest" style=move || format!("flex-grow: {}", rest.get())></span>
+                    {move || need.get().map(|at| view! { <i class="st-wb-need" style=format!("left: {at:.2}%")></i> })}
+                </div>
+            }
+        })
+    }
+}
+
+/// The head of the mode on a desktop, as the phone's sheet has it (owner, 2026-11-05: „Mach das am
+/// Rechner bei der Werkbank auch so. Also mit ähnlichen konzepten"): „Hinzufügen zu" the semester
+/// with ‹ › (another one without leaving the mode) and its Fachsemester, the figure of what it holds
+/// at the right end over the bar of it (`SemesterBar`), and × to end the mode, as Esc does (until
+/// 1.75.0 „Fertig", of which the owner said on a phone: „der btw nur für verwirrung sorgt").
 #[component]
 fn ModeBar(ctx: StudyCtx, parts: Parts) -> impl IntoView {
     let t = i18n::t();
     let b = &t.study_bench;
+    let held = held_of(ctx, parts);
     let head = Memo::new(move |_| {
         let s = parts.semester.get()?;
         ctx.with_ready(|ready| {
@@ -699,49 +772,44 @@ fn ModeBar(ctx: StudyCtx, parts: Parts) -> impl IntoView {
                 None => fs,
             });
             let sub = fs.map(|fs| (b.semester_sub)(&fs, semester.when == When::Now)).unwrap_or_default();
-            Some((s.label(t.locale), sub, semester.credits, semester.planned, previous, next))
+            Some((s.label(t.locale), sub, previous, next))
         })
         .flatten()
     });
     view! {
         <div class="st-wb-bar" role="toolbar" aria-label=b.mode>
-            <span class="st-wb-bar-ic" aria-hidden="true"><Icon name="calendar-plus"/></span>
-            <b class="st-wb-bar-t">{b.mode}</b>
-            {move || head.get().map(|(label, sub, credits, planned, previous, next)| {
-                let over = planned.filter(|plan| credits > plan + 0.5).map(|plan| credits - plan);
-                let share = planned.filter(|plan| *plan > 0.0).map_or(0.0, |plan| (credits / plan * 100.0).min(100.0));
-                let figure = match planned {
-                    Some(plan) => (b.of_planned)(&n(credits, t), &n(plan, t)),
-                    None => (b.credits)(&n(credits, t)),
-                };
-                view! {
+            <div class="st-wb-hrow">
+                <span class="st-wb-bar-ic" aria-hidden="true"><Icon name="calendar-plus"/></span>
+                <b class="st-wb-bar-t">{b.add_to}</b>
+                {move || head.get().map(|(label, sub, previous, next)| view! {
                     <span class="st-wb-sem-pick">
                         <button class="icon-btn hit" type="button" aria-label=b.previous title=b.previous disabled=previous.is_none() on:click=move |_| if let Some(to) = previous { turn(ctx, to) }><Icon name="chevron-left"/></button>
                         <em>{label}</em>
                         <button class="icon-btn hit" type="button" aria-label=b.next title=b.next disabled=next.is_none() on:click=move |_| if let Some(to) = next { turn(ctx, to) }><Icon name="chevron-right"/></button>
                     </span>
                     <small class="st-wb-bar-sub">{sub}</small>
-                    <span class="st-wb-meter" class:heavy=over.is_some()>
-                        <span aria-hidden="true"><i style=format!("--p: {share:.0}%")></i></span>
-                        <b>{figure}</b>
-                        {over.map(|over| view! { <span class="over">{(b.over)(&n(over, t))}</span> })}
-                    </span>
-                }
-            })}
-            <button class="btn primary st-wb-done" type="button" data-action="close-focus" title=b.done_hint on:click=move |_| leave(ctx)>
-                {b.done}<Shortcut keys="Esc"/>
-            </button>
+                })}
+                {held_figure(held, t)}
+                <button class="icon-btn hit st-wb-done" type="button" data-action="close-focus" aria-label=b.done_hint title=b.done_hint on:click=move |_| leave(ctx)>
+                    <Icon name="x"/>
+                </button>
+            </div>
+            <SemesterBar held/>
         </div>
     }
 }
 
-/// The list of the areas: „Laut Plan" first, each area with its dot and its LP, the one folded
-/// out with its subgroups, „Gemerkt" and „Im Katalog suchen" after them.
+/// The areas on a desktop, as the phone's „Alle Bereiche" has them (owner, 2026-11-04: „die
+/// container, dass die da als ausgeklappter baum sind und man dann damit ohne drei weitere klicks
+/// direkt in jeden bereich kommt"): „Laut Plan im 3. FS" first, then every area unfolded — its head
+/// with what it holds of what it asks (a click picks the subgroup that is due), each subgroup with
+/// its figure and its bar, an area of one subgroup one row with its bar; a choice that other choices
+/// of its area cover is none of them (`shown_groups`) —, „Gemerkt" and „Im Katalog suchen" after
+/// them. Until 1.75.0 one area at a time folded out.
 #[component]
 fn AreaList(ctx: StudyCtx, parts: Parts) -> impl IntoView {
     let t = i18n::t();
     let b = &t.study_bench;
-    let folded = Memo::new(move |_| ctx.bench.with(|bench| bench.and_then(|bench| bench.folded)));
     let catalog = Memo::new(move |_| {
         let s = parts.semester.get()?;
         semester_catalog(ctx, s, t)
@@ -750,62 +818,55 @@ fn AreaList(ctx: StudyCtx, parts: Parts) -> impl IntoView {
         parts.follow(ctx);
         let Some(model) = parts.model.get() else { return ().into_any() };
         let pane = parts.pane.get();
-        let open = folded.get();
         let plan_label = model.fs.map_or_else(|| b.by_plan_plain.to_string(), |fs| (b.by_plan)(&(t.study.fs)(fs)));
-        let areas = model.groups.areas.clone();
-        let rows = areas
-            .into_iter()
+        let rows = model
+            .groups
+            .areas
+            .iter()
             .map(|area| {
                 let index = area.area;
-                let (name, tone, (figure, ok)) = ctx.with_ready(|ready| (ready.area_name(Some(index), t), ready.tone(Some(index)), area_figure(ready, index, t))).unwrap_or_default();
-                let many = area.groups.len() > 1;
-                let is_open = many && open == Some(index);
-                let only = (!many).then(|| area.groups.first().and_then(|at| model.groups.groups.get(*at)).map(|group| group.kind)).flatten();
-                let current = !many && matches!(pane, Some(Pane::Group(at)) if area.groups.first() == Some(&at));
-                let model_click = model.clone();
-                let click = move |_| match only {
-                    Some(kind) => pick(ctx, BenchPick::Group(index, kind), None),
-                    None => {
-                        let opens = model_click.groups.opens_with(&model_click.view, index, model_click.fs).and_then(|at| model_click.groups.groups.get(at)).map(|group| group.kind);
-                        match opens {
-                            Some(kind) if open != Some(index) => pick(ctx, BenchPick::Group(index, kind), Some(index)),
-                            _ => ctx.bench.update(|bench| {
-                                if let Some(bench) = bench {
-                                    bench.folded = if bench.folded == Some(index) { None } else { Some(index) };
-                                }
-                            }),
-                        }
+                let (name, tone, fill) = ctx.with_ready(|ready| (ready.area_name(Some(index), t), ready.tone(Some(index)), area_fill(ready, index))).unwrap_or_default();
+                let shown = shown_groups(&model, index);
+                if let [only] = shown.as_slice() {
+                    let kind = model.groups.groups.get(*only).map_or(GroupKind::Pflicht, |group| group.kind);
+                    let current = pane == Some(Pane::Group(*only));
+                    return view! {
+                        <button class="st-wb-a one" type="button" style=format!("--c: {tone}") aria-current=current.then_some("true") on:click=move |_| pick(ctx, BenchPick::Group(index, kind), Some(index))>
+                            <span class="nm"><span class="st-dot"></span><span>{name}</span></span>
+                            {fill_figure(fill, t)}
+                            {fill_bar(fill)}
+                        </button>
                     }
-                };
-                let subs = is_open.then(|| {
-                    let entries = area
-                        .groups
-                        .iter()
-                        .filter_map(|at| model.groups.groups.get(*at).map(|group| (*at, group.clone())))
-                        .map(|(at, group)| {
-                            let (figure, ok) = group_figure(&model, &group, t);
-                            let name = group_name(&model, &group, true, t);
-                            let whole = group_name(&model, &group, false, t);
-                            let on = pane == Some(Pane::Group(at));
-                            let kind = group.kind;
-                            view! {
-                                <button class="st-wb-s" type="button" aria-current=on.then_some("true") title=whole on:click=move |_| pick(ctx, BenchPick::Group(index, kind), Some(index))>
-                                    <span>{name}</span>
-                                    <small class:ok=ok>{figure}{ok.then(|| view! { <span class="visually-hidden">{b.complete}</span> })}</small>
-                                </button>
-                            }
-                        })
-                        .collect_view();
-                    view! { <div class="st-wb-subs" role="group" aria-label=name.clone()>{entries}</div> }
-                });
-                view! {
-                    <button class="st-wb-a" type="button" style=format!("--c: {tone}") aria-current=current.then_some("true") aria-expanded=many.then_some(if is_open { "true" } else { "false" }) on:click=click>
-                        <span class="nm"><span class="st-dot"></span><span>{name.clone()}</span></span>
-                        <small class:ok=ok>{figure}</small>
-                        {if many { view! { <Icon name=if is_open { "chevron-down" } else { "chevron-right" } class="chev"/> }.into_any() } else { view! { <span class="chev"></span> }.into_any() }}
-                    </button>
-                    {subs}
+                    .into_any();
                 }
+                let opens = model.groups.opens_with(&model.view, index, model.fs).and_then(|at| model.groups.groups.get(at)).map(|group| group.kind);
+                let subs = shown
+                    .iter()
+                    .filter_map(|at| model.groups.groups.get(*at).map(|group| (*at, group)))
+                    .map(|(at, group)| {
+                        let fill = group_fill(&model, group);
+                        let short = group_name(&model, group, true, t);
+                        let whole = group_name(&model, group, false, t);
+                        let on = pane == Some(Pane::Group(at));
+                        let kind = group.kind;
+                        view! {
+                            <button class="st-wb-s" type="button" aria-current=on.then_some("true") title=whole on:click=move |_| pick(ctx, BenchPick::Group(index, kind), Some(index))>
+                                <span>{short}</span>
+                                {fill_figure(fill, t)}
+                                {fill_bar(fill)}
+                            </button>
+                        }
+                    })
+                    .collect_view();
+                let label = name.clone();
+                view! {
+                    <button class="st-wb-a area" type="button" style=format!("--c: {tone}") on:click=move |_| if let Some(kind) = opens { pick(ctx, BenchPick::Group(index, kind), Some(index)) }>
+                        <span class="nm"><span class="st-dot"></span><span>{name}</span></span>
+                        {fill_figure(fill, t)}
+                    </button>
+                    <div class="st-wb-subs" role="group" aria-label=label style=format!("--c: {tone}")>{subs}</div>
+                }
+                .into_any()
             })
             .collect_view();
         let marked = parts.marked.with(Vec::len);
@@ -815,6 +876,7 @@ fn AreaList(ctx: StudyCtx, parts: Parts) -> impl IntoView {
                 {move || parts.plan_figure.get().map(|(figure, ok)| view! { <small class:ok=ok>{figure}</small> })}
                 <span class="chev"></span>
             </button>
+            <hr class="st-wb-sep"/>
             {rows}
             <hr class="st-wb-sep"/>
             <button class="st-wb-a" type="button" aria-current=(pane == Some(Pane::Marked)).then_some("true") on:click=move |_| pick(ctx, BenchPick::Marked, None)>
@@ -887,159 +949,21 @@ fn PaneView(ctx: StudyCtx, parts: Parts) -> impl IntoView {
     }
 }
 
-/// The head of a pane: the area's dot and the way up to it where it has subgroups, the title, the
-/// figure; the rule under it.
-fn pane_head(title: String, crumb: Option<String>, tone: Option<&'static str>, figure: Option<AnyView>, rule: Option<String>) -> impl IntoView {
+/// The head of a pane: the area's dot and the way up to it where it has subgroups, the title, a
+/// subgroup's figure and its bar under them, as the path of the phone's sheet has it; the rule
+/// under it.
+fn pane_head(title: String, crumb: Option<String>, tone: Option<&'static str>, fill: Option<Fill>, rule: Option<String>, t: &'static Texts) -> impl IntoView {
     view! {
-        <header class="st-wb-ph">
+        <header class="st-wb-ph" style=tone.map(|tone| format!("--c: {tone}"))>
             <div class="st-wb-pt">
-                {tone.map(|tone| view! { <span class="st-dot" style=format!("--c: {tone}")></span> })}
+                {tone.map(|_| view! { <span class="st-dot"></span> })}
                 {crumb.map(|crumb| view! { <span class="st-wb-crumb">{crumb}" ›"</span> })}
                 <h3>{title}</h3>
-                <span class="st-wb-fig">{figure}</span>
+                {fill.map(|fill| fill_figure(fill, t))}
             </div>
+            {fill.map(fill_bar)}
             {rule.map(|rule| view! { <p class="st-wb-rule">{rule}</p> })}
         </header>
-    }
-}
-
-/// A module of a list: its name and what it is, what it means for the week, its credits, and
-/// „+ Einplanen" (or that it is planned or passed). A click on it opens the module beside the page.
-fn line_view(ctx: StudyCtx, line: Line, s: SemesterKey, t: &'static Texts) -> impl IntoView {
-    let b = &t.study_bench;
-    let href = module_href(ctx, &line.id, t);
-    let open = Memo::new({
-        let id = line.id.clone();
-        move |_| ctx.url.with(|url| url.open.as_deref() == Some(id.as_str()))
-    });
-    let mark = (!line.here && !line.passed).then(|| line.fit.mark(s, t)).flatten();
-    let credits = line.credits.map(|credits| n(credits, t));
-    let elsewhere = line.elsewhere.map(|at| (b.planned_in)(&at.short(t.locale)));
-    let act = if line.passed {
-        view! { <span class="st-wb-plus quiet"><Icon name="check"/><span>{b.passed}</span></span> }.into_any()
-    } else if line.here {
-        let (id, title) = (line.id.clone(), line.title.clone());
-        let aria = (b.unplan_aria)(&line.title, &s.label(t.locale));
-        view! {
-            <button class="st-wb-plus done" type="button" aria-label=aria.clone() title=aria on:click=move |_| unplan_module(ctx, s, id.clone(), title.clone(), t)>
-                <Icon name="check"/><span>{b.planned}</span>
-            </button>
-        }
-        .into_any()
-    } else {
-        let (id, title, group, counts) = (line.id.clone(), line.title.clone(), line.group, line.counts.clone());
-        let aria = (b.plan_aria)(&line.title, &s.label(t.locale));
-        view! {
-            <button class="st-wb-plus" type="button" aria-label=aria.clone() title=aria on:click=move |_| plan_module(ctx, s, id.clone(), title.clone(), group, counts.clone(), t)>
-                <Icon name="plus"/><span>{b.plan}</span>
-            </button>
-        }
-        .into_any()
-    };
-    view! {
-        <li class="st-wb-row" class:is-open=open class:is-done=line.here || line.passed>
-            <a class="st-wb-go" href=href aria-current=move || open.get().then_some("true")>
-                <b>{line.title.clone()}</b>
-                <small>
-                    <span class="mono">{line.id.clone()}</span>
-                    {line.marked.clone().map(|names| {
-                        let words = if names.is_empty() { b.marked_mark.to_string() } else { format!("{}: ", b.marked_mark) };
-                        view! { <span class="st-marked"><Icon name="bookmark"/><span class:visually-hidden=!names.is_empty()>{words}</span>{names}</span> }
-                    })}
-                    {line.sub.clone().map(|sub| view! { <span>{sub}</span> })}
-                    {elsewhere.map(|text| view! { <span class="st-wb-else">{text}</span> })}
-                    {(!line.facts.is_empty()).then(|| view! { <span class="st-wb-facts">{line.facts.clone()}</span> })}
-                </small>
-            </a>
-            {match mark {
-                Some((class, text)) => view! { <span class=format!("st-wb-fit {class}")><i></i><span>{text}</span></span> }.into_any(),
-                None => view! { <span class="st-wb-fit"></span> }.into_any(),
-            }}
-            <span class="st-wb-lp">{credits.map(|credits| view! { <b>{credits}</b>{t.common.credits_unit} })}</span>
-            {act}
-        </li>
-    }
-}
-
-/// A choice in „Laut Plan": its name, what is taken of it and its span, „Wählen ›" (or „Ändern"
-/// once it is complete), which opens its subgroup.
-fn choice_view(ctx: StudyCtx, model: &Model, choice: usize, t: &'static Texts) -> Option<AnyView> {
-    let b = &t.study_bench;
-    let at = model.groups.of_choice(choice)?;
-    let group = model.groups.groups.get(at)?;
-    let item = model.view.choices.get(choice)?;
-    let (area, kind) = (group.area, group.kind);
-    let (area_name, tone) = ctx.with_ready(|ready| (ready.area_name(Some(area), t), ready.tone(Some(area))))?;
-    let complete = item.complete();
-    let span = (b.plan_fs)(&(t.study.fs_span)(item.first, item.last));
-    let line = (b.choice_line)(&n(item.taken_credits(), t), &folia_plans::plan::credits_in(&item.credits_text, t.locale), &span);
-    let taken: Vec<String> = item.taken.iter().map(|taken| taken.name.clone()).collect();
-    let credits = folia_plans::plan::credits_in(&item.credits_text, t.locale);
-    Some(
-        view! {
-            <li class="st-wb-row choice" class:is-done=complete>
-                <button class="st-wb-go" type="button" on:click=move |_| pick(ctx, BenchPick::Group(area, kind), Some(area))>
-                    <b>{complete.then(|| view! { <Icon name="check"/> })}{item.name.clone()}</b>
-                    <small>
-                        <span class="st-area"><span class="st-dot" style=format!("--c: {tone}")></span>{area_name}</span>
-                        <span>{line}</span>
-                        {(!taken.is_empty()).then(|| view! { <span class="st-wb-else">{taken.join(", ")}</span> })}
-                    </small>
-                </button>
-                <span class="st-wb-fit"></span>
-                <span class="st-wb-lp"><b>{credits}</b>{t.common.credits_unit}</span>
-                <button class="st-wb-plus go" type="button" on:click=move |_| pick(ctx, BenchPick::Group(area, kind), Some(area))>
-                    <span>{if complete { b.change } else { b.choose }}</span><Icon name="chevron-right"/>
-                </button>
-            </li>
-        }
-        .into_any(),
-    )
-}
-
-/// The Pflicht's row of the plan at `at`: its module, or a row without one, which can be put into
-/// the semester for later („Vormerken").
-fn plan_line_view(ctx: StudyCtx, parts: Parts, model: &Model, at: usize, sub: Option<String>, s: SemesterKey, t: &'static Texts) -> Option<AnyView> {
-    let b = &t.study_bench;
-    let line = model.view.lines.get(at)?;
-    let group = group_of_line(model, at);
-    match &line.module_id {
-        Some(id) => {
-            let row = parts.rows.with_untracked(|rows| rows.get(id).cloned());
-            let week = parts.week.get_untracked();
-            let sub = sub.or_else(|| match line.state {
-                RowState::Failed(failed) => Some((b.failed_in)(&failed.short(t.locale))),
-                _ => None,
-            });
-            Some(line_view(ctx, line_of(ctx, id, row.as_ref(), sub, week.as_ref(), s, group, None, t), s, t).into_any())
-        }
-        None => {
-            let (caption, ord, name) = (line.caption.clone(), line.ord, line.name.clone());
-            let credits = line.credits_text.clone().map(|text| folia_plans::plan::credits_in(&text, t.locale));
-            let placed = ctx.plan.is_some_and(|plan| plan.with_untracked(|doc| doc.placeholders.iter().any(|p| p.semester == s && p.caption == caption && p.ord == ord)));
-            let state = line.state;
-            Some(
-                view! {
-                    <li class="st-wb-row" class:is-done=placed || !matches!(state, RowState::Open | RowState::Failed(_))>
-                        <span class="st-wb-go">
-                            <b>{name.clone()}</b>
-                            <small>{sub.map(|sub| view! { <span>{sub}</span> })}{placed.then(|| view! { <span>{b.reserved_line}</span> })}</small>
-                        </span>
-                        <span class="st-wb-fit"></span>
-                        <span class="st-wb-lp">{credits.map(|credits| view! { <b>{credits}</b>{t.common.credits_unit} })}</span>
-                        {(!placed && matches!(state, RowState::Open | RowState::Failed(_))).then(|| {
-                            let (caption, name) = (caption.clone(), name.clone());
-                            view! {
-                                <button class="st-wb-plus" type="button" title=b.reserve_hint on:click=move |ev| reserve(ctx, s, caption.clone(), ord, name.clone(), &ev, t)>
-                                    <Icon name="bookmark-plus"/><span>{b.reserve}</span>
-                                </button>
-                            }
-                        })}
-                    </li>
-                }
-                .into_any(),
-            )
-        }
     }
 }
 
@@ -1058,13 +982,15 @@ fn reserve(ctx: StudyCtx, s: SemesterKey, caption: String, ord: i64, name: Strin
     );
 }
 
-/// „Laut Plan im 3. FS": what the plan puts into the semester's Fachsemester and what is open from
-/// before it.
+/// „Laut Regelstudienplan im 3. FS" on a desktop, as the root of the phone's sheet: „Plan
+/// übernehmen", the Pflicht not yet planned (what is planned stands in the semester on the right),
+/// the choices dashed with their bars, what is reserved and what is open from before; then „Aus
+/// dem 4. FS vorziehen" with what the next Fachsemester could take now (until 1.75.0 folded under
+/// its row, and the Pflicht planned stood in the list with ✓).
 #[component]
 fn PlanPane(ctx: StudyCtx, parts: Parts) -> impl IntoView {
     let t = i18n::t();
     let b = &t.study_bench;
-    let more = RwSignal::new(false);
     move || {
         parts.follow(ctx);
         let (Some(model), Some(s)) = (parts.model.get(), parts.semester.get()) else { return ().into_any() };
@@ -1073,64 +999,56 @@ fn PlanPane(ctx: StudyCtx, parts: Parts) -> impl IntoView {
         parts.week.track();
         let fs = fs_words(&model, t);
         let title = fs.as_deref().map_or_else(|| b.plan_title_plain.to_string(), |fs| (b.plan_title)(fs));
-        let figure = parts.plan_figure.get().map(|(figure, _)| view! { <span><b>{figure}</b>" "{t.common.credits_unit}</span> }.into_any());
-        let action = take_action(ctx, &model, s, fs.as_deref(), t);
-        let pflicht_credits: f64 = model.due.pflicht.iter().filter_map(|at| model.view.lines.get(*at)).filter_map(|line| line.credits).sum();
-        let area_of = |at: usize| model.view.lines.get(at).and_then(|line| line.area).and_then(|area| ctx.with_ready(|ready| ready.area_name(Some(area), t)));
-        let pflicht = model.due.pflicht.iter().filter_map(|at| plan_line_view(ctx, parts, &model, *at, area_of(*at).map(|area| (b.of_area)(&area)), s, t)).collect_view();
-        let chosen = model.due.choices.iter().filter_map(|at| choice_view(ctx, &model, *at, t)).collect_view();
-        let reserved_views = reserved_of(ctx, &model, s)
-            .into_iter()
-            .map(|(name, group)| {
-                view! {
-                    <li class="st-wb-row">
-                        <span class="st-wb-go"><b>{name}</b><small><span>{b.reserved_line}</span></small></span>
-                        <span class="st-wb-fit"></span>
-                        <span class="st-wb-lp"></span>
-                        {group.map(|(area, kind)| view! {
-                            <button class="st-wb-plus go" type="button" on:click=move |_| pick(ctx, BenchPick::Group(area, kind), Some(area))>
-                                <span>{b.choose}</span><Icon name="chevron-right"/>
-                            </button>
-                        })}
-                    </li>
-                }
-            })
-            .collect::<Vec<_>>();
-        let plan_fs_of = |at: usize| model.view.lines.get(at).map(|line| (b.plan_fs)(&(t.study.fs)(line.first)));
-        let mut earlier: Vec<AnyView> = model.due.earlier.iter().filter_map(|at| plan_line_view(ctx, parts, &model, *at, plan_fs_of(*at), s, t)).collect();
-        earlier.extend(model.due.earlier_choices.iter().filter_map(|at| choice_view(ctx, &model, *at, t)));
-        earlier.extend(retake_rows(ctx, parts, &model, s, t));
-        let next_count = model.due.next.len() + model.due.next_choices.len();
-        let next_fs = model.fs.map(|fs| (t.study.fs)(fs + 1));
-        let next = more.get().then(|| {
-            let mut views: Vec<AnyView> = model.due.next.iter().filter_map(|at| plan_line_view(ctx, parts, &model, *at, area_of(*at).map(|area| (b.of_area)(&area)), s, t)).collect();
-            views.extend(model.due.next_choices.iter().filter_map(|at| choice_view(ctx, &model, *at, t)));
-            views
-        });
+        let (action, rows) = plan_rows(ctx, parts, &model, s, t);
+        let next = next_rows(ctx, parts, &model, s, t);
         view! {
-            {pane_head(title, None, None, figure, Some(b.plan_rule.to_string()))}
+            {pane_head(title, None, None, None, Some(b.plan_rule.to_string()), t)}
             {action}
-            <ul class="st-wb-list">
-                {(!model.due.pflicht.is_empty()).then(|| view! { <li class="st-wb-g">{b.g_pflicht}<small>{format!(" · {}", (t.study.credits)(&n(pflicht_credits, t)))}</small></li> })}
-                {pflicht}
-                {(!model.due.choices.is_empty()).then(|| view! { <li class="st-wb-g">{b.g_choices}</li> })}
-                {chosen}
-                {(!reserved_views.is_empty()).then(|| view! { <li class="st-wb-g">{b.g_reserved}</li> })}
-                {reserved_views}
-                {(!earlier.is_empty()).then(|| view! { <li class="st-wb-g">{b.g_earlier}</li> })}
-                {earlier}
-                {(next_count > 0).then(|| next_fs.clone().map(|fs| view! {
-                    <li class="st-wb-g">
-                        <button class="st-wb-fold" type="button" aria-expanded=move || if more.get() { "true" } else { "false" } on:click=move |_| more.update(|more| *more = !*more)>
-                            {(b.g_next)(&fs)}<small>{format!(" · {next_count}")}</small><Icon name=if more.get_untracked() { "chevron-up" } else { "chevron-down" }/>
-                        </button>
-                    </li>
-                }))}
-                {next}
-            </ul>
+            {(!rows.is_empty()).then(|| view! { <ul class="st-wb-list">{rows}</ul> })}
+            {next.map(|(title, rows)| view! {
+                <h4 class="st-wb-sk" id="st-wb-next">{title}</h4>
+                <ul class="st-wb-list">{rows}</ul>
+            })}
         }
         .into_any()
     }
+}
+
+/// What „Laut Plan im 3. FS" lists, at the root of the phone's sheet and in the middle of a
+/// desktop's workbench: „Plan übernehmen" (or that the Pflicht is in), and as rows the Pflicht not
+/// yet planned, the choices, what is reserved where its choice is not among them, and what is open
+/// from before, saying the Fachsemester it was planned for.
+fn plan_rows(ctx: StudyCtx, parts: Parts, model: &Model, s: SemesterKey, t: &'static Texts) -> (AnyView, Vec<AnyView>) {
+    let b = &t.study_bench;
+    let fs = fs_words(model, t);
+    let action = take_action(ctx, model, s, fs.as_deref(), t);
+    let area_of = |at: usize| model.view.lines.get(at).and_then(|line| line.area).and_then(|area| ctx.with_ready(|ready| ready.area_name(Some(area), t)));
+    let mut rows: Vec<AnyView> = model.due.pflicht.iter().filter(|at| still_open(ctx, model, **at, s)).filter_map(|at| plan_line(ctx, parts, model, *at, area_of(*at).map(|area| (b.of_area)(&area)), s, t)).collect();
+    rows.extend(model.due.choices.iter().filter_map(|at| choice_card(ctx, model, *at, s, t)));
+    // A choice listed here says itself that it is reserved.
+    let listed: Vec<usize> = model.due.choices.iter().chain(&model.due.earlier_choices).copied().collect();
+    rows.extend(
+        reserved_of(ctx, model, s)
+            .into_iter()
+            .filter(|(_, group)| group.and_then(|(area, kind)| model.groups.find(area, kind)).and_then(|at| model.groups.groups.get(at)).and_then(Group::choice).is_none_or(|choice| !listed.contains(&choice)))
+            .map(|(name, group)| reserved_card(ctx, name, group, t)),
+    );
+    let plan_fs_of = |at: usize| model.view.lines.get(at).map(|line| (b.plan_fs)(&(t.study.fs)(line.first)));
+    rows.extend(model.due.earlier.iter().filter(|at| still_open(ctx, model, **at, s)).filter_map(|at| plan_line(ctx, parts, model, *at, plan_fs_of(*at), s, t)));
+    rows.extend(retake_lines(ctx, parts, model, s, t));
+    rows.extend(model.due.earlier_choices.iter().filter_map(|at| choice_card(ctx, model, *at, s, t)));
+    (action, rows)
+}
+
+/// What the next Fachsemester puts in and is not in the semester yet („Aus dem 4. FS vorziehen"):
+/// its heading and its rows, where it has any.
+fn next_rows(ctx: StudyCtx, parts: Parts, model: &Model, s: SemesterKey, t: &'static Texts) -> Option<(String, Vec<AnyView>)> {
+    let b = &t.study_bench;
+    let fs = model.fs?;
+    let area_of = |at: usize| model.view.lines.get(at).and_then(|line| line.area).and_then(|area| ctx.with_ready(|ready| ready.area_name(Some(area), t)));
+    let mut rows: Vec<AnyView> = model.due.next.iter().filter(|at| still_open(ctx, model, **at, s)).filter_map(|at| plan_line(ctx, parts, model, *at, area_of(*at).map(|area| (b.of_area)(&area)), s, t)).collect();
+    rows.extend(model.due.next_choices.iter().filter_map(|at| choice_card(ctx, model, *at, s, t)));
+    (!rows.is_empty()).then(|| ((b.g_next)(&(t.study.fs)(fs + 1)), rows))
 }
 
 /// „Plan übernehmen · 3 Pflichtmodule" where the Pflicht of the Fachsemester is not all in the
@@ -1175,33 +1093,6 @@ fn reserved_of(ctx: StudyCtx, model: &Model, s: SemesterKey) -> Vec<(String, Opt
         .unwrap_or_default()
 }
 
-/// What was not passed and is not planned again, where the plan names it nowhere else: its row.
-fn retake_rows(ctx: StudyCtx, parts: Parts, model: &Model, s: SemesterKey, t: &'static Texts) -> Vec<AnyView> {
-    let b = &t.study_bench;
-    let named: BTreeSet<String> = model.due.earlier.iter().chain(model.due.pflicht.iter()).filter_map(|at| model.view.lines.get(*at)?.module_id.clone()).collect();
-    let retakes: Vec<(String, String)> = ctx
-        .with_ready(|ready| {
-            ready
-                .study
-                .retakes
-                .iter()
-                .filter_map(|retake| retake.item.module_id().map(|id| (id.to_string(), (b.failed_in)(&retake.failed_in.short(t.locale)))))
-                .filter(|(id, _)| !named.contains(id))
-                .collect()
-        })
-        .unwrap_or_default();
-    let fues = fues_of(ctx);
-    retakes
-        .into_iter()
-        .map(|(id, sub)| {
-            let row = parts.rows.with_untracked(|rows| rows.get(&id).cloned());
-            let week = parts.week.get_untracked();
-            let group = model.groups.group_of(&model.view, &id, None, "", &fues).and_then(|at| model.groups.groups.get(at)).map(|group| (group.area, group.kind));
-            line_view(ctx, line_of(ctx, &id, row.as_ref(), Some(sub), week.as_ref(), s, group, None, t), s, t).into_any()
-        })
-        .collect()
-}
-
 /// „Plan übernehmen": the Pflicht of the Fachsemester into the semester, at once, with the note.
 fn take_over(ctx: StudyCtx, s: SemesterKey, ids: Vec<String>, t: &'static Texts) {
     let note = (t.study_bench.took_over)(ids.len(), &s.label(t.locale));
@@ -1235,9 +1126,9 @@ fn PflichtPane(
         parts.week.track();
         let Some(group) = model.groups.groups.get(at).cloned() else { return ().into_any() };
         let (area_name, tone) = ctx.with_ready(|ready| (ready.area_name(Some(group.area), t), ready.tone(Some(group.area)))).unwrap_or_default();
-        let many = model.groups.area(group.area).is_some_and(|area| area.groups.len() > 1);
+        let many = shown_groups(&model, group.area).len() > 1;
         let title = if many { b.pflicht.to_string() } else { format!("{area_name} · {}", b.pflicht) };
-        let (figure, _) = group_figure(&model, &group, t);
+        let fill = group_fill(&model, &group);
         let mut lines: Vec<usize> = group.lines.clone();
         lines.sort_by_key(|at| model.view.lines.get(*at).map_or((true, u8::MAX), |line| (!matches!(line.state, RowState::Open | RowState::Failed(_)), line.first)));
         let rows = lines
@@ -1249,17 +1140,13 @@ fn PflichtPane(
                     RowState::Passed(_) => (b.passed_fs)(&fs),
                     _ => (b.plan_fs)(&fs),
                 };
-                if inline {
-                    sheet_plan_line(ctx, parts, &model, *at, Some(sub), s, t)
-                } else {
-                    plan_line_view(ctx, parts, &model, *at, Some(sub), s, t)
-                }
+                plan_line(ctx, parts, &model, *at, Some(sub), s, t)
             })
             .collect_view();
         let head = if inline {
             view! { <p class="st-wb-rule">{b.rule_pflicht}</p> }.into_any()
         } else {
-            pane_head(title, many.then(|| area_name.clone()), Some(tone), Some(view! { <span>{figure}</span> }.into_any()), Some(b.rule_pflicht.to_string())).into_any()
+            pane_head(title, many.then(|| area_name.clone()), Some(tone), Some(fill), Some(b.rule_pflicht.to_string()), t).into_any()
         };
         view! {
             {head}
@@ -1303,12 +1190,10 @@ fn ListPane(
         Some(match (group.and_then(|at| model.groups.groups.get(at)), choice.get()) {
             (Some(the_group), Some(choice)) => {
                 let (area_name, tone) = ctx.with_ready(|ready| (ready.area_name(Some(the_group.area), t), ready.tone(Some(the_group.area)))).unwrap_or_default();
-                let many = model.groups.area(the_group.area).is_some_and(|area| area.groups.len() > 1);
-                let asked = folia_plans::plan::credits_in(&choice.credits_text, t.locale);
-                let figure = view! { <span><b>{n(choice.taken_credits(), t)}</b>" "{(b.of_planned)("", &asked).trim_start().to_string()}</span> }.into_any();
-                let span = (b.plan_fs)(&(t.study.fs_span)(choice.first, choice.last));
-                // On a phone the path over the page says the credits, with its bar.
-                let mut rule = if inline { vec![span] } else { vec![(b.rule_choice)(&asked, &span)] };
+                let many = shown_groups(&model, the_group.area).len() > 1;
+                let fill = group_fill(&model, the_group);
+                // What it asks stands over the list with its bar: in the head, on a phone in the path.
+                let mut rule = vec![(b.plan_fs)(&(t.study.fs_span)(choice.first, choice.last))];
                 if choice.fues {
                     rule.push(b.rule_fues.to_string());
                 }
@@ -1318,11 +1203,11 @@ fn ListPane(
                 if inline {
                     view! { <p class="st-wb-rule">{rule.join(" · ")}</p> }.into_any()
                 } else {
-                    pane_head(choice.name.clone(), many.then_some(area_name), Some(tone), Some(figure), Some(rule.join(" · "))).into_any()
+                    pane_head(choice.name.clone(), many.then_some(area_name), Some(tone), Some(fill), Some(rule.join(" · ")), t).into_any()
                 }
             }
             _ if inline => view! { <p class="st-wb-rule">{b.rule_marked}</p> }.into_any(),
-            _ => pane_head(b.marked.to_string(), None, None, None, Some(b.rule_marked.to_string())).into_any(),
+            _ => pane_head(b.marked.to_string(), None, None, None, Some(b.rule_marked.to_string()), t).into_any(),
         })
     };
 
@@ -1339,8 +1224,7 @@ fn ListPane(
     let fach = move || {
         several.get().then(|| {
             view! {
-                <div class="st-inline">
-                    <span class="label">{b.fach}</span>
+                <div class="st-wb-sel" class:on=move || parts.list.get().is_some()>
                     <Select
                         id="st-wb-fach"
                         label=b.fach
@@ -1365,8 +1249,7 @@ fn ListPane(
     let collections = move || {
         any_kept.get().then(|| {
             view! {
-                <div class="st-inline">
-                    <span class="label">{b.collection}</span>
+                <div class="st-wb-sel" class:on=move || parts.collection.get().is_some()>
                     <Select
                         id="st-wb-collection"
                         label=b.collection
@@ -1452,22 +1335,20 @@ fn ListPane(
     } else if group.is_some() {
         view! {
             <div class="st-wb-ctl" role="group">
-                {fach}
-                <button class="st-check" type="button" role="switch" aria-checked=move || if parts.offered.get() { "true" } else { "false" } on:click=move |_| parts.offered.update(|on| *on = !*on)>
-                    <span class="st-box" class:with=move || parts.offered.get() aria-hidden="true"><Icon name="check"/></span>{move || (b.offered_in)(season_word())}
-                </button>
-                <button class="st-check" type="button" role="switch" aria-checked=move || if parts.fits.get() { "true" } else { "false" } on:click=move |_| parts.fits.update(|on| *on = !*on)>
-                    <span class="st-box" class:with=move || parts.fits.get() aria-hidden="true"><Icon name="check"/></span>{b.fits_week}
-                </button>
                 {search}
+                <div class="st-wb-chips">
+                    {fach}
+                    {switch_chip(parts.offered, Signal::derive(move || (b.offered_in)(season_word())))}
+                    {switch_chip(parts.fits, Signal::derive(move || b.fits_week.to_string()))}
+                </div>
             </div>
         }
         .into_any()
     } else {
         view! {
             <div class="st-wb-ctl" role="group">
-                {collections}
                 {search}
+                {move || any_kept.get().then(|| view! { <div class="st-wb-chips">{collections}</div> })}
             </div>
         }
         .into_any()
@@ -1564,7 +1445,7 @@ fn ListPane(
                 <ul class="st-wb-list">
                     {groups.into_iter().map(|(name, members)| view! {
                         <li class="st-wb-g">{name}<small>{format!(" · {}", members.len())}</small></li>
-                        {members.into_iter().map(|line| if inline { sheet_line(ctx, line, s, true, t).into_any() } else { line_view(ctx, line, s, t).into_any() }).collect_view()}
+                        {members.into_iter().map(|line| module_line(ctx, line, s, true, t)).collect_view()}
                     }).collect_view()}
                 </ul>
             }
@@ -1584,46 +1465,29 @@ fn ListPane(
             let line = choice.lines.first().and_then(|at| model.view.lines.get(*at))?;
             Some((line.caption.clone(), line.ord, choice.name.clone()))
         });
-        let fues_choice = choice.as_ref().is_some_and(|choice| choice.fues);
-        if inline {
-            // On a phone two ways at the list's end, as the root's: the catalog with every filter,
-            // and „Vormerken" for later.
-            return Some(
-                view! {
-                    <footer class="st-wb-foot st-wb-ways">
-                        {catalog.map(|href| view! {
-                            <a class="st-wb-a way" href=t.path(&href) rel="nofollow">
-                                <span class="nm"><Icon name="search"/><span>{b.in_catalog}<small>{b.catalog_sub}</small></span></span>
-                                <small></small>
-                                <Icon name="chevron-right" class="chev"/>
-                            </a>
-                        })}
-                        {reserve_row.map(|(caption, ord, name)| view! {
-                            <button class="st-wb-a" type="button" on:click=move |ev| reserve(ctx, s, caption.clone(), ord, name.clone(), &ev, t)>
-                                <span class="nm"><Icon name="bookmark-plus"/><span>{b.reserve}<small>{b.reserve_hint}</small></span></span>
-                                <small></small>
-                                <span class="chev"></span>
-                            </button>
-                        })}
-                    </footer>
-                }
-                .into_any(),
-            );
-        }
-        Some(view! {
-            <footer class="st-wb-foot">
-                {catalog.map(|href| view! {
-                    <span>{if fues_choice { b.fues_filters } else { b.more_filters }}</span>
-                    <a class="btn secondary" href=t.path(&href) rel="nofollow"><Icon name="search"/>{b.in_catalog}<Icon name="chevron-right"/></a>
-                })}
-                {reserve_row.map(|(caption, ord, name)| view! {
-                    <button class="st-link" type="button" title=b.reserve_hint on:click=move |ev| reserve(ctx, s, caption.clone(), ord, name.clone(), &ev, t)>
-                        <Icon name="bookmark-plus"/>{b.reserve}
-                    </button>
-                })}
-            </footer>
-        }
-        .into_any())
+        // Two ways at the list's end, as the root of the phone's sheet has them: the catalog with
+        // every filter, and „Vormerken" for later (until 1.75.0 on a desktop a button and a link).
+        Some(
+            view! {
+                <footer class="st-wb-foot st-wb-ways">
+                    {catalog.map(|href| view! {
+                        <a class="st-wb-a way" href=t.path(&href) rel="nofollow">
+                            <span class="nm"><Icon name="search"/><span>{b.in_catalog}<small>{b.catalog_sub}</small></span></span>
+                            <small></small>
+                            <Icon name="chevron-right" class="chev"/>
+                        </a>
+                    })}
+                    {reserve_row.map(|(caption, ord, name)| view! {
+                        <button class="st-wb-a" type="button" on:click=move |ev| reserve(ctx, s, caption.clone(), ord, name.clone(), &ev, t)>
+                            <span class="nm"><Icon name="bookmark-plus"/><span>{b.reserve}<small>{b.reserve_hint}</small></span></span>
+                            <small></small>
+                            <span class="chev"></span>
+                        </button>
+                    })}
+                </footer>
+            }
+            .into_any(),
+        )
     };
 
     view! {
@@ -1667,12 +1531,7 @@ fn SemesterColumn(ctx: StudyCtx, parts: Parts) -> impl IntoView {
         else {
             return ().into_any();
         };
-        let share = planned.filter(|plan| *plan > 0.0).map_or(0.0, |plan| (credits / plan * 100.0).min(100.0));
         let over = planned.filter(|plan| credits > plan + 0.5).map(|plan| credits - plan);
-        let figure = match planned {
-            Some(plan) => (b.of_planned)(&n(credits, t), &n(plan, t)),
-            None => (b.credits)(&n(credits, t)),
-        };
         let empty = items.is_empty() && visits.is_empty();
         let rows = items
             .into_iter()
@@ -1728,10 +1587,6 @@ fn SemesterColumn(ctx: StudyCtx, parts: Parts) -> impl IntoView {
             <header class="st-wb-sh">
                 <h3>{label}{now.then(|| view! { <span class="st-now">{t.study.now}</span> })}</h3>
                 <small>{sub}</small>
-                <div class="st-wb-meter" class:heavy=over.is_some()>
-                    <span aria-hidden="true"><i style=format!("--p: {share:.0}%")></i></span>
-                    <b>{figure}</b>
-                </div>
                 {over.map(|over| view! { <p class="st-wb-over">{(b.over_note)(&n(over, t))}</p> })}
             </header>
             {if empty {
@@ -1752,16 +1607,6 @@ pub(super) fn BenchSheet(ctx: StudyCtx) -> impl IntoView {
     move || open.get().then(|| view! { <Sheet ctx/> })
 }
 
-/// A part of the bar of the sheet's head: an item of the semester, as many credits wide as it
-/// counts, in its area's colour; a placeholder hatched (`kind` "place").
-#[derive(Clone, Debug, PartialEq)]
-struct Piece {
-    key: String,
-    credits: f64,
-    kind: &'static str,
-    tone: &'static str,
-}
-
 /// The sheet: its head (what it plans into, and the bar of what the semester holds against the
 /// plan with its figure over the bar's right end: owner, 2026-11-04, „beim header vom modal statt
 /// dem text und dem Fertig button, der btw nur für verwirrung sorgt lieber eine progressbar mit dem
@@ -1775,57 +1620,7 @@ fn Sheet(ctx: StudyCtx) -> impl IntoView {
     let b = &t.study_bench;
     let parts = Parts::new(ctx);
     let title = Memo::new(move |_| parts.semester.get().map(|s| (b.sheet_title)(&s.label(t.locale))));
-    // What the semester holds: its credits, what the plan puts into it, its items for the bar.
-    let held = Memo::new(move |_| {
-        let s = parts.semester.get()?;
-        ctx.with_ready(|ready| {
-            let semester = ready.study.semester(s)?;
-            let pieces: Vec<Piece> = semester
-                .items
-                .iter()
-                .filter_map(|item| {
-                    let credits = item.counted().filter(|credits| *credits > 0.0)?;
-                    let kind = match &item.subject {
-                        Subject::Row { pid: Some(_), .. } => "place",
-                        _ if item.passed => "passed",
-                        _ => "planned",
-                    };
-                    Some(Piece { key: format!("{}:{credits}", item.key()), credits, kind, tone: ready.tone(item.area) })
-                })
-                .collect();
-            Some((semester.credits, semester.planned, pieces))
-        })
-        .flatten()
-    });
-    let figure = move || {
-        held.get().map(|(credits, planned, _)| {
-            let heavy = planned.is_some_and(|plan| credits > plan + 0.5);
-            let rest = match planned {
-                Some(plan) => (b.of_planned)("", &n(plan, t)).trim_start().to_string(),
-                None => t.common.credits_unit.to_string(),
-            };
-            view! { <span class="st-wb-hfig" class:heavy=heavy><b>{n(credits, t)}</b>" "{rest}</span> }
-        })
-    };
-    // The bar, made once: an item added comes in as a part of its own (`For`), the rest gives way.
-    let pieces = Memo::new(move |_| held.with(|held| held.as_ref().map(|(_, _, pieces)| pieces.clone()).unwrap_or_default()));
-    let has_plan = Memo::new(move |_| held.with(|held| held.as_ref().is_some_and(|(_, planned, _)| planned.is_some())));
-    let words = Memo::new(move |_| held.with(|held| held.as_ref().and_then(|(credits, planned, _)| planned.map(|plan| (b.of_planned)(&n(*credits, t), &n(plan, t))))).unwrap_or_default());
-    let rest = Memo::new(move |_| held.with(|held| held.as_ref().and_then(|(credits, planned, _)| planned.map(|plan| (plan - credits).max(0.0))).unwrap_or_default()));
-    let need = Memo::new(move |_| held.with(|held| held.as_ref().and_then(|(credits, planned, _)| planned.filter(|plan| *credits > plan + 0.5).map(|plan| plan / credits * 100.0))));
-    let bar = move || {
-        has_plan.get().then(|| {
-            view! {
-                <div class="st-wb-hbar" role="img" aria-label=move || words.get()>
-                    <For each=move || pieces.get() key=|piece| piece.key.clone() let:piece>
-                        <span class=piece.kind style=format!("flex-grow: {}; --c: {}", piece.credits, piece.tone)></span>
-                    </For>
-                    <span class="rest" style=move || format!("flex-grow: {}", rest.get())></span>
-                    {move || need.get().map(|at| view! { <i class="st-wb-need" style=format!("left: {at:.2}%")></i> })}
-                </div>
-            }
-        })
-    };
+    let held = held_of(ctx, parts);
     let deep = untrack(|| ctx.trail.with(|trail| !trail.is_empty()));
     let depth = Memo::new(move |_| ctx.trail.with(Vec::len));
     let gone_in = Memo::new(move |_| depth.get() > 0);
@@ -1873,9 +1668,9 @@ fn Sheet(ctx: StudyCtx) -> impl IntoView {
             <header class="st-wb-sheet-h">
                 <div class="st-wb-hrow">
                     <h2 id="st-wb-title">{move || title.get()}</h2>
-                    {figure}
+                    {held_figure(held, t)}
                 </div>
-                {bar}
+                <SemesterBar held/>
             </header>
             {move || gone_in.get().then(|| view! { <SheetPath ctx parts/> })}
             <div class="st-wb-sbody" data-sheet-body>{page}</div>
@@ -2090,23 +1885,7 @@ fn SheetPlan(ctx: StudyCtx, parts: Parts) -> impl IntoView {
         parts.week.track();
         let fs = fs_words(&model, t);
         let title = fs.as_deref().map_or_else(|| b.by_plan_plain.to_string(), |fs| (b.by_plan)(fs));
-        let action = take_action(ctx, &model, s, fs.as_deref(), t);
-        let area_of = |at: usize| model.view.lines.get(at).and_then(|line| line.area).and_then(|area| ctx.with_ready(|ready| ready.area_name(Some(area), t)));
-        let mut rows: Vec<AnyView> = model.due.pflicht.iter().filter(|at| still_open(ctx, &model, **at, s)).filter_map(|at| sheet_plan_line(ctx, parts, &model, *at, area_of(*at).map(|area| (b.of_area)(&area)), s, t)).collect();
-        rows.extend(model.due.choices.iter().filter_map(|at| sheet_choice(ctx, &model, *at, s, t)));
-        // A choice listed here says itself that it is reserved.
-        let listed: Vec<usize> = model.due.choices.iter().chain(&model.due.earlier_choices).copied().collect();
-        rows.extend(
-            reserved_of(ctx, &model, s)
-                .into_iter()
-                .filter(|(_, group)| group.and_then(|(area, kind)| model.groups.find(area, kind)).and_then(|at| model.groups.groups.get(at)).and_then(Group::choice).is_none_or(|choice| !listed.contains(&choice)))
-                .map(|(name, group)| sheet_reserved(ctx, name, group, t)),
-        );
-        // What is open from before, saying the Fachsemester it was planned for.
-        let plan_fs_of = |at: usize| model.view.lines.get(at).map(|line| (b.plan_fs)(&(t.study.fs)(line.first)));
-        rows.extend(model.due.earlier.iter().filter(|at| still_open(ctx, &model, **at, s)).filter_map(|at| sheet_plan_line(ctx, parts, &model, *at, plan_fs_of(*at), s, t)));
-        rows.extend(sheet_retakes(ctx, parts, &model, s, t));
-        rows.extend(model.due.earlier_choices.iter().filter_map(|at| sheet_choice(ctx, &model, *at, s, t)));
+        let (action, rows) = plan_rows(ctx, parts, &model, s, t);
         view! {
             <section class="st-wb-ss">
                 <h3 class="st-wb-sk">{title}</h3>
@@ -2124,22 +1903,15 @@ fn SheetPlan(ctx: StudyCtx, parts: Parts) -> impl IntoView {
 #[component]
 fn SheetNext(ctx: StudyCtx, parts: Parts) -> impl IntoView {
     let t = i18n::t();
-    let b = &t.study_bench;
     move || {
         parts.follow(ctx);
         let (Some(model), Some(s)) = (parts.model.get(), parts.semester.get()) else { return ().into_any() };
         parts.rows.track();
         parts.week.track();
-        let Some(fs) = model.fs else { return ().into_any() };
-        let area_of = |at: usize| model.view.lines.get(at).and_then(|line| line.area).and_then(|area| ctx.with_ready(|ready| ready.area_name(Some(area), t)));
-        let mut rows: Vec<AnyView> = model.due.next.iter().filter(|at| still_open(ctx, &model, **at, s)).filter_map(|at| sheet_plan_line(ctx, parts, &model, *at, area_of(*at).map(|area| (b.of_area)(&area)), s, t)).collect();
-        rows.extend(model.due.next_choices.iter().filter_map(|at| sheet_choice(ctx, &model, *at, s, t)));
-        if rows.is_empty() {
-            return ().into_any();
-        }
+        let Some((title, rows)) = next_rows(ctx, parts, &model, s, t) else { return ().into_any() };
         view! {
             <section class="st-wb-ss" id="st-wb-next">
-                <h3 class="st-wb-sk">{(b.g_next)(&(t.study.fs)(fs + 1))}</h3>
+                <h3 class="st-wb-sk">{title}</h3>
                 <ul class="st-wb-list">{rows}</ul>
             </section>
         }
@@ -2278,7 +2050,7 @@ fn GroupList(ctx: StudyCtx, parts: Parts, at: usize) -> impl IntoView {
 /// on the right, in the middle of the row, its credits as the button that adds them („+ 8 LP"), ✓
 /// once it is in the semester (a tap takes it out again). A tap elsewhere on the row opens the
 /// module's sheet.
-fn sheet_line(ctx: StudyCtx, line: Line, s: SemesterKey, grouped: bool, t: &'static Texts) -> impl IntoView {
+fn module_line(ctx: StudyCtx, line: Line, s: SemesterKey, grouped: bool, t: &'static Texts) -> impl IntoView {
     let b = &t.study_bench;
     let href = module_href(ctx, &line.id, t);
     let open = Memo::new({
@@ -2330,9 +2102,9 @@ fn sheet_line(ctx: StudyCtx, line: Line, s: SemesterKey, grouped: bool, t: &'sta
     }
 }
 
-/// A row of the plan in the sheet: its module (`sheet_line`), or a row without one, a place as a
+/// A row of the plan in the sheet: its module (`module_line`), or a row without one, a place as a
 /// placeholder is in the semester, which „Vormerken" puts into the semester for later.
-fn sheet_plan_line(ctx: StudyCtx, parts: Parts, model: &Model, at: usize, sub: Option<String>, s: SemesterKey, t: &'static Texts) -> Option<AnyView> {
+fn plan_line(ctx: StudyCtx, parts: Parts, model: &Model, at: usize, sub: Option<String>, s: SemesterKey, t: &'static Texts) -> Option<AnyView> {
     let b = &t.study_bench;
     let line = model.view.lines.get(at)?;
     let group = group_of_line(model, at);
@@ -2344,7 +2116,7 @@ fn sheet_plan_line(ctx: StudyCtx, parts: Parts, model: &Model, at: usize, sub: O
                 RowState::Failed(failed) => Some((b.failed_in)(&failed.short(t.locale))),
                 _ => None,
             });
-            Some(sheet_line(ctx, line_of(ctx, id, row.as_ref(), sub, week.as_ref(), s, group, None, t), s, false, t).into_any())
+            Some(module_line(ctx, line_of(ctx, id, row.as_ref(), sub, week.as_ref(), s, group, None, t), s, false, t).into_any())
         }
         None => {
             let (caption, ord, name) = (line.caption.clone(), line.ord, line.name.clone());
@@ -2380,7 +2152,7 @@ fn sheet_plan_line(ctx: StudyCtx, parts: Parts, model: &Model, at: usize, sub: O
 }
 
 /// What was not passed and is not planned again, where the plan names it nowhere else: its module.
-fn sheet_retakes(ctx: StudyCtx, parts: Parts, model: &Model, s: SemesterKey, t: &'static Texts) -> Vec<AnyView> {
+fn retake_lines(ctx: StudyCtx, parts: Parts, model: &Model, s: SemesterKey, t: &'static Texts) -> Vec<AnyView> {
     let b = &t.study_bench;
     let named: BTreeSet<String> = model.due.earlier.iter().chain(model.due.pflicht.iter()).filter_map(|at| model.view.lines.get(*at)?.module_id.clone()).collect();
     let retakes: Vec<(String, String)> = ctx
@@ -2401,7 +2173,7 @@ fn sheet_retakes(ctx: StudyCtx, parts: Parts, model: &Model, s: SemesterKey, t: 
             let row = parts.rows.with_untracked(|rows| rows.get(&id).cloned());
             let week = parts.week.get_untracked();
             let group = model.groups.group_of(&model.view, &id, None, "", &fues).and_then(|at| model.groups.groups.get(at)).map(|group| (group.area, group.kind));
-            sheet_line(ctx, line_of(ctx, &id, row.as_ref(), Some(sub), week.as_ref(), s, group, None, t), s, false, t).into_any()
+            module_line(ctx, line_of(ctx, &id, row.as_ref(), Some(sub), week.as_ref(), s, group, None, t), s, false, t).into_any()
         })
         .collect()
 }
@@ -2410,7 +2182,7 @@ fn sheet_retakes(ctx: StudyCtx, parts: Parts, model: &Model, s: SemesterKey, t: 
 /// (owner, 2026-11-04: „Das gleiche beim wp placeholder"): its name and what it holds of what it
 /// asks over its bar, its area and its span under it, that it is reserved in the semester; › at its
 /// end. The row goes into its list.
-fn sheet_choice(ctx: StudyCtx, model: &Model, choice: usize, s: SemesterKey, t: &'static Texts) -> Option<AnyView> {
+fn choice_card(ctx: StudyCtx, model: &Model, choice: usize, s: SemesterKey, t: &'static Texts) -> Option<AnyView> {
     let b = &t.study_bench;
     let at = model.groups.of_choice(choice)?;
     let group = model.groups.groups.get(at)?;
@@ -2424,7 +2196,7 @@ fn sheet_choice(ctx: StudyCtx, model: &Model, choice: usize, s: SemesterKey, t: 
     Some(
         view! {
             <li class="st-wb-row choice" class:is-done=item.complete() style=format!("--c: {tone}")>
-                <button class="st-wb-go" type="button" title=item.name.clone() on:click=move |ev| go_in(ctx, Page::Group(area, kind), &ev)>
+                <button class="st-wb-go" type="button" title=item.name.clone() on:click=move |ev| into_group(ctx, area, kind, &ev)>
                     <span class="st-wb-ct"><b>{name}</b>{fill_figure(fill, t)}</span>
                     {fill_bar(fill)}
                     <small>
@@ -2442,13 +2214,13 @@ fn sheet_choice(ctx: StudyCtx, model: &Model, choice: usize, s: SemesterKey, t: 
 
 /// A placeholder reserved in the semester whose choice the root does not list: dashed as a choice
 /// is, „vorgemerkt", and › into the list of its row's subgroup.
-fn sheet_reserved(ctx: StudyCtx, name: String, group: Option<(usize, GroupKind)>, t: &'static Texts) -> AnyView {
+fn reserved_card(ctx: StudyCtx, name: String, group: Option<(usize, GroupKind)>, t: &'static Texts) -> AnyView {
     let b = &t.study_bench;
     let tone = group.and_then(|(area, _)| ctx.with_ready(|ready| ready.tone(Some(area)))).unwrap_or_default();
     match group {
         Some((area, kind)) => view! {
             <li class="st-wb-row choice" style=format!("--c: {tone}")>
-                <button class="st-wb-go" type="button" on:click=move |ev| go_in(ctx, Page::Group(area, kind), &ev)>
+                <button class="st-wb-go" type="button" on:click=move |ev| into_group(ctx, area, kind, &ev)>
                     <span class="st-wb-ct"><b>{name}</b></span>
                     <small><span class="st-wb-tag">{b.reserved_line}</span></small>
                 </button>
