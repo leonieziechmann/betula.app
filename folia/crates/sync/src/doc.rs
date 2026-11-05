@@ -26,8 +26,9 @@ pub struct Op {
     /// its own clock. What belongs to a calendar or a collection counts only when it was made in
     /// the parent's present life (`schema`), and records that keep an order keep it by it.
     pub created: Hlc,
-    /// The write it replaced on the writer's device: two writes on one base saw nothing of each
-    /// other.
+    /// The last write of another device that the record's value on the writer's device builds
+    /// on (a run of the writer's own writes keeps the one its first write replaced): of two writes
+    /// of two devices, neither saw the other where each one's base comes before the other.
     pub base: Option<Hlc>,
 }
 
@@ -179,7 +180,7 @@ impl Doc {
         let current = self.entries.get(&op.key).cloned();
         match current {
             Some(current) if current.hlc >= incoming.hlc => {
-                if siblings(&current, &incoming) {
+                if at_once(&current, &incoming) {
                     match (&incoming.val, text, moves) {
                         (Some(other), true, _) => self.remember(Conflict { key: op.key.clone(), kept: current.val, other: other.clone(), at: incoming.hlc }),
                         (None, _, true) if current.val.is_none() => self.remember(Conflict { key: op.key.clone(), kept: None, other: String::new(), at: current.hlc }),
@@ -190,7 +191,7 @@ impl Doc {
             }
             current => {
                 if let Some(current) = current {
-                    if siblings(&current, &incoming) {
+                    if at_once(&current, &incoming) {
                         match (current.val, text, moves) {
                             (Some(other), true, _) => self.remember(Conflict { key: op.key.clone(), kept: incoming.val.clone(), other, at: current.hlc }),
                             (None, _, true) if incoming.val.is_none() => self.remember(Conflict { key: op.key.clone(), kept: None, other: String::new(), at: incoming.hlc }),
@@ -241,8 +242,15 @@ impl Doc {
     }
 
     fn remember(&mut self, conflict: Conflict) {
-        if !self.conflicts.iter().any(|c| c.key == conflict.key && c.at == conflict.at) {
-            self.conflicts.push(conflict);
+        // One hint per record: the newest other version (a note typed key by key on the other
+        // device is one hint, with its last text).
+        match self.conflicts.iter().position(|c| c.key == conflict.key) {
+            Some(at) if self.conflicts.get(at).is_some_and(|c| c.at >= conflict.at) => {}
+            Some(at) => {
+                self.conflicts.remove(at);
+                self.conflicts.push(conflict);
+            }
+            None => self.conflicts.push(conflict),
         }
         // A note typed back and forth on two devices for an hour leaves a few versions, not
         // hundreds.
@@ -251,9 +259,10 @@ impl Doc {
     }
 }
 
-/// Two writes made on the same base: neither saw the other.
-fn siblings(a: &Entry, b: &Entry) -> bool {
-    a.hlc != b.hlc && a.base == b.base
+/// Two writes of two devices of which neither saw the other: what each one builds on of another
+/// device's (`Op::base`) comes before the other.
+fn at_once(a: &Entry, b: &Entry) -> bool {
+    a.hlc != b.hlc && a.hlc.dev != b.hlc.dev && a.base.is_none_or(|base| base < b.hlc) && b.base.is_none_or(|base| base < a.hlc)
 }
 
 #[cfg(test)]

@@ -88,7 +88,14 @@ impl Writer {
                 (Some(e), None) => e.created,
                 _ => hlc,
             };
-            let base = current.map(|e| e.hlc);
+            // What the write builds on: the last write of another device it replaces. A run of
+            // this device's own writes (a note typed key by key) keeps the one its first write
+            // replaced, so that another device's run on the same base is told as made at once.
+            let base = match &current {
+                Some(e) if e.hlc.dev == self.dev() => e.base,
+                Some(e) => Some(e.hlc),
+                None => None,
+            };
             self.seq = self.seq.saturating_add(1);
             let op = Op { dev: self.dev(), seq: self.seq, key, val, hlc, created, base };
             doc.apply(&op);

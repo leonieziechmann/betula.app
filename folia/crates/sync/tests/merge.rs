@@ -344,3 +344,32 @@ fn a_row_imported_on_two_devices_at_once_has_one_placeholder_and_its_modules_cou
     let pid = doc.placeholders[0].pid;
     assert_eq!(doc.fillers(pid).len(), 2, "both modules count for the one that stands");
 }
+
+#[test]
+fn a_note_typed_key_by_key_on_two_devices_at_once_is_one_hint_with_the_other_text() {
+    let (mut a, mut b) = pair();
+    let first = a.shelf(1_000, |s| s.note("11787", Some("Altklausur")));
+    b.receive(&first);
+    // Each key is a write of the store, as the field saves it.
+    let mut on_a = Vec::new();
+    let mut on_b = Vec::new();
+    for (i, text) in ["Altklausur 2", "Altklausur 20", "Altklausur 2024"].iter().enumerate() {
+        on_b.extend(b.shelf(2_000 + i as u64 * 10, |s| s.note("11787", Some(&text.replace("2024", "mit Lena").replace("20", "mi").replace(" 2", " m")))));
+    }
+    for (i, text) in ["Altklausur 2", "Altklausur 20", "Altklausur 2024"].iter().enumerate() {
+        on_a.extend(a.shelf(3_000 + i as u64 * 10, |s| s.note("11787", Some(text))));
+    }
+    meet(&mut a, &on_a, &mut b, &on_b);
+    same(&a, &b);
+    assert!(a.text(Store::Shelf).contains("n\t11787\tAltklausur 2024"));
+    for device in [&a, &b] {
+        let hints: Vec<_> = device.doc.conflicts.iter().filter(|c| c.key == "C|n|11787").collect();
+        assert_eq!(hints.len(), 1, "one hint: {:?}", device.doc.conflicts);
+        assert!(hints[0].other.ends_with("Altklausur mit Lena"), "the other device's last text: {:?}", hints[0]);
+    }
+    // Typed on after seeing it, nothing new is at once.
+    let before = a.doc.conflicts.clone();
+    let more = b.shelf(4_000, |s| s.note("11787", Some("Altklausur 2024, dann Lena")));
+    a.receive(&more);
+    assert_eq!(a.doc.conflicts, before);
+}

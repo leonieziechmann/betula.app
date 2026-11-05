@@ -134,6 +134,31 @@ await c.page.getByRole("button", { name: /Profil holen/ }).first().click().catch
 await until("C recovered", c.page, (n) => marked().length >= n, SEED.length, 20000);
 check(JSON.stringify(await marksOf(c.page)) === JSON.stringify(await marksOf(a.page)), `C: other marks than A (${await marksOf(c.page)})`);
 
+// ---- a note typed on both at once: the later stands, the other is a hint on both ----
+const typeNote = async (page, text) => {
+  await page.click(`a.row[data-id="${SEED[0]}"] >> visible=true`);
+  await page.click('.detail .hero [data-action="collect"] >> visible=true');
+  await page.click(".collect-pop .collect-note");
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type(text, { delay: 20 });
+  await page.keyboard.press("Escape");
+};
+await go(a.page, "/bookmarks");
+await go(b.page, "/bookmarks");
+await b.context.setOffline(true);
+await until("B offline again", b.page, () => (localStorage.getItem(syncKey("status")) || "") === "offline", null, 10000);
+await typeNote(b.page, "Fassung von B");
+await typeNote(a.page, "Fassung von A");
+await b.context.setOffline(false);
+await until("A's note on B", b.page, () => (localStorage.getItem(store("betula.collections.v1")) || "").includes("Fassung von A"), null, 40000);
+await until("B's note came to A, and lost", a.page, () => (localStorage.getItem("betula.sync.p1.doc") || "").includes("conflicts\t") && !(localStorage.getItem("betula.collections.v1") || "").includes("Fassung von B"), null, 10000);
+await go(a.page, "/profile");
+await until("A's profile names the hint", a.page, () => Boolean(onPage(".pf-sync-conflicts")), null, 8000);
+await b.page.click(`a.row[data-id="${SEED[0]}"] >> visible=true`).catch(() => {});
+await b.page.click('.detail .hero [data-action="collect"] >> visible=true').catch(() => {});
+await until("B's hint shows its own version", b.page, () => (onPage(".sync-hint-other")?.textContent || "").includes("Fassung von B"), null, 8000);
+await b.page.keyboard.press("Escape").catch(() => {});
+
 // ---- „Sync beenden": every browser private again, with its copy ----
 await a.page.getByRole("button", { name: /^Sync beenden/ }).first().click().catch(() => problems.push("A: no „Sync beenden“"));
 await a.page.getByRole("button", { name: /^Beenden$/ }).first().click().catch(() => problems.push("A: no „Beenden“ to confirm"));
@@ -142,7 +167,7 @@ await until("B ended", b.page, () => Object.keys(localStorage).some((k) => /^bet
 check((await marksOf(b.page)).length >= SEED.length, "B: the copy is gone after the end");
 
 // ---- privacy ----
-const secrets = SEED.concat([live, awayA, awayB, NOTE].filter(Boolean));
+const secrets = SEED.concat([live, awayA, awayB, NOTE, "Fassung von A", "Fassung von B"].filter(Boolean));
 const clear = sent.filter((s) => (phloem && s.url.startsWith(phloem.replace(/^http/, "ws"))) || s.url.includes("/sync/v1/")).filter((s) => secrets.some((secret) => s.body.includes(secret) || s.url.includes(secret)));
 check(clear.length === 0, `to Phloem in the clear: ${clear.slice(0, 3).map((s) => `${s.name} ${s.url} ${s.body.slice(0, 120)}`).join(" | ")}`);
 const keyLeaks = sent.filter((s) => s.body.includes(key) || s.url.includes(key) || (code && s.body.includes(code)));
