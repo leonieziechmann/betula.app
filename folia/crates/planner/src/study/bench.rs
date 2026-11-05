@@ -1,39 +1,46 @@
 //! The workbench (folia/design/hinzufuegen/konzepte.html, third round; owner, 2026-11-03: „Passt
-//! so, bau das jetzt in Folia"): „Module hinzufügen" makes planning a mode for one semester, which
-//! „Fertig" or Esc end (`Bench`). Its bar stands over all it changes: „Planen", the semester with
-//! ‹ › (another one without leaving the mode), what it holds against the plan, „Fertig".
+//! so, bau das jetzt in Folia"): „Module hinzufügen" makes planning a mode for one semester
+//! (`Bench`). Its head stands over all it changes: what it plans into, what the semester holds
+//! against the plan over the bar of it (`SemesterBar`: each item a part in its area's colour); on a
+//! desktop with ‹ › (another semester without leaving the mode) and × to end it, as Esc does.
 //!
-//! On a desktop three columns under it. On the left the areas of the plan as the overview has
-//! them (owner, the same day: „dass da die Bereicht sind, die man auswählen kann und sich dann
-//! ausklappt mit den untergruppen, wenn es gibt"): „Laut Plan im 3. FS" first, one row per area
-//! with its dot and its LP, a click folding an area with subgroups out at the one that is due
-//! (`folia_plans::bench`), one area open at a time; „Gemerkt" and „Im Katalog suchen" under them.
-//! In the middle what is picked: „Laut Plan" with „Plan übernehmen" (it plans at once, with
-//! „Rückgängig"), a choice with „Wählen ›", what is open from before and what the next Fachsemester
-//! could take now; a subgroup's modules in groups by the student's week (`pages::fit`: they fit,
-//! they meet it, they have no fixed dates, the semester does not offer them), with „Fach", „Im
-//! WiSe angeboten", „Passt in meine Woche" and a search above them, which change only what stands
-//! below them (CLAUDE.md, „What picks stands above what it changes"). Each row plans at once
-//! („+ Einplanen") and counts for the subgroup it was planned from (`bench::plan_for`); a click on
-//! it opens the module beside the page, over the column on the right. That column is the semester,
-//! and only what is taken in it (owner: „Da sollte nur zu sehen sein, was man alles belegt hat"),
-//! each module with the subgroup it counts for and × to take it out.
+//! The rows are the same on a desktop and on a phone (folia/design/hinzufuegen/handy.html, fifth
+//! round; owner, 2026-11-04: „wir müssen an dem konzept arbeiten, wie module dargestellt werden";
+//! 2026-11-05, of the desktop: „Mach das am Rechner bei der Werkbank auch so. Also mit ähnlichen
+//! konzepten"): a module its name and one line, its credits as the button that adds them („+ 8 LP",
+//! `module_line`), planned at once and counted for the subgroup it was planned from
+//! (`bench::plan_for`), a click on it opening the module; a choice of the plan a dashed card with
+//! its bar that goes into its list (`choice_card`). „Laut Plan im 3. FS" (`plan_rows`): „Plan
+//! übernehmen" (at once, with „Rückgängig"), the Pflicht not yet planned, the choices, what is open
+//! from before; „Aus dem 4. FS vorziehen" (`next_rows`): what the next Fachsemester puts in and the
+//! semester can take (it offers it and has in place what it requires, `ahead`). A subgroup's
+//! modules in groups by the student's week (`pages::fit`: they fit, they meet it, they have no fixed
+//! dates, the semester does not offer them), the search and chips over them („Fach", „Im WiSe
+//! angeboten", „Passt in meine Woche"), which change only what stands below them (CLAUDE.md, „What
+//! picks stands above what it changes").
+//!
+//! On a desktop three columns under the head. On the left the areas of the plan as a tree, every
+//! area unfolded with its subgroups, each with its figure and bar, one click into any of them (the
+//! owner, 2026-11-04, of the phone: „als ausgeklappter baum … ohne drei weitere klicks direkt in
+//! jeden bereich"); a choice that other choices of its area cover is none of them
+//! (`shown_groups`). „Laut Plan im 3. FS" above them, „Gemerkt" and „Im Katalog suchen" under them.
+//! In the middle what is picked; a click on a module opens it beside the page, over the column on
+//! the right. That column is the semester, and only what is taken in it (owner, 2026-11-03: „Da
+//! sollte nur zu sehen sein, was man alles belegt hat"), each module with the subgroup it counts
+//! for and × to take it out.
 //!
 //! On a phone the page stays where it is (folia/design/hinzufuegen/handy.html, variant B; owner,
 //! 2026-11-04: „Also ich finde Option B bedeutend besser, weil da leichter zu erkennen ist, was
 //! jetzt geplant und was vorgeschlagen ist"): „Module hinzufügen" brings up a sheet over it
 //! (`BenchSheet`), half up under the semester, which shows what is planned while the sheet shows
-//! what is suggested. Its head names the semester and what it holds, with „Fertig" (the owner,
-//! the same day: „Lass erstmal fertig da stehen"); in it „Laut Plan im 3. FS" with „Plan
-//! übernehmen" and the Pflicht not yet planned, each with „+", then rows with › that go into a page
-//! of the sheet (the owner, the same day: „ein vertiefendes menu … mit > in das quasi rein geht und
-//! das nicht ausklappt. Der modal soll offen bleiben. Oben einen Pfad haben und auch einen back
-//! button"): a choice's list, an area's subgroups and their lists, what the next Fachsemester could
-//! take now, „Gemerkt" (`Page`, the sheet's trail `StudyCtx::trail`). Over a page ‹ and the way to
-//! it, each step of it a way back; Back and Esc take one step back. „Im Katalog suchen" at the end
-//! of the root. A module opens as its sheet over it. Nothing behind it moves while it is open (the
-//! owner: „Das kann einfach gesperrt sein, so lange der [offen] ist"): a tap there, a throw or
-//! „Fertig" end the mode, Back once the root is in front.
+//! what is suggested; its root „Laut Plan im 3. FS", „Aus dem 4. FS vorziehen", then rows with ›
+//! that go into a page of the sheet (the owner, the same day: „ein vertiefendes menu … mit > in das
+//! quasi rein geht und das nicht ausklappt. Der modal soll offen bleiben. Oben einen Pfad haben und
+//! auch einen back button"): „Alle Bereiche" as the tree, a subgroup's list, „Gemerkt" (`Page`, the
+//! sheet's trail `StudyCtx::trail`), and „Im Katalog suchen". Over a page ‹ and the way to it, each
+//! step of it a way back; Back and Esc take one step back. A module opens as its sheet over it.
+//! Nothing behind it moves while it is open (the owner: „Das kann einfach gesperrt sein, so lange
+//! der [offen] ist"): a tap there or a throw end the mode, Back once the root is in front.
 //!
 //! What needs many filters (a language, an exam, the credits) is the catalog's: „Im Katalog
 //! suchen" opens it in the tab „Module" with the subgroup's modules and the semester as its target
@@ -46,13 +53,13 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::OfferStatus;
-use folia_model::rows::CatalogRow;
+use folia_model::rows::{CatalogRow, Prerequisite};
 use folia_pages::ask::{FitAsk, StudyModulesAsk};
 use folia_pages::FitResult;
 use folia_plans::bench::{self as model, Bench as Groups, Due, Group, GroupKind};
 use folia_plans::choices::{self, PlanView, RowState};
 use folia_plans::study::{self, Offer, Pick, Subject, When};
-use folia_plans::studyplan::RowRef;
+use folia_plans::studyplan::{PlanDoc, RowRef};
 use folia_plans::variants;
 use folia_routes::filter::{CatalogQuery, FitsFilter, ProgramScope, TurnusFilter};
 use folia_routes::url::CatalogUrl;
@@ -64,7 +71,7 @@ use folia_design::ui::Icon;
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::studyplan::BenchAim;
 
-use super::picker::offer_note;
+use super::picker::{lacks_required, offer_note};
 use super::{module_href, n, now_secs, Plans, Ready, StudyCtx};
 use crate::i18n::{self, Texts};
 
@@ -345,12 +352,14 @@ fn unplan_module(ctx: StudyCtx, s: SemesterKey, id: String, title: String, t: &'
 }
 
 /// The catalog's rows a pane asks for besides the ones the page has: a choice's lists, the FÜS
-/// list, the Merkliste.
+/// list, the Merkliste; for „Laut Plan" the lists of the next Fachsemester's choices, which
+/// „vorziehen" suggests where one of their modules can be taken (`ahead`).
 fn asked_ids(model: &Model, pane: Pane, fues: &[String], marked: &[String]) -> Vec<String> {
+    let lists_of = |group: &Group| model::candidates(&model.view, group, fues).into_iter().map(|(id, _)| id);
     let mut ids: Vec<String> = match pane {
-        Pane::Group(at) => model.groups.groups.get(at).map(|group| model::candidates(&model.view, group, fues).into_iter().map(|(id, _)| id).collect()).unwrap_or_default(),
+        Pane::Group(at) => model.groups.groups.get(at).map(|group| lists_of(group).collect()).unwrap_or_default(),
         Pane::Marked => marked.to_vec(),
-        Pane::Plan => Vec::new(),
+        Pane::Plan => model.due.next_choices.iter().filter_map(|choice| model.groups.of_choice(*choice)).filter_map(|at| model.groups.groups.get(at)).flat_map(lists_of).collect(),
     };
     ids.sort();
     ids.dedup();
@@ -565,6 +574,8 @@ struct Parts {
     pane: Memo<Option<Pane>>,
     /// The catalog's rows of what the pane lists, with the page's.
     rows: Memo<BTreeMap<String, CatalogRow>>,
+    /// What they ask for of other modules, with what the page's ask for.
+    needs: Memo<Vec<Prerequisite>>,
     week: Memo<Option<Week>>,
     /// „24/30": what the semester holds against what the plan puts into it.
     plan_figure: Memo<Option<(String, bool)>>,
@@ -621,6 +632,15 @@ impl Parts {
             });
             rows
         });
+        let needs = Memo::new(move |_| {
+            let mut needs = ctx.needs.get();
+            asked.with(|asked| {
+                if let Some(Ok(modules)) = asked {
+                    needs.extend(modules.prerequisites.iter().cloned());
+                }
+            });
+            needs
+        });
         // The week of the semester as the plan has it: what it plans, hides and has chosen there.
         let mine = folia_stores::myprogram::MyProgram::expect();
         let fit = use_ask(move || {
@@ -644,6 +664,7 @@ impl Parts {
             model,
             pane,
             rows,
+            needs,
             week,
             plan_figure,
             marked,
@@ -996,6 +1017,7 @@ fn PlanPane(ctx: StudyCtx, parts: Parts) -> impl IntoView {
         let (Some(model), Some(s)) = (parts.model.get(), parts.semester.get()) else { return ().into_any() };
         // Read so that a new answer redraws the rows.
         parts.rows.track();
+        parts.needs.track();
         parts.week.track();
         let fs = fs_words(&model, t);
         let title = fs.as_deref().map_or_else(|| b.plan_title_plain.to_string(), |fs| (b.plan_title)(fs));
@@ -1040,14 +1062,16 @@ fn plan_rows(ctx: StudyCtx, parts: Parts, model: &Model, s: SemesterKey, t: &'st
     (action, rows)
 }
 
-/// What the next Fachsemester puts in and is not in the semester yet („Aus dem 4. FS vorziehen"):
-/// its heading and its rows, where it has any.
+/// What the next Fachsemester puts in, is not in the semester yet and the semester can take („Aus
+/// dem 4. FS vorziehen", `ahead`): its heading and its rows, where it has any. The callers track
+/// `parts.rows` and `parts.needs`.
 fn next_rows(ctx: StudyCtx, parts: Parts, model: &Model, s: SemesterKey, t: &'static Texts) -> Option<(String, Vec<AnyView>)> {
     let b = &t.study_bench;
     let fs = model.fs?;
+    let (next, next_choices) = ahead(ctx, parts, model, s);
     let area_of = |at: usize| model.view.lines.get(at).and_then(|line| line.area).and_then(|area| ctx.with_ready(|ready| ready.area_name(Some(area), t)));
-    let mut rows: Vec<AnyView> = model.due.next.iter().filter(|at| still_open(ctx, model, **at, s)).filter_map(|at| plan_line(ctx, parts, model, *at, area_of(*at).map(|area| (b.of_area)(&area)), s, t)).collect();
-    rows.extend(model.due.next_choices.iter().filter_map(|at| choice_card(ctx, model, *at, s, t)));
+    let mut rows: Vec<AnyView> = next.iter().filter(|at| still_open(ctx, model, **at, s)).filter_map(|at| plan_line(ctx, parts, model, *at, area_of(*at).map(|area| (b.of_area)(&area)), s, t)).collect();
+    rows.extend(next_choices.iter().filter_map(|at| choice_card(ctx, model, *at, s, t)));
     (!rows.is_empty()).then(|| ((b.g_next)(&(t.study.fs)(fs + 1)), rows))
 }
 
@@ -1857,6 +1881,32 @@ fn still_open(ctx: StudyCtx, model: &Model, at: usize, s: SemesterKey) -> bool {
     })
 }
 
+/// What „Aus dem 4. FS vorziehen" suggests for semester `s` (`Due::ahead`): the next
+/// Fachsemester's rows and choices with a module `s` can take — not passed, offered in `s`, what it
+/// requires („setzt voraus") in place by then (`picker::lacks_required`, what the semester warns
+/// of). A module whose catalog row has not come yet counts as offered, as a row of the plan
+/// without one does. The callers track `parts.rows` and `parts.needs`.
+fn ahead(ctx: StudyCtx, parts: Parts, model: &Model, s: SemesterKey) -> (Vec<usize>, Vec<usize>) {
+    let now = ctx.now.get_untracked();
+    let fues = fues_of(ctx);
+    let judge = |doc: &PlanDoc| {
+        parts.rows.with_untracked(|rows| {
+            parts.needs.with_untracked(|needs| {
+                let takes = |id: &str| {
+                    let row = rows.get(id);
+                    let own = row.map_or(id, |row| row.title.as_str());
+                    doc.passed_in(id).is_none() && row.map_or_else(Offer::default, Offer::of).offered(s) && !lacks_required(doc, needs, id, own, s, now)
+                };
+                model.due.ahead(&model.view, &model.groups, s, &fues, takes)
+            })
+        })
+    };
+    match ctx.plan {
+        Some(plan) => plan.with_untracked(judge),
+        None => judge(&PlanDoc::default()),
+    }
+}
+
 /// The root of the sheet (owner, 2026-11-04: „Der aufbau soll also jetzt sein: Module aus dem
 /// semester, Module vorziehen, Page für alle Bereiche, Page gemerkt, Im katalog suchen"): what the
 /// plan puts into the semester, what the next Fachsemester could take now, and the ways to all the
@@ -1898,8 +1948,8 @@ fn SheetPlan(ctx: StudyCtx, parts: Parts) -> impl IntoView {
 }
 
 /// „Aus dem 4. FS vorziehen" at the root, under what the semester's own Fachsemester asks: what the
-/// plan puts into the next one and is not in the semester yet, each planned at once, its choices
-/// going into their lists.
+/// plan puts into the next one, is not in the semester yet and the semester can take (`ahead`),
+/// each planned at once, its choices going into their lists.
 #[component]
 fn SheetNext(ctx: StudyCtx, parts: Parts) -> impl IntoView {
     let t = i18n::t();
@@ -1907,6 +1957,7 @@ fn SheetNext(ctx: StudyCtx, parts: Parts) -> impl IntoView {
         parts.follow(ctx);
         let (Some(model), Some(s)) = (parts.model.get(), parts.semester.get()) else { return ().into_any() };
         parts.rows.track();
+        parts.needs.track();
         parts.week.track();
         let Some((title, rows)) = next_rows(ctx, parts, &model, s, t) else { return ().into_any() };
         view! {

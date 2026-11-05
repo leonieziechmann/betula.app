@@ -1220,6 +1220,81 @@ mod tests {
         let _ = study;
     }
 
+    /// „Aus dem 4. FS vorziehen" (owner, 2026-11-05: „das ergibt ja nur sinn für module, die in dem
+    /// ausgewählten semester auch angeboten werden und wofür die voraussetzungen erfüllt sind"):
+    /// Informatik's 4. FS seen from the 3. in a WiSe suggests no Pflicht — Betriebssysteme I and the
+    /// Digitaltechnik-Praktikum are offered in the SoSe only —, from a SoSe both; a module whose
+    /// required module is not in place by then is no suggestion until that is planned into the
+    /// semester as well; a choice stays while a module of its lists can be taken.
+    #[test]
+    fn vorziehen_suggests_what_the_semester_can_take() {
+        use folia_model::labels::Code;
+        use folia_model::rows::Prerequisite;
+        use folia_plans::bench::{self, Bench, Due};
+        use folia_plans::choices::plan_view;
+        use folia_plans::study::Offer;
+
+        let source = plans_of("079-82-2008");
+        let (w, summer) = (key("2026W"), key("2027S"));
+        let plan = [
+            "m\t2025W\t12104\t1\t\tplan", "m\t2025W\t12107\t1\t\tplan", "m\t2025W\t12102\t1\t\tplan", "m\t2025W\t11112\t1\t\tplan",
+            "m\t2026S\t12101\t1\t\tplan", "m\t2026S\t11903\t1\t\tplan", "m\t2026S\t11113\t1\t\tplan",
+            "d\t2025W\t12104", "d\t2025W\t12107", "d\t2025W\t12102", "d\t2025W\t11112", "d\t2026S\t12101", "d\t2026S\t11903", "d\t2026S\t11113",
+        ]
+        .join("\n");
+        let doc = PlanDoc::restored(&plan);
+        let mine = MineDoc { caption: Some(String::new()), start: Some(key("2025W")), ..MineDoc::default() };
+        let (shown, core, page) = chosen(&source, mine.caption.as_deref(), None);
+        let setup = Setup { shown, core, page, start: key("2025W"), start_stored: true, now: w, leave: BTreeSet::new(), until: None };
+        let input = input_of(&source, &setup, &doc, &source.linked);
+        let study = study::study(&input);
+        let view = plan_view(&input, &study);
+        let groups = Bench::of(&study, &view);
+        let due = Due::of(&view, Some(3), Some(3));
+        let ids = |rows: &[usize]| rows.iter().filter_map(|at| view.lines[*at].module_id.clone()).collect::<Vec<_>>();
+        assert_eq!(ids(&due.next), ["12204", "12214"], "the 4. FS's Pflicht");
+        assert!(!due.next_choices.is_empty(), "the 4. FS's choices");
+        // The catalog's rows of the choices' lists, as the root asks for them.
+        let lists_of = |choice: usize| bench::candidates(&view, &groups.groups[groups.of_choice(choice).unwrap()], &source.fues).into_iter().map(|(id, _)| id).collect::<Vec<_>>();
+        let listed: Vec<String> = due.next_choices.iter().flat_map(|choice| lists_of(*choice)).collect();
+        let mut rows = source.linked.clone();
+        rows.extend(plans_of_rows(&listed.iter().map(String::as_str).collect::<Vec<_>>()));
+        let offered_in = |s: SemesterKey, id: &str| rows.iter().find(|row| row.id == id).map_or_else(Offer::default, Offer::of).offered(s);
+
+        // In the WiSe no Pflicht of the 4. FS; a choice where a module of its lists is offered then.
+        let (next, choices) = due.ahead(&view, &groups, w, &source.fues, |id| offered_in(w, id));
+        assert!(next.is_empty(), "offered in the SoSe only: {:?}", ids(&next));
+        for choice in &due.next_choices {
+            let modules = lists_of(*choice);
+            let any = modules.is_empty() || modules.iter().any(|id| offered_in(w, id));
+            assert_eq!(choices.contains(choice), any, "{}", view.choices[*choice].name);
+        }
+        // From a SoSe both rows. What takes nothing keeps a choice only where it has no lists.
+        let (next, _) = due.ahead(&view, &groups, summer, &source.fues, |id| offered_in(summer, id));
+        assert_eq!(ids(&next), ["12204", "12214"]);
+        let (none, kept) = due.ahead(&view, &groups, w, &source.fues, |_| false);
+        assert!(none.is_empty());
+        assert!(kept.iter().all(|choice| lists_of(*choice).is_empty()));
+
+        // What a module requires („setzt voraus"), as the semester warns of it: the
+        // Digitaltechnik-Praktikum asking for Algorithmen und Datenstrukturen (11756), which stands
+        // nowhere, is no suggestion until that is in the semester too; asking for Digitaltechnik
+        // (11903), passed, it is. Only a recommendation keeps it as well.
+        let asks = |required: &str, kind: &str| vec![Prerequisite { module_id: "12214".to_string(), required_module_id: required.to_string(), kind: Code::parse(kind), required_title: None, required_offer_status: None }];
+        let title_of = |id: &str| rows.iter().find(|row| row.id == id).map_or_else(|| id.to_string(), |row| row.title.clone());
+        let takes = |doc: &PlanDoc, needs: &[Prerequisite], id: &str| offered_in(summer, id) && !picker::lacks_required(doc, needs, id, &title_of(id), summer, w);
+        let (next, _) = due.ahead(&view, &groups, summer, &source.fues, |id| takes(&doc, &asks("11756", "mandatory"), id));
+        assert_eq!(ids(&next), ["12204"], "Algorithmen und Datenstrukturen is not in place");
+        let mut with = doc.clone();
+        assert!(with.plan(summer, "11756", 1, None));
+        let (next, _) = due.ahead(&view, &groups, summer, &source.fues, |id| takes(&with, &asks("11756", "mandatory"), id));
+        assert_eq!(ids(&next), ["12204", "12214"], "planned into the same semester");
+        let (next, _) = due.ahead(&view, &groups, summer, &source.fues, |id| takes(&doc, &asks("11903", "mandatory"), id));
+        assert_eq!(ids(&next), ["12204", "12214"], "Digitaltechnik is passed");
+        let (next, _) = due.ahead(&view, &groups, summer, &source.fues, |id| takes(&doc, &asks("11756", "recommended"), id));
+        assert_eq!(ids(&next), ["12204", "12214"], "only recommended");
+    }
+
     /// Maschinenbau numbers its electives („Wahlpflichtmodul 1" … „4"): one choice of 24 LP, whose
     /// list is the tree of its area, the plan's rows naming none.
     #[test]
