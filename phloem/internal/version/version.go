@@ -11,7 +11,7 @@ import (
 
 // Version is the release of Phloem (`phloem version`, `phloem status`, phloem_build_info): by
 // SemVer, raised with every change to Phloem's shipped sources (CLAUDE.md, „Versions").
-const Version = "0.2.0"
+const Version = "0.3.0"
 
 // Build names the binary that runs: a hash of its own executable. "" when it cannot be read.
 func Build() string {
