@@ -71,11 +71,17 @@
 #               have such files). The privacy notice of the site names the fields and the 7 days
 #               ("Zugriffsprotokoll" in folia/crates/app/src/i18n/legal.rs, in every language): change it with them. Traefik cannot shorten
 #               addresses; the levers are dropped fields (see the accessLog flags) and the retention.
-# ipv6          The host has a global IPv6 address and Docker publishes 80/443 on [::] too, but no Docker
-#               network has IPv6: docker-proxy relays those connections, and Traefik sees the gateway of
-#               docker_gwbridge (172.30.x.1) as the client - no usable address in the access log and one
-#               rate-limit bucket for everybody. Without AAAA records only scanners arrive that way.
-#               Do NOT create AAAA records for betula.app or any subdomain until Traefik receives IPv6 itself.
+# ipv6          The host has a global IPv6 address, betula.app, www and canary have AAAA records, and
+#               Docker publishes 80/443 on [::] too. Host-mode ports arrive on docker_gwbridge, Docker's
+#               local bridge: with IPv6 on it (the line "gwbridge" in vps/files/networks.conf, made by
+#               vps/30-docker.sh) an IPv6 connection is DNATed to Traefik's address there like an IPv4
+#               one, and Traefik sees the visitor's own address: in the access log, in rate-limit@file
+#               (one bucket per /64) and in the filters of config/traefik/dynamic/. Without IPv6 on the
+#               bridge, docker-proxy relays the connection over IPv4 and Traefik sees the bridge's
+#               gateway (172.30.x.1) for every IPv6 visitor; those pass the filters as a private
+#               address. Which one runs: docker network inspect docker_gwbridge -f '{{.EnableIPv6}}'.
+#               Docker cannot change the bridge; making it anew stops every service on it for some
+#               seconds, Traefik among them (README.md section 15, "IPv6 to Traefik").
 #
 # Labels for a new public service. They belong under deploy.labels (service labels); container labels are not
 # seen by the swarm provider. Router, service and middleware names are global: prefix them with the stack name.
@@ -203,7 +209,8 @@ services:
       GOMEMLIMIT: "450MiB"
     ports:
       # mode: host bypasses the routing mesh, so Traefik (and the rate limiter, and the access log) see the
-      # real client address instead of an ingress-network address. True for IPv4 only, see "ipv6" above.
+      # real client address instead of an ingress-network address. For IPv6 with IPv6 on docker_gwbridge
+      # only, see "ipv6" above.
       - target: 80
         published: 80
         protocol: tcp

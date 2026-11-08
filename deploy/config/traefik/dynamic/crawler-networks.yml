@@ -13,12 +13,12 @@
 #   AS55990   Huawei Cloud, China: 432 networks announced
 #   AS45102   Alibaba Cloud: 1334 networks announced
 #   AS37963   Alibaba Cloud, China: 931 networks announced
-#   merged: 820 IPv4 and 90 IPv6 networks. Traefik sees no IPv6 client so far
-#   (stacks/edge.yml, "ipv6"); the IPv6 networks are here for the day it does.
+#   merged: 820 IPv4 and 90 IPv6 networks, each family behind its guard (an
+#   IPv4 request never walks the IPv6 list, and the other way round).
 #
-# ClientIP judges the address the connection comes from, never X-Forwarded-For: for IPv4 that is
-# the client (stacks/edge.yml). Somebody with a VPN whose exit is in one of these clouds is turned
-# away as well; that is the price.
+# ClientIP judges the address the connection comes from, never X-Forwarded-For: that is the client
+# (for IPv6 once docker_gwbridge has IPv6, stacks/edge.yml "ipv6"). Somebody with a VPN whose exit
+# is in one of these clouds is turned away as well; that is the price.
 
 http:
   routers:
@@ -26,7 +26,7 @@ http:
       entryPoints:
         - websecure
       rule: >-
-        (ClientIP(`1.12.0.0/14`)
+        ((ClientIP(`0.0.0.0/0`) && (ClientIP(`1.12.0.0/14`)
         || ClientIP(`1.92.0.0/16`)
         || ClientIP(`1.94.0.0/15`)
         || ClientIP(`1.116.0.0/15`)
@@ -845,8 +845,8 @@ http:
         || ClientIP(`219.83.121.0/24`)
         || ClientIP(`219.83.122.0/23`)
         || ClientIP(`219.83.127.0/24`)
-        || ClientIP(`223.4.0.0/14`)
-        || ClientIP(`2400:3200::/32`)
+        || ClientIP(`223.4.0.0/14`)))
+        || (ClientIP(`::/0`) && (ClientIP(`2400:3200::/32`)
         || ClientIP(`2400:b200::/32`)
         || ClientIP(`2401:2e00::/32`)
         || ClientIP(`2401:b180::/32`)
@@ -935,7 +935,7 @@ http:
         || ClientIP(`240d:c010:5c::/48`)
         || ClientIP(`240d:c040::/43`)
         || ClientIP(`2410:7000::/20`)
-        || ClientIP(`2801:80:e0::/48`))
+        || ClientIP(`2801:80:e0::/48`))))
         && !Path(`/robots.txt`) && !Path(`/healthz`) && !Path(`/livez`)
         && !PathRegexp(`^/([a-z]{2}/)?calendar/`)
       priority: 10000
