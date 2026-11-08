@@ -1,6 +1,6 @@
 <title>Teilen-Dialog</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<!-- The share dialog, first round (2026-11-08; owner: „An sich hätte ich das gerne so, dass wenn man
+<!-- The share dialog (2026-11-08; owner: „An sich hätte ich das gerne so, dass wenn man
      auf teilen drückt ein modal bekommt, wo man ähnlich wie bei google docs so dann einstellen kann,
      ist das ein einmal link. Wir der kallender statisch geteilt ohne sync, wird er mit sync geteilt,
      sollen extra termine angezeigt werden etc."). One dialog for what „Link zum Teilen kopieren“ and
@@ -11,7 +11,12 @@
      a desktop and a phone, clickable, both showing the same state. The dialog is the app's own
      (folia_design::modal: size M in the middle of a wide screen, a sheet from below on a phone).
      Tokens are those of folia/design/kalender/termine.html; Inter comes from Google Fonts here, the
-     app self-hosts it. -->
+     app self-hosts it.
+     Second round, the owner's answers of the same day: an offer of Betula Sync („Profil speichern“,
+     one click) at every choice it makes better; a one-time link waits 7 days at most and then says
+     „schon geöffnet“ or „abgelaufen“, never shows the data; Lena keeps the last state; one semester
+     for now, the past semesters only once the old Termine are thought through; own calendars only
+     „In Kalender-App“; the Merkliste later. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
@@ -200,6 +205,21 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .off::before { background: var(--text-3); }
 
 .srow.fresh { background: var(--accent-soft); }
+.tag { margin-left: auto; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; font-style: normal; color: var(--accent-ink); background: color-mix(in srgb, var(--accent) 14%, var(--panel)); }
+.upgrade { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: var(--r-ctl); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); font-size: 12.5px; line-height: 1.45; }
+.upgrade > svg { color: var(--accent-ink); align-self: start; margin-top: 2px; }
+.upgrade .t { display: flex; flex-direction: column; gap: 1px; }
+.upgrade .t b { font-size: 13px; font-weight: 650; color: var(--text); }
+.upgrade .t span { color: var(--text-2); }
+.upgrade .btn { padding: 6px 11px; font-size: 12.5px; background: var(--panel); white-space: nowrap; }
+.upgrade.busy .btn { opacity: .6; pointer-events: none; }
+.upgrade.need { grid-template-columns: auto minmax(0, 1fr); }
+.phone .upgrade, .lena .upgrade { grid-template-columns: auto minmax(0, 1fr); }
+.phone .upgrade .btn, .lena .upgrade .btn { grid-column: 2; justify-self: start; }
+.gonecard { border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.gonecard .ic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--warn-soft); color: var(--warn); }
+.gonecard h4 { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.gonecard p { font-size: 13px; color: var(--text-2); text-wrap: pretty; }
 .srow .new { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--accent-ink); margin-left: 6px; }
 .summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12.5px; color: var(--text-2); }
 .summary .btn { padding: 5px 10px; font-size: 12.5px; }
@@ -273,7 +293,8 @@ td .no { color: var(--text-3); }
     <div class="kicker">Was der Dialog verspricht</div>
     <ol>
       <li><span><b>Eine Stelle für alles Teilen.</b> „Link zum Teilen kopieren“ und „Abonnieren“ öffnen beide diesen Dialog, ebenso das Menü eines eigenen Kalenders.</span></li>
-      <li><span><b>Jede Einstellung sagt, was sie bewirkt.</b> Etwa „lässt sich nicht zurückholen“ oder „schaltet Betula Sync ein“, gleich neben der Wahl und nicht erst danach.</span></li>
+      <li><span><b>Jede Einstellung sagt, was sie bewirkt.</b> Etwa „lässt sich nicht zurückholen“ oder „speichert dein Profil mit Betula Sync“, gleich neben der Wahl und nicht erst danach.</span></li>
+      <li><span><b>Wo Betula Sync es besser macht, bietet Betula es an.</b> Ein Klick auf „Profil speichern“, und das Profil synchronisiert; die Wahl, die es braucht, bleibt dabei stehen.</span></li>
       <li><span><b>Was aktuell bleibt, lässt sich zurücknehmen.</b> Jede Freigabe steht oben in der Liste „Geteilt“, mit „Nicht mehr teilen“.</span></li>
       <li><span><b>Notizen und eigene Termine bleiben zu Hause</b>, außer du nimmst sie mit, wie bei der Merkliste.</span></li>
       <li><span><b>Der Server kann nichts öffnen</b>, was aktuell geteilt ist. Nur das Kalender-Abo öffnet Folia mit dem Schlüssel aus der Adresse, bei jedem Abruf für Millisekunden und nur diesen einen Kalender.</span></li>
@@ -288,6 +309,7 @@ td .no { color: var(--text-3); }
     <button type="button" data-scene="created" aria-pressed="false">Link erstellt</button>
     <button type="button" data-scene="lena" aria-pressed="false">Bei Lena</button>
     <button type="button" data-scene="ended" aria-pressed="false">Bei Lena, nicht mehr geteilt</button>
+    <button type="button" data-scene="used" aria-pressed="false">Einmal-Link, schon geöffnet</button>
   </div>
   <label class="toggle"><input type="checkbox" id="synced" checked> Profil mit Betula Sync</label>
 </div>
@@ -323,13 +345,13 @@ td .no { color: var(--text-3); }
     <thead><tr><th>Einstellung</th><th>Was sie bedeutet</th><th>Was dafür passiert</th><th>Voreinstellung</th></tr></thead>
     <tbody>
       <tr><td><b>Mit Personen</b> · <b>In Kalender-App</b></td><td>Ein Link, den jemand in Betula öffnet, oder eine Adresse für Google, Apple oder Outlook.</td><td>Die Wahl ändert nur, was darunter steht. Die Liste „Geteilt“ darüber bleibt, wie sie ist.</td><td>Mit Personen</td></tr>
-      <tr><td><b>Bleibt aktuell</b></td><td>Jede Änderung kommt an, bis du aufhörst zu teilen.</td><td>Ein Teil mit eigenem Schlüssel, versiegelt bei Phloem. Jedes deiner Geräte erneuert ihn, wenn sich der Kalender ändert. Braucht Betula Sync.</td><td>wenn das Profil synchronisiert</td></tr>
+      <tr><td><b>Bleibt aktuell</b></td><td>Jede Änderung kommt an, bis du aufhörst zu teilen.</td><td>Ein Teil mit eigenem Schlüssel, versiegelt bei Phloem. Jedes deiner Geräte erneuert ihn, wenn sich der Kalender ändert. Braucht Betula Sync: In einem privaten Profil steht an der Wahl „mit Sync“, und „Profil speichern“ schaltet es mit dem Teilen ein.</td><td>wenn das Profil synchronisiert</td></tr>
       <tr><td><b>Fester Stand</b></td><td>Eine Kopie von jetzt.</td><td>Wie heute: Der Plan steht im Link. Lässt sich nicht zurückholen.</td><td>wenn das Profil privat ist</td></tr>
-      <tr><td><b>Eine Person</b></td><td>Der Link gilt einmal: Wer ihn zuerst öffnet, bekommt den Kalender, danach ist er leer.</td><td>Ein Päckchen bei Phloem wie bei „Weiteres Gerät verbinden“, das beim ersten Öffnen gelöscht wird, höchstens 7 Tage lang. Braucht Betula Sync.</td><td>bei „Bleibt aktuell“</td></tr>
+      <tr><td><b>Eine Person</b></td><td>Der Link gilt einmal: Wer ihn zuerst öffnet, bekommt den Kalender. Wer ihn danach öffnet, liest „Dieser Link wurde schon geöffnet“, nach 7 Tagen „abgelaufen“, und sieht nichts vom Plan.</td><td>Ein Päckchen bei Phloem wie bei „Weiteres Gerät verbinden“, das beim ersten Öffnen gelöscht wird, höchstens 7 Tage lang. Danach weiß Phloem nur noch, dass es geöffnet wurde, abgelaufen ist oder zurückgezogen wurde. Braucht Betula Sync.</td><td>bei „Bleibt aktuell“</td></tr>
       <tr><td><b>Alle mit dem Link</b></td><td>Beliebig oft, auch weitergeleitet.</td><td>Bei „Fester Stand“ der Link von heute, mit der Vorschau in Messengern. Bei „Bleibt aktuell“ trägt der Link Teil und Schlüssel.</td><td>bei „Fester Stand“</td></tr>
       <tr><td><b>Eigene Termine</b></td><td>„Arbeit“, „Volleyball“ und die anderen Termine, die du selbst angelegt hast.</td><td>Sie kommen in den Link oder Teil, sonst bleiben sie draußen.</td><td>aus</td></tr>
       <tr><td><b>Notizen an Terminen</b></td><td>Was du an einem Termin notiert hast.</td><td>In Betula als Notiz, in der Kalender-App in der Beschreibung des Termins.</td><td>aus</td></tr>
-      <tr><td><b>Folgt dem Semester</b></td><td>Das Abo zeigt immer das aktuelle Semester.</td><td>Nur mit „Bleibt aktuell“: Der Teil wechselt mit dem Semester, die Adresse bleibt.</td><td>an</td></tr>
+      <tr><td><b>Semester</b></td><td>Das Semester, das du gerade ansiehst. Keine Wahl, fürs Erste.</td><td>Bei „Bleibt aktuell“ geht die Freigabe mit, wenn das nächste Semester beginnt; Link und Adresse bleiben. Alle Semester mit den vergangenen kommen später (Entscheidung 4).</td><td>das angesehene</td></tr>
       <tr><td><b>Für wen</b></td><td>Ein Name für die Liste „Geteilt“, etwa „Lena“.</td><td>Bleibt auf deinen Geräten. Er reist weder im Link noch zum Server.</td><td>leer</td></tr>
     </tbody>
   </table></div>
@@ -341,10 +363,10 @@ td .no { color: var(--text-3); }
     <thead><tr><th></th><th>Eine Person (Einmal-Link)</th><th>Alle mit dem Link</th></tr></thead>
     <tbody>
       <tr><td><b>Fester Stand</b></td><td>Die Kopie liegt im Päckchen. Das Päckchen lässt sich zurückziehen, solange niemand es geöffnet hat; die Kopie danach nicht. Keine Vorschau in Messengern.</td><td><b>Der Link von heute.</b> Der Plan steht in der Adresse, Messenger zeigen die Module in der Vorschau. Nicht zurückzuholen. Geht ohne Betula Sync.</td></tr>
-      <tr><td><b>Bleibt aktuell</b></td><td>Wer zuerst öffnet, folgt dem Kalender, und der Link ist danach leer. Ein Weiterleiten bringt niemandem etwas. Zurückzunehmen mit „Nicht mehr teilen“.</td><td>Jede Person mit dem Link folgt dem Kalender. Zurückzunehmen mit „Nicht mehr teilen“, dann für alle zugleich. Für eine Gruppe gedacht.</td></tr>
+      <tr><td><b>Bleibt aktuell</b></td><td>Wer zuerst öffnet, folgt dem Kalender; wer danach öffnet, liest „schon geöffnet“. Ein Weiterleiten bringt niemandem etwas. Zurückzunehmen mit „Nicht mehr teilen“.</td><td>Jede Person mit dem Link folgt dem Kalender. Zurückzunehmen mit „Nicht mehr teilen“, dann für alle zugleich. Für eine Gruppe gedacht.</td></tr>
     </tbody>
   </table></div>
-  <p>„Bleibt aktuell“ und „Eine Person“ brauchen den Server: Der Teil und das Päckchen liegen versiegelt im Bereich des Profils bei Phloem. Ist das Profil privat, sagt der Dialog das direkt an der Wahl und schaltet Betula Sync mit dem Teilen ein, nach derselben Erklärung wie bei „Betula Sync aktivieren“. „Fester Stand“ mit „Alle mit dem Link“ geht wie bisher ganz ohne Server.</p>
+  <p>„Bleibt aktuell“ und „Eine Person“ brauchen den Server: Der Teil und das Päckchen liegen versiegelt im Bereich des Profils bei Phloem. Ist das Profil privat, steht an diesen Wahlen „mit Sync“; wer eine davon nimmt, liest gleich darunter, was der Server dann aufbewahrt, und der Knopf heißt „Profil speichern und Link erstellen“. „Fester Stand“ mit „Alle mit dem Link“ geht wie bisher ganz ohne Server; darunter bietet Betula an, was Betula Sync daraus macht: „Mit Betula Sync bleibt Lenas Kalender aktuell“ und „Profil speichern“.</p>
 </section>
 
 <section class="part">
@@ -352,7 +374,9 @@ td .no { color: var(--text-3); }
   <div class="cols">
     <div class="box"><h3>Den Link öffnen</h3><p>Lenas Betula zeigt das Angebot von heute: „Übernehmen“ oder „Als Kalender“. Bei „Bleibt aktuell“ heißt der zweite Knopf „Als Kalender folgen“. Der Kalender steht dann neben ihrem eigenen Plan, mit einem grünen Punkt für „aktuell“.</p></div>
     <div class="box"><h3>Wenn du änderst</h3><p>Dein Gerät erneuert den Teil. Phloem sagt es Lenas offenem Betula sofort, sonst holt ihr Betula den Stand beim nächsten Öffnen. Ihr Abo steht in ihrem Profil und kommt so auch auf ihre anderen Geräte.</p></div>
-    <div class="box"><h3>Wenn du nicht mehr teilst</h3><p>Der Teil wird gelöscht. Lenas Kalender bleibt mit dem letzten Stand stehen, als „nicht mehr geteilt“ markiert, und sie kann ihn behalten oder löschen. Das ist Frage 3.</p></div>
+    <div class="box"><h3>Wenn du nicht mehr teilst</h3><p>Der Teil wird gelöscht. Lenas Kalender bleibt mit dem letzten Stand stehen, als „nicht mehr geteilt“ markiert, und sie kann ihn behalten oder löschen (Entscheidung 3).</p></div>
+    <div class="box"><h3>Einen Einmal-Link ein zweites Mal</h3><p>„Dieser Link wurde schon geöffnet.“ Ebenso klar: „abgelaufen“ nach 7 Tagen und „zurückgezogen“, wenn du ihn vorher zurückgenommen hast. Jeweils mit „Bitte um einen neuen Link“ und ohne ein Stück vom Plan.</p></div>
+    <div class="box"><h3>Wenn Lena privat ist</h3><p>Sie kann trotzdem folgen: Ihr Betula holt den neuen Stand beim Öffnen. Daneben steht das Angebot: Mit Betula Sync kommt jede Änderung sofort an und der Kalender auf jedes ihrer Geräte, „Profil speichern“.</p></div>
   </div>
 </section>
 
@@ -360,7 +384,7 @@ td .no { color: var(--text-3); }
   <h2>Wie es funktioniert</h2>
   <div class="cols">
     <div class="box"><h3>Der Teil</h3><p>Ein Teil enthält genau das, was die Freigabe zeigt: Semester, Module, Gruppen, geänderte Termine, und falls gewählt eigene Termine und Notizen. Er ist ein paar hundert Bytes groß, mit einem eigenen Zufallsschlüssel versiegelt (höchstens 4 KiB, 32 je Profil), und kein Weg führt von ihm zum Profil. Die Freigaben selbst stehen im Profil und kommen so auf alle deine Geräte; jedes kann den Teil erneuern.</p></div>
-    <div class="box"><h3>Der Link</h3><p><code>betula.app/studyplan?live=&lt;teil&gt;#&lt;schlüssel&gt;</code> oder für einen Einmal-Link <code>betula.app/verbinden#&lt;päckchen&gt;</code>. Was nach <code>#</code> steht, erreicht keinen Server: Nur Lenas Betula öffnet den Teil. Phloem kennt nur Nummern, Größen und Zeiten.</p></div>
+    <div class="box"><h3>Der Link</h3><p><code>betula.app/studyplan?live=&lt;teil&gt;#&lt;schlüssel&gt;</code> oder für einen Einmal-Link <code>betula.app/verbinden#&lt;päckchen&gt;</code>. Was nach <code>#</code> steht, erreicht keinen Server: Nur Lenas Betula öffnet den Teil. Phloem kennt nur Nummern, Größen und Zeiten, und von einem geöffneten Päckchen 7 Tage lang nur, dass es geöffnet wurde.</p></div>
     <div class="box"><h3>Das Kalender-Abo</h3><p><code>betula.app/calendar/s/&lt;teil&gt;.&lt;schlüssel&gt;.ics</code>. Google schickt keinen eigenen Schlüssel mit, also steht er in der Adresse, wie du entschieden hast. Folia holt den Teil über Traefik, öffnet ihn nur im Arbeitsspeicher, gibt nur die Termine dieses Kalenders heraus und vergisst Schlüssel und Inhalt danach. Für <code>/calendar/</code> schreibt Traefik kein Zugriffsprotokoll.</p></div>
     <div class="box"><h3>Zurücknehmen</h3><p>„Nicht mehr teilen“ löscht den Teil bei Phloem; Lenas Betula zeigt dann „nicht mehr geteilt“. „Neue Adresse“ beim Abo macht einen neuen Teil, die alte Adresse ist danach leer. „Zurückziehen“ löscht ein Päckchen, das noch niemand geöffnet hat.</p></div>
   </div>
@@ -375,9 +399,9 @@ td .no { color: var(--text-3); }
   <h2>Schritte</h2>
   <ol class="steps">
     <li><span><b>Nummern, die nie wiederkommen</b> · Kalender, Sammlungen, eigene Termine und Platzhalter in synchronisierten Profilen</span><em>½ Tag</em></li>
-    <li><span><b>Teile in Phloem</b> · Teil anlegen, erneuern, löschen; Abruf mit eigenem Header statt im Pfad; Päckchen, die bis zu 7 Tage warten; Phloem meldet Lenas offenem Betula einen neuen Stand · Phloem 0.2.0</span><em>1–2 Tage</em></li>
-    <li><span><b>Der Dialog</b> · ein Modal der Größe M, am Handy ein Sheet; die Liste „Geteilt“; die Freigaben im Profil; Teile erneuern, wenn sich ein Kalender ändert</span><em>2 Tage</em></li>
-    <li><span><b>Bei Lena</b> · „Als Kalender folgen“, der grüne Punkt, Aktualisieren beim Öffnen und auf Zuruf, „nicht mehr geteilt“</span><em>1 Tag</em></li>
+    <li><span><b>Teile in Phloem</b> · Teil anlegen, erneuern, löschen; Abruf mit eigenem Header statt im Pfad; Päckchen, die bis zu 7 Tage warten und danach „geöffnet“, „abgelaufen“ oder „zurückgezogen“ sagen; Phloem meldet Lenas offenem Betula einen neuen Stand · Phloem 0.2.0</span><em>1–2 Tage</em></li>
+    <li><span><b>Der Dialog</b> · ein Modal der Größe M, am Handy ein Sheet; die Liste „Geteilt“; die Freigaben im Profil; Teile erneuern, wenn sich ein Kalender ändert; „Profil speichern“ an jeder Wahl, die Sync besser macht</span><em>2 Tage</em></li>
+    <li><span><b>Bei Lena</b> · „Als Kalender folgen“, der grüne Punkt, Aktualisieren beim Öffnen und auf Zuruf, „nicht mehr geteilt“, die Meldungen eines Einmal-Links, der nichts mehr öffnet</span><em>1 Tag</em></li>
     <li><span><b>Kalender-Abo, das aktuell bleibt</b> · <code>/calendar/s/</code> in Folia über Traefik, ohne Zugriffsprotokoll</span><em>1 Tag</em></li>
     <li><span><b>Prüfungen</b> · drei Browser: aktuell teilen, ändern, ankommen sehen; einen Einmal-Link zweimal öffnen; zurücknehmen; nichts im Klartext beim Server</span><em>1 Tag</em></li>
   </ol>
@@ -385,14 +409,14 @@ td .no { color: var(--text-3); }
 </section>
 
 <section class="part">
-  <h2>Fragen an dich</h2>
+  <h2>Deine Entscheidungen, 8. November</h2>
   <ol class="qs">
-    <li><b>1. Voreinstellung.</b><span class="p">Vorschlag: In einem synchronisierten Profil „Bleibt aktuell“ mit „Eine Person“, damit ein weitergeleiteter Link niemandem etwas bringt. In einem privaten Profil „Fester Stand“ mit „Alle mit dem Link“, also wie heute, damit niemand aus Versehen Sync einschaltet.</span></li>
-    <li><b>2. Wie lange wartet ein Einmal-Link?</b><span class="p">Vorschlag: 7 Tage. Danach ist er leer und verschwindet aus der Liste.</span></li>
-    <li><b>3. Was sieht Lena nach „Nicht mehr teilen“?</b><span class="p">Vorschlag: den letzten Stand als festen Kalender mit dem Hinweis „nicht mehr geteilt“, den sie behalten oder löschen kann.</span></li>
-    <li><b>4. Folgt das Abo dem aktuellen Semester?</b><span class="p">Vorschlag: ja als Voreinstellung, abwählbar. Das löst auch das offene „ein Abo über mehrere Semester“.</span></li>
-    <li><b>5. Und die eigenen Kalender, etwa Lenas in deinem Plan?</b><span class="p">Vorschlag: Ihr Menü bekommt „In Kalender-App“, um Lenas Plan bei Google zu abonnieren. Weiterteilen an andere bekommt es nicht, das soll Lena selbst entscheiden.</span></li>
-    <li><b>6. Die Merkliste?</b><span class="p">Vorschlag: später derselbe Dialog. Ihr „Teilen“ hat mit „Notizen mitnehmen“ schon dieselbe Idee.</span></li>
+    <li><b>1. Voreinstellung und Angebot.</b><span class="p">„Ich möchte, dass bei jeder option, wo die nutzererfahrung besser wird ein "upgrade" von betula sync angeboten wird. Also dass man da schnell sein profil speichern kann.“ Ein synchronisiertes Profil teilt voreingestellt „Bleibt aktuell“ mit „Eine Person“, ein privates „Fester Stand“ mit „Alle mit dem Link“ wie heute. Ein privates Profil bekommt das Angebot an „Bleibt aktuell“ und „Eine Person“ (Markierung „mit Sync“, Knopf „Profil speichern und Link erstellen“), unter dem festen Stand, beim Kalender-Abo und bei Lena, wenn sie privat folgt.</span></li>
+    <li><b>2. Einmal-Link.</b><span class="p">„Ja einmal link ist gut mit 7 tage max time. Aber leer finde ich nicht so gut. Also man soll nicht an die daten kommen danach. Aber es sollte schon eine fehlermeldung geben mit link abgelaufen oder so.“ Höchstens 7 Tage; danach „schon geöffnet“, „abgelaufen“ oder „zurückgezogen“, ohne Daten.</span></li>
+    <li><b>3. Nach „Nicht mehr teilen“.</b><span class="p">„Ja das finde ich gut.“ Lena behält den letzten Stand als festen Kalender, „nicht mehr geteilt“, mit „Behalten“ und „Löschen“.</span></li>
+    <li><b>4. Semester.</b><span class="p">Einstellbar sollen „nur das aktuelle Semester“ und „alle Semester“ werden, damit man auch zurückschauen kann. Für die vergangenen Semester braucht es die alten Termine, und das willst du erst durchdenken: „Deswegen würde ich das jetzt erstmal auslassen.“ Bis dahin teilt Betula das Semester, das du ansiehst, und eine Freigabe, die aktuell bleibt, geht ins nächste Semester mit.</span></li>
+    <li><b>5. Eigene Kalender.</b><span class="p">„Not sure aber fürs erste ja können wir so machen.“ Lenas Kalender in deinem Plan bekommt nur „In Kalender-App“, kein Weiterteilen.</span></li>
+    <li><b>6. Merkliste.</b><span class="p">„Ja.“ Später derselbe Dialog.</span></li>
   </ol>
 </section>
 
@@ -400,7 +424,7 @@ td .no { color: var(--text-3); }
 
 <script>
 (() => {
-  const state = { scene: "dialog", tab: "people", live: true, once: true, own: false, notes: false, follow: true, who: "Lena", synced: true };
+  const state = { scene: "dialog", tab: "people", live: true, once: true, own: false, notes: false, who: "Lena", synced: true, saving: false };
   const icon = {
     x: '<svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     info: '<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>',
@@ -408,6 +432,7 @@ td .no { color: var(--text-3); }
     lock: '<svg class="i" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
     copy: '<svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>',
     share: '<svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>',
+    unlink: '<svg class="i" viewBox="0 0 24 24"><path d="M9 15l-1.5 1.5a3.5 3.5 0 0 1-5-5L5 9M15 9l1.5-1.5a3.5 3.5 0 0 1 5 5L19 15M8 4v2M4 8h2M16 20v-2M20 16h-2"/></svg>',
   };
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -424,20 +449,25 @@ td .no { color: var(--text-3); }
     return `<svg viewBox="0 0 25 25" shape-rendering="crispEdges" fill="#111">${finder(0, 0)}${finder(18, 0)}${finder(0, 18)}${cells}</svg>`;
   })();
 
-  const opt = (key, value, title, text) => `<button type="button" class="opt" data-set="${key}" data-value="${value}" aria-pressed="${state[key] === value}"><b>${title}</b><span>${text}</span></button>`;
+  /// An option; `sync` marks the ones that need Betula Sync, shown while the profile is private.
+  const opt = (key, value, title, text, sync) => `<button type="button" class="opt" data-set="${key}" data-value="${value}" aria-pressed="${state[key] === value}"><b>${title}${sync && !state.synced ? '<i class="tag">mit Sync</i>' : ""}</b><span>${text}</span></button>`;
+  /// The offer of Betula Sync: what it makes better, and „Profil speichern“.
+  const offer = (title, text) => `<div class="upgrade${state.saving ? " busy" : ""}">${icon.sync}<span class="t"><b>${title}</b><span>${text}</span></span><button type="button" class="btn" data-save>${state.saving ? "Wird gespeichert …" : "Profil speichern"}</button></div>`;
   const sw = (key, title, text) => `<button type="button" class="sw" role="switch" data-toggle="${key}" aria-checked="${state[key]}"><span class="track"></span><span class="t"><b>${title}</b><span>${text}</span></span></button>`;
 
   const needsSync = () => !state.synced && (state.tab === "people" ? state.live || state.once : state.live);
 
   function notes() {
     const out = [];
-    if (needsSync()) out.push(`<div class="note sync">${icon.sync}<span><b>Dafür schaltet Betula Sync dieses Profil ein.</b> Der Server bewahrt den geteilten Kalender versiegelt auf und kann ihn nicht öffnen. Deine anderen Geräte kannst du später verbinden.</span></div>`);
+    if (needsSync()) out.push(`<div class="upgrade need">${icon.sync}<span class="t"><b>Dafür speichert Betula dein Profil mit Betula Sync.</b><span>Verschlüsselt und ohne Konto: Der Server bewahrt Profil und geteilten Kalender auf und kann beides nicht öffnen. Deine anderen Geräte kannst du später verbinden.</span></span></div>`);
     if (state.tab === "people") {
       if (!state.live && !state.once) out.push(`<div class="note">${icon.info}<span>Eine Kopie von jetzt, die sich nicht zurückholen lässt. Messenger zeigen die Module in der Vorschau, wie bisher.</span></div>`);
       if (!state.live && state.once) out.push(`<div class="note">${icon.info}<span>Eine Kopie von jetzt. Bis jemand den Link öffnet, kannst du ihn zurückziehen, danach nicht mehr.</span></div>`);
       if (state.live && !state.once) out.push(`<div class="note warn">${icon.info}<span>Wer den Link hat, sieht jede Änderung, auch wenn er weitergeleitet wurde. „Nicht mehr teilen“ nimmt ihn für alle zugleich zurück.</span></div>`);
+      if (!state.synced && !state.live && !state.once) out.push(offer("Mit Betula Sync bleibt Lenas Kalender aktuell", "Und du kannst ihn jederzeit zurücknehmen. Das Profil wird verschlüsselt gespeichert, ohne Konto."));
     } else {
       out.push(`<div class="note">${icon.info}<span>Einen Einmal-Link gibt es hier nicht: Dein Kalender holt die Adresse immer wieder. Die Adresse enthält den Schlüssel zu genau diesem Kalender.</span></div>`);
+      if (!state.synced && !state.live) out.push(offer("Mit Betula Sync bleibt die Adresse gleich", "Und dein Kalender zeigt jede Änderung von selbst, ohne neue Adresse. Das Profil wird verschlüsselt gespeichert, ohne Konto."));
     }
     return out.join("");
   }
@@ -446,11 +476,14 @@ td .no { color: var(--text-3); }
     const fresh = state.scene === "created" && state.tab === "people"
       ? `<div class="srow fresh"><span class="av">${state.once ? "1×" : state.live ? esc((state.who || "?").slice(0, 1).toUpperCase()) : "↗"}</span><span class="t"><b>${state.once ? "Einmal-Link" : esc(state.who || "Link")}<span class="new">neu</span></b><span>${state.once ? "noch nicht geöffnet · bis 15. Nov." : state.live ? '<span class="live">aktuell</span> · alle mit dem Link' : "fester Stand"}</span></span>${state.live || state.once ? `<button type="button" class="btn">${state.once ? "Zurückziehen" : "Nicht mehr teilen"}</button>` : ""}</div>`
       : state.scene === "created"
-        ? `<div class="srow fresh" style="--c: var(--m-evs)"><span class="av">G</span><span class="t"><b>Google Kalender<span class="new">neu</span></b><span>${state.live ? '<span class="live">aktuell</span>' : "fester Stand"}${state.live && state.follow ? " · folgt dem Semester" : ""}</span></span><button type="button" class="btn">Neue Adresse</button></div>`
+        ? `<div class="srow fresh" style="--c: var(--m-evs)"><span class="av">K</span><span class="t"><b>Kalender-App<span class="new">neu</span></b><span>${state.live ? '<span class="live">aktuell</span>' : "fester Stand"}</span></span><button type="button" class="btn">Neue Adresse</button></div>`
         : "";
+    // A private profile has nothing that stays current: only what it shares from now on is listed.
+    if (!state.synced && !fresh) return "";
+    if (!state.synced) return `<div class="grp"><div class="glabel">Geteilt</div><div class="shared">${fresh}</div></div>`;
     return `<div class="grp"><div class="glabel">Geteilt</div><div class="shared">${fresh}
       <div class="srow" style="--c: var(--m-lena)"><span class="av">L</span><span class="t"><b>Lena</b><span><span class="live">aktuell</span> · eigene Termine · seit 3. Nov.</span></span><button type="button" class="btn danger">Nicht mehr teilen</button></div>
-      <div class="srow" style="--c: var(--m-mit)"><span class="av">A</span><span class="t"><b>Apple Kalender</b><span><span class="live">aktuell</span> · folgt dem Semester</span></span><button type="button" class="btn">Neue Adresse</button></div>
+      <div class="srow" style="--c: var(--m-mit)"><span class="av">K</span><span class="t"><b>Kalender-App</b><span><span class="live">aktuell</span> · seit 1. Okt.</span></span><button type="button" class="btn">Neue Adresse</button></div>
     </div></div>`;
   }
 
@@ -464,7 +497,8 @@ td .no { color: var(--text-3); }
   function settingsLine() {
     const parts = state.tab === "people"
       ? [state.live ? "bleibt aktuell" : "fester Stand", state.once ? "eine Person" : "alle mit dem Link"]
-      : [state.live ? "bleibt aktuell" : "fester Stand", state.live ? (state.follow ? "folgt dem Semester" : "nur WiSe 2026/27") : "WiSe 2026/27"];
+      : [state.live ? "bleibt aktuell" : "fester Stand"];
+    parts.push(state.live ? "WiSe 2026/27, dann das nächste Semester" : "WiSe 2026/27");
     parts.push(state.own ? "mit eigenen Terminen" : "ohne eigene Termine");
     if (state.notes) parts.push("mit Notizen");
     return parts.join(" · ");
@@ -480,7 +514,7 @@ td .no { color: var(--text-3); }
         <div class="grp"><div class="glabel">${state.tab === "calendar" ? "Die Adresse für deinen Kalender" : "Der Link"}</div>
         <div class="result"><div class="qr">${qr}</div><div><div class="link">${esc(linkOf())}</div>
           <div class="meta">${meta}</div>
-          <div class="acts"><button type="button" class="btn primary">${icon.copy} ${state.tab === "calendar" ? "Adresse kopieren" : "Link kopieren"}</button><button type="button" class="btn">${icon.share} ${state.tab === "calendar" ? "In Google öffnen" : "Teilen …"}</button></div></div></div></div>
+          <div class="acts"><button type="button" class="btn primary">${icon.copy} ${state.tab === "calendar" ? "Adresse kopieren" : "Link kopieren"}</button>${state.tab === "calendar" ? `<button type="button" class="btn">Google Kalender</button><button type="button" class="btn">Apple Kalender</button>` : `<button type="button" class="btn">${icon.share} Teilen …</button>`}</div></div></div></div>
         <div class="summary">${esc(settingsLine())}</div>`;
     }
     const tabs = `<div class="seg" role="tablist">
@@ -488,10 +522,9 @@ td .no { color: var(--text-3); }
       <button type="button" data-set="tab" data-value="calendar" aria-pressed="${state.tab === "calendar"}">In Kalender-App</button>
     </div>`;
     const how = state.tab === "people"
-      ? `<div class="grp"><div class="glabel">Wie</div><div class="opts">${opt("live", true, "Bleibt aktuell", "Jede Änderung kommt bei ihr an, bis du aufhörst zu teilen.")}${opt("live", false, "Fester Stand", "Eine Kopie von jetzt. Lässt sich nicht zurückholen.")}</div></div>
-         <div class="grp"><div class="glabel">Wer den Link öffnen kann</div><div class="opts">${opt("once", true, "Eine Person", "Gilt einmal: Wer zuerst öffnet, bekommt ihn. 7 Tage.")}${opt("once", false, "Alle mit dem Link", "Beliebig oft, auch weitergeleitet.")}</div></div>`
-      : `<div class="grp"><div class="glabel">Wie</div><div class="opts">${opt("live", true, "Bleibt aktuell", "Die Adresse bleibt gleich. Dein Kalender holt den neuen Stand selbst, Google etwa täglich.")}${opt("live", false, "Fester Stand", "Wie bisher: Nach einer Änderung braucht es eine neue Adresse.")}</div></div>
-         ${state.live ? `<div class="grp"><div class="glabel">Semester</div><div class="opts">${opt("follow", true, "Folgt dem Semester", "Zeigt immer das aktuelle Semester.")}${opt("follow", false, "Nur WiSe 2026/27", "Bleibt bei diesem Semester.")}</div></div>` : ""}`;
+      ? `<div class="grp"><div class="glabel">Wie</div><div class="opts">${opt("live", true, "Bleibt aktuell", "Jede Änderung kommt bei ihr an, bis du aufhörst zu teilen.", true)}${opt("live", false, "Fester Stand", "Eine Kopie von jetzt. Lässt sich nicht zurückholen.")}</div></div>
+         <div class="grp"><div class="glabel">Wer den Link öffnen kann</div><div class="opts">${opt("once", true, "Eine Person", "Gilt einmal: Wer zuerst öffnet, bekommt ihn. Höchstens 7 Tage.", true)}${opt("once", false, "Alle mit dem Link", "Beliebig oft, auch weitergeleitet.")}</div></div>`
+      : `<div class="grp"><div class="glabel">Wie</div><div class="opts">${opt("live", true, "Bleibt aktuell", "Die Adresse bleibt gleich. Dein Kalender holt den neuen Stand selbst, Google etwa täglich.", true)}${opt("live", false, "Fester Stand", "Wie bisher: Nach einer Änderung braucht es eine neue Adresse.")}</div></div>`;
     const along = `<div class="grp"><div class="glabel">Was mitkommt</div>
       <div class="always"><b>Immer dabei:</b> Module, Gruppen und Termine, die du geändert hast.</div>
       ${sw("own", "Eigene Termine", "Arbeit, Volleyball, Lerngruppe: 3 in diesem Semester")}
@@ -503,12 +536,9 @@ td .no { color: var(--text-3); }
 
   function foot() {
     if (state.scene === "created") return `<button type="button" class="btn" data-scene-to="dialog">Weitere Freigabe</button><button type="button" class="btn primary" data-scene-to="dialog">Fertig</button>`;
-    if (state.tab === "calendar") {
-      const sync = needsSync() ? "Sync einschalten: " : "";
-      return `<button type="button" class="btn" data-scene-to="dialog">Abbrechen</button><button type="button" class="btn" data-scene-to="created">${sync}Apple Kalender</button><button type="button" class="btn primary" data-scene-to="created">${sync}Google Kalender</button>`;
-    }
-    const label = needsSync() ? "Sync einschalten und Link erstellen" : state.once ? "Einmal-Link erstellen" : "Link erstellen";
-    return `<button type="button" class="btn" data-scene-to="dialog">Abbrechen</button><button type="button" class="btn primary" data-scene-to="created">${label}</button>`;
+    const what = state.tab === "calendar" ? "Adresse erstellen" : state.once ? "Einmal-Link erstellen" : "Link erstellen";
+    const label = needsSync() ? `Profil speichern und ${state.tab === "calendar" ? "Adresse" : "Link"} erstellen` : what;
+    return `<button type="button" class="btn" data-scene-to="dialog">Abbrechen</button><button type="button" class="btn primary" data-scene-to="created" data-then-sync="${needsSync()}">${label}</button>`;
   }
 
   function dialog(phone) {
@@ -525,17 +555,28 @@ td .no { color: var(--text-3); }
       : `<span class="live">aktuell</span>`;
     const detail = ended
       ? `<p style="font-size:13px;color:var(--text-2)">Max teilt diesen Kalender nicht mehr. Er bleibt mit dem Stand vom 8. Nov. stehen.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn">Behalten</button><button type="button" class="btn danger">Löschen</button></div>`
-      : `<p style="font-size:13px;color:var(--text-2)">Zuletzt geändert vor 2 Minuten. Kommt auf jedes Gerät deines Profils.</p>`;
+      : state.synced
+        ? `<p style="font-size:13px;color:var(--text-2)">Zuletzt geändert vor 2 Minuten. Kommt auf jedes Gerät deines Profils.</p>`
+        : `<p style="font-size:13px;color:var(--text-2)">Zuletzt geholt beim Öffnen, vor 2 Minuten.</p>${offer("Mit Betula Sync kommt jede Änderung sofort an", "Und der Kalender auf jedes deiner Geräte. Verschlüsselt, ohne Konto.")}`;
     return `<div class="lena"><div class="card"><div class="kicker">Lenas Stundenplan · Kalender</div>
       <div class="cal"><span class="dot"></span><b>Stundenplan von Max</b>${status}</div>${detail}</div>
       <div class="card"><div class="cal"><span class="dot" style="background:var(--m-mit)"></span><b>Mein Studiengang</b></div></div></div>`;
   }
 
+  /// A one-time link opened a second time: what it says, and nothing of the plan.
+  function used() {
+    return `<div class="lena"><div class="gonecard"><span class="ic">${icon.unlink}</span>
+      <h4>Dieser Link wurde schon geöffnet</h4>
+      <p>Ein Einmal-Link gilt für eine Person: Jemand hat ihn vor dir geöffnet. Wenn du das nicht warst, bitte um einen neuen Link.</p>
+      <p style="color:var(--text-3);font-size:12px">Ebenso: „Dieser Link ist abgelaufen“ nach 7 Tagen, „Dieser Link wurde zurückgezogen“, wenn ihn die andere Seite vorher zurückgenommen hat.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px"><button type="button" class="btn primary">Zum Stundenplan</button></div></div></div>`;
+  }
+
   function render() {
-    const lenaScene = state.scene === "lena" || state.scene === "ended";
+    const lenaScene = state.scene === "lena" || state.scene === "ended" || state.scene === "used";
     for (const [id, phone] of [["desk-scrim", false], ["phone-scrim", true]]) {
       const scrim = document.getElementById(id);
-      scrim.innerHTML = lenaScene ? lena(state.scene === "ended") : dialog(phone);
+      scrim.innerHTML = state.scene === "used" ? used() : lenaScene ? lena(state.scene === "ended") : dialog(phone);
       scrim.classList.toggle("lenas", lenaScene);
     }
     document.querySelectorAll("#scene button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.scene === state.scene)));
@@ -546,6 +587,20 @@ td .no { color: var(--text-3); }
     const toggle = ev.target.closest("[data-toggle]");
     const to = ev.target.closest("[data-scene-to]");
     const scene = ev.target.closest("[data-scene]");
+    const save = ev.target.closest("[data-save]");
+    if (save) {
+      // „Profil speichern“: Betula Sync comes on, and the choice it offered is taken.
+      state.saving = true;
+      render();
+      setTimeout(() => {
+        state.saving = false;
+        state.synced = true;
+        document.getElementById("synced").checked = true;
+        if (state.scene === "dialog") state.live = true;
+        render();
+      }, 700);
+      return;
+    }
     if (set) {
       const raw = set.dataset.value;
       state[set.dataset.set] = raw === "true" ? true : raw === "false" ? false : raw;
@@ -553,6 +608,10 @@ td .no { color: var(--text-3); }
     } else if (toggle) {
       state[toggle.dataset.toggle] = !state[toggle.dataset.toggle];
     } else if (to) {
+      if (to.dataset.thenSync === "true") {
+        state.synced = true;
+        document.getElementById("synced").checked = true;
+      }
       state.scene = to.dataset.sceneTo;
     } else if (scene) {
       state.scene = scene.dataset.scene;
@@ -566,7 +625,7 @@ td .no { color: var(--text-3); }
   });
   document.getElementById("synced").addEventListener("change", (ev) => {
     state.synced = ev.target.checked;
-    // The defaults follow the profile (question 1).
+    // The defaults follow the profile (decision 1).
     state.live = state.synced;
     state.once = state.synced;
     render();
