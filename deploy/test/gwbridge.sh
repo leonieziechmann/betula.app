@@ -17,8 +17,11 @@
 #         gwbridge_preflight refuses while addr_gen_mode is 1 (no link-local address on a new
 #         bridge: the WSL trap). gwbridge_rebuild to the plan's subnet (vps/files/networks.conf):
 #         "traefik" and "cortex" to 0 and back, "folia" keeps running, how long "traefik" did not
-#         answer, the client seen as itself over both families. Then the way back
-#         (GWBRIDGE_IPV6=off): the gateway again.
+#         answer, the client seen as itself over both families; edge_ipv6_check of lib-stacks.sh
+#         (what 40-stacks.sh edge and 91-verify-stacks.sh ipv6 ask) gets an answer over the host's
+#         own IPv6 address, none while a stale neighbour entry for Traefik stands, an answer again
+#         once it is gone. Then the way back (GWBRIDGE_IPV6=off): the gateway again.
+# Uses the host's port 443 for the stand-in (HTTPS, as edge_ipv6_check asks).
 # down    the swarm left, docker_gwbridge removed, the namespace, the kernel settings as they were.
 set -Eeuo pipefail
 
@@ -28,6 +31,8 @@ DEPLOY_DIR="$(cd "${TEST_DIR}/.." && pwd)"
 . "${DEPLOY_DIR}/vps/lib.sh"
 # shellcheck source=../vps/lib-networks.sh
 . "${DEPLOY_DIR}/vps/lib-networks.sh"
+# shellcheck source=../vps/lib-stacks.sh
+. "${DEPLOY_DIR}/vps/lib-stacks.sh"
 betula_init --tmp
 require_root
 for cmd in docker curl ip ip6tables systemctl; do require_cmd "${cmd}"; done
@@ -132,8 +137,10 @@ docker swarm init --advertise-addr "$(default_ipv4)" >/dev/null
 docker network create --driver overlay gw6_out >/dev/null
 docker network create --driver overlay --internal gw6_in >/dev/null
 docker service create --detach --name gw6_traefik --network gw6_out --network gw6_in --stop-grace-period 20s \
-  --publish "mode=host,target=80,published=${PORT}" --mount "type=bind,src=${WORK}/dynamic,dst=/dynamic,ro" \
-  "${IMAGE}" --entryPoints.web.address=:80 --providers.file.directory=/dynamic --ping=true --ping.manualRouting=true >/dev/null
+  --publish "mode=host,target=80,published=${PORT}" --publish "mode=host,target=443,published=443" \
+  --mount "type=bind,src=${WORK}/dynamic,dst=/dynamic,ro" \
+  "${IMAGE}" --entryPoints.web.address=:80 --entryPoints.websecure.address=:443 --entryPoints.websecure.http.tls=true \
+  --providers.file.directory=/dynamic --ping=true --ping.manualRouting=true >/dev/null
 docker service create --detach --name gw6_cortex --network gw6_out "${IMAGE}" --ping=true >/dev/null
 docker service create --detach --name gw6_folia --network gw6_in "${IMAGE}" --ping=true >/dev/null
 gwbridge_wait_running gw6_traefik gw6_cortex gw6_folia
@@ -156,7 +163,22 @@ expect() { # EXPECTED 6|4 WHAT
 
 # ---------------------------------------------------------------- check
 
+# edge_ipv6_check asks SITE_HOST over its AAAA addresses that are this machine's: here a name of
+# the test's own, whose one AAAA address is the host's end of the client's veth.
+SITE_HOST="betula.test"
+PUBLIC_ADDRESSES="2001:db8:6::1"
+host_addresses() {
+  [[ "$1" == "${SITE_HOST}" ]] && printf '2001:db8:6::1\n'
+  return 0
+}
+expect_ipv6_check() { # EXPECTED-RC WHAT
+  local rc=0
+  edge_ipv6_check || rc=$?
+  if [[ "${rc}" == "$1" ]]; then ok "$2: edge_ipv6_check ${rc} (${EDGE_IPV6_DETAIL})"; else bad "$2: edge_ipv6_check ${rc}, expected $1 (${EDGE_IPV6_DETAIL})"; fi
+}
+
 expect 404 6 "before, the client over IPv6 is the bridge's gateway"
+expect_ipv6_check 2 "before, nothing to ask"
 expect 200 4 "before, the client over IPv4 is itself"
 wanted="$(gwbridge_wanted)"
 if [[ "${wanted}" == "${NETPLAN_GWBRIDGE6}" ]]; then ok "wanted: ${wanted}"; else bad "gwbridge_wanted says ${wanted}, the plan ${NETPLAN_GWBRIDGE6}"; fi
@@ -187,6 +209,14 @@ if [[ "$(docker ps -q --filter name=gw6_folia)" == "${folia}" ]]; then ok "gw6_f
 if gwbridge_verify "${wanted}"; then ok "gwbridge_verify: $(gwbridge_facts)"; else bad "gwbridge_verify: ${GWBRIDGE_DETAIL}"; fi
 expect 200 6 "with IPv6 on the bridge, the client over IPv6 is itself"
 expect 200 4 "with IPv6 on the bridge, the client over IPv4 is itself"
+expect_ipv6_check 0 "with IPv6 on the bridge, Traefik answers over the host's IPv6"
+# The suspected failure of 2026-11-08: the host's neighbour entry for Traefik's address points at a
+# MAC address nobody has (a task replaced, its address kept).
+traefik6="$(ip6tables -w 10 -t nat -S DOCKER | grep -- '--dport 443 ' | grep -o 'to-destination \[[^]]*' | sed 's/.*\[//' | head -n 1)"
+ip -6 neigh replace "${traefik6}" lladdr 02:00:5e:00:53:01 dev "${GWBRIDGE}" nud permanent
+expect_ipv6_check 1 "a stale neighbour entry for Traefik (${traefik6})"
+ip -6 neigh del "${traefik6}" dev "${GWBRIDGE}"
+expect_ipv6_check 0 "the stale entry gone"
 
 GWBRIDGE_IPV6=off
 wanted="$(gwbridge_wanted)"

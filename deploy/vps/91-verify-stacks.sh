@@ -6,7 +6,7 @@
 #   bash /opt/betula/vps/91-verify-stacks.sh                 # everything
 #   bash /opt/betula/vps/91-verify-stacks.sh tls headers     # only some sections
 #
-# Sections: services http tls headers ports accesslog app cortex canary netmatrix phloem loki
+# Sections: services http ipv6 tls headers ports accesslog app cortex canary netmatrix phloem loki
 #           prometheus grafana alerts
 # Prints one PASS / WARN / FAIL line per check and exits non-zero when anything FAILed.
 # Changes nothing, and writes one file: /run/betula/metrics/verify-probes.prom, the time of its
@@ -43,7 +43,7 @@ require_ubuntu
 require_cmd docker curl openssl jq
 require_swarm_manager
 
-ALL_SECTIONS=(services http tls headers ports accesslog app cortex canary netmatrix phloem loki prometheus grafana alerts)
+ALL_SECTIONS=(services http ipv6 tls headers ports accesslog app cortex canary netmatrix phloem loki prometheus grafana alerts)
 GRAFANA_PUBLIC_HOST="${GRAFANA_HOST:-${DEFAULT_GRAFANA_HOST}}"
 RULES_FILE="${CONFIG_DIR}/monitoring/grafana/provisioning/alerting/rules.yml"
 # Jobs that must be "up": five scraped by Prometheus (config/monitoring/prometheus.yml), two by
@@ -307,6 +307,17 @@ check_http() {
       fail "https://${WWW_HOST}/ does not redirect to https://${SITE_HOST}/ with the same path (got: ${out})"
     fi
   fi
+}
+
+check_ipv6() {
+  section "IPv6 to Traefik (docker_gwbridge with IPv6: the visitors' way, asked from the host)"
+  local rc=0
+  edge_ipv6_check || rc=$?
+  case "${rc}" in
+    0) pass "${EDGE_IPV6_DETAIL}" ;;
+    2) warning "not asked: ${EDGE_IPV6_DETAIL} (README.md section 15, IPv6 to Traefik)" ;;
+    *) fail "${EDGE_IPV6_DETAIL}: IPv6 visitors get no answer while IPv4 works; restart Traefik (docker service update --force edge_traefik) and look at sudo ip6tables -t nat -S DOCKER (README.md section 15, IPv6 to Traefik)" ;;
+  esac
 }
 
 check_tls() {
