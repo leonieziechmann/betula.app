@@ -7436,6 +7436,17 @@ span.st-wb-go { cursor: default; }
 .pf-recover input { font-size: 15px; font-weight: 560; letter-spacing: .04em; }
 .pf-sync-other > .note-action { margin-top: 8px; }
 .pf-connect .pf-ways { margin-top: 14px; }
+/* „Mit dem Handy verbinden" (pair.rs): the computer's code, the phone's profile. The page is the
+   code: a column of its own, the code large beside what to do. */
+.pf-pair-page { max-width: 760px; width: 100%; justify-self: center; }
+.pf-asking { margin-top: 14px; align-items: center; gap: 18px 26px; padding: 22px; }
+.pf-asking .pf-qr { width: 240px; height: 240px; }
+.pf-asking .pf-pair-text { font-size: 14.5px; gap: 12px; }
+.pf-asking .pf-sync-state { margin-top: 0; }
+.pf-give-what { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 12px; padding: 10px 12px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 14px; }
+.pf-give-what .icon { width: 16px; height: 16px; color: var(--text-2); }
+.pf-give-what span { color: var(--text-2); }
+.pf-give[aria-disabled="true"] { opacity: .7; cursor: progress; }
 /* A hint of Betula Sync where two devices changed a thing at once (folia/crates/widgets/src/
    syncnote.rs): under the note, on „Mein Studium" over the semesters. */
 .sync-hint { display: flex; align-items: flex-start; gap: 9px; margin-top: 8px; padding: 9px 11px; border-radius: 9px; background: var(--warn-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 28%, transparent); color: var(--text); font-size: 13px; line-height: 1.45; }
@@ -7744,6 +7755,11 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .ob-more { display: inline-flex; align-items: center; gap: 6px; }
 .ob-more .icon { width: 15px; height: 15px; }
 .ob-fill .pf-pair { margin-top: 0; }
+/* On a phone the laptop asks: the address to open there, large, between what to do. */
+.ob-elsewhere { display: grid; gap: 10px; color: var(--text-2); font-size: 13.5px; line-height: 1.5; }
+.ob-address { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); }
+.ob-address .icon { flex: none; width: 20px; height: 20px; color: var(--accent-ink); }
+.ob-address code { font-size: 18px; font-weight: 650; letter-spacing: -.01em; overflow-wrap: anywhere; user-select: all; }
 .ob-actions .ob-activate[aria-disabled="true"] { opacity: .7; cursor: progress; }
 
 /* The note after the setup. */

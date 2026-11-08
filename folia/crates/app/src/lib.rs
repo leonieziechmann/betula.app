@@ -27,6 +27,7 @@ use folia_home::legal::{ImprintPage, PrivacyPage};
 use folia_planner::study::StudyPage;
 use folia_planner::studyplan::StudyplanPage;
 use folia_profile::connect::ConnectPage;
+use folia_profile::pair::PairPage;
 use folia_profile::profile::ProfilePage;
 use folia_programs::{program::ProgramPage, programs::ProgramsPage};
 use folia_shell::chrome::{FollowTabs, NavItems, ProfileMenu, ProfileSwitcher, Rail, TabMenu, TopBack, TopBar};
@@ -159,6 +160,7 @@ fn pages() -> impl IntoView {
                 <Route path=path!("/study") view=StudyPage ssr=SsrMode::Async/>
                 <Route path=path!("/profile") view=ProfilePage ssr=SsrMode::Async/>
                 <Route path=path!("/sync") view=ConnectPage ssr=SsrMode::Async/>
+                <Route path=path!("/pair") view=PairPage ssr=SsrMode::Async/>
                 <Route path=path!("/event/:key") view=EventPage ssr=SsrMode::Async/>
                 <Route path=path!("/event/:key/:day") view=EventPage ssr=SsrMode::Async/>
                 <Route path=path!("/imprint") view=ImprintPage ssr=SsrMode::Async/>
@@ -185,6 +187,7 @@ fn page(page: Page) -> AnyView {
         Page::Study => view! { <StudyPage/> }.into_any(),
         Page::Profile => view! { <ProfilePage/> }.into_any(),
         Page::Connect => view! { <ConnectPage/> }.into_any(),
+        Page::Pair => view! { <PairPage/> }.into_any(),
         Page::Event => view! { <EventPage/> }.into_any(),
         Page::Imprint => view! { <ImprintPage/> }.into_any(),
         Page::Privacy => view! { <PrivacyPage/> }.into_any(),
