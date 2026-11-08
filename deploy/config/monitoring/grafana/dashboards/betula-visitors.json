@@ -202,7 +202,7 @@
         "spec": {
           "id": 14,
           "title": "Requests: Google, crawlers, rest",
-          "description": "All requests to betula.app per hour. \"Crawlers turned away\" got 403 from the crawler filter in front of the site: only search engines and link previews are served (deploy/config/traefik/dynamic/crawlers.yml), and nothing from the clouds whose crawlers pass for browsers (crawler-networks.yml). They are no visitors either. \"Other crawlers\" are those other search engines and link previews. \"Everything else\" is people plus scanners and tools without a crawler user agent.",
+          "description": "All requests to betula.app per hour. \"Crawlers turned away\" got 403 from the crawler filter in front of the site: only search engines and link previews are served (deploy/config/traefik/dynamic/crawlers.yml), and nothing from the clouds whose crawlers pass for browsers (crawler-networks.yml). \"Outside Europe\" got 403 for where it came from (europe.yml). Neither counts as a visitor. \"Other crawlers\" are those other search engines and link previews. \"Everything else\" is people plus scanners and tools without a crawler user agent.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -289,6 +289,21 @@
                         "id": "color",
                         "value": {
                           "fixedColor": "#8e8e8e",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "outside Europe"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#c4c4c4",
                           "mode": "fixed"
                         }
                       }

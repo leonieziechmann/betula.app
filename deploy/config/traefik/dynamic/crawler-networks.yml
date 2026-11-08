@@ -1,4 +1,4 @@
-# Written by deploy/crawler-networks.py on 2026-11-08: do not edit, run it again. Why, and how often:
+# Written by deploy/edge-networks.py on 2026-11-08: do not edit, run it again. Why, and how often:
 # its docstring.
 #
 # Every request from a network of these clouds gets 403, whatever its user agent says, and never

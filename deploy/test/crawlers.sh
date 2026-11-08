@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# crawlers.sh - the crawler filter of config/traefik/dynamic/crawlers.yml and crawler-networks.yml in
-# a real Traefik: who gets 403 and who is served. Needs Docker and curl, no swarm; pulls the Traefik
-# image of stacks/edge.yml. Never on the server (it publishes 127.0.0.1:18444).
+# crawlers.sh - the filter in front of the sites in a real Traefik: config/traefik/dynamic/crawlers.yml,
+# crawler-networks.yml and europe.yml, who gets 403 and who is served. Needs Docker and curl, no
+# swarm; pulls the Traefik image of stacks/edge.yml. Never on the server (it publishes 127.0.0.1:18444).
 #
 #   bash deploy/test/crawlers.sh        # up, check, down; exit 1 when a check fails
 #
-# Traefik runs with both files as they are, next to two stand-ins of the sites' routers: Folia's for
-# the host betula.app (priority 37, the colour's) and Phloem's /sync/v1/ (1000). Both lead to
-# Traefik's ping, which answers 200 to every path, so 200 is "served" and 403 is the crawler filter.
+# Traefik runs with the three files as they are, next to two stand-ins of the sites' routers:
+# Folia's for the host betula.app (priority 37, the colour's) and Phloem's /sync/v1/ (1000). Both
+# lead to Traefik's ping, which answers 200 to every path, so 200 is "served" and 403 is the filter.
 # The user agents are the ones the crawlers send (their operators' documentation, 2026-11). Then the
-# networks: the test's own address (Docker's bridge) is put among the clouds' in a copy of
-# crawler-networks.yml, which Traefik reloads, and a browser must be turned away as well.
+# networks, in copies that Traefik reloads: the test's own address (Docker's bridge) put among the
+# clouds' of crawler-networks.yml, and taken out of Europe's open networks of europe.yml.
 set -Euo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,7 +33,9 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "${WORK}/dynamic"
-cp "${DEPLOY_DIR}/config/traefik/dynamic/crawlers.yml" "${DEPLOY_DIR}/config/traefik/dynamic/crawler-networks.yml" "${WORK}/dynamic/"
+for file in crawlers.yml crawler-networks.yml europe.yml; do
+  cp "${DEPLOY_DIR}/config/traefik/dynamic/${file}" "${WORK}/dynamic/"
+done
 cat >"${WORK}/dynamic/sites.yml" <<'EOF'
 http:
   routers:
@@ -184,6 +186,42 @@ if [[ "${logged}" -ge "${TURNED_AWAY}" && "${TURNED_AWAY}" -gt 0 ]]; then
 else
   FAILED=$((FAILED + 1))
   printf 'FAIL  the access log has %s lines of edge-crawler-networks@file for %s requests turned away\n' "${logged}" "${TURNED_AWAY}"
+fi
+
+# Back to the clouds' list as it is, then Europe without the private networks: the test comes from
+# outside Europe now.
+cp "${DEPLOY_DIR}/config/traefik/dynamic/crawler-networks.yml" "${WORK}/crawler-networks.yml"
+chmod a+r "${WORK}/crawler-networks.yml"
+mv -f "${WORK}/crawler-networks.yml" "${WORK}/dynamic/crawler-networks.yml"
+for _ in $(seq 1 30); do
+  [[ "$(status 'Mozilla/5.0' /)" == 200 ]] && break
+  sleep 1
+done
+grep -v '|| ClientIP(`172.16.0.0/12`)' "${WORK}/dynamic/europe.yml" >"${WORK}/europe.yml"
+chmod a+r "${WORK}/europe.yml"
+mv -f "${WORK}/europe.yml" "${WORK}/dynamic/europe.yml"
+for _ in $(seq 1 30); do
+  [[ "$(status 'Mozilla/5.0' /)" == 403 ]] && break
+  sleep 1
+done
+TURNED_AWAY=0
+expect 403 / 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0'
+expect 403 /api/db 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36'
+expect 200 / 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.204 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+expect 200 / 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm) Chrome/116.0.1938.76 Safari/537.36'
+expect 200 / 'Mozilla/5.0 (compatible; Google-Site-Verification/1.0)'
+expect 200 /catalog/module/11101 'Twitterbot/1.0'
+expect 200 / 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0 SkypeUriPreview Preview/0.5'
+expect 200 /robots.txt 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0'
+expect 200 /calendar/x.ics 'Google-Calendar-Importer'
+expect 200 /healthz 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0'
+sleep 1
+logged="$(docker logs "${NAME}" 2>/dev/null | grep -c '"DownstreamStatus":403,.*"RouterName":"edge-outside-europe@file"' || true)"
+if [[ "${logged}" -ge "${TURNED_AWAY}" && "${TURNED_AWAY}" -gt 0 ]]; then
+  printf 'PASS  the access log has the %s requests from outside Europe turned away (%s lines of edge-outside-europe@file)\n' "${TURNED_AWAY}" "${logged}"
+else
+  FAILED=$((FAILED + 1))
+  printf 'FAIL  the access log has %s lines of edge-outside-europe@file for %s requests turned away\n' "${logged}" "${TURNED_AWAY}"
 fi
 
 if [[ "${FAILED}" -gt 0 ]]; then

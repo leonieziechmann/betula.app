@@ -15,9 +15,10 @@
 # A visitor is a browser that started the app: boot.js asks /api/status with cache: no-store on
 # every start, returning visits too. A browser is its address + user agent. Left out: crawlers by
 # user agent (Google's renderer sends a Nexus 5X agent without "bot") and by Google's addresses,
-# and whatever the crawler filter turned away (RouterName edge-crawlers@file by user agent,
-# edge-crawler-networks@file from the clouds whose crawlers pass for browsers: config/traefik/
-# dynamic/crawlers.yml, crawler-networks.yml).
+# and whatever the filter in front of the sites turned away (RouterName edge-crawlers@file by user
+# agent, edge-crawler-networks@file from the clouds whose crawlers pass for browsers,
+# edge-outside-europe@file from outside Europe: config/traefik/dynamic/crawlers.yml,
+# crawler-networks.yml, europe.yml).
 groups:
   - name: visitors-5m
     interval: 5m
@@ -26,7 +27,7 @@ groups:
       - record: betula:visitors:1h
         expr: |
           count by (device, browser) (sum by (device, browser, host, ua) (count_over_time(
-            {service="edge_traefik"} |= `"RequestHost":"betula.app"` |= `"RequestPath":"/api/status"` != `"RouterName":"edge-crawler`
+            {service="edge_traefik"} |= `"RequestHost":"betula.app"` |= `"RequestPath":"/api/status"` !~ `"RouterName":"edge-(crawler|outside-europe)`
             | json host="ClientHost", ua=`["request_User-Agent"]`
             | ua!~`(?i).*(bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|curl|wget|python|go-http|java/|okhttp|scan|Nexus 5X Build/MMB29P).*`
             | ua!=`` | host!~`(66\.249|74\.125|192\.178)\..*`
@@ -40,7 +41,7 @@ groups:
       - record: betula:visitors:24h
         expr: |
           count by (device, browser) (sum by (device, browser, host, ua) (count_over_time(
-            {service="edge_traefik"} |= `"RequestHost":"betula.app"` |= `"RequestPath":"/api/status"` != `"RouterName":"edge-crawler`
+            {service="edge_traefik"} |= `"RequestHost":"betula.app"` |= `"RequestPath":"/api/status"` !~ `"RouterName":"edge-(crawler|outside-europe)`
             | json host="ClientHost", ua=`["request_User-Agent"]`
             | ua!~`(?i).*(bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|curl|wget|python|go-http|java/|okhttp|scan|Nexus 5X Build/MMB29P).*`
             | ua!=`` | host!~`(66\.249|74\.125|192\.178)\..*`
@@ -54,7 +55,7 @@ groups:
       - record: betula:app_starts:1h
         expr: |
           sum(count_over_time(
-            {service="edge_traefik"} |= `"RequestHost":"betula.app"` |= `"RequestPath":"/api/status"` != `"RouterName":"edge-crawler`
+            {service="edge_traefik"} |= `"RequestHost":"betula.app"` |= `"RequestPath":"/api/status"` !~ `"RouterName":"edge-(crawler|outside-europe)`
             | json host="ClientHost", ua=`["request_User-Agent"]`
             | ua!~`(?i).*(bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|curl|wget|python|go-http|java/|okhttp|scan|Nexus 5X Build/MMB29P).*`
             | ua!=`` | host!~`(66\.249|74\.125|192\.178)\..*`
@@ -63,8 +64,8 @@ groups:
 
       # Every request to betula.app of the last hour: who = crawlers turned away (403 from the
       # crawler filter, config/traefik/dynamic/crawlers.yml by user agent, crawler-networks.yml by
-      # the network it comes from), Google, other crawlers (the other
-      # search engines and the link previews, which are served) or everything else (people,
+      # the network it comes from), outside Europe (403 of europe.yml), Google, other crawlers (the
+      # other search engines and the link previews, which are served) or everything else (people,
       # scanners, tools); crawler = the crawler's name from its user agent (the word with
       # bot/crawl/spider), empty for everything else, turned away or not.
       - record: betula:requests:1h
@@ -74,7 +75,7 @@ groups:
             | regexp `"request_User-Agent":"[^"]*?(?P<crawler>[A-Za-z0-9._-]*(?i:bot|crawl|spider)[A-Za-z0-9._-]*)`
             | json host="ClientHost", ua=`["request_User-Agent"]`, router="RouterName"
             | label_format crawler=`{{ if contains "Nexus 5X Build/MMB29P" .ua }}{{ if contains "Googlebot" .ua }}Googlebot{{ else if contains "GoogleOther" .ua }}GoogleOther{{ else }}Google renderer{{ end }}{{ else }}{{ .crawler }}{{ end }}`
-            | label_format who=`{{ if hasPrefix "edge-crawler" .router }}crawlers turned away{{ else if or (contains "Google" .crawler) (hasPrefix "66.249." .host) }}Google{{ else if .crawler }}other crawlers{{ else }}everything else{{ end }}`
+            | label_format who=`{{ if hasPrefix "edge-crawler" .router }}crawlers turned away{{ else if eq .router "edge-outside-europe@file" }}outside Europe{{ else if or (contains "Google" .crawler) (hasPrefix "66.249." .host) }}Google{{ else if .crawler }}other crawlers{{ else }}everything else{{ end }}`
             | keep who, crawler
             [1h]))
 
@@ -85,7 +86,7 @@ groups:
       - record: betula:visitors:7d
         expr: |
           count by (device, browser) (sum by (device, browser, host, ua) (count_over_time(
-            {service="edge_traefik"} |= `"RequestHost":"betula.app"` |= `"RequestPath":"/api/status"` != `"RouterName":"edge-crawler`
+            {service="edge_traefik"} |= `"RequestHost":"betula.app"` |= `"RequestPath":"/api/status"` !~ `"RouterName":"edge-(crawler|outside-europe)`
             | json host="ClientHost", ua=`["request_User-Agent"]`
             | ua!~`(?i).*(bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|curl|wget|python|go-http|java/|okhttp|scan|Nexus 5X Build/MMB29P).*`
             | ua!=`` | host!~`(66\.249|74\.125|192\.178)\..*`
