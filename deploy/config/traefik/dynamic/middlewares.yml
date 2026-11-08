@@ -19,9 +19,11 @@ http:
         customFrameOptionsValue: SAMEORIGIN
         # Other sites learn the origin, never the path or the query.
         referrerPolicy: strict-origin-when-cross-origin
-        # Nothing here needs device access. Only long-established feature names: Chrome logs a console
-        # warning for every name it does not know.
-        permissionsPolicy: "accelerometer=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+        # No device access, but the camera for the site itself: Betula's scanner reads the code another
+        # device shows to connect it (Betula Sync, folia/crates/profile/src/scan.rs; the picture stays in
+        # the browser). Only long-established feature names: Chrome logs a console warning for every
+        # name it does not know.
+        permissionsPolicy: "accelerometer=(), camera=(self), display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
         # An empty value removes the header; backend names and versions are nobody's business.
         customResponseHeaders:
           Server: ""

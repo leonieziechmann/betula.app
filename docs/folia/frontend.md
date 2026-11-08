@@ -55,8 +55,8 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/bookmarks?collection=…&turnus=…&stand=…&counts=1&lang=…&ects_min=…&campus=…&graded=yes&fits=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (the view — a collection by its number, `none` for „Ohne Sammlung", never its name —, half of the year, „Stand", „Zählt in meinem Studium", the few of the catalog's filters it has under the catalog's names, the order — `added`, `study`, `offer`, `title`, `ects`, `events`, each turned round with `desc=1` —, the previewed module), never what is on it: the marks live in the browser, and so does what is typed into the search at the head on this page (`folia_shell::search::LocalSearch`, R20). `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/widgets/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` is a sheet over the list (2026-10-06; until then it did what `full=1` does). The server renders an explanation, the same for everybody, `noindex` |
 | `/studyplan?sem=…&view=…&open=<id>&row=<key>&termin=<key>&on=<day>&wahl=e<event>&vergleich=1&import=…&variant=<n>[&share=<code>][&full=1]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20) — `termin` and `on` a Termin in its own view in the app's dialog over it, and with `full=1` filling the page („Ganze Seite", as `open=<id>&full=1` a module; `PlanAddress`; „A Termin in its own view"), `wahl` a choice of groups in focus over the week and `vergleich` its groups compared day by day („Offen and the choice in focus") —, with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
 | `/profile` | „Profil" (owner, 2026-10-14; reworked 2026-11-08, folia/design/profil/konzepte.html): the profiles of this browser and the active one's page — its name (renamed in place), „Mein Studiengang" as a line, what it keeps counted (no links), Betula Sync (`#devices`), „Daten" (a file) and the „Gefahrenzone" (emptied, deleted); in the sidebar the profiles (a click switches) and „Profil hinzufügen" (empty, from another device, from a file). What every profile shares (light, dark or the system's; the language) is in the menu of the profiles. What it shows lives in the browser; the address is the page and says nothing more. A page of a while: on a phone its arrow leads back to where the visitor was (2026-10-19). The server renders one stand-in for everybody, `noindex`, not in the sitemap („Profiles" below) |
-| `/sync#<…>` | „Gerät verbinden" (Betula Sync, 2026-11-05; „Betula Sync in the browser" below): the page the link of another device opens. What follows `#` opens a sealed parcel with the profile's key; it never reaches a server, and it leaves the address and the history as soon as the page has read it. The server renders an explanation, the same for everybody, `noindex`; no page links it. `/verbinden#<…>` until 2026-11-08, which leads here (below) |
-| `/pair`, `/pair#<…>` | „Mit dem Handy verbinden" (Betula Sync, 2026-11-08; `folia/crates/profile/src/pair.rs`, docs/folia/sync.md „The actions"): the address one types on a computer. It shows a QR code of `/pair#<id ‖ key>` (made in the browser, ten minutes) and waits; the phone that scans it opens the same page with the fragment, which goes out of the address at once, shows which profile goes and what it holds (an empty one says so: a browser that is not the one Betula is used in), and „Verbinden" („Betula Sync aktivieren und verbinden" for a private profile, with what the server keeps above it); then the computer holds the profile and says so. The server renders one stand-in for everybody, `noindex`, not in the sitemap, the stage of no tab |
+| `/sync`, `/sync#<…>` | „Gerät verbinden" (Betula Sync, 2026-11-05; „Betula Sync in the browser" below): where devices find each other. Without `#` the scanner (since 2026-11-08), which reads the code another device shows (a link of `/sync#…` or a code of `/pair#…`); `#<…>` the link of another device, whose sealed parcel holds the profile's key. What follows `#` never reaches a server, and it leaves the address and the history as soon as the page has read it. The server renders an explanation, the same for everybody, `noindex`; a phone's menu of the profiles and its profile page lead to the scanner. `/verbinden#<…>` until 2026-11-08, which leads here (below) |
+| `/pair`, `/pair#<…>` | „Mit dem Handy verbinden" (Betula Sync, 2026-11-08; owner: „Da muss ein link kommen wie betula.app/pair wo dann der qr code gezeigt wird"; `folia/crates/profile/src/pair.rs`, docs/folia/sync.md „The actions"): the address one types on a computer. It shows a QR code of `/pair#<id ‖ public key>` (an ECDH key made in the browser) with four digits, ten minutes, and takes the profile once the phone that scans it has sent it; on the phone, which opens it with its camera app or reads it with Betula's scanner, which profile goes, the digits and „Ja, „Lena“ verbinden". `noindex`, not listed |
 | `/imprint`, `/privacy` | The legal pages (`folia/crates/home/src/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21); `/impressum` and `/datenschutz` until 2026-11-08, which lead here (below). Linked from the ground at the end of the start page and of the pages about Betula, and from the profile page („Über diese Seite" at its end), which every page leads to (the rail; on a phone the box at the head of the page); § 5 DDG: reachable at all times. Until 2026-11-03 the ground at the end of every page linked them („The birch"; owner: „ich würde gerne den footer raus nehmen aus den meisten seiten von betula. Um weiterhin compliant zu sein können wir bei der Profile page die links wieder machen und den footer bei der landing page lassen"). The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
 | `/verbinden`, `/impressum`, `/datenschutz` | The German addresses there were, until 2026-11-08 (owner: „Keine deutschen links und den urls. Like wir machen hier vernünftige software. Url struktur alles in us englisch"): every path is US English, whatever language the page speaks; query keys and fragments are not paths and stay as they are. No pages any more: the server answers each, in every language (`/en/impressum`), with a redirect for good (308) to `/sync`, `/imprint` and `/privacy`, with its query (`url::MOVED`, `moved_redirect` in `folia-server`), so that what links to them, a bookmark and what search engines know still lead somewhere; the browser app goes on there in the same entry of the history (`stage::Page::Moved`, `Moved` in `folia-app`). A pairing link from before (`/verbinden#<…>`) keeps its key: a browser carries the fragment over a redirect whose `Location` has none (RFC 9110, 10.2.2) |
 
@@ -4001,7 +4001,8 @@ the pages about Betula since 2026-10-27 (`/about/<topic>`, below).
      on, the other way round (owner, the same day: „Oh der pc prozess muss anders sein. Da muss ein
      link kommen wie betula.app/pair wo dann der qr code gezeigt wird, den man am handy scannen kann
      um sich einzuloggen"): the address the laptop opens, `<host>/pair`, large, whose QR code this
-     phone scans and answers with „Verbinden" (`/pair` below); „Verbunden" as on a computer. Step
+     phone scans and answers with „Ja, „…“ verbinden" after the digits (`/pair` below); „Verbunden"
+     as on a computer. Step
      1's „Profil übernehmen" leads to `/pair` where the site offers Betula Sync (from the phone
      by its code), else to the profile page (a file).
      A chip that leads back and „Studium anlegen" once more set the study up anew in place of the
@@ -5185,9 +5186,12 @@ switched on; R20 has the exception.
   „Gerät verbinden“, „Wiederherstellungscode“ (with „Code kopieren“ and „Verbergen“), and quiet at
   the end „Nur dieses Gerät trennen“ and „Sync beenden“, each after a question on a line of its own.
   Ended on another device: private again with all it holds, „Wieder aktivieren“. The only profile,
-  empty and private (a new device): what to do on the device that has the profile, and the recovery
-  code typed in (also under „Profil hinzufügen“), which brings the profile as a new one, the active
-  one. Under it what two devices did at once in the profile (`Sync::conflicts`), a row each with
+  empty and private (a new device): on a wide screen „Profil vom Handy holen“ (the dialog the other
+  way, below), on a phone „Code am Rechner scannen“ (the scanner of `/sync`), and beside it the
+  recovery code typed in, which brings the profile as a new one, the active one. On a phone
+  „Gerät verbinden“ leads to the scanner instead of the dialog, which offers a code of its own
+  there („Hier einen Code zeigen“); so does „Von einem anderen Gerät“ under „Profil hinzufügen“,
+  which on a wide screen opens the dialog the other way. Under it what two devices did at once in the profile (`Sync::conflicts`), a row each with
   the way to where its hint is. **„Gerät verbinden“ is a dialog** (`Connect`, since 2026-11-08): a
   private profile first says what the server then keeps (sealed changes with their sizes and times,
   random ids; never what is in them; deleted after 13 months untouched or with „Sync beenden“) and
@@ -5196,15 +5200,57 @@ switched on; R20 has the exception.
   profile shows at once, the QR code on a light tile of its own, readable by a camera in either
   theme (`folia_profile::qr` with `qrcodegen`), the link with „Link kopieren“ and „Teilen“ where the
   system can (`navigator.share`), how many minutes it still opens (ten in all, once; gone, „Neuer
-  Link“), and once another device has come while it is open, that it has. The sidebar's line about where profiles live names Betula Sync where the site offers
-  it. Every action is a button.
-- **„Gerät verbinden"** (`/sync`, `url::CONNECT`, `folia_profile::connect::ConnectPage`): the
-  page the link of another device opens. It reads the part after `#` once, as it is made, and
-  replaces the entry of the history with the same address without it before anything else
-  happens; then `Sync::join` brings the profile as a new one of this browser, the page switches to
-  it and says so, with the ways to the Stundenplan and the profile, or says why it did not and what
-  to do (every `Problem` a sentence). A page of a while (`nav::passing`), `noindex`, not listed
-  (`url::listed`), linked by no page; the server writes the same explanation for everybody.
+  Link“), and once another device has come while it is open, that it has. **The other way**
+  (folia/design/profil/konzepte.html, the second step; owner, 2026-11-08: „Ok dann mach step 2 mit
+  dem scanner“): the dialog's head chooses between „„Lena“ aufs Handy“ and „Profil vom Handy holen“
+  (`Direction`, above what it changes). „Profil vom Handy holen“ (`GetPart`) shows a code the phone
+  scans (`Sync::request`, docs/folia/sync.md §3): the QR code, what to do („Profil-Knopf › Gerät
+  verbinden“, or the camera app where Betula runs in the browser), the four digits the phone will
+  show, how long it still asks (ten minutes; gone, „Neuer Code“), where the profile goes (into the
+  empty only profile, else a new one, the active one), and „Kein Handy zur Hand?“ with the recovery
+  code. Once the phone has sent a profile, its name and „Fertig“. The code is put away when the
+  dialog closes or goes the other way. The sidebar's line about where profiles live names Betula
+  Sync where the site offers it. Every action is a button.
+- **„Gerät verbinden"** (`/sync`, `url::CONNECT`, `folia_profile::connect::ConnectPage`): where
+  devices of a profile find each other. It reads the part after `#` once, as it is made, and
+  replaces the entry of the history with the same address without it before anything else happens.
+  - Without `#`: **the scanner** (`folia_profile::scan`, since 2026-11-08): the camera that looks
+    away from the person in a dark box with a frame to aim with, „Halte die Kamera auf den Code am
+    Rechner“, and that the picture stays on the device. The browser's BarcodeDetector reads the
+    frames where there is one (Chrome on Android, Safari on a Mac), else four frames a second go
+    through `folia_design::qr::read` (`rqrr`, at most 640 pixels across). A code that asks for a
+    profile leads to the question below, a link of another device joins it, a code of another site
+    of Betula or anything else is named for three seconds and the camera goes on. The camera is off
+    as soon as the scanner goes. Refused (also by the site's Permissions-Policy, which allows
+    `camera=(self)` since 2026-11-08, `deploy/config/traefik/dynamic/middlewares.yml`), missing, or
+    not given out by the browser: the scanner says so with the other ways (the camera app; the
+    recovery code) and „Erneut versuchen“. Under it „Wiederherstellungscode eingeben“ and „Hier
+    einen Code zeigen“ (the profile page's dialog, this profile to another device). A phone's way
+    here: „Gerät verbinden · Code am Rechner scannen“ in the menu of the profiles (its state under it
+    where the profile syncs), „Gerät verbinden“ on its profile page.
+  - A code of `/pair#…` the scanner read: the question below („Ein Rechner möchte ein Profil“) in
+    place of the scanner, „Abbrechen“ back to it.
+  - `#<id ‖ key>` (a link of `Sync::pair`): `Sync::join` brings the profile as a new one of this
+    browser, the page switches to it and says so, with the ways to the Stundenplan and the profile,
+    or says why it did not and what to do (every `Problem` a sentence).
+
+  A page of a while (`nav::passing`), `noindex`, not listed (`url::listed`); the server writes the
+  same explanation for everybody.
+- **„Mit dem Handy verbinden"** (`/pair`, `url::PAIR`, `folia_profile::pair::PairPage`; owner,
+  2026-11-08: „Da muss ein link kommen wie betula.app/pair wo dann der qr code gezeigt wird, den man
+  am handy scannen kann um sich einzuloggen“): the address one types on a computer, which has no
+  camera to scan with. Without `#` the code a phone scans (`folia_profile::sync::GetPart`, as the
+  dialog's „Profil vom Handy holen“ shows it): `/pair#<id ‖ public key>` (`Sync::request`,
+  docs/folia/sync.md §3) as a QR code, the four digits the phone will show, how long it asks;
+  once the phone has sent a profile, it is the active one here. With `#` (the phone, which opens
+  the code with its camera app, or whose scanner read it; `folia_profile::give`): „Ein Rechner
+  möchte ein Profil“, which one (the active one first; a private one „wird dafür eingeschaltet“, as
+  „Betula Sync aktivieren“ does; one that holds nothing in this browser says so, since a camera app
+  may open the code in a browser that is not the one Betula is used in), „Zeigt der Rechner diese
+  Ziffern?“ with the four digits, „Nur bestätigen, wenn der Rechner vor dir steht …“, „Ja, „Lena“
+  verbinden“ and „Abbrechen“. Then that the profile is on its way, and once one more device of the
+  profile is online, „Verbunden“. What follows `#` leaves the address at once; `noindex`, not
+  listed; the server writes the same explanation for everybody.
 - **The hints where the thing is** (`folia_widgets::syncnote`): a module's note typed on two
   devices at once, under the note on the module's page (`collect::ModuleNote`), and a Termin's,
   under its note in the Termin's view (`termin::NoteRow`): „Gleichzeitig auf einem anderen Gerät

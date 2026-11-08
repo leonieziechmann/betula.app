@@ -7,19 +7,24 @@
 // on the server's page and the app's, „Betula Sync aktivieren" after „Studium anlegen", the QR code
 // and the link at once, a second browser that opens it holding the study, „Verbunden" and
 // „Fertig", and the note after the setup saying the profile stays alike on its devices.
-// On a phone the setup's last step names the address a laptop opens, /pair, which shows a QR code;
-// the phone opens the code's link in a tab of its own (as its camera does), „Verbinden", and the
-// laptop holds the phone's study while the step says „Verbunden"; a private profile switches
-// Betula Sync on on the way („Betula Sync aktivieren und verbinden"), and a code opens once.
+// On a phone the setup's last step names the address a laptop opens, /pair, which shows a QR code
+// and four digits; the phone opens the code's link in a tab of its own (as its camera does), shows
+// the same digits, „Ja, … verbinden", and the laptop holds the phone's study while the step says
+// „Verbunden"; a private profile switches Betula Sync on on the way, and a code opens once.
 // The first browser switches Betula Sync on for a profile with marks and a note („Gerät verbinden",
 // „Einschalten und Code zeigen" in its dialog), and the link for the next device opens by itself;
 // the second opens that link and holds the same marks and note in a new profile; a mark set on one
 // shows on the other within seconds; both mark while the second is offline, and once it is back
-// both hold both; the recovery code brings the profile into a third browser; „Sync beenden" makes every browser
-// private again with its copy. Privacy: no request or frame carries a module's number, the note
-// or the profile key in the clear, nothing reaches another host than Folia's and Phloem's, and the
-// link's part after # reaches no server. Fails on a console error or a step that does not show up.
+// both hold both; the recovery code brings the profile into a third browser; a new computer shows
+// a code that a phone opens (as the camera app does) and sends the profile to, the digits alike on
+// both; „Sync beenden" makes every browser private again with its copy; the scanner of /sync (a
+// camera that films a code) sends a private profile, switched on for it. Privacy: no request or
+// frame carries a module's number, the note or the profile key in the clear, nothing reaches
+// another host than Folia's and Phloem's, and no link's or code's part after # reaches a server. Fails on a console error or a step that does not show up.
 import { fileURLToPath } from "node:url";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { chromium } from "playwright-core";
 
 const base = (process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
@@ -41,8 +46,8 @@ const KEYS = () => {
   window.syncKey = (what) => `betula.sync.p${active()}.${what}`;
   window.marked = () => (localStorage.getItem(window.store("betula.bookmarks.v1")) || "").split("\n").filter(Boolean).map((l) => l.split("\t")[0]);
 };
-const device = async (name, options = {}) => {
-  const context = await browser.newContext(options);
+const device = async (name, from = browser, options = {}) => {
+  const context = await from.newContext(options);
   await context.addInitScript(ON_PAGE);
   await context.addInitScript(KEYS);
   const page = await context.newPage();
@@ -137,10 +142,38 @@ await until("the recovery code", a.page, () => /^[0-9A-Z]{4}(-[0-9A-Z]{4}){12}$/
 const code = (await a.page.locator(".pf-code code").first().textContent().catch(() => "")).trim();
 const c = await device("C");
 await go(c.page, "/profile");
+await c.page.click("#pf-sync-code-way >> visible=true").catch(() => problems.push("C: no „Wiederherstellungscode eingeben“ on a new device"));
 await c.page.getByLabel(/Wiederherstellungscode/).first().fill(code).catch(() => problems.push("C: no field for the recovery code"));
 await c.page.getByRole("button", { name: /Profil holen/ }).first().click().catch(() => problems.push("C: no „Profil holen“"));
 await until("C recovered", c.page, (n) => marked().length >= n, SEED.length, 20000);
 check(JSON.stringify(await marksOf(c.page)) === JSON.stringify(await marksOf(a.page)), `C: other marks than A (${await marksOf(c.page)})`);
+
+// ---- „Profil vom Handy holen": the computer shows a code, the phone sends a profile to it ----
+// (folia/design/profil/konzepte.html, the second step.) F, a new computer, asks; B, which holds A's
+// synced profile, opens the code's link as the camera app does, sees the same digits and sends it.
+const asking = async (who) => {
+  await go(who.page, "/profile");
+  await who.page.click("#pf-sync-get >> visible=true").catch(() => problems.push(`${who.name}: no „Profil vom Handy holen“ on a new device`));
+  await until(`${who.name}: the code to scan`, who.page, () => Boolean(onPage(".pf-get")?.dataset.link?.includes("/pair#")) && allOnPage(".pf-get .pf-digits span").length === 4, null, 10000);
+  return who.page.evaluate(() => ({ link: onPage(".pf-get").dataset.link, digits: [...allOnPage(".pf-get .pf-digits span")].map((d) => d.textContent).join("") }));
+};
+const giving = (page) => page.evaluate(() => ({ title: onPage(".pf-give h2")?.textContent ?? null, digits: [...allOnPage(".pf-give .pf-digits span")].map((d) => d.textContent).join(""), chosen: onPage(".pf-give-item.on b")?.textContent ?? null }));
+const f = await device("F");
+const asked = await asking(f);
+check(new URL(asked.link).origin === base && /^\d{4}$/.test(asked.digits), `F: the code ${JSON.stringify(asked)}`);
+await b.page.goto(asked.link);
+await app(b.page);
+await until("B: the question for F's code", b.page, () => allOnPage(".pf-give .pf-digits span").length === 4, null, 10000);
+check(!b.page.url().includes("#"), `B: the code is still in the address (${b.page.url()})`);
+const question = await giving(b.page);
+check(question.title === "Ein Rechner möchte ein Profil" && question.digits === asked.digits, `B: the question ${JSON.stringify(question)} for the digits ${asked.digits}`);
+await b.page.click("#pf-give-yes >> visible=true").catch(() => problems.push("B: no „Ja, … verbinden“"));
+await until("F holds A's profile", f.page, (n) => marked().length >= n, SEED.length, 30000);
+await until("F says the profile came", f.page, () => Boolean(onPage(".pf-connect-body .pf-joined")), null, 5000);
+check(JSON.stringify(await marksOf(f.page)) === JSON.stringify(await marksOf(b.page)), `F: other marks than B (${await marksOf(f.page)} / ${await marksOf(b.page)})`);
+check((await f.page.evaluate(() => (localStorage.getItem("betula.profiles.v1") || "").split("\n").filter((l) => l.startsWith("profile\t")).length)) <= 1, "F: the profile came beside the empty one instead of into it");
+await until("B: „Verbunden“", b.page, () => Boolean(onPage(".pf-give .pf-joined")), null, 15000);
+
 
 // ---- a note typed on both at once: the later stands, the other is a hint on both ----
 const typeNote = async (page, text) => {
@@ -217,10 +250,10 @@ check((await marksOf(b.page)).length >= SEED.length, "B: the copy is gone after 
 }
 
 // ---- on a phone: the laptop opens /pair, and the phone scans its code ----
-const asked = [];
+const pairCodes = [];
 {
   const PHONE = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
-  const g = await device("G", PHONE);
+  const g = await device("G", browser, PHONE);
   await go(g.page, "/");
   await g.page.click("#ob-program >> visible=true").catch(() => problems.push("G: no picker of the program"));
   await g.page.waitForSelector("#ob-program-search >> visible=true").catch(() => {});
@@ -236,17 +269,18 @@ const asked = [];
   await until("G: the address for the laptop", g.page, () => (onPage(".ob-address code")?.textContent ?? "").endsWith("/pair") && !onPage(".ob .pf-qr"), null, 15000);
   const h = await device("H");
   await go(h.page, "/pair");
-  await until("H: the code for the phone", h.page, () => (onPage(".pf-asking .pf-qr")?.dataset.link ?? "").includes("/pair#"), null, 10000);
-  const code = await h.page.evaluate(() => onPage(".pf-asking .pf-qr")?.dataset.link ?? "");
-  asked.push(code);
+  await until("H: the code for the phone", h.page, () => (onPage(".pf-asking .pf-get")?.dataset.link ?? "").includes("/pair#") && allOnPage(".pf-asking .pf-digits span").length === 4, null, 10000);
+  const code = await h.page.evaluate(() => onPage(".pf-asking .pf-get")?.dataset.link ?? "");
+  const digits = await h.page.evaluate(() => [...allOnPage(".pf-asking .pf-digits span")].map((d) => d.textContent).join(""));
+  pairCodes.push(code);
   check(!h.page.url().includes("#"), `H: the address carries a key (${h.page.url()})`);
   const scanned = await g.context.newPage();
   await scanned.goto(code);
   await app(scanned);
-  await until("G: the question of the code", scanned, () => /Dieses Profil verbinden\?/.test(onPage("#pf-pair")?.textContent ?? "") && /Informatik/.test(onPage(".pf-give-what")?.textContent ?? ""), null, 10000);
+  await until("G: the question of the code", scanned, (digits) => onPage(".pf-give h2")?.textContent === "Ein Rechner möchte ein Profil" && [...allOnPage(".pf-give .pf-digits span")].map((d) => d.textContent).join("") === digits, digits, 10000);
   check(!scanned.url().includes("#"), `G: the code's key stays in the address (${scanned.url()})`);
-  await scanned.getByRole("button", { name: /^Verbinden$/ }).first().click().catch(() => problems.push("G: no „Verbinden“"));
-  await until("G: given", scanned, () => /Verbunden: Das andere Gerät hat jetzt dieses Profil\./.test(onPage(".pf-pair-page")?.textContent ?? ""), null, 10000);
+  await scanned.click("#pf-give-yes >> visible=true").catch(() => problems.push("G: no „Ja, … verbinden“"));
+  await until("G: given", scanned, () => /Verbunden: Der Rechner hat/.test(onPage(".pf-give .pf-joined")?.textContent ?? ""), null, 20000);
   await until("H holds G's study", h.page, () => /^program\t079-82-2008$/m.test(localStorage.getItem("betula.myprogram.v1") || ""), null, 20000);
   await until("H says it is here", h.page, () => /ist jetzt auch auf diesem Gerät/.test(onPage(".pf-pair-page")?.textContent ?? ""), null, 5000);
   const plans = await Promise.all([g.page, h.page].map((page) => page.evaluate(() => (localStorage.getItem("betula.studyplan.v1") || "").split("\n").filter((line) => /^[mp]\t/.test(line)).sort().join("\n"))));
@@ -256,22 +290,66 @@ const asked = [];
   // A private profile (A's, ended above) switches Betula Sync on on the way.
   const f = await device("F");
   await go(f.page, "/pair");
-  await until("F: the code", f.page, () => (onPage(".pf-asking .pf-qr")?.dataset.link ?? "").includes("/pair#"), null, 10000);
-  const second = await f.page.evaluate(() => onPage(".pf-asking .pf-qr")?.dataset.link ?? "");
-  asked.push(second);
+  await until("F: the code", f.page, () => (onPage(".pf-asking .pf-get")?.dataset.link ?? "").includes("/pair#"), null, 10000);
+  const second = await f.page.evaluate(() => onPage(".pf-asking .pf-get")?.dataset.link ?? "");
+  pairCodes.push(second);
   const fromA = await a.context.newPage();
   await fromA.goto(second);
   await app(fromA);
-  await fromA.getByRole("button", { name: /Betula Sync aktivieren und verbinden/ }).first().click().catch(() => problems.push("A: no „Betula Sync aktivieren und verbinden“"));
+  await until("A: the question says the profile is switched on for it", fromA, () => Boolean(onPage(".pf-give-item.on small")?.textContent.includes("eingeschaltet")), null, 10000);
+  await fromA.click("#pf-give-yes >> visible=true").catch(() => problems.push("A: no „Ja, … verbinden“"));
   await until("F holds A's marks", f.page, (n) => marked().length >= n, SEED.length, 25000);
   // The code is spent: opened again, it opens nothing.
   const again = await g.context.newPage();
   await again.goto(second);
   await app(again);
-  await again.getByRole("button", { name: /^Verbinden$/ }).first().click().catch(() => problems.push("G: no „Verbinden“ for a code spent"));
+  await again.click("#pf-give-yes >> visible=true").catch(() => problems.push("G: no „Ja, … verbinden“ for a code spent"));
   await until("a code opens once", again, () => /öffnet nichts/.test(onPage(".pf-pair-page .pf-refused")?.textContent ?? ""), null, 10000);
   if (problems.some((p) => p.startsWith("a code opens once"))) problems.push(`a code spent says: ${await again.evaluate(() => onPage(".pf-pair-page")?.textContent ?? "")}`);
 }
+
+// ---- the scanner of /sync ----
+// A camera that films F2's code: H holds a private profile with marks,
+// which is switched on for it and goes to F2.
+const f2 = await device("F2");
+const asked2 = await asking(f2);
+const frame = await f2.page.evaluate(async () => {
+  const svg = onPage(".pf-get .pf-qr");
+  const [w, h] = [640, 480];
+  const image = new Image();
+  image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(svg).replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"'));
+  await image.decode();
+  const canvas = Object.assign(document.createElement("canvas"), { width: w, height: h });
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#d8d8d8";
+  context.fillRect(0, 0, w, h);
+  context.fillStyle = "#ffffff";
+  context.fillRect(150, 70, 340, 340);
+  context.drawImage(image, 170, 90, 300, 300);
+  const rgba = context.getImageData(0, 0, w, h).data;
+  const luma = [];
+  for (let i = 0; i < rgba.length; i += 4) luma.push(Math.round(rgba[i] * 0.299 + rgba[i + 1] * 0.587 + rgba[i + 2] * 0.114));
+  return luma;
+});
+const folder = await mkdtemp(join(tmpdir(), "betula-scan-"));
+const video = join(folder, "code.y4m");
+const plane = Buffer.from(frame);
+const chroma = Buffer.alloc((640 * 480) / 4, 128);
+await writeFile(video, Buffer.concat([Buffer.from("YUV4MPEG2 W640 H480 F10:1 Ip A1:1 C420jpeg\n"), ...Array.from({ length: 10 }, () => Buffer.concat([Buffer.from("FRAME\n"), plane, chroma, chroma]))]));
+const filming = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge", headless: !process.env.SMOKE_HEADED, args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", `--use-file-for-fake-video-capture=${video}`] });
+const h = await device("H", filming, { permissions: ["camera"] });
+await go(h.page, "/catalog");
+await h.page.evaluate((seed) => localStorage.setItem("betula.bookmarks.v1", seed.map((m, i) => `${m}\t${1790000000 - i}`).join("\n") + "\n"), SEED.slice(0, 2));
+await go(h.page, "/sync");
+await until("H: the scanner reads F2's code", h.page, () => allOnPage(".pf-give .pf-digits span").length === 4, null, 20000);
+const question2 = await giving(h.page);
+check(question2.digits === asked2.digits && question2.chosen === "Profil 1" && Boolean(await h.page.evaluate(() => onPage(".pf-give-item small")?.textContent.includes("eingeschaltet"))), `H: the question ${JSON.stringify(question2)} for the digits ${asked2.digits}`);
+check(await h.page.evaluate(() => onPage(".pf-cam") === null), "H: the camera is still on after the code was read");
+await h.page.click("#pf-give-yes >> visible=true").catch(() => problems.push("H: no „Ja, … verbinden“"));
+await until("H switched on", h.page, () => (localStorage.getItem("betula.sync.p1.status") || "").startsWith("online"), null, 15000);
+await until("F2 holds H's profile", f2.page, (n) => marked().length === n, 2, 30000);
+check(JSON.stringify(await marksOf(f2.page)) === JSON.stringify(await marksOf(h.page)), `F2: other marks than H (${await marksOf(f2.page)} / ${await marksOf(h.page)})`);
+await filming.close();
 
 // ---- privacy ----
 const secrets = SEED.concat([live, awayA, awayB, NOTE, "Fassung von A", "Fassung von B"].filter(Boolean));
@@ -279,9 +357,13 @@ const clear = sent.filter((s) => (phloem && s.url.startsWith(phloem.replace(/^ht
 check(clear.length === 0, `to Phloem in the clear: ${clear.slice(0, 3).map((s) => `${s.name} ${s.url} ${s.body.slice(0, 120)}`).join(" | ")}`);
 const keyLeaks = sent.filter((s) => s.body.includes(key) || s.url.includes(key) || (code && s.body.includes(code)));
 check(keyLeaks.length === 0, `the profile key left a browser: ${keyLeaks.slice(0, 2).map((s) => s.url).join(" ")}`);
-for (const fragment of [link, ...asked].map((l) => l.split("#")[1] || "")) {
+const codes = [link, ...pairCodes, asked.link, asked2.link].map((l) => l.split("#")[1] || "");
+for (const fragment of codes) {
   check(!sent.some((s) => fragment && (s.url.includes(fragment) || s.body.includes(fragment))), "a link's part after # reached a server");
 }
+// A code's public key (after its id) goes nowhere either: only the id reaches Phloem.
+const requestKeys = codes.slice(1).map((part) => part.slice(22));
+check(!sent.some((s) => requestKeys.some((key) => key && (s.url.includes(key) || s.body.includes(key)))), "a code's part after # (its public key) reached a server");
 const allowed = new Set([new URL(base).host].concat(phloem ? [new URL(phloem).host] : []));
 const foreign = [...new Set(sent.map((s) => new URL(s.url).host))].filter((h) => !allowed.has(h));
 check(foreign.length === 0, `requests to other hosts: ${foreign.join(", ")}`);

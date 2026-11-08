@@ -513,8 +513,7 @@ impl Profiles {
     /// The first profile, where a browser has it alone, it holds nothing and it does not sync: a
     /// browser new to Betula, into which a profile of another device comes (`sync::Sync::join`)
     /// instead of beside it. Untracked.
-    #[cfg_attr(not(all(feature = "csr", target_arch = "wasm32")), allow(dead_code))]
-    pub(crate) fn empty_first(self) -> Option<u16> {
+    pub fn empty_first(self) -> Option<u16> {
         let alone = self.registry.with_untracked(|registry| registry.profiles.len() == 1 && registry.has(FIRST));
         let empty = texts_of(FIRST).iter().all(|text| text.trim().is_empty());
         (alone && empty && !crate::sync::syncs(FIRST)).then_some(FIRST)
