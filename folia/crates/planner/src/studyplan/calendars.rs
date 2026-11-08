@@ -18,6 +18,13 @@
 //! 2026-10-26). A new calendar comes from a link pasted into its form (`NewCalendar`) or from the
 //! offer of a shared plan (`share.rs`, „Als Kalender"); its menu renames it and deletes it, with
 //! „Rückgängig". The module list beside the week has a part per calendar (`CalendarModules`).
+//!
+//! A calendar may follow a share of someone else's (Betula Sync, step 3; folia/design/teilen/
+//! teilen.html, `share.rs`, „Als Kalender folgen"): its row says „aktuell" while every change
+//! arrives, and „nicht mehr geteilt" once the share was taken back, with „Behalten" (it stays with
+//! what it showed last) and „Löschen" under it. Its menu hands a calendar on into a calendar app
+//! („In Kalender-App", the dialog „Teilen" on that side; owner, 2026-11-08: to persons only the
+//! plan of one's own).
 //! „+ Modul" in a calendar is the next step (folia/design/kalender: „+ Modul" and „nur besuchen").
 //!
 //! What the parts show is built as plain values first (`Shown`, `free_time`), which the tests read
@@ -42,6 +49,7 @@ use leptos::prelude::*;
 
 use super::add::{AddPanel, AddTo};
 use super::head::{weekday_name, MarkedModule};
+use super::share_dialog::{ShareOpen, ShareTab};
 use super::{key_of, PlanCtx};
 use crate::i18n;
 
@@ -78,6 +86,16 @@ struct Entry {
     selection: Selection,
     /// The first semester it holds modules in, where it holds none in the one shown.
     elsewhere: Option<SemesterKey>,
+    follow: Option<Following>,
+}
+
+/// What a calendar that follows a share of someone else's shows of it (`PlanDoc::follow_of`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Following {
+    /// It stays current: every change of the share arrives.
+    Live,
+    /// The share was taken back (since when, seconds since 1970): it keeps what it showed last.
+    Ended(u64),
 }
 
 /// Whether a calendar's Termine are there.
@@ -122,6 +140,8 @@ pub(crate) struct Shown {
     pub termine: usize,
     pub state: State,
     pub elsewhere: Option<SemesterKey>,
+    /// Whether it follows a share, and how that stands.
+    pub follow: Option<Following>,
 }
 
 impl Shown {
@@ -151,7 +171,8 @@ pub(super) fn shown_calendars(url: Memo<StudyplanUrl>, current: Memo<Option<Seme
 fn entry_of(calendar: &Calendar, key: SemesterKey) -> Entry {
     let modules = calendar.modules_in(key);
     let elsewhere = modules.is_empty().then(|| calendar.modules.iter().map(|(semester, _)| *semester).min()).flatten();
-    Entry { key, id: calendar.id, name: calendar.name.clone(), view: calendar.view, program: calendar.program.clone(), modules, selection: calendar.selection(key), elsewhere }
+    let follow = calendar.follow.as_ref().map(|follow| if follow.ended == 0 { Following::Live } else { Following::Ended(follow.ended) });
+    Entry { key, id: calendar.id, name: calendar.name.clone(), view: calendar.view, program: calendar.program.clone(), modules, selection: calendar.selection(key), elsewhere, follow }
 }
 
 /// A calendar as the page shows it, its timetable asked of the local catalog; while the answer is
@@ -194,6 +215,7 @@ fn shown_of(entry: &Entry, source: StoredValue<Option<DataClient>>, before: Opti
         termine,
         state,
         elsewhere: entry.elsewhere,
+        follow: entry.follow,
     }
 }
 
@@ -386,6 +408,13 @@ fn CalendarMenu(ctx: PlanCtx, id: u8, name: String, open: RwSignal<Option<u8>>, 
             <div class="sp-cal-menu">
                 <button class="mini" type="button" on:click=move |_| { ctx.adding.set(Some(AddTo::Calendar(id))); open.set(None); }><Icon name="plus"/>{c.add_module}</button>
                 <button class="mini" type="button" on:click=move |_| renaming.set(true)><Icon name="pencil"/>{c.rename}</button>
+                // Into a calendar app, where the site offers Betula Sync, whose service keeps it
+                // current (the dialog offers to save a private profile).
+                {folia_stores::sync::offered().is_some().then(|| view! {
+                    <button class="mini" type="button" title=c.to_app_title on:click=move |_| { ctx.sharing.set(Some(ShareOpen { calendar: id, tab: ShareTab::App })); open.set(None); }>
+                        <Icon name="calendar-plus"/>{c.to_app}
+                    </button>
+                })}
                 <button class="mini" type="button" on:click=remove><Icon name="trash-2"/>{c.remove}</button>
             </div>
         }
@@ -412,17 +441,52 @@ fn calendar_row(ctx: PlanCtx, calendar: Shown, semester: String, phone: bool, op
         })
     };
     let toggle = move |_| open.update(|open| *open = if *open == Some(id) { None } else { Some(id) });
+    let following = calendar.follow.map(|follow| match follow {
+        Following::Live => view! { <span class="live" title=c.live_title>{c.live}</span>" · " }.into_any(),
+        Following::Ended(_) => view! { <span class="live off" title=c.ended_title>{c.ended}</span>" · " }.into_any(),
+    });
+    let ended = matches!(calendar.follow, Some(Following::Ended(_))).then(|| ended_note(ctx, id, removed, t));
     view! {
         <div class=format!("sp-cal {}", calendar.hue) class:off=calendar.view == CalendarView::Off>
             <i class=format!("sw {way}") aria-hidden="true"></i>
-            <span class="t"><b>{calendar.name.clone()}</b><small>{line}</small></span>
+            <span class="t"><b>{calendar.name.clone()}</b><small>{following}{line}</small></span>
             {(!phone).then(|| view_switch(ctx, &calendar, false, t))}
             <button class="icon-btn sp-cal-more" type="button" aria-expanded=move || if open.get() == Some(id) { "true" } else { "false" } aria-label=(c.menu)(&calendar.name) title=(c.menu)(&calendar.name) on:click=toggle>
                 <Icon name="ellipsis"/>
             </button>
             {phone.then(|| view_switch(ctx, &calendar, true, t))}
         </div>
+        {ended}
         {menu}
+    }
+}
+
+/// Under a calendar whose share was taken back: what that means, „Behalten" (it follows nothing any
+/// more and stays as it is) and „Löschen" (with „Rückgängig", as from its menu); each after the next
+/// frame (R21). Owner, 2026-11-08: Lena keeps the last state and can keep or delete it.
+fn ended_note(ctx: PlanCtx, id: u8, removed: RwSignal<Option<(usize, Calendar)>>, t: &'static i18n::Texts) -> impl IntoView {
+    let c = &t.studyplan_calendars;
+    let keep = move |_| {
+        if let Some(plan) = ctx.plan {
+            plan.update_after_paint(move |doc| {
+                doc.unfollow(id);
+            });
+        }
+    };
+    let remove = move |_| {
+        if let Some(plan) = ctx.plan {
+            folia_design::nav::after_paint(move || {
+                let gone = plan.update(|doc| doc.remove_calendar(id));
+                let _ = removed.try_set(gone);
+            });
+        }
+    };
+    view! {
+        <p class="sp-cal-ended" role="status">
+            <span>{c.ended_hint}</span>
+            <button class="mini hit" type="button" title=c.keep_title on:click=keep><Icon name="check"/>{c.keep}</button>
+            <button class="mini hit" type="button" on:click=remove><Icon name="trash-2"/>{c.remove}</button>
+        </p>
     }
 }
 
@@ -830,6 +894,7 @@ mod tests {
             termine: 1,
             state: State::Ready,
             elsewhere: None,
+            follow: None,
         };
         // In full: all three, outlined in its colour with its initial, its name first in the tooltip.
         let (slots, bands) = layer(&[lena(CalendarView::Full)], Some(&plan), Weeks::All, false, false, &i18n::DE);

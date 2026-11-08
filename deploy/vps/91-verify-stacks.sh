@@ -50,9 +50,9 @@ RULES_FILE="${CONFIG_DIR}/monitoring/grafana/provisioning/alerting/rules.yml"
 # the scraper (config/monitoring/scraper.yml; cortex has its own case below), two pushed by
 # Alloy through remote write (config/monitoring/alloy/config.alloy).
 EXPECTED_JOBS=(prometheus scraper loki grafana alloy traefik cortex integrations/unix integrations/cadvisor)
-# Ports of the contract that must NOT listen on the host: Traefik ping and metrics, socket proxy,
-# Grafana, Loki, Prometheus and the scraper, Alloy, Radix, Folia, Cortex, Phloem.
-PRIVATE_PORTS=(8081 8082 2375 3000 3100 9090 12345 8090 8080 8100 8200)
+# Ports of the contract that must NOT listen on the host: Traefik ping, metrics and parts, socket
+# proxy, Grafana, Loki, Prometheus and the scraper, Alloy, Radix, Folia, Cortex, Phloem.
+PRIVATE_PORTS=(8081 8082 8083 2375 3000 3100 9090 12345 8090 8080 8100 8200)
 # Seconds the follower of Cortex may be behind before this script warns (the alert waits for 300).
 CORTEX_LAG_WARN=60
 PASSED=0

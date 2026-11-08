@@ -307,6 +307,54 @@ pub async fn calendar(State(state): State<AppState>, uri: Uri, headers: HeaderMa
     calendar_response(&headers, &crate::snapshot::content_etag("ics", ics.as_bytes()), ics, &key)
 }
 
+/// `GET /calendar/s/<id ‖ key>.ics`: a calendar shared into a calendar app that stays current
+/// (Betula Sync, step 3; `parts`). Its part is fetched from Phloem through Traefik and opened in
+/// memory with the key the address carries; the timetable is made anew from the active snapshot
+/// as for any feed. Nothing is kept: not the key, not the part, not the calendar. A part that is
+/// not shared any more, or a link that opens nothing, is a 404 like a wrong address.
+pub async fn live_calendar(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    let locale = language_of(&uri);
+    let gone = || (StatusCode::NOT_FOUND, [(header::CACHE_CONTROL, "no-store")], texts(locale).no_calendar).into_response();
+    let (Some(parts), Some(link)) = (state.parts.clone(), folia_calendar::live::link_of_feed_path(uri.path())) else { return gone() };
+    let Some(snapshot) = state.store.current() else {
+        return (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "30")], "no snapshot yet").into_response();
+    };
+    let Some(_place) = state.feeds.enter().await else {
+        return crate::busy::busy(120, false);
+    };
+    let started = Instant::now();
+    let part = match parts.fetch(&link).await {
+        crate::parts::Fetched::Part(part) => *part,
+        crate::parts::Fetched::None => return gone(),
+        crate::parts::Fetched::Unreachable => {
+            tracing::warn!(component = "http", event = "calendar.part_unreachable", "the part of a calendar that stays current could not be fetched from Phloem");
+            return (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "300")], "try again later").into_response();
+        }
+    };
+    let key = part.key().map(|key| key.key()).unwrap_or_default();
+    let locale = folia_locale::Locale::split(uri.path()).0;
+    let built = tokio::task::spawn_blocking(move || {
+        let mut out: Result<String, folia_model::DbError> = Err(folia_model::DbError::Unavailable("not run".to_string()));
+        let ran = snapshot.with_db(&mut |db| out = folia_pages::live_calendar(db, &part, locale));
+        ran.and(out)
+    })
+    .await;
+    let ics = match built {
+        Ok(Ok(ics)) => ics,
+        Ok(Err(error)) => {
+            tracing::error!(component = "http", event = "calendar.failed", error = %error, "a calendar that stays current could not be read from the snapshot");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+        Err(error) => {
+            tracing::error!(component = "http", event = "calendar.failed", error = %error, "the calendar task failed");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    // Size and time only: the address holds a key.
+    tracing::debug!(component = "http", event = "calendar.served", bytes = ics.len(), ms = started.elapsed().as_millis() as u64, live = true, "a calendar that stays current was made");
+    calendar_response(&headers, &crate::snapshot::content_etag("ics", ics.as_bytes()), ics, &key)
+}
+
 /// The answer of a feed. `private`: it is one person's plan, and a shared cache must not keep it.
 /// A quarter of an hour fresh, then revalidated against the content's ETag, which only changes
 /// with the plan or the data (the calendar never reads the clock). Compressed here, as it is made

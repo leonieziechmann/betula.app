@@ -144,7 +144,7 @@ impl Shelf {
         // A number no collection had in this text: a view's address of a deleted one names none.
         // Of the device's class while the profile syncs (`folia_plans::ids`).
         let largest = self.collections.iter().map(|collection| collection.id).chain(self.recent.iter().copied()).max().unwrap_or(0);
-        let id = folia_plans::ids::after(largest, u32::MAX, |id| !self.collections.iter().any(|collection| collection.id == id) && !self.recent.contains(&id)).unwrap_or(u32::MAX);
+        let id = folia_plans::ids::after(folia_plans::ids::Kind::Collection, largest, u32::MAX, |id| !self.collections.iter().any(|collection| collection.id == id) && !self.recent.contains(&id)).unwrap_or(u32::MAX);
         self.collections.push(Collection { id, name });
         Ok(id)
     }

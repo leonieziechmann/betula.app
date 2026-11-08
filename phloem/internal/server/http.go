@@ -20,6 +20,7 @@ const (
 	tokenLen  = 32
 	deviceLen = 16
 	pairLen   = 16
+	partLen   = 16
 )
 
 // bodyTimeout bounds the reading of a request body (the server only bounds the headers, since a
@@ -42,10 +43,11 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			h.Set("Access-Control-Allow-Origin", origin)
+			h.Set("Access-Control-Expose-Headers", "ETag") // a part's version, for If-None-Match
 		}
 		if r.Method == http.MethodOptions {
-			h.Set("Access-Control-Allow-Methods", "GET, POST, DELETE")
-			h.Set("Access-Control-Allow-Headers", "Authorization, Betula-Space, Betula-Pair, Content-Type")
+			h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
+			h.Set("Access-Control-Allow-Headers", "Authorization, Betula-Space, Betula-Pair, Betula-Part, Content-Type, If-None-Match")
 			h.Set("Access-Control-Max-Age", "600")
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -60,13 +62,24 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		s.leavePair(w, r)
 	case path == "/sync/v1/pair" && method == http.MethodGet:
 		s.takePair(w, r)
+	case path == "/sync/v1/pair" && method == http.MethodDelete:
+		s.withdrawPair(w, r)
+	case path == "/sync/v1/pairs" && method == http.MethodGet:
+		s.listPairs(w, r)
+	case path == "/sync/v1/part" && method == http.MethodPut:
+		s.putPart(w, r)
+	case path == "/sync/v1/part" && method == http.MethodDelete:
+		s.deletePart(w, r)
+	case path == "/sync/v1/part" && method == http.MethodGet:
+		s.getPart(w, r)
 	case path == "/sync/v1/ws" && method == http.MethodGet:
 		s.serveWS(w, r)
 	case path == "/healthz" && (method == http.MethodGet || method == http.MethodHead):
 		s.healthz(w, r)
 	case path == "/status" && method == http.MethodGet && fromLoopback(r):
 		s.status(w, r)
-	case path == "/sync/v1/space", path == "/sync/v1/pair", path == "/sync/v1/ws", path == "/healthz":
+	case path == "/sync/v1/space", path == "/sync/v1/pair", path == "/sync/v1/pairs", path == "/sync/v1/part",
+		path == "/sync/v1/ws", path == "/healthz":
 		h.Set("Allow", allowed(path))
 		writeError(w, http.StatusMethodNotAllowed, "method")
 	default:
@@ -79,7 +92,11 @@ func allowed(path string) string {
 	case "/sync/v1/space":
 		return "POST, DELETE, OPTIONS"
 	case "/sync/v1/pair":
-		return "GET, POST, OPTIONS"
+		return "GET, POST, DELETE, OPTIONS"
+	case "/sync/v1/pairs":
+		return "GET, OPTIONS"
+	case "/sync/v1/part":
+		return "GET, PUT, DELETE, OPTIONS"
 	case "/healthz":
 		return "GET, HEAD"
 	}
@@ -264,17 +281,19 @@ func (s *Server) removeSpace(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// leavePair is POST /sync/v1/pair: a sealed parcel for a device to come, kept Limits.PairTTL.
-// 201; 409 exists; 413 too_big; 429 slow_down (the space's pushes, or as many parcels waiting
-// as it may have); 507 budget.
+// leavePair is POST /sync/v1/pair: a sealed parcel for a device to come, kept for the seconds of
+// its ttl (Limits.PairMinTTL to PairMaxTTL), else Limits.PairTTL. 201; 400 invalid (also a ttl
+// beyond them); 409 exists (also the id of a parcel that was); 413 too_big; 429 slow_down (the
+// space's pushes, or as many parcels waiting as it may have); 507 budget.
 func (s *Server) leavePair(w http.ResponseWriter, r *http.Request) {
 	sp, ok := s.authenticate(w, r)
 	if !ok {
 		return
 	}
 	var body struct {
-		ID  b64 `json:"id"`
-		Box b64 `json:"box"`
+		ID  b64    `json:"id"`
+		Box b64    `json:"box"`
+		TTL *int64 `json:"ttl"`
 	}
 	if !s.readBody(w, r, int64(b64len(s.lim.MaxBox))+1<<10, &body) {
 		return
@@ -282,6 +301,15 @@ func (s *Server) leavePair(w http.ResponseWriter, r *http.Request) {
 	if len(body.ID) != pairLen || body.Box == nil {
 		s.fail(w, http.StatusBadRequest, "invalid")
 		return
+	}
+	ttl := s.lim.PairTTL
+	if body.TTL != nil {
+		// In seconds, compared before they become a duration, which a huge number would overflow.
+		if *body.TTL < int64(s.lim.PairMinTTL/time.Second) || *body.TTL > int64(s.lim.PairMaxTTL/time.Second) {
+			s.fail(w, http.StatusBadRequest, "invalid")
+			return
+		}
+		ttl = time.Duration(*body.TTL) * time.Second
 	}
 	if len(body.Box) > s.lim.MaxBox {
 		s.fail(w, http.StatusRequestEntityTooLarge, "too_big")
@@ -296,7 +324,7 @@ func (s *Server) leavePair(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, http.StatusTooManyRequests, "slow_down")
 		return
 	}
-	err := s.st.PutPair(r.Context(), body.ID, sp.ID, body.Box, now, now.Add(s.lim.PairTTL), s.lim.MaxPairs)
+	err := s.st.PutPair(r.Context(), body.ID, sp.ID, body.Box, now, now.Add(ttl), s.lim.MaxPairs)
 	switch {
 	case errors.Is(err, store.ErrExists):
 		s.fail(w, http.StatusConflict, "exists")
@@ -312,8 +340,9 @@ func (s *Server) leavePair(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// takePair is GET /sync/v1/pair with Betula-Pair: the parcel once. 200 {"box"}; 404 not_found;
-// 429 slow_down (Limits.TakesPerAddr).
+// takePair is GET /sync/v1/pair with Betula-Pair: the parcel once; the devices of its space
+// online hear that it was taken. 200 {"box"}; 404 with what became of it (taken, expired,
+// withdrawn), or not_found; 429 slow_down (Limits.TakesPerAddr).
 func (s *Server) takePair(w http.ResponseWriter, r *http.Request) {
 	id, ok := decode64(r.Header.Get("Betula-Pair"), pairLen)
 	if !ok {
@@ -325,20 +354,80 @@ func (s *Server) takePair(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, http.StatusTooManyRequests, "slow_down")
 		return
 	}
-	box, err := s.st.TakePair(r.Context(), id, now)
-	if errors.Is(err, store.ErrNotFound) {
+	took, err := s.st.TakePair(r.Context(), id, now, s.lim.MaxPairsGone)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
 		s.m.parcels.Inc("missed")
 		writeError(w, http.StatusNotFound, "not_found")
 		return
-	}
-	if err != nil {
+	case err != nil:
 		s.internal(w, "take", err)
+		return
+	case took.State != "":
+		// 404 as before Phloem 0.2.0, so that an older browser reads it as it did; the code
+		// says more.
+		if took.Expired {
+			s.m.parcels.Inc("expired")
+		}
+		s.m.parcels.Inc("missed")
+		writeError(w, http.StatusNotFound, took.State)
 		return
 	}
 	s.m.parcels.Inc("taken")
+	s.tellRoom(took.Space, pairFrame(id, store.PairTaken))
 	writeJSON(w, http.StatusOK, struct {
 		Box b64 `json:"box"`
-	}{box})
+	}{took.Box})
+}
+
+// withdrawPair is DELETE /sync/v1/pair with Betula-Pair („Zurückziehen"): the space's parcel
+// that waits is withdrawn from now on. 204, also for an id that is not the space's or waits no
+// longer (nothing changes then).
+func (s *Server) withdrawPair(w http.ResponseWriter, r *http.Request) {
+	sp, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	id, ok := decode64(r.Header.Get("Betula-Pair"), pairLen)
+	if !ok {
+		s.fail(w, http.StatusBadRequest, "invalid")
+		return
+	}
+	found, err := s.st.WithdrawPair(r.Context(), id, sp.ID, s.now(), s.lim.MaxPairsGone)
+	if err != nil {
+		s.internal(w, "withdraw", err)
+		return
+	}
+	if found {
+		s.m.parcels.Inc("withdrawn")
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// listPairs is GET /sync/v1/pairs: the parcels of the space that wait (at: when they expire),
+// and what became of the others (at: when it happened), newest first. 200 {"parcels": […]}.
+func (s *Server) listPairs(w http.ResponseWriter, r *http.Request) {
+	sp, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	list, err := s.st.Pairs(r.Context(), sp.ID, s.now())
+	if err != nil {
+		s.internal(w, "pairs", err)
+		return
+	}
+	type parcel struct {
+		ID    b64    `json:"id"`
+		State string `json:"state"`
+		At    int64  `json:"at"`
+	}
+	out := make([]parcel, 0, len(list))
+	for _, p := range list {
+		out = append(out, parcel{p.ID, p.State, p.At.UnixMilli()})
+	}
+	writeJSON(w, http.StatusOK, struct {
+		Parcels []parcel `json:"parcels"`
+	}{out})
 }
 
 // healthz is GET /healthz: 200 ok while the store answers.

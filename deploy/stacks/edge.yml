@@ -35,6 +35,10 @@
 #               metrics :8082, not published: http://edge_traefik:8082/metrics answers the subnet of
 #               edge_metrics alone and 403 to every other network Traefik is on (manual routing:
 #               config/traefik/dynamic/metrics.yml)
+#               parts :8083, not published, plain HTTP: GET /sync/v1/part of a site's host to its
+#               Phloem and nothing else (stacks/phloem.yml, router <stack>-parts), Folia's way to the
+#               part of a calendar subscription that stays current (folia/crates/server/src/parts.rs).
+#               It serves what https://<host>/sync/v1/part serves anybody: a sealed part by its id
 # certresolver  "le". A router that names it makes Traefik order a certificate immediately, so only use it for
 #               host names whose DNS already points at this server: failed validations are rate limited
 #               (5 per host name per hour).
@@ -173,6 +177,9 @@ services:
       # A router that forgets its tls label must not become plain HTTP on port 443.
       - "--entryPoints.websecure.http.tls=true"
       - "--entryPoints.metrics.address=:8082"
+      # Not published, no TLS: Folia asks Phloem for a part here as the site's host (stacks/phloem.yml,
+      # the router <stack>-parts, the only one on it). What travels is sealed; the key stays in Folia.
+      - "--entryPoints.parts.address=:8083"
       # Loopback only: nothing but the container healthcheck needs /ping.
       - "--entryPoints.ping.address=127.0.0.1:8081"
 

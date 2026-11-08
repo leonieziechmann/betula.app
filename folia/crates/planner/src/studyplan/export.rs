@@ -51,10 +51,8 @@ use crate::i18n::{self, Locale};
 use folia_design::nav;
 use folia_design::ui::Icon;
 use folia_timetable::clash::Weeks;
+use super::share_dialog::{ShareOpen, ShareTab};
 use super::{picture, week, PlanCtx};
-
-/// The id of the ways to subscribe, which „Abonnieren" opens.
-const WAYS_ID: &str = "sp-sub";
 
 /// The id of „Abonnieren", which takes the focus from a note that goes once it is answered.
 const ABO_ID: &str = "sp-abo";
@@ -65,7 +63,7 @@ const QUIET: std::time::Duration = std::time::Duration::from_millis(300);
 
 /// What the semester can be subscribed as.
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum Offer {
+pub(super) enum Offer {
     /// The code of the address.
     Code(String),
     /// More is hidden or chosen than one address carries (`subscription::MAX_CODE`).
@@ -76,12 +74,12 @@ enum Offer {
 
 /// The semester's subscription as the group shows it.
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct Abo {
-    key: SemesterKey,
-    offer: Offer,
+pub(super) struct Abo {
+    pub key: SemesterKey,
+    pub offer: Offer,
     /// An address of the semester was handed out, and the plan has moved on from it: the
     /// calendar shows another plan than the page, whatever the page can offer instead.
-    stale: bool,
+    pub stale: bool,
 }
 
 /// The subscription of the semester `table` shows, as `selection` hides and chooses and with the
@@ -95,7 +93,7 @@ struct Abo {
 /// removed does not make an address stale, since its feed shows what the page shows. Whether a
 /// new address can be offered does not matter: with too much hidden for one, the calendar still
 /// shows an older plan.
-fn abo_of(table: &Timetable, selection: &Selection, program: Option<&str>, subscribed: &BTreeMap<SemesterKey, String>) -> Option<Abo> {
+pub(super) fn abo_of(table: &Timetable, selection: &Selection, program: Option<&str>, subscribed: &BTreeMap<SemesterKey, String>) -> Option<Abo> {
     if table.modules.is_empty() {
         return None;
     }
@@ -111,20 +109,27 @@ fn abo_of(table: &Timetable, selection: &Selection, program: Option<&str>, subsc
 
 /// The ways to subscribe to one address.
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct Ways {
+pub(super) struct Ways {
     /// `webcal://`: Apple's calendars (and others) subscribe to what this scheme names.
-    apple: String,
-    google: String,
-    outlook: String,
+    pub apple: String,
+    pub google: String,
+    pub outlook: String,
     /// The address as a path of this site, for „Adresse kopieren" (`data-absolute`).
-    path: String,
+    pub path: String,
 }
 
 /// The ways to subscribe to the code's address on the site at `origin` (`https://betula.app`,
 /// whose `host` is `betula.app`), for the calendar named after `label` („WiSe 2026/27"): the
 /// feed in `locale`, named as the feed names itself.
+#[cfg(test)]
 fn ways(origin: &str, host: &str, code: &str, label: &str, locale: Locale) -> Ways {
-    let path = locale.path(&subscription::path(code));
+    ways_of(origin, host, &subscription::path(code), label, locale)
+}
+
+/// The ways to subscribe to the feed at `path` (`/calendar/<code>.ics`, `/calendar/s/….ics`), as
+/// `ways` says.
+pub(super) fn ways_of(origin: &str, host: &str, path: &str, label: &str, locale: Locale) -> Ways {
+    let path = locale.path(path);
     let webcal = format!("webcal://{host}{path}");
     Ways {
         google: format!("https://calendar.google.com/calendar/r?cid={}", component(&webcal)),
@@ -154,7 +159,7 @@ fn component(text: &str) -> String {
 
 /// The site's origin and host as the browser has them („https://betula.app", „betula.app"). The
 /// server renders no plan, so it has none.
-fn site() -> Option<(String, String)> {
+pub(super) fn site() -> Option<(String, String)> {
     #[cfg(feature = "csr")]
     {
         let location = web_sys::window()?.location();
@@ -288,18 +293,11 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
             _ => None,
         })
     });
-    let ways = Memo::new(move |_| {
-        abo.with(|abo| match abo {
-            Some(Abo { key, offer: Offer::Code(code), .. }) => site().map(|(origin, host)| ways(&origin, &host, code, &key.label(t.locale), t.locale)),
-            _ => None,
-        })
-    });
     // The address „Neue Adresse kopieren" copies: the feed in the page's language.
     let path = Memo::new(move |_| code.get().map(|code| t.path(&subscription::path(&code))));
     // Whether there is a new address to copy, apart from which one: the stale note's button stays
     // while the code changes under it.
     let copyable = Memo::new(move |_| path.with(Option::is_some));
-    let open = RwSignal::new(false);
     // The code „Neue Adresse kopieren" copied, which the line after it names while it is the one.
     // The line answers that click: the next step to another semester, view or module lets it go,
     // and so does a change of the plan, which a way back does not bring it back from. Two effects:
@@ -465,75 +463,28 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
                 <Icon name="image"/>
                 <span>{s.picture}</span>
             </button>
+            // „Abonnieren": the dialog „Teilen" on its side of calendar apps (`share_dialog.rs`), where
+            // the address stays current or is a fixed copy as before.
             <button
                 class="action"
                 type="button"
                 id=ABO_ID
                 aria-disabled=move || (!offered.get()).then_some("true")
-                aria-expanded=move || if open.get() && offered.get() { "true" } else { "false" }
-                aria-controls=WAYS_ID
                 on:click=move |_| {
                     if offered.get_untracked() {
-                        open.update(|open| *open = !*open);
+                        ctx.sharing.set(Some(ShareOpen { calendar: 0, tab: ShareTab::App }));
                     }
                 }
             >
                 <Icon name="calendar-plus"/>
                 <span>{s.subscribe}</span>
             </button>
-            {move || {
-                if !open.get() || !offered.get() {
-                    return ().into_any();
-                }
-                if too_long.get() {
-                    return view! {
-                        <div class="sp-sub" id=WAYS_ID>
-                            <p class="note note-action ask">
-                                <span>{s.too_much_hidden}</span>
-                                // A stale address's note below has the button already.
-                                {move || (!stale.get()).then(|| view! { <button class="mini hit" type="button" on:click=show_all>{s.show_all}</button> })}
-                            </p>
-                        </div>
-                    }
-                    .into_any();
-                }
-                let Some(ways) = ways.get() else { return ().into_any() };
-                view! {
-                    <div class="sp-sub" id=WAYS_ID>
-                        <a class="action" href=ways.apple rel="external" on:click=move |_| remember() on:auxclick=move |_| remember() on:contextmenu=move |_| remember()>
-                            {s.apple}
-                        </a>
-                        <a
-                            class="action"
-                            href=ways.google
-                            target="_blank"
-                            rel="external noopener"
-                            on:click=move |_| remember()
-                            on:auxclick=move |_| remember()
-                            on:contextmenu=move |_| remember()
-                        >
-                            {s.google}
-                        </a>
-                        <a
-                            class="action"
-                            href=ways.outlook
-                            target="_blank"
-                            rel="external noopener"
-                            on:click=move |_| remember()
-                            on:auxclick=move |_| remember()
-                            on:contextmenu=move |_| remember()
-                        >
-                            "Outlook"
-                        </a>
-                        <button class="action" type="button" data-action="copy-text" data-absolute="" data-text=ways.path on:click=move |_| remember()>
-                            <Icon name="copy"/>
-                            <span>{s.copy_address}</span>
-                        </button>
-                        <p class="hint">{s.subscription_hint}</p>
-                    </div>
-                }
-                .into_any()
-            }}
+            {move || (too_long.get() && !stale.get()).then(|| view! {
+                <p class="note note-action ask">
+                    <span>{s.too_much_hidden}</span>
+                    <button class="mini hit" type="button" on:click=show_all>{s.show_all}</button>
+                </p>
+            })}
             {move || {
                 stale.get().then(|| {
                     view! {

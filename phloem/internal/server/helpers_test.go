@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -156,12 +157,20 @@ type frame struct {
 		Slot int    `json:"slot"`
 		Data string `json:"data"`
 	} `json:"entries"`
-	ID   string `json:"id"`
-	Nr   int64  `json:"nr"`
-	Data string `json:"data"`
-	Upto int64  `json:"upto"`
-	Code string `json:"code"`
-	raw  string
+	ID    string `json:"id"`
+	Nr    int64  `json:"nr"`
+	Data  string `json:"data"`
+	Upto  int64  `json:"upto"`
+	Code  string `json:"code"`
+	Rev   int64  `json:"rev"`   // part
+	Gone  bool   `json:"gone"`  // part
+	State string `json:"state"` // pair
+	Parts []struct {
+		ID   string `json:"id"`
+		Rev  int64  `json:"rev"`
+		Gone bool   `json:"gone"`
+	} `json:"parts"` // watching
+	raw string
 }
 
 // nrs are the numbers of a welcome's entries.
@@ -171,6 +180,86 @@ func (f frame) nrs() []int64 {
 		out = append(out, e.Nr)
 	}
 	return out
+}
+
+// watched is what a watching frame says of each part, in its order: the rev, or "gone".
+func (f frame) watched() string {
+	var out []string
+	for _, p := range f.Parts {
+		if p.Gone {
+			out = append(out, "gone")
+		} else {
+			out = append(out, strconv.FormatInt(p.Rev, 10))
+		}
+	}
+	return strings.Join(out, " ")
+}
+
+// watch sends a watch of the parts ids.
+func (c *client) watch(ids ...[]byte) {
+	c.t.Helper()
+	parts := []string{}
+	for _, id := range ids {
+		parts = append(parts, b64s(id))
+	}
+	c.send(map[string]any{"t": "watch", "parts": parts})
+}
+
+// partHeaders are a space's headers with a part's id ("" in p: none).
+func partHeaders(p profile, id []byte) map[string]string {
+	hdr := map[string]string{"Betula-Part": b64s(id)}
+	if p.space != nil {
+		for k, v := range p.headers() {
+			hdr[k] = v
+		}
+	}
+	return hdr
+}
+
+// putPart puts the part id of p's space; it returns the status and the rev or the error.
+func (e *env) putPart(p profile, id []byte, data string) (int, map[string]any) {
+	e.t.Helper()
+	status, doc, _ := e.request(http.MethodPut, "/sync/v1/part", partHeaders(p, id), map[string]string{"data": b64s([]byte(data))})
+	return status, doc
+}
+
+func (e *env) mustPutPart(p profile, id []byte, data string, rev int64) {
+	e.t.Helper()
+	if status, doc := e.putPart(p, id, data); status != http.StatusOK || doc["rev"] != float64(rev) {
+		e.t.Fatalf("put part: %d %v, want rev %d", status, doc, rev)
+	}
+}
+
+// getPart reads the part id as anyone may, from addr ("": the test's own), naming the version
+// inm in If-None-Match ("": none).
+func (e *env) getPart(id []byte, inm, addr string) (int, map[string]any, http.Header) {
+	e.t.Helper()
+	hdr := map[string]string{"Betula-Part": b64s(id)}
+	if inm != "" {
+		hdr["If-None-Match"] = inm
+	}
+	if addr != "" {
+		hdr["X-Real-Ip"] = addr
+	}
+	return e.request(http.MethodGet, "/sync/v1/part", hdr, nil)
+}
+
+// leavePair leaves a parcel of p's space; ttl 0: none named.
+func (e *env) leavePair(p profile, id []byte, box string, ttl int64) (int, map[string]any) {
+	e.t.Helper()
+	body := map[string]any{"id": b64s(id), "box": b64s([]byte(box))}
+	if ttl != 0 {
+		body["ttl"] = ttl
+	}
+	status, doc, _ := e.request(http.MethodPost, "/sync/v1/pair", p.headers(), body)
+	return status, doc
+}
+
+// takePair asks for the parcel id, as a device to come.
+func (e *env) takePair(id []byte) (int, map[string]any) {
+	e.t.Helper()
+	status, doc, _ := e.request(http.MethodGet, "/sync/v1/pair", map[string]string{"Betula-Pair": b64s(id)}, nil)
+	return status, doc
 }
 
 // client is one device's socket; a goroutine reads it (and so answers pings) into frames.

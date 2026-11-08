@@ -1,15 +1,16 @@
 # Phloem: running it
 
 Phloem is the service of Betula Sync: it keeps the sealed records of the profiles that sync and
-hands them between the devices of a profile, live, and can open none of them. What it says on
-the wire, and what may reach what, is the contract in [`protocol.md`](protocol.md); the design
-and the owner's decisions are in `research/sync/entwurf.html`. This file is how to build, run,
-deploy and watch it.
+hands them between the devices of a profile, live, keeps the sealed parts of shared calendars
+for anyone with their link, and can open none of them. What it says on the wire, and what may
+reach what, is the contract in [`protocol.md`](protocol.md); the design and the owner's
+decisions are in `research/sync/entwurf.html` and, for sharing (step 3),
+`folia/design/teilen/teilen.html`. This file is how to build, run, deploy and watch it.
 
 | | |
 |---|---|
 | code | `phloem/`, a Go module of its own (`cmd/phloem`, `internal/{server,store,metrics,oplog,dotenv,version}`), its firewall `phloem/deploy/firewall.nft` |
-| version | `phloem/internal/version/version.go` (0.1.0); `phloem version` and `phloem_build_info` show it with the build (the start of the executable's SHA-256) |
+| version | `phloem/internal/version/version.go` (0.2.0); `phloem version` and `phloem_build_info` show it with the build (the start of the executable's SHA-256) |
 | builds | `nix build .#phloem` (the binary, its tests run in the build), `nix build .#phloem-image` (`betula-phloem:latest`: the binary, the firewall and `nft`, no shell) |
 | deploy | `deploy/stacks/phloem.yml`, one file per instance in `deploy/stacks/phloem/`, `deploy/vps/47-phloem-host.sh`, `deploy/vps/49-phloem.sh` (with `lib-phloem.sh`), `deploy/ship-phloem.sh` |
 
@@ -32,8 +33,9 @@ PHLOEM_ORIGINS=http://127.0.0.1:8080 PHLOEM_DATA=phloem-data PHLOEM_LOG_FORMAT=t
 - It listens on `127.0.0.1:8200` (`PHLOEM_ADDR`): the API at http://127.0.0.1:8200/sync/v1/, the
   socket at ws://127.0.0.1:8200/sync/v1/ws.
 - `PHLOEM_ORIGINS` lists the origins it takes for the socket and answers CORS for (preflights
-  included: `Authorization`, `Betula-Space`, `Betula-Pair`, `Content-Type`; GET, POST, DELETE).
-  Another origin gets 403 `origin`; a request without one (curl, a test) is taken.
+  included: `Authorization`, `Betula-Space`, `Betula-Pair`, `Betula-Part`, `Content-Type`,
+  `If-None-Match`; GET, POST, PUT, DELETE; `ETag` is exposed, a part's version). Another origin
+  gets 403 `origin`; a request without one (curl, a test) is taken.
 - `phloem-data/phloem.db` is made on the first start (SQLite, migrated by Phloem itself).
 - Without Traefik in front, the limits per address count the peer: everything from 127.0.0.1 is
   one address (20 new spaces an hour). They live in memory: a restart starts them anew.
@@ -62,7 +64,7 @@ Every flag of `serve` has an environment variable; the image sets the ones in it
 | `PHLOEM_STATS_DIR` | none | `/stats` | where `phloem.prom` is written |
 | `PHLOEM_STATS_INTERVAL` | `15s` | | how often |
 | `PHLOEM_ORIGINS` | the request's own host | the stack: the site's origin | comma-separated `scheme://host[:port]` |
-| `PHLOEM_BUDGET_BYTES` | 50 000 000 000 | the stack | what all spaces may hold; at it no new space and no parcel (507) |
+| `PHLOEM_BUDGET_BYTES` | 50 000 000 000 | the stack | what all spaces may hold (see Storage); at it no new space, parcel or part (507) |
 | `PHLOEM_STACK` | none | the stack | the label `stack=` of the stats file |
 | `PHLOEM_LOG_FORMAT`, `_LEVEL`, `_FILE` | `json`, `info`, none | `json` | |
 | `PHLOEM_FIREWALL`, `PHLOEM_NFT` | `/etc/phloem/firewall.nft`, `nft` | | for `start` only, from the image and the stack alone |
@@ -73,14 +75,37 @@ Every limit is Phloem's own and holds whatever a client does (`internal/server/s
 `DefaultLimits`; the numbers a device meets are in `protocol.md`): 16 devices and 16 sockets per
 space, a push of at most 64 KiB, a snapshot of at most 6 MiB, `compact` above 128 KiB of entries
 since the snapshot and `compact_first` above 256 KiB, 50 pushes a second per space (bursts of
-200), 20 new spaces per address and hour and 500 in all, 16 parcels per space for 10 minutes,
-120 parcel takes per address and hour, 4096 sockets per instance and 32 per address before their
-hello, 395 days untouched and a space is deleted.
+200; a parcel, a part and a watch count as one each), 20 new spaces per address and hour and 500
+in all, 32 parcels waiting per space for 60 s to 7 days (10 minutes unless the device names
+another), what became of a parcel kept 30 days and for the newest 256 of a space (an older one
+goes first), 120 parcel takes per address and hour, parts of at most 16 KiB, 32 per space and 32
+new ones per space and day (a part deleted stays gone 395 days, beyond its space, so the new parts
+of a day bound what a space can leave behind), 3600 part reads per address and hour, a watch of
+at most 64 parts, 4096 sockets per instance and 32 per address before their hello, 395 days
+untouched and a space is deleted.
 
 Memory is bounded the same way: at most 8 frames above 128 KiB are read at a time (others wait),
-and a device's queue holds at most 512 frames or 16 MiB, beyond which Phloem lets it go and it
-comes back with `since`. The stack gives the container 512 MiB, `GOMEMLIMIT` 400 MiB, one CPU and
-128 processes.
+a device's queue holds at most 512 frames or 16 MiB, beyond which Phloem lets it go and it comes
+back with `since`, and a socket watches at most 64 parts. The stack gives the container 512 MiB,
+`GOMEMLIMIT` 400 MiB, one CPU and 128 processes.
+
+## Storage
+
+`phloem.db` in the data directory, SQLite (WAL, synchronous FULL), migrated by Phloem itself
+(`internal/store/migrations`, the schema's version in `PRAGMA user_version`; a binary refuses an
+index a newer one migrated further). One writer, a pool of readers: an id that finds nothing (a
+parcel, a part) costs a read, never the writer.
+
+| what | kept |
+|---|---|
+| a space, its devices, its entries after the snapshot, its snapshot | until „Sync beenden", or 395 days untouched |
+| a parcel | until it is taken or withdrawn, or expires |
+| what became of a parcel (`taken`, `expired`, `withdrawn`, when) | 30 days, the newest 256 of a space; with the space |
+| a part (its space, version, sealed data) | until „Nicht mehr teilen", or its space goes |
+| the id of a part deleted, and when | 395 days, also after its space went: the id never becomes a part again, so that a link to it never shows another calendar; nothing else of the part or its space is kept |
+
+The budget counts what the spaces hold (data, and 64 bytes for every row) and a row for every
+part tombstone, which outlives its space; `phloem_bytes` is that number, kept exact in memory.
 
 ## Firewall
 
@@ -106,13 +131,23 @@ sudo nsenter -t "$(docker inspect -f '{{.State.Pid}}' "$(docker ps -q -f label=c
 The stats file `phloem.prom` (Prometheus text, every 15 s, written by a rename) holds:
 `phloem_up`, `phloem_build_info{version,build}`, `phloem_start_time_seconds`,
 `phloem_stats_time_seconds`, `phloem_spaces`, `phloem_spaces_online`, `phloem_devices`,
-`phloem_sockets`, `phloem_bytes`, `phloem_budget_bytes`, `phloem_entries_total`,
-`phloem_entry_bytes_total`, `phloem_snapshots_total`, `phloem_snapshot_bytes_total`,
-`phloem_parcels_total`, `phloem_pushes_again_total`, `phloem_spaces_created_total`,
-`phloem_spaces_deleted_total{reason}`, `phloem_rejections_total{reason}`,
-`phloem_socket_closes_total{reason}`, `phloem_log_problems_total`, each with `stack`. Alloy reads
-it through `/rootfs` (`config/monitoring/alloy/config.alloy`, job `phloem`); the dashboard "Sync"
-and the rules of the group `betula-phloem` use these names.
+`phloem_sockets`, `phloem_bytes`, `phloem_budget_bytes`, `phloem_parts`, `phloem_parts_watched`,
+`phloem_entries_total`, `phloem_entry_bytes_total`, `phloem_snapshots_total`,
+`phloem_snapshot_bytes_total`, `phloem_parcels_total{event}`, `phloem_parts_total{event}`,
+`phloem_pushes_again_total`, `phloem_spaces_created_total`, `phloem_spaces_deleted_total{reason}`,
+`phloem_rejections_total{reason}`, `phloem_socket_closes_total{reason}`,
+`phloem_log_problems_total`, each with `stack`. Alloy reads it through `/rootfs`
+(`config/monitoring/alloy/config.alloy`, job `phloem`); the dashboard "Sync" and the rules of the
+group `betula-phloem` use these names.
+
+- `phloem_parcels_total{event}`: `left`, `taken`, `missed` (a take that found none), `expired`,
+  `withdrawn`.
+- `phloem_parts`, `phloem_parts_watched`: the parts kept (counted every 15 s) and the parts that
+  sockets watch now. `phloem_parts_total{event}`: `put` (made or replaced), `deleted` („Nicht mehr
+  teilen", or with their space), and the reads: `served` (200), `not_modified` (304), `missed`
+  (404), `gone` (410).
+- `phloem_rejections_total{reason}`: `unauthorized`, `too_big`, `compact_first`, `slow_down`,
+  `too_many` (32 parts), `full`, `budget`, `exists`, `origin`, `busy`, `invalid`.
 
 Logs are JSON lines (`level`, `event`, `msg`, `component`), one per event, never one per request
 or frame: `start.firewall`, `start.dropped`, `start.failed`, `service.started`,
@@ -168,4 +203,4 @@ log) and /healthz (not Phloem's), the stats file, `phloem status`; at last
 - A backup of `phloem.db`: sealed by the devices, so it may leave the house; SQLite's online
   backup into the data file system and off the server, not written yet.
 - Step 2 (WebRTC between the devices, STUN and TURN): `<stack>_out`, published ports, the
-  firewall's way out for TURN datagrams. Step 3: the parts for calendars and friends.
+  firewall's way out for TURN datagrams.

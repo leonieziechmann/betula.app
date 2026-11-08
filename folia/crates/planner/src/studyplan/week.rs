@@ -2328,7 +2328,7 @@ pub(super) mod tests {
         for line in lines {
             assert!(line.own && line.class.split(' ').any(|class| class == "own") && line.class.starts_with("t-own"), "{line:?}");
             assert_eq!((line.time.as_str(), line.small.as_str()), ("17:00–19:00", "Aula"));
-            assert!(line.title.ends_with("von dir, nicht in Datei und Abo") && line.href.contains("termin="), "{line:?}");
+            assert!(line.title.ends_with("von dir, nicht in Datei und festem Abo") && line.href.contains("termin="), "{line:?}");
         }
     }
 

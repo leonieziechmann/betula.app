@@ -85,12 +85,19 @@ impl Device {
         PlanDoc::restored(&self.text(Store::Plan))
     }
 
-    /// A change of one store's text, `f` doing to the text before what the store does.
+    /// A change of one store's text, `f` doing to the text before what the store does, with the
+    /// device's slot and the numbers the profile gave up, as the browser's leader sets them.
     pub fn edit(&mut self, store: Store, wall: u64, f: impl FnOnce(&str) -> String) -> Vec<Op> {
-        folia_plans::ids::set_slot(self.writer.dev());
+        use folia_plans::ids::{self, Kind};
+        ids::set_slot(self.writer.dev());
+        let retired = folia_sync::retired(&self.doc);
+        for (kind, numbers) in [(Kind::Calendar, retired.calendars), (Kind::Own, retired.own), (Kind::Placeholder, retired.placeholders), (Kind::Collection, retired.collections)] {
+            ids::set_retired(kind, numbers);
+        }
         let before = self.text(store);
         let after = f(&before);
-        folia_plans::ids::set_slot(0);
+        ids::set_slot(0);
+        ids::clear_retired();
         self.writer.changes(&mut self.doc, store, &before, &after, wall)
     }
 
@@ -241,7 +248,7 @@ pub mod shelf {
                 return None;
             }
             let largest = self.collections.iter().map(|(id, _)| *id).chain(self.recent.iter().copied()).max().unwrap_or(0);
-            let id = folia_plans::ids::after(largest, u32::MAX, |id| !self.has(id) && !self.recent.contains(&id))?;
+            let id = folia_plans::ids::after(folia_plans::ids::Kind::Collection, largest, u32::MAX, |id| !self.has(id) && !self.recent.contains(&id))?;
             self.collections.push((id, name));
             Some(id)
         }

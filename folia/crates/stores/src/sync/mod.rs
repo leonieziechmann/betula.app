@@ -12,6 +12,7 @@
 mod browser;
 pub mod codes;
 pub mod core;
+pub mod share;
 pub mod wire;
 
 use leptos::prelude::*;
@@ -343,6 +344,155 @@ impl Sync {
         self.refresh(id);
     }
 
+    /// „Betula Sync aktivieren" for profile `id`, then `done` with whether it syncs now: for an
+    /// offer of a choice Betula Sync makes better („Profil speichern", owner 2026-11-08), which goes
+    /// on with that choice.
+    pub fn activate_then(self, id: u16, done: impl FnOnce(Result<(), Problem>) + 'static) {
+        self.act(id, Some(State::Starting));
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        leptos::task::spawn_local(async move {
+            match browser::activate(id).await {
+                Ok(()) => {
+                    self.act(id, None);
+                    self.refresh(id);
+                    browser::lead_again(self);
+                    done(Ok(()));
+                }
+                Err(problem) => {
+                    self.fail(id, problem);
+                    done(Err(problem));
+                }
+            }
+        });
+        #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
+        {
+            self.fail(id, Problem::Unsupported);
+            done(Err(Problem::Unsupported));
+        }
+    }
+
+    /// A new share of the active profile's calendar (folia/design/teilen/teilen.html): its part
+    /// from the plan as it is, put at Phloem, and its record in the plan. `done` hears the link's
+    /// path (absolute in the page's language is the caller's) or why not.
+    pub fn share(self, request: ShareRequest, done: impl FnOnce(Result<Made, share::ShareProblem>) + 'static) {
+        let (Some(profiles), Some(plan)) = (self.profiles, self.plan) else {
+            done(Err(share::ShareProblem::Unsupported));
+            return;
+        };
+        let profile = profiles.active_untracked();
+        if !syncs(profile) {
+            done(Err(share::ShareProblem::NotSynced));
+            return;
+        }
+        let template = request.template();
+        let today = folia_calendar::day::Day(i32::try_from(now_ms() / 86_400_000).unwrap_or(i32::MAX));
+        let (part, left_out) = plan.with_untracked(|doc| doc.live_part(&template, folia_calendar::live::following(template.semester, today)).fitted());
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        leptos::task::spawn_local(async move {
+            let result = browser::share(profile, template, part, left_out).await.map(|made| Made { share: made.share, path: made.path, until: made.until, left_out: made.left_out });
+            if let Ok(made) = &result {
+                if profiles.active_untracked() == profile {
+                    let share = made.share.clone();
+                    plan.update(|doc| doc.add_share(share));
+                }
+            }
+            done(result);
+        });
+        #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
+        {
+            let _ = (part, left_out, template);
+            done(Err(share::ShareProblem::Unsupported));
+        }
+    }
+
+    /// „Nicht mehr teilen", „Zurückziehen": the share's part goes at Phloem, its parcel is taken
+    /// back, and its record goes. Kept where Phloem could not be reached.
+    pub fn unshare(self, id: &str, done: impl FnOnce(Result<(), share::ShareProblem>) + 'static) {
+        let (Some(profiles), Some(plan)) = (self.profiles, self.plan) else {
+            done(Err(share::ShareProblem::Unsupported));
+            return;
+        };
+        let profile = profiles.active_untracked();
+        let Some(found) = plan.with_untracked(|doc| doc.share(id).cloned()) else {
+            done(Ok(()));
+            return;
+        };
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        leptos::task::spawn_local(async move {
+            let result = match browser::unshare(profile, &found).await {
+                // The space is gone: nothing at Phloem shows it any more.
+                Ok(()) | Err(share::ShareProblem::NotSynced) => Ok(()),
+                Err(problem) => Err(problem),
+            };
+            if result.is_ok() && profiles.active_untracked() == profile {
+                plan.update(|doc| doc.remove_share(&found.id));
+            }
+            done(result);
+        });
+        #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
+        {
+            let _ = (profile, found);
+            done(Err(share::ShareProblem::Unsupported));
+        }
+    }
+
+    /// Opens the part a link names (`#live=…`), without taking anything: what it shows now.
+    pub fn open_live(self, link: &str, done: impl FnOnce(Result<(folia_calendar::live::LivePart, u64), share::ShareProblem>) + 'static) {
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        {
+            let link = link.to_string();
+            leptos::task::spawn_local(async move {
+                done(browser::fetch_part(&link, 0).await.and_then(|found| found.ok_or(share::ShareProblem::Unknown)));
+            });
+        }
+        #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
+        {
+            let _ = link;
+            done(Err(share::ShareProblem::Unsupported));
+        }
+    }
+
+    /// Opens a one-time link (`#once=…`): its parcel, once; what is in it.
+    pub fn open_once(self, parcel: &str, done: impl FnOnce(Result<Opened, share::ShareProblem>) + 'static) {
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        {
+            let parcel = parcel.to_string();
+            leptos::task::spawn_local(async move {
+                done(browser::open_once(&parcel).await.map(|opened| match opened {
+                    browser::Opened::Live { link, part, rev } => Opened::Live { link, part, rev },
+                    browser::Opened::Copy(part) => Opened::Copy(part),
+                }));
+            });
+        }
+        #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
+        {
+            let _ = parcel;
+            done(Err(share::ShareProblem::Unsupported));
+        }
+    }
+
+    /// The calendars of the active profile that follow a share are given what it holds now (the
+    /// page opened, or came into view): by the leader where the profile syncs, by this tab where
+    /// it is private.
+    pub fn refresh_follows(self) {
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        if let (Some(profiles), Some(plan)) = (self.profiles, self.plan) {
+            if offered().is_none() {
+                return;
+            }
+            let profile = profiles.active_untracked();
+            leptos::task::spawn_local(browser::refresh_follows(profile, plan, profiles));
+        }
+    }
+
+    /// Asks what became of the active profile's one-time links (the dialog opened).
+    pub fn check_parcels(self) {
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        if let Some(profiles) = self.profiles {
+            browser::check_parcels(profiles.active_untracked());
+        }
+    }
+
     /// What two devices did at once in the active profile, the newest last. Tracked.
     pub fn conflicts(self) -> Vec<Conflict> {
         self.conflicts.get()
@@ -357,6 +507,72 @@ impl Sync {
         }
         self.conflicts.update(|all| all.retain(|c| c != conflict));
     }
+}
+
+/// What a new share is to be (the dialog's choices).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ShareRequest {
+    /// 0 the plan's calendar, else a calendar of one's own.
+    pub calendar: u8,
+    pub to: folia_plans::shares::ShareTo,
+    /// The semester shown.
+    pub semester: SemesterKey,
+    pub live: bool,
+    pub once: bool,
+    pub own: bool,
+    pub notes: bool,
+    /// The program whose abbreviations name the modules (the page's).
+    pub program: Option<String>,
+    /// „Für wen".
+    pub name: String,
+}
+
+impl ShareRequest {
+    fn template(&self) -> folia_plans::shares::Share {
+        folia_plans::shares::Share {
+            id: String::new(),
+            calendar: self.calendar,
+            to: self.to,
+            semester: self.semester,
+            made: 0,
+            live: self.live,
+            once: self.once && self.to == folia_plans::shares::ShareTo::Person,
+            own: self.own,
+            notes: self.notes,
+            key: String::new(),
+            parcel: String::new(),
+            program: self.program.clone(),
+            name: self.name.clone(),
+        }
+    }
+}
+
+/// What a new share made: its record, the path of its link (`/studyplan#live=…`,
+/// `/studyplan#once=…`, `/calendar/s/….ics`), until when a one-time link opens (ms), and how many
+/// notes or Termine of one's own did not fit in its part.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Made {
+    pub share: folia_plans::shares::Share,
+    pub path: String,
+    pub until: Option<u64>,
+    pub left_out: usize,
+}
+
+/// What a one-time link opened to.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Opened {
+    /// A calendar that stays current: its link (part id and key), what it holds now, its version.
+    Live { link: String, part: folia_calendar::live::LivePart, rev: u64 },
+    /// A copy of then.
+    Copy(folia_calendar::live::LivePart),
+}
+
+/// Milliseconds since 1970, as this browser knows them (the server's clock where it heard it).
+fn now_ms() -> u64 {
+    #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+    return js_sys::Date::now() as u64;
+    #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
 
 /// Whether profile `id` syncs in this browser.

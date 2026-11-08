@@ -428,6 +428,23 @@ phloem_for_host() {
 # Host(`a.bc`), has 12) and above the placeholder's 1.
 STANDBY_PRIORITY=2
 
+# How far the router of a web server's calendar subscriptions that stay current (stacks/betula.yml,
+# <stack>-feed: their addresses carry a key, and this router writes no access log) stands above the
+# web server's own router: above every web server's router of the host, so that such an address
+# never reaches a router that writes one, and the colours in the same order as their web servers.
+FEED_LIFT=100000
+
+# feed_priority PRIORITY HOST -> the priority of the feed router beside a web server's router of
+# PRIORITY for HOST (0: Traefik's default, the length of the rule Host(`HOST`)).
+feed_priority() {
+  local priority=$1 host=$2 rule
+  if [[ "${priority}" -eq 0 ]]; then
+    rule="Host(\`${host}\`)"
+    priority="${#rule}"
+  fi
+  printf '%s' "$((FEED_LIFT + priority))"
+}
+
 # The two colours of the canary that vps/canary-agent.sh alternates between when it brings a build
 # of master there (README.md section 12): the new release goes to the one that does not serve, and
 # the one that served is removed once the new one does. Neither file may say RADIX_CRAWL=on: off

@@ -13,6 +13,8 @@ pub enum Out {
     Snapshot { upto: u64, data: String },
     Leave,
     Delete,
+    /// The parts of shared calendars this device follows (step 3).
+    Watch { parts: Vec<String> },
 }
 
 impl Out {
@@ -78,8 +80,37 @@ pub enum In {
         id: Option<String>,
     },
     Gone,
+    /// The answer to `watch`: each part's version now (`rev` 0: Phloem does not have it).
+    Watching {
+        #[serde(default)]
+        parts: Vec<PartState>,
+    },
+    /// A part watched was replaced (`rev`), or deleted (`gone`).
+    Part {
+        id: String,
+        #[serde(default)]
+        rev: u64,
+        #[serde(default)]
+        gone: bool,
+    },
+    /// A parcel of the space was opened.
+    Pair {
+        id: String,
+        #[serde(default)]
+        state: String,
+    },
     #[serde(other)]
     Other,
+}
+
+/// A part's version, as `watching` names it.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+pub struct PartState {
+    pub id: String,
+    #[serde(default)]
+    pub rev: u64,
+    #[serde(default)]
+    pub gone: bool,
 }
 
 impl In {
@@ -109,6 +140,65 @@ pub struct Parcel {
     pub id: String,
     #[serde(rename = "box")]
     pub sealed: String,
+}
+
+/// `POST /sync/v1/pair` of a one-time link: it waits `ttl` seconds.
+#[derive(Clone, Debug, Serialize)]
+pub struct LongParcel {
+    pub id: String,
+    #[serde(rename = "box")]
+    pub sealed: String,
+    pub ttl: u64,
+}
+
+/// `GET /sync/v1/pairs`: the space's parcels and what became of them.
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct Parcels {
+    #[serde(default)]
+    pub parcels: Vec<ParcelState>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+pub struct ParcelState {
+    pub id: String,
+    /// `waiting`, `taken`, `expired`, `withdrawn`.
+    pub state: String,
+    /// When a waiting one expires, else when it happened (ms).
+    #[serde(default)]
+    pub at: u64,
+}
+
+/// `PUT /sync/v1/part`.
+#[derive(Clone, Debug, Serialize)]
+pub struct PartBody {
+    pub data: String,
+}
+
+/// The answer of `PUT /sync/v1/part`.
+#[derive(Clone, Debug, Deserialize)]
+pub struct PartMade {
+    pub rev: u64,
+}
+
+/// The answer of `GET /sync/v1/part`.
+#[derive(Clone, Debug, Deserialize)]
+pub struct PartFetched {
+    pub data: String,
+    #[serde(default)]
+    pub rev: u64,
+}
+
+/// What a one-time link's parcel holds, sealed with the link's key (associated data `"share"`):
+/// the part to follow and its key, or a copy of now (`folia_calendar::live::LivePart`'s code).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShareContents {
+    pub v: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub part: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub copy: Option<String>,
 }
 
 /// The answer of `GET /sync/v1/pair`.
@@ -162,5 +252,23 @@ mod tests {
         let text = serde_json::to_string(&contents).unwrap();
         assert_eq!(serde_json::from_str::<Contents>(&text).unwrap(), contents);
         assert_eq!(serde_json::to_string(&Parcel { id: "aWQ".into(), sealed: "Ym94".into() }).unwrap(), r#"{"id":"aWQ","box":"Ym94"}"#);
+    }
+
+    #[test]
+    fn the_frames_of_shares_read_and_write_as_the_protocol_says() {
+        assert_eq!(Out::Watch { parts: vec!["cA".into(), "cQ".into()] }.text(), r#"{"t":"watch","parts":["cA","cQ"]}"#);
+        assert_eq!(
+            In::read(r#"{"t":"watching","parts":[{"id":"cA","rev":3},{"id":"cQ","gone":true},{"id":"cg","rev":0}]}"#),
+            Some(In::Watching { parts: vec![PartState { id: "cA".into(), rev: 3, gone: false }, PartState { id: "cQ".into(), rev: 0, gone: true }, PartState { id: "cg".into(), rev: 0, gone: false }] })
+        );
+        assert_eq!(In::read(r#"{"t":"part","id":"cA","rev":4}"#), Some(In::Part { id: "cA".into(), rev: 4, gone: false }));
+        assert_eq!(In::read(r#"{"t":"part","id":"cA","gone":true}"#), Some(In::Part { id: "cA".into(), rev: 0, gone: true }));
+        assert_eq!(In::read(r#"{"t":"pair","id":"cA","state":"taken"}"#), Some(In::Pair { id: "cA".into(), state: "taken".into() }));
+        assert_eq!(serde_json::to_string(&LongParcel { id: "aWQ".into(), sealed: "Ym94".into(), ttl: 604_800 }).unwrap(), r#"{"id":"aWQ","box":"Ym94","ttl":604800}"#);
+        let live = ShareContents { v: 1, part: Some("cA".into()), key: Some("a2V5".into()), copy: None };
+        assert_eq!(serde_json::to_string(&live).unwrap(), r#"{"v":1,"part":"cA","key":"a2V5"}"#);
+        assert_eq!(serde_json::from_str::<ShareContents>(r#"{"v":1,"copy":"abc"}"#).unwrap().copy.as_deref(), Some("abc"));
+        let parcels: Parcels = serde_json::from_str(r#"{"parcels":[{"id":"cA","state":"waiting","at":5},{"id":"cQ","state":"taken","at":6}]}"#).unwrap();
+        assert_eq!(parcels.parcels.len(), 2);
     }
 }

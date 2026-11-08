@@ -316,14 +316,29 @@ async function labels() {
 }
 
 // ---------- 9: a plan handed on by a link ----------
-// „Link zum Teilen kopieren" hands the semester shown on (`/studyplan?share=<code>`, owner
+// „Teilen …" hands the semester shown on (`/studyplan?share=<code>`, owner
 // 2026-09-26): the link carries the planned modules, the program and the groups ticked (R20's
 // exception; the groups since 2026-10-26, for a calendar of one's own), nothing hidden. The
 // server's page names the modules in its tags and its picture; a fresh browser that opens the link
 // is offered them, takes them over (the code leaves the address, the note with „Rückgängig" stands
 // where the offer stood) and hands on a link of the same modules (the groups are its own).
 async function shared() {
-  const sidebarLink = (page) => page.getAttribute('.sidebar [data-action="copy-text"][data-absolute][data-text^="/studyplan?share="]', "data-text", { timeout: 8000 }).catch(() => null);
+  // „Teilen …" in the sidebar: a private profile hands on the fixed copy for everybody, the link of
+  // today (share_dialog.rs).
+  const sidebarLink = async (page) => {
+    try {
+      await page.click(".sidebar #sp-share", { timeout: 8000 });
+      await page.click(".sh-dialog[open] #sh-make", { timeout: 8000 });
+      await page.waitForFunction(() => (document.querySelector(".sh-dialog[open] .sh-link")?.textContent ?? "").includes("share="), null, { timeout: 8000 });
+      const made = new URL((await page.textContent(".sh-dialog[open] .sh-link")).trim());
+      // „Fertig": the dialog closes, the page is the page again.
+      await page.click(".sh-dialog[open] footer .mini.primary");
+      await page.waitForFunction(() => !document.querySelector(".sh-dialog[open]"), null, { timeout: 8000 });
+      return made.pathname + made.search;
+    } catch {
+      return null;
+    }
+  };
   const sender = await open({ viewport: { width: 1500, height: 900 } }, "/studyplan");
   await sender.page.evaluate(([plan, mine, planText, mineText]) => { localStorage.setItem(plan, planText); localStorage.setItem(mine, mineText); }, [PLAN, MINE, FS1, MINE_FS1]);
   await sender.page.reload({ waitUntil: "domcontentloaded" });
@@ -331,7 +346,7 @@ async function shared() {
   await sender.page.waitForFunction(aPlan, null, { timeout: 8000 }).catch(() => problems.push("shared: the sender's plan does not show"));
   const link = await sidebarLink(sender.page);
   await sender.context.close();
-  check(Boolean(link), "shared: no „Link zum Teilen kopieren“ for a planned semester");
+  check(Boolean(link), "shared: no link of „Teilen …“ for a planned semester");
   if (!link) return;
   check(!["149408", "148369", "tutorial"].some((secret) => link.includes(secret)), `shared: the link names what is hidden or chosen in its letters: ${link}`);
 

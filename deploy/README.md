@@ -1022,6 +1022,7 @@ networks is not internal, and an internal network leads nowhere but to its membe
 | Traefik → placeholder | 8080 | `edge_placeholder` | the page before the application |
 | Traefik → Grafana | 3000 | `edge_grafana` | `https://grafana.betula.app` (`monitoring.public.yml`) |
 | Traefik → Phloem | 8200 | `phloem_in`, `phloem-canary_in` | `/sync/v1/` (docs/phloem/protocol.md) |
+| Folia → Traefik's entrypoint `parts` | 8083 (not published, plain HTTP) | `edge_<instance>` | `GET /sync/v1/part` of its host, which Traefik sends to the site's Phloem: the sealed part of a calendar subscription that stays current (`folia/crates/server/src/parts.rs`) |
 | Folia → its own Radix | 8090 | `<instance>_snapshot` | the snapshot |
 | Radix → Cortex | 8100 | `cortex_<instance>` (one per instance) | everything Radix fetches |
 | Radix → internet | any | `<instance>_egress` | only with `betula.egress.yml` (Gemini; no Cortex) |
@@ -1062,6 +1063,17 @@ is wanted, the other side gets nothing out of it:
   `betula-phloem-guard` (`vps/files/betula-phloem-guard.sh`) checks it from outside every minute,
   with its rights, and the rule group `betula-phloem` and the dashboard "Sync" show what it sees.
   How Phloem itself is deployed: `docs/phloem/phloem.md`.
+- **Folia asks Phloem for one thing only, and only through Traefik**: the sealed part of a calendar
+  subscription that stays current, at the entrypoint `parts` (`:8083`, not published, no TLS), whose
+  one router per Phloem (`stacks/phloem.yml`, `<stack>-parts`) takes `GET /sync/v1/part` of the
+  site's host and nothing else. It serves what `https://<host>/sync/v1/part` serves anybody on the
+  internet, a sealed part by its id; the key stays in Folia, so every service on a network with
+  Traefik may reach it and learns nothing more than from outside.
+- **The addresses of those subscriptions carry their key** (`/calendar/s/<id ‖ key>.ics`): a router
+  of their own per web server (`stacks/betula.yml`, `<stack>-feed`) writes no access log (Traefik's
+  observability per router), and stands `FEED_LIFT` above the web server's router (`vps/lib-stacks.sh`;
+  50-app.sh deploys it so, 55-switch.sh moves it with the colour), so that such an address never
+  reaches a router that writes one, and the live colour serves it.
 - What stays: Cortex can reach the Radix of every instance (it serves them all), Grafana could write
   to Prometheus, and a service on a network with Traefik reaches its public ports like anybody on the
   internet does.
@@ -1252,5 +1264,16 @@ For https://betula.app the same with `phloem` (steps 4 and 5), then `FOLIA_SYNC=
 - **Its data** is sealed by the devices (Phloem can open none of it): sizes, times and random ids
   are all it knows. A space untouched for 395 days goes by itself; „Sync beenden" deletes one at
   once. A backup of `phloem.db` is not written yet (`docs/phloem/phloem.md`, „Not yet").
-- **The privacy notice** describes it („Abgleich zwischen deinen Geräten (Betula Sync)",
-  `folia/crates/home/src/i18n/legal.rs`): change it with what Phloem keeps.
+- **Shared calendars** (step 3, Phloem 0.2.0, `folia/design/teilen/teilen.html`): the parts and the
+  one-time links go through `/sync/v1/` like everything else; a calendar app's subscription that
+  stays current (`/calendar/s/…`) is answered by Folia, which fetches its part at Traefik's
+  entrypoint `parts` (section 15) while its instance syncs (`FOLIA_SYNC_PARTS`, 50-app.sh). The
+  entrypoint, Phloem's router on it and the feed router without access log come with
+  `deploy/sync.sh`, `40-stacks.sh edge` (Traefik restarts), `49-phloem.sh <stack>` and `50-app.sh`
+  of each instance; until then such a subscription answers 404 and everything else of sharing
+  works. Phloem counts the parts it hands out per address (3600 an hour): Folia's fetches share one
+  address, so many subscriptions polled often would meet it (a 503 with Retry-After, which calendar
+  apps follow); `phloem_rejections_total{reason="slow_down"}` shows it.
+- **The privacy notice** describes it („Abgleich zwischen deinen Geräten (Betula Sync)", „Kalender-
+  Abo", „Stundenplan teilen", `folia/crates/home/src/i18n/legal.rs`): change it with what Phloem
+  keeps.

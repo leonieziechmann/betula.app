@@ -1,7 +1,8 @@
 //! A QR code as inline SVG (`qrcodegen`): the link for the next device of a synced profile
-//! (`sync.rs`). Dark modules on a light ground with four modules of quiet zone, whatever the theme:
-//! a camera reads inverted codes badly, so in the dark the code stands on a light tile of its own
-//! (app.css, `.pf-qr`).
+//! (folia_profile's `sync.rs`), the link of a calendar shared (the planner's „Teilen"). Dark
+//! modules on a light ground with four modules of quiet zone, whatever the theme: a camera reads
+//! inverted codes badly, so in the dark the code stands on a light tile of its own (app.css,
+//! `.pf-qr`).
 
 use qrcodegen::{QrCode, QrCodeEcc};
 

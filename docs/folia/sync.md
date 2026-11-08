@@ -34,7 +34,7 @@ What two devices do at once:
 | a note typed on both | the later stands, the other is kept as a hint to take over (`ModuleNote`, `TerminNote`) |
 | a mark taken away on one, set on the other | the later write |
 | two calendars or collections made at once | two numbers (each device takes numbers of its own class, `folia_plans::ids`), both stand; two collections of one name as „… (2)" |
-| something added to a calendar the other deleted | gone with the calendar: a calendar lives a life, and what belongs to it counts only within it, also when its number is taken again |
+| something added to a calendar the other deleted | gone with the calendar: a calendar lives a life, and what belongs to it counts only within it; and a synced profile never gives a number out again that its records still keep a deletion of (13 months, `folia_sync::retired`), so a new calendar never inherits the old one's records or shares |
 | one placeholder of a plan row made on both | the one of the smaller pid stands, and what counted for the other counts for it |
 
 ## 2. In the browser
@@ -92,10 +92,31 @@ often, at most every half minute, and at once when the network is back or the ta
 | a profile deleted | leaves its space for this device alone; the others keep it |
 | „Profil leeren", „Rückgängig" | sync like any change |
 
-## 4. Checks
+## 4. Shares (step 3)
+
+The dialog „Teilen" (`folia/crates/planner/src/studyplan/share_dialog.rs`; the concept and the
+owner's decisions of 2026-11-08: `folia/design/teilen/teilen.html`) hands a calendar on, to
+persons or into a calendar app, as a copy of now or one that stays current.
+
+| | |
+|---|---|
+| a fixed copy for everybody | the link of today, `/studyplan?share=<code>`, or the address of today, `/calendar/<code>.ics`: no server keeps anything |
+| what stays current | a part at Phloem: one semester of the calendar, `folia_calendar::live::LivePart` as a pack code, sealed with a key of its own (associated data `"part" ‖ id`); for a person nothing of what is hidden, for a calendar app the week as the student sees it; the Termine of one's own and the notes where the share takes them along. `/studyplan#live=<id ‖ key>`, `/calendar/s/<id ‖ key>.ics` |
+| one person | a parcel that waits 7 days at most and opens once (`/studyplan#once=<id ‖ key>`): the part and its key, or a copy of now; opened again, expired or taken back, it says so and shows nothing |
+| the shares in force | lines `s` of the Stundenplan (`folia_plans::shares`), records `P\|s\|<id>`: on every device of the profile, which renews their parts when the plan changes (only what differs from what it put, `share::Put`), moves a share on to the next semester as it begins, and deletes the parts of shares gone from the records |
+| following | a calendar of one's own with a line `f` (`P\|f\|<calendar>`, it goes and comes back with its calendar): the leader watches its part (`watch`) and gives the calendar each new version (`PlanDoc::take_part`; a private profile fetches on opening and when the page comes into view); a part that is gone leaves the calendar „nicht mehr geteilt", with „Behalten" and „Löschen" |
+| a calendar app's subscription | Folia fetches the part through Traefik's entrypoint `parts` (`--sync-parts`), opens it in memory with the key from the address and keeps nothing (`folia/crates/server/src/parts.rs`); no access log writes such an address (deploy/README.md section 15) |
+
+A private profile offers Betula Sync wherever it makes a choice better („Profil speichern", one
+click; decision 1), and the choices that need it save the profile on the way.
+
+## 5. Checks
 
 - `cargo test -p folia-sync`: the stores' round trips, the cases of two devices, a simulation of
   three and four devices online and offline over a network that reorders and doubles, one joining
-  from a snapshot (`FOLIA_SYNC_SEEDS=600` and `--release` for a longer search).
+  from a snapshot, shares and follows among them (`FOLIA_SYNC_SEEDS=600` and `--release` for a
+  longer search).
 - `cargo test -p folia-stores sync`: the codes, the frames, what the browser keeps.
 - `folia/e2e/sync.mjs`: two browsers of one profile against a running Phloem.
+- `folia/e2e/share.mjs`: sharing and following with four browsers against a running Phloem
+  (Folia with `FOLIA_SYNC_PARTS` naming it).
