@@ -4,7 +4,8 @@
 //! device of the profile holds all of it, online or offline.
 //!
 //! What a page uses: `Sync::state` of a profile, the actions (`activate`, `pair`, `join`,
-//! `recover`, `stop`, `leave`) and the hints of what two devices did at once (`conflicts`). The
+//! `recover`, `stop`, `leave`; and the other way round, `request` on the device that wants a
+//! profile and `give` on the one that has it: `request`) and the hints of what two devices did at once (`conflicts`). The
 //! site offers it where the server says so (`offered`: the `betula-sync` meta tag of the page,
 //! `FOLIA_SYNC`); everywhere else every profile is private and nothing here runs.
 
@@ -12,6 +13,7 @@
 mod browser;
 pub mod codes;
 pub mod core;
+pub mod request;
 pub mod share;
 pub mod wire;
 
@@ -79,20 +81,17 @@ pub struct Pairing {
     pub until: u64,
 }
 
-/// How long a question of `Sync::ask` waits for its answer: as long as a parcel waits at Phloem.
-pub const ASK_MS: u64 = 10 * 60 * 1000;
-
-/// A question for the profile of another device („Mit dem Handy verbinden", `url::PAIR`): this
-/// device shows the link as a QR code, the device that holds the profile opens it and answers
-/// (`Sync::give`), and this one takes the answer (`Sync::collect`).
+/// A request for a profile of another device („Profil vom Handy holen", `request`): the link this
+/// device shows as a QR code, the digits both devices show, until when it asks.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Asking {
-    /// What follows `#` in the link: the parcel's id and its key.
-    pub fragment: String,
-    /// `https://<host>/pair#<…>`: what follows `#` never reaches a server.
+pub struct Request {
+    /// The parcel's id (base64url): what `Sync::drop_request` puts away.
+    pub id: String,
+    /// `https://<host>/pair#<…>` (`url::PAIR`): what follows `#` never reaches a server.
     pub link: String,
-    /// Until when this device waits for the answer, in milliseconds since 1970 (ten minutes, as
-    /// long as a parcel waits).
+    /// „0731": what the phone shows as well, once it has read the code.
+    pub digits: String,
+    /// Milliseconds since 1970 (ten minutes).
     pub until: u64,
 }
 
@@ -296,64 +295,83 @@ impl Sync {
         }
     }
 
-    /// A question for the profile of another device (`Asking`): made here, nothing sent.
-    pub fn ask(self) -> Option<Asking> {
+    /// A request for a profile of another device (`request`): `made` hears the link to show and
+    /// its digits (or why there is none), and then, once the other device has sent a profile,
+    /// `came` hears the profile of this browser it is now (as `join`'s is). Nothing comes once the
+    /// code asks no more (ten minutes) or `drop_request` put it away.
+    pub fn request(self, made: impl FnOnce(Result<Request, Problem>) + 'static, came: impl FnOnce(Result<u16, Problem>) + 'static) {
         #[cfg(all(feature = "csr", target_arch = "wasm32"))]
-        {
-            let fragment = browser::ask()?;
-            let origin = web_sys::window().and_then(|w| w.location().origin().ok()).unwrap_or_default();
-            Some(Asking { link: format!("{origin}{}#{fragment}", folia_routes::url::PAIR), fragment, until: now_ms() + ASK_MS })
-        }
-        #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
-        None
-    }
-
-    /// Whether the other device has answered `asking` yet: then its profile is a profile of this
-    /// browser, as from a link of `pair` (`join`), and `done` hears its number; while it has not,
-    /// `None`.
-    pub fn collect(self, asking: &Asking, done: impl FnOnce(Result<Option<u16>, Problem>) + 'static) {
-        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
-        {
-            let fragment = asking.fragment.clone();
-            leptos::task::spawn_local(async move {
-                let result = match browser::collect(&fragment).await {
-                    Ok(Some(shared)) => self.adopt(shared).map(Some),
-                    Ok(None) => Ok(None),
-                    Err(problem) => Err(problem),
-                };
-                done(result);
-            });
-        }
+        leptos::task::spawn_local(async move {
+            match browser::make_request().await {
+                Ok(request) => {
+                    let (id, made_at) = (request.id.clone(), request.until.saturating_sub(request::REQUEST_MS));
+                    made(Ok(request));
+                    if let Some(result) = browser::await_request(id, made_at).await {
+                        came(result.and_then(|shared| self.adopt(shared)));
+                    }
+                }
+                Err(problem) => made(Err(problem)),
+            }
+        });
         #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
         {
-            let _ = asking;
-            done(Err(Problem::Unsupported));
+            let _ = came;
+            made(Err(Problem::Unsupported));
         }
     }
 
-    /// The answer to a question of another device (the part of its link after `#`): profile `id`
-    /// (synced) goes to it, sealed with the question's key.
+    /// Puts request `id` away: it asks no more, and a profile sent to it does not come.
+    #[allow(unused_variables)]
+    pub fn drop_request(self, id: &str) {
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        browser::drop_request(id);
+    }
+
+    /// The digits of a request's part after `#` (`request::parse`), as the device that asks shows
+    /// them; `None` for what is no request.
+    pub fn request_digits(self, fragment: &str, done: impl FnOnce(Option<String>) + 'static) {
+        let Some((id, public)) = request::parse(fragment) else {
+            done(None);
+            return;
+        };
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        leptos::task::spawn_local(async move { done(browser::request_digits(&id, &public).await) });
+        #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
+        {
+            let _ = (id, public);
+            done(None);
+        }
+    }
+
+    /// Sends profile `id` to the device whose request is `fragment`: it is switched on first where
+    /// it is private (as „Betula Sync aktivieren"), then its key goes there, sealed to the
+    /// request's key. The other device joins the profile as one more of its devices.
     pub fn give(self, id: u16, fragment: &str, done: impl FnOnce(Result<(), Problem>) + 'static) {
         #[cfg(all(feature = "csr", target_arch = "wasm32"))]
         {
-            let name = self
-                .profiles
-                .and_then(|profiles| profiles.all().into_iter().find(|p| p.id == id))
-                .map(|p| p.name)
-                .unwrap_or_default();
             let fragment = fragment.to_string();
-            leptos::task::spawn_local(async move { done(browser::give(id, name, &fragment).await) });
+            let name = self.profiles.and_then(|profiles| profiles.all().into_iter().find(|p| p.id == id)).map(|p| p.name).unwrap_or_default();
+            leptos::task::spawn_local(async move {
+                if !browser::syncs(id) {
+                    // As `activate_then`.
+                    self.act(id, Some(State::Starting));
+                    if let Err(problem) = browser::activate(id).await {
+                        self.fail(id, problem);
+                        done(Err(problem));
+                        return;
+                    }
+                    self.act(id, None);
+                    self.refresh(id);
+                    browser::lead_again(self);
+                }
+                done(browser::give(id, name, &fragment).await);
+            });
         }
         #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
         {
             let _ = (id, fragment);
             done(Err(Problem::Unsupported));
         }
-    }
-
-    /// Whether `fragment` can be the part after `#` of a link of `ask` or `pair` (48 bytes).
-    pub fn is_link(fragment: &str) -> bool {
-        codes::unb64(fragment.trim_start_matches('#')).is_some_and(|bytes| bytes.len() == 48)
     }
 
     /// The same from a recovery code (`recovery_code`), as a new profile named `name`.

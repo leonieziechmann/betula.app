@@ -173,8 +173,9 @@ const mark = async (page, id) => {
   // links hovert, kann man die profile direkt auswählen"): a mouse resting on the rail's way.
   const menu = () => page.evaluate(() => {
     const at = onPage(".profile-menu");
-    // „Geräte" is there where the site offers Betula Sync (FOLIA_SYNC), and leads to its part of the page.
-    const ways = [...at?.querySelectorAll("a.tab-menu-way") ?? []].map((way) => way.getAttribute("href")).filter((href) => href !== "/profile#devices");
+    // „Geräte" is there where the site offers Betula Sync (FOLIA_SYNC), and leads to its part of the
+    // page; a phone's „Gerät verbinden" to the scanner (/sync) instead.
+    const ways = [...at?.querySelectorAll("a.tab-menu-way") ?? []].map((way) => way.getAttribute("href")).filter((href) => href !== "/profile#devices" && href !== "/sync");
     return at && { items: [...at.querySelectorAll(".pm-item")].map((item) => `${item.querySelector("b").textContent} ${item.getAttribute("aria-checked")}`), add: at.querySelector(".pm-new-way")?.textContent ?? null, ways, language: [...at.querySelectorAll(".pm-lang a")].map((a) => a.getAttribute("href")), legal: [...at.querySelectorAll(".pm-foot a")].map((a) => a.getAttribute("href")), scrim: Boolean(onPage(".tab-scrim")), focus: document.activeElement?.closest(".pm-item")?.querySelector("b")?.textContent ?? null };
   });
   await page.mouse.move(700, 450);
@@ -314,7 +315,7 @@ const mark = async (page, id) => {
   const at = await page.evaluate(() => { const box = onPage(".topbar .top-profile").getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; });
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [at] });
   await page.waitForTimeout(650);
-  const held = await page.evaluate(() => ({ items: [...allOnPage(".profile-menu .pm-item")].map((item) => `${item.querySelector("b").textContent} ${item.getAttribute("aria-checked")}`), ways: [...allOnPage(".profile-menu a.tab-menu-way")].map((way) => way.getAttribute("href")).filter((href) => href !== "/profile#devices"), language: [...allOnPage(".profile-menu .pm-lang a")].map((a) => a.getAttribute("href")) }));
+  const held = await page.evaluate(() => ({ items: [...allOnPage(".profile-menu .pm-item")].map((item) => `${item.querySelector("b").textContent} ${item.getAttribute("aria-checked")}`), ways: [...allOnPage(".profile-menu a.tab-menu-way")].map((way) => way.getAttribute("href")).filter((href) => href !== "/profile#devices" && href !== "/sync"), language: [...allOnPage(".profile-menu .pm-lang a")].map((a) => a.getAttribute("href")) }));
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await page.waitForTimeout(500);
   check(JSON.stringify(held) === JSON.stringify({ items: ["Profil 1 true", `${NAME} false`], ways: ["/profile"], language: ["/en"] }), `phone: a finger held on the way: ${JSON.stringify(held)}`);
@@ -327,7 +328,7 @@ const mark = async (page, id) => {
   await page.waitForTimeout(300);
   const left = await page.evaluate(() => ({ here: location.pathname + location.search, y: Math.round(scrollY), at: navigation.currentEntry.index }));
   await step("phone: a tap on the box opens the menu", () => page.tap(".topbar .top-profile >> visible=true"), () => Boolean(onPage(".profile-menu .pm-new-way")) && onPage(".topbar .top-profile")?.getAttribute("aria-expanded") === "true");
-  const tapped = await page.evaluate(() => ({ here: location.pathname + location.search, at: navigation.currentEntry.index, scrim: Boolean(onPage(".tab-scrim")), ways: [...allOnPage(".profile-menu a.tab-menu-way")].map((way) => way.getAttribute("href")).filter((href) => href !== "/profile#devices"), language: [...allOnPage(".profile-menu .pm-lang a")].map((a) => a.getAttribute("href")) }));
+  const tapped = await page.evaluate(() => ({ here: location.pathname + location.search, at: navigation.currentEntry.index, scrim: Boolean(onPage(".tab-scrim")), ways: [...allOnPage(".profile-menu a.tab-menu-way")].map((way) => way.getAttribute("href")).filter((href) => href !== "/profile#devices" && href !== "/sync"), language: [...allOnPage(".profile-menu .pm-lang a")].map((a) => a.getAttribute("href")) }));
   check(tapped.here === left.here && tapped.at === left.at && tapped.scrim && JSON.stringify(tapped.ways) === JSON.stringify(["/profile"]) && JSON.stringify(tapped.language) === JSON.stringify(["/en/catalog"]), `phone: the tap on the box: ${JSON.stringify(tapped)}`);
   // „Neues Profil“ in it: a name, and the new profile, empty, is the active one; the page stays.
   await step("phone: „Neues Profil“ asks for a name", () => page.tap(".profile-menu .pm-new-way >> visible=true"), () => document.activeElement?.id === "pm-new-name" && document.activeElement.placeholder === "Profil 3");
