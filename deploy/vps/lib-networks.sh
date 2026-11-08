@@ -17,6 +17,8 @@ NETPLAN_NETS=()
 NETPLAN_OLD=()
 NETPLAN_NOOUT=()
 NETPLAN_LISTENERS=()
+# The IPv6 subnet of docker_gwbridge (line "gwbridge"); empty: IPv4 only.
+NETPLAN_GWBRIDGE6=""
 declare -A NETPLAN_BY=() NETPLAN_INTERNAL=() NETPLAN_ATTACHABLE=() NETPLAN_SUBNET=() NETPLAN_MEMBERS=() NETPLAN_PORTS=()
 # Set by netplan_check: what is wrong with a network, in words.
 NETPLAN_DETAIL=""
@@ -31,7 +33,7 @@ netplan_read() {
   local -a w
   [[ -r "${file}" ]] || die "the network plan ${file} is missing (run deploy/sync.sh)"
   assert_lf "${file}"
-  NETPLAN_NETS=() NETPLAN_OLD=() NETPLAN_NOOUT=() NETPLAN_LISTENERS=()
+  NETPLAN_NETS=() NETPLAN_OLD=() NETPLAN_NOOUT=() NETPLAN_LISTENERS=() NETPLAN_GWBRIDGE6=""
   NETPLAN_BY=() NETPLAN_INTERNAL=() NETPLAN_ATTACHABLE=() NETPLAN_SUBNET=() NETPLAN_MEMBERS=() NETPLAN_PORTS=()
   while IFS= read -r line || [[ -n "${line}" ]]; do
     n=$((n + 1))
@@ -74,7 +76,13 @@ netplan_read() {
         [[ "${#w[@]}" -eq 2 ]] || die "${file}:${n}: 'old NAME'"
         NETPLAN_OLD+=("${w[1]}")
         ;;
-      *) die "${file}:${n}: '${w[0]}' is no keyword of the plan (net, listen, noout, old)" ;;
+      gwbridge)
+        [[ "${#w[@]}" -eq 2 && "${w[1]}" =~ ^f[cd][0-9a-f]{2}(:[0-9a-f]{1,4}){0,3}::/64$ ]] ||
+          die "${file}:${n}: 'gwbridge SUBNET6', a unique local /64 (fdxx:xxxx:xxxx:n::/64)"
+        [[ -z "${NETPLAN_GWBRIDGE6}" ]] || die "${file}:${n}: gwbridge is named twice"
+        NETPLAN_GWBRIDGE6="${w[1]}"
+        ;;
+      *) die "${file}:${n}: '${w[0]}' is no keyword of the plan (net, listen, noout, old, gwbridge)" ;;
     esac
   done <"${file}"
   [[ "${#NETPLAN_NETS[@]}" -gt 0 ]] || die "${file} names no network"
@@ -292,6 +300,284 @@ network_used_by_others() {
     return 0
   done
   return 1
+}
+
+# ---------------------------------------------------------------- docker_gwbridge
+
+# Docker's local bridge for swarm tasks: host-mode ports arrive on it (stacks/edge.yml), and every
+# container with a network that is not internal goes out over it. Docker makes it by itself, IPv4
+# only, the first time a task needs it, unless it exists already; it changes nothing of it later.
+# With the plan's IPv6 subnet ("gwbridge" in files/networks.conf) a published port is reached over
+# IPv6 by DNAT like over IPv4, and Traefik sees the visitor's own address instead of the gateway's
+# that docker-proxy relays from. 30-docker.sh makes it (ensure_gwbridge), 90-verify-host.sh and
+# deploy/test/gwbridge.sh check it (gwbridge_verify).
+GWBRIDGE="docker_gwbridge"
+# Set by gwbridge_verify / gwbridge_preflight: what is wrong, in words.
+GWBRIDGE_DETAIL=""
+# While gwbridge_swap has services at 0: "service=replicas" to restore, and the IPv4 the bridge had.
+GWBRIDGE_SCALED=()
+GWBRIDGE_OLD4="" GWBRIDGE_OLDGW="" GWBRIDGE_HOOKED=0
+
+# gwbridge_wanted -> the IPv6 subnet docker_gwbridge should have; "-" for none (no line in the
+# plan, no global IPv6 address here: nobody could reach it over IPv6, or GWBRIDGE_IPV6=off: the
+# way back). After netplan_read.
+gwbridge_wanted() {
+  if [[ -n "${NETPLAN_GWBRIDGE6}" && "${GWBRIDGE_IPV6:-on}" != "off" ]] && ipv6_enabled && has_global_ipv6; then
+    printf '%s' "${NETPLAN_GWBRIDGE6}"
+  else
+    printf -- '-'
+  fi
+}
+
+# gwbridge_facts -> "<IPv4 subnet> <IPv4 gateway> <IPv6 subnet>" ("-" for what it lacks); nothing
+# when the bridge does not exist.
+gwbridge_facts() {
+  local config subnet gateway v4=- gw=- v6=-
+  config="$(docker network inspect "${GWBRIDGE}" --format '{{range .IPAM.Config}}{{.Subnet}} {{.Gateway}}{{println}}{{end}}' 2>/dev/null)" || return 0
+  while read -r subnet gateway; do
+    [[ -n "${subnet}" ]] || continue
+    if [[ "${subnet}" == *:* ]]; then
+      v6="${subnet}"
+    else
+      v4="${subnet}" gw="${gateway:--}"
+    fi
+  done <<<"${config}"
+  if [[ "$(docker network inspect "${GWBRIDGE}" --format '{{.EnableIPv6}}' 2>/dev/null)" != "true" ]]; then v6=-; fi
+  printf '%s %s %s' "${v4}" "${gw}" "${v6}"
+}
+
+# gwbridge_create IPV4 GATEWAY IPV6 - makes docker_gwbridge with the options Docker gives it itself
+# (no traffic between its members, NAT on the way out); "-" for the IPv4 subnet takes one from the
+# daemon's pool, "-" for IPv6 makes it IPv4 only.
+gwbridge_create() {
+  local -a flags=(--driver bridge)
+  if [[ "$1" != "-" ]]; then
+    flags+=(--subnet "$1")
+    [[ "$2" == "-" ]] || flags+=(--gateway "$2")
+  fi
+  [[ "$3" == "-" ]] || flags+=(--ipv6 --subnet "$3")
+  docker network create "${flags[@]}" \
+    --opt com.docker.network.bridge.name="${GWBRIDGE}" \
+    --opt com.docker.network.bridge.enable_icc=false \
+    --opt com.docker.network.bridge.enable_ip_masquerade=true \
+    --label "app.betula.managed-by=vps/30-docker.sh" "${GWBRIDGE}" >/dev/null
+}
+
+# gwbridge_members -> the endpoints on the bridge by name (gateway_<container>,
+# gateway_ingress-sbox), space separated.
+gwbridge_members() {
+  docker network inspect "${GWBRIDGE}" --format '{{range $id, $c := .Containers}}{{$c.Name}} {{end}}' 2>/dev/null || true
+}
+
+# gwbridge_services -> every swarm service on the bridge, one per line: the ones with a task on it
+# now, and the ones that would be as soon as a task starts (a network that is not internal). Dies
+# on a container on it that belongs to no service: it would keep the bridge from going.
+gwbridge_services() {
+  local id name internal svc line net
+  local -A found=() outward=()
+  # Overlay networks only: a swarm task reaches docker_gwbridge through one that is not internal.
+  # (The ingress network is never among a service's networks; its sandbox is Docker's own.)
+  while read -r id name internal; do
+    if [[ "${internal}" == "false" && "${name}" != "ingress" ]]; then
+      outward["${id}"]=1
+      outward["${name}"]=1
+    fi
+  done < <(docker network ls --no-trunc --filter driver=overlay --format '{{.ID}} {{.Name}} {{.Internal}}' 2>/dev/null || true)
+  for id in $(docker network inspect "${GWBRIDGE}" --format '{{range $id, $c := .Containers}}{{$id}} {{end}}' 2>/dev/null || true); do
+    [[ "${id}" == "ingress-sbox" ]] && continue
+    svc="$(docker inspect --format '{{index .Config.Labels "com.docker.swarm.service.name"}}' "${id}" 2>/dev/null || true)"
+    [[ -n "${svc}" ]] || die "container ${id:0:12} is on ${GWBRIDGE} and belongs to no swarm service: stop it first (docker ps)"
+    found["${svc}"]=1
+  done
+  while read -r line; do
+    [[ -n "${line}" ]] || continue
+    svc="${line%% *}"
+    for net in ${line#* }; do
+      if [[ -n "${outward[${net}]:-}" ]]; then found["${svc}"]=1; fi
+    done
+  done < <(docker service ls -q 2>/dev/null | xargs -r docker service inspect --format '{{.Spec.Name}} {{range .Spec.TaskTemplate.Networks}}{{.Target}} {{end}}' 2>/dev/null || true)
+  for svc in "${!found[@]}"; do printf '%s\n' "${svc}"; done | sort
+}
+
+# gwbridge_preflight WANTED - what must hold before the bridge gets IPv6; false with
+# GWBRIDGE_DETAIL when something does not. Nothing is changed.
+gwbridge_preflight() {
+  local wanted=$1 mode dev ra
+  GWBRIDGE_DETAIL=""
+  [[ "${wanted}" != "-" ]] || return 0
+  # Without a link-local address on the bridge the host cannot ask for a container's MAC address on
+  # behalf of a forwarded packet (neighbour solicitations come from it): every IPv6 connection to a
+  # published port would hang. Docker's bridges take the kernel's default; 1 means none (WSL has it).
+  mode="$(sysctl -n net.ipv6.conf.default.addr_gen_mode 2>/dev/null || printf '?')"
+  if [[ "${mode}" == "1" || "${mode}" == "?" ]]; then
+    GWBRIDGE_DETAIL="net.ipv6.conf.default.addr_gen_mode is ${mode}: a new bridge would get no link-local address, and IPv6 to the containers would fail; set it to 0 first"
+    return 1
+  fi
+  # Docker turns IPv6 forwarding on with the first IPv6 network, and a host that forwards ignores
+  # router advertisements unless accept_ra is 2: a default route learned from them would expire.
+  while read -r dev; do
+    [[ -n "${dev}" ]] || continue
+    ra="$(sysctl -n "net.ipv6.conf.${dev}.accept_ra" 2>/dev/null || printf '?')"
+    if [[ "${ra}" != "2" ]]; then
+      GWBRIDGE_DETAIL="the IPv6 default route on ${dev} comes from router advertisements, and with forwarding on (Docker turns it on) ${dev} would ignore them (accept_ra ${ra}, not 2): the host would lose its IPv6 route"
+      return 1
+    fi
+  done < <(ip -6 route show default 2>/dev/null | awk '/ proto ra / { for (i = 1; i < NF; i++) if ($i == "dev") print $(i + 1) }' | sort -u)
+  # Docker publishes a port on [::] only where it can listen on ::1, and it looks when dockerd
+  # starts: ::1 given to lo later takes a restart of dockerd.
+  if [[ -z "$(ip -6 -o addr show dev lo 2>/dev/null | grep -F '::1/128' || true)" ]]; then
+    GWBRIDGE_DETAIL="lo has no ::1: Docker publishes no port on [::], and the bridge's IPv6 would serve nobody"
+    return 1
+  fi
+  if ! ip6tables -w 10 -t nat -S >/dev/null 2>&1; then
+    GWBRIDGE_DETAIL="ip6tables has no nat table here: Docker could not forward published ports over IPv6"
+    return 1
+  fi
+  return 0
+}
+
+# gwbridge_verify WANTED - docker_gwbridge as wanted, and what IPv6 to the published ports needs;
+# false with GWBRIDGE_DETAIL when something is not so. Read only.
+gwbridge_verify() {
+  local wanted=$1 facts v4 gw v6 port ports i
+  GWBRIDGE_DETAIL=""
+  facts="$(gwbridge_facts)"
+  if [[ -z "${facts}" ]]; then
+    GWBRIDGE_DETAIL="${GWBRIDGE} does not exist"
+    return 1
+  fi
+  read -r v4 gw v6 <<<"${facts}"
+  if [[ "${v6}" != "${wanted}" ]]; then
+    GWBRIDGE_DETAIL="${GWBRIDGE} has IPv6 subnet ${v6}, the plan says ${wanted} (IPv4 ${v4})"
+    return 1
+  fi
+  [[ "${wanted}" != "-" ]] || return 0
+  # The kernel adds the link-local address when the first member's link comes up.
+  if [[ -n "$(gwbridge_members)" ]]; then
+    for i in $(seq 1 10); do
+      [[ -z "$(ip -6 -o addr show dev "${GWBRIDGE}" scope link 2>/dev/null)" ]] || break
+      sleep 1
+    done
+    if [[ -z "$(ip -6 -o addr show dev "${GWBRIDGE}" scope link 2>/dev/null)" ]]; then
+      GWBRIDGE_DETAIL="${GWBRIDGE} has no link-local address: the host cannot reach its members over IPv6 on behalf of a visitor (net.ipv6.conf.${GWBRIDGE}.addr_gen_mode)"
+      return 1
+    fi
+  fi
+  if [[ "$(sysctl -n net.ipv6.conf.all.forwarding 2>/dev/null)" != "1" ]]; then
+    GWBRIDGE_DETAIL="net.ipv6.conf.all.forwarding is not 1 (Docker sets it when it makes an IPv6 network; was it switched off since?)"
+    return 1
+  fi
+  # Every port a task publishes on [::] needs its IPv6 DNAT rule: without it docker-proxy would take
+  # the connection and Traefik would see the gateway again.
+  ports="$(docker ps --format '{{.Ports}}' 2>/dev/null | tr ',' '\n' | sed -n 's/^ *\[::\]:\([0-9]*\)->.*/\1/p' | sort -u || true)"
+  for port in ${ports}; do
+    if ! ip6tables -w 10 -t nat -S DOCKER 2>/dev/null | grep -Eq -- "--dport ${port} -j DNAT --to-destination \[${v6%%::*}:"; then
+      GWBRIDGE_DETAIL="port ${port} is published on [::], and ip6tables has no DNAT rule for it into ${v6}"
+      return 1
+    fi
+  done
+  return 0
+}
+
+# gwbridge_restore [RC] - after a swap that did not finish: the bridge back if it is missing (IPv4
+# only, as it was), and every service scaled to 0 back to its replicas. An exit hook as well, so
+# that no failure leaves the sites down; does nothing once the swap is done.
+gwbridge_restore() {
+  [[ "${#GWBRIDGE_SCALED[@]}" -gt 0 ]] || return 0
+  if [[ -z "$(gwbridge_facts)" ]]; then
+    warn "${GWBRIDGE} is missing: making it again, IPv4 only, as it was (${GWBRIDGE_OLD4})"
+    gwbridge_create "${GWBRIDGE_OLD4:--}" "${GWBRIDGE_OLDGW:--}" - || warn "could not make ${GWBRIDGE}; Docker makes one itself (IPv4 only) for the first task"
+  fi
+  warn "scaling back: ${GWBRIDGE_SCALED[*]}"
+  docker service scale --detach "${GWBRIDGE_SCALED[@]}" >/dev/null || warn "docker service scale ${GWBRIDGE_SCALED[*]} failed: do it by hand"
+  GWBRIDGE_SCALED=()
+}
+
+# gwbridge_swap IPV6 - makes docker_gwbridge anew with the IPv6 subnet IPV6 ("-": IPv4 only) and
+# the IPv4 subnet it has. Docker removes no network that has members, so every service on it is
+# scaled to 0 first (gwbridge_services) and back afterwards. Services on internal networks only
+# (Folia, Radix without egress, Prometheus, Loki, ...) keep running; the sites are away while
+# Traefik is (a few seconds after its stop, see the log), Cortex while its two are.
+gwbridge_swap() {
+  local v6=$1 facts svc replicas left i
+  local -a services=() targets=()
+  facts="$(gwbridge_facts)"
+  [[ -n "${facts}" ]] || die "${GWBRIDGE} does not exist; nothing to swap"
+  read -r GWBRIDGE_OLD4 GWBRIDGE_OLDGW _ <<<"${facts}"
+  mapfile -t services < <(gwbridge_services)
+  for svc in ${services[@]+"${services[@]}"}; do
+    replicas="$(docker service inspect --format '{{if .Spec.Mode.Replicated}}{{.Spec.Mode.Replicated.Replicas}}{{else}}-{{end}}' "${svc}")"
+    [[ "${replicas}" =~ ^[0-9]+$ ]] || die "service ${svc} is on ${GWBRIDGE} and not replicated: it cannot be scaled to 0 for the swap"
+    targets+=("${svc}=${replicas}")
+  done
+  if [[ "${GWBRIDGE_HOOKED}" -eq 0 ]]; then
+    add_exit_hook gwbridge_restore
+    GWBRIDGE_HOOKED=1
+  fi
+  GWBRIDGE_SCALED=(${targets[@]+"${targets[@]}"})
+  if [[ "${#services[@]}" -gt 0 ]]; then
+    log "to 0 for the swap: ${targets[*]}"
+    docker service scale --detach "${services[@]/%/=0}" >/dev/null
+  fi
+  for i in $(seq 1 180); do
+    left="$(gwbridge_members)"
+    left="${left//gateway_ingress-sbox/}"
+    [[ -n "${left// /}" ]] || break
+    sleep 1
+  done
+  [[ -z "${left// /}" ]] || die "still on ${GWBRIDGE} after 3 minutes: ${left} (scaling back)"
+  log "${GWBRIDGE} has no task left"
+  # The ingress network's sandbox: Docker's own, reconnected to the new bridge by dockerd's next
+  # start. Nothing here publishes through the routing mesh (host mode only), so it is not missed.
+  if [[ " $(gwbridge_members) " == *" gateway_ingress-sbox "* ]]; then
+    docker network disconnect --force "${GWBRIDGE}" gateway_ingress-sbox
+  fi
+  docker network rm "${GWBRIDGE}" >/dev/null
+  if gwbridge_create "${GWBRIDGE_OLD4}" "${GWBRIDGE_OLDGW}" "${v6}"; then
+    log "${GWBRIDGE} made anew: IPv4 ${GWBRIDGE_OLD4}, IPv6 ${v6}"
+  else
+    warn "docker network create refused ${GWBRIDGE} with IPv6 ${v6}; making it IPv4 only again"
+    gwbridge_create "${GWBRIDGE_OLD4}" "${GWBRIDGE_OLDGW}" - || die "could not make ${GWBRIDGE} again"
+  fi
+  if [[ "${#services[@]}" -gt 0 ]]; then
+    docker service scale --detach "${targets[@]}" >/dev/null
+    log "scaled back: ${targets[*]}"
+  fi
+  GWBRIDGE_SCALED=()
+  gwbridge_wait_running ${services[@]+"${services[@]}"}
+}
+
+# gwbridge_wait_running SERVICE... - waits up to 3 minutes until each service runs all its replicas;
+# a warning for those that do not (the swap itself is done by then).
+gwbridge_wait_running() {
+  local svc line i pending
+  for i in $(seq 1 180); do
+    pending=""
+    for svc in "$@"; do
+      line="$(docker service ls --filter "name=${svc}" --format '{{.Name}} {{.Replicas}}' 2>/dev/null | awk -v s="${svc}" '$1 == s { print $2 }')"
+      [[ "${line}" =~ ^([0-9]+)/([0-9]+)$ && "${BASH_REMATCH[1]}" == "${BASH_REMATCH[2]}" ]] || pending+="${svc} "
+    done
+    [[ -n "${pending}" ]] || return 0
+    sleep 1
+  done
+  warn "not all replicas run after 3 minutes: ${pending% } (docker service ps ${pending%% *})"
+}
+
+# gwbridge_rebuild WANTED - the swap to WANTED, then gwbridge_verify; when that fails, the swap back
+# to IPv4 only (the state from before, IPv6 through docker-proxy) and die. Run gwbridge_preflight
+# first.
+gwbridge_rebuild() {
+  local wanted=$1 detail
+  gwbridge_swap "${wanted}"
+  if gwbridge_verify "${wanted}"; then
+    log "${GWBRIDGE} as planned: $(gwbridge_facts)"
+    return 0
+  fi
+  detail="${GWBRIDGE_DETAIL}"
+  [[ "${wanted}" != "-" ]] || die "${detail}"
+  warn "${detail}: back to IPv4 only"
+  gwbridge_swap -
+  die "${GWBRIDGE} is IPv4 only again, as before; the reason: ${detail}"
 }
 
 # ---------------------------------------------------------------- probes

@@ -10,7 +10,10 @@
 # lead to Traefik's ping, which answers 200 to every path, so 200 is "served" and 403 is the filter.
 # The user agents are the ones the crawlers send (their operators' documentation, 2026-11). Then the
 # networks, in copies that Traefik reloads: the test's own address (Docker's bridge) put among the
-# clouds' of crawler-networks.yml, and taken out of Europe's open networks of europe.yml.
+# clouds' of crawler-networks.yml, and taken out of Europe's open networks of europe.yml. Then the
+# same over IPv6, from a client container on two IPv6 networks of Docker that Traefik joins (the
+# host needs no IPv6 of its own): one unique local (open as a private network, until the test takes
+# fc00::/7 out), one inside the first IPv6 network of Europe's list.
 set -Euo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,6 +21,10 @@ DEPLOY_DIR="$(cd "${TEST_DIR}/.." && pwd)"
 IMAGE="$(sed -n 's/^[[:space:]]*image:[[:space:]]*\(traefik:v[0-9.]*\)[[:space:]]*$/\1/p' "${DEPLOY_DIR}/stacks/edge.yml" | head -n 1)"
 NAME="betula-crawlers-test"
 PORT=18444
+# The two IPv6 networks: unique local, and European (made from europe.yml below).
+NET_ULA="betula-crawlers-test6"
+NET_EU="betula-crawlers-test6-eu"
+SUBNET_ULA="fd0b:7a00:c4a1:1::/64"
 WORK="$(mktemp -d)"
 FAILED=0
 
@@ -28,6 +35,7 @@ done
 
 cleanup() {
   docker rm -f "${NAME}" >/dev/null 2>&1 || true
+  docker network rm "${NET_ULA}" "${NET_EU}" >/dev/null 2>&1 || true
   rm -rf -- "${WORK}"
 }
 trap cleanup EXIT
@@ -162,9 +170,10 @@ else
   printf 'FAIL  the access log has %s lines of edge-crawlers@file for %s requests turned away\n' "${logged}" "${TURNED_AWAY}"
 fi
 
-# The clouds' networks: Docker's bridge, where the test's requests come from, among them. Written
-# beside the directory and moved in, so that Traefik never reads half a file.
-sed 's/^\([[:space:]]*\)(ClientIP(/\1(ClientIP(`172.16.0.0\/12`) || ClientIP(/' "${WORK}/dynamic/crawler-networks.yml" >"${WORK}/crawler-networks.yml"
+# The clouds' networks: Docker's bridge, where the test's requests come from, among them (the IPv4
+# list, behind its guard). Written beside the directory and moved in, so that Traefik never reads
+# half a file.
+sed 's/ClientIP(`0\.0\.0\.0\/0`) && (ClientIP(/ClientIP(`0.0.0.0\/0`) \&\& (ClientIP(`172.16.0.0\/12`) || ClientIP(/' "${WORK}/dynamic/crawler-networks.yml" >"${WORK}/crawler-networks.yml"
 chmod a+r "${WORK}/crawler-networks.yml"
 mv -f "${WORK}/crawler-networks.yml" "${WORK}/dynamic/crawler-networks.yml"
 for _ in $(seq 1 30); do
@@ -222,6 +231,115 @@ if [[ "${logged}" -ge "${TURNED_AWAY}" && "${TURNED_AWAY}" -gt 0 ]]; then
 else
   FAILED=$((FAILED + 1))
   printf 'FAIL  the access log has %s lines of edge-outside-europe@file for %s requests turned away\n' "${logged}" "${TURNED_AWAY}"
+fi
+
+# ---- IPv6. Each family has its own list behind its guard: what was taken out of the IPv4 list
+# above does not matter here. The European network: a /64 inside the first IPv6 network of
+# Europe's list (after ::1/128 and fc00::/7), whose first two groups fix it (every network of the
+# list is a /32 or larger).
+log_count() { docker logs "${NAME}" 2>/dev/null | grep -c "\"DownstreamStatus\":403,.*\"RouterName\":\"$1\"" || true; }
+eu6="$(sed -n 's/^[[:space:]]*|| ClientIP(`\([0-9a-f]*:[0-9a-f:]*\/[0-9]*\)`).*$/\1/p' "${DEPLOY_DIR}/config/traefik/dynamic/europe.yml" |
+  grep -v -e '^::1/128$' -e '^fc00::/7$' | head -n 1)"
+g1="${eu6%%:*}"
+g2="${eu6#*:}"
+g2="${g2%%:*}"
+SUBNET_EU="${g1}:${g2:-0}:ffff:ffff::/64"
+if [[ -z "${eu6}" ]]; then
+  FAILED=$((FAILED + 1))
+  echo "FAIL  europe.yml has no IPv6 network"
+elif ! docker network create --ipv6 --subnet "${SUBNET_ULA}" "${NET_ULA}" >/dev/null 2>"${WORK}/net.err" ||
+  ! docker network create --ipv6 --subnet "${SUBNET_EU}" "${NET_EU}" >/dev/null 2>>"${WORK}/net.err"; then
+  FAILED=$((FAILED + 1))
+  printf 'FAIL  Docker could not make the IPv6 networks %s and %s: %s\n' "${SUBNET_ULA}" "${SUBNET_EU}" "$(tr '\n' ' ' <"${WORK}/net.err")"
+else
+  docker network connect "${NET_ULA}" "${NAME}"
+  docker network connect "${NET_EU}" "${NAME}"
+  ADDR_ULA="$(docker inspect -f "{{(index .NetworkSettings.Networks \"${NET_ULA}\").GlobalIPv6Address}}" "${NAME}")"
+  ADDR_EU="$(docker inspect -f "{{(index .NetworkSettings.Networks \"${NET_EU}\").GlobalIPv6Address}}" "${NAME}")"
+
+  # status6 ula|eu AGENT PATH -> the status code over IPv6, from a client on that network (the
+  # Traefik image's busybox wget: no other image to pull).
+  status6() {
+    local net="${NET_ULA}" addr="${ADDR_ULA}" out code
+    [[ "$1" == "eu" ]] && net="${NET_EU}" addr="${ADDR_EU}"
+    out="$(docker run --rm --network "${net}" --add-host "betula.app=${addr}" --entrypoint wget "${IMAGE}" \
+      -S -O /dev/null -T 5 --no-check-certificate -U "$2" "https://betula.app:8443$3" 2>&1 || true)"
+    code="$(grep -o 'HTTP/[0-9.]* [0-9]*' <<<"${out}" | head -n 1)"
+    code="${code##* }"
+    printf '%s' "${code:-000}"
+  }
+  expect6() { # EXPECTED ula|eu PATH AGENT
+    local got
+    got="$(status6 "$2" "$4" "$3")"
+    [[ "${got}" == 403 ]] && TURNED_AWAY=$((TURNED_AWAY + 1))
+    if [[ "${got}" == "$1" ]]; then
+      printf 'PASS  %s %-22s %s (IPv6, %s)\n' "${got}" "$3" "$4" "$2"
+    else
+      FAILED=$((FAILED + 1))
+      printf 'FAIL  %s %-22s %s (IPv6, %s; expected %s)\n' "${got}" "$3" "$4" "$2" "$1"
+    fi
+  }
+  wait6() { # EXPECTED: until a browser on the unique local network gets it
+    for _ in $(seq 1 30); do
+      [[ "$(status6 ula 'Mozilla/5.0' /)" == "$1" ]] && return 0
+      sleep 1
+    done
+  }
+  echo "IPv6: unique local ${ADDR_ULA}, European ${ADDR_EU} (inside ${eu6})"
+
+  # As the files are: unique local addresses are private and open, the European one is in the list.
+  expect6 200 ula / 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0'
+  expect6 200 eu / 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0'
+  expect6 403 eu / 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.4; +https://openai.com/gptbot)'
+
+  # The clouds' IPv6 list with the unique local network in it.
+  before="$(log_count edge-crawler-networks@file)"
+  sed "s/ClientIP(\`::\/0\`) && (ClientIP(/ClientIP(\`::\/0\`) \&\& (ClientIP(\`${SUBNET_ULA//\//\\/}\`) || ClientIP(/" \
+    "${DEPLOY_DIR}/config/traefik/dynamic/crawler-networks.yml" >"${WORK}/crawler-networks.yml"
+  chmod a+r "${WORK}/crawler-networks.yml"
+  mv -f "${WORK}/crawler-networks.yml" "${WORK}/dynamic/crawler-networks.yml"
+  wait6 403
+  TURNED_AWAY=0
+  expect6 403 ula / 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36'
+  expect6 403 ula /api/db 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36'
+  expect6 200 ula /robots.txt 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36'
+  expect6 200 eu / 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36'
+  sleep 1
+  logged=$(($(log_count edge-crawler-networks@file) - before))
+  if [[ "${logged}" -ge "${TURNED_AWAY}" && "${TURNED_AWAY}" -gt 0 ]]; then
+    printf 'PASS  the access log has the %s IPv6 requests from a cloud turned away\n' "${TURNED_AWAY}"
+  else
+    FAILED=$((FAILED + 1))
+    printf 'FAIL  the access log has %s new lines of edge-crawler-networks@file for %s IPv6 requests turned away\n' "${logged}" "${TURNED_AWAY}"
+  fi
+
+  # The clouds' list as it is, then Europe without fc00::/7: the unique local client comes from
+  # outside Europe now, and no ::/0 lets it in.
+  cp "${DEPLOY_DIR}/config/traefik/dynamic/crawler-networks.yml" "${WORK}/crawler-networks.yml"
+  chmod a+r "${WORK}/crawler-networks.yml"
+  mv -f "${WORK}/crawler-networks.yml" "${WORK}/dynamic/crawler-networks.yml"
+  wait6 200
+  before="$(log_count edge-outside-europe@file)"
+  grep -v '|| ClientIP(`fc00::/7`)' "${WORK}/dynamic/europe.yml" >"${WORK}/europe.yml"
+  chmod a+r "${WORK}/europe.yml"
+  mv -f "${WORK}/europe.yml" "${WORK}/dynamic/europe.yml"
+  wait6 403
+  TURNED_AWAY=0
+  expect6 403 ula / 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0'
+  expect6 403 ula /api/db 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36'
+  expect6 200 ula / 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.204 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+  expect6 200 ula /robots.txt 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0'
+  expect6 200 ula /calendar/x.ics 'Google-Calendar-Importer'
+  expect6 200 eu / 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0'
+  expect6 200 eu /api/db 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36'
+  sleep 1
+  logged=$(($(log_count edge-outside-europe@file) - before))
+  if [[ "${logged}" -ge "${TURNED_AWAY}" && "${TURNED_AWAY}" -gt 0 ]]; then
+    printf 'PASS  the access log has the %s IPv6 requests from outside Europe turned away\n' "${TURNED_AWAY}"
+  else
+    FAILED=$((FAILED + 1))
+    printf 'FAIL  the access log has %s new lines of edge-outside-europe@file for %s IPv6 requests turned away\n' "${logged}" "${TURNED_AWAY}"
+  fi
 fi
 
 if [[ "${FAILED}" -gt 0 ]]; then

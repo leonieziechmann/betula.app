@@ -540,9 +540,9 @@ check_published_filter() {
     # ufw's forward chains only accept ESTABLISHED traffic and explicit "ufw route" rules, so
     # new connections still reach the filter; worth a look anyway.
     warning "${ipt}: FORWARD jumps to DOCKER-USER, but not as its first rule: ${first}"
-  elif [[ "${ipt}" == "ip6tables" ]]; then
-    # Docker hooks into the IPv6 FORWARD chain only when it manages IPv6 forwarding. Without the
-    # jump and with policy DROP nothing is forwarded at all.
+  elif [[ "${ipt}" == "ip6tables" && "${GWBRIDGE_V6:--}" == "-" ]]; then
+    # Docker hooks into the IPv6 FORWARD chain only when it manages IPv6 forwarding (a network with
+    # IPv6: docker_gwbridge). Without the jump and with policy DROP nothing is forwarded at all.
     pass "${ipt}: Docker forwards no IPv6 (no jump to DOCKER-USER; policy decides)"
   else
     fail "${ipt}: FORWARD has no jump to DOCKER-USER (dockerd not on the iptables backend?)"
@@ -637,6 +637,17 @@ check_docker() {
       warning "network ${net} is from before files/networks.conf: it goes once nothing uses it (README.md section 15)"
     fi
   done
+  # docker_gwbridge: with the plan's IPv6 Traefik sees IPv6 visitors themselves (stacks/edge.yml,
+  # "ipv6"); the link-local address, IPv6 forwarding and a DNAT rule per port published on [::].
+  value="$(gwbridge_wanted)"
+  GWBRIDGE_V6="$(gwbridge_facts | awk '{ print $3 }')"
+  if gwbridge_verify "${value}"; then
+    pass "docker_gwbridge: $(gwbridge_facts) (IPv4 subnet, gateway, IPv6 subnet), as planned"
+  elif [[ "${value}" != "-" && "${GWBRIDGE_V6:--}" == "-" ]]; then
+    warning "docker_gwbridge has no IPv6 yet: IPv6 visitors reach Traefik as its gateway (sudo env GWBRIDGE_REBUILD=1 bash ${BETULA_VPS_DIR}/30-docker.sh, README.md section 15)"
+  else
+    fail "${GWBRIDGE_DETAIL} (README.md section 15, IPv6 to Traefik)"
+  fi
   as_shipped "Phloem's guard" /usr/local/sbin/betula-phloem-guard betula-phloem-guard.sh
   as_shipped "Phloem's guard (service)" /etc/systemd/system/betula-phloem-guard.service betula-phloem-guard.service
   as_shipped "Phloem's guard (timer)" /etc/systemd/system/betula-phloem-guard.timer betula-phloem-guard.timer
@@ -659,12 +670,15 @@ check_docker() {
   check_published_filter iptables
   conf_ok="${FILTER_OK}"
   expect "iptables: ports the filter lets through" "${FILTER_PORTS% }" "${value% }"
-  # The host has a global IPv6 address, so the same filter is mandatory for IPv6. (conf_ok stays
-  # an IPv4 verdict: published ports are DNATed on IPv4 only; IPv6 clients reach them through
-  # docker-proxy, which is INPUT traffic and judged in the ufw section.)
+  # The host has a global IPv6 address, so the same filter is mandatory for IPv6. It is part of
+  # conf_ok once docker_gwbridge has IPv6: published ports are DNATed on IPv6 then as well. Before,
+  # IPv6 clients reach them through docker-proxy, which is INPUT traffic and judged in the ufw
+  # section.
   if ipv6_enabled; then
     if have_cmd ip6tables; then
+      FILTER_OK=1
       check_published_filter ip6tables
+      if [[ "${GWBRIDGE_V6:--}" != "-" && "${FILTER_OK}" -eq 0 ]]; then conf_ok=0; fi
       expect "ip6tables: ports the filter lets through" "${FILTER_PORTS% }" "${value% }"
     else
       fail "ip6tables is not installed although IPv6 is enabled"
