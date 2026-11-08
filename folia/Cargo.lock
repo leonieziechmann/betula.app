@@ -1157,6 +1157,7 @@ dependencies = [
  "folia-routes",
  "folia-shell",
  "folia-stores",
+ "folia-widgets",
  "leptos",
  "leptos_meta",
  "wasm-bindgen",

@@ -184,6 +184,8 @@ pub struct Texts {
     /// „5 Module im Stundenplan · 28 LP aus früheren Semestern als bestanden markiert".
     pub set_up_detail: fn(usize, usize, Option<&str>) -> String,
     pub stays_here: &'static str,
+    /// The same where the profile syncs (the setup's last step, Betula Sync).
+    pub synced_here: &'static str,
     pub undo: &'static str,
     pub to_timetable: &'static str,
     pub close: &'static str,
@@ -399,6 +401,7 @@ pub const DE: Texts = Texts {
         }
     },
     stays_here: "Alles bleibt in diesem Browser.",
+    synced_here: "Betula Sync hält es auf deinen Geräten gleich.",
     undo: "Rückgängig",
     to_timetable: "Zum Stundenplan",
     close: "Schließen",
@@ -587,6 +590,7 @@ pub const EN: Texts = Texts {
         }
     },
     stays_here: "Everything stays in this browser.",
+    synced_here: "Betula Sync keeps it the same on your devices.",
     undo: "Undo",
     to_timetable: "To the timetable",
     close: "Close",

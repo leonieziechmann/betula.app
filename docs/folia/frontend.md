@@ -3976,6 +3976,31 @@ the pages about Betula since 2026-10-27 (`/about/<topic>`, below).
      next paint (R21); a note says what was set up, with „Zum Stundenplan" and „Rückgängig", which
      puts back what this browser kept before.
 
+  4. „Auch auf dem Handy?" (2026-11-08; owner: „es gibt ja jetzt betula sync. Mach das mal als
+     step in die einführung mit rein. So als letzten schritt. So dass man es gleich auch auf dem
+     handy hat"), where the site offers Betula Sync (`--sync`, `FOLIA_SYNC`; `home/devices.rs`):
+     the fourth chip „Geräte" on the server's page and the app's alike (the server's by its
+     `SyncOffer`, the app's by the page's `betula-sync` meta tag), so that nothing moves at the
+     takeover. „Studium anlegen" writes the study as before, and the card stays (`on_written`: the
+     page shows the setup while it ends, by a memo of what it shows, so that the card is not built
+     anew when „Mein Studiengang" says a study is set up); the chip of step 3 says what went into
+     the Stundenplan („4 Module"). What Betula Sync does and what the server then keeps, as three
+     points (sealed with a key only the devices have; no account, random ids, sizes and times;
+     ended at any time on the profile page, everything on the server gone, and so after 13 months
+     untouched), as the profile page says it before its „Aktivieren"; then „Betula Sync aktivieren"
+     (one click, since that stands above it) and „Später" (its title: on the profile page at any
+     time). Once on, switched on here or before, the link for the next device at once: its QR code,
+     the link to copy and the minutes it opens (`folia_widgets::syncpair::PairLink`, the profile
+     page's, moved a layer down for it); once one more device of the profile is online than when
+     the link was made, „Verbunden" and „Noch ein Gerät verbinden". „Fertig" (or „Später") ends the
+     setup with the note of what was set up, which says „Betula Sync hält es auf deinen Geräten
+     gleich." in place of „Alles bleibt in diesem Browser." while the profile syncs. What it says
+     names the phone; on a phone's layout the laptop („Auch am Laptop?", the code smaller there).
+     A chip that leads back and „Studium anlegen" once more set the study up anew in place of the
+     first one: the plan and the Studienbeginn from before the setup are the base, so that
+     „Rückgängig" puts back what was. Where the site does not offer Betula Sync the setup has its
+     three steps, and „Studium anlegen" ends it.
+
   What is long in a step scrolls inside the card, and the wheel goes on to the page at its ends,
   and at once over what has nothing to scroll (owner, the same day: „Dazu gibt es ein scroll lock,
   wenn man mit der maus über der semester selection ist. Das muss auch raus besonders, wenn es da
@@ -4128,7 +4153,8 @@ the pages about Betula since 2026-10-27 (`/about/<topic>`, below).
 - **Its commands** („Befehle", R25): the setup's under „Studium einrichten" (the program's picker,
   a semester by its name with „gewählt" for the one picked, „Anderes Fachsemester", „Weiter", the
   switch with „an", „Studium anlegen", „Ohne Module weiter", „Erst mal umschauen", „Profil
-  übernehmen", „Was ist Betula?"), the buttons of the
+  übernehmen", „Was ist Betula?", and in step 4 „Betula Sync aktivieren", „Später", „Fertig",
+  „Noch ein Gerät verbinden"), the buttons of the
   photo and of the note of a study set up under „Dein Tag", the ways into the catalog under
   „Entdecken" („Ohne Einrichtung" on a first visit), the pages about Betula under „Mehr über
   Betula" (2026-10-27).
