@@ -897,11 +897,15 @@ fn progress(key: Memo<Option<SemesterKey>>) -> Memo<Option<Progress>> {
 }
 
 /// „Eingerichtet: …" after „Studium anlegen", with „Rückgängig", until it is closed or the page is
-/// left.
+/// left; where it stays: in this browser, or on the profile's devices once it syncs.
 #[component]
 fn Welcome(welcome: RwSignal<Option<Done>>) -> impl IntoView {
     let t = i18n::t();
     let tt = &t.today;
+    let synced = Memo::new(move |_| match (folia_stores::sync::Sync::expect(), folia_stores::profiles::Profiles::expect()) {
+        (Some(sync), Some(profiles)) => sync.state(profiles.active()).synced(),
+        _ => false,
+    });
     let undo = move |_| {
         let Some(done) = welcome.get_untracked() else { return };
         if let Some(plan) = Studyplan::expect() {
@@ -922,7 +926,7 @@ fn Welcome(welcome: RwSignal<Option<Done>>) -> impl IntoView {
                     <span class="day-welcome-ok" aria-hidden="true"><Icon name="check"/></span>
                     <div>
                         <b>{(tt.set_up)(&done.program, done.fs, &done.start.label(t.locale))}</b>
-                        <small>{(tt.set_up_detail)(done.modules, done.placeholders, passed.as_deref())}" "{tt.stays_here}</small>
+                        <small>{(tt.set_up_detail)(done.modules, done.placeholders, passed.as_deref())}" "{move || if synced.get() { tt.synced_here } else { tt.stays_here }}</small>
                     </div>
                     <span class="day-welcome-acts">
                         <a class="btn sm" href=t.path(url::STUDYPLAN) data-command=""><Icon name="calendar-plus"/>{tt.to_timetable}</a>

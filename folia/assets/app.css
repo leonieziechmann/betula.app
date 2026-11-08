@@ -7613,6 +7613,20 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .ob-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .ob-actions .btn.ghost { background: none; color: var(--accent-ink); }
 .ob-actions .btn.ghost:hover { background: var(--panel-2); }
+/* Step 4, Betula Sync (devices.rs): what the server keeps as points, then the link for the phone
+   (folia_widgets::syncpair, the profile page's), then the other device joined. */
+.ob-points { display: grid; gap: 12px; margin: 2px 0 0; padding: 0; list-style: none; color: var(--text-2); font-size: 13.5px; line-height: 1.45; }
+.ob-points li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; align-items: start; }
+.ob-point-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--accent-soft); color: var(--accent-ink); }
+.ob-point-icon .icon { width: 16px; height: 16px; }
+.ob-fill .ob-note + .ob-points { margin-top: 4px; }
+.ob-note.ok { background: var(--ok-soft); color: var(--text); font-size: 13.5px; }
+.ob-note.ok .icon { color: var(--ok); }
+.ob-wait { padding: 8px 2px; color: var(--text-2); font-size: 13.5px; }
+.ob-more { display: inline-flex; align-items: center; gap: 6px; }
+.ob-more .icon { width: 15px; height: 15px; }
+.ob-fill .pf-pair { margin-top: 0; }
+.ob-actions .ob-activate[aria-disabled="true"] { opacity: .7; cursor: progress; }
 
 /* The note after the setup. */
 .day-welcome { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
@@ -7773,8 +7787,12 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
   .ob-switch { padding: 8px 10px; }
   .ob-about { margin-left: 0; }
   .ob-actions { flex-direction: column; align-items: stretch; gap: 2px; }
-  .ob-actions .ob-create, .ob-actions .ob-next { order: -1; min-height: 46px; }
-  .ob-actions .ob-without { align-self: center; }
+  .ob-actions .ob-create, .ob-actions .ob-next, .ob-actions .ob-activate, .ob-actions .ob-finish { order: -1; min-height: 46px; }
+  .ob-actions .ob-without, .ob-actions .ob-later { align-self: center; }
+  /* The link comes to a computer by its address: the link and „Link kopieren" first, the code
+     smaller under them. */
+  .ob-fill .pf-pair-text { order: -1; }
+  .ob-fill .pf-qr { width: 132px; height: 132px; }
   .day-cols { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .day-ev { grid-template-columns: 54px 4px minmax(0, 1fr); padding: 9px 8px; }
   .day-ev-st { grid-column: 3; justify-content: flex-start; margin-top: 4px; }

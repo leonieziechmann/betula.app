@@ -1,6 +1,6 @@
 [package]
 name = "folia-profile"
-version = "1.78.1"
+version = "1.79.0"
 edition = "2021"
 description = "Betula's profile page: the profiles of a browser, what the active one keeps, the settings"
 
@@ -8,8 +8,8 @@ description = "Betula's profile page: the profiles of a browser, what the active
 name = "folia_profile"
 
 [features]
-ssr = ["leptos/ssr", "leptos_meta/ssr", "folia-design/ssr", "folia-data/ssr", "folia-shell/ssr", "folia-stores/ssr"]
-csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "folia-design/csr", "folia-shell/csr", "folia-stores/csr"]
+ssr = ["leptos/ssr", "leptos_meta/ssr", "folia-design/ssr", "folia-data/ssr", "folia-shell/ssr", "folia-stores/ssr", "folia-widgets/ssr"]
+csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "folia-design/csr", "folia-shell/csr", "folia-stores/csr", "folia-widgets/csr"]
 
 [dependencies]
 leptos = "0.8.20"
@@ -18,6 +18,8 @@ folia-design = { path = "../design" }
 folia-data = { path = "../data" }
 folia-shell = { path = "../shell" }
 folia-stores = { path = "../stores" }
+# The link for the next device of Betula Sync, which the start page's setup shows as well.
+folia-widgets = { path = "../widgets" }
 folia-calendar = { path = "../calendar" }
 folia-locale = { path = "../locale" }
 folia-pages = { path = "../pages" }
