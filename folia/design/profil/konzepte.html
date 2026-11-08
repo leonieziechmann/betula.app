@@ -17,7 +17,10 @@
      screenshots of canary that day. Tokens are Betula's (folia/assets/app.css). Second round, the same day
      (owner: „Also mach mal eine kombinaion aus dem menu von B und der profilseite von A."): B's menu over
      A's profile page, as a prototype of its own at the top; where „Geräte" leads is left open as a switch,
-     because B's page for the devices has no place beside A's profile page. -->
+     because B's page for the devices has no place beside A's profile page. The end of the page reworked the
+     same day (owner: „Fast gut. Aber die danger zone muss nochmal überarbeitet werden die sieht aus wie
+     shit."): no red box; emptying and deleting are quiet rows of „Daten dieses Profils" beside saving, and red
+     comes only with the question; two other ways as a switch of the prototype. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@500;600&display=swap">
@@ -173,7 +176,7 @@ tbody tr:last-child > * { border-bottom: 0; }
   --m-invert: #161b26; --m-on-invert: #ffffff;
   --m-accent: #4c7a58; --m-accent-ink: #3c6848; --m-on-accent: #ffffff;
   --m-accent-soft: #edf3ef; --m-accent-line: rgba(76, 122, 88, .45);
-  --m-no: #b23a0b; --m-no-line: rgba(194, 65, 12, .4); --m-warn: #d97706;
+  --m-no: #b23a0b; --m-no-line: rgba(194, 65, 12, .4); --m-warn: #d97706; --m-no-soft: #fdf1ec; --m-no-fill: #c2410c;
   --m-pop: 0 0 0 1px rgba(15, 23, 42, .1), 0 18px 40px -14px rgba(15, 23, 42, .35);
   --m-scrim: rgba(16, 21, 31, .3);
   position: relative; background: var(--m-bg); color: var(--m-text); font: 13.5px/1.45 var(--font); text-align: left;
@@ -185,7 +188,7 @@ tbody tr:last-child > * { border-bottom: 0; }
   --m-invert: #e9edf5; --m-on-invert: #0d1017;
   --m-accent: #5d8f69; --m-accent-ink: #9fcaa9; --m-on-accent: #ffffff;
   --m-accent-soft: #18241c; --m-accent-line: rgba(127, 178, 140, .5);
-  --m-no: #ff8f85; --m-no-line: rgba(255, 143, 133, .45); --m-warn: #f2b45c;
+  --m-no: #ff8f85; --m-no-line: rgba(255, 143, 133, .45); --m-warn: #f2b45c; --m-no-soft: #2b1814; --m-no-fill: #c4502f;
   --m-pop: 0 0 0 1px rgba(255, 255, 255, .12), 0 22px 44px -16px rgba(0, 0, 0, .8);
   --m-scrim: rgba(0, 0, 0, .5);
 }
@@ -291,6 +294,21 @@ tbody tr:last-child > * { border-bottom: 0; }
 @keyframes flash { 0%, 30% { box-shadow: 0 0 0 4px var(--m-accent-line), 0 0 0 1.5px var(--m-accent); } }
 @media (prefers-reduced-motion: reduce) { .m-panel.flash { animation: none; box-shadow: 0 0 0 3px var(--m-accent-line); } }
 
+.m-drows { margin-top: 2px; }
+.m-drow { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 0; border-top: 1px solid var(--m-line); }
+.m-drow:first-child { border-top: 0; }
+.m-drow .ic { display: grid; color: var(--m-text2); }
+.m-drow b { display: block; font-size: 13px; font-weight: 620; }
+.m-drow .m-grow > span { display: block; color: var(--m-text3); font-size: 12px; text-wrap: pretty; }
+.m-drow .m-btn { min-width: 96px; }
+.m-confirm { margin: 0 0 10px; padding: 12px 14px; border-radius: 10px; background: var(--m-no-soft); box-shadow: inset 0 0 0 1px var(--m-no-line); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-size: 12.5px; }
+.m-confirm span { flex: 1 1 220px; color: var(--m-text); text-wrap: pretty; }
+.m-btn.dfill { background: var(--m-no-fill); color: #ffffff; box-shadow: none; }
+.m-btn.dfill:hover { filter: brightness(1.08); background: var(--m-no-fill); }
+.m-it.no { color: var(--m-no); }
+.mk.ph .m-drow { grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; }
+.mk.ph .m-drow .m-btn { min-width: 84px; }
+
 /* Menus, dialogs, sheets. */
 .m-menu { position: absolute; z-index: 6; width: 286px; padding: 6px; border-radius: 14px; background: var(--m-panel); box-shadow: var(--m-pop); }
 .m-menu .m-label { padding: 8px 10px 4px; }
@@ -376,6 +394,7 @@ tbody tr:last-child > * { border-bottom: 0; }
 
 /* The toast. */
 .toast { position: fixed; z-index: 50; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; align-items: center; gap: 12px; max-width: min(560px, calc(100vw - 32px)); padding: 10px 12px 10px 16px; border-radius: 12px; background: var(--invert); color: var(--on-invert); font-size: 13.5px; box-shadow: 0 18px 40px -16px rgba(0, 0, 0, .5); }
+.toast[hidden] { display: none; }
 .toast button { border: 0; border-radius: 8px; padding: 6px 10px; background: color-mix(in srgb, var(--on-invert) 16%, transparent); color: var(--on-invert); font-size: 13px; font-weight: 650; cursor: pointer; }
 @media (prefers-reduced-motion: no-preference) { .toast:not([hidden]) { animation: rise .2s ease-out; } }
 @keyframes rise { from { opacity: 0; translate: 0 8px; } }
@@ -406,7 +425,7 @@ tbody tr:last-child > * { border-bottom: 0; }
         <li><i><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2"/></svg></i><span><b>Darstellung und Sprache verlassen die Profilseite.</b> Einzelne Tasten bleiben in der Tastenübersicht und den Befehlen, wo es sie schon gibt.</span></li>
         <li><i><svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg></i><span><b>Zahlen statt Links.</b> Gemerkt, geplant, bestanden mit LP, Sammlungen, Pläne; keine Zahl ist ein Link. Der Studiengang steht als eine Zeile unter dem Namen, ohne „Ändern“.</span></li>
         <li><i><svg class="i" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg></i><span><b>Verbinden in beide Richtungen.</b> Der Rechner zeigt den Code, das Handy scannt, auch wenn das Profil schon auf dem Handy liegt. Dafür ein Scanner in Betula und vier Ziffern zum Vergleichen.</span></li>
-        <li><i><svg class="i" viewBox="0 0 24 24"><path d="m21.7 18-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"/><path d="M12 9v4M12 17h.01"/></svg></i><span><b>Leeren und Löschen am Ende,</b> rot umrandet, mit Rückfrage und „Rückgängig“ wie heute. Umbenennen am Namen.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="m21.7 18-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"/><path d="M12 9v4M12 17h.01"/></svg></i><span><b>Leeren und Löschen leise am Ende.</b> Rot wird es erst bei der Rückfrage, danach „Rückgängig“ wie heute. Umbenennen am Namen.</span></li>
         <li><i><svg class="i" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></i><span><b>Impressum und Datenschutz bleiben</b> von jeder Seite erreichbar (§ 5 DDG): in jedem Konzept am Ende der Profilseite, dazu im Menü oder in den Einstellungen.</span></li>
       </ul>
       <p class="who">Schon gemacht, weil du es direkt gesagt hast: Der Link fürs nächste Gerät heißt <code>/sync#…</code>, die Rechtsseiten <code>/imprint</code> und <code>/privacy</code>; die alten Adressen leiten weiter (Folia 1.77.2, auf canary).</p>
@@ -439,7 +458,7 @@ tbody tr:last-child > * { border-bottom: 0; }
     <header>
       <p class="kicker">Zweite Runde</p>
       <h2 id="runde2-title"><span class="tag">B + A</span>Das Menü aus B, die Profilseite aus A</h2>
-      <p class="sub">Das Menü ist das aus B: Profile, „Profil verwalten“, <b>„Geräte“ mit dem Stand von Sync</b>, darunter <b>eine Reihe kleiner Knöpfe</b> für System, Hell, Dunkel und DE/EN, im Fuß die Rechtsseiten. Die Profilseite ist die aus A: eine Spalte mit Kopf und Zahlen, Betula Sync mit den Geräten und „Gerät verbinden“, Sichern, Gefahrenzone. Die eigene Seite für die Geräte aus B entfällt, denn die Geräte stehen jetzt auf der Profilseite.</p>
+      <p class="sub">Das Menü ist das aus B: Profile, „Profil verwalten“, <b>„Geräte“ mit dem Stand von Sync</b>, darunter <b>eine Reihe kleiner Knöpfe</b> für System, Hell, Dunkel und DE/EN, im Fuß die Rechtsseiten. Die Profilseite ist die aus A: eine Spalte mit Kopf und Zahlen, Betula Sync mit den Geräten und „Gerät verbinden“, die Daten des Profils. Die eigene Seite für die Geräte aus B entfällt, denn die Geräte stehen jetzt auf der Profilseite.</p>
     </header>
     <p class="quote">„Also mach mal eine kombinaion aus dem menu von B und der profilseite von A.“</p>
     <div class="stage" data-stage="R2"></div>
@@ -449,7 +468,7 @@ tbody tr:last-child > * { border-bottom: 0; }
         <h3>Was man sieht</h3>
         <ul>
           <li><b>Menü:</b> Profile · Neues Profil | Profil verwalten · Geräte mit „Synchron · 2 Geräte“ | System, Hell, Dunkel als Symbole, DE/EN | Impressum · Datenschutz. Neun Einträge bei zwei Profilen.</li>
-          <li><b>Profilseite:</b> wie A. Kopf mit Name, Studiengang und fünf Zahlen; Betula Sync mit den Geräten und „Gerät verbinden“ als einzigem betonten Knopf; Sichern; Gefahrenzone; Fußzeile.</li>
+          <li><b>Profilseite:</b> wie A. Kopf mit Name, Studiengang und fünf Zahlen; Betula Sync mit den Geräten und „Gerät verbinden“ als einzigem betonten Knopf; Daten dieses Profils (Sichern, Leeren, Löschen); Fußzeile.</li>
           <li>Am Handy die Profile als Reihe oben, das Menü unter dem Knopf rechts oben.</li>
         </ul>
       </div>
@@ -469,8 +488,41 @@ tbody tr:last-child > * { border-bottom: 0; }
         </ul>
       </div>
     </div>
+    <header style="margin-top: 6px">
+      <p class="kicker">Zweite Runde · das Ende der Seite, überarbeitet</p>
+      <h3 style="font-size: 18px; font-weight: 720">Rot erst, wenn man sich entscheidet</h3>
+      <p class="sub">Die Gefahrenzone war rot umrandet, rot überschrieben und hatte rote Knöpfe mit einem „×“, das weder zu Leeren noch zu Löschen passt: der lauteste Teil der Seite, für das, was man am seltensten tut. Jetzt ist sie ruhig wie der Rest, und rot wird es erst in der Rückfrage. Drei Wege, oben rechts über dem Prototyp umzuschalten („Ende der Seite“):</p>
+    </header>
+    <p class="quote">„Fast gut. Aber die danger zone muss nochmal überarbeitet werden die sieht aus wie shit.“</p>
+    <div class="how">
+      <div>
+        <h3>Liste · Vorschlag</h3>
+        <ul>
+          <li>Ein Teil <b>„Daten dieses Profils“</b> mit drei Zeilen wie überall sonst: Symbol, was es tut, ein Satz dazu, ein gleich breiter Knopf rechts.</li>
+          <li><b>Als Datei sichern</b>, <b>Profil leeren</b>, <b>Profil löschen</b>: Sichern ist kein eigener Kasten mehr.</li>
+          <li>Ein Klick auf „Leeren …“ öffnet unter der Zeile die Rückfrage, hell rot hinterlegt, mit einem roten Knopf. Danach „Rückgängig“.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Leise Links</h3>
+        <ul>
+          <li>„Als Datei sichern“ bleibt ein Teil für sich.</li>
+          <li>Darunter nur zwei Textlinks, <b>„Profil leeren · Profil löschen“</b>, so wie „Dieses Gerät trennen · Sync beenden“ im Sync-Teil.</li>
+          <li>Am wenigsten auf der Seite, aber auch am wenigsten erklärt.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>„⋯“ im Kopf</h3>
+        <ul>
+          <li>Neben dem Namen ein Knopf <b>„⋯“</b> mit Umbenennen, Als Datei sichern, Profil leeren, Profil löschen.</li>
+          <li>Die Seite endet nach Betula Sync; die Rückfrage erscheint unter dem Kopf.</li>
+          <li>Wie in vielen Apps, aber versteckt: Wer das Profil leeren will, muss den Knopf finden.</li>
+        </ul>
+      </div>
+    </div>
     <ol class="qs">
       <li><b>Wohin führt „Geräte“?</b><p>Zum Sync-Teil der Profilseite, oder direkt in den Dialog „Gerät verbinden“. <em>Vorschlag:</em> zur Profilseite. So bleibt das Menü, wie du es aus B gewählt hast: „Geräte“ zeigt den Stand und führt dorthin, wo die Geräte stehen; verbunden wird mit dem Knopf dort.</p></li>
+      <li><b>Wie endet die Seite?</b><p>Liste, leise Links oder „⋯“ im Kopf. <em>Vorschlag:</em> Liste. Sie erklärt jede Aktion in einem Satz, sieht aus wie der Rest der Seite, und rot ist nur die Rückfrage.</p></li>
       <li><b>Reichen die Symbole für Hell und Dunkel?</b><p><em>Vorschlag:</em> ja, mit Tooltip und Beschriftung für Screenreader. Mond/Sonne in der Leiste am Rechner bleibt dazu.</p></li>
       <li><b>Am Rechner: Öffnet ein Klick auf den Profil-Knopf das Menü?</b><p>Aus der ersten Runde noch offen. <em>Vorschlag:</em> ja, Darüberfahren weiter auch.</p></li>
     </ol>
@@ -505,7 +557,7 @@ tbody tr:last-child > * { border-bottom: 0; }
     <header>
       <p class="kicker">Erste Runde · Konzept A</p>
       <h2 id="a-title"><span class="tag">A</span>Alles am Profil-Knopf</h2>
-      <p class="sub">Das Menü am Profil-Knopf wird der Schnellzugriff: unter den Profilen <b>„Gerät verbinden“ mit dem Stand von Sync</b> und „Profil verwalten“, darunter <b>Darstellung und Sprache als Auswahl</b>, im Fuß die Rechtsseiten. „Gerät verbinden“ öffnet einen Dialog über der Seite, wo man gerade ist. Die Profilseite ist eine Spalte: Kopf mit Zahlen, Betula Sync, Sichern, Gefahrenzone.</p>
+      <p class="sub">Das Menü am Profil-Knopf wird der Schnellzugriff: unter den Profilen <b>„Gerät verbinden“ mit dem Stand von Sync</b> und „Profil verwalten“, darunter <b>Darstellung und Sprache als Auswahl</b>, im Fuß die Rechtsseiten. „Gerät verbinden“ öffnet einen Dialog über der Seite, wo man gerade ist. Die Profilseite ist eine Spalte: Kopf mit Zahlen, Betula Sync, Daten.</p>
     </header>
     <div class="stage" data-stage="A"></div>
     <p class="tryit"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 16v-4M12 8h.01"/></svg><span>Klick unten in der Leiste auf <b>L</b>: Das Menü öffnet. Stell <b>Dunkel</b> ein, wechsle zu <b>Zweitstudium</b> (noch privat) und klick <b>Gerät verbinden</b>. Die gestrichelten Knöpfe spielen das andere Gerät. Am Handy öffnet der Knopf rechts oben dasselbe Menü, „Gerät verbinden“ dort den Scanner.</span></p>
@@ -514,7 +566,7 @@ tbody tr:last-child > * { border-bottom: 0; }
         <h3>Was man sieht</h3>
         <ul>
           <li><b>Menü:</b> Profile · Neues Profil | Gerät verbinden mit „Synchron · Pixel 7 online“ · Profil verwalten | Darstellung · Sprache | Impressum · Datenschutz.</li>
-          <li><b>Seite:</b> Kopf mit Name, Studiengang, fünf Zahlen; Betula Sync mit Geräten und „Gerät verbinden“ als einzigem betonten Knopf; Sichern; Gefahrenzone; Fußzeile.</li>
+          <li><b>Seite:</b> Kopf mit Name, Studiengang, fünf Zahlen; Betula Sync mit Geräten und „Gerät verbinden“ als einzigem betonten Knopf; Daten (Sichern, Leeren, Löschen); Fußzeile.</li>
           <li>Am Handy die Profile als Reihe oben statt der Seitenleiste.</li>
         </ul>
       </div>
@@ -550,7 +602,7 @@ tbody tr:last-child > * { border-bottom: 0; }
         <ul>
           <li><b>Menü:</b> Profile · Neues Profil | Profil verwalten · Geräte mit Stand | eine Reihe: drei Symbole, DE/EN | Rechtsseiten.</li>
           <li><b>Geräte-Seite:</b> die Liste der Geräte, Wiederherstellungscode, Trennen; daneben zwei große Wahlen: „Dieses Profil aufs Handy“, „Profil vom Handy holen“.</li>
-          <li><b>Profilseite:</b> Kopf mit Zahlen, eine Zeile „Auf 2 Geräten“, Sichern, Gefahrenzone.</li>
+          <li><b>Profilseite:</b> Kopf mit Zahlen, eine Zeile „Auf 2 Geräten“, Daten (Sichern, Leeren, Löschen).</li>
         </ul>
       </div>
       <div>
@@ -586,7 +638,7 @@ tbody tr:last-child > * { border-bottom: 0; }
         <ul>
           <li><b>Menü:</b> Profile · Neues Profil | Profil verwalten · Einstellungen. Fünf Einträge bei zwei Profilen.</li>
           <li><b>Einstellungen:</b> Darstellung, Sprache, Einzelne Tasten, darunter Impressum, Datenschutz, Versionen. Am Handy als Blatt von unten.</li>
-          <li><b>Profilseite:</b> Kopf mit Name und Studiengang, Reiter Übersicht (Zahlen), Geräte (Sync), Daten (Sichern, Laden, Gefahrenzone).</li>
+          <li><b>Profilseite:</b> Kopf mit Name und Studiengang, Reiter Übersicht (Zahlen), Geräte (Sync), Daten (Sichern, Laden, Leeren, Löschen).</li>
         </ul>
       </div>
       <div>
@@ -697,6 +749,9 @@ const ICONS = {
   pencil: '<path d="M21.2 6.8a1 1 0 0 0-4-4L3.8 16.2a2 2 0 0 0-.5.8l-1.3 4.4a.5.5 0 0 0 .6.6l4.4-1.3a2 2 0 0 0 .8-.5z"/>',
   alert: '<path d="m21.7 18-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"/><path d="M12 9v4M12 17h.01"/>',
   play: '<path d="M6 4v16l14-8z"/>',
+  undo: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  trash: '<path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+  more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   shield: '<path d="M20 13c0 5-3.5 7.5-7.7 9a1 1 0 0 1-.7 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1.2 1.2 0 0 1 1.5 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/>',
 };
 const QR = {
@@ -764,7 +819,7 @@ function baseProfiles() {
 }
 function fresh() {
   return { mode: "desk", page: "catalog", menu: false, dialog: null, conn: null, layer: null, settings: false, theme: "system", lang: "de",
-    tab: "overview", ask: null, code: false, explain: false, renaming: false, draft: "", addOpen: false, gave: "", chose: null,
+    tab: "overview", ask: null, code: false, endStyle: "list", headMenu: false, explain: false, renaming: false, draft: "", addOpen: false, gave: "", chose: null,
     profiles: baseProfiles(), active: "L", next: 3, toTop: false };
 }
 const ui = { R2: { ...fresh(), geraete: "page" }, A: fresh(), B: fresh(), C: fresh() };
@@ -782,7 +837,7 @@ const deviceCount = (st, p) => 1 + others(st, p).length;
 
 // ---------- Actions ----------
 function switchTo(st, id) {
-  st.active = id; st.ask = null; st.code = false; st.renaming = false; st.conn = null; st.explain = false; st.toTop = true;
+  st.active = id; st.ask = null; st.code = false; st.renaming = false; st.conn = null; st.explain = false; st.headMenu = false; st.toTop = true;
 }
 function addProfile(st) {
   const n = st.next++;
@@ -877,13 +932,23 @@ function head(st, phone, withStats = true) {
         h("button", { type: "submit", class: "m-btn pri" }, "Sichern"),
         h("button", { type: "button", class: "m-btn", onclick: act(() => { st.renaming = false; }) }, "Abbrechen"))
     : h("div", { class: "m-row", style: "gap: 4px" }, h("h4", { class: "m-name" }, p.name),
-        h("button", { type: "button", class: "m-icon", "aria-label": "Umbenennen", onclick: act(() => { st.renaming = true; st.draft = p.name; }) }, icon("pencil")));
-  return h("section", { class: "m-panel", "aria-label": "Aktives Profil" },
+        st.endStyle === "menu" ? null : h("button", { type: "button", class: "m-icon", "aria-label": "Umbenennen", onclick: act(() => { st.renaming = true; st.draft = p.name; }) }, icon("pencil")));
+  const inMenu = st.endStyle === "menu";
+  const item = (ic, words, go, no) => h("button", { type: "button", class: "m-it" + (no ? " no" : ""), onclick: act(() => { st.headMenu = false; go(); }) }, icon(ic), h("span", { class: "t" }, h("b", { style: "font-weight: 500" }, words)));
+  return h("section", { class: "m-panel", "aria-label": "Aktives Profil", style: "position: relative" },
     h("div", { class: "m-row", style: "gap: 14px; align-items: center" }, avatar(p, "big"),
       h("div", { class: "m-grow" }, name,
         h("p", { class: "m-sub", style: "margin-top: 0" }, p.detail || "Noch kein Studiengang"),
-        phone ? null : h("p", { class: "m-faint" }, `Profil seit ${p.since}`))),
-    withStats ? stats(p, phone ? 2 : 5) : null);
+        phone ? null : h("p", { class: "m-faint" }, `Profil seit ${p.since}`)),
+      inMenu ? h("button", { type: "button", class: "m-icon", style: "align-self: flex-start", "aria-label": "Mehr zum Profil", "aria-expanded": String(st.headMenu), onclick: act(() => { st.headMenu = !st.headMenu; }) }, icon("more")) : null),
+    inMenu && st.headMenu ? h("div", { class: "m-menu", role: "group", "aria-label": "Mehr zum Profil", style: "right: 10px; top: 50px; width: 230px" },
+      item("pencil", "Umbenennen", () => { st.renaming = true; st.draft = p.name; }),
+      item("download", "Als Datei sichern", () => toast(`„${p.name}“ ist als Datei gesichert.`)),
+      h("hr"),
+      item("undo", "Profil leeren …", () => { st.ask = "clear"; }, true),
+      item("trash", "Profil löschen …", () => { st.ask = "delete"; }, true)) : null,
+    withStats ? stats(p, phone ? 2 : 5) : null,
+    inMenu && (st.ask === "clear" || st.ask === "delete") ? h("div", { style: "margin-top: 12px" }, askLine(st, st.ask)) : null);
 }
 function devices(st, p) {
   const all = [thisDevice(st), ...others(st, p)];
@@ -899,8 +964,9 @@ function askLine(st, kind) {
     leave: ["Dieses Gerät aus Betula Sync nehmen? Es behält seine Kopie.", "Trennen", () => { p.synced = false; st.ask = null; toast("Dieses Gerät ist getrennt, das Profil hier wieder privat."); }],
     stop: ["Sync auf allen Geräten beenden? Die Kopie auf dem Server geht sofort.", "Beenden", () => { p.synced = false; p.desk = []; p.phone = []; st.ask = null; toast("Sync ist beendet. Jedes Gerät behält seine Kopie."); }],
   }[kind];
-  return h("div", { class: "m-ask", role: "group" }, h("span", {}, Q[0]),
-    h("button", { type: "button", class: "m-btn dang", onclick: act(Q[2]) }, Q[1]),
+  const strong = kind === "clear" || kind === "delete";
+  return h("div", { class: strong ? "m-confirm" : "m-ask", role: "group" }, h("span", {}, Q[0]),
+    h("button", { type: "button", class: strong ? "m-btn dfill" : "m-btn dang", onclick: act(Q[2]) }, Q[1]),
     h("button", { type: "button", class: "m-btn", onclick: act(() => { st.ask = null; }) }, "Abbrechen"));
 }
 function codeBox(st) {
@@ -951,17 +1017,34 @@ function saveCard(st, phone, withLoad) {
     phone ? null : h("p", { class: "m-sub" }, "Für ein Archiv, oder ohne Sync auf ein anderes Gerät."),
     withLoad ? h("div", { class: "m-row", style: "margin-top: 10px" }, h("button", { type: "button", class: "m-btn", onclick: act(() => toast("Wählt eine Datei; daraus wird ein neues Profil.")) }, icon("upload"), "Aus Datei laden")) : null);
 }
-function dangerCard(st, phone) {
+// The end of the page: the profile's data as quiet rows (red only in the question), two quiet links, or
+// nothing at all, its actions in the head's „⋯".
+function dataPanel(st, phone, withLoad) {
   const p = cur(st);
-  const row = (kind, title, line, label, ic) => h("div", { class: "m-dev", style: phone ? "flex-wrap: wrap" : "" },
-    h("span", { class: "m-grow" }, h("b", { style: "font-weight: 620" }, title), phone ? null : h("span", { class: "m-faint", style: "display: block" }, line)),
-    h("button", { type: "button", class: "m-btn dang", onclick: act(() => { st.ask = kind; }) }, icon(ic), label));
-  return h("section", { class: "m-panel danger", "aria-label": "Gefahrenzone" },
-    h("div", { class: "m-h m-danger-h" }, icon("alert"), "Gefahrenzone"),
-    h("div", { style: "margin-top: 4px" },
-      row("clear", "Profil leeren", `Merkliste, Pläne und Studium gehen, „${p.name}“ bleibt`, "Leeren …", "x"),
-      row("delete", "Profil löschen", `„${p.name}“ verschwindet aus diesem Browser`, "Löschen …", "x")),
+  const row = (ic, title, line, label, go, kind) => [
+    h("div", { class: "m-drow" }, h("span", { class: "ic" }, icon(ic)),
+      h("span", { class: "m-grow" }, h("b", {}, title), h("span", {}, line)),
+      h("button", { type: "button", class: "m-btn", "aria-expanded": kind ? String(st.ask === kind) : null, onclick: act(go) }, label)),
+    kind && st.ask === kind ? askLine(st, kind) : null];
+  return h("section", { class: "m-panel", "aria-label": "Daten dieses Profils" },
+    h("div", { class: "m-h" }, "Daten dieses Profils"),
+    h("div", { class: "m-drows" },
+      row("download", "Als Datei sichern", phone ? "Für ein Archiv oder ohne Sync" : "Für ein Archiv, oder ohne Sync auf ein anderes Gerät", "Speichern", () => toast(`„${p.name}“ ist als Datei gesichert.`)),
+      withLoad ? row("upload", "Aus Datei laden", "Macht aus einer Datei ein neues Profil", "Laden …", () => toast("Wählt eine Datei; daraus wird ein neues Profil.")) : null,
+      row("undo", "Profil leeren", phone ? `„${p.name}“ bleibt, sein Inhalt geht` : `Merkliste, Pläne und Studium gehen, „${p.name}“ bleibt`, "Leeren …", () => { st.ask = st.ask === "clear" ? null : "clear"; }, "clear"),
+      row("trash", "Profil löschen", st.profiles.length < 2 ? "Das einzige Profil wird stattdessen geleert" : phone ? "Nur in diesem Browser" : `„${p.name}“ verschwindet aus diesem Browser, andere Geräte behalten es`, "Löschen …", () => { st.ask = st.ask === "delete" ? null : "delete"; }, "delete")));
+}
+function quietEnd(st) {
+  return h("div", { style: "padding: 0 4px" },
+    h("p", { class: "m-row wrap", style: "gap: 16px" },
+      h("button", { type: "button", class: "m-link", onclick: act(() => { st.ask = "clear"; }) }, "Profil leeren"),
+      h("button", { type: "button", class: "m-link", onclick: act(() => { st.ask = "delete"; }) }, "Profil löschen")),
     st.ask === "clear" || st.ask === "delete" ? askLine(st, st.ask) : null);
+}
+function endParts(st, phone) {
+  if (st.endStyle === "links") return [saveCard(st, phone), quietEnd(st)];
+  if (st.endStyle === "menu") return [];
+  return [dataPanel(st, phone)];
 }
 function pageFoot() {
   return h("p", { class: "m-foot" },
@@ -1177,12 +1260,12 @@ function catalogPhone() {
 }
 function profileMain(C, st, phone) {
   const p = cur(st);
-  if (C === "A" || C === "R2") return [head(st, phone), syncCard(C, st, phone), saveCard(st, phone), dangerCard(st, phone), pageFoot()];
+  if (C === "A" || C === "R2") return [head(st, phone), syncCard(C, st, phone), ...endParts(st, phone), pageFoot()];
   if (C === "B") {
     const line = p.synced ? `Auf ${deviceCount(st, p)} Geräten: ${[thisDevice(st), ...others(st, p)].map((d) => d.n).join(", ")}` : loneEmpty(st) ? "Leeres Profil. Hast du Betula schon auf dem Handy?" : "Nur in diesem Browser";
     const devCard = h("button", { type: "button", class: "m-panel acc", style: "display: flex; align-items: center; gap: 12px; border: 0; width: 100%; text-align: left; cursor: pointer; color: var(--m-text)", onclick: act(() => { st.page = "sync"; st.conn = null; st.toTop = true; }) },
       icon("sync"), h("span", { class: "m-grow" }, h("b", { style: "display: block; font-weight: 700" }, "Geräte"), h("span", { class: "m-state", style: "white-space: normal" }, h("span", { class: "m-dot" + (p.synced ? "" : " off") }), line)), icon("chev"));
-    return [head(st, phone), devCard, saveCard(st, phone), dangerCard(st, phone), pageFoot()];
+    return [head(st, phone), devCard, ...endParts(st, phone), pageFoot()];
   }
   const tabs = h("div", { class: "m-tabs", role: "tablist", "aria-label": "Teile des Profils" },
     [["overview", "Übersicht"], ["devices", "Geräte"], ["data", "Daten"]].map(([k, w]) => h("button", { type: "button", role: "tab", "aria-selected": String(st.tab === k), onclick: act(() => { st.tab = k; st.ask = null; }) }, w)));
@@ -1195,7 +1278,7 @@ function profileMain(C, st, phone) {
       h("div", { class: "m-row" }, h("b", { class: "m-grow" }, "Gerät verbinden"), h("button", { type: "button", class: "m-icon", "aria-label": "Schließen", onclick: act(() => { st.conn = null; }) }, icon("x"))),
       connBody(C, st, st.conn, () => { st.conn = null; }, true)) : null;
     body = [syncCard(C, st, phone, panel)];
-  } else body = [saveCard(st, phone, true), dangerCard(st, phone)];
+  } else body = [dataPanel(st, phone, true)];
   return [headC, ...body, pageFoot()];
 }
 function syncPageDesk(C, st) {
@@ -1313,6 +1396,10 @@ function renderStage(C, el) {
       h("span", { class: "seg", role: "group", "aria-label": "Wohin „Geräte“ führt" },
         h("button", { type: "button", "aria-pressed": String(st.geraete === "page"), onclick: () => { st.geraete = "page"; st.menu = false; st.dialog = null; st.layer = null; renderAll(); } }, "zur Profilseite"),
         h("button", { type: "button", "aria-pressed": String(st.geraete === "dialog"), onclick: () => { st.geraete = "dialog"; st.menu = false; st.dialog = null; st.layer = null; renderAll(); } }, "in den Dialog"))) : null,
+    C === "R2" ? h("span", { class: "group", style: "display: inline-flex; align-items: center; gap: 8px" }, h("span", { class: "kicker" }, "Ende der Seite"),
+      h("span", { class: "seg", role: "group", "aria-label": "Wie die Seite endet" },
+        [["list", "Liste"], ["links", "Leise Links"], ["menu", "⋯ im Kopf"]].map(([v, w]) => h("button", { type: "button", "aria-pressed": String(st.endStyle === v),
+          onclick: () => { st.endStyle = v; st.ask = null; st.headMenu = false; st.menu = false; st.dialog = null; st.layer = null; st.page = "profile"; renderAll(); } }, w)))) : null,
     h("span", { class: "kicker" }, st.mode === "desk" ? "Betula am Rechner, 1080 × 680" : "ein Handy, 380 px"));
   el.replaceChildren(bar, h("div", { class: "stage-in" }, st.mode === "desk" ? desk(C, st) : phone(C, st)));
 }
@@ -1343,12 +1430,12 @@ function renderAll() {
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   for (const st of Object.values(ui)) {
-    if (st.dialog || st.settings || st.menu || st.layer) { st.dialog = null; st.settings = false; st.menu = false; st.layer = null; }
+    if (st.dialog || st.settings || st.menu || st.layer || st.headMenu) { st.dialog = null; st.settings = false; st.menu = false; st.layer = null; st.headMenu = false; }
   }
   renderAll();
 });
 document.getElementById("reset").addEventListener("click", () => {
-  for (const C of Object.keys(ui)) { const mode = ui[C].mode, geraete = ui[C].geraete; ui[C] = fresh(); ui[C].mode = mode; if (geraete) ui[C].geraete = geraete; }
+  for (const C of Object.keys(ui)) { const { mode, geraete, endStyle } = ui[C]; ui[C] = fresh(); Object.assign(ui[C], { mode, endStyle }); if (geraete) ui[C].geraete = geraete; }
   toastEl.hidden = true;
   renderAll();
 });
