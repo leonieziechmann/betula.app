@@ -988,6 +988,12 @@ impl StudyplanData {
         export::calendar_of(table, &self.titles(), &self.slot_names(), &self.label, &export::snapshot_stamp(&self.meta), locale)
     }
 
+    /// The calendar of `table` with its Termine of one's own (`export::calendar_with_own`): a
+    /// subscription that stays current, whose share takes them along.
+    pub fn calendar_with_own(&self, table: &Timetable, locale: Locale) -> Calendar {
+        export::calendar_with_own(table, &self.titles(), &self.slot_names(), &self.label, &export::snapshot_stamp(&self.meta), locale)
+    }
+
     /// The calendar text of `table`: the feed and the download both call this, so they are
     /// byte-identical in one language.
     pub fn ics(&self, table: &Timetable, locale: Locale) -> String {
@@ -1674,6 +1680,21 @@ pub fn subscribed_calendar(db: &dyn Database, subscription: &Subscription, local
     let data = studyplan_in(db, key, &subscription.module_ids(), subscription.program.as_deref(), locale)?;
     let table = data.timetable(&subscription.selection());
     Ok(data.calendar(&table, locale))
+}
+
+/// The calendar text of a calendar app's subscription that stays current (`/calendar/s/…`;
+/// `folia_calendar::live`): the timetable made anew from the snapshot for the part's semester,
+/// modules, program and what it shows, with the Termine of one's own and the notes it takes
+/// along, as `calendar` makes one of a code. Written in `locale`.
+pub fn live_calendar(db: &dyn Database, part: &folia_calendar::live::LivePart, locale: Locale) -> Result<String, DbError> {
+    let Some(key) = part.key() else {
+        let stamp = export::snapshot_stamp(&queries::meta(db)?);
+        let name = (folia_timetable::i18n::texts(locale).feed_name)("");
+        return Ok(ics::write(&Calendar { name, stamp, ..Calendar::default() }));
+    };
+    let data = studyplan_in(db, key, &part.module_ids(), part.program.as_deref(), locale)?;
+    let table = data.timetable(&part.selection());
+    Ok(ics::write(&data.calendar_with_own(&table, locale)))
 }
 
 /// A plan handed on by a link (`timetable::share`) as its link preview and the offer to take it

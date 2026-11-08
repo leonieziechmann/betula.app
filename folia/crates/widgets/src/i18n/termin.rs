@@ -150,7 +150,7 @@ pub struct Texts {
     pub calendar_file: fn(&str) -> String,
     /// A Termin of one's own (folia/design/kalender/termine.html): the head's chip and the name of
     /// one without a name („Eigener Termin"), its section („Im Stundenplan", „nicht in Datei und
-    /// Abo" until „Eigene Termine mitnehmen"), how it recurs („Jede Woche", „A-Woche", „B-Woche",
+    /// festem Abo" until „Eigene Termine mitnehmen": a share that stays current takes them along), how it recurs („Jede Woche", „A-Woche", „B-Woche",
     /// „An 3 Tagen", „Einmal") and when („05.10.–31.01., die Vorlesungszeit", „ab 15.10."),
     /// „Bearbeiten", „Löschen" with „mit „Rückgängig“", the way to it from the start page
     /// („Im Stundenplan ändern"), and the source at the end („Von dir angelegt", where one of QIS
@@ -342,7 +342,7 @@ pub const DE: Texts = Texts {
     into_calendar_title: "Die Termine als Kalenderdatei (.ics) herunterladen",
     calendar_file: |name| format!("Termin {name}.ics"),
     own_chip: "Eigener Termin",
-    own_feed: "nicht in Datei und Abo",
+    own_feed: "nicht in Datei und festem Abo",
     own_week: "Jede Woche",
     own_a_week: "A-Woche",
     own_b_week: "B-Woche",
@@ -515,7 +515,7 @@ pub const EN: Texts = Texts {
     into_calendar_title: "Download the dates as a calendar file (.ics)",
     calendar_file: |name| format!("Session {name}.ics"),
     own_chip: "Own event",
-    own_feed: "not in the file or the feed",
+    own_feed: "not in the file or a fixed feed",
     own_week: "Every week",
     own_a_week: "Week A",
     own_b_week: "Week B",

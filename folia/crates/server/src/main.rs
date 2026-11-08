@@ -22,6 +22,7 @@ mod encoding;
 mod lastmod;
 mod launch;
 mod logo;
+mod parts;
 mod semantic;
 mod snapshot;
 mod texts;
@@ -85,6 +86,9 @@ pub struct AppState {
     /// Betula Sync offered (`--sync`): where the browser reaches Phloem, empty for `/sync/v1/` on
     /// the page's own host (`--sync-url`); `None` while it is off.
     pub sync: Option<Arc<str>>,
+    /// Where the parts of calendar subscriptions that stay current are fetched (`--sync-parts`,
+    /// `parts`); `None` without.
+    pub parts: Option<Arc<parts::Parts>>,
 }
 
 /// The header that names the build of the server on every answer (`AppState::build_id`).
@@ -254,6 +258,8 @@ fn in_every_language() -> Router<AppState> {
             // A Studienplan as a calendar subscription. No page of the app lives under `/calendar/`
             // (axum refuses two routes for one path at startup).
             .route(&at("/calendar/{file}"), get(api::calendar))
+            // One that stays current: the part of a shared calendar (`parts`).
+            .route(&at("/calendar/s/{file}"), get(api::live_calendar))
             .route(&at(folia_routes::url::ABOUT), get(move |uri: axum::http::Uri| about_redirect(locale, uri)));
         for (old, new) in folia_routes::url::MOVED {
             router = router.route(&at(old), get(move |uri: axum::http::Uri| moved_redirect(locale.path(new), uri)));
@@ -495,6 +501,7 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
         feeds: Arc::new(busy::Places::new("calendar", places(config.feed_places), Duration::from_secs(10))),
         changes: config.warm_cache.then(|| Arc::new(lastmod::Changes::load(&config.data_dir))),
         sync: config.sync.then(|| config.sync_url.trim().into()),
+        parts: parts::Parts::new(&config.sync_parts, &config.public_url).map(Arc::new),
         leptos: LeptosOptions::builder()
             .output_name("folia-app")
             .site_root(config.site_root.to_string_lossy().into_owned())

@@ -15,6 +15,11 @@
 #   FOLIA_SYNC         on: the pages offer Betula Sync, whose service Phloem answers on the same
 #                      host under /sync/v1/ (stacks/phloem.yml, docs/phloem/phloem.md); 50-app.sh
 #                      deploys it off while no Phloem serves the host. Default: off.
+#   FOLIA_SYNC_PARTS   where Folia fetches the part of a calendar subscription that stays current:
+#                      Traefik's entrypoint parts (http://edge_traefik:8083/sync/v1/), set by
+#                      50-app.sh while FOLIA_SYNC is on; empty: such subscriptions answer 404.
+#   FEED_PRIORITY      the priority of the router of those subscriptions (<stack>-feed), set by
+#                      50-app.sh: FEED_LIFT above the web server's, in the colours' order.
 #   RADIX_IMAGE, FOLIA_IMAGE   given per release (see "Images")
 #   ROUTER_PRIORITY    the priority of the web server's router, set by 50-app.sh: 0 (Traefik's
 #                      default) for an instance alone on its host. Blue-green: two instance files
@@ -148,8 +153,12 @@ services:
       # the site. On without the secret, the server refuses to start instead of serving it openly.
       FOLIA_ACCESS_GATE: "${FOLIA_ACCESS_GATE:-on}"
       # Betula Sync (folia_stores::sync): the browser reaches Phloem at /sync/v1/ of this host,
-      # through Traefik like any outside client; Folia itself never talks to it.
+      # through Traefik like any outside client.
       FOLIA_SYNC: "${FOLIA_SYNC:-off}"
+      # Folia itself asks Phloem for one thing only, and through Traefik as well: the sealed part of
+      # a calendar subscription that stays current (/calendar/s/…, folia/crates/server/src/parts.rs),
+      # at Traefik's entrypoint parts on edge_<stack>, naming this host. Empty: none.
+      FOLIA_SYNC_PARTS: "${FOLIA_SYNC_PARTS:-}"
     secrets:
       # Found without configuration at /run/secrets/folia-access-password; listed even while the
       # gate is off, so that turning it on is one value. A new password ends every visit at once.
@@ -228,6 +237,18 @@ services:
         - "traefik.http.routers.${STACK_NAME}-folia.priority=${ROUTER_PRIORITY:-0}"
         - "traefik.http.routers.${STACK_NAME}-folia.service=${STACK_NAME}-folia"
         - "traefik.http.services.${STACK_NAME}-folia.loadbalancer.server.port=8080"
+        # A calendar subscription that stays current carries a key in its address
+        # (/calendar/s/<id ‖ key>.ics, /en/calendar/s/…; folia/crates/server/src/parts.rs): a router
+        # of its own that writes no access log (owner, 2026-11-08), the same service and middlewares.
+        # FEED_PRIORITY (50-app.sh, 55-switch.sh) puts it FEED_LIFT above the web server's router,
+        # so above every web server's router of the host, and the two colours in the same order.
+        - "traefik.http.routers.${STACK_NAME}-feed.rule=Host(`${APP_HOST}`) && PathRegexp(`^/([a-z]{2}/)?calendar/s/`)"
+        - "traefik.http.routers.${STACK_NAME}-feed.entrypoints=websecure"
+        - "traefik.http.routers.${STACK_NAME}-feed.tls.certresolver=le"
+        - "traefik.http.routers.${STACK_NAME}-feed.middlewares=secure-headers@file,rate-limit@file,compress@file"
+        - "traefik.http.routers.${STACK_NAME}-feed.priority=${FEED_PRIORITY:-100000}"
+        - "traefik.http.routers.${STACK_NAME}-feed.observability.accessLogs=false"
+        - "traefik.http.routers.${STACK_NAME}-feed.service=${STACK_NAME}-folia"
 
 networks:
   # Internal: no way out of the host. Docker sets the flag when it creates a network and ignores

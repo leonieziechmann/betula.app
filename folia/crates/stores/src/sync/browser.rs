@@ -22,8 +22,14 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{CloseEvent, CryptoKey, MessageEvent, WebSocket};
 
+use folia_calendar::day::Day;
+use folia_calendar::live::{following, LivePart};
+use folia_plans::shares::{join_link, split_link, Share, ShareTo};
+use folia_plans::studyplan::PlanDoc;
+
 use super::codes::{b64, unb64, KEY};
 use super::core::{Core, DEVICE};
+use super::share::{fingerprint, missing, Put, ShareProblem, ONCE_TTL};
 use super::wire::{self, In, Out};
 use super::{Problem, State, Sync};
 use crate::profiles::{key_of, Profiles, KEYS};
@@ -430,6 +436,11 @@ pub struct Engine {
     snapshot_sent: Cell<bool>,
     /// The socket's handlers, dropped with it.
     handlers: RefCell<Option<Handlers>>,
+    /// The shares' parts are being renewed, and once more after that.
+    renewing: Cell<bool>,
+    renew_again: Cell<bool>,
+    /// The parts this connection watches (`watch`).
+    watched: RefCell<Vec<String>>,
 }
 
 struct Handlers {
@@ -515,6 +526,9 @@ impl Engine {
     /// Gives every store whose records changed their text, where it holds something else.
     fn project(&self) {
         let touched: Vec<Store> = std::mem::take(&mut self.core.borrow_mut().touched).into_iter().collect();
+        if touched.contains(&Store::Plan) {
+            renew_soon();
+        }
         let mut wrote = false;
         for store in touched {
             let text = self.core.borrow().text(store);
@@ -528,6 +542,7 @@ impl Engine {
         if wrote {
             self.profiles.wrote();
         }
+        retire(&self.core.borrow().doc);
         self.sync.conflicts_of(&self.core.borrow().doc);
     }
 
@@ -710,6 +725,10 @@ impl Engine {
                 self.keep_records();
                 self.status(Some(devices.iter().filter(|d| **d != slot).count()));
                 self.send_waiting();
+                self.watched.borrow_mut().clear();
+                self.watch();
+                renew_soon();
+                self.reconcile_parcels();
             }
             In::Stored { id, nr } => {
                 self.in_flight.borrow_mut().remove(&id);
@@ -765,6 +784,16 @@ impl Engine {
                 _ => {}
             },
             In::Gone => self.ended(),
+            In::Watching { parts } => {
+                let revs = follow_revs();
+                for part in parts {
+                    if part.gone || part.rev != revs.get(&part.id).copied().unwrap_or(0) {
+                        self.refresh_follow(&part.id).await;
+                    }
+                }
+            }
+            In::Part { id, .. } => self.refresh_follow(&id).await,
+            In::Pair { .. } => self.reconcile_parcels(),
             In::Other => {}
         }
     }
@@ -820,6 +849,523 @@ impl Engine {
     }
 }
 
+// ---- shares (step 3) ----
+
+/// What this device put of each share of a profile (`share::Put`).
+fn parts_key(profile: u16) -> String {
+    format!("betula.sync.p{profile}.parts")
+}
+
+/// The version of each part followed that this browser holds, by the part's id.
+const FOLLOWED_KEY: &str = "betula.follow.revs";
+
+fn follow_revs() -> std::collections::BTreeMap<String, u64> {
+    nav::local_get(FOLLOWED_KEY).unwrap_or_default().lines().filter_map(|line| line.split_once('\t')).filter_map(|(id, rev)| Some((id.to_string(), rev.parse().ok()?))).collect()
+}
+
+fn set_follow_rev(id: &str, rev: Option<u64>) {
+    let mut revs = follow_revs();
+    match rev {
+        Some(rev) => revs.insert(id.to_string(), rev),
+        None => revs.remove(id),
+    };
+    // A browser follows a few dozen at most; the oldest ids are not ordered, so a cap keeps it small.
+    while revs.len() > 128 {
+        let first = revs.keys().next().cloned();
+        if let Some(first) = first {
+            revs.remove(&first);
+        }
+    }
+    nav::local_set(FOLLOWED_KEY, &revs.iter().map(|(id, rev)| format!("{id}\t{rev}\n")).collect::<String>());
+}
+
+fn today() -> Day {
+    Day(i32::try_from(wall() / 86_400_000).unwrap_or(i32::MAX))
+}
+
+fn secs() -> u64 {
+    wall() / 1_000
+}
+
+fn part_aad(id: &[u8]) -> Vec<u8> {
+    [&b"part"[..], id].concat()
+}
+
+/// What a request's answer says, for a share.
+fn share_problem(status: u16, body: &str) -> ShareProblem {
+    let code = serde_json::from_str::<wire::Failure>(body).map(|f| f.error).unwrap_or_default();
+    match (status, code.as_str()) {
+        (_, "too_many") => ShareProblem::TooMany,
+        (429 | 507, _) => ShareProblem::Busy,
+        (401, _) => ShareProblem::NotSynced,
+        (409 | 410, _) => ShareProblem::Ended,
+        (404, code) => missing(code),
+        _ => ShareProblem::Unreachable,
+    }
+}
+
+fn unreachable(problem: Problem) -> ShareProblem {
+    match problem {
+        Problem::Unsupported => ShareProblem::Unsupported,
+        _ => ShareProblem::Unreachable,
+    }
+}
+
+/// Seals a part's code with its key and puts it at Phloem: its version.
+async fn put_part(keys: &Keys, id: &str, key: &str, code: &str) -> Result<u64, ShareProblem> {
+    let (Some(id_bytes), Some(key_bytes)) = (unb64(id), unb64(key)) else { return Err(ShareProblem::Unsupported) };
+    let part_key = aes_key(&key_bytes).await.map_err(|_| ShareProblem::Unsupported)?;
+    let sealed = seal(&part_key, &part_aad(&id_bytes), code.as_bytes()).await.map_err(|_| ShareProblem::Unsupported)?;
+    let body = serde_json::to_string(&wire::PartBody { data: b64(&sealed) }).map_err(|_| ShareProblem::Unsupported)?;
+    let mut headers = auth(keys);
+    headers.push(("Betula-Part", id.to_string()));
+    let (status, text) = call("PUT", "part", &headers, Some(body)).await.map_err(unreachable)?;
+    match status {
+        200 | 201 => Ok(serde_json::from_str::<wire::PartMade>(&text).map(|m| m.rev).unwrap_or(1)),
+        _ => Err(share_problem(status, &text)),
+    }
+}
+
+/// Deletes a part of the space („Nicht mehr teilen").
+async fn delete_part(keys: &Keys, id: &str) -> Result<(), ShareProblem> {
+    let mut headers = auth(keys);
+    headers.push(("Betula-Part", id.to_string()));
+    let (status, text) = call("DELETE", "part", &headers, None).await.map_err(unreachable)?;
+    match status {
+        200..=299 | 401 => Ok(()),
+        _ => Err(share_problem(status, &text)),
+    }
+}
+
+/// Takes a waiting parcel back („Zurückziehen").
+async fn withdraw(keys: &Keys, id: &str) -> Result<(), ShareProblem> {
+    let mut headers = auth(keys);
+    headers.push(("Betula-Pair", id.to_string()));
+    let (status, text) = call("DELETE", "pair", &headers, None).await.map_err(unreachable)?;
+    match status {
+        200..=299 | 401 => Ok(()),
+        _ => Err(share_problem(status, &text)),
+    }
+}
+
+/// A part, opened with its key, when it is newer than version `rev` (0: any); `None` when it is
+/// that version still.
+pub async fn fetch_part(link: &str, rev: u64) -> Result<Option<(LivePart, u64)>, ShareProblem> {
+    let (id, key) = split_link(link).ok_or(ShareProblem::Unknown)?;
+    let mut headers = vec![("Betula-Part", id.clone())];
+    if rev > 0 {
+        headers.push(("If-None-Match", format!("\"{rev}\"")));
+    }
+    let (status, text) = call("GET", "part", &headers, None).await.map_err(unreachable)?;
+    match status {
+        304 => Ok(None),
+        200 => {
+            let fetched: wire::PartFetched = serde_json::from_str(&text).map_err(|_| ShareProblem::Unknown)?;
+            let sealed = unb64(&fetched.data).ok_or(ShareProblem::Unknown)?;
+            let (Some(id_bytes), Some(key_bytes)) = (unb64(&id), unb64(&key)) else { return Err(ShareProblem::Unknown) };
+            let part_key = aes_key(&key_bytes).await.map_err(|_| ShareProblem::Unsupported)?;
+            let plain = open(&part_key, &part_aad(&id_bytes), &sealed).await.map_err(|_| ShareProblem::Unknown)?;
+            let code = String::from_utf8(plain).map_err(|_| ShareProblem::Unknown)?;
+            let part = LivePart::from_code(&code).ok_or(ShareProblem::Unknown)?;
+            Ok(Some((part, fetched.rev)))
+        }
+        _ => Err(share_problem(status, &text)),
+    }
+}
+
+/// What a new share made: its record, the path of its link, until when a one-time link opens, and
+/// how many notes or Termine of one's own did not fit in its part.
+#[derive(Clone, Debug)]
+pub struct Made {
+    pub share: Share,
+    pub path: String,
+    pub until: Option<u64>,
+    pub left_out: usize,
+}
+
+/// A new share of profile `profile` (synced) as `template` says, its part holding `part`: the
+/// part put at Phloem where it stays current, the parcel where it is for one person. The record
+/// is the caller's to add to the plan.
+pub async fn share(profile: u16, template: Share, part: LivePart, left_out: usize) -> Result<Made, ShareProblem> {
+    let profile_key = key_of_profile(profile).ok_or(ShareProblem::NotSynced)?;
+    let keys = derive(&profile_key).await.map_err(|_| ShareProblem::Unsupported)?;
+    let code = part.code().map_err(|_| ShareProblem::Unsupported)?;
+    let mut share = Share { made: secs(), ..template };
+    if share.live {
+        let id = b64(&random::<16>().ok_or(ShareProblem::Unsupported)?);
+        let key = b64(&random::<32>().ok_or(ShareProblem::Unsupported)?);
+        let rev = put_part(&keys, &id, &key, &code).await?;
+        let mut put = Put::read(&nav::local_get(&parts_key(profile)).unwrap_or_default());
+        put.parts.insert(id.clone(), (fingerprint(&code), rev));
+        nav::local_set(&parts_key(profile), &put.text());
+        share.id = id;
+        share.key = key;
+    }
+    let mut until = None;
+    if share.once {
+        let parcel_id = random::<16>().ok_or(ShareProblem::Unsupported)?;
+        let link_key = random::<32>().ok_or(ShareProblem::Unsupported)?;
+        let contents = if share.live { wire::ShareContents { v: 1, part: Some(share.id.clone()), key: Some(share.key.clone()), copy: None } } else { wire::ShareContents { v: 1, part: None, key: None, copy: Some(code.clone()) } };
+        let plain = serde_json::to_vec(&contents).map_err(|_| ShareProblem::Unsupported)?;
+        let sealed = seal(&aes_key(&link_key).await.map_err(|_| ShareProblem::Unsupported)?, b"share", &plain).await.map_err(|_| ShareProblem::Unsupported)?;
+        let body = serde_json::to_string(&wire::LongParcel { id: b64(&parcel_id), sealed: b64(&sealed), ttl: ONCE_TTL }).map_err(|_| ShareProblem::Unsupported)?;
+        let answer = call("POST", "pair", &auth(&keys), Some(body)).await.map_err(unreachable);
+        let failed = match answer {
+            Ok((201, _)) => None,
+            Ok((status, text)) => Some(share_problem(status, &text)),
+            Err(problem) => Some(problem),
+        };
+        if let Some(problem) = failed {
+            if share.live {
+                let _ = delete_part(&keys, &share.id).await;
+            }
+            return Err(problem);
+        }
+        share.parcel = b64(&[&parcel_id[..], &link_key[..]].concat());
+        if !share.live {
+            share.id = b64(&parcel_id);
+        }
+        until = Some(now() + ONCE_TTL * 1_000);
+    }
+    let path = if share.once {
+        super::share::once_path(&share.parcel)
+    } else {
+        let link = share.link().ok_or(ShareProblem::Unsupported)?;
+        match share.to {
+            ShareTo::App => folia_calendar::live::feed_path(&link),
+            ShareTo::Person => super::share::live_path(&link),
+        }
+    };
+    Ok(Made { share, path, until, left_out })
+}
+
+/// Ends a share at Phloem: its part is deleted, its waiting parcel taken back. The record is the
+/// caller's to take away.
+pub async fn unshare(profile: u16, share: &Share) -> Result<(), ShareProblem> {
+    let profile_key = key_of_profile(profile).ok_or(ShareProblem::NotSynced)?;
+    let keys = derive(&profile_key).await.map_err(|_| ShareProblem::Unsupported)?;
+    if let Some((parcel, _)) = split_link(&share.parcel) {
+        withdraw(&keys, &parcel).await?;
+    }
+    if share.live {
+        delete_part(&keys, &share.id).await?;
+        let mut put = Put::read(&nav::local_get(&parts_key(profile)).unwrap_or_default());
+        put.parts.remove(&share.id);
+        put.deleted.insert(share.id.clone());
+        put.trim();
+        nav::local_set(&parts_key(profile), &put.text());
+    }
+    Ok(())
+}
+
+/// What a one-time link opened to.
+#[derive(Clone, Debug)]
+pub enum Opened {
+    /// A calendar that stays current: its link (part id and key), what it holds now and its
+    /// version.
+    Live { link: String, part: LivePart, rev: u64 },
+    /// A copy of then.
+    Copy(LivePart),
+}
+
+/// Opens a one-time link (`#once=…`): its parcel, once.
+pub async fn open_once(parcel: &str) -> Result<Opened, ShareProblem> {
+    let (id, key) = split_link(parcel).ok_or(ShareProblem::Unknown)?;
+    let (status, text) = call("GET", "pair", &[("Betula-Pair", id)], None).await.map_err(unreachable)?;
+    if status != 200 {
+        return Err(share_problem(status, &text));
+    }
+    let sealed = serde_json::from_str::<wire::Fetched>(&text).ok().and_then(|f| unb64(&f.sealed)).ok_or(ShareProblem::Unknown)?;
+    let link_key = aes_key(&unb64(&key).ok_or(ShareProblem::Unknown)?).await.map_err(|_| ShareProblem::Unsupported)?;
+    let plain = open(&link_key, b"share", &sealed).await.map_err(|_| ShareProblem::Unknown)?;
+    let contents: wire::ShareContents = serde_json::from_slice(&plain).map_err(|_| ShareProblem::Unknown)?;
+    match (contents.part, contents.key, contents.copy) {
+        (Some(part), Some(key), _) => {
+            let link = join_link(&part, &key).ok_or(ShareProblem::Unknown)?;
+            let (part, rev) = fetch_part(&link, 0).await?.ok_or(ShareProblem::Unknown)?;
+            Ok(Opened::Live { link, part, rev })
+        }
+        (_, _, Some(copy)) => Ok(Opened::Copy(LivePart::from_code(&copy).ok_or(ShareProblem::Unknown)?)),
+        _ => Err(ShareProblem::Unknown),
+    }
+}
+
+/// The parcels of profile `profile` and what became of them.
+async fn parcel_states(profile: u16) -> Result<Vec<wire::ParcelState>, ShareProblem> {
+    let profile_key = key_of_profile(profile).ok_or(ShareProblem::NotSynced)?;
+    let keys = derive(&profile_key).await.map_err(|_| ShareProblem::Unsupported)?;
+    let (status, text) = call("GET", "pairs", &auth(&keys), None).await.map_err(unreachable)?;
+    if status != 200 {
+        return Err(share_problem(status, &text));
+    }
+    Ok(serde_json::from_str::<wire::Parcels>(&text).map(|p| p.parcels).unwrap_or_default())
+}
+
+/// What became of the one-time links of a plan: an opened one leaves a share that stays current
+/// (its parcel goes) or nothing (a copy); one that expired or was taken back leaves nothing, and
+/// the part of what it would have shared goes. The changes, for `PlanDoc::update_share` and
+/// `remove_share`, and the parts to delete.
+fn parcel_changes(doc: &PlanDoc, states: &[wire::ParcelState]) -> (Vec<String>, Vec<String>, Vec<String>) {
+    let (mut opened, mut gone, mut parts) = (Vec::new(), Vec::new(), Vec::new());
+    for share in &doc.shares {
+        let Some((parcel, _)) = split_link(&share.parcel) else { continue };
+        let Some(state) = states.iter().find(|s| s.id == parcel) else { continue };
+        match (state.state.as_str(), share.live) {
+            ("taken", true) => opened.push(share.id.clone()),
+            ("taken", false) | ("expired" | "withdrawn", false) => gone.push(share.id.clone()),
+            ("expired" | "withdrawn", true) => {
+                gone.push(share.id.clone());
+                parts.push(share.id.clone());
+            }
+            _ => {}
+        }
+    }
+    (opened, gone, parts)
+}
+
+/// Applies `f` to every item and says whether it changed anything for any (each one is applied,
+/// unlike `any`, which stops at the first).
+fn every<T>(items: &[T], mut f: impl FnMut(&T) -> bool) -> bool {
+    let mut changed = false;
+    for item in items {
+        changed |= f(item);
+    }
+    changed
+}
+
+thread_local! {
+    /// The latest call of `renew_soon`: only the last of a burst renews.
+    static RENEW: Cell<u64> = const { Cell::new(0) };
+}
+
+/// The parts of the active profile's shares are renewed soon: once the plan has been left alone
+/// for a moment.
+fn renew_soon() {
+    let call = RENEW.with(|r| {
+        r.set(r.get() + 1);
+        r.get()
+    });
+    set_timeout(
+        move || {
+            if RENEW.with(Cell::get) == call {
+                if let Some(engine) = engine() {
+                    engine.renew();
+                }
+            }
+        },
+        std::time::Duration::from_millis(1_500),
+    );
+}
+
+impl Engine {
+    /// The plan's text as its store holds it now.
+    fn plan_text(&self) -> String {
+        let key = Store::Plan.storage_key();
+        crate::profiles::checked(key, &nav::local_get(&key_of(key, self.profile)).unwrap_or_default())
+    }
+
+    /// Changes the plan as its store would (`f` says whether it changed anything): the text, its
+    /// records and every tab's store.
+    fn edit_plan(self: &Rc<Self>, f: impl FnOnce(&mut PlanDoc) -> bool) {
+        if *self.closed.borrow() {
+            return;
+        }
+        let before = self.plan_text();
+        let mut doc = PlanDoc::restored(&before);
+        if !f(&mut doc) {
+            return;
+        }
+        let after = doc.stored_without_program();
+        if after == before {
+            return;
+        }
+        nav::local_set(&key_of(Store::Plan.storage_key(), self.profile), &after);
+        self.change(Store::Plan, &before, &after, wall());
+        self.profiles.wrote();
+    }
+
+    /// Renews the parts of the shares whose calendar changed since this device put them, moves
+    /// a share on to the next semester when it begins, deletes the parts of shares that are gone,
+    /// and watches what the plan follows.
+    fn renew(self: &Rc<Self>) {
+        if self.renewing.replace(true) {
+            self.renew_again.set(true);
+            return;
+        }
+        let engine = Rc::clone(self);
+        leptos::task::spawn_local(async move {
+            loop {
+                engine.renew_once().await;
+                if !engine.renew_again.replace(false) || *engine.closed.borrow() {
+                    break;
+                }
+            }
+            engine.renewing.set(false);
+        });
+    }
+
+    async fn renew_once(self: &Rc<Self>) {
+        self.watch();
+        if !*self.open.borrow() || *self.closed.borrow() {
+            return;
+        }
+        let doc = PlanDoc::restored(&self.plan_text());
+        let day = today();
+        let moved: Vec<(String, folia_calendar::semester::SemesterKey)> =
+            doc.shares.iter().filter(|s| s.live).filter_map(|s| Some((s.id.clone(), Some(following(s.semester, day)).filter(|now| *now != s.semester)?))).collect();
+        if !moved.is_empty() {
+            self.edit_plan(|d| every(&moved, |(id, semester)| d.update_share(id, |s| s.semester = *semester)));
+        }
+        let mut put = Put::read(&nav::local_get(&parts_key(self.profile)).unwrap_or_default());
+        let mut ended: Vec<String> = Vec::new();
+        for share in doc.shares.iter().filter(|s| s.live) {
+            let semester = following(share.semester, day);
+            let Ok(code) = doc.live_part(share, semester).fitted().0.code() else { continue };
+            let print = fingerprint(&code);
+            if put.parts.get(&share.id).is_some_and(|(kept, _)| *kept == print) {
+                continue;
+            }
+            match put_part(&self.keys, &share.id, &share.key, &code).await {
+                Ok(rev) => {
+                    put.parts.insert(share.id.clone(), (print, rev));
+                }
+                // Deleted meanwhile (on another device, or with the space): the share is over.
+                Err(ShareProblem::Ended) => ended.push(share.id.clone()),
+                Err(_) => break,
+            }
+        }
+        if !ended.is_empty() {
+            self.edit_plan(|d| every(&ended, |id| d.remove_share(id).is_some()));
+        }
+        // The shares gone from the records (on any device): their parts and parcels go, once.
+        let gone: Vec<String> = self.core.borrow().doc.entries.iter().filter(|(key, e)| key.starts_with("P|s|") && e.val.is_none()).filter_map(|(key, _)| Some(key.strip_prefix("P|s|")?.to_string())).filter(|id| !put.deleted.contains(id)).collect();
+        for id in gone {
+            if delete_part(&self.keys, &id).await.is_ok() {
+                let _ = withdraw(&self.keys, &id).await;
+                put.parts.remove(&id);
+                put.deleted.insert(id);
+            }
+        }
+        put.trim();
+        nav::local_set(&parts_key(self.profile), &put.text());
+    }
+
+    /// Tells Phloem the parts the plan follows, where they changed since it last heard.
+    fn watch(&self) {
+        if !*self.open.borrow() {
+            return;
+        }
+        let doc = PlanDoc::restored(&self.plan_text());
+        let mut parts: Vec<String> = doc.follows().into_iter().filter(|(_, f)| f.ended == 0).filter_map(|(_, f)| f.part().map(|(id, _)| id)).collect();
+        parts.sort();
+        parts.dedup();
+        parts.truncate(64);
+        let changed = *self.watched.borrow() != parts;
+        if changed && self.send(&Out::Watch { parts: parts.clone() }) {
+            *self.watched.borrow_mut() = parts;
+        }
+    }
+
+    /// Fetches a part the plan follows anew and gives its calendar what it holds; a part that is
+    /// gone leaves the calendar as it is, not shared any more.
+    async fn refresh_follow(self: &Rc<Self>, id: &str) {
+        let doc = PlanDoc::restored(&self.plan_text());
+        let followers: Vec<(u8, String)> = doc.follows().into_iter().filter(|(_, f)| f.ended == 0 && f.part().is_some_and(|(part, _)| part == id)).map(|(calendar, f)| (calendar, f.link.clone())).collect();
+        let Some((_, link)) = followers.first().cloned() else { return };
+        let rev = follow_revs().get(id).copied().unwrap_or(0);
+        match fetch_part(&link, rev).await {
+            Ok(Some((part, rev))) => {
+                self.edit_plan(|d| every(&followers, |(calendar, _)| d.take_part(*calendar, &part)));
+                set_follow_rev(id, Some(rev));
+            }
+            Ok(None) => {}
+            Err(ShareProblem::Ended) => {
+                let at = secs();
+                self.edit_plan(|d| every(&followers, |(calendar, _)| d.end_follow(*calendar, at)));
+                set_follow_rev(id, None);
+                self.watch();
+            }
+            Err(_) => {}
+        }
+    }
+
+    /// Asks what became of the plan's one-time links, and changes the shares accordingly.
+    fn reconcile_parcels(self: &Rc<Self>) {
+        let doc = PlanDoc::restored(&self.plan_text());
+        if !doc.shares.iter().any(|s| !s.parcel.is_empty()) {
+            return;
+        }
+        let engine = Rc::clone(self);
+        leptos::task::spawn_local(async move {
+            let Ok(states) = parcel_states(engine.profile).await else { return };
+            let doc = PlanDoc::restored(&engine.plan_text());
+            let (opened, gone, parts) = parcel_changes(&doc, &states);
+            engine.edit_plan(|d| {
+                let a = every(&opened, |id| d.update_share(id, |s| s.parcel.clear()));
+                every(&gone, |id| d.remove_share(id).is_some()) || a
+            });
+            for id in parts {
+                let _ = delete_part(&engine.keys, &id).await;
+            }
+        });
+    }
+}
+
+/// Follows what the active profile follows where no engine of this tab does it (a private
+/// profile): fetches each part anew and gives its calendar what it holds.
+pub async fn refresh_follows(profile: u16, plan: crate::studyplan::Studyplan, profiles: Profiles) {
+    if let Some(engine) = engine().filter(|e| e.leads(profile)) {
+        let ids: Vec<String> = PlanDoc::restored(&engine.plan_text()).follows().into_iter().filter(|(_, f)| f.ended == 0).filter_map(|(_, f)| f.part().map(|(id, _)| id)).collect();
+        for id in ids {
+            engine.refresh_follow(&id).await;
+        }
+        return;
+    }
+    if syncs(profile) {
+        // Another tab leads this profile: it follows.
+        return;
+    }
+    let follows: Vec<(u8, String)> = plan.with_untracked(|doc| doc.follows().into_iter().filter(|(_, f)| f.ended == 0).map(|(calendar, f)| (calendar, f.link.clone())).collect());
+    for (calendar, link) in follows {
+        let Some((id, _)) = split_link(&link) else { continue };
+        let rev = follow_revs().get(&id).copied().unwrap_or(0);
+        let result = fetch_part(&link, rev).await;
+        if profiles.active_untracked() != profile {
+            return;
+        }
+        match result {
+            Ok(Some((part, rev))) => {
+                plan.update(|doc| doc.take_part(calendar, &part));
+                set_follow_rev(&id, Some(rev));
+            }
+            Err(ShareProblem::Ended) => {
+                let at = secs();
+                plan.update(|doc| doc.end_follow(calendar, at));
+                set_follow_rev(&id, None);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Asks the leader to look at what became of the one-time links (the dialog opened).
+pub fn check_parcels(profile: u16) {
+    if let Some(engine) = engine().filter(|e| e.leads(profile)) {
+        engine.reconcile_parcels();
+    }
+}
+
+/// The numbers the profile had and gave up, which a new calendar, Termin of one's own,
+/// placeholder or collection does not take again (`folia_plans::ids`).
+fn retire(doc: &folia_sync::Doc) {
+    use folia_plans::ids::{set_retired, Kind};
+    let retired = folia_sync::retired(doc);
+    set_retired(Kind::Calendar, retired.calendars);
+    set_retired(Kind::Own, retired.own);
+    set_retired(Kind::Placeholder, retired.placeholders);
+    set_retired(Kind::Collection, retired.collections);
+}
+
 thread_local! {
     /// Counts the starts of `lead`: one that waited for WebCrypto while a later one began gives way.
     static GENERATION: Cell<u64> = const { Cell::new(0) };
@@ -841,6 +1387,7 @@ async fn lead(sync: Sync, profiles: Profiles) {
     });
     if !syncs(profile) {
         folia_plans::ids::set_slot(0);
+        folia_plans::ids::clear_retired();
         return;
     }
     let held = nav::local_get(&held_key(profile)).unwrap_or_default();
@@ -855,6 +1402,7 @@ async fn lead(sync: Sync, profiles: Profiles) {
         return;
     }
     folia_plans::ids::set_slot(core.slot());
+    retire(&core.doc);
     let engine = Rc::new(Engine {
         profile,
         core: RefCell::new(core),
@@ -871,6 +1419,9 @@ async fn lead(sync: Sync, profiles: Profiles) {
         in_flight: RefCell::new(BTreeSet::new()),
         snapshot_sent: Cell::new(false),
         handlers: RefCell::new(None),
+        renewing: Cell::new(false),
+        renew_again: Cell::new(false),
+        watched: RefCell::new(Vec::new()),
     });
     ENGINE.with(|e| *e.borrow_mut() = Some(Rc::clone(&engine)));
     engine.take_changes();

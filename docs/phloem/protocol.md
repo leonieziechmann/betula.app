@@ -4,8 +4,9 @@ Phloem is the service of Betula Sync (`research/sync/entwurf.html`, owner 2026-1
 Schritt 1 jetzt so"). It keeps sealed records of the profiles that sync and hands them between the
 devices of a profile; it can open none of them. This file is the contract between its three parts:
 the service (`phloem/`, Go), the browser (`folia/crates/sync` and the app), and the deployment
-(`deploy/`). Step 1 is everything below except what is marked step 2 (WebRTC, STUN, TURN) or
-step 3 (calendar and friends' parts).
+(`deploy/`). Step 1 is everything below except what is marked step 2 (WebRTC, STUN, TURN) and
+step 3; step 3 is the parts of shared calendars and the parcels that wait up to 7 days
+(folia/design/teilen/teilen.html, owner 2026-11-08), since Phloem 0.2.0.
 
 ## 1. Names
 
@@ -45,11 +46,21 @@ without padding. Bodies are JSON. Errors are `{"error": "<code>"}` with a fittin
 |---|---|
 | `POST /sync/v1/space` | makes a space. Body `{"space": "<16 bytes>", "token": "<32 bytes>", "device": "<16 bytes>"}`. Phloem keeps SHA-256 of the token. 201 `{"slot": 1}`; 409 `exists`; 429 `slow_down` (20 spaces per address and hour, 500 per hour in all; an IPv6 address counts by its /64; a 409 costs nothing); 507 `budget` (the budget is reached: no new spaces, the old ones go on) |
 | `DELETE /sync/v1/space` | „Sync beenden": the space and everything of it, at once; connected devices hear `gone`. 204; 401 also when the space is gone already |
-| `POST /sync/v1/pair` | leaves a sealed parcel for a device to come (authorised by the space's headers). Body `{"id": "<16 bytes>", "box": "<at most 4 KiB>"}`. Kept 10 minutes. 201 `{}`; 409 `exists`; 413 `too_big`; 429 `slow_down` (16 parcels waiting per space; a parcel counts as a push of the space); 507 `budget` |
-| `GET /sync/v1/pair` | `Betula-Pair: <id>`: the parcel once, then it is gone. 200 `{"box": "…"}`; 404 `not_found`; 429 `slow_down` (120 per address and hour, found or not) |
+| `POST /sync/v1/pair` | leaves a sealed parcel for a device to come, or for a one-time link (authorised by the space's headers). Body `{"id": "<16 bytes>", "box": "<at most 4 KiB>", "ttl": <seconds, optional>}`. Kept `ttl` seconds, 60 to 604800 (7 days), else 600. 201 `{}`; 409 `exists` (also for an id whose outcome Phloem still remembers); 413 `too_big`; 429 `slow_down` (32 parcels waiting per space; a parcel counts as a push of the space); 507 `budget` |
+| `GET /sync/v1/pair` | `Betula-Pair: <id>`: the parcel once, then it is gone. 200 `{"box": "…"}`; 404 with the code of what became of it, for 30 days after: `taken` (opened already), `expired`, `withdrawn`; else `not_found`. 429 `slow_down` (120 per address and hour, found or not) |
+| `DELETE /sync/v1/pair` | `Betula-Pair: <id>` with the space's headers: „Zurückziehen", the space's parcel that waits is `withdrawn` from now on. 204, also for an id that is not the space's or waits no longer (nothing changes then) |
+| `GET /sync/v1/pairs` | the space's parcels, waiting and for 30 days after: 200 `{"parcels": [{"id", "state": "waiting" \| "taken" \| "expired" \| "withdrawn", "at": <ms>}…]}`, `at` when a waiting one expires, else when it happened |
+| `PUT /sync/v1/part` | `Betula-Part: <id>` (16 bytes the device chose) with the space's headers: a part of a shared calendar (step 3), made or replaced. Body `{"data": "<sealed, at most 16 KiB>"}`. 200 `{"rev": <n>}`, the part's version, 1 for a new one and one more with every replacement; its watchers hear `part`. 409 `exists` (the id is another space's part, or a part deleted: a part never comes back); 413 `too_big`; 429 `slow_down` (a part counts as a push of the space, and a space makes at most 32 new parts a day: a deleted part is remembered 395 days, and this bounds what a space leaves behind), `too_many` (32 parts per space); 507 `budget` (a new part) |
+| `DELETE /sync/v1/part` | `Betula-Part: <id>` with the space's headers: „Nicht mehr teilen", the space's part is deleted and `gone` from now on; its watchers hear it. 204, also for an id that is not the space's (nothing changes then) |
+| `GET /sync/v1/part` | `Betula-Part: <id>`, optionally `If-None-Match: "<rev>"`: the part, for anyone with its id (it is sealed with a key Phloem never sees). 200 `{"data": "…", "rev": <n>}` with `ETag: "<n>"`; 304 when the version is the one named; 410 `gone` (deleted, or its space was: kept 395 days); 404 `not_found`; 429 `slow_down` (3600 per address and hour, found or not) |
 | `GET /sync/v1/ws` | the WebSocket of a device (section 4); 503 `busy` when the instance has 4096 sockets, or the address 32 that have not said hello yet |
 | `GET /healthz` | 200 `ok`; not routed by Traefik |
 | `GET /status` | the instance's numbers as JSON, for `phloem status`; answers loopback only, not routed by Traefik |
+
+A parcel's body may name how long it waits: `"ttl": <seconds>`, 60 to 604800 (7 days), else 600;
+at most 32 parcels wait per space. What became of a parcel (`taken`, `expired`, `withdrawn`) is
+remembered 30 days, of a space's newest 256 at most. A space that is deleted takes its parcels and
+what became of them with it, and its parts are `gone` from then on.
 
 The other codes: 400 `invalid` (a header or a body that is not what this table says), 401
 `unauthorized` (no or a wrong `Betula-Space` and token, or no such space: the same answer), 403
@@ -73,6 +84,7 @@ From a device:
 | `{"t": "snapshot", "upto": <nr>, "data": "<sealed>"}` | every record of the profile as of entry `upto`, at most 6 MiB (decoded); Phloem keeps the newest one and forgets the entries up to `upto`. The first device sends one with `upto: 0` right after `POST /sync/v1/space`, before there is any entry |
 | `{"t": "leave"}` | „Nur dieses Gerät trennen": its slot is free again; the socket closes (1000) |
 | `{"t": "delete"}` | the same as `DELETE /sync/v1/space` |
+| `{"t": "watch", "parts": ["<id>"…]}` | the parts of shared calendars this device follows (step 3), at most 64: the list from now on, in place of the one before. Counts as a push of the space |
 
 From Phloem:
 
@@ -86,16 +98,20 @@ From Phloem:
 | `{"t": "compact"}` | the entries since the snapshot exceed 128 KiB: the device should send a snapshot. It goes to the device whose push crossed the line, or that came while above it, once until the next snapshot |
 | `{"t": "error", "code", "id"?}` | `unauthorized` (and the socket closes), `too_big`, `compact_first` (above 256 KiB a push waits for a snapshot), `slow_down` (more than 50 pushes a second in a space, bursts of 200; a snapshot counts one push per 64 KiB begun), `full` (16 devices; the socket closes). `id` is the push's, for a push |
 | `{"t": "gone"}` | the space was deleted; the socket closes |
+| `{"t": "watching", "parts": [{"id", "rev"} \| {"id", "gone": true}…]}` | the answer to `watch`: each part's version now, `rev` 0 for a part Phloem does not have |
+| `{"t": "part", "id", "rev"}`, `{"t": "part", "id", "gone": true}` | a part watched was replaced, or deleted, to every socket that watches it |
+| `{"t": "pair", "id", "state": "taken"}` | a parcel of the space was opened, to every device of the space online |
 
 At most 16 sockets per space; a second hello of one device closes its older socket. A space not
-touched (hello, push, snapshot, pair) for 395 days is deleted. Every limit is Phloem's own and
-holds whatever a client does.
+touched (hello, push, snapshot, pair, part) for 395 days is deleted. Every limit is Phloem's own
+and holds whatever a client does.
 
 Phloem pings every socket every 30 s; one that does not answer within 15 s is closed, and the
 others hear `presence`. A frame of more than 8.5 MiB (a 6 MiB snapshot in base64url and its JSON
 fit) closes the socket at once (1009); a frame against this section (another type, a second
 hello, a value that is not base64url without padding, a snapshot beyond `head`, binary) closes it
-with 1008. The close codes:
+with 1008, and so does a `watch` of more than 64 parts or with an id that is not 16 bytes. The
+close codes:
 
 | | |
 |---|---|
@@ -123,3 +139,15 @@ with 1008. The close codes:
   `/verbinden#…`, which Folia leads to `/sync` for good, the part after `#` carried over by the
   browser.
 - The recovery code is `K` in base32 (Crockford), in groups of four.
+- A shared calendar that stays current (step 3) is a part: `folia_calendar::live::LivePart` as a
+  pack code, sealed with a key of its own, `kp` (32 random bytes), associated data
+  `"part" ‖ id`. The share's record in the profile holds `id` and `kp`, so that every device of
+  the profile renews the part when the calendar changes; nothing leads from the part to the
+  profile.
+- The link of a part, `https://<host>/studyplan#live=<id ‖ kp>`, and its calendar subscription,
+  `https://<host>/calendar/s/<id ‖ kp>.ics` (`/en/calendar/s/…` in English): a calendar service
+  sends no key of its own, so the key is in the address; Folia fetches the part through Traefik,
+  opens it in memory for the answer and keeps nothing.
+- A one-time link, `https://<host>/studyplan#once=<id ‖ key>`, is a parcel that waits up to 7
+  days, associated data `"share"`: JSON `{"v": 1, "part": "<id>", "key": "<kp>"}` for a calendar
+  that stays current, `{"v": 1, "copy": "<LivePart code>"}` for a copy of now.

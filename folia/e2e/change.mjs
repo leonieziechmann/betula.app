@@ -155,7 +155,13 @@ let tuesday = "";
   const room = `x\t0\t2026W\t${friday}\tall\t\t\t\tZHG/HS.A\t5\t09:15-10:45\tZHG/HS.C\t12104\n`;
   const { page, context } = await open(wide, FS1 + room);
   await until(page, "the week with the change", () => allOnPage(".sp-week a.slot.edited").length > 0);
-  const link = (await page.getAttribute('[data-action="copy-text"][data-text*="share="]', "data-text")) ?? "";
+  // „Teilen …": a private profile hands on the fixed copy for everybody, the link of today.
+  await page.click("#sp-share");
+  await until(page, "the dialog „Teilen“", () => Boolean(onPage(".sh-dialog[open] #sh-make")));
+  await page.click("#sh-make");
+  await until(page, "the link made", () => (onPage(".sh-dialog[open] .sh-link")?.textContent ?? "").includes("share="));
+  const made = new URL(((await page.textContent(".sh-dialog[open] .sh-link")) ?? "").trim());
+  const link = made.pathname + made.search;
   check(link.startsWith("/studyplan?share="), `the link: ${link}`);
   await context.close();
   const other = await open(wide, FS1, link);

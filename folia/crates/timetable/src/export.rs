@@ -34,7 +34,9 @@
 //! option of a choice not made yet, an exam's second sitting and a retake. What is hidden, a row
 //! without a clear time and a row that names no date are left out, and so are the Termine of one's
 //! own (`Event::own`): they reach a calendar with a step of their own, „Eigene Termine mitnehmen"
-//! (folia/design/kalender/termine.html), whose subscription code carries them.
+//! (folia/design/kalender/termine.html), whose subscription code carries them. A subscription that
+//! stays current has them where its share takes them along (`calendar_with_own`;
+//! folia/design/teilen/teilen.html).
 //!
 //! A Termin of QIS the student changed (`crate::change`) is in the calendar as the page shows it,
 //! each date it changes saying so („Von dir geändert"). Changed for every date, the series is the
@@ -123,11 +125,29 @@ pub fn calendar_of(
     stamp: &str,
     locale: Locale,
 ) -> Calendar {
+    calendar_with(t, titles, names, label, stamp, locale, false)
+}
+
+/// The calendar of a timetable as `calendar_of` makes it, with the Termine of one's own the
+/// timetable has: a calendar app's subscription that stays current, whose share takes them along
+/// (`folia_calendar::live`).
+pub fn calendar_with_own(
+    t: &Timetable,
+    titles: &BTreeMap<String, String>,
+    names: &BTreeMap<String, String>,
+    label: &str,
+    stamp: &str,
+    locale: Locale,
+) -> Calendar {
+    calendar_with(t, titles, names, label, stamp, locale, true)
+}
+
+fn calendar_with(t: &Timetable, titles: &BTreeMap<String, String>, names: &BTreeMap<String, String>, label: &str, stamp: &str, locale: Locale, own: bool) -> Calendar {
     let texts = crate::i18n::texts(locale);
     let stamp = dtstamp(stamp);
     let names = Names { titles, short: names };
     let mut entries: Vec<Entry> = Vec::new();
-    for event in t.events.iter().filter(|event| event.hidden.is_none() && event.own.is_none()) {
+    for event in t.events.iter().filter(|event| event.hidden.is_none() && (own || event.own.is_none())) {
         entries.extend(teaching(t, event, &names, locale));
     }
     let mut exams = Entries::default();

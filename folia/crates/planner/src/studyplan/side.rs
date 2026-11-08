@@ -35,7 +35,7 @@ use folia_stores::studyplan::Saved;
 use folia_design::ui::Icon;
 use super::calendars::CalendarsGroup;
 use super::export::CalendarGroup;
-use super::share::ShareAction;
+use super::share_dialog::{ShareOpen, ShareTab};
 use super::week::AllSwitch;
 use super::{key_of, PlanCtx};
 
@@ -236,7 +236,11 @@ fn PlanGroup(ctx: PlanCtx) -> impl IntoView {
                     }
                 }
             />
-            <ShareAction ctx/>
+            // „Teilen …": the dialog, with persons or into a calendar app (`share_dialog.rs`).
+            <button class="action" type="button" id="sp-share" on:click=move |_| ctx.sharing.set(Some(ShareOpen { calendar: 0, tab: ShareTab::People }))>
+                <Icon name="share-2"/>
+                <span><span>{t.studyplan_share_dialog.open}</span><small>{t.studyplan_share_dialog.open_hint}</small></span>
+            </button>
             {move || match (cleared.get(), confirming.get(), empty.get()) {
                 (true, _, _) => view! {
                     <p class="action note-action">

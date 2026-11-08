@@ -27,7 +27,8 @@ type meters struct {
 	rejected   *metrics.Counter // by reason: a code of the protocol, or origin, busy, invalid
 	created    *metrics.Counter // spaces made
 	deleted    *metrics.Counter // spaces deleted, by reason: deleted, expired
-	parcels    *metrics.Counter // by event: left, taken, missed, expired
+	parcels    *metrics.Counter // by event: left, taken, missed, expired, withdrawn
+	parts      *metrics.Counter // by event: put, deleted, served, not_modified, missed, gone
 	closes     *metrics.Counter // sockets closed by Phloem or lost, by reason
 }
 
@@ -40,10 +41,12 @@ func (s *Server) declare() {
 		snapshots:  r.NewCounter("phloem_snapshots_total", "Snapshots kept."),
 		snapBytes:  r.NewCounter("phloem_snapshot_bytes_total", "Sealed bytes of the snapshots kept."),
 		rejected: r.NewCounter("phloem_rejections_total",
-			"Requests and frames refused, by reason (unauthorized, too_big, compact_first, slow_down, full, budget, exists, origin, busy, invalid).", "reason"),
+			"Requests and frames refused, by reason (unauthorized, too_big, compact_first, slow_down, too_many, full, budget, exists, origin, busy, invalid).", "reason"),
 		created: r.NewCounter("phloem_spaces_created_total", "Spaces made."),
 		deleted: r.NewCounter("phloem_spaces_deleted_total", "Spaces deleted, by reason (deleted: Sync beenden; expired: untouched for 395 days).", "reason"),
-		parcels: r.NewCounter("phloem_parcels_total", "Parcels for devices to come, by event (left, taken, missed, expired).", "event"),
+		parcels: r.NewCounter("phloem_parcels_total", "Parcels for devices to come, by event (left, taken, missed, expired, withdrawn).", "event"),
+		parts: r.NewCounter("phloem_parts_total",
+			"Parts of shared calendars, by event (put: made or replaced; deleted: by Nicht mehr teilen or with their space; served, not_modified, missed, gone: reads answered 200, 304, 404, 410).", "event"),
 		closes: r.NewCounter("phloem_socket_closes_total",
 			"Sockets that ended, by reason (left, gone, replaced, restart, slow, timeout, lost, invalid, internal).", "reason"),
 	}
@@ -62,13 +65,17 @@ func (s *Server) declare() {
 		n, _ := s.st.Totals()
 		emit(float64(n))
 	})
-	r.NewGaugeFunc("phloem_bytes", "Bytes all spaces hold, for the budget (entries, snapshots, parcels, rows).", nil,
+	r.NewGaugeFunc("phloem_bytes", "Bytes all spaces hold, for the budget (entries, snapshots, parcels, parts, rows; a tombstone is a row).", nil,
 		func(emit func(float64, ...string)) {
 			_, b := s.st.Totals()
 			emit(float64(b))
 		})
-	r.NewGaugeFunc("phloem_budget_bytes", "The budget: at it, no new spaces or parcels.", nil,
+	r.NewGaugeFunc("phloem_budget_bytes", "The budget: at it, no new spaces, parcels or parts.", nil,
 		func(emit func(float64, ...string)) { emit(float64(s.budget)) })
+	r.NewGaugeFunc("phloem_parts", "Parts of shared calendars kept.", nil,
+		func(emit func(float64, ...string)) { emit(float64(s.parts.Load())) })
+	r.NewGaugeFunc("phloem_parts_watched", "Parts that sockets watch.", nil,
+		func(emit func(float64, ...string)) { emit(float64(s.watchers.size())) })
 	r.NewGaugeFunc("phloem_devices", "Devices with a slot in a space.", nil,
 		func(emit func(float64, ...string)) { emit(float64(s.devices.Load())) })
 	r.NewGaugeFunc("phloem_sockets", "Open sockets.", nil, func(emit func(float64, ...string)) {

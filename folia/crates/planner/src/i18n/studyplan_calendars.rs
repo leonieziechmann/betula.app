@@ -1,6 +1,7 @@
 //! Texts of the calendars of one's own (`studyplan/calendars.rs`; folia/design/kalender): their
 //! list beside the week and on a phone over it, how each stands in the week, a new one from a link,
-//! its menu, „Gemeinsam frei", and a calendar's part of the module list.
+//! its menu, one that follows a share (folia/design/teilen), „Gemeinsam frei", and a calendar's part
+//! of the module list.
 
 pub struct Texts {
     // ---- the list ----
@@ -41,6 +42,22 @@ pub struct Texts {
     pub save: &'static str,
     /// After „Löschen": „„Lena" gelöscht" with „Rückgängig".
     pub removed: fn(&str) -> String,
+    /// „In Kalender-App": the dialog „Teilen" for the calendar, on its side of a calendar app, and
+    /// its tooltip.
+    pub to_app: &'static str,
+    pub to_app_title: &'static str,
+
+    // ---- a calendar that follows a share ----
+    /// In its line while every change arrives: „aktuell", and the tooltip …
+    pub live: &'static str,
+    pub live_title: &'static str,
+    /// … and once the share was taken back: „nicht mehr geteilt", the tooltip, what the note under
+    /// the row says, and its „Behalten" with its tooltip (its „Löschen" is the menu's `remove`).
+    pub ended: &'static str,
+    pub ended_title: &'static str,
+    pub ended_hint: &'static str,
+    pub keep: &'static str,
+    pub keep_title: &'static str,
 
     // ---- a new calendar ----
     pub new_calendar: &'static str,
@@ -126,6 +143,16 @@ pub const DE: Texts = Texts {
     remove: "Löschen",
     save: "Sichern",
     removed: |name| format!("„{name}“ gelöscht"),
+    to_app: "In Kalender-App",
+    to_app_title: "Diesen Kalender in Google, Apple oder Outlook abonnieren: Er bleibt dort aktuell.",
+
+    live: "aktuell",
+    live_title: "Folgt einem geteilten Stundenplan: Jede Änderung kommt an.",
+    ended: "nicht mehr geteilt",
+    ended_title: "Der Stundenplan wird nicht mehr geteilt. Der Kalender bleibt mit dem letzten Stand stehen.",
+    ended_hint: "Wird nicht mehr geteilt und bleibt mit dem letzten Stand stehen.",
+    keep: "Behalten",
+    keep_title: "Den Kalender mit dem letzten Stand behalten",
 
     new_calendar: "Neuer Kalender",
     new_hint: "Aus dem Link, den dir jemand aus dem eigenen Stundenplan geschickt hat („Link zum Teilen kopieren“).",
@@ -200,6 +227,16 @@ pub const EN: Texts = Texts {
     remove: "Delete",
     save: "Save",
     removed: |name| format!("“{name}” deleted"),
+    to_app: "Into a calendar app",
+    to_app_title: "Subscribe to this calendar in Google, Apple or Outlook: it stays up to date there.",
+
+    live: "up to date",
+    live_title: "Follows a shared timetable: every change arrives.",
+    ended: "no longer shared",
+    ended_title: "The timetable is no longer shared. The calendar keeps what it showed last.",
+    ended_hint: "No longer shared; it keeps what it showed last.",
+    keep: "Keep",
+    keep_title: "Keep the calendar as it showed last",
 
     new_calendar: "New calendar",
     new_hint: "From the link someone sent you from their own timetable (“Copy link to share”).",

@@ -13,6 +13,7 @@ pub mod change;
 pub mod day;
 pub mod i18n;
 pub mod kind;
+pub mod live;
 pub mod own;
 pub mod rowkey;
 pub mod select;

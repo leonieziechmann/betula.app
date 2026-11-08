@@ -93,6 +93,15 @@ pub struct Config {
     #[arg(long, env = "FOLIA_SYNC_URL", default_value = "")]
     pub sync_url: String,
 
+    /// Where Folia fetches the part of a calendar subscription that stays current
+    /// (`/calendar/s/<id ‖ key>.ics`, docs/phloem/protocol.md §5): Traefik's entrypoint `parts`
+    /// inside the deployment (`http://edge_traefik:8083/sync/v1/`), which routes the site's host
+    /// to its Phloem and nothing else; Phloem itself while working on the site
+    /// (`http://127.0.0.1:8200/sync/v1/`). Folia asks it as an outside client, naming the site's
+    /// host. Empty: such a subscription answers 404.
+    #[arg(long, env = "FOLIA_SYNC_PARTS", default_value = "")]
+    pub sync_parts: String,
+
     /// While working on the site: serve the stylesheet, the scripts and the SVGs from this
     /// directory (`folia/assets`) as they are on disk, instead of the minified copies built into the
     /// server, and keep nothing as immutable. An edit is there with the next reload; the service

@@ -42,6 +42,7 @@ mod own;
 #[cfg_attr(not(feature = "csr"), allow(dead_code))]
 mod picture;
 mod share;
+mod share_dialog;
 mod side;
 mod termin;
 mod week;
@@ -163,6 +164,9 @@ pub(super) struct PlanCtx {
     /// The form of a Termin of one's own while it is open, and what its fields hold (`own.rs`;
     /// folia/design/kalender/termine.html). Not stored.
     pub own: RwSignal<Option<own::OwnAsk>>,
+    /// The dialog „Teilen" while it is open: for which calendar, on which side
+    /// (`share_dialog.rs`; folia/design/teilen/teilen.html). Not stored.
+    pub sharing: RwSignal<Option<share_dialog::ShareOpen>>,
 }
 
 /// The semester the page shows: the one the catalog has dates for, the snapshot's current one
@@ -275,6 +279,7 @@ pub fn StudyplanPage() -> impl IntoView {
         together: RwSignal::new(false),
         adding: RwSignal::new(None),
         own: RwSignal::new(None),
+        sharing: RwSignal::new(None),
     };
     // What „Rückgängig" puts back is the plan of the profile it was taken from: with another
     // profile (chosen here or in another tab, `folia_stores::profiles`) there is nothing to undo.
@@ -392,6 +397,7 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
     view! {
         <div class="sp-fold">
             <share::ShareOffer ctx/>
+            <share::LiveOffer ctx/>
             <SemesterHead ctx/>
             {move || match failed.get() {
                 Some(error) => view! { <ErrorState error/> }.into_any(),
@@ -420,6 +426,8 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
             // The form of a Termin of one's own and the note after it (`own.rs`).
             <OwnForm ctx/>
             <OwnNote ctx/>
+            // „Teilen" (`share_dialog.rs`).
+            <share_dialog::ShareDialog ctx/>
         </div>
         {move || {
             fine.get().then(|| {

@@ -128,7 +128,9 @@ raise_priority() {
   # changed: .PreviousSpec against .Spec from the Engine API (curl -s --unix-socket
   # /var/run/docker.sock http://localhost/services/<name>), not from "docker service inspect",
   # which fills swarm's defaults into .Spec only (an empty DNSConfig, the rollback's Monitor).
-  docker service update --detach=true --label-add "${PRIORITY_LABEL}=$((best + 1))" "${SERVICE}" >/dev/null
+  # The router of its calendar subscriptions that stay current follows, FEED_LIFT above (lib-stacks.sh).
+  docker service update --detach=true --label-add "${PRIORITY_LABEL}=$((best + 1))" \
+    --label-add "traefik.http.routers.${INSTANCE_STACK}-feed.priority=$(feed_priority "$((best + 1))" "${INSTANCE_HOST}")" "${SERVICE}" >/dev/null
   log "${ROUTER}: priority ${own} -> $((best + 1)) (${others[*]}: ${best})"
   sleep 3
   after="$(running_tasks "${SERVICE}")"

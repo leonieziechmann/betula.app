@@ -223,6 +223,7 @@ fn state(store: Arc<SnapshotStore>) -> AppState {
         feeds: Arc::new(crate::busy::Places::new("calendar", 2, std::time::Duration::from_secs(10))),
         changes: None,
         sync: None,
+        parts: None,
         leptos: LeptosOptions::builder().output_name("folia-app").site_root("no-site").build(),
     }
 }

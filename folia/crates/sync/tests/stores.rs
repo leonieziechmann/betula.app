@@ -1,5 +1,6 @@
 //! What the stores write comes back from the records as they wrote it: a plan with every tag of
-//! `PlanDoc`, saved plans, „Mein Studiengang", the Merkliste and the Sammlungen.
+//! `PlanDoc` (its shares and what its calendars follow too), saved plans, „Mein Studiengang", the
+//! Merkliste and the Sammlungen.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic)]
 
@@ -70,11 +71,42 @@ pub fn rich_plan() -> PlanDoc {
     assert_eq!(doc.add_own(lena, w, termin("Volleyball", 4)), Some(3));
     assert!(doc.set_change(w, change(148_701, 0xb7025, Scope::On(day("2026-11-13")), "C 7")));
     assert!(doc.add_to_calendar(max, s, "12101"));
+    // What is shared, and Max's calendar following a share with its notes.
+    use folia_plans::shares::{encode, Share, ShareTo};
+    let shared = |n: u8, calendar: u8, to: ShareTo| Share {
+        id: encode(&[n; 16]),
+        calendar,
+        to,
+        semester: w,
+        made: 1_794_000_000 + u64::from(n),
+        live: true,
+        once: to == ShareTo::Person,
+        own: true,
+        notes: n.is_multiple_of(2),
+        key: encode(&[n + 1; 32]),
+        parcel: if to == ShareTo::Person { encode(&[n + 2; 48]) } else { String::new() },
+        program: Some("079-82-2008".into()),
+        name: "Lena".into(),
+    };
+    assert!(doc.add_share(shared(1, 0, ShareTo::Person)));
+    assert!(doc.add_share(shared(4, lena, ShareTo::App)));
+    assert!(doc.add_share(Share { parcel: String::new(), name: String::new(), ..shared(7, 0, ShareTo::Person) }));
+    assert!(doc.follow(max, &encode(&[9; 48]), 1_794_000_100));
+    let part = folia_calendar::live::LivePart {
+        semester: s.index(),
+        modules: vec![12160, 12101],
+        notes: vec![
+            folia_calendar::live::CodeNote { key: row(1).packed(), text: "Altklausur".into() },
+            folia_calendar::live::CodeNote { key: folia_calendar::rowkey::RowKey { event: 99_999, fp: 2 }.packed(), text: "vorher".into() },
+        ],
+        ..Default::default()
+    };
+    assert!(doc.take_part(max, &part));
     doc
 }
 
 fn with_newer_lines(text: &str) -> String {
-    format!("{text}z\t2027S\twhat a newer build writes\nb\t1\t2026W\t150211-00001\tLenas Notiz\n")
+    format!("{text}z\t2027S\twhat a newer build writes\nw\t1\t2026W\t150211-00001\tand more of it\n")
 }
 
 /// The records of a text, written by one device from nothing.

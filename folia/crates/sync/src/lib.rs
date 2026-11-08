@@ -23,5 +23,5 @@ pub mod writer;
 
 pub use doc::{Applied, Conflict, Doc, Entry, Op, Seen};
 pub use hlc::{Clock, Hlc};
-pub use schema::{project, records, Store};
+pub use schema::{project, records, retired, Retired, Store};
 pub use writer::Writer;

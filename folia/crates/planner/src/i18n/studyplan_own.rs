@@ -95,7 +95,8 @@ pub struct Texts {
     pub days: fn(usize) -> String,
     pub from_day: fn(&str) -> String,
     pub until_day: fn(&str) -> String,
-    /// The tooltip of a slot of one's own: „von dir, nicht in Datei und Abo".
+    /// The tooltip of a slot of one's own: „von dir, nicht in Datei und festem Abo" (a share that
+    /// stays current takes them along).
     pub by_you: &'static str,
     /// The draft in the week while the form is open: „Neuer Termin".
     pub draft: &'static str,
@@ -175,7 +176,7 @@ pub const DE: Texts = Texts {
     },
     from_day: |day| format!("ab {day}"),
     until_day: |day| format!("bis {day}"),
-    by_you: "von dir, nicht in Datei und Abo",
+    by_you: "von dir, nicht in Datei und festem Abo",
     draft: "Neuer Termin",
     hold_hint: "Finger auf eine freie Stelle halten: ein Termin dort",
     changed: "von dir geändert",
@@ -249,7 +250,7 @@ pub const EN: Texts = Texts {
     },
     from_day: |day| format!("from {day}"),
     until_day: |day| format!("until {day}"),
-    by_you: "yours, not in the file or the feed",
+    by_you: "yours, not in the file or a fixed feed",
     draft: "New event",
     hold_hint: "Hold a finger on a free stretch: an event there",
     changed: "changed by you",

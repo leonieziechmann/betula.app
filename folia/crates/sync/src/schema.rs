@@ -5,8 +5,8 @@
 //! planned or visited (`m` and `v` share a key, so the two never both stand, and `m` outranks
 //! `v` as it does in the reader); a placeholder by its pid; a Termin of one's own by its number; a
 //! calendar by its number; a passed module once; a change of a Termin by its Termin, scope and
-//! day; a note once per Termin or module; a saved plan by its name; a field of „Mein Studiengang"
-//! by its name. Where a line holds a set (the kinds a semester hides, the dates hidden of a
+//! day; a note once per Termin or module; a share by its id, what a calendar follows by the
+//! calendar; a saved plan by its name; a field of „Mein Studiengang" by its name. Where a line holds a set (the kinds a semester hides, the dates hidden of a
 //! Termin, a module's collections, the collections new marks go into), each element is a record of
 //! its own, so two devices adding to one set keep both. A line of a tag this build does not know,
 //! or one whose fields could not be a key, is one opaque record: kept as it is, never split.
@@ -27,6 +27,9 @@ use crate::hlc::Hlc;
 
 /// As `folia_plans::studyplan`: at most 8 calendars of one's own.
 pub const MAX_CALENDARS: usize = 8;
+
+/// As `folia_plans::shares`: at most 32 shares in force.
+pub const MAX_SHARES: usize = 32;
 
 /// A collection's name, at most (`folia_stores::collections::MAX_NAME`).
 const MAX_SHELF_NAME: usize = 60;
@@ -87,6 +90,31 @@ impl Store {
     pub fn of_record(key: &str) -> Option<Store> {
         Store::ALL.into_iter().find(|store| key.starts_with(store.prefix()))
     }
+}
+
+/// The numbers a profile had and gave up, as long as the records keep their deletion (13 months,
+/// `Doc::forget_deleted`): of calendars, Termine of one's own, placeholders and collections. A new
+/// one does not take them again (`folia_plans::ids`): what a device that did not see the deletion
+/// yet still writes for the old one would land in the new one.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Retired {
+    pub calendars: BTreeSet<u32>,
+    pub own: BTreeSet<u32>,
+    pub placeholders: BTreeSet<u32>,
+    pub collections: BTreeSet<u32>,
+}
+
+/// What `Retired` holds of the records.
+pub fn retired(doc: &Doc) -> Retired {
+    let deleted = |prefix: &'static str| -> BTreeSet<u32> {
+        doc.entries
+            .range(prefix.to_string()..)
+            .take_while(|(key, _)| key.starts_with(prefix))
+            .filter(|(_, e)| e.val.is_none())
+            .filter_map(|(key, _)| key.strip_prefix(prefix)?.parse().ok())
+            .collect()
+    };
+    Retired { calendars: deleted("P|l|"), own: deleted("P|t|"), placeholders: deleted("P|p|"), collections: deleted("C|c|") }
 }
 
 /// Texts of which two concurrent writes are both kept (a note typed on two devices at once).
@@ -222,6 +250,8 @@ fn plan_records(text: &str, r: &mut Records) {
             "n" if all(&[1, 2, 3]) => r.last(format!("P|n|{}|{}|{}", g(1), g(2), g(3)), ONE.into()),
             "o" if all(&[1, 2, 3]) => r.last(format!("P|o|{}|{}|{}", g(1), g(2), g(3)), ONE.into()),
             "t" if all(&[1]) => r.first(format!("P|t|{}", g(1)), line.to_string()),
+            "f" if all(&[1]) => r.first(format!("P|f|{}", g(1)), line.to_string()),
+            "s" if all(&[1]) => r.first(format!("P|s|{}", g(1)), line.to_string()),
             _ => {
                 let (key, val) = opaque();
                 r.first(key, val);
@@ -346,10 +376,14 @@ struct Semester<'a> {
     code: Option<&'a str>,
 }
 
+/// Where a note of a calendar stands among its notes: its semester, its Termin's event and
+/// fingerprint as numbers.
+type NoteOrder<'a> = (&'a str, u64, u64);
+
 /// As `PlanDoc::stored`: `g`; `m` by semester, then in planning order; `v` the same; `p` by pid;
 /// `d` and `q` in the order they were marked; per semester `k`, `e`, `r`, `c`, `h`, `x`, `b` and
-/// `a`; the plan's own Termine; per calendar `l`, its `n`, `o`, `t` and `x`; the rest in the order
-/// it came.
+/// `a`; the plan's own Termine; per calendar `l`, its `n`, `o`, `t`, `x`, `b` and `f`; the shares;
+/// the rest in the order it came.
 fn plan_project(doc: &Doc) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
 
@@ -450,17 +484,25 @@ fn plan_project(doc: &Doc) -> Vec<String> {
             }
         }
     }
-    let mut later: Vec<(Hlc, String)> = Vec::new();
+    // A calendar's notes by semester and Termin, as the plan orders them (a Termin's key by its
+    // numbers, not its text).
+    let mut calendar_notes: BTreeMap<u32, Vec<(NoteOrder, &str)>> = BTreeMap::new();
     for (key, e) in doc.live_with("P|b|") {
         let Some(line) = e.val.as_deref() else { continue };
-        if let [calendar, s, ..] = parts(key, "P|b|").as_slice() {
-            if *calendar == "0" {
-                semesters.entry(s).or_default().notes.push(line);
-            } else {
-                // A note of a calendar's Termin is a line the plan keeps as it came.
-                later.push((e.created, line.to_string()));
+        if let [calendar, s, row] = parts(key, "P|b|").as_slice() {
+            match calendar.parse::<u32>() {
+                Ok(0) => semesters.entry(s).or_default().notes.push(line),
+                Ok(id) if belongs(id, e) => {
+                    let (event, fp) = row.split_once('-').unwrap_or((row, ""));
+                    let order = (*s, event.parse().unwrap_or(u64::MAX), u64::from_str_radix(fp, 16).unwrap_or(u64::MAX));
+                    calendar_notes.entry(id).or_default().push((order, line));
+                }
+                _ => {}
             }
         }
+    }
+    for notes in calendar_notes.values_mut() {
+        notes.sort();
     }
     for (key, e) in doc.live_with("P|a|") {
         if let Some(s) = key.strip_prefix("P|a|") {
@@ -509,9 +551,27 @@ fn plan_project(doc: &Doc) -> Vec<String> {
         }
         out.extend(own.iter().filter(|o| o.1 == *id && belongs(*id, o.3)).map(|o| o.2.to_string()));
         out.extend(calendar_changes.get(id).into_iter().flatten().map(|line| line.to_string()));
+        out.extend(calendar_notes.get(id).into_iter().flatten().map(|(_, line)| line.to_string()));
+        if let Some(line) = doc.live(&format!("P|f|{id}")).filter(|e| belongs(*id, e)).and_then(|e| e.val.as_deref()) {
+            out.push(line.to_string());
+        }
     }
 
-    later.extend(doc.live_with("P|?|").filter_map(|(key, e)| Some((e.created, key.strip_prefix("P|?|")?.to_string()))));
+    // The shares, in the order they were made; one of a calendar of one's own counts only in the
+    // calendar's present life.
+    let mut shares: Vec<(Hlc, &str)> = doc
+        .live_with("P|s|")
+        .filter_map(|(_, e)| {
+            let line = e.val.as_deref()?;
+            let calendar: u32 = line.split('\t').nth(2)?.trim().parse().ok()?;
+            (calendar == 0 || belongs(calendar, e)).then_some((e.created, line))
+        })
+        .collect();
+    shares.sort();
+    shares.truncate(MAX_SHARES);
+    out.extend(shares.into_iter().map(|(_, line)| line.to_string()));
+
+    let mut later: Vec<(Hlc, String)> = doc.live_with("P|?|").filter_map(|(key, e)| Some((e.created, key.strip_prefix("P|?|")?.to_string()))).collect();
     later.sort();
     out.extend(later.into_iter().map(|(_, line)| line));
     out

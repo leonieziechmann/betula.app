@@ -291,7 +291,7 @@ fn PairLink(pairing: Pairing, again: Callback<()>, close: Callback<()>) -> impl 
         copied.set(true);
         set_timeout(move || { let _ = copied.try_set(false); }, std::time::Duration::from_millis(COPIED_MS));
     };
-    let code = crate::qr::path(&pairing.link);
+    let code = folia_design::qr::path(&pairing.link);
     let shown = pairing.link.clone();
     move || {
         if left.get().is_none() {

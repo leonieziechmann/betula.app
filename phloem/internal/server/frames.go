@@ -68,6 +68,7 @@ type inFrame struct {
 	ID     string `json:"id"`
 	Data   b64    `json:"data"`
 	Upto   *int64 `json:"upto"`
+	Parts  []b64  `json:"parts"`
 }
 
 // The frames Phloem sends that never change.
@@ -181,4 +182,48 @@ func snapshottedFrame(upto int64) []byte {
 func presenceFrame(slots []int) []byte {
 	b := append([]byte(`{"t":"presence","devices":`), appendSlots(nil, slots)...)
 	return append(b, '}')
+}
+
+// partFrame tells the sockets that watch a part its new version.
+func partFrame(id []byte, rev int64) []byte {
+	b := appendB64([]byte(`{"t":"part","id":`), id)
+	b = append(b, `,"rev":`...)
+	b = strconv.AppendInt(b, rev, 10)
+	return append(b, '}')
+}
+
+// partGoneFrame tells the sockets that watch a part that it is gone.
+func partGoneFrame(id []byte) []byte {
+	b := appendB64([]byte(`{"t":"part","id":`), id)
+	return append(b, `,"gone":true}`...)
+}
+
+// watchingFrame answers a watch: the version of every part now, in the order asked (0 for one
+// Phloem does not have, revGone for one that is gone).
+func watchingFrame(ids [][]byte, revs []int64) []byte {
+	b := make([]byte, 0, 32+len(ids)*(b64len(partLen)+24))
+	b = append(b, `{"t":"watching","parts":[`...)
+	for i, id := range ids {
+		if i > 0 {
+			b = append(b, ',')
+		}
+		b = appendB64(append(b, `{"id":`...), id)
+		if revs[i] == revGone {
+			b = append(b, `,"gone":true}`...)
+			continue
+		}
+		b = append(b, `,"rev":`...)
+		b = strconv.AppendInt(b, revs[i], 10)
+		b = append(b, '}')
+	}
+	return append(b, "]}"...)
+}
+
+// pairFrame tells the devices of a space what became of one of its parcels; state is one of
+// the store's, which need no escaping.
+func pairFrame(id []byte, state string) []byte {
+	b := appendB64([]byte(`{"t":"pair","id":`), id)
+	b = append(b, `,"state":"`...)
+	b = append(b, state...)
+	return append(b, `"}`...)
 }

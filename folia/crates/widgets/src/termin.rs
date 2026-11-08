@@ -1331,7 +1331,8 @@ fn NoteRow(ctx: TerminCtx, key: RowKey, note: Option<String>) -> impl IntoView {
 /// „Im Stundenplan" of a Termin of one's own (folia/design/kalender/termine.html): how it recurs
 /// and when with „Bearbeiten", the date shown skipped or held again, and „Löschen" with
 /// „Rückgängig" — where the page does them (`TerminCtx::own`); from the start page the way to them
-/// in the Stundenplan. It reaches no file and no subscription yet („nicht in Datei und Abo").
+/// in the Stundenplan. It reaches no file and no fixed subscription yet („nicht in Datei und festem
+/// Abo"); a share that stays current takes it along where it is asked to.
 #[component]
 fn OwnView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
     let t = i18n::t();
