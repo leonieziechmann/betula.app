@@ -881,12 +881,18 @@ https://betula.app fetched directly, until it archived the university's block pa
 release `2026-10-26-radix-006140f-folia-f5bdbba`, two lines under one tag (section 4, „A release
 of two lines"): the canary's Radix of that day, and Folia 1.0.4, the public site's Folia of
 2026-09-30 with the module texts as Markdown (branch `claude/main-folia-markdown`), so that the
-public site keeps its pages. `betula-green` (2026-09-30-436f93c) is the rollback: its Radix serves
-the snapshot it exported last, stopped with `docker service update --args "serve-snapshot …"`
-rather than 50-app.sh, which would put a Radix without `/metrics` on its network
-`cortex_betula-green` (rule „Monitoring target is down"); `91-verify-stacks.sh cortex` keeps a FAIL
-for it (a way to the internet). It stays on the networks from before section 15 until its next
-deploy, and with it Traefik's old `edge` (`stacks/edge.legacy.yml`). Cortex now gets what the public site fetches, and the canary reads that.
+public site keeps its pages. Cortex now gets what the public site fetches, and the canary reads that.
+
+`betula-green` (2026-09-30-436f93c) was the rollback until 2026-11-08 and was then removed (owner,
+asked whether to keep it until the next release: „Jetzt entfernen"). It had stayed on the networks
+from before section 15, with a way to the internet from its Folia and Radix, the 15 FAILs of
+`91-verify-stacks.sh`. `docker stack rm betula-green`; its volumes `betula-green_radix-data` and
+`betula-green_folia-data` stay, and so do its planned networks `edge_betula-green` and
+`cortex_betula-green`. Until the next release goes there, https://betula.app has no standby: an
+in-place update of `betula` leaves a gap, and a rollback means deploying `betula-green` first
+(section 4, „A colour that crawls": a colour that ran before needs `docker volume rm
+betula-green_radix-data` before `--seed`). Traefik's old `edge` and Cortex's old `cortex` now hold
+only themselves: section 15, step 7.
 
 ### Seeding Cortex with an archive
 
