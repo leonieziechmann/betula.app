@@ -2,13 +2,17 @@
 # Phloem's own firewall (docs/phloem/phloem.md, „Firewall"; docs/phloem/protocol.md section 2).
 #
 # `phloem start` loads it in the container's network namespace, as root with NET_ADMIN, before
-# Phloem serves; Phloem then runs as 65532 without any capability and cannot change it. Step 1:
-# Phloem opens no connection at all.
+# Phloem serves; Phloem then runs as 65532 without any capability and cannot change it. Without
+# TURN, Phloem opens no connection at all.
 #
 #   in:  loopback (the health check, 127.0.0.1 to 127.0.0.1), replies, and new TCP
 #        connections to 8200 (Traefik, over <stack>_in: the only other member of that network)
 #   out: replies, and loopback to 127.0.0.1. No new connection, no DNS (Docker's resolver at
 #        127.0.0.11 neither), no IPv6.
+#
+# With TURN (step 2), `phloem start` fills the chains turn_in and turn_out from turn.nft in the
+# same transaction: STUN and TURN in, and out a relay's datagram to a public address alone. Both
+# chains stay empty otherwise, and every chain still ends with its counting drop.
 #
 # Every chain ends with a counting drop, and every drop that means someone tried something is
 # counted, in the chain it happened in. betula-phloem-guard (deploy/vps/files, every minute as
@@ -41,6 +45,7 @@ table inet phloem {
 		ct state invalid drop comment "late packets conntrack cannot place: noise, not counted"
 		iif "lo" ip saddr 127.0.0.1 ip daddr 127.0.0.1 accept
 		tcp dport 8200 ct state new accept
+		jump turn_in
 		counter drop comment "a new connection to another port, or anything else"
 	}
 
@@ -52,7 +57,15 @@ table inet phloem {
 		meta skuid 0 ip daddr 127.0.0.11 meta l4proto udp ct original proto-dst 53 drop comment "phloem start's own check, as root before the drop: not counted"
 		ip daddr 127.0.0.11 counter drop comment "Docker's resolver: a name looked up"
 		oif "lo" ip saddr 127.0.0.1 ip daddr 127.0.0.1 accept
+		jump turn_out
 		counter drop comment "a connection or a datagram out"
+	}
+
+	# Filled by turn.nft when Phloem serves TURN; empty, they return at once.
+	chain turn_in {
+	}
+
+	chain turn_out {
 	}
 
 	chain forward {

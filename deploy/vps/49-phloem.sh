@@ -19,10 +19,15 @@
 #      writer on phloem.db): the devices hear 1001 and come back by themselves within seconds.
 #      What swarm was told is checked (image, revision, the router), and waited for until it runs.
 #   3. What is forbidden, tried. From inside: "phloem probe" (DNS, the internet, the metadata
-#      service, IPv6, Traefik's address: all must be dropped, and the service has no privilege
-#      left). From outside: https://<APP_HOST>/sync/v1/ reaches Phloem (its router, by Traefik's
-#      access log), /healthz does not; its stats file is there and fresh. The monitoring is told
-#      first that probes run: they set off "Phloem: its firewall drops connections" otherwise.
+#      service, IPv6, Traefik's address: all must be dropped; with TURN also from a relay's port to
+#      a private address, the metadata service and the host's own; and the service has no
+#      privilege left). From outside: https://<APP_HOST>/sync/v1/ reaches Phloem (its router, by
+#      Traefik's access log), /healthz does not; with TURN, STUN answers at the host's public
+#      address; its stats file is there and fresh. The monitoring is told first that probes run:
+#      they set off "Phloem: its firewall drops connections" otherwise.
+# TURN (step 2, PHLOEM_TURN_PORT in stacks/phloem/<stack>.env): the stack file gets a second file
+# beside it (phloem_turn_file, lib-phloem.sh): STUN's and TURN's settings, the ports in host mode,
+# the network <stack>_out, and with PHLOEM_TURN_TLS_HOST Traefik's TCP router for TURN over TLS.
 #   4. 91-verify-stacks.sh phloem: its networks, the probes from the host's side, what the
 #      monitoring sees.
 # A FAIL in 3 or 4 ends with exit 1: the release runs, but it should not stay. Roll back with the
@@ -50,6 +55,9 @@ PHLOEM_VERIFY="${PHLOEM_VERIFY:-1}"
 # Where the monitoring learns that probes run (91-verify-stacks.sh writes the same file).
 PROBES_FILE="${BETULA_RUN_DIR}/metrics/verify-probes.prom"
 FAILS=0
+# With TURN: the host's public IPv4 address (turn_preflight), and the file beside the stack file.
+TURN_IP=""
+TURN_FILE=""
 
 usage() {
   die "usage: bash $(basename "$0") <instance> [<tag>]   (instances: $(phloem_names | tr '\n' ' '); loaded: $(loaded_images))"
@@ -114,6 +122,9 @@ preflight() {
     die "${TRAEFIK} is not on ${STACK}_in, so it could not reach Phloem: bash ${BETULA_ROOT}/vps/40-stacks.sh (stacks/edge.yml names the network)"
   phloem_check_mounts "${STACK}" || die "${PHLOEM_MOUNT_DETAIL}"
   ok "its file systems: $(phloem_data_dir "${STACK}") (ext4 of its own) and $(phloem_stats_dir "${STACK}") (tmpfs of 1 MiB)"
+  if [[ -n "${PHLOEM_TURN_PORT}" ]]; then
+    turn_preflight
+  fi
 
   docker image inspect "${PHLOEM_IMAGE}" >/dev/null 2>&1 ||
     die "image ${PHLOEM_IMAGE} is not loaded on this server (deploy/ship-phloem.sh builds and loads it; loaded: $(loaded_images))"
@@ -128,6 +139,37 @@ preflight() {
         die "stack ${STACK} has the service ${svc}, which ${PHLOEM_STACK_FILE##*/} does not define: remove it (docker service rm ${svc}) and run this again"
     done < <(stack_services "${STACK}")
   fi
+}
+
+# turn_preflight - TURN's ports are this instance's alone, the host's public address is known,
+# and the host's firewall lets them in (else the devices find no TURN, and nothing breaks).
+turn_preflight() {
+  local other mine theirs port unlisted=""
+  mine="$(phloem_turn_ports | sort)"
+  while IFS= read -r other; do
+    [[ -n "${other}" && "${other}" != "${STACK}" ]] || continue
+    theirs="$( (load_phloem "${other}" && phloem_turn_ports) 2>/dev/null | sort || true)"
+    port="$(comm -12 <(printf '%s\n' "${mine}") <(printf '%s\n' "${theirs}") | head -n 1)"
+    [[ -z "${port}" ]] || die "TURN: ${port} is ${other}'s as well (stacks/phloem/${other}.env): every instance needs ports of its own"
+  done < <(phloem_names)
+  TURN_IP="$(phloem_turn_ip)"
+  [[ -n "${TURN_IP}" ]] ||
+    die "TURN: this host's public IPv4 address cannot be found (ip -4 route get 1.1.1.1 names no public source): set PHLOEM_TURN_IP in stacks/phloem/${STACK}.env"
+  if [[ -r /etc/betula/public-ports.conf ]]; then
+    (
+      load_public_ports /etc/betula/public-ports.conf
+      for port in ${PHLOEM_TURN_PORT}/tcp ${PHLOEM_TURN_PORT}/udp ${PHLOEM_TURN_RELAYS%-*}/udp ${PHLOEM_TURN_RELAYS#*-}/udp; do
+        # shellcheck disable=SC2086 # one entry per word
+        if [[ "${port#*/}" == tcp ]]; then port_listed "${port%/*}" ${PUBLIC_TCP_PORTS} || exit 1; else port_listed "${port%/*}" ${PUBLIC_UDP_PORTS} || exit 1; fi
+      done
+    ) || unlisted=1
+  else
+    unlisted=1
+  fi
+  if [[ -n "${unlisted}" ]]; then
+    warn "TURN: /etc/betula/public-ports.conf does not list ${PHLOEM_TURN_PORT} and ${PHLOEM_TURN_RELAYS}: the devices reach no STUN or TURN until sudo bash ${BETULA_ROOT}/vps/10-base.sh and 30-docker.sh ran with vps/files/public-ports.conf"
+  fi
+  ok "TURN: ${PHLOEM_HOST}:${PHLOEM_TURN_PORT} over UDP and TCP, relays ${PHLOEM_TURN_RELAYS} at ${TURN_IP}${PHLOEM_TURN_TLS:+, TLS as ${PHLOEM_TURN_TLS}:443}"
 }
 
 # undrift - "docker stack deploy" leaves the image of a service alone while the file names the
@@ -146,7 +188,7 @@ undrift() {
 
 deploy() {
   step "docker stack deploy ${STACK}: ${PHLOEM_IMAGE}, revision ${PHLOEM_REV}"
-  local told
+  local told wanted
   if docker service inspect "${SERVICE}" >/dev/null 2>&1; then
     log "it runs $(service_image "${SERVICE}"), revision $(service_label "${SERVICE}" "${REV_LABEL}")"
   fi
@@ -155,8 +197,14 @@ deploy() {
   export STACK_NAME="${STACK}" APP_HOST="${PHLOEM_HOST}" PHLOEM_ORIGINS="${PHLOEM_ORIGIN_LIST}"
   export PHLOEM_BUDGET_BYTES="${PHLOEM_BUDGET}" PHLOEM_IMAGE PHLOEM_REV
   # --resolve-image never: no registry knows the image. --prune: a service that left the file
-  # leaves the swarm as well.
-  docker stack deploy --detach=true --prune --resolve-image never -c "${PHLOEM_STACK_FILE}" "${STACK}"
+  # leaves the swarm as well (and <stack>_out, where TURN went off).
+  local files=(-c "${PHLOEM_STACK_FILE}")
+  if [[ -n "${PHLOEM_TURN_PORT}" ]]; then
+    TURN_FILE="$(betula_tmpfile)"
+    phloem_turn_file "${TURN_FILE}" "${TURN_IP}"
+    files+=(-c "${TURN_FILE}")
+  fi
+  docker stack deploy --detach=true --prune --resolve-image never "${files[@]}" "${STACK}"
 
   # What swarm was told, not what this script meant: the substitution of "docker stack deploy"
   # has surprises (stacks/betula.yml), and a wrong image is retried forever.
@@ -169,6 +217,10 @@ deploy() {
     die "the router of ${SERVICE} says '${told}', wanted Host(\`${PHLOEM_HOST}\`) && PathPrefix(\`/sync/v1/\`): look at its labels in ${PHLOEM_STACK_FILE}"
   told="$(docker service inspect "${SERVICE}" --format '{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{println .}}{{end}}' | sed -n 's/^PHLOEM_ORIGINS=//p')"
   [[ "${told}" == "${PHLOEM_ORIGIN_LIST}" ]] || die "${SERVICE} was given the origins '${told}' instead of ${PHLOEM_ORIGIN_LIST}"
+  told="$(docker service inspect "${SERVICE}" --format '{{range .Endpoint.Spec.Ports}}{{.PublishedPort}}/{{.Protocol}}/{{.PublishMode}}{{"\n"}}{{end}}' | sed '/^$/d' | sort | tr '\n' ' ')"
+  wanted="$(phloem_turn_ports | sed 's|$|/host|' | sort | tr '\n' ' ')"
+  [[ "${told}" == "${wanted}" ]] ||
+    die "${SERVICE} publishes '${told% }', wanted '${wanted% }' (TURN, from stacks/phloem/${STACK}.env)"
 
   wait_for_stack "${STACK}"
   [[ "${#FAILED_STACKS[@]}" -eq 0 ]] ||
@@ -262,6 +314,16 @@ probes() {
     ok "https://${PHLOEM_HOST}/healthz does not reach Phloem (router ${ROUTER_NAME:-none}, ${ROUTER_STATUS})"
   else
     bad "https://${PHLOEM_HOST}/healthz reaches Phloem (router ${ROUTER_NAME}): only /sync/v1/ may"
+  fi
+
+  # STUN and TURN at the host's public address, from the host (docker-proxy or the DNAT of the
+  # host-mode port: what a device's datagram meets too, but for the host's own firewall).
+  if [[ -n "${PHLOEM_TURN_PORT}" ]]; then
+    if stun_answers "${TURN_IP}" "${PHLOEM_TURN_PORT}"; then
+      ok "STUN answers at ${TURN_IP}:${PHLOEM_TURN_PORT} (a binding request over UDP)"
+    else
+      bad "no STUN answer at ${TURN_IP}:${PHLOEM_TURN_PORT} over UDP (docker service ps ${SERVICE}; docker service logs ${SERVICE})"
+    fi
   fi
 
   # Its numbers: a file on its tmpfs, never a network.

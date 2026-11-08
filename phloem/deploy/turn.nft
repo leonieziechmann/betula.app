@@ -1,0 +1,24 @@
+# Phloem's firewall for TURN (step 2; docs/phloem/phloem.md, „TURN"). `phloem start` loads it with
+# firewall.nft in one transaction, when Phloem serves TURN, after it defined:
+#
+#   $turn_port    where STUN and TURN listen, UDP and TCP (PHLOEM_TURN_PORT)
+#   $relay_ports  the relays' UDP ports, first-last (PHLOEM_TURN_RELAY_PORTS)
+#   $turn_ip      the host's public IPv4 address, the relays' (PHLOEM_TURN_IP)
+#
+# The second layer behind Phloem's own rule (internal/server/turn.go, permit): even if that let a
+# peer through that it must not, nothing but a relay's UDP datagram to a public address gets out.
+# What a relay sends anywhere else is dropped and counted, like every drop of the table that means
+# someone tried something (betula-phloem-guard reads the counters; the monitoring alerts).
+
+# In: STUN and TURN from anywhere (a request without a credential gets an answer and nothing
+# more), TURN over TCP (from the devices, and from Traefik with TURN over TLS), and the datagrams
+# of peers for the relays (Phloem passes on only those of a peer with a permission).
+add rule inet phloem turn_in udp dport $turn_port accept
+add rule inet phloem turn_in tcp dport $turn_port ct state new accept
+add rule inet phloem turn_in udp dport $relay_ports accept
+
+# Out: never to Phloem's own address, nor to an address that is no address on the internet
+# (RFC 6890, as internal/server/turn.go's special); a relay's datagram to any other address.
+add rule inet phloem turn_out ip daddr $turn_ip counter drop comment "TURN: Phloem's own address is never a peer"
+add rule inet phloem turn_out ip daddr { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.0.0.0/24, 192.0.2.0/24, 192.31.196.0/24, 192.52.193.0/24, 192.88.99.0/24, 192.168.0.0/16, 192.175.48.0/24, 198.18.0.0/15, 198.51.100.0/24, 203.0.113.0/24, 224.0.0.0/4, 240.0.0.0/4 } counter drop comment "TURN: no address on the internet"
+add rule inet phloem turn_out meta l4proto udp udp sport $relay_ports accept

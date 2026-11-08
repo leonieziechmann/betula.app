@@ -1292,6 +1292,42 @@ Once, in this order (the first three are section 15's steps 1 and 2, if they did
 For https://betula.app the same with `phloem` (steps 4 and 5), then `FOLIA_SYNC=on` in
 `betula.env` and `betula-green.env`, `deploy/sync.sh` and `50-app.sh` of each colour.
 
+### The live way: STUN and TURN (step 2)
+
+With Phloem 0.3.0 and Folia 1.83.0 the devices of a profile online connect directly (WebRTC),
+and where no direct way exists (a phone in a mobile network behind CGNAT, a strict firewall)
+through Phloem's TURN (`docs/phloem/phloem.md`, „TURN"). Each instance publishes its STUN and TURN
+port over UDP and TCP and a range of relay ports over UDP, in host mode at the same numbers
+(`stacks/phloem/<stack>.env`: `phloem` 3478 and 49160–49223, `phloem-canary` 3479 and
+49224–49239; `vps/files/public-ports.conf` lists them all, and `91-verify-stacks.sh ports` holds
+every public port to its one service). Its relays send to the devices of the space alone (Phloem's
+own check, and its firewall's `turn.nft` behind it), over the network `<stack>_out`, its alone.
+Once, for canary:
+
+1. From the workstation: `deploy/sync.sh`.
+2. `sudo bash /opt/betula/vps/10-base.sh`, then `sudo bash /opt/betula/vps/30-docker.sh`: ufw and
+   the forward filter of Docker take the new public ports (`public-ports.conf`).
+3. `bash /opt/betula/vps/40-stacks.sh monitoring`: the alert „Phloem: a relay was to send where no
+   peer may be".
+4. From the workstation: `SSH_TARGET=betula deploy/ship-phloem.sh phloem-canary`: Phloem 0.3.0
+   with TURN; `49-phloem.sh` makes the second stack file (`phloem_turn_file`), finds the host's
+   public IPv4 address (`ip -4 route get 1.1.1.1`, else `PHLOEM_TURN_IP` in the instance's file),
+   and checks afterwards that STUN answers there and that nothing gets out of a relay's port but
+   to a public address (`phloem probe`).
+5. The canary agent deploys Folia 1.83.0 by itself (master). Two devices of one profile then say
+   „direkt verbunden" or „über Betula weitergeleitet" on the profile page.
+6. TURN over TLS on 443 (for networks that let nothing but HTTPS out), when wanted: an A record
+   `turn.canary.betula.app` to this host (no AAAA), then `PHLOEM_TURN_TLS_HOST=turn.canary.betula.app`
+   in `stacks/phloem/phloem-canary.env`, `deploy/sync.sh`, `bash /opt/betula/vps/49-phloem.sh
+   phloem-canary`: Traefik's TCP router `phloem-canary-turn` asks Let's Encrypt for the name and
+   hands TURN over TLS to Phloem.
+
+For https://betula.app the same with `phloem` (steps 4 and 6, `turn.betula.app`), once its Folia
+syncs. Without TURN: `PHLOEM_TURN_PORT` out of the instance's file and `49-phloem.sh <stack>`; the
+devices then connect within a network alone, and everything goes through Phloem's WebSocket as
+before. Each relay port is a `docker-proxy` of the host (Docker's userland proxy stays on:
+`vps/30-docker.sh`, `install_daemon_config`), hence the ranges stay small: at most 128 per instance (`PHLOEM_MAX_RELAYS`, `lib-phloem.sh`).
+
 - **Rollback** of the pages: `FOLIA_SYNC=off` in the instance's file, `deploy/sync.sh`,
   `50-app.sh <instance>`. Every synced profile stays on its devices and is offline until it comes
   back. Of Phloem: `bash /opt/betula/vps/49-phloem.sh <stack> <previous tag>`.

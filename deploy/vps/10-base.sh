@@ -396,10 +396,10 @@ configure_firewall() {
     ufw allow "${port}/tcp" comment "ssh" >/dev/null
   done
   for port in ${PUBLIC_TCP_PORTS}; do
-    ufw allow "${port}/tcp" comment "betula public (traefik)" >/dev/null
+    ufw allow "${port}/tcp" comment "betula public (traefik, turn)" >/dev/null
   done
   for port in ${PUBLIC_UDP_PORTS}; do
-    ufw allow "${port}/udp" comment "betula public (traefik http/3)" >/dev/null
+    ufw allow "${port}/udp" comment "betula public (stun, turn, relays)" >/dev/null
   done
   # Blocked-packet logging is background noise from the whole internet; it would fill the capped
   # journal and Loki with lines nobody acts on. Switch it on temporarily when debugging.

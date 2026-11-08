@@ -63,18 +63,32 @@ as_shipped() {
 
 docker_usable() { have_cmd docker && unit_active docker.service; }
 
-# One "port/proto" per line for everything files/public-ports.conf declares public.
+# One "port/proto" per line for everything files/public-ports.conf declares public, a range as
+# first:last (as ufw names it).
 public_port_list() {
   local p
   for p in ${PUBLIC_TCP_PORTS}; do printf '%s/tcp\n' "${p}"; done
   for p in ${PUBLIC_UDP_PORTS}; do printf '%s/udp\n' "${p}"; done
 }
 
-# is_public PORT/PROTO
+# is_public PORT/PROTO - a port, or a range (first:last as ufw names it, first-last as docker
+# does): true when it is an entry of files/public-ports.conf, or every port of it lies within one.
 is_public() {
-  local list
-  list="$(public_port_list)"
-  grep -qxF -- "$1" <<<"${list}"
+  local ports=${1%/*} proto=${1##*/} entries entry p
+  ports="${ports//-/:}"
+  case "${proto}" in
+    tcp) entries="${PUBLIC_TCP_PORTS}" ;;
+    udp) entries="${PUBLIC_UDP_PORTS}" ;;
+    *) return 1 ;;
+  esac
+  for entry in ${entries}; do
+    [[ "${ports}" == "${entry}" ]] && return 0
+  done
+  port_entry_ok "${ports}" || return 1
+  for p in $(expand_ports "${ports}"); do
+    # shellcheck disable=SC2086 # one entry per word
+    port_listed "${p}" ${entries} || return 1
+  done
 }
 
 # ---------------------------------------------------------------- sections
@@ -560,7 +574,7 @@ check_published_filter() {
     fail "${ipt}: BETULA-PUBLISHED does not end with DROP"
     FILTER_OK=0
   fi
-  FILTER_PORTS="$(grep -oE -- '-p (tcp|udp) .*--ctorigdstport [0-9]+' <<<"${chain}" | awk '{ print $NF "/" $2 }' | sort | tr '\n' ' ' || true)"
+  FILTER_PORTS="$(grep -oE -- '-p (tcp|udp) .*--ctorigdstport [0-9:]+' <<<"${chain}" | awk '{ print $NF "/" $2 }' | sort | tr '\n' ' ' || true)"
 }
 
 check_docker() {

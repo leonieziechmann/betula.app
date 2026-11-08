@@ -6,15 +6,22 @@
 #
 # Phloem is run as if it were an outside service (owner, 2026-11-05: „als wäre es ein externer
 # dienst. Also eigenes virtuelles netzwerk etc. … Security first!!"):
-#   - Its one network is <stack>_in (vps/30-docker.sh: overlay, internal, not attachable), whose
-#     only other member is Traefik. No network with Folia, Radix, Cortex or the monitoring, and
-#     none that leads out: step 1 needs no way out at all, and on an internal network alone a
-#     container has no gateway. <stack>_out, the way out for TURN, comes with step 2.
+#   - Its network is <stack>_in (vps/30-docker.sh: overlay, internal, not attachable), whose only
+#     other member is Traefik. No network with Folia, Radix, Cortex or the monitoring. Without
+#     TURN none that leads out: on an internal network alone a container has no gateway.
+#   - TURN (Betula Sync's step 2, PHLOEM_TURN_PORT in stacks/phloem/<stack>.env): 49-phloem.sh
+#     deploys this file with a second one it makes from the instance's file (phloem_turn_file,
+#     vps/lib-phloem.sh): STUN's and TURN's settings, their ports in host mode (Phloem sees a
+#     device's own address, as Traefik does), the network <stack>_out (overlay, not internal,
+#     Phloem's alone: its way out, for the relays' datagrams to the devices), and with
+#     PHLOEM_TURN_TLS_HOST Traefik's TCP router for TURN over TLS on 443 (by SNI, to the TURN port
+#     over <stack>_in).
 #   - A firewall of its own inside the container (phloem/deploy/firewall.nft): `phloem start`
 #     loads it with NET_ADMIN, then drops to 65532 without any capability before it serves. No
-#     new connection out, no DNS, no IPv6; in, 8200 only. Every drop that means someone tried
-#     something is counted; betula-phloem-guard (vps/30-docker.sh) reads that from outside every
-#     minute, with the rights of each process of the container.
+#     new connection out, no DNS, no IPv6; in, 8200 only; with TURN (phloem/deploy/turn.nft) also
+#     STUN and TURN in, and out a relay's datagram to a public address alone. Every drop that
+#     means someone tried something is counted; betula-phloem-guard (vps/30-docker.sh) reads that
+#     from outside every minute, with the rights of each process of the container.
 #   - Its numbers leave as a file, never over a network: /stats is the host's tmpfs
 #     /run/betula/phloem/<stack>/stats (1 MiB, vps/47-phloem-host.sh), which Alloy reads through
 #     /rootfs (config/monitoring/alloy/config.alloy). Nothing asks Phloem for anything.
@@ -90,6 +97,7 @@ services:
     cap_add: [NET_ADMIN, SETUID, SETGID]
     # IPv6: the firewall drops all of it, and the network has none. No sysctl
     # net.ipv6.conf.all.disable_ipv6: on a kernel without IPv6 the task would not start at all.
+    # With TURN also <stack>_out, and the ports (phloem_turn_file).
     networks:
       in: {}
     # SIGTERM: no new connections, the requests in flight end, every device hears 1001 and comes

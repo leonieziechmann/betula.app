@@ -50,8 +50,9 @@ fi
 
 say() { printf 'betula-docker-firewall: %s\n' "$*"; }
 
+# A port, or a range of them as first:last (the relays of TURN).
 for port in ${PUBLIC_TCP_PORTS} ${PUBLIC_UDP_PORTS}; do
-  if ! [[ "${port}" =~ ^[0-9]{1,5}$ ]] || [[ "${port}" -lt 1 || "${port}" -gt 65535 ]]; then
+  if ! [[ "${port}" =~ ^[0-9]{1,5}(:[0-9]{1,5})?$ ]] || [[ "${port%%:*}" -lt 1 || "${port##*:}" -gt 65535 || "${port%%:*}" -gt "${port##*:}" ]]; then
     say "invalid port '${port}' in ${CONF}" >&2
     exit 1
   fi

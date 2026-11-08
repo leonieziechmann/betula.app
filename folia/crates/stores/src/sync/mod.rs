@@ -13,6 +13,7 @@
 mod browser;
 pub mod codes;
 pub mod core;
+pub mod live;
 pub mod request;
 pub mod share;
 pub mod wire;
@@ -33,8 +34,10 @@ pub enum State {
     Private,
     /// „Betula Sync aktivieren", or joining from a link or a code, is under way.
     Starting,
-    /// Synced and connected; `devices`: how many other devices of the profile are online now.
-    Online { devices: usize },
+    /// Synced and connected; `devices`: how many other devices of the profile are online now,
+    /// `direct` of them connected with this one directly, `relayed` through Phloem's TURN
+    /// (WebRTC, step 2); the others hear of each change through Phloem.
+    Online { devices: usize, direct: usize, relayed: usize },
     /// Synced, but not connected (no network, the service away): what changes here waits and goes
     /// out when the connection is back.
     Offline,

@@ -64,7 +64,7 @@ pub fn DevicesStep(on_finish: Callback<()>) -> impl IntoView {
     let pair = move || {
         let Some(sync) = sync else { return };
         before.set(match state.get_untracked() {
-            State::Online { devices } => devices,
+            State::Online { devices, .. } => devices,
             _ => 0,
         });
         joined.set(false);
@@ -83,7 +83,7 @@ pub fn DevicesStep(on_finish: Callback<()>) -> impl IntoView {
     // online now.
     let elsewhere = move || {
         before.set(match state.get_untracked() {
-            State::Online { devices } => devices,
+            State::Online { devices, .. } => devices,
             _ => 0,
         });
         joined.set(false);
@@ -98,7 +98,7 @@ pub fn DevicesStep(on_finish: Callback<()>) -> impl IntoView {
         }
     });
     Effect::new(move |_| {
-        if let State::Online { devices } = state.get() {
+        if let State::Online { devices, .. } = state.get() {
             if devices > before.get_untracked() && link.with_untracked(|link| matches!(link, Link::Made(_) | Link::Elsewhere)) {
                 joined.set(true);
             }

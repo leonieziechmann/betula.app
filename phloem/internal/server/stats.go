@@ -30,6 +30,11 @@ type meters struct {
 	parcels    *metrics.Counter // by event: left, taken, missed, expired, withdrawn
 	parts      *metrics.Counter // by event: put, deleted, served, not_modified, missed, gone
 	closes     *metrics.Counter // sockets closed by Phloem or lost, by reason
+
+	signals      *metrics.Counter // signals handed on (step 2)
+	turn         *metrics.Counter // TURN, by event
+	relayed      *metrics.Counter // bytes the relays passed, by way (in: from peers, out: to them)
+	relayDropped *metrics.Counter // bytes the relays dropped for the rates, by way
 }
 
 func (s *Server) declare() {
@@ -49,6 +54,11 @@ func (s *Server) declare() {
 			"Parts of shared calendars, by event (put: made or replaced; deleted: by Nicht mehr teilen or with their space; served, not_modified, missed, gone: reads answered 200, 304, 404, 410).", "event"),
 		closes: r.NewCounter("phloem_socket_closes_total",
 			"Sockets that ended, by reason (left, gone, replaced, restart, slow, timeout, lost, invalid, internal).", "reason"),
+		signals: r.NewCounter("phloem_signals_total", "Signals for WebRTC handed from one device to another of its space."),
+		turn: r.NewCounter("phloem_turn_total",
+			"TURN, by event (allocated, permitted; refused: a peer that is not another device of the space; unauthorized; quota; no_port; forbidden: a relay was to send where no peer may be, which must never happen).", "event"),
+		relayed:      r.NewCounter("phloem_relay_bytes_total", "Bytes the TURN relays passed, by way (in: from a peer, out: to a peer).", "way"),
+		relayDropped: r.NewCounter("phloem_relay_dropped_bytes_total", "Bytes the TURN relays dropped beyond their rates, by way.", "way"),
 	}
 	r.NewGaugeFunc("phloem_up", "1 while Phloem runs; the last file it writes says 0.", nil,
 		func(emit func(float64, ...string)) { emit(metrics.Bool(s.up.Load())) })
@@ -88,6 +98,16 @@ func (s *Server) declare() {
 		s.mu.Lock()
 		n := len(s.rooms)
 		s.mu.Unlock()
+		emit(float64(n))
+	})
+	r.NewGaugeFunc("phloem_turn_allocations", "TURN allocations now.", nil, func(emit func(float64, ...string)) {
+		if s.turn == nil {
+			emit(0)
+			return
+		}
+		s.turn.mu.Lock()
+		n := s.turn.allocs
+		s.turn.mu.Unlock()
 		emit(float64(n))
 	})
 	r.NewGaugeFunc("phloem_stats_time_seconds", "When this file was written (Unix time).", nil,

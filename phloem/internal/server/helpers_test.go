@@ -148,6 +148,7 @@ type frame struct {
 	Head     int64  `json:"head"`
 	Now      int64  `json:"now"`
 	Devices  []int  `json:"devices"`
+	Live     bool   `json:"live"` // welcome: signal and turn are taken
 	Snapshot *struct {
 		Upto int64  `json:"upto"`
 		Data string `json:"data"`

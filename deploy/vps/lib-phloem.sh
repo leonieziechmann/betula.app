@@ -25,6 +25,13 @@ PHLOEM_ORIGIN_LIST=""
 PHLOEM_BUDGET=""
 PHLOEM_SIZE=""
 PHLOEM_SIZE_BYTES=""
+# TURN (step 2, docs/phloem/phloem.md, „TURN"): on where PHLOEM_TURN_PORT is set.
+PHLOEM_TURN_PORT=""   # STUN and TURN, UDP and TCP, published in host mode at the same number
+PHLOEM_TURN_RELAYS="" # first-last, the relays' UDP ports, published in host mode
+PHLOEM_TURN_TLS=""    # the name of TURN over TLS on 443 (Traefik, by SNI); empty: none
+PHLOEM_TURN_IP=""     # the host's public IPv4 as the file names it; empty: phloem_turn_ip finds it
+# At most this many relay ports per instance: each is a docker-proxy on the host.
+PHLOEM_MAX_RELAYS=128
 
 # phloem_names -> the instances that have a file stacks/phloem/<stack>.env, one per line.
 phloem_names() {
@@ -66,6 +73,10 @@ load_phloem() {
   PHLOEM_ORIGIN_LIST=""
   PHLOEM_BUDGET=""
   PHLOEM_SIZE=""
+  PHLOEM_TURN_PORT=""
+  PHLOEM_TURN_RELAYS=""
+  PHLOEM_TURN_TLS=""
+  PHLOEM_TURN_IP=""
   while IFS= read -r line || [[ -n "${line}" ]]; do
     [[ -n "${line}" && "${line}" != \#* ]] || continue
     [[ "${line}" == *=* ]] || die "${file}: '${line}' is not NAME=value"
@@ -77,7 +88,11 @@ load_phloem() {
       PHLOEM_ORIGINS) PHLOEM_ORIGIN_LIST="${value}" ;;
       PHLOEM_BUDGET_BYTES) PHLOEM_BUDGET="${value}" ;;
       PHLOEM_DATA_SIZE) PHLOEM_SIZE="${value}" ;;
-      *) die "${file}: unknown setting ${key} (known: STACK_NAME, APP_HOST, PHLOEM_ORIGINS, PHLOEM_BUDGET_BYTES, PHLOEM_DATA_SIZE)" ;;
+      PHLOEM_TURN_PORT) PHLOEM_TURN_PORT="${value}" ;;
+      PHLOEM_TURN_RELAY_PORTS) PHLOEM_TURN_RELAYS="${value}" ;;
+      PHLOEM_TURN_TLS_HOST) PHLOEM_TURN_TLS="${value}" ;;
+      PHLOEM_TURN_IP) PHLOEM_TURN_IP="${value}" ;;
+      *) die "${file}: unknown setting ${key} (known: STACK_NAME, APP_HOST, PHLOEM_ORIGINS, PHLOEM_BUDGET_BYTES, PHLOEM_DATA_SIZE, PHLOEM_TURN_PORT, PHLOEM_TURN_RELAY_PORTS, PHLOEM_TURN_TLS_HOST, PHLOEM_TURN_IP)" ;;
     esac
   done <"${file}"
   [[ "${PHLOEM_STACK}" == "${name}" ]] ||
@@ -99,6 +114,108 @@ load_phloem() {
   # says 507 to new spaces and parcels; on a full file system every write would fail.
   [[ "${PHLOEM_BUDGET}" -le $((PHLOEM_SIZE_BYTES * 95 / 100)) ]] ||
     die "${file}: PHLOEM_BUDGET_BYTES (${PHLOEM_BUDGET}) leaves less than 5 % of PHLOEM_DATA_SIZE (${PHLOEM_SIZE}) for SQLite's journal and pages; make the file system larger or the budget smaller"
+  if [[ -z "${PHLOEM_TURN_PORT}" ]]; then
+    [[ -z "${PHLOEM_TURN_RELAYS}${PHLOEM_TURN_TLS}${PHLOEM_TURN_IP}" ]] ||
+      die "${file}: TURN settings without PHLOEM_TURN_PORT (TURN is on where the port is set)"
+    return 0
+  fi
+  [[ "${PHLOEM_TURN_PORT}" =~ ^[0-9]{4,5}$ && "${PHLOEM_TURN_PORT}" -ge 1024 && "${PHLOEM_TURN_PORT}" -le 65535 ]] ||
+    die "${file}: PHLOEM_TURN_PORT '${PHLOEM_TURN_PORT}' is not a port of 1024-65535 (3478: the one of STUN and TURN)"
+  [[ "${PHLOEM_TURN_RELAYS}" =~ ^([0-9]{4,5})-([0-9]{4,5})$ && "${BASH_REMATCH[1]}" -ge 1024 && "${BASH_REMATCH[2]}" -le 65535 &&
+    "${BASH_REMATCH[1]}" -le "${BASH_REMATCH[2]}" ]] ||
+    die "${file}: PHLOEM_TURN_RELAY_PORTS '${PHLOEM_TURN_RELAYS}' is not first-last within 1024-65535"
+  [[ $((${PHLOEM_TURN_RELAYS#*-} - ${PHLOEM_TURN_RELAYS%-*} + 1)) -le "${PHLOEM_MAX_RELAYS}" ]] ||
+    die "${file}: PHLOEM_TURN_RELAY_PORTS names more than ${PHLOEM_MAX_RELAYS} ports (each one is published, a docker-proxy of the host)"
+  [[ "${PHLOEM_TURN_PORT}" -lt "${PHLOEM_TURN_RELAYS%-*}" || "${PHLOEM_TURN_PORT}" -gt "${PHLOEM_TURN_RELAYS#*-}" ]] ||
+    die "${file}: PHLOEM_TURN_PORT ${PHLOEM_TURN_PORT} lies among the relays' ports ${PHLOEM_TURN_RELAYS}"
+  [[ -z "${PHLOEM_TURN_TLS}" || "${PHLOEM_TURN_TLS}" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$ ]] ||
+    die "${file}: PHLOEM_TURN_TLS_HOST '${PHLOEM_TURN_TLS}' is not a host name"
+  [[ -z "${PHLOEM_TURN_TLS}" || "${PHLOEM_TURN_TLS}" != "${PHLOEM_HOST}" ]] ||
+    die "${file}: PHLOEM_TURN_TLS_HOST is the site's own host: Traefik would hand all of its TLS to TURN (a name of its own: turn.${PHLOEM_HOST})"
+  [[ -z "${PHLOEM_TURN_IP}" ]] || public_ipv4 "${PHLOEM_TURN_IP}" ||
+    die "${file}: PHLOEM_TURN_IP '${PHLOEM_TURN_IP}' is not a public IPv4 address"
+}
+
+# public_ipv4 ADDR - true for an IPv4 address that is one on the internet: none of the private,
+# shared, loopback, link-local, documentation, benchmarking or multicast ranges (as Phloem's own
+# rule, phloem/internal/server/turn.go).
+public_ipv4() {
+  local a b c d
+  [[ "$1" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]] || return 1
+  a=${BASH_REMATCH[1]} b=${BASH_REMATCH[2]} c=${BASH_REMATCH[3]} d=${BASH_REMATCH[4]}
+  [[ "${a}" -le 255 && "${b}" -le 255 && "${c}" -le 255 && "${d}" -le 255 ]] || return 1
+  case "${a}" in
+    0 | 10 | 127) return 1 ;;
+    100) [[ "${b}" -lt 64 || "${b}" -gt 127 ]] || return 1 ;;
+    169) [[ "${b}" != 254 ]] || return 1 ;;
+    172) [[ "${b}" -lt 16 || "${b}" -gt 31 ]] || return 1 ;;
+    192)
+      [[ "${b}" != 168 ]] || return 1
+      case "${b}.${c}" in 0.0 | 0.2 | 31.196 | 52.193 | 88.99 | 175.48) return 1 ;; esac
+      ;;
+    198) [[ "${b}" != 18 && "${b}" != 19 && "${b}.${c}" != 51.100 ]] || return 1 ;;
+    203) [[ "${b}.${c}" != 0.113 ]] || return 1 ;;
+    *) [[ "${a}" -lt 224 ]] || return 1 ;;
+  esac
+  return 0
+}
+
+# phloem_turn_ip -> the host's public IPv4 address for TURN's relays: the file's, else the source
+# address of the route to the internet. Nothing when that is no public address (a host behind NAT:
+# PHLOEM_TURN_IP in stacks/phloem/<stack>.env then).
+phloem_turn_ip() {
+  local addr="${PHLOEM_TURN_IP}"
+  if [[ -z "${addr}" ]] && have_cmd ip; then
+    addr="$(ip -4 -o route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -n 1)"
+  fi
+  if public_ipv4 "${addr}"; then printf '%s' "${addr}"; fi
+}
+
+# phloem_turn_ports -> what an instance with TURN publishes, one "port/proto" per line, in the
+# form of docker service inspect: its port over UDP and TCP, and every relay over UDP.
+phloem_turn_ports() {
+  [[ -n "${PHLOEM_TURN_PORT}" ]] || return 0
+  printf '%s/udp\n%s/tcp\n' "${PHLOEM_TURN_PORT}" "${PHLOEM_TURN_PORT}"
+  seq "${PHLOEM_TURN_RELAYS%-*}" "${PHLOEM_TURN_RELAYS#*-}" | sed 's|$|/udp|'
+}
+
+# phloem_turn_file FILE IP - writes what the stack file gets beside it for TURN, for the instance
+# loaded: STUN's and TURN's settings, the ports in host mode (Phloem sees a device's own address,
+# as Traefik does: a relay must know where its datagrams come from), the network <stack>_out (its
+# way out: the relays' datagrams to the devices, which its firewall lets out alone), and with a
+# name for TLS, Traefik's TCP router for it. docker stack deploy takes it as a second -c.
+phloem_turn_file() {
+  local file=$1 ip=$2 port
+  {
+    printf '# Made by vps/49-phloem.sh from stacks/phloem/%s.env (TURN, step 2): not to be edited.\n' "${PHLOEM_STACK}"
+    printf 'services:\n  sync:\n    environment:\n'
+    printf '      PHLOEM_TURN_HOST: "%s"\n      PHLOEM_TURN_PORT: "%s"\n' "${PHLOEM_HOST}" "${PHLOEM_TURN_PORT}"
+    printf '      PHLOEM_TURN_IP: "%s"\n      PHLOEM_TURN_RELAY_PORTS: "%s"\n' "${ip}" "${PHLOEM_TURN_RELAYS}"
+    printf '      PHLOEM_TURN_TLS_HOST: "%s"\n' "${PHLOEM_TURN_TLS}"
+    printf '    networks:\n      out: {}\n    ports:\n'
+    printf '      - {target: %s, published: %s, protocol: udp, mode: host}\n' "${PHLOEM_TURN_PORT}" "${PHLOEM_TURN_PORT}"
+    printf '      - {target: %s, published: %s, protocol: tcp, mode: host}\n' "${PHLOEM_TURN_PORT}" "${PHLOEM_TURN_PORT}"
+    for port in $(seq "${PHLOEM_TURN_RELAYS%-*}" "${PHLOEM_TURN_RELAYS#*-}"); do
+      printf '      - {target: %s, published: %s, protocol: udp, mode: host}\n' "${port}" "${port}"
+    done
+    if [[ -n "${PHLOEM_TURN_TLS}" ]]; then
+      printf '    deploy:\n      labels:\n'
+      printf '        - "traefik.tcp.routers.%s-turn.rule=HostSNI(`%s`)"\n' "${PHLOEM_STACK}" "${PHLOEM_TURN_TLS}"
+      printf '        - "traefik.tcp.routers.%s-turn.entrypoints=websecure"\n' "${PHLOEM_STACK}"
+      printf '        - "traefik.tcp.routers.%s-turn.tls.certresolver=le"\n' "${PHLOEM_STACK}"
+      printf '        - "traefik.tcp.routers.%s-turn.service=%s-turn"\n' "${PHLOEM_STACK}" "${PHLOEM_STACK}"
+      printf '        - "traefik.tcp.services.%s-turn.loadbalancer.server.port=%s"\n' "${PHLOEM_STACK}" "${PHLOEM_TURN_PORT}"
+    fi
+    printf 'networks:\n  out:\n    driver: overlay\n'
+  } >"${file}"
+}
+
+# stun_answers ADDR PORT - true when a STUN binding request to ADDR:PORT over UDP gets a binding
+# response within 3 s (bash's /dev/udp: no tool of its own).
+stun_answers() {
+  local reply
+  reply="$(timeout 3 bash -c 'exec 3<>"/dev/udp/$0/$1" && printf "\x00\x01\x00\x00\x21\x12\xa4\x42betulaverify" >&3 && head -c 4 <&3 | od -An -tx1' "$1" "$2" 2>/dev/null | tr -d ' \n' || true)"
+  [[ "${reply}" == 0101* ]]
 }
 
 # The host paths of an instance (stacks/phloem.yml, docs/phloem/protocol.md section 1).

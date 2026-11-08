@@ -55,7 +55,7 @@ pub fn GiveRequest(fragment: String, #[prop(into)] back: Callback<()>) -> impl I
     });
     let step = RwSignal::new(Step::Asking);
     let online = move |state: &State| match state {
-        State::Online { devices } => Some(*devices),
+        State::Online { devices, .. } => Some(*devices),
         _ => None,
     };
     // Sent: one more device of the profile online is the one that came.

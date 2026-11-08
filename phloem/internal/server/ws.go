@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/netip"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -216,7 +217,7 @@ func (s *Server) isShut() bool {
 // serveWS is GET /sync/v1/ws: the socket of one device. The handler's goroutine reads it; a
 // writer of its own writes it.
 func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
-	key := clientKey(r)
+	key, addr := clientKey(r), clientAddr(r)
 	if !s.admit(key) {
 		s.fail(w, http.StatusServiceUnavailable, "busy")
 		return
@@ -232,7 +233,7 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 		s.greeted(key)
 		return // Accept answered
 	}
-	p := s.hello(conn)
+	p := s.hello(conn, addr)
 	s.greeted(key)
 	if p == nil {
 		return
@@ -251,8 +252,9 @@ func (s *Server) refuse(conn *websocket.Conn, frame []byte, code websocket.Statu
 }
 
 // hello reads the first frame and gives the device its place: the welcome with what it lacks,
-// presence to the others. nil when the socket gets none (it is closed then).
-func (s *Server) hello(conn *websocket.Conn) *peer {
+// presence to the others. nil when the socket gets none (it is closed then). addr is where the
+// socket came from.
+func (s *Server) hello(conn *websocket.Conn, addr netip.Addr) *peer {
 	conn.SetReadLimit(helloLimit)
 	ctx, cancel := context.WithTimeout(s.ctx, s.lim.HelloTimeout)
 	typ, data, err := conn.Read(ctx)
@@ -362,7 +364,7 @@ func (s *Server) hello(conn *websocket.Conn) *peer {
 	pctx, pcancel := context.WithCancel(s.ctx)
 	p := &peer{
 		s: s, conn: conn, room: r, ctx: pctx, cancel: pcancel,
-		space: f.Space, device: f.Device, dkey: dkey, slot: slot,
+		space: f.Space, device: f.Device, dkey: dkey, slot: slot, addr: addr,
 		out: make(chan outFrame, s.lim.QueueFrames+2),
 	}
 	if old != nil {
@@ -396,6 +398,7 @@ type peer struct {
 	device []byte
 	dkey   string
 	slot   int
+	addr   netip.Addr // where the socket came from (Traefik's X-Real-Ip): a peer TURN may relay to
 
 	out     chan outFrame
 	queued  atomic.Int64 // the bytes in out
@@ -407,6 +410,8 @@ type peer struct {
 	revs   map[string]int64 // the parts it watches, by id: the version it was told last (revGone: gone)
 
 	watching []string // the ids of the parts it watches, as the watchers have them; guarded by Server.watchers.mu
+
+	turnUser *turnUser // its TURN credential, once asked for; guarded by turnServer.mu
 }
 
 // outFrame is one frame for a device, or with data nil only the close.
@@ -612,6 +617,9 @@ func (p *peer) exit() {
 		p.cancel()
 	}
 	p.s.unwatch(p)
+	if p.s.turn != nil {
+		p.s.turn.forget(p)
+	}
 	p.s.release(r)
 }
 
@@ -632,6 +640,10 @@ func (p *peer) handle(data []byte) bool {
 		return p.deleteSpace()
 	case "watch":
 		return p.watch(&f)
+	case "signal":
+		return p.signal(&f)
+	case "turn":
+		return p.askTurn()
 	default: // a second hello among them
 		return p.violation("unexpected frame")
 	}
@@ -792,4 +804,49 @@ func (p *peer) deleteSpace() bool {
 		return p.internalLocked("delete", err)
 	}
 	return false
+}
+
+// signal hands a sealed signal for WebRTC (an offer, an answer, a candidate) to the device of
+// slot to in the same space, named by the slot it came from (step 2). Phloem cannot open it; a
+// device not online gets nothing, and neither does the sender hear of it: presence says who is.
+func (p *peer) signal(f *inFrame) bool {
+	s := p.s
+	if f.To == nil || *f.To < 1 || *f.To > s.lim.MaxDevices || len(f.Data) == 0 || len(f.Data) > s.lim.MaxSignal {
+		return p.violation("invalid signal")
+	}
+	if !s.signals.take(string(p.space)+p.dkey, 1, s.now()) {
+		s.m.rejected.Inc("slow_down")
+		p.answer(errorFrame("slow_down", ""))
+		return true
+	}
+	frame := signalFrame(p.slot, f.Data)
+	r := p.room
+	r.mu.Lock()
+	for _, q := range r.peers {
+		if q.slot == *f.To && q != p {
+			q.send(outFrame{data: frame})
+			s.m.signals.Inc()
+			break
+		}
+	}
+	r.mu.Unlock()
+	return true
+}
+
+// askTurn answers turn with the ICE servers and the socket's TURN credential, good while the
+// socket lives (step 2); an instance without TURN answers with no servers.
+func (p *peer) askTurn() bool {
+	s := p.s
+	if !s.signals.take(string(p.space)+p.dkey, 1, s.now()) {
+		s.m.rejected.Inc("slow_down")
+		p.answer(errorFrame("slow_down", ""))
+		return true
+	}
+	if s.turn == nil {
+		p.answer(turnFrame(nil, "", ""))
+		return true
+	}
+	u := s.turn.credential(p)
+	p.answer(turnFrame(s.turn.opt.urls(), u.name, u.password))
+	return true
 }
