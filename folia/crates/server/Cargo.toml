@@ -1,6 +1,6 @@
 [package]
 name = "folia-server"
-version = "1.78.0"
+version = "1.78.1"
 edition = "2021"
 description = "Folia, the web server of Betula: fetches snapshots from Radix, renders the app, serves the snapshot to browsers"
 # Minifies the stylesheet, the scripts and the SVGs of folia/assets, which the server embeds.
@@ -38,7 +38,8 @@ reqwest = { version = "0.12", default-features = false, features = ["stream"] }
 flate2 = "1"
 # A calendar subscription that stays current (src/parts.rs): its part, fetched from Phloem
 # through Traefik, is opened in memory with the key from the address (AES-256-GCM, as the browser
-# seals it) and forgotten after the answer.
+# seals it) and forgotten after the answer. base64 also writes the hashes of the inline scripts in
+# the Content-Security-Policy (src/csp.rs).
 aes-gcm = "0.10"
 base64 = "0.22"
 # What goes out compressed goes out as brotli (src/encoding.rs): every browser takes it, and it is

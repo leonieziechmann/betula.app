@@ -5,7 +5,7 @@
 http:
   middlewares:
     # For every public router. No Content-Security-Policy here: it depends on what a page loads, so each
-    # application sends its own.
+    # application sends its own (Folia: folia/crates/server/src/csp.rs).
     secure-headers:
       headers:
         # One year. The .app TLD is HSTS-preloaded as a whole, so a long max-age can lock nobody out who is

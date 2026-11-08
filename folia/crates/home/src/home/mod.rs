@@ -30,6 +30,11 @@ mod start;
 mod today;
 pub mod topics;
 
+/// The script the start page writes after the day's skeleton (`ahead`): one of the scripts the
+/// pages write inline, which the server's Content-Security-Policy allows by their hashes
+/// (`folia_app::inline_scripts`).
+pub use ahead::SCRIPT as AHEAD_SCRIPT;
+
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::Season;
 use folia_pages::ask::HomeAsk;
