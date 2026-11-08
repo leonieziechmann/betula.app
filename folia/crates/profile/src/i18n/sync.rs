@@ -32,9 +32,14 @@ pub struct Texts {
     // Why something did not happen: `folia_widgets::syncpair::problem_text`.
 
     // ---- a synced profile's actions ----
-    /// „Weiteres Gerät verbinden" and the line under it.
+    /// „Gerät verbinden": the button and the dialog's title.
     pub pair: &'static str,
-    pub pair_hint: &'static str,
+    /// The only profile, empty and private (a new device): what to do on the device that has it.
+    pub alone_lead: &'static str,
+    /// The dialog once the link is shown: a device that came while it was open (the value is the
+    /// profile's name), „Fertig".
+    pub joined: fn(&str) -> String,
+    pub done: &'static str,
     /// While the link is made (the link itself: `folia_widgets::syncpair::PairLink`).
     pub pairing: &'static str,
     /// „Kopiert" for a moment after „Code kopieren".
@@ -110,7 +115,7 @@ pub const DE: Texts = Texts {
         "Wird das Profil 13 Monate lang nicht abgerufen oder beendest du Sync, ist alles auf dem Server weg. Deine Geräte behalten ihre Kopie.",
     ],
     explain_code: "Danach kannst du dir einen Wiederherstellungscode zeigen lassen. Ohne ihn ist die Kopie auf dem Server verloren, wenn alle deine Geräte weg sind; mit ihm holst du das Profil auf jedes neue Gerät.",
-    explain_yes: "Aktivieren",
+    explain_yes: "Einschalten und Code zeigen",
     cancel: "Abbrechen",
     starting: "Wird eingerichtet …",
     online: |others| match others {
@@ -125,12 +130,14 @@ pub const DE: Texts = Texts {
     failed: "Das hat nicht geklappt.",
     retry: "Erneut versuchen",
 
-    pair: "Weiteres Gerät verbinden",
-    pair_hint: "QR-Code oder Link, zehn Minuten gültig",
+    pair: "Gerät verbinden",
+    alone_lead: "Hast du Betula schon auf einem anderen Gerät? Öffne dort „Gerät verbinden“, scanne den Code mit diesem Gerät oder öffne den Link hier. Ohne das andere Gerät bringt der Wiederherstellungscode das Profil.",
+    joined: |name| format!("Ein weiteres Gerät ist verbunden. „{name}“ ist jetzt auch dort."),
+    done: "Fertig",
     pairing: "Link wird vorbereitet …",
     copied: "Kopiert",
     close: "Schließen",
-    code_show: "Wiederherstellungscode zeigen",
+    code_show: "Wiederherstellungscode",
     code_hint: "Holt das Profil ohne deine Geräte zurück",
     code_lead: "Wer diesen Code hat, hat das Profil. Bewahre ihn auf wie ein Passwort, etwa in deinem Passwortmanager; auf ein neues Gerät holst du das Profil damit unter „Profil von einem anderen Gerät“.",
     code_copy: "Code kopieren",
@@ -184,7 +191,7 @@ pub const EN: Texts = Texts {
         "If the profile is not fetched for 13 months, or you end Sync, everything on the server is gone. Your devices keep their copy.",
     ],
     explain_code: "Afterwards you can show a recovery code. Without it the copy on the server is lost when all your devices are gone; with it you get the profile onto any new device.",
-    explain_yes: "Turn on",
+    explain_yes: "Turn on and show the code",
     cancel: "Cancel",
     starting: "Setting up …",
     online: |others| match others {
@@ -199,12 +206,14 @@ pub const EN: Texts = Texts {
     failed: "That did not work.",
     retry: "Try again",
 
-    pair: "Connect another device",
-    pair_hint: "QR code or link, valid for ten minutes",
+    pair: "Connect a device",
+    alone_lead: "Already have Betula on another device? Open “Connect a device” there, scan the code with this device or open the link here. Without the other device, the recovery code brings the profile.",
+    joined: |name| format!("Another device is connected. “{name}” is there as well now."),
+    done: "Done",
     pairing: "Preparing the link …",
     copied: "Copied",
     close: "Close",
-    code_show: "Show recovery code",
+    code_show: "Recovery code",
     code_hint: "Gets the profile back without your devices",
     code_lead: "Whoever has this code has the profile. Keep it like a password, for example in your password manager; on a new device you get the profile with it under “Profile from another device”.",
     code_copy: "Copy code",

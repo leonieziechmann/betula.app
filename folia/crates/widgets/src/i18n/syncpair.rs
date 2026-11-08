@@ -13,6 +13,9 @@ pub struct Texts {
     /// „Link kopieren", and „Kopiert" for a moment after.
     pub copy_link: &'static str,
     pub copied: &'static str,
+    /// „Teilen" (the system's sharing, where there is one), and the title it hands over.
+    pub share: &'static str,
+    pub share_title: &'static str,
     pub close: &'static str,
     /// Why something did not happen, each with what to do (`folia_stores::sync::Problem`). The
     /// value of `no_room` is how many profiles a browser keeps.
@@ -37,6 +40,8 @@ pub const DE: Texts = Texts {
     qr_label: "QR-Code des Links für das andere Gerät",
     copy_link: "Link kopieren",
     copied: "Kopiert",
+    share: "Teilen",
+    share_title: "Betula Sync",
     close: "Schließen",
     budget: "Betula nimmt gerade keine neuen Profile zum Synchronisieren an. Profile, die schon synchronisieren, laufen weiter. Versuch es in ein paar Tagen noch einmal.",
     slow_down: "Aus deinem Netz wurden in der letzten Stunde zu viele Profile eingerichtet. Versuch es in einer Stunde noch einmal.",
@@ -59,6 +64,8 @@ pub const EN: Texts = Texts {
     qr_label: "QR code of the link for the other device",
     copy_link: "Copy link",
     copied: "Copied",
+    share: "Share",
+    share_title: "Betula Sync",
     close: "Close",
     budget: "Betula is not taking new profiles to sync right now. Profiles that sync already go on. Try again in a few days.",
     slow_down: "Too many profiles were set up from your network in the last hour. Try again in an hour.",

@@ -149,6 +149,9 @@ pub const STUDY: &str = "/study";
 /// „Profil" (owner, 2026-10-14): the profiles of this browser, what the active one keeps, and the
 /// settings every profile shares. What it shows lives in the browser; the address is the page.
 pub const PROFILE: &str = "/profile";
+/// The profile page's Betula Sync, `/profile#devices`: where „Geräte" in the menu of the profiles
+/// leads (folia/design/profil/konzepte.html, the second round). The page scrolls to it.
+pub const DEVICES: &str = "devices";
 /// „Gerät verbinden" (Betula Sync, `folia_stores::sync`): the page a link of another device opens,
 /// `/sync#<…>`. What follows `#` opens that device's profile and never reaches a server; the
 /// address itself says nothing, and no page links it. Until 2026-11-08 `/verbinden` (`MOVED`).

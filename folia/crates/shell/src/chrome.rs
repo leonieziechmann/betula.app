@@ -19,6 +19,7 @@ use folia_stores::bookmarks::Bookmarks;
 use folia_stores::collections::Collections;
 use folia_stores::myprogram::{program_name, MineResolved};
 use folia_stores::profiles::{Avatar, Profiles, MAX_NAME, MAX_PROFILES};
+use folia_stores::sync::State as SyncState;
 use folia_stores::studyplan::Studyplan;
 
 /// The browser app (`csr`): only there is „Mein Studium", the first page of „Studium".
@@ -342,10 +343,14 @@ pub fn Rail() -> impl IntoView {
 /// Konzept wie man an sein Profil rankommt"), as the way back of a page's step is a box at its left
 /// (`TopBack`). It shows the active profile's badge (`Avatar`) where there is more than one
 /// profile or the one there is has a name, else the icon of a person, and names the profile for
-/// those who do not see it. A mouse resting on it, a right click or a long press opens the menu of
-/// the profiles (`ProfileMenu`), and so does a tap on the phone's box (owner, 2026-10-19: „die
-/// häufigste Aktion wird sein, dass man das nur das Profil wechseln will"): there the page is one of
-/// the menu's ways. The profiles live in the browser (R20): the server writes the icon, the same for
+/// those who do not see it. A click or a tap opens the menu of the profiles (`ProfileMenu`; owner,
+/// 2026-10-19: „die häufigste Aktion wird sein, dass man das nur das Profil wechseln will", and
+/// 2026-11-08, folia/design/profil/konzepte.html: the menu holds what every profile shares, so a
+/// click on the rail's way opens it as well), and so do a mouse resting on it, a right click and a
+/// long press; the page is one of the menu's ways („Profil verwalten"). The command „Profil" of the
+/// palette still leads to the page: its click comes from a script (`is_trusted`), and goes where the
+/// link goes. A click with a modifier opens the page as a link does. The profiles live in the
+/// browser (R20): the server writes the icon, the same for
 /// everybody (R9), and without JavaScript the way leads to the page's stand-in, which offers the
 /// other language (`folia_profile`).
 #[component]
@@ -366,9 +371,9 @@ pub fn ProfileButton(
     let here = move || (pending.and_then(|p| p.path()).unwrap_or_else(|| location.pathname.get()) == url::PROFILE).then_some("page");
     let menu = ProfileMenu::expect().filter(|_| APP);
     let node = NodeRef::<leptos::html::A>::new();
-    // The phone's box opens the menu (the browser app's): it says so, and whether it is open.
-    let opens = top && menu.is_some();
-    let open = move || menu.is_some_and(|menu| menu.at.with(|at| at.is_some_and(|at| !at.rail && !at.hover)));
+    // The way opens the menu (the browser app's): it says so, and whether it is open at this way.
+    let opens = menu.is_some();
+    let open = move || menu.is_some_and(|menu| menu.at.with(|at| at.is_some_and(|at| at.rail != top)));
     view! {
         <a
             class=if top { "top-profile profile-btn" } else { "icon-btn profile-btn" }
@@ -398,20 +403,23 @@ pub fn ProfileButton(
             on:click=move |ev: leptos::ev::MouseEvent| {
                 let Some(menu) = menu else { return };
                 let plain = ev.button() == 0 && !(ev.ctrl_key() || ev.meta_key() || ev.shift_key() || ev.alt_key());
-                // The phone's box: a tap opens the menu, and closes it again.
-                if top && plain && folia_design::nav::is_phone() {
+                // A click or a tap opens the menu and closes it again; one the mouse opened stays.
+                if plain && ev.is_trusted() {
                     ev.prevent_default();
-                    if open() {
-                        menu.close();
-                    } else {
-                        #[cfg(feature = "csr")]
-                        if let Some(way) = node.get_untracked() {
-                            menu.open_at(&way, false);
+                    match menu.at.get_untracked() {
+                        Some(at) if at.hover => menu.hold(),
+                        Some(_) => menu.close(),
+                        None => {
+                            #[cfg(feature = "csr")]
+                            if let Some(way) = node.get_untracked() {
+                                menu.open_at(&way, false);
+                            }
                         }
                     }
                     return;
                 }
-                // The page chosen: no menu opens over it a moment later.
+                // The page chosen (the palette's command, a link opened elsewhere): no menu opens
+                // over it a moment later.
                 menu.close();
             }
         >
@@ -454,11 +462,13 @@ struct MenuAt {
 /// active profile (after the next frame, R21; the menu goes at once). Below them „Neues Profil"
 /// (owner, 2026-10-19: „ein kleines Menü, wo man die profile als option hat, neues Profil anlegen
 /// und dann halt profil Einstellungen, und vlt noch change lang"): a name in the menu, none
-/// („Profil 3"), and the new profile, empty, is the active one. Then the way to the profile page
-/// and the language (`languages::LanguageWays`), which lives in the profile since 2026-10-14. A
-/// mouse resting on a way to the profile page (`ProfileButton`) opens it there; a right click or
-/// the menu key on it does as well (as on a tab, `TabMenu`), and so do a tap and a finger held on
-/// the phone's box (enhance.js, `betula:profile-menu`). The browser app's alone.
+/// („Profil 3"), and the new profile, empty, is the active one. Then „Profil verwalten" (the
+/// profile page), „Geräte" where the site offers Betula Sync, what every profile shares
+/// (`Preferences`: light or dark, the language) and the legal pages (folia/design/profil/
+/// konzepte.html, the second round). A mouse resting on a way to the profile page
+/// (`ProfileButton`) opens it there; a click, a right click or the menu key on it does as well (as
+/// on a tab, `TabMenu`), and so do a tap and a finger held on the phone's box (enhance.js,
+/// `betula:profile-menu`). The browser app's alone.
 #[derive(Clone, Copy)]
 pub struct ProfileMenu {
     at: RwSignal<Option<MenuAt>>,
@@ -596,6 +606,7 @@ pub fn ProfileSwitcher() -> impl IntoView {
     let t = i18n::t();
     let menu = ProfileMenu::expect().filter(|_| APP);
     let profiles = Profiles::expect().filter(|_| APP);
+    let sync = folia_stores::sync::Sync::expect().filter(|_| folia_stores::sync::offered().is_some());
     #[cfg(feature = "csr")]
     Effect::new(move |_| {
         use leptos::wasm_bindgen::JsCast;
@@ -666,6 +677,25 @@ pub fn ProfileSwitcher() -> impl IntoView {
             }
         };
         let close = move |_| menu.close();
+        // „Geräte", where the site offers Betula Sync: the way to the profile page's Betula Sync,
+        // under it the active profile's state.
+        let devices = sync.map(|sync| {
+            let (dot, line) = match sync.state(active) {
+                SyncState::Online { devices } => ("on", (t.app.sync_online)(devices)),
+                SyncState::Offline => ("on", t.app.sync_offline.to_string()),
+                SyncState::Private => ("off", t.app.sync_private.to_string()),
+                SyncState::Starting => ("wait", t.app.sync_starting.to_string()),
+                SyncState::Ended => ("off", t.app.sync_ended.to_string()),
+                SyncState::Failed(_) => ("warn", t.app.sync_failed.to_string()),
+            };
+            view! {
+                <a class="tab-menu-way pm-devices" href=t.path(&format!("{}#{}", url::PROFILE, url::DEVICES)) rel="nofollow" on:click=close>
+                    <Icon name="monitor-smartphone"/>
+                    <span class="pm-way-text"><b>{t.app.devices}</b><small data-state=dot>{line}</small></span>
+                    <Icon name="chevron-right" class="pm-end"/>
+                </a>
+            }
+        });
         // Beside the rail, its foot at the way's; below the phone's box, at its right edge.
         let place = if rail { format!("left: {:.0}px; bottom: {:.0}px", right + 8.0, (height - bottom).max(8.0)) } else { format!("top: {:.0}px; right: {:.0}px", bottom + 8.0, (width - right).max(8.0)) };
         let items = profiles
@@ -756,10 +786,99 @@ pub fn ProfileSwitcher() -> impl IntoView {
                 <div class="pm-list" role="radiogroup" aria-label=t.app.profiles>{items}</div>
                 {new_profile}
                 <hr class="tab-menu-rule"/>
-                <a class="tab-menu-way" href=t.path(url::PROFILE) rel="nofollow" on:click=close><Icon name="sliders-horizontal"/><span>{t.app.profile_and_settings}</span></a>
-                <languages::LanguageWays/>
+                <a class="tab-menu-way" href=t.path(url::PROFILE) rel="nofollow" on:click=close><Icon name="sliders-horizontal"/><span>{t.app.manage_profile}</span><Icon name="chevron-right" class="pm-end"/></a>
+                {devices}
+                <hr class="tab-menu-rule"/>
+                <Preferences/>
+                <hr class="tab-menu-rule"/>
+                <p class="pm-foot">
+                    <a href=t.path(url::IMPRINT) on:click=close>{t.ground.imprint}</a>
+                    <a href=t.path(url::PRIVACY) on:click=close>{t.ground.privacy}</a>
+                </p>
             </div>
         })
+    }
+}
+
+/// Where this browser keeps light or dark (`enhance.js`, the script in `<head>`): `light`, `dark`,
+/// else the system's.
+const THEME_KEY: &str = "betula.theme";
+
+/// Light or dark, as this browser keeps it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Theme {
+    /// The system's: nothing kept.
+    System,
+    Light,
+    Dark,
+}
+
+impl Theme {
+    const ALL: [Theme; 3] = [Theme::System, Theme::Light, Theme::Dark];
+
+    fn kept() -> Self {
+        match nav::local_get(THEME_KEY).as_deref() {
+            Some("light") => Theme::Light,
+            Some("dark") => Theme::Dark,
+            _ => Theme::System,
+        }
+    }
+
+    /// What `enhance.js` is handed (`data-theme-value`).
+    fn code(self) -> &'static str {
+        match self {
+            Theme::System => "system",
+            Theme::Light => "light",
+            Theme::Dark => "dark",
+        }
+    }
+
+    fn icon(self) -> &'static str {
+        match self {
+            Theme::System => "monitor",
+            Theme::Light => "sun",
+            Theme::Dark => "moon",
+        }
+    }
+
+    fn label(self, t: &crate::i18n::Texts) -> &'static str {
+        match self {
+            Theme::System => t.app.theme_system,
+            Theme::Light => t.app.theme_light,
+            Theme::Dark => t.app.theme_dark,
+        }
+    }
+}
+
+/// What every profile of this browser shares, a row of the menu of the profiles (the profile's
+/// second round, folia/design/profil/konzepte.html: B's menu; owner, 2026-11-08: „die profil
+/// unabhängigen einstellungen wo anders hin. Also sowas wie sprache und system theme. Maybe die
+/// beiden sogar in quick access"): light, dark or the system's as three small buttons, each named
+/// for those who do not see it and in its tooltip; the language as its code. Light and dark are set
+/// by `enhance.js` (`data-action="theme-set"`), which keeps them as the switch in the rail does and
+/// says so (`betula:theme`); the menu stays open. Another language is another address, and so a page
+/// load (`languages`).
+#[component]
+fn Preferences() -> impl IntoView {
+    let t = i18n::t();
+    let theme = RwSignal::new(Theme::kept());
+    // Effects run in the browser only.
+    Effect::new(move |_| {
+        let handle = window_event_listener_untyped("betula:theme", move |_| theme.set(Theme::kept()));
+        on_cleanup(move || handle.remove());
+    });
+    let checked = move |on: bool| if on { "true" } else { "false" };
+    view! {
+        <div class="pm-prefs" role="group" aria-label=t.app.preferences>
+            <div class="seg pm-seg" role="radiogroup" aria-label=t.app.theme_toggle>
+                {Theme::ALL.into_iter().map(|choice| view! {
+                    <button type="button" role="radio" data-action="theme-set" data-theme-value=choice.code() aria-label=choice.label(t) title=choice.label(t) aria-checked=move || checked(theme.get() == choice)>
+                        <Icon name=choice.icon()/>
+                    </button>
+                }).collect_view()}
+            </div>
+            <languages::LanguageChoice/>
+        </div>
     }
 }
 
