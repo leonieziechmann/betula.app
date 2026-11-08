@@ -7,11 +7,11 @@
 // on the server's page and the app's, „Betula Sync aktivieren" after „Studium anlegen", the QR code
 // and the link at once, a second browser that opens it holding the study, „Verbunden" and
 // „Fertig", and the note after the setup saying the profile stays alike on its devices.
-// The first browser switches Betula Sync on for a profile with marks and a note („Betula Sync
-// aktivieren", „Aktivieren"), and the link for the next device opens by itself; the second opens
-// that link and holds the same marks and note in a new profile; a mark set on one shows on the
-// other within seconds; both mark while the second is offline, and once it is back both hold both;
-// the recovery code brings the profile into a third browser; „Sync beenden" makes every browser
+// The first browser switches Betula Sync on for a profile with marks and a note („Gerät verbinden",
+// „Einschalten und Code zeigen" in its dialog), and the link for the next device opens by itself;
+// the second opens that link and holds the same marks and note in a new profile; a mark set on one
+// shows on the other within seconds; both mark while the second is offline, and once it is back
+// both hold both; the recovery code brings the profile into a third browser; „Sync beenden" makes every browser
 // private again with its copy. Privacy: no request or frame carries a module's number, the note
 // or the profile key in the clear, nothing reaches another host than Folia's and Phloem's, and the
 // link's part after # reaches no server. Fails on a console error or a step that does not show up.
@@ -81,7 +81,7 @@ const markOne = async (page, name, stay = false, avoid = []) => {
   return id;
 };
 
-// ---- the first browser: marks and a note, then „Betula Sync aktivieren" ----
+// ---- the first browser: marks and a note, then „Gerät verbinden" ----
 const a = await device("A");
 await go(a.page, "/bookmarks");
 await a.page.evaluate(([seed, note]) => {
@@ -89,10 +89,10 @@ await a.page.evaluate(([seed, note]) => {
   localStorage.setItem("betula.collections.v1", `n\t${seed[0]}\t${note}\n`);
 }, [SEED, NOTE]);
 await go(a.page, "/profile");
-const activate = a.page.getByRole("button", { name: /Betula Sync aktivieren/ }).first();
-check(await activate.isVisible().catch(() => false), "A: no „Betula Sync aktivieren“ on the profile page (is FOLIA_SYNC on?)");
+const activate = a.page.locator("#pf-sync-connect >> visible=true");
+check((await activate.textContent().catch(() => "")).trim() === "Gerät verbinden", "A: no „Gerät verbinden“ on the profile page (is FOLIA_SYNC on?)");
 await activate.click().catch(() => {});
-await a.page.getByRole("button", { name: /^Aktivieren$/ }).first().click().catch(() => problems.push("A: no „Aktivieren“ in the explanation"));
+await a.page.getByRole("button", { name: /^Einschalten und Code zeigen$/ }).first().click().catch(() => problems.push("A: no „Einschalten und Code zeigen“ in the dialog"));
 await until("A synced", a.page, () => (localStorage.getItem("betula.sync.p1.status") || "").startsWith("online"), null, 15000);
 await until("the link for the next device", a.page, () => Boolean(onPage(".pf-pair-link code")?.textContent.includes("/sync#")), null, 10000);
 const link = (await a.page.locator(".pf-pair-link code").first().textContent().catch(() => "")).trim();
@@ -128,7 +128,7 @@ check(JSON.stringify(await marksOf(b.page)) === JSON.stringify(await marksOf(a.p
 
 // ---- the recovery code brings it into a third browser ----
 await go(a.page, "/profile");
-await a.page.getByRole("button", { name: /Wiederherstellungscode zeigen/ }).first().click().catch(() => problems.push("A: no „Wiederherstellungscode zeigen“"));
+await a.page.click("#pf-sync-code >> visible=true").catch(() => problems.push("A: no „Wiederherstellungscode“"));
 await until("the recovery code", a.page, () => /^[0-9A-Z]{4}(-[0-9A-Z]{4}){12}$/.test(onPage(".pf-code code")?.textContent.trim() || ""), null, 5000);
 const code = (await a.page.locator(".pf-code code").first().textContent().catch(() => "")).trim();
 const c = await device("C");

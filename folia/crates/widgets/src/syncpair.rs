@@ -1,5 +1,6 @@
-//! The link for the next device of Betula Sync („Weiteres Gerät verbinden"): its QR code, the link
-//! to copy, how long it still opens, and once it is gone „Neuer Link"; and what a problem of Betula
+//! The link for the next device of Betula Sync („Gerät verbinden"): its QR code, the link to copy
+//! or to hand to the system's sharing where it has one, how long it still opens, and once it is gone
+//! „Neuer Link"; and what a problem of Betula
 //! Sync says (`folia_stores::sync::Problem`). The profile page's part shows it, and the setup of
 //! the start page in its last step (owner, 2026-11-08: „es gibt ja jetzt betula sync. Mach das mal
 //! als step in die einführung mit rein … So dass man es gleich auch auf dem handy hat").
@@ -52,13 +53,42 @@ pub fn copy(text: &str) {
     let _ = text;
 }
 
+/// Whether the system can share a link (the Web Share API: phones, and some desktops).
+pub fn can_share() -> bool {
+    #[cfg(feature = "csr")]
+    {
+        web_sys::window().is_some_and(|window| web_sys::js_sys::Reflect::has(&window.navigator(), &"share".into()).unwrap_or(false))
+    }
+    #[cfg(not(feature = "csr"))]
+    false
+}
+
+/// Hands a link to the system's sharing (a click's: the browser lets it).
+pub fn share(link: &str, title: &str) {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        use web_sys::js_sys::{Function, Object, Reflect};
+        let Some(navigator) = web_sys::window().map(|window| window.navigator()) else { return };
+        let Some(share) = Reflect::get(&navigator, &"share".into()).ok().and_then(|share| share.dyn_into::<Function>().ok()) else { return };
+        let data = Object::new();
+        let _ = Reflect::set(&data, &"url".into(), &link.into());
+        let _ = Reflect::set(&data, &"title".into(), &title.into());
+        // A share the visitor cancels rejects its promise; nothing to do then.
+        let _ = share.call1(&navigator, &data);
+    }
+    #[cfg(not(feature = "csr"))]
+    let _ = (link, title);
+}
+
 /// The minutes a link still opens, rounded down; `None` once it opens no more.
 fn minutes_left(until: u64, now: u64) -> Option<u64> {
     (until > now).then(|| (until - now) / 60_000)
 }
 
-/// The link for the next device: its QR code, the link to copy, how long it still opens; gone,
-/// „Neuer Link" (`again`). `close`, where there is one, puts it away („Schließen").
+/// The link for the next device: its QR code, the link to copy, „Teilen" where the system can, how
+/// long it still opens; gone, „Neuer Link" (`again`). `close`, where there is one, puts it away
+/// („Schließen").
 #[component]
 pub fn PairLink(pairing: Pairing, again: Callback<()>, #[prop(optional)] close: Option<Callback<()>>) -> impl IntoView {
     let s = &i18n::t().syncpair;
@@ -78,6 +108,8 @@ pub fn PairLink(pairing: Pairing, again: Callback<()>, #[prop(optional)] close: 
     };
     let code = folia_design::qr::path(&pairing.link);
     let shown = pairing.link.clone();
+    let shared = pairing.link.clone();
+    let sharing = can_share();
     let close_button = move || close.map(|close| view! { <button class="mini hit" type="button" on:click=move |_| close.run(())>{s.close}</button> });
     move || {
         if left.get().is_none() {
@@ -108,6 +140,14 @@ pub fn PairLink(pairing: Pairing, again: Callback<()>, #[prop(optional)] close: 
                             <Icon name=if copied.get() { "check" } else { "copy" }/>
                             <span>{move || if copied.get() { s.copied } else { s.copy_link }}</span>
                         </button>
+                        {sharing.then(|| {
+                            let shared = shared.clone();
+                            view! {
+                                <button class="mini hit" type="button" on:click=move |_| share(&shared, s.share_title)>
+                                    <Icon name="share-2"/><span>{s.share}</span>
+                                </button>
+                            }
+                        })}
                         {close_button()}
                     </div>
                 </div>
