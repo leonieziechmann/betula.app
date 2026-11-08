@@ -14,7 +14,10 @@
      stand in for the other device. Read against canary (Folia 1.76.0, 2026-11-08) and the code of that day:
      folia/crates/profile (profile.rs, sync.rs, connect.rs), folia/crates/shell/src/chrome.rs (ProfileButton,
      ProfileMenu, ProfileSwitcher), docs/folia/sync.md, docs/phloem/protocol.md. The pictures in bilder/ are
-     screenshots of canary that day. Tokens are Betula's (folia/assets/app.css). -->
+     screenshots of canary that day. Tokens are Betula's (folia/assets/app.css). Second round, the same day
+     (owner: „Also mach mal eine kombinaion aus dem menu von B und der profilseite von A."): B's menu over
+     A's profile page, as a prototype of its own at the top; where „Geräte" leads is left open as a switch,
+     because B's page for the devices has no place beside A's profile page. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@500;600&display=swap">
@@ -284,6 +287,10 @@ tbody tr:last-child > * { border-bottom: 0; }
 .m-mod .lp { font-weight: 700; text-align: right; }
 .m-mod .tu { color: var(--m-text2); font-size: 12px; }
 
+.m-panel.flash { animation: flash 1.4s ease-out; }
+@keyframes flash { 0%, 30% { box-shadow: 0 0 0 4px var(--m-accent-line), 0 0 0 1.5px var(--m-accent); } }
+@media (prefers-reduced-motion: reduce) { .m-panel.flash { animation: none; box-shadow: 0 0 0 3px var(--m-accent-line); } }
+
 /* Menus, dialogs, sheets. */
 .m-menu { position: absolute; z-index: 6; width: 286px; padding: 6px; border-radius: 14px; background: var(--m-panel); box-shadow: var(--m-pop); }
 .m-menu .m-label { padding: 8px 10px 4px; }
@@ -388,9 +395,9 @@ tbody tr:last-child > * { border-bottom: 0; }
 <div class="page">
   <section class="intro" aria-labelledby="top-title">
     <div>
-      <p class="kicker">Folia · Profil · erste Runde · 8. November 2026</p>
+      <p class="kicker">Folia · Profil · zweite Runde · 8. November 2026</p>
       <h1 id="top-title">Das Profil und sein Menü, aufgeräumt</h1>
-      <p class="lead">Drei Konzepte für die Profilseite und das Menü am Profil-Knopf, jedes als Prototyp am Rechner und am Handy. Sie haben dieselbe Aufgabe: Was für den ganzen Browser gilt, kommt von der Profilseite weg, Betula Sync wird die Hauptsache, und die Seite zeigt Zahlen statt Links zu den Tabs. Sie unterscheiden sich darin, <b>wo Darstellung und Sprache wohnen</b> und <b>wo man ein Gerät verbindet</b>.</p>
+      <p class="lead"><b>Zweite Runde:</b> das Menü aus B mit der Profilseite aus A, ganz oben. Darunter die erste Runde: drei Konzepte für die Profilseite und das Menü am Profil-Knopf, jedes als Prototyp am Rechner und am Handy. Sie haben dieselbe Aufgabe: Was für den ganzen Browser gilt, kommt von der Profilseite weg, Betula Sync wird die Hauptsache, und die Seite zeigt Zahlen statt Links zu den Tabs. Sie unterscheiden sich darin, <b>wo Darstellung und Sprache wohnen</b> und <b>wo man ein Gerät verbindet</b>.</p>
       <p class="quote">„Als erstes sollten die profil unabhängigen einstellungen wo anders hin. Also sowas wie sprache und system theme. Maybe die beiden sogar in quick access. … betula sync, was ich persönlich als sehr essentiell einstufen würde. Also das ist so die main sache, die man machen möchte, wenn man mit dem handy am pc ist. … Du kannst gerne ein paar stats zeigen. Aber ich brauche nicht noch ein link mehr zu mein studium.“</p>
     </div>
     <div class="rules">
@@ -417,6 +424,7 @@ tbody tr:last-child > * { border-bottom: 0; }
       <button type="button" class="linkb" id="reset">Prototypen zurücksetzen</button>
     </div>
     <div class="jump">
+      <a href="#runde2">Zweite Runde</a>
       <a href="#heute">Heute</a>
       <a href="#a">A</a>
       <a href="#b">B</a>
@@ -427,9 +435,50 @@ tbody tr:last-child > * { border-bottom: 0; }
     </div>
   </nav>
 
+  <section class="sec" id="runde2" aria-labelledby="runde2-title">
+    <header>
+      <p class="kicker">Zweite Runde</p>
+      <h2 id="runde2-title"><span class="tag">B + A</span>Das Menü aus B, die Profilseite aus A</h2>
+      <p class="sub">Das Menü ist das aus B: Profile, „Profil verwalten“, <b>„Geräte“ mit dem Stand von Sync</b>, darunter <b>eine Reihe kleiner Knöpfe</b> für System, Hell, Dunkel und DE/EN, im Fuß die Rechtsseiten. Die Profilseite ist die aus A: eine Spalte mit Kopf und Zahlen, Betula Sync mit den Geräten und „Gerät verbinden“, Sichern, Gefahrenzone. Die eigene Seite für die Geräte aus B entfällt, denn die Geräte stehen jetzt auf der Profilseite.</p>
+    </header>
+    <p class="quote">„Also mach mal eine kombinaion aus dem menu von B und der profilseite von A.“</p>
+    <div class="stage" data-stage="R2"></div>
+    <p class="tryit"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 16v-4M12 8h.01"/></svg><span>Öffne das Menü unten in der Leiste und klick <b>Geräte</b>. Oben rechts über dem Prototyp schaltest du um, wohin „Geräte“ führt: <b>zum Sync-Teil der Profilseite</b> (die Seite öffnet und springt zu Betula Sync) oder <b>direkt in den Dialog</b> zum Verbinden. Die drei Symbole im Menü sind System, Hell, Dunkel.</span></p>
+    <div class="how">
+      <div>
+        <h3>Was man sieht</h3>
+        <ul>
+          <li><b>Menü:</b> Profile · Neues Profil | Profil verwalten · Geräte mit „Synchron · 2 Geräte“ | System, Hell, Dunkel als Symbole, DE/EN | Impressum · Datenschutz. Neun Einträge bei zwei Profilen.</li>
+          <li><b>Profilseite:</b> wie A. Kopf mit Name, Studiengang und fünf Zahlen; Betula Sync mit den Geräten und „Gerät verbinden“ als einzigem betonten Knopf; Sichern; Gefahrenzone; Fußzeile.</li>
+          <li>Am Handy die Profile als Reihe oben, das Menü unter dem Knopf rechts oben.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Wie es sich verhält</h3>
+        <ul>
+          <li><b>„Geräte“ zur Profilseite:</b> Die Seite öffnet bei Betula Sync, der Teil leuchtet kurz auf. Verbinden ist ein Klick mehr: drei statt zwei.</li>
+          <li><b>„Geräte“ als Dialog:</b> „Geräte“ öffnet den Dialog aus A an Ort und Stelle, am Handy den Scanner. Verbinden bleibt zwei Klicks entfernt; die Geräteliste steht weiter auf der Profilseite.</li>
+          <li>Darstellung wirkt sofort, das Menü bleibt offen; die Sprache lädt die Seite neu, wie heute.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Worauf zu achten ist</h3>
+        <ul>
+          <li>„Profil verwalten“ und „Geräte“ führen in der ersten Variante auf dieselbe Seite, nur an verschiedene Stellen.</li>
+          <li>Die drei Symbole sagen ihre Bedeutung erst beim Hinsehen; ein Tooltip und die Beschriftung für Screenreader helfen, Wörter stehen keine dabei.</li>
+        </ul>
+      </div>
+    </div>
+    <ol class="qs">
+      <li><b>Wohin führt „Geräte“?</b><p>Zum Sync-Teil der Profilseite, oder direkt in den Dialog „Gerät verbinden“. <em>Vorschlag:</em> zur Profilseite. So bleibt das Menü, wie du es aus B gewählt hast: „Geräte“ zeigt den Stand und führt dorthin, wo die Geräte stehen; verbunden wird mit dem Knopf dort.</p></li>
+      <li><b>Reichen die Symbole für Hell und Dunkel?</b><p><em>Vorschlag:</em> ja, mit Tooltip und Beschriftung für Screenreader. Mond/Sonne in der Leiste am Rechner bleibt dazu.</p></li>
+      <li><b>Am Rechner: Öffnet ein Klick auf den Profil-Knopf das Menü?</b><p>Aus der ersten Runde noch offen. <em>Vorschlag:</em> ja, Darüberfahren weiter auch.</p></li>
+    </ol>
+  </section>
+
   <section class="sec" id="heute" aria-labelledby="heute-title">
     <header>
-      <p class="kicker">Was heute ist · canary, Folia 1.76.0</p>
+      <p class="kicker">Erste Runde · was heute ist · canary, Folia 1.76.0</p>
       <h2 id="heute-title">Sieben Teile, und der wichtigste steht in der Mitte</h2>
       <p class="sub">Auf dem Handy ist die Seite mit einem leeren Profil 2,5 Bildschirme lang. Betula Sync beginnt nach 1,4 Bildschirmen, Hell und Dunkel nach 1,8, das Impressum nach 2,3.</p>
     </header>
@@ -454,7 +503,7 @@ tbody tr:last-child > * { border-bottom: 0; }
 
   <section class="sec" id="a" aria-labelledby="a-title">
     <header>
-      <p class="kicker">Konzept A</p>
+      <p class="kicker">Erste Runde · Konzept A</p>
       <h2 id="a-title"><span class="tag">A</span>Alles am Profil-Knopf</h2>
       <p class="sub">Das Menü am Profil-Knopf wird der Schnellzugriff: unter den Profilen <b>„Gerät verbinden“ mit dem Stand von Sync</b> und „Profil verwalten“, darunter <b>Darstellung und Sprache als Auswahl</b>, im Fuß die Rechtsseiten. „Gerät verbinden“ öffnet einen Dialog über der Seite, wo man gerade ist. Die Profilseite ist eine Spalte: Kopf mit Zahlen, Betula Sync, Sichern, Gefahrenzone.</p>
     </header>
@@ -489,7 +538,7 @@ tbody tr:last-child > * { border-bottom: 0; }
 
   <section class="sec" id="b" aria-labelledby="b-title">
     <header>
-      <p class="kicker">Konzept B</p>
+      <p class="kicker">Erste Runde · Konzept B</p>
       <h2 id="b-title"><span class="tag">B</span>Eine Seite für die Geräte</h2>
       <p class="sub">Verbinden bekommt eine eigene Seite, <code>/sync</code>, dieselbe, auf der der Link des anderen Geräts landet: links die Geräte des Profils, rechts <b>„Gerät verbinden“ mit beiden Richtungen nebeneinander</b>, ohne Dialog. Das Menü führt mit „Geräte“ dorthin und hat Darstellung und Sprache als <b>eine Reihe kleiner Knöpfe</b>. Die Profilseite zeigt Sync nur als eine Zeile mit dem Weg zur Seite.</p>
     </header>
@@ -525,7 +574,7 @@ tbody tr:last-child > * { border-bottom: 0; }
 
   <section class="sec" id="c" aria-labelledby="c-title">
     <header>
-      <p class="kicker">Konzept C</p>
+      <p class="kicker">Erste Runde · Konzept C</p>
       <h2 id="c-title"><span class="tag">C</span>Einstellungen für sich, Profil mit Reitern</h2>
       <p class="sub">Das Menü bleibt kurz: Profile, Profil verwalten und <b>„Einstellungen“</b>, ein kleiner Dialog mit Darstellung, Sprache, Einzelnen Tasten und den Rechtsseiten. Die Profilseite hat unter dem Kopf <b>drei Reiter: Übersicht, Geräte, Daten</b>. Verbinden geschieht im Reiter Geräte, an Ort und Stelle.</p>
     </header>
@@ -560,7 +609,7 @@ tbody tr:last-child > * { border-bottom: 0; }
 
   <section class="sec" id="vergleich" aria-labelledby="vergleich-title">
     <header>
-      <p class="kicker">Im Vergleich</p>
+      <p class="kicker">Erste Runde · im Vergleich</p>
       <h2 id="vergleich-title">A ist am schnellsten, C am ordentlichsten</h2>
       <p class="sub">Tipps von einer beliebigen Seite aus, am Handy; am Rechner gleich, wenn ein Klick das Menü öffnet.</p>
     </header>
@@ -583,7 +632,7 @@ tbody tr:last-child > * { border-bottom: 0; }
 
   <section class="sec" id="empfehlung" aria-labelledby="empfehlung-title">
     <header>
-      <p class="kicker">Empfehlung</p>
+      <p class="kicker">Erste Runde · Empfehlung</p>
       <h2 id="empfehlung-title"><span class="tag">A</span>Alles am Profil-Knopf</h2>
       <p class="sub">Du hast Sync die Hauptsache genannt, wenn man mit dem Handy am Rechner sitzt, und Darstellung und Sprache „vielleicht sogar in quick access“. A macht beides zwei Tipps von jeder Seite, ohne die Seite zu verlassen. B ist gut, wenn Verbinden eine Aufgabe für sich sein soll; seine kleinen Symbole sind aber schwerer zu lesen. C ist am ordentlichsten, nimmt Sync aber vom Knopf weg.</p>
     </header>
@@ -595,7 +644,7 @@ tbody tr:last-child > * { border-bottom: 0; }
 
   <section class="sec" id="fragen" aria-labelledby="fragen-title">
     <header>
-      <p class="kicker">Fragen an dich</p>
+      <p class="kicker">Erste Runde · Fragen</p>
       <h2 id="fragen-title">Was du entscheiden solltest</h2>
     </header>
     <ol class="qs">
@@ -718,7 +767,7 @@ function fresh() {
     tab: "overview", ask: null, code: false, explain: false, renaming: false, draft: "", addOpen: false, gave: "", chose: null,
     profiles: baseProfiles(), active: "L", next: 3, toTop: false };
 }
-const ui = { A: fresh(), B: fresh(), C: fresh() };
+const ui = { R2: { ...fresh(), geraete: "page" }, A: fresh(), B: fresh(), C: fresh() };
 const cur = (st) => st.profiles.find((p) => p.id === st.active) || st.profiles[0];
 const isEmpty = (p) => Object.values(p.stats).every((v) => !v);
 const others = (st, p) => (st.mode === "desk" ? p.desk : p.phone);
@@ -748,7 +797,7 @@ function connOf(st, dir) { return { dir, step: dir === "send" && !cur(st).synced
 function openConnect(C, st, dir) {
   st.menu = false; st.settings = false;
   if (st.mode === "phone") { st.layer = "scan"; return; }
-  if (C === "A") st.dialog = connOf(st, dir || defaultDir(st));
+  if (C === "A" || C === "R2") st.dialog = connOf(st, dir || defaultDir(st));
   else if (C === "B") { st.page = "sync"; st.conn = dir ? connOf(st, dir) : null; st.toTop = true; }
   else { st.page = "profile"; st.tab = "devices"; st.conn = connOf(st, dir || defaultDir(st)); }
 }
@@ -868,7 +917,7 @@ function syncQuiet(st) {
 // The part of Betula Sync on a page: synced, private, or empty and alone.
 function syncCard(C, st, phone, inline) {
   const p = cur(st);
-  const wrap = (...kids) => h("section", { class: "m-panel acc", "aria-label": "Betula Sync" }, ...kids);
+  const wrap = (...kids) => h("section", { class: "m-panel acc", "aria-label": "Betula Sync", "data-sync": "" }, ...kids);
   const top = h("div", { class: "m-h" }, icon("sync"), h("span", { class: "grow" }, "Betula Sync"),
     h("span", { class: "m-state" }, h("span", { class: "m-dot" + (p.synced ? "" : " off") }), p.synced ? "Synchron" : loneEmpty(st) ? "Leeres Profil" : "Nur in diesem Browser"));
   const connectBtn = h("button", { type: "button", class: "m-btn pri" + (phone ? " wide" : " big"), onclick: act(() => openConnect(C, st)) }, icon(phone ? "scan" : "sync"), loneEmpty(st) ? "Profil vom Handy holen" : "Gerät verbinden");
@@ -1072,7 +1121,10 @@ function menuB(C, st, phone) {
     h("button", { type: "button", class: "m-it", onclick: act(() => addProfile(st)) }, icon("userplus"), h("span", { class: "t" }, h("b", { style: "font-weight: 500" }, "Neues Profil"))),
     h("hr"),
     h("button", { type: "button", class: "m-it", onclick: act(() => { st.menu = false; st.page = "profile"; st.toTop = true; }) }, icon("sliders"), h("span", { class: "t" }, h("b", { style: "font-weight: 500" }, "Profil verwalten")), h("span", { class: "end" }, icon("chev"))),
-    h("button", { type: "button", class: "m-it", onclick: act(() => { st.menu = false; st.page = "sync"; st.conn = null; st.toTop = true; }) }, h("span", { class: "lead" }, icon("sync")),
+    h("button", { type: "button", class: "m-it", onclick: act(() => {
+      if (C !== "R2") { st.menu = false; st.page = "sync"; st.conn = null; st.toTop = true; }
+      else if (st.geraete === "dialog") openConnect(C, st);
+      else { st.menu = false; st.page = "profile"; st.jump = true; } }) }, h("span", { class: "lead" }, icon(C === "R2" && st.geraete === "dialog" && phone ? "scan" : "sync")),
       h("span", { class: "t" }, h("b", {}, "Geräte"), h("small", {}, p.synced ? h("span", { class: "m-dot sm" }) : null, p.synced ? `Synchron · ${deviceCount(st, p)} Geräte` : "Nur auf diesem Gerät")), h("span", { class: "end" }, icon("chev"))),
     h("hr"),
     h("div", { class: "m-icons" },
@@ -1096,7 +1148,7 @@ function menuC(C, st) {
     h("button", { type: "button", class: "m-it", onclick: act(() => { st.menu = false; st.settings = true; }) }, icon("gear"), h("span", { class: "t" }, h("b", { style: "font-weight: 500" }, "Einstellungen …"))),
   ];
 }
-const MENUS = { A: menuA, B: menuB, C: menuC };
+const MENUS = { R2: menuB, A: menuA, B: menuB, C: menuC };
 function settingsBody(st, phone) {
   return [
     h("p", { class: "m-sub", style: "margin: 0" }, "Gelten in diesem Browser für alle Profile."),
@@ -1125,7 +1177,7 @@ function catalogPhone() {
 }
 function profileMain(C, st, phone) {
   const p = cur(st);
-  if (C === "A") return [head(st, phone), syncCard(C, st, phone), saveCard(st, phone), dangerCard(st, phone), pageFoot()];
+  if (C === "A" || C === "R2") return [head(st, phone), syncCard(C, st, phone), saveCard(st, phone), dangerCard(st, phone), pageFoot()];
   if (C === "B") {
     const line = p.synced ? `Auf ${deviceCount(st, p)} Geräten: ${[thisDevice(st), ...others(st, p)].map((d) => d.n).join(", ")}` : loneEmpty(st) ? "Leeres Profil. Hast du Betula schon auf dem Handy?" : "Nur in diesem Browser";
     const devCard = h("button", { type: "button", class: "m-panel acc", style: "display: flex; align-items: center; gap: 12px; border: 0; width: 100%; text-align: left; cursor: pointer; color: var(--m-text)", onclick: act(() => { st.page = "sync"; st.conn = null; st.toTop = true; }) },
@@ -1257,6 +1309,10 @@ function renderStage(C, el) {
     h("span", { class: "seg", role: "group", "aria-label": "Gerät" }, ["desk", "phone"].map((m) => h("button", { type: "button", "aria-pressed": String(st.mode === m),
       onclick: () => { st.mode = m; st.menu = false; st.dialog = null; st.layer = null; st.settings = false; st.conn = null; st.toTop = true; renderAll(); } }, m === "desk" ? "Rechner" : "Handy"))),
     h("span", { class: "grow" }),
+    C === "R2" ? h("span", { class: "group", style: "display: inline-flex; align-items: center; gap: 8px" }, h("span", { class: "kicker" }, "„Geräte“ führt"),
+      h("span", { class: "seg", role: "group", "aria-label": "Wohin „Geräte“ führt" },
+        h("button", { type: "button", "aria-pressed": String(st.geraete === "page"), onclick: () => { st.geraete = "page"; st.menu = false; st.dialog = null; st.layer = null; renderAll(); } }, "zur Profilseite"),
+        h("button", { type: "button", "aria-pressed": String(st.geraete === "dialog"), onclick: () => { st.geraete = "dialog"; st.menu = false; st.dialog = null; st.layer = null; renderAll(); } }, "in den Dialog"))) : null,
     h("span", { class: "kicker" }, st.mode === "desk" ? "Betula am Rechner, 1080 × 680" : "ein Handy, 380 px"));
   el.replaceChildren(bar, h("div", { class: "stage-in" }, st.mode === "desk" ? desk(C, st) : phone(C, st)));
 }
@@ -1272,6 +1328,12 @@ function renderAll() {
     if (!ui[C].toTop) el.querySelectorAll(".m-scroll").forEach((s, i) => { s.scrollTop = scrolls[i] ?? 0; });
     el.querySelector(".stage-in").scrollLeft = left;
     ui[C].toTop = false;
+    if (ui[C].jump) {
+      ui[C].jump = false;
+      const card = el.querySelector("[data-sync]");
+      const box = card?.closest(".m-scroll");
+      if (card && box) { box.scrollTop = card.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 12; card.classList.add("flash"); }
+    }
   }
   if (focus && focus.at >= 0) {
     const all = [...document.querySelector(`[data-stage="${focus.C}"]`).querySelectorAll("button, a, input")];
@@ -1286,7 +1348,7 @@ document.addEventListener("keydown", (e) => {
   renderAll();
 });
 document.getElementById("reset").addEventListener("click", () => {
-  for (const C of Object.keys(ui)) { const mode = ui[C].mode; ui[C] = fresh(); ui[C].mode = mode; }
+  for (const C of Object.keys(ui)) { const mode = ui[C].mode, geraete = ui[C].geraete; ui[C] = fresh(); ui[C].mode = mode; if (geraete) ui[C].geraete = geraete; }
   toastEl.hidden = true;
   renderAll();
 });
