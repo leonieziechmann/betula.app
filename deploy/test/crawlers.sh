@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# crawlers.sh - the crawler filter of config/traefik/dynamic/crawlers.yml in a real Traefik: who gets
-# 403 and who is served. Needs Docker and curl, no swarm; pulls the Traefik image of stacks/edge.yml.
-# Never on the server (it publishes 127.0.0.1:18444).
+# crawlers.sh - the crawler filter of config/traefik/dynamic/crawlers.yml and crawler-networks.yml in
+# a real Traefik: who gets 403 and who is served. Needs Docker and curl, no swarm; pulls the Traefik
+# image of stacks/edge.yml. Never on the server (it publishes 127.0.0.1:18444).
 #
 #   bash deploy/test/crawlers.sh        # up, check, down; exit 1 when a check fails
 #
-# Traefik runs with the file as it is, next to two stand-ins of the sites' routers: Folia's for the
-# host betula.app (priority 37, the colour's) and Phloem's /sync/v1/ (1000). Both lead to Traefik's
-# ping, which answers 200 to every path, so 200 is "served" and 403 is the crawler filter. The user
-# agents are the ones the crawlers send (their operators' documentation, 2026-11).
+# Traefik runs with both files as they are, next to two stand-ins of the sites' routers: Folia's for
+# the host betula.app (priority 37, the colour's) and Phloem's /sync/v1/ (1000). Both lead to
+# Traefik's ping, which answers 200 to every path, so 200 is "served" and 403 is the crawler filter.
+# The user agents are the ones the crawlers send (their operators' documentation, 2026-11). Then the
+# networks: the test's own address (Docker's bridge) is put among the clouds' in a copy of
+# crawler-networks.yml, which Traefik reloads, and a browser must be turned away as well.
 set -Euo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,7 +33,7 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "${WORK}/dynamic"
-cp "${DEPLOY_DIR}/config/traefik/dynamic/crawlers.yml" "${WORK}/dynamic/"
+cp "${DEPLOY_DIR}/config/traefik/dynamic/crawlers.yml" "${DEPLOY_DIR}/config/traefik/dynamic/crawler-networks.yml" "${WORK}/dynamic/"
 cat >"${WORK}/dynamic/sites.yml" <<'EOF'
 http:
   routers:
@@ -156,6 +158,32 @@ if [[ "${logged}" -ge "${TURNED_AWAY}" && "${TURNED_AWAY}" -gt 0 ]]; then
 else
   FAILED=$((FAILED + 1))
   printf 'FAIL  the access log has %s lines of edge-crawlers@file for %s requests turned away\n' "${logged}" "${TURNED_AWAY}"
+fi
+
+# The clouds' networks: Docker's bridge, where the test's requests come from, among them. Written
+# beside the directory and moved in, so that Traefik never reads half a file.
+sed 's/^\([[:space:]]*\)(ClientIP(/\1(ClientIP(`172.16.0.0\/12`) || ClientIP(/' "${WORK}/dynamic/crawler-networks.yml" >"${WORK}/crawler-networks.yml"
+chmod a+r "${WORK}/crawler-networks.yml"
+mv -f "${WORK}/crawler-networks.yml" "${WORK}/dynamic/crawler-networks.yml"
+for _ in $(seq 1 30); do
+  [[ "$(status 'Mozilla/5.0' /)" == 403 ]] && break
+  sleep 1
+done
+TURNED_AWAY=0
+expect 403 / 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36'
+expect 403 /api/db 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36'
+expect 403 / 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+expect 403 /sync/v1/x 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36'
+expect 200 /robots.txt 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36'
+expect 200 /calendar/x.ics 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36'
+expect 200 /healthz 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36'
+sleep 1
+logged="$(docker logs "${NAME}" 2>/dev/null | grep -c '"DownstreamStatus":403,.*"RouterName":"edge-crawler-networks@file"' || true)"
+if [[ "${logged}" -ge "${TURNED_AWAY}" && "${TURNED_AWAY}" -gt 0 ]]; then
+  printf 'PASS  the access log has the %s requests from a cloud turned away (%s lines of edge-crawler-networks@file)\n' "${TURNED_AWAY}" "${logged}"
+else
+  FAILED=$((FAILED + 1))
+  printf 'FAIL  the access log has %s lines of edge-crawler-networks@file for %s requests turned away\n' "${logged}" "${TURNED_AWAY}"
 fi
 
 if [[ "${FAILED}" -gt 0 ]]; then
