@@ -55,6 +55,7 @@ docker run -d --name "${NAME}" -p "127.0.0.1:${PORT}:8443" -v "${WORK}/dynamic:/
   --entryPoints.websecure.address=:8443 \
   --providers.file.directory=/etc/traefik/dynamic \
   --ping=true --ping.manualRouting=true \
+  --accessLog=true --accessLog.format=json \
   --log.level=INFO >/dev/null
 
 # status AGENT PATH -> the status code of https://betula.app PATH with that user agent ("-": none)
@@ -70,9 +71,11 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 
+TURNED_AWAY=0
 expect() { # EXPECTED PATH AGENT
   local got
   got="$(status "$3" "$2")"
+  [[ "${got}" == 403 ]] && TURNED_AWAY=$((TURNED_AWAY + 1))
   if [[ "${got}" == "$1" ]]; then
     printf 'PASS  %s %-22s %s\n' "${got}" "$2" "$3"
   else
@@ -142,6 +145,18 @@ expect 200 /calendar/x.ics 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; c
 expect 200 /en/calendar/x.ics 'CCBot/2.0 (https://commoncrawl.org/faq/)'
 expect 200 /healthz 'Mozilla/5.0 (compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)'
 expect 200 /livez 'Mozilla/5.0 (compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)'
+
+# The dashboard "Visitors" counts the turned away requests from the access log, by their router:
+# each 403 above is a line there (Traefik leaves out the routers of a service @internal; the
+# stand-ins of the sites lead to its ping and are not logged, which is all right).
+sleep 1
+logged="$(docker logs "${NAME}" 2>/dev/null | grep -c '"DownstreamStatus":403,.*"RouterName":"edge-crawlers@file"' || true)"
+if [[ "${logged}" -ge "${TURNED_AWAY}" && "${TURNED_AWAY}" -gt 0 ]]; then
+  printf 'PASS  the access log has the %s requests turned away (%s lines of edge-crawlers@file)\n' "${TURNED_AWAY}" "${logged}"
+else
+  FAILED=$((FAILED + 1))
+  printf 'FAIL  the access log has %s lines of edge-crawlers@file for %s requests turned away\n' "${logged}" "${TURNED_AWAY}"
+fi
 
 if [[ "${FAILED}" -gt 0 ]]; then
   echo "${FAILED} check(s) failed; Traefik's log:"

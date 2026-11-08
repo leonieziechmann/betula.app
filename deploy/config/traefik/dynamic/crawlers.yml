@@ -61,8 +61,16 @@ http:
       tls: {}
       middlewares:
         - edge-crawlers-refuse
-      # Never reached: the middleware answers first.
-      service: noop@internal
+      service: edge-crawlers-nowhere
+
+  services:
+    # Never reached: the middleware answers first. Not noop@internal: Traefik keeps every router
+    # whose service is one of its own (@internal) out of the access log, and the turned away
+    # requests belong in it, for the dashboard.
+    edge-crawlers-nowhere:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:9"
 
   middlewares:
     # 403 for every request: no client has the broadcast address. ipAllowList judges the address the
