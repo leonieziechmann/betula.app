@@ -528,6 +528,7 @@ impl Engine {
         if wrote {
             self.profiles.wrote();
         }
+        retire(&self.core.borrow().doc);
         self.sync.conflicts_of(&self.core.borrow().doc);
     }
 
@@ -820,6 +821,17 @@ impl Engine {
     }
 }
 
+/// The numbers the profile had and gave up, which a new calendar, Termin of one's own,
+/// placeholder or collection does not take again (`folia_plans::ids`).
+fn retire(doc: &folia_sync::Doc) {
+    use folia_plans::ids::{set_retired, Kind};
+    let retired = folia_sync::retired(doc);
+    set_retired(Kind::Calendar, retired.calendars);
+    set_retired(Kind::Own, retired.own);
+    set_retired(Kind::Placeholder, retired.placeholders);
+    set_retired(Kind::Collection, retired.collections);
+}
+
 thread_local! {
     /// Counts the starts of `lead`: one that waited for WebCrypto while a later one began gives way.
     static GENERATION: Cell<u64> = const { Cell::new(0) };
@@ -841,6 +853,7 @@ async fn lead(sync: Sync, profiles: Profiles) {
     });
     if !syncs(profile) {
         folia_plans::ids::set_slot(0);
+        folia_plans::ids::clear_retired();
         return;
     }
     let held = nav::local_get(&held_key(profile)).unwrap_or_default();
@@ -855,6 +868,7 @@ async fn lead(sync: Sync, profiles: Profiles) {
         return;
     }
     folia_plans::ids::set_slot(core.slot());
+    retire(&core.doc);
     let engine = Rc::new(Engine {
         profile,
         core: RefCell::new(core),

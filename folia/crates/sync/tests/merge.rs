@@ -88,13 +88,40 @@ fn what_one_device_adds_to_a_calendar_the_other_deletes_does_not_come_back_with_
     meet(&mut a, &gone, &mut b, &added);
     same(&a, &b);
     assert!(a.plan_doc().calendars.is_empty());
-    // Its number is taken again, for a calendar of another life: Lena's module stays out of it.
+    // Its number is not taken again (`folia_plans::ids`): Lena's module stays out of the next one.
     let mut again = 0;
     let ops = a.plan(3_000, |d| again = d.add_calendar("Sport", None, key("2026W"), &[], &[], &[]).unwrap());
-    assert_eq!(again, id);
+    assert_ne!(again, id);
     b.receive(&ops);
     same(&a, &b);
-    assert_eq!(a.plan_doc().calendar(id).map(|c| c.modules_in(key("2026W"))), Some(vec![]));
+    assert_eq!(a.plan_doc().calendar(again).map(|c| c.modules_in(key("2026W"))), Some(vec![]));
+    assert!(a.plan_doc().calendar(id).is_none());
+}
+
+/// A device that did not see a calendar deleted writes for it later by its clock than another
+/// device makes the next calendar: with a number of its own, the new one inherits nothing (a share
+/// of the old one would otherwise show the new one, folia/design/teilen/teilen.html).
+#[test]
+fn a_calendar_made_after_one_was_deleted_never_inherits_what_is_written_for_the_old_one() {
+    let (mut a, mut b) = pair();
+    let mut old = 0;
+    let made = a.plan(1_000, |d| old = d.add_calendar("Lena", None, key("2026W"), &["11109".to_string()], &[], &[]).unwrap());
+    b.receive(&made);
+    let mut on_a = a.plan(2_000, |d| assert!(d.remove_calendar(old).is_some()));
+    let mut new = 0;
+    on_a.extend(a.plan(3_000, |d| new = d.add_calendar("Sport", None, key("2026W"), &[], &[], &[]).unwrap()));
+    // b's clock runs ahead: what it writes for the old calendar is later than the new one's birth.
+    let late = b.plan(9_000, |d| {
+        assert!(d.add_to_calendar(old, key("2026W"), "12160"));
+        d.tick_in_calendar(old, key("2026W"), row(1), true);
+    });
+    meet(&mut a, &on_a, &mut b, &late);
+    same(&a, &b);
+    let doc = a.plan_doc();
+    assert_ne!(new, old);
+    assert_eq!(doc.calendars.iter().map(|c| (c.id, c.modules_in(key("2026W")), c.chosen.len())).collect::<Vec<_>>(), [(new, vec![], 0)]);
+    // Every device knows the old number as given up, also the one that wrote late.
+    assert!(folia_sync::retired(&b.doc).calendars.contains(&u32::from(old)));
 }
 
 #[test]

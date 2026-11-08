@@ -89,6 +89,31 @@ impl Store {
     }
 }
 
+/// The numbers a profile had and gave up, as long as the records keep their deletion (13 months,
+/// `Doc::forget_deleted`): of calendars, Termine of one's own, placeholders and collections. A new
+/// one does not take them again (`folia_plans::ids`): what a device that did not see the deletion
+/// yet still writes for the old one would land in the new one.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Retired {
+    pub calendars: BTreeSet<u32>,
+    pub own: BTreeSet<u32>,
+    pub placeholders: BTreeSet<u32>,
+    pub collections: BTreeSet<u32>,
+}
+
+/// What `Retired` holds of the records.
+pub fn retired(doc: &Doc) -> Retired {
+    let deleted = |prefix: &'static str| -> BTreeSet<u32> {
+        doc.entries
+            .range(prefix.to_string()..)
+            .take_while(|(key, _)| key.starts_with(prefix))
+            .filter(|(_, e)| e.val.is_none())
+            .filter_map(|(key, _)| key.strip_prefix(prefix)?.parse().ok())
+            .collect()
+    };
+    Retired { calendars: deleted("P|l|"), own: deleted("P|t|"), placeholders: deleted("P|p|"), collections: deleted("C|c|") }
+}
+
 /// Texts of which two concurrent writes are both kept (a note typed on two devices at once).
 pub fn is_text(key: &str) -> bool {
     key.starts_with("C|n|") || key.starts_with("P|b|")

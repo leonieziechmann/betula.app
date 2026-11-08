@@ -1174,12 +1174,13 @@ impl PlanDoc {
     /// Makes a calendar of one's own, the last of them: named `name`, with the modules `modules`
     /// and the groups `chosen` of semester `s` (a plan handed on, `folia_calendar::share`) and the
     /// program `program`, standing as a new one stands. Its number, the smallest one free (of the
-    /// device's class while the profile syncs, `ids`); `None` at the cap.
+    /// device's class while the profile syncs, and never one the synced profile had, `ids`);
+    /// `None` at the cap.
     pub fn add_calendar(&mut self, name: &str, program: Option<&str>, s: SemesterKey, modules: &[String], chosen: &[RowKey], changes: &[Change]) -> Option<u8> {
         if self.calendars.len() >= MAX_CALENDARS {
             return None;
         }
-        let id = crate::ids::smallest(u32::from(MAX_CALENDAR_ID), |id| u8::try_from(id).is_ok_and(|id| self.calendar(id).is_none())).and_then(|id| u8::try_from(id).ok())?;
+        let id = crate::ids::smallest(crate::ids::Kind::Calendar, u32::from(MAX_CALENDAR_ID), |id| u8::try_from(id).is_ok_and(|id| self.calendar(id).is_none())).and_then(|id| u8::try_from(id).ok())?;
         let program = program.filter(|program| url::is_program_id(program)).map(str::to_string);
         let mut calendar = Calendar { id, name: calendar_name(name), view: None, program, modules: Vec::new(), chosen: BTreeSet::new(), own: Vec::new(), changes: BTreeMap::new() };
         for module in modules {
@@ -1370,7 +1371,7 @@ impl PlanDoc {
     /// free (of the device's class while the profile syncs, `ids`).
     fn next_own_number(&self) -> Option<u32> {
         let numbers: BTreeSet<u32> = self.own.iter().chain(self.calendars.iter().flat_map(|calendar| calendar.own.iter())).map(|own| own.termin.number).collect();
-        crate::ids::after(numbers.last().copied().unwrap_or(0), MAX_OWN_NUMBER, |number| !numbers.contains(&number))
+        crate::ids::after(crate::ids::Kind::Own, numbers.last().copied().unwrap_or(0), MAX_OWN_NUMBER, |number| !numbers.contains(&number))
     }
 
     fn own_list(&self, calendar: u8) -> Option<&Vec<Own>> {
@@ -1407,7 +1408,7 @@ impl PlanDoc {
     /// device's class while the profile syncs, `ids`).
     pub fn next_pid(&self) -> u32 {
         let largest = self.placeholders.iter().map(|p| p.pid).max().unwrap_or(0);
-        crate::ids::after(largest, url::MAX_PID, |pid| !self.placeholders.iter().any(|p| p.pid == pid)).unwrap_or(url::MAX_PID)
+        crate::ids::after(crate::ids::Kind::Placeholder, largest, url::MAX_PID, |pid| !self.placeholders.iter().any(|p| p.pid == pid)).unwrap_or(url::MAX_PID)
     }
 
     /// Takes an import over (`import`): its modules planned at `now`, its placeholders numbered.
