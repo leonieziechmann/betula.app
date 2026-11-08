@@ -94,8 +94,13 @@ pub const MAX_CALENDAR_TICKS: usize = 200;
 /// bring (`folia_calendar::share::MAX_CHANGES` each), and some to spare.
 pub const MAX_CALENDAR_CHANGES: usize = 40;
 
+/// The most notes at the Termine of one calendar of one's own in all its semesters together:
+/// those of a share it follows (`shares`). Eight calendars full of the longest keep the store
+/// within its limit; a share hands on a few.
+pub const MAX_CALENDAR_NOTES: usize = 20;
+
 /// The largest number of a calendar: two digits keep its lines short.
-const MAX_CALENDAR_ID: u8 = 99;
+pub const MAX_CALENDAR_ID: u8 = 99;
 
 /// The most Termine of one's own (`t`) of one calendar in one semester, and of all calendars and
 /// semesters together (folia/design/kalender/termine.html: „im Vorschlag 100 eigene Termine im
@@ -154,6 +159,8 @@ type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>
 /// n  <calendar>  <semester>  <module_id>
 /// o  <calendar>  <semester>  <event_id>-<fp 5 hex>
 /// t  <number>  <calendar>  <semester>  <rhythm>  <weekday|dates>  <from>-<to>  <first>  <last>  <module>  <name>  <place>  <skip>
+/// f  <calendar>  <link>  <since>  <ended>
+/// s  <id>  <calendar>  <to>  <semester>  <made>  <flags>  <key>  <parcel>  <program>  <name>
 /// ```
 ///
 /// `g` is the program the timetable is planned for (`program`): in a saved plan, not in the text
@@ -195,6 +202,11 @@ type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>
 /// and place, and the days it is not held on („Nur am … ausblenden"), joined by commas. The plan's
 /// go with its semester: „Plan leeren" takes them, a saved plan carries them; a calendar's go with
 /// it. A build before them keeps them as lines of a tag it does not know (at most 100 of them).
+///
+/// A calendar of one's own has notes at its Termine (`b` with its number, after its lines) and may
+/// follow a share of someone else's (`f`, its last line); `s` are the shares in force, after the
+/// calendars (`shares`, Betula Sync step 3, owner 2026-11-08). A build before them keeps them as
+/// lines of a tag it does not know.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PlanDoc {
     /// The program the timetable is planned for, picked in its sidebar or taken with a
@@ -221,6 +233,8 @@ pub struct PlanDoc {
     /// The Termine of one's own of the plan's calendar, „Mein Studiengang", in the order they came
     /// (`t` of calendar 0).
     pub own: Vec<Own>,
+    /// The shares in force, in the order they were made (`s`, `shares`).
+    pub shares: Vec<crate::shares::Share>,
     /// Lines of tags this build does not know, as they were read.
     pub extra: Vec<String>,
 }
@@ -279,6 +293,11 @@ pub struct Calendar {
     /// The changes of Termine of QIS in it, by semester, Termin and scope (its `x` lines): those
     /// its link brought (`SharedPlan::changes`), so that its week is its owner's.
     pub changes: BTreeMap<(SemesterKey, RowKey, Scope), Change>,
+    /// The notes at its Termine, by semester and Termin (its `b` lines): those of a share it
+    /// follows, when they come along.
+    pub notes: BTreeMap<(SemesterKey, RowKey), String>,
+    /// The share of someone else's it follows (its `f` line).
+    pub follow: Option<crate::shares::Follow>,
 }
 
 /// A Termin of one's own in a semester (`t`): of the plan's calendar (`PlanDoc::own`) or of one of
@@ -315,7 +334,7 @@ impl Calendar {
     /// Sets a change of a Termin of QIS of semester `s` in place of the one of its Termin and
     /// scope, when it is one (`stored_change`) and the cap allows it; whether it is in the calendar
     /// now.
-    fn set_change(&mut self, s: SemesterKey, change: Change) -> bool {
+    pub(crate) fn set_change(&mut self, s: SemesterKey, change: Change) -> bool {
         let Some(change) = stored_change(change) else { return false };
         let at = (s, change.key, change.scope);
         if !self.changes.contains_key(&at) && self.changes.len() >= MAX_CALENDAR_CHANGES {
@@ -325,8 +344,28 @@ impl Calendar {
         true
     }
 
+    /// Sets the note at its Termin `key` of semester `s` (`change::note_text`), within the cap;
+    /// an empty one takes it away. Whether it holds the note now.
+    pub(crate) fn set_note(&mut self, s: SemesterKey, key: RowKey, text: &str) -> bool {
+        let note = change::note_text(text);
+        if note.is_empty() || key.event == 0 {
+            self.notes.remove(&(s, key));
+            return false;
+        }
+        if !self.notes.contains_key(&(s, key)) && self.notes.len() >= MAX_CALENDAR_NOTES {
+            return false;
+        }
+        self.notes.insert((s, key), note);
+        true
+    }
+
+    /// The note at its Termin `key` of semester `s`.
+    pub fn note_of(&self, s: SemesterKey, key: RowKey) -> Option<&str> {
+        self.notes.get(&(s, key)).map(String::as_str)
+    }
+
     /// Adds a module in semester `s`, within the caps; `false` where nothing changed.
-    fn add_module(&mut self, s: SemesterKey, id: &str) -> bool {
+    pub(crate) fn add_module(&mut self, s: SemesterKey, id: &str) -> bool {
         let held = self.modules.iter().any(|(semester, module)| *semester == s && module == id);
         if !url::is_module_id(id) || held || self.modules.len() >= MAX_CALENDAR_MODULES {
             return false;
@@ -336,7 +375,7 @@ impl Calendar {
     }
 
     /// Ticks a group in semester `s` or takes the tick away, within the cap.
-    fn set_tick(&mut self, s: SemesterKey, row: RowKey, on: bool) {
+    pub(crate) fn set_tick(&mut self, s: SemesterKey, row: RowKey, on: bool) {
         if !on {
             self.chosen.remove(&(s, row));
         } else if is_row(row) && self.chosen.len() < MAX_CALENDAR_TICKS {
@@ -582,7 +621,7 @@ impl PlanDoc {
                     let id = number(field(1)).and_then(|id| u8::try_from(id).ok());
                     if let Some(id) = id.filter(|id| (1..=MAX_CALENDAR_ID).contains(id) && doc.calendar(*id).is_none() && doc.calendars.len() < MAX_CALENDARS) {
                         let program = Some(field(3)).filter(|program| url::is_program_id(program)).map(str::to_string);
-                        doc.calendars.push(Calendar { id, name: calendar_name(field(4)), view: CalendarView::from_code(field(2)), program, modules: Vec::new(), chosen: BTreeSet::new(), own: Vec::new(), changes: BTreeMap::new() });
+                        doc.calendars.push(Calendar { id, name: calendar_name(field(4)), view: CalendarView::from_code(field(2)), program, modules: Vec::new(), chosen: BTreeSet::new(), own: Vec::new(), changes: BTreeMap::new(), notes: BTreeMap::new(), follow: None });
                     }
                 }
                 "n" => {
@@ -621,9 +660,28 @@ impl PlanDoc {
                     (Some(0), Some(s), Some(key)) => {
                         doc.set_note(s, key, field(4));
                     }
-                    (Some(_), Some(_), Some(_)) if doc.extra.len() < MAX_EXTRA_LINES && line.len() <= MAX_EXTRA_BYTES => doc.extra.push(line.clone()),
+                    // After the `l` line of its calendar.
+                    (Some(id), Some(s), Some(key)) => {
+                        if let Some(calendar) = doc.calendars.iter_mut().find(|calendar| calendar.id == id) {
+                            calendar.set_note(s, key, field(4));
+                        }
+                    }
                     _ => {}
                 },
+                "f" => {
+                    // After the `l` line of its calendar; the first one counts.
+                    if let Some((id, follow)) = crate::shares::Follow::of(&fields) {
+                        if let Some(calendar) = doc.calendars.iter_mut().find(|calendar| calendar.id == id && calendar.follow.is_none()) {
+                            calendar.follow = Some(follow);
+                        }
+                    }
+                }
+                "s" => {
+                    // After the calendars; the first line of an id counts.
+                    if let Some(share) = crate::shares::Share::of(&fields) {
+                        doc.add_share(share);
+                    }
+                }
                 "q" => {
                     let ord = field(3).parse::<i64>().ok();
                     if let (Some(s), Some(ord)) = (semester, ord) {
@@ -649,7 +707,8 @@ impl PlanDoc {
     /// `v` the same; `p` by pid; `d` and `q` in the order they were marked; then per semester `k`,
     /// `e`, `r`, `c`, `h` (one line per Termin), `x` (by Termin and scope), `b` (by Termin), `a`;
     /// the plan's `t` in the order they came; per calendar its `l`, its `n` in the order they came,
-    /// its `o`, its `t` and its `x` (by semester, Termin and scope); then the lines of unknown tags.
+    /// its `o`, its `t`, its `x` (by semester, Termin and scope), its `b` (by semester and Termin)
+    /// and its `f`; the shares (`s`) in the order they were made; then the lines of unknown tags.
     /// Control characters in names become spaces, so a name never splits its line.
     pub fn stored(&self) -> String {
         self.text(self.program.as_deref())
@@ -762,6 +821,15 @@ impl PlanDoc {
             for ((semester, ..), change) in &calendar.changes {
                 let _ = writeln!(out, "{}", change_line(id, *semester, change));
             }
+            for ((semester, row), note) in &calendar.notes {
+                let _ = writeln!(out, "b\t{id}\t{}\t{}\t{}", semester.key(), row.text(), change::note_text(note));
+            }
+            if let Some(follow) = &calendar.follow {
+                let _ = writeln!(out, "{}", follow.line(id));
+            }
+        }
+        for share in &self.shares {
+            let _ = writeln!(out, "{}", share.line());
         }
         for line in self.extra.iter().filter(|line| !line.contains(['\n', '\r'])) {
             out.push_str(line);
@@ -1182,7 +1250,7 @@ impl PlanDoc {
         }
         let id = crate::ids::smallest(crate::ids::Kind::Calendar, u32::from(MAX_CALENDAR_ID), |id| u8::try_from(id).is_ok_and(|id| self.calendar(id).is_none())).and_then(|id| u8::try_from(id).ok())?;
         let program = program.filter(|program| url::is_program_id(program)).map(str::to_string);
-        let mut calendar = Calendar { id, name: calendar_name(name), view: None, program, modules: Vec::new(), chosen: BTreeSet::new(), own: Vec::new(), changes: BTreeMap::new() };
+        let mut calendar = Calendar { id, name: calendar_name(name), view: None, program, modules: Vec::new(), chosen: BTreeSet::new(), own: Vec::new(), changes: BTreeMap::new(), notes: BTreeMap::new(), follow: None };
         for module in modules {
             calendar.add_module(s, module);
         }
@@ -1239,9 +1307,11 @@ impl PlanDoc {
         }
     }
 
-    /// Takes a calendar away; it and where it stood, for „Rückgängig" (`put_calendar`).
+    /// Takes a calendar away, and what it shares (its parts go, `shares`); it and where it stood,
+    /// for „Rückgängig" (`put_calendar`), with what it follows.
     pub fn remove_calendar(&mut self, id: u8) -> Option<(usize, Calendar)> {
         let at = self.calendars.iter().position(|calendar| calendar.id == id)?;
+        self.shares.retain(|share| share.calendar != id);
         Some((at, self.calendars.remove(at)))
     }
 
@@ -3003,6 +3073,33 @@ mod tests {
                 };
                 assert_eq!(calendar.set_change(semesters[23], change), n < MAX_CALENDAR_CHANGES, "{n}");
             }
+        }
+        // Every calendar with its notes at the cap and a share it follows; the shares at theirs,
+        // with the longest names and programs.
+        for calendar in &mut doc.calendars {
+            for n in 0..=MAX_CALENDAR_NOTES {
+                let s = semesters[n % 24];
+                assert_eq!(calendar.set_note(s, termin(u32::MAX - n as u32, 0xfffff), &"😀".repeat(change::MAX_NOTE)), n < MAX_CALENDAR_NOTES, "{n}");
+            }
+            calendar.follow = Some(crate::shares::Follow { link: "A".repeat(64), since: u64::MAX, ended: u64::MAX });
+        }
+        for n in 0..=crate::shares::MAX_SHARES {
+            let share = crate::shares::Share {
+                id: crate::shares::encode(&[n as u8; 16]),
+                calendar: 0,
+                to: crate::shares::ShareTo::Person,
+                semester: semesters[23],
+                made: u64::MAX,
+                live: true,
+                once: true,
+                own: true,
+                notes: true,
+                key: "B".repeat(43),
+                parcel: "C".repeat(64),
+                program: Some("00000000-ABCDEFGH-ABCDEFGH-ABCDEFGH-ABCDEFGH".into()),
+                name: "😀".repeat(crate::shares::MAX_SHARE_NAME + 5),
+            };
+            assert_eq!(doc.add_share(share), n < crate::shares::MAX_SHARES, "{n}");
         }
         for n in 0..MAX_EXTRA_LINES {
             doc.extra.push(format!("z{n:03}\t{}", "y".repeat(MAX_EXTRA_BYTES - 5)));

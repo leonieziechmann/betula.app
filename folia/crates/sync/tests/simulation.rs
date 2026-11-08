@@ -244,12 +244,83 @@ fn act(device: &mut Device, wall: u64, rng: &mut Rng, undo: &mut Option<PlanDoc>
                 }),
             }
         }
-        53..=55 => {
+        53..=54 => {
             let words: Vec<&str> = (0..1 + rng.below(5)).map(|_| *rng.pick(&WORDS)).collect();
             let text = if on { words.join(" ") } else { String::new() };
             device.plan(wall, |d| {
                 d.set_note(s, r, &text);
             })
+        }
+        55 => {
+            // What is shared and followed: a share made or taken back, a calendar that follows,
+            // takes a part with notes, is not shared any more, or keeps what it has.
+            use folia_plans::shares::{encode, Share, ShareTo, ID_BYTES, KEY_BYTES, LINK_BYTES};
+            let calendars: Vec<u8> = std::iter::once(0).chain(kept.calendars.iter().map(|c| c.id)).collect();
+            let calendar = *rng.pick(&calendars);
+            let n = rng.below(256) as u8;
+            let own_calendar = kept.calendars.get(rng.below(kept.calendars.len())).map(|c| c.id);
+            let words: Vec<&str> = (0..1 + rng.below(4)).map(|_| *rng.pick(&WORDS)).collect();
+            match rng.below(5) {
+                0 | 1 if on => device.plan(wall, |d| {
+                    let to = if calendar == 0 { ShareTo::Person } else { ShareTo::App };
+                    d.add_share(Share {
+                        id: encode(&[n; ID_BYTES]),
+                        calendar,
+                        to,
+                        semester: s,
+                        made: secs,
+                        live: true,
+                        once: to == ShareTo::Person,
+                        own: n % 2 == 0,
+                        notes: n % 3 == 0,
+                        key: encode(&[n ^ 0x5a; KEY_BYTES]),
+                        parcel: if to == ShareTo::Person { encode(&[n; LINK_BYTES]) } else { String::new() },
+                        program: None,
+                        name: words.join(" "),
+                    });
+                }),
+                0 | 1 => {
+                    let Some(id) = kept.shares.get(rng.below(kept.shares.len())).map(|share| share.id.clone()) else { return Vec::new() };
+                    if rng.chance(2) {
+                        device.plan(wall, |d| {
+                            d.remove_share(&id);
+                        })
+                    } else {
+                        device.plan(wall, |d| {
+                            d.update_share(&id, |share| share.parcel.clear());
+                        })
+                    }
+                }
+                2 => {
+                    let Some(id) = own_calendar else { return Vec::new() };
+                    device.plan(wall, |d| {
+                        if on {
+                            d.follow(id, &encode(&[n; LINK_BYTES]), secs);
+                        } else {
+                            d.unfollow(id);
+                        }
+                    })
+                }
+                3 => {
+                    let Some(id) = own_calendar else { return Vec::new() };
+                    device.plan(wall, |d| {
+                        d.end_follow(id, secs);
+                    })
+                }
+                _ => {
+                    let Some(id) = own_calendar else { return Vec::new() };
+                    let part = folia_calendar::live::LivePart {
+                        semester: s.index(),
+                        modules: vec![m.parse().unwrap()],
+                        own: vec![folia_calendar::live::CodeOwn { number: 1 + u32::from(n), rhythm: 0, weekday: 1 + n % 5, from: 600, to: 660, name: words.join(" "), ..Default::default() }],
+                        notes: vec![folia_calendar::live::CodeNote { key: r.packed(), text: words.join(" ") }],
+                        ..Default::default()
+                    };
+                    device.plan(wall, |d| {
+                        d.take_part(id, &part);
+                    })
+                }
+            }
         }
         56..=58 => {
             // „Rückgängig": the plan as it was before the last change of this device.
