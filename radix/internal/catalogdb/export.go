@@ -128,6 +128,28 @@ func ReadSnapshotPointer(dir string) (*Snapshot, error) {
 	return &snap, nil
 }
 
+// PublishedDigest returns the content digest of the current snapshot of a snapshot directory
+// (its meta content_digest): the content readers have. The service exports when the build's
+// digest differs from it, so that content a cycle built but did not publish (its validation or
+// its export failed, or a deploy stopped the export) goes out with the next cycle, although the
+// build finds it unchanged. An error when there is no snapshot, or it carries no digest.
+func PublishedDigest(dir string) (string, error) {
+	snap, err := ReadSnapshotPointer(dir)
+	if err != nil {
+		return "", err
+	}
+	db, err := OpenReadOnly(filepath.Join(dir, snap.File)) // a snapshot never changes: a new export is a new file
+	if err != nil {
+		return "", err
+	}
+	defer db.Close()
+	var digest string
+	if err := db.sql.QueryRow("SELECT value FROM meta WHERE key = 'content_digest'").Scan(&digest); err != nil {
+		return "", fmt.Errorf("content digest of %s: %w", snap.File, err)
+	}
+	return digest, nil
+}
+
 // removeOldSnapshots keeps the newest snapshots. A file that is still open
 // somewhere cannot be removed on Windows; it goes away after a later export.
 func removeOldSnapshots(dir, current string) {

@@ -56,6 +56,7 @@ func Open(path string) (*DB, error) {
 // no lock files next to it (immutable), so it must not change while it is open. For a copy of
 // another instance's database, which another release may have written (radix seed-cortex);
 // what is read has to be in every schema the copy can have, as raw_page is since migration 1.
+// And for a published snapshot (PublishedDigest), which is never written again.
 func OpenReadOnly(path string) (*DB, error) {
 	if _, err := os.Stat(path); err != nil {
 		return nil, err

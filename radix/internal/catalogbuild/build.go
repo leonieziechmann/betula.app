@@ -39,7 +39,9 @@ type Report struct {
 	BuiltAt time.Time
 
 	// ContentDigest identifies the published content. ContentChanged says whether it
-	// differs from the previous build; only then is a new snapshot worth exporting.
+	// differs from the previous build. Whether a new snapshot is worth exporting depends on
+	// the digest of the published one (catalogdb.PublishedDigest), which an export that
+	// failed or was stopped leaves behind the build.
 	ContentDigest  string
 	ContentChanged bool
 
