@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +27,9 @@ type serveOptions struct {
 	statsInterval                        *time.Duration
 	budget                               *int64
 	logs                                 *logFlags
+
+	turnHost, turnIP, turnRelays, turnTLSHost *string
+	turnPort                                  *int
 }
 
 func newServeFlags() (*flag.FlagSet, *serveOptions) {
@@ -44,6 +49,16 @@ func newServeFlags() (*flag.FlagSet, *serveOptions) {
 			"Bytes all spaces together may hold; at it no new spaces or parcels (env PHLOEM_BUDGET_BYTES)"),
 		stack: fs.String("stack", envOr("PHLOEM_STACK", ""),
 			"Name of the instance: the label stack=… of the stats file (env PHLOEM_STACK)"),
+		turnHost: fs.String("turn-host", envOr("PHLOEM_TURN_HOST", ""),
+			"The site's host, named by the URLs of STUN and TURN; empty: no STUN and TURN (env PHLOEM_TURN_HOST)"),
+		turnPort: fs.Int("turn-port", int(envInt64("PHLOEM_TURN_PORT", 3478)),
+			"Where STUN and TURN listen, over UDP and TCP, on every address (env PHLOEM_TURN_PORT)"),
+		turnIP: fs.String("turn-ip", envOr("PHLOEM_TURN_IP", ""),
+			"The host's public IPv4 address: the relays' address, and never a peer (env PHLOEM_TURN_IP)"),
+		turnRelays: fs.String("turn-relays", envOr("PHLOEM_TURN_RELAY_PORTS", ""),
+			"The UDP ports of the relays, as first-last (env PHLOEM_TURN_RELAY_PORTS)"),
+		turnTLSHost: fs.String("turn-tls-host", envOr("PHLOEM_TURN_TLS_HOST", ""),
+			"The name of turns:<name>:443, where Traefik ends TLS and hands TCP to the TURN port; empty: none (env PHLOEM_TURN_TLS_HOST)"),
 	}
 	o.logs = addLogFlags(fs)
 	return fs, o
@@ -121,8 +136,13 @@ func runServe(ctx context.Context, args []string) int {
 		return fatal(1, "cannot open the data directory", err)
 	}
 	defer st.Close()
+	turnOpt, err := o.turn()
+	if err != nil {
+		return fatal(2, "invalid configuration", err)
+	}
 	ln, err := net.Listen("tcp", *o.addr)
 	if err != nil {
+		turnOpt.close()
 		oplog.For("http").Error("cannot listen", "event", "http.failed", "addr", *o.addr, oplog.Err(err))
 		return fatal(1, "stopping: the HTTP endpoint failed", err)
 	}
@@ -131,9 +151,11 @@ func runServe(ctx context.Context, args []string) int {
 	srv, err := server.New(server.Options{
 		Store: st, Origins: origins, Budget: *o.budget, StatsDir: *o.statsDir, StatsInterval: *o.statsInterval,
 		Stack: *o.stack, Version: version.Version, Build: version.Build(), Registry: metrics.Default,
+		TURN: turnOpt.TURN,
 	})
 	if err != nil {
 		_ = ln.Close()
+		turnOpt.close()
 		return fatal(2, "invalid configuration", err)
 	}
 	hs := httpServer(srv)
@@ -142,7 +164,7 @@ func runServe(ctx context.Context, args []string) int {
 	oplog.For("http").Info("listening", "event", "http.listening", "addr", ln.Addr().String())
 	log.Info("started", "event", "service.started", "addr", *o.addr, "data", *o.data, "stats_dir", *o.statsDir,
 		"origins", strings.Join(origins, ","), "budget", *o.budget, "stack", *o.stack,
-		"version", version.Version, "build", version.Build(), "uid", os.Geteuid())
+		"turn", turnOpt.describe(), "version", version.Version, "build", version.Build(), "uid", os.Geteuid())
 
 	var serveErr error
 	select {
@@ -176,4 +198,58 @@ func httpServer(srv *server.Server) *http.Server {
 		MaxHeaderBytes:    16 << 10,
 		ErrorLog:          slog.NewLogLogger(slog.Default().Handler(), slog.LevelDebug),
 	}
+}
+
+// turnSetup is serve's TURN: the options with their listeners, nil without TURN.
+type turnSetup struct{ *server.TURN }
+
+// turn reads the TURN flags and opens STUN's and TURN's listeners on every address.
+func (o *serveOptions) turn() (turnSetup, error) {
+	host := strings.TrimSpace(*o.turnHost)
+	if host == "" {
+		return turnSetup{}, nil
+	}
+	ip, err := netip.ParseAddr(strings.TrimSpace(*o.turnIP))
+	if err != nil || !ip.Is4() {
+		return turnSetup{}, fmt.Errorf("turn-ip %q is no IPv4 address", *o.turnIP)
+	}
+	first, last, ok := strings.Cut(strings.TrimSpace(*o.turnRelays), "-")
+	lo, err1 := strconv.Atoi(first)
+	hi, err2 := strconv.Atoi(last)
+	if !ok || err1 != nil || err2 != nil {
+		return turnSetup{}, fmt.Errorf("turn-relays %q is not first-last", *o.turnRelays)
+	}
+	if *o.turnPort < 1 || *o.turnPort > 65535 {
+		return turnSetup{}, fmt.Errorf("invalid turn-port %d", *o.turnPort)
+	}
+	addr := net.JoinHostPort("0.0.0.0", strconv.Itoa(*o.turnPort))
+	pc, err := net.ListenPacket("udp4", addr)
+	if err != nil {
+		return turnSetup{}, fmt.Errorf("STUN and TURN over UDP: %w", err)
+	}
+	ln, err := net.Listen("tcp4", addr)
+	if err != nil {
+		_ = pc.Close()
+		return turnSetup{}, fmt.Errorf("TURN over TCP: %w", err)
+	}
+	return turnSetup{&server.TURN{
+		Host: host, Port: *o.turnPort, IP: ip, RelayMin: lo, RelayMax: hi,
+		TLSHost: strings.TrimSpace(*o.turnTLSHost), PacketConn: pc, Listener: ln,
+	}}, nil
+}
+
+// close closes the listeners of a TURN that never started.
+func (t turnSetup) close() {
+	if t.TURN != nil {
+		_ = t.PacketConn.Close()
+		_ = t.Listener.Close()
+	}
+}
+
+// describe says in a word what TURN serves, for the log.
+func (t turnSetup) describe() string {
+	if t.TURN == nil {
+		return "off"
+	}
+	return fmt.Sprintf("%s:%d relays %d-%d at %s tls %q", t.Host, t.Port, t.RelayMin, t.RelayMax, t.IP, t.TLSHost)
 }

@@ -4,9 +4,10 @@ Phloem is the service of Betula Sync (`research/sync/entwurf.html`, owner 2026-1
 Schritt 1 jetzt so"). It keeps sealed records of the profiles that sync and hands them between the
 devices of a profile; it can open none of them. This file is the contract between its three parts:
 the service (`phloem/`, Go), the browser (`folia/crates/sync` and the app), and the deployment
-(`deploy/`). Step 1 is everything below except what is marked step 2 (WebRTC, STUN, TURN) and
-step 3; step 3 is the parts of shared calendars and the parcels that wait up to 7 days
-(folia/design/teilen/teilen.html, owner 2026-11-08), since Phloem 0.2.0.
+(`deploy/`). Step 1 is everything below except what is marked step 2 or 3; step 3 is the parts of
+shared calendars and the parcels that wait up to 7 days (folia/design/teilen/teilen.html, owner
+2026-11-08), since Phloem 0.2.0; step 2 the live way between the devices (WebRTC: the signals, STUN
+and TURN; owner, 2026-11-08: „time für phase 2 bei dem sync"), since Phloem 0.3.0.
 
 ## 1. Names
 
@@ -14,7 +15,7 @@ step 3; step 3 is the parts of shared calendars and the parcels that wait up to 
 |---|---|
 | instances | one per site, each a stack of its own: `phloem` for https://betula.app, `phloem-canary` for https://canary.betula.app |
 | networks | `<stack>_in` (`phloem_in`, `phloem-canary_in`): overlay, `--internal`, not attachable, created by `deploy/vps/30-docker.sh`; its members are Traefik and that instance, nothing else. `<stack>_out`: the stack's own overlay (not internal), its only member that instance; its way out, used by TURN only (step 2) |
-| port | 8200/tcp inside the container, on `<stack>_in` only; nothing published in step 1 (step 2 publishes 3478/udp+tcp and a relay range in host mode) |
+| port | 8200/tcp inside the container, on `<stack>_in` only. With TURN (step 2) also `PHLOEM_TURN_PORT` over UDP and TCP and the relays' UDP ports `PHLOEM_TURN_RELAY_PORTS`, published in host mode at the same numbers (`phloem`: 3478 and 49160–49223, `phloem-canary`: 3479 and 49224–49239) |
 | path | `/sync/v1/` on the site's own host, routed by Traefik to the site's instance |
 | data | `/data` in the container: `/var/lib/betula/phloem/<stack>/data` on the host, a filesystem of fixed size of its own (a loop device), so that Phloem fills nothing but itself |
 | numbers | `/stats` in the container: `/run/betula/phloem/<stack>/stats` on the host, a tmpfs of 1 MiB; Phloem writes `phloem.prom` there every 15 s, Alloy reads it (it sees the host at `/rootfs`, read-only) |
@@ -33,6 +34,8 @@ either side reach the other.
 | internet → Traefik :443 `/sync/v1/` | yes | the router of the instance, above Folia's (explicit priority 1000) |
 | Traefik → Phloem :8200 | yes | over `<stack>_in` |
 | Phloem → anything | no | a firewall inside the container (`phloem/deploy/firewall.nft`): no new connection out, no DNS (also not Docker's 127.0.0.11), IPv6 off; replies only. Set by `phloem start` as root with NET_ADMIN, which then drops to uid 65532 without capabilities and execs `phloem serve` |
+| devices → Phloem's STUN and TURN (step 2) | yes | its port over UDP and TCP and its relays' over UDP, in host mode; TURN over TLS on 443 through Traefik by name (`PHLOEM_TURN_TLS_HOST`, a TCP router to the TURN port over `<stack>_in`) |
+| Phloem's relays → the devices (step 2) | the space's alone | UDP from a relay's port, over `<stack>_out`, to the address another socket of the allocation's space came from (section 6); the firewall's `turn.nft` lets out a relay's datagram to a public address and nothing else |
 | Folia → Phloem | only through Traefik | as an outside client, `https://<host>/sync/v1/` (step 3) |
 | monitoring → Phloem | reads the file | no network |
 
@@ -85,12 +88,14 @@ From a device:
 | `{"t": "leave"}` | „Nur dieses Gerät trennen": its slot is free again; the socket closes (1000) |
 | `{"t": "delete"}` | the same as `DELETE /sync/v1/space` |
 | `{"t": "watch", "parts": ["<id>"…]}` | the parts of shared calendars this device follows (step 3), at most 64: the list from now on, in place of the one before. Counts as a push of the space |
+| `{"t": "signal", "to": <slot>, "data": "<sealed, at most 8 KiB>"}` | a sealed signal of WebRTC (an offer, an answer, a candidate: section 5) for the device of slot `to` in the same space (step 2). A device not online gets nothing, and the sender hears nothing of it: presence says who is. 20 a second per socket, bursts of 100 (signals and `turn` together), beyond them `error slow_down` |
+| `{"t": "turn"}` | the ICE servers and this socket's TURN credential, please (step 2) |
 
 From Phloem:
 
 | | |
 |---|---|
-| `{"t": "welcome", "slot", "head", "now", "devices": [<slots online>], "snapshot": null \| {"upto", "data"}, "entries": [{"nr", "slot", "data"}…]}` | after a valid hello. `slot` is the device's place in the space (1–16, kept by its device id); `now` the server's clock in ms, for the device's clock. The snapshot comes whenever there is one and `since` is 0 or lies before its `upto`, and then the entries after it; otherwise the entries after `since`. A `since` beyond `head` (Phloem was restored from an older backup) is answered as 0: the snapshot and every entry |
+| `{"t": "welcome", "slot", "head", "now", "devices": [<slots online>], "live": true, "snapshot": null \| {"upto", "data"}, "entries": [{"nr", "slot", "data"}…]}` | after a valid hello. `live` (since Phloem 0.3.0): this Phloem takes `signal` and `turn`; a device sends them only where the welcome says so, since an older Phloem closes a socket on a frame it does not know. `slot` is the device's place in the space (1–16, kept by its device id); `now` the server's clock in ms, for the device's clock. The snapshot comes whenever there is one and `since` is 0 or lies before its `upto`, and then the entries after it; otherwise the entries after `since`. A `since` beyond `head` (Phloem was restored from an older backup) is answered as 0: the snapshot and every entry |
 | `{"t": "stored", "id", "nr"}` | a push is kept as entry `nr`. A push whose `id` the same slot pushed already among the entries since the snapshot is the same push sent again (its `stored` was lost: the device sends its outbox again after a reconnect): it gets `stored` with the old `nr`, and nothing is added or sent to the others |
 | `{"t": "entry", "nr", "slot", "data"}` | another device's push, to every other device online |
 | `{"t": "snapshotted", "upto"}` | the snapshot is kept. A snapshot older than the one kept is not: `upto` then names the kept one's |
@@ -101,6 +106,8 @@ From Phloem:
 | `{"t": "watching", "parts": [{"id", "rev"} \| {"id", "gone": true}…]}` | the answer to `watch`: each part's version now, `rev` 0 for a part Phloem does not have |
 | `{"t": "part", "id", "rev"}`, `{"t": "part", "id", "gone": true}` | a part watched was replaced, or deleted, to every socket that watches it |
 | `{"t": "pair", "id", "state": "taken"}` | a parcel of the space was opened, to every device of the space online |
+| `{"t": "signal", "from": <slot>, "data"}` | another device's signal, named by the slot it came from (step 2) |
+| `{"t": "turn", "urls": [...], "user", "password"}` | the answer to `turn` (step 2): `stun:<host>:<port>`, `turn:<host>:<port>?transport=udp`, `…?transport=tcp` and, where the instance has a name for it, `turns:<name>:443?transport=tcp`; a credential (two random strings) that holds while this socket lives (section 6). `{"t": "turn", "urls": []}` where the instance has no TURN |
 
 At most 16 sockets per space; a second hello of one device closes its older socket. A space not
 touched (hello, push, snapshot, pair, part) for 395 days is deleted. Every limit is Phloem's own
@@ -110,8 +117,9 @@ Phloem pings every socket every 30 s; one that does not answer within 15 s is cl
 others hear `presence`. A frame of more than 8.5 MiB (a 6 MiB snapshot in base64url and its JSON
 fit) closes the socket at once (1009); a frame against this section (another type, a second
 hello, a value that is not base64url without padding, a snapshot beyond `head`, binary) closes it
-with 1008, and so does a `watch` of more than 64 parts or with an id that is not 16 bytes. The
-close codes:
+with 1008, and so does a `watch` of more than 64 parts or with an id that is not 16 bytes, and a
+`signal` without a slot of 1–16 or with data that is missing or larger than 8 KiB. The close
+codes:
 
 | | |
 |---|---|
@@ -126,8 +134,9 @@ close codes:
 ## 5. In the browser (for the service: opaque)
 
 - The profile key `K`: 32 random bytes, on the devices only. HKDF-SHA256 (salt `betula-sync-v1`)
-  gives `space` (16 bytes, info `space`), `token` (32 bytes, info `token`) and the AES-256-GCM key
-  of the data (info `data`). A device id is 16 random bytes of its own.
+  gives `space` (16 bytes, info `space`), `token` (32 bytes, info `token`), the AES-256-GCM key
+  of the data (info `data`) and the one of the signals (info `live`, step 2). A device id is 16
+  random bytes of its own.
 - Sealed: a 12-byte random nonce, then AES-256-GCM's ciphertext and tag. The associated data names
   the space and what it is: `space ‖ "batch"`, `space ‖ "snapshot" ‖ upto` (8 bytes, big endian),
   `space ‖ "pair"`.
@@ -156,3 +165,37 @@ close codes:
 - A one-time link, `https://<host>/studyplan#once=<id ‖ key>`, is a parcel that waits up to 7
   days, associated data `"share"`: JSON `{"v": 1, "part": "<id>", "key": "<kp>"}` for a calendar
   that stays current, `{"v": 1, "copy": "<LivePart code>"}` for a copy of now.
+- A signal (step 2, `folia/crates/stores/src/sync/live.rs`) is sealed with the live key,
+  associated data `space ‖ "signal" ‖ from ‖ to` (the two slots, 2 bytes each, big endian), so
+  that Phloem can neither read it nor hand it to another device than the one meant: JSON
+  `{"k": "offer", "n", "sdp", "relay"}`, `{"k": "answer", "n", "sdp"}`, `{"k": "ice", "n", "c",
+  "mid", "line"}`, `{"k": "bye", "n"}`; `n` names the attempt (a random number of the device
+  that offered it). Of two devices the one of the smaller slot offers. The first attempt takes
+  STUN alone; a later one (`"relay": true`) takes TURN as well.
+- The data channel (negotiated, id 0, unordered, reliable) carries `{"t": "push", "data":
+  "<sealed batch>"}`: each change of the device, as the batch it pushes to Phloem (associated data
+  `space ‖ "batch"`), at most 60 000 characters (a larger one goes through Phloem alone). What
+  comes over it is taken as an entry is, without its number; Phloem's copy of it works no second
+  time.
+
+## 6. TURN (step 2)
+
+Pion's TURN (`github.com/pion/turn/v5`) inside Phloem, its rules Phloem's own
+(`phloem/internal/server/turn.go`):
+
+- **Who**: a credential is made on a socket's first `turn` frame, two random strings, and holds
+  while that socket lives; a socket that ends takes it with it (its allocations then end with
+  their lifetime, 10 minutes at the latest, and get no new permission).
+- **To whom**: a permission (and a channel binding) only for the address another socket of the
+  allocation's space came from (Traefik's `X-Real-Ip`), never for an address that is none on the
+  internet (RFC 6890: private, shared, loopback, link local, documentation, benchmarking,
+  multicast, reserved) nor for the instance's own (`PHLOEM_TURN_IP`): no relay to Phloem itself,
+  so a relay never meets another. A relay that was to send elsewhere drops the datagram and counts
+  it (`phloem_turn_total{event="forbidden"}`, an alert); the firewall's `turn.nft` holds the same
+  line once more.
+- **How much**: relays over UDP alone (no TCP relays, RFC 6062: WebRTC needs none), each at most
+  128 KiB a second each way, all of them at most 4 MiB a second each way; at most 8 allocations per
+  socket, 32 per space, and as many as the instance has relay ports. Beyond them Pion answers 486.
+- **Where**: STUN and TURN over UDP and TCP on `PHLOEM_TURN_PORT` of every address of the
+  container, published in host mode; TURN over TLS through Traefik, which ends TLS for
+  `PHLOEM_TURN_TLS_HOST` and hands the stream to the same TCP port.

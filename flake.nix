@@ -177,15 +177,16 @@
 
           # Update after changing phloem/go.mod / go.sum: set to pkgs.lib.fakeHash, build, copy
           # the hash Nix prints.
-          vendorHash = "sha256-eqQj+DxgNUvowfT24JLhZtP8W/4aIewZFUic1n93LUA=";
+          vendorHash = "sha256-GG6aylmzrnqGG4MVQMqcykFslesbEW/CEu8CAFjsHF4=";
 
           env.CGO_ENABLED = "0";
           ldflags = [ "-s" "-w" ];
           doCheck = true;
 
-          # The firewall `phloem start` loads, next to the binary.
+          # The firewall `phloem start` loads, next to the binary, and its rules for TURN.
           postInstall = ''
             install -Dm444 deploy/firewall.nft $out/etc/phloem/firewall.nft
+            install -Dm444 deploy/turn.nft $out/etc/phloem/turn.nft
           '';
 
           meta.mainProgram = "phloem";
@@ -219,6 +220,7 @@
               "PHLOEM_DATA=/data"
               "PHLOEM_STATS_DIR=/stats"
               "PHLOEM_FIREWALL=/etc/phloem/firewall.nft"
+              "PHLOEM_FIREWALL_TURN=/etc/phloem/turn.nft"
               "PHLOEM_LOG_FORMAT=json"
               "TZ=Europe/Berlin"
             ];

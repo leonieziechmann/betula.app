@@ -27,8 +27,11 @@ use folia_calendar::live::{following, LivePart};
 use folia_plans::shares::{join_link, split_link, Share, ShareTo};
 use folia_plans::studyplan::PlanDoc;
 
+mod rtc;
+
 use super::codes::{b64, unb64, KEY};
 use super::core::{Core, DEVICE};
+use super::live;
 use super::share::{fingerprint, missing, Put, ShareProblem, ONCE_TTL};
 use super::request;
 use super::wire::{self, In, Out};
@@ -163,7 +166,7 @@ pub fn leave(profile: u16, active: u16) {
 
 /// Takes what a synced profile keeps besides its stores out of this browser.
 fn drop_state(profile: u16) {
-    for key in [held_key(profile), records_key(profile), waiting_key(profile), status_key(profile), leave_key(profile)] {
+    for key in [held_key(profile), records_key(profile), waiting_key(profile), status_key(profile), leave_key(profile), rtc::relayed_key(profile)] {
         nav::local_set(&key, "");
     }
 }
@@ -173,9 +176,9 @@ pub fn state_of(profile: u16) -> State {
     if !syncs(profile) {
         return if nav::local_get(&ended_key(profile)).is_some() { State::Ended } else { State::Private };
     }
-    match nav::local_get(&status_key(profile)).as_deref().map(|s| s.split_whitespace().collect::<Vec<_>>()) {
-        Some(words) if words.first() == Some(&"online") => State::Online { devices: words.get(1).and_then(|n| n.parse().ok()).unwrap_or(0) },
-        _ => State::Offline,
+    match nav::local_get(&status_key(profile)).as_deref().and_then(live::read_status) {
+        Some(o) => State::Online { devices: o.devices, direct: o.direct, relayed: o.relayed },
+        None => State::Offline,
     }
 }
 
@@ -186,6 +189,8 @@ pub struct Keys {
     pub space: [u8; 16],
     pub token: [u8; 32],
     pub data: CryptoKey,
+    /// Seals the signals of the live way (`live::Talk`), step 2.
+    pub live: CryptoKey,
 }
 
 fn subtle() -> Option<web_sys::SubtleCrypto> {
@@ -220,7 +225,8 @@ pub async fn derive(k: &[u8; KEY]) -> Result<Keys, JsValue> {
     let space: [u8; 16] = bytes_of(&wait(bits("space", 128)).await?).try_into().map_err(|_| JsValue::NULL)?;
     let token: [u8; 32] = bytes_of(&wait(bits("token", 256)).await?).try_into().map_err(|_| JsValue::NULL)?;
     let data = aes_key(&bytes_of(&wait(bits("data", 256)).await?)).await?;
-    Ok(Keys { space, token, data })
+    let live = aes_key(&bytes_of(&wait(bits("live", 256)).await?)).await?;
+    Ok(Keys { space, token, data, live })
 }
 
 pub async fn seal(key: &CryptoKey, aad: &[u8], plain: &[u8]) -> Result<Vec<u8>, JsValue> {
@@ -588,6 +594,13 @@ pub struct Engine {
     renew_again: Cell<bool>,
     /// The parts this connection watches (`watch`).
     watched: RefCell<Vec<String>>,
+    /// The socket said welcome and is open.
+    welcomed: Cell<bool>,
+    /// Its Phloem takes `signal` and `turn` (the welcome says so; an older one closes the socket
+    /// on them).
+    phloem_live: Cell<bool>,
+    /// The live way: the connections to the other devices online (step 2, `rtc`).
+    live: RefCell<rtc::Live>,
 }
 
 struct Handlers {
@@ -608,13 +621,14 @@ impl Engine {
         self.profile == profile && !*self.closed.borrow()
     }
 
-    fn status(&self, devices: Option<usize>) {
-        let text = match devices {
-            Some(n) => format!("online {n}"),
-            None => "offline".to_string(),
-        };
-        nav::local_set(&status_key(self.profile), &text);
-        self.sync.refresh(self.profile);
+    /// Keeps the leader's word on the connections (`live::status_text`) for every tab's page.
+    fn status(&self) {
+        let online = (self.welcomed.get() && *self.open.borrow()).then(|| self.online_now());
+        let text = live::status_text(online);
+        if nav::local_get(&status_key(self.profile)).as_deref() != Some(text.as_str()) {
+            nav::local_set(&status_key(self.profile), &text);
+            self.sync.refresh(self.profile);
+        }
     }
 
     fn keep_waiting(&self) {
@@ -643,11 +657,14 @@ impl Engine {
     }
 
     fn change(self: &Rc<Self>, store: Store, before: &str, after: &str, wall: u64) {
+        let had: BTreeSet<String> = self.core.borrow().outbox.iter().map(|p| p.id.clone()).collect();
         let made = self.core.borrow_mut().change(store, before, after, wall, batch_id);
         if made {
             self.keep_waiting();
             self.later();
             self.send_waiting();
+            let fresh = self.core.borrow().outbox.iter().filter(|p| !had.contains(&p.id)).cloned().collect();
+            self.direct_out(fresh);
         }
     }
 
@@ -778,11 +795,13 @@ impl Engine {
         let engine = Rc::clone(self);
         let on_close = Closure::<dyn FnMut(CloseEvent)>::new(move |event: CloseEvent| {
             *engine.open.borrow_mut() = false;
+            engine.welcomed.set(false);
+            engine.socket_closed();
             engine.socket.borrow_mut().take();
             engine.in_flight.borrow_mut().clear();
             engine.snapshot_sent.set(false);
             if !*engine.closed.borrow() {
-                engine.status(None);
+                engine.status();
                 if !final_close(event.code()) {
                     engine.retry();
                 }
@@ -840,7 +859,7 @@ impl Engine {
 
     async fn frame(self: &Rc<Self>, frame: In) {
         match frame {
-            In::Welcome { slot, head, now: server, devices, snapshot, entries } => {
+            In::Welcome { slot, head, now: server, devices, live, snapshot, entries } => {
                 *self.tries.borrow_mut() = 0;
                 if server > 0 {
                     nav::local_set(OFFSET_KEY, &(server as i64 - now() as i64).to_string());
@@ -870,7 +889,9 @@ impl Engine {
                 self.project();
                 self.keep_waiting();
                 self.keep_records();
-                self.status(Some(devices.iter().filter(|d| **d != slot).count()));
+                self.welcomed.set(true);
+                self.phloem_live.set(live);
+                self.online(&devices);
                 self.send_waiting();
                 self.watched.borrow_mut().clear();
                 self.watch();
@@ -892,10 +913,9 @@ impl Engine {
                 self.core.borrow_mut().snapshot_due = false;
                 self.keep_waiting();
             }
-            In::Presence { devices } => {
-                let slot = self.core.borrow().slot();
-                self.status(Some(devices.iter().filter(|d| **d != slot).count()));
-            }
+            In::Presence { devices } => self.online(&devices),
+            In::Signal { from, data } => self.signal(from, &data).await,
+            In::Turn { urls, user, password } => self.got_ice(live::Ice { urls, user, password }),
             In::Compact => {
                 self.core.borrow_mut().snapshot_due = true;
                 self.send_waiting();
@@ -976,7 +996,8 @@ impl Engine {
         if let Some(socket) = self.socket.borrow().as_ref() {
             let _ = socket.close();
         }
-        self.status(None);
+        self.welcomed.set(false);
+        self.status();
     }
 
     fn close(&self) {
@@ -986,6 +1007,7 @@ impl Engine {
         if *self.dirty.borrow() {
             self.keep_records();
         }
+        self.close_live();
         if let Some(socket) = self.socket.borrow_mut().take() {
             socket.set_onopen(None);
             socket.set_onmessage(None);
@@ -1569,6 +1591,9 @@ async fn lead(sync: Sync, profiles: Profiles) {
         renewing: Cell::new(false),
         renew_again: Cell::new(false),
         watched: RefCell::new(Vec::new()),
+        welcomed: Cell::new(false),
+        phloem_live: Cell::new(false),
+        live: RefCell::new(rtc::Live::default()),
     });
     ENGINE.with(|e| *e.borrow_mut() = Some(Rc::clone(&engine)));
     engine.take_changes();
@@ -1576,7 +1601,7 @@ async fn lead(sync: Sync, profiles: Profiles) {
         engine.leave();
         return;
     }
-    engine.status(None);
+    engine.status();
     engine.catch_up();
     engine.connect();
 }

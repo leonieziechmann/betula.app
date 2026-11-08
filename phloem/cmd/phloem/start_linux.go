@@ -19,7 +19,10 @@ import (
 // SETUID and SETGID (and nothing else), in the container's own network namespace:
 //
 //  1. nft -f /etc/phloem/firewall.nft: no new connection out, no DNS, no IPv6, in only 8200;
-//  2. the table is there, and a datagram to Docker's resolver is dropped;
+//     with TURN (PHLOEM_TURN_HOST set), /etc/phloem/turn.nft in the same transaction: STUN and
+//     TURN in, a relay's datagram to a public address out, nothing else;
+//  2. the table is there (with TURN's rules where TURN is served), and a datagram to Docker's
+//     resolver is dropped;
 //  3. no_new_privs, no groups, uid and gid 65532: the kernel clears every capability;
 //  4. /proc says so (uid, gid, CapInh, CapPrm, CapEff, CapAmb, NoNewPrivs), and root does not
 //     come back;
@@ -37,6 +40,8 @@ func runStart(ctx context.Context, args []string) int {
 	fs := flag.NewFlagSet("start", flag.ContinueOnError)
 	rules := fs.String("firewall", envOr("PHLOEM_FIREWALL", "/etc/phloem/firewall.nft"),
 		"The rules nft loads before Phloem serves (env PHLOEM_FIREWALL)")
+	turnRules := fs.String("firewall-turn", envOr("PHLOEM_FIREWALL_TURN", "/etc/phloem/turn.nft"),
+		"The rules for TURN, loaded with them when PHLOEM_TURN_HOST is set (env PHLOEM_FIREWALL_TURN)")
 	nft := fs.String("nft", envOr("PHLOEM_NFT", "nft"), "The nft binary, by path or in PATH (env PHLOEM_NFT)")
 	logs := addLogFlags(fs)
 	fs.Usage = func() {
@@ -63,13 +68,17 @@ func runStart(ctx context.Context, args []string) int {
 	if err != nil {
 		return fail("cannot find nft", err)
 	}
-	if err := applyFirewall(ctx, nftPath, *rules); err != nil {
+	turn, err := turnFirewallFromEnv()
+	if err != nil {
+		return fail("invalid TURN configuration", err)
+	}
+	if err := applyFirewall(ctx, nftPath, *rules, *turnRules, turn); err != nil {
 		return fail("cannot load the firewall", err)
 	}
-	if err := checkFirewall(ctx, nftPath); err != nil {
+	if err := checkFirewall(ctx, nftPath, turn); err != nil {
 		return fail("the firewall does not hold", err)
 	}
-	log.Info("firewall in place", "event", "start.firewall", "rules", *rules)
+	log.Info("firewall in place", "event", "start.firewall", "rules", *rules, "turn", turn.String())
 
 	self, err := os.Executable()
 	if err != nil {

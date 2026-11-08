@@ -681,7 +681,7 @@ pub fn ProfileSwitcher() -> impl IntoView {
         // under it the active profile's state.
         let devices = sync.map(|sync| {
             let (dot, line) = match sync.state(active) {
-                SyncState::Online { devices } => ("on", (t.app.sync_online)(devices)),
+                SyncState::Online { devices, .. } => ("on", (t.app.sync_online)(devices)),
                 SyncState::Offline => ("on", t.app.sync_offline.to_string()),
                 SyncState::Private => ("off", t.app.sync_private.to_string()),
                 SyncState::Starting => ("wait", t.app.sync_starting.to_string()),

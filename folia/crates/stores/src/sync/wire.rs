@@ -15,6 +15,10 @@ pub enum Out {
     Delete,
     /// The parts of shared calendars this device follows (step 3).
     Watch { parts: Vec<String> },
+    /// A sealed signal for WebRTC (`live::Talk`) for the device of slot `to` (step 2).
+    Signal { to: u16, data: String },
+    /// The ICE servers and this socket's TURN credential, please (step 2).
+    Turn,
 }
 
 impl Out {
@@ -51,6 +55,9 @@ pub enum In {
         now: u64,
         #[serde(default)]
         devices: Vec<u16>,
+        /// This Phloem takes `signal` and `turn` (step 2); an older one closes a socket on them.
+        #[serde(default)]
+        live: bool,
         #[serde(default)]
         snapshot: Option<Snapshot>,
         #[serde(default)]
@@ -98,6 +105,21 @@ pub enum In {
         id: String,
         #[serde(default)]
         state: String,
+    },
+    /// Another device's sealed signal for WebRTC, from slot `from` (step 2).
+    Signal {
+        from: u16,
+        data: String,
+    },
+    /// The answer to `turn`: the ICE servers, none where the site has no TURN, and the socket's
+    /// credential.
+    Turn {
+        #[serde(default)]
+        urls: Vec<String>,
+        #[serde(default)]
+        user: String,
+        #[serde(default)]
+        password: String,
     },
     #[serde(other)]
     Other,
@@ -242,11 +264,11 @@ mod tests {
         let welcome = In::read(r#"{"t":"welcome","slot":2,"head":9,"now":1790000000000,"devices":[1,2],"snapshot":{"upto":4,"data":"AA"},"entries":[{"nr":5,"slot":1,"data":"AQ"}]}"#);
         assert_eq!(
             welcome,
-            Some(In::Welcome { slot: 2, head: 9, now: 1_790_000_000_000, devices: vec![1, 2], snapshot: Some(Snapshot { upto: 4, data: "AA".into() }), entries: vec![Entry { nr: 5, slot: 1, data: "AQ".into() }] })
+            Some(In::Welcome { slot: 2, head: 9, now: 1_790_000_000_000, devices: vec![1, 2], live: false, snapshot: Some(Snapshot { upto: 4, data: "AA".into() }), entries: vec![Entry { nr: 5, slot: 1, data: "AQ".into() }] })
         );
         assert_eq!(In::read(r#"{"t":"welcome","slot":1,"snapshot":null}"#).map(|w| matches!(w, In::Welcome { snapshot: None, .. })), Some(true));
         assert_eq!(In::read(r#"{"t":"error","code":"too_big","id":"x"}"#), Some(In::Error { code: "too_big".into(), id: Some("x".into()) }));
-        assert_eq!(In::read(r#"{"t":"signal","from":3}"#), Some(In::Other), "a frame of a later step is left alone");
+        assert_eq!(In::read(r#"{"t":"later","from":3}"#), Some(In::Other), "a frame of a later step is left alone");
         assert_eq!(In::read("no json"), None);
         let contents = Contents { v: 1, profiles: vec![Shared { key: "a2V5".into(), name: "Informatik".into() }] };
         let text = serde_json::to_string(&contents).unwrap();
@@ -270,5 +292,20 @@ mod tests {
         assert_eq!(serde_json::from_str::<ShareContents>(r#"{"v":1,"copy":"abc"}"#).unwrap().copy.as_deref(), Some("abc"));
         let parcels: Parcels = serde_json::from_str(r#"{"parcels":[{"id":"cA","state":"waiting","at":5},{"id":"cQ","state":"taken","at":6}]}"#).unwrap();
         assert_eq!(parcels.parcels.len(), 2);
+    }
+
+    #[test]
+    fn the_frames_of_the_live_way_read_and_write_as_the_protocol_says() {
+        assert_eq!(Out::Signal { to: 2, data: "c2ln".into() }.text(), r#"{"t":"signal","to":2,"data":"c2ln"}"#);
+        assert_eq!(Out::Turn.text(), r#"{"t":"turn"}"#);
+        assert_eq!(In::read(r#"{"t":"signal","from":3,"data":"c2ln"}"#), Some(In::Signal { from: 3, data: "c2ln".into() }));
+        assert_eq!(
+            In::read(r#"{"t":"turn","urls":["stun:betula.app:3478","turn:betula.app:3478?transport=udp"],"user":"dQ","password":"cA"}"#),
+            Some(In::Turn { urls: vec!["stun:betula.app:3478".into(), "turn:betula.app:3478?transport=udp".into()], user: "dQ".into(), password: "cA".into() })
+        );
+        assert_eq!(In::read(r#"{"t":"turn","urls":[]}"#), Some(In::Turn { urls: vec![], user: String::new(), password: String::new() }));
+        let live = |text: &str| matches!(In::read(text), Some(In::Welcome { live: true, .. }));
+        assert!(live(r#"{"t":"welcome","slot":1,"live":true}"#), "a Phloem of step 2 says so");
+        assert!(!live(r#"{"t":"welcome","slot":1}"#), "an older one says nothing: no signal, no turn to it");
     }
 }
