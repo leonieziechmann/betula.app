@@ -105,22 +105,46 @@ func (s *Server) goneLocked(r *room) {
 	s.mu.Unlock()
 }
 
-// deleteSpace deletes a space with everything of it; its devices online hear gone. It goes
-// through the room, so that no hello can slip in between.
+// deleteSpace deletes a space with everything of it; its devices online hear gone, and the
+// sockets that watch its parts hear those are gone. It goes through the room, so that no hello
+// can slip in between.
 func (s *Server) deleteSpace(id []byte, reason string) (bool, error) {
 	r := s.acquire(id)
-	defer s.release(r)
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	found, err := s.st.DeleteSpace(s.ctx, id)
+	found, parts, err := s.st.DeleteSpace(s.ctx, id, s.now())
+	if err == nil {
+		if found {
+			s.m.deleted.Inc(reason)
+		}
+		s.goneLocked(r)
+	}
+	r.mu.Unlock()
+	s.release(r)
 	if err != nil {
 		return false, err
 	}
-	if found {
-		s.m.deleted.Inc(reason)
-	}
-	s.goneLocked(r)
+	s.partsGone(parts) // after the room's lock: telling takes every watcher's, this one's too
 	return found, nil
+}
+
+// tellRoom sends frame to every device of a space online; a space without sockets has nobody
+// to tell.
+func (s *Server) tellRoom(space, frame []byte) {
+	s.mu.Lock()
+	r := s.rooms[string(space)]
+	if r != nil {
+		r.refs++
+	}
+	s.mu.Unlock()
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	for _, p := range r.peers {
+		p.send(outFrame{data: frame})
+	}
+	r.mu.Unlock()
+	s.release(r)
 }
 
 // notifyGone tells the devices online of a space the sweep deleted.
@@ -378,8 +402,11 @@ type peer struct {
 	pinging atomic.Bool
 
 	// Guarded by room.mu:
-	ending bool // a last frame is queued, or the socket goes: nothing more is queued
-	asked  bool // compact was asked of it since the last snapshot
+	ending bool             // a last frame is queued, or the socket goes: nothing more is queued
+	asked  bool             // compact was asked of it since the last snapshot
+	revs   map[string]int64 // the parts it watches, by id: the version it was told last (revGone: gone)
+
+	watching []string // the ids of the parts it watches, as the watchers have them; guarded by Server.watchers.mu
 }
 
 // outFrame is one frame for a device, or with data nil only the close.
@@ -568,7 +595,8 @@ func (p *peer) next() (data []byte, release func(), err error) {
 	}
 }
 
-// exit takes the device out of its room when its socket ended: the others hear it went.
+// exit takes the device out of its room when its socket ended: the others hear it went, and it
+// watches no part any more.
 func (p *peer) exit() {
 	r := p.room
 	r.mu.Lock()
@@ -583,6 +611,7 @@ func (p *peer) exit() {
 		p.s.m.closes.Inc("lost")
 		p.cancel()
 	}
+	p.s.unwatch(p)
 	p.s.release(r)
 }
 
@@ -601,6 +630,8 @@ func (p *peer) handle(data []byte) bool {
 		return p.leaveSpace()
 	case "delete":
 		return p.deleteSpace()
+	case "watch":
+		return p.watch(&f)
 	default: // a second hello among them
 		return p.violation("unexpected frame")
 	}

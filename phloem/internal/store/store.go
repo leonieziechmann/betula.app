@@ -1,7 +1,9 @@
 // Package store is Phloem's storage (docs/phloem/phloem.md, „Storage"): the spaces of the
 // profiles that sync, their devices, the sealed entries after each space's snapshot, the
-// snapshots and the parcels for devices to come, in one SQLite file. Phloem never opens what a
-// space holds; the store keeps it as it came and counts its bytes for the budget.
+// snapshots, the parcels for devices to come and the parts of shared calendars, with what became
+// of the parcels and parts that are no longer there (their tombstones), in one SQLite file.
+// Phloem never opens what a space holds; the store keeps it as it came and counts its bytes for
+// the budget.
 //
 // One writer (a single connection, BEGIN IMMEDIATE, synchronous FULL: what Phloem acknowledged
 // as stored survives a power loss) and a pool of readers. Every write that changes the bytes of
@@ -33,16 +35,18 @@ import (
 var migrationFS embed.FS
 
 var (
-	// ErrNotFound: no such space, snapshot or parcel (an expired parcel counts as absent).
+	// ErrNotFound: no such space, snapshot, parcel or part (an expired parcel counts as absent).
 	ErrNotFound = errors.New("not found")
-	// ErrExists: a space or a parcel of this id is there already.
+	// ErrExists: a space, a parcel or a part of this id is there already, or a tombstone of it.
 	ErrExists = errors.New("exists")
 	// ErrUnauthorized: the token is not the space's.
 	ErrUnauthorized = errors.New("unauthorized")
 	// ErrFull: every slot of the space is taken.
 	ErrFull = errors.New("full")
-	// ErrTooMany: the space has as many parcels waiting as it may.
-	ErrTooMany = errors.New("too many parcels")
+	// ErrTooMany: the space has as many parcels waiting, or as many parts, as it may.
+	ErrTooMany = errors.New("too many")
+	// ErrGone: a part that was deleted, or whose space was.
+	ErrGone = errors.New("gone")
 	// ErrCompactFirst: the entries after the snapshot would exceed the hard limit; a snapshot
 	// has to come first.
 	ErrCompactFirst = errors.New("compact first")
@@ -54,9 +58,18 @@ var (
 	ErrClosed = errors.New("store closed")
 )
 
-// RowBytes is what a row costs the budget beside its data: an entry, a snapshot or a parcel of
-// no data still takes room.
+// RowBytes is what a row costs the budget beside its data: an entry, a snapshot, a parcel or a
+// part of no data still takes room, and so does a tombstone.
 const RowBytes = 64
+
+// The states of a parcel (GET /sync/v1/pairs): one that waits, and what became of one that no
+// longer does, as its tombstone keeps it.
+const (
+	PairWaiting   = "waiting"
+	PairTaken     = "taken"
+	PairExpired   = "expired"
+	PairWithdrawn = "withdrawn"
+)
 
 // spaceColumns are the columns scanSpace reads. The last says whether a snapshot exists:
 // snap_upto is 0 both without one and with one as of entry 0 (the first device's).
@@ -75,7 +88,7 @@ type Store struct {
 	w     *sql.DB // the one writer
 	r     *sql.DB // the readers (query_only)
 	shut  bool
-	total int64 // sum of spaces.bytes
+	total int64 // sum of spaces.bytes, and RowBytes for every part tombstone (it outlives its space)
 	count int64 // number of spaces
 }
 
@@ -138,11 +151,13 @@ func Open(dir string) (*Store, error) {
 		_ = w.Close()
 		return nil, fmt.Errorf("failed to open %s for reading: %w", path, err)
 	}
-	if err := w.QueryRow("SELECT COUNT(*), COALESCE(SUM(bytes), 0) FROM spaces").Scan(&s.count, &s.total); err != nil {
+	var tombstones int64
+	if err := w.QueryRow("SELECT (SELECT COUNT(*) FROM spaces), (SELECT COALESCE(SUM(bytes), 0) FROM spaces), (SELECT COUNT(*) FROM part_tombstones)").Scan(&s.count, &s.total, &tombstones); err != nil {
 		_ = r.Close()
 		_ = w.Close()
 		return nil, fmt.Errorf("failed to read the totals of %s: %w", path, err)
 	}
+	s.total += tombstones * RowBytes
 	s.w, s.r = w, r
 	return s, nil
 }
@@ -185,7 +200,8 @@ func (s *Store) closed() bool {
 	return s.shut
 }
 
-// Totals are the number of spaces and the bytes they hold (cached, exact).
+// Totals are the number of spaces and the bytes the budget counts: what the spaces hold, and a
+// row for every part tombstone, which outlives its space (cached, exact).
 func (s *Store) Totals() (spaces, bytes int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -205,8 +221,9 @@ func TokenHash(token []byte) []byte {
 	return sum[:]
 }
 
-// write runs f in one write transaction under mu; f returns the change of the space's bytes and
-// of the number of spaces, which are added to the totals once the transaction committed.
+// write runs f in one write transaction under mu; f returns the change of the bytes the budget
+// counts and of the number of spaces, which are added to the totals once the transaction
+// committed.
 func (s *Store) write(ctx context.Context, f func(tx *sql.Tx) (dBytes, dSpaces int64, err error)) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -286,9 +303,12 @@ func (s *Store) Authenticate(ctx context.Context, id, token []byte) (Space, erro
 	return sp, nil
 }
 
-// DeleteSpace removes a space with everything it holds; false when there was none.
-func (s *Store) DeleteSpace(ctx context.Context, id []byte) (bool, error) {
+// DeleteSpace removes a space with everything it holds. Its parts are gone from now on: their
+// tombstones outlive the space, and their ids come back for their watchers. false when there
+// was no such space.
+func (s *Store) DeleteSpace(ctx context.Context, id []byte, now time.Time) (bool, [][]byte, error) {
 	found := false
+	var parts [][]byte
 	err := s.write(ctx, func(tx *sql.Tx) (int64, int64, error) {
 		var bytes int64
 		err := tx.QueryRowContext(ctx, "SELECT bytes FROM spaces WHERE id = ?", id).Scan(&bytes)
@@ -298,16 +318,22 @@ func (s *Store) DeleteSpace(ctx context.Context, id []byte) (bool, error) {
 		if err != nil {
 			return 0, 0, err
 		}
+		if parts, err = buryParts(ctx, tx, id, now); err != nil {
+			return 0, 0, err
+		}
 		if _, err := tx.ExecContext(ctx, "DELETE FROM spaces WHERE id = ?", id); err != nil {
 			return 0, 0, err
 		}
 		found = true
-		return -bytes, -1, nil
+		return -bytes + int64(len(parts))*RowBytes, -1, nil
 	})
-	return found, err
+	if err != nil {
+		return false, nil, err
+	}
+	return found, parts, nil
 }
 
-// Touch notes that a space is in use (hello, push, snapshot, parcel): it does not expire.
+// Touch notes that a space is in use (hello, push, snapshot, parcel, part): it does not expire.
 func (s *Store) Touch(ctx context.Context, id []byte, now time.Time) error {
 	return s.write(ctx, func(tx *sql.Tx) (int64, int64, error) {
 		_, err := tx.ExecContext(ctx, "UPDATE spaces SET touched = MAX(touched, ?) WHERE id = ?", now.UnixMilli(), id)
@@ -512,9 +538,9 @@ func (s *Store) Snapshot(ctx context.Context, id []byte) (Snapshot, error) {
 	return snap, nil
 }
 
-// PutPair keeps a parcel until expires. ErrExists for an id that is taken, ErrNotFound for a
-// space that is gone, ErrTooMany when the space has maxPairs parcels waiting that have not
-// expired.
+// PutPair keeps a parcel until expires. ErrExists for an id that is taken, or whose tombstone
+// says what became of an earlier parcel of it; ErrNotFound for a space that is gone; ErrTooMany
+// when the space has maxPairs parcels waiting that have not expired.
 func (s *Store) PutPair(ctx context.Context, pairID, space, box []byte, now, expires time.Time, maxPairs int) error {
 	return s.write(ctx, func(tx *sql.Tx) (int64, int64, error) {
 		res, err := tx.ExecContext(ctx, "UPDATE spaces SET touched = MAX(touched, ?) WHERE id = ?", now.UnixMilli(), space)
@@ -523,6 +549,11 @@ func (s *Store) PutPair(ctx context.Context, pairID, space, box []byte, now, exp
 		}
 		if n, _ := res.RowsAffected(); n == 0 {
 			return 0, 0, ErrNotFound
+		}
+		if _, err := pairState(ctx, tx, pairID); err == nil {
+			return 0, 0, ErrExists
+		} else if !errors.Is(err, ErrNotFound) {
+			return 0, 0, err
 		}
 		var waiting int
 		if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM pairs WHERE space = ? AND expires > ?", space, now.UnixMilli()).Scan(&waiting); err != nil {
@@ -545,28 +576,45 @@ func (s *Store) PutPair(ctx context.Context, pairID, space, box []byte, now, exp
 	})
 }
 
-// TakePair hands a parcel out once: it is removed in the same step. ErrNotFound when there is
-// none, or it expired (then it is removed as well). An id that finds nothing costs a read, not
-// the writer: guessing ids does not hold up the pushes.
-func (s *Store) TakePair(ctx context.Context, pairID []byte, now time.Time) ([]byte, error) {
+// Took is what TakePair found: the parcel with its space when it waited (State ""), else what
+// became of it.
+type Took struct {
+	Box     []byte
+	Space   []byte // the parcel's space, whose devices hear that it was taken
+	State   string // "": Box is the parcel, taken now; else PairTaken, PairExpired or PairWithdrawn
+	Expired bool   // it expired before the sweep saw it, and became its tombstone by this call
+}
+
+// TakePair hands a parcel out once: in the same step it becomes a tombstone (taken). One that
+// expired before the sweep saw it becomes its tombstone (expired) instead. ErrNotFound when
+// neither a parcel nor a tombstone has the id. An id that finds no parcel costs a read, not the
+// writer: guessing ids does not hold up the pushes. A space keeps the tombstones of keep
+// parcels at most.
+func (s *Store) TakePair(ctx context.Context, pairID []byte, now time.Time, keep int) (Took, error) {
 	if s.closed() {
-		return nil, ErrClosed
+		return Took{}, ErrClosed
 	}
 	var one int
 	err := s.r.QueryRowContext(ctx, "SELECT 1 FROM pairs WHERE id = ?", pairID).Scan(&one)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
+		state, err := pairState(ctx, s.r, pairID)
+		if err != nil {
+			return Took{}, err
+		}
+		return Took{State: state}, nil
 	}
 	if err != nil {
-		return nil, err
+		return Took{}, err
 	}
-	var box []byte
+	var out Took
 	err = s.write(ctx, func(tx *sql.Tx) (int64, int64, error) {
-		var space []byte
+		var space, box []byte
 		var expires int64
 		err := tx.QueryRowContext(ctx, "SELECT space, box, expires FROM pairs WHERE id = ?", pairID).Scan(&space, &box, &expires)
-		if errors.Is(err, sql.ErrNoRows) {
-			return 0, 0, ErrNotFound
+		if errors.Is(err, sql.ErrNoRows) { // taken or withdrawn since the read
+			state, err := pairState(ctx, tx, pairID)
+			out = Took{State: state}
+			return 0, 0, err
 		}
 		if err != nil {
 			return 0, 0, err
@@ -574,36 +622,162 @@ func (s *Store) TakePair(ctx context.Context, pairID []byte, now time.Time) ([]b
 		if _, err := tx.ExecContext(ctx, "DELETE FROM pairs WHERE id = ?", pairID); err != nil {
 			return 0, 0, err
 		}
-		cost := int64(len(box)) + RowBytes
-		if _, err := tx.ExecContext(ctx, "UPDATE spaces SET bytes = bytes - ? WHERE id = ?", cost, space); err != nil {
+		out = Took{Box: box, Space: space}
+		state, at := PairTaken, now.UnixMilli()
+		if expires <= now.UnixMilli() {
+			out = Took{State: PairExpired, Expired: true}
+			state, at = PairExpired, expires
+		}
+		delta, err := pairGone(ctx, tx, pairID, space, int64(len(box)), state, at, keep)
+		return delta, 0, err
+	})
+	if err != nil {
+		return Took{}, err
+	}
+	return out, nil
+}
+
+// WithdrawPair withdraws a parcel of a space that waits: a tombstone (withdrawn) from now on,
+// and the space is touched. false when the id is not a parcel of the space that waits (nothing
+// changes then; an id that finds none costs a read). A space keeps the tombstones of keep
+// parcels at most.
+func (s *Store) WithdrawPair(ctx context.Context, pairID, space []byte, now time.Time, keep int) (bool, error) {
+	if s.closed() {
+		return false, ErrClosed
+	}
+	const waits = "SELECT LENGTH(box) FROM pairs WHERE id = ? AND space = ? AND expires > ?"
+	ms := now.UnixMilli()
+	var size int64
+	err := s.r.QueryRowContext(ctx, waits, pairID, space, ms).Scan(&size)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	found := false
+	err = s.write(ctx, func(tx *sql.Tx) (int64, int64, error) {
+		err := tx.QueryRowContext(ctx, waits, pairID, space, ms).Scan(&size)
+		if errors.Is(err, sql.ErrNoRows) { // taken since the read
+			return 0, 0, nil
+		}
+		if err != nil {
 			return 0, 0, err
 		}
-		if expires <= now.UnixMilli() {
-			box = nil
+		if _, err := tx.ExecContext(ctx, "DELETE FROM pairs WHERE id = ?", pairID); err != nil {
+			return 0, 0, err
 		}
-		return -cost, 0, nil
+		delta, err := pairGone(ctx, tx, pairID, space, size, PairWithdrawn, ms, keep)
+		if err != nil {
+			return 0, 0, err
+		}
+		if _, err := tx.ExecContext(ctx, "UPDATE spaces SET touched = MAX(touched, ?) WHERE id = ?", ms, space); err != nil {
+			return 0, 0, err
+		}
+		found = true
+		return delta, 0, nil
 	})
+	if err != nil {
+		return false, err
+	}
+	return found, nil
+}
+
+// PairInfo is a parcel of a space as GET /sync/v1/pairs lists it: one that waits (At: when it
+// expires), or what became of one (At: when it happened).
+type PairInfo struct {
+	ID    []byte
+	State string
+	At    time.Time
+}
+
+// Pairs lists the parcels of a space, the newest At first. One that expired before the sweep
+// saw it is listed as expired.
+func (s *Store) Pairs(ctx context.Context, space []byte, now time.Time) ([]PairInfo, error) {
+	if s.closed() {
+		return nil, ErrClosed
+	}
+	rows, err := s.r.QueryContext(ctx, `SELECT id, CASE WHEN expires > ? THEN ? ELSE ? END, expires FROM pairs WHERE space = ?
+		UNION ALL SELECT id, state, at FROM pair_tombstones WHERE space = ?
+		ORDER BY 3 DESC, 1`, now.UnixMilli(), PairWaiting, PairExpired, space, space)
 	if err != nil {
 		return nil, err
 	}
-	if box == nil {
-		return nil, ErrNotFound
+	defer rows.Close()
+	var out []PairInfo
+	for rows.Next() {
+		var p PairInfo
+		var at int64
+		if err := rows.Scan(&p.ID, &p.State, &at); err != nil {
+			return nil, err
+		}
+		p.At = time.UnixMilli(at)
+		out = append(out, p)
 	}
-	return box, nil
+	return out, rows.Err()
+}
+
+// queryer is a reader of one row: the readers' pool, or a transaction.
+type queryer interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+// pairState reads what became of a parcel; ErrNotFound when no tombstone says.
+func pairState(ctx context.Context, q queryer, pairID []byte) (string, error) {
+	var state string
+	err := q.QueryRowContext(ctx, "SELECT state FROM pair_tombstones WHERE id = ?", pairID).Scan(&state)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return state, err
+}
+
+// pairGone makes a parcel that left (its box of size bytes, its row deleted) a tombstone of
+// state as of at, and forgets the space's oldest tombstones beyond keep, so that what a space
+// keeps of its parcels stays bounded however many it leaves. It returns the change of the
+// space's bytes: the box leaves, its row stays as the tombstone's.
+func pairGone(ctx context.Context, tx *sql.Tx, pairID, space []byte, size int64, state string, at int64, keep int) (int64, error) {
+	if _, err := tx.ExecContext(ctx, "INSERT INTO pair_tombstones (id, space, state, at) VALUES (?, ?, ?, ?)", pairID, space, state, at); err != nil {
+		return 0, err
+	}
+	res, err := tx.ExecContext(ctx, `DELETE FROM pair_tombstones WHERE id IN
+		(SELECT id FROM pair_tombstones WHERE space = ? ORDER BY at DESC, id DESC LIMIT -1 OFFSET ?)`, space, keep)
+	if err != nil {
+		return 0, err
+	}
+	forgotten, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	delta := -size - forgotten*RowBytes
+	if _, err := tx.ExecContext(ctx, "UPDATE spaces SET bytes = bytes + ? WHERE id = ?", delta, space); err != nil {
+		return 0, err
+	}
+	return delta, nil
+}
+
+// Horizons are what a sweep forgets: the spaces not touched since Idle, the tombstones of
+// parcels of before Pairs and those of parts of before Parts.
+type Horizons struct {
+	Idle, Pairs, Parts time.Time
 }
 
 // Swept is what a sweep removed.
 type Swept struct {
-	Spaces [][]byte // the spaces not touched since the limit
+	Spaces [][]byte // the spaces not touched since the horizon
+	Parts  [][]byte // their parts, gone from now on
 	Pairs  int      // the parcels that expired
 }
 
-// Sweep removes the spaces not touched since idleBefore and the parcels expired at now.
-func (s *Store) Sweep(ctx context.Context, now, idleBefore time.Time) (Swept, error) {
+// Sweep removes the spaces not touched since h.Idle (their parts are gone from now on), makes
+// the parcels expired at now tombstones (expired, as of when they expired; a space keeps those
+// of keep parcels at most), and forgets the tombstones of before h.Pairs and h.Parts.
+func (s *Store) Sweep(ctx context.Context, now time.Time, h Horizons, keep int) (Swept, error) {
 	var out Swept
 	err := s.write(ctx, func(tx *sql.Tx) (int64, int64, error) {
+		out = Swept{}
 		var dBytes, dSpaces int64
-		rows, err := tx.QueryContext(ctx, "SELECT id, bytes FROM spaces WHERE touched < ?", idleBefore.UnixMilli())
+		rows, err := tx.QueryContext(ctx, "SELECT id, bytes FROM spaces WHERE touched < ?", h.Idle.UnixMilli())
 		if err != nil {
 			return 0, 0, err
 		}
@@ -622,41 +796,89 @@ func (s *Store) Sweep(ctx context.Context, now, idleBefore time.Time) (Swept, er
 			return 0, 0, err
 		}
 		for _, id := range out.Spaces {
+			parts, err := buryParts(ctx, tx, id, now)
+			if err != nil {
+				return 0, 0, err
+			}
+			out.Parts = append(out.Parts, parts...)
+			dBytes += int64(len(parts)) * RowBytes
 			if _, err := tx.ExecContext(ctx, "DELETE FROM spaces WHERE id = ?", id); err != nil {
 				return 0, 0, err
 			}
 		}
-		prow, err := tx.QueryContext(ctx, "SELECT space, LENGTH(box) FROM pairs WHERE expires <= ?", now.UnixMilli())
+
+		prow, err := tx.QueryContext(ctx, "SELECT id, space, LENGTH(box), expires FROM pairs WHERE expires <= ?", now.UnixMilli())
 		if err != nil {
 			return 0, 0, err
 		}
-		type gone struct {
-			space []byte
-			size  int64
+		type expiredPair struct {
+			id, space     []byte
+			size, expires int64
 		}
-		var expired []gone
+		var expired []expiredPair
 		for prow.Next() {
-			var g gone
-			if err := prow.Scan(&g.space, &g.size); err != nil {
+			var p expiredPair
+			if err := prow.Scan(&p.id, &p.space, &p.size, &p.expires); err != nil {
 				_ = prow.Close()
 				return 0, 0, err
 			}
-			expired = append(expired, g)
+			expired = append(expired, p)
 		}
 		if err := errors.Join(prow.Err(), prow.Close()); err != nil {
 			return 0, 0, err
 		}
-		if _, err := tx.ExecContext(ctx, "DELETE FROM pairs WHERE expires <= ?", now.UnixMilli()); err != nil {
-			return 0, 0, err
-		}
-		for _, g := range expired {
-			cost := g.size + RowBytes
-			if _, err := tx.ExecContext(ctx, "UPDATE spaces SET bytes = bytes - ? WHERE id = ?", cost, g.space); err != nil {
+		for _, p := range expired {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM pairs WHERE id = ?", p.id); err != nil {
 				return 0, 0, err
 			}
-			dBytes -= cost
+			delta, err := pairGone(ctx, tx, p.id, p.space, p.size, PairExpired, p.expires, keep)
+			if err != nil {
+				return 0, 0, err
+			}
+			dBytes += delta
 		}
 		out.Pairs = len(expired)
+
+		// The tombstones of parcels cost their spaces a row each; those of parts cost the
+		// totals alone, since they outlive their spaces.
+		trows, err := tx.QueryContext(ctx, "SELECT space, COUNT(*) FROM pair_tombstones WHERE at < ? GROUP BY space", h.Pairs.UnixMilli())
+		if err != nil {
+			return 0, 0, err
+		}
+		type forgotten struct {
+			space []byte
+			n     int64
+		}
+		var old []forgotten
+		for trows.Next() {
+			var f forgotten
+			if err := trows.Scan(&f.space, &f.n); err != nil {
+				_ = trows.Close()
+				return 0, 0, err
+			}
+			old = append(old, f)
+		}
+		if err := errors.Join(trows.Err(), trows.Close()); err != nil {
+			return 0, 0, err
+		}
+		for _, f := range old {
+			if _, err := tx.ExecContext(ctx, "UPDATE spaces SET bytes = bytes - ? WHERE id = ?", f.n*RowBytes, f.space); err != nil {
+				return 0, 0, err
+			}
+			dBytes -= f.n * RowBytes
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM pair_tombstones WHERE at < ?", h.Pairs.UnixMilli()); err != nil {
+			return 0, 0, err
+		}
+		res, err := tx.ExecContext(ctx, "DELETE FROM part_tombstones WHERE at < ?", h.Parts.UnixMilli())
+		if err != nil {
+			return 0, 0, err
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return 0, 0, err
+		}
+		dBytes -= n * RowBytes
 		return dBytes, dSpaces, nil
 	})
 	return out, err

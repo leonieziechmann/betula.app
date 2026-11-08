@@ -1,7 +1,8 @@
 // Package server is Phloem's service (docs/phloem/protocol.md): it makes and deletes the spaces
-// of the profiles that sync, keeps the parcels for devices to come, and hands the sealed entries
-// of a space between its devices, live, over one WebSocket each. It opens nothing it keeps, and
-// holds every limit of the contract itself, whatever a client does.
+// of the profiles that sync, keeps the parcels for devices to come, hands the sealed entries of
+// a space between its devices, live, over one WebSocket each, and keeps the parts of shared
+// calendars for anyone with their id, telling the sockets that watch a part when it changes. It
+// opens nothing it keeps, and holds every limit of the contract itself, whatever a client does.
 //
 // Its numbers go to a file (the stats file, written every 15 s), not to an endpoint: a network
 // the monitoring could ask Phloem over would also let Phloem reach the monitoring.
@@ -23,8 +24,8 @@ import (
 	"github.com/leonieziechmann/betula/phloem/internal/store"
 )
 
-// DefaultBudget is what all spaces together may hold before no new space or parcel is taken:
-// 50 GB (owner, 2026-11-05: „<50gb für profile kein problem").
+// DefaultBudget is what all spaces together may hold before no new space, parcel or part is
+// taken: 50 GB (owner, 2026-11-05: „<50gb für profile kein problem").
 const DefaultBudget int64 = 50_000_000_000
 
 // DefaultStatsInterval is how often the stats file is written.
@@ -53,9 +54,20 @@ type Limits struct {
 	CreateWindow  time.Duration //
 	TakesPerAddr  int           // parcels one address may ask for in an hour (found or not)
 
-	PairTTL  time.Duration // how long a parcel waits
-	MaxPairs int           // parcels a space may have waiting
-	Expiry   time.Duration // a space not touched for this long is deleted
+	PairTTL      time.Duration // how long a parcel waits unless its device names another time
+	PairMinTTL   time.Duration // ... which is at least this
+	PairMaxTTL   time.Duration // ... and at most this
+	MaxPairs     int           // parcels a space may have waiting
+	PairGoneFor  time.Duration // how long what became of a parcel is kept
+	MaxPairsGone int           // ... for this many parcels of a space at most: the oldest go first
+	Expiry       time.Duration // a space not touched for this long is deleted
+
+	MaxPart         int           // the decoded data of a part
+	MaxParts        int           // parts of a space
+	PartsPerDay     int           // new parts a space may make in a day: each stays gone PartGoneFor once deleted
+	MaxWatch        int           // parts one socket may watch
+	PartGetsPerAddr int           // parts one address may ask for in an hour (found or not)
+	PartGoneFor     time.Duration // a part deleted (or whose space was) stays gone this long
 
 	HelloTimeout time.Duration // a socket's hello comes within it
 	FrameTimeout time.Duration // a frame, once begun, arrives within it
@@ -92,9 +104,20 @@ var DefaultLimits = Limits{
 	CreateWindow:  time.Hour,
 	TakesPerAddr:  120,
 
-	PairTTL:  10 * time.Minute,
-	MaxPairs: 16,
-	Expiry:   395 * 24 * time.Hour,
+	PairTTL:      10 * time.Minute,
+	PairMinTTL:   time.Minute,
+	PairMaxTTL:   7 * 24 * time.Hour,
+	MaxPairs:     32,
+	PairGoneFor:  30 * 24 * time.Hour,
+	MaxPairsGone: 256,
+	Expiry:       395 * 24 * time.Hour,
+
+	MaxPart:         16 << 10,
+	MaxParts:        32,
+	PartsPerDay:     32,
+	MaxWatch:        64,
+	PartGetsPerAddr: 3600,
+	PartGoneFor:     395 * 24 * time.Hour,
 
 	HelloTimeout: 10 * time.Second,
 	FrameTimeout: time.Minute,
@@ -147,8 +170,18 @@ func (l Limits) withDefaults() Limits {
 	pickD(&l.CreateWindow, d.CreateWindow)
 	pick(&l.TakesPerAddr, d.TakesPerAddr)
 	pickD(&l.PairTTL, d.PairTTL)
+	pickD(&l.PairMinTTL, d.PairMinTTL)
+	pickD(&l.PairMaxTTL, d.PairMaxTTL)
 	pick(&l.MaxPairs, d.MaxPairs)
+	pickD(&l.PairGoneFor, d.PairGoneFor)
+	pick(&l.MaxPairsGone, d.MaxPairsGone)
 	pickD(&l.Expiry, d.Expiry)
+	pick(&l.MaxPart, d.MaxPart)
+	pick(&l.MaxParts, d.MaxParts)
+	pick(&l.PartsPerDay, d.PartsPerDay)
+	pick(&l.MaxWatch, d.MaxWatch)
+	pick(&l.PartGetsPerAddr, d.PartGetsPerAddr)
+	pickD(&l.PartGoneFor, d.PartGoneFor)
 	pickD(&l.HelloTimeout, d.HelloTimeout)
 	pickD(&l.FrameTimeout, d.FrameTimeout)
 	pickD(&l.WriteTimeout, d.WriteTimeout)
@@ -176,7 +209,7 @@ type Options struct {
 	// origin whose host is the request's own (the site's own origin behind Traefik).
 	Origins []string
 
-	// Budget is what all spaces together may hold; at it, no new space or parcel (507). 0:
+	// Budget is what all spaces together may hold; at it, no new space, parcel or part (507). 0:
 	// DefaultBudget.
 	Budget int64
 
@@ -225,9 +258,14 @@ type Server struct {
 	creates   *limiter // new spaces by address
 	createAll *limiter // new spaces in all (one key)
 	takes     *limiter // parcels asked for by address
-	pushes    *limiter // pushes and snapshots by space
+	partGets  *limiter // parts asked for by address
+	pushes    *limiter // pushes, snapshots, parcels, parts and watches by space
+	newParts  *limiter // new parts by space
 
 	devices atomic.Int64 // devices of every space, as of the last tick
+	parts   atomic.Int64 // parts of every space, as of the last tick
+
+	watchers watchers // the sockets that watch parts
 
 	mu          sync.Mutex
 	rooms       map[string]*room // the spaces with sockets, by space id
@@ -289,7 +327,10 @@ func New(opt Options) (*Server, error) {
 		creates:   perWindow(lim.SpacesPerAddr, lim.CreateWindow),
 		createAll: perWindow(lim.SpacesTotal, lim.CreateWindow),
 		takes:     perWindow(lim.TakesPerAddr, time.Hour),
+		partGets:  perWindow(lim.PartGetsPerAddr, time.Hour),
 		pushes:    newLimiter(lim.PushRate, lim.PushBurst),
+		newParts:  perWindow(lim.PartsPerDay, 24*time.Hour),
+		watchers:  watchers{parts: map[string]map[*peer]struct{}{}},
 		rooms:     map[string]*room{},
 		waiting:   map[string]int{},
 	}
@@ -384,7 +425,7 @@ func (s *Server) checkBudget() {
 	attrs := []any{"bytes", used, "budget", s.budget}
 	switch {
 	case level == 2:
-		log.Error("the budget is reached: no new spaces or parcels", append(attrs, "event", "budget.reached")...)
+		log.Error("the budget is reached: no new spaces, parcels or parts", append(attrs, "event", "budget.reached")...)
 	case level == 1 && prev == 0:
 		log.Warn("half of the budget is used", append(attrs, "event", "budget.half")...)
 	default:
@@ -406,12 +447,17 @@ func (s *Server) sweepLoop() {
 	}
 }
 
-// sweep deletes the spaces not touched for Limits.Expiry (their devices online hear gone) and
-// the parcels that expired, and forgets the limiters' full buckets.
+// sweep deletes the spaces not touched for Limits.Expiry (their devices online hear gone, the
+// watchers of their parts hear those are gone), makes the parcels that expired tombstones,
+// forgets the tombstones older than they are kept, and forgets the limiters' full buckets.
 // Log events: sweep.done, store.failed (ERROR).
 func (s *Server) sweep() {
 	now := s.now()
-	swept, err := s.st.Sweep(s.ctx, now, now.Add(-s.lim.Expiry))
+	swept, err := s.st.Sweep(s.ctx, now, store.Horizons{
+		Idle:  now.Add(-s.lim.Expiry),
+		Pairs: now.Add(-s.lim.PairGoneFor),
+		Parts: now.Add(-s.lim.PartGoneFor),
+	}, s.lim.MaxPairsGone)
 	if err != nil {
 		if s.ctx.Err() == nil {
 			oplog.For("store").Error("the sweep failed", "event", "store.failed", "op", "sweep", oplog.Err(err))
@@ -422,13 +468,14 @@ func (s *Server) sweep() {
 		s.m.deleted.Inc("expired")
 		s.notifyGone(id)
 	}
+	s.partsGone(swept.Parts)
 	if swept.Pairs > 0 {
 		s.m.parcels.Add(float64(swept.Pairs), "expired")
 	}
 	if len(swept.Spaces) > 0 || swept.Pairs > 0 {
-		oplog.For("store").Info("swept", "event", "sweep.done", "spaces", len(swept.Spaces), "parcels", swept.Pairs)
+		oplog.For("store").Info("swept", "event", "sweep.done", "spaces", len(swept.Spaces), "parcels", swept.Pairs, "parts", len(swept.Parts))
 	}
-	for _, l := range []*limiter{s.creates, s.createAll, s.takes, s.pushes} {
+	for _, l := range []*limiter{s.creates, s.createAll, s.takes, s.partGets, s.pushes, s.newParts} {
 		l.prune(now)
 	}
 }
@@ -448,11 +495,14 @@ func (s *Server) statsLoop() {
 	}
 }
 
-// tick counts the devices, looks at the budget and writes the stats file.
+// tick counts the devices and the parts, looks at the budget and writes the stats file.
 // Log events: stats.failed (WARN, once until it works again), stats.recovered.
 func (s *Server) tick() {
 	if n, err := s.st.Devices(s.ctx); err == nil {
 		s.devices.Store(n)
+	}
+	if n, err := s.st.Parts(s.ctx); err == nil {
+		s.parts.Store(n)
 	}
 	s.checkBudget()
 	if s.opt.StatsDir == "" {

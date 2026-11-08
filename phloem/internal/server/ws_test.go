@@ -372,6 +372,63 @@ func TestDeletingTheSpaceTellsEveryDevice(t *testing.T) {
 	}
 }
 
+// The devices of a space online hear when one of its parcels is taken; nobody else does, and
+// nothing else of a parcel is told.
+func TestTheDevicesOnlineHearTheirParcelTaken(t *testing.T) {
+	e := newEnv(t, nil)
+	p, a, b := newProfile(), randBytes(16), randBytes(16)
+	e.mustCreate(p, a)
+	ca, _ := e.connect(p, a, 0)
+	cb, _ := e.connect(p, b, 0)
+	ca.expect("presence")
+	other, d := newProfile(), randBytes(16)
+	e.mustCreate(other, d)
+	co, _ := e.connect(other, d, 0)
+	id := randBytes(16)
+	if status, doc := e.leavePair(p, id, "the keys, sealed", 0); status != http.StatusCreated {
+		t.Fatalf("leave: %d %v", status, doc)
+	}
+	if status, _ := e.takePair(id); status != http.StatusOK {
+		t.Fatalf("take: %d", status)
+	}
+	for _, c := range []*client{ca, cb} {
+		if f := c.expect("pair"); f.ID != b64s(id) || f.State != "taken" {
+			t.Fatalf("pair %s", f.raw)
+		}
+	}
+	co.quiet(30 * time.Millisecond)
+	// Withdrawn, expired, or asked for again: nothing to hear.
+	gone := randBytes(16)
+	e.leavePair(p, gone, "x", 0)
+	hdr := p.headers()
+	hdr["Betula-Pair"] = b64s(gone)
+	if status, _, _ := e.request(http.MethodDelete, "/sync/v1/pair", hdr, nil); status != http.StatusNoContent {
+		t.Fatal(status)
+	}
+	late := randBytes(16)
+	e.leavePair(p, late, "x", 60)
+	e.clock.Advance(2 * time.Minute)
+	for _, x := range [][]byte{id, gone, late} {
+		if status, _ := e.takePair(x); status != http.StatusNotFound {
+			t.Fatalf("take: %d", status)
+		}
+	}
+	ca.quiet(30 * time.Millisecond)
+	// A space without sockets: nobody to tell, and the parcel is taken all the same.
+	_ = ca.conn.CloseNow()
+	_ = cb.conn.CloseNow()
+	eventually(t, "the space has no sockets", func() bool {
+		e.srv.mu.Lock()
+		defer e.srv.mu.Unlock()
+		return e.srv.rooms[string(p.space)] == nil
+	})
+	last := randBytes(16)
+	e.leavePair(p, last, "x", 0)
+	if status, doc := e.takePair(last); status != http.StatusOK || decoded(t, doc["box"].(string)) != "x" {
+		t.Fatalf("take without sockets: %d %v", status, doc)
+	}
+}
+
 func TestHelloIsCheckedFirst(t *testing.T) {
 	e := newEnv(t, func(o *Options) { o.Limits.HelloTimeout = 200 * time.Millisecond })
 	p, a := newProfile(), randBytes(16)
@@ -523,7 +580,9 @@ func TestExpiryDeletesUntouchedSpaces(t *testing.T) {
 }
 
 func TestPingsFindDevicesThatWent(t *testing.T) {
-	e := newEnv(t, func(o *Options) { o.Limits.PingInterval, o.Limits.PingTimeout = 50*time.Millisecond, 100*time.Millisecond })
+	e := newEnv(t, func(o *Options) {
+		o.Limits.PingInterval, o.Limits.PingTimeout = 50*time.Millisecond, 100*time.Millisecond
+	})
 	p, a, b := newProfile(), randBytes(16), randBytes(16)
 	e.mustCreate(p, a)
 	ca, _ := e.connect(p, a, 0)
