@@ -110,6 +110,13 @@ persons or into a calendar app, as a copy of now or one that stays current.
 A private profile offers Betula Sync wherever it makes a choice better („Profil speichern", one
 click; decision 1), and the choices that need it save the profile on the way.
 
+The start page's setup ends with it (owner, 2026-11-08: „Mach das mal als step in die einführung
+mit rein. So als letzten schritt. So dass man es gleich auch auf dem handy hat";
+`folia/crates/home/src/home/devices.rs`, docs/folia/frontend.md „The start page"): after
+„Studium anlegen", „Betula Sync aktivieren" with what the server keeps above it, then the link for
+the phone at once, with the profile page's QR code (`folia_widgets::syncpair`), and „Verbunden"
+once one more device is online.
+
 ## 5. Checks
 
 - `cargo test -p folia-sync`: the stores' round trips, the cases of two devices, a simulation of
@@ -117,6 +124,7 @@ click; decision 1), and the choices that need it save the profile on the way.
   from a snapshot, shares and follows among them (`FOLIA_SYNC_SEEDS=600` and `--release` for a
   longer search).
 - `cargo test -p folia-stores sync`: the codes, the frames, what the browser keeps.
-- `folia/e2e/sync.mjs`: two browsers of one profile against a running Phloem.
+- `folia/e2e/sync.mjs`: two browsers of one profile against a running Phloem; and the start
+  page's setup to its last step, the study on a second browser through its QR code's link.
 - `folia/e2e/share.mjs`: sharing and following with four browsers against a running Phloem
   (Folia with `FOLIA_SYNC_PARTS` naming it).

@@ -6,8 +6,9 @@
 //!   keeps (sealed changes, their sizes and times, random ids; never what is in them) and that a
 //!   recovery code is offered, not asked for; then „Aktivieren".
 //! - **Synced**: online with how many other devices, or offline; „Weiteres Gerät verbinden" (a QR
-//!   code and the link, ten minutes, once), „Wiederherstellungscode zeigen", „Nur dieses Gerät
-//!   trennen" and „Sync beenden", each of the last two after a question.
+//!   code and the link, ten minutes, once: `folia_widgets::syncpair`, which the start page's setup
+//!   shows as well), „Wiederherstellungscode zeigen", „Nur dieses Gerät trennen" and „Sync
+//!   beenden", each of the last two after a question.
 //! - **Ended** on another device, or failed: why, and the way on.
 //! - What two devices did at once in the profile, each with the way to where it is shown (the hint
 //!   there decides, `folia_widgets::syncnote`).
@@ -24,10 +25,13 @@ use folia_design::ui::Icon;
 use folia_pages::ask::StudyplanModulesAsk;
 use folia_data::use_ask;
 use folia_routes::url;
-use folia_stores::profiles::{Profiles, FIRST, MAX_PROFILES};
+use folia_stores::profiles::{Profiles, FIRST};
 use folia_stores::sync::{Conflict, Pairing, Problem, State, Sync};
+use folia_widgets::syncpair::{copy, PairLink, COPIED_MS};
 
-use crate::i18n::{self, Texts};
+pub use folia_widgets::syncpair::problem_text;
+
+use crate::i18n;
 
 const ACTIVATE_ID: &str = "pf-sync-activate";
 const ACTIVATE_YES_ID: &str = "pf-sync-yes";
@@ -38,9 +42,6 @@ const LEAVE_YES_ID: &str = "pf-sync-leave-yes";
 const STOP_ID: &str = "pf-sync-stop";
 const STOP_YES_ID: &str = "pf-sync-stop-yes";
 const RECOVER_ID: &str = "pf-sync-recover";
-
-/// How long „Kopiert" stands in the button's place.
-const COPIED_MS: u64 = 1600;
 
 /// What is open in the part, below its actions.
 #[derive(Clone, Debug, PartialEq)]
@@ -55,45 +56,6 @@ enum Open {
     /// The question before „Nur dieses Gerät trennen" or „Sync beenden".
     Leave,
     Stop,
-}
-
-/// The sentence of a problem, with what to do.
-pub fn problem_text(problem: Problem, t: &Texts) -> String {
-    let s = &t.sync;
-    match problem {
-        Problem::Budget => s.budget.to_string(),
-        Problem::SlowDown => s.slow_down.to_string(),
-        Problem::Full => s.full.to_string(),
-        Problem::BadLink => s.bad_link.to_string(),
-        Problem::Unreachable => s.unreachable.to_string(),
-        Problem::Unsupported => s.unsupported.to_string(),
-        Problem::NoRoom => (s.no_room)(MAX_PROFILES),
-    }
-}
-
-/// The milliseconds since 1970 of the browser's clock; 0 on the server, which reads none.
-pub(crate) fn now_ms() -> u64 {
-    #[cfg(feature = "csr")]
-    {
-        web_sys::js_sys::Date::now().max(0.0) as u64
-    }
-    #[cfg(not(feature = "csr"))]
-    0
-}
-
-/// Copies a text into the clipboard (a click's: the browser lets it).
-pub(crate) fn copy(text: &str) {
-    #[cfg(feature = "csr")]
-    if let Some(window) = web_sys::window() {
-        let _ = window.navigator().clipboard().write_text(text);
-    }
-    #[cfg(not(feature = "csr"))]
-    let _ = text;
-}
-
-/// The minutes a link still opens, rounded down; `None` once it opens no more.
-fn minutes_left(until: u64, now: u64) -> Option<u64> {
-    (until > now).then(|| (until - now) / 60_000)
 }
 
 /// The part of the profile page, where the site offers Betula Sync.
@@ -166,7 +128,7 @@ pub fn SyncPart() -> impl IntoView {
             State::Online { devices } => ("on", (s.online)(devices)),
             State::Offline => ("off", s.offline.to_string()),
             State::Ended => ("off", s.ended.to_string()),
-            State::Failed(problem) => ("warn", format!("{} {}", s.failed, problem_text(problem, t))),
+            State::Failed(problem) => ("warn", format!("{} {}", s.failed, problem_text(problem))),
         };
         Some(view! {
             <p class="pf-sync-state" role="status" data-state=dot>
@@ -232,7 +194,7 @@ pub fn SyncPart() -> impl IntoView {
         Open::Pair(Some(Ok(pairing))) => view! { <PairLink pairing again=pair close=Callback::new(move |()| cancel(PAIR_ID))/> }.into_any(),
         Open::Pair(Some(Err(problem))) => view! {
             <p class="action note-action pf-refused" role="status">
-                <Icon name="triangle-alert"/><span>{problem_text(problem, t)}</span>
+                <Icon name="triangle-alert"/><span>{problem_text(problem)}</span>
                 <button class="mini hit" type="button" on:click=move |_| pair.run(())>{s.retry}</button>
                 <button class="mini hit" type="button" on:click=move |_| cancel(PAIR_ID)>{s.close}</button>
             </p>
@@ -269,66 +231,6 @@ pub fn SyncPart() -> impl IntoView {
         </section>
     }
     .into_any()
-}
-
-/// The link for the next device: its QR code, the link to copy, how long it still opens; gone,
-/// „Neuer Link".
-#[component]
-fn PairLink(pairing: Pairing, again: Callback<()>, close: Callback<()>) -> impl IntoView {
-    let t = i18n::t();
-    let s = &t.sync;
-    let now = RwSignal::new(now_ms());
-    // The minutes left, counted while it is shown.
-    if let Ok(handle) = set_interval_with_handle(move || now.set(now_ms()), std::time::Duration::from_secs(5)) {
-        on_cleanup(move || handle.clear());
-    }
-    let until = pairing.until;
-    let left = Memo::new(move |_| minutes_left(until, now.get()));
-    let copied = RwSignal::new(false);
-    let link = pairing.link.clone();
-    let copy_it = move |_| {
-        copy(&link);
-        copied.set(true);
-        set_timeout(move || { let _ = copied.try_set(false); }, std::time::Duration::from_millis(COPIED_MS));
-    };
-    let code = folia_design::qr::path(&pairing.link);
-    let shown = pairing.link.clone();
-    move || {
-        if left.get().is_none() {
-            return view! {
-                <p class="action note-action pf-refused" role="status">
-                    <Icon name="clock-3"/><span>{s.pair_gone}</span>
-                    <button class="mini primary hit" type="button" on:click=move |_| again.run(())>{s.pair_new}</button>
-                    <button class="mini hit" type="button" on:click=move |_| close.run(())>{s.close}</button>
-                </p>
-            }
-            .into_any();
-        }
-        let copy_it = copy_it.clone();
-        let qr = code.clone().map(|(path, width)| view! {
-            <svg class="pf-qr" viewBox=format!("0 0 {width} {width}") role="img" aria-label=s.qr_label shape-rendering="crispEdges">
-                <path d=path/>
-            </svg>
-        });
-        view! {
-            <div class="pf-pair">
-                {qr}
-                <div class="pf-pair-text">
-                    <p>{s.pair_how}</p>
-                    <p class="pf-pair-link"><code>{shown.clone()}</code></p>
-                    <p class="pf-pair-left" role="status">{move || left.get().map(s.pair_left)}</p>
-                    <div class="pf-pair-actions">
-                        <button class="mini primary hit" type="button" on:click=copy_it>
-                            <Icon name=if copied.get() { "check" } else { "copy" }/>
-                            <span>{move || if copied.get() { s.copied } else { s.copy_link }}</span>
-                        </button>
-                        <button class="mini hit" type="button" on:click=move |_| close.run(())>{s.close}</button>
-                    </div>
-                </div>
-            </div>
-        }
-        .into_any()
-    }
 }
 
 /// The recovery code shown: what it is, „Code kopieren", „Verbergen".
@@ -477,40 +379,12 @@ fn FromOther(sync: Sync) -> impl IntoView {
                 .into_any(),
                 Err(problem) => view! {
                     <p class="action note-action pf-refused" role="status">
-                        <Icon name="triangle-alert"/><span>{problem_text(problem, t)}</span>
+                        <Icon name="triangle-alert"/><span>{problem_text(problem)}</span>
                         <button class="mini hit" type="button" on:click=move |_| result.set(None)>{t.profile.ok}</button>
                     </p>
                 }
                 .into_any(),
             })}
         </div>
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_link_says_how_long_it_opens() {
-        let until = 10 * 60_000;
-        assert_eq!(minutes_left(until, 0), Some(10));
-        assert_eq!(minutes_left(until, 30_000), Some(9));
-        assert_eq!(minutes_left(until, until - 1), Some(0));
-        assert_eq!((minutes_left(until, until), minutes_left(until, until + 1)), (None, None));
-        for t in [&i18n::DE, &i18n::EN] {
-            assert!((t.sync.pair_left)(0).contains(if std::ptr::eq(t, &i18n::DE) { "weniger als eine Minute" } else { "less than a minute" }));
-        }
-    }
-
-    #[test]
-    fn every_problem_says_what_to_do() {
-        for t in [&i18n::DE, &i18n::EN] {
-            for problem in [Problem::Budget, Problem::SlowDown, Problem::Full, Problem::BadLink, Problem::Unreachable, Problem::Unsupported, Problem::NoRoom] {
-                let said = problem_text(problem, t);
-                assert!(said.len() > 40 && said.ends_with('.'), "{problem:?}: {said}");
-            }
-            assert!(problem_text(Problem::NoRoom, t).contains(&MAX_PROFILES.to_string()));
-        }
     }
 }
