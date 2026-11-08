@@ -5,7 +5,7 @@
 //!
 //! Of two devices the one of the smaller slot offers and the other answers, so that a connection
 //! is never set up from both sides at once. The first attempt takes STUN alone; when it fails (not
-//! open within `ATTEMPT_MS`, or the connection fails) the offering device tries again with TURN,
+//! open within `live::attempt_ms`, or the connection fails) the offering device tries again with TURN,
 //! then less and less often (`live::wait_before`); the answering one waits for the next offer. A
 //! connection that is open stays until it fails or the other device closes it; one that is not
 //! open goes with its device (presence).
@@ -30,7 +30,8 @@ use super::super::codes::{b64, unb64};
 use super::super::core::Pending;
 use super::super::live::{self, talk_aad, Direct, Ice, Online, Talk};
 use super::super::wire::Out;
-use super::{aad, open, random, seal, Engine};
+use super::{aad, open, random, seal, secs, Engine};
+use folia_design::nav;
 
 /// One connection to another device.
 pub(super) struct Link {
@@ -91,6 +92,11 @@ pub(super) struct Live {
 
 fn random_n() -> u32 {
     random::<4>().map_or(1, u32::from_be_bytes)
+}
+
+/// Where a profile keeps the slots whose last connection needed TURN (`live::read_relayed`).
+pub(super) fn relayed_key(profile: u16) -> String {
+    format!("betula.sync.p{profile}.relay")
 }
 
 /// The configuration of an attempt: STUN always, TURN with the credential when it takes TURN.
@@ -317,7 +323,7 @@ impl Engine {
                     }
                 }
             },
-            std::time::Duration::from_millis(live::ATTEMPT_MS),
+            std::time::Duration::from_millis(live::attempt_ms(relay)),
         );
         Some(link)
     }
@@ -330,7 +336,8 @@ impl Engine {
             *tries += 1;
             *tries
         };
-        let relay = live::relay(tries, &self.live.borrow().ice.clone().unwrap_or_default());
+        let remembered = live::read_relayed(&nav::local_get(&relayed_key(self.profile)).unwrap_or_default(), secs()).contains_key(&slot);
+        let relay = live::relay(tries, remembered, &self.live.borrow().ice.clone().unwrap_or_default());
         let n = random_n();
         let Some(link) = self.link(slot, n, true, relay) else { return };
         let engine = Rc::clone(self);
@@ -494,8 +501,22 @@ impl Engine {
         let engine = Rc::clone(self);
         leptos::task::spawn_local(async move {
             if let Ok(report) = JsFuture::from(link.pc.get_stats()).await {
-                link.relayed.set(relayed_in(&report));
+                let relayed = relayed_in(&report);
+                link.relayed.set(relayed);
                 engine.status();
+                if link.offered {
+                    let key = relayed_key(engine.profile);
+                    let mut kept = live::read_relayed(&nav::local_get(&key).unwrap_or_default(), secs());
+                    let had = kept.contains_key(&slot);
+                    if relayed {
+                        kept.insert(slot, secs());
+                    } else {
+                        kept.remove(&slot);
+                    }
+                    if relayed || had {
+                        nav::local_set(&key, &live::relayed_text(&kept));
+                    }
+                }
             }
         });
     }

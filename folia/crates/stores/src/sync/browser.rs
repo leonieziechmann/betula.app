@@ -165,7 +165,7 @@ pub fn leave(profile: u16, active: u16) {
 
 /// Takes what a synced profile keeps besides its stores out of this browser.
 fn drop_state(profile: u16) {
-    for key in [held_key(profile), records_key(profile), waiting_key(profile), status_key(profile), leave_key(profile)] {
+    for key in [held_key(profile), records_key(profile), waiting_key(profile), status_key(profile), leave_key(profile), rtc::relayed_key(profile)] {
         nav::local_set(&key, "");
     }
 }

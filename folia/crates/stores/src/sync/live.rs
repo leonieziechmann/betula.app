@@ -85,13 +85,42 @@ impl Ice {
 }
 
 /// Whether attempt number `tries` (1 for the first since the last connection) takes TURN: the
-/// first goes without, every later one with, where there is TURN.
-pub fn relay(tries: u32, ice: &Ice) -> bool {
-    tries >= 2 && ice.has_turn()
+/// first goes without, every later one with, where there is TURN; the first too when the last
+/// connection with that device needed TURN (`remembered`), so that a page loaded again does not
+/// wait for the direct way that was not there before.
+pub fn relay(tries: u32, remembered: bool, ice: &Ice) -> bool {
+    (tries >= 2 || remembered) && ice.has_turn()
 }
 
-/// How long an attempt may take before it counts as failed, in ms.
-pub const ATTEMPT_MS: u64 = 15_000;
+/// How long an attempt may take before it counts as failed, in ms: a direct way is there within
+/// seconds or not at all; TURN takes its allocations first (and TLS, where only that gets out).
+pub fn attempt_ms(relay: bool) -> u64 {
+    if relay {
+        15_000
+    } else {
+        8_000
+    }
+}
+
+/// How long a device remembers that the connection with another needed TURN, in seconds.
+pub const REMEMBER_RELAY_SECS: u64 = 24 * 3600;
+
+/// The slots whose last connection needed TURN, with when it opened (seconds), as kept beside the
+/// profile (`betula.sync.p<id>.relay`): `<slot>\t<secs>` per line. What is older than a day is
+/// left out.
+pub fn read_relayed(text: &str, now: u64) -> std::collections::BTreeMap<u16, u64> {
+    text.lines()
+        .filter_map(|line| {
+            let (slot, at) = line.split_once('\t')?;
+            Some((slot.parse().ok()?, at.parse().ok()?))
+        })
+        .filter(|(_, at): &(u16, u64)| now.saturating_sub(*at) < REMEMBER_RELAY_SECS)
+        .collect()
+}
+
+pub fn relayed_text(relayed: &std::collections::BTreeMap<u16, u64>) -> String {
+    relayed.iter().map(|(slot, at)| format!("{slot}\t{at}\n")).collect()
+}
 
 /// How long a connection may stay disconnected before it counts as failed, in ms (a phone
 /// switching networks comes back within it).
@@ -196,10 +225,22 @@ mod tests {
         };
         assert_eq!(ice.stun(), vec!["stun:betula.app:3478".to_string()]);
         assert_eq!(ice.turn().len(), 2);
-        assert!(!relay(1, &ice) && relay(2, &ice) && relay(9, &ice));
+        assert!(!relay(1, false, &ice) && relay(2, false, &ice) && relay(9, false, &ice));
+        assert!(relay(1, true, &ice), "the last connection needed TURN: the first attempt takes it");
         let none = Ice::default();
-        assert!(!none.has_turn() && !relay(2, &none) && none.stun().is_empty());
-        assert!(!relay(2, &Ice { user: String::new(), ..ice }), "no credential, no TURN");
+        assert!(!none.has_turn() && !relay(2, true, &none) && none.stun().is_empty());
+        assert!(!relay(2, false, &Ice { user: String::new(), ..ice }), "no credential, no TURN");
+        assert!(attempt_ms(false) < attempt_ms(true));
+    }
+
+    #[test]
+    fn a_device_remembers_for_a_day_which_ones_needed_turn() {
+        let kept = [(2u16, 1_000u64), (5, 1_000 + REMEMBER_RELAY_SECS)].into_iter().collect();
+        let text = relayed_text(&kept);
+        assert_eq!(text, format!("2\t1000\n5\t{}\n", 1_000 + REMEMBER_RELAY_SECS));
+        let now = 1_000 + REMEMBER_RELAY_SECS + 10;
+        assert_eq!(read_relayed(&text, now).into_iter().collect::<Vec<_>>(), vec![(5, 1_000 + REMEMBER_RELAY_SECS)]);
+        assert!(read_relayed("x\ty\n3\n", now).is_empty());
     }
 
     #[test]
