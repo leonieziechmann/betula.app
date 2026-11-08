@@ -67,7 +67,12 @@ Every flag of `serve` has an environment variable; the image sets the ones in it
 | `PHLOEM_BUDGET_BYTES` | 50 000 000 000 | the stack | what all spaces may hold (see Storage); at it no new space, parcel or part (507) |
 | `PHLOEM_STACK` | none | the stack | the label `stack=` of the stats file |
 | `PHLOEM_LOG_FORMAT`, `_LEVEL`, `_FILE` | `json`, `info`, none | `json` | |
-| `PHLOEM_FIREWALL`, `PHLOEM_NFT` | `/etc/phloem/firewall.nft`, `nft` | | for `start` only, from the image and the stack alone |
+| `PHLOEM_FIREWALL`, `PHLOEM_FIREWALL_TURN`, `PHLOEM_NFT` | `/etc/phloem/firewall.nft`, `/etc/phloem/turn.nft`, `nft` | | for `start` only, from the image and the stack alone |
+| `PHLOEM_TURN_HOST` | none | the stack (TURN's file) | the site's host, named by the URLs of STUN and TURN; empty: no STUN and TURN (step 2, „TURN") |
+| `PHLOEM_TURN_PORT` | 3478 | the stack | where STUN and TURN listen, UDP and TCP, on every address |
+| `PHLOEM_TURN_IP` | none | the stack | the host's public IPv4 address: the relays', never a peer |
+| `PHLOEM_TURN_RELAY_PORTS` | none | the stack | the relays' UDP ports, `first-last` |
+| `PHLOEM_TURN_TLS_HOST` | none | the stack | the name of `turns:<name>:443` (Traefik ends TLS); empty: none |
 
 ## Limits
 
@@ -82,7 +87,8 @@ goes first), 120 parcel takes per address and hour, parts of at most 16 KiB, 32 
 new ones per space and day (a part deleted stays gone 395 days, beyond its space, so the new parts
 of a day bound what a space can leave behind), 3600 part reads per address and hour, a watch of
 at most 64 parts, 4096 sockets per instance and 32 per address before their hello, 395 days
-untouched and a space is deleted.
+untouched and a space is deleted. Step 2: a signal of at most 8 KiB, 20 signals and `turn` frames a
+second per socket (bursts of 100); TURN as section „TURN" says.
 
 Memory is bounded the same way: at most 8 frames above 128 KiB are read at a time (others wait),
 a device's queue holds at most 512 frames or 16 MiB, beyond which Phloem lets it go and it comes
@@ -120,11 +126,43 @@ datagram `start` sends as root to check the firewall (otherwise every start woul
 alarm), and packets conntrack cannot place. Docker's NAT rewrites the resolver's port before the
 table sees a packet; the file says how the rule copes.
 
+With TURN (`PHLOEM_TURN_HOST` set), `start` loads `phloem/deploy/turn.nft` with it in one
+transaction, after it defined `$turn_port`, `$relay_ports` and `$turn_ip` from the same settings
+`serve` reads: the chains `turn_in` and `turn_out`, which the base chains jump to before their
+counting drop, let in STUN and TURN (UDP and TCP on the port) and the peers' datagrams to the
+relays, and let out a relay's UDP datagram to a public address alone; one to Phloem's own address
+or to an address that is none on the internet is dropped and counted. `start` checks the rules
+are there before it drops its rights; `phloem probe` tries, from a relay's port, a private
+address, the metadata service, Docker's resolver and the host's own address.
+
 Look at it on the server (as root):
 
 ```
 sudo nsenter -t "$(docker inspect -f '{{.State.Pid}}' "$(docker ps -q -f label=com.docker.swarm.service.name=phloem_sync)")" -n nft list table inet phloem
 ```
+
+## TURN
+
+Step 2 of Betula Sync (owner, 2026-11-08: „time für phase 2 bei dem sync"): the devices of a
+profile online connect directly with WebRTC (`docs/folia/sync.md`, „The live way"), their signals
+sealed through the WebSocket (`protocol.md` section 4). Where no direct way exists, Phloem relays
+(Pion, `internal/server/turn.go`; the rules in `protocol.md` section 6): a credential per socket,
+held while it lives; a peer only at the address another socket of the same space came from, never
+a special address nor Phloem's own; UDP relays alone, 128 KiB a second each way each, 4 MiB a
+second all of them; 8 allocations per socket, 32 per space. Its numbers: `phloem_turn_allocations`,
+`phloem_turn_total{event}` (`allocated`, `permitted`, `refused`, `unauthorized`, `quota`,
+`no_port`, `forbidden`), `phloem_relay_bytes_total{way}` and
+`phloem_relay_dropped_bytes_total{way}` (`in`: from a peer, `out`: to one), `phloem_signals_total`.
+
+Its ports are published in host mode (`deploy/vps/lib-phloem.sh`, `phloem_turn_file`): Phloem
+must see a device's own address, as Traefik does, both for the permission and for the relay's
+datagrams. `deploy/test/turn.sh` builds two homes behind NATs that give every destination a port of
+its own, in network namespaces, and checks that the first attempt (STUN alone) finds no way, the
+one with TURN opens, a change goes through the relay alone, and the firewall counts no drop.
+
+Not done on purpose: a relay to another relay of the same instance (both devices behind such
+NATs): it would go through the same machine as the WebSocket, which carries the changes then, and
+it would make Phloem's own address a peer.
 
 ## Numbers and logs
 
@@ -136,7 +174,7 @@ The stats file `phloem.prom` (Prometheus text, every 15 s, written by a rename) 
 `phloem_snapshot_bytes_total`, `phloem_parcels_total{event}`, `phloem_parts_total{event}`,
 `phloem_pushes_again_total`, `phloem_spaces_created_total`, `phloem_spaces_deleted_total{reason}`,
 `phloem_rejections_total{reason}`, `phloem_socket_closes_total{reason}`,
-`phloem_log_problems_total`, each with `stack`. Alloy reads it through `/rootfs`
+`phloem_log_problems_total`, and for step 2 the numbers of „TURN", each with `stack`. Alloy reads it through `/rootfs`
 (`config/monitoring/alloy/config.alloy`, job `phloem`); the dashboard "Sync" and the rules of the
 group `betula-phloem` use these names.
 
@@ -153,7 +191,8 @@ Logs are JSON lines (`level`, `event`, `msg`, `component`), one per event, never
 or frame: `start.firewall`, `start.dropped`, `start.failed`, `service.started`,
 `service.stopped`, `service.fatal`, `service.root`, `http.listening`, `http.failed`,
 `db.migrated`, `store.failed`, `sweep.done`, `stats.failed`, `stats.recovered`, `budget.half`,
-`budget.reached`, `budget.recovered`. Nothing a device sends is logged, nor a space, a token or
+`budget.reached`, `budget.recovered`, `turn.forbidden` (WARN: a relay was to send where no peer
+may be), `turn.pion` (what Pion says, at debug). Nothing a device sends is logged, nor a space, a token or
 an address: what happens to spaces and sockets is counted in the stats file instead.
 
 ## Deploy
@@ -202,5 +241,4 @@ log) and /healthz (not Phloem's), the stats file, `phloem status`; at last
 
 - A backup of `phloem.db`: sealed by the devices, so it may leave the house; SQLite's online
   backup into the data file system and off the server, not written yet.
-- Step 2 (WebRTC between the devices, STUN and TURN): `<stack>_out`, published ports, the
-  firewall's way out for TURN datagrams.
+- A dashboard panel for TURN (the numbers are in the stats file already).

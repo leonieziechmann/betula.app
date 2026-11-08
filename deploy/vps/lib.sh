@@ -385,7 +385,34 @@ load_public_ports() {
   # shellcheck disable=SC1090
   . "${file}"
   for p in ${PUBLIC_TCP_PORTS} ${PUBLIC_UDP_PORTS}; do
-    [[ "${p}" =~ ^[0-9]{1,5}$ && "${p}" -ge 1 && "${p}" -le 65535 ]] || die "${file}: invalid port '${p}'"
+    port_entry_ok "${p}" || die "${file}: invalid port '${p}' (a port, or a range first:last)"
   done
   [[ -n "${PUBLIC_TCP_PORTS}" ]] || die "${file}: PUBLIC_TCP_PORTS is empty"
+}
+
+# port_entry_ok ENTRY - true for a port (1-65535) or a range of them as first:last.
+port_entry_ok() {
+  local first last
+  [[ "$1" =~ ^[0-9]{1,5}(:[0-9]{1,5})?$ ]] || return 1
+  first="${1%%:*}"
+  last="${1##*:}"
+  [[ "${first}" -ge 1 && "${last}" -le 65535 && "${first}" -le "${last}" ]]
+}
+
+# expand_ports ENTRY... - every port the entries name, one per line (a range in full).
+expand_ports() {
+  local entry
+  for entry in "$@"; do
+    seq "${entry%%:*}" "${entry##*:}"
+  done
+}
+
+# port_listed PORT ENTRY... - true when PORT is one of the entries, or within one of their ranges.
+port_listed() {
+  local port=$1 entry
+  shift
+  for entry in "$@"; do
+    [[ "${port}" -ge "${entry%%:*}" && "${port}" -le "${entry##*:}" ]] && return 0
+  done
+  return 1
 }

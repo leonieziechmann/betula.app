@@ -39,6 +39,8 @@ set -Eeuo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib-stacks.sh"
 # shellcheck source=lib-networks.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib-networks.sh"
+# shellcheck source=lib-phloem.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib-phloem.sh"
 betula_init
 require_ubuntu
 require_cmd docker curl openssl jq
@@ -376,31 +378,54 @@ check_headers() {
 }
 
 check_ports() {
-  section "published ports (only Traefik, only the public ports)"
+  section "published ports (Traefik and Phloem's TURN, only the public ports)"
   local svc ports want have addr port p
   local -a addrs=(127.0.0.1)
   load_public_ports "${BETULA_FILES_DIR}/public-ports.conf"
 
-  # From the service spec, not from the PORTS column of "docker service ls": that column only
-  # lists ingress-mode ports, and a host-mode port is exactly what a copied Traefik example brings.
+  # Who publishes what: an instance of Phloem with TURN its ports (stacks/phloem/<stack>.env,
+  # host mode), Traefik the rest of the public ports, nobody anything else. From the service spec,
+  # not from the PORTS column of "docker service ls": that column only lists ingress-mode ports,
+  # and a host-mode port is exactly what a copied Traefik example brings.
+  local -A turn_of=()
+  local turn_all="" stack
+  while IFS= read -r stack; do
+    [[ -n "${stack}" ]] || continue
+    turn_of["${stack}_sync"]="$( (load_phloem "${stack}" && phloem_turn_ports) 2>/dev/null | sed 's|$|/host|' | sort | tr '\n' ' ' || true)"
+    turn_all+="${turn_of[${stack}_sync]}"
+  done < <(phloem_names)
   while IFS= read -r svc; do
     [[ -n "${svc}" && "${svc}" != "edge_traefik" ]] || continue
-    ports="$(docker service inspect "${svc}" --format '{{range .Endpoint.Spec.Ports}}{{.PublishedPort}}/{{.Protocol}}/{{.PublishMode}} {{end}}' 2>/dev/null || true)"
-    if [[ -n "${ports// /}" ]]; then
-      fail "${svc} publishes ${ports% }: only edge_traefik may publish ports"
+    ports="$(docker service inspect "${svc}" --format '{{range .Endpoint.Spec.Ports}}{{.PublishedPort}}/{{.Protocol}}/{{.PublishMode}}{{"\n"}}{{end}}' 2>/dev/null | sed '/^$/d' | sort | tr '\n' ' ' || true)"
+    if [[ -n "${turn_of[${svc}]+x}" ]]; then
+      if [[ "${ports}" == "${turn_of[${svc}]}" ]]; then
+        [[ -z "${ports}" ]] || pass "${svc} publishes TURN's ports alone, in host mode ($(wc -w <<<"${ports}") of stacks/phloem/${svc%_sync}.env)"
+      else
+        fail "${svc} publishes '${ports% }', stacks/phloem/${svc%_sync}.env says '${turn_of[${svc}]% }' (bash ${BETULA_ROOT}/vps/49-phloem.sh ${svc%_sync})"
+      fi
+    elif [[ -n "${ports// /}" ]]; then
+      fail "${svc} publishes ${ports% }: only edge_traefik and Phloem's TURN may publish ports"
     fi
   done < <(docker service ls --format '{{.Name}}')
 
+  # Every public port is published by exactly its service: TURN's by Phloem, the rest by Traefik.
   want="$(
-    for p in ${PUBLIC_TCP_PORTS}; do printf '%s/tcp/host\n' "${p}"; done
-    for p in ${PUBLIC_UDP_PORTS}; do printf '%s/udp/host\n' "${p}"; done
+    for p in ${PUBLIC_TCP_PORTS}; do expand_ports "${p}" | sed 's|$|/tcp/host|'; done
+    for p in ${PUBLIC_UDP_PORTS}; do expand_ports "${p}" | sed 's|$|/udp/host|'; done
   )"
-  want="$(sort <<<"${want}" | tr '\n' ' ')"
+  for p in ${turn_all}; do
+    if grep -qxF -- "${p}" <<<"${want}"; then
+      want="$(grep -vxF -- "${p}" <<<"${want}")"
+    else
+      fail "Phloem's TURN port ${p%/host} is not in vps/files/public-ports.conf: the host's firewall keeps the devices out (10-base.sh and 30-docker.sh with it)"
+    fi
+  done
+  want="$(sed '/^$/d' <<<"${want}" | sort | tr '\n' ' ')"
   have="$(docker service inspect edge_traefik --format '{{range .Endpoint.Spec.Ports}}{{.PublishedPort}}/{{.Protocol}}/{{.PublishMode}}{{"\n"}}{{end}}' 2>/dev/null | sed '/^$/d' | sort | tr '\n' ' ' || true)"
   if [[ "${have}" == "${want}" ]]; then
-    pass "edge_traefik publishes exactly: ${have% } (host mode = real client addresses; same list as vps/files/public-ports.conf)"
+    pass "edge_traefik publishes exactly: ${have% } (host mode = real client addresses; vps/files/public-ports.conf, less TURN's)"
   else
-    fail "edge_traefik publishes '${have% }', the contract says '${want% }'"
+    fail "edge_traefik publishes '${have% }', the contract says '${want% }' (vps/files/public-ports.conf, less the TURN ports of stacks/phloem/*.env)"
   fi
 
   # "Not published" checked the hard way: nothing on the host accepts a connection on these ports.
@@ -1545,6 +1570,11 @@ check_phloem() {
       continue
     fi
     deployed=1
+    if ! (load_phloem "${stack}") >/dev/null 2>&1; then
+      fail "stacks/phloem/${stack}.env does not read (bash ${BETULA_ROOT}/vps/49-phloem.sh ${stack} says why)"
+      continue
+    fi
+    load_phloem "${stack}"
     # Its networks: exactly <stack>_in (Traefik and it) and <stack>_out (it alone).
     if netplan_check "${stack}_in"; then
       pass "${stack}_in: internal, not attachable ($(network_facts "${stack}_in"))"
@@ -1558,13 +1588,31 @@ check_phloem() {
     else
       fail "${stack}_in holds '${users% }', wanted exactly ${want% }"
     fi
-    # <stack>_out is for TURN (step 2): where it is there, not internal and Phloem's alone.
+    # <stack>_out is for TURN (step 2): with TURN there, not internal and Phloem's alone; without
+    # TURN not used at all.
     if [[ -z "${NETMAP_SERVICES[${stack}_out]:-}" ]]; then
-      pass "${stack}_out: not used (step 1: Phloem has no way out, not even without its firewall)"
+      if [[ -z "${PHLOEM_TURN_PORT}" ]]; then
+        pass "${stack}_out: not used (no TURN: Phloem has no way out, not even without its firewall)"
+      else
+        fail "${stack}_out: not used, though ${stack} serves TURN (PHLOEM_TURN_PORT): its relays have no way out (bash ${BETULA_ROOT}/vps/49-phloem.sh ${stack})"
+      fi
+    elif [[ -z "${PHLOEM_TURN_PORT}" ]]; then
+      fail "${stack}_out is used (${NETMAP_SERVICES[${stack}_out]% }), though ${stack} serves no TURN: a way out for nothing (bash ${BETULA_ROOT}/vps/49-phloem.sh ${stack})"
     elif [[ "$(network_internal "${stack}_out")" == "false" ]]; then
-      pass "${stack}_out: its own way out (not internal; step 2, TURN), held by ${NETMAP_SERVICES[${stack}_out]% }"
+      pass "${stack}_out: its own way out (not internal; TURN's relays), held by ${NETMAP_SERVICES[${stack}_out]% }"
     else
       fail "${stack}_out is '$(network_internal "${stack}_out")' internal, wanted false (docs/phloem/protocol.md section 1)"
+    fi
+    # STUN and TURN at the host's public address, as a device meets them.
+    if [[ -n "${PHLOEM_TURN_PORT}" ]]; then
+      address="$(phloem_turn_ip)"
+      if [[ -z "${address}" ]]; then
+        fail "${stack}: the host's public IPv4 address for TURN cannot be found (PHLOEM_TURN_IP in stacks/phloem/${stack}.env)"
+      elif stun_answers "${address}" "${PHLOEM_TURN_PORT}"; then
+        pass "${stack}: STUN answers at ${address}:${PHLOEM_TURN_PORT}"
+      else
+        fail "${stack}: no STUN answer at ${address}:${PHLOEM_TURN_PORT} over UDP (docker service logs ${stack}_sync)"
+      fi
     fi
     while IFS= read -r svc; do
       [[ -n "${svc}" ]] || continue
@@ -1574,9 +1622,14 @@ check_phloem() {
       else
         fail "${svc} is on '${nets% }', wanted ${stack}_in and at most ${stack}_out (docs/phloem/protocol.md section 1)"
       fi
-      ports="$(docker service inspect "${svc}" --format '{{range .Endpoint.Spec.Ports}}{{.PublishedPort}}/{{.Protocol}} {{end}}' 2>/dev/null || true)"
-      if [[ -z "${ports// /}" ]]; then pass "${svc} publishes nothing (step 1)"; else
-        fail "${svc} publishes ${ports% } (step 1 publishes nothing; docs/phloem/protocol.md section 1)"
+      ports="$(docker service inspect "${svc}" --format '{{range .Endpoint.Spec.Ports}}{{.PublishedPort}}/{{.Protocol}}/{{.PublishMode}}{{"\n"}}{{end}}' 2>/dev/null | sed '/^$/d' | sort | tr '\n' ' ' || true)"
+      want="$(phloem_turn_ports | sed 's|$|/host|' | sort | tr '\n' ' ')"
+      if [[ "${ports}" == "${want}" && -z "${want}" ]]; then
+        pass "${svc} publishes nothing (no TURN)"
+      elif [[ "${ports}" == "${want}" ]]; then
+        pass "${svc} publishes TURN's ports alone, in host mode: ${PHLOEM_TURN_PORT} over UDP and TCP, relays ${PHLOEM_TURN_RELAYS}"
+      else
+        fail "${svc} publishes '${ports% }', wanted '${want% }' (stacks/phloem/${stack}.env; docs/phloem/protocol.md section 1)"
       fi
       cid="${NM_CID[${svc}]:-}"
       if [[ -z "${cid}" ]]; then
