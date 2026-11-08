@@ -49,6 +49,28 @@ pub use folia_design::{asset, BuildId};
 /// The addresses and scripts of the document every page is in (`folia_shell::document`).
 pub use folia_shell::document::*;
 
+/// Every script the pages write inline, as it stands in them: the language's (`languages`), the
+/// head's (`HEAD_SCRIPT`, also on the login page of closed testing), the one of the start page's
+/// day (`folia_home::home::AHEAD_SCRIPT`) and Leptos's own (`LEPTOS_CHUNKS`). The server's
+/// Content-Security-Policy allows these by their hashes and no other inline script
+/// (`folia-server`, `csp`): a script written inline anywhere else does not run until it is named
+/// here (its test renders the pages and finds every one).
+pub fn inline_scripts() -> Vec<String> {
+    let ours = [languages::language_script(), HEAD_SCRIPT.to_string(), folia_home::home::AHEAD_SCRIPT.to_string()];
+    ours.into_iter().chain(LEPTOS_CHUNKS.map(str::to_string)).collect()
+}
+
+/// What Leptos writes at the end of every page it renders, each in a `<script>` of its own, for a
+/// browser that hydrates the page (`hydration_context::SsrSharedContext::pending_data`): the data
+/// its resources and errors hand over, and the chunks still to come. Folia's pages hand over
+/// nothing (no resource of theirs is serialized, the browser app mounts fresh), so the texts are
+/// always these. Should a new version of Leptos write them otherwise, the server's test of the
+/// policy names the script it found.
+pub const LEPTOS_CHUNKS: [&str; 2] = ["__RESOLVED_RESOURCES=[];__SERIALIZED_ERRORS=[];__PENDING_RESOURCES=[];__RESOURCE_RESOLVERS=[];", "__INCOMPLETE_CHUNKS=[];"];
+
+/// Every style the pages write inline as an element (`<style>`), as `inline_scripts` has the
+/// scripts. A `style` attribute needs no name here: the policy allows them all.
+pub const INLINE_STYLES: &[&str] = &[VIEW_TRANSITION_STYLE];
 
 /// The HTML document around the app (server side only).
 pub fn shell(options: LeptosOptions) -> impl IntoView {
