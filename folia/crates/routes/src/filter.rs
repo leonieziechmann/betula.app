@@ -313,7 +313,8 @@ pub struct CatalogQuery {
     /// the URL names by its number alone (`collection=3`; its name stays in the browser, R20). Only
     /// with `marked`: the browser fills the ids of that part.
     pub marked_in: CollectionView,
-    /// Keep modules whose mandatory prerequisites are all in this set of passed modules.
+    /// Keep modules of whose mandatory prerequisites this set of passed modules holds one of each
+    /// choice (`Prerequisite::choice`): all of them, where each is a choice of its own.
     pub prerequisites_met_by: Option<Vec<String>>,
     pub sort: SortKey,
     pub descending: bool,

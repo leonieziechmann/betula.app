@@ -21,8 +21,9 @@ use std::fmt;
 /// which decides where it is taught before its compulsory modules (`v_program_campus.sws`), and no
 /// courses where QIS lists the same programs at each. 17: the choices among a module's events and its
 /// extras (`v_module_schedule.choice`, `option`, `extra`, `v_module_choice`, `v_module_choice_family`;
-/// docs/radix/schema-v2.md, „Choices").
-pub const SCHEMA_VERSION: i64 = 17;
+/// docs/radix/schema-v2.md, „Choices"). 18: which modules a prerequisite text names as alternatives
+/// (`v_module_prerequisite.choice`; docs/radix/data-sources.md §16).
+pub const SCHEMA_VERSION: i64 = 18;
 
 /// A SQLite value, as a parameter or as a result cell.
 #[derive(Clone, Debug, PartialEq)]

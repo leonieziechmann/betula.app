@@ -28,7 +28,7 @@ use folia_model::labels::{
     Campus, Labelled, OfferStatus, PrerequisiteKind, Relation, ResolveStatus, Rhythm, TeachingForm, TextItemKind,
     TurnusSeason,
 };
-use folia_model::rows::{Module, Prerequisite, Semester};
+use folia_model::rows::{prerequisite_choices, Module, Prerequisite, Semester};
 use folia_model::rows_detail::{DateRow, EventDate, ModuleSws, ModuleTeachingForm, ProgramLink, Series};
 use folia_pages::ask::{OverlayAsk, ProgramsAsk};
 use folia_pages::{ModuleData, Overlay};
@@ -767,17 +767,40 @@ fn Main(data: ModuleData) -> impl IntoView {
         let lang = m.page_lang.clone();
         move || lang.clone()
     };
-    let prerequisite_links = |linked: Vec<Prerequisite>, kind: &'static str| {
-        linked
-            .into_iter()
-            .map(|p| view! {
-                <a class="pre" href=t.path(&url::module_path(&p.required_module_id))>
-                    <span class="mono">{p.required_module_id.clone()}</span>
+    let prerequisite_link = move |p: Prerequisite, kind: &'static str| {
+        view! {
+            <a class="pre" href=t.path(&url::module_path(&p.required_module_id))>
+                <span class="mono">{p.required_module_id.clone()}</span>
+                <span class="name">
                     <b>{p.required_title.clone().unwrap_or_default()}</b>
-                    {p.required_offer_status.map(|status| view! { <OfferBadge status/> })}
-                    <small>{kind}</small>
-                    <Icon name="chevron-right"/>
-                </a>
+                    {p.required_offer_status.map(|status| view! { " " <OfferBadge status/> })}
+                </span>
+                <small>{kind}</small>
+                <Icon name="chevron-right"/>
+            </a>
+        }
+    };
+    // Of the modules of a choice one is enough („Modul 12102 Programmierpraktikum ODER Modul 11900
+    // Programmierpraktikum (IMT)", 12202): they stand in one frame, an „oder" between them.
+    let prerequisite_links = move |linked: Vec<Prerequisite>, kind: &'static str| {
+        let choices: Vec<Vec<Prerequisite>> = prerequisite_choices(&linked).into_iter().map(|choice| choice.into_iter().cloned().collect()).collect();
+        choices
+            .into_iter()
+            .map(|choice| match choice.len() {
+                1 => choice.into_iter().map(|p| prerequisite_link(p, kind)).collect_view().into_any(),
+                _ => view! {
+                    <div class="either" role="group" aria-label=(words.one_of)(kind)>
+                        {choice
+                            .into_iter()
+                            .enumerate()
+                            .map(|(i, p)| view! {
+                                {(i > 0).then(|| view! { <span class="or">{words.either}</span> })}
+                                {prerequisite_link(p, kind)}
+                            })
+                            .collect_view()}
+                    </div>
+                }
+                .into_any(),
             })
             .collect_view()
     };
@@ -2892,6 +2915,7 @@ mod tests {
                 module_id: "11101".into(),
                 required_module_id: "11000".into(),
                 kind: Code::parse("mandatory"),
+                choice: 1,
                 required_title: Some("Brückenkurs Mathematik".into()),
                 required_offer_status: None,
             }],
