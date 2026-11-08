@@ -2,7 +2,7 @@
 
 Radix runs as one long-lived process. It keeps the raw archive fresh at a polite pace (directly,
 or through Cortex, the cache between Betula and the internet: `docs/cortex/cortex.md`), rebuilds the
-catalog, publishes a new snapshot when the content changed, and serves the snapshots over HTTP.
+catalog, publishes a new snapshot when its content is new, and serves the snapshots over HTTP.
 The web server is an HTTP client of it; they share no files.
 
 ## 1. Running it
@@ -25,8 +25,8 @@ One cycle, every `--interval` (30 min):
 | `retention` | every cycle | removes events `--event-retention` (30 d) after their last date, and events no module page links any more; remembers them, so they are not fetched again |
 | `build` | every cycle | raw archive → canonical tables, one transaction, about 20 s. **Only the current dataset is built:** modules on the current lists, tree pages the current QIS root leads to, events QIS still has (one whose page states nothing and that the event search does not show was removed by BTU, `docs/radix/data-sources.md` §11) |
 | `archive` | every cycle | removes archived pages nothing leads to any more, `--archive-grace` (7 d) after their fetch: among them the page and the search entry of an event BTU removed, once no module description names it and so nothing fetches them |
-| `validate` | when the content changed | invariants and count baselines; a failure blocks the export |
-| `export` | when the content changed and validation passed | new `snapshot/catalog-<hash>.db`, `current.json` replaced atomically |
+| `validate` | when the published snapshot does not hold what the build made | invariants and count baselines; a failure blocks the export. The build's `content_digest` (meta) is compared with the one in the current snapshot's own meta: they differ when the content changed, and also when an earlier cycle built it but did not publish it (its validation or export failed, a deploy stopped the export), although this build finds the content unchanged (`export.behind`) |
+| `export` | when validation ran and passed | new `snapshot/catalog-<hash>.db`, `current.json` replaced atomically |
 | `semantic` | every cycle that did not fail, last (after the export), with `--embed-model` | the semantic search's vectors (`docs/radix/schema-v2.md`, „Semantic search“), within `--semantic-budget` (20 min): Gemini's summaries of module texts that have none, then the vectors of passages that have none, computed by the crate `folia/crates/semantic/` as WebAssembly in worker processes (`radix embed-worker`). The next build publishes them. The first run of a model takes about 6 processor-hours (on one CPU about 19 budgets, one a cycle: most of a day); then seconds. Skipped without a model; a failure of the vectors degrades the cycle, one of Gemini does not |
 
 The weekly and monthly rhythms are spread: every page has a day of its own in its period,
@@ -45,7 +45,7 @@ page is archived on its own, and the build and the plan import are single transa
 **A new release builds at start.** Every build stores which binary made it (meta `radix_build`, a
 hash of the executable). When `run` starts and another binary built the catalog, it first runs a
 cycle without the crawl stages (`service.rebuild`, then `cycle.started` with `crawl=false`): build,
-validate, and export if the content changed. A release that reads the archived pages differently
+validate, and export if the snapshot does not hold the content yet. A release that reads the archived pages differently
 (a parser, a normalization rule, a migration) so reaches the snapshot within minutes of the deploy
 instead of after the first crawl, and if its build or validation fails, that is in the log right
 away while the previous snapshot stays current. `serve-snapshot --db <radix.db>`, the offline mode,
@@ -61,7 +61,10 @@ A cycle ends as `ok`, `degraded` (a crawl stage had failures; published data is 
 only ages), `failed` (build, validation or export failed; **the previous snapshot stays
 current**) or `interrupted` (the process stopped mid-cycle, a deploy or SIGTERM; nothing failed,
 the previous snapshot stays current). A failed cycle never stops the service; the next cycle
-tries again.
+tries again. What a failed or stopped validation or export left unpublished, the next cycle
+validates and exports again, though the data did not change since (Radix 0.11.2; before, it waited
+for the next change of the data): a validation that keeps failing so fails every cycle, and
+`/healthz` turns unhealthy after two, until it passes.
 
 ### Configuration
 
@@ -229,6 +232,7 @@ updated. `WARN`: the source data has a problem, or something failed and recovere
 | INFO | `crawl.modules_due`, `crawl.module_rows_changed` | why QIS module descriptions are fetched: `never_fetched`, `changed` (row in the module table, or another semester in QIS), `unsettled`, `past_age`, and the semester QIS calls current; which rows of the module table changed |
 | INFO | `service.started`, `service.stopped`, `http.listening`, `db.migrated` | lifecycle |
 | INFO | `build.interrupted`, `stage.interrupted` (`stage`), `export.interrupted`, `cycle.finished` with `result=interrupted` | the process is stopping (a deploy removes the old colour, SIGTERM) and cut a cycle short: its context was cancelled. Nobody has to act; the build is rolled back, the previous snapshot stays current. Only the cancellation of the service's own context counts: a "context canceled" while it runs, or any other error while it stops, is still `stage.failed` / `build.failed` / `export.failed` |
+| INFO | `export.behind` | the published snapshot does not hold what the build made, although the content did not change since the last build: an earlier cycle built it but did not publish it (its validation or export failed, a deploy stopped it). This cycle validates and exports it (`published_digest`, `content_digest`) |
 | INFO | `crawl.cortex` | at start, with `RADIX_CORTEX_URL`: the requests go through Cortex (`cortex`, its instances; `mode`, `cache`, `refresh` or `offline`; `max_age`) |
 | INFO | `seed.started`, `seed.progress`, `seed.finished` | `radix seed-cortex`: what Cortex made of the archive's pages (`created`, `checked`, `unchanged`, `older`, `failed`, `by_source`); WARN `seed.failed` names a page Cortex did not take |
 | DEBUG | `crawl.offline_miss` | offline through Cortex: Cortex has not stored the page (`key`, `url`); skipped, the next cycle asks again |

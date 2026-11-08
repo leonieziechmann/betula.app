@@ -402,7 +402,7 @@
         "spec": {
           "id": 14,
           "title": "Snapshots published",
-          "description": "New catalog snapshots exported for the web server in the selected range. Only when the content changed.",
+          "description": "New catalog snapshots exported for the web server in the selected range. Only when the current snapshot does not hold what the build made: the content changed, or an earlier cycle built it but its validation or export did not go through.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
