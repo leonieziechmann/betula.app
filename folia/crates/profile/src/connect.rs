@@ -1,5 +1,5 @@
 //! „Gerät verbinden" (`/sync`, Betula Sync): the page the link of another device opens
-//! (`sync::PairLink`). What follows `#` in the link opens a sealed parcel with the profile's key; a
+//! (`folia_widgets::syncpair::PairLink`). What follows `#` in the link opens a sealed parcel with the profile's key; a
 //! browser never sends that part to a server, and the page takes it out of the address and the
 //! history as soon as it has read it, before anything else happens. Then the profile comes as a new
 //! one of this browser (`Sync::join`), becomes the active one, and the page says so, with the way
@@ -112,7 +112,7 @@ pub fn ConnectPage() -> impl IntoView {
         }
         .into_any(),
         Step::Failed(problem) => view! {
-            <p class="action note-action pf-refused" role="status"><Icon name="triangle-alert"/><span>{problem_text(problem, t)}</span></p>
+            <p class="action note-action pf-refused" role="status"><Icon name="triangle-alert"/><span>{problem_text(problem)}</span></p>
             {ways((url::HOME, "house", s.to_start))}
         }
         .into_any(),
@@ -134,7 +134,7 @@ pub fn ConnectPage() -> impl IntoView {
 
 /// The part of the address after `#`, taken out of the address and of the history (the entry is
 /// replaced by the same address without it); `None` where there is none. Only in the browser.
-fn take_fragment() -> Option<String> {
+pub(crate) fn take_fragment() -> Option<String> {
     #[cfg(feature = "csr")]
     {
         let window = web_sys::window()?;

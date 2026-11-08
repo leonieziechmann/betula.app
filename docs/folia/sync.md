@@ -99,8 +99,9 @@ The profile page says „direkt verbunden" or „über Betula weitergeleitet".
 
 | | |
 |---|---|
-| „Betula Sync aktivieren" | a key, a device id, `POST /sync/v1/space`, the profile's records as its first snapshot |
-| „Weiteres Gerät verbinden" | a parcel with the key, sealed with a key the link alone holds (`/sync#<id ‖ key>`; `/verbinden#…` until 2026-11-08, which leads there), ten minutes at Phloem, for one device |
+| „Einschalten und Code zeigen" (the dialog „Gerät verbinden" of a private profile; „Betula Sync aktivieren" until 2026-11-08) | a key, a device id, `POST /sync/v1/space`, the profile's records as its first snapshot; then the link as below |
+| „Gerät verbinden" (a synced profile; „Weiteres Gerät verbinden" until 2026-11-08) | a parcel with the key, sealed with a key the link alone holds (`/sync#<id ‖ key>`; `/verbinden#…` until 2026-11-08, which leads there), ten minutes at Phloem, for one device |
+| „Mit dem Handy verbinden" (`/pair`, 2026-11-08) | the other way round, for a computer, which has no camera: it makes the parcel's id and key itself (`Sync::ask`, nothing sent) and shows `/pair#<id ‖ key>` as a QR code; the phone that opens it (its camera) shows which profile goes and what it holds, and „Verbinden" (a private profile is switched on on the way) seals the key with the question's key and leaves it under that id (`Sync::give`, `POST /sync/v1/pair`; 409 for a code answered already); the computer asks for it every 3 s in the first 90 s, then every 10 s, ten minutes at most (Phloem answers 120 such questions per address and hour), and joins as below (`Sync::collect`). No change of Phloem |
 | joining | the parcel opened, a new profile of the browser, its records from Phloem |
 | the recovery code | `K` in base32 (Crockford), 13 groups of four, the last 4 bits a check: most typos are told before any request |
 | „Nur dieses Gerät trennen" | what waits goes out, then `leave`; the copy stays, private |
@@ -126,6 +127,16 @@ persons or into a calendar app, as a copy of now or one that stays current.
 A private profile offers Betula Sync wherever it makes a choice better („Profil speichern", one
 click; decision 1), and the choices that need it save the profile on the way.
 
+The start page's setup ends with it (owner, 2026-11-08: „Mach das mal als step in die einführung
+mit rein. So als letzten schritt. So dass man es gleich auch auf dem handy hat";
+`folia/crates/home/src/home/devices.rs`, docs/folia/frontend.md „The start page"): after
+„Studium anlegen", „Betula Sync aktivieren" with what the server keeps above it, then the link for
+the phone at once, with the profile page's QR code (`folia_widgets::syncpair`), and „Verbunden"
+once one more device is online. On a phone's layout it names the address a laptop opens, `/pair`,
+whose code the phone scans (owner, the same day: „Oh der pc prozess muss anders sein. Da muss ein
+link kommen wie betula.app/pair wo dann der qr code gezeigt wird, den man am handy scannen kann um
+sich einzuloggen"); its step 1 leads there with „Profil übernehmen".
+
 ## 5. Checks
 
 - `cargo test -p folia-sync`: the stores' round trips, the cases of two devices, a simulation of
@@ -133,7 +144,10 @@ click; decision 1), and the choices that need it save the profile on the way.
   from a snapshot, shares and follows among them (`FOLIA_SYNC_SEEDS=600` and `--release` for a
   longer search).
 - `cargo test -p folia-stores sync`: the codes, the frames, what the browser keeps.
-- `folia/e2e/sync.mjs`: two browsers of one profile against a running Phloem.
+- `folia/e2e/sync.mjs`: two browsers of one profile against a running Phloem; the start page's
+  setup to its last step, the study on a second browser through its QR code's link; on a phone
+  the address `/pair` for the laptop, its code opened by the phone and „Verbinden", a private
+  profile switched on on the way, a code that opens once.
 - `folia/e2e/share.mjs`: sharing and following with four browsers against a running Phloem
   (Folia with `FOLIA_SYNC_PARTS` naming it).
 - `folia/e2e/live.mjs`: two browsers connect directly, and with Phloem's entries to the second held

@@ -1,55 +1,59 @@
 //! „Betula Sync" on the profile page (research/sync/entwurf.html, „Vom privaten Profil zum
-//! synchronisierten"): the active profile's state and what can be done with it, where the site
-//! offers Betula Sync (`folia_stores::sync::offered`).
+//! synchronisierten"; folia/design/profil/konzepte.html, the second round): the active profile's
+//! state and what can be done with it, where the site offers Betula Sync
+//! (`folia_stores::sync::offered`). The part is `#devices` (`url::DEVICES`), where „Geräte" in the menu
+//! of the profiles leads.
 //!
-//! - **Private**: what it is, and „Betula Sync aktivieren", which first says what the server then
-//!   keeps (sealed changes, their sizes and times, random ids; never what is in them) and that a
-//!   recovery code is offered, not asked for; then „Aktivieren".
-//! - **Synced**: online with how many other devices, or offline; „Weiteres Gerät verbinden" (a QR
-//!   code and the link, ten minutes, once), „Wiederherstellungscode zeigen", „Nur dieses Gerät
-//!   trennen" and „Sync beenden", each of the last two after a question.
+//! - **Private**: what it is, and „Gerät verbinden".
+//! - **Synced**: online with how many other devices, or offline; „Gerät verbinden",
+//!   „Wiederherstellungscode", and quiet at the end „Nur dieses Gerät trennen" and „Sync beenden",
+//!   each after a question.
+//! - **The only profile, empty and private** (a new device): what to do on the device that has it,
+//!   and the recovery code typed in (`FromOther`, also under „Profil hinzufügen").
 //! - **Ended** on another device, or failed: why, and the way on.
 //! - What two devices did at once in the profile, each with the way to where it is shown (the hint
 //!   there decides, `folia_widgets::syncnote`).
-//! - „Profil von einem anderen Gerät": the recovery code typed in, which brings the profile as a new
-//!   one; a link of another device opens „Gerät verbinden" (`connect`).
+//!
+//! „Gerät verbinden" is a dialog (`Connect`): a private profile first says what the server then
+//! keeps (sealed changes, their sizes and times, random ids; never what is in them) and that a
+//! recovery code is offered, not asked for, and „Einschalten und Code zeigen" switches it on; then
+//! the QR code and the link for the next device (ten minutes, once), „Link kopieren", „Teilen" where
+//! the system can (`folia_widgets::syncpair`, which the start page's setup shows as well), and once
+//! another device has come while it is open, that it has.
 //!
 //! Every action is a button (CLAUDE.md, „No action is a key's alone"). The link and the code are
 //! made in the browser and never reach a server; what follows `#` in the link is the key.
 
 use leptos::prelude::*;
 
+use folia_design::modal::{Modal, ModalHead, ModalSize};
 use folia_design::nav;
 use folia_design::ui::Icon;
 use folia_pages::ask::StudyplanModulesAsk;
 use folia_data::use_ask;
 use folia_routes::url;
-use folia_stores::profiles::{Profiles, FIRST, MAX_PROFILES};
+use folia_stores::profiles::{Profiles, FIRST};
 use folia_stores::sync::{Conflict, Pairing, Problem, State, Sync};
+use folia_widgets::syncpair::{copy, PairLink, COPIED_MS};
 
-use crate::i18n::{self, Texts};
+pub use folia_widgets::syncpair::problem_text;
 
-const ACTIVATE_ID: &str = "pf-sync-activate";
+use crate::i18n;
+
+const CONNECT_ID: &str = "pf-sync-connect";
 const ACTIVATE_YES_ID: &str = "pf-sync-yes";
-const PAIR_ID: &str = "pf-sync-pair";
 const CODE_ID: &str = "pf-sync-code";
 const LEAVE_ID: &str = "pf-sync-leave";
 const LEAVE_YES_ID: &str = "pf-sync-leave-yes";
 const STOP_ID: &str = "pf-sync-stop";
 const STOP_YES_ID: &str = "pf-sync-stop-yes";
 const RECOVER_ID: &str = "pf-sync-recover";
-
-/// How long „Kopiert" stands in the button's place.
-const COPIED_MS: u64 = 1600;
+const DIALOG_TITLE_ID: &str = "pf-connect-title";
 
 /// What is open in the part, below its actions.
 #[derive(Clone, Debug, PartialEq)]
 enum Open {
     Nothing,
-    /// The explanation before „Aktivieren".
-    Explain,
-    /// The link for the next device: while it is made, then the link or why there is none.
-    Pair(Option<Result<Pairing, Problem>>),
     /// The recovery code, shown.
     Code(String),
     /// The question before „Nur dieses Gerät trennen" or „Sync beenden".
@@ -57,48 +61,31 @@ enum Open {
     Stop,
 }
 
-/// The sentence of a problem, with what to do.
-pub fn problem_text(problem: Problem, t: &Texts) -> String {
-    let s = &t.sync;
-    match problem {
-        Problem::Budget => s.budget.to_string(),
-        Problem::SlowDown => s.slow_down.to_string(),
-        Problem::Full => s.full.to_string(),
-        Problem::BadLink => s.bad_link.to_string(),
-        Problem::Unreachable => s.unreachable.to_string(),
-        Problem::Unsupported => s.unsupported.to_string(),
-        Problem::NoRoom => (s.no_room)(MAX_PROFILES),
+/// What the dialog „Gerät verbinden" shows.
+#[derive(Clone, Debug, PartialEq)]
+enum Step {
+    /// What the server keeps, before a private profile is switched on.
+    Explain,
+    /// Switched on, the link on its way.
+    Starting,
+    /// The link for the next device: while it is made, then the link or why there is none.
+    Pair(Option<Result<Pairing, Problem>>),
+    /// Another device came while the link was shown.
+    Joined,
+}
+
+/// The other devices online of a synced profile; `None` where it is not online.
+fn online(state: &State) -> Option<usize> {
+    match state {
+        State::Online { devices, .. } => Some(*devices),
+        _ => None,
     }
 }
 
-/// The milliseconds since 1970 of the browser's clock; 0 on the server, which reads none.
-pub(crate) fn now_ms() -> u64 {
-    #[cfg(feature = "csr")]
-    {
-        web_sys::js_sys::Date::now().max(0.0) as u64
-    }
-    #[cfg(not(feature = "csr"))]
-    0
-}
-
-/// Copies a text into the clipboard (a click's: the browser lets it).
-pub(crate) fn copy(text: &str) {
-    #[cfg(feature = "csr")]
-    if let Some(window) = web_sys::window() {
-        let _ = window.navigator().clipboard().write_text(text);
-    }
-    #[cfg(not(feature = "csr"))]
-    let _ = text;
-}
-
-/// The minutes a link still opens, rounded down; `None` once it opens no more.
-fn minutes_left(until: u64, now: u64) -> Option<u64> {
-    (until > now).then(|| (until - now) / 60_000)
-}
-
-/// The part of the profile page, where the site offers Betula Sync.
+/// The part of the profile page, where the site offers Betula Sync; `empty`: whether the active
+/// profile keeps nothing.
 #[component]
-pub fn SyncPart() -> impl IntoView {
+pub fn SyncPart(#[prop(into)] empty: Signal<bool>) -> impl IntoView {
     let t = i18n::t();
     let s = &t.sync;
     let sync = Sync::expect();
@@ -106,57 +93,28 @@ pub fn SyncPart() -> impl IntoView {
     let profiles = Profiles::expect();
     let id = Memo::new(move |_| profiles.map_or(FIRST, Profiles::active));
     let state = Memo::new(move |_| sync.state(id.get()));
+    // The only profile, empty and private: a new device, which takes a profile rather than gives one.
+    let alone = Memo::new(move |_| profiles.is_some_and(|profiles| profiles.count() < 2) && state.with(|state| *state == State::Private) && empty.get());
     let open = RwSignal::new(Open::Nothing);
-    // The profile „Aktivieren" was pressed for: once it syncs, the part shows the QR code and the
-    // link for the next device at once (entwurf.html: „Danach zeigt er QR-Code und Link für das
-    // nächste Gerät").
-    let activated = RwSignal::new(None::<u16>);
-
-    let explain = move |_| {
-        open.set(Open::Explain);
-        request_animation_frame(|| nav::focus_by_id(ACTIVATE_YES_ID));
-    };
-    let activate = move |_| {
-        open.set(Open::Nothing);
-        let profile = id.get_untracked();
-        activated.set(Some(profile));
-        sync.activate(profile);
-    };
-    let cancel = move |back: &'static str| {
-        open.set(Open::Nothing);
-        request_animation_frame(move || nav::focus_by_id(back));
-    };
-    let pair = Callback::new(move |()| {
-        open.set(Open::Pair(None));
-        sync.pair(id.get_untracked(), move |made| {
-            // Still the question of this profile: a link made for another one is not shown.
-            if open.try_with_untracked(|now| matches!(now, Open::Pair(None))).unwrap_or(false) {
-                open.try_set(Open::Pair(Some(made)));
-            }
-        });
-    });
-    // Another profile: what was open was the other one's. A state that changes closes what
-    // belonged to the one before (the explanation once it is on, the questions once it is off),
-    // and a profile just switched on offers the next device.
+    let dialog = RwSignal::new(false);
+    // Another profile, or a state that changes: what was open belonged to the one before.
     Effect::new(move |before: Option<(u16, bool)>| {
         let now = (id.get(), state.with(State::synced));
         if before.is_some_and(|before| before != now) {
-            if now.1 && activated.get_untracked() == Some(now.0) {
-                activated.set(None);
-                pair.run(());
-            } else {
-                open.set(Open::Nothing);
-            }
-        }
-        if before.is_some_and(|before| before.0 != now.0) {
-            activated.set(None);
+            open.set(Open::Nothing);
         }
         now
     });
     let show_code = move |_| {
-        if let Some(code) = sync.recovery_code(id.get_untracked()) {
+        if open.with_untracked(|open| matches!(open, Open::Code(_))) {
+            open.set(Open::Nothing);
+        } else if let Some(code) = sync.recovery_code(id.get_untracked()) {
             open.set(Open::Code(code));
         }
+    };
+    let cancel = move |back: &'static str| {
+        open.set(Open::Nothing);
+        request_animation_frame(move || nav::focus_by_id(back));
     };
 
     let status = move || {
@@ -166,7 +124,7 @@ pub fn SyncPart() -> impl IntoView {
             State::Online { devices, direct, relayed } => ("on", (s.online)(devices, direct, relayed)),
             State::Offline => ("off", s.offline.to_string()),
             State::Ended => ("off", s.ended.to_string()),
-            State::Failed(problem) => ("warn", format!("{} {}", s.failed, problem_text(problem, t))),
+            State::Failed(problem) => ("warn", format!("{} {}", s.failed, problem_text(problem))),
         };
         Some(view! {
             <p class="pf-sync-state" role="status" data-state=dot>
@@ -176,68 +134,50 @@ pub fn SyncPart() -> impl IntoView {
         })
     };
 
-    let body = move || match state.get() {
-        State::Private | State::Ended | State::Failed(_) => {
-            let again = state.with(|state| !matches!(state, State::Private));
-            let label = if state.with(|state| matches!(state, State::Failed(_))) { s.retry } else if again { s.ended_again } else { s.activate };
-            if open.with(|open| *open == Open::Explain) {
-                view! {
-                    <div class="pf-offer pf-sync-explain" role="group" aria-labelledby="pf-sync-explain">
-                        <p id="pf-sync-explain"><b>{s.explain_heading}</b></p>
-                        <ul>{s.explain_points.iter().map(|point| view! { <li>{*point}</li> }).collect_view()}</ul>
-                        <p>{s.explain_code}</p>
-                        <div>
-                            <button class="mini primary hit" type="button" id=ACTIVATE_YES_ID on:click=activate>{s.explain_yes}</button>
-                            <button class="mini hit" type="button" on:click=move |_| cancel(ACTIVATE_ID)>{s.cancel}</button>
-                        </div>
-                    </div>
-                }
-                .into_any()
-            } else {
-                view! {
-                    <div class="pf-sync-actions">
-                        <button class="action" type="button" id=ACTIVATE_ID on:click=explain>
-                            <Icon name="monitor-smartphone"/><span>{label}<small>{s.activate_hint}</small></span>
-                        </button>
-                    </div>
-                }
-                .into_any()
+    let connect_button = move |label: &'static str| {
+        view! {
+            <button class="btn primary" type="button" id=CONNECT_ID on:click=move |_| dialog.set(true)>
+                <Icon name="monitor-smartphone"/><span>{label}</span>
+            </button>
+        }
+    };
+    let body = move || {
+        if alone.get() {
+            return view! {
+                <p class="pf-sub pf-sync-lead">{s.alone_lead}</p>
+                <FromOther sync id=RECOVER_ID/>
             }
+            .into_any();
         }
-        State::Starting => ().into_any(),
-        State::Online { .. } | State::Offline => view! {
-            <p class="pf-sub pf-sync-lead">{s.synced_lead}</p>
-            <div class="pf-sync-actions">
-                <button class="action" type="button" id=PAIR_ID aria-expanded=move || if open.with(|open| matches!(open, Open::Pair(_))) { "true" } else { "false" } on:click=move |_| pair.run(())>
-                    <Icon name="smartphone"/><span>{s.pair}<small>{s.pair_hint}</small></span>
-                </button>
-                <button class="action" type="button" id=CODE_ID aria-expanded=move || if open.with(|open| matches!(open, Open::Code(_))) { "true" } else { "false" } on:click=show_code>
-                    <Icon name="lock"/><span>{s.code_show}<small>{s.code_hint}</small></span>
-                </button>
-                <button class="action" type="button" id=LEAVE_ID on:click=move |_| { open.set(Open::Leave); request_animation_frame(|| nav::focus_by_id(LEAVE_YES_ID)); }>
-                    <Icon name="x"/><span>{s.leave}<small>{s.leave_hint}</small></span>
-                </button>
-                <button class="action" type="button" id=STOP_ID on:click=move |_| { open.set(Open::Stop); request_animation_frame(|| nav::focus_by_id(STOP_YES_ID)); }>
-                    <Icon name="trash-2"/><span>{s.stop}<small>{s.stop_hint}</small></span>
-                </button>
-            </div>
+        match state.get() {
+            State::Private => view! {
+                <p class="pf-sub pf-sync-lead">{s.private_lead}</p>
+                <div class="pf-sync-actions">{connect_button(s.pair)}</div>
+            }
+            .into_any(),
+            State::Ended => view! { <div class="pf-sync-actions">{connect_button(s.ended_again)}</div> }.into_any(),
+            State::Failed(_) => view! { <div class="pf-sync-actions">{connect_button(s.retry)}</div> }.into_any(),
+            State::Starting => ().into_any(),
+            State::Online { .. } | State::Offline => view! {
+                <p class="pf-sub pf-sync-lead">{s.synced_lead}</p>
+                <div class="pf-sync-actions">
+                    {connect_button(s.pair)}
+                    <button class="btn secondary" type="button" id=CODE_ID aria-expanded=move || if open.with(|open| matches!(open, Open::Code(_))) { "true" } else { "false" } on:click=show_code>
+                        <Icon name="lock"/><span>{s.code_show}</span>
+                    </button>
+                </div>
+                <p class="pf-sync-quiet">
+                    <button class="linkish" type="button" id=LEAVE_ID on:click=move |_| { open.set(Open::Leave); request_animation_frame(|| nav::focus_by_id(LEAVE_YES_ID)); }>{s.leave}</button>
+                    <button class="linkish" type="button" id=STOP_ID on:click=move |_| { open.set(Open::Stop); request_animation_frame(|| nav::focus_by_id(STOP_YES_ID)); }>{s.stop}</button>
+                </p>
+            }
+            .into_any(),
         }
-        .into_any(),
     };
 
     // What is open below the actions of a synced profile.
     let opened = move || match open.get() {
-        Open::Nothing | Open::Explain => ().into_any(),
-        Open::Pair(None) => view! { <p class="pf-sync-wait" role="status">{s.pairing}</p> }.into_any(),
-        Open::Pair(Some(Ok(pairing))) => view! { <PairLink pairing again=pair close=Callback::new(move |()| cancel(PAIR_ID))/> }.into_any(),
-        Open::Pair(Some(Err(problem))) => view! {
-            <p class="action note-action pf-refused" role="status">
-                <Icon name="triangle-alert"/><span>{problem_text(problem, t)}</span>
-                <button class="mini hit" type="button" on:click=move |_| pair.run(())>{s.retry}</button>
-                <button class="mini hit" type="button" on:click=move |_| cancel(PAIR_ID)>{s.close}</button>
-            </p>
-        }
-        .into_any(),
+        Open::Nothing => ().into_any(),
         Open::Code(code) => view! { <RecoveryCode code close=Callback::new(move |()| cancel(CODE_ID))/> }.into_any(),
         Open::Leave => view! {
             <p class="action note-action ask pf-ask">
@@ -258,77 +198,130 @@ pub fn SyncPart() -> impl IntoView {
     };
 
     view! {
-        <section class="panel pf-part pf-sync" aria-labelledby="pf-sync">
+        <section class="panel pf-part pf-sync" id=url::DEVICES aria-labelledby="pf-sync">
             <h2 id="pf-sync"><Icon name="monitor-smartphone"/>{s.heading}</h2>
-            {move || state.with(|state| *state == State::Private).then(|| view! { <p class="pf-sub pf-sync-lead">{s.private_lead}</p> })}
             {status}
             {body}
             {opened}
             <Conflicts sync/>
-            <FromOther sync/>
+            <Connect sync id state dialog/>
         </section>
     }
     .into_any()
 }
 
-/// The link for the next device: its QR code, the link to copy, how long it still opens; gone,
-/// „Neuer Link".
+/// „Gerät verbinden", the dialog (`Step`): a private profile is switched on first, then the link for
+/// the next device; another device that comes meanwhile is told.
 #[component]
-fn PairLink(pairing: Pairing, again: Callback<()>, close: Callback<()>) -> impl IntoView {
+fn Connect(sync: Sync, id: Memo<u16>, state: Memo<State>, dialog: RwSignal<bool>) -> impl IntoView {
     let t = i18n::t();
     let s = &t.sync;
-    let now = RwSignal::new(now_ms());
-    // The minutes left, counted while it is shown.
-    if let Ok(handle) = set_interval_with_handle(move || now.set(now_ms()), std::time::Duration::from_secs(5)) {
-        on_cleanup(move || handle.clear());
-    }
-    let until = pairing.until;
-    let left = Memo::new(move |_| minutes_left(until, now.get()));
-    let copied = RwSignal::new(false);
-    let link = pairing.link.clone();
-    let copy_it = move |_| {
-        copy(&link);
-        copied.set(true);
-        set_timeout(move || { let _ = copied.try_set(false); }, std::time::Duration::from_millis(COPIED_MS));
-    };
-    let code = folia_design::qr::path(&pairing.link);
-    let shown = pairing.link.clone();
-    move || {
-        if left.get().is_none() {
-            return view! {
-                <p class="action note-action pf-refused" role="status">
-                    <Icon name="clock-3"/><span>{s.pair_gone}</span>
-                    <button class="mini primary hit" type="button" on:click=move |_| again.run(())>{s.pair_new}</button>
-                    <button class="mini hit" type="button" on:click=move |_| close.run(())>{s.close}</button>
-                </p>
+    let step = RwSignal::new(Step::Explain);
+    // The other devices online when the link was shown: one more is the device that came.
+    let before = StoredValue::new(None::<usize>);
+    let pair = move || {
+        step.set(Step::Pair(None));
+        before.set_value(state.with_untracked(online));
+        sync.pair(id.get_untracked(), move |made| {
+            // Still the question of this profile: a link made for another one is not shown.
+            if step.try_with_untracked(|now| matches!(now, Step::Pair(None))).unwrap_or(false) {
+                step.try_set(Step::Pair(Some(made)));
             }
-            .into_any();
-        }
-        let copy_it = copy_it.clone();
-        let qr = code.clone().map(|(path, width)| view! {
-            <svg class="pf-qr" viewBox=format!("0 0 {width} {width}") role="img" aria-label=s.qr_label shape-rendering="crispEdges">
-                <path d=path/>
-            </svg>
         });
-        view! {
-            <div class="pf-pair">
-                {qr}
-                <div class="pf-pair-text">
-                    <p>{s.pair_how}</p>
-                    <p class="pf-pair-link"><code>{shown.clone()}</code></p>
-                    <p class="pf-pair-left" role="status">{move || left.get().map(s.pair_left)}</p>
-                    <div class="pf-pair-actions">
-                        <button class="mini primary hit" type="button" on:click=copy_it>
-                            <Icon name=if copied.get() { "check" } else { "copy" }/>
-                            <span>{move || if copied.get() { s.copied } else { s.copy_link }}</span>
-                        </button>
-                        <button class="mini hit" type="button" on:click=move |_| close.run(())>{s.close}</button>
-                    </div>
-                </div>
+    };
+    // Opened: a synced profile shows its link at once, a private one first what switching on means.
+    Effect::new(move |was: Option<bool>| {
+        let open = dialog.get();
+        if open && was != Some(true) {
+            if untrack(|| state.with(State::synced)) {
+                pair();
+            } else {
+                step.set(Step::Explain);
+                request_animation_frame(|| nav::focus_by_id(ACTIVATE_YES_ID));
+            }
+        }
+        open
+    });
+    // Switched on: the link follows; another device online while the link stands: it came.
+    Effect::new(move |_| {
+        let now = state.get();
+        if !dialog.get_untracked() {
+            return;
+        }
+        match step.get_untracked() {
+            Step::Starting if now.synced() => pair(),
+            Step::Pair(Some(Ok(_))) if online(&now).zip(before.get_value()).is_some_and(|(now, then)| now > then) => step.set(Step::Joined),
+            _ => {}
+        }
+    });
+    // Another profile: the dialog was about the one before.
+    Effect::new(move |was: Option<u16>| {
+        let now = id.get();
+        if was.is_some_and(|was| was != now) {
+            dialog.set(false);
+        }
+        now
+    });
+    let close = Callback::new(move |()| dialog.set(false));
+    let activate = move |_| {
+        step.set(Step::Starting);
+        sync.activate(id.get_untracked());
+    };
+    let name = move || profiles_name(id.get_untracked());
+    // What the server keeps, each point with its icon: sealed, sizes and times, gone after a while.
+    const KEEPS: [&str; 3] = ["lock", "clock-3", "calendar-clock"];
+    let body = move || match step.get() {
+        Step::Explain => view! {
+            <div class="pf-sync-explain">
+                <p class="pf-explain-head">{s.explain_heading}</p>
+                <ul class="pf-keeps">
+                    {s.explain_points.iter().zip(KEEPS).map(|(point, icon)| view! { <li><span class="pf-tile" aria-hidden="true"><Icon name=icon/></span><span>{*point}</span></li> }).collect_view()}
+                </ul>
+                <p class="pf-explain-code"><Icon name="shield-check"/><span>{s.explain_code}</span></p>
             </div>
         }
-        .into_any()
+        .into_any(),
+        Step::Starting | Step::Pair(None) => view! { <p class="pf-sync-wait" role="status">{if matches!(step.get_untracked(), Step::Starting) { s.starting } else { s.pairing }}</p> }.into_any(),
+        Step::Pair(Some(Ok(pairing))) => view! { <PairLink pairing again=Callback::new(move |()| pair())/> }.into_any(),
+        Step::Pair(Some(Err(problem))) => view! {
+            <p class="action note-action pf-refused" role="status">
+                <Icon name="triangle-alert"/><span>{problem_text(problem)}</span>
+                <button class="mini hit" type="button" on:click=move |_| pair()>{s.retry}</button>
+            </p>
+        }
+        .into_any(),
+        Step::Joined => view! { <p class="pf-joined" role="status"><Icon name="check"/><span>{(s.joined)(&name())}</span></p> }.into_any(),
+    };
+    // The buttons at the dialog's foot, below what scrolls (`folia_design::modal`).
+    let foot = move || match step.get() {
+        Step::Explain => Some(view! {
+            <footer class="st-dlg-foot">
+                <button class="btn secondary" type="button" on:click=move |_| close.run(())>{s.cancel}</button>
+                <button class="btn primary" type="button" id=ACTIVATE_YES_ID on:click=activate>{s.explain_yes}</button>
+            </footer>
+        }
+        .into_any()),
+        Step::Joined => Some(view! {
+            <footer class="st-dlg-foot">
+                <button class="btn primary" type="button" on:click=move |_| close.run(())>{s.done}</button>
+            </footer>
+        }
+        .into_any()),
+        _ => None,
+    };
+    view! {
+        <Modal open=Signal::derive(move || dialog.get()) on_close=close size=ModalSize::M class="pf-connect-dlg" labelled_by=DIALOG_TITLE_ID>
+            <ModalHead id=DIALOG_TITLE_ID title=s.pair on_close=close/>
+            <div class="st-dlg-body pf-connect-body">{body}</div>
+            {foot}
+        </Modal>
     }
+}
+
+/// The name of profile `id` as it is shown.
+fn profiles_name(id: u16) -> String {
+    let t = i18n::t();
+    Profiles::expect().and_then(|profiles| untrack(|| profiles.all()).into_iter().find(|profile| profile.id == id)).map(|profile| profile.shown(t.locale)).unwrap_or_default()
 }
 
 /// The recovery code shown: what it is, „Code kopieren", „Verbergen".
@@ -414,7 +407,7 @@ fn Conflicts(sync: Sync) -> impl IntoView {
 /// „Profil von einem anderen Gerät": the recovery code typed in brings the profile as a new one,
 /// which becomes the active one; or why it does not.
 #[component]
-fn FromOther(sync: Sync) -> impl IntoView {
+pub(crate) fn FromOther(sync: Sync, id: &'static str) -> impl IntoView {
     let t = i18n::t();
     let s = &t.sync;
     let profiles = Profiles::expect();
@@ -453,7 +446,7 @@ fn FromOther(sync: Sync) -> impl IntoView {
             <p class="pf-sub">{s.other_lead}</p>
             <form class="pf-rename pf-recover" on:submit=recover>
                 <input
-                    id=RECOVER_ID
+                    id=id
                     type="text"
                     aria-label=s.code_field
                     placeholder=s.code_placeholder
@@ -477,40 +470,12 @@ fn FromOther(sync: Sync) -> impl IntoView {
                 .into_any(),
                 Err(problem) => view! {
                     <p class="action note-action pf-refused" role="status">
-                        <Icon name="triangle-alert"/><span>{problem_text(problem, t)}</span>
+                        <Icon name="triangle-alert"/><span>{problem_text(problem)}</span>
                         <button class="mini hit" type="button" on:click=move |_| result.set(None)>{t.profile.ok}</button>
                     </p>
                 }
                 .into_any(),
             })}
         </div>
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_link_says_how_long_it_opens() {
-        let until = 10 * 60_000;
-        assert_eq!(minutes_left(until, 0), Some(10));
-        assert_eq!(minutes_left(until, 30_000), Some(9));
-        assert_eq!(minutes_left(until, until - 1), Some(0));
-        assert_eq!((minutes_left(until, until), minutes_left(until, until + 1)), (None, None));
-        for t in [&i18n::DE, &i18n::EN] {
-            assert!((t.sync.pair_left)(0).contains(if std::ptr::eq(t, &i18n::DE) { "weniger als eine Minute" } else { "less than a minute" }));
-        }
-    }
-
-    #[test]
-    fn every_problem_says_what_to_do() {
-        for t in [&i18n::DE, &i18n::EN] {
-            for problem in [Problem::Budget, Problem::SlowDown, Problem::Full, Problem::BadLink, Problem::Unreachable, Problem::Unsupported, Problem::NoRoom] {
-                let said = problem_text(problem, t);
-                assert!(said.len() > 40 && said.ends_with('.'), "{problem:?}: {said}");
-            }
-            assert!(problem_text(Problem::NoRoom, t).contains(&MAX_PROFILES.to_string()));
-        }
     }
 }

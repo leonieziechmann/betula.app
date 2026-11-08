@@ -5,7 +5,8 @@
 //! photo of the season over the greeting, the date and a sentence about the day, the semester
 //! clock, and what comes next, then today as a list beside the week, the exams, the study and the
 //! Merkliste (`today.rs`). Whoever has set nothing up yet finds the setup there instead, three
-//! steps on a card over a taller photo with Betula's mark and name beside it (`setup.rs`), and
+//! steps on a card over a taller photo with Betula's mark and name beside it (`setup.rs`), and a
+//! fourth for the phone where the site offers Betula Sync (`devices.rs`), and
 //! under it what goes without one: the ways into the catalog. What the page said of Betula until
 //! then moved to „Über Betula", for new visitors and for search engines, and is on the pages about
 //! Betula since 2026-10-27 (`topics.rs`, `overview.rs`), which the start page leads to under
@@ -23,6 +24,7 @@ mod ahead;
 mod clock;
 mod day;
 mod detail;
+mod devices;
 mod overview;
 mod photo;
 mod setup;
@@ -83,6 +85,15 @@ pub(crate) fn ways(t: &'static Texts) -> Vec<Way> {
     ]
 }
 
+/// What the start page shows: the setup, the day without a study („Erst mal umschauen"), or the
+/// day.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Shown {
+    Setup,
+    Guest,
+    Day,
+}
+
 /// The snapshot's current semester, as the start page's counts came with it.
 fn current_of(home: &HomeData) -> Option<SemesterKey> {
     home.overview.current_semester.as_ref().and_then(|semester| SemesterKey::parse(&semester.key))
@@ -118,16 +129,25 @@ pub fn HomePage() -> impl IntoView {
     provide_context(ClosePopups(close_popups));
 
     // The visitor: a program kept is a study set up; „Erst mal umschauen" folds the setup away for
-    // the visit; „Studium anlegen" leaves a note („Eingerichtet: …") until it is closed.
+    // the visit; „Studium anlegen" leaves a note („Eingerichtet: …") until it is closed. Where the
+    // setup has a step after „Studium anlegen" (Betula Sync), the setup stays until it ends.
     let mine = MyProgram::expect();
     let kept = Memo::new(move |_| APP && mine.is_some_and(|mine| mine.with(|doc| doc.program.is_some())));
     let looking = RwSignal::new(false);
     let welcome = RwSignal::new(None::<Done>);
+    let finishing = RwSignal::new(false);
+    let on_written = Callback::new(move |()| finishing.set(true));
     let on_done = Callback::new(move |done: Done| {
+        finishing.set(false);
         looking.set(false);
         welcome.set(Some(done));
     });
-    let on_look = Callback::new(move |()| looking.set(true));
+    // „Erst mal umschauen" leaves the setup, also one that has set up a study already (its chip led
+    // back to step 1): then the day.
+    let on_look = Callback::new(move |()| {
+        finishing.set(false);
+        looking.set(true);
+    });
     let on_setup = Callback::new(move |()| looking.set(false));
     // The start page filled with its Termin („Ganze Seite", `today::TerminOver`, there with a
     // study set up): its own parts make way (app.css). A class of the page, not a `:has()` of it:
@@ -145,20 +165,27 @@ pub fn HomePage() -> impl IntoView {
         }
     });
 
+    // What the page shows, a memo: the setup is not built anew when its study is written while it
+    // still shows its last step.
+    let shown = Memo::new(move |_| match (kept.get() && !finishing.get(), looking.get()) {
+        (true, _) => Shown::Day,
+        (false, true) => Shown::Guest,
+        (false, false) => Shown::Setup,
+    });
     let body = move || {
         if !APP {
             // The server's page (R9): the setup's first step, and the day's skeleton for a browser
             // whose head script found a program kept.
             return view! {
-                <div class="day-first-wrap"><FirstVisit now on_done on_look home server=true/></div>
+                <div class="day-first-wrap"><FirstVisit now on_done on_look on_written home server=true/></div>
                 <div class="day-sk-wrap"><TodaySkeleton/></div>
             }
             .into_any();
         }
-        match (kept.get(), looking.get()) {
-            (true, _) => view! { <today::TodayView guest=false welcome on_setup home/> }.into_any(),
-            (false, true) => view! { <today::TodayView guest=true welcome on_setup home/> }.into_any(),
-            (false, false) => view! { <FirstVisit now on_done on_look home server=false/> }.into_any(),
+        match shown.get() {
+            Shown::Day => view! { <today::TodayView guest=false welcome on_setup home/> }.into_any(),
+            Shown::Guest => view! { <today::TodayView guest=true welcome on_setup home/> }.into_any(),
+            Shown::Setup => view! { <FirstVisit now on_done on_look on_written home server=false/> }.into_any(),
         }
     };
 
@@ -178,7 +205,7 @@ pub fn HomePage() -> impl IntoView {
 /// (owner, 2026-10-20: „Bei der PC version ist beim einrichten rechts mega viel Platz. Mach da mal
 /// noch das Betula logo + Schriftzug rein"), and under it the ways into the catalog.
 #[component]
-fn FirstVisit(now: Signal<Option<SemesterKey>>, on_done: Callback<Done>, on_look: Callback<()>, home: Signal<Option<HomeData>>, server: bool) -> impl IntoView {
+fn FirstVisit(now: Signal<Option<SemesterKey>>, on_done: Callback<Done>, on_look: Callback<()>, on_written: Callback<()>, home: Signal<Option<HomeData>>, server: bool) -> impl IntoView {
     let t = i18n::t();
     let faculties = today::faculties_of(home);
     let figures = move || {
@@ -191,7 +218,7 @@ fn FirstVisit(now: Signal<Option<SemesterKey>>, on_done: Callback<Done>, on_look
             parts.join(" · ")
         })
     };
-    let card = if server { view! { <setup::ServerCard faculties/> }.into_any() } else { view! { <setup::SetupCard now faculties on_done on_look/> }.into_any() };
+    let card = if server { view! { <setup::ServerCard faculties/> }.into_any() } else { view! { <setup::SetupCard now faculties on_done on_look on_written/> }.into_any() };
     view! {
         <section class="day-hero day-first" aria-labelledby="ob-title">
             <div class="day-photo" aria-hidden="true"></div>

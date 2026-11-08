@@ -1,10 +1,11 @@
 //! The way between the languages of the site (owner, 2026-09-27): for every other language a way to
 //! the page the visitor is on with what its address says (filters, the module beside it). It lives
 //! in the profile (owner, 2026-10-14: „allgemein kann man die Spracheinstellungen komplett in das
-//! Profil moven"): in the menu of the profiles at the way to the profile page
-//! (`chrome::ProfileSwitcher`), and among the settings of the profile page, which leads to that page
-//! in the other language and offers it without JavaScript too (its stand-in, `folia_profile`). The
-//! rail and a phone's start page, where the switch stood until then, have none.
+//! Profil moven"): in the menu of the profiles at the way to the profile page, as a choice beside
+//! light and dark (`chrome::Preferences`; since 2026-11-08 there alone: the profile page holds what
+//! a profile is, folia/design/profil/konzepte.html), and in the profile page's stand-in, which offers
+//! the other language without JavaScript (`folia_profile`). The rail and a phone's start page, where
+//! the switch stood until then, have none.
 //!
 //! Another language is another address and a new page load (`rel="external"`: neither the router
 //! nor `pending` take it), so the app starts again in that language; what the visitor keeps in this
@@ -18,30 +19,32 @@ use leptos::prelude::*;
 
 use crate::i18n::{self, Locale};
 use crate::tabs::location_of;
-use folia_design::ui::Icon;
 
-/// For every other language a way of the menu of the profiles (`chrome::ProfileSwitcher`): the
-/// icon of languages and the language's name in itself („English"), to this page in it.
+/// The language as a choice of the menu of the profiles (`chrome::Preferences`): every language by
+/// its code („DE", „EN"), named in itself for those who do not see it; the one of the page checked,
+/// every other a way to the page the visitor is on in it, with what its address says.
 #[component]
-pub fn LanguageWays() -> impl IntoView {
+pub fn LanguageChoice() -> impl IntoView {
     let t = i18n::t();
     let location = i18n::use_location();
     let here = Memo::new(move |_| location_of(&location.pathname.get(), &location.search.get()));
     // The same view in another language is a view as well: no page for a crawler (`seo`).
     let rel = move || if here.with(|here| folia_routes::url::listed(here)) { "alternate external" } else { "alternate external nofollow" };
-    Locale::ALL
-        .iter()
-        .copied()
-        .filter(move |locale| *locale != t.locale)
-        .map(|locale| {
-            view! {
-                <a class="tab-menu-way" href=move || here.with(|here| locale.path(here)) hreflang=locale.code() lang=locale.code() rel=rel data-language=locale.code()>
-                    <Icon name="languages"/>
-                    <span>{locale.name()}</span>
-                </a>
-            }
-        })
-        .collect_view()
+    view! {
+        <div class="seg pm-seg pm-lang" role="radiogroup" aria-label=t.app.language>
+            {Locale::ALL.iter().copied().map(|locale| {
+                let code = locale.code().to_uppercase();
+                if locale == t.locale {
+                    view! { <button type="button" role="radio" aria-checked="true" aria-label=locale.name() title=locale.name() lang=locale.code()>{code}</button> }.into_any()
+                } else {
+                    view! {
+                        <a role="radio" aria-checked="false" aria-label=locale.name() title=locale.name() href=move || here.with(|here| locale.path(here)) hreflang=locale.code() lang=locale.code() rel=rel data-language=locale.code()>{code}</a>
+                    }
+                    .into_any()
+                }
+            }).collect_view()}
+        </div>
+    }
 }
 
 /// Runs first in the head of every page of the app (with JavaScript only): the page opens in the

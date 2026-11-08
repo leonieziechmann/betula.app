@@ -54,8 +54,9 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/programs/<slug>/plan\|areas\|my-plan[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar: the Regelstudienplan (`plan`) and „Wahlpflicht & Bereiche“ (`areas`). „Mein Plan“ (`my-plan`, the visitor's, `noindex` and not in the sitemap, `ProgramTab::indexed`) took the place of „Alle Module“ on 2026-09-25 (the program's modules are its catalog, `/catalog?program=<slug>`, and `…/modules` is a 404) and became „Mein Studium“ on 2026-10-04: the views no longer list it, the app goes on from its address to `/study` in the same history entry, and the server's page there says so. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all but `variant` (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key and its canonical address is the plain one. The plan of each further study direction is a page of its own (2026-09-26): `?variant=<n>` is its canonical address, listed in the sitemap, with the direction in its title; the first is the plain address, and a number past the last plan names the last. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone an area or a row of the plan picked is the page, and a module comes up as a sheet over the page or over what was picked (2026-10-06; until then `open` alone showed it in full there) |
 | `/bookmarks?collection=…&turnus=…&stand=…&counts=1&lang=…&ects_min=…&campus=…&graded=yes&fits=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (the view — a collection by its number, `none` for „Ohne Sammlung", never its name —, half of the year, „Stand", „Zählt in meinem Studium", the few of the catalog's filters it has under the catalog's names, the order — `added`, `study`, `offer`, `title`, `ects`, `events`, each turned round with `desc=1` —, the previewed module), never what is on it: the marks live in the browser, and so does what is typed into the search at the head on this page (`folia_shell::search::LocalSearch`, R20). `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/widgets/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` is a sheet over the list (2026-10-06; until then it did what `full=1` does). The server renders an explanation, the same for everybody, `noindex` |
 | `/studyplan?sem=…&view=…&open=<id>&row=<key>&termin=<key>&on=<day>&wahl=e<event>&vergleich=1&import=…&variant=<n>[&share=<code>][&full=1]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20) — `termin` and `on` a Termin in its own view in the app's dialog over it, and with `full=1` filling the page („Ganze Seite", as `open=<id>&full=1` a module; `PlanAddress`; „A Termin in its own view"), `wahl` a choice of groups in focus over the week and `vergleich` its groups compared day by day („Offen and the choice in focus") —, with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
-| `/profile` | „Profil" (owner, 2026-10-14): the profiles of this browser and the active one's page — its name (renamed, deleted), „Mein Studiengang", what it keeps with the way to each and „Profil leeren", the settings every profile shares (light, dark or the system's; the language); in the sidebar the profiles (a click switches), „Neues Profil", and a profile kept as a file or made of one. What it shows lives in the browser; the address is the page and says nothing more. A page of a while: on a phone its arrow leads back to where the visitor was (2026-10-19). The server renders one stand-in for everybody, `noindex`, not in the sitemap („Profiles" below) |
+| `/profile` | „Profil" (owner, 2026-10-14; reworked 2026-11-08, folia/design/profil/konzepte.html): the profiles of this browser and the active one's page — its name (renamed in place), „Mein Studiengang" as a line, what it keeps counted (no links), Betula Sync (`#devices`), „Daten" (a file) and the „Gefahrenzone" (emptied, deleted); in the sidebar the profiles (a click switches) and „Profil hinzufügen" (empty, from another device, from a file). What every profile shares (light, dark or the system's; the language) is in the menu of the profiles. What it shows lives in the browser; the address is the page and says nothing more. A page of a while: on a phone its arrow leads back to where the visitor was (2026-10-19). The server renders one stand-in for everybody, `noindex`, not in the sitemap („Profiles" below) |
 | `/sync#<…>` | „Gerät verbinden" (Betula Sync, 2026-11-05; „Betula Sync in the browser" below): the page the link of another device opens. What follows `#` opens a sealed parcel with the profile's key; it never reaches a server, and it leaves the address and the history as soon as the page has read it. The server renders an explanation, the same for everybody, `noindex`; no page links it. `/verbinden#<…>` until 2026-11-08, which leads here (below) |
+| `/pair`, `/pair#<…>` | „Mit dem Handy verbinden" (Betula Sync, 2026-11-08; `folia/crates/profile/src/pair.rs`, docs/folia/sync.md „The actions"): the address one types on a computer. It shows a QR code of `/pair#<id ‖ key>` (made in the browser, ten minutes) and waits; the phone that scans it opens the same page with the fragment, which goes out of the address at once, shows which profile goes and what it holds (an empty one says so: a browser that is not the one Betula is used in), and „Verbinden" („Betula Sync aktivieren und verbinden" for a private profile, with what the server keeps above it); then the computer holds the profile and says so. The server renders one stand-in for everybody, `noindex`, not in the sitemap, the stage of no tab |
 | `/imprint`, `/privacy` | The legal pages (`folia/crates/home/src/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21); `/impressum` and `/datenschutz` until 2026-11-08, which lead here (below). Linked from the ground at the end of the start page and of the pages about Betula, and from the profile page („Über diese Seite" at its end), which every page leads to (the rail; on a phone the box at the head of the page); § 5 DDG: reachable at all times. Until 2026-11-03 the ground at the end of every page linked them („The birch"; owner: „ich würde gerne den footer raus nehmen aus den meisten seiten von betula. Um weiterhin compliant zu sein können wir bei der Profile page die links wieder machen und den footer bei der landing page lassen"). The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
 | `/verbinden`, `/impressum`, `/datenschutz` | The German addresses there were, until 2026-11-08 (owner: „Keine deutschen links und den urls. Like wir machen hier vernünftige software. Url struktur alles in us englisch"): every path is US English, whatever language the page speaks; query keys and fragments are not paths and stay as they are. No pages any more: the server answers each, in every language (`/en/impressum`), with a redirect for good (308) to `/sync`, `/imprint` and `/privacy`, with its query (`url::MOVED`, `moved_redirect` in `folia-server`), so that what links to them, a bookmark and what search engines know still lead somewhere; the browser app goes on there in the same entry of the history (`stage::Page::Moved`, `Moved` in `folia-app`). A pairing link from before (`/verbinden#<…>`) keeps its key: a browser carries the fragment over a redirect whose `Location` has none (RFC 9110, 10.2.2) |
 
@@ -3976,6 +3977,38 @@ the pages about Betula since 2026-10-27 (`/about/<topic>`, below).
      next paint (R21); a note says what was set up, with „Zum Stundenplan" and „Rückgängig", which
      puts back what this browser kept before.
 
+  4. „Auch auf dem Handy?" (2026-11-08; owner: „es gibt ja jetzt betula sync. Mach das mal als
+     step in die einführung mit rein. So als letzten schritt. So dass man es gleich auch auf dem
+     handy hat"), where the site offers Betula Sync (`--sync`, `FOLIA_SYNC`; `home/devices.rs`):
+     the fourth chip „Geräte" on the server's page and the app's alike (the server's by its
+     `SyncOffer`, the app's by the page's `betula-sync` meta tag), so that nothing moves at the
+     takeover. „Studium anlegen" writes the study as before, and the card stays (`on_written`: the
+     page shows the setup while it ends, by a memo of what it shows, so that the card is not built
+     anew when „Mein Studiengang" says a study is set up); the chip of step 3 says what went into
+     the Stundenplan („4 Module"). What Betula Sync does and what the server then keeps, as three
+     points (sealed with a key only the devices have; no account, random ids, sizes and times;
+     ended at any time on the profile page, everything on the server gone, and so after 13 months
+     untouched), as the profile page's dialog „Gerät verbinden" says it before its „Einschalten und
+     Code zeigen"; then „Betula Sync aktivieren"
+     (one click, since that stands above it) and „Später" (its title: on the profile page at any
+     time). Once on, switched on here or before, the link for the next device at once: its QR code,
+     the link to copy or to share and the minutes it opens (`folia_widgets::syncpair::PairLink`, the profile
+     page's, moved a layer down for it); once one more device of the profile is online than when
+     the link was made, „Verbunden" and „Noch ein Gerät verbinden". „Fertig" (or „Später") ends the
+     setup with the note of what was set up, which says „Betula Sync hält es auf deinen Geräten
+     gleich." in place of „Alles bleibt in diesem Browser." while the profile syncs. What it says
+     names the phone; on a phone's layout the laptop („Auch am Laptop?"), and once Betula Sync is
+     on, the other way round (owner, the same day: „Oh der pc prozess muss anders sein. Da muss ein
+     link kommen wie betula.app/pair wo dann der qr code gezeigt wird, den man am handy scannen kann
+     um sich einzuloggen"): the address the laptop opens, `<host>/pair`, large, whose QR code this
+     phone scans and answers with „Verbinden" (`/pair` below); „Verbunden" as on a computer. Step
+     1's „Profil übernehmen" leads to `/pair` where the site offers Betula Sync (from the phone
+     by its code), else to the profile page (a file).
+     A chip that leads back and „Studium anlegen" once more set the study up anew in place of the
+     first one: the plan and the Studienbeginn from before the setup are the base, so that
+     „Rückgängig" puts back what was. Where the site does not offer Betula Sync the setup has its
+     three steps, and „Studium anlegen" ends it.
+
   What is long in a step scrolls inside the card, and the wheel goes on to the page at its ends,
   and at once over what has nothing to scroll (owner, the same day: „Dazu gibt es ein scroll lock,
   wenn man mit der maus über der semester selection ist. Das muss auch raus besonders, wenn es da
@@ -4128,7 +4161,8 @@ the pages about Betula since 2026-10-27 (`/about/<topic>`, below).
 - **Its commands** („Befehle", R25): the setup's under „Studium einrichten" (the program's picker,
   a semester by its name with „gewählt" for the one picked, „Anderes Fachsemester", „Weiter", the
   switch with „an", „Studium anlegen", „Ohne Module weiter", „Erst mal umschauen", „Profil
-  übernehmen", „Was ist Betula?"), the buttons of the
+  übernehmen", „Was ist Betula?", and in step 4 „Betula Sync aktivieren", „Später", „Fertig",
+  „Noch ein Gerät verbinden"), the buttons of the
   photo and of the note of a study set up under „Dein Tag", the ways into the catalog under
   „Entdecken" („Ohne Einrichtung" on a first visit), the pages about Betula under „Mehr über
   Betula" (2026-10-27).
@@ -4494,8 +4528,8 @@ at the end of every page the ground with the roots. Picked on a design canvas of
   the pages about Betula (`/about/<topic>`) keep the ground; the pages of the app — the catalog,
   the Merkliste, „Mein Studium", the Stundenplan, the programs, a module, a Termin, the profile,
   and the legal pages with their sidebar — have none since. A page that has one puts it at the end
-  of its `.work`. The profile page ends with „Über diese Seite" (`folia_profile`, `About`), which holds what
-  the ground held but the wordmark and the semester: the note that Betula is not the BTU's,
+  of its `.work`. The profile page ends with a line of small text (`folia_profile`, `Foot`; „Über diese Seite"
+  until 2026-11-08), which holds what the ground held but the wordmark and the semester: the note that Betula is not the BTU's,
   Impressum and Datenschutz, the versions of Folia and Radix, the date of the data and the source;
   without JavaScript its explanation offers the two legal pages. On a wide screen a page without one
   ends 8 px above the window's edge, as the panels beside it do, and the wood stays on the window's
@@ -5054,7 +5088,10 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   it the search keeps its words on a phone 390 px wide (a little less room around its icon and
   words there); the start page's brand line holds the brand alone. The page is no area's: no tab
   is current on it, the badge is, and the top bar says „Profil“. The server writes the person, the
-  same for everybody (R9), and without JavaScript the way leads to the page's stand-in.
+  same for everybody (R9), and without JavaScript the way leads to the page's stand-in. Since
+  2026-11-08 a click on it opens the menu of the profiles, as the phone's box does (below), and the
+  page is „Profil verwalten“ there; „Profil“ of the commands (Strg+K) still leads to the page
+  (a click the browser did not see from a person, `Event::is_trusted`, is a way, not the menu).
 - **A page of a while** (owner, 2026-10-19: „dass die Profile page, als temporäre seite getreated
   werden soll wo man dann oben den zurück pfeil hat und genau wieder da landet, wo man davor war";
   `nav::passing`, `chrome::Up::Before`): on a phone the page has the arrow at the head (its address
@@ -5074,8 +5111,17 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   place (none: „Profil 3“), and „Anlegen“ or Enter makes the new profile, empty, the active one as
   the page's „Neues Profil“ does, the menu gone at once; a menu a mouse opened stays while the name
   is typed, and Esc leaves the field before it closes the menu. With eight profiles it says that
-  there can be no other, as the page does. Then „Profil & Einstellungen“ (the page) and the other
-  language (`languages::LanguageWays`: this page in it, a page load). A mouse resting on the rail's
+  there can be no other, as the page does. Then, since 2026-11-08 (folia/design/profil/konzepte.html,
+  the second round: B's menu; owner: „die profil unabhängigen einstellungen wo anders hin. Also
+  sowas wie sprache und system theme. Maybe die beiden sogar in quick access“): „Profil verwalten“
+  (the page), „Geräte“ where the site offers Betula Sync (the page's part, `/profile#devices`, which
+  the page scrolls to and lights up once; under it the active profile's state: with how many other
+  devices, offline, „Nur auf diesem Gerät“, a failure), a row of what every profile shares — light,
+  dark or the system's as three small buttons with their icons (`chrome::Preferences`, set by
+  `enhance.js` as the rail's switch is, `data-action="theme-set"`, which says so with
+  `betula:theme`; the menu stays open), the language by its code („DE“, „EN“;
+  `languages::LanguageChoice`: this page in it, a page load) — and at its foot the Impressum and
+  the Datenschutz. A phone chooses light or dark here alone. A mouse resting on the rail's
   way for 160 ms opens it beside the way, growing up from its foot, without moving the focus; it
   goes 280 ms after the mouse has left the way and the menu (the gap between them is crossed in that
   time), and a mouse passing over the way opens nothing. A right click or the menu key on the way opens it as a tab's menu is opened
@@ -5086,21 +5132,26 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   and nothing changes in the history until a way is taken. A finger held on the box opens it as
   well (enhance.js, `data-hold="profiles"` → `betula:profile-menu`, as a tab is held), and the
   finger's release goes nowhere. Without JavaScript the box is the link to the page's stand-in.
-- **The page** (R17): the sidebar holds the profiles (a click marks one and switches after the
-  next frame, R21; under each its „Mein Studiengang“), „Neues Profil“ (a name, none: „Profil 3“;
-  the new profile is empty and active), and „Sichern & übertragen“. The page is the active
-  profile: its head (badge, name, when it was made; „Umbenennen“, „Löschen“ — the only profile is
-  emptied, not deleted), „Mein Studiengang“ (program with the plan of its Studienrichtung,
-  Studienbeginn and Fachsemester, Urlaubssemester, Standort; changed in „Mein Studium“), what it
-  keeps (Merkliste, Stundenplan, „Mein Studium“, saved plans, each row the way there; „Profil
-  leeren“), and the settings (light, dark or the system's, set by `enhance.js` as the rail's
-  switch is, `data-action="theme-set"`, which says so with `betula:theme`; the language, a page
-  load). The language lives in the profile since 2026-10-14 (owner: „allgemein kann man die
-  Spracheinstellungen komplett in das Profil moven“): here and in the menu of the profiles; the
-  rail and the start page's brand line have no switch any more, and without JavaScript the page's
-  stand-in offers the other language (docs/folia/i18n.md). A profile deleted or emptied comes back
-  with „Rückgängig“ at the head until the page is left. On a phone the sidebar comes first
-  (`sidebar_first`), and this is where a phone chooses light or dark at all.
+- **The page** (R17; since 2026-11-08 folia/design/profil/konzepte.html, the second round: A's page;
+  owner: „ich brauche nicht noch ein link mehr zu mein studium … betula sync, was ich persönlich als
+  sehr essentiell einstufen würde“): what a profile is — who, what it holds, on which devices. The
+  sidebar holds the profiles (a click marks one and switches after the next frame, R21; under each
+  its „Mein Studiengang“) and „Profil hinzufügen“, which opens its three ways: „Leer anlegen“ (a
+  name, none: „Profil 3“; the new profile is empty and active), „Von einem anderen Gerät“ (the
+  recovery code, where the site offers Betula Sync) and „Aus Datei laden“. The page is the active
+  profile: its head (badge, name with a pencil that renames it in place, „Mein Studiengang“ as a
+  line — program, Studienrichtung, Fachsemester or Studienbeginn, Standort; changed in „Mein
+  Studium“ —, since when it is), and its numbers: gemerkt, geplant with the semesters, bestanden
+  with the credits, collections and notes, saved plans; none is a link, the rail has the ways. Then
+  Betula Sync (below, `#devices`), „Daten“ („Als Datei sichern“) and the „Gefahrenzone“: „Profil
+  leeren“ and „Profil löschen“, each a row with its icon on a tile and a button of one width with
+  the same icon, the question under the row (the only profile is emptied, and says so before). A
+  profile deleted or emptied comes back with „Rückgängig“ at the head until the page is left. The
+  language lives in the profile's menu since 2026-10-14 (owner: „allgemein kann man die
+  Spracheinstellungen komplett in das Profil moven“), light and dark beside it since 2026-11-08;
+  the rail and the start page's brand line have no switch of the language, and without JavaScript
+  the page's stand-in offers the other language (docs/folia/i18n.md). On a phone the sidebar comes
+  first (`sidebar_first`) as a row: the profiles as chips, „Profil hinzufügen“ at its end.
 - **A profile as a file** („Als Datei sichern“, `profiles::Backup`): JSON,
   `{"betula": "profile", "version": 1, "name": …, "stores": {"betula.bookmarks.v1": …}}`, the
   stores named by the first profile's keys, made in the browser (a Blob) and named
@@ -5128,22 +5179,24 @@ switched on; R20 has the exception.
   it with the page. Off, no page says a word of it, the profile page has no part for it, and every
   profile is private. Folia's Content-Security-Policy names the WebSocket where Betula Sync is on
   (`connect-src`, „Content-Security-Policy" in §3).
-- **The profile page's part** („Betula Sync", `folia_profile::sync::SyncPart`, between what the
-  profile keeps and the settings), for the active profile. Private: what it is, and „Betula Sync
-  aktivieren", which first says what the server then keeps (sealed changes with their sizes and
-  times, random ids; never what is in them; deleted after 13 months untouched or with „Sync
-  beenden") and that a recovery code is offered afterwards, not asked for (without it the copy on
-  the server is gone when every device is), then „Aktivieren" or „Abbrechen". Synced: its state
-  with a dot (online with how many other devices, offline, a failure with what to do), and the
-  actions as the sidebar has them: „Weiteres Gerät verbinden" (a QR code on a light tile of its own,
-  readable by a camera in either theme, `folia_profile::qr` with `qrcodegen`; the link to copy; how
-  many minutes it still opens, ten in all, once; gone, „Neuer Link"), „Wiederherstellungscode
-  zeigen" (with „Code kopieren" and „Verbergen"), „Nur dieses Gerät trennen" and „Sync beenden",
-  each of the last two after a question on a line of its own. Ended on another device: private
-  again with all it holds, „Wieder aktivieren". Under it what two devices did at once in the
-  profile (`Sync::conflicts`), a row each with the way to where its hint is, and „Profil von einem
-  anderen Gerät": the recovery code typed in brings the profile as a new one, which becomes the
-  active one. The sidebar's line about where profiles live names Betula Sync where the site offers
+- **The profile page's part** („Betula Sync", `folia_profile::sync::SyncPart`, `#devices`, under
+  the profile's head), for the active profile. Private: what it is, and „Gerät verbinden“. Synced:
+  its state with a dot (online with how many other devices, offline, a failure with what to do),
+  „Gerät verbinden“, „Wiederherstellungscode“ (with „Code kopieren“ and „Verbergen“), and quiet at
+  the end „Nur dieses Gerät trennen“ and „Sync beenden“, each after a question on a line of its own.
+  Ended on another device: private again with all it holds, „Wieder aktivieren“. The only profile,
+  empty and private (a new device): what to do on the device that has the profile, and the recovery
+  code typed in (also under „Profil hinzufügen“), which brings the profile as a new one, the active
+  one. Under it what two devices did at once in the profile (`Sync::conflicts`), a row each with
+  the way to where its hint is. **„Gerät verbinden“ is a dialog** (`Connect`, since 2026-11-08): a
+  private profile first says what the server then keeps (sealed changes with their sizes and times,
+  random ids; never what is in them; deleted after 13 months untouched or with „Sync beenden“) and
+  that a recovery code is offered afterwards, not asked for (without it the copy on the server is
+  gone when every device is), then „Einschalten und Code zeigen“ or „Abbrechen“; then, as a synced
+  profile shows at once, the QR code on a light tile of its own, readable by a camera in either
+  theme (`folia_profile::qr` with `qrcodegen`), the link with „Link kopieren“ and „Teilen“ where the
+  system can (`navigator.share`), how many minutes it still opens (ten in all, once; gone, „Neuer
+  Link“), and once another device has come while it is open, that it has. The sidebar's line about where profiles live names Betula Sync where the site offers
   it. Every action is a button.
 - **„Gerät verbinden"** (`/sync`, `url::CONNECT`, `folia_profile::connect::ConnectPage`): the
   page the link of another device opens. It reads the part after `#` once, as it is made, and
@@ -5232,8 +5285,8 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   and the preview live in `localStorage` and are applied before the first paint by the script in
   `<head>`. So does the language (`betula.language`, `docs/folia/i18n.md`): the first script of the head
   opens the page in it, which is a page load, because a language is an address. They are the
-  browser's, the same in every profile (the profile page sets light, dark or the system's and the
-  language, the menu of the profiles the language; the rail's switch light or dark).
+  browser's, the same in every profile (the menu of the profiles sets light, dark or the system's
+  and the language since 2026-11-08, the profile page until then; the rail's switch light or dark).
 - **R14. Virtual oversizing.** A small control takes the pointer in an area larger than it shows:
   an invisible layer that belongs to the control itself (a wrapper element would receive the click
   instead of the control). Set per side with `--hit`, `--hit-x`/`--hit-y`, `--hit-t/-r/-b/-l`;

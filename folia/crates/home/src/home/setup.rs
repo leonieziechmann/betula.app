@@ -24,10 +24,17 @@
 //!    confirming action is in Betula (owner, 2026-09-28), full width on a phone with „Ohne Module
 //!    weiter" under it.
 //!
+//! 4. „Auch auf dem Handy?", where the site offers Betula Sync (`devices.rs`; owner, 2026-11-08: „es
+//!    gibt ja jetzt betula sync. Mach das mal als step in die einführung mit rein. So als letzten
+//!    schritt. So dass man es gleich auch auf dem handy hat"): after the study is set up, „Betula
+//!    Sync aktivieren" and the QR code for the phone, or „Später".
+//!
 //! „Studium anlegen" stores the program, its study direction and the Studienbeginn in „Mein
 //! Studiengang" and takes the rows over into the current semester of the Stundenplan, as its
 //! „Fachsemester übernehmen" does (`studyplan::import_fs`): one plan for the Stundenplan and „Mein
-//! Studium". Nothing is refused (CLAUDE.md, „Betula does not say no"): a semester before the
+//! Studium". Where step 4 follows, the card stays for it (`on_written`) and the setup ends with its
+//! „Fertig" or „Später"; a chip that leads back and „Studium anlegen" once more set the study up
+//! anew in place of the first one. Nothing is refused (CLAUDE.md, „Betula does not say no"): a semester before the
 //! regulation or beyond the Regelstudienzeit is said beside it. Each step goes back by its chip at
 //! the top. The card is as high in every step; what is long scrolls inside it, and the wheel goes
 //! on to the page where it has nothing to scroll (owner, the same day: „Dazu gibt es ein scroll
@@ -52,11 +59,14 @@ use leptos::prelude::*;
 
 use folia_data::use_ask;
 use folia_design::combobox::{ComboItem, Combobox};
+use folia_shell::document::SyncOffer;
 use folia_design::format;
 use folia_design::ui::Icon;
 use folia_stores::myprogram::{po_of, program_name, MyProgram, ProgramPlans};
 use folia_stores::studyplan::Studyplan;
+use folia_stores::sync::Sync;
 
+use super::devices::DevicesStep;
 use crate::i18n::{self, Texts};
 
 /// The browser app (`csr`): only there is anything picked or stored.
@@ -267,13 +277,45 @@ fn now_secs() -> u64 {
     0
 }
 
-/// The card. `now` is the current semester; `faculties` draws step 1; `on_done` hears what
-/// „Studium anlegen" did, `on_look` „Erst mal umschauen".
-#[component]
-pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Counted>>, on_done: Callback<Done>, on_look: Callback<()>) -> impl IntoView {
+/// Whether the setup has its fourth step: where the site offers Betula Sync, the server's page as
+/// well as the app's, so that the chips stay as they are when the app takes over.
+fn with_sync() -> bool {
+    if APP {
+        folia_stores::sync::offered().is_some() && Sync::expect().is_some()
+    } else {
+        use_context::<SyncOffer>().is_some()
+    }
+}
+
+/// The steps as the chips name them: three, and „Geräte" where Betula Sync follows.
+fn steps(s: &'static i18n::setup::Texts, with_sync: bool) -> Vec<(u8, &'static str)> {
+    let mut steps = vec![(1u8, s.step_program), (2, s.step_start), (3, s.step_semester)];
+    if with_sync {
+        steps.push((4, s.step_devices));
+    }
+    steps
+}
+
+/// „Profil übernehmen" at the foot of step 1: where the site offers Betula Sync from the phone by
+/// its code (`/pair`), else as a file on the profile page. `command`: a command of „Befehle" (R25).
+fn take_profile(with_sync: bool, command: bool) -> impl IntoView {
     let t = i18n::t();
     let s = &t.setup;
+    let (path, icon, title) = if with_sync { (url::PAIR, "smartphone", s.take_profile_title_sync) } else { (url::PROFILE, "upload", s.take_profile_title) };
+    view! { <a class="ob-link" href=t.path(path) rel="nofollow" title=title data-command=command.then_some("")><Icon name=icon/>{s.take_profile}</a> }
+}
+
+/// The card. `now` is the current semester; `faculties` draws step 1; `on_done` hears what
+/// „Studium anlegen" did once the setup ends, `on_look` „Erst mal umschauen". Where step 4 follows
+/// „Studium anlegen", `on_written` hears first that the study is written and the card stays.
+#[component]
+pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Counted>>, on_done: Callback<Done>, on_look: Callback<()>, on_written: Callback<()>) -> impl IntoView {
+    let t = i18n::t();
+    let s = &t.setup;
+    let with_sync = with_sync();
     let step = RwSignal::new(1u8);
+    // What „Studium anlegen" did, while step 4 follows it.
+    let created = RwSignal::new(None::<Done>);
     let program = RwSignal::new(None::<String>);
     let start = RwSignal::new(None::<SemesterKey>);
     // What step 2 has picked (none yet: the latest it offers), and the text of its fifth box (none
@@ -406,11 +448,18 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
             0 => (String::new(), None),
             len => ProgramPlans::new(&source.variants, source.supplements.clone()).kept(index.min(len - 1)),
         };
-        let start_before = mine.start_untracked();
+        // The page keeps the card for step 4, before „Mein Studiengang" says a study is set up.
+        if with_sync {
+            on_written.run(());
+        }
+        // Set up again from a step before (its chip): in place of the first time, so that what was
+        // before the setup is what „Rückgängig" puts back.
+        let first = created.get_untracked();
+        let start_before = first.as_ref().map_or_else(|| mine.start_untracked(), |first| first.start_before);
         mine.set_study(&source.program.id, &program_name(&source.program), &caption, page_direction.as_deref(), start);
         let off = off.get_untracked();
         let mark_past = past.get_untracked() && with_modules;
-        let plan_before = plan_store.with_untracked(Clone::clone);
+        let plan_before = first.map_or_else(|| plan_store.with_untracked(Clone::clone), |first| first.plan_before);
         let mut doc = plan_before.clone();
         let (core, page) = chosen(&source, index);
         let at = now_secs();
@@ -456,8 +505,20 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
             passed = (credits > 0.0).then_some(credits);
         }
         plan_store.update_after_paint(move |stored| *stored = doc);
-        on_done.run(Done { program: program_name(&source.program), fs, start, modules, placeholders, passed, plan_before, start_before });
+        let done = Done { program: program_name(&source.program), fs, start, modules, placeholders, passed, plan_before, start_before };
+        if with_sync {
+            created.set(Some(done));
+            step.set(4);
+        } else {
+            on_done.run(done);
+        }
     };
+    // „Fertig" or „Später" of step 4: the setup ends with what „Studium anlegen" did.
+    let finish = Callback::new(move |()| {
+        if let Some(done) = created.get_untracked() {
+            on_done.run(done);
+        }
+    });
 
     let chips = move || {
         let now_step = step.get();
@@ -470,9 +531,16 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
             })
         });
         let start_label = start.get().zip(fs_now.get()).map(|(key, fs)| format!("{} · {fs}.\u{a0}{}", key.short(t.locale), s.fs_short));
-        [(1u8, s.step_program, program_label), (2, s.step_start, start_label), (3, s.step_semester, None)]
+        let semester_label = created.with(|done| done.as_ref().map(|done| (s.semester_done)(done.modules + done.placeholders)));
+        steps(s, with_sync)
             .into_iter()
-            .map(|(n, name, value)| {
+            .map(|(n, name)| {
+                let value = match n {
+                    1 => program_label.clone(),
+                    2 => start_label.clone(),
+                    3 => semester_label.clone(),
+                    _ => None,
+                };
                 let done = now_step > n;
                 let label = if done { value.unwrap_or_else(|| name.to_string()) } else { name.to_string() };
                 view! {
@@ -490,7 +558,7 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
         view! {
             <div class="ob-foot">
                 <button type="button" class="ob-link" title=s.look_around_title on:click=move |_| on_look.run(()) data-command=""><Icon name="search"/>{s.look_around}</button>
-                <a class="ob-link" href=t.path(url::PROFILE) rel="nofollow" title=s.take_profile_title data-command=""><Icon name="upload"/>{s.take_profile}</a>
+                {take_profile(with_sync, true)}
                 <a class="ob-link ob-about" href=t.path(&url::AboutTopic::Overview.path()) data-command="">{t.today.what_is_betula}<Icon name="arrow-right"/></a>
             </div>
         }
@@ -745,7 +813,8 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
             {move || match step.get() {
                 1 => step_one().into_any(),
                 2 => step_two().into_any(),
-                _ => step_three().into_any(),
+                3 => step_three().into_any(),
+                _ => view! { <DevicesStep on_finish=finish/> }.into_any(),
             }}
         </div>
     }
@@ -760,9 +829,9 @@ pub fn ServerCard(faculties: Signal<Option<Counted>>) -> impl IntoView {
     view! {
         <div class="ob" data-step="1">
             <nav class="ob-chips" aria-label=s.steps_label>
-                {[(1u8, s.step_program), (2, s.step_start), (3, s.step_semester)].map(|(n, name)| view! {
+                {steps(s, with_sync()).into_iter().map(|(n, name)| view! {
                     <button type="button" class="ob-chip" class:on=n == 1 disabled=true><i aria-hidden="true">{n}</i><span>{name}</span></button>
-                })}
+                }).collect_view()}
             </nav>
             <h1 class="ob-title">{s.program_title}</h1>
             <p class="ob-lede">{s.program_lead}</p>
@@ -778,7 +847,7 @@ pub fn ServerCard(faculties: Signal<Option<Counted>>) -> impl IntoView {
             <Drawing faculties/>
             <div class="ob-foot">
                 <a class="ob-link" href=t.path(url::CATALOG)><Icon name="search"/>{s.look_around}</a>
-                <a class="ob-link" href=t.path(url::PROFILE) rel="nofollow" title=s.take_profile_title><Icon name="upload"/>{s.take_profile}</a>
+                {take_profile(with_sync(), false)}
                 <a class="ob-link ob-about" href=t.path(&url::AboutTopic::Overview.path())>{t.today.what_is_betula}<Icon name="arrow-right"/></a>
             </div>
         </div>

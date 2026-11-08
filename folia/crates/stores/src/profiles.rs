@@ -520,6 +520,12 @@ impl Profiles {
         (alone && empty && !crate::sync::syncs(FIRST)).then_some(FIRST)
     }
 
+    /// Whether profile `id` holds nothing in this browser (no store has a line): a phone whose
+    /// browser is not the one Betula is used in. Untracked.
+    pub fn holds_nothing(self, id: u16) -> bool {
+        texts_of(id).iter().all(|text| text.trim().is_empty())
+    }
+
     /// The number the next profile made gets, for the name it has until it is named („Profil 3");
     /// `None` with `MAX_PROFILES`. Tracked.
     pub fn next_id(self) -> Option<u16> {

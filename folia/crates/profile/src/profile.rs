@@ -1,21 +1,27 @@
 //! „Profil" (owner, 2026-10-14: „eine seite, wo man seine ganzen informationen/einstellungen
-//! verwalten kann"): the profiles of this browser and what the active one keeps, in one place.
+//! verwalten kann"): the profiles of this browser and the active one, in one place. Since 2026-11-08
+//! (folia/design/profil/konzepte.html, the second round; owner: „die profil unabhängigen
+//! einstellungen wo anders hin … ich brauche nicht noch ein link mehr zu mein studium … betula sync,
+//! was ich persönlich als sehr essentiell einstufen würde") the page is what a profile is: who, what
+//! it holds, on which devices; what every profile shares (light or dark, the language) is in the menu
+//! of the profiles (`folia_shell::chrome::Preferences`), and the page links no tab.
 //!
 //! - The sidebar holds what belongs to the page as a whole (R17): the profiles — a click switches
-//!   to one, in every tab of the browser (`folia_stores::profiles`) —, „Neues Profil", and a
-//!   profile kept as a file or made of one („Sichern & übertragen").
-//! - The page is the active profile: its name, renamed or deleted at its head; „Mein Studiengang";
-//!   what it keeps, with the way to each and „Profil leeren"; Betula Sync, where the site offers it
-//!   (`sync::SyncPart`); and the settings of this browser,
-//!   which every profile shares (light or dark, the language; R13). On a phone, which has no
-//!   switch between light and dark, this is where they are.
-//! - At its end what the ground at the end of every page held until 2026-11-03 (owner: „ich würde
-//!   gerne den footer raus nehmen aus den meisten seiten von betula. Um weiterhin compliant zu sein
-//!   können wir bei der Profile page die links wieder machen"): that Betula is not the BTU's, the
-//!   Impressum and the Datenschutz (§ 5 DDG: every page leads to the profile page, the rail and the
-//!   head of a phone's page), the versions and how fresh the data is (`About`). The start page
-//!   and the pages about Betula keep their ground.
-//! - A profile deleted or emptied here comes back with „Rückgängig" until the page is left.
+//!   to one, in every tab of the browser (`folia_stores::profiles`) — and „Profil hinzufügen": an
+//!   empty one, one from another device (the recovery code, `sync::FromOther`), one from a file. On
+//!   a phone the sidebar stands first as a row: the profiles as chips, „+ Profil" at its end.
+//! - The head is the active profile: its badge, its name with the pencil to rename it in place,
+//!   „Mein Studiengang" as a line of text (changed where it is set, in „Mein Studium"), since when it
+//!   is, and its numbers: saved, planned, passed with the credits, collections and notes, saved
+//!   plans. None of them is a link.
+//! - Betula Sync, where the site offers it (`sync::SyncPart`), `#devices`.
+//! - „Daten": the active profile as a file („Als Datei sichern", `Backup`).
+//! - „Gefahrenzone": „Profil leeren" and „Profil löschen", each a row with its icon on a tile and a
+//!   button of one width with the same icon, the question under the row; „Rückgängig" after, until
+//!   the page is left. The only profile is emptied instead of deleted, and says so before.
+//! - At its end a line: the Impressum and the Datenschutz (§ 5 DDG: every page leads to the profile
+//!   page, the rail and the head of a phone's page; the menu of the profiles names them too), the
+//!   versions and how fresh the data is, where it comes from.
 //! - A switch, a profile made, a file taken over answer in the next frame (R21): the sidebar marks
 //!   the profile at once, every store reads its texts after.
 //!
@@ -28,18 +34,18 @@ use folia_calendar::day::Day;
 use folia_calendar::select::TownChoice;
 use folia_calendar::semester::SemesterKey;
 use folia_locale::Locale;
-use folia_pages::ask::{GroundAsk, MetaAsk};
+use folia_pages::ask::{GroundAsk, MetaAsk, StudyplanModulesAsk};
 use folia_plans::study;
 use folia_routes::url;
 use folia_stores::bookmarks::Bookmarks;
-use folia_stores::myprogram::{program_href, program_name, MineResolved, MyProgram};
+use folia_stores::myprogram::{program_name, MineResolved, MyProgram};
 use folia_stores::profiles::{Avatar, Backup, Cleared, Deleted, NoBackup, Profile, Profiles, Summary, MAX_NAME, MAX_PROFILES};
 use folia_stores::studyplan::{Saved, Studyplan};
 use leptos::prelude::*;
 use folia_design::stage::Title;
 
 use crate::i18n::{self, Texts};
-use folia_data::{use_ask, use_data};
+use folia_data::use_ask;
 use folia_design::format;
 use folia_design::nav;
 use folia_design::ui::Icon;
@@ -51,19 +57,18 @@ use folia_shell::skeleton::AppStandin;
 /// Whether this build is the browser app: only there are there profiles.
 const APP: bool = cfg!(feature = "csr");
 
-/// Where this browser keeps light or dark (`enhance.js`, the script in `<head>`): `light`, `dark`,
-/// else the system's.
-const THEME_KEY: &str = "betula.theme";
-
 /// The ids the focus is moved to.
 const RENAME_ID: &str = "pf-rename";
 const NAME_ID: &str = "pf-name";
-const DELETE_ID: &str = "pf-delete";
-const DELETE_YES_ID: &str = "pf-delete-yes";
+const ADD_ID: &str = "pf-add";
 const NEW_ID: &str = "pf-new";
 const NEW_NAME_ID: &str = "pf-new-name";
+const OTHER_ID: &str = "pf-other";
+const OTHER_CODE_ID: &str = "pf-other-code";
 const CLEAR_ID: &str = "pf-clear";
 const CLEAR_YES_ID: &str = "pf-clear-yes";
+const DELETE_ID: &str = "pf-delete";
+const DELETE_YES_ID: &str = "pf-delete-yes";
 const OPEN_ID: &str = "pf-open";
 const UNDO_ID: &str = "pf-undo";
 
@@ -94,7 +99,7 @@ pub fn ProfilePage() -> impl IntoView {
     let t = i18n::t();
     let p = &t.profile;
     // A route of the app: the server writes its document, the app the page (§4.2). Without
-    // JavaScript the page offers the other language, which lives in the profile (`Settings`).
+    // JavaScript the page offers the other language, which the menu of the profiles holds.
     if !APP {
         return view! {
             <Title text=p.title/>
@@ -113,23 +118,83 @@ pub fn ProfilePage() -> impl IntoView {
         .into_any();
     }
     let note = RwSignal::new(None::<Note>);
+    let kept = Kept::new();
     let sidebar = move || view! { <Sidebar note/> };
+    // „Geräte" in the menu of the profiles leads to `#devices`: the page scrolls there, and the part
+    // lights up once.
+    let location = folia_design::i18n::use_location();
+    Effect::new(move |_| {
+        let hash = location.hash.get();
+        if hash.trim_start_matches('#') == url::DEVICES {
+            request_animation_frame(to_devices);
+        }
+    });
     view! {
         <Title text=p.title/>
         <Frame title=p.profiles sidebar sidebar_first=true>
             <div class="page-inner pf">
                 <ProfileSeo/>
                 <Notice note/>
-                <Head note/>
-                <Program/>
-                <Kept note/>
-                <crate::sync::SyncPart/>
-                <Settings/>
-                <About/>
+                <Head kept/>
+                <crate::sync::SyncPart empty=kept.empty/>
+                <DataPart/>
+                <DangerPart note kept/>
+                <Foot/>
             </div>
         </Frame>
     }
     .into_any()
+}
+
+/// Scrolls the page to Betula Sync and lets it light up once (`#devices`).
+fn to_devices() {
+    #[cfg(feature = "csr")]
+    {
+        let Some(window) = web_sys::window() else { return };
+        let Some(part) = window.document().and_then(|document| document.get_element_by_id(url::DEVICES)) else { return };
+        let reduced = window.match_media("(prefers-reduced-motion: reduce)").ok().flatten().is_some_and(|query| query.matches());
+        let options = web_sys::ScrollIntoViewOptions::new();
+        options.set_block(web_sys::ScrollLogicalPosition::Start);
+        options.set_behavior(if reduced { web_sys::ScrollBehavior::Instant } else { web_sys::ScrollBehavior::Smooth });
+        part.scroll_into_view_with_scroll_into_view_options(&options);
+        let list = part.class_list();
+        let _ = list.remove_1("pf-flash");
+        let _ = part.get_bounding_client_rect();
+        let _ = list.add_1("pf-flash");
+    }
+}
+
+/// What the active profile keeps, counted, each a memo of its own (R5): the head's numbers and
+/// whether it is empty (the Gefahrenzone, Betula Sync of a new device).
+#[derive(Clone, Copy)]
+struct Kept {
+    marked: Memo<usize>,
+    /// The Merkliste's collections and notes (`folia_stores::collections`).
+    shelf: Memo<(usize, usize)>,
+    /// The modules planned, each once, and the semesters they are in.
+    planned: Memo<(usize, usize)>,
+    /// The modules passed.
+    passed: Memo<Vec<String>>,
+    plans: Memo<usize>,
+    empty: Memo<bool>,
+}
+
+impl Kept {
+    fn new() -> Self {
+        let bookmarks = Bookmarks::expect();
+        let plan = Studyplan::expect();
+        let mine = MyProgram::expect();
+        let saved = Saved::open();
+        let shelf = folia_stores::collections::Collections::expect();
+        let marked = Memo::new(move |_| bookmarks.map_or(0, Bookmarks::count));
+        let kept = Memo::new(move |_| shelf.map_or((0, 0), |shelf| shelf.with(|shelf| (shelf.collections().len(), shelf.notes_count()))));
+        let planned = Memo::new(move |_| plan.map_or((0, 0), |plan| (plan.count(), plan.with(|doc| doc.semesters().len()))));
+        let passed = Memo::new(move |_| plan.map(|plan| plan.with(|doc| doc.passed.iter().map(|passed| passed.module_id.clone()).collect())).unwrap_or_default());
+        let plans = Memo::new(move |_| saved.with(|saved| saved.plans.len()));
+        let program = Memo::new(move |_| mine.is_some_and(|mine| mine.with(|doc| doc.program.is_some() || doc.start.is_some())));
+        let empty = Memo::new(move |_| marked.get() == 0 && kept.get() == (0, 0) && planned.get().0 == 0 && passed.with(Vec::is_empty) && plans.get() == 0 && !program.get());
+        Kept { marked, shelf: kept, planned, passed, plans, empty }
+    }
 }
 
 /// The note of the last thing done, with „Rückgängig" where it can be taken back.
@@ -170,25 +235,22 @@ fn Notice(note: RwSignal<Option<Note>>) -> impl IntoView {
     }
 }
 
-/// The active profile: its badge and name, „Umbenennen" and „Löschen".
+/// The active profile: its badge, its name with the pencil, „Mein Studiengang" as a line, since
+/// when, and its numbers.
 #[component]
-fn Head(note: RwSignal<Option<Note>>) -> impl IntoView {
+fn Head(kept: Kept) -> impl IntoView {
     let t = i18n::t();
     let p = &t.profile;
     let profiles = Profiles::expect();
     let current = Memo::new(move |_| profiles.map(Profiles::current));
-    // The only profile is emptied, not deleted (`Profiles::delete`).
-    let only = Memo::new(move |_| profiles.map_or(1, Profiles::count) < 2);
     let renaming = RwSignal::new(false);
     let name = RwSignal::new(String::new());
-    let asking = RwSignal::new(false);
     // Another profile (switched to in the sidebar or in another tab): what was begun for the one
     // before is closed.
     Effect::new(move |before: Option<Option<u16>>| {
         let id = current.with(|profile| profile.as_ref().map(|profile| profile.id));
         if before.is_some_and(|before| before != id) {
             renaming.set(false);
-            asking.set(false);
         }
         id
     });
@@ -208,31 +270,12 @@ fn Head(note: RwSignal<Option<Note>>) -> impl IntoView {
         }
         stop_renaming();
     };
-    let ask = move |_| {
-        if !only.get_untracked() {
-            asking.set(true);
-            request_animation_frame(|| nav::focus_by_id(DELETE_YES_ID));
-        }
-    };
-    let delete = move |_| {
-        asking.set(false);
-        let (Some(profiles), Some(profile)) = (profiles, current.get_untracked()) else { return };
-        if let Some(deleted) = profiles.delete(profile.id) {
-            note.set(Some(Note::Deleted(deleted, profile.shown(t.locale))));
-            request_animation_frame(|| nav::focus_by_id(UNDO_ID));
-        }
-    };
-    let cancel = move |_| {
-        asking.set(false);
-        request_animation_frame(|| nav::focus_by_id(DELETE_ID));
-    };
     view! {
         <section class="panel pf-head" aria-label=p.active>
             {move || current.get().map(|profile| {
                 let shown = profile.shown(t.locale);
                 let unnamed = (t.profiles.unnamed)(profile.id);
                 let made = day_of(profile.at).map(|day| (p.made_on)(&day.date(t.locale)));
-                let question = (p.delete_question)(&shown);
                 view! {
                     <div class="pf-head-main">
                         <Avatar profile=profile.clone() large=true/>
@@ -262,371 +305,307 @@ fn Head(note: RwSignal<Option<Note>>) -> impl IntoView {
                                 }
                                 .into_any()
                             } else {
-                                view! { <h2>{shown.clone()}</h2> }.into_any()
+                                view! {
+                                    <div class="pf-name">
+                                        <h2>{shown.clone()}</h2>
+                                        <button class="pf-pencil" type="button" id=RENAME_ID aria-label=p.rename title=p.rename on:click=start_renaming><Icon name="pencil"/></button>
+                                    </div>
+                                }
+                                .into_any()
                             }}
-                            <p class="pf-lead">{p.lead}</p>
+                            <p class="pf-line"><ProgramLine/></p>
                             {made.map(|made| view! { <p class="pf-made">{made}</p> })}
                         </div>
                     </div>
-                    <div class="pf-head-actions">
-                        <button class="btn secondary" type="button" id=RENAME_ID on:click=start_renaming><Icon name="pencil"/><span>{p.rename}</span></button>
-                        <button
-                            class="btn secondary"
-                            type="button"
-                            id=DELETE_ID
-                            aria-disabled=move || only.get().then_some("true")
-                            title=move || only.get().then_some(p.only_profile)
-                            on:click=ask
-                        >
-                            <Icon name="trash-2"/><span>{p.delete}</span>
-                        </button>
-                    </div>
-                    {move || asking.get().then(|| view! {
-                        <p class="action note-action ask pf-ask">
-                            <span>{question.clone()}</span>
-                            <button class="mini danger hit" type="button" id=DELETE_YES_ID on:click=delete>{p.delete_yes}</button>
-                            <button class="mini hit" type="button" on:click=cancel>{p.cancel}</button>
-                        </p>
-                    })}
                 }
             })}
+            <Stats kept/>
         </section>
     }
 }
 
-/// „Mein Studiengang" of the active profile: the program, its Studienrichtung, the Studienbeginn
-/// with the Fachsemester, the Standort; changed where it is set, in „Mein Studium".
+/// „Mein Studiengang" of the active profile as a line: the program, its Studienrichtung, the
+/// Fachsemester (else the Studienbeginn), the Standort where one is chosen. Changed where it is set,
+/// in „Mein Studium"; the page links it no more.
 #[component]
-fn Program() -> impl IntoView {
+fn ProgramLine() -> impl IntoView {
     let t = i18n::t();
     let p = &t.profile;
     let mine = MyProgram::expect();
     let resolved = MineResolved::expect();
-    let source = use_data().ok();
     // The current semester, for the Fachsemester.
     let meta = use_ask(|| Some(MetaAsk {}));
     let now = Memo::new(move |_| meta.with(|meta| meta.as_ref().and_then(|meta| meta.as_ref().ok()).and_then(|meta| meta.current_semester.as_deref().and_then(SemesterKey::parse))));
     let doc = Memo::new(move |_| mine.map(MyProgram::get).unwrap_or_default());
     let known = Memo::new(move |_| resolved.and_then(|resolved| resolved.0.get()));
-    view! {
-        <section class="panel pf-part" aria-labelledby="pf-program">
-            <h2 id="pf-program"><Icon name="graduation-cap"/>{p.program_heading}</h2>
-            {move || {
-                let doc = doc.get();
-                let Some(id) = doc.program.clone() else {
-                    return view! {
-                        <p class="pf-empty">{p.no_program_hint}</p>
-                        <div class="pf-ways">
-                            <a class="btn secondary" href=t.path(url::STUDY) rel="nofollow"><Icon name="graduation-cap"/><span>{p.set_up}</span></a>
-                            <a class="btn secondary" href=t.path(url::PROGRAMS)><Icon name="layout-list"/><span>{p.all_programs}</span></a>
-                        </div>
-                    }
-                    .into_any();
-                };
-                // The program as the catalog knows it, with the plan of the kept Studienrichtung; a
-                // program gone from the snapshot is named as it was kept, and says so.
-                let program = match known.get() {
-                    Some(info) => {
-                        let href = program_href(source.as_ref(), &info.program, doc.caption.as_deref(), doc.direction.as_deref());
-                        let name = program_name(&info.program);
-                        if info.exact {
-                            view! { <a href=t.path(&href)>{name}</a> }.into_any()
-                        } else {
-                            view! { <span>{doc.name.clone().unwrap_or(id)}</span><small>{p.program_gone}</small> }.into_any()
+    move || {
+        let doc = doc.get();
+        let Some(id) = doc.program.clone() else { return p.no_program.to_string() };
+        // The program as the catalog knows it; one gone from the snapshot as it was kept.
+        let name = match known.get() {
+            Some(info) if info.exact => program_name(&info.program),
+            _ => doc.name.clone().unwrap_or(id),
+        };
+        let mut parts = vec![name];
+        parts.extend(doc.direction.clone().or_else(|| doc.caption.clone()).filter(|text| !text.trim().is_empty()));
+        if let Some(start) = doc.start {
+            parts.push(match now.get().and_then(|now| study::fs_of(start, now, &doc.leave)) {
+                Some(fs) => (p.fs)(fs),
+                None => start.label(t.locale),
+            });
+        }
+        match doc.town {
+            TownChoice::Only(town) => parts.push(town.label().to_string()),
+            TownChoice::Both => parts.push(p.town_both.to_string()),
+            TownChoice::Derive => {}
+        }
+        parts.join(" · ")
+    }
+}
+
+/// The numbers of the active profile, each a value over its label; none is a link. The credits of
+/// what is passed come from the catalog (the count stands in until they are there).
+#[component]
+fn Stats(kept: Kept) -> impl IntoView {
+    let t = i18n::t();
+    let p = &t.profile;
+    let rows = use_ask(move || {
+        let ids = kept.passed.get();
+        (!ids.is_empty()).then_some(StudyplanModulesAsk { ids })
+    });
+    let credits = Memo::new(move |_| rows.with(|rows| rows.as_ref().and_then(|rows| rows.as_ref().ok()).map(|(rows, _)| rows.iter().filter_map(|row| row.credits).sum::<f64>())));
+    let stat = |value: Signal<String>, label: Signal<String>| view! { <div class="pf-stat"><b>{value}</b><span>{label}</span></div> };
+    move || {
+        if kept.empty.get() {
+            return view! { <p class="pf-stats-empty">{p.stats_empty}</p> }.into_any();
+        }
+        view! {
+            <div class="pf-stats">
+                {stat(Signal::derive(move || kept.marked.get().to_string()), Signal::derive(move || p.stat_marked.to_string()))}
+                {stat(Signal::derive(move || kept.planned.get().0.to_string()), Signal::derive(move || (p.stat_planned)(kept.planned.get().1)))}
+                {stat(
+                    Signal::derive(move || {
+                        let passed = kept.passed.with(Vec::len);
+                        match credits.get() {
+                            Some(credits) if passed > 0 => format::credits(Some(credits), t.locale),
+                            _ => passed.to_string(),
                         }
-                    }
-                    None => view! { <span>{doc.name.clone().unwrap_or(id)}</span> }.into_any(),
-                };
-                let direction = doc.direction.clone().or_else(|| doc.caption.clone()).filter(|text| !text.trim().is_empty());
-                let start = doc.start.map(|start| match now.get().and_then(|now| study::fs_of(start, now, &doc.leave)) {
-                    Some(fs) => format!("{} · {}", start.label(t.locale), (p.fs)(fs)),
-                    None => start.label(t.locale),
-                });
-                let leave = (!doc.leave.is_empty()).then(|| (p.leave)(doc.leave.len()));
-                let town = match doc.town {
-                    TownChoice::Derive => p.town_derived.to_string(),
-                    TownChoice::Only(town) => town.label().to_string(),
-                    TownChoice::Both => p.town_both.to_string(),
-                };
-                view! {
-                    <dl class="pf-facts">
-                        <div><dt>{p.program}</dt><dd>{program}</dd></div>
-                        {direction.map(|direction| view! { <div><dt>{p.direction}</dt><dd>{direction}</dd></div> })}
-                        {start.map(|start| view! { <div><dt>{p.start}</dt><dd>{start}</dd></div> })}
-                        {leave.map(|leave| view! { <div><dt>{p.leave_heading}</dt><dd>{leave}</dd></div> })}
-                        <div><dt>{p.town}</dt><dd>{town}</dd></div>
-                    </dl>
-                    <div class="pf-ways">
-                        <a class="btn secondary" href=t.path(url::STUDY) rel="nofollow"><Icon name="pencil"/><span>{p.change_program}</span></a>
-                    </div>
-                }
-                .into_any()
-            }}
+                    }),
+                    Signal::derive(move || (p.stat_passed)(kept.passed.with(Vec::len))),
+                )}
+                {stat(Signal::derive(move || { let (collections, notes) = kept.shelf.get(); format!("{collections} · {notes}") }), Signal::derive(move || p.stat_kept.to_string()))}
+                {stat(Signal::derive(move || kept.plans.get().to_string()), Signal::derive(move || p.stat_plans.to_string()))}
+            </div>
+        }
+        .into_any()
+    }
+}
+
+/// A row of „Daten" and of the Gefahrenzone: its icon on a tile, what it does and a sentence, a
+/// button of one width with the same icon.
+#[component]
+fn ActionRow(
+    icon: &'static str,
+    #[prop(into)] title: Signal<String>,
+    #[prop(into)] line: Signal<String>,
+    #[prop(into)] label: Signal<String>,
+    id: &'static str,
+    #[prop(optional)] danger: bool,
+    #[prop(optional, into)] disabled: Signal<Option<&'static str>>,
+    #[prop(optional, into)] expanded: Option<Signal<bool>>,
+    on_press: Callback<()>,
+) -> impl IntoView {
+    view! {
+        <div class="pf-arow">
+            <span class="pf-tile" class:danger=danger aria-hidden="true"><Icon name=icon/></span>
+            <span class="pf-arow-text"><b>{title}</b><span>{line}</span></span>
+            <button
+                class=if danger { "btn secondary pf-abtn danger" } else { "btn secondary pf-abtn" }
+                type="button"
+                id=id
+                aria-disabled=move || disabled.get().map(|_| "true")
+                title=move || disabled.get()
+                aria-expanded=move || expanded.map(|open| if open.get() { "true" } else { "false" })
+                on:click=move |_| on_press.run(())
+            >
+                <Icon name=icon/><span>{label}</span>
+            </button>
+        </div>
+    }
+}
+
+/// „Daten": the active profile as a file, which reaches no server.
+#[component]
+fn DataPart() -> impl IntoView {
+    let t = i18n::t();
+    let p = &t.profile;
+    let profiles = Profiles::expect();
+    let save = Callback::new(move |()| {
+        let Some(backup) = profiles.and_then(|profiles| profiles.backup(profiles.active_untracked(), t.locale)) else { return };
+        download(&file_name(&backup.name, today()), &backup.file());
+    });
+    view! {
+        <section class="panel pf-part" aria-labelledby="pf-data">
+            <h2 id="pf-data"><Icon name="database"/>{p.data_heading}</h2>
+            <div class="pf-arows">
+                <ActionRow icon="download" title=p.save_file.to_string() line=p.save_file_hint.to_string() label=p.save_button.to_string() id="pf-save" on_press=save/>
+            </div>
         </section>
     }
 }
 
-/// What the active profile keeps, each with the way to it, and „Profil leeren".
+/// „Gefahrenzone": „Profil leeren" and „Profil löschen", the question under the row, „Rückgängig"
+/// after in the note at the head. The only profile is emptied instead, and says so before.
 #[component]
-fn Kept(note: RwSignal<Option<Note>>) -> impl IntoView {
+fn DangerPart(note: RwSignal<Option<Note>>, kept: Kept) -> impl IntoView {
     let t = i18n::t();
     let p = &t.profile;
     let profiles = Profiles::expect();
-    let bookmarks = Bookmarks::expect();
-    let plan = Studyplan::expect();
-    let mine = MyProgram::expect();
-    let saved = Saved::open();
-    // Each number a memo of its own (R5).
-    let marked = Memo::new(move |_| bookmarks.map_or(0, Bookmarks::count));
-    // The Merkliste's collections and notes (`folia_stores::collections`).
-    let shelf = folia_stores::collections::Collections::expect();
-    let kept = Memo::new(move |_| shelf.map_or((0, 0), |shelf| shelf.with(|shelf| (shelf.collections().len(), shelf.notes_count()))));
-    let planned = Memo::new(move |_| plan.map_or((0, 0), |plan| (plan.count(), plan.with(|doc| doc.semesters().len()))));
-    let passed = Memo::new(move |_| plan.map_or(0, |plan| plan.with(|doc| doc.passed.len())));
-    let plans = Memo::new(move |_| saved.with(|saved| saved.plans.len()));
-    let program = Memo::new(move |_| mine.is_some_and(|mine| mine.with(|doc| doc.program.is_some() || doc.start.is_some())));
-    let empty = Memo::new(move |_| marked.get() == 0 && kept.get() == (0, 0) && planned.get().0 == 0 && passed.get() == 0 && plans.get() == 0 && !program.get());
-
-    let confirming = RwSignal::new(false);
+    let current = Memo::new(move |_| profiles.map(Profiles::current));
+    let only = Memo::new(move |_| profiles.map_or(1, Profiles::count) < 2);
+    // Which question is open: emptying or deleting.
+    let asking = RwSignal::new(None::<&'static str>);
     // Another profile: the question was about the one before.
     Effect::new(move |before: Option<u16>| {
         let id = profiles.map_or(0, Profiles::active);
         if before.is_some_and(|before| before != id) {
-            confirming.set(false);
+            asking.set(None);
         }
         id
     });
-    let ask = move |_| {
-        if !empty.get_untracked() {
-            confirming.set(true);
-            request_animation_frame(|| nav::focus_by_id(CLEAR_YES_ID));
-        }
-    };
-    let clear = move |_| {
-        confirming.set(false);
+    let shown = move || current.with(|profile| profile.as_ref().map(|profile| profile.shown(t.locale)).unwrap_or_default());
+    let clear = move || {
+        asking.set(None);
         let Some(profiles) = profiles else { return };
         let cleared = profiles.clear(profiles.active_untracked());
         note.set(Some(Note::Cleared(cleared)));
         request_animation_frame(|| nav::focus_by_id(UNDO_ID));
     };
-    let cancel = move |_| {
-        confirming.set(false);
-        request_animation_frame(|| nav::focus_by_id(CLEAR_ID));
-    };
-
-    let row = move |icon: &'static str, label: &'static str, href: &'static str, value: Signal<String>| {
-        view! {
-            <a class="pf-row" href=t.path(href) rel="nofollow">
-                <Icon name=icon/>
-                <span class="pf-row-label">{label}</span>
-                <span class="pf-row-value">{value}</span>
-                <Icon name="chevron-right"/>
-            </a>
+    let delete = move || {
+        asking.set(None);
+        let (Some(profiles), Some(profile)) = (profiles, current.get_untracked()) else { return };
+        if untrack(|| only.get()) {
+            clear();
+            return;
+        }
+        if let Some(deleted) = profiles.delete(profile.id) {
+            note.set(Some(Note::Deleted(deleted, profile.shown(t.locale))));
+            request_animation_frame(|| nav::focus_by_id(UNDO_ID));
         }
     };
+    let ask = move |kind: &'static str, yes: &'static str| {
+        Callback::new(move |()| {
+            if kind == CLEAR_ID && kept.empty.get_untracked() {
+                return;
+            }
+            if asking.get_untracked() == Some(kind) {
+                asking.set(None);
+            } else {
+                asking.set(Some(kind));
+                request_animation_frame(move || nav::focus_by_id(yes));
+            }
+        })
+    };
+    let cancel = move |back: &'static str| {
+        asking.set(None);
+        request_animation_frame(move || nav::focus_by_id(back));
+    };
+    let question = move |kind: &'static str| {
+        (asking.get() == Some(kind)).then(|| {
+            let deleting = kind == DELETE_ID && !only.get();
+            let (said, yes, yes_id, icon) = if deleting { ((p.delete_question)(&shown()), p.delete_yes, DELETE_YES_ID, "trash-2") } else { (p.clear_question.to_string(), p.clear_yes, CLEAR_YES_ID, "rotate-ccw") };
+            view! {
+                <div class="pf-confirm" role="group">
+                    <span>{said}</span>
+                    <button class="btn pf-yes" type="button" id=yes_id on:click=move |_| if deleting { delete() } else { clear() }><Icon name=icon/><span>{yes}</span></button>
+                    <button class="btn secondary" type="button" on:click=move |_| cancel(kind)>{p.cancel}</button>
+                </div>
+            }
+        })
+    };
     view! {
-        <section class="panel pf-part" aria-labelledby="pf-kept">
-            <h2 id="pf-kept"><Icon name="database"/>{p.kept_heading}</h2>
-            <div class="pf-rows">
-                {row("bookmark", p.bookmarks, url::BOOKMARKS, Signal::derive(move || format::modules(i64::try_from(marked.get()).unwrap_or(i64::MAX), t.locale)))}
-                {row("tag", p.collections, url::BOOKMARKS, Signal::derive(move || match kept.get() {
-                    (0, 0) => p.no_collections.to_string(),
-                    (collections, 0) => (p.n_collections)(collections),
-                    (0, notes) => (p.n_notes)(notes),
-                    (collections, notes) => format!("{} · {}", (p.n_collections)(collections), (p.n_notes)(notes)),
-                }))}
-                {row("calendar-range", p.studyplan, url::STUDYPLAN, Signal::derive(move || {
-                    let (modules, semesters) = planned.get();
-                    (p.planned)(modules, semesters)
-                }))}
-                {row("graduation-cap", p.study, url::STUDY, Signal::derive(move || (p.passed)(passed.get())))}
-                {row("copy", p.saved_plans, url::STUDYPLAN, Signal::derive(move || (p.plans)(plans.get())))}
-            </div>
-            <div class="pf-clear">
-                {move || if confirming.get() {
-                    view! {
-                        <p class="action note-action ask">
-                            <span>{p.clear_question}</span>
-                            <button class="mini danger hit" type="button" id=CLEAR_YES_ID on:click=clear>{p.clear_yes}</button>
-                            <button class="mini hit" type="button" on:click=cancel>{p.cancel}</button>
-                        </p>
-                    }
-                    .into_any()
-                } else {
-                    view! {
-                        <button
-                            class="action"
-                            type="button"
-                            id=CLEAR_ID
-                            aria-disabled=move || empty.get().then_some("true")
-                            title=move || empty.get().then_some(p.nothing_to_clear)
-                            on:click=ask
-                        >
-                            <Icon name="rotate-ccw"/><span>{p.clear}<small>{p.clear_hint}</small></span>
-                        </button>
-                    }
-                    .into_any()
-                }}
+        <section class="panel pf-part pf-danger" aria-labelledby="pf-danger">
+            <h2 id="pf-danger"><Icon name="triangle-alert"/>{p.danger_heading}</h2>
+            <p class="pf-sub">{p.danger_hint}</p>
+            <div class="pf-arows">
+                <ActionRow
+                    icon="rotate-ccw"
+                    title=p.clear.to_string()
+                    line=Signal::derive(move || (p.clear_hint)(&shown()))
+                    label=p.clear_button.to_string()
+                    id=CLEAR_ID
+                    danger=true
+                    disabled=Signal::derive(move || kept.empty.get().then_some(p.nothing_to_clear))
+                    expanded=Signal::derive(move || asking.get() == Some(CLEAR_ID))
+                    on_press=ask(CLEAR_ID, CLEAR_YES_ID)
+                />
+                {move || question(CLEAR_ID)}
+                <ActionRow
+                    icon="trash-2"
+                    title=p.delete.to_string()
+                    line=Signal::derive(move || if only.get() { p.delete_only.to_string() } else { (p.delete_hint)(&shown()) })
+                    label=Signal::derive(move || if only.get() { p.clear_button } else { p.delete_button }.to_string())
+                    id=DELETE_ID
+                    danger=true
+                    expanded=Signal::derive(move || asking.get() == Some(DELETE_ID))
+                    on_press=ask(DELETE_ID, DELETE_YES_ID)
+                />
+                {move || question(DELETE_ID)}
             </div>
         </section>
     }
 }
 
-/// Light or dark, as this browser keeps it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Theme {
-    /// The system's: nothing kept.
-    System,
-    Light,
-    Dark,
-}
-
-impl Theme {
-    const ALL: [Theme; 3] = [Theme::System, Theme::Light, Theme::Dark];
-
-    fn kept() -> Self {
-        match nav::local_get(THEME_KEY).as_deref() {
-            Some("light") => Theme::Light,
-            Some("dark") => Theme::Dark,
-            _ => Theme::System,
-        }
-    }
-
-    /// What `enhance.js` is handed (`data-theme-value`).
-    fn code(self) -> &'static str {
-        match self {
-            Theme::System => "system",
-            Theme::Light => "light",
-            Theme::Dark => "dark",
-        }
-    }
-
-    fn icon(self) -> &'static str {
-        match self {
-            Theme::System => "monitor",
-            Theme::Light => "sun",
-            Theme::Dark => "moon",
-        }
-    }
-
-    fn label(self, t: &Texts) -> &'static str {
-        match self {
-            Theme::System => t.profile.theme_system,
-            Theme::Light => t.profile.theme_light,
-            Theme::Dark => t.profile.theme_dark,
-        }
-    }
-}
-
-/// The settings of this browser, the same in every profile (R13): light, dark or the system's,
-/// and the language. Light and dark are set by `enhance.js` (`data-action="theme-set"`), which
-/// keeps them as the switch in the rail does and says so (`betula:theme`); another language is
-/// another address, and so a page load (`folia_shell::languages`).
+/// The page's last line: what the ground at the end of every page held until 2026-11-03, now that
+/// only the start page and the pages about Betula have one (`folia_shell::ground`) — that Betula is
+/// not the BTU's, the Impressum and the Datenschutz, the versions of Folia and Radix, how fresh the data is and where it comes
+/// from. The data's facts once they are there; the rest stands from the first frame.
 #[component]
-fn Settings() -> impl IntoView {
-    let t = i18n::t();
-    let p = &t.profile;
-    let theme = RwSignal::new(Theme::kept());
-    // Effects run in the browser only.
-    Effect::new(move |_| {
-        let handle = window_event_listener_untyped("betula:theme", move |_| theme.set(Theme::kept()));
-        on_cleanup(move || handle.remove());
-    });
-    let checked = move |on: bool| if on { "true" } else { "false" };
-    view! {
-        <section class="panel pf-part" aria-labelledby="pf-settings">
-            <h2 id="pf-settings"><Icon name="sliders-horizontal"/>{p.settings_heading}</h2>
-            <p class="pf-sub">{p.settings_hint}</p>
-            <div class="pf-setting">
-                <p class="label" id="pf-theme">{p.theme}</p>
-                <div class="seg pf-seg" role="radiogroup" aria-labelledby="pf-theme">
-                    {Theme::ALL.into_iter().map(|choice| view! {
-                        <button type="button" role="radio" data-action="theme-set" data-theme-value=choice.code() aria-checked=move || checked(theme.get() == choice)>
-                            <Icon name=choice.icon()/><span>{choice.label(t)}</span>
-                        </button>
-                    }).collect_view()}
-                </div>
-            </div>
-            <div class="pf-setting">
-                <p class="label" id="pf-language">{p.language}</p>
-                <div class="seg pf-seg" role="radiogroup" aria-labelledby="pf-language">
-                    {Locale::ALL.iter().copied().map(|locale| if locale == t.locale {
-                        view! { <button type="button" role="radio" aria-checked="true" lang=locale.code()>{locale.name()}</button> }.into_any()
-                    } else {
-                        view! {
-                            <a
-                                role="radio"
-                                aria-checked="false"
-                                href=locale.path(url::PROFILE)
-                                hreflang=locale.code()
-                                lang=locale.code()
-                                rel="alternate external nofollow"
-                                data-language=locale.code()
-                            >
-                                {locale.name()}
-                            </a>
-                        }
-                        .into_any()
-                    }).collect_view()}
-                </div>
-            </div>
-            // Betula's single keys (folia/design/tastatur/konzept.html, question 4), as in the
-            // overview of the keys (`folia_shell::keys`).
-            <div class="pf-setting">
-                <p class="label" id="pf-letters">{t.ui.letters}</p>
-                <folia_design::keys::LettersSwitch labelled_by="pf-letters"/>
-                <p class="pf-sub">{t.ui.letters_hint}</p>
-            </div>
-        </section>
-    }
-}
-
-/// „Über diese Seite": what the ground at the end of every page held until 2026-11-03, now that only
-/// the start page and the pages about Betula have one (`folia_shell::ground`) — that Betula is not the BTU's, the Impressum and
-/// the Datenschutz, the versions of Folia and Radix, how fresh the data is and where it comes from.
-/// The data's facts once they are there; the rest stands from the first frame.
-#[component]
-fn About() -> impl IntoView {
+fn Foot() -> impl IntoView {
     let t = i18n::t();
     let facts = use_ask(|| Some(GroundAsk {}));
     let radix = move || facts.get().and_then(Result::ok).and_then(|ground| ground.meta.radix_version.clone());
     let changed = move || facts.get().and_then(Result::ok).and_then(|ground| ground.meta.data_changed_at.as_deref().map(|date| format::date(date, t.locale)));
     view! {
-        <section class="panel pf-part pf-about" aria-labelledby="pf-about">
-            <h2 id="pf-about"><Icon name="info"/>{t.ground.legal}</h2>
-            <p class="pf-sub">{t.ground.note}</p>
-            <nav class="pf-ways" aria-label=t.ground.legal>
-                <a class="btn secondary" href=t.path(url::IMPRINT)><Icon name="file-text"/><span>{t.ground.imprint}</span></a>
-                <a class="btn secondary" href=t.path(url::PRIVACY)><Icon name="shield-check"/><span>{t.ground.privacy}</span></a>
-            </nav>
-            <p class="pf-build">
-                <span>"Folia "<span class="ver">{folia_shell::document::VERSION}</span></span>
-                {move || radix().map(|version| view! { <span>"Radix "<span class="ver">{version}</span></span> })}
-                {move || changed().map(|date| view! { <span>{(t.ground.data_of)(&date)}</span> })}
-                <a href=folia_shell::seo::UNIVERSITY_URL rel="noopener">{t.ground.source}<Icon name="arrow-up-right"/></a>
-            </p>
-        </section>
+        <footer class="pf-foot" aria-label=t.ground.legal>
+            <span class="pf-foot-note">{t.ground.note}</span>
+            <a href=t.path(url::IMPRINT)>{t.ground.imprint}</a>
+            <a href=t.path(url::PRIVACY)>{t.ground.privacy}</a>
+            <span>"Folia "<span class="ver">{folia_shell::document::VERSION}</span></span>
+            {move || radix().map(|version| view! { <span>"Radix "<span class="ver">{version}</span></span> })}
+            {move || changed().map(|date| view! { <span>{(t.ground.data_of)(&date)}</span> })}
+            <a href=folia_shell::seo::UNIVERSITY_URL rel="noopener">{t.ground.source}<Icon name="arrow-up-right"/></a>
+        </footer>
     }
 }
 
-/// The sidebar: the profiles, a new one, a backup; where all of it lives.
+/// The sidebar: the profiles and „Profil hinzufügen"; where all of it lives. On a phone a row.
 #[component]
 fn Sidebar(note: RwSignal<Option<Note>>) -> impl IntoView {
     let t = i18n::t();
+    let p = &t.profile;
     // Where the site offers Betula Sync, a profile may reach the server, sealed.
-    let hint = if folia_stores::sync::offered().is_some() { t.profile.storage_hint_sync } else { t.profile.storage_hint };
+    let hint = if folia_stores::sync::offered().is_some() { p.storage_hint_sync } else { p.storage_hint };
+    let adding = RwSignal::new(false);
     view! {
-        <ProfileList note/>
-        <BackupGroup note/>
-        <div class="fgroup">
+        <div class="pf-side">
+            <div class="pf-pick">
+                <ProfileList/>
+                <button class="pf-item pf-add-way" type="button" id=ADD_ID aria-expanded=move || if adding.get() { "true" } else { "false" } on:click=move |_| adding.update(|open| *open = !*open)>
+                    <Icon name="user-round-plus"/>
+                    <span class="pf-item-text"><b>{p.add_profile}</b></span>
+                    <Icon name="chevron-down"/>
+                </button>
+            </div>
+            {move || adding.get().then(|| view! { <AddProfile note/> })}
             <p class="hint storage-hint"><Icon name="shield-check"/><span>{hint}</span></p>
         </div>
     }
 }
 
-/// The profiles of this browser: a click makes one the active profile; „Neues Profil".
+/// The profiles of this browser: a click makes one the active profile.
 #[component]
-fn ProfileList(note: RwSignal<Option<Note>>) -> impl IntoView {
+fn ProfileList() -> impl IntoView {
     let t = i18n::t();
     let p = &t.profile;
     let profiles = Profiles::expect();
@@ -651,35 +630,54 @@ fn ProfileList(note: RwSignal<Option<Note>>) -> impl IntoView {
     // The line under each profile: its „Mein Studiengang", the active one's as its store has it.
     let programs = Memo::new(move |_| profiles.map(|profiles| profiles.program_lines(t.locale)).unwrap_or_default());
     view! {
-        <div class="fgroup first">
-            <div class="pf-list" role="radiogroup" aria-label=p.profiles>
-                <For
-                    each=move || all.get()
-                    key=|profile| (profile.id, profile.name.clone())
-                    children=move |profile: Profile| {
-                        let id = profile.id;
-                        let shown = profile.shown(t.locale);
-                        let line = Memo::new(move |_| programs.with(|programs| programs.iter().find(|(of, _)| *of == id).map(|(_, line)| line.clone()).unwrap_or_default()));
-                        let on = Memo::new(move |_| checked.get() == id);
-                        view! {
-                            <button class="pf-item" type="button" role="radio" aria-checked=move || if on.get() { "true" } else { "false" } on:click=move |_| switch(id)>
-                                <Avatar profile/>
-                                <span class="pf-item-text">
-                                    <b>{shown}</b>
-                                    <small>{line}</small>
-                                </span>
-                                <Icon name="check"/>
-                            </button>
-                        }
+        <div class="pf-list" role="radiogroup" aria-label=p.profiles>
+            <For
+                each=move || all.get()
+                key=|profile| (profile.id, profile.name.clone())
+                children=move |profile: Profile| {
+                    let id = profile.id;
+                    let shown = profile.shown(t.locale);
+                    let line = Memo::new(move |_| programs.with(|programs| programs.iter().find(|(of, _)| *of == id).map(|(_, line)| line.clone()).unwrap_or_default()));
+                    let on = Memo::new(move |_| checked.get() == id);
+                    view! {
+                        <button class="pf-item" type="button" role="radio" aria-checked=move || if on.get() { "true" } else { "false" } on:click=move |_| switch(id)>
+                            <Avatar profile/>
+                            <span class="pf-item-text">
+                                <b>{shown}</b>
+                                <small>{line}</small>
+                            </span>
+                            <Icon name="check"/>
+                        </button>
                     }
-                />
-            </div>
-            <NewProfile note/>
+                }
+            />
         </div>
     }
 }
 
-/// „Neues Profil": a name (none: „Profil 3"), and the new profile, empty, is the active one.
+/// „Profil hinzufügen": an empty one (a name; none: „Profil 3"), one from another device (the
+/// recovery code, where the site offers Betula Sync), one from a file.
+#[component]
+fn AddProfile(note: RwSignal<Option<Note>>) -> impl IntoView {
+    let t = i18n::t();
+    let p = &t.profile;
+    let sync = folia_stores::sync::Sync::expect().filter(|_| folia_stores::sync::offered().is_some());
+    let other = RwSignal::new(false);
+    view! {
+        <div class="pf-add">
+            <NewProfile note/>
+            {sync.map(|sync| view! {
+                <button class="action" type="button" id=OTHER_ID aria-expanded=move || if other.get() { "true" } else { "false" } on:click=move |_| other.update(|open| *open = !*open)>
+                    <Icon name="monitor-smartphone"/><span>{p.add_other}</span>
+                </button>
+                {move || other.get().then(|| view! { <crate::sync::FromOther sync id=OTHER_CODE_ID/> })}
+            })}
+            <OpenFile note/>
+        </div>
+    }
+}
+
+/// „Leer anlegen": a name (none: „Profil 3"), and the new profile, empty, is the active one.
 #[component]
 fn NewProfile(note: RwSignal<Option<Note>>) -> impl IntoView {
     let t = i18n::t();
@@ -748,7 +746,7 @@ fn NewProfile(note: RwSignal<Option<Note>>) -> impl IntoView {
                     title=move || (!room.get()).then(|| (p.full)(MAX_PROFILES))
                     on:click=start
                 >
-                    <Icon name="user-round-plus"/><span>{p.new_profile}</span>
+                    <Icon name="plus"/><span>{p.add_empty}</span>
                 </button>
             }
             .into_any()
@@ -766,20 +764,15 @@ enum Refused {
     Full,
 }
 
-/// „Sichern & übertragen": the active profile as a file („Als Datei sichern", `Backup`), and a
-/// profile made of one („Aus Datei laden"), which is offered before anything is made.
+/// „Aus Datei laden": a profile made of a file (`Backup`), which is offered before anything is made.
 #[component]
-fn BackupGroup(note: RwSignal<Option<Note>>) -> impl IntoView {
+fn OpenFile(note: RwSignal<Option<Note>>) -> impl IntoView {
     let t = i18n::t();
     let p = &t.profile;
     let profiles = Profiles::expect();
     let input = NodeRef::<leptos::html::Input>::new();
     // What a file picked holds, until it is taken over or put aside.
     let offer = RwSignal::new(None::<Result<Backup, Refused>>);
-    let save = move |_| {
-        let Some(backup) = profiles.and_then(|profiles| profiles.backup(profiles.active_untracked(), t.locale)) else { return };
-        download(&file_name(&backup.name, today()), &backup.file());
-    };
     let pick = move |_| {
         offer.set(None);
         #[cfg(feature = "csr")]
@@ -812,47 +805,41 @@ fn BackupGroup(note: RwSignal<Option<Note>>) -> impl IntoView {
         request_animation_frame(|| nav::focus_by_id(OPEN_ID));
     };
     view! {
-        <div class="fgroup actions pf-backup">
-            <p class="flabel label">{p.backup}</p>
-            <button class="action" type="button" on:click=save>
-                <Icon name="download"/><span>{p.save_file}<small>{p.save_file_hint}</small></span>
-            </button>
-            <button class="action" type="button" id=OPEN_ID on:click=pick>
-                <Icon name="upload"/><span>{p.open_file}<small>{p.open_file_hint}</small></span>
-            </button>
-            <input class="visually-hidden" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" node_ref=input on:change=picked/>
-            {move || offer.get().map(|offer| match offer {
-                Ok(backup) => {
-                    let holds = summary_line(&backup.summary(), t);
-                    view! {
-                        <div class="pf-offer" role="status">
-                            <p><b>{(p.file_named)(&backup.name)}</b>" "{holds}</p>
-                            <p>{p.file_question}</p>
-                            <div>
-                                <button class="mini primary hit" type="button" id="pf-take" on:click=take>{p.file_take}</button>
-                                <button class="mini hit" type="button" on:click=put_aside>{p.cancel}</button>
-                            </div>
+        <button class="action" type="button" id=OPEN_ID on:click=pick>
+            <Icon name="upload"/><span>{p.open_file}</span>
+        </button>
+        <input class="visually-hidden" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" node_ref=input on:change=picked/>
+        {move || offer.get().map(|offer| match offer {
+            Ok(backup) => {
+                let holds = summary_line(&backup.summary(), t);
+                view! {
+                    <div class="pf-offer" role="status">
+                        <p><b>{(p.file_named)(&backup.name)}</b>" "{holds}</p>
+                        <p>{p.file_question}</p>
+                        <div>
+                            <button class="mini primary hit" type="button" id="pf-take" on:click=take>{p.file_take}</button>
+                            <button class="mini hit" type="button" on:click=put_aside>{p.cancel}</button>
                         </div>
-                    }
-                    .into_any()
+                    </div>
                 }
-                Err(refused) => {
-                    let why = match refused {
-                        Refused::File(NoBackup::Unreadable) => p.file_unreadable.to_string(),
-                        Refused::File(NoBackup::Newer) => p.file_newer.to_string(),
-                        Refused::File(NoBackup::TooLarge) => p.file_too_large.to_string(),
-                        Refused::Full => (p.file_full)(MAX_PROFILES),
-                    };
-                    view! {
-                        <p class="action note-action pf-refused" role="status">
-                            <Icon name="triangle-alert"/><span>{why}</span>
-                            <button class="mini hit" type="button" on:click=put_aside>{p.ok}</button>
-                        </p>
-                    }
-                    .into_any()
+                .into_any()
+            }
+            Err(refused) => {
+                let why = match refused {
+                    Refused::File(NoBackup::Unreadable) => p.file_unreadable.to_string(),
+                    Refused::File(NoBackup::Newer) => p.file_newer.to_string(),
+                    Refused::File(NoBackup::TooLarge) => p.file_too_large.to_string(),
+                    Refused::Full => (p.file_full)(MAX_PROFILES),
+                };
+                view! {
+                    <p class="action note-action pf-refused" role="status">
+                        <Icon name="triangle-alert"/><span>{why}</span>
+                        <button class="mini hit" type="button" on:click=put_aside>{p.ok}</button>
+                    </p>
                 }
-            })}
-        </div>
+                .into_any()
+            }
+        })}
     }
 }
 

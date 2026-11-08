@@ -1,6 +1,7 @@
 //! Texts of the start page's setup (`home/setup.rs`, concept A „Einrichtung"): three steps on one
 //! card, the program, the semester the study began in, and the modules of the Fachsemester that
-//! follows from it which are taken now. What a step says follows the usual case and refuses nothing
+//! follows from it which are taken now; and where the site offers Betula Sync a fourth, the profile
+//! on the phone as well (`home/devices.rs`). What a step says follows the usual case and refuses nothing
 //! (CLAUDE.md, „Betula does not say no"): an unusual choice is said beside it.
 
 pub struct Texts {
@@ -8,6 +9,7 @@ pub struct Texts {
     pub step_program: &'static str,
     pub step_start: &'static str,
     pub step_semester: &'static str,
+    pub step_devices: &'static str,
     /// „Studium einrichten: Schritt 2 von 3", for screen readers.
     pub steps_label: &'static str,
     /// A step done, for screen readers before what it holds.
@@ -25,6 +27,8 @@ pub struct Texts {
     pub look_around_title: &'static str,
     pub take_profile: &'static str,
     pub take_profile_title: &'static str,
+    /// The same where the site offers Betula Sync: from the phone by its code (`/pair`).
+    pub take_profile_title_sync: &'static str,
 
     // Step 2
     pub start_title: &'static str,
@@ -74,12 +78,48 @@ pub struct Texts {
     pub without_modules: &'static str,
     pub create: &'static str,
     pub back: &'static str,
+    /// The chip of step 3 once the study is set up: „4 Module".
+    pub semester_done: fn(usize) -> String,
+
+    // Step 4 (Betula Sync), the other device a phone; on a phone's layout a laptop (`_phone`).
+    pub devices_title: &'static str,
+    pub devices_title_phone: &'static str,
+    pub devices_lead: &'static str,
+    pub devices_lead_phone: &'static str,
+    /// What the server then keeps, and that it ends: a point each, in the order of their icons
+    /// (a lock, a person, a bin).
+    pub devices_points: [&'static str; 3],
+    /// „Später", and its title: where it goes later.
+    pub later: &'static str,
+    pub later_title: &'static str,
+    pub activate: &'static str,
+    pub activating: &'static str,
+    /// What failed, before why (`folia_widgets::syncpair::problem_text`); „Erneut versuchen".
+    pub failed: &'static str,
+    pub retry: &'static str,
+    /// Switched on: the link for the next device, while it is made.
+    pub link_title: &'static str,
+    pub link_title_phone: &'static str,
+    pub link_lead: &'static str,
+    pub link_lead_phone: &'static str,
+    pub link_making: &'static str,
+    /// On a phone: open the address on the laptop, then scan its code with this phone.
+    pub elsewhere_open: &'static str,
+    pub elsewhere_scan: &'static str,
+    /// The other device has the profile: the title, what that means, the note, and „Noch ein Gerät
+    /// verbinden".
+    pub joined_title: &'static str,
+    pub joined_lead: &'static str,
+    pub joined: &'static str,
+    pub pair_more: &'static str,
+    pub finish: &'static str,
 }
 
 pub const DE: Texts = Texts {
     step_program: "Studiengang",
     step_start: "Beginn",
     step_semester: "Semester",
+    step_devices: "Geräte",
     steps_label: "Schritte der Einrichtung",
     done: "Erledigt: ",
 
@@ -92,6 +132,7 @@ pub const DE: Texts = Texts {
     look_around_title: "Die Einrichtung einklappen; sie bleibt oben erreichbar",
     take_profile: "Profil übernehmen",
     take_profile_title: "Schon eingerichtet? Ein Profil als Datei von einem anderen Gerät übernehmen",
+    take_profile_title_sync: "Schon auf dem Handy eingerichtet? Scanne einen Code und hol dein Profil hierher",
 
     start_title: "Seit wann studierst du?",
     start_lead: "Daraus folgt dein Fachsemester.",
@@ -132,12 +173,46 @@ pub const DE: Texts = Texts {
     without_modules: "Ohne Module weiter",
     create: "Studium anlegen",
     back: "Zurück",
+    semester_done: |modules| match modules {
+        0 => "Ohne Module".to_string(),
+        1 => "1 Modul".to_string(),
+        n => format!("{n} Module"),
+    },
+
+    devices_title: "Auch auf dem Handy?",
+    devices_title_phone: "Auch am Laptop?",
+    devices_lead: "Mit Betula Sync hast du deinen Stundenplan und alles andere auch auf dem Handy. Was du auf einem Gerät änderst, ist sofort auf dem anderen.",
+    devices_lead_phone: "Mit Betula Sync hast du deinen Stundenplan und alles andere auch am Laptop. Was du auf einem Gerät änderst, ist sofort auf dem anderen.",
+    devices_points: [
+        "Verschlüsselt: Den Schlüssel haben nur deine Geräte. Der Server bewahrt deine Änderungen auf, kann sie aber nicht öffnen.",
+        "Ohne Konto: kein Name, keine E-Mail-Adresse. Der Server kennt nur zufällige Kennungen, Größen und Zeiten.",
+        "Jederzeit im Profil zu beenden: Dann ist alles auf dem Server weg, deine Geräte behalten ihre Kopie. Ebenso nach 13 Monaten ohne Abruf.",
+    ],
+    later: "Später",
+    later_title: "Geht jederzeit im Profil unter „Betula Sync“",
+    activate: "Betula Sync aktivieren",
+    activating: "Wird eingerichtet …",
+    failed: "Das hat nicht geklappt.",
+    retry: "Erneut versuchen",
+    link_title: "Jetzt dein Handy verbinden",
+    link_title_phone: "Jetzt deinen Laptop verbinden",
+    link_lead: "Betula Sync ist an. Dein Handy bekommt dieses Profil, und von da an bleibt es auf beiden gleich.",
+    link_lead_phone: "Betula Sync ist an. Hol dein Profil jetzt auf den Laptop, von da an bleibt es auf beiden gleich.",
+    link_making: "Link wird vorbereitet …",
+    elsewhere_open: "Öffne auf deinem Laptop diese Adresse:",
+    elsewhere_scan: "Dort erscheint ein Code. Scanne ihn mit der Kamera dieses Handys und tippe auf „Verbinden“. Dann ist dein Laptop angemeldet, mit allem, was du hier eingerichtet hast.",
+    joined_title: "Verbunden",
+    joined_lead: "Was du auf einem Gerät änderst, ist auf dem anderen sofort da, auch nach einer Weile offline.",
+    joined: "Dein Profil ist jetzt auch auf dem anderen Gerät.",
+    pair_more: "Noch ein Gerät verbinden",
+    finish: "Fertig",
 };
 
 pub const EN: Texts = Texts {
     step_program: "Programme",
     step_start: "Start",
     step_semester: "Semester",
+    step_devices: "Devices",
     steps_label: "Steps of the set-up",
     done: "Done: ",
 
@@ -150,6 +225,7 @@ pub const EN: Texts = Texts {
     look_around_title: "Fold the set-up away; it stays within reach at the top",
     take_profile: "Bring a profile",
     take_profile_title: "Set up elsewhere already? Bring a profile from another device as a file",
+    take_profile_title_sync: "Set up on your phone already? Scan a code and bring your profile here",
 
     start_title: "When did you start?",
     start_lead: "That gives your semester of study.",
@@ -190,4 +266,37 @@ pub const EN: Texts = Texts {
     without_modules: "Continue without modules",
     create: "Set up my studies",
     back: "Back",
+    semester_done: |modules| match modules {
+        0 => "No modules".to_string(),
+        1 => "1 module".to_string(),
+        n => format!("{n} modules"),
+    },
+
+    devices_title: "On your phone too?",
+    devices_title_phone: "On your laptop too?",
+    devices_lead: "With Betula Sync your timetable and everything else is on your phone as well. What you change on one device is on the other at once.",
+    devices_lead_phone: "With Betula Sync your timetable and everything else is on your laptop as well. What you change on one device is on the other at once.",
+    devices_points: [
+        "Encrypted: only your devices have the key. The server keeps your changes but cannot open them.",
+        "No account: no name, no e-mail address. The server knows only random ids, sizes and times.",
+        "Can be ended at any time in the profile: then everything on the server is gone, and your devices keep their copy. The same after 13 months without a fetch.",
+    ],
+    later: "Later",
+    later_title: "Possible at any time in the profile under “Betula Sync”",
+    activate: "Turn on Betula Sync",
+    activating: "Setting up …",
+    failed: "That did not work.",
+    retry: "Try again",
+    link_title: "Now connect your phone",
+    link_title_phone: "Now connect your laptop",
+    link_lead: "Betula Sync is on. Your phone gets this profile, and from then on it stays the same on both.",
+    link_lead_phone: "Betula Sync is on. Now get your profile onto your laptop; from then on it stays the same on both.",
+    link_making: "Preparing the link …",
+    elsewhere_open: "On your laptop, open this address:",
+    elsewhere_scan: "A code appears there. Scan it with the camera of this phone and tap “Connect”. Then your laptop is signed in, with everything you set up here.",
+    joined_title: "Connected",
+    joined_lead: "What you change on one device is on the other at once, even after a while offline.",
+    joined: "Your profile is now on the other device too.",
+    pair_more: "Connect another device",
+    finish: "Done",
 };

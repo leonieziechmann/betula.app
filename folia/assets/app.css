@@ -3377,6 +3377,29 @@ button.pm-new-way { width: 100%; text-align: left; }
 .pm-new .mini { flex: none; min-height: 38px; padding: 0 14px; font-size: 13px; }
 @media (max-width: 900px) { .pm-new input { font-size: 16px; } }
 .tab-menu-rule { height: 1px; margin: 6px 4px; border: 0; background: var(--line); }
+/* The menu's way to the profile page and to its Betula Sync („Geräte", with the active profile's
+   state under it), what every profile shares as a row of small buttons, the legal pages at its foot
+   (the profile's second round, folia/design/profil/konzepte.html). */
+.tab-menu-way > .icon.pm-end { width: 16px; height: 16px; margin-left: auto; color: var(--text-3); }
+.pm-devices { min-height: 52px; }
+.pm-way-text { flex: 1 1 auto; display: grid; min-width: 0; }
+.pm-way-text b { font-weight: 560; overflow: hidden; text-overflow: ellipsis; }
+.pm-way-text small { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-3); font-size: 12px; font-weight: 450; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pm-way-text small::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); }
+.pm-way-text small[data-state="on"]::before { background: var(--ok); }
+.pm-way-text small[data-state="warn"]::before { background: var(--warn); }
+.pm-prefs { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 6px 6px 8px; }
+.seg.pm-seg { margin: 0; grid-auto-columns: 38px; }
+.pm-seg .icon { width: 16px; height: 16px; }
+.pm-lang a, .pm-lang button { font-size: 12.5px; font-weight: 650; letter-spacing: .03em; }
+.pm-foot { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 4px 10px 6px; }
+.pm-foot a { color: var(--text-3); font-size: 12.5px; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.pm-foot a:hover { color: var(--text); }
+@media (max-width: 900px) {
+  .seg.pm-seg { grid-auto-columns: 46px; }
+  .pm-seg a, .pm-seg button { min-height: 40px; }
+  .pm-foot a { padding: 6px 0; }
+}
 
 /* ---------- studyplan (folia/crates/app/src/pages/studyplan, folia/crates/stores/src/studyplan.rs) ----------
    The Studienplan: the frame of every page, the sidebar „Anpassen", and the plan in one panel of
@@ -7204,11 +7227,61 @@ span.st-wb-go { cursor: default; }
 .avatar[data-tone="8"] { --tone: var(--t-slate); }
 .avatar.large { width: 56px; height: 56px; font-size: 23px; box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--tone) 42%, transparent); }
 .page-inner.pf { grid-template-columns: minmax(0, 1fr); align-content: start; }
+/* The profile page since 2026-11-08 (folia/design/profil/konzepte.html, the second round): the head
+   with the name and its pencil, „Mein Studiengang" as a line and the numbers; „Daten" and the
+   Gefahrenzone as rows of one kind (an icon on a tile, what it does and a sentence, a button of one
+   width with the same icon); a line of the legal pages and the versions at the end. */
+.pf-name { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.pf-pencil { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 9px; background: none; color: var(--text-3); cursor: pointer; }
+.pf-pencil:hover { background: var(--panel-3); color: var(--text); }
+.pf-pencil .icon { width: 16px; height: 16px; }
+.pf-line { margin-top: 2px; color: var(--text-2); font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.pf-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.pf-stat { min-width: 0; padding: 10px 12px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.pf-stat b { display: block; font-size: 19px; font-weight: 720; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.pf-stat span { display: block; margin-top: 1px; color: var(--text-3); font-size: 12px; line-height: 1.35; }
+.pf-stats-empty { margin: 0; color: var(--text-2); font-size: 14px; }
+.pf-arows { display: grid; margin-top: 10px; }
+.pf-arow { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 12px 14px; padding: 12px 0; border-top: 1px solid var(--line); }
+.pf-arow:first-child { border-top: 0; }
+.pf-tile { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: var(--panel-3); color: var(--text-2); }
+.pf-tile .icon { width: 18px; height: 18px; }
+.pf-tile.danger { background: var(--no-soft); color: var(--no); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--no) 28%, transparent); }
+.pf-arow-text { display: grid; gap: 1px; min-width: 0; }
+.pf-arow-text b { font-size: 14px; font-weight: 640; }
+.pf-arow-text span { color: var(--text-3); font-size: 12.5px; line-height: 1.4; text-wrap: pretty; }
+.btn.pf-abtn { width: 132px; min-height: 38px; padding: 0 12px; font-size: 13.5px; }
+.btn.pf-abtn .icon { width: 16px; height: 16px; }
+.btn.pf-abtn.danger { color: var(--no); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--no) 45%, transparent); }
+.btn.pf-abtn.danger:hover { background: var(--no-soft); }
+.btn.pf-abtn[aria-disabled="true"] { color: var(--text-3); box-shadow: inset 0 0 0 1px var(--line); background: none; cursor: default; }
+.pf-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 0 12px; padding: 12px 14px; border-radius: var(--r-row); background: var(--no-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--no) 32%, transparent); font-size: 13.5px; line-height: 1.45; }
+.pf-confirm > span { flex: 1 1 260px; color: var(--text); text-wrap: pretty; }
+.pf-confirm .btn { min-height: 36px; padding: 0 13px; font-size: 13.5px; }
+.pf-confirm .btn .icon { width: 16px; height: 16px; }
+.btn.pf-yes { background: var(--no); color: var(--panel); }
+.btn.pf-yes:hover { filter: brightness(1.08); }
+.pf-danger { box-shadow: 0 0 0 1px color-mix(in srgb, var(--no) 30%, transparent), var(--shadow-panel); }
+.pf-danger > h2, .pf-danger > h2 .icon { color: var(--no); }
+.pf-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 2px 6px 8px; color: var(--text-3); font-size: 12px; }
+.pf-foot a { display: inline-flex; align-items: center; gap: 3px; color: var(--text-2); }
+.pf-foot-note { flex-basis: 100%; }
+.pf-foot .icon { width: 13px; height: 13px; }
+/* The sidebar: the profiles, „Profil hinzufügen" and its three ways. On a phone a row of chips,
+   „+ Profil" at its end, its ways under it. */
+.pf-side { display: grid; gap: 6px; }
+.pf-pick { display: grid; gap: 2px; }
+.pf-pick .pf-list { margin-bottom: 0; }
+.pf-add-way > .icon:first-child { width: 18px; height: 18px; color: var(--text-2); }
+.pf-item.pf-add-way > .icon:last-child { visibility: visible; color: var(--text-3); transition: transform .15s var(--ease); }
+.pf-item.pf-add-way[aria-expanded="true"] > .icon:last-child { transform: rotate(180deg); }
+.pf-add { display: grid; gap: 2px; padding: 4px 0 6px 8px; }
+.pf-add .pf-sync-other { margin: 6px 0 4px; padding-top: 0; border-top: 0; }
 /* The note of the last thing done, a panel of its own over the head. */
 .offer.pf-note { margin: 0; background: var(--panel); box-shadow: var(--shadow-panel); }
 .pf-note > .icon { color: var(--text-2); }
 /* The head: the badge, the name and what a profile is; „Umbenennen" and „Löschen" at its end. */
-.pf-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 14px 20px; padding: 20px 24px; }
+.pf-head { display: flex; flex-direction: column; gap: 16px; padding: 20px 24px; }
 .pf-head-main { display: flex; align-items: flex-start; gap: 16px; min-width: 0; }
 .pf-head-text { flex: 1 1 auto; min-width: 0; padding-top: 3px; }
 .pf-head h2 { font-size: 24px; line-height: 1.2; font-weight: 720; letter-spacing: -.03em; overflow-wrap: anywhere; }
@@ -7283,6 +7356,25 @@ span.st-wb-go { cursor: default; }
   /* A finger's targets. */
   .pf-item { min-height: 56px; }
   .pf-row { min-height: 52px; }
+  .pf-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pf-stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .pf-arow { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 10px 12px; }
+  .pf-tile { width: 36px; height: 36px; }
+  .btn.pf-abtn { width: 112px; min-height: 42px; }
+  /* The sidebar as a row: the profiles as chips, „+ Profil" at the end; the panel's own frame and
+     heading go, and so does the line on where profiles live. */
+  .framed.sidebar-first .sidebar:has(.pf-side) { margin: 0 12px 4px; padding: 0; background: none; box-shadow: none; }
+  .sidebar:has(.pf-side) > .panel-head { display: none; }
+  .pf-pick { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -12px; padding: 2px 12px 6px; }
+  .pf-pick::-webkit-scrollbar { display: none; }
+  .pf-pick .pf-list { display: flex; flex: none; gap: 8px; }
+  .pf-pick .pf-item { flex: none; width: auto; min-height: 44px; padding: 0 14px 0 6px; border-radius: 22px; background: var(--panel); box-shadow: 0 0 0 1px var(--line-strong); }
+  .pf-pick .pf-item[aria-checked="true"] { background: var(--panel); box-shadow: 0 0 0 2px var(--accent); }
+  .pf-pick .pf-item-text small, .pf-pick .pf-item > .icon:last-child { display: none; }
+  .pf-pick .pf-item .avatar { width: 30px; height: 30px; font-size: 12px; }
+  .pf-pick .pf-add-way { padding: 0 14px 0 12px; }
+  .pf-side > .storage-hint { display: none; }
+  .pf-add { padding: 4px 4px 8px; border-radius: var(--r-row); background: var(--panel); box-shadow: var(--shadow-panel); }
 }
 /* Betula Sync on the profile page (folia/crates/profile/src/sync.rs): what it is, the state with a
    dot (on: green; on its way: pulsing; off and ended: grey; failed: the warning colour), the
@@ -7296,9 +7388,35 @@ span.st-wb-go { cursor: default; }
 .pf-sync-state[data-state="wait"] .pf-sync-dot { animation: pf-sync-wait 1.2s ease-in-out infinite; }
 @keyframes pf-sync-wait { 50% { opacity: .3; } }
 @media (prefers-reduced-motion: reduce) { .pf-sync-state[data-state="wait"] .pf-sync-dot { animation: none; } }
-.pf-sync-actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 2px 12px; margin: 10px -10px 0; }
-.pf-sync-explain { margin: 12px 0 0; padding: 12px 14px; line-height: 1.5; }
-.pf-sync-explain ul { display: grid; gap: 4px; margin: 0; padding-left: 1.2em; }
+.pf-sync-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.pf-sync-actions .btn { min-height: 40px; padding: 0 15px; font-size: 13.5px; }
+.pf-sync-actions .btn .icon { width: 17px; height: 17px; }
+.pf-sync-quiet { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 10px 0 0; }
+.pf-sync-quiet button { padding: 6px 0; border: 0; background: none; color: var(--text-2); font-size: 13px; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer; }
+.pf-sync-quiet button:hover { color: var(--text); }
+/* „Gerät verbinden": the dialog's body; a device that came while it was open. */
+.pf-connect-body, .pf-sync-explain { align-content: start; }
+.pf-connect-body { display: grid; gap: 14px; }
+/* On a wide screen as high as what it says; a phone's sheet comes half up as every such dialog. */
+@media (min-width: 901px) {
+  .st-dialog.m.pf-connect-dlg { width: min(520px, calc(100vw - 48px)); height: fit-content; }
+}
+.pf-connect-body .pf-pair { margin-top: 0; }
+.pf-joined { display: flex; align-items: center; gap: 10px; margin: 0; padding: 12px 14px; border-radius: var(--r-row); background: var(--ok-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 32%, transparent); color: var(--text); font-size: 14px; line-height: 1.45; }
+.pf-joined > .icon { flex: none; width: 18px; height: 18px; color: var(--ok); }
+/* „Geräte" in the menu leads here (`#devices`): the part lights up once. */
+.pf-sync { scroll-margin-top: 16px; }
+.pf-flash { animation: pf-flash 1.6s var(--ease); }
+@keyframes pf-flash { 0%, 35% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 30%, transparent), var(--shadow-panel); } }
+@media (prefers-reduced-motion: reduce) { .pf-flash { animation: none; } }
+.pf-sync-explain { display: grid; gap: 14px; line-height: 1.5; }
+.pf-sync-explain p { margin: 0; }
+.pf-explain-head { font-weight: 600; }
+.pf-keeps { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.pf-keeps li { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 12px; color: var(--text-2); }
+.pf-keeps .pf-tile { width: 34px; height: 34px; }
+.pf-explain-code { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--panel-3); color: var(--text-2); }
+.pf-explain-code .icon { flex: none; width: 18px; height: 18px; margin-top: 2px; color: var(--accent); }
 .pf-sync-wait { margin-top: 10px; color: var(--text-2); font-size: 13px; }
 .pf-sync :is(.pf-ask, .pf-refused) { margin: 10px 0 0; }
 /* The link for the next device: the code on a light tile of its own in either theme (a camera
@@ -7318,6 +7436,17 @@ span.st-wb-go { cursor: default; }
 .pf-recover input { font-size: 15px; font-weight: 560; letter-spacing: .04em; }
 .pf-sync-other > .note-action { margin-top: 8px; }
 .pf-connect .pf-ways { margin-top: 14px; }
+/* „Mit dem Handy verbinden" (pair.rs): the computer's code, the phone's profile. The page is the
+   code: a column of its own, the code large beside what to do. */
+.pf-pair-page { max-width: 760px; width: 100%; justify-self: center; }
+.pf-asking { margin-top: 14px; align-items: center; gap: 18px 26px; padding: 22px; }
+.pf-asking .pf-qr { width: 240px; height: 240px; }
+.pf-asking .pf-pair-text { font-size: 14.5px; gap: 12px; }
+.pf-asking .pf-sync-state { margin-top: 0; }
+.pf-give-what { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 12px; padding: 10px 12px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 14px; }
+.pf-give-what .icon { width: 16px; height: 16px; color: var(--text-2); }
+.pf-give-what span { color: var(--text-2); }
+.pf-give[aria-disabled="true"] { opacity: .7; cursor: progress; }
 /* A hint of Betula Sync where two devices changed a thing at once (folia/crates/widgets/src/
    syncnote.rs): under the note, on „Mein Studium" over the semesters. */
 .sync-hint { display: flex; align-items: flex-start; gap: 9px; margin-top: 8px; padding: 9px 11px; border-radius: 9px; background: var(--warn-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 28%, transparent); color: var(--text); font-size: 13px; line-height: 1.45; }
@@ -7613,6 +7742,25 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .ob-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .ob-actions .btn.ghost { background: none; color: var(--accent-ink); }
 .ob-actions .btn.ghost:hover { background: var(--panel-2); }
+/* Step 4, Betula Sync (devices.rs): what the server keeps as points, then the link for the phone
+   (folia_widgets::syncpair, the profile page's), then the other device joined. */
+.ob-points { display: grid; gap: 12px; margin: 2px 0 0; padding: 0; list-style: none; color: var(--text-2); font-size: 13.5px; line-height: 1.45; }
+.ob-points li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; align-items: start; }
+.ob-point-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--accent-soft); color: var(--accent-ink); }
+.ob-point-icon .icon { width: 16px; height: 16px; }
+.ob-fill .ob-note + .ob-points { margin-top: 4px; }
+.ob-note.ok { background: var(--ok-soft); color: var(--text); font-size: 13.5px; }
+.ob-note.ok .icon { color: var(--ok); }
+.ob-wait { padding: 8px 2px; color: var(--text-2); font-size: 13.5px; }
+.ob-more { display: inline-flex; align-items: center; gap: 6px; }
+.ob-more .icon { width: 15px; height: 15px; }
+.ob-fill .pf-pair { margin-top: 0; }
+/* On a phone the laptop asks: the address to open there, large, between what to do. */
+.ob-elsewhere { display: grid; gap: 10px; color: var(--text-2); font-size: 13.5px; line-height: 1.5; }
+.ob-address { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); }
+.ob-address .icon { flex: none; width: 20px; height: 20px; color: var(--accent-ink); }
+.ob-address code { font-size: 18px; font-weight: 650; letter-spacing: -.01em; overflow-wrap: anywhere; user-select: all; }
+.ob-actions .ob-activate[aria-disabled="true"] { opacity: .7; cursor: progress; }
 
 /* The note after the setup. */
 .day-welcome { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
@@ -7773,8 +7921,12 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
   .ob-switch { padding: 8px 10px; }
   .ob-about { margin-left: 0; }
   .ob-actions { flex-direction: column; align-items: stretch; gap: 2px; }
-  .ob-actions .ob-create, .ob-actions .ob-next { order: -1; min-height: 46px; }
-  .ob-actions .ob-without { align-self: center; }
+  .ob-actions .ob-create, .ob-actions .ob-next, .ob-actions .ob-activate, .ob-actions .ob-finish { order: -1; min-height: 46px; }
+  .ob-actions .ob-without, .ob-actions .ob-later { align-self: center; }
+  /* The link comes to a computer by its address: the link and „Link kopieren" first, the code
+     smaller under them. */
+  .ob-fill .pf-pair-text { order: -1; }
+  .ob-fill .pf-qr { width: 132px; height: 132px; }
   .day-cols { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .day-ev { grid-template-columns: 54px 4px minmax(0, 1fr); padding: 9px 8px; }
   .day-ev-st { grid-column: 3; justify-content: flex-start; margin-top: 4px; }
