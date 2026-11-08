@@ -257,7 +257,19 @@ require_bind_sources() {
     fi
   done < <(yaml_bind_sources "$@")
   [[ "${missing}" -eq 0 ]] ||
-    die "${missing} bind source(s) missing: swarm would reject the task. Run deploy/sync.sh (config files) or vps/10-base.sh (/var/log/journal) first"
+    die "${missing} bind source(s) missing: swarm would reject the task. Run deploy/sync.sh (config files), vps/10-base.sh (/var/log/journal) or vps/30-docker.sh (/var/lib/betula/scraper) first"
+}
+
+# scraper_targets_refresh - the scraper's list of Radix targets (/var/lib/betula/scraper/radix.json,
+# vps/files/betula-scraper-targets.sh) brought up to date now rather than within the minute of its
+# timer: after an instance was deployed or removed, and before the monitoring stack is. Never
+# fatal: the timer catches up.
+scraper_targets_refresh() {
+  if sudo -n systemctl start betula-scraper-targets.service 2>/dev/null; then
+    log "the scraper's targets: $(cat /var/lib/betula/scraper/radix.json 2>/dev/null || printf 'no file')"
+    return 0
+  fi
+  warn "could not update the scraper's targets (sudo systemctl start betula-scraper-targets.service; journalctl -u betula-scraper-targets.service -n 5): its timer catches up within a minute, if vps/30-docker.sh installed it"
 }
 
 # require_secrets FILE... - same for the external secrets the files name.

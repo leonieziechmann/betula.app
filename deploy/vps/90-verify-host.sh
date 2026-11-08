@@ -656,6 +656,19 @@ check_docker() {
   else
     fail "betula-phloem-guard.timer is not active (sudo bash ${BETULA_VPS_DIR}/30-docker.sh)"
   fi
+  as_shipped "the scraper's targets" /usr/local/sbin/betula-scraper-targets betula-scraper-targets.sh
+  as_shipped "the scraper's targets (service)" /etc/systemd/system/betula-scraper-targets.service betula-scraper-targets.service
+  as_shipped "the scraper's targets (timer)" /etc/systemd/system/betula-scraper-targets.timer betula-scraper-targets.timer
+  if systemctl is-active --quiet betula-scraper-targets.timer 2>/dev/null; then
+    pass "betula-scraper-targets.timer is on (the Radix that run, for the scraper, every minute)"
+  else
+    fail "betula-scraper-targets.timer is not active: the scraper keeps the last list of Radix targets (sudo bash ${BETULA_VPS_DIR}/30-docker.sh)"
+  fi
+  if [[ -s /var/lib/betula/scraper/radix.json ]]; then
+    pass "/var/lib/betula/scraper/radix.json: $(cat /var/lib/betula/scraper/radix.json)"
+  else
+    fail "/var/lib/betula/scraper/radix.json is missing or empty: the scraper scrapes no Radix (sudo systemctl start betula-scraper-targets.service; journalctl -u betula-scraper-targets.service)"
+  fi
 
   # published-port filter
   load_public_ports "${BETULA_FILES_DIR}/public-ports.conf"

@@ -244,6 +244,9 @@ deploy_monitoring() {
   MONITORING_CONFIG_REV="$(checksum_of "${CONFIG_DIR}/monitoring")"
   export MONITORING_CONFIG_REV
   log "MONITORING_CONFIG_REV=${MONITORING_CONFIG_REV}"
+  # The scraper starts with the Radix that run now (/var/lib/betula/scraper, not part of the
+  # checksum: a new list restarts nothing).
+  scraper_targets_refresh
   deploy_stack monitoring "${files[@]}"
   wait_for_stack monitoring
 }
