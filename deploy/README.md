@@ -891,8 +891,8 @@ from before section 15, with a way to the internet from its Folia and Radix, the
 `cortex_betula-green`. Until the next release goes there, https://betula.app has no standby: an
 in-place update of `betula` leaves a gap, and a rollback means deploying `betula-green` first
 (section 4, „A colour that crawls": a colour that ran before needs `docker volume rm
-betula-green_radix-data` before `--seed`). Traefik's old `edge` and Cortex's old `cortex` now hold
-only themselves: section 15, step 7.
+betula-green_radix-data` before `--seed`). With it gone, the move to the networks of section 15
+was finished the same day (its step 7).
 
 ### Seeding Cortex with an archive
 
@@ -1171,6 +1171,10 @@ by itself, and the same for Cortex in `48-cortex.sh`). In this order:
    `docker network rm edge monitoring cortex monitoring_default` and `docker network rm
    <instance>_default` for each instance (Docker refuses to remove a network in use: nothing breaks
    by trying). `91-verify-stacks.sh` again: `fail=0`.
+
+On betula.app the move is complete since 2026-11-08 (owner: „Ja, jetzt"): step 7 ran after
+`betula-green` was removed (section 14), and `edge`, `monitoring`, `cortex`, `monitoring_default`
+and `betula_default` are gone. Both verify scripts `fail=0`.
 
 **Rollback** before step 7: sync the previous revision of `deploy/` and run the same scripts with it
 (`40-stacks.sh edge monitoring`, `48-cortex.sh`, `50-app.sh <instance>`, `55-switch.sh` back where a
