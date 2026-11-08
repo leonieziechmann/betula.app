@@ -16,7 +16,7 @@ crates = ["folia-test-support"]
 
 [[layer]]
 name = "domain"
-crates = ["folia-search", "folia-routes", "folia-query", "folia-timetable", "folia-plans", "folia-semantic", "folia-pages"]
+crates = ["folia-search", "folia-routes", "folia-query", "folia-timetable", "folia-plans", "folia-semantic", "folia-pages", "folia-sync"]
 
 [[layer]]
 name = "data"
