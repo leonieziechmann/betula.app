@@ -132,6 +132,15 @@ services:
         # shrink.
         - "traefik.http.routers.${STACK_NAME}-sync.middlewares=secure-headers@file,sync-ratelimit@file"
         - "traefik.http.routers.${STACK_NAME}-sync.service=${STACK_NAME}-sync"
+        # Folia's way to the part of a calendar subscription that stays current
+        # (folia/crates/server/src/parts.rs): Traefik's entrypoint parts (plain HTTP, not published,
+        # on Traefik's networks only), GET /sync/v1/part of the site's host alone. It serves what
+        # the router above serves anybody on the internet, a sealed part by its id; the key stays
+        # in Folia. No TLS on it (entrypoint websecure alone forces it), no HSTS.
+        - "traefik.http.routers.${STACK_NAME}-parts.rule=Host(`${APP_HOST}`) && Method(`GET`) && Path(`/sync/v1/part`)"
+        - "traefik.http.routers.${STACK_NAME}-parts.entrypoints=parts"
+        - "traefik.http.routers.${STACK_NAME}-parts.middlewares=sync-ratelimit@file"
+        - "traefik.http.routers.${STACK_NAME}-parts.service=${STACK_NAME}-sync"
         - "traefik.http.services.${STACK_NAME}-sync.loadbalancer.server.port=8200"
         # A label of the service, not of its tasks: changing it restarts nothing.
         - "app.betula.phloem-rev=${PHLOEM_REV:-0}"

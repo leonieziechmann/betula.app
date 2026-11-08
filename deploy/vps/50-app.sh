@@ -417,7 +417,14 @@ deploy_app() {
       INSTANCE_SYNC="off"
     fi
   fi
-  export STACK_NAME="${INSTANCE_STACK}" APP_HOST="${INSTANCE_HOST}" FOLIA_ACCESS_GATE="${INSTANCE_GATE}" FOLIA_SYNC="${INSTANCE_SYNC}" RADIX_IMAGE FOLIA_IMAGE ROUTER_PRIORITY
+  # Folia fetches the parts of calendar subscriptions that stay current at Traefik's entrypoint
+  # parts while the site syncs (stacks/betula.yml, FOLIA_SYNC_PARTS).
+  FOLIA_SYNC_PARTS=""
+  if [[ "${INSTANCE_SYNC}" == "on" ]]; then
+    FOLIA_SYNC_PARTS="http://edge_traefik:8083/sync/v1/"
+  fi
+  FEED_PRIORITY="$(feed_priority "${ROUTER_PRIORITY}" "${INSTANCE_HOST}")"
+  export STACK_NAME="${INSTANCE_STACK}" APP_HOST="${INSTANCE_HOST}" FOLIA_ACCESS_GATE="${INSTANCE_GATE}" FOLIA_SYNC="${INSTANCE_SYNC}" RADIX_IMAGE FOLIA_IMAGE ROUTER_PRIORITY FOLIA_SYNC_PARTS FEED_PRIORITY
   # never: the default asks a registry for the digest of the tag, and no registry knows these images.
   STACK_DEPLOY_ARGS=(--resolve-image never)
   deploy_stack "${INSTANCE_STACK}" "${files[@]}"
