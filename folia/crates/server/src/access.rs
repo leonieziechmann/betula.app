@@ -228,7 +228,10 @@ pub async fn gate(State(state): State<AppState>, request: Request, next: Next) -
     // other path under `/calendar/` stays behind the gate. Its answer is `private` already.
     // Every language's manifest, light and dark, is the home screen's, like the icons.
     let manifest = [folia_app::MANIFEST, folia_app::MANIFEST_DARK].contains(&folia_locale::Locale::split(path).1);
-    if OPEN.contains(&path) || launch_screen || manifest || folia_calendar::subscription::is_feed_path(path) {
+    // So does a subscription that stays current (`/calendar/s/<id ‖ key>.ics`) of the shape: what it
+    // shows is what its key opens, and a key Phloem never saw opens nothing.
+    let live_feed = folia_calendar::live::link_of_feed_path(path).is_some();
+    if OPEN.contains(&path) || launch_screen || manifest || folia_calendar::subscription::is_feed_path(path) || live_feed {
         return next.run(request).await;
     }
     if !gate.admits(request.headers()) {

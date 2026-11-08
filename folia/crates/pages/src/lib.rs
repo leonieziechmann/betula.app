@@ -1676,6 +1676,21 @@ pub fn subscribed_calendar(db: &dyn Database, subscription: &Subscription, local
     Ok(data.calendar(&table, locale))
 }
 
+/// The calendar text of a calendar app's subscription that stays current (`/calendar/s/…`;
+/// `folia_calendar::live`): the timetable made anew from the snapshot for the part's semester,
+/// modules, program and what it shows, with the Termine of one's own and the notes it takes
+/// along, as `calendar` makes one of a code. Written in `locale`.
+pub fn live_calendar(db: &dyn Database, part: &folia_calendar::live::LivePart, locale: Locale) -> Result<String, DbError> {
+    let Some(key) = part.key() else {
+        let stamp = export::snapshot_stamp(&queries::meta(db)?);
+        let name = (folia_timetable::i18n::texts(locale).feed_name)("");
+        return Ok(ics::write(&Calendar { name, stamp, ..Calendar::default() }));
+    };
+    let data = studyplan_in(db, key, &part.module_ids(), part.program.as_deref(), locale)?;
+    let table = data.timetable(&part.selection());
+    Ok(ics::write(&data.calendar(&table, locale)))
+}
+
 /// A plan handed on by a link (`timetable::share`) as its link preview and the offer to take it
 /// over name it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
