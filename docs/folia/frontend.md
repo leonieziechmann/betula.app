@@ -498,6 +498,20 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   also for a module planned in another semester than the one shown, whose data it asks with the
   page's program since 1.33.2 (before, without one, it named such a module by its own form). A
   list's rows keep the number alone, and the sidebar of a module's page its number.
+- **Of the modules a prerequisite names as alternatives, one is enough** (owner, 2026-11-08, of
+  12202 Softwarepraktikum: „Meinst du das kann man auch parsen? Ansonsten vielleicht auch checken ob
+  Modul überhaupt belegt werden kann"; schema 18, docs/radix/data-sources.md §16). The section
+  „Voraussetzungen" of a module puts the modules of one choice (`v_module_prerequisite.choice`,
+  `folia_model::rows::prerequisite_choices`) in one frame with an „oder" across it between them,
+  the modules still offered first: „12102 Programmierpraktikum · oder · 11900 Programming
+  Laboratory (IMT) — wird nicht mehr angeboten", then 12104 on its own; a screen reader hears the
+  frame as „zwingend: eins davon genügt". „Mein Studium" counts a choice as in place once one of
+  its modules is (`picker::lacks_required`, `needs_text`), and the filter „Voraussetzungen erfüllt"
+  keeps a module of whose every mandatory choice a passed module is one (`CatalogQuery::
+  prerequisites_met_by`). Until Folia 1.77.1 every linked module read as needed. A prerequisite's
+  „wird nicht mehr angeboten" follows its name as text since then, on its line while it fits, else
+  whole on a line below (owner, 2026-11-08: „das akward formatting von wird nicht mehr angeboten
+  fixen"); before, it stood beside the name as a column of its own, three lines high on a phone.
 - **A module's texts are set as text, not as lines** (owner, 2026-10-01: „support für Blocksatz",
   „Paragraphen sollen als solche erkennbar sein. Listen sollen erkannt werden und dem entsprechend
   formatiert werden"). Learning outcomes, contents, assessment, remarks and the prerequisites in
@@ -2098,7 +2112,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     2028/29 anfügen · 7. Fachsemester", as a semester of leave if ticked). A row's marks:
     „Wiederholung · aus 1. FS", „im SoSe nicht angeboten · nur WiSe", what it asks for and is not in
     place („setzt voraus … – noch nicht eingeplant", `picker::needs_text`, only what is asked for,
-    not what is recommended), „über
+    not what is recommended; of the modules of one choice, `v_module_prerequisite.choice`, one in
+    place is enough, and while none is planned all of them are named: „setzt voraus
+    Programmierpraktikum oder Programming Laboratory – noch nicht eingeplant" at 12202 since Folia
+    1.77.1, which until then also asked for 11900, a module no longer offered), „über
     Bedarf · FÜS hat schon 6 LP", „Platzhalter" (a row of the plan without a module, with „Modul
     wählen": its modules in the catalog, `variants::row_query`), „gefüllt mit …", and in a semester
     that is over „nicht bestanden · wieder im …" or „… noch nicht wieder eingeplant · Einplanen".

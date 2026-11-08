@@ -16,6 +16,7 @@
 // On a phone (owner, 2026-10-17): the Termine under the week folded, a slot tapped unfolds them and
 // marks its line in sight (the sheet half up going all up), the facts two side by side,
 // „Studiengänge" last with five curricula and „Alle … anzeigen".
+// Prerequisites of which one is enough (12202): one frame with „oder" between them.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
@@ -500,6 +501,27 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
   await page.waitForTimeout(500);
   const all = await programs();
   check(all.shown === all.all && all.more === null, `programs: „Alle … anzeigen" did not show them all: ${JSON.stringify(all)}`);
+  await context.close();
+}
+
+// ---------- prerequisites of which one is enough ----------
+// 12202 Softwarepraktikum asks for 12102 Programmierpraktikum or 11900 Programmierpraktikum (IMT),
+// and for 12104 (owner, 2026-11-08; schema 18): the two in one frame with „oder" between them, the
+// one still offered first, 12104 on its own.
+{
+  const { page, context } = await open({ viewport: { width: 1500, height: 900 } }, "/catalog/module/12202");
+  const shown = await page.evaluate(() => {
+    const frame = onPage("#voraussetzungen .either");
+    return {
+      frame: frame ? [...frame.children].map((child) => (child.matches("a.pre") ? child.querySelector(".mono").textContent : child.textContent)) : null,
+      label: frame?.getAttribute("aria-label") ?? null,
+      alone: [...allOnPage("#voraussetzungen .linklist > a.pre .mono")].map((id) => id.textContent),
+    };
+  });
+  check(
+    JSON.stringify(shown.frame) === JSON.stringify(["12102", "oder", "11900"]) && shown.label === "zwingend: eins davon genügt" && shown.alone.includes("12104"),
+    `prerequisites: 12102 or 11900 are not one choice beside 12104: ${JSON.stringify(shown)}`,
+  );
   await context.close();
 }
 

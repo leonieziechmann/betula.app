@@ -310,13 +310,16 @@ pub fn module(db: &dyn Database, id: &str) -> Result<Option<Module>, DbError> {
     )
 }
 
-/// The modules a module requires or recommends, already resolved to module ids.
+/// The modules a module requires or recommends, already resolved to module ids, in their choices;
+/// within a choice the modules still offered first (12102 Programmierpraktikum before 11900
+/// Programmierpraktikum (IMT), which is not).
 pub fn module_prerequisites(db: &dyn Database, module_id: &str) -> Result<Vec<Prerequisite>, DbError> {
     fetch(
         db,
         "module_prerequisites",
-        "SELECT module_id, required_module_id, kind, required_title, required_offer_status \
-         FROM v_module_prerequisite WHERE module_id = ? ORDER BY kind, required_module_id",
+        "SELECT module_id, required_module_id, kind, choice, required_title, required_offer_status \
+         FROM v_module_prerequisite WHERE module_id = ? \
+         ORDER BY kind, choice, required_offer_status IS 'not_offered', required_module_id",
         &[Value::from(module_id)],
     )
 }
@@ -953,9 +956,9 @@ pub fn modules_prerequisites(db: &dyn Database, module_ids: &[String]) -> Result
     fetch(
         db,
         "modules_prerequisites",
-        "SELECT module_id, required_module_id, kind, required_title, required_offer_status \
+        "SELECT module_id, required_module_id, kind, choice, required_title, required_offer_status \
          FROM v_module_prerequisite WHERE module_id IN (SELECT value FROM json_each(?)) \
-         ORDER BY module_id, kind, required_module_id",
+         ORDER BY module_id, kind, choice, required_offer_status IS 'not_offered', required_module_id",
         &[Value::from(ids)],
     )
 }

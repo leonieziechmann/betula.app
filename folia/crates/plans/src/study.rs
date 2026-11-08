@@ -1332,6 +1332,10 @@ pub struct Need {
     pub title: String,
     /// Asked for („zwingend"), else recommended.
     pub mandatory: bool,
+    /// The choice it is one of (`Prerequisite::choice`), among those asked for where it is asked
+    /// for: of the modules of one choice one is enough („Programmierpraktikum" or
+    /// „Programmierpraktikum (IMT)", 12202).
+    pub choice: i64,
     pub stand: Stand,
 }
 
@@ -1344,7 +1348,10 @@ pub fn needs(doc: &PlanDoc, prerequisites: &[Prerequisite], id: &str, s: Semeste
     for p in prerequisites.iter().filter(|p| p.module_id == id && p.required_module_id != id) {
         let mandatory = p.kind.known() == Some(PrerequisiteKind::Mandatory);
         if let Some(known) = out.iter_mut().find(|need| need.id == p.required_module_id) {
-            known.mandatory |= mandatory;
+            if mandatory && !known.mandatory {
+                known.mandatory = true;
+                known.choice = p.choice;
+            }
             continue;
         }
         let required = p.required_module_id.as_str();
@@ -1364,7 +1371,7 @@ pub fn needs(doc: &PlanDoc, prerequisites: &[Prerequisite], id: &str, s: Semeste
             },
         };
         let title = p.required_title.clone().filter(|title| !title.trim().is_empty()).unwrap_or_else(|| required.to_string());
-        out.push(Need { id: required.to_string(), title, mandatory, stand });
+        out.push(Need { id: required.to_string(), title, mandatory, choice: p.choice, stand });
     }
     out
 }
@@ -1822,29 +1829,31 @@ mod tests {
         assert!(doc.pass(key("2025W"), "11001"));
         doc.plan(key("2026S"), "11003", 1, None);
         doc.plan(key("2027S"), "11004", 1, None);
-        let need = |id: &str, kind: &str| Prerequisite {
+        let need = |id: &str, kind: &str, choice: i64| Prerequisite {
             module_id: "12330".into(),
             required_module_id: id.into(),
             kind: Code::parse(kind),
+            choice,
             required_title: Some(format!("Titel {id}")),
             required_offer_status: None,
         };
         let prerequisites = [
-            need("11001", "recommended"),
-            need("11003", "mandatory"),
-            need("11004", "recommended"),
-            need("11002", "recommended"),
-            need("11001", "mandatory"),
-            Prerequisite { module_id: "other".into(), ..need("11009", "recommended") },
+            need("11001", "recommended", 1),
+            need("11003", "mandatory", 1),
+            need("11004", "recommended", 2),
+            need("11002", "recommended", 2),
+            need("11001", "mandatory", 2),
+            Prerequisite { module_id: "other".into(), ..need("11009", "recommended", 1) },
         ];
         let found = needs(&doc, &prerequisites, "12330", key("2026S"), key("2025W"));
+        // A module both recommended and asked for is asked for, in the choice of what it asks.
         assert_eq!(
-            found.iter().map(|n| (n.id.as_str(), n.mandatory, n.stand.clone())).collect::<Vec<_>>(),
+            found.iter().map(|n| (n.id.as_str(), n.mandatory, n.choice, n.stand.clone())).collect::<Vec<_>>(),
             [
-                ("11001", true, Stand::Passed(key("2025W"))),
-                ("11003", true, Stand::Same),
-                ("11004", false, Stand::After(key("2027S"))),
-                ("11002", false, Stand::Open),
+                ("11001", true, 2, Stand::Passed(key("2025W"))),
+                ("11003", true, 1, Stand::Same),
+                ("11004", false, 2, Stand::After(key("2027S"))),
+                ("11002", false, 2, Stand::Open),
             ]
         );
         assert_eq!(found[0].title, "Titel 11001");

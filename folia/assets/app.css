@@ -2060,9 +2060,20 @@ a.ev:hover { background: var(--panel-2); text-decoration: none; }
 .pre { min-height: 46px; display: flex; align-items: center; gap: 10px; padding: 6px 10px 6px 12px; border-radius: var(--r-row); box-shadow: inset 0 0 0 1px var(--line); color: inherit; text-decoration: none; }
 .pre:hover { background: var(--panel-2); text-decoration: none; }
 .pre b { flex: 1 1 auto; font-weight: 570; font-size: 13.5px; min-width: 0; }
+/* A prerequisite's name and after it its offer („wird nicht mehr angeboten"), as text: on the line
+   of the name while it fits, else whole on a line of its own, never broken into a narrow column
+   beside it (owner, 2026-11-08: „das akward formatting von wird nicht mehr angeboten fixen"). */
+.pre .name { flex: 1 1 auto; min-width: 0; }
+.pre .name > .flag { display: inline-block; white-space: nowrap; vertical-align: 1px; }
 /* The note at the right end gives way before the name does. */
 .pre small { flex: 0 1 auto; min-width: 0; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-size: 12px; }
 .pre > .icon { color: var(--text-3); width: 16px; height: 16px; }
+/* The modules of a prerequisite of which one is enough („12102 Programmierpraktikum oder 11900
+   Programmierpraktikum (IMT)", 12202): one frame, an „oder" across it between them. */
+.either { display: grid; border-radius: var(--r-row); box-shadow: inset 0 0 0 1px var(--line); }
+.either > .pre { box-shadow: none; }
+.either > .or { display: flex; align-items: center; gap: 8px; padding: 0 12px; color: var(--text-3); font-size: 12px; line-height: 1; }
+.either > .or::before, .either > .or::after { content: ""; flex: 1 1 auto; border-top: 1px solid var(--line); }
 /* A module's programs, five at most (owner, 2026-10-17: „zeige da maximal 5 mit
    Auslauffunktion"): the fifth runs out under „Alle … anzeigen", which unfolds the rest and goes
    (enhance.js „runout"). Without JavaScript, all of them. */

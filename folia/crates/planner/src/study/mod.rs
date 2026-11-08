@@ -1351,7 +1351,7 @@ mod tests {
         // Digitaltechnik-Praktikum asking for Algorithmen und Datenstrukturen (11756), which stands
         // nowhere, is no suggestion until that is in the semester too; asking for Digitaltechnik
         // (11903), passed, it is. Only a recommendation keeps it as well.
-        let asks = |required: &str, kind: &str| vec![Prerequisite { module_id: "12214".to_string(), required_module_id: required.to_string(), kind: Code::parse(kind), required_title: None, required_offer_status: None }];
+        let asks = |required: &str, kind: &str| vec![Prerequisite { module_id: "12214".to_string(), required_module_id: required.to_string(), kind: Code::parse(kind), choice: 1, required_title: None, required_offer_status: None }];
         let title_of = |id: &str| rows.iter().find(|row| row.id == id).map_or_else(|| id.to_string(), |row| row.title.clone());
         let takes = |doc: &PlanDoc, needs: &[Prerequisite], id: &str| offered_in(summer, id) && !picker::lacks_required(doc, needs, id, &title_of(id), summer, w);
         let (next, _) = due.ahead(&view, &groups, summer, &source.fues, |id| takes(&doc, &asks("11756", "mandatory"), id));

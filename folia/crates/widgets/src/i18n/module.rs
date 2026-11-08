@@ -118,6 +118,11 @@ pub struct Texts {
     /// What a linked module is to this one.
     pub mandatory: &'static str,
     pub recommended: &'static str,
+    /// Between the modules of a choice, of which one is enough („Programmierpraktikum oder
+    /// Programmierpraktikum (IMT)"), and what the choice is to a screen reader („zwingend: eins
+    /// davon genügt").
+    pub either: &'static str,
+    pub one_of: fn(&str) -> String,
     /// The folded texts of the module description.
     pub mandatory_verbatim: &'static str,
     pub recommended_verbatim: &'static str,
@@ -367,6 +372,8 @@ pub const DE: Texts = Texts {
 
     mandatory: "zwingend",
     recommended: "empfohlen",
+    either: "oder",
+    one_of: |kind| format!("{kind}: eins davon genügt"),
     mandatory_verbatim: "Zwingend, im Wortlaut",
     recommended_verbatim: "Empfohlen, im Wortlaut",
 
@@ -552,6 +559,8 @@ pub const EN: Texts = Texts {
 
     mandatory: "mandatory",
     recommended: "recommended",
+    either: "or",
+    one_of: |kind| format!("{kind}: one of them is enough"),
     mandatory_verbatim: "Mandatory, as written",
     recommended_verbatim: "Recommended, as written",
 
