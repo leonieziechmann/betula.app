@@ -16,7 +16,14 @@ import { chromium } from "playwright-core";
 
 const base = (process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
 const phloem = process.env.SMOKE_PHLOEM_URL || "";
-const browser = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge", headless: !process.env.SMOKE_HEADED });
+// The live way (WebRTC between the devices, live.mjs checks it) stays off here: Playwright's
+// offline mode does not reach WebRTC, and this check is about the way through Phloem (a browser
+// that is offline here must be offline for its changes too).
+const browser = await chromium.launch({
+  channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge",
+  headless: !process.env.SMOKE_HEADED,
+  args: ["--force-webrtc-ip-handling-policy=disable_non_proxied_udp"],
+});
 const ON_PAGE = { path: fileURLToPath(new URL("on-page.js", import.meta.url)) };
 const problems = [];
 const timings = {};
@@ -104,7 +111,7 @@ await until("B joined", b.page, (n) => marked().length === n, SEED.length, 20000
 check(!b.page.url().includes("#"), `B: the link's key is still in the address (${b.page.url()})`);
 check(JSON.stringify(await marksOf(b.page)) === JSON.stringify(await marksOf(a.page)), `B: other marks than A (${await marksOf(b.page)} / ${await marksOf(a.page)})`);
 check((await shelfOf(b.page)).includes(NOTE), "B: the note did not come");
-await until("A sees B online", a.page, () => (localStorage.getItem("betula.sync.p1.status") || "") === "online 1", null, 10000);
+await until("A sees B online", a.page, () => /^online 1( |$)/.test(localStorage.getItem("betula.sync.p1.status") || ""), null, 10000);
 
 // ---- live: a mark set on B shows on A ----
 const live = await markOne(b.page, "B");

@@ -163,7 +163,7 @@ pub fn SyncPart() -> impl IntoView {
         let (dot, said) = match state.get() {
             State::Private => return None,
             State::Starting => ("wait", s.starting.to_string()),
-            State::Online { devices } => ("on", (s.online)(devices)),
+            State::Online { devices, direct, relayed } => ("on", (s.online)(devices, direct, relayed)),
             State::Offline => ("off", s.offline.to_string()),
             State::Ended => ("off", s.ended.to_string()),
             State::Failed(problem) => ("warn", format!("{} {}", s.failed, problem_text(problem, t))),

@@ -19,7 +19,8 @@ pub struct Texts {
     /// While it is switched on, or a profile comes from another device.
     pub starting: &'static str,
     /// A synced profile, online with how many other devices of it; offline.
-    pub online: fn(usize) -> String,
+    /// Other devices online, of them connected directly, of them through Betula's relay.
+    pub online: fn(usize, usize, usize) -> String,
     pub offline: &'static str,
     /// What a synced profile is, under its state.
     pub synced_lead: &'static str,
@@ -129,10 +130,21 @@ pub const DE: Texts = Texts {
     explain_yes: "Aktivieren",
     cancel: "Abbrechen",
     starting: "Wird eingerichtet …",
-    online: |others| match others {
-        0 => "Synchronisiert · gerade kein anderes Gerät online".to_string(),
-        1 => "Synchronisiert · 1 weiteres Gerät online".to_string(),
-        n => format!("Synchronisiert · {n} weitere Geräte online"),
+    online: |others, direct, relayed| {
+        let devices = match others {
+            0 => return "Synchronisiert · gerade kein anderes Gerät online".to_string(),
+            1 => "Synchronisiert · 1 weiteres Gerät online".to_string(),
+            n => format!("Synchronisiert · {n} weitere Geräte online"),
+        };
+        let way = match (direct, relayed) {
+            (0, 0) => return devices,
+            (d, 0) if d == others => "direkt verbunden".to_string(),
+            (0, r) if r == others => "über Betula weitergeleitet".to_string(),
+            (d, 0) => format!("{d} davon direkt verbunden"),
+            (0, r) => format!("{r} davon über Betula weitergeleitet"),
+            (d, r) => format!("{d} direkt verbunden, {r} über Betula weitergeleitet"),
+        };
+        format!("{devices} · {way}")
     },
     offline: "Synchronisiert · gerade offline: Änderungen warten hier und gehen raus, sobald wieder Netz da ist",
     synced_lead: "Jede Änderung geht sofort an deine anderen Geräte dieses Profils. Was zwei Geräte gleichzeitig an derselben Stelle ändern, zeigt Betula dir dort.",
@@ -220,10 +232,21 @@ pub const EN: Texts = Texts {
     explain_yes: "Turn on",
     cancel: "Cancel",
     starting: "Setting up …",
-    online: |others| match others {
-        0 => "Synced · no other device online right now".to_string(),
-        1 => "Synced · 1 other device online".to_string(),
-        n => format!("Synced · {n} other devices online"),
+    online: |others, direct, relayed| {
+        let devices = match others {
+            0 => return "Synced · no other device online right now".to_string(),
+            1 => "Synced · 1 other device online".to_string(),
+            n => format!("Synced · {n} other devices online"),
+        };
+        let way = match (direct, relayed) {
+            (0, 0) => return devices,
+            (d, 0) if d == others => "connected directly".to_string(),
+            (0, r) if r == others => "relayed by Betula".to_string(),
+            (d, 0) => format!("{d} of them connected directly"),
+            (0, r) => format!("{r} of them relayed by Betula"),
+            (d, r) => format!("{d} connected directly, {r} relayed by Betula"),
+        };
+        format!("{devices} · {way}")
     },
     offline: "Synced · offline right now: changes wait here and go out as soon as there is a network again",
     synced_lead: "Every change goes to your other devices of this profile at once. What two devices change in the same place at the same time, Betula shows you there.",
