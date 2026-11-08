@@ -86,7 +86,9 @@ await make.click();
 await until("Max: the one-time link is made", max.page, () => Boolean(onPage(".sh-link")?.textContent.includes("#once=")), null, 30000);
 const once = (await max.page.locator(".sh-link").first().textContent()).trim();
 check(once.startsWith(base + "/studyplan#once="), `Max: the link is ${once}`);
-check(await max.page.evaluate(() => syncStatus().startsWith("online")), "Max: the profile does not sync after „Profil speichern“");
+// The link is there before the profile's connection to Phloem: over a real network (canary) the
+// status still says "offline" for a moment.
+await until("Max: the profile syncs after „Profil speichern“", max.page, () => syncStatus().startsWith("online"), null, 20000);
 check(await max.page.locator(".sh-row", { hasText: "Lena" }).count() === 1, "Max: Lena is not in the list „Geteilt“");
 const shareLine = await max.page.evaluate(() => plan().split("\n").find((l) => l.startsWith("s\t")) || "");
 check(/^s\t\S{22}\t0\tp\t2026W\t\d+\tl1o\t\S{43}\t\S{64}\t\tLena$/.test(shareLine), `Max: the share's line is ${JSON.stringify(shareLine)}`);
