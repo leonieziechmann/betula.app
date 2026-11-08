@@ -104,7 +104,8 @@ type Report struct {
 
 // Build replaces all derived tables from the raw archive, in one transaction.
 //
-// Log events: build.started, build.finished, build.failed (ERROR), and one WARN per
+// Log events: build.started, build.finished, build.interrupted (the process is stopping, ctx was
+// cancelled; nobody has to act), build.failed (ERROR), and one WARN per
 // kind of source data the build could not use (build.unresolved_refs,
 // build.tree_leaves_without_module, build.tree_pages_missing, build.plans_without_program,
 // build.plan_entries_unknown_module, build.modules_without_page, build.event_links_gone,
@@ -116,6 +117,11 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	log.Info("build started", "event", "build.started")
 
 	report, err := build(ctx, db)
+	if oplog.Interrupted(ctx, err) {
+		log.Info("build interrupted, the process is stopping; the previous canonical data is unchanged", "event", "build.interrupted",
+			"duration_ms", time.Since(start).Milliseconds())
+		return nil, err
+	}
 	if err != nil {
 		log.Error("build failed; the previous canonical data is unchanged", "event", "build.failed",
 			"duration_ms", time.Since(start).Milliseconds(), oplog.Err(err))

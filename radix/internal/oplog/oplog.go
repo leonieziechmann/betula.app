@@ -13,6 +13,7 @@ package oplog
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -108,6 +109,15 @@ func Err(err error) slog.Attr {
 		return slog.String("error", "")
 	}
 	return slog.String("error", err.Error())
+}
+
+// Interrupted says whether err is ctx being cancelled: the process is stopping (SIGTERM from a
+// deploy, Ctrl+C) and cut the work short. That needs nobody, so it is logged at INFO under its
+// own event, not as a failure. An error that says "context canceled" while ctx is still alive
+// is not one: something else cancelled it, and it stays an ERROR, as does any other error that
+// happens while the process stops.
+func Interrupted(ctx context.Context, err error) bool {
+	return err != nil && errors.Is(ctx.Err(), context.Canceled) && errors.Is(err, context.Canceled)
 }
 
 // Problem is a recorded WARN or ERROR record.

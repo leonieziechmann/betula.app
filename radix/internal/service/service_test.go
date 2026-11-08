@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -497,3 +499,131 @@ func TestBulkCrawlingWaitsForOffPeakExceptOnFirstStart(t *testing.T) {
 		t.Errorf("night cycle = %+v", r)
 	}
 }
+
+// A deploy removes the old colour of a stack, often while its Radix is in the middle of a cycle:
+// SIGTERM cancels the service's context. Nobody has to act on that, so nothing is logged at ERROR
+// (the alert "ERROR in the logs" fired for 35 minutes on every such deploy): the stage and the
+// cycle end as "interrupted", the previous snapshot stays, and health is untouched.
+func TestAShutdownMidCycleIsNoError(t *testing.T) {
+	for _, c := range []struct {
+		name, stopAt, stage, event string
+	}{
+		{"during the build", "build.started", "build", "build.interrupted"},
+		{"during the export", "validate.finished", "export", "export.interrupted"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			site := newFakeBTU(t)
+			svc, cfg := newTestService(t, site)
+			srv := httptest.NewServer(svc.Handler())
+			t.Cleanup(srv.Close)
+			if r := svc.RunCycle(context.Background()); !r.Published {
+				t.Fatalf("setup cycle = %+v", r)
+			}
+			before, _ := catalogdb.ReadSnapshotPointer(cfg.SnapshotDir)
+			site.mu.Lock()
+			site.credits = "9" // new content, so that the cycle gets as far as the export
+			site.mu.Unlock()
+
+			ctx, stop := context.WithCancel(context.Background())
+			defer stop()
+			logged := captureLog(t, func(event string) {
+				if event == c.stopAt {
+					stop() // SIGTERM, right here
+				}
+			})
+			metricsBefore := scrape(t, srv)
+			r := svc.RunCycle(ctx)
+			metricsAfter := scrape(t, srv)
+
+			if s := stage(r, c.stage); r.Result != "interrupted" || r.Published || !s.Interrupted || s.Error != "" {
+				t.Fatalf("cycle stopped %s = %+v", c.name, r)
+			}
+			seen := map[string]bool{}
+			for _, rec := range logged() {
+				if rec.level >= slog.LevelError {
+					t.Errorf("logged at %s: %q %v", rec.level, rec.msg, rec.attrs)
+				}
+				if rec.level == slog.LevelInfo && (rec.attrs["event"] != "cycle.finished" || rec.attrs["result"] == "interrupted") {
+					seen[rec.attrs["event"]] = true
+				}
+			}
+			for _, event := range []string{c.event, "stage.interrupted", "cycle.finished"} {
+				if !seen[event] {
+					t.Errorf("no %s at INFO (cycle.finished with result=interrupted)", event)
+				}
+			}
+			for series, want := range map[string]float64{
+				`radix_cycles_total{result="interrupted"}`:                                     1,
+				`radix_cycles_total{result="failed"}`:                                          0,
+				fmt.Sprintf(`radix_stage_runs_total{stage=%q,outcome="interrupted"}`, c.stage): 1,
+				fmt.Sprintf(`radix_stage_runs_total{stage=%q,outcome="failed"}`, c.stage):      0,
+			} {
+				if got := metricsAfter[series] - metricsBefore[series]; got != want {
+					t.Errorf("%s grew by %v, want %v", series, got, want)
+				}
+			}
+			if after, _ := catalogdb.ReadSnapshotPointer(cfg.SnapshotDir); after == nil || after.ETag != before.ETag {
+				t.Errorf("the snapshot must stay: %+v → %+v", before, after)
+			}
+			if st := svc.Status(); !st.Healthy || st.FailedInARow != 0 {
+				t.Errorf("a stop is no failure: %+v", st)
+			}
+
+			// An interrupted build committed nothing: the next cycle builds and publishes. (After an
+			// interrupted export, as after a failed one, the build has stored the new content's digest,
+			// and the next cycle skips the export until the content changes again.)
+			if c.stage == "build" {
+				if r := svc.RunCycle(context.Background()); r.Result != "ok" || !r.Published {
+					t.Errorf("the cycle after the stop = %+v", r)
+				}
+			}
+		})
+	}
+}
+
+// captureLog makes the process-wide logger keep every record for the test, and calls onEvent with
+// the event of each, so that a test can act at a chosen point of a cycle.
+func captureLog(t *testing.T, onEvent func(event string)) func() []logRecord {
+	t.Helper()
+	h := logCapture{mu: &sync.Mutex{}, records: &[]logRecord{}, onEvent: onEvent}
+	previous := slog.Default()
+	slog.SetDefault(slog.New(h))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	return func() []logRecord {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		return slices.Clone(*h.records)
+	}
+}
+
+type logRecord struct {
+	level slog.Level
+	msg   string
+	attrs map[string]string
+}
+
+type logCapture struct {
+	mu      *sync.Mutex
+	records *[]logRecord
+	onEvent func(event string)
+}
+
+func (h logCapture) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h logCapture) Handle(_ context.Context, r slog.Record) error {
+	rec := logRecord{level: r.Level, msg: r.Message, attrs: map[string]string{}}
+	r.Attrs(func(a slog.Attr) bool {
+		rec.attrs[a.Key] = a.Value.String()
+		return true
+	})
+	h.mu.Lock()
+	*h.records = append(*h.records, rec)
+	h.mu.Unlock()
+	if h.onEvent != nil {
+		h.onEvent(rec.attrs["event"])
+	}
+	return nil
+}
+
+func (h logCapture) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h logCapture) WithGroup(string) slog.Handler      { return h }

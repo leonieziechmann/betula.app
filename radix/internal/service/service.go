@@ -110,11 +110,15 @@ type StageResult struct {
 	Crawl      *crawl.Stats `json:"crawl,omitempty"`
 	Skipped    string       `json:"skipped,omitempty"` // why the stage did not run
 	Error      string       `json:"error,omitempty"`
+	// Interrupted: the process stopped while the stage ran (a deploy); nothing failed.
+	Interrupted bool `json:"interrupted,omitempty"`
 }
 
 // CycleResult is the outcome of one cycle. Result is "ok" (everything ran),
-// "degraded" (a crawl stage failed; the published data is intact but may age) or
-// "failed" (build, validation or export failed; the previous snapshot stays current).
+// "degraded" (a crawl stage failed; the published data is intact but may age),
+// "failed" (build, validation or export failed; the previous snapshot stays current) or
+// "interrupted" (the process stopped mid-cycle, a deploy; nothing failed, the previous
+// snapshot stays current, and the next start runs a cycle again).
 type CycleResult struct {
 	StartedAt  time.Time     `json:"started_at"`
 	FinishedAt time.Time     `json:"finished_at"`
@@ -189,8 +193,9 @@ func (s *Service) Run(ctx context.Context) error {
 // validate and export; then, unless the cycle failed, compute the semantic search's missing
 // vectors (semantic.go), which the next build publishes.
 //
-// Log events: cycle.started, stage.finished / stage.failed (ERROR), cycle.finished
-// (ERROR when the result is "failed", WARN when "degraded"), cycle.panic (ERROR).
+// Log events: cycle.started, stage.failed (ERROR), stage.interrupted (the process is stopping),
+// cycle.finished (ERROR when the result is "failed", WARN when "degraded", INFO when "ok" or
+// "interrupted"), cycle.panic (ERROR).
 func (s *Service) RunCycle(ctx context.Context) CycleResult {
 	return s.cycle(ctx, true)
 }
@@ -264,6 +269,8 @@ func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResul
 			log.Error("cycle failed; the previous snapshot stays current", attrs...)
 		case "degraded":
 			log.Warn("cycle finished with crawl problems", attrs...)
+		case "interrupted":
+			log.Info("cycle interrupted, the process is stopping; the previous snapshot stays current", attrs...)
 		default:
 			log.Info("cycle finished", attrs...)
 		}
@@ -281,11 +288,14 @@ func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResul
 		start := s.now()
 		stats, err := run()
 		stage := StageResult{Name: name, DurationMS: s.now().Sub(start).Milliseconds(), Crawl: &stats}
-		if err != nil && ctx.Err() == nil {
+		switch {
+		case ctx.Err() != nil:
+			stage.Interrupted = true // the cycle ends as "interrupted" after the crawl
+		case err != nil:
 			stage.Error = err.Error()
 			result.Result = "degraded"
 			log.Error("crawl stage failed", "event", "stage.failed", "stage", name, oplog.Err(err))
-		} else if stats.Failed > 0 {
+		case stats.Failed > 0:
 			result.Result = "degraded"
 		}
 		result.Stages = append(result.Stages, stage)
@@ -320,11 +330,20 @@ func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResul
 	}
 
 	// 2. Retention, 3. build, 4. validate and export. Any failure here keeps the old snapshot.
+	// The process stopping (a deploy cancels ctx) is no failure: nobody has to act, the next
+	// start runs the cycle again. A failure before it in the same cycle still counts.
 	step := func(name string, run func() error) bool {
 		start := s.now()
 		err := run()
 		stage := StageResult{Name: name, DurationMS: s.now().Sub(start).Milliseconds()}
-		if err != nil {
+		switch {
+		case oplog.Interrupted(ctx, err):
+			stage.Interrupted = true
+			if result.Result != "failed" {
+				result.Result = "interrupted"
+			}
+			log.Info("stage interrupted, the process is stopping", "event", "stage.interrupted", "stage", name)
+		case err != nil:
 			stage.Error = err.Error()
 			result.Result = "failed"
 			log.Error("stage failed", "event", "stage.failed", "stage", name, oplog.Err(err))
