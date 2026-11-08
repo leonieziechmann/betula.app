@@ -1294,7 +1294,7 @@ For https://betula.app the same with `phloem` (steps 4 and 5), then `FOLIA_SYNC=
 
 ### The live way: STUN and TURN (step 2)
 
-With Phloem 0.3.0 and Folia 1.82.0 the devices of a profile online connect directly (WebRTC),
+With Phloem 0.3.0 and Folia 1.83.0 the devices of a profile online connect directly (WebRTC),
 and where no direct way exists (a phone in a mobile network behind CGNAT, a strict firewall)
 through Phloem's TURN (`docs/phloem/phloem.md`, „TURN"). Each instance publishes its STUN and TURN
 port over UDP and TCP and a range of relay ports over UDP, in host mode at the same numbers
@@ -1314,7 +1314,7 @@ Once, for canary:
    public IPv4 address (`ip -4 route get 1.1.1.1`, else `PHLOEM_TURN_IP` in the instance's file),
    and checks afterwards that STUN answers there and that nothing gets out of a relay's port but
    to a public address (`phloem probe`).
-5. The canary agent deploys Folia 1.82.0 by itself (master). Two devices of one profile then say
+5. The canary agent deploys Folia 1.83.0 by itself (master). Two devices of one profile then say
    „direkt verbunden" or „über Betula weitergeleitet" on the profile page.
 6. TURN over TLS on 443 (for networks that let nothing but HTTPS out), when wanted: an A record
    `turn.canary.betula.app` to this host (no AAAA), then `PHLOEM_TURN_TLS_HOST=turn.canary.betula.app`
