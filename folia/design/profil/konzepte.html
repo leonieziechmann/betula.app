@@ -1,0 +1,1306 @@
+<title>Betula Profil-Konzepte</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- The profile page and the menu at the profile's button, first round (owner, 2026-11-08: „ich würde gerne
+     nochmal an der profil page von betula arbeiten. Denn die erfüllt aktuell ihren job nicht gut. Als erstes
+     sollten die profil unabhängigen einstellungen wo anders hin. Also sowas wie sprache und system theme. Maybe
+     die beiden sogar in quick access. … welche aktionen möchte man machen und wie häufig sind die. Dann was sind
+     da so die best/common practices etc. … betula sync, was ich persönlich als sehr essentiell einstufen würde.
+     Also das ist so die main sache, die man machen möchte, wenn man mit dem handy am pc ist. … Du kannst gerne
+     ein paar stats zeigen. Aber ich brauche nicht noch ein link mehr zu mein studium. … Bitte auch das kontext
+     menu mit umfassen"; and, of a first draft that drew one answer instead of offering several: „warum hast du
+     das denn jetzt gemalt anstatt wie sonst einen prototypen mit mehreren optionen zu erstellen"). Three
+     concepts, each a prototype on a desktop and a phone that works where it matters: the menu opens, profiles
+     switch, light and dark change the prototype, „Gerät verbinden" runs in both directions with buttons that
+     stand in for the other device. Read against canary (Folia 1.76.0, 2026-11-08) and the code of that day:
+     folia/crates/profile (profile.rs, sync.rs, connect.rs), folia/crates/shell/src/chrome.rs (ProfileButton,
+     ProfileMenu, ProfileSwitcher), docs/folia/sync.md, docs/phloem/protocol.md. The pictures in bilder/ are
+     screenshots of canary that day. Tokens are Betula's (folia/assets/app.css). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: the thesis and what all three share, a bar to change the view, today, then one block per concept
+   with its prototype and three columns (what one sees, how it behaves, what to watch), the comparison, the
+   recommendation and the questions. The prototypes use Betula's own tokens (--m-*), light and dark of their
+   own, so that the switch inside a prototype changes the prototype and not this page. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4; --panel: #ffffff; --panel-2: #f6f7f8; --panel-3: #eceef1; --desk: #e6e8ec;
+  --line: rgba(15, 23, 42, .08); --line-strong: rgba(15, 23, 42, .15);
+  --text: #10151f; --text-2: #4b5565; --text-3: #6b7484;
+  --invert: #161b26; --on-invert: #ffffff; --bezel: #1b1f27;
+  --accent: oklch(.53 .07 149); --accent-ink: oklch(.44 .07 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --warn: #8a4b00; --warn-soft: color-mix(in srgb, #d97706 11%, var(--panel));
+  --no: #b23a0b; --no-soft: color-mix(in srgb, #c2410c 9%, var(--panel));
+  --shadow-panel: 0 0 0 1px var(--line), 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330; --desk: #07090d;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #8a93a8;
+    --invert: #e9edf5; --on-invert: #0d1017; --bezel: #2a303b;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --warn: #f2b45c; --warn-soft: color-mix(in srgb, #f2b45c 12%, var(--panel));
+    --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+    --shadow-panel: 0 0 0 1px var(--line), 0 20px 40px -22px rgba(0, 0, 0, .7);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330; --desk: #07090d;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #8a93a8;
+  --invert: #e9edf5; --on-invert: #0d1017; --bezel: #2a303b;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --warn: #f2b45c; --warn-soft: color-mix(in srgb, #f2b45c 12%, var(--panel));
+  --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+  --shadow-panel: 0 0 0 1px var(--line), 0 20px 40px -22px rgba(0, 0, 0, .7);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+p, ul, ol, figure { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+button { font: inherit; color: inherit; }
+code { font-family: var(--mono); font-size: .84em; padding: 1px 4px; border-radius: 4px; background: var(--panel-3); overflow-wrap: anywhere; }
+a { color: var(--accent-ink); text-underline-offset: 3px; }
+b { font-weight: 650; }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 22px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+
+/* The thesis. */
+.intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -.025em; font-weight: 760; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.quote { margin-top: 16px; padding: 12px 16px; border-radius: 10px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ul { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.rules li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.rules li > i { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--panel-3); color: var(--text); }
+.rules li b { color: var(--text); font-weight: 620; }
+.rules .who { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 13px; text-wrap: pretty; }
+
+/* The bar. */
+.setbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px; padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter: blur(8px); box-shadow: var(--shadow-panel); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.setbar .group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.jump { display: flex; flex-wrap: wrap; gap: 4px; }
+.jump a { padding: 5px 10px; border-radius: 8px; color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; }
+.jump a:hover { background: var(--panel-3); color: var(--text); }
+.seg { display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 2px; border-radius: 9px; background: var(--panel-3); }
+.seg button { padding: 5px 11px; border: 0; border-radius: 7px; background: none; color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .12), 0 0 0 1px var(--line); }
+.linkb { border: 0; background: none; padding: 4px 2px; color: var(--accent-ink); font-size: 13px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+/* Sections. */
+.sec { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 24px; display: flex; flex-direction: column; gap: 16px; scroll-margin-top: 80px; min-width: 0; }
+.sec > header { display: flex; flex-direction: column; gap: 6px; }
+.sec h2 { display: flex; align-items: center; gap: 10px; font-size: 23px; letter-spacing: -.018em; font-weight: 740; }
+.sec .sub { max-width: 82ch; color: var(--text-2); text-wrap: pretty; }
+.sec .sub b { color: var(--text); }
+.tag { display: inline-grid; place-items: center; min-width: 30px; height: 30px; padding: 0 8px; border-radius: 8px; background: var(--invert); color: var(--on-invert); font-size: 15px; font-weight: 760; }
+.tryit { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.tryit b { color: var(--text); }
+.how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.how > div { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.how h3 { font-size: 14.5px; font-weight: 700; }
+.how ul { margin-top: 8px; display: flex; flex-direction: column; gap: 7px; }
+.how li { position: relative; padding-left: 14px; color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.how li::before { content: ""; position: absolute; left: 1px; top: .62em; width: 5px; height: 5px; border-radius: 2px; background: var(--line-strong); }
+.how li b { color: var(--text); }
+.how .weak { background: var(--warn-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 25%, transparent); }
+
+/* Today. */
+.today { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 16px; align-items: start; }
+.today figure { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.today img { display: block; width: 100%; height: auto; border-radius: 10px; box-shadow: var(--shadow-panel); }
+.today .tall { max-height: 640px; overflow: hidden auto; border-radius: 10px; box-shadow: var(--shadow-panel); overscroll-behavior: contain; }
+.today .tall img { border-radius: 0; box-shadow: none; }
+.today figcaption { color: var(--text-3); font-size: 12.5px; }
+.today .side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.finds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.finds li { padding: 12px 14px; border-radius: 11px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 13.5px; text-wrap: pretty; min-width: 0; }
+.finds li b { display: block; margin-bottom: 3px; color: var(--text); }
+.finds li.worst { background: var(--no-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--no) 28%, transparent); }
+
+/* Tables. */
+.scroll { overflow-x: auto; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 720px; }
+th, td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); text-wrap: pretty; }
+thead th { background: var(--panel-2); color: var(--text-3); font-size: 11.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+tbody th { font-weight: 620; color: var(--text); }
+td { color: var(--text-2); }
+td.best { color: var(--text); font-weight: 600; }
+tbody tr:last-child > * { border-bottom: 0; }
+.taps { font-variant-numeric: tabular-nums; }
+
+.qs { display: flex; flex-direction: column; gap: 10px; counter-reset: q; }
+.qs li { counter-increment: q; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 4px 12px; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.qs li::before { content: counter(q); grid-row: span 2; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; background: var(--invert); color: var(--on-invert); font-size: 13px; font-weight: 700; }
+.qs li b { color: var(--text); font-size: 14.5px; }
+.qs li p { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.qs em { font-style: normal; font-weight: 650; color: var(--accent-ink); }
+.foot { color: var(--text-3); font-size: 12.5px; text-align: center; text-wrap: pretty; }
+
+/* The stage a prototype stands on. */
+.stage { border-radius: 14px; background: var(--desk); min-width: 0; }
+.stage-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 14px 0; }
+.stage-bar .grow { flex: 1; }
+.stage-in { padding: 14px 22px 22px; overflow-x: auto; overflow-y: hidden; }
+
+/* ---------- The prototype: Betula, small ---------- */
+.mk {
+  --m-bg: #f1f2f4; --m-panel: #ffffff; --m-panel2: #f6f7f8; --m-panel3: #eceef1; --m-rail: #f6f7f8;
+  --m-line: rgba(15, 23, 42, .08); --m-line2: rgba(15, 23, 42, .16);
+  --m-text: #10151f; --m-text2: #4b5565; --m-text3: #5f6878;
+  --m-invert: #161b26; --m-on-invert: #ffffff;
+  --m-accent: #4c7a58; --m-accent-ink: #3c6848; --m-on-accent: #ffffff;
+  --m-accent-soft: #edf3ef; --m-accent-line: rgba(76, 122, 88, .45);
+  --m-no: #b23a0b; --m-no-line: rgba(194, 65, 12, .4); --m-warn: #d97706;
+  --m-pop: 0 0 0 1px rgba(15, 23, 42, .1), 0 18px 40px -14px rgba(15, 23, 42, .35);
+  --m-scrim: rgba(16, 21, 31, .3);
+  position: relative; background: var(--m-bg); color: var(--m-text); font: 13.5px/1.45 var(--font); text-align: left;
+}
+.mk.dark {
+  --m-bg: #0a0c11; --m-panel: #12151c; --m-panel2: #171b24; --m-panel3: #1e2330; --m-rail: #0f1218;
+  --m-line: rgba(255, 255, 255, .08); --m-line2: rgba(255, 255, 255, .17);
+  --m-text: #eceff5; --m-text2: #a4adc0; --m-text3: #8a93a8;
+  --m-invert: #e9edf5; --m-on-invert: #0d1017;
+  --m-accent: #5d8f69; --m-accent-ink: #9fcaa9; --m-on-accent: #ffffff;
+  --m-accent-soft: #18241c; --m-accent-line: rgba(127, 178, 140, .5);
+  --m-no: #ff8f85; --m-no-line: rgba(255, 143, 133, .45); --m-warn: #f2b45c;
+  --m-pop: 0 0 0 1px rgba(255, 255, 255, .12), 0 22px 44px -16px rgba(0, 0, 0, .8);
+  --m-scrim: rgba(0, 0, 0, .5);
+}
+.mk button, .mk input { font: inherit; color: inherit; }
+.mk a { color: var(--m-accent-ink); }
+.mk .i { width: 17px; height: 17px; }
+.mk.desk { width: 1080px; height: 680px; margin: 0 auto; display: grid; grid-template-columns: 60px minmax(0, 1fr); border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 1px var(--line-strong), 0 24px 50px -28px rgba(0, 0, 0, .45); }
+.m-rail { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0; background: var(--m-rail); box-shadow: inset -1px 0 0 var(--m-line); }
+.m-rail .logo { width: 36px; height: 36px; border-radius: 9px; background: var(--m-invert); margin-bottom: 4px; }
+.m-rb { width: 38px; height: 38px; border: 0; border-radius: 10px; background: none; display: grid; place-items: center; color: var(--m-text2); cursor: pointer; position: relative; }
+.m-rb:hover { background: var(--m-panel3); }
+.m-rb.on { background: var(--m-invert); color: var(--m-on-invert); }
+.m-rb.open { background: var(--m-panel); box-shadow: 0 0 0 2px var(--m-accent); }
+.m-rail .gap { flex: 1; }
+.m-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.m-top { display: flex; align-items: center; gap: 20px; padding: 10px 16px; }
+.m-top h3 { width: 230px; font-size: 16px; font-weight: 700; }
+.m-search { flex: 0 1 520px; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 10px; background: var(--m-panel); box-shadow: 0 0 0 1px var(--m-line); color: var(--m-text3); font-size: 13px; white-space: nowrap; overflow: hidden; }
+.m-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 16px 16px; scrollbar-width: thin; }
+.m-cols { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 12px; align-items: start; }
+.m-stack { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.m-panel { background: var(--m-panel); border-radius: 10px; box-shadow: 0 0 0 1px var(--m-line); padding: 14px 16px; min-width: 0; }
+.m-panel.acc { box-shadow: 0 0 0 1.5px var(--m-accent-line); }
+.m-panel.danger { box-shadow: 0 0 0 1px var(--m-no-line); }
+.m-panel.flat { padding: 0; overflow: hidden; }
+.m-h { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; }
+.m-h .grow { flex: 1; }
+.m-danger-h { color: var(--m-no); }
+.m-sub { margin-top: 4px; color: var(--m-text2); font-size: 12.5px; text-wrap: pretty; }
+.m-faint { color: var(--m-text3); font-size: 12px; }
+.m-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.m-row.wrap { flex-wrap: wrap; }
+.m-grow { flex: 1; min-width: 0; }
+.m-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 34px; padding: 0 13px; border: 0; border-radius: 9px; background: var(--m-panel); box-shadow: inset 0 0 0 1px var(--m-line2); color: var(--m-text); font-size: 12.5px; font-weight: 620; white-space: nowrap; cursor: pointer; }
+.m-btn:hover { background: var(--m-panel2); }
+.m-btn.pri { background: var(--m-accent); color: var(--m-on-accent); box-shadow: none; }
+.m-btn.pri:hover { filter: brightness(1.06); }
+.m-btn.dang { color: var(--m-no); box-shadow: inset 0 0 0 1px var(--m-no-line); }
+.m-btn.wide { width: 100%; height: 42px; }
+.m-btn.big { height: 40px; padding: 0 16px; font-size: 13px; }
+.m-link { border: 0; background: none; padding: 6px 0; color: var(--m-text2); font-size: 12px; text-decoration: underline; text-decoration-color: var(--m-line2); text-underline-offset: 3px; cursor: pointer; }
+.m-link:hover { color: var(--m-text); }
+.sim { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1.5px dashed var(--m-accent-line); border-radius: 8px; background: none; color: var(--m-accent-ink); font-size: 12px; font-weight: 650; cursor: pointer; }
+.sim:hover { background: var(--m-accent-soft); }
+.sim .i { width: 13px; height: 13px; }
+.m-av { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; flex: none; font-size: 11.5px; font-weight: 700; color: color-mix(in srgb, var(--tone) 70%, var(--m-text)); background: color-mix(in srgb, var(--tone) 15%, var(--m-panel)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--tone) 55%, transparent); }
+.m-av.t1 { --tone: #4c7a58; } .m-av.t2 { --tone: #4f86b0; } .m-av.t3 { --tone: #8a74c4; } .m-av.t4 { --tone: #c8693f; }
+.m-av.big { width: 52px; height: 52px; font-size: 20px; }
+.m-av.xs { width: 22px; height: 22px; font-size: 10px; }
+.m-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--m-accent); flex: none; display: inline-block; }
+.m-dot.off { background: var(--m-text3); }
+.m-dot.sm { width: 6px; height: 6px; }
+.m-state { display: inline-flex; align-items: center; gap: 6px; color: var(--m-text2); font-size: 12px; font-weight: 500; white-space: nowrap; }
+.m-seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 2px; border-radius: 9px; background: var(--m-panel3); }
+.m-seg button { display: flex; align-items: center; justify-content: center; gap: 5px; min-width: 0; height: 30px; padding: 0 6px; border: 0; border-radius: 7px; background: none; color: var(--m-text2); font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; cursor: pointer; }
+.m-seg button[aria-pressed="true"] { background: var(--m-panel); color: var(--m-text); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--m-line); }
+.m-seg .i { width: 14px; height: 14px; }
+.m-seg.tall button { height: 38px; font-size: 13px; }
+.m-label { color: var(--m-text3); font-size: 10.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+.m-stats { margin-top: 12px; display: grid; grid-template-columns: repeat(var(--n, 5), minmax(0, 1fr)); gap: 6px; }
+.m-stat { padding: 8px 10px; border-radius: 8px; background: var(--m-panel2); box-shadow: inset 0 0 0 1px var(--m-line); min-width: 0; }
+.m-stat b { display: block; font-size: 17px; font-weight: 720; font-variant-numeric: tabular-nums; }
+.m-stat span { display: block; color: var(--m-text3); font-size: 11px; line-height: 1.3; }
+.m-dev { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--m-line); font-size: 12.5px; }
+.m-dev:first-child { border-top: 0; }
+.m-dev .i { color: var(--m-text2); }
+.m-when { display: inline-flex; align-items: center; gap: 5px; color: var(--m-text3); font-size: 11.5px; white-space: nowrap; }
+.m-ask { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 9px; background: var(--m-panel2); font-size: 12.5px; }
+.m-ask span { flex: 1 1 220px; }
+.m-code { margin-top: 10px; padding: 10px 12px; border-radius: 9px; background: var(--m-panel2); display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
+.m-code code { font-family: var(--mono); font-size: 12.5px; background: var(--m-panel); padding: 6px 8px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--m-line); letter-spacing: .04em; word-break: break-all; color: var(--m-text); }
+.m-list { display: flex; flex-direction: column; gap: 2px; }
+.m-pick { width: 100%; display: flex; align-items: center; gap: 10px; padding: 7px 8px; border: 0; border-radius: 9px; background: none; text-align: left; cursor: pointer; color: var(--m-text); }
+.m-pick:hover { background: var(--m-panel2); }
+.m-pick[aria-checked="true"] { background: var(--m-accent-soft); box-shadow: inset 3px 0 0 var(--m-accent); }
+.m-pick .t { flex: 1; min-width: 0; display: grid; }
+.m-pick .t b { font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-pick .t small { color: var(--m-text3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-pick .chk { color: var(--m-accent-ink); }
+.m-subways { display: flex; flex-direction: column; padding-left: 34px; }
+.m-subways button { padding: 6px 0; border: 0; background: none; text-align: left; color: var(--m-text2); font-size: 12.5px; cursor: pointer; }
+.m-subways button:hover { color: var(--m-text); text-decoration: underline; }
+.m-hint { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--m-line); color: var(--m-text3); font-size: 11.5px; display: flex; gap: 7px; }
+.m-foot { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 2px 4px; color: var(--m-text3); font-size: 11.5px; }
+.m-foot button { border: 0; background: none; padding: 0; color: var(--m-text2); font-size: 11.5px; text-decoration: underline; text-decoration-color: var(--m-line2); text-underline-offset: 3px; cursor: pointer; }
+.m-rename { display: flex; gap: 6px; align-items: center; }
+.m-rename input { width: 200px; height: 34px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--m-panel); box-shadow: inset 0 0 0 1.5px var(--m-accent); color: var(--m-text); font-size: 15px; font-weight: 650; }
+.m-name { font-size: 21px; font-weight: 720; letter-spacing: -.01em; }
+.m-icon { width: 30px; height: 30px; border: 0; border-radius: 8px; background: none; display: grid; place-items: center; color: var(--m-text3); cursor: pointer; }
+.m-icon:hover { background: var(--m-panel3); color: var(--m-text); }
+.m-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--m-line); margin: 0 -16px; padding: 0 16px; }
+.m-tabs button { padding: 10px 12px; border: 0; background: none; color: var(--m-text2); font-size: 13px; font-weight: 620; border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; }
+.m-tabs button[aria-selected="true"] { color: var(--m-text); border-bottom-color: var(--m-accent); }
+.m-mods { display: flex; flex-direction: column; }
+.m-mod { display: grid; grid-template-columns: minmax(0, 1fr) 70px 90px; gap: 12px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--m-line); font-size: 13px; }
+.m-mod:first-child { border-top: 0; }
+.m-mod b { font-weight: 620; }
+.m-mod small { display: block; color: var(--m-text3); font-family: var(--mono); font-size: 11px; }
+.m-mod .lp { font-weight: 700; text-align: right; }
+.m-mod .tu { color: var(--m-text2); font-size: 12px; }
+
+/* Menus, dialogs, sheets. */
+.m-menu { position: absolute; z-index: 6; width: 286px; padding: 6px; border-radius: 14px; background: var(--m-panel); box-shadow: var(--m-pop); }
+.m-menu .m-label { padding: 8px 10px 4px; }
+.m-it { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 5px 10px; border: 0; border-radius: 9px; background: none; text-align: left; color: var(--m-text); cursor: pointer; }
+.m-it:hover { background: var(--m-panel2); }
+.m-it.on { background: var(--m-accent-soft); }
+.m-it .t { flex: 1; min-width: 0; display: grid; }
+.m-it .t b { font-weight: 620; }
+.m-it .t small { color: var(--m-text3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+.m-it .chk { color: var(--m-accent-ink); }
+.m-it .lead { color: var(--m-accent-ink); }
+.m-it .end { color: var(--m-text3); }
+.m-menu hr { margin: 5px 4px; border: 0; border-top: 1px solid var(--m-line); }
+.m-set { display: flex; flex-direction: column; gap: 5px; padding: 5px 10px 7px; }
+.m-mfoot { display: flex; gap: 14px; padding: 5px 10px 5px; }
+.m-mfoot button { border: 0; background: none; padding: 2px 0; color: var(--m-text3); font-size: 11.5px; text-decoration: underline; text-decoration-color: var(--m-line2); text-underline-offset: 3px; cursor: pointer; }
+.m-icons { display: flex; align-items: center; gap: 8px; padding: 6px 10px 8px; }
+.m-icons .m-seg { flex: none; }
+.m-icons .m-seg button { width: 36px; padding: 0; }
+.m-icons .m-seg.lang button { width: 38px; }
+.m-scrim { position: absolute; inset: 0; z-index: 5; background: var(--m-scrim); }
+.m-catch { position: absolute; inset: 0; z-index: 4; }
+.m-dlg { position: absolute; z-index: 7; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 540px; max-width: calc(100% - 24px); border-radius: 16px; background: var(--m-panel); box-shadow: var(--m-pop); overflow: hidden; }
+.m-dlg .dh { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
+.m-dlg .dh h4 { flex: 1; font-size: 16px; font-weight: 720; }
+.m-dlg .db { padding: 2px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+.m-sheet { position: absolute; z-index: 7; left: 0; right: 0; bottom: 0; border-radius: 18px 18px 0 0; background: var(--m-panel); box-shadow: var(--m-pop); padding: 8px 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+.m-sheet .grab { width: 36px; height: 4px; border-radius: 2px; background: var(--m-line2); margin: 2px auto 2px; }
+.m-qrbox { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 16px; align-items: start; }
+.m-qr { width: 150px; height: 150px; padding: 9px; border-radius: 11px; background: #ffffff; box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .15); }
+.m-qr svg { display: block; width: 100%; height: 100%; }
+.m-qrtext { display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; color: var(--m-text2); text-wrap: pretty; }
+.m-qrtext b { color: var(--m-text); }
+.m-digits { display: inline-flex; gap: 5px; }
+.m-digits span { display: grid; place-items: center; width: 28px; height: 34px; border-radius: 7px; background: var(--m-panel3); color: var(--m-text); font: 600 17px/1 var(--mono); }
+.m-ok { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 11px; background: var(--m-accent-soft); box-shadow: inset 0 0 0 1px var(--m-accent-line); font-size: 13px; }
+.m-ok .i { color: var(--m-accent-ink); }
+.m-ok b { font-weight: 650; }
+.m-explain { display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; color: var(--m-text2); }
+.m-explain ul { display: flex; flex-direction: column; gap: 6px; }
+.m-explain li { position: relative; padding-left: 14px; text-wrap: pretty; }
+.m-explain li::before { content: ""; position: absolute; left: 2px; top: .6em; width: 5px; height: 5px; border-radius: 50%; background: var(--m-accent); }
+.m-choose { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.m-choose button { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 14px; border: 0; border-radius: 12px; background: var(--m-panel2); box-shadow: inset 0 0 0 1px var(--m-line); text-align: left; cursor: pointer; color: var(--m-text); }
+.m-choose button:hover { box-shadow: inset 0 0 0 1.5px var(--m-accent); }
+.m-choose b { font-size: 13.5px; }
+.m-choose small { color: var(--m-text2); font-size: 12px; text-wrap: pretty; }
+.m-choose .i { color: var(--m-accent-ink); width: 20px; height: 20px; }
+
+/* A phone. */
+.phone { width: 380px; height: 760px; margin: 0 auto; border-radius: 36px; background: var(--bezel); padding: 9px; box-shadow: 0 24px 50px -20px rgba(15, 23, 42, .5); }
+.mk.ph { height: 100%; border-radius: 28px; overflow: hidden; display: flex; flex-direction: column; }
+.p-top { display: flex; gap: 8px; padding: 12px 12px 10px; }
+.p-box { width: 42px; height: 42px; flex: none; border: 0; border-radius: 11px; background: var(--m-panel); box-shadow: 0 0 0 1px var(--m-line); display: grid; place-items: center; color: var(--m-text); cursor: pointer; position: relative; }
+.p-box.open { box-shadow: 0 0 0 2px var(--m-accent); }
+.p-search { flex: 1; display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 12px; border-radius: 11px; background: var(--m-panel); box-shadow: 0 0 0 1px var(--m-line); color: var(--m-text3); font-size: 13px; white-space: nowrap; overflow: hidden; }
+.p-title { flex: 1; display: grid; place-items: center; height: 42px; font-weight: 700; font-size: 15px; padding-right: 50px; }
+.mk.ph .m-scroll { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 10px; scrollbar-width: none; }
+.mk.ph .m-scroll::-webkit-scrollbar { display: none; }
+.p-tabbar { margin: 0 10px 10px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 7px 4px; border-radius: 18px; background: var(--m-panel); box-shadow: 0 0 0 1px var(--m-line), 0 10px 28px -16px rgba(15, 23, 42, .25); }
+.p-tabbar button { display: flex; flex-direction: column; align-items: center; gap: 2px; border: 0; background: none; color: var(--m-text3); font-size: 10px; cursor: pointer; padding: 2px 0; }
+.p-tabbar button.on { color: var(--m-text); font-weight: 650; }
+.p-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -12px; padding: 2px 12px; }
+.p-chip { flex: none; display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 13px 0 5px; border: 0; border-radius: 20px; background: var(--m-panel); box-shadow: 0 0 0 1px var(--m-line2); font-size: 13px; font-weight: 620; color: var(--m-text); cursor: pointer; }
+.p-chip[aria-checked="true"] { box-shadow: 0 0 0 2px var(--m-accent); }
+.p-chip.add { padding: 0 13px; color: var(--m-text2); }
+.p-mod { padding: 12px 14px; border-radius: 12px; background: var(--m-panel); box-shadow: 0 0 0 1px var(--m-line); display: flex; align-items: center; gap: 10px; }
+.p-mod .t { flex: 1; min-width: 0; }
+.p-mod b { display: block; font-weight: 620; }
+.p-mod small { color: var(--m-text3); font-size: 11.5px; }
+.p-mod .lp { font-weight: 700; }
+.p-layer { position: absolute; inset: 0; z-index: 8; background: var(--m-bg); display: flex; flex-direction: column; }
+.p-cam { margin: 0 12px; height: 330px; border-radius: 18px; background: linear-gradient(160deg, #3a414e, #1c2028 60%, #2b313b); position: relative; overflow: hidden; display: grid; place-items: center; }
+.p-cam .aim { width: 190px; height: 190px; border-radius: 20px; box-shadow: 0 0 0 999px rgba(0, 0, 0, .32), inset 0 0 0 3px #ffffff; display: grid; place-items: center; }
+.p-cam .shown { width: 120px; height: 120px; padding: 6px; border-radius: 6px; background: #ffffff; transform: rotate(-4deg); opacity: .92; }
+.p-cam .shown svg { display: block; width: 100%; height: 100%; }
+.p-cam p { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; color: #ffffff; font-weight: 600; font-size: 13px; }
+.p-sims { display: flex; flex-direction: column; gap: 6px; padding: 0 12px; }
+.p-row { display: flex; align-items: center; gap: 12px; min-height: 54px; padding: 0 14px; border: 0; border-radius: 12px; background: var(--m-panel); box-shadow: 0 0 0 1px var(--m-line); text-align: left; color: var(--m-text); cursor: pointer; width: 100%; }
+.p-row .t { flex: 1; display: grid; }
+.p-row .t b { font-weight: 620; }
+.p-row .t small { color: var(--m-text3); font-size: 11.5px; }
+
+/* The toast. */
+.toast { position: fixed; z-index: 50; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; align-items: center; gap: 12px; max-width: min(560px, calc(100vw - 32px)); padding: 10px 12px 10px 16px; border-radius: 12px; background: var(--invert); color: var(--on-invert); font-size: 13.5px; box-shadow: 0 18px 40px -16px rgba(0, 0, 0, .5); }
+.toast button { border: 0; border-radius: 8px; padding: 6px 10px; background: color-mix(in srgb, var(--on-invert) 16%, transparent); color: var(--on-invert); font-size: 13px; font-weight: 650; cursor: pointer; }
+@media (prefers-reduced-motion: no-preference) { .toast:not([hidden]) { animation: rise .2s ease-out; } }
+@keyframes rise { from { opacity: 0; translate: 0 8px; } }
+
+@media (max-width: 1000px) {
+  .intro, .today { grid-template-columns: minmax(0, 1fr); }
+  .today .tall { max-height: 460px; }
+  .how { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .sec { padding: 18px 14px; }
+  .finds { grid-template-columns: minmax(0, 1fr); }
+  .stage-in { padding: 12px 10px 14px; }
+}
+</style>
+
+<div class="page">
+  <section class="intro" aria-labelledby="top-title">
+    <div>
+      <p class="kicker">Folia · Profil · erste Runde · 8. November 2026</p>
+      <h1 id="top-title">Das Profil und sein Menü, aufgeräumt</h1>
+      <p class="lead">Drei Konzepte für die Profilseite und das Menü am Profil-Knopf, jedes als Prototyp am Rechner und am Handy. Sie haben dieselbe Aufgabe: Was für den ganzen Browser gilt, kommt von der Profilseite weg, Betula Sync wird die Hauptsache, und die Seite zeigt Zahlen statt Links zu den Tabs. Sie unterscheiden sich darin, <b>wo Darstellung und Sprache wohnen</b> und <b>wo man ein Gerät verbindet</b>.</p>
+      <p class="quote">„Als erstes sollten die profil unabhängigen einstellungen wo anders hin. Also sowas wie sprache und system theme. Maybe die beiden sogar in quick access. … betula sync, was ich persönlich als sehr essentiell einstufen würde. Also das ist so die main sache, die man machen möchte, wenn man mit dem handy am pc ist. … Du kannst gerne ein paar stats zeigen. Aber ich brauche nicht noch ein link mehr zu mein studium.“</p>
+    </div>
+    <div class="rules">
+      <p class="kicker">Was alle drei teilen</p>
+      <ul>
+        <li><i><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2"/></svg></i><span><b>Darstellung und Sprache verlassen die Profilseite.</b> Einzelne Tasten bleiben in der Tastenübersicht und den Befehlen, wo es sie schon gibt.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg></i><span><b>Zahlen statt Links.</b> Gemerkt, geplant, bestanden mit LP, Sammlungen, Pläne; keine Zahl ist ein Link. Der Studiengang steht als eine Zeile unter dem Namen, ohne „Ändern“.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg></i><span><b>Verbinden in beide Richtungen.</b> Der Rechner zeigt den Code, das Handy scannt, auch wenn das Profil schon auf dem Handy liegt. Dafür ein Scanner in Betula und vier Ziffern zum Vergleichen.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="m21.7 18-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"/><path d="M12 9v4M12 17h.01"/></svg></i><span><b>Leeren und Löschen am Ende,</b> rot umrandet, mit Rückfrage und „Rückgängig“ wie heute. Umbenennen am Namen.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></i><span><b>Impressum und Datenschutz bleiben</b> von jeder Seite erreichbar (§ 5 DDG): in jedem Konzept am Ende der Profilseite, dazu im Menü oder in den Einstellungen.</span></li>
+      </ul>
+      <p class="who">Schon gemacht, weil du es direkt gesagt hast: Der Link fürs nächste Gerät heißt <code>/sync#…</code>, die Rechtsseiten <code>/imprint</code> und <code>/privacy</code>; die alten Adressen leiten weiter (Folia 1.77.2, auf canary).</p>
+    </div>
+  </section>
+
+  <nav class="setbar" aria-label="Ansicht und Abschnitte">
+    <div class="group">
+      <span class="kicker">Diese Seite</span>
+      <span class="seg" role="group" aria-label="Farbschema dieser Seite">
+        <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+        <button type="button" data-theme-set="light" aria-pressed="false">Hell</button>
+        <button type="button" data-theme-set="dark" aria-pressed="false">Dunkel</button>
+      </span>
+      <button type="button" class="linkb" id="reset">Prototypen zurücksetzen</button>
+    </div>
+    <div class="jump">
+      <a href="#heute">Heute</a>
+      <a href="#a">A</a>
+      <a href="#b">B</a>
+      <a href="#c">C</a>
+      <a href="#vergleich">Vergleich</a>
+      <a href="#empfehlung">Empfehlung</a>
+      <a href="#fragen">Fragen</a>
+    </div>
+  </nav>
+
+  <section class="sec" id="heute" aria-labelledby="heute-title">
+    <header>
+      <p class="kicker">Was heute ist · canary, Folia 1.76.0</p>
+      <h2 id="heute-title">Sieben Teile, und der wichtigste steht in der Mitte</h2>
+      <p class="sub">Auf dem Handy ist die Seite mit einem leeren Profil 2,5 Bildschirme lang. Betula Sync beginnt nach 1,4 Bildschirmen, Hell und Dunkel nach 1,8, das Impressum nach 2,3.</p>
+    </header>
+    <div class="today">
+      <figure>
+        <div class="tall"><img src="bilder/heute-handy.webp" width="720" height="3953" alt="Die Profilseite am Handy, ganz: Profilliste, Sichern &amp; übertragen, Profil 1, Mein Studiengang, In diesem Profil mit fünf Zeilen, Betula Sync, Einstellungen, Über diese Seite." loading="lazy"></div>
+        <figcaption>Pixel 7, 412 px breit.</figcaption>
+      </figure>
+      <div class="side">
+        <figure><img src="bilder/heute-rechner.webp" width="1100" height="693" alt="Die Profilseite am Rechner: links Profile und Sichern, rechts Profil 1, Mein Studiengang und In diesem Profil; Betula Sync am unteren Rand." loading="lazy"><figcaption>Am Rechner beginnt Betula Sync am unteren Rand des ersten Bildschirms.</figcaption></figure>
+        <ul class="finds">
+          <li class="worst"><b>Betula Sync steht in der Mitte</b>nach Profilliste, Sicherung, Studiengang und fünf Links.</li>
+          <li class="worst"><b>Vom Handy auf den Rechner geht nicht</b>Das Handy zeigt den Code, der Rechner hat keine Kamera: Link sich selbst schicken oder 52 Zeichen tippen.</li>
+          <li><b>Sieben Links, die die Navigation hat</b>„In diesem Profil“ und „Mein Studiengang“ führen zu den Tabs.</li>
+          <li><b>Einstellungen des Browsers</b>Darstellung, Sprache, Einzelne Tasten „gelten für alle Profile“; am Handy gibt es Hell und Dunkel nur hier.</li>
+          <li><b>Das iPhone öffnet den Link in Safari</b>Mit Betula auf dem Home-Bildschirm landet das Profil im falschen Speicher.</li>
+          <li><b>Das Menü</b>hat Profile, „Profil &amp; Einstellungen“ und „English“; am Rechner öffnet es nur beim Darüberfahren.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="a" aria-labelledby="a-title">
+    <header>
+      <p class="kicker">Konzept A</p>
+      <h2 id="a-title"><span class="tag">A</span>Alles am Profil-Knopf</h2>
+      <p class="sub">Das Menü am Profil-Knopf wird der Schnellzugriff: unter den Profilen <b>„Gerät verbinden“ mit dem Stand von Sync</b> und „Profil verwalten“, darunter <b>Darstellung und Sprache als Auswahl</b>, im Fuß die Rechtsseiten. „Gerät verbinden“ öffnet einen Dialog über der Seite, wo man gerade ist. Die Profilseite ist eine Spalte: Kopf mit Zahlen, Betula Sync, Sichern, Gefahrenzone.</p>
+    </header>
+    <div class="stage" data-stage="A"></div>
+    <p class="tryit"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 16v-4M12 8h.01"/></svg><span>Klick unten in der Leiste auf <b>L</b>: Das Menü öffnet. Stell <b>Dunkel</b> ein, wechsle zu <b>Zweitstudium</b> (noch privat) und klick <b>Gerät verbinden</b>. Die gestrichelten Knöpfe spielen das andere Gerät. Am Handy öffnet der Knopf rechts oben dasselbe Menü, „Gerät verbinden“ dort den Scanner.</span></p>
+    <div class="how">
+      <div>
+        <h3>Was man sieht</h3>
+        <ul>
+          <li><b>Menü:</b> Profile · Neues Profil | Gerät verbinden mit „Synchron · Pixel 7 online“ · Profil verwalten | Darstellung · Sprache | Impressum · Datenschutz.</li>
+          <li><b>Seite:</b> Kopf mit Name, Studiengang, fünf Zahlen; Betula Sync mit Geräten und „Gerät verbinden“ als einzigem betonten Knopf; Sichern; Gefahrenzone; Fußzeile.</li>
+          <li>Am Handy die Profile als Reihe oben statt der Seitenleiste.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Wie es sich verhält</h3>
+        <ul>
+          <li>Ein Klick auf den Profil-Knopf öffnet das Menü auch am Rechner (heute führt er zur Seite).</li>
+          <li>Darstellung wirkt sofort, das Menü bleibt offen. Die Sprache lädt die Seite neu, wie heute.</li>
+          <li>Der Dialog wählt die Richtung vor: mit Inhalt „aufs Handy“, leer und allein „vom Handy holen“. Ist das Profil privat, kommt das Einschalten davor.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Worauf zu achten ist</h3>
+        <ul>
+          <li>Das Menü wird länger: elf Einträge bei zwei Profilen. Am Handy passt es, am Rechner wächst es von unten nach oben.</li>
+          <li>Wer am Rechner auf das Bild klickt, erwartet vielleicht die Seite; dorthin ist es jetzt ein Klick mehr.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="b" aria-labelledby="b-title">
+    <header>
+      <p class="kicker">Konzept B</p>
+      <h2 id="b-title"><span class="tag">B</span>Eine Seite für die Geräte</h2>
+      <p class="sub">Verbinden bekommt eine eigene Seite, <code>/sync</code>, dieselbe, auf der der Link des anderen Geräts landet: links die Geräte des Profils, rechts <b>„Gerät verbinden“ mit beiden Richtungen nebeneinander</b>, ohne Dialog. Das Menü führt mit „Geräte“ dorthin und hat Darstellung und Sprache als <b>eine Reihe kleiner Knöpfe</b>. Die Profilseite zeigt Sync nur als eine Zeile mit dem Weg zur Seite.</p>
+    </header>
+    <div class="stage" data-stage="B"></div>
+    <p class="tryit"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 16v-4M12 8h.01"/></svg><span>Öffne das Menü und klick <b>Geräte</b>. Wähle rechts eine Richtung; die gestrichelten Knöpfe spielen das Handy. Die drei Symbole im Menü sind System, Hell, Dunkel; DE und EN die Sprache.</span></p>
+    <div class="how">
+      <div>
+        <h3>Was man sieht</h3>
+        <ul>
+          <li><b>Menü:</b> Profile · Neues Profil | Profil verwalten · Geräte mit Stand | eine Reihe: drei Symbole, DE/EN | Rechtsseiten.</li>
+          <li><b>Geräte-Seite:</b> die Liste der Geräte, Wiederherstellungscode, Trennen; daneben zwei große Wahlen: „Dieses Profil aufs Handy“, „Profil vom Handy holen“.</li>
+          <li><b>Profilseite:</b> Kopf mit Zahlen, eine Zeile „Auf 2 Geräten“, Sichern, Gefahrenzone.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Wie es sich verhält</h3>
+        <ul>
+          <li>Wer zum ersten Mal verbindet, sieht beide Richtungen auf einmal und wählt; kein Umschalter.</li>
+          <li><code>/sync</code> ist zugleich die Seite, auf der ein Link ankommt: Sie sagt dann „Profil kommt …“.</li>
+          <li>Am Handy führt „Gerät verbinden“ auf der Geräte-Seite zum Scanner.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Worauf zu achten ist</h3>
+        <ul>
+          <li>Eine Seite mehr, die keinem Tab gehört (wie das Profil eine „Seite auf Zeit“).</li>
+          <li>Die kleinen Symbole sagen erst beim Hinsehen, was gerade gilt; drei Knöpfe ohne Wörter.</li>
+          <li>Verbinden ist drei Klicks entfernt statt zwei.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="c" aria-labelledby="c-title">
+    <header>
+      <p class="kicker">Konzept C</p>
+      <h2 id="c-title"><span class="tag">C</span>Einstellungen für sich, Profil mit Reitern</h2>
+      <p class="sub">Das Menü bleibt kurz: Profile, Profil verwalten und <b>„Einstellungen“</b>, ein kleiner Dialog mit Darstellung, Sprache, Einzelnen Tasten und den Rechtsseiten. Die Profilseite hat unter dem Kopf <b>drei Reiter: Übersicht, Geräte, Daten</b>. Verbinden geschieht im Reiter Geräte, an Ort und Stelle.</p>
+    </header>
+    <div class="stage" data-stage="C"></div>
+    <p class="tryit"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 16v-4M12 8h.01"/></svg><span>Öffne das Menü und klick <b>Einstellungen</b>. Dann <b>Profil verwalten</b> und den Reiter <b>Geräte</b>; dort klappt „Gerät verbinden“ unter der Liste auf.</span></p>
+    <div class="how">
+      <div>
+        <h3>Was man sieht</h3>
+        <ul>
+          <li><b>Menü:</b> Profile · Neues Profil | Profil verwalten · Einstellungen. Fünf Einträge bei zwei Profilen.</li>
+          <li><b>Einstellungen:</b> Darstellung, Sprache, Einzelne Tasten, darunter Impressum, Datenschutz, Versionen. Am Handy als Blatt von unten.</li>
+          <li><b>Profilseite:</b> Kopf mit Name und Studiengang, Reiter Übersicht (Zahlen), Geräte (Sync), Daten (Sichern, Laden, Gefahrenzone).</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Wie es sich verhält</h3>
+        <ul>
+          <li>Alles, was für den Browser gilt, hat einen Ort, auch was später dazukommt.</li>
+          <li>Die Reiter halten die Seite am Handy kurz; was sie wählen, steht unter ihnen.</li>
+          <li>„Von einem anderen Gerät“ bei „Profil hinzufügen“ öffnet den Reiter Geräte mit „vom Handy holen“.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Worauf zu achten ist</h3>
+        <ul>
+          <li>Hell und Dunkel sind drei Tipps entfernt, Verbinden vier: Sync ist nicht mehr am Knopf.</li>
+          <li>Reiter verstecken: Wer Daten sucht, muss wissen, dass sie unter „Daten“ liegen.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="vergleich" aria-labelledby="vergleich-title">
+    <header>
+      <p class="kicker">Im Vergleich</p>
+      <h2 id="vergleich-title">A ist am schnellsten, C am ordentlichsten</h2>
+      <p class="sub">Tipps von einer beliebigen Seite aus, am Handy; am Rechner gleich, wenn ein Klick das Menü öffnet.</p>
+    </header>
+    <div class="scroll">
+      <table>
+        <thead><tr><th scope="col"></th><th scope="col">A · Alles am Knopf</th><th scope="col">B · Seite für Geräte</th><th scope="col">C · Einstellungen, Reiter</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Hell, Dunkel, System</th><td class="best taps">2</td><td class="best taps">2</td><td class="taps">3</td></tr>
+          <tr><th scope="row">Sprache</th><td class="best taps">2</td><td class="best taps">2</td><td class="taps">3</td></tr>
+          <tr><th scope="row">Gerät verbinden (Code steht da)</th><td class="best taps">2, ein Dialog</td><td class="taps">3, eigene Seite</td><td class="taps">4, Reiter</td></tr>
+          <tr><th scope="row">Stand von Sync sehen</th><td class="best">im Menü</td><td class="best">im Menü</td><td>auf der Seite, Reiter Geräte</td></tr>
+          <tr><th scope="row">Profilseite am Handy</th><td>eine Spalte, etwa 1,4 Bildschirme</td><td class="best">kürzer, Sync als eine Zeile</td><td class="best">je Reiter unter einem Bildschirm</td></tr>
+          <tr><th scope="row">Einträge im Menü (zwei Profile)</th><td>11</td><td>9</td><td class="best">5</td></tr>
+          <tr><th scope="row">Wo neue Browser-Einstellungen hinkämen</th><td>ins Menü, das dann wächst</td><td>in die Reihe, nur kleine</td><td class="best">in den Dialog</td></tr>
+          <tr><th scope="row">Neu zu bauen</th><td>Dialog statt Teil der Seite</td><td>eine Seite <code>/sync</code> für beides</td><td>Einstellungs-Dialog, Reiter</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="sec" id="empfehlung" aria-labelledby="empfehlung-title">
+    <header>
+      <p class="kicker">Empfehlung</p>
+      <h2 id="empfehlung-title"><span class="tag">A</span>Alles am Profil-Knopf</h2>
+      <p class="sub">Du hast Sync die Hauptsache genannt, wenn man mit dem Handy am Rechner sitzt, und Darstellung und Sprache „vielleicht sogar in quick access“. A macht beides zwei Tipps von jeder Seite, ohne die Seite zu verlassen. B ist gut, wenn Verbinden eine Aufgabe für sich sein soll; seine kleinen Symbole sind aber schwerer zu lesen. C ist am ordentlichsten, nimmt Sync aber vom Knopf weg.</p>
+    </header>
+    <ul class="qs">
+      <li><b>Aus B übernehmen?</b><p>Die Seite <code>/sync</code>, auf der ein Link ankommt, kann in A die beiden Wahlen aus B zeigen, wenn man sie direkt öffnet. <em>Vorschlag:</em> ja, das kostet kaum etwas.</p></li>
+      <li><b>Aus C übernehmen?</b><p>Wenn mehr Browser-Einstellungen kommen, wandern sie in einen Dialog „Einstellungen“ am Ende des Menüs; Darstellung und Sprache bleiben oben. <em>Vorschlag:</em> erst, wenn es eine dritte gibt.</p></li>
+    </ul>
+  </section>
+
+  <section class="sec" id="fragen" aria-labelledby="fragen-title">
+    <header>
+      <p class="kicker">Fragen an dich</p>
+      <h2 id="fragen-title">Was du entscheiden solltest</h2>
+    </header>
+    <ol class="qs">
+      <li><b>Welches Konzept?</b><p><em>Vorschlag:</em> A, mit den beiden Wahlen aus B auf <code>/sync</code>.</p></li>
+      <li><b>Am Rechner: Öffnet ein Klick auf den Profil-Knopf das Menü?</b><p>Heute führt er zur Seite, das Menü kommt beim Darüberfahren. <em>Vorschlag:</em> Klick öffnet das Menü, Darüberfahren weiter auch; zur Seite über „Profil verwalten“ oder „Profil“ in den Befehlen.</p></li>
+      <li><b>Bleibt Mond/Sonne unten in der Leiste?</b><p><em>Vorschlag:</em> ja, ein Klick für den häufigsten Wechsel.</p></li>
+      <li><b>Richtung „vom Handy holen“ mit Scanner bauen?</b><p>Die meiste Arbeit: Kamera (heute verbietet der Server sie), ein QR-Decoder für Safari und Firefox, eine kleine Änderung an Phloem. <em>Vorschlag:</em> ja, als zweiter Schritt nach dem Ordnen.</p></li>
+      <li><b>Welche Zahlen?</b><p><em>Vorschlag:</em> gemerkt; geplant mit Semestern; bestanden mit LP; Sammlungen und Notizen; gespeicherte Pläne. Keine Prozent zum Abschluss.</p></li>
+    </ol>
+  </section>
+
+  <p class="foot">Daten: canary.betula.app, Folia 1.76.0, Stand 08.11.2026 · Name, Studiengang und Zahlen im Prototyp sind Beispiele · Entwurf, nichts davon ist gebaut, bis auf die Adressen.</p>
+</div>
+
+<div class="toast" id="toast" role="status" hidden><span id="toast-text"></span><button type="button" id="toast-act" hidden>Rückgängig</button></div>
+
+<script>
+"use strict";
+
+// ---------- Helpers ----------
+const ICONS = {
+  home: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .7-1.5l7-6a2 2 0 0 1 2.6 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  list: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><path d="M14 4h7M14 9h7M14 15h7M14 20h7"/>',
+  cap: '<path d="M21.4 10.9a1 1 0 0 0 0-1.8L12.8 5.2a2 2 0 0 0-1.7 0L2.6 9.1a1 1 0 0 0 0 1.8l8.6 3.9a2 2 0 0 0 1.7 0z"/><path d="M22 10v6M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>',
+  mark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>',
+  cal: '<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M3 10h18M8 2v4"/>',
+  keys: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M7 16h10"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/>',
+  monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  user: '<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>',
+  userplus: '<path d="M2 21a8 8 0 0 1 13.3-6"/><circle cx="10" cy="8" r="5"/><path d="M19 16v6M22 19h-6"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  chev: '<path d="m9 18 6-6-6-6"/>',
+  back: '<path d="m12 19-7-7 7-7M19 12H5"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  sync: '<path d="M18 8V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8"/><path d="M10 19v-4M7 19h5"/><rect width="6" height="10" x="16" y="12" rx="2"/>',
+  scan: '<path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/>',
+  phone: '<rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/>',
+  laptop: '<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.3 2.6a1 1 0 0 1-.9 1.4H3.6a1 1 0 0 1-.9-1.4L4 16"/>',
+  lock: '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  sliders: '<path d="M10 5H3M12 19H3M14 3v4M16 17v4M21 12h-9M21 19h-5M21 5h-7M8 10v4M8 12H3"/>',
+  gear: '<path d="M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
+  copy: '<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/>',
+  pencil: '<path d="M21.2 6.8a1 1 0 0 0-4-4L3.8 16.2a2 2 0 0 0-.5.8l-1.3 4.4a.5.5 0 0 0 .6.6l4.4-1.3a2 2 0 0 0 .8-.5z"/>',
+  alert: '<path d="m21.7 18-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"/><path d="M12 9v4M12 17h.01"/>',
+  play: '<path d="M6 4v16l14-8z"/>',
+  shield: '<path d="M20 13c0 5-3.5 7.5-7.7 9a1 1 0 0 1-.7 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1.2 1.2 0 0 1 1.5 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/>',
+};
+const QR = {
+  send: "M2 2h7v1h-7zM13 2h2v1h-2zM19 2h4v1h-4zM24 2h7v1h-7zM2 3h1v1h-1zM8 3h1v1h-1zM10 3h1v1h-1zM12 3h1v1h-1zM14 3h1v1h-1zM16 3h1v1h-1zM22 3h1v1h-1zM24 3h1v1h-1zM30 3h1v1h-1zM2 4h1v1h-1zM4 4h3v1h-3zM8 4h1v1h-1zM12 4h1v1h-1zM14 4h1v1h-1zM17 4h2v1h-2zM20 4h3v1h-3zM24 4h1v1h-1zM26 4h3v1h-3zM30 4h1v1h-1zM2 5h1v1h-1zM4 5h3v1h-3zM8 5h1v1h-1zM10 5h2v1h-2zM13 5h2v1h-2zM21 5h1v1h-1zM24 5h1v1h-1zM26 5h3v1h-3zM30 5h1v1h-1zM2 6h1v1h-1zM4 6h3v1h-3zM8 6h1v1h-1zM11 6h1v1h-1zM13 6h1v1h-1zM16 6h2v1h-2zM21 6h1v1h-1zM24 6h1v1h-1zM26 6h3v1h-3zM30 6h1v1h-1zM2 7h1v1h-1zM8 7h1v1h-1zM10 7h3v1h-3zM16 7h1v1h-1zM18 7h1v1h-1zM20 7h3v1h-3zM24 7h1v1h-1zM30 7h1v1h-1zM2 8h7v1h-7zM10 8h1v1h-1zM12 8h1v1h-1zM14 8h1v1h-1zM16 8h1v1h-1zM18 8h1v1h-1zM20 8h1v1h-1zM22 8h1v1h-1zM24 8h7v1h-7zM13 9h3v1h-3zM17 9h1v1h-1zM21 9h1v1h-1zM2 10h1v1h-1zM7 10h3v1h-3zM13 10h1v1h-1zM15 10h2v1h-2zM18 10h2v1h-2zM21 10h2v1h-2zM24 10h2v1h-2zM27 10h1v1h-1zM30 10h1v1h-1zM3 11h2v1h-2zM7 11h1v1h-1zM14 11h3v1h-3zM19 11h1v1h-1zM22 11h2v1h-2zM25 11h3v1h-3zM2 12h1v1h-1zM4 12h6v1h-6zM11 12h1v1h-1zM15 12h2v1h-2zM18 12h2v1h-2zM25 12h1v1h-1zM27 12h1v1h-1zM29 12h2v1h-2zM6 13h1v1h-1zM10 13h2v1h-2zM13 13h2v1h-2zM19 13h1v1h-1zM22 13h1v1h-1zM24 13h1v1h-1zM28 13h1v1h-1zM30 13h1v1h-1zM4 14h1v1h-1zM7 14h3v1h-3zM12 14h4v1h-4zM17 14h1v1h-1zM23 14h2v1h-2zM26 14h1v1h-1zM28 14h1v1h-1zM3 15h2v1h-2zM6 15h2v1h-2zM9 15h1v1h-1zM15 15h2v1h-2zM18 15h2v1h-2zM24 15h1v1h-1zM29 15h2v1h-2zM5 16h1v1h-1zM8 16h1v1h-1zM10 16h1v1h-1zM12 16h1v1h-1zM14 16h1v1h-1zM19 16h3v1h-3zM29 16h2v1h-2zM2 17h1v1h-1zM4 17h1v1h-1zM7 17h1v1h-1zM10 17h2v1h-2zM15 17h1v1h-1zM17 17h1v1h-1zM19 17h1v1h-1zM24 17h5v1h-5zM3 18h3v1h-3zM8 18h1v1h-1zM11 18h2v1h-2zM14 18h2v1h-2zM18 18h2v1h-2zM21 18h1v1h-1zM23 18h1v1h-1zM3 19h1v1h-1zM5 19h2v1h-2zM10 19h3v1h-3zM14 19h2v1h-2zM19 19h2v1h-2zM22 19h2v1h-2zM26 19h1v1h-1zM28 19h1v1h-1zM4 20h5v1h-5zM10 20h2v1h-2zM13 20h6v1h-6zM20 20h5v1h-5zM26 20h1v1h-1zM28 20h2v1h-2zM2 21h6v1h-6zM12 21h2v1h-2zM16 21h1v1h-1zM18 21h3v1h-3zM24 21h1v1h-1zM27 21h1v1h-1zM2 22h1v1h-1zM5 22h5v1h-5zM11 22h1v1h-1zM14 22h1v1h-1zM17 22h1v1h-1zM19 22h2v1h-2zM22 22h1v1h-1zM24 22h1v1h-1zM26 22h1v1h-1zM29 22h2v1h-2zM10 23h1v1h-1zM12 23h4v1h-4zM18 23h3v1h-3zM24 23h1v1h-1zM26 23h2v1h-2zM29 23h2v1h-2zM2 24h7v1h-7zM11 24h1v1h-1zM13 24h5v1h-5zM19 24h6v1h-6zM27 24h2v1h-2zM30 24h1v1h-1zM2 25h1v1h-1zM8 25h1v1h-1zM10 25h11v1h-11zM22 25h6v1h-6zM29 25h1v1h-1zM2 26h1v1h-1zM4 26h3v1h-3zM8 26h1v1h-1zM12 26h3v1h-3zM20 26h1v1h-1zM23 26h1v1h-1zM25 26h2v1h-2zM30 26h1v1h-1zM2 27h1v1h-1zM4 27h3v1h-3zM8 27h1v1h-1zM10 27h1v1h-1zM14 27h1v1h-1zM16 27h1v1h-1zM18 27h3v1h-3zM22 27h6v1h-6zM30 27h1v1h-1zM2 28h1v1h-1zM4 28h3v1h-3zM8 28h1v1h-1zM10 28h2v1h-2zM15 28h1v1h-1zM17 28h1v1h-1zM20 28h2v1h-2zM24 28h1v1h-1zM26 28h1v1h-1zM2 29h1v1h-1zM8 29h1v1h-1zM11 29h2v1h-2zM17 29h1v1h-1zM19 29h3v1h-3zM23 29h1v1h-1zM25 29h1v1h-1zM27 29h1v1h-1zM29 29h2v1h-2zM2 30h7v1h-7zM10 30h2v1h-2zM15 30h1v1h-1zM19 30h2v1h-2zM22 30h5v1h-5zM29 30h2v1h-2z",
+  recv: "M2 2h7v1h-7zM10 2h2v1h-2zM14 2h2v1h-2zM20 2h3v1h-3zM24 2h7v1h-7zM2 3h1v1h-1zM8 3h1v1h-1zM13 3h1v1h-1zM15 3h1v1h-1zM18 3h3v1h-3zM22 3h1v1h-1zM24 3h1v1h-1zM30 3h1v1h-1zM2 4h1v1h-1zM4 4h3v1h-3zM8 4h1v1h-1zM10 4h2v1h-2zM13 4h3v1h-3zM18 4h5v1h-5zM24 4h1v1h-1zM26 4h3v1h-3zM30 4h1v1h-1zM2 5h1v1h-1zM4 5h3v1h-3zM8 5h1v1h-1zM10 5h1v1h-1zM17 5h2v1h-2zM20 5h1v1h-1zM24 5h1v1h-1zM26 5h3v1h-3zM30 5h1v1h-1zM2 6h1v1h-1zM4 6h3v1h-3zM8 6h1v1h-1zM12 6h1v1h-1zM14 6h1v1h-1zM18 6h2v1h-2zM21 6h1v1h-1zM24 6h1v1h-1zM26 6h3v1h-3zM30 6h1v1h-1zM2 7h1v1h-1zM8 7h1v1h-1zM10 7h3v1h-3zM14 7h1v1h-1zM16 7h2v1h-2zM19 7h4v1h-4zM24 7h1v1h-1zM30 7h1v1h-1zM2 8h7v1h-7zM10 8h1v1h-1zM12 8h1v1h-1zM14 8h1v1h-1zM16 8h1v1h-1zM18 8h1v1h-1zM20 8h1v1h-1zM22 8h1v1h-1zM24 8h7v1h-7zM11 9h5v1h-5zM18 9h1v1h-1zM20 9h1v1h-1zM3 10h2v1h-2zM7 10h3v1h-3zM11 10h1v1h-1zM16 10h1v1h-1zM18 10h1v1h-1zM20 10h3v1h-3zM24 10h2v1h-2zM27 10h1v1h-1zM2 11h1v1h-1zM7 11h1v1h-1zM9 11h1v1h-1zM12 11h1v1h-1zM14 11h1v1h-1zM19 11h2v1h-2zM22 11h1v1h-1zM24 11h1v1h-1zM26 11h1v1h-1zM29 11h1v1h-1zM3 12h4v1h-4zM8 12h1v1h-1zM12 12h4v1h-4zM17 12h1v1h-1zM19 12h1v1h-1zM21 12h1v1h-1zM23 12h1v1h-1zM26 12h1v1h-1zM29 12h1v1h-1zM3 13h2v1h-2zM6 13h1v1h-1zM11 13h1v1h-1zM15 13h6v1h-6zM22 13h1v1h-1zM25 13h2v1h-2zM4 14h1v1h-1zM6 14h5v1h-5zM13 14h3v1h-3zM17 14h1v1h-1zM22 14h3v1h-3zM28 14h3v1h-3zM4 15h2v1h-2zM7 15h1v1h-1zM9 15h2v1h-2zM12 15h1v1h-1zM15 15h4v1h-4zM20 15h1v1h-1zM23 15h2v1h-2zM27 15h2v1h-2zM5 16h5v1h-5zM12 16h1v1h-1zM15 16h1v1h-1zM17 16h2v1h-2zM20 16h3v1h-3zM24 16h1v1h-1zM26 16h1v1h-1zM29 16h2v1h-2zM2 17h1v1h-1zM4 17h4v1h-4zM9 17h1v1h-1zM13 17h1v1h-1zM17 17h3v1h-3zM21 17h1v1h-1zM24 17h4v1h-4zM2 18h5v1h-5zM8 18h1v1h-1zM10 18h1v1h-1zM14 18h1v1h-1zM17 18h1v1h-1zM23 18h3v1h-3zM30 18h1v1h-1zM2 19h1v1h-1zM5 19h2v1h-2zM9 19h2v1h-2zM14 19h2v1h-2zM18 19h1v1h-1zM20 19h1v1h-1zM22 19h2v1h-2zM26 19h2v1h-2zM29 19h2v1h-2zM4 20h6v1h-6zM13 20h3v1h-3zM18 20h8v1h-8zM27 20h1v1h-1zM29 20h2v1h-2zM2 21h1v1h-1zM4 21h2v1h-2zM7 21h1v1h-1zM10 21h4v1h-4zM16 21h2v1h-2zM20 21h1v1h-1zM24 21h1v1h-1zM27 21h4v1h-4zM2 22h1v1h-1zM4 22h2v1h-2zM7 22h4v1h-4zM15 22h1v1h-1zM18 22h1v1h-1zM20 22h1v1h-1zM22 22h1v1h-1zM24 22h1v1h-1zM26 22h1v1h-1zM28 22h2v1h-2zM12 23h2v1h-2zM20 23h1v1h-1zM24 23h4v1h-4zM29 23h1v1h-1zM2 24h7v1h-7zM11 24h1v1h-1zM20 24h5v1h-5zM26 24h3v1h-3zM2 25h1v1h-1zM8 25h1v1h-1zM11 25h2v1h-2zM17 25h1v1h-1zM19 25h2v1h-2zM22 25h1v1h-1zM25 25h4v1h-4zM2 26h1v1h-1zM4 26h3v1h-3zM8 26h1v1h-1zM16 26h2v1h-2zM21 26h1v1h-1zM23 26h2v1h-2zM27 26h3v1h-3zM2 27h1v1h-1zM4 27h3v1h-3zM8 27h1v1h-1zM10 27h2v1h-2zM15 27h4v1h-4zM22 27h2v1h-2zM25 27h1v1h-1zM27 27h4v1h-4zM2 28h1v1h-1zM4 28h3v1h-3zM8 28h1v1h-1zM10 28h4v1h-4zM16 28h1v1h-1zM18 28h1v1h-1zM23 28h1v1h-1zM25 28h1v1h-1zM28 28h2v1h-2zM2 29h1v1h-1zM8 29h1v1h-1zM10 29h1v1h-1zM12 29h2v1h-2zM15 29h2v1h-2zM20 29h1v1h-1zM24 29h3v1h-3zM2 30h7v1h-7zM11 30h2v1h-2zM15 30h6v1h-6zM22 30h1v1h-1z",
+};
+const NS = "http://www.w3.org/2000/svg";
+function icon(name) {
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("class", "i");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = ICONS[name];
+  return svg;
+}
+function qr(kind, label) {
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 33 33");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", label);
+  svg.setAttribute("shape-rendering", "crispEdges");
+  svg.innerHTML = `<path fill="#10151f" d="${QR[kind]}"/>`;
+  return svg;
+}
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k === "style") el.style.cssText = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat(Infinity)) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  return el;
+}
+
+// ---------- The toast ----------
+const toastEl = document.getElementById("toast");
+const toastText = document.getElementById("toast-text");
+const toastAct = document.getElementById("toast-act");
+let toastTimer = 0;
+let toastUndo = null;
+function toast(text, undo) {
+  toastText.textContent = text;
+  toastUndo = undo || null;
+  toastAct.hidden = !undo;
+  toastEl.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastEl.hidden = true; }, undo ? 6000 : 3200);
+}
+toastAct.addEventListener("click", () => { if (toastUndo) toastUndo(); toastEl.hidden = true; renderAll(); });
+
+// ---------- The examples: three profiles of one browser ----------
+const EMPTY = { marked: 0, planned: 0, sems: 0, lp: 0, passed: 0, coll: 0, notes: 0, plans: 0 };
+function baseProfiles() {
+  return [
+    { id: "L", name: "Lena", line: "Informatik B.Sc. · 3. FS", detail: "Informatik B.Sc. · PO 2008 · 3. Fachsemester · Cottbus", tone: 1, since: "14.10.2026", synced: true,
+      stats: { marked: 46, planned: 18, sems: 2, lp: 84, passed: 12, coll: 3, notes: 5, plans: 2 },
+      desk: [{ k: "phone", n: "Pixel 7", s: "Chrome · Android", w: "online" }],
+      phone: [{ k: "laptop", n: "Rechner", s: "Firefox · Windows", w: "vor 2 Std." }] },
+    { id: "Z", name: "Zweitstudium", line: "Maschinenbau M.Sc.", detail: "Maschinenbau M.Sc. · PO 2021 · 1. Fachsemester · Cottbus", tone: 3, since: "02.11.2026", synced: false,
+      stats: { marked: 12, planned: 6, sems: 1, lp: 0, passed: 0, coll: 1, notes: 0, plans: 0 }, desk: [], phone: [] },
+  ];
+}
+function fresh() {
+  return { mode: "desk", page: "catalog", menu: false, dialog: null, conn: null, layer: null, settings: false, theme: "system", lang: "de",
+    tab: "overview", ask: null, code: false, explain: false, renaming: false, draft: "", addOpen: false, gave: "", chose: null,
+    profiles: baseProfiles(), active: "L", next: 3, toTop: false };
+}
+const ui = { A: fresh(), B: fresh(), C: fresh() };
+const cur = (st) => st.profiles.find((p) => p.id === st.active) || st.profiles[0];
+const isEmpty = (p) => Object.values(p.stats).every((v) => !v);
+const others = (st, p) => (st.mode === "desk" ? p.desk : p.phone);
+const thisDevice = (st) => (st.mode === "desk" ? { k: "laptop", n: "Dieser Rechner", s: "Firefox · Windows", w: "jetzt" } : { k: "phone", n: "Dieses Handy", s: "Chrome · Android", w: "jetzt" });
+const loneEmpty = (st) => st.profiles.length === 1 && isEmpty(cur(st));
+function syncLine(st, p) {
+  if (!p.synced) return loneEmpty(st) ? "Leeres Profil" : "Nur auf diesem Gerät";
+  const on = others(st, p).filter((d) => d.w === "online");
+  return on.length ? `Synchron · ${on.map((d) => d.n).join(", ")} online` : "Synchron · kein anderes Gerät online";
+}
+const deviceCount = (st, p) => 1 + others(st, p).length;
+
+// ---------- Actions ----------
+function switchTo(st, id) {
+  st.active = id; st.ask = null; st.code = false; st.renaming = false; st.conn = null; st.explain = false; st.toTop = true;
+}
+function addProfile(st) {
+  const n = st.next++;
+  const p = { id: "P" + n, name: `Profil ${n}`, line: "Kein Studiengang", detail: "", tone: (n % 4) + 1, since: "08.11.2026", synced: false, stats: { ...EMPTY }, desk: [], phone: [] };
+  st.profiles.push(p);
+  switchTo(st, p.id);
+  st.menu = false;
+  toast(`„${p.name}“ ist angelegt und aktiv.`);
+}
+function defaultDir(st) { return loneEmpty(st) ? "recv" : "send"; }
+function connOf(st, dir) { return { dir, step: dir === "send" && !cur(st).synced ? "explain" : "qr" }; }
+function openConnect(C, st, dir) {
+  st.menu = false; st.settings = false;
+  if (st.mode === "phone") { st.layer = "scan"; return; }
+  if (C === "A") st.dialog = connOf(st, dir || defaultDir(st));
+  else if (C === "B") { st.page = "sync"; st.conn = dir ? connOf(st, dir) : null; st.toTop = true; }
+  else { st.page = "profile"; st.tab = "devices"; st.conn = connOf(st, dir || defaultDir(st)); }
+}
+function simSend(st, conn) {
+  const p = cur(st);
+  p.synced = true;
+  if (!p.desk.some((d) => d.n === "iPhone 15")) p.desk.push({ k: "phone", n: "iPhone 15", s: "Safari · iOS", w: "online" });
+  if (!p.phone.some((d) => d.k === "laptop")) p.phone.push({ k: "laptop", n: "Rechner", s: "Firefox · Windows", w: "online" });
+  conn.step = "done";
+}
+function simRecv(st, conn) {
+  if (loneEmpty(st)) st.profiles = [];
+  const id = st.profiles.some((p) => p.id === "M") ? "M" + st.next++ : "M";
+  st.profiles.push({ id, name: "Master-Plan", line: "Informatik M.Sc.", detail: "Informatik M.Sc. · PO 2019 · ab SoSe 2027 · Cottbus", tone: 2, since: "08.11.2026", synced: true,
+    stats: { marked: 9, planned: 30, sems: 3, lp: 0, passed: 0, coll: 0, notes: 2, plans: 1 },
+    desk: [{ k: "phone", n: "Pixel 7", s: "Chrome · Android", w: "online" }], phone: [{ k: "laptop", n: "Rechner", s: "Firefox · Windows", w: "jetzt" }] });
+  st.active = id;
+  conn.step = "doneRecv";
+}
+function clearProfile(st) {
+  const p = cur(st);
+  const was = { ...p.stats };
+  p.stats = { ...EMPTY };
+  st.ask = null;
+  toast(`„${p.name}“ ist geleert.`, () => { p.stats = was; });
+}
+function deleteProfile(st) {
+  const p = cur(st);
+  st.ask = null;
+  if (st.profiles.length < 2) { clearProfile(st); return; }
+  const at = st.profiles.indexOf(p);
+  st.profiles.splice(at, 1);
+  switchTo(st, st.profiles[0].id);
+  toast(`„${p.name}“ ist gelöscht.`, () => { st.profiles.splice(at, 0, p); switchTo(st, p.id); });
+}
+function setTheme(st, theme) { st.theme = theme; }
+function setLang(st, lang) {
+  if (lang === st.lang) return;
+  st.lang = lang;
+  toast(lang === "en" ? "Im echten Betula lädt die Seite jetzt auf Englisch neu, in derselben Ansicht." : "Im echten Betula lädt die Seite jetzt auf Deutsch neu.");
+}
+function act(fn) { return (e) => { e.preventDefault(); e.stopPropagation(); fn(); renderAll(); }; }
+
+// ---------- Parts every concept uses ----------
+function avatar(p, cls = "") { return h("span", { class: `m-av t${p.tone} ${cls}`, "aria-hidden": "true" }, p.name.slice(0, 1).toUpperCase()); }
+function themeSeg(st, tall) {
+  return h("div", { class: "m-seg" + (tall ? " tall" : ""), role: "group", "aria-label": "Darstellung" },
+    [["system", "monitor", "System"], ["light", "sun", "Hell"], ["dark", "moon", "Dunkel"]].map(([v, ic, w]) =>
+      h("button", { type: "button", "aria-pressed": String(st.theme === v), onclick: act(() => setTheme(st, v)) }, icon(ic), w)));
+}
+function langSeg(st, tall) {
+  return h("div", { class: "m-seg" + (tall ? " tall" : ""), role: "group", "aria-label": "Sprache" },
+    h("button", { type: "button", "aria-pressed": String(st.lang === "de"), onclick: act(() => setLang(st, "de")) }, "Deutsch"),
+    h("button", { type: "button", lang: "en", "aria-pressed": String(st.lang === "en"), onclick: act(() => setLang(st, "en")) }, "English"));
+}
+function legalLinks(cls) {
+  return h("p", { class: cls },
+    h("button", { type: "button", onclick: act(() => toast("Führt zum Impressum, /imprint.")) }, "Impressum"),
+    h("button", { type: "button", onclick: act(() => toast("Führt zum Datenschutz, /privacy.")) }, "Datenschutz"));
+}
+function profileItems(st, cls) {
+  return st.profiles.map((p) => h("button", { type: "button", class: `${cls}${p.id === st.active ? " on" : ""}`, role: "radio", "aria-checked": String(p.id === st.active),
+    onclick: act(() => { switchTo(st, p.id); st.menu = false; }) },
+    avatar(p), h("span", { class: "t" }, h("b", {}, p.name), h("small", {}, p.line)), p.id === st.active ? h("span", { class: "chk" }, icon("check")) : null));
+}
+function stats(p, n) {
+  if (isEmpty(p)) return h("p", { class: "m-sub", style: "margin-top: 10px" }, "Noch leer: Was du merkst, planst und bestehst, zählt hier.");
+  const s = p.stats;
+  const all = [[s.marked, "gemerkt"], [s.planned, s.sems ? `geplant, in ${s.sems} Semester${s.sems > 1 ? "n" : ""}` : "geplant"], [`${s.lp} LP`, `bestanden, ${s.passed} Module`], [`${s.coll} · ${s.notes}`, "Sammlungen · Notizen"], [s.plans, "gespeicherte Pläne"]];
+  return h("div", { class: "m-stats", style: `--n: ${n}` }, all.slice(0, n === 2 ? 4 : 5).map(([v, l]) => h("div", { class: "m-stat" }, h("b", {}, String(v)), h("span", {}, l))));
+}
+function head(st, phone, withStats = true) {
+  const p = cur(st);
+  const name = st.renaming
+    ? h("form", { class: "m-rename", onsubmit: act(() => { p.name = st.draft.trim() || p.name; st.renaming = false; }) },
+        h("input", { type: "text", value: st.draft, "aria-label": "Name des Profils", oninput: (e) => { st.draft = e.target.value; } }),
+        h("button", { type: "submit", class: "m-btn pri" }, "Sichern"),
+        h("button", { type: "button", class: "m-btn", onclick: act(() => { st.renaming = false; }) }, "Abbrechen"))
+    : h("div", { class: "m-row", style: "gap: 4px" }, h("h4", { class: "m-name" }, p.name),
+        h("button", { type: "button", class: "m-icon", "aria-label": "Umbenennen", onclick: act(() => { st.renaming = true; st.draft = p.name; }) }, icon("pencil")));
+  return h("section", { class: "m-panel", "aria-label": "Aktives Profil" },
+    h("div", { class: "m-row", style: "gap: 14px; align-items: center" }, avatar(p, "big"),
+      h("div", { class: "m-grow" }, name,
+        h("p", { class: "m-sub", style: "margin-top: 0" }, p.detail || "Noch kein Studiengang"),
+        phone ? null : h("p", { class: "m-faint" }, `Profil seit ${p.since}`))),
+    withStats ? stats(p, phone ? 2 : 5) : null);
+}
+function devices(st, p) {
+  const all = [thisDevice(st), ...others(st, p)];
+  return h("div", { style: "margin-top: 6px" }, all.map((d) => h("div", { class: "m-dev" }, icon(d.k),
+    h("span", { class: "m-grow" }, h("b", { style: "font-weight: 620" }, d.n), ` · ${d.s}`),
+    h("span", { class: "m-when" }, d.w === "online" ? h("span", { class: "m-dot sm" }) : null, d.w))));
+}
+function askLine(st, kind) {
+  const p = cur(st);
+  const Q = {
+    clear: [`„${p.name}“ leeren? Merkliste, Pläne und Studium gehen, das Profil bleibt.`, "Leeren", () => clearProfile(st)],
+    delete: [st.profiles.length < 2 ? `„${p.name}“ ist das einzige Profil: Es wird geleert statt gelöscht.` : `„${p.name}“ löschen? Andere Geräte behalten es.`, st.profiles.length < 2 ? "Leeren" : "Löschen", () => deleteProfile(st)],
+    leave: ["Dieses Gerät aus Betula Sync nehmen? Es behält seine Kopie.", "Trennen", () => { p.synced = false; st.ask = null; toast("Dieses Gerät ist getrennt, das Profil hier wieder privat."); }],
+    stop: ["Sync auf allen Geräten beenden? Die Kopie auf dem Server geht sofort.", "Beenden", () => { p.synced = false; p.desk = []; p.phone = []; st.ask = null; toast("Sync ist beendet. Jedes Gerät behält seine Kopie."); }],
+  }[kind];
+  return h("div", { class: "m-ask", role: "group" }, h("span", {}, Q[0]),
+    h("button", { type: "button", class: "m-btn dang", onclick: act(Q[2]) }, Q[1]),
+    h("button", { type: "button", class: "m-btn", onclick: act(() => { st.ask = null; }) }, "Abbrechen"));
+}
+function codeBox(st) {
+  return h("div", { class: "m-code" }, h("span", {}, "Wer diesen Code hat, hat das Profil. Bewahre ihn auf wie ein Passwort."),
+    h("code", { translate: "no" }, "7KQ4-M2XD-9R3T-HW8B-PZ6N-4JVC-QE1A-8YTG-3NWK-F5RM-XB2D-K9PH-6TQ3"),
+    h("div", { class: "m-row" }, h("button", { type: "button", class: "m-btn", onclick: act(() => toast("Code kopiert.")) }, icon("copy"), "Code kopieren"),
+      h("button", { type: "button", class: "m-btn", onclick: act(() => { st.code = false; }) }, "Verbergen")));
+}
+function syncQuiet(st) {
+  return h("div", { class: "m-row wrap", style: "gap: 14px; margin-top: 6px" },
+    h("button", { type: "button", class: "m-link", onclick: act(() => { st.ask = "leave"; }) }, "Dieses Gerät trennen"),
+    h("button", { type: "button", class: "m-link", onclick: act(() => { st.ask = "stop"; }) }, "Sync beenden"));
+}
+// The part of Betula Sync on a page: synced, private, or empty and alone.
+function syncCard(C, st, phone, inline) {
+  const p = cur(st);
+  const wrap = (...kids) => h("section", { class: "m-panel acc", "aria-label": "Betula Sync" }, ...kids);
+  const top = h("div", { class: "m-h" }, icon("sync"), h("span", { class: "grow" }, "Betula Sync"),
+    h("span", { class: "m-state" }, h("span", { class: "m-dot" + (p.synced ? "" : " off") }), p.synced ? "Synchron" : loneEmpty(st) ? "Leeres Profil" : "Nur in diesem Browser"));
+  const connectBtn = h("button", { type: "button", class: "m-btn pri" + (phone ? " wide" : " big"), onclick: act(() => openConnect(C, st)) }, icon(phone ? "scan" : "sync"), loneEmpty(st) ? "Profil vom Handy holen" : "Gerät verbinden");
+  if (!p.synced) {
+    return wrap(top,
+      h("p", { class: "m-sub" }, loneEmpty(st) ? "Hast du Betula schon auf dem Handy? Hol dein Profil hierher: Der Rechner zeigt einen Code, dein Handy scannt ihn." : `Plane am Rechner, schau am Handy nach: Mit Betula Sync ist „${p.name}“ auf allen deinen Geräten gleich, verschlüsselt mit einem Schlüssel, den nur sie haben.`),
+      h("div", { class: "m-row wrap", style: "margin-top: 12px; gap: 12px" }, connectBtn,
+        h("button", { type: "button", class: "m-link", onclick: act(() => { st.explain = !st.explain; }) }, loneEmpty(st) ? "Wiederherstellungscode eingeben" : "Was der Server dann sieht")),
+      st.explain && !loneEmpty(st) ? explainList() : null,
+      inline || null);
+  }
+  return wrap(top, devices(st, p),
+    h("div", { class: phone ? "m-stack" : "m-row wrap", style: "margin-top: 10px; gap: 8px" }, connectBtn,
+      h("button", { type: "button", class: "m-btn" + (phone ? " wide" : " big"), "aria-expanded": String(st.code), onclick: act(() => { st.code = !st.code; }) }, icon("lock"), "Wiederherstellungscode")),
+    st.code ? codeBox(st) : null,
+    syncQuiet(st),
+    st.ask === "leave" || st.ask === "stop" ? askLine(st, st.ask) : null,
+    inline || null);
+}
+function explainList() {
+  return h("div", { class: "m-explain", style: "margin-top: 10px" },
+    h("ul", {},
+      h("li", {}, "Deine Änderungen, verschlüsselt mit einem Schlüssel, den nur deine Geräte haben. Der Server kann sie nicht öffnen."),
+      h("li", {}, "Wie groß sie sind und wann sie kamen, dazu zufällige Kennungen. Kein Name, kein Konto, keine E-Mail."),
+      h("li", {}, "13 Monate nicht abgerufen oder Sync beendet: alles auf dem Server ist weg, deine Geräte behalten ihre Kopie.")));
+}
+function saveCard(st, phone, withLoad) {
+  return h("section", { class: "m-panel" },
+    h("div", { class: "m-h" }, icon("download"), h("span", { class: "grow" }, "Als Datei sichern"),
+      h("button", { type: "button", class: "m-btn", onclick: act(() => toast(`„${cur(st).name}“ ist als Datei gesichert.`)) }, "Datei speichern")),
+    phone ? null : h("p", { class: "m-sub" }, "Für ein Archiv, oder ohne Sync auf ein anderes Gerät."),
+    withLoad ? h("div", { class: "m-row", style: "margin-top: 10px" }, h("button", { type: "button", class: "m-btn", onclick: act(() => toast("Wählt eine Datei; daraus wird ein neues Profil.")) }, icon("upload"), "Aus Datei laden")) : null);
+}
+function dangerCard(st, phone) {
+  const p = cur(st);
+  const row = (kind, title, line, label, ic) => h("div", { class: "m-dev", style: phone ? "flex-wrap: wrap" : "" },
+    h("span", { class: "m-grow" }, h("b", { style: "font-weight: 620" }, title), phone ? null : h("span", { class: "m-faint", style: "display: block" }, line)),
+    h("button", { type: "button", class: "m-btn dang", onclick: act(() => { st.ask = kind; }) }, icon(ic), label));
+  return h("section", { class: "m-panel danger", "aria-label": "Gefahrenzone" },
+    h("div", { class: "m-h m-danger-h" }, icon("alert"), "Gefahrenzone"),
+    h("div", { style: "margin-top: 4px" },
+      row("clear", "Profil leeren", `Merkliste, Pläne und Studium gehen, „${p.name}“ bleibt`, "Leeren …", "x"),
+      row("delete", "Profil löschen", `„${p.name}“ verschwindet aus diesem Browser`, "Löschen …", "x")),
+    st.ask === "clear" || st.ask === "delete" ? askLine(st, st.ask) : null);
+}
+function pageFoot() {
+  return h("p", { class: "m-foot" },
+    h("button", { type: "button", onclick: act(() => toast("Führt zum Impressum, /imprint.")) }, "Impressum"),
+    h("button", { type: "button", onclick: act(() => toast("Führt zum Datenschutz, /privacy.")) }, "Datenschutz"),
+    h("span", {}, "Folia 1.77"), h("span", {}, "Daten vom 08.11.2026"));
+}
+function sidebar(C, st) {
+  return h("aside", { class: "m-panel", "aria-label": "Profile dieses Browsers" },
+    h("div", { class: "m-h", style: "margin-bottom: 8px" }, "Profile"),
+    h("div", { class: "m-list", role: "radiogroup", "aria-label": "Profile" }, profileItems(st, "m-pick")),
+    h("div", { style: "margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--m-line)" },
+      h("button", { type: "button", class: "m-pick", "aria-expanded": String(st.addOpen), onclick: act(() => { st.addOpen = !st.addOpen; }) }, icon("userplus"), h("span", { class: "t" }, h("b", {}, "Profil hinzufügen"))),
+      st.addOpen ? h("div", { class: "m-subways" },
+        h("button", { type: "button", onclick: act(() => addProfile(st)) }, "Leer anlegen"),
+        h("button", { type: "button", onclick: act(() => openConnect(C, st, "recv")) }, "Von einem anderen Gerät"),
+        h("button", { type: "button", onclick: act(() => toast("Wählt eine Datei; daraus wird ein neues Profil.")) }, "Aus Datei laden")) : null),
+    h("p", { class: "m-hint" }, icon("shield"), "Profile liegen in diesem Browser, ohne Konto. Mit Betula Sync verschlüsselt auf deinen Geräten."));
+}
+function chips(C, st) {
+  return h("div", { class: "p-chips", role: "radiogroup", "aria-label": "Profile" },
+    st.profiles.map((p) => h("button", { type: "button", class: "p-chip", role: "radio", "aria-checked": String(p.id === st.active), onclick: act(() => switchTo(st, p.id)) }, avatar(p, "xs"), p.name)),
+    h("button", { type: "button", class: "p-chip add", "aria-expanded": String(st.addOpen), onclick: act(() => { st.addOpen = !st.addOpen; }) }, icon("plus"), "Profil"));
+}
+function phoneAdd(C, st) {
+  if (!st.addOpen) return null;
+  return h("div", { class: "m-panel", style: "padding: 6px" },
+    h("button", { type: "button", class: "m-it", onclick: act(() => { st.addOpen = false; addProfile(st); }) }, icon("plus"), h("span", { class: "t" }, h("b", {}, "Leer anlegen"))),
+    h("button", { type: "button", class: "m-it", onclick: act(() => { st.addOpen = false; openConnect(C, st, "recv"); }) }, icon("scan"), h("span", { class: "t" }, h("b", {}, "Von einem anderen Gerät"), h("small", {}, "Code am Rechner scannen"))),
+    h("button", { type: "button", class: "m-it", onclick: act(() => { st.addOpen = false; toast("Wählt eine Datei; daraus wird ein neues Profil."); }) }, icon("upload"), h("span", { class: "t" }, h("b", {}, "Aus Datei laden"))));
+}
+
+// ---------- „Gerät verbinden": the body of the dialog or panel ----------
+function connBody(C, st, conn, close, segments) {
+  const p = cur(st);
+  const seg = segments ? h("div", { class: "m-seg tall", role: "group", "aria-label": "Richtung" },
+    h("button", { type: "button", "aria-pressed": String(conn.dir === "send"), onclick: act(() => Object.assign(conn, connOf(st, "send"))) }, icon("phone"), `„${p.name}“ aufs Handy`),
+    h("button", { type: "button", "aria-pressed": String(conn.dir === "recv"), onclick: act(() => Object.assign(conn, connOf(st, "recv"))) }, icon("download"), "Profil vom Handy holen")) : null;
+  if (conn.step === "explain") {
+    return [seg, h("div", { class: "m-explain" },
+      h("b", { style: "color: var(--m-text); font-size: 13.5px" }, `Betula Sync für „${p.name}“ einschalten`),
+      h("ul", {},
+        h("li", {}, "Der Server bewahrt deine Änderungen verschlüsselt auf, mit einem Schlüssel, den nur deine Geräte haben."),
+        h("li", {}, "Er sieht nur, wie groß sie sind und wann sie kamen. Kein Name, kein Konto."),
+        h("li", {}, "Danach kannst du dir einen Wiederherstellungscode zeigen lassen.")),
+      h("div", { class: "m-row", style: "margin-top: 4px" },
+        h("button", { type: "button", class: "m-btn pri big", onclick: act(() => { p.synced = true; conn.step = "qr"; }) }, "Einschalten und Code zeigen"),
+        h("button", { type: "button", class: "m-btn big", onclick: act(close) }, "Abbrechen")))];
+  }
+  if (conn.step === "done") {
+    return [h("div", { class: "m-ok", role: "status" }, icon("check"), h("span", { class: "m-grow" }, h("b", {}, "iPhone 15 ist verbunden. "), `„${p.name}“ ist jetzt auf beiden Geräten.`),
+      h("button", { type: "button", class: "m-btn pri", onclick: act(close) }, "Fertig"))];
+  }
+  if (conn.step === "doneRecv") {
+    return [h("div", { class: "m-ok", role: "status" }, icon("check"), h("span", { class: "m-grow" }, h("b", {}, `„${p.name}“ ist jetzt hier `), "und das aktive Profil."),
+      h("button", { type: "button", class: "m-btn pri", onclick: act(close) }, "Fertig"))];
+  }
+  if (conn.dir === "send") {
+    return [seg, h("div", { class: "m-qrbox" },
+      h("div", { class: "m-qr" }, qr("send", "QR-Code für dein Handy")),
+      h("div", { class: "m-qrtext" },
+        h("p", {}, h("b", {}, "Scanne den Code mit deinem Handy, "), "mit der Kamera oder in Betula: Profil-Knopf › Gerät verbinden."),
+        h("p", {}, "Betula auf dem iPhone-Home-Bildschirm? Dann in Betula scannen, sonst landet das Profil in Safari."),
+        h("p", {}, `Gilt einmal und zehn Minuten: Wer ihn scannt, bekommt „${p.name}“.`),
+        h("div", { class: "m-row wrap", style: "gap: 6px" },
+          h("button", { type: "button", class: "m-btn", onclick: act(() => toast("Link kopiert.")) }, icon("copy"), "Link kopieren"),
+          h("button", { type: "button", class: "m-btn", onclick: act(() => toast("Öffnet das Teilen-Menü des Systems.")) }, icon("share"), "Teilen"),
+          h("span", { class: "m-faint" }, "Noch 10 Minuten")),
+        h("button", { type: "button", class: "sim", onclick: act(() => simSend(st, conn)) }, icon("play"), "Spielen: das Handy scannt den Code")))];
+  }
+  return [seg, h("div", { class: "m-qrbox" },
+    h("div", { class: "m-qr" }, qr("recv", "QR-Code zum Empfangen")),
+    h("div", { class: "m-qrtext" },
+      h("p", {}, h("b", {}, "Öffne Betula auf deinem Handy "), "und scanne diesen Code: Profil-Knopf › Gerät verbinden."),
+      h("p", {}, "Dein Handy zeigt dann diese Ziffern:"),
+      h("p", { class: "m-digits", "aria-label": "Ziffern 7 2 4 1" }, ["7", "2", "4", "1"].map((d) => h("span", {}, d))),
+      h("p", { class: "m-state" }, h("span", { class: "m-dot off" }), "Wartet auf dein Handy · noch 10 Minuten"),
+      h("button", { type: "button", class: "sim", onclick: act(() => simRecv(st, conn)) }, icon("play"), "Spielen: das Handy bestätigt"))),
+    h("p", { class: "m-faint" }, "Kein Handy zur Hand? ", h("button", { type: "button", class: "m-link", onclick: act(() => toast("Wie heute: ein Feld für den Wiederherstellungscode.")) }, "Wiederherstellungscode eingeben"))];
+}
+
+// ---------- The phone's layers: scanner, give, joined, show ----------
+function phoneLayer(C, st) {
+  if (!st.layer) return null;
+  const close = () => { st.layer = null; st.conn = null; };
+  const top = (title) => h("div", { class: "p-top" }, h("button", { type: "button", class: "p-box", "aria-label": "Schließen", onclick: act(close) }, icon("x")), h("div", { class: "p-title" }, title));
+  if (st.layer === "scan") {
+    return h("div", { class: "p-layer" }, top("Gerät verbinden"),
+      h("div", { class: "p-cam" }, h("div", { class: "aim" }, h("div", { class: "shown" }, qr("recv", "Der Code am Rechner, im Bild der Kamera"))), h("p", {}, "Halte die Kamera auf den Code am Rechner")),
+      h("p", { class: "m-faint", style: "text-align: center; margin: 10px 20px" }, "Das Bild bleibt auf diesem Handy."),
+      h("div", { class: "p-sims" },
+        h("button", { type: "button", class: "sim", onclick: act(() => { st.layer = "confirm"; st.chose = st.active; }) }, icon("play"), "Spielen: ein Code zum Empfangen ist im Bild"),
+        h("button", { type: "button", class: "sim", onclick: act(() => {
+          const id = "B" + st.next++;
+          st.profiles.push({ id, name: "Bachelorarbeit", line: "Informatik B.Sc.", detail: "Informatik B.Sc. · PO 2008 · 6. Fachsemester · Cottbus", tone: 4, since: "08.11.2026", synced: true,
+            stats: { marked: 7, planned: 4, sems: 1, lp: 150, passed: 31, coll: 1, notes: 6, plans: 0 }, desk: [], phone: [{ k: "laptop", n: "Rechner", s: "Chrome · macOS", w: "online" }] });
+          switchTo(st, id); st.layer = "joined"; }) }, icon("play"), "Spielen: ein Code mit einem Profil ist im Bild"),
+        h("button", { type: "button", class: "p-row", style: "margin-top: 6px", onclick: act(() => toast("Wie heute: ein Feld für den Wiederherstellungscode.")) }, icon("lock"), h("span", { class: "t" }, h("b", {}, "Wiederherstellungscode eingeben"))),
+        h("button", { type: "button", class: "p-row", onclick: act(() => { st.layer = "show"; st.conn = connOf(st, "send"); }) }, icon("sync"), h("span", { class: "t" }, h("b", {}, "Hier einen Code zeigen"), h("small", {}, "Für ein Tablet oder ein zweites Handy")))));
+  }
+  if (st.layer === "confirm") {
+    const chosen = st.profiles.find((p) => p.id === st.chose) || cur(st);
+    return h("div", { class: "p-layer" }, top("Gerät verbinden"),
+      h("div", { class: "m-scroll" },
+        h("section", { class: "m-panel", style: "display: flex; flex-direction: column; gap: 12px" },
+          h("div", { class: "m-h", style: "font-size: 16px" }, icon("laptop"), "Ein Rechner möchte ein Profil"),
+          h("div", { class: "m-list", role: "radiogroup", "aria-label": "Welches Profil?" }, h("span", { class: "m-label", style: "margin-bottom: 4px" }, "Welches?"),
+            st.profiles.map((p) => h("button", { type: "button", class: "m-pick", role: "radio", "aria-checked": String(p.id === chosen.id), onclick: act(() => { st.chose = p.id; }) },
+              avatar(p), h("span", { class: "t" }, h("b", {}, p.name), h("small", {}, p.synced ? `${p.line} · synchron` : "nur auf diesem Handy, wird dafür eingeschaltet"))))),
+          h("div", { style: "padding: 12px; border-radius: 10px; background: var(--m-panel2); display: flex; flex-direction: column; gap: 8px" },
+            h("b", {}, "Zeigt der Rechner diese Ziffern?"),
+            h("p", { class: "m-digits", "aria-label": "Ziffern 7 2 4 1" }, ["7", "2", "4", "1"].map((d) => h("span", {}, d))),
+            h("p", { class: "m-sub", style: "margin: 0" }, `Nur bestätigen, wenn er vor dir steht: Er bekommt „${chosen.name}“ und bleibt verbunden, bis du ihn trennst.`)),
+          h("button", { type: "button", class: "m-btn pri wide", onclick: act(() => {
+            chosen.synced = true;
+            if (!chosen.phone.some((d) => d.n === "Rechner im Büro")) chosen.phone.push({ k: "laptop", n: "Rechner im Büro", s: "Chrome · macOS", w: "online" });
+            st.gave = chosen.name; st.layer = "given"; }) }, `Ja, „${chosen.name}“ verbinden`),
+          h("button", { type: "button", class: "m-btn wide", onclick: act(() => { st.layer = "scan"; }) }, "Abbrechen"))));
+  }
+  if (st.layer === "given" || st.layer === "joined") {
+    const text = st.layer === "given" ? [`„${st.gave}“ ist jetzt auch auf dem Rechner.`, "Was du hier änderst, ist dort sofort da, und umgekehrt."] : [`„${cur(st).name}“ ist jetzt auf diesem Handy.`, "Es ist das aktive Profil und bleibt mit dem Rechner gleich."];
+    return h("div", { class: "p-layer" }, top("Gerät verbinden"),
+      h("div", { class: "m-scroll" }, h("div", { class: "m-ok", role: "status" }, icon("check"), h("span", {}, h("b", {}, text[0]), " ", text[1])),
+        h("button", { type: "button", class: "m-btn pri wide", onclick: act(close) }, "Fertig")));
+  }
+  if (st.layer === "show") {
+    const conn = st.conn || (st.conn = connOf(st, "send"));
+    return h("div", { class: "p-layer" }, top("Code zeigen"),
+      h("div", { class: "m-scroll" }, h("section", { class: "m-panel", style: "display: flex; flex-direction: column; gap: 12px" }, connBody(C, st, conn, close, false))));
+  }
+  return null;
+}
+
+// ---------- The menus ----------
+function menuA(C, st, phone) {
+  const p = cur(st);
+  return [
+    h("p", { class: "m-label" }, "Profile"),
+    h("div", { role: "radiogroup", "aria-label": "Profile" }, profileItems(st, "m-it")),
+    h("button", { type: "button", class: "m-it", onclick: act(() => addProfile(st)) }, icon("userplus"), h("span", { class: "t" }, h("b", { style: "font-weight: 500" }, "Neues Profil"))),
+    h("hr"),
+    h("button", { type: "button", class: "m-it", onclick: act(() => openConnect(C, st)) }, h("span", { class: "lead" }, icon(phone ? "scan" : "sync")),
+      h("span", { class: "t" }, h("b", {}, "Gerät verbinden"), h("small", {}, p.synced ? h("span", { class: "m-dot sm" }) : null, phone ? (p.synced ? syncLine(st, p) : "Code am Rechner scannen") : syncLine(st, p)))),
+    h("button", { type: "button", class: "m-it", onclick: act(() => { st.menu = false; st.page = "profile"; st.toTop = true; }) }, icon("sliders"), h("span", { class: "t" }, h("b", { style: "font-weight: 500" }, "Profil verwalten")), h("span", { class: "end" }, icon("chev"))),
+    h("hr"),
+    h("div", { class: "m-set" }, h("span", { class: "m-label", style: "padding: 0" }, "Darstellung"), themeSeg(st, phone)),
+    h("div", { class: "m-set" }, h("span", { class: "m-label", style: "padding: 0" }, "Sprache"), langSeg(st, phone)),
+    h("hr"),
+    legalLinks("m-mfoot"),
+  ];
+}
+function menuB(C, st, phone) {
+  const p = cur(st);
+  return [
+    h("p", { class: "m-label" }, "Profile"),
+    h("div", { role: "radiogroup", "aria-label": "Profile" }, profileItems(st, "m-it")),
+    h("button", { type: "button", class: "m-it", onclick: act(() => addProfile(st)) }, icon("userplus"), h("span", { class: "t" }, h("b", { style: "font-weight: 500" }, "Neues Profil"))),
+    h("hr"),
+    h("button", { type: "button", class: "m-it", onclick: act(() => { st.menu = false; st.page = "profile"; st.toTop = true; }) }, icon("sliders"), h("span", { class: "t" }, h("b", { style: "font-weight: 500" }, "Profil verwalten")), h("span", { class: "end" }, icon("chev"))),
+    h("button", { type: "button", class: "m-it", onclick: act(() => { st.menu = false; st.page = "sync"; st.conn = null; st.toTop = true; }) }, h("span", { class: "lead" }, icon("sync")),
+      h("span", { class: "t" }, h("b", {}, "Geräte"), h("small", {}, p.synced ? h("span", { class: "m-dot sm" }) : null, p.synced ? `Synchron · ${deviceCount(st, p)} Geräte` : "Nur auf diesem Gerät")), h("span", { class: "end" }, icon("chev"))),
+    h("hr"),
+    h("div", { class: "m-icons" },
+      h("div", { class: "m-seg", role: "group", "aria-label": "Darstellung" },
+        [["system", "monitor", "System"], ["light", "sun", "Hell"], ["dark", "moon", "Dunkel"]].map(([v, ic, w]) => h("button", { type: "button", title: w, "aria-label": w, "aria-pressed": String(st.theme === v), onclick: act(() => setTheme(st, v)) }, icon(ic)))),
+      h("span", { class: "m-grow" }),
+      h("div", { class: "m-seg lang", role: "group", "aria-label": "Sprache" },
+        h("button", { type: "button", title: "Deutsch", "aria-pressed": String(st.lang === "de"), onclick: act(() => setLang(st, "de")) }, "DE"),
+        h("button", { type: "button", title: "English", lang: "en", "aria-pressed": String(st.lang === "en"), onclick: act(() => setLang(st, "en")) }, "EN"))),
+    h("hr"),
+    legalLinks("m-mfoot"),
+  ];
+}
+function menuC(C, st) {
+  return [
+    h("p", { class: "m-label" }, "Profile"),
+    h("div", { role: "radiogroup", "aria-label": "Profile" }, profileItems(st, "m-it")),
+    h("button", { type: "button", class: "m-it", onclick: act(() => addProfile(st)) }, icon("userplus"), h("span", { class: "t" }, h("b", { style: "font-weight: 500" }, "Neues Profil"))),
+    h("hr"),
+    h("button", { type: "button", class: "m-it", onclick: act(() => { st.menu = false; st.page = "profile"; st.toTop = true; }) }, icon("sliders"), h("span", { class: "t" }, h("b", { style: "font-weight: 500" }, "Profil verwalten")), h("span", { class: "end" }, icon("chev"))),
+    h("button", { type: "button", class: "m-it", onclick: act(() => { st.menu = false; st.settings = true; }) }, icon("gear"), h("span", { class: "t" }, h("b", { style: "font-weight: 500" }, "Einstellungen …"))),
+  ];
+}
+const MENUS = { A: menuA, B: menuB, C: menuC };
+function settingsBody(st, phone) {
+  return [
+    h("p", { class: "m-sub", style: "margin: 0" }, "Gelten in diesem Browser für alle Profile."),
+    h("div", { class: "m-set", style: "padding: 0" }, h("span", { class: "m-label" }, "Darstellung"), themeSeg(st, true)),
+    h("div", { class: "m-set", style: "padding: 0" }, h("span", { class: "m-label" }, "Sprache"), langSeg(st, true)),
+    phone ? null : h("div", { class: "m-set", style: "padding: 0" }, h("span", { class: "m-label" }, "Einzelne Tasten"),
+      h("div", { class: "m-seg tall", role: "group", "aria-label": "Einzelne Tasten" }, h("button", { type: "button", "aria-pressed": "true" }, "An"), h("button", { type: "button", "aria-pressed": "false", onclick: act(() => toast("Einzelne Tasten aus: F, V, M, P wirken dann nur mit Strg.")) }, "Aus"))),
+    h("div", { style: "padding-top: 10px; border-top: 1px solid var(--m-line); display: flex; flex-direction: column; gap: 4px" },
+      h("span", { class: "m-label" }, "Über Betula"),
+      h("p", { class: "m-foot", style: "padding: 0" },
+        h("button", { type: "button", onclick: act(() => toast("Führt zum Impressum, /imprint.")) }, "Impressum"),
+        h("button", { type: "button", onclick: act(() => toast("Führt zum Datenschutz, /privacy.")) }, "Datenschutz"),
+        h("span", {}, "Folia 1.77 · Radix 0.11 · Daten vom 08.11.2026"))),
+  ];
+}
+
+// ---------- The pages ----------
+const MODS = [["Abwassertechnik", "11595", 6, "Winter"], ["Academic Research and Methods", "12243", 6, "jedes Semester"], ["Advanced Database Models", "13839", 6, "unregelmäßig"], ["Analysis I", "11101", 8, "Winter"], ["Betriebssysteme", "12201", 6, "Sommer"], ["Datenbanksysteme", "12301", 6, "Winter"], ["Diskrete Mathematik", "11112", 8, "Winter"], ["Entwicklung von Softwaresystemen", "12104", 8, "Winter"]];
+function catalogDesk() {
+  return h("section", { class: "m-panel flat" }, h("div", { class: "m-row", style: "padding: 12px 14px; border-bottom: 1px solid var(--m-line)" }, h("b", { style: "font-size: 20px; font-weight: 750" }, "3.232"), h("span", { class: "m-faint", style: "font-size: 13px" }, "Module")),
+    h("div", { class: "m-mods" }, MODS.map(([t, n, lp, tu]) => h("div", { class: "m-mod" }, h("span", {}, h("b", {}, t), h("small", {}, n)), h("span", { class: "lp" }, `${lp} LP`), h("span", { class: "tu" }, tu)))));
+}
+function catalogPhone() {
+  return [h("div", { class: "m-row", style: "padding: 4px 2px" }, h("b", { style: "font-size: 22px; font-weight: 750" }, "3.232"), h("span", { class: "m-faint", style: "font-size: 13px" }, "Module")),
+    MODS.map(([t, n, lp]) => h("div", { class: "p-mod" }, h("div", { class: "t" }, h("b", {}, t), h("small", {}, `${n} · DE`)), h("span", { class: "lp" }, `${lp} LP`)))];
+}
+function profileMain(C, st, phone) {
+  const p = cur(st);
+  if (C === "A") return [head(st, phone), syncCard(C, st, phone), saveCard(st, phone), dangerCard(st, phone), pageFoot()];
+  if (C === "B") {
+    const line = p.synced ? `Auf ${deviceCount(st, p)} Geräten: ${[thisDevice(st), ...others(st, p)].map((d) => d.n).join(", ")}` : loneEmpty(st) ? "Leeres Profil. Hast du Betula schon auf dem Handy?" : "Nur in diesem Browser";
+    const devCard = h("button", { type: "button", class: "m-panel acc", style: "display: flex; align-items: center; gap: 12px; border: 0; width: 100%; text-align: left; cursor: pointer; color: var(--m-text)", onclick: act(() => { st.page = "sync"; st.conn = null; st.toTop = true; }) },
+      icon("sync"), h("span", { class: "m-grow" }, h("b", { style: "display: block; font-weight: 700" }, "Geräte"), h("span", { class: "m-state", style: "white-space: normal" }, h("span", { class: "m-dot" + (p.synced ? "" : " off") }), line)), icon("chev"));
+    return [head(st, phone), devCard, saveCard(st, phone), dangerCard(st, phone), pageFoot()];
+  }
+  const tabs = h("div", { class: "m-tabs", role: "tablist", "aria-label": "Teile des Profils" },
+    [["overview", "Übersicht"], ["devices", "Geräte"], ["data", "Daten"]].map(([k, w]) => h("button", { type: "button", role: "tab", "aria-selected": String(st.tab === k), onclick: act(() => { st.tab = k; st.ask = null; }) }, w)));
+  const headC = head(st, phone, false);
+  headC.append(h("div", { style: "margin-top: 12px" }, tabs));
+  let body;
+  if (st.tab === "overview") body = [h("section", { class: "m-panel" }, h("p", { class: "m-faint" }, `Profil seit ${p.since}`), stats(p, phone ? 2 : 5))];
+  else if (st.tab === "devices") {
+    const panel = st.conn && !phone ? h("div", { style: "margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--m-line); display: flex; flex-direction: column; gap: 12px" },
+      h("div", { class: "m-row" }, h("b", { class: "m-grow" }, "Gerät verbinden"), h("button", { type: "button", class: "m-icon", "aria-label": "Schließen", onclick: act(() => { st.conn = null; }) }, icon("x"))),
+      connBody(C, st, st.conn, () => { st.conn = null; }, true)) : null;
+    body = [syncCard(C, st, phone, panel)];
+  } else body = [saveCard(st, phone, true), dangerCard(st, phone)];
+  return [headC, ...body, pageFoot()];
+}
+function syncPageDesk(C, st) {
+  const p = cur(st);
+  const close = () => { st.conn = null; };
+  const left = h("section", { class: "m-panel" },
+    h("div", { class: "m-h" }, h("span", { class: "grow" }, `Geräte von „${p.name}“`), h("span", { class: "m-state" }, h("span", { class: "m-dot" + (p.synced ? "" : " off") }), p.synced ? "Synchron" : "Nur in diesem Browser")),
+    p.synced ? devices(st, p) : h("p", { class: "m-sub" }, "Noch auf keinem anderen Gerät. Rechts verbindest du das nächste; Betula Sync schaltet sich dabei ein."),
+    p.synced ? h("div", { class: "m-row wrap", style: "margin-top: 10px" }, h("button", { type: "button", class: "m-btn big", "aria-expanded": String(st.code), onclick: act(() => { st.code = !st.code; }) }, icon("lock"), "Wiederherstellungscode")) : null,
+    st.code && p.synced ? codeBox(st) : null,
+    p.synced ? syncQuiet(st) : null,
+    st.ask === "leave" || st.ask === "stop" ? askLine(st, st.ask) : null);
+  let right;
+  if (!st.conn) {
+    right = h("section", { class: "m-panel acc", style: "display: flex; flex-direction: column; gap: 12px" },
+      h("div", { class: "m-h" }, icon("sync"), "Gerät verbinden"),
+      h("div", { class: "m-choose" },
+        h("button", { type: "button", onclick: act(() => { st.conn = connOf(st, "send"); }) }, icon("phone"), h("b", {}, `„${p.name}“ aufs Handy`), h("small", {}, "Der Rechner zeigt einen Code, dein Handy scannt ihn und bekommt das Profil.")),
+        h("button", { type: "button", onclick: act(() => { st.conn = connOf(st, "recv"); }) }, icon("download"), h("b", {}, "Profil vom Handy holen"), h("small", {}, "Der Rechner zeigt einen Code, dein Handy scannt ihn und schickt sein Profil."))),
+      h("p", { class: "m-faint" }, "Kein Handy zur Hand? ", h("button", { type: "button", class: "m-link", onclick: act(() => toast("Wie heute: ein Feld für den Wiederherstellungscode.")) }, "Wiederherstellungscode eingeben")));
+  } else {
+    right = h("section", { class: "m-panel acc", style: "display: flex; flex-direction: column; gap: 12px" },
+      h("div", { class: "m-row" }, h("button", { type: "button", class: "m-link", onclick: act(close) }, "‹ Andere Richtung"), h("span", { class: "m-grow" })),
+      connBody(C, st, st.conn, close, false));
+  }
+  return h("div", { style: "display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 12px; align-items: start" }, left, right);
+}
+function syncPagePhone(C, st) {
+  const p = cur(st);
+  return [
+    h("section", { class: "m-panel acc" },
+      h("div", { class: "m-h" }, h("span", { class: "grow" }, `Geräte von „${p.name}“`), h("span", { class: "m-state" }, h("span", { class: "m-dot" + (p.synced ? "" : " off") }), p.synced ? "Synchron" : "Privat")),
+      p.synced ? devices(st, p) : h("p", { class: "m-sub" }, "Noch auf keinem anderen Gerät."),
+      h("div", { class: "m-stack", style: "margin-top: 10px; gap: 8px" },
+        h("button", { type: "button", class: "m-btn pri wide", onclick: act(() => { st.layer = "scan"; }) }, icon("scan"), "Gerät verbinden"),
+        h("button", { type: "button", class: "m-btn wide", onclick: act(() => { st.layer = "show"; st.conn = connOf(st, "send"); }) }, icon("sync"), "Hier einen Code zeigen")),
+      p.synced ? h("button", { type: "button", class: "m-btn wide", style: "margin-top: 8px", "aria-expanded": String(st.code), onclick: act(() => { st.code = !st.code; }) }, icon("lock"), "Wiederherstellungscode") : null,
+      st.code && p.synced ? codeBox(st) : null,
+      p.synced ? syncQuiet(st) : null,
+      st.ask === "leave" || st.ask === "stop" ? askLine(st, st.ask) : null),
+  ];
+}
+
+// ---------- The shells ----------
+const outerDark = () => document.documentElement.dataset.theme === "dark" || (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
+const mockDark = (st) => st.theme === "dark" || (st.theme === "system" && outerDark());
+function desk(C, st) {
+  const p = cur(st);
+  const title = { catalog: "Module", profile: "Profil", sync: "Geräte" }[st.page];
+  let content;
+  if (st.page === "catalog") content = catalogDesk();
+  else if (st.page === "sync") content = syncPageDesk(C, st);
+  else content = h("div", { class: "m-cols" }, sidebar(C, st), h("div", { class: "m-stack" }, profileMain(C, st, false)));
+  const navBtn = (ic, label, on, go) => h("button", { type: "button", class: "m-rb" + (on ? " on" : ""), "aria-label": label, title: label, onclick: go ? act(go) : act(() => toast(`${label}: ein Tab wie heute.`)) }, icon(ic));
+  const rail = h("nav", { class: "m-rail", "aria-label": "Hauptnavigation" }, h("span", { class: "logo", "aria-hidden": "true" }),
+    navBtn("home", "Start", false), navBtn("list", "Module", st.page === "catalog", () => { st.page = "catalog"; }), navBtn("cap", "Studium", false), navBtn("mark", "Merkliste", false), navBtn("cal", "Stundenplan", false),
+    h("span", { class: "gap" }),
+    h("button", { type: "button", class: "m-rb", "aria-label": "Tastenübersicht", title: "Tastenübersicht", onclick: act(() => toast("Die Tastenübersicht, mit dem Schalter für einzelne Tasten.")) }, icon("keys")),
+    h("button", { type: "button", class: "m-rb" + (st.menu ? " open" : st.page === "profile" || st.page === "sync" ? " on" : ""), "aria-label": `Profil ${p.name}, Menü`, "aria-expanded": String(st.menu), onclick: act(() => { st.menu = !st.menu; st.settings = false; }) }, avatar(p, "xs")),
+    h("button", { type: "button", class: "m-rb", "aria-label": "Hell oder Dunkel", title: "Hell oder Dunkel", onclick: act(() => setTheme(st, mockDark(st) ? "light" : "dark")) }, icon(mockDark(st) ? "sun" : "moon")));
+  const main = h("div", { class: "m-main" },
+    h("div", { class: "m-top" }, h("h3", {}, title), h("div", { class: "m-search" }, icon("search"), "Modul, Nummer oder Thema suchen")),
+    h("div", { class: "m-scroll" }, content));
+  const layers = [];
+  if (st.menu) layers.push(h("div", { class: "m-catch", onclick: act(() => { st.menu = false; }) }), h("div", { class: "m-menu", role: "group", "aria-label": "Profil-Menü", style: "left: 68px; bottom: 12px" }, MENUS[C](C, st, false)));
+  if (st.dialog) {
+    const close = () => { st.dialog = null; };
+    layers.push(h("div", { class: "m-scrim", onclick: act(close) }),
+      h("div", { class: "m-dlg", role: "dialog", "aria-label": "Gerät verbinden" },
+        h("div", { class: "dh" }, h("span", { style: "color: var(--m-accent-ink); display: flex" }, icon("sync")), h("h4", {}, "Gerät verbinden"), h("button", { type: "button", class: "m-icon", "aria-label": "Schließen", onclick: act(close) }, icon("x"))),
+        h("div", { class: "db" }, connBody(C, st, st.dialog, close, true))));
+  }
+  if (st.settings) {
+    const close = () => { st.settings = false; };
+    layers.push(h("div", { class: "m-scrim", onclick: act(close) }),
+      h("div", { class: "m-dlg", role: "dialog", "aria-label": "Einstellungen", style: "width: 420px" },
+        h("div", { class: "dh" }, h("span", { style: "display: flex" }, icon("gear")), h("h4", {}, "Einstellungen"), h("button", { type: "button", class: "m-icon", "aria-label": "Schließen", onclick: act(close) }, icon("x"))),
+        h("div", { class: "db" }, settingsBody(st, false))));
+  }
+  return h("div", { class: "mk desk" + (mockDark(st) ? " dark" : "") }, rail, main, layers);
+}
+function phone(C, st) {
+  const p = cur(st);
+  const onPage = st.page === "profile" || st.page === "sync";
+  const backTo = st.page === "sync" && C === "B" ? "profile" : "catalog";
+  const top = h("div", { class: "p-top" },
+    onPage ? h("button", { type: "button", class: "p-box", "aria-label": "Zurück", onclick: act(() => { st.page = backTo; st.conn = null; st.toTop = true; }) }, icon("back")) : null,
+    h("div", { class: "p-search" }, icon("search"), "Modul, Nummer oder Thema"),
+    onPage ? null : h("button", { type: "button", class: "p-box" + (st.menu ? " open" : ""), "aria-label": `Profil ${p.name}, Menü`, "aria-expanded": String(st.menu), onclick: act(() => { st.menu = !st.menu; st.settings = false; }) }, avatar(p, "xs")));
+  let content;
+  if (st.page === "catalog") content = catalogPhone();
+  else if (st.page === "sync") content = syncPagePhone(C, st);
+  else content = [chips(C, st), phoneAdd(C, st), profileMain(C, st, true)];
+  const tabbar = h("nav", { class: "p-tabbar", "aria-label": "Hauptnavigation" },
+    [["home", "Start"], ["list", "Module"], ["cap", "Studium"], ["mark", "Merkliste"], ["cal", "Stundenplan"]].map(([ic, w]) =>
+      h("button", { type: "button", class: w === "Module" && st.page === "catalog" ? "on" : "", onclick: act(() => { if (w === "Module") { st.page = "catalog"; st.toTop = true; } else toast(`${w}: ein Tab wie heute.`); }) }, icon(ic), w)));
+  const layers = [];
+  if (st.menu) layers.push(h("div", { class: "m-scrim", onclick: act(() => { st.menu = false; }) }), h("div", { class: "m-menu", role: "group", "aria-label": "Profil-Menü", style: "right: 10px; top: 62px; width: 290px" }, MENUS[C](C, st, true)));
+  if (st.settings) layers.push(h("div", { class: "m-scrim", onclick: act(() => { st.settings = false; }) }),
+    h("div", { class: "m-sheet", role: "dialog", "aria-label": "Einstellungen" }, h("span", { class: "grab" }),
+      h("div", { class: "m-row" }, h("b", { class: "m-grow", style: "font-size: 16px" }, "Einstellungen"), h("button", { type: "button", class: "m-icon", "aria-label": "Schließen", onclick: act(() => { st.settings = false; }) }, icon("x"))),
+      settingsBody(st, true)));
+  layers.push(phoneLayer(C, st));
+  return h("div", { class: "phone" }, h("div", { class: "mk ph" + (mockDark(st) ? " dark" : "") }, top, h("div", { class: "m-scroll" }, content), tabbar, layers));
+}
+
+// ---------- The stages ----------
+function renderStage(C, el) {
+  const st = ui[C];
+  const bar = h("div", { class: "stage-bar" },
+    h("span", { class: "seg", role: "group", "aria-label": "Gerät" }, ["desk", "phone"].map((m) => h("button", { type: "button", "aria-pressed": String(st.mode === m),
+      onclick: () => { st.mode = m; st.menu = false; st.dialog = null; st.layer = null; st.settings = false; st.conn = null; st.toTop = true; renderAll(); } }, m === "desk" ? "Rechner" : "Handy"))),
+    h("span", { class: "grow" }),
+    h("span", { class: "kicker" }, st.mode === "desk" ? "Betula am Rechner, 1080 × 680" : "ein Handy, 380 px"));
+  el.replaceChildren(bar, h("div", { class: "stage-in" }, st.mode === "desk" ? desk(C, st) : phone(C, st)));
+}
+function renderAll() {
+  const active = document.activeElement;
+  let focus = null;
+  for (const C of Object.keys(ui)) {
+    const el = document.querySelector(`[data-stage="${C}"]`);
+    if (el.contains(active)) focus = { C, at: [...el.querySelectorAll("button, a, input")].indexOf(active) };
+    const scrolls = [...el.querySelectorAll(".m-scroll")].map((s) => s.scrollTop);
+    const left = el.querySelector(".stage-in")?.scrollLeft ?? 0;
+    renderStage(C, el);
+    if (!ui[C].toTop) el.querySelectorAll(".m-scroll").forEach((s, i) => { s.scrollTop = scrolls[i] ?? 0; });
+    el.querySelector(".stage-in").scrollLeft = left;
+    ui[C].toTop = false;
+  }
+  if (focus && focus.at >= 0) {
+    const all = [...document.querySelector(`[data-stage="${focus.C}"]`).querySelectorAll("button, a, input")];
+    all[Math.min(focus.at, all.length - 1)]?.focus({ preventScroll: true });
+  }
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  for (const st of Object.values(ui)) {
+    if (st.dialog || st.settings || st.menu || st.layer) { st.dialog = null; st.settings = false; st.menu = false; st.layer = null; }
+  }
+  renderAll();
+});
+document.getElementById("reset").addEventListener("click", () => {
+  for (const C of Object.keys(ui)) { const mode = ui[C].mode; ui[C] = fresh(); ui[C].mode = mode; }
+  toastEl.hidden = true;
+  renderAll();
+});
+
+// ---------- This page's theme ----------
+const root = document.documentElement;
+function setPageTheme(v) {
+  if (v === "system") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", v);
+  document.querySelectorAll("[data-theme-set]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.themeSet === v)));
+  try { localStorage.setItem("profil-konzepte.theme", v); } catch { /* the page works without it */ }
+  renderAll();
+}
+document.querySelectorAll("[data-theme-set]").forEach((b) => b.addEventListener("click", () => setPageTheme(b.dataset.themeSet)));
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", renderAll);
+try { const saved = localStorage.getItem("profil-konzepte.theme"); if (saved && saved !== "system") setPageTheme(saved); } catch { /* the system's then */ }
+renderAll();
+</script>
