@@ -82,7 +82,7 @@ pub fn rich_plan() -> PlanDoc {
         live: true,
         once: to == ShareTo::Person,
         own: true,
-        notes: n % 2 == 0,
+        notes: n.is_multiple_of(2),
         key: encode(&[n + 1; 32]),
         parcel: if to == ShareTo::Person { encode(&[n + 2; 48]) } else { String::new() },
         program: Some("079-82-2008".into()),

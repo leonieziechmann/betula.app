@@ -14,6 +14,7 @@ pub mod studyplan_modules;
 pub mod studyplan_open;
 pub mod studyplan_own;
 pub mod studyplan_share;
+pub mod studyplan_share_dialog;
 pub mod studyplan_side;
 pub mod studyplan_week;
 
@@ -46,6 +47,7 @@ folia_design::texts! {
     studyplan_open = crate::i18n::studyplan_open,
     studyplan_own = crate::i18n::studyplan_own,
     studyplan_share = crate::i18n::studyplan_share,
+    studyplan_share_dialog = crate::i18n::studyplan_share_dialog,
     studyplan_side = crate::i18n::studyplan_side,
     studyplan_week = crate::i18n::studyplan_week,
     termin = folia_widgets::i18n::termin,

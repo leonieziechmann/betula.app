@@ -1123,6 +1123,16 @@ fn parcel_changes(doc: &PlanDoc, states: &[wire::ParcelState]) -> (Vec<String>, 
     (opened, gone, parts)
 }
 
+/// Applies `f` to every item and says whether it changed anything for any (each one is applied,
+/// unlike `any`, which stops at the first).
+fn every<T>(items: &[T], mut f: impl FnMut(&T) -> bool) -> bool {
+    let mut changed = false;
+    for item in items {
+        changed |= f(item);
+    }
+    changed
+}
+
 thread_local! {
     /// The latest call of `renew_soon`: only the last of a burst renews.
     static RENEW: Cell<u64> = const { Cell::new(0) };
@@ -1204,7 +1214,7 @@ impl Engine {
         let moved: Vec<(String, folia_calendar::semester::SemesterKey)> =
             doc.shares.iter().filter(|s| s.live).filter_map(|s| Some((s.id.clone(), Some(following(s.semester, day)).filter(|now| *now != s.semester)?))).collect();
         if !moved.is_empty() {
-            self.edit_plan(|d| moved.iter().fold(false, |any, (id, semester)| d.update_share(id, |s| s.semester = *semester) || any));
+            self.edit_plan(|d| every(&moved, |(id, semester)| d.update_share(id, |s| s.semester = *semester)));
         }
         let mut put = Put::read(&nav::local_get(&parts_key(self.profile)).unwrap_or_default());
         let mut ended: Vec<String> = Vec::new();
@@ -1225,7 +1235,7 @@ impl Engine {
             }
         }
         if !ended.is_empty() {
-            self.edit_plan(|d| ended.iter().fold(false, |any, id| d.remove_share(id).is_some() || any));
+            self.edit_plan(|d| every(&ended, |id| d.remove_share(id).is_some()));
         }
         // The shares gone from the records (on any device): their parts and parcels go, once.
         let gone: Vec<String> = self.core.borrow().doc.entries.iter().filter(|(key, e)| key.starts_with("P|s|") && e.val.is_none()).filter_map(|(key, _)| Some(key.strip_prefix("P|s|")?.to_string())).filter(|id| !put.deleted.contains(id)).collect();
@@ -1250,10 +1260,9 @@ impl Engine {
         parts.sort();
         parts.dedup();
         parts.truncate(64);
-        if *self.watched.borrow() != parts {
-            if self.send(&Out::Watch { parts: parts.clone() }) {
-                *self.watched.borrow_mut() = parts;
-            }
+        let changed = *self.watched.borrow() != parts;
+        if changed && self.send(&Out::Watch { parts: parts.clone() }) {
+            *self.watched.borrow_mut() = parts;
         }
     }
 
@@ -1266,13 +1275,13 @@ impl Engine {
         let rev = follow_revs().get(id).copied().unwrap_or(0);
         match fetch_part(&link, rev).await {
             Ok(Some((part, rev))) => {
-                self.edit_plan(|d| followers.iter().fold(false, |any, (calendar, _)| d.take_part(*calendar, &part) || any));
+                self.edit_plan(|d| every(&followers, |(calendar, _)| d.take_part(*calendar, &part)));
                 set_follow_rev(id, Some(rev));
             }
             Ok(None) => {}
             Err(ShareProblem::Ended) => {
                 let at = secs();
-                self.edit_plan(|d| followers.iter().fold(false, |any, (calendar, _)| d.end_follow(*calendar, at) || any));
+                self.edit_plan(|d| every(&followers, |(calendar, _)| d.end_follow(*calendar, at)));
                 set_follow_rev(id, None);
                 self.watch();
             }
@@ -1292,8 +1301,8 @@ impl Engine {
             let doc = PlanDoc::restored(&engine.plan_text());
             let (opened, gone, parts) = parcel_changes(&doc, &states);
             engine.edit_plan(|d| {
-                let a = opened.iter().fold(false, |any, id| d.update_share(id, |s| s.parcel.clear()) || any);
-                gone.iter().fold(a, |any, id| d.remove_share(id).is_some() || any)
+                let a = every(&opened, |id| d.update_share(id, |s| s.parcel.clear()));
+                every(&gone, |id| d.remove_share(id).is_some()) || a
             });
             for id in parts {
                 let _ = delete_part(&engine.keys, &id).await;

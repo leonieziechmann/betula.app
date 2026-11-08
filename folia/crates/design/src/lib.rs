@@ -14,6 +14,7 @@ pub mod keyboard;
 pub mod keys;
 pub mod modal;
 pub mod nav;
+pub mod qr;
 pub mod stage;
 pub mod ui;
 pub mod waitnote;

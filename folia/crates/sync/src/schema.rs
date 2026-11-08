@@ -376,6 +376,10 @@ struct Semester<'a> {
     code: Option<&'a str>,
 }
 
+/// Where a note of a calendar stands among its notes: its semester, its Termin's event and
+/// fingerprint as numbers.
+type NoteOrder<'a> = (&'a str, u64, u64);
+
 /// As `PlanDoc::stored`: `g`; `m` by semester, then in planning order; `v` the same; `p` by pid;
 /// `d` and `q` in the order they were marked; per semester `k`, `e`, `r`, `c`, `h`, `x`, `b` and
 /// `a`; the plan's own Termine; per calendar `l`, its `n`, `o`, `t`, `x`, `b` and `f`; the shares;
@@ -482,7 +486,7 @@ fn plan_project(doc: &Doc) -> Vec<String> {
     }
     // A calendar's notes by semester and Termin, as the plan orders them (a Termin's key by its
     // numbers, not its text).
-    let mut calendar_notes: BTreeMap<u32, Vec<((&str, u64, u64), &str)>> = BTreeMap::new();
+    let mut calendar_notes: BTreeMap<u32, Vec<(NoteOrder, &str)>> = BTreeMap::new();
     for (key, e) in doc.live_with("P|b|") {
         let Some(line) = e.val.as_deref() else { continue };
         if let [calendar, s, row] = parts(key, "P|b|").as_slice() {
