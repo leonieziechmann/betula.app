@@ -566,6 +566,42 @@ local_public_addresses() {
   done
 }
 
+# edge_ipv6_check - with IPv6 on docker_gwbridge (stacks/edge.yml, "ipv6"): does Traefik answer
+# https://SITE_HOST over each AAAA address of it that belongs to this machine? Asked from the host:
+# a connection it makes to its own address is DNATed like one from outside (nat OUTPUT), so it
+# takes the visitors' way to Traefik (the DNAT rule, docker_gwbridge, the host's neighbour entry
+# for Traefik's address); it does not pass the provider's network or ufw's INPUT rules. Any HTTP
+# answer counts: Traefik was reached. On 2026-11-08 an update of Traefik left IPv6 without an
+# answer for minutes while IPv4 worked (Docker 29.9.2; a plain restart on 29.9.3 did not); a
+# restart of the task brought it back. Needs lib-networks.sh. EDGE_IPV6_DETAIL says what was
+# asked and got. 0: Traefik answered, 1: it did not, 2: nothing to ask (no IPv6 on the bridge, or
+# no AAAA record of this machine).
+edge_ipv6_check() {
+  local addr code mine asked=0
+  EDGE_IPV6_DETAIL=""
+  if [[ "$(gwbridge_facts | awk '{ print $3 }')" == "-" || -z "$(gwbridge_facts)" ]]; then
+    EDGE_IPV6_DETAIL="docker_gwbridge has no IPv6"
+    return 2
+  fi
+  mine="$(local_public_addresses)"
+  for addr in $(host_addresses "${SITE_HOST}" | grep -F ':' || true); do
+    grep -qxF -- "${addr}" <<<"${mine}" || continue
+    asked=1
+    code="$(curl -sk -o /dev/null --max-time 5 -w '%{http_code}' --resolve "${SITE_HOST}:443:[${addr}]" "https://${SITE_HOST}/healthz" 2>/dev/null || true)"
+    if [[ -z "${code}" || "${code}" == "000" ]]; then
+      EDGE_IPV6_DETAIL="https://${SITE_HOST}/healthz over [${addr}]: no answer"
+      return 1
+    fi
+    EDGE_IPV6_DETAIL+="https://${SITE_HOST}/healthz over [${addr}]: ${code} "
+  done
+  if [[ "${asked}" -eq 0 ]]; then
+    EDGE_IPV6_DETAIL="${SITE_HOST} has no AAAA record of this machine"
+    return 2
+  fi
+  EDGE_IPV6_DETAIL="${EDGE_IPV6_DETAIL% }"
+  return 0
+}
+
 # host_addresses NAME -> every A and AAAA address of NAME, one per line (nothing when it does not resolve).
 host_addresses() {
   local name=$1 out=""

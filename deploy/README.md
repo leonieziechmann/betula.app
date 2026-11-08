@@ -1242,6 +1242,18 @@ The way back, the same seconds: `ssh betula sudo env GWBRIDGE_REBUILD=1 GWBRIDGE
 /opt/betula/vps/30-docker.sh`. IPv6 visitors arrive as the gateway again and pass the filters as a
 private address.
 
+On the server since 2026-11-08 18:55 UTC (sites away about 20 s). The same evening an update of
+Traefik by `40-stacks.sh edge` left IPv6 without an answer for minutes while IPv4 worked (Docker
+29.9.2); a restart of the task brought it back, and a plain restart on 29.9.3 kept IPv6 (in WSL no
+update ever lost it). The cause is not known, so it is looked for: `edge_ipv6_check`
+(`vps/lib-stacks.sh`) asks `https://betula.app/healthz` over each AAAA address of this machine,
+from the host itself, which takes the visitors' way to Traefik (the DNAT rule, `docker_gwbridge`,
+the host's neighbour entry for Traefik's address). `40-stacks.sh edge` asks for up to a minute
+after every deploy of Traefik and, when nothing answers, restarts Traefik once (a few seconds without
+sites) and asks again; `91-verify-stacks.sh ipv6` fails while nothing answers. By hand when IPv6
+visitors get no answer: `docker service update --force edge_traefik`, and look at `sudo ip6tables -t
+nat -S DOCKER` and `ip -6 neigh show dev docker_gwbridge`.
+
 ## 16. Betula Sync: Phloem
 
 Phloem is the service of Betula Sync (`docs/phloem/phloem.md`, its protocol
