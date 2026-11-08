@@ -493,6 +493,11 @@ impl Row {
                 flags.push(("flag long", text));
             }
         }
+        // Counted where the plan does not put it, by the student's „Zählt für" (owner, 2026-11-08:
+        // „dass es angezeigt wird, wenn man das gemacht hat").
+        if item.exception {
+            flags.push(("flag st-exception", s.exception.to_string()));
+        }
         if item.over > 0.0 {
             let area = ready.area_name(item.area, t);
             let required = item.area.and_then(|area| study.progress.get(area)).map_or(0.0, |progress| progress.area.required);
@@ -1121,6 +1126,7 @@ mod tests {
             over: 0.0,
             plan_fs: None,
             fillers: Vec::new(),
+            exception: false,
         };
         assert_eq!(Status::of(&item(true, false), When::Past), Status::Passed);
         assert_eq!(Status::of(&item(true, false), When::Later), Status::Passed, "marked as passed ahead of time");

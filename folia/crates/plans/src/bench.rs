@@ -18,8 +18,10 @@ use std::collections::BTreeSet;
 
 use folia_calendar::semester::SemesterKey;
 
+use folia_model::labels::{Code, ModuleKind};
+
 use crate::choices::{PlanView, RowState};
-use crate::study::{self, Input, Pick, Study, EPSILON};
+use crate::study::{self, AreaKind, Input, Pick, Study, EPSILON};
 use crate::studyplan::{PlanDoc, RowRef};
 
 /// What a subgroup is.
@@ -147,9 +149,9 @@ impl Bench {
     }
 
     /// The subgroup a module counts for where nothing says otherwise: the Pflicht whose row names
-    /// it; the choice it is planned for (`counts`, a choice of those rows); the first choice not
-    /// complete whose lists hold it, else the first that holds it; the FÜS where its list
-    /// (`fues`) holds it.
+    /// it; the choice it is planned for (`counts`, a choice of those rows) or the Pflicht of the row
+    /// it is planned for; of the choices whose lists hold it one not complete, the most specific
+    /// (the shortest lists), the first; the FÜS where its list (`fues`) holds it.
     pub fn group_of(&self, view: &PlanView, id: &str, counts: Option<&RowRef>, program_id: &str, fues: &[String]) -> Option<usize> {
         if let Some(at) = view.lines.iter().position(|line| line.module_id.as_deref() == Some(id)) {
             let line = view.lines.get(at)?;
@@ -159,14 +161,19 @@ impl Bench {
             };
         }
         if let Some(row) = counts {
-            let chosen = view.lines.iter().find(|line| row.is(program_id, &line.caption, line.ord)).and_then(|line| line.choice);
-            if let Some(choice) = chosen {
-                return self.of_choice(choice);
+            if let Some(at) = view.lines.iter().position(|line| row.is(program_id, &line.caption, line.ord)) {
+                return match view.lines.get(at).and_then(|line| line.choice) {
+                    Some(choice) => self.of_choice(choice),
+                    None => self.groups.iter().position(|group| group.kind == GroupKind::Pflicht && group.lines.contains(&at)),
+                };
             }
         }
-        let holding: Vec<usize> = view.choices.iter().enumerate().filter(|(_, choice)| !choice.fues && choice.list_of(id).is_some()).map(|(at, _)| at).collect();
-        let open = holding.iter().copied().find(|at| view.choices.get(*at).is_some_and(|choice| !choice.complete()));
-        if let Some(choice) = open.or_else(|| holding.first().copied()) {
+        // As the study counts it (`choices::plan_view`): a choice that still asks for credits first,
+        // then the one with the shortest lists, then the first in the plan.
+        let mut holding: Vec<(bool, usize, u8, usize)> =
+            view.choices.iter().enumerate().filter(|(_, choice)| !choice.fues && choice.list_of(id).is_some()).map(|(at, choice)| (choice.complete(), choice.modules().len(), choice.first, at)).collect();
+        holding.sort_unstable();
+        if let Some(&(.., choice)) = holding.first() {
             return self.of_choice(choice);
         }
         let in_fues = fues.iter().any(|known| known == id);
@@ -175,10 +182,15 @@ impl Bench {
 }
 
 /// The subgroup a module of a semester counts for, as the plan's view has it: the Pflicht whose
-/// row names it, or the choice whose taken modules hold it in that semester.
+/// row names it, the Pflicht the student let it count for, or the choice whose taken modules hold
+/// it in that semester.
 pub fn counted_in(bench: &Bench, view: &PlanView, id: &str, s: SemesterKey) -> Option<usize> {
     if let Some(at) = view.lines.iter().position(|line| line.module_id.as_deref() == Some(id) && line.choice.is_none()) {
         return bench.groups.iter().position(|group| group.kind == GroupKind::Pflicht && group.lines.contains(&at));
+    }
+    // Counted for an area's Pflicht by the student (`PlanView::pflicht`).
+    if let Some((_, at)) = view.pflicht.iter().find(|(taken, _)| taken.id == id && taken.semester == s) {
+        return bench.groups.iter().position(|group| group.kind == GroupKind::Pflicht && group.lines.contains(at));
     }
     let choice = view.choices.iter().position(|choice| choice.taken.iter().any(|taken| taken.id == id && taken.semester == s))?;
     bench.of_choice(choice)
@@ -323,12 +335,45 @@ pub fn plan_for(doc: &mut PlanDoc, input: &Input, view: &PlanView, s: SemesterKe
     }
 }
 
-/// „Zählt für": lets module `id` of semester `s` count for the choice `choice` (its first row), or
-/// where the tree places it (`None`). A placeholder it filled it fills no more.
-pub fn count_for(doc: &mut PlanDoc, view: &PlanView, s: SemesterKey, id: &str, choice: Option<usize>, program_id: &str) {
-    let row = choice.and_then(|choice| row_of(view, choice, program_id));
+/// „Zählt für": lets module `id` of semester `s` count for the subgroup `group` (its first row:
+/// a choice's, or a row of an area's Pflicht), whatever its lists hold (owner, 2026-11-08: „jedes
+/// modul zu jedem möglichen bereich zuzuordnen"); `None` leaves it to the study again
+/// (`choices::plan_view`). A placeholder it filled it fills no more.
+pub fn count_for(doc: &mut PlanDoc, view: &PlanView, s: SemesterKey, id: &str, group: Option<&Group>, program_id: &str) {
+    let row = group.and_then(|group| row_of_group(view, group, program_id));
     doc.set_fills(s, id, None);
     doc.set_counts(s, id, row);
+}
+
+/// The first row of a subgroup: what a module counted for it remembers (`Planned::counts`).
+pub fn row_of_group(view: &PlanView, group: &Group, program_id: &str) -> Option<RowRef> {
+    match group.kind {
+        GroupKind::Choice(choice) => row_of(view, choice, program_id),
+        GroupKind::Pflicht => group.lines.first().and_then(|at| view.lines.get(*at)).map(|line| RowRef::new(program_id, &line.caption, line.ord)),
+    }
+}
+
+/// Whether module `id` belongs to subgroup `group` by what the plan and the tree say, as the study
+/// tells an exception (`study::Item::exception`): a choice its lists (the FÜS list for the FÜS; a
+/// choice without lists takes anything), an area's Pflicht what the area's module tree holds (the
+/// thesis's a thesis, the FÜS's the FÜS list, an area the tree says nothing of anything).
+pub fn fits(input: &Input, study: &Study, view: &PlanView, group: &Group, id: &str) -> bool {
+    let is_fues = |id: &str| input.fues.iter().any(|known| known == id) || input.rows.iter().any(|row| row.id == id && row.is_fues);
+    match group.kind {
+        GroupKind::Choice(at) => match view.choices.get(at) {
+            Some(choice) if choice.fues => is_fues(id),
+            Some(choice) => choice.lists.is_empty() || choice.list_of(id).is_some(),
+            None => true,
+        },
+        GroupKind::Pflicht => {
+            let Some(area) = study.progress.get(group.area).map(|progress| &progress.area) else { return true };
+            match area.kind {
+                AreaKind::Fues => is_fues(id),
+                AreaKind::Thesis => input.rows.iter().any(|row| row.id == id && row.kind.as_ref().and_then(Code::known) == Some(ModuleKind::Thesis)),
+                AreaKind::Plan | AreaKind::Other => area.tree.is_empty() || input.placements.iter().any(|(module, at)| module == id && area.tree.contains(at)),
+            }
+        }
+    }
 }
 
 /// What a subgroup has: the credits of its Pflicht's rows passed or planned, of the modules a

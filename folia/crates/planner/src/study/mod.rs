@@ -34,6 +34,7 @@
 mod bench;
 mod card;
 mod choose;
+mod count;
 mod dialog;
 mod dom;
 mod focus;
@@ -199,6 +200,8 @@ pub(super) enum Dialog {
     Areas,
     /// „Studiengang wechseln".
     Switch,
+    /// „Zählt für" › „Anderer Bereich …" of a module of a semester (`count.rs`).
+    CountFor { semester: SemesterKey, id: String },
 }
 
 /// The rows selected in a semester (`Item::key`), for what is done to several at once (owner,
@@ -1197,7 +1200,7 @@ mod tests {
         let item = study_after.semester(w).unwrap().items.iter().find(|item| item.module_id() == Some(both)).unwrap();
         assert_eq!(item.area, Some(2), "in the Nebenfach");
         // „Zählt für ›": the Anwendungsfach.
-        bench::count_for(&mut doc, &view_after, w, both, Some(anw_choice), "079-82-2008");
+        bench::count_for(&mut doc, &view_after, w, both, bench_after.of_choice(anw_choice).and_then(|at| bench_after.groups.get(at)), "079-82-2008");
         let moved = doc.clone();
         let input = input_of(&source, &setup, &moved, &rows);
         let study_moved = study::study(&input);
@@ -1222,6 +1225,70 @@ mod tests {
         let planned = doc.modules.iter().find(|m| m.module_id == fues_id).unwrap();
         assert_eq!((planned.fills, planned.counts.as_ref()), (Some(pid), None));
         let _ = study;
+    }
+
+    /// „Zählt für" › „Anderer Bereich …" (owner, 2026-11-08: „jedes modul zu jedem möglichen bereich
+    /// zuzuordnen … dass es angezeigt wird, wenn man das gemacht hat"): Datenbanken, of the Komplex
+    /// Praktische Informatik, counts for the Anwendungsfach or for Mathematik's Pflichtmodule as the
+    /// student says, marked as an exception there; „Automatisch" takes it back to its Komplex.
+    #[test]
+    fn any_module_counts_for_any_subgroup_as_an_exception() {
+        use folia_plans::bench::{self, Bench, GroupKind};
+        use folia_plans::choices::plan_view;
+
+        let source = plans_of("079-82-2008");
+        let w = key("2026W");
+        let mut doc = PlanDoc::restored("m\t2026W\t12330\t1\t\t");
+        let mine = MineDoc { caption: Some(String::new()), start: Some(key("2025W")), ..MineDoc::default() };
+        let (shown, core, page) = chosen(&source, mine.caption.as_deref(), None);
+        let setup = Setup { shown, core, page, start: key("2025W"), start_stored: true, now: w, leave: BTreeSet::new(), until: None };
+        let mut rows = source.linked.clone();
+        rows.extend(plans_of_rows(&["12330"]));
+        let state = |doc: &PlanDoc| {
+            let input = input_of(&source, &setup, doc, &rows);
+            let study = study::study(&input);
+            let view = plan_view(&input, &study);
+            let bench = Bench::of(&study, &view);
+            let item = study.semester(w).unwrap().items.iter().find(|item| item.module_id() == Some("12330")).unwrap().clone();
+            (study, view, bench, item)
+        };
+        let (study, view, groups, item) = state(&doc);
+        let komplex = view.choices.iter().position(|choice| choice.name == "Komplex Praktische Informatik").unwrap();
+        assert_eq!((item.area, item.exception), (Some(4), false), "in the Fachstudium, where it belongs");
+        assert_eq!(bench::counted_in(&groups, &view, "12330", w), groups.of_choice(komplex));
+        // It fits its Komplex, not the Anwendungsfach, not Mathematik's Pflichtmodule.
+        let input = input_of(&source, &setup, &doc, &rows);
+        let anw = view.choices.iter().position(|choice| choice.name == "Anwendungsfach").unwrap();
+        let anw_group = groups.of_choice(anw).unwrap();
+        let mathe = groups.find(1, GroupKind::Pflicht).unwrap();
+        assert!(bench::fits(&input, &study, &view, &groups.groups[groups.of_choice(komplex).unwrap()], "12330"));
+        assert!(!bench::fits(&input, &study, &view, &groups.groups[anw_group], "12330"));
+        assert!(!bench::fits(&input, &study, &view, &groups.groups[mathe], "12330"));
+
+        // For the Anwendungsfach: it counts there, in the Nebenfach, as an exception.
+        bench::count_for(&mut doc, &view, w, "12330", Some(&groups.groups[anw_group]), "079-82-2008");
+        let (_, view, groups, item) = state(&doc);
+        assert_eq!((item.area, item.exception), (Some(2), true));
+        let taken = &view.choices[anw].taken;
+        assert_eq!(taken.iter().map(|taken| (taken.id.as_str(), taken.exception)).collect::<Vec<_>>(), [("12330", true)]);
+        assert!(view.choices[komplex].taken.is_empty());
+        assert_eq!(bench::counted_in(&groups, &view, "12330", w), Some(anw_group));
+
+        // For Mathematik's Pflichtmodule: its area counts it, no choice does.
+        bench::count_for(&mut doc, &view, w, "12330", Some(&groups.groups[mathe]), "079-82-2008");
+        let (study, view, groups, item) = state(&doc);
+        assert_eq!((item.area, item.exception), (Some(1), true));
+        assert!(view.choices.iter().all(|choice| choice.taken.is_empty()));
+        assert_eq!(view.pflicht.iter().map(|(taken, _)| taken.id.as_str()).collect::<Vec<_>>(), ["12330"]);
+        assert_eq!(bench::counted_in(&groups, &view, "12330", w), Some(mathe));
+        assert_eq!(study.progress[1].planned, 6.0);
+        assert_eq!(PlanDoc::restored(&doc.stored()), doc, "what it counts for is kept");
+
+        // Automatisch: back to its Komplex, no exception.
+        bench::count_for(&mut doc, &view, w, "12330", None, "079-82-2008");
+        let (_, view, _, item) = state(&doc);
+        assert_eq!((item.area, item.exception), (Some(4), false));
+        assert_eq!(view.choices[komplex].taken.iter().map(|taken| taken.id.as_str()).collect::<Vec<_>>(), ["12330"]);
     }
 
     /// „Aus dem 4. FS vorziehen" (owner, 2026-11-05: „das ergibt ja nur sinn für module, die in dem
