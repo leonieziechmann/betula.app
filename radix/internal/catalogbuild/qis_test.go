@@ -197,3 +197,50 @@ func TestBuildKeepsReplacedModulesOutOfThePrerequisites(t *testing.T) {
 	want(t, db, "SELECT prerequisites_mandatory FROM module WHERE id = '11903'",
 		"Keine erfolgreiche Teilnahme am zugehörigen Auslaufmodul *12212 - Digitaltechnik.*")
 }
+
+// Of the modules of a choice one is enough (owner, 2026-11-08, of 12202): „Modul 12102 ODER Modul
+// 11900 UND Modul 12104" is two choices, the first of two modules. A module the catalog does not
+// have leaves its alternative alone, and that one is needed: 12104 „oder 99999".
+func TestBuildReadsTheChoicesOfPrerequisites(t *testing.T) {
+	db, err := catalogdb.Open(filepath.Join(t.TempDir(), "choices.db"))
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	put := func(source, key, body string) {
+		t.Helper()
+		if err := db.PutPage(catalogdb.RawPage{Source: source, Key: key, URL: key, HTTPStatus: 200, Body: []byte(body),
+			FetchedAt: time.Date(2026, 11, 8, 7, 0, 0, 0, time.UTC)}); err != nil {
+			t.Fatalf("PutPage failed: %v", err)
+		}
+	}
+
+	put(catalogdb.SourceQISModuleList, "rows-000000", `<table summary="Suchergebnis">
+		<tr><th>Nr.</th><th>Modultitel</th><th>Sprache</th><th>LP</th><th>FÜS</th><th>Teilnehmerbeschränkung</th></tr>
+		<tr><td>11900</td><td><a href="/rds?pord.pordnr=14000">Programmierpraktikum (IMT)</a></td><td>Deutsch</td><td>6</td><td></td><td></td></tr>
+		<tr><td>12101</td><td><a href="/rds?pord.pordnr=14001">Algorithmieren und Programmieren</a></td><td>Deutsch</td><td>6</td><td></td><td></td></tr>
+		<tr><td>12102</td><td><a href="/rds?pord.pordnr=14002">Programmierpraktikum</a></td><td>Deutsch</td><td>6</td><td></td><td></td></tr>
+		<tr><td>12104</td><td><a href="/rds?pord.pordnr=14003">Entwicklung von Softwaresystemen</a></td><td>Deutsch</td><td>6</td><td></td><td></td></tr>
+		<tr><td>12202</td><td><a href="/rds?pord.pordnr=14004">Softwarepraktikum</a></td><td>Deutsch</td><td>6</td><td></td><td></td></tr>
+		<tr><td>12326</td><td><a href="/rds?pord.pordnr=14005">Praktikum</a></td><td>Deutsch</td><td>6</td><td></td><td></td></tr>
+	</table>`)
+	put(catalogdb.SourceQISModulePage, "12202", qisModulePage("12202", "Softwarepraktikum", "6", "",
+		qisPrerequisiteRows("Kenntnis des Stoffes des Moduls<ul><li>12101: Algorithmieren und Programmieren</li></ul>",
+			`<p>Erfolgreiche Modulprüfung von:</p><ul><li>Modul 12102 <em>Programmierpraktikum</em> <strong>ODER</strong></li>`+
+				`<li>Modul 11900 <em>Programmierpraktikum (IMT)</em></li></ul><p><strong>UND</strong></p>`+
+				`<ul><li>Modul 12104 <em>Entwicklung von Softwaresystemen</em></li></ul>`)))
+	put(catalogdb.SourceQISModulePage, "12326", qisModulePage("12326", "Praktikum", "6", "",
+		qisPrerequisiteRows("keine", "Modul 12104 oder 99999 und Modul 12202")))
+	for _, id := range []string{"11900", "12101", "12102", "12104"} {
+		put(catalogdb.SourceQISModulePage, id, qisModulePage(id, "Modul "+id, "6", ""))
+	}
+
+	if _, err := Build(context.Background(), db); err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+
+	want(t, db, "SELECT module_id, kind, choice, required_module_id FROM v_module_prerequisite ORDER BY 1, 2, 3, 4",
+		"12202|mandatory|1|11900", "12202|mandatory|1|12102", "12202|mandatory|2|12104", "12202|recommended|1|12101",
+		"12326|mandatory|1|12104", "12326|mandatory|2|12202")
+}

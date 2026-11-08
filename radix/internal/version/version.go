@@ -23,4 +23,4 @@
 package version
 
 // Radix is the version of this collector.
-const Radix = "0.10.0"
+const Radix = "0.11.0"

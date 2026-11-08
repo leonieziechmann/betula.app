@@ -9,6 +9,7 @@ package normalize
 
 import (
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -385,6 +386,24 @@ var (
 	lowerCaseStart = regexp.MustCompile(`^\p{Ll}`)
 )
 
+var (
+	// The conjunctions between two modules of a prerequisite text: an „oder" (group 1) or an
+	// „und". „und/oder" ends in „oder".
+	conjunction = regexp.MustCompile(`(?i)(\b(?:oder|or|beziehungsweise|alternativ|alternatively)\b|\bbzw\b\.?)` +
+		`|\b(?:und|and|sowie|as\s+well\s+as|als\s+auch|plus|zusätzlich|additionally|außerdem|ferner|furthermore)\b|;`)
+	// A statement after which one of the modules is enough: „eines der Module", „einem der
+	// folgenden Module", „mindestens eines der Module", "one of the following modules", "at least
+	// one of the modules", "one of the following courses of the modules".
+	oneOf = regexp.MustCompile(`(?i)\b(?:mindestens\s+)?(?:eine[smr]?|eins)\s+der\s+(?:folgenden\s+|nachstehenden\s+|genannten\s+)?(?:module|modulen|lehrveranstaltungen)\b` +
+		`|\b(?:at\s+least\s+)?one\s+of\s+(?:the\s+)?(?:following\s+)?(?:modules|courses)\b`)
+	// What may stand between an „und" and the module it joins: „und Modul", „and module", „sowie
+	// des Moduls".
+	leadToModule = regexp.MustCompile(`(?i)^[\s•:–-]*(?:(?:modul(?:e|s|en)?|modules?|das|des|dem|the|of)\s*)*$`)
+	// What stands within brackets, one level at a time, or within quotes, on one line.
+	bracketed = regexp.MustCompile(`\([^()\n]*\)`)
+	quoted    = regexp.MustCompile(`„[^“”"\n]*[“”"]|“[^”\n]*”|"[^"\n]*"`)
+)
+
 // PrerequisiteIDs returns the module IDs a prerequisite text asks for: ModuleIDs without
 // those the text only names to rule them out („Keine erfolgreiche Teilnahme am zugehörigen
 // Auslaufmodul 12212 - Digitaltechnik.", "No successful participation in module 14478",
@@ -396,6 +415,28 @@ var (
 // than one missing (owner, 2026-10-16: „False positive bei den voraussetzungen ist aber besser
 // als false negative").
 func PrerequisiteIDs(text string) []string {
+	var ids []string
+	seen := make(map[string]bool)
+	for _, t := range prerequisiteTokens(text) {
+		if t.kept && !seen[t.id] {
+			seen[t.id] = true
+			ids = append(ids, t.id)
+		}
+	}
+	return ids
+}
+
+// idToken is a module number of a prerequisite text, where it stands, and whether the text asks
+// for it (kept) or only names it to rule it out.
+type idToken struct {
+	id       string
+	from, to int
+	kept     bool
+}
+
+// prerequisiteTokens are the module numbers of a prerequisite text in order, each with whether
+// PrerequisiteIDs keeps it.
+func prerequisiteTokens(text string) []idToken {
 	type span struct{ from, to int }
 	var excluded []span
 	exclude := func(from, to int) {
@@ -410,26 +451,241 @@ func PrerequisiteIDs(text string) []string {
 		exclude(sentenceStart(text, m[0]), statementEnd(text, m[1]))
 	}
 
-	var ids []string
-	seen := make(map[string]bool)
+	var tokens []idToken
 	for _, m := range moduleIDToken.FindAllStringIndex(text, -1) {
-		id := text[m[0]:m[1]]
-		if seen[id] {
-			continue
-		}
-		ruledOut := false
+		kept := true
 		for _, s := range excluded {
 			if m[0] >= s.from && m[0] < s.to {
-				ruledOut = true
+				kept = false
 				break
 			}
 		}
-		if !ruledOut {
-			seen[id] = true
-			ids = append(ids, id)
+		tokens = append(tokens, idToken{id: text[m[0]:m[1]], from: m[0], to: m[1], kept: kept})
+	}
+	return tokens
+}
+
+// PrerequisiteChoices returns the modules of PrerequisiteIDs as choices: of the modules of one
+// choice one is enough, and every choice is needed. „Erfolgreiche Modulprüfung von: Modul 12102
+// Programmierpraktikum ODER Modul 11900 Programmierpraktikum (IMT) UND Modul 12104 Entwicklung
+// von Softwaresystemen" (12202) is [[12102 11900] [12104]]; most texts name no alternatives,
+// and each of their modules is a choice of its own.
+//
+// Two modules are alternatives where the text says so (joint has the details):
+//   - an „oder", "or", „bzw." or „alternativ" is the last conjunction between them and joins the
+//     two modules themselves („12102 Programmierpraktikum ODER" above „• Modul 11900", „25102 …
+//     ODER 25201"); a conjunction within brackets or quotes is part of a title („Gebäudekunde und
+//     Entwerfen (GK1-B)", „(Regional or International Scale)") and counts for nothing;
+//   - such a word on a line of its own or at the start of one („ODER" between two paragraphs,
+//     „bzw. des Moduls:"), when it stands between two single modules. Between two lists it
+//     opposes the lists, not their nearest modules („11103 Analysis I … 11217
+//     Wahrscheinlichkeitstheorie or very good knowledge of the content of the modules 11113 …",
+//     12826), and so it does between pairs („12894 … and 12895 … or 11494 … and 11747", 13297):
+//     no choice of single modules says that;
+//   - the statement says that one of them is enough: „eines der Module", „einem der folgenden
+//     Module", "at least one of the following modules".
+//
+// A module that would be an alternative in one place and needed on its own or among other
+// alternatives in another makes every module of those choices one of its own: a prerequisite too
+// many is better than one missing (owner, 2026-10-16), and a text that says the same twice, in
+// German and in English, says it once.
+func PrerequisiteChoices(text string) [][]string {
+	tokens := prerequisiteTokens(text)
+	n := len(tokens)
+	if n == 0 {
+		return nil
+	}
+	masked := maskTitles(text)
+
+	joints := make([]joint, n-1)
+	for i := 0; i+1 < n; i++ {
+		joints[i] = conjunctionBetween(masked, tokens[i].to, tokens[i+1].from)
+	}
+	// Blocks: the runs of modules that a conjunction on a line of its own does not divide.
+	block := make([]int, n)
+	size := map[int]int{0: 1}
+	for i := 1; i < n; i++ {
+		block[i] = block[i-1]
+		if joints[i-1].block {
+			block[i]++
+		}
+		size[block[i]]++
+	}
+
+	parent := make([]int, n)
+	for i := range parent {
+		parent[i] = i
+	}
+	var find func(int) int
+	find = func(i int) int {
+		for parent[i] != i {
+			parent[i] = parent[parent[i]]
+			i = parent[i]
+		}
+		return i
+	}
+	link := func(a, b int) {
+		if tokens[a].kept && tokens[b].kept {
+			parent[find(b)] = find(a)
 		}
 	}
-	return ids
+	tightAnd := func(i int) bool { return i >= 0 && i < len(joints) && joints[i].and }
+	for i, j := range joints {
+		switch {
+		case !j.or:
+		case j.block:
+			if size[block[i]] == 1 && size[block[i+1]] == 1 {
+				link(i, i+1)
+			}
+		// „12894 Regelungstechnik 1 and 12895 Regelungstechnik 2 or 11494 Control Engineering 1
+		// and 11747 Control Engineering 2" (13297) opposes the pairs; which binds closer, a text
+		// does not say.
+		case !tightAnd(i-1) && !tightAnd(i+1):
+			link(i, i+1)
+		}
+	}
+	for _, m := range oneOf.FindAllStringIndex(text, -1) {
+		end := statementEnd(text, m[1])
+		first := -1
+		for i, t := range tokens {
+			if !t.kept || t.from < m[1] || t.from >= end {
+				continue
+			}
+			if first < 0 {
+				first = i
+			} else {
+				link(first, i)
+			}
+		}
+	}
+
+	// The choices, each once, in the order the text names them.
+	var choices [][]string
+	index := make(map[int]int)
+	for i, t := range tokens {
+		if !t.kept {
+			continue
+		}
+		root := find(i)
+		c, ok := index[root]
+		if !ok {
+			c = len(choices)
+			index[root] = c
+			choices = append(choices, nil)
+		}
+		if !slices.Contains(choices[c], t.id) {
+			choices[c] = append(choices[c], t.id)
+		}
+	}
+	key := func(choice []string) string {
+		return strings.Join(slices.Sorted(slices.Values(choice)), " ")
+	}
+	var distinct [][]string
+	seen := make(map[string]bool)
+	for _, c := range choices {
+		if k := key(c); !seen[k] {
+			seen[k] = true
+			distinct = append(distinct, c)
+		}
+	}
+	in := make(map[string]int)
+	for _, c := range distinct {
+		for _, id := range c {
+			in[id]++
+		}
+	}
+	var out [][]string
+	alone := make(map[string]bool)
+	for _, c := range distinct {
+		split := len(c) == 1
+		for _, id := range c {
+			split = split || in[id] > 1
+		}
+		if !split {
+			out = append(out, c)
+			continue
+		}
+		for _, id := range c {
+			if !alone[id] {
+				alone[id] = true
+				out = append(out, []string{id})
+			}
+		}
+	}
+	return out
+}
+
+// joint is how a prerequisite text joins two modules it names one after the other, by the last
+// conjunction between them.
+type joint struct {
+	// An „oder" that joins the two modules themselves: it ends the line of the first, with the
+	// second on the next line („12102 Programmierpraktikum ODER" above „• Modul 11900"), or the
+	// second follows it on its line with no comma or full stop between („25102 … ODER 25201").
+	// Not one that goes on with something else („Regelungstechnik 1 (Modul 12894) oder
+	// Grundlagen der Regelungstechnik oder vergleichbare Module", 12895; „sollten vorher oder
+	// zeitlich parallel belegt werden. Ein Abschluss ist aber für die Anmeldung zu Modul 23506
+	// nicht erforderlich").
+	or bool
+	// An „und" between two modules of one line, right before the second („12894 Regelungstechnik
+	// 1 and 12895").
+	and bool
+	// The conjunction stands on a line of its own or at the start of one, with the second module
+	// on a later line („ODER" between two paragraphs, „bzw. des Moduls:" above „• 12156"). One
+	// that the second module follows on its line goes on with the line before („11217:
+	// Wahrscheinlichkeitstheorie" above „or 11917: Mathematik W-3 (Statistik)").
+	block bool
+}
+
+// conjunctionBetween reads the last conjunction of masked[from:to], the text between two module
+// numbers with the titles masked.
+func conjunctionBetween(masked string, from, to int) (j joint) {
+	all := conjunction.FindAllStringSubmatchIndex(masked[from:to], -1)
+	if len(all) == 0 {
+		return j
+	}
+	last := all[len(all)-1]
+	at, end := from+last[0], from+last[1]
+	rest := masked[end:to]
+	line, after, broken := strings.Cut(rest, "\n")
+	lineStart := strings.LastIndexByte(masked[:at], '\n') + 1
+	j.block = broken && lineStart > from && lineLead.FindString(masked[lineStart:at]) == masked[lineStart:at]
+	switch {
+	case last[2] < 0:
+		j.and = !strings.Contains(masked[from:to], "\n") && leadToModule.MatchString(rest)
+	case j.block:
+		j.or = true
+	case broken:
+		j.or = strings.Trim(line, " \t.,:;!?") == "" && !strings.Contains(after, "\n")
+	default:
+		j.or = !strings.ContainsAny(rest, ",;") && !statementStop.MatchString(rest)
+	}
+	return j
+}
+
+// maskTitles blanks what stands within brackets or quotes, the titles of modules and their
+// short names, keeping every position and line break: „Bau- und Stadtbaugeschichte 1 (GT1-B)".
+func maskTitles(text string) string {
+	b := []byte(text)
+	blank := func(loc []int) {
+		for k := loc[0]; k < loc[1]; k++ {
+			if b[k] != '\n' {
+				b[k] = ' '
+			}
+		}
+	}
+	for {
+		locs := bracketed.FindAllIndex(b, -1)
+		if len(locs) == 0 {
+			break
+		}
+		for _, loc := range locs {
+			blank(loc)
+		}
+	}
+	for _, loc := range quoted.FindAllIndex(b, -1) {
+		blank(loc)
+	}
+	return string(b)
 }
 
 // statementEnd is where the statement that runs through i ends: at a statementStop, or at the

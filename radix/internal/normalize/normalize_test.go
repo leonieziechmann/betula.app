@@ -347,3 +347,77 @@ func TestPrerequisiteIDs(t *testing.T) {
 		}
 	}
 }
+
+// The texts are those of the catalog (betula.app, 2026-11-08), as the parser reads them.
+func TestPrerequisiteChoices(t *testing.T) {
+	cases := []struct {
+		module, text string
+		want         [][]string
+	}{
+		// What the owner found (2026-11-08): 12202 asks for one of the two Programmierpraktika and for
+		// 12104, not for all three.
+		{"12202", "Erfolgreiche Modulprüfung von:\n• Modul 12102 Programmierpraktikum ODER\n• Modul 11900 Programmierpraktikum (IMT)\nUND\n• Modul 12104 Entwicklung von Softwaresystemen",
+			[][]string{{"12102", "11900"}, {"12104"}}},
+		{"13616", "Erfolgreicher Abschluss der Module:\n• 11572 - Baustoffe und Tragwerke: Struktur und Material des Bauens oder\n• 13612 - Baustoffe und Tragwerke\nund\n" +
+			"• 11573 - Bau- und Tragkonstruktion: Struktur des Gebäudes und der Gebäudehülle oder\n• 13614 - Bau- und Tragkonstruktion\nund\n" +
+			"• 11574 - Baukonstruktion und Bauphysik: Eigenschaften der Gebäudehülle oder\n• 13613 - Baukonstruktion und Bauphysik",
+			[][]string{{"11572", "13612"}, {"11573", "13614"}, {"11574", "13613"}}},
+		// An „und" within a title, in brackets or not, joins nothing.
+		{"13627", "erfolgreicher Abschluss folgender Module:\n• 13633 - Gebäudekunde und Entwerfen (GK1-B)\n• 25102 - Bau- und Stadtbaugeschichte 1 (GT1-B) ODER 25201 - Bau- und Stadtbaugeschichte 2 (GT2-B)\n• 13621 - Plastisches Gestalten, Grundlagen (K2-B)",
+			[][]string{{"13633"}, {"25102", "25201"}, {"13621"}}},
+		{"14212", "• Modul 11827 (Einführung in die Laborarbeit)\n• Modul 12287 (Organische Chemie I) ODER Modul 12725 (Organische Chemie)",
+			[][]string{{"11827"}, {"12287", "12725"}}},
+		{"14185", "• 12287 - Organische Chemie I\nODER\n• 12725 - Organische Chemie", [][]string{{"12287", "12725"}}},
+		{"24301", "erfolgreicher Abschluss des Moduls 24101 Städtebau 1 (Grundlagen) Landschaftsplanung 1 (Grundlagen)\noder\nerfolgreicher Abschluss des Moduls 11555 Grundlagen des Städtebaus",
+			[][]string{{"24101", "11555"}}},
+		{"41313", "Erfolgreicher Abschluss des Moduls\n• 41207 Privatrecht I\nbzw. des Moduls:\n• 12156 Privatrecht I", [][]string{{"41207", "12156"}}},
+		{"33436", "• erfolgreicher Abschluss des Moduls 13206 Hochfrequenztechnik 1 (nicht mehr im Angebot ab SS 2011)\noder\n• erfolgreicher Abschluss des Moduls 33328 Grundlagen der Hochfrequenztechnik",
+			[][]string{{"13206", "33328"}}},
+		{"11454", "Kenntnis des Stoffes von Modul:\n• 12101: Algorithmieren und Programmieren\nalternativ für Nicht-IT-Studiengänge:\n• 12105: Einführung in die Programmierung",
+			[][]string{{"12101", "12105"}}},
+		{"11214", "Kenntnis des Stoffes der Module\n• 11101: Lineare Algebra und analytische Geometrie I\n• 11118: Programmierkurs (Mathematik)\n• oder 11121: Programmierkurs (Wirtschaftsmathematik)",
+			[][]string{{"11101"}, {"11118", "11121"}}},
+		{"42438", "Module 12187 \"Ökologie und Management von Gewässern\" und/oder 12744 \"Gewässerschutz\" oder vergleichbare Kenntnisse.", [][]string{{"12187", "12744"}}},
+		{"23444", "Teilnahme am Modul 23302 bzw. 12688 - Geschichte ist erforderlich!", [][]string{{"23302", "12688"}}},
+		// „eines der Module": one of the list is enough.
+		{"11170", "Vorheriger erfolgreicher Abschluss eines der Module:\n• 22401 „Baukonstruktion“ (BT A1)\n• 22403 „Tragwerkslehre“ (BT A2)\n• 22404 „Gebäudetechnik“ (BT A3)\n• 22405 „Baustoffe/Bauphysik/Bautenschutz“ (BT A4)",
+			[][]string{{"22401", "22403", "22404", "22405"}}},
+		{"13927", "Students have knowledge of at least one of the following modules\n• 13922 Introduction to Transformation Studies\n• 13932 Transformation Theories",
+			[][]string{{"13922", "13932"}}},
+		// A list without a conjunction asks for all of it.
+		{"12326", "erfolgreicher Abschluss der Module\n• 12201 Hardwarepraktikum\n• 12202 Softwarepraktikum", [][]string{{"12201"}, {"12202"}}},
+		{"41302", "Erfolgreicher Abschluss der Module 41207 Privatrecht I und 41213 Privatrecht II", [][]string{{"41207"}, {"41213"}}},
+		// An „oder" that goes on with something other than the next module.
+		{"12895", "• Kenntnisse aus Regelungstechnik 1 (Modul 12894) oder Grundlagen der Regelungstechnik oder vergleichbare Module\n• 11108 Höhere Mathematik - T2",
+			[][]string{{"12894"}, {"11108"}}},
+		{"23506", "Die Module 35453 (MM5), 35321 (HI6), 23401 (HI8.1) sollten vorher oder zeitlich parallel belegt werden. Ein Abschluss ist aber für die Anmeldung zu Modul 23506 nicht erforderlich.",
+			[][]string{{"35453"}, {"35321"}, {"23401"}, {"23506"}}},
+		// An „oder" between two lists, or between pairs, opposes them: no choice of single modules
+		// says that, so every module is needed.
+		{"11202", "Kenntnis des Stoffes der Module\n• 11103: Analysis I und\n• 11101: Lineare Algebra und analytische Geometrie I\noder gute Kenntnis des Stoffes der Module\n" +
+			"• 11213: Mathematik IT-3 (Analysis) und\n• 11113: Mathematik IT-2 (Lineare Algebra)",
+			[][]string{{"11103"}, {"11101"}, {"11213"}, {"11113"}}},
+		{"13297", "Strongly recommended:\n• 12894 Regelungstechnik 1 and 12895 Regelungstechnik 2 or\n• 11494 Control Engineering 1 and 11747 Control Engineering 2",
+			[][]string{{"12894"}, {"12895"}, {"11494"}, {"11747"}}},
+		// What a text rules out is no alternative.
+		{"", "Erfolgreicher Abschluss von Modul 11111 oder 22222. Keine erfolgreiche Teilnahme am Auslaufmodul 33333.", [][]string{{"11111", "22222"}}},
+		// The same said twice is said once; a module alone and among alternatives is needed alone,
+		// and so is every module of its choice.
+		{"", "Modul 11111 oder 22222 / Module 11111 or 22222", [][]string{{"11111", "22222"}}},
+		{"", "Modul 11111 und Modul 33333\n• 11111 oder\n• 22222", [][]string{{"11111"}, {"33333"}, {"22222"}}},
+		{"", "-", nil},
+	}
+	for _, c := range cases {
+		got := PrerequisiteChoices(c.text)
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s: PrerequisiteChoices(%q) = %v, want %v", c.module, c.text, got, c.want)
+		}
+		var flat []string
+		for _, choice := range got {
+			flat = append(flat, choice...)
+		}
+		if ids := PrerequisiteIDs(c.text); !reflect.DeepEqual(flat, ids) {
+			t.Errorf("%s: the choices %v name other modules than PrerequisiteIDs, %v", c.module, got, ids)
+		}
+	}
+}

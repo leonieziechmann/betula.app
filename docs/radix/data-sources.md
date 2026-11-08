@@ -232,7 +232,7 @@ Program, degree, PO version, regulation documents.
 | Code path | `parser/detail.go:207-211`, `normalizePrereqText` turns „keine", „none", „entfällt" … into `'-'`. Module IDs are extracted later, by consumers, by scanning for 5-digit numbers. |
 | Freshness | As S2. |
 | Conflicts | Single source. 644 modules have mandatory text (485 with a 5-digit number), 2,527 have recommended text (1,199 with a number). `'-'` is a sentinel. |
-| Authority | **S2.** Text kept for display, NULL instead of `'-'`. Referenced modules are extracted **once in Go** into `module_prerequisite(module_id, required_module_id, kind)`, only for numbers that are existing module IDs; the rest stays text. Since 2026-10-16 a number the text only names to rule it out („Keine erfolgreiche Teilnahme am zugehörigen Auslaufmodul 12212") is none, and neither is a module the module replaces (§15). |
+| Authority | **S2.** Text kept for display, NULL instead of `'-'`. Referenced modules are extracted **once in Go** into `module_prerequisite(module_id, required_module_id, kind, choice)`, only for numbers that are existing module IDs; the rest stays text. Since 2026-10-16 a number the text only names to rule it out („Keine erfolgreiche Teilnahme am zugehörigen Auslaufmodul 12212") is none, and neither is a module the module replaces (§15). Since 2026-11-08 the modules a text names as alternatives („Modul 12102 ODER Modul 11900") share a `choice`, of which one is enough (§16). |
 | Provenance | Single-source; the link rows are derived and rebuilt on each fetch of the module. |
 
 ### 5.12 Successor modules, phase-out, "not offered"
@@ -905,3 +905,54 @@ after compared text by text; and the copies on b-tu.de of 11903 and 12212, two r
 Radix's user agent. `TestPrerequisiteIDs` (normalize) holds texts of the catalog of both kinds,
 `TestBuildKeepsReplacedModulesOutOfThePrerequisites` (catalogbuild) the chain 12103 → 12212 →
 11903.
+
+## 16. Of the modules of a choice one is enough (2026-11-08)
+
+The owner, of 12202 Softwarepraktikum: „Und das ist so ein Quatsch in der Modulbeschreibung. Meinst
+du das kann man auch parsen? Ansonsten vielleicht auch checken ob Modul überhaupt belegt werden
+kann." Its „Zwingende Voraussetzungen" read „Erfolgreiche Modulprüfung von: Modul 12102
+Programmierpraktikum **ODER** Modul 11900 Programmierpraktikum (IMT) **UND** Modul 12104
+Entwicklung von Softwaresystemen". `module_prerequisite` had three mandatory rows for it, and every
+reader took them as three modules that are all needed: the module page listed them side by side,
+„Mein Studium" warned of each that was not planned, and the filter „Voraussetzungen erfüllt" never
+showed 12202 to anyone, as nobody passes both Programmierpraktika. 11900 is not offered any more,
+so by what Betula said the module could not be taken at all.
+
+`normalize.PrerequisiteChoices` reads the choices of a text: of the modules of one choice one is
+enough, and every choice is needed (12202: [[12102 11900] [12104]]). It joins two modules where
+the text says so, and only there:
+
+- an „oder", "or", „bzw." or „alternativ" that is the last conjunction between them and joins the
+  two modules themselves: it ends the line of the first with the second on the next line, or the
+  second follows it on its line with no comma or full stop between. A conjunction within brackets
+  or quotes is part of a title („Gebäudekunde und Entwerfen (GK1-B)") and counts for nothing; one
+  that goes on with something else joins nothing („Regelungstechnik 1 (Modul 12894) oder
+  Grundlagen der Regelungstechnik oder vergleichbare Module", 12895; „sollten vorher oder zeitlich
+  parallel belegt werden", 23506);
+- such a word on a line of its own or at the start of one, when it stands between two single
+  modules („ODER" between two paragraphs, „bzw. des Moduls:"). Between two lists („11103 Analysis I
+  … 11217 Wahrscheinlichkeitstheorie or very good knowledge of the content of the modules 11113
+  …", 12826) or between pairs („12894 … and 12895 … or 11494 … and 11747", 13297) it opposes the
+  lists, which no choice of single modules can say; every module of them stays needed;
+- „eines der Module", „einem der folgenden Module", "at least one of the following modules": the
+  modules of that statement.
+
+Where a text is unclear, a module stays a choice of its own, needed as before: a module that
+would be an alternative in one place and needed alone or among other alternatives in another makes
+every module of those choices one of its own, as a prerequisite too many is better than one missing
+(§15). `writeModuleLinks` keeps of a choice the modules §15 keeps; one left alone is needed (12104
+„oder 99999", a number the catalog does not have, asks for 12104). The choices are numbered 1, 2,
+… per module and kind in the order the text names them (migration 0018).
+
+**How many.** The snapshot of betula.app on 2026-11-08 (built 02:35 UTC by Radix 0.10.0) has 648
+mandatory texts and 2,537 recommended ones. Read as Radix reads them, 17 mandatory texts name 19
+choices of more than one module (43 modules), and 87 recommended texts 95 (202 modules); every
+other text is as before. The mandatory ones: 11170 and 22425 („eines der Module"), 11603, 12202,
+13374, 13614, 13616 (three pairs), 13627, 14021, 14185, 14212, 23205 („je nach PO … oder"), 24301,
+33327, 33436, 33437 and 41313 („bzw. des Moduls").
+
+**Checked** on 2026-11-08 with that snapshot (`/api/db`): every prerequisite text, turned back
+from its Markdown into the plain text Radix reads, and every choice of more than one module read
+by hand against its text, mandatory and recommended. `TestPrerequisiteChoices` (normalize) holds
+texts of the catalog of both kinds, the unclear ones among them, and
+`TestBuildReadsTheChoicesOfPrerequisites` (catalogbuild) 12202 as QIS renders it.
