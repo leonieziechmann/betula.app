@@ -118,7 +118,7 @@
 
 services:
   traefik:
-    image: traefik:v3.7.13
+    image: traefik:v3.7.17
     # The certificate store is a function of the CA, so /acme/acme.json only ever holds production
     # certificates. Traefik keeps its stored certificates when caServer changes (only the account is reset):
     # staging certificates in the production store would be served until renewal, and on .app no browser lets
@@ -305,7 +305,7 @@ services:
   socket-proxy:
     # Traefik never touches /var/run/docker.sock. This proxy forwards only the listed read requests;
     # everything else, and every method other than GET/HEAD, is answered with 403/405.
-    image: wollomatic/socket-proxy:1.13.1
+    image: wollomatic/socket-proxy:1.13.2
     # The image runs as nobody, who cannot open the socket (root:docker 0660), and the docker gid differs from
     # host to host. uid 0 owns the socket; with every capability dropped that is all it is good for here.
     user: "${SOCKET_PROXY_USER:-0:0}"

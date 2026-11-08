@@ -94,7 +94,7 @@ x-placement: &placement
 
 services:
   grafana:
-    image: grafana/grafana:13.2.2
+    image: grafana/grafana:13.2.5
     environment:
       GF_SERVER_DOMAIN: ${GRAFANA_HOST:-grafana.betula.app}
       GF_SERVER_ROOT_URL: https://${GRAFANA_HOST:-grafana.betula.app}/
@@ -168,7 +168,7 @@ services:
           memory: 768M
 
   loki:
-    image: grafana/loki:3.7.8
+    image: grafana/loki:3.7.9
     command:
       - -config.file=/etc/loki/loki.yml
     environment:
@@ -204,7 +204,7 @@ services:
           memory: 288M
 
   prometheus:
-    image: prom/prometheus:v3.13.3
+    image: prom/prometheus:v3.13.5
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -319,7 +319,7 @@ services:
     # write-ahead log and answers no query: in agent mode the query API is off, and neither the
     # remote-write receiver, the admin API nor --web.enable-lifecycle is on. What reaches it from
     # the scraped networks finds its status pages and nothing else.
-    image: prom/prometheus:v3.13.3
+    image: prom/prometheus:v3.13.5
     command:
       - --agent
       - --config.file=/etc/prometheus/prometheus.yml
