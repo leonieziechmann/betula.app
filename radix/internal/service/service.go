@@ -189,19 +189,21 @@ func (s *Service) Run(ctx context.Context) error {
 	}
 }
 
-// RunCycle runs one cycle: crawl what is due, apply retention, build, and if the content changed
-// validate and export; then, unless the cycle failed, compute the semantic search's missing
-// vectors (semantic.go), which the next build publishes.
+// RunCycle runs one cycle: crawl what is due, apply retention, build, and if the published
+// snapshot does not hold the built content yet, validate and export; then, unless the cycle
+// failed, compute the semantic search's missing vectors (semantic.go), which the next build
+// publishes.
 //
 // Log events: cycle.started, stage.failed (ERROR), stage.interrupted (the process is stopping),
-// cycle.finished (ERROR when the result is "failed", WARN when "degraded", INFO when "ok" or
-// "interrupted"), cycle.panic (ERROR).
+// export.behind (an earlier cycle built the content but did not publish it), cycle.finished
+// (ERROR when the result is "failed", WARN when "degraded", INFO when "ok" or "interrupted"),
+// cycle.panic (ERROR).
 func (s *Service) RunCycle(ctx context.Context) CycleResult {
 	return s.cycle(ctx, true)
 }
 
 // Rebuild is a cycle without the crawl: it derives the catalog from the archive as it is
-// and publishes it if the content changed. It sends nothing to the university.
+// and publishes it if the published snapshot does not hold it. It sends nothing to the university.
 //
 // Log events: service.rebuild, then those of RunCycle.
 func (s *Service) Rebuild(ctx context.Context) CycleResult {
@@ -389,10 +391,18 @@ func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResul
 		}
 	}()
 
-	_, pointerErr := catalogdb.ReadSnapshotPointer(s.cfg.SnapshotDir)
-	if !report.ContentChanged && pointerErr == nil {
+	// What the published snapshot holds decides, not what the last build held: the build stores
+	// its digest whether or not its content goes out, so the next build finds content a cycle built
+	// but did not publish (validation or export failed, a deploy stopped the export) unchanged. It
+	// is published all the same, because the snapshot does not hold it yet.
+	published, _ := catalogdb.PublishedDigest(s.cfg.SnapshotDir)
+	if published == report.ContentDigest {
 		result.Stages = append(result.Stages, StageResult{Name: "export", Skipped: "content unchanged"})
 		return result
+	}
+	if published != "" && !report.ContentChanged {
+		log.Info("the published snapshot is behind the catalog; exporting what an earlier cycle built",
+			"event", "export.behind", "published_digest", short(published), "content_digest", short(report.ContentDigest))
 	}
 
 	ok := step("validate", func() error {
@@ -410,6 +420,14 @@ func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResul
 	}
 	result.Published = step("export", func() error { _, err := s.db.Export(ctx, s.cfg.SnapshotDir); return err })
 	return result
+}
+
+// short is the beginning of a digest, as the build logs it.
+func short(digest string) string {
+	if len(digest) > 16 {
+		return digest[:16]
+	}
+	return digest
 }
 
 func (s *Service) record(r CycleResult) {

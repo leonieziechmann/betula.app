@@ -272,8 +272,12 @@ func TestANewReleaseRebuildsFromTheArchiveWithoutCrawling(t *testing.T) {
 		t.Fatal("the catalog this binary built counts as built by another release")
 	}
 
-	// The release before: another binary, whose rules made other content of the same pages.
+	// The release before: another binary, whose rules made other content of the same pages, and
+	// published it.
 	if _, err := svc.db.SQL().Exec(`UPDATE meta SET value = 'other' WHERE key IN ('radix_build', 'content_digest')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.db.Export(ctx, svc.cfg.SnapshotDir); err != nil {
 		t.Fatal(err)
 	}
 	if !svc.BuiltByOtherRelease() {
@@ -569,15 +573,111 @@ func TestAShutdownMidCycleIsNoError(t *testing.T) {
 				t.Errorf("a stop is no failure: %+v", st)
 			}
 
-			// An interrupted build committed nothing: the next cycle builds and publishes. (After an
-			// interrupted export, as after a failed one, the build has stored the new content's digest,
-			// and the next cycle skips the export until the content changes again.)
-			if c.stage == "build" {
-				if r := svc.RunCycle(context.Background()); r.Result != "ok" || !r.Published {
-					t.Errorf("the cycle after the stop = %+v", r)
-				}
+			// The next cycle publishes the new content: an interrupted build committed nothing, and
+			// after an interrupted export the snapshot is behind the catalog, though the build that
+			// stopped stored the new content's digest and the next build finds the content unchanged.
+			if r := svc.RunCycle(context.Background()); r.Result != "ok" || !r.Published {
+				t.Errorf("the cycle after the stop = %+v", r)
+			}
+			assertPublished(t, svc)
+		})
+	}
+}
+
+// The build stores the digest of what it built whether or not that is published. When the
+// validation or the export fails (an interrupted export: TestAShutdownMidCycleIsNoError), the next
+// build finds the content unchanged; the cycle still publishes it, because the snapshot does not
+// hold it yet, instead of waiting until the data changes again.
+func TestWhatWasBuiltButNotPublishedGoesOutWithTheNextCycle(t *testing.T) {
+	for _, c := range []struct {
+		name, stage string
+		breakIt     func(svc *Service) (repair func())
+	}{
+		{"export failed", "export", func(svc *Service) func() {
+			// The pointer cannot be written: a directory stands where its temporary file goes.
+			blocker := filepath.Join(svc.cfg.SnapshotDir, catalogdb.SnapshotPointer+".tmp")
+			if err := os.Mkdir(blocker, 0755); err != nil {
+				t.Fatal(err)
+			}
+			return func() { _ = os.Remove(blocker) }
+		}},
+		{"validation failed", "validate", func(svc *Service) func() {
+			svc.cfg.Baselines = []catalogdb.Baseline{{Name: "modules", Query: "SELECT COUNT(*) FROM module", Min: 4800}}
+			return func() { svc.cfg.Baselines = nil }
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			site := newFakeBTU(t)
+			svc, cfg := newTestService(t, site)
+			ctx := context.Background()
+			if r := svc.RunCycle(ctx); !r.Published {
+				t.Fatalf("setup cycle = %+v", r)
+			}
+			before, _ := catalogdb.ReadSnapshotPointer(cfg.SnapshotDir)
+
+			site.mu.Lock()
+			site.credits = "9" // new content
+			site.mu.Unlock()
+			repair := c.breakIt(svc)
+			if r := svc.RunCycle(ctx); r.Result != "failed" || r.Published || stage(r, c.stage).Error == "" {
+				t.Fatalf("cycle that fails at %s = %+v", c.stage, r)
+			}
+			if after, _ := catalogdb.ReadSnapshotPointer(cfg.SnapshotDir); after == nil || after.ETag != before.ETag {
+				t.Errorf("the previous snapshot must stay: %+v → %+v", before, after)
+			}
+
+			// Still broken, nothing new: the cycle tries again, and fails again, instead of finding
+			// nothing to do and hiding that the new content is not out.
+			r := svc.RunCycle(ctx)
+			if stage(r, "build").Error != "" || r.Result != "failed" || r.Published || stage(r, c.stage).Error == "" {
+				t.Fatalf("second cycle that fails at %s = %+v", c.stage, r)
+			}
+
+			repair()
+			logged := captureLog(t, nil)
+			r = svc.RunCycle(ctx)
+			if r.Result != "ok" || !r.Published || stage(r, "export").Skipped != "" {
+				t.Fatalf("the cycle after the repair = %+v", r)
+			}
+			assertPublished(t, svc)
+			behind := false
+			for _, rec := range logged() {
+				behind = behind || rec.attrs["event"] == "export.behind"
+			}
+			if !behind {
+				t.Error("no export.behind in the log")
+			}
+
+			// And then nothing more to publish.
+			if r := svc.RunCycle(ctx); r.Result != "ok" || r.Published || stage(r, "export").Skipped != "content unchanged" {
+				t.Errorf("the cycle after that = %+v", r)
 			}
 		})
+	}
+}
+
+// assertPublished checks that the published snapshot holds what the catalog holds: the digest of
+// the last build, and the new credits of module 11101 (9).
+func assertPublished(t *testing.T, svc *Service) {
+	t.Helper()
+	published, err := catalogdb.PublishedDigest(svc.cfg.SnapshotDir)
+	if err != nil {
+		t.Fatalf("no published digest: %v", err)
+	}
+	if built := column(t, svc.db, "SELECT value FROM meta WHERE key = 'content_digest'"); published != built {
+		t.Errorf("published digest %.16s, the catalog's %.16s", published, built)
+	}
+	snap, err := catalogdb.ReadSnapshotPointer(svc.cfg.SnapshotDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := catalogdb.OpenReadOnly(filepath.Join(svc.cfg.SnapshotDir, snap.File))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if got := column(t, db, "SELECT credits FROM module WHERE id = '11101'"); got != "9" {
+		t.Errorf("the snapshot's credits of 11101 = %s, want the new 9", got)
 	}
 }
 
