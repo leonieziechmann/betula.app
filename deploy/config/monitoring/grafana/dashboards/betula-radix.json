@@ -4052,8 +4052,8 @@
         "kind": "Panel",
         "spec": {
           "id": 40,
-          "title": "Failed or skipped stages",
-          "description": "failed: the stage logged stage.failed (ERROR). skipped: a bulk stage outside the off-peak window, or the export when the content did not change - both normal.",
+          "title": "Failed, skipped or interrupted stages",
+          "description": "failed: the stage logged stage.failed (ERROR). skipped: a bulk stage outside the off-peak window, or the export when the content did not change. interrupted: the process stopped while the stage ran (a deploy). Skipped and interrupted are normal.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -4139,6 +4139,21 @@
                         "id": "color",
                         "value": {
                           "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": ".* interrupted$"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "text",
                           "mode": "fixed"
                         }
                       }
