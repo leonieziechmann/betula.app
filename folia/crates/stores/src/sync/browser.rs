@@ -374,18 +374,69 @@ pub async fn pair(profile: u16, name: String) -> Result<super::Pairing, Problem>
     Ok(super::Pairing { link: format!("{origin}{}#{}", folia_routes::url::CONNECT, b64(&[&id[..], &link_key[..]].concat())), until: now() + 10 * 60 * 1000 })
 }
 
+/// A question for a profile of another device, from a device that shows it as a QR code
+/// (`/pair`, „Mit dem Handy verbinden"): the parcel's id and the key that opens it, both chosen
+/// here, as the part of a link after `#`. Nothing reaches Phloem until the other device answers.
+pub fn ask() -> Option<String> {
+    let id = random::<16>()?;
+    let link_key = random::<32>()?;
+    Some(b64(&[&id[..], &link_key[..]].concat()))
+}
+
+/// The answer to `ask`: the profile `profile` of this device, sealed with the key of the question
+/// and left under its id, as `pair` leaves it for a link of its own.
+pub async fn give(profile: u16, name: String, fragment: &str) -> Result<(), Problem> {
+    let bytes = unb64(fragment.trim_start_matches('#')).filter(|b| b.len() == 48).ok_or(Problem::BadLink)?;
+    let (id, link_key) = bytes.split_at(16);
+    let key = key_of_profile(profile).ok_or(Problem::Unsupported)?;
+    let keys = derive(&key).await.map_err(|_| Problem::Unsupported)?;
+    let contents = wire::Contents { v: 1, profiles: vec![wire::Shared { key: b64(&key), name }] };
+    let plain = serde_json::to_vec(&contents).map_err(|_| Problem::Unsupported)?;
+    let sealed = seal(&aes_key(link_key).await.map_err(|_| Problem::Unsupported)?, b"pair", &plain).await.map_err(|_| Problem::Unsupported)?;
+    let body = serde_json::to_string(&wire::Parcel { id: b64(id), sealed: b64(&sealed) }).map_err(|_| Problem::Unsupported)?;
+    let (status, text) = call("POST", "pair", &auth(&keys), Some(body)).await?;
+    match status {
+        201 => Ok(()),
+        // The question was answered already (by this device or another).
+        409 => Err(Problem::BadLink),
+        _ => Err(problem_of(status, &text)),
+    }
+}
+
+/// Whether the other device has answered the question `fragment` of `ask` yet: its profiles once
+/// it has, none while it has not; a question answered and opened elsewhere, or expired, opens
+/// nothing.
+pub async fn collect(fragment: &str) -> Result<Option<Vec<([u8; KEY], String)>>, Problem> {
+    let bytes = unb64(fragment.trim_start_matches('#')).filter(|b| b.len() == 48).ok_or(Problem::BadLink)?;
+    let (id, _) = bytes.split_at(16);
+    let (status, text) = call("GET", "pair", &[("Betula-Pair", b64(id))], None).await?;
+    if status == 404 && serde_json::from_str::<wire::Failure>(&text).map(|f| f.error).unwrap_or_default() == "not_found" {
+        return Ok(None);
+    }
+    if status != 200 {
+        return Err(if status == 404 { Problem::BadLink } else { problem_of(status, &text) });
+    }
+    opened(&bytes, &text).await.map(Some)
+}
+
+/// The profiles of a parcel fetched (`text`, Phloem's answer) for the link part `bytes` (id ‖ key).
+async fn opened(bytes: &[u8], text: &str) -> Result<Vec<([u8; KEY], String)>, Problem> {
+    let (_, link_key) = bytes.split_at(16);
+    let sealed = serde_json::from_str::<wire::Fetched>(text).ok().and_then(|f| unb64(&f.sealed)).ok_or(Problem::BadLink)?;
+    let plain = open(&aes_key(link_key).await.map_err(|_| Problem::Unsupported)?, b"pair", &sealed).await.map_err(|_| Problem::BadLink)?;
+    let contents: wire::Contents = serde_json::from_slice(&plain).map_err(|_| Problem::BadLink)?;
+    Ok(contents.profiles.into_iter().filter_map(|p| Some((unb64(&p.key)?.try_into().ok()?, p.name))).collect())
+}
+
 /// The profiles a link of `pair` hands on.
 pub async fn unpack(fragment: &str) -> Result<Vec<([u8; KEY], String)>, Problem> {
     let bytes = unb64(fragment.trim_start_matches('#')).filter(|b| b.len() == 48).ok_or(Problem::BadLink)?;
-    let (id, link_key) = bytes.split_at(16);
+    let (id, _) = bytes.split_at(16);
     let (status, text) = call("GET", "pair", &[("Betula-Pair", b64(id))], None).await?;
     if status != 200 {
         return Err(if status == 404 { Problem::BadLink } else { problem_of(status, &text) });
     }
-    let sealed = serde_json::from_str::<wire::Fetched>(&text).ok().and_then(|f| unb64(&f.sealed)).ok_or(Problem::BadLink)?;
-    let plain = open(&aes_key(link_key).await.map_err(|_| Problem::Unsupported)?, b"pair", &sealed).await.map_err(|_| Problem::BadLink)?;
-    let contents: wire::Contents = serde_json::from_slice(&plain).map_err(|_| Problem::BadLink)?;
-    Ok(contents.profiles.into_iter().filter_map(|p| Some((unb64(&p.key)?.try_into().ok()?, p.name))).collect())
+    opened(&bytes, &text).await
 }
 
 /// A profile of this browser that starts syncing with the key of another device's: its stores

@@ -1,4 +1,5 @@
-//! Texts of Betula Sync on the profile page (`sync.rs`) and of „Gerät verbinden" (`connect.rs`).
+//! Texts of Betula Sync on the profile page (`sync.rs`), of „Gerät verbinden" (`connect.rs`) and of
+//! „Mit dem Handy verbinden" (`pair.rs`).
 
 pub struct Texts {
     // ---- the part of the profile page ----
@@ -101,6 +102,41 @@ pub struct Texts {
     pub to_studyplan: &'static str,
     pub to_profile: &'static str,
     pub to_start: &'static str,
+
+    // ---- „Mit dem Handy verbinden" (`/pair`): the computer that asks ----
+    pub ask_title: &'static str,
+    pub ask_description: &'static str,
+    /// A site that does not offer Betula Sync.
+    pub ask_off: &'static str,
+    /// The server's page, which runs nothing.
+    pub ask_server_hint: &'static str,
+    /// What to do with the code; the code, for screen readers; while it waits; how long (minutes
+    /// left, 0: less than one); gone; a new one.
+    pub ask_lead: &'static str,
+    pub ask_qr_label: &'static str,
+    pub ask_waiting: &'static str,
+    pub ask_left: fn(u64) -> String,
+    pub ask_gone: &'static str,
+    pub ask_new: &'static str,
+    /// No phone with Betula: the profile as a file, on the profile page.
+    pub ask_file: &'static str,
+
+    // ---- the phone that answers (`/pair#…`) ----
+    pub give_title: &'static str,
+    /// What happens; the value is the profile's name.
+    pub give_lead: fn(&str) -> String,
+    /// What the profile holds: its program, or that it is empty, with what to do.
+    pub give_program: fn(&str) -> String,
+    pub give_empty: &'static str,
+    /// The answers: synced already, or switched on on the way; while it goes.
+    pub give_yes: &'static str,
+    pub give_activate: &'static str,
+    pub give_going: &'static str,
+    /// Done, and what that means.
+    pub given: &'static str,
+    pub given_hint: &'static str,
+    /// A code that opens nothing.
+    pub give_none: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -177,6 +213,33 @@ pub const DE: Texts = Texts {
     to_studyplan: "Zum Stundenplan",
     to_profile: "Zum Profil",
     to_start: "Zur Startseite",
+
+    ask_title: "Mit dem Handy verbinden",
+    ask_description: "Dein Profil von Betula vom Handy auf diesen Computer holen: Code scannen, fertig. Betula Sync, verschlüsselt.",
+    ask_off: "Betula Sync ist auf dieser Seite nicht eingeschaltet.",
+    ask_server_hint: "Hier zeigt dein Browser einen Code, den du mit deinem Handy scannst. Das macht er selbst, mit JavaScript: Öffne die Seite in einem aktuellen Browser.",
+    ask_lead: "Scanne diesen Code mit der Kamera deines Handys, auf dem Betula eingerichtet ist. Das Handy gibt diesem Computer sein Profil, und von da an bleiben beide gleich.",
+    ask_qr_label: "QR-Code für dein Handy",
+    ask_waiting: "Wartet auf dein Handy …",
+    ask_left: |minutes| match minutes {
+        0 => "Noch weniger als eine Minute gültig".to_string(),
+        1 => "Noch 1 Minute gültig".to_string(),
+        n => format!("Noch {n} Minuten gültig"),
+    },
+    ask_gone: "Der Code ist abgelaufen.",
+    ask_new: "Neuer Code",
+    ask_file: "Kein Handy mit Betula? Ein Profil als Datei übernimmst du im Profil.",
+
+    give_title: "Dieses Profil verbinden?",
+    give_lead: |name| format!("Das Gerät, das den Code zeigt, bekommt „{name}“ und bleibt von da an mit diesem Handy gleich. Verbinde nur Geräte, die dir gehören."),
+    give_program: |program| format!("Mit {program}"),
+    give_empty: "Dieses Profil ist leer: In diesem Browser ist Betula noch nicht eingerichtet. Sind deine Daten in einem anderen Browser oder in der App von Betula, öffne den Code dort.",
+    give_yes: "Verbinden",
+    give_activate: "Betula Sync aktivieren und verbinden",
+    give_going: "Wird verbunden …",
+    given: "Verbunden: Das andere Gerät hat jetzt dieses Profil.",
+    given_hint: "Was du hier änderst, ist dort sofort da, und umgekehrt.",
+    give_none: "Dieser Code ist unvollständig oder schon benutzt. Lade die Seite auf dem anderen Gerät neu und scanne den neuen Code.",
 };
 
 pub const EN: Texts = Texts {
@@ -253,4 +316,31 @@ pub const EN: Texts = Texts {
     to_studyplan: "To the timetable",
     to_profile: "To the profile",
     to_start: "To the start page",
+
+    ask_title: "Connect with your phone",
+    ask_description: "Get your Betula profile from your phone onto this computer: scan the code, done. Betula Sync, encrypted.",
+    ask_off: "Betula Sync is not switched on on this site.",
+    ask_server_hint: "Here your browser shows a code that you scan with your phone. It does that itself, with JavaScript: open the page in a current browser.",
+    ask_lead: "Scan this code with the camera of your phone on which Betula is set up. The phone gives this computer its profile, and from then on both stay the same.",
+    ask_qr_label: "QR code for your phone",
+    ask_waiting: "Waiting for your phone …",
+    ask_left: |minutes| match minutes {
+        0 => "Valid for less than a minute".to_string(),
+        1 => "Valid for 1 more minute".to_string(),
+        n => format!("Valid for {n} more minutes"),
+    },
+    ask_gone: "The code has expired.",
+    ask_new: "New code",
+    ask_file: "No phone with Betula? You can bring a profile as a file on the profile page.",
+
+    give_title: "Connect this profile?",
+    give_lead: |name| format!("The device showing the code gets “{name}” and from then on stays the same as this phone. Only connect devices that are yours."),
+    give_program: |program| format!("With {program}"),
+    give_empty: "This profile is empty: Betula is not set up in this browser yet. If your data is in another browser or in the Betula app, open the code there.",
+    give_yes: "Connect",
+    give_activate: "Turn on Betula Sync and connect",
+    give_going: "Connecting …",
+    given: "Connected: the other device now has this profile.",
+    given_hint: "What you change here is there at once, and the other way round.",
+    give_none: "This code is incomplete or used already. Reload the page on the other device and scan the new code.",
 };

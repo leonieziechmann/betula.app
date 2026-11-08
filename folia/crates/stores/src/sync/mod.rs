@@ -79,6 +79,23 @@ pub struct Pairing {
     pub until: u64,
 }
 
+/// How long a question of `Sync::ask` waits for its answer: as long as a parcel waits at Phloem.
+pub const ASK_MS: u64 = 10 * 60 * 1000;
+
+/// A question for the profile of another device („Mit dem Handy verbinden", `url::PAIR`): this
+/// device shows the link as a QR code, the device that holds the profile opens it and answers
+/// (`Sync::give`), and this one takes the answer (`Sync::collect`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Asking {
+    /// What follows `#` in the link: the parcel's id and its key.
+    pub fragment: String,
+    /// `https://<host>/pair#<…>`: what follows `#` never reaches a server.
+    pub link: String,
+    /// Until when this device waits for the answer, in milliseconds since 1970 (ten minutes, as
+    /// long as a parcel waits).
+    pub until: u64,
+}
+
 /// What two devices did to one thing at the same time, for the hint beside it. `at` orders them
 /// (milliseconds since 1970).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -277,6 +294,66 @@ impl Sync {
             let _ = fragment;
             done(Err(Problem::Unsupported));
         }
+    }
+
+    /// A question for the profile of another device (`Asking`): made here, nothing sent.
+    pub fn ask(self) -> Option<Asking> {
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        {
+            let fragment = browser::ask()?;
+            let origin = web_sys::window().and_then(|w| w.location().origin().ok()).unwrap_or_default();
+            Some(Asking { link: format!("{origin}{}#{fragment}", folia_routes::url::PAIR), fragment, until: now_ms() + ASK_MS })
+        }
+        #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
+        None
+    }
+
+    /// Whether the other device has answered `asking` yet: then its profile is a profile of this
+    /// browser, as from a link of `pair` (`join`), and `done` hears its number; while it has not,
+    /// `None`.
+    pub fn collect(self, asking: &Asking, done: impl FnOnce(Result<Option<u16>, Problem>) + 'static) {
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        {
+            let fragment = asking.fragment.clone();
+            leptos::task::spawn_local(async move {
+                let result = match browser::collect(&fragment).await {
+                    Ok(Some(shared)) => self.adopt(shared).map(Some),
+                    Ok(None) => Ok(None),
+                    Err(problem) => Err(problem),
+                };
+                done(result);
+            });
+        }
+        #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
+        {
+            let _ = asking;
+            done(Err(Problem::Unsupported));
+        }
+    }
+
+    /// The answer to a question of another device (the part of its link after `#`): profile `id`
+    /// (synced) goes to it, sealed with the question's key.
+    pub fn give(self, id: u16, fragment: &str, done: impl FnOnce(Result<(), Problem>) + 'static) {
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        {
+            let name = self
+                .profiles
+                .and_then(|profiles| profiles.all().into_iter().find(|p| p.id == id))
+                .map(|p| p.name)
+                .unwrap_or_default();
+            let fragment = fragment.to_string();
+            leptos::task::spawn_local(async move { done(browser::give(id, name, &fragment).await) });
+        }
+        #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
+        {
+            let _ = (id, fragment);
+            done(Err(Problem::Unsupported));
+        }
+    }
+
+    /// Whether `fragment` can be the part after `#` of a link of `ask` or `pair` (48 bytes).
+    pub fn is_link(fragment: &str) -> bool {
+        codes::unb64(fragment.trim_start_matches('#')).is_some_and(|bytes| bytes.len() == 48)
     }
 
     /// The same from a recovery code (`recovery_code`), as a new profile named `name`.

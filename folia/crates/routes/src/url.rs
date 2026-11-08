@@ -39,6 +39,8 @@
 //!                                      (`timetable::subscription`)
 //! `/sync#<…>`                          „Gerät verbinden", where a link of another device opens
 //!                                      its profile (`CONNECT`)
+//! `/pair`, `/pair#<…>`                 „Mit dem Handy verbinden": a computer shows a QR code, the
+//!                                      phone that scans it gives it its profile (`PAIR`)
 //! `/imprint`, `/privacy`               the legal pages
 //!
 //! Every path is US English, whatever language the page speaks (owner, 2026-11-08: „Url struktur
@@ -158,6 +160,12 @@ pub const DEVICES: &str = "devices";
 /// Phloem lies below it on the same host, at `/sync/v1/` (docs/phloem/protocol.md), and Traefik
 /// sends only that prefix there (deploy/stacks/phloem.yml): the page itself is Folia's.
 pub const CONNECT: &str = "/sync";
+/// „Mit dem Handy verbinden" (Betula Sync; owner, 2026-11-08: „Da muss ein link kommen wie
+/// betula.app/pair wo dann der qr code gezeigt wird, den man am handy scannen kann um sich
+/// einzuloggen"): the address one types on a computer, which then shows a QR code; the phone that
+/// scans it opens `/pair#<…>` and gives the computer its profile. What follows `#` never reaches
+/// a server; the page is no page search engines list.
+pub const PAIR: &str = "/pair";
 
 /// The addresses that moved, old and new (owner, 2026-11-08: „Url struktur alles in us
 /// englisch"). An old one is no page any more but stays an address that leads there for good, in
@@ -338,7 +346,7 @@ pub fn listed(address: &str) -> bool {
     };
     let program_tab = path.strip_prefix("/programs/").and_then(|rest| rest.split_once('/')).and_then(|(_, tab)| ProgramTab::from_segment(tab));
     // A Termin's own page is no page search engines list: events times dates are many addresses.
-    if path == BOOKMARKS || path == STUDYPLAN || path == STUDY || path == PROFILE || path == CONNECT || path.starts_with("/event/") || program_tab.is_some_and(|tab| !tab.indexed()) {
+    if path == BOOKMARKS || path == STUDYPLAN || path == STUDY || path == PROFILE || path == CONNECT || path == PAIR || path.starts_with("/event/") || program_tab.is_some_and(|tab| !tab.indexed()) {
         return false;
     }
     match query {
@@ -2427,6 +2435,8 @@ mod tests {
             PROFILE.to_string(),
             CONNECT.to_string(),
             format!("{CONNECT}#AAAA"),
+            PAIR.to_string(),
+            format!("{PAIR}#AAAA"),
             format!("{}{}", module_path("11101"), ModuleHint::parse("plan=2026W").query()),
             "/event/148370-eb017".to_string(),
             "/event/148370-eb017/2026-11-02".to_string(),
@@ -2449,6 +2459,7 @@ mod tests {
         assert_eq!((moved(CONNECT), moved(IMPRINT), moved("/"), moved("/en/impressum"), moved("/verbinden/x")), (None, None, None, None, None));
         // Betula Sync's page lies beside Phloem's `/sync/v1/` on the same host, never under it.
         assert!(!CONNECT.starts_with("/sync/v1"));
+        assert_eq!(PAIR, "/pair");
     }
 
     #[test]
