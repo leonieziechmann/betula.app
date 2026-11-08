@@ -32,7 +32,7 @@ var (
 	nextCycleAt = metrics.Default.NewGauge("radix_next_cycle_timestamp_seconds",
 		"When the next cycle starts (Unix time).")
 	stageRuns = metrics.Default.NewCounter("radix_stage_runs_total",
-		"Stages of the cycles by outcome: ok, failed, skipped.",
+		"Stages of the cycles by outcome: ok, failed, skipped, interrupted (the process stopped while it ran).",
 		"stage", "outcome")
 	stageSeconds = metrics.Default.NewGauge("radix_stage_duration_seconds",
 		"How long the last run of a stage took.",
@@ -63,7 +63,7 @@ func init() {
 	}
 	for _, stage := range []string{"lists", "modules", "qis-modules", "tree", "event-list", "events",
 		"retention", "build", "archive", "validate", "export", "semantic"} {
-		for _, outcome := range []string{"ok", "failed", "skipped"} {
+		for _, outcome := range []string{"ok", "failed", "skipped", "interrupted"} {
 			stageRuns.Add(0, stage, outcome)
 		}
 	}
@@ -176,11 +176,13 @@ func countCycle(r CycleResult, lastSuccess time.Time, failed int) {
 		switch {
 		case st.Skipped != "":
 			outcome = "skipped"
+		case st.Interrupted:
+			outcome = "interrupted"
 		case st.Error != "":
 			outcome = "failed"
 		}
 		stageRuns.Inc(st.Name, outcome)
-		if st.Skipped == "" {
+		if outcome == "ok" || outcome == "failed" { // an interrupted run says nothing about how long the stage takes
 			stageSeconds.Set(float64(st.DurationMS)/1000, st.Name)
 		}
 	}

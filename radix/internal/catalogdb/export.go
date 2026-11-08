@@ -51,10 +51,15 @@ type Snapshot struct {
 // pointer file is replaced atomically, and older snapshots are removed when nobody
 // uses them any more.
 //
-// Log events: export.finished, export.failed (ERROR).
+// Log events: export.finished, export.interrupted (the process is stopping, ctx was cancelled;
+// nobody has to act), export.failed (ERROR).
 func (db *DB) Export(ctx context.Context, dir string) (*Snapshot, error) {
 	start := time.Now()
 	snap, err := db.export(ctx, dir)
+	if oplog.Interrupted(ctx, err) {
+		oplog.For("export").Info("export interrupted, the process is stopping; the previous snapshot stays current", "event", "export.interrupted", "dir", dir)
+		return nil, err
+	}
 	if err != nil {
 		oplog.For("export").Error("export failed; the previous snapshot stays current", "event", "export.failed", "dir", dir, oplog.Err(err))
 		return nil, err

@@ -58,8 +58,10 @@ is missing; a start that finds every vector there builds nothing (docs/radix/sch
 search").
 
 A cycle ends as `ok`, `degraded` (a crawl stage had failures; published data is intact and
-only ages) or `failed` (build, validation or export failed; **the previous snapshot stays
-current**). A failed cycle never stops the service; the next cycle tries again.
+only ages), `failed` (build, validation or export failed; **the previous snapshot stays
+current**) or `interrupted` (the process stopped mid-cycle, a deploy or SIGTERM; nothing failed,
+the previous snapshot stays current). A failed cycle never stops the service; the next cycle
+tries again.
 
 ### Configuration
 
@@ -178,7 +180,7 @@ of the archive: `module_catalog` and `module_page` are b-tu.de, `qis_module_list
 | `radix_crawl_pages_total{source,outcome}` | pages fetched: `changed` (new or another body), `unchanged`, `not_found`, `failed` (given up), `offline_miss` (Cortex had not stored it, asked offline: left as archived); the event search counts each event it lists |
 | `radix_archive_pages{source,status}`, `radix_archive_fetched_24h{source}`, `radix_archive_changed_24h{source}`, `radix_archive_{oldest,newest}_fetch_timestamp_seconds{source}` | the archive: pages (`ok`, `not_found`), fetched and changed in the last 24 h, oldest and newest fetch |
 | `radix_cycles_total{result}`, `radix_cycle_running`, `radix_last_cycle_duration_seconds`, `radix_last_cycle_timestamp_seconds`, `radix_last_success_timestamp_seconds`, `radix_failed_cycles_in_a_row`, `radix_next_cycle_timestamp_seconds` | the cycles, as in `/status` |
-| `radix_stage_runs_total{stage,outcome}`, `radix_stage_duration_seconds{stage}` | stages: `ok`, `failed`, `skipped`; how long the last run took |
+| `radix_stage_runs_total{stage,outcome}`, `radix_stage_duration_seconds{stage}` | stages: `ok`, `failed`, `skipped`, `interrupted` (the process stopped while it ran); how long the last run that was not skipped or interrupted took |
 | `radix_builds_total{content}`, `radix_snapshots_published_total`, `radix_catalog_items{kind}`, `radix_module_rows_changed_total`, `radix_pruned_total{what}` | builds with `changed` / `unchanged` content, exports, what the last build holds, rows of the QIS module table that changed, retention |
 | `radix_snapshot_requests_total{file,code}`, `radix_snapshot_exported_timestamp_seconds`, `radix_snapshot_bytes` | the web server's polls (`304`) and downloads (`200`); the snapshot offered |
 | `radix_log_problems_total{level,event}` | log records at WARN and ERROR by event (the table below) |
@@ -226,6 +228,7 @@ updated. `WARN`: the source data has a problem, or something failed and recovere
 | INFO | `crawl.pages_due` | why event pages are fetched: `never_fetched`, `changed_in_list` (other dates, or the event no longer shown), `past_age` (their day in their period has come), and how many the event search vouches for. `build.finished` counts the events whose dates come from the search (`events_from_list`), and the series of single dates (`event_series`, with `event_series_dates` dates; `docs/radix/schema-v2.md`, „Series of single dates") |
 | INFO | `crawl.modules_due`, `crawl.module_rows_changed` | why QIS module descriptions are fetched: `never_fetched`, `changed` (row in the module table, or another semester in QIS), `unsettled`, `past_age`, and the semester QIS calls current; which rows of the module table changed |
 | INFO | `service.started`, `service.stopped`, `http.listening`, `db.migrated` | lifecycle |
+| INFO | `build.interrupted`, `stage.interrupted` (`stage`), `export.interrupted`, `cycle.finished` with `result=interrupted` | the process is stopping (a deploy removes the old colour, SIGTERM) and cut a cycle short: its context was cancelled. Nobody has to act; the build is rolled back, the previous snapshot stays current. Only the cancellation of the service's own context counts: a "context canceled" while it runs, or any other error while it stops, is still `stage.failed` / `build.failed` / `export.failed` |
 | INFO | `crawl.cortex` | at start, with `RADIX_CORTEX_URL`: the requests go through Cortex (`cortex`, its instances; `mode`, `cache`, `refresh` or `offline`; `max_age`) |
 | INFO | `seed.started`, `seed.progress`, `seed.finished` | `radix seed-cortex`: what Cortex made of the archive's pages (`created`, `checked`, `unchanged`, `older`, `failed`, `by_source`); WARN `seed.failed` names a page Cortex did not take |
 | DEBUG | `crawl.offline_miss` | offline through Cortex: Cortex has not stored the page (`key`, `url`); skipped, the next cycle asks again |

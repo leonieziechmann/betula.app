@@ -2,8 +2,10 @@ package oplog
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -48,5 +50,33 @@ func TestSetupRejectsUnknownOptions(t *testing.T) {
 	}
 	if _, _, err := Setup(Options{Format: "xml"}); err == nil {
 		t.Error("unknown format accepted")
+	}
+}
+
+// A deploy stops the process with SIGTERM, which cancels the service's context: what that cut
+// short needs nobody. A "context canceled" from elsewhere, and a real error while stopping, do.
+func TestInterruptedIsOnlyTheCancellationOfTheContext(t *testing.T) {
+	stopped, stop := context.WithCancel(context.Background())
+	stop()
+	expired, expire := context.WithTimeout(context.Background(), 0)
+	defer expire()
+	<-expired.Done()
+
+	for _, c := range []struct {
+		name string
+		ctx  context.Context
+		err  error
+		want bool
+	}{
+		{"the build sees the stop", stopped, context.Canceled, true},
+		{"wrapped on the way out", stopped, fmt.Errorf("build step %q failed: %w", "modules", context.Canceled), true},
+		{"a real error while stopping", stopped, errors.New("disk I/O error"), false},
+		{"nothing went wrong", stopped, nil, false},
+		{"cancelled elsewhere, the process runs on", context.Background(), context.Canceled, false},
+		{"a deadline, not a stop", expired, context.DeadlineExceeded, false},
+	} {
+		if got := Interrupted(c.ctx, c.err); got != c.want {
+			t.Errorf("%s: Interrupted = %v, want %v", c.name, got, c.want)
+		}
 	}
 }

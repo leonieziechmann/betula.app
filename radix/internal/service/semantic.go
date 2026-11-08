@@ -75,7 +75,9 @@ func (s *Service) semanticStage(ctx context.Context, result *CycleResult) {
 	s.semanticLast = stats
 	stage := StageResult{Name: "semantic", DurationMS: s.now().Sub(start).Milliseconds()}
 	switch {
-	case err != nil && ctx.Err() == nil:
+	case ctx.Err() != nil:
+		stage.Interrupted = true // the snapshot is out; what the stage did not compute, the next one does
+	case err != nil:
 		stage.Error = err.Error()
 		if result.Result == "ok" {
 			result.Result = "degraded"
