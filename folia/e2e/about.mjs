@@ -65,7 +65,7 @@ check((html.match(/loading="lazy"/g) || []).length === 6 && (technology.match(/l
 const grounds = (page) => (page.match(/<footer class="ground">/g) || []).length;
 const legal = (page) => page.split('<div class="page home-page">')[1]?.split('class="ground-legal"')[1]?.split("</nav>")[0] ?? "";
 check(grounds(html) === 2 && grounds(finding) === 2, "server HTML: a topic's page has no ground of its own");
-check(legal(html).includes('href="/impressum"') && legal(finding).includes('href="/datenschutz"') && !legal(html).includes('href="/about') && !legal(finding).includes('href="/about'), "server HTML: the ground of a topic's page has no legal links, or leads to „Über Betula\"");
+check(legal(html).includes('href="/imprint"') && legal(finding).includes('href="/privacy"') && !legal(html).includes('href="/about') && !legal(finding).includes('href="/about'), "server HTML: the ground of a topic's page has no legal links, or leads to „Über Betula\"");
 // Every topic's page: „Zurück" to the start page (Esc follows it), and no page leads to `/about`.
 check([html, finding, planning, technology, questions].every((page) => /<a [^>]*href="\/"[^>]*data-action="back"/.test(page) && !page.includes('href="/about"')), "server HTML: a topic's page has no „Zurück\" to the start page, or leads to /about");
 check(!questions.includes("Was bedeutet FÜS?") && questions.includes("Wie finde ich die Module für mein Studium?") && questions.includes('"@type":"FAQPage"'), "server HTML: the questions are the old ones, or not the page's structured data");

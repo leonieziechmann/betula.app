@@ -37,6 +37,12 @@
 //! `/calendar/<code>.ics`               a calendar subscription, served by the server (not a page):
 //!                                      the code says semester, modules and what is hidden
 //!                                      (`timetable::subscription`)
+//! `/sync#<…>`                          „Gerät verbinden", where a link of another device opens
+//!                                      its profile (`CONNECT`)
+//! `/imprint`, `/privacy`               the legal pages
+//!
+//! Every path is US English, whatever language the page speaks (owner, 2026-11-08: „Url struktur
+//! alles in us englisch"); the German ones there were lead to their new place for good (`MOVED`).
 //!
 //! `open` and `full` mean the same on every page that has them (`LocalView`): the module shown
 //! in place, beside the page or filling it, without leaving the page's area.
@@ -127,9 +133,12 @@ pub const CATALOG: &str = "/catalog";
 pub const PROGRAMS: &str = "/programs";
 /// „Merkliste": the modules the visitor has marked. The list itself lives in the browser.
 pub const BOOKMARKS: &str = "/bookmarks";
-/// The legal pages, under the German names people look for.
-pub const IMPRINT: &str = "/impressum";
-pub const PRIVACY: &str = "/datenschutz";
+/// The legal pages. Every path of the app is in US English, whatever language the page speaks
+/// (owner, 2026-11-08: „Keine deutschen links und den urls. Like wir machen hier vernünftige
+/// software. Url struktur alles in us englisch"); until then `/impressum` and `/datenschutz`
+/// (`MOVED`).
+pub const IMPRINT: &str = "/imprint";
+pub const PRIVACY: &str = "/privacy";
 /// „Studienplan": the visitor's modules per calendar semester. The plan itself lives in the
 /// browser; the address says only how it is shown (`StudyplanUrl`).
 pub const STUDYPLAN: &str = "/studyplan";
@@ -141,9 +150,25 @@ pub const STUDY: &str = "/study";
 /// settings every profile shares. What it shows lives in the browser; the address is the page.
 pub const PROFILE: &str = "/profile";
 /// „Gerät verbinden" (Betula Sync, `folia_stores::sync`): the page a link of another device opens,
-/// `/verbinden#<…>`. What follows `#` opens that device's profile and never reaches a server; the
-/// address itself says nothing, and no page links it.
-pub const CONNECT: &str = "/verbinden";
+/// `/sync#<…>`. What follows `#` opens that device's profile and never reaches a server; the
+/// address itself says nothing, and no page links it. Until 2026-11-08 `/verbinden` (`MOVED`).
+/// Phloem lies below it on the same host, at `/sync/v1/` (docs/phloem/protocol.md), and Traefik
+/// sends only that prefix there (deploy/stacks/phloem.yml): the page itself is Folia's.
+pub const CONNECT: &str = "/sync";
+
+/// The addresses that moved, old and new (owner, 2026-11-08: „Url struktur alles in us
+/// englisch"). An old one is no page any more but stays an address that leads there for good, in
+/// every language and with its query: the server answers it with a permanent redirect
+/// (`folia-server`), and the browser app goes on at once (`folia_shell::stage::Page::Moved`), so
+/// that a link, a bookmark, a pairing link from before and what search engines know of it still
+/// lead somewhere.
+pub const MOVED: [(&str, &str); 3] = [("/verbinden", CONNECT), ("/impressum", IMPRINT), ("/datenschutz", PRIVACY)];
+
+/// Where an address that moved (`MOVED`) went: its path now, for the path of the app (without
+/// the language's prefix) it had.
+pub fn moved(path: &str) -> Option<&'static str> {
+    MOVED.iter().find(|(old, _)| *old == path).map(|(_, new)| *new)
+}
 
 /// The Stundenplan's address that hands the plan of `code` on (`share::SharedPlan`).
 pub fn share_path(code: &str) -> String {
@@ -2410,6 +2435,17 @@ mod tests {
         for address in ["/catalog?page=2&q=x", "/catalog?page=two", "/catalog?", "/?utm_source=x", "/programs/x/plan?utm_source=x", "/programs/x?variant=2"] {
             assert!(!listed(address), "{address}");
         }
+    }
+
+    /// Every path is US English (owner, 2026-11-08); the German ones that were lead to their new
+    /// place, and only they.
+    #[test]
+    fn addresses_that_moved() {
+        assert_eq!((CONNECT, IMPRINT, PRIVACY), ("/sync", "/imprint", "/privacy"));
+        assert_eq!((moved("/verbinden"), moved("/impressum"), moved("/datenschutz")), (Some(CONNECT), Some(IMPRINT), Some(PRIVACY)));
+        assert_eq!((moved(CONNECT), moved(IMPRINT), moved("/"), moved("/en/impressum"), moved("/verbinden/x")), (None, None, None, None, None));
+        // Betula Sync's page lies beside Phloem's `/sync/v1/` on the same host, never under it.
+        assert!(!CONNECT.starts_with("/sync/v1"));
     }
 
     #[test]

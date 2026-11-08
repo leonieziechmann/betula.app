@@ -38,9 +38,9 @@ mod tests {
 
     #[test]
     fn a_link_becomes_a_code_with_its_quiet_zone() {
-        let link = format!("https://betula.app/verbinden#{}", "A".repeat(64));
+        let link = format!("https://betula.app{}#{}", folia_routes::url::CONNECT, "A".repeat(64));
         let (drawn, width) = path(&link).unwrap();
-        // A hundred characters in bytes at medium correction: version 6, 41 modules, and the zone.
+        // 88 characters in bytes at medium correction: version 6, 41 modules, and the zone.
         assert_eq!(width, 41 + 8);
         assert!(drawn.starts_with("M4 4h7v1h-7z"), "the finder pattern's first row: {}", &drawn[..40]);
         assert!(drawn.split('M').skip(1).all(|run| !run.is_empty()));

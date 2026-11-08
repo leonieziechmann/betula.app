@@ -56,6 +56,15 @@ nochmal über das Konzept nachdenken."):
   changes only what stands below it, never what stands above it. A view whose pick would change
   what stands above it needs another order, not a tweak.
 
+## Addresses
+
+Every address of the site is US English (owner, 2026-11-08: „Keine deutschen links und den urls. Like
+wir machen hier vernünftige software. Url struktur alles in us englisch."): paths, query keys and their
+values, the anchors after `#`. German stays what the page says, not what the address says. An address
+that changes keeps the old one leading to it (a permanent redirect on the server, the old query keys
+still read), so that links people shared and what search engines know keep working; an address that
+goes away would be a MAJOR change of Folia.
+
 ## Versions
 
 Folia, Radix, Cortex and Phloem each have a version by SemVer, and every change raises the version of

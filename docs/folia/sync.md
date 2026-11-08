@@ -84,7 +84,7 @@ often, at most every half minute, and at once when the network is back or the ta
 | | |
 |---|---|
 | „Betula Sync aktivieren" | a key, a device id, `POST /sync/v1/space`, the profile's records as its first snapshot |
-| „Weiteres Gerät verbinden" | a parcel with the key, sealed with a key the link alone holds (`/verbinden#<id ‖ key>`), ten minutes at Phloem, for one device |
+| „Weiteres Gerät verbinden" | a parcel with the key, sealed with a key the link alone holds (`/sync#<id ‖ key>`; `/verbinden#…` until 2026-11-08, which leads there), ten minutes at Phloem, for one device |
 | joining | the parcel opened, a new profile of the browser, its records from Phloem |
 | the recovery code | `K` in base32 (Crockford), 13 groups of four, the last 4 bits a check: most typos are told before any request |
 | „Nur dieses Gerät trennen" | what waits goes out, then `leave`; the copy stays, private |

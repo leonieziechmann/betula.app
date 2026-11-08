@@ -110,7 +110,7 @@ const mark = async (page, id) => {
       ground: allOnPage(".ground").some((ground) => ground.checkVisibility()),
     };
   });
-  check(about.last && about.note && about.legal === "/impressum,/datenschutz" && about.version && !about.ground, `„Über diese Seite" on the profile page: ${JSON.stringify(about)}`);
+  check(about.last && about.note && about.legal === "/imprint,/privacy" && about.version && !about.ground, `„Über diese Seite" on the profile page: ${JSON.stringify(about)}`);
   check(await page.evaluate(() => onPage(".rail .profile-btn").getAttribute("aria-current") === "page" && !onPage('.rail .nav[aria-current="page"]')), "the profile page is not the rail's current item, or a tab still is");
   check(await page.evaluate(() => onPage(".topbar h1")?.textContent === "Profil"), "the top bar does not name the page");
   check(await page.evaluate(() => onPage("#pf-delete").getAttribute("aria-disabled") === "true"), "the only profile can be deleted");
@@ -328,7 +328,7 @@ const mark = async (page, id) => {
   const context = await browser.newContext({ viewport: { width: 1500, height: 900 }, javaScriptEnabled: false });
   const page = await context.newPage();
   const response = await page.goto(base + "/profile", { waitUntil: "domcontentloaded" });
-  const plain = await page.evaluate(() => ({ explained: onPage(".state")?.textContent.includes("JavaScript") ?? false, robots: onPage('meta[name="robots"]')?.content ?? "", way: onPage(".rail .profile-btn")?.getClientRects().length ?? 0, english: onPage('.state a[data-language="en"]')?.getAttribute("href") ?? null, legal: [...allOnPage('.state a[href="/impressum"], .state a[href="/datenschutz"]')].filter((a) => a.checkVisibility()).length }));
+  const plain = await page.evaluate(() => ({ explained: onPage(".state")?.textContent.includes("JavaScript") ?? false, robots: onPage('meta[name="robots"]')?.content ?? "", way: onPage(".rail .profile-btn")?.getClientRects().length ?? 0, english: onPage('.state a[data-language="en"]')?.getAttribute("href") ?? null, legal: [...allOnPage('.state a[href="/imprint"], .state a[href="/privacy"]')].filter((a) => a.checkVisibility()).length }));
   check(response.status() === 200 && plain.explained && plain.robots.startsWith("noindex") && plain.way === 1 && plain.english === "/en/profile" && plain.legal === 2, `without JavaScript: ${JSON.stringify(plain)}`);
   await context.close();
 }

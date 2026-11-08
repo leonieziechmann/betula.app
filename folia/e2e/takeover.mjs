@@ -26,10 +26,10 @@ const PROGRAM = "/programs/bachelor-informatik-2008";
 const BOXES = [".crown", ".topbar", ".search", ".top-profile", ".rail", ".main", ".content", ".work", ".ground", ".ground-top", ".ground-foot", ".bottomnav", "h1", ".day-hero", ".ob", ".ob-chip", ".day-discover", ".home-hero", ".topic-head", ".intro-actions > *", ".summary", ".faccs", ".facc", ".prog-head", ".module-page > .hero", ".list-head", ".row"];
 const ROWS = 12;
 const SCENES = [
-  { device: "phone", paths: ["/", "/about/overview", "/about/finding", "/catalog", "/programs", PROGRAM, "/catalog/module/11101", "/impressum"] },
+  { device: "phone", paths: ["/", "/about/overview", "/about/finding", "/catalog", "/programs", PROGRAM, "/catalog/module/11101", "/imprint"] },
   { device: "phone", paths: ["/", "/catalog"], scroll: 1500 },
-  { device: "desktop", paths: ["/", "/about/overview", "/about/finding", "/catalog", PROGRAM, "/impressum"] },
-  { device: "desktop", paths: ["/", "/catalog", "/impressum"], scroll: 600 },
+  { device: "desktop", paths: ["/", "/about/overview", "/about/finding", "/catalog", PROGRAM, "/imprint"] },
+  { device: "desktop", paths: ["/", "/catalog", "/imprint"], scroll: 600 },
 ];
 const DEVICES = {
   phone: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },

@@ -90,11 +90,11 @@ check(await activate.isVisible().catch(() => false), "A: no „Betula Sync aktiv
 await activate.click().catch(() => {});
 await a.page.getByRole("button", { name: /^Aktivieren$/ }).first().click().catch(() => problems.push("A: no „Aktivieren“ in the explanation"));
 await until("A synced", a.page, () => (localStorage.getItem("betula.sync.p1.status") || "").startsWith("online"), null, 15000);
-await until("the link for the next device", a.page, () => Boolean(onPage(".pf-pair-link code")?.textContent.includes("/verbinden#")), null, 10000);
+await until("the link for the next device", a.page, () => Boolean(onPage(".pf-pair-link code")?.textContent.includes("/sync#")), null, 10000);
 const link = (await a.page.locator(".pf-pair-link code").first().textContent().catch(() => "")).trim();
 const key = await a.page.evaluate(() => (localStorage.getItem("betula.sync.p1.v1") || "").split("\n").find((l) => l.startsWith("key\t"))?.slice(4) || "");
 check(key.length === 43, `A: no profile key kept (${key.length})`);
-check(link.startsWith(base + "/verbinden#"), `A: the link is ${link}`);
+check(link.startsWith(base + "/sync#"), `A: the link is ${link}`);
 
 // ---- the second browser opens the link ----
 const b = await device("B");

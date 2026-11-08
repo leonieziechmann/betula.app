@@ -3036,7 +3036,7 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
   .legal-part p, .legal-facts dd { text-align: start; }
 }
 /* On a phone the text starts 16px in, as on every other page, and a part a link jumps to
-   (/datenschutz#kalender) stops below the sticky search bar. */
+   (/privacy#kalender) stops below the sticky search bar. */
 @media (max-width: 900px) {
   .legal-head { padding: 20px 16px 14px; }
   .legal-part { padding: 18px 16px 20px; scroll-margin-top: 76px; }
