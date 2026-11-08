@@ -3,6 +3,9 @@
 //! modules on a light ground with four modules of quiet zone, whatever the theme: a camera reads
 //! inverted codes badly, so in the dark the code stands on a light tile of its own (app.css,
 //! `.pf-qr`).
+//!
+//! And a QR code read from a camera's frame (`read`, `rqrr`): Betula's scanner, where the browser
+//! has no BarcodeDetector of its own (Safari, Firefox; folia_profile's `scan.rs`).
 
 use qrcodegen::{QrCode, QrCodeEcc};
 
@@ -33,6 +36,16 @@ pub fn path(text: &str) -> Option<(String, i32)> {
     Some((path, size + 2 * BORDER))
 }
 
+/// The text of a QR code in a frame of `width` × `height` pixels, given as their brightness
+/// (0 black … 255 white, row by row); `None` where none is read. The first code that reads wins.
+pub fn read(luma: &[u8], width: usize, height: usize) -> Option<String> {
+    if width == 0 || height == 0 || luma.len() < width * height {
+        return None;
+    }
+    let mut frame = rqrr::PreparedImage::prepare_from_greyscale(width, height, |x, y| luma.get(y * width + x).copied().unwrap_or(255));
+    frame.detect_grids().into_iter().find_map(|grid| grid.decode().ok().map(|(_, text)| text))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -46,5 +59,41 @@ mod tests {
         assert!(drawn.starts_with("M4 4h7v1h-7z"), "the finder pattern's first row: {}", &drawn[..40]);
         assert!(drawn.split('M').skip(1).all(|run| !run.is_empty()));
         assert!(path(&"x".repeat(4000)).is_none(), "longer than any QR code");
+    }
+
+    /// A code drawn as a camera would see it: `scale` pixels a module, the quiet zone, a grey
+    /// light ground and a dark grey ink.
+    fn frame(text: &str, scale: usize) -> (Vec<u8>, usize) {
+        let code = QrCode::encode_text(text, QrCodeEcc::Medium).unwrap();
+        let modules = usize::try_from(code.size()).unwrap() + 2 * BORDER as usize;
+        let side = modules * scale;
+        let mut luma = vec![215u8; side * side];
+        for y in 0..side {
+            for x in 0..side {
+                let (mx, my) = (i32::try_from(x / scale).unwrap() - BORDER, i32::try_from(y / scale).unwrap() - BORDER);
+                if code.get_module(mx, my) {
+                    luma[y * side + x] = 40;
+                }
+            }
+        }
+        (luma, side)
+    }
+
+    #[test]
+    fn a_code_drawn_is_read_again() {
+        let link = format!("https://canary.betula.app{}#request={}", folia_routes::url::CONNECT, "Ab-_".repeat(27));
+        let (luma, side) = frame(&link, 4);
+        assert_eq!(read(&luma, side, side).as_deref(), Some(link.as_str()));
+        // In a larger frame, off its middle.
+        let wide = side + 120;
+        let mut bigger = vec![190u8; wide * (side + 40)];
+        for y in 0..side {
+            bigger[(y + 30) * wide + 100..(y + 30) * wide + 100 + side].copy_from_slice(&luma[y * side..(y + 1) * side]);
+        }
+        assert_eq!(read(&bigger, wide, side + 40).as_deref(), Some(link.as_str()));
+        // Nothing to read, and a frame that is not as large as it says.
+        assert_eq!(read(&vec![128u8; 64 * 48], 64, 48), None);
+        assert_eq!(read(&luma, side + 1, side), None);
+        assert_eq!(read(&[], 0, 0), None);
     }
 }

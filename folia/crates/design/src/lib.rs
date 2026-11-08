@@ -6,6 +6,8 @@
 //! crate of the app puts its texts together). Below the shell and the features: it knows no page,
 //! no data and no store (docs/folia/folia-refactor.md §7.4).
 
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
+
 pub mod combobox;
 pub mod format;
 pub mod i18n;

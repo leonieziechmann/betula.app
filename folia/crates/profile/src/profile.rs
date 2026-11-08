@@ -64,7 +64,6 @@ const ADD_ID: &str = "pf-add";
 const NEW_ID: &str = "pf-new";
 const NEW_NAME_ID: &str = "pf-new-name";
 const OTHER_ID: &str = "pf-other";
-const OTHER_CODE_ID: &str = "pf-other-code";
 const CLEAR_ID: &str = "pf-clear";
 const CLEAR_YES_ID: &str = "pf-clear-yes";
 const DELETE_ID: &str = "pf-delete";
@@ -119,6 +118,8 @@ pub fn ProfilePage() -> impl IntoView {
     }
     let note = RwSignal::new(None::<Note>);
     let kept = Kept::new();
+    // „Gerät verbinden", which Betula Sync and „Profil hinzufügen" open, either way.
+    provide_context(crate::sync::ConnectDialog(RwSignal::new(None)));
     let sidebar = move || view! { <Sidebar note/> };
     // „Geräte" in the menu of the profiles leads to `#devices`: the page scrolls there, and the part
     // lights up once.
@@ -655,22 +656,25 @@ fn ProfileList() -> impl IntoView {
     }
 }
 
-/// „Profil hinzufügen": an empty one (a name; none: „Profil 3"), one from another device (the
-/// recovery code, where the site offers Betula Sync), one from a file.
+/// „Profil hinzufügen": an empty one (a name; none: „Profil 3"), one from another device (where
+/// the site offers Betula Sync: on a wide screen the dialog „Gerät verbinden" the other way, a code
+/// the phone scans; on a phone the scanner), one from a file.
 #[component]
 fn AddProfile(note: RwSignal<Option<Note>>) -> impl IntoView {
     let t = i18n::t();
     let p = &t.profile;
-    let sync = folia_stores::sync::Sync::expect().filter(|_| folia_stores::sync::offered().is_some());
-    let other = RwSignal::new(false);
+    let offered = folia_stores::sync::Sync::expect().is_some() && folia_stores::sync::offered().is_some();
+    let dialog = use_context::<crate::sync::ConnectDialog>().filter(|_| offered);
     view! {
         <div class="pf-add">
             <NewProfile note/>
-            {sync.map(|sync| view! {
-                <button class="action" type="button" id=OTHER_ID aria-expanded=move || if other.get() { "true" } else { "false" } on:click=move |_| other.update(|open| *open = !*open)>
+            {dialog.map(|dialog| view! {
+                <button class="action only-desk" type="button" id=OTHER_ID on:click=move |_| dialog.0.set(Some(crate::sync::Direction::Get))>
                     <Icon name="monitor-smartphone"/><span>{p.add_other}</span>
                 </button>
-                {move || other.get().then(|| view! { <crate::sync::FromOther sync id=OTHER_CODE_ID/> })}
+                <a class="action only-phone" href=t.path(url::CONNECT) rel="nofollow">
+                    <Icon name="scan-line"/><span>{p.add_other}</span>
+                </a>
             })}
             <OpenFile note/>
         </div>

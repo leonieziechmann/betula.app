@@ -688,10 +688,19 @@ pub fn ProfileSwitcher() -> impl IntoView {
                 SyncState::Ended => ("off", t.app.sync_ended.to_string()),
                 SyncState::Failed(_) => ("warn", t.app.sync_failed.to_string()),
             };
+            // On a phone „Gerät verbinden" leads to the scanner, the profile's state under it, or
+            // what it is for where the profile is private (folia/design/profil/konzepte.html, the
+            // second step: the phone scans the code the computer shows).
+            let phone_line = if matches!(sync.state(active), SyncState::Private) { t.app.scan_at_computer.to_string() } else { line.clone() };
             view! {
-                <a class="tab-menu-way pm-devices" href=t.path(&format!("{}#{}", url::PROFILE, url::DEVICES)) rel="nofollow" on:click=close>
+                <a class="tab-menu-way pm-devices only-desk" href=t.path(&format!("{}#{}", url::PROFILE, url::DEVICES)) rel="nofollow" on:click=close>
                     <Icon name="monitor-smartphone"/>
                     <span class="pm-way-text"><b>{t.app.devices}</b><small data-state=dot>{line}</small></span>
+                    <Icon name="chevron-right" class="pm-end"/>
+                </a>
+                <a class="tab-menu-way pm-devices only-phone" href=t.path(url::CONNECT) rel="nofollow" on:click=close>
+                    <Icon name="scan-line"/>
+                    <span class="pm-way-text"><b>{t.app.connect_device}</b><small data-state=dot>{phone_line}</small></span>
                     <Icon name="chevron-right" class="pm-end"/>
                 </a>
             }
