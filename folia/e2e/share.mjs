@@ -3,7 +3,9 @@
 // against a running Phloem:
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node --import ./chromium.mjs share.mjs
 // Folia runs with FOLIA_SYNC=on, FOLIA_SYNC_URL and FOLIA_SYNC_PARTS naming Phloem, Phloem with
-// PHLOEM_ORIGINS naming Folia's origin.
+// PHLOEM_ORIGINS naming Folia's origin. Against canary, SMOKE_COOKIES names a curl cookie jar that
+// holds the cookie of closed testing (never the password); the profiles it syncs end their sync
+// at the end („Sync beenden"), so the service keeps nothing of the check.
 // Max (private) opens „Teilen …", takes „Bleibt aktuell" and „Eine Person" (each marked „mit
 // Sync"), takes his Termine of his own along and names it „Lena"; „Profil speichern und Link
 // erstellen" saves his profile with Betula Sync and makes a one-time link. Lena (private) opens it
@@ -35,8 +37,15 @@ const KEYS = () => {
   window.plan = () => localStorage.getItem(window.store("betula.studyplan.v1")) || "";
   window.syncStatus = () => localStorage.getItem(`betula.sync.p${active()}.status`) || "";
 };
+/// The cookie of closed testing from a curl cookie jar, where the site has the gate.
+const gate = process.env.SMOKE_COOKIES
+  ? (await import("node:fs")).readFileSync(process.env.SMOKE_COOKIES, "utf8").split("\n").map((l) => l.replace(/^#HttpOnly_/, "").split("\t")).filter((f) => f.length >= 7 && f[5] === "betula_access").map((f) => ({ name: f[5], value: f[6], domain: f[0].replace(/^\./, ""), path: "/", secure: true, httpOnly: true }))
+  : [];
+/// A request to Phloem: on another port while working on the site, under /sync/v1/ of the site's host otherwise.
+const toPhloem = (url) => url.includes(":8200") || url.includes("/sync/v1/");
 const device = async (name) => {
   const context = await browser.newContext();
+  if (gate.length) await context.addCookies(gate);
   await context.addInitScript(ON_PAGE);
   await context.addInitScript(KEYS);
   const page = await context.newPage();
@@ -141,6 +150,7 @@ await max.page.locator(".sh-dialog[open] .sh-sw", { hasText: "Eigene Termine" })
 await max.page.click("#sh-make");
 await until("Max: the address is made", max.page, () => Boolean(onPage(".sh-link")?.textContent.includes("/calendar/s/")), null, 20000);
 const feed = (await max.page.locator(".sh-link").first().textContent()).trim();
+// A calendar service sends no cookie: the address alone must answer.
 let answer = await fetch(feed);
 let body = await answer.text();
 check(answer.status === 200 && body.startsWith("BEGIN:VCALENDAR") && body.includes("Arbeit"), `the address answers ${answer.status}: ${body.split("\n").filter((l) => l.startsWith("SUMMARY")).slice(0, 8).join(" | ")} (share ${await max.page.evaluate(() => plan().split("\n").filter((l) => l.startsWith("s\t")).map((l) => l.split("\t").slice(2, 7).join(",")).join(" / "))})`);
@@ -159,9 +169,17 @@ await until("Max: the app's share is gone", max.page, () => !plan().split("\n").
 answer = await fetch(feed);
 check(answer.status === 404, `the address still answers ${answer.status} after „Nicht mehr teilen“`);
 
+// ---- the profiles of the check end their sync: the service keeps nothing of it ----
+for (const who of [max, lena]) {
+  await go(who.page, "/profile");
+  await who.page.getByRole("button", { name: /^Sync beenden/ }).first().click().catch(() => problems.push(`${who.name}: no „Sync beenden“`));
+  await who.page.getByRole("button", { name: /^Beenden$/ }).first().click().catch(() => problems.push(`${who.name}: no „Beenden“ to confirm`));
+  await until(`${who.name}: private again`, who.page, () => !syncStatus(), null, 15000);
+}
+
 // ---- privacy ----
 for (const s of sent) {
-  const leak = [...MODULES, ...MORE].find((m) => s.url.includes(":8200") && (s.body.includes(m) || s.headers.includes(m))) || (s.body.includes("Arbeit") && s.url.includes(":8200") && "Arbeit") || ((s.body.includes(partKey) || s.headers.includes(partKey)) && s.url.includes(":8200") && "the part's key");
+  const leak = [...MODULES, ...MORE].find((m) => toPhloem(s.url) && (s.body.includes(m) || s.headers.includes(m))) || (s.body.includes("Arbeit") && toPhloem(s.url) && "Arbeit") || ((s.body.includes(partKey) || s.headers.includes(partKey)) && toPhloem(s.url) && "the part's key");
   if (leak) problems.push(`${s.name}: ${leak} in the clear to ${s.url}`);
   if (s.url.includes("#once=") || s.url.includes("#live=")) problems.push(`${s.name}: a link's part after # reached ${s.url}`);
 }
