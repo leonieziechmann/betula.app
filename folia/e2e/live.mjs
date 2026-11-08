@@ -6,7 +6,7 @@
 // PHLOEM_ORIGINS naming Folia's origin; TURN is not needed: both browsers are in one network.
 // Chromium hides the addresses of its candidates behind mDNS names, which two browsers in one
 // container cannot resolve, so the check launches it with WebRtcHideLocalIpsWithMdns off.
-// A switches Betula Sync on and B joins with the link; both say „direkt verbunden" within seconds.
+// A switches Betula Sync on („Gerät verbinden“) and B joins with the link; both say „direkt verbunden" within seconds.
 // Then the entries Phloem hands to B are held back: a mark A sets still shows on B, over the
 // direct connection alone, and A's profile page says so. Privacy: the signals that set the
 // connection up (offers, answers, candidates with the devices' addresses) reach Phloem sealed,
@@ -65,8 +65,8 @@ const a = await device("A");
 await go(a.page, "/bookmarks");
 await a.page.evaluate((seed) => localStorage.setItem("betula.bookmarks.v1", seed.map((m, i) => `${m}\t${1790000000 - i}`).join("\n") + "\n"), SEED);
 await go(a.page, "/profile");
-await a.page.getByRole("button", { name: /Betula Sync aktivieren/ }).first().click().catch(() => problems.push("A: no „Betula Sync aktivieren“ (is FOLIA_SYNC on?)"));
-await a.page.getByRole("button", { name: /^Aktivieren$/ }).first().click().catch(() => problems.push("A: no „Aktivieren“"));
+await a.page.locator("#pf-sync-connect >> visible=true").click().catch(() => problems.push("A: no „Gerät verbinden“ on the profile page (is FOLIA_SYNC on?)"));
+await a.page.getByRole("button", { name: /^Einschalten und Code zeigen$/ }).first().click().catch(() => problems.push("A: no „Einschalten und Code zeigen“ in the dialog"));
 await until("A synced", a.page, () => syncWord().startsWith("online"), null, 15000);
 await until("the link for the next device", a.page, () => Boolean(onPage(".pf-pair-link code")?.textContent.includes("/sync#")), null, 10000);
 const link = (await a.page.locator(".pf-pair-link code").first().textContent().catch(() => "")).trim();

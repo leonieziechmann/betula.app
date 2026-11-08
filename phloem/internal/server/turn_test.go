@@ -36,6 +36,9 @@ func TestASignalGoesToTheSlotNamedAlone(t *testing.T) {
 	b, wb := e.connect(p, db, 0)
 	a.expect("presence")
 	other, _ := e.connect(q, dc, 0)
+	if !wa.Live || !wb.Live {
+		t.Fatal("the welcome does not say that signal and turn are taken")
+	}
 
 	a.send(map[string]any{"t": "signal", "to": wb.Slot, "data": b64s([]byte("offer"))})
 	f := b.expect("signal")

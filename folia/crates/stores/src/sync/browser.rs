@@ -500,6 +500,9 @@ pub struct Engine {
     watched: RefCell<Vec<String>>,
     /// The socket said welcome and is open.
     welcomed: Cell<bool>,
+    /// Its Phloem takes `signal` and `turn` (the welcome says so; an older one closes the socket
+    /// on them).
+    phloem_live: Cell<bool>,
     /// The live way: the connections to the other devices online (step 2, `rtc`).
     live: RefCell<rtc::Live>,
 }
@@ -760,7 +763,7 @@ impl Engine {
 
     async fn frame(self: &Rc<Self>, frame: In) {
         match frame {
-            In::Welcome { slot, head, now: server, devices, snapshot, entries } => {
+            In::Welcome { slot, head, now: server, devices, live, snapshot, entries } => {
                 *self.tries.borrow_mut() = 0;
                 if server > 0 {
                     nav::local_set(OFFSET_KEY, &(server as i64 - now() as i64).to_string());
@@ -791,6 +794,7 @@ impl Engine {
                 self.keep_waiting();
                 self.keep_records();
                 self.welcomed.set(true);
+                self.phloem_live.set(live);
                 self.online(&devices);
                 self.send_waiting();
                 self.watched.borrow_mut().clear();
@@ -1492,6 +1496,7 @@ async fn lead(sync: Sync, profiles: Profiles) {
         renew_again: Cell::new(false),
         watched: RefCell::new(Vec::new()),
         welcomed: Cell::new(false),
+        phloem_live: Cell::new(false),
         live: RefCell::new(rtc::Live::default()),
     });
     ENGINE.with(|e| *e.borrow_mut() = Some(Rc::clone(&engine)));

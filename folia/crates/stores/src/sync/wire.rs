@@ -55,6 +55,9 @@ pub enum In {
         now: u64,
         #[serde(default)]
         devices: Vec<u16>,
+        /// This Phloem takes `signal` and `turn` (step 2); an older one closes a socket on them.
+        #[serde(default)]
+        live: bool,
         #[serde(default)]
         snapshot: Option<Snapshot>,
         #[serde(default)]
@@ -261,7 +264,7 @@ mod tests {
         let welcome = In::read(r#"{"t":"welcome","slot":2,"head":9,"now":1790000000000,"devices":[1,2],"snapshot":{"upto":4,"data":"AA"},"entries":[{"nr":5,"slot":1,"data":"AQ"}]}"#);
         assert_eq!(
             welcome,
-            Some(In::Welcome { slot: 2, head: 9, now: 1_790_000_000_000, devices: vec![1, 2], snapshot: Some(Snapshot { upto: 4, data: "AA".into() }), entries: vec![Entry { nr: 5, slot: 1, data: "AQ".into() }] })
+            Some(In::Welcome { slot: 2, head: 9, now: 1_790_000_000_000, devices: vec![1, 2], live: false, snapshot: Some(Snapshot { upto: 4, data: "AA".into() }), entries: vec![Entry { nr: 5, slot: 1, data: "AQ".into() }] })
         );
         assert_eq!(In::read(r#"{"t":"welcome","slot":1,"snapshot":null}"#).map(|w| matches!(w, In::Welcome { snapshot: None, .. })), Some(true));
         assert_eq!(In::read(r#"{"t":"error","code":"too_big","id":"x"}"#), Some(In::Error { code: "too_big".into(), id: Some("x".into()) }));
@@ -301,5 +304,8 @@ mod tests {
             Some(In::Turn { urls: vec!["stun:betula.app:3478".into(), "turn:betula.app:3478?transport=udp".into()], user: "dQ".into(), password: "cA".into() })
         );
         assert_eq!(In::read(r#"{"t":"turn","urls":[]}"#), Some(In::Turn { urls: vec![], user: String::new(), password: String::new() }));
+        let live = |text: &str| matches!(In::read(text), Some(In::Welcome { live: true, .. }));
+        assert!(live(r#"{"t":"welcome","slot":1,"live":true}"#), "a Phloem of step 2 says so");
+        assert!(!live(r#"{"t":"welcome","slot":1}"#), "an older one says nothing: no signal, no turn to it");
     }
 }

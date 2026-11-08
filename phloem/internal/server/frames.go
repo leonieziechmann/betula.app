@@ -128,6 +128,9 @@ func welcomeFrame(slot int, head, now int64, devices []int, snap *store.Snapshot
 	b = strconv.AppendInt(b, now, 10)
 	b = append(b, `,"devices":`...)
 	b = appendSlots(b, devices)
+	// This Phloem takes signal and turn (step 2): a device sends them only where the welcome says
+	// so, since an older Phloem closes a socket on a frame it does not know.
+	b = append(b, `,"live":true`...)
 	b = append(b, `,"snapshot":`...)
 	if snap == nil {
 		b = append(b, "null"...)

@@ -177,6 +177,9 @@ impl Engine {
     /// Offers to every device online this one offers to and has no connection with; asks for the
     /// ICE servers first.
     fn connect_live(self: &Rc<Self>) {
+        if !self.phloem_live.get() {
+            return; // an older Phloem: no signal, no turn (it would close the socket on them)
+        }
         let (known, asked) = {
             let live = self.live.borrow();
             (live.ice.is_some(), live.asked)

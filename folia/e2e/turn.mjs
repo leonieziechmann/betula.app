@@ -51,8 +51,8 @@ const a = await device("A", process.env.BT_BROWSER_A);
 await go(a.page, "/bookmarks");
 await a.page.evaluate((seed) => localStorage.setItem("betula.bookmarks.v1", seed.map((m, i) => `${m}\t${1790000000 - i}`).join("\n") + "\n"), SEED);
 await go(a.page, "/profile");
-await a.page.getByRole("button", { name: /Betula Sync aktivieren/ }).first().click().catch(() => problems.push("A: no „Betula Sync aktivieren“"));
-await a.page.getByRole("button", { name: /^Aktivieren$/ }).first().click().catch(() => problems.push("A: no „Aktivieren“"));
+await a.page.locator("#pf-sync-connect >> visible=true").click().catch(() => problems.push("A: no „Gerät verbinden“ on the profile page (is FOLIA_SYNC on?)"));
+await a.page.getByRole("button", { name: /^Einschalten und Code zeigen$/ }).first().click().catch(() => problems.push("A: no „Einschalten und Code zeigen“ in the dialog"));
 await until("A synced", a.page, () => syncWord().startsWith("online"), null, 20000);
 await until("the link", a.page, () => Boolean(onPage(".pf-pair-link code")?.textContent.includes("/sync#")), null, 10000);
 const link = (await a.page.locator(".pf-pair-link code").first().textContent().catch(() => "")).trim();
@@ -79,11 +79,12 @@ await b.page.goto(link);
 await app(b.page);
 await until("B joined", b.page, (n) => marked().length === n, SEED.length, 30000);
 
-// No direct way: the first attempt (STUN alone) fails within 8 s, the one with TURN opens.
+// A waits on the catalog. No direct way: the first attempt (STUN alone) fails within 8 s, the one
+// with TURN opens.
+await go(a.page, "/catalog");
 await until("A relayed", a.page, () => / relayed 1 /.test(syncWord() + " "), null, 60000);
 await until("B relayed", b.page, () => / relayed 1 /.test(syncWord() + " "), null, 10000);
 check(!/ direct [1-9]/.test(await a.page.evaluate(() => syncWord())), "A found a direct way through the NATs: the check proves nothing about TURN then");
-await until("A's profile page says so", a.page, () => /über Betula weitergeleitet/.test(onPage(".pf-sync-state")?.textContent || ""), null, 5000);
 
 /// Marks a module A has not marked, on the catalog A shows; its number.
 const markOnA = async () => {
@@ -92,14 +93,11 @@ const markOnA = async () => {
     return rows[0]?.querySelector("a.row")?.dataset.id || "";
   });
   check(id, "A: no module to mark on the catalog");
-  if (id) await a.page.click(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle >> visible=true`);
+  if (id) await a.page.click(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle >> visible=true`, { timeout: 10000 }).catch(() => problems.push(`A: cannot mark ${id}`));
   return id;
 };
 
-// Within the app (no page load: the connection stays), a mark of A reaches B through the relay
-// alone, with Phloem's entries to B held back.
-await a.page.click('.rail a[data-area="catalog"] >> visible=true').catch(() => problems.push("A: no way to the catalog in the rail"));
-await until("A on the catalog", a.page, () => document.querySelectorAll(".row-wrap .mark-toggle").length > 3, null, 10000);
+// With Phloem's entries to B held back, a mark of A reaches B through the relay alone.
 holding = true;
 const first = await markOnA();
 if (first) await until("A's mark on B, through the relay", b.page, (id) => marked().includes(id), first, 5000);
@@ -112,6 +110,10 @@ await until("A relayed again, at once", a.page, () => / relayed 1 /.test(syncWor
 const second = await markOnA();
 if (second) await until("A's second mark on B, through the relay", b.page, (id) => marked().includes(id), second, 5000);
 holding = false;
+
+// A's profile page says how B is connected.
+await go(a.page, "/profile");
+await until("A's profile page says so", a.page, () => /über Betula weitergeleitet/.test(onPage(".pf-sync-state")?.textContent || ""), null, 10000);
 
 await a.browser.close();
 await b.browser.close();
