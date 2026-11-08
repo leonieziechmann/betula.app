@@ -23,7 +23,9 @@
 #             on) and walk nothing; WhatsApp's and Signal's say no crawler word and pass anyway.
 #             Left out on purpose: Yandex, Baidu, Petal, Seznam, Naver (no students of the BTU search
 #             there), the AI search crawlers (OAI-SearchBot, PerplexityBot, Claude-SearchBot,
-#             DuckAssistBot) and Google's AdsBot (the site runs no ads).
+#             DuckAssistBot, KeenableBot) and Google's AdsBot (the site runs no ads). KeenableBot, a
+#             search engine for AI agents, was about 840 of 945 requests a minute before this file
+#             (2026-11-08); owner, asked whether it stays out: „Ja, gesperrt lassen".
 # cubot       a maker of phones: "CUBOT X30" in a browser's user agent is a person, not a bot.
 # Always      robots.txt, so that a polite crawler learns it is unwelcome and stops asking; the
 #             calendar feeds (/calendar/, /en/calendar/), which calendar apps and services fetch with
