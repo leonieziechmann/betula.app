@@ -1132,7 +1132,7 @@ mod tests {
         assert_eq!(back_at_head("/profile"), Some(Up::Before));
         assert_eq!(back_at_head("/about/overview"), Some(Up::List(Area::Home)));
         assert_eq!(back_at_head("/about/questions"), Some(Up::List(Area::Home)));
-        for path in ["/programs/", "/study", "/catalog", "/catalog/module", "/catalog/module/", "/bookmarks", "/studyplan", "/profile/x", "/", "/impressum", "/about", "/about/nothing"] {
+        for path in ["/programs/", "/study", "/catalog", "/catalog/module", "/catalog/module/", "/bookmarks", "/studyplan", "/profile/x", "/", "/imprint", "/about", "/about/nothing"] {
             assert_eq!(back_at_head(path), None, "{path}");
         }
     }

@@ -95,7 +95,7 @@ pub struct Texts {
     /// The way to it.
     pub conflict_open: &'static str,
 
-    // ---- „Gerät verbinden" (`/verbinden`) ----
+    // ---- „Gerät verbinden" (`/sync`) ----
     pub connect_title: &'static str,
     pub connect_description: &'static str,
     /// The server's page, which runs nothing.

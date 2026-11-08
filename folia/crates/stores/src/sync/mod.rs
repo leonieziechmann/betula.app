@@ -71,7 +71,8 @@ pub enum Problem {
 /// A link for the next device („Weiteres Gerät verbinden"): its QR code and the link itself.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Pairing {
-    /// `https://<host>/verbinden#<…>`: what follows `#` never reaches a server.
+    /// `https://<host>/sync#<…>` (`url::CONNECT`; `/verbinden#<…>` until 2026-11-08, which leads
+    /// there still): what follows `#` never reaches a server.
     pub link: String,
     /// Until when it opens, in milliseconds since 1970 (ten minutes, once).
     pub until: u64,

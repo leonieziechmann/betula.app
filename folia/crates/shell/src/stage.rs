@@ -108,7 +108,7 @@ impl Key {
     /// is on the stage of its own.
     pub fn of(path: &str, from: Key) -> Self {
         match Page::of(path) {
-            Page::About | Page::AboutTopic | Page::Profile | Page::Connect | Page::Event | Page::Imprint | Page::Privacy | Page::NotFound => Key::Other,
+            Page::About | Page::AboutTopic | Page::Profile | Page::Connect | Page::Event | Page::Imprint | Page::Privacy | Page::Moved | Page::NotFound => Key::Other,
             Page::Module if from.area().is_some_and(Area::shows_in_place) => from,
             _ => Key::of_area(Area::of(path)),
         }
@@ -136,12 +136,17 @@ pub enum Page {
     Studyplan,
     Study,
     Profile,
-    /// `/verbinden`, where a link of another device joins its profile (Betula Sync).
+    /// `/sync`, where a link of another device joins its profile (Betula Sync).
     Connect,
     /// `/event/:key` and `/event/:key/:day`, a Termin's own page (folia/design/termin).
     Event,
+    /// `/imprint`
     Imprint,
+    /// `/privacy`
     Privacy,
+    /// An address that moved (`url::MOVED`: `/verbinden`, `/impressum`, `/datenschutz`; owner,
+    /// 2026-11-08): the app goes on to its new place, as the server's redirect does.
+    Moved,
     NotFound,
 }
 
@@ -162,10 +167,11 @@ impl Page {
             ["studyplan"] => Page::Studyplan,
             ["study"] => Page::Study,
             ["profile"] => Page::Profile,
-            ["verbinden"] => Page::Connect,
+            ["sync"] => Page::Connect,
             ["event", _] | ["event", _, _] => Page::Event,
-            ["impressum"] => Page::Imprint,
-            ["datenschutz"] => Page::Privacy,
+            ["imprint"] => Page::Imprint,
+            ["privacy"] => Page::Privacy,
+            [old] if folia_routes::url::MOVED.iter().any(|(moved, _)| moved.strip_prefix('/') == Some(*old)) => Page::Moved,
             _ => Page::NotFound,
         }
     }
@@ -733,8 +739,11 @@ mod tests {
         assert_eq!(Page::of("/programs/bachelor-informatik-2008/areas"), Page::ProgramTab);
         assert_eq!(Page::of("/programs/a/b/c"), Page::NotFound);
         assert_eq!((Page::of("/bookmarks"), Page::of("/studyplan"), Page::of("/study")), (Page::Bookmarks, Page::Studyplan, Page::Study));
-        assert_eq!((Page::of("/profile"), Page::of("/impressum"), Page::of("/datenschutz")), (Page::Profile, Page::Imprint, Page::Privacy));
+        assert_eq!((Page::of("/profile"), Page::of(folia_routes::url::IMPRINT), Page::of(folia_routes::url::PRIVACY)), (Page::Profile, Page::Imprint, Page::Privacy));
         assert_eq!((Page::of(folia_routes::url::CONNECT), Key::of(folia_routes::url::CONNECT, Key::Studyplan)), (Page::Connect, Key::Other));
+        // The German addresses that were lead on (`url::MOVED`), on the stage of no tab.
+        assert_eq!((Page::of("/verbinden"), Page::of("/impressum"), Page::of("/datenschutz/"), Page::of("/sync/v1")), (Page::Moved, Page::Moved, Page::Moved, Page::NotFound));
+        assert_eq!(Key::of("/impressum", Key::Catalog), Key::Other);
         assert_eq!(Page::of("/nichts"), Page::NotFound);
         assert_eq!(Page::Module.params("/catalog/module/11103").get("id").as_deref(), Some("11103"));
         let program = Page::ProgramTab.params("/programs/bachelor-informatik-2008/areas");
@@ -760,7 +769,7 @@ mod tests {
         assert_eq!(Key::of("/catalog/module/11103", Key::Studyplan), Key::Studyplan);
         assert_eq!(Key::of("/catalog/module/11103", Key::Other), Key::Catalog);
         assert_eq!((Key::of("/study", Key::Home), Key::of("/programs/x/plan", Key::Catalog)), (Key::Programs, Key::Programs));
-        assert_eq!((Key::of("/profile", Key::Catalog), Key::of("/impressum", Key::Home), Key::of("/nichts", Key::Home), Key::of("/about", Key::Home)), (Key::Other, Key::Other, Key::Other, Key::Other));
+        assert_eq!((Key::of("/profile", Key::Catalog), Key::of("/imprint", Key::Home), Key::of("/nichts", Key::Home), Key::of("/about", Key::Home)), (Key::Other, Key::Other, Key::Other, Key::Other));
         assert_eq!(Key::of("/event/148370-eb017/2026-11-02", Key::Catalog), Key::Other);
     }
 

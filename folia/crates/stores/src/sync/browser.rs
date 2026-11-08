@@ -365,7 +365,7 @@ pub async fn pair(profile: u16, name: String) -> Result<super::Pairing, Problem>
         return Err(problem_of(status, &text));
     }
     let origin = web_sys::window().and_then(|w| w.location().origin().ok()).unwrap_or_default();
-    Ok(super::Pairing { link: format!("{origin}/verbinden#{}", b64(&[&id[..], &link_key[..]].concat())), until: now() + 10 * 60 * 1000 })
+    Ok(super::Pairing { link: format!("{origin}{}#{}", folia_routes::url::CONNECT, b64(&[&id[..], &link_key[..]].concat())), until: now() + 10 * 60 * 1000 })
 }
 
 /// The profiles a link of `pair` hands on.

@@ -1180,7 +1180,7 @@ mod tests {
         assert_eq!(change("/study", "plan=1", "/study", "plan=1&open=11103", true), Some(Change::Aside));
         assert_eq!(change("/study", "plan=1&open=11103", "/study", "plan=1", true), Some(Change::Aside));
         assert_eq!(change("/study", "plan=1&open=11103", "/study", "plan=1&open=11103&full=1", true), Some(Change::Page(Shape::Module)));
-        assert_eq!(change("/catalog/module/11103", "", "/impressum", "", false), Some(Change::Page(Shape::Text)));
+        assert_eq!(change("/catalog/module/11103", "", "/imprint", "", false), Some(Change::Page(Shape::Text)));
         // The profile page has a frame of its own to stand in for it.
         assert_eq!(change("/bookmarks", "", "/profile", "", false), Some(Change::Page(Shape::Profile)));
         // A Termin's own page: another date or group of the same event is the page's own business.
