@@ -160,6 +160,17 @@ pub const DEVICES: &str = "devices";
 /// Phloem lies below it on the same host, at `/sync/v1/` (docs/phloem/protocol.md), and Traefik
 /// sends only that prefix there (deploy/stacks/phloem.yml): the page itself is Folia's.
 pub const CONNECT: &str = "/sync";
+/// The scanner of `CONNECT` opened from the start page's setup (its last step on a phone): once a
+/// code is answered, the way leads back to the setup (`?from=setup`).
+pub fn connect_from_setup() -> String {
+    format!("{CONNECT}?from=setup")
+}
+
+/// Whether the query of `CONNECT` (without `?`) says it was opened from the setup.
+pub fn from_setup(raw_query: &str) -> bool {
+    first_value(&parse_pairs(raw_query.trim_start_matches('?')), "from").as_deref() == Some("setup")
+}
+
 /// „Mit dem Handy verbinden" (Betula Sync; owner, 2026-11-08: „Da muss ein link kommen wie
 /// betula.app/pair wo dann der qr code gezeigt wird, den man am handy scannen kann um sich
 /// einzuloggen"): the address one types on a computer, which then shows a QR code; the phone that
@@ -2460,6 +2471,9 @@ mod tests {
         // Betula Sync's page lies beside Phloem's `/sync/v1/` on the same host, never under it.
         assert!(!CONNECT.starts_with("/sync/v1"));
         assert_eq!(PAIR, "/pair");
+        assert_eq!(connect_from_setup(), "/sync?from=setup");
+        assert!(from_setup("from=setup") && from_setup("?from=setup") && from_setup("x=1&from=setup"));
+        assert!(!from_setup("") && !from_setup("from=profile") && !from_setup("setup"));
     }
 
     #[test]
