@@ -112,9 +112,10 @@ Why this order, and what can go wrong:
   `monitoring.public.yml` are only deployed while `www.betula.app` / `grafana.betula.app` resolve to
   this machine (they do today). An empty host keeps Grafana off the internet, on every run:
   `ssh betula GRAFANA_HOST= bash /opt/betula/vps/40-stacks.sh`.
-  **Do not create AAAA records** for any of the names: Docker has no IPv6 network here, IPv6
-  connections reach Traefik through docker-proxy, and every IPv6 visitor would share one client
-  address (access log, rate limits). Ports 80/443 are open on IPv6 all the same; only scanners use them.
+  AAAA records belong only on a host whose `docker_gwbridge` has IPv6 (section 15, "IPv6 to
+  Traefik"; `30-docker.sh` makes it so on a new host): without it, IPv6 connections reach Traefik
+  through docker-proxy, and every IPv6 visitor shares one client address (access log, rate limits,
+  the filters by network). Ports 80/443 are open on IPv6 all the same.
 - A certificate order that failed is not retried by Traefik on its own. Fix the cause, then
   `docker service update --force edge_traefik` (one attempt per missing name; stay below 5 per hour).
 
@@ -1014,7 +1015,7 @@ networks is not internal, and an internal network leads nowhere but to its membe
 
 | From → to | Port | Over | Why |
 |---|---|---|---|
-| internet → Traefik | 80, 443 (host mode) | `edge_out` | the sites; the only published ports |
+| internet → Traefik | 80, 443 (host mode) | `docker_gwbridge`, IPv4 and IPv6 (Traefik is on it through `edge_out`) | the sites; the only published ports ("IPv6 to Traefik" below) |
 | Traefik → Let's Encrypt | 443 | `edge_out` | certificates |
 | Traefik → socket proxy | 2375 | `edge_socket` | the swarm provider (read-only API) |
 | Traefik → Folia of an instance | 8080 | `edge_<instance>` (one per instance) | the site |
@@ -1092,7 +1093,8 @@ guard's timer. `91-verify-stacks.sh` (as `deploy`, with `sudo -n` for `nsenter`)
 `deploy/test/netmatrix.sh` builds all of it in a local one-node swarm, with stand-ins for what the
 networks do not depend on (real Traefik, socket proxy, Prometheus, scraper and Alloy), runs those
 two sections, the routes through Traefik and two mutations they must catch, and removes it again
-(as root, on a throwaway machine; never on the server).
+(as root, on a throwaway machine; never on the server). `deploy/test/gwbridge.sh` does the same for
+`docker_gwbridge` ("IPv6 to Traefik" below), and `90-verify-host.sh docker` checks the bridge.
 
 ### A new instance
 
@@ -1147,6 +1149,70 @@ by itself, and the same for Cortex in `48-cortex.sh`). In this order:
 colour was switched); the old files find the old networks, which still exist. After step 7 the
 previous `30-docker.sh` makes `edge`, `monitoring` and `cortex` again first. The new networks may
 stay; they are empty without their services.
+
+### IPv6 to Traefik
+
+Host-mode ports arrive on `docker_gwbridge`, Docker's local bridge for swarm tasks. Until 2026-11
+it had IPv4 only. Docker published 80/443 on `[::]` all the same, through `docker-proxy`, which
+relays each IPv6 connection over IPv4 from the bridge's gateway (`172.30.1.1`): every IPv6 visitor
+(betula.app, www and canary have AAAA records) was one client to Traefik, with one address in the
+access log, one bucket of `rate-limit@file`, and a private address that the filters by network
+(`crawler-networks.yml`, `europe.yml`) let pass. With the line `gwbridge fd6a:a6b2:ce70:1::/64` of
+`vps/files/networks.conf` the bridge has IPv6 as well: a connection to a published port is DNATed
+over IPv6 like over IPv4, through the filter of `betula-docker-firewall` in `DOCKER-USER`, and
+Traefik sees the visitor's own address. The subnet is unique local, so the containers go out over
+NAT, as over IPv4; where a name has both kinds of address, the address selection of RFC 6724 keeps
+them on IPv4 (a unique local source does not match a global IPv6 destination).
+
+Docker sets a bridge's options when it makes it and never later, so `30-docker.sh` makes it anew
+(`gwbridge_swap` in `vps/lib-networks.sh`): every service with a task on it goes to 0 (the ones
+with a network that is not internal: Traefik, both Cortex, Grafana, a Radix with
+`<instance>_egress`, Phloem's `<stack>_out`), the bridge is removed and made again with the same
+IPv4 subnet and the IPv6 one, and the services go back to their replicas. What is on internal
+networks only keeps running: every Folia (no cold start), Radix without egress, Prometheus, Loki,
+Alloy, the scraper, the socket proxy. A new host gets the bridge with IPv6 before its swarm exists,
+and nothing stops.
+
+What it costs: the sites are away while Traefik is, as on every update of it (stop-first,
+host-mode ports). `deploy/test/gwbridge.sh` measures the time its stand-in of Traefik does not
+answer (5 to 25 s in WSL on a laptop, 2026-11-08); on the server count on up to half a minute (Traefik's
+`stop_grace_period` is 20 s). Cortex is away as long, and Radix's fetches fail meanwhile (not during
+a crawl); Grafana about a minute. The ingress network's sandbox (Docker's own; nothing here
+publishes through the routing mesh) stays off the bridge until dockerd starts again: a reboot or an
+engine upgrade.
+
+Until it ran on a host, `30-docker.sh` ends with `PENDING: docker_gwbridge differs` and names the
+services the swap would stop, and `90-verify-host.sh docker` warns "docker_gwbridge has no IPv6 yet".
+On the server, once the owner said yes, in a quiet moment:
+
+1. `SSH_TARGET=betula bash deploy/sync.sh` from develop (or from master once it has this). Traefik
+   reloads `europe.yml` and `crawler-networks.yml` within seconds; for IPv6 visitors nothing changes
+   yet, they still arrive as the private gateway.
+2. `ssh betula sudo bash /opt/betula/vps/30-docker.sh`: installs the changed filter script (its
+   comments; it applies it again, which changes nothing) and ends with the PENDING line and the
+   services it would stop. Nothing restarts.
+3. `ssh betula sudo env GWBRIDGE_REBUILD=1 bash /opt/betula/vps/30-docker.sh`. It checks first and
+   changes nothing when a check fails: a new bridge gets a link-local address
+   (`net.ipv6.conf.default.addr_gen_mode` not 1; without one the host cannot reach the containers
+   over IPv6 on a visitor's behalf), no IPv6 route comes from router advertisements (Docker turns
+   IPv6 forwarding on, and a forwarding host ignores them), the filter stands in ip6tables. Then it
+   stops `betula-canary.timer` (and refuses while a canary deploy runs), swaps ("to 0 for the swap:
+   ...", "docker_gwbridge made anew", "scaled back"), checks the result (link-local address, IPv6
+   forwarding, a DNAT rule per port published on `[::]`: "docker_gwbridge as planned") and starts
+   the timer again. When the check after the swap fails, it swaps back to IPv4 only by itself and
+   says why; when anything fails on the way, its exit hook scales the services back.
+4. Look: `curl -6 -sI https://betula.app/ | head -n 1` from a machine with IPv6 (200);
+   `ssh betula "docker service logs --since 5m edge_traefik 2>&1 | grep -c '\"ClientHost\":\"[0-9a-f]*:'"`
+   counts requests logged with an IPv6 address; `sudo bash /opt/betula/vps/90-verify-host.sh docker`
+   (PASS docker_gwbridge, and "ip6tables: FORWARD jumps to DOCKER-USER first") and
+   `bash /opt/betula/vps/91-verify-stacks.sh`.
+5. Only if the owner agreed to it as well: the engine upgrade that waits for this
+   (`sudo env DOCKER_UPGRADE=1 bash /opt/betula/vps/30-docker.sh`, which restarts every container);
+   its start of dockerd puts the ingress sandbox back on the bridge. Otherwise the next reboot does.
+
+The way back, the same seconds: `ssh betula sudo env GWBRIDGE_REBUILD=1 GWBRIDGE_IPV6=off bash
+/opt/betula/vps/30-docker.sh`. IPv6 visitors arrive as the gateway again and pass the filters as a
+private address.
 
 ## 16. Betula Sync: Phloem
 

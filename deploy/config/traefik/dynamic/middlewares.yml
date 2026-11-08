@@ -54,10 +54,10 @@ http:
           - application/wasm
           - image/svg+xml
 
-    # Optional, per source address. For IPv4 that is the real client: Traefik's ports are published in host
-    # mode and no proxy sits in front. IPv6 connections are relayed by docker-proxy and all arrive from the
-    # address of the bridge gateway, so they share ONE bucket (see "ipv6" in stacks/edge.yml): with AAAA
-    # records every IPv6 visitor would get 429 as soon as all of them together exceed the rate.
+    # Optional, per source address. That is the real client: Traefik's ports are published in host mode and
+    # no proxy sits in front. For IPv6 only once docker_gwbridge has IPv6 (see "ipv6" in stacks/edge.yml):
+    # before, docker-proxy relays every IPv6 connection from the bridge gateway's address, and all IPv6
+    # visitors share ONE bucket.
     # Generous on purpose: the first load of a single-page app is a burst of requests. Excess requests get 429.
     rate-limit:
       rateLimit:
@@ -66,8 +66,7 @@ http:
         burst: 100
         sourceCriterion:
           ipStrategy:
-            # For the day Traefik sees IPv6 addresses itself: one customer owns a whole /64, count it as
-            # one client. Without effect until then.
+            # One customer owns a whole /64: count it as one client.
             ipv6Subnet: 64
 
     # Betula Sync's service, Phloem, at /sync/v1/ (docs/phloem/protocol.md), for its router. Per source

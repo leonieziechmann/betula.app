@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 30-docker.sh - Docker Engine, one-node swarm, the overlay networks of files/networks.conf,
-# published-port firewall, prune timer, Phloem's guard timer.
+# 30-docker.sh - Docker Engine, one-node swarm, the overlay networks of files/networks.conf and
+# docker_gwbridge with IPv6, published-port firewall, prune timer, Phloem's guard timer.
 #
 #   sudo bash /opt/betula/vps/30-docker.sh
 #
@@ -12,6 +12,11 @@
 #   DOCKER_UPGRADE=1          upgrade the Docker packages within the pinned major version
 #   ALLOW_DOCKER_RESTART=1    restart dockerd when daemon.json changed although containers run
 #                             (works on a later run too: the pending restart is remembered in /run)
+#   GWBRIDGE_REBUILD=1        make docker_gwbridge anew when its IPv6 differs from the plan: every
+#                             service on it goes to 0 and back, Traefik among them, so the sites
+#                             are away for some seconds (README.md section 15, "IPv6 to Traefik")
+#   GWBRIDGE_IPV6=off         want docker_gwbridge without IPv6 (with GWBRIDGE_REBUILD=1: the way
+#                             back; IPv6 visitors then reach Traefik through docker-proxy again)
 #   DOCKER_APT_SUITE=noble    force the repository suite (default: this release, else the fallback)
 #   SWARM_ADVERTISE_ADDR=...  override the detected public IPv4
 #   SWARM_ADDR_POOL=...       address pool for overlay networks (default 10.200.0.0/16, /24 each);
@@ -54,6 +59,10 @@ BRIDGE_POOL_REGEX='^172\.30\.'
 DOCKER_RESTART_PENDING=0
 # Exists while /etc/docker/daemon.json is newer than the running dockerd (see install_daemon_config).
 DOCKER_RESTART_MARKER="${BETULA_RUN_DIR}/docker-restart-pending"
+# 1 = docker_gwbridge differs from the plan and GWBRIDGE_REBUILD was not given (ensure_gwbridge).
+GWBRIDGE_PENDING=0
+# 1 = ensure_gwbridge stopped betula-canary.timer and starts it again.
+CANARY_TIMER_PAUSED=0
 
 # ---------------------------------------------------------------- steps
 
@@ -95,6 +104,13 @@ check_address_pools() {
     fi
   done
   log "host addresses: ${addrs//$'\n'/ } - no overlap with 172.30.0.0/16, ${SWARM_ADDR_POOL} or the fixed subnets of files/networks.conf"
+  # docker_gwbridge's IPv6 subnet (a /64, compared by its first four groups).
+  if [[ -n "${NETPLAN_GWBRIDGE6}" ]] && ipv6_enabled; then
+    subnet="${NETPLAN_GWBRIDGE6%%::*}:"
+    if ip -6 -o addr show scope global 2>/dev/null | awk '$2 != "docker_gwbridge" { print $4 }' | grep -Fq -- "${subnet}"; then
+      die "a host address lies inside ${NETPLAN_GWBRIDGE6}, the IPv6 subnet of docker_gwbridge in files/networks.conf; choose another there"
+    fi
+  fi
 }
 
 remove_conflicting_packages() {
@@ -154,7 +170,9 @@ install_daemon_config() {
   #   icc false             containers on the default bridge (ad-hoc "docker run") cannot talk to
   #                         each other; services use their own networks and are unaffected.
   # Not set: "ip" (default bind address) only affects the default bridge, not swarm services,
-  # and "userland-proxy" stays on (docker-proxy is what serves IPv6 clients and hairpin traffic).
+  # and "userland-proxy" stays on (docker-proxy serves hairpin traffic, and IPv6 clients while
+  # docker_gwbridge has no IPv6). Nor "ipv6": it is the default bridge's; docker_gwbridge gets its
+  # IPv6 in ensure_gwbridge, and "ip6tables" is on by default since Docker 27.
   local src="${BETULA_FILES_DIR}/docker-daemon.json" containers backup
   jq -e . "${src}" >/dev/null || die "${src} is not valid JSON"
   install_file "${src}" /etc/docker/daemon.json 0644
@@ -315,6 +333,66 @@ add_deploy_to_docker_group() {
   log "${DEPLOY_USER} is in group docker (new sessions only)"
 }
 
+# The canary agent deploys by itself (README.md section 12); while docker_gwbridge is made anew
+# Traefik is away, and a deploy would fail its checks. Stopped for the swap, started again after it
+# (also when this script fails: exit hook).
+pause_canary() {
+  if unit_active betula-canary.timer; then
+    systemctl stop betula-canary.timer
+    CANARY_TIMER_PAUSED=1
+    add_exit_hook resume_canary
+    log "betula-canary.timer stopped for the swap"
+  fi
+  if unit_active betula-canary.service; then
+    die "a canary deploy is running (journalctl -fu betula-canary.service); run this again once it is done"
+  fi
+}
+
+resume_canary() {
+  [[ "${CANARY_TIMER_PAUSED}" -eq 1 ]] || return 0
+  CANARY_TIMER_PAUSED=0
+  systemctl start betula-canary.timer && log "betula-canary.timer on again"
+}
+
+ensure_gwbridge() {
+  step "docker_gwbridge with the IPv6 of files/networks.conf (where host-mode ports arrive)"
+  # Docker makes this bridge itself, IPv4 only, the first time a swarm task needs it; made before
+  # that, it is taken as it is. Docker changes nothing of it later: an existing one that differs is
+  # made anew, with GWBRIDGE_REBUILD=1 only (lib-networks.sh, gwbridge_swap).
+  local wanted facts v6
+  netplan_read
+  wanted="$(gwbridge_wanted)"
+  facts="$(gwbridge_facts)"
+  if [[ -z "${facts}" ]]; then
+    gwbridge_preflight "${wanted}" || die "${GWBRIDGE_DETAIL}"
+    gwbridge_create - - "${wanted}"
+    log "docker_gwbridge made: $(gwbridge_facts) (IPv4 subnet, gateway, IPv6 subnet)"
+    return 0
+  fi
+  read -r _ _ v6 <<<"${facts}"
+  if [[ "${v6}" == "${wanted}" ]]; then
+    if gwbridge_verify "${wanted}"; then
+      log "docker_gwbridge: ${facts} (IPv4 subnet, gateway, IPv6 subnet), as planned"
+    else
+      warn "docker_gwbridge: ${GWBRIDGE_DETAIL}"
+    fi
+    return 0
+  fi
+  if [[ "${GWBRIDGE_REBUILD:-0}" != "1" ]]; then
+    warn "docker_gwbridge has IPv6 subnet ${v6}, the plan says ${wanted}$([[ "${wanted}" == "-" ]] || printf ': IPv6 visitors reach Traefik as its gateway')"
+    warn "making it anew stops every service on it for some seconds: $(gwbridge_services | tr '\n' ' ')- GWBRIDGE_REBUILD=1 (README.md section 15, IPv6 to Traefik)"
+    GWBRIDGE_PENDING=1
+    return 0
+  fi
+  gwbridge_preflight "${wanted}" || die "${GWBRIDGE_DETAIL}; nothing was changed"
+  # Docker forwards IPv6 to the containers from now on: the published-port filter must stand in
+  # ip6tables before it does (betula-docker-firewall, install_firewall_integration).
+  if [[ "${wanted}" != "-" ]]; then check_filter_family ip6tables; fi
+  pause_canary
+  gwbridge_rebuild "${wanted}"
+  resume_canary
+}
+
 init_swarm() {
   step "Swarm (single node, manager)"
   local state manager addr
@@ -406,9 +484,10 @@ check_filter_family() {
   elif [[ "${ipt}" == "iptables" ]]; then
     die "iptables: FORWARD does not jump to DOCKER-USER; is dockerd using the iptables backend?"
   else
-    # Docker only hooks its chains into the IPv6 FORWARD chain when it manages IPv6 forwarding.
-    # Without the jump nothing is forwarded at all (policy DROP), so this is the safe state; the
-    # filter already sits in DOCKER-USER for the day an IPv6 network appears.
+    # Docker only hooks its chains into the IPv6 FORWARD chain when it manages IPv6 forwarding,
+    # i.e. once a network has IPv6 (docker_gwbridge, ensure_gwbridge). Without the jump nothing is
+    # forwarded at all (policy DROP), so this is the safe state; the filter already sits in
+    # DOCKER-USER for the moment an IPv6 network appears.
     log "${ipt}: Docker forwards no IPv6 (no jump to DOCKER-USER); policy DROP, filter prepared"
   fi
 }
@@ -416,9 +495,10 @@ check_filter_family() {
 check_firewall() {
   step "Check the published-port filter after Docker has set up its own chains"
   check_filter_family iptables
-  # The host has a global IPv6 address: the IPv6 half is not optional. (Published ports reach
-  # IPv6 clients through docker-proxy, i.e. INPUT, which ufw's v6 rules close; this is the
-  # forward path.)
+  # The host has a global IPv6 address: the IPv6 half is not optional. (With IPv6 on
+  # docker_gwbridge published ports reach IPv6 clients by DNAT through FORWARD, as on IPv4, and
+  # this filter stands in front of them; without, through docker-proxy, i.e. INPUT, which ufw's
+  # v6 rules close.)
   if ! ipv6_enabled; then
     log "IPv6 is disabled in the kernel; no ip6tables filter to check"
   elif has_global_ipv6 || ip6tables -w 10 -S BETULA-PUBLISHED >/dev/null 2>&1; then
@@ -461,6 +541,9 @@ report() {
   if [[ "${DOCKER_RESTART_PENDING}" -eq 2 ]]; then
     warn "PENDING: daemon.json changed but dockerd was not restarted (ALLOW_DOCKER_RESTART=1)"
   fi
+  if [[ "${GWBRIDGE_PENDING}" -eq 1 ]]; then
+    warn "PENDING: docker_gwbridge differs from files/networks.conf (GWBRIDGE_REBUILD=1, README.md section 15)"
+  fi
   log "next: sudo bash /opt/betula/vps/90-verify-host.sh"
   log "then, in a NEW session as ${DEPLOY_USER} (group docker only applies to new logins) and without sudo:"
   log "      bash /opt/betula/vps/40-stacks.sh && bash /opt/betula/vps/91-verify-stacks.sh"
@@ -479,6 +562,7 @@ install_firewall_integration
 configure_repository
 install_engine
 add_deploy_to_docker_group
+ensure_gwbridge
 init_swarm
 create_overlay_networks
 install_prune_timer

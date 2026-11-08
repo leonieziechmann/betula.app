@@ -115,10 +115,11 @@ apply() {
 apply iptables
 
 # IPv6: this host has a global IPv6 address, so it is reachable over v6 whatever DNS says.
-# Today no Docker network has IPv6: published ports reach v6 clients only through docker-proxy,
-# which is INPUT traffic and therefore under ufw's v6 rules. The forward path gets the same
-# filter for the day that changes. With a global address a failure is as fatal as on IPv4;
-# only a host that cannot be reached over IPv6 anyway may start Docker without it.
+# With IPv6 on docker_gwbridge (30-docker.sh, ensure_gwbridge) published ports are DNATed for v6
+# clients as for v4 ones, and this filter is what stands in front of them in FORWARD. Before,
+# they arrived through docker-proxy, which is INPUT traffic and therefore under ufw's v6 rules.
+# With a global address a failure is as fatal as on IPv4; only a host that cannot be reached
+# over IPv6 anyway may start Docker without it.
 if [[ -e /proc/net/if_inet6 ]]; then
   # Not "if ! apply ...": bash ignores "set -e" inside a condition, so a failing iptables call in
   # the middle of apply would go unnoticed. A plain subshell keeps -e alive.
