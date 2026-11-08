@@ -333,14 +333,19 @@ impl CatalogSql for CatalogQuery {
             }
         }
 
+        // No mandatory choice of which no module is passed: of 12102 and 11900 (12202) one is enough.
         if let Some(passed) = &self.prerequisites_met_by {
-            let not_passed = if passed.is_empty() {
+            let none_passed = if passed.is_empty() {
                 String::new()
             } else {
-                format!(" AND p.required_module_id NOT IN ({})", placeholders(passed.len()))
+                format!(
+                    " AND NOT EXISTS (SELECT 1 FROM v_module_prerequisite q WHERE q.module_id = p.module_id AND q.kind = 'mandatory' \
+                     AND q.choice = p.choice AND q.required_module_id IN ({}))",
+                    placeholders(passed.len())
+                )
             };
             conditions.push(format!(
-                "NOT EXISTS (SELECT 1 FROM v_module_prerequisite p WHERE p.module_id = f.module_id AND p.kind = 'mandatory'{not_passed})"
+                "NOT EXISTS (SELECT 1 FROM v_module_prerequisite p WHERE p.module_id = f.module_id AND p.kind = 'mandatory'{none_passed})"
             ));
             params.extend(passed.iter().map(Value::from));
         }

@@ -281,6 +281,8 @@ pub struct Texts {
     pub need_same: &'static str,
     pub need_after: fn(&str) -> String,
     pub need_open: &'static str,
+    /// Between modules of which one is enough: „Programmierpraktikum oder Programming Laboratory".
+    pub either: &'static str,
 
     // A row's menu, and the bar of the rows selected.
     pub view_module: &'static str,
@@ -570,6 +572,7 @@ pub const DE: Texts = Texts {
     need_same: "im selben Semester",
     need_after: |semester| format!("erst im {semester}"),
     need_open: "noch nicht eingeplant",
+    either: "oder",
 
     view_module: "Modul ansehen",
     mark_passed: "Als bestanden markieren",
@@ -834,6 +837,7 @@ pub const EN: Texts = Texts {
     need_same: "in the same semester",
     need_after: |semester| format!("only in {semester}"),
     need_open: "not planned yet",
+    either: "or",
 
     view_module: "View module",
     mark_passed: "Mark as passed",

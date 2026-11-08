@@ -84,6 +84,16 @@ fn every_query_runs_against_the_snapshot() {
     assert_eq!(queries::catalog_position(&db, &everything(), "00000").unwrap(), None);
     assert_eq!(queries::module(&db, "00000").unwrap(), None);
     queries::module_prerequisites(&db, &module.id).unwrap();
+    // What a module asks for in its choices: of the modules of one choice one is enough.
+    let asks_a_choice = column(
+        &db.inner,
+        "SELECT module_id FROM v_module_prerequisite WHERE kind = 'mandatory' GROUP BY module_id, choice HAVING COUNT(*) > 1 ORDER BY module_id LIMIT 1",
+    );
+    if let Some(id) = asks_a_choice.first() {
+        let asked = queries::module_prerequisites(&db, id).unwrap();
+        let choices = folia_model::rows::prerequisite_choices(asked.iter().filter(|p| p.kind.is(folia_model::labels::PrerequisiteKind::Mandatory)));
+        assert!(choices.iter().any(|choice| choice.len() > 1), "{id}: {asked:?}");
+    }
     // The search, where a text finds nothing as typed (`search::resolve`), and under a filtered list.
     assert!(folia_search::found_count(&db, "Algebra", None).unwrap() > 0);
     assert_eq!(folia_search::words_found(&db, "algebra xqzvw").unwrap(), vec![true, false]);
@@ -230,7 +240,11 @@ fn every_query_runs_against_the_snapshot() {
     let listed = asking.iter().map(|id| format!("'{id}'")).collect::<Vec<_>>().join(", ");
     assert_eq!(study.prerequisites.len() as i64, scalar(&db.inner, &format!("SELECT COUNT(*) FROM v_module_prerequisite WHERE module_id IN ({listed})")));
     assert!(study.prerequisites.iter().all(|p| asking.contains(&p.module_id) && !p.required_module_id.is_empty()));
-    let order = |p: &folia_model::rows::Prerequisite| (p.module_id.clone(), p.kind.code().to_string(), p.required_module_id.clone());
+    // In their choices, the modules still offered first within one.
+    let order = |p: &folia_model::rows::Prerequisite| {
+        let unoffered = p.required_offer_status.as_ref().is_some_and(|status| status.is(folia_model::labels::OfferStatus::NotOffered));
+        (p.module_id.clone(), p.kind.code().to_string(), p.choice, unoffered, p.required_module_id.clone())
+    };
     assert!(study.prerequisites.windows(2).all(|pair| order(&pair[0]) <= order(&pair[1])));
     assert_eq!(study.rows.len() + study.missing.len(), asking.len());
     assert!(queries::modules_prerequisites(&db, &["1 OR 1=1".to_string()]).unwrap().is_empty());
@@ -643,6 +657,15 @@ fn catalog_filters_match_direct_sql() {
             CatalogQuery { prerequisites_met_by: Some(vec![]), ..everything() },
             "SELECT COUNT(*) FROM v_module_facets f WHERE NOT EXISTS (SELECT 1 FROM v_module_prerequisite p \
              WHERE p.module_id = f.module_id AND p.kind = 'mandatory')".into(),
+        ),
+        (
+            // Of the modules of a choice one passed is enough: 12202 asks for 12102 or 11900, and
+            // for 12104.
+            "mandatory prerequisites met with one module of each choice passed",
+            CatalogQuery { prerequisites_met_by: Some(vec!["12102".into(), "12104".into()]), ..everything() },
+            "SELECT COUNT(*) FROM v_module_facets f WHERE NOT EXISTS (SELECT 1 FROM v_module_prerequisite p \
+             WHERE p.module_id = f.module_id AND p.kind = 'mandatory' AND NOT EXISTS (SELECT 1 FROM v_module_prerequisite q \
+             WHERE q.module_id = p.module_id AND q.kind = 'mandatory' AND q.choice = p.choice AND q.required_module_id IN ('12102', '12104')))".into(),
         ),
     ];
 

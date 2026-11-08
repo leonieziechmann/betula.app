@@ -325,13 +325,26 @@ func (b *builder) writeModuleLinks() error {
 		// folgemodul sein"): 11903 names 12212, which it replaces, in „Keine erfolgreiche
 		// Teilnahme am zugehörigen Auslaufmodul 12212 - Digitaltechnik.".
 		predecessors := ancestors(replaces, id)
+		// Of the modules of a choice one is enough („Modul 12102 Programmierpraktikum ODER Modul
+		// 11900 Programmierpraktikum (IMT)", 12202). A choice keeps those of its modules that are
+		// left; one left alone is needed.
 		for kind, text := range map[string]string{"mandatory": d.PrerequisitesMandatory, "recommended": d.PrerequisitesRecommended} {
-			for _, required := range normalize.PrerequisiteIDs(text) {
-				if required == id || !b.moduleIDs[required] || predecessors[required] {
+			choice := 0
+			for _, modules := range normalize.PrerequisiteChoices(text) {
+				var kept []string
+				for _, required := range modules {
+					if required != id && b.moduleIDs[required] && !predecessors[required] {
+						kept = append(kept, required)
+					}
+				}
+				if len(kept) == 0 {
 					continue
 				}
-				if _, err := b.tx.Exec("INSERT OR IGNORE INTO module_prerequisite (module_id, required_module_id, kind) VALUES (?, ?, ?)", id, required, kind); err != nil {
-					return err
+				choice++
+				for _, required := range kept {
+					if _, err := b.tx.Exec("INSERT OR IGNORE INTO module_prerequisite (module_id, required_module_id, kind, choice) VALUES (?, ?, ?, ?)", id, required, kind, choice); err != nil {
+						return err
+					}
 				}
 			}
 		}

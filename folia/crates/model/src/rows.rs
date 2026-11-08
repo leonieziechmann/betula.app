@@ -440,8 +440,20 @@ pub struct Prerequisite {
     pub module_id: String,
     pub required_module_id: String,
     pub kind: Code<PrerequisiteKind>,
+    /// Of the rows of one module and kind with the same choice one is enough, and every choice is
+    /// needed: „Modul 12102 Programmierpraktikum ODER Modul 11900 Programmierpraktikum (IMT) UND
+    /// Modul 12104" (12202) is 12102 and 11900 in choice 1, 12104 in choice 2. Most choices hold
+    /// one module.
+    pub choice: i64,
     pub required_title: Option<String>,
     pub required_offer_status: Option<Code<OfferStatus>>,
+}
+
+impl Prerequisite {
+    /// The choice the row is one of, as `prerequisite_choices` groups them.
+    pub fn choice_of(&self) -> (&str, &str, i64) {
+        (&self.module_id, self.kind.code(), self.choice)
+    }
 }
 
 impl FromRow for Prerequisite {
@@ -450,10 +462,24 @@ impl FromRow for Prerequisite {
             module_id: row.text("module_id")?,
             required_module_id: row.text("required_module_id")?,
             kind: Code::parse(&row.text("kind")?),
+            choice: row.int("choice")?,
             required_title: row.opt_text("required_title")?,
             required_offer_status: Code::parse_opt(row.opt_text("required_offer_status")?),
         })
     }
+}
+
+/// Prerequisites in their choices (`Prerequisite::choice`), each choice where its first row
+/// stands and its rows in their order: of the rows of one choice one is enough.
+pub fn prerequisite_choices<'a>(rows: impl IntoIterator<Item = &'a Prerequisite>) -> Vec<Vec<&'a Prerequisite>> {
+    let mut choices: Vec<Vec<&'a Prerequisite>> = Vec::new();
+    for row in rows {
+        match choices.iter_mut().find(|choice| choice.first().is_some_and(|first| first.choice_of() == row.choice_of())) {
+            Some(choice) => choice.push(row),
+            None => choices.push(vec![row]),
+        }
+    }
+    choices
 }
 
 /// `v_module_vector`: a module's vector for the semantic search, computed by Radix and packed as
@@ -503,5 +529,31 @@ impl FromRow for SearchElsewhere {
     fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
         let count = |column: &str| row.int(column).map(|n| u64::try_from(n).unwrap_or(0));
         Ok(Self { offered: count("offered")?, not_offered: count("not_offered")? })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prerequisites_stand_in_their_choices() {
+        let row = |module: &str, required: &str, kind: &str, choice: i64| Prerequisite {
+            module_id: module.into(),
+            required_module_id: required.into(),
+            kind: Code::parse(kind),
+            choice,
+            required_title: None,
+            required_offer_status: None,
+        };
+        let rows = [
+            row("12202", "12102", "mandatory", 1),
+            row("12202", "11900", "mandatory", 1),
+            row("12202", "12104", "mandatory", 2),
+            row("12202", "12101", "recommended", 1),
+            row("12326", "12104", "mandatory", 1),
+        ];
+        let choices: Vec<Vec<&str>> = prerequisite_choices(&rows).into_iter().map(|choice| choice.into_iter().map(|p| p.required_module_id.as_str()).collect()).collect();
+        assert_eq!(choices, [vec!["12102", "11900"], vec!["12104"], vec!["12101"], vec!["12104"]]);
     }
 }
