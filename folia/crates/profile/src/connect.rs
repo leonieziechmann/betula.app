@@ -1,4 +1,4 @@
-//! „Gerät verbinden" (`/verbinden`, Betula Sync): the page the link of another device opens
+//! „Gerät verbinden" (`/sync`, Betula Sync): the page the link of another device opens
 //! (`sync::PairLink`). What follows `#` in the link opens a sealed parcel with the profile's key; a
 //! browser never sends that part to a server, and the page takes it out of the address and the
 //! history as soon as it has read it, before anything else happens. Then the profile comes as a new

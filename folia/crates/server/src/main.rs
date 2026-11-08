@@ -255,8 +255,27 @@ fn in_every_language() -> Router<AppState> {
             // (axum refuses two routes for one path at startup).
             .route(&at("/calendar/{file}"), get(api::calendar))
             .route(&at(folia_routes::url::ABOUT), get(move |uri: axum::http::Uri| about_redirect(locale, uri)));
+        for (old, new) in folia_routes::url::MOVED {
+            router = router.route(&at(old), get(move |uri: axum::http::Uri| moved_redirect(locale.path(new), uri)));
+        }
     }
     router
+}
+
+/// An address that moved (`folia_routes::url::MOVED`; owner, 2026-11-08: „Keine deutschen links und
+/// den urls … Url struktur alles in us englisch"): `/verbinden`, `/impressum` and `/datenschutz`
+/// lead to `/sync`, `/imprint` and `/privacy` for good, in their language and with their query, so
+/// that what links to them, what a browser keeps and what search engines know still lead somewhere.
+/// The pairing link of Betula Sync carries its key after `#`, which no browser sends: a redirect
+/// whose `Location` has no fragment keeps the one of the address it came from (RFC 9110, 10.2.2;
+/// the Fetch standard does the same), so `/verbinden#<…>` arrives at `/sync#<…>`.
+async fn moved_redirect(target: String, uri: axum::http::Uri) -> Response {
+    use axum::response::IntoResponse;
+    let target = match uri.query() {
+        Some(query) => format!("{target}?{query}"),
+        None => target,
+    };
+    axum::response::Redirect::permanent(&target).into_response()
 }
 
 /// `/about`, where „Über Betula" stood until 2026-10-27 (owner: „die /about seite muss komplett

@@ -117,6 +117,9 @@ with 1008. The close codes:
   `space ‖ "pair"`.
 - A batch holds the writes of one change, a snapshot every record with its clocks
   (`folia_sync::codec`), uncompressed (a typical snapshot is 5.5 KB).
-- The pairing link `https://<host>/verbinden#<id ‖ key>` (16 + 32 bytes): `id` finds the parcel,
+- The pairing link `https://<host>/sync#<id ‖ key>` (16 + 32 bytes): `id` finds the parcel,
   `key` opens it (AES-256-GCM, associated data `"pair"`); the parcel holds the profile keys chosen.
+  The page is Folia's (Traefik sends Phloem `/sync/v1/` alone); until 2026-11-08 it was
+  `/verbinden#…`, which Folia leads to `/sync` for good, the part after `#` carried over by the
+  browser.
 - The recovery code is `K` in base32 (Crockford), in groups of four.

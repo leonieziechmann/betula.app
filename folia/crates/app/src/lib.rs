@@ -136,11 +136,11 @@ fn pages() -> impl IntoView {
                 <Route path=path!("/studyplan") view=StudyplanPage ssr=SsrMode::Async/>
                 <Route path=path!("/study") view=StudyPage ssr=SsrMode::Async/>
                 <Route path=path!("/profile") view=ProfilePage ssr=SsrMode::Async/>
-                <Route path=path!("/verbinden") view=ConnectPage ssr=SsrMode::Async/>
+                <Route path=path!("/sync") view=ConnectPage ssr=SsrMode::Async/>
                 <Route path=path!("/event/:key") view=EventPage ssr=SsrMode::Async/>
                 <Route path=path!("/event/:key/:day") view=EventPage ssr=SsrMode::Async/>
-                <Route path=path!("/impressum") view=ImprintPage ssr=SsrMode::Async/>
-                <Route path=path!("/datenschutz") view=PrivacyPage ssr=SsrMode::Async/>
+                <Route path=path!("/imprint") view=ImprintPage ssr=SsrMode::Async/>
+                <Route path=path!("/privacy") view=PrivacyPage ssr=SsrMode::Async/>
             </Routes>
         </div>
     }
@@ -166,7 +166,34 @@ fn page(page: Page) -> AnyView {
         Page::Event => view! { <EventPage/> }.into_any(),
         Page::Imprint => view! { <ImprintPage/> }.into_any(),
         Page::Privacy => view! { <PrivacyPage/> }.into_any(),
+        Page::Moved => view! { <Moved/> }.into_any(),
         Page::NotFound => view! { <Plain><ui::NotFound title=t.app.not_found_title hint=t.app.not_found_hint/></Plain> }.into_any(),
+    }
+}
+
+/// An address that moved (`folia_routes::url::MOVED`: `/verbinden`, `/impressum`, `/datenschutz`;
+/// owner, 2026-11-08): the browser app goes on to its new place at once, with its query and its
+/// fragment (the key of a pairing link), in the same entry of the history, as the server answers
+/// the old address with a redirect for good (`folia-server`). The app comes there only by itself:
+/// an entry of the history from before, a link kept somewhere, the shell offline.
+#[component]
+fn Moved() -> impl IntoView {
+    #[cfg(feature = "csr")]
+    if let Some(going) = Pending::expect() {
+        let location = folia_design::i18n::use_location();
+        let path = location.pathname.get_untracked();
+        if let Some(new) = folia_routes::url::moved(path.trim_end_matches('/')) {
+            let (search, hash) = (location.search.get_untracked(), location.hash.get_untracked());
+            let (search, hash) = (search.trim_start_matches('?'), hash.trim_start_matches('#'));
+            let mut to = new.to_string();
+            if !search.is_empty() {
+                to = format!("{to}?{search}");
+            }
+            if !hash.is_empty() {
+                to = format!("{to}#{hash}");
+            }
+            request_animation_frame(move || going.go(&to, leptos_router::NavigateOptions { replace: true, ..Default::default() }));
+        }
     }
 }
 

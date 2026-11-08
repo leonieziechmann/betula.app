@@ -1,0 +1,895 @@
+<title>Betula Profil-Konzept</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- What the profile page and the menu at the profile's button are for (owner, 2026-11-08: „ich würde gerne
+     nochmal an der profil page von betula arbeiten. Denn die erfüllt aktuell ihren job nicht gut. Als erstes
+     sollten die profil unabhängigen einstellungen wo anders hin. Also sowas wie sprache und system theme. Maybe
+     die beiden sogar in quick access. So und dann müssen wir uns nochmal gedanken machen darüber, wie das mit dem
+     profil so funktionieren soll. Also welche aktionen möchte man machen und wie häufig sind die. Dann was sind da
+     so die best/common practices etc. So und dann ist da jetzt ja auch betula sync, was ich persönlich als sehr
+     essentiell einstufen würde. Also das ist so die main sache, die man machen möchte, wenn man mit dem handy am
+     pc ist. Ja und sowas, wie links zu den einzelnen sub pages. Like warum man hat ja die navbar. Du kannst gerne
+     ein paar stats zeigen. Aber ich brauche nicht noch ein link mehr zu mein studium. Bitte erstelle ein konzept,
+     wie das richtig umgesetzt werden könnte. Bitte auch das kontext menu mit umfassen, mit dem man ja zu der page
+     kommt."). Read against canary (Folia 1.76.0, 2026-11-08) on a phone (Pixel 7, 412 × 915) and a desktop
+     (1366 × 860), and against the code of that day: folia/crates/profile (profile.rs, sync.rs, connect.rs),
+     folia/crates/shell/src/chrome.rs (ProfileButton, ProfileMenu, ProfileSwitcher), folia/crates/shell/src/
+     languages.rs, folia/crates/shell/src/keys.rs, docs/folia/sync.md, docs/phloem/protocol.md. The pictures in
+     bilder/ are screenshots of canary that day; the drawings are schemas in Betula's tokens (folia/assets/app.css),
+     drawn quiet on purpose; the two QR codes are placeholders that open nothing. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4; --panel: #ffffff; --panel-2: #f6f7f8; --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08); --line-strong: rgba(15, 23, 42, .15);
+  --text: #10151f; --text-2: #4b5565; --text-3: #8790a0;
+  --invert: #161b26; --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149); --accent-ink: oklch(.46 .07 149); --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --warn: #a35a00; --warn-soft: color-mix(in srgb, #d97706 11%, var(--panel));
+  --no: #c2410c; --no-soft: color-mix(in srgb, #c2410c 9%, var(--panel));
+  --device: #1b1f27; --device-ring: rgba(15, 23, 42, .25);
+  --t1: oklch(.53 .07 149); --t2: #5b8db5; --t3: #8a74c4; --t4: #d0704f;
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line), 0 18px 40px -14px rgba(15, 23, 42, .32);
+  --r-panel: 9px; --r-ctl: 9px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --warn: #f2b45c; --warn-soft: color-mix(in srgb, #f2b45c 12%, var(--panel));
+    --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+    --device: #2a303b; --device-ring: rgba(255, 255, 255, .12);
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+    --shadow-pop: 0 0 0 1px var(--line-strong), 0 22px 44px -16px rgba(0, 0, 0, .8);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --warn: #f2b45c; --warn-soft: color-mix(in srgb, #f2b45c 12%, var(--panel));
+  --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+  --device: #2a303b; --device-ring: rgba(255, 255, 255, .12);
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 22px 44px -16px rgba(0, 0, 0, .8);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p, ul, ol, figure, dl, dd { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+code { font-family: var(--mono); font-size: .84em; padding: 1px 4px; border-radius: 4px; background: var(--panel-3); overflow-wrap: anywhere; }
+a { color: var(--accent-ink); text-underline-offset: 3px; }
+b { font-weight: 650; }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.num { font-variant-numeric: tabular-nums; }
+.page { max-width: 1180px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 24px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.block { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 22px 24px; scroll-margin-top: 24px; min-width: 0; }
+.block > h2 { font-size: 22px; letter-spacing: -.018em; font-weight: 720; }
+.block > .lead { margin-top: 6px; max-width: 80ch; color: var(--text-2); text-wrap: pretty; }
+.block > .lead b { color: var(--text); }
+.block > * + h3 { margin-top: 24px; }
+.block h3 { font-size: 15.5px; font-weight: 700; }
+.note { margin-top: 12px; max-width: 86ch; color: var(--text-3); font-size: 13px; text-wrap: pretty; }
+.note b { color: var(--text-2); }
+
+/* The thesis. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(27px, 4vw, 38px); line-height: 1.12; letter-spacing: -.025em; font-weight: 760; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.toc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.toc a { padding: 5px 10px; border-radius: 8px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; }
+.toc a:hover { color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ol { margin-top: 12px; counter-reset: rule; display: flex; flex-direction: column; gap: 10px; }
+.rules li { counter-increment: rule; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.rules li::before { content: counter(rule); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.rules li b { color: var(--text); font-weight: 620; }
+.rules .who { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 13px; text-wrap: pretty; }
+
+.points { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; max-width: 88ch; }
+.points li { position: relative; padding-left: 18px; color: var(--text-2); font-size: 14.5px; text-wrap: pretty; }
+.points li::before { content: ""; position: absolute; left: 3px; top: .62em; width: 6px; height: 6px; border-radius: 2px; background: var(--line-strong); }
+.points li b { color: var(--text); }
+
+/* Today. */
+.finds { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+.finds li { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; min-width: 0; }
+.finds li b { display: block; margin-bottom: 4px; color: var(--text); font-weight: 680; }
+.finds li.worst { background: var(--no-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--no) 30%, transparent); }
+.shots { margin-top: 18px; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 16px; align-items: start; }
+.shots figure { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.shots img { display: block; width: 100%; height: auto; border-radius: 12px; box-shadow: var(--shadow-panel); }
+.shots .tall { max-height: 720px; overflow: hidden auto; border-radius: 12px; box-shadow: var(--shadow-panel); overscroll-behavior: contain; }
+.shots .tall img { border-radius: 0; box-shadow: none; }
+.shots .side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.shots .pair { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.shots figcaption { color: var(--text-3); font-size: 12.5px; text-wrap: pretty; }
+.ruler { position: relative; }
+.ruler .mark { position: absolute; left: 0; right: 0; height: 0; border-top: 2px dashed var(--no); }
+.ruler .mark span { position: absolute; right: 6px; top: -22px; padding: 1px 6px; border-radius: 5px; background: var(--no); color: #fff; font-size: 11px; font-weight: 650; }
+
+/* Tables. */
+.scroll { margin-top: 16px; overflow-x: auto; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 760px; }
+th, td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); text-wrap: pretty; }
+thead th { background: var(--panel-2); color: var(--text-3); font-size: 11.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+tbody th { font-weight: 620; color: var(--text); }
+td { color: var(--text-2); }
+tbody tr:last-child > * { border-bottom: 0; }
+.freq { display: inline-flex; gap: 2px; vertical-align: -1px; }
+.freq i { width: 7px; height: 11px; border-radius: 2px; background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--line); }
+.freq i.on { background: var(--accent); box-shadow: none; }
+.taps { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.taps.better { color: var(--accent-ink); font-weight: 650; }
+td small { display: block; color: var(--text-3); font-size: 12px; }
+
+/* Practice. */
+.cases { margin-top: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.case { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.case h3 { font-size: 15px; }
+.case p { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.case .take { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 13px; text-wrap: pretty; }
+.case .take b { color: var(--text-2); }
+
+/* The stage the drawings stand on. */
+.stage { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; padding: 22px; border-radius: 14px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); }
+.stage > figure { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 100%; }
+.stage figcaption { color: var(--text-2); font-size: 13px; max-width: 46ch; text-wrap: pretty; }
+.stage figcaption b { color: var(--text); }
+.callouts { flex: 1 1 260px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.callouts li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.callouts li > i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--invert); color: var(--on-invert); font-size: 11.5px; font-weight: 700; font-style: normal; }
+.callouts li b { color: var(--text); }
+.pin { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--invert); color: var(--on-invert); font-size: 10.5px; font-weight: 700; font-style: normal; flex: none; }
+
+.stage code { background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
+
+/* A phone. */
+.phone { width: 330px; max-width: 100%; padding: 8px; border-radius: 40px; background: var(--device); box-shadow: 0 0 0 1px var(--device-ring), 0 24px 50px -24px rgba(0, 0, 0, .45); }
+.scr { position: relative; border-radius: 33px; overflow: hidden; background: var(--bg); min-height: 640px; display: flex; flex-direction: column; }
+.scr.short { min-height: 0; }
+.status { display: flex; justify-content: space-between; padding: 12px 22px 4px; font-size: 11.5px; font-weight: 650; color: var(--text); }
+.topbar { display: flex; gap: 8px; padding: 6px 10px 10px; }
+.topbar .search { flex: 1; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 10px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-3); font-size: 12.5px; white-space: nowrap; overflow: hidden; }
+.box { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); flex: none; position: relative; }
+.box.on { box-shadow: 0 0 0 2px var(--accent); }
+.body { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 0 10px 12px; }
+.tabbar { margin: auto 10px 10px; display: grid; grid-template-columns: repeat(5, 1fr); padding: 7px 4px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.tabbar span { display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--text-3); font-size: 9.5px; }
+.tabbar svg.i { width: 15px; height: 15px; }
+.dim { position: absolute; inset: 0; background: color-mix(in srgb, var(--bg) 55%, transparent); }
+
+/* A desktop. */
+.desk { width: 860px; max-width: 100%; border-radius: 12px; overflow: hidden; background: var(--bg); box-shadow: 0 0 0 1px var(--line-strong), 0 24px 50px -28px rgba(0, 0, 0, .4); display: grid; grid-template-columns: 46px minmax(0, 1fr); position: relative; }
+.desk .rail { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 0; background: var(--panel-2); box-shadow: inset -1px 0 0 var(--line); min-height: 540px; }
+.desk .rail .logo { width: 30px; height: 30px; border-radius: 8px; background: var(--invert); }
+.desk .rail .ri { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; color: var(--text-2); position: relative; }
+.desk .rail .ri.on { background: var(--invert); color: var(--on-invert); }
+.desk .rail .gap { flex: 1; }
+.desk .main { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.desk .dsearch { display: flex; align-items: center; gap: 8px; height: 34px; max-width: 520px; padding: 0 12px; border-radius: 9px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-3); font-size: 12.5px; }
+.desk .cols { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 10px; align-items: start; }
+.ghost { border-radius: 9px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.ghost .line { height: 9px; margin: 12px 14px; border-radius: 4px; background: var(--panel-3); }
+
+/* Betula's parts, small. */
+.mp { padding: 12px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); min-width: 0; }
+.mp h4 { margin: 0; display: flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 700; }
+.mp .sub { margin-top: 3px; color: var(--text-2); font-size: 12px; text-wrap: pretty; }
+.mp.accent { box-shadow: 0 0 0 1.5px var(--accent-line), var(--shadow-lift); }
+.mp.danger { box-shadow: 0 0 0 1px color-mix(in srgb, var(--no) 32%, transparent), var(--shadow-lift); }
+.mp.danger h4 { color: var(--no); }
+.label { font-size: 10px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.av { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; flex: none; font-size: 11.5px; font-weight: 700; color: color-mix(in srgb, var(--tone, var(--t1)) 78%, var(--text)); background: color-mix(in srgb, var(--tone, var(--t1)) 16%, var(--panel)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--tone, var(--t1)) 55%, transparent); }
+.av.t2 { --tone: var(--t2); } .av.t3 { --tone: var(--t3); } .av.t4 { --tone: var(--t4); }
+.av.big { width: 52px; height: 52px; font-size: 21px; }
+.av.xs { width: 22px; height: 22px; font-size: 10px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; display: inline-block; }
+.dot.off { background: var(--text-3); }
+.dot.warn { background: #d97706; }
+.box .badge, .ri .badge { position: absolute; right: 4px; top: 4px; width: 9px; height: 9px; border-radius: 50%; background: #d97706; box-shadow: 0 0 0 2px var(--panel); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 12.5px; font-weight: 620; white-space: nowrap; }
+.btn.primary { background: var(--accent); color: var(--on-accent); box-shadow: none; }
+.btn.danger { color: var(--no); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--no) 40%, transparent); }
+.btn.sm { height: 28px; padding: 0 10px; font-size: 12px; }
+.btn.wide { width: 100%; }
+.txt { color: var(--text-2); font-size: 12px; font-weight: 600; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.row .grow { flex: 1; min-width: 0; }
+.t-name { font-size: 13px; font-weight: 640; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t-line { font-size: 11.5px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 2px; border-radius: 9px; background: var(--panel-3); }
+.seg span { min-width: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 5px; height: 28px; padding: 0 6px; border-radius: 7px; color: var(--text-2); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.seg span.on { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .12), 0 0 0 1px var(--line); }
+.seg svg.i { width: 13px; height: 13px; }
+.stats { margin-top: 10px; display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 6px; }
+.stat { padding: 8px 10px; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.stat b { display: block; font-size: 16px; font-weight: 720; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.stat small { display: block; color: var(--text-3); font-size: 10.5px; line-height: 1.3; }
+.dev { display: flex; align-items: center; gap: 9px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 12px; }
+.dev:first-of-type { border-top: 0; }
+.dev .grow { flex: 1; min-width: 0; }
+.dev .when { color: var(--text-3); font-size: 11px; white-space: nowrap; }
+.dev svg.i { color: var(--text-2); }
+.dev .t-line { display: block; white-space: normal; }
+.chips { display: flex; gap: 6px; overflow: hidden; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px 0 4px; border-radius: 17px; background: var(--panel); box-shadow: var(--shadow-panel); font-size: 12px; font-weight: 620; white-space: nowrap; flex: none; }
+.chip.on { box-shadow: 0 0 0 1.5px var(--accent), var(--shadow-lift); }
+.chip.add { padding: 0 10px; color: var(--text-2); }
+.foot { display: flex; flex-wrap: wrap; gap: 4px 10px; padding: 2px 4px; color: var(--text-3); font-size: 11px; }
+.foot a { color: var(--text-2); }
+
+/* The menu. */
+.menu { width: 288px; max-width: 100%; padding: 6px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-pop); font-size: 13px; }
+.menu .mh { padding: 6px 10px 4px; }
+.menu .it { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 5px 10px; border-radius: 9px; color: var(--text); }
+.menu .it.on { background: var(--panel-2); }
+.menu .it .grow { flex: 1; min-width: 0; display: grid; }
+.menu .it .grow b { font-size: 13px; font-weight: 620; }
+.menu .it .grow small { color: var(--text-3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu .it .chk { color: var(--accent-ink); }
+.menu .it.primary svg.i:first-child { color: var(--accent-ink); }
+.menu hr { margin: 5px 4px; border: 0; border-top: 1px solid var(--line); }
+.menu .set { display: grid; gap: 5px; padding: 5px 10px 7px; }
+.menu .mf { display: flex; gap: 12px; padding: 6px 10px 4px; color: var(--text-3); font-size: 11.5px; }
+.menu .mf span { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.over { position: absolute; z-index: 2; }
+
+/* The dialog. */
+.dlg { width: 500px; max-width: 100%; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-pop); overflow: hidden; }
+.dlg .dh { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
+.dlg .dh h4 { margin: 0; flex: 1; font-size: 15px; font-weight: 720; }
+.dlg .db { padding: 4px 16px 16px; display: grid; gap: 12px; }
+.qrbox { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 14px; align-items: start; }
+.qr { width: 150px; height: 150px; padding: 8px; border-radius: 10px; background: #fff; box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .12); }
+.qr svg { display: block; width: 100%; height: 100%; }
+.qrtext { display: grid; gap: 7px; font-size: 12.5px; color: var(--text-2); text-wrap: pretty; }
+.qrtext b { color: var(--text); }
+.digits { display: inline-flex; gap: 4px; }
+.digits span { display: grid; place-items: center; width: 24px; height: 30px; border-radius: 6px; background: var(--panel-3); color: var(--text); font: 650 15px/1 var(--mono); }
+.okline { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--text); font-size: 12.5px; }
+.okline svg.i { color: var(--accent-ink); }
+.cam { position: relative; height: 300px; margin: 0 10px; border-radius: 16px; overflow: hidden; background: linear-gradient(160deg, #39414f, #1c2129 60%, #2b313c); }
+.cam .aim { position: absolute; left: 50%; top: 46%; width: 170px; height: 170px; transform: translate(-50%, -50%); border-radius: 18px; box-shadow: 0 0 0 999px rgba(0, 0, 0, .35); }
+.cam .aim::before, .cam .aim::after { content: ""; position: absolute; inset: 0; border-radius: 18px; border: 3px solid #fff; clip-path: polygon(0 0, 30% 0, 30% 6%, 6% 6%, 6% 30%, 0 30%, 0 70%, 6% 70%, 6% 94%, 30% 94%, 30% 100%, 70% 100%, 70% 94%, 94% 94%, 94% 70%, 100% 70%, 100% 30%, 94% 30%, 94% 6%, 70% 6%, 70% 0); }
+.cam .screenqr { position: absolute; left: 50%; top: 46%; width: 120px; height: 120px; transform: translate(-50%, -50%) rotate(-4deg); padding: 6px; border-radius: 6px; background: #fff; opacity: .92; }
+.cam .screenqr svg { display: block; width: 100%; height: 100%; }
+.cam p { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; color: #fff; font-size: 12.5px; font-weight: 600; }
+
+/* Flows. */
+.flow { margin-top: 18px; display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: 10px; counter-reset: step; }
+.flow li { counter-increment: step; padding: 12px 14px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 13.5px; color: var(--text-2); text-wrap: pretty; min-width: 0; }
+.flow li::before { content: counter(step); display: inline-grid; place-items: center; width: 20px; height: 20px; margin-bottom: 6px; border-radius: 6px; background: var(--invert); color: var(--on-invert); font-size: 11px; font-weight: 700; }
+.flow li b { display: block; color: var(--text); font-weight: 660; }
+.flow li .dev-tag { display: inline-flex; align-items: center; gap: 5px; margin-bottom: 4px; color: var(--text-3); font-size: 11.5px; font-weight: 650; }
+.keep { margin-top: 16px; padding: 12px 16px; border-radius: 12px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.keep b { color: var(--text); }
+.warnbox { margin-top: 16px; padding: 12px 16px; border-radius: 12px; background: var(--warn-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 30%, transparent); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.warnbox b { color: var(--text); }
+
+/* Steps and questions. */
+.steps { margin-top: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.steps > li { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.steps h3 { font-size: 15px; }
+.steps .ver { color: var(--text-3); font-size: 12.5px; font-weight: 600; }
+.steps ul { display: flex; flex-direction: column; gap: 6px; }
+.steps ul li { position: relative; padding-left: 14px; color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.steps ul li::before { content: ""; position: absolute; left: 1px; top: .6em; width: 5px; height: 5px; border-radius: 2px; background: var(--line-strong); }
+.qs { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; counter-reset: q; }
+.qs li { counter-increment: q; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 4px 12px; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.qs li::before { content: counter(q); grid-row: span 2; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--invert); color: var(--on-invert); font-size: 12.5px; font-weight: 700; }
+.qs li b { color: var(--text); font-size: 14.5px; }
+.qs li p { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.qs em { font-style: normal; font-weight: 650; color: var(--accent-ink); }
+.endnote { color: var(--text-3); font-size: 12.5px; text-align: center; text-wrap: pretty; }
+
+@media (max-width: 960px) {
+  .intro, .shots, .shots .pair { grid-template-columns: minmax(0, 1fr); }
+  .shots .tall { max-height: 520px; }
+  .cases, .steps { grid-template-columns: minmax(0, 1fr); }
+  .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .desk .cols { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .block { padding: 18px 16px; }
+  .finds { grid-template-columns: minmax(0, 1fr); }
+  .flow { grid-template-columns: minmax(0, 1fr); }
+  .stage { padding: 14px; }
+  .qrbox { grid-template-columns: minmax(0, 1fr); }
+  .desk { grid-template-columns: minmax(0, 1fr); }
+  .desk .rail { display: none; }
+  .desk .over { position: static; margin: 0 10px 10px; }
+  .desk .main .ghost { height: 70px !important; }
+  .desk .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .desk .dev { flex-wrap: wrap; }
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M2 21a8 8 0 0 1 13.292-6"/><circle cx="10" cy="8" r="5"/><path d="M19 16v6M22 19h-6"/></symbol>
+    <symbol id="i-plain-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-sync" viewBox="0 0 24 24"><path d="M18 8V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8"/><path d="M10 19v-3.96 3.15M7 19h5"/><rect width="6" height="10" x="16" y="12" rx="2"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+    <symbol id="i-lang" viewBox="0 0 24 24"><path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></symbol>
+    <symbol id="i-laptop" viewBox="0 0 24 24"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><path d="M14 4h7M14 9h7M14 15h7M14 20h7"/></symbol>
+    <symbol id="i-cap" viewBox="0 0 24 24"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></symbol>
+    <symbol id="i-mark" viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M3 10h18M8 2v4M17 14h-6M13 18H7M7 14h.01M17 18h.01"/></symbol>
+    <symbol id="i-keys" viewBox="0 0 24 24"><path d="M10 8h.01M12 12h.01M14 8h.01M16 12h.01M18 8h.01M6 8h.01M7 16h10M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M10 5H3M12 19H3M14 3v4M16 17v4M21 12h-9M21 19h-5M21 5h-7M8 10v4M8 12H3"/></symbol>
+    <symbol id="qr-send" viewBox="0 0 33 33"><path fill="#10151f" d="M2 2h7v1h-7zM13 2h2v1h-2zM19 2h4v1h-4zM24 2h7v1h-7zM2 3h1v1h-1zM8 3h1v1h-1zM10 3h1v1h-1zM12 3h1v1h-1zM14 3h1v1h-1zM16 3h1v1h-1zM22 3h1v1h-1zM24 3h1v1h-1zM30 3h1v1h-1zM2 4h1v1h-1zM4 4h3v1h-3zM8 4h1v1h-1zM12 4h1v1h-1zM14 4h1v1h-1zM17 4h2v1h-2zM20 4h3v1h-3zM24 4h1v1h-1zM26 4h3v1h-3zM30 4h1v1h-1zM2 5h1v1h-1zM4 5h3v1h-3zM8 5h1v1h-1zM10 5h2v1h-2zM13 5h2v1h-2zM21 5h1v1h-1zM24 5h1v1h-1zM26 5h3v1h-3zM30 5h1v1h-1zM2 6h1v1h-1zM4 6h3v1h-3zM8 6h1v1h-1zM11 6h1v1h-1zM13 6h1v1h-1zM16 6h2v1h-2zM21 6h1v1h-1zM24 6h1v1h-1zM26 6h3v1h-3zM30 6h1v1h-1zM2 7h1v1h-1zM8 7h1v1h-1zM10 7h3v1h-3zM16 7h1v1h-1zM18 7h1v1h-1zM20 7h3v1h-3zM24 7h1v1h-1zM30 7h1v1h-1zM2 8h7v1h-7zM10 8h1v1h-1zM12 8h1v1h-1zM14 8h1v1h-1zM16 8h1v1h-1zM18 8h1v1h-1zM20 8h1v1h-1zM22 8h1v1h-1zM24 8h7v1h-7zM13 9h3v1h-3zM17 9h1v1h-1zM21 9h1v1h-1zM2 10h1v1h-1zM7 10h3v1h-3zM13 10h1v1h-1zM15 10h2v1h-2zM18 10h2v1h-2zM21 10h2v1h-2zM24 10h2v1h-2zM27 10h1v1h-1zM30 10h1v1h-1zM3 11h2v1h-2zM7 11h1v1h-1zM14 11h3v1h-3zM19 11h1v1h-1zM22 11h2v1h-2zM25 11h3v1h-3zM2 12h1v1h-1zM4 12h6v1h-6zM11 12h1v1h-1zM15 12h2v1h-2zM18 12h2v1h-2zM25 12h1v1h-1zM27 12h1v1h-1zM29 12h2v1h-2zM6 13h1v1h-1zM10 13h2v1h-2zM13 13h2v1h-2zM19 13h1v1h-1zM22 13h1v1h-1zM24 13h1v1h-1zM28 13h1v1h-1zM30 13h1v1h-1zM4 14h1v1h-1zM7 14h3v1h-3zM12 14h4v1h-4zM17 14h1v1h-1zM23 14h2v1h-2zM26 14h1v1h-1zM28 14h1v1h-1zM3 15h2v1h-2zM6 15h2v1h-2zM9 15h1v1h-1zM15 15h2v1h-2zM18 15h2v1h-2zM24 15h1v1h-1zM29 15h2v1h-2zM5 16h1v1h-1zM8 16h1v1h-1zM10 16h1v1h-1zM12 16h1v1h-1zM14 16h1v1h-1zM19 16h3v1h-3zM29 16h2v1h-2zM2 17h1v1h-1zM4 17h1v1h-1zM7 17h1v1h-1zM10 17h2v1h-2zM15 17h1v1h-1zM17 17h1v1h-1zM19 17h1v1h-1zM24 17h5v1h-5zM3 18h3v1h-3zM8 18h1v1h-1zM11 18h2v1h-2zM14 18h2v1h-2zM18 18h2v1h-2zM21 18h1v1h-1zM23 18h1v1h-1zM3 19h1v1h-1zM5 19h2v1h-2zM10 19h3v1h-3zM14 19h2v1h-2zM19 19h2v1h-2zM22 19h2v1h-2zM26 19h1v1h-1zM28 19h1v1h-1zM4 20h5v1h-5zM10 20h2v1h-2zM13 20h6v1h-6zM20 20h5v1h-5zM26 20h1v1h-1zM28 20h2v1h-2zM2 21h6v1h-6zM12 21h2v1h-2zM16 21h1v1h-1zM18 21h3v1h-3zM24 21h1v1h-1zM27 21h1v1h-1zM2 22h1v1h-1zM5 22h5v1h-5zM11 22h1v1h-1zM14 22h1v1h-1zM17 22h1v1h-1zM19 22h2v1h-2zM22 22h1v1h-1zM24 22h1v1h-1zM26 22h1v1h-1zM29 22h2v1h-2zM10 23h1v1h-1zM12 23h4v1h-4zM18 23h3v1h-3zM24 23h1v1h-1zM26 23h2v1h-2zM29 23h2v1h-2zM2 24h7v1h-7zM11 24h1v1h-1zM13 24h5v1h-5zM19 24h6v1h-6zM27 24h2v1h-2zM30 24h1v1h-1zM2 25h1v1h-1zM8 25h1v1h-1zM10 25h11v1h-11zM22 25h6v1h-6zM29 25h1v1h-1zM2 26h1v1h-1zM4 26h3v1h-3zM8 26h1v1h-1zM12 26h3v1h-3zM20 26h1v1h-1zM23 26h1v1h-1zM25 26h2v1h-2zM30 26h1v1h-1zM2 27h1v1h-1zM4 27h3v1h-3zM8 27h1v1h-1zM10 27h1v1h-1zM14 27h1v1h-1zM16 27h1v1h-1zM18 27h3v1h-3zM22 27h6v1h-6zM30 27h1v1h-1zM2 28h1v1h-1zM4 28h3v1h-3zM8 28h1v1h-1zM10 28h2v1h-2zM15 28h1v1h-1zM17 28h1v1h-1zM20 28h2v1h-2zM24 28h1v1h-1zM26 28h1v1h-1zM2 29h1v1h-1zM8 29h1v1h-1zM11 29h2v1h-2zM17 29h1v1h-1zM19 29h3v1h-3zM23 29h1v1h-1zM25 29h1v1h-1zM27 29h1v1h-1zM29 29h2v1h-2zM2 30h7v1h-7zM10 30h2v1h-2zM15 30h1v1h-1zM19 30h2v1h-2zM22 30h5v1h-5zM29 30h2v1h-2z"/></symbol>
+    <symbol id="qr-recv" viewBox="0 0 33 33"><path fill="#10151f" d="M2 2h7v1h-7zM10 2h2v1h-2zM14 2h2v1h-2zM20 2h3v1h-3zM24 2h7v1h-7zM2 3h1v1h-1zM8 3h1v1h-1zM13 3h1v1h-1zM15 3h1v1h-1zM18 3h3v1h-3zM22 3h1v1h-1zM24 3h1v1h-1zM30 3h1v1h-1zM2 4h1v1h-1zM4 4h3v1h-3zM8 4h1v1h-1zM10 4h2v1h-2zM13 4h3v1h-3zM18 4h5v1h-5zM24 4h1v1h-1zM26 4h3v1h-3zM30 4h1v1h-1zM2 5h1v1h-1zM4 5h3v1h-3zM8 5h1v1h-1zM10 5h1v1h-1zM17 5h2v1h-2zM20 5h1v1h-1zM24 5h1v1h-1zM26 5h3v1h-3zM30 5h1v1h-1zM2 6h1v1h-1zM4 6h3v1h-3zM8 6h1v1h-1zM12 6h1v1h-1zM14 6h1v1h-1zM18 6h2v1h-2zM21 6h1v1h-1zM24 6h1v1h-1zM26 6h3v1h-3zM30 6h1v1h-1zM2 7h1v1h-1zM8 7h1v1h-1zM10 7h3v1h-3zM14 7h1v1h-1zM16 7h2v1h-2zM19 7h4v1h-4zM24 7h1v1h-1zM30 7h1v1h-1zM2 8h7v1h-7zM10 8h1v1h-1zM12 8h1v1h-1zM14 8h1v1h-1zM16 8h1v1h-1zM18 8h1v1h-1zM20 8h1v1h-1zM22 8h1v1h-1zM24 8h7v1h-7zM11 9h5v1h-5zM18 9h1v1h-1zM20 9h1v1h-1zM3 10h2v1h-2zM7 10h3v1h-3zM11 10h1v1h-1zM16 10h1v1h-1zM18 10h1v1h-1zM20 10h3v1h-3zM24 10h2v1h-2zM27 10h1v1h-1zM2 11h1v1h-1zM7 11h1v1h-1zM9 11h1v1h-1zM12 11h1v1h-1zM14 11h1v1h-1zM19 11h2v1h-2zM22 11h1v1h-1zM24 11h1v1h-1zM26 11h1v1h-1zM29 11h1v1h-1zM3 12h4v1h-4zM8 12h1v1h-1zM12 12h4v1h-4zM17 12h1v1h-1zM19 12h1v1h-1zM21 12h1v1h-1zM23 12h1v1h-1zM26 12h1v1h-1zM29 12h1v1h-1zM3 13h2v1h-2zM6 13h1v1h-1zM11 13h1v1h-1zM15 13h6v1h-6zM22 13h1v1h-1zM25 13h2v1h-2zM4 14h1v1h-1zM6 14h5v1h-5zM13 14h3v1h-3zM17 14h1v1h-1zM22 14h3v1h-3zM28 14h3v1h-3zM4 15h2v1h-2zM7 15h1v1h-1zM9 15h2v1h-2zM12 15h1v1h-1zM15 15h4v1h-4zM20 15h1v1h-1zM23 15h2v1h-2zM27 15h2v1h-2zM5 16h5v1h-5zM12 16h1v1h-1zM15 16h1v1h-1zM17 16h2v1h-2zM20 16h3v1h-3zM24 16h1v1h-1zM26 16h1v1h-1zM29 16h2v1h-2zM2 17h1v1h-1zM4 17h4v1h-4zM9 17h1v1h-1zM13 17h1v1h-1zM17 17h3v1h-3zM21 17h1v1h-1zM24 17h4v1h-4zM2 18h5v1h-5zM8 18h1v1h-1zM10 18h1v1h-1zM14 18h1v1h-1zM17 18h1v1h-1zM23 18h3v1h-3zM30 18h1v1h-1zM2 19h1v1h-1zM5 19h2v1h-2zM9 19h2v1h-2zM14 19h2v1h-2zM18 19h1v1h-1zM20 19h1v1h-1zM22 19h2v1h-2zM26 19h2v1h-2zM29 19h2v1h-2zM4 20h6v1h-6zM13 20h3v1h-3zM18 20h8v1h-8zM27 20h1v1h-1zM29 20h2v1h-2zM2 21h1v1h-1zM4 21h2v1h-2zM7 21h1v1h-1zM10 21h4v1h-4zM16 21h2v1h-2zM20 21h1v1h-1zM24 21h1v1h-1zM27 21h4v1h-4zM2 22h1v1h-1zM4 22h2v1h-2zM7 22h4v1h-4zM15 22h1v1h-1zM18 22h1v1h-1zM20 22h1v1h-1zM22 22h1v1h-1zM24 22h1v1h-1zM26 22h1v1h-1zM28 22h2v1h-2zM12 23h2v1h-2zM20 23h1v1h-1zM24 23h4v1h-4zM29 23h1v1h-1zM2 24h7v1h-7zM11 24h1v1h-1zM20 24h5v1h-5zM26 24h3v1h-3zM2 25h1v1h-1zM8 25h1v1h-1zM11 25h2v1h-2zM17 25h1v1h-1zM19 25h2v1h-2zM22 25h1v1h-1zM25 25h4v1h-4zM2 26h1v1h-1zM4 26h3v1h-3zM8 26h1v1h-1zM16 26h2v1h-2zM21 26h1v1h-1zM23 26h2v1h-2zM27 26h3v1h-3zM2 27h1v1h-1zM4 27h3v1h-3zM8 27h1v1h-1zM10 27h2v1h-2zM15 27h4v1h-4zM22 27h2v1h-2zM25 27h1v1h-1zM27 27h4v1h-4zM2 28h1v1h-1zM4 28h3v1h-3zM8 28h1v1h-1zM10 28h4v1h-4zM16 28h1v1h-1zM18 28h1v1h-1zM23 28h1v1h-1zM25 28h1v1h-1zM28 28h2v1h-2zM2 29h1v1h-1zM8 29h1v1h-1zM10 29h1v1h-1zM12 29h2v1h-2zM15 29h2v1h-2zM20 29h1v1h-1zM24 29h3v1h-3zM2 30h7v1h-7zM11 30h2v1h-2zM15 30h6v1h-6zM22 30h1v1h-1z"/></symbol>
+  </defs>
+</svg>
+
+<div class="page">
+
+  <section class="intro" id="kurz">
+    <div>
+      <p class="kicker">Konzept · Profil und sein Menü · 08.11.2026</p>
+      <h1>Das Profil sagt, wer du in Betula bist und auf welchen Geräten. Alles andere steht dort, wo man es braucht.</h1>
+      <p class="lead">Heute ist die Profilseite eine Sammelstelle: Profile, Sicherung, fünf Links zu Seiten, die die Navigation schon hat, Betula Sync, Einstellungen des Browsers und das Impressum, in dieser Reihenfolge. Der Vorschlag ordnet nach dem, was man tut und wie oft: Was für den ganzen Browser gilt, wandert ins Menü am Profil-Knopf, einen Tipp entfernt auf jeder Seite. Die Seite selbst zeigt das Profil mit ein paar Zahlen, dann Betula Sync als ihre Hauptsache, dann das Seltene, das Folgenschwere zuletzt.</p>
+      <nav class="toc" aria-label="Inhalt">
+        <a href="#heute">Heute</a><a href="#aktionen">Aktionen</a><a href="#praxis">Wie es andere machen</a><a href="#menue">Das Menü</a><a href="#seite">Die Seite</a><a href="#verbinden">Gerät verbinden</a><a href="#wohin">Was wohin</a><a href="#adressen">Adressen</a><a href="#schritte">Schritte</a><a href="#fragen">Fragen</a>
+      </nav>
+    </div>
+    <div class="rules">
+      <p class="kicker">Fünf Sätze</p>
+      <ol>
+        <li><span><b>Was für den Browser gilt, steht im Menü, nicht auf der Profilseite.</b> Darstellung und Sprache sind am Profil-Knopf zwei Tipps entfernt, auf dem Handy wie am Rechner.</span></li>
+        <li><span><b>Gerät verbinden ist die Hauptsache.</b> Es ist im Menü und oben auf der Profilseite, und der QR-Code steht immer auf dem Rechner: Die Kamera ist die des Handys, egal auf welchem Gerät das Profil schon liegt.</span></li>
+        <li><span><b>Zahlen statt Links.</b> Was die Navigation erreicht, verlinkt die Profilseite nicht noch einmal. Sie sagt, was im Profil steckt.</span></li>
+        <li><span><b>Was eine Auswahl trifft, steht über dem, was sie ändert.</b> Die Profile stehen im Menü oben, auf der Seite oben (am Rechner links); was zum gewählten Profil gehört, darunter.</span></li>
+        <li><span><b>Das Seltene zuletzt, das Folgenschwere abgesetzt.</b> Sichern, Leeren, Löschen stehen am Ende, Leeren und Löschen mit Rückfrage und „Rückgängig“ wie heute.</span></li>
+      </ol>
+      <p class="who">Nur Konzept, nichts davon ist gebaut. Schon gemacht, weil du es direkt gesagt hast: Der Link fürs nächste Gerät heißt jetzt <code>/sync#…</code> statt <code>/verbinden#…</code>, die Rechtsseiten <code>/imprint</code> und <code>/privacy</code>; die alten Adressen leiten weiter (<a href="#adressen">Adressen</a>).</p>
+    </div>
+  </section>
+
+  <section class="block" id="heute">
+    <p class="kicker">Heute</p>
+    <h2>Eine Seite mit sieben Teilen, und der wichtigste steht in der Mitte</h2>
+    <p class="lead">So sieht die Profilseite auf canary aus (Folia 1.76.0), mit einem leeren Profil. Auf dem Handy ist sie 2,5 Bildschirme lang; die roten Linien sagen, wie weit man scrollen muss.</p>
+    <div class="shots">
+      <figure>
+        <div class="tall"><div class="ruler">
+          <img src="bilder/heute-handy.webp" width="720" height="3953" alt="Die Profilseite am Handy, ganz: oben die Profilliste mit „Neues Profil“ und „Sichern &amp; übertragen“, dann Profil 1 mit Umbenennen und Löschen, Mein Studiengang, In diesem Profil mit fünf Zeilen, Betula Sync, Einstellungen mit Darstellung, Sprache und Einzelne Tasten, Über diese Seite.">
+          <i class="mark" style="top: 20.6%"><span>Profil 1: 0,5 Bildschirme</span></i>
+          <i class="mark" style="top: 55.6%"><span>Betula Sync: 1,4</span></i>
+          <i class="mark" style="top: 73.1%"><span>Darstellung: 1,8</span></i>
+          <i class="mark" style="top: 92.2%"><span>Impressum: 2,3</span></i>
+        </div></div>
+        <figcaption>Pixel 7, 412 px breit. Erst das Verwalten, dann das Profil.</figcaption>
+      </figure>
+      <div class="side">
+        <figure><img src="bilder/heute-rechner.webp" width="1100" height="693" alt="Die Profilseite am Rechner: links die Profile und Sichern &amp; übertragen, rechts Profil 1, Mein Studiengang mit zwei Knöpfen und In diesem Profil mit fünf Zeilen; Betula Sync beginnt am unteren Rand." loading="lazy"><figcaption>Am Rechner: Betula Sync beginnt am unteren Rand des ersten Bildschirms.</figcaption></figure>
+        <div class="pair">
+          <figure><img src="bilder/heute-menue-handy.webp" width="720" height="546" alt="Das Menü am Handy unter dem Profil-Knopf: Profile, Profil 1, Neues Profil, Profil &amp; Einstellungen, English." loading="lazy"><figcaption>Das Menü: Profile, „Profil &amp; Einstellungen“, die andere Sprache. Hell und Dunkel fehlen.</figcaption></figure>
+          <figure><img src="bilder/heute-menue-rechner.webp" width="520" height="320" alt="Das Menü am Rechner neben der Leiste, beim Darüberfahren mit der Maus." loading="lazy"><figcaption>Am Rechner öffnet es beim Darüberfahren oder mit Rechtsklick; ein Klick führt zur Seite.</figcaption></figure>
+        </div>
+      </div>
+    </div>
+    <ul class="finds">
+      <li class="worst"><b>Betula Sync steht in der Mitte</b>Das Wichtigste, wenn man mit dem Handy am Rechner sitzt, kommt nach der Profilliste, der Sicherung, dem Studiengang und fünf Links. Am Handy nach 1,4 Bildschirmen.</li>
+      <li class="worst"><b>Das Handy kann das Profil nicht auf den Rechner bringen</b>Liegt das Profil auf dem Handy, zeigt das Handy den QR-Code, und der Rechner hat keine Kamera. Es bleibt: den Link kopieren und sich selbst schicken, oder den Wiederherstellungscode abtippen, 52 Zeichen.</li>
+      <li><b>Fünf Links, die die Navigation schon hat</b>„In diesem Profil“ führt zu Merkliste, Sammlungen, Stundenplan, Mein Studium und den Plänen, „Mein Studiengang“ noch einmal zu Mein Studium und zu allen Studiengängen.</li>
+      <li><b>Einstellungen, die keine des Profils sind</b>Darstellung, Sprache und Einzelne Tasten „gelten in diesem Browser für alle Profile“, sagt die Seite selbst. Am Handy gibt es Hell und Dunkel nur hier, nach 1,8 Bildschirmen.</li>
+      <li><b>Auf dem Handy erst verwalten, dann ansehen</b>Die Seitenleiste steht am Handy vorn: Profilliste, „Neues Profil“, „Als Datei sichern“, „Aus Datei laden“ und ein Hinweis, bevor das Profil selbst kommt.</li>
+      <li><b>Das iPhone bringt das Profil in den falschen Speicher</b>Wer Betula auf dem Home-Bildschirm hat, scannt den Code mit der Kamera, und iOS öffnet den Link in Safari. Safari und die App teilen keinen Speicher: Das Profil landet in Safari, nicht in der App.</li>
+    </ul>
+    <p class="note"><b>Was bleibt, wie es ist:</b> das Impressum und der Datenschutz müssen von jeder Seite erreichbar bleiben (§ 5 DDG); das tun sie heute über den Profil-Knopf und das Ende der Profilseite. Ohne JavaScript führt der Knopf zur Ersatzseite mit der anderen Sprache und den Rechtsseiten; daran ändert das Konzept nichts.</p>
+  </section>
+
+  <section class="block" id="aktionen">
+    <p class="kicker">Was man tut, und wie oft</p>
+    <h2>Fast alles am Profil ist selten. Das Häufigste ist Wechseln, das Wichtigste Verbinden.</h2>
+    <p class="lead">Geschätzt nach dem, wofür Betula da ist; Zahlen dazu gibt es nicht, weil Betula nichts von dem zählt, was in einem Browser geschieht. „Tipps“ sind Tipps und Klicks bis zum Ziel, Scrollen extra.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th scope="col">Aktion</th><th scope="col">Wer</th><th scope="col">Wie oft</th><th scope="col">Heute</th><th scope="col">Neu</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Profil wechseln</th><td>Wer mehrere Profile hat (Zweitstudium, für jemand anderen planen)</td><td><span class="freq"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span> wöchentlich</td><td><span class="taps">2</span> Menü<small>Rechner: Darüberfahren</small></td><td><span class="taps">2</span> Menü, wie heute</td></tr>
+          <tr><th scope="row">Ein weiteres Gerät verbinden</th><td>Jeder, der Betula auf Handy und Rechner nutzt</td><td><span class="freq"><i class="on"></i><i></i><i></i><i></i></span> einmal je Gerät, aber <b>der</b> Moment</td><td><span class="taps">2–4 + 1,4 Bildschirme</span><small>Profil, scrollen, Aktivieren, Aktivieren</small></td><td><span class="taps better">2</span> Menü → Gerät verbinden<small>beim ersten Mal 3: Sync einschalten</small></td></tr>
+          <tr><th scope="row">Profil vom Handy auf den Rechner holen</th><td>Wer auf dem Handy angefangen hat</td><td><span class="freq"><i class="on"></i><i></i><i></i><i></i></span> einmal je Gerät</td><td><span class="taps">Link sich selbst schicken</span><small>oder 52 Zeichen abtippen</small></td><td><span class="taps better">2 + 3</span> Rechner zeigt, Handy scannt</td></tr>
+          <tr><th scope="row">Sehen, ob Sync läuft</th><td>Wer Sync nutzt</td><td><span class="freq"><i class="on"></i><i class="on"></i><i></i><i></i></span> ab und zu</td><td><span class="taps">1 + scrollen</span></td><td><span class="taps better">1</span> Menü; eine Störung als Punkt am Knopf (<span class="taps">0</span>)</td></tr>
+          <tr><th scope="row">Hell, Dunkel, System</th><td>Alle</td><td><span class="freq"><i class="on"></i><i></i><i></i><i></i></span> einmal, selten wieder</td><td><span class="taps">1</span> Rechner (Leiste)<small>Handy: 2 + 1,8 Bildschirme</small></td><td><span class="taps better">2</span> Menü, auf beiden<small>Rechner: der Knopf in der Leiste bleibt (Frage 2)</small></td></tr>
+          <tr><th scope="row">Sprache</th><td>Alle; meist stimmt die des Browsers</td><td><span class="freq"><i class="on"></i><i></i><i></i><i></i></span> einmal</td><td><span class="taps">2</span> Menü</td><td><span class="taps">2</span> Menü, als Auswahl</td></tr>
+          <tr><th scope="row">Neues Profil</th><td>Wenige</td><td><span class="freq"><i class="on"></i><i></i><i></i><i></i></span> selten</td><td><span class="taps">2</span> Menü</td><td><span class="taps">2</span> Menü, wie heute</td></tr>
+          <tr><th scope="row">Umbenennen</th><td>Wer mehrere Profile hat</td><td><span class="freq"><i class="on"></i><i></i><i></i><i></i></span> einmal</td><td><span class="taps">2</span> Seite, Kopf</td><td><span class="taps">2</span> Seite, am Namen</td></tr>
+          <tr><th scope="row">Wiederherstellungscode ansehen</th><td>Wer Sync nutzt</td><td><span class="freq"><i class="on"></i><i></i><i></i><i></i></span> einmal, ihn aufzuschreiben</td><td><span class="taps">2 + scrollen</span></td><td><span class="taps">2</span> Seite, im Sync-Teil oben</td></tr>
+          <tr><th scope="row">Als Datei sichern, aus Datei laden</th><td>Wer kein Sync will, oder für ein Archiv</td><td><span class="freq"><i class="on"></i><i></i><i></i><i></i></span> selten</td><td><span class="taps">2</span> Seite, Seitenleiste</td><td><span class="taps">2</span> Seite: Sichern beim Profil, Laden bei „Profil hinzufügen“</td></tr>
+          <tr><th scope="row">Profil leeren, löschen</th><td>Wenige</td><td><span class="freq"><i class="on"></i><i></i><i></i><i></i></span> sehr selten</td><td><span class="taps">2–3</span> Seite, verstreut</td><td><span class="taps">3</span> Seite, am Ende, mit Rückfrage</td></tr>
+          <tr><th scope="row">Impressum, Datenschutz</th><td>Kaum jemand, aber Pflicht</td><td><span class="freq"><i></i><i></i><i></i><i></i></span> fast nie</td><td><span class="taps">1–2 + 2,3 Bildschirme</span></td><td><span class="taps better">2</span> Menü, Fuß; dazu am Ende der Seite</td></tr>
+          <tr><th scope="row">Einzelne Tasten an, aus</th><td>Wer die Tastatur nutzt</td><td><span class="freq"><i class="on"></i><i></i><i></i><i></i></span> einmal</td><td>Seite, Tastenübersicht, Befehle</td><td>Tastenübersicht und Befehle; sie gehören zur Tastatur</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note"><b>Was daraus folgt:</b> Kein Teil der Seite wird oft gebraucht; der häufigste Weg, das Wechseln, geht übers Menü und soll dort bleiben. Darum darf die Seite ruhig sein. Das Verbinden ist selten, aber es ist der Moment, in dem Betula zeigt, ob es auf dem Handy und am Rechner dasselbe ist: Dafür braucht es den kürzesten Weg und die meiste Sorgfalt.</p>
+  </section>
+
+  <section class="block" id="praxis">
+    <p class="kicker">Wie es andere machen</p>
+    <h2>Drei Muster, die sich durchgesetzt haben</h2>
+    <div class="cases">
+      <div class="case">
+        <h3>Das Menü am Avatar</h3>
+        <p>Google, YouTube, GitHub: Ein Klick auf das Bild oben öffnet ein Menü mit dem Konto oben, den anderen Konten zum Wechseln und „Konto verwalten“. YouTube führt dort auch <b>Darstellung</b> und <b>Sprache</b>; Googles Menü hat im Fuß „Datenschutz · Nutzungsbedingungen“.</p>
+        <p class="take"><b>Für Betula:</b> Das Menü am Profil-Knopf ist der Schnellzugriff. Ein Klick öffnet es auch am Rechner, und die Seite ist einer seiner Einträge.</p>
+      </div>
+      <div class="case">
+        <h3>Verknüpfte Geräte</h3>
+        <p>WhatsApp und Signal: Das neue Gerät zeigt einen QR-Code, das Handy scannt ihn <b>in der App</b> („Verknüpfte Geräte → Gerät hinzufügen“). Eine Liste zeigt jedes Gerät mit Name und wann es zuletzt da war; bei einem unbekannten Gerät fragt WhatsApp nach.</p>
+        <p class="take"><b>Für Betula:</b> Der Code steht auf dem Rechner, gescannt wird mit dem Handy, in beide Richtungen. Später eine Liste der Geräte des Profils.</p>
+      </div>
+      <div class="case">
+        <h3>Die Gefahrenzone</h3>
+        <p>GitHub und andere stellen, was sich nicht leicht zurücknehmen lässt, ans Ende der Einstellungen, rot umrandet, jedes mit eigener Rückfrage. Was man oft braucht, steht oben, und nichts Gefährliches daneben.</p>
+        <p class="take"><b>Für Betula:</b> Leeren und Löschen ziehen vom Kopf und aus „In diesem Profil“ in einen Teil am Ende. Umbenennen bleibt am Namen.</p>
+      </div>
+    </div>
+    <h3>Zwei Fakten der Plattformen, die das Verbinden bestimmen</h3>
+    <ul class="points">
+      <li><b>Eine Web-App auf dem iPhone-Home-Bildschirm hat ihren eigenen Speicher</b>, getrennt von Safari, mit Absicht (WebKit; seit iOS 26 öffnet jede hinzugefügte Seite als Web-App). Einen gescannten Link öffnet iOS in Safari, nie in der Web-App. Wer Betula so nutzt, braucht den Scanner in Betula selbst, sonst landet das Profil in Safari. Auf Android öffnet ein installiertes Betula seine Links selbst.</li>
+      <li><b>QR-Codes im Browser lesen</b> kann von sich aus nur Chrome auf Android (<code>BarcodeDetector</code>); Safari hat es nur hinter einem Schalter, Firefox gar nicht (Stand Oktober 2026). Für alle anderen braucht es einen Decoder in WebAssembly; für Betula passt die Rust-Crate <code>rqrr</code> im Worker, geladen erst, wenn der Scanner aufgeht. Und der Server verbietet die Kamera heute (<code>Permissions-Policy: camera=()</code>); dafür würde daraus <code>camera=(self)</code>.</li>
+    </ul>
+  </section>
+
+  <section class="block" id="menue">
+    <p class="kicker">Das Menü am Profil-Knopf</p>
+    <h2>Der Schnellzugriff: Profile, das Verbinden, Darstellung und Sprache</h2>
+    <p class="lead">Dasselbe Menü am Rechner (neben der Leiste) und am Handy (unter dem Knopf rechts oben). Oben die Profile, die eine Auswahl treffen; darunter, was zum gewählten Profil gehört; dann, was für den ganzen Browser gilt; im Fuß die Rechtsseiten.</p>
+    <div class="stage">
+      <figure>
+        <div class="desk" style="width: 600px">
+          <div class="rail">
+            <i class="logo"></i>
+            <span class="ri"><svg class="i"><use href="#i-home"/></svg></span>
+            <span class="ri on"><svg class="i"><use href="#i-list"/></svg></span>
+            <span class="ri"><svg class="i"><use href="#i-cap"/></svg></span>
+            <span class="ri"><svg class="i"><use href="#i-mark"/></svg></span>
+            <span class="ri"><svg class="i"><use href="#i-cal"/></svg></span>
+            <span class="gap"></span>
+            <span class="ri"><svg class="i"><use href="#i-keys"/></svg></span>
+            <span class="ri" style="box-shadow: 0 0 0 2px var(--accent)"><span class="av xs">L</span></span>
+            <span class="ri"><svg class="i"><use href="#i-moon"/></svg></span>
+          </div>
+          <div class="main">
+            <div class="dsearch"><svg class="i"><use href="#i-search"/></svg>Modul, Nummer oder Thema suchen</div>
+            <div class="ghost" style="height: 470px"><div class="line" style="width: 40%"></div><div class="line" style="width: 70%"></div><div class="line" style="width: 55%"></div><div class="line" style="width: 64%"></div></div>
+          </div>
+          <div class="over" style="left: 54px; bottom: 10px">
+            <div class="menu">
+              <p class="mh label">Profile</p>
+              <div class="it on"><span class="av">L</span><span class="grow"><b>Lena</b><small>Informatik B.Sc. · 3. FS</small></span><svg class="i chk"><use href="#i-check"/></svg></div>
+              <div class="it"><span class="av t3">Z</span><span class="grow"><b>Zweitstudium</b><small>Maschinenbau M.Sc.</small></span></div>
+              <div class="it"><svg class="i"><use href="#i-plus"/></svg><span class="grow"><b>Neues Profil</b></span></div>
+              <hr>
+              <div class="it primary"><svg class="i"><use href="#i-sync"/></svg><span class="grow"><b>Gerät verbinden</b><small><span class="dot" style="width:6px;height:6px;vertical-align:1px"></span> Synchron · Pixel 7 online</small></span><span class="pin">1</span></div>
+              <div class="it"><svg class="i"><use href="#i-sliders"/></svg><span class="grow"><b>Profil verwalten</b></span><span class="pin">2</span></div>
+              <hr>
+              <div class="set"><span class="row"><span class="label grow">Darstellung</span><span class="pin">3</span></span><div class="seg"><span><svg class="i"><use href="#i-monitor"/></svg>System</span><span class="on"><svg class="i"><use href="#i-sun"/></svg>Hell</span><span><svg class="i"><use href="#i-moon"/></svg>Dunkel</span></div></div>
+              <div class="set"><span class="label">Sprache</span><div class="seg"><span class="on">Deutsch</span><span>English</span></div></div>
+              <hr>
+              <p class="mf"><span>Impressum</span><span>Datenschutz</span><span style="flex: 1; text-decoration: none"></span><span class="pin">4</span></p>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Am Rechner</b>, ein Klick auf den Profil-Knopf (Frage 1). Die Maus darüber öffnet es wie heute.</figcaption>
+      </figure>
+      <figure>
+        <div class="phone">
+          <div class="scr">
+            <div class="status"><span>9:41</span><span>●●● 5G</span></div>
+            <div class="topbar"><span class="search"><svg class="i"><use href="#i-search"/></svg>Modul, Nummer oder Thema …</span><span class="box on"><span class="av xs">L</span></span></div>
+            <div class="body"><div class="ghost" style="height: 120px"><div class="line" style="width: 60%"></div><div class="line" style="width: 35%"></div></div><div class="ghost" style="height: 120px"><div class="line" style="width: 70%"></div><div class="line" style="width: 40%"></div></div><div class="ghost" style="height: 120px"></div></div>
+            <div class="tabbar"><span><svg class="i"><use href="#i-home"/></svg>Start</span><span><svg class="i"><use href="#i-list"/></svg>Module</span><span><svg class="i"><use href="#i-cap"/></svg>Studium</span><span><svg class="i"><use href="#i-mark"/></svg>Merkliste</span><span><svg class="i"><use href="#i-cal"/></svg>Plan</span></div>
+            <div class="dim"></div>
+            <div class="over" style="right: 10px; top: 92px">
+              <div class="menu" style="width: 272px">
+                <p class="mh label">Profile</p>
+                <div class="it on"><span class="av">L</span><span class="grow"><b>Lena</b><small>Informatik B.Sc. · 3. FS</small></span><svg class="i chk"><use href="#i-check"/></svg></div>
+                <div class="it"><span class="av t3">Z</span><span class="grow"><b>Zweitstudium</b><small>Maschinenbau M.Sc.</small></span></div>
+                <div class="it"><svg class="i"><use href="#i-plus"/></svg><span class="grow"><b>Neues Profil</b></span></div>
+                <hr>
+                <div class="it primary"><svg class="i"><use href="#i-scan"/></svg><span class="grow"><b>Gerät verbinden</b><small>Code am Rechner scannen</small></span></div>
+                <div class="it"><svg class="i"><use href="#i-sliders"/></svg><span class="grow"><b>Profil verwalten</b></span><svg class="i" style="color: var(--text-3)"><use href="#i-chev"/></svg></div>
+                <hr>
+                <div class="set"><span class="label">Darstellung</span><div class="seg"><span class="on"><svg class="i"><use href="#i-monitor"/></svg>System</span><span><svg class="i"><use href="#i-sun"/></svg>Hell</span><span><svg class="i"><use href="#i-moon"/></svg>Dunkel</span></div></div>
+                <div class="set"><span class="label">Sprache</span><div class="seg"><span class="on">Deutsch</span><span>English</span></div></div>
+                <hr>
+                <p class="mf"><span>Impressum</span><span>Datenschutz</span></p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Am Handy</b>, ein Tipp auf den Knopf rechts oben, wie heute.</figcaption>
+      </figure>
+      <ol class="callouts">
+        <li><i>1</i><span><b>Gerät verbinden</b> steht unter den Profilen, weil es zum gewählten gehört. Die Zeile darunter sagt den Stand: „Synchron · Pixel 7 online“, „Offline, Änderungen warten“, „Nur auf diesem Gerät“. Am Rechner öffnet es den Dialog mit dem QR-Code, am Handy den Scanner (<a href="#verbinden">Gerät verbinden</a>). Bietet eine Instanz Sync nicht an, fehlt der Eintrag.</span></li>
+        <li><i>2</i><span><b>Profil verwalten</b> führt zur Seite. Heute heißt der Eintrag „Profil &amp; Einstellungen“; die Einstellungen sind dann hier im Menü.</span></li>
+        <li><i>3</i><span><b>Darstellung und Sprache als Auswahl</b>, beides auf einen Blick, statt eines Eintrags „English“, der nicht sagt, was gerade gilt. Die Sprache lädt die Seite wie heute neu, in derselben Ansicht.</span></li>
+        <li><i>4</i><span><b>Impressum und Datenschutz im Fuß</b>, klein, wie bei Google. Damit sind sie von jeder Seite zwei Tipps entfernt, und das Ende der Profilseite behält sie als Zeile (§ 5 DDG doppelt gehalten).</span></li>
+        <li><i>5</i><span><span class="box" style="display: inline-grid; width: 30px; height: 30px; vertical-align: middle; margin-right: 6px"><span class="av xs">L</span><span class="badge"></span></span><b>Ein Punkt am Knopf</b>, nur wenn Sync Aufmerksamkeit braucht: beendet auf einem anderen Gerät, fehlgeschlagen, oder zwei Geräte haben gleichzeitig an derselben Stelle geändert. Läuft alles, steht nichts da; offline zu sein ist normal.</span></li>
+      </ol>
+    </div>
+    <p class="note"><b>Tastatur:</b> Der Knopf ist ein Ziel der Tab-Taste wie heute; Enter öffnet das Menü, die Pfeile gehen durch seine Einträge, Esc schließt es. „Profil“ in den Befehlen (Strg + K) führt weiter direkt zur Seite, „Hell“, „Dunkel“ und die Sprache sind dort schon Befehle. Ohne JavaScript bleibt der Knopf ein Link zur Ersatzseite mit der anderen Sprache und den Rechtsseiten.</p>
+  </section>
+
+  <section class="block" id="seite">
+    <p class="kicker">Die Profilseite</p>
+    <h2>Wer, was drin ist, auf welchen Geräten, und am Ende das Seltene</h2>
+    <p class="lead">Von oben nach unten: die Profile (am Handy als eine Reihe, am Rechner links), der Kopf des Profils mit seinem Studiengang als Text und ein paar Zahlen, Betula Sync, Sichern, die Gefahrenzone und eine Fußzeile. Kein Link führt zu einem Tab.</p>
+    <div class="stage">
+      <figure>
+        <div class="desk">
+          <div class="rail">
+            <i class="logo"></i>
+            <span class="ri"><svg class="i"><use href="#i-home"/></svg></span>
+            <span class="ri"><svg class="i"><use href="#i-list"/></svg></span>
+            <span class="ri"><svg class="i"><use href="#i-cap"/></svg></span>
+            <span class="ri"><svg class="i"><use href="#i-mark"/></svg></span>
+            <span class="ri"><svg class="i"><use href="#i-cal"/></svg></span>
+            <span class="gap"></span>
+            <span class="ri"><svg class="i"><use href="#i-keys"/></svg></span>
+            <span class="ri on"><span class="av xs">L</span></span>
+            <span class="ri"><svg class="i"><use href="#i-moon"/></svg></span>
+          </div>
+          <div class="main">
+            <div class="dsearch"><svg class="i"><use href="#i-search"/></svg>Modul, Nummer oder Thema suchen</div>
+            <div class="cols">
+              <div class="mp sidebar-ghost" style="display: grid; gap: 4px">
+                <h4 style="margin-bottom: 6px">Profile</h4>
+                <div class="row" style="padding: 6px; border-radius: 8px; background: var(--panel-2); box-shadow: inset 2px 0 0 var(--accent)"><span class="av">L</span><span class="grow"><span class="t-name" style="display:block">Lena</span><span class="t-line" style="display:block">Informatik B.Sc.</span></span><svg class="i" style="color: var(--accent-ink)"><use href="#i-check"/></svg></div>
+                <div class="row" style="padding: 6px"><span class="av t3">Z</span><span class="grow"><span class="t-name" style="display:block">Zweitstudium</span><span class="t-line" style="display:block">Maschinenbau M.Sc.</span></span></div>
+                <div class="row" style="padding: 8px 6px 4px; font-size: 12.5px; font-weight: 620"><svg class="i"><use href="#i-plus"/></svg><span class="grow">Profil hinzufügen</span><svg class="i" style="color: var(--text-3); transform: rotate(180deg)"><use href="#i-down"/></svg></div>
+                <div style="display: grid; gap: 2px; padding: 0 0 6px 30px; font-size: 12px; color: var(--text-2)">
+                  <span class="row" style="gap: 7px; padding: 4px 0"><svg class="i" style="width:14px;height:14px"><use href="#i-plain-plus"/></svg>Leer anlegen</span>
+                  <span class="row" style="gap: 7px; padding: 4px 0"><svg class="i" style="width:14px;height:14px"><use href="#i-sync"/></svg>Von einem anderen Gerät</span>
+                  <span class="row" style="gap: 7px; padding: 4px 0"><svg class="i" style="width:14px;height:14px"><use href="#i-upload"/></svg>Aus Datei laden</span>
+                </div>
+                <p class="row" style="align-items: flex-start; gap: 7px; padding-top: 8px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 11px"><svg class="i" style="width:14px;height:14px"><use href="#i-shield"/></svg>Profile liegen in diesem Browser, ohne Konto. Mit Sync verschlüsselt auf deinen Geräten.</p>
+              </div>
+              <div style="display: grid; gap: 10px; min-width: 0">
+                <div class="mp">
+                  <div class="row" style="align-items: flex-start; gap: 14px">
+                    <span class="av big">L</span>
+                    <div class="grow">
+                      <div class="row" style="gap: 8px"><h4 style="font-size: 19px">Lena</h4><svg class="i" style="color: var(--text-3); width: 14px; height: 14px"><use href="#i-pencil"/></svg><span class="pin">1</span></div>
+                      <p class="sub" style="font-size: 12.5px">Informatik B.Sc. · PO 2008 · 3. Fachsemester · Cottbus</p>
+                      <p class="t-line" style="margin-top: 2px">Profil seit 14.10.2026</p>
+                    </div>
+                  </div>
+                  <div class="stats" style="--cols: 5; position: relative"><span class="pin" style="position: absolute; right: -6px; top: -8px">2</span>
+                    <div class="stat"><b>46</b><small>gemerkt</small></div>
+                    <div class="stat"><b>18</b><small>geplant, in 2 Semestern</small></div>
+                    <div class="stat"><b>84 LP</b><small>bestanden, 12 Module</small></div>
+                    <div class="stat"><b>3 · 5</b><small>Sammlungen · Notizen</small></div>
+                    <div class="stat"><b>2</b><small>gespeicherte Pläne</small></div>
+                  </div>
+                </div>
+                <div class="mp accent">
+                  <div class="row"><h4 class="grow"><svg class="i"><use href="#i-sync"/></svg>Betula Sync</h4><span class="row" style="gap: 6px; font-size: 11.5px; color: var(--text-2)"><span class="dot"></span>Synchron</span><span class="pin">3</span></div>
+                  <div style="margin-top: 6px">
+                    <div class="dev"><svg class="i"><use href="#i-laptop"/></svg><span class="grow"><b>Dieser Rechner</b> · Firefox · Windows</span><span class="when">jetzt</span></div>
+                    <div class="dev"><svg class="i"><use href="#i-phone"/></svg><span class="grow"><b>Pixel 7</b> · Chrome · Android</span><span class="when"><span class="dot" style="width:6px;height:6px"></span> online</span></div>
+                  </div>
+                  <div class="row" style="margin-top: 10px; flex-wrap: wrap; gap: 8px"><span class="btn primary"><svg class="i"><use href="#i-sync"/></svg>Gerät verbinden</span><span class="btn"><svg class="i"><use href="#i-lock"/></svg>Wiederherstellungscode</span></div>
+                  <p class="row" style="margin-top: 8px; gap: 14px"><span class="txt">Dieses Gerät trennen</span><span class="txt">Sync beenden</span></p>
+                </div>
+                <div class="mp">
+                  <div class="row"><h4 class="grow"><svg class="i"><use href="#i-download"/></svg>Als Datei sichern</h4><span class="btn sm">Datei speichern</span></div>
+                  <p class="sub">Für ein Archiv, oder ohne Sync auf ein anderes Gerät; „Aus Datei laden“ macht daraus ein neues Profil.</p>
+                </div>
+                <div class="mp danger"><span class="pin" style="float: right">4</span>
+                  <h4><svg class="i"><use href="#i-alert"/></svg>Gefahrenzone</h4>
+                  <div class="dev" style="margin-top: 4px"><span class="grow"><b>Profil leeren</b><br><span class="t-line">Merkliste, Pläne und Studium gehen, „Lena“ bleibt</span></span><span class="btn sm danger"><svg class="i"><use href="#i-undo"/></svg>Leeren …</span></div>
+                  <div class="dev"><span class="grow"><b>Profil löschen</b><br><span class="t-line">„Lena“ verschwindet aus diesem Browser; andere Geräte behalten es</span></span><span class="btn sm danger"><svg class="i"><use href="#i-trash"/></svg>Löschen …</span></div>
+                </div>
+                <p class="foot"><a>Impressum</a><a>Datenschutz</a><span>Folia 1.77.0</span><span>Radix 0.10.0</span><span>Daten vom 08.11.2026</span><a>Quelle: BTU ↗</a></p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Am Rechner</b>, ein synchronisiertes Profil mit Inhalt. Die Seitenleiste bleibt der Ort der Profile dieses Browsers.</figcaption>
+      </figure>
+      <figure>
+        <div class="phone">
+          <div class="scr">
+            <div class="status"><span>9:41</span><span>●●● 5G</span></div>
+            <div class="topbar"><span class="box"><svg class="i"><use href="#i-back"/></svg></span><span class="search"><svg class="i"><use href="#i-search"/></svg>Modul, Nummer oder Thema …</span></div>
+            <div class="body">
+              <div class="chips"><span class="chip on"><span class="av xs">L</span>Lena</span><span class="chip"><span class="av xs t3">Z</span>Zweitstudium</span><span class="chip add"><svg class="i" style="width:14px;height:14px"><use href="#i-plain-plus"/></svg>Profil</span></div>
+              <div class="mp">
+                <div class="row" style="gap: 12px"><span class="av big">L</span><div class="grow"><div class="row" style="gap: 6px"><h4 style="font-size: 18px">Lena</h4><svg class="i" style="color: var(--text-3); width: 14px; height: 14px"><use href="#i-pencil"/></svg></div><p class="sub">Informatik B.Sc. · PO 2008 · 3. FS · Cottbus</p></div></div>
+                <div class="stats" style="--cols: 2">
+                  <div class="stat"><b>46</b><small>gemerkt</small></div>
+                  <div class="stat"><b>18</b><small>geplant, 2 Semester</small></div>
+                  <div class="stat"><b>84 LP</b><small>bestanden</small></div>
+                  <div class="stat"><b>3 · 5</b><small>Sammlungen · Notizen</small></div>
+                </div>
+              </div>
+              <div class="mp accent">
+                <div class="row"><h4 class="grow"><svg class="i"><use href="#i-sync"/></svg>Betula Sync</h4><span class="row" style="gap: 6px; font-size: 11px; color: var(--text-2)"><span class="dot"></span>Synchron</span></div>
+                <div style="margin-top: 4px">
+                  <div class="dev"><svg class="i"><use href="#i-phone"/></svg><span class="grow"><b>Dieses Handy</b> · Chrome</span><span class="when">jetzt</span></div>
+                  <div class="dev"><svg class="i"><use href="#i-laptop"/></svg><span class="grow"><b>Rechner</b> · Firefox · Windows</span><span class="when">vor 2 Std.</span></div>
+                </div>
+                <div style="display: grid; gap: 6px; margin-top: 8px"><span class="btn primary wide"><svg class="i"><use href="#i-scan"/></svg>Gerät verbinden</span><span class="btn wide"><svg class="i"><use href="#i-lock"/></svg>Wiederherstellungscode</span></div>
+                <p class="row" style="margin-top: 8px; gap: 12px"><span class="txt">Dieses Gerät trennen</span><span class="txt">Sync beenden</span></p>
+              </div>
+              <div class="mp"><div class="row"><h4 class="grow"><svg class="i"><use href="#i-download"/></svg>Als Datei sichern</h4><svg class="i" style="color: var(--text-3)"><use href="#i-chev"/></svg></div></div>
+              <div class="mp danger"><h4><svg class="i"><use href="#i-alert"/></svg>Gefahrenzone</h4><p class="sub">Profil leeren · Profil löschen</p></div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Am Handy</b>: die Profile als eine Reihe oben, statt drei Blöcken Verwaltung vor dem Profil. Der Sync-Teil beginnt im ersten Bildschirm.</figcaption>
+      </figure>
+      <ol class="callouts">
+        <li><i>1</i><span><b>Der Kopf:</b> der Name, mit dem Stift daneben zum Umbenennen an Ort und Stelle (heute ein Knopf „Umbenennen“). Darunter „Mein Studiengang“ als eine Zeile Text, ohne Link und ohne „Ändern“: geändert wird er in Mein Studium. Ohne Studiengang steht dort „Noch kein Studiengang“, grau.</span></li>
+        <li><i>2</i><span><b>Zahlen statt Links:</b> gemerkt, geplant (in wie vielen Semestern), bestanden mit den Leistungspunkten, Sammlungen und Notizen, gespeicherte Pläne. Keine Kachel ist ein Link. Ein leeres Profil zeigt statt der Zahlen einen Satz: „Noch leer: Was du merkst, planst und bestehst, zählt hier.“</span></li>
+        <li><i>3</i><span><b>Betula Sync zuerst</b> nach dem Kopf, mit „Gerät verbinden“ als dem einen betonten Knopf der Seite. Später die Liste der Geräte (<a href="#geraete">unten</a>); bis dahin steht dort, was heute steht: „Synchronisiert · 1 weiteres Gerät online“. Was zwei Geräte gleichzeitig geändert haben, steht weiter hier, mit dem Weg zur Stelle; das ist ein Link zu einer bestimmten Notiz, nicht zu einem Tab.</span></li>
+        <li><i>4</i><span><b>Die Gefahrenzone</b> hält Leeren und Löschen, beide mit der Frage und dem „Rückgängig“, die es heute gibt. Löschen bleibt beim einzigen Profil Leeren, wie heute. <b>Die Fußzeile</b> hält, was „Über diese Seite“ hielt, in einer Zeile.</span></li>
+      </ol>
+    </div>
+    <h3>Ein privates Profil, und ein leeres auf einem neuen Rechner</h3>
+    <div class="stage">
+      <figure style="flex: 1 1 360px">
+        <div class="mp accent" style="max-width: 520px">
+          <div class="row"><h4 class="grow"><svg class="i"><use href="#i-sync"/></svg>Betula Sync</h4><span class="row" style="gap: 6px; font-size: 11.5px; color: var(--text-2)"><span class="dot off"></span>Nur in diesem Browser</span></div>
+          <p class="sub" style="font-size: 12.5px">Plane am Rechner, schau am Handy nach: Mit Betula Sync ist „Lena“ auf allen deinen Geräten gleich, verschlüsselt mit einem Schlüssel, den nur sie haben.</p>
+          <div class="row" style="margin-top: 10px; gap: 10px; flex-wrap: wrap"><span class="btn primary"><svg class="i"><use href="#i-sync"/></svg>Gerät verbinden</span><span class="txt">Was der Server dann sieht</span></div>
+        </div>
+        <figcaption><b>Privat:</b> „Gerät verbinden“ statt „Betula Sync aktivieren“. Das Einschalten ist der erste Schritt im Dialog, mit der Erklärung von heute; man startet mit dem, was man will, nicht mit dem Mittel.</figcaption>
+      </figure>
+      <figure style="flex: 1 1 360px">
+        <div class="mp accent" style="max-width: 520px">
+          <div class="row"><h4 class="grow"><svg class="i"><use href="#i-sync"/></svg>Betula Sync</h4><span class="row" style="gap: 6px; font-size: 11.5px; color: var(--text-2)"><span class="dot off"></span>Leeres Profil</span></div>
+          <p class="sub" style="font-size: 12.5px">Hast du Betula schon auf dem Handy? Hol dein Profil hierher: Der Rechner zeigt einen Code, dein Handy scannt ihn.</p>
+          <div class="row" style="margin-top: 10px; gap: 10px; flex-wrap: wrap"><span class="btn primary"><svg class="i"><use href="#i-phone"/></svg>Profil vom Handy holen</span><span class="txt">Wiederherstellungscode eingeben</span></div>
+        </div>
+        <figcaption><b>Leer und allein</b>, wie auf einem neuen Rechner: Dann ist der übliche Fall das Holen, und der Teil sagt es so. Der Code des Wiederherstellens steht als zweiter Weg daneben; heute ist er der einzige.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="block" id="verbinden">
+    <p class="kicker">Gerät verbinden</p>
+    <h2>Der Rechner zeigt den Code, das Handy scannt, egal wo das Profil schon ist</h2>
+    <p class="lead">Ein Dialog über der Seite, aus dem Menü oder von der Profilseite aus. Oben die Richtung (die Auswahl über dem, was sie ändert), darunter der Code. Vorgewählt ist der übliche Fall: hat dieser Browser ein Profil mit Inhalt, „Dieses Profil aufs Handy“; ist sein einziges Profil leer, „Profil vom Handy holen“.</p>
+    <div class="stage">
+      <figure>
+        <div class="dlg">
+          <div class="dh"><svg class="i" style="color: var(--accent-ink)"><use href="#i-sync"/></svg><h4>Gerät verbinden</h4><svg class="i" style="color: var(--text-3)"><use href="#i-x"/></svg></div>
+          <div class="db">
+            <div class="seg"><span class="on"><svg class="i"><use href="#i-phone"/></svg>„Lena“ aufs Handy</span><span><svg class="i"><use href="#i-download"/></svg>Profil vom Handy holen</span></div>
+            <div class="qrbox">
+              <div class="qr"><svg><use href="#qr-send"/></svg></div>
+              <div class="qrtext">
+                <p><b>Scanne den Code mit deinem Handy.</b> Mit der Kamera, oder in Betula: Profil-Knopf → Gerät verbinden. Hast du Betula auf dem iPhone-Home-Bildschirm, nimm den Weg in Betula, sonst landet das Profil in Safari.</p>
+                <p>Gilt einmal und zehn Minuten: Wer ihn scannt, bekommt „Lena“.</p>
+                <div class="row" style="gap: 8px; flex-wrap: wrap"><span class="btn sm"><svg class="i"><use href="#i-copy"/></svg>Link kopieren</span><span class="btn sm"><svg class="i"><use href="#i-share"/></svg>Teilen</span><span style="color: var(--text-3); font-size: 11.5px">Noch 9 Minuten</span></div>
+              </div>
+            </div>
+            <div class="okline"><svg class="i"><use href="#i-check"/></svg><span class="grow"><b>Pixel 7 ist verbunden.</b> „Lena“ ist jetzt auf beiden Geräten.</span><span class="btn sm primary">Fertig</span></div>
+          </div>
+        </div>
+        <figcaption><b>A · Vom Rechner aufs Handy.</b> Was es heute gibt, im Dialog statt mitten in der Seite, und mit einer Antwort: Kommt ein neues Gerät dazu, sagt der Dialog es (die grüne Zeile ersetzt dann den Code). „Teilen“ öffnet das Teilen-Menü des Systems, wo es eines gibt.</figcaption>
+      </figure>
+      <figure>
+        <div class="dlg">
+          <div class="dh"><svg class="i" style="color: var(--accent-ink)"><use href="#i-sync"/></svg><h4>Gerät verbinden</h4><svg class="i" style="color: var(--text-3)"><use href="#i-x"/></svg></div>
+          <div class="db">
+            <div class="seg"><span><svg class="i"><use href="#i-phone"/></svg>„Profil 1“ aufs Handy</span><span class="on"><svg class="i"><use href="#i-download"/></svg>Profil vom Handy holen</span></div>
+            <div class="qrbox">
+              <div class="qr"><svg><use href="#qr-recv"/></svg></div>
+              <div class="qrtext">
+                <p><b>Öffne Betula auf deinem Handy:</b> Profil-Knopf → Gerät verbinden, und scanne diesen Code. (Die Kamera-App geht auch, wenn Betula auf dem Handy im Browser läuft.)</p>
+                <p>Dein Handy zeigt dann diese vier Ziffern: <span class="digits"><span>7</span><span>2</span><span>4</span><span>1</span></span></p>
+                <p class="row" style="gap: 7px; color: var(--text-3); font-size: 11.5px"><span class="dot off"></span>Wartet auf dein Handy · noch 9 Minuten</p>
+              </div>
+            </div>
+            <p style="font-size: 12px; color: var(--text-3)">Kein Handy zur Hand? <span class="txt">Wiederherstellungscode eingeben</span></p>
+          </div>
+        </div>
+        <figcaption><b>B · Vom Handy auf den Rechner</b>, neu. Der Rechner zeigt einen Code zum Empfangen, das Handy schickt das Profil. Das leere „Profil 1“ geht dabei: Es hielt nichts, und so bleibt kein leeres Profil übrig.</figcaption>
+      </figure>
+    </div>
+    <div class="stage">
+      <figure>
+        <div class="phone">
+          <div class="scr">
+            <div class="status"><span>9:41</span><span>●●● 5G</span></div>
+            <div class="topbar"><span class="box"><svg class="i"><use href="#i-x"/></svg></span><span class="search" style="justify-content: center; color: var(--text); font-weight: 650">Gerät verbinden</span></div>
+            <div class="cam"><div class="screenqr"><svg><use href="#qr-recv"/></svg></div><div class="aim"></div><p>Halte die Kamera auf den Code am Rechner</p></div>
+            <div class="body" style="padding-top: 12px">
+              <div class="mp"><div class="row"><svg class="i"><use href="#i-lock"/></svg><span class="grow" style="font-size: 12.5px; font-weight: 620">Wiederherstellungscode eingeben</span><svg class="i" style="color: var(--text-3)"><use href="#i-chev"/></svg></div></div>
+              <div class="mp"><div class="row"><svg class="i"><use href="#i-sync"/></svg><span class="grow" style="font-size: 12.5px; font-weight: 620">Hier einen Code zeigen</span><svg class="i" style="color: var(--text-3)"><use href="#i-chev"/></svg></div><p class="sub">Für ein Tablet oder ein zweites Handy</p></div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Am Handy</b> öffnet „Gerät verbinden“ den Scanner. Er liest beide Arten von Code. Zum Zeigen geht es eine Zeile tiefer, für Handy zu Handy.</figcaption>
+      </figure>
+      <figure>
+        <div class="phone">
+          <div class="scr">
+            <div class="status"><span>9:41</span><span>●●● 5G</span></div>
+            <div class="topbar"><span class="box"><svg class="i"><use href="#i-x"/></svg></span><span class="search" style="justify-content: center; color: var(--text); font-weight: 650">Gerät verbinden</span></div>
+            <div class="body">
+              <div class="mp" style="display: grid; gap: 10px">
+                <h4 style="font-size: 15px"><svg class="i"><use href="#i-laptop"/></svg>Ein Rechner möchte ein Profil</h4>
+                <div style="display: grid; gap: 4px">
+                  <span class="label">Welches?</span>
+                  <div class="row" style="padding: 7px 8px; border-radius: 9px; box-shadow: 0 0 0 1.5px var(--accent)"><span class="av">L</span><span class="grow"><span class="t-name" style="display:block">Lena</span><span class="t-line" style="display:block">Informatik B.Sc. · synchron</span></span><svg class="i" style="color: var(--accent-ink)"><use href="#i-check"/></svg></div>
+                  <div class="row" style="padding: 7px 8px"><span class="av t3">Z</span><span class="grow"><span class="t-name" style="display:block">Zweitstudium</span><span class="t-line" style="display:block">nur auf diesem Handy</span></span></div>
+                </div>
+                <div style="display: grid; gap: 6px; padding: 10px; border-radius: 10px; background: var(--panel-2)">
+                  <p style="font-size: 12.5px; color: var(--text-2)">Zeigt der Rechner diese Ziffern?</p>
+                  <span class="digits"><span>7</span><span>2</span><span>4</span><span>1</span></span>
+                  <p style="font-size: 11.5px; color: var(--text-3)">Nur, wenn er vor dir steht: Er bekommt „Lena“ und bleibt verbunden, bis du ihn trennst.</p>
+                </div>
+                <span class="btn primary wide">Ja, „Lena“ verbinden</span>
+                <span class="btn wide">Abbrechen</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Ein Code zum Empfangen</b> fragt, welches Profil, und lässt die Ziffern vergleichen. Ist das Profil noch privat, kommt die Erklärung zum Einschalten davor.</figcaption>
+      </figure>
+      <ol class="callouts">
+        <li><i>A</i><span><b>Was es heute gibt, bleibt:</b> der Code und Link fürs nächste Gerät (<code>/sync#…</code>), zehn Minuten, einmal, mit dem Schlüssel hinter dem <code>#</code>, den kein Browser an einen Server schickt.</span></li>
+        <li><i>B</i><span><b>Der umgekehrte Weg</b> braucht fast nichts Neues: Der Rechner würfelt die Kennung und den Schlüssel des Pakets selbst und zeigt sie als Code (<code>/sync#r…</code>); das Handy legt das Paket, das es heute auch legt, unter dieser Kennung ab (<code>POST /sync/v1/pair</code>), und der Rechner holt es (<code>GET /sync/v1/pair</code>). Neu bei Phloem nur, dass das Holen bis zu 25 Sekunden auf das Paket wartet, damit der Rechner nicht im Sekundentakt fragen muss; alte Builds merken davon nichts (MINOR).</span></li>
+        <li><i>!</i><span><b>Warum die Ziffern:</b> Ein Code zum Empfangen ist eine Bitte, das eigene Profil herzugeben. Hängt jemand so einen Code aus („Scan für den Stundenplan!“), bekäme er das Profil von jedem, der bestätigt. Die vier Ziffern kommen aus dem Schlüssel des Codes und stehen auf beiden Bildschirmen; wer sie vergleicht, weiß, dass der Rechner vor ihm der ist, der fragt. So macht es Bluetooth beim Koppeln.</span></li>
+        <li><i><svg class="i" style="width: 12px; height: 12px"><use href="#i-scan"/></svg></i><span><b>Die Kamera</b> bleibt im Gerät: Betula liest nur Bilder des Videos, bis ein Code darin ist, und schickt keines weg. Die Datenschutzerklärung bekommt dazu einen Satz, der Server erlaubt die Kamera der eigenen Seite (<code>camera=(self)</code>). Ohne Kamera oder ohne Erlaubnis bleiben „Wiederherstellungscode eingeben“ und „Hier einen Code zeigen“.</span></li>
+      </ol>
+    </div>
+    <h3 id="geraete">Später: die Geräte des Profils</h3>
+    <p class="lead" style="margin-top: 6px; max-width: 86ch; color: var(--text-2)">Phloem kennt jedes Gerät eines Profils nur als Platz 1 bis 16 und sagt, welche gerade online sind. Einen Namen kennt es nicht und soll es nicht kennen. Darum schreibt jedes Gerät einen eigenen, verschlüsselten Eintrag ins Profil: „Pixel 7 · Chrome · Android“ (der Name aus dem Browser, umbenennbar) und wann es zuletzt da war. Die anderen Geräte lesen ihn wie jede Änderung; für den Server ist er eine Änderung wie jede andere. Ein Build, der den Eintrag nicht kennt, behält ihn, wie er ist (<code>docs/folia/sync.md</code> §1).</p>
+    <p class="note"><b>Was dabei wartet:</b> ein anderes Gerät aus der Liste entfernen. Es hat den Schlüssel; es wirklich auszusperren hieße, den übrigen Geräten einen neuen Schlüssel zu geben. Das ist echte Arbeit für einen seltenen Fall und darf warten; bis dahin gibt es „Dieses Gerät trennen“ am Gerät selbst und „Sync beenden“ für alle.</p>
+  </section>
+
+  <section class="block" id="wohin">
+    <p class="kicker">Was wohin kommt</p>
+    <h2>Nichts geht verloren; das meiste rückt näher an den Ort, an dem man es braucht</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th scope="col">Teil</th><th scope="col">Heute</th><th scope="col">Neu</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Profile wechseln, Neues Profil</th><td>Menü; Seitenleiste der Seite</td><td>Menü; Seite: Seitenleiste am Rechner, eine Reihe oben am Handy</td></tr>
+          <tr><th scope="row">Aus Datei laden</th><td>Seitenleiste, „Sichern &amp; übertragen“</td><td>„Profil hinzufügen“ neben „Leer anlegen“ und „Von einem anderen Gerät“</td></tr>
+          <tr><th scope="row">Als Datei sichern</th><td>Seitenleiste</td><td>Seite, nach Betula Sync: Es gehört zum gewählten Profil</td></tr>
+          <tr><th scope="row">Name, Umbenennen</th><td>Kopf, Knopf „Umbenennen“</td><td>Kopf, Stift am Namen</td></tr>
+          <tr><th scope="row">Löschen</th><td>Kopf, neben „Umbenennen“</td><td>Gefahrenzone</td></tr>
+          <tr><th scope="row">Mein Studiengang</th><td>Eigener Teil mit „Ändern“, „Studium einrichten“, „Alle Studiengänge“</td><td>Eine Zeile im Kopf, ohne Links</td></tr>
+          <tr><th scope="row">In diesem Profil (fünf Links)</th><td>Eigener Teil</td><td>Zahlen im Kopf, ohne Links</td></tr>
+          <tr><th scope="row">Profil leeren</th><td>Am Ende von „In diesem Profil“</td><td>Gefahrenzone</td></tr>
+          <tr><th scope="row">Betula Sync</th><td>Vierter Teil; „Aktivieren“ als eine Zeile</td><td>Zweiter Teil, „Gerät verbinden“ als Hauptknopf, Dialog in beide Richtungen; im Menü</td></tr>
+          <tr><th scope="row">Profil von einem anderen Gerät (Code)</th><td>Feld im Sync-Teil</td><td>Im Dialog und im Scanner als zweiter Weg; „Profil hinzufügen → Von einem anderen Gerät“</td></tr>
+          <tr><th scope="row">Darstellung</th><td>Seite; Leiste am Rechner</td><td>Menü; Leiste am Rechner (Frage 2)</td></tr>
+          <tr><th scope="row">Sprache</th><td>Seite; Menü als „English“</td><td>Menü, als Auswahl</td></tr>
+          <tr><th scope="row">Einzelne Tasten</th><td>Seite; Tastenübersicht; Befehle</td><td>Tastenübersicht; Befehle</td></tr>
+          <tr><th scope="row">Über diese Seite</th><td>Eigener Teil am Ende</td><td>Fußzeile der Seite; Impressum und Datenschutz auch im Fuß des Menüs</td></tr>
+          <tr><th scope="row">Hinweis „Profile liegen in diesem Browser“</th><td>Seitenleiste</td><td>Seitenleiste am Rechner; am Handy in „Profil hinzufügen“</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="block" id="adressen">
+    <p class="kicker">Adressen</p>
+    <h2>Englisch, und die alten leiten weiter</h2>
+    <p class="lead">Deine Regel („Url struktur alles in us englisch“) steht jetzt in <code>CLAUDE.md</code>. Die Pfade sind schon umgestellt; die alten führen dauerhaft (308) auf die neuen, mit ihrer Query, und der Teil hinter dem <code>#</code> kommt mit: Ein Link fürs nächste Gerät, der noch <code>/verbinden#…</code> heißt, funktioniert weiter.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th scope="col">Alt</th><th scope="col">Neu</th><th scope="col">Stand</th></tr></thead>
+        <tbody>
+          <tr><th scope="row"><code>/verbinden#…</code></th><td><code>/sync#…</code></td><td>umgestellt; <code>/sync/v1/…</code> bleibt Phloems, <code>/sync</code> selbst ist Folias</td></tr>
+          <tr><th scope="row"><code>/impressum</code></th><td><code>/imprint</code></td><td>umgestellt</td></tr>
+          <tr><th scope="row"><code>/datenschutz</code></th><td><code>/privacy</code></td><td>umgestellt</td></tr>
+          <tr><th scope="row"><code>?termin=</code>, <code>?wahl=</code>, <code>&amp;vergleich=</code>, <code>?turnus=</code>, <code>?stand=</code>, <code>?fues=</code></th><td>englische, etwa <code>event</code>, <code>choice</code>, <code>compare</code>, <code>offered</code></td><td>offen: Die Parameter stehen in Links, die geteilt wurden, und der Katalog mit <code>turnus</code> ist bei Suchmaschinen; das braucht das Lesen der alten Namen und Weiterleitungen auf dem Server. Ein eigener Schritt.</td></tr>
+          <tr><th scope="row"><code>#fakultaet-1</code>, <code>#fragen</code></th><td><code>#faculty-1</code>, <code>#questions</code></td><td>offen, mit den Parametern</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="block" id="schritte">
+    <p class="kicker">Schritte</p>
+    <h2>Drei, jeder für sich nützlich</h2>
+    <ol class="steps">
+      <li>
+        <h3>1 · Menü und Seite ordnen</h3>
+        <p class="ver">Folia MINOR · nur Folia</p>
+        <ul>
+          <li>Das Menü wie oben: Gerät verbinden mit Stand, Profil verwalten, Darstellung, Sprache, Rechtsseiten; der Punkt am Knopf bei einer Störung.</li>
+          <li>Die Seite: Profile oben oder links, Kopf mit Studiengang und Zahlen, Betula Sync, Sichern, Gefahrenzone, Fußzeile. Weg: die fünf Links, der Teil Mein Studiengang, Einstellungen, Über diese Seite.</li>
+          <li>„Gerät verbinden“ als Dialog in Richtung A, mit Einschalten als erstem Schritt, „Teilen“ und der Antwort, wenn das Gerät da ist.</li>
+        </ul>
+      </li>
+      <li>
+        <h3>2 · Vom Handy auf den Rechner</h3>
+        <p class="ver">Folia MINOR · Phloem MINOR</p>
+        <ul>
+          <li>Richtung B mit dem Code zum Empfangen und den Ziffern.</li>
+          <li>Der Scanner am Handy: <code>BarcodeDetector</code>, sonst <code>rqrr</code> im Worker; <code>camera=(self)</code>; ein Satz in der Datenschutzerklärung.</li>
+          <li>Phloem: <code>GET /sync/v1/pair</code> wartet bis 25 s; <code>docs/phloem/protocol.md</code>.</li>
+          <li>Das leere, einzige Profil geht, wenn ein Profil ankommt.</li>
+        </ul>
+      </li>
+      <li>
+        <h3>3 · Die Geräte des Profils</h3>
+        <p class="ver">Folia MINOR · nur Folia</p>
+        <ul>
+          <li>Ein verschlüsselter Eintrag je Gerät: Name, Browser und System, zuletzt da; umbenennbar.</li>
+          <li>Die Liste im Sync-Teil, online aus Phloems Plätzen.</li>
+          <li>Ein anderes Gerät aussperren (neuer Schlüssel) wartet.</li>
+        </ul>
+      </li>
+    </ol>
+  </section>
+
+  <section class="block" id="fragen">
+    <p class="kicker">Fragen, mit Vorschlag</p>
+    <h2>Was du entscheiden solltest</h2>
+    <ol class="qs">
+      <li><b>Am Rechner: Öffnet ein Klick auf den Profil-Knopf das Menü?</b><p>Heute führt der Klick zur Seite, das Menü kommt nur beim Darüberfahren. Mit Darstellung und Sprache wird das Menü zum Ort, den man sucht, und die Seite zum seltenen Ziel. <em>Vorschlag:</em> Klick öffnet das Menü (wie am Handy und wie bei Google), Darüberfahren weiter auch; zur Seite über „Profil verwalten“ oder „Profil“ in den Befehlen.</p></li>
+      <li><b>Bleibt Mond/Sonne unten in der Leiste?</b><p>Das Menü hat dann alle drei (System, Hell, Dunkel). <em>Vorschlag:</em> bleiben lassen. Ein Klick für den häufigsten Wechsel kostet nichts, und wer ihn nicht nutzt, übersieht ihn.</p></li>
+      <li><b>Impressum und Datenschutz an zwei Stellen?</b><p><em>Vorschlag:</em> ja, im Fuß des Menüs und in der Fußzeile der Seite. Das Menü allein hängt am JavaScript und am Rechner am Klick; die Seite ist auch ohne beides erreichbar.</p></li>
+      <li><b>Richtung B mit Scanner bauen?</b><p>Es ist die meiste Arbeit dieses Konzepts (Kamera, Decoder, eine Änderung an Phloem), und ohne sie bleibt das iPhone mit Betula auf dem Home-Bildschirm auf Link-schicken angewiesen. <em>Vorschlag:</em> ja, als Schritt 2, gleich nach dem Ordnen.</p></li>
+      <li><b>Welche Zahlen?</b><p><em>Vorschlag:</em> gemerkt; geplant mit der Zahl der Semester; bestanden mit Leistungspunkten; Sammlungen und Notizen; gespeicherte Pläne. Keine Prozent zum Abschluss: Die Regelstudienpläne sind zu verschieden, um eine Zahl zu versprechen.</p></li>
+      <li><b>Die Profile am Handy als Reihe oben?</b><p><em>Vorschlag:</em> ja, eine Reihe mit „+ Profil“ am Ende; mit einem einzigen Profil steht dort nur dieses und das Plus. Ein Tipp auf ein anderes wechselt, wie heute die Liste.</p></li>
+      <li><b>Wie heißt der Eintrag zur Seite?</b><p>Heute „Profil &amp; Einstellungen“. <em>Vorschlag:</em> „Profil verwalten“, englisch „Manage profile“.</p></li>
+    </ol>
+  </section>
+
+  <p class="endnote">Daten: canary.betula.app, Folia 1.76.0, Stand 08.11.2026 · Entwurf, nichts davon ist gebaut, bis auf die Adressen.</p>
+</div>

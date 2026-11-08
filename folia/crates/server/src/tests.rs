@@ -571,6 +571,33 @@ async fn legal_pages_are_reached_from_every_page() {
     }
 }
 
+/// The German addresses that were (owner, 2026-11-08: „Url struktur alles in us englisch"):
+/// `/verbinden`, `/impressum` and `/datenschutz` lead to `/sync`, `/imprint` and `/privacy` for
+/// good (308), in every language and with their query; the pages answer at the new place alone.
+/// The pairing link's key after `#` never reaches a server: a browser carries it over the redirect,
+/// whose `Location` has none. Needs no snapshot.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_german_addresses_lead_to_the_english_ones() {
+    let router = crate::router(state(SnapshotStore::new(temp_dir("moved")).unwrap()));
+    for ((old, new), locale) in folia_routes::url::MOVED.into_iter().flat_map(|moved| folia_locale::Locale::ALL.iter().map(move |locale| (moved, *locale))) {
+        for query in ["", "?utm_source=x&ref=a%20b"] {
+            let (from, to) = (format!("{}{query}", locale.path(old)), format!("{}{query}", locale.path(new)));
+            let (status, headers, _) = request(&router, &from, &[]).await;
+            assert_eq!((status, headers.get(header::LOCATION).and_then(|to| to.to_str().ok())), (StatusCode::PERMANENT_REDIRECT, Some(to.as_str())), "{from}");
+        }
+        let (status, _, body) = request(&router, &locale.path(new), &[]).await;
+        assert_eq!(status, StatusCode::OK, "{}", locale.path(new));
+        assert!(!String::from_utf8(body).unwrap().contains(&format!("href=\"{}", locale.path(old))), "{} links {old}", locale.path(new));
+    }
+    for (asked, to) in [("/verbinden", "/sync"), ("/en/verbinden", "/en/sync"), ("/impressum", "/imprint"), ("/en/datenschutz?x=1", "/en/privacy?x=1")] {
+        let (status, headers, _) = request(&router, asked, &[]).await;
+        assert_eq!((status, headers[header::LOCATION].to_str().unwrap()), (StatusCode::PERMANENT_REDIRECT, to), "{asked}");
+    }
+    // `/de/…` is the plain address first, which then leads on.
+    let (status, headers, _) = request(&router, "/de/verbinden", &[]).await;
+    assert_eq!((status, headers[header::LOCATION].to_str().unwrap()), (StatusCode::PERMANENT_REDIRECT, "/verbinden"));
+}
+
 /// The head of a module's page: its number, and beside it what the module is called for short
 /// (owner, 2026-10-19), as the Stundenplan names it. The server knows no Mein Studiengang (R9) and
 /// renders no preview beside a list: on the module's own page the module's own form, also where a
@@ -1580,7 +1607,7 @@ async fn a_page_rendered_beside_others_keeps_its_title() {
         let db = NativeDatabase::open(&snapshot_file()).unwrap();
         folia_query::programs(&db).unwrap().into_iter().filter(|p| p.is_latest_po).map(|p| p.slug).take(2).collect()
     };
-    let mut pages: Vec<String> = ["/", "/about/overview", "/en/about/overview", "/about/finding", "/en/about/questions", "/catalog", "/catalog?turnus=winter", "/en/catalog?page=2", "/catalog/module/11101", "/catalog/module/00000", "/programs", "/bookmarks", "/studyplan", "/study", "/impressum", "/en/datenschutz"]
+    let mut pages: Vec<String> = ["/", "/about/overview", "/en/about/overview", "/about/finding", "/en/about/questions", "/catalog", "/catalog?turnus=winter", "/en/catalog?page=2", "/catalog/module/11101", "/catalog/module/00000", "/programs", "/bookmarks", "/studyplan", "/study", "/imprint", "/en/privacy"]
         .into_iter()
         .map(String::from)
         .collect();

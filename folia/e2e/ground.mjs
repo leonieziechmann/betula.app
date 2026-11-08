@@ -126,10 +126,10 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   const focused = await page.evaluate(() => { const el = document.activeElement; const r = el?.getBoundingClientRect(); return { inGround: Boolean(el?.closest(".ground")), top: r && Math.round(r.top), bottom: r && Math.round(r.bottom), inset: Math.round(scrollY) }; });
   check(focused.inGround && focused.top >= 56 && focused.bottom <= 893 && focused.inset === 0, `Tab into the ground did not bring it into view: ${JSON.stringify(focused)}`);
   // Leaving through the ground: the next page starts at its top.
-  await page.click('.work.flowing > .ground .ground-legal a[href="/impressum"] >> visible=true');
+  await page.click('.work.flowing > .ground .ground-legal a[href="/imprint"] >> visible=true');
   await page.waitForTimeout(1000);
   f = await at(page);
-  check(new URL(page.url()).pathname === "/impressum" && f.pageTop === 0 && f.groundTop === null, `the page opened from the ground does not start at its top, or has a ground: ${JSON.stringify(f)}`);
+  check(new URL(page.url()).pathname === "/imprint" && f.pageTop === 0 && f.groundTop === null, `the page opened from the ground does not start at its top, or has a ground: ${JSON.stringify(f)}`);
   await context.close();
 }
 
@@ -148,7 +148,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
 // ---------- a framed page: the sidebar pinned beside the page ----------
 // The privacy notice, long enough to run under the bar.
 {
-  const { context, page } = await open("/datenschutz");
+  const { context, page } = await open("/privacy");
   let f = await at(page);
   check(f.sideBottom === 892 && f.groundTop === null, `a framed page: the sidebar does not end 8 px above the window's edge, or there is a ground: ${JSON.stringify(f)}`);
   // The page runs under the bar, the frost behind the bar once it is scrolled (owner, 2026-10-26:

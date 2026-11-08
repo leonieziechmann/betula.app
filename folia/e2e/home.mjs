@@ -56,7 +56,7 @@ check(html.includes('class="day-first-wrap"') && html.includes('class="day-sk-wr
 // (Who took each photo stands in the page's ground and in the app's, which a phone shows.)
 check(html.includes('"@type":"WebSite"') && (html.match(/class="photo-credit"/g) || []).length === 10, "server HTML: no WebSite data, or not who took each photo");
 check(!html.includes("day-welcome") && !html.includes('class="day-ev'), "server HTML: something of a visitor's day");
-check(html.includes('href="/about/overview"') && !html.includes('href="/about"') && html.includes('href="/impressum"') && html.includes('href="/datenschutz"'), "server HTML: the overview about Betula or the legal pages are not linked, or /about still is");
+check(html.includes('href="/about/overview"') && !html.includes('href="/about"') && html.includes('href="/imprint"') && html.includes('href="/privacy"'), "server HTML: the overview about Betula or the legal pages are not linked, or /about still is");
 
 // ---------- a first visit ----------
 {
