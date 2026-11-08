@@ -966,19 +966,32 @@ pub async fn package(State(state): State<AppState>, Path(file): Path<String>, ur
     respond(bytes, coding, content_type, keep.header(), &etag)
 }
 
+/// The crawlers of search engines, by their names in robots.txt: the only crawlers the site serves
+/// (owner, 2026-11-08: „alle crawler außer search engines von der auslieferung ausschließt. Also nur
+/// google, bing, duck duck go etc."). The crawler filter in front of the site turns every other one
+/// away (`deploy/config/traefik/dynamic/crawlers.yml`, which says who and why): the two lists are
+/// the same.
+pub const SEARCH_ENGINES: &[&str] = &["Googlebot", "Google-InspectionTool", "Bingbot", "msnbot", "DuckDuckBot", "DuckDuckGo-Favicons-Bot", "Applebot", "Qwantbot", "Bravebot", "MojeekBot"];
+
+/// The link previews, which fetch the one address somebody shares and walk nothing; served as well.
+pub const LINK_PREVIEWS: &[&str] = &["Twitterbot", "LinkedInBot", "facebookexternalhit", "Slackbot", "TelegramBot", "Discordbot"];
+
 pub async fn robots(State(state): State<AppState>) -> Response {
-    // Calendar feeds are allowed in both answers: Google Calendar reads robots.txt before it
-    // fetches a subscription and gives up on a disallowed one („robots.txt prevents us from
-    // crawling the url"). A feed stays out of search indexes by its own `X-Robots-Tag: noindex`,
-    // which a crawler only sees when it may fetch the address.
-    // In closed testing (`access`) there is nothing else for a crawler but a login page. The
-    // longer rule wins (RFC 9309); `Allow` comes first for crawlers that take the first match.
-    if state.gate.is_some() {
+    // Calendar feeds are allowed in both answers, to every agent: Google Calendar reads robots.txt
+    // before it fetches a subscription and gives up on a disallowed one („robots.txt prevents us
+    // from crawling the url"). A feed stays out of search indexes by its own `X-Robots-Tag:
+    // noindex`, which a crawler only sees when it may fetch the address. The longer rule wins
+    // (RFC 9309); `Allow` comes first for crawlers that take the first match.
+    let only_feeds = {
         // Every language's feeds (`/calendar/`, `/en/calendar/`).
         let allowed: String = Locale::ALL.iter().map(|locale| format!("Allow: {}\n", locale.path(subscription::CALENDAR_PREFIX))).collect();
-        let body = format!("User-agent: *\n{allowed}Disallow: /\n");
-        return ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "no-store")], body).into_response();
+        format!("User-agent: *\n{allowed}Disallow: /\n")
+    };
+    // In closed testing (`access`) there is nothing else for a crawler but a login page.
+    if state.gate.is_some() {
+        return ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "no-store")], only_feeds).into_response();
     }
+    let group = |agents: &[&str]| -> String { agents.iter().map(|agent| format!("User-agent: {agent}\n")).collect() };
     // Disallowing `/api/` also keeps a crawler that runs JavaScript (Googlebot) on the server's page:
     // without `/api/status` the browser app does not start (`folia/assets/boot.js`), so it indexes the
     // page as the server wrote it and never downloads the catalog to let the app replace it.
@@ -994,7 +1007,8 @@ pub async fn robots(State(state): State<AppState>) -> Response {
     // every filter: `/catalog?turnus=winter&page=2`). Each rule stands before the one it beats,
     // for crawlers that take the first match. The Stundenplan keeps its query open: a plan handed
     // on by a link (`?share=`) is a page of its own for link previews, and says `noindex` itself.
-    let mut body = String::from("User-agent: *\nDisallow: /api/\n");
+    let mut body = group(SEARCH_ENGINES);
+    body.push_str("Disallow: /api/\n");
     for locale in Locale::ALL {
         let (list, overview, marked) = (locale.path(folia_routes::url::CATALOG), locale.path(folia_routes::url::PROGRAMS), locale.path(folia_routes::url::BOOKMARKS));
         body.push_str(&format!("Disallow: {list}?page=*&\nAllow: {list}?page=\nDisallow: {list}?\nDisallow: {overview}?\nDisallow: {marked}?\n"));
@@ -1002,7 +1016,10 @@ pub async fn robots(State(state): State<AppState>) -> Response {
     // A link preview fetches the one address somebody shares, a filtered list as well, and never
     // walks the filters: the crawlers of X, LinkedIn and Facebook read robots.txt before they draw
     // a card (Slack's does not read it at all), so they have a group of their own.
-    body.push_str("\nUser-agent: Twitterbot\nUser-agent: LinkedInBot\nUser-agent: facebookexternalhit\nDisallow: /api/\n");
+    body.push_str(&format!("\n{}Disallow: /api/\n", group(LINK_PREVIEWS)));
+    // Every other crawler: the feeds alone, as in closed testing. One that keeps to robots.txt stops
+    // asking; one that does not is turned away in front of the site.
+    body.push_str(&format!("\n{only_feeds}"));
     body.push_str(&format!("\nSitemap: {}/sitemap.xml\n", state.public_url));
     ([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "public, max-age=86400")], body).into_response()
 }

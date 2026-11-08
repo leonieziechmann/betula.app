@@ -46,6 +46,10 @@
 #               That is one new attempt per missing host name per restart: stay below 5 per hour.
 # middlewares   secure-headers@file (every public router), compress@file, rate-limit@file (optional);
 #               defined in /opt/betula/config/traefik/dynamic/, reloaded by Traefik without a restart
+# crawlers      one router above every site (config/traefik/dynamic/crawlers.yml, priority 10000): a user
+#               agent that names a crawler other than a search engine or a link preview gets 403 before
+#               any site sees it; robots.txt, the calendar feeds, /healthz and /livez excepted. Test:
+#               bash deploy/test/crawlers.sh (Docker, no swarm)
 # tls           options "default" (same directory): TLS >= 1.2, AEAD suites, sniStrict. Requests for a host
 #               name without a certificate (or for the bare IP) fail in the handshake; that is intended.
 # logs          JSON on stdout. Application lines carry "level" in lower case (debug|info|warn|error).

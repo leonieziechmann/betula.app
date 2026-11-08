@@ -1,0 +1,73 @@
+# Crawlers other than search engines get nothing (owner, 2026-11-08: „die ganzen crawler [erzeugen]
+# einen shit tone of trafik. Bitte entwickel eine lösung, die alle crawler außer search engines von
+# der auslieferung ausschließt. Also nur google, bing, duck duck go etc.").
+#
+# One router in front of every site on websecure, above all of their routers: a request whose user
+# agent names a crawler, and no crawler of the list below, gets 403 from Traefik and never reaches
+# Folia, Phloem or Grafana. Everybody else is routed as before. Traefik judges the header on every
+# request and keeps no state; a change here applies within seconds (README section 3).
+#
+# A crawler   names itself in its user agent: a word with bot, crawl or spider (GPTBot, ClaudeBot,
+#             CCBot, Bytespider, Amazonbot, AhrefsBot, SemrushBot, PetalBot, YandexBot, ...), or one
+#             of the names that carry none of them (Meta's, GoogleOther, Perplexity's and Claude's
+#             fetchers, cohere-ai, Scrapy, Barkrowler, img2dataset). Clients that do not say what
+#             they are (curl, python-requests, a headless browser, an AI agent with a browser's user
+#             agent) are no crawlers here and pass, as before.
+# Served      the search engines: Google (Googlebot with its Image/Video/News variants, and the
+#             URL inspection of the Search Console), Bing (bingbot, msnbot), DuckDuckGo (DuckDuckBot
+#             and its favicons), Apple (Applebot: Spotlight, Siri, Safari), Qwant and Ecosia
+#             (Qwantbot; their common index EUSP answers German queries since 2026-07), Brave
+#             (Bravebot, though it mostly crawls with a browser's user agent) and Mojeek. And the
+#             link previews of X, LinkedIn, Facebook (iMessage sends its agent too), Slack, Telegram
+#             and Discord: they fetch the one address somebody shares (a module, a Stundenplan handed
+#             on) and walk nothing; WhatsApp's and Signal's say no crawler word and pass anyway.
+#             Left out on purpose: Yandex, Baidu, Petal, Seznam, Naver (no students of the BTU search
+#             there), the AI search crawlers (OAI-SearchBot, PerplexityBot, Claude-SearchBot,
+#             DuckAssistBot) and Google's AdsBot (the site runs no ads).
+# cubot       a maker of phones: "CUBOT X30" in a browser's user agent is a person, not a bot.
+# Always      robots.txt, so that a polite crawler learns it is unwelcome and stops asking; the
+#             calendar feeds (/calendar/, /en/calendar/), which calendar apps and services fetch with
+#             agents of their own, and a subscription must never break on one; /healthz and /livez
+#             for uptime monitors, whose agents often say "bot" (UptimeRobot).
+#
+# The user agent can be faked: a scraper that calls itself Googlebot passes. Telling the real
+# Googlebot needs its published addresses or a reverse DNS lookup, which Traefik cannot do; the
+# rate-limit of Folia's router still holds for it.
+#
+# Folia's robots.txt (folia/crates/server/src/api.rs, fn robots; from Folia 1.76.1) names the same
+# search engines and link previews and disallows everything else to every other agent but the
+# calendar feeds. Change both or neither: the test only_search_engines_are_invited of folia-server
+# compares the two lists. The access log
+# keeps the turned away requests (RouterName "edge-crawlers@file", DownstreamStatus 403): the
+# dashboard "Visitors" counts them as "crawlers turned away" (config/monitoring/loki-rules/fake/
+# visitors.yml). Test: deploy/test/crawlers.sh, a real Traefik with this file and a table of agents.
+
+http:
+  routers:
+    edge-crawlers:
+      entryPoints:
+        - websecure
+      # Go regular expressions (RE2: no look-around, hence the second, negated match). Unanchored, and
+      # (?i) makes them case-insensitive: "Bot" in "AhrefsBot" and "bot" in "bingbot" alike.
+      rule: >-
+        HeaderRegexp(`User-Agent`, `(?i)(bot|crawl|spider|slurp|meta-external|googleother|perplexity-user|claude-user|anthropic-ai|cohere-ai|scrapy|barkrowler|img2dataset)`)
+        && !HeaderRegexp(`User-Agent`, `(?i)(googlebot|google-inspectiontool|bingbot|msnbot|duckduckbot|duckduckgo-favicons-bot|applebot|qwantbot|bravebot|mojeekbot|twitterbot|linkedinbot|facebookexternalhit|slackbot|telegrambot|discordbot|cubot)`)
+        && !Path(`/robots.txt`) && !Path(`/healthz`) && !Path(`/livez`)
+        && !PathRegexp(`^/([a-z]{2}/)?calendar/`)
+      # Above every router of a site: Folia's (0, the length of its rule, or the priority of its
+      # colour), Phloem's /sync/v1/ and Grafana's login (1000).
+      priority: 10000
+      # The certificates are those of the sites' own routers, chosen by SNI; this router orders none.
+      tls: {}
+      middlewares:
+        - edge-crawlers-refuse
+      # Never reached: the middleware answers first.
+      service: noop@internal
+
+  middlewares:
+    # 403 for every request: no client has the broadcast address. ipAllowList judges the address the
+    # connection comes from (no ipStrategy), never a header a client could set.
+    edge-crawlers-refuse:
+      ipAllowList:
+        sourceRange:
+          - 255.255.255.255/32

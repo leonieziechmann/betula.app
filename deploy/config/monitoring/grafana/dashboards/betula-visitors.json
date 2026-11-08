@@ -202,7 +202,7 @@
         "spec": {
           "id": 14,
           "title": "Requests: Google, crawlers, rest",
-          "description": "All requests to betula.app per hour. \"Everything else\" is people plus scanners and tools without a crawler user agent.",
+          "description": "All requests to betula.app per hour. \"Crawlers turned away\" got 403 from the crawler filter in front of the site: only search engines and link previews are served (deploy/config/traefik/dynamic/crawlers.yml). \"Other crawlers\" are those other search engines and link previews. \"Everything else\" is people plus scanners and tools without a crawler user agent.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -278,7 +278,23 @@
                     }
                   }
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "crawlers turned away"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "#8e8e8e",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
+                ]
               }
             }
           }
@@ -289,7 +305,7 @@
         "spec": {
           "id": 15,
           "title": "Crawlers by name",
-          "description": "Requests in the range by crawler: the word with bot/crawl/spider in its user agent. Google's renderer sends a Nexus 5X agent without that word.",
+          "description": "Requests in the range by crawler, served or turned away: the word with bot/crawl/spider in its user agent. Google's renderer sends a Nexus 5X agent without that word.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
