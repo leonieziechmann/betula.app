@@ -108,7 +108,7 @@ impl Key {
     /// is on the stage of its own.
     pub fn of(path: &str, from: Key) -> Self {
         match Page::of(path) {
-            Page::About | Page::AboutTopic | Page::Profile | Page::Connect | Page::Event | Page::Imprint | Page::Privacy | Page::Moved | Page::NotFound => Key::Other,
+            Page::About | Page::AboutTopic | Page::Profile | Page::Connect | Page::Pair | Page::Event | Page::Imprint | Page::Privacy | Page::Moved | Page::NotFound => Key::Other,
             Page::Module if from.area().is_some_and(Area::shows_in_place) => from,
             _ => Key::of_area(Area::of(path)),
         }
@@ -138,6 +138,9 @@ pub enum Page {
     Profile,
     /// `/sync`, where a link of another device joins its profile (Betula Sync).
     Connect,
+    /// `/pair`, where a computer shows the QR code a phone scans to give it its profile, and the
+    /// phone answers (`/pair#<…>`).
+    Pair,
     /// `/event/:key` and `/event/:key/:day`, a Termin's own page (folia/design/termin).
     Event,
     /// `/imprint`
@@ -168,6 +171,7 @@ impl Page {
             ["study"] => Page::Study,
             ["profile"] => Page::Profile,
             ["sync"] => Page::Connect,
+            ["pair"] => Page::Pair,
             ["event", _] | ["event", _, _] => Page::Event,
             ["imprint"] => Page::Imprint,
             ["privacy"] => Page::Privacy,
@@ -741,6 +745,7 @@ mod tests {
         assert_eq!((Page::of("/bookmarks"), Page::of("/studyplan"), Page::of("/study")), (Page::Bookmarks, Page::Studyplan, Page::Study));
         assert_eq!((Page::of("/profile"), Page::of(folia_routes::url::IMPRINT), Page::of(folia_routes::url::PRIVACY)), (Page::Profile, Page::Imprint, Page::Privacy));
         assert_eq!((Page::of(folia_routes::url::CONNECT), Key::of(folia_routes::url::CONNECT, Key::Studyplan)), (Page::Connect, Key::Other));
+        assert_eq!((Page::of(folia_routes::url::PAIR), Key::of(folia_routes::url::PAIR, Key::Studyplan)), (Page::Pair, Key::Other));
         // The German addresses that were lead on (`url::MOVED`), on the stage of no tab.
         assert_eq!((Page::of("/verbinden"), Page::of("/impressum"), Page::of("/datenschutz/"), Page::of("/sync/v1")), (Page::Moved, Page::Moved, Page::Moved, Page::NotFound));
         assert_eq!(Key::of("/impressum", Key::Catalog), Key::Other);

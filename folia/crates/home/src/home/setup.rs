@@ -296,6 +296,15 @@ fn steps(s: &'static i18n::setup::Texts, with_sync: bool) -> Vec<(u8, &'static s
     steps
 }
 
+/// „Profil übernehmen" at the foot of step 1: where the site offers Betula Sync from the phone by
+/// its code (`/pair`), else as a file on the profile page. `command`: a command of „Befehle" (R25).
+fn take_profile(with_sync: bool, command: bool) -> impl IntoView {
+    let t = i18n::t();
+    let s = &t.setup;
+    let (path, icon, title) = if with_sync { (url::PAIR, "smartphone", s.take_profile_title_sync) } else { (url::PROFILE, "upload", s.take_profile_title) };
+    view! { <a class="ob-link" href=t.path(path) rel="nofollow" title=title data-command=command.then_some("")><Icon name=icon/>{s.take_profile}</a> }
+}
+
 /// The card. `now` is the current semester; `faculties` draws step 1; `on_done` hears what
 /// „Studium anlegen" did once the setup ends, `on_look` „Erst mal umschauen". Where step 4 follows
 /// „Studium anlegen", `on_written` hears first that the study is written and the card stays.
@@ -549,7 +558,7 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
         view! {
             <div class="ob-foot">
                 <button type="button" class="ob-link" title=s.look_around_title on:click=move |_| on_look.run(()) data-command=""><Icon name="search"/>{s.look_around}</button>
-                <a class="ob-link" href=t.path(url::PROFILE) rel="nofollow" title=s.take_profile_title data-command=""><Icon name="upload"/>{s.take_profile}</a>
+                {take_profile(with_sync, true)}
                 <a class="ob-link ob-about" href=t.path(&url::AboutTopic::Overview.path()) data-command="">{t.today.what_is_betula}<Icon name="arrow-right"/></a>
             </div>
         }
@@ -838,7 +847,7 @@ pub fn ServerCard(faculties: Signal<Option<Counted>>) -> impl IntoView {
             <Drawing faculties/>
             <div class="ob-foot">
                 <a class="ob-link" href=t.path(url::CATALOG)><Icon name="search"/>{s.look_around}</a>
-                <a class="ob-link" href=t.path(url::PROFILE) rel="nofollow" title=s.take_profile_title><Icon name="upload"/>{s.take_profile}</a>
+                {take_profile(with_sync(), false)}
                 <a class="ob-link ob-about" href=t.path(&url::AboutTopic::Overview.path())>{t.today.what_is_betula}<Icon name="arrow-right"/></a>
             </div>
         </div>

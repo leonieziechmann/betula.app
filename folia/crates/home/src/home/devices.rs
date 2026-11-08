@@ -8,7 +8,11 @@
 //!   page says it before „Aktivieren"; „Betula Sync aktivieren" switches it on in one click, since
 //!   all of that stands above it, and „Später" leaves it for the profile page.
 //! - **Synced** (switched on here, or before): the link for the next device at once, its QR code
-//!   and the link (`folia_widgets::syncpair`), ten minutes, once.
+//!   and the link (`folia_widgets::syncpair`), ten minutes, once. On a phone's layout the other way
+//!   round, since a laptop has no camera to scan with (owner, 2026-11-08: „Oh der pc prozess muss
+//!   anders sein. Da muss ein link kommen wie betula.app/pair wo dann der qr code gezeigt wird, den
+//!   man am handy scannen kann um sich einzuloggen"): the address to open on the laptop, `/pair`,
+//!   which shows a code that this phone scans (`folia_profile::pair`).
 //! - **Joined**: once one more device of the profile is online than when the link was made, the
 //!   other device has the profile; „Noch ein Gerät verbinden" makes another link.
 //!
@@ -34,6 +38,8 @@ enum Link {
     Making,
     Made(Pairing),
     Failed(Problem),
+    /// On a phone: the laptop opens `/pair`, and this phone scans its code.
+    Elsewhere,
 }
 
 /// The step: its title, lead, what it holds and its actions, as the card's other steps have them.
@@ -73,20 +79,39 @@ pub fn DevicesStep(on_finish: Callback<()>) -> impl IntoView {
             }
         });
     };
+    // On a phone the laptop asks (`/pair`): no link of this phone's, only how many devices are
+    // online now.
+    let elsewhere = move || {
+        before.set(match state.get_untracked() {
+            State::Online { devices } => devices,
+            _ => 0,
+        });
+        joined.set(false);
+        link.set(Link::Elsewhere);
+    };
+    let next = move || if phone { elsewhere() } else { pair() };
     // Synced, switched on here or before: the link for the next device at once (entwurf.html:
     // „Danach zeigt er QR-Code und Link für das nächste Gerät").
     Effect::new(move |_| {
         if synced.get() && link.with_untracked(|link| *link == Link::None) {
-            pair();
+            next();
         }
     });
     Effect::new(move |_| {
         if let State::Online { devices } = state.get() {
-            if devices > before.get_untracked() && link.with_untracked(|link| matches!(link, Link::Made(_))) {
+            if devices > before.get_untracked() && link.with_untracked(|link| matches!(link, Link::Made(_) | Link::Elsewhere)) {
                 joined.set(true);
             }
         }
     });
+    // Where the laptop finds `/pair`: this site's host.
+    let address = {
+        #[cfg(feature = "csr")]
+        let host = web_sys::window().and_then(|window| window.location().host().ok()).unwrap_or_default();
+        #[cfg(not(feature = "csr"))]
+        let host = String::new();
+        format!("{host}{}", folia_routes::url::PAIR)
+    };
     let activate = move |_| {
         if let (Some(sync), false) = (sync, state.with_untracked(|state| *state == State::Starting)) {
             sync.activate(id.get_untracked());
@@ -128,13 +153,21 @@ pub fn DevicesStep(on_finish: Callback<()>) -> impl IntoView {
         if joined.get() {
             return view! {
                 <p class="ob-note ok" role="status"><Icon name="circle-check-big"/><span>{s.joined}</span></p>
-                <button type="button" class="btn sm ob-more" on:click=move |_| pair() data-command=""><Icon name="smartphone"/>{s.pair_more}</button>
+                <button type="button" class="btn sm ob-more" on:click=move |_| next() data-command=""><Icon name=if phone { "monitor" } else { "smartphone" }/>{s.pair_more}</button>
             }
             .into_any();
         }
         match link.get() {
             Link::None | Link::Making => view! { <p class="ob-wait" role="status">{s.link_making}</p> }.into_any(),
             Link::Made(pairing) => view! { <PairLink pairing again=Callback::new(move |()| pair())/> }.into_any(),
+            Link::Elsewhere => view! {
+                <div class="ob-elsewhere">
+                    <p>{s.elsewhere_open}</p>
+                    <p class="ob-address"><Icon name="monitor"/><code translate="no">{address.clone()}</code></p>
+                    <p>{s.elsewhere_scan}</p>
+                </div>
+            }
+            .into_any(),
             Link::Failed(problem) => view! {
                 <p class="ob-note" role="status"><Icon name="triangle-alert"/><span>{s.failed}" "{problem_text(problem)}</span></p>
                 <button type="button" class="btn sm ob-more" on:click=move |_| pair() data-command="">{s.retry}</button>

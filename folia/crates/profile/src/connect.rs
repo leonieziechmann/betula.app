@@ -134,7 +134,7 @@ pub fn ConnectPage() -> impl IntoView {
 
 /// The part of the address after `#`, taken out of the address and of the history (the entry is
 /// replaced by the same address without it); `None` where there is none. Only in the browser.
-fn take_fragment() -> Option<String> {
+pub(crate) fn take_fragment() -> Option<String> {
     #[cfg(feature = "csr")]
     {
         let window = web_sys::window()?;
