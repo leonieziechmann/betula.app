@@ -891,8 +891,8 @@ from before section 15, with a way to the internet from its Folia and Radix, the
 `cortex_betula-green`. Until the next release goes there, https://betula.app has no standby: an
 in-place update of `betula` leaves a gap, and a rollback means deploying `betula-green` first
 (section 4, „A colour that crawls": a colour that ran before needs `docker volume rm
-betula-green_radix-data` before `--seed`). Traefik's old `edge` and Cortex's old `cortex` now hold
-only themselves: section 15, step 7.
+betula-green_radix-data` before `--seed`). With it gone, the move to the networks of section 15
+was finished the same day (its step 7).
 
 ### Seeding Cortex with an archive
 
@@ -1172,6 +1172,10 @@ by itself, and the same for Cortex in `48-cortex.sh`). In this order:
    <instance>_default` for each instance (Docker refuses to remove a network in use: nothing breaks
    by trying). `91-verify-stacks.sh` again: `fail=0`.
 
+On betula.app the move is complete since 2026-11-08 (owner: „Ja, jetzt"): step 7 ran after
+`betula-green` was removed (section 14), and `edge`, `monitoring`, `cortex`, `monitoring_default`
+and `betula_default` are gone. Both verify scripts `fail=0`.
+
 **Rollback** before step 7: sync the previous revision of `deploy/` and run the same scripts with it
 (`40-stacks.sh edge monitoring`, `48-cortex.sh`, `50-app.sh <instance>`, `55-switch.sh` back where a
 colour was switched); the old files find the old networks, which still exist. After step 7 the
@@ -1241,6 +1245,18 @@ On the server, once the owner said yes, in a quiet moment:
 The way back, the same seconds: `ssh betula sudo env GWBRIDGE_REBUILD=1 GWBRIDGE_IPV6=off bash
 /opt/betula/vps/30-docker.sh`. IPv6 visitors arrive as the gateway again and pass the filters as a
 private address.
+
+On the server since 2026-11-08 18:55 UTC (sites away about 20 s). The same evening an update of
+Traefik by `40-stacks.sh edge` left IPv6 without an answer for minutes while IPv4 worked (Docker
+29.9.2); a restart of the task brought it back, and a plain restart on 29.9.3 kept IPv6 (in WSL no
+update ever lost it). The cause is not known, so it is looked for: `edge_ipv6_check`
+(`vps/lib-stacks.sh`) asks `https://betula.app/healthz` over each AAAA address of this machine,
+from the host itself, which takes the visitors' way to Traefik (the DNAT rule, `docker_gwbridge`,
+the host's neighbour entry for Traefik's address). `40-stacks.sh edge` asks for up to a minute
+after every deploy of Traefik and, when nothing answers, restarts Traefik once (a few seconds without
+sites) and asks again; `91-verify-stacks.sh ipv6` fails while nothing answers. By hand when IPv6
+visitors get no answer: `docker service update --force edge_traefik`, and look at `sudo ip6tables -t
+nat -S DOCKER` and `ip -6 neigh show dev docker_gwbridge`.
 
 ## 16. Betula Sync: Phloem
 

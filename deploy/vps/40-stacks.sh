@@ -162,7 +162,38 @@ deploy_edge() {
   fi
   deploy_stack edge "${files[@]}"
   wait_for_stack edge
+  edge_ipv6_after_deploy
   remove_old_traefik_logs
+}
+
+# edge_ipv6_after_deploy - IPv6 visitors reach Traefik after its deploy (edge_ipv6_check,
+# lib-stacks.sh)? Asks for up to a minute; then restarts Traefik once, which brought IPv6 back on
+# 2026-11-08 (a few seconds without sites, as every update of it), and asks again.
+edge_ipv6_after_deploy() {
+  local round i rc
+  for round in first again; do
+    for i in $(seq 1 12); do
+      rc=0
+      edge_ipv6_check || rc=$?
+      case "${rc}" in
+        0)
+          log "IPv6 to Traefik: ${EDGE_IPV6_DETAIL}"
+          [[ "${round}" == "first" ]] || log "IPv6 is back after the restart of Traefik"
+          return 0
+          ;;
+        2)
+          log "IPv6 to Traefik not asked: ${EDGE_IPV6_DETAIL}"
+          return 0
+          ;;
+      esac
+      sleep 5
+    done
+    [[ "${round}" == "first" ]] || break
+    warn "IPv6 to Traefik: ${EDGE_IPV6_DETAIL} for a minute (IPv4 works): restarting Traefik once"
+    docker service update --force --quiet edge_traefik >/dev/null || warn "docker service update --force edge_traefik failed"
+    wait_for_stack edge
+  done
+  warn "IPv6 still does not reach Traefik after its restart: ${EDGE_IPV6_DETAIL}. IPv6 visitors get no answer; look at sudo ip6tables -t nat -S DOCKER and ip -6 neigh show dev docker_gwbridge (README.md section 15, IPv6 to Traefik)"
 }
 
 # remove_old_traefik_logs - a stopped task container keeps its Docker log files, and Traefik's from
