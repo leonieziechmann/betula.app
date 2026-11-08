@@ -147,6 +147,11 @@ codes:
   The page is Folia's (Traefik sends Phloem `/sync/v1/` alone); until 2026-11-08 it was
   `/verbinden#…`, which Folia leads to `/sync` for good, the part after `#` carried over by the
   browser.
+- A code that asks for a profile, `https://<host>/pair#<id ‖ public key>` (16 + 65 bytes): the device that shows it made an ECDH key pair on P-256; the device that scans it makes
+  one too and leaves at `POST /sync/v1/pair`, under the code's `id`, its own public key (65 bytes)
+  followed by the profile keys sealed with HKDF-SHA256 of the shared secret (salt `id`, info
+  `betula-request`; associated data `"request"`). The asking device asks `GET /sync/v1/pair` for the
+  `id` until it is there. Phloem sees a parcel like any other.
 - The recovery code is `K` in base32 (Crockford), in groups of four.
 - A shared calendar that stays current (step 3) is a part: `folia_calendar::live::LivePart` as a
   pack code, sealed with a key of its own, `kp` (32 random bytes), associated data

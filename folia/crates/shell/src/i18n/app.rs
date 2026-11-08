@@ -39,6 +39,10 @@ pub struct Texts {
     /// „Geräte" in the menu (where the site offers Betula Sync): the way to the profile page's
     /// Betula Sync, and the line under it, the active profile's state.
     pub devices: &'static str,
+    /// A phone's way to the scanner instead (`/sync`): „Gerät verbinden", and under it the state, or
+    /// „Code am Rechner scannen" where the profile is private.
+    pub connect_device: &'static str,
+    pub scan_at_computer: &'static str,
     pub sync_online: fn(usize) -> String,
     pub sync_offline: &'static str,
     pub sync_private: &'static str,
@@ -102,6 +106,8 @@ pub const DE: Texts = Texts {
     profiles: "Profile",
     manage_profile: "Profil verwalten",
     devices: "Geräte",
+    connect_device: "Gerät verbinden",
+    scan_at_computer: "Code am Rechner scannen",
     sync_online: |others| match others {
         0 => "Synchron · kein anderes Gerät online".to_string(),
         1 => "Synchron · 1 weiteres Gerät online".to_string(),
@@ -160,6 +166,8 @@ pub const EN: Texts = Texts {
     profiles: "Profiles",
     manage_profile: "Manage profile",
     devices: "Devices",
+    connect_device: "Connect a device",
+    scan_at_computer: "Scan the code on the computer",
     sync_online: |others| match others {
         0 => "In sync · no other device online".to_string(),
         1 => "In sync · 1 other device online".to_string(),

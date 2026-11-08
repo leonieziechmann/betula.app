@@ -101,8 +101,9 @@ The profile page says „direkt verbunden" or „über Betula weitergeleitet".
 |---|---|
 | „Einschalten und Code zeigen" (the dialog „Gerät verbinden" of a private profile; „Betula Sync aktivieren" until 2026-11-08) | a key, a device id, `POST /sync/v1/space`, the profile's records as its first snapshot; then the link as below |
 | „Gerät verbinden" (a synced profile; „Weiteres Gerät verbinden" until 2026-11-08) | a parcel with the key, sealed with a key the link alone holds (`/sync#<id ‖ key>`; `/verbinden#…` until 2026-11-08, which leads there), ten minutes at Phloem, for one device |
-| „Mit dem Handy verbinden" (`/pair`, 2026-11-08) | the other way round, for a computer, which has no camera: it makes the parcel's id and key itself (`Sync::ask`, nothing sent) and shows `/pair#<id ‖ key>` as a QR code; the phone that opens it (its camera) shows which profile goes and what it holds, and „Verbinden" (a private profile is switched on on the way) seals the key with the question's key and leaves it under that id (`Sync::give`, `POST /sync/v1/pair`; 409 for a code answered already); the computer asks for it every 3 s in the first 90 s, then every 10 s, ten minutes at most (Phloem answers 120 such questions per address and hour), and joins as below (`Sync::collect`). No change of Phloem |
 | joining | the parcel opened, a new profile of the browser, its records from Phloem |
+| „Mit dem Handy verbinden" (`/pair`) and „Profil vom Handy holen" (the device that wants a profile, a computer that has no camera; 2026-11-08) | an id of 16 random bytes and an ECDH key pair (P-256) made for this once, the code `/pair#<id ‖ public key>` (65 bytes uncompressed; `url::PAIR`) and its four digits (SHA-256 of `"betula-request" ‖ id ‖ key`, the first four bytes mod 10 000); then `GET /sync/v1/pair` for the id, every 3 s in the first minute, every 6 s until the third, every 15 s until the tenth (some 70 questions, within the 120 an address may ask in an hour), until the parcel is there; the profile joins as above. No change of Phloem |
+| „Ja, „Lena" verbinden" (the device that has it, after the code and its digits) | a private profile is switched on first; an ECDH key pair of its own, the key of the parcel by HKDF-SHA256 of the shared secret (salt the id, info `betula-request`), the profile's key sealed with it (associated data `"request"`), `POST /sync/v1/pair` with the request's id and `own public key ‖ sealed`: whoever photographs the code cannot open what is sent to it |
 | the recovery code | `K` in base32 (Crockford), 13 groups of four, the last 4 bits a check: most typos are told before any request |
 | „Nur dieses Gerät trennen" | what waits goes out, then `leave`; the copy stays, private |
 | „Sync beenden" | `DELETE /sync/v1/space`: gone at once; every device is private again with its copy, the others hear `gone` |
@@ -146,8 +147,10 @@ sich einzuloggen"); its step 1 leads there with „Profil übernehmen".
 - `cargo test -p folia-stores sync`: the codes, the frames, what the browser keeps.
 - `folia/e2e/sync.mjs`: two browsers of one profile against a running Phloem; the start page's
   setup to its last step, the study on a second browser through its QR code's link; on a phone
-  the address `/pair` for the laptop, its code opened by the phone and „Verbinden", a private
-  profile switched on on the way, a code that opens once.
+  the address `/pair` for the laptop, its code opened by the phone, the digits alike on both, a
+  private profile switched on on the way, a code that opens once; „Profil vom Handy holen" in the
+  profile page's dialog answered by a synced phone; the scanner of `/sync` with a camera that films
+  a code.
 - `folia/e2e/share.mjs`: sharing and following with four browsers against a running Phloem
   (Folia with `FOLIA_SYNC_PARTS` naming it).
 - `folia/e2e/live.mjs`: two browsers connect directly, and with Phloem's entries to the second held

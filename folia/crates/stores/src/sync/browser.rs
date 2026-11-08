@@ -33,6 +33,7 @@ use super::codes::{b64, unb64, KEY};
 use super::core::{Core, DEVICE};
 use super::live;
 use super::share::{fingerprint, missing, Put, ShareProblem, ONCE_TTL};
+use super::request;
 use super::wire::{self, In, Out};
 use super::{Problem, State, Sync};
 use crate::profiles::{key_of, Profiles, KEYS};
@@ -380,51 +381,6 @@ pub async fn pair(profile: u16, name: String) -> Result<super::Pairing, Problem>
     Ok(super::Pairing { link: format!("{origin}{}#{}", folia_routes::url::CONNECT, b64(&[&id[..], &link_key[..]].concat())), until: now() + 10 * 60 * 1000 })
 }
 
-/// A question for a profile of another device, from a device that shows it as a QR code
-/// (`/pair`, „Mit dem Handy verbinden"): the parcel's id and the key that opens it, both chosen
-/// here, as the part of a link after `#`. Nothing reaches Phloem until the other device answers.
-pub fn ask() -> Option<String> {
-    let id = random::<16>()?;
-    let link_key = random::<32>()?;
-    Some(b64(&[&id[..], &link_key[..]].concat()))
-}
-
-/// The answer to `ask`: the profile `profile` of this device, sealed with the key of the question
-/// and left under its id, as `pair` leaves it for a link of its own.
-pub async fn give(profile: u16, name: String, fragment: &str) -> Result<(), Problem> {
-    let bytes = unb64(fragment.trim_start_matches('#')).filter(|b| b.len() == 48).ok_or(Problem::BadLink)?;
-    let (id, link_key) = bytes.split_at(16);
-    let key = key_of_profile(profile).ok_or(Problem::Unsupported)?;
-    let keys = derive(&key).await.map_err(|_| Problem::Unsupported)?;
-    let contents = wire::Contents { v: 1, profiles: vec![wire::Shared { key: b64(&key), name }] };
-    let plain = serde_json::to_vec(&contents).map_err(|_| Problem::Unsupported)?;
-    let sealed = seal(&aes_key(link_key).await.map_err(|_| Problem::Unsupported)?, b"pair", &plain).await.map_err(|_| Problem::Unsupported)?;
-    let body = serde_json::to_string(&wire::Parcel { id: b64(id), sealed: b64(&sealed) }).map_err(|_| Problem::Unsupported)?;
-    let (status, text) = call("POST", "pair", &auth(&keys), Some(body)).await?;
-    match status {
-        201 => Ok(()),
-        // The question was answered already (by this device or another).
-        409 => Err(Problem::BadLink),
-        _ => Err(problem_of(status, &text)),
-    }
-}
-
-/// Whether the other device has answered the question `fragment` of `ask` yet: its profiles once
-/// it has, none while it has not; a question answered and opened elsewhere, or expired, opens
-/// nothing.
-pub async fn collect(fragment: &str) -> Result<Option<Vec<([u8; KEY], String)>>, Problem> {
-    let bytes = unb64(fragment.trim_start_matches('#')).filter(|b| b.len() == 48).ok_or(Problem::BadLink)?;
-    let (id, _) = bytes.split_at(16);
-    let (status, text) = call("GET", "pair", &[("Betula-Pair", b64(id))], None).await?;
-    if status == 404 && serde_json::from_str::<wire::Failure>(&text).map(|f| f.error).unwrap_or_default() == "not_found" {
-        return Ok(None);
-    }
-    if status != 200 {
-        return Err(if status == 404 { Problem::BadLink } else { problem_of(status, &text) });
-    }
-    opened(&bytes, &text).await.map(Some)
-}
-
 /// The profiles of a parcel fetched (`text`, Phloem's answer) for the link part `bytes` (id ‖ key).
 async fn opened(bytes: &[u8], text: &str) -> Result<Vec<([u8; KEY], String)>, Problem> {
     let (_, link_key) = bytes.split_at(16);
@@ -467,6 +423,146 @@ pub async fn stop(profile: u16) -> Result<(), Problem> {
     }
     drop_state(profile);
     Ok(())
+}
+
+// ---- „Profil vom Handy holen": a request, and the profile sent to it (`super::request`) ----
+
+thread_local! {
+    /// The private keys of this tab's requests, by their id: a request put away is gone from here,
+    /// and its questions to Phloem end.
+    static REQUESTS: RefCell<Vec<(String, CryptoKey)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// A JavaScript object of `pairs`.
+fn object(pairs: &[(&str, &JsValue)]) -> js_sys::Object {
+    let object = js_sys::Object::new();
+    for (name, value) in pairs {
+        let _ = js_sys::Reflect::set(&object, &JsValue::from_str(name), value);
+    }
+    object
+}
+
+/// Waits `ms` milliseconds.
+async fn sleep(ms: u64) {
+    let promise = Promise::new(&mut |resolve, _| {
+        if let Some(window) = web_sys::window() {
+            let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, i32::try_from(ms).unwrap_or(i32::MAX));
+        }
+    });
+    let _ = JsFuture::from(promise).await;
+}
+
+/// An ECDH key pair on P-256 made for one request or one sending: the private key, which never
+/// leaves the browser, and the public one as its 65 bytes.
+async fn ecdh_pair() -> Result<(CryptoKey, [u8; request::PUBLIC]), JsValue> {
+    let subtle = subtle().ok_or(JsValue::NULL)?;
+    let algorithm = object(&[("name", &"ECDH".into()), ("namedCurve", &"P-256".into())]);
+    let pair = wait(subtle.generate_key_with_object(&algorithm, false, &usages(&["deriveBits"]))).await?;
+    let private = js_sys::Reflect::get(&pair, &"privateKey".into())?.dyn_into::<CryptoKey>()?;
+    let public = js_sys::Reflect::get(&pair, &"publicKey".into())?.dyn_into::<CryptoKey>()?;
+    let raw = bytes_of(&wait(subtle.export_key("raw", &public)).await?);
+    Ok((private, raw.try_into().map_err(|_| JsValue::NULL)?))
+}
+
+/// The key a request's parcel is sealed with: ECDH of one side's private key and the other's
+/// public one, through HKDF (SHA-256, the parcel's id as salt).
+async fn request_key(private: &CryptoKey, public: &[u8; request::PUBLIC], id: &[u8; request::ID]) -> Result<CryptoKey, JsValue> {
+    let subtle = subtle().ok_or(JsValue::NULL)?;
+    let algorithm = object(&[("name", &"ECDH".into()), ("namedCurve", &"P-256".into())]);
+    let theirs = wait(subtle.import_key_with_object("raw", &Uint8Array::from(&public[..]), &algorithm, true, &usages(&[]))).await?.dyn_into::<CryptoKey>()?;
+    let params = object(&[("name", &"ECDH".into()), ("public", &theirs)]);
+    let shared = bytes_of(&wait(subtle.derive_bits_with_object(&params, private, 256)).await?);
+    let base = wait(subtle.import_key_with_str("raw", &Uint8Array::from(&shared[..]), "HKDF", false, &usages(&["deriveBits"]))).await?.dyn_into::<CryptoKey>()?;
+    let params = web_sys::HkdfParams::new_with_str("HKDF", "SHA-256", &Uint8Array::from(&b"betula-request"[..]), &Uint8Array::from(&id[..]));
+    aes_key(&bytes_of(&wait(subtle.derive_bits_with_object(&params, &base, 256)).await?)).await
+}
+
+/// The four digits of a request (`request::digits`).
+pub async fn request_digits(id: &[u8; request::ID], public: &[u8; request::PUBLIC]) -> Option<String> {
+    let subtle = subtle()?;
+    let data = [&b"betula-request"[..], &id[..], &public[..]].concat();
+    let hash = bytes_of(&wait(subtle.digest_with_str_and_u8_array("SHA-256", &data)).await.ok()?);
+    request::digits(&hash)
+}
+
+/// A request for a profile: an id and a key pair, the link this device shows, its digits.
+pub async fn make_request() -> Result<super::Request, Problem> {
+    let id = random::<{ request::ID }>().ok_or(Problem::Unsupported)?;
+    let (private, public) = ecdh_pair().await.map_err(|_| Problem::Unsupported)?;
+    let digits = request_digits(&id, &public).await.ok_or(Problem::Unsupported)?;
+    REQUESTS.with(|requests| requests.borrow_mut().push((b64(&id), private)));
+    let origin = web_sys::window().and_then(|w| w.location().origin().ok()).unwrap_or_default();
+    Ok(super::Request { id: b64(&id), link: format!("{origin}{}#{}", folia_routes::url::PAIR, request::fragment(&id, &public)), digits, until: now() + request::REQUEST_MS })
+}
+
+/// Puts request `id` away: its key goes, and it asks no more.
+pub fn drop_request(id: &str) {
+    REQUESTS.with(|requests| requests.borrow_mut().retain(|(of, _)| of != id));
+}
+
+fn request_private(id: &str) -> Option<CryptoKey> {
+    REQUESTS.with(|requests| requests.borrow().iter().find(|(of, _)| of == id).map(|(_, key)| key.clone()))
+}
+
+/// Asks Phloem for the parcel of request `id` (made at `made`) until it is there: the profiles it
+/// brings, or why it brings none. `None` once the code asks no more (ten minutes) or was put away.
+pub async fn await_request(id: String, made: u64) -> Option<Result<Vec<([u8; KEY], String)>, Problem>> {
+    let parcel: [u8; request::ID] = unb64(&id)?.try_into().ok()?;
+    loop {
+        sleep(request::next_poll(now().saturating_sub(made))?).await;
+        let private = request_private(&id)?;
+        // A question that does not get through (the network, the service away) is asked again.
+        let Ok((status, text)) = call("GET", "pair", &[("Betula-Pair", id.clone())], None).await else { continue };
+        match status {
+            200 => {
+                drop_request(&id);
+                return Some(open_request(&private, &parcel, &text).await.ok_or(Problem::BadLink));
+            }
+            404 => {
+                let code = serde_json::from_str::<wire::Failure>(&text).map(|f| f.error).unwrap_or_default();
+                if !(code.is_empty() || code == "not_found") {
+                    // Opened by someone else, or withdrawn.
+                    drop_request(&id);
+                    return Some(Err(Problem::BadLink));
+                }
+            }
+            // Too many questions from this address: a pause.
+            429 => sleep(30_000).await,
+            _ => {}
+        }
+    }
+}
+
+/// The profiles of a request's parcel as Phloem hands it: the sender's public key, then what it
+/// sealed to it.
+async fn open_request(private: &CryptoKey, parcel: &[u8; request::ID], text: &str) -> Option<Vec<([u8; KEY], String)>> {
+    let sealed = serde_json::from_str::<wire::Fetched>(text).ok().and_then(|f| unb64(&f.sealed))?;
+    let (theirs, sealed) = sealed.split_at_checked(request::PUBLIC)?;
+    let key = request_key(private, &theirs.try_into().ok()?, parcel).await.ok()?;
+    let plain = open(&key, b"request", sealed).await.ok()?;
+    let contents: wire::Contents = serde_json::from_slice(&plain).ok()?;
+    Some(contents.profiles.into_iter().filter_map(|p| Some((unb64(&p.key)?.try_into().ok()?, p.name))).collect())
+}
+
+/// Sends profile `profile` (synced), named `name`, to the device whose request is `fragment`: the
+/// profile's key sealed to the request's key, left at Phloem under the request's id.
+pub async fn give(profile: u16, name: String, fragment: &str) -> Result<(), Problem> {
+    let (parcel, public) = request::parse(fragment).ok_or(Problem::BadLink)?;
+    let key = key_of_profile(profile).ok_or(Problem::Unsupported)?;
+    let keys = derive(&key).await.map_err(|_| Problem::Unsupported)?;
+    let (private, own) = ecdh_pair().await.map_err(|_| Problem::Unsupported)?;
+    let sealing = request_key(&private, &public, &parcel).await.map_err(|_| Problem::BadLink)?;
+    let contents = wire::Contents { v: 1, profiles: vec![wire::Shared { key: b64(&key), name }] };
+    let plain = serde_json::to_vec(&contents).map_err(|_| Problem::Unsupported)?;
+    let sealed = seal(&sealing, b"request", &plain).await.map_err(|_| Problem::Unsupported)?;
+    let body = serde_json::to_string(&wire::Parcel { id: b64(&parcel), sealed: b64(&[&own[..], &sealed].concat()) }).map_err(|_| Problem::Unsupported)?;
+    let (status, text) = call("POST", "pair", &auth(&keys), Some(body)).await?;
+    match status {
+        201 => Ok(()),
+        // The code was answered already (by this phone, or another).
+        409 => Err(Problem::BadLink),
+        _ => Err(problem_of(status, &text)),
+    }
 }
 
 // ---- the leader ----

@@ -1,12 +1,21 @@
-//! „Gerät verbinden" (`/sync`, Betula Sync): the page the link of another device opens
-//! (`folia_widgets::syncpair::PairLink`). What follows `#` in the link opens a sealed parcel with the profile's key; a
-//! browser never sends that part to a server, and the page takes it out of the address and the
-//! history as soon as it has read it, before anything else happens. Then the profile comes as a new
-//! one of this browser (`Sync::join`), becomes the active one, and the page says so, with the way
-//! to the Stundenplan and the profile; or why it did not, with what to do.
+//! „Gerät verbinden" (`/sync`, Betula Sync): where devices of a profile find each other.
 //!
-//! The page exists in the browser app only: the server writes the same explanation for everybody
-//! (R9), `noindex`, and no page links it.
+//! - **The scanner** (no `#`; folia/design/profil/konzepte.html, the second step): the camera reads
+//!   the code another device shows (`scan::Scanner`). A code that asks for a profile leads to the
+//!   question below, a code that gives one joins it, anything else is named and the camera goes on.
+//!   Beside it the recovery code and „Hier einen Code zeigen" (the dialog of the profile page, this
+//!   profile to another device). A phone's way here is „Gerät verbinden" in the menu of the profiles
+//!   and on its profile page.
+//! - **A code that asks**, read by the scanner (`/pair#…`, whose page asks the same where the camera
+//!   app opens it, `pair`): which profile goes, the digits, „Ja, … verbinden"
+//!   (`give::GiveRequest`), in place of the scanner.
+//! - **A link of another device** (`#<id ‖ key>`, `folia_widgets::syncpair::PairLink`): the profile
+//!   comes as a new one of this browser (`Sync::join`), becomes the active one, and the page says
+//!   so, with the way to the Stundenplan and the profile; or why it did not, with what to do.
+//!
+//! What follows `#` never reaches a server, and the page takes it out of the address and the
+//! history as soon as it has read it, before anything else happens. The page exists in the browser
+//! app only: the server writes the same explanation for everybody (R9), `noindex`.
 
 use leptos::prelude::*;
 
@@ -17,11 +26,14 @@ use folia_shell::frame::Plain;
 use folia_shell::pending::Shape;
 use folia_shell::seo::Seo;
 use folia_shell::skeleton::AppStandin;
-use folia_stores::profiles::Profiles;
+use folia_stores::profiles::{Profiles, FIRST};
+use folia_stores::sync::request::{self, Scanned};
 use folia_stores::sync::{Problem, Sync};
 
+use crate::give::GiveRequest;
 use crate::i18n;
-use crate::sync::problem_text;
+use crate::scan::Scanner;
+use crate::sync::{problem_text, Connect, Direction, FromOther};
 
 /// Whether this build is the browser app.
 const APP: bool = cfg!(feature = "csr");
@@ -29,14 +41,16 @@ const APP: bool = cfg!(feature = "csr");
 /// Where the page is.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Step {
-    /// The link read, the profile on its way.
+    /// The camera reads codes.
+    Scan,
+    /// A code that asks for a profile: what followed `#`.
+    Give(String),
+    /// A link read, the profile on its way.
     Joining,
     /// Here, under this name.
     Joined(String),
     /// The site does not offer Betula Sync.
     Off,
-    /// A link without its part after `#`.
-    NoLink,
     Failed(Problem),
 }
 
@@ -50,6 +64,7 @@ fn ConnectSeo() -> impl IntoView {
 pub fn ConnectPage() -> impl IntoView {
     let t = i18n::t();
     let s = &t.sync;
+    let c = &t.scan;
     if !APP {
         return view! {
             <Title text=s.connect_title/>
@@ -61,13 +76,15 @@ pub fn ConnectPage() -> impl IntoView {
     // Read once, as the page is made: the fragment goes out of the address at once.
     let fragment = take_fragment();
     let sync = Sync::expect().filter(|_| folia_stores::sync::offered().is_some());
+    let profiles = Profiles::expect();
     let step = RwSignal::new(match (&sync, fragment.as_deref()) {
         (None, _) => Step::Off,
-        (Some(_), None) => Step::NoLink,
+        (Some(_), None) => Step::Scan,
         (Some(_), Some(_)) => Step::Joining,
     });
-    if let (Some(sync), Some(fragment)) = (sync, fragment) {
-        let profiles = Profiles::expect();
+    let join = move |fragment: String| {
+        let Some(sync) = sync else { return };
+        step.set(Step::Joining);
         sync.join(&fragment, move |done| {
             let next = match done {
                 Ok(id) => {
@@ -81,7 +98,24 @@ pub fn ConnectPage() -> impl IntoView {
             };
             step.try_set(next);
         });
+    };
+    if let Some(fragment) = fragment.filter(|_| step.get_untracked() == Step::Joining) {
+        join(fragment);
     }
+    // What the scanner read and is no code to connect with, for a moment under the camera.
+    let note = RwSignal::new(None::<&'static str>);
+    let read = Callback::new(move |text: String| match request::scanned(&text, &origin()) {
+        Scanned::Request(fragment) => {
+            note.set(None);
+            step.set(Step::Give(fragment));
+        }
+        Scanned::Join(fragment) => {
+            note.set(None);
+            join(fragment);
+        }
+        Scanned::OtherSite => note.set(Some(c.scan_other_site)),
+        Scanned::Other => note.set(Some(c.scan_other)),
+    });
     let ways = move |first: (&'static str, &'static str, &'static str)| {
         view! {
             <nav class="pf-ways">
@@ -90,46 +124,114 @@ pub fn ConnectPage() -> impl IntoView {
             </nav>
         }
     };
+    let part = |icon: &'static str, title: &'static str, body: AnyView| {
+        view! {
+            <section class="panel pf-part" aria-labelledby="pf-connect">
+                <h2 id="pf-connect"><Icon name=icon/>{title}</h2>
+                {body}
+            </section>
+        }
+        .into_any()
+    };
     let body = move || match step.get() {
-        Step::Joining => view! {
-            <p class="pf-sync-state" role="status" data-state="wait"><span class="pf-sync-dot" aria-hidden="true"></span><span>{s.connecting}</span></p>
-        }
-        .into_any(),
-        Step::Joined(name) => view! {
-            <p class="pf-sync-state" role="status" data-state="on"><span class="pf-sync-dot" aria-hidden="true"></span><span>{(s.connected)(&name)}</span></p>
-            <p class="pf-empty">{s.connected_hint}</p>
-            {ways((url::STUDYPLAN, "calendar-range", s.to_studyplan))}
-        }
-        .into_any(),
-        Step::Off => view! {
-            <p class="pf-empty">{s.connect_off}</p>
-            {ways((url::HOME, "house", s.to_start))}
-        }
-        .into_any(),
-        Step::NoLink => view! {
-            <p class="pf-empty">{s.connect_none}</p>
-            {ways((url::HOME, "house", s.to_start))}
-        }
-        .into_any(),
-        Step::Failed(problem) => view! {
-            <p class="action note-action pf-refused" role="status"><Icon name="triangle-alert"/><span>{problem_text(problem)}</span></p>
-            {ways((url::HOME, "house", s.to_start))}
-        }
-        .into_any(),
+        Step::Scan => view! { <ScanPart sync note read/> }.into_any(),
+        Step::Give(fragment) => view! { <GiveRequest fragment back=Callback::new(move |()| step.set(Step::Scan))/> }.into_any(),
+        Step::Joining => part(
+            "monitor-smartphone",
+            s.connect_title,
+            view! { <p class="pf-sync-state" role="status" data-state="wait"><span class="pf-sync-dot" aria-hidden="true"></span><span>{s.connecting}</span></p> }.into_any(),
+        ),
+        Step::Joined(name) => part(
+            "monitor-smartphone",
+            s.connect_title,
+            view! {
+                <p class="pf-sync-state" role="status" data-state="on"><span class="pf-sync-dot" aria-hidden="true"></span><span>{(s.connected)(&name)}</span></p>
+                <p class="pf-empty">{s.connected_hint}</p>
+                {ways((url::STUDYPLAN, "calendar-range", s.to_studyplan))}
+            }
+            .into_any(),
+        ),
+        Step::Off => part(
+            "monitor-smartphone",
+            s.connect_title,
+            view! {
+                <p class="pf-empty">{s.connect_off}</p>
+                {ways((url::HOME, "house", s.to_start))}
+            }
+            .into_any(),
+        ),
+        Step::Failed(problem) => part(
+            "monitor-smartphone",
+            s.connect_title,
+            view! {
+                <p class="action note-action pf-refused" role="status"><Icon name="triangle-alert"/><span>{problem_text(problem)}</span></p>
+                <nav class="pf-ways">
+                    <button class="btn primary" type="button" on:click=move |_| step.set(Step::Scan)><Icon name="scan-line"/><span>{c.scan_retry}</span></button>
+                    <a class="btn secondary" href=t.path(url::HOME) rel="nofollow"><Icon name="house"/><span>{s.to_start}</span></a>
+                </nav>
+            }
+            .into_any(),
+        ),
     };
     view! {
         <Title text=s.connect_title/>
         <Plain>
             <div class="page-inner pf pf-connect">
                 <ConnectSeo/>
-                <section class="panel pf-part" aria-labelledby="pf-connect">
-                    <h2 id="pf-connect"><Icon name="monitor-smartphone"/>{s.connect_title}</h2>
-                    {body}
-                </section>
+                {body}
             </div>
         </Plain>
     }
     .into_any()
+}
+
+/// The scanner with its other ways: the recovery code, and a code shown here for another device.
+#[component]
+fn ScanPart(sync: Option<Sync>, note: RwSignal<Option<&'static str>>, read: Callback<String>) -> impl IntoView {
+    let t = i18n::t();
+    let s = &t.sync;
+    let c = &t.scan;
+    let Some(sync) = sync else { return ().into_any() };
+    let profiles = Profiles::expect();
+    let id = Memo::new(move |_| profiles.map_or(FIRST, Profiles::active));
+    let state = Memo::new(move |_| sync.state(id.get()));
+    let dialog = RwSignal::new(None::<Direction>);
+    let code = RwSignal::new(false);
+    // A note stands three seconds.
+    Effect::new(move |_| {
+        if note.get().is_some() {
+            set_timeout(move || { note.try_set(None); }, std::time::Duration::from_secs(3));
+        }
+    });
+    view! {
+        <section class="panel pf-part pf-scan" aria-labelledby="pf-connect">
+            <h2 id="pf-connect"><Icon name="scan-line"/>{s.connect_title}</h2>
+            <Scanner on_read=read/>
+            <p class="pf-sub pf-scan-private">{c.scan_private}</p>
+            {move || note.get().map(|said| view! { <p class="action note-action pf-refused" role="status"><Icon name="info"/><span>{said}</span></p> })}
+            <div class="pf-scan-ways">
+                <button class="pf-scan-way" type="button" id="pf-scan-code" aria-expanded=move || if code.get() { "true" } else { "false" } on:click=move |_| code.update(|open| *open = !*open)>
+                    <Icon name="lock"/><span class="pf-scan-way-text"><b>{c.scan_code}</b></span><Icon name="chevron-down" class="pf-end"/>
+                </button>
+                {move || code.get().then(|| view! { <FromOther sync id="pf-scan-code-field"/> })}
+                <button class="pf-scan-way" type="button" id="pf-scan-show" on:click=move |_| dialog.set(Some(Direction::Give))>
+                    <Icon name="monitor-smartphone"/><span class="pf-scan-way-text"><b>{c.scan_show}</b><small>{c.scan_show_hint}</small></span><Icon name="chevron-right" class="pf-end"/>
+                </button>
+            </div>
+            <Connect sync id state dialog both=false/>
+        </section>
+    }
+    .into_any()
+}
+
+/// This site's origin (`https://betula.app`), which a code read must name.
+fn origin() -> String {
+    #[cfg(feature = "csr")]
+    {
+        web_sys::window().and_then(|w| w.location().origin().ok()).unwrap_or_default()
+    }
+    #[cfg(not(feature = "csr"))]
+    String::new()
 }
 
 /// The part of the address after `#`, taken out of the address and of the history (the entry is
