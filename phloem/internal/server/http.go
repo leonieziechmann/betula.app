@@ -184,6 +184,24 @@ func clientKey(r *http.Request) string {
 	return ip.String()
 }
 
+// clientAddr is the address a request came from: Traefik's X-Real-Ip, else the peer's
+// address; the zero Addr when neither reads as one.
+func clientAddr(r *http.Request) netip.Addr {
+	raw := strings.TrimSpace(r.Header.Get("X-Real-Ip"))
+	if raw == "" {
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			host = r.RemoteAddr
+		}
+		raw = host
+	}
+	ip, err := netip.ParseAddr(raw)
+	if err != nil {
+		return netip.Addr{}
+	}
+	return ip.Unmap().WithZone("")
+}
+
 // fromLoopback says whether a request comes from inside the container: a loopback peer, and no
 // header a proxy would have added.
 func fromLoopback(r *http.Request) bool {

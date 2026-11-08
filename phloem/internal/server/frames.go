@@ -69,6 +69,7 @@ type inFrame struct {
 	Data   b64    `json:"data"`
 	Upto   *int64 `json:"upto"`
 	Parts  []b64  `json:"parts"`
+	To     *int   `json:"to"` // signal
 }
 
 // The frames Phloem sends that never change.
@@ -226,4 +227,28 @@ func pairFrame(id []byte, state string) []byte {
 	b = append(b, `,"state":"`...)
 	b = append(b, state...)
 	return append(b, `"}`...)
+}
+
+// signalFrame hands a device's signal to the device it is for, named by the slot it came from.
+func signalFrame(from int, data []byte) []byte {
+	b := make([]byte, 0, 40+b64len(len(data)))
+	b = append(b, `{"t":"signal","from":`...)
+	b = strconv.AppendInt(b, int64(from), 10)
+	b = append(b, `,"data":`...)
+	b = appendB64(b, data)
+	return append(b, '}')
+}
+
+// turnFrame answers turn: the ICE servers and the socket's credential; no URLs without TURN.
+func turnFrame(urls []string, user, password string) []byte {
+	if len(urls) == 0 {
+		return []byte(`{"t":"turn","urls":[]}`)
+	}
+	data, _ := json.Marshal(struct {
+		T        string   `json:"t"`
+		URLs     []string `json:"urls"`
+		User     string   `json:"user"`
+		Password string   `json:"password"`
+	}{"turn", urls, user, password})
+	return data
 }

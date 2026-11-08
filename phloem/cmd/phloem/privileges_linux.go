@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"os/exec"
 	"strconv"
@@ -24,27 +25,93 @@ const phloemID = 65532
 // firewallTable is the table of phloem/deploy/firewall.nft.
 const firewallTable = "phloem"
 
-// applyFirewall loads the rules with nft -f: one transaction, the table made anew.
-func applyFirewall(ctx context.Context, nft, rules string) error {
+// turnFirewall is what turn.nft is given: the port of STUN and TURN, the relays' ports and the
+// host's public address. The zero value: no TURN.
+type turnFirewall struct {
+	port, relayMin, relayMax int
+	ip                       netip.Addr
+}
+
+func (t turnFirewall) on() bool { return t.port != 0 }
+
+func (t turnFirewall) String() string {
+	if !t.on() {
+		return "off"
+	}
+	return fmt.Sprintf("port %d relays %d-%d at %s", t.port, t.relayMin, t.relayMax, t.ip)
+}
+
+// defines are the nft variables turn.nft reads, from numbers checked here alone.
+func (t turnFirewall) defines() string {
+	return fmt.Sprintf("define turn_port = %d\ndefine relay_ports = %d-%d\ndefine turn_ip = %s\n", t.port, t.relayMin, t.relayMax, t.ip)
+}
+
+// turnFirewallFromEnv reads what serve reads for TURN (PHLOEM_TURN_HOST, _PORT, _RELAY_PORTS,
+// _IP): TURN is on when the host is set, and then each value must be what serve takes.
+func turnFirewallFromEnv() (turnFirewall, error) {
+	if strings.TrimSpace(os.Getenv("PHLOEM_TURN_HOST")) == "" {
+		return turnFirewall{}, nil
+	}
+	port := 3478
+	if raw := strings.TrimSpace(os.Getenv("PHLOEM_TURN_PORT")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > 65535 {
+			return turnFirewall{}, fmt.Errorf("PHLOEM_TURN_PORT %q", raw)
+		}
+		port = n
+	}
+	first, last, ok := strings.Cut(strings.TrimSpace(os.Getenv("PHLOEM_TURN_RELAY_PORTS")), "-")
+	lo, err1 := strconv.Atoi(first)
+	hi, err2 := strconv.Atoi(last)
+	if !ok || err1 != nil || err2 != nil || lo < 1024 || hi > 65535 || lo > hi {
+		return turnFirewall{}, fmt.Errorf("PHLOEM_TURN_RELAY_PORTS %q is not first-last within 1024-65535", os.Getenv("PHLOEM_TURN_RELAY_PORTS"))
+	}
+	if port >= lo && port <= hi {
+		return turnFirewall{}, fmt.Errorf("the TURN port %d lies among the relays' %d-%d", port, lo, hi)
+	}
+	ip, err := netip.ParseAddr(strings.TrimSpace(os.Getenv("PHLOEM_TURN_IP")))
+	if err != nil || !ip.Is4() {
+		return turnFirewall{}, fmt.Errorf("PHLOEM_TURN_IP %q is no IPv4 address", os.Getenv("PHLOEM_TURN_IP"))
+	}
+	return turnFirewall{port: port, relayMin: lo, relayMax: hi, ip: ip}, nil
+}
+
+// applyFirewall loads the rules with nft -f: one transaction, the table made anew; with TURN,
+// its rules in the same transaction (nft reads the defines and both files from its stdin).
+func applyFirewall(ctx context.Context, nft, rules, turnRules string, turn turnFirewall) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, nft, "-f", rules)
+	if turn.on() {
+		cmd = exec.CommandContext(ctx, nft, "-f", "-")
+		cmd.Stdin = strings.NewReader(turn.defines() + "include " + strconv.Quote(rules) + "\ninclude " + strconv.Quote(turnRules) + "\n")
+	}
 	cmd.Env = []string{} // nft needs nothing of the environment
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("%s -f %s: %w: %s", nft, rules, err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("%s -f %s (TURN %s): %w: %s", nft, rules, turn, err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
 
 // checkFirewall says whether the table is there and holds: a datagram to Docker's resolver
 // (127.0.0.11, over loopback, so that a route always exists) must be dropped on its way out.
-func checkFirewall(ctx context.Context, nft string) error {
+// With TURN, the chain turn_out must let out the relays' ports and no other.
+func checkFirewall(ctx context.Context, nft string, turn turnFirewall) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, nft, "list", "table", "inet", firewallTable)
 	cmd.Env = []string{}
-	if out, err := cmd.CombinedOutput(); err != nil {
+	out, err := cmd.CombinedOutput()
+	if err != nil {
 		return fmt.Errorf("the table inet %s is missing: %w: %s", firewallTable, err, strings.TrimSpace(string(out)))
+	}
+	if turn.on() {
+		want := fmt.Sprintf("udp sport %d-%d accept", turn.relayMin, turn.relayMax)
+		if !strings.Contains(string(out), want) || !strings.Contains(string(out), "ip daddr "+turn.ip.String()+" counter") {
+			return fmt.Errorf("the TURN rules are not in the table (want %q)", want)
+		}
+	} else if strings.Contains(string(out), "sport") {
+		return errors.New("the table lets a port out although Phloem serves no TURN")
 	}
 	if err := sendDropped("udp4", "127.0.0.11:53"); err != nil {
 		return fmt.Errorf("DNS gets out: %w", err)

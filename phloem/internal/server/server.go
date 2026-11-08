@@ -69,6 +69,14 @@ type Limits struct {
 	PartGetsPerAddr int           // parts one address may ask for in an hour (found or not)
 	PartGoneFor     time.Duration // a part deleted (or whose space was) stays gone this long
 
+	MaxSignal       int     // the decoded data of a signal (step 2)
+	SignalRate      float64 // signals and turn frames a second of one socket
+	SignalBurst     float64 // ... at once
+	RelayRate       int     // bytes a second one relay passes each way (TURN)
+	RelayTotal      int     // ... all relays together, each way
+	AllocsPerSocket int     // TURN allocations of one socket's credential
+	AllocsPerSpace  int     // ... of all sockets of a space
+
 	HelloTimeout time.Duration // a socket's hello comes within it
 	FrameTimeout time.Duration // a frame, once begun, arrives within it
 	WriteTimeout time.Duration // a frame to a device is written within it
@@ -118,6 +126,14 @@ var DefaultLimits = Limits{
 	MaxWatch:        64,
 	PartGetsPerAddr: 3600,
 	PartGoneFor:     395 * 24 * time.Hour,
+
+	MaxSignal:       8 << 10,
+	SignalRate:      20,
+	SignalBurst:     100,
+	RelayRate:       128 << 10, // about 1 Mbit/s
+	RelayTotal:      4 << 20,   // about 32 Mbit/s
+	AllocsPerSocket: 8,
+	AllocsPerSpace:  32,
 
 	HelloTimeout: 10 * time.Second,
 	FrameTimeout: time.Minute,
@@ -181,6 +197,13 @@ func (l Limits) withDefaults() Limits {
 	pick(&l.PartsPerDay, d.PartsPerDay)
 	pick(&l.MaxWatch, d.MaxWatch)
 	pick(&l.PartGetsPerAddr, d.PartGetsPerAddr)
+	pick(&l.MaxSignal, d.MaxSignal)
+	pickF(&l.SignalRate, d.SignalRate)
+	pickF(&l.SignalBurst, d.SignalBurst)
+	pick(&l.RelayRate, d.RelayRate)
+	pick(&l.RelayTotal, d.RelayTotal)
+	pick(&l.AllocsPerSocket, d.AllocsPerSocket)
+	pick(&l.AllocsPerSpace, d.AllocsPerSpace)
 	pickD(&l.PartGoneFor, d.PartGoneFor)
 	pickD(&l.HelloTimeout, d.HelloTimeout)
 	pickD(&l.FrameTimeout, d.FrameTimeout)
@@ -228,6 +251,10 @@ type Options struct {
 	// Registry holds the metrics; nil: a registry of the server's own (the tests).
 	Registry *metrics.Registry
 
+	// TURN, when set, serves STUN and TURN to the devices of the spaces (step 2); nil: none,
+	// and a device asking for it hears so.
+	TURN *TURN
+
 	// Now is the clock; nil: time.Now.
 	Now func() time.Time
 }
@@ -261,6 +288,9 @@ type Server struct {
 	partGets  *limiter // parts asked for by address
 	pushes    *limiter // pushes, snapshots, parcels, parts and watches by space
 	newParts  *limiter // new parts by space
+	signals   *limiter // signals and turn frames by socket
+
+	turn *turnServer // nil without TURN
 
 	devices atomic.Int64 // devices of every space, as of the last tick
 	parts   atomic.Int64 // parts of every space, as of the last tick
@@ -330,12 +360,21 @@ func New(opt Options) (*Server, error) {
 		partGets:  perWindow(lim.PartGetsPerAddr, time.Hour),
 		pushes:    newLimiter(lim.PushRate, lim.PushBurst),
 		newParts:  perWindow(lim.PartsPerDay, 24*time.Hour),
+		signals:   newLimiter(lim.SignalRate, lim.SignalBurst),
 		watchers:  watchers{parts: map[string]map[*peer]struct{}{}},
 		rooms:     map[string]*room{},
 		waiting:   map[string]int{},
 	}
 	s.up.Store(true)
 	s.declare()
+	if opt.TURN.enabled() {
+		t, err := newTURN(s, *opt.TURN)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("TURN: %w", err)
+		}
+		s.turn = t
+	}
 	s.wg.Add(2)
 	go s.sweepLoop()
 	go s.statsLoop()
@@ -390,6 +429,9 @@ func (s *Server) Close() error {
 		<-done
 	}
 	s.cancel()
+	if s.turn != nil {
+		_ = s.turn.close()
+	}
 	s.up.Store(false)
 	if s.opt.StatsDir != "" {
 		_ = s.writeStats()
