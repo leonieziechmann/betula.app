@@ -337,6 +337,29 @@ impl LivePart {
     }
 }
 
+/// Where a calendar app subscribes to a part: `/calendar/s/<id ‖ key>.ics` (`/en/calendar/s/…` in
+/// English), the link in base64url (64 characters). A calendar service sends no key of its own, so
+/// the key is in the address (owner, 2026-11-08); Folia fetches the part, opens it in memory for
+/// the answer and keeps nothing, and its log writes every path under `/calendar/` as one text
+/// (`subscription::redacted_path`).
+pub const FEED_PREFIX: &str = "/calendar/s/";
+
+/// The characters of a link: 48 bytes in base64url without padding.
+const LINK_LEN: usize = 64;
+
+/// The address of a part's subscription, in German; `Locale::path` makes it another language's.
+pub fn feed_path(link: &str) -> String {
+    format!("{FEED_PREFIX}{link}.ics")
+}
+
+/// The link of a subscription's path, when the path has the shape: a language's prefix where it
+/// has one, `FEED_PREFIX`, 64 characters of base64url, `.ics`, nothing else.
+pub fn link_of_feed_path(path: &str) -> Option<String> {
+    let rest = folia_locale::Locale::split(path).1.strip_prefix(FEED_PREFIX)?;
+    let link = rest.strip_suffix(".ics")?;
+    (link.len() == LINK_LEN && link.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')).then(|| link.to_string())
+}
+
 /// The semester a share that stays current shows on `today`, from the semester it was made in
 /// (`from`): that one until its half-year is over, then the next, and so on (folia/design/teilen:
 /// „bei „Bleibt aktuell“ geht die Freigabe mit, wenn das nächste Semester beginnt"). Never back.
@@ -472,6 +495,19 @@ mod tests {
         let part = LivePart { semester: winter().index(), own: vec![CodeOwn { number: 1, rhythm: 9, weekday: 1, from: 60, to: 120, ..CodeOwn::default() }, CodeOwn::of(winter(), &arbeit())], ..LivePart::default() };
         let back = LivePart::from_code(&part.code().unwrap()).unwrap();
         assert_eq!(back.own_termine(), vec![arbeit()]);
+    }
+
+    #[test]
+    fn a_subscription_names_its_link_in_its_path() {
+        let link = "A".repeat(32) + &"-_".repeat(16);
+        assert_eq!(feed_path(&link), format!("/calendar/s/{link}.ics"));
+        assert_eq!(link_of_feed_path(&feed_path(&link)), Some(link.clone()));
+        assert_eq!(link_of_feed_path(&format!("/en/calendar/s/{link}.ics")), Some(link.clone()));
+        for wrong in [format!("/calendar/s/{link}"), format!("/calendar/s/{link}x.ics"), format!("/calendar/s/{}.ics", &link[1..]), format!("/calendar/{link}.ics"), format!("/calendar/s/{}%2F.ics", &link[3..]), "/calendar/s/.ics".to_string()] {
+            assert_eq!(link_of_feed_path(&wrong), None, "{wrong}");
+        }
+        // The log writes it as every path under `/calendar/`.
+        assert_eq!(crate::subscription::redacted_path(&feed_path(&link)), "/calendar/….ics");
     }
 
     #[test]
