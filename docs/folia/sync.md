@@ -61,7 +61,8 @@ they differ (`Profiles::wrote`: every tab's stores read again).
 | `betula.sync.p<id>.v1` | its key, the device's id, its slot | on switching on, joining, a new slot |
 | `betula.sync.p<id>.out` | the writer's last number and clock, the batches waiting for `stored` | with every change |
 | `betula.sync.p<id>.doc` | the entries held, the records, the conflicts | now and then, and when the tab is hidden; always after the stores were given what the records hold |
-| `betula.sync.p<id>.status` | the leader's word: `online <n>` or `offline` | |
+| `betula.sync.p<id>.status` | the leader's word: `online <n> direct <d> relayed <r>` or `offline` (an older build's `online <n>` reads with none direct) | |
+| `betula.sync.p<id>.relay` | the slots whose last connection needed TURN, with when, kept a day (`live::read_relayed`) | when a connection opens |
 | `betula.sync.p<id>.ended` | the space is gone (ended on another device, or 13 months untouched) | |
 | `betula.sync.p<id>.seen` | the hints a page has read | |
 | `betula.sync.offset` | the server's clock less the browser's | on every welcome |
@@ -78,6 +79,21 @@ behind Phloem's, and the entries after it. Then every change goes out at once, e
 connection until `stored` (Phloem keeps a batch sent again once). A change larger than a batch goes
 as a snapshot; so does the profile's first state. A lost connection is tried again soon, then less
 often, at most every half minute, and at once when the network is back or the tab is shown.
+
+**The live way** (step 2, `sync/live.rs` and `sync/browser/rtc.rs`; owner, 2026-11-08: „time für
+phase 2 bei dem sync"). Every two devices of the profile online connect directly with WebRTC: of
+two, the one of the smaller slot offers and the other answers, so that no connection is set up
+from both sides at once. The signals go through Phloem, sealed with the live key (HKDF info
+`live`) to the space, `signal` and both slots: Phloem can neither read them nor hand them to
+another device. The first attempt takes STUN alone and counts as failed after 8 s; the next ones
+take TURN as well (15 s), then again after 30 s, 1, 2, 4 and at most 5 minutes; a device that
+needed TURN with another takes it at once for a day (`betula.sync.p<id>.relay`). The ICE servers
+and the TURN credential come from Phloem (`turn`, per socket: a new socket asks again). A
+negotiated data channel (unordered, reliable) carries each change of this device as the sealed
+batch Phloem keeps, at once to the other device and to Phloem; what comes over it is taken as an
+entry is, without its number, and Phloem's copy of it works no second time. An open connection
+stays until it fails or the other device closes it; one that is not open goes with its device.
+The profile page says „direkt verbunden" or „über Betula weitergeleitet".
 
 ## 3. The actions
 
@@ -120,3 +136,9 @@ click; decision 1), and the choices that need it save the profile on the way.
 - `folia/e2e/sync.mjs`: two browsers of one profile against a running Phloem.
 - `folia/e2e/share.mjs`: sharing and following with four browsers against a running Phloem
   (Folia with `FOLIA_SYNC_PARTS` naming it).
+- `folia/e2e/live.mjs`: two browsers connect directly, and with Phloem's entries to the second held
+  back a mark still arrives; the signals reach Phloem sealed. `sync.mjs` keeps WebRTC off
+  (Playwright's offline mode does not reach it).
+- `deploy/test/turn.sh` (as root, network namespaces) with `folia/e2e/turn.mjs`: two homes behind
+  NATs that give every destination a port of its own; the direct attempt fails, TURN opens, a mark
+  goes through the relay alone, and Phloem's firewall counts no drop.
