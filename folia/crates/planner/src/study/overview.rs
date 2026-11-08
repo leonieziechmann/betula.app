@@ -290,6 +290,8 @@ struct Entry {
     passed: bool,
     when: String,
     over: bool,
+    /// Counted here by the student where the plan does not put it (`study::Item::exception`).
+    exception: bool,
 }
 
 /// What an area's dialog shows.
@@ -320,7 +322,7 @@ impl AreaInfo {
             for item in semester.items.iter().filter(|item| item.area == area && !item.failed && item.fillers.is_empty()) {
                 let credits = item.credits.map(|credits| (s.credits)(&n(credits, t)));
                 let when = if item.passed { (s.passed_in)(&semester.key.label(t.locale)) } else { (s.planned_in)(&semester.key.label(t.locale)) };
-                entries.push(Entry { id: item.module_id().map(str::to_string), name: item.name.clone(), credits, passed: item.passed, when, over: item.over > 0.0 });
+                entries.push(Entry { id: item.module_id().map(str::to_string), name: item.name.clone(), credits, passed: item.passed, when, over: item.over > 0.0, exception: item.exception });
             }
         }
         let Some(index) = area else {
@@ -438,7 +440,7 @@ pub(super) fn AreaDialog(ctx: StudyCtx, area: Option<usize>) -> impl IntoView {
                                             <span class="st-box" class:with=entry.passed aria-hidden="true">{entry.passed.then(|| view! { <Icon name="check"/> })}</span>
                                             <div>
                                                 <div class="st-line">{name}<span class="st-lp">{entry.credits}</span></div>
-                                                <div class="st-sub">{entry.when}{entry.over.then(|| view! { <span class="st-chip over">{s.over_need}</span> })}</div>
+                                                <div class="st-sub">{entry.when}{entry.exception.then(|| view! { <span class="flag st-exception" title=(s.exception_title)(&info.name)>{s.exception}</span> })}{entry.over.then(|| view! { <span class="st-chip over">{s.over_need}</span> })}</div>
                                             </div>
                                         </li>
                                     }

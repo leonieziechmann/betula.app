@@ -173,6 +173,10 @@ pub struct Texts {
     pub passed_in: fn(&str) -> String,
     pub planned_in: fn(&str) -> String,
     pub failed_in: fn(&str) -> String,
+    /// The mark of a module the student let count where the plan does not put it, and what it says
+    /// when the pointer rests on it.
+    pub exception: &'static str,
+    pub exception_title: fn(&str) -> String,
     pub over_need: &'static str,
     /// „Laut Regelstudienplan": the area's rows and where each stands.
     pub plan_rows: &'static str,
@@ -485,6 +489,8 @@ pub const DE: Texts = Texts {
     passed_in: |semester| format!("bestanden im {semester}"),
     planned_in: |semester| format!("geplant im {semester}"),
     failed_in: |semester| format!("nicht bestanden im {semester}"),
+    exception: "Ausnahme",
+    exception_title: |area| format!("Zählt als Ausnahme für {area}: laut Plan gehört es woanders hin"),
     over_need: "über Bedarf",
     plan_rows: "Laut Regelstudienplan",
     row_open: "offen",
@@ -747,6 +753,8 @@ pub const EN: Texts = Texts {
     passed_in: |semester| format!("passed in {semester}"),
     planned_in: |semester| format!("planned in {semester}"),
     failed_in: |semester| format!("not passed in {semester}"),
+    exception: "Exception",
+    exception_title: |area| format!("Counts for {area} as an exception: by the plan it belongs elsewhere"),
     over_need: "beyond need",
     plan_rows: "Standard study plan",
     row_open: "open",

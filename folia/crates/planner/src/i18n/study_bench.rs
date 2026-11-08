@@ -165,8 +165,27 @@ pub struct Texts {
     /// zählt für Anwendungsfach").
     pub counts_menu: &'static str,
     pub counts_tree: &'static str,
+    pub counts_tree_hint: &'static str,
     pub counted_note: fn(&str, &str) -> String,
     pub counted_tree_note: fn(&str) -> String,
+    /// „Anderer Bereich …": the dialog that lets it count anywhere (owner, 2026-11-08: „jedes modul
+    /// zu jedem möglichen bereich zuzuordnen … dass das man das nicht ausversehen macht"); the note
+    /// of an exception.
+    pub counts_other: &'static str,
+    pub counted_exception_note: fn(&str, &str) -> String,
+    /// The dialog: its title, what it is for, the way back to the study's own choice, the marks of
+    /// a subgroup, the warning over its buttons, its buttons.
+    pub count_title: &'static str,
+    pub count_lead: &'static str,
+    pub count_auto: &'static str,
+    pub count_auto_hint: &'static str,
+    pub count_fits: &'static str,
+    pub count_exception: &'static str,
+    pub count_now: &'static str,
+    pub count_figure: fn(&str, &str) -> String,
+    pub count_warn: fn(&str, &str) -> String,
+    pub count_apply: &'static str,
+    pub count_apply_exception: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -271,9 +290,23 @@ pub const DE: Texts = Texts {
     reserved_mark: "vorgemerkt",
 
     counts_menu: "Zählt für",
-    counts_tree: "Wo der Modulbaum es zählt",
+    counts_tree: "Automatisch",
+    counts_tree_hint: "wo es laut Plan am besten passt",
     counted_note: |title, group| format!("{title} zählt für {group}"),
-    counted_tree_note: |title| format!("{title} zählt, wo der Modulbaum es hinlegt"),
+    counted_tree_note: |title| format!("{title} zählt wieder automatisch"),
+    counts_other: "Anderer Bereich …",
+    counted_exception_note: |title, group| format!("{title} zählt als Ausnahme für {group}"),
+    count_title: "Wofür zählt es?",
+    count_lead: "Betula ordnet jedes Modul selbst dort zu, wo es laut Plan am besten passt. Hat dein Prüfungsausschuss eine Ausnahme gemacht, ordnest du es hier einem anderen Bereich zu.",
+    count_auto: "Automatisch",
+    count_auto_hint: "wo es laut Plan am besten passt",
+    count_fits: "passt",
+    count_exception: "Ausnahme",
+    count_now: "jetzt",
+    count_figure: |have, asked| format!("{have} / {asked} LP"),
+    count_warn: |title, group| format!("{title} gehört laut Plan nicht zu „{group}“. Es zählt dort trotzdem und ist als Ausnahme markiert."),
+    count_apply: "Zuordnen",
+    count_apply_exception: "Als Ausnahme zuordnen",
 };
 
 pub const EN: Texts = Texts {
@@ -378,7 +411,21 @@ pub const EN: Texts = Texts {
     reserved_mark: "reserved",
 
     counts_menu: "Counts for",
-    counts_tree: "Where the module tree counts it",
+    counts_tree: "Automatically",
+    counts_tree_hint: "where it fits the plan best",
     counted_note: |title, group| format!("{title} counts for {group}"),
-    counted_tree_note: |title| format!("{title} counts where the module tree puts it"),
+    counted_tree_note: |title| format!("{title} counts automatically again"),
+    counts_other: "Another area …",
+    counted_exception_note: |title, group| format!("{title} counts for {group} as an exception"),
+    count_title: "What does it count for?",
+    count_lead: "Betula puts every module where it fits the plan best. If your examination board made an exception, let it count for another area here.",
+    count_auto: "Automatically",
+    count_auto_hint: "where it fits the plan best",
+    count_fits: "fits",
+    count_exception: "Exception",
+    count_now: "now",
+    count_figure: |have, asked| format!("{have} / {asked} ECTS"),
+    count_warn: |title, group| format!("By the plan, {title} does not belong to “{group}”. It counts there all the same, marked as an exception."),
+    count_apply: "Assign",
+    count_apply_exception: "Assign as an exception",
 };

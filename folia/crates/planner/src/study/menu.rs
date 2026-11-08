@@ -28,6 +28,7 @@ use std::collections::BTreeSet;
 use std::time::Duration;
 
 use folia_calendar::semester::SemesterKey;
+use folia_plans::bench::GroupKind;
 use folia_plans::study::{self, Item, Subject, When};
 use folia_routes::url::StudyplanUrl;
 use leptos::prelude::*;
@@ -36,7 +37,7 @@ use folia_design::nav;
 use folia_design::ui::Icon;
 
 use super::dom::{self, Rect, Step};
-use super::{item_of, module_href, Ready, Selection, StudyCtx};
+use super::{item_of, module_href, Dialog, Ready, Selection, StudyCtx};
 use crate::i18n::{self, Texts};
 
 /// What a menu is for.
@@ -97,9 +98,11 @@ pub(super) enum Act {
     Unvisit { semester: SemesterKey, id: String },
     /// „Modul wählen" at a row of the plan without a module: the workbench at its subgroup.
     Choose { semester: SemesterKey, caption: String, ord: i64 },
-    /// „Zählt für": the module counts for a choice of the plan (an index of `PlanView::choices`,
-    /// with its name), or where the tree places it (`None`).
-    CountFor { semester: SemesterKey, id: String, choice: Option<(usize, String)> },
+    /// „Zählt für": the module counts for a subgroup of the workbench (its area and kind, its name,
+    /// whether it is an exception there), or where the study puts it (`None`).
+    CountFor { semester: SemesterKey, id: String, target: Option<(usize, GroupKind, String, bool)> },
+    /// „Anderer Bereich …": the dialog that lets it count for any subgroup (`count.rs`).
+    CountOther { semester: SemesterKey, id: String },
 }
 
 /// An entry of a menu.
@@ -272,10 +275,11 @@ pub(super) fn act(ctx: StudyCtx, act: Act, t: &'static Texts) {
             ctx.change_noted(Some((s.removed)(&name)), move |doc, _| doc.unvisit(semester, &id, &[]), || {});
         }
         Act::Choose { semester, caption, ord } => super::bench::enter_row(ctx, semester, &caption, ord),
-        Act::CountFor { semester, id, choice } => {
+        Act::CountFor { semester, id, target } => {
             let title = items_of(ctx, semester, &[format!("m:{id}")]).into_iter().next().map_or_else(|| id.clone(), |item| item.name);
-            super::bench::count_for(ctx, semester, id, title, choice, t);
+            super::bench::count_for(ctx, semester, id, title, target, t);
         }
+        Act::CountOther { semester, id } => ctx.open(Dialog::CountFor { semester, id }),
         Act::Passed { semester, keys, passed } => {
             let items = items_of(ctx, semester, &keys);
             let note = match (items.as_slice(), passed) {
@@ -429,17 +433,29 @@ fn content(ctx: StudyCtx, what: &MenuFor, t: &'static Texts) -> Option<Content> 
             if !targets.is_empty() {
                 entries.push(Entry::new(Some("st-menu-move"), Some("arrow-right-left"), s.move_to, Does::Sub((s.move_title)(&item.name), targets)));
             }
-            // „Zählt für ›": the choices of the plan it can count for (folia/design/hinzufuegen/
-            // konzepte.html, third round: „„Zählt für ›“ in seinem Menü ändert es").
-            if let Some((choices, tree)) = item.module_id().and_then(|id| super::bench::counts_choices(ctx, semester, id, t)) {
+            // „Zählt für ›": the subgroups it usually counts for and the one it counts for now
+            // (folia/design/hinzufuegen/konzepte.html, third round: „„Zählt für ›“ in seinem Menü
+            // ändert es"), the study's own choice, and „Anderer Bereich …", the dialog for any other
+            // (owner, 2026-11-08: „dass das man das nicht ausversehen macht. Also wäre es
+            // wahrscheinlich sinnvoll das in ein modal zu packen, dass man von dem aktuellen menü
+            // aufrufen kann").
+            if let Some(counts) = item.module_id().and_then(|id| super::bench::counts_choices(ctx, semester, id, false, t)) {
                 let id = item.module_id().unwrap_or_default().to_string();
                 let b = &t.study_bench;
-                let mut sub: Vec<Entry> = choices
+                let mut sub: Vec<Entry> = counts
+                    .targets
                     .into_iter()
-                    .map(|(at, name, on)| Entry { current: on, ..Entry::new(None, None, name.clone(), Does::Act(Act::CountFor { semester, id: id.clone(), choice: Some((at, name)) })) })
+                    .map(|target| {
+                        let note = target.exception.then(|| (b.count_exception.to_string(), "warn"));
+                        let act = Act::CountFor { semester, id: id.clone(), target: Some((target.area, target.kind, target.name.clone(), target.exception)) };
+                        Entry { current: target.current, note, ..Entry::new(None, None, target.name, Does::Act(act)) }
+                    })
                     .collect();
-                sub.push(Entry::line());
-                sub.push(Entry { current: tree, ..Entry::new(None, None, b.counts_tree, Does::Act(Act::CountFor { semester, id: id.clone(), choice: None })) });
+                if !sub.is_empty() {
+                    sub.push(Entry::line());
+                }
+                sub.push(Entry { current: counts.auto, hint: Some(b.counts_tree_hint), ..Entry::new(Some("st-menu-auto"), None, b.counts_tree, Does::Act(Act::CountFor { semester, id: id.clone(), target: None })) });
+                sub.push(Entry::new(Some("st-menu-other"), None, b.counts_other, Does::Act(Act::CountOther { semester, id: id.clone() })));
                 entries.push(Entry::new(Some("st-menu-counts"), Some("target"), b.counts_menu, Does::Sub(format!("{} · {}", b.counts_menu, item.name), sub)));
             }
             // A module not passed there may be only visited: in the week, counting for nothing.

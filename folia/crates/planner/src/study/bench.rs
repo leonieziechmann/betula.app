@@ -1564,6 +1564,7 @@ fn SemesterColumn(ctx: StudyCtx, parts: Parts) -> impl IntoView {
                     GroupKind::Pflicht => b.pflicht_tag.to_string(),
                     GroupKind::Choice(_) => (b.for_group)(&group_name(&model, group, true, t)),
                 });
+                let exception = item.exception.then_some(t.study.exception);
                 let credits = item.counted().or(item.credits).map(|credits| n(credits, t));
                 let name = item.name.clone();
                 let href = item.module_id().map(|id| module_href(ctx, id, t));
@@ -1578,7 +1579,7 @@ fn SemesterColumn(ctx: StudyCtx, parts: Parts) -> impl IntoView {
                 view! {
                     <li class="st-wb-sr">
                         {match href {
-                            Some(href) => view! { <a class="st-wb-go" href=href><b>{name.clone()}</b><small><span class="st-area"><span class="st-dot" style=format!("--c: {tone}")></span>{area}</span>{tag.map(|tag| view! { <span class="st-wb-tag">{tag}</span> })}</small></a> }.into_any(),
+                            Some(href) => view! { <a class="st-wb-go" href=href><b>{name.clone()}</b><small><span class="st-area"><span class="st-dot" style=format!("--c: {tone}")></span>{area}</span>{tag.map(|tag| view! { <span class="st-wb-tag">{tag}</span> })}{exception.map(|text| view! { <span class="flag st-exception">{text}</span> })}</small></a> }.into_any(),
                             None => view! { <span class="st-wb-go"><b>{name.clone()}</b><small><span class="st-area"><span class="st-dot" style=format!("--c: {tone}")></span>{area}</span></small></span> }.into_any(),
                         }}
                         <span class="st-wb-lp">{credits.map(|credits| view! { <b>{credits}</b>{t.common.credits_unit} })}</span>
@@ -2377,42 +2378,82 @@ pub(super) fn enter_choice(ctx: StudyCtx, s: SemesterKey, choice: usize) {
     enter(ctx, s, pick.unwrap_or(BenchPick::Plan));
 }
 
-/// What „Zählt für ›" offers: each choice (its index of `PlanView::choices`, its short name, whether
-/// the module counts for it now), and whether it counts where the tree places it.
-pub(super) type CountsFor = (Vec<(usize, String, bool)>, bool);
+/// A subgroup „Zählt für" offers a module: its area and kind (as `BenchPick::Group` names it), its
+/// short name, whether the module counts for it now, and whether it would be an exception there
+/// (`model::fits`: not on its lists, not in its area's tree).
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct Target {
+    pub area: usize,
+    pub kind: GroupKind,
+    pub name: String,
+    pub current: bool,
+    pub exception: bool,
+    /// What it has of what it asks (`model::figures`).
+    pub figures: (f64, f64),
+}
 
-/// „Zählt für ›" in the menu of module `id` of semester `s`: the choices it can count for — those
-/// whose lists hold it, the one it counts for now, the FÜS where its list holds it — each with
-/// whether it is the one, and whether it counts where the tree places it. Nothing for a module the
-/// plan names in a row of its own: it counts there.
-pub(super) fn counts_choices(ctx: StudyCtx, s: SemesterKey, id: &str, t: &Texts) -> Option<CountsFor> {
+/// What „Zählt für ›" offers: the subgroups, and whether the module counts where the study puts it
+/// (nothing stored).
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct CountsFor {
+    pub targets: Vec<Target>,
+    pub auto: bool,
+}
+
+/// „Zählt für" for module `id` of semester `s`: every subgroup of every area (`all`), or those it
+/// usually counts for — the choices whose lists hold it, the FÜS where its list holds it — and the
+/// one it counts for now, whatever that is. Nothing for a module the plan names in a row of its
+/// own: it counts there.
+pub(super) fn counts_choices(ctx: StudyCtx, s: SemesterKey, id: &str, all: bool, t: &Texts) -> Option<CountsFor> {
     untrack(|| {
-        let model = model_of(ctx, s)?;
-        if model.view.lines.iter().any(|line| line.module_id.as_deref() == Some(id)) {
-            return None;
-        }
-        let fues = fues_of(ctx);
-        let now = model::counted_in(&model.groups, &model.view, id, s).and_then(|at| model.groups.groups.get(at)).and_then(Group::choice);
-        let stored = ctx.plan.is_some_and(|plan| plan.with(|doc| doc.counts_of(s, id).is_some() || doc.modules.iter().any(|m| m.semester == s && m.module_id == id && m.fills.is_some())));
-        let entries: Vec<(usize, String, bool)> = model
-            .view
-            .choices
-            .iter()
-            .enumerate()
-            .filter(|(at, choice)| Some(*at) == now || choice.list_of(id).is_some() || (choice.fues && fues.iter().any(|known| known == id)))
-            .map(|(at, choice)| (at, model::short_name(&choice.name), Some(at) == now))
-            .collect();
-        let _ = t;
-        (!entries.is_empty()).then_some((entries, !stored))
+        ctx.with_input(|input, ready| {
+            let study = &ready.study;
+            let view = choices::plan_view(input, study);
+            if view.lines.iter().any(|line| line.module_id.as_deref() == Some(id)) {
+                return None;
+            }
+            let groups = Groups::of(study, &view);
+            if groups.groups.is_empty() {
+                return None;
+            }
+            let model = Model { due: Due::default(), fs: None, view, groups };
+            let now = model::counted_in(&model.groups, &model.view, id, s);
+            let stored = ctx.plan.is_some_and(|plan| plan.with(|doc| doc.counts_of(s, id).is_some() || doc.modules.iter().any(|m| m.semester == s && m.module_id == id && m.fills.is_some())));
+            let targets: Vec<Target> = model
+                .groups
+                .areas
+                .iter()
+                .flat_map(|area| area.groups.iter().copied())
+                .filter_map(|at| model.groups.groups.get(at).map(|group| (at, group)))
+                .filter_map(|(at, group)| {
+                    let exception = !model::fits(input, study, &model.view, group, id);
+                    let current = Some(at) == now;
+                    // As the menu offered them before any could be chosen: a choice whose lists have
+                    // it, the FÜS where its list has it.
+                    let usual = group.choice().and_then(|at| model.view.choices.get(at)).is_some_and(|choice| if choice.fues { !exception } else { choice.list_of(id).is_some() });
+                    (all || current || usual).then(|| {
+                        let name = match group.kind {
+                            GroupKind::Pflicht if !all => format!("{} · {}", ready.area_name(Some(group.area), t), t.study_bench.pflicht),
+                            _ => group_name(&model, group, true, t),
+                        };
+                        Target { area: group.area, kind: group.kind, name, current, exception, figures: model::figures(&model.view, group) }
+                    })
+                })
+                .collect();
+            Some(CountsFor { targets, auto: !stored })
+        })
+        .flatten()
     })
 }
 
-/// „Zählt für": module `id` of semester `s` counts for choice `choice`, or where the tree places it
-/// (`None`), with the note „Rückgängig" takes it back by.
-pub(super) fn count_for(ctx: StudyCtx, s: SemesterKey, id: String, title: String, choice: Option<(usize, String)>, t: &'static Texts) {
+/// „Zählt für": module `id` of semester `s` counts for the subgroup `target` (its area and kind,
+/// its name, whether that is an exception), or where the study puts it (`None`), with the note
+/// „Rückgängig" takes it back by.
+pub(super) fn count_for(ctx: StudyCtx, s: SemesterKey, id: String, title: String, target: Option<(usize, GroupKind, String, bool)>, t: &'static Texts) {
     let b = &t.study_bench;
-    let note = match &choice {
-        Some((_, name)) => (b.counted_note)(&title, name),
+    let note = match &target {
+        Some((.., name, true)) => (b.counted_exception_note)(&title, name),
+        Some((.., name, false)) => (b.counted_note)(&title, name),
         None => (b.counted_tree_note)(&title),
     };
     ctx.change_noted(
@@ -2420,7 +2461,9 @@ pub(super) fn count_for(ctx: StudyCtx, s: SemesterKey, id: String, title: String
         move |doc, input| {
             let study = study::study(input);
             let view = choices::plan_view(input, &study);
-            model::count_for(doc, &view, s, &id, choice.map(|(at, _)| at), input.program_id);
+            let groups = Groups::of(&study, &view);
+            let group = target.and_then(|(area, kind, ..)| groups.find(area, kind)).and_then(|at| groups.groups.get(at));
+            model::count_for(doc, &view, s, &id, group, input.program_id);
         },
         || {},
     );
