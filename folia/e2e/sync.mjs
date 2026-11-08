@@ -18,7 +18,8 @@
 // both hold both; the recovery code brings the profile into a third browser; a new computer shows
 // a code that a phone opens (as the camera app does) and sends the profile to, the digits alike on
 // both; „Sync beenden" makes every browser private again with its copy; the scanner of /sync (a
-// camera that films a code) sends a private profile, switched on for it. Privacy: no request or
+// camera that films a code) sends a private profile, switched on for it; the setup's last step on
+// a phone leads to that scanner („Code scannen") and back, where it says „Verbunden". Privacy: no request or
 // frame carries a module's number, the note or the profile key in the clear, nothing reaches
 // another host than Folia's and Phloem's, and no link's or code's part after # reaches a server. Fails on a console error or a step that does not show up.
 import { fileURLToPath } from "node:url";
@@ -318,32 +319,39 @@ const pairCodes = [];
 // ---- the scanner of /sync ----
 // A camera that films F2's code: H holds a private profile with marks,
 // which is switched on for it and goes to F2.
+/// A camera's video (y4m, 640×480, grey) that films the QR code `selector` shows on `page`.
+const filmed = async (page, selector) => {
+  const frame = await page.evaluate(async (selector) => {
+    const svg = onPage(selector);
+    const [w, h] = [640, 480];
+    const image = new Image();
+    image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(svg).replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"'));
+    await image.decode();
+    const canvas = Object.assign(document.createElement("canvas"), { width: w, height: h });
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#d8d8d8";
+    context.fillRect(0, 0, w, h);
+    context.fillStyle = "#ffffff";
+    context.fillRect(150, 70, 340, 340);
+    context.drawImage(image, 170, 90, 300, 300);
+    const rgba = context.getImageData(0, 0, w, h).data;
+    const luma = [];
+    for (let i = 0; i < rgba.length; i += 4) luma.push(Math.round(rgba[i] * 0.299 + rgba[i + 1] * 0.587 + rgba[i + 2] * 0.114));
+    return luma;
+  }, selector);
+  const folder = await mkdtemp(join(tmpdir(), "betula-scan-"));
+  const video = join(folder, "code.y4m");
+  const plane = Buffer.from(frame);
+  const chroma = Buffer.alloc((640 * 480) / 4, 128);
+  await writeFile(video, Buffer.concat([Buffer.from("YUV4MPEG2 W640 H480 F10:1 Ip A1:1 C420jpeg\n"), ...Array.from({ length: 10 }, () => Buffer.concat([Buffer.from("FRAME\n"), plane, chroma, chroma]))]));
+  return video;
+};
+/// A browser whose camera films `video`.
+const camera = (video) => chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge", headless: !process.env.SMOKE_HEADED, args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", `--use-file-for-fake-video-capture=${video}`] });
 const f2 = await device("F2");
 const asked2 = await asking(f2);
-const frame = await f2.page.evaluate(async () => {
-  const svg = onPage(".pf-get .pf-qr");
-  const [w, h] = [640, 480];
-  const image = new Image();
-  image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(svg).replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"'));
-  await image.decode();
-  const canvas = Object.assign(document.createElement("canvas"), { width: w, height: h });
-  const context = canvas.getContext("2d");
-  context.fillStyle = "#d8d8d8";
-  context.fillRect(0, 0, w, h);
-  context.fillStyle = "#ffffff";
-  context.fillRect(150, 70, 340, 340);
-  context.drawImage(image, 170, 90, 300, 300);
-  const rgba = context.getImageData(0, 0, w, h).data;
-  const luma = [];
-  for (let i = 0; i < rgba.length; i += 4) luma.push(Math.round(rgba[i] * 0.299 + rgba[i + 1] * 0.587 + rgba[i + 2] * 0.114));
-  return luma;
-});
-const folder = await mkdtemp(join(tmpdir(), "betula-scan-"));
-const video = join(folder, "code.y4m");
-const plane = Buffer.from(frame);
-const chroma = Buffer.alloc((640 * 480) / 4, 128);
-await writeFile(video, Buffer.concat([Buffer.from("YUV4MPEG2 W640 H480 F10:1 Ip A1:1 C420jpeg\n"), ...Array.from({ length: 10 }, () => Buffer.concat([Buffer.from("FRAME\n"), plane, chroma, chroma]))]));
-const filming = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge", headless: !process.env.SMOKE_HEADED, args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", `--use-file-for-fake-video-capture=${video}`] });
+const video = await filmed(f2.page, ".pf-get .pf-qr");
+const filming = await camera(video);
 const h = await device("H", filming, { permissions: ["camera"] });
 await go(h.page, "/catalog");
 await h.page.evaluate((seed) => localStorage.setItem("betula.bookmarks.v1", seed.map((m, i) => `${m}\t${1790000000 - i}`).join("\n") + "\n"), SEED.slice(0, 2));
@@ -357,6 +365,43 @@ await until("H switched on", h.page, () => (localStorage.getItem("betula.sync.p1
 await until("F2 holds H's profile", f2.page, (n) => marked().length === n, 2, 30000);
 check(JSON.stringify(await marksOf(f2.page)) === JSON.stringify(await marksOf(h.page)), `F2: other marks than H (${await marksOf(f2.page)} / ${await marksOf(h.page)})`);
 await filming.close();
+
+// ---- the setup's last step on a phone, with Betula's scanner ----
+// The laptop F3 opens /pair; the phone K sets up its study, switches Betula Sync on in step 4 and
+// scans F3's code with „Code scannen" (the scanner of /sync, from the setup); „Ja, … verbinden",
+// „Zurück zur Einrichtung", and step 4 says „Verbunden".
+const f3 = await device("F3");
+await go(f3.page, "/pair");
+await until("F3: the code for the phone", f3.page, () => (onPage(".pf-asking .pf-get")?.dataset.link ?? "").includes("/pair#") && allOnPage(".pf-asking .pf-digits span").length === 4, null, 10000);
+const asked3 = await f3.page.evaluate(() => ({ link: onPage(".pf-asking .pf-get").dataset.link, digits: [...allOnPage(".pf-asking .pf-digits span")].map((d) => d.textContent).join("") }));
+pairCodes.push(asked3.link);
+const filming3 = await camera(await filmed(f3.page, ".pf-asking .pf-qr"));
+const k = await device("K", filming3, { permissions: ["camera"], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+await go(k.page, "/");
+await k.page.click("#ob-program >> visible=true").catch(() => problems.push("K: no picker of the program"));
+await k.page.waitForSelector("#ob-program-search >> visible=true").catch(() => {});
+await k.page.keyboard.type("Informatik");
+await until("K: Informatik in the picker", k.page, () => /^Informatik/.test(onPage("#ob-program-option-0")?.textContent.trim() ?? ""), null, 10000);
+await k.page.keyboard.press("Enter");
+await until("K: step 2", k.page, () => onPage(".ob")?.dataset.step === "2" && onPage(".ob-sems") && !onPage(".ob-sems").classList.contains("wait"), null, 5000);
+await k.page.click(".ob-next >> visible=true").catch(() => {});
+await until("K: step 3", k.page, () => onPage(".ob")?.dataset.step === "3" && allOnPage(".ob-mod").length > 1, null, 5000);
+await k.page.click(".ob-create >> visible=true").catch(() => problems.push("K: no „Studium anlegen“"));
+await until("K: step 4", k.page, () => onPage(".ob")?.dataset.step === "4", null, 5000);
+await k.page.click(".ob-activate >> visible=true").catch(() => problems.push("K: no „Betula Sync aktivieren“"));
+await until("K: „Code scannen“ in step 4", k.page, () => onPage(".ob-scan")?.getAttribute("href") === "/sync?from=setup" && !onPage(".ob-finish")?.classList.contains("primary"), null, 15000);
+await k.page.evaluate(() => { window.__marker = 1; });
+await k.page.click(".ob-scan >> visible=true").catch(() => problems.push("K: „Code scannen“ does not go"));
+await until("K: the scanner reads F3's code", k.page, (digits) => [...allOnPage(".pf-give .pf-digits span")].map((d) => d.textContent).join("") === digits, asked3.digits, 20000);
+await k.page.click("#pf-give-yes >> visible=true").catch(() => problems.push("K: no „Ja, … verbinden“"));
+await until("F3 holds K's study", f3.page, () => /^program\t079-82-2008$/m.test(localStorage.getItem("betula.myprogram.v1") || ""), null, 30000);
+await until("K: the way back to the setup", k.page, () => Boolean([...allOnPage(".pf-give .pf-ways a")].find((a) => a.getAttribute("href") === "/" && /Zurück zur Einrichtung/.test(a.textContent))), null, 15000);
+await k.page.click(".pf-give .pf-ways a[href='/'] >> visible=true").catch(() => problems.push("K: no „Zurück zur Einrichtung“"));
+await until("K: step 4 says „Verbunden“ after the scanner", k.page, () => onPage(".ob")?.dataset.step === "4" && onPage(".ob-title")?.textContent === "Verbunden", null, 15000);
+check(await k.page.evaluate(() => window.__marker === 1), "K: the scanner and the way back loaded a page");
+await k.page.click(".ob-finish >> visible=true").catch(() => problems.push("K: no „Fertig“"));
+await until("K: the day with its note", k.page, () => !onPage(".ob") && /Betula Sync hält es/.test(onPage(".day-welcome")?.textContent ?? ""), null, 8000);
+await filming3.close();
 
 // ---- privacy ----
 const secrets = SEED.concat([live, awayA, awayB, NOTE, "Fassung von A", "Fassung von B"].filter(Boolean));

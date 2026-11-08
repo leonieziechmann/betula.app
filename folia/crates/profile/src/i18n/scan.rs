@@ -35,6 +35,8 @@ pub struct Texts {
     /// It came: its name.
     pub came: fn(&str) -> String,
     pub done: &'static str,
+    /// The same where the scanner was opened from the start page's setup: back to its last step.
+    pub to_setup: &'static str,
 
     // ---- the scanner ----
     /// The page's line, over the camera, beside it.
@@ -102,6 +104,7 @@ pub const DE: Texts = Texts {
     no_phone_way: "Wiederherstellungscode eingeben",
     came: |name| format!("„{name}“ ist jetzt auch auf diesem Gerät."),
     done: "Fertig",
+    to_setup: "Zurück zur Einrichtung",
 
     scan_hint: "Halte die Kamera auf den Code am Rechner",
     scan_private: "Das Bild bleibt auf diesem Gerät. Betula liest nur, ob ein Code darin ist.",
@@ -157,6 +160,7 @@ pub const EN: Texts = Texts {
     no_phone_way: "Enter the recovery code",
     came: |name| format!("“{name}” is now on this device too."),
     done: "Done",
+    to_setup: "Back to the set-up",
 
     scan_hint: "Hold the camera to the code on the computer",
     scan_private: "The picture stays on this device. Betula only reads whether a code is in it.",

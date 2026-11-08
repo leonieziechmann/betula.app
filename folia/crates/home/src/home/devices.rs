@@ -12,7 +12,8 @@
 //!   round, since a laptop has no camera to scan with (owner, 2026-11-08: „Oh der pc prozess muss
 //!   anders sein. Da muss ein link kommen wie betula.app/pair wo dann der qr code gezeigt wird, den
 //!   man am handy scannen kann um sich einzuloggen"): the address to open on the laptop, `/pair`,
-//!   which shows a code that this phone scans (`folia_profile::pair`).
+//!   which shows a code that this phone scans (`folia_profile::pair`), with Betula's own scanner
+//!   (`/sync?from=setup`, which leads back here once the code is answered).
 //! - **Joined**: once one more device of the profile is online than when the link was made, the
 //!   other device has the profile; „Noch ein Gerät verbinden" makes another link.
 //!
@@ -165,6 +166,10 @@ pub fn DevicesStep(on_finish: Callback<()>) -> impl IntoView {
                     <p>{s.elsewhere_open}</p>
                     <p class="ob-address"><Icon name="monitor"/><code translate="no">{address.clone()}</code></p>
                     <p>{s.elsewhere_scan}</p>
+                    // Betula's own scanner (`/sync`), so that the code comes to this app's profile:
+                    // the camera app opens it in the browser, which on an iPhone keeps its own
+                    // storage apart from an app on the home screen.
+                    <a class="btn primary ob-scan" href=t.path(&folia_routes::url::connect_from_setup()) rel="nofollow" data-command=""><Icon name="scan-line"/>{s.scan_here}</a>
                 </div>
             }
             .into_any(),
@@ -178,7 +183,9 @@ pub fn DevicesStep(on_finish: Callback<()>) -> impl IntoView {
 
     let actions = move || {
         if synced.get() {
-            return view! { <button type="button" class="btn primary ob-finish" on:click=finish data-command=""><Icon name="check"/>{s.finish}</button> }.into_any();
+            // While the phone's scanner is the way on, it is the step's one confirming button.
+            let quiet = link.with(|link| *link == Link::Elsewhere) && !joined.get();
+            return view! { <button type="button" class="btn ob-finish" class:primary=!quiet on:click=finish data-command=""><Icon name="check"/>{s.finish}</button> }.into_any();
         }
         let starting = state.with(|state| *state == State::Starting);
         let label = if starting {

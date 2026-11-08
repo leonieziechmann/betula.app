@@ -31,9 +31,10 @@ enum Step {
 }
 
 /// The question for the request `fragment` (what followed `#` in its link); `back` leaves it
-/// unanswered.
+/// unanswered. `to_setup`: the scanner was opened from the start page's setup, and once answered
+/// the way leads back there (its last step then says „Verbunden").
 #[component]
-pub fn GiveRequest(fragment: String, #[prop(into)] back: Callback<()>) -> impl IntoView {
+pub fn GiveRequest(fragment: String, #[prop(into)] back: Callback<()>, #[prop(optional)] to_setup: bool) -> impl IntoView {
     let t = i18n::t();
     let c = &t.scan;
     let (Some(sync), Some(profiles)) = (Sync::expect(), Profiles::expect()) else { return ().into_any() };
@@ -131,7 +132,11 @@ pub fn GiveRequest(fragment: String, #[prop(into)] back: Callback<()>) -> impl I
     let ways = move || {
         view! {
             <nav class="pf-ways">
-                <a class="btn primary" href=t.path(url::PROFILE) rel="nofollow"><Icon name="check"/><span>{c.done}</span></a>
+                {if to_setup {
+                    view! { <a class="btn primary" href=t.path(url::HOME) rel="nofollow"><Icon name="arrow-left"/><span>{c.to_setup}</span></a> }.into_any()
+                } else {
+                    view! { <a class="btn primary" href=t.path(url::PROFILE) rel="nofollow"><Icon name="check"/><span>{c.done}</span></a> }.into_any()
+                }}
             </nav>
         }
     };

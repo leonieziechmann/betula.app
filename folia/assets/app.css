@@ -7823,6 +7823,9 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .ob-address { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); }
 .ob-address .icon { flex: none; width: 20px; height: 20px; color: var(--accent-ink); }
 .ob-address code { font-size: 18px; font-weight: 650; letter-spacing: -.01em; overflow-wrap: anywhere; user-select: all; }
+.ob-scan { justify-self: start; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 2px; text-decoration: none; }
+.ob-scan:hover { text-decoration: none; }
+.ob-scan .icon { width: 18px; height: 18px; }
 .ob-actions .ob-activate[aria-disabled="true"] { opacity: .7; cursor: progress; }
 
 /* The note after the setup. */
@@ -7986,6 +7989,7 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
   .ob-actions { flex-direction: column; align-items: stretch; gap: 2px; }
   .ob-actions .ob-create, .ob-actions .ob-next, .ob-actions .ob-activate, .ob-actions .ob-finish { order: -1; min-height: 46px; }
   .ob-actions .ob-without, .ob-actions .ob-later { align-self: center; }
+  .ob-scan { justify-self: stretch; justify-content: center; min-height: 46px; }
   /* The link comes to a computer by its address: the link and „Link kopieren" first, the code
      smaller under them. */
   .ob-fill .pf-pair-text { order: -1; }
