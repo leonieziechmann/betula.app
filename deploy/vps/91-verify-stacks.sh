@@ -12,7 +12,8 @@
 # Changes nothing, and writes one file: /run/betula/metrics/verify-probes.prom, the time of its
 # probes, for which the rule "Phloem: its firewall drops connections" keeps quiet for 15 minutes
 # (they test exactly that). The only traffic it causes: a few requests to the site (which also
-# put fresh lines into Traefik's access log for the Loki check), queries inside the monitoring
+# put fresh lines into Traefik's access log for the Loki check; one is a calendar subscription's
+# address that names nothing, which Folia asks Phloem for), queries inside the monitoring
 # stack, and the probes: a TCP handshake from inside each container to each other service, to the
 # internet (NETPROBE_INTERNET, default 1.1.1.1:443) and one GET of Traefik's metrics.
 #
@@ -477,8 +478,39 @@ check_models() {
   fi
 }
 
+# check_feed INSTANCE URL - the address of a calendar subscription that stays current carries its
+# key (/calendar/s/<id ‖ key>.ics): it answers without the password, as a calendar app sends none,
+# and leaves no line in Traefik's access log (the router <stack>-feed, README.md section 15). One
+# that names nothing is asked (Folia asks Phloem for it: 404), then a logged request beside it; once
+# that one is in the log, the first would be there too if anything logged it.
+check_feed() {
+  local name=$1 url=$2 link mark code logs i
+  link="$(openssl rand -base64 48 | tr '+/' '-_' | tr -d '=\n')"
+  mark="$(openssl rand -hex 16)"
+  code="$(curl -sS -k -o /dev/null --max-time 15 -w '%{http_code}' "${url}/calendar/s/${link}.ics" 2>/dev/null || true)"
+  case "${code}" in
+    404) pass "${name}: a calendar subscription's address that names nothing -> 404 without the password" ;;
+    503) warning "${name}: a calendar subscription's address -> 503: no snapshot yet, or Phloem unreachable (docker service logs ${INSTANCE_STACK}_folia 2>&1 | grep calendar.part_unreachable)" ;;
+    *) fail "${name}: ${url}/calendar/s/<a link>.ics -> ${code:-no answer} without the password, expected 404: calendar apps send no cookie (folia/crates/server/src/access.rs)" ;;
+  esac
+  curl -sS -k -o /dev/null --max-time 15 "${url}/livez?verify=${mark}" 2>/dev/null || true
+  logs=""
+  for i in 1 2 3 4 5 6; do
+    logs="$(docker service logs --since 3m edge_traefik 2>&1 || true)"
+    if [[ "${logs}" == *"${mark}"* ]]; then break; fi
+    sleep 2
+  done
+  if [[ "${logs}" != *"${mark}"* ]]; then
+    warning "${name}: cannot tell whether Traefik logs a calendar subscription's address: the request beside it (/livez?verify=${mark}) is not in 'docker service logs edge_traefik' either"
+  elif [[ "${logs}" == *"${link}"* ]]; then
+    fail "${name}: Traefik's access log holds a calendar subscription's address, key and all: the router ${INSTANCE_STACK}-feed is missing or writes one (docker service inspect ${INSTANCE_STACK}_folia; bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+  else
+    pass "${name}: a calendar subscription's address leaves no line in Traefik's access log, the request beside it does (router ${INSTANCE_STACK}-feed)"
+  fi
+}
+
 check_app() {
-  section "application (every instance in stacks/*.env: router, release, crawling, models, certificate, alive, closed testing)"
+  section "application (every instance in stacks/*.env: router, release, crawling, models, certificate, alive, closed testing, calendar subscriptions)"
   local name url rule radix_tag folia_tag radix_args radix_mode code out body path live deployed=0
   MODELS_STORE_READY="no"
   read_model_lock
@@ -601,6 +633,8 @@ check_app() {
       code="$(curl -sS -k -o /dev/null --max-time 15 -H 'Accept: text/html' -w '%{http_code}' "${url}/" 2>/dev/null || true)"
       if [[ "${code}" == "200" || "${code}" == "503" ]]; then pass "${name}: ${url}/ -> ${code}"; else fail "${name}: ${url}/ -> ${code:-no answer}"; fi
     fi
+
+    check_feed "${name}" "${url}"
   done < <(instance_names)
   if [[ "${deployed}" -eq 0 ]]; then
     warning "no instance of the application is deployed (from the workstation: deploy/ship.sh canary)"

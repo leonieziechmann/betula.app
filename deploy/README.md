@@ -1087,7 +1087,9 @@ is wanted, the other side gets nothing out of it:
   of their own per web server (`stacks/betula.yml`, `<stack>-feed`) writes no access log (Traefik's
   observability per router), and stands `FEED_LIFT` above the web server's router (`vps/lib-stacks.sh`;
   50-app.sh deploys it so, 55-switch.sh moves it with the colour), so that such an address never
-  reaches a router that writes one, and the live colour serves it.
+  reaches a router that writes one, and the live colour serves it. `91-verify-stacks.sh app` asks
+  one that names nothing (404 without the password) and finds no line of it in Traefik's log, while
+  a request beside it is there.
 - What stays: Cortex can reach the Radix of every instance (it serves them all), Grafana could write
   to Prometheus, and a service on a network with Traefik reaches its public ports like anybody on the
   internet does.
