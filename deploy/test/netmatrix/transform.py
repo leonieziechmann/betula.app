@@ -8,7 +8,8 @@ Kept exactly: the services, their networks, the networks of the file, the Traefi
 images stay for Traefik, its socket proxy, Prometheus, the scraper and Alloy (the metrics
 entrypoint's allow list, the remote writes, Alloy's textfile collectors); every other service
 becomes a stand-in (netmatrix/standin.sh on alpine) that answers on its ports. Bind mounts of
-/opt/betula/config come from WORKDIR/config (a copy), secrets go, logging goes (the journald driver
+/opt/betula/config come from WORKDIR/config (a copy), the scraper's targets from WORKDIR/scraper
+(written by vps/files/betula-scraper-targets.sh), secrets go, logging goes (the journald driver
 needs a journal), every service gets endpoint_mode dnsrr (no virtual address: on some hosts, this
 sandbox among them, IPVS does not work, and the probes use task addresses anyway), and Traefik's
 ports move to 18080 and 18443.
@@ -43,6 +44,8 @@ def remap_source(source, work):
         return work + "/config/" + source[len("/opt/betula/config/"):]
     if source == "/var/log/journal":
         return work + "/journal"
+    if source == "/var/lib/betula/scraper":
+        return work + "/scraper"
     return source
 
 

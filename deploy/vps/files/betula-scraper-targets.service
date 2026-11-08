@@ -1,0 +1,25 @@
+# Installed by /opt/betula/vps/30-docker.sh as /etc/systemd/system/betula-scraper-targets.service.
+# Started every minute by betula-scraper-targets.timer, and right away by the scripts that deploy or
+# remove an instance: writes the Radix of every instance that runs to
+# /var/lib/betula/scraper/radix.json, the targets of the scraper's job radix
+# (files/betula-scraper-targets.sh says why a file). By hand:
+#   sudo systemctl start betula-scraper-targets.service
+
+[Unit]
+Description=Betula: the scraper's targets, from what swarm runs
+Documentation=file:///opt/betula/vps/files/betula-scraper-targets.sh
+After=docker.service
+# Do not start Docker for it; without the daemon the last list stays.
+Requisite=docker.service
+
+[Service]
+Type=oneshot
+# Root, for the Docker API (group docker would be root-equivalent as well). It reads, and writes
+# nothing but its file below /var/lib/betula/scraper.
+ExecStart=/usr/local/sbin/betula-scraper-targets
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=read-only
+TimeoutStartSec=50s
+Nice=10

@@ -31,32 +31,31 @@ scrape_configs:
       - targets: ["edge_traefik:8082"]
 
   # Radix, the collector, of every instance (stacks/betula.yml puts it on cortex_<instance>, with
-  # Cortex and the scraper): GET /metrics, for the dashboard "Radix". Found by DNS, not listed:
-  # tasks.<service> names the running task, and the name of an instance that does not run does not
-  # resolve, so it is no target at all instead of a target that is down (rule "Monitoring target
-  # is down").
-  # A new instance file (stacks/<instance>.env) needs its line here, and its network cortex_<name>
+  # Cortex and the scraper): GET /metrics, for the dashboard "Radix". The instances that run are
+  # listed by the host: betula-scraper-targets (vps/files/betula-scraper-targets.sh, every minute
+  # and right after a deploy or removal) writes /var/lib/betula/scraper/radix.json, mounted here
+  # read-only (stacks/monitoring.yml), with tasks.<stack>_radix.:8090 for every service
+  # <stack>_radix on cortex_<stack>. An instance that does not run is no target at all instead of
+  # a target that is down (rule "Monitoring target is down"); one that is removed leaves the list,
+  # and its series end. A new instance needs no line here, only its network cortex_<name>
   # (vps/files/networks.conf, stacks/monitoring.yml).
-  # The names end with a dot. The container's resolv.conf says "search .", so a name without one
-  # is also asked as "tasks.canary_radix..", which Docker's DNS answers with an error instead of
-  # "no such name", and the targets found before are kept: a colour canary-agent.sh removed
-  # stayed a target that is down, until a restart, and "Monitoring target is down" fired for it
-  # (canary-green for two days, until 2026-10-04). Asked as they are, a name that does not resolve
-  # is no target any more.
+  # Not found by DNS any more (dns_sd_configs, until 2026-11-08): on internal networks alone, as
+  # the scraper is since README.md section 15, Docker's DNS answers a name it does not know with
+  # SERVFAIL, not "no such name" (it cannot ask upstream). Prometheus keeps the targets of a name
+  # whose lookup fails, and a reload keeps them as well, so a colour canary-agent.sh removed stayed
+  # a target that is down until the scraper restarted, and "Monitoring target is down" fired for
+  # it (canary-green, 2026-11-08; the same before 2026-10-04, then from the search list).
+  # The names in the file end with a dot: the container's resolv.conf says "search .", and a name
+  # without one would also be asked as "tasks.canary_radix..".
   - job_name: radix
-    dns_sd_configs:
-      - names:
-          - tasks.betula_radix.
-          - tasks.betula-green_radix.
-          - tasks.canary_radix.
-          - tasks.canary-green_radix.
-        type: A
-        port: 8090
+    file_sd_configs:
+      - files: [/etc/prometheus/targets/radix.json]
+        # The rename is seen at once; this is in case a watch got lost.
         refresh_interval: 30s
     relabel_configs:
-      # stack="betula-green", and the same as instance: the address changes with every task.
-      - source_labels: [__meta_dns_name]
-        regex: "tasks\\.(.+)_radix\\.?"
+      # stack="betula-green", and the same as instance (the name in the file, without port).
+      - source_labels: [__address__]
+        regex: "tasks\\.(.+)_radix\\.:8090"
         target_label: stack
       - source_labels: [stack]
         target_label: instance

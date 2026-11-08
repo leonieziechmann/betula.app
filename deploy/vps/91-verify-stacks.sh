@@ -1049,18 +1049,42 @@ check_prometheus() {
       *) fail "up{job=\"${job}\"} is ${value:-unknown}" ;;
     esac
   done
-  # Radix of every instance that runs (job radix, found by DNS: tasks.<stack>_radix; dashboard
-  # "Radix"). An instance without a line in prometheus.yml is not scraped at all.
-  local stack
+  # Radix of every instance that runs (job radix: the instances betula-scraper-targets lists in
+  # /var/lib/betula/scraper/radix.json, vps/files/betula-scraper-targets.sh; dashboard "Radix").
+  # One that runs but is not on the list is not scraped at all.
+  local stack listed age
+  listed="$(cat /var/lib/betula/scraper/radix.json 2>/dev/null || true)"
   for stack in $(instance_names); do
     [[ "$(service_state "${stack}_radix")" == ok* ]] || continue
     value="$(jq -r --arg stack "${stack}" '[.data.result[] | select(.metric.job == "radix" and .metric.stack == $stack) | .value[1]] | if length == 0 then "absent" else (map(tonumber) | min | tostring) end' <<<"${body}" 2>/dev/null || true)"
     case "${value}" in
       1) pass "up{job=\"radix\", stack=\"${stack}\"} = 1" ;;
-      absent) fail "${stack}_radix runs but the scraper does not scrape it: is tasks.${stack}_radix in config/monitoring/scraper.yml, and are the service and monitoring_scraper both on cortex_${stack} (stacks/betula.yml, stacks/monitoring.yml; section netmatrix)?" ;;
-      *) fail "up{job=\"radix\", stack=\"${stack}\"} is ${value:-unknown}: an image from before GET /metrics answers 404 (ship a current one)" ;;
+      absent)
+        if [[ "${listed}" == *"\"tasks.${stack}_radix.:8090\""* ]]; then
+          fail "${stack}_radix runs and is in /var/lib/betula/scraper/radix.json, but the scraper does not scrape it: does it read the file (docker service logs monitoring_scraper 2>&1 | grep -i file; mounted at /etc/prometheus/targets, stacks/monitoring.yml)?"
+        else
+          fail "${stack}_radix runs but is not among the scraper's targets (/var/lib/betula/scraper/radix.json: ${listed:-no file}): is it on cortex_${stack} (stacks/betula.yml; section netmatrix), and does betula-scraper-targets run (sudo systemctl start betula-scraper-targets.service; journalctl -u betula-scraper-targets.service)?"
+        fi
+        ;;
+      *) fail "up{job=\"radix\", stack=\"${stack}\"} is ${value:-unknown}: is monitoring_scraper on cortex_${stack} (stacks/monitoring.yml)? An image from before GET /metrics answers 404 (ship a current one)" ;;
     esac
   done
+  # The other way round: a target of an instance whose Radix is gone, kept by the scraper, which
+  # "Monitoring target is down" then fires for (what discovery by DNS did until 2026-11-08). One
+  # that left the list a moment ago is no longer scraped: its last sample ages, and two scrapes
+  # later its series ends.
+  body="$(mon_get "http://127.0.0.1:9090/api/v1/query?query=$(urlencode 'time() - timestamp(up{job="radix"})')" || true)"
+  while read -r stack age; do
+    [[ -n "${stack}" ]] || continue
+    docker service inspect "${stack}_radix" >/dev/null 2>&1 && continue
+    if [[ "${listed}" == *"\"tasks.${stack}_radix.:8090\""* ]]; then
+      fail "${stack}_radix is gone but still in /var/lib/betula/scraper/radix.json, so the scraper keeps a target that is down (\"Monitoring target is down\"): does betula-scraper-targets run? (systemctl status betula-scraper-targets.timer; sudo systemctl start betula-scraper-targets.service)"
+    elif [[ "${age%.*}" -lt 45 ]]; then
+      fail "${stack}_radix is gone and not in /var/lib/betula/scraper/radix.json, but the scraper still scrapes it (last sample ${age%.*} s ago): does it read the file (docker service logs monitoring_scraper 2>&1 | grep -i file)?"
+    else
+      warning "${stack}_radix is gone and no longer scraped; its series ends two scrapes after it left the list (last sample ${age%.*} s ago)"
+    fi
+  done < <(jq -r '.data.result[] | "\(.metric.stack) \(.value[1])"' <<<"${body}" 2>/dev/null || true)
   # The alert rules and dashboards select on these labels; cAdvisor has to see Docker for them.
   value="$(prom_value 'count(container_last_seen{service="edge_traefik", stack="edge"})' || true)"
   if [[ "${value}" =~ ^[0-9]+$ && "${value}" -gt 0 ]]; then

@@ -510,6 +510,8 @@ deploy_app() {
   [[ "$(tr ' ' '\n' <<<"${attached}" | sed '/^$/d' | sort | tr '\n' ' ')" == "$(printf '%s\n' "edge_${INSTANCE_STACK}" "${INSTANCE_STACK}_snapshot" | sort | tr '\n' ' ')" ]] ||
     die "service ${INSTANCE_STACK}_folia is attached to '${attached% }', not to exactly edge_${INSTANCE_STACK} (Traefik) and ${INSTANCE_STACK}_snapshot (Radix): look at the networks of ${APP_FILE}"
   log "${INSTANCE_STACK}_folia is on ${attached% }: Traefik and its Radix, nothing else"
+  # Its Radix among the scraper's targets now, not within the minute of the timer.
+  scraper_targets_refresh
   wait_for_stack "${INSTANCE_STACK}"
 }
 
