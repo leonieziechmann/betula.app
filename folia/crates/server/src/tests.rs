@@ -1294,7 +1294,11 @@ async fn calendar_services_may_fetch_feeds() {
     let router = crate::router(state(SnapshotStore::new(temp_dir("robots")).unwrap()));
     let (status, _, robots) = request(&router, "/robots.txt", &[]).await;
     let robots = String::from_utf8(robots).unwrap();
-    assert!(status == StatusCode::OK && !robots.contains("calendar") && robots.contains("\nDisallow: /api/\n"), "{robots}");
+    assert!(status == StatusCode::OK && robots.contains("\nDisallow: /api/\n"), "{robots}");
+    // Google's importer is no search engine: it goes by the group for everybody.
+    for feed in ["/calendar/x.ics", "/en/calendar/x.ics"] {
+        assert!(robots_allow(&robots, "Google-Calendar-Importer", feed) && robots_allow(&robots, "Googlebot", feed), "{feed}: {robots}");
+    }
     let (_, _, worker) = request(&router, folia_app::SERVICE_WORKER, &[]).await;
     // The rule it goes by, as the minified worker writes it.
     assert!(String::from_utf8(worker).unwrap().contains("=/^\\/(api\\/|access|sw\\.js$|([a-z]{2}\\/)?(cards|calendar)\\/)/"));
@@ -1388,7 +1392,7 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
     for view in ["/catalog?turnus=winter", "/catalog?turnus=winter&page=2", "/catalog?sort=title", "/catalog?q=analysis", "/catalog?page=2&open=11101", "/en/catalog?form=lecture", "/en/catalog?page=2&sort=ects", "/programs?level=master", "/en/programs?plan=1", "/bookmarks?turnus=winter", "/api/db", "/api/status"] {
         assert!(!robots_allow(&robots, "Googlebot", view), "{view}: {robots}");
     }
-    for agent in ["Twitterbot", "LinkedInBot", "facebookexternalhit"] {
+    for agent in crate::api::LINK_PREVIEWS {
         assert!(robots_allow(&robots, agent, "/catalog?turnus=winter") && robots_allow(&robots, agent, "/en/programs?level=master") && !robots_allow(&robots, agent, "/api/status"), "{agent}");
     }
     let (_, _, sitemap) = request(&router, "/sitemap.xml", &[]).await;
@@ -1475,6 +1479,43 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
     assert!(second.contains("rel=\"prev\" href=\"/catalog\"") && second.contains("rel=\"next\" href=\"/catalog?page=3\""), "{second}");
     let (_, _, body) = request(&router, "/catalog?turnus=winter", &[]).await;
     assert!(String::from_utf8(body).unwrap().contains("rel=\"next nofollow\" href=\"/catalog?turnus=winter&amp;page=2\""));
+}
+
+/// Only search engines crawl the site (owner, 2026-11-08): robots.txt gives each of them what it
+/// gives Googlebot, and every other crawler nothing but the calendar feeds. The crawler filter in
+/// front of the site (`deploy/config/traefik/dynamic/crawlers.yml`) serves exactly these search
+/// engines and link previews and turns every other crawler away: its list and this one are the same.
+#[tokio::test(flavor = "multi_thread")]
+async fn only_search_engines_are_invited() {
+    let router = crate::router(state(SnapshotStore::new(temp_dir("robots-invited")).unwrap()));
+    let (status, _, robots) = request(&router, "/robots.txt", &[]).await;
+    let robots = String::from_utf8(robots).unwrap();
+    assert_eq!(status, StatusCode::OK);
+    for agent in crate::api::SEARCH_ENGINES {
+        for address in ["/", "/en", "/catalog?page=2", "/catalog/module/11101", "/en/about/overview", "/calendar/x.ics", "/catalog?turnus=winter", "/api/status"] {
+            assert_eq!(robots_allow(&robots, agent, address), robots_allow(&robots, "Googlebot", address), "{agent} {address}: {robots}");
+        }
+    }
+    for agent in ["GPTBot", "ClaudeBot", "CCBot", "Bytespider", "Amazonbot", "AhrefsBot", "SemrushBot", "YandexBot", "GoogleOther"] {
+        assert!(!robots_allow(&robots, agent, "/") && !robots_allow(&robots, agent, "/catalog/module/11101") && !robots_allow(&robots, agent, "/sitemap.xml"), "{agent}: {robots}");
+        assert!(robots_allow(&robots, agent, "/calendar/x.ics") && robots_allow(&robots, agent, "/en/calendar/x.ics"), "{agent}: {robots}");
+    }
+
+    let filter = std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../deploy/config/traefik/dynamic/crawlers.yml")).unwrap();
+    let served = filter
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("&& !HeaderRegexp(`User-Agent`, `(?i)("))
+        .and_then(|rest| rest.split(')').next())
+        .expect("crawlers.yml names those it serves");
+    let served: Vec<&str> = served.split('|').collect();
+    let invited: Vec<String> = crate::api::SEARCH_ENGINES.iter().chain(crate::api::LINK_PREVIEWS).map(|agent| agent.to_ascii_lowercase()).collect();
+    for agent in &invited {
+        assert!(served.contains(&agent.as_str()), "robots.txt invites {agent}, crawlers.yml turns it away ({served:?})");
+    }
+    // "cubot" is a maker of phones whose name holds "bot", not a crawler.
+    for agent in served.iter().filter(|agent| **agent != "cubot") {
+        assert!(invited.iter().any(|invited| invited == agent), "crawlers.yml serves {agent}, robots.txt does not invite it");
+    }
 }
 
 /// A server with more work than places (`busy`): a page that finds no place within the wait is

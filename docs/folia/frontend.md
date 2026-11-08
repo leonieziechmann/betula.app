@@ -4645,6 +4645,15 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   shared, so their group disallows `/api/` alone: a filtered list shared there keeps its card.
   `crawlers_are_led_to_pages_and_kept_out_of_views` (server) reads robots.txt as Google does and
   fails on any link of the site's pages that a crawler may follow to a view.
+- **Only search engines crawl** (owner, 2026-11-08: „alle crawler außer search engines von der
+  auslieferung ausschließt. Also nur google, bing, duck duck go etc."): those rules are a group
+  for the search engines (`api::SEARCH_ENGINES`: Google, Bing, DuckDuckGo, Apple, Qwant/Ecosia,
+  Brave, Mojeek), the link previews have theirs (`api::LINK_PREVIEWS`), and every other agent gets
+  `Disallow: /` with the calendar feeds open, as in closed testing. A crawler that keeps to it stops
+  asking; one that does not gets 403 from Traefik before it reaches Folia
+  (`deploy/config/traefik/dynamic/crawlers.yml`, which names the same agents and says who and why;
+  `deploy/test/crawlers.sh` checks it in a real Traefik). `only_search_engines_are_invited`
+  (server) holds robots.txt and that file to the same list.
 - **Titles start with what people search for**: „<Modultitel> (<Nummer>) · Modul der BTU
   Cottbus-Senftenberg · Betula", „<Studiengang> (<Abschluss>): Regelstudienplan · BTU
   Cottbus-Senftenberg · Betula" (each view of a program has its own title).
