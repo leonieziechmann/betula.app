@@ -1922,3 +1922,105 @@ async fn a_page_in_english_stays_in_english() {
     let (_, _, german) = request(&router, folia_app::OG_IMAGE, &[]).await;
     assert!(status == StatusCode::OK && picture.starts_with(b"\x89PNG") && picture != german, "the standard picture in English");
 }
+
+/// What a page runs inline, by the policy's names (`csp`): every `<script>` without `src` that is a
+/// script (not a block of data such as `application/ld+json`) and every `<style>`, as the
+/// browser hashes them.
+fn inline_parts(html: &str) -> Vec<(&'static str, String)> {
+    let mut parts = Vec::new();
+    for (open, close) in [("<script", "</script>"), ("<style", "</style>")] {
+        let mut rest = html;
+        while let Some(at) = rest.find(open) {
+            let tag_and_more = &rest[at..];
+            let Some(tag_end) = tag_and_more.find('>') else { break };
+            let tag = &tag_and_more[..tag_end];
+            let body = &tag_and_more[tag_end + 1..];
+            let Some(body_end) = body.find(close) else { break };
+            let data = tag.contains("type=\"application/ld+json\"") || tag.contains("type=\"application/json\"");
+            if !tag.contains(" src=") && !data {
+                use base64::Engine;
+                use sha2::Digest;
+                let hash = format!("'sha256-{}'", base64::engine::general_purpose::STANDARD.encode(sha2::Sha256::digest(&body.as_bytes()[..body_end])));
+                parts.push((if open == "<script" { "script" } else { "style" }, hash));
+            }
+            rest = &body[body_end..];
+        }
+    }
+    parts
+}
+
+/// Every HTML answer carries the Content-Security-Policy (`csp`), and the policy names every script
+/// and style a page writes inline: a page with one it does not name would have it refused by the
+/// browser. The pages with a snapshot in both languages, the 404, the pages of a server without a
+/// snapshot (503), and the login page of closed testing. Files, feeds and data go without.
+#[tokio::test(flavor = "multi_thread")]
+async fn every_page_runs_only_what_its_policy_names() {
+    let router = crate::router(state(store_with("csp", &snapshot_file())));
+    let (_, _, overview) = request(&router, "/programs", &[]).await;
+    let overview = String::from_utf8(overview).unwrap();
+    let slug = overview.split("href=\"/programs/").nth(1).and_then(|rest| rest.split(['/', '"', '?']).next()).unwrap().to_string();
+    let (_, _, catalog) = request(&router, "/catalog", &[]).await;
+    let catalog = String::from_utf8(catalog).unwrap();
+    let module = catalog.split("href=\"/catalog/module/").nth(1).and_then(|rest| rest.split(['"', '?']).next()).unwrap().to_string();
+    let mut pages = vec![
+        "/".to_string(),
+        "/catalog".to_string(),
+        format!("/catalog/module/{module}"),
+        "/programs".to_string(),
+        format!("/programs/{slug}/plan"),
+        format!("/programs/{slug}/areas"),
+        "/bookmarks".to_string(),
+        "/studyplan".to_string(),
+        "/study".to_string(),
+        folia_routes::url::PROFILE.to_string(),
+        folia_routes::url::CONNECT.to_string(),
+        folia_routes::url::IMPRINT.to_string(),
+        folia_routes::url::PRIVACY.to_string(),
+        an_event_page(),
+        "/about/overview".to_string(),
+    ];
+    pages.extend(pages.clone().iter().map(|page| folia_locale::Locale::En.path(page)));
+    pages.push("/no-such-page".to_string());
+
+    let gated = {
+        let mut state = state(SnapshotStore::new(temp_dir("csp-gate")).unwrap());
+        state.gate = Some(Arc::new(crate::access::Gate::new("birke im tagebau")));
+        crate::router(state)
+    };
+    let empty = crate::router(state(SnapshotStore::new(temp_dir("csp-empty")).unwrap()));
+    let mut answers = Vec::new();
+    for page in &pages {
+        answers.push((page.clone(), request(&router, page, &[]).await));
+    }
+    answers.push(("/access (closed testing)".to_string(), request(&gated, crate::access::PATH, &[]).await));
+    answers.push(("/programs (no snapshot)".to_string(), request(&empty, folia_routes::url::PROGRAMS, &[]).await));
+
+    let mut problems = Vec::new();
+    let (mut scripts, mut styles) = (std::collections::BTreeSet::new(), std::collections::BTreeSet::new());
+    for (page, (status, headers, body)) in answers {
+        assert!(matches!(status.as_u16(), 200 | 404 | 503), "{page}: {status}");
+        assert!(headers[header::CONTENT_TYPE].to_str().unwrap().starts_with("text/html"), "{page}");
+        let Some(policy) = headers.get(header::CONTENT_SECURITY_POLICY).and_then(|value| value.to_str().ok()) else {
+            problems.push(format!("{page}: no Content-Security-Policy"));
+            continue;
+        };
+        let directive = |name: &str| policy.split("; ").find(|directive| directive.split(' ').next() == Some(name)).unwrap_or_default().to_string();
+        for (kind, hash) in inline_parts(&String::from_utf8(body).unwrap()) {
+            let allowed = directive(if kind == "script" { "script-src" } else { "style-src-elem" });
+            if !allowed.split(' ').any(|source| source == hash) {
+                problems.push(format!("{page}: an inline {kind} {hash} the policy does not name"));
+            }
+            if kind == "script" { scripts.insert(hash) } else { styles.insert(hash) };
+        }
+    }
+    problems.dedup();
+    assert!(problems.is_empty(), "{} problems:\n{}", problems.len(), problems.join("\n"));
+    // The pages do write their inline scripts (else the check above found nothing to check), and
+    // the policy names no more than they write.
+    assert_eq!((scripts.len(), styles.len()), (folia_app::inline_scripts().len(), folia_app::INLINE_STYLES.len()), "{scripts:?} {styles:?}");
+
+    for path in ["/assets/boot.js?v=test", "/api/status", folia_app::MANIFEST, "/robots.txt", "/sitemap.xml"] {
+        let (status, headers, _) = request(&router, path, &[]).await;
+        assert!(status == StatusCode::OK && !headers.contains_key(header::CONTENT_SECURITY_POLICY), "{path}: {status}");
+    }
+}

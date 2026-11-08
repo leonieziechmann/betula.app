@@ -18,6 +18,7 @@ mod busy;
 mod cache;
 mod cards;
 mod config;
+mod csp;
 mod encoding;
 mod lastmod;
 mod launch;
@@ -332,6 +333,10 @@ pub fn files() -> Router<AppState> {
 }
 
 pub fn router(state: AppState) -> Router {
+    // The Content-Security-Policy of every HTML answer, made once from what the server was started
+    // with (`csp`). Its text is ASCII by construction; should it ever not be, the strictest one.
+    let policy = HeaderValue::try_from(csp::policy(&state.public_url, state.sync.as_deref()))
+        .unwrap_or_else(|_| HeaderValue::from_static("default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"));
     Router::new()
         .route("/de", get(language_redirect))
         .route("/de/", get(language_redirect))
@@ -351,6 +356,7 @@ pub fn router(state: AppState) -> Router {
         // Around everything above, the page cache included; the access log sees what it turns away.
         .layer(middleware::from_fn_with_state(state.clone(), access::gate))
         .layer(middleware::from_fn_with_state(state.clone(), access_log))
+        .layer(middleware::from_fn_with_state(policy, csp::send))
         .with_state(state)
 }
 
