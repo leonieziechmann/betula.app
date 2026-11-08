@@ -58,17 +58,19 @@ groups:
             | drop host, ua
             [1h]))
 
-      # Every request to betula.app of the last hour: who = Google, other crawlers or everything
-      # else (people, scanners, tools); crawler = the crawler's name from its user agent (the word
-      # with bot/crawl/spider), empty for everything else.
+      # Every request to betula.app of the last hour: who = crawlers turned away (403 from the
+      # crawler filter, config/traefik/dynamic/crawlers.yml), Google, other crawlers (the other
+      # search engines and the link previews, which are served) or everything else (people,
+      # scanners, tools); crawler = the crawler's name from its user agent (the word with
+      # bot/crawl/spider), empty for everything else, turned away or not.
       - record: betula:requests:1h
         expr: |
           sum by (who, crawler) (count_over_time(
             {service="edge_traefik"} |= `"RequestHost":"betula.app"`
             | regexp `"request_User-Agent":"[^"]*?(?P<crawler>[A-Za-z0-9._-]*(?i:bot|crawl|spider)[A-Za-z0-9._-]*)`
-            | json host="ClientHost", ua=`["request_User-Agent"]`
-            | label_format crawler=`{{ if contains "Nexus 5X Build/MMB29P" .ua }}{{ if contains "Googlebot" .ua }}Googlebot{{ else }}Google renderer{{ end }}{{ else }}{{ .crawler }}{{ end }}`
-            | label_format who=`{{ if or (contains "Google" .crawler) (hasPrefix "66.249." .host) }}Google{{ else if .crawler }}other crawlers{{ else }}everything else{{ end }}`
+            | json host="ClientHost", ua=`["request_User-Agent"]`, router="RouterName"
+            | label_format crawler=`{{ if contains "Nexus 5X Build/MMB29P" .ua }}{{ if contains "Googlebot" .ua }}Googlebot{{ else if contains "GoogleOther" .ua }}GoogleOther{{ else }}Google renderer{{ end }}{{ else }}{{ .crawler }}{{ end }}`
+            | label_format who=`{{ if eq .router "edge-crawlers@file" }}crawlers turned away{{ else if or (contains "Google" .crawler) (hasPrefix "66.249." .host) }}Google{{ else if .crawler }}other crawlers{{ else }}everything else{{ end }}`
             | keep who, crawler
             [1h]))
 
