@@ -19,12 +19,14 @@
 #            each rendered from the real file and changed by netmatrix/transform.py: real
 #            Traefik, socket proxy, Prometheus, scraper and Alloy (the part of config.alloy that
 #            reads Phloem's file), stand-ins for the rest; Phloem's firewall (phloem/deploy/firewall.nft)
-#            loaded into its stand-in, and the guard run once
+#            loaded into its stand-in, and the guard run once; the scraper's targets written once
+#            (vps/files/betula-scraper-targets.sh, which the server runs every minute)
 #   check    vps/91-verify-stacks.sh netmatrix phloem (no FAIL), the routes through Traefik
 #            (per site, /sync/v1/ above Folia, sync-ratelimit), folia_status of lib-stacks.sh,
 #            what Prometheus has (up of every job, phloem_up, the guard); then two mutations
 #            that the checks must catch: a web server on a network too many, Phloem without its
-#            firewall
+#            firewall; and an instance removed (canary), whose Radix must leave the scraper's
+#            targets instead of staying a target that is down (deployed again afterwards)
 #   down     the stacks, the networks of the plan, /run/betula/phloem, the work directory
 #
 # The stack names are the real ones (edge, monitoring, ...), as the plan names services by them:
@@ -133,7 +135,7 @@ sys.exit(0 if {names[n] for n in f} == {"edge_betula", "betula_snapshot"} and {n
 workdir() {
   step "Work directory ${NETMATRIX_DIR}"
   rm -rf -- "${NETMATRIX_DIR}"
-  mkdir -p "${NETMATRIX_DIR}/standin" "${NETMATRIX_DIR}/journal" "${NETMATRIX_DIR}/stacks"
+  mkdir -p "${NETMATRIX_DIR}/standin" "${NETMATRIX_DIR}/journal" "${NETMATRIX_DIR}/stacks" "${NETMATRIX_DIR}/scraper"
   cp "${TEST_DIR}/netmatrix/standin.sh" "${NETMATRIX_DIR}/standin/standin.sh"
   cp -a "${DEPLOY_DIR}/config" "${NETMATRIX_DIR}/config"
   # Traefik's default certificate instead of none: without ACME there is no certificate, and the
@@ -175,6 +177,10 @@ deploy() {
   log "deployed ${stack} ($*)"
 }
 
+deploy_canary() {
+  deploy canary STACK_NAME=canary APP_HOST=canary.betula.app FOLIA_ACCESS_GATE=on RADIX_IMAGE=alpine:3.22 FOLIA_IMAGE=alpine:3.22 ROUTER_PRIORITY=0 -- betula.yml betula.cortex.yml betula.egress.yml
+}
+
 stacks_up() {
   step "The stacks, with stand-ins"
   local common=(ACME_CASERVER=https://127.0.0.1:9/directory MONITORING_CONFIG_REV=netmatrix PLACEHOLDER_CONFIG_REV=netmatrix)
@@ -183,7 +189,7 @@ stacks_up() {
   deploy monitoring "${common[@]}" GRAFANA_HOST=grafana.betula.app -- monitoring.yml monitoring.public.yml
   deploy cortex CORTEX_IMAGE=alpine:3.22 CORTEX_REV=netmatrix -- cortex.yml
   deploy betula STACK_NAME=betula APP_HOST=betula.app FOLIA_ACCESS_GATE=on RADIX_IMAGE=alpine:3.22 FOLIA_IMAGE=alpine:3.22 ROUTER_PRIORITY=0 -- betula.yml betula.cortex.yml
-  deploy canary STACK_NAME=canary APP_HOST=canary.betula.app FOLIA_ACCESS_GATE=on RADIX_IMAGE=alpine:3.22 FOLIA_IMAGE=alpine:3.22 ROUTER_PRIORITY=0 -- betula.yml betula.cortex.yml betula.egress.yml
+  deploy_canary
   env STACK_NAME=phloem APP_HOST=betula.app NETMATRIX_DIR="${NETMATRIX_DIR}" docker stack deploy --detach=true -c "${TEST_DIR}/netmatrix/phloem.yml" phloem >/dev/null
   log "deployed phloem (netmatrix/phloem.yml, the stand-in)"
   local stack
@@ -208,6 +214,13 @@ phloem_firewall_up() {
   fi
   bash "${DEPLOY_DIR}/vps/files/betula-phloem-guard.sh"
   sed 's/^/  /' /run/betula/metrics/phloem-guard.prom | grep -v '^  #'
+}
+
+# The scraper's targets, as betula-scraper-targets writes them on the server (every minute there),
+# into the directory the harness's scraper mounts (transform.py).
+scraper_targets() {
+  BETULA_SCRAPER_TARGETS_DIR="${NETMATRIX_DIR}/scraper" bash "${DEPLOY_DIR}/vps/files/betula-scraper-targets.sh"
+  log "the scraper's targets: $(cat "${NETMATRIX_DIR}/scraper/radix.json")"
 }
 
 # ---------------------------------------------------------------- check
@@ -305,7 +318,7 @@ check_prometheus() {
   step "What Prometheus has (after a minute of scrapes and remote writes)"
   local query value
   for _ in $(seq 1 24); do
-    [[ "$(prom 'min(up{job="traefik"})')" == "1" && -n "$(prom 'max(phloem_up)')" && -n "$(prom 'max(betula_phloem_guard_firewall)')" ]] && break
+    [[ "$(prom 'min(up{job="traefik"})')" == "1" && "$(prom 'count(up{job="radix"} == 1)')" == "2" && -n "$(prom 'max(phloem_up)')" && -n "$(prom 'max(betula_phloem_guard_firewall)')" ]] && break
     sleep 5
   done
   for query in 'min(up{job="scraper"})' 'min(up{job="traefik"})' 'min(up{job="radix", stack="betula"})' \
@@ -356,6 +369,44 @@ check_mutations() {
   fi
 }
 
+# What the scraper did with discovery by DNS until 2026-11-08: on internal networks alone Docker's
+# DNS answers a name it does not know with SERVFAIL, Prometheus kept the targets of such a name, and
+# a removed colour stayed a target that is down. The list of betula-scraper-targets drops it, and
+# the scraper ends its series.
+check_removed_instance() {
+  step "An instance removed: its Radix leaves the scraper's targets"
+  local out value="" left
+  out="$(docker exec "$(service_container monitoring_scraper)" nslookup tasks.canary-green_radix. 127.0.0.11 2>&1 || true)"
+  log "Docker's DNS in the scraper, for a name it does not know: $(grep -m 1 -ioE 'SERVFAIL|NXDOMAIN|server failure|can.t find[^:]*' <<<"${out}" || printf 'no answer')"
+  docker stack rm canary >/dev/null
+  scraper_targets
+  if grep -q 'canary_radix' "${NETMATRIX_DIR}/scraper/radix.json"; then
+    bad "betula-scraper-targets still lists canary_radix after docker stack rm canary"
+  fi
+  # The scraper sees the rename at once; the series ends two scrapes (30 s each) later.
+  for _ in $(seq 1 36); do
+    value="$(prom 'count(up{job="radix", stack="canary"})')"
+    [[ -n "${value}" ]] || break
+    sleep 5
+  done
+  if [[ -z "${value}" ]]; then
+    ok "up{job=\"radix\", stack=\"canary\"} is gone after docker stack rm canary (no target that is down)"
+  else
+    bad "up{job=\"radix\", stack=\"canary\"} is still there 3 minutes after docker stack rm canary: the scraper kept the target"
+  fi
+  value="$(prom 'min(up{job="radix", stack="betula"})')"
+  if [[ "${value}" == "1" ]]; then ok "up{job=\"radix\", stack=\"betula\"} = 1 all the while"; else bad "up{job=\"radix\", stack=\"betula\"} = ${value:-absent} after canary was removed"; fi
+  # Back as it was. A deploy of the same name trips over a network of it that is still there.
+  for _ in $(seq 1 30); do
+    left="$(docker ps -aq --filter label=com.docker.stack.namespace=canary)$(docker network ls -q --filter label=com.docker.stack.namespace=canary)"
+    [[ -n "${left}" ]] || break
+    sleep 2
+  done
+  deploy_canary
+  wait_for_stack canary
+  scraper_targets
+}
+
 # ---------------------------------------------------------------- down
 
 down() {
@@ -392,13 +443,16 @@ case "${what}" in
     networks_up
     stacks_up
     phloem_firewall_up
+    scraper_targets
     ;;
   check)
     phloem_firewall_up
+    scraper_targets
     check_verify
     check_routes
     check_prometheus
     check_mutations
+    check_removed_instance
     ;;
   down) down ;;
   all)
@@ -407,10 +461,12 @@ case "${what}" in
     networks_up
     stacks_up
     phloem_firewall_up
+    scraper_targets
     check_verify
     check_routes
     check_prometheus
     check_mutations
+    check_removed_instance
     [[ "${KEEP:-0}" == "1" ]] || down
     ;;
   *) die "usage: $(basename "$0") [up|check|down|all]" ;;

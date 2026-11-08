@@ -92,8 +92,9 @@ services:
       snapshot: {}
       # cortex_<stack>, the instance's own (vps/files/networks.conf): Cortex at
       # http://cortex_a:8100 and http://cortex_b:8100, and the scraper of the monitoring stack,
-      # which scrapes http://tasks.<stack>_radix:8090/metrics over it (job radix in
-      # config/monitoring/scraper.yml; dashboard "Radix"). No other instance is on it.
+      # which scrapes http://tasks.<stack>_radix.:8090/metrics over it (job radix in
+      # config/monitoring/scraper.yml, listed by the host's betula-scraper-targets while the
+      # service is on this network; dashboard "Radix"). No other instance is on it.
       cortex: {}
     # No ports: nothing but Traefik publishes anything. Without a network that leads out, Radix has
     # no address on docker_gwbridge either; /status for a human, from the scraper, which is on

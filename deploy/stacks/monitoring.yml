@@ -32,9 +32,11 @@
 #                   Login: user "betula" (GRAFANA_ADMIN_USER, see the grafana service) + that password.
 #   - overlay nets  edge_metrics and cortex_<instance> (external, internal; vps/30-docker.sh makes
 #                   them from vps/files/networks.conf)
-#   - directories   /opt/betula/config/monitoring and /var/log/journal (journald Storage=persistent,
-#                   vps/10-base.sh). A missing bind source makes Swarm reject the task ("bind source
-#                   path does not exist"); 40-stacks.sh checks every bind source before it deploys.
+#   - directories   /opt/betula/config/monitoring, /var/log/journal (journald Storage=persistent,
+#                   vps/10-base.sh) and /var/lib/betula/scraper (the scraper's list of Radix targets,
+#                   vps/30-docker.sh). A missing bind source makes Swarm reject the task ("bind
+#                   source path does not exist"); 40-stacks.sh checks every bind source before it
+#                   deploys.
 #
 # No "logging:" key, like the other stacks: the daemon default applies (local driver, rotated).
 # The Docker API can read that driver back, which is how Alloy collects container logs.
@@ -328,6 +330,11 @@ services:
       # The write-ahead log: what Prometheus has not taken yet survives a restart of either.
       - scraper-data:/prometheus
       - /opt/betula/config/monitoring/scraper.yml:/etc/prometheus/prometheus.yml:ro
+      # The Radix of every instance that runs (job radix), written by the host's
+      # betula-scraper-targets (vps/files/betula-scraper-targets.sh) from what swarm runs. A
+      # directory, not the file: the file is replaced by a rename, which a single-file mount would
+      # not show. Outside /opt/betula, which sync.sh mirrors from deploy/; 30-docker.sh makes it.
+      - /var/lib/betula/scraper:/etc/prometheus/targets:ro
     networks:
       relay: {}
       edge_metrics: {}

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 30-docker.sh - Docker Engine, one-node swarm, the overlay networks of files/networks.conf and
-# docker_gwbridge with IPv6, published-port firewall, prune timer, Phloem's guard timer.
+# docker_gwbridge with IPv6, published-port firewall, prune timer, Phloem's guard timer, the
+# scraper's targets timer.
 #
 #   sudo bash /opt/betula/vps/30-docker.sh
 #
@@ -534,6 +535,32 @@ install_phloem_guard() {
   log "written every minute: /run/betula/metrics/phloem-guard.prom"
 }
 
+install_scraper_targets() {
+  step "The scraper's targets: the Radix of every instance that runs, every minute"
+  local changed=0
+  # Bind-mounted read-only into the scraper (stacks/monitoring.yml, job radix of
+  # config/monitoring/scraper.yml). Not in /run: the mount needs it at boot, before any timer ran.
+  # Not below /opt/betula either, which sync.sh mirrors from deploy/.
+  install -d -m 0755 -o root -g root /var/lib/betula/scraper
+  install_file "${BETULA_FILES_DIR}/betula-scraper-targets.sh" /usr/local/sbin/betula-scraper-targets 0755
+  changed=$((changed + INSTALL_CHANGED))
+  install_file "${BETULA_FILES_DIR}/betula-scraper-targets.service" /etc/systemd/system/betula-scraper-targets.service 0644
+  changed=$((changed + INSTALL_CHANGED))
+  install_file "${BETULA_FILES_DIR}/betula-scraper-targets.timer" /etc/systemd/system/betula-scraper-targets.timer 0644
+  changed=$((changed + INSTALL_CHANGED))
+  if [[ "${changed}" -gt 0 ]]; then
+    systemctl daemon-reload
+    if unit_active betula-scraper-targets.timer; then
+      systemctl restart betula-scraper-targets.timer
+    fi
+  fi
+  systemctl enable --now betula-scraper-targets.timer >/dev/null 2>&1
+  # Once now, so that the file is there before the monitoring stack mounts it.
+  systemctl start betula-scraper-targets.service ||
+    warn "betula-scraper-targets did not run cleanly: journalctl -u betula-scraper-targets.service -n 20"
+  log "written every minute: /var/lib/betula/scraper/radix.json ($(cat /var/lib/betula/scraper/radix.json 2>/dev/null || printf 'not yet'))"
+}
+
 report() {
   step "Done"
   log "networks: $(docker network ls --filter driver=overlay --format '{{.Name}}' | tr '\n' ' ')"
@@ -567,5 +594,6 @@ init_swarm
 create_overlay_networks
 install_prune_timer
 install_phloem_guard
+install_scraper_targets
 check_firewall
 report

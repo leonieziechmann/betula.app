@@ -381,6 +381,9 @@ remove_colour() {
   if stack_exists "${name}"; then
     docker stack rm "${name}" >/dev/null
     log "docker stack rm ${name}"
+    # Its Radix off the scraper's targets before its task has even stopped: no sample says it is
+    # down, its series just end (vps/files/betula-scraper-targets.sh).
+    scraper_targets_refresh
   fi
   # Swarm stops the tasks after "stack rm" has returned. A volume can only go once no container
   # uses it, and a deploy of the same name trips over a network that is still there.

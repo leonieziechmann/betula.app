@@ -168,8 +168,9 @@ for `--stale-after`.
 ### Metrics
 
 `GET /metrics` is what the Grafana dashboard „Radix" shows (`deploy/config/monitoring/grafana/dashboards/betula-radix.json`;
-Prometheus job `radix`, which finds every instance's Radix as `tasks.<stack>_radix` on the
-`cortex` overlay). The counters start at zero with the process; the `radix_archive_*` gauges
+Prometheus job `radix`: the monitoring stack's scraper asks every instance's Radix as
+`tasks.<stack>_radix.` over that instance's `cortex_<stack>`, as the host lists the instances that
+run, `deploy/vps/files/betula-scraper-targets.sh`). The counters start at zero with the process; the `radix_archive_*` gauges
 are read from the archive (at most once a minute) and so survive a restart. `source` is a source
 of the archive: `module_catalog` and `module_page` are b-tu.de, `qis_module_list`, `qis_fues_list`,
 `qis_module_page`, `qis_tree`, `qis_event_entry` (the event search) and `qis_event` are QIS.

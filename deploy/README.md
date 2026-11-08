@@ -15,7 +15,7 @@ deploy/
   vps/                    host scripts, run on the server, in the order of their numbers
     10-base.sh            upgrade, user deploy, ufw, fail2ban, unattended-upgrades, journald, sysctl, swap
     20-ssh-lockdown.sh    key-only ssh for deploy, root login off (with automatic rollback until --confirm)
-    30-docker.sh          Docker Engine 29, swarm, the overlay networks of files/networks.conf, published-port filter, Phloem's guard
+    30-docker.sh          Docker Engine 29, swarm, the overlay networks of files/networks.conf, published-port filter, Phloem's guard, the scraper's targets
     40-stacks.sh          swarm secrets, stacks edge -> placeholder -> monitoring, waits for convergence
     45-seed.sh            once per instance, before its first deploy: a Radix database (tar on stdin) into its volume
     47-phloem-host.sh     root, once per Phloem instance: its data file system and its stats tmpfs (section 16)
@@ -163,9 +163,15 @@ Why this order, and what can go wrong:
   cycles and stages, builds and snapshots, warnings and errors by event. Cortex serves every
   instance, so its panels do not follow the Instance filter.
   The scraper (`monitoring_scraper`) reaches every instance's Radix over its `cortex_<instance>`
-  and writes to Prometheus (section 15); a new instance file needs its `tasks.<stack>_radix.` line in
-  `config/monitoring/scraper.yml`. An image from before `/metrics` answers 404 there, so the
-  rule "Monitoring target is down" fires until a current one runs.
+  and writes to Prometheus (section 15). Which instances run, the host tells it:
+  `betula-scraper-targets` (`vps/files/betula-scraper-targets.sh`, a timer every minute, and at once
+  after `50-app.sh`, a removal by `canary-agent.sh` and before `40-stacks.sh monitoring`) writes
+  `/var/lib/betula/scraper/radix.json` from what swarm runs, and the scraper reads it (job `radix`,
+  `file_sd`). A removed instance leaves the list and its series end; a new one needs no line
+  anywhere but its networks. Not by DNS: on internal networks alone Docker's DNS answers a name it
+  does not know with SERVFAIL, and Prometheus kept the removed colour as a target that is down until
+  a restart (2026-11-08). An image from before `/metrics` answers 404 there, so the rule "Monitoring
+  target is down" fires until a current one runs.
 - The dashboard "Cortex" (`betula-cortex.json`, job `cortex`: `cortex_a:8100` and `cortex_b:8100`,
   scraped by the scraper over `cortex_<instance>`) shows which instance leads, the follower's lag and
   missing blobs (`cortex_blobs_missing`), every host's queue, requests in flight and breaker, the clients' requests by
@@ -479,6 +485,7 @@ section 9); `docker service logs edge_traefik` reads them from there.
 | Cortex's leader dies | the follower takes the lock over within about 100 ms and leads; swarm restarts the dead one, which comes back as the follower (after a crash usually from a copy of the leader's index, which drops what it had not passed on). Nothing fails back (section 14) |
 | Cortex's retention | every hour: versions superseded more than 180 days ago, journal entries older than 7 days, blobs nothing references after a 7-day grace |
 | Canary follows master | every two minutes a look at GitHub for a new build of master; one that is there goes to https://canary.betula.app with the public site's data (section 12). Off: `sudo bash /opt/betula/vps/60-canary.sh off` |
+| The scraper's targets | every minute `betula-scraper-targets` lists the Radix of every instance that runs for the scraper (section 2, "Radix"); an instance removed by hand drops out within the minute |
 | Certificates | Traefik renews 30 days before expiry; an alert fires below 14 days |
 | Image cleanup | Sunday 03:30: dangling images and old build cache only, never networks or volumes |
 | ssh bans | fail2ban: 5 failures in 10 min = 1 h, doubling up to a week; sshd penalises per source on top |
@@ -1036,6 +1043,7 @@ networks is not internal, and an internal network leads nowhere but to its membe
 | Grafana → internet | any | `monitoring_notify` | notifications; its address on `docker_gwbridge` (section 2's tunnel) |
 | Alloy → Phloem's numbers | none | a file | `/run/betula/phloem/<stack>/stats`, read through `/rootfs` |
 | the host → Phloem's firewall | none | `nsenter` | `betula-phloem-guard`, every minute |
+| the host → the scraper | none | a file | `/var/lib/betula/scraper/radix.json`, the Radix that run (`betula-scraper-targets`, every minute; section 2) |
 
 A way out of the host: Traefik, Cortex, Grafana, a Radix with `<instance>_egress`, and Phloem's
 `<stack>_out` where it exists (for TURN, step 2; its firewall lets nothing out). Nothing else: not
@@ -1085,8 +1093,9 @@ attachable or the subnet of a network; remove it once nothing uses it). `40-stac
 and `50-app.sh` refuse to deploy while a network of the plan is missing; `50-app.sh` also while
 Traefik is not on the instance's `edge_<instance>` (it could not route there) or Cortex runs
 without `cortex_<instance>`, and after a deploy it checks that Folia is on exactly
-`edge_<instance>` and `<instance>_snapshot`. `90-verify-host.sh docker` checks the networks and the
-guard's timer. `91-verify-stacks.sh` (as `deploy`, with `sudo -n` for `nsenter`):
+`edge_<instance>` and `<instance>_snapshot`. `90-verify-host.sh docker` checks the networks, the
+guard's timer and that of the scraper's targets. `91-verify-stacks.sh` (as `deploy`, with `sudo -n`
+for `nsenter`; its section `prometheus` also FAILs for a Radix target whose instance is gone):
 
 - `netmatrix`: each network as planned, with its members and nobody else; a network outside the plan
   is a FAIL while something uses it; every routed service names the network Traefik reaches it
@@ -1104,8 +1113,9 @@ guard's timer. `91-verify-stacks.sh` (as `deploy`, with `sudo -n` for `nsenter`)
 
 `deploy/test/netmatrix.sh` builds all of it in a local one-node swarm, with stand-ins for what the
 networks do not depend on (real Traefik, socket proxy, Prometheus, scraper and Alloy), runs those
-two sections, the routes through Traefik and two mutations they must catch, and removes it again
-(as root, on a throwaway machine; never on the server). `deploy/test/gwbridge.sh` does the same for
+two sections, the routes through Traefik and two mutations they must catch, removes the instance
+canary to see its Radix leave the scraper's targets, and removes it all again (as root, on a
+throwaway machine; never on the server). `deploy/test/gwbridge.sh` does the same for
 `docker_gwbridge` ("IPv6 to Traefik" below), and `90-verify-host.sh docker` checks the bridge.
 
 ### A new instance
@@ -1113,9 +1123,9 @@ two sections, the routes through Traefik and two mutations they must catch, and 
 An instance needs its two networks before its first deploy: lines `net edge_<name> ...` and
 `net cortex_<name> ...` in `vps/files/networks.conf` (copy those of `canary-green`), the two among
 Traefik's networks in `stacks/edge.yml`, `cortex_<name>` in `x-cortex` of `stacks/cortex.yml` and
-among the scraper's in `stacks/monitoring.yml`, its `tasks.<name>_radix.` in
-`config/monitoring/scraper.yml`; then `sudo bash vps/30-docker.sh`, `40-stacks.sh edge monitoring`,
-`48-cortex.sh`, and only then `50-app.sh <name>` (which refuses before).
+among the scraper's in `stacks/monitoring.yml` (the scraper finds its Radix by itself: section 2,
+"Radix"); then `sudo bash vps/30-docker.sh`, `40-stacks.sh edge monitoring`, `48-cortex.sh`, and
+only then `50-app.sh <name>` (which refuses before).
 
 ### Moving to these networks
 
