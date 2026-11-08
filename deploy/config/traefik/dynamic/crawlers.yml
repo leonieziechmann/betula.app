@@ -14,7 +14,9 @@
 #             they are (curl, python-requests, a headless browser, an AI agent with a browser's user
 #             agent) are no crawlers here and pass, as before, unless they come from a cloud of
 #             crawler-networks.yml, which turns away every request of the clouds whose crawlers
-#             pass for browsers (Tencent, Huawei, Alibaba), with this file's middleware and service.
+#             pass for browsers (Tencent, Huawei, Alibaba), or from outside Europe (europe.yml,
+#             which serves the agents served below from anywhere). Both use this file's middleware
+#             and service, and deploy/edge-networks.py writes them.
 # Served      the search engines: Google (Googlebot with its Image/Video/News variants, and the
 #             URL inspection of the Search Console), Bing (bingbot, msnbot), DuckDuckGo (DuckDuckBot
 #             and its favicons), Apple (Applebot: Spotlight, Siri, Safari), Qwant and Ecosia
