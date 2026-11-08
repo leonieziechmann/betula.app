@@ -9,7 +9,7 @@
 // - One that meets the Friday lecture: „Trifft VL EvS (Fr 09:15). Anlegen geht trotzdem.", then
 //   both slots red.
 // - A click on a free stretch of a day: the form with that day and time.
-// - Its view: „Eigener Termin", no „Teilen", „Im Stundenplan · nicht in Datei und Abo", „Jede
+// - Its view: „Eigener Termin", no „Teilen", „Im Stundenplan · nicht in Datei und festem Abo", „Jede
 //   Woche · …, die Vorlesungszeit"; „Nur am … ausblenden" skips the day, „Bearbeiten" changes its
 //   place (keys typed keep the field and the title), „Löschen" closes the view with „Rückgängig".
 // - A module without Termine (Praktikum Betriebssysteme): „Termin eintragen", the form with the
@@ -157,7 +157,7 @@ const spot = (page, day, minute) => page.evaluate(([day, minute]) => {
     rows: allOnPage(".is-termin .tm-sec.own .crow").map((row) => row.innerText.replace(/\s+/g, " ").trim()),
   }));
   check(view.chip === "Eigener Termin" && !view.share, `its head: ${JSON.stringify(view)}`);
-  check(/^Im Stundenplan ?nicht in Datei und Abo$/i.test(view.head ?? ""), `its section's head: ${view.head}`);
+  check(/^Im Stundenplan ?nicht in Datei und festem Abo$/i.test(view.head ?? ""), `its section's head: ${view.head}`);
   check(/^Jede Woche \d\d\.\d\d\.–\d\d\.\d\d\., die Vorlesungszeit Bearbeiten$/.test(view.rows[0] ?? "") && view.rows[1]?.startsWith("Nur am Do ") && view.rows[2] === "Löschen mit „Rückgängig“ Löschen", `its rows: ${JSON.stringify(view.rows)}`);
   if (shots) await page.screenshot({ path: `${shots}/own-view.png` });
   // „Nur am … ausblenden" skips the day.

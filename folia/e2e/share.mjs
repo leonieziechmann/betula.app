@@ -1,175 +1,172 @@
-// Checks „Weitergeben" of the Merkliste (folia/design/merken/oberflaeche.html, „Weitergeben und
-// Ankommen"; the Merkliste's step 5).
-//   SMOKE_BASE_URL=http://127.0.0.1:8080 node share.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
-// A collection's menu „Teilen": its head, „Link kopieren", „Notizen mitnehmen" off, „Als Text
-// kopieren" with the number, title, LP and link of each module. Its link on another device: „Für
-// Lenachen · 2 Module aus einem Link." with „Als Sammlung merken", „Nur merken", „Verwerfen"; kept
-// as a collection without the note. Shared again with the notes: „Die Sammlung gibt es schon." with
-// „Zu ‚…‘ hinzufügen" and „Anderer Name …", which refuses a name there is and keeps one that is not,
-// the note arriving. The whole list's „Link für ein anderes Gerät": every collection and note on a
-// third device at once. The selection's „Teilen": a link of modules alone. Nothing of the names,
-// the notes or the modules goes into a request: they travel behind the #.
-// Fails on a page load after takeover, a console error, or a step that does not show up.
-import { chromium } from "playwright-core";
+// Checks sharing a calendar (Betula Sync, step 3: folia/design/teilen/teilen.html,
+// folia/crates/planner/src/studyplan/share_dialog.rs, docs/phloem/protocol.md) with four browsers
+// against a running Phloem:
+//   SMOKE_BASE_URL=http://127.0.0.1:8080 node --import ./chromium.mjs share.mjs
+// Folia runs with FOLIA_SYNC=on, FOLIA_SYNC_URL and FOLIA_SYNC_PARTS naming Phloem, Phloem with
+// PHLOEM_ORIGINS naming Folia's origin.
+// Max (private) opens „Teilen …", takes „Bleibt aktuell" and „Eine Person" (each marked „mit
+// Sync"), takes his Termine of his own along and names it „Lena"; „Profil speichern und Link
+// erstellen" saves his profile with Betula Sync and makes a one-time link. Lena (private) opens it
+// and follows it as a calendar, with Max's modules and his Termin „Arbeit"; a third browser opening
+// the same link reads that it was opened already and gets nothing of the plan. Max plans another
+// module: Lena's calendar has it after her page comes into view again. Lena saves her profile
+// („Profil speichern"); Max plans one more, and Lena's open page has it without a reload (Phloem's
+// `part`). Max stops sharing: Lena's calendar stays, „nicht mehr geteilt", and „Behalten" keeps it.
+// A calendar app's address that stays current answers its calendar until Max stops sharing it, and
+// a 404 after. Privacy: no request or frame carries a module's number, the Termin's name or the
+// part's key in the clear, and a link's part after # reaches no server.
 import { fileURLToPath } from "node:url";
+import { chromium } from "playwright-core";
 
 const base = (process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
 const browser = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge", headless: !process.env.SMOKE_HEADED });
-const problems = [];
-const timings = {};
-const check = (ok, message) => { if (!ok) problems.push(message); };
-const KEY = "betula.bookmarks.v1";
-const SHELF = "betula.collections.v1";
 const ON_PAGE = { path: fileURLToPath(new URL("on-page.js", import.meta.url)) };
-const LENA = "Für Lenachen";
-const NOTE = "Lenchen fragen, ob sie mitkommt";
+const problems = [];
+const check = (ok, message) => { if (!ok) problems.push(message); };
+const SEMESTER = "2026W";
+const MODULES = ["12104", "12107"];
+const MORE = ["12102", "11112"];
+const PLAN = MODULES.map((m) => `m\t${SEMESTER}\t${m}\t1790000000\t\n`).join("") + `t\t1\t0\t${SEMESTER}\tw\t5\t13:00-17:00\t\t\t\tArbeit\tCafé Mosaik\t\n`;
 
-const open = async () => {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ["clipboard-read", "clipboard-write"] });
+const sent = [];
+const KEYS = () => {
+  const active = () => (localStorage.getItem("betula.profiles.v1") || "").match(/^active\t(\d+)/m)?.[1] || "1";
+  window.store = (key) => (active() === "1" ? key : key.replace("betula.", `betula.p${active()}.`));
+  window.plan = () => localStorage.getItem(window.store("betula.studyplan.v1")) || "";
+  window.syncStatus = () => localStorage.getItem(`betula.sync.p${active()}.status`) || "";
+};
+const device = async (name) => {
+  const context = await browser.newContext();
   await context.addInitScript(ON_PAGE);
+  await context.addInitScript(KEYS);
   const page = await context.newPage();
-  page.on("console", (m) => { if (m.type() === "error") problems.push("console: " + m.text().slice(0, 300)); });
-  page.on("pageerror", (e) => problems.push("pageerror: " + String(e).slice(0, 300)));
-  const requests = [];
-  page.on("request", (r) => requests.push(r.url() + " " + (r.postData() || "")));
-  const takeover = () => page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
-  const go = async (path) => {
-    await page.goto(base + path, { waitUntil: "domcontentloaded" });
-    await takeover();
-    await page.evaluate(() => { window.__marker = 1; });
-  };
-  const step = async (name, action, until, arg) => {
-    const started = Date.now();
-    await action();
-    try {
-      await page.waitForFunction(until, arg, { timeout: 8000 });
-    } catch {
-      problems.push(`${name}: did not happen (${page.url()})`);
-    }
-    timings[name] = Date.now() - started;
-    if (!(await page.evaluate(() => window.__marker === 1))) problems.push(`${name}: the page was loaded again`);
-  };
-  const marks = () => page.evaluate((key) => (localStorage.getItem(key) || "").split("\n").filter(Boolean).map((line) => line.split("\t")[0]), KEY);
-  const shelf = () => page.evaluate((key) => localStorage.getItem(key) || "", SHELF);
-  return { context, page, go, step, requests, marks, shelf };
+  page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource|WebSocket connection/.test(m.text())) problems.push(`${name} console: ${m.text().slice(0, 300)}`); });
+  page.on("pageerror", (e) => problems.push(`${name} pageerror: ${String(e).slice(0, 300)}`));
+  page.on("request", (r) => sent.push({ name, url: r.url(), body: r.postData() || "", headers: JSON.stringify(r.headers()) }));
+  page.on("websocket", (ws) => ws.on("framesent", (f) => sent.push({ name, url: ws.url(), body: String(f.payload), headers: "" })));
+  return { context, page, name };
 };
-const clipboard = (page) => page.evaluate(() => navigator.clipboard.readText()).catch(() => "");
-
-// ---------- the sender: four marked modules, two of them in „Für Lenachen", a note at one ----------
-const sender = await open();
-await sender.go("/catalog");
-await sender.page.waitForFunction(() => allOnPage(".rows a.row").length >= 4, null, { timeout: 20000 });
-const ids = await sender.page.evaluate(() => [...allOnPage(".rows a.row")].map((row) => row.dataset.id).slice(0, 4));
-const now = Math.floor(Date.now() / 1000);
-await sender.page.evaluate(([key, shelf, ids, now, lena, note]) => {
-  localStorage.setItem(key, ids.map((id, i) => `${id}\t${now - i * 60}\n`).join(""));
-  localStorage.setItem(shelf, `c\t1\t${lena}\nm\t${ids[0]}\t1\nm\t${ids[1]}\t1\nn\t${ids[0]}\t${note}\n`);
-}, [KEY, "betula.collections.v1", ids, now, LENA, NOTE]);
-sender.requests.length = 0;
-await sender.go("/bookmarks");
-await sender.page.waitForFunction(() => allOnPage("#rows a.row").length === 4, null, { timeout: 20000 }).catch(() => problems.push("the sender's Merkliste does not list four modules"));
-const lenaMenu = async () => {
-  await sender.page.click('.coll-nav a[href*="collection=1"] >> visible=true', { button: "right" });
-  await sender.page.waitForSelector(".view-menu [role=menuitem] >> visible=true", { timeout: 4000 });
+const app = (page) => page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push(`the app never took over (${page.url()})`));
+const go = async (page, path) => {
+  await page.goto(base + path);
+  await app(page);
 };
-await lenaMenu();
-const entries = await sender.page.evaluate(() => [...document.querySelectorAll(".view-menu .st-pop-item")].map((item) => item.querySelector(".st-pop-label > span")?.textContent));
-check(entries.join("|").startsWith("Umbenennen|Teilen|"), `a collection's menu: ${entries}`);
-await sender.step("Teilen", () => sender.page.click('.view-menu .st-pop-item:has-text("Teilen")'), () => document.querySelector(".view-menu.share-menu"));
-const share = await sender.page.evaluate(() => ({
-  head: document.querySelector(".share-menu .view-menu-head")?.textContent,
-  items: [...document.querySelectorAll(".share-menu .st-pop-item")].map((item) => `${item.querySelector(".st-pop-label > span")?.textContent}${item.getAttribute("role") === "menuitemcheckbox" ? `:${item.getAttribute("aria-checked")}` : ""}`),
-}));
-check(share.head === `${LENA} · 2 Module` && share.items.join("|") === "Link kopieren|Notizen mitnehmen:false|Als Text kopieren", `the share menu: ${JSON.stringify(share)}`);
-// The keys go through it, the switch among the entries.
-await sender.page.waitForFunction(() => document.activeElement?.closest(".share-menu"), null, { timeout: 2000 }).catch(() => {});
-await sender.step("↓ to the switch", () => sender.page.keyboard.press("ArrowDown"), () => document.activeElement?.getAttribute("role") === "menuitemcheckbox");
-await sender.step("↓ past it", () => sender.page.keyboard.press("ArrowDown"), () => document.activeElement?.textContent.includes("Als Text kopieren"));
-await sender.step("Als Text kopieren", () => sender.page.click('.share-menu .st-pop-item:has-text("Als Text kopieren")'), () => document.querySelector(".wait-note .mark-toast-said")?.textContent.includes("Liste kopiert") && !document.querySelector(".view-menu"));
-const text = await clipboard(sender.page);
-const lines = text.split("\n");
-check(lines.length === 2 && lines.every((line) => /^\d{5} .+ · (\d+(,\d+)? LP · )?https?:\/\/.+\/catalog\/module\/\d{5}$/.test(line)) && [ids[0], ids[1]].every((id) => text.includes(`/catalog/module/${id}`)), `the collection as text: ${JSON.stringify(text)}`);
-await lenaMenu();
-await sender.page.click('.view-menu .st-pop-item:has-text("Teilen")');
-await sender.step("Link kopieren", () => sender.page.click('.share-menu .st-pop-item:has-text("Link kopieren")'), () => document.querySelector(".wait-note .mark-toast-said")?.textContent.includes("Link kopiert"));
-const plainLink = await clipboard(sender.page);
-check(plainLink.startsWith(`${base}/bookmarks#m=`), `the collection's link: ${plainLink}`);
+const until = async (name, page, fn, arg, timeout = 10000) => {
+  try {
+    await page.waitForFunction(fn, arg, { timeout });
+    return true;
+  } catch {
+    problems.push(`${name}: did not happen`);
+    return false;
+  }
+};
+const lines = (text, tag) => text.split("\n").filter((l) => l.startsWith(`${tag}\t`));
+/// The page comes into view again, as after a switch of tabs.
+const comeBack = (page) => page.evaluate(() => document.dispatchEvent(new Event("visibilitychange", { bubbles: true })));
 
-// ---------- another device: the collection arrives ----------
-const other = await open();
-await other.page.goto(plainLink, { waitUntil: "domcontentloaded" });
-await other.page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 });
-await other.page.evaluate(() => { window.__marker = 1; });
-await other.page.waitForSelector(".offer >> visible=true", { timeout: 8000 }).catch(() => problems.push("another device: the collection is not offered"));
-const offered = await other.page.evaluate(() => ({ text: onPage(".offer p")?.textContent.trim(), buttons: [...onPage(".offer").querySelectorAll("button")].map((b) => b.textContent.trim()) }));
-check(offered.text === `${LENA} · 2 Module aus einem Link.` && offered.buttons.join("|") === "Als Sammlung merken|Nur merken|Verwerfen", `another device, the collection: ${JSON.stringify(offered)}`);
-check((await other.marks()).length === 0, "another device: something was kept before the visitor said so");
-await other.step("Als Sammlung merken", () => other.page.click("#offer-add"), () => !onPage(".offer") && location.hash === "" && allOnPage("#rows a.row").length === 2);
-const kept = await other.shelf();
-check(kept.includes(`c\t1\t${LENA}\n`) && kept.includes(`m\t${ids[0]}\t1`) && kept.includes(`m\t${ids[1]}\t1`) && !kept.includes(NOTE), `another device kept: ${JSON.stringify(kept)}`);
+// ---- Max: a plan with two modules and a Termin of his own, private ----
+const max = await device("Max");
+await go(max.page, "/studyplan");
+await max.page.evaluate((plan) => localStorage.setItem("betula.studyplan.v1", plan), PLAN);
+await go(max.page, "/studyplan");
+await max.page.click("#sp-share");
+await until("Max: the dialog opens", max.page, () => Boolean(onPage(".sh-dialog[open] .sh-opt")), null);
+const opts = max.page.locator(".sh-dialog[open] .sh-opt");
+check(await max.page.locator(".sh-dialog[open] .sh-opt[aria-checked=true]", { hasText: "Fester Stand" }).count() === 1, "Max: a private profile does not open with „Fester Stand“");
+check(await max.page.locator(".sh-dialog[open] .sh-up").count() >= 1, "Max: no offer of Betula Sync under the fixed copy");
+await opts.filter({ hasText: "Bleibt aktuell" }).click();
+await opts.filter({ hasText: "Eine Person" }).click();
+check(await max.page.locator(".sh-dialog[open] .sh-tag").count() === 2, "Max: the choices that need Betula Sync are not marked „mit Sync“");
+check(await max.page.locator(".sh-dialog[open] .sh-up.need").count() === 1, "Max: no word on what saving the profile means");
+await max.page.locator(".sh-dialog[open] .sh-sw", { hasText: "Eigene Termine" }).click();
+await max.page.fill("#sh-who", "Lena");
+const make = max.page.locator("#sh-make");
+check((await make.textContent()).includes("Profil speichern und Link erstellen"), `Max: the button says „${await make.textContent()}“`);
+await make.click();
+await until("Max: the one-time link is made", max.page, () => Boolean(onPage(".sh-link")?.textContent.includes("#once=")), null, 30000);
+const once = (await max.page.locator(".sh-link").first().textContent()).trim();
+check(once.startsWith(base + "/studyplan#once="), `Max: the link is ${once}`);
+check(await max.page.evaluate(() => syncStatus().startsWith("online")), "Max: the profile does not sync after „Profil speichern“");
+check(await max.page.locator(".sh-row", { hasText: "Lena" }).count() === 1, "Max: Lena is not in the list „Geteilt“");
+const shareLine = await max.page.evaluate(() => plan().split("\n").find((l) => l.startsWith("s\t")) || "");
+check(/^s\t\S{22}\t0\tp\t2026W\t\d+\tl1o\t\S{43}\t\S{64}\t\tLena$/.test(shareLine), `Max: the share's line is ${JSON.stringify(shareLine)}`);
+const partKey = shareLine.split("\t")[7] || "none";
 
-// Shared again, with the notes: the collection is there, „Anderer Name …".
-await sender.go("/bookmarks?collection=1");
-await lenaMenu();
-await sender.page.click('.view-menu .st-pop-item:has-text("Teilen")');
-await sender.step("Notizen mitnehmen", () => sender.page.click(".share-menu .share-switch"), () => document.querySelector(".share-menu .share-switch")?.getAttribute("aria-checked") === "true");
-await sender.step("the link with the notes", () => sender.page.click('.share-menu .st-pop-item:has-text("Link kopieren")'), () => document.querySelector(".wait-note .mark-toast-said")?.textContent.includes("Link kopiert"));
-const noteLink = await clipboard(sender.page);
-check(noteLink !== plainLink && noteLink.length > plainLink.length, "the link with the notes is not longer");
-await other.page.goto(noteLink, { waitUntil: "domcontentloaded" });
-await other.page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 });
-await other.page.evaluate(() => { window.__marker = 1; });
-await other.page.waitForSelector(".offer >> visible=true", { timeout: 8000 }).catch(() => problems.push("another device: the collection is not offered again"));
-const again = await other.page.evaluate(() => ({ text: onPage(".offer p")?.textContent.trim(), buttons: [...onPage(".offer").querySelectorAll("button")].map((b) => b.textContent.trim()) }));
-check(again.text === `${LENA} · 2 Module aus einem Link. Die Sammlung gibt es schon.` && again.buttons.join("|") === `Zu ‚${LENA}‘ hinzufügen|Anderer Name …|Verwerfen`, `another device, the collection there: ${JSON.stringify(again)}`);
-await other.step("Anderer Name …", () => other.page.click("#offer-other"), () => document.activeElement?.id === "offer-name");
-await other.page.keyboard.type(LENA.toLowerCase());
-await other.step("a name there is", () => other.page.keyboard.press("Enter"), () => onPage(".offer-name small")?.textContent === "Gibt es schon" && onPage(".offer"));
-await other.page.fill("#offer-name", "Von Lenachen");
-await other.step("a name there is not", () => other.page.keyboard.press("Enter"), () => !onPage(".offer") && location.hash === "");
-const named = await other.shelf();
-check(named.includes("c\t2\tVon Lenachen\n") && named.includes(`m\t${ids[0]}\t1,2`) && named.includes(`n\t${ids[0]}\t${NOTE}`), `another device, under another name: ${JSON.stringify(named)}`);
+// ---- Lena (private) opens the one-time link and follows ----
+const lena = await device("Lena");
+await lena.page.goto(once);
+await app(lena.page);
+await until("Lena: the offer", lena.page, () => Boolean(onPage("#sp-live-follow")), null, 20000);
+await lena.page.click("#sp-live-follow");
+await until("Lena: a calendar that follows", lena.page, () => plan().split("\n").some((l) => l.startsWith("f\t")), null, 10000);
+const lenaPlan = () => lena.page.evaluate(() => plan());
+let text = await lenaPlan();
+const calendar = (lines(text, "f")[0] || "").split("\t")[1] || "?";
+check(lines(text, "n").filter((l) => l.startsWith(`n\t${calendar}\t`)).map((l) => l.split("\t")[3]).sort().join() === [...MODULES].sort().join(), `Lena: the calendar has other modules: ${lines(text, "n").join(" | ")}`);
+check(lines(text, "t").some((l) => l.split("\t")[2] === calendar && l.includes("Arbeit")), "Lena: Max's Termin „Arbeit“ did not come along");
+check(!lena.page.url().includes("#"), `Lena: the link stays in the address (${lena.page.url()})`);
+await until("Lena: the row says „aktuell“", lena.page, () => [...document.querySelectorAll(".sp-cal .live")].some((e) => e.getBoundingClientRect().height > 0 || e.textContent.includes("aktuell")), null, 5000);
 
-// ---------- the whole list for another device: every collection and note ----------
-await sender.go("/bookmarks");
-await sender.page.click('.coll-nav > div.coll-item:first-of-type > a >> visible=true', { button: "right" });
-await sender.page.waitForSelector(".view-menu [role=menuitem] >> visible=true", { timeout: 4000 });
-await sender.step("Link für ein anderes Gerät", () => sender.page.click('.view-menu .st-pop-item:has-text("Link für ein anderes Gerät")'), () => document.querySelector(".wait-note .mark-toast-said")?.textContent.includes("Link kopiert"));
-const deviceLink = await clipboard(sender.page);
-const third = await open();
-await third.page.goto(deviceLink, { waitUntil: "domcontentloaded" });
-await third.page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 });
-await third.page.evaluate(() => { window.__marker = 1; });
-await third.page.waitForSelector(".offer >> visible=true", { timeout: 8000 }).catch(() => problems.push("a third device: the list is not offered"));
-const whole = await third.page.evaluate(() => ({ text: onPage(".offer p")?.textContent.trim(), buttons: [...onPage(".offer").querySelectorAll("button")].map((b) => b.textContent.trim()) }));
-check(whole.text === "4 Module in 1 Sammlung aus einem Link. 4 davon neu." && whole.buttons.join("|") === "Hinzufügen|Verwerfen", `a third device: ${JSON.stringify(whole)}`);
-await third.step("Hinzufügen", () => third.page.click("#offer-add"), () => !onPage(".offer") && allOnPage("#rows a.row").length === 4);
-const everything = await third.shelf();
-check(everything.includes(`c\t1\t${LENA}\n`) && everything.includes(`n\t${ids[0]}\t${NOTE}`) && (await third.marks()).length === 4, `a third device kept: ${JSON.stringify(everything)}`);
+// ---- a third browser opens the same link: opened already, nothing of the plan ----
+const other = await device("Other");
+await other.page.goto(once);
+await app(other.page);
+await until("Other: „schon geöffnet“", other.page, () => (onPage(".offer[role=alert]")?.textContent || "").includes("schon geöffnet"), null, 20000);
+check(!(await other.page.evaluate(() => plan())).includes("12104"), "Other: got something of the plan");
 
-// ---------- the selection's „Teilen": modules alone ----------
-await sender.page.click(`.page-stage.front #rows a.row[data-id="${ids[2]}"]`, { modifiers: ["Control"] });
-await sender.page.click(`.page-stage.front #rows a.row[data-id="${ids[3]}"]`, { modifiers: ["Control"] });
-await sender.page.click(".page-stage.front #pick-share");
-await sender.page.waitForSelector(".pick-menu .st-pop-item");
-const pickShare = await sender.page.evaluate(() => [...document.querySelectorAll(".pick-menu .st-pop-item")].map((item) => `${item.querySelector(".st-pop-label > span")?.textContent}${item.getAttribute("role") === "menuitemcheckbox" ? `:${item.getAttribute("aria-checked")}` : ""}`));
-check(pickShare.join("|") === "Link kopieren|Notizen mitnehmen:false|Als Text kopieren", `the selection's „Teilen“ (a page loaded anew starts with the notes at home): ${pickShare}`);
-await sender.step("the selection's link", () => sender.page.click('.pick-menu .st-pop-item:has-text("Link kopieren")'), () => /Link kopiert/.test(document.querySelector(".mark-note")?.textContent || ""));
-const pickLink = await clipboard(sender.page);
-const fourth = await open();
-await fourth.page.goto(pickLink, { waitUntil: "domcontentloaded" });
-await fourth.page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 });
-await fourth.page.waitForSelector(".offer >> visible=true", { timeout: 8000 }).catch(() => problems.push("a fourth device: the modules are not offered"));
-const modules = await fourth.page.evaluate(() => ({ text: onPage(".offer p")?.textContent.trim(), buttons: [...onPage(".offer").querySelectorAll("button")].map((b) => b.textContent.trim()) }));
-check(modules.text === "2 Module aus einem Link. Auf deine Merkliste setzen?" && modules.buttons.join("|") === "Hinzufügen|Verwerfen", `a fourth device: ${JSON.stringify(modules)}`);
+// ---- Max plans another module: Lena's page has it when it comes into view ----
+await max.page.click(".sh-dialog[open] footer .mini.primary").catch(() => {});
+await max.page.evaluate(([s, m]) => localStorage.setItem("betula.studyplan.v1", plan() + `m\t${s}\t${m}\t1790000100\t\n`), [SEMESTER, MORE[0]]);
+await go(max.page, "/studyplan");
+await max.page.waitForTimeout(4000);
+await comeBack(lena.page);
+await until("Lena: the module Max planned", lena.page, ([c, m]) => plan().includes(`n\t${c}\t2026W\t${m}`), [calendar, MORE[0]], 15000);
 
-// Nothing of it in a request: it travels behind the #.
-for (const [who, { requests }] of [["sender", sender], ["other", other], ["third", third], ["fourth", fourth]]) {
-  const leaks = requests.filter((r) => r.includes("Lenachen") || r.includes(encodeURIComponent(LENA)) || r.includes("Lenchen") || r.includes("#m=") || ids.some((id) => r.includes(`m=${id}`)));
-  check(leaks.length === 0, `${who}: what was shared went into a request: ${leaks.slice(0, 2).join(" | ")}`);
+// ---- Lena saves her profile; Max plans once more, and her open page has it by itself ----
+await lena.page.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Profil speichern")?.click());
+await until("Lena: synced", lena.page, () => syncStatus().startsWith("online"), null, 20000);
+await lena.page.waitForTimeout(2000);
+await max.page.evaluate(([s, m]) => localStorage.setItem("betula.studyplan.v1", plan() + `m\t${s}\t${m}\t1790000200\t\n`), [SEMESTER, MORE[1]]);
+await go(max.page, "/studyplan");
+await until("Lena: the next module by itself (Phloem's part)", lena.page, ([c, m]) => plan().includes(`n\t${c}\t2026W\t${m}`), [calendar, MORE[1]], 20000);
+
+// ---- a calendar app's address that stays current ----
+await max.page.click("#sp-share");
+await until("Max: the dialog again", max.page, () => Boolean(onPage(".sh-dialog[open] .seg")), null);
+await max.page.locator(".sh-dialog[open] .seg button", { hasText: "In Kalender-App" }).click();
+check(await max.page.locator(".sh-dialog[open] .sh-opt[aria-checked=true]", { hasText: "Bleibt aktuell" }).count() === 1, "Max: a synced profile does not open with „Bleibt aktuell“");
+await max.page.locator(".sh-dialog[open] .sh-sw", { hasText: "Eigene Termine" }).click();
+await max.page.click("#sh-make");
+await until("Max: the address is made", max.page, () => Boolean(onPage(".sh-link")?.textContent.includes("/calendar/s/")), null, 20000);
+const feed = (await max.page.locator(".sh-link").first().textContent()).trim();
+let answer = await fetch(feed);
+let body = await answer.text();
+check(answer.status === 200 && body.startsWith("BEGIN:VCALENDAR") && body.includes("Arbeit"), `the address answers ${answer.status}: ${body.split("\n").filter((l) => l.startsWith("SUMMARY")).slice(0, 8).join(" | ")} (share ${await max.page.evaluate(() => plan().split("\n").filter((l) => l.startsWith("s\t")).map((l) => l.split("\t").slice(2, 7).join(",")).join(" / "))})`);
+
+// ---- Max stops sharing both ----
+await max.page.locator(".sh-dialog[open] .sh-row", { hasText: "Lena" }).locator("button", { hasText: "Nicht mehr teilen" }).click();
+await until("Max: Lena's share is gone", max.page, () => !plan().split("\n").some((l) => l.startsWith("s\t") && l.endsWith("\tLena")), null, 10000);
+await until("Lena: „nicht mehr geteilt“", lena.page, () => plan().split("\n").some((l) => l.startsWith("f\t") && l.split("\t")[4] !== "0"), null, 20000);
+check((await lenaPlan()).includes(`n\t${calendar}\t2026W\t${MODULES[0]}`), "Lena: the calendar lost what it showed");
+const keep = await lena.page.evaluate(() => { const b = [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Behalten"); b?.click(); return Boolean(b); });
+if (!keep) await lena.page.screenshot({ path: process.env.SMOKE_SHOTS ? `${process.env.SMOKE_SHOTS}/lena-ended.png` : "/dev/null", fullPage: true }).catch(() => {});
+check(keep, "Lena: no „Behalten“ on the page");
+if (!(await until("Lena: „Behalten“ keeps the calendar and follows nothing", lena.page, () => !/(^|\n)f\t/.test(plan()) && /(^|\n)l\t/.test(plan()), null, 5000))) problems.push(`Lena's plan: ${JSON.stringify((await lenaPlan()).split("\n").filter((l) => /^[lf]\t/.test(l)))}`);
+await max.page.locator(".sh-dialog[open] .sh-row", { hasText: "Kalender-App" }).locator("button", { hasText: "Nicht mehr teilen" }).click();
+await until("Max: the app's share is gone", max.page, () => !plan().split("\n").some((l) => l.startsWith("s\t")), null, 10000);
+answer = await fetch(feed);
+check(answer.status === 404, `the address still answers ${answer.status} after „Nicht mehr teilen“`);
+
+// ---- privacy ----
+for (const s of sent) {
+  const leak = [...MODULES, ...MORE].find((m) => s.url.includes(":8200") && (s.body.includes(m) || s.headers.includes(m))) || (s.body.includes("Arbeit") && s.url.includes(":8200") && "Arbeit") || ((s.body.includes(partKey) || s.headers.includes(partKey)) && s.url.includes(":8200") && "the part's key");
+  if (leak) problems.push(`${s.name}: ${leak} in the clear to ${s.url}`);
+  if (s.url.includes("#once=") || s.url.includes("#live=")) problems.push(`${s.name}: a link's part after # reached ${s.url}`);
 }
 
-for (const { context } of [sender, other, third, fourth]) await context.close();
 await browser.close();
-console.log(JSON.stringify({ timings, problems }, null, 2));
-process.exit(problems.length ? 1 : 0);
+if (problems.length) {
+  console.log(`share: ${problems.length} problem(s)\n- ${problems.join("\n- ")}`);
+  process.exit(1);
+}
+console.log("share: ok");

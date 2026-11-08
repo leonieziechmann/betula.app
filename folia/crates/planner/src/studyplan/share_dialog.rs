@@ -453,7 +453,7 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
         // What the choice means, and what Betula Sync makes of it.
         let mut notes: Vec<AnyView> = Vec::new();
         if offered && c.needs_sync() && !synced.get() {
-            notes.push(view! { <div class="sh-up need"><Icon name="refresh-cw"/><span class="t"><b>{d.needs_sync}</b><span>{d.needs_sync_hint}</span></span></div> }.into_any());
+            notes.push(view! { <div class="sh-up need"><Icon name="monitor-smartphone"/><span class="t"><b>{d.needs_sync}</b><span>{d.needs_sync_hint}</span></span></div> }.into_any());
         }
         let note = |text: &'static str, warn: bool| view! { <p class="sh-note" class:warn=warn><Icon name="info"/><span>{text}</span></p> }.into_any();
         match (c.tab, c.live, c.once()) {
@@ -469,7 +469,7 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
             notes.push(
                 view! {
                     <div class="sh-up">
-                        <Icon name="refresh-cw"/>
+                        <Icon name="monitor-smartphone"/>
                         <span class="t"><b>{title}</b><span>{hint}</span></span>
                         <button class="mini" type="button" aria-busy=move || saving.get().then_some("true") on:click=save_offer>{move || if saving.get() { d.saving } else { d.save_profile }}</button>
                     </div>

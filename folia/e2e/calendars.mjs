@@ -75,7 +75,13 @@ let link = "";
   await until(page, "Lena's group ticked", () => /1 von \d/.test(onPage(".sp-focusbar .what small")?.textContent ?? ""));
   await page.keyboard.press("Escape");
   await until(page, "the focus closed", () => !location.search.includes("wahl="));
-  link = (await page.getAttribute('[data-action="copy-text"][data-text*="share="]', "data-text")) ?? "";
+  // „Teilen …": a private profile hands on the fixed copy for everybody, the link of today.
+  await page.click("#sp-share");
+  await until(page, "the dialog „Teilen“", () => Boolean(onPage(".sh-dialog[open] #sh-make")));
+  await page.click("#sh-make");
+  await until(page, "the link made", () => (onPage(".sh-dialog[open] .sh-link")?.textContent ?? "").includes("share="));
+  const made = new URL(((await page.textContent(".sh-dialog[open] .sh-link")) ?? "").trim());
+  link = made.pathname + made.search;
   check(link.startsWith("/studyplan?share="), `Lena's link: ${link}`);
   await context.close();
 }
