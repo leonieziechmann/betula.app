@@ -67,6 +67,9 @@ pub struct Taken {
     /// Where it is passed, else where it is planned (the first semester from the current one on).
     pub semester: SemesterKey,
     pub passed: bool,
+    /// It counts here because the student said so, and this choice does not list it
+    /// (`study::Item::exception`).
+    pub exception: bool,
 }
 
 /// A row of the plan in the study.
@@ -183,6 +186,10 @@ pub struct PlanView {
     /// The modules of the study on a choice's list that count for none, its room being full (a
     /// second Proseminar): beyond what is asked, said where they are listed.
     pub spare: Vec<Taken>,
+    /// The modules the student let count for a row of the plan that is no choice (`Planned::counts`
+    /// at a Pflicht row: „Zählt für" an area's Pflichtmodule), with that row (an index of `lines`):
+    /// they count for its area and for no choice.
+    pub pflicht: Vec<(Taken, usize)>,
     /// What the choices still ask for together that is not taken (a sum the regulation prints
     /// over several of them counted once, a group as `Group::open`).
     pub to_choose: f64,
@@ -395,7 +402,9 @@ pub fn plan_view(input: &Input, study: &Study) -> PlanView {
     let area_of = |caption: &str, ord: i64| study.progress.iter().position(|p| p.area.rows.iter().any(|(c, o)| c == caption && *o == ord));
     let taken_of = |id: &str, semester: SemesterKey, passed: bool| {
         let row = catalog(id);
-        Taken { id: id.to_string(), name: row.map_or_else(|| id.to_string(), |row| row.title.clone()), credits: row.and_then(|row| row.credits), semester, passed }
+        let exception = study.semester(semester).and_then(|s| s.items.iter().find(|item| item.module_id() == Some(id))).is_some_and(|item| item.exception)
+            || study.semesters.iter().flat_map(|s| s.items.iter()).any(|item| item.module_id() == Some(id) && item.exception);
+        Taken { id: id.to_string(), name: row.map_or_else(|| id.to_string(), |row| row.title.clone()), credits: row.and_then(|row| row.credits), semester, passed, exception }
     };
     let program = input.program_id;
 
@@ -447,9 +456,10 @@ pub fn plan_view(input: &Input, study: &Study) -> PlanView {
         });
     }
 
-    let (choices, spare) = choices_of(input, study, &rows, &mut lines);
+    let mut choices = choices_of(input, study, &rows, &mut lines);
     let groups = groups_of(&rows, &choices);
-    let mut view = PlanView { lines, choices, groups, spare, to_choose: 0.0 };
+    let (spare, pflicht) = assign(input, study, &rows, &lines, &mut choices, &groups);
+    let mut view = PlanView { lines, choices, groups, spare, pflicht, to_choose: 0.0 };
     view.to_choose = to_choose(&rows, &view);
     view
 }
@@ -502,9 +512,9 @@ fn module_state(passed: Option<SemesterKey>, planned: Vec<SemesterKey>, now: Sem
     }
 }
 
-/// The choices of the plan's rows (`lines`, which learn theirs), with what of their lists the
-/// study holds; and what of the study is on their lists but counts for none (`PlanView::spare`).
-fn choices_of(input: &Input, study: &Study, rows: &[PlanRow], lines: &mut [PlanLine]) -> (Vec<Choice>, Vec<Taken>) {
+/// The choices of the plan's rows (`lines`, which learn theirs), without what the study holds of
+/// them (`assign`).
+fn choices_of(input: &Input, study: &Study, rows: &[PlanRow], lines: &mut [PlanLine]) -> Vec<Choice> {
     let doc = input.doc;
     let mut choices: Vec<Choice> = Vec::new();
     for (index, (row, line)) in rows.iter().zip(lines.iter_mut()).enumerate() {
@@ -558,19 +568,37 @@ fn choices_of(input: &Input, study: &Study, rows: &[PlanRow], lines: &mut [PlanL
         }
     }
 
-    // What the study holds of them: the modules that fill a row's placeholders count there, then
-    // those planned for one of its rows (`Planned::counts`, the workbench's „+ Einplanen"), the
-    // others where a list has them, in the order of the plan.
+    choices
+}
+
+/// What the study holds of the choices, and what of it is on their lists but counts for none
+/// (`PlanView::spare`); the modules counted for a row that is no choice (`PlanView::pflicht`).
+///
+/// The modules that fill a row's placeholders count there, then those planned for one of its rows
+/// (`Planned::counts`: the workbench's „+ Einplanen", „Zählt für"), whether its lists have them or
+/// not. Each of the others goes where it fits best (owner, 2026-11-08: „dass automatisch der
+/// sinnvollste bereich gewählt wird. Wie zum beispiel wenn ein modul in zwei bereichen sein kann
+/// aber einer davon schon genug credits hat, dann in den anderen bereich"), what is passed first,
+/// then by semester: among the choices whose lists have it (the FÜS for a module the study counts
+/// there), one that still asks for credits before one that only has room for them; of those, one
+/// of the area the study counts it in; then the one with the shortest lists, the most specific
+/// („Komplex Praktische Informatik" before the „Wahlpflicht: Komplex … / … / …" of the 4. FS that
+/// takes from all three Komplexe, „Praktische Mathematik" before the Anwendungsfach); then the
+/// first in the plan. The members of a group (`Group`) have the room of its sum together: past
+/// it, what is left goes to its extras. Where none has room, a module counted there by the same
+/// rule makes way for it if another choice has room for that one.
+fn assign(input: &Input, study: &Study, rows: &[PlanRow], lines: &[PlanLine], choices: &mut [Choice], groups: &[Group]) -> (Vec<Taken>, Vec<(Taken, usize)>) {
+    let doc = input.doc;
     let held = held_of(study, rows, doc);
     let mut counted: BTreeSet<String> = BTreeSet::new();
-    for choice in &mut choices {
+    for choice in choices.iter_mut() {
         for filler in choice.lines.iter().filter_map(|i| lines.get(*i)).flat_map(|line| line.fillers.iter()) {
             if counted.insert(filler.id.clone()) {
                 choice.taken.push(filler.clone());
             }
         }
     }
-    for choice in &mut choices {
+    for choice in choices.iter_mut() {
         let own: Vec<(&str, i64)> = choice.lines.iter().filter_map(|i| lines.get(*i)).map(|line| (line.caption.as_str(), line.ord)).collect();
         for module in &held {
             let chosen = module.counts.as_ref().is_some_and(|row| own.iter().any(|(caption, ord)| row.is(input.program_id, caption, *ord)));
@@ -579,26 +607,149 @@ fn choices_of(input: &Input, study: &Study, rows: &[PlanRow], lines: &mut [PlanL
             }
         }
     }
-    let fues_area = study.progress.iter().position(|p| p.area.kind == AreaKind::Fues);
-    let mut order: Vec<usize> = (0..choices.len()).collect();
-    order.sort_by_key(|at| choices.get(*at).map_or((u8::MAX, *at), |choice| (choice.first, *at)));
-    for at in order {
-        let Some(choice) = choices.get_mut(at) else { continue };
-        let lists: BTreeSet<&str> = choice.lists.iter().flat_map(|list| list.modules.iter()).map(String::as_str).collect();
-        for module in &held {
-            if choice.taken_credits() + EPSILON >= choice.most.max(choice.least) || counted.contains(&module.taken.id) {
-                continue;
-            }
-            let fits = if choice.fues { module.area.is_some() && module.area == fues_area } else { lists.contains(module.taken.id.as_str()) };
-            if fits {
-                counted.insert(module.taken.id.clone());
-                choice.taken.push(module.taken.clone());
+    // Counted for a row that is no choice: its area's, no choice's.
+    let mut pflicht: Vec<(Taken, usize)> = Vec::new();
+    for module in &held {
+        let row = module.counts.as_ref().and_then(|row| lines.iter().position(|line| line.choice.is_none() && row.is(input.program_id, &line.caption, line.ord)));
+        if let Some(at) = row {
+            if counted.insert(module.taken.id.clone()) {
+                pflicht.push((module.taken.clone(), at));
             }
         }
     }
+
+    let fues_area = study.progress.iter().position(|p| p.area.kind == AreaKind::Fues);
+    // What does not change while modules are counted: each choice's lists, whether it is the FÜS,
+    // its area, where it begins.
+    let lists: Vec<BTreeSet<String>> = choices.iter().map(|choice| choice.lists.iter().flat_map(|list| list.modules.iter()).cloned().collect()).collect();
+    let fixed: Vec<(bool, Option<usize>, u8)> = choices.iter().map(|choice| (choice.fues, choice.area, choice.first)).collect();
+    let member_of = |at: usize| groups.iter().position(|group| group.members.contains(&at));
+    let most_of = |choice: &Choice| choice.most.max(choice.least);
+    let taken_of = |choices: &[Choice], at: usize| choices.get(at).map_or(0.0, Choice::taken_credits);
+    let members_taken = |choices: &[Choice], group: usize| groups.get(group).map_or(0.0, |group| group.members.iter().map(|at| taken_of(choices, *at)).sum::<f64>());
+    // Whether choice `at` still asks for credits: its least, or as a member the group's sum.
+    let needs = |choices: &[Choice], at: usize| -> bool {
+        let Some(choice) = choices.get(at) else { return false };
+        if choice.done.is_some() {
+            return false;
+        }
+        let taken = choice.taken_credits();
+        taken + EPSILON < choice.least
+            || member_of(at).is_some_and(|group| taken + EPSILON < most_of(choice) && members_taken(choices, group) + EPSILON < groups.get(group).map_or(0.0, |group| group.together))
+    };
+    // Whether it has room left: below its most, a member below the group's sum as well.
+    let room = |choices: &[Choice], at: usize| -> bool {
+        let Some(choice) = choices.get(at) else { return false };
+        needs(choices, at)
+            || (choice.taken_credits() + EPSILON < most_of(choice) && member_of(at).is_none_or(|group| members_taken(choices, group) + EPSILON < groups.get(group).map_or(0.0, |group| group.together)))
+    };
+    let fits = |at: usize, module: &Held| -> bool {
+        match fixed.get(at) {
+            Some((true, ..)) => module.area.is_some() && module.area == fues_area,
+            Some(_) => lists.get(at).is_some_and(|list| list.contains(&module.taken.id)),
+            None => false,
+        }
+    };
+    // The most fitting first, of the choices that fit `module`.
+    let ranked = |choices: &[Choice], module: &Held| -> Vec<usize> {
+        let mut fitting: Vec<usize> = (0..choices.len()).filter(|at| fits(*at, module)).collect();
+        fitting.sort_by_key(|at| {
+            let (_, area, first) = fixed.get(*at).copied().unwrap_or((false, None, u8::MAX));
+            let other_area = module.area.is_some() && area != module.area;
+            let size = lists.get(*at).map_or(usize::MAX, BTreeSet::len);
+            (!needs(choices, *at), other_area, size, first, *at)
+        });
+        fitting
+    };
+    // Where each module went by the rule: those may make way.
+    let mut by_rule: Vec<(usize, usize)> = Vec::new();
+    for (index, module) in held.iter().enumerate() {
+        if counted.contains(&module.taken.id) {
+            continue;
+        }
+        let order = ranked(choices, module);
+        if let Some(at) = order.iter().copied().find(|at| room(choices, *at)) {
+            if let Some(choice) = choices.get_mut(at) {
+                choice.taken.push(module.taken.clone());
+            }
+            counted.insert(module.taken.id.clone());
+            by_rule.push((index, at));
+            continue;
+        }
+        // None has room: one there by the rule moves on to another choice with room for it.
+        'way: for at in order {
+            for slot in 0..by_rule.len() {
+                let Some(&(other, there)) = by_rule.get(slot) else { continue };
+                let Some(moved) = held.get(other) else { continue };
+                if there != at {
+                    continue;
+                }
+                let Some(place) = choices.get(at).and_then(|choice| choice.taken.iter().position(|taken| taken.id == moved.taken.id)) else { continue };
+                let Some(taken) = choices.get_mut(at).map(|choice| choice.taken.remove(place)) else { continue };
+                let elsewhere = ranked(choices, moved).into_iter().find(|to| *to != at && room(choices, *to));
+                match elsewhere {
+                    Some(to) if room(choices, at) => {
+                        if let Some(choice) = choices.get_mut(to) {
+                            choice.taken.push(taken);
+                        }
+                        if let Some(choice) = choices.get_mut(at) {
+                            choice.taken.push(module.taken.clone());
+                        }
+                        if let Some(entry) = by_rule.get_mut(slot) {
+                            entry.1 = to;
+                        }
+                        counted.insert(module.taken.id.clone());
+                        by_rule.push((index, at));
+                        break 'way;
+                    }
+                    _ => {
+                        if let Some(choice) = choices.get_mut(at) {
+                            choice.taken.insert(place, taken);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // A group's extra still asking for credits takes them from its members where these hold more
+    // than the group's sum asks and each keeps its least: Grundlagen 24, Praktische 18, Angewandte
+    // 12 is the 50 of Informatik's Komplexe, its Wahlpflicht of the 4. FS among them. The last
+    // counted by the rule goes first.
+    for (at_group, group) in groups.iter().enumerate() {
+        for &extra in &group.extras {
+            loop {
+                let lacking = choices.get(extra).is_some_and(|choice| choice.done.is_none() && choice.taken_credits() + EPSILON < choice.least);
+                if !lacking {
+                    break;
+                }
+                let surplus = members_taken(choices, at_group) - group.together;
+                let found = by_rule.iter().enumerate().rev().find_map(|(slot, (index, there))| {
+                    let module = held.get(*index)?;
+                    let credits = module.taken.credits.unwrap_or(0.0);
+                    let member = choices.get(*there)?;
+                    let keeps = member.taken_credits() - credits + EPSILON >= member.least;
+                    (group.members.contains(there) && credits <= surplus + EPSILON && keeps && lists.get(extra).is_some_and(|list| list.contains(&module.taken.id))).then_some((slot, *there))
+                });
+                let Some((slot, there)) = found else { break };
+                let id = by_rule.get(slot).and_then(|(index, _)| held.get(*index)).map(|module| module.taken.id.clone()).unwrap_or_default();
+                let taken = choices.get_mut(there).and_then(|choice| choice.taken.iter().position(|taken| taken.id == id).map(|at| choice.taken.remove(at)));
+                match (taken, choices.get_mut(extra)) {
+                    (Some(taken), Some(choice)) => choice.taken.push(taken),
+                    _ => break,
+                }
+                if let Some(entry) = by_rule.get_mut(slot) {
+                    entry.1 = extra;
+                }
+            }
+        }
+    }
+    // What a choice takes, in the order of the study: passed first, then by semester.
+    for choice in choices.iter_mut() {
+        choice.taken.sort_by_key(|taken| (!taken.passed, taken.semester));
+    }
     let listed: BTreeSet<&str> = choices.iter().filter(|choice| !choice.fues).flat_map(|choice| choice.modules()).collect();
     let spare = held.iter().filter(|module| !counted.contains(&module.taken.id) && listed.contains(module.taken.id.as_str())).map(|module| module.taken.clone()).collect();
-    (choices, spare)
+    (spare, pflicht)
 }
 
 /// The names of the rows, by their `ord` and plan.
@@ -651,19 +802,22 @@ fn together_of(row: &PlanRow, rows: &[PlanRow], name_of: impl Fn(&str, i64) -> O
 /// The lists of a choice of `row`: the areas of the tree its name points at, else the areas of
 /// the progress's `area` that a student chooses in.
 fn lists_of(input: &Input, study: &Study, row: &PlanRow, area: Option<usize>) -> Vec<List> {
-    let tree = input.tree;
+    lists_for(input.tree, input.placements, row, area.and_then(|area| study.progress.get(area)).map(|p| &p.area.tree))
+}
+
+/// The lists of a choice of `row` (`lists_of`), its area's tree being `claimed` (`study::Area::tree`).
+pub(crate) fn lists_for(tree: &[CatalogArea], placements: &[(String, i64)], row: &PlanRow, claimed: Option<&BTreeSet<i64>>) -> Vec<List> {
     let found = plan::areas_for_row(row.entry, &row.variant.full, tree, &row.variant.entries);
     let mut tops: Vec<&CatalogArea> = found.areas.iter().filter_map(|found| tree.iter().find(|area| area.id == found.id)).collect();
     if tops.is_empty() {
         // The tree's areas of the progress's area where a student chooses, the topmost of them.
-        let claimed: Vec<&CatalogArea> = area.and_then(|area| study.progress.get(area)).map(|p| tree.iter().filter(|area| p.area.tree.contains(&area.id) && area.choice).collect()).unwrap_or_default();
+        let claimed: Vec<&CatalogArea> = claimed.map(|claimed| tree.iter().filter(|area| claimed.contains(&area.id) && area.choice).collect()).unwrap_or_default();
         tops = claimed.iter().copied().filter(|area| !claimed.iter().any(|top| study::below(area, top))).collect();
     }
     tops.into_iter()
         .map(|top| {
             let mut seen = BTreeSet::new();
-            let modules = input
-                .placements
+            let modules = placements
                 .iter()
                 .filter(|(_, at)| *at == top.id || tree.iter().any(|area| area.id == *at && study::below(area, top)))
                 .map(|(module, _)| module.clone())
@@ -686,7 +840,7 @@ fn held_of(study: &Study, rows: &[PlanRow], doc: &PlanDoc) -> Vec<Held> {
             if named.contains(id) {
                 continue;
             }
-            let taken = Taken { id: id.to_string(), name: item.name.clone(), credits: item.credits, semester: semester.key, passed: item.passed };
+            let taken = Taken { id: id.to_string(), name: item.name.clone(), credits: item.credits, semester: semester.key, passed: item.passed, exception: item.exception };
             let counts = doc.counts_of(semester.key, id).cloned();
             match held.iter_mut().find(|known| known.taken.id == id) {
                 Some(known) if item.passed && !known.taken.passed => {
@@ -764,6 +918,124 @@ mod tests {
         assert_eq!(module_state(None, Vec::new(), now), RowState::Open);
         assert_eq!(RowState::Again { failed: key("2025W"), planned: key("2027S") }.semester(), Some(key("2027S")));
         assert_eq!(RowState::Failed(key("2025W")).semester(), None);
+    }
+
+    /// A program of the snapshot, as „Mein Studium" works its study out.
+    struct Program {
+        id: String,
+        variants: Vec<crate::variants::PlanVariant>,
+        tree: Vec<CatalogArea>,
+        placements: Vec<(String, i64)>,
+        fues: Vec<String>,
+        rows: Vec<folia_model::rows::CatalogRow>,
+        leave: BTreeSet<SemesterKey>,
+    }
+
+    fn program(id: &str) -> Program {
+        use folia_model::labels::{Labelled, OfferStatus};
+        let db = folia_test_support::open();
+        let entries = folia_query::program_plan_entries(&db, id).unwrap();
+        let variants = crate::variants::plan_variants(&entries, &folia_query::program_plan_totals(&db, id).unwrap(), folia_locale::Locale::De);
+        let placed = folia_query::program_areas(&db, id).unwrap();
+        let tree = crate::areas::catalog_areas(&placed, &folia_query::program_area_tree(&db, id).unwrap());
+        let placements: Vec<(String, i64)> = placed.iter().map(|p| (p.module_id.clone(), p.area_id)).collect();
+        let fues = folia_query::program_modules(&db, id, folia_routes::filter::ProgramRelation::Fues).unwrap().into_iter().map(|m| m.module_id).collect();
+        let mut ids: Vec<String> = entries.iter().filter_map(|entry| entry.module_id.clone()).chain(placements.iter().map(|(module, _)| module.clone())).filter(|id| url::is_module_id(id)).collect();
+        ids.sort();
+        ids.dedup();
+        let query = folia_routes::filter::CatalogQuery { only_ids: Some(ids.clone()), offer: Some(OfferStatus::ALL.to_vec()), ..Default::default() };
+        let rows = folia_query::catalog_page(&db, &query, 0, ids.len() as u64 + 1).unwrap().rows;
+        Program { id: id.to_string(), variants, tree, placements, fues, rows, leave: BTreeSet::new() }
+    }
+
+    impl Program {
+        fn view(&self, doc: &PlanDoc) -> (Study, PlanView) {
+            let input = Input {
+                program_id: &self.id,
+                core: self.variants.first(),
+                page: None,
+                start: key("2025W"),
+                now: key("2026W"),
+                leave: &self.leave,
+                until: None,
+                doc,
+                rows: &self.rows,
+                tree: &self.tree,
+                placements: &self.placements,
+                fues: &self.fues,
+            };
+            let study = study::study(&input);
+            let view = plan_view(&input, &study);
+            (study, view)
+        }
+    }
+
+    /// The modules each choice takes, by name.
+    fn taken(view: &PlanView, name: &str) -> Vec<String> {
+        view.choices.iter().find(|choice| choice.name.starts_with(name)).map(|choice| choice.taken.iter().map(|taken| taken.id.clone()).collect()).unwrap_or_default()
+    }
+
+    fn planned(lines: &[(&str, &str)]) -> PlanDoc {
+        let mut doc = PlanDoc::default();
+        for (s, id) in lines {
+            doc.plan(key(s), id, 1, None);
+        }
+        doc
+    }
+
+    /// Informatik B.Sc. (owner, 2026-11-08: „module nicht richtig angerechnet werden, weil zum
+    /// beispiel in wahlpflicht landen, anstatt in dem konkreten komplex"): Datenbanken lies in the
+    /// Komplex Praktische Informatik and counts there, not for the „Wahlpflicht: Komplex … / … /
+    /// …" of the 4. FS that takes from all three, which the plan names first.
+    #[test]
+    fn a_module_counts_for_its_komplex_not_for_the_wahlpflicht_over_all_three() {
+        let informatik = program("079-82-2008");
+        let (_, view) = informatik.view(&planned(&[("2027S", "12330")]));
+        assert_eq!(taken(&view, "Komplex Praktische Informatik"), ["12330"]);
+        assert!(taken(&view, "Wahlpflicht: Komplex").is_empty());
+        // Approximationsalgorithmen of the Grundlagen der Informatik likewise.
+        let (_, view) = informatik.view(&planned(&[("2027S", "12330"), ("2027W", "12329")]));
+        assert_eq!(taken(&view, "Komplex Grundlagen der Informatik"), ["12329"]);
+        assert!(taken(&view, "Wahlpflicht: Komplex").is_empty());
+    }
+
+    /// Past the sum of the Komplexe (44) what is left goes to the Wahlpflicht of the 4. FS; and
+    /// where a Komplex holds more than its least and the three more than their sum, the
+    /// Wahlpflicht takes from it: 24, 18 and 12 are the 50 the four ask for together.
+    #[test]
+    fn the_wahlpflicht_over_all_three_takes_what_the_komplexe_hold_beyond_their_sum() {
+        let informatik = program("079-82-2008");
+        let gi = [("2027S", "12329"), ("2027S", "12350"), ("2027S", "11450")];
+        let pi = [("2027W", "14012"), ("2027W", "13569"), ("2027W", "14460")];
+        let ati = [("2028S", "12339"), ("2028S", "12882")];
+        let all: Vec<(&str, &str)> = gi.iter().chain(&pi).chain(&ati).copied().collect();
+        let (_, view) = informatik.view(&planned(&all));
+        assert_eq!(taken(&view, "Komplex Grundlagen der Informatik"), ["12329", "12350", "11450"]);
+        assert_eq!(taken(&view, "Komplex Praktische Informatik"), ["14012", "13569"]);
+        assert_eq!(taken(&view, "Komplex Angewandte und Technische Informatik"), ["12339", "12882"]);
+        assert_eq!(taken(&view, "Wahlpflicht: Komplex"), ["14460"], "the last a Komplex could give away");
+        for name in ["Komplex Grundlagen der Informatik", "Komplex Praktische Informatik", "Komplex Angewandte und Technische Informatik", "Wahlpflicht: Komplex"] {
+            assert!(view.choices.iter().find(|choice| choice.name.starts_with(name)).is_some_and(Choice::complete), "{name}");
+        }
+        assert_eq!(view.groups[0].open(&view), 0.0);
+    }
+
+    /// A module two choices list goes where it is still asked for (owner, 2026-11-08: „wenn ein
+    /// modul in zwei bereichen sein kann aber einer davon schon genug credits hat, dann in den
+    /// anderen bereich"): Algorithmische Graphentheorie and Kombinatorik are listed by „Praktische
+    /// Mathematik" (6 LP) and the Anwendungsfach (its Mathematik): the first fills the first, the
+    /// second goes to the Anwendungsfach. Statistik für Anwender is listed by Praktische Mathematik
+    /// alone: planned after Graphentheorie, it takes the place there, and Graphentheorie makes way.
+    #[test]
+    fn a_module_two_choices_list_goes_where_it_is_still_asked_for() {
+        let informatik = program("079-82-2008");
+        let (_, view) = informatik.view(&planned(&[("2027S", "11405"), ("2027W", "11409")]));
+        assert_eq!(taken(&view, "Modul aus dem Bereich Praktische Mathematik"), ["11405"]);
+        assert_eq!(taken(&view, "Anwendungsfach"), ["11409"]);
+        let (_, view) = informatik.view(&planned(&[("2027S", "11405"), ("2027W", "11926")]));
+        assert_eq!(taken(&view, "Modul aus dem Bereich Praktische Mathematik"), ["11926"]);
+        assert_eq!(taken(&view, "Anwendungsfach"), ["11405"]);
+        assert!(view.spare.is_empty());
     }
 
     /// Rows of one name count together, their number aside.

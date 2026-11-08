@@ -15,7 +15,8 @@
 // 4 „+ Einplanen" plans a module at once: it counts for the Anwendungsfach (the semester says „für
 //   Anwendungsfach", the Nebenfach and the subgroup count it), the store remembers the row.
 // 5 A module both choices list (Mathematische Statistik), planned from Praktische Mathematik,
-//   counts there; its menu's „Zählt für ›" lets it count for the Anwendungsfach.
+//   counts there; its menu's „Zählt für ›" lets it count for the Anwendungsfach, „Anderer Bereich
+//   …" for Mathematik's Pflichtmodule as an exception, marked „Ausnahme", and „Automatisch" back.
 // 6 The FÜS: a row opens its module beside the page over the semester, whose „Einplanen" aims at
 //   the workbench's semester for the FÜS; Esc closes the module, the mode stays.
 // 7 „Im Katalog suchen ›": the catalog with the FÜS list and the winter, the workbench's bar at the
@@ -165,6 +166,27 @@ await step("Zählt für ›", () => page.click(".st-pop.root #st-menu-counts"), 
 await step("Zählt für Anwendungsfach", () => page.click('.st-pop.sub [role=menuitem]:has-text("Anwendungsfach")'), () => document.querySelector(".study-note")?.textContent.includes("zählt für Anwendungsfach"));
 await step("Module hinzufügen, again", () => page.click(".st-card-sem .st-add"), () => document.querySelector(".st-wb-sem .st-wb-sr"));
 check((await semester()).includes(`${stat}|für Anwendungsfach`), `„Zählt für“ did not move it: ${JSON.stringify(await semester())}`);
+
+// 5b: „Zählt für ›" › „Anderer Bereich …" (owner, 2026-11-08: „jedes modul zu jedem möglichen
+// bereich zuzuordnen … dass es angezeigt wird, wenn man das gemacht hat und dass das man das nicht
+// ausversehen macht"): the dialog of every subgroup; Mathematik's Pflichtmodule are an exception,
+// said before „Als Ausnahme zuordnen"; the row then says „Ausnahme" and counts for Mathematik;
+// „Automatisch" takes it back to where it fits best, the Nebenfach, without the mark.
+await step("Fertig, for the dialog", () => page.click(".st-wb-done"), () => !document.querySelector(".st-wb"));
+const counts = async (name) => {
+  await step(`${name}: its menu`, () => page.click(`.st-card-sem .st-row:has(.st-name:text-is("${stat}")) .st-status`), () => document.querySelector(".st-pop.root #st-menu-counts"));
+  await step(`${name}: Zählt für ›`, () => page.click(".st-pop.root #st-menu-counts"), () => document.querySelector(".st-pop.sub #st-menu-auto") && document.querySelector(".st-pop.sub #st-menu-other"));
+};
+await counts("an exception");
+await step("Anderer Bereich …", () => page.click(".st-pop.sub #st-menu-other"), () => document.querySelectorAll(".st-cf .st-cf-opt").length > 8 && document.querySelector(".st-cf-area h3")?.textContent === "Informatik" && document.querySelector('.st-cf-opt input:checked')?.closest(".st-cf-opt")?.textContent.includes("Anwendungsfach"));
+await step("Mathematik's Pflichtmodule", () => page.click('.st-cf-area:has(h3:text-is("Mathematik")) .st-cf-opt'), () => document.querySelector(".st-cf-warn.warn")?.textContent.includes("Ausnahme") && document.querySelector("#st-cf-go")?.textContent.trim() === "Als Ausnahme zuordnen");
+await step("Als Ausnahme zuordnen", () => page.click("#st-cf-go"), (stat) => {
+  const counted = [...document.querySelectorAll(".st-card-sem .st-row")].some((row) => row.querySelector(".st-name")?.textContent === stat && row.querySelector(".st-exception") && row.querySelector(".st-area")?.textContent === "Mathematik");
+  return !document.querySelector(".st-cf") && document.querySelector(".study-note")?.textContent.includes("zählt als Ausnahme für") && counted;
+}, stat);
+await counts("back");
+await step("Automatisch", () => page.click(".st-pop.sub #st-menu-auto"), (stat) => [...document.querySelectorAll(".st-card-sem .st-row")].some((row) => row.querySelector(".st-name")?.textContent === stat && !row.querySelector(".st-exception") && row.querySelector(".st-area")?.textContent === "Nebenfach"), stat);
+await step("Module hinzufügen, the third time", () => page.click(".st-card-sem .st-add"), () => document.querySelector(".st-wb-sem .st-wb-sr"));
 
 // 6: the FÜS, a module beside the page.
 await step("FÜS", () => page.click('.st-wb-areas .st-wb-a:has-text("FÜS")'), () => document.querySelector(".st-wb-pt h3")?.textContent === "Fachübergreifendes Studium" && document.querySelector(".st-wb-pane .st-wb-row"));

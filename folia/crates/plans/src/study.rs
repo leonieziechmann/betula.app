@@ -478,6 +478,30 @@ pub(crate) fn below(area: &CatalogArea, top: &CatalogArea) -> bool {
     area.ancestors.get(..n) == Some(top.ancestors.as_slice()) && area.ancestors.get(n) == Some(&top.label)
 }
 
+/// Whether module `id` belongs to row `row` of the plan, of the area `area`, by what the plan and the
+/// tree say: a row of the FÜS takes the FÜS list; a row that lists modules (`choices::lists_for`,
+/// what its choice offers) takes those; else the area takes what its module tree holds — the
+/// thesis's area a thesis, an area the tree says nothing of anything (R12: not known to be limited
+/// is not limited). What does not belong is an exception the student made (`Item::exception`).
+pub(crate) fn fits_row(id: &str, row: &PlanRow, area: Option<&Area>, input: &Input, is_fues: &dyn Fn(&str) -> bool, catalog: &BTreeMap<&str, &CatalogRow>) -> bool {
+    let entry = row.entry;
+    if entry.module_id.is_none() && !plan::is_single_module(entry) {
+        if plan::is_fues(entry) {
+            return is_fues(id);
+        }
+        let lists = crate::choices::lists_for(input.tree, input.placements, row, area.map(|area| &area.tree));
+        if !lists.is_empty() {
+            return lists.iter().any(|list| list.modules.iter().any(|module| module == id));
+        }
+    }
+    let Some(area) = area else { return true };
+    match area.kind {
+        AreaKind::Fues => is_fues(id),
+        AreaKind::Thesis => catalog.get(id).and_then(|row| row.kind.as_ref()).and_then(Code::known) == Some(ModuleKind::Thesis),
+        AreaKind::Plan | AreaKind::Other => area.tree.is_empty() || input.placements.iter().any(|(module, at)| module == id && area.tree.contains(at)),
+    }
+}
+
 /// What the study is worked out from.
 #[derive(Clone, Copy)]
 pub struct Input<'a> {
@@ -543,6 +567,11 @@ pub struct Item {
     pub plan_fs: Option<u8>,
     /// The modules that fill a row (`Planned::fills`): then they count, not the row.
     pub fillers: Vec<String>,
+    /// The student let it count where the plan does not put it (owner, 2026-11-08: „jedes modul zu
+    /// jedem möglichen bereich zuzuordnen … dass es angezeigt wird, wenn man das gemacht hat"): the
+    /// row it counts for (`Planned::counts`, `Planned::fills`) lists modules and not this one, or
+    /// its area's module tree does not hold it (`fits_row`).
+    pub exception: bool,
 }
 
 impl Item {
@@ -745,6 +774,7 @@ pub fn study(input: &Input) -> Study {
             over: 0.0,
             plan_fs: row.map(|row| row.first),
             fillers: Vec::new(),
+            exception: false,
         }
     };
     let visit_item = |id: &str, s: SemesterKey| -> VisitItem {
@@ -802,6 +832,7 @@ pub fn study(input: &Input) -> Study {
             over: 0.0,
             plan_fs: (span.0 > 0).then_some(span.0),
             fillers,
+            exception: false,
         }
     };
 
@@ -849,34 +880,47 @@ pub fn study(input: &Input) -> Study {
 
     // Each item's area: the one of its plan row, else the one of the row the student chose it for
     // (the placeholder it fills, the row it was planned for: `Planned::fills`, `Planned::counts`),
-    // else the ones the tree places its module in (the first with room left), else the FÜS for a
-    // module of the FÜS list or the catalog's FÜS.
+    // whatever that row lists (owner, 2026-11-08: „jedes modul zu jedem möglichen bereich
+    // zuzuordnen"; `Item::exception` says where it does not fit); else the ones the tree places its
+    // module in, the most specific first (`pool`); else the FÜS for a module of the FÜS list or the
+    // catalog's FÜS.
     let fues_area = areas.iter().position(|area| area.kind == AreaKind::Fues);
     let fues: BTreeSet<&str> = input.fues.iter().map(String::as_str).collect();
+    let is_fues = |id: &str| fues.contains(id) || catalog.get(id).is_some_and(|row| row.is_fues);
     let row_area = |caption: &str, ord: i64| areas.iter().position(|area| area.rows.iter().any(|(c, o)| c == caption && *o == ord));
-    let chosen_area = |id: &str, s: SemesterKey| -> Option<usize> {
+    let chosen_row = |id: &str, s: SemesterKey| -> Option<&PlanRow> {
         let planned = doc.modules.iter().find(|m| m.semester == s && m.module_id == id)?;
-        let filled = planned.fills.and_then(|pid| doc.placeholders.iter().find(|p| p.pid == pid)).filter(|p| p.program_id == input.program_id).and_then(|p| row_area(&p.caption, p.ord));
-        filled.or_else(|| planned.counts.as_ref().filter(|row| row.program_id == input.program_id).and_then(|row| row_area(&row.caption, row.ord)))
+        let filled = planned.fills.and_then(|pid| doc.placeholders.iter().find(|p| p.pid == pid)).filter(|p| p.program_id == input.program_id).map(|p| (p.caption.as_str(), p.ord));
+        let counts = planned.counts.as_ref().filter(|row| row.program_id == input.program_id).map(|row| (row.caption.as_str(), row.ord));
+        [filled, counts].into_iter().flatten().find_map(|(caption, ord)| rows.iter().find(|row| row.variant.full == caption && row.entry.ord == ord))
     };
-    let candidates = |item: &Item, s: SemesterKey| -> Vec<usize> {
+    // How many modules the tree places in each area: the fewer, the more specific a home it is for
+    // a module that two areas could take („Komplex Praktische Informatik" before a „Wahlpflicht"
+    // over all of the Fachstudium).
+    let pool: Vec<usize> = areas
+        .iter()
+        .map(|area| input.placements.iter().filter(|(_, at)| area.tree.contains(at)).map(|(module, _)| module.as_str()).collect::<BTreeSet<&str>>().len())
+        .collect();
+    let placed_in = |id: &str| -> Vec<i64> { input.placements.iter().filter(|(module, _)| module == id).map(|(_, area)| *area).collect() };
+    // (the areas it may count for, the most fitting first; whether the student's choice holds)
+    let candidates = |item: &Item, s: SemesterKey| -> (Vec<usize>, bool) {
         match &item.subject {
-            Subject::Row { caption, ord, .. } => row_area(caption, *ord).into_iter().collect(),
+            Subject::Row { caption, ord, .. } => (row_area(caption, *ord).into_iter().collect(), true),
             Subject::Module { id } => {
                 if let Some(row) = module_rows.get(id.as_str()) {
-                    return row_area(&row.variant.full, row.entry.ord).into_iter().collect();
+                    return (row_area(&row.variant.full, row.entry.ord).into_iter().collect(), true);
                 }
                 // The student's choice holds, past what the area asks as well.
-                if let Some(chosen) = chosen_area(id, s) {
-                    return vec![chosen];
+                if let Some(chosen) = chosen_row(id, s).and_then(|row| row_area(&row.variant.full, row.entry.ord)) {
+                    return (vec![chosen], true);
                 }
-                let placed: Vec<i64> = input.placements.iter().filter(|(module, _)| module == id).map(|(_, area)| *area).collect();
-                let found: Vec<usize> = areas.iter().enumerate().filter(|(_, area)| placed.iter().any(|at| area.tree.contains(at))).map(|(i, _)| i).collect();
+                let placed = placed_in(id);
+                let mut found: Vec<usize> = areas.iter().enumerate().filter(|(_, area)| placed.iter().any(|at| area.tree.contains(at))).map(|(i, _)| i).collect();
+                found.sort_by_key(|at| (pool.get(*at).copied().unwrap_or(usize::MAX), *at));
                 if !found.is_empty() {
-                    return found;
+                    return (found, false);
                 }
-                let is_fues = fues.contains(id.as_str()) || catalog.get(id.as_str()).is_some_and(|row| row.is_fues);
-                fues_area.filter(|_| is_fues).into_iter().collect()
+                (fues_area.filter(|_| is_fues(id)).into_iter().collect(), false)
             }
         }
     };
@@ -894,8 +938,16 @@ pub fn study(input: &Input) -> Study {
         let Some(semester) = semesters.get_mut(si) else { continue };
         let key = semester.key;
         let Some(item) = semester.items.get_mut(ii) else { continue };
-        let found = candidates(item, key);
+        let (found, _) = candidates(item, key);
         item.area = found.first().copied();
+        if let Some(id) = item.module_id() {
+            if !module_rows.contains_key(id) {
+                item.exception = chosen_row(id, key).is_some_and(|row| {
+                    let area = row_area(&row.variant.full, row.entry.ord).and_then(|at| areas.get(at));
+                    !fits_row(id, row, area, input, &is_fues, &catalog)
+                });
+            }
+        }
         let counts = item.passed || !item.failed;
         let credits = item.counted().unwrap_or(0.0);
         if !counts || credits <= 0.0 {
@@ -1959,6 +2011,34 @@ mod tests {
         assert_eq!(items[1].area, None);
         assert_eq!(study.outside, (0.0, 6.0));
         assert_eq!(study.progress[3].planned, 6.0);
+    }
+
+    /// A module two areas take counts for the more specific one (owner, 2026-11-08: „dass
+    /// automatisch der sinnvollste bereich gewählt wird"): the Komplex whose tree holds a few
+    /// modules before the „Wahlpflicht" over all of the Fachstudium the plan names first; once the
+    /// Komplex has what it asks, the next goes to the other.
+    #[test]
+    fn a_module_counts_for_the_most_specific_area_that_takes_it() {
+        let entries = vec![
+            choice(1, "Wahlpflicht", 3, 3, (6.0, 6.0), "Fachstudium", "", ModuleKind::Elective),
+            choice(2, "Komplex Praktische Informatik", 4, 5, (12.0, 12.0), "Praktische Informatik", "", ModuleKind::Elective),
+        ];
+        let mut w = world();
+        w.core = plan_variants(&entries, &[], Locale::De).remove(0);
+        w.tree = vec![CatalogArea::new(1, "Fachstudium", &[], 1, true), CatalogArea::new(2, "Praktische Informatik", &["Fachstudium"], 3, true)];
+        w.placements = vec![("12330".into(), 2), ("12311".into(), 2), ("14460".into(), 2), ("12329".into(), 1)];
+        w.rows.extend([offered("12311", "both", 6.0), offered("14460", "both", 6.0)]);
+        assert_eq!(names(&study(&input(&w, &PlanDoc::default(), "2025W", "2026W"))).iter().map(|(name, ..)| name.as_str()).collect::<Vec<_>>(), ["Fachstudium", "Praktische Informatik"]);
+        let mut doc = PlanDoc::default();
+        doc.plan(key("2027S"), "12330", 1, None);
+        let one = study(&input(&w, &doc, "2025W", "2026W"));
+        assert_eq!(one.semester(key("2027S")).unwrap().items[0].area, Some(1));
+        doc.plan(key("2027S"), "12311", 2, None);
+        doc.plan(key("2027W"), "14460", 3, None);
+        let three = study(&input(&w, &doc, "2025W", "2026W"));
+        let areas: Vec<Option<usize>> = three.semesters.iter().flat_map(|s| s.items.iter().map(|item| item.area)).collect();
+        assert_eq!(areas, [Some(1), Some(1), Some(0)]);
+        assert_eq!((three.progress[0].planned, three.progress[1].planned), (6.0, 12.0));
     }
 
     #[test]
