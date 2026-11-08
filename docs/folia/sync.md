@@ -136,7 +136,10 @@ the phone at once, with the profile page's QR code (`folia_widgets::syncpair`), 
 once one more device is online. On a phone's layout it names the address a laptop opens, `/pair`,
 whose code the phone scans (owner, the same day: „Oh der pc prozess muss anders sein. Da muss ein
 link kommen wie betula.app/pair wo dann der qr code gezeigt wird, den man am handy scannen kann um
-sich einzuloggen"); its step 1 leads there with „Profil übernehmen".
+sich einzuloggen"), with „Code scannen" to Betula's scanner (`/sync?from=setup`, which leads back
+to the step once the code is answered), since the camera app would open the code in a browser that
+may keep other storage than Betula on the home screen; its step 1 leads to `/pair` with „Profil
+übernehmen".
 
 ## 5. Checks
 

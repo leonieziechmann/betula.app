@@ -106,6 +106,8 @@ pub struct Texts {
     /// On a phone: open the address on the laptop, then scan its code with this phone.
     pub elsewhere_open: &'static str,
     pub elsewhere_scan: &'static str,
+    /// The button to Betula's scanner.
+    pub scan_here: &'static str,
     /// The other device has the profile: the title, what that means, the note, and „Noch ein Gerät
     /// verbinden".
     pub joined_title: &'static str,
@@ -200,7 +202,8 @@ pub const DE: Texts = Texts {
     link_lead_phone: "Betula Sync ist an. Hol dein Profil jetzt auf den Laptop, von da an bleibt es auf beiden gleich.",
     link_making: "Link wird vorbereitet …",
     elsewhere_open: "Öffne auf deinem Laptop diese Adresse:",
-    elsewhere_scan: "Dort erscheint ein Code mit vier Ziffern. Scanne ihn mit der Kamera dieses Handys, vergleiche die Ziffern und tippe auf „Ja, … verbinden“. Dann ist dein Laptop angemeldet, mit allem, was du hier eingerichtet hast.",
+    elsewhere_scan: "Dort erscheint ein Code mit vier Ziffern. Scanne ihn mit dem Knopf hier, vergleiche die Ziffern und tippe auf „Ja, … verbinden“. Dann ist dein Laptop angemeldet, mit allem, was du hier eingerichtet hast.",
+    scan_here: "Code scannen",
     joined_title: "Verbunden",
     joined_lead: "Was du auf einem Gerät änderst, ist auf dem anderen sofort da, auch nach einer Weile offline.",
     joined: "Dein Profil ist jetzt auch auf dem anderen Gerät.",
@@ -293,7 +296,8 @@ pub const EN: Texts = Texts {
     link_lead_phone: "Betula Sync is on. Now get your profile onto your laptop; from then on it stays the same on both.",
     link_making: "Preparing the link …",
     elsewhere_open: "On your laptop, open this address:",
-    elsewhere_scan: "A code with four digits appears there. Scan it with the camera of this phone, compare the digits and tap “Yes, connect …”. Then your laptop is signed in, with everything you set up here.",
+    elsewhere_scan: "A code with four digits appears there. Scan it with the button here, compare the digits and tap “Yes, connect …”. Then your laptop is signed in, with everything you set up here.",
+    scan_here: "Scan the code",
     joined_title: "Connected",
     joined_lead: "What you change on one device is on the other at once, even after a while offline.",
     joined: "Your profile is now on the other device too.",

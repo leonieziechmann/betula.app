@@ -4002,9 +4002,14 @@ the pages about Betula since 2026-10-27 (`/about/<topic>`, below).
      link kommen wie betula.app/pair wo dann der qr code gezeigt wird, den man am handy scannen kann
      um sich einzuloggen"): the address the laptop opens, `<host>/pair`, large, whose QR code this
      phone scans and answers with „Ja, „…“ verbinden" after the digits (`/pair` below); „Verbunden"
-     as on a computer. Step
-     1's „Profil übernehmen" leads to `/pair` where the site offers Betula Sync (from the phone
-     by its code), else to the profile page (a file).
+     as on a computer. It scans with Betula's own scanner (owner, the same day: „Ja bau den
+     Scanner in Betula ein"): „Code scannen" under the address leads to `/sync?from=setup`, and
+     once the code is answered „Zurück zur Einrichtung" leads back to the step, built as it was
+     left, which says „Verbunden" by then; „Fertig" stays quiet beside it until then. The camera
+     app opens the code in the browser, which on an iPhone keeps its storage apart from Betula on
+     the home screen, so that the code would find an empty profile there. Step 1's „Profil
+     übernehmen" leads to `/pair` where the site offers Betula Sync (from the phone by its code),
+     else to the profile page (a file).
      A chip that leads back and „Studium anlegen" once more set the study up anew in place of the
      first one: the plan and the Studienbeginn from before the setup are the base, so that
      „Rückgängig" puts back what was. Where the site does not offer Betula Sync the setup has its
