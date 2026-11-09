@@ -189,6 +189,11 @@ fn semester_of(day: Day) -> Option<SemesterKey> {
     }
 }
 
+/// The host a picture names as where it is from („betula.app"), as the browser has it.
+pub(crate) fn site_host() -> String {
+    export::site().map_or_else(|| "betula.app".to_string(), |(_, host)| host)
+}
+
 /// The browser's date. `None` on the server, which renders no plan and must not read a clock.
 pub(crate) fn today() -> Option<Day> {
     #[cfg(feature = "csr")]

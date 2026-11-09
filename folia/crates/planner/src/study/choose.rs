@@ -399,17 +399,20 @@ fn fig(stand: &Stand, t: &'static Texts) -> impl IntoView {
 }
 
 /// The bar of a stand (app.css `.st-wbar`): what is passed in the area's tone, what is planned
-/// lighter, beyond what it takes hatched; the least marked where it asks a range. A group's member
-/// has its room above its most (`Room`): hatched while it is open to each, part of its bar where it
-/// keeps it, gone where another keeps it, yellow where it is over besides the one that keeps it.
-fn bar(stand: &Stand, room: Option<(Room, f64)>, class: &'static str, t: &'static Texts) -> impl IntoView {
+/// lighter, the modules beyond need hatched (`Stand::spare`: what the modules it counts bring past
+/// its most is no more than taken, owner, 2026-11-09); the least marked where it asks a range. A
+/// group's member has its room above its most (`Room`): hatched while it is open to each, part of
+/// its bar where it keeps it, gone where another keeps it, yellow where it is over besides the one
+/// that keeps it.
+pub(super) fn bar(stand: &Stand, room: Option<(Room, f64)>, class: &'static str, t: &'static Texts) -> impl IntoView {
     let (state, extra) = room.unwrap_or((Room::None, 0.0));
     // A member that keeps the room has it in its most already.
     let cap = if state == Room::Kept { stand.most - extra } else { stand.most };
     let scale = (if state == Room::None { stand.most } else { cap + extra }).max(stand.taken()).max(stand.least).max(1e-6);
     let pct = move |x: f64| format!("{:.3}%", (x / scale * 100.0).clamp(0.0, 100.0));
     let taken = stand.taken();
-    let limit = if state == Room::Over { cap } else { stand.most };
+    // Hatched from its most, or where what counts ends past it (8 LP where 6 were asked).
+    let limit = if state == Room::Over { cap } else { stand.most.max(stand.counted()) };
     let track = if state == Room::Gone { cap.max(taken) } else { scale };
     let label = (t.study_views.figure)(&n(taken, t), &range_of(stand, t));
     // Its ends round where a part reaches them.

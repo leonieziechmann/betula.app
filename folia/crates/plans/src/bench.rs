@@ -127,6 +127,28 @@ impl Bench {
         self.groups.iter().position(|group| group.area == area && group.kind == kind)
     }
 
+    /// The subgroups of `area` to show (the workbench's tree, the Gesamtplan's subsections): a
+    /// choice whose modules other choices of the area list all of is none of them (owner,
+    /// 2026-11-04: „Auch hier braucht es keinen kombinierten bereich aus mehreren wp dingen, weil
+    /// die ja von den bereichen selbst abgedeckt werden"): the Fachstudium's „Wahlpflicht: Komplex
+    /// … / … / …" draws from the three Komplexe, each of which stands there.
+    pub fn shown(&self, view: &PlanView, area: usize) -> Vec<usize> {
+        let Some(own) = self.area(area) else { return Vec::new() };
+        let lists_of = |at: usize| -> Option<BTreeSet<&str>> {
+            let choice = view.choices.get(self.groups.get(at)?.choice()?)?;
+            (!choice.fues && !choice.lists.is_empty()).then(|| choice.lists.iter().flat_map(|list| list.modules.iter().map(String::as_str)).collect())
+        };
+        own.groups
+            .iter()
+            .copied()
+            .filter(|at| {
+                let Some(mine) = lists_of(*at).filter(|mine| !mine.is_empty()) else { return true };
+                let others: BTreeSet<&str> = own.groups.iter().filter(|other| *other != at).filter_map(|other| lists_of(*other)).filter(|theirs| theirs.len() < mine.len()).flatten().collect();
+                !mine.is_subset(&others)
+            })
+            .collect()
+    }
+
     /// The subgroup of a choice.
     pub fn of_choice(&self, choice: usize) -> Option<usize> {
         self.groups.iter().position(|group| group.kind == GroupKind::Choice(choice))
