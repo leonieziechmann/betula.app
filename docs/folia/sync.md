@@ -112,11 +112,25 @@ The profile page says „direkt verbunden" or „über Betula weitergeleitet".
 | a profile deleted | leaves its space for this device alone; the others keep it |
 | „Profil leeren", „Rückgängig" | sync like any change |
 
+While devices connect, a bar shows the way, and then the success of concept A of
+folia/design/verbunden/konzepte.html (owner, 2026-11-09: „Ja nimm bitte option a. Aber mach mal
+eine animation mit progress bar für den sync an sich. So dass man sieht, dass da was passiert";
+`folia_widgets::syncdone`): `ConnectProgress` names the steps — Betula Sync switched on (a private
+profile), the profile sent, the other device fetching it, the profile received, the data in line —,
+ticks those done, pulses the one under way and fills its part of the bar slowly, and shows each for
+550 ms at least, so that steps of a few milliseconds are seen as well; it follows what really
+happens: the giver's send, Phloem's `pair` frame that its parcel was opened (`Sync::taken`), one
+more device of the profile online; the device that got the profile, its own connection (or 8 s
+without one). `Connected` then: a tick, „Verbunden" (from the setup „Alles eingerichtet" with what
+was set up), what is on now in three rows (on both devices, in line at once and offline, sealed
+without an account), that more devices are connected on the profile page („Gerät verbinden"), and
+„Fertig".
+
 Every way of connecting ends on the start page (owner, 2026-11-09: „dass man wieder bei der main
 page landet, wenn das sync fertig ist und nicht im profil"): „Fertig" of the device that gave its
 profile (the question after a code, the dialog „Gerät verbinden") and of the device that got one
 (`/pair`, a link of `/sync#…`, the dialog's „Profil vom Handy holen") is a link to `/`, which the
-dialog closes on its way; from the setup's last step the scanner leads back to that step instead.
+dialog closes on its way; from the setup's last step it ends the setup there (`/?setup=done`).
 
 ## 4. Shares (step 3)
 
@@ -144,8 +158,8 @@ the phone at once, with the profile page's QR code (`folia_widgets::syncpair`), 
 once one more device is online. On a phone's layout it names the address a laptop opens, `/pair`,
 whose code the phone scans (owner, the same day: „Oh der pc prozess muss anders sein. Da muss ein
 link kommen wie betula.app/pair wo dann der qr code gezeigt wird, den man am handy scannen kann um
-sich einzuloggen"), with „Code scannen" to Betula's scanner (`/sync?from=setup`, which leads back
-to the step once the code is answered), since the camera app would open the code in a browser that
+sich einzuloggen"), with „Code scannen" to Betula's scanner (`/sync?from=setup`, whose „Fertig"
+ends the setup on the start page once the code is answered), since the camera app would open the code in a browser that
 may keep other storage than Betula on the home screen; its step 1 leads to `/pair` with „Profil
 übernehmen".
 

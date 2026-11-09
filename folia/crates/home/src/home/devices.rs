@@ -25,6 +25,7 @@ use leptos::prelude::*;
 use folia_design::ui::Icon;
 use folia_stores::profiles::{Profiles, FIRST};
 use folia_stores::sync::{Pairing, Problem, State, Sync};
+use folia_widgets::syncdone::{ways, ConnectProgress, Connected};
 use folia_widgets::syncpair::{problem_text, PairLink};
 
 use crate::i18n;
@@ -61,6 +62,10 @@ pub fn DevicesStep(on_finish: Callback<()>) -> impl IntoView {
     // has the profile, and that stays said.
     let before = RwSignal::new(0usize);
     let joined = RwSignal::new(false);
+    // What Phloem had said of opened parcels when the link was made: once more, the phone has
+    // fetched it. Then the way on a bar, then the success (`folia_widgets::syncdone`).
+    let taken_before = StoredValue::new(0u32);
+    let shown_done = RwSignal::new(false);
 
     let pair = move || {
         let Some(sync) = sync else { return };
@@ -69,6 +74,8 @@ pub fn DevicesStep(on_finish: Callback<()>) -> impl IntoView {
             _ => 0,
         });
         joined.set(false);
+        shown_done.set(false);
+        taken_before.set_value(sync.taken());
         link.set(Link::Making);
         sync.pair(id.get_untracked(), move |made| {
             // Still the question of this step: a link made for what is gone is not shown.
@@ -88,6 +95,7 @@ pub fn DevicesStep(on_finish: Callback<()>) -> impl IntoView {
             _ => 0,
         });
         joined.set(false);
+        shown_done.set(false);
         link.set(Link::Elsewhere);
     };
     let next = move || if phone { elsewhere() } else { pair() };
@@ -120,24 +128,32 @@ pub fn DevicesStep(on_finish: Callback<()>) -> impl IntoView {
     };
     let finish = move |_| on_finish.run(());
 
-    let title = move || match (synced.get(), joined.get(), phone) {
-        (true, true, _) => s.joined_title,
-        (true, false, false) => s.link_title,
-        (true, false, true) => s.link_title_phone,
-        (false, _, false) => s.devices_title,
-        (false, _, true) => s.devices_title_phone,
+    // The bar from the moment the phone fetched the link (or came), then the success.
+    let handing = Memo::new(move |_| {
+        let taken = link.with(|link| matches!(link, Link::Made(_))) && sync.is_some_and(|sync| sync.taken() != taken_before.get_value());
+        match (joined.get(), shown_done.get()) {
+            (true, true) => Some(true),
+            (true, false) => Some(false),
+            (false, _) => taken.then_some(false),
+        }
+    });
+    let handed = Signal::derive(move || if joined.get() { 2 } else { 1 });
+    let title = move || match (synced.get(), phone) {
+        (true, false) => s.link_title,
+        (true, true) => s.link_title_phone,
+        (false, false) => s.devices_title,
+        (false, true) => s.devices_title_phone,
     };
-    let lead = move || match (synced.get(), joined.get(), phone) {
-        (true, true, _) => s.joined_lead,
-        (true, false, false) => s.link_lead,
-        (true, false, true) => s.link_lead_phone,
-        (false, _, false) => s.devices_lead,
-        (false, _, true) => s.devices_lead_phone,
+    let lead = move || match (synced.get(), phone) {
+        (true, false) => s.link_lead,
+        (true, true) => s.link_lead_phone,
+        (false, false) => s.devices_lead,
+        (false, true) => s.devices_lead_phone,
     };
 
     // What the step holds: the points before it is on; the link once it is; the other device once
     // it has the profile.
-    let held = move || {
+    let held_step = move || {
         if !synced.get() {
             let failed = state.with(|state| match state {
                 State::Failed(problem) => Some(*problem),
@@ -148,13 +164,6 @@ pub fn DevicesStep(on_finish: Callback<()>) -> impl IntoView {
                 <ul class="ob-points">
                     {POINTS.into_iter().zip(s.devices_points).map(|(icon, point)| view! { <li><span class="ob-point-icon" aria-hidden="true"><Icon name=icon/></span><span>{point}</span></li> }).collect_view()}
                 </ul>
-            }
-            .into_any();
-        }
-        if joined.get() {
-            return view! {
-                <p class="ob-note ok" role="status"><Icon name="circle-check-big"/><span>{s.joined}</span></p>
-                <button type="button" class="btn sm ob-more" on:click=move |_| next() data-command=""><Icon name=if phone { "monitor" } else { "smartphone" }/>{s.pair_more}</button>
             }
             .into_any();
         }
@@ -181,10 +190,20 @@ pub fn DevicesStep(on_finish: Callback<()>) -> impl IntoView {
         }
     };
 
+    let held = move || match handing.get() {
+        Some(false) => view! { <ConnectProgress phases=ways::handing() reached=handed on_done=Callback::new(move |()| shown_done.set(true))/> }.into_any(),
+        // „Fertig" is the step's own, under the card's actions.
+        Some(true) => view! { <Connected title=t.syncpair.all_set said=s.joined.to_string()/> }.into_any(),
+        None => {
+            let held_step = held_step.clone();
+            view! { {held_step} }.into_any()
+        }
+    };
+
     let actions = move || {
         if synced.get() {
             // While the phone's scanner is the way on, it is the step's one confirming button.
-            let quiet = link.with(|link| *link == Link::Elsewhere) && !joined.get();
+            let quiet = link.with(|link| *link == Link::Elsewhere) && handing.get() != Some(true);
             return view! { <button type="button" class="btn ob-finish" class:primary=!quiet on:click=finish data-command=""><Icon name="check"/>{s.finish}</button> }.into_any();
         }
         let starting = state.with(|state| *state == State::Starting);
@@ -203,8 +222,11 @@ pub fn DevicesStep(on_finish: Callback<()>) -> impl IntoView {
     };
 
     view! {
-        <h1 class="ob-title">{title}</h1>
-        <p class="ob-lede">{lead}</p>
+        // Once done, the success says what the title and the lead said.
+        {move || (handing.get() != Some(true)).then(|| view! {
+            <h1 class="ob-title">{title}</h1>
+            <p class="ob-lede">{lead}</p>
+        })}
         <div class="ob-fill" data-scroll-shade="">{held}</div>
         <div class="ob-actions">{actions}</div>
     }

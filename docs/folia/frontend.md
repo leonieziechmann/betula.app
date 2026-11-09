@@ -4112,8 +4112,13 @@ the pages about Betula since 2026-10-27 (`/about/<topic>`, below).
      as passed (`study::fill_past`, `PlanDoc::pass`, `finish_row` for their placeholders). „Studium
      anlegen" (at the right, the confirming action; on a phone across the width, „Ohne Module
      weiter" under it) keeps the program and its start (`MyProgram`) and writes the plan, after the
-     next paint (R21); a note says what was set up, with „Zum Stundenplan" and „Rückgängig", which
-     puts back what this browser kept before.
+     next paint (R21); a note that waits for interaction says what was set up („Eingerichtet",
+     under it the program and its Fachsemester, wrapped and never cut; „Eingerichtet und
+     verbunden" where the profile syncs), with „Rückgängig", which puts back what this browser kept
+     before (2026-11-09; owner: „verwende die wait notification um das anzuzeigen", „mach die wait
+     note mal schon zweizeilig auf dem handy oder halt mit textumbruch"; `folia_widgets::marknote`
+     `Notice::SetUp`, in place of the card over the day there was). Its check stays on a phone,
+     where the other notes drop theirs.
 
   4. „Auch auf dem Handy?" (2026-11-08; owner: „es gibt ja jetzt betula sync. Mach das mal als
      step in die einführung mit rein. So als letzten schritt. So dass man es gleich auch auf dem
@@ -4131,19 +4136,22 @@ the pages about Betula since 2026-10-27 (`/about/<topic>`, below).
      (one click, since that stands above it) and „Später" (its title: on the profile page at any
      time). Once on, switched on here or before, the link for the next device at once: its QR code,
      the link to copy or to share and the minutes it opens (`folia_widgets::syncpair::PairLink`, the profile
-     page's, moved a layer down for it); once one more device of the profile is online than when
-     the link was made, „Verbunden" and „Noch ein Gerät verbinden". „Fertig" (or „Später") ends the
-     setup with the note of what was set up, which says „Betula Sync hält es auf deinen Geräten
-     gleich." in place of „Alles bleibt in diesem Browser." while the profile syncs. What it says
+     page's, moved a layer down for it); once the phone has fetched the link (Phloem's word that
+     its parcel was opened) a bar shows the way, then the success of concept A
+     (folia/design/verbunden/konzepte.html; owner, 2026-11-09: „Ja nimm bitte option a. Aber mach
+     mal eine animation mit progress bar für den sync an sich"): „Alles eingerichtet", what is on
+     now in three rows, more devices on the profile page (`folia_widgets::syncdone`). „Fertig" (or
+     „Später") ends the setup with the note of what was set up. What it says
      names the phone; on a phone's layout the laptop („Auch am Laptop?"), and once Betula Sync is
      on, the other way round (owner, the same day: „Oh der pc prozess muss anders sein. Da muss ein
      link kommen wie betula.app/pair wo dann der qr code gezeigt wird, den man am handy scannen kann
      um sich einzuloggen"): the address the laptop opens, `<host>/pair`, large, whose QR code this
      phone scans and answers with „Ja, „…“ verbinden" after the digits (`/pair` below); „Verbunden"
      as on a computer. It scans with Betula's own scanner (owner, the same day: „Ja bau den
-     Scanner in Betula ein"): „Code scannen" under the address leads to `/sync?from=setup`, and
-     once the code is answered „Zurück zur Einrichtung" leads back to the step, built as it was
-     left, which says „Verbunden" by then; „Fertig" stays quiet beside it until then. The camera
+     Scanner in Betula ein"): „Code scannen" under the address leads to `/sync?from=setup`; once
+     the code is answered, the bar and „Alles eingerichtet" with what was set up, and its „Fertig"
+     ends the setup on the start page (`/?setup=done`: the page ends the setup its step 4 left
+     open and lets go of the query); „Fertig" of the step stays quiet beside „Code scannen". The camera
      app opens the code in the browser, which on an iPhone keeps its storage apart from Betula on
      the home screen, so that the code would find an empty profile there. Step 1's „Profil
      übernehmen" leads to `/pair` where the site offers Betula Sync (from the phone by its code),

@@ -108,12 +108,9 @@ pub struct Texts {
     pub elsewhere_scan: &'static str,
     /// The button to Betula's scanner.
     pub scan_here: &'static str,
-    /// The other device has the profile: the title, what that means, the note, and „Noch ein Gerät
-    /// verbinden".
-    pub joined_title: &'static str,
-    pub joined_lead: &'static str,
+    /// The other device has the profile (`folia_widgets::syncdone::Connected`, „Alles eingerichtet"
+    /// over it): who has what.
     pub joined: &'static str,
-    pub pair_more: &'static str,
     pub finish: &'static str,
 }
 
@@ -204,10 +201,7 @@ pub const DE: Texts = Texts {
     elsewhere_open: "Öffne auf deinem Laptop diese Adresse:",
     elsewhere_scan: "Dort erscheint ein Code mit vier Ziffern. Scanne ihn mit dem Knopf hier, vergleiche die Ziffern und tippe auf „Ja, … verbinden“. Dann ist dein Laptop angemeldet, mit allem, was du hier eingerichtet hast.",
     scan_here: "Code scannen",
-    joined_title: "Verbunden",
-    joined_lead: "Was du auf einem Gerät änderst, ist auf dem anderen sofort da, auch nach einer Weile offline.",
     joined: "Dein Profil ist jetzt auch auf dem anderen Gerät.",
-    pair_more: "Noch ein Gerät verbinden",
     finish: "Fertig",
 };
 
@@ -298,9 +292,6 @@ pub const EN: Texts = Texts {
     elsewhere_open: "On your laptop, open this address:",
     elsewhere_scan: "A code with four digits appears there. Scan it with the button here, compare the digits and tap “Yes, connect …”. Then your laptop is signed in, with everything you set up here.",
     scan_here: "Scan the code",
-    joined_title: "Connected",
-    joined_lead: "What you change on one device is on the other at once, even after a while offline.",
     joined: "Your profile is now on the other device too.",
-    pair_more: "Connect another device",
     finish: "Done",
 };
