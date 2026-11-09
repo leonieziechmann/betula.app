@@ -139,6 +139,44 @@ pub struct Texts {
     pub count_warn: fn(&str, &str) -> String,
     pub count_apply: &'static str,
     pub count_apply_exception: &'static str,
+
+    // „Umfang …" of a placeholder (`size.rs`; owner, 2026-11-09: „wo man selbst die gewichtung
+    // wählen kann, die man machen möchte. Also wie man das richtig darstellt").
+    /// The menu's entry, the dialog's title and its question („Wie viele LP willst du hierfür im
+    /// WiSe 2027/28 belegen?"), what the plan says („Laut Plan 10–24 LP"), what is in it already.
+    pub size_menu: &'static str,
+    pub size_title: &'static str,
+    pub size_lead: fn(&str) -> String,
+    pub size_plan: fn(&str) -> String,
+    pub size_held: fn(&str) -> String,
+    pub size_less: &'static str,
+    pub size_more: &'static str,
+    /// „Wie im Plan": what the row says again.
+    pub size_reset: &'static str,
+    /// The stepper's buttons and field.
+    pub size_down: &'static str,
+    pub size_up: &'static str,
+    pub size_field: &'static str,
+    /// Below what the row asks, and above it: said, not refused.
+    pub size_below: fn(&str) -> String,
+    pub size_above: fn(&str) -> String,
+    /// The weighting of the group the row is part of: its heading, what it shows, the legend, a
+    /// member's figure, the sum, what is still to share out or beyond, a member short of its least.
+    pub weights_title: fn(&str) -> String,
+    pub weights_lead: &'static str,
+    pub weights_modules: &'static str,
+    pub weights_kept: &'static str,
+    pub weights_figure: fn(&str, &str) -> String,
+    pub weights_sum: fn(&str, &str) -> String,
+    pub weights_open: fn(&str) -> String,
+    pub weights_over: fn(&str) -> String,
+    pub weights_done: &'static str,
+    pub weights_short: fn(&str) -> String,
+    pub weights_extras: fn(&str) -> String,
+    pub size_apply: &'static str,
+    /// The notes: „Komplex Praktische Informatik: 14 LP im WiSe 2027/28", „… wie im Plan".
+    pub size_note: fn(&str, &str, &str) -> String,
+    pub size_note_plan: fn(&str, &str) -> String,
 }
 
 pub const DE: Texts = Texts {
@@ -228,6 +266,34 @@ pub const DE: Texts = Texts {
     count_warn: |title, group| format!("{title} gehört laut Plan nicht zu „{group}“. Es zählt dort trotzdem und ist als Ausnahme markiert."),
     count_apply: "Zuordnen",
     count_apply_exception: "Als Ausnahme zuordnen",
+
+    size_menu: "Umfang …",
+    size_title: "Umfang",
+    size_lead: |semester| format!("Wie viele LP willst du hierfür im {semester} belegen? Der Platzhalter verschwindet, sobald seine Module so viel haben."),
+    size_plan: |credits| format!("Laut Plan {credits}\u{a0}LP"),
+    size_held: |credits| format!("darin schon {credits}\u{a0}LP"),
+    size_less: "Weniger",
+    size_more: "Mehr",
+    size_reset: "Wie im Plan",
+    size_down: "1 LP weniger",
+    size_up: "1 LP mehr",
+    size_field: "Umfang in LP",
+    size_below: |least| format!("Weniger, als der Plan verlangt (mindestens {least}\u{a0}LP). Was fehlt, bleibt im Bereich offen."),
+    size_above: |most| format!("Mehr, als der Plan vorsieht (höchstens {most}\u{a0}LP). Was darüber liegt, zählt als über Bedarf."),
+    weights_title: |label| format!("Gewichtung · {label}"),
+    weights_lead: "Wie du die LP verteilst: was die Module jedes Bereichs haben und was seine Platzhalter noch vormerken.",
+    weights_modules: "Module",
+    weights_kept: "vorgemerkt",
+    weights_figure: |total, asked| format!("{total} / {asked}\u{a0}LP"),
+    weights_sum: |total, target| format!("Zusammen {total} von {target}\u{a0}LP"),
+    weights_open: |n| format!("noch {n}\u{a0}LP zu verteilen"),
+    weights_over: |n| format!("{n}\u{a0}LP über Bedarf"),
+    weights_done: "verteilt",
+    weights_short: |n| format!("noch {n}\u{a0}LP bis zum Minimum"),
+    weights_extras: |n| format!("dazu {n}\u{a0}LP vorgemerkt, die einem der Bereiche zufallen"),
+    size_apply: "Übernehmen",
+    size_note: |name, credits, semester| format!("{name}: {credits}\u{a0}LP im {semester}"),
+    size_note_plan: |name, semester| format!("{name} im {semester} wieder wie im Plan"),
 };
 
 pub const EN: Texts = Texts {
@@ -317,4 +383,32 @@ pub const EN: Texts = Texts {
     count_warn: |title, group| format!("By the plan, {title} does not belong to “{group}”. It counts there all the same, marked as an exception."),
     count_apply: "Assign",
     count_apply_exception: "Assign as an exception",
+
+    size_menu: "Size …",
+    size_title: "Size",
+    size_lead: |semester| format!("How many CP do you want to take for this in {semester}? The placeholder goes once its modules hold that much."),
+    size_plan: |credits| format!("By the plan {credits}\u{a0}CP"),
+    size_held: |credits| format!("{credits}\u{a0}CP in it already"),
+    size_less: "Less",
+    size_more: "More",
+    size_reset: "As in the plan",
+    size_down: "1 CP less",
+    size_up: "1 CP more",
+    size_field: "Size in CP",
+    size_below: |least| format!("Less than the plan asks (at least {least}\u{a0}CP). What is missing stays open in the area."),
+    size_above: |most| format!("More than the plan has room for (at most {most}\u{a0}CP). What lies beyond counts as beyond need."),
+    weights_title: |label| format!("Weighting · {label}"),
+    weights_lead: "How you share the CP out: what the modules of each area hold and what its placeholders still keep.",
+    weights_modules: "Modules",
+    weights_kept: "kept",
+    weights_figure: |total, asked| format!("{total} / {asked}\u{a0}CP"),
+    weights_sum: |total, target| format!("Together {total} of {target}\u{a0}CP"),
+    weights_open: |n| format!("{n}\u{a0}CP still to share out"),
+    weights_over: |n| format!("{n}\u{a0}CP beyond need"),
+    weights_done: "shared out",
+    weights_short: |n| format!("{n}\u{a0}CP short of the least"),
+    weights_extras: |n| format!("and {n}\u{a0}CP kept that fall to one of the areas"),
+    size_apply: "Apply",
+    size_note: |name, credits, semester| format!("{name}: {credits}\u{a0}CP in {semester}"),
+    size_note_plan: |name, semester| format!("{name} in {semester} as in the plan again"),
 };

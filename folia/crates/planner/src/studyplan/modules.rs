@@ -809,6 +809,7 @@ mod tests {
             kind: Some(kind.into()),
             caption: String::new(),
             name: name.into(),
+            size: None,
         }
     }
 

@@ -293,14 +293,10 @@ pub(in crate::study) fn word_of(piece: &Piece, t: &Texts) -> &'static str {
     }
 }
 
-/// The rows of the plan that modules fill in a semester (`Item::fillers`): a module's id and the
+/// The rows of the plan that modules fill in a semester (`Item::fills`): a module's id and the
 /// name of the row it fills.
 fn filled_rows(items: &[Item]) -> BTreeMap<&str, &str> {
-    items
-        .iter()
-        .filter(|item| matches!(item.subject, Subject::Row { .. }))
-        .flat_map(|row| row.fillers.iter().map(move |id| (id.as_str(), row.name.as_str())))
-        .collect()
+    items.iter().filter_map(|item| Some((item.module_id()?, item.fills.as_deref()?))).collect()
 }
 
 /// The lane of an item: a module's by its id, a row of the plan's by its name (`RowOf`).
@@ -521,6 +517,7 @@ impl Frame<'_> {
         let st = &t.study;
         let mut parts = vec![item.name.clone()];
         let credits = match &item.subject {
+            Subject::Row { size: Some(size), .. } => Some(folia_plans::plan::credits_in(size, t.locale)),
             Subject::Row { credits: Some(text), .. } => Some(folia_plans::plan::credits_in(text, t.locale)),
             _ => item.credits.map(|credits| n(credits, t)),
         };
@@ -535,7 +532,11 @@ impl Frame<'_> {
                 None => st.failed_open.to_string(),
             }
         } else if matches!(item.subject, Subject::Row { .. }) {
-            st.placeholder.to_string()
+            match item.credits.filter(|_| !item.fillers.is_empty()) {
+                // Modules fill it in part: how far they are.
+                Some(asks) => format!("{} · {}", st.placeholder, (st.filled_of)(&n(item.filled, t), &n(asks, t), item.range)),
+                None => st.placeholder.to_string(),
+            }
         } else if when == When::Now {
             st.bar_running.to_string()
         } else {
@@ -561,12 +562,10 @@ impl Frame<'_> {
         parts.join(" · ")
     }
 
-    /// An item as a piece: a row that modules fill is none (its modules carry it).
+    /// An item as a piece. A row its modules fill is none (`study::Item::fills`: its modules carry
+    /// it); one they fill in part is a piece of what it still keeps.
     fn piece_of(&self, item: &Item, s: SemesterKey, when: When, fills: Option<&str>) -> Option<Piece> {
         let row = matches!(item.subject, Subject::Row { .. });
-        if row && !item.fillers.is_empty() {
-            return None;
-        }
         let label = match item.module_id() {
             Some(id) => self.abbrevs.get(id).cloned().unwrap_or_else(|| short_label(short_title(&item.name))),
             None if item.kind == Some(ModuleKind::Fues) => self.t.study.fues.to_string(),
@@ -588,7 +587,7 @@ impl Frame<'_> {
             semester: s,
             label,
             title: self.title_of(item, s, when, fills),
-            grow: item.credits.unwrap_or(NO_CREDITS).max(1.0),
+            grow: item.counted().or(item.credits).unwrap_or(NO_CREDITS).max(1.0),
             fill,
             now: when == When::Now,
             retake: item.retake.is_some(),
@@ -804,7 +803,7 @@ impl Frame<'_> {
         // What falls in none of them: modules counted for the area by its tree alone, a group's
         // extra's placeholder.
         let others = |item: &Item, s: SemesterKey| item.area == Some(area) && subs.of_item(item, s).is_none();
-        let any = self.past.iter().chain(self.shown.iter()).any(|semester| semester.items.iter().any(|item| others(item, semester.key) && !(matches!(item.subject, Subject::Row { .. }) && !item.fillers.is_empty())));
+        let any = self.past.iter().chain(self.shown.iter()).any(|semester| semester.items.iter().any(|item| others(item, semester.key)));
         if any {
             let (cells, lanes) = self.bars(others, |_| false, None);
             let credits: f64 = self.past.iter().chain(self.shown.iter()).flat_map(|semester| semester.items.iter().filter(|item| others(item, semester.key))).filter(|item| !item.failed).filter_map(Item::counted).sum();

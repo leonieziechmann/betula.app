@@ -21,8 +21,8 @@
 //! plan of one name one lane (`RowOf`), a retake tied to its first try by an arrow. One button over
 //! the plan unfolds all of it, or folds it once all is unfolded (owner, the same day: „alles
 //! auf/zuklappen ein knopf … so dass man halt da im zweifel zwei mal drauf drücken muss"); what is
-//! unfolded is kept (`OPEN_KEY`). A row of the plan that a module fills is carried by that module
-//! („für „Anwendungsfach“"). The semesters before the current one stand open; „Bisher zuklappen"
+//! unfolded is kept (`OPEN_KEY`). A row of the plan that its modules fill is carried by them
+//! („für „Anwendungsfach“"); one they fill in part is a piece of what it still keeps. The semesters before the current one stand open; „Bisher zuklappen"
 //! folds them into one column. What unfolds or folds moves, quiet and quick (owner, 2026-11-05:
 //! „animationen für das auf und zuklappen. unauffällig undd snappy einfach so, dass das leicher zu
 //! verstehen ist"): a row's subsections and lanes grow in, pushing the rows under them down, and

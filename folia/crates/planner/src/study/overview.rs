@@ -75,19 +75,20 @@ impl Info {
         let s = &t.study;
         let study = &ready.study;
         let program = format!("{} {}", ready.program.name, ready.program.degree());
-        let passed_all = study.passed + study.over_passed + study.outside.0;
-        let over_planned = study.over - study.over_passed;
-        let planned_all = study.planned + over_planned + study.outside.1;
-        let headline = if study.total > 0.0 { (s.headline)(&n(study.passed, t), &n(study.total, t)) } else { (s.headline_alone)(&n(passed_all, t)) };
+        // The numbers of the whole as the start page says them too (`study::Totals`).
+        let totals = study.totals();
+        let headline = match totals.headline() {
+            (passed, Some(total)) => (s.headline)(&n(passed, t), &n(total, t)),
+            (passed, None) => (s.headline_alone)(&n(passed, t)),
+        };
         let mut planned_rest = String::new();
         // „über Bedarf" is what the modules beyond need bring; what a module the area needs brings
         // past it (8 LP where 6 were left) is no more than planned (owner, 2026-11-09).
-        let spare_planned = study.spare - study.spare_passed;
-        if spare_planned > 0.0 {
-            planned_rest.push_str(&(s.over_part)(&n(spare_planned, t)));
+        if totals.spare.1 > 0.0 {
+            planned_rest.push_str(&(s.over_part)(&n(totals.spare.1, t)));
         }
-        if study.outside.1 > 0.0 {
-            planned_rest.push_str(&(s.outside_part)(&n(study.outside.1, t)));
+        if totals.outside.1 > 0.0 {
+            planned_rest.push_str(&(s.outside_part)(&n(totals.outside.1, t)));
         }
 
         let mut segments = Vec::new();
@@ -157,10 +158,10 @@ impl Info {
         Info {
             program,
             headline,
-            passed: (s.credits)(&n(passed_all, t)),
-            planned: (s.credits)(&n(planned_all, t)),
+            passed: (s.credits)(&n(totals.passed_all(), t)),
+            planned: (s.credits)(&n(totals.planned_all(), t)),
             planned_rest,
-            open: (s.credits)(&n(study.open, t)),
+            open: (s.credits)(&n(totals.open, t)),
             segments,
             cards,
         }
@@ -321,9 +322,10 @@ impl AreaInfo {
         let study = &ready.study;
         let mut entries = Vec::new();
         for semester in &study.semesters {
-            // A row that modules fill counts by them: they stand here in its place.
-            for item in semester.items.iter().filter(|item| item.area == area && !item.failed && item.fillers.is_empty()) {
-                let credits = item.credits.map(|credits| (s.credits)(&n(credits, t)));
+            // A row that modules fill counts by them, and with what they leave of it: they stand
+            // here in its place.
+            for item in semester.items.iter().filter(|item| item.area == area && !item.failed && (item.fillers.is_empty() || item.counted().is_some())) {
+                let credits = item.counted().map(|credits| (s.credits)(&n(credits, t)));
                 let when = if item.passed { (s.passed_in)(&semester.key.label(t.locale)) } else { (s.planned_in)(&semester.key.label(t.locale)) };
                 entries.push(Entry { id: item.module_id().map(str::to_string), name: item.name.clone(), credits, passed: item.passed, when, over: item.spare, exception: item.exception });
             }

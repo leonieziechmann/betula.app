@@ -4781,6 +4781,15 @@ html:not(.js) .plan-toggle { display: none; }
 .wait-note.mark-note .wait-note-close { align-self: center; margin: 0 6px 0 0; }
 /* The note of a change in „Mein Studium" (study/mod.rs, `UndoNote`) says it whole, in two lines
    where it is long: what was done stands at its end („… vorgemerkt", „… eingeplant"). */
+/* The note after the setup (marknote.rs, `Notice::SetUp`): what happened on its first line, the
+   program and its Fachsemester under it, wrapped where it is long, never cut (owner, 2026-11-09:
+   „mach die wait note mal schon zweizeilig auf dem handy oder halt mit textumbruch"). */
+.setup-toast { padding-block: 7px; }
+/* Its check stays on a phone as well (the others drop theirs there): it says that it worked. */
+.setup-toast > .plan-toast-mark { display: grid; align-self: center; }
+.setup-toast-said { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; line-height: 1.3; }
+.setup-toast-said > b { font-weight: 650; }
+.setup-toast-said > small { font-size: 12.5px; opacity: .78; overflow-wrap: anywhere; text-wrap: pretty; }
 .study-note .mark-toast-said { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; line-height: 1.3; }
 @media (max-width: 900px) {
   .mark-toast { min-height: 56px; padding: 4px 6px 4px 12px; }
@@ -6325,6 +6334,51 @@ div.st-col-head.past { cursor: default; }
   .st-cf-lp { min-width: 0; }
   .st-foot-state.st-cf-warn { flex-basis: 100%; }
 }
+/* „Umfang …" of a placeholder (size.rs; owner, 2026-11-09: „wo man selbst die gewichtung wählen
+   kann … wie man das richtig darstellt"): the stepper with what the plan says, then the group's
+   weighting — each member's bar: its modules as the workbench's bars have them, what its
+   placeholders keep hatched, its least a tick —, the sum, the legend. */
+.st-sz-step { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.st-sz-step > .icon-btn { width: 40px; height: 40px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel); }
+.st-sz-num { display: inline-flex; align-items: baseline; gap: 6px; height: 40px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel); }
+.st-sz-num:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.st-sz-num input { width: 3.2ch; padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 20px; font-weight: 700; line-height: 38px; text-align: right; font-variant-numeric: tabular-nums; -moz-appearance: textfield; appearance: textfield; outline: 0; }
+.st-sz-num input::-webkit-inner-spin-button, .st-sz-num input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.st-sz-num span { color: var(--text-2); font-size: 13px; font-weight: 600; }
+.st-sz-plan { display: flex; flex-direction: column; margin-left: 4px; color: var(--text-2); font-size: 12.5px; line-height: 1.35; }
+.st-sz-plan small { font-size: inherit; }
+.st-sz-reset[hidden] { display: none; }
+.st-sz-warn { min-height: 1.45em; margin: 10px 0 0; color: var(--warn); font-size: 12.5px; font-weight: 560; line-height: 1.45; text-wrap: pretty; }
+.st-sz-warn:empty { min-height: 0; margin: 0; }
+.st-sz-w { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.st-sz-w h3 { margin: 0 0 4px; font-size: 13px; font-weight: 700; }
+.st-sz-ms { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.st-sz-m { display: flex; flex-direction: column; gap: 5px; }
+.st-sz-mh { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 13.5px; }
+.st-sz-mh b { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.st-sz-m.is-own .st-sz-mh b { font-weight: 750; }
+.st-sz-mh .num { flex: none; color: var(--text-2); font-size: 12.5px; }
+.st-sz-m.is-own .st-sz-mh .num { color: var(--text); font-weight: 650; }
+.st-sz-m > .st-wb-fill { height: 8px; border-radius: 4px; }
+.st-wb-fill > .kept, .st-sz-legend .kept {
+  background: color-mix(in oklab, var(--c) 16%, var(--panel));
+  background-image: repeating-linear-gradient(-45deg, color-mix(in oklab, var(--c) 62%, transparent) 0 1.5px, transparent 1.5px 5px);
+}
+.st-sz-short { color: var(--warn); font-size: 12px; font-weight: 560; }
+.st-sz-extra { margin: 10px 0 0; color: var(--text-2); font-size: 12.5px; }
+.st-sz-sum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 14px 0 0; font-size: 13.5px; }
+.st-sz-sum > span { color: var(--text-2); font-size: 12.5px; }
+.st-sz-sum.open > span { color: var(--warn); font-weight: 560; }
+.st-sz-sum.done > span { color: var(--ok); font-weight: 600; }
+.st-sz-legend { display: flex; gap: 14px; margin: 8px 0 0; color: var(--text-2); font-size: 12px; }
+.st-sz-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.st-sz-legend i { display: inline-block; width: 14px; height: 8px; border-radius: 2px; }
+.st-sz-legend .planned { background: color-mix(in oklab, var(--c) 36%, var(--panel)); }
+/* A placeholder its modules fill in part (focus.rs, `Row::fill`): its bar and what it holds of what
+   it asks, under its line. */
+.st-ph-fill { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.st-ph-fill > .st-wb-fill { flex: none; width: 96px; height: 5px; }
+.st-ph-fill > small { color: var(--text-2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 /* The first visit: the card, the box that fills the semesters before, the way on. */
 .st-setup { padding: 22px 24px; display: flex; flex-direction: column; gap: 16px; }
 .st-setup > .st-study, .st-setup > .st-fill { max-width: 680px; }
@@ -7502,6 +7556,57 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
 .pf-give-what .icon { width: 16px; height: 16px; color: var(--text-2); }
 .pf-give-what span { color: var(--text-2); }
 .pf-give[aria-disabled="true"] { opacity: .7; cursor: progress; }
+/* Connecting while it happens and once it is done (folia/crates/widgets/src/syncdone.rs; owner,
+   2026-11-09, concept A of folia/design/verbunden/konzepte.html: „mach mal eine animation mit
+   progress bar für den sync an sich. So dass man sieht, dass da was passiert"). The bar: what is
+   done in the accent, the step under way a segment that fills slowly with a light sweeping over
+   it; under it the steps, done ones ticked, the one under way with a pulse. The success: a tick,
+   the title, who has what, what is on now in three rows, the way to more devices, „Fertig". */
+.cp { display: grid; gap: 14px; margin-top: 14px; }
+.cp-bar { position: relative; height: 8px; border-radius: 4px; background: var(--panel-3); overflow: hidden; }
+.cp-bar > i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--accent); transition: width .45s var(--ease); }
+.cp-bar > b { position: absolute; top: 0; bottom: 0; overflow: hidden; }
+.cp-bar > b::before { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--accent) 55%, transparent); transform-origin: left; transform: scaleX(.12); animation: cp-creep 9s cubic-bezier(.1, .6, .2, 1) forwards; }
+.cp-bar > b::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 70%, transparent), transparent); animation: cp-sweep 1.2s linear infinite; }
+@keyframes cp-creep { to { transform: scaleX(.9); } }
+@keyframes cp-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.cp-steps { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; font-size: 13.5px; }
+.cp-steps li { display: flex; align-items: center; gap: 10px; color: var(--text-3); transition: color .2s; }
+.cp-steps li[data-state="now"] { color: var(--text); font-weight: 600; }
+.cp-steps li[data-state="done"] { color: var(--text-2); }
+.cp-mark { flex: none; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
+.cp-mark > .icon { width: 11px; height: 11px; stroke-width: 3; }
+.cp-steps li[data-state="done"] .cp-mark { background: var(--accent); box-shadow: none; color: var(--on-accent); }
+.cp-steps li[data-state="now"] .cp-mark { box-shadow: inset 0 0 0 2px var(--accent); animation: cp-pulse 1.1s ease-in-out infinite; }
+@keyframes cp-pulse { 50% { box-shadow: inset 0 0 0 5px var(--accent-line); } }
+.cn { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; animation: cn-in .3s var(--ease); }
+@keyframes cn-in { from { opacity: 0; transform: translateY(8px); } }
+.cn-mark { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: var(--ok-soft); color: var(--ok); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ok) 35%, transparent); }
+.cn-mark > .icon { width: 26px; height: 26px; stroke-width: 2.4; }
+.cn-title { font-size: 22px; line-height: 1.2; font-weight: 740; letter-spacing: -.015em; text-wrap: balance; }
+.cn-said { margin-top: -6px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.cn-summary { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; color: var(--text-2); font-size: 13.5px; }
+.cn-summary li { display: flex; align-items: center; gap: 8px; }
+.cn-summary .icon { flex: none; width: 15px; height: 15px; color: var(--ok); stroke-width: 2.6; }
+.cn-label { margin-top: 4px; color: var(--text-3); font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+.cn-gains { display: grid; margin: -6px 0 0; padding: 0; list-style: none; }
+.cn-gains li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+.cn-gains li:first-child { border-top: 0; }
+.cn-tile { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-ink); }
+.cn-tile > .icon { width: 17px; height: 17px; }
+.cn-gains b { display: block; font-size: 14px; font-weight: 640; }
+.cn-gains small { display: block; color: var(--text-2); font-size: 13px; line-height: 1.45; text-wrap: pretty; }
+.cn-later { display: flex; align-items: flex-start; gap: 9px; padding: 10px 12px; border-radius: 10px; background: var(--panel-2); color: var(--text-2); font-size: 13px; text-wrap: pretty; }
+.cn-later > .icon { flex: none; width: 16px; height: 16px; margin-top: 2px; }
+.cn-later b { color: var(--text); font-weight: 620; }
+.cn-done { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.cn-done:empty { display: none; }
+@media (max-width: 900px) { .cn-done > .btn { flex: 1 1 100%; min-height: 46px; justify-content: center; } }
+@media (prefers-reduced-motion: reduce) {
+  .cp-bar > b::after, .cp-steps li[data-state="now"] .cp-mark, .cn { animation: none; }
+  .cp-bar > b::before { animation-duration: 1ms; }
+  .cp-bar > i { transition: none; }
+}
 /* A hint of Betula Sync where two devices changed a thing at once (folia/crates/widgets/src/
    syncnote.rs): under the note, on „Mein Studium" over the semesters. */
 .sync-hint { display: flex; align-items: flex-start; gap: 9px; margin-top: 8px; padding: 9px 11px; border-radius: 9px; background: var(--warn-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 28%, transparent); color: var(--text); font-size: 13px; line-height: 1.45; }
@@ -7883,15 +7988,6 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .ob-scan .icon { width: 18px; height: 18px; }
 .ob-actions .ob-activate[aria-disabled="true"] { opacity: .7; cursor: progress; }
 
-/* The note after the setup. */
-.day-welcome { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
-.day-welcome > div { flex: 1 1 260px; min-width: 0; }
-.day-welcome b { display: block; font-weight: 650; }
-.day-welcome small { color: var(--text-2); }
-.day-welcome-ok { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ok-soft); color: var(--ok); }
-.day-welcome-acts { display: flex; flex-wrap: wrap; gap: 6px; }
-.day-welcome-x { width: 34px; height: 34px; }
-
 /* The panels under the picture: today and the next day on the left, the rest on the right. */
 /* The panels under the photo in two columns that end on one line (owner, 2026-10-27: „dass gerne
    mal riesige Lücken in dem UI sind. Bitte verbesser das mal, so dass das relativ uniform ist":
@@ -7965,6 +8061,9 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .day-prog .passed { background: var(--text-2); }
 .day-prog .planned { background: color-mix(in oklab, var(--text) 24%, var(--panel)); }
 .day-prog .open { background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--line-strong); }
+/* What lies beyond the plan (beyond an area's need, towards no area), striped at the bar's end as
+   „Mein Studium"'s bar has it (`.st-seg > .over`). */
+.day-prog-bar .over { margin-left: auto; background: repeating-linear-gradient(135deg, var(--text-2) 0 2px, var(--panel-3) 2px 5px); }
 .day-bm { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 10px; padding: 8px; border-radius: var(--r-row); color: var(--text); text-decoration: none; }
 .day-bm > .icon { width: 15px; height: 15px; color: var(--text); fill: currentColor; }
 .day-bm > span { min-width: 0; }

@@ -265,6 +265,45 @@ pub struct Member {
     pub room: Room,
 }
 
+/// A member of a group with what its placeholders keep for it (`Group::weights`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Weight {
+    /// An index of `PlanView::choices`.
+    pub choice: usize,
+    /// What its modules hold, against what it asks.
+    pub stand: Stand,
+    /// What its placeholders still ask that their modules do not hold, where they count
+    /// (`study::Item::counted`): from the current semester on, and passed before it.
+    pub reserved: f64,
+    pub room: Room,
+}
+
+impl Weight {
+    /// What it comes to: its modules and its placeholders.
+    pub fn total(&self) -> f64 {
+        self.stand.taken() + self.reserved
+    }
+}
+
+/// What the placeholders of `choice`'s rows still ask in the semesters they stand in, where they
+/// count; placeholder `pid` of `preview` asking that instead.
+fn reserved(view: &PlanView, study: &Study, choice: &Choice, preview: Option<(u32, f64)>) -> f64 {
+    let rows: Vec<(&str, i64)> = choice.lines.iter().filter_map(|at| view.lines.get(*at)).map(|line| (line.caption.as_str(), line.ord)).collect();
+    study
+        .semesters
+        .iter()
+        .flat_map(|semester| semester.items.iter())
+        .filter(|item| item.passed || !item.failed)
+        .filter_map(|item| match &item.subject {
+            study::Subject::Row { pid: Some(pid), caption, ord, .. } if rows.contains(&(caption.as_str(), *ord)) => Some(match preview {
+                Some((edited, asks)) if edited == *pid => (asks - item.filled).max(0.0),
+                _ => item.counted().unwrap_or(0.0),
+            }),
+            _ => None,
+        })
+        .sum()
+}
+
 /// Choices the regulation prints one sum over (`together`), each with lists of its own, and the
 /// choices whose lists are all of theirs and nothing else (`extras`): one requirement.
 #[derive(Clone, Debug, PartialEq)]
@@ -365,6 +404,18 @@ impl Group {
             most: target,
             spare: members.iter().map(|member| member.stand.spare).sum(),
         }
+    }
+
+    /// The weighting the student chose among its members (owner, 2026-11-09: „Überlege dir mal wie
+    /// man das so bei wp bereichen wie bei der informatik macht, wo man selbst die gewichtung wählen
+    /// kann"): each member with what its modules hold (`members`) and what its placeholders still
+    /// keep for it, and what the placeholders of its extras keep, which no member has yet. With
+    /// `preview`, placeholder `pid` asks that instead of what it asks (the Umfang dialog, as it
+    /// is turned).
+    pub fn weights(&self, view: &PlanView, study: &Study, preview: Option<(u32, f64)>) -> (Vec<Weight>, f64) {
+        let kept = |at: usize| view.choices.get(at).map_or(0.0, |choice| reserved(view, study, choice, preview));
+        let weights = self.members(view).into_iter().map(|member| Weight { reserved: kept(member.choice), choice: member.choice, stand: member.stand, room: member.room }).collect();
+        (weights, self.extras.iter().map(|at| kept(*at)).sum())
     }
 
     /// What it still asks: of what it asks, what its members hold up to their most, and at least
@@ -1058,6 +1109,46 @@ mod tests {
         assert_eq!(taken(&view, "Modul aus dem Bereich Praktische Mathematik"), ["11926"]);
         assert_eq!(taken(&view, "Anwendungsfach"), ["11405"]);
         assert!(view.spare.is_empty());
+    }
+
+    /// The weighting of the Komplexe (owner, 2026-11-09: „wo man selbst die gewichtung wählen
+    /// kann"): Datenbanken planned for the Praktische Informatik, a place of it in the 5. FS set to
+    /// 14 and one of the Grundlagen at its least, 10: the Praktische comes to 6 and 8 kept, the
+    /// Grundlagen to 10, the Angewandte to nothing; turned to 18 in the dialog, the place keeps 12.
+    #[test]
+    fn the_komplexe_weigh_what_their_modules_hold_and_their_places_keep() {
+        let informatik = program("079-82-2008");
+        let mut doc = planned(&[("2027W", "12330")]);
+        let ws = key("2027W");
+        doc.placeholders.clear();
+        let place = |ord: i64, name: &str| crate::studyplan::Placeholder {
+            pid: u32::try_from(ord).unwrap(),
+            semester: ws,
+            program_id: "079-82-2008".to_string(),
+            ord,
+            span: (5, 6),
+            credits: Some("10–24".to_string()),
+            kind: Some("elective".to_string()),
+            caption: String::new(),
+            name: name.to_string(),
+            size: None,
+        };
+        doc.placeholders = vec![place(19, "Komplex Grundlagen der Informatik"), place(20, "Komplex Praktische Informatik")];
+        assert!(doc.set_size(20, Some(14.0)));
+        doc.set_fills(ws, "12330", Some(20));
+        let (study, view) = informatik.view(&doc);
+        let group = &view.groups[0];
+        let name = |weight: &Weight| view.choices[weight.choice].name.clone();
+        let (weights, extras) = group.weights(&view, &study, None);
+        let shown: Vec<(String, f64, f64)> = weights.iter().map(|weight| (name(weight), weight.stand.taken(), weight.reserved)).collect();
+        assert_eq!(shown, [
+            ("Komplex Grundlagen der Informatik".to_string(), 0.0, 10.0),
+            ("Komplex Praktische Informatik".to_string(), 6.0, 8.0),
+            ("Komplex Angewandte und Technische Informatik".to_string(), 0.0, 0.0),
+        ]);
+        assert_eq!((extras, weights.iter().map(Weight::total).sum::<f64>(), group.target(&view.choices)), (0.0, 24.0, 50.0));
+        let (turned, _) = group.weights(&view, &study, Some((20, 18.0)));
+        assert_eq!(turned[1].reserved, 12.0);
     }
 
     /// Rows of one name count together, their number aside.

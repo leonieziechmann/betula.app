@@ -177,7 +177,11 @@ check(html.includes('href="/about/overview"') && !html.includes('href="/about"')
   const fewer = await lede();
   check(fewer.includes(`${modules.rows - 1} Modul`), `the sentence does not say what goes into the Stundenplan once a row is unticked: ${fewer}`);
   await page.click(".ob-create >> visible=true");
-  await page.waitForSelector(".day-welcome >> visible=true", { timeout: 5000 }).catch(() => failures.push("„Studium anlegen\" leads nowhere"));
+  // What was set up, in the note that waits for interaction at the bottom (owner, 2026-11-09:
+  // „verwende die wait notification um das anzuzeigen"), with „Rückgängig"; no card over the day.
+  await page.waitForSelector(".wait-note.setup-note >> visible=true", { timeout: 5000 }).catch(() => failures.push("„Studium anlegen\" leads nowhere (no note that waits at the bottom)"));
+  const note = await page.evaluate(() => ({ said: document.querySelector(".setup-note")?.textContent ?? "", undo: Boolean([...document.querySelectorAll(".setup-note button")].find((b) => b.textContent === "Rückgängig")), card: Boolean(onPage(".day-welcome")) }));
+  check(/^EingerichtetInformatik/.test(note.said) && note.undo && !note.card, `the note after the setup: ${JSON.stringify(note)}`);
   const made = await stored(page);
   const planned = made.plan.filter((line) => line.startsWith("m\t") || line.startsWith("p\t"));
   const passed = made.plan.filter((line) => line.startsWith("d\t") || line.startsWith("q\t"));
@@ -294,11 +298,14 @@ check(html.includes('href="/about/overview"') && !html.includes('href="/about"')
   check(jump[0] === 0 && jump[1] > 0 && jump[1] < 1 && jump[2] === 1, `wide screen: the leaves do not slide in on a jump past the photo, where less motion is wanted as well: ${JSON.stringify(jump)}`);
   await page.evaluate(() => document.querySelector("#content > .page-stage.front > .work.flowing").scrollTo(0, 0));
   await page.waitForTimeout(400);
-  // „Rückgängig": the setup again, and what this browser kept before.
-  await page.click(".day-welcome button:has-text('Rückgängig') >> visible=true");
-  await page.waitForSelector(".ob >> visible=true", { timeout: 5000 }).catch(() => failures.push("„Rückgängig\" does not bring the setup back"));
-  const undone = await stored(page);
-  check(!/^program\t/m.test(undone.program) && undone.plan.length === 0 && !(await page.evaluate(() => document.documentElement.classList.contains("mine"))), `„Rückgängig\" leaves something: ${JSON.stringify(undone)}`);
+  // The note waited for interaction, and the scrolls and clicks since were moving on: it went.
+  check(await page.evaluate(() => !document.querySelector(".wait-note.setup-note")), "the note after the setup stays while the day is used");
+  // Back to a first visit, for what follows (its „Rückgängig" is the next block's).
+  await page.evaluate(() => { localStorage.removeItem("betula.myprogram.v1"); localStorage.removeItem("betula.studyplan.v1"); });
+  await page.reload();
+  await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 });
+  await page.evaluate(() => { window.__marker = 1; });
+  await page.waitForSelector(".ob >> visible=true", { timeout: 10000 }).catch(() => failures.push("no setup after the study was cleared"));
   // „Erst mal umschauen": the day without a study, and the way back to the setup on it.
   await page.click("button.ob-link >> visible=true");
   await page.waitForSelector(".day-hero:not(.day-first) >> visible=true", { timeout: 5000 }).catch(() => failures.push("„Erst mal umschauen\" does not show the day"));
@@ -306,6 +313,30 @@ check(html.includes('href="/about/overview"') && !html.includes('href="/about"')
   await page.click(".day-next .btn >> visible=true");
   await page.waitForSelector(".ob >> visible=true", { timeout: 5000 }).catch(() => failures.push("„Studium einrichten\" does not bring the setup back"));
   check(await page.evaluate(() => window.__marker === 1 && location.pathname === "/"), "the setup loaded a page or left the start page");
+  await context.close();
+}
+
+// ---------- „Rückgängig" in the note after the setup ----------
+{
+  const { context, page } = await open({ viewport: { width: 1280, height: 860 } });
+  await page.click("#ob-program >> visible=true");
+  await page.waitForSelector("#ob-program-search >> visible=true");
+  await page.keyboard.type("Informatik");
+  await page.waitForFunction(() => /^Informatik/.test(onPage("#ob-program-option-0")?.textContent.trim() ?? ""), null, { timeout: 10000 }).catch(() => failures.push("undo: the picker does not list Informatik"));
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => onPage(".ob-sems") && !onPage(".ob-sems").classList.contains("wait"), null, { timeout: 5000 }).catch(() => {});
+  await page.click(".ob-next >> visible=true");
+  await page.waitForFunction(() => onPage(".ob")?.dataset.step === "3" && allOnPage(".ob-mod").length > 1, null, { timeout: 5000 }).catch(() => {});
+  await page.click(".ob-create >> visible=true");
+  await page.waitForSelector(".wait-note.setup-note >> visible=true", { timeout: 5000 }).catch(() => failures.push("undo: no note after the setup"));
+  // „Rückgängig": the setup again, and what this browser kept before.
+  await page.click(".wait-note.setup-note button:has-text('Rückgängig') >> visible=true");
+  await page.waitForSelector(".ob >> visible=true", { timeout: 5000 }).catch(() => failures.push("„Rückgängig\" does not bring the setup back"));
+  const undone = await stored(page);
+  check(!/^program\t/m.test(undone.program) && undone.plan.length === 0 && !(await page.evaluate(() => document.documentElement.classList.contains("mine"))), `„Rückgängig\" leaves something: ${JSON.stringify(undone)}`);
+  // The note goes down and away (its 200 ms), and nothing loaded a page.
+  await page.waitForFunction(() => !document.querySelector(".wait-note.setup-note"), null, { timeout: 3000 }).catch(() => failures.push("the note stays after „Rückgängig\""));
+  check(await page.evaluate(() => window.__marker === 1), "„Rückgängig\" loaded a page");
   await context.close();
 }
 
@@ -403,6 +434,48 @@ check(html.includes('href="/about/overview"') && !html.includes('href="/about"')
   await settle();
   const list = await bar();
   check(catalog.leaves === "1" && catalog.at === "0px 0%" && catalog.frost === "0" && list.frost === "1" && list.leaves === "1" && list.tint === "1", `phone: the catalog's bar is not the leaves with the frost under them: ${JSON.stringify([catalog, list])}`);
+  await context.close();
+}
+
+// ---------- the study as „Mein Studium" says it ----------
+// (owner, 2026-11-09: „wenn man module manuell zu einem bereich zuordnet, die da eigentlich nicht
+// hin gehören, wird beim studienprogress eine falsche zahl angezeigt … Versuch da mal ein system zu
+// finden, dasss immer konsistent mit der berechnung von mein studium ist"). Informatik B.Sc. in its
+// third semester, the first two passed; Mathematische Statistik passed in the second as an
+// exception for Mathematik's Pflichtmodule, so that Mathematik IT-3, planned now, goes beyond the
+// area's need. The panel says what „Mein Studium"'s overview says, number for number, the part
+// beyond need among it, and its bar has that part striped; „Öffnen" leads there without a load.
+{
+  const W = ["12104", "12107", "12102", "11112"];
+  const S = ["12101", "11903", "11113", "12111"];
+  const plan = [
+    ...W.map((id) => `m\t2025W\t${id}\t1\t\tplan`), ...S.map((id) => `m\t2026S\t${id}\t1\t\tplan`),
+    "m\t2026S\t11331\t2\t\t\t079-82-2008\t11\t", "m\t2026W\t11213\t3\t\tplan",
+    ...W.map((id) => `d\t2025W\t${id}`), ...S.map((id) => `d\t2026S\t${id}`), "d\t2026S\t11331",
+  ].join("\n") + "\n";
+  const seed = { "betula.myprogram.v1": "program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\ncaption\t\nstart\t2025W\n", "betula.studyplan.v1": plan };
+  const { context, page } = await open({ viewport: { width: 1440, height: 900 }, locale: "de-DE" }, seed);
+  const ready = await page.waitForFunction(() => onPage(".day-study .day-prog-key"), null, { timeout: 20000 }).then(() => true, () => false);
+  check(ready, "the study: no panel „Mein Studium“ on the start page");
+  const words = (text) => (text || "").replace(/\s+/g, " ").trim();
+  const panel = await page.evaluate(() => ({
+    headline: onPage(".day-study .day-prog-fig")?.textContent,
+    key: [...allOnPage(".day-study .day-prog-key > span")].map((part) => part.textContent),
+    over: Boolean(onPage(".day-study .day-prog-bar .over")),
+  }));
+  await page.click(".day-study .day-head a");
+  const there = await page.waitForFunction(() => location.pathname === "/study" && onPage(".st-over .st-stats li"), null, { timeout: 20000 }).then(() => true, () => false);
+  const overview = await page.evaluate(() => ({
+    headline: onPage(".st-over .st-headline")?.textContent,
+    stats: [...allOnPage(".st-over .st-stats li")].map((li) => li.textContent),
+  }));
+  // „62 LP bestanden" there, „62 bestanden" here: the same numbers, „LP" and the open's words aside.
+  const numbers = (text) => words(text).replace(/\bLP\b/g, "").replace("noch nicht eingeplant", "offen").replace(/\s+/g, " ").trim();
+  // (The panel's figure and its words are two elements without a space between them.)
+  const same = numbers(words(panel.headline).replace(/^([\d.,]+)/, "$1 ")) === numbers(overview.headline);
+  check(there && same && JSON.stringify(panel.key.map(numbers)) === JSON.stringify(overview.stats.map(numbers)), `the study: the start page says other numbers than „Mein Studium“: ${JSON.stringify({ panel, overview })}`);
+  check(panel.over && panel.key.some((part) => part.includes("über Bedarf")), `the study: what goes beyond need is not on the start page: ${JSON.stringify(panel)}`);
+  check(await page.evaluate(() => window.__marker === 1), "the study: „Öffnen“ loaded a page");
   await context.close();
 }
 

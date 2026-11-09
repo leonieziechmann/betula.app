@@ -481,6 +481,9 @@ struct Row {
     /// A row of the plan without a module: its plan's caption and `ord`, whose subgroup „Modul
     /// wählen" opens the workbench at (`bench::enter_row`).
     choose: Option<(String, i64)>,
+    /// A placeholder its modules fill in part: the share of what it asks that they hold, and the
+    /// words („3 von 6 LP eingeplant").
+    fill: Option<(f64, String)>,
     /// The module as the catalog's list says it: its columns.
     facts: Facts,
 }
@@ -527,14 +530,19 @@ impl Row {
             let required = item.area.and_then(|area| study.progress.get(area)).map_or(0.0, |progress| progress.area.required);
             flags.push(("flag neutral", (s.over_full)(&area, &n(required, t))));
         }
+        // A placeholder stands while what fills it does not hold what it asks (`study::Item::fills`):
+        // until then it is one, and says how far it is.
         if let Subject::Row { .. } = item.subject {
-            if item.fillers.is_empty() {
-                flags.push(("flag neutral", s.placeholder.to_string()));
-            } else {
-                let names: Vec<String> = ctx.rows.with_untracked(|rows| item.fillers.iter().map(|id| rows.iter().find(|row| row.id == *id).map_or_else(|| id.clone(), |row| row.title.clone())).collect());
-                flags.push(("flag neutral", (s.filled_with)(&names.join(", "))));
-            }
+            flags.push(("flag neutral", s.placeholder.to_string()));
         }
+        // A module that fills one carries its name, where the placeholder, full, stands no more.
+        if let Some(place) = &item.fills {
+            flags.push(("flag neutral", (s.fills_row)(place)));
+        }
+        let fill = match (&item.subject, item.credits) {
+            (Subject::Row { .. }, Some(asks)) if !item.fillers.is_empty() && asks > 0.0 => Some(((item.filled / asks).clamp(0.0, 1.0), (s.filled_of)(&n(item.filled, t), &n(asks, t), item.range))),
+            _ => None,
+        };
         let mut again = None;
         if item.failed {
             match item.again {
@@ -551,17 +559,20 @@ impl Row {
                 }
             }
         }
+        // A placeholder asks what the student set for it, else what its row says.
         let credits = match &item.subject {
+            Subject::Row { size: Some(size), .. } => Some(folia_plans::plan::credits_in(size, t.locale)),
             Subject::Row { credits: Some(text), .. } => Some(folia_plans::plan::credits_in(text, t.locale)),
             _ => item.credits.map(|credits| n(credits, t)),
         };
+        // It takes modules until they hold what it asks: „Modul wählen" stands with some in it too.
         let choose = match &item.subject {
-            Subject::Row { caption, ord, .. } if item.fillers.is_empty() => Some((caption.clone(), *ord)),
-            _ => None,
+            Subject::Row { caption, ord, .. } => Some((caption.clone(), *ord)),
+            Subject::Module { .. } => None,
         };
         let facts = Facts::of(item.module_id().and_then(|id| ctx.rows.with_untracked(|rows| rows.iter().find(|row| row.id == id).cloned())).as_ref(), t.locale);
         let when = study.semester(semester).map_or(When::Later, |it| it.when);
-        Row { status: Status::of(&item, when), area: ready.area_name(item.area, t), tone: ready.tone(item.area), credits, flags, again, choose, facts, item }
+        Row { status: Status::of(&item, when), area: ready.area_name(item.area, t), tone: ready.tone(item.area), credits, flags, again, choose, fill, facts, item }
     }
 }
 
@@ -917,7 +928,9 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
                             let item = row.item.clone();
                             view! {
                                 <span class="kind st-area"><i style=format!("background: {}", row.tone)></i>{row.area.clone()}</span>
-                                {item.module_id().and_then(|id| counted.with(|counted| counted.get(id).cloned())).map(|name| view! { <span class="st-for">{(t.study_bench.for_group)(&name)}</span> })}
+                                // A module that fills a place says so in its flags already
+                                // („für „Anwendungsfach“", `Item::fills`), not twice.
+                                {item.module_id().filter(|_| item.fills.is_none()).and_then(|id| counted.with(|counted| counted.get(id).cloned())).map(|name| view! { <span class="st-for">{(t.study_bench.for_group)(&name)}</span> })}
                                 {row.flags.into_iter().map(|(class, text)| view! { <span class=class>{text}</span> }).collect_view()}
                                 {row.again.map(|to| view! {
                                     <button class="st-link" type="button" on:click=move |ev: MouseEvent| { ev.stop_propagation(); plan_again(ctx, &item, to, t); }>{s.plan_it}</button>
@@ -926,6 +939,14 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
                             }
                         })}
                     </small>
+                    // What a placeholder holds of what it asks, where modules fill it in part: its
+                    // bar in its area's colour and the words.
+                    {move || row.with(|row| row.as_ref().and_then(|row| row.fill.clone())).map(|(share, words)| view! {
+                        <span class="st-ph-fill">
+                            <span class="st-wb-fill" aria-hidden="true"><i class="planned" style=format!("width: {:.1}%", share * 100.0)></i></span>
+                            <small>{words}</small>
+                        </span>
+                    })}
                     // A placeholder's „Modul wählen" under its line, over all of its box
                     // (`.st-open`): the row's click does what it says.
                     {move || place.get().map(|_| view! {
@@ -1152,6 +1173,8 @@ mod tests {
             spare: false,
             plan_fs: None,
             fillers: Vec::new(),
+            filled: 0.0,
+            fills: None,
             exception: false,
         };
         assert_eq!(Status::of(&item(true, false), When::Past), Status::Passed);
