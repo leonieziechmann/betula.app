@@ -1317,7 +1317,8 @@ Once, for canary:
 5. The canary agent deploys Folia 1.83.0 by itself (master). Two devices of one profile then say
    „direkt verbunden" or „über Betula weitergeleitet" on the profile page.
 6. TURN over TLS on 443 (for networks that let nothing but HTTPS out), when wanted: an A record
-   `turn.canary.betula.app` to this host (no AAAA), then `PHLOEM_TURN_TLS_HOST=turn.canary.betula.app`
+   `turn.canary.betula.app` to this host (and an AAAA record, as betula.app and canary have since
+   Traefik speaks IPv6: "IPv6 to Traefik"), then `PHLOEM_TURN_TLS_HOST=turn.canary.betula.app`
    in `stacks/phloem/phloem-canary.env`, `deploy/sync.sh`, `bash /opt/betula/vps/49-phloem.sh
    phloem-canary`: Traefik's TCP router `phloem-canary-turn` asks Let's Encrypt for the name and
    hands TURN over TLS to Phloem.
