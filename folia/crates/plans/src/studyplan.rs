@@ -495,6 +495,12 @@ pub struct Placeholder {
     pub caption: String,
     /// The row's name as a page shows it (`plan::shown_name`).
     pub name: String,
+    /// What the student wants of it in this semester, where it is not what the row says (owner,
+    /// 2026-11-09: „wo man selbst die gewichtung wählen kann"): one number, „14" of a row of
+    /// „10–24". `None` takes what the row asks, the least of a range. Stored as the eleventh field
+    /// of the `p` line, written only where it is set; a build before it reads and writes the line
+    /// without it, and the placeholder asks what the row asks again.
+    pub size: Option<String>,
 }
 
 /// What one semester hides (`k`, `e`, `r`, `h`), has ticked (`c`), changes of its Termine of QIS
@@ -760,6 +766,11 @@ impl PlanDoc {
                 clean(&p.caption),
                 clean(&p.name),
             );
+            if let Some(size) = p.size.as_deref().and_then(size_text) {
+                // The line written above ends in its newline: the field goes before it.
+                out.pop();
+                let _ = writeln!(out, "\t{size}");
+            }
         }
         for p in self.passed.iter().filter(|p| url::is_module_id(&p.module_id)) {
             let _ = writeln!(out, "d\t{}\t{}", p.semester.key(), p.module_id);
@@ -1627,10 +1638,23 @@ impl PlanDoc {
             return false;
         }
         let (credits, kind) = (p.credits.as_deref().and_then(credits_text), p.kind.as_deref().and_then(kind_code));
-        let (caption, name) = (clean(&p.caption), clean(&p.name));
+        let (caption, name, size) = (clean(&p.caption), clean(&p.name), p.size.as_deref().and_then(size_text));
         let at = self.placeholders.partition_point(|q| q.pid < p.pid);
-        self.placeholders.insert(at, Placeholder { credits, kind, caption, name, ..p });
+        self.placeholders.insert(at, Placeholder { credits, kind, caption, name, size, ..p });
         true
+    }
+
+    /// Sets what placeholder `pid` asks for in its semester (`Placeholder::size`); `None` gives it
+    /// what its row asks again. Whether it changed.
+    pub fn set_size(&mut self, pid: u32, size: Option<f64>) -> bool {
+        let text = size.filter(|size| size.is_finite() && *size > 0.0).map(plan::number_text).as_deref().and_then(size_text);
+        match self.placeholders.iter_mut().find(|p| p.pid == pid) {
+            Some(p) if p.size != text => {
+                p.size = text;
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Adds `item` to one of a semester's lists (`read` and `write` name the same one), within
@@ -2156,6 +2180,7 @@ pub(crate) fn row_placeholder(program_id: &str, variant: &PlanVariant, entry: &P
         kind,
         caption: clean(&variant.full),
         name: clean(name),
+        size: None,
     })
 }
 
@@ -2350,9 +2375,13 @@ pub fn placeholder_line(p: &Placeholder, requirement: Option<&SemesterRequiremen
             (plan::shown_name(&p.name).to_string(), credits, plan::is_single_module(&stored), plan::is_fues(&stored))
         }
     };
+    // What the student set for it is what it asks, no less and no more.
+    let sized = p.size.as_deref().map(|size| plan::credits_in(size, locale));
+    let exact = single || sized.is_some();
+    let credits = sized.or(credits);
     let areas: Vec<String> = requirement.map(|row| row.areas.iter().map(|area| area.name().to_string()).collect()).unwrap_or_default();
     // A choice asks for at least that much; one module, or a range, is what it says.
-    let amount = credits.map(|credits| match single || credits.contains(['–', '-']) {
+    let amount = credits.map(|credits| match exact || credits.contains(['–', '-']) {
         true => credits,
         false => format!("≥\u{a0}{credits}"),
     });
@@ -2385,10 +2414,11 @@ pub fn is_single_placeholder(p: &Placeholder) -> bool {
     plan::is_single_module(&stored_entry(p))
 }
 
-/// The most credits a placeholder's row takes: the upper end of a range („10–24" → 24), else the
-/// number it states („7,5"); `None` where it states none.
+/// The most credits a placeholder's row takes: what the student set for it (`Placeholder::size`),
+/// else the upper end of a range („10–24" → 24), else the number it states („7,5"); `None` where it
+/// states none.
 pub fn most_credits(p: &Placeholder) -> Option<f64> {
-    let text = p.credits.as_deref()?;
+    let text = p.size.as_deref().or(p.credits.as_deref())?;
     let last = text.rsplit(['–', '-']).next()?.trim().replace(',', ".");
     last.parse::<f64>().ok().filter(|most| most.is_finite() && *most > 0.0)
 }
@@ -2715,6 +2745,12 @@ fn credits_text(text: &str) -> Option<String> {
     valid.then(|| text.to_string())
 }
 
+/// What a placeholder asks for in its semester as the store keeps it (`Placeholder::size`): one
+/// number of credits, as `credits_text` takes it, no range.
+fn size_text(text: &str) -> Option<String> {
+    credits_text(text).filter(|text| !text.contains(['–', '-'])).filter(|text| text.replace(',', ".").parse::<f64>().is_ok_and(|n| n > 0.0))
+}
+
 /// A `ModuleKind` code this build knows.
 fn kind_code(text: &str) -> Option<String> {
     ModuleKind::from_code(text).map(|kind| kind.code().to_string())
@@ -2740,6 +2776,7 @@ fn placeholder_of(fields: &[&str]) -> Option<Placeholder> {
         kind: kind_code(field(7)),
         caption: clean(field(8)),
         name: clean(field(9)),
+        size: size_text(field(10)),
     })
 }
 
@@ -2779,6 +2816,7 @@ mod tests {
             kind: Some("elective".to_string()),
             caption: String::new(),
             name: "Anwendungsfach".to_string(),
+            size: None,
         }
     }
 
@@ -2966,6 +3004,7 @@ mod tests {
             kind: Some("internship".to_string()),
             caption: "😀".repeat(MAX_TEXT),
             name: "😀".repeat(MAX_TEXT + 10),
+            size: Some("9".repeat(MAX_CREDITS)),
         };
         assert_eq!(doc.apply(&with_placeholders((0..MAX_PLACEHOLDERS).map(long).collect()), 0), (0, MAX_PLACEHOLDERS));
         assert_eq!(doc.apply(&with_placeholders(vec![Placeholder { ord: 1, ..long(0) }]), 0), (0, 0), "100 placeholders");

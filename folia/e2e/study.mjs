@@ -40,9 +40,9 @@
 //   its menu and at its row opens the workbench at its subgroup, whose „Im Katalog suchen" leads to
 //   the catalog with the place (`fill=`) and the bar of the workbench, whose „Einplanen" aims at it
 //   and its semester; planned, Allgemeine BWL I fills it — „Zurück zur Werkbank" shows it planned,
-//   the semester and Nebenfach count 6 LP, not 12, the place says „gefüllt mit" and offers „Modul
-//   wählen" no more; taken out again, the Wahlpflicht's „+ In WiSe 26/27" fills the place the same
-//   way.
+//   the semester and Nebenfach count 6 LP, not 12, the place full stands no more and the module
+//   says „für „Anwendungsfach“"; taken out again, the place stands again, and the Wahlpflicht's
+//   „+ In WiSe 26/27" fills it the same way.
 // 2c the Gesamtplan reworked (owner, 2026-11-09): the Fachstudium's head unfolds into its Komplexe
 //   (10–24, the room to 30) and its Seminar, the Nebenfach's into its two choices, Praktische
 //   Mathematik's 8 of 6 LP no „über Bedarf"; a subsection into its lanes; a module dragged onto
@@ -50,6 +50,13 @@
 //   in its own and the row says what Strg does, with Strg it counts there as an exception;
 //   „Vollbild" at the head's right end, the rail and the search staying, Esc out of it; „Als Bild
 //   speichern" a PNG of the day.
+// 2d a place as a place for modules (owner, 2026-11-09: „dass die verschwinden, wenn die voll
+//   erfüllt sind … Dann soll der platzhalter azeigen, wie viel progress da schon eingeplant ist"):
+//   the Anwendungsfach set to 12 LP with a module of 6 in it stands with its bar, „6 von 12 LP
+//   eingeplant", and counts what is left; „Umfang …" in its menu, turned to 6 („Wie im Plan"
+//   then gone), takes the place away and the eleventh field with it; „Rückgängig". A place of the
+//   Komplex Praktische Informatik in WiSe 2027/28: its dialog weighs the three Komplexe, „Zusammen
+//   10 von 50 LP", 4 more turn it to 14, stored and shown.
 // 3 a phone: the overview first (owner, 2026-10-05), the bar with its legend, the program's card
 //   and its ways, the box „Studium planen" with a column per semester, the way to all programs, and
 //   no sidebar; one row of pages the browser scrolls (a real touch, CDP; owner, 2026-10-06): the
@@ -794,13 +801,15 @@ if (current !== "2026W") {
   await step("Einplanen, for the place", () => page.click(SWITCH), ([key, pid]) => (localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith("m\t2026W\t12160\t") && line.split("\t")[4] === pid), [PLAN, pid]);
   // Back in „Mein Studium" („Zurück zur Werkbank", then „Fertig"): one module of 6 LP for the
   // place, counted once (it was 12 and 12/18: folia/design/hinzufuegen/konzepte.html, „Was heute
-  // schiefgeht"), the place saying what fills it.
+  // schiefgeht"); the place, full, stands no more, and the module carries its name (owner,
+  // 2026-11-09: „wenn man ein anwendungsfach eplant hat, dann muss man den platzhalter nicht mehr
+  // sehen"; until Folia 1.87.0 it stood beside it, „gefüllt mit …").
   await step("Zurück zur Werkbank", () => page.click(".bench-bar a"), () => location.pathname === "/study" && document.querySelector(".st-wb-pane .st-wb-row.is-done")?.textContent.includes("Allgemeine Betriebswirtschaftslehre I"));
-  await step("the semester, its place filled", () => page.click(".st-wb-done"), () => !document.querySelector(".st-wb") && document.querySelectorAll(".st-card-sem .st-row").length === 2);
+  await step("the semester, its place filled", () => page.click(".st-wb-done"), () => !document.querySelector(".st-wb") && document.querySelectorAll(".st-card-sem .st-row").length === 1);
   const filled = await counts();
   check(filled.semester === "6 LP" && filled.nebenfach === "6/18", `one module for the place counts twice: ${JSON.stringify(filled)}`);
   const placed = await rows(page);
-  check(placed.some((row) => row.name === "Anwendungsfach" && row.chips.some((chip) => chip.startsWith("gefüllt mit Allgemeine Betriebswirtschaftslehre I"))), `the place does not say what fills it: ${JSON.stringify(placed)}`);
+  check(!placed.some((row) => row.name === "Anwendungsfach") && placed.some((row) => row.name?.startsWith("Allgemeine Betriebswirtschaftslehre I") && row.chips.includes("für „Anwendungsfach“")), `the place filled still stands, or its module does not carry it: ${JSON.stringify(placed)}`);
   check(!(await page.$(".st-card-sem .st-find")), "a filled place still offers „Modul wählen“");
   // The module out again, the place open; the Wahlpflicht's module, beside the page, fills it as
   // well.
@@ -912,6 +921,46 @@ if (current !== "2026W") {
   const name = download?.suggestedFilename() ?? "";
   const bytes = download ? await download.createReadStream().then((stream) => new Promise((done) => { const parts = []; stream.on("data", (part) => parts.push(part)); stream.on("end", () => done(Buffer.concat(parts))); })) : Buffer.alloc(0);
   check(/^gesamtplan-\d{4}-\d\d-\d\d\.png$/.test(name) && bytes.subarray(1, 4).toString() === "PNG" && bytes.length > 20000, `„Als Bild speichern“: ${name}, ${bytes.length} bytes`);
+  await context.close();
+}
+
+// ---------- 2d: a place for modules, its size, the weighting of the Komplexe ----------
+{
+  const { page, step, seed, context } = await open({ viewport: { width: 1440, height: 900 } }, "/");
+  // The Anwendungsfach of WiSe 2026/27 set to 12 LP, Allgemeine BWL I (6 LP) in it; a place of the
+  // Komplex Praktische Informatik in WiSe 2027/28.
+  const PLACES = "p\t9\t2026W\t079-82-2008\t15\t3-3\t6\telective\t\tAnwendungsfach\t12\nm\t2026W\t12160\t2\t9\t\n"
+    + "p\t8\t2027W\t079-82-2008\t20\t5-6\t10–24\telective\t\tKomplex Praktische Informatik\n";
+  await seed([[MINE, THIRD], [PLAN, FILLED + PLACES]]);
+  await step("Studium, for a place in part", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector('.st-card-sem .st-row[data-key="r::15"] .st-ph-fill'));
+  const part = await page.evaluate(() => ({
+    fill: document.querySelector('.st-card-sem .st-row[data-key="r::15"] .st-ph-fill small')?.textContent.replace(/\u00a0/g, " "),
+    lp: document.querySelector('.st-card-sem .st-row[data-key="r::15"] .lp')?.textContent,
+    find: !!document.querySelector('.st-card-sem .st-row[data-key="r::15"] .st-find'),
+    semester: document.querySelector(".st-card-sem .st-sem-sub b")?.textContent.replace(/\u00a0/g, " "),
+  }));
+  check(part.fill === "6 von 12 LP eingeplant" && part.lp === "12LP" && part.find && part.semester === "12 LP", `a place filled in part: ${JSON.stringify(part)}`);
+  // „Umfang …" in its menu: 12, turned down to what the row says, 6.
+  await step("the place's menu, Umfang", () => page.click('.st-card-sem .st-row[data-key="r::15"] .st-status'), () => document.querySelector(".st-pop.root #st-menu-size"));
+  await step("Umfang …", () => page.click(".st-pop.root #st-menu-size"), () => document.querySelector("#st-sz-value")?.value === "12" && !document.querySelector(".st-sz-reset").hidden && !document.querySelector(".st-sz-w"));
+  await step("Wie im Plan", () => page.click(".st-sz-reset"), () => document.querySelector("#st-sz-value")?.value === "6" && document.querySelector(".st-sz-reset").hidden);
+  await step("Übernehmen: the place full", () => page.click("#st-sz-go"), (key) => !document.querySelector('.st-card-sem .st-row[data-key="r::15"]')
+    && document.querySelector(".study-note")?.textContent.includes("Anwendungsfach im WiSe 2026/27 wieder wie im Plan")
+    && (localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith("p\t9\t") && line.endsWith("\tAnwendungsfach")), PLAN);
+  await step("Rückgängig, the place in part again", () => undo(page), () => document.querySelector('.st-card-sem .st-row[data-key="r::15"] .st-ph-fill'));
+  // The module taken out: the place stands as it was, nothing in it.
+  await step("the module's menu", () => page.click('.st-card-sem .st-row[data-key="m:12160"] .st-status'), () => document.querySelector(".st-pop.root #st-menu-remove"));
+  await step("the module taken out", () => page.click("#st-menu-remove"), () => !document.querySelector('.st-card-sem .st-row[data-key="m:12160"]') && document.querySelector('.st-card-sem .st-row[data-key="r::15"] .st-find') && !document.querySelector(".st-ph-fill"));
+  // The Komplex Praktische Informatik of WiSe 2027/28: its size among the three Komplexe.
+  await pick(page, "WiSe 27/28");
+  await step("WiSe 2027/28, its Komplex", () => page.click('.st-card-sem .st-row[data-key="r::20"] .st-status'), () => document.querySelector(".st-pop.root #st-menu-size"));
+  await step("Umfang of the Komplex", () => page.click(".st-pop.root #st-menu-size"), () => document.querySelectorAll(".st-sz-m").length === 3 && document.querySelector(".st-sz-sum b")?.textContent.replace(/\u00a0/g, " ") === "Zusammen 10 von 50 LP");
+  const weights = await page.evaluate(() => [...document.querySelectorAll(".st-sz-m")].map((member) => `${member.querySelector("b")?.textContent}${member.classList.contains("is-own") ? "*" : ""}`).join(", "));
+  check(weights === "Grundlagen der Informatik, Praktische Informatik*, Angewandte und Technische Informatik", `the Komplexe weighed: ${weights}`);
+  for (let i = 0; i < 4; i += 1) await page.click("#st-sz-up");
+  await page.waitForFunction(() => document.querySelector(".st-sz-sum b")?.textContent.replace(/\u00a0/g, " ") === "Zusammen 14 von 50 LP", null, { timeout: 4000 }).catch(() => problems.push("the weighting does not follow the stepper"));
+  await step("Übernehmen, 14 LP", () => page.click("#st-sz-go"), (key) => document.querySelector('.st-card-sem .st-row[data-key="r::20"] .lp')?.textContent === "14LP"
+    && (localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith("p\t8\t") && line.endsWith("\tKomplex Praktische Informatik\t14")), PLAN);
   await context.close();
 }
 

@@ -2211,6 +2211,7 @@ mod tests {
             kind: None,
             caption: String::new(),
             name: name.into(),
+            size: None,
         };
         let doc = PlanDoc {
             placeholders: vec![
