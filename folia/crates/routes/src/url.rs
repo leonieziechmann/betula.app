@@ -166,6 +166,18 @@ pub fn connect_from_setup() -> String {
     format!("{CONNECT}?from=setup")
 }
 
+/// The start page once the setup ended on another page (the scanner's „Fertig", opened from the
+/// setup's last step): the start page ends what its setup left open (`?setup=done`) and lets go of
+/// the query.
+pub fn home_setup_done() -> String {
+    format!("{HOME}?setup=done")
+}
+
+/// Whether the start page's query (without `?`) says the setup ended elsewhere.
+pub fn setup_done(raw_query: &str) -> bool {
+    first_value(&parse_pairs(raw_query.trim_start_matches('?')), "setup").as_deref() == Some("done")
+}
+
 /// Whether the query of `CONNECT` (without `?`) says it was opened from the setup.
 pub fn from_setup(raw_query: &str) -> bool {
     first_value(&parse_pairs(raw_query.trim_start_matches('?')), "from").as_deref() == Some("setup")
@@ -2474,6 +2486,8 @@ mod tests {
         assert_eq!(connect_from_setup(), "/sync?from=setup");
         assert!(from_setup("from=setup") && from_setup("?from=setup") && from_setup("x=1&from=setup"));
         assert!(!from_setup("") && !from_setup("from=profile") && !from_setup("setup"));
+        assert_eq!(home_setup_done(), "/?setup=done");
+        assert!(setup_done("setup=done") && setup_done("?setup=done") && !setup_done("setup=") && !setup_done(""));
     }
 
     #[test]

@@ -26,6 +26,7 @@ folia_design::texts! {
     plans_data = folia_plans::i18n,
     seo = folia_shell::i18n::seo,
     setup = crate::i18n::setup,
+    syncpair = folia_widgets::i18n::syncpair,
     termin = folia_widgets::i18n::termin,
     timetable_data = folia_timetable::i18n,
     today = crate::i18n::today,

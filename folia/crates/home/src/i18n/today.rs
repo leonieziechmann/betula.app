@@ -186,17 +186,12 @@ pub struct Texts {
     pub without_setup: &'static str,
     pub without_setup_sub: &'static str,
 
-    // After „Studium anlegen".
-    /// „Eingerichtet: Informatik B.Sc. · 1. FS seit WiSe 2026/27".
-    pub set_up: fn(&str, u8, &str) -> String,
-    /// „5 Module im Stundenplan · 28 LP aus früheren Semestern als bestanden markiert".
-    pub set_up_detail: fn(usize, usize, Option<&str>) -> String,
-    pub stays_here: &'static str,
-    /// The same where the profile syncs (the setup's last step, Betula Sync).
-    pub synced_here: &'static str,
-    pub undo: &'static str,
-    pub to_timetable: &'static str,
-    pub close: &'static str,
+    // After „Studium anlegen", in the note that waits for interaction (`folia_widgets::marknote`).
+    /// The note after the setup: „Eingerichtet · Informatik B.Sc. · PO 2008 · 1. FS".
+    pub set_up_said: &'static str,
+    /// The same where the profile syncs (the setup's last step connected a device).
+    pub set_up_synced: &'static str,
+    pub set_up: fn(&str, u8) -> String,
 
     /// The photo's credit in the ground: „Foto: John Price, Unsplash".
     pub photo_by: &'static str,
@@ -399,24 +394,9 @@ pub const DE: Texts = Texts {
     without_setup: "Ohne Einrichtung",
     without_setup_sub: "Suchen und stöbern geht sofort",
 
-    set_up: |program, fs, start| format!("Eingerichtet: {program} · {fs}.\u{a0}FS seit {start}"),
-    set_up_detail: |modules, placeholders, passed| {
-        let planned = match (modules, placeholders) {
-            (0, 0) => "Stundenplan ohne Module".to_string(),
-            (m, 0) => format!("{m} {} im Stundenplan", if m == 1 { "Modul" } else { "Module" }),
-            (0, p) => format!("{p} Platzhalter im Stundenplan"),
-            (m, p) => format!("{m} {} und {p} Platzhalter im Stundenplan", if m == 1 { "Modul" } else { "Module" }),
-        };
-        match passed {
-            Some(credits) => format!("{planned} · {credits}\u{a0}LP aus früheren Semestern als bestanden markiert."),
-            None => format!("{planned}."),
-        }
-    },
-    stays_here: "Alles bleibt in diesem Browser.",
-    synced_here: "Betula Sync hält es auf deinen Geräten gleich.",
-    undo: "Rückgängig",
-    to_timetable: "Zum Stundenplan",
-    close: "Schließen",
+    set_up_said: "Eingerichtet",
+    set_up_synced: "Eingerichtet und verbunden",
+    set_up: |program, fs| format!("{program} · {fs}.\u{a0}FS"),
 
     photo_by: "Foto",
     your_day: "Dein Tag",
@@ -592,24 +572,9 @@ pub const EN: Texts = Texts {
     without_setup: "Without setting up",
     without_setup_sub: "Searching and browsing work right away",
 
-    set_up: |program, fs, start| format!("Set up: {program} · semester {fs} since {start}"),
-    set_up_detail: |modules, placeholders, passed| {
-        let planned = match (modules, placeholders) {
-            (0, 0) => "Timetable without modules".to_string(),
-            (m, 0) => format!("{m} {} in your timetable", if m == 1 { "module" } else { "modules" }),
-            (0, p) => format!("{p} {} in your timetable", if p == 1 { "placeholder" } else { "placeholders" }),
-            (m, p) => format!("{m} {} and {p} {} in your timetable", if m == 1 { "module" } else { "modules" }, if p == 1 { "placeholder" } else { "placeholders" }),
-        };
-        match passed {
-            Some(credits) => format!("{planned} · {credits}\u{a0}ECTS of earlier semesters marked as passed."),
-            None => format!("{planned}."),
-        }
-    },
-    stays_here: "Everything stays in this browser.",
-    synced_here: "Betula Sync keeps it the same on your devices.",
-    undo: "Undo",
-    to_timetable: "To the timetable",
-    close: "Close",
+    set_up_said: "Set up",
+    set_up_synced: "Set up and connected",
+    set_up: |program, fs| format!("{program} · semester {fs}"),
 
     photo_by: "Photo",
     your_day: "Your day",
@@ -627,7 +592,7 @@ mod tests {
         assert_eq!((DE.in_minutes)(65), "in 1\u{a0}h 05\u{a0}min");
         assert_eq!((DE.long_date)("Dienstag", 20, "Oktober", 43), "Dienstag, 20. Oktober · KW 43");
         assert_eq!((EN.long_date)("Tuesday", 20, "October", 43), "Tuesday, 20 October · Week 43");
-        assert_eq!((DE.set_up_detail)(5, 1, Some("28")), "5 Module und 1 Platzhalter im Stundenplan · 28\u{a0}LP aus früheren Semestern als bestanden markiert.");
+        assert_eq!((DE.set_up)("Informatik B.Sc. · PO 2008", 3), "Informatik B.Sc. · PO 2008 · 3.\u{a0}FS");
         assert_eq!((DE.pause_until)("03.01."), "Vorlesungsfrei bis 03.01.", "a date ends the sentence with its own point");
         assert_eq!((DE.exams_text)("29.01."), "Die Vorlesungszeit endete am 29.01. Bis zum Semesterende stehen deine Prüfungen an.");
         assert_eq!((EN.pause_until)("3 January"), "No lectures until 3 January.");
