@@ -79,6 +79,15 @@ const until = async (name, page, fn, arg, timeout = 10000) => {
   }
   timings[name] = Date.now() - started;
 };
+/// „Fertig" at the end of connecting (owner, 2026-11-09: „dass man wieder bei der main page landet,
+/// wenn das sync fertig ist und nicht im profil"): a link to the start page, which comes without a
+/// page load.
+const doneHome = async (name, page, scope) => {
+  await until(`${name}: „Fertig“ leads to the start page`, page, (scope) => onPage(`${scope} .pf-done`)?.getAttribute("href") === "/", scope, 10000);
+  await page.evaluate(() => { window.__done = 1; });
+  await page.click(`${scope} .pf-done >> visible=true`).catch(() => problems.push(`${name}: no „Fertig“`));
+  await until(`${name}: on the start page after „Fertig“`, page, () => location.pathname === "/" && window.__done === 1 && !onPage(".pf-connect"), null, 10000);
+};
 const marksOf = (page) => page.evaluate(() => marked().sort());
 const shelfOf = (page) => page.evaluate(() => localStorage.getItem(store("betula.collections.v1")) || "");
 
@@ -125,6 +134,7 @@ await until("B joined", b.page, (n) => marked().length === n, SEED.length, 20000
 check(!b.page.url().includes("#"), `B: the link's key is still in the address (${b.page.url()})`);
 check(JSON.stringify(await marksOf(b.page)) === JSON.stringify(await marksOf(a.page)), `B: other marks than A (${await marksOf(b.page)} / ${await marksOf(a.page)})`);
 check((await shelfOf(b.page)).includes(NOTE), "B: the note did not come");
+await doneHome("B", b.page, ".pf-part");
 await until("A sees B online", a.page, () => /^online 1( |$)/.test(localStorage.getItem("betula.sync.p1.status") || ""), null, 10000);
 
 // ---- live: a mark set on B shows on A ----
@@ -181,6 +191,8 @@ await until("F says the profile came", f.page, () => Boolean(onPage(".pf-connect
 check(JSON.stringify(await marksOf(f.page)) === JSON.stringify(await marksOf(b.page)), `F: other marks than B (${await marksOf(f.page)} / ${await marksOf(b.page)})`);
 check((await f.page.evaluate(() => (localStorage.getItem("betula.profiles.v1") || "").split("\n").filter((l) => l.startsWith("profile\t")).length)) <= 1, "F: the profile came beside the empty one instead of into it");
 await until("B: „Verbunden“", b.page, () => Boolean(onPage(".pf-give .pf-joined")), null, 15000);
+await doneHome("B after giving", b.page, ".pf-give");
+await doneHome("F's dialog", f.page, ".st-dlg-foot");
 
 
 // ---- a note typed on both at once: the later stands, the other is a hint on both ----
@@ -291,6 +303,9 @@ const pairCodes = [];
   await until("G: given", scanned, () => /Verbunden: Der Rechner hat/.test(onPage(".pf-give .pf-joined")?.textContent ?? ""), null, 20000);
   await until("H holds G's study", h.page, () => /^program\t079-82-2008$/m.test(localStorage.getItem("betula.myprogram.v1") || ""), null, 20000);
   await until("H says it is here", h.page, () => /ist jetzt auch auf diesem Gerät/.test(onPage(".pf-pair-page")?.textContent ?? ""), null, 5000);
+  await doneHome("H", h.page, ".pf-pair-page");
+  await until("H: the day of G's study on the start page", h.page, () => Boolean(onPage(".day-hero:not(.day-first)")) && !onPage(".ob"), null, 10000);
+  await doneHome("G's scanned tab", scanned, ".pf-give");
   const plans = await Promise.all([g.page, h.page].map((page) => page.evaluate(() => (localStorage.getItem("betula.studyplan.v1") || "").split("\n").filter((line) => /^[mp]\t/.test(line)).sort().join("\n"))));
   check(plans[0] && plans[0] === plans[1], `H: another plan than G's (${plans[1].split("\n").length} / ${plans[0].split("\n").length} lines)`);
   await until("G: „Verbunden“ in step 4", g.page, () => onPage(".ob-title")?.textContent === "Verbunden", null, 15000);

@@ -135,7 +135,9 @@ pub fn GiveRequest(fragment: String, #[prop(into)] back: Callback<()>, #[prop(op
                 {if to_setup {
                     view! { <a class="btn primary" href=t.path(url::HOME) rel="nofollow"><Icon name="arrow-left"/><span>{c.to_setup}</span></a> }.into_any()
                 } else {
-                    view! { <a class="btn primary" href=t.path(url::PROFILE) rel="nofollow"><Icon name="check"/><span>{c.done}</span></a> }.into_any()
+                    // Done: back to the start page (owner, 2026-11-09: „dass man wieder bei der
+                    // main page landet, wenn das sync fertig ist und nicht im profil").
+                    view! { <a class="btn primary pf-done" href=t.path(url::HOME) rel="nofollow"><Icon name="check"/><span>{c.done}</span></a> }.into_any()
                 }}
             </nav>
         }

@@ -150,7 +150,11 @@ pub fn ConnectPage() -> impl IntoView {
             view! {
                 <p class="pf-sync-state" role="status" data-state="on"><span class="pf-sync-dot" aria-hidden="true"></span><span>{(s.connected)(&name)}</span></p>
                 <p class="pf-empty">{s.connected_hint}</p>
-                {ways((url::STUDYPLAN, "calendar-range", s.to_studyplan))}
+                // Done: the start page, with the profile that came (owner, 2026-11-09: „dass man
+                // wieder bei der main page landet, wenn das sync fertig ist und nicht im profil").
+                <nav class="pf-ways">
+                    <a class="btn primary pf-done" href=t.path(url::HOME) rel="nofollow"><Icon name="check"/><span>{s.done}</span></a>
+                </nav>
             }
             .into_any(),
         ),
