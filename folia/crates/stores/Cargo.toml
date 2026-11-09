@@ -1,6 +1,6 @@
 [package]
 name = "folia-stores"
-version = "1.83.3"
+version = "1.84.1"
 edition = "2021"
 description = "What a visitor of Betula keeps in the browser: marked modules, the Studienplan, Mein Studiengang, in profiles"
 
@@ -34,7 +34,7 @@ wasm-bindgen = { version = "0.2", optional = true }
 # Betula Sync in the browser (`sync::browser`): WebCrypto's promises, the clock, Web Locks.
 js-sys = { version = "0.3", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["Crypto", "SubtleCrypto", "CryptoKey", "HkdfParams", "AesGcmParams", "WebSocket", "MessageEvent", "CloseEvent", "Request", "RequestInit", "Headers", "Response", "StorageEvent", "VisibilityState", "Window", "Document", "Location", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior", "MouseEvent", "HtmlAnchorElement", "Url", "Performance", "History", "PopStateEvent", "PopStateEventInit", "Blob", "BlobPropertyBag", "AddEventListenerOptions", "RtcPeerConnection", "RtcConfiguration", "RtcIceServer", "RtcDataChannel", "RtcDataChannelInit", "RtcDataChannelState", "RtcSdpType", "RtcSessionDescriptionInit", "RtcIceCandidate", "RtcIceCandidateInit", "RtcPeerConnectionIceEvent", "RtcPeerConnectionState"] }
+web-sys = { version = "0.3", optional = true, features = ["Navigator", "Crypto", "SubtleCrypto", "CryptoKey", "HkdfParams", "AesGcmParams", "WebSocket", "MessageEvent", "CloseEvent", "Request", "RequestInit", "Headers", "Response", "StorageEvent", "VisibilityState", "Window", "Document", "Location", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior", "MouseEvent", "HtmlAnchorElement", "Url", "Performance", "History", "PopStateEvent", "PopStateEventInit", "Blob", "BlobPropertyBag", "AddEventListenerOptions", "RtcPeerConnection", "RtcConfiguration", "RtcIceServer", "RtcDataChannel", "RtcDataChannelInit", "RtcDataChannelState", "RtcSdpType", "RtcSessionDescriptionInit", "RtcIceCandidate", "RtcIceCandidateInit", "RtcPeerConnectionIceEvent", "RtcPeerConnectionState"] }
 
 [dev-dependencies]
 # The tests that look a program up in a real snapshot (`FOLIA_TEST_SNAPSHOT`).

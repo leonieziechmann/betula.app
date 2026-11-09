@@ -1646,8 +1646,12 @@ button.coll-item.add:hover { background: var(--row-hover); }
 /* The line under a module's heading, in the preview and on the module's page (`.hero-line`,
    markup: div.hero-line > p.badges > span.badge… + div.switches > span.plan-pair > button.plan-toggle
    + span.mark-pair > button.mark-toggle, each with its arrow while it is on): the badges (credits,
-   turnus, language) on the left, and „Einplanen" and „Merken", switches with their shortcuts, as
-   tall as the toggles of the filter panel. They stand the first way that fits (owner, 2026-10-20:
+   turnus, language) on the left, and „Einplanen" and „Merken", switches with their shortcuts, of
+   two lines on a wide screen as on a phone: the label over what it says small (owner, 2026-11-09:
+   „Bei der mobile version sind die auch so schön klein, weil die zweizeiligen text haben. Kannst
+   du das am Pc auch so machen, so dass die einfach nur eine zeile einnehmen"; before, the small
+   line stood beside the label, and each switch was 18rem wide, which the preview's line held one
+   over the other only). They stand the first way that fits (owner, 2026-10-20:
    „wenn die nicht mehr in eine reihe passen mit den metadaten, dass die erstmal nebeneinander in
    ihrer eigenen reihe sind (jeweils 50% platz). Und wenn das auch nicht mehr passt, dann
    untereinander mit voller breite"):
@@ -1666,28 +1670,33 @@ button.coll-item.add:hover { background: var(--row-hover); }
    of the two the switches have tells their width (100%) against the line's (100cqi, the line is the
    container): on a line of their own it is all of it but the switches' end, beside the badges far
    less; half of it is the basis of each switch only there. */
-.hero-line { container: hero-line / inline-size; --switches-end: 6px; --pair: 18rem; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 6px; margin-top: 12px; }
-/* The badges stand on the middle of the switches (26px in 32px). A badge wider than the line (the
-   narrowest preview has 176px for „jedes Semester (ungerade Jahre)") breaks into two lines. */
-.hero-line > .badges { flex: 100000 1 auto; min-width: 0; margin-top: 0; padding: 3px 0; align-items: center; row-gap: 6px; }
+.hero-line { container: hero-line / inline-size; --switches-end: 6px; --pair: 13rem; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 6px; margin-top: 12px; }
+/* Beside the switches the badges stand on their middle (the line's `align-items`): they are on one
+   line there, since the switches leave it where the badges' line does not hold them. A badge wider
+   than the line (the narrowest preview has 176px for „jedes Semester (ungerade Jahre)") breaks
+   into two lines. */
+.hero-line > .badges { flex: 100000 1 auto; min-width: 0; margin-top: 0; align-items: center; row-gap: 6px; }
 .hero-line > .badges > .badge { padding-top: 3px; padding-bottom: 3px; line-height: 1.25; white-space: normal; }
 /* Its right edge is the right edge of what stands under the heading (the body of a module is
    inset by 20px, the heading of the preview by 14px and that of the page by 18px). */
 .hero-line > .switches { flex: 1 1 calc(2 * var(--pair) + 6px); min-width: 0; margin-right: var(--switches-end); display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: stretch; gap: 6px; }
 .switches > :is(.plan-pair, .mark-pair) { flex: 1 1 clamp(min(var(--pair), 100%), calc(50% - 3px - (100cqi - var(--switches-end) - 100%) * 1000), calc(50% - 3px)); min-width: min(var(--pair), 100%); }
 /* In a switch nothing moves when it is pressed: the room of its arrow is kept while it has none,
-   its label stands at its start, its shortcut at its end, and what it says small takes what is
-   between them and gives way. */
+   its label stands at its start, its shortcut at its end, and what it says small stands under the
+   label, in the room between the icon and the shortcut, and gives way. Two lines tall whether it
+   says something small or not, so that nothing moves when the app adds it (R15); without it the
+   label stands on the middle. */
 .switches > :not(.split) > .mark-switch { padding-right: 37px; }
 .switches .mark-switch > small { text-align: left; }
 @media (min-width: 901px) {
-  .switches .mark-switch > small { flex: 1 1 auto; max-width: none; }
-  .switches .mark-switch kbd { margin-left: auto; }
-  .switches button.plan-toggle.mark-switch:where(.with-note) { grid-template-columns: auto auto minmax(0, 1fr) auto; }
+  .hero-line .switches .mark-switch { display: inline-grid; grid-template: auto auto / auto minmax(0, 1fr) auto; align-content: center; gap: 0 8px; min-height: 40px; }
+  .hero-line .switches .mark-switch > .icon { grid-area: 1 / 1 / span 2; }
+  .hero-line .switches .mark-switch > span:first-of-type { grid-area: 1 / 2; line-height: 17px; }
+  .hero-line .switches .mark-switch > small { grid-area: 2 / 2; max-width: none; line-height: 15px; }
+  .hero-line .switches .mark-switch kbd { grid-area: 1 / 3 / span 2; }
 }
 .module-page > .hero .hero-line { --switches-end: 2px; }
 html:not(.js) .hero-line > .switches { display: none; }
-html:not(.js) .hero-line > .badges { padding: 0; row-gap: 6px; }
 .mark-switch { --hit-y: 5px; --hit-x: 4px; min-height: 32px; padding: 0 7px 0 10px; border-radius: var(--r-ctl); display: inline-flex; align-items: center; gap: 8px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-weight: 600; font-size: 13.5px; transition: background .12s, color .12s, box-shadow .12s, transform .12s; }
 .mark-switch:hover { box-shadow: inset 0 0 0 1px var(--text-3); }
 .mark-switch:active { transform: scale(.98); }
@@ -1698,31 +1707,20 @@ html:not(.js) .hero-line > .badges { padding: 0; row-gap: 6px; }
 .mark-switch[aria-pressed="true"] kbd { background: color-mix(in srgb, var(--on-invert) 16%, transparent); box-shadow: none; color: inherit; }
 /* „Einplanen" keeps the width of „Eingeplant". What it says beyond that in the app (the
    placeholder it plans for, the other semesters the module is planned in) is its small line: one
-   line that gives way first. The two are 6px apart, side by side or one over the other: towards
-   each other their areas meet in the middle. */
+   line under the label that gives way. The two are 6px apart, side by side or one over the other:
+   towards each other their areas meet in the middle. */
 .mark-pair > .mark-toggle { --hit-l: 3px; --hit-t: 3px; }
 .plan-pair > .plan-toggle { --hit-r: 3px; --hit-b: 3px; }
 .plan-toggle.mark-switch > span:first-of-type { flex: none; }
 .plan-toggle.mark-switch > small { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 500; opacity: .8; }
-@media (min-width: 901px) {
-  /* The small line has a column of its own, which takes what the label and the shortcut leave and
-     gives way (`.switches` above). Its gap is inside the column (::before), so that an empty column
-     adds none. */
-  button.plan-toggle.mark-switch:where(.with-note) { display: inline-grid; grid-template-columns: auto auto minmax(0, max-content) auto; gap: 0; }
-  button.plan-toggle.mark-switch:where(.with-note) > .icon { margin-right: 8px; }
-  button.plan-toggle.mark-switch:where(.with-note) > small { grid-column: 3; }
-  button.plan-toggle.mark-switch:where(.with-note) > small::before { content: ""; padding-left: 8px; }
-  button.plan-toggle.mark-switch:where(.with-note) kbd { grid-column: 4; margin-left: 8px; }
-}
 /* On a phone the pair takes a line of its own under the badges and fills it, each switch half of
    it with its content in the middle (owner, 2026-09-27: kept at the line's right end, the two
    stood oddly under the badges), and one over the other, the whole line each, where a half is too
    narrow for a label (owner, 2026-10-20). The small line is the switch's second line, in the
-   switch's height: it has more room there than beside the label. It gives way on that line instead
-   of breaking the pair, so nothing moves when the app adds it (R15). */
+   switch's height, as on a wide screen. It gives way on that line instead of breaking the pair, so
+   nothing moves when the app adds it (R15). */
 @media (max-width: 900px) {
   .hero-line { row-gap: 10px; }
-  .hero-line > .badges { padding: 0; row-gap: 6px; }
   .hero-line { --pair: 10rem; }
   .hero-line > .switches { flex-basis: 100%; }
   /* Half each: a basis of half the line less half the gap, not 0, so that neither grows nor
@@ -7313,12 +7311,12 @@ span.st-wb-go { cursor: default; }
 .btn.pf-abtn.danger { color: var(--no); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--no) 45%, transparent); }
 .btn.pf-abtn.danger:hover { background: var(--no-soft); }
 .btn.pf-abtn[aria-disabled="true"] { color: var(--text-3); box-shadow: inset 0 0 0 1px var(--line); background: none; cursor: default; }
-.pf-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 0 12px; padding: 12px 14px; border-radius: var(--r-row); background: var(--no-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--no) 32%, transparent); font-size: 13.5px; line-height: 1.45; }
-.pf-confirm > span { flex: 1 1 260px; color: var(--text); text-wrap: pretty; }
-.pf-confirm .btn { min-height: 36px; padding: 0 13px; font-size: 13.5px; }
-.pf-confirm .btn .icon { width: 16px; height: 16px; }
-.btn.pf-yes { background: var(--no); color: var(--panel); }
-.btn.pf-yes:hover { filter: brightness(1.08); }
+/* The question before something that takes away (folia/crates/profile/src/confirm.rs; owner,
+   2026-11-09: „(kontext) menus verwenden, um das löschen zu bestätigen"): a menu at its button, a
+   sheet from below on a phone, what is asked over what follows, then the answer and „Abbrechen". */
+.st-pop.pf-confirm { padding: 12px 6px 6px; }
+.pf-confirm-title { margin: 0 10px 4px; color: var(--text); font-size: 14px; font-weight: 650; line-height: 1.4; text-wrap: pretty; }
+.pf-confirm-hint { margin: 0 10px 10px; color: var(--text-2); font-size: 12.5px; line-height: 1.45; text-wrap: pretty; }
 .pf-danger { box-shadow: 0 0 0 1px color-mix(in srgb, var(--no) 30%, transparent), var(--shadow-panel); }
 .pf-danger > h2, .pf-danger > h2 .icon { color: var(--no); }
 .pf-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 2px 6px 8px; color: var(--text-3); font-size: 12px; }
@@ -7351,7 +7349,6 @@ span.st-wb-go { cursor: default; }
 .btn[aria-disabled="true"] { color: var(--text-3); cursor: default; }
 .btn[aria-disabled="true"]:hover { background: var(--panel); }
 .btn[aria-disabled="true"]:active { transform: none; }
-.pf-ask { grid-column: 1 / -1; margin: 0; padding: 8px 10px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .pf-rename { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .pf-rename input { flex: 1 1 220px; min-width: 0; min-height: 40px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 17px; font-weight: 650; }
 /* A part of the page: its heading, then what it holds. */
@@ -7444,6 +7441,28 @@ span.st-wb-go { cursor: default; }
 .pf-sync-state[data-state="warn"] .pf-sync-dot { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
 .pf-sync-state[data-state="warn"] { color: var(--text-2); font-weight: 500; }
 .pf-sync-state[data-state="wait"] .pf-sync-dot { animation: pf-sync-wait 1.2s ease-in-out infinite; }
+/* The devices of a synced profile (folia/crates/profile/src/sync.rs, `DeviceList`): a row each, its
+   icon on a tile, its name over browser and system, when it was there at the right, „Entfernen"
+   quiet beside it; the question under the row. */
+.pf-devices { display: grid; margin: 12px 0 0; padding: 0; list-style: none; border-radius: var(--r-row); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.pf-device { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 14px; border-top: 1px solid var(--line); }
+.pf-device:first-child { border-top: 0; }
+.pf-device .pf-tile { width: 34px; height: 34px; }
+.pf-device-text { flex: 1 1 auto; min-width: 0; display: grid; }
+.pf-device-text b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-device-text small { color: var(--text-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-when { flex: none; display: inline-flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 12.5px; white-space: nowrap; }
+.pf-when[data-state="on"] { color: var(--text-2); }
+.pf-when[data-state="on"]::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+.pf-when[data-state="now"] { color: var(--accent-ink); font-weight: 600; }
+.pf-device-remove { flex: none; padding: 6px 0; border: 0; background: none; color: var(--text-2); font: inherit; font-size: 13px; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer; }
+.pf-device-remove:hover { color: var(--no); }
+@media (max-width: 900px) {
+  .pf-device { flex-wrap: wrap; row-gap: 2px; }
+  .pf-device-text { flex-basis: calc(100% - 46px); }
+  .pf-device .pf-when { margin-left: 46px; }
+  .pf-device-remove { margin-left: auto; }
+}
 @keyframes pf-sync-wait { 50% { opacity: .3; } }
 @media (prefers-reduced-motion: reduce) { .pf-sync-state[data-state="wait"] .pf-sync-dot { animation: none; } }
 .pf-sync-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
@@ -7476,7 +7495,7 @@ span.st-wb-go { cursor: default; }
 .pf-explain-code { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--panel-3); color: var(--text-2); }
 .pf-explain-code .icon { flex: none; width: 18px; height: 18px; margin-top: 2px; color: var(--accent); }
 .pf-sync-wait { margin-top: 10px; color: var(--text-2); font-size: 13px; }
-.pf-sync :is(.pf-ask, .pf-refused) { margin: 10px 0 0; }
+.pf-sync .pf-refused { margin: 10px 0 0; }
 /* The link for the next device: the code on a light tile of its own in either theme (a camera
    reads an inverted code badly), the link beside it, on a phone under it. */
 .pf-pair { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 18px; margin-top: 12px; padding: 14px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); }

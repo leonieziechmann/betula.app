@@ -64,7 +64,7 @@ const AUTHORITY_URL: &str = "https://www.lda.brandenburg.de/";
 const AUTHORITY_SITE: &str = "www.lda.brandenburg.de";
 
 /// When the privacy notice last changed: day, month, year.
-const PRIVACY_AS_OF: (u32, u32, i32) = (8, 11, 2026);
+const PRIVACY_AS_OF: (u32, u32, i32) = (9, 11, 2026);
 
 /// The language whose text counts. A page in any other language is a translation and links to
 /// the page in this one (`legal::Texts::translated`).
@@ -462,8 +462,8 @@ mod tests {
         }
         let privacy = |locale| article(Legal::Privacy, &i18n::texts(locale).legal).to_html().replace("<!>", "");
         let (de, en) = (privacy(Locale::De), privacy(Locale::En));
-        assert!(de.contains("<h1>Datenschutzerklärung</h1>") && de.contains("Stand: 8. November 2026"), "{de}");
-        assert!(en.contains("<h1>Privacy policy</h1>") && en.contains("As of 8 November 2026") && en.contains(">Datenschutzerklärung</a>"), "{en}");
+        assert!(de.contains("<h1>Datenschutzerklärung</h1>") && de.contains("Stand: 9. November 2026"), "{de}");
+        assert!(en.contains("<h1>Privacy policy</h1>") && en.contains("As of 9 November 2026") && en.contains(">Datenschutzerklärung</a>"), "{en}");
         // Betula Sync: what its service keeps of a profile, and that it can open none of it.
         assert!(de.contains("id=\"abgleich\"") && de.contains("öffnen kann er sie nicht") && de.contains("13 Monate"), "{de}");
         assert!(en.contains("Syncing between your devices (Betula Sync)") && en.contains("it cannot open them"), "{en}");

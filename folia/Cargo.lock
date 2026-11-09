@@ -900,7 +900,7 @@ checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
 name = "folia-app"
-version = "1.83.3"
+version = "1.84.1"
 dependencies = [
  "folia-bookmarks",
  "folia-catalog",
@@ -930,7 +930,7 @@ dependencies = [
 
 [[package]]
 name = "folia-bookmarks"
-version = "1.83.3"
+version = "1.84.1"
 dependencies = [
  "folia-calendar",
  "folia-data",
@@ -967,7 +967,7 @@ dependencies = [
 
 [[package]]
 name = "folia-catalog"
-version = "1.83.3"
+version = "1.84.1"
 dependencies = [
  "folia-calendar",
  "folia-data",
@@ -1010,7 +1010,7 @@ dependencies = [
 
 [[package]]
 name = "folia-data"
-version = "1.83.3"
+version = "1.84.1"
 dependencies = [
  "folia-model",
  "folia-pages",
@@ -1022,7 +1022,7 @@ dependencies = [
 
 [[package]]
 name = "folia-design"
-version = "1.83.3"
+version = "1.84.1"
 dependencies = [
  "folia-calendar",
  "folia-locale",
@@ -1042,7 +1042,7 @@ dependencies = [
 
 [[package]]
 name = "folia-home"
-version = "1.83.3"
+version = "1.84.1"
 dependencies = [
  "folia-calendar",
  "folia-data",
@@ -1110,7 +1110,7 @@ dependencies = [
 
 [[package]]
 name = "folia-planner"
-version = "1.83.3"
+version = "1.84.1"
 dependencies = [
  "folia-calendar",
  "folia-data",
@@ -1153,7 +1153,7 @@ dependencies = [
 
 [[package]]
 name = "folia-profile"
-version = "1.83.3"
+version = "1.84.1"
 dependencies = [
  "folia-calendar",
  "folia-data",
@@ -1174,7 +1174,7 @@ dependencies = [
 
 [[package]]
 name = "folia-programs"
-version = "1.83.3"
+version = "1.84.1"
 dependencies = [
  "folia-data",
  "folia-design",
@@ -1239,7 +1239,7 @@ dependencies = [
 
 [[package]]
 name = "folia-server"
-version = "1.83.3"
+version = "1.84.1"
 dependencies = [
  "aes-gcm",
  "axum",
@@ -1290,7 +1290,7 @@ dependencies = [
 
 [[package]]
 name = "folia-shell"
-version = "1.83.3"
+version = "1.84.1"
 dependencies = [
  "folia-calendar",
  "folia-data",
@@ -1311,7 +1311,7 @@ dependencies = [
 
 [[package]]
 name = "folia-stores"
-version = "1.83.3"
+version = "1.84.1"
 dependencies = [
  "base64",
  "folia-calendar",
@@ -1368,7 +1368,7 @@ dependencies = [
 
 [[package]]
 name = "folia-widgets"
-version = "1.83.3"
+version = "1.84.1"
 dependencies = [
  "folia-calendar",
  "folia-data",
