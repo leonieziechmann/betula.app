@@ -550,9 +550,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     other at the line's end). Which way follows from the line's width alone, never from a click
     (the same day: „das darf auch auf keinen fall springen, wenn man einen knopf anklickt, weil dann
     ja mehr angezeigt wird. Der Einzige punkt, wann es springen darf, ist wenn man das window
-    rezised"): each switch is as wide as `--pair` (18rem, on a phone 10rem) whatever it shows, the
+    rezised"): each switch is as wide as `--pair` (13rem, on a phone 10rem) whatever it shows, the
     room of its arrow kept while it has none, its label at its start and its key at its end, and
-    what it says small takes what is between them and gives way. On a phone the two always have a
+    what it says small under the label, between them, where it gives way. Two lines tall on a wide
+    screen as on a phone (owner, 2026-11-09: „Bei der mobile version sind die auch so schön klein,
+    weil die zweizeiligen text haben. Kannst du das am Pc auch so machen, so dass die einfach nur
+    eine zeile einnehmen"; before, the small line stood beside the label in a switch of 18rem, and
+    the preview held the two one over the other only). On a phone the two always have a
     line of their own, half each (owner, 2026-09-27), one over the other where a half is narrower
     than that; among the actions of the module
     page's sidebar, which stays in view while the page scrolls; and on a phone by swiping the
