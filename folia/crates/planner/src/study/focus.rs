@@ -229,7 +229,21 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
     // The modules only visited in it, after its rows (`VisitRow`), by their numbers.
     let visits = Memo::new(move |_| ctx.with_ready(|ready| ready.study.semester(semester).map(|semester| semester.visits.iter().map(|visit| visit.id.clone()).collect::<Vec<_>>())).flatten().unwrap_or_default());
     let empty = Memo::new(move |_| keys.with(Vec::is_empty) && visits.with(Vec::is_empty));
-    let add = move || super::bench::enter(ctx, semester, super::bench::BenchPick::Plan);
+    // On a desktop the workbench opens the card (folia/design/hinzufuegen/rechner.html, variant B):
+    // its rows stay on the left, the right half is what can be added (`bench::BenchHalf`), the head
+    // over both says what the semester holds over the bar of it (`bench::HeadBar`). „Module
+    // hinzufügen" is pressed meanwhile, and a click on it closes it again.
+    let open_here = Memo::new(move |_| !ctx.phone.get() && ctx.bench.with(|bench| bench.is_some_and(|bench| bench.semester == semester)));
+    let add = move || {
+        if open_here.get_untracked() {
+            super::bench::leave(ctx);
+        } else {
+            super::bench::enter(ctx, semester, super::bench::BenchPick::Plan);
+        }
+    };
+    let pressed = move || open_here.get().then_some("true");
+    // Meanwhile each row says what it counts for where that is a choice („für Anwendungsfach").
+    let counted = Memo::new(move |_| if open_here.get() { super::bench::counted_for(ctx, semester) } else { Default::default() });
     let pages = use_context::<Pages>();
     let go = move |to: Option<SemesterKey>| turn(ctx, pages, to);
     let c = &t.catalog;
@@ -244,7 +258,7 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
         }
     };
     view! {
-        <article class="st-card-sem" class:is-now=move || head.with(|head| head.as_ref().is_some_and(|head| head.now)) aria-labelledby=format!("st-sem-{}", semester.key())>
+        <article class="st-card-sem" class:is-now=move || head.with(|head| head.as_ref().is_some_and(|head| head.now)) class:split=open_here aria-labelledby=format!("st-sem-{}", semester.key())>
             {move || head.get().map(|head| view! {
                 <header class="st-sem-head">
                     <button class="icon-btn st-turn hit" type="button" aria-label=s.previous disabled=head.previous.is_none() on:click=move |_| go(head.previous)><Icon name="chevron-left"/></button>
@@ -255,13 +269,20 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
                             {head.beyond.then(|| view! { <span class="st-badge warn">{s.beyond}</span> })}
                             <span class="st-sem-fs st-pc">{head.sub.clone()}</span>
                         </div>
-                        <p class="st-sem-sub">
-                            <span class="st-phone">{head.sub.clone()}{head.figure.is_some().then_some(" · ")}</span>
-                            {head.figure.clone().map(|(figure, rest, heavy)| view! {
-                                <b class:heavy=heavy class:ok=head.past>{figure}</b>
-                                {(!rest.is_empty()).then(|| format!(" · {rest}"))}
-                            })}
-                        </p>
+                        {if open_here.get() {
+                            view! { <super::bench::HeadBar ctx/> }.into_any()
+                        } else {
+                            view! {
+                                <p class="st-sem-sub">
+                                    <span class="st-phone">{head.sub.clone()}{head.figure.is_some().then_some(" · ")}</span>
+                                    {head.figure.clone().map(|(figure, rest, heavy)| view! {
+                                        <b class:heavy=heavy class:ok=head.past>{figure}</b>
+                                        {(!rest.is_empty()).then(|| format!(" · {rest}"))}
+                                    })}
+                                </p>
+                            }
+                            .into_any()
+                        }}
                     </div>
                     <button
                         class="icon-btn st-sem-more hit"
@@ -302,14 +323,14 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
                     on:pointercancel=move |_| draw.end()
                     on:touchmove=touch_move
                 >
-                    <For each=move || keys.get() key=|key| key.clone() children=move |key: String| view! { <ItemRow ctx semester key order=keys draw/> }/>
+                    <For each=move || keys.get() key=|key| key.clone() children=move |key: String| view! { <ItemRow ctx semester key order=keys draw counted/> }/>
                     <For each=move || visits.get() key=|id| id.clone() children=move |id: String| view! { <VisitRow ctx semester id/> }/>
                     {move || if empty.get() {
                         view! {
                             <li class="st-empty">
                                 <span class="st-empty-icon" aria-hidden="true"><Icon name="layout-list"/></span>
                                 <p>{s.no_modules}</p>
-                                <button class="btn primary st-empty-add" type="button" on:click=move |_| add()>
+                                <button class="btn primary st-empty-add" type="button" aria-pressed=pressed on:click=move |_| add()>
                                     <Icon name="plus"/><span>{s.add_modules}</span>
                                 </button>
                             </li>
@@ -318,7 +339,7 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
                     } else {
                         view! {
                             <li class="st-addrow">
-                                <button class="st-add" type="button" on:click=move |_| add()>
+                                <button class="st-add" type="button" aria-pressed=pressed on:click=move |_| add()>
                                     <span class="st-add-icon" aria-hidden="true"><Icon name="plus"/></span>
                                     <span>{s.add_modules}</span>
                                 </button>
@@ -328,6 +349,7 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
                     }}
                 </ul>
             </div>
+            {move || open_here.get().then(|| view! { <super::bench::BenchHalf ctx/> })}
         </article>
     }
 }
@@ -765,7 +787,7 @@ impl Draw {
 /// One module or row of the plan in a semester, as the catalog's list has a module: the box, which
 /// opens it, and its status at its end, which opens its menu.
 #[component]
-fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<String>>, draw: Draw) -> impl IntoView {
+fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<String>>, draw: Draw, counted: Memo<std::collections::BTreeMap<String, String>>) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
     let row = {
@@ -895,6 +917,7 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
                             let item = row.item.clone();
                             view! {
                                 <span class="kind st-area"><i style=format!("background: {}", row.tone)></i>{row.area.clone()}</span>
+                                {item.module_id().and_then(|id| counted.with(|counted| counted.get(id).cloned())).map(|name| view! { <span class="st-for">{(t.study_bench.for_group)(&name)}</span> })}
                                 {row.flags.into_iter().map(|(class, text)| view! { <span class=class>{text}</span> }).collect_view()}
                                 {row.again.map(|to| view! {
                                     <button class="st-link" type="button" on:click=move |ev: MouseEvent| { ev.stop_propagation(); plan_again(ctx, &item, to, t); }>{s.plan_it}</button>

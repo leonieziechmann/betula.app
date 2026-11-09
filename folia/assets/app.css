@@ -693,10 +693,10 @@ body:not(:has(> .main > .content > .page-stage.front > .work > .ground)) > .grou
      before: the area's padding, under which what is pinned sticks, and `scroll-padding`, which
      keeps what is scrolled to (a section, the focus) below the bar as well. Once the page is
      scrolled the frost lies behind the bar (`.frost`, above). Not a list's page nor „Mein
-     Studium"'s semesters, its Gesamtplan and its workbench: their heads stay at the top and take
+     Studium"'s semesters and its Gesamtplan: their heads stay at the top and take
      what scrolls under them. By its
      classes, so that the takeover's picture (boot.js: a copy without ids) stands as the page. */
-  .content > .page-stage > .work.flowing:not(:has(> .list, > .page > .page-inner.study > :is(.st-sems, .st-grid-panel, .st-wb))) {
+  .content > .page-stage > .work.flowing:not(:has(> .list, > .page > .page-inner.study > :is(.st-sems, .st-grid-panel))) {
     margin-top: calc(-1px - var(--head)); height: calc(100% + 2px + var(--head)); padding-top: calc(1px + var(--head)); scroll-padding-top: var(--head);
   }
   .work.flowing:focus { outline: none; }
@@ -4634,8 +4634,6 @@ html:not(.js) .plan-toggle { display: none; }
 @keyframes wait-note-in { from { opacity: 0; transform: translateY(10px); } }
 .wait-note > :first-child { flex: 1 1 auto; min-width: 0; }
 @media (min-width: 901px) { :root:has(#content > .page-stage.front .work > :is(.filters, .sidebar)) .wait-note { left: calc(var(--rail) + var(--gap) + var(--filters) + var(--gap)); } }
-/* The workbench of „Mein Studium" hides the sidebar (bench.rs): right of the rail. */
-@media (min-width: 901px) { :root:has(#content > .page-stage.front .work > .page > .page-inner.study > .st-wb) .wait-note { left: calc(var(--rail) + var(--gap)); } }
 .wait-note[data-drag] { transition: none; }
 .wait-note.leaving { opacity: 0; pointer-events: none; transition: transform .2s cubic-bezier(.4, 0, 1, 1), opacity .2s; }
 .wait-note-close { flex: none; align-self: flex-end; display: grid; place-items: center; width: 34px; height: 40px; margin: 0 6px 4px 0; border: 0; border-radius: 9px; background: none; color: var(--on-toast); opacity: .72; cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -6566,25 +6564,12 @@ a.st-rsp-name:hover { text-decoration: underline; }
 .st-wnote .action { justify-self: start; box-shadow: inset 0 0 0 1px var(--line-strong); }
 
 /* The workbench (bench.rs; folia/design/hinzufuegen/konzepte.html, third round; owner, 2026-11-03:
-   „Passt so, bau das jetzt in Folia"; the phone's round of 2026-11-04 on its order carried to a
-   desktop the next day: „Mach das am Rechner bei der Werkbank auch so. Also mit ähnlichen
-   konzepten"): planning one semester is a mode. Its head stands over all it changes, the bar of
-   what the semester holds in it; under it on a desktop three columns — the areas of the plan as a
-   tree where the sidebar is, as wide, the subgroup picked in the middle, the semester on the right
-   as wide as the module beside the page, which floats over it when a row is opened. The page's
-   sidebar steps aside meanwhile, and the area starts under the head at the top, so that the head
-   of the mode stays right under it. */
-.st-wb { --wb-head: 80px; display: grid; gap: var(--gap); align-content: start; min-width: 0; }
-.st-wb-bar { display: flex; flex-direction: column; gap: 10px; padding: 10px 10px 12px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel), inset 3px 0 0 var(--accent); }
-.st-wb-bar > .st-wb-hrow { display: flex; align-items: center; gap: 6px 12px; min-height: 36px; }
-.st-wb-bar-ic { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-ink); }
-.st-wb-bar-ic .icon { width: 17px; height: 17px; }
-.st-wb-bar-t { font-size: 15px; font-weight: 750; white-space: nowrap; }
-.st-wb-sem-pick { display: inline-flex; align-items: center; gap: 2px; margin-left: -6px; }
-.st-wb-sem-pick em { padding: 0 4px; font-style: normal; font-size: 15px; font-weight: 750; white-space: nowrap; }
-.st-wb-bar-sub { color: var(--text-2); font-size: 12.5px; white-space: nowrap; }
-.st-wb-bar .st-wb-hfig { margin-left: auto; }
-.st-wb-done { flex: none; }
+   „Passt so, bau das jetzt in Folia"): planning one semester is a mode, with one content on a
+   desktop and on a phone — the root „Laut Plan im 3. FS", its pages with ‹ and the path, the rows.
+   On a desktop the semester's card opens into what is taken and what can be added under its one
+   head (folia/design/hinzufuegen/rechner.html, variant B; owner, 2026-11-09: „Ich glaube ich mag
+   option B am besten"; until Folia 1.88.0 three columns in the page's place, the sidebar aside);
+   on a phone a sheet over the semester (below). */
 /* What the semester holds against the plan, and its bar (`SemesterBar`): each item a part in its
    area's colour, a placeholder hatched, what the plan still puts in grey, more than the plan with a
    mark where the plan ends; a part planned grows in. The head of the phone's sheet has the same. */
@@ -6598,46 +6583,20 @@ a.st-rsp-name:hover { text-decoration: underline; }
 .st-wb-hbar > .rest { min-width: 0; background: var(--panel-3); }
 .st-wb-need { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--text); }
 @keyframes st-wb-piece { from { flex-grow: 0; } }
-.st-wb-cols { display: grid; grid-template-columns: minmax(220px, var(--filters)) minmax(0, 1fr) minmax(300px, min(var(--preview), 36%)); gap: var(--gap); align-items: start; }
-/* The areas on a desktop: „Laut Plan" first, then the tree, every area unfolded with its
-   subgroups, each with its figure and bar; „Gemerkt" and the catalog after them. */
-.st-wb-areas { display: flex; flex-direction: column; gap: 1px; padding: 8px; }
-.st-wb-areas-h { display: flex; align-items: baseline; gap: 6px; padding: 6px 10px 8px; font-size: 15px; font-weight: 700; }
-.st-wb-areas-h small { color: var(--text-3); font-size: 12px; font-weight: 500; }
+/* A row that goes somewhere: the ways at the root's and a list's end (below). */
 .st-wb-a { display: grid; grid-template-columns: minmax(0, 1fr) auto 16px; align-items: center; gap: 4px 8px; width: 100%; min-height: 38px; padding: 8px 8px 8px 10px; border: 0; border-radius: var(--r-s); background: none; color: var(--text); font: inherit; font-size: 14px; font-weight: 600; text-align: left; text-decoration: none; cursor: pointer; }
 .st-wb-a:hover { background: var(--row-hover); }
-.st-wb-a[aria-current="true"] { background: var(--panel-3); }
 .st-wb-a .nm { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .st-wb-a .nm > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-wb-a .nm .icon { flex: none; width: 16px; height: 16px; color: var(--text-2); }
-.st-wb-a .st-dot { width: 9px; height: 9px; }
 .st-wb-a > small:not(.st-wb-fig) { font-size: 12.5px; font-weight: 600; color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.st-wb-a small.ok { color: var(--ok); }
 .st-wb-a .chev { width: 15px; height: 15px; color: var(--text-3); }
 .st-wb-a.way { color: var(--accent-ink); }
 .st-wb-a.way .nm .icon { color: currentColor; }
-.st-wb-a:is(.one, .area) { grid-template-columns: minmax(0, 1fr) auto; }
-.st-wb-a.area { margin-top: 4px; }
-.st-wb-a.one > .st-wb-fill { grid-column: 1 / -1; height: 4px; margin: 2px 0 1px 18px; }
-.st-wb-areas .st-wb-fig { font-size: 12px; color: var(--text-3); }
-.st-wb-areas .st-wb-fig > b { color: var(--text-2); font-weight: 700; }
-.st-wb-subs { display: flex; flex-direction: column; gap: 1px; margin: 0 0 2px 14px; padding-left: 8px; border-left: 2px solid color-mix(in oklab, var(--c) 30%, var(--panel)); }
-.st-wb-s { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 4px 8px; width: 100%; padding: 7px 8px 8px 10px; border: 0; border-radius: var(--r-s); background: none; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 560; text-align: left; cursor: pointer; }
-.st-wb-s > span:first-child { min-width: 0; overflow-wrap: anywhere; hyphens: auto; line-height: 1.35; }
-.st-wb-s > .st-wb-fill { grid-column: 1 / -1; height: 3px; }
-.st-wb-s:hover { background: var(--row-hover); color: var(--text); }
-.st-wb-s[aria-current="true"] { background: var(--panel-3); color: var(--text); font-weight: 650; }
-.st-wb-sep { margin: 6px 4px; border: 0; border-top: 1px solid var(--line); }
-/* The middle: a pane's head (its name, a subgroup's figure and bar), its rule, one level of
-   headings, the rows. */
-.st-wb-pane { min-width: 0; padding: 16px 20px 18px; }
-.st-wb-ph { display: grid; gap: 6px; }
+/* A page's name in its path: the area's dot, the name, a subgroup's figure. */
 .st-wb-pt { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
 .st-wb-pt > .st-dot { align-self: center; width: 9px; height: 9px; }
-.st-wb-pt h3 { margin: 0; font-size: 18px; font-weight: 720; letter-spacing: -.01em; }
-.st-wb-crumb { color: var(--text-3); font-size: 13.5px; font-weight: 600; }
 .st-wb-pt > .st-wb-fig { margin-left: auto; font-size: 13px; }
-.st-wb-ph > .st-wb-fill { margin-top: 2px; }
 .st-wb-rule { margin: 0; color: var(--text-2); font-size: 13px; line-height: 1.45; }
 .st-wb-rule.pad { padding: 14px 4px 6px; }
 .st-wb-act { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 14px 0 6px; }
@@ -6736,22 +6695,88 @@ span.st-wb-go { cursor: default; }
 .st-wb-ways .st-wb-a .nm small { display: block; margin-top: 1px; color: var(--text-3); font-size: 12.5px; font-weight: 500; white-space: normal; }
 .st-wb-ways .st-wb-a .chev { width: 17px; height: 17px; }
 .st-wb-foot.st-wb-ways { margin-top: 18px; }
-/* The semester on the right: what it holds, each with what it counts for and ×; how far it is
-   stands in the head. */
-.st-wb-sem { padding: 14px 14px 10px; }
-.st-wb-sh { display: grid; gap: 4px; padding-bottom: 8px; }
-.st-wb-sh h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 17px; font-weight: 700; }
-.st-wb-sh small { color: var(--text-2); font-size: 12.5px; }
-.st-wb-over { margin: 2px 0 0; color: var(--warn); font-size: 12.5px; font-weight: 600; }
-.st-wb-turns { display: inline-flex; flex: none; gap: 2px; margin-left: 4px; }
-.st-wb-sl { list-style: none; margin: 0; padding: 0; }
-.st-wb-sr { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto 30px; align-items: center; gap: 8px; padding: 8px 2px 8px 4px; border-top: 1px solid var(--line); border-radius: var(--r-s); }
-.st-wb-sr:hover { background: var(--row-hover); }
-.st-wb-sr .st-wb-go > b { font-size: 13.5px; }
-.st-wb-sr .st-area { display: inline-flex; align-items: center; gap: 5px; }
-.st-wb-sr .st-area .st-dot { width: 7px; height: 7px; }
 .st-wb-tag { color: var(--text-2); }
-.st-wb-rm { position: relative; z-index: 1; }
+/* The pages of the workbench, the same in the phone's sheet and a desktop's half: a section of the
+   root, „Alle Bereiche" as the tree unfolded, the path over a page — ‹, the way to it, its name with
+   a subgroup's figure and bar, which do not scroll with it —, and the page coming in from the right
+   going in, from the left coming back. On a desktop smaller (below). */
+.st-wb-ss { padding: 0 0 6px; }
+.st-wb-areas-all { padding: 4px 0 0; }
+.st-wb-ta { padding: 14px 0 8px; border-top: 1px solid var(--line); }
+.st-wb-ta:first-child { border-top: 0; }
+.st-wb-th { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; font: inherit; }
+.st-wb-tn { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.st-wb-tn > span:not(.st-dot) { flex: 1 1 auto; min-width: 0; }
+.st-wb-th .st-wb-tn > span:not(.st-dot) { font-size: 15.5px; font-weight: 700; }
+.st-wb-tn .st-dot { width: 9px; height: 9px; }
+button.st-wb-th.one { grid-template-columns: minmax(0, 1fr) 18px; column-gap: 10px; align-items: center; width: 100%; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--text); text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button.st-wb-th.one > .st-wb-fill { margin: 8px 0 2px 18px; }
+button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / span 2; width: 18px; height: 18px; color: var(--text-3); }
+.st-wb-tree { margin: 6px 0 0 4px; padding: 0 0 0 14px; list-style: none; border-left: 2px solid color-mix(in oklab, var(--c) 30%, var(--panel)); }
+.st-wb-ts { display: grid; grid-template-columns: minmax(0, 1fr) 18px; column-gap: 10px; align-items: center; width: 100%; min-height: 50px; padding: 9px 0; border: 0; border-top: 1px solid var(--line); border-radius: 4px; background: none; color: var(--text); font: inherit; font-size: 14.5px; font-weight: 560; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.st-wb-tree > li:first-child > .st-wb-ts { border-top-color: transparent; }
+.st-wb-ts > .st-wb-fill { height: 4px; margin-top: 7px; }
+:is(.st-wb-ts, button.st-wb-th.one):active { background: var(--row-hover); box-shadow: 0 0 0 6px var(--row-hover); }
+.st-wb-path { flex: none; display: flex; align-items: flex-start; gap: 2px; padding: 8px 16px 12px 4px; border-bottom: 1px solid var(--line); }
+.st-wb-back { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 12px; background: none; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.st-wb-back:active { background: var(--row-hover); }
+.st-wb-back > .icon { width: 24px; height: 24px; }
+.st-wb-trail { flex: 1 1 auto; min-width: 0; padding-top: 3px; }
+.st-wb-crumbs { display: flex; align-items: center; min-width: 0; margin: 0; padding: 0; list-style: none; overflow: hidden; color: var(--text-3); font-size: 13px; white-space: nowrap; }
+.st-wb-crumbs > li { display: flex; align-items: center; min-width: 0; }
+.st-wb-crumbs > li:first-child { flex: none; }
+.st-wb-crumbs > li::after { content: "›"; flex: none; margin: 0 5px; }
+.st-wb-crumbs button { min-width: 0; padding: 2px 0; overflow: hidden; text-overflow: ellipsis; border: 0; background: none; color: var(--text-2); font: inherit; font-weight: 600; white-space: nowrap; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.st-wb-path .st-wb-pt { flex-wrap: nowrap; gap: 8px; margin: 1px 0 0; min-width: 0; }
+.st-wb-pt > b { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 750; letter-spacing: -.01em; }
+.st-wb-pth > .st-wb-fill { margin-top: 8px; }
+.st-wb-page[data-way="in"] { animation: st-wb-page-in .24s var(--ease); }
+.st-wb-page[data-way="back"] { animation: st-wb-page-back .24s var(--ease); }
+@keyframes st-wb-page-in { from { opacity: 0; transform: translateX(36px); } }
+@keyframes st-wb-page-back { from { opacity: 0; transform: translateX(-36px); } }
+/* The workbench on a desktop (bench.rs `BenchHalf`, `HeadBar`; folia/design/hinzufuegen/
+   rechner.html, variant B; owner, 2026-11-09: „Ich glaube ich mag option B am besten"): the
+   semester's card opens. Its head stays over both halves, ‹ › at its ends, and says what the
+   semester holds over the bar of it; on the left the rows as they are, narrower (the list's
+   columns go as its container gets narrower); on the right, as wide as a module beside the page,
+   on the ground of what is not yet taken, what can be added: its top („Hinzufügen" or the path,
+   and ×) and the page in front, which scrolls by itself and stays under the head while the rows
+   scroll with the page. A module opened from it lies over it, beside the page. */
+@media (min-width: 901px) {
+  .st-card-sem.split { display: grid; grid-template-columns: minmax(0, 1fr) min(var(--preview), 46%); grid-template-rows: auto 1fr; }
+  .st-card-sem.split > .st-sem-head { grid-column: 1 / -1; }
+  .st-card-sem.split > .st-table { grid-column: 1; grid-row: 2; min-width: 0; }
+  .st-card-sem.split > .st-wb-half { grid-column: 2; grid-row: 2; }
+  .st-sem-bar { flex: 0 1 300px; display: grid; justify-items: end; gap: 7px; min-width: 160px; margin-left: auto; }
+  .st-sem-bar > .st-wb-hbar { width: 100%; height: 8px; border-radius: 4px; }
+  .st-row .st-for { color: var(--text-2); }
+  :is(.st-empty-add, .st-add)[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--accent-ink); }
+  .st-wb-half { position: sticky; top: calc(var(--list-head-h, 61px) - 1px); z-index: 3; align-self: start; display: flex; flex-direction: column; height: calc(100vh - 64px - var(--list-head-h, 61px)); min-height: 320px; border-left: 1px solid var(--line); background: var(--panel-2); animation: st-wb-half-in .22s var(--ease); }
+  @keyframes st-wb-half-in { from { opacity: 0; transform: translateX(24px); } }
+  .st-wb-half-h { flex: none; display: flex; align-items: flex-start; gap: 6px; min-height: 52px; padding: 8px 8px 8px 18px; border-bottom: 1px solid var(--line); }
+  .st-wb-half-t { flex: 1 1 auto; margin: 0; padding: 6px 0; font-size: 15px; font-weight: 720; letter-spacing: -.01em; }
+  .st-wb-half-h > .st-wb-path { flex: 1 1 auto; min-width: 0; padding: 0; border: 0; }
+  .st-wb-half-h > .st-wb-done { flex: none; width: 34px; height: 34px; }
+  .st-wb-half > .st-wb-sbody { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 18px 28px; }
+  :root:has(.wait-note) .st-wb-half > .st-wb-sbody { padding-bottom: 84px; }
+  .st-wb-half .st-wb-back { width: 32px; height: 32px; margin: 0 2px 0 -8px; border-radius: 8px; }
+  .st-wb-half .st-wb-back:hover { background: var(--row-hover); }
+  .st-wb-half .st-wb-back > .icon { width: 20px; height: 20px; }
+  .st-wb-half .st-wb-trail { padding-top: 1px; }
+  .st-wb-half .st-wb-crumbs { font-size: 12.5px; }
+  .st-wb-half .st-wb-crumbs button:hover { color: var(--text); }
+  .st-wb-half .st-wb-pt > b { font-size: 16px; }
+  .st-wb-half .st-wb-page > .st-wb-rule:first-child { padding: 14px 0 0; }
+  .st-wb-half .st-wb-sk { padding: 18px 0 6px; }
+  .st-wb-half .st-wb-act { padding: 4px 0 6px; }
+  .st-wb-half .st-wb-act .btn { flex: 1 1 auto; justify-content: center; }
+  .st-wb-half .st-wb-row:is(.choice, .place), .st-wb-half .st-search-box { background: var(--panel); }
+  .st-wb-half .st-wb-th .st-wb-tn > span:not(.st-dot) { font-size: 14.5px; }
+  .st-wb-half .st-wb-ts { min-height: 44px; padding: 7px 0; font-size: 13.5px; }
+  .st-wb-half :is(.st-wb-ts, button.st-wb-th.one):hover { background: var(--row-hover); box-shadow: 0 0 0 6px var(--row-hover); }
+  .st-wb-half .st-wb-page[data-way="in"] { animation-duration: .2s; }
+  .st-wb-half .st-wb-page[data-way="back"] { animation-duration: .2s; }
+}
 /* The workbench over the catalog that „Im Katalog suchen" opened (folia_stores::studyplan::BenchBar):
    at the head of the list the way back first (the module beside the list covers the bar's right
    end), „Planen", the semester and the subgroup. */
@@ -6774,17 +6799,6 @@ span.st-wb-go { cursor: default; }
   .bench-dock-w > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); font-size: 12.5px; font-weight: 560; }
   .bench-dock-go { flex: none; display: inline-flex; align-items: center; height: 46px; padding: 0 16px; border-radius: 12px; }
   .bench-bar { display: none; }
-}
-@media (min-width: 901px) {
-  .work.flowing.framed:has(> .page > .page-inner.study > .st-wb) > :is(.sidebar, .resizer.between) { display: none; }
-  .work.flowing.framed:has(> .page > .page-inner.study > .st-wb) > .page { grid-column: 1 / -1; }
-  :root:has(#content > .page-stage.front > .work.framed > .page > .page-inner.study > .st-wb) .frost { left: var(--rail); }
-  html.js .st-wb > .st-wb-bar { position: sticky; top: 0; z-index: 8; }
-  html.js .st-wb-cols > :is(.st-wb-areas, .st-wb-sem) { position: sticky; top: calc(var(--wb-head) + var(--gap)); max-height: calc(100vh - 64px - var(--wb-head) - var(--gap)); overflow: auto; overscroll-behavior: contain; }
-  .st-wb-cols > .st-wb-pane { min-height: calc(100vh - 64px - var(--wb-head) - var(--gap)); }
-}
-@media (min-width: 901px) and (max-width: 1240px) {
-  .st-wb-cols { grid-template-columns: 220px minmax(0, 1fr) 280px; }
 }
 
 @media (max-width: 900px) {
@@ -7058,7 +7072,6 @@ span.st-wb-go { cursor: default; }
     .st-wb-sheet-h .st-wb-hfig b { font-size: 14px; }
   }
   .st-wb-sbody { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 16px calc(28px + env(safe-area-inset-bottom)); }
-  .st-wb-ss { padding: 0 0 6px; }
   .st-wb-sheet .st-wb-sk { padding: 18px 0 8px; font-size: 12px; }
   .st-wb-sheet .st-wb-act { padding: 2px 0 6px; }
   .st-wb-sheet .st-wb-act .btn { flex: 1 1 auto; justify-content: center; height: 46px; border-radius: 12px; font-size: 15px; }
@@ -7093,23 +7106,6 @@ span.st-wb-go { cursor: default; }
   .st-wb-sheet .st-wb-ways .st-wb-a .nm .icon { width: 19px; height: 19px; }
   .st-wb-sheet .st-wb-ways .st-wb-a .chev { width: 18px; height: 18px; }
   .st-wb-sheet .st-wb-foot.st-wb-ways { font-size: 15px; }
-  /* „Alle Bereiche": the tree, unfolded. */
-  .st-wb-areas-all { padding: 4px 0 0; }
-  .st-wb-ta { padding: 14px 0 8px; border-top: 1px solid var(--line); }
-  .st-wb-ta:first-child { border-top: 0; }
-  .st-wb-th { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; font: inherit; }
-  .st-wb-tn { display: flex; align-items: center; gap: 9px; min-width: 0; }
-  .st-wb-tn > span:not(.st-dot) { flex: 1 1 auto; min-width: 0; }
-  .st-wb-th .st-wb-tn > span:not(.st-dot) { font-size: 15.5px; font-weight: 700; }
-  .st-wb-tn .st-dot { width: 9px; height: 9px; }
-  button.st-wb-th.one { grid-template-columns: minmax(0, 1fr) 18px; column-gap: 10px; align-items: center; width: 100%; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--text); text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  button.st-wb-th.one > .st-wb-fill { margin: 8px 0 2px 18px; }
-  button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / span 2; width: 18px; height: 18px; color: var(--text-3); }
-  .st-wb-tree { margin: 6px 0 0 4px; padding: 0 0 0 14px; list-style: none; border-left: 2px solid color-mix(in oklab, var(--c) 30%, var(--panel)); }
-  .st-wb-ts { display: grid; grid-template-columns: minmax(0, 1fr) 18px; column-gap: 10px; align-items: center; width: 100%; min-height: 50px; padding: 9px 0; border: 0; border-top: 1px solid var(--line); border-radius: 4px; background: none; color: var(--text); font: inherit; font-size: 14.5px; font-weight: 560; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  .st-wb-tree > li:first-child > .st-wb-ts { border-top-color: transparent; }
-  .st-wb-ts > .st-wb-fill { height: 4px; margin-top: 7px; }
-  :is(.st-wb-ts, button.st-wb-th.one):active { background: var(--row-hover); box-shadow: 0 0 0 6px var(--row-hover); }
   /* A list's search and its chips, for a thumb. */
   .st-wb-ctl.phone { padding: 12px 0 2px; }
   .st-wb-ctl.phone .st-search-box { height: 42px; border-radius: 12px; }
@@ -7117,24 +7113,6 @@ span.st-wb-go { cursor: default; }
   .st-wb-sheet .st-wb-chip { height: 34px; border-radius: 17px; font-size: 13.5px; }
   .st-wb-sheet .st-wb-chip:hover { background: var(--panel); }
   .st-wb-sheet .st-wb-chip:is([aria-checked="true"], .pick.on):hover { background: var(--accent-soft); }
-  /* The path over a page. */
-  .st-wb-path { flex: none; display: flex; align-items: flex-start; gap: 2px; padding: 8px 16px 12px 4px; border-bottom: 1px solid var(--line); }
-  .st-wb-back { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 12px; background: none; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  .st-wb-back:active { background: var(--row-hover); }
-  .st-wb-back > .icon { width: 24px; height: 24px; }
-  .st-wb-trail { flex: 1 1 auto; min-width: 0; padding-top: 3px; }
-  .st-wb-crumbs { display: flex; align-items: center; min-width: 0; margin: 0; padding: 0; list-style: none; overflow: hidden; color: var(--text-3); font-size: 13px; white-space: nowrap; }
-  .st-wb-crumbs > li { display: flex; align-items: center; min-width: 0; }
-  .st-wb-crumbs > li:first-child { flex: none; }
-  .st-wb-crumbs > li::after { content: "›"; flex: none; margin: 0 5px; }
-  .st-wb-crumbs button { min-width: 0; padding: 2px 0; overflow: hidden; text-overflow: ellipsis; border: 0; background: none; color: var(--text-2); font: inherit; font-weight: 600; white-space: nowrap; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  .st-wb-path .st-wb-pt { flex-wrap: nowrap; gap: 8px; margin: 1px 0 0; min-width: 0; }
-  .st-wb-pt > b { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 750; letter-spacing: -.01em; }
-  .st-wb-pth > .st-wb-fill { margin-top: 8px; }
-  .st-wb-page[data-way="in"] { animation: st-wb-page-in .24s var(--ease); }
-  .st-wb-page[data-way="back"] { animation: st-wb-page-back .24s var(--ease); }
-  @keyframes st-wb-page-in { from { opacity: 0; transform: translateX(36px); } }
-  @keyframes st-wb-page-back { from { opacity: 0; transform: translateX(-36px); } }
   /* A note that waits (the note of a change, „Einplanen" in a module's sheet) at the screen's
      bottom over the sheet, as over a module's; the last rows scroll up above it. */
   :root:has(.st-wb-sheet[data-sheet]) .wait-note { z-index: 62; bottom: calc(10px + env(safe-area-inset-bottom)); }

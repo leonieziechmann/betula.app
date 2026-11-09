@@ -13,7 +13,9 @@
      PO 2008 in its 3. FS, the first two passed, as folia/e2e/bench.mjs seeds it. The prototypes' lists,
      their groups by the week and the modules' facts are canary's too: the workbench's rows as it showed
      them, before and after „Plan übernehmen", and the snapshot's v_module, v_module_schedule (2026W) and
-     v_module_exam. Lena's marked modules are the scenario's. Tokens are Betula's (folia/assets/app.css). -->
+     v_module_exam. Lena's marked modules are the scenario's. Tokens are Betula's (folia/assets/app.css).
+     Decided the same day (owner: „Ich glaube ich mag option B am besten") and built in Folia 1.88.0: the
+     block „Entschieden" under the thesis. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@500;600&display=swap">
@@ -92,6 +94,13 @@ svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor;
 .rules li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
 .rules li > i { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--panel-3); color: var(--text); }
 .rules li b { color: var(--text); font-weight: 620; }
+.verdicts { padding: 18px 20px; border-radius: 14px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.verdicts ol { margin-top: 10px; display: flex; flex-direction: column; gap: 9px; }
+.verdicts li { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.verdicts li b { color: var(--text); font-weight: 650; }
+.verdicts q { display: block; margin-top: 2px; color: var(--text-3); font-size: 13px; }
+.verdicts q::before { content: "„"; }
+.verdicts q::after { content: "“"; }
 
 /* The bar. */
 .setbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px; padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter: blur(8px); box-shadow: var(--shadow-panel); }
@@ -570,6 +579,16 @@ tbody tr:last-child > * { border-bottom: 0; }
     </div>
   </section>
 
+  <section class="verdicts" id="entschieden" aria-label="Was entschieden ist">
+    <p class="kicker">Entschieden am 09.11., gebaut in Folia 1.88.0</p>
+    <ol>
+      <li><b>B: Das Semester öffnet sich.</b><q>Ich glaube ich mag option B am besten.</q></li>
+      <li><b>Gebaut:</b> Am Rechner öffnet „Module hinzufügen“ die Karte des Semesters unter ihrem einen Kopf. Links bleiben die Zeilen, schmaler; wo ein Modul für eine Wahl zählt, sagt die Zeile „für Anwendungsfach“. Rechts steht auf grauem Grund „Hinzufügen“ mit ×, darunter „Laut Plan im 3. FS“, „Aus dem 4. FS vorziehen“, „Alle Bereiche ›“, „Gemerkt ›“, „Im Katalog suchen ›“ und ihre Seiten mit ‹ und Pfad. Im Kopf steht statt „24 LP · Plan 30“ der Balken mit „24 von 30 LP“; ‹ › drehen das Semester und beide Hälften. Ein Modul liegt neben der Seite über der rechten Hälfte. Esc schließt erst das Modul, geht dann eine Seite zurück und beendet dann den Modus. Aus dem Gesamtplan und von „Wählen ›“ im Regelstudienplan geht es erst in die Ansicht „Semester“, × führt dorthin zurück. Der Katalog mit Ziel sagt „Zurück zu WiSe 2026/27“. Die drei Spalten sind weg; das Handy bleibt, wie es war.</li>
+      <li><b>Zu den Fragen, wie vorgeschlagen:</b> × statt „Fertig“ (6) und „Zurück zu WiSe 2026/27“ (7). Was 2 und 3 für A fragten, beantwortet B selbst: Die Zeilen bleiben bedienbar, ihr Menü geht neben der offenen Hälfte, und sie zeigen Name, Nummer, Bereich mit „für …“, LP und Stand.</li>
+      <li><b>Noch nicht:</b> Die Bereiche der Übersicht führen nicht in die rechte Hälfte (5). In einem schmalen Fenster wird die rechte Hälfte schmaler, statt sich über das Semester zu legen (4).</li>
+    </ol>
+  </section>
+
   <nav class="setbar" aria-label="Ansicht der Prototypen">
     <div class="jump"><a href="#heute">Heute</a><a href="#a">A</a><a href="#b">B</a><a href="#c">C</a><a href="#vergleich">Vergleich</a><a href="#bleibt">Was bleibt</a><a href="#fragen">Fragen</a></div>
     <div class="group">
@@ -713,7 +732,7 @@ tbody tr:last-child > * { border-bottom: 0; }
     </ol>
   </section>
 
-  <p class="foot">Betula · folia/design/hinzufuegen/rechner.html · gegen canary, Folia 1.83.3, 9. November 2026 · Konzept, nichts davon ist gebaut</p>
+  <p class="foot">Betula · folia/design/hinzufuegen/rechner.html · gegen canary, Folia 1.83.3, 9. November 2026 · B gebaut in Folia 1.88.0</p>
 </main>
 
 <script>

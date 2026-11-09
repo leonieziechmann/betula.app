@@ -679,7 +679,8 @@ pub(super) fn raise_sheet(ev: &leptos::ev::MouseEvent) {
     }
 }
 
-/// How far what scrolls in the workbench's sheet is scrolled (px).
+/// How far what scrolls in the workbench is scrolled (px): its sheet on a phone, the right half of
+/// the semester on a desktop.
 pub(super) fn sheet_scrolled() -> i32 {
     #[cfg(feature = "csr")]
     {
@@ -689,8 +690,8 @@ pub(super) fn sheet_scrolled() -> i32 {
     0
 }
 
-/// What scrolls in the workbench's sheet at `top` once the page in front is drawn (the next frame,
-/// before it is shown): a page gone into from its top, one come back to where it was.
+/// What scrolls in the workbench at `top` once the page in front is drawn (the next frame, before it
+/// is shown): a page gone into from its top, one come back to where it was.
 #[allow(unused_variables)]
 pub(super) fn sheet_scroll_to(top: i32) {
     #[cfg(feature = "csr")]
@@ -703,5 +704,5 @@ pub(super) fn sheet_scroll_to(top: i32) {
 
 #[cfg(feature = "csr")]
 fn sheet_body() -> Option<web_sys::Element> {
-    web_sys::window()?.document()?.query_selector(".st-wb-sheet > .st-wb-sbody").ok()?
+    web_sys::window()?.document()?.query_selector(":is(.st-wb-sheet, .st-wb-half) > .st-wb-sbody").ok()?
 }

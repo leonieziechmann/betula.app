@@ -148,17 +148,18 @@ const choice = await page.evaluate(() => ({
 }));
 check(/ · \d+ gemerkt$/.test(choice.count || "") && choice.first === wp && choice.sign && choice.signs >= 1 && choice.area, `the Wahlpflicht and the marked module: ${JSON.stringify(choice)} (${wp})`);
 
-// „Module hinzufügen": the workbench (folia/design/hinzufuegen/konzepte.html, third round); the
-// plan's „Theoretische Informatik" under „Laut Plan im 3. FS" marked, with its collection.
+// „Module hinzufügen": the workbench, on a desktop the semester's card opened (folia/design/
+// hinzufuegen/rechner.html, variant B); the plan's „Theoretische Informatik" under „Laut Plan im
+// 3. FS" marked, with its collection.
 await go("/study");
-await step("Module hinzufügen", () => page.click(".st-card-sem .st-empty-add"), () => document.querySelector(".st-wb #st-wb-takeover"));
-const markOf = (title) => [...document.querySelectorAll(".st-wb-pane .st-wb-row")].find((li) => li.querySelector(".st-wb-go b")?.textContent === title)?.querySelector(".st-marked")?.textContent;
+await step("Module hinzufügen", () => page.click(".st-card-sem .st-empty-add"), () => document.querySelector(".st-wb-half #st-wb-takeover"));
+const markOf = (title) => [...document.querySelectorAll(".st-wb-half .st-wb-row")].find((li) => li.querySelector(".st-wb-go b")?.textContent === title)?.querySelector(".st-marked")?.textContent;
 const tiRow = await page.evaluate(markOf, "Theoretische Informatik");
 check(tiRow === `gemerkt: ${KANDIDATEN}`, `„Theoretische Informatik“ under „Laut Plan“: ${JSON.stringify(tiRow)}`);
 // „Gemerkt": every marked module, each with the subgroup it counts for; its collections to choose
 // from, its search.
-const markedRows = () => document.querySelectorAll(".st-wb-pane .st-wb-row").length;
-await step("Gemerkt", () => page.click('.st-wb-areas .st-wb-a:has-text("Gemerkt")'), () => document.querySelectorAll(".st-wb-pane .st-wb-row").length === 6 && document.querySelector("#st-wb-collection"));
+const markedRows = () => document.querySelectorAll(".st-wb-half .st-wb-row").length;
+await step("Gemerkt", () => page.click("#st-wb-marked"), () => document.querySelectorAll(".st-wb-half .st-wb-row").length === 6 && document.querySelector("#st-wb-collection"));
 const choices = async () => {
   await page.click("#st-wb-collection");
   await page.waitForSelector(".combo[data-open] [role=option], [role=listbox] [role=option]", { timeout: 3000 }).catch(() => {});
@@ -166,23 +167,24 @@ const choices = async () => {
 };
 const kept = await choices();
 check(JSON.stringify(kept.slice(0, 3).map((text) => text.replace(/\s+/g, " "))) === JSON.stringify(["Alle · 6", `${KANDIDATEN} · 2`, `${LENA} · 1`]), `the collections in „Gemerkt“: ${JSON.stringify(kept)}`);
-await step(`the collection ${KANDIDATEN}`, () => page.click(`[role=listbox] [role=option]:has-text("${KANDIDATEN}")`), () => document.querySelectorAll(".st-wb-pane .st-wb-row").length === 2);
+await step(`the collection ${KANDIDATEN}`, () => page.click(`[role=listbox] [role=option]:has-text("${KANDIDATEN}")`), () => document.querySelectorAll(".st-wb-half .st-wb-row").length === 2);
 // A row says its module's number until the catalog's row of it has come: wait for the names.
-await page.waitForFunction(() => [...document.querySelectorAll(".st-wb-pane .st-wb-row .st-wb-go > b")].every((name) => !/^\d+$/.test(name.textContent)), null, { timeout: 8000 }).catch(() => problems.push("the rows of „Gemerkt“ keep their numbers for names"));
-const wpTitle = await page.evaluate(() => [...document.querySelectorAll(".st-wb-pane .st-wb-row .st-wb-go > b")].map((name) => name.textContent).find((name) => name !== "Theoretische Informatik"));
+await page.waitForFunction(() => [...document.querySelectorAll(".st-wb-half .st-wb-row .st-wb-go > b")].every((name) => !/^\d+$/.test(name.textContent)), null, { timeout: 8000 }).catch(() => problems.push("the rows of „Gemerkt“ keep their numbers for names"));
+const wpTitle = await page.evaluate(() => [...document.querySelectorAll(".st-wb-half .st-wb-row .st-wb-go > b")].map((name) => name.textContent).find((name) => name !== "Theoretische Informatik"));
 const typed = wpTitle.split(/\s+/).find((word) => word.length >= 5) || wpTitle;
-await step("the search of „Gemerkt“", () => page.fill("#st-wb-search", typed.slice(0, 5)), (title) => { const names = [...document.querySelectorAll(".st-wb-pane .st-wb-row .st-wb-go b")].map((name) => name.textContent); return names.includes(title) && !names.includes("Theoretische Informatik"); }, wpTitle);
-await step("+ Einplanen, from „Gemerkt“", () => page.click(`.st-wb-pane .st-wb-row:has(.st-wb-go b:text-is("${wpTitle}")) .st-wb-plus`), ([key, wp]) => (localStorage.getItem(key) || "").includes(`m\t2026W\t${wp}\t`), [PLAN, wp]);
-await step("nothing found", () => page.fill("#st-wb-search", "zzzqqq"), () => document.querySelector(".st-wb-pane p.st-wb-rule.pad")?.textContent === "Nichts gefunden.");
+await step("the search of „Gemerkt“", () => page.fill("#st-wb-search", typed.slice(0, 5)), (title) => { const names = [...document.querySelectorAll(".st-wb-half .st-wb-row .st-wb-go b")].map((name) => name.textContent); return names.includes(title) && !names.includes("Theoretische Informatik"); }, wpTitle);
+await step("+ Einplanen, from „Gemerkt“", () => page.click(`.st-wb-half .st-wb-row:has(.st-wb-go b:text-is("${wpTitle}")) .st-wb-plus`), ([key, wp]) => (localStorage.getItem(key) || "").includes(`m\t2026W\t${wp}\t`), [PLAN, wp]);
+await step("nothing found", () => page.fill("#st-wb-search", "zzzqqq"), () => document.querySelector(".st-wb-half p.st-wb-rule.pad")?.textContent === "Nichts gefunden.");
 await page.fill("#st-wb-search", "");
-await step("Laut Plan, again", () => page.click(".st-wb-areas .st-wb-a.top"), () => document.querySelector("#st-wb-takeover"));
-await step("+ Einplanen, Theoretische Informatik", () => page.click('.st-wb-pane .st-wb-row:has(.st-wb-go b:text-is("Theoretische Informatik")) .st-wb-plus'), ([key, ti]) => (localStorage.getItem(key) || "").includes(`m\t2026W\t${ti}\t`), [PLAN, ti]);
-await step("Fertig", () => page.click(".st-wb-done"), () => !document.querySelector(".st-wb"));
+await step("Laut Plan, again", () => page.click(".st-wb-half .st-wb-back"), () => document.querySelector("#st-wb-takeover"));
+await step("+ Einplanen, Theoretische Informatik", () => page.click('.st-wb-half .st-wb-row:has(.st-wb-go b:text-is("Theoretische Informatik")) .st-wb-plus'), ([key, ti]) => (localStorage.getItem(key) || "").includes(`m\t2026W\t${ti}\t`), [PLAN, ti]);
+await step("×", () => page.click(".st-wb-half .st-wb-done"), () => !document.querySelector(".st-wb-half"));
 void markedRows;
 
 // The Gesamtplan's cell of the area of the module of the Wahlpflicht in SoSe 2027 (it is planned
 // into WiSe 2026/27 now, so it is no done one there): the workbench for that semester at the
-// area, the marked module first in its group, marked.
+// area (the semester's card opened in the semesters' view), the marked module first in its group,
+// marked; × back to the Gesamtplan.
 await go("/study");
 await step("Gesamtplan", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => document.querySelector(".st-grid .st-cell-add"));
 const found = await page.evaluate((area) => {
@@ -196,18 +198,18 @@ const found = await page.evaluate((area) => {
   return Boolean(cell?.querySelector(".st-cell-add"));
 }, choice.area);
 check(found, `no cell of ${choice.area} in SoSe 27`);
-await step("the cell", () => page.click('[data-check="cell"]'), () => document.querySelector(".st-wb-bar em")?.textContent === "SoSe 2027" && document.querySelector(".st-wb-pane .st-wb-row"));
+await step("the cell", () => page.click('[data-check="cell"]'), () => document.querySelector(".st-wb-half")?.getAttribute("aria-label") === "Hinzufügen zu SoSe 2027" && document.querySelector(".st-wb-half .st-wb-row"));
 const inCell = async () => page.evaluate((title) => {
-  const row = [...document.querySelectorAll(".st-wb-pane .st-wb-row")].find((li) => li.querySelector(".st-wb-go b")?.textContent === title);
+  const row = [...document.querySelectorAll(".st-wb-half .st-wb-row")].find((li) => li.querySelector(".st-wb-go b")?.textContent === title);
   const head = row?.previousElementSibling;
   return row && { first: Boolean(head?.classList.contains("st-wb-g")), marked: row.querySelector(".st-marked")?.textContent };
 }, wpTitle);
 // Not offered in the summer, it is under „nicht im SoSe angeboten", which the switch shows.
-if (!(await inCell())) await page.click('.st-wb-ctl button[role="switch"] >> nth=0').catch(() => {});
+if (!(await inCell())) await page.click('.st-wb-half .st-wb-ctl button[role="switch"] >> nth=0').catch(() => {});
 await page.waitForTimeout(300);
 const cell = await inCell();
 check(cell?.first && cell?.marked === `gemerkt: ${KANDIDATEN}`, `the cell does not list the marked module first, marked: ${JSON.stringify(cell)}`);
-await step("Fertig, the cell", () => page.click(".st-wb-done"), () => !document.querySelector(".st-wb"));
+await step("×, the cell", () => page.click(".st-wb-half .st-wb-done"), () => !document.querySelector(".st-wb-half") && document.querySelector(".st-grid .st-cell-add"));
 
 const leaks = requests.filter((r) => marked.some((id) => r.includes(id)) || r.includes(encodeURIComponent(KANDIDATEN)) || r.includes(KANDIDATEN) || r.includes("Lenachen") || r.includes(typed.slice(0, 5)) || r.includes("zzzqqq"));
 check(leaks.length === 0, `the marks, a collection or the search went into a request: ${leaks.slice(0, 3).join(" | ")}`);
