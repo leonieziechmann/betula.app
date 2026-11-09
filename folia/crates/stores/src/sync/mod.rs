@@ -13,6 +13,7 @@
 mod browser;
 pub mod codes;
 pub mod core;
+pub mod devices;
 pub mod live;
 pub mod request;
 pub mod share;
@@ -137,6 +138,17 @@ pub struct Sync {
     /// What an action of this tab is doing or failed at, above what is kept.
     actions: RwSignal<Vec<(u16, State)>>,
     conflicts: RwSignal<Vec<Conflict>>,
+    /// The devices of each profile as this browser knows them (`devices::list`).
+    devices: RwSignal<Vec<(u16, Devices)>>,
+}
+
+/// The devices of a synced profile as a page lists them (`devices::list`): this device first, then
+/// those online, then by when they were last seen; and how many devices online wrote no record of
+/// themselves (a build before the list).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Devices {
+    pub list: Vec<devices::Device>,
+    pub unnamed: usize,
 }
 
 impl Sync {
@@ -151,6 +163,7 @@ impl Sync {
             states: RwSignal::new(Vec::new()),
             actions: RwSignal::new(Vec::new()),
             conflicts: RwSignal::new(Vec::new()),
+            devices: RwSignal::new(Vec::new()),
         };
         provide_context(sync);
         // Effects run in the browser only.
@@ -182,6 +195,22 @@ impl Sync {
         action.or_else(|| self.states.with(|states| states.iter().find(|(p, _)| *p == id).map(|(_, s)| s.clone()))).unwrap_or(State::Private)
     }
 
+    /// The devices of profile `id` (synced; none for a private one). Tracked.
+    pub fn devices(self, id: u16) -> Devices {
+        self.devices.with(|all| all.iter().find(|(p, _)| *p == id).map(|(_, d)| d.clone())).unwrap_or_default()
+    }
+
+    /// „Entfernen": the device of record `key` (another device of profile `id`) stands in no list
+    /// any more and leaves Betula Sync the next time it is online, with its copy.
+    #[allow(unused_variables)]
+    pub fn remove_device(self, id: u16, key: &str) {
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        {
+            browser::remove_device(id, key);
+            self.refresh(id);
+        }
+    }
+
     /// Reads again what this browser keeps of profile `id`.
     #[allow(unused_variables)]
     pub(crate) fn refresh(self, id: u16) {
@@ -192,6 +221,14 @@ impl Sync {
                 states.retain(|(p, _)| *p != id);
                 states.push((id, state));
             });
+            let (list, unnamed) = browser::devices_of(id);
+            let devices = Devices { list, unnamed };
+            if self.devices.with_untracked(|all| all.iter().find(|(p, _)| *p == id).map(|(_, d)| d) != Some(&devices)) {
+                self.devices.update(|all| {
+                    all.retain(|(p, _)| *p != id);
+                    all.push((id, devices));
+                });
+            }
             if self.profiles.is_some_and(|p| p.active_untracked() == id) {
                 let shown = browser::conflicts(self, id);
                 if self.conflicts.with_untracked(|now| *now != shown) {

@@ -15,10 +15,13 @@
 // „Einschalten und Code zeigen" in its dialog), and the link for the next device opens by itself;
 // the second opens that link and holds the same marks and note in a new profile; a mark set on one
 // shows on the other within seconds; both mark while the second is offline, and once it is back
-// both hold both; the recovery code brings the profile into a third browser; a new computer shows
+// both hold both; the recovery code brings the profile into a third browser; the profile page lists
+// the three devices, this one first, the others online, and „Entfernen" makes the third one leave
+// with its copy; a new computer shows
 // a code that a phone opens (as the camera app does) and sends the profile to, the digits alike on
 // both; „Sync beenden" makes every browser private again with its copy; the scanner of /sync (a
-// camera that films a code) sends a private profile, switched on for it. Privacy: no request or
+// camera that films a code) sends a private profile, switched on for it; the setup's last step on
+// a phone leads to that scanner („Code scannen") and back, where it says „Verbunden". Privacy: no request or
 // frame carries a module's number, the note or the profile key in the clear, nothing reaches
 // another host than Folia's and Phloem's, and no link's or code's part after # reaches a server. Fails on a console error or a step that does not show up.
 import { fileURLToPath } from "node:url";
@@ -78,6 +81,15 @@ const until = async (name, page, fn, arg, timeout = 10000) => {
   }
   timings[name] = Date.now() - started;
 };
+/// „Fertig" at the end of connecting (owner, 2026-11-09: „dass man wieder bei der main page landet,
+/// wenn das sync fertig ist und nicht im profil"): a link to the start page, which comes without a
+/// page load.
+const doneHome = async (name, page, scope) => {
+  await until(`${name}: „Fertig“ leads to the start page`, page, (scope) => onPage(`${scope} .pf-done`)?.getAttribute("href") === "/", scope, 10000);
+  await page.evaluate(() => { window.__done = 1; });
+  await page.click(`${scope} .pf-done >> visible=true`).catch(() => problems.push(`${name}: no „Fertig“`));
+  await until(`${name}: on the start page after „Fertig“`, page, () => location.pathname === "/" && window.__done === 1 && !onPage(".pf-connect"), null, 10000);
+};
 const marksOf = (page) => page.evaluate(() => marked().sort());
 const shelfOf = (page) => page.evaluate(() => localStorage.getItem(store("betula.collections.v1")) || "");
 
@@ -124,6 +136,7 @@ await until("B joined", b.page, (n) => marked().length === n, SEED.length, 20000
 check(!b.page.url().includes("#"), `B: the link's key is still in the address (${b.page.url()})`);
 check(JSON.stringify(await marksOf(b.page)) === JSON.stringify(await marksOf(a.page)), `B: other marks than A (${await marksOf(b.page)} / ${await marksOf(a.page)})`);
 check((await shelfOf(b.page)).includes(NOTE), "B: the note did not come");
+await doneHome("B", b.page, ".pf-part");
 await until("A sees B online", a.page, () => /^online 1( |$)/.test(localStorage.getItem("betula.sync.p1.status") || ""), null, 10000);
 
 // ---- live: a mark set on B shows on A ----
@@ -155,6 +168,22 @@ await c.page.getByRole("button", { name: /Profil holen/ }).first().click().catch
 await until("C recovered", c.page, (n) => marked().length >= n, SEED.length, 20000);
 check(JSON.stringify(await marksOf(c.page)) === JSON.stringify(await marksOf(a.page)), `C: other marks than A (${await marksOf(c.page)})`);
 
+// ---- the devices of the profile: A lists itself and B and C online; „Entfernen" takes C out ----
+// (folia/design/profil/konzepte.html, the third step.) Each device writes what it is into the
+// profile, sealed; Phloem's presence says who is online.
+await go(a.page, "/profile");
+const rows = (page) => page.evaluate(() => [...allOnPage(".pf-device")].map((li) => ({ name: li.querySelector("b")?.textContent, line: li.querySelector("small")?.textContent, when: li.querySelector(".pf-when")?.textContent, mine: li.classList.contains("mine"), key: li.dataset.key ?? "" })));
+await until("A lists three devices, two of them online", a.page, () => allOnPage(".pf-device").length === 3 && allOnPage('.pf-device .pf-when[data-state="on"]').length === 2, null, 20000);
+const listed = await rows(a.page);
+check(listed[0]?.mine && listed[0].name === "Dieser Rechner" && listed[0].when === "jetzt" && listed.slice(1).every((r) => r.name === "Rechner" && /Chrome · Linux/.test(r.line) && /^online/.test(r.when)), `A: the devices ${JSON.stringify(listed)}`);
+const cKey = await c.page.evaluate(() => "D|" + ((localStorage.getItem("betula.sync.p1.v1") || "").match(/^device\t(.+)$/m)?.[1] ?? ""));
+check(listed.some((r) => r.key === cKey), `A: C's record ${cKey} is not listed`);
+await a.page.click(`.pf-device[data-key="${cKey}"] .pf-device-remove >> visible=true`).catch(() => problems.push("A: no „Entfernen“ for C"));
+await a.page.click("#pf-device-remove-yes >> visible=true").catch(() => problems.push("A: no question before „Entfernen“"));
+await until("C leaves once it is taken out", c.page, () => !localStorage.getItem("betula.sync.p1.v1"), null, 20000);
+check((await marksOf(c.page)).length >= SEED.length, "C: its copy went with it");
+await until("A lists two devices", a.page, () => allOnPage(".pf-device").length === 2, null, 20000);
+
 // ---- „Profil vom Handy holen": the computer shows a code, the phone sends a profile to it ----
 // (folia/design/profil/konzepte.html, the second step.) F, a new computer, asks; B, which holds A's
 // synced profile, opens the code's link as the camera app does, sees the same digits and sends it.
@@ -180,6 +209,8 @@ await until("F says the profile came", f.page, () => Boolean(onPage(".pf-connect
 check(JSON.stringify(await marksOf(f.page)) === JSON.stringify(await marksOf(b.page)), `F: other marks than B (${await marksOf(f.page)} / ${await marksOf(b.page)})`);
 check((await f.page.evaluate(() => (localStorage.getItem("betula.profiles.v1") || "").split("\n").filter((l) => l.startsWith("profile\t")).length)) <= 1, "F: the profile came beside the empty one instead of into it");
 await until("B: „Verbunden“", b.page, () => Boolean(onPage(".pf-give .pf-joined")), null, 15000);
+await doneHome("B after giving", b.page, ".pf-give");
+await doneHome("F's dialog", f.page, ".st-dlg-foot");
 
 
 // ---- a note typed on both at once: the later stands, the other is a hint on both ----
@@ -290,6 +321,9 @@ const pairCodes = [];
   await until("G: given", scanned, () => /Verbunden: Der Rechner hat/.test(onPage(".pf-give .pf-joined")?.textContent ?? ""), null, 20000);
   await until("H holds G's study", h.page, () => /^program\t079-82-2008$/m.test(localStorage.getItem("betula.myprogram.v1") || ""), null, 20000);
   await until("H says it is here", h.page, () => /ist jetzt auch auf diesem Gerät/.test(onPage(".pf-pair-page")?.textContent ?? ""), null, 5000);
+  await doneHome("H", h.page, ".pf-pair-page");
+  await until("H: the day of G's study on the start page", h.page, () => Boolean(onPage(".day-hero:not(.day-first)")) && !onPage(".ob"), null, 10000);
+  await doneHome("G's scanned tab", scanned, ".pf-give");
   const plans = await Promise.all([g.page, h.page].map((page) => page.evaluate(() => (localStorage.getItem("betula.studyplan.v1") || "").split("\n").filter((line) => /^[mp]\t/.test(line)).sort().join("\n"))));
   check(plans[0] && plans[0] === plans[1], `H: another plan than G's (${plans[1].split("\n").length} / ${plans[0].split("\n").length} lines)`);
   await until("G: „Verbunden“ in step 4", g.page, () => onPage(".ob-title")?.textContent === "Verbunden", null, 15000);
@@ -318,32 +352,39 @@ const pairCodes = [];
 // ---- the scanner of /sync ----
 // A camera that films F2's code: H holds a private profile with marks,
 // which is switched on for it and goes to F2.
+/// A camera's video (y4m, 640×480, grey) that films the QR code `selector` shows on `page`.
+const filmed = async (page, selector) => {
+  const frame = await page.evaluate(async (selector) => {
+    const svg = onPage(selector);
+    const [w, h] = [640, 480];
+    const image = new Image();
+    image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(svg).replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"'));
+    await image.decode();
+    const canvas = Object.assign(document.createElement("canvas"), { width: w, height: h });
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#d8d8d8";
+    context.fillRect(0, 0, w, h);
+    context.fillStyle = "#ffffff";
+    context.fillRect(150, 70, 340, 340);
+    context.drawImage(image, 170, 90, 300, 300);
+    const rgba = context.getImageData(0, 0, w, h).data;
+    const luma = [];
+    for (let i = 0; i < rgba.length; i += 4) luma.push(Math.round(rgba[i] * 0.299 + rgba[i + 1] * 0.587 + rgba[i + 2] * 0.114));
+    return luma;
+  }, selector);
+  const folder = await mkdtemp(join(tmpdir(), "betula-scan-"));
+  const video = join(folder, "code.y4m");
+  const plane = Buffer.from(frame);
+  const chroma = Buffer.alloc((640 * 480) / 4, 128);
+  await writeFile(video, Buffer.concat([Buffer.from("YUV4MPEG2 W640 H480 F10:1 Ip A1:1 C420jpeg\n"), ...Array.from({ length: 10 }, () => Buffer.concat([Buffer.from("FRAME\n"), plane, chroma, chroma]))]));
+  return video;
+};
+/// A browser whose camera films `video`.
+const camera = (video) => chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge", headless: !process.env.SMOKE_HEADED, args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", `--use-file-for-fake-video-capture=${video}`] });
 const f2 = await device("F2");
 const asked2 = await asking(f2);
-const frame = await f2.page.evaluate(async () => {
-  const svg = onPage(".pf-get .pf-qr");
-  const [w, h] = [640, 480];
-  const image = new Image();
-  image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(svg).replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"'));
-  await image.decode();
-  const canvas = Object.assign(document.createElement("canvas"), { width: w, height: h });
-  const context = canvas.getContext("2d");
-  context.fillStyle = "#d8d8d8";
-  context.fillRect(0, 0, w, h);
-  context.fillStyle = "#ffffff";
-  context.fillRect(150, 70, 340, 340);
-  context.drawImage(image, 170, 90, 300, 300);
-  const rgba = context.getImageData(0, 0, w, h).data;
-  const luma = [];
-  for (let i = 0; i < rgba.length; i += 4) luma.push(Math.round(rgba[i] * 0.299 + rgba[i + 1] * 0.587 + rgba[i + 2] * 0.114));
-  return luma;
-});
-const folder = await mkdtemp(join(tmpdir(), "betula-scan-"));
-const video = join(folder, "code.y4m");
-const plane = Buffer.from(frame);
-const chroma = Buffer.alloc((640 * 480) / 4, 128);
-await writeFile(video, Buffer.concat([Buffer.from("YUV4MPEG2 W640 H480 F10:1 Ip A1:1 C420jpeg\n"), ...Array.from({ length: 10 }, () => Buffer.concat([Buffer.from("FRAME\n"), plane, chroma, chroma]))]));
-const filming = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge", headless: !process.env.SMOKE_HEADED, args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", `--use-file-for-fake-video-capture=${video}`] });
+const video = await filmed(f2.page, ".pf-get .pf-qr");
+const filming = await camera(video);
 const h = await device("H", filming, { permissions: ["camera"] });
 await go(h.page, "/catalog");
 await h.page.evaluate((seed) => localStorage.setItem("betula.bookmarks.v1", seed.map((m, i) => `${m}\t${1790000000 - i}`).join("\n") + "\n"), SEED.slice(0, 2));
@@ -357,6 +398,43 @@ await until("H switched on", h.page, () => (localStorage.getItem("betula.sync.p1
 await until("F2 holds H's profile", f2.page, (n) => marked().length === n, 2, 30000);
 check(JSON.stringify(await marksOf(f2.page)) === JSON.stringify(await marksOf(h.page)), `F2: other marks than H (${await marksOf(f2.page)} / ${await marksOf(h.page)})`);
 await filming.close();
+
+// ---- the setup's last step on a phone, with Betula's scanner ----
+// The laptop F3 opens /pair; the phone K sets up its study, switches Betula Sync on in step 4 and
+// scans F3's code with „Code scannen" (the scanner of /sync, from the setup); „Ja, … verbinden",
+// „Zurück zur Einrichtung", and step 4 says „Verbunden".
+const f3 = await device("F3");
+await go(f3.page, "/pair");
+await until("F3: the code for the phone", f3.page, () => (onPage(".pf-asking .pf-get")?.dataset.link ?? "").includes("/pair#") && allOnPage(".pf-asking .pf-digits span").length === 4, null, 10000);
+const asked3 = await f3.page.evaluate(() => ({ link: onPage(".pf-asking .pf-get").dataset.link, digits: [...allOnPage(".pf-asking .pf-digits span")].map((d) => d.textContent).join("") }));
+pairCodes.push(asked3.link);
+const filming3 = await camera(await filmed(f3.page, ".pf-asking .pf-qr"));
+const k = await device("K", filming3, { permissions: ["camera"], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+await go(k.page, "/");
+await k.page.click("#ob-program >> visible=true").catch(() => problems.push("K: no picker of the program"));
+await k.page.waitForSelector("#ob-program-search >> visible=true").catch(() => {});
+await k.page.keyboard.type("Informatik");
+await until("K: Informatik in the picker", k.page, () => /^Informatik/.test(onPage("#ob-program-option-0")?.textContent.trim() ?? ""), null, 10000);
+await k.page.keyboard.press("Enter");
+await until("K: step 2", k.page, () => onPage(".ob")?.dataset.step === "2" && onPage(".ob-sems") && !onPage(".ob-sems").classList.contains("wait"), null, 5000);
+await k.page.click(".ob-next >> visible=true").catch(() => {});
+await until("K: step 3", k.page, () => onPage(".ob")?.dataset.step === "3" && allOnPage(".ob-mod").length > 1, null, 5000);
+await k.page.click(".ob-create >> visible=true").catch(() => problems.push("K: no „Studium anlegen“"));
+await until("K: step 4", k.page, () => onPage(".ob")?.dataset.step === "4", null, 5000);
+await k.page.click(".ob-activate >> visible=true").catch(() => problems.push("K: no „Betula Sync aktivieren“"));
+await until("K: „Code scannen“ in step 4", k.page, () => onPage(".ob-scan")?.getAttribute("href") === "/sync?from=setup" && !onPage(".ob-finish")?.classList.contains("primary"), null, 15000);
+await k.page.evaluate(() => { window.__marker = 1; });
+await k.page.click(".ob-scan >> visible=true").catch(() => problems.push("K: „Code scannen“ does not go"));
+await until("K: the scanner reads F3's code", k.page, (digits) => [...allOnPage(".pf-give .pf-digits span")].map((d) => d.textContent).join("") === digits, asked3.digits, 20000);
+await k.page.click("#pf-give-yes >> visible=true").catch(() => problems.push("K: no „Ja, … verbinden“"));
+await until("F3 holds K's study", f3.page, () => /^program\t079-82-2008$/m.test(localStorage.getItem("betula.myprogram.v1") || ""), null, 30000);
+await until("K: the way back to the setup", k.page, () => Boolean([...allOnPage(".pf-give .pf-ways a")].find((a) => a.getAttribute("href") === "/" && /Zurück zur Einrichtung/.test(a.textContent))), null, 15000);
+await k.page.click(".pf-give .pf-ways a[href='/'] >> visible=true").catch(() => problems.push("K: no „Zurück zur Einrichtung“"));
+await until("K: step 4 says „Verbunden“ after the scanner", k.page, () => onPage(".ob")?.dataset.step === "4" && onPage(".ob-title")?.textContent === "Verbunden", null, 15000);
+check(await k.page.evaluate(() => window.__marker === 1), "K: the scanner and the way back loaded a page");
+await k.page.click(".ob-finish >> visible=true").catch(() => problems.push("K: no „Fertig“"));
+await until("K: the day with its note", k.page, () => !onPage(".ob") && /Betula Sync hält es/.test(onPage(".day-welcome")?.textContent ?? ""), null, 8000);
+await filming3.close();
 
 // ---- privacy ----
 const secrets = SEED.concat([live, awayA, awayB, NOTE, "Fassung von A", "Fassung von B"].filter(Boolean));

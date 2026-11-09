@@ -19,7 +19,10 @@
 //   page comes back and nothing changes. A quick swipe (a finger's moves every 8 ms) is seen as a
 //   motion: the page that comes takes 0.15 s at least from a tenth of it seen to nine tenths;
 // 6 the ground at the end of the start page and the dots of „Mein Studium" move with their page,
-//   where they stood;
+//   where they stood; the Merkliste scrolled down and scrolled to its end, with marks of several
+//   weeks: its section headings (sticking under the bar) and its rows stand in the first frame on
+//   the way where they stood at rest (owner, 2026-11-09: „springen die Zwischenelement hoch und
+//   runter, wenn man den tab wechselt");
 // 7 with less motion a fade, nothing slides; on a wide screen nothing moves; a tab whose page does
 //   not stand yet comes as before, without moving.
 // Fails on a console error, a page error, or a page load after the takeover.
@@ -37,9 +40,15 @@ const MINE = "program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\ncaption\t
 const PLAN = ["m\t2025W\t12104\t1\t\tplan", "m\t2025W\t12107\t1\t\tplan", "m\t2026S\t11113\t1\t\tplan"].join("\n") + "\n";
 const KEPT = "12104\n12107\n11113\n";
 const TABS = ["catalog", "programs", "bookmarks", "studyplan"];
+// Thirty modules kept, four a day every three days: the Merkliste in sections, longer than a screen.
+const MANY = (() => {
+  const ids = ["12104", "12107", "11113", "11101", "11102", "11103", "11104", "11105", "11106", "11107", "11108", "11109", "11110", "11111", "11112", "12000", "12101", "12102", "12103", "12105", "12106", "12108", "12109", "12110", "12111", "12112", "12201", "12202", "12203", "12330"];
+  const now = Math.floor(Date.now() / 1000);
+  return ids.map((id, i) => `${id}\t${now - Math.floor(i / 4) * 3 * 86400}\n`).join("");
+})();
 const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
 
-const open = async (options, { built = true } = {}) => {
+const open = async (options, { built = true, kept = KEPT } = {}) => {
   const context = await browser.newContext({ locale: "de-DE", ...options });
   await context.addInitScript(([mine, plan, kept]) => {
     sessionStorage.setItem("betula.plan.asked", "1");
@@ -65,7 +74,7 @@ const open = async (options, { built = true } = {}) => {
       requestAnimationFrame(look);
     };
     requestAnimationFrame(look);
-  }, [MINE, PLAN, KEPT]);
+  }, [MINE, PLAN, kept]);
   const page = await context.newPage();
   page.on("console", (m) => { if (m.type() === "error") problems.push(`console (${during}): ` + m.text().slice(0, 300)); });
   page.on("pageerror", (e) => problems.push(`pageerror (${during}): ` + String(e).slice(0, 300)));
@@ -302,6 +311,32 @@ const swipe = async (page, area, dx, ms) => {
   check(await atRest(page), `${during}: the pages did not come to rest`);
 
   if (await reloaded(page)) problems.push("phone: the page was loaded again");
+  await context.close();
+}
+
+// ---- the Merkliste on its way stands as it stood ----
+{
+  const { context, page } = await open(PHONE, { kept: MANY });
+  for (const [where, y] of [["scrolled down", 900], ["scrolled to its end", 1e6]]) {
+    during = `phone: the Merkliste ${where}, on its way`;
+    await tap(page, "bookmarks");
+    await atRest(page);
+    await page.evaluate((y) => scrollTo(0, y), y);
+    await page.waitForTimeout(400);
+    // Its section headings and rows on the screen, and where each stands.
+    const before = await page.evaluate(() => {
+      window.__tops = [...document.querySelectorAll('#content > .page-stage[data-stage="bookmarks"] .rows > :is(.sem, .row-wrap)')].filter((el) => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight; });
+      return window.__tops.map((el) => ({ sem: el.classList.contains("sem"), top: Math.round(el.getBoundingClientRect().top) }));
+    });
+    await page.evaluate(() => { window.__hold = 0; });
+    await tap(page, "catalog");
+    await page.waitForFunction(() => (window.__held || []).length > 0, null, { timeout: 3000 }).catch(() => {});
+    const held = await page.evaluate(() => (document.querySelector('#content > .page-stage.moving[data-stage="bookmarks"]') ? window.__tops.map((el) => Math.round(el.getBoundingClientRect().top)) : []));
+    await page.evaluate(() => { for (const a of window.__held || []) a.play(); window.__held = []; window.__hold = undefined; });
+    check(await atRest(page), `${during}: the pages did not come to rest`);
+    const moved = before.filter((b, k) => Math.abs((held[k] ?? -1e4) - b.top) > 1);
+    check(before.some((b) => b.sem) && before.length > 3 && held.length === before.length && moved.length === 0, `${during}: its headings and rows stood at ${before.map((b) => b.top).join(", ")} px, in the first frame on the way at ${held.join(", ")} px`);
+  }
   await context.close();
 }
 

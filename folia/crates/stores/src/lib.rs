@@ -13,5 +13,6 @@ pub mod collections;
 pub mod i18n;
 pub mod myprogram;
 pub mod profiles;
+pub mod study;
 pub mod studyplan;
 pub mod sync;

@@ -152,6 +152,10 @@ codes:
   followed by the profile keys sealed with HKDF-SHA256 of the shared secret (salt `id`, info
   `betula-request`; associated data `"request"`). The asking device asks `GET /sync/v1/pair` for the
   `id` until it is there. Phloem sees a parcel like any other.
+- The devices of a profile (Folia's list, 2026-11-09): each device keeps a record of itself among
+  the profile's records, key `D|<device id>`, value `1 ‖ slot ‖ kind ‖ model ‖ browser ‖ system ‖
+  since ‖ seen ‖ removed` (tab-separated), sealed in batches and snapshots like every record.
+  Phloem sees no more of it than of any change.
 - The recovery code is `K` in base32 (Crockford), in groups of four.
 - A shared calendar that stays current (step 3) is a part: `folia_calendar::live::LivePart` as a
   pack code, sealed with a key of its own, `kp` (32 random bytes), associated data

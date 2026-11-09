@@ -105,10 +105,18 @@ The profile page says „direkt verbunden" or „über Betula weitergeleitet".
 | „Mit dem Handy verbinden" (`/pair`) and „Profil vom Handy holen" (the device that wants a profile, a computer that has no camera; 2026-11-08) | an id of 16 random bytes and an ECDH key pair (P-256) made for this once, the code `/pair#<id ‖ public key>` (65 bytes uncompressed; `url::PAIR`) and its four digits (SHA-256 of `"betula-request" ‖ id ‖ key`, the first four bytes mod 10 000); then `GET /sync/v1/pair` for the id, every 3 s in the first minute, every 6 s until the third, every 15 s until the tenth (some 70 questions, within the 120 an address may ask in an hour), until the parcel is there; the profile joins as above. No change of Phloem |
 | „Ja, „Lena" verbinden" (the device that has it, after the code and its digits) | a private profile is switched on first; an ECDH key pair of its own, the key of the parcel by HKDF-SHA256 of the shared secret (salt the id, info `betula-request`), the profile's key sealed with it (associated data `"request"`), `POST /sync/v1/pair` with the request's id and `own public key ‖ sealed`: whoever photographs the code cannot open what is sent to it |
 | the recovery code | `K` in base32 (Crockford), 13 groups of four, the last 4 bits a check: most typos are told before any request |
-| „Nur dieses Gerät trennen" | what waits goes out, then `leave`; the copy stays, private |
+| „Nur dieses Gerät trennen" | its record of the devices deleted, what waits goes out, then `leave`; the copy stays, private |
+| the devices (2026-11-09) | each device writes a record of itself into the profile, `D\|<device id>`: slot, kind, model (Chrome's `userAgentData`), browser, system, since, last seen (`folia_stores::sync::devices`, `Writer::put`; no store projects it, and a build without the list keeps it as it is); on every welcome where it is not as it is, and once an hour while connected. Phloem's presence by slot says who is online, the live way how. The leader keeps them for every tab (`betula.sync.p<id>.devices`, `.slots`) |
+| „Entfernen" of another device | its record marked removed: it stands in no list, and the device that finds its own record so leaves (as „Nur dieses Gerät trennen") the next time it is online. Phloem cannot take a slot from a device that never comes back: for a lost device „Sync beenden" and a new start shut it out |
 | „Sync beenden" | `DELETE /sync/v1/space`: gone at once; every device is private again with its copy, the others hear `gone` |
 | a profile deleted | leaves its space for this device alone; the others keep it |
 | „Profil leeren", „Rückgängig" | sync like any change |
+
+Every way of connecting ends on the start page (owner, 2026-11-09: „dass man wieder bei der main
+page landet, wenn das sync fertig ist und nicht im profil"): „Fertig" of the device that gave its
+profile (the question after a code, the dialog „Gerät verbinden") and of the device that got one
+(`/pair`, a link of `/sync#…`, the dialog's „Profil vom Handy holen") is a link to `/`, which the
+dialog closes on its way; from the setup's last step the scanner leads back to that step instead.
 
 ## 4. Shares (step 3)
 
@@ -148,7 +156,10 @@ the phone at once, with the profile page's QR code (`folia_widgets::syncpair`), 
 once one more device is online. On a phone's layout it names the address a laptop opens, `/pair`,
 whose code the phone scans (owner, the same day: „Oh der pc prozess muss anders sein. Da muss ein
 link kommen wie betula.app/pair wo dann der qr code gezeigt wird, den man am handy scannen kann um
-sich einzuloggen"); its step 1 leads there with „Profil übernehmen".
+sich einzuloggen"), with „Code scannen" to Betula's scanner (`/sync?from=setup`, which leads back
+to the step once the code is answered), since the camera app would open the code in a browser that
+may keep other storage than Betula on the home screen; its step 1 leads to `/pair` with „Profil
+übernehmen".
 
 ## 5. Checks
 

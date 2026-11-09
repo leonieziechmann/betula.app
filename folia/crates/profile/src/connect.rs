@@ -8,7 +8,8 @@
 //!   and on its profile page.
 //! - **A code that asks**, read by the scanner (`/pair#…`, whose page asks the same where the camera
 //!   app opens it, `pair`): which profile goes, the digits, „Ja, … verbinden"
-//!   (`give::GiveRequest`), in place of the scanner.
+//!   (`give::GiveRequest`), in place of the scanner. Opened from the start page's setup
+//!   (`/sync?from=setup`, its last step on a phone), the way then leads back there.
 //! - **A link of another device** (`#<id ‖ key>`, `folia_widgets::syncpair::PairLink`): the profile
 //!   comes as a new one of this browser (`Sync::join`), becomes the active one, and the page says
 //!   so, with the way to the Stundenplan and the profile; or why it did not, with what to do.
@@ -75,6 +76,8 @@ pub fn ConnectPage() -> impl IntoView {
     }
     // Read once, as the page is made: the fragment goes out of the address at once.
     let fragment = take_fragment();
+    // Opened from the start page's setup (`?from=setup`): an answered code leads back there.
+    let to_setup = from_setup_query();
     let sync = Sync::expect().filter(|_| folia_stores::sync::offered().is_some());
     let profiles = Profiles::expect();
     let step = RwSignal::new(match (&sync, fragment.as_deref()) {
@@ -135,7 +138,7 @@ pub fn ConnectPage() -> impl IntoView {
     };
     let body = move || match step.get() {
         Step::Scan => view! { <ScanPart sync note read/> }.into_any(),
-        Step::Give(fragment) => view! { <GiveRequest fragment back=Callback::new(move |()| step.set(Step::Scan))/> }.into_any(),
+        Step::Give(fragment) => view! { <GiveRequest fragment back=Callback::new(move |()| step.set(Step::Scan)) to_setup/> }.into_any(),
         Step::Joining => part(
             "monitor-smartphone",
             s.connect_title,
@@ -147,7 +150,11 @@ pub fn ConnectPage() -> impl IntoView {
             view! {
                 <p class="pf-sync-state" role="status" data-state="on"><span class="pf-sync-dot" aria-hidden="true"></span><span>{(s.connected)(&name)}</span></p>
                 <p class="pf-empty">{s.connected_hint}</p>
-                {ways((url::STUDYPLAN, "calendar-range", s.to_studyplan))}
+                // Done: the start page, with the profile that came (owner, 2026-11-09: „dass man
+                // wieder bei der main page landet, wenn das sync fertig ist und nicht im profil").
+                <nav class="pf-ways">
+                    <a class="btn primary pf-done" href=t.path(url::HOME) rel="nofollow"><Icon name="check"/><span>{s.done}</span></a>
+                </nav>
             }
             .into_any(),
         ),
@@ -232,6 +239,17 @@ fn origin() -> String {
     }
     #[cfg(not(feature = "csr"))]
     String::new()
+}
+
+/// Whether the page's query says it was opened from the start page's setup (`url::from_setup`).
+/// Only in the browser.
+fn from_setup_query() -> bool {
+    #[cfg(feature = "csr")]
+    {
+        web_sys::window().and_then(|window| window.location().search().ok()).is_some_and(|search| url::from_setup(&search))
+    }
+    #[cfg(not(feature = "csr"))]
+    false
 }
 
 /// The part of the address after `#`, taken out of the address and of the history (the entry is

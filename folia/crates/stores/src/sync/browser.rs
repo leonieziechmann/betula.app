@@ -33,6 +33,7 @@ use super::codes::{b64, unb64, KEY};
 use super::core::{Core, DEVICE};
 use super::live;
 use super::share::{fingerprint, missing, Put, ShareProblem, ONCE_TTL};
+use super::devices;
 use super::request;
 use super::wire::{self, In, Out};
 use super::{Problem, State, Sync};
@@ -67,6 +68,26 @@ fn ended_key(profile: u16) -> String {
 fn leave_key(profile: u16) -> String {
     format!("betula.sync.p{profile}.leave")
 }
+
+/// The records of the profile's devices, as the leader keeps them for every tab
+/// (`devices::records_text`).
+fn devices_key(profile: u16) -> String {
+    format!("betula.sync.p{profile}.devices")
+}
+
+/// The slots online and how each is connected with this device (`devices::slots_text`).
+fn slots_key(profile: u16) -> String {
+    format!("betula.sync.p{profile}.slots")
+}
+
+/// A tab that is not the leader asks it to take devices out of the list (`remove_device`): their
+/// records' keys, a line each.
+fn remove_key(profile: u16) -> String {
+    format!("betula.sync.p{profile}.remove")
+}
+
+/// The model of this device, where the browser tells it (Chrome's `userAgentData`): asked for once.
+const MODEL_KEY: &str = "betula.device.model";
 
 const CHANGE_PREFIX: &str = "betula.sync.c.";
 
@@ -167,7 +188,7 @@ pub fn leave(profile: u16, active: u16) {
 
 /// Takes what a synced profile keeps besides its stores out of this browser.
 fn drop_state(profile: u16) {
-    for key in [held_key(profile), records_key(profile), waiting_key(profile), status_key(profile), leave_key(profile), rtc::relayed_key(profile)] {
+    for key in [held_key(profile), records_key(profile), waiting_key(profile), status_key(profile), leave_key(profile), rtc::relayed_key(profile), devices_key(profile), slots_key(profile), remove_key(profile)] {
         nav::local_set(&key, "");
     }
 }
@@ -181,6 +202,70 @@ pub fn state_of(profile: u16) -> State {
         Some(o) => State::Online { devices: o.devices, direct: o.direct, relayed: o.relayed },
         None => State::Offline,
     }
+}
+
+/// The devices of a profile as the page lists them, and how many online wrote no record
+/// (`devices::list`).
+pub fn devices_of(profile: u16) -> (Vec<devices::Device>, usize) {
+    if !syncs(profile) {
+        return (Vec::new(), 0);
+    }
+    let records = devices::read_records(&nav::local_get(&devices_key(profile)).unwrap_or_default());
+    let mine = held_device(profile).map(|device| devices::key_of(&device)).unwrap_or_default();
+    let online = if nav::local_get(&status_key(profile)).as_deref().and_then(live::read_status).is_some() { devices::read_slots(&nav::local_get(&slots_key(profile)).unwrap_or_default()) } else { Vec::new() };
+    devices::list(&records, &mine, &online)
+}
+
+/// „Entfernen": the device of record `key` goes out of the list, and leaves the next time it is
+/// online. Where this tab leads for the profile at once, else the leader takes it.
+pub fn remove_device(profile: u16, key: &str) {
+    if !syncs(profile) || !key.starts_with(devices::PREFIX) {
+        return;
+    }
+    if let Some(engine) = engine().filter(|e| e.leads(profile)) {
+        engine.remove(key);
+        return;
+    }
+    let mut asked = nav::local_get(&remove_key(profile)).unwrap_or_default();
+    asked.push_str(key);
+    asked.push('\n');
+    nav::local_set(&remove_key(profile), &asked);
+}
+
+/// This device's id in a profile, as this browser keeps it.
+fn held_device(profile: u16) -> Option<Vec<u8>> {
+    let held = nav::local_get(&held_key(profile))?;
+    unb64(held.lines().find_map(|l| l.strip_prefix("device\t"))?)
+}
+
+/// What this browser is (`devices::describe`).
+fn this_device() -> devices::Described {
+    let Some(window) = web_sys::window() else { return devices::Described::default() };
+    let navigator = window.navigator();
+    let agent = navigator.user_agent().unwrap_or_default();
+    let standalone = window.match_media("(display-mode: standalone)").ok().flatten().is_some_and(|q| q.matches())
+        || js_sys::Reflect::get(&navigator, &"standalone".into()).ok().and_then(|v| v.as_bool()).unwrap_or(false);
+    let touch = js_sys::Reflect::get(&navigator, &"maxTouchPoints".into()).ok().and_then(|v| v.as_f64()).unwrap_or(0.0) > 1.0;
+    devices::describe(&agent, nav::local_get(MODEL_KEY).as_deref(), standalone, touch)
+}
+
+/// Asks the browser once for this device's model (Chrome on Android tells „Pixel 7"): kept, the
+/// next record names it.
+fn learn_model() {
+    if nav::local_get(MODEL_KEY).is_some() {
+        return;
+    }
+    let Some(navigator) = web_sys::window().map(|w| w.navigator()) else { return };
+    let Ok(data) = js_sys::Reflect::get(&navigator, &"userAgentData".into()) else { return };
+    let Ok(ask) = js_sys::Reflect::get(&data, &"getHighEntropyValues".into()).and_then(|f| f.dyn_into::<js_sys::Function>()) else {
+        nav::local_set(MODEL_KEY, "");
+        return;
+    };
+    let Some(promise) = ask.call1(&data, &Array::of1(&"model".into())).ok().and_then(|p| p.dyn_into::<Promise>().ok()) else { return };
+    leptos::task::spawn_local(async move {
+        let model = JsFuture::from(promise).await.ok().and_then(|values| js_sys::Reflect::get(&values, &"model".into()).ok()).and_then(|m| m.as_string()).unwrap_or_default();
+        nav::local_set(MODEL_KEY, model.trim());
+    });
 }
 
 // ---- WebCrypto ----
@@ -626,8 +711,17 @@ impl Engine {
     fn status(&self) {
         let online = (self.welcomed.get() && *self.open.borrow()).then(|| self.online_now());
         let text = live::status_text(online);
+        let slots = devices::slots_text(&if online.is_some() { self.slots_now() } else { Vec::new() });
+        let mut changed = false;
+        if nav::local_get(&slots_key(self.profile)).as_deref() != Some(slots.as_str()) {
+            nav::local_set(&slots_key(self.profile), &slots);
+            changed = true;
+        }
         if nav::local_get(&status_key(self.profile)).as_deref() != Some(text.as_str()) {
             nav::local_set(&status_key(self.profile), &text);
+            changed = true;
+        }
+        if changed {
             self.sync.refresh(self.profile);
         }
     }
@@ -709,6 +803,90 @@ impl Engine {
         }
         retire(&self.core.borrow().doc);
         self.sync.conflicts_of(&self.core.borrow().doc);
+        if std::mem::take(&mut self.core.borrow_mut().devices_touched) {
+            self.keep_devices();
+        }
+    }
+
+    /// Keeps the records of the profile's devices for every tab; another device took this one out
+    /// of the list: it leaves, with its copy.
+    fn keep_devices(&self) {
+        let (records, removed) = {
+            let core = self.core.borrow();
+            let mine = devices::key_of(&core.device);
+            let removed = core.doc.live(&mine).and_then(|e| e.val.as_deref()).and_then(devices::Record::read).is_some_and(|r| r.removed);
+            (core.device_records(), removed)
+        };
+        let text = devices::records_text(&records);
+        if nav::local_get(&devices_key(self.profile)).as_deref() != Some(text.as_str()) {
+            nav::local_set(&devices_key(self.profile), &text);
+            self.sync.refresh(self.profile);
+        }
+        if removed && self.welcomed.get() {
+            if let Some(engine) = engine().filter(|e| e.leads(self.profile)) {
+                engine.leave();
+            }
+        }
+    }
+
+    /// Writes this device's record where it is due (`devices::due`): on every welcome, and once an
+    /// hour while connected.
+    fn announce(self: &Rc<Self>) {
+        if !self.welcomed.get() {
+            return;
+        }
+        let described = this_device();
+        let now = wall();
+        let wrote = {
+            let mut core = self.core.borrow_mut();
+            let slot = core.slot();
+            let key = devices::key_of(&core.device);
+            let before = core.doc.live(&key).and_then(|e| e.val.as_deref()).and_then(devices::Record::read);
+            if slot == 0 || before.as_ref().is_some_and(|b| b.removed) || !devices::due(before.as_ref(), slot, &described, now) {
+                false
+            } else {
+                let record = devices::Record::now(before.as_ref(), slot, &described, now);
+                core.put(&key, Some(record.text()), now, batch_id)
+            }
+        };
+        if wrote {
+            self.keep_waiting();
+            self.send_waiting();
+        }
+        self.keep_devices();
+    }
+
+    /// „Entfernen" for the device of record `key` (another one): marked removed, it stands in no
+    /// list and leaves when it comes.
+    fn remove(self: &Rc<Self>, key: &str) {
+        let wrote = {
+            let mut core = self.core.borrow_mut();
+            if key == devices::key_of(&core.device) {
+                false
+            } else {
+                match core.doc.live(key).and_then(|e| e.val.as_deref()).and_then(devices::Record::read) {
+                    Some(record) if !record.removed => core.put(key, Some(devices::Record { removed: true, ..record }.text()), wall(), batch_id),
+                    _ => false,
+                }
+            }
+        };
+        if wrote {
+            self.keep_waiting();
+            self.send_waiting();
+            self.keep_devices();
+        }
+    }
+
+    /// What other tabs asked to take out of the list (`remove_device`).
+    fn take_removals(self: &Rc<Self>) {
+        let asked = nav::local_get(&remove_key(self.profile)).unwrap_or_default();
+        if asked.is_empty() {
+            return;
+        }
+        nav::local_set(&remove_key(self.profile), "");
+        for key in asked.lines().filter(|k| !k.trim().is_empty()) {
+            self.remove(key.trim());
+        }
     }
 
     /// A store's text that differs from the records when the leader starts (written by a tab or a
@@ -894,6 +1072,8 @@ impl Engine {
                 self.phloem_live.set(live);
                 self.online(&devices);
                 self.send_waiting();
+                self.take_removals();
+                self.announce();
                 self.watched.borrow_mut().clear();
                 self.watch();
                 renew_soon();
@@ -976,6 +1156,12 @@ impl Engine {
 
     /// „Nur dieses Gerät trennen": what waits goes out first, then the slot is free.
     fn leave(self: &Rc<Self>) {
+        // Out of the list of the others first: the push goes before the leave.
+        {
+            let mut core = self.core.borrow_mut();
+            let key = devices::key_of(&core.device);
+            core.put(&key, None, wall(), batch_id);
+        }
         let engine = Rc::clone(self);
         leptos::task::spawn_local(async move {
             let waiting = engine.core.borrow().outbox.clone();
@@ -1877,6 +2063,16 @@ fn leads() -> bool {
 /// leave, and comes back online when the network does.
 pub fn start_tab(sync: Sync, profiles: Profiles) {
     ask_lead(sync, profiles, false);
+    learn_model();
+    // This device's record, when it was last seen, while it stays connected (`Engine::announce`).
+    let _ = set_interval_with_handle(
+        move || {
+            if let Some(engine) = engine() {
+                engine.announce();
+            }
+        },
+        std::time::Duration::from_secs(10 * 60),
+    );
     // The active profile changes: the leader follows it.
     Effect::new(move |_| {
         let _ = profiles.active();
@@ -1896,6 +2092,10 @@ pub fn start_tab(sync: Sync, profiles: Profiles) {
             if key == leave_key(active) && nav::local_get(&key).is_some() {
                 if let Some(engine) = engine().filter(|e| e.leads(active)) {
                     engine.leave();
+                }
+            } else if key == remove_key(active) {
+                if let Some(engine) = engine().filter(|e| e.leads(active)) {
+                    engine.take_removals();
                 }
             } else if key == held_key(active) && leads() {
                 leptos::task::spawn_local(lead(sync, profiles));

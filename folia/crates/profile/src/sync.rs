@@ -38,6 +38,7 @@ use folia_widgets::syncpair::{copy, now_ms, PairLink, COPIED_MS};
 
 pub use folia_widgets::syncpair::problem_text;
 
+use crate::confirm::{Confirm, Question};
 use crate::i18n;
 
 const CONNECT_ID: &str = "pf-sync-connect";
@@ -58,9 +59,6 @@ enum Open {
     Nothing,
     /// The recovery code, shown.
     Code(String),
-    /// The question before „Nur dieses Gerät trennen" or „Sync beenden".
-    Leave,
-    Stop,
 }
 
 /// What the dialog „Gerät verbinden" shows.
@@ -116,6 +114,12 @@ pub fn SyncPart(#[prop(into)] empty: Signal<bool>) -> impl IntoView {
     let dialog = use_context::<ConnectDialog>().map_or_else(|| RwSignal::new(None), |dialog| dialog.0);
     // The recovery code typed in, on a new device.
     let recovering = RwSignal::new(false);
+    // „Nur dieses Gerät trennen" and „Sync beenden" ask in a menu at their button (`confirm`).
+    let leaving = RwSignal::new(None::<Question>);
+    let ask = move |at: &'static str| {
+        let (title, hint, yes, icon, yes_id) = if at == LEAVE_ID { (s.leave_question, s.leave_after, s.leave_yes, "x", LEAVE_YES_ID) } else { (s.stop_question, s.stop_after, s.stop_yes, "trash-2", STOP_YES_ID) };
+        leaving.set(Some(Question { at: at.to_string(), title: title.to_string(), hint: hint.to_string(), yes: yes.to_string(), icon, yes_id }));
+    };
     // Another profile, or a state that changes: what was open belonged to the one before.
     Effect::new(move |before: Option<(u16, bool)>| {
         let now = (id.get(), state.with(State::synced));
@@ -202,6 +206,7 @@ pub fn SyncPart(#[prop(into)] empty: Signal<bool>) -> impl IntoView {
             State::Failed(_) => view! { <div class="pf-sync-actions">{connect_button(s.retry)}</div> }.into_any(),
             State::Starting => ().into_any(),
             State::Online { .. } | State::Offline => view! {
+                <DeviceList sync id/>
                 <p class="pf-sub pf-sync-lead">{s.synced_lead}</p>
                 <div class="pf-sync-actions">
                     {connect_ways()}
@@ -210,8 +215,8 @@ pub fn SyncPart(#[prop(into)] empty: Signal<bool>) -> impl IntoView {
                     </button>
                 </div>
                 <p class="pf-sync-quiet">
-                    <button class="linkish" type="button" id=LEAVE_ID on:click=move |_| { open.set(Open::Leave); request_animation_frame(|| nav::focus_by_id(LEAVE_YES_ID)); }>{s.leave}</button>
-                    <button class="linkish" type="button" id=STOP_ID on:click=move |_| { open.set(Open::Stop); request_animation_frame(|| nav::focus_by_id(STOP_YES_ID)); }>{s.stop}</button>
+                    <button class="linkish" type="button" id=LEAVE_ID aria-haspopup="dialog" on:click=move |_| ask(LEAVE_ID)>{s.leave}</button>
+                    <button class="linkish" type="button" id=STOP_ID aria-haspopup="dialog" on:click=move |_| ask(STOP_ID)>{s.stop}</button>
                 </p>
             }
             .into_any(),
@@ -222,22 +227,6 @@ pub fn SyncPart(#[prop(into)] empty: Signal<bool>) -> impl IntoView {
     let opened = move || match open.get() {
         Open::Nothing => ().into_any(),
         Open::Code(code) => view! { <RecoveryCode code close=Callback::new(move |()| cancel(CODE_ID))/> }.into_any(),
-        Open::Leave => view! {
-            <p class="action note-action ask pf-ask">
-                <span>{s.leave_question}</span>
-                <button class="mini danger hit" type="button" id=LEAVE_YES_ID on:click=move |_| { open.set(Open::Nothing); sync.leave(id.get_untracked()); }>{s.leave_yes}</button>
-                <button class="mini hit" type="button" on:click=move |_| cancel(LEAVE_ID)>{s.cancel}</button>
-            </p>
-        }
-        .into_any(),
-        Open::Stop => view! {
-            <p class="action note-action ask pf-ask">
-                <span>{s.stop_question}</span>
-                <button class="mini danger hit" type="button" id=STOP_YES_ID on:click=move |_| { open.set(Open::Nothing); sync.stop(id.get_untracked()); }>{s.stop_yes}</button>
-                <button class="mini hit" type="button" on:click=move |_| cancel(STOP_ID)>{s.cancel}</button>
-            </p>
-        }
-        .into_any(),
     };
 
     view! {
@@ -246,11 +235,109 @@ pub fn SyncPart(#[prop(into)] empty: Signal<bool>) -> impl IntoView {
             {status}
             {body}
             {opened}
+            <Confirm asking=leaving on_yes=Callback::new(move |yes: &'static str| match yes {
+                LEAVE_YES_ID => sync.leave(id.get_untracked()),
+                STOP_YES_ID => sync.stop(id.get_untracked()),
+                _ => {}
+            })/>
             <Conflicts sync/>
             <Connect sync id state dialog/>
         </section>
     }
     .into_any()
+}
+
+/// The devices of a synced profile (folia/design/profil/konzepte.html, the third step;
+/// `folia_stores::sync::devices`): this one first („jetzt"), then those online (directly, relayed,
+/// or through Betula), then by when they were last seen; a device online that wrote nothing of
+/// itself as one more. „Entfernen" asks first in a menu at its button (`confirm`), then the device
+/// stands in no list any more and leaves the next time it is online, with its copy.
+#[component]
+fn DeviceList(sync: Sync, id: Memo<u16>) -> impl IntoView {
+    let t = i18n::t();
+    let s = &t.sync;
+    let devices = Memo::new(move |_| sync.devices(id.get()));
+    // „vor 2 Std." moves on while the page stands.
+    let now = RwSignal::new(now_ms());
+    if let Ok(handle) = set_interval_with_handle(move || now.set(now_ms()), std::time::Duration::from_secs(30)) {
+        on_cleanup(move || handle.clear());
+    }
+    // „Entfernen" asks in a menu at its button (`confirm`); the device it asks about: its record's
+    // key.
+    let asking = RwSignal::new(None::<Question>);
+    let removing = StoredValue::new(None::<String>);
+    let row = move |(at, device): (usize, folia_stores::sync::devices::Device)| {
+        use folia_stores::sync::devices::Link;
+        let shown = device.shown(t.locale);
+        let line = device.line(t.locale);
+        let (state, when) = match (device.mine, device.online) {
+            (true, _) => ("now", Signal::derive(move || s.device_now.to_string())),
+            (false, Some(Link::Direct)) => ("on", Signal::derive(move || s.device_direct.to_string())),
+            (false, Some(Link::Relayed)) => ("on", Signal::derive(move || s.device_relayed.to_string())),
+            (false, Some(Link::Phloem)) => ("on", Signal::derive(move || s.device_online.to_string())),
+            (false, None) => {
+                let seen = device.seen;
+                ("off", Signal::derive(move || if seen == 0 { String::new() } else { (s.device_seen)(now.get().saturating_sub(seen)) }))
+            }
+        };
+        let key = device.key.clone();
+        let button = format!("pf-device-remove-{at}");
+        let asked = {
+            let button = button.clone();
+            Memo::new(move |_| asking.with(|asking| asking.as_ref().is_some_and(|q| q.at == button)))
+        };
+        let remove = (!device.mine).then(|| {
+            let shown = shown.clone();
+            view! {
+                <button class="linkish pf-device-remove" type="button" id=button.clone() aria-label=(s.device_remove_label)(&shown) aria-haspopup="dialog" aria-expanded=move || if asked.get() { "true" } else { "false" } on:click=move |_| {
+                    removing.set_value(Some(key.clone()));
+                    asking.set(Some(Question {
+                        at: button.clone(),
+                        title: (s.device_remove_question)(&shown),
+                        hint: s.device_remove_hint.to_string(),
+                        yes: s.device_remove_yes.to_string(),
+                        icon: "x",
+                        yes_id: "pf-device-remove-yes",
+                    }));
+                }>{s.device_remove}</button>
+            }
+        });
+        view! {
+            <li class="pf-device" class:mine=device.mine data-key=device.key.clone()>
+                <span class="pf-tile" aria-hidden="true"><Icon name=device.icon()/></span>
+                <span class="pf-device-text"><b>{shown.clone()}</b><small>{line}</small></span>
+                <span class="pf-when" data-state=state>{when}</span>
+                {remove}
+            </li>
+        }
+    };
+    let remove = Callback::new(move |_: &'static str| {
+        if let Some(key) = removing.get_value() {
+            sync.remove_device(id.get_untracked(), &key);
+        }
+    });
+    let list = move || {
+        let all = devices.get();
+        (!all.list.is_empty() || all.unnamed > 0).then(|| {
+            let unnamed = all.unnamed;
+            view! {
+                <ul class="pf-devices" aria-label=s.devices_label>
+                    {all.list.into_iter().enumerate().map(row).collect_view()}
+                    {(unnamed > 0).then(|| view! {
+                        <li class="pf-device">
+                            <span class="pf-tile" aria-hidden="true"><Icon name="monitor-smartphone"/></span>
+                            <span class="pf-device-text"><b>{(s.devices_unnamed)(unnamed)}</b><small>{s.devices_unnamed_hint}</small></span>
+                            <span class="pf-when" data-state="on">{s.device_online}</span>
+                        </li>
+                    })}
+                </ul>
+            }
+        })
+    };
+    view! {
+        {list}
+        <Confirm asking on_yes=remove/>
+    }
 }
 
 /// „Gerät verbinden", the dialog, either way (`Direction`; `both`: with the choice of it at its
@@ -368,10 +455,12 @@ pub(crate) fn Connect(sync: Sync, id: Memo<u16>, state: Memo<State>, dialog: RwS
     };
     // The buttons at the dialog's foot, below what scrolls (`folia_design::modal`).
     let foot = move || match (direction.get(), step.get()) {
+        // Done, either way: the dialog closes and the start page comes (owner, 2026-11-09: „dass
+        // man wieder bei der main page landet, wenn das sync fertig ist und nicht im profil").
         (Some(Direction::Get), _) => got.get().then(|| {
             view! {
                 <footer class="st-dlg-foot">
-                    <button class="btn primary" type="button" on:click=move |_| close.run(())>{c.done}</button>
+                    <a class="btn primary pf-done" href=t.path(url::HOME) rel="nofollow" on:click=move |_| close.run(())>{c.done}</a>
                 </footer>
             }
             .into_any()
@@ -385,7 +474,7 @@ pub(crate) fn Connect(sync: Sync, id: Memo<u16>, state: Memo<State>, dialog: RwS
         .into_any()),
         (_, Step::Joined) => Some(view! {
             <footer class="st-dlg-foot">
-                <button class="btn primary" type="button" on:click=move |_| close.run(())>{s.done}</button>
+                <a class="btn primary pf-done" href=t.path(url::HOME) rel="nofollow" on:click=move |_| close.run(())>{s.done}</a>
             </footer>
         }
         .into_any()),

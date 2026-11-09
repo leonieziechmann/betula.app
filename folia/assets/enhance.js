@@ -466,9 +466,12 @@
     if (inWindow) el.dataset.height = String(high);
     if (!axis.cards.size) axisBegin();
     // Set where they apply, not on the stage: what a stage sets its elements inherit, and each of
-    // them would work out its style anew (app.css).
-    const ground = page.querySelector(":scope > .ground");
-    page.style.paddingTop = `${axis.top}px`;
+    // them would work out its style anew (app.css). The room above the page is a block at its start
+    // (`--axis-top`), not its padding, inside which what sticks in the page would stick; less the
+    // gap a page laid out as a column (`.framed`) puts after it as after each of its parts.
+    const ground = page.querySelector(":scope > .ground"), laid = getComputedStyle(page);
+    const gap = /flex|grid/.test(laid.display) ? parseFloat(laid.rowGap) || 0 : 0;
+    page.style.setProperty("--axis-top", `${Math.max(0, axis.top - gap)}px`);
     ground?.style.setProperty("top", `calc(max(${axis.top + high}px, 100lvh) + 12px)`);
     for (const part of page.children) part.style.flexShrink = "0";
     el.classList.add("moving");
@@ -483,7 +486,7 @@
   const unlift = (card) => {
     card.el.classList.remove("moving");
     for (const prop of ["transform", "opacity", "z-index"]) card.el.style.removeProperty(prop);
-    card.page.style.removeProperty("padding-top");
+    card.page.style.removeProperty("--axis-top");
     card.ground?.style.removeProperty("top");
     for (const part of card.page.children) part.style.removeProperty("flex-shrink");
   };

@@ -331,11 +331,30 @@ pub struct Texts {
     pub so_far: &'static str,
     pub expand_past: &'static str,
     pub collapse_past: &'static str,
-    /// „Alle aufklappen", „Alle zuklappen"; an area's ▸: „Informatik aufklappen", „… zuklappen".
+    /// „Alle aufklappen", „Alle zuklappen" (one button, which says what it does); an area's head:
+    /// „Informatik aufklappen", „… zuklappen".
     pub expand_all: &'static str,
     pub collapse_all: &'static str,
     pub expand_area: fn(&str) -> String,
     pub collapse_area: fn(&str) -> String,
+    /// The Gesamtplan filling the screen: „Vollbild", and its way back.
+    pub full_screen: &'static str,
+    pub full_screen_leave: &'static str,
+    /// „Als Bild speichern": the Gesamtplan as a PNG, the file's name by the day („gesamtplan-
+    /// 2026-11-09.png"), and the line under the picture's title: „Informatik B.Sc. · Stand
+    /// 09.11.2026".
+    pub save_picture: &'static str,
+    pub picture_name: fn(&str) -> String,
+    pub picture_subtitle: fn(&str, &str) -> String,
+    /// A module dragged over a row it does not belong to by the plan: what the key does there
+    /// („Strg: als Ausnahme"), what a module the plan names in a row of its own cannot; the row it
+    /// counts for as an exception then.
+    pub drop_exception: fn(&str) -> String,
+    pub drop_refused: &'static str,
+    pub drop_as_exception: &'static str,
+    /// The note of a module moved and counted for another subgroup at once.
+    pub moved_counted: fn(&str, &str, &str) -> String,
+    pub moved_counted_exception: fn(&str, &str, &str) -> String,
     /// The band over the semesters: „1. Studienjahr · 2025/26", „1. Studienjahr" (a study begun
     /// in a summer), „Vor dem Studium".
     pub study_year: fn(i32, Option<&str>) -> String,
@@ -370,7 +389,8 @@ pub struct Texts {
     pub legend_plan_open: &'static str,
     pub legend_failed: &'static str,
     pub legend_today: &'static str,
-    pub grid_help: &'static str,
+    /// What a click and a drag do, with the key that lets a module count as an exception („Strg").
+    pub grid_help: fn(&str) -> String,
     pub add_in_cell: &'static str,
     /// What „+" in a cell is for: „Modul hinzufügen: Informatik, WiSe 2026/27".
     pub add_in_cell_for: fn(&str, &str) -> String,
@@ -614,6 +634,16 @@ pub const DE: Texts = Texts {
     collapse_all: "Alle zuklappen",
     expand_area: |area| format!("{area} aufklappen"),
     collapse_area: |area| format!("{area} zuklappen"),
+    full_screen: "Vollbild",
+    full_screen_leave: "Vollbild beenden",
+    save_picture: "Als Bild speichern",
+    picture_name: |day| format!("gesamtplan-{day}.png"),
+    picture_subtitle: |program, day| format!("{program} · Stand {day}"),
+    drop_exception: |key| format!("{key}: als Ausnahme"),
+    drop_refused: "zählt hier nicht",
+    drop_as_exception: "als Ausnahme",
+    moved_counted: |name, semester, group| format!("„{name}“ ins {semester} verschoben, zählt für {group}"),
+    moved_counted_exception: |name, semester, group| format!("„{name}“ ins {semester} verschoben, zählt als Ausnahme für {group}"),
     study_year: |n, years| match years {
         Some(years) => format!("{n}. Studienjahr · {years}"),
         None => format!("{n}. Studienjahr"),
@@ -638,7 +668,7 @@ pub const DE: Texts = Texts {
     legend_plan_open: "Noch offen laut Plan",
     legend_failed: "Nicht bestanden",
     legend_today: "Heute",
-    grid_help: "▸ klappt einen Bereich auf · Klick auf ein Modul: sein Menü",
+    grid_help: |key| format!("Klick auf einen Bereich: auf- und zuklappen · Klick auf ein Modul: sein Menü · Ein Modul ziehen: in ein anderes Semester oder auf einen Bereich, in dem es laut Plan zählt, mit {key} auch als Ausnahme"),
     add_in_cell: "Modul hinzufügen",
     add_in_cell_for: |area, semester| format!("Modul hinzufügen: {area}, {semester}"),
     line_title: |fs| format!("laut Regelstudienplan im {fs} · Klick fügt hinzu"),
@@ -879,6 +909,16 @@ pub const EN: Texts = Texts {
     collapse_all: "Collapse all",
     expand_area: |area| format!("Expand {area}"),
     collapse_area: |area| format!("Collapse {area}"),
+    full_screen: "Full screen",
+    full_screen_leave: "Leave full screen",
+    save_picture: "Save as image",
+    picture_name: |day| format!("whole-plan-{day}.png"),
+    picture_subtitle: |program, day| format!("{program} · as of {day}"),
+    drop_exception: |key| format!("{key}: as an exception"),
+    drop_refused: "does not count here",
+    drop_as_exception: "as an exception",
+    moved_counted: |name, semester, group| format!("\u{201c}{name}\u{201d} moved to {semester}, counts for {group}"),
+    moved_counted_exception: |name, semester, group| format!("\u{201c}{name}\u{201d} moved to {semester}, counts as an exception for {group}"),
     study_year: |n, years| match years {
         Some(years) => format!("Year {n} · {years}"),
         None => format!("Year {n}"),
@@ -903,7 +943,7 @@ pub const EN: Texts = Texts {
     legend_plan_open: "Still open in the plan",
     legend_failed: "Not passed",
     legend_today: "Today",
-    grid_help: "▸ expands an area · click a module: its menu",
+    grid_help: |key| format!("Click an area: expand or collapse · Click a module: its menu · Drag a module: to another semester or onto an area it counts for by the plan, with {key} as an exception as well"),
     add_in_cell: "Add module",
     add_in_cell_for: |area, semester| format!("Add module: {area}, {semester}"),
     line_title: |fs| format!("standard study plan: {fs} · click adds it"),
