@@ -167,6 +167,23 @@ impl Engine {
         self.status();
     }
 
+    /// The other devices online by slot, and how each is connected with this one.
+    pub(super) fn slots_now(&self) -> Vec<(u16, super::devices::Link)> {
+        use super::devices::Link;
+        let live = self.live.borrow();
+        let mut slots: Vec<(u16, Link)> = live
+            .online
+            .iter()
+            .map(|slot| match live.links.get(slot).filter(|l| l.open.get()) {
+                Some(link) if link.relayed.get() => (*slot, Link::Relayed),
+                Some(_) => (*slot, Link::Direct),
+                None => (*slot, Link::Phloem),
+            })
+            .collect();
+        slots.sort_by_key(|(slot, _)| *slot);
+        slots
+    }
+
     /// What the leader says of the connections now.
     pub(super) fn online_now(&self) -> Online {
         let live = self.live.borrow();

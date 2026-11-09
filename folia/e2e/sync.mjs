@@ -15,7 +15,9 @@
 // „Einschalten und Code zeigen" in its dialog), and the link for the next device opens by itself;
 // the second opens that link and holds the same marks and note in a new profile; a mark set on one
 // shows on the other within seconds; both mark while the second is offline, and once it is back
-// both hold both; the recovery code brings the profile into a third browser; a new computer shows
+// both hold both; the recovery code brings the profile into a third browser; the profile page lists
+// the three devices, this one first, the others online, and „Entfernen" makes the third one leave
+// with its copy; a new computer shows
 // a code that a phone opens (as the camera app does) and sends the profile to, the digits alike on
 // both; „Sync beenden" makes every browser private again with its copy; the scanner of /sync (a
 // camera that films a code) sends a private profile, switched on for it; the setup's last step on
@@ -165,6 +167,22 @@ await c.page.getByLabel(/Wiederherstellungscode/).first().fill(code).catch(() =>
 await c.page.getByRole("button", { name: /Profil holen/ }).first().click().catch(() => problems.push("C: no „Profil holen“"));
 await until("C recovered", c.page, (n) => marked().length >= n, SEED.length, 20000);
 check(JSON.stringify(await marksOf(c.page)) === JSON.stringify(await marksOf(a.page)), `C: other marks than A (${await marksOf(c.page)})`);
+
+// ---- the devices of the profile: A lists itself and B and C online; „Entfernen" takes C out ----
+// (folia/design/profil/konzepte.html, the third step.) Each device writes what it is into the
+// profile, sealed; Phloem's presence says who is online.
+await go(a.page, "/profile");
+const rows = (page) => page.evaluate(() => [...allOnPage(".pf-device")].map((li) => ({ name: li.querySelector("b")?.textContent, line: li.querySelector("small")?.textContent, when: li.querySelector(".pf-when")?.textContent, mine: li.classList.contains("mine"), key: li.dataset.key ?? "" })));
+await until("A lists three devices, two of them online", a.page, () => allOnPage(".pf-device").length === 3 && allOnPage('.pf-device .pf-when[data-state="on"]').length === 2, null, 20000);
+const listed = await rows(a.page);
+check(listed[0]?.mine && listed[0].name === "Dieser Rechner" && listed[0].when === "jetzt" && listed.slice(1).every((r) => r.name === "Rechner" && /Chrome · Linux/.test(r.line) && /^online/.test(r.when)), `A: the devices ${JSON.stringify(listed)}`);
+const cKey = await c.page.evaluate(() => "D|" + ((localStorage.getItem("betula.sync.p1.v1") || "").match(/^device\t(.+)$/m)?.[1] ?? ""));
+check(listed.some((r) => r.key === cKey), `A: C's record ${cKey} is not listed`);
+await a.page.click(`.pf-device[data-key="${cKey}"] .pf-device-remove >> visible=true`).catch(() => problems.push("A: no „Entfernen“ for C"));
+await a.page.click("#pf-device-remove-yes >> visible=true").catch(() => problems.push("A: no question before „Entfernen“"));
+await until("C leaves once it is taken out", c.page, () => !localStorage.getItem("betula.sync.p1.v1"), null, 20000);
+check((await marksOf(c.page)).length >= SEED.length, "C: its copy went with it");
+await until("A lists two devices", a.page, () => allOnPage(".pf-device").length === 2, null, 20000);
 
 // ---- „Profil vom Handy holen": the computer shows a code, the phone sends a profile to it ----
 // (folia/design/profil/konzepte.html, the second step.) F, a new computer, asks; B, which holds A's

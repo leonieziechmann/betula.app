@@ -681,7 +681,17 @@ pub fn ProfileSwitcher() -> impl IntoView {
         // under it the active profile's state.
         let devices = sync.map(|sync| {
             let (dot, line) = match sync.state(active) {
-                SyncState::Online { devices, .. } => ("on", (t.app.sync_online)(devices)),
+                // The devices online by name, where each of them named itself (the third step of
+                // folia/design/profil/konzepte.html: „Synchron · Pixel 7 online").
+                SyncState::Online { devices, .. } => {
+                    let known = sync.devices(active);
+                    let names: Vec<String> = known.list.iter().filter(|d| d.online.is_some()).map(|d| d.shown(t.locale)).collect();
+                    if devices > 0 && known.unnamed == 0 && names.len() == devices {
+                        ("on", (t.app.sync_online_named)(&names.join(", ")))
+                    } else {
+                        ("on", (t.app.sync_online)(devices))
+                    }
+                }
                 SyncState::Offline => ("on", t.app.sync_offline.to_string()),
                 SyncState::Private => ("off", t.app.sync_private.to_string()),
                 SyncState::Starting => ("wait", t.app.sync_starting.to_string()),

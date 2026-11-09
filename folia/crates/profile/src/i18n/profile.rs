@@ -61,7 +61,9 @@ pub struct Texts {
     pub clear: &'static str,
     pub clear_hint: fn(&str) -> String,
     pub clear_button: &'static str,
-    pub clear_question: &'static str,
+    /// The question before emptying (in a menu at the button, `confirm`) and what follows.
+    pub clear_question: fn(&str) -> String,
+    pub clear_after: &'static str,
     pub clear_yes: &'static str,
     pub nothing_to_clear: &'static str,
     /// „Profil löschen": the same; the only profile is emptied instead, and says so.
@@ -70,6 +72,7 @@ pub struct Texts {
     pub delete_only: &'static str,
     pub delete_button: &'static str,
     pub delete_question: fn(&str) -> String,
+    pub delete_after: &'static str,
     pub delete_yes: &'static str,
 
     // ---- the sidebar: the profiles and „Profil hinzufügen" ----
@@ -164,7 +167,8 @@ pub const DE: Texts = Texts {
     clear: "Profil leeren",
     clear_hint: |name| format!("Merkliste, Pläne und Studium gehen, „{name}“ bleibt"),
     clear_button: "Leeren",
-    clear_question: "Merkliste, Stundenplan, „Mein Studium“, gespeicherte Pläne und „Mein Studiengang“ dieses Profils löschen?",
+    clear_question: |name| format!("„{name}“ leeren?"),
+    clear_after: "Merkliste, Stundenplan, „Mein Studium“, gespeicherte Pläne und „Mein Studiengang“ dieses Profils gehen. Direkt danach holt „Rückgängig“ sie zurück.",
     clear_yes: "Leeren",
     nothing_to_clear: "Das Profil ist leer.",
     delete: "Profil löschen",
@@ -172,6 +176,7 @@ pub const DE: Texts = Texts {
     delete_only: "Das einzige Profil wird stattdessen geleert",
     delete_button: "Löschen",
     delete_question: |name| format!("„{name}“ mit allem, was es enthält, löschen?"),
+    delete_after: "Es verschwindet aus diesem Browser; synchronisiert, behalten es die anderen Geräte. Direkt danach holt „Rückgängig“ es zurück.",
     delete_yes: "Löschen",
 
     add_profile: "Profil hinzufügen",
@@ -246,7 +251,8 @@ pub const EN: Texts = Texts {
     clear: "Empty profile",
     clear_hint: |name| format!("Saved modules, plans and studies go, “{name}” stays"),
     clear_button: "Empty",
-    clear_question: "Delete the saved modules, timetable, “My studies”, saved plans and “My programme” of this profile?",
+    clear_question: |name| format!("Empty “{name}”?"),
+    clear_after: "The saved modules, timetable, “My studies”, saved plans and “My programme” of this profile go. Right after, “Undo” brings them back.",
     clear_yes: "Empty",
     nothing_to_clear: "The profile is empty.",
     delete: "Delete profile",
@@ -254,6 +260,7 @@ pub const EN: Texts = Texts {
     delete_only: "The only profile is emptied instead",
     delete_button: "Delete",
     delete_question: |name| format!("Delete “{name}” with everything it holds?"),
+    delete_after: "It goes from this browser; synced, the other devices keep it. Right after, “Undo” brings it back.",
     delete_yes: "Delete",
 
     add_profile: "Add profile",
