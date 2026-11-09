@@ -145,7 +145,7 @@ pub struct SetupAsk {
 /// its semester, and the subgroup it has picked where that is a choice — the placeholder of it
 /// standing in the semester that a module fills (`fill`), else its first row, which a module
 /// planned remembers (`Planned::counts`) —, with its name for the switch's line and the catalog's
-/// bar; and the way back to it („Zurück zur Werkbank"). Only the page's own hint aims elsewhere.
+/// bar; and the way back to it („Zurück zu WiSe 2026/27"). Only the page's own hint aims elsewhere.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BenchAim {
     pub semester: SemesterKey,

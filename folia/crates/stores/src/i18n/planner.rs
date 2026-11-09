@@ -160,7 +160,7 @@ pub struct Texts {
     /// (`BenchBar`): „Planen", the subgroup („für Fachübergreifendes Studium"), the way back.
     pub bench_mode: &'static str,
     pub bench_for: fn(&str) -> String,
-    pub bench_back: &'static str,
+    pub bench_back: fn(&str) -> String,
     pub bench_back_hint: &'static str,
     /// The same on a phone in the tab bar's place (`BenchDock`): what it adds to, and the way back
     /// before and after something was planned there.
@@ -175,7 +175,7 @@ pub const DE: Texts = Texts {
     for_placeholder: |name| format!("für „{name}“"),
     bench_mode: "Planen",
     bench_for: |name| format!("für {name}"),
-    bench_back: "Zurück zur Werkbank",
+    bench_back: |semester| format!("Zurück zu {semester}"),
     bench_back_hint: "Zurück zu „Mein Studium“, wo du dieses Semester planst",
     dock_title: |semester| format!("Hinzufügen zu {semester}"),
     dock_cancel: "Abbrechen",
@@ -278,7 +278,7 @@ pub const EN: Texts = Texts {
     for_placeholder: |name| format!("for \u{201c}{name}\u{201d}"),
     bench_mode: "Planning",
     bench_for: |name| format!("for {name}"),
-    bench_back: "Back to the workbench",
+    bench_back: |semester| format!("Back to {semester}"),
     bench_back_hint: "Back to “My studies”, where you plan this semester",
     dock_title: |semester| format!("Add to {semester}"),
     dock_cancel: "Cancel",

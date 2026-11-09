@@ -601,8 +601,9 @@ impl Aim {
 
 /// The workbench of „Mein Studium" over another page while it is open (`Planning::bench`; the
 /// catalog that „Im Katalog suchen" opened): „Planen", the semester, the subgroup it plans for,
-/// and „Zurück zur Werkbank" (Esc, enhance.js clicks `data-action="close-focus"` once the module
-/// beside the list is closed). Nothing while it is not open; the app's alone.
+/// and the way back, „Zurück zu WiSe 2026/27" (Esc, enhance.js clicks `data-action="close-focus"`
+/// once the module beside the list is closed; until Folia 1.89.0 „Zurück zur Werkbank"). Nothing
+/// while it is not open; the app's alone.
 #[component]
 pub fn BenchBar() -> impl IntoView {
     let t = i18n::t();
@@ -618,7 +619,7 @@ pub fn BenchBar() -> impl IntoView {
                 // The way back first: the module beside the list covers the bar's right end.
                 <div class="bench-bar" role="note">
                     <a class="btn primary small" href=t.path(&aim.back) data-action="close-focus" title=t.planner.bench_back_hint>
-                        <Icon name="chevron-left"/>{t.planner.bench_back}<Shortcut keys="Esc"/>
+                        <Icon name="chevron-left"/>{(t.planner.bench_back)(&aim.semester.label(t.locale))}<Shortcut keys="Esc"/>
                     </a>
                     <span class="bench-bar-ic" aria-hidden="true"><Icon name="calendar-plus"/></span>
                     <span class="bench-bar-w"><b>{t.planner.bench_mode}</b><span>{what}</span></span>

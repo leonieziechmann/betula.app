@@ -531,6 +531,17 @@ pub fn StudyPage() -> impl IntoView {
         Effect::new(move |_| planning.set_bench(bench::aim_of(ctx)));
         on_cleanup(move || planning.set_bench(None));
     }
+    // On a desktop the workbench is the semester's card opened: its view comes with it and goes
+    // back with its end, and another view ends it (`bench::follow_view`).
+    let steps = Pending::expect();
+    bench::follow_view(
+        ctx,
+        Callback::new(move |view: StudyView| {
+            if let Some(steps) = steps {
+                steps.go(&StudyUrl::default().with_view(view).path(), leptos_router::NavigateOptions::default());
+            }
+        }),
+    );
     // On a phone Back leaves the mode, as it closes what lies over the page: the page's own state,
     // which a module opened from its sheet (a new address) leaves alone. While a module's sheet lies
     // over it, that is closed first (a place of its own): the layer waits meanwhile. A page gone
@@ -722,15 +733,11 @@ fn StudyMain(ctx: StudyCtx) -> impl IntoView {
 #[component]
 fn StudyBody(ctx: StudyCtx) -> impl IntoView {
     let view = Memo::new(move |_| ctx.url.with(|url| url.view));
-    let benching = Memo::new(move |_| ctx.bench.with(Option::is_some));
     let full = Memo::new(move |_| ctx.full.get() && ctx.view.get() == View::Grid);
+    // The workbench: on a desktop the semester's card opened (`bench::BenchHalf`), on a phone its
+    // sheet over the page (`bench::BenchSheet`).
     move || {
         let phone = ctx.phone.get();
-        // On a desktop the workbench in the page's place, whatever view it was opened from; on a
-        // phone the page stays, the workbench's sheet over it (`bench::BenchSheet`).
-        if benching.get() && !phone {
-            return view! { <bench::BenchDesk ctx/> }.into_any();
-        }
         match view.get() {
             StudyView::Semesters if phone => view! { <phone::Phone ctx/> }.into_any(),
             // The Gesamtplan in full screen fills the page without the overview (`grid::full`).
