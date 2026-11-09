@@ -446,21 +446,33 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
    stage is as large as the screen and is what moves (its transform and opacity, which the
    compositor runs), so that what of a page stands fixed (the dots of „Mein Studium", a sheet put
    away) stands where it stood; its page scrolls inside it, from under the bar at the top as in the
-   window (its `padding-top`, enhance.js), with a ground of its own at its end where the window's
-   lies at rest (its `top`: after the page, or just past the window's lower edge under a page
-   shorter than it, „phone and tablet"). Each is as opaque as the window's ground (`--bg`, the
-   same colour), and they lie one over the other as enhance.js lays them (their `z-index`), the page
-   they go to on top, which takes the taps so: what lies under a page shows only as far as it is not
-   clear yet, and the screen is never empty. The bars stay over all of them. At rest the page in
+   window (a block at its start as high as the room above it, `--axis-top`, enhance.js), with a
+   ground of its own at its end where the window's lies at rest (its `top`: after the page, or just
+   past the window's lower edge under a page shorter than it, „phone and tablet"). Each is as
+   opaque as the window's ground (`--bg`, the same colour), and they lie one over the other as
+   enhance.js lays them (their `z-index`), the page they go to on top, which takes the taps so: what
+   lies under a page shows only as far as it is not clear yet, and the screen is never empty. The bars stay over all of them. At rest the page in
    front is in the window again, as far down, in the same frame; the window keeps its room
    meanwhile. Nothing here is inherited, and nothing reaches into the page beyond the parts named: a
    stage's thousand elements would each work out their style anew. */
+@property --axis-top { syntax: "<length>"; inherits: false; initial-value: 0px; }
 @media (max-width: 900px) {
   #content > .page-stage.moving { position: fixed; inset: 0; z-index: 2; overflow: clip; content-visibility: visible; clip-path: none; background: var(--bg); }
   /* Its page as high as it is, the screen's height at most: a page laid out as a column (`.framed`)
      lets nothing of it shrink for that (enhance.js, on each of its parts: a rule for all of them
      would have the browser work out the style of the stage's every element). */
   #content > .page-stage.moving > .work { max-height: 100%; overflow: hidden; }
+  /* The room above the page is a block at its start, not its padding: what sticks in a page (the
+     headings of the Merkliste's sections) sticks inside its padding, and stood that much lower on
+     the way than at rest (owner, 2026-11-09: „springen die Zwischenelement hoch und runter, wenn
+     man den tab wechselt"). Its height is the page's alone (`inherits: false`, above): the page's
+     elements do not take it up. */
+  #content > .page-stage.moving > .work::before { content: ""; display: block; flex: none; order: -1; --axis-top: inherit; height: var(--axis-top); }
+  /* And the room the window keeps under a page without a ground for the bottom bar (`.main`'s
+     padding, „phone and tablet"), a block at its end: without it a page scrolled to its end could
+     not be scrolled as far on the way and stood up to 72 px lower than at rest. A page with a
+     ground has its ground there (below), the row of „Mein Studium" its own room. */
+  #content > .page-stage.moving > .work:not(:has(> .ground, .st-pager))::after { content: ""; display: block; flex: none; order: 999; height: calc(72px + env(safe-area-inset-bottom)); }
   #content > .page-stage.moving > .work > .ground { display: block; position: absolute; left: 0; right: 0; margin: 0; }
   #content > .page-stage.moving > .work:has(.st-pager) > .ground { display: none; }
   html.stages-moving body > .ground { visibility: hidden; }
