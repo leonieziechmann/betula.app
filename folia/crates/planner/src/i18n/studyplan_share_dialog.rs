@@ -243,7 +243,7 @@ pub const DE: Texts = Texts {
     summary_notes: "mit Notizen",
 
     problem_not_synced: "Dieses Profil synchronisiert nicht (mehr). Speichere es mit Betula Sync, dann klappt es.",
-    problem_too_many: "Du teilst schon 32 Kalender. Nimm zuerst eine Freigabe zurück, dann klappt es.",
+    problem_too_many: "Du teilst schon so viel, wie ein Profil kann. Nimm zuerst eine Freigabe zurück, hier oder bei der Merkliste, dann klappt es.",
     problem_busy: "Der Dienst von Betula Sync nimmt gerade nichts Neues an. Versuch es in ein paar Minuten noch einmal.",
     problem_unreachable: "Der Dienst von Betula Sync ist gerade nicht erreichbar. Prüf deine Verbindung und versuch es gleich noch einmal.",
     problem_unsupported: "Dieser Browser kann das nicht: Ihm fehlt Web Crypto. In einem aktuellen Browser geht es.",
@@ -358,7 +358,7 @@ pub const EN: Texts = Texts {
     summary_notes: "with notes",
 
     problem_not_synced: "This profile does not sync (any more). Save it with Betula Sync, then it works.",
-    problem_too_many: "You share 32 calendars already. Take one share back first, then it works.",
+    problem_too_many: "You share as much as a profile can already. Take one share back first, here or of your saved modules, then it works.",
     problem_busy: "The Betula Sync service takes nothing new just now. Try again in a few minutes.",
     problem_unreachable: "The Betula Sync service cannot be reached just now. Check your connection and try again in a moment.",
     problem_unsupported: "This browser cannot do this: it lacks Web Crypto. A current browser can.",

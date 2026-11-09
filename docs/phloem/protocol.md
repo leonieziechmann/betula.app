@@ -165,6 +165,12 @@ codes:
 - A one-time link, `https://<host>/studyplan#once=<id ‖ key>`, is a parcel that waits up to 7
   days, associated data `"share"`: JSON `{"v": 1, "part": "<id>", "key": "<kp>"}` for a calendar
   that stays current, `{"v": 1, "copy": "<LivePart code>"}` for a copy of now.
+- The Merkliste, or one of its collections, is shared the same way (2026-11-09): its part holds
+  `folia_stores::bookmarks::ListPart` as a pack code of its own kind (`list`): the list's name
+  (none for the whole Merkliste), the marked modules, the collections by name and the notes where
+  they come along, at most what a part holds (notes are left out first). Its links are
+  `https://<host>/bookmarks#live=<id ‖ kp>` and `https://<host>/bookmarks#once=<id ‖ key>`, the
+  parcel's copy a `ListPart` code. Phloem sees parts and parcels like any other.
 - A signal (step 2, `folia/crates/stores/src/sync/live.rs`) is sealed with the live key,
   associated data `space ‖ "signal" ‖ from ‖ to` (the two slots, 2 bytes each, big endian), so
   that Phloem can neither read it nor hand it to another device than the one meant: JSON

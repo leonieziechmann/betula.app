@@ -122,13 +122,23 @@ pub struct Followed {
     pub ended: u64,
     /// The end was seen and the list kept („Behalten").
     pub kept: bool,
-    /// Its name here: the list's own until it is renamed.
+    /// Its name here, once it is renamed; empty: the list's own, as the sharer names it now
+    /// (`name_now`).
     pub name: String,
     /// What it holds: the code of the part as it came last (`bookmarks::ListPart`).
     pub code: String,
 }
 
 impl Followed {
+    /// The name it goes by: the one given here, else the list's own; `None` for a whole Merkliste
+    /// shared and never renamed, which has none.
+    pub fn name_now(&self) -> Option<String> {
+        if !self.name.is_empty() {
+            return Some(self.name.clone());
+        }
+        self.part().map(|part| part.name).filter(|name| !name.is_empty())
+    }
+
     /// What it holds now.
     pub fn part(&self) -> Option<crate::bookmarks::ListPart> {
         crate::bookmarks::ListPart::from_code(&self.code)
@@ -593,6 +603,26 @@ impl Shelf {
         crate::bookmarks::ListPart { name, brought: crate::bookmarks::Brought { ids, collections, notes } }
     }
 
+    /// A list shared with this profile as a shelf to show it by: the sharer's collections (of a
+    /// whole Merkliste shared; a collection shared is the list itself) under numbers no view
+    /// names, and the notes that came along.
+    pub fn of_part(part: &crate::bookmarks::ListPart) -> Shelf {
+        let mut shelf = Shelf::default();
+        if part.name.is_empty() {
+            for (at, (name, modules)) in part.brought.collections.iter().take(MAX_COLLECTIONS).enumerate() {
+                let id = u32::MAX - u32::try_from(at).unwrap_or(0);
+                shelf.collections.push(Collection { id, name: clean_name(name) });
+                for module in modules.iter().filter(|module| is_module_id(module)) {
+                    shelf.members.entry(module.clone()).or_default().insert(id);
+                }
+            }
+        }
+        for (module, note) in &part.brought.notes {
+            shelf.set_note(module, note);
+        }
+        shelf
+    }
+
     // ---- lists shared with this profile (owner, 2026-11-09: „Eigene Liste") ----
 
     /// The lists followed, in the order they came.
@@ -612,7 +642,9 @@ impl Shelf {
     /// Follows a list shared with this profile: its number. The same link followed already is
     /// that list (given what came now); beyond the cap, refused.
     pub fn follow(&mut self, link: &str, code: &str, at: u64) -> Result<u32, Refused> {
-        let Some(part) = crate::bookmarks::ListPart::from_code(code) else { return Err(Refused::Empty) };
+        if crate::bookmarks::ListPart::from_code(code).is_none() {
+            return Err(Refused::Empty);
+        }
         if let Some(id) = self.followed_by(link).map(|f| f.id) {
             self.take(link, code);
             return Ok(id);
@@ -621,7 +653,8 @@ impl Shelf {
             return Err(Refused::Full);
         }
         let id = self.next_number();
-        self.followed.push(Followed { id, link: link.to_string(), since: at, ended: 0, kept: false, name: part.name, code: code.to_string() });
+        // Its name is the list's own (`Followed::name_now`) until it is renamed here.
+        self.followed.push(Followed { id, link: link.to_string(), since: at, ended: 0, kept: false, name: String::new(), code: code.to_string() });
         Ok(id)
     }
 
@@ -1184,7 +1217,7 @@ mod tests {
         let followed = shelf.follow(&link, &part.code().unwrap(), 1_790_000_100).unwrap();
         assert!(shelf.collection(followed).is_none() && followed != lena, "a number of its own, of the collections' numbers");
         assert_eq!(shelf.follow(&link, &part.code().unwrap(), 1_790_000_200), Ok(followed), "the same link is that list");
-        assert_eq!(shelf.followed_one(followed).map(|f| f.name.as_str()), Some("Wahlpflicht von Max"));
+        assert_eq!(shelf.followed_one(followed).and_then(Followed::name_now).as_deref(), Some("Wahlpflicht von Max"), "the list's own name");
         let read = Shelf::restored(&shelf.stored());
         assert_eq!(read, shelf);
         assert_eq!(read.shares_of(lena).len(), 1);
@@ -1199,7 +1232,13 @@ mod tests {
         assert!(shelf.end_follow(&link, 1_790_000_300) && !shelf.end_follow(&link, 1_790_000_400));
         assert!(shelf.keep_followed(followed) && shelf.followed_one(followed).is_some_and(|f| f.kept && f.ended == 1_790_000_300));
         assert_eq!(Shelf::restored(&shelf.stored()), shelf);
+        // Renamed by the sharer: the new name, until it is renamed here.
+        let renamed = crate::bookmarks::ListPart { name: "Für Lena".into(), ..newer.clone() };
+        assert!(shelf.take(&link, &renamed.code().unwrap()));
+        assert_eq!(shelf.followed_one(followed).and_then(Followed::name_now).as_deref(), Some("Für Lena"));
         assert!(shelf.rename_followed(followed, "Von Max").is_ok());
+        assert!(shelf.take(&link, &part.code().unwrap()));
+        assert_eq!(shelf.followed_one(followed).and_then(Followed::name_now).as_deref(), Some("Von Max"), "a name given here stays");
         assert_eq!(shelf.unfollow(followed).map(|f| f.name), Some("Von Max".to_string()));
         // A followed list is no mark: what keeps only marked modules leaves it alone.
         let again = shelf.follow(&link, &part.code().unwrap(), 1_790_000_500).unwrap();
@@ -1211,5 +1250,22 @@ mod tests {
         // A line that does not check out is dropped alone.
         let odd = format!("{}s\tnope\t0\t1\tl\t-\t-\tx\nf\t7\t{link}\t1\t0\t-\tX\tnot-a-code\n", shelf.stored());
         assert_eq!(Shelf::restored(&odd), shelf);
+    }
+
+    #[test]
+    fn a_followed_list_shows_the_sharers_collections_and_notes() {
+        let brought = crate::bookmarks::Brought {
+            ids: vec!["14169".into(), "11103".into()],
+            collections: vec![("Wahlpflicht".into(), vec!["14169".into()]), ("Für Lena".into(), vec!["14169".into(), "11103".into()])],
+            notes: vec![("11103".into(), "mit Lena rechnen".into())],
+        };
+        // The whole Merkliste of the sharer: its collections, under numbers no view names.
+        let whole = Shelf::of_part(&crate::bookmarks::ListPart { name: String::new(), brought: brought.clone() });
+        assert_eq!(whole.names_of("14169"), "Wahlpflicht, Für Lena");
+        assert_eq!(whole.note("11103"), Some("mit Lena rechnen"));
+        assert!(whole.collections().iter().all(|c| c.id > 1_000_000));
+        // A collection shared is the list itself: no collection of its own on every row.
+        let one = Shelf::of_part(&crate::bookmarks::ListPart { name: "Für Lena".into(), brought });
+        assert!(one.collections().is_empty() && one.note("11103").is_some());
     }
 }

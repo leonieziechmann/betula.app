@@ -7,3 +7,4 @@
 pub mod i18n;
 pub mod bookmarks;
 mod pick;
+mod share;

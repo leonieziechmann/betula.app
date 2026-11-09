@@ -1495,6 +1495,14 @@ button.coll-item.add:hover { background: var(--row-hover); }
 .coll-item.input.taken { box-shadow: inset 0 0 0 1.5px var(--warn); }
 .coll-item.input > input, .coll-chip.input > input { flex: 1 1 auto; min-width: 0; height: 28px; padding: 0 4px; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 13.5px; font-weight: 560; }
 .coll-taken { display: block; margin: 4px 8px 2px; color: var(--warn); font-size: 12px; font-weight: 560; }
+/* The lists shared with the profile that it follows, under „Geteilt mit dir" (`share.rs`): a
+   person's mark before the name, „beendet" once one is not shared any more. */
+.coll-nav > .coll-sub { margin: 12px 0 4px; }
+.coll-item.followed > a > .icon { flex: none; width: 14px; height: 14px; color: var(--text-3); }
+.coll-item.followed > a[aria-current="page"] > .icon { color: color-mix(in srgb, var(--on-invert) 68%, transparent); }
+.coll-ended { flex: none; font-size: 11px; font-weight: 650; color: var(--warn); }
+.coll-chip.followed > .icon { flex: none; width: 13px; height: 13px; opacity: .7; }
+.coll-item.followed > a[aria-current="page"] .coll-ended { color: var(--on-invert); }
 .coll-chips, .view-more { display: none; }
 /* What the visitor keeps of a module, at its row after what the catalog and „Mein Studium" say of
    it (`RowMine`): its collections outlined, at most two by name, then „+1"; the first line of its
@@ -1747,6 +1755,11 @@ button.action:hover { background: var(--panel-3); }
 .offer > .icon { width: 16px; height: 16px; color: var(--text-2); }
 .offer p { flex: 1 1 260px; min-width: 0; color: var(--text-2); }
 .offer p b { color: var(--text); font-weight: 620; }
+/* Over a list followed (`share.rs`): what it is, „Alle übernehmen"; once it is not shared any
+   more, the question what to do with its last state. */
+.offer.fl-head.warn { background: var(--warn-soft); }
+.offer.fl-head.warn > .icon { color: var(--warn); }
+.fl-taken, .fl-up { color: var(--text-2); font-weight: 450; }
 .side-facts dd small { color: var(--text-3); font-weight: 450; font-size: 12px; }
 .storage-hint { display: flex; gap: 8px; margin-top: 2px; }
 .storage-hint .icon { width: 15px; height: 15px; margin-top: 2px; }

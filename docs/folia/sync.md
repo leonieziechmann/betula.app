@@ -128,6 +128,18 @@ persons or into a calendar app, as a copy of now or one that stays current.
 A private profile offers Betula Sync wherever it makes a choice better („Profil speichern", one
 click; decision 1), and the choices that need it save the profile on the way.
 
+The Merkliste has the same dialog (owner, 2026-11-09: „die Merkliste soll auch per dem neuen sync
+share dialog funktionieren"; `folia/crates/bookmarks/src/share.rs`), for the whole list (the menu
+of „Alle") or one collection (its menu's „Teilen …"):
+
+| | |
+|---|---|
+| a fixed copy for everybody | the link of today, `/bookmarks#m=<code>` (`bookmarks::share_fragment`): the list after the `#`, so the notes may come along too |
+| what stays current | a part at Phloem: `bookmarks::ListPart`, the collection's marked modules with its name (of the whole list every module and every collection), the notes where the share takes them along. `/bookmarks#live=<id ‖ key>` |
+| one person | a parcel as a calendar's, `/bookmarks#once=<id ‖ key>` |
+| the shares in force | lines `s` of the collections' store (`collections::ListShare`), records `C\|s\|<id>`: renewed by the leader when the marks, the collections or the notes change; a collection deleted takes its shares along, and their parts go |
+| following | „Als Liste folgen": a line `f` of the collections' store (`collections::Followed`, records `C\|f\|<id>`), a list of its own under „Geteilt mit dir" beside the collections, under a number of theirs (`?collection=<n>`), named as the sharer names it until it is renamed; the page lists its modules with the sharer's collections and notes, the rows' marks are the visitor's, „Alle übernehmen" takes everything (`Shelf::adopt`). Watched and fetched as a calendar's part; a part that is gone leaves the list with its last state, „Behalten" and „Löschen" |
+
 The start page's setup ends with it (owner, 2026-11-08: „Mach das mal als step in die einführung
 mit rein. So als letzten schritt. So dass man es gleich auch auf dem handy hat";
 `folia/crates/home/src/home/devices.rs`, docs/folia/frontend.md „The start page"): after
@@ -153,6 +165,8 @@ sich einzuloggen"); its step 1 leads there with „Profil übernehmen".
   a code.
 - `folia/e2e/share.mjs`: sharing and following with four browsers against a running Phloem
   (Folia with `FOLIA_SYNC_PARTS` naming it).
+- `folia/e2e/list-share.mjs`: a collection of the Merkliste shared and followed with three
+  browsers against a running Phloem; the whole Merkliste as the link of today.
 - `folia/e2e/live.mjs`: two browsers connect directly, and with Phloem's entries to the second held
   back a mark still arrives; the signals reach Phloem sealed. `sync.mjs` keeps WebRTC off
   (Playwright's offline mode does not reach it).
