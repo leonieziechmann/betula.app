@@ -394,6 +394,15 @@ pub(crate) fn Connect(sync: Sync, id: Memo<u16>, state: Memo<State>, dialog: RwS
         if direction.get_untracked() != Some(Direction::Give) {
             return;
         }
+        // The link made before the profile was online (switched on in this dialog a moment ago,
+        // or still connecting): the first count online is the one to compare with, less the
+        // device that came where the link was fetched by then.
+        if before.get_value().is_none() && matches!(step.get_untracked(), Step::Pair(_)) {
+            if let Some(count) = online(&now) {
+                let fetched = sync.taken() != taken_before.get_value();
+                before.set_value(Some(if fetched { count.saturating_sub(1) } else { count }));
+            }
+        }
         match step.get_untracked() {
             Step::Starting if now.synced() => pair(),
             Step::Pair(Some(Ok(_))) if online(&now).zip(before.get_value()).is_some_and(|(now, then)| now > then) => step.set(Step::Joined),

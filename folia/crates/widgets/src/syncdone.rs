@@ -86,7 +86,16 @@ fn advance(pace: Pace) {
             pace.since.set_value(now_ms());
             pace.shown.set(at + 1);
             if at + 1 >= pace.steps {
-                set_timeout(move || pace.on_done.run(()), Duration::from_millis(DONE_MS));
+                // The bar can be gone by then: the setup's step 4 behind the scanner finishes its
+                // own bar while „Fertig" ends the setup. Then nobody is told.
+                set_timeout(
+                    move || {
+                        if pace.shown.try_get_untracked().is_some() {
+                            let _ = pace.on_done.try_run(());
+                        }
+                    },
+                    Duration::from_millis(DONE_MS),
+                );
             } else {
                 advance(pace);
             }
