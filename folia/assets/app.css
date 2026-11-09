@@ -6349,6 +6349,51 @@ div.st-col-head.past { cursor: default; }
   .st-cf-lp { min-width: 0; }
   .st-foot-state.st-cf-warn { flex-basis: 100%; }
 }
+/* „Umfang …" of a placeholder (size.rs; owner, 2026-11-09: „wo man selbst die gewichtung wählen
+   kann … wie man das richtig darstellt"): the stepper with what the plan says, then the group's
+   weighting — each member's bar: its modules as the workbench's bars have them, what its
+   placeholders keep hatched, its least a tick —, the sum, the legend. */
+.st-sz-step { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.st-sz-step > .icon-btn { width: 40px; height: 40px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel); }
+.st-sz-num { display: inline-flex; align-items: baseline; gap: 6px; height: 40px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel); }
+.st-sz-num:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.st-sz-num input { width: 3.2ch; padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 20px; font-weight: 700; line-height: 38px; text-align: right; font-variant-numeric: tabular-nums; -moz-appearance: textfield; appearance: textfield; outline: 0; }
+.st-sz-num input::-webkit-inner-spin-button, .st-sz-num input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.st-sz-num span { color: var(--text-2); font-size: 13px; font-weight: 600; }
+.st-sz-plan { display: flex; flex-direction: column; margin-left: 4px; color: var(--text-2); font-size: 12.5px; line-height: 1.35; }
+.st-sz-plan small { font-size: inherit; }
+.st-sz-reset[hidden] { display: none; }
+.st-sz-warn { min-height: 1.45em; margin: 10px 0 0; color: var(--warn); font-size: 12.5px; font-weight: 560; line-height: 1.45; text-wrap: pretty; }
+.st-sz-warn:empty { min-height: 0; margin: 0; }
+.st-sz-w { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.st-sz-w h3 { margin: 0 0 4px; font-size: 13px; font-weight: 700; }
+.st-sz-ms { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.st-sz-m { display: flex; flex-direction: column; gap: 5px; }
+.st-sz-mh { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 13.5px; }
+.st-sz-mh b { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.st-sz-m.is-own .st-sz-mh b { font-weight: 750; }
+.st-sz-mh .num { flex: none; color: var(--text-2); font-size: 12.5px; }
+.st-sz-m.is-own .st-sz-mh .num { color: var(--text); font-weight: 650; }
+.st-sz-m > .st-wb-fill { height: 8px; border-radius: 4px; }
+.st-wb-fill > .kept, .st-sz-legend .kept {
+  background: color-mix(in oklab, var(--c) 16%, var(--panel));
+  background-image: repeating-linear-gradient(-45deg, color-mix(in oklab, var(--c) 62%, transparent) 0 1.5px, transparent 1.5px 5px);
+}
+.st-sz-short { color: var(--warn); font-size: 12px; font-weight: 560; }
+.st-sz-extra { margin: 10px 0 0; color: var(--text-2); font-size: 12.5px; }
+.st-sz-sum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 14px 0 0; font-size: 13.5px; }
+.st-sz-sum > span { color: var(--text-2); font-size: 12.5px; }
+.st-sz-sum.open > span { color: var(--warn); font-weight: 560; }
+.st-sz-sum.done > span { color: var(--ok); font-weight: 600; }
+.st-sz-legend { display: flex; gap: 14px; margin: 8px 0 0; color: var(--text-2); font-size: 12px; }
+.st-sz-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.st-sz-legend i { display: inline-block; width: 14px; height: 8px; border-radius: 2px; }
+.st-sz-legend .planned { background: color-mix(in oklab, var(--c) 36%, var(--panel)); }
+/* A placeholder its modules fill in part (focus.rs, `Row::fill`): its bar and what it holds of what
+   it asks, under its line. */
+.st-ph-fill { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.st-ph-fill > .st-wb-fill { flex: none; width: 96px; height: 5px; }
+.st-ph-fill > small { color: var(--text-2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 /* The first visit: the card, the box that fills the semesters before, the way on. */
 .st-setup { padding: 22px 24px; display: flex; flex-direction: column; gap: 16px; }
 .st-setup > .st-study, .st-setup > .st-fill { max-width: 680px; }

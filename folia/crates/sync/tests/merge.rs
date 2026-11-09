@@ -356,7 +356,7 @@ fn a_row_imported_on_two_devices_at_once_has_one_placeholder_and_its_modules_cou
     use folia_plans::studyplan::{Import, Placeholder};
     let (mut a, mut b) = pair();
     let w = key("2026W");
-    let row = || Placeholder { pid: 0, semester: w, program_id: "079-82-2008".to_string(), ord: 17, span: (1, 1), credits: Some("6".to_string()), kind: None, caption: String::new(), name: "Wahlpflicht".to_string() };
+    let row = || Placeholder { pid: 0, semester: w, program_id: "079-82-2008".to_string(), ord: 17, span: (1, 1), credits: Some("6".to_string()), kind: None, caption: String::new(), name: "Wahlpflicht".to_string(), size: None };
     let import = |d: &mut PlanDoc, module: &str| {
         d.apply(&Import { placeholders: vec![row()], ..Default::default() }, 1);
         let pid = d.placeholders.last().map(|p| p.pid);

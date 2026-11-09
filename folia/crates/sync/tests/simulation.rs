@@ -186,7 +186,7 @@ fn act(device: &mut Device, wall: u64, rng: &mut Rng, undo: &mut Option<PlanDoc>
         33..=35 => {
             let ord = rng.below(300) as i64;
             device.plan(wall, |d| {
-                let p = Placeholder { pid: 0, semester: s, program_id: "079-82-2008".to_string(), ord, span: (1, 1), credits: Some("6".to_string()), kind: None, caption: String::new(), name: "Wahlpflicht".to_string() };
+                let p = Placeholder { pid: 0, semester: s, program_id: "079-82-2008".to_string(), ord, span: (1, 1), credits: Some("6".to_string()), kind: None, caption: String::new(), name: "Wahlpflicht".to_string(), size: None };
                 d.apply(&Import { placeholders: vec![p], ..Default::default() }, secs);
                 let pid = d.placeholders.last().map(|p| p.pid);
                 d.set_fills(s, m, pid);

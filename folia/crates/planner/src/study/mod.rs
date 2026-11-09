@@ -47,6 +47,7 @@ mod picker;
 mod regular;
 mod setup;
 mod side;
+mod size;
 
 use std::collections::BTreeSet;
 
@@ -186,6 +187,8 @@ pub(super) enum Dialog {
     Switch,
     /// „Zählt für" › „Anderer Bereich …" of a module of a semester (`count.rs`).
     CountFor { semester: SemesterKey, id: String },
+    /// „Umfang …" of a placeholder of a semester (`size.rs`).
+    Size { semester: SemesterKey, pid: u32 },
 }
 
 /// The rows selected in a semester (`Item::key`), for what is done to several at once (owner,

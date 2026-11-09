@@ -103,6 +103,8 @@ pub(super) enum Act {
     CountFor { semester: SemesterKey, id: String, target: Option<(usize, GroupKind, String, bool)> },
     /// „Anderer Bereich …": the dialog that lets it count for any subgroup (`count.rs`).
     CountOther { semester: SemesterKey, id: String },
+    /// „Umfang …": the dialog that sets what a placeholder keeps in its semester (`size.rs`).
+    Size { semester: SemesterKey, pid: u32 },
 }
 
 /// An entry of a menu.
@@ -280,6 +282,7 @@ pub(super) fn act(ctx: StudyCtx, act: Act, t: &'static Texts) {
             super::bench::count_for(ctx, semester, id, title, target, t);
         }
         Act::CountOther { semester, id } => ctx.open(Dialog::CountFor { semester, id }),
+        Act::Size { semester, pid } => ctx.open(Dialog::Size { semester, pid }),
         Act::Passed { semester, keys, passed } => {
             let items = items_of(ctx, semester, &keys);
             let note = match (items.as_slice(), passed) {
@@ -416,8 +419,13 @@ fn content(ctx: StudyCtx, what: &MenuFor, t: &'static Texts) -> Option<Content> 
             match (&item.subject, item.module_id()) {
                 (_, Some(id)) if *view => entries.push(Entry::new(Some("st-menu-view"), Some("arrow-up-right"), s.view_module, Does::Link(module_href(ctx, id, t), true))),
                 (_, Some(_)) => {}
-                (Subject::Row { caption, ord, .. }, None) if item.fillers.is_empty() => {
+                (Subject::Row { caption, ord, pid, .. }, None) => {
                     entries.push(Entry::new(Some("st-menu-view"), Some("search"), s.choose_module, Does::Act(Act::Choose { semester, caption: caption.clone(), ord: *ord })));
+                    // How much it keeps in its semester: a range's weighting among its
+                    // neighbours, or more or less than its row says (`size.rs`).
+                    if let Some(pid) = *pid {
+                        entries.push(Entry::new(Some("st-menu-size"), Some("sliders-horizontal"), t.study_bench.size_menu, Does::Act(Act::Size { semester, pid })));
+                    }
                 }
                 _ => {}
             }

@@ -1439,6 +1439,7 @@ mod tests {
             kind: None,
             caption: String::new(),
             name: format!("Zeile {pid}"),
+            size: None,
         };
         let mut doc = PlanDoc {
             placeholders: vec![placeholder(1, (1, 1), "6"), placeholder(2, (1, 6), "60"), placeholder(3, (1, 1), "10–24"), placeholder(4, (1, 1), "5")],

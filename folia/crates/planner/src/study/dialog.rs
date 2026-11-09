@@ -17,14 +17,14 @@ use leptos::prelude::*;
 
 use folia_design::modal::{kept, Modal, ModalHead, ModalSize, Sheet};
 
-use super::{count, overview, side, Dialog, StudyCtx};
+use super::{count, overview, side, size, Dialog, StudyCtx};
 
 /// The size of a dialog's kind (app.css „The dialogs"): „l" for a list to choose from, „m" for a
 /// form or an overview. The areas and an area are one size, so that a phone's sheet does not move
 /// when an area of the list is opened in it.
 fn size_of(dialog: &Dialog) -> ModalSize {
     match dialog {
-        Dialog::Switch | Dialog::Area(_) | Dialog::Areas | Dialog::CountFor { .. } => ModalSize::M,
+        Dialog::Switch | Dialog::Area(_) | Dialog::Areas | Dialog::CountFor { .. } | Dialog::Size { .. } => ModalSize::M,
     }
 }
 
@@ -33,10 +33,11 @@ fn size_of(dialog: &Dialog) -> ModalSize {
 /// durchguckst und da einstellst, was am besten zu denen passt"), a form with a search as „Plan
 /// einrichten" is: half up its Fachsemester stood behind its buttons, and what it holds changes as
 /// it is filled in, which a sheet that fits would follow up and down. „Zählt für" › „Anderer
-/// Bereich …" all up as well: a list of every subgroup to pick from, its buttons under it.
+/// Bereich …" all up as well: a list of every subgroup to pick from, its buttons under it; and
+/// „Umfang …", whose weighting grows under its stepper.
 fn sheet_of(dialog: &Dialog) -> Sheet {
     match dialog {
-        Dialog::Switch | Dialog::CountFor { .. } => Sheet::Full,
+        Dialog::Switch | Dialog::CountFor { .. } | Dialog::Size { .. } => Sheet::Full,
         Dialog::Area(_) | Dialog::Areas => size_of(dialog).sheet(),
     }
 }
@@ -54,6 +55,7 @@ pub(super) fn DialogHost(ctx: StudyCtx) -> impl IntoView {
                 Dialog::Areas => view! { <overview::AreasSheet ctx/> }.into_any(),
                 Dialog::Switch => view! { <side::SwitchDialog ctx/> }.into_any(),
                 Dialog::CountFor { semester, id } => view! { <count::CountDialog ctx semester id/> }.into_any(),
+                Dialog::Size { semester, pid } => view! { <size::SizeDialog ctx semester pid/> }.into_any(),
             })}
         </Modal>
     }
