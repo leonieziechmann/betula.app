@@ -57,11 +57,13 @@ pub struct Core {
     pub touched: BTreeSet<Store>,
     /// A change too large for a batch went into the records: the next thing to send is a snapshot.
     pub snapshot_due: bool,
+    /// The records of the profile's devices (`super::devices`) changed since they were last kept.
+    pub devices_touched: bool,
 }
 
 impl Core {
     pub fn new(key: [u8; KEY], device: [u8; DEVICE]) -> Self {
-        Core { key, device, slot: 0, nr: 0, above: BTreeSet::new(), doc: Doc::default(), writer: None, seq: 0, last: Hlc::default(), outbox: Vec::new(), raw: Vec::new(), touched: BTreeSet::new(), snapshot_due: false }
+        Core { key, device, slot: 0, nr: 0, above: BTreeSet::new(), doc: Doc::default(), writer: None, seq: 0, last: Hlc::default(), outbox: Vec::new(), raw: Vec::new(), touched: BTreeSet::new(), snapshot_due: false, devices_touched: false }
     }
 
     /// The slot Phloem gave (on making the space, or in its welcome): the writer goes on after
@@ -110,6 +112,25 @@ impl Core {
         true
     }
 
+    /// A record outside the stores (`super::devices`): written with the device's clock, waiting to
+    /// be sent. `false` where it is so already, or before the device has its slot.
+    pub fn put(&mut self, key: &str, val: Option<String>, wall: u64, mut id: impl FnMut() -> String) -> bool {
+        let Some(writer) = self.writer.as_mut() else { return false };
+        let Some(op) = writer.put(&mut self.doc, key, val, wall) else { return false };
+        self.seq = writer.seq();
+        self.last = writer.last();
+        self.devices_touched |= key.starts_with(super::devices::PREFIX);
+        for batch in codec::batches(&[op], MAX_BATCH) {
+            self.outbox.push(Pending { id: id(), batch });
+        }
+        true
+    }
+
+    /// The records of the profile's devices, `(key, value)`.
+    pub fn device_records(&self) -> Vec<(String, String)> {
+        self.doc.live_with(super::devices::PREFIX).filter_map(|(key, e)| Some((key.to_string(), e.val.clone()?))).collect()
+    }
+
     /// Writes of another device (or this one's, back from Phloem): into the records. How many
     /// were new.
     pub fn apply(&mut self, ops: &[Op]) -> usize {
@@ -127,6 +148,7 @@ impl Core {
                 if let Some(store) = Store::of_record(&op.key) {
                     self.touched.insert(store);
                 }
+                self.devices_touched |= op.key.starts_with(super::devices::PREFIX);
             }
         }
         fresh
@@ -139,6 +161,7 @@ impl Core {
             if let Some(store) = Store::of_record(&key) {
                 self.touched.insert(store);
             }
+            self.devices_touched |= key.starts_with(super::devices::PREFIX);
         }
         if let Some(writer) = &self.writer {
             // Its clocks count as seen: the writer goes on after them.
