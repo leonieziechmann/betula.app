@@ -533,8 +533,9 @@ pub struct Input<'a> {
 pub enum Subject {
     Module { id: String },
     /// A row of a plan without a module, put into the semester (a placeholder, `pid`) or done
-    /// there without one (`q` alone). `span` and `credits` as the placeholder keeps them.
-    Row { pid: Option<u32>, program_id: String, caption: String, ord: i64, name: String, span: (u8, u8), credits: Option<String> },
+    /// there without one (`q` alone). `span` and `credits` as the placeholder keeps them, `size`
+    /// what the student set for it (`Placeholder::size`).
+    Row { pid: Option<u32>, program_id: String, caption: String, ord: i64, name: String, span: (u8, u8), credits: Option<String>, size: Option<String> },
 }
 
 /// One module or row of a semester.
@@ -543,9 +544,10 @@ pub struct Item {
     pub subject: Subject,
     /// The catalog's title of a module, else the plan's name of it; a row's name.
     pub name: String,
-    /// What it is worth: the plan's, else the catalog's; for a row of a range the least it takes.
+    /// What it is worth: the plan's, else the catalog's; for a row what it asks in the semester
+    /// (its `size`, else the least of a range).
     pub credits: Option<f64>,
-    /// A row of a range of credits („10–24").
+    /// A row of a range of credits („10–24") for which the student set nothing.
     pub range: bool,
     pub kind: Option<ModuleKind>,
     /// The area it counts towards (`Study::progress`).
@@ -565,8 +567,17 @@ pub struct Item {
     pub over: f64,
     /// The Fachsemester the Regelstudienplan puts it into.
     pub plan_fs: Option<u8>,
-    /// The modules that fill a row (`Planned::fills`): then they count, not the row.
+    /// The modules of its semester that fill a row (`Planned::fills`): they count, the row only
+    /// what they leave of it (`counted`). A row they fill, what they hold reaching what it asks
+    /// (one module of 8 a row of 6), is no item of its semester: it stands no more where they
+    /// stand (owner, 2026-11-09: „dass die verschwinden, wenn die voll erfüllt sind … Erst, wenn
+    /// man das modul wieder entfernt soll der wieder zu sehen sein").
     pub fillers: Vec<String>,
+    /// What its fillers hold, by the credits they state.
+    pub filled: f64,
+    /// A module that fills a row of its semester: that row's name („Anwendungsfach"), which it
+    /// carries where the row stands no more.
+    pub fills: Option<String>,
     /// The student let it count where the plan does not put it (owner, 2026-11-08: „jedes modul zu
     /// jedem möglichen bereich zuzuordnen … dass es angezeigt wird, wenn man das gemacht hat"): the
     /// row it counts for (`Planned::counts`, `Planned::fills`) lists modules and not this one, or
@@ -591,13 +602,22 @@ impl Item {
         }
     }
 
-    /// The credits it counts, in its area and in its semester: its own, none for a row that
-    /// modules fill (`fillers`), which count instead of it.
+    /// The credits it counts, in its area and in its semester: its own; for a row that modules
+    /// fill (`fillers`), which count themselves, what they leave of it („Fachübergreifendes
+    /// Studium" of 6 with a module of 3: 3).
     pub fn counted(&self) -> Option<f64> {
         if self.fillers.is_empty() {
-            self.credits
-        } else {
-            None
+            return self.credits;
+        }
+        self.credits.map(|need| need - self.filled).filter(|rest| *rest > EPSILON)
+    }
+
+    /// What it still asks of what its fillers do not hold: for a row that modules fill part of,
+    /// the bar „3 / 6 LP" (`filled` of `credits`).
+    pub fn rest(&self) -> Option<f64> {
+        match self.subject {
+            Subject::Row { .. } => self.credits.map(|need| (need - self.filled).max(0.0)),
+            Subject::Module { .. } => None,
         }
     }
 }
@@ -724,6 +744,46 @@ pub fn credits_range(text: &str) -> Option<(f64, f64)> {
     }
 }
 
+/// What a placeholder asks in its semester (owner, 2026-11-09: „wenn man ein 8lp modul hat und das
+/// in dem bereich angerechnet wird, dann ist das natürlich erfüllt"): what the student set
+/// (`Placeholder::size`), else what its row says, the least of a range; and whether that is a range
+/// nobody narrowed.
+pub fn asks(p: &Placeholder) -> (Option<f64>, bool) {
+    need_of(p.credits.as_deref(), p.size.as_deref())
+}
+
+fn need_of(credits: Option<&str>, size: Option<&str>) -> (Option<f64>, bool) {
+    if let Some(size) = size.and_then(credits_range) {
+        return (Some(size.0), false);
+    }
+    credits.and_then(credits_range).map_or((None, false), |(low, high)| (Some(low), high > low))
+}
+
+/// The modules of semester `at` that fill placeholder `pid`, what they hold by the credits they
+/// state (`credits`), and whether that is what it asks (`need`): a row that states nothing, or a
+/// module that states nothing, is held by any module the student put into it.
+fn held_by(doc: &PlanDoc, pid: Option<u32>, at: SemesterKey, need: Option<f64>, credits: &dyn Fn(&str) -> Option<f64>) -> (Vec<String>, f64, bool) {
+    let fillers: Vec<&studyplan::Planned> = pid.map(|pid| doc.fillers(pid).into_iter().filter(|m| m.semester == at).collect()).unwrap_or_default();
+    let held: Option<f64> = fillers.iter().map(|m| credits(&m.module_id)).sum();
+    let full = !fillers.is_empty()
+        && match (need, held) {
+            (Some(need), Some(held)) => held + EPSILON >= need,
+            _ => true,
+        };
+    (fillers.iter().map(|m| m.module_id.clone()).collect(), held.unwrap_or(0.0), full)
+}
+
+/// Whether the modules that fill placeholder `p` in its semester hold what it asks (`asks`), each
+/// worth what `credits` says: then it is theirs and stands no more as an item of its own.
+pub fn is_full(doc: &PlanDoc, p: &Placeholder, credits: &dyn Fn(&str) -> Option<f64>) -> bool {
+    held_by(doc, Some(p.pid), p.semester, asks(p).0, credits).2
+}
+
+/// What a module is worth by the catalog's rows `rows`, for `is_full` where the plan is not at hand.
+pub fn catalog_credits(rows: &[CatalogRow]) -> impl Fn(&str) -> Option<f64> + '_ {
+    move |id: &str| rows.iter().find(|row| row.id == id).and_then(|row| row.credits)
+}
+
 /// The study of `input`.
 pub fn study(input: &Input) -> Study {
     let start = input.start;
@@ -774,6 +834,14 @@ pub fn study(input: &Input) -> Study {
             over: 0.0,
             plan_fs: row.map(|row| row.first),
             fillers: Vec::new(),
+            filled: 0.0,
+            fills: doc
+                .modules
+                .iter()
+                .find(|m| m.semester == s && m.module_id == id)
+                .and_then(|m| m.fills)
+                .and_then(|pid| doc.placeholders.iter().find(|p| p.pid == pid && p.semester == s))
+                .map(|p| p.name.clone()),
             exception: false,
         }
     };
@@ -789,24 +857,31 @@ pub fn study(input: &Input) -> Study {
             unoffered: !offer.offered(s),
         }
     };
-    // A placeholder that modules fill is done where they are passed, all of them there (as the
-    // Regelstudienplan's view has it, `choices`): its own mark is not needed then. Until Folia
-    // 1.70.1 it counted as not passed in a semester that is over and came back as a Wiederholer
-    // beside its passed module.
-    let filled_passed = |pid: Option<u32>, at: SemesterKey| {
-        let fillers: Vec<&studyplan::Planned> = pid.map(|pid| doc.fillers(pid).into_iter().filter(|m| m.semester == at).collect()).unwrap_or_default();
-        !fillers.is_empty() && fillers.iter().all(|m| doc.passed_in(&m.module_id) == Some(at))
+    // What a module is worth: the plan's, else the catalog's.
+    let module_credits = |id: &str| -> Option<f64> {
+        module_rows.get(id).and_then(|row| row.entry.credits.or(row.entry.min_credits)).or(catalog.get(id).and_then(|row| row.credits))
     };
-    let row_item = |pid: Option<u32>, program_id: &str, caption: &str, ord: i64, name: &str, span: (u8, u8), credits: Option<String>, kind: Option<&str>, s: SemesterKey| -> Item {
-        let (low, high) = credits.as_deref().and_then(credits_range).map_or((None, false), |(low, high)| (Some(low), high > low));
+    let fill = |pid: Option<u32>, at: SemesterKey, need: Option<f64>| held_by(doc, pid, at, need, &module_credits);
+    // A placeholder that modules fill is done where they hold what it asks and are passed, all of
+    // them there (as the Regelstudienplan's view has it, `choices`): its own mark is not needed
+    // then. Until Folia 1.70.1 it counted as not passed in a semester that is over and came back as
+    // a Wiederholer beside its passed module.
+    let filled_passed = |p: &Placeholder, at: SemesterKey| {
+        let (fillers, _, full) = fill(Some(p.pid), at, asks(p).0);
+        full && fillers.iter().all(|id| doc.passed_in(id) == Some(at))
+    };
+    let row_item = |p: Option<&Placeholder>, program_id: &str, caption: &str, ord: i64, name: &str, span: (u8, u8), credits: Option<String>, kind: Option<&str>, s: SemesterKey| -> (Item, bool) {
+        let pid = p.map(|p| p.pid);
+        let size = p.and_then(|p| p.size.clone());
+        let (need, range) = need_of(credits.as_deref(), size.as_deref());
         let done = doc.done_row(program_id, ord).map(|done| done.semester);
-        let fillers: Vec<String> = pid.map(|pid| doc.fillers(pid).into_iter().filter(|m| m.semester == s).map(|m| m.module_id.clone()).collect()).unwrap_or_default();
-        let passed = done == Some(s) || filled_passed(pid, s);
-        Item {
-            subject: Subject::Row { pid, program_id: program_id.to_string(), caption: caption.to_string(), ord, name: name.to_string(), span, credits },
+        let (fillers, filled, full) = fill(pid, s, need);
+        let passed = done == Some(s) || p.is_some_and(|p| filled_passed(p, s));
+        let item = Item {
+            subject: Subject::Row { pid, program_id: program_id.to_string(), caption: caption.to_string(), ord, name: name.to_string(), span, credits, size },
             name: name.to_string(),
-            credits: low,
-            range: high,
+            credits: need,
+            range,
             kind: kind.and_then(|code| Code::<ModuleKind>::parse(code).known()),
             area: None,
             passed,
@@ -814,7 +889,7 @@ pub fn study(input: &Input) -> Study {
             retake: doc
                 .placeholders
                 .iter()
-                .filter(|p| p.program_id == program_id && p.ord == ord && p.semester < s && done != Some(p.semester) && !filled_passed(Some(p.pid), p.semester))
+                .filter(|p| p.program_id == program_id && p.ord == ord && p.semester < s && done != Some(p.semester) && !filled_passed(p, p.semester))
                 .map(|p| p.semester)
                 .max(),
             again: doc
@@ -832,8 +907,11 @@ pub fn study(input: &Input) -> Study {
             over: 0.0,
             plan_fs: (span.0 > 0).then_some(span.0),
             fillers,
+            filled,
+            fills: None,
             exception: false,
-        }
+        };
+        (item, full)
     };
 
     let mut semesters = Vec::new();
@@ -844,14 +922,18 @@ pub fn study(input: &Input) -> Study {
             items.push(module_item(&passed.module_id, s));
         }
         for p in doc.placeholders.iter().filter(|p| p.semester == s) {
-            items.push(row_item(Some(p.pid), &p.program_id, &p.caption, p.ord, &p.name, p.span, p.credits.clone(), p.kind.as_deref(), s));
+            let (item, full) = row_item(Some(p), &p.program_id, &p.caption, p.ord, &p.name, p.span, p.credits.clone(), p.kind.as_deref(), s);
+            // Full, it is its modules' („für Anwendungsfach", `Item::fills`).
+            if !full {
+                items.push(item);
+            }
         }
         for done in doc.done_rows.iter().filter(|q| q.semester == s) {
             if !doc.placeholders.iter().any(|p| p.semester == s && p.program_id == done.program_id && p.ord == done.ord) {
                 let row = rows.iter().find(|row| row.variant.full == done.caption && row.entry.ord == done.ord);
                 let span = row.map_or((0, 0), |row| (row.first, row.last));
                 let credits = row.and_then(|row| plan::credits_of(row.entry));
-                items.push(row_item(None, &done.program_id, &done.caption, done.ord, &done.name, span, credits, None, s));
+                items.push(row_item(None, &done.program_id, &done.caption, done.ord, &done.name, span, credits, None, s).0);
             }
         }
         // What is taken again first; the rest keeps the order it was put in.
@@ -981,12 +1063,12 @@ pub fn study(input: &Input) -> Study {
         item.area = Some(target);
         item.over = credits - counted;
     }
-    // A row that modules fill counts by them, as in the areas: „Anwendungsfach" with the module
-    // chosen for it is that module's 6 LP, not 12.
+    // A row that modules fill counts by them, as in the areas, and with what they leave of it:
+    // „Anwendungsfach" with the module chosen for it is that module's 6 LP, not 12.
     for semester in &mut semesters {
         semester.credits = semester.items.iter().filter_map(Item::counted).sum();
         semester.passed = semester.items.iter().filter(|item| item.passed).filter_map(Item::counted).sum();
-        semester.partial = semester.items.iter().any(|item| item.fillers.is_empty() && (item.credits.is_none() || item.range));
+        semester.partial = semester.items.iter().any(|item| item.counted().is_some() && item.range || item.fillers.is_empty() && item.credits.is_none());
     }
 
     // What was not passed and is not planned again.
@@ -1159,14 +1241,16 @@ pub fn add(doc: &mut PlanDoc, input: &Input, s: SemesterKey, picks: &[Pick], at:
     added
 }
 
-/// The placeholders of the plan rows `rows` (each its plan's caption and `ord`) that no module of
-/// their own semester fills yet, by semester and then in the order of `rows`: what a module chosen
-/// for one of those rows fills (`add_for`; the catalog of a choice, `fill=p<pid>`).
-pub fn open_placeholders<'a>(doc: &'a PlanDoc, program_id: &str, rows: &[(String, i64)]) -> Vec<&'a Placeholder> {
+/// The placeholders of the plan rows `rows` (each its plan's caption and `ord`) that the modules of
+/// their own semester do not fill yet (`is_full`, each module worth what `credits` says), by
+/// semester and then in the order of `rows`: what a module chosen for one of those rows fills
+/// (`add_for`; the catalog of a choice, `fill=p<pid>`). A row of 12 with a module of 6 in it takes
+/// another (owner, 2026-11-09: „Manchmal muss man da ja mehrere module unterbringen").
+pub fn open_placeholders<'a>(doc: &'a PlanDoc, program_id: &str, rows: &[(String, i64)], credits: &dyn Fn(&str) -> Option<f64>) -> Vec<&'a Placeholder> {
     let mut open: Vec<(SemesterKey, usize, &Placeholder)> = doc
         .placeholders
         .iter()
-        .filter(|p| p.program_id == program_id && !doc.modules.iter().any(|m| m.semester == p.semester && m.fills == Some(p.pid)))
+        .filter(|p| p.program_id == program_id && !is_full(doc, p, credits))
         .filter_map(|p| rows.iter().position(|(caption, ord)| p.caption == *caption && p.ord == *ord).map(|at| (p.semester, at, p)))
         .collect();
     open.sort_by_key(|(semester, at, _)| (*semester, *at));
@@ -1180,7 +1264,7 @@ pub fn open_placeholders<'a>(doc: &'a PlanDoc, program_id: &str, rows: &[(String
 /// without such a placeholder the module counts where the tree places it, as any other. As `add`
 /// otherwise; how many it added.
 pub fn add_for(doc: &mut PlanDoc, input: &Input, s: SemesterKey, id: &str, rows: &[(String, i64)], at: u64) -> usize {
-    let fills = open_placeholders(doc, input.program_id, rows).into_iter().find(|p| p.semester == s).map(|p| p.pid);
+    let fills = open_placeholders(doc, input.program_id, rows, &catalog_credits(input.rows)).into_iter().find(|p| p.semester == s).map(|p| p.pid);
     let added = add(doc, input, s, &[Pick::Module { id: id.to_string(), from_plan: false }], at);
     // Moved here from a later semester, it counts for no placeholder there any more.
     if added > 0 {
@@ -1633,7 +1717,10 @@ mod tests {
     fn catalog() -> Vec<CatalogRow> {
         let mut fues = offered("14011", "both", 6.0);
         fues.is_fues = true;
+        let mut small = offered("14013", "both", 3.0);
+        small.is_fues = true;
         vec![
+            small,
             offered("11001", "winter", 6.0),
             offered("11002", "winter", 6.0),
             offered("11003", "summer", 8.0),
@@ -2065,21 +2152,94 @@ mod tests {
         let semester = study_now.semester(key("2026W")).unwrap();
         assert_eq!((semester.credits, semester.partial), (6.0 + 4.0, true), "the least of „6–14“, and that it is a range");
         // A module filling the choice counts instead of it, in the area and in the semester: the
-        // row is the module's 6, not 6 besides it, and its range says nothing more.
+        // row is the module's 6, not 6 besides it, and its range says nothing more. The module
+        // holds what the row asks (the least of „6–14"): the row stands no more, the module
+        // carries its name.
         let pid = doc.placeholders[0].pid;
         doc.plan(key("2026W"), "12330", 2, Some(pid));
         let filled = study(&input(&w, &doc, "2025W", "2025W"));
         let semester = filled.semester(key("2026W")).unwrap();
-        assert_eq!(semester.items[1].fillers, ["12330"]);
-        assert_eq!((semester.items[1].counted(), semester.items[0].counted()), (None, Some(6.0)));
+        assert_eq!(keys(&filled, "2026W"), ["m:12330", "r::8"]);
+        assert_eq!(semester.items[0].fills.as_deref(), Some("Komplex Grundlagen der Informatik"));
         assert_eq!(filled.progress[3].planned, 4.0 + 6.0);
         assert_eq!((semester.credits, semester.partial), (6.0 + 4.0, false));
+        // Taken out again, the row stands again as it was.
+        let mut out = doc.clone();
+        out.unplan(key("2026W"), "12330", &[]);
+        assert_eq!(keys(&study(&input(&w, &out, "2025W", "2025W")), "2026W"), ["r::6", "r::8"]);
         // Done, the row is passed where it was done.
-        let item = filled.semester(key("2026W")).unwrap().items[2].clone();
+        let item = semester.items[1].clone();
         assert!(set_passed(&mut doc, key("2026W"), &item, true));
         let done = study(&input(&w, &doc, "2025W", "2025W"));
-        assert!(done.semester(key("2026W")).unwrap().items[2].passed);
+        assert!(done.semester(key("2026W")).unwrap().items[1].passed);
         assert_eq!(done.progress[3].passed, 4.0);
+    }
+
+    /// A placeholder is a place for modules (owner, 2026-11-09: „dass die verschwinden, wenn die
+    /// voll erfüllt sind … Manchmal muss man da ja mehrere module unterbringen. Dann soll der
+    /// platzhalter azeigen, wie viel progress da schon eingeplant ist"): it stands, with what its
+    /// modules hold, until they hold what it asks, a module of more credits than it asks at once;
+    /// meanwhile it counts what they leave of it. A range asks its least, or what the student set.
+    #[test]
+    fn a_placeholder_stands_until_what_fills_it_holds_what_it_asks() {
+        let w = world();
+        let mut doc = PlanDoc::default();
+        let row = |ord: i64| Pick::Row { caption: String::new(), ord };
+        let before = doc.clone();
+        assert_eq!(add(&mut doc, &input(&w, &before, "2025W", "2025W"), key("2026S"), &[row(5), row(8)], 1), 2);
+        let pid = |doc: &PlanDoc, ord: i64| doc.placeholders.iter().find(|p| p.ord == ord).map(|p| p.pid).unwrap();
+        let fues = pid(&doc, 5);
+        // The FÜS asks 6; a module of 3 holds half of it: it stands with 3 of 6 and counts 3.
+        assert!(doc.plan(key("2026S"), "14013", 2, Some(fues)));
+        let half = study(&input(&w, &doc, "2025W", "2025W"));
+        let semester = half.semester(key("2026S")).unwrap();
+        assert_eq!(keys(&half, "2026S"), ["m:14013", "r::5", "r::8"]);
+        let place = &semester.items[1];
+        assert_eq!((place.fillers.as_slice(), place.filled, place.credits, place.counted(), place.rest()), (["14013".to_string()].as_slice(), 3.0, Some(6.0), Some(3.0), Some(3.0)));
+        assert_eq!(semester.items[0].fills.as_deref(), Some("Fachübergreifendes Studium"));
+        assert_eq!(semester.credits, 3.0 + 3.0 + 4.0);
+        let fues_area = half.progress.iter().position(|p| p.area.kind == AreaKind::Fues).unwrap();
+        assert_eq!(half.progress[fues_area].planned, 6.0, "the module's 3 and the 3 the place still asks");
+        // It takes another module: the FÜS's next one fills it, and then it stands no more.
+        let credits = catalog_credits(&w.rows);
+        assert_eq!(open_placeholders(&doc, PROGRAM, &[(String::new(), 5)], &credits).iter().map(|p| p.pid).collect::<Vec<_>>(), [fues]);
+        let before = doc.clone();
+        assert_eq!(add_for(&mut doc, &input(&w, &before, "2025W", "2025W"), key("2026S"), "14011", &[(String::new(), 5)], 3), 1);
+        let full = study(&input(&w, &doc, "2025W", "2025W"));
+        assert_eq!(keys(&full, "2026S"), ["m:14013", "m:14011", "r::8"]);
+        assert!(open_placeholders(&doc, PROGRAM, &[(String::new(), 5)], &credits).is_empty());
+        assert_eq!((full.progress[fues_area].planned, full.progress[fues_area].over), (6.0, 3.0));
+        // One module taken out, it stands again with what is left in it.
+        let mut out = doc.clone();
+        out.unplan(key("2026S"), "14013", &[]);
+        let again = study(&input(&w, &out, "2025W", "2025W"));
+        assert_eq!(keys(&again, "2026S"), ["m:14011", "r::8"], "6 of 6: still full");
+        out.unplan(key("2026S"), "14011", &[]);
+        assert_eq!(keys(&study(&input(&w, &out, "2025W", "2025W")), "2026S"), ["r::5", "r::8"]);
+        // A module of more than the row asks fills it at once: 6 for the 4 of the seminar.
+        assert!(doc.plan(key("2026S"), "12330", 4, Some(pid(&doc, 8))));
+        assert_eq!(keys(&study(&input(&w, &doc, "2025W", "2025W")), "2026S"), ["m:14013", "m:14011", "m:12330"]);
+
+        // A range asks its least, or what the student set for it in its semester.
+        let mut doc = PlanDoc::default();
+        let before = doc.clone();
+        assert_eq!(add(&mut doc, &input(&w, &before, "2025W", "2025W"), key("2026W"), &[row(7)], 1), 1);
+        let komplex = pid(&doc, 7);
+        assert_eq!(asks(&doc.placeholders[0]), (Some(6.0), true));
+        assert!(doc.set_size(komplex, Some(12.0)));
+        assert_eq!(asks(&doc.placeholders[0]), (Some(12.0), false));
+        assert!(doc.plan(key("2026W"), "12330", 2, Some(komplex)));
+        let sized = study(&input(&w, &doc, "2025W", "2025W"));
+        let semester = sized.semester(key("2026W")).unwrap();
+        assert_eq!(keys(&sized, "2026W"), ["m:12330", "r::7"], "6 of the 12 set");
+        assert_eq!((semester.items[1].rest(), semester.credits, semester.partial), (Some(6.0), 12.0, false));
+        assert!(doc.plan(key("2026W"), "11003", 3, Some(komplex)));
+        assert_eq!(keys(&study(&input(&w, &doc, "2025W", "2025W")), "2026W"), ["m:12330", "m:11003"], "14 of 12");
+        // Kept as the p line's eleventh field, and taken away again.
+        assert!(doc.stored().lines().any(|line| line.starts_with("p\t") && line.ends_with("\tKomplex Praktische Informatik\t12")));
+        assert_eq!(PlanDoc::restored(&doc.stored()), doc);
+        assert!(doc.set_size(komplex, None));
+        assert!(!doc.stored().contains("Informatik\t12"));
     }
 
     /// A placeholder that a module fills is done where that module is passed: in a semester that is
@@ -2096,36 +2256,29 @@ mod tests {
         let pid = doc.placeholders[0].pid;
         assert!(doc.plan(key("2025W"), "12330", 2, Some(pid)));
         let row = |study: &Study| study.semester(key("2025W")).and_then(|semester| semester.items.iter().find(|item| matches!(item.subject, Subject::Row { .. })).cloned());
-        // Not passed: the module is the Wiederholer, alone.
+        // Not passed: the module is the Wiederholer, alone; the place it fills is its module's.
         let failed = study(&input(&w, &doc, "2025W", "2026W"));
-        let placeholder = row(&failed).unwrap();
-        assert!(placeholder.failed && !placeholder.passed);
+        assert_eq!(row(&failed), None);
         assert_eq!(failed.retakes.iter().map(|retake| retake.item.key()).collect::<Vec<_>>(), ["m:12330"]);
         // Passed: the place is done there, nothing comes back.
         assert!(doc.pass(key("2025W"), "12330"));
         let input_now = input(&w, &doc, "2025W", "2026W");
         let passed = study(&input_now);
-        let placeholder = row(&passed).unwrap();
-        assert!(placeholder.passed && !placeholder.failed, "{placeholder:?}");
+        assert_eq!(row(&passed), None);
         assert!(passed.retakes.is_empty(), "{:?}", passed.retakes);
         assert!(open_lines(&input_now, &passed).iter().all(|line| line.failed_in.is_none()));
         // The row's credits count once, by its module.
         assert_eq!(passed.semester(key("2025W")).unwrap().passed, 6.0);
-        // Its mark is its module's: „Nicht mehr bestanden" at the place takes the module's away,
-        // „Als bestanden markieren" gives it back.
+        // Its mark is its module's: a place its modules fill only in part stands, and „Als
+        // bestanden markieren" at it marks them, „Nicht mehr bestanden" takes their mark away.
         let mut marked = doc.clone();
-        assert!(set_passed(&mut marked, key("2025W"), &placeholder, false));
-        assert_eq!(marked.passed_in("12330"), None);
+        assert!(marked.set_size(pid, Some(12.0)));
         let open = row(&study(&input(&w, &marked, "2025W", "2026W"))).unwrap();
-        assert!(open.failed && !open.passed);
+        assert!(open.failed && !open.passed && open.filled == 6.0, "{open:?}");
+        assert!(set_passed(&mut marked, key("2025W"), &open, false));
+        assert_eq!(marked.passed_in("12330"), None);
         assert!(set_passed(&mut marked, key("2025W"), &open, true));
         assert_eq!(marked.passed_in("12330"), Some(key("2025W")));
-        assert!(row(&study(&input(&w, &marked, "2025W", "2026W"))).unwrap().passed);
-        // Not passed and the module taken again: the place comes again with it.
-        let mut again = doc.clone();
-        again.unpass("12330");
-        assert!(again.plan(key("2026S"), "12330", 3, None));
-        assert_eq!(row(&study(&input(&w, &again, "2025W", "2026W"))).unwrap().again, Some(key("2026S")));
     }
 
     /// „+ In WiSe 26/27" of a choice of the Wahlpflicht: the module fills a place of the choice
@@ -2145,10 +2298,11 @@ mod tests {
         // The choice of rows 7 and 6: its open places by semester, then in the order of its rows;
         // another program's rows and a row put in nowhere have none.
         let rows = vec![(String::new(), 7), (String::new(), 6)];
-        let open = |doc: &PlanDoc| open_placeholders(doc, PROGRAM, &rows).iter().map(|p| p.pid).collect::<Vec<_>>();
+        let credits = catalog_credits(&w.rows);
+        let open = |doc: &PlanDoc| open_placeholders(doc, PROGRAM, &rows, &credits).iter().map(|p| p.pid).collect::<Vec<_>>();
         assert_eq!(open(&doc), [pid(&doc, "2026W", 7), pid(&doc, "2026W", 6), pid(&doc, "2027S", 6)].map(Option::unwrap));
-        assert!(open_placeholders(&doc, "079-82-2015", &rows).is_empty());
-        assert!(open_placeholders(&doc, PROGRAM, &[(String::new(), 8)]).is_empty());
+        assert!(open_placeholders(&doc, "079-82-2015", &rows, &credits).is_empty());
+        assert!(open_placeholders(&doc, PROGRAM, &[(String::new(), 8)], &credits).is_empty());
 
         // Two modules for it in WiSe 2026/27 fill its two places there, the first first.
         let before = doc.clone();

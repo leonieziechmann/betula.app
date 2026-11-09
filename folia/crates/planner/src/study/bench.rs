@@ -233,7 +233,7 @@ pub(super) struct Model {
     pub fs: Option<u8>,
 }
 
-fn model_of(ctx: StudyCtx, s: SemesterKey) -> Option<Model> {
+pub(super) fn model_of(ctx: StudyCtx, s: SemesterKey) -> Option<Model> {
     ctx.with_input(|input, ready| {
         let study = &ready.study;
         let view = choices::plan_view(input, study);
@@ -947,7 +947,9 @@ fn group_catalog(ctx: StudyCtx, model: &Model, group: &Group, s: SemesterKey, t:
             variants::row_query(&source.program, variant, entry, &source.areas, t.locale).0
         };
         query.turnus = season_filter(s);
-        let fill = ctx.plan.and_then(|plan| plan.with_untracked(|doc| study::open_placeholders(doc, &source.program.id, &rows).into_iter().find(|p| p.semester == s).map(|p| p.pid)));
+        let fill = ctx.plan.and_then(|plan| {
+            plan.with_untracked(|doc| ctx.rows.with_untracked(|catalog| study::open_placeholders(doc, &source.program.id, &rows, &study::catalog_credits(catalog)).into_iter().find(|p| p.semester == s).map(|p| p.pid)))
+        });
         Some(CatalogUrl { query, page: 1, open: None, fill }.path())
     })
 }
@@ -1052,8 +1054,8 @@ fn plan_rows(ctx: StudyCtx, parts: Parts, model: &Model, s: SemesterKey, t: &'st
     rows.extend(
         reserved_of(ctx, model, s)
             .into_iter()
-            .filter(|(_, group)| group.and_then(|(area, kind)| model.groups.find(area, kind)).and_then(|at| model.groups.groups.get(at)).and_then(Group::choice).is_none_or(|choice| !listed.contains(&choice)))
-            .map(|(name, group)| reserved_card(ctx, name, group, t)),
+            .filter(|(_, group, _)| group.and_then(|(area, kind)| model.groups.find(area, kind)).and_then(|at| model.groups.groups.get(at)).and_then(Group::choice).is_none_or(|choice| !listed.contains(&choice)))
+            .map(|(name, group, held)| reserved_card(ctx, name, group, held, t)),
     );
     let plan_fs_of = |at: usize| model.view.lines.get(at).map(|line| (b.plan_fs)(&(t.study.fs)(line.first)));
     rows.extend(model.due.earlier.iter().filter(|at| still_open(ctx, model, **at, s)).filter_map(|at| plan_line(ctx, parts, model, *at, plan_fs_of(*at), s, t)));
@@ -1098,23 +1100,31 @@ fn take_action(ctx: StudyCtx, model: &Model, s: SemesterKey, fs: Option<&str>, t
     }
 }
 
-/// The placeholders stored in `s` that nothing fills („vorgemerkt"): each name, and the subgroup of
-/// its row.
-fn reserved_of(ctx: StudyCtx, model: &Model, s: SemesterKey) -> Vec<(String, Option<(usize, GroupKind)>)> {
-    ctx.plan
-        .map(|plan| {
-            plan.with_untracked(|doc| {
-                doc.placeholders
-                    .iter()
-                    .filter(|p| p.semester == s && doc.fillers(p.pid).is_empty())
-                    .map(|p| {
-                        let at = model.view.lines.iter().position(|line| line.caption == p.caption && line.ord == p.ord);
-                        (p.name.clone(), at.and_then(|at| group_of_line(model, at)))
-                    })
-                    .collect()
-            })
-        })
-        .unwrap_or_default()
+/// A placeholder stored in a semester that its modules do not fill yet („vorgemerkt"): its name,
+/// the subgroup of its row, and what its modules hold of what it asks where they hold some.
+type Reserved = (String, Option<(usize, GroupKind)>, Option<(f64, f64)>);
+
+/// The placeholders stored in `s` that their modules do not fill yet (`study::is_full`).
+fn reserved_of(ctx: StudyCtx, model: &Model, s: SemesterKey) -> Vec<Reserved> {
+    ctx.with_ready(|ready| {
+        let semester = ready.study.semester(s)?;
+        Some(
+            semester
+                .items
+                .iter()
+                .filter_map(|item| match &item.subject {
+                    Subject::Row { pid: Some(_), caption, ord, .. } => {
+                        let at = model.view.lines.iter().position(|line| line.caption == *caption && line.ord == *ord);
+                        let held = (!item.fillers.is_empty()).then(|| (item.filled, item.credits.unwrap_or(item.filled)));
+                        Some((item.name.clone(), at.and_then(|at| group_of_line(model, at)), held))
+                    }
+                    _ => None,
+                })
+                .collect(),
+        )
+    })
+    .flatten()
+    .unwrap_or_default()
 }
 
 /// „Plan übernehmen": the Pflicht of the Fachsemester into the semester, at once, with the note.
@@ -1544,7 +1554,9 @@ fn SemesterColumn(ctx: StudyCtx, parts: Parts) -> impl IntoView {
                     .iter()
                     .filter(|item| match &item.subject {
                         Subject::Module { .. } => true,
-                        Subject::Row { pid, .. } => pid.is_none() || !item.fillers.is_empty(),
+                        // A placeholder is no part of what is taken: it is kept for it, under
+                        // „Laut Plan" (`reserved_of`); one its modules fill stands no more.
+                        Subject::Row { pid, .. } => pid.is_none(),
                     })
                     .map(|item| (item.clone(), ready.area_name(item.area, t), ready.tone(item.area)))
                     .collect();
@@ -2243,7 +2255,7 @@ fn choice_card(ctx: StudyCtx, model: &Model, choice: usize, s: SemesterKey, t: &
     let (area_name, tone) = ctx.with_ready(|ready| (ready.area_name(Some(area), t), ready.tone(Some(area))))?;
     let fill = group_fill(model, group);
     let span = (b.plan_fs)(&(t.study.fs_span)(item.first, item.last));
-    let reserved = reserved_of(ctx, model, s).iter().any(|(_, of)| *of == Some((area, kind)));
+    let reserved = reserved_of(ctx, model, s).iter().any(|(_, of, _)| *of == Some((area, kind)));
     let name = model::short_name(&item.name);
     Some(
         view! {
@@ -2265,16 +2277,21 @@ fn choice_card(ctx: StudyCtx, model: &Model, choice: usize, s: SemesterKey, t: &
 }
 
 /// A placeholder reserved in the semester whose choice the root does not list: dashed as a choice
-/// is, „vorgemerkt", and › into the list of its row's subgroup.
-fn reserved_card(ctx: StudyCtx, name: String, group: Option<(usize, GroupKind)>, t: &'static Texts) -> AnyView {
+/// is, „vorgemerkt" or what its modules hold of it („3 von 6 LP eingeplant"), and › into the list
+/// of its row's subgroup.
+fn reserved_card(ctx: StudyCtx, name: String, group: Option<(usize, GroupKind)>, held: Option<(f64, f64)>, t: &'static Texts) -> AnyView {
     let b = &t.study_bench;
     let tone = group.and_then(|(area, _)| ctx.with_ready(|ready| ready.tone(Some(area)))).unwrap_or_default();
+    let line = match held {
+        Some((held, asks)) => (t.study.filled_of)(&n(held, t), &n(asks, t), false),
+        None => b.reserved_line.to_string(),
+    };
     match group {
         Some((area, kind)) => view! {
             <li class="st-wb-row choice" style=format!("--c: {tone}")>
                 <button class="st-wb-go" type="button" on:click=move |ev| into_group(ctx, area, kind, &ev)>
                     <span class="st-wb-ct"><b>{name}</b></span>
-                    <small><span class="st-wb-tag">{b.reserved_line}</span></small>
+                    <small><span class="st-wb-tag">{line}</span></small>
                 </button>
                 <Icon name="chevron-right" class="chev"/>
             </li>
@@ -2284,7 +2301,7 @@ fn reserved_card(ctx: StudyCtx, name: String, group: Option<(usize, GroupKind)>,
             <li class="st-wb-row choice">
                 <span class="st-wb-go">
                     <span class="st-wb-ct"><b>{name}</b></span>
-                    <small><span class="st-wb-tag">{b.reserved_line}</span></small>
+                    <small><span class="st-wb-tag">{line}</span></small>
                 </span>
             </li>
         }
@@ -2310,7 +2327,7 @@ pub(super) fn aim_of(ctx: StudyCtx) -> Option<BenchAim> {
     let (counts, fill, name): (Option<RowRef>, Option<u32>, Option<String>) = match group.as_ref().and_then(|group| group.choice().map(|choice| (group, choice))) {
         Some((group, choice)) => {
             let rows = model::rows_of(&model.view, group);
-            let fill = ctx.plan.and_then(|plan| plan.with(|doc| study::open_placeholders(doc, &program_id, &rows).into_iter().find(|p| p.semester == s).map(|p| p.pid)));
+            let fill = ctx.plan.and_then(|plan| plan.with(|doc| ctx.rows.with(|catalog| study::open_placeholders(doc, &program_id, &rows, &study::catalog_credits(catalog)).into_iter().find(|p| p.semester == s).map(|p| p.pid))));
             let name = model.view.choices.get(choice).map(|choice| choice.name.clone());
             (model::row_of(&model.view, choice, &program_id), fill, name)
         }

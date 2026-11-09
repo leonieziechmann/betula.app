@@ -24,7 +24,7 @@ fn termin(name: &str, weekday: u8) -> OwnTermin {
 }
 
 fn placeholder(s: &str, ord: i64, name: &str) -> Placeholder {
-    Placeholder { pid: 0, semester: key(s), program_id: "079-82-2008".to_string(), ord, span: (1, 1), credits: Some("6".to_string()), kind: Some("elective".to_string()), caption: String::new(), name: name.to_string() }
+    Placeholder { pid: 0, semester: key(s), program_id: "079-82-2008".to_string(), ord, span: (1, 1), credits: Some("6".to_string()), kind: Some("elective".to_string()), caption: String::new(), name: name.to_string(), size: None }
 }
 
 fn change(event: u32, fp: u32, scope: Scope, room: &str) -> Change {

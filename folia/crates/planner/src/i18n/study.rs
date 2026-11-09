@@ -241,9 +241,10 @@ pub struct Texts {
     /// … „nicht bestanden · wieder im WiSe 2026/27", „… noch nicht wieder eingeplant" …
     pub failed_again: fn(&str) -> String,
     pub failed_open: &'static str,
-    /// … „Platzhalter", „gefüllt mit Datenbanken" …
+    /// … „Platzhalter", „3 von 6 LP eingeplant" (a placeholder its modules fill in part; „3 von
+    /// mind. 10 LP" of a range) …
     pub placeholder: &'static str,
-    pub filled_with: fn(&str) -> String,
+    pub filled_of: fn(&str, &str, bool) -> String,
     pub no_area: &'static str,
     /// „Module hinzufügen", „Im Stundenplan öffnen".
     pub add_modules: &'static str,
@@ -544,7 +545,7 @@ pub const DE: Texts = Texts {
     failed_again: |semester| format!("nicht bestanden · wieder im {semester}"),
     failed_open: "nicht bestanden · noch nicht wieder eingeplant",
     placeholder: "Platzhalter",
-    filled_with: |names| format!("gefüllt mit {names}"),
+    filled_of: |held, asks, least| format!("{held} von {}{asks} LP eingeplant", if least { "mind. " } else { "" }),
     no_area: "ohne Bereich",
     add_modules: "Module hinzufügen",
     in_timetable: "Im Stundenplan öffnen",
@@ -809,7 +810,7 @@ pub const EN: Texts = Texts {
     failed_again: |semester| format!("not passed · again in {semester}"),
     failed_open: "not passed · not planned again yet",
     placeholder: "Placeholder",
-    filled_with: |names| format!("filled with {names}"),
+    filled_of: |held, asks, least| format!("{held} of {}{asks} CP planned", if least { "at least " } else { "" }),
     no_area: "no area",
     add_modules: "Add modules",
     in_timetable: "Open in the timetable",

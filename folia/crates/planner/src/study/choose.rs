@@ -206,9 +206,9 @@ fn rows_of(view: &PlanView, choice: &Choice) -> Vec<(String, i64)> {
     choice.lines.iter().filter_map(|at| view.lines.get(*at)).map(|line| (line.caption.clone(), line.ord)).collect()
 }
 
-/// The placeholders of `rows` from `now` on that no module fills, in order.
+/// The placeholders of `rows` from `now` on that their modules do not fill yet, in order.
 fn open_places(input: &Input, rows: &[(String, i64)], now: SemesterKey) -> Vec<(u32, SemesterKey)> {
-    study::open_placeholders(input.doc, input.program_id, rows).into_iter().filter(|p| p.semester >= now).map(|p| (p.pid, p.semester)).collect()
+    study::open_placeholders(input.doc, input.program_id, rows, &study::catalog_credits(input.rows)).into_iter().filter(|p| p.semester >= now).map(|p| (p.pid, p.semester)).collect()
 }
 
 /// An entry of one choice.

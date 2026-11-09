@@ -14,8 +14,9 @@
 //! choice in front: `bench::choose_for`), not passed red with ✕, a retake with ↻, not offered ⚠,
 //! beyond need hatched. ▸ unfolds an area into a lane per module, the rows of the plan of one name
 //! one lane (`RowOf`), a retake tied to its first try by an arrow; „Alle aufklappen" and „Alle
-//! zuklappen" over the plan, what is unfolded kept (`OPEN_KEY`). A row of the plan that a module
-//! fills is carried by that module („für „Anwendungsfach“"). The semesters before the current one
+//! zuklappen" over the plan, what is unfolded kept (`OPEN_KEY`). A row of the plan that its modules
+//! fill is carried by them („für „Anwendungsfach“"); one they fill in part is a piece of what it
+//! still keeps. The semesters before the current one
 //! stand open; „Bisher zuklappen" folds them into one column. What unfolds or folds moves, quiet
 //! and quick (owner, 2026-11-05: „animationen für das auf und zuklappen. unauffällig undd snappy
 //! einfach so, dass das leicher zu verstehen ist"): an area's lanes grow in, pushing the areas under
@@ -277,6 +278,7 @@ fn title_of(ready: &Ready, item: &Item, s: SemesterKey, when: When, fills: Optio
     let st = &t.study;
     let mut parts = vec![item.name.clone()];
     let credits = match &item.subject {
+        Subject::Row { size: Some(size), .. } => Some(folia_plans::plan::credits_in(size, t.locale)),
         Subject::Row { credits: Some(text), .. } => Some(folia_plans::plan::credits_in(text, t.locale)),
         _ => item.credits.map(|credits| n(credits, t)),
     };
@@ -291,7 +293,11 @@ fn title_of(ready: &Ready, item: &Item, s: SemesterKey, when: When, fills: Optio
             None => st.failed_open.to_string(),
         }
     } else if matches!(item.subject, Subject::Row { .. }) {
-        st.placeholder.to_string()
+        match item.credits.filter(|_| !item.fillers.is_empty()) {
+            // Modules fill it in part: how far they are.
+            Some(asks) => format!("{} · {}", st.placeholder, (st.filled_of)(&n(item.filled, t), &n(asks, t), item.range)),
+            None => st.placeholder.to_string(),
+        }
     } else if when == When::Now {
         st.bar_running.to_string()
     } else {
@@ -318,22 +324,16 @@ fn title_of(ready: &Ready, item: &Item, s: SemesterKey, when: When, fills: Optio
     parts.join(" · ")
 }
 
-/// The rows of the plan that modules fill in a semester (`Item::fillers`): a module's id and the
+/// The rows of the plan that modules fill in a semester (`Item::fills`): a module's id and the
 /// name of the row it fills.
 fn filled_rows(items: &[Item]) -> BTreeMap<&str, &str> {
-    items
-        .iter()
-        .filter(|item| matches!(item.subject, Subject::Row { .. }))
-        .flat_map(|row| row.fillers.iter().map(move |id| (id.as_str(), row.name.as_str())))
-        .collect()
+    items.iter().filter_map(|item| Some((item.module_id()?, item.fills.as_deref()?))).collect()
 }
 
-/// An item as a piece: a row that modules fill is none (its modules carry it).
+/// An item as a piece. A row its modules fill is none (`study::Item::fills`: its modules carry it);
+/// one they fill in part is a piece of what it still keeps.
 fn piece_of(ready: &Ready, item: &Item, s: SemesterKey, when: When, fills: Option<&str>, abbrevs: &BTreeMap<String, String>, t: &Texts) -> Option<Piece> {
     let row = matches!(item.subject, Subject::Row { .. });
-    if row && !item.fillers.is_empty() {
-        return None;
-    }
     let label = match item.module_id() {
         Some(id) => abbrevs.get(id).cloned().unwrap_or_else(|| short_label(short_title(&item.name))),
         None if item.kind == Some(ModuleKind::Fues) => t.study.fues.to_string(),
@@ -355,7 +355,7 @@ fn piece_of(ready: &Ready, item: &Item, s: SemesterKey, when: When, fills: Optio
         semester: s,
         label,
         title: title_of(ready, item, s, when, fills, t),
-        grow: item.credits.unwrap_or(NO_CREDITS).max(1.0),
+        grow: item.counted().or(item.credits).unwrap_or(NO_CREDITS).max(1.0),
         fill,
         now: when == When::Now,
         retake: item.retake.is_some(),
