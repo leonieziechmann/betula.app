@@ -37,6 +37,137 @@ pub const MAX_NAME: usize = 60;
 pub const MAX_NOTE: usize = 4000;
 /// How much text the store reads at most (the caps above, with room).
 const MAX_STORED: usize = 2 * 1024 * 1024;
+/// How many shares of the Merkliste and its collections a profile keeps at most (Phloem keeps 32
+/// parts per space, the calendars' among them).
+pub const MAX_LIST_SHARES: usize = 32;
+/// How many lists shared with it a profile follows at most.
+pub const MAX_FOLLOWED: usize = 16;
+/// How long „Für wen" may be, in characters (as a calendar's share, `folia_plans::shares`).
+pub const MAX_SHARE_NAME: usize = 40;
+
+/// A share of the Merkliste or of one of its collections (Betula Sync's „Teilen", as of a calendar,
+/// `folia_plans::shares::Share`): on every device of the profile, which renews its part when the
+/// list changes. A line `s` of the store, a record of its own.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ListShare {
+    /// The part's id (16 bytes, base64url) where it stays current; the parcel's where it is a copy
+    /// for one person.
+    pub id: String,
+    /// The collection shared; 0: the whole Merkliste.
+    pub collection: u32,
+    /// When it was made, in seconds.
+    pub made: u64,
+    /// It stays current (a part at Phloem).
+    pub live: bool,
+    /// For one person: a one-time link, while its parcel waits.
+    pub once: bool,
+    /// The notes come along.
+    pub notes: bool,
+    /// The part's key (32 bytes), where it stays current.
+    pub key: String,
+    /// The one-time link's parcel (id ‖ key) while it waits; empty once it was opened.
+    pub parcel: String,
+    /// „Für wen", for the list „Geteilt" alone.
+    pub name: String,
+}
+
+impl ListShare {
+    /// Its part's link (id ‖ key), where it stays current.
+    pub fn link(&self) -> Option<String> {
+        if !self.live {
+            return None;
+        }
+        folia_plans::shares::join_link(&self.id, &self.key)
+    }
+
+    fn line(&self) -> String {
+        let flags: String = [(self.live, 'l'), (self.once, 'o'), (self.notes, 'n')].iter().filter(|(on, _)| *on).map(|(_, c)| *c).collect();
+        let dash = |text: &str| if text.is_empty() { "-".to_string() } else { text.to_string() };
+        format!("s\t{}\t{}\t{}\t{}\t{}\t{}\t{}", self.id, self.collection, self.made, dash(&flags), dash(&self.key), dash(&self.parcel), self.name)
+    }
+
+    fn read(line: &str) -> Option<ListShare> {
+        let f: Vec<&str> = line.splitn(8, '\t').collect();
+        let ["s", id, collection, made, flags, key, parcel, name] = f.as_slice() else { return None };
+        let undash = |text: &str| if text == "-" { String::new() } else { text.to_string() };
+        let share = ListShare {
+            id: id.to_string(),
+            collection: collection.parse().ok()?,
+            made: made.parse().ok()?,
+            live: flags.contains('l'),
+            once: flags.contains('o'),
+            notes: flags.contains('n'),
+            key: undash(key),
+            parcel: undash(parcel),
+            name: clean_name(name).chars().take(MAX_SHARE_NAME).collect(),
+        };
+        let b64 = |text: &str, bytes: usize| folia_plans::shares::is_b64(text, bytes);
+        let fine = b64(&share.id, 16) && (!share.live || b64(&share.key, 32)) && (share.parcel.is_empty() || b64(&share.parcel, folia_plans::shares::LINK_BYTES));
+        fine.then_some(share)
+    }
+}
+
+/// A list shared with this profile that it follows (owner, 2026-11-09: „Eigene Liste"): beside the
+/// collections, to look at and take from, never part of the marks; what the sharer changes
+/// arrives. A line `f` of the store, a record of its own.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Followed {
+    /// Its number, of the collections' numbers: a view's address names it (`?collection=`).
+    pub id: u32,
+    /// The part's link (id ‖ key).
+    pub link: String,
+    /// When it was followed, in seconds.
+    pub since: u64,
+    /// When it was found not shared any more, in seconds; 0 while it is.
+    pub ended: u64,
+    /// The end was seen and the list kept („Behalten").
+    pub kept: bool,
+    /// Its name here, once it is renamed; empty: the list's own, as the sharer names it now
+    /// (`name_now`).
+    pub name: String,
+    /// What it holds: the code of the part as it came last (`bookmarks::ListPart`).
+    pub code: String,
+}
+
+impl Followed {
+    /// The name it goes by: the one given here, else the list's own; `None` for a whole Merkliste
+    /// shared and never renamed, which has none.
+    pub fn name_now(&self) -> Option<String> {
+        if !self.name.is_empty() {
+            return Some(self.name.clone());
+        }
+        self.part().map(|part| part.name).filter(|name| !name.is_empty())
+    }
+
+    /// What it holds now.
+    pub fn part(&self) -> Option<crate::bookmarks::ListPart> {
+        crate::bookmarks::ListPart::from_code(&self.code)
+    }
+
+    /// Its part's id.
+    pub fn part_id(&self) -> Option<String> {
+        folia_plans::shares::split_link(&self.link).map(|(id, _)| id)
+    }
+
+    fn line(&self) -> String {
+        format!("f\t{}\t{}\t{}\t{}\t{}\t{}\t{}", self.id, self.link, self.since, self.ended, if self.kept { "k" } else { "-" }, self.name, self.code)
+    }
+
+    fn read(line: &str) -> Option<Followed> {
+        let f: Vec<&str> = line.splitn(8, '\t').collect();
+        let ["f", id, link, since, ended, kept, name, code] = f.as_slice() else { return None };
+        let followed = Followed {
+            id: id.parse().ok().filter(|id| *id > 0)?,
+            link: link.to_string(),
+            since: since.parse().ok()?,
+            ended: ended.parse().ok()?,
+            kept: *kept == "k",
+            name: clean_name(name),
+            code: code.to_string(),
+        };
+        (folia_plans::shares::split_link(&followed.link).is_some() && crate::bookmarks::ListPart::from_code(&followed.code).is_some()).then_some(followed)
+    }
+}
 
 /// A collection: its number, which stays while it lives (a view's address names it by it,
 /// `/bookmarks?collection=3`), and its name.
@@ -89,6 +220,10 @@ pub struct Shelf {
     standard: Option<BTreeSet<u32>>,
     /// The collections used last, the newest first.
     recent: Vec<u32>,
+    /// The shares of the Merkliste and its collections, the oldest first.
+    shares: Vec<ListShare>,
+    /// The lists shared with this profile that it follows, in the order they came.
+    followed: Vec<Followed>,
 }
 
 /// A name as the visitor means it: without the spaces at its ends, inner runs of white space one
@@ -143,10 +278,17 @@ impl Shelf {
         }
         // A number no collection had in this text: a view's address of a deleted one names none.
         // Of the device's class while the profile syncs (`folia_plans::ids`).
-        let largest = self.collections.iter().map(|collection| collection.id).chain(self.recent.iter().copied()).max().unwrap_or(0);
-        let id = folia_plans::ids::after(folia_plans::ids::Kind::Collection, largest, u32::MAX, |id| !self.collections.iter().any(|collection| collection.id == id) && !self.recent.contains(&id)).unwrap_or(u32::MAX);
+        let id = self.next_number();
         self.collections.push(Collection { id, name });
         Ok(id)
+    }
+
+    /// A number no collection and no followed list has in this text: a view's address of one
+    /// that is gone names none. Of the device's class while the profile syncs (`folia_plans::ids`).
+    fn next_number(&self) -> u32 {
+        let used = |id: u32| self.collections.iter().any(|collection| collection.id == id) || self.recent.contains(&id) || self.followed.iter().any(|f| f.id == id);
+        let largest = self.collections.iter().map(|collection| collection.id).chain(self.recent.iter().copied()).chain(self.followed.iter().map(|f| f.id)).max().unwrap_or(0);
+        folia_plans::ids::after(folia_plans::ids::Kind::Collection, largest, u32::MAX, |id| !used(id)).unwrap_or(u32::MAX)
     }
 
     /// Renames a collection; the same name in other letters is fine, another collection's is not.
@@ -181,6 +323,8 @@ impl Shelf {
             self.standard = None;
         }
         self.recent.retain(|used| *used != id);
+        // What it shared ends with it: its parts go (the sync engine sees the shares gone).
+        self.shares.retain(|share| share.collection != id);
         Some(Deleted { collection, at, modules, was_default })
     }
 
@@ -402,6 +546,163 @@ impl Shelf {
         }).collect()
     }
 
+    // ---- shares of the Merkliste (Betula Sync's „Teilen") ----
+
+    /// The shares, the oldest first.
+    pub fn shares(&self) -> &[ListShare] {
+        &self.shares
+    }
+
+    /// The shares of a collection; 0: of the whole Merkliste.
+    pub fn shares_of(&self, collection: u32) -> Vec<&ListShare> {
+        self.shares.iter().filter(|share| share.collection == collection).collect()
+    }
+
+    pub fn share(&self, id: &str) -> Option<&ListShare> {
+        self.shares.iter().find(|share| share.id == id)
+    }
+
+    /// Keeps a new share; refused for one of a collection that is not there, or beyond the cap.
+    pub fn add_share(&mut self, share: ListShare) -> bool {
+        let fits = (share.collection == 0 || self.collection(share.collection).is_some()) && self.shares.len() < MAX_LIST_SHARES && self.share(&share.id).is_none();
+        if fits {
+            self.shares.push(share);
+        }
+        fits
+    }
+
+    /// Changes a share; whether it was there and changed.
+    pub fn update_share(&mut self, id: &str, f: impl FnOnce(&mut ListShare)) -> bool {
+        let Some(share) = self.shares.iter_mut().find(|share| share.id == id) else { return false };
+        let before = share.clone();
+        f(share);
+        *share != before
+    }
+
+    pub fn remove_share(&mut self, id: &str) -> Option<ListShare> {
+        let at = self.shares.iter().position(|share| share.id == id)?;
+        Some(self.shares.remove(at))
+    }
+
+    /// What a share's part holds now: its collection's marked modules (`marks`, in the order of
+    /// the Merkliste) with the collection's name, or all of them with every collection; their
+    /// notes where they come along.
+    pub fn list_part(&self, share: &ListShare, marks: &[String]) -> crate::bookmarks::ListPart {
+        let (name, ids): (String, Vec<String>) = if share.collection == 0 {
+            (String::new(), marks.to_vec())
+        } else {
+            let name = self.collection(share.collection).map(|c| c.name.clone()).unwrap_or_default();
+            (name, marks.iter().filter(|id| self.holds(share.collection, id)).cloned().collect())
+        };
+        let collections: Vec<(String, Vec<String>)> = if share.collection == 0 {
+            self.collections.iter().map(|c| (c.name.clone(), ids.iter().filter(|id| self.holds(c.id, id)).cloned().collect())).collect()
+        } else {
+            vec![(name.clone(), ids.clone())]
+        };
+        let notes = if share.notes { ids.iter().filter_map(|id| Some((id.clone(), self.note(id)?.to_string()))).collect() } else { Vec::new() };
+        crate::bookmarks::ListPart { name, brought: crate::bookmarks::Brought { ids, collections, notes } }
+    }
+
+    /// A list shared with this profile as a shelf to show it by: the sharer's collections (of a
+    /// whole Merkliste shared; a collection shared is the list itself) under numbers no view
+    /// names, and the notes that came along.
+    pub fn of_part(part: &crate::bookmarks::ListPart) -> Shelf {
+        let mut shelf = Shelf::default();
+        if part.name.is_empty() {
+            for (at, (name, modules)) in part.brought.collections.iter().take(MAX_COLLECTIONS).enumerate() {
+                let id = u32::MAX - u32::try_from(at).unwrap_or(0);
+                shelf.collections.push(Collection { id, name: clean_name(name) });
+                for module in modules.iter().filter(|module| is_module_id(module)) {
+                    shelf.members.entry(module.clone()).or_default().insert(id);
+                }
+            }
+        }
+        for (module, note) in &part.brought.notes {
+            shelf.set_note(module, note);
+        }
+        shelf
+    }
+
+    // ---- lists shared with this profile (owner, 2026-11-09: „Eigene Liste") ----
+
+    /// The lists followed, in the order they came.
+    pub fn followed(&self) -> &[Followed] {
+        &self.followed
+    }
+
+    pub fn followed_one(&self, id: u32) -> Option<&Followed> {
+        self.followed.iter().find(|f| f.id == id)
+    }
+
+    /// The list followed through this link.
+    pub fn followed_by(&self, link: &str) -> Option<&Followed> {
+        self.followed.iter().find(|f| f.link == link)
+    }
+
+    /// Follows a list shared with this profile: its number. The same link followed already is
+    /// that list (given what came now); beyond the cap, refused.
+    pub fn follow(&mut self, link: &str, code: &str, at: u64) -> Result<u32, Refused> {
+        if crate::bookmarks::ListPart::from_code(code).is_none() {
+            return Err(Refused::Empty);
+        }
+        if let Some(id) = self.followed_by(link).map(|f| f.id) {
+            self.take(link, code);
+            return Ok(id);
+        }
+        if self.followed.len() >= MAX_FOLLOWED {
+            return Err(Refused::Full);
+        }
+        let id = self.next_number();
+        // Its name is the list's own (`Followed::name_now`) until it is renamed here.
+        self.followed.push(Followed { id, link: link.to_string(), since: at, ended: 0, kept: false, name: String::new(), code: code.to_string() });
+        Ok(id)
+    }
+
+    /// What a followed list holds now (a newer part came); whether it changed.
+    pub fn take(&mut self, link: &str, code: &str) -> bool {
+        if crate::bookmarks::ListPart::from_code(code).is_none() {
+            return false;
+        }
+        let Some(followed) = self.followed.iter_mut().find(|f| f.link == link) else { return false };
+        let changed = followed.code != code || followed.ended != 0;
+        followed.code = code.to_string();
+        followed.ended = 0;
+        followed.kept = false;
+        changed
+    }
+
+    /// A followed list is not shared any more: it keeps what it held last.
+    pub fn end_follow(&mut self, link: &str, at: u64) -> bool {
+        let Some(followed) = self.followed.iter_mut().find(|f| f.link == link && f.ended == 0) else { return false };
+        followed.ended = at.max(1);
+        true
+    }
+
+    /// „Behalten": the end was seen, the list stays as it is.
+    pub fn keep_followed(&mut self, id: u32) -> bool {
+        let Some(followed) = self.followed.iter_mut().find(|f| f.id == id && f.ended != 0 && !f.kept) else { return false };
+        followed.kept = true;
+        true
+    }
+
+    /// Names a followed list here (the sharer's name of it stays theirs).
+    pub fn rename_followed(&mut self, id: u32, name: &str) -> Result<(), Refused> {
+        let name = clean_name(name);
+        if name.is_empty() {
+            return Err(Refused::Empty);
+        }
+        if let Some(followed) = self.followed.iter_mut().find(|f| f.id == id) {
+            followed.name = name;
+        }
+        Ok(())
+    }
+
+    /// „Löschen", „Nicht mehr folgen": the list goes from here.
+    pub fn unfollow(&mut self, id: u32) -> Option<Followed> {
+        let at = self.followed.iter().position(|f| f.id == id)?;
+        Some(self.followed.remove(at))
+    }
+
     /// The text `restored` reads back as this shelf. The note's backslashes, line breaks and tabs
     /// are written `\\`, `\n` and `\t`, so that a note never breaks its line.
     pub fn stored(&self) -> String {
@@ -422,6 +723,14 @@ impl Shelf {
         for (module, note) in &self.notes {
             let escaped = note.replace('\\', "\\\\").replace('\n', "\\n").replace('\t', "\\t");
             out.push_str(&format!("n\t{module}\t{escaped}\n"));
+        }
+        for share in &self.shares {
+            out.push_str(&share.line());
+            out.push('\n');
+        }
+        for followed in &self.followed {
+            out.push_str(&followed.line());
+            out.push('\n');
         }
         out
     }
@@ -456,6 +765,23 @@ impl Shelf {
                     let ids: BTreeSet<u32> = numbers(ids).into_iter().filter(|id| shelf.collection(*id).is_some()).collect();
                     if !ids.is_empty() && shelf.members.len() < MAX_BOOKMARKS {
                         shelf.members.insert(module.trim().to_string(), ids);
+                    }
+                }
+                ["s", ..] => {
+                    let line = fields.join("\t");
+                    if let Some(share) = ListShare::read(&line) {
+                        if (share.collection == 0 || shelf.collection(share.collection).is_some()) && !shelf.shares.iter().any(|s| s.id == share.id) && shelf.shares.len() < MAX_LIST_SHARES {
+                            shelf.shares.push(share);
+                        }
+                    }
+                }
+                ["f", ..] => {
+                    let line = fields.join("\t");
+                    if let Some(followed) = Followed::read(&line) {
+                        let taken = shelf.collection(followed.id).is_some() || shelf.followed.iter().any(|f| f.id == followed.id || f.link == followed.link);
+                        if !taken && shelf.followed.len() < MAX_FOLLOWED {
+                            shelf.followed.push(followed);
+                        }
                     }
                 }
                 ["n", module, note] if is_module_id(module.trim()) && !shelf.notes.contains_key(module.trim()) => {
@@ -818,5 +1144,128 @@ mod tests {
         assert_eq!((read.of("14169"), read.of("12177"), read.note("14169"), read.standard()), (vec![1], vec![], Some("erste"), None));
         assert_eq!(checked(odd), read.stored());
         assert_eq!(count(&text), (2, 1));
+    }
+
+    fn b64(fill: u8, n: usize) -> String {
+        folia_plans::shares::encode(&vec![fill; n])
+    }
+
+    fn share(id: u8, collection: u32) -> ListShare {
+        ListShare { id: b64(id, 16), collection, made: 1_790_000_000, live: true, once: false, notes: true, key: b64(9, 32), parcel: String::new(), name: "Lena".into() }
+    }
+
+    #[test]
+    fn what_a_share_puts_is_its_collection_or_the_whole_list() {
+        let mut shelf = Shelf::default();
+        let lena = shelf.create("Für Lena").unwrap();
+        let other = shelf.create("Wahlpflicht").unwrap();
+        let marks: Vec<String> = ["14169", "12177", "11103"].map(String::from).to_vec();
+        shelf.set_in("14169", &ids(&[lena]));
+        shelf.set_in("11103", &ids(&[lena, other]));
+        shelf.set_note("14169", "mit Lena rechnen");
+        shelf.set_note("12177", "privat");
+        let part = shelf.list_part(&share(1, lena), &marks);
+        assert_eq!(part.name, "Für Lena");
+        assert_eq!(part.brought.ids, vec!["14169".to_string(), "11103".to_string()], "the collection's marked modules, in the list's order");
+        assert_eq!(part.brought.collections, vec![("Für Lena".to_string(), part.brought.ids.clone())]);
+        assert_eq!(part.brought.notes, vec![("14169".to_string(), "mit Lena rechnen".to_string())], "a note of a module outside it stays home");
+        let quiet = shelf.list_part(&ListShare { notes: false, ..share(1, lena) }, &marks);
+        assert!(quiet.brought.notes.is_empty(), "without „Notizen mitnehmen“ no note");
+        let all = shelf.list_part(&share(2, 0), &marks);
+        assert_eq!((all.name.as_str(), all.brought.ids.len(), all.brought.collections.len(), all.brought.notes.len()), ("", 3, 2, 2));
+        // It travels as a code and reads back the same, the modules in ascending order (as a
+        // link of the Merkliste: the order does not travel).
+        let code = all.code().unwrap();
+        let back = crate::bookmarks::ListPart::from_code(&code).unwrap();
+        assert_eq!(back.code().unwrap(), code);
+        let sorted = |mut v: Vec<String>| { v.sort(); v };
+        assert_eq!((sorted(back.brought.ids.clone()), back.brought.notes.len(), back.brought.collections.len()), (sorted(all.brought.ids.clone()), 2, 2));
+        for wrong in [String::new(), format!("{code}x"), code[1..].to_string(), crate::bookmarks::transfer_fragment(&marks).unwrap()] {
+            assert!(crate::bookmarks::ListPart::from_code(&wrong).is_none(), "{wrong}");
+        }
+    }
+
+    #[test]
+    fn a_list_too_large_for_a_part_leaves_notes_out() {
+        let marks: Vec<String> = (0..256).map(|n| (10_000 + n * 7).to_string()).collect();
+        let mut shelf = Shelf::default();
+        let lena = shelf.create("Für Lena").unwrap();
+        for (n, id) in marks.iter().enumerate() {
+            shelf.set_in(id, &ids(&[lena]));
+            // Notes that do not shrink: 40 of 4000 characters overflow a part on their own.
+            let note: String = (0..MAX_NOTE).map(|i| char::from(b'a' + u8::try_from((i * 31 + n * 17) % 26).unwrap())).collect();
+            shelf.set_note(id, &note);
+        }
+        let (fitted, left) = shelf.list_part(&share(1, lena), &marks).fitted();
+        let code = fitted.code().expect("it fits now");
+        assert!(code.len() <= crate::bookmarks::MAX_LIST_CODE && left > 0 && fitted.brought.ids.len() == 256, "{left} left out, {} kept", fitted.brought.notes.len());
+        assert_eq!(fitted.brought.notes.len() + left, 256);
+        let (small, none) = shelf.list_part(&ListShare { notes: false, ..share(1, lena) }, &marks).fitted();
+        assert_eq!((none, small.brought.ids.len()), (0, 256));
+    }
+
+    #[test]
+    fn shares_and_followed_lists_are_kept_and_read_back() {
+        let mut shelf = Shelf::default();
+        let lena = shelf.create("Für Lena").unwrap();
+        assert!(shelf.add_share(share(1, lena)));
+        assert!(shelf.add_share(ListShare { live: false, once: true, notes: false, key: String::new(), parcel: b64(3, 48), name: String::new(), ..share(2, 0) }));
+        assert!(!shelf.add_share(share(3, 99)), "no share of a collection that is not there");
+        assert!(!shelf.add_share(share(1, 0)), "an id once");
+        let part = crate::bookmarks::ListPart { name: "Wahlpflicht von Max".into(), brought: crate::bookmarks::Brought { ids: vec!["14169".into()], ..Default::default() } };
+        let link = b64(5, folia_plans::shares::LINK_BYTES);
+        let followed = shelf.follow(&link, &part.code().unwrap(), 1_790_000_100).unwrap();
+        assert!(shelf.collection(followed).is_none() && followed != lena, "a number of its own, of the collections' numbers");
+        assert_eq!(shelf.follow(&link, &part.code().unwrap(), 1_790_000_200), Ok(followed), "the same link is that list");
+        assert_eq!(shelf.followed_one(followed).and_then(Followed::name_now).as_deref(), Some("Wahlpflicht von Max"), "the list's own name");
+        let read = Shelf::restored(&shelf.stored());
+        assert_eq!(read, shelf);
+        assert_eq!(read.shares_of(lena).len(), 1);
+        assert_eq!(read.shares_of(0).first().map(|s| (s.once, s.live, s.parcel.len())), Some((true, false, 64)));
+        // A new collection takes no number a followed list has.
+        let next = shelf.create("Später").unwrap();
+        assert!(next != followed && next != lena);
+        // What it holds changes; it ends; it is kept; it goes.
+        let newer = crate::bookmarks::ListPart { brought: crate::bookmarks::Brought { ids: vec!["14169".into(), "12177".into()], ..Default::default() }, ..part.clone() };
+        assert!(shelf.take(&link, &newer.code().unwrap()));
+        assert_eq!(shelf.followed_one(followed).and_then(Followed::part).map(|p| p.brought.ids.len()), Some(2));
+        assert!(shelf.end_follow(&link, 1_790_000_300) && !shelf.end_follow(&link, 1_790_000_400));
+        assert!(shelf.keep_followed(followed) && shelf.followed_one(followed).is_some_and(|f| f.kept && f.ended == 1_790_000_300));
+        assert_eq!(Shelf::restored(&shelf.stored()), shelf);
+        // Renamed by the sharer: the new name, until it is renamed here.
+        let renamed = crate::bookmarks::ListPart { name: "Für Lena".into(), ..newer.clone() };
+        assert!(shelf.take(&link, &renamed.code().unwrap()));
+        assert_eq!(shelf.followed_one(followed).and_then(Followed::name_now).as_deref(), Some("Für Lena"));
+        assert!(shelf.rename_followed(followed, "Von Max").is_ok());
+        assert!(shelf.take(&link, &part.code().unwrap()));
+        assert_eq!(shelf.followed_one(followed).and_then(Followed::name_now).as_deref(), Some("Von Max"), "a name given here stays");
+        assert_eq!(shelf.unfollow(followed).map(|f| f.name), Some("Von Max".to_string()));
+        // A followed list is no mark: what keeps only marked modules leaves it alone.
+        let again = shelf.follow(&link, &part.code().unwrap(), 1_790_000_500).unwrap();
+        shelf.keep_marked(|_| false);
+        assert!(shelf.followed_one(again).is_some());
+        // A collection deleted takes its shares with it.
+        shelf.delete(lena);
+        assert!(shelf.shares_of(lena).is_empty() && shelf.shares_of(0).len() == 1);
+        // A line that does not check out is dropped alone.
+        let odd = format!("{}s\tnope\t0\t1\tl\t-\t-\tx\nf\t7\t{link}\t1\t0\t-\tX\tnot-a-code\n", shelf.stored());
+        assert_eq!(Shelf::restored(&odd), shelf);
+    }
+
+    #[test]
+    fn a_followed_list_shows_the_sharers_collections_and_notes() {
+        let brought = crate::bookmarks::Brought {
+            ids: vec!["14169".into(), "11103".into()],
+            collections: vec![("Wahlpflicht".into(), vec!["14169".into()]), ("Für Lena".into(), vec!["14169".into(), "11103".into()])],
+            notes: vec![("11103".into(), "mit Lena rechnen".into())],
+        };
+        // The whole Merkliste of the sharer: its collections, under numbers no view names.
+        let whole = Shelf::of_part(&crate::bookmarks::ListPart { name: String::new(), brought: brought.clone() });
+        assert_eq!(whole.names_of("14169"), "Wahlpflicht, Für Lena");
+        assert_eq!(whole.note("11103"), Some("mit Lena rechnen"));
+        assert!(whole.collections().iter().all(|c| c.id > 1_000_000));
+        // A collection shared is the list itself: no collection of its own on every row.
+        let one = Shelf::of_part(&crate::bookmarks::ListPart { name: "Für Lena".into(), brought });
+        assert!(one.collections().is_empty() && one.note("11103").is_some());
     }
 }

@@ -452,6 +452,13 @@ fn load(kept: Kept) -> Marks {
     kept.read().map(|stored| Marks::restored(&stored)).unwrap_or_default()
 }
 
+/// The modules a stored list marks, the newest first (Betula Sync's renewal of a shared list
+/// reads the store's text without the store).
+#[cfg_attr(not(all(feature = "csr", target_arch = "wasm32")), allow(dead_code))]
+pub(crate) fn marked_ids(stored: &str) -> Vec<String> {
+    Marks::restored(stored).0.into_iter().map(|mark| mark.id).collect()
+}
+
 /// A stored list as the store reads it and writes it back (a profile brought from a file,
 /// `profiles::Backup`).
 pub(crate) fn checked(stored: &str) -> String {
@@ -593,6 +600,11 @@ pub fn brought_from_fragment(fragment: &str) -> Result<Brought, BrokenLink> {
         return Ok(Brought::default());
     };
     let raw = folia_pack::from_versioned_code::<Transfer>(KIND, VERSION, code.trim()).map_err(|_| BrokenLink)?.brought();
+    Ok(checked_brought(raw))
+}
+
+/// What a code brought, checked like anything from outside (`brought_from_fragment`).
+fn checked_brought(raw: Brought) -> Brought {
     let mut ids: Vec<String> = Vec::new();
     for id in raw.ids.into_iter().filter(|id| is_module_id(id)) {
         if !ids.contains(&id) {
@@ -630,7 +642,83 @@ pub fn brought_from_fragment(fragment: &str) -> Result<Brought, BrokenLink> {
             notes.push((id, note));
         }
     }
-    Ok(Brought { ids, collections, notes })
+    Brought { ids, collections, notes }
+}
+
+/// The largest code of a list shared so that it stays current: what a part at Phloem holds
+/// (16 KiB, sealed), as for a calendar (`folia_calendar::live::MAX_CODE`).
+pub const MAX_LIST_CODE: usize = 16 * 1024 - 64;
+/// What a code of a shared list is for (checked with the rest, as `KIND`).
+const LIST_KIND: &str = "list";
+/// Its layout (`folia_pack::to_versioned_code`).
+const LIST_VERSION: u8 = 1;
+
+/// A list shared so that it stays current (Betula Sync's „Teilen" of the Merkliste, as of a
+/// calendar; owner, 2026-11-09: „die Merkliste soll auch per dem neuen sync share dialog
+/// funktionieren"): a part at Phloem, sealed with a key of its own, which every device of the
+/// sharer renews when the list changes. Lena sees it as a list of its own beside her collections
+/// (owner, same day: „Eigene Liste"), to look at and take from.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ListPart {
+    /// The list's name: the collection's; empty for the whole Merkliste.
+    pub name: String,
+    /// Its modules; the collections among them (the one shared, or every one of the whole
+    /// Merkliste); the notes taken along.
+    pub brought: Brought,
+}
+
+/// A list as its code carries it: the name, then the list as a link carries it (`Transfer`).
+#[derive(Default, serde::Serialize, serde::Deserialize)]
+struct ListCode {
+    name: String,
+    list: Transfer,
+}
+
+impl ListPart {
+    /// Its code, at most `MAX_LIST_CODE` characters; `Err` for one too large (`fitted` first).
+    pub fn code(&self) -> Result<String, folia_pack::Error> {
+        let code = folia_pack::to_versioned_code(LIST_KIND, LIST_VERSION, &ListCode { name: self.name.clone(), list: Transfer::of(&self.brought) })?;
+        if code.len() > MAX_LIST_CODE {
+            return Err(folia_pack::Error::Unsupported("larger than a part"));
+        }
+        Ok(code)
+    }
+
+    /// The list a code holds, checked like anything from outside (as a link's); `None` for a
+    /// code that is none, or of another kind.
+    pub fn from_code(code: &str) -> Option<ListPart> {
+        let shaped = (1..=MAX_LIST_CODE).contains(&code.len()) && code.bytes().all(|byte| folia_pack::ALPHABET.as_bytes().contains(&byte));
+        if !shaped {
+            return None;
+        }
+        let raw: ListCode = folia_pack::from_versioned_code(LIST_KIND, LIST_VERSION, code).ok()?;
+        Some(ListPart { name: clean_name(&raw.name), brought: checked_brought(raw.list.brought()) })
+    }
+
+    /// The part as a code holds it within `MAX_LIST_CODE`: the notes go first, from the last one,
+    /// then the collections (the modules always fit: 256 numbers); how many notes did not fit. A
+    /// note is weighed by its size before it is encoded (a code's character holds six bits, a
+    /// note's byte at most eight), so that a list of long notes is never encoded whole: a code
+    /// that large takes long to write.
+    pub fn fitted(mut self) -> (ListPart, usize) {
+        let notes = std::mem::take(&mut self.brought.notes);
+        while self.code().is_err() && self.brought.collections.pop().is_some() {}
+        let base = self.code().map_or(MAX_LIST_CODE, |code| code.len());
+        let mut room = MAX_LIST_CODE.saturating_sub(base);
+        let mut keep = 0;
+        for (id, note) in &notes {
+            let cost = (id.len() + note.len()) * 4 / 3 + 8;
+            if cost > room {
+                break;
+            }
+            room -= cost;
+            keep += 1;
+        }
+        self.brought.notes = notes.get(..keep).unwrap_or_default().to_vec();
+        while self.code().is_err() && self.brought.notes.pop().is_some() {}
+        let kept = self.brought.notes.len();
+        (self, notes.len() - kept)
+    }
 }
 
 /// The modules a fragment carries, checked like anything from outside. None for any other fragment.

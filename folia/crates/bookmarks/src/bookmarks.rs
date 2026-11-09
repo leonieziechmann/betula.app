@@ -51,7 +51,7 @@ use leptos_router::hooks::use_navigate;
 use leptos_router::NavigateOptions;
 
 use folia_stores::bookmarks::{brought_from_fragment, share_fragment, Bookmarks, BrokenLink, Brought, Mark, MarkButton, MarkLook, MAX_MARKS};
-use folia_stores::collections::{Anchor, Collections, Refused, Shelf};
+use folia_stores::collections::{Anchor, Collections, Followed, Refused, Shelf};
 use folia_widgets::marknote::{Notice, Notices};
 use folia_stores::myprogram::{MineResolved, MyProgram};
 use folia_stores::studyplan::{PlanHint, Studyplan};
@@ -72,6 +72,7 @@ use folia_shell::frame::ErrorState;
 use folia_design::keys::Keys;
 use folia_design::ui::{Hit, Icon, ToggleLink};
 use crate::pick::{self, Listed, PickBar, PickMenus, PickRow, Picking};
+use crate::share::{followed_name, take_part, FollowedHead, ListOffer, ListShareDialog};
 
 /// Whether this build is the browser app: only there is anything marked.
 const APP: bool = cfg!(feature = "csr");
@@ -143,8 +144,25 @@ pub fn BookmarksPage() -> impl IntoView {
         }
         profile
     });
-    let ids = Memo::new(move |_| listed.with(|listed| listed.iter().map(|mark| mark.id.clone()).collect::<Vec<_>>()));
-    let marked_at = Memo::new(move |_| listed.with(|listed| listed.iter().map(|mark| (mark.id.clone(), mark.at)).collect::<BTreeMap<_, _>>()));
+    // What only the visitor knows of the modules: their collections and notes
+    // (`folia_stores::collections`), in this browser alone.
+    let collections = Collections::expect();
+    let shelf = Memo::new(move |_| collections.map(|collections| collections.with(Clone::clone)).unwrap_or_default());
+    // A list shared with the profile that it follows, where the view names one (`share.rs`; owner,
+    // 2026-11-09: „Eigene Liste"): the page lists its modules, with the sharer's collections and
+    // notes, in place of the marks; the marks of its rows are the visitor's.
+    let followed = Memo::new(move |_| {
+        let CollectionView::Of(id) = url.with(|url| url.collection) else { return None };
+        shelf.with(|shelf| shelf.followed_one(id).cloned())
+    });
+    let followed_part = Memo::new(move |_| followed.with(|followed| followed.as_ref().and_then(Followed::part)));
+    let following = Memo::new(move |_| followed_part.with(Option::is_some));
+    let ids = Memo::new(move |_| match followed_part.get() {
+        Some(part) => part.brought.ids,
+        None => listed.with(|listed| listed.iter().map(|mark| mark.id.clone()).collect::<Vec<_>>()),
+    });
+    // When each was marked; a list followed has no such times.
+    let marked_at = Memo::new(move |_| if following.get() { BTreeMap::new() } else { listed.with(|listed| listed.iter().map(|mark| (mark.id.clone(), mark.at)).collect::<BTreeMap<_, _>>()) });
     // What is marked now: the numbers count it, as the head does, and not what was unmarked here.
     let marked_now = Memo::new(move |_| bookmarks.map(|bookmarks| bookmarks.marks().into_iter().map(|mark| mark.id).collect::<BTreeSet<_>>()).unwrap_or_default());
 
@@ -152,10 +170,11 @@ pub fn BookmarksPage() -> impl IntoView {
     let search = LocalSearch::expect();
     let text = Memo::new(move |_| search.map(|search| search.text().trim().to_string()).unwrap_or_default());
 
-    // What only the visitor knows of the modules: their collections and notes
-    // (`folia_stores::collections`), in this browser alone.
-    let collections = Collections::expect();
-    let shelf = Memo::new(move |_| collections.map(|collections| collections.with(Clone::clone)).unwrap_or_default());
+    // The collections and notes the rows show: the visitor's, or those of the list followed.
+    let shown_shelf = Memo::new(move |_| match followed_part.get() {
+        Some(part) => Shelf::of_part(&part),
+        None => shelf.get(),
+    });
     // What the search finds there (konzept.html: „Die Suche findet sie. „Lena" findet, wobei „Lena
     // fragen" notiert ist"), in the browser: the data worker lists it with what it found itself.
     let also = Memo::new(move |_| {
@@ -163,7 +182,7 @@ pub fn BookmarksPage() -> impl IntoView {
         if text.is_empty() {
             return Vec::new();
         }
-        shelf.with(|shelf| ids.with(|ids| ids.iter().filter(|id| shelf.kept_text(id).is_some_and(|kept| folia_search::matches(&kept, &text))).cloned().collect()))
+        shown_shelf.with(|shelf| ids.with(|ids| ids.iter().filter(|id| shelf.kept_text(id).is_some_and(|kept| folia_search::matches(&kept, &text))).cloned().collect()))
     });
 
     // „Mein Studiengang", while the catalog knows it in this PO: what „Nach Studium" orders by and
@@ -221,6 +240,12 @@ pub fn BookmarksPage() -> impl IntoView {
     let order = Memo::new(move |_| {
         let (sort, descending) = url.with(|url| (url.sort, url.descending));
         let sort = if sort == BookmarkSort::Study && program.with(Option::is_none) { BookmarkSort::Title } else { sort };
+        // A list followed has no time of marking: the study's order, as „Modul" orders.
+        let sort = match sort {
+            BookmarkSort::Added if following.get() && program.with(Option::is_some) => BookmarkSort::Study,
+            BookmarkSort::Added if following.get() => BookmarkSort::Title,
+            sort => sort,
+        };
         (sort, descending)
     });
     // What the data worker is asked: the address's filters, the text, and what fits the plan.
@@ -246,19 +271,19 @@ pub fn BookmarksPage() -> impl IntoView {
     // it only where „Stand" filters it; elsewhere its rows follow it on their own.
     let listing = Memo::new(move |_| {
         let Answered { text, data } = data.get()?;
-        let url = url.get();
+        let url = filtered_by(url.get(), following.get());
         let statuses = if url.stand.is_some() { statuses.get() } else { statuses.get_untracked() };
         // A note or a collection changes the rows that show it; the list only in a collection's view.
-        let shelf = if url.collection == CollectionView::All { shelf.get_untracked() } else { shelf.get() };
+        let shelf = if url.collection == CollectionView::All { shown_shelf.get_untracked() } else { shown_shelf.get() };
         let (places, marked_at) = (places.get(), marked_at.get());
         let known = Known { statuses: &statuses, places: places.as_ref(), marked_at: &marked_at, marked: None, shelf: Some(&shelf) };
         Ok::<_, DataError>(listing_of(&data, &url, order.get().0, &text, &known, local_day(now_secs()), t))
     });
     // How many of the rows each choice of the sidebar holds.
     let numbers = Memo::new(move |_| {
-        let (data, url) = (data.get().map(|answered| answered.data).unwrap_or_default(), url.get());
-        let (statuses, places, marked_at, marked, shelf) = (statuses.get(), places.get(), marked_at.get(), marked_now.get(), shelf.get());
-        numbers_of(&data, &url, &Known { statuses: &statuses, places: places.as_ref(), marked_at: &marked_at, marked: Some(&marked), shelf: Some(&shelf) }, ids.with(Vec::len))
+        let (data, url) = (data.get().map(|answered| answered.data).unwrap_or_default(), filtered_by(url.get(), following.get()));
+        let (statuses, places, marked_at, marked, shelf) = (statuses.get(), places.get(), marked_at.get(), marked_now.get(), shown_shelf.get());
+        numbers_of(&data, &url, &Known { statuses: &statuses, places: places.as_ref(), marked_at: &marked_at, marked: counted(&marked, following.get()), shelf: Some(&shelf) }, ids.with(Vec::len))
     });
 
     // What fills the page: the list, or the module opened from it after „Vollbild" (`local`; until
@@ -375,26 +400,27 @@ pub fn BookmarksPage() -> impl IntoView {
             let data = draft_source.as_ref()?.now(&BookmarksAsk { ids: ids.get(), sort, descending, query: asked(&draft.filter, &text, &fitted), also: also.get() }).ok()?;
             Answered { text, data }
         };
-        let (statuses, places, marked_at, marked, shelf) = (statuses.get(), places.get(), marked_at.get(), marked_now.get(), shelf.get());
-        Some(shown_of(&data, &draft, !text.is_empty(), &Known { statuses: &statuses, places: places.as_ref(), marked_at: &marked_at, marked: Some(&marked), shelf: Some(&shelf) }))
+        let (statuses, places, marked_at, marked, shelf) = (statuses.get(), places.get(), marked_at.get(), marked_now.get(), shown_shelf.get());
+        let draft = filtered_by(draft, following.get());
+        Some(shown_of(&data, &draft, !text.is_empty(), &Known { statuses: &statuses, places: places.as_ref(), marked_at: &marked_at, marked: counted(&marked, following.get()), shelf: Some(&shelf) }))
     });
     let shown_now = Memo::new(move |_| {
-        let (Answered { text, data }, url) = (data.get().unwrap_or_default(), url.get());
-        let (statuses, places, marked_at, marked, shelf) = (statuses.get(), places.get(), marked_at.get(), marked_now.get(), shelf.get());
-        shown_of(&data, &url, !text.is_empty(), &Known { statuses: &statuses, places: places.as_ref(), marked_at: &marked_at, marked: Some(&marked), shelf: Some(&shelf) })
+        let (Answered { text, data }, url) = (data.get().unwrap_or_default(), filtered_by(url.get(), following.get()));
+        let (statuses, places, marked_at, marked, shelf) = (statuses.get(), places.get(), marked_at.get(), marked_now.get(), shown_shelf.get());
+        shown_of(&data, &url, !text.is_empty(), &Known { statuses: &statuses, places: places.as_ref(), marked_at: &marked_at, marked: counted(&marked, following.get()), shelf: Some(&shelf) })
     });
     let sheet_count = Memo::new(move |_| draft_shown.get().unwrap_or_else(|| shown_now.get()));
 
     // The views of the list: all of it, „Ohne Sammlung", each collection (`folia_stores::
     // collections`), with how many marked modules each holds; what their parts have open.
-    let views = Memo::new(move |_| shelf.with(|shelf| marked_now.with(|marked| views_of(shelf, marked))));
+    let views = Memo::new(move |_| shelf.with(|shelf| marked_now.with(|marked| views_of(shelf, marked, t))));
     let go = Callback::new(move |view: CollectionView| {
         let next = BookmarksUrl { collection: view, ..url.get_untracked() };
         if let Some(going) = going {
             going.go(&next.path(), NavigateOptions { scroll: false, ..Default::default() });
         }
     });
-    let ui = CollUi { menu: RwSignal::new(None), naming: RwSignal::new(None), typed: RwSignal::new(String::new()), confirming: RwSignal::new(false), sharing: RwSignal::new(false), go };
+    let ui = CollUi { menu: RwSignal::new(None), naming: RwSignal::new(None), typed: RwSignal::new(String::new()), confirming: RwSignal::new(false), dialog: RwSignal::new(None), go };
 
     // Coming back to the list from a module's page — the module that filled the page here, or
     // its own page (a link on it) — the list shows the row the visitor left it at.
@@ -464,15 +490,18 @@ pub fn BookmarksPage() -> impl IntoView {
                 <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label=t.ui.resize_sidebar tabindex="0"></div>
                 <section class="panel list" aria-live="polite">
                     <Offer/>
+                    <ListOffer/>
                     <CollectionChips ui views here=shown_url/>
+                    <FollowedHead followed go/>
                     {move || {
                         // The parts of the URL first, then what is derived from them (R16).
                         let here = shown_url.get();
                         let (sort, _) = order.get();
+                        let followed = followed.with(|followed| followed.as_ref().map(|followed| followed_name(followed, t)));
                         match listing.get() {
                             Err(error) => view! { <ErrorState error/> }.into_any(),
                             Ok(listing) => view! {
-                                <List listing here sort program_set=program.with_untracked(Option::is_some) statuses open=marked phone shelf ui picking/>
+                                <List listing here sort program_set=program.with_untracked(Option::is_some) statuses open=marked phone shelf=shown_shelf ui picking followed/>
                             }
                             .into_any(),
                         }
@@ -480,6 +509,7 @@ pub fn BookmarksPage() -> impl IntoView {
                     <i class="list-cap" aria-hidden="true"></i>
                 </section>
                 <ViewMenu ui here=shown_url data=sidebar_data picking phone/>
+                <ListShareDialog open=ui.dialog/>
                 <PickMenus picking/>
                 {move || {
                     match going_open.get() {
@@ -525,6 +555,21 @@ pub fn BookmarksPage() -> impl IntoView {
 /// could not be worked out, none: a list that does not know the plan lists nothing that fits).
 fn asked(filter: &CatalogQuery, text: &str, fitted: &Fitted) -> CatalogQuery {
     CatalogQuery { text: text.to_string(), fits_ids: filter.fits.as_ref().and(fitted.ids.clone()), ..filter.clone() }
+}
+
+/// The address the page's own filters read: a list followed is listed whole, as „Alle" (it is no
+/// collection of the shelf its rows are read with).
+fn filtered_by(url: BookmarksUrl, following: bool) -> BookmarksUrl {
+    if following {
+        BookmarksUrl { collection: CollectionView::All, ..url }
+    } else {
+        url
+    }
+}
+
+/// What the numbers count: what is marked now, or of a list followed every module of it.
+fn counted(marked: &BTreeSet<String>, following: bool) -> Option<&BTreeSet<String>> {
+    (!following).then_some(marked)
 }
 
 /// Scrolls the list to the row of this module once the list is there, and once more after the
@@ -1219,13 +1264,18 @@ fn List(
     ui: CollUi,
     /// The rows selected (`pick`).
     picking: Picking,
+    /// The name of the list followed the view shows (`share.rs`): its rows are no marks, and none
+    /// is dimmed for being unmarked.
+    followed: Option<String>,
 ) -> impl IntoView {
     let t = i18n::t();
     let bookmarks = Bookmarks::expect();
-    let any_marked = bookmarks.is_some_and(|bookmarks| bookmarks.count_untracked() > 0) || listing.count() > 0;
+    let following = followed.is_some();
+    let any_marked = following || bookmarks.is_some_and(|bookmarks| bookmarks.count_untracked() > 0) || listing.count() > 0;
     // The view the list shows: its name after the number, and the row leaves it out.
     let viewed = here.collection;
     let view_name = match viewed {
+        CollectionView::Of(_) if following => followed.clone(),
         CollectionView::Of(id) => shelf.with_untracked(|shelf| shelf.collection(id).map(|collection| collection.name.clone())),
         _ => None,
     };
@@ -1243,7 +1293,8 @@ fn List(
     Effect::new(move |_| picking.keep_listed());
 
     let credits: Vec<(String, Option<f64>)> = parts.iter().flat_map(|part| &part.rows).map(|row| (row.id.clone(), row.credits)).chain(missing.iter().map(|id| (id.clone(), None))).collect();
-    let numbers = Memo::new(move |_| marked_numbers(bookmarks, &credits));
+    // Of a list followed every row counts, marked here or not.
+    let numbers = Memo::new(move |_| if following { (credits.len() as u64, credits.iter().filter_map(|(_, credits)| *credits).sum()) } else { marked_numbers(bookmarks, &credits) });
     // While searching: how many are marked at all.
     let all_marked = Memo::new(move |_| bookmarks.map_or(0, Bookmarks::count) as u64);
     // Near the limit the head of the whole list says so, „248 / 256", from 250 as a warning
@@ -1330,7 +1381,7 @@ fn List(
                 Memo::new(move |_| picking.picked.with(|picked| picked.ids.contains(&id)))
             };
             let on_hold = Callback::new(move |id: String| picking.hold(id));
-            views.push(view! { <Row row preview current phone with_program=false dim_unmarked=true shaded swipe=true status mine selected on_hold/> }.into_any());
+            views.push(view! { <Row row preview current phone with_program=false dim_unmarked=!following shaded swipe=true status mine selected on_hold/> }.into_any());
         }
     }
 
@@ -1443,6 +1494,13 @@ fn List(
             // A view with nothing in it: an empty collection, one that is not there, „Ohne Sammlung"
             // with everything in collections.
             {(any_marked && !has_rows && !searching && !filtering).then(|| match (viewed, view_name.clone()) {
+                (CollectionView::Of(_), Some(name)) if following => view! {
+                    <div class="state">
+                        <p class="state-title">{(t.bookmarks_share.empty)(&name)}</p>
+                        <p>{t.bookmarks_share.empty_hint}</p>
+                    </div>
+                }
+                .into_any(),
                 (CollectionView::Of(_), Some(name)) => view! {
                     <div class="state">
                         <p class="state-title">{(t.bookmarks.empty_collection)(&name)}</p>
@@ -1768,13 +1826,17 @@ struct Views {
     all: usize,
     without: usize,
     each: Vec<(u32, String, usize)>,
+    /// The lists shared with the profile that it follows (`share.rs`): each with how many modules
+    /// it holds, and whether it ended unseen.
+    followed: Vec<(u32, String, usize, bool)>,
 }
 
-fn views_of(shelf: &Shelf, marked: &BTreeSet<String>) -> Views {
+fn views_of(shelf: &Shelf, marked: &BTreeSet<String>, t: &'static Texts) -> Views {
     Views {
         all: marked.len(),
         without: marked.iter().filter(|id| shelf.of(id).is_empty()).count(),
         each: shelf.collections().iter().map(|collection| (collection.id, collection.name.clone(), shelf.count_in(collection.id, |module| marked.contains(module)))).collect(),
+        followed: shelf.followed().iter().map(|followed| (followed.id, followed_name(followed, t), followed.part().map_or(0, |part| part.brought.ids.len()), followed.ended != 0 && !followed.kept)).collect(),
     }
 }
 
@@ -1790,9 +1852,8 @@ struct CollUi {
     typed: RwSignal<String>,
     /// The menu of the whole list asks before it empties it.
     confirming: RwSignal<bool>,
-    /// A collection's menu shows „Teilen" (oberflaeche.html, „Weitergeben": „ein Menü mit drei
-    /// Zeilen").
-    sharing: RwSignal<bool>,
+    /// The dialog „Teilen" open (`share.rs`): of the whole list (0) or of a collection.
+    dialog: RwSignal<Option<u32>>,
     /// Goes to a view of the list, keeping its filters and its order.
     go: Callback<CollectionView>,
 }
@@ -1829,6 +1890,8 @@ fn NameField(ui: CollUi, chip: bool) -> impl IntoView {
     let b = &t.bookmarks;
     let collections = Collections::expect();
     let renaming = ui.naming.get_untracked().flatten();
+    // A list followed is named here as the visitor likes; its name is no collection's.
+    let followed = renaming.is_some_and(|id| collections.is_some_and(|collections| collections.with_untracked(|shelf| shelf.followed_one(id).is_some())));
     let input = NodeRef::<leptos::html::Input>::new();
     let full = RwSignal::new(false);
     request_animation_frame(move || {
@@ -1839,7 +1902,7 @@ fn NameField(ui: CollUi, chip: bool) -> impl IntoView {
     });
     let taken = Memo::new(move |_| {
         let typed = ui.typed.get();
-        collections.and_then(|collections| collections.with(|shelf| shelf.find(&typed))).filter(|found| Some(*found) != renaming)
+        collections.and_then(|collections| collections.with(|shelf| shelf.find(&typed))).filter(|found| !followed && Some(*found) != renaming)
     });
     let finish = move || {
         ui.naming.set(None);
@@ -1857,6 +1920,10 @@ fn NameField(ui: CollUi, chip: bool) -> impl IntoView {
                 Err(Refused::Empty) => finish(),
                 Err(Refused::Full) => full.set(true),
             },
+            Some(id) if followed => {
+                let _ = collections.update(|shelf| shelf.rename_followed(id, &name));
+                finish();
+            }
             Some(id) => match collections.update(|shelf| shelf.rename(id, &name)) {
                 Ok(()) | Err(Refused::Empty) => finish(),
                 Err(Refused::Taken(_) | Refused::Full) => {}
@@ -1944,7 +2011,6 @@ fn CollectionsNav(ui: CollUi, views: Memo<Views>, here: Memo<BookmarksUrl>) -> i
                 // the menu would, its „Löschen" with the focus.
                 "Delete" | "Backspace" if !ev.repeat() && !ev.ctrl_key() && !ev.meta_key() && !ev.alt_key() => {
                     ev.prevent_default();
-                    ui.sharing.set(false);
                     ui.confirming.set(true);
                     ui.menu.set(box_of(&ev).map(|at| (Some(id), at)));
                 }
@@ -1971,12 +2037,48 @@ fn CollectionsNav(ui: CollUi, views: Memo<Views>, here: Memo<BookmarksUrl>) -> i
             </div>
         }
     };
+    // A list shared with the profile that it follows (`share.rs`): its menu, F2 renames it, and
+    // one that is not shared any more says so.
+    let followed_item = move |id: u32, name: String, count: usize, ended: bool| {
+        let view = CollectionView::Of(id);
+        let label = (b.collection_menu)(&name);
+        let open_menu = move |ev: leptos::ev::MouseEvent| {
+            ev.prevent_default();
+            ui.confirming.set(false);
+            ui.menu.set(box_of(&ev).map(|at| (Some(id), at)));
+        };
+        let (renamed, command_name) = (name.clone(), name.clone());
+        let keys = move |ev: leptos::ev::KeyboardEvent| {
+            if ev.key() == "F2" {
+                ev.prevent_default();
+                ui.rename(id, &renamed);
+            }
+        };
+        view! {
+            <div class="coll-item followed" class:menu=move || ui.menu.with(|menu| menu.as_ref().is_some_and(|(open, _)| *open == Some(id))) data-command-of=t.bookmarks_share.shared_with_you>
+                <a
+                    href=move || t.path(&BookmarksUrl { collection: view, ..here.get() }.path())
+                    data-command=command_name
+                    aria-current=move || here.with(|url| url.collection == view).then_some("page")
+                    data-noscroll=""
+                    on:keydown=keys
+                    on:contextmenu=open_menu
+                >
+                    <Icon name="users-round"/>
+                    <span class="coll-name">{name}</span>
+                    {ended.then(|| view! { <span class="coll-ended">{t.bookmarks_share.ended_mark}</span> })}
+                    <span class="coll-count num">{count}</span>
+                </a>
+                <button class="coll-more" type="button" aria-haspopup="menu" aria-label=label.clone() title=label on:click=open_menu><Icon name="ellipsis"/></button>
+            </div>
+        }
+    };
     view! {
         // A section of the sidebar's mode, whose ↑ and ↓ go from collection to collection (enhance.js).
         <nav class="fgroup coll-nav" aria-label=b.collections data-section="">
             <p class="flabel label">{b.collections}</p>
             {move || {
-                let Views { all, without, each } = views.get();
+                let Views { all, without, each, followed } = views.get();
                 let naming = ui.naming.get();
                 let mut parts: Vec<AnyView> = vec![item(CollectionView::All, t.bookmarks.all.to_string(), all).into_any()];
                 if !each.is_empty() {
@@ -1986,6 +2088,12 @@ fn CollectionsNav(ui: CollUi, views: Memo<Views>, here: Memo<BookmarksUrl>) -> i
                     parts.push(if naming == Some(Some(id)) { view! { <NameField ui chip=false/> }.into_any() } else { item(CollectionView::Of(id), name, count).into_any() });
                 }
                 parts.push(if naming == Some(None) { view! { <NameField ui chip=false/> }.into_any() } else { add_button(ui, false) });
+                if !followed.is_empty() {
+                    parts.push(view! { <p class="flabel label coll-sub">{t.bookmarks_share.shared_with_you}</p> }.into_any());
+                    for (id, name, count, ended) in followed {
+                        parts.push(if naming == Some(Some(id)) { view! { <NameField ui chip=false/> }.into_any() } else { followed_item(id, name, count, ended).into_any() });
+                    }
+                }
                 parts
             }}
         </nav>
@@ -2002,7 +2110,7 @@ const PRESS: u64 = 480;
 fn CollectionChips(ui: CollUi, views: Memo<Views>, here: Memo<BookmarksUrl>) -> impl IntoView {
     let t = i18n::t();
     let b = &t.bookmarks;
-    let chip = move |view: CollectionView, name: String, count: usize| {
+    let chip = move |view: CollectionView, name: String, count: usize, followed: bool| {
         let menu_of = match view {
             CollectionView::All => Some(None),
             CollectionView::Of(id) => Some(Some(id)),
@@ -2052,6 +2160,7 @@ fn CollectionChips(ui: CollUi, views: Memo<Views>, here: Memo<BookmarksUrl>) -> 
             <a
                 class="coll-chip"
                 class:derived=view == CollectionView::Without
+                class:followed=followed
                 href=move || t.path(&BookmarksUrl { collection: view, ..here.get() }.path())
                 aria-current=move || here.with(|url| url.collection == view).then_some("page")
                 data-noscroll=""
@@ -2063,21 +2172,28 @@ fn CollectionChips(ui: CollUi, views: Memo<Views>, here: Memo<BookmarksUrl>) -> 
                 on:click=click
                 on:contextmenu=context
             >
-                {name}<span class="num">{count}</span>
+                {followed.then(|| view! { <Icon name="users-round"/> })}{name}<span class="num">{count}</span>
             </a>
         }
     };
     move || {
-        let Views { all, without, each } = views.get();
-        if each.is_empty() && ui.naming.with(Option::is_none) {
+        let Views { all, without, each, followed } = views.get();
+        if each.is_empty() && followed.is_empty() && ui.naming.with(Option::is_none) {
             return None;
         }
         let naming = ui.naming.get();
-        let mut parts: Vec<AnyView> = vec![chip(CollectionView::All, t.bookmarks.all.to_string(), all).into_any(), chip(CollectionView::Without, t.marks.without_collection.to_string(), without).into_any()];
+        let mut parts: Vec<AnyView> = vec![chip(CollectionView::All, t.bookmarks.all.to_string(), all, false).into_any()];
+        if !each.is_empty() {
+            parts.push(chip(CollectionView::Without, t.marks.without_collection.to_string(), without, false).into_any());
+        }
         for (id, name, count) in each {
-            parts.push(if naming == Some(Some(id)) { view! { <NameField ui chip=true/> }.into_any() } else { chip(CollectionView::Of(id), name, count).into_any() });
+            parts.push(if naming == Some(Some(id)) { view! { <NameField ui chip=true/> }.into_any() } else { chip(CollectionView::Of(id), name, count, false).into_any() });
         }
         parts.push(if naming == Some(None) { view! { <NameField ui chip=true/> }.into_any() } else { add_button(ui, true) });
+        // The lists followed, after the collections (`share.rs`).
+        for (id, name, count, _) in followed {
+            parts.push(if naming == Some(Some(id)) { view! { <NameField ui chip=true/> }.into_any() } else { chip(CollectionView::Of(id), name, count, true).into_any() });
+        }
         Some(view! { <nav class="coll-chips" aria-label=b.collections>{parts}</nav> })
     }
 }
@@ -2171,7 +2287,6 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
     let close = move || {
         ui.menu.set(None);
         ui.confirming.set(false);
-        ui.sharing.set(false);
     };
     folia_shell::nav::layer_while(move || ui.menu.with(Option::is_some), close, folia_shell::nav::Kind::Over);
     // What had the focus as it opened (a collection in the sidebar, its ⋯) has it back as it closes,
@@ -2214,14 +2329,14 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                 let Some((Some(id), _)) = ui.menu.get_untracked() else { return };
                 ev.prevent_default();
                 ev.stop_propagation();
+                let followed = collections.and_then(|collections| collections.with_untracked(|shelf| shelf.followed_one(id).map(|followed| followed_name(followed, t))));
                 if key == "F2" {
-                    let name = collections.and_then(|collections| collections.with_untracked(|shelf| shelf.collection(id).map(|collection| collection.name.clone())));
+                    let name = collections.and_then(|collections| collections.with_untracked(|shelf| shelf.collection(id).map(|collection| collection.name.clone()))).or(followed);
                     if let Some(name) = name {
                         close();
                         ui.rename(id, &name);
                     }
-                } else if !ui.confirming.get_untracked() && !ev.repeat() && !ev.ctrl_key() && !ev.meta_key() && !ev.alt_key() {
-                    ui.sharing.set(false);
+                } else if followed.is_none() && !ui.confirming.get_untracked() && !ev.repeat() && !ev.ctrl_key() && !ev.meta_key() && !ev.alt_key() {
                     ui.confirming.set(true);
                     request_animation_frame(|| nav::focus_by_id("delete-yes"));
                 }
@@ -2235,6 +2350,43 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
     move || {
         let (of, at) = ui.menu.get()?;
         let entries: Vec<Entry> = match of {
+            // A list followed (`share.rs`): „Alle übernehmen", „Umbenennen", „Nicht mehr folgen"
+            // („Löschen" once it is not shared any more).
+            Some(id) if collections.is_some_and(|collections| collections.with_untracked(|shelf| shelf.followed_one(id).is_some())) => {
+                let collections = collections?;
+                let followed = collections.with_untracked(|shelf| shelf.followed_one(id).cloned())?;
+                let name = followed_name(&followed, t);
+                let mut entries = Vec::new();
+                if let (Some(part), Some(bookmarks)) = (followed.part(), bookmarks) {
+                    entries.push(Entry {
+                        icon: "bookmark-plus",
+                        label: t.bookmarks_share.take_all.to_string(),
+                        hint: None,
+                        key: None,
+                        danger: false,
+                        does: Callback::new(move |()| {
+                            close();
+                            take_part(bookmarks, Some(collections), &part);
+                        }),
+                    });
+                }
+                entries.push(Entry { icon: "pencil", label: b.rename.to_string(), hint: None, key: Some("F2"), danger: false, does: Callback::new(move |()| ui.rename(id, &name)) });
+                entries.push(Entry {
+                    icon: "trash-2",
+                    label: if followed.ended != 0 { t.bookmarks_share.delete } else { t.bookmarks_share.unfollow }.to_string(),
+                    hint: None,
+                    key: None,
+                    danger: true,
+                    does: Callback::new(move |()| {
+                        close();
+                        collections.update(|shelf| shelf.unfollow(id));
+                        if here.with_untracked(|url| url.collection == CollectionView::Of(id)) {
+                            ui.go.run(CollectionView::All);
+                        }
+                    }),
+                });
+                entries
+            }
             Some(id) => {
                 let collections = collections?;
                 let (name, first, last) = collections.with_untracked(|shelf| {
@@ -2273,67 +2425,40 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                         </div>
                     }.into_any());
                 }
-                if ui.sharing.get() {
-                    // „Teilen": its marked modules, with its name, and their notes where
-                    // „Notizen mitnehmen" is on.
-                    let ids: Vec<String> = bookmarks.map(Bookmarks::marks_untracked).unwrap_or_default().into_iter().map(|mark| mark.id).filter(|module| collections.with_untracked(|shelf| shelf.holds(id, module))).collect();
-                    let count = ids.len();
-                    let along = picking.notes_along;
-                    let head = (b.share_head)(Some(&renamed), count);
-                    let (linked, name) = (ids.clone(), renamed.clone());
-                    let copy_link = move |_| {
-                        let notes = if along.get_untracked() { collections.with_untracked(|shelf| notes_of(shelf, &linked)) } else { Vec::new() };
-                        let brought = Brought { ids: linked.clone(), collections: vec![(name.clone(), linked.clone())], notes };
-                        if let Some(link) = share_fragment(&brought).map(|fragment| absolute(&t.path(&format!("{}#{fragment}", url::BOOKMARKS)))) {
-                            copy(&link);
-                            close();
-                            if let Some(notices) = notices {
-                                notices.say(Notice::Copied { link: true, count });
-                            }
-                        }
-                    };
-                    let text = data.with_untracked(|data| as_text(data.as_ref(), |module| ids.iter().any(|id| id == module), t));
-                    let copy_text = move |_| {
-                        copy(&text);
-                        close();
-                        if let Some(notices) = notices {
-                            notices.say(Notice::Copied { link: false, count });
-                        }
-                    };
-                    let label = head.clone();
-                    return Some(view! {
-                        <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close()></div>
-                        <div data-sheet="fit" class="st-pop root view-menu share-menu" role="menu" aria-label=label style=menu_style(at, 3.0 * MENU_ITEM + 9.0 + 12.0 + 26.0) on:keydown=keys>
-                            <p class="view-menu-head">{head}</p>
-                            <button class="st-pop-item" type="button" role="menuitem" disabled=count == 0 on:click=copy_link>
-                                <Icon name="link"/><span class="st-pop-label"><span>{b.copy_link}</span></span>
-                            </button>
-                            <button class="st-pop-item share-switch" type="button" role="menuitemcheckbox" aria-checked=move || if along.get() { "true" } else { "false" } on:click=move |_| along.update(|on| *on = !*on)>
-                                <span class="st-pop-label"><span>{b.notes_along}</span></span>
-                                <span class="collect-switch" aria-hidden="true"></span>
-                            </button>
-                            <hr/>
-                            <button class="st-pop-item" type="button" role="menuitem" disabled=count == 0 on:click=copy_text>
-                                <Icon name="copy"/><span class="st-pop-label"><span>{b.copy_text}</span></span>
-                            </button>
-                        </div>
-                    }.into_any());
-                }
                 let shown_name = renamed.clone();
                 let mut entries = vec![Entry { icon: "pencil", label: b.rename.to_string(), hint: None, key: Some("F2"), danger: false, does: Callback::new(move |()| ui.rename(id, &shown_name)) }];
+                // „Teilen …": the dialog (`share.rs`), as of a calendar.
                 entries.push(Entry {
                     icon: "share-2",
-                    label: b.act_share.to_string(),
+                    label: t.bookmarks_share.open.to_string(),
                     hint: None,
                     key: None,
                     danger: false,
                     does: Callback::new(move |()| {
-                        ui.sharing.set(true);
-                        request_animation_frame(|| {
-                            nav::focus_selector(".view-menu [role=menuitem]");
-                        });
+                        close();
+                        ui.dialog.set(Some(id));
                     }),
                 });
+                // Its marked modules as text.
+                let ids: Vec<String> = bookmarks.map(Bookmarks::marks_untracked).unwrap_or_default().into_iter().map(|mark| mark.id).filter(|module| collections.with_untracked(|shelf| shelf.holds(id, module))).collect();
+                let count = ids.len();
+                if count > 0 {
+                    let text = data.with_untracked(|data| as_text(data.as_ref(), |module| ids.iter().any(|id| id == module), t));
+                    entries.push(Entry {
+                        icon: "copy",
+                        label: b.copy_text.to_string(),
+                        hint: None,
+                        key: None,
+                        danger: false,
+                        does: Callback::new(move |()| {
+                            copy(&text);
+                            close();
+                            if let Some(notices) = notices {
+                                notices.say(Notice::Copied { link: false, count });
+                            }
+                        }),
+                    });
+                }
                 if !first {
                     entries.push(Entry { icon: "arrow-up", label: b.move_up.to_string(), hint: None, key: None, danger: false, does: Callback::new(move |()| { collections.update(|shelf| shelf.shift(id, true)); close(); }) });
                 }
@@ -2377,10 +2502,21 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                 });
                 let (held, notes) = everything.unwrap_or_default();
                 let link = share_fragment(&Brought { ids: marks.clone(), collections: held, notes }).map(|fragment| absolute(&t.path(&format!("{}#{fragment}", url::BOOKMARKS))));
-                let mut entries = Vec::new();
+                // „Teilen …": the dialog of the whole list (`share.rs`).
+                let mut entries = vec![Entry {
+                    icon: "share-2",
+                    label: t.bookmarks_share.open.to_string(),
+                    hint: None,
+                    key: None,
+                    danger: false,
+                    does: Callback::new(move |()| {
+                        close();
+                        ui.dialog.set(Some(0));
+                    }),
+                }];
                 if let Some(link) = link.filter(|_| count > 0) {
                     entries.push(Entry {
-                        icon: "share-2",
+                        icon: "link",
                         label: b.transfer.to_string(),
                         hint: Some(b.transfer_hint),
                         key: None,
@@ -2441,7 +2577,7 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
             entries.insert(0, Entry { icon: "list-checks", label: b.select_all.to_string(), hint: None, key: None, danger: false, does: Callback::new(move |()| { close(); picking.select_all(); }) });
         }
         let title = match of {
-            Some(id) => collections.and_then(|collections| collections.with_untracked(|shelf| shelf.collection(id).map(|collection| collection.name.clone()))).unwrap_or_default(),
+            Some(id) => collections.and_then(|collections| collections.with_untracked(|shelf| shelf.collection(id).map(|collection| collection.name.clone()).or_else(|| shelf.followed_one(id).map(|followed| followed_name(followed, t))))).unwrap_or_default(),
             None => t.bookmarks.title.to_string(),
         };
         let height = entries.iter().map(|entry| if entry.hint.is_some() { MENU_HINT } else { MENU_ITEM }).sum::<f64>() + 12.0 + if entries.iter().any(|entry| entry.danger) { 9.0 } else { 0.0 };
