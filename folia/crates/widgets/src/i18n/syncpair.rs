@@ -1,5 +1,6 @@
 //! Texts of the link for the next device of Betula Sync (`syncpair.rs`): its QR code, the link, how
-//! long it opens; and why something of Betula Sync did not happen, each with what to do.
+//! long it opens; why something of Betula Sync did not happen, each with what to do; and connecting
+//! while it happens and once it is done (`syncdone.rs`).
 
 pub struct Texts {
     /// What to do with the link; how long it opens (minutes left, 0: less than one); gone; a new
@@ -26,6 +27,27 @@ pub struct Texts {
     pub unreachable: &'static str,
     pub unsupported: &'static str,
     pub no_room: fn(usize) -> String,
+
+    // ---- Connecting, while it happens and once it is done (`syncdone.rs`) ----
+    /// The progress bar, for screen readers.
+    pub progress_label: &'static str,
+    /// The steps: Betula Sync switched on, the profile sent, the other device fetching it, the
+    /// profile received, the data alike.
+    pub step_switch_on: &'static str,
+    pub step_send: &'static str,
+    pub step_fetch: &'static str,
+    pub step_receive: &'static str,
+    pub step_sync: &'static str,
+    /// The success: „Verbunden", from the setup „Alles eingerichtet".
+    pub connected: &'static str,
+    pub all_set: &'static str,
+    /// „Jetzt aktiv" and its three rows (a title and a sentence each).
+    pub now_on: &'static str,
+    pub gains: [(&'static str, &'static str); 3],
+    /// More devices later, on the profile page.
+    pub later: &'static str,
+    pub later_where: &'static str,
+    pub later_after: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -50,6 +72,24 @@ pub const DE: Texts = Texts {
     unreachable: "Der Dienst von Betula Sync ist gerade nicht erreichbar. Prüf deine Verbindung und versuch es gleich noch einmal; deine Daten bleiben auf diesem Gerät.",
     unsupported: "Dieser Browser kann nicht synchronisieren: Ihm fehlt Web Crypto, Speicher oder WebSocket, oder er ist im privaten Modus. In einem aktuellen Browser geht es.",
     no_room: |max| format!("In diesem Browser gibt es schon {max} Profile. Lösch eines, dann lässt sich das Profil holen."),
+
+    progress_label: "Verbinden",
+    step_switch_on: "Betula Sync wird eingeschaltet",
+    step_send: "Profil wird verschlüsselt gesendet",
+    step_fetch: "Das andere Gerät holt das Profil ab",
+    step_receive: "Profil wird empfangen",
+    step_sync: "Daten werden abgeglichen",
+    connected: "Verbunden",
+    all_set: "Alles eingerichtet",
+    now_on: "Jetzt aktiv",
+    gains: [
+        ("Auf beiden Geräten", "Stundenplan, Studium, Merkliste und Notizen sind auf beiden gleich."),
+        ("Sofort abgeglichen", "Was du auf einem Gerät änderst, ist auf dem anderen gleich da. Auch nach einer Weile offline."),
+        ("Verschlüsselt, ohne Konto", "Nur deine Geräte haben den Schlüssel; der Server kann nichts lesen."),
+    ],
+    later: "Weitere Geräte verbindest du jederzeit im Profil unter ",
+    later_where: "„Gerät verbinden“",
+    later_after: ".",
 };
 
 pub const EN: Texts = Texts {
@@ -74,4 +114,22 @@ pub const EN: Texts = Texts {
     unreachable: "The service of Betula Sync cannot be reached right now. Check your connection and try again in a moment; your data stays on this device.",
     unsupported: "This browser cannot sync: it lacks Web Crypto, storage or WebSocket, or it is in private mode. A current browser can.",
     no_room: |max| format!("There are {max} profiles in this browser already. Delete one, then the profile can be added."),
+
+    progress_label: "Connecting",
+    step_switch_on: "Turning on Betula Sync",
+    step_send: "Sending the profile, encrypted",
+    step_fetch: "The other device is fetching the profile",
+    step_receive: "Receiving the profile",
+    step_sync: "Bringing the data in line",
+    connected: "Connected",
+    all_set: "All set",
+    now_on: "Now on",
+    gains: [
+        ("On both devices", "Timetable, studies, saved modules and notes are the same on both."),
+        ("In line at once", "What you change on one device is on the other right away. Even after a while offline."),
+        ("Encrypted, no account", "Only your devices have the key; the server cannot read anything."),
+    ],
+    later: "You can connect more devices at any time in the profile under ",
+    later_where: "“Connect a device”",
+    later_after: ".",
 };

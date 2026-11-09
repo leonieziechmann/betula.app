@@ -34,6 +34,7 @@ use folia_data::use_ask;
 use folia_routes::url;
 use folia_stores::profiles::{Profiles, FIRST};
 use folia_stores::sync::{Conflict, Pairing, Problem, Request, State, Sync};
+use folia_widgets::syncdone::{ways, ConnectProgress, Connected};
 use folia_widgets::syncpair::{copy, now_ms, PairLink, COPIED_MS};
 
 pub use folia_widgets::syncpair::problem_text;
@@ -353,11 +354,16 @@ pub(crate) fn Connect(sync: Sync, id: Memo<u16>, state: Memo<State>, dialog: RwS
     // A profile came from the other device: „Fertig" at the foot.
     let got = RwSignal::new(false);
     let step = RwSignal::new(Step::Explain);
-    // The other devices online when the link was shown: one more is the device that came.
+    // The other devices online when the link was shown: one more is the device that came. What
+    // Phloem had said of opened parcels then: once more, the other device has fetched the link's.
     let before = StoredValue::new(None::<usize>);
+    let taken_before = StoredValue::new(0u32);
+    let shown_done = RwSignal::new(false);
     let pair = move || {
         step.set(Step::Pair(None));
         before.set_value(state.with_untracked(online));
+        taken_before.set_value(sync.taken());
+        shown_done.set(false);
         sync.pair(id.get_untracked(), move |made| {
             // Still the question of this profile: a link made for another one is not shown.
             if step.try_with_untracked(|now| matches!(now, Step::Pair(None))).unwrap_or(false) {
@@ -410,7 +416,18 @@ pub(crate) fn Connect(sync: Sync, id: Memo<u16>, state: Memo<State>, dialog: RwS
     let name = move || profiles_name(id.get_untracked());
     // What the server keeps, each point with its icon: sealed, sizes and times, gone after a while.
     const KEEPS: [&str; 3] = ["lock", "clock-3", "calendar-clock"];
-    let give = move || match step.get() {
+    // From the moment the other device has fetched the link (or came), the way on a bar, then the
+    // success (concept A, `folia_widgets::syncdone`); built anew only when that changes.
+    let handing = Memo::new(move |_| match step.get() {
+        Step::Pair(Some(Ok(_))) if sync.taken() != taken_before.get_value() => Some(false),
+        Step::Joined => Some(shown_done.get()),
+        _ => None,
+    });
+    let handed = Signal::derive(move || match step.get() {
+        Step::Joined => 2,
+        _ => 1,
+    });
+    let give_step = move || match step.get() {
         Step::Explain => view! {
             <div class="pf-sync-explain">
                 <p class="pf-explain-head">{s.explain_heading}</p>
@@ -430,7 +447,12 @@ pub(crate) fn Connect(sync: Sync, id: Memo<u16>, state: Memo<State>, dialog: RwS
             </p>
         }
         .into_any(),
-        Step::Joined => view! { <p class="pf-joined" role="status"><Icon name="check"/><span>{(s.joined)(&name())}</span></p> }.into_any(),
+        Step::Joined => ().into_any(),
+    };
+    let give = move || match handing.get() {
+        Some(false) => view! { <ConnectProgress phases=ways::handing() reached=handed on_done=Callback::new(move |()| shown_done.set(true))/> }.into_any(),
+        Some(true) => view! { <Connected title=t.syncpair.connected said=(s.joined)(&name())/> }.into_any(),
+        None => view! { {give_step} }.into_any(),
     };
     let checked = |on: bool| if on { "true" } else { "false" };
     // The choice of the way, above what it changes.
@@ -472,7 +494,7 @@ pub(crate) fn Connect(sync: Sync, id: Memo<u16>, state: Memo<State>, dialog: RwS
             </footer>
         }
         .into_any()),
-        (_, Step::Joined) => Some(view! {
+        (_, Step::Joined) if shown_done.get() => Some(view! {
             <footer class="st-dlg-foot">
                 <a class="btn primary pf-done" href=t.path(url::HOME) rel="nofollow" on:click=move |_| close.run(())>{s.done}</a>
             </footer>
@@ -499,6 +521,10 @@ enum Receiving {
     Failed(Problem),
 }
 
+/// How long the bar of a profile that came waits for this device to be online with it before it
+/// says the data is in line all the same (ms): it comes as soon as the connection is there.
+pub(crate) const SYNC_WAIT_MS: u64 = 8000;
+
 /// „Profil vom Handy holen": a code the phone scans (`Sync::request`), the digits it shows then,
 /// how long the code asks; and once a profile came, its name (`got`). The code is put away when
 /// the part goes; „Kein Handy zur Hand?" offers the recovery code.
@@ -508,6 +534,14 @@ pub(crate) fn GetPart(sync: Sync, got: RwSignal<bool>) -> impl IntoView {
     let c = &t.scan;
     let profiles = Profiles::expect();
     let step = RwSignal::new(Receiving::Making);
+    // The bar after the profile came: its data in line once this device is online with it, or
+    // after a while without (it comes all the same, `SYNC_WAIT_MS`); shown all, `got`.
+    let slow = RwSignal::new(false);
+    let shown_done = RwSignal::new(false);
+    let reached = Signal::derive(move || {
+        let online = profiles.is_some_and(|profiles| matches!(sync.state(profiles.active()), State::Online { .. }));
+        if online || slow.get() { 2 } else { 1 }
+    });
     // The request asking now, to put away.
     let current = StoredValue::new(None::<String>);
     let recovering = RwSignal::new(false);
@@ -543,7 +577,10 @@ pub(crate) fn GetPart(sync: Sync, got: RwSignal<bool>) -> impl IntoView {
                     }).unwrap_or_default()),
                     Err(problem) => Receiving::Failed(problem),
                 };
-                got.try_set(matches!(next, Receiving::Came(_)));
+                // `got` once the bar has shown the way (`ConnectProgress`'s `on_done`).
+                if matches!(next, Receiving::Came(_)) {
+                    set_timeout(move || { slow.try_set(true); }, std::time::Duration::from_millis(SYNC_WAIT_MS));
+                }
                 step.try_set(next);
             },
         );
@@ -598,7 +635,18 @@ pub(crate) fn GetPart(sync: Sync, got: RwSignal<bool>) -> impl IntoView {
     let body = move || match step.get() {
         Receiving::Making => view! { <p class="pf-sync-wait" role="status">{c.making}</p> }.into_any(),
         Receiving::Showing(request) => showing(request).into_any(),
-        Receiving::Came(name) => view! { <p class="pf-joined" role="status"><Icon name="check"/><span>{(c.came)(&name)}</span></p> }.into_any(),
+        // The way to the end on a bar, then the success (concept A); „Fertig" is the host's.
+        Receiving::Came(name) => (move || {
+            if shown_done.get() {
+                view! { <Connected title=t.syncpair.connected said=(c.came)(&name)/> }.into_any()
+            } else {
+                view! {
+                    <ConnectProgress phases=ways::getting() reached on_done=Callback::new(move |()| { shown_done.set(true); got.set(true); })/>
+                }
+                .into_any()
+            }
+        })
+        .into_any(),
         Receiving::Failed(problem) => view! {
             <p class="action note-action pf-refused" role="status">
                 <Icon name="triangle-alert"/><span>{problem_text(problem)}</span>

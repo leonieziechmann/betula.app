@@ -29,7 +29,8 @@ use folia_shell::seo::Seo;
 use folia_shell::skeleton::AppStandin;
 use folia_stores::profiles::{Profiles, FIRST};
 use folia_stores::sync::request::{self, Scanned};
-use folia_stores::sync::{Problem, Sync};
+use folia_stores::sync::{Problem, State, Sync};
+use folia_widgets::syncdone::{ways, ConnectProgress, Connected};
 
 use crate::give::GiveRequest;
 use crate::i18n;
@@ -136,28 +137,51 @@ pub fn ConnectPage() -> impl IntoView {
         }
         .into_any()
     };
-    let body = move || match step.get() {
+    // Joining shows the way on a bar until the profile is here and in line, then the success
+    // (concept A, `folia_widgets::syncdone`): one part for both steps, so that the bar goes on.
+    let joining = Memo::new(move |_| matches!(step.get(), Step::Joining | Step::Joined(_)));
+    let slow = RwSignal::new(false);
+    let shown_done = RwSignal::new(false);
+    Effect::new(move |_| {
+        if matches!(step.get(), Step::Joined(_)) {
+            set_timeout(move || { slow.try_set(true); }, std::time::Duration::from_millis(crate::sync::SYNC_WAIT_MS));
+        }
+    });
+    let reached = Signal::derive(move || match step.get() {
+        Step::Joined(_) => {
+            let online = profiles.is_some_and(|profiles| matches!(sync.map(|sync| sync.state(profiles.active())), Some(State::Online { .. })));
+            if online || slow.get() { 2 } else { 1 }
+        }
+        _ => 0,
+    });
+    let join_part = move || {
+        let inner = move || {
+            if !shown_done.get() {
+                return view! {
+                    <p class="pf-sub">{s.connecting}</p>
+                    <ConnectProgress phases=ways::getting() reached on_done=Callback::new(move |()| shown_done.set(true))/>
+                }
+                .into_any();
+            }
+            let name = match step.get_untracked() {
+                Step::Joined(name) => name,
+                _ => String::new(),
+            };
+            // Done: the start page, with the profile that came (owner, 2026-11-09: „dass man wieder
+            // bei der main page landet, wenn das sync fertig ist und nicht im profil").
+            view! {
+                <Connected title=t.syncpair.connected said=(s.connected)(&name)>
+                    <a class="btn primary pf-done" href=t.path(url::HOME) rel="nofollow"><Icon name="check"/><span>{s.done}</span></a>
+                </Connected>
+            }
+            .into_any()
+        };
+        part("monitor-smartphone", s.connect_title, view! { {inner} }.into_any())
+    };
+    let body = move || if joining.get() { join_part() } else { match step.get() {
+        Step::Joining | Step::Joined(_) => ().into_any(),
         Step::Scan => view! { <ScanPart sync note read/> }.into_any(),
         Step::Give(fragment) => view! { <GiveRequest fragment back=Callback::new(move |()| step.set(Step::Scan)) to_setup/> }.into_any(),
-        Step::Joining => part(
-            "monitor-smartphone",
-            s.connect_title,
-            view! { <p class="pf-sync-state" role="status" data-state="wait"><span class="pf-sync-dot" aria-hidden="true"></span><span>{s.connecting}</span></p> }.into_any(),
-        ),
-        Step::Joined(name) => part(
-            "monitor-smartphone",
-            s.connect_title,
-            view! {
-                <p class="pf-sync-state" role="status" data-state="on"><span class="pf-sync-dot" aria-hidden="true"></span><span>{(s.connected)(&name)}</span></p>
-                <p class="pf-empty">{s.connected_hint}</p>
-                // Done: the start page, with the profile that came (owner, 2026-11-09: „dass man
-                // wieder bei der main page landet, wenn das sync fertig ist und nicht im profil").
-                <nav class="pf-ways">
-                    <a class="btn primary pf-done" href=t.path(url::HOME) rel="nofollow"><Icon name="check"/><span>{s.done}</span></a>
-                </nav>
-            }
-            .into_any(),
-        ),
         Step::Off => part(
             "monitor-smartphone",
             s.connect_title,
@@ -179,7 +203,7 @@ pub fn ConnectPage() -> impl IntoView {
             }
             .into_any(),
         ),
-    };
+    } };
     view! {
         <Title text=s.connect_title/>
         <Plain>

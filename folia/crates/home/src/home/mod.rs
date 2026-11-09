@@ -85,6 +85,27 @@ pub(crate) fn ways(t: &'static Texts) -> Vec<Way> {
     ]
 }
 
+/// What the setup did, said by the note that waits for interaction over the page (owner,
+/// 2026-11-09: „verwende die wait notification um das anzuzeigen", in place of the card over the
+/// day there was): „Eingerichtet" (and „verbunden" where the profile syncs), the program and its
+/// Fachsemester under it, „Rückgängig"
+/// (`folia_widgets::marknote::Notice::SetUp`).
+fn say_set_up(done: Done) {
+    let t = i18n::t();
+    let Some(notices) = folia_widgets::marknote::Notices::expect() else { return };
+    // Connected in the setup's last step: it says so.
+    let synced = match (folia_stores::sync::Sync::expect(), folia_stores::profiles::Profiles::expect()) {
+        (Some(sync), Some(profiles)) => untrack(|| sync.state(profiles.active()).synced()),
+        _ => false,
+    };
+    notices.say(folia_widgets::marknote::Notice::SetUp(Box::new(folia_widgets::marknote::SetUp {
+        said: if synced { t.today.set_up_synced } else { t.today.set_up_said }.to_string(),
+        detail: (t.today.set_up)(&done.program, done.fs),
+        plan_before: done.plan_before,
+        start_before: done.start_before,
+    })));
+}
+
 /// What the start page shows: the setup, the day without a study („Erst mal umschauen"), or the
 /// day.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -129,18 +150,22 @@ pub fn HomePage() -> impl IntoView {
     provide_context(ClosePopups(close_popups));
 
     // The visitor: a program kept is a study set up; „Erst mal umschauen" folds the setup away for
-    // the visit; „Studium anlegen" leaves a note („Eingerichtet: …") until it is closed. Where the
+    // the visit; „Studium anlegen" leaves a note („Eingerichtet · …", one that waits for interaction). Where the
     // setup has a step after „Studium anlegen" (Betula Sync), the setup stays until it ends.
     let mine = MyProgram::expect();
     let kept = Memo::new(move |_| APP && mine.is_some_and(|mine| mine.with(|doc| doc.program.is_some())));
     let looking = RwSignal::new(false);
-    let welcome = RwSignal::new(None::<Done>);
     let finishing = RwSignal::new(false);
+    // What „Studium anlegen" did while the setup's last step stands: the scanner's „Fertig" ends the
+    // setup here (`/?setup=done`).
+    let parked = RwSignal::new(None::<Done>);
     let on_written = Callback::new(move |()| finishing.set(true));
+    let on_parked = Callback::new(move |done: Done| parked.set(Some(done)));
     let on_done = Callback::new(move |done: Done| {
         finishing.set(false);
         looking.set(false);
-        welcome.set(Some(done));
+        parked.set(None);
+        say_set_up(done);
     });
     // „Erst mal umschauen" leaves the setup, also one that has set up a study already (its chip led
     // back to step 1): then the day.
@@ -155,6 +180,21 @@ pub fn HomePage() -> impl IntoView {
     // whole document, in the first frame of every click.
     let location = i18n::use_location();
     let termin_full = Memo::new(move |_| kept.get() && location.search.with(|search| url::home_termin_full(search)));
+    // The scanner's „Fertig" from the setup's last step (`/?setup=done`, folia_profile::give): the
+    // setup ends here with what it did, and the address lets go of the query.
+    #[cfg(feature = "csr")]
+    Effect::new(move |_| {
+        if !location.search.with(|search| url::setup_done(search)) {
+            return;
+        }
+        if let Some(going) = folia_shell::pending::Pending::expect() {
+            going.go(&t.path(url::HOME), leptos_router::NavigateOptions { replace: true, scroll: false, ..Default::default() });
+        }
+        match parked.get_untracked() {
+            Some(done) => on_done.run(done),
+            None => finishing.set(false),
+        }
+    });
     // The head script's `html.mine` (a program kept) follows a study set up or undone here, so that
     // the start page's skeleton is the one the page then is (folia-shell, `skeleton`).
     #[cfg(feature = "csr")]
@@ -177,15 +217,15 @@ pub fn HomePage() -> impl IntoView {
             // The server's page (R9): the setup's first step, and the day's skeleton for a browser
             // whose head script found a program kept.
             return view! {
-                <div class="day-first-wrap"><FirstVisit now on_done on_look on_written home server=true/></div>
+                <div class="day-first-wrap"><FirstVisit now on_done on_look on_written on_parked home server=true/></div>
                 <div class="day-sk-wrap"><TodaySkeleton/></div>
             }
             .into_any();
         }
         match shown.get() {
-            Shown::Day => view! { <today::TodayView guest=false welcome on_setup home/> }.into_any(),
-            Shown::Guest => view! { <today::TodayView guest=true welcome on_setup home/> }.into_any(),
-            Shown::Setup => view! { <FirstVisit now on_done on_look on_written home server=false/> }.into_any(),
+            Shown::Day => view! { <today::TodayView guest=false on_setup home/> }.into_any(),
+            Shown::Guest => view! { <today::TodayView guest=true on_setup home/> }.into_any(),
+            Shown::Setup => view! { <FirstVisit now on_done on_look on_written on_parked home server=false/> }.into_any(),
         }
     };
 
@@ -205,7 +245,7 @@ pub fn HomePage() -> impl IntoView {
 /// (owner, 2026-10-20: „Bei der PC version ist beim einrichten rechts mega viel Platz. Mach da mal
 /// noch das Betula logo + Schriftzug rein"), and under it the ways into the catalog.
 #[component]
-fn FirstVisit(now: Signal<Option<SemesterKey>>, on_done: Callback<Done>, on_look: Callback<()>, on_written: Callback<()>, home: Signal<Option<HomeData>>, server: bool) -> impl IntoView {
+fn FirstVisit(now: Signal<Option<SemesterKey>>, on_done: Callback<Done>, on_look: Callback<()>, on_written: Callback<()>, on_parked: Callback<Done>, home: Signal<Option<HomeData>>, server: bool) -> impl IntoView {
     let t = i18n::t();
     let faculties = today::faculties_of(home);
     let figures = move || {
@@ -218,7 +258,7 @@ fn FirstVisit(now: Signal<Option<SemesterKey>>, on_done: Callback<Done>, on_look
             parts.join(" · ")
         })
     };
-    let card = if server { view! { <setup::ServerCard faculties/> }.into_any() } else { view! { <setup::SetupCard now faculties on_done on_look on_written/> }.into_any() };
+    let card = if server { view! { <setup::ServerCard faculties/> }.into_any() } else { view! { <setup::SetupCard now faculties on_done on_look on_written on_parked/> }.into_any() };
     view! {
         <section class="day-hero day-first" aria-labelledby="ob-title">
             <div class="day-photo" aria-hidden="true"></div>

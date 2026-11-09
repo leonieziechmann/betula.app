@@ -15,5 +15,6 @@ folia_design::texts! {
     profiles = folia_stores::i18n::profiles,
     scan = crate::i18n::scan,
     sync = crate::i18n::sync,
+    syncpair = folia_widgets::i18n::syncpair,
     ui = folia_design::i18n::ui,
 }

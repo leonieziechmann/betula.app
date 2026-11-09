@@ -140,6 +140,9 @@ pub struct Sync {
     conflicts: RwSignal<Vec<Conflict>>,
     /// The devices of each profile as this browser knows them (`devices::list`).
     devices: RwSignal<Vec<(u16, Devices)>>,
+    /// How many parcels of the active profile were opened by another device while this tab led
+    /// (`taken`).
+    taken: RwSignal<u32>,
 }
 
 /// The devices of a synced profile as a page lists them (`devices::list`): this device first, then
@@ -164,6 +167,7 @@ impl Sync {
             actions: RwSignal::new(Vec::new()),
             conflicts: RwSignal::new(Vec::new()),
             devices: RwSignal::new(Vec::new()),
+            taken: RwSignal::new(0),
         };
         provide_context(sync);
         // Effects run in the browser only.
@@ -744,6 +748,18 @@ impl Sync {
     }
 
     /// What two devices did at once in the active profile, the newest last. Tracked.
+    /// How many parcels of the active profile another device opened while this tab led: once it
+    /// grows, the device a profile went to (`give`, a link of `pair`) has fetched it. Tracked.
+    pub fn taken(self) -> u32 {
+        self.taken.get()
+    }
+
+    /// A parcel of the active profile was opened (Phloem's `pair` frame, `taken`).
+    #[cfg_attr(not(all(feature = "csr", target_arch = "wasm32")), allow(dead_code))]
+    pub(crate) fn parcel_taken(self) {
+        self.taken.update(|n| *n = n.wrapping_add(1));
+    }
+
     pub fn conflicts(self) -> Vec<Conflict> {
         self.conflicts.get()
     }

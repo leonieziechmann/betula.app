@@ -5,7 +5,7 @@
 // with PHLOEM_ORIGINS naming Folia's origin.
 // The start page's setup ends with Betula Sync where the site offers it: a fourth chip „Geräte"
 // on the server's page and the app's, „Betula Sync aktivieren" after „Studium anlegen", the QR code
-// and the link at once, a second browser that opens it holding the study, „Verbunden" and
+// and the link at once, a second browser that opens it holding the study, the bar and „Alles eingerichtet" and
 // „Fertig", and the note after the setup saying the profile stays alike on its devices.
 // On a phone the setup's last step names the address a laptop opens, /pair, which shows a QR code
 // and four digits; the phone opens the code's link in a tab of its own (as its camera does), shows
@@ -21,7 +21,7 @@
 // a code that a phone opens (as the camera app does) and sends the profile to, the digits alike on
 // both; „Sync beenden" makes every browser private again with its copy; the scanner of /sync (a
 // camera that films a code) sends a private profile, switched on for it; the setup's last step on
-// a phone leads to that scanner („Code scannen") and back, where it says „Verbunden". Privacy: no request or
+// a phone leads to that scanner („Code scannen"), whose „Fertig" ends the setup on the day. Privacy: no request or
 // frame carries a module's number, the note or the profile key in the clear, nothing reaches
 // another host than Folia's and Phloem's, and no link's or code's part after # reaches a server. Fails on a console error or a step that does not show up.
 import { fileURLToPath } from "node:url";
@@ -81,6 +81,15 @@ const until = async (name, page, fn, arg, timeout = 10000) => {
   }
   timings[name] = Date.now() - started;
 };
+/// Watches a page for the bar of connecting (`.cp`, folia_widgets::syncdone): `window.__bar` once
+/// it showed (owner, 2026-11-09: „mach mal eine animation mit progress bar für den sync an sich").
+const watchBar = (page) => page.evaluate(() => {
+  window.__bar = Boolean(document.querySelector(".cp"));
+  new MutationObserver(() => { if (document.querySelector(".cp")) window.__bar = true; }).observe(document.body, { subtree: true, childList: true });
+});
+const sawBar = (name, page) => page.evaluate(() => window.__bar === true).then((saw) => check(saw, `${name}: no bar while connecting`));
+/// The note after the setup is a note that waits for interaction over the page, not in it.
+
 /// „Fertig" at the end of connecting (owner, 2026-11-09: „dass man wieder bei der main page landet,
 /// wenn das sync fertig ist und nicht im profil"): a link to the start page, which comes without a
 /// page load.
@@ -205,10 +214,10 @@ const question = await giving(b.page);
 check(question.title === "Ein Rechner möchte ein Profil" && question.digits === asked.digits, `B: the question ${JSON.stringify(question)} for the digits ${asked.digits}`);
 await b.page.click("#pf-give-yes >> visible=true").catch(() => problems.push("B: no „Ja, … verbinden“"));
 await until("F holds A's profile", f.page, (n) => marked().length >= n, SEED.length, 30000);
-await until("F says the profile came", f.page, () => Boolean(onPage(".pf-connect-body .pf-joined")), null, 5000);
+await until("F says the profile came", f.page, () => Boolean(onPage(".pf-connect-body .cn")), null, 12000);
 check(JSON.stringify(await marksOf(f.page)) === JSON.stringify(await marksOf(b.page)), `F: other marks than B (${await marksOf(f.page)} / ${await marksOf(b.page)})`);
 check((await f.page.evaluate(() => (localStorage.getItem("betula.profiles.v1") || "").split("\n").filter((l) => l.startsWith("profile\t")).length)) <= 1, "F: the profile came beside the empty one instead of into it");
-await until("B: „Verbunden“", b.page, () => Boolean(onPage(".pf-give .pf-joined")), null, 15000);
+await until("B: „Verbunden“", b.page, () => Boolean(onPage(".pf-give .cn")), null, 15000);
 await doneHome("B after giving", b.page, ".pf-give");
 await doneHome("F's dialog", f.page, ".st-dlg-foot");
 
@@ -266,7 +275,7 @@ check((await marksOf(b.page)).length >= SEED.length, "B: the copy is gone after 
   await until("D: step 4 after „Studium anlegen“", d.page, () => onPage(".ob")?.dataset.step === "4" && onPage(".ob-title")?.textContent === "Auch auf dem Handy?", null, 5000);
   const four = await d.page.evaluate(() => ({
     kept: /^program\t079-82-2008$/m.test(localStorage.getItem("betula.myprogram.v1") || ""),
-    welcome: Boolean(onPage(".day-welcome")),
+    welcome: Boolean(document.querySelector(".setup-note")),
     done: [...allOnPage(".ob-chip.done > span:last-child")].map((chip) => chip.textContent.trim()),
     points: allOnPage(".ob-points li").length,
     later: Boolean(onPage(".ob-later")),
@@ -276,15 +285,17 @@ check((await marksOf(b.page)).length >= SEED.length, "B: the copy is gone after 
   await until("D synced from the setup", d.page, () => (localStorage.getItem("betula.sync.p1.status") || "").startsWith("online"), null, 15000);
   await until("D: the link for the phone in step 4", d.page, () => Boolean(onPage(".ob .pf-pair-link code")?.textContent.includes("/sync#")) && Boolean(onPage(".ob .pf-qr")) && onPage(".ob-title")?.textContent === "Jetzt dein Handy verbinden", null, 10000);
   const phoneLink = (await d.page.locator(".ob .pf-pair-link code").first().textContent().catch(() => "")).trim();
+  await watchBar(d.page);
   const e = await device("E");
   await e.page.goto(phoneLink);
   await app(e.page);
   await until("E holds D's study", e.page, () => /^program\t079-82-2008$/m.test(localStorage.getItem("betula.myprogram.v1") || ""), null, 20000);
   const plans = await Promise.all([d.page, e.page].map((page) => page.evaluate(() => (localStorage.getItem("betula.studyplan.v1") || "").split("\n").filter((line) => /^[mp]\t/.test(line)).sort().join("\n"))));
   check(plans[0] && plans[0] === plans[1], `E: another plan than D's (${plans[1].split("\n").length} / ${plans[0].split("\n").length} lines)`);
-  await until("D: „Verbunden“ in step 4", d.page, () => onPage(".ob-title")?.textContent === "Verbunden" && Boolean(onPage(".ob-note.ok")), null, 10000);
+  await until("D: „Alles eingerichtet“ in step 4", d.page, () => onPage(".ob .cn-title")?.textContent === "Alles eingerichtet" && allOnPage(".ob .cn-gains li").length === 3 && /Gerät verbinden/.test(onPage(".ob .cn-later")?.textContent ?? ""), null, 15000);
+  await sawBar("D", d.page);
   await d.page.click(".ob-finish >> visible=true").catch(() => problems.push("D: no „Fertig“"));
-  await until("D: the day with its note after „Fertig“", d.page, () => !onPage(".ob") && /Betula Sync hält es auf deinen Geräten gleich\./.test(onPage(".day-welcome")?.textContent ?? ""), null, 8000);
+  await until("D: the day with its note after „Fertig“", d.page, () => !onPage(".ob") && /^Eingerichtet und verbundenInformatik/.test(document.querySelector(".wait-note.setup-note")?.textContent ?? ""), null, 8000);
 }
 
 // ---- on a phone: the laptop opens /pair, and the phone scans its code ----
@@ -317,8 +328,10 @@ const pairCodes = [];
   await app(scanned);
   await until("G: the question of the code", scanned, (digits) => onPage(".pf-give h2")?.textContent === "Ein Rechner möchte ein Profil" && [...allOnPage(".pf-give .pf-digits span")].map((d) => d.textContent).join("") === digits, digits, 10000);
   check(!scanned.url().includes("#"), `G: the code's key stays in the address (${scanned.url()})`);
+  await watchBar(scanned);
   await scanned.click("#pf-give-yes >> visible=true").catch(() => problems.push("G: no „Ja, … verbinden“"));
-  await until("G: given", scanned, () => /Verbunden: Der Rechner hat/.test(onPage(".pf-give .pf-joined")?.textContent ?? ""), null, 20000);
+  await until("G: given", scanned, () => /Der Rechner hat jetzt/.test(onPage(".pf-give .cn-said")?.textContent ?? ""), null, 20000);
+  await sawBar("G's scanned tab", scanned);
   await until("H holds G's study", h.page, () => /^program\t079-82-2008$/m.test(localStorage.getItem("betula.myprogram.v1") || ""), null, 20000);
   await until("H says it is here", h.page, () => /ist jetzt auch auf diesem Gerät/.test(onPage(".pf-pair-page")?.textContent ?? ""), null, 5000);
   await doneHome("H", h.page, ".pf-pair-page");
@@ -326,7 +339,7 @@ const pairCodes = [];
   await doneHome("G's scanned tab", scanned, ".pf-give");
   const plans = await Promise.all([g.page, h.page].map((page) => page.evaluate(() => (localStorage.getItem("betula.studyplan.v1") || "").split("\n").filter((line) => /^[mp]\t/.test(line)).sort().join("\n"))));
   check(plans[0] && plans[0] === plans[1], `H: another plan than G's (${plans[1].split("\n").length} / ${plans[0].split("\n").length} lines)`);
-  await until("G: „Verbunden“ in step 4", g.page, () => onPage(".ob-title")?.textContent === "Verbunden", null, 15000);
+  await until("G: „Alles eingerichtet“ in step 4", g.page, () => onPage(".ob .cn-title")?.textContent === "Alles eingerichtet", null, 15000);
 
   // A private profile (A's, ended above) switches Betula Sync on on the way.
   const f = await device("F");
@@ -402,7 +415,8 @@ await filming.close();
 // ---- the setup's last step on a phone, with Betula's scanner ----
 // The laptop F3 opens /pair; the phone K sets up its study, switches Betula Sync on in step 4 and
 // scans F3's code with „Code scannen" (the scanner of /sync, from the setup); „Ja, … verbinden",
-// „Zurück zur Einrichtung", and step 4 says „Verbunden".
+// the bar, „Alles eingerichtet" with what is on now and the way to more devices, and „Fertig" ends
+// the setup on the day, whose note waits for interaction at the bottom.
 const f3 = await device("F3");
 await go(f3.page, "/pair");
 await until("F3: the code for the phone", f3.page, () => (onPage(".pf-asking .pf-get")?.dataset.link ?? "").includes("/pair#") && allOnPage(".pf-asking .pf-digits span").length === 4, null, 10000);
@@ -426,14 +440,15 @@ await until("K: „Code scannen“ in step 4", k.page, () => onPage(".ob-scan")?
 await k.page.evaluate(() => { window.__marker = 1; });
 await k.page.click(".ob-scan >> visible=true").catch(() => problems.push("K: „Code scannen“ does not go"));
 await until("K: the scanner reads F3's code", k.page, (digits) => [...allOnPage(".pf-give .pf-digits span")].map((d) => d.textContent).join("") === digits, asked3.digits, 20000);
+await watchBar(k.page);
 await k.page.click("#pf-give-yes >> visible=true").catch(() => problems.push("K: no „Ja, … verbinden“"));
 await until("F3 holds K's study", f3.page, () => /^program\t079-82-2008$/m.test(localStorage.getItem("betula.myprogram.v1") || ""), null, 30000);
-await until("K: the way back to the setup", k.page, () => Boolean([...allOnPage(".pf-give .pf-ways a")].find((a) => a.getAttribute("href") === "/" && /Zurück zur Einrichtung/.test(a.textContent))), null, 15000);
-await k.page.click(".pf-give .pf-ways a[href='/'] >> visible=true").catch(() => problems.push("K: no „Zurück zur Einrichtung“"));
-await until("K: step 4 says „Verbunden“ after the scanner", k.page, () => onPage(".ob")?.dataset.step === "4" && onPage(".ob-title")?.textContent === "Verbunden", null, 15000);
+await until("K: „Alles eingerichtet“ after the scanner", k.page, () => onPage(".pf-give .cn-title")?.textContent === "Alles eingerichtet" && allOnPage(".pf-give .cn-summary li").length >= 2 && allOnPage(".pf-give .cn-gains li").length === 3 && /Gerät verbinden/.test(onPage(".pf-give .cn-later")?.textContent ?? ""), null, 20000);
+await sawBar("K", k.page);
+check(await k.page.evaluate(() => onPage(".pf-give .pf-done")?.getAttribute("href") === "/?setup=done"), "K: „Fertig“ does not end the setup on the start page");
+await k.page.click(".pf-give .pf-done >> visible=true").catch(() => problems.push("K: no „Fertig“"));
+await until("K: the day, the setup ended, its note at the bottom", k.page, () => location.pathname === "/" && location.search === "" && !onPage(".ob") && Boolean(onPage(".day-hero")) && /^Eingerichtet und verbundenInformatik/.test(document.querySelector(".wait-note.setup-note")?.textContent ?? ""), null, 10000);
 check(await k.page.evaluate(() => window.__marker === 1), "K: the scanner and the way back loaded a page");
-await k.page.click(".ob-finish >> visible=true").catch(() => problems.push("K: no „Fertig“"));
-await until("K: the day with its note", k.page, () => !onPage(".ob") && /Betula Sync hält es/.test(onPage(".day-welcome")?.textContent ?? ""), null, 8000);
 await filming3.close();
 
 // ---- privacy ----
