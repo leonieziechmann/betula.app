@@ -105,6 +105,32 @@ impl Writer {
     }
 }
 
+impl Writer {
+    /// A write of one record outside the stores' texts (the devices of a profile, `D|…`, which no
+    /// store projects: a build that does not know them keeps them and passes them on): `val`
+    /// `None` deletes it. Applied to `doc`; `None` where `doc` holds it so already.
+    pub fn put(&mut self, doc: &mut Doc, key: &str, val: Option<String>, wall: u64) -> Option<Op> {
+        let current = doc.entries.get(key).cloned();
+        if current.as_ref().map(|e| &e.val) == Some(&val) || (val.is_none() && current.is_none()) {
+            return None;
+        }
+        let hlc = self.clock.tick(wall);
+        let created = match &current {
+            Some(e) if e.val.is_some() => e.created,
+            _ => hlc,
+        };
+        let base = match &current {
+            Some(e) if e.hlc.dev == self.dev() => e.base,
+            Some(e) => Some(e.hlc),
+            None => None,
+        };
+        self.seq = self.seq.saturating_add(1);
+        let op = Op { dev: self.dev(), seq: self.seq, key: key.to_string(), val, hlc, created, base };
+        doc.apply(&op);
+        Some(op)
+    }
+}
+
 /// The group of records whose order the store keeps by when each was made: modules planned (and
 /// visits) of one semester, passed modules, finished rows, Termine of one's own of one calendar,
 /// the calendars, the modules of one calendar, the saved plans, the lines of a newer build.

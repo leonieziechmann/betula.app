@@ -5158,7 +5158,13 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   with the credits, collections and notes, saved plans; none is a link, the rail has the ways. Then
   Betula Sync (below, `#devices`), „Daten“ („Als Datei sichern“) and the „Gefahrenzone“: „Profil
   leeren“ and „Profil löschen“, each a row with its icon on a tile and a button of one width with
-  the same icon, the question under the row (the only profile is emptied, and says so before). A
+  the same icon (the only profile is emptied, and says so before). Every question before something
+  that takes away („Profil leeren“, „Profil löschen“, „Entfernen“ of a device, „Nur dieses Gerät
+  trennen“, „Sync beenden“) is a menu at its button since 2026-11-09 (`folia_profile::confirm`,
+  app.css `.st-pop`, a sheet from below on a phone; owner: „(kontext) menus verwenden, um das
+  löschen zu bestätigen. Das andere verschiebt das layout“): what is asked, what follows, the answer
+  with the focus, „Abbrechen“; Esc, a click beside it and Back close it, the focus back on the
+  button, and nothing on the page moves. A
   profile deleted or emptied comes back with „Rückgängig“ at the head until the page is left. The
   language lives in the profile's menu since 2026-10-14 (owner: „allgemein kann man die
   Spracheinstellungen komplett in das Profil moven“), light and dark beside it since 2026-11-08;
@@ -5195,8 +5201,17 @@ switched on; R20 has the exception.
 - **The profile page's part** („Betula Sync", `folia_profile::sync::SyncPart`, `#devices`, under
   the profile's head), for the active profile. Private: what it is, and „Gerät verbinden“. Synced:
   its state with a dot (online with how many other devices, offline, a failure with what to do),
-  „Gerät verbinden“, „Wiederherstellungscode“ (with „Code kopieren“ and „Verbergen“), and quiet at
-  the end „Nur dieses Gerät trennen“ and „Sync beenden“, each after a question on a line of its own.
+  **the devices** (`DeviceList`, since 2026-11-09, the third step of folia/design/profil/konzepte.html;
+  owner: „dann mach step 3 mit der Geräteliste“): a row each with its icon, its name over browser
+  and system („Dieser Rechner · Chrome · Windows — jetzt“, „Pixel 7 · Chrome · Android — online ·
+  direkt“, „Rechner · Firefox · Windows — vor 2 Std.“), this device first, then those online, then
+  by when they were last seen, a device online that named nothing as „Ein weiteres Gerät“, and
+  „Entfernen“ for another device (it stands in no list any more and leaves the next time it is
+  online, with its copy; for a lost one the menu says to end Sync and start anew), „Gerät
+  verbinden“, „Wiederherstellungscode“ (with „Code kopieren“ and „Verbergen“), and quiet at the end
+  „Nur dieses Gerät trennen“ and „Sync beenden“, each after a question in a menu at its button.
+  The menu of the profiles names the devices online („Synchron · Pixel 7 online“) where each of
+  them named itself.
   Ended on another device: private again with all it holds, „Wieder aktivieren“. The only profile,
   empty and private (a new device): on a wide screen „Profil vom Handy holen“ (the dialog the other
   way, below), on a phone „Code am Rechner scannen“ (the scanner of `/sync`), and beside it the

@@ -44,6 +44,7 @@ use folia_stores::studyplan::{Saved, Studyplan};
 use leptos::prelude::*;
 use folia_design::stage::Title;
 
+use crate::confirm::{Confirm, Question};
 use crate::i18n::{self, Texts};
 use folia_data::use_ask;
 use folia_design::format;
@@ -426,6 +427,7 @@ fn ActionRow(
                 id=id
                 aria-disabled=move || disabled.get().map(|_| "true")
                 title=move || disabled.get()
+                aria-haspopup=expanded.map(|_| "dialog")
                 aria-expanded=move || expanded.map(|open| if open.get() { "true" } else { "false" })
                 on:click=move |_| on_press.run(())
             >
@@ -464,8 +466,8 @@ fn DangerPart(note: RwSignal<Option<Note>>, kept: Kept) -> impl IntoView {
     let profiles = Profiles::expect();
     let current = Memo::new(move |_| profiles.map(Profiles::current));
     let only = Memo::new(move |_| profiles.map_or(1, Profiles::count) < 2);
-    // Which question is open: emptying or deleting.
-    let asking = RwSignal::new(None::<&'static str>);
+    // The question, in a menu at the button that asked (`confirm`).
+    let asking = RwSignal::new(None::<Question>);
     // Another profile: the question was about the one before.
     Effect::new(move |before: Option<u16>| {
         let id = profiles.map_or(0, Profiles::active);
@@ -476,14 +478,12 @@ fn DangerPart(note: RwSignal<Option<Note>>, kept: Kept) -> impl IntoView {
     });
     let shown = move || current.with(|profile| profile.as_ref().map(|profile| profile.shown(t.locale)).unwrap_or_default());
     let clear = move || {
-        asking.set(None);
         let Some(profiles) = profiles else { return };
         let cleared = profiles.clear(profiles.active_untracked());
         note.set(Some(Note::Cleared(cleared)));
         request_animation_frame(|| nav::focus_by_id(UNDO_ID));
     };
     let delete = move || {
-        asking.set(None);
         let (Some(profiles), Some(profile)) = (profiles, current.get_untracked()) else { return };
         if untrack(|| only.get()) {
             clear();
@@ -494,36 +494,23 @@ fn DangerPart(note: RwSignal<Option<Note>>, kept: Kept) -> impl IntoView {
             request_animation_frame(|| nav::focus_by_id(UNDO_ID));
         }
     };
-    let ask = move |kind: &'static str, yes: &'static str| {
+    let ask = move |kind: &'static str| {
         Callback::new(move |()| {
             if kind == CLEAR_ID && kept.empty.get_untracked() {
                 return;
             }
-            if asking.get_untracked() == Some(kind) {
-                asking.set(None);
+            // The only profile is emptied instead of deleted, and asked about so.
+            let deleting = kind == DELETE_ID && !only.get_untracked();
+            let name = untrack(shown);
+            let question = if deleting {
+                Question { at: kind.to_string(), title: (p.delete_question)(&name), hint: p.delete_after.to_string(), yes: p.delete_yes.to_string(), icon: "trash-2", yes_id: DELETE_YES_ID }
             } else {
-                asking.set(Some(kind));
-                request_animation_frame(move || nav::focus_by_id(yes));
-            }
+                Question { at: kind.to_string(), title: (p.clear_question)(&name), hint: p.clear_after.to_string(), yes: p.clear_yes.to_string(), icon: "rotate-ccw", yes_id: CLEAR_YES_ID }
+            };
+            asking.set(Some(question));
         })
     };
-    let cancel = move |back: &'static str| {
-        asking.set(None);
-        request_animation_frame(move || nav::focus_by_id(back));
-    };
-    let question = move |kind: &'static str| {
-        (asking.get() == Some(kind)).then(|| {
-            let deleting = kind == DELETE_ID && !only.get();
-            let (said, yes, yes_id, icon) = if deleting { ((p.delete_question)(&shown()), p.delete_yes, DELETE_YES_ID, "trash-2") } else { (p.clear_question.to_string(), p.clear_yes, CLEAR_YES_ID, "rotate-ccw") };
-            view! {
-                <div class="pf-confirm" role="group">
-                    <span>{said}</span>
-                    <button class="btn pf-yes" type="button" id=yes_id on:click=move |_| if deleting { delete() } else { clear() }><Icon name=icon/><span>{yes}</span></button>
-                    <button class="btn secondary" type="button" on:click=move |_| cancel(kind)>{p.cancel}</button>
-                </div>
-            }
-        })
-    };
+    let asked = move |kind: &'static str| Signal::derive(move || asking.with(|asking| asking.as_ref().is_some_and(|q| q.at == kind)));
     view! {
         <section class="panel pf-part pf-danger" aria-labelledby="pf-danger">
             <h2 id="pf-danger"><Icon name="triangle-alert"/>{p.danger_heading}</h2>
@@ -537,10 +524,9 @@ fn DangerPart(note: RwSignal<Option<Note>>, kept: Kept) -> impl IntoView {
                     id=CLEAR_ID
                     danger=true
                     disabled=Signal::derive(move || kept.empty.get().then_some(p.nothing_to_clear))
-                    expanded=Signal::derive(move || asking.get() == Some(CLEAR_ID))
-                    on_press=ask(CLEAR_ID, CLEAR_YES_ID)
+                    expanded=asked(CLEAR_ID)
+                    on_press=ask(CLEAR_ID)
                 />
-                {move || question(CLEAR_ID)}
                 <ActionRow
                     icon="trash-2"
                     title=p.delete.to_string()
@@ -548,11 +534,11 @@ fn DangerPart(note: RwSignal<Option<Note>>, kept: Kept) -> impl IntoView {
                     label=Signal::derive(move || if only.get() { p.clear_button } else { p.delete_button }.to_string())
                     id=DELETE_ID
                     danger=true
-                    expanded=Signal::derive(move || asking.get() == Some(DELETE_ID))
-                    on_press=ask(DELETE_ID, DELETE_YES_ID)
+                    expanded=asked(DELETE_ID)
+                    on_press=ask(DELETE_ID)
                 />
-                {move || question(DELETE_ID)}
             </div>
+            <Confirm asking on_yes=Callback::new(move |yes: &'static str| if yes == DELETE_YES_ID { delete() } else { clear() })/>
         </section>
     }
 }
