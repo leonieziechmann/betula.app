@@ -5941,7 +5941,7 @@ div.st-col-head.past { cursor: default; }
 .st-row-head { min-width: 0; border-bottom: 1px solid var(--line); }
 /* An area's head is one button that unfolds it and folds it (owner, 2026-11-09: „dass man den
    kompletten bereich als toogle für das aus und einklappen verwenden kann"): ▸, its name, its
-   figure and its bar; until Folia 1.84.0 ▸ alone unfolded it and the name opened the area's
+   figure and its bar; until Folia 1.85.0 ▸ alone unfolded it and the name opened the area's
    dialog. */
 .st-rm-head { display: flex; align-items: stretch; }
 .st-rm-area { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 2px; padding: 0 10px 0 0; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }

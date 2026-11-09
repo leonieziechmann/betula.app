@@ -348,7 +348,7 @@ fn land(dragged: &Dragged, over: Over) -> Landing {
 /// moves it, lit lightly from its head down; the cell where it lands more strongly — its row's, or
 /// the row it counts for anew (`land`), marked as an exception where it is one; a row it may not
 /// count for says so and what Strg does. Until Folia 1.73.3 only the cell under the pointer took a
-/// drop, whichever area's it was; until 1.84.0 a drop never changed what it counts for.
+/// drop, whichever area's it was; until 1.85.0 a drop never changed what it counts for.
 #[derive(Clone, Copy)]
 struct Aim {
     what: RwSignal<Option<Dragged>>,

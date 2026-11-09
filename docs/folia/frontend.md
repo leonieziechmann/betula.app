@@ -1793,7 +1793,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       1"–„4"), by the areas of the progress in the plan's order. Each with its figure („6 / 12
       LP"), its bar (passed in the area's tone, planned lighter, the modules beyond need hatched —
       what the modules it counts bring past what it asks is no more than taken, its bar full, since
-      Folia 1.84.0, „8 / 6 LP" of Praktische Mathematik with Lineare Algebra II; until then the 2
+      Folia 1.85.0, „8 / 6 LP" of Praktische Mathematik with Lineare Algebra II; until then the 2
       beyond were hatched; `choices::Stand::spare` —, the least marked where it asks a range) and how many modules it has („17 Module", „5 Listen · 59
       Module", how many of them are marked); what is done looks as what is open, its bar full (no
       „✓ vollständig", nothing moves: „Mach doch einfach die progress bar voll"). Its name without
@@ -2154,7 +2154,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     marks it `data-full`; the pieces stay laid out, hidden); a click on it unfolds the area. The
     fuller, the further: passed full in the area's tone, what runs strong, what is planned light,
     what the plan still has open dashed, not passed red with ✕, a retake with ↻, not offered ⚠,
-    beyond need hatched as in the overview's bars — since Folia 1.84.0 only a module none of whose
+    beyond need hatched as in the overview's bars — since Folia 1.85.0 only a module none of whose
     credits count, in its area (`Item::spare`) or, a module of a choice's lists, for any choice
     (`PlanView::spare`: a second Proseminar), not one that brings its area past what it asks
     (owner, 2026-11-09: „Es ist relativ typisch, dass man so ein paar lp über dem benötigtem wert
@@ -2179,10 +2179,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     figure, its bar: one button, `aria-expanded` — unfolds it and folds it again (owner,
     2026-11-09: „dass man den kompletten bereich als toogle für das aus und einklappen verwenden
     kann. Der modal mit dem progress ist komplett redundant und nur nervig für die bedienung"; until
-    Folia 1.84.0 ▸ alone did, and the name opened the area's dialog, which the overview's cards
+    Folia 1.85.0 ▸ alone did, and the name opened the area's dialog, which the overview's cards
     still open). An area of two or more subgroups (`folia_plans::bench`, `Bench::shown`: the
     workbench's tree, a choice whose modules others of the area list none of them) unfolds into its
-    subsections (Folia 1.84.0; owner, the same day: „subsections für bereiche, wie zum beispiel bei
+    subsections (Folia 1.85.0; owner, the same day: „subsections für bereiche, wie zum beispiel bei
     informatik wo im fachstudium den bereichen praktische informatik, grundlagen der informatik und
     technische informatik zugeordnet wird. Orientiere dich daran, wie die wp bereiche das darstellen
     mit den requirements, also min 10lp max 24lp mit einem der bereiche mit 30 erlaubten lp";
@@ -2208,7 +2208,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     try before by a dashed arrow. One button over the plan unfolds every area and subsection, and
     once all of it is unfolded folds it all, saying which it does („Alle aufklappen", „Alle
     zuklappen"; owner, 2026-11-09: „alles auf/zuklappen ein knopf … so dass man halt da im zweifel
-    zwei mal drauf drücken muss"; until Folia 1.84.0 two buttons); what is unfolded is kept in
+    zwei mal drauf drücken muss"; until Folia 1.85.0 two buttons); what is unfolded is kept in
     `localStorage` `betula.study.open` (an area's name, a subsection's area and name with a tab
     between, a view setting). The
     semesters before the current one stand open; „Bisher zuklappen" folds them into one column,
@@ -2234,7 +2234,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     final landen soll dann särker"; `Aim`, the cells' `data-sem`, followed at `dragenter` and
     `dragover` of the panel): that semester lit lightly from its head down, the cell of the module's
     area there and its lane's strongly (until 1.73.3 only the cell under the pointer took a drop,
-    whichever area's it was). Since Folia 1.84.0 the row it is let go over is what it counts for
+    whichever area's it was). Since Folia 1.85.0 the row it is let go over is what it counts for
     (owner, 2026-11-09: „Wenn man ein modul drag and dropped soll es auch möglich sein damit den
     angerechneten bereich zu ändern aber nur für bereiche, die an sich im regelstudienplan
     vorgesehen sind. Für die custom overrides soll es dann nur mit ctrl gehen oder halt über das
@@ -2271,9 +2271,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     again as „Bisher" folds or unfolds; as the width changes only while nobody has scrolled the plan
     sideways, which it does not undo. The areas' names stay at the left meanwhile (sticky, the line
     between them and the first semester theirs), so that the plan scrolled still says what each row
-    is; their column is 212 px since Folia 1.84.0 (196 until then), wide enough for a subsection's
+    is; their column is 212 px since Folia 1.85.0 (196 until then), wide enough for a subsection's
     „Grundlagen der Informatik" beside its indent.
-    *„Vollbild"* (Folia 1.84.0; owner, 2026-11-09: „einen Fullscreen knopf oben rechts haben mit dem
+    *„Vollbild"* (Folia 1.85.0; owner, 2026-11-09: „einen Fullscreen knopf oben rechts haben mit dem
     klassischen, der den auf den kompletten bildschirm aufzieht. Das soll so sein, dass die nav bar
     noch funktioniert und oben auch noch die suchleiste ist"): at the right end of the plan's head,
     the classic sign of four corners (Lucide's `maximize`; `minimize` to leave), it lets the plan
@@ -2285,7 +2285,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (`fullscreenchange`, `StudyCtx::full`); so does another view, a phone, or the page's end. It is
     not kept: a reload shows the page as it is. The workbench opened from it takes the page as
     ever, and the plan is in full screen again behind it.
-    *„Als Bild speichern"* (Folia 1.84.0; owner, the same day: „ich möchte einen export button
+    *„Als Bild speichern"* (Folia 1.85.0; owner, the same day: „ich möchte einen export button
     haben für den gesamtplan, wo er als bild exportiert wird"): beside „Bisher zuklappen", it draws
     the plan as it is shown — what is unfolded, „Bisher" folded or not, every semester however far
     the page is scrolled sideways — into a PNG the browser downloads, „gesamtplan-2026-11-09.png"
@@ -2485,7 +2485,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     fewest modules (Folia 1.77.0; until then the first in the order of the plan) —, else the FÜS
     for a module of the FÜS list or the catalog's FÜS; what goes beyond an area's need counts
     nowhere else (`Item::over`, `Progress::over`), and a module none of whose credits the area needs
-    any more is „über Bedarf" (`Item::spare`, `Progress::spare`; since Folia 1.84.0: a module that
+    any more is „über Bedarf" (`Item::spare`, `Progress::spare`; since Folia 1.85.0: a module that
     brings the area past its need, 8 LP where 6 were left, is not, and says nothing, owner,
     2026-11-09: „nur die module, deren punkte nicht für das bestehen [gebraucht werden]"; until then
     any credit beyond need was „über Bedarf", in the overview's bar „+2" and its card „+2 LP über
