@@ -1140,7 +1140,14 @@ impl Engine {
                 }
             }
             In::Part { id, .. } => self.refresh_follow(&id).await,
-            In::Pair { .. } => self.reconcile_parcels(),
+            In::Pair { state, .. } => {
+                // A parcel of this profile was opened: the device a profile went to has it (the
+                // bar of connecting, `folia_widgets::syncdone`).
+                if state == "taken" {
+                    self.sync.parcel_taken();
+                }
+                self.reconcile_parcels();
+            }
             In::Other => {}
         }
     }

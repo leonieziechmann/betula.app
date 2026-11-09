@@ -4783,6 +4783,15 @@ html:not(.js) .plan-toggle { display: none; }
 .wait-note.mark-note .wait-note-close { align-self: center; margin: 0 6px 0 0; }
 /* The note of a change in „Mein Studium" (study/mod.rs, `UndoNote`) says it whole, in two lines
    where it is long: what was done stands at its end („… vorgemerkt", „… eingeplant"). */
+/* The note after the setup (marknote.rs, `Notice::SetUp`): what happened on its first line, the
+   program and its Fachsemester under it, wrapped where it is long, never cut (owner, 2026-11-09:
+   „mach die wait note mal schon zweizeilig auf dem handy oder halt mit textumbruch"). */
+.setup-toast { padding-block: 7px; }
+/* Its check stays on a phone as well (the others drop theirs there): it says that it worked. */
+.setup-toast > .plan-toast-mark { display: grid; align-self: center; }
+.setup-toast-said { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; line-height: 1.3; }
+.setup-toast-said > b { font-weight: 650; }
+.setup-toast-said > small { font-size: 12.5px; opacity: .78; overflow-wrap: anywhere; text-wrap: pretty; }
 .study-note .mark-toast-said { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; line-height: 1.3; }
 @media (max-width: 900px) {
   .mark-toast { min-height: 56px; padding: 4px 6px 4px 12px; }
@@ -7524,6 +7533,57 @@ span.st-wb-go { cursor: default; }
 .pf-give-what .icon { width: 16px; height: 16px; color: var(--text-2); }
 .pf-give-what span { color: var(--text-2); }
 .pf-give[aria-disabled="true"] { opacity: .7; cursor: progress; }
+/* Connecting while it happens and once it is done (folia/crates/widgets/src/syncdone.rs; owner,
+   2026-11-09, concept A of folia/design/verbunden/konzepte.html: „mach mal eine animation mit
+   progress bar für den sync an sich. So dass man sieht, dass da was passiert"). The bar: what is
+   done in the accent, the step under way a segment that fills slowly with a light sweeping over
+   it; under it the steps, done ones ticked, the one under way with a pulse. The success: a tick,
+   the title, who has what, what is on now in three rows, the way to more devices, „Fertig". */
+.cp { display: grid; gap: 14px; margin-top: 14px; }
+.cp-bar { position: relative; height: 8px; border-radius: 4px; background: var(--panel-3); overflow: hidden; }
+.cp-bar > i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--accent); transition: width .45s var(--ease); }
+.cp-bar > b { position: absolute; top: 0; bottom: 0; overflow: hidden; }
+.cp-bar > b::before { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--accent) 55%, transparent); transform-origin: left; transform: scaleX(.12); animation: cp-creep 9s cubic-bezier(.1, .6, .2, 1) forwards; }
+.cp-bar > b::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 70%, transparent), transparent); animation: cp-sweep 1.2s linear infinite; }
+@keyframes cp-creep { to { transform: scaleX(.9); } }
+@keyframes cp-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.cp-steps { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; font-size: 13.5px; }
+.cp-steps li { display: flex; align-items: center; gap: 10px; color: var(--text-3); transition: color .2s; }
+.cp-steps li[data-state="now"] { color: var(--text); font-weight: 600; }
+.cp-steps li[data-state="done"] { color: var(--text-2); }
+.cp-mark { flex: none; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
+.cp-mark > .icon { width: 11px; height: 11px; stroke-width: 3; }
+.cp-steps li[data-state="done"] .cp-mark { background: var(--accent); box-shadow: none; color: var(--on-accent); }
+.cp-steps li[data-state="now"] .cp-mark { box-shadow: inset 0 0 0 2px var(--accent); animation: cp-pulse 1.1s ease-in-out infinite; }
+@keyframes cp-pulse { 50% { box-shadow: inset 0 0 0 5px var(--accent-line); } }
+.cn { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; animation: cn-in .3s var(--ease); }
+@keyframes cn-in { from { opacity: 0; transform: translateY(8px); } }
+.cn-mark { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: var(--ok-soft); color: var(--ok); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ok) 35%, transparent); }
+.cn-mark > .icon { width: 26px; height: 26px; stroke-width: 2.4; }
+.cn-title { font-size: 22px; line-height: 1.2; font-weight: 740; letter-spacing: -.015em; text-wrap: balance; }
+.cn-said { margin-top: -6px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.cn-summary { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; color: var(--text-2); font-size: 13.5px; }
+.cn-summary li { display: flex; align-items: center; gap: 8px; }
+.cn-summary .icon { flex: none; width: 15px; height: 15px; color: var(--ok); stroke-width: 2.6; }
+.cn-label { margin-top: 4px; color: var(--text-3); font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+.cn-gains { display: grid; margin: -6px 0 0; padding: 0; list-style: none; }
+.cn-gains li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+.cn-gains li:first-child { border-top: 0; }
+.cn-tile { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-ink); }
+.cn-tile > .icon { width: 17px; height: 17px; }
+.cn-gains b { display: block; font-size: 14px; font-weight: 640; }
+.cn-gains small { display: block; color: var(--text-2); font-size: 13px; line-height: 1.45; text-wrap: pretty; }
+.cn-later { display: flex; align-items: flex-start; gap: 9px; padding: 10px 12px; border-radius: 10px; background: var(--panel-2); color: var(--text-2); font-size: 13px; text-wrap: pretty; }
+.cn-later > .icon { flex: none; width: 16px; height: 16px; margin-top: 2px; }
+.cn-later b { color: var(--text); font-weight: 620; }
+.cn-done { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.cn-done:empty { display: none; }
+@media (max-width: 900px) { .cn-done > .btn { flex: 1 1 100%; min-height: 46px; justify-content: center; } }
+@media (prefers-reduced-motion: reduce) {
+  .cp-bar > b::after, .cp-steps li[data-state="now"] .cp-mark, .cn { animation: none; }
+  .cp-bar > b::before { animation-duration: 1ms; }
+  .cp-bar > i { transition: none; }
+}
 /* A hint of Betula Sync where two devices changed a thing at once (folia/crates/widgets/src/
    syncnote.rs): under the note, on „Mein Studium" over the semesters. */
 .sync-hint { display: flex; align-items: flex-start; gap: 9px; margin-top: 8px; padding: 9px 11px; border-radius: 9px; background: var(--warn-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 28%, transparent); color: var(--text); font-size: 13px; line-height: 1.45; }
@@ -7904,15 +7964,6 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .ob-scan:hover { text-decoration: none; }
 .ob-scan .icon { width: 18px; height: 18px; }
 .ob-actions .ob-activate[aria-disabled="true"] { opacity: .7; cursor: progress; }
-
-/* The note after the setup. */
-.day-welcome { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
-.day-welcome > div { flex: 1 1 260px; min-width: 0; }
-.day-welcome b { display: block; font-weight: 650; }
-.day-welcome small { color: var(--text-2); }
-.day-welcome-ok { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ok-soft); color: var(--ok); }
-.day-welcome-acts { display: flex; flex-wrap: wrap; gap: 6px; }
-.day-welcome-x { width: 34px; height: 34px; }
 
 /* The panels under the picture: today and the next day on the left, the rest on the right. */
 /* The panels under the photo in two columns that end on one line (owner, 2026-10-27: „dass gerne
