@@ -290,10 +290,8 @@ impl Sheet {
                 }
             })
             .collect();
-        let mine_total = (
-            (v.foot_passed)(&(t.study.credits)(&n(study.passed + study.over_passed + study.outside.0, t))),
-            (v.foot_planned)(&(t.study.credits)(&n(study.planned + study.over - study.over_passed + study.outside.1, t))),
-        );
+        let totals = study.totals();
+        let mine_total = ((v.foot_passed)(&(t.study.credits)(&n(totals.passed_all(), t))), (v.foot_planned)(&(t.study.credits)(&n(totals.planned_all(), t))));
 
         // A phone's sections: the rows by their first Fachsemester; rows over several together
         // where all of a section's do.
