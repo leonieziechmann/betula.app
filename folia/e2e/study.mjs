@@ -808,6 +808,12 @@ if (current !== "2026W") {
   // 2026-11-09: „wenn man ein anwendungsfach eplant hat, dann muss man den platzhalter nicht mehr
   // sehen"; until Folia 1.87.0 it stood beside it, „gefüllt mit …").
   await step("Zurück zu WiSe 2026/27", () => page.click(".bench-bar a"), () => location.pathname === "/study" && document.querySelector(".st-wb-half .st-wb-row.is-done")?.textContent.includes("Allgemeine Betriebswirtschaftslehre I"));
+  // Beside the open half the module says once what it fills: its flag, not the half's „für …" too.
+  const once = await page.evaluate(() => {
+    const row = document.querySelector('.st-card-sem.split .st-row[data-key="m:12160"]');
+    return row && { flag: [...row.querySelectorAll(".flag")].some((flag) => flag.textContent === "für „Anwendungsfach“"), also: Boolean(row.querySelector(".st-for")) };
+  });
+  check(once?.flag && !once.also, `the module beside the half says twice what it fills: ${JSON.stringify(once)}`);
   await step("the semester, its place filled", () => page.click(".st-wb-half .st-wb-done"), () => !document.querySelector(".st-wb-half") && document.querySelectorAll(".st-card-sem .st-row").length === 1);
   const filled = await counts();
   check(filled.semester === "6 LP" && filled.nebenfach === "6/18", `one module for the place counts twice: ${JSON.stringify(filled)}`);
