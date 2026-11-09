@@ -4,7 +4,8 @@
 //! renews the parts of a profile's shares and follows the shares of others.
 //!
 //! A link's part after `#` never reaches a server: `/studyplan#live=<id ‖ key>` names a part and
-//! the key that opens it, `/studyplan#once=<id ‖ key>` a parcel that opens once within 7 days.
+//! the key that opens it, `/studyplan#once=<id ‖ key>` a parcel that opens once within 7 days. The
+//! Merkliste's links are the same under `/bookmarks` (a list or one collection of it).
 
 use folia_plans::shares::{is_b64, LINK_BYTES};
 
@@ -43,6 +44,16 @@ pub fn live_path(link: &str) -> String {
 /// The path of the Stundenplan that opens a one-time link.
 pub fn once_path(parcel: &str) -> String {
     format!("/studyplan#{ONCE}{parcel}")
+}
+
+/// The path of the Merkliste that opens a list that stays current.
+pub fn list_live_path(link: &str) -> String {
+    format!("/bookmarks#{LIVE}{link}")
+}
+
+/// The path of the Merkliste that opens a one-time link of a list.
+pub fn list_once_path(parcel: &str) -> String {
+    format!("/bookmarks#{ONCE}{parcel}")
 }
 
 /// Why sharing, or opening what was shared, did not happen.
@@ -159,6 +170,8 @@ mod tests {
         }
         assert_eq!(live_path(&link()), format!("/studyplan#live={}", link()));
         assert_eq!(opening(&once_path(&link()).replace("/studyplan", "")), Some(Opening::Once(link())));
+        assert_eq!(list_live_path(&link()), format!("/bookmarks#live={}", link()));
+        assert_eq!(opening(&list_once_path(&link()).replace("/bookmarks", "")), Some(Opening::Once(link())));
     }
 
     #[test]

@@ -36,6 +36,7 @@ use super::share::{fingerprint, missing, Put, ShareProblem, ONCE_TTL};
 use super::request;
 use super::wire::{self, In, Out};
 use super::{Problem, State, Sync};
+use crate::collections::{ListShare, Shelf};
 use crate::profiles::{key_of, Profiles, KEYS};
 
 // ---- localStorage ----
@@ -690,7 +691,7 @@ impl Engine {
     /// Gives every store whose records changed their text, where it holds something else.
     fn project(&self) {
         let touched: Vec<Store> = std::mem::take(&mut self.core.borrow_mut().touched).into_iter().collect();
-        if touched.contains(&Store::Plan) {
+        if touched.iter().any(|store| matches!(store, Store::Plan | Store::Shelf | Store::Marks)) {
             renew_soon();
         }
         let mut wrote = false;
@@ -1120,6 +1121,23 @@ async fn withdraw(keys: &Keys, id: &str) -> Result<(), ShareProblem> {
 /// A part, opened with its key, when it is newer than version `rev` (0: any); `None` when it is
 /// that version still.
 pub async fn fetch_part(link: &str, rev: u64) -> Result<Option<(LivePart, u64)>, ShareProblem> {
+    match fetch_code(link, rev).await? {
+        Some((code, rev)) => Ok(Some((LivePart::from_code(&code).ok_or(ShareProblem::Unknown)?, rev))),
+        None => Ok(None),
+    }
+}
+
+/// A shared list's part (`bookmarks::ListPart`), as its code, newer than version `rev`.
+pub async fn fetch_list(link: &str, rev: u64) -> Result<Option<(String, u64)>, ShareProblem> {
+    match fetch_code(link, rev).await? {
+        Some((code, rev)) if crate::bookmarks::ListPart::from_code(&code).is_some() => Ok(Some((code, rev))),
+        Some(_) => Err(ShareProblem::Unknown),
+        None => Ok(None),
+    }
+}
+
+/// A part's code, opened with its key, when it is newer than version `rev` (0: any).
+async fn fetch_code(link: &str, rev: u64) -> Result<Option<(String, u64)>, ShareProblem> {
     let (id, key) = split_link(link).ok_or(ShareProblem::Unknown)?;
     let mut headers = vec![("Betula-Part", id.clone())];
     if rev > 0 {
@@ -1135,8 +1153,7 @@ pub async fn fetch_part(link: &str, rev: u64) -> Result<Option<(LivePart, u64)>,
             let part_key = aes_key(&key_bytes).await.map_err(|_| ShareProblem::Unsupported)?;
             let plain = open(&part_key, &part_aad(&id_bytes), &sealed).await.map_err(|_| ShareProblem::Unknown)?;
             let code = String::from_utf8(plain).map_err(|_| ShareProblem::Unknown)?;
-            let part = LivePart::from_code(&code).ok_or(ShareProblem::Unknown)?;
-            Ok(Some((part, fetched.rev)))
+            Ok(Some((code, fetched.rev)))
         }
         _ => Err(share_problem(status, &text)),
     }
@@ -1156,46 +1173,10 @@ pub struct Made {
 /// part put at Phloem where it stays current, the parcel where it is for one person. The record
 /// is the caller's to add to the plan.
 pub async fn share(profile: u16, template: Share, part: LivePart, left_out: usize) -> Result<Made, ShareProblem> {
-    let profile_key = key_of_profile(profile).ok_or(ShareProblem::NotSynced)?;
-    let keys = derive(&profile_key).await.map_err(|_| ShareProblem::Unsupported)?;
     let code = part.code().map_err(|_| ShareProblem::Unsupported)?;
-    let mut share = Share { made: secs(), ..template };
-    if share.live {
-        let id = b64(&random::<16>().ok_or(ShareProblem::Unsupported)?);
-        let key = b64(&random::<32>().ok_or(ShareProblem::Unsupported)?);
-        let rev = put_part(&keys, &id, &key, &code).await?;
-        let mut put = Put::read(&nav::local_get(&parts_key(profile)).unwrap_or_default());
-        put.parts.insert(id.clone(), (fingerprint(&code), rev));
-        nav::local_set(&parts_key(profile), &put.text());
-        share.id = id;
-        share.key = key;
-    }
-    let mut until = None;
-    if share.once {
-        let parcel_id = random::<16>().ok_or(ShareProblem::Unsupported)?;
-        let link_key = random::<32>().ok_or(ShareProblem::Unsupported)?;
-        let contents = if share.live { wire::ShareContents { v: 1, part: Some(share.id.clone()), key: Some(share.key.clone()), copy: None } } else { wire::ShareContents { v: 1, part: None, key: None, copy: Some(code.clone()) } };
-        let plain = serde_json::to_vec(&contents).map_err(|_| ShareProblem::Unsupported)?;
-        let sealed = seal(&aes_key(&link_key).await.map_err(|_| ShareProblem::Unsupported)?, b"share", &plain).await.map_err(|_| ShareProblem::Unsupported)?;
-        let body = serde_json::to_string(&wire::LongParcel { id: b64(&parcel_id), sealed: b64(&sealed), ttl: ONCE_TTL }).map_err(|_| ShareProblem::Unsupported)?;
-        let answer = call("POST", "pair", &auth(&keys), Some(body)).await.map_err(unreachable);
-        let failed = match answer {
-            Ok((201, _)) => None,
-            Ok((status, text)) => Some(share_problem(status, &text)),
-            Err(problem) => Some(problem),
-        };
-        if let Some(problem) = failed {
-            if share.live {
-                let _ = delete_part(&keys, &share.id).await;
-            }
-            return Err(problem);
-        }
-        share.parcel = b64(&[&parcel_id[..], &link_key[..]].concat());
-        if !share.live {
-            share.id = b64(&parcel_id);
-        }
-        until = Some(now() + ONCE_TTL * 1_000);
-    }
+    let placed = place(profile, template.live, template.once, &code).await?;
+    let share = Share { made: secs(), id: placed.id, key: placed.key, parcel: placed.parcel, ..template };
+    let until = placed.until;
     let path = if share.once {
         super::share::once_path(&share.parcel)
     } else {
@@ -1208,23 +1189,106 @@ pub async fn share(profile: u16, template: Share, part: LivePart, left_out: usiz
     Ok(Made { share, path, until, left_out })
 }
 
+/// Where a new share went at Phloem: the part's id and key where it stays current (else the
+/// parcel's id), the one-time link's parcel, until when it opens (ms).
+struct Placed {
+    id: String,
+    key: String,
+    parcel: String,
+    until: Option<u64>,
+}
+
+/// Puts a new share's code at Phloem: a part where it stays current (`live`), a parcel where it
+/// is for one person (`once`), the part's link or the copy sealed in it.
+async fn place(profile: u16, live: bool, once: bool, code: &str) -> Result<Placed, ShareProblem> {
+    let profile_key = key_of_profile(profile).ok_or(ShareProblem::NotSynced)?;
+    let keys = derive(&profile_key).await.map_err(|_| ShareProblem::Unsupported)?;
+    let mut placed = Placed { id: String::new(), key: String::new(), parcel: String::new(), until: None };
+    if live {
+        let id = b64(&random::<16>().ok_or(ShareProblem::Unsupported)?);
+        let key = b64(&random::<32>().ok_or(ShareProblem::Unsupported)?);
+        let rev = put_part(&keys, &id, &key, code).await?;
+        let mut put = Put::read(&nav::local_get(&parts_key(profile)).unwrap_or_default());
+        put.parts.insert(id.clone(), (fingerprint(code), rev));
+        nav::local_set(&parts_key(profile), &put.text());
+        placed.id = id;
+        placed.key = key;
+    }
+    if once {
+        let parcel_id = random::<16>().ok_or(ShareProblem::Unsupported)?;
+        let link_key = random::<32>().ok_or(ShareProblem::Unsupported)?;
+        let contents = if live { wire::ShareContents { v: 1, part: Some(placed.id.clone()), key: Some(placed.key.clone()), copy: None } } else { wire::ShareContents { v: 1, part: None, key: None, copy: Some(code.to_string()) } };
+        let plain = serde_json::to_vec(&contents).map_err(|_| ShareProblem::Unsupported)?;
+        let sealed = seal(&aes_key(&link_key).await.map_err(|_| ShareProblem::Unsupported)?, b"share", &plain).await.map_err(|_| ShareProblem::Unsupported)?;
+        let body = serde_json::to_string(&wire::LongParcel { id: b64(&parcel_id), sealed: b64(&sealed), ttl: ONCE_TTL }).map_err(|_| ShareProblem::Unsupported)?;
+        let answer = call("POST", "pair", &auth(&keys), Some(body)).await.map_err(unreachable);
+        let failed = match answer {
+            Ok((201, _)) => None,
+            Ok((status, text)) => Some(share_problem(status, &text)),
+            Err(problem) => Some(problem),
+        };
+        if let Some(problem) = failed {
+            if live {
+                let _ = delete_part(&keys, &placed.id).await;
+            }
+            return Err(problem);
+        }
+        placed.parcel = b64(&[&parcel_id[..], &link_key[..]].concat());
+        if !live {
+            placed.id = b64(&parcel_id);
+        }
+        placed.until = Some(now() + ONCE_TTL * 1_000);
+    }
+    Ok(placed)
+}
+
 /// Ends a share at Phloem: its part is deleted, its waiting parcel taken back. The record is the
 /// caller's to take away.
 pub async fn unshare(profile: u16, share: &Share) -> Result<(), ShareProblem> {
+    end_share(profile, &share.id, share.live, &share.parcel).await
+}
+
+/// Ends a share of the Merkliste at Phloem, as `unshare` a calendar's.
+pub async fn unshare_list(profile: u16, share: &ListShare) -> Result<(), ShareProblem> {
+    end_share(profile, &share.id, share.live, &share.parcel).await
+}
+
+async fn end_share(profile: u16, id: &str, live: bool, parcel: &str) -> Result<(), ShareProblem> {
     let profile_key = key_of_profile(profile).ok_or(ShareProblem::NotSynced)?;
     let keys = derive(&profile_key).await.map_err(|_| ShareProblem::Unsupported)?;
-    if let Some((parcel, _)) = split_link(&share.parcel) {
+    if let Some((parcel, _)) = split_link(parcel) {
         withdraw(&keys, &parcel).await?;
     }
-    if share.live {
-        delete_part(&keys, &share.id).await?;
+    if live {
+        delete_part(&keys, id).await?;
         let mut put = Put::read(&nav::local_get(&parts_key(profile)).unwrap_or_default());
-        put.parts.remove(&share.id);
-        put.deleted.insert(share.id.clone());
+        put.parts.remove(id);
+        put.deleted.insert(id.to_string());
         put.trim();
         nav::local_set(&parts_key(profile), &put.text());
     }
     Ok(())
+}
+
+/// What a new share of the Merkliste made: its record, the path of its link, until when a one-time
+/// link opens, how many notes did not fit in its part.
+#[derive(Clone, Debug)]
+pub struct ListMade {
+    pub share: ListShare,
+    pub path: String,
+    pub until: Option<u64>,
+    pub left_out: usize,
+}
+
+/// A new share of the Merkliste (or one of its collections) of profile `profile` (synced) as
+/// `template` says, its part holding `part`. The record is the caller's to add to the shelf.
+pub async fn share_list(profile: u16, template: ListShare, part: crate::bookmarks::ListPart) -> Result<ListMade, ShareProblem> {
+    let (part, left_out) = part.fitted();
+    let code = part.code().map_err(|_| ShareProblem::Unsupported)?;
+    let placed = place(profile, template.live, template.once, &code).await?;
+    let share = ListShare { made: secs(), id: placed.id, key: placed.key, parcel: placed.parcel, ..template };
+    let path = if share.once { super::share::list_once_path(&share.parcel) } else { super::share::list_live_path(&share.link().ok_or(ShareProblem::Unsupported)?) };
+    Ok(ListMade { share, path, until: placed.until, left_out })
 }
 
 /// What a one-time link opened to.
@@ -1239,6 +1303,43 @@ pub enum Opened {
 
 /// Opens a one-time link (`#once=…`): its parcel, once.
 pub async fn open_once(parcel: &str) -> Result<Opened, ShareProblem> {
+    match open_parcel(parcel).await? {
+        OpenedCode::Live { link, .. } => {
+            let (part, rev) = fetch_part(&link, 0).await?.ok_or(ShareProblem::Unknown)?;
+            Ok(Opened::Live { link, part, rev })
+        }
+        OpenedCode::Copy(code) => Ok(Opened::Copy(LivePart::from_code(&code).ok_or(ShareProblem::Unknown)?)),
+    }
+}
+
+/// What a one-time link of the Merkliste opened to: a list that stays current (its link, its code
+/// now) or the code of a copy.
+#[derive(Clone, Debug)]
+pub enum OpenedList {
+    Live { link: String, code: String },
+    Copy(String),
+}
+
+/// Opens a one-time link of the Merkliste (`/bookmarks#once=…`): its parcel, once.
+pub async fn open_once_list(parcel: &str) -> Result<OpenedList, ShareProblem> {
+    match open_parcel(parcel).await? {
+        OpenedCode::Live { link, .. } => {
+            let (code, _) = fetch_list(&link, 0).await?.ok_or(ShareProblem::Unknown)?;
+            Ok(OpenedList::Live { link, code })
+        }
+        OpenedCode::Copy(code) if crate::bookmarks::ListPart::from_code(&code).is_some() => Ok(OpenedList::Copy(code)),
+        OpenedCode::Copy(_) => Err(ShareProblem::Unknown),
+    }
+}
+
+/// What a parcel held: the link of a part, or a copy's code.
+enum OpenedCode {
+    Live { link: String },
+    Copy(String),
+}
+
+/// Takes a one-time link's parcel, once, and opens it.
+async fn open_parcel(parcel: &str) -> Result<OpenedCode, ShareProblem> {
     let (id, key) = split_link(parcel).ok_or(ShareProblem::Unknown)?;
     let (status, text) = call("GET", "pair", &[("Betula-Pair", id)], None).await.map_err(unreachable)?;
     if status != 200 {
@@ -1249,12 +1350,8 @@ pub async fn open_once(parcel: &str) -> Result<Opened, ShareProblem> {
     let plain = open(&link_key, b"share", &sealed).await.map_err(|_| ShareProblem::Unknown)?;
     let contents: wire::ShareContents = serde_json::from_slice(&plain).map_err(|_| ShareProblem::Unknown)?;
     match (contents.part, contents.key, contents.copy) {
-        (Some(part), Some(key), _) => {
-            let link = join_link(&part, &key).ok_or(ShareProblem::Unknown)?;
-            let (part, rev) = fetch_part(&link, 0).await?.ok_or(ShareProblem::Unknown)?;
-            Ok(Opened::Live { link, part, rev })
-        }
-        (_, _, Some(copy)) => Ok(Opened::Copy(LivePart::from_code(&copy).ok_or(ShareProblem::Unknown)?)),
+        (Some(part), Some(key), _) => Ok(OpenedCode::Live { link: join_link(&part, &key).ok_or(ShareProblem::Unknown)? }),
+        (_, _, Some(copy)) => Ok(OpenedCode::Copy(copy)),
         _ => Err(ShareProblem::Unknown),
     }
 }
@@ -1274,17 +1371,17 @@ async fn parcel_states(profile: u16) -> Result<Vec<wire::ParcelState>, ShareProb
 /// (its parcel goes) or nothing (a copy); one that expired or was taken back leaves nothing, and
 /// the part of what it would have shared goes. The changes, for `PlanDoc::update_share` and
 /// `remove_share`, and the parts to delete.
-fn parcel_changes(doc: &PlanDoc, states: &[wire::ParcelState]) -> (Vec<String>, Vec<String>, Vec<String>) {
+fn parcel_changes<'a>(shares: impl Iterator<Item = (&'a str, &'a str, bool)>, states: &[wire::ParcelState]) -> (Vec<String>, Vec<String>, Vec<String>) {
     let (mut opened, mut gone, mut parts) = (Vec::new(), Vec::new(), Vec::new());
-    for share in &doc.shares {
-        let Some((parcel, _)) = split_link(&share.parcel) else { continue };
+    for (id, parcel, live) in shares {
+        let Some((parcel, _)) = split_link(parcel) else { continue };
         let Some(state) = states.iter().find(|s| s.id == parcel) else { continue };
-        match (state.state.as_str(), share.live) {
-            ("taken", true) => opened.push(share.id.clone()),
-            ("taken", false) | ("expired" | "withdrawn", false) => gone.push(share.id.clone()),
+        match (state.state.as_str(), live) {
+            ("taken", true) => opened.push(id.to_string()),
+            ("taken", false) | ("expired" | "withdrawn", false) => gone.push(id.to_string()),
             ("expired" | "withdrawn", true) => {
-                gone.push(share.id.clone());
-                parts.push(share.id.clone());
+                gone.push(id.to_string());
+                parts.push(id.to_string());
             }
             _ => {}
         }
@@ -1331,6 +1428,37 @@ impl Engine {
     fn plan_text(&self) -> String {
         let key = Store::Plan.storage_key();
         crate::profiles::checked(key, &nav::local_get(&key_of(key, self.profile)).unwrap_or_default())
+    }
+
+    /// The collections' text (shares of the Merkliste, lists followed) as its store holds it now.
+    fn shelf_text(&self) -> String {
+        let key = Store::Shelf.storage_key();
+        crate::profiles::checked(key, &nav::local_get(&key_of(key, self.profile)).unwrap_or_default())
+    }
+
+    /// The marked modules, the newest first, as their store holds them now.
+    fn marks_now(&self) -> Vec<String> {
+        let key = Store::Marks.storage_key();
+        crate::bookmarks::marked_ids(&nav::local_get(&key_of(key, self.profile)).unwrap_or_default())
+    }
+
+    /// Changes the collections' text as their store would (`f` says whether it changed anything).
+    fn edit_shelf(self: &Rc<Self>, f: impl FnOnce(&mut Shelf) -> bool) {
+        if *self.closed.borrow() {
+            return;
+        }
+        let before = self.shelf_text();
+        let mut shelf = Shelf::restored(&before);
+        if !f(&mut shelf) {
+            return;
+        }
+        let after = shelf.stored();
+        if after == before {
+            return;
+        }
+        nav::local_set(&key_of(Store::Shelf.storage_key(), self.profile), &after);
+        self.change(Store::Shelf, &before, &after, wall());
+        self.profiles.wrote();
     }
 
     /// Changes the plan as its store would (`f` says whether it changed anything): the text, its
@@ -1406,8 +1534,39 @@ impl Engine {
         if !ended.is_empty() {
             self.edit_plan(|d| every(&ended, |id| d.remove_share(id).is_some()));
         }
+        // The shares of the Merkliste: each part holds its collection (or the whole list) as the
+        // stores hold it now.
+        let shelf = Shelf::restored(&self.shelf_text());
+        let marks = self.marks_now();
+        let mut ended: Vec<String> = Vec::new();
+        for share in shelf.shares().iter().filter(|s| s.live) {
+            let Ok(code) = shelf.list_part(share, &marks).fitted().0.code() else { continue };
+            let print = fingerprint(&code);
+            if put.parts.get(&share.id).is_some_and(|(kept, _)| *kept == print) {
+                continue;
+            }
+            match put_part(&self.keys, &share.id, &share.key, &code).await {
+                Ok(rev) => {
+                    put.parts.insert(share.id.clone(), (print, rev));
+                }
+                Err(ShareProblem::Ended) => ended.push(share.id.clone()),
+                Err(_) => break,
+            }
+        }
+        if !ended.is_empty() {
+            self.edit_shelf(|s| every(&ended, |id| s.remove_share(id).is_some()));
+        }
         // The shares gone from the records (on any device): their parts and parcels go, once.
-        let gone: Vec<String> = self.core.borrow().doc.entries.iter().filter(|(key, e)| key.starts_with("P|s|") && e.val.is_none()).filter_map(|(key, _)| Some(key.strip_prefix("P|s|")?.to_string())).filter(|id| !put.deleted.contains(id)).collect();
+        let gone: Vec<String> = self
+            .core
+            .borrow()
+            .doc
+            .entries
+            .iter()
+            .filter(|(key, e)| (key.starts_with("P|s|") || key.starts_with("C|s|")) && e.val.is_none())
+            .filter_map(|(key, _)| Some(key.get(4..)?.to_string()))
+            .filter(|id| !put.deleted.contains(id))
+            .collect();
         for id in gone {
             if delete_part(&self.keys, &id).await.is_ok() {
                 let _ = withdraw(&self.keys, &id).await;
@@ -1426,6 +1585,7 @@ impl Engine {
         }
         let doc = PlanDoc::restored(&self.plan_text());
         let mut parts: Vec<String> = doc.follows().into_iter().filter(|(_, f)| f.ended == 0).filter_map(|(_, f)| f.part().map(|(id, _)| id)).collect();
+        parts.extend(Shelf::restored(&self.shelf_text()).followed().iter().filter(|f| f.ended == 0).filter_map(|f| f.part_id()));
         parts.sort();
         parts.dedup();
         parts.truncate(64);
@@ -1438,6 +1598,25 @@ impl Engine {
     /// Fetches a part the plan follows anew and gives its calendar what it holds; a part that is
     /// gone leaves the calendar as it is, not shared any more.
     async fn refresh_follow(self: &Rc<Self>, id: &str) {
+        // A list of the Merkliste followed through this part: given what it holds now.
+        let list = Shelf::restored(&self.shelf_text()).followed().iter().find(|f| f.ended == 0 && f.part_id().as_deref() == Some(id)).map(|f| f.link.clone());
+        if let Some(link) = list {
+            let rev = follow_revs().get(id).copied().unwrap_or(0);
+            match fetch_list(&link, rev).await {
+                Ok(Some((code, rev))) => {
+                    self.edit_shelf(|s| s.take(&link, &code));
+                    set_follow_rev(id, Some(rev));
+                }
+                Ok(None) => {}
+                Err(ShareProblem::Ended) => {
+                    let at = secs();
+                    self.edit_shelf(|s| s.end_follow(&link, at));
+                    set_follow_rev(id, None);
+                    self.watch();
+                }
+                Err(_) => {}
+            }
+        }
         let doc = PlanDoc::restored(&self.plan_text());
         let followers: Vec<(u8, String)> = doc.follows().into_iter().filter(|(_, f)| f.ended == 0 && f.part().is_some_and(|(part, _)| part == id)).map(|(calendar, f)| (calendar, f.link.clone())).collect();
         let Some((_, link)) = followers.first().cloned() else { return };
@@ -1461,18 +1640,26 @@ impl Engine {
     /// Asks what became of the plan's one-time links, and changes the shares accordingly.
     fn reconcile_parcels(self: &Rc<Self>) {
         let doc = PlanDoc::restored(&self.plan_text());
-        if !doc.shares.iter().any(|s| !s.parcel.is_empty()) {
+        let shelf = Shelf::restored(&self.shelf_text());
+        if !doc.shares.iter().any(|s| !s.parcel.is_empty()) && !shelf.shares().iter().any(|s| !s.parcel.is_empty()) {
             return;
         }
         let engine = Rc::clone(self);
         leptos::task::spawn_local(async move {
             let Ok(states) = parcel_states(engine.profile).await else { return };
             let doc = PlanDoc::restored(&engine.plan_text());
-            let (opened, gone, parts) = parcel_changes(&doc, &states);
+            let (opened, gone, mut parts) = parcel_changes(doc.shares.iter().map(|s| (s.id.as_str(), s.parcel.as_str(), s.live)), &states);
             engine.edit_plan(|d| {
                 let a = every(&opened, |id| d.update_share(id, |s| s.parcel.clear()));
                 every(&gone, |id| d.remove_share(id).is_some()) || a
             });
+            let shelf = Shelf::restored(&engine.shelf_text());
+            let (opened, gone, more) = parcel_changes(shelf.shares().iter().map(|s| (s.id.as_str(), s.parcel.as_str(), s.live)), &states);
+            engine.edit_shelf(|s| {
+                let a = every(&opened, |id| s.update_share(id, |share| share.parcel.clear()));
+                every(&gone, |id| s.remove_share(id).is_some()) || a
+            });
+            parts.extend(more);
             for id in parts {
                 let _ = delete_part(&engine.keys, &id).await;
             }
@@ -1484,7 +1671,10 @@ impl Engine {
 /// profile): fetches each part anew and gives its calendar what it holds.
 pub async fn refresh_follows(profile: u16, plan: crate::studyplan::Studyplan, profiles: Profiles) {
     if let Some(engine) = engine().filter(|e| e.leads(profile)) {
-        let ids: Vec<String> = PlanDoc::restored(&engine.plan_text()).follows().into_iter().filter(|(_, f)| f.ended == 0).filter_map(|(_, f)| f.part().map(|(id, _)| id)).collect();
+        let mut ids: Vec<String> = PlanDoc::restored(&engine.plan_text()).follows().into_iter().filter(|(_, f)| f.ended == 0).filter_map(|(_, f)| f.part().map(|(id, _)| id)).collect();
+        ids.extend(Shelf::restored(&engine.shelf_text()).followed().iter().filter(|f| f.ended == 0).filter_map(|f| f.part_id()));
+        ids.sort();
+        ids.dedup();
         for id in ids {
             engine.refresh_follow(&id).await;
         }
@@ -1510,6 +1700,35 @@ pub async fn refresh_follows(profile: u16, plan: crate::studyplan::Studyplan, pr
             Err(ShareProblem::Ended) => {
                 let at = secs();
                 plan.update(|doc| doc.end_follow(calendar, at));
+                set_follow_rev(&id, None);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Follows the lists of the Merkliste the active profile follows where no engine of this tab does
+/// it (a private profile): fetches each part anew and gives the list what it holds.
+pub async fn refresh_lists(profile: u16, collections: crate::collections::Collections, profiles: Profiles) {
+    if engine().is_some_and(|e| e.leads(profile)) || syncs(profile) {
+        return; // the leader follows them, with the calendars (`refresh_follows`)
+    }
+    let followed: Vec<String> = collections.with_untracked(|shelf| shelf.followed().iter().filter(|f| f.ended == 0).map(|f| f.link.clone()).collect());
+    for link in followed {
+        let Some((id, _)) = split_link(&link) else { continue };
+        let rev = follow_revs().get(&id).copied().unwrap_or(0);
+        let result = fetch_list(&link, rev).await;
+        if profiles.active_untracked() != profile {
+            return;
+        }
+        match result {
+            Ok(Some((code, rev))) => {
+                collections.update(|shelf| shelf.take(&link, &code));
+                set_follow_rev(&id, Some(rev));
+            }
+            Err(ShareProblem::Ended) => {
+                let at = secs();
+                collections.update(|shelf| shelf.end_follow(&link, at));
                 set_follow_rev(&id, None);
             }
             _ => {}

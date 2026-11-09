@@ -129,6 +129,9 @@ pub struct Sync {
     #[cfg_attr(not(all(feature = "csr", target_arch = "wasm32")), allow(dead_code))]
     profiles: Option<crate::profiles::Profiles>,
     plan: Option<crate::studyplan::Studyplan>,
+    /// The Merkliste: its marks and its collections, for the shares of the list.
+    marks: Option<crate::bookmarks::Bookmarks>,
+    collections: Option<crate::collections::Collections>,
     /// What this browser keeps of each profile's sync (the leader's word on its connection).
     states: RwSignal<Vec<(u16, State)>>,
     /// What an action of this tab is doing or failed at, above what is kept.
@@ -143,6 +146,8 @@ impl Sync {
         let sync = Sync {
             profiles: crate::profiles::Profiles::expect(),
             plan: crate::studyplan::Studyplan::expect(),
+            marks: crate::bookmarks::Bookmarks::expect(),
+            collections: crate::collections::Collections::expect(),
             states: RwSignal::new(Vec::new()),
             actions: RwSignal::new(Vec::new()),
             conflicts: RwSignal::new(Vec::new()),
@@ -569,9 +574,113 @@ impl Sync {
         }
     }
 
-    /// The calendars of the active profile that follow a share are given what it holds now (the
-    /// page opened, or came into view): by the leader where the profile syncs, by this tab where
-    /// it is private.
+    /// A new share of the active profile's Merkliste, or of one of its collections (the dialog of
+    /// the Merkliste, as of a calendar): its part from the list as it is, put at Phloem, and its
+    /// record beside the collections. `done` hears the link's path or why not.
+    pub fn share_list(self, request: ListShareRequest, done: impl FnOnce(Result<ListMade, share::ShareProblem>) + 'static) {
+        let (Some(profiles), Some(marks), Some(collections)) = (self.profiles, self.marks, self.collections) else {
+            done(Err(share::ShareProblem::Unsupported));
+            return;
+        };
+        let profile = profiles.active_untracked();
+        if !syncs(profile) {
+            done(Err(share::ShareProblem::NotSynced));
+            return;
+        }
+        let template = request.template();
+        let ids: Vec<String> = marks.marks_untracked().into_iter().map(|mark| mark.id).collect();
+        let (part, full) = collections.with_untracked(|shelf| (shelf.list_part(&template, &ids), shelf.shares().len() >= crate::collections::MAX_LIST_SHARES));
+        if full {
+            done(Err(share::ShareProblem::TooMany));
+            return;
+        }
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        leptos::task::spawn_local(async move {
+            let result = browser::share_list(profile, template, part).await.map(|made| ListMade { share: made.share, path: made.path, until: made.until, left_out: made.left_out });
+            if let Ok(made) = &result {
+                if profiles.active_untracked() == profile {
+                    let share = made.share.clone();
+                    collections.update(|shelf| shelf.add_share(share));
+                }
+            }
+            done(result);
+        });
+        #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
+        {
+            let _ = (part, template);
+            done(Err(share::ShareProblem::Unsupported));
+        }
+    }
+
+    /// „Nicht mehr teilen", „Zurückziehen" of a share of the Merkliste, as `unshare` of a
+    /// calendar's.
+    pub fn unshare_list(self, id: &str, done: impl FnOnce(Result<(), share::ShareProblem>) + 'static) {
+        let (Some(profiles), Some(collections)) = (self.profiles, self.collections) else {
+            done(Err(share::ShareProblem::Unsupported));
+            return;
+        };
+        let profile = profiles.active_untracked();
+        let Some(found) = collections.with_untracked(|shelf| shelf.share(id).cloned()) else {
+            done(Ok(()));
+            return;
+        };
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        leptos::task::spawn_local(async move {
+            let result = match browser::unshare_list(profile, &found).await {
+                Ok(()) | Err(share::ShareProblem::NotSynced) => Ok(()),
+                Err(problem) => Err(problem),
+            };
+            if result.is_ok() && profiles.active_untracked() == profile {
+                collections.update(|shelf| shelf.remove_share(&found.id));
+            }
+            done(result);
+        });
+        #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
+        {
+            let _ = (profile, found);
+            done(Err(share::ShareProblem::Unsupported));
+        }
+    }
+
+    /// Opens the list a link of the Merkliste names (`/bookmarks#live=…`), without taking
+    /// anything: the code of what it holds now (`bookmarks::ListPart`).
+    pub fn open_list(self, link: &str, done: impl FnOnce(Result<String, share::ShareProblem>) + 'static) {
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        {
+            let link = link.to_string();
+            leptos::task::spawn_local(async move {
+                done(browser::fetch_list(&link, 0).await.and_then(|found| found.map(|(code, _)| code).ok_or(share::ShareProblem::Unknown)));
+            });
+        }
+        #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
+        {
+            let _ = link;
+            done(Err(share::ShareProblem::Unsupported));
+        }
+    }
+
+    /// Opens a one-time link of the Merkliste (`/bookmarks#once=…`): its parcel, once.
+    pub fn open_once_list(self, parcel: &str, done: impl FnOnce(Result<OpenedList, share::ShareProblem>) + 'static) {
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        {
+            let parcel = parcel.to_string();
+            leptos::task::spawn_local(async move {
+                done(browser::open_once_list(&parcel).await.map(|opened| match opened {
+                    browser::OpenedList::Live { link, code } => OpenedList::Live { link, code },
+                    browser::OpenedList::Copy(code) => OpenedList::Copy(code),
+                }));
+            });
+        }
+        #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
+        {
+            let _ = parcel;
+            done(Err(share::ShareProblem::Unsupported));
+        }
+    }
+
+    /// The calendars and the lists of the Merkliste the active profile follows are given what
+    /// their share holds now (the page opened, or came into view): by the leader where the
+    /// profile syncs, by this tab where it is private.
     pub fn refresh_follows(self) {
         #[cfg(all(feature = "csr", target_arch = "wasm32"))]
         if let (Some(profiles), Some(plan)) = (self.profiles, self.plan) {
@@ -579,7 +688,13 @@ impl Sync {
                 return;
             }
             let profile = profiles.active_untracked();
-            leptos::task::spawn_local(browser::refresh_follows(profile, plan, profiles));
+            let collections = self.collections;
+            leptos::task::spawn_local(async move {
+                browser::refresh_follows(profile, plan, profiles).await;
+                if let Some(collections) = collections {
+                    browser::refresh_lists(profile, collections, profiles).await;
+                }
+            });
         }
     }
 
@@ -643,6 +758,54 @@ impl ShareRequest {
             name: self.name.clone(),
         }
     }
+}
+
+/// What a new share of the Merkliste is to be (its dialog's choices).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ListShareRequest {
+    /// The collection; 0: the whole Merkliste.
+    pub collection: u32,
+    pub live: bool,
+    /// For one person: a one-time link.
+    pub once: bool,
+    pub notes: bool,
+    /// „Für wen".
+    pub name: String,
+}
+
+impl ListShareRequest {
+    fn template(&self) -> crate::collections::ListShare {
+        crate::collections::ListShare {
+            id: String::new(),
+            collection: self.collection,
+            made: 0,
+            live: self.live,
+            once: self.once,
+            notes: self.notes,
+            key: String::new(),
+            parcel: String::new(),
+            name: crate::collections::clean_name(&self.name).chars().take(crate::collections::MAX_SHARE_NAME).collect(),
+        }
+    }
+}
+
+/// What a new share of the Merkliste made: its record, the path of its link
+/// (`/bookmarks#live=…`, `/bookmarks#once=…`), until when a one-time link opens (ms), and how many
+/// notes did not fit in its part.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ListMade {
+    pub share: crate::collections::ListShare,
+    pub path: String,
+    pub until: Option<u64>,
+    pub left_out: usize,
+}
+
+/// What a one-time link of the Merkliste opened to: a list that stays current (its link, the code
+/// of what it holds now) or the code of a copy (`bookmarks::ListPart`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum OpenedList {
+    Live { link: String, code: String },
+    Copy(String),
 }
 
 /// What a new share made: its record, the path of its link (`/studyplan#live=…`,

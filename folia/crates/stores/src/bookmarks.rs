@@ -452,6 +452,13 @@ fn load(kept: Kept) -> Marks {
     kept.read().map(|stored| Marks::restored(&stored)).unwrap_or_default()
 }
 
+/// The modules a stored list marks, the newest first (Betula Sync's renewal of a shared list
+/// reads the store's text without the store).
+#[cfg_attr(not(all(feature = "csr", target_arch = "wasm32")), allow(dead_code))]
+pub(crate) fn marked_ids(stored: &str) -> Vec<String> {
+    Marks::restored(stored).0.into_iter().map(|mark| mark.id).collect()
+}
+
 /// A stored list as the store reads it and writes it back (a profile brought from a file,
 /// `profiles::Backup`).
 pub(crate) fn checked(stored: &str) -> String {
