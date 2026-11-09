@@ -1,12 +1,14 @@
 //! The texts of bookmarks (`folia_design::texts!`; how the languages work: `folia_design::i18n`).
 
 pub mod bookmarks;
+pub mod share;
 
 pub use folia_design::i18n::{app_path, locale, of_address, use_location, Locale};
 
 folia_design::texts! {
     app = folia_shell::i18n::app,
     bookmarks = crate::i18n::bookmarks,
+    bookmarks_share = crate::i18n::share,
     catalog = folia_widgets::i18n::catalog,
     combobox = folia_design::i18n::combobox,
     common = folia_design::i18n::common,

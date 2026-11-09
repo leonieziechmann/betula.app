@@ -36,6 +36,10 @@ const MAX_SHELF_NAME: usize = 60;
 
 /// The collections a shelf holds, at most (`folia_stores::collections::MAX_COLLECTIONS`).
 const MAX_SHELF: usize = 64;
+/// The shares of the Merkliste a shelf reads (`folia_stores::collections::MAX_LIST_SHARES`).
+const MAX_LIST_SHARES: usize = 32;
+/// The lists followed a shelf reads (`folia_stores::collections::MAX_FOLLOWED`).
+const MAX_FOLLOWED: usize = 16;
 
 /// The fields of „Mein Studiengang", in the order `MineDoc` writes them.
 const MINE_KEYS: [&str; 8] = ["program", "name", "caption", "direction", "start", "leave", "until", "town"];
@@ -114,7 +118,9 @@ pub fn retired(doc: &Doc) -> Retired {
             .filter_map(|(key, _)| key.strip_prefix(prefix)?.parse().ok())
             .collect()
     };
-    Retired { calendars: deleted("P|l|"), own: deleted("P|t|"), placeholders: deleted("P|p|"), collections: deleted("C|c|") }
+    // A list followed (`C|f|`) has a number of the collections' (`folia_stores::collections`).
+    let collections = deleted("C|c|").into_iter().chain(deleted("C|f|")).collect();
+    Retired { calendars: deleted("P|l|"), own: deleted("P|t|"), placeholders: deleted("P|p|"), collections }
 }
 
 /// Texts of which two concurrent writes are both kept (a note typed on two devices at once).
@@ -306,6 +312,10 @@ fn shelf_records(text: &str, r: &mut Records) {
                 }
             }
             ["n", module, _] if keyable(module.trim()) => r.first(format!("C|n|{}", module.trim()), line.to_string()),
+            // A share of the Merkliste or a collection, and a list followed (Betula Sync's
+            // „Teilen"): a record each, its line.
+            ["s", id, _] if keyable(id.trim()) => r.first(format!("C|s|{}", id.trim()), line.to_string()),
+            ["f", id, _] if keyable(id.trim()) => r.first(format!("C|f|{}", id.trim()), line.to_string()),
             _ => r.first(format!("C|?|{line}"), ONE.into()),
         }
     }
@@ -656,6 +666,30 @@ fn shelf_project(doc: &Doc) -> Vec<String> {
         out.push(format!("m\t{module}\t{}", join(&ids)));
     }
     out.extend(doc.live_with("C|n|").filter_map(|(_, e)| e.val.clone()));
+    // The shares, of a collection that is there (or the whole Merkliste, 0), the oldest first: a
+    // share goes with its collection.
+    let mut shares: Vec<(Hlc, &str)> = doc
+        .live_with("C|s|")
+        .filter_map(|(_, e)| {
+            let line = e.val.as_deref()?;
+            let collection: u32 = line.split('\t').nth(2)?.parse().ok()?;
+            (collection == 0 || belongs(collection, e)).then_some((e.created, line))
+        })
+        .collect();
+    shares.sort();
+    out.extend(shares.into_iter().take(MAX_LIST_SHARES).map(|(_, line)| line.to_string()));
+    // The lists followed, in the order they came, each link once (the first one followed): two
+    // devices that followed one link at once keep one list.
+    let mut followed: Vec<(Hlc, u32, &str, &str)> = doc
+        .live_with("C|f|")
+        .filter_map(|(key, e)| {
+            let line = e.val.as_deref()?;
+            Some((e.created, key.strip_prefix("C|f|")?.parse().ok()?, line.split('\t').nth(2)?, line))
+        })
+        .collect();
+    followed.sort();
+    let mut links = BTreeSet::new();
+    out.extend(followed.into_iter().filter(|(_, id, link, _)| !born.contains_key(id) && links.insert(*link)).take(MAX_FOLLOWED).map(|(_, _, _, line)| line.to_string()));
     let mut rest: Vec<(Hlc, &str)> = doc.live_with("C|?|").filter_map(|(key, e)| Some((e.created, key.strip_prefix("C|?|")?))).collect();
     rest.sort();
     out.extend(rest.into_iter().map(|(_, line)| line.to_string()));
