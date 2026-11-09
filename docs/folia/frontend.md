@@ -2321,7 +2321,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     „Merkliste", „Katalog": rows to tick and „Einfügen", folia/design/hinzufuegen/konzepte.html, the
     first round's analysis). Its content is one on a desktop and on a phone, the phone's sheet
     (below): the root „Laut Plan im 3. FS", „Aus dem 4. FS vorziehen" and the ways, its pages with ‹
-    and the path, the rows. *On a desktop* (Folia 1.88.0; folia/design/hinzufuegen/rechner.html,
+    and the path, the rows. *On a desktop* (Folia 1.89.0; folia/design/hinzufuegen/rechner.html,
     variant B; owner, 2026-11-09: „Man verliert sofort den überblick wo man ist, was man macht und
     dann ist das ui auch noch super unaufgeräumt und noisy … Die handy version wiederum ist ziemlich
     gut", and of the concept's three variants „Ich glaube ich mag option B am besten") the page stays
@@ -2382,7 +2382,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     its target* (`folia_stores::studyplan::Planning::set_bench`): while the mode is open every
     „Einplanen" without a page's own hint aims at its semester and lets the module count for the
     subgroup picked, and the catalog's list has the mode's bar at its head („Planen · WiSe 2026/27 ·
-    für Fachübergreifendes Studium", `BenchBar`) with „Zurück zu WiSe 2026/27" (Esc; until 1.88.0
+    für Fachübergreifendes Studium", `BenchBar`) with „Zurück zu WiSe 2026/27" (Esc; until 1.89.0
     „Zurück zur Werkbank"), on a phone too
     in the tab „Module" (owner, 2026-11-04: „Mach das beim Katalog mal bitte so, dass man in den
     Katalog Tab kommt und da die selection dann hat"). On a phone, since Folia 1.71.0, the bar is in

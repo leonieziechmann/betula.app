@@ -602,7 +602,7 @@ impl Aim {
 /// The workbench of „Mein Studium" over another page while it is open (`Planning::bench`; the
 /// catalog that „Im Katalog suchen" opened): „Planen", the semester, the subgroup it plans for,
 /// and the way back, „Zurück zu WiSe 2026/27" (Esc, enhance.js clicks `data-action="close-focus"`
-/// once the module beside the list is closed; until Folia 1.88.0 „Zurück zur Werkbank"). Nothing
+/// once the module beside the list is closed; until Folia 1.89.0 „Zurück zur Werkbank"). Nothing
 /// while it is not open; the app's alone.
 #[component]
 pub fn BenchBar() -> impl IntoView {

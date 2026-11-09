@@ -273,7 +273,7 @@ fn follow_trail(ctx: StudyCtx) {
 /// What the modules of semester `s` count for where that is a choice of the plan (`model::counted_in`):
 /// each module's number and the choice's short name („Anwendungsfach"). The semester's rows say it
 /// beside their area while the workbench is open over them on a desktop, as its column of the
-/// semester did until Folia 1.88.0.
+/// semester did until Folia 1.89.0.
 pub(super) fn counted_for(ctx: StudyCtx, s: SemesterKey) -> BTreeMap<String, String> {
     let Some(model) = model_of(ctx, s) else { return BTreeMap::new() };
     let t = i18n::t();
