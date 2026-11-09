@@ -8,7 +8,7 @@
 //! The page (owner, mockup of 2026-10-04): an overview first, what is passed, planned and open in
 //! all and by area (`overview.rs`), then the semesters. On a desktop one semester stands in focus,
 //! its name the way to any other, in a box that is a list as the catalog's (`focus.rs`, the view
-//! „Semester"), or the whole plan as areas × semesters (`grid.rs`, „Gesamtplan"), which the sidebar
+//! „Semester"), or the whole plan as areas × semesters (`grid/`, „Gesamtplan"), which the sidebar
 //! switches between (`side.rs`). A phone has one row of pages the
 //! browser scrolls under a finger or by ‹ › (`pager.rs`): the semesters that are over, the overview
 //! with the program and its ways (`phone.rs`), the current semester and the ones to come. The
@@ -272,6 +272,11 @@ pub(super) struct StudyCtx {
     pub bench: RwSignal<Option<bench::Bench>>,
     /// The pages of the workbench's sheet on a phone gone into from its root (`bench::Page`).
     pub trail: RwSignal<Vec<bench::Step>>,
+    /// The Gesamtplan fills the page, the sidebar and the overview aside, and the browser the
+    /// screen with it (`grid::full`; owner, 2026-11-09: „einen Fullscreen knopf oben rechts … Das
+    /// soll so sein, dass die nav bar noch funktioniert und oben auch noch die suchleiste ist").
+    /// Not kept: a reload shows the page as it is.
+    pub full: RwSignal<bool>,
 }
 
 /// The last change that „Rückgängig" takes back: what its note says, the plan before it, and its
@@ -588,6 +593,7 @@ pub fn StudyPage() -> impl IntoView {
         aside_hint: RwSignal::new(None),
         bench: RwSignal::new(None),
         trail: RwSignal::new(Vec::new()),
+        full: RwSignal::new(false),
     };
     // While the workbench is open, „Einplanen" elsewhere aims at its semester and subgroup
     // (`Planning::bench`); its end ends that.
@@ -672,9 +678,35 @@ pub fn StudyPage() -> impl IntoView {
             } else if ctx.dialog.with_untracked(Option::is_none) && ctx.selection.with_untracked(|selection| !selection.keys.is_empty()) {
                 ev.prevent_default();
                 ctx.selection.set(Selection::default());
+            } else if ctx.dialog.with_untracked(Option::is_none) && ctx.bench.with_untracked(Option::is_none) && ctx.full.get_untracked() && ctx.url.with_untracked(|url| url.open.is_none()) {
+                // The Gesamtplan's full screen, as every full screen ends.
+                ev.prevent_default();
+                grid::full(ctx, false);
             }
         });
         on_cleanup(move || handle.remove());
+    });
+
+    // The Gesamtplan's full screen ends where the browser's ends (Esc, which the browser takes
+    // itself there) and where the plan is not shown any more: another view, a phone.
+    Effect::new(move |_| {
+        let handle = window_event_listener_untyped("fullscreenchange", move |_| {
+            if !dom::in_fullscreen() && ctx.full.get_untracked() {
+                ctx.full.set(false);
+            }
+        });
+        on_cleanup(move || handle.remove());
+    });
+    Effect::new(move |_| {
+        let away = ctx.view.get() != View::Grid || ctx.url.with(|url| url.view != StudyView::Semesters) || ctx.phone.get();
+        if away && ctx.full.get_untracked() {
+            grid::full(ctx, false);
+        }
+    });
+    on_cleanup(move || {
+        if ctx.full.try_get_untracked() == Some(true) {
+            dom::leave_fullscreen();
+        }
     });
 
     // What fills the page: the study, or the module opened from it after „Vollbild" (until then it
@@ -761,6 +793,7 @@ fn StudyMain(ctx: StudyCtx) -> impl IntoView {
 fn StudyBody(ctx: StudyCtx) -> impl IntoView {
     let view = Memo::new(move |_| ctx.url.with(|url| url.view));
     let benching = Memo::new(move |_| ctx.bench.with(Option::is_some));
+    let full = Memo::new(move |_| ctx.full.get() && ctx.view.get() == View::Grid);
     move || {
         let phone = ctx.phone.get();
         // On a desktop the workbench in the page's place, whatever view it was opened from; on a
@@ -770,8 +803,9 @@ fn StudyBody(ctx: StudyCtx) -> impl IntoView {
         }
         match view.get() {
             StudyView::Semesters if phone => view! { <phone::Phone ctx/> }.into_any(),
+            // The Gesamtplan in full screen fills the page without the overview (`grid::full`).
             StudyView::Semesters => view! {
-                <overview::Overview ctx/>
+                {move || (!full.get()).then(|| view! { <overview::Overview ctx/> })}
                 <Semesters ctx/>
             }
             .into_any(),
@@ -1364,6 +1398,63 @@ mod tests {
         assert_eq!(ids(&next), ["12204", "12214"], "Digitaltechnik is passed");
         let (next, _) = due.ahead(&view, &groups, summer, &source.fues, |id| takes(&doc, &asks("11756", "recommended"), id));
         assert_eq!(ids(&next), ["12204", "12214"], "only recommended");
+    }
+
+    /// The Gesamtplan's subsections of Informatik B.Sc. (owner, 2026-11-09: „subsections für
+    /// bereiche, wie zum beispiel bei informatik wo im fachstudium den bereichen praktische
+    /// informatik, grundlagen der informatik und technische informatik zugeordnet wird"): the
+    /// Fachstudium unfolds into its three Komplexe and its Seminar, each with what it holds against
+    /// its 10–24 and the room to 30, its „Wahlpflicht: Komplex …" none of them; the Nebenfach into
+    /// its two choices, where Lineare Algebra II's 8 LP for Praktische Mathematik's 6 are no „über
+    /// Bedarf"; a second Proseminar is.
+    #[test]
+    fn the_gesamtplan_s_subsections() {
+        use folia_plans::choices::Room;
+        use grid::model::{Cell, Layout, Subs};
+
+        let source = plans_of("079-82-2008");
+        let ids = ["14012", "13569", "12330", "12329", "12350", "11102", "11104", "12111", "12216"];
+        let plan = [
+            "m\t2027S\t11102\t1\t\t", "m\t2027S\t11104\t2\t\t", "m\t2027S\t12111\t3\t\t", "m\t2027S\t12216\t4\t\t",
+            "m\t2027W\t14012\t1\t\t", "m\t2027W\t13569\t2\t\t", "m\t2027W\t12330\t3\t\t",
+            "m\t2028S\t12329\t1\t\t", "m\t2028S\t12350\t2\t\t",
+        ]
+        .join("\n");
+        let doc = PlanDoc::restored(&plan);
+        let mine = MineDoc { caption: Some(String::new()), start: Some(key("2025W")), ..MineDoc::default() };
+        let mut rows = source.linked.clone();
+        rows.extend(plans_of_rows(&ids));
+        let t = i18n::texts(folia_locale::Locale::De);
+        let ready = ready(&source, &mine, key("2026W"), &doc, &rows, t);
+        let input = input_of(&source, &ready.setup, &doc, &rows);
+        let subs = Subs::of(&input, &ready);
+        let layout = Layout::of(&ready, &subs, false, &Default::default(), None, t);
+        let area = |name: &str| layout.rows.iter().find(|row| row.name == name).unwrap();
+        let said = |name: &str| area(name).subs.iter().map(|sub| format!("{} {}", sub.name, sub.figure)).collect::<Vec<_>>();
+        assert_eq!(said("Fachstudium"), ["Grundlagen der Informatik 16/10–24", "Praktische Informatik 18/10–24", "Angewandte und Technische Informatik 0/10–24", "Seminar oder Praktikum 0/4"]);
+        let komplexe = &area("Fachstudium").subs;
+        assert!(komplexe.iter().take(3).all(|sub| sub.stand.is_some_and(|(stand, room)| stand.least == 10.0 && stand.most == 24.0 && room == Some((Room::Open, 6.0)))), "{komplexe:?}");
+        assert_eq!(said("Nebenfach"), ["Anwendungsfach 8/12", "Praktische Mathematik 8/6"]);
+        assert_eq!(said("Informatik"), ["Pflichtmodule 0/62", "Proseminar oder Praktikum 8/4"]);
+        assert!(said("Mathematik").is_empty(), "an area of its Pflicht alone has none");
+        // A subsection's bar holds its modules, its lanes theirs; the area unfolds into them.
+        let praktische = komplexe.iter().find(|sub| sub.name == "Praktische Informatik").unwrap();
+        let pieces: Vec<String> = praktische.cells.iter().flat_map(|cell| match cell {
+            Cell::Semester(cell) => cell.pieces.iter().map(|piece| piece.key.clone()).collect::<Vec<_>>(),
+            Cell::Past { .. } => Vec::new(),
+        }).collect();
+        assert_eq!(pieces, ["m:14012", "m:13569", "m:12330"]);
+        assert_eq!(praktische.lanes.len(), 3);
+        assert!(area("Fachstudium").lanes.is_empty());
+        // 8 of 6 LP is no „über Bedarf"; the second Proseminar is.
+        let over: Vec<String> = layout.rows.iter().flat_map(|row| row.cells.iter()).flat_map(|cell| match cell {
+            Cell::Semester(cell) => cell.pieces.iter().filter(|piece| piece.over).map(|piece| piece.key.clone()).collect::<Vec<_>>(),
+            Cell::Past { .. } => Vec::new(),
+        }).collect();
+        assert_eq!(over.len(), 1, "{over:?}");
+        assert!(["m:12111", "m:12216"].contains(&over[0].as_str()));
+        assert!(!area("Nebenfach").over);
+        assert!(layout.keys().contains("Fachstudium\tPraktische Informatik"));
     }
 
     /// Maschinenbau numbers its electives („Wahlpflichtmodul 1" … „4"): one choice of 24 LP, whose

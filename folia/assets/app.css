@@ -5894,7 +5894,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
    little apart. */
 .st-dots > span.overview { margin: 0 3px; border-radius: 1.5px; }
 
-/* The Gesamtplan as a roadmap (`grid.rs`; folia/design/gesamtplan/konzepte.html, A): the band of
+/* The Gesamtplan as a roadmap (`grid/`; folia/design/gesamtplan/konzepte.html, A): the band of
    the study years over the semesters' heads, an area's bar over the semesters, broken where it has
    nothing, a piece per module as wide as its share of the semester's credits and never narrower
    than its label (flex: grow by the credits, at least the content); where they do not fit
@@ -5907,24 +5907,27 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 :root { --rm-on-sun: #10151f; }
 .st-grid-panel { padding: 14px 16px 14px; }
 .st-grid-panel .st-sems-head { flex-wrap: wrap; gap: 4px 16px; padding-bottom: 10px; }
-.st-rm-all .icon { width: 15px; height: 15px; }
+.st-grid-panel .st-sems-head .st-link .icon { width: 15px; height: 15px; }
+/* „Vollbild" at the head's right end, the classic sign of four corners (owner, 2026-11-09). */
+.st-rm-full { flex: none; width: 32px; height: 32px; margin: -4px -6px -4px -8px; }
+.st-rm-full .icon { width: 17px; height: 17px; }
 .st-grid-scroll { overflow-x: auto; scrollbar-width: thin; }
-/* The heads are a grid of their own over the areas' (grid.rs), in a box of their own that scrolls
+/* The heads are a grid of their own over the areas' (grid/), in a box of their own that scrolls
    sideways with theirs and shows no bar; both grids at least as wide as their columns take
-   (`min-width`, grid.rs), so that their columns are as wide. */
+   (`min-width`, grid/model.rs), so that their columns are as wide. */
 .st-rm-top-scroll { scrollbar-width: none; }
 .st-rm-top-scroll::-webkit-scrollbar { display: none; }
 .st-grid { display: grid; }
 .st-rm-heads { border-top: 1px solid var(--line-strong); }
 /* The areas' names stay at the left while the semesters scroll sideways under them, so that the
-   plan scrolled to the current semester (grid.rs, `show_now`) still says what each row is: the
+   plan scrolled to the current semester (grid/, `show_now`) still says what each row is: the
    column sticky on the panel's ground, the line between it and the first semester its own (the
    first semester's left edge goes, which would show twice). What is focused right of it scrolls
-   into view beside it (the column's 196 px, grid.rs). */
+   into view beside it (the column's 212 px, grid/model.rs). */
 .st-rm-heads > :is(.st-rm-corner, .st-grid-corner), .st-rm-grid > :is(.st-row-head, .st-rm-lane) { position: sticky; left: 0; z-index: 2; box-shadow: inset -1px 0 0 var(--line); }
 .st-rm-heads > :is(.st-rm-corner, .st-grid-corner), .st-rm-grid > .st-row-head { background-color: var(--panel); }
 .st-rm-heads > :is(.st-rm-corner, .st-grid-corner) + *, .st-rm-grid > .st-row-head + .st-rm-cell, .st-rm-grid > .st-rm-lane + .st-rm-lc { border-left-color: transparent; }
-.st-rm-heads > .st-col-head, .st-rm-grid > :is(.st-rm-cell, .st-rm-lc) :is(button, [tabindex]) { scroll-margin-left: 204px; }
+.st-rm-heads > .st-col-head, .st-rm-grid > :is(.st-rm-cell, .st-rm-lc) :is(button, [tabindex]) { scroll-margin-left: 220px; }
 .st-grid-corner { border-bottom: 1px solid var(--line-strong); }
 .st-rm-corner { border-bottom: 1px solid var(--line); }
 .st-rm-band { min-width: 0; padding: 4px 8px 3px; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -5938,16 +5941,41 @@ div.st-col-head.past { cursor: default; }
 .st-col-head .st-sub b.heavy { color: var(--warn); }
 .st-col-head .st-load { margin-top: 5px; height: 3px; }
 .st-row-head { min-width: 0; border-bottom: 1px solid var(--line); }
-.st-rm-head { display: flex; align-items: center; gap: 2px; padding-right: 10px; }
-.st-rm-tog { flex: none; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); cursor: pointer; }
-.st-rm-tog:hover { background: var(--row-hover); color: var(--text); }
+/* An area's head is one button that unfolds it and folds it (owner, 2026-11-09: „dass man den
+   kompletten bereich als toogle für das aus und einklappen verwenden kann"): ▸, its name, its
+   figure and its bar; until Folia 1.84.0 ▸ alone unfolded it and the name opened the area's
+   dialog. */
+.st-rm-head { display: flex; align-items: stretch; }
+.st-rm-area { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 2px; padding: 0 10px 0 0; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.st-rm-area:hover { background: var(--row-hover); }
+.st-rm-tog { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; color: var(--text-2); }
+.st-rm-area:hover .st-rm-tog { color: var(--text); }
 .st-rm-tog .icon { width: 15px; height: 15px; transition: rotate .16s var(--ease); }
-.st-rm-tog[aria-expanded="true"] .icon { rotate: 90deg; }
-.st-rm-area { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 9px 0 9px 2px; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-.st-rm-area:hover .st-card-name { text-decoration: underline; text-underline-offset: 3px; }
+.st-rm-area[aria-expanded="true"] .st-rm-tog .icon { rotate: 90deg; }
+.st-rm-area-t { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 9px 0 9px 2px; }
 .st-rm-area .st-card-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .st-rm-area .st-card-lp.done { display: inline-flex; align-items: center; gap: 3px; color: var(--ok); font-weight: 650; }
 .st-rm-area .st-card-lp .icon { width: 12px; height: 12px; }
+/* An area's subsections, unfolded under it (owner, 2026-11-09: „subsections für bereiche … wie die
+   wp bereiche das darstellen mit den requirements"): indented, on the lanes' ground, each with what
+   it holds against what it asks and the Wahlpflicht's bar of it (`.st-wbar`: the least marked, a
+   Komplex's room above 24 hatched); its own bar over the semesters, a little lower than an area's;
+   a click on its head unfolds its lanes, which stand indented under it. */
+.st-rm-head.st-rm-sub, .st-rm-cell.sub { background-color: color-mix(in oklab, var(--text) 1.6%, var(--panel)); }
+.st-rm-cell.sub.past { background-color: color-mix(in oklab, var(--text) 1.6%, var(--panel-2)); }
+.st-rm-cell.sub.is-now { background-color: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+.st-rm-sub .st-rm-area { padding-left: 12px; }
+.st-rm-sub .st-rm-area-t { gap: 3px; padding: 6px 0 7px 2px; }
+.st-rm-sub .st-card-name { font-size: 12.5px; font-weight: 600; }
+.st-rm-sub .st-card-lp { font-size: 12px; }
+.st-rm-subline { display: flex; align-items: center; gap: 8px; min-height: 15px; }
+.st-rm-subline > .st-wbar { flex: 1 1 auto; height: 4px; min-width: 0; }
+.st-rm-subline > .st-card-lp { flex: none; margin-left: auto; }
+.st-rm-sub .st-wbar > .lt { top: -2px; bottom: -2px; }
+.st-rm-cell.sub { padding-top: 7px; padding-bottom: 7px; }
+.st-rm-cell.sub > .st-rm-seg { height: 26px; }
+.st-rm-cell.sub > .st-rm-sum { inset: 7px 1px; }
+.st-rm-lane.deep { padding-left: 46px; }
 .st-mini { display: flex; height: 3px; margin: 6px 0 0 16px; border-radius: 2px; overflow: hidden; background: var(--panel-3); }
 .st-rm-area .st-mini { margin-top: 0; }
 .st-mini > span { flex-basis: 0; }
@@ -5959,11 +5987,16 @@ div.st-col-head.past { cursor: default; }
 .st-rm-cell { position: relative; isolation: isolate; min-width: 0; padding: 9px 1px; border-bottom: 1px solid var(--line); border-left: 1px solid var(--line); container-type: inline-size; }
 .st-rm-cell.past { background: var(--panel-2); }
 .st-rm-cell.leave { background: repeating-linear-gradient(135deg, var(--panel-2) 0 7px, var(--panel) 7px 14px); }
-/* A module dragged over the plan (grid.rs, `Aim`): the semester under the pointer lit lightly from
+/* A module dragged over the plan (grid/, `Aim`): the semester under the pointer lit lightly from
    its head down, the cell it lands in (its area's, its lane's) strongly. A shadow inside, over the
    cell's own ground (the hatch of a leave), under its pieces and the line of today. */
 .st-rm .rm-drop { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--accent) 8%, transparent); }
 .st-rm .rm-drop-here { box-shadow: inset 0 0 0 2px var(--accent), inset 0 0 0 100vmax color-mix(in srgb, var(--accent) 20%, transparent); }
+/* A row a module dragged does not count for by the plan: dashed, and what Strg does there
+   (`grid::Aim::hint`); held, it counts there as an exception, marked so. */
+.st-rm .rm-drop-no { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text-3) 70%, transparent), inset 0 0 0 100vmax color-mix(in srgb, var(--accent) 8%, transparent); }
+.st-rm-hint { position: absolute; z-index: 4; left: 50%; bottom: 3px; translate: -50% 0; max-width: calc(100% - 8px); padding: 1px 6px; border-radius: 5px; background: var(--text); color: var(--panel); font-size: 10.5px; font-weight: 650; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.st-rm-hint.ex { background: var(--warn); color: #fff; }
 .st-rm-seg { position: relative; z-index: 1; display: flex; gap: 2px; height: 28px; overflow: hidden; }
 .st-rm-sum { position: absolute; z-index: 1; inset: 9px 1px; display: none; gap: 2px; }
 .st-rm-cell[data-full] > .st-rm-seg { visibility: hidden; }
@@ -6070,7 +6103,20 @@ div.st-col-head.past { cursor: default; }
    „one scroll area"), its area lets the page behind the corners show (the mask of the semester's
    box, above), and the panel lets the block out of it (a panel's `overflow: hidden` is a scroll
    box, which the block would stick in). What is focused under it scrolls into view below it
-   (`--rm-top`, its height, grid.rs). */
+   (`--rm-top`, its height, grid/). */
+/* „Vollbild" (owner, 2026-11-09: „einen Fullscreen knopf oben rechts haben mit dem klassischen, der
+   den auf den kompletten bildschirm aufzieht. Das soll so sein, dass die nav bar noch funktioniert
+   und oben auch noch die suchleiste ist"): the plan fills the page, the sidebar aside as for the
+   workbench and the overview not drawn (`grid::full`), at least as tall as the area shows; the
+   browser shows the page on the whole screen meanwhile, the rail and the bar with the search in it. */
+@media (min-width: 901px) {
+  .work.flowing.framed:has(> .page > .page-inner.study > .st-grid-panel.is-full) > :is(.sidebar, .resizer.between) { display: none; }
+  .work.flowing.framed:has(> .page > .page-inner.study > .st-grid-panel.is-full) > .page { grid-column: 1 / -1; }
+  .work.flowing:has(> .page > .page-inner.study > .st-grid-panel.is-full) { mask-position: 0 0, calc(var(--gap) - 1px) 0, right 0 top -1px; }
+  :root:has(#content > .page-stage.front > .work.framed > .page > .page-inner.study > .st-grid-panel.is-full) .frost { left: var(--rail); }
+  :root:has(#content > .page-stage.front .work > .page > .page-inner.study > .st-grid-panel.is-full) .wait-note { left: calc(var(--rail) + var(--gap)); }
+  .page-inner.study > .st-grid-panel.is-full { min-height: calc(100vh - 64px); }
+}
 @media (min-width: 901px) {
   .page-inner.study > .st-grid-panel { overflow: visible; }
   .st-grid-panel > .st-rm-top { position: sticky; top: -1px; z-index: 6; margin: -15px -17px 0; padding: 14px 16px 0; border: 1px solid var(--ring-b); border-bottom: 0; border-radius: calc(var(--r-panel) + 1px) calc(var(--r-panel) + 1px) 0 0; background: var(--panel); }
