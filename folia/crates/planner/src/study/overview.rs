@@ -75,16 +75,20 @@ impl Info {
         let s = &t.study;
         let study = &ready.study;
         let program = format!("{} {}", ready.program.name, ready.program.degree());
-        let passed_all = study.passed + study.over_passed + study.outside.0;
-        let over_planned = study.over - study.over_passed;
-        let planned_all = study.planned + over_planned + study.outside.1;
-        let headline = if study.total > 0.0 { (s.headline)(&n(study.passed, t), &n(study.total, t)) } else { (s.headline_alone)(&n(passed_all, t)) };
+        // The numbers of the whole as the start page says them too (`study::Totals`).
+        let totals = study.totals();
+        let headline = match totals.headline() {
+            (passed, Some(total)) => (s.headline)(&n(passed, t), &n(total, t)),
+            (passed, None) => (s.headline_alone)(&n(passed, t)),
+        };
         let mut planned_rest = String::new();
-        if over_planned > 0.0 {
-            planned_rest.push_str(&(s.over_part)(&n(over_planned, t)));
+        // „über Bedarf" is what the modules beyond need bring; what a module the area needs brings
+        // past it (8 LP where 6 were left) is no more than planned (owner, 2026-11-09).
+        if totals.spare.1 > 0.0 {
+            planned_rest.push_str(&(s.over_part)(&n(totals.spare.1, t)));
         }
-        if study.outside.1 > 0.0 {
-            planned_rest.push_str(&(s.outside_part)(&n(study.outside.1, t)));
+        if totals.outside.1 > 0.0 {
+            planned_rest.push_str(&(s.outside_part)(&n(totals.outside.1, t)));
         }
 
         let mut segments = Vec::new();
@@ -93,14 +97,14 @@ impl Info {
             let named = ready.named.get(i);
             let (name, tone) = named.map_or((String::new(), "var(--text-3)"), |named| (named.short.clone(), named.tone));
             let open = progress.open();
-            if progress.area.required + progress.over > 0.0 {
+            if progress.area.required + progress.spare > 0.0 {
                 segments.push(Segment {
                     area: Some(i),
                     tone,
                     passed: progress.passed,
                     planned: progress.planned,
                     open,
-                    over: progress.over,
+                    over: progress.spare,
                     label: (s.bar_area)(&name, &n(progress.passed, t), &n(progress.planned, t), &n(progress.area.required, t)),
                 });
             }
@@ -116,8 +120,8 @@ impl Info {
                 false => parts.join(" · "),
                 true => span_of(ready, i, t).map_or_else(|| s.nothing_yet.to_string(), |span| (s.plan_says)(&span)),
             };
-            let state = if progress.over > 0.0 {
-                ((s.card_over)(&n(progress.over, t)), "over")
+            let state = if progress.spare > 0.0 {
+                ((s.card_over)(&n(progress.spare, t)), "over")
             } else if open > 0.0 {
                 ((s.card_open)(&n(open, t)), "open")
             } else {
@@ -154,10 +158,10 @@ impl Info {
         Info {
             program,
             headline,
-            passed: (s.credits)(&n(passed_all, t)),
-            planned: (s.credits)(&n(planned_all, t)),
+            passed: (s.credits)(&n(totals.passed_all(), t)),
+            planned: (s.credits)(&n(totals.planned_all(), t)),
             planned_rest,
-            open: (s.credits)(&n(study.open, t)),
+            open: (s.credits)(&n(totals.open, t)),
             segments,
             cards,
         }
@@ -323,7 +327,7 @@ impl AreaInfo {
             for item in semester.items.iter().filter(|item| item.area == area && !item.failed && (item.fillers.is_empty() || item.counted().is_some())) {
                 let credits = item.counted().map(|credits| (s.credits)(&n(credits, t)));
                 let when = if item.passed { (s.passed_in)(&semester.key.label(t.locale)) } else { (s.planned_in)(&semester.key.label(t.locale)) };
-                entries.push(Entry { id: item.module_id().map(str::to_string), name: item.name.clone(), credits, passed: item.passed, when, over: item.over > 0.0, exception: item.exception });
+                entries.push(Entry { id: item.module_id().map(str::to_string), name: item.name.clone(), credits, passed: item.passed, when, over: item.spare, exception: item.exception });
             }
         }
         let Some(index) = area else {

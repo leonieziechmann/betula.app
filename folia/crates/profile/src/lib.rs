@@ -10,6 +10,7 @@
 #![recursion_limit = "512"]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
+pub mod confirm;
 pub mod connect;
 pub mod give;
 pub mod i18n;

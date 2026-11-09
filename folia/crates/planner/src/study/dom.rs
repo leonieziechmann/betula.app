@@ -214,10 +214,11 @@ pub(super) fn drag_data(ev: &leptos::ev::DragEvent, keys: &[String]) {
     }
 }
 
-/// The semester of the column of the Gesamtplan a drag is over: the `data-sem` of the cell under
-/// the pointer, its head, an area's cell or a lane's; none outside the semesters' columns.
+/// Where in the Gesamtplan a drag is over: the semester of the column (`data-sem` of the cell
+/// under the pointer, its head, an area's cell, a subsection's or a lane's) and the row of the cell
+/// (`data-row`: an area, a subsection; none for a semester's head).
 #[allow(unused_variables)]
-pub(super) fn semester_at(ev: &leptos::ev::DragEvent) -> Option<folia_calendar::semester::SemesterKey> {
+pub(super) fn drop_at(ev: &leptos::ev::DragEvent) -> Option<(folia_calendar::semester::SemesterKey, Option<String>)> {
     #[cfg(feature = "csr")]
     {
         let target = ev.target()?;
@@ -226,10 +227,62 @@ pub(super) fn semester_at(ev: &leptos::ev::DragEvent) -> Option<folia_calendar::
             None => target.dyn_into::<web_sys::Node>().ok()?.parent_element()?,
         };
         let cell = element.closest("[data-sem]").ok()??;
-        folia_calendar::semester::SemesterKey::parse(&cell.get_attribute("data-sem")?)
+        let semester = folia_calendar::semester::SemesterKey::parse(&cell.get_attribute("data-sem")?)?;
+        Some((semester, cell.get_attribute("data-row")))
     }
     #[cfg(not(feature = "csr"))]
     None
+}
+
+/// Says a drag over the Gesamtplan moves what it carries, whatever key is held: Strg (⌘) lets it
+/// count as an exception there (`grid::Aim`), where a browser would copy.
+#[allow(unused_variables)]
+pub(super) fn drop_moves(ev: &leptos::ev::DragEvent) {
+    #[cfg(feature = "csr")]
+    if let Some(data) = ev.data_transfer() {
+        data.set_drop_effect("move");
+    }
+}
+
+/// The page fills the screen (the browser's full screen of the whole page: the rail and the bar
+/// with the search stay, `grid::Full`). Where the browser does not let it, nothing happens.
+pub(super) fn enter_fullscreen() {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::closure::Closure;
+        use web_sys::js_sys::{Function, Promise, Reflect};
+        let Some(root) = web_sys::window().and_then(|window| window.document()).and_then(|document| document.document_element()) else { return };
+        if in_fullscreen() {
+            return;
+        }
+        let Some(request) = Reflect::get(&root, &"requestFullscreen".into()).ok().and_then(|request| request.dyn_into::<Function>().ok()) else { return };
+        // A browser that refuses rejects the promise: no error of the page's.
+        if let Some(promise) = request.call0(&root).ok().and_then(|promise| promise.dyn_into::<Promise>().ok()) {
+            let quiet = Closure::<dyn FnMut(wasm_bindgen::JsValue)>::new(|_| {});
+            let _ = promise.catch(&quiet);
+            quiet.forget();
+        }
+    }
+}
+
+/// The page leaves the browser's full screen, where it is in it.
+pub(super) fn leave_fullscreen() {
+    #[cfg(feature = "csr")]
+    if let Some(document) = web_sys::window().and_then(|window| window.document()) {
+        if document.fullscreen_element().is_some() {
+            document.exit_fullscreen();
+        }
+    }
+}
+
+/// Whether the browser shows the page in full screen.
+pub(super) fn in_fullscreen() -> bool {
+    #[cfg(feature = "csr")]
+    {
+        web_sys::window().and_then(|window| window.document()).is_some_and(|document| document.fullscreen_element().is_some())
+    }
+    #[cfg(not(feature = "csr"))]
+    false
 }
 
 /// Whether a drag has left the box whose handler this is, for what lies outside it or for none
@@ -247,7 +300,7 @@ pub(super) fn drag_left(ev: &leptos::ev::DragEvent) -> bool {
 }
 
 /// Marks every cell of the Gesamtplan whose pieces do not fit beside each other (`data-full`), so
-/// that it says „4 Module" instead (`grid.rs`). The pieces stay laid out, hidden, so the next
+/// that it says „4 Module" instead (`grid/`). The pieces stay laid out, hidden, so the next
 /// measure sees them again: after every change of the plan and of the grid's width.
 #[allow(unused_variables)]
 pub(super) fn fit_pieces(root_id: &str) {
@@ -268,7 +321,7 @@ pub(super) fn fit_pieces(root_id: &str) {
     }
 }
 
-/// The height of the Gesamtplan's head, which stays at the top (`.st-rm-top`, `grid.rs`), as
+/// The height of the Gesamtplan's head, which stays at the top (`.st-rm-top`, `grid/`), as
 /// `--rm-top` on its panel: what is focused under it scrolls into view below it (app.css). Written
 /// only when it changes: a custom property restyles all the panel holds.
 #[allow(unused_variables)]

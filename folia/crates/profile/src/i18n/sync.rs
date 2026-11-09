@@ -58,13 +58,37 @@ pub struct Texts {
     /// „Nur dieses Gerät trennen": the line under it, its question and its answer.
     pub leave: &'static str,
     pub leave_hint: &'static str,
+    /// The question before leaving (a menu at the button, `confirm`), and what follows.
     pub leave_question: &'static str,
+    pub leave_after: &'static str,
     pub leave_yes: &'static str,
     /// „Sync beenden": the same.
     pub stop: &'static str,
     pub stop_hint: &'static str,
     pub stop_question: &'static str,
+    pub stop_after: &'static str,
     pub stop_yes: &'static str,
+
+    // ---- the devices of a synced profile (`DeviceList`) ----
+    /// The list, for those who do not see it.
+    pub devices_label: &'static str,
+    /// When a device is: this one („jetzt"), online (through Betula, directly, relayed), last seen
+    /// (the value: how many ms ago).
+    pub device_now: &'static str,
+    pub device_online: &'static str,
+    pub device_direct: &'static str,
+    pub device_relayed: &'static str,
+    pub device_seen: fn(u64) -> String,
+    /// Devices online that wrote nothing of themselves (a build before the list): how many; why.
+    pub devices_unnamed: fn(usize) -> String,
+    pub devices_unnamed_hint: &'static str,
+    /// „Entfernen", its name for those who do not see the row (the device's name), the question
+    /// (its name), the answer.
+    pub device_remove: &'static str,
+    pub device_remove_label: fn(&str) -> String,
+    pub device_remove_question: fn(&str) -> String,
+    pub device_remove_hint: &'static str,
+    pub device_remove_yes: &'static str,
 
     // ---- a profile from another device ----
     /// The heading, what to do, the field of the recovery code (its label and an example) and its
@@ -174,12 +198,37 @@ pub const DE: Texts = Texts {
     code_hide: "Verbergen",
     leave: "Nur dieses Gerät trennen",
     leave_hint: "Die anderen Geräte synchronisieren weiter",
-    leave_question: "Dieses Gerät aus Betula Sync nehmen? Es behält seine Kopie, die anderen Geräte gleichen weiter ab.",
+    leave_question: "Dieses Gerät aus Betula Sync nehmen?",
+    leave_after: "Es behält seine Kopie; die anderen Geräte gleichen weiter ab.",
     leave_yes: "Trennen",
     stop: "Sync beenden",
     stop_hint: "Löscht die Kopie auf dem Server",
-    stop_question: "Sync für dieses Profil auf allen Geräten beenden? Die Kopie auf dem Server wird sofort gelöscht; jedes Gerät behält seine und ist wieder privat.",
+    stop_question: "Sync für dieses Profil auf allen Geräten beenden?",
+    stop_after: "Die Kopie auf dem Server wird sofort gelöscht; jedes Gerät behält seine und ist wieder privat.",
     stop_yes: "Beenden",
+    devices_label: "Geräte dieses Profils",
+    device_now: "jetzt",
+    device_online: "online",
+    device_direct: "online · direkt",
+    device_relayed: "online · weitergeleitet",
+    device_seen: |ago| {
+        let minutes = ago / 60_000;
+        match minutes {
+            0 => "gerade eben".to_string(),
+            1..=59 => format!("vor {minutes} Min."),
+            60..=1439 => format!("vor {} Std.", minutes / 60),
+            1440..=2879 => "gestern".to_string(),
+            2880..=43199 => format!("vor {} Tagen", minutes / 1440),
+            _ => "vor über einem Monat".to_string(),
+        }
+    },
+    devices_unnamed: |n| if n == 1 { "Ein weiteres Gerät".to_string() } else { format!("{n} weitere Geräte") },
+    devices_unnamed_hint: "Mit einer älteren Version von Betula, die ihren Namen noch nicht nennt",
+    device_remove: "Entfernen",
+    device_remove_label: |name| format!("„{name}“ entfernen"),
+    device_remove_question: |name| format!("„{name}“ aus Betula Sync nehmen?"),
+    device_remove_hint: "Es geht, sobald es das nächste Mal online ist, und behält seine Kopie. Ist es verloren oder gestohlen, beende lieber Sync und schalte ihn neu ein: Dann kommt es nicht mehr hinein.",
+    device_remove_yes: "Entfernen",
 
     other_heading: "Profil von einem anderen Gerät",
     other_lead: "Öffne dort „Weiteres Gerät verbinden“ und scanne den Code, oder gib hier den Wiederherstellungscode ein. Das Profil kommt als neues Profil dazu.",
@@ -269,12 +318,38 @@ pub const EN: Texts = Texts {
     code_hide: "Hide",
     leave: "Disconnect only this device",
     leave_hint: "The other devices go on syncing",
-    leave_question: "Take this device out of Betula Sync? It keeps its copy, the other devices go on syncing.",
+    leave_question: "Take this device out of Betula Sync?",
+    leave_after: "It keeps its copy; the other devices go on syncing.",
     leave_yes: "Disconnect",
     stop: "End Sync",
     stop_hint: "Deletes the copy on the server",
-    stop_question: "End Sync for this profile on every device? The copy on the server is deleted at once; every device keeps its own and is private again.",
+    stop_question: "End Sync for this profile on every device?",
+    stop_after: "The copy on the server is deleted at once; every device keeps its own and is private again.",
     stop_yes: "End",
+    devices_label: "Devices of this profile",
+    device_now: "now",
+    device_online: "online",
+    device_direct: "online · direct",
+    device_relayed: "online · relayed",
+    device_seen: |ago| {
+        let minutes = ago / 60_000;
+        match minutes {
+            0 => "just now".to_string(),
+            1..=59 => format!("{minutes} min ago"),
+            60..=119 => "1 hour ago".to_string(),
+            120..=1439 => format!("{} hours ago", minutes / 60),
+            1440..=2879 => "yesterday".to_string(),
+            2880..=43199 => format!("{} days ago", minutes / 1440),
+            _ => "over a month ago".to_string(),
+        }
+    },
+    devices_unnamed: |n| if n == 1 { "One more device".to_string() } else { format!("{n} more devices") },
+    devices_unnamed_hint: "With an older version of Betula that does not tell its name yet",
+    device_remove: "Remove",
+    device_remove_label: |name| format!("Remove “{name}”"),
+    device_remove_question: |name| format!("Take “{name}” out of Betula Sync?"),
+    device_remove_hint: "It goes the next time it is online and keeps its copy. If it is lost or stolen, rather end Sync and switch it on again: then it cannot get back in.",
+    device_remove_yes: "Remove",
 
     other_heading: "Profile from another device",
     other_lead: "Open “Connect another device” there and scan the code, or enter the recovery code here. The profile is added as a new profile.",

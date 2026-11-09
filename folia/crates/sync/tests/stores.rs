@@ -230,3 +230,32 @@ fn every_store_text_read_back_gives_its_records_again() {
     assert!(r.len() > 30, "{}", r.len());
     assert_eq!(records(Store::Plan, &PlanDoc::restored(&text).stored_without_program()), r);
 }
+
+#[test]
+fn a_record_outside_the_stores_travels_and_no_store_shows_it() {
+    let mut doc = Doc::default();
+    let mut writer = Writer::new(2, &doc);
+    let op = writer.put(&mut doc, "D|abc", Some("1\t2\tphone".to_string()), 1_000).unwrap();
+    assert_eq!((op.dev, op.seq, op.created), (2, 1, op.hlc));
+    // The same again writes nothing; an update keeps the record's life, a deletion ends it.
+    assert!(writer.put(&mut doc, "D|abc", Some("1\t2\tphone".to_string()), 2_000).is_none());
+    let update = writer.put(&mut doc, "D|abc", Some("1\t2\ttablet".to_string()), 3_000).unwrap();
+    assert_eq!(update.created, op.created);
+    // Another device has it as written, and no store projects it.
+    let mut other = Doc::default();
+    other.apply(&op);
+    other.apply(&update);
+    assert_eq!(other.live("D|abc").and_then(|e| e.val.as_deref()), Some("1\t2\ttablet"));
+    for store in Store::ALL {
+        assert_eq!(project(store, &other), project(store, &Doc::default()), "{store:?}");
+    }
+    // A snapshot carries it.
+    let (entries, seen) = codec::read_snapshot(&codec::snapshot(&other)).unwrap();
+    let mut fresh = Doc::default();
+    fresh.join(entries, &seen);
+    assert!(fresh.live("D|abc").is_some());
+    let gone = writer.put(&mut doc, "D|abc", None, 4_000).unwrap();
+    assert!(gone.val.is_none() && doc.live("D|abc").is_none());
+    assert!(writer.put(&mut doc, "D|abc", None, 5_000).is_none(), "deleting what is gone writes nothing");
+    assert!(writer.put(&mut doc, "D|new", None, 5_000).is_none());
+}

@@ -161,8 +161,16 @@ pub struct Texts {
     pub open: &'static str,
     /// „0 von 180 LP bestanden".
     pub passed_of: fn(&str) -> String,
+    /// After the figure of a program without a plan, which asks for no total: „LP bestanden".
+    pub passed_alone: &'static str,
     pub passed: &'static str,
     pub planned: &'static str,
+    /// Of what is planned, beyond an area's need and towards no area, as „Mein Studium" says it
+    /// (`study::Totals`): „, davon 8 über Bedarf", „, 6 ohne Bereich".
+    pub over_part: fn(&str) -> String,
+    pub outside_part: fn(&str) -> String,
+    /// The bar's striped part: „16 LP über Bedarf oder ohne Bereich".
+    pub beyond: fn(&str) -> String,
     pub left: &'static str,
     pub credits: &'static str,
     pub bookmarks: &'static str,
@@ -372,8 +380,12 @@ pub const DE: Texts = Texts {
     },
     open: "Öffnen",
     passed_of: |credits| format!("von {credits}\u{a0}LP bestanden"),
+    passed_alone: "LP bestanden",
     passed: "bestanden",
     planned: "geplant",
+    over_part: |n| format!(", davon {n} über Bedarf"),
+    outside_part: |n| format!(", {n} ohne Bereich"),
+    beyond: |n| format!("{n}\u{a0}LP über Bedarf oder ohne Bereich"),
     left: "offen",
     credits: "LP",
     bookmarks: "Merkliste",
@@ -561,8 +573,12 @@ pub const EN: Texts = Texts {
     },
     open: "Open",
     passed_of: |credits| format!("of {credits}\u{a0}ECTS passed"),
+    passed_alone: "ECTS passed",
     passed: "passed",
     planned: "planned",
+    over_part: |n| format!(", {n} of them beyond need"),
+    outside_part: |n| format!(", {n} in no area"),
+    beyond: |n| format!("{n}\u{a0}ECTS beyond need or in no area"),
     left: "open",
     credits: "ECTS",
     bookmarks: "Saved",

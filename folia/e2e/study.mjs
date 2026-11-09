@@ -26,8 +26,9 @@
 //   dialog; a module beside the page by its name and by its row, in full and back; the
 //   Gesamtplan as a roadmap (the band of the study years, Informatik's first semester by its
 //   abbreviations, the pieces as wide as their credits, the Bachelor-Arbeit's bar not before its
-//   semester, the line of today and its flag, ▸ unfolding Mathematik into its lanes, kept, growing
-//   in with the focus on ▸, „Alle zuklappen" shrinking them away, „Bisher zuklappen" and back), each
+//   semester, the line of today and its flag, a click on Mathematik's name unfolding it into its
+//   lanes, no dialog, kept, growing in with the focus on its head, the one button unfolding all and
+//   then folding all, shrinking them away, „Bisher zuklappen" and back), each
 //   cell as tall as what it lists, a module's menu,
 //   the plan's open Betriebssysteme I dashed and planned
 //   with a click, the view kept, in a narrower window the plan scrolled sideways to the semester
@@ -42,7 +43,14 @@
 //   the semester and Nebenfach count 6 LP, not 12, the place full stands no more and the module
 //   says „für „Anwendungsfach“"; taken out again, the place stands again, and the Wahlpflicht's
 //   „+ In WiSe 26/27" fills it the same way.
-// 2c a place as a place for modules (owner, 2026-11-09: „dass die verschwinden, wenn die voll
+// 2c the Gesamtplan reworked (owner, 2026-11-09): the Fachstudium's head unfolds into its Komplexe
+//   (10–24, the room to 30) and its Seminar, the Nebenfach's into its two choices, Praktische
+//   Mathematik's 8 of 6 LP no „über Bedarf"; a subsection into its lanes; a module dragged onto
+//   another subsection that lists it counts there („Rückgängig"), onto one that does not it moves
+//   in its own and the row says what Strg does, with Strg it counts there as an exception;
+//   „Vollbild" at the head's right end, the rail and the search staying, Esc out of it; „Als Bild
+//   speichern" a PNG of the day.
+// 2d a place as a place for modules (owner, 2026-11-09: „dass die verschwinden, wenn die voll
 //   erfüllt sind … Dann soll der platzhalter azeigen, wie viel progress da schon eingeplant ist"):
 //   the Anwendungsfach set to 12 LP with a module of 6 in it stands with its bar, „6 von 12 LP
 //   eingeplant", and counts what is left; „Umfang …" in its menu, turned to 6 („Wie im Plan"
@@ -484,9 +492,9 @@ if (current !== "2026W") {
 
   // The Gesamtplan as a roadmap (folia/design/gesamtplan/konzepte.html, A; owner, 2026-11-03):
   // an area's bar of pieces named by their abbreviations, none where the area has nothing, the
-  // band of the study years, the line of today; ▸ unfolds a lane per module, kept, „Alle
-  // zuklappen" folds them; „Bisher zuklappen"; a module's menu; the plan's open module dashed and
-  // planned with a click; the view kept.
+  // band of the study years, the line of today; a click anywhere on an area's head unfolds a lane
+  // per module, kept, the one button folds them (owner, 2026-11-09); „Bisher zuklappen"; a
+  // module's menu; the plan's open module dashed and planned with a click; the view kept.
   await step("Gesamtplan", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => document.querySelector(".st-rm-grid") && document.querySelectorAll(".st-row-head").length === 6 && document.querySelector(".st-rm-seg .st-rm-p"));
   // A cell as tall as what it lists (the Regelstudienplan's pills once took its class, and the
   // cells shrank to a pill, their modules over the semesters' heads).
@@ -521,7 +529,11 @@ if (current !== "2026W") {
   check(roadmap.first.join() === "EvS,EEG,PP" && roadmap.wider, `Informatik's first semester: ${roadmap.first.join()} (EvS wider than PP: ${roadmap.wider})`);
   check(/^00/.test(roadmap.thesis) && roadmap.thesis.includes("1"), `the Bachelor-Arbeit's bar is not broken before its semester: ${roadmap.thesis}`);
   check(roadmap.today, "the line of today does not run through the current semester, or its flag is missing");
-  await step("▸ Mathematik", () => page.click('.st-row-head:has(.st-card-name:text-is("Mathematik")) .st-rm-tog'), () => document.querySelector('.st-row-head.is-open .st-card-name')?.textContent === "Mathematik" && [...document.querySelectorAll(".st-rm-lane-name")].some((lane) => lane.textContent === "Mathematik IT-1"));
+  // The whole head is the toggle (owner, 2026-11-09: „dass man den kompletten bereich als toogle für
+  // das aus und einklappen verwenden kann. Der modal mit dem progress ist komplett redundant"): a
+  // click on the area's name unfolds it, no dialog.
+  await step("Mathematik's head", () => page.click('.st-row-head:has(.st-card-name:text-is("Mathematik")) .st-card-name'), () => document.querySelector('.st-row-head.is-open .st-card-name')?.textContent === "Mathematik" && [...document.querySelectorAll(".st-rm-lane-name")].some((lane) => lane.textContent === "Mathematik IT-1"));
+  check(!(await page.evaluate(() => document.querySelector(".st-dialog[open]"))), "a click on an area's head opened a dialog");
   check((await stored(page, "betula.study.open")) === "Mathematik", `what is unfolded is not kept: ${JSON.stringify(await stored(page, "betula.study.open"))}`);
   // Unfolding and folding move (owner, 2026-11-05: „animationen für das auf und zuklappen.
   // unauffällig undd snappy einfach so, dass das leicher zu verstehen ist"): Mathematik's lanes grew
@@ -529,15 +541,25 @@ if (current !== "2026W") {
   // they go.
   const grew = await page.evaluate(() => ({
     in: document.querySelectorAll(".st-rm-grid > .st-rm-lane.rm-in").length === document.querySelectorAll(".st-rm-grid > .st-rm-lane").length,
-    focus: document.activeElement?.matches(".st-rm-tog[aria-expanded=true]"),
+    focus: document.activeElement?.matches(".st-rm-area[aria-expanded=true]"),
   }));
-  check(grew.in && grew.focus, `▸ Mathematik: its lanes did not grow in, or ▸ lost the focus: ${JSON.stringify(grew)}`);
+  check(grew.in && grew.focus, `Mathematik's head: its lanes did not grow in, or the head lost the focus: ${JSON.stringify(grew)}`);
   await page.evaluate(() => {
     window.__shrunk = false;
     const seen = new MutationObserver(() => { if (document.querySelector(".st-rm-lane.rm-out")) { window.__shrunk = true; seen.disconnect(); } });
     seen.observe(document.querySelector(".st-rm-grid"), { subtree: true, attributes: true, attributeFilter: ["class"] });
   });
-  await step("Alle zuklappen", () => page.click('.st-sems-head button:has-text("Alle zuklappen")'), () => !document.querySelector(".st-rm-lane"));
+  // One button for all of it (owner, 2026-11-09: „alles auf/zuklappen ein knopf … so dass man halt
+  // da im zweifel zwei mal drauf drücken muss"): with one area unfolded it unfolds all, then folds
+  // all.
+  check((await page.textContent(".st-rm-all"))?.trim() === "Alle aufklappen", `the one button with Mathematik unfolded: ${await page.textContent(".st-rm-all")}`);
+  await step("Alle aufklappen", () => page.click(".st-rm-all"), () => document.querySelector(".st-rm-all")?.textContent.trim() === "Alle zuklappen" && [...document.querySelectorAll(".st-rm-grid > .st-row-head")].every((head) => head.classList.contains("is-open")));
+  await page.evaluate(() => {
+    window.__shrunk = false;
+    const seen = new MutationObserver(() => { if (document.querySelector(".st-rm-lane.rm-out")) { window.__shrunk = true; seen.disconnect(); } });
+    seen.observe(document.querySelector(".st-rm-grid"), { subtree: true, attributes: true, attributeFilter: ["class"] });
+  });
+  await step("Alle zuklappen", () => page.click(".st-rm-all"), () => !document.querySelector(".st-rm-lane") && document.querySelector(".st-rm-all")?.textContent.trim() === "Alle aufklappen");
   check((await stored(page, "betula.study.open")) === null, "„Alle zuklappen“ kept something unfolded");
   check(await page.evaluate(() => window.__shrunk), "„Alle zuklappen“: the lanes went at once, without shrinking away");
   await step("Bisher zuklappen", () => page.click('.st-sems-head button:has-text("Bisher zuklappen")'), () => document.querySelector("div.st-col-head.past") && document.querySelector(".st-rm-cell.past .st-rm-p.stub"));
@@ -554,7 +576,10 @@ if (current !== "2026W") {
   // the area is masked as the semester's is, a layer of its own under the rail and the bar, and a
   // click on them reaches them, as it does from a semester's menu.
   await step("closed by a click beside it", () => page.click(".st-pop-shade", { position: { x: 200, y: 850 } }), () => !document.querySelector(".st-pop"));
-  await step("▸ Informatik", () => page.click('.st-row-head:has(.st-card-name:text-is("Informatik")) .st-rm-tog'), () => document.querySelector('.st-rm-bar.open[aria-label*="Betriebssysteme I"]'));
+  // Informatik unfolds into its subsections, its Pflichtmodule and „Proseminar oder Praktikum“; its
+  // Pflichtmodule into their lanes.
+  await step("Informatik's head", () => page.click('.st-row-head:has(.st-card-name:text-is("Informatik")) .st-card-name'), () => document.querySelector('.st-rm-sub .st-card-name')?.textContent === "Pflichtmodule");
+  await step("its Pflichtmodule", () => page.click('.st-rm-sub:has(.st-card-name:text-is("Pflichtmodule")) .st-rm-area'), () => document.querySelector('.st-rm-bar.open[aria-label*="Betriebssysteme I"]'));
   await step("plan the open Betriebssysteme I", () => page.click('.st-rm-bar.open[aria-label*="Betriebssysteme I"]'), () => document.querySelector(".study-note")?.textContent.includes("hinzugefügt"));
   check((await lines(page, "m\t2027S\t")).length === 1, `the open module was not planned: ${JSON.stringify(await lines(page, "m\t2027S\t"))}`);
   check((await stored(page, "betula.study.view")) === "grid", "the view is not remembered");
@@ -581,7 +606,7 @@ if (current !== "2026W") {
       return `${cell.dataset.sem} ${head?.querySelector(".st-card-name, .st-rm-lane-name")?.textContent}`;
     }),
   }));
-  check(aimed.column && aimed.others === 0 && aimed.lands.join(" | ") === "2027W Informatik | 2027W Betriebssysteme I", `a module dragged over the head of WiSe 2027/28: ${JSON.stringify(aimed)}`);
+  check(aimed.column && aimed.others === 0 && aimed.lands.join(" | ") === "2027W Informatik | 2027W Pflichtmodule | 2027W Betriebssysteme I", `a module dragged over the head of WiSe 2027/28: ${JSON.stringify(aimed)}`);
   await step("let go over the semester's head", () => page.mouse.up(), (id) => (localStorage.getItem("betula.studyplan.v1") || "").split("\n").some((line) => line.startsWith(`m\t2027W\t${id}\t`)) && !document.querySelector(".rm-drop, .rm-drop-here"), bs1);
   await step("Rückgängig, the module back", () => page.click(".study-note .plan-toast-undo"), (id) => (localStorage.getItem("betula.studyplan.v1") || "").split("\n").some((line) => line.startsWith(`m\t2027S\t${id}\t`)), bs1);
   // The plan's head stays at the top (owner, 2026-11-04: „Ich möchte, dass da der header sticky
@@ -599,7 +624,7 @@ if (current !== "2026W") {
     const left = (selector) => Math.round(document.querySelector(selector).getBoundingClientRect().left - box);
     return { left: [...document.querySelectorAll(".st-grid-scroll")].map((scroller) => scroller.scrollLeft), now: left(".st-col-head.is-now"), name: left(".st-rm-grid > .st-row-head") };
   });
-  check(shown.left.join() === "140,140" && shown.now === 336 && shown.name === 0, `the current semester in view: ${JSON.stringify(shown)}`);
+  check(shown.left.join() === "140,140" && shown.now === 352 && shown.name === 0, `the current semester in view: ${JSON.stringify(shown)}`);
   const stuck = await page.evaluate(() => new Promise((done) => {
     const area = document.querySelector("#content > .page-stage.front > .work.flowing");
     const body = document.querySelector(".st-grid-scroll:not(.st-rm-top-scroll)");
@@ -734,7 +759,8 @@ if (current !== "2026W") {
     return box && { height: Math.round(box.height), inside: box.top >= cell.top && box.bottom <= cell.bottom };
   });
   check(inPlan?.height === 28 && inPlan.inside, `the place in the Gesamtplan: ${JSON.stringify(inPlan)}`);
-  await step("▸ Nebenfach, its place", () => page.click('.st-row-head:has(.st-card-name:text-is("Nebenfach")) .st-rm-tog'), () => {
+  await step("Nebenfach's head", () => page.click('.st-row-head:has(.st-card-name:text-is("Nebenfach")) .st-card-name'), () => document.querySelector('.st-rm-sub .st-card-name')?.textContent === "Anwendungsfach");
+  await step("its Anwendungsfach, the place", () => page.click('.st-rm-sub:has(.st-card-name:text-is("Anwendungsfach")) .st-rm-area'), () => {
     const lane = [...document.querySelectorAll(".st-rm-lane")].find((lane) => lane.querySelector(".st-rm-lane-name")?.textContent === "Anwendungsfach");
     let bar = null;
     for (let cell = lane?.nextElementSibling; !bar && cell?.classList.contains("st-rm-lc"); cell = cell.nextElementSibling) bar = cell.querySelector(".st-rm-bar.is-ph");
@@ -751,7 +777,9 @@ if (current !== "2026W") {
   await step("the plan's open Anwendungsfach", () => page.click('.st-rm-bar.open[aria-label^="Anwendungsfach –"]'), () => document.querySelector(".st-wb-pt h3")?.textContent === "Anwendungsfach" && document.querySelector(".st-wb-bar em")?.textContent === "SoSe 2027" && document.querySelector(".study-note")?.textContent.includes("Anwendungsfach in SoSe 2027 vorgemerkt"));
   await step("Rückgängig, in its module choice", () => page.click(".study-note .plan-toast-undo"), (key) => !(localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith("p\t") && line.split("\t")[2] === "2027S"), PLAN);
   await step("Fertig, the Gesamtplan again", () => page.click(".st-wb-done"), () => !document.querySelector(".st-wb") && document.querySelector(".st-rm-grid"));
-  await step("Alle zuklappen, for the place", () => page.click('.st-sems-head button:has-text("Alle zuklappen")'), () => !document.querySelector(".st-rm-lane"));
+  // Not all of it unfolded: the one button unfolds all first, then folds all.
+  await step("Alle aufklappen, for the place", () => page.click(".st-rm-all"), () => document.querySelector(".st-rm-all")?.textContent.trim() === "Alle zuklappen");
+  await step("Alle zuklappen, for the place", () => page.click(".st-rm-all"), () => !document.querySelector(".st-rm-lane"));
   // Its semester's head shows it as the semester (the workbench's „Fertig" left SoSe 2027 in focus).
   await step("back to the semester", () => page.click('.st-col-head[data-sem="2026W"]'), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
   // „Modul wählen", in its menu and at the row, opens the workbench at the place's subgroup
@@ -775,7 +803,7 @@ if (current !== "2026W") {
   // place, counted once (it was 12 and 12/18: folia/design/hinzufuegen/konzepte.html, „Was heute
   // schiefgeht"); the place, full, stands no more, and the module carries its name (owner,
   // 2026-11-09: „wenn man ein anwendungsfach eplant hat, dann muss man den platzhalter nicht mehr
-  // sehen"; until Folia 1.84.0 it stood beside it, „gefüllt mit …").
+  // sehen"; until Folia 1.86.0 it stood beside it, „gefüllt mit …").
   await step("Zurück zur Werkbank", () => page.click(".bench-bar a"), () => location.pathname === "/study" && document.querySelector(".st-wb-pane .st-wb-row.is-done")?.textContent.includes("Allgemeine Betriebswirtschaftslehre I"));
   await step("the semester, its place filled", () => page.click(".st-wb-done"), () => !document.querySelector(".st-wb") && document.querySelectorAll(".st-card-sem .st-row").length === 1);
   const filled = await counts();
@@ -793,10 +821,12 @@ if (current !== "2026W") {
     const row = document.querySelector(".st-wrows .st-wrow:not(.has)");
     return { id: row?.querySelector(".st-wrow-id")?.textContent, credits: row?.querySelector(".st-wrow-lp")?.textContent.replace(/\s*LP$/, "") };
   });
-  // The catalog stays built behind its tab: the switch beside „Mein Studium" is the one shown.
+  // The catalog stays built behind its tab: the switch beside „Mein Studium" is the one shown. Passed
+  // as a function, not as text made a function in the page, which its Content-Security-Policy
+  // refuses (no 'unsafe-eval').
   const shown = (selector) => [...document.querySelectorAll(selector)].find((el) => el.checkVisibility());
-  await step("the Wahlpflicht's module beside the page", () => page.click(".st-wrows .st-wrow:not(.has) >> nth=0"), ([selector, find]) => new Function(`return (${find})`)()(selector), [SWITCH, shown.toString()]);
-  const forPlace = await page.evaluate(([selector, find]) => new Function(`return (${find})`)()(selector)?.textContent.replace(/\s+/g, " "), [SWITCH, shown.toString()]);
+  await step("the Wahlpflicht's module beside the page", () => page.click(".st-wrows .st-wrow:not(.has) >> nth=0"), shown, SWITCH);
+  const forPlace = await page.evaluate((selector) => [...document.querySelectorAll(selector)].find((el) => el.checkVisibility())?.textContent.replace(/\s+/g, " "), SWITCH);
   check(forPlace?.includes("WiSe 26/27") && forPlace.includes("für „Anwendungsfach“"), `the Wahlpflicht's module does not aim at the place: ${forPlace}`);
   await step("Einplanen, for the Wahlpflicht's place", () => page.click(`${SWITCH} >> visible=true`), ([key, id, pid]) => (localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith(`m\t2026W\t${id}\t`) && line.split("\t")[4] === pid), [PLAN, chosen.id, pid]);
   await page.waitForFunction((credits) => [...document.querySelectorAll(".st-sl-h")].find((head) => head.textContent.includes("Nebenfach"))?.querySelector("small")?.textContent === `${credits} / 18\u00a0LP`, chosen.credits, { timeout: 4000 })
@@ -804,7 +834,97 @@ if (current !== "2026W") {
   await context.close();
 }
 
-// ---------- 2c: a place for modules, its size, the weighting of the Komplexe ----------
+// ---------- 2c: the Gesamtplan reworked (owner, 2026-11-09) ----------
+{
+  const { page, step, seed, context } = await open({ viewport: { width: 1600, height: 1000 }, acceptDownloads: true }, "/");
+  // SoSe 2027 as in 3 (Lineare Algebra und analytische Geometrie II, 8 LP, for Praktische
+  // Mathematik's 6; Analysis II for the Anwendungsfach), three modules of the Komplex Praktische
+  // Informatik in WiSe 2027/28 and two of Grundlagen der Informatik in SoSe 2028.
+  const KOMPLEX = ["14012", "13569", "12330"].map((id, i) => `m\t2027W\t${id}\t${i + 1}\t\t`).concat(["12329", "12350"].map((id, i) => `m\t2028S\t${id}\t${i + 1}\t\t`)).join("\n") + "\n";
+  await seed([[MINE, THIRD], [PLAN, FILLED + LATER + KOMPLEX], ["betula.study.view", "grid"]]);
+  await step("the Gesamtplan", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector(".st-rm-grid .st-rm-p"));
+  // Subsections (owner: „subsections für bereiche … Orientiere dich daran, wie die wp bereiche das
+  // darstellen mit den requirements, also min 10lp max 24lp mit einem der bereiche mit 30 erlaubten
+  // lp"): the Fachstudium unfolds into its Komplexe, each with what it holds against its 10–24 and
+  // the Wahlpflicht's bar (its least marked, the room to 30 hatched), and the Seminar; its
+  // „Wahlpflicht: Komplex …" is none of them. The Nebenfach into its two choices: Praktische
+  // Mathematik holds 8 of its 6, which is no „über Bedarf" (owner: „weil ein modul 8 statt 6 lp
+  // bringt. Das darf dann aber nicht als zu viel angezeigt werden").
+  await step("Fachstudium's head", () => page.click('.st-row-head:has(.st-card-name:text-is("Fachstudium")) .st-card-name'), () => document.querySelectorAll(".st-rm-sub").length === 4);
+  await step("Nebenfach's head", () => page.click('.st-row-head:has(.st-card-name:text-is("Nebenfach")) .st-card-name'), () => document.querySelectorAll(".st-rm-sub").length === 6);
+  const subs = await page.evaluate(() => [...document.querySelectorAll(".st-rm-sub")].map((head) => ({
+    name: head.querySelector(".st-card-name")?.textContent,
+    figure: head.querySelector(".st-card-lp")?.textContent.trim(),
+    least: !!head.querySelector(".st-wbar > .lt"),
+    room: !!head.querySelector(".st-wbar > .zn"),
+  })));
+  const said = subs.map((sub) => `${sub.name} ${sub.figure}`).join(" | ");
+  check(said === "Anwendungsfach 8/12 | Praktische Mathematik 8/6 | Grundlagen der Informatik 16/10–24 | Praktische Informatik 18/10–24 | Angewandte und Technische Informatik 0/10–24 | Seminar oder Praktikum 0/4", `the subsections: ${said}`);
+  check(subs.slice(2, 5).every((sub) => sub.least && sub.room), `the Komplexe's bars: ${JSON.stringify(subs.slice(2, 5))}`);
+  const over = await page.evaluate(() => [...document.querySelectorAll(".st-rm-p.over")].map((piece) => piece.getAttribute("aria-label")));
+  check(over.length === 0, `8 LP where 6 were asked marked as beyond need: ${JSON.stringify(over)}`);
+  // A subsection unfolds into its lanes.
+  await step("Praktische Informatik's head", () => page.click('.st-rm-sub:has(.st-card-name:text-is("Praktische Informatik")) .st-rm-area'), () => [...document.querySelectorAll(".st-rm-lane.deep .st-rm-lane-name")].map((lane) => lane.textContent).includes("Datenbanken"));
+  // A module dragged onto another subsection whose list holds it counts there, with „Rückgängig":
+  // Lineare Algebra II from Praktische Mathematik to the Anwendungsfach, in its semester.
+  const drag = async (from, to, ctrl) => {
+    const a = await page.locator(from).first().boundingBox();
+    const b = await page.locator(to).first().boundingBox();
+    if (!a || !b) return problems.push(`nothing to drag from ${from} to ${to}`);
+    await page.mouse.move(a.x + 10, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(a.x + 30, a.y + a.height / 2, { steps: 3 });
+    if (ctrl) await page.keyboard.down("Control");
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 10 });
+    await page.waitForTimeout(150);
+  };
+  const row = (name) => page.evaluate((name) => [...document.querySelectorAll(".st-rm-sub")].find((head) => head.querySelector(".st-card-name")?.textContent === name)?.nextElementSibling?.dataset.row, name);
+  const [anwendung, pm, seminar, praktisch] = [await row("Anwendungsfach"), await row("Praktische Mathematik"), await row("Seminar oder Praktikum"), await row("Praktische Informatik")];
+  await drag(`[data-row="${pm}"] .st-rm-p[aria-label^="LAAG2,"]`, `[data-sem="2027S"][data-row="${anwendung}"]`, false);
+  check(await page.evaluate((row) => document.querySelector(`.rm-drop-here[data-sem="2027S"][data-row="${row}"]`) !== null, anwendung), "the Anwendungsfach's cell is not where Lineare Algebra II lands");
+  await step("let go over the Anwendungsfach", () => page.mouse.up(), () => document.querySelector(".study-note")?.textContent.includes("zählt für Anwendungsfach"));
+  check((await lines(page, "m\t2027S\t11102\t"))[0]?.split("\t").length > 6, `Lineare Algebra II does not count for the Anwendungsfach: ${JSON.stringify(await lines(page, "m\t2027S\t11102\t"))}`);
+  await step("Rückgängig, Praktische Mathematik's again", () => undo(page), () => !document.querySelector(".study-note"));
+  // Onto the Seminar, whose list does not hold it, Datenbanken does not count: the row says what
+  // Strg does, and the module moves in its own; with Strg it counts there as an exception.
+  await drag(`[data-row="${praktisch}"] .st-rm-p[aria-label^="DB,"]`, `[data-sem="2028S"][data-row="${seminar}"]`, false);
+  const refused = await page.evaluate((row) => ({ hint: document.querySelector(`[data-sem="2028S"][data-row="${row}"] .st-rm-hint`)?.textContent, no: !!document.querySelector(`.rm-drop-no[data-sem="2028S"][data-row="${row}"]`) }), seminar);
+  check(refused.no && refused.hint === "Strg: als Ausnahme", `the Seminar's row under Datenbanken: ${JSON.stringify(refused)}`);
+  await step("let go over the Seminar", () => page.mouse.up(), () => document.querySelector(".study-note")?.textContent.includes("ins SoSe 2028 verschoben"));
+  check((await lines(page, "m\t2028S\t12330\t"))[0]?.split("\t").length <= 6, "Datenbanken counts for the Seminar without Strg");
+  await step("Rückgängig, Datenbanken back", () => undo(page), () => !document.querySelector(".study-note"));
+  await page.waitForFunction(() => document.querySelector('.st-rm-p[aria-label^="DB,"]'), null, { timeout: 4000 }).catch(() => {});
+  await drag(`[data-row="${praktisch}"] .st-rm-p[aria-label^="DB,"]`, `[data-sem="2027W"][data-row="${seminar}"]`, true);
+  await step("with Strg, as an exception", async () => { await page.mouse.up(); await page.keyboard.up("Control"); }, () => document.querySelector(".study-note")?.textContent.includes("zählt als Ausnahme für Seminar oder Praktikum"));
+  await step("Rückgängig, the exception", () => undo(page), () => !document.querySelector(".study-note"));
+  // „Vollbild" at the head's right end (owner: „einen Fullscreen knopf oben rechts haben mit dem
+  // klassischen … dass die nav bar noch funktioniert und oben auch noch die suchleiste ist"): the
+  // plan fills the page, the sidebar and the overview aside, the rail and the search there; Esc
+  // ends it.
+  const corner = await page.evaluate(() => {
+    const head = document.querySelector(".st-rm-top .st-sems-head").getBoundingClientRect();
+    const button = document.querySelector(".st-rm-full").getBoundingClientRect();
+    return Math.round(head.right - button.right);
+  });
+  check(corner <= 8, `„Vollbild“ is not at the head's right end: ${corner}`);
+  await step("Vollbild", () => page.click(".st-rm-full"), () => document.querySelector(".st-grid-panel.is-full") && !document.querySelector(".st-over") && getComputedStyle(document.getElementById("sidebar")).display === "none");
+  const filled = await page.evaluate(() => {
+    const panel = document.querySelector(".st-grid-panel").getBoundingClientRect();
+    const rail = document.querySelector(".rail")?.getBoundingClientRect();
+    const search = document.querySelector('.topbar input[type="search"], .search input')?.getBoundingClientRect();
+    return { left: Math.round(panel.left - (rail?.right ?? 0)), wide: Math.round(panel.width), rail: (rail?.width ?? 0) > 0, search: (search?.width ?? 0) > 0, label: document.querySelector(".st-rm-full")?.getAttribute("aria-label") };
+  });
+  check(filled.left <= 16 && filled.wide > 1400 && filled.rail && filled.search && filled.label === "Vollbild beenden", `the plan in full screen: ${JSON.stringify(filled)}`);
+  await step("Esc, out of it", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-grid-panel.is-full") && document.querySelector(".st-over") && getComputedStyle(document.getElementById("sidebar")).display !== "none");
+  // „Als Bild speichern": the plan as it is shown, a PNG of the day.
+  const [download] = await Promise.all([page.waitForEvent("download", { timeout: 8000 }).catch(() => null), page.click(".st-rm-save")]);
+  const name = download?.suggestedFilename() ?? "";
+  const bytes = download ? await download.createReadStream().then((stream) => new Promise((done) => { const parts = []; stream.on("data", (part) => parts.push(part)); stream.on("end", () => done(Buffer.concat(parts))); })) : Buffer.alloc(0);
+  check(/^gesamtplan-\d{4}-\d\d-\d\d\.png$/.test(name) && bytes.subarray(1, 4).toString() === "PNG" && bytes.length > 20000, `„Als Bild speichern“: ${name}, ${bytes.length} bytes`);
+  await context.close();
+}
+
+// ---------- 2d: a place for modules, its size, the weighting of the Komplexe ----------
 {
   const { page, step, seed, context } = await open({ viewport: { width: 1440, height: 900 } }, "/");
   // The Anwendungsfach of WiSe 2026/27 set to 12 LP, Allgemeine BWL I (6 LP) in it; a place of the

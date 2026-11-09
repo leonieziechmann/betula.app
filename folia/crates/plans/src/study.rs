@@ -18,8 +18,11 @@
 //! - what each semester holds: what was passed there, what was not passed in a semester that is
 //!   over (it stays open as a „Wiederholer" until it is planned again), what is taken again;
 //! - the progress by area: the plan's rows grouped as its regulation groups them (`areas`), and
-//!   every module passed or planned counted towards the area it belongs to, beyond what the area
-//!   asks as „über Bedarf".
+//!   every module passed or planned counted towards the area it belongs to, up to what the area
+//!   asks. A module none of whose credits the area needs any more is „über Bedarf" (`Item::spare`);
+//!   one that brings it past what it asks (8 LP where 6 were left) is not (owner, 2026-11-09: „Es
+//!   ist relativ typisch, dass man so ein paar lp über dem benötigtem wert ist, weil ein modul 8
+//!   statt 6 lp bringt. Das darf dann aber nicht als zu viel angezeigt werden").
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -565,6 +568,11 @@ pub struct Item {
     pub unoffered: bool,
     /// The credits it counts beyond what its area asks.
     pub over: f64,
+    /// None of its credits count: its area had what it asks before it came (`over` is all of
+    /// them). „Über Bedarf" is said of such a module alone; one whose credits the area needs in
+    /// part (8 LP where 6 were left) has `over` and is not (owner, 2026-11-09: „nur die module, deren
+    /// punkte nicht für das bestehen [gebraucht werden]").
+    pub spare: bool,
     /// The Fachsemester the Regelstudienplan puts it into.
     pub plan_fs: Option<u8>,
     /// The modules of its semester that fill a row (`Planned::fills`): they count, the row only
@@ -681,6 +689,11 @@ pub struct Progress {
     /// What is passed or planned beyond what it asks; what of it is passed.
     pub over: f64,
     pub over_passed: f64,
+    /// Of `over`, the credits of the modules beyond need (`Item::spare`), and what of them is
+    /// passed: what the area has „über Bedarf". The rest of `over` is what the modules it needs
+    /// bring past what it asks (8 LP where 6 were left), which is no more than taken.
+    pub spare: f64,
+    pub spare_passed: f64,
 }
 
 impl Progress {
@@ -717,6 +730,10 @@ pub struct Study {
     pub planned: f64,
     pub over: f64,
     pub over_passed: f64,
+    /// Of `over`, what the modules beyond need bring (`Progress::spare`), and what of that is
+    /// passed.
+    pub spare: f64,
+    pub spare_passed: f64,
     /// What the areas still ask for that is not planned.
     pub open: f64,
     pub retakes: Vec<Retake>,
@@ -732,6 +749,75 @@ impl Study {
     /// The semesters from the current one on.
     pub fn ahead(&self) -> impl Iterator<Item = &Semester> {
         self.semesters.iter().filter(|semester| semester.when != When::Past)
+    }
+
+    /// The study in its few numbers (`Totals`).
+    pub fn totals(&self) -> Totals {
+        Totals {
+            total: self.total,
+            passed: self.passed,
+            planned: self.planned,
+            open: self.open,
+            over: (self.over_passed, (self.over - self.over_passed).max(0.0)),
+            spare: (self.spare_passed, (self.spare - self.spare_passed).max(0.0)),
+            outside: self.outside,
+        }
+    }
+}
+
+/// The study in its few numbers: what „Mein Studium"'s overview says of it, and what every other
+/// page that speaks of its progress says (the start page's panel and card), worked out here once
+/// so that two pages never disagree (owner, 2026-11-09: „ein system …, dasss immer konsistent mit
+/// der berechnung von mein studium ist"). Until Folia 1.85.1 the start page summed up on its own
+/// and left out what goes beyond an area's need, as a module counted for a full area as an
+/// exception does („Anderer Bereich …"): „0 geplant" there beside „8 LP geplant, davon 8 über
+/// Bedarf" in „Mein Studium".
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Totals {
+    /// What the plan asks for in all; 0 without a plan.
+    pub total: f64,
+    /// Passed and planned as they count towards the areas, each up to what its area asks: the
+    /// headline's „54 von 180 LP bestanden", and the bar's parts.
+    pub passed: f64,
+    pub planned: f64,
+    /// What the areas still ask for that is not planned („noch nicht eingeplant", „offen"):
+    /// `total` less `passed` and `planned`. What goes beyond an area's need fills nothing of it.
+    pub open: f64,
+    /// What goes beyond an area's need: passed, planned. All of it is taken, passed or planned.
+    pub over: (f64, f64),
+    /// Of `over`, what the modules beyond need bring, none of whose credits their area needs
+    /// (`Item::spare`): passed, planned. „Über Bedarf" is said of these alone; what a module the
+    /// area needs brings past it (8 LP where 6 were left) is no more than taken.
+    pub spare: (f64, f64),
+    /// What counts towards no area („ohne Bereich"): passed, planned.
+    pub outside: (f64, f64),
+}
+
+impl Totals {
+    /// Everything passed: towards the areas, beyond their need and towards none.
+    pub fn passed_all(&self) -> f64 {
+        self.passed + self.over.0 + self.outside.0
+    }
+
+    /// Everything planned: towards the areas, beyond their need and towards none.
+    pub fn planned_all(&self) -> f64 {
+        self.planned + self.over.1 + self.outside.1
+    }
+
+    /// What the headline says is passed: of what the plan asks, `passed`; without a plan all of
+    /// it, said without a total.
+    pub fn headline(&self) -> (f64, Option<f64>) {
+        if self.total > 0.0 {
+            (self.passed, Some(self.total))
+        } else {
+            (self.passed_all(), None)
+        }
+    }
+
+    /// What lies beyond the plan, the bar's striped part as „Mein Studium"'s bar has it: the
+    /// modules beyond need and what counts towards no area, passed and planned.
+    pub fn beyond(&self) -> f64 {
+        self.spare.0 + self.spare.1 + self.outside.0 + self.outside.1
     }
 }
 
@@ -832,6 +918,7 @@ pub fn study(input: &Input) -> Study {
             offer,
             unoffered: !offer.offered(s),
             over: 0.0,
+            spare: false,
             plan_fs: row.map(|row| row.first),
             fillers: Vec::new(),
             filled: 0.0,
@@ -905,6 +992,7 @@ pub fn study(input: &Input) -> Study {
             offer: Offer::default(),
             unoffered: false,
             over: 0.0,
+            spare: false,
             plan_fs: (span.0 > 0).then_some(span.0),
             fillers,
             filled,
@@ -1007,7 +1095,7 @@ pub fn study(input: &Input) -> Study {
         }
     };
     let mut used = vec![0.0_f64; areas.len()];
-    let mut progress: Vec<Progress> = areas.iter().map(|area| Progress { area: area.clone(), passed: 0.0, planned: 0.0, over: 0.0, over_passed: 0.0 }).collect();
+    let mut progress: Vec<Progress> = areas.iter().map(|area| Progress { area: area.clone(), passed: 0.0, planned: 0.0, over: 0.0, over_passed: 0.0, spare: 0.0, spare_passed: 0.0 }).collect();
     let mut outside = (0.0, 0.0);
     let mut order: Vec<(bool, usize, usize)> = Vec::new();
     for (si, semester) in semesters.iter().enumerate() {
@@ -1046,6 +1134,8 @@ pub fn study(input: &Input) -> Study {
         let room = |at: usize| areas.get(at).map_or(0.0, |area| area.required) - used.get(at).copied().unwrap_or(0.0);
         let target = found.iter().copied().find(|at| room(*at) > EPSILON).unwrap_or(fallback);
         let counted = credits.min(room(target).max(0.0));
+        // None of it counts: the area had what it asks before it came.
+        let spare = counted <= EPSILON;
         if let Some(slot) = used.get_mut(target) {
             *slot += counted;
         }
@@ -1059,9 +1149,16 @@ pub fn study(input: &Input) -> Study {
             if item.passed {
                 progress.over_passed += credits - counted;
             }
+            if spare {
+                progress.spare += credits;
+                if item.passed {
+                    progress.spare_passed += credits;
+                }
+            }
         }
         item.area = Some(target);
         item.over = credits - counted;
+        item.spare = spare;
     }
     // A row that modules fill counts by them, as in the areas, and with what they leave of it:
     // „Anwendungsfach" with the module chosen for it is that module's 6 LP, not 12.
@@ -1097,6 +1194,8 @@ pub fn study(input: &Input) -> Study {
         planned: progress.iter().map(|p| p.planned).sum(),
         over: progress.iter().map(|p| p.over).sum(),
         over_passed: progress.iter().map(|p| p.over_passed).sum(),
+        spare: progress.iter().map(|p| p.spare).sum(),
+        spare_passed: progress.iter().map(|p| p.spare_passed).sum(),
         open: progress.iter().map(Progress::open).sum(),
         semesters,
         progress,
@@ -1864,6 +1963,41 @@ mod tests {
         assert!(alone.semester(key("2028W")).is_none());
     }
 
+    /// The totals every page says of the study (owner, 2026-11-09: „wenn man module manuell zu
+    /// einem bereich zuordnet, die da eigentlich nicht hin gehören, wird beim studienprogress eine
+    /// falsche zahl angezeigt … so dass man sehen kann wie viel wirklich noch fehlt"): a module
+    /// counted as an exception for a full area goes beyond its need; it is planned all the same,
+    /// and fills nothing of what is open — the area it would have counted for still asks for it.
+    #[test]
+    fn the_totals_say_what_goes_beyond_need_and_what_is_still_open() {
+        let w = world();
+        let mut doc = PlanDoc::default();
+        for id in ["11001", "11002", "11003"] {
+            assert!(doc.plan(key("2025W"), id, 1, None));
+            assert!(doc.pass(key("2025W"), id));
+        }
+        assert!(doc.plan(key("2026W"), "12330", 2, None));
+        let auto = study(&input(&w, &doc, "2025W", "2026W")).totals();
+        // Where it fits, in the Fachstudium.
+        assert_eq!((auto.total, auto.passed, auto.planned, auto.open, auto.over, auto.outside), (70.0, 20.0, 6.0, 44.0, (0.0, 0.0), (0.0, 0.0)));
+        // As an exception for Informatik, which its three modules fill: beyond its need, and the
+        // Fachstudium asks for it again.
+        doc.set_counts(key("2026W"), "12330", Some(studyplan::RowRef::new(PROGRAM, &w.core.full, 1)));
+        let study = study(&input(&w, &doc, "2025W", "2026W"));
+        let exception = study.semester(key("2026W")).unwrap().items.iter().find(|item| item.module_id() == Some("12330")).unwrap();
+        assert!(exception.exception && exception.over == 6.0, "{exception:?}");
+        let totals = study.totals();
+        assert_eq!((totals.passed, totals.planned, totals.open, totals.over, totals.spare), (20.0, 0.0, 50.0, (0.0, 6.0), (0.0, 6.0)));
+        assert_eq!((totals.passed_all(), totals.planned_all(), totals.beyond(), totals.headline()), (20.0, 6.0, 6.0, (20.0, Some(70.0))));
+        // Passed and planned towards the plan and what is open are the plan, whatever goes beyond.
+        for totals in [auto, totals] {
+            assert!((totals.passed + totals.planned + totals.open - totals.total).abs() < EPSILON, "{totals:?}");
+        }
+        // Without a plan everything counts towards no area, and the headline has no total.
+        let alone = super::study(&Input { core: None, ..input(&w, &doc, "2025W", "2026W") }).totals();
+        assert_eq!((alone.total, alone.open, alone.outside, alone.headline(), alone.beyond()), (0.0, 0.0, (20.0, 6.0), (20.0, None), 26.0));
+    }
+
     #[test]
     fn semesters_begin_empty() {
         let (w, doc) = (world(), PlanDoc::default());
@@ -2091,6 +2225,35 @@ mod tests {
         assert_eq!((fues.planned, fues.over), (6.0, 6.0));
         assert_eq!(over.semester(key("2026W")).unwrap().items[0].over, 6.0);
         assert_eq!(over.over, 6.0);
+        // The second is spare, none of it counts: „über Bedarf" (owner, 2026-11-09: „nur die module,
+        // deren punkte nicht für das bestehen [gebraucht werden]").
+        assert!(over.semester(key("2026W")).unwrap().items[0].spare);
+        assert!(!over.semester(key("2026S")).unwrap().items[0].spare);
+        assert_eq!((fues.spare, over.spare), (6.0, 6.0));
+
+        // One of 8 where the FÜS asks 6: the 2 beyond are no more than taken, the module is needed
+        // („weil ein modul 8 statt 6 lp bringt. Das darf dann aber nicht als zu viel angezeigt
+        // werden"). A second after it is spare.
+        let mut eight = offered("14013", "both", 8.0);
+        eight.is_fues = true;
+        let mut rows = w.rows.clone();
+        rows.push(eight);
+        let mut other = offered("14012", "both", 6.0);
+        other.is_fues = true;
+        rows.push(other);
+        let w3 = World { rows, ..world() };
+        let mut doc = PlanDoc::default();
+        doc.plan(key("2026S"), "14013", 1, None);
+        let needed = study(&input(&w3, &doc, "2025W", "2025W"));
+        let item = &needed.semester(key("2026S")).unwrap().items[0];
+        assert_eq!((item.over, item.spare), (2.0, false));
+        let fues = &needed.progress[2];
+        assert_eq!((fues.planned, fues.over, fues.spare), (6.0, 2.0, 0.0));
+        doc.plan(key("2026W"), "14012", 2, None);
+        let more = study(&input(&w3, &doc, "2025W", "2025W"));
+        let item = &more.semester(key("2026W")).unwrap().items[0];
+        assert_eq!((item.over, item.spare), (6.0, true));
+        assert_eq!((more.progress[2].over, more.progress[2].spare), (8.0, 6.0));
     }
 
     #[test]

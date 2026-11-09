@@ -501,7 +501,9 @@ impl Row {
         if item.exception {
             flags.push(("flag st-exception", s.exception.to_string()));
         }
-        if item.over > 0.0 {
+        // Only a module none of whose credits its area needs (owner, 2026-11-09: „nur die module,
+        // deren punkte nicht für das bestehen [gebraucht werden]").
+        if item.spare {
             let area = ready.area_name(item.area, t);
             let required = item.area.and_then(|area| study.progress.get(area)).map_or(0.0, |progress| progress.area.required);
             flags.push(("flag neutral", (s.over_full)(&area, &n(required, t))));
@@ -1143,6 +1145,7 @@ mod tests {
             offer: Default::default(),
             unoffered: false,
             over: 0.0,
+            spare: false,
             plan_fs: None,
             fillers: Vec::new(),
             filled: 0.0,

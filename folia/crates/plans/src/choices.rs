@@ -205,6 +205,12 @@ pub struct Stand {
     /// The most it takes: the room of a group's member is the more for the one that keeps the
     /// extras' credits (`Room::Kept`).
     pub most: f64,
+    /// Of `passed` and `planned`, what counts for no choice: the modules on its lists beyond what
+    /// it takes (`PlanView::spare`), „über Bedarf". What the modules it counts bring past its most
+    /// (8 LP where 6 were left) is no more than taken (owner, 2026-11-09: „Es ist relativ typisch,
+    /// dass man so ein paar lp über dem benötigtem wert ist, weil ein modul 8 statt 6 lp bringt. Das
+    /// darf dann aber nicht als zu viel angezeigt werden").
+    pub spare: f64,
 }
 
 impl Stand {
@@ -212,16 +218,26 @@ impl Stand {
         self.passed + self.planned
     }
 
-    /// What is held of `taken`, as the bar splits it.
-    fn of<'a>(taken: impl IntoIterator<Item = &'a Taken>, least: f64, most: f64) -> Self {
+    /// What is held of `taken`, as the bar splits it; of it `spare`, those that count for no
+    /// choice.
+    fn of<'a>(taken: impl IntoIterator<Item = &'a Taken>, spare: &[Taken], least: f64, most: f64) -> Self {
         let mut stand = Stand { least, most, ..Stand::default() };
         for taken in taken {
+            let credits = taken.credits.unwrap_or(0.0);
             match taken.passed {
-                true => stand.passed += taken.credits.unwrap_or(0.0),
-                false => stand.planned += taken.credits.unwrap_or(0.0),
+                true => stand.passed += credits,
+                false => stand.planned += credits,
+            }
+            if spare.iter().any(|known| known.id == taken.id) {
+                stand.spare += credits;
             }
         }
         stand
+    }
+
+    /// What it holds that counts: all it holds but what counts for no choice.
+    pub fn counted(&self) -> f64 {
+        self.taken() - self.spare
     }
 }
 
@@ -336,7 +352,7 @@ impl Group {
             .filter_map(|at| choices.get(*at).map(|choice| (*at, choice)))
             .map(|(at, choice)| {
                 let taken: Vec<Taken> = held.iter().filter(|taken| choice.list_of(&taken.id).is_some()).map(|taken| (*taken).clone()).collect();
-                let stand = Stand::of(&taken, choice.least, choice.most.max(choice.least));
+                let stand = Stand::of(&taken, &view.spare, choice.least, choice.most.max(choice.least));
                 Member { choice: at, taken, stand, room: if room > EPSILON { Room::Open } else { Room::None } }
             })
             .collect();
@@ -378,10 +394,16 @@ impl Group {
     pub fn stand(&self, view: &PlanView) -> Stand {
         let target = self.target(&view.choices);
         if self.done(&view.choices) {
-            return Stand { passed: target, planned: 0.0, least: target, most: target };
+            return Stand { passed: target, planned: 0.0, least: target, most: target, spare: 0.0 };
         }
         let members = self.members(view);
-        Stand { passed: members.iter().map(|member| member.stand.passed).sum(), planned: members.iter().map(|member| member.stand.planned).sum(), least: target, most: target }
+        Stand {
+            passed: members.iter().map(|member| member.stand.passed).sum(),
+            planned: members.iter().map(|member| member.stand.planned).sum(),
+            least: target,
+            most: target,
+            spare: members.iter().map(|member| member.stand.spare).sum(),
+        }
     }
 
     /// The weighting the student chose among its members (owner, 2026-11-09: „Überlege dir mal wie
@@ -421,10 +443,10 @@ impl PlanView {
         let Some(choice) = self.choices.get(at) else { return Stand::default() };
         let most = choice.most.max(choice.least);
         if choice.done.is_some() {
-            return Stand { passed: choice.least, planned: 0.0, least: choice.least, most };
+            return Stand { passed: choice.least, planned: 0.0, least: choice.least, most, spare: 0.0 };
         }
         let spare = self.spare.iter().filter(|taken| self.choices.iter().position(|other| other.list_of(&taken.id).is_some()) == Some(at));
-        Stand::of(choice.taken.iter().chain(spare), choice.least, most)
+        Stand::of(choice.taken.iter().chain(spare), &self.spare, choice.least, most)
     }
 
     /// The modules of the study on a choice's lists that count for none, there.
