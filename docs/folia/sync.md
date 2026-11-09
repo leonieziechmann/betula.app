@@ -110,6 +110,12 @@ The profile page says „direkt verbunden" or „über Betula weitergeleitet".
 | a profile deleted | leaves its space for this device alone; the others keep it |
 | „Profil leeren", „Rückgängig" | sync like any change |
 
+Every way of connecting ends on the start page (owner, 2026-11-09: „dass man wieder bei der main
+page landet, wenn das sync fertig ist und nicht im profil"): „Fertig" of the device that gave its
+profile (the question after a code, the dialog „Gerät verbinden") and of the device that got one
+(`/pair`, a link of `/sync#…`, the dialog's „Profil vom Handy holen") is a link to `/`, which the
+dialog closes on its way; from the setup's last step the scanner leads back to that step instead.
+
 ## 4. Shares (step 3)
 
 The dialog „Teilen" (`folia/crates/planner/src/studyplan/share_dialog.rs`; the concept and the

@@ -94,7 +94,12 @@ pub fn PairPage() -> impl IntoView {
                     <div class="pf-connect-body">
                         <GetPart sync got/>
                     </div>
-                    {move || got.get().then(ways)}
+                    // Done: the start page, with the profile that came (owner, 2026-11-09).
+                    {move || got.get().then(|| view! {
+                        <nav class="pf-ways">
+                            <a class="btn primary pf-done" href=t.path(url::HOME) rel="nofollow"><Icon name="check"/><span>{s.done}</span></a>
+                        </nav>
+                    })}
                 </section>
             }
             .into_any()

@@ -368,10 +368,12 @@ pub(crate) fn Connect(sync: Sync, id: Memo<u16>, state: Memo<State>, dialog: RwS
     };
     // The buttons at the dialog's foot, below what scrolls (`folia_design::modal`).
     let foot = move || match (direction.get(), step.get()) {
+        // Done, either way: the dialog closes and the start page comes (owner, 2026-11-09: „dass
+        // man wieder bei der main page landet, wenn das sync fertig ist und nicht im profil").
         (Some(Direction::Get), _) => got.get().then(|| {
             view! {
                 <footer class="st-dlg-foot">
-                    <button class="btn primary" type="button" on:click=move |_| close.run(())>{c.done}</button>
+                    <a class="btn primary pf-done" href=t.path(url::HOME) rel="nofollow" on:click=move |_| close.run(())>{c.done}</a>
                 </footer>
             }
             .into_any()
@@ -385,7 +387,7 @@ pub(crate) fn Connect(sync: Sync, id: Memo<u16>, state: Memo<State>, dialog: RwS
         .into_any()),
         (_, Step::Joined) => Some(view! {
             <footer class="st-dlg-foot">
-                <button class="btn primary" type="button" on:click=move |_| close.run(())>{s.done}</button>
+                <a class="btn primary pf-done" href=t.path(url::HOME) rel="nofollow" on:click=move |_| close.run(())>{s.done}</a>
             </footer>
         }
         .into_any()),
