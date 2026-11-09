@@ -406,6 +406,48 @@ check(html.includes('href="/about/overview"') && !html.includes('href="/about"')
   await context.close();
 }
 
+// ---------- the study as „Mein Studium" says it ----------
+// (owner, 2026-11-09: „wenn man module manuell zu einem bereich zuordnet, die da eigentlich nicht
+// hin gehören, wird beim studienprogress eine falsche zahl angezeigt … Versuch da mal ein system zu
+// finden, dasss immer konsistent mit der berechnung von mein studium ist"). Informatik B.Sc. in its
+// third semester, the first two passed; Mathematische Statistik passed in the second as an
+// exception for Mathematik's Pflichtmodule, so that Mathematik IT-3, planned now, goes beyond the
+// area's need. The panel says what „Mein Studium"'s overview says, number for number, the part
+// beyond need among it, and its bar has that part striped; „Öffnen" leads there without a load.
+{
+  const W = ["12104", "12107", "12102", "11112"];
+  const S = ["12101", "11903", "11113", "12111"];
+  const plan = [
+    ...W.map((id) => `m\t2025W\t${id}\t1\t\tplan`), ...S.map((id) => `m\t2026S\t${id}\t1\t\tplan`),
+    "m\t2026S\t11331\t2\t\t\t079-82-2008\t11\t", "m\t2026W\t11213\t3\t\tplan",
+    ...W.map((id) => `d\t2025W\t${id}`), ...S.map((id) => `d\t2026S\t${id}`), "d\t2026S\t11331",
+  ].join("\n") + "\n";
+  const seed = { "betula.myprogram.v1": "program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\ncaption\t\nstart\t2025W\n", "betula.studyplan.v1": plan };
+  const { context, page } = await open({ viewport: { width: 1440, height: 900 }, locale: "de-DE" }, seed);
+  const ready = await page.waitForFunction(() => onPage(".day-study .day-prog-key"), null, { timeout: 20000 }).then(() => true, () => false);
+  check(ready, "the study: no panel „Mein Studium“ on the start page");
+  const words = (text) => (text || "").replace(/\s+/g, " ").trim();
+  const panel = await page.evaluate(() => ({
+    headline: onPage(".day-study .day-prog-fig")?.textContent,
+    key: [...allOnPage(".day-study .day-prog-key > span")].map((part) => part.textContent),
+    over: Boolean(onPage(".day-study .day-prog-bar .over")),
+  }));
+  await page.click(".day-study .day-head a");
+  const there = await page.waitForFunction(() => location.pathname === "/study" && onPage(".st-over .st-stats li"), null, { timeout: 20000 }).then(() => true, () => false);
+  const overview = await page.evaluate(() => ({
+    headline: onPage(".st-over .st-headline")?.textContent,
+    stats: [...allOnPage(".st-over .st-stats li")].map((li) => li.textContent),
+  }));
+  // „62 LP bestanden" there, „62 bestanden" here: the same numbers, „LP" and the open's words aside.
+  const numbers = (text) => words(text).replace(/\bLP\b/g, "").replace("noch nicht eingeplant", "offen").replace(/\s+/g, " ").trim();
+  // (The panel's figure and its words are two elements without a space between them.)
+  const same = numbers(words(panel.headline).replace(/^([\d.,]+)/, "$1 ")) === numbers(overview.headline);
+  check(there && same && JSON.stringify(panel.key.map(numbers)) === JSON.stringify(overview.stats.map(numbers)), `the study: the start page says other numbers than „Mein Studium“: ${JSON.stringify({ panel, overview })}`);
+  check(panel.over && panel.key.some((part) => part.includes("über Bedarf")), `the study: what goes beyond need is not on the start page: ${JSON.stringify(panel)}`);
+  check(await page.evaluate(() => window.__marker === 1), "the study: „Öffnen“ loaded a page");
+  await context.close();
+}
+
 check(errors.length === 0, `page errors: ${errors.join(" | ")}`);
 await browser.close();
 if (failures.length) {
