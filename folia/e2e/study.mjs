@@ -812,10 +812,12 @@ if (current !== "2026W") {
     const row = document.querySelector(".st-wrows .st-wrow:not(.has)");
     return { id: row?.querySelector(".st-wrow-id")?.textContent, credits: row?.querySelector(".st-wrow-lp")?.textContent.replace(/\s*LP$/, "") };
   });
-  // The catalog stays built behind its tab: the switch beside „Mein Studium" is the one shown.
+  // The catalog stays built behind its tab: the switch beside „Mein Studium" is the one shown. Passed
+  // as a function, not as text made a function in the page, which its Content-Security-Policy
+  // refuses (no 'unsafe-eval').
   const shown = (selector) => [...document.querySelectorAll(selector)].find((el) => el.checkVisibility());
-  await step("the Wahlpflicht's module beside the page", () => page.click(".st-wrows .st-wrow:not(.has) >> nth=0"), ([selector, find]) => new Function(`return (${find})`)()(selector), [SWITCH, shown.toString()]);
-  const forPlace = await page.evaluate(([selector, find]) => new Function(`return (${find})`)()(selector)?.textContent.replace(/\s+/g, " "), [SWITCH, shown.toString()]);
+  await step("the Wahlpflicht's module beside the page", () => page.click(".st-wrows .st-wrow:not(.has) >> nth=0"), shown, SWITCH);
+  const forPlace = await page.evaluate((selector) => [...document.querySelectorAll(selector)].find((el) => el.checkVisibility())?.textContent.replace(/\s+/g, " "), SWITCH);
   check(forPlace?.includes("WiSe 26/27") && forPlace.includes("für „Anwendungsfach“"), `the Wahlpflicht's module does not aim at the place: ${forPlace}`);
   await step("Einplanen, for the Wahlpflicht's place", () => page.click(`${SWITCH} >> visible=true`), ([key, id, pid]) => (localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith(`m\t2026W\t${id}\t`) && line.split("\t")[4] === pid), [PLAN, chosen.id, pid]);
   await page.waitForFunction((credits) => [...document.querySelectorAll(".st-sl-h")].find((head) => head.textContent.includes("Nebenfach"))?.querySelector("small")?.textContent === `${credits} / 18\u00a0LP`, chosen.credits, { timeout: 4000 })
