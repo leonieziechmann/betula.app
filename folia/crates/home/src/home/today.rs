@@ -47,7 +47,7 @@ use folia_stores::studyplan::Studyplan;
 use super::clock::{self, Clock, Kind, Phase};
 use super::day::{self as daymodel, Entry, Greeting, State, Today};
 use super::photo;
-use super::setup::{Counted, Done};
+use super::setup::Counted;
 use crate::i18n::{self, Texts};
 
 /// How many marked modules the Merkliste's panel names.
@@ -145,10 +145,9 @@ fn minute_parts(now: RwSignal<(Day, u16)>, table: Memo<Option<Timetable>>, agend
 }
 
 /// The day. `guest`: no study is set up, and the page says what setting one up brings
-/// (`on_setup` opens the setup again). `welcome` is the note after the setup, `home` the counts of
-/// the ways into the catalog.
+/// (`on_setup` opens the setup again); `home` the counts of the ways into the catalog.
 #[component]
-pub fn TodayView(guest: bool, welcome: RwSignal<Option<Done>>, on_setup: Callback<()>, home: Signal<Option<HomeData>>) -> impl IntoView {
+pub fn TodayView(guest: bool, on_setup: Callback<()>, home: Signal<Option<HomeData>>) -> impl IntoView {
     let t = i18n::t();
     let (start_day, start_minute) = clock_now().unwrap_or((Day(0), 12 * 60));
     let now = RwSignal::new((start_day, start_minute));
@@ -230,7 +229,6 @@ pub fn TodayView(guest: bool, welcome: RwSignal<Option<Done>>, on_setup: Callbac
     };
     view! {
         <Hero ctx on_setup/>
-        <Welcome welcome/>
         {(!guest).then(|| view! { <TerminOver table data plan now/> })}
         {move || {
             if guest {
@@ -885,49 +883,6 @@ fn progress(key: Memo<Option<SemesterKey>>) -> Memo<Option<Progress>> {
             })
         })
     })
-}
-
-/// „Eingerichtet: …" after „Studium anlegen", with „Rückgängig", until it is closed or the page is
-/// left; where it stays: in this browser, or on the profile's devices once it syncs.
-#[component]
-fn Welcome(welcome: RwSignal<Option<Done>>) -> impl IntoView {
-    let t = i18n::t();
-    let tt = &t.today;
-    let synced = Memo::new(move |_| match (folia_stores::sync::Sync::expect(), folia_stores::profiles::Profiles::expect()) {
-        (Some(sync), Some(profiles)) => sync.state(profiles.active()).synced(),
-        _ => false,
-    });
-    let undo = move |_| {
-        let Some(done) = welcome.get_untracked() else { return };
-        if let Some(plan) = Studyplan::expect() {
-            let before = done.plan_before.clone();
-            plan.update_after_paint(move |doc| *doc = before);
-        }
-        if let Some(mine) = MyProgram::expect() {
-            mine.clear_program();
-            mine.set_start(done.start_before);
-        }
-        welcome.set(None);
-    };
-    move || {
-        welcome.get().map(|done| {
-            let passed = done.passed.map(|credits| format::number(credits, t.locale));
-            view! {
-                <div class="day-welcome" role="status" data-commands=tt.your_day>
-                    <span class="day-welcome-ok" aria-hidden="true"><Icon name="check"/></span>
-                    <div>
-                        <b>{(tt.set_up)(&done.program, done.fs, &done.start.label(t.locale))}</b>
-                        <small>{(tt.set_up_detail)(done.modules, done.placeholders, passed.as_deref())}" "{move || if synced.get() { tt.synced_here } else { tt.stays_here }}</small>
-                    </div>
-                    <span class="day-welcome-acts">
-                        <a class="btn sm" href=t.path(url::STUDYPLAN) data-command=""><Icon name="calendar-plus"/>{tt.to_timetable}</a>
-                        <button type="button" class="btn sm ghost" on:click=undo data-command=""><Icon name="rotate-ccw"/>{tt.undo}</button>
-                    </span>
-                    <button type="button" class="icon-btn day-welcome-x" aria-label=tt.close on:click=move |_| welcome.set(None)><Icon name="x"/></button>
-                </div>
-            }
-        })
-    }
 }
 
 /// One Termin of a list: its time, its module's colour, what and where, and how it stands.

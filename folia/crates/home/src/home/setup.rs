@@ -307,9 +307,11 @@ fn take_profile(with_sync: bool, command: bool) -> impl IntoView {
 
 /// The card. `now` is the current semester; `faculties` draws step 1; `on_done` hears what
 /// „Studium anlegen" did once the setup ends, `on_look` „Erst mal umschauen". Where step 4 follows
-/// „Studium anlegen", `on_written` hears first that the study is written and the card stays.
+/// „Studium anlegen", `on_written` hears first that the study is written and the card stays, and
+/// `on_parked` what it did, for the start page to end the setup with where the scanner's „Fertig"
+/// leads there (`/?setup=done`).
 #[component]
-pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Counted>>, on_done: Callback<Done>, on_look: Callback<()>, on_written: Callback<()>) -> impl IntoView {
+pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Counted>>, on_done: Callback<Done>, on_look: Callback<()>, on_written: Callback<()>, on_parked: Callback<Done>) -> impl IntoView {
     let t = i18n::t();
     let s = &t.setup;
     let with_sync = with_sync();
@@ -507,6 +509,7 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
         plan_store.update_after_paint(move |stored| *stored = doc);
         let done = Done { program: program_name(&source.program), fs, start, modules, placeholders, passed, plan_before, start_before };
         if with_sync {
+            on_parked.run(done.clone());
             created.set(Some(done));
             step.set(4);
         } else {

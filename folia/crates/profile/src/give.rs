@@ -2,14 +2,21 @@
 //! folia/design/profil/konzepte.html, the second step): which profile (the active one first; a
 //! private one is switched on for it), the four digits the other device shows beside its code, and
 //! „Ja, „Lena“ verbinden". Then the profile's key goes there, sealed to the code's key
-//! (`folia_stores::sync::Sync::give`), and the page says once the other device has come.
+//! (`folia_stores::sync::Sync::give`), and a bar shows the way as it goes (owner, 2026-11-09: „mach
+//! mal eine animation mit progress bar für den sync an sich"): Betula Sync switched on where it was
+//! private, the profile sent, the other device fetching it (Phloem's word that the parcel was
+//! opened), the data in line (one more device of the profile online). Then the success of concept
+//! A (folia/design/verbunden/konzepte.html, `folia_widgets::syncdone::Connected`) with „Fertig",
+//! which leads to the start page; from the setup it ends the setup there (`/?setup=done`).
 
 use leptos::prelude::*;
 
 use folia_design::ui::Icon;
 use folia_routes::url;
+use folia_stores::myprogram::MyProgram;
 use folia_stores::profiles::{Avatar, Profiles};
 use folia_stores::sync::{Problem, State, Sync};
+use folia_widgets::syncdone::{ways, ConnectProgress, Connected};
 
 use crate::i18n;
 use crate::sync::problem_text;
@@ -30,9 +37,18 @@ enum Step {
     Failed(Problem),
 }
 
+/// What the part shows, coarser than `Step`: the bar stays the same while the way goes on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Shows {
+    Asking,
+    Going,
+    Done,
+    Failed,
+}
+
 /// The question for the request `fragment` (what followed `#` in its link); `back` leaves it
-/// unanswered. `to_setup`: the scanner was opened from the start page's setup, and once answered
-/// the way leads back there (its last step then says „Verbunden").
+/// unanswered. `to_setup`: the scanner was opened from the start page's setup, and „Fertig" ends
+/// the setup on the start page.
 #[component]
 pub fn GiveRequest(fragment: String, #[prop(into)] back: Callback<()>, #[prop(optional)] to_setup: bool) -> impl IntoView {
     let t = i18n::t();
@@ -55,6 +71,11 @@ pub fn GiveRequest(fragment: String, #[prop(into)] back: Callback<()>, #[prop(op
         request_animation_frame(|| folia_design::nav::focus_by_id(YES_ID));
     });
     let step = RwSignal::new(Step::Asking);
+    // The bar's steps (switched on first where the profile was private), what Phloem had said of
+    // opened parcels when it went, and whether the bar has shown it all.
+    let phases = RwSignal::new(ways::giving(false));
+    let taken_before = StoredValue::new(0u32);
+    let shown_done = RwSignal::new(false);
     let online = move |state: &State| match state {
         State::Online { devices, .. } => Some(*devices),
         _ => None,
@@ -75,6 +96,9 @@ pub fn GiveRequest(fragment: String, #[prop(into)] back: Callback<()>, #[prop(op
                 return;
             }
             let (id, shown) = (chosen.get_untracked(), name.get_untracked());
+            phases.set(ways::giving(!sync.state(id).synced()));
+            taken_before.set_value(sync.taken());
+            shown_done.set(false);
             step.set(Step::Sending(shown.clone()));
             sync.give(id, &fragment, move |done| {
                 step.try_set(match done {
@@ -129,44 +153,72 @@ pub fn GiveRequest(fragment: String, #[prop(into)] back: Callback<()>, #[prop(op
             .into_any(),
         }
     };
-    let ways = move || {
+    // How far the way really is, as an index of the bar's steps.
+    let reached = Signal::derive(move || {
+        let all = phases.with(Vec::len);
+        let private = phases.with(|phases| phases.first() == Some(&folia_widgets::syncdone::Phase::SwitchOn));
+        let offset = usize::from(private);
+        match step.get() {
+            Step::Sending(_) if private && !sync.state(chosen.get_untracked()).synced() => 0,
+            Step::Sending(_) => offset,
+            Step::Sent(..) if sync.taken() != taken_before.get_value() => offset + 2,
+            Step::Sent(..) => offset + 1,
+            Step::Joined(_) => all,
+            Step::Asking | Step::Failed(_) => 0,
+        }
+    });
+    let progress = move |name: String| {
         view! {
-            <nav class="pf-ways">
-                {if to_setup {
-                    view! { <a class="btn primary" href=t.path(url::HOME) rel="nofollow"><Icon name="arrow-left"/><span>{c.to_setup}</span></a> }.into_any()
-                } else {
-                    // Done: back to the start page (owner, 2026-11-09: „dass man wieder bei der
-                    // main page landet, wenn das sync fertig ist und nicht im profil").
-                    view! { <a class="btn primary pf-done" href=t.path(url::HOME) rel="nofollow"><Icon name="check"/><span>{c.done}</span></a> }.into_any()
-                }}
+            <p class="pf-sub">{(c.give_sending)(&name)}</p>
+            <ConnectProgress phases=phases.get_untracked() reached on_done=Callback::new(move |()| shown_done.set(true))/>
+            <nav class="pf-ways pf-wait-ways">
+                <a class="btn ghost" href=t.path(url::HOME) rel="nofollow">{c.dont_wait}</a>
             </nav>
         }
     };
-    let body = move || match step.get() {
-        Step::Asking => asking().into_any(),
-        Step::Sending(name) => view! {
-            <p class="pf-sync-state" role="status" data-state="wait"><span class="pf-sync-dot" aria-hidden="true"></span><span>{(c.give_sending)(&name)}</span></p>
+    // Done: the start page (owner, 2026-11-09: „dass man wieder bei der main page landet, wenn das
+    // sync fertig ist und nicht im profil"); from the setup the setup ends there.
+    let connected = move |name: String| {
+        let (title, summary) = if to_setup {
+            let program = MyProgram::expect().and_then(|mine| untrack(|| mine.with(|doc| doc.name.clone())));
+            (t.syncpair.all_set, program.into_iter().chain([c.summary_sync.to_string(), c.summary_other.to_string()]).collect())
+        } else {
+            (t.syncpair.connected, Vec::new())
+        };
+        let href = if to_setup { url::home_setup_done() } else { url::HOME.to_string() };
+        view! {
+            <Connected title said=(c.give_said)(&name) summary>
+                <a class="btn primary pf-done" href=t.path(&href) rel="nofollow"><Icon name="check"/><span>{c.done}</span></a>
+            </Connected>
         }
-        .into_any(),
-        Step::Sent(name, _) => view! {
-            <p class="pf-sync-state" role="status" data-state="wait"><span class="pf-sync-dot" aria-hidden="true"></span><span>{(c.give_sent)(&name)}</span></p>
-            {ways()}
-        }
-        .into_any(),
-        Step::Joined(name) => view! {
-            <p class="pf-joined" role="status"><Icon name="check"/><span>{(c.give_joined)(&name)}</span></p>
-            {ways()}
-        }
-        .into_any(),
-        Step::Failed(problem) => view! {
+    };
+    // What the part shows: built anew only when that changes, so that the bar goes on through the
+    // steps of the way.
+    let shows = Memo::new(move |_| match step.get() {
+        Step::Asking => Shows::Asking,
+        Step::Failed(_) => Shows::Failed,
+        Step::Joined(_) if shown_done.get() => Shows::Done,
+        Step::Sending(_) | Step::Sent(..) | Step::Joined(_) => Shows::Going,
+    });
+    let going_name = move || match step.get_untracked() {
+        Step::Sending(name) | Step::Sent(name, _) | Step::Joined(name) => name,
+        Step::Asking | Step::Failed(_) => name.get_untracked(),
+    };
+    let body = move || match (shows.get(), step.get_untracked()) {
+        (Shows::Asking, _) => asking().into_any(),
+        (Shows::Going, _) => progress(going_name()).into_any(),
+        (Shows::Done, _) => connected(going_name()).into_any(),
+        (Shows::Failed, Step::Failed(problem)) => view! {
             <p class="action note-action pf-refused" role="status"><Icon name="triangle-alert"/><span>{problem_text(problem)}</span></p>
             {asking()}
         }
         .into_any(),
+        (Shows::Failed, _) => asking().into_any(),
     };
     view! {
         <section class="panel pf-part pf-give" aria-labelledby="pf-give">
-            <h2 id="pf-give"><Icon name="monitor"/>{c.give_title}</h2>
+            // Once done, the success's own title says it.
+            {move || (shows.get() != Shows::Done).then(|| view! { <h2 id="pf-give"><Icon name="monitor"/>{c.give_title}</h2> })}
             {body}
         </section>
     }

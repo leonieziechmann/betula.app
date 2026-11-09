@@ -76,6 +76,12 @@ pub struct Texts {
     pub give_joined: fn(&str) -> String,
     /// A code that is no request (read from an address by hand, cut short).
     pub give_bad: &'static str,
+    /// Once the other device has it (`folia_widgets::syncdone::Connected`): who has what; from the
+    /// setup what was set up besides the program; leaving before it came.
+    pub give_said: fn(&str) -> String,
+    pub summary_sync: &'static str,
+    pub summary_other: &'static str,
+    pub dont_wait: &'static str,
     pub give_back: &'static str,
 }
 
@@ -132,6 +138,10 @@ pub const DE: Texts = Texts {
     give_sent: |name| format!("„{name}“ ist unterwegs: Der Rechner zeigt gleich, dass es angekommen ist."),
     give_joined: |name| format!("Verbunden: Der Rechner hat „{name}“."),
     give_bad: "Dieser Code ist unvollständig. Lass dir am Rechner einen neuen zeigen und scanne ihn noch einmal.",
+    give_said: |name| format!("Der Rechner hat jetzt „{name}“."),
+    summary_sync: "Betula Sync an",
+    summary_other: "Rechner verbunden",
+    dont_wait: "Nicht warten",
     give_back: "Abbrechen",
 };
 
@@ -188,6 +198,10 @@ pub const EN: Texts = Texts {
     give_sent: |name| format!("“{name}” is on its way: the computer shows in a moment that it has arrived."),
     give_joined: |name| format!("Connected: the computer has “{name}”."),
     give_bad: "This code is incomplete. Have the computer show a new one and scan it again.",
+    give_said: |name| format!("The computer now has “{name}”."),
+    summary_sync: "Betula Sync on",
+    summary_other: "Computer connected",
+    dont_wait: "Don't wait",
     give_back: "Cancel",
 };
 

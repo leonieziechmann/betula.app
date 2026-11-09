@@ -49,6 +49,22 @@ pub enum Notice {
     /// The rows selected planned: where they went, and „Rückgängig" for all of them (the plan before
     /// and after it, boxed).
     Planned(Box<PlannedMany>),
+    /// A study set up on the start page (its setup, `folia_home`): what was set up, and what
+    /// „Rückgängig" puts back (boxed).
+    SetUp(Box<SetUp>),
+}
+
+/// A study set up (owner, 2026-11-09: „verwende die wait notification um das anzuzeigen", in place
+/// of the card over the day there was): what the note says, and what „Rückgängig" puts back — the
+/// plan and the Studienbeginn before it, no program.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SetUp {
+    /// „Eingerichtet", „Eingerichtet und verbunden".
+    pub said: String,
+    /// „Informatik B.Sc. · PO 2008 · 1. FS".
+    pub detail: String,
+    pub plan_before: folia_plans::studyplan::PlanDoc,
+    pub start_before: Option<folia_calendar::semester::SemesterKey>,
 }
 
 /// The notices said, the newest with a number of its own, shared through context.
@@ -286,6 +302,32 @@ fn NoteView(what: Shown, bookmarks: Bookmarks, gone: Callback<()>) -> impl IntoV
                         <span class="mark-toast-said">{said}</span>
                         <span class="mark-toast-gap"></span>
                         {undo}
+                    </div>
+                </WaitNote>
+            }
+            .into_any()
+        }
+        Shown::Notice(_, Notice::SetUp(set_up)) => {
+            let SetUp { said, detail, plan_before, start_before } = *set_up;
+            let undo = move || {
+                if let Some(plan) = Studyplan::expect() {
+                    let before = plan_before.clone();
+                    plan.update_after_paint(move |doc| *doc = before);
+                }
+                if let Some(mine) = folia_stores::myprogram::MyProgram::expect() {
+                    mine.clear_program();
+                    mine.set_start(start_before);
+                }
+            };
+            view! {
+                // Two lines (owner, 2026-11-09: „mach die wait note mal schon zweizeilig auf dem handy
+                // oder halt mit textumbruch, weil aktuell kann man ja den studiengang gar nicht
+                // richtig sehen"): what happened, and under it the program, wrapped, never cut.
+                <WaitNote on_gone=gone away=Signal::derive(move || done.get()) class="mark-note setup-note">
+                    <div class="mark-toast setup-toast">
+                        <span class="plan-toast-mark" aria-hidden="true"><Icon name="check"/></span>
+                        <span class="setup-toast-said"><b>{said}</b><small>{detail}</small></span>
+                        {end_of(t, done, undo)}
                     </div>
                 </WaitNote>
             }
