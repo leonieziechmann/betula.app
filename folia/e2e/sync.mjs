@@ -138,6 +138,17 @@ check(key.length === 43, `A: no profile key kept (${key.length})`);
 check(link.startsWith(base + "/sync#"), `A: the link is ${link}`);
 
 // ---- the second browser opens the link ----
+// A's dialog shows the way on a bar once B came; A closes it the moment the bar is full, while the
+// bar still has to hand over (that called what was gone by then and stopped the app, Folia 1.88.1).
+await a.page.evaluate(() => {
+  const close = () => {
+    const bar = document.querySelector(".pf-connect-dlg .cp");
+    if (window.__closedAt || !bar || bar.getAttribute("aria-valuenow") !== bar.getAttribute("aria-valuemax")) return;
+    window.__closedAt = performance.now();
+    document.querySelector(".pf-connect-dlg .dlg-close")?.click();
+  };
+  new MutationObserver(close).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["aria-valuenow"] });
+});
 const b = await device("B");
 await b.page.goto(link);
 await app(b.page);
@@ -147,6 +158,9 @@ check(JSON.stringify(await marksOf(b.page)) === JSON.stringify(await marksOf(a.p
 check((await shelfOf(b.page)).includes(NOTE), "B: the note did not come");
 await doneHome("B", b.page, ".pf-part");
 await until("A sees B online", a.page, () => /^online 1( |$)/.test(localStorage.getItem("betula.sync.p1.status") || ""), null, 10000);
+await until("A: the dialog closed as its bar was full", a.page, () => Boolean(window.__closedAt) && !document.querySelector(".pf-connect-dlg .cp"), null, 10000);
+// Longer than the bar's last moment (DONE_MS), so that what it would hand over has come.
+await a.page.waitForFunction(() => performance.now() - window.__closedAt > 1000, null, { timeout: 5000 }).catch(() => {});
 
 // ---- live: a mark set on B shows on A ----
 const live = await markOne(b.page, "B");
@@ -441,14 +455,29 @@ await k.page.evaluate(() => { window.__marker = 1; });
 await k.page.click(".ob-scan >> visible=true").catch(() => problems.push("K: „Code scannen“ does not go"));
 await until("K: the scanner reads F3's code", k.page, (digits) => [...allOnPage(".pf-give .pf-digits span")].map((d) => d.textContent).join("") === digits, asked3.digits, 20000);
 await watchBar(k.page);
+// Step 4 behind the scanner (the start page stays) fills a bar of its own a moment after this one:
+// „Fertig“ as soon as both are full, so that the setup ends while that bar still has to hand over
+// (it called what was gone by then, Folia 1.88.1). What the success said is kept for the checks.
+await k.page.evaluate(() => {
+  const tap = () => {
+    const done = onPage(".pf-give .pf-done");
+    if (window.__success || !done) return;
+    const behind = document.querySelector(".ob .cp");
+    if (behind && behind.getAttribute("aria-valuenow") !== behind.getAttribute("aria-valuemax")) return;
+    window.__success = { title: onPage(".pf-give .cn-title")?.textContent, summary: allOnPage(".pf-give .cn-summary li").length, gains: allOnPage(".pf-give .cn-gains li").length, later: onPage(".pf-give .cn-later")?.textContent ?? "", href: done.getAttribute("href") };
+    done.click();
+  };
+  new MutationObserver(tap).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["aria-valuenow"] });
+});
 await k.page.click("#pf-give-yes >> visible=true").catch(() => problems.push("K: no „Ja, … verbinden“"));
-await until("F3 holds K's study", f3.page, () => /^program\t079-82-2008$/m.test(localStorage.getItem("betula.myprogram.v1") || ""), null, 30000);
-await until("K: „Alles eingerichtet“ after the scanner", k.page, () => onPage(".pf-give .cn-title")?.textContent === "Alles eingerichtet" && allOnPage(".pf-give .cn-summary li").length >= 2 && allOnPage(".pf-give .cn-gains li").length === 3 && /Gerät verbinden/.test(onPage(".pf-give .cn-later")?.textContent ?? ""), null, 20000);
+await until("K: „Alles eingerichtet“ and „Fertig“ after the scanner", k.page, () => Boolean(window.__success), null, 20000);
+const success = await k.page.evaluate(() => window.__success);
+check(success?.title === "Alles eingerichtet" && success.summary >= 2 && success.gains === 3 && /Gerät verbinden/.test(success.later), `K: the success says ${JSON.stringify(success)}`);
 await sawBar("K", k.page);
-check(await k.page.evaluate(() => onPage(".pf-give .pf-done")?.getAttribute("href") === "/?setup=done"), "K: „Fertig“ does not end the setup on the start page");
-await k.page.click(".pf-give .pf-done >> visible=true").catch(() => problems.push("K: no „Fertig“"));
+check(success?.href === "/?setup=done", "K: „Fertig“ does not end the setup on the start page");
 await until("K: the day, the setup ended, its note at the bottom", k.page, () => location.pathname === "/" && location.search === "" && !onPage(".ob") && Boolean(onPage(".day-hero")) && /^Eingerichtet und verbundenInformatik/.test(document.querySelector(".wait-note.setup-note")?.textContent ?? ""), null, 10000);
 check(await k.page.evaluate(() => window.__marker === 1), "K: the scanner and the way back loaded a page");
+await until("F3 holds K's study", f3.page, () => /^program\t079-82-2008$/m.test(localStorage.getItem("betula.myprogram.v1") || ""), null, 30000);
 await filming3.close();
 
 // ---- privacy ----
