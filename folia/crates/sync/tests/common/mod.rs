@@ -222,6 +222,9 @@ pub mod shelf {
         pub recent: Vec<u32>,
         pub members: BTreeMap<String, BTreeSet<u32>>,
         pub notes: BTreeMap<String, String>,
+        /// The shares (`s`) and the lists followed (`f`), as the store keeps them: lines of their
+        /// own, kept whole here (`folia_stores::collections` checks their fields).
+        pub shared: Vec<String>,
     }
 
     pub fn clean_name(name: &str) -> String {
@@ -335,6 +338,10 @@ pub mod shelf {
                 let escaped = note.replace('\\', "\\\\").replace('\n', "\\n").replace('\t', "\\t");
                 out.push_str(&format!("n\t{module}\t{escaped}\n"));
             }
+            for line in self.shared.iter().filter(|l| l.starts_with("s\t")).chain(self.shared.iter().filter(|l| l.starts_with("f\t"))) {
+                out.push_str(line);
+                out.push('\n');
+            }
             out
         }
 
@@ -360,6 +367,20 @@ pub mod shelf {
                     ["r", ids] if shelf.recent.is_empty() => {
                         let mut seen = BTreeSet::new();
                         shelf.recent = ids.split(',').filter_map(|n| n.trim().parse::<u32>().ok()).filter(|id| shelf.has(*id) && seen.insert(*id)).collect();
+                    }
+                    ["s", ..] | ["f", ..] => {
+                        // A share of a collection that is gone goes with it; a list followed takes
+                        // no collection's number.
+                        let line = fields.join("\t");
+                        let number = line.split('\t').nth(if fields[0] == "s" { 2 } else { 1 }).and_then(|n| n.parse::<u32>().ok());
+                        let fine = match (fields[0], number) {
+                            ("s", Some(collection)) => collection == 0 || shelf.has(collection),
+                            ("f", Some(id)) => id > 0 && !shelf.has(id),
+                            _ => false,
+                        };
+                        if fine && !shelf.shared.contains(&line) {
+                            shelf.shared.push(line);
+                        }
                     }
                     ["m", module, ids] if !module.trim().is_empty() && !shelf.members.contains_key(module.trim()) => {
                         let ids: BTreeSet<u32> = numbers(ids).into_iter().filter(|id| shelf.has(*id)).collect();

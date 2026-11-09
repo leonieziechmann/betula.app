@@ -400,3 +400,52 @@ fn a_note_typed_key_by_key_on_two_devices_at_once_is_one_hint_with_the_other_tex
     a.receive(&more);
     assert_eq!(a.doc.conflicts, before);
 }
+
+/// A share's line (`folia_stores::collections::ListShare`) and a followed list's (`Followed`).
+fn share_line(id: char, collection: u32) -> String {
+    format!("s\t{}\t{collection}\t1790000000\tln\t{}\t-\tLena", id.to_string().repeat(22), "k".repeat(43))
+}
+
+fn follow_line(id: u32, link: char) -> String {
+    format!("f\t{id}\t{}\t1790000000\t0\t-\tVon Max\tCODE", link.to_string().repeat(64))
+}
+
+#[test]
+fn shares_and_followed_lists_travel_and_go_with_their_collection() {
+    let (mut a, mut b) = pair();
+    let mut lena = 0;
+    let made = a.shelf(1_000, |s| {
+        lena = s.create("Für Lena").unwrap();
+        s.member("11109", lena, true);
+    });
+    b.receive(&made);
+    // a shares the collection and the whole list; b follows a list of somebody else.
+    let shared = a.edit(Store::Shelf, 2_000, |text| format!("{text}{}\n{}\n", share_line('A', lena), share_line('B', 0)));
+    let followed = b.edit(Store::Shelf, 2_000, |text| format!("{text}{}\n", follow_line(500, 'L')));
+    meet(&mut a, &shared, &mut b, &followed);
+    same(&a, &b);
+    let text = a.text(Store::Shelf);
+    assert!(text.contains(&share_line('A', lena)) && text.contains(&share_line('B', 0)) && text.contains(&follow_line(500, 'L')), "{text}");
+    assert_eq!(held(Store::Shelf, &text), text, "the store keeps every line of it");
+    // b deletes the collection: its share goes with it on both, the whole list's stays.
+    let gone = b.shelf(3_000, |s| s.delete(lena));
+    a.receive(&gone);
+    same(&a, &b);
+    let text = a.text(Store::Shelf);
+    assert!(!text.contains(&share_line('A', lena)) && text.contains(&share_line('B', 0)), "{text}");
+}
+
+#[test]
+fn one_link_followed_on_two_devices_at_once_is_one_list() {
+    let (mut a, mut b) = pair();
+    let on_a = a.edit(Store::Shelf, 1_000, |text| format!("{text}{}\n", follow_line(7, 'L')));
+    let on_b = b.edit(Store::Shelf, 1_050, |text| format!("{text}{}\n", follow_line(8, 'L')));
+    meet(&mut a, &on_a, &mut b, &on_b);
+    same(&a, &b);
+    let text = a.text(Store::Shelf);
+    assert!(text.contains(&follow_line(7, 'L')) && !text.contains(&follow_line(8, 'L')), "the first one followed stands: {text}");
+    // A list unfollowed retires its number, as a collection deleted does.
+    let unfollowed = a.edit(Store::Shelf, 2_000, |text| text.replace(&format!("{}\n", follow_line(7, 'L')), ""));
+    b.receive(&unfollowed);
+    assert!(folia_sync::schema::retired(&a.doc).collections.contains(&7));
+}
