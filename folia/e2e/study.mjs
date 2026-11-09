@@ -803,7 +803,7 @@ if (current !== "2026W") {
   // place, counted once (it was 12 and 12/18: folia/design/hinzufuegen/konzepte.html, „Was heute
   // schiefgeht"); the place, full, stands no more, and the module carries its name (owner,
   // 2026-11-09: „wenn man ein anwendungsfach eplant hat, dann muss man den platzhalter nicht mehr
-  // sehen"; until Folia 1.86.0 it stood beside it, „gefüllt mit …").
+  // sehen"; until Folia 1.87.0 it stood beside it, „gefüllt mit …").
   await step("Zurück zur Werkbank", () => page.click(".bench-bar a"), () => location.pathname === "/study" && document.querySelector(".st-wb-pane .st-wb-row.is-done")?.textContent.includes("Allgemeine Betriebswirtschaftslehre I"));
   await step("the semester, its place filled", () => page.click(".st-wb-done"), () => !document.querySelector(".st-wb") && document.querySelectorAll(".st-card-sem .st-row").length === 1);
   const filled = await counts();

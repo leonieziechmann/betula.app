@@ -2038,7 +2038,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     „12 LP" and „Nebenfach 12/18" for one module of 6, folia/design/hinzufuegen/konzepte.html).
     Since 1.64.0 „Modul wählen" opens the workbench at the place's subgroup in its semester
     instead, whose „+ Einplanen" and „Im Katalog suchen ›" fill the place the same way. A place is a
-    place for modules (Folia 1.86.0; owner, 2026-11-09: „dass die verschwinden, wenn die voll
+    place for modules (Folia 1.87.0; owner, 2026-11-09: „dass die verschwinden, wenn die voll
     erfüllt sind. Also wenn man ein anwendungsfach eplant hat, dann muss man den platzhalter nicht
     mehr sehen. Erst, wenn man das modul wieder entfernt soll der wieder zu sehen sein … wenn man
     ein 8lp modul hat und das in dem bereich angerechnet wird, dann ist das natürlich erfüllt …
@@ -2052,7 +2052,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     While they hold less, it stands with its bar and „3 von 6 LP eingeplant" („von mind. 10 LP" of
     a range nobody set) under its line, „Modul wählen" still at it, and counts what they leave of it,
     in its area as in its semester (`Item::counted`); a module planned for its choice in its
-    semester fills it until it is full (`study::open_placeholders`). Until 1.86.0 a place with any
+    semester fills it until it is full (`study::open_placeholders`). Until 1.87.0 a place with any
     module in it said „gefüllt mit …", offered „Modul wählen" no more and counted nothing of its
     own: a place of 12 with a module of 6 counted 6. The status, or a right click
     on the row, opens its menu at the status or the pointer (`menu.rs`): „Modul wählen" and „Umfang …"
@@ -2518,7 +2518,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     it asks and all are passed in its semester, its own mark not needed then (as the
     Regelstudienplan has it), and where they are not, its modules are the Wiederholer, not it (until
     Folia 1.70.1 it came back as one beside its passed module).
-  - **„Umfang …"** (`size.rs`, Folia 1.86.0; owner, 2026-11-09: „Überlege dir mal wie man das so
+  - **„Umfang …"** (`size.rs`, Folia 1.87.0; owner, 2026-11-09: „Überlege dir mal wie man das so
     bei wp bereichen wie bei der informatik macht, wo man selbst die gewichtung wählen kann, die man
     machen möchte. Also wie man das richtig darstellt"), in a placeholder's menu (the semester's and
     the Gesamtplan's): how many credits it keeps in its semester (`Placeholder::size`). A row of a
@@ -2544,7 +2544,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   - **What is stored** is only what the student says, in the Stundenplan's store (R20): the `m` and
     `p` lines are the semesters' modules and placeholders — the Stundenplan's lines: a semester's
     timetable is its part of the study, one plan for both pages; a placeholder's size („Umfang …")
-    its eleventh field, written only where it is set (a build before 1.86.0 reads the line without
+    its eleventh field, written only where it is set (a build before 1.87.0 reads the line without
     it and writes it back so) —, `d <semester> <module>` a module
     passed, `q <semester> <program> <ord> <caption> <name>` a row of the plan done. „Mein
     Studiengang" keeps the program, the plan of the study direction, the Studienbeginn, the
