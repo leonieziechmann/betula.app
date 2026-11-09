@@ -7987,6 +7987,9 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .day-prog .passed { background: var(--text-2); }
 .day-prog .planned { background: color-mix(in oklab, var(--text) 24%, var(--panel)); }
 .day-prog .open { background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--line-strong); }
+/* What lies beyond the plan (beyond an area's need, towards no area), striped at the bar's end as
+   „Mein Studium"'s bar has it (`.st-seg > .over`). */
+.day-prog-bar .over { margin-left: auto; background: repeating-linear-gradient(135deg, var(--text-2) 0 2px, var(--panel-3) 2px 5px); }
 .day-bm { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 10px; padding: 8px; border-radius: var(--r-row); color: var(--text); text-decoration: none; }
 .day-bm > .icon { width: 15px; height: 15px; color: var(--text); fill: currentColor; }
 .day-bm > span { min-width: 0; }

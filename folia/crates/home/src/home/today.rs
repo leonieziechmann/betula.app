@@ -24,8 +24,8 @@ use folia_calendar::semester::{fachsemester, SemesterKey};
 use folia_model::rows::CatalogRow;
 use folia_pages::ask::{MetaAsk, PlanSourceAsk, StudyModulesAsk, StudyplanAsk, StudyplanModulesAsk};
 use folia_pages::{HomeData, PlanSource, StudyplanData};
-use folia_plans::study;
-use folia_plans::studyplan::{self as stored, MineDoc, PlanDoc};
+use folia_plans::study::{self, Totals};
+use folia_plans::studyplan::{MineDoc, PlanDoc};
 use folia_routes::url::{self, PlanView, StudyUrl, StudyplanUrl};
 use folia_timetable::clash::Weeks;
 use folia_timetable::facts::SemesterFacts;
@@ -41,12 +41,13 @@ use folia_shell::pending::same_page;
 use folia_shell::tabs::{Area, Tabs};
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::myprogram::MyProgram;
+use folia_stores::study as mystudy;
 use folia_stores::studyplan::Studyplan;
 
 use super::clock::{self, Clock, Kind, Phase};
 use super::day::{self as daymodel, Entry, Greeting, State, Today};
 use super::photo;
-use super::setup::{self, Counted, Done};
+use super::setup::{Counted, Done};
 use crate::i18n::{self, Texts};
 
 /// How many marked modules the Merkliste's panel names.
@@ -831,42 +832,39 @@ fn StudyCard(ctx: Ctx) -> impl IntoView {
     let tt = &t.today;
     let progress = ctx.progress;
     move || {
-        let (passed, total, fs) = progress.with(|progress| progress.as_ref().map_or((0.0, 0.0, None), |p| (p.passed, p.total, p.fs)));
+        // The headline of „Mein Studium" (`study::Totals::headline`).
+        let (totals, fs) = progress.with(|progress| progress.as_ref().map_or((Totals::default(), None), |p| (p.totals, p.fs)));
+        let (passed, total) = totals.headline();
         view! {
             <div class="day-next">
                 <span class="k"><span>{tt.your_study}</span><span>{fs.map(|fs| (tt.after_fs)(fs))}</span></span>
-                <span class="when"><b>{format::number(passed, t.locale)}</b><span>{(tt.of_credits)(&format::number(total, t.locale))}</span></span>
-                <span class="what">{if passed > 0.0 { String::new() } else { tt.nothing_passed.to_string() }}</span>
+                <span class="when"><b>{format::number(passed, t.locale)}</b><span>{total.map_or_else(|| tt.credits.to_string(), |total| (tt.of_credits)(&format::number(total, t.locale)))}</span></span>
+                <span class="what">{if totals.passed_all() > 0.0 { String::new() } else { tt.nothing_passed.to_string() }}</span>
                 <span class="acts"><a class="btn sm" href=t.path(url::STUDY) data-command="">{tt.enter_results}</a></span>
             </div>
         }
     }
 }
 
-/// The study's progress as „Mein Studium" works it out.
+/// The study's progress as „Mein Studium" works it out and says it: its study from the same input
+/// (`folia_stores::study`), its numbers from the same totals (`study::Totals`), so that the two
+/// pages never disagree (owner, 2026-11-09).
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct Progress {
     program: String,
     fs: Option<u8>,
-    passed: f64,
-    planned: f64,
-    total: f64,
+    totals: Totals,
 }
 
-/// „Mein Studium"'s numbers: the program's plans, the plan, and the catalog's rows of what is
-/// planned and passed beyond the plan, in the semester `key`.
+/// „Mein Studium"'s numbers in the semester `key`: the program's plans, the plan, and the catalog's
+/// rows of what is planned, visited and passed beyond the plan, as „Mein Studium" asks for them.
 fn progress(key: Memo<Option<SemesterKey>>) -> Memo<Option<Progress>> {
     let t = i18n::t();
     let plan = Studyplan::expect();
     let mine = MyProgram::expect();
     let program = Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| doc.program.clone())));
     let source = use_ask(move || program.get().map(|id| PlanSourceAsk { program_id: id, locale: t.locale }));
-    let ids = Memo::new(move |_| {
-        let mut ids: Vec<String> = plan.map(|plan| plan.with(|doc| doc.modules.iter().map(|m| m.module_id.clone()).chain(doc.passed.iter().map(|p| p.module_id.clone())).collect())).unwrap_or_default();
-        ids.sort();
-        ids.dedup();
-        ids
-    });
+    let ids = Memo::new(move |_| plan.map(|plan| plan.with(mystudy::module_ids)).unwrap_or_default());
     let rows = use_ask(move || {
         let ids = ids.get();
         (!ids.is_empty()).then_some(StudyModulesAsk { ids })
@@ -877,20 +875,13 @@ fn progress(key: Memo<Option<SemesterKey>>) -> Memo<Option<Progress>> {
         let doc: PlanDoc = plan.map(|plan| plan.with(Clone::clone)).unwrap_or_default();
         source.with(|source| {
             let source: &PlanSource = source.as_ref()?.as_ref().ok()?.as_ref()?;
-            let extra: Vec<CatalogRow> = rows.with(|rows| rows.as_ref().and_then(|rows| rows.as_ref().ok()).map(|rows| rows.rows.clone()).unwrap_or_default());
-            let all: Vec<CatalogRow> = source.linked.iter().cloned().chain(extra.into_iter().filter(|row| !source.linked.iter().any(|linked| linked.id == row.id))).collect();
-            let index = folia_stores::myprogram::ProgramPlans::new(&source.variants, source.supplements.clone()).shown_index(kept.caption.as_deref().unwrap_or_default(), kept.direction.as_deref()).unwrap_or(0);
-            let (core, page) = setup::chosen(source, index);
-            let intake = core.and_then(|core| stored::intake_season(core, &source.linked));
-            let start = kept.start.unwrap_or_else(|| stored::intake_start(now, intake));
-            let input = study::Input { program_id: &source.program.id, core, page, start, now, leave: &kept.leave, until: kept.until, doc: &doc, rows: &all, tree: &source.areas, placements: &source.placements, fues: &source.fues };
-            let study = study::study(&input);
+            let all = rows.with(|rows| mystudy::rows_of(source, rows.as_ref().and_then(|rows| rows.as_ref().ok()).map_or(&[][..], |rows| &rows.rows)));
+            let setup = mystudy::Setup::of(source, &kept, now);
+            let study = study::study(&mystudy::input_of(source, &setup, &doc, &all));
             Some(Progress {
                 program: format!("{} {}", source.program.name, source.program.degree()),
-                fs: study::fs_of(start, now, &kept.leave).or_else(|| fachsemester(now, start)),
-                passed: study.passed,
-                planned: study.planned,
-                total: study.total,
+                fs: study::fs_of(setup.start, now, &setup.leave).or_else(|| fachsemester(now, setup.start)),
+                totals: study.totals(),
             })
         })
     })
@@ -1155,7 +1146,11 @@ fn ExamsPanel(ctx: Ctx, big: bool) -> impl IntoView {
     }
 }
 
-/// „Mein Studium": what is passed and planned of the plan, and what is open.
+/// „Mein Studium": what is passed and planned of the plan, and what is open, in the words and
+/// numbers of „Mein Studium"'s overview (`study::Totals`): the headline, „bestanden" and „geplant"
+/// with what goes beyond an area's need or towards none, „offen" what the areas still ask for. The
+/// bar is the overview's with its areas as one: what counts of the plan passed and planned, what it
+/// still asks for, and what lies beyond it striped at its end.
 #[component]
 fn StudyPanel(ctx: Ctx) -> impl IntoView {
     let t = i18n::t();
@@ -1163,19 +1158,34 @@ fn StudyPanel(ctx: Ctx) -> impl IntoView {
     let progress = ctx.progress;
     move || {
         progress.get().map(|p| {
-            let total = if p.total > 0.0 { p.total } else { (p.passed + p.planned).max(1.0) };
-            let open = (p.total - p.passed - p.planned).max(0.0);
-            let share = |value: f64| format!("width:{:.2}%", (value / total * 100.0).clamp(0.0, 100.0));
+            let totals = p.totals;
+            let n = |value: f64| format::number(value, t.locale);
+            let (passed, total) = totals.headline();
+            let beyond = totals.beyond();
+            let whole = (totals.passed + totals.planned + totals.open + beyond).max(1.0);
+            let share = |value: f64| format!("width:{:.2}%", (value / whole * 100.0).clamp(0.0, 100.0));
+            let mut rest = String::new();
+            // „über Bedarf": the modules beyond need, as „Mein Studium" says it (`Totals::spare`).
+            if totals.spare.1 > 0.0 {
+                rest.push_str(&(tt.over_part)(&n(totals.spare.1)));
+            }
+            if totals.outside.1 > 0.0 {
+                rest.push_str(&(tt.outside_part)(&n(totals.outside.1)));
+            }
             view! {
                 <section class="panel day-panel day-study">
                     <header class="day-head"><h2>{tt.my_study}</h2><span class="sub">{(tt.study_sub)(&p.program, p.fs)}</span><a class="ghost" href=t.path(url::STUDY)>{tt.open}<Icon name="arrow-right"/></a></header>
                     <div class="day-prog">
-                        <p class="day-prog-fig"><b class="num">{format::number(p.passed, t.locale)}</b><span>{(tt.passed_of)(&format::number(p.total, t.locale))}</span></p>
-                        <div class="day-prog-bar" aria-hidden="true"><i class="passed" style=share(p.passed)></i><i class="planned" style=share(p.planned)></i></div>
+                        <p class="day-prog-fig"><b class="num">{n(passed)}</b><span>{total.map_or_else(|| tt.passed_alone.to_string(), |total| (tt.passed_of)(&n(total)))}</span></p>
+                        <div class="day-prog-bar" aria-hidden="true">
+                            <i class="passed" style=share(totals.passed)></i>
+                            <i class="planned" style=share(totals.planned)></i>
+                            {(beyond > 0.0).then(|| view! { <i class="over" style=share(beyond) title=(tt.beyond)(&n(beyond))></i> })}
+                        </div>
                         <p class="day-prog-key">
-                            <span><i class="passed"></i>{format!("{} {}", format::number(p.passed, t.locale), tt.passed)}</span>
-                            <span><i class="planned"></i>{format!("{} {}", format::number(p.planned, t.locale), tt.planned)}</span>
-                            <span><i class="open"></i>{format!("{} {}", format::number(open, t.locale), tt.left)}</span>
+                            <span><i class="passed"></i>{format!("{} {}", n(totals.passed_all()), tt.passed)}</span>
+                            <span><i class="planned"></i>{format!("{} {}{rest}", n(totals.planned_all()), tt.planned)}</span>
+                            <span><i class="open"></i>{format!("{} {}", n(totals.open), tt.left)}</span>
                         </p>
                     </div>
                 </section>

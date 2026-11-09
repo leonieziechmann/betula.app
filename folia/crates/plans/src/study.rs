@@ -730,6 +730,75 @@ impl Study {
     pub fn ahead(&self) -> impl Iterator<Item = &Semester> {
         self.semesters.iter().filter(|semester| semester.when != When::Past)
     }
+
+    /// The study in its few numbers (`Totals`).
+    pub fn totals(&self) -> Totals {
+        Totals {
+            total: self.total,
+            passed: self.passed,
+            planned: self.planned,
+            open: self.open,
+            over: (self.over_passed, (self.over - self.over_passed).max(0.0)),
+            spare: (self.spare_passed, (self.spare - self.spare_passed).max(0.0)),
+            outside: self.outside,
+        }
+    }
+}
+
+/// The study in its few numbers: what „Mein Studium"'s overview says of it, and what every other
+/// page that speaks of its progress says (the start page's panel and card), worked out here once
+/// so that two pages never disagree (owner, 2026-11-09: „ein system …, dasss immer konsistent mit
+/// der berechnung von mein studium ist"). Until Folia 1.85.1 the start page summed up on its own
+/// and left out what goes beyond an area's need, as a module counted for a full area as an
+/// exception does („Anderer Bereich …"): „0 geplant" there beside „8 LP geplant, davon 8 über
+/// Bedarf" in „Mein Studium".
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Totals {
+    /// What the plan asks for in all; 0 without a plan.
+    pub total: f64,
+    /// Passed and planned as they count towards the areas, each up to what its area asks: the
+    /// headline's „54 von 180 LP bestanden", and the bar's parts.
+    pub passed: f64,
+    pub planned: f64,
+    /// What the areas still ask for that is not planned („noch nicht eingeplant", „offen"):
+    /// `total` less `passed` and `planned`. What goes beyond an area's need fills nothing of it.
+    pub open: f64,
+    /// What goes beyond an area's need: passed, planned. All of it is taken, passed or planned.
+    pub over: (f64, f64),
+    /// Of `over`, what the modules beyond need bring, none of whose credits their area needs
+    /// (`Item::spare`): passed, planned. „Über Bedarf" is said of these alone; what a module the
+    /// area needs brings past it (8 LP where 6 were left) is no more than taken.
+    pub spare: (f64, f64),
+    /// What counts towards no area („ohne Bereich"): passed, planned.
+    pub outside: (f64, f64),
+}
+
+impl Totals {
+    /// Everything passed: towards the areas, beyond their need and towards none.
+    pub fn passed_all(&self) -> f64 {
+        self.passed + self.over.0 + self.outside.0
+    }
+
+    /// Everything planned: towards the areas, beyond their need and towards none.
+    pub fn planned_all(&self) -> f64 {
+        self.planned + self.over.1 + self.outside.1
+    }
+
+    /// What the headline says is passed: of what the plan asks, `passed`; without a plan all of
+    /// it, said without a total.
+    pub fn headline(&self) -> (f64, Option<f64>) {
+        if self.total > 0.0 {
+            (self.passed, Some(self.total))
+        } else {
+            (self.passed_all(), None)
+        }
+    }
+
+    /// What lies beyond the plan, the bar's striped part as „Mein Studium"'s bar has it: the
+    /// modules beyond need and what counts towards no area, passed and planned.
+    pub fn beyond(&self) -> f64 {
+        self.spare.0 + self.spare.1 + self.outside.0 + self.outside.1
+    }
 }
 
 /// „6" → (6, 6), „10–24" → (10, 24).
@@ -1805,6 +1874,41 @@ mod tests {
         let later = with.semester(key("2028W")).unwrap();
         assert!(later.items.is_empty() && later.visits.len() == 1 && later.credits == 0.0);
         assert!(alone.semester(key("2028W")).is_none());
+    }
+
+    /// The totals every page says of the study (owner, 2026-11-09: „wenn man module manuell zu
+    /// einem bereich zuordnet, die da eigentlich nicht hin gehören, wird beim studienprogress eine
+    /// falsche zahl angezeigt … so dass man sehen kann wie viel wirklich noch fehlt"): a module
+    /// counted as an exception for a full area goes beyond its need; it is planned all the same,
+    /// and fills nothing of what is open — the area it would have counted for still asks for it.
+    #[test]
+    fn the_totals_say_what_goes_beyond_need_and_what_is_still_open() {
+        let w = world();
+        let mut doc = PlanDoc::default();
+        for id in ["11001", "11002", "11003"] {
+            assert!(doc.plan(key("2025W"), id, 1, None));
+            assert!(doc.pass(key("2025W"), id));
+        }
+        assert!(doc.plan(key("2026W"), "12330", 2, None));
+        let auto = study(&input(&w, &doc, "2025W", "2026W")).totals();
+        // Where it fits, in the Fachstudium.
+        assert_eq!((auto.total, auto.passed, auto.planned, auto.open, auto.over, auto.outside), (70.0, 20.0, 6.0, 44.0, (0.0, 0.0), (0.0, 0.0)));
+        // As an exception for Informatik, which its three modules fill: beyond its need, and the
+        // Fachstudium asks for it again.
+        doc.set_counts(key("2026W"), "12330", Some(studyplan::RowRef::new(PROGRAM, &w.core.full, 1)));
+        let study = study(&input(&w, &doc, "2025W", "2026W"));
+        let exception = study.semester(key("2026W")).unwrap().items.iter().find(|item| item.module_id() == Some("12330")).unwrap();
+        assert!(exception.exception && exception.over == 6.0, "{exception:?}");
+        let totals = study.totals();
+        assert_eq!((totals.passed, totals.planned, totals.open, totals.over, totals.spare), (20.0, 0.0, 50.0, (0.0, 6.0), (0.0, 6.0)));
+        assert_eq!((totals.passed_all(), totals.planned_all(), totals.beyond(), totals.headline()), (20.0, 6.0, 6.0, (20.0, Some(70.0))));
+        // Passed and planned towards the plan and what is open are the plan, whatever goes beyond.
+        for totals in [auto, totals] {
+            assert!((totals.passed + totals.planned + totals.open - totals.total).abs() < EPSILON, "{totals:?}");
+        }
+        // Without a plan everything counts towards no area, and the headline has no total.
+        let alone = super::study(&Input { core: None, ..input(&w, &doc, "2025W", "2026W") }).totals();
+        assert_eq!((alone.total, alone.open, alone.outside, alone.headline(), alone.beyond()), (0.0, 0.0, (20.0, 6.0), (20.0, None), 26.0));
     }
 
     #[test]

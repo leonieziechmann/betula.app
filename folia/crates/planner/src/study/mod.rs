@@ -56,7 +56,7 @@ use folia_pages::ask::{MetaAsk, ModuleAsk, PlanSourceAsk, StudyModulesAsk};
 use folia_pages::PlanSource;
 use folia_plans::plan;
 use folia_plans::study::{self, AreaKind, Input, Item, Line, Study};
-use folia_plans::studyplan::{self as stored, MineDoc, PlanDoc};
+use folia_plans::studyplan::{MineDoc, PlanDoc};
 use folia_routes::url::{self, LocalView, StudyUrl, StudyView};
 use leptos::prelude::*;
 use folia_design::stage::Title;
@@ -70,7 +70,9 @@ use folia_shell::pending::{Change, Pending, Shape};
 use folia_shell::seo::Seo;
 use folia_shell::skeleton::{AppStandin, DetailSkeleton};
 use folia_shell::tabs::Area;
-use folia_stores::myprogram::{MyProgram, ProgramPlans};
+use folia_stores::myprogram::MyProgram;
+// What the study is worked out from, as the start page works it out too (`folia_stores::study`).
+pub(super) use folia_stores::study::{assumed_start, chosen, input_of, rows_of, Setup};
 use folia_stores::studyplan::{PlanHint, Studyplan};
 use folia_widgets::list::phone_layout;
 use folia_widgets::local::ModuleInPlace;
@@ -94,24 +96,6 @@ pub(super) enum Plans {
     /// The program is not in the snapshot.
     Gone,
     Found(Box<PlanSource>),
-}
-
-/// What `study::study` was asked with.
-#[derive(Clone, Debug, PartialEq)]
-pub(super) struct Setup {
-    /// The plan shown (an index into the program's plans): a core plan or a page of one.
-    pub shown: Option<usize>,
-    /// The core plan, and the page that fills a row of it with that row's `ord`.
-    pub core: Option<usize>,
-    pub page: Option<(usize, i64)>,
-    pub start: SemesterKey,
-    /// The Studienbeginn is stored; else it is assumed (`studyplan::intake_start`) and the page
-    /// asks for it first (`setup.rs`).
-    pub start_stored: bool,
-    /// The current semester.
-    pub now: SemesterKey,
-    pub leave: BTreeSet<SemesterKey>,
-    pub until: Option<SemesterKey>,
 }
 
 /// What the page shows.
@@ -372,46 +356,6 @@ impl StudyCtx {
     }
 }
 
-/// What the study is worked out from: the program's plans as `setup` chose them, the plan, and the
-/// catalog's rows of its modules.
-pub(super) fn input_of<'a>(source: &'a PlanSource, setup: &'a Setup, doc: &'a PlanDoc, rows: &'a [CatalogRow]) -> Input<'a> {
-    Input {
-        program_id: &source.program.id,
-        core: setup.core.and_then(|core| source.variants.get(core)),
-        page: setup.page.and_then(|(page, ord)| Some((source.variants.get(page)?, ord))),
-        start: setup.start,
-        now: setup.now,
-        leave: &setup.leave,
-        until: setup.until,
-        doc,
-        rows,
-        tree: &source.areas,
-        placements: &source.placements,
-        fues: &source.fues,
-    }
-}
-
-/// The plan „Mein Studiengang" keeps among the program's plans (by its caption and direction, as
-/// `ProgramPlans` reads them), else the first; with its core plan and the page of it.
-pub(super) fn chosen(source: &PlanSource, caption: Option<&str>, direction: Option<&str>) -> (Option<usize>, Option<usize>, Option<(usize, i64)>) {
-    if source.variants.is_empty() {
-        return (None, None, None);
-    }
-    let plans = ProgramPlans::new(&source.variants, source.supplements.clone());
-    let shown = caption.and_then(|caption| plans.shown_index(caption, direction)).unwrap_or(0).min(source.variants.len() - 1);
-    match source.supplements.iter().find(|supplement| supplement.page == shown) {
-        Some(supplement) => (Some(shown), Some(supplement.core), Some((supplement.page, supplement.ord))),
-        None => (Some(shown), Some(shown), None),
-    }
-}
-
-/// The Studienbeginn a study of `source` is assumed to have begun in: the current semester, or the
-/// one before where the plan begins in the other half of the year.
-pub(super) fn assumed_start(source: &PlanSource, core: Option<usize>, now: SemesterKey) -> SemesterKey {
-    let intake = core.and_then(|core| source.variants.get(core)).and_then(|core| stored::intake_season(core, &source.linked));
-    stored::intake_start(now, intake)
-}
-
 /// The colours of the areas of a plan, in turn; the FÜS, the thesis and the rest have their own.
 const TONES: [&str; 9] = ["var(--fac-1)", "var(--fac-4)", "var(--t-sun)", "var(--fac-6)", "var(--fac-2)", "var(--t-violet)", "var(--fac-5)", "var(--t-rose)", "var(--t-ice)"];
 
@@ -456,17 +400,7 @@ fn named(source: &PlanSource, input: &Input, study: &Study, t: &Texts) -> Vec<Na
 
 /// What the page shows of a program's study.
 fn ready(source: &PlanSource, mine: &MineDoc, now: SemesterKey, doc: &PlanDoc, rows: &[CatalogRow], t: &Texts) -> Ready {
-    let (shown, core, page) = chosen(source, mine.caption.as_deref(), mine.direction.as_deref());
-    let setup = Setup {
-        shown,
-        core,
-        page,
-        start: mine.start.unwrap_or_else(|| assumed_start(source, core, now)),
-        start_stored: mine.start.is_some(),
-        now,
-        leave: mine.leave.clone(),
-        until: mine.until,
-    };
+    let setup = Setup::of(source, mine, now);
     let input = input_of(source, &setup, doc, rows);
     let study = study::study(&input);
     let lines = study::open_lines(&input, &study);
@@ -476,11 +410,6 @@ fn ready(source: &PlanSource, mine: &MineDoc, now: SemesterKey, doc: &PlanDoc, r
     };
     let named = named(source, &input, &study, t);
     Ready { program: source.program.clone(), plans, named, setup, study, lines }
-}
-
-/// The catalog's rows of `source`'s modules and of `extra`, each once.
-fn rows_of(source: &PlanSource, extra: &[CatalogRow]) -> Vec<CatalogRow> {
-    source.linked.iter().chain(extra.iter().filter(|row| !source.linked.iter().any(|linked| linked.id == row.id))).cloned().collect()
 }
 
 #[component]
@@ -517,9 +446,7 @@ pub fn StudyPage() -> impl IntoView {
     // The modules of the plan and of the semesters, the visits among them: their rows (for the
     // ones the plan does not name) and what they ask for of others.
     let ids = Memo::new(move |_| {
-        let mut ids: Vec<String> = plan
-            .map(|plan| plan.with(|doc| doc.modules.iter().map(|m| m.module_id.clone()).chain(doc.visits.iter().map(|v| v.module_id.clone())).chain(doc.passed.iter().map(|p| p.module_id.clone())).collect()))
-            .unwrap_or_default();
+        let mut ids: Vec<String> = plan.map(|plan| plan.with(folia_stores::study::module_ids)).unwrap_or_default();
         plans.with(|plans| {
             if let Plans::Found(source) = plans {
                 ids.extend(source.linked.iter().map(|row| row.id.clone()));

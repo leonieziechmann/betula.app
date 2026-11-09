@@ -1748,7 +1748,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     wenn man zurück den aktuellen studiengang auswählt. Dann sollten die werte wieder zurück"), and
     so does a changed program's „Zurück".
   - **The overview** (`overview.rs`): „46 von 180 LP bestanden", the credits passed, planned
-    („davon 6 über Bedarf") and not planned yet, and a bar of the areas, each as wide as it asks
+    („davon 6 über Bedarf") and not planned yet (`study::Totals`, which the start page's „Mein
+    Studium" says as well), and a bar of the areas, each as wide as it asks
     (and as what goes beyond it): passed in the area's colour, planned in its tint, open grey,
     beyond need striped with „+6" over it. On a desktop a card per area under it, all of them in one
     row and each in one line („Die Cards dürfen nur eine Zeile haben. Aber idealer weise auch ohne
@@ -4138,7 +4139,22 @@ the pages about Betula since 2026-10-27 (`/about/<topic>`, below).
   one with the time left, open groups said, a line at the time), the next day after 17:00 or once
   the day is done, the week (a column a day, its Termine at their hours), the exams of the plan in
   days, „Mein Studium" (credits passed, planned and left, `study::study`), the Merkliste (the newest
-  three) and „Entdecken" (the ways into the catalog of the season). The minute is the browser's
+  three) and „Entdecken" (the ways into the catalog of the season). „Mein Studium"'s panel and card
+  say what „Mein Studium" says, from the same input and the same totals (Folia 1.85.1; owner,
+  2026-11-09: „wenn man module manuell zu einem bereich zuordnet, die da eigentlich nicht hin
+  gehören, wird beim studienprogress eine falsche zahl angezeigt … Versuch da mal ein system zu
+  finden, dasss immer konsistent mit der berechnung von mein studium ist"): the input from what the
+  visitor keeps (`folia_stores::study`: `Setup::of`, `input_of`, `module_ids`, `rows_of`, which
+  „Mein Studium" uses itself), the numbers from `study::Totals` (`Study::totals`), which its
+  overview says too — the headline („54 von 180 LP bestanden", without a plan „62 LP bestanden"),
+  everything passed, everything planned with „, davon 8 über Bedarf" (the modules beyond need,
+  `Totals::spare`) and „, 6 ohne Bereich", and „offen", what the areas still ask for that is not
+  planned. Its bar is the overview's with the
+  areas as one: passed and planned as they count, open, and what lies beyond the plan striped at
+  its end. Until then the start page put the input together and summed up on its own: what goes
+  beyond an area's need, as a module counted for a full area as an exception does, it left out
+  („0 geplant" beside „8 LP geplant, davon 8 über Bedarf"), and a program without a plan read „0
+  von 0 LP". The minute is the browser's
   clock, read again every 30 s; the Termine are the Stundenplan's (`Timetable`, `views::agenda`)
   for the current semester.
 - **The panels in two columns that end on one line** (owner, 2026-10-27: „bei der PC version gibt
