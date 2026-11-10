@@ -97,6 +97,18 @@ const CHANGE_PREFIX: &str = "betula.sync.c.";
 /// The difference of the server's clock to this browser's, as the leader last heard it.
 const OFFSET_KEY: &str = "betula.sync.offset";
 
+/// The way to Phloem that brought the last welcome where it was plain HTTPS (`https <ms>`): a
+/// page loaded later goes that way first, for a day, instead of waiting for a WebSocket that does
+/// not come about in this network. Gone with a welcome over the WebSocket.
+const WAY_KEY: &str = "betula.sync.way";
+
+/// How long a way remembered goes first (ms).
+const WAY_MS: u64 = 24 * 3600 * 1000;
+
+fn https_first() -> bool {
+    nav::local_get(WAY_KEY).and_then(|w| w.strip_prefix("https ").and_then(|ms| ms.parse::<u64>().ok())).is_some_and(|at| now().saturating_sub(at) < WAY_MS)
+}
+
 pub fn syncs(profile: u16) -> bool {
     nav::local_get(&held_key(profile)).is_some_and(|text| !text.trim().is_empty())
 }
@@ -1002,7 +1014,7 @@ impl Engine {
                     }
                 }
             },
-            std::time::Duration::from_millis(WELCOME_MS),
+            std::time::Duration::from_millis(if by_poll { POLL_WELCOME_MS } else { WS_WELCOME_MS }),
         );
     }
 
@@ -1132,6 +1144,11 @@ impl Engine {
                 self.fails.set(0);
                 let by_poll = matches!(self.socket.borrow().as_ref(), Some(Line::Poll(_)));
                 self.poll_works.set(by_poll);
+                if by_poll {
+                    nav::local_set(WAY_KEY, &format!("https {}", now()));
+                } else if nav::local_get(WAY_KEY).is_some() {
+                    nav::local_set(WAY_KEY, "");
+                }
                 if server > 0 {
                     nav::local_set(OFFSET_KEY, &(server as i64 - now() as i64).to_string());
                 }
@@ -1321,18 +1338,19 @@ impl Engine {
 
     /// Lets the socket go (the network is gone); the engine tries again as after any close.
     fn disconnect(&self) {
-        // The socket's close comes as an event; a session's end at once (`lost`), so no borrow
+        // A session ends at once (`lost`), and a socket's close may come at once too: no borrow
         // of the line may be held then.
-        let poll = match self.socket.borrow().as_ref() {
-            Some(Line::Ws(socket)) => {
-                let _ = socket.close();
-                None
-            }
-            Some(Line::Poll(poll)) => Some(Rc::clone(poll)),
+        let line = match self.socket.borrow().as_ref() {
+            Some(Line::Ws(socket)) => Some(Line::Ws(socket.clone())),
+            Some(Line::Poll(poll)) => Some(Line::Poll(Rc::clone(poll))),
             None => None,
         };
-        if let Some(poll) = poll {
-            poll.close();
+        match line {
+            Some(Line::Ws(socket)) => {
+                let _ = socket.close();
+            }
+            Some(Line::Poll(poll)) => poll.close(),
+            None => {}
         }
         self.welcomed.set(false);
         self.status();
@@ -1368,8 +1386,12 @@ enum Line {
     Poll(Rc<poll::Poll>),
 }
 
-/// How long a connection may take to its welcome before it counts as failed (ms).
-const WELCOME_MS: u64 = 10_000;
+/// How long a WebSocket may take to its welcome before it counts as failed (ms): a socket that
+/// opens at all says welcome within a second or two, also on a slow network.
+const WS_WELCOME_MS: u64 = 6_000;
+
+/// The same for a session over plain HTTPS, whose first answer is a request more (ms).
+const POLL_WELCOME_MS: u64 = 15_000;
 
 // ---- shares (step 3) ----
 
@@ -2165,7 +2187,7 @@ async fn lead(sync: Sync, profiles: Profiles) {
         welcomed: Cell::new(false),
         again: Cell::new(false),
         fails: Cell::new(0),
-        poll_works: Cell::new(false),
+        poll_works: Cell::new(https_first()),
         attempt: Cell::new(0),
         phloem_live: Cell::new(false),
         live: RefCell::new(rtc::Live::default()),

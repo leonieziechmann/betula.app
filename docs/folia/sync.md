@@ -70,6 +70,7 @@ they differ (`Profiles::wrote`: every tab's stores read again).
 | `betula.sync.p<id>.ended` | the space is gone (ended on another device, or 13 months untouched) | |
 | `betula.sync.p<id>.seen` | the hints a page has read | |
 | `betula.sync.offset` | the server's clock less the browser's | on every welcome |
+| `betula.sync.way` | `https <ms>`: the last welcome came over plain HTTPS, so that way goes first for a day; gone with a welcome over the WebSocket | on a welcome |
 
 **When the leader starts** (a reload, a new leader, the active profile changed): it reads what is
 kept, takes what other tabs left, and a store's text that holds more than the records (written by a
@@ -89,9 +90,10 @@ funktioniert muss dann halt ausgewichen werden auf eine andere die grantiert lä
 connection is the WebSocket, or the same frames over plain HTTPS requests to the same host
 (`sync/browser/poll.rs`, protocol.md §4 „The socket over HTTPS", Phloem 0.4.0): one GET at a time
 waits for what Phloem says, POSTs carry what the device says, in order. It goes the way that
-brought the last welcome; after two tries in a row without a welcome, the other way every second
-try. A connection without a welcome within 10 s counts as failed (a proxy that takes the upgrade
-and then holds it). So a network that breaks WebSockets but lets the site load syncs all the
+brought the last welcome (a page loaded later too, for a day: `betula.sync.way`); after two tries
+in a row without a welcome, the other way every second try. A WebSocket without a welcome within
+6 s counts as failed (a proxy that takes the upgrade and then holds it), a session over HTTPS
+within 15 s. So a network that breaks WebSockets but lets the site load syncs all the
 same; the live way (WebRTC) goes on top of either.
 
 **A device that joined a space still empty** (the device that gave the profile had not sent its

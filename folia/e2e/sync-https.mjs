@@ -109,9 +109,8 @@ for (const mode of ["refused", "silent"]) {
   }
   // „Sync beenden": the space goes; both are private again.
   await go(a.page, "/profile");
-  await a.page.getByRole("button", { name: /^(Sync beenden|End Sync)$/ }).first().click().catch(() => problems.push(`${mode} A: no „Sync beenden“`));
-  const confirm = a.page.locator(".dlg button.danger, dialog button.danger").first();
-  if (await confirm.isVisible().catch(() => false)) await confirm.click().catch(() => {});
+  await a.page.getByRole("button", { name: /^(Sync beenden|End Sync)/ }).first().click().catch(() => problems.push(`${mode} A: no „Sync beenden“`));
+  await a.page.getByRole("button", { name: /^(Beenden|End)$/ }).first().click().catch(() => problems.push(`${mode} A: no „Beenden“ to confirm`));
   await until(`${mode}: A private again`, a.page, () => !localStorage.getItem(syncKey("v1")), null, 15000);
   await a.context.close();
   await b.context.close();
