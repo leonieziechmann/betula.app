@@ -6,20 +6,26 @@
 //! BTU's own lists of all of them —, and „Rund ums Studium", its pages on examinations, the
 //! semester's formalities, its services.
 //!
-//! The data has none of it: Radix reads the regulations of each program from QIS, not the BTU's
-//! list of Grundsatzordnungen. So the list is written here, as the BTU's pages had it on
-//! 2026-11-10 (`b-tu.de/studium/im-studium/studienorganisation`, and its page
-//! `…/pruefungen/ordnungen-und-formulare/grundsatzordnungen`), every document named by its issue of
-//! the Amtsblatt as the program's documents are („ABl. 29/2024": the issue's number begins the
-//! name of its file); the head of the panel says how old the list is. `e2e/btu.mjs` says what of it
-//! the BTU's pages no longer list, what they list anew, and which of its pages no longer answer.
-//! Each page of the BTU in the language of the app, where the BTU has it in both (all of these);
-//! the documents are German, the English translations the BTU's own.
+//! The regulations come from the snapshot (`folia_pages::btu_documents`): Radix reads the BTU's page
+//! of Grundsatzordnungen every night, German and English, and its build makes `v_general_document`
+//! of it (docs/radix/schema-v2.md, „General documents"). Every document is named by its issue of the
+//! Amtsblatt as the program's documents are („ABl. 29/2024"), which Radix reads from the name of its
+//! file; the head of the panel says when Radix read the page. A regulation the snapshot does not
+//! have (the page not read yet, a heading the rules no longer recognise) is said to be missing and
+//! leads to the BTU's own list, never to an address that may be old.
+//!
+//! The BTU's pages (its lists of regulations and forms, „Rund ums Studium") are written here, each
+//! in the language of the app (the BTU has all of them in both); `e2e/btu.mjs` says which of them no
+//! longer answer.
 
 use leptos::prelude::*;
 
 use folia_design::ui::Icon;
+use folia_model::labels::{GeneralTopic, Labelled};
+use folia_pages::ask::BtuDocumentsAsk;
+use folia_pages::{BtuDocument, BtuDocuments, BtuRegulation};
 
+use super::StudyCtx;
 use crate::i18n::study_btu::Texts as BtuTexts;
 use crate::i18n::{self, Locale};
 
@@ -33,60 +39,16 @@ pub(super) enum Level {
     Both,
 }
 
-/// A document of the Amtsblatt: its issue („13/2016") and its address.
-#[derive(Clone, Copy, Debug)]
-struct Issue {
-    issue: &'static str,
-    url: &'static str,
+/// The regulations „Ordnungen der BTU" names for a degree, in their order: its Rahmenordnung (both
+/// where the degree is neither), then what holds for every program.
+fn topics(level: Level) -> Vec<GeneralTopic> {
+    let frames = match level {
+        Level::Bachelor => vec![GeneralTopic::FrameworkBachelor],
+        Level::Master => vec![GeneralTopic::FrameworkMaster],
+        Level::Both => vec![GeneralTopic::FrameworkBachelor, GeneralTopic::FrameworkMaster],
+    };
+    frames.into_iter().chain([GeneralTopic::Enrolment, GeneralTopic::Fues, GeneralTopic::HigherEducationAct]).collect()
 }
-
-/// A Rahmenordnung as the BTU's page of Grundsatzordnungen lists it: the regulation, its
-/// amendments oldest first, the one whose issue holds the reading version of the whole (an index
-/// of `amendments`), and the BTU's English translation of that issue.
-struct Frame {
-    name: fn(&BtuTexts) -> &'static str,
-    statute: Issue,
-    amendments: &'static [Issue],
-    reading: usize,
-    english: &'static str,
-}
-
-const BACHELOR: Frame = Frame {
-    name: |t| t.frame_bachelor,
-    statute: Issue { issue: "13/2016", url: "https://opus4.kobv.de/opus4-btu/files/3983/AMbl-13_2016-RahmenO-BA.pdf" },
-    amendments: &[
-        Issue { issue: "01/2021", url: "https://opus4.kobv.de/opus4-btu/files/5396/AMbl-1_2021_RahmenO_BA_1.AeS.pdf" },
-        Issue { issue: "17/2022", url: "https://opus4.kobv.de/opus4-btu/files/6092/AMbl-17_2022_2.AeS_RahmenO_BA.pdf" },
-        Issue { issue: "06/2023", url: "https://opus4.kobv.de/opus4-btu/files/6349/06_3.AES_RahmenO_BA.pdf" },
-        Issue { issue: "14/2024", url: "https://opus4.kobv.de/opus4-btu/files/6709/14_4.AS_RahmenO_BA_.pdf" },
-        Issue { issue: "29/2024", url: "https://opus4.kobv.de/opus4-btu/files/6772/29_RahmenO.pdf" },
-        Issue { issue: "35/2026", url: "https://opus4.kobv.de/opus4-btu/files/7446/AMbl-35_2026.pdf" },
-    ],
-    // „29-RahmenO BA_5.ÄS+Lesefass": the fifth amendment and the reading version after it.
-    reading: 4,
-    english: "https://www-docs.b-tu.de/studierende/public/rahmenordnungen/bachelor-en/29-RahmnO%20BA_5-Aenderungssatzung_EN.pdf",
-};
-
-const MASTER: Frame = Frame {
-    name: |t| t.frame_master,
-    statute: Issue { issue: "14/2016", url: "https://www-docs.b-tu.de/studierende/public/files/AMbl-14_2016-RahmenO-MA.pdf" },
-    amendments: &[
-        Issue { issue: "02/2021", url: "https://opus4.kobv.de/opus4-btu/files/5397/AMbl-2_2021_RahmenO_MA_1.AeS.pdf" },
-        Issue { issue: "18/2022", url: "https://opus4.kobv.de/opus4-btu/files/6093/AMbl-18_2022_2.AeS_RahmenO_MA.pdf" },
-        Issue { issue: "07/2023", url: "https://opus4.kobv.de/opus4-btu/files/6350/07_3.AES_RahmenO_MA.pdf" },
-        Issue { issue: "15/2024", url: "https://opus4.kobv.de/opus4-btu/files/6710/15_4.AS_RahmenO_MA.pdf" },
-        Issue { issue: "30/2024", url: "https://opus4.kobv.de/opus4-btu/files/6773/30_RahmenO.pdf" },
-        Issue { issue: "38/2026", url: "https://opus4.kobv.de/opus4-btu/files/7450/AMbl-38_2026.pdf" },
-    ],
-    reading: 4,
-    english: "https://www-docs.b-tu.de/studierende/public/rahmenordnungen/master-en/29-RahmnO_MA_5-Aenderungssatzung_EN.pdf",
-};
-
-const ENROLMENT: Issue = Issue { issue: "01/2020", url: "https://opus4.kobv.de/opus4-btu/files/5109/AMbl-01_2020_ImmaO.pdf" };
-const ENROLMENT_SUSPENSION: Issue = Issue { issue: "10/2022", url: "https://opus4.kobv.de/opus4-btu/files/6002/AMbl-10_2022_ImmaO_Aussetzung_Paragraph_16.pdf" };
-const ENROLMENT_ENGLISH: &str = "https://www-docs.b-tu.de/studierende/public/ImmaO/ImmaO_28.01.2020_englih.pdf";
-const FUES: &str = "http://opus.kobv.de/btu/volltexte/2010/1748/pdf/04_FAS_Rili_230410.pdf";
-const LAW: &str = "https://bravors.brandenburg.de/gesetze/bbghg";
 
 /// A page of the BTU's site, in German and in English.
 struct Page {
@@ -137,6 +99,16 @@ fn page_url(page: &Page, locale: Locale) -> String {
     format!("{BTU}{}", if locale == Locale::En { page.en } else { page.de })
 }
 
+/// The day of an RFC 3339 time („2026-11-10T03:12:00Z"): day, month, year.
+fn day_of(time: &str) -> Option<(u32, u32, i32)> {
+    let date = time.get(..10)?;
+    let mut parts = date.split('-');
+    let year = parts.next()?.parse().ok()?;
+    let month = parts.next()?.parse().ok().filter(|month| (1..=12).contains(month))?;
+    let day = parts.next()?.parse().ok().filter(|day| (1..=31).contains(day))?;
+    Some((day, month, year))
+}
+
 /// A row: a document or a page, what it is, and that it leads away from Betula.
 fn row(icon: &'static str, name: String, line: Option<String>, href: String, part: bool) -> AnyView {
     view! {
@@ -150,56 +122,95 @@ fn row(icon: &'static str, name: String, line: Option<String>, href: String, par
     .into_any()
 }
 
-/// A Rahmenordnung: the regulation, under it its reading version, the English translation, and
-/// its amendments folded.
-fn frame_view(frame: &'static Frame, b: &'static BtuTexts) -> AnyView {
-    let reading = frame.amendments.get(frame.reading).copied();
-    view! {
-        <li>
-            {row("file-text", (frame.name)(b).to_string(), Some((b.issue)(frame.statute.issue)), frame.statute.url.to_string(), false)}
-            {reading.map(|issue| row("file-check-2", (b.reading)(frame.reading + 1), Some((b.issue)(issue.issue)), issue.url.to_string(), true))}
-            {row("languages", b.english.to_string(), Some(b.not_binding.to_string()), frame.english.to_string(), true)}
+/// What a regulation's row says under its name: its issue of the Amtsblatt, the law where it is
+/// published.
+fn line_of(topic: GeneralTopic, document: &BtuDocument, b: &'static BtuTexts) -> Option<String> {
+    document.issue.as_deref().map(b.issue).or_else(|| (topic == GeneralTopic::HigherEducationAct).then(|| b.law_line.to_string()))
+}
+
+/// A regulation: its row, under it its reading version where there is one, and its amendments and
+/// the English translation — a Rahmenordnung's amendments numbered and folded after the
+/// translation, another's each by its title before it.
+fn regulation_view(regulation: BtuRegulation, b: &'static BtuTexts, locale: Locale) -> AnyView {
+    let topic = regulation.topic;
+    let numbered = matches!(topic, GeneralTopic::FrameworkBachelor | GeneralTopic::FrameworkMaster);
+    let reading = regulation.reading.and_then(|at| regulation.amendments.get(at).map(|issue| (at, issue.clone())));
+    let title = |document: &BtuDocument| if locale == Locale::En { document.title_en.clone().unwrap_or_else(|| document.title.clone()) } else { document.title.clone() };
+    let plain = (!numbered).then(|| regulation.amendments.iter().map(|amendment| row("file-text", title(amendment), amendment.issue.as_deref().map(b.issue), amendment.url.clone(), true)).collect_view());
+    let folded = if !numbered || regulation.amendments.is_empty() {
+        ().into_any()
+    } else {
+        view! {
             <details class="st-docs-fold">
                 <summary class="docrow docpart">
                     <Icon name="layers"/>
-                    <span class="docname">{(b.amendments)(frame.amendments.len())}</span>
+                    <span class="docname">{(b.amendments)(regulation.amendments.len())}</span>
                     <Icon name="chevron-down" class="go"/>
                 </summary>
-                {frame.amendments.iter().enumerate().map(|(at, issue)| row("file-text", (b.amendment)(at + 1), Some((b.issue)(issue.issue)), issue.url.to_string(), true)).collect_view()}
+                {regulation.amendments.iter().enumerate().map(|(at, amendment)| row("file-text", (b.amendment)(at + 1), amendment.issue.as_deref().map(b.issue), amendment.url.clone(), true)).collect_view()}
             </details>
+        }
+        .into_any()
+    };
+    view! {
+        <li>
+            {row("file-text", topic.label(locale).to_string(), line_of(topic, &regulation.statute, b), regulation.statute.url.clone(), false)}
+            {reading.map(|(at, issue)| row("file-check-2", (b.reading)(at + 1), issue.issue.as_deref().map(b.issue), issue.url, true))}
+            {plain}
+            {regulation.english.map(|english| row("languages", b.english.to_string(), Some(b.not_binding.to_string()), english, true))}
+            {folded}
         </li>
     }
     .into_any()
 }
 
-/// „Ordnungen der BTU".
+/// „Ordnungen der BTU": the regulations of `level`'s degree and of every program, from the snapshot.
 #[component]
-pub(super) fn Statutes(level: Level) -> impl IntoView {
+pub(super) fn Statutes(ctx: StudyCtx, level: Level) -> impl IntoView {
     let t = i18n::t();
     let b = &t.study_btu;
-    let frames: Vec<&'static Frame> = match level {
-        Level::Bachelor => vec![&BACHELOR],
-        Level::Master => vec![&MASTER],
-        Level::Both => vec![&BACHELOR, &MASTER],
+    // The regulations; while they are on their way `None`, and what was there stays until the next
+    // answer is. A question that failed has none of them: each is said to be missing.
+    let documents = Memo::new(move |before: Option<&Option<BtuDocuments>>| {
+        let now = ctx.source.with_value(|source| source.as_ref().map(|source| source.now(&BtuDocumentsAsk {})))?;
+        folia_pages::ask::unless_pending(now, before, |now| match now {
+            Ok(documents) => Some(documents),
+            Err(error) if error.is_pending() => None,
+            Err(_) => Some(BtuDocuments::default()),
+        })
+    });
+    let as_of = move || documents.get().and_then(|documents| documents.fetched).and_then(|fetched| day_of(&fetched)).map(|(day, month, year)| (b.as_of)(day, month, year));
+    let all = page_url(&LISTS[0], t.locale);
+    let list = move || match documents.get() {
+        None => view! {
+            <ul class="doclist sk-sweep" aria-hidden="true">
+                <li><span class="docrow"><i class="sk sk-w4"></i></span></li>
+                <li><span class="docrow"><i class="sk sk-w3"></i></span></li>
+            </ul>
+        }
+        .into_any(),
+        Some(documents) => {
+            let all = all.clone();
+            view! {
+                <ul class="doclist">
+                    {topics(level).into_iter().map(|topic| match documents.regulations.iter().find(|regulation| regulation.topic == topic) {
+                        Some(regulation) => regulation_view(regulation.clone(), b, t.locale),
+                        None => view! { <li>{row("circle-help", topic.label(t.locale).to_string(), Some(b.missing.to_string()), all.clone(), false)}</li> }.into_any(),
+                    }).collect_view()}
+                </ul>
+            }
+            .into_any()
+        }
     };
     view! {
         <section class="panel st-docs" aria-labelledby="st-docs-btu">
             <header class="st-view-head">
                 <div>
                     <h2 id="st-docs-btu">{b.statutes}</h2>
-                    <p>{b.statutes_lead}</p>
+                    <p>{b.statutes_lead}{move || as_of().map(|as_of| format!(" {as_of}"))}</p>
                 </div>
             </header>
-            <ul class="doclist">
-                {frames.into_iter().map(|frame| frame_view(frame, b)).collect_view()}
-                <li>
-                    {row("file-text", b.enrolment.to_string(), Some((b.issue)(ENROLMENT.issue)), ENROLMENT.url.to_string(), false)}
-                    {row("file-text", b.enrolment_suspension.to_string(), Some((b.issue)(ENROLMENT_SUSPENSION.issue)), ENROLMENT_SUSPENSION.url.to_string(), true)}
-                    {row("languages", b.english.to_string(), Some(b.not_binding.to_string()), ENROLMENT_ENGLISH.to_string(), true)}
-                </li>
-                <li>{row("file-text", b.fues.to_string(), Some(b.fues_line.to_string()), FUES.to_string(), false)}</li>
-                <li>{row("file-text", b.law.to_string(), Some(b.law_line.to_string()), LAW.to_string(), false)}</li>
-            </ul>
+            {list}
             <p class="label st-docs-label">{b.at_btu}</p>
             <ul class="doclist">
                 {LISTS.iter().map(|page| view! { <li>{row("list-tree", (page.name)(b).to_string(), Some(b.btu_site.to_string()), page_url(page, t.locale), false)}</li> }).collect_view()}
@@ -250,18 +261,21 @@ mod tests {
         assert_eq!(page_url(&LISTS[0], Locale::De), "https://www.b-tu.de/studium/im-studium/studienorganisation/pruefungen/ordnungen-und-formulare/grundsatzordnungen");
     }
 
-    /// The issue of a document begins the name of its file (`AMbl-13_2016…`, `29_RahmenO.pdf`),
-    /// so a name and an address that drift apart are seen here; the reading version is an amendment.
+    /// The Rahmenordnung of the degree first, both where the degree is neither, then what holds for
+    /// every program.
     #[test]
-    fn each_document_is_named_by_its_issue() {
-        let issues = [BACHELOR.statute, MASTER.statute, ENROLMENT, ENROLMENT_SUSPENSION].into_iter().chain(BACHELOR.amendments.iter().copied()).chain(MASTER.amendments.iter().copied());
-        for Issue { issue, url } in issues {
-            let (number, year) = issue.split_once('/').expect("number/year");
-            let file = url.rsplit('/').next().unwrap_or_default().trim_start_matches("AMbl-").trim_start_matches("AMBl-");
-            let lead: String = file.chars().take_while(char::is_ascii_digit).collect();
-            assert_eq!(lead.parse::<u32>().ok(), number.parse::<u32>().ok(), "{url}");
-            assert!(!file.contains("_20") || file.contains(&format!("_{year}")), "{url}: {year}");
-        }
-        assert!(BACHELOR.reading < BACHELOR.amendments.len() && MASTER.reading < MASTER.amendments.len());
+    fn each_degree_has_its_rahmenordnung() {
+        use GeneralTopic::*;
+        assert_eq!(topics(Level::Bachelor), [FrameworkBachelor, Enrolment, Fues, HigherEducationAct]);
+        assert_eq!(topics(Level::Master), [FrameworkMaster, Enrolment, Fues, HigherEducationAct]);
+        assert_eq!(topics(Level::Both), [FrameworkBachelor, FrameworkMaster, Enrolment, Fues, HigherEducationAct]);
+    }
+
+    /// The day Radix read the page, from its time; nothing of what is no time.
+    #[test]
+    fn the_list_is_as_old_as_its_reading() {
+        assert_eq!(day_of("2026-11-10T03:12:00Z"), Some((10, 11, 2026)));
+        assert_eq!(day_of("2026-13-10T03:12:00Z"), None);
+        assert_eq!(day_of("gestern"), None);
     }
 }

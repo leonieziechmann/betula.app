@@ -271,6 +271,14 @@ fn every_query_runs_against_the_snapshot() {
     }
     assert!(queries::event_modules(&db, "1 OR 1=1").unwrap().is_empty());
 
+    // What the BTU has for every program: the documents of its page of Grundsatzordnungen that
+    // „Ordnungen & Dokumente" names, each with a topic, the German page first, and when Radix read
+    // it. A snapshot of a Radix before 0.12.0 has none.
+    let general = queries::general_documents(&db).unwrap();
+    assert!(general.iter().all(|d| d.topic.as_ref().is_some_and(|topic| topic.known().is_some()) && d.page.known().is_some() && d.kind.known().is_some()), "{general:?}");
+    assert!(general.windows(2).all(|pair| pair[0].page.code() <= pair[1].page.code()));
+    assert!(general.is_empty() || queries::general_documents_fetched(&db).unwrap().is_some());
+
     // Every `pub fn` of folia-query must have run above, and the search's statements and `meta`.
     let functions = |source: &'static str| -> Vec<&'static str> {
         source.lines().filter_map(|line| line.strip_prefix("pub fn ")).filter_map(|rest| rest.split(['(', '<']).next()).collect()
@@ -335,6 +343,96 @@ fn the_plan_is_found_in_its_regulation() {
     }
     assert!(found * 10 >= plans.len() * 9, "the plan's regulation found for {found} of {} plans", plans.len());
     assert_eq!(pages::study_documents(&db, "no-such-program").unwrap(), pages::StudyDocuments::default());
+}
+
+/// „Ordnungen der BTU" from the BTU's page of Grundsatzordnungen (`btu_documents`): of each topic
+/// the regulation, its amendments in the order of the page, the reading version in the issue that
+/// holds it, the translation the English page lists in the regulation's place where that is another
+/// document; a topic the page did not yield is not there, and nothing at all where the snapshot has
+/// none of the page. Here the page as Radix's tests have it (2026-11-10), without the Master's
+/// Rahmenordnung.
+#[test]
+fn the_btus_regulations_are_what_its_page_lists() {
+    use folia_model::labels::GeneralTopic;
+
+    let dir = std::env::temp_dir().join(format!("folia-btu-documents-{}-{:?}", std::process::id(), std::thread::current().id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("general.db");
+    let _ = std::fs::remove_file(&path);
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    conn.execute_batch("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE VIEW v_meta AS SELECT key, value FROM meta;").unwrap();
+    conn.execute_batch(include_str!("../../../../radix/internal/catalogdb/migrations/0019_general_documents.sql")).unwrap();
+    let opus = "https://opus4.kobv.de/opus4-btu/files";
+    // lang, section, topic, kind, issue, url
+    type Listed = (&'static str, &'static str, Option<&'static str>, &'static str, Option<&'static str>, String);
+    let rows: [Listed; 17] = [
+        ("de", "Landesrechtliche Grundlagen", Some("higher_education_act"), "statute", None, "https://bravors.brandenburg.de/gesetze/bbghg".into()),
+        ("de", "Immatrikulationsordnung", Some("enrolment"), "statute", Some("01/2020"), format!("{opus}/5109/AMbl-01_2020_ImmaO.pdf")),
+        ("de", "Immatrikulationsordnung", Some("enrolment"), "amendment", Some("10/2022"), format!("{opus}/6002/AMbl-10_2022_ImmaO_Aussetzung_Paragraph_16.pdf")),
+        ("de", "Rahmenordnung für Bachelor-Studiengänge", Some("framework_bachelor"), "statute", Some("13/2016"), format!("{opus}/3983/AMbl-13_2016-RahmenO-BA.pdf")),
+        ("de", "Rahmenordnung für Bachelor-Studiengänge", Some("framework_bachelor"), "amendment", Some("01/2021"), format!("{opus}/5396/AMbl-1_2021_RahmenO_BA_1.AeS.pdf")),
+        ("de", "Rahmenordnung für Bachelor-Studiengänge", Some("framework_bachelor"), "amendment", Some("17/2022"), format!("{opus}/6092/AMbl-17_2022_2.AeS_RahmenO_BA.pdf")),
+        ("de", "Rahmenordnung für Bachelor-Studiengänge", Some("framework_bachelor"), "amendment", Some("06/2023"), format!("{opus}/6349/06_3.AES_RahmenO_BA.pdf")),
+        ("de", "Rahmenordnung für Bachelor-Studiengänge", Some("framework_bachelor"), "amendment", Some("14/2024"), format!("{opus}/6709/14_4.AS_RahmenO_BA_.pdf")),
+        ("de", "Rahmenordnung für Bachelor-Studiengänge", Some("framework_bachelor"), "amendment", Some("29/2024"), format!("{opus}/6772/29_RahmenO.pdf")),
+        ("de", "Rahmenordnung für Bachelor-Studiengänge", Some("framework_bachelor"), "amendment", Some("35/2026"), format!("{opus}/7446/AMbl-35_2026.pdf")),
+        ("de", "Sonstige Ordnungen und Richtlinien", None, "statute", Some("11/2017"), format!("{opus}/4199/AMbl-11_2017-%C3%84S_WahlO_BTU.pdf")),
+        ("de", "Sonstige Ordnungen und Richtlinien", Some("fues"), "statute", Some("04/2010"), "http://opus.kobv.de/btu/volltexte/2010/1748/pdf/04_FAS_Rili_230410.pdf".into()),
+        ("en", "National legal basis", Some("higher_education_act"), "statute", None, "https://bravors.brandenburg.de/gesetze/bbghg".into()),
+        ("en", "Matriculation Regulations", Some("enrolment"), "statute", None, "https://www-docs.b-tu.de/studierende/public/ImmaO/ImmaO_28.01.2020_englih.pdf".into()),
+        ("en", "Framework regulations for Bachelor´s degree programs", Some("framework_bachelor"), "statute", None, "https://www-docs.b-tu.de/studierende/public/rahmenordnungen/bachelor-en/29-RahmnO%20BA_5-Aenderungssatzung_EN.pdf".into()),
+        ("en", "Framework regulations for Bachelor´s degree programs", Some("framework_bachelor"), "amendment", Some("01/2021"), format!("{opus}/5396/AMbl-1_2021_RahmenO_BA_1.AeS.pdf")),
+        ("en", "Other regulations and guidelines", Some("fues"), "statute", Some("04/2010"), "http://opus.kobv.de/btu/volltexte/2010/1748/pdf/04_FAS_Rili_230410.pdf".into()),
+    ];
+    for (ord, (lang, section, topic, kind, issue, url)) in rows.iter().enumerate() {
+        conn.execute(
+            "INSERT INTO general_document (lang, ord, section, topic, kind, title, issue, url, source_url) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'https://www.b-tu.de/')",
+            rusqlite::params![lang, ord + 1, section, topic, kind, format!("{section} {ord}"), issue, url],
+        )
+        .unwrap();
+    }
+    drop(conn);
+    let db = NativeDatabase::open(&path).unwrap();
+
+    let shown = pages::btu_documents(&db).unwrap();
+    let topics: Vec<GeneralTopic> = shown.regulations.iter().map(|r| r.topic).collect();
+    assert_eq!(topics, [GeneralTopic::FrameworkBachelor, GeneralTopic::Enrolment, GeneralTopic::Fues, GeneralTopic::HigherEducationAct]);
+    let bachelor = &shown.regulations[0];
+    assert_eq!((bachelor.statute.issue.as_deref(), bachelor.statute.url.as_str()), (Some("13/2016"), format!("{opus}/3983/AMbl-13_2016-RahmenO-BA.pdf").as_str()));
+    let issues: Vec<_> = bachelor.amendments.iter().map(|a| a.issue.as_deref().unwrap_or_default()).collect();
+    assert_eq!(issues, ["01/2021", "17/2022", "06/2023", "14/2024", "29/2024", "35/2026"]);
+    assert_eq!(bachelor.reading, Some(4), "the reading version in the fifth amendment's issue");
+    assert_eq!(bachelor.english.as_deref(), Some("https://www-docs.b-tu.de/studierende/public/rahmenordnungen/bachelor-en/29-RahmnO%20BA_5-Aenderungssatzung_EN.pdf"));
+    let enrolment = &shown.regulations[1];
+    assert_eq!((enrolment.amendments.len(), enrolment.reading, enrolment.english.as_deref()), (1, None, Some("https://www-docs.b-tu.de/studierende/public/ImmaO/ImmaO_28.01.2020_englih.pdf")));
+    for same in &shown.regulations[2..] {
+        assert!(same.amendments.is_empty() && same.english.is_none(), "the English page links the same document: {same:?}");
+    }
+    assert_eq!(shown.fetched, None);
+
+    // Read again: when Radix read the page; without the page, nothing at all.
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    conn.execute("INSERT INTO meta (key, value) VALUES ('source.btu_general_documents.newest_fetch', '2026-11-10T03:12:00Z')", []).unwrap();
+    drop(conn);
+    assert_eq!(pages::btu_documents(&NativeDatabase::open(&path).unwrap()).unwrap().fetched.as_deref(), Some("2026-11-10T03:12:00Z"));
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    conn.execute("DELETE FROM general_document", []).unwrap();
+    drop(conn);
+    assert_eq!(pages::btu_documents(&NativeDatabase::open(&path).unwrap()).unwrap().regulations, Vec::new());
+    let _ = std::fs::remove_dir_all(&dir);
+
+    // The snapshot of the tests: whatever its page yields, each regulation is its own German
+    // statute with its own amendments in order, and a translation is no German document.
+    let db = open();
+    let general = queries::general_documents(&db).unwrap();
+    for regulation in pages::btu_documents(&db).unwrap().regulations {
+        let german: Vec<_> = general.iter().filter(|d| d.page.code() == "de" && d.topic.as_ref().is_some_and(|t| t.is(regulation.topic))).collect();
+        assert_eq!(german.iter().find(|d| d.kind.code() == "statute").map(|d| d.url.as_str()), Some(regulation.statute.url.as_str()));
+        let amendments: Vec<&str> = german.iter().filter(|d| d.kind.code() == "amendment").map(|d| d.url.as_str()).collect();
+        assert_eq!(regulation.amendments.iter().map(|a| a.url.as_str()).collect::<Vec<_>>(), amendments);
+        assert!(regulation.english.as_ref().is_none_or(|english| german.iter().all(|d| &d.url != english)));
+        assert!(regulation.reading.is_none_or(|at| at < regulation.amendments.len()));
+    }
 }
 
 /// The file of a regulation is named as Radix names it, whichever address OPUS gave it.

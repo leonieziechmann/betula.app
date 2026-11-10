@@ -21,7 +21,7 @@ use folia_calendar::share::SharedPlan;
 use folia_calendar::subscription::Subscription;
 use folia_locale::Locale;
 use folia_model::db::{Database, DbError};
-use folia_model::labels::{Code, Labelled, ModuleKind, OfferStatus};
+use folia_model::labels::{Code, DocumentType, GeneralTopic, Labelled, ModuleKind, OfferStatus, SitePage};
 use folia_model::rows::{
     CatalogPage, CatalogRow, Department, Meta, Module, Prerequisite, Program, ProgramModule, SearchElsewhere, Semester,
 };
@@ -662,6 +662,77 @@ pub fn study_documents(db: &dyn Database, program_id: &str) -> Result<StudyDocum
         Some(PlanDocument { document, pages: plan.source_pages.map(|pages| pages.trim().to_string()).filter(|pages| !pages.is_empty()) })
     });
     Ok(StudyDocuments { documents, plan })
+}
+
+/// What „Ordnungen & Dokumente" of „Mein Studium" shows of the BTU as a whole (`btu_documents`):
+/// its regulations for every program, as its page of Grundsatzordnungen lists them. Only what the
+/// snapshot has: a regulation the page did not yield is not there, never an older list instead.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct BtuDocuments {
+    /// In the order of `GeneralTopic`: the Rahmenordnungen, the Immatrikulationsordnung, the
+    /// Ordnung zum Fachübergreifenden Studium, the Hochschulgesetz.
+    pub regulations: Vec<BtuRegulation>,
+    /// When Radix last read the page (RFC 3339): how old the list is.
+    pub fetched: Option<String>,
+}
+
+/// A regulation of the BTU for every program, with its amendments.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BtuRegulation {
+    pub topic: GeneralTopic,
+    /// The regulation itself, as the German page lists it.
+    pub statute: BtuDocument,
+    /// Its amendments, oldest first, as the page lists them.
+    pub amendments: Vec<BtuDocument>,
+    /// The one of `amendments` whose issue holds the reading version of the whole (an index).
+    pub reading: Option<usize>,
+    /// The BTU's English translation: what its English page lists in the regulation's place.
+    pub english: Option<String>,
+}
+
+/// A document of the BTU's: what its page writes for it, its issue of the Amtsblatt, its address.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BtuDocument {
+    pub title: String,
+    /// What its English page writes for the same document, where it lists it.
+    pub title_en: Option<String>,
+    pub issue: Option<String>,
+    pub url: String,
+}
+
+/// The issues of the Amtsblatt that hold a reading version of a whole regulation, which the BTU's
+/// page does not say: each Rahmenordnung's fifth amendment brought one („29-RahmenO BA_5.ÄS+Lesefass",
+/// as of 2026-11-10). Named only where the snapshot lists the amendment of that issue.
+const READING_VERSIONS: [(GeneralTopic, &str); 2] = [(GeneralTopic::FrameworkBachelor, "29/2024"), (GeneralTopic::FrameworkMaster, "30/2024")];
+
+/// The BTU's regulations for every program (`v_general_document`): of each topic the regulation
+/// (the first the German page lists in the section itself) and its amendments (those in its fold),
+/// and the translation the English page lists in its place, where that is another document.
+pub fn btu_documents(db: &dyn Database) -> Result<BtuDocuments, DbError> {
+    let documents = queries::general_documents(db)?;
+    let of = |topic: GeneralTopic, page: SitePage| documents.iter().filter(move |d| d.page.is(page) && d.topic.as_ref().is_some_and(|t| t.is(topic)));
+    let as_shown = |d: &folia_model::rows_detail::GeneralDocument| BtuDocument {
+        title: d.title.clone(),
+        title_en: documents.iter().find(|en| en.page.is(SitePage::English) && en.url == d.url).map(|en| en.title.clone()),
+        issue: d.issue.clone(),
+        url: d.url.clone(),
+    };
+    let regulations = GeneralTopic::ALL
+        .iter()
+        .filter_map(|&topic| {
+            let statute = of(topic, SitePage::German).find(|d| d.kind.is(DocumentType::Statute))?;
+            let amendments: Vec<BtuDocument> = of(topic, SitePage::German).filter(|d| d.kind.is(DocumentType::Amendment)).map(as_shown).collect();
+            let reading = READING_VERSIONS
+                .iter()
+                .find(|(of, _)| *of == topic)
+                .and_then(|(_, issue)| amendments.iter().position(|a| a.issue.as_deref() == Some(*issue)));
+            let english = of(topic, SitePage::English)
+                .find(|d| d.kind.is(DocumentType::Statute) && !of(topic, SitePage::German).any(|german| german.url == d.url))
+                .map(|d| d.url.clone());
+            Some(BtuRegulation { topic, statute: as_shown(statute), amendments, reading, english })
+        })
+        .collect();
+    Ok(BtuDocuments { regulations, fetched: queries::general_documents_fetched(db)? })
 }
 
 /// The name Radix gives the file of a regulation it downloads (`fileName` in
