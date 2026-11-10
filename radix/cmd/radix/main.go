@@ -35,6 +35,7 @@ var commands = [][]command{
 		{"crawl-qis-modules", "Archive the QIS module descriptions (the source b-tu.de copies)", runCrawlQISModules},
 		{"crawl-tree", "Walk the QIS program tree; fetch what is missing or stale", runCrawlTree},
 		{"crawl-events", "Look the linked events up in the QIS event search; fetch the event pages it has news for", runCrawlEvents},
+		{"crawl-general-documents", "Archive the BTU's page of Grundsatzordnungen, German and English (its documents for every program)", runCrawlGeneralDocuments},
 		{"prune", "Remove what is not the current dataset: past events, archive pages nothing leads to", runPrune},
 		{"build", "Derive the canonical tables from the raw page archive (no network)", runBuild},
 		{"validate", "Check invariants, source conflicts and count baselines; exit 1 on failures", runValidate},
@@ -89,7 +90,7 @@ func printUsage() {
 	fmt.Println("Radix " + version.Radix + ", the collector of Betula (catalog of BTU Cottbus-Senftenberg)\n\nUsage:\n  radix <command> [flags]      (radix <command> --help lists the flags)\n\nCommands:")
 	for _, group := range commands {
 		for _, c := range group {
-			fmt.Printf("  %-20s %s\n", c.name, c.summary)
+			fmt.Printf("  %-24s %s\n", c.name, c.summary)
 		}
 		fmt.Println()
 	}

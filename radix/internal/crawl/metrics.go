@@ -30,7 +30,7 @@ var (
 func init() {
 	for _, source := range []string{catalogdb.SourceModuleCatalog, catalogdb.SourceModulePage, catalogdb.SourceQISModuleList,
 		catalogdb.SourceQISFUESList, catalogdb.SourceQISModulePage, catalogdb.SourceQISTree, catalogdb.SourceQISEventEntry,
-		catalogdb.SourceQISEvent} {
+		catalogdb.SourceQISEvent, catalogdb.SourceBTUGeneralDocuments} {
 		for _, code := range []string{"200", "404", "500", "502", "503", "504", "error", "offline_miss"} {
 			requestsTotal.Add(0, source, code)
 		}

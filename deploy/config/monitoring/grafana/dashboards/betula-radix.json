@@ -254,7 +254,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|statute\", result=~\"hit|not_modified\"}[$__range])) / sum(increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|statute\", result!=\"forwarded\"}[$__range]))",
+                        "expr": "sum(increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|btu_general_documents|statute\", result=~\"hit|not_modified\"}[$__range])) / sum(increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|btu_general_documents|statute\", result!=\"forwarded\"}[$__range]))",
                         "instant": true,
                         "legendFormat": "share",
                         "range": false
@@ -832,6 +832,18 @@
                         "value": "QIS · event pages"
                       }
                     ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "btu_general_documents"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "b-tu.de · Grundsatzordnungen"
+                      }
+                    ]
                   }
                 ]
               }
@@ -1016,6 +1028,18 @@
                       {
                         "id": "displayName",
                         "value": "QIS · event pages"
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "btu_general_documents"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "b-tu.de · Grundsatzordnungen"
                       }
                     ]
                   }
@@ -1480,6 +1504,18 @@
                         "value": "QIS · event pages"
                       }
                     ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "btu_general_documents"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "b-tu.de · Grundsatzordnungen"
+                      }
+                    ]
                   }
                 ]
               }
@@ -1662,6 +1698,18 @@
                         "value": "QIS · event pages"
                       }
                     ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "btu_general_documents"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "b-tu.de · Grundsatzordnungen"
+                      }
+                    ]
                   }
                 ]
               }
@@ -1692,7 +1740,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (result) (increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|statute\", result!=\"forwarded\"}[$__interval]))",
+                        "expr": "sum by (result) (increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|btu_general_documents|statute\", result!=\"forwarded\"}[$__interval]))",
                         "instant": false,
                         "legendFormat": "{{result}}",
                         "range": true
@@ -1930,7 +1978,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sort_desc(sum by (source) (increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|statute\", result=~\"hit|not_modified\"}[$__range])) / sum by (source) (increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|statute\", result!=\"forwarded\"}[$__range])))",
+                        "expr": "sort_desc(sum by (source) (increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|btu_general_documents|statute\", result=~\"hit|not_modified\"}[$__range])) / sum by (source) (increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|btu_general_documents|statute\", result!=\"forwarded\"}[$__range])))",
                         "instant": true,
                         "legendFormat": "{{source}}",
                         "range": false
@@ -2073,6 +2121,18 @@
                       {
                         "id": "displayName",
                         "value": "QIS · event pages"
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "btu_general_documents"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "b-tu.de · Grundsatzordnungen"
                       }
                     ]
                   },
@@ -2954,6 +3014,18 @@
                       {
                         "id": "displayName",
                         "value": "QIS · event pages"
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "btu_general_documents"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "b-tu.de · Grundsatzordnungen"
                       }
                     ]
                   }

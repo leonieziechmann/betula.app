@@ -16,20 +16,23 @@ import (
 // does not need a migration; these are the ones the build step knows.
 const (
 	SourceModuleCatalog = "module_catalog"
-	SourceModulePage    = "module_page"
-	SourceQISEvent      = "qis_event"
-	SourceQISEventEntry = "qis_event_entry" // an event's entry in the QIS event search, keyed like its page
-	SourceQISFUESList   = "qis_fues_list"
-	SourceQISModuleList = "qis_module_list"
-	SourceQISModulePage = "qis_module_page"
-	SourceQISTree       = "qis_tree"
+	// The BTU's page of Grundsatzordnungen, its documents for every program: keys "de" and "en",
+	// its German and its English page (service.CrawlGeneralDocuments).
+	SourceBTUGeneralDocuments = "btu_general_documents"
+	SourceModulePage          = "module_page"
+	SourceQISEvent            = "qis_event"
+	SourceQISEventEntry       = "qis_event_entry" // an event's entry in the QIS event search, keyed like its page
+	SourceQISFUESList         = "qis_fues_list"
+	SourceQISModuleList       = "qis_module_list"
+	SourceQISModulePage       = "qis_module_page"
+	SourceQISTree             = "qis_tree"
 )
 
 // WholeAnswerSources are the sources whose archived page is the whole answer of its URL, as
 // the server gave it. The others archive pieces of a larger answer under a URL of their own:
 // the entries of the QIS event search, each under its event's page.
 var WholeAnswerSources = []string{SourceModuleCatalog, SourceQISFUESList, SourceModulePage, SourceQISModuleList,
-	SourceQISModulePage, SourceQISTree, SourceQISEvent}
+	SourceQISModulePage, SourceQISTree, SourceQISEvent, SourceBTUGeneralDocuments}
 
 // ErrNotFound is returned when a requested row does not exist.
 var ErrNotFound = errors.New("not found")

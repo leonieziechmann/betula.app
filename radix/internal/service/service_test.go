@@ -49,6 +49,9 @@ func (f *fakeBTU) endpoints() Endpoints {
 		EventURL:      f.srv.URL + "/event?veranstaltung.veranstid=%s",
 		EventListURL:  f.srv.URL + "/search?veranstaltung.veranstid=%[1]s&P_anzahl=%[2]d",
 		TreeRootURL:   f.srv.URL + "/tree?nodeID=auswahlBaum",
+		// The BTU's page of Grundsatzordnungen as it was on 2026-11-10.
+		GeneralDocumentsDE: f.srv.URL + "/grundsatzordnungen",
+		GeneralDocumentsEN: f.srv.URL + "/en/basic-regulations",
 	}
 }
 
@@ -154,6 +157,17 @@ func (f *fakeBTU) serve(w http.ResponseWriter, r *http.Request) {
 			<tr><th>Veranstaltungsart</th><td>Vorlesung</td><th>Semester</th><td>WS 2026/27</td></tr></table>
 			<table summary="Übersicht über alle Veranstaltungstermine"><tr><th>Tag</th><th>Zeit</th><th>Rhythmus</th><th>Dauer</th><th>Raum</th></tr>
 			<tr><td>Di.</td><td>09:15 bis 10:45</td><td>A/B</td><td>13.10.2026 bis 02.02.2027</td><td>Lehrgebäude 1A - 0.22 - Zentralcampus</td></tr></table>`)
+	case r.URL.Path == "/grundsatzordnungen" || r.URL.Path == "/en/basic-regulations":
+		file := "btu_grundsatzordnungen_de.html"
+		if strings.HasPrefix(r.URL.Path, "/en/") {
+			file = "btu_grundsatzordnungen_en.html"
+		}
+		body, err := os.ReadFile(filepath.Join("..", "parser", "testdata", file))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write(body)
 	case r.URL.Path == "/tree":
 		switch nodeID := r.URL.Query().Get("nodeID"); nodeID {
 		case "auswahlBaum":
@@ -187,7 +201,7 @@ func newTestService(t *testing.T, site *fakeBTU) (*Service, Config) {
 		Endpoints:   site.endpoints(),
 		SnapshotDir: filepath.Join(t.TempDir(), "snapshot"),
 		Lists:       fast, Modules: fast, QISModules: ModulePace{Pace: fast}, Tree: fast,
-		EventList: EventListPace{Pace: fast}, Events: EventPagePace{Pace: fast},
+		EventList: EventListPace{Pace: fast}, Events: EventPagePace{Pace: fast}, GeneralDocuments: fast,
 		StaleAfter: time.Hour,
 	}
 	return New(db, cfg, nil), cfg
@@ -230,6 +244,17 @@ func TestCyclePublishesOnlyWhenContentChanges(t *testing.T) {
 	}
 	if s := stage(first, "events"); s.Crawl == nil || s.Crawl.Fetched != 2 {
 		t.Errorf("events stage = %+v", s)
+	}
+	// The BTU's page of Grundsatzordnungen, German and English: what it has for every program.
+	if s := stage(first, "general-documents"); s.Crawl == nil || s.Crawl.Fetched != 2 || s.Crawl.Failed != 0 {
+		t.Errorf("general-documents stage = %+v", s)
+	}
+	if site.hits["/grundsatzordnungen"] != 1 || site.hits["/en/basic-regulations"] != 1 {
+		t.Errorf("the pages of Grundsatzordnungen were asked for %d and %d times, want once each", site.hits["/grundsatzordnungen"], site.hits["/en/basic-regulations"])
+	}
+	var documents int
+	if err := svc.db.SQL().QueryRow("SELECT COUNT(*) FROM v_general_document WHERE topic = 'framework_bachelor' AND lang = 'de'").Scan(&documents); err != nil || documents != 7 {
+		t.Errorf("%d documents of the Bachelor's Rahmenordnung (err %v), want 7", documents, err)
 	}
 	snapshot1, err := catalogdb.ReadSnapshotPointer(cfg.SnapshotDir)
 	if err != nil {
@@ -487,7 +512,7 @@ func TestBulkCrawlingWaitsForOffPeakExceptOnFirstStart(t *testing.T) {
 	// stages run, but by day they only ask about what is not settled and fetch the pages
 	// the search has news for: here nothing.
 	r := svc.RunCycle(ctx)
-	for _, name := range []string{"lists", "modules", "qis-modules", "tree"} {
+	for _, name := range []string{"lists", "general-documents", "modules", "qis-modules", "tree"} {
 		if stage(r, name).Skipped == "" {
 			t.Errorf("stage %s ran outside the off-peak window: %+v", name, stage(r, name))
 		}
@@ -499,7 +524,8 @@ func TestBulkCrawlingWaitsForOffPeakExceptOnFirstStart(t *testing.T) {
 	}
 
 	svc.now = func() time.Time { return time.Date(2026, 9, 20, 2, 0, 0, 0, time.Local) }
-	if r := svc.RunCycle(ctx); stage(r, "modules").Crawl == nil || stage(r, "modules").Crawl.Fetched != 2 {
+	if r := svc.RunCycle(ctx); stage(r, "modules").Crawl == nil || stage(r, "modules").Crawl.Fetched != 2 ||
+		stage(r, "general-documents").Crawl == nil || stage(r, "general-documents").Crawl.Fetched != 2 {
 		t.Errorf("night cycle = %+v", r)
 	}
 }
