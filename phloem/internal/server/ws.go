@@ -168,16 +168,47 @@ func (s *Server) notifyGone(id []byte) {
 }
 
 // takeBig takes one of the big frames' places; false when ctx ended first.
-func (s *Server) takeBig(ctx context.Context) bool {
+func (s *Server) takeBig(ctx context.Context) bool { return takePlace(ctx, s.big) }
+
+func (s *Server) giveBig() { <-s.big }
+
+// takePlace takes one of pool's places; false when ctx ended first.
+func takePlace(ctx context.Context, pool chan struct{}) bool {
 	select {
-	case s.big <- struct{}{}:
+	case pool <- struct{}{}:
 		return true
 	case <-ctx.Done():
 		return false
 	}
 }
 
-func (s *Server) giveBig() { <-s.big }
+// readHeld reads r to its end. Beyond bigFrame it first takes one of pool's places (waiting
+// while ctx lives), which release gives back.
+func readHeld(ctx context.Context, r io.Reader, pool chan struct{}) (data []byte, release func(), err error) {
+	held := false
+	release = func() {}
+	buf := make([]byte, 0, 4096)
+	for {
+		if len(buf) == cap(buf) {
+			if cap(buf) >= bigFrame && !held {
+				if !takePlace(ctx, pool) {
+					return nil, nil, ctx.Err()
+				}
+				held, release = true, sync.OnceFunc(func() { <-pool })
+			}
+			buf = slices.Grow(buf, cap(buf))
+		}
+		n, err := r.Read(buf[len(buf):cap(buf)])
+		buf = buf[:len(buf)+n]
+		if err == io.EOF {
+			return buf, release, nil
+		}
+		if err != nil {
+			release()
+			return nil, nil, err
+		}
+	}
+}
 
 // admit takes a socket in, if the instance and the address have room for it.
 func (s *Server) admit(key string) bool {
@@ -273,8 +304,7 @@ func (s *Server) hello(conn *websocket.Conn, addr netip.Addr) *peer {
 		return nil
 	}
 	var f inFrame
-	if typ != websocket.MessageText || json.Unmarshal(data, &f) != nil || f.T != "hello" ||
-		len(f.Space) != spaceLen || len(f.Token) != tokenLen || len(f.Device) != deviceLen || f.Since < 0 {
+	if typ != websocket.MessageText || json.Unmarshal(data, &f) != nil || !f.isHello() {
 		s.m.rejected.Inc("invalid")
 		s.refuse(conn, nil, statusPolicy, "expected a hello")
 		return nil
@@ -575,29 +605,7 @@ func (p *peer) next() (data []byte, release func(), err error) {
 	if typ != websocket.MessageText {
 		return nil, nil, errBinary
 	}
-	held := false
-	release = func() {}
-	buf := make([]byte, 0, 4096)
-	for {
-		if len(buf) == cap(buf) {
-			if cap(buf) >= bigFrame && !held {
-				if !p.s.takeBig(ctx) {
-					return nil, nil, ctx.Err()
-				}
-				held, release = true, sync.OnceFunc(p.s.giveBig)
-			}
-			buf = slices.Grow(buf, cap(buf))
-		}
-		n, err := r.Read(buf[len(buf):cap(buf)])
-		buf = buf[:len(buf)+n]
-		if err == io.EOF {
-			return buf, release, nil
-		}
-		if err != nil {
-			release()
-			return nil, nil, err
-		}
-	}
+	return readHeld(ctx, r, p.s.big)
 }
 
 // exit takes the device out of its room when its socket ended: the others hear it went, and it

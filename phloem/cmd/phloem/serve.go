@@ -175,10 +175,10 @@ func runServe(ctx context.Context, args []string) int {
 	stopping := time.Now()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownBudget)
 	defer cancel()
-	if err := hs.Shutdown(shutdownCtx); err != nil {
+	if err := hs.Shutdown(shutdownCtx); err != nil { // the sockets hear 1001 as it begins (srv.Drain)
 		_ = hs.Close()
 	}
-	_ = srv.Close() // the sockets hear 1001; the stats file says phloem_up 0
+	_ = srv.Close() // waits for the sockets; the stats file says phloem_up 0
 	if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 		return fatal(1, "stopping: the HTTP endpoint failed", serveErr)
 	}
@@ -189,15 +189,19 @@ func runServe(ctx context.Context, args []string) int {
 // httpServer is serve's HTTP server: ReadHeaderTimeout for a slow client's headers, IdleTimeout
 // for keep-alive connections of clients that vanished; no ReadTimeout or WriteTimeout, which
 // would end the WebSockets (the handlers bound the bodies themselves). Its own errors (a TLS
-// probe, a reset) go to the log at debug.
+// probe, a reset) go to the log at debug. As its Shutdown begins, every socket hears 1001
+// (srv.Drain): the GETs of the poll sessions, which wait up to 25 s, end with it instead of
+// holding the shutdown up.
 func httpServer(srv *server.Server) *http.Server {
-	return &http.Server{
+	hs := &http.Server{
 		Handler:           srv.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 		MaxHeaderBytes:    16 << 10,
 		ErrorLog:          slog.NewLogLogger(slog.Default().Handler(), slog.LevelDebug),
 	}
+	hs.RegisterOnShutdown(srv.Drain)
+	return hs
 }
 
 // turnSetup is serve's TURN: the options with their listeners, nil without TURN.
