@@ -72,6 +72,11 @@ type inFrame struct {
 	To     *int   `json:"to"` // signal
 }
 
+// isHello says whether f is a hello as the first frame of a socket must be.
+func (f *inFrame) isHello() bool {
+	return f.T == "hello" && len(f.Space) == spaceLen && len(f.Token) == tokenLen && len(f.Device) == deviceLen && f.Since >= 0
+}
+
 // The frames Phloem sends that never change.
 var (
 	compactFrame = []byte(`{"t":"compact"}`)

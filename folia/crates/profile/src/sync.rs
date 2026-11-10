@@ -531,7 +531,9 @@ enum Receiving {
 }
 
 /// How long the bar of a profile that came waits for this device to be online with it before it
-/// says the data is in line all the same (ms): it comes as soon as the connection is there.
+/// says, under the bar, that the profile is not here yet and Betula keeps trying (ms). The bar
+/// ends only when it is (until 2026-11-10 it ended after this all the same, and said „Verbunden"
+/// for a profile that never came).
 pub(crate) const SYNC_WAIT_MS: u64 = 8000;
 
 /// „Profil vom Handy holen": a code the phone scans (`Sync::request`), the digits it shows then,
@@ -543,14 +545,13 @@ pub(crate) fn GetPart(sync: Sync, got: RwSignal<bool>) -> impl IntoView {
     let c = &t.scan;
     let profiles = Profiles::expect();
     let step = RwSignal::new(Receiving::Making);
-    // The bar after the profile came: its data in line once this device is online with it, or
-    // after a while without (it comes all the same, `SYNC_WAIT_MS`); shown all, `got`.
+    // The bar after the profile came: its data in line once this device is online with it, its
+    // records at Phloem and here; after a while without, a note that Betula keeps trying
+    // (`SYNC_WAIT_MS`); shown all, `got`.
     let slow = RwSignal::new(false);
     let shown_done = RwSignal::new(false);
-    let reached = Signal::derive(move || {
-        let online = profiles.is_some_and(|profiles| matches!(sync.state(profiles.active()), State::Online { .. }));
-        if online || slow.get() { 2 } else { 1 }
-    });
+    let online = Signal::derive(move || profiles.is_some_and(|profiles| matches!(sync.state(profiles.active()), State::Online { .. })));
+    let reached = Signal::derive(move || if online.get() { 2 } else { 1 });
     // The request asking now, to put away.
     let current = StoredValue::new(None::<String>);
     let recovering = RwSignal::new(false);
@@ -651,6 +652,7 @@ pub(crate) fn GetPart(sync: Sync, got: RwSignal<bool>) -> impl IntoView {
             } else {
                 view! {
                     <ConnectProgress phases=ways::getting() reached on_done=Callback::new(move |()| { shown_done.set(true); got.set(true); })/>
+                    {move || (slow.get() && !online.get()).then(|| view! { <p class="pf-sub pf-still" role="status">{t.sync.still_connecting}</p> })}
                 }
                 .into_any()
             }

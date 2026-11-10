@@ -35,6 +35,9 @@ type meters struct {
 	turn         *metrics.Counter // TURN, by event
 	relayed      *metrics.Counter // bytes the relays passed, by way (in: from peers, out: to them)
 	relayDropped *metrics.Counter // bytes the relays dropped for the rates, by way
+
+	pollsOpened *metrics.Counter // poll sessions opened (the socket over HTTPS)
+	pollsEnded  *metrics.Counter // ... ended, by reason
 }
 
 func (s *Server) declare() {
@@ -56,9 +59,12 @@ func (s *Server) declare() {
 			"Sockets that ended, by reason (left, gone, replaced, restart, slow, timeout, lost, invalid, internal).", "reason"),
 		signals: r.NewCounter("phloem_signals_total", "Signals for WebRTC handed from one device to another of its space."),
 		turn: r.NewCounter("phloem_turn_total",
-			"TURN, by event (allocated, permitted; refused: a peer that is not another device of the space; unauthorized; quota; no_port; forbidden: a relay was to send where no peer may be, which must never happen).", "event"),
+			"TURN, by event (allocated, permitted; learned: an allocation came from an address its socket did not; refused: a peer that is not another device of the space; unauthorized; quota; no_port; nonce: a request over UDP with a nonce not handed to its address; forbidden: a relay was to send where no peer may be, which must never happen).", "event"),
 		relayed:      r.NewCounter("phloem_relay_bytes_total", "Bytes the TURN relays passed, by way (in: from a peer, out: to a peer).", "way"),
 		relayDropped: r.NewCounter("phloem_relay_dropped_bytes_total", "Bytes the TURN relays dropped beyond their rates, by way.", "way"),
+		pollsOpened:  r.NewCounter("phloem_poll_sessions_opened_total", "Poll sessions opened: the socket over HTTPS, for a device whose WebSocket cannot be set up."),
+		pollsEnded: r.NewCounter("phloem_poll_sessions_ended_total",
+			"Poll sessions whose socket ended, by reason (closed: with a close the device hears; lost: without one; slow: too far behind; idle: nobody asked for a minute).", "reason"),
 	}
 	r.NewGaugeFunc("phloem_up", "1 while Phloem runs; the last file it writes says 0.", nil,
 		func(emit func(float64, ...string)) { emit(metrics.Bool(s.up.Load())) })
@@ -94,6 +100,8 @@ func (s *Server) declare() {
 		s.mu.Unlock()
 		emit(float64(n))
 	})
+	r.NewGaugeFunc("phloem_poll_sessions", "Poll sessions whose socket lives (they count among phloem_sockets too).", nil,
+		func(emit func(float64, ...string)) { emit(float64(s.pollsLive.Load())) })
 	r.NewGaugeFunc("phloem_spaces_online", "Spaces with a device online.", nil, func(emit func(float64, ...string)) {
 		s.mu.Lock()
 		n := len(s.rooms)

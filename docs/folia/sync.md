@@ -44,7 +44,11 @@ and the pairing parcel. HKDF-SHA256 in WebCrypto gives the space, the token and 
 of the data (non-extractable); every batch and snapshot is sealed before it leaves (protocol.md §5).
 
 **One tab leads.** A Web Lock (`betula.sync`) makes one tab of the browser the leader; a tab that
-becomes visible takes it (`steal`), so the phone in the hand is the one that is live. The leader
+is opened in front or becomes visible takes it (`steal`), so the phone in the hand is the one that
+is live, and so does a tab that switches a profile on, joins one or hands it on (`lead_here`): the
+connection is in the tab the person acts in, never only in a tab in the background that may not
+come to it (a tab a browser froze, one of an older build; 2026-11-10 a laptop's profile was
+switched on in one tab while no tab connected, and its records never reached Phloem). The leader
 alone writes a synced profile's records and talks to Phloem, for the active profile. A store's
 change in another tab waits under `betula.sync.c.<profile>.<time>.<count>.<tab>` until the leader
 takes it, in the order it was made.
@@ -61,11 +65,12 @@ they differ (`Profiles::wrote`: every tab's stores read again).
 | `betula.sync.p<id>.v1` | its key, the device's id, its slot | on switching on, joining, a new slot |
 | `betula.sync.p<id>.out` | the writer's last number and clock, the batches waiting for `stored` | with every change |
 | `betula.sync.p<id>.doc` | the entries held, the records, the conflicts | now and then, and when the tab is hidden; always after the stores were given what the records hold |
-| `betula.sync.p<id>.status` | the leader's word: `online <n> direct <d> relayed <r>` or `offline` (an older build's `online <n>` reads with none direct) | |
+| `betula.sync.p<id>.status` | the leader's word: `online <n> direct <d> relayed <r>` or `offline` (an older build's `online <n>` reads with none direct). Online means connected and the profile at Phloem (since Folia 1.90.0): a profile switched on is not until its first snapshot is kept, nor a device that joined a space still empty | |
 | `betula.sync.p<id>.relay` | the slots whose last connection needed TURN, with when, kept a day (`live::read_relayed`) | when a connection opens |
 | `betula.sync.p<id>.ended` | the space is gone (ended on another device, or 13 months untouched) | |
 | `betula.sync.p<id>.seen` | the hints a page has read | |
 | `betula.sync.offset` | the server's clock less the browser's | on every welcome |
+| `betula.sync.way` | `https <ms>`: the last welcome came over plain HTTPS, so that way goes first for a day; gone with a welcome over the WebSocket | on a welcome |
 
 **When the leader starts** (a reload, a new leader, the active profile changed): it reads what is
 kept, takes what other tabs left, and a store's text that holds more than the records (written by a
@@ -80,6 +85,22 @@ connection until `stored` (Phloem keeps a batch sent again once). A change large
 as a snapshot; so does the profile's first state. A lost connection is tried again soon, then less
 often, at most every half minute, and at once when the network is back or the tab is shown.
 
+**Two ways to Phloem** (since Folia 1.90.0; owner, 2026-11-10: „wenn eine methode nicht
+funktioniert muss dann halt ausgewichen werden auf eine andere die grantiert läuft"). The
+connection is the WebSocket, or the same frames over plain HTTPS requests to the same host
+(`sync/browser/poll.rs`, protocol.md §4 „The socket over HTTPS", Phloem 0.4.0): one GET at a time
+waits for what Phloem says, POSTs carry what the device says, in order. It goes the way that
+brought the last welcome (a page loaded later too, for a day: `betula.sync.way`); after two tries
+in a row without a welcome, the other way every second try. A WebSocket without a welcome within
+6 s counts as failed (a proxy that takes the upgrade and then holds it), a session over HTTPS
+within 15 s. So a network that breaks WebSockets but lets the site load syncs all the
+same; the live way (WebRTC) goes on top of either.
+
+**A device that joined a space still empty** (the device that gave the profile had not sent its
+records yet, which a build before 1.90.0 could do): it takes no entry then, since Phloem hands the
+snapshot on a welcome alone, but connects again from 0 when one comes, and two seconds after
+another device of the profile came online.
+
 **The live way** (step 2, `sync/live.rs` and `sync/browser/rtc.rs`; owner, 2026-11-08: „time für
 phase 2 bei dem sync"). Every two devices of the profile online connect directly with WebRTC: of
 two, the one of the smaller slot offers and the other answers, so that no connection is set up
@@ -87,7 +108,11 @@ from both sides at once. The signals go through Phloem, sealed with the live key
 `live`) to the space, `signal` and both slots: Phloem can neither read them nor hand them to
 another device. The first attempt takes STUN alone and counts as failed after 8 s; the next ones
 take TURN as well (15 s), then again after 30 s, 1, 2, 4 and at most 5 minutes; a device that
-needed TURN with another takes it at once for a day (`betula.sync.p<id>.relay`). The ICE servers
+needed TURN with another takes it at once for a day (`betula.sync.p<id>.relay`). In an attempt
+with TURN a device's candidates wait for its relay candidate (at most 3 s, `live::HOLD_MS`): its
+allocation is there then, and Phloem permits the other device's relay to send to an address this
+device allocated from (protocol.md §6; for a phone whose WebSocket leaves through a VPN or over
+IPv6 while its UDP does not). The ICE servers
 and the TURN credential come from Phloem (`turn`, per socket: a new socket asks again). A
 negotiated data channel (unordered, reliable) carries each change of this device as the sealed
 batch Phloem keeps, at once to the other device and to Phloem; what comes over it is taken as an
@@ -100,10 +125,10 @@ The profile page says „direkt verbunden" or „über Betula weitergeleitet".
 | | |
 |---|---|
 | „Einschalten und Code zeigen" (the dialog „Gerät verbinden" of a private profile; „Betula Sync aktivieren" until 2026-11-08) | a key, a device id, `POST /sync/v1/space`, the profile's records as its first snapshot; then the link as below |
-| „Gerät verbinden" (a synced profile; „Weiteres Gerät verbinden" until 2026-11-08) | a parcel with the key, sealed with a key the link alone holds (`/sync#<id ‖ key>`; `/verbinden#…` until 2026-11-08, which leads there), ten minutes at Phloem, for one device |
+| „Gerät verbinden" (a synced profile; „Weiteres Gerät verbinden" until 2026-11-08) | a parcel with the key, sealed with a key the link alone holds (`/sync#<id ‖ key>`; `/verbinden#…` until 2026-11-08, which leads there), ten minutes at Phloem, for one device. Made only once the profile is online in this tab with its records at Phloem (`Sync::pair`, at most 30 s, `ONLINE_WAIT_MS`; then „nicht erreichbar" with „Erneut versuchen"): a link made before would hand on a profile that is not there |
 | joining | the parcel opened, a new profile of the browser, its records from Phloem |
 | „Mit dem Handy verbinden" (`/pair`) and „Profil vom Handy holen" (the device that wants a profile, a computer that has no camera; 2026-11-08) | an id of 16 random bytes and an ECDH key pair (P-256) made for this once, the code `/pair#<id ‖ public key>` (65 bytes uncompressed; `url::PAIR`) and its four digits (SHA-256 of `"betula-request" ‖ id ‖ key`, the first four bytes mod 10 000); then `GET /sync/v1/pair` for the id, every 3 s in the first minute, every 6 s until the third, every 15 s until the tenth (some 70 questions, within the 120 an address may ask in an hour), until the parcel is there; the profile joins as above. No change of Phloem |
-| „Ja, „Lena" verbinden" (the device that has it, after the code and its digits) | a private profile is switched on first; an ECDH key pair of its own, the key of the parcel by HKDF-SHA256 of the shared secret (salt the id, info `betula-request`), the profile's key sealed with it (associated data `"request"`), `POST /sync/v1/pair` with the request's id and `own public key ‖ sealed`: whoever photographs the code cannot open what is sent to it |
+| „Ja, „Lena" verbinden" (the device that has it, after the code and its digits) | a private profile is switched on first; an ECDH key pair of its own, the key of the parcel by HKDF-SHA256 of the shared secret (salt the id, info `betula-request`), the profile's key sealed with it (associated data `"request"`), `POST /sync/v1/pair` with the request's id and `own public key ‖ sealed`: whoever photographs the code cannot open what is sent to it; as the link, only once the profile is online here with its records at Phloem |
 | the recovery code | `K` in base32 (Crockford), 13 groups of four, the last 4 bits a check: most typos are told before any request |
 | „Nur dieses Gerät trennen" | its record of the devices deleted, what waits goes out, then `leave`; the copy stays, private |
 | the devices (2026-11-09) | each device writes a record of itself into the profile, `D\|<device id>`: slot, kind, model (Chrome's `userAgentData`), browser, system, since, last seen (`folia_stores::sync::devices`, `Writer::put`; no store projects it, and a build without the list keeps it as it is); on every welcome where it is not as it is, and once an hour while connected. Phloem's presence by slot says who is online, the live way how. The leader keeps them for every tab (`betula.sync.p<id>.devices`, `.slots`) |
@@ -120,8 +145,10 @@ profile), the profile sent, the other device fetching it, the profile received, 
 ticks those done, pulses the one under way and fills its part of the bar slowly, and shows each for
 550 ms at least, so that steps of a few milliseconds are seen as well; it follows what really
 happens: the giver's send, Phloem's `pair` frame that its parcel was opened (`Sync::taken`), one
-more device of the profile online; the device that got the profile, its own connection (or 8 s
-without one). `Connected` then: a tick, „Verbunden" (from the setup „Alles eingerichtet" with what
+more device of the profile online; the device that got the profile, its own connection with the
+profile there. It ends only then: after 8 s without, a line under the bar says the profile is not
+here yet and Betula keeps trying (until Folia 1.90.0 the bar ended after 8 s all the same, and
+said „Verbunden" for a profile that never came). `Connected` then: a tick, „Verbunden" (from the setup „Alles eingerichtet" with what
 was set up), what is on now in three rows (on both devices, in line at once and offline, sealed
 without an account), that more devices are connected on the profile page („Gerät verbinden"), and
 „Fertig".

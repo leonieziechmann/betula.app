@@ -75,6 +75,11 @@ pub enum Problem {
     NoRoom,
 }
 
+/// How long a link or a profile sent waits for the profile to be online with its records at
+/// Phloem before it says the service could not be reached (ms): the connection tries every way it
+/// has meanwhile (`browser`: the WebSocket, then plain HTTPS).
+pub const ONLINE_WAIT_MS: u64 = 30_000;
+
 /// A link for the next device („Weiteres Gerät verbinden"): its QR code and the link itself.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Pairing {
@@ -285,7 +290,7 @@ impl Sync {
                 Ok(()) => {
                     self.act(id, None);
                     self.refresh(id);
-                    browser::lead_again(self);
+                    browser::lead_here(self);
                 }
                 Err(problem) => self.fail(id, problem),
             }
@@ -305,7 +310,10 @@ impl Sync {
     }
 
     /// A link for the next device of profile `id` (synced): a sealed parcel with its key waits
-    /// ten minutes at Phloem, for one device.
+    /// ten minutes at Phloem, for one device. Made once the profile is online here with its
+    /// records at Phloem (this tab takes the connection for it): a link made before would hand
+    /// on a profile that is not there. `Unreachable` when that does not come within
+    /// `ONLINE_WAIT_MS`.
     pub fn pair(self, id: u16, done: impl FnOnce(Result<Pairing, Problem>) + 'static) {
         #[cfg(all(feature = "csr", target_arch = "wasm32"))]
         {
@@ -314,7 +322,14 @@ impl Sync {
                 .and_then(|profiles| profiles.all().into_iter().find(|p| p.id == id))
                 .map(|p| p.name)
                 .unwrap_or_default();
-            leptos::task::spawn_local(async move { done(browser::pair(id, name).await) });
+            browser::lead_here(self);
+            leptos::task::spawn_local(async move {
+                if !browser::until_online(id, ONLINE_WAIT_MS).await {
+                    done(Err(Problem::Unreachable));
+                    return;
+                }
+                done(browser::pair(id, name).await)
+            });
         }
         #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
         {
@@ -411,7 +426,12 @@ impl Sync {
                     }
                     self.act(id, None);
                     self.refresh(id);
-                    browser::lead_again(self);
+                }
+                // As `pair`: the profile goes only once it is at Phloem.
+                browser::lead_here(self);
+                if !browser::until_online(id, ONLINE_WAIT_MS).await {
+                    done(Err(Problem::Unreachable));
+                    return;
                 }
                 done(browser::give(id, name, &fragment).await);
             });
@@ -453,7 +473,7 @@ impl Sync {
                 self.refresh(id);
                 last = Ok(id);
             }
-            browser::lead_again(self);
+            browser::lead_here(self);
             last
         }
         #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
@@ -499,7 +519,7 @@ impl Sync {
                 Ok(()) => {
                     self.act(id, None);
                     self.refresh(id);
-                    browser::lead_again(self);
+                    browser::lead_here(self);
                     done(Ok(()));
                 }
                 Err(problem) => {

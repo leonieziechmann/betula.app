@@ -47,7 +47,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if r.Method == http.MethodOptions {
 			h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
-			h.Set("Access-Control-Allow-Headers", "Authorization, Betula-Space, Betula-Pair, Betula-Part, Content-Type, If-None-Match")
+			h.Set("Access-Control-Allow-Headers", "Authorization, Betula-Space, Betula-Pair, Betula-Part, Betula-Poll, Content-Type, If-None-Match")
 			h.Set("Access-Control-Max-Age", "600")
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -74,12 +74,16 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		s.getPart(w, r)
 	case path == "/sync/v1/ws" && method == http.MethodGet:
 		s.serveWS(w, r)
+	case path == "/sync/v1/poll" && method == http.MethodPost:
+		s.postPoll(w, r)
+	case path == "/sync/v1/poll" && method == http.MethodGet:
+		s.getPoll(w, r)
 	case path == "/healthz" && (method == http.MethodGet || method == http.MethodHead):
 		s.healthz(w, r)
 	case path == "/status" && method == http.MethodGet && fromLoopback(r):
 		s.status(w, r)
 	case path == "/sync/v1/space", path == "/sync/v1/pair", path == "/sync/v1/pairs", path == "/sync/v1/part",
-		path == "/sync/v1/ws", path == "/healthz":
+		path == "/sync/v1/ws", path == "/sync/v1/poll", path == "/healthz":
 		h.Set("Allow", allowed(path))
 		writeError(w, http.StatusMethodNotAllowed, "method")
 	default:
@@ -97,6 +101,8 @@ func allowed(path string) string {
 		return "GET, OPTIONS"
 	case "/sync/v1/part":
 		return "GET, PUT, DELETE, OPTIONS"
+	case "/sync/v1/poll":
+		return "GET, POST, OPTIONS"
 	case "/healthz":
 		return "GET, HEAD"
 	}
@@ -163,15 +169,7 @@ func (s *Server) readBody(w http.ResponseWriter, r *http.Request, limit int64, v
 // forwarded header, so it is the address the request came from), else the peer's address; an
 // IPv6 address by its /64, which one end of a line usually holds whole.
 func clientKey(r *http.Request) string {
-	raw := strings.TrimSpace(r.Header.Get("X-Real-Ip"))
-	if raw == "" {
-		host, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			host = r.RemoteAddr
-		}
-		raw = host
-	}
-	ip, err := netip.ParseAddr(raw)
+	ip, err := netip.ParseAddr(clientIP(r))
 	if err != nil {
 		return "?"
 	}
@@ -187,19 +185,24 @@ func clientKey(r *http.Request) string {
 // clientAddr is the address a request came from: Traefik's X-Real-Ip, else the peer's
 // address; the zero Addr when neither reads as one.
 func clientAddr(r *http.Request) netip.Addr {
-	raw := strings.TrimSpace(r.Header.Get("X-Real-Ip"))
-	if raw == "" {
-		host, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			host = r.RemoteAddr
-		}
-		raw = host
-	}
-	ip, err := netip.ParseAddr(raw)
+	ip, err := netip.ParseAddr(clientIP(r))
 	if err != nil {
 		return netip.Addr{}
 	}
 	return ip.Unmap().WithZone("")
+}
+
+// clientIP is the text of the address a request came from: Traefik's X-Real-Ip, else the
+// host of the peer's address. A poll session's socket carries it as its X-Real-Ip.
+func clientIP(r *http.Request) string {
+	if raw := strings.TrimSpace(r.Header.Get("X-Real-Ip")); raw != "" {
+		return raw
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
 }
 
 // fromLoopback says whether a request comes from inside the container: a loopback peer, and no
