@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     BookmarksData, CatalogChoices, CatalogData, CatalogSummary, FitResult, Ground, HomeData, ModuleData, MyProgramInfo,
-    Overlay, Place, PlanSource, ProgramData, ProgramsData, SharedPlanData, StudyModules, StudyplanData,
+    Overlay, Place, PlanSource, ProgramData, ProgramsData, SharedPlanData, StudyDocuments, StudyModules, StudyplanData,
 };
 
 /// What a page shows instead of data. Serializable: it crosses to the page from wherever the
@@ -202,6 +202,10 @@ ask!(
     PlanSourceAsk { program_id: String, locale: Locale } -> Option<PlanSource>, Lane::Page, |q, db, kept| crate::plan_source(db, &q.program_id, q.locale)
 );
 ask!(
+    /// The regulations of a program, for „Ordnungen & Dokumente" of „Mein Studium".
+    StudyDocumentsAsk { program_id: String } -> StudyDocuments, Lane::Page, |q, db, kept| crate::study_documents(db, &q.program_id)
+);
+ask!(
     /// The best-matching Master of a Bachelor, or Bachelor of a Master: what the program overview
     /// names after the visitor's own program.
     CounterpartAsk { program_id: String } -> Option<Counterpart>, Lane::Page, |q, db, kept| folia_query::program_counterpart(db, &q.program_id)
@@ -295,7 +299,7 @@ pub fn answer_json(name: &str, question: &str, db: &dyn Database, kept: &mut Kep
         GroundAsk, HomeAsk, CatalogChoicesAsk, CatalogAsk, CatalogSummaryAsk, CatalogCountAsk, SimilarAsk, ProgramsOverviewAsk,
         ProgramsAsk, ModuleAsk, ProgramAsk, BookmarksAsk, BookmarkPlacesAsk, StudyplanAsk, StudyplanModulesAsk, StudyModulesAsk, ModuleAbbrevsAsk, PlanSourceAsk, MyProgramAsk, FitAsk, CounterpartAsk,
         OverlayAsk, FitLinesAsk, SharedPlanAsk, MetaAsk, ModuleSemestersAsk, NewestSemestersAsk, CatalogRowsAsk, CommandModulesAsk, CatalogPositionAsk, PlanRowsAsk,
-        EventAsk,
+        EventAsk, StudyDocumentsAsk,
     )
 }
 
@@ -337,6 +341,8 @@ mod tests {
         same(ModuleAbbrevsAsk { ids: vec!["12104".into(), "11112".into(), "00000".into()], program: Some("079-82-2008".into()) });
         same(ModuleAbbrevsAsk { ids: vec!["12104".into()], program: Some("../etc".into()) });
         same(PlanSourceAsk { program_id: "079-82-2008".into(), locale: Locale::De });
+        same(StudyDocumentsAsk { program_id: "079-82-2008".into() });
+        same(StudyDocumentsAsk { program_id: "no-such-program".into() });
         same(MetaAsk {});
         same(CommandModulesAsk { text: "algoritmen".into(), limit: 6 });
         same(CounterpartAsk { program_id: "079-82-2008".into() });

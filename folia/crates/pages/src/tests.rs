@@ -312,6 +312,45 @@ fn the_overview_says_what_each_plan_says() {
     assert!(overview.facts.iter().all(|facts| programs.iter().any(|program| program.id == facts.program_id && program.is_latest_po && program.has_plan)));
 }
 
+/// „Ordnungen & Dokumente" of „Mein Studium" names the regulation its Regelstudienplan was read
+/// from by the name Radix gave the file it read: on any snapshot exactly where one of the program's
+/// documents has that name, with the pages the plan stands on; the program's documents as they are.
+#[test]
+fn the_plan_is_found_in_its_regulation() {
+    let db = open();
+    let plans = column(&db, "SELECT program_id FROM v_program_plan ORDER BY program_id");
+    assert!(!plans.is_empty());
+    let mut found = 0;
+    for id in &plans {
+        let shown = pages::study_documents(&db, id).unwrap();
+        assert_eq!(shown.documents, queries::program_documents(&db, id).unwrap(), "{id}");
+        let plan = queries::program_plan(&db, id).unwrap().expect("a plan");
+        let file = plan.source_file.rsplit(['\\', '/']).next().unwrap_or_default().to_string();
+        let named = shown.documents.iter().position(|document| pages::statute_file(&document.url) == file);
+        assert_eq!(shown.plan.as_ref().map(|plan| plan.document), named, "{id}: {file}");
+        if let Some(place) = &shown.plan {
+            assert_eq!(place.pages.as_deref(), plan.source_pages.as_deref().map(str::trim).filter(|pages| !pages.is_empty()), "{id}");
+            found += 1;
+        }
+    }
+    assert!(found * 10 >= plans.len() * 9, "the plan's regulation found for {found} of {} plans", plans.len());
+    assert_eq!(pages::study_documents(&db, "no-such-program").unwrap(), pages::StudyDocuments::default());
+}
+
+/// The file of a regulation is named as Radix names it, whichever address OPUS gave it.
+#[test]
+fn a_regulation_is_named_as_radix_names_its_file() {
+    let name = pages::statute_file;
+    assert_eq!(name("https://opus4.kobv.de/opus4-btu/files/6707/12_Informatik_B.Sc.pdf"), "6707_12_Informatik_B.Sc.pdf");
+    assert_eq!(name("http://opus.kobv.de/btu/volltexte/2008/468/pdf/11_2_AS_MB_MSc_2508083.pdf"), "468_11_2_AS_MB_MSc_2508083.pdf");
+    assert_eq!(name("https://opus4.kobv.de/opus4-btu/frontdoor/deliver/index/docId/4306/file/AMbl-27_2017_PStO_BWL_BSc_Uni.pdf"), "4306_AMbl-27_2017_PStO_BWL_BSc_Uni.pdf");
+    assert_eq!(name("https://opus4.kobv.de/opus4-btu/files/6343/03_ET+M.Sc._3.AS.pdf"), "6343_03_ET+M.Sc._3.AS.pdf");
+    assert_eq!(name("https://opus4.kobv.de/opus4-btu/files/12/Ordnung%20neu.pdf?x=1#page=2"), "12_Ordnung neu.pdf");
+    assert_eq!(name("https://opus4.kobv.de/opus4-btu/files/12/12_po.pdf"), "12_po.pdf");
+    assert_eq!(name("https://example.org/a/b/c/d/satzung"), "satzung.pdf");
+    assert_eq!(name("https://example.org/"), "document.pdf");
+}
+
 /// The Studienplan's queries, run through the recording database of
 /// `every_query_runs_against_the_snapshot`: some modules of a semester, and the whole semester for
 /// the finder. On any snapshot they say what direct SQL on the views says; the rows themselves are

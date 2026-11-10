@@ -632,6 +632,80 @@ pub fn program(db: &dyn Database, slug: &str) -> Result<Option<ProgramData>, DbE
     }))
 }
 
+/// What „Ordnungen & Dokumente" of „Mein Studium" shows of a program (`study_documents`): its
+/// regulations in the order the data gives them, and which of them holds its Regelstudienplan.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct StudyDocuments {
+    pub documents: Vec<Document>,
+    /// Where the validated Regelstudienplan was read from, where that is one of `documents`.
+    pub plan: Option<PlanDocument>,
+}
+
+/// The regulation a Regelstudienplan stands in.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PlanDocument {
+    /// An index of `StudyDocuments::documents`.
+    pub document: usize,
+    /// The pages of it the plan stands on, as a reader writes them („7", „6, 7").
+    pub pages: Option<String>,
+}
+
+/// The regulations of the program with `program_id` (`program.id`), and the one its validated
+/// Regelstudienplan was read from: Radix names the file it reads after the document's address
+/// (`statute_file`), and the plan keeps that name (`source_file`). Where the plan was read from a
+/// document the program does not list (2 of 161 plans on 2026-11-10), none is named.
+pub fn study_documents(db: &dyn Database, program_id: &str) -> Result<StudyDocuments, DbError> {
+    let documents = queries::program_documents(db, program_id)?;
+    let plan = queries::program_plan(db, program_id)?.and_then(|plan| {
+        let file = plan.source_file.rsplit(['\\', '/']).next().filter(|file| !file.is_empty())?.to_string();
+        let document = documents.iter().position(|document| statute_file(&document.url) == file)?;
+        Some(PlanDocument { document, pages: plan.source_pages.map(|pages| pages.trim().to_string()).filter(|pages| !pages.is_empty()) })
+    });
+    Ok(StudyDocuments { documents, plan })
+}
+
+/// The name Radix gives the file of a regulation it downloads (`fileName` in
+/// `radix/internal/statutes/statutes.go`, which this follows step by step): the last part of the
+/// address's path, after the number of the OPUS document where one of the three parts before it
+/// is a number, ending in „.pdf" — `…/files/6707/12_Informatik_B.Sc.pdf` is
+/// „6707_12_Informatik_B.Sc.pdf".
+fn statute_file(address: &str) -> String {
+    let rest = address.split_once("://").map_or(address, |(_, rest)| rest);
+    let path = rest.split_once('/').map_or("", |(_, path)| path);
+    let path = path.split(['?', '#']).next().unwrap_or_default();
+    let parts: Vec<String> = path.trim_matches('/').split('/').map(path_unescaped).collect();
+    let mut name = parts.last().filter(|last| !last.is_empty()).cloned().unwrap_or_else(|| "document.pdf".to_string());
+    let number = parts.iter().rev().skip(1).take(3).find(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()));
+    if !name.to_ascii_lowercase().ends_with(".pdf") {
+        name.push_str(".pdf");
+    }
+    if let Some(number) = number.filter(|number| !name.starts_with(&format!("{number}_"))) {
+        name = format!("{number}_{name}");
+    }
+    name.chars().map(|c| if matches!(c, ':' | '*' | '?' | '"' | '<' | '>' | '|' | '\\' | '/') { '_' } else { c }).collect::<String>().trim().to_string()
+}
+
+/// A part of a path with its `%XX` decoded, as Go's `url.Parse` gives it (`+` stays a `+`).
+fn path_unescaped(part: &str) -> String {
+    let bytes = part.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while let Some(&byte) = bytes.get(at) {
+        let escaped = (byte == b'%').then(|| bytes.get(at + 1..at + 3).and_then(|hex| std::str::from_utf8(hex).ok()).and_then(|hex| u8::from_str_radix(hex, 16).ok())).flatten();
+        match escaped {
+            Some(value) => {
+                out.push(value);
+                at += 3;
+            }
+            None => {
+                out.push(byte);
+                at += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 /// How many marked modules a browser keeps. Far more than anybody marks, and well below what a
 /// single `IN (…)` of the local SQLite takes.
 pub const MAX_BOOKMARKS: usize = 2000;
