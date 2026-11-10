@@ -36,8 +36,10 @@
 //   before the current one with the areas' names at the left, the plan's head at the top when
 //   scrolled down and going along sideways with the areas, each head over its column; a reload
 //   keeps all of it; „Ordnungen & Dokumente" a view marked in the sidebar's „Studiengang", the
-//   regulations with the Regelstudienplan's page in its PDF and the ways on, nothing of the plan
-//   (2026-11-10); nothing of it in a request.
+//   regulations with the Regelstudienplan's page in its PDF and the ways on, nothing of the plan,
+//   the BTU's Rahmenordnung for Bachelor-Studiengänge alone with its amendments folded, and
+//   unfolded by a click, its other regulations and its 14 pages (2026-11-10); nothing of it in a
+//   request.
 // 2b a place filled (folia/design/hinzufuegen/konzepte.html, „Was heute schiefgeht"): the same study,
 //   „Anwendungsfach" alone put into WiSe 2026/27 by the workbench's „Vormerken" (in the Gesamtplan
 //   one lane with the plan's open row of the 4th FS, so that its subsection does not unfold, its
@@ -692,9 +694,14 @@ if (current !== "2026W") {
       head: document.querySelector("#st-docs-title")?.textContent,
       line: document.querySelector("#st-docs-title + p")?.textContent,
       regulations: rows('.st-docs[aria-labelledby="st-docs-title"] .docrow:not(.docpart)'),
-      plan: rows(".st-docs .docpart"),
+      plan: rows('.st-docs[aria-labelledby="st-docs-title"] .docpart'),
       more: rows('.st-docs[aria-labelledby="st-docs-more"] .docrow'),
       plain: document.querySelectorAll(".st-over, .st-mx, .prog-head, .matrix, .ptable, .st-sems").length,
+      // What the BTU has for every program (btu.rs): the Rahmenordnung of the degree alone, its
+      // amendments folded; its pages around the study.
+      btu: rows('.st-docs[aria-labelledby="st-docs-btu"] .doclist > li > a.docrow:not(.docpart)').map(([name]) => name),
+      folded: [...document.querySelectorAll(".st-docs-fold")].map((fold) => `${fold.open}:${fold.querySelectorAll("a.docrow").length}:${fold.querySelector("a.docrow")?.checkVisibility()}`),
+      around: rows('.st-docs[aria-labelledby="st-docs-around"] a.docrow').map(([, , href]) => href),
     };
   });
   check(documents.current === "Ordnungen & Dokumente" && documents.views === 0 && documents.head === "Ordnungen & Dokumente" && /^Informatik B\.Sc\. · PO 2008/.test(documents.line || "")
@@ -702,7 +709,10 @@ if (current !== "2026W") {
     && documents.plan.length === 1 && documents.plan[0][0] === "Darin der Regelstudienplan" && /^Seiten? \d/.test(documents.plan[0][1] || "") && /\.pdf#page=\d+$/.test(documents.plan[0][2])
     && documents.more.map(([name]) => name).join() === "Modulbaum des Studiengangs,Module des Studiengangs,Seite des Studiengangs"
     && /^https:\/\/www\.b-tu\.de\//.test(documents.more[0][2]) && documents.more[1][2] === "/catalog?program=bachelor-informatik-2008" && documents.more[2][2].startsWith("/programs/bachelor-informatik-2008/plan")
-    && documents.plain === 0, `Ordnungen & Dokumente: ${JSON.stringify(documents)}`);
+    && documents.plain === 0
+    && documents.btu.join() === "Rahmenordnung für Bachelor-Studiengänge,Immatrikulationsordnung,Ordnung zum Fachübergreifenden Studium,Brandenburgisches Hochschulgesetz,Alle Grundsatzordnungen,Prüfungs- und Studienordnungen aller Studiengänge,Formulare und Anträge"
+    && documents.folded.join() === "false:6:false" && documents.around.length === 14 && documents.around.every((href) => href.startsWith("https://www.b-tu.de/studium/")), `Ordnungen & Dokumente: ${JSON.stringify(documents)}`);
+  await step("the Rahmenordnung's amendments unfolded", () => page.click(".st-docs-fold > summary"), () => document.querySelector(".st-docs-fold")?.open && [...document.querySelectorAll(".st-docs-fold a.docrow")].every((a) => a.checkVisibility()));
   await step("Regelstudienplan", () => page.click('#sidebar .st-vl:has-text("Regelstudienplan")'), () => location.search === "?view=plan" && document.querySelectorAll(".st-mx tbody tr.st-rsp-row").length === 23);
   const regular = await page.evaluate(() => {
     const row = (name) => [...document.querySelectorAll(".st-mx tbody tr.st-rsp-row")].find((tr) => tr.querySelector(".st-rsp-name")?.textContent === name);

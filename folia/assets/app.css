@@ -6542,6 +6542,17 @@ div.st-col-head.past { cursor: default; }
 .st-docs .docpart .docname { font-weight: 500; font-size: 13px; color: var(--text-2); }
 .st-docs .docpart > .icon:first-child { width: 14px; height: 14px; }
 .st-docs .state { margin: 8px auto 24px; }
+/* What the BTU has for every program (btu.rs): its lists under a label each, a row without a line
+   its arrow at its end, a Rahmenordnung's amendments folded under it (a row that opens them, its
+   chevron turned while open), in the shade of the row they belong to. */
+.st-docs-label { margin: 14px 20px 4px; }
+.st-docs .docname + .go { margin-left: auto; }
+.st-docs-fold > summary { cursor: pointer; list-style: none; }
+.st-docs-fold > summary::-webkit-details-marker { display: none; }
+.st-docs-fold > summary > .go { transition: transform .15s var(--ease); }
+.st-docs-fold[open] > summary > .go { transform: rotate(180deg); }
+.st-docs .doclist li:nth-child(even) > details > .docrow { background: var(--row-shade); }
+.st-docs .doclist li > details > .docrow:hover { background: var(--row-hover); }
 .st-mx { width: 100%; min-width: calc(420px + var(--fs) * 58px); border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; }
 .st-mx col.c-kind { width: 120px; }
 .st-mx col.c-fs { width: 58px; }
@@ -6945,6 +6956,7 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
   .st-docs .docrow { padding-inline: 16px; }
   .st-docs .docrow.docpart { margin-top: -4px; padding-left: 44px; padding-block: 4px 9px; }
   .st-docs .st-view-head { padding-inline: 16px; }
+  .st-docs-label { margin-inline: 16px; }
   .st-way > span { flex: 1; font-size: 15px; font-weight: 620; }
   .st-way > span small { font-size: 13px; }
   /* The Fachsemester to jump to, staying under the bar at the top while the page scrolls. */

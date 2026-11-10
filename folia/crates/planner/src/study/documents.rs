@@ -8,16 +8,19 @@
 //! is; under the one the Regelstudienplan was read from, a link to the pages it stands on
 //! (`#page=`, where the browsers' viewers of a PDF open it). Then „Mehr zum Studiengang": its
 //! module tree in the BTU's course catalogue, its modules in the catalog, its page as everybody
-//! sees it. On a desktop alone in the page, on a phone a page of its own behind the overview (the
+//! sees it; then what the BTU has for every program (`btu.rs`): its regulations, the Rahmenordnung
+//! of the student's degree first, and its pages around the study. On a desktop alone in the page, on a phone a page of its own behind the overview (the
 //! way back at the head, `regular::view_back`).
 
 use folia_pages::ask::StudyDocumentsAsk;
 use folia_pages::StudyDocuments;
+use folia_model::labels::DegreeLevel;
 use folia_routes::url::{self, ProgramTab, ProgramUrl};
 use leptos::prelude::*;
 
 use folia_design::ui::{EmptyState, Icon};
 
+use super::btu::{self, Level};
 use super::regular::view_back;
 use super::{Ready, StudyCtx};
 use crate::i18n::{self, Texts};
@@ -49,6 +52,19 @@ struct More {
 /// this view is about.
 fn program_line(ready: &Ready) -> String {
     format!("{} {} · PO {}", ready.program.name, ready.program.degree(), ready.program.po_version)
+}
+
+/// Which Rahmenordnung concerns the student, by the degree: the Lehramt's under its Bachelor and
+/// Master, both where the degree is neither.
+fn level_of(ready: &Ready) -> Level {
+    let level = &ready.program.degree_level;
+    if level.is(DegreeLevel::Bachelor) || level.is(DegreeLevel::TeachingBachelor) {
+        Level::Bachelor
+    } else if level.is(DegreeLevel::Master) || level.is(DegreeLevel::TeachingMaster) {
+        Level::Master
+    } else {
+        Level::Both
+    }
 }
 
 fn more_of(ready: &Ready) -> More {
@@ -89,7 +105,7 @@ fn docs_of(answer: &StudyDocuments, t: &Texts) -> Vec<Doc> {
 pub(super) fn Documents(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     view_back(ctx);
-    let head = Memo::new(move |_| ctx.with_ready(|ready| (program_line(ready), more_of(ready))));
+    let head = Memo::new(move |_| ctx.with_ready(|ready| (program_line(ready), more_of(ready), level_of(ready))));
     let id = Memo::new(move |_| ctx.with_ready(|ready| ready.program.id.clone()));
     // The regulations; while they are on their way (or the question failed) `None`, and what was
     // there stays until the next answer is.
@@ -99,7 +115,7 @@ pub(super) fn Documents(ctx: StudyCtx) -> impl IntoView {
         folia_pages::ask::unless_pending(now, before, |now| now.ok().map(|answer| docs_of(&answer, t)))
     });
     move || {
-        let (program, more) = head.get()?;
+        let (program, more, level) = head.get()?;
         let list = move || view! { <DocList docs/> };
         Some(if ctx.phone.get() {
             view! {
@@ -110,6 +126,8 @@ pub(super) fn Documents(ctx: StudyCtx) -> impl IntoView {
                     </header>
                     <section class="panel st-docs" aria-label=t.study_views.documents_list>{list()}</section>
                     <MoreLinks more/>
+                    <btu::Statutes level/>
+                    <btu::Around/>
                 </div>
             }
             .into_any()
@@ -125,6 +143,8 @@ pub(super) fn Documents(ctx: StudyCtx) -> impl IntoView {
                     {list()}
                 </section>
                 <MoreLinks more/>
+                <btu::Statutes level/>
+                <btu::Around/>
             }
             .into_any()
         })
