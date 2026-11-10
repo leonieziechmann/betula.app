@@ -2223,8 +2223,19 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     one semester stand side by side in it), named without „Modul aus dem Bereich", the name in full
     its title, its pieces saying only what they are, „? Platzhalter", „+ noch offen" (until 1.73.3
     a lane per row, and what the plan had open of a module a lane of its own); a retake tied to its
-    try before by a dashed arrow. One button over the plan unfolds every area and subsection, and
-    once all of it is unfolded folds it all, saying which it does („Alle aufklappen", „Alle
+    try before by a dashed arrow. An area or a subsection that would unfold into one lane alone
+    does not unfold (Folia 1.89.2; owner, 2026-11-10: „dass ein platzhalter, der nur für ein modul
+    ist kein ausklappbares element wird. Also zum Beispiel seminar oder Praktikum Oder BA";
+    `AreaRow::unfolds`, `SubRow::unfolds`): its lane would only say again what its bar over the
+    semesters says — the Bachelor-Arbeit, the FÜS, „Seminar oder Praktikum", Praktische Mathematik
+    with its one module. Its head is no button then, without ▸ and without a hover, and „Alle
+    aufklappen" does not count it, nor does the picture draw its lane where it was kept unfolded
+    before; a piece too wide for its cell there narrows, its label cut, each piece still its own
+    button, for no „1 Modul" can lead into lanes it does not have (app.css `.st-rm-cell.still`,
+    `dom::fit_pieces`). One that gets a second module unfolds as any other, and so does one lane of
+    two rows of its name in one semester, which its bar shows as one piece („+12"; until then every
+    row unfolded, if only into its one lane). One button over the plan unfolds every area and
+    subsection, and once all of it is unfolded folds it all, saying which it does („Alle aufklappen", „Alle
     zuklappen"; owner, 2026-11-09: „alles auf/zuklappen ein knopf … so dass man halt da im zweifel
     zwei mal drauf drücken muss"; until Folia 1.85.0 two buttons); what is unfolded is kept in
     `localStorage` `betula.study.open` (an area's name, a subsection's area and name with a tab
@@ -2241,7 +2252,15 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     the right, where its semesters were, unfolded, those semesters from the left, where „Bisher" was
     (`data-moved` of the panel for a moment, `grid::Past`). Lanes shown anew (a reload, a change of
     the plan) stand at once, and with less motion asked for nothing moves or waits; an area's
-    subsections come and go the same way, with their lanes. An area unfolded or folded leaves the
+    subsections come and go the same way, with their lanes. Since Folia 1.89.2 it moves without a
+    stutter (owner, 2026-11-10: „die aus und einklappen animaiton nicht flüssig, das muss angepasst
+    werden, so dass das smooth läuft"): a subsection's head and its cells are 44 px tall, so that
+    they grow and shrink as the lanes do (as tall as what they held, a height of `auto` does not
+    move: they jumped at the end); the plan is measured anew only when the panel's width changes
+    (`dom::width_of`), not at each frame in which its height grows; and the room of the pieces
+    (`dom::fit_pieces`, „4 Module · 24 LP" where they do not fit) is read for every cell before it
+    is written for any, one layout instead of one a cell (until then a frame of 80 ms as a row
+    unfolded). An area unfolded or folded leaves the
     others as they are and its head keeps the focus, its chevron turning (until 1.75.1 the whole
     plan was drawn anew). „+" in a cell, the whole cell where it is empty and a
     round one at its end on hover where it is not, opens the workbench for that semester at that area (until 1.64.0 a dialog
@@ -2267,7 +2286,21 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     row saying „als Ausnahme" while it is over it), as „Anderer Bereich …" of its menu, the way
     without a key, does. A module the plan names in a row of its own counts there and nowhere else:
     every other row says „zählt hier nicht". A cell's `dropEffect` is the move, whatever key is held
-    (a browser would copy with Strg). The line under the plan names the key. Until
+    (a browser would copy with Strg). The line under the plan names the key. Since Folia 1.89.2 the
+    plan shows where it fits before the pointer gets there (owner, 2026-11-10: „für die drag and
+    drop animation/farbgebung nochmal eine überarbeitung haben, so dass man einfacher erkennen kann,
+    wo das rein passt und wo nicht"; `grid::Fit`, `Aim::fit_of`, the panel's `data-drag`): as a
+    piece is taken up, every row it counts for by the plan, its own among them, is tinted green, its
+    head with a green bar at its left; every other row grey, its bars and pieces faded; with Strg
+    held (the panel's `data-ex`) those where it would count as an exception turn amber, while a
+    module the plan names in a row of its own leaves them grey. The semester under the pointer is
+    lit more strongly in each row's colour, its head underlined; the cell it lands in is ringed,
+    green or amber, with what a drop does over it: „zählt hier", „als Ausnahme", over a grey row,
+    dashed, „Strg: als Ausnahme" or „zählt hier nicht" and „landet hier" in its own row, where it
+    goes instead. The piece taken up stays as a dashed hole at its place (`is-dragged`), and at the
+    right of the semesters' head a key names the colours: „zählt dort laut Plan", „passt nicht laut
+    Plan", „mit Strg als Ausnahme" (until then only the semester under the pointer and the cell it
+    landed in were lit). Until
     1.69.0 each cell listed the area's modules as plain lines, the plan's open ones in grey. Since
     Folia 1.71.2 the plan's head stays at the top as the semester's does (owner, 2026-11-04: „Ich
     möchte, dass da der header sticky ist von dem Plan. Also ähnlich wie bei dem Semester plan."):

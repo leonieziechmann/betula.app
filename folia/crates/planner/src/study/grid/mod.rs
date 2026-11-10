@@ -341,6 +341,46 @@ fn land(dragged: &Dragged, over: Over) -> Landing {
     Landing { semester: over.semester, area, group, count, refused }
 }
 
+/// What a row of the plan is to a module dragged (owner, 2026-11-10: „für die drag and drop
+/// animation/farbgebung nochmal eine überarbeitung … so dass man einfacher erkennen kann, wo das
+/// rein passt und wo nicht"): where it counts by the plan (its own row among them), where it
+/// would count as an exception with Strg, and where it cannot count at all (a row of the plan's
+/// own module elsewhere, what counts towards none).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Fit {
+    Fits,
+    Exception,
+    No,
+}
+
+/// What `row` is to the module `dragged` (`Fit`), as `land` decides a drop there: an area's row
+/// fits where one of its subgroups does.
+fn fit(dragged: &Dragged, row: RowAt) -> Fit {
+    let counts = dragged.counts.as_ref();
+    match row {
+        RowAt::Group(group) => {
+            if Some(group) == dragged.group || counts.is_some_and(|counts| counts.now == Some(group)) {
+                return Fit::Fits;
+            }
+            match counts.and_then(|counts| counts.targets.get(group)) {
+                Some(target) if target.fits => Fit::Fits,
+                Some(_) => Fit::Exception,
+                None => Fit::No,
+            }
+        }
+        RowAt::Area(area) if area == dragged.area => Fit::Fits,
+        RowAt::Area(None) => Fit::No,
+        RowAt::Area(Some(area)) => {
+            let Some(counts) = counts else { return Fit::No };
+            let mut own = counts.targets.iter().filter(|target| target.area == area).peekable();
+            if own.peek().is_none() {
+                return Fit::No;
+            }
+            if own.any(|target| target.fits) { Fit::Fits } else { Fit::Exception }
+        }
+    }
+}
+
 /// A module dragged over the Gesamtplan (owner, 2026-11-04: „wenn man ein modul drag and dropped,
 /// soll einfach das gesamte semester die dropstelle sein und light gehighlighted werden mit der
 /// stelle, wo es final landen soll dann särker"): the semester under the pointer, anywhere in its
@@ -421,6 +461,34 @@ impl Aim {
         }
     }
 
+    /// What `row` is to the module dragged, while one is: one memo for a row's head, its cells and
+    /// its lanes.
+    fn fit_of(self, row: RowAt) -> Memo<Option<Fit>> {
+        Memo::new(move |_| self.what.with(|what| what.as_ref().map(|dragged| fit(dragged, row))))
+    }
+
+    /// Whether a module is being dragged.
+    fn dragging(self) -> bool {
+        self.what.with(Option::is_some)
+    }
+
+    /// Whether Strg (⌘) is held over the plan while a module that may count elsewhere is dragged:
+    /// the rows it would count for as an exception say so (app.css `[data-ex]`).
+    fn exception_held(self) -> bool {
+        self.what.with(|what| what.as_ref().is_some_and(|dragged| dragged.counts.is_some())) && self.over.with(|over| over.is_some_and(|over| over.exception))
+    }
+
+    /// Whether the piece of item `key` in semester `s` is the one taken up.
+    fn taken(self, s: SemesterKey, key: &str) -> bool {
+        self.what.with(|what| what.as_ref().is_some_and(|dragged| dragged.semester == s && dragged.key == key))
+    }
+
+    /// Whether a drop at the cell of `row` in semester `s` counts there as an exception.
+    fn lands_as_exception(self, s: SemesterKey, row: RowAt) -> bool {
+        self.landing.with(|landing| landing.is_some_and(|landing| landing.semester == s && landing.count.is_some_and(|(_, exception)| exception)))
+            && self.over.with(|over| over.is_some_and(|over| over.row == Some(row)))
+    }
+
     /// Whether semester `s` is where a drop would move the module: its column lit.
     fn column(self, s: SemesterKey) -> bool {
         self.over.with(|over| over.is_some_and(|over| over.semester == s))
@@ -437,23 +505,28 @@ impl Aim {
         self.lands(s, area, group, sub) && self.landing.with(|landing| landing.is_some_and(|landing| landing.count.is_none())) && self.what.with(|what| what.as_ref().is_some_and(|dragged| keys.contains(&dragged.key)))
     }
 
-    /// What the cell of `row` in semester `s` says while the module is over it: that it counts
-    /// there as an exception, or that it does not count there (and what Strg does).
+    /// What the cell of `row` in semester `s` says while the module is over the plan: under the
+    /// pointer, that it counts there („zählt hier"), as an exception („als Ausnahme"), or not (and
+    /// what Strg does); where it lands instead of a row that does not take it, „landet hier" (in
+    /// its area's row).
     fn hint(self, s: SemesterKey, row: RowAt, t: &'static Texts) -> Option<(&'static str, String)> {
         let st = &t.study;
         let landing = self.landing.get()?;
         let over = self.over.get()?;
-        if over.semester != s || over.row != Some(row) {
+        if over.semester != s {
             return None;
         }
-        if landing.count.is_some_and(|(_, exception)| exception) {
-            return Some(("st-rm-hint ex", st.drop_as_exception.to_string()));
+        if over.row == Some(row) {
+            if let Some((_, exception)) = landing.count {
+                return Some(if exception { ("st-rm-hint ex", st.drop_as_exception.to_string()) } else { ("st-rm-hint fit", st.drop_counts_here.to_string()) });
+            }
+            if landing.refused == Some(row) {
+                let counts = self.what.with(|what| what.as_ref().is_some_and(|dragged| dragged.counts.is_some()));
+                return Some(("st-rm-hint", if counts { (st.drop_exception)(&folia_design::keys::text_here("Mod")) } else { st.drop_refused.to_string() }));
+            }
+            return None;
         }
-        if landing.refused == Some(row) {
-            let counts = self.what.with(|what| what.as_ref().is_some_and(|dragged| dragged.counts.is_some()));
-            return Some(("st-rm-hint", if counts { (st.drop_exception)(&folia_design::keys::text_here("Mod")) } else { st.drop_refused.to_string() }));
-        }
-        None
+        (landing.refused.is_some() && row == RowAt::Area(landing.area)).then(|| ("st-rm-hint fit", st.drop_lands_here.to_string()))
     }
 }
 
@@ -613,8 +686,16 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
         ctx.full.track();
         request_animation_frame(measure);
     });
+    // Only a change of its width: its height changes with every frame of a row unfolding or
+    // folding, and measuring all of the plan then made those frames stutter (until Folia 1.89.2).
+    let width = StoredValue::new(None::<f64>);
     Effect::new(move |_| {
         let watch = nav::watch_size(PANEL_ID, move || {
+            let now = dom::width_of(PANEL_ID);
+            if width.get_value().is_some_and(|before| (before - now).abs() < 0.5) {
+                return;
+            }
+            width.set_value(Some(now));
             measure();
             show_now(false);
         });
@@ -643,6 +724,8 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
             id=PANEL_ID
             aria-label=s.grid_title
             data-moved=move || past.moved.get()
+            data-drag=move || aim.dragging().then_some("")
+            data-ex=move || aim.exception_held().then_some("")
             on:dragenter=move |ev: leptos::ev::DragEvent| aim.follow(&ev)
             on:dragover=move |ev: leptos::ev::DragEvent| aim.follow(&ev)
             on:dragleave=move |ev: leptos::ev::DragEvent| if dom::drag_left(&ev) { aim.over.set(None) }
@@ -652,6 +735,17 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
                 <div class="st-sems-head">
                     <h2>{s.grid_title}</h2>
                     <span class="st-grow"></span>
+                    // While a module is dragged, what the rows' colours say, over the buttons.
+                    {move || aim.dragging().then(|| {
+                        let elsewhere = aim.what.with(|what| what.as_ref().is_some_and(|dragged| dragged.counts.is_some()));
+                        view! {
+                            <div class="st-rm-dragkey" aria-hidden="true">
+                                <span><i class="k fit"></i>{s.drag_key_fits}</span>
+                                <span><i class="k no"></i>{s.drag_key_no}</span>
+                                {elsewhere.then(|| view! { <span><i class="k ex"></i>{(s.drag_key_exception)(&folia_design::keys::text_here("Mod"))}</span> })}
+                            </div>
+                        }
+                    })}
                     <button class="st-link st-rm-all" type="button" on:click=move |_| {
                         if all_open.get_untracked() { unfolded.keep(BTreeSet::new()) } else { unfolded.keep(keys.get_untracked()) }
                     }>
@@ -843,13 +937,21 @@ fn row_view(frame: &RowFrame, row: AreaRow) -> AnyView {
     let name = row.name.clone();
     let (open, folding) = unfolded.state(name.clone());
     let of = Of { area: row.area, group: None, kind: None, sub: false, tone: row.tone };
+    let aim = frame.aim;
+    let fit = aim.fit_of(of.row_at());
+    // A row of one lane does not unfold (`AreaRow::unfolds`).
+    let unfolds = row.unfolds();
     let toggle = {
         let name = name.clone();
         move |_| unfolded.toggle(&name)
     };
     let unfold = {
         let name = name.clone();
-        move || unfolded.unfold(&name)
+        move || {
+            if unfolds {
+                unfolded.unfold(&name);
+            }
+        }
     };
     let figure = if row.done {
         view! { <span class="st-card-lp done"><Icon name="check"/>{row.figure.clone()}</span> }.into_any()
@@ -871,30 +973,41 @@ fn row_view(frame: &RowFrame, row: AreaRow) -> AnyView {
     let inner = move || {
         let came = !first.get_value();
         first.set_value(false);
-        shown.get().then(|| {
+        (unfolds && shown.get()).then(|| {
             if subs.is_empty() {
-                lanes.iter().cloned().enumerate().map(|(i, lane)| lane_view(&inner_frame, lane, of, i + 1 == last_lane, came, folding.into(), 0)).collect_view().into_any()
+                lanes.iter().cloned().enumerate().map(|(i, lane)| lane_view(&inner_frame, lane, of, fit, i + 1 == last_lane, came, folding.into(), 0)).collect_view().into_any()
             } else {
                 subs.iter().cloned().map(|sub| sub_view(&inner_frame, sub, of, came, folding)).collect_view().into_any()
             }
         })
     };
-    view! {
-        <div class="st-row-head st-rm-head" class:is-open=move || open.get() style=tone_style(row.tone)>
+    let text = view! {
+        <span class="st-rm-area-t">
+            <span class="st-card-head"><span class="st-dot"></span><span class="st-card-name">{row.name.clone()}</span>{figure}</span>
+            <span class="st-mini">
+                <span class="passed" style=format!("flex-grow: {passed}")></span>
+                <span class="planned" style=format!("flex-grow: {planned}")></span>
+                <span class="open" style=format!("flex-grow: {rest}")></span>
+                <span class="over" style=format!("flex-grow: {over}")></span>
+            </span>
+        </span>
+    };
+    let head = if unfolds {
+        view! {
             <button type="button" class="st-rm-area" aria-expanded=move || if open.get() { "true" } else { "false" } aria-label=label on:click=toggle>
                 <span class="st-rm-tog" aria-hidden="true"><Icon name="chevron-right"/></span>
-                <span class="st-rm-area-t">
-                    <span class="st-card-head"><span class="st-dot"></span><span class="st-card-name">{row.name.clone()}</span>{figure}</span>
-                    <span class="st-mini">
-                        <span class="passed" style=format!("flex-grow: {passed}")></span>
-                        <span class="planned" style=format!("flex-grow: {planned}")></span>
-                        <span class="open" style=format!("flex-grow: {rest}")></span>
-                        <span class="over" style=format!("flex-grow: {over}")></span>
-                    </span>
-                </span>
+                {text}
             </button>
+        }
+        .into_any()
+    } else {
+        view! { <div class="st-rm-area still"><span class="st-rm-tog" aria-hidden="true"></span>{text}</div> }.into_any()
+    };
+    view! {
+        <div class="st-row-head st-rm-head" class:is-open=move || unfolds && open.get() class:rm-fit=move || fit.get() == Some(Fit::Fits) class:rm-ex=move || fit.get() == Some(Fit::Exception) class:rm-no=move || fit.get() == Some(Fit::No) style=tone_style(row.tone)>
+            {head}
         </div>
-        {cells.into_iter().enumerate().map(|(at, cell)| cell_view(frame, cell, of, &name, frame.today_at == Some(at), unfold.clone(), None)).collect_view()}
+        {cells.into_iter().enumerate().map(|(at, cell)| cell_view(frame, cell, of, fit, &name, frame.today_at == Some(at), unfold.clone(), !unfolds, None)).collect_view()}
         {inner}
     }
     .into_any()
@@ -909,13 +1022,20 @@ fn sub_view(frame: &RowFrame, sub: SubRow, area: Of, came: bool, area_folding: M
     let key = sub.key.clone();
     let (open, folding) = unfolded.state(key.clone());
     let of = Of { area: area.area, group: sub.group, kind: sub.kind, sub: true, tone: area.tone };
+    let fit = frame.aim.fit_of(of.row_at());
+    // A place for one module does not unfold (`SubRow::unfolds`).
+    let unfolds = sub.unfolds();
     let toggle = {
         let key = key.clone();
         move |_| unfolded.toggle(&key)
     };
     let unfold = {
         let key = key.clone();
-        move || unfolded.unfold(&key)
+        move || {
+            if unfolds {
+                unfolded.unfold(&key);
+            }
+        }
     };
     let label = {
         let name = sub.name.clone();
@@ -932,7 +1052,7 @@ fn sub_view(frame: &RowFrame, sub: SubRow, area: Of, came: bool, area_folding: M
         // Unfolded with its area, its lanes come with it.
         let lanes_came = if first.get_value() { came } else { true };
         first.set_value(false);
-        shown.get().then(|| lanes.iter().cloned().enumerate().map(|(i, lane)| lane_view(&inner_frame, lane, of, i + 1 == last_lane, lanes_came, out.into(), 1)).collect_view())
+        (unfolds && shown.get()).then(|| lanes.iter().cloned().enumerate().map(|(i, lane)| lane_view(&inner_frame, lane, of, fit, i + 1 == last_lane, lanes_came, out.into(), 1)).collect_view())
     };
     let figure = if sub.done {
         view! { <span class="st-card-lp done"><Icon name="check"/>{sub.figure.clone()}</span> }.into_any()
@@ -940,17 +1060,37 @@ fn sub_view(frame: &RowFrame, sub: SubRow, area: Of, came: bool, area_folding: M
         view! { <span class="st-card-lp">{sub.figure.clone()}</span> }.into_any()
     };
     let stand = sub.stand.map(|(stand, room)| stand_bar(&stand, room, "st-rm-wbar", t));
-    view! {
-        <div class="st-row-head st-rm-head st-rm-sub" class:is-open=move || open.get() class:rm-in=came class:rm-out=move || area_folding.get() style=tone_style(area.tone)>
+    let text = view! {
+        <span class="st-rm-area-t">
+            <span class="st-card-head"><span class="st-card-name">{sub.name.clone()}</span></span>
+            <span class="st-rm-subline">{stand}{figure}</span>
+        </span>
+    };
+    let head = if unfolds {
+        view! {
             <button type="button" class="st-rm-area" aria-expanded=move || if open.get() { "true" } else { "false" } aria-label=label title=sub.title.clone() on:click=toggle>
                 <span class="st-rm-tog" aria-hidden="true"><Icon name="chevron-right"/></span>
-                <span class="st-rm-area-t">
-                    <span class="st-card-head"><span class="st-card-name">{sub.name.clone()}</span></span>
-                    <span class="st-rm-subline">{stand}{figure}</span>
-                </span>
+                {text}
             </button>
+        }
+        .into_any()
+    } else {
+        view! { <div class="st-rm-area still" title=sub.title.clone()><span class="st-rm-tog" aria-hidden="true"></span>{text}</div> }.into_any()
+    };
+    view! {
+        <div
+            class="st-row-head st-rm-head st-rm-sub"
+            class:is-open=move || unfolds && open.get()
+            class:rm-in=came
+            class:rm-out=move || area_folding.get()
+            class:rm-fit=move || fit.get() == Some(Fit::Fits)
+            class:rm-ex=move || fit.get() == Some(Fit::Exception)
+            class:rm-no=move || fit.get() == Some(Fit::No)
+            style=tone_style(area.tone)
+        >
+            {head}
         </div>
-        {sub.cells.into_iter().enumerate().map(|(at, cell)| cell_view(frame, cell, of, &sub.name, frame.today_at == Some(at), unfold.clone(), Some((came, area_folding)))).collect_view()}
+        {sub.cells.into_iter().enumerate().map(|(at, cell)| cell_view(frame, cell, of, fit, &sub.name, frame.today_at == Some(at), unfold.clone(), !unfolds, Some((came, area_folding)))).collect_view()}
         {inner}
     }
     .into_any()
@@ -958,8 +1098,11 @@ fn sub_view(frame: &RowFrame, sub: SubRow, area: Of, came: bool, area_folding: M
 
 /// A cell of a row's bar: its pieces, „n Module" where they do not fit (`dom::fit_pieces`), and
 /// „+" for the workbench. A subsection's cell (`sub`: whether it came, and its area folding) grows
-/// in and shrinks away with it.
-fn cell_view(frame: &RowFrame, cell: Cell, of: Of, row_name: &str, now_line: bool, unfold: impl Fn() + Clone + 'static, sub: Option<(bool, Memo<bool>)>) -> AnyView {
+/// in and shrinks away with it. In a row that does not unfold (`still`) no „n Module" stands for
+/// its pieces, whose lanes would have them one by one: they narrow, their labels cut, each still
+/// its own button (app.css `.st-rm-cell.still`).
+#[allow(clippy::too_many_arguments)]
+fn cell_view(frame: &RowFrame, cell: Cell, of: Of, fit: Memo<Option<Fit>>, row_name: &str, now_line: bool, unfold: impl Fn() + Clone + 'static, still: bool, sub: Option<(bool, Memo<bool>)>) -> AnyView {
     let RowFrame { ctx, past, aim, t, .. } = frame.clone();
     let s = &t.study;
     let tone = of.tone;
@@ -970,7 +1113,7 @@ fn cell_view(frame: &RowFrame, cell: Cell, of: Of, row_name: &str, now_line: boo
     let out = move || folding.is_some_and(|folding| folding.get());
     match cell {
         Cell::Past { passed, any_passed, failed, title } => view! {
-            <div class="st-cell st-rm-cell past" class:sub=of.sub class:rm-in=came class:rm-out=out style=tone_style(tone)>
+            <div class="st-cell st-rm-cell past" class:sub=of.sub class:rm-in=came class:rm-out=out class:rm-fit=move || fit.get() == Some(Fit::Fits) class:rm-ex=move || fit.get() == Some(Fit::Exception) class:rm-no=move || fit.get() == Some(Fit::No) style=tone_style(tone)>
                 {(any_passed || failed > 0).then(|| view! {
                     <button type="button" class="st-rm-p stub" class:passed=any_passed class:failed=!any_passed title=title.clone() aria-label=title on:click=move |_| past.set(false)>
                         {any_passed.then(|| view! { <Icon name="check"/><span class="lb">{n(passed, t)}</span> })}
@@ -1035,6 +1178,7 @@ fn cell_view(frame: &RowFrame, cell: Cell, of: Of, row_name: &str, now_line: boo
                 <div
                     class="st-cell st-rm-cell"
                     class:sub=of.sub
+                    class:still=still
                     class:rm-in=came
                     class:rm-out=out
                     class:is-now=cell.when == When::Now
@@ -1044,6 +1188,10 @@ fn cell_view(frame: &RowFrame, cell: Cell, of: Of, row_name: &str, now_line: boo
                     class:rm-drop=move || aim.column(semester)
                     class:rm-drop-here=move || aim.lands(semester, of.area, of.group, of.sub)
                     class:rm-drop-no=move || aim.landing.with(|landing| landing.is_some_and(|landing| landing.semester == semester && landing.refused == Some(row_at)))
+                    class:rm-land-ex=move || aim.lands_as_exception(semester, row_at)
+                    class:rm-fit=move || fit.get() == Some(Fit::Fits)
+                    class:rm-ex=move || fit.get() == Some(Fit::Exception)
+                    class:rm-no=move || fit.get() == Some(Fit::No)
                     style=tone_style(tone)
                     data-sem=semester.key()
                     data-row=row_at.attr()
@@ -1052,19 +1200,21 @@ fn cell_view(frame: &RowFrame, cell: Cell, of: Of, row_name: &str, now_line: boo
                         <div class="st-rm-seg">
                             {pieces.into_iter().map(|piece| piece_view(frame, piece, semester, of, unfold.clone())).collect_view()}
                         </div>
-                        <div class="st-rm-sum">
-                            {(!real.is_empty()).then(|| view! {
-                                <button type="button" class=format!("st-rm-p sum {}{}", sum_fill.class(), if cell.when == When::Now { " now" } else { "" }) title=sum_title.clone() aria-label=format!("{count} · {sum_credits}") on:click=move |_| unfold_sum()>
-                                    <span class="lb">{count.clone()}<span class="st-rm-lp">" · "{sum_credits.clone()}</span></span>
-                                    {(failed > 0).then(|| view! { <span class="st-rm-badge">"✕ "{failed}</span> })}
-                                </button>
-                            })}
-                            {(open_count > 0).then(|| view! {
-                                <button type="button" class="st-rm-p open sum-open" title=open_title.clone() aria-label=open_title on:click=move |_| unfold_open()>
-                                    {(open_count > 1).then(|| view! { <Icon name="plus"/> })}<span class="lb">{open_label.clone()}</span>
-                                </button>
-                            })}
-                        </div>
+                        {(!still).then(|| view! {
+                            <div class="st-rm-sum">
+                                {(!real.is_empty()).then(|| view! {
+                                    <button type="button" class=format!("st-rm-p sum {}{}", sum_fill.class(), if cell.when == When::Now { " now" } else { "" }) title=sum_title.clone() aria-label=format!("{count} · {sum_credits}") on:click=move |_| unfold_sum()>
+                                        <span class="lb">{count.clone()}<span class="st-rm-lp">" · "{sum_credits.clone()}</span></span>
+                                        {(failed > 0).then(|| view! { <span class="st-rm-badge">"✕ "{failed}</span> })}
+                                    </button>
+                                })}
+                                {(open_count > 0).then(|| view! {
+                                    <button type="button" class="st-rm-p open sum-open" title=open_title.clone() aria-label=open_title on:click=move |_| unfold_open()>
+                                        {(open_count > 1).then(|| view! { <Icon name="plus"/> })}<span class="lb">{open_label.clone()}</span>
+                                    </button>
+                                })}
+                            </div>
+                        })}
                     })}
                     <button type="button" class="st-cell-add" class:st-rm-add=!empty title=for_cell.clone() aria-label=for_cell on:click=move |_| bench::enter(ctx, semester, pick)>
                         <Icon name="plus"/>{empty.then_some(s.add_in_cell)}
@@ -1103,6 +1253,7 @@ fn piece_view(frame: &RowFrame, piece: Piece, semester: SemesterKey, of: Of, unf
             aria-label=format!("{}, {}", piece.label, piece.title)
             aria-haspopup="menu"
             draggable="true"
+            class:is-dragged=move || key.with_value(|key| aim.taken(semester, key))
             on:dragstart=move |ev: leptos::ev::DragEvent| aim.start(ctx, &ev, semester, key.get_value(), of.area, of.group, t)
             on:dragend=move |_| aim.end(ctx)
             on:click=move |ev: leptos::ev::MouseEvent| menu::open_at_button(ctx, MenuFor::Item { semester, key: key.get_value(), view: true }, &ev)
@@ -1143,13 +1294,14 @@ fn piece_inner(piece: &Piece, word: Option<&'static str>) -> AnyView {
 /// A lane: the module's name and credits, its piece in each semester it is in, a retake's arrow.
 /// Each of its cells grows in where it `came` with its row unfolding, and shrinks away while the
 /// row is `folding`: all together, so that the row of the grid does. `depth` 1 for a subsection's.
-fn lane_view(frame: &RowFrame, lane: Lane, of: Of, last: bool, came: bool, folding: Signal<bool>, depth: u8) -> AnyView {
+#[allow(clippy::too_many_arguments)]
+fn lane_view(frame: &RowFrame, lane: Lane, of: Of, fit: Memo<Option<Fit>>, last: bool, came: bool, folding: Signal<bool>, depth: u8) -> AnyView {
     let RowFrame { aim, today_at, columns, .. } = frame.clone();
     let (name, title) = (lane.name.clone(), lane.title.clone());
     let keys = StoredValue::new(lane.keys.clone());
     let row_at = of.row_at();
     view! {
-        <div class="st-rm-lane" class:deep={depth > 0} class:last=last class:rm-in=came class:rm-out=move || folding.get() style=tone_style(of.tone)>
+        <div class="st-rm-lane" class:deep={depth > 0} class:last=last class:rm-in=came class:rm-out=move || folding.get() class:rm-fit=move || fit.get() == Some(Fit::Fits) class:rm-ex=move || fit.get() == Some(Fit::Exception) class:rm-no=move || fit.get() == Some(Fit::No) style=tone_style(of.tone)>
             <span class="st-rm-lane-name" title=title>{name}</span>
             <span class="st-rm-lane-lp">{lane.credits.clone()}</span>
         </div>
@@ -1168,6 +1320,9 @@ fn lane_view(frame: &RowFrame, lane: Lane, of: Of, last: bool, came: bool, foldi
                     class:link-in=into
                     class:rm-drop=move || semester.is_some_and(|s| aim.column(s))
                     class:rm-drop-here=move || semester.is_some_and(|s| keys.with_value(|keys| aim.lands_in(s, of.area, of.group, of.sub, keys)))
+                    class:rm-fit=move || fit.get() == Some(Fit::Fits)
+                    class:rm-ex=move || fit.get() == Some(Fit::Exception)
+                    class:rm-no=move || fit.get() == Some(Fit::No)
                     style=tone_style(of.tone)
                     data-sem=semester.map(SemesterKey::key)
                     data-row=row_at.attr()
@@ -1203,6 +1358,7 @@ fn lane_bar(frame: &RowFrame, piece: Piece, word: &'static str, of: Of) -> AnyVi
             aria-label=format!("{}, {}", piece.label, piece.title)
             aria-haspopup="menu"
             draggable="true"
+            class:is-dragged=move || key.with_value(|key| aim.taken(semester, key))
             on:dragstart=move |ev: leptos::ev::DragEvent| aim.start(ctx, &ev, semester, key.get_value(), of.area, of.group, t)
             on:dragend=move |_| aim.end(ctx)
             on:click=move |ev: leptos::ev::MouseEvent| menu::open_at_button(ctx, MenuFor::Item { semester, key: key.get_value(), view: true }, &ev)
