@@ -6,8 +6,10 @@
 //! profile. Another tab's change of a store waits under `betula.sync.c.…` until the leader takes
 //! it (a storage event, or the next start), in the order it was made. What came from another
 //! device the leader writes into the stores' texts, and every tab's stores read them again
-//! (`Profiles::wrote`, storage events). A tab that becomes visible takes the lead: the phone in the
-//! hand is the one that is live.
+//! (`Profiles::wrote`, storage events). A tab that is opened in front or becomes visible takes the
+//! lead, and so does a tab that switches a profile on, joins or hands it on (`lead_here`): the
+//! phone in the hand is the one that is live. Phloem is reached over its WebSocket, else over
+//! plain HTTPS (`poll`).
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, VecDeque};
@@ -27,6 +29,7 @@ use folia_calendar::live::{following, LivePart};
 use folia_plans::shares::{join_link, split_link, Share, ShareTo};
 use folia_plans::studyplan::PlanDoc;
 
+mod poll;
 mod rtc;
 
 use super::codes::{b64, unb64, KEY};
@@ -658,7 +661,7 @@ pub struct Engine {
     profile: u16,
     core: RefCell<Core>,
     keys: Keys,
-    socket: RefCell<Option<WebSocket>>,
+    socket: RefCell<Option<Line>>,
     /// What came over the socket, to be read in order (opening a seal waits for WebCrypto).
     inbox: RefCell<VecDeque<In>>,
     reading: RefCell<bool>,
@@ -682,6 +685,14 @@ pub struct Engine {
     watched: RefCell<Vec<String>>,
     /// The socket said welcome and is open.
     welcomed: Cell<bool>,
+    /// A new welcome is asked for (`again_soon`).
+    again: Cell<bool>,
+    /// Tries in a row that came to no welcome, by either way (`connect`).
+    fails: Cell<u32>,
+    /// The last welcome came over plain HTTPS: that way comes first.
+    poll_works: Cell<bool>,
+    /// The number of the connection tried last (its welcome's time limit).
+    attempt: Cell<u32>,
     /// Its Phloem takes `signal` and `turn` (the welcome says so; an older one closes the socket
     /// on them).
     phloem_live: Cell<bool>,
@@ -709,7 +720,11 @@ impl Engine {
 
     /// Keeps the leader's word on the connections (`live::status_text`) for every tab's page.
     fn status(&self) {
-        let online = (self.welcomed.get() && *self.open.borrow()).then(|| self.online_now());
+        // Online: connected, and the profile at Phloem. A profile switched on a moment ago is not
+        // until its first snapshot is kept, nor a device that joined a space still empty: a link
+        // made before would hand on nothing, and a bar would say the data is in line when none
+        // came (seen 2026-11-10: the device that came found nothing, both said „Verbunden").
+        let online = (self.welcomed.get() && *self.open.borrow() && self.core.borrow().at_phloem).then(|| self.online_now());
         let text = live::status_text(online);
         let slots = devices::slots_text(&if online.is_some() { self.slots_now() } else { Vec::new() });
         let mut changed = false;
@@ -905,9 +920,13 @@ impl Engine {
     }
 
     fn send(&self, out: &Out) -> bool {
+        if !*self.open.borrow() {
+            return false;
+        }
         match self.socket.borrow().as_ref() {
-            Some(socket) if *self.open.borrow() => socket.send_with_str(&out.text()).is_ok(),
-            _ => false,
+            Some(Line::Ws(socket)) => socket.send_with_str(&out.text()).is_ok(),
+            Some(Line::Poll(poll)) => poll.send(out.text()),
+            None => false,
         }
     }
 
@@ -947,22 +966,53 @@ impl Engine {
         }
     }
 
+    fn hello(&self) -> Out {
+        let core = self.core.borrow();
+        Out::Hello { space: b64(&self.keys.space), token: b64(&self.keys.token), device: b64(&core.device), since: core.nr }
+    }
+
+    /// Connects by the way that worked last; after two tries in a row without a welcome, by the
+    /// other way every second try: the WebSocket, else plain HTTPS (`poll`), so that a network
+    /// that breaks one still lets the other through (owner, 2026-11-10: „wenn eine methode nicht
+    /// funktioniert muss dann halt ausgewichen werden auf eine andere die grantiert läuft").
     fn connect(self: &Rc<Self>) {
         if *self.closed.borrow() || self.socket.borrow().is_some() {
             return;
         }
-        let Some(url) = socket_url() else { return };
-        let Ok(socket) = WebSocket::new(&url) else {
+        let first = self.poll_works.get();
+        let fails = self.fails.get();
+        let by_poll = if fails < 2 || fails % 2 == 1 { first } else { !first };
+        let attempt = self.attempt.get().wrapping_add(1);
+        self.attempt.set(attempt);
+        if by_poll {
+            self.connect_poll();
+        } else if !self.connect_ws() {
+            self.fails.set(fails.saturating_add(1));
             self.retry();
             return;
-        };
+        }
+        // A connection without a welcome in time counts as failed (a proxy that takes the
+        // upgrade and then holds it): the next try goes on.
+        let weak = Rc::downgrade(self);
+        set_timeout(
+            move || {
+                if let Some(engine) = weak.upgrade() {
+                    if engine.attempt.get() == attempt && !engine.welcomed.get() && engine.socket.borrow().is_some() {
+                        engine.disconnect();
+                    }
+                }
+            },
+            std::time::Duration::from_millis(WELCOME_MS),
+        );
+    }
+
+    fn connect_ws(self: &Rc<Self>) -> bool {
+        let Some(url) = socket_url() else { return false };
+        let Ok(socket) = WebSocket::new(&url) else { return false };
         let engine = Rc::clone(self);
         let on_open = Closure::<dyn FnMut()>::new(move || {
             *engine.open.borrow_mut() = true;
-            let core = engine.core.borrow();
-            let hello = Out::Hello { space: b64(&engine.keys.space), token: b64(&engine.keys.token), device: b64(&core.device), since: core.nr };
-            drop(core);
-            engine.send(&hello);
+            engine.send(&engine.hello());
         });
         let engine = Rc::clone(self);
         let on_message = Closure::<dyn FnMut(MessageEvent)>::new(move |event: MessageEvent| {
@@ -972,25 +1022,64 @@ impl Engine {
             }
         });
         let engine = Rc::clone(self);
-        let on_close = Closure::<dyn FnMut(CloseEvent)>::new(move |event: CloseEvent| {
-            *engine.open.borrow_mut() = false;
-            engine.welcomed.set(false);
-            engine.socket_closed();
-            engine.socket.borrow_mut().take();
-            engine.in_flight.borrow_mut().clear();
-            engine.snapshot_sent.set(false);
-            if !*engine.closed.borrow() {
-                engine.status();
-                if !final_close(event.code()) {
-                    engine.retry();
-                }
-            }
-        });
+        let on_close = Closure::<dyn FnMut(CloseEvent)>::new(move |event: CloseEvent| engine.lost(event.code()));
         socket.set_onopen(Some(on_open.as_ref().unchecked_ref()));
         socket.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
         socket.set_onclose(Some(on_close.as_ref().unchecked_ref()));
         *self.handlers.borrow_mut() = Some(Handlers { _open: on_open, _message: on_message, _close: on_close });
-        *self.socket.borrow_mut() = Some(socket);
+        *self.socket.borrow_mut() = Some(Line::Ws(socket));
+        true
+    }
+
+    /// The same frames over plain HTTPS: open at once, the hello opens the session.
+    fn connect_poll(self: &Rc<Self>) {
+        let weak = Rc::downgrade(self);
+        let on_frame = {
+            let weak = weak.clone();
+            move |text: String| {
+                if let (Some(engine), Some(frame)) = (weak.upgrade(), In::read(&text)) {
+                    engine.inbox.borrow_mut().push_back(frame);
+                    engine.read();
+                }
+            }
+        };
+        let poll = poll::Poll::new(on_frame, move |code| {
+            if let Some(engine) = weak.upgrade() {
+                engine.lost(code);
+            }
+        });
+        *self.socket.borrow_mut() = Some(Line::Poll(poll));
+        *self.open.borrow_mut() = true;
+        self.send(&self.hello());
+    }
+
+    /// The connection ended (closed by either side, lost, or never there): the TURN credential
+    /// goes with it, what was in flight goes again on the next, and the next try comes unless
+    /// Phloem said not to come back.
+    fn lost(self: &Rc<Self>, code: u16) {
+        let Some(line) = self.socket.borrow_mut().take() else { return };
+        let welcomed = self.welcomed.get();
+        if !welcomed {
+            self.fails.set(self.fails.get().saturating_add(1));
+        }
+        // The socket's handlers stay until the next one's take their place (this may run in its
+        // `onclose`, which must not be dropped while it runs); it says nothing more.
+        if let Line::Ws(socket) = &line {
+            socket.set_onopen(None);
+            socket.set_onmessage(None);
+            socket.set_onclose(None);
+        }
+        *self.open.borrow_mut() = false;
+        self.welcomed.set(false);
+        self.socket_closed();
+        self.in_flight.borrow_mut().clear();
+        self.snapshot_sent.set(false);
+        if !*self.closed.borrow() {
+            self.status();
+            if !final_close(code) {
+                self.retry();
+            }
+        }
     }
 
     /// The next try: soon, then less often, at most every half minute.
@@ -1040,9 +1129,13 @@ impl Engine {
         match frame {
             In::Welcome { slot, head, now: server, devices, live, snapshot, entries } => {
                 *self.tries.borrow_mut() = 0;
+                self.fails.set(0);
+                let by_poll = matches!(self.socket.borrow().as_ref(), Some(Line::Poll(_)));
+                self.poll_works.set(by_poll);
                 if server > 0 {
                     nav::local_set(OFFSET_KEY, &(server as i64 - now() as i64).to_string());
                 }
+                self.core.borrow_mut().at_phloem = head > 0 || snapshot.is_some();
                 if let Some(snapshot) = snapshot {
                     let aad = aad(&self.keys.space, "snapshot", Some(snapshot.upto));
                     if let Some(plain) = match unb64(&snapshot.data) {
@@ -1085,16 +1178,33 @@ impl Engine {
                 self.keep_waiting();
                 self.later();
             }
+            // Joined while the space was still empty, and now the other device's records are
+            // there: Phloem hands the snapshot on a welcome alone, so this device connects again
+            // from 0 before it takes anything (else it would hold the entries without the records
+            // they change).
+            In::Entry { .. } if self.waits_for_profile() => self.again_soon(0),
             In::Entry { nr, data, .. } => {
                 self.entry(nr, &data).await;
                 self.later();
             }
             In::Snapshotted { .. } => {
                 self.snapshot_sent.set(false);
-                self.core.borrow_mut().snapshot_due = false;
+                {
+                    let mut core = self.core.borrow_mut();
+                    core.snapshot_due = false;
+                    core.at_phloem = true;
+                }
                 self.keep_waiting();
+                // The first snapshot kept: online from now on (`status`).
+                self.status();
             }
-            In::Presence { devices } => self.online(&devices),
+            In::Presence { devices } => {
+                // Another device came while this one waits for the profile: it may bring it.
+                if self.waits_for_profile() && devices.len() > 1 {
+                    self.again_soon(2_000);
+                }
+                self.online(&devices);
+            }
             In::Signal { from, data } => self.signal(from, &data).await,
             In::Turn { urls, user, password } => self.got_ice(live::Ice { urls, user, password }),
             In::Compact => {
@@ -1185,10 +1295,44 @@ impl Engine {
         });
     }
 
+    /// This device joined a space that holds nothing yet (the device that gave the profile has
+    /// not sent its records): it has none of its own to send either.
+    fn waits_for_profile(&self) -> bool {
+        let core = self.core.borrow();
+        self.welcomed.get() && !core.at_phloem && !core.snapshot_due && core.nr == 0
+    }
+
+    /// Connects again in `ms` (a new welcome), once at a time.
+    fn again_soon(self: &Rc<Self>, ms: u64) {
+        if self.again.replace(true) {
+            return;
+        }
+        let engine = Rc::clone(self);
+        set_timeout(
+            move || {
+                engine.again.set(false);
+                if !*engine.closed.borrow() && engine.waits_for_profile() {
+                    engine.disconnect();
+                }
+            },
+            std::time::Duration::from_millis(ms),
+        );
+    }
+
     /// Lets the socket go (the network is gone); the engine tries again as after any close.
     fn disconnect(&self) {
-        if let Some(socket) = self.socket.borrow().as_ref() {
-            let _ = socket.close();
+        // The socket's close comes as an event; a session's end at once (`lost`), so no borrow
+        // of the line may be held then.
+        let poll = match self.socket.borrow().as_ref() {
+            Some(Line::Ws(socket)) => {
+                let _ = socket.close();
+                None
+            }
+            Some(Line::Poll(poll)) => Some(Rc::clone(poll)),
+            None => None,
+        };
+        if let Some(poll) = poll {
+            poll.close();
         }
         self.welcomed.set(false);
         self.status();
@@ -1202,15 +1346,30 @@ impl Engine {
             self.keep_records();
         }
         self.close_live();
-        if let Some(socket) = self.socket.borrow_mut().take() {
-            socket.set_onopen(None);
-            socket.set_onmessage(None);
-            socket.set_onclose(None);
-            let _ = socket.close();
+        let line = self.socket.borrow_mut().take();
+        match line {
+            Some(Line::Ws(socket)) => {
+                socket.set_onopen(None);
+                socket.set_onmessage(None);
+                socket.set_onclose(None);
+                let _ = socket.close();
+            }
+            // Its end finds no line any more (`lost`) and the engine closed: nothing follows.
+            Some(Line::Poll(poll)) => poll.close(),
+            None => {}
         }
         self.handlers.borrow_mut().take();
     }
 }
+
+/// How the engine talks to Phloem: its WebSocket, or the same frames over plain HTTPS.
+enum Line {
+    Ws(WebSocket),
+    Poll(Rc<poll::Poll>),
+}
+
+/// How long a connection may take to its welcome before it counts as failed (ms).
+const WELCOME_MS: u64 = 10_000;
 
 // ---- shares (step 3) ----
 
@@ -2004,6 +2163,10 @@ async fn lead(sync: Sync, profiles: Profiles) {
         renew_again: Cell::new(false),
         watched: RefCell::new(Vec::new()),
         welcomed: Cell::new(false),
+        again: Cell::new(false),
+        fails: Cell::new(0),
+        poll_works: Cell::new(false),
+        attempt: Cell::new(0),
         phloem_live: Cell::new(false),
         live: RefCell::new(rtc::Live::default()),
     });
@@ -2069,7 +2232,9 @@ fn leads() -> bool {
 /// Starts it in this tab: asks for the lead, follows the active profile, takes what other tabs
 /// leave, and comes back online when the network does.
 pub fn start_tab(sync: Sync, profiles: Profiles) {
-    ask_lead(sync, profiles, false);
+    // A tab opened in front leads at once, as one that comes to the front does: the page the
+    // person looks at is the one that is live.
+    ask_lead(sync, profiles, shown());
     learn_model();
     // This device's record, when it was last seen, while it stays connected (`Engine::announce`).
     let _ = set_interval_with_handle(
@@ -2130,7 +2295,7 @@ pub fn start_tab(sync: Sync, profiles: Profiles) {
         }
     });
     let visible = window_event_listener_untyped("visibilitychange", move |_| {
-        let shown = web_sys::window().and_then(|w| w.document()).is_some_and(|d| d.visibility_state() == web_sys::VisibilityState::Visible);
+        let shown = shown();
         if shown && !leads() {
             ask_lead(sync, profiles, true);
         } else if !shown {
@@ -2152,13 +2317,37 @@ pub fn start_tab(sync: Sync, profiles: Profiles) {
 }
 
 
-/// Leads again where this tab leads: the active profile may sync now (activated, joined).
-pub fn lead_again(sync: Sync) {
+/// This tab leads from now on, for the active profile, which may sync now (switched on, joined,
+/// handed on): the connection is in the tab the person acts in, never only in another tab that
+/// may not come to it (a tab in the background a browser froze, one of an older build; seen
+/// 2026-11-10: a profile switched on whose records never reached Phloem).
+pub fn lead_here(sync: Sync) {
     if let Some(profiles) = sync.profiles {
         if leads() {
             leptos::task::spawn_local(lead(sync, profiles));
+        } else {
+            ask_lead(sync, profiles, true);
         }
     }
+}
+
+/// Waits until profile `profile` is online here with its records at Phloem (`State::Online`), at
+/// most `ms`: whether it is.
+pub async fn until_online(profile: u16, ms: u64) -> bool {
+    let started = now();
+    loop {
+        if matches!(state_of(profile), State::Online { .. }) {
+            return true;
+        }
+        if now().saturating_sub(started) >= ms {
+            return false;
+        }
+        sleep(150).await;
+    }
+}
+
+fn shown() -> bool {
+    web_sys::window().and_then(|w| w.document()).is_some_and(|d| d.visibility_state() == web_sys::VisibilityState::Visible)
 }
 
 /// The hints a page has read (`dismiss`), in every tab.

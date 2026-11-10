@@ -59,11 +59,14 @@ pub struct Core {
     pub snapshot_due: bool,
     /// The records of the profile's devices (`super::devices`) changed since they were last kept.
     pub devices_touched: bool,
+    /// Phloem holds the profile: its welcome brought a snapshot or entries, or it kept this
+    /// device's first snapshot. Not kept: every connection finds it out anew.
+    pub at_phloem: bool,
 }
 
 impl Core {
     pub fn new(key: [u8; KEY], device: [u8; DEVICE]) -> Self {
-        Core { key, device, slot: 0, nr: 0, above: BTreeSet::new(), doc: Doc::default(), writer: None, seq: 0, last: Hlc::default(), outbox: Vec::new(), raw: Vec::new(), touched: BTreeSet::new(), snapshot_due: false, devices_touched: false }
+        Core { key, device, slot: 0, nr: 0, above: BTreeSet::new(), doc: Doc::default(), writer: None, seq: 0, last: Hlc::default(), outbox: Vec::new(), raw: Vec::new(), touched: BTreeSet::new(), snapshot_due: false, devices_touched: false, at_phloem: false }
     }
 
     /// The slot Phloem gave (on making the space, or in its welcome): the writer goes on after

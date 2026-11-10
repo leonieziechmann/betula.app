@@ -147,11 +147,12 @@ pub fn ConnectPage() -> impl IntoView {
             set_timeout(move || { slow.try_set(true); }, std::time::Duration::from_millis(crate::sync::SYNC_WAIT_MS));
         }
     });
+    // In line once this device is online with the profile, its records at Phloem and here: never
+    // before (a bar that ended without them said „Verbunden" for a profile that was not there).
+    let online = Signal::derive(move || profiles.is_some_and(|profiles| matches!(sync.map(|sync| sync.state(profiles.active())), Some(State::Online { .. }))));
     let reached = Signal::derive(move || match step.get() {
-        Step::Joined(_) => {
-            let online = profiles.is_some_and(|profiles| matches!(sync.map(|sync| sync.state(profiles.active())), Some(State::Online { .. })));
-            if online || slow.get() { 2 } else { 1 }
-        }
+        Step::Joined(_) if online.get() => 2,
+        Step::Joined(_) => 1,
         _ => 0,
     });
     let join_part = move || {
@@ -160,6 +161,7 @@ pub fn ConnectPage() -> impl IntoView {
                 return view! {
                     <p class="pf-sub">{s.connecting}</p>
                     <ConnectProgress phases=ways::getting() reached on_done=Callback::new(move |()| shown_done.set(true))/>
+                    {move || (slow.get() && !online.get()).then(|| view! { <p class="pf-sub pf-still" role="status">{s.still_connecting}</p> })}
                 }
                 .into_any();
             }

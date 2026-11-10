@@ -80,6 +80,11 @@ pub fn DevicesStep(on_finish: Callback<()>) -> impl IntoView {
         sync.pair(id.get_untracked(), move |made| {
             // Still the question of this step: a link made for what is gone is not shown.
             if link.try_with_untracked(|now| *now == Link::Making).unwrap_or(false) {
+                // The link waits for the profile to be online (`Sync::pair`): the devices online
+                // now are the ones to compare with.
+                if let Some(State::Online { devices, .. }) = state.try_get_untracked() {
+                    before.try_set(devices);
+                }
                 link.try_set(match made {
                     Ok(pairing) => Link::Made(pairing),
                     Err(problem) => Link::Failed(problem),
