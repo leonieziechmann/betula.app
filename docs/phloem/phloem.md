@@ -10,7 +10,7 @@ decisions are in `research/sync/entwurf.html` and, for sharing (step 3),
 | | |
 |---|---|
 | code | `phloem/`, a Go module of its own (`cmd/phloem`, `internal/{server,store,metrics,oplog,dotenv,version}`), its firewall `phloem/deploy/firewall.nft` |
-| version | `phloem/internal/version/version.go` (0.2.0); `phloem version` and `phloem_build_info` show it with the build (the start of the executable's SHA-256) |
+| version | `phloem/internal/version/version.go` (0.4.0); `phloem version` and `phloem_build_info` show it with the build (the start of the executable's SHA-256) |
 | builds | `nix build .#phloem` (the binary, its tests run in the build), `nix build .#phloem-image` (`betula-phloem:latest`: the binary, the firewall and `nft`, no shell) |
 | deploy | `deploy/stacks/phloem.yml`, one file per instance in `deploy/stacks/phloem/`, `deploy/vps/47-phloem-host.sh`, `deploy/vps/49-phloem.sh` (with `lib-phloem.sh`), `deploy/ship-phloem.sh` |
 
