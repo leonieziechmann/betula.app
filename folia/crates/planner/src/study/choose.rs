@@ -55,6 +55,12 @@ struct Tab {
     modules: Vec<String>,
     /// A group's member: its stand and its room above its most.
     member: Option<(Stand, Room)>,
+    /// What counts for it that its lists do not have: what the student let count here as an
+    /// exception (`choices::Taken::exception`), shown first, marked as such.
+    others: Vec<String>,
+    /// What of a group falls to none of its members (`choices::Group::rest`): its extras, by
+    /// their name and with what they hold, as a section of their own.
+    rest: Option<Stand>,
     /// What a module of it opened from here is planned for: the first placeholder of its rows
     /// from the current semester on that nothing fills, and the row it counts for, with its name.
     fill: Option<u32>,
@@ -162,7 +168,7 @@ impl Pane {
         }
         let has = entries
             .iter()
-            .flat_map(|entry| entry.tabs.iter().flat_map(|tab| tab.modules.iter()))
+            .flat_map(|entry| entry.tabs.iter().flat_map(|tab| tab.others.iter().chain(tab.modules.iter())))
             .filter_map(|id| {
                 let (status, semester) = match doc.passed_in(id) {
                     Some(s) => (Status::Passed, s),
@@ -211,6 +217,11 @@ fn open_places(input: &Input, rows: &[(String, i64)], now: SemesterKey) -> Vec<(
     study::open_placeholders(input.doc, input.program_id, rows, &study::catalog_credits(input.rows)).into_iter().filter(|p| p.semester >= now).map(|p| (p.pid, p.semester)).collect()
 }
 
+/// Of what counts for `choice`, the modules its lists do not have: exceptions the student made.
+fn others_of(taken: &[&choices::Taken], choice: &Choice) -> Vec<String> {
+    taken.iter().filter(|taken| choice.list_of(&taken.id).is_none()).map(|taken| taken.id.clone()).collect()
+}
+
 /// An entry of one choice.
 #[allow(clippy::too_many_arguments)]
 fn choice_entry(input: &Input, ready: &Ready, ctx: StudyCtx, view: &PlanView, at: usize, choice: &Choice, now: SemesterKey, t: &'static Texts) -> Entry {
@@ -222,10 +233,11 @@ fn choice_entry(input: &Input, ready: &Ready, ctx: StudyCtx, view: &PlanView, at
     let first_row = rows.first().cloned().unwrap_or_default();
     let counts = RowRef::new(input.program_id, &first_row.0, first_row.1);
     let fill = places.first().map(|(pid, _)| *pid);
+    let others = others_of(&choice.taken.iter().collect::<Vec<_>>(), choice);
     let tabs: Vec<Tab> = choice
         .lists
         .iter()
-        .map(|list| Tab { name: list.name.clone(), modules: list.modules.clone(), member: None, fill, counts: counts.clone(), counts_name: name.clone() })
+        .map(|list| Tab { name: list.name.clone(), modules: list.modules.clone(), member: None, others: others.clone(), rest: None, fill, counts: counts.clone(), counts_name: name.clone() })
         .collect();
     let mut rule = if choice.fues {
         (v.fues_rule)(&credits)
@@ -281,7 +293,7 @@ fn group_entry(input: &Input, ready: &Ready, view: &PlanView, group: &choices::G
     let (extra_least, room) = group.extra(choices);
     let extra_rows: Vec<(String, i64)> = group.extras.iter().filter_map(|at| choices.get(*at)).flat_map(|choice| rows_of(view, choice)).collect();
     let mut places: Vec<SemesterKey> = Vec::new();
-    let tabs: Vec<Tab> = members
+    let mut tabs: Vec<Tab> = members
         .iter()
         .filter_map(|member| choices.get(member.choice).map(|choice| (member, choice)))
         .map(|(member, choice)| {
@@ -297,6 +309,8 @@ fn group_entry(input: &Input, ready: &Ready, view: &PlanView, group: &choices::G
                 name: name.clone(),
                 modules,
                 member: Some((member.stand, member.room)),
+                others: others_of(&member.taken.iter().collect::<Vec<_>>(), choice),
+                rest: None,
                 fill: open.first().map(|(pid, _)| *pid),
                 counts: RowRef::new(input.program_id, &first_row.0, first_row.1),
                 counts_name: name,
@@ -316,6 +330,29 @@ fn group_entry(input: &Input, ready: &Ready, view: &PlanView, group: &choices::G
         rule = format!("{rule} {}", (v.group_extra)(&n(most + room, t), &n(extra_least, t), &names, &(t.study.fs_span)(first_fs, last_fs), &count_word));
     }
     let modules: BTreeSet<&str> = tabs.iter().flat_map(|tab| tab.modules.iter().map(String::as_str)).collect();
+    let count = count_of(tabs.len(), modules.len(), t);
+    // What the student let count for an extra that no member's list has: under the extras' name.
+    let rest = group.rest(view);
+    if !rest.is_empty() {
+        let extras: Vec<&Choice> = group.extras.iter().filter_map(|at| choices.get(*at)).collect();
+        let name = extras.iter().map(|choice| bench::short_name(&choice.name)).collect::<Vec<_>>().join(", ");
+        let (passed, planned) = rest.iter().fold((0.0, 0.0), |(passed, planned), taken| match taken.passed {
+            true => (passed + taken.credits.unwrap_or(0.0), planned),
+            false => (passed, planned + taken.credits.unwrap_or(0.0)),
+        });
+        let stand = Stand { passed, planned, least: extra_least, most: room.max(extra_least), spare: 0.0 };
+        let first_row = extras.first().map(|choice| rows_of(view, choice)).and_then(|rows| rows.into_iter().next()).unwrap_or_default();
+        tabs.push(Tab {
+            name: name.clone(),
+            modules: Vec::new(),
+            member: None,
+            others: rest.iter().map(|taken| taken.id.clone()).collect(),
+            rest: Some(stand),
+            fill: None,
+            counts: RowRef::new(input.program_id, &first_row.0, first_row.1),
+            counts_name: name,
+        });
+    }
     let area = first.and_then(|choice| choice.area);
     Entry {
         choice: group.choices().min().unwrap_or(0),
@@ -326,7 +363,7 @@ fn group_entry(input: &Input, ready: &Ready, view: &PlanView, group: &choices::G
         rule,
         stand: group.stand(view),
         room,
-        count: count_of(tabs.len(), modules.len(), t),
+        count,
         tabs,
         catalog: None,
         no_list: false,
@@ -344,6 +381,8 @@ struct Module {
     has: Option<Has>,
     /// On the Merkliste.
     marked: bool,
+    /// It counts here though no list of it has it: as the student said (`Tab::others`).
+    exception: bool,
 }
 
 /// The modules of a list: what the student has first, then what is marked, then the rest by title.
@@ -364,10 +403,19 @@ fn modules_of(ids: &[String], rows: &BTreeMap<String, CatalogRow>, has: &BTreeMa
                 phase_out: row.offer_status.known() == Some(OfferStatus::PhaseOut),
                 has,
                 marked: marked.contains(id),
+                exception: false,
             })
         })
         .collect();
     out.sort_by_cached_key(|module| (module.has.is_none(), !module.marked, module.title.to_lowercase()));
+    out
+}
+
+/// The modules of a tab as its list shows them: what counts for it as an exception first, marked
+/// as such, then its lists' (`modules_of`).
+fn tab_modules(tab: &Tab, rows: &BTreeMap<String, CatalogRow>, has: &BTreeMap<String, Has>, marked: &BTreeSet<String>, t: &Texts) -> Vec<Module> {
+    let mut out: Vec<Module> = modules_of(&tab.others, rows, has, marked, t).into_iter().map(|module| Module { exception: true, ..module }).collect();
+    out.extend(modules_of(&tab.modules, rows, has, marked, t));
     out
 }
 
@@ -490,7 +538,7 @@ pub(super) fn Choose(ctx: StudyCtx) -> impl IntoView {
     // The catalog's rows of every module of the lists.
     let ids = Memo::new(move |_| {
         pane.with(|pane| {
-            let mut ids: Vec<String> = pane.as_ref().map(|pane| pane.entries.iter().flat_map(|entry| entry.tabs.iter().flat_map(|tab| tab.modules.iter().cloned())).collect()).unwrap_or_default();
+            let mut ids: Vec<String> = pane.as_ref().map(|pane| pane.entries.iter().flat_map(|entry| entry.tabs.iter().flat_map(|tab| tab.others.iter().chain(tab.modules.iter()).cloned())).collect()).unwrap_or_default();
             ids.sort();
             ids.dedup();
             ids
@@ -567,9 +615,10 @@ fn sections_of(entry: &Entry, shown: Option<usize>) -> Vec<Tab> {
     }
 }
 
-/// A group member's name and stand over its modules.
+/// A group member's name and stand over its modules, or those of its extras for what falls to no
+/// member.
 fn section_head(tab: &Tab, t: &'static Texts) -> Option<impl IntoView> {
-    tab.member.map(|(stand, _)| view! { <p class="st-wsub"><span>{tab.name.clone()}</span>{fig(&stand, t)}</p> })
+    tab.member.map(|(stand, _)| stand).or(tab.rest).map(|stand| view! { <p class="st-wsub"><span>{tab.name.clone()}</span>{fig(&stand, t)}</p> })
 }
 
 /// What „Einplanen" of a module opened from `tab` aims at: its choice's placeholder and row. None
@@ -591,12 +640,14 @@ fn mark(module: &Module, t: &'static Texts) -> AnyView {
     }
 }
 
-/// The small words beside a module's name: marked, phasing out, counting for another entry.
-fn notes(module: &Module, pane: &Pane, at: usize, t: &'static Texts) -> impl IntoView {
+/// The small words beside a module's name: marked, counting here as an exception (in `tab`),
+/// phasing out, counting for another entry.
+fn notes(module: &Module, pane: &Pane, at: usize, tab: &Tab, t: &'static Texts) -> impl IntoView {
     let v = &t.study_views;
     let elsewhere = module.has.as_ref().and_then(|has| has.entry).filter(|entry| *entry != at).and_then(|entry| pane.entries.get(entry)).map(|entry| (v.counts_for)(&entry.name));
     view! {
         {module.marked.then(|| view! { <span class="st-mk" title=v.marked><Icon name="bookmark"/><span class="visually-hidden">{v.marked}</span></span> })}
+        {module.exception.then(|| view! { <span class="flag st-exception" title=(t.study.exception_title)(&tab.counts_name)>{t.study.exception}</span> })}
         {module.phase_out.then(|| view! { <small class="warn">{OfferStatus::PhaseOut.label(t.locale)}</small> })}
         {elsewhere.map(|note| view! { <small>{note}</small> })}
     }
@@ -723,7 +774,7 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
             }
         });
         let list = sections_of(&entry, shown).into_iter().map(|tab_of| {
-            let modules = marked.with(|marked| rows.with(|rows| modules_of(&tab_of.modules, rows, &has, marked, t)));
+            let modules = marked.with(|marked| rows.with(|rows| tab_modules(&tab_of, rows, &has, marked, t)));
             pane.with(|pane| {
                 let pane = pane.as_ref()?;
                 Some(view! {
@@ -736,7 +787,7 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
                             view! {
                                 <a class="st-wrow" class:has=module.has.is_some() class:is-open=is_open href=href data-noscroll="" on:click=move |_| ctx.aside_hint.set(hint.clone())>
                                     {mark(&module, t)}
-                                    <span class="st-wrow-nm"><b>{module.title.clone()}</b>{notes(&module, pane, at, t)}</span>
+                                    <span class="st-wrow-nm"><b>{module.title.clone()}</b>{notes(&module, pane, at, &tab_of, t)}</span>
                                     <span class="st-wrow-id mono">{module.id.clone()}</span>
                                     <span class="st-wrow-lp num">{module.credits.clone().map(|credits| format!("{credits}\u{a0}{}", v.col_credits))}</span>
                                     <Icon name="chevron-right"/>
@@ -826,7 +877,7 @@ fn ChoosePhone(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Stri
             sections_of(&shown_entry, tab.get())
                 .into_iter()
                 .map(|tab_of| {
-                    let modules = marked.with(|marked| rows.with(|rows| modules_of(&tab_of.modules, rows, &has, marked, t)));
+                    let modules = marked.with(|marked| rows.with(|rows| tab_modules(&tab_of, rows, &has, marked, t)));
                     pane.with(|pane| {
                         let pane = pane.as_ref()?;
                         Some(view! {
@@ -838,7 +889,7 @@ fn ChoosePhone(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Stri
                                     view! {
                                         <a class="st-wcard-m" class:has=module.has.is_some() href=href data-noscroll="" on:click=move |_| ctx.aside_hint.set(hint.clone())>
                                             {mark(&module, t)}
-                                            <span class="st-wrow-nm"><b>{module.title.clone()}</b>{notes(&module, pane, at, t)}<span class="st-wrow-id mono">{module.id.clone()}</span></span>
+                                            <span class="st-wrow-nm"><b>{module.title.clone()}</b>{notes(&module, pane, at, &tab_of, t)}<span class="st-wrow-id mono">{module.id.clone()}</span></span>
                                             <span class="st-lp">{module.credits.clone()}<small>{v.col_credits}</small></span>
                                             <Icon name="chevron-right"/>
                                         </a>

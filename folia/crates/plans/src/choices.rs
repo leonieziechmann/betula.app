@@ -17,9 +17,9 @@
 //! second round): „Summe Komplexe des Fachstudiums 44" over the three Komplexe of „10–24", with the
 //! choice whose lists are theirs („Wahlpflicht: Komplex … / … / …", 6 LP in the 4. FS of Informatik
 //! B.Sc.) — 50 LP of the three, each 10 to 24, and the one over 24 may go to 30: the extra's
-//! credits count for one member alone (owner, 2026-11-04: „nur eins davon darf 30 haben"). What the
-//! study holds of a group falls to the member whose list has it, whichever of the group's choices
-//! counted it.
+//! credits count for one member alone (owner, 2026-11-04: „nur eins davon darf 30 haben"). What a member
+//! counts is its own, an exception the student made there as well; what the extras count falls to
+//! the member whose list has it (`Group::held`).
 
 use std::collections::BTreeSet;
 
@@ -338,20 +338,55 @@ impl Group {
         self.choices().all(|at| choices.get(at).is_some_and(|choice| choice.done.is_some()))
     }
 
-    /// Its members: what the group's choices count, and what counts for none (`PlanView::spare`),
-    /// falls to the member whose list has it; the member over its most with the most keeps the
-    /// extras' room.
+    /// What the study holds of it, each module once, with the member it falls to (an index of
+    /// `members`): a member's own, what it counts — by its lists, or as the student said, an
+    /// exception there (owner, 2026-11-10: „es gibt bei dem wp noch das problem, das custom
+    /// overrides nicht mit eingerechnet werden"); what its extras count and what counts for none
+    /// (`PlanView::spare`), the first member whose list has it; none for what the student let count
+    /// for an extra that no member's list has (`rest`).
+    fn held<'a>(&self, view: &'a PlanView) -> Vec<(&'a Taken, Option<usize>)> {
+        let choices = &view.choices;
+        let listed = |id: &str| self.members.iter().position(|at| choices.get(*at).is_some_and(|choice| choice.list_of(id).is_some()));
+        let mut seen: BTreeSet<&str> = BTreeSet::new();
+        let mut held: Vec<(&Taken, Option<usize>)> = Vec::new();
+        for at in self.choices() {
+            let own = self.members.iter().position(|member| *member == at);
+            for taken in choices.get(at).map_or(&[][..], |choice| choice.taken.as_slice()) {
+                if seen.insert(taken.id.as_str()) {
+                    held.push((taken, own.or_else(|| listed(&taken.id))));
+                }
+            }
+        }
+        for taken in &view.spare {
+            if let Some(member) = listed(&taken.id) {
+                if seen.insert(taken.id.as_str()) {
+                    held.push((taken, Some(member)));
+                }
+            }
+        }
+        held
+    }
+
+    /// What it holds that falls to no member: modules the student let count for one of its extras
+    /// („Wahlpflicht: Komplex … / … / …") that no member's list has. They count for the group as a
+    /// whole.
+    pub fn rest<'a>(&self, view: &'a PlanView) -> Vec<&'a Taken> {
+        self.held(view).into_iter().filter(|(_, member)| member.is_none()).map(|(taken, _)| taken).collect()
+    }
+
+    /// Its members, each with what falls to it (`held`); the member over its most with the most
+    /// keeps the extras' room.
     pub fn members(&self, view: &PlanView) -> Vec<Member> {
         let choices = &view.choices;
         let room = self.extra(choices).1;
-        let mut seen: BTreeSet<&str> = BTreeSet::new();
-        let held: Vec<&Taken> = self.choices().filter_map(|at| choices.get(at)).flat_map(|choice| choice.taken.iter()).chain(view.spare.iter()).filter(|taken| seen.insert(taken.id.as_str())).collect();
+        let held = self.held(view);
         let mut members: Vec<Member> = self
             .members
             .iter()
-            .filter_map(|at| choices.get(*at).map(|choice| (*at, choice)))
-            .map(|(at, choice)| {
-                let taken: Vec<Taken> = held.iter().filter(|taken| choice.list_of(&taken.id).is_some()).map(|taken| (*taken).clone()).collect();
+            .enumerate()
+            .filter_map(|(index, at)| choices.get(*at).map(|choice| (index, *at, choice)))
+            .map(|(index, at, choice)| {
+                let taken: Vec<Taken> = held.iter().filter(|(_, member)| *member == Some(index)).map(|(taken, _)| (*taken).clone()).collect();
                 let stand = Stand::of(&taken, &view.spare, choice.least, choice.most.max(choice.least));
                 Member { choice: at, taken, stand, room: if room > EPSILON { Room::Open } else { Room::None } }
             })
@@ -390,16 +425,18 @@ impl Group {
         members
     }
 
-    /// Its stand as a whole: what its members hold, against what it asks.
+    /// Its stand as a whole: what its members hold and what falls to none of them (`rest`),
+    /// against what it asks.
     pub fn stand(&self, view: &PlanView) -> Stand {
         let target = self.target(&view.choices);
         if self.done(&view.choices) {
             return Stand { passed: target, planned: 0.0, least: target, most: target, spare: 0.0 };
         }
         let members = self.members(view);
+        let rest = Stand::of(self.rest(view), &[], 0.0, 0.0);
         Stand {
-            passed: members.iter().map(|member| member.stand.passed).sum(),
-            planned: members.iter().map(|member| member.stand.planned).sum(),
+            passed: members.iter().map(|member| member.stand.passed).sum::<f64>() + rest.passed,
+            planned: members.iter().map(|member| member.stand.planned).sum::<f64>() + rest.planned,
             least: target,
             most: target,
             spare: members.iter().map(|member| member.stand.spare).sum(),
@@ -418,14 +455,15 @@ impl Group {
         (weights, self.extras.iter().map(|at| kept(*at)).sum())
     }
 
-    /// What it still asks: of what it asks, what its members hold up to their most, and at least
-    /// what each still lacks of its least.
+    /// What it still asks: of what it asks, what its members hold up to their most and what falls
+    /// to none of them, and at least what each still lacks of its least.
     pub fn open(&self, view: &PlanView) -> f64 {
         if self.done(&view.choices) {
             return 0.0;
         }
         let members = self.members(view);
-        let held: f64 = members.iter().map(|member| member.stand.taken().min(member.stand.most)).sum();
+        let rest: f64 = self.rest(view).iter().filter_map(|taken| taken.credits).sum();
+        let held: f64 = members.iter().map(|member| member.stand.taken().min(member.stand.most)).sum::<f64>() + rest;
         let lacking: f64 = members.iter().map(|member| (member.stand.least - member.stand.taken()).max(0.0)).sum();
         (self.target(&view.choices) - held).max(lacking).max(0.0)
     }
@@ -1091,6 +1129,58 @@ mod tests {
             assert!(view.choices.iter().find(|choice| choice.name.starts_with(name)).is_some_and(Choice::complete), "{name}");
         }
         assert_eq!(view.groups[0].open(&view), 0.0);
+    }
+
+    /// What the student lets count for a Komplex as an exception counts there (owner, 2026-11-10:
+    /// „es gibt bei dem wp noch das problem, das custom overrides nicht mit eingerechnet werden"):
+    /// Algorithmische Graphentheorie, of no Komplex's list, and Approximationsalgorithmen, of the
+    /// Grundlagen der Informatik's, both counted for the Praktische Informatik, are its own — not
+    /// lost, not the Grundlagen's — in its figure and in the Komplexe's. Counted for the
+    /// „Wahlpflicht: Komplex … / … / …" of the 4. FS, whose lists are the Komplexe's, the first is
+    /// no member's and counts for the Komplexe as a whole.
+    #[test]
+    fn a_module_counted_for_a_komplex_as_an_exception_counts_there() {
+        let informatik = program("079-82-2008");
+        let s = key("2027S");
+        let mut doc = planned(&[("2027S", "11405"), ("2027S", "12329")]);
+        let (_, view) = informatik.view(&doc);
+        let at = |view: &PlanView, name: &str| view.choices.iter().position(|choice| choice.name.starts_with(name)).unwrap();
+        let (gi, pi, extra) = (at(&view, "Komplex Grundlagen der Informatik"), at(&view, "Komplex Praktische Informatik"), at(&view, "Wahlpflicht: Komplex"));
+        let row = |choice: usize| {
+            let line = &view.lines[view.choices[choice].lines[0]];
+            RowRef::new("079-82-2008", &line.caption, line.ord)
+        };
+        let credits = |id: &str| informatik.rows.iter().find(|row| row.id == id).and_then(|row| row.credits).unwrap();
+        let (graphs, approx) = (credits("11405"), credits("12329"));
+        let held = |view: &PlanView, choice: usize| -> Vec<(String, bool)> {
+            let members = view.groups[0].members(view);
+            members.iter().find(|member| member.choice == choice).unwrap().taken.iter().map(|taken| (taken.id.clone(), taken.exception)).collect()
+        };
+        // By the rule: Approximationsalgorithmen is the Grundlagen's, Graphentheorie no Komplex's.
+        assert_eq!(held(&view, gi), [("12329".to_string(), false)]);
+        assert_eq!(view.groups[0].stand(&view).taken(), approx);
+
+        doc.set_counts(s, "11405", Some(row(pi)));
+        doc.set_counts(s, "12329", Some(row(pi)));
+        let (_, view) = informatik.view(&doc);
+        let group = &view.groups[0];
+        assert_eq!(held(&view, pi), [("11405".to_string(), true), ("12329".to_string(), true)]);
+        assert!(held(&view, gi).is_empty(), "the student's word holds over the Grundlagen's list");
+        let member = group.members(&view).into_iter().find(|member| member.choice == pi).unwrap();
+        assert_eq!(member.stand.taken(), graphs + approx);
+        assert_eq!(group.stand(&view).taken(), graphs + approx);
+        assert_eq!(group.open(&view), group.target(&view.choices) - graphs - approx);
+        assert!(group.rest(&view).is_empty());
+
+        doc.set_counts(s, "11405", Some(row(extra)));
+        doc.set_counts(s, "12329", None);
+        let (_, view) = informatik.view(&doc);
+        let group = &view.groups[0];
+        assert_eq!(taken(&view, "Wahlpflicht: Komplex"), ["11405"]);
+        assert!(view.groups[0].members(&view).iter().all(|member| member.taken.iter().all(|taken| taken.id != "11405")));
+        assert_eq!(group.rest(&view).iter().map(|taken| taken.id.as_str()).collect::<Vec<_>>(), ["11405"]);
+        assert_eq!(group.stand(&view).taken(), graphs + approx);
+        assert_eq!(group.open(&view), group.target(&view.choices) - graphs - approx);
     }
 
     /// A module two choices list goes where it is still asked for (owner, 2026-11-08: „wenn ein
