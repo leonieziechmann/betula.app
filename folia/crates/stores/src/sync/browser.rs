@@ -936,7 +936,9 @@ impl Engine {
             return false;
         }
         match self.socket.borrow().as_ref() {
-            Some(Line::Ws(socket)) => socket.send_with_str(&out.text()).is_ok(),
+            // A socket that is closing takes nothing (and the browser would say so in its
+            // console): what was to go goes on the next connection, a signal with the next attempt.
+            Some(Line::Ws(socket)) => socket.ready_state() == WebSocket::OPEN && socket.send_with_str(&out.text()).is_ok(),
             Some(Line::Poll(poll)) => poll.send(out.text()),
             None => false,
         }
@@ -1347,6 +1349,8 @@ impl Engine {
         };
         match line {
             Some(Line::Ws(socket)) => {
+                // Nothing more goes out on it while its close comes.
+                *self.open.borrow_mut() = false;
                 let _ = socket.close();
             }
             Some(Line::Poll(poll)) => poll.close(),
