@@ -192,6 +192,16 @@ pub(in crate::study) struct AreaRow {
     pub subs: Vec<SubRow>,
 }
 
+impl AreaRow {
+    /// Whether it unfolds: into its subsections, or into lanes that say more than its bar
+    /// (`unfolds`). One that would show a single lane, the bar over it again, does not (owner,
+    /// 2026-11-10: „dass ein platzhalter, der nur für ein modul ist kein ausklappbares element
+    /// wird. Also zum Beispiel seminar oder Praktikum Oder BA").
+    pub(in crate::study) fn unfolds(&self) -> bool {
+        !self.subs.is_empty() || unfolds(&self.lanes)
+    }
+}
+
 /// A subsection of an area: a subgroup with what it holds against what it asks, as the
 /// Wahlpflicht shows a choice („16 / 10–24"), its bar over the semesters and its lanes.
 #[derive(Clone, Debug, PartialEq)]
@@ -213,6 +223,20 @@ pub(in crate::study) struct SubRow {
     pub stand: Option<(Stand, Option<(Room, f64)>)>,
     pub cells: Vec<Cell>,
     pub lanes: Vec<Lane>,
+}
+
+impl SubRow {
+    /// Whether it unfolds (`AreaRow::unfolds`): „Seminar oder Praktikum", a place for one module,
+    /// does not.
+    pub(in crate::study) fn unfolds(&self) -> bool {
+        unfolds(&self.lanes)
+    }
+}
+
+/// Whether `lanes` say more than the bar of their row: two lanes or more, or one with two pieces
+/// in a semester (two rows of its name there, which the bar shows as one piece, „+12").
+fn unfolds(lanes: &[Lane]) -> bool {
+    lanes.len() > 1 || lanes.iter().any(|lane| lane.bars.iter().any(|bar| bar.len() > 1))
 }
 
 /// What keeps a subsection unfolded (`super::OPEN_KEY`): its area's name and its own, a tab
@@ -836,9 +860,14 @@ impl Layout {
         )
     }
 
-    /// Every row that unfolds: each area's name, each subsection's key (`sub_key`).
+    /// Every row that unfolds (`AreaRow::unfolds`): each such area's name, each such subsection's
+    /// key (`sub_key`).
     pub(in crate::study) fn keys(&self) -> BTreeSet<String> {
-        self.rows.iter().flat_map(|row| std::iter::once(row.name.clone()).chain(row.subs.iter().map(|sub| sub.key.clone()))).collect()
+        self.rows
+            .iter()
+            .filter(|row| row.unfolds())
+            .flat_map(|row| std::iter::once(row.name.clone()).chain(row.subs.iter().filter(|sub| sub.unfolds()).map(|sub| sub.key.clone())))
+            .collect()
     }
 
     pub(in crate::study) fn of(ready: &Ready, subs: &Subs, fold: bool, abbrevs: &BTreeMap<String, String>, today: Option<Day>, t: &Texts) -> Self {
