@@ -35,7 +35,9 @@
 //   with a click, the view kept, in a narrower window the plan scrolled sideways to the semester
 //   before the current one with the areas' names at the left, the plan's head at the top when
 //   scrolled down and going along sideways with the areas, each head over its column; a reload
-//   keeps all of it; nothing of it in a request.
+//   keeps all of it; „Ordnungen & Dokumente" a view marked in the sidebar's „Studiengang", the
+//   regulations with the Regelstudienplan's page in its PDF and the ways on, nothing of the plan
+//   (2026-11-10); nothing of it in a request.
 // 2b a place filled (folia/design/hinzufuegen/konzepte.html, „Was heute schiefgeht"): the same study,
 //   „Anwendungsfach" alone put into WiSe 2026/27 by the workbench's „Vormerken" (in the Gesamtplan
 //   one lane with the plan's open row of the 4th FS, so that its subsection does not unfold, its
@@ -65,9 +67,9 @@
 //   Komplex Praktische Informatik in WiSe 2027/28: its dialog weighs the three Komplexe, „Zusammen
 //   10 von 50 LP", 4 more turn it to 14, stored and shown.
 // 3 a phone: the overview first (owner, 2026-10-05), the bar with its legend, the program's card
-//   and its ways, the box „Studium planen" with a column per semester, the way to all programs, and
-//   no sidebar; one row of pages the browser scrolls (a real touch, CDP; owner, 2026-10-06): the
-//   semesters that are over, the overview, the current one and the ones to come, the dots of all of
+//   and its ways („Ordnungen & Dokumente" among them, a page of its own), the box „Studium
+//   planen" with a column per semester, the way to all programs, and no sidebar; one row of pages
+//   the browser scrolls (a real touch, CDP; owner, 2026-10-06): the semesters that are over, the overview, the current one and the ones to come, the dots of all of
 //   them over the tab bar on the overview too; the box leads to the current semester (no step of the
 //   history and no address of its own: the entry keeps it, folia/crates/shell/src/nav.rs),
 //   its column to that one, and the whole overview drawn to the left by a finger to the current
@@ -678,6 +680,29 @@ if (current !== "2026W") {
   // are views of „Mein Studium", named in its sidebar, each with the student's stand in it.
   const views = await page.evaluate(() => [...document.querySelectorAll("#sidebar .st-vl")].map((a) => a.querySelector("span").textContent + (a.getAttribute("aria-current") === "page" ? "*" : "")));
   check(views.join() === "Semester,Gesamtplan*,Regelstudienplan,Wahlpflicht", `the views: ${views}`);
+  // „Ordnungen & Dokumente" (2026-11-10): a view of the study too, marked in the sidebar's
+  // „Studiengang" — the regulations alone, the Regelstudienplan's page in its PDF, the ways on;
+  // not the program's page, whose plan and numbers „Mein Studium" shows already.
+  await step("Ordnungen & Dokumente", () => page.click('#sidebar .st-ways a:has-text("Ordnungen & Dokumente")'), () => location.search === "?view=documents" && document.querySelector(".st-docs .doclist a.docrow"));
+  const documents = await page.evaluate(() => {
+    const rows = (selector) => [...document.querySelectorAll(selector)].map((a) => [a.querySelector(".docname")?.textContent, a.querySelector("small")?.textContent, a.getAttribute("href")]);
+    return {
+      current: document.querySelector('#sidebar .st-ways a[aria-current="page"] span')?.childNodes[0]?.textContent,
+      views: document.querySelectorAll('#sidebar .st-vl[aria-current="page"]').length,
+      head: document.querySelector("#st-docs-title")?.textContent,
+      line: document.querySelector("#st-docs-title + p")?.textContent,
+      regulations: rows('.st-docs[aria-labelledby="st-docs-title"] .docrow:not(.docpart)'),
+      plan: rows(".st-docs .docpart"),
+      more: rows('.st-docs[aria-labelledby="st-docs-more"] .docrow'),
+      plain: document.querySelectorAll(".st-over, .st-mx, .prog-head, .matrix, .ptable, .st-sems").length,
+    };
+  });
+  check(documents.current === "Ordnungen & Dokumente" && documents.views === 0 && documents.head === "Ordnungen & Dokumente" && /^Informatik B\.Sc\. · PO 2008/.test(documents.line || "")
+    && documents.regulations.length > 0 && documents.regulations.every(([name, kind, href]) => name && kind && /^https?:\/\/.+\.pdf$/i.test(href))
+    && documents.plan.length === 1 && documents.plan[0][0] === "Darin der Regelstudienplan" && /^Seiten? \d/.test(documents.plan[0][1] || "") && /\.pdf#page=\d+$/.test(documents.plan[0][2])
+    && documents.more.map(([name]) => name).join() === "Modulbaum des Studiengangs,Module des Studiengangs,Seite des Studiengangs"
+    && /^https:\/\/www\.b-tu\.de\//.test(documents.more[0][2]) && documents.more[1][2] === "/catalog?program=bachelor-informatik-2008" && documents.more[2][2].startsWith("/programs/bachelor-informatik-2008/plan")
+    && documents.plain === 0, `Ordnungen & Dokumente: ${JSON.stringify(documents)}`);
   await step("Regelstudienplan", () => page.click('#sidebar .st-vl:has-text("Regelstudienplan")'), () => location.search === "?view=plan" && document.querySelectorAll(".st-mx tbody tr.st-rsp-row").length === 23);
   const regular = await page.evaluate(() => {
     const row = (name) => [...document.querySelectorAll(".st-mx tbody tr.st-rsp-row")].find((tr) => tr.querySelector(".st-rsp-name")?.textContent === name);
@@ -1066,7 +1091,7 @@ if (current !== "2026W") {
     back: (() => { const back = document.querySelector(".top-back"); return back ? `${getComputedStyle(back).opacity}${back.inert ? " inert" : ""}` : "none"; })(),
   }));
   check(landing.sideways <= 0 && landing.parts.join() === "st-over,st-mine-panel,st-planbox,st-rest" && landing.legend.join() === "bestanden,geplant,offen"
-    && landing.mine === "Informatik B.Sc. | PO 2008 | 3. Fachsemester · seit WiSe 25/26" && landing.ways.join() === "Regelstudienplan,Wahlpflicht"
+    && landing.mine === "Informatik B.Sc. | PO 2008 | 3. Fachsemester · seit WiSe 25/26" && landing.ways.join() === "Regelstudienplan,Wahlpflicht,Ordnungen & Dokumente"
     && landing.columns === "1 2 3* 4 5 6" && landing.line === "Jetzt WiSe 2026/27 · 0 von 30 LP" && landing.rest.join() === "Alle Studiengänge" && !landing.sidebar
     && landing.pages === "S S O!+ S S S S S" && landing.dots === "S S O! S* S S S S" && landing.back === "0 inert", `the phone's overview: ${JSON.stringify(landing)}`);
   // No ground under the row, the overview's page included (owner, 2026-10-19: „Ich würde den footer
@@ -1725,6 +1750,11 @@ if (current !== "2026W") {
   // While the way back is at the head, the way to the profile page gives way to it (owner,
   // 2026-10-15), and it comes back with the overview.
   await step("the way back", () => page.tap(".top-back.on"), () => location.search === "" && document.querySelector(".st-pager") && !document.querySelector(".top-back.on") && !document.querySelector(".topbar .top-profile").inert);
+  // „Ordnungen & Dokumente" on a phone (2026-11-10: a phone had no way to the regulations): a page of
+  // its own, its title over the search's line, the regulations and the ways on, nothing sideways.
+  await step("Ordnungen & Dokumente on a phone", () => page.tap('.st-mine-panel .st-ways a[href="/study?view=documents"]'), () => location.search === "?view=documents" && document.querySelector(".st-docs-phone .st-vhead h1")?.textContent === "Ordnungen & Dokumente" && document.querySelectorAll(".st-docs-phone .st-docs a.docrow").length >= 4 && document.querySelector(".top-back.on"));
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "Ordnungen & Dokumente on a phone scrolls sideways");
+  await step("the way back from the regulations", () => page.tap(".top-back.on"), () => location.search === "" && document.querySelector(".st-pager") && !document.querySelector(".top-back.on"));
   // The Wahlpflicht on a phone: the choices as cards, each a page of its own behind them, whose way
   // back leads to them; a module of it opens as the sheet, „Einplanen" there for the choice.
   await step("the Wahlpflicht on a phone", () => page.tap('.st-mine-panel .st-ways a[href="/study?view=areas"]'), () => location.search === "?view=areas" && document.querySelectorAll(".st-wp-phone .st-wcard").length > 3);
