@@ -57,7 +57,8 @@
 //   as an exception, „landet hier" where it goes instead, its piece a dashed hole, the key at the
 //   head;
 //   „Vollbild" at the head's right end, the rail and the search staying, Esc out of it; „Als Bild
-//   speichern" a PNG of the day.
+//   speichern" a PNG of the day; Lineare Algebra II with Strg onto a Komplex, an exception there,
+//   in its figure and in the Wahlpflicht's, marked „Ausnahme" in its list.
 // 2d a place as a place for modules (owner, 2026-11-09: „dass die verschwinden, wenn die voll
 //   erfüllt sind … Dann soll der platzhalter azeigen, wie viel progress da schon eingeplant ist"):
 //   the Anwendungsfach set to 12 LP with a module of 6 in it stands with its bar, „6 von 12 LP
@@ -1004,6 +1005,24 @@ if (current !== "2026W") {
   const name = download?.suggestedFilename() ?? "";
   const bytes = download ? await download.createReadStream().then((stream) => new Promise((done) => { const parts = []; stream.on("data", (part) => parts.push(part)); stream.on("end", () => done(Buffer.concat(parts))); })) : Buffer.alloc(0);
   check(/^gesamtplan-\d{4}-\d\d-\d\d\.png$/.test(name) && bytes.subarray(1, 4).toString() === "PNG" && bytes.length > 20000, `„Als Bild speichern“: ${name}, ${bytes.length} bytes`);
+  // A module counted for a Komplex as an exception counts there (owner, 2026-11-10: „es gibt bei
+  // dem wp noch das problem, das custom overrides nicht mit eingerechnet werden"): Lineare Algebra
+  // II with Strg onto the Angewandte und Technische Informatik, whose list does not hold it — 8 of
+  // its 10–24 here; in the Wahlpflicht the Komplexe's 42 of 50, the Komplex's 8, and in its list,
+  // marked „Ausnahme".
+  const ati = await row("Angewandte und Technische Informatik");
+  await drag(`[data-row="${pm}"] .st-rm-p[aria-label^="LAAG2,"]`, `[data-sem="2027S"][data-row="${ati}"]`, true);
+  await step("with Strg onto a Komplex, as an exception", async () => { await page.mouse.up(); await page.keyboard.up("Control"); }, () => document.querySelector(".study-note")?.textContent.includes("zählt als Ausnahme für Angewandte und Technische Informatik"));
+  const komplex = await page.evaluate(() => [...document.querySelectorAll(".st-rm-sub")].find((head) => head.querySelector(".st-card-name")?.textContent === "Angewandte und Technische Informatik")?.querySelector(".st-card-lp")?.textContent.trim());
+  check(komplex === "8/10–24", `the exception in its Komplex's figure: ${komplex}`);
+  await step("the Wahlpflicht, with the exception", () => page.click('#sidebar .st-vl:has-text("Wahlpflicht")'), () => location.search === "?view=areas" && document.querySelector(".st-sl"));
+  await step("the Komplexe, with the exception", () => page.click('.st-sl:has-text("Komplexe des Fachstudiums")'), () => document.querySelector(".st-wph h3")?.textContent === "Komplexe des Fachstudiums");
+  const counted = await page.evaluate(() => ({
+    figure: document.querySelector(".st-wph .st-wfig")?.textContent.replace(/ /g, " "),
+    komplex: [...document.querySelectorAll(".st-sl-kid")].find((kid) => kid.textContent.startsWith("Angewandte"))?.querySelector(".st-wfig")?.textContent.replace(/ /g, " "),
+    marked: [...document.querySelectorAll(".st-wrow")].filter((row) => row.querySelector(".st-exception")).map((row) => row.querySelector(".st-wrow-id")?.textContent),
+  }));
+  check(counted.figure === "42 / 50 LP" && counted.komplex === "8 / 10–24 LP" && counted.marked.join() === "11102", `the Wahlpflicht with the exception: ${JSON.stringify(counted)}`);
   await context.close();
 }
 
