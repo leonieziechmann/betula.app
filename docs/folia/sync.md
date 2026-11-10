@@ -106,7 +106,11 @@ from both sides at once. The signals go through Phloem, sealed with the live key
 `live`) to the space, `signal` and both slots: Phloem can neither read them nor hand them to
 another device. The first attempt takes STUN alone and counts as failed after 8 s; the next ones
 take TURN as well (15 s), then again after 30 s, 1, 2, 4 and at most 5 minutes; a device that
-needed TURN with another takes it at once for a day (`betula.sync.p<id>.relay`). The ICE servers
+needed TURN with another takes it at once for a day (`betula.sync.p<id>.relay`). In an attempt
+with TURN a device's candidates wait for its relay candidate (at most 3 s, `live::HOLD_MS`): its
+allocation is there then, and Phloem permits the other device's relay to send to an address this
+device allocated from (protocol.md §6; for a phone whose WebSocket leaves through a VPN or over
+IPv6 while its UDP does not). The ICE servers
 and the TURN credential come from Phloem (`turn`, per socket: a new socket asks again). A
 negotiated data channel (unordered, reliable) carries each change of this device as the sealed
 batch Phloem keeps, at once to the other device and to Phloem; what comes over it is taken as an
