@@ -2231,6 +2231,12 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
 /* A page of sections opens like the catalog's list: the number, then what it counts. */
 .summary { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 8px 2px 16px; }
 .summary h1 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-right: auto; font-size: inherit; font-weight: inherit; letter-spacing: inherit; }
+/* The program overview's way back up to „Mein Studium", which it lies under in its tab (programs.rs;
+   owner, 2026-11-10), as a program's head has it: the arrow on the left edge of the number under
+   it, the page's gap taken back. The browser app's alone: without JavaScript the overview is where
+   „Studium" starts. On a phone the box at the head is the way back (the rule there). */
+.progs-up { min-height: 34px; padding-left: 6px; margin-bottom: calc(-1 * var(--gap)); }
+html:not(.js) .progs-up { display: none; }
 /* The visitor's own program at the head of the overview (the app's; programs.rs `MineStrip`): the
    program with the way to „Mein Studium", and the program after it or before it with its plan.
    The server writes an empty .mine-room in its place, which keeps its room from the first paint in
@@ -5133,6 +5139,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
      way back. What stood beside it takes its place at the left (the path of a program's page). */
   .topbar.backed ~ .content :is(.hero-top, .topic-head, .home-hero-text) > .at-head { display: none; }
   .topbar.backed ~ .content .hero-top > .at-head + .crumbs { margin-left: 10px; }
+  .topbar.backed ~ .content .progs-up { display: none; }
   /* The way back of a page or of its step (chrome.rs `TopBack`; owner, 2026-10-05: „oben links
      neben der search bar im gleichen style eine quadratische box … mit einem zurück pfeil"): a box
      as the search is, as wide as it is high. It stands where the row starts (out of the row: where

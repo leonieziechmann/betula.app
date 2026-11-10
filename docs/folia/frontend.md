@@ -866,7 +866,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   closed. **„Studium" is the visitor's study first** (owner, 2026-10-04): the list of its area is
   „Mein Studium" (`/study`), where the tab leads on the first entry of a session and, inside the
   area (the overview, a program), up to; the program overview is one link away in its sidebar.
-  „Zurück" on a program's page leads to the list it came from, „Mein Studium" or the overview as it
+  The overview leads back up there itself, as „Mein Studium" as it was left: „Zurück" and Esc at
+  its head on a wide screen, as a program's page has them (owner, 2026-11-10: „die kommt aus einer
+  Zeit, wo das noch die top level seite in dem TAB war. Jetzt gibt es das problem, dass man da
+  nicht sinnvoll wieder raus kommt"; until Folia 1.91.2 only the rail's tab and „Mein Studium" in
+  the strip of the visitor's own program led there), on a phone the box at the head; the server
+  writes the link too, and without JavaScript, where the overview is where the tab starts, it is
+  not there. „Zurück" on a program's page leads to the list it came from, „Mein Studium" or the overview as it
   was left, and to the overview where nothing is remembered (`Area::back_root`, which the server's
   page links). Without the app the tab is the overview: there is nothing to plan without it.
 - **A swipe along the phone's bottom bar goes to the tab beside the current one** (owner,
@@ -1576,8 +1582,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   and inside a tab's stack it goes one step back), and steps aside while the head has it
   (`.topbar.backed ~ .content .at-head`);
   a page's step that has no such link (a semester of „Mein Studium", its views on a phone) puts it
-  there the same way while the step shows. The program overview has it too, up to „Mein Studium"
-  as it was left (owner, 2026-10-17: „wenn man auf alle Studiengänge geht, dann fehlt da ein
+  there the same way while the step shows. The program overview has it too (its `BackLink` since
+  Folia 1.91.2), up to „Mein Studium" as it was left (owner, 2026-10-17: „wenn man auf alle Studiengänge geht, dann fehlt da ein
   zurück button, um zur mein Studium ansicht zurück zu kommen"; `chrome::Up::Study`), through the
   history where that is the step before. Each page that put it there takes it away with it, and
   only its own (a number per `follow`): the page the app goes to may say where before the one it

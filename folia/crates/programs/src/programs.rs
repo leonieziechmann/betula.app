@@ -15,9 +15,9 @@
 //! No source states a program's faculty. It is derived (`folia_pages::faculties`), the
 //! sidebar says on what grounds, and programs without a clear answer have a section of their own.
 //!
-//! In the browser app the head names the visitor's own program („Mein Studiengang", A.10) with
-//! the way to „Mein Studium", and the Master after it (or the Bachelor before it); the list marks
-//! it.
+//! In the browser app the overview lies under „Mein Studium" in its tab, and its head leads back up
+//! there („Zurück", Esc), names the visitor's own program („Mein Studiengang", A.10) with the way
+//! to „Mein Studium", and the Master after it (or the Bachelor before it); the list marks it.
 
 use std::collections::BTreeMap;
 
@@ -37,9 +37,9 @@ use folia_stores::myprogram::{po_of, program_href, MineResolved, MyProgram};
 use folia_design::nav;
 use folia_shell::pending::Pending;
 use folia_shell::seo::Seo;
-use folia_shell::tabs::{self, Tabs};
+use folia_shell::tabs::{self, Area, Tabs};
 use folia_shell::skeleton::FilterGroupsStandin;
-use folia_shell::frame::{ErrorState, Frame, Plain};
+use folia_shell::frame::{BackLink, ErrorState, Frame, Plain};
 use folia_design::modal::Sheet;
 use folia_design::ui::{Icon, ToggleLink};
 
@@ -452,6 +452,8 @@ pub fn ProgramsPage() -> impl IntoView {
         }
     };
 
+    // „Mein Studium" as it was left; on the server, which knows nothing of it, its first view.
+    let up = Tabs::expect().map_or_else(|| url::STUDY.to_string(), Tabs::study);
     let page = view! {
         <Title text=t.programs.title/>
         // On a phone the filters fit (owner, 2026-11-04: „alle modal instanzen durchguckst und da
@@ -470,6 +472,14 @@ pub fn ProgramsPage() -> impl IntoView {
                         />
                     }
                 }}
+                // The way back up to „Mein Studium" as it was left, which the overview lies under in
+                // its tab (owner, 2026-11-10: „die kommt aus einer Zeit, wo das noch die top level
+                // seite in dem TAB war … dass man da wieder raus kommt"), as a program's page has
+                // its way back: „Zurück" and Esc on a wide screen, on a phone the box at the head
+                // (`chrome::Up::Study`). The server writes it too, so nothing moves at the takeover;
+                // without JavaScript the overview is where „Studium" starts, and it is not there
+                // (app.css).
+                <div class="hero-top progs-up"><BackLink area=Area::Programs to=Some(up)/></div>
                 // The same opening as the catalog's list: the number, then what it counts.
                 <header class="summary">
                     <h1>
