@@ -21,8 +21,9 @@
 //! instead.
 //!
 //! The program is set up once (`setup.rs`, the first visit) and changed rarely, in a dialog that
-//! says what of the plan counts in the new one (`side.rs`). The sidebar of a desktop holds it and
-//! the ways to the program's pages.
+//! says what of the plan counts in the new one (`side.rs`). The sidebar of a desktop holds it, the
+//! views (the Regelstudienplan, the Wahlpflicht, the regulations: `regular.rs`, `choose.rs`,
+//! `documents.rs`) and the way to all programs.
 //!
 //! The page is the app's (R9, R20): the server writes the same stand-in for everybody, and nothing
 //! of it reaches an address but how it is shown: a phone's semesters, the module beside them
@@ -36,6 +37,7 @@ mod card;
 mod choose;
 mod count;
 mod dialog;
+mod documents;
 mod dom;
 mod focus;
 mod grid;
@@ -726,10 +728,10 @@ fn StudyMain(ctx: StudyCtx) -> impl IntoView {
 }
 
 /// The study: on a desktop the overview and the semesters, on a phone a row of pages; or a view of
-/// it, the Regelstudienplan or the Wahlpflicht, without the overview (owner, 2026-11-04: „Beim
-/// regelstudienplan und bei dem wahlpflicht teil soll die progress bar entfernt werden. Die ist
-/// nicht relevant für die beiden subpages"): on a desktop the view alone in the page, on a phone a
-/// page of its own.
+/// it, the Regelstudienplan, the Wahlpflicht or the regulations, without the overview (owner,
+/// 2026-11-04: „Beim regelstudienplan und bei dem wahlpflicht teil soll die progress bar entfernt
+/// werden. Die ist nicht relevant für die beiden subpages"): on a desktop the view alone in the
+/// page, on a phone a page of its own.
 #[component]
 fn StudyBody(ctx: StudyCtx) -> impl IntoView {
     let view = Memo::new(move |_| ctx.url.with(|url| url.view));
@@ -748,6 +750,7 @@ fn StudyBody(ctx: StudyCtx) -> impl IntoView {
             .into_any(),
             StudyView::Plan => view! { <regular::Regular ctx/> }.into_any(),
             StudyView::Choices => view! { <choose::Choose ctx/> }.into_any(),
+            StudyView::Documents => view! { <documents::Documents ctx/> }.into_any(),
         }
     }
 }

@@ -76,6 +76,7 @@ pub struct Texts {
     pub shortcuts: fn(&str) -> String,
     pub to_plan: &'static str,
     pub to_areas: &'static str,
+    pub to_documents: &'static str,
     pub all_programs: &'static str,
     /// The Merkliste's tab, held (folia/design/merken/oberflaeche.html, „Der Tab, lange
     /// gedrückt"): the whole list and „Ohne Sammlung" before the collections.
@@ -139,6 +140,7 @@ pub const DE: Texts = Texts {
     shortcuts: |area| format!("{area}: Abkürzungen"),
     to_plan: "Regelstudienplan",
     to_areas: "Wahlpflicht",
+    to_documents: "Ordnungen & Dokumente",
     all_programs: "Alle Studiengänge",
     all_marked: "Alle gemerkten",
     without_collection: "Ohne Sammlung",
@@ -200,6 +202,7 @@ pub const EN: Texts = Texts {
     shortcuts: |area| format!("{area}: shortcuts"),
     to_plan: "Standard study plan",
     to_areas: "Electives",
+    to_documents: "Regulations & documents",
     all_programs: "All degree programmes",
     all_marked: "All saved",
     without_collection: "No collection",
