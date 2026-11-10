@@ -31,11 +31,12 @@ PHLOEM_ORIGINS=http://127.0.0.1:8080 PHLOEM_DATA=phloem-data PHLOEM_LOG_FORMAT=t
 ```
 
 - It listens on `127.0.0.1:8200` (`PHLOEM_ADDR`): the API at http://127.0.0.1:8200/sync/v1/, the
-  socket at ws://127.0.0.1:8200/sync/v1/ws.
+  socket at ws://127.0.0.1:8200/sync/v1/ws, and the same socket over plain requests at
+  http://127.0.0.1:8200/sync/v1/poll.
 - `PHLOEM_ORIGINS` lists the origins it takes for the socket and answers CORS for (preflights
-  included: `Authorization`, `Betula-Space`, `Betula-Pair`, `Betula-Part`, `Content-Type`,
-  `If-None-Match`; GET, POST, PUT, DELETE; `ETag` is exposed, a part's version). Another origin
-  gets 403 `origin`; a request without one (curl, a test) is taken.
+  included: `Authorization`, `Betula-Space`, `Betula-Pair`, `Betula-Part`, `Betula-Poll`,
+  `Content-Type`, `If-None-Match`; GET, POST, PUT, DELETE; `ETag` is exposed, a part's version).
+  Another origin gets 403 `origin`; a request without one (curl, a test) is taken.
 - `phloem-data/phloem.db` is made on the first start (SQLite, migrated by Phloem itself).
 - Without Traefik in front, the limits per address count the peer: everything from 127.0.0.1 is
   one address (20 new spaces an hour). They live in memory: a restart starts them anew.
@@ -46,7 +47,7 @@ PHLOEM_ORIGINS=http://127.0.0.1:8080 PHLOEM_DATA=phloem-data PHLOEM_LOG_FORMAT=t
 
 | | |
 |---|---|
-| `serve` | the service (the default command): the HTTP API and the sockets, until SIGTERM; then no new connections, the requests in flight end within 10 s, every device hears 1001, and the stats file says `phloem_up 0` |
+| `serve` | the service (the default command): the HTTP API and the sockets, until SIGTERM; then no new connections, every device hears 1001 (as the shutdown begins, so that the GETs of the poll sessions that wait end with it), the requests in flight end within 10 s, and the stats file says `phloem_up 0` |
 | `start` | the image's entrypoint, as root with NET_ADMIN, SETUID and SETGID only: loads the firewall, checks that it holds (a datagram to Docker's resolver must be dropped), sets no_new_privs, drops to uid/gid 65532 without any capability, checks `/proc` that nothing is left, and execs `serve`. Anything failing ends it before Phloem serves. It reads no `.env` |
 | `healthcheck` | exit 0 when the local instance answers `/healthz` (the image's HEALTHCHECK, every 10 s); drops root first |
 | `status` | the local instance's numbers as one JSON object (`GET /status`, loopback only); drops root first |
@@ -88,12 +89,16 @@ new ones per space and day (a part deleted stays gone 395 days, beyond its space
 of a day bound what a space can leave behind), 3600 part reads per address and hour, a watch of
 at most 64 parts, 4096 sockets per instance and 32 per address before their hello, 395 days
 untouched and a space is deleted. Step 2: a signal of at most 8 KiB, 20 signals and `turn` frames a
-second per socket (bursts of 100); TURN as section „TURN" says.
+second per socket (bursts of 100); TURN as section „TURN" says. The socket over HTTPS (Phloem
+0.4.0): a poll session is a socket among the 4096, a GET waits at most 25 s for a frame, a session
+nobody asks anything for 60 s ends, a POST's body holds at most 9 MiB (`PollWait`, `PollIdle`).
 
 Memory is bounded the same way: at most 8 frames above 128 KiB are read at a time (others wait),
 a device's queue holds at most 512 frames or 16 MiB, beyond which Phloem lets it go and it comes
-back with `since`, and a socket watches at most 64 parts. The stack gives the container 512 MiB,
-`GOMEMLIMIT` 400 MiB, one CPU and 128 processes.
+back with `since`, and a socket watches at most 64 parts. Of the poll sessions, at most 2 bodies
+above 128 KiB are read at a time and at most 2 frames above 128 KiB wait for their GET (others
+wait), each a pool of its own beside the 8, so that none waits for another. The stack gives the
+container 512 MiB, `GOMEMLIMIT` 400 MiB, one CPU and 128 processes.
 
 ## Storage
 
@@ -147,11 +152,16 @@ Step 2 of Betula Sync (owner, 2026-11-08: „time für phase 2 bei dem sync"): t
 profile online connect directly with WebRTC (`docs/folia/sync.md`, „The live way"), their signals
 sealed through the WebSocket (`protocol.md` section 4). Where no direct way exists, Phloem relays
 (Pion, `internal/server/turn.go`; the rules in `protocol.md` section 6): a credential per socket,
-held while it lives; a peer only at the address another socket of the same space came from, never
-a special address nor Phloem's own; UDP relays alone, 128 KiB a second each way each, 4 MiB a
-second all of them; 8 allocations per socket, 32 per space. Its numbers: `phloem_turn_allocations`,
-`phloem_turn_total{event}` (`allocated`, `permitted`, `refused`, `unauthorized`, `quota`,
-`no_port`, `forbidden`), `phloem_relay_bytes_total{way}` and
+held while it lives; a peer only at the address another socket of the same space came from or,
+since Phloem 0.4.0, allocated from (a VPN, a device whose socket goes over IPv6 and its UDP over
+IPv4; on canary on 2026-11-10, 60 permissions were refused against 12 granted), never a special
+address nor Phloem's own; UDP relays alone, 128 KiB a second each way each, 4 MiB a second all of
+them; 8 allocations per socket, 32 per space. Over UDP every nonce is bound to the address it goes
+to (`internal/server/nonce.go`): an allocation's address answered Phloem, a forged source cannot
+make an address a peer. Its numbers: `phloem_turn_allocations`, `phloem_turn_total{event}`
+(`allocated`, `permitted`, `learned` (an allocation came from an address its socket did not),
+`refused`, `unauthorized`, `quota`, `no_port`, `nonce` (a request over UDP with a nonce not
+handed to its address, answered 438), `forbidden`), `phloem_relay_bytes_total{way}` and
 `phloem_relay_dropped_bytes_total{way}` (`in`: from a peer, `out`: to one), `phloem_signals_total`.
 
 Its ports are published in host mode (`deploy/vps/lib-phloem.sh`, `phloem_turn_file`): Phloem
@@ -164,6 +174,23 @@ Not done on purpose: a relay to another relay of the same instance (both devices
 NATs): it would go through the same machine as the WebSocket, which carries the changes then, and
 it would make Phloem's own address a peer.
 
+## The socket over HTTPS
+
+Since Phloem 0.4.0 (owner, 2026-11-10: „wenn eine methode nicht funktioniert muss dann halt
+ausgewichen werden auf eine andere die garantiert läuft"): where a network breaks the WebSocket's
+upgrade and lets plain requests through, the browser polls (`protocol.md` section 4, „The socket
+over HTTPS"). A poll session is a bridge (`internal/server/poll.go`): Phloem dials its own handler
+of `/sync/v1/ws` in memory, the two ends of a `net.Pipe` served by an HTTP server on a listener of
+its own, so nothing touches the network and the firewall stays as it is. The socket carries the
+request's `X-Real-Ip` and `Origin`: the limits of an address and TURN see the device. A goroutine
+reads the socket into the session's queue (and so answers Phloem's pings); a POST writes into it,
+a GET takes what waits. Every rule of the socket holds for both, since there is one socket.
+
+Traefik needs nothing new: `/sync/v1/poll` is under the router of `/sync/v1/`, a GET of 25 s is
+within its timeouts, and its access log keeps no header (the session's id is one). Its
+`sync-ratelimit` (20 requests a second per address, bursts of 60) counts every GET and POST,
+where a WebSocket was one request.
+
 ## Numbers and logs
 
 The stats file `phloem.prom` (Prometheus text, every 15 s, written by a rename) holds:
@@ -174,6 +201,8 @@ The stats file `phloem.prom` (Prometheus text, every 15 s, written by a rename) 
 `phloem_snapshot_bytes_total`, `phloem_parcels_total{event}`, `phloem_parts_total{event}`,
 `phloem_pushes_again_total`, `phloem_spaces_created_total`, `phloem_spaces_deleted_total{reason}`,
 `phloem_rejections_total{reason}`, `phloem_socket_closes_total{reason}`,
+`phloem_poll_sessions`, `phloem_poll_sessions_opened_total`,
+`phloem_poll_sessions_ended_total{reason}`,
 `phloem_log_problems_total`, and for step 2 the numbers of „TURN", each with `stack`. Alloy reads it through `/rootfs`
 (`config/monitoring/alloy/config.alloy`, job `phloem`); the dashboard "Sync" and the rules of the
 group `betula-phloem` use these names.
@@ -186,6 +215,11 @@ group `betula-phloem` use these names.
   (404), `gone` (410).
 - `phloem_rejections_total{reason}`: `unauthorized`, `too_big`, `compact_first`, `slow_down`,
   `too_many` (32 parts), `full`, `budget`, `exists`, `origin`, `busy`, `invalid`.
+- `phloem_poll_sessions`: the poll sessions whose socket lives (among `phloem_sockets` too).
+  `phloem_poll_sessions_opened_total`, and `phloem_poll_sessions_ended_total{reason}` by what
+  ended their socket: `closed` (a close the device hears: left, gone, replaced, restart, 1008,
+  1009, 1011), `lost` (ended without one), `slow` (too far behind), `idle` (nobody asked for a
+  minute). The closes of the socket itself count in `phloem_socket_closes_total` as any socket's.
 
 Logs are JSON lines (`level`, `event`, `msg`, `component`), one per event, never one per request
 or frame: `start.firewall`, `start.dropped`, `start.failed`, `service.started`,
