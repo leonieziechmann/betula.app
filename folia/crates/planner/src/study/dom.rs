@@ -308,15 +308,23 @@ pub(super) fn fit_pieces(root_id: &str) {
     {
         let Some(root) = folia_design::stage::by_id(root_id) else { return };
         let Ok(segments) = root.query_selector_all(".st-rm-seg") else { return };
+        // Every width read first, then the marks written: a mark written between two reads made
+        // the browser lay the whole plan out anew for the next read, once for every cell that
+        // changed (a frame of 80 ms as an area unfolded, until Folia 1.89.2).
+        let mut changes = Vec::new();
         for i in 0..segments.length() {
             let Some(segment) = segments.item(i).and_then(|node| node.dyn_into::<web_sys::Element>().ok()) else { continue };
-            // A pixel of slack: a cell's width is not always a whole number.
-            let full = segment.scroll_width() > segment.client_width() + 1;
             if let Some(cell) = segment.parent_element() {
+                // A pixel of slack: a cell's width is not always a whole number. A row that does
+                // not unfold narrows its pieces instead (`grid::cell_view`, `still`).
+                let full = !cell.class_list().contains("still") && segment.scroll_width() > segment.client_width() + 1;
                 if cell.has_attribute("data-full") != full {
-                    let _ = cell.toggle_attribute_with_force("data-full", full);
+                    changes.push((cell, full));
                 }
             }
+        }
+        for (cell, full) in changes {
+            let _ = cell.toggle_attribute_with_force("data-full", full);
         }
     }
 }
@@ -350,6 +358,17 @@ pub(super) fn scrolled_cards(row: &leptos::web_sys::Element) -> Option<(f64, f64
     }
     #[cfg(not(feature = "csr"))]
     None
+}
+
+/// The width of the element of `id` (px); 0 where it is not there.
+#[allow(unused_variables)]
+pub(super) fn width_of(id: &str) -> f64 {
+    #[cfg(feature = "csr")]
+    {
+        folia_design::stage::by_id(id).map_or(0.0, |element| element.get_bounding_client_rect().width())
+    }
+    #[cfg(not(feature = "csr"))]
+    0.0
 }
 
 /// How far a box that scrolls sideways is scrolled (px): its content's left edge against its own,

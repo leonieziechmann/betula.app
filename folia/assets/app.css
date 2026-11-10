@@ -5971,6 +5971,11 @@ div.st-col-head.past { cursor: default; }
 .st-rm-tog .icon { width: 15px; height: 15px; transition: rotate .16s var(--ease); }
 .st-rm-area[aria-expanded="true"] .st-rm-tog .icon { rotate: 90deg; }
 .st-rm-area-t { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 9px 0 9px 2px; }
+/* A row that would unfold into a single lane does not unfold (owner, 2026-11-10: „dass ein
+   platzhalter, der nur für ein modul ist kein ausklappbares element wird"; `AreaRow::unfolds`): no
+   ▸, no hand, its name where the others' are. */
+.st-rm-area.still { cursor: default; }
+.st-rm-area.still:hover { background: transparent; }
 .st-rm-area .st-card-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .st-rm-area .st-card-lp.done { display: inline-flex; align-items: center; gap: 3px; color: var(--ok); font-weight: 650; }
 .st-rm-area .st-card-lp .icon { width: 12px; height: 12px; }
@@ -5979,20 +5984,20 @@ div.st-col-head.past { cursor: default; }
    it holds against what it asks and the Wahlpflicht's bar of it (`.st-wbar`: the least marked, a
    Komplex's room above 24 hatched); its own bar over the semesters, a little lower than an area's;
    a click on its head unfolds its lanes, which stand indented under it. */
-.st-rm-head.st-rm-sub, .st-rm-cell.sub { background-color: color-mix(in oklab, var(--text) 1.6%, var(--panel)); }
+.st-rm-head.st-rm-sub, .st-rm-cell.sub { height: 44px; background-color: color-mix(in oklab, var(--text) 1.6%, var(--panel)); }
 .st-rm-cell.sub.past { background-color: color-mix(in oklab, var(--text) 1.6%, var(--panel-2)); }
 .st-rm-cell.sub.is-now { background-color: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
 .st-rm-sub .st-rm-area { padding-left: 12px; }
-.st-rm-sub .st-rm-area-t { gap: 3px; padding: 6px 0 7px 2px; }
+.st-rm-sub .st-rm-area-t { gap: 3px; padding: 5px 0 6px 2px; }
 .st-rm-sub .st-card-name { font-size: 12.5px; font-weight: 600; }
 .st-rm-sub .st-card-lp { font-size: 12px; }
 .st-rm-subline { display: flex; align-items: center; gap: 8px; min-height: 15px; }
 .st-rm-subline > .st-wbar { flex: 1 1 auto; height: 4px; min-width: 0; }
 .st-rm-subline > .st-card-lp { flex: none; margin-left: auto; }
 .st-rm-sub .st-wbar > .lt { top: -2px; bottom: -2px; }
-.st-rm-cell.sub { padding-top: 7px; padding-bottom: 7px; }
+.st-rm-cell.sub { padding-top: 8px; padding-bottom: 9px; }
 .st-rm-cell.sub > .st-rm-seg { height: 26px; }
-.st-rm-cell.sub > .st-rm-sum { inset: 7px 1px; }
+.st-rm-cell.sub > .st-rm-sum { inset: 8px 1px 9px; }
 .st-rm-lane.deep { padding-left: 46px; }
 .st-mini { display: flex; height: 3px; margin: 6px 0 0 16px; border-radius: 2px; overflow: hidden; background: var(--panel-3); }
 .st-rm-area .st-mini { margin-top: 0; }
@@ -6005,20 +6010,54 @@ div.st-col-head.past { cursor: default; }
 .st-rm-cell { position: relative; isolation: isolate; min-width: 0; padding: 9px 1px; border-bottom: 1px solid var(--line); border-left: 1px solid var(--line); container-type: inline-size; }
 .st-rm-cell.past { background: var(--panel-2); }
 .st-rm-cell.leave { background: repeating-linear-gradient(135deg, var(--panel-2) 0 7px, var(--panel) 7px 14px); }
-/* A module dragged over the plan (grid/, `Aim`): the semester under the pointer lit lightly from
-   its head down, the cell it lands in (its area's, its lane's) strongly. A shadow inside, over the
-   cell's own ground (the hatch of a leave), under its pieces and the line of today. */
-.st-rm .rm-drop { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--accent) 8%, transparent); }
-.st-rm .rm-drop-here { box-shadow: inset 0 0 0 2px var(--accent), inset 0 0 0 100vmax color-mix(in srgb, var(--accent) 20%, transparent); }
-/* A row a module dragged does not count for by the plan: dashed, and what Strg does there
-   (`grid::Aim::hint`); held, it counts there as an exception, marked so. */
-.st-rm .rm-drop-no { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text-3) 70%, transparent), inset 0 0 0 100vmax color-mix(in srgb, var(--accent) 8%, transparent); }
+/* A module dragged over the plan (grid/, `Aim`; owner, 2026-11-10: „für die drag and drop
+   animation/farbgebung nochmal eine überarbeitung … so dass man einfacher erkennen kann, wo das
+   rein passt und wo nicht"): from the moment it is taken up every row says what a drop there does
+   (`grid::Fit`) — green where it counts by the plan, its own row among them; grey, its pieces
+   faded, where it does not; amber where it would count as an exception while Strg is held
+   (`[data-ex]`) — and a key at the plan's head says so. The column under the pointer is lit more
+   strongly in each row's colour, its semester's head marked; the cell it lands in is ringed, green,
+   amber as an exception, with what it does over it („zählt hier", „als Ausnahme"; „landet hier"
+   where it lands instead of a grey row, which is dashed and says what Strg does). The piece taken
+   up is a dashed hole. Each a shadow inside its cell, over its ground (the hatch of a leave), under
+   its pieces and the line of today; until Folia 1.89.2 only the column and the cell it landed in
+   were lit. */
+.st-rm[data-drag] :is(.st-rm-cell, .st-rm-lc).rm-fit { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--accent) 7%, transparent); }
+.st-rm[data-drag] :is(.st-row-head, .st-rm-lane).rm-fit { box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 100vmax color-mix(in srgb, var(--accent) 7%, transparent); }
+.st-rm[data-drag] :is(.st-rm-cell, .st-rm-lc):is(.rm-ex, .rm-no) { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--text) 5%, transparent); }
+.st-rm[data-drag] :is(.rm-ex, .rm-no) :is(.st-rm-seg, .st-rm-sum, .st-rm-bar) { opacity: .35; filter: grayscale(1); }
+.st-rm[data-drag] :is(.st-row-head, .st-rm-lane):is(.rm-ex, .rm-no) > * { opacity: .45; }
+.st-rm[data-drag][data-ex] :is(.st-rm-cell, .st-rm-lc).rm-ex { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--warn) 10%, transparent); }
+.st-rm[data-drag][data-ex] :is(.st-row-head, .st-rm-lane).rm-ex { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 100vmax color-mix(in srgb, var(--warn) 10%, transparent); }
+.st-rm[data-drag][data-ex] .rm-ex :is(.st-rm-seg, .st-rm-sum, .st-rm-bar) { opacity: .8; filter: none; }
+.st-rm[data-drag][data-ex] :is(.st-row-head, .st-rm-lane).rm-ex > * { opacity: 1; }
+.st-rm .st-col-head.rm-drop { box-shadow: inset 0 -3px 0 var(--accent), inset 0 0 0 100vmax color-mix(in srgb, var(--accent) 12%, transparent); }
+.st-rm[data-drag] :is(.st-rm-cell, .st-rm-lc).rm-drop.rm-fit { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--accent) 16%, transparent); }
+.st-rm[data-drag] :is(.st-rm-cell, .st-rm-lc).rm-drop:is(.rm-ex, .rm-no) { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--text) 9%, transparent); }
+.st-rm[data-drag][data-ex] :is(.st-rm-cell, .st-rm-lc).rm-drop.rm-ex { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--warn) 18%, transparent); }
+.st-rm[data-drag] :is(.st-rm-cell, .st-rm-lc).rm-drop.rm-drop-here { box-shadow: inset 0 0 0 2px var(--accent), inset 0 0 0 100vmax color-mix(in srgb, var(--accent) 26%, transparent); }
+.st-rm[data-drag] .st-rm-cell.rm-drop.rm-drop-here.rm-land-ex { box-shadow: inset 0 0 0 2px var(--warn), inset 0 0 0 100vmax color-mix(in srgb, var(--warn) 22%, transparent); }
+.st-rm[data-drag] .st-rm-cell.rm-drop.rm-drop-no { outline: 1.5px dashed color-mix(in srgb, var(--text-2) 75%, transparent); outline-offset: -3px; }
+.st-rm-p.is-dragged { opacity: .4; outline: 1.5px dashed currentColor; outline-offset: -1.5px; }
+/* The key, over the buttons of the plan's head, which take no drop. */
+.st-grid-panel .st-sems-head { position: relative; }
+.st-rm-dragkey { position: absolute; z-index: 3; top: 50%; right: -10px; translate: 0 -50%; display: flex; align-items: center; gap: 4px 16px; padding: 6px 10px 6px 16px; background: var(--panel); color: var(--text-2); font-size: 12px; white-space: nowrap; pointer-events: none; }
+.st-rm-dragkey > span { display: inline-flex; align-items: center; gap: 6px; }
+.st-rm-dragkey .k { flex: none; width: 16px; height: 11px; border-radius: 3px; }
+.st-rm-dragkey .k.fit { background: color-mix(in srgb, var(--accent) 26%, var(--panel)); box-shadow: inset 3px 0 0 var(--accent); }
+.st-rm-dragkey .k.no { background: color-mix(in srgb, var(--text) 9%, var(--panel)); }
+.st-rm-dragkey .k.ex { background: color-mix(in srgb, var(--warn) 22%, var(--panel)); box-shadow: inset 3px 0 0 var(--warn); }
 .st-rm-hint { position: absolute; z-index: 4; left: 50%; bottom: 3px; translate: -50% 0; max-width: calc(100% - 8px); padding: 1px 6px; border-radius: 5px; background: var(--text); color: var(--panel); font-size: 10.5px; font-weight: 650; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.st-rm-hint.fit { background: var(--accent); color: var(--on-accent); }
 .st-rm-hint.ex { background: var(--warn); color: #fff; }
 .st-rm-seg { position: relative; z-index: 1; display: flex; gap: 2px; height: 28px; overflow: hidden; }
 .st-rm-sum { position: absolute; z-index: 1; inset: 9px 1px; display: none; gap: 2px; }
 .st-rm-cell[data-full] > .st-rm-seg { visibility: hidden; }
 .st-rm-cell[data-full] > .st-rm-sum { display: flex; }
+/* A row that does not unfold has no lanes to show them one by one: no „n Module" for its pieces,
+   which narrow instead, their labels cut, each still its own button (`grid::cell_view`). */
+.st-rm-cell.still > .st-rm-seg > .st-rm-p { min-width: 0; overflow: hidden; }
+.st-rm-cell.still > .st-rm-seg > .st-rm-p > .lb { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .st-rm-p { position: relative; flex: 1 1 0px; display: inline-flex; align-items: center; gap: 3px; height: 100%; padding: 0 6px; border: 0; border-radius: 4px; background: transparent; color: var(--text); font: inherit; font-size: 11px; font-weight: 650; letter-spacing: .005em; line-height: 1; white-space: nowrap; cursor: pointer; }
 .st-rm-p .lb { display: inline-flex; align-items: baseline; }
 .st-rm-p .icon { flex: none; width: 12px; height: 12px; stroke-width: 2.4; }
