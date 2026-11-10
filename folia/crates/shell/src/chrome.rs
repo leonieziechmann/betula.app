@@ -259,6 +259,7 @@ pub fn TabMenu() -> impl IntoView {
                 if program.with(Option::is_some) {
                     ways.push(("file-check-2", t.app.to_plan.to_string(), StudyUrl::default().with_view(StudyView::Plan).path(), None, false));
                     ways.push(("list-checks", t.app.to_areas.to_string(), StudyUrl::default().with_view(StudyView::Choices).path(), None, false));
+                    ways.push(("file-text", t.app.to_documents.to_string(), StudyUrl::default().with_view(StudyView::Documents).path(), None, false));
                 }
                 ways.push(("graduation-cap", t.app.all_programs.to_string(), url::PROGRAMS.to_string(), None, false));
                 ways

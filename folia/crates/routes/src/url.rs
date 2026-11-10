@@ -855,7 +855,7 @@ impl Season {
 }
 
 /// A view of „Mein Studium" (owner, 2026-10-14, concept A „Ansichten"): the semesters, or the
-/// program's Regelstudienplan and Wahlpflicht with the student's stand in them.
+/// program's Regelstudienplan and Wahlpflicht with the student's stand in them, or its regulations.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum StudyView {
     /// The overview and the semesters.
@@ -865,16 +865,20 @@ pub enum StudyView {
     Plan,
     /// „Wahlpflicht": what the plan leaves to choose, by area (`view=areas`).
     Choices,
+    /// „Ordnungen & Dokumente": the program's regulations and the ways to what else is known of it
+    /// (`view=documents`; 2026-11-10). Until then the program's whole page, at its end.
+    Documents,
 }
 
 impl StudyView {
-    pub const ALL: &'static [Self] = &[Self::Semesters, Self::Plan, Self::Choices];
+    pub const ALL: &'static [Self] = &[Self::Semesters, Self::Plan, Self::Choices, Self::Documents];
 
     pub fn code(self) -> &'static str {
         match self {
             StudyView::Semesters => "",
             StudyView::Plan => "plan",
             StudyView::Choices => "areas",
+            StudyView::Documents => "documents",
         }
     }
 }
@@ -2410,6 +2414,10 @@ mod tests {
         assert_eq!(StudyUrl::parse("view=areas").with_view(StudyView::Semesters).path(), "/study");
         assert_eq!(StudyUrl::parse("view=plan").with_open(Some("11101")).with_full(true).path(), "/study?view=plan&open=11101&full=1");
         assert_eq!(StudyUrl::parse("view=plan").with_plan(true).path(), "/study?view=plan");
+        // The regulations, a module beside them as beside every view.
+        assert_eq!(StudyUrl::parse("view=Documents&open=11101").path(), "/study?view=documents&open=11101");
+        assert_eq!(StudyUrl::default().with_view(StudyView::Documents).path(), "/study?view=documents");
+        assert_eq!(StudyUrl::parse("view=documents&choice=2&plan=1").path(), "/study?view=documents");
     }
 
     #[test]

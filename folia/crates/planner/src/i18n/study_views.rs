@@ -1,5 +1,6 @@
-//! Texts of the views of „Mein Studium" (`study/regular.rs`, `study/choose.rs`): the
-//! Regelstudienplan and the Wahlpflicht with the student's stand in them, and the ways to them.
+//! Texts of the views of „Mein Studium" (`study/regular.rs`, `study/choose.rs`,
+//! `study/documents.rs`): the Regelstudienplan and the Wahlpflicht with the student's stand in
+//! them, the program's regulations, and the ways to them.
 
 pub struct Texts {
     // The ways to the views.
@@ -29,6 +30,8 @@ pub struct Texts {
     pub nothing_to_choose: &'static str,
     /// The way back on a phone, for screen readers: „Zur Übersicht".
     pub to_overview: &'static str,
+    /// The way to the regulations on a phone: „PO 2008 - 2. SÄ 2024 · 4 Dokumente".
+    pub documents_way: fn(&str, usize) -> String,
 
     // The Regelstudienplan.
     /// „Informatik B.Sc. · PO 2008 · 180 LP" under the title on a phone; „Soll und Ist" on a
@@ -132,6 +135,25 @@ pub struct Texts {
     pub lists: &'static str,
     /// The areas, for screen readers.
     pub areas: &'static str,
+
+    // „Ordnungen & Dokumente".
+    /// The regulations, for screen readers.
+    pub documents_list: &'static str,
+    /// Under the regulation the Regelstudienplan was read from: „Darin der Regelstudienplan",
+    /// „Seite 7", „Seiten 6, 7".
+    pub plan_in: &'static str,
+    pub plan_pages: fn(&str) -> String,
+    /// A program without a regulation Betula knows.
+    pub no_documents: &'static str,
+    pub no_documents_hint: &'static str,
+    /// „Mehr zum Studiengang", and its ways: the module tree at the BTU, the program's modules in
+    /// the catalog („109 Module im Katalog"), its page for everybody.
+    pub more: &'static str,
+    pub module_tree: &'static str,
+    pub module_tree_line: &'static str,
+    pub program_modules: &'static str,
+    pub program_modules_line: fn(i64) -> String,
+    pub program_page_line: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -151,6 +173,11 @@ pub const DE: Texts = Texts {
     all_chosen: "Alles gewählt",
     nothing_to_choose: "Nichts zu wählen",
     to_overview: "Zur Übersicht",
+    documents_way: |po, n| match n {
+        0 => format!("PO {po}"),
+        1 => format!("PO {po} · 1 Dokument"),
+        n => format!("PO {po} · {n} Dokumente"),
+    },
 
     plan_lead: "Soll und Ist",
     no_plan: "Kein geprüfter Regelstudienplan",
@@ -222,6 +249,18 @@ pub const DE: Texts = Texts {
     marked: "Gemerkt",
     lists: "Listen",
     areas: "Bereiche",
+
+    documents_list: "Ordnungen",
+    plan_in: "Darin der Regelstudienplan",
+    plan_pages: |pages| if pages.contains([',', '–', '-']) { format!("Seiten {pages}") } else { format!("Seite {pages}") },
+    no_documents: "Keine Ordnung bekannt",
+    no_documents_hint: "Für diesen Studiengang kennt Betula keine Ordnung. Der Modulbaum der BTU nennt sie, sobald sie dort verlinkt ist.",
+    more: "Mehr zum Studiengang",
+    module_tree: "Modulbaum des Studiengangs",
+    module_tree_line: "Im Vorlesungsverzeichnis der BTU",
+    program_modules: "Module des Studiengangs",
+    program_modules_line: |n| if n == 1 { "1 Modul im Katalog".to_string() } else { format!("{n} Module im Katalog") },
+    program_page_line: "Plan und Bereiche, wie alle sie sehen",
 };
 
 pub const EN: Texts = Texts {
@@ -241,6 +280,11 @@ pub const EN: Texts = Texts {
     all_chosen: "All chosen",
     nothing_to_choose: "Nothing to choose",
     to_overview: "To the overview",
+    documents_way: |po, n| match n {
+        0 => format!("PO {po}"),
+        1 => format!("PO {po} · 1 document"),
+        n => format!("PO {po} · {n} documents"),
+    },
 
     plan_lead: "Plan and progress",
     no_plan: "No checked standard study plan",
@@ -312,4 +356,16 @@ pub const EN: Texts = Texts {
     marked: "Saved",
     lists: "Lists",
     areas: "Areas",
+
+    documents_list: "Regulations",
+    plan_in: "The standard study plan in it",
+    plan_pages: |pages| if pages.contains([',', '–', '-']) { format!("pages {pages}") } else { format!("page {pages}") },
+    no_documents: "No regulations known",
+    no_documents_hint: "Betula knows no regulations of this programme. BTU's module tree names them once they are linked there.",
+    more: "More on the programme",
+    module_tree: "Module tree of the programme",
+    module_tree_line: "In BTU's course catalogue",
+    program_modules: "Modules of the programme",
+    program_modules_line: |n| if n == 1 { "1 module in the catalogue".to_string() } else { format!("{n} modules in the catalogue") },
+    program_page_line: "Plan and areas as everybody sees them",
 };

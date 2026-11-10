@@ -2,8 +2,8 @@
 //! degree, the PO and the study direction, the Fachsemester now and the Studienbeginn; a click
 //! changes them), the views of the study (owner, 2026-10-14, concept A „Ansichten": „Semester",
 //! „Gesamtplan", „Regelstudienplan", „Wahlpflicht", each with a word of where it stands), the ways
-//! to the program's own page and to all programs, how the plan reads (the parts of the bar where
-//! the bar is, with the semesters), and where all of it lives. Nothing in it says twice what the page or the tab bar says (owner, 2026-10-04: „Mein
+//! to the program's regulations (a view too, `documents.rs`) and to all programs, how the plan
+//! reads (the parts of the bar where the bar is, with the semesters), and where all of it lives. Nothing in it says twice what the page or the tab bar says (owner, 2026-10-04: „Mein
 //! Studium Sidebar ist noch sehr redundant und nicht platz effizient … Zum Stundenplan kann weg der
 //! link ist direkt daneben in der Navbar"). A phone has all of it on its overview instead
 //! (`phone.rs`), and no sidebar.
@@ -20,7 +20,7 @@ use folia_pages::PlanSource;
 use folia_plans::choices;
 use folia_plans::study::{self, Input};
 use folia_plans::studyplan::PlanDoc;
-use folia_routes::url::{self, ProgramTab, ProgramUrl, StudyUrl, StudyView};
+use folia_routes::url::{self, StudyUrl, StudyView};
 use leptos::prelude::*;
 
 use folia_design::combobox::{with_first, ComboItem};
@@ -57,7 +57,7 @@ pub(super) fn StudySidebar(ctx: StudyCtx) -> impl IntoView {
                 <div class="fgroup">
                     <p class="flabel label">{v.program_group}</p>
                     <nav class="st-ways" aria-label=s.ways>
-                        <ProgramPage ctx/>
+                        <DocumentsWay ctx/>
                         <AllPrograms line=false/>
                     </nav>
                 </div>
@@ -232,34 +232,36 @@ fn ViewLinks(ctx: StudyCtx) -> impl IntoView {
     }
 }
 
-/// The ways to the views on a phone's overview, each with a line of where it stands.
+/// The ways to the views on a phone's overview, each with a line of where it stands; the
+/// regulations' with how many there are.
 #[component]
 pub(super) fn ViewWays(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let v = &t.study_views;
-    let ways = Memo::new(move |_| ctx.with_input(|input, ready| Ways::of(input, ready, t)));
+    let ways = Memo::new(move |_| ctx.with_input(|input, ready| (Ways::of(input, ready, t), (v.documents_way)(&ready.program.po_version, usize::try_from(ready.program.documents).unwrap_or(0)))));
     move || {
-        ways.get().map(|ways| view! {
+        ways.get().map(|(ways, documents)| view! {
             <a class="action st-way" href=view_href(StudyView::Plan, t)><Icon name="file-check-2"/><span>{v.plan}<small>{ways.plan_line}</small></span><Icon name="chevron-right"/></a>
             <a class="action st-way" href=view_href(StudyView::Choices, t)><Icon name="list-checks"/><span>{v.choices}<small>{ways.choices_line}</small></span><Icon name="chevron-right"/></a>
+            <a class="action st-way" href=view_href(StudyView::Documents, t)><Icon name="file-text"/><span>{v.documents}<small>{documents}</small></span><Icon name="chevron-right"/></a>
         })
     }
 }
 
-/// The program's own page: its regulations and documents, with the plan studied.
+/// The program's regulations, a view of the study (`documents.rs`; 2026-11-10: until then the
+/// program's whole page, with the plan and the modules „Mein Studium" shows already): marked
+/// while it is shown, or on its way.
 #[component]
-fn ProgramPage(ctx: StudyCtx) -> impl IntoView {
+fn DocumentsWay(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let v = &t.study_views;
-    let link = Memo::new(move |_| {
-        ctx.with_ready(|ready| {
-            let page = ProgramUrl::new(&ready.program.slug, ProgramTab::Plan).with_variant(ready.setup.shown.map_or(1, |shown| shown + 1)).path();
-            (format!("{page}#dokumente"), format!("PO {}", ready.program.po_version))
-        })
-    });
+    let po = Memo::new(move |_| ctx.with_ready(|ready| format!("PO {}", ready.program.po_version)));
+    let going = Pending::expect();
+    let shown = Memo::new(move |_| going.and_then(|going| going.search_on(url::STUDY)).map_or_else(|| ctx.url.with(|url| url.view), |search| StudyUrl::parse(&search).view));
+    let current = move || (shown.get() == StudyView::Documents).then_some("page");
     move || {
-        link.get().map(|(href, po)| view! {
-            <a class="action" href=t.path(&href)><Icon name="file-check-2"/><span>{v.documents}<small>{po}</small></span><Icon name="chevron-right"/></a>
+        po.get().map(|po| view! {
+            <a class="action" href=view_href(StudyView::Documents, t) aria-current=current><Icon name="file-text"/><span>{v.documents}<small>{po}</small></span><Icon name="chevron-right"/></a>
         })
     }
 }

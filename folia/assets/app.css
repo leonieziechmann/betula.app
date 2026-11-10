@@ -6506,6 +6506,10 @@ div.st-col-head.past { cursor: default; }
 .st-vl[aria-current="page"] .icon, .st-vl[aria-current="page"] small { color: color-mix(in oklab, var(--on-invert) 72%, transparent); }
 .st-ways .action > span small, .st-way > span small { display: block; margin-top: 1px; font-size: 12px; font-weight: 500; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-ways .action:has(small) { min-height: 44px; padding-top: 4px; padding-bottom: 4px; }
+/* „Ordnungen & Dokumente" is a view as well (documents.rs): its way in the sidebar's „Studiengang"
+   is marked as the views' are while it is shown. */
+.st-ways .action[aria-current="page"] { background: var(--invert); color: var(--on-invert); }
+.st-ways .action[aria-current="page"] .icon, .st-ways .action[aria-current="page"] small { color: color-mix(in oklab, var(--on-invert) 72%, transparent); }
 
 /* The head of a view's panel: its title and what it is, a switch at its end. */
 .st-view-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px 20px; padding: 16px 20px 12px; }
@@ -6523,6 +6527,14 @@ div.st-col-head.past { cursor: default; }
    passed in the warning's, open as a ring; where the student has it in another semester a
    dashed pill there. „Mein Stand" off (.plain): the plan as printed. */
 .st-rsp { padding-bottom: 6px; }
+/* „Ordnungen & Dokumente" (documents.rs): the regulations and the ways on, rows as on a
+   program's page, at the head's edge; under the regulation the Regelstudienplan was read from the
+   way to its pages, a part of that row. */
+.st-docs .docrow { padding-inline: 20px; }
+.st-docs .docrow.docpart { min-height: 34px; margin-top: -6px; padding-left: 46px; border-top: 0; }
+.st-docs .docpart .docname { font-weight: 500; font-size: 13px; color: var(--text-2); }
+.st-docs .docpart > .icon:first-child { width: 14px; height: 14px; }
+.st-docs .state { margin: 8px auto 24px; }
 .st-mx { width: 100%; min-width: calc(420px + var(--fs) * 58px); border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; }
 .st-mx col.c-kind { width: 120px; }
 .st-mx col.c-fs { width: 58px; }
@@ -6923,6 +6935,9 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
   .st-vhead h1 { margin: 0; font-size: 26px; font-weight: 750; letter-spacing: -.03em; line-height: 1.15; }
   .st-vhead p { margin: 4px 0 0; font-size: 14px; color: var(--text-2); }
   .st-way { min-height: 56px !important; }
+  .st-docs .docrow { padding-inline: 16px; }
+  .st-docs .docrow.docpart { margin-top: -4px; padding-left: 44px; padding-block: 4px 9px; }
+  .st-docs .st-view-head { padding-inline: 16px; }
   .st-way > span { flex: 1; font-size: 15px; font-weight: 620; }
   .st-way > span small { font-size: 13px; }
   /* The Fachsemester to jump to, staying under the bar at the top while the page scrolls. */

@@ -8,7 +8,8 @@
 //!
 //! The overview, top to bottom: the credits (what is passed of what the plan asks, the bar of the
 //! areas, and under it what its parts are, each with its credits; a tap anywhere on them opens the
-//! areas), the program's card, the ways to its Regelstudienplan and its areas, the box „Studium
+//! areas), the program's card, the ways to its Regelstudienplan, its areas and its regulations
+//! („Ordnungen & Dokumente", 2026-11-10: a phone had no way to them), the box „Studium
 //! planen" with a column for each semester (what is passed and planned there, against what the
 //! plan puts into its Fachsemester; a tap on the box leads to the current semester, a tap on a
 //! column to that one), and at the end the way to all programs and where all of it lives.
