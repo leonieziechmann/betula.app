@@ -1,8 +1,9 @@
 // Checks the programs area: the overview by faculty, its sidebar, and the frame every page shares.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node programs.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
-// Walks: the sidebar is in the same place on every page → overview (faculties in order as accordions,
-// closed until opened, every program once, nothing cut off) → filters (links, the sidebar is not
-// rebuilt, the search keeps them, what is left is open) → jump to a faculty without a history entry,
+// Walks: the sidebar is in the same place on every page → overview (its „Zurück" and Esc up to „Mein
+// Studium", faculties in order as accordions, closed until opened, every program once, nothing cut
+// off) → filters (links, the sidebar is not rebuilt, the search keeps them, what is left is open)
+// → jump to a faculty without a history entry,
 // which opens it → program page (views in the sidebar, „Zurück" and Esc lead back to the program in
 // the overview, its faculty open) → the rail's items are tabs that remember where their area was left, and
 // „Studium" leads to „Mein Studium" first → the program page itself (head, one study plan per study
@@ -85,6 +86,16 @@ const LINE = ".fx-desk a.prog-line";
   await step("Studium", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector(".st-setup"));
   await step("programs", () => page.click('#sidebar a[href="/programs"]'), (line) => location.pathname === "/programs" && document.querySelectorAll(line).length > 100, LINE);
   check(JSON.stringify(await box(page, "#sidebar")) === JSON.stringify(frame), `programs: the sidebar is at ${await box(page, "#sidebar")}, the filter panel was at ${frame}`);
+  // The overview lies under „Mein Studium" in its tab, and leads back up there (owner, 2026-11-10:
+  // „dass man da wieder raus kommt"): „Zurück" back through the history, where it came from, and Esc
+  // the same; the history does not grow.
+  const steps = await page.evaluate(() => history.length);
+  check(await page.evaluate(() => document.querySelector(".progs-up a[data-action=back]")?.getAttribute("data-back") === "history"), "overview: „Zurück“ does not go back through the history to „Mein Studium“");
+  await step("„Zurück“: „Mein Studium“", () => page.click(".progs-up a[data-action=back]"), () => location.pathname === "/study" && document.querySelector(".st-setup"));
+  await step("programs again", () => page.click('#sidebar a[href="/programs"]'), (line) => location.pathname === "/programs" && document.querySelectorAll(line).length > 100, LINE);
+  await step("Esc: „Mein Studium“", () => page.keyboard.press("Escape"), () => location.pathname === "/study" && document.querySelector(".st-setup"));
+  await step("programs once more", () => page.click('#sidebar a[href="/programs"]'), (line) => location.pathname === "/programs" && document.querySelectorAll(line).length > 100, LINE);
+  check((await page.evaluate(() => history.length)) === steps, `overview: „Zurück“ and Esc made the history grow from ${steps} to ${await page.evaluate(() => history.length)}`);
   // The faculties wait to be opened (owner, 2026-10-14: the accordions); opened, their matrices.
   check(await page.evaluate(() => document.querySelectorAll("details.facc").length > 5 && document.querySelectorAll("details.facc[open]").length === 0), "overview: a faculty is open without being opened");
   await page.evaluate(() => document.querySelectorAll("details.facc").forEach((faculty) => { faculty.open = true; }));
