@@ -178,6 +178,24 @@ pub fn SyncPart(#[prop(into)] empty: Signal<bool>) -> impl IntoView {
             </a>
         }
     };
+    // The body follows the kind of state alone: a synced profile's list of devices stays, and the
+    // question „Entfernen" asks in it, while its devices come, go or connect directly (each such
+    // change built it anew, and an open question went with it: e2e/sync.mjs, 2026-11-10).
+    #[derive(Clone, Copy, PartialEq)]
+    enum Shape {
+        Private,
+        Ended,
+        Failed,
+        Starting,
+        Synced,
+    }
+    let shape = Memo::new(move |_| match state.get() {
+        State::Private => Shape::Private,
+        State::Ended => Shape::Ended,
+        State::Failed(_) => Shape::Failed,
+        State::Starting => Shape::Starting,
+        State::Online { .. } | State::Offline => Shape::Synced,
+    });
     let body = move || {
         if alone.get() {
             let c = &t.scan;
@@ -197,16 +215,16 @@ pub fn SyncPart(#[prop(into)] empty: Signal<bool>) -> impl IntoView {
             }
             .into_any();
         }
-        match state.get() {
-            State::Private => view! {
+        match shape.get() {
+            Shape::Private => view! {
                 <p class="pf-sub pf-sync-lead">{s.private_lead}</p>
                 <div class="pf-sync-actions">{connect_ways()}</div>
             }
             .into_any(),
-            State::Ended => view! { <div class="pf-sync-actions">{connect_button(s.ended_again)}</div> }.into_any(),
-            State::Failed(_) => view! { <div class="pf-sync-actions">{connect_button(s.retry)}</div> }.into_any(),
-            State::Starting => ().into_any(),
-            State::Online { .. } | State::Offline => view! {
+            Shape::Ended => view! { <div class="pf-sync-actions">{connect_button(s.ended_again)}</div> }.into_any(),
+            Shape::Failed => view! { <div class="pf-sync-actions">{connect_button(s.retry)}</div> }.into_any(),
+            Shape::Starting => ().into_any(),
+            Shape::Synced => view! {
                 <DeviceList sync id/>
                 <p class="pf-sub pf-sync-lead">{s.synced_lead}</p>
                 <div class="pf-sync-actions">
