@@ -5,6 +5,7 @@ go 1.27.0
 require (
 	github.com/coder/websocket v1.8.14
 	github.com/pion/logging v0.2.4
+	github.com/pion/stun/v4 v4.0.1
 	github.com/pion/turn/v5 v5.1.3
 	modernc.org/sqlite v1.58.0
 )
@@ -16,7 +17,6 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/pion/dtls/v3 v3.1.9 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
-	github.com/pion/stun/v4 v4.0.1 // indirect
 	github.com/pion/transport/v5 v5.1.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect

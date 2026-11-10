@@ -7,7 +7,11 @@ the service (`phloem/`, Go), the browser (`folia/crates/sync` and the app), and 
 (`deploy/`). Step 1 is everything below except what is marked step 2 or 3; step 3 is the parts of
 shared calendars and the parcels that wait up to 7 days (folia/design/teilen/teilen.html, owner
 2026-11-08), since Phloem 0.2.0; step 2 the live way between the devices (WebRTC: the signals, STUN
-and TURN; owner, 2026-11-08: „time für phase 2 bei dem sync"), since Phloem 0.3.0.
+and TURN; owner, 2026-11-08: „time für phase 2 bei dem sync"), since Phloem 0.3.0. Since Phloem
+0.4.0 every way has one to fall back on (owner, 2026-11-10: „wenn eine methode nicht funktioniert
+muss dann halt ausgewichen werden auf eine andere die garantiert läuft"): the socket over plain
+HTTPS requests where a network lets no WebSocket through (section 4), and TURN for a device whose
+UDP leaves elsewhere than its socket (section 6).
 
 ## 1. Names
 
@@ -33,7 +37,7 @@ either side reach the other.
 |---|---|---|
 | internet → Traefik :443 `/sync/v1/` | yes | the router of the instance, above Folia's (explicit priority 1000) |
 | Traefik → Phloem :8200 | yes | over `<stack>_in` |
-| Phloem → anything | no | a firewall inside the container (`phloem/deploy/firewall.nft`): no new connection out, no DNS (also not Docker's 127.0.0.11), IPv6 off; replies only. Set by `phloem start` as root with NET_ADMIN, which then drops to uid 65532 without capabilities and execs `phloem serve` |
+| Phloem → anything | no | a firewall inside the container (`phloem/deploy/firewall.nft`): no new connection out, no DNS (also not Docker's 127.0.0.11), IPv6 off; replies only. Set by `phloem start` as root with NET_ADMIN, which then drops to uid 65532 without capabilities and execs `phloem serve`. The socket of a poll session (section 4) is in memory, no connection |
 | devices → Phloem's STUN and TURN (step 2) | yes | its port over UDP and TCP and its relays' over UDP, in host mode; TURN over TLS on 443 through Traefik by name (`PHLOEM_TURN_TLS_HOST`, a TCP router to the TURN port over `<stack>_in`) |
 | Phloem's relays → the devices (step 2) | the space's alone | UDP from a relay's port, over `<stack>_out`, to the address another socket of the allocation's space came from (section 6); the firewall's `turn.nft` lets out a relay's datagram to a public address and nothing else |
 | Folia → Phloem | only through Traefik | as an outside client, `https://<host>/sync/v1/` (step 3) |
@@ -57,6 +61,8 @@ without padding. Bodies are JSON. Errors are `{"error": "<code>"}` with a fittin
 | `DELETE /sync/v1/part` | `Betula-Part: <id>` with the space's headers: „Nicht mehr teilen", the space's part is deleted and `gone` from now on; its watchers hear it. 204, also for an id that is not the space's (nothing changes then) |
 | `GET /sync/v1/part` | `Betula-Part: <id>`, optionally `If-None-Match: "<rev>"`: the part, for anyone with its id (it is sealed with a key Phloem never sees). 200 `{"data": "…", "rev": <n>}` with `ETag: "<n>"`; 304 when the version is the one named; 410 `gone` (deleted, or its space was: kept 395 days); 404 `not_found`; 429 `slow_down` (3600 per address and hour, found or not) |
 | `GET /sync/v1/ws` | the WebSocket of a device (section 4); 503 `busy` when the instance has 4096 sockets, or the address 32 that have not said hello yet |
+| `POST /sync/v1/poll` | the socket over HTTPS (section 4, since Phloem 0.4.0): without `Betula-Poll` a session opens, 201 `{"poll": "<16 bytes>"}`; with `Betula-Poll: <id>` frames go into it, 204. 400 `invalid`, 404 `gone`, 413 `too_big`, 503 `busy` |
+| `GET /sync/v1/poll` | `Betula-Poll: <id>`: the frames for the device (section 4). 200 `{"frames": […]}`, with `"close"` once its socket ended; 404 `gone` |
 | `GET /healthz` | 200 `ok`; not routed by Traefik |
 | `GET /status` | the instance's numbers as JSON, for `phloem status`; answers loopback only, not routed by Traefik |
 
@@ -131,6 +137,43 @@ codes:
 | 4000 | `replaced`: a newer socket of the same device took over; do not come back on this one |
 | none | the device stopped answering, or fell so far behind that Phloem let it go: come back with `since` |
 
+### The socket over HTTPS (since Phloem 0.4.0)
+
+Some networks break the WebSocket's upgrade and let plain HTTPS requests through (a proxy, an
+antivirus that looks into TLS). There the browser takes the same socket over requests, a poll
+session: Phloem opens the socket itself, in memory, as the device's (its address, its origin),
+and the requests carry its frames, the very text frames of the tables above. Everything of this
+section holds for it: the hello first, every limit, the queue, the pings (Phloem answers them for
+the session), the close codes. A session counts as a socket: among the 4096 of the instance, the
+32 of an address before their hello, the 16 of a space. A device takes it when its WebSocket
+cannot be set up, and tries the WebSocket again later (Folia's part).
+
+| | |
+|---|---|
+| `POST /sync/v1/poll` | opens a session. Body `{"frames": ["<frame>"…]}`, each the JSON text of one frame, the hello first (else 400 `invalid`), more after it as the device likes. 201 `{"poll": "<16 bytes>"}`, the session's id; 503 `busy` as for a socket. What Phloem answers, the welcome too, comes through `GET` |
+| `POST /sync/v1/poll` with `Betula-Poll: <id>` | frames into the session's socket, in order, as if sent on it. Body as above, at most 9 MiB: a frame of more than 8.5 MiB still reaches the socket, which closes with 1009; a larger body is 413 `too_big` and closes the session with 1009 too. 204, also when the socket closed meanwhile: its frames are dropped, as on a socket that closes, and the `GET` says how it closed. A device sends its POSTs one after the other: those of the same moment keep no order among them |
+| `GET /sync/v1/poll` with `Betula-Poll: <id>` | 200 `{"frames": ["<frame>"…]}`: what waits, at once; else as soon as a frame comes, and after 25 s without one `{"frames": []}`. One GET at a time: a newer one of the session ends the one that waits at once with `{"frames": []}` |
+| | once the socket ended: 200 `{"frames": [<the last ones>], "close": {"code": <n>, "reason": "<reason>"}}`, the codes and reasons of the table above, `{"code": 0, "reason": ""}` for none (the device stopped answering or was let go: come back with `since`). Then the session is gone |
+
+Both answer 404 `gone` for a session that is gone (its close was handed out, or nobody asked for
+it for 60 s) or that Phloem does not know, and 400 `invalid` for an id that is not 16 bytes. A
+POST with no frames counts as asking. The origin is checked as for every request; `Betula-Poll`
+is among the headers CORS allows.
+
+- A session nobody asks anything for 60 s (no GET waits, no POST comes) ends as a socket that
+  stopped answering: its socket closes, the others hear `presence`. A device keeps a GET waiting
+  all the time and asks again right after each answer; Phloem's pings never end a session whose
+  device asks.
+- The frames a GET hands out are gone from the session. When its answer does not arrive (the
+  connection broke on the way), the device opens a new session with `since`, as after a lost
+  socket: its new hello replaces the older session's socket (4000, which nobody hears any more),
+  the welcome brings what it missed, and the pushes whose `stored` it did not see go again
+  (answered with their old number).
+- The frames toward the device wait as on a socket: at most 512 frames or 16 MiB, the first (the
+  welcome) beside them. A device further behind is let go (`{"code": 0}`) and comes back with
+  `since`.
+- When Phloem stops, a GET that waits ends at once with the close 1001.
+
 ## 5. In the browser (for the service: opaque)
 
 - The profile key `K`: 32 random bytes, on the devices only. HKDF-SHA256 (salt `betula-sync-v1`)
@@ -197,12 +240,28 @@ Pion's TURN (`github.com/pion/turn/v5`) inside Phloem, its rules Phloem's own
   while that socket lives; a socket that ends takes it with it (its allocations then end with
   their lifetime, 10 minutes at the latest, and get no new permission).
 - **To whom**: a permission (and a channel binding) only for the address another socket of the
-  allocation's space came from (Traefik's `X-Real-Ip`), never for an address that is none on the
+  allocation's space came from (Traefik's `X-Real-Ip`, a poll session's too), or, since Phloem
+  0.4.0, one another socket's credential allocated from; never for an address that is none on the
   internet (RFC 6890: private, shared, loopback, link local, documentation, benchmarking,
   multicast, reserved) nor for the instance's own (`PHLOEM_TURN_IP`): no relay to Phloem itself,
   so a relay never meets another. A relay that was to send elsewhere drops the datagram and counts
   it (`phloem_turn_total{event="forbidden"}`, an alert); the firewall's `turn.nft` holds the same
   line once more.
+- **An allocation's address** (since Phloem 0.4.0): a device behind a VPN may open its socket
+  from one address and send its UDP from another (VPN by Google on a phone), and a device of two
+  stacks opens its socket over IPv6 and its ICE over IPv4; the other device's relay could never
+  reach it. So the address an allocation comes from, a public IPv4 address other than Phloem's
+  own, is a peer for the other sockets of its space, as long as the allocating socket lives (also
+  after the allocation ended: a permission is renewed every five minutes, and a device may let its
+  allocation go once a way was found); at most the 8 newest of a socket. It proved to be one of the
+  space's devices by a round trip with the space's credential: over UDP Phloem binds every nonce
+  it hands out to the address it goes to (an HMAC of both) and takes a request only with the nonce
+  of its own address, so that a datagram with a forged source cannot make an address a peer (a
+  request with another nonce is answered 438 with a fresh one, `phloem_turn_total{event="nonce"}`);
+  over TCP the handshake shows the address; TURN over TLS comes from Traefik, a private address,
+  and adds none. A permission is asked when it is needed and refused when no allocation came from
+  the address yet: in an attempt with TURN, each device allocates before it sends its candidates
+  (Folia's part), and a permission asked a moment after the other's allocation is granted.
 - **How much**: relays over UDP alone (no TCP relays, RFC 6062: WebRTC needs none), each at most
   128 KiB a second each way, all of them at most 4 MiB a second each way; at most 8 allocations per
   socket, 32 per space, and as many as the instance has relay ports. Beyond them Pion answers 486.

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/pion/stun/v4"
 	"github.com/pion/turn/v5"
 )
 
@@ -167,7 +168,13 @@ func credential(t *testing.T, c *client) (urls []string, user, password string) 
 // turnClient is a TURN client on a socket of its own, with one allocation.
 func turnClient(t *testing.T, tu *TURN, user, password string) (*turn.Client, net.PacketConn, error) {
 	t.Helper()
-	conn, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	return turnClientFrom(t, tu, "127.0.0.1:0", user, password)
+}
+
+// turnClientFrom is turnClient on a socket bound to bind: its allocation comes from there.
+func turnClientFrom(t *testing.T, tu *TURN, bind, user, password string) (*turn.Client, net.PacketConn, error) {
+	t.Helper()
+	conn, err := net.ListenPacket("udp4", bind)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -383,4 +390,223 @@ func TestTurnNeedsAPublicAddress(t *testing.T) {
 func udpAddr(s string) *net.UDPAddr {
 	a, _ := net.ResolveUDPAddr("udp4", s)
 	return a
+}
+
+// A device whose socket comes from one address and its UDP from another (a VPN, or a socket
+// over IPv6 and UDP over IPv4) is a peer at the address its allocation came from, for the other
+// devices of its space alone, while its socket lives.
+func TestTurnRelaysToTheAddressADeviceAllocatedFrom(t *testing.T) {
+	e, tu := turnEnv(t, nil)
+	p, q := newProfile(), newProfile()
+	da, db, dc := randBytes(deviceLen), randBytes(deviceLen), randBytes(deviceLen)
+	e.mustCreate(p, da)
+	e.mustCreate(q, dc)
+	a, _ := e.openFrom("127.0.0.10", p, da)
+	b, _ := e.openFrom("127.0.0.20", p, db)
+	a.expect("presence")
+	c, _ := e.openFrom("127.0.0.30", q, dc) // another space's device
+	_, ua, pa := credential(t, a)
+	_, ub, pb := credential(t, b)
+	_, uc, pc := credential(t, c)
+
+	cl, relay, err := turnClientFrom(t, tu, "127.0.0.11:0", ua, pa)
+	if err != nil {
+		t.Fatalf("a's allocation: %v", err)
+	}
+	// Before b allocated, its UDP address is nobody's.
+	if err := cl.CreatePermission(udpAddr("127.0.0.21:5000")); err == nil {
+		t.Fatal("a permission for an address no allocation came from yet")
+	}
+	if _, _, err := turnClientFrom(t, tu, "127.0.0.21:0", ub, pb); err != nil {
+		t.Fatalf("b's allocation: %v", err)
+	}
+	if _, _, err := turnClientFrom(t, tu, "127.0.0.31:0", uc, pc); err != nil {
+		t.Fatalf("c's allocation: %v", err)
+	}
+
+	// A moment later, b's UDP address is a peer: a datagram goes there.
+	peer, err := net.ListenPacket("udp4", "127.0.0.21:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer peer.Close()
+	if err := cl.CreatePermission(peer.LocalAddr()); err != nil {
+		t.Fatalf("a permission for the address b allocated from: %v", err)
+	}
+	if _, err := relay.WriteTo([]byte("to b"), peer.LocalAddr()); err != nil {
+		t.Fatal(err)
+	}
+	buf := make([]byte, 64)
+	_ = peer.SetReadDeadline(time.Now().Add(3 * time.Second))
+	if n, _, err := peer.ReadFrom(buf); err != nil || string(buf[:n]) != "to b" {
+		t.Fatalf("the peer got %q (%v)", buf[:n], err)
+	}
+	// Not another space's allocation, nor a's own, nor an address nobody allocated from.
+	for _, addr := range []string{"127.0.0.31:5000", "127.0.0.11:5000", "127.0.0.22:5000"} {
+		if err := cl.CreatePermission(udpAddr(addr)); err == nil {
+			t.Errorf("a permission for %s", addr)
+		}
+	}
+	if !e.metric(`phloem_turn_total{event="learned"} 3`) {
+		t.Error("the addresses learned are not counted")
+	}
+
+	// Once b's socket ended, the address is nobody's again.
+	b.send(map[string]string{"t": "leave"})
+	b.closed()
+	a.expect("presence")
+	eventually(t, "b's allocation address refused", func() bool { return cl.CreatePermission(udpAddr("127.0.0.21:6000")) != nil })
+}
+
+// A poll session's socket carries the device's address: a peer as any socket's.
+func TestTurnSeesTheAddressOfAPollSession(t *testing.T) {
+	e, tu := turnEnv(t, nil)
+	p, da, db := newProfile(), randBytes(deviceLen), randBytes(deviceLen)
+	e.mustCreate(p, da)
+	a, _ := e.openFrom("127.0.0.10", p, da)
+	status, id, _ := e.openPoll(map[string]string{"X-Real-Ip": "127.0.0.20"}, hello(p, db, 0))
+	if status != http.StatusCreated {
+		t.Fatal(status)
+	}
+	b := e.poller(id, map[string]string{"X-Real-Ip": "127.0.0.20"})
+	b.start()
+	b.expect("welcome")
+	a.expect("presence")
+	_, user, password := credential(t, a)
+	cl, _, err := turnClient(t, tu, user, password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cl.CreatePermission(udpAddr("127.0.0.20:5000")); err != nil {
+		t.Fatalf("a permission for the poll session's address: %v", err)
+	}
+	// Its own credential, asked for over HTTPS, allocates as a socket's does.
+	b.send(map[string]string{"t": "turn"})
+	var f struct{ User, Password string }
+	_ = json.Unmarshal([]byte(b.expect("turn").raw), &f)
+	if _, _, err := turnClientFrom(t, tu, "127.0.0.21:0", f.User, f.Password); err != nil {
+		t.Fatalf("the poll session's allocation: %v", err)
+	}
+	if err := cl.CreatePermission(udpAddr("127.0.0.21:5000")); err != nil {
+		t.Fatalf("a permission for the poll session's UDP address: %v", err)
+	}
+}
+
+// An allocation's address counts only where it may be a peer at all: never a special address
+// (TURN over TLS comes from Traefik's), never Phloem's own.
+func TestTurnLearnsNoSpecialAddress(t *testing.T) {
+	e, _ := turnEnv(t, nil)
+	p, da, db := newProfile(), randBytes(deviceLen), randBytes(deviceLen)
+	e.mustCreate(p, da)
+	e.openFrom("127.0.0.10", p, da)
+	b, _ := e.openFrom("127.0.0.20", p, db)
+	_, ub, _ := credential(t, b)
+	ts := e.srv.turn
+	for _, src := range []net.Addr{
+		udpAddr("10.0.0.5:4000"), udpAddr("127.0.0.1:4000"), udpAddr("192.168.1.9:4000"), udpAddr("127.0.0.20:4000"),
+		&net.TCPAddr{IP: net.IPv4(10, 0, 1, 7), Port: 51000}, // Traefik, for TURN over TLS
+	} {
+		ts.allocated(src, nil, "UDP", ub, tu(e), nil, 0)
+		ts.released(src, nil, "UDP", ub, tu(e))
+	}
+	ts.mu.Lock()
+	from := ts.users[ub].from
+	ts.mu.Unlock()
+	if len(from) != 0 {
+		t.Fatalf("learned %v", from)
+	}
+	if e.metric(`phloem_turn_total{event="learned"}`) {
+		t.Error("learned counted")
+	}
+}
+
+func tu(e *env) string { return e.srv.turn.realm }
+
+// Over UDP an allocation needs the nonce Phloem handed to its own address: a datagram that
+// claims another address cannot make Phloem take that address for a device's.
+func TestTurnNoncesAreBoundToTheirAddress(t *testing.T) {
+	e, tun := turnEnv(t, nil)
+	p, da := newProfile(), randBytes(deviceLen)
+	e.mustCreate(p, da)
+	a, _ := e.openFrom("127.0.0.10", p, da)
+	_, user, password := credential(t, a)
+	key := turn.GenerateAuthKey(user, tun.Host, password)
+	server := tun.PacketConn.LocalAddr()
+	listen := func(addr string) net.PacketConn {
+		c, err := net.ListenPacket("udp4", addr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = c.Close() })
+		return c
+	}
+	ask := func(c net.PacketConn, nonce []byte) *stun.Message {
+		t.Helper()
+		m := stun.MustBuild(stun.TransactionID, stun.NewType(stun.MethodAllocate, stun.ClassRequest))
+		m.Add(stun.AttrRequestedTransport, []byte{17, 0, 0, 0})
+		if nonce != nil {
+			m.Add(stun.AttrUsername, []byte(user))
+			m.Add(stun.AttrRealm, []byte(tun.Host))
+			m.Add(stun.AttrNonce, nonce)
+			if err := stun.MessageIntegrity(key).AddTo(m); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := stun.Fingerprint.AddTo(m); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.WriteTo(m.Raw, server); err != nil {
+			t.Fatal(err)
+		}
+		buf := make([]byte, 1500)
+		_ = c.SetReadDeadline(time.Now().Add(3 * time.Second))
+		n, _, err := c.ReadFrom(buf)
+		if err != nil {
+			t.Fatalf("no answer: %v", err)
+		}
+		resp := &stun.Message{Raw: buf[:n]}
+		if err := resp.Decode(); err != nil {
+			t.Fatal(err)
+		}
+		return resp
+	}
+	code := func(m *stun.Message) stun.ErrorCode {
+		var ec stun.ErrorCodeAttribute
+		if m.Type.Class == stun.ClassSuccessResponse {
+			return 0
+		}
+		_ = ec.GetFrom(m)
+		return ec.Code
+	}
+	nonceOf := func(m *stun.Message) []byte {
+		v, err := m.Get(stun.AttrNonce)
+		if err != nil {
+			t.Fatalf("no nonce: %v", err)
+		}
+		return append([]byte(nil), v...)
+	}
+
+	x, y, z := listen("127.0.0.41:0"), listen("127.0.0.42:0"), listen("127.0.0.43:0")
+	first := ask(x, nil)
+	if code(first) != stun.CodeUnauthorized {
+		t.Fatalf("x without a credential: %d", code(first))
+	}
+	nx := nonceOf(first)
+	if !strings.Contains(string(nx), ".") {
+		t.Fatalf("x's nonce %q is not bound", nx)
+	}
+	if got := ask(y, nx); code(got) != stun.CodeStaleNonce || !strings.Contains(string(nonceOf(got)), ".") {
+		t.Fatalf("y with x's nonce: %d", code(got))
+	}
+	nz := nonceOf(ask(z, nil))
+	pions := nz[:strings.LastIndexByte(string(nz), '.')]
+	if got := ask(z, pions); code(got) != stun.CodeStaleNonce {
+		t.Fatalf("z with Pion's own nonce: %d", code(got))
+	}
+	if got := ask(x, nx); code(got) != 0 {
+		t.Fatalf("x with its own nonce: %d", code(got))
+	}
+	if !e.metric(`phloem_turn_total{event="nonce"} 2`) {
+		t.Error("the foreign nonces are not counted")
+	}
 }

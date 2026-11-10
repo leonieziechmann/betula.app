@@ -102,6 +102,10 @@ pub fn attempt_ms(relay: bool) -> u64 {
     }
 }
 
+/// How long the candidates of an attempt with TURN wait for its relay candidate before they go
+/// all the same, in ms (`browser::rtc`).
+pub const HOLD_MS: u64 = 3_000;
+
 /// How long a device remembers that the connection with another needed TURN, in seconds.
 pub const REMEMBER_RELAY_SECS: u64 = 24 * 3600;
 

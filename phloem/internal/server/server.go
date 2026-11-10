@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
@@ -87,6 +88,9 @@ type Limits struct {
 	BigFrames   int   // frames above 128 KiB in memory at a time, read or written
 	QueueFrames int   // frames waiting for one socket; a socket further behind is closed
 	QueueBytes  int64 // their bytes
+
+	PollWait time.Duration // a GET of a poll session waits this long for a frame (the socket over HTTPS)
+	PollIdle time.Duration // a poll session nobody asked anything for this long ends
 }
 
 // DefaultLimits are the contract's limits (docs/phloem/protocol.md) and Phloem's own beside them
@@ -145,6 +149,9 @@ var DefaultLimits = Limits{
 	BigFrames:   8,
 	QueueFrames: 512,
 	QueueBytes:  16 << 20,
+
+	PollWait: 25 * time.Second,
+	PollIdle: time.Minute,
 }
 
 func (l Limits) withDefaults() Limits {
@@ -214,6 +221,8 @@ func (l Limits) withDefaults() Limits {
 	pick(&l.BigFrames, d.BigFrames)
 	pick(&l.QueueFrames, d.QueueFrames)
 	pick64(&l.QueueBytes, d.QueueBytes)
+	pickD(&l.PollWait, d.PollWait)
+	pickD(&l.PollIdle, d.PollIdle)
 	return l
 }
 
@@ -281,6 +290,14 @@ type Server struct {
 	stop   chan struct{} // ends the loops
 	up     atomic.Bool
 	big    chan struct{} // the frames above bigFrame in memory
+	closed sync.Once
+
+	bridge    *bridge       // the sockets of the poll sessions, in memory
+	bodies    chan struct{} // the poll bodies above bigFrame in memory
+	held      chan struct{} // the frames above bigFrame that wait in poll sessions
+	pollMu    sync.Mutex
+	polls     map[string]*poll // the poll sessions, by id; guarded by pollMu
+	pollsLive atomic.Int64     // the poll sessions whose socket lives
 
 	creates   *limiter // new spaces by address
 	createAll *limiter // new spaces in all (one key)
@@ -354,6 +371,9 @@ func New(opt Options) (*Server, error) {
 		cancel:    cancel,
 		stop:      make(chan struct{}),
 		big:       make(chan struct{}, lim.BigFrames),
+		bodies:    make(chan struct{}, max(1, lim.BigFrames/4)),
+		held:      make(chan struct{}, max(1, lim.BigFrames/4)),
+		polls:     map[string]*poll{},
 		creates:   perWindow(lim.SpacesPerAddr, lim.CreateWindow),
 		createAll: perWindow(lim.SpacesTotal, lim.CreateWindow),
 		takes:     perWindow(lim.TakesPerAddr, time.Hour),
@@ -375,6 +395,7 @@ func New(opt Options) (*Server, error) {
 		}
 		s.turn = t
 	}
+	s.bridge = newBridge(http.HandlerFunc(s.serveWS))
 	s.wg.Add(2)
 	go s.sweepLoop()
 	go s.statsLoop()
@@ -395,13 +416,15 @@ func normalizeOrigin(raw string) (string, error) {
 // first) before it cuts them.
 const closeGrace = 10 * time.Second
 
-// Close tells every device to come back later (1001), ends the loops, waits for the sockets
-// and writes the stats file a last time, with phloem_up 0. The store stays open.
-func (s *Server) Close() error {
+// Drain begins the stop: no new socket, and every device hears that it is to come back later
+// (1001), a poll session's device in the GET that waits. serve calls it as its HTTP server
+// begins to shut down, so that the GETs of the poll sessions end with the close instead of
+// holding the shutdown up; Close calls it first.
+func (s *Server) Drain() {
 	s.mu.Lock()
 	if s.shut {
 		s.mu.Unlock()
-		return nil
+		return
 	}
 	s.shut = true
 	rooms := make([]*room, 0, len(s.rooms))
@@ -416,6 +439,18 @@ func (s *Server) Close() error {
 		}
 		r.mu.Unlock()
 	}
+}
+
+// Close tells every device to come back later (1001), ends the loops, waits for the sockets
+// and writes the stats file a last time, with phloem_up 0. The store stays open. A second call
+// waits for the first.
+func (s *Server) Close() error {
+	s.closed.Do(s.close)
+	return nil
+}
+
+func (s *Server) close() {
+	s.Drain()
 	close(s.stop)
 	done := make(chan struct{})
 	go func() {
@@ -432,11 +467,12 @@ func (s *Server) Close() error {
 	if s.turn != nil {
 		_ = s.turn.close()
 	}
+	s.bridge.close()
+	s.endPolls()
 	s.up.Store(false)
 	if s.opt.StatsDir != "" {
 		_ = s.writeStats()
 	}
-	return nil
 }
 
 // overBudget says whether all spaces together hold the budget.

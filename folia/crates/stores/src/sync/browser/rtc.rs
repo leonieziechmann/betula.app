@@ -47,6 +47,9 @@ pub(super) struct Link {
     open: Cell<bool>,
     /// The open connection goes through TURN.
     relayed: Cell<bool>,
+    /// An attempt with TURN whose relay candidate has not come yet: its other candidates wait for
+    /// it (`candidate`).
+    held: RefCell<Option<Vec<Talk>>>,
     handlers: RefCell<Option<Handlers>>,
 }
 
@@ -276,9 +279,10 @@ impl Engine {
             let on = on.clone();
             Closure::<dyn FnMut(RtcPeerConnectionIceEvent)>::new(move |event: RtcPeerConnectionIceEvent| {
                 let Some(c) = event.candidate() else { return };
+                let relay = c.candidate().contains(" typ relay");
                 let talk = Talk::Ice { n, c: c.candidate(), mid: c.sdp_mid(), line: c.sdp_m_line_index() };
                 if !c.candidate().is_empty() {
-                    on(&|engine| engine.talk_soon(slot, talk.clone()));
+                    on(&|engine| engine.candidate(slot, n, talk.clone(), relay));
                 }
             })
         };
@@ -331,6 +335,7 @@ impl Engine {
             pending: RefCell::new(Vec::new()),
             open: Cell::new(false),
             relayed: Cell::new(false),
+            held: RefCell::new(relay.then(Vec::new)),
             handlers: RefCell::new(Some(Handlers { _ice: on_ice, _state: on_state, _open: on_open, _message: on_message, _close: on_close })),
         });
         self.live.borrow_mut().links.insert(slot, Rc::clone(&link));
@@ -468,6 +473,48 @@ impl Engine {
         let aad = talk_aad(&self.keys.space, self.mine(), to);
         if let Ok(sealed) = seal(&self.keys.live, &aad, &talk.bytes()).await {
             self.send(&Out::Signal { to, data: b64(&sealed) });
+        }
+    }
+
+    /// A candidate of this device for attempt `n`. In an attempt with TURN the others wait for
+    /// the relay candidate, which means this device's allocation is there: Phloem permits a peer
+    /// at an address a device of the space allocated from (protocol.md §6), so the other device's
+    /// permission for this one's address, asked when its candidate comes, finds it known. They go
+    /// after `HOLD_MS` all the same (no relay came: TURN unreachable from here).
+    fn candidate(self: &Rc<Self>, slot: u16, n: u32, talk: Talk, relay: bool) {
+        let Some(link) = self.current(slot, n) else { return };
+        let mut held = link.held.borrow_mut();
+        match held.as_mut() {
+            Some(waiting) if !relay => {
+                if waiting.is_empty() {
+                    let weak = Rc::downgrade(self);
+                    set_timeout(
+                        move || {
+                            if let Some(engine) = weak.upgrade() {
+                                engine.release(slot, n);
+                            }
+                        },
+                        std::time::Duration::from_millis(live::HOLD_MS),
+                    );
+                }
+                waiting.push(talk);
+            }
+            _ => {
+                drop(held);
+                self.talk_soon(slot, talk);
+                if relay {
+                    self.release(slot, n);
+                }
+            }
+        }
+    }
+
+    /// The candidates attempt `n` held back go now, and the next ones at once.
+    fn release(self: &Rc<Self>, slot: u16, n: u32) {
+        let Some(link) = self.current(slot, n) else { return };
+        let waiting = link.held.borrow_mut().take().unwrap_or_default();
+        for talk in waiting {
+            self.talk_soon(slot, talk);
         }
     }
 

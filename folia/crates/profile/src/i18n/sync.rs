@@ -119,6 +119,8 @@ pub struct Texts {
     pub connect_server_hint: &'static str,
     /// While the profile comes, and when it is here; the value is its name.
     pub connecting: &'static str,
+    /// Under the bar while the profile has not come after a while (`SYNC_WAIT_MS`).
+    pub still_connecting: &'static str,
     pub connected: fn(&str) -> String,
     pub connected_hint: &'static str,
     /// A site that does not offer Betula Sync.
@@ -249,6 +251,7 @@ pub const DE: Texts = Texts {
     connect_server_title: "Gerät verbinden",
     connect_server_hint: "Hier verbindest du deine Geräte mit Betula Sync: Die Kamera liest den Code des anderen Geräts, oder ein Link holt ein Profil. Das macht dein Browser selbst, mit JavaScript: Öffne die Seite in einem aktuellen Browser.",
     connecting: "Hole das Profil von deinem anderen Gerät …",
+    still_connecting: "Das Profil ist noch nicht da. Betula versucht es weiter; lass Betula auf dem anderen Gerät offen.",
     connected: |name| format!("„{name}“ ist jetzt auch auf diesem Gerät."),
     connected_hint: "Es bleibt mit deinen anderen Geräten gleich: Was du hier änderst, ist dort sofort da, und umgekehrt.",
     connect_off: "Betula Sync ist auf dieser Seite nicht eingeschaltet. Öffne den Link auf der Seite, auf der du ihn bekommen hast.",
@@ -370,6 +373,7 @@ pub const EN: Texts = Texts {
     connect_server_title: "Connect a device",
     connect_server_hint: "Here you connect your devices with Betula Sync: the camera reads the other device's code, or a link gets a profile. Your browser does that itself, with JavaScript: open the page in a current browser.",
     connecting: "Getting the profile from your other device …",
+    still_connecting: "The profile is not here yet. Betula keeps trying; keep Betula open on your other device.",
     connected: |name| format!("“{name}” is now on this device too."),
     connected_hint: "It stays the same as on your other devices: what you change here is there at once, and the other way round.",
     connect_off: "Betula Sync is not switched on on this site. Open the link on the site where you got it.",
