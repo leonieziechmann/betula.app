@@ -27,6 +27,8 @@ type sources struct {
 	poTrees       []*poTree
 	events        map[string]*eventPage
 	eventsGone    map[string]bool // events whose page was read and states nothing, and the search does not show them: QIS removed them
+
+	generalPages []generalPage // the BTU's page of Grundsatzordnungen, German first, then English
 }
 
 type modulePage struct {
@@ -202,6 +204,10 @@ func loadSources(ctx context.Context, db *catalogdb.DB, report *Report) (*source
 	}
 
 	if err := loadEvents(ctx, db, src, report); err != nil {
+		return nil, err
+	}
+
+	if err := loadGeneralPages(db, src); err != nil {
 		return nil, err
 	}
 	return src, nil
