@@ -2295,9 +2295,12 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     held (the panel's `data-ex`) those where it would count as an exception turn amber, while a
     module the plan names in a row of its own leaves them grey. The semester under the pointer is
     lit more strongly in each row's colour, its head underlined; the cell it lands in is ringed,
-    green or amber, with what a drop does over it: „zählt hier", „als Ausnahme", over a grey row,
-    dashed, „Strg: als Ausnahme" or „zählt hier nicht" and „landet hier" in its own row, where it
-    goes instead. The piece taken up stays as a dashed hole at its place (`is-dragged`), and at the
+    green or amber, with what a drop does on its lower edge: „zählt hier", „als Ausnahme", over a
+    grey row, dashed, „Strg: als Ausnahme" or „zählt hier nicht" and „landet hier" in its own row,
+    where it goes instead (since Folia 1.89.3 between the cell's pieces and those of the row under
+    it, covering none of them, its cell over that row meanwhile, and the plan 10 px taller where no
+    flag of today stands under it; until then inside the cell, over its pieces). The piece taken up
+    stays as a dashed hole at its place (`is-dragged`), no cell showing its „+" meanwhile, and at the
     right of the semesters' head a key names the colours: „zählt dort laut Plan", „passt nicht laut
     Plan", „mit Strg als Ausnahme" (until then only the semester under the pointer and the cell it
     landed in were lit). Until
