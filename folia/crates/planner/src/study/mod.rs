@@ -1392,6 +1392,18 @@ mod tests {
         assert!(["m:12111", "m:12216"].contains(&over[0].as_str()));
         assert!(!area("Nebenfach").over);
         assert!(layout.keys().contains("Fachstudium\tPraktische Informatik"));
+        // A row of one lane alone does not unfold, its lane only its bar again (owner, 2026-11-10:
+        // „dass ein platzhalter, der nur für ein modul ist kein ausklappbares element wird. Also zum
+        // Beispiel seminar oder Praktikum Oder BA"); neither does the one button count it.
+        let seminar = komplexe.iter().find(|sub| sub.name == "Seminar oder Praktikum").unwrap();
+        assert_eq!(seminar.lanes.len(), 1, "{:?}", seminar.lanes);
+        assert!(!seminar.unfolds() && praktische.unfolds());
+        assert!(!layout.keys().contains("Fachstudium\tSeminar oder Praktikum"));
+        let single: Vec<&str> = layout.rows.iter().filter(|row| !row.unfolds()).map(|row| row.name.as_str()).collect();
+        assert!(single.iter().any(|name| name.starts_with("Bachelor")), "{single:?}");
+        assert!(single.iter().all(|name| !layout.keys().contains(*name)));
+        assert!(layout.rows.iter().filter(|row| !row.unfolds()).all(|row| row.subs.is_empty() && row.lanes.len() <= 1));
+        assert!(area("Fachstudium").unfolds() && area("Nebenfach").unfolds() && layout.keys().contains("Fachstudium"));
     }
 
     /// Maschinenbau numbers its electives („Wahlpflichtmodul 1" … „4"): one choice of 24 LP, whose

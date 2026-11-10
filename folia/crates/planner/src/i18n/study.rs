@@ -353,6 +353,15 @@ pub struct Texts {
     pub drop_exception: fn(&str) -> String,
     pub drop_refused: &'static str,
     pub drop_as_exception: &'static str,
+    /// Where it counts by the plan under the pointer, and where it lands instead of a row that does
+    /// not take it: „zählt hier", „landet hier"; the key at the plan's head while a module is
+    /// dragged, with the key that lets it count as an exception, and for a module that counts in
+    /// its own row alone.
+    pub drop_counts_here: &'static str,
+    pub drop_lands_here: &'static str,
+    pub drag_key_fits: &'static str,
+    pub drag_key_no: &'static str,
+    pub drag_key_exception: fn(&str) -> String,
     /// The note of a module moved and counted for another subgroup at once.
     pub moved_counted: fn(&str, &str, &str) -> String,
     pub moved_counted_exception: fn(&str, &str, &str) -> String,
@@ -643,6 +652,11 @@ pub const DE: Texts = Texts {
     drop_exception: |key| format!("{key}: als Ausnahme"),
     drop_refused: "zählt hier nicht",
     drop_as_exception: "als Ausnahme",
+    drop_counts_here: "zählt hier",
+    drop_lands_here: "landet hier",
+    drag_key_fits: "zählt dort laut Plan",
+    drag_key_no: "passt nicht laut Plan",
+    drag_key_exception: |key| format!("mit {key} als Ausnahme"),
     moved_counted: |name, semester, group| format!("„{name}“ ins {semester} verschoben, zählt für {group}"),
     moved_counted_exception: |name, semester, group| format!("„{name}“ ins {semester} verschoben, zählt als Ausnahme für {group}"),
     study_year: |n, years| match years {
@@ -918,6 +932,11 @@ pub const EN: Texts = Texts {
     drop_exception: |key| format!("{key}: as an exception"),
     drop_refused: "does not count here",
     drop_as_exception: "as an exception",
+    drop_counts_here: "counts here",
+    drop_lands_here: "lands here",
+    drag_key_fits: "counts there by the plan",
+    drag_key_no: "not by the plan",
+    drag_key_exception: |key| format!("with {key} as an exception"),
     moved_counted: |name, semester, group| format!("\u{201c}{name}\u{201d} moved to {semester}, counts for {group}"),
     moved_counted_exception: |name, semester, group| format!("\u{201c}{name}\u{201d} moved to {semester}, counts as an exception for {group}"),
     study_year: |n, years| match years {

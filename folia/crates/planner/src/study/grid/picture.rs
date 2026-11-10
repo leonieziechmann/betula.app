@@ -263,9 +263,10 @@ impl Sheet<'_> {
 
     /// The pieces of a cell side by side, as wide as their credits and never narrower than their
     /// labels; where they do not fit, one piece saying how many they are and their credits, and what
-    /// is open beside it.
+    /// is open beside it — in a row that does not unfold (`still`) the pieces by their credits alone,
+    /// their labels cut, as the page has them (`grid::cell_view`).
     #[allow(clippy::too_many_arguments)]
-    fn cell(&mut self, pieces: &[Piece], x: f64, y: f64, w: f64, h: f64, c: Color, sun: bool, now: bool, past: bool) {
+    fn cell(&mut self, pieces: &[Piece], x: f64, y: f64, w: f64, h: f64, c: Color, sun: bool, now: bool, past: bool, still: bool) {
         if pieces.is_empty() {
             return;
         }
@@ -275,11 +276,15 @@ impl Sheet<'_> {
             let (pre, post) = marks(piece);
             (self.measure)(&piece.label, PIECE_FONT) + 2.0 * INSET + ICON * f64::from(u8::from(pre.is_some()) + u8::try_from(post.len()).unwrap_or(0))
         };
-        let needs: Vec<f64> = pieces.iter().map(least).collect();
+        let mut needs: Vec<f64> = pieces.iter().map(least).collect();
         let gaps = GAP * (pieces.len().saturating_sub(1)) as f64;
-        if needs.iter().sum::<f64>() + gaps <= w {
+        let fits = needs.iter().sum::<f64>() + gaps <= w;
+        if fits || still {
             // Flex as the page: each its least, the rest by the credits.
-            let spare = w - gaps - needs.iter().sum::<f64>();
+            if !fits {
+                needs.fill(0.0);
+            }
+            let spare = (w - gaps - needs.iter().sum::<f64>()).max(0.0);
             let grow: f64 = pieces.iter().map(|piece| piece.grow).sum::<f64>().max(1e-6);
             let mut at = x;
             for (piece, need) in pieces.iter().zip(&needs) {
@@ -328,8 +333,9 @@ impl Sheet<'_> {
         }
     }
 
-    /// The cells of a row's bar, its pieces in the middle of its height.
-    fn bars(&mut self, cells: &[Cell], y: f64, h: f64, c: Color, sun: bool) {
+    /// The cells of a row's bar, its pieces in the middle of its height; `still` for a row that
+    /// does not unfold.
+    fn bars(&mut self, cells: &[Cell], y: f64, h: f64, c: Color, sun: bool, still: bool) {
         for (at, cell) in cells.iter().enumerate() {
             let Some((x, w)) = self.columns.get(at).copied() else { continue };
             match cell {
@@ -344,7 +350,7 @@ impl Sheet<'_> {
                 Cell::Semester(cell) => {
                     let now = cell.when == folia_plans::study::When::Now;
                     let past = cell.when == folia_plans::study::When::Past;
-                    self.cell(&cell.pieces, x, y + (h - PIECE) / 2.0, w, PIECE, c, sun, now, past);
+                    self.cell(&cell.pieces, x, y + (h - PIECE) / 2.0, w, PIECE, c, sun, now, past, still);
                 }
             }
         }
@@ -434,9 +440,10 @@ impl Sheet<'_> {
             }
             at += w;
         }
-        self.bars(&row.cells, y, AREA, c, sun);
+        self.bars(&row.cells, y, AREA, c, sun, !row.unfolds());
         let mut y = y + AREA;
-        if !open.contains(&row.name) {
+        // A row of one lane alone does not unfold (`AreaRow::unfolds`), whatever was kept open.
+        if !row.unfolds() || !open.contains(&row.name) {
             return y;
         }
         if row.subs.is_empty() {
@@ -463,9 +470,9 @@ impl Sheet<'_> {
         if let Some((stand, room)) = &sub.stand {
             self.stand(stand, *room, PAD + 24.0, y + 27.0, (NAMES - 44.0 - figure_w).max(20.0), c);
         }
-        self.bars(&sub.cells, y, SUB, c, sun);
+        self.bars(&sub.cells, y, SUB, c, sun, !sub.unfolds());
         let mut y = y + SUB;
-        if open.contains(&sub.key) {
+        if sub.unfolds() && open.contains(&sub.key) {
             for (i, lane) in sub.lanes.iter().enumerate() {
                 y += self.lane(lane, y, i + 1 == sub.lanes.len(), 40.0, c, sun);
             }
@@ -636,6 +643,10 @@ mod tests {
         Piece { key: format!("m:{label}"), semester: key("2026W"), label: label.to_string(), title: String::new(), grow: credits, fill, now: false, retake: false, unoffered: false, over: false, row: None, picks: Vec::new() }
     }
 
+    fn lane(name: &str, piece: Piece, word: &'static str) -> Lane {
+        Lane { name: name.to_string(), title: String::new(), credits: Some("6".to_string()), bars: vec![vec![(piece, word)], Vec::new()], keys: BTreeSet::new(), through: Vec::new(), into: None }
+    }
+
     fn column(s: &str, now: bool) -> Column {
         Column::Semester(Head { key: key(s), label: s.to_string(), now, past: false, leave: false, fs: Some("3. FS".to_string()), figure: "12 / 30 LP".to_string(), heavy: false, load: (12.0, 30.0) })
     }
@@ -681,11 +692,34 @@ mod tests {
     #[test]
     fn a_full_cell_says_how_many() {
         let t = i18n::texts(folia_locale::Locale::De);
-        let many = (0..8).map(|i| piece(&format!("Modul{i}"), 6.0, Fill::Planned)).collect();
-        let picture = lay_out(&layout(many, Vec::new()), &BTreeSet::new(), &heading(), &measure, t);
+        let many: Vec<Piece> = (0..8).map(|i| piece(&format!("Modul{i}"), 6.0, Fill::Planned)).collect();
+        let mut plan = layout(many.clone(), Vec::new());
+        if let Some(row) = plan.rows.first_mut() {
+            row.lanes = many.into_iter().map(|piece| lane(&piece.label.clone(), piece, "eingeplant")).collect();
+        }
+        let picture = lay_out(&plan, &BTreeSet::new(), &heading(), &measure, t);
         let said = texts(&picture);
         assert!(said.iter().any(|text| text.starts_with("8 Module")), "{said:?}");
         assert!(!said.iter().any(|text| text == "Modul0"));
+    }
+
+    /// A row that does not unfold (`AreaRow::unfolds`: one lane alone; owner, 2026-11-10: „dass ein
+    /// platzhalter, der nur für ein modul ist kein ausklappbares element wird") has no „1
+    /// Platzhalter" for a piece too wide for its cell, as the page has none: the piece's label is
+    /// cut. Kept open from before, its lane is not drawn.
+    #[test]
+    fn a_still_row_cuts_its_label() {
+        let t = i18n::texts(folia_locale::Locale::De);
+        let long = "Wahlpflichtmodul aus dem Bereich der Informatik";
+        let place = piece(long, 6.0, Fill::Row);
+        let mut plan = layout(vec![place.clone()], Vec::new());
+        if let Some(row) = plan.rows.first_mut() {
+            row.lanes = vec![lane(long, place, "Platzhalter")];
+        }
+        let open: BTreeSet<String> = ["Fachstudium".to_string()].into();
+        let said = texts(&lay_out(&plan, &open, &heading(), &measure, t));
+        assert!(!said.iter().any(|text| text.ends_with("Platzhalter")), "{said:?}");
+        assert!(said.iter().any(|text| text.starts_with("? Wahlpflichtmodul") && text.ends_with('…')), "{said:?}");
     }
 
     /// An area unfolded shows its subsections with what they hold against what they ask, and a
@@ -693,7 +727,6 @@ mod tests {
     #[test]
     fn what_is_unfolded_is_in_the_picture() {
         let t = i18n::texts(folia_locale::Locale::De);
-        let lane = Lane { name: "Datenbanken".to_string(), title: String::new(), credits: Some("6".to_string()), bars: vec![vec![(piece("DB", 6.0, Fill::Passed), "bestanden")], Vec::new()], keys: BTreeSet::new(), through: Vec::new(), into: None };
         let sub = SubRow {
             key: "Fachstudium\tPraktische Informatik".to_string(),
             group: Some(3),
@@ -703,10 +736,10 @@ mod tests {
             figure: "18/10–24".to_string(),
             done: true,
             stand: Some((Stand { passed: 6.0, planned: 12.0, least: 10.0, most: 24.0, spare: 0.0 }, Some((Room::Open, 6.0)))),
-            cells: vec![Cell::Semester(SemesterCell { key: key("2026W"), when: When::Now, leave: false, pieces: vec![piece("DB", 6.0, Fill::Passed)] }), Cell::Semester(SemesterCell { key: key("2027S"), when: When::Later, leave: false, pieces: Vec::new() })],
-            lanes: vec![lane],
+            cells: vec![Cell::Semester(SemesterCell { key: key("2026W"), when: When::Now, leave: false, pieces: vec![piece("DB", 6.0, Fill::Passed), piece("SE", 6.0, Fill::Passed)] }), Cell::Semester(SemesterCell { key: key("2027S"), when: When::Later, leave: false, pieces: Vec::new() })],
+            lanes: vec![lane("Datenbanken", piece("DB", 6.0, Fill::Passed), "bestanden"), lane("Softwaretechnik", piece("SE", 6.0, Fill::Passed), "bestanden")],
         };
-        let plan = layout(vec![piece("DB", 6.0, Fill::Passed)], vec![sub]);
+        let mut plan = layout(vec![piece("DB", 6.0, Fill::Passed), piece("SE", 6.0, Fill::Passed)], vec![sub]);
         let folded = texts(&lay_out(&plan, &BTreeSet::new(), &heading(), &measure, t));
         assert!(!folded.iter().any(|text| text == "Praktische Informatik"));
         let area: BTreeSet<String> = ["Fachstudium".to_string()].into();
@@ -715,6 +748,12 @@ mod tests {
         assert!(!unfolded.iter().any(|text| text == "Datenbanken"));
         let both: BTreeSet<String> = ["Fachstudium".to_string(), "Fachstudium\tPraktische Informatik".to_string()].into();
         let lanes = texts(&lay_out(&plan, &both, &heading(), &measure, t));
-        assert!(lanes.iter().any(|text| text == "Datenbanken"));
+        assert!(lanes.iter().any(|text| text == "Datenbanken") && lanes.iter().any(|text| text == "Softwaretechnik"));
+        // Of one lane alone it does not unfold, whatever was kept open.
+        if let Some(sub) = plan.rows.first_mut().and_then(|row| row.subs.first_mut()) {
+            sub.lanes.truncate(1);
+        }
+        let single = texts(&lay_out(&plan, &both, &heading(), &measure, t));
+        assert!(single.iter().any(|text| text == "Praktische Informatik") && !single.iter().any(|text| text == "Datenbanken"));
     }
 }
