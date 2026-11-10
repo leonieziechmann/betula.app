@@ -59,7 +59,7 @@ func (s *Server) declare() {
 			"Sockets that ended, by reason (left, gone, replaced, restart, slow, timeout, lost, invalid, internal).", "reason"),
 		signals: r.NewCounter("phloem_signals_total", "Signals for WebRTC handed from one device to another of its space."),
 		turn: r.NewCounter("phloem_turn_total",
-			"TURN, by event (allocated, permitted; refused: a peer that is not another device of the space; unauthorized; quota; no_port; forbidden: a relay was to send where no peer may be, which must never happen).", "event"),
+			"TURN, by event (allocated, permitted; learned: an allocation came from an address its socket did not; refused: a peer that is not another device of the space; unauthorized; quota; no_port; nonce: a request over UDP with a nonce not handed to its address; forbidden: a relay was to send where no peer may be, which must never happen).", "event"),
 		relayed:      r.NewCounter("phloem_relay_bytes_total", "Bytes the TURN relays passed, by way (in: from a peer, out: to a peer).", "way"),
 		relayDropped: r.NewCounter("phloem_relay_dropped_bytes_total", "Bytes the TURN relays dropped beyond their rates, by way.", "way"),
 		pollsOpened:  r.NewCounter("phloem_poll_sessions_opened_total", "Poll sessions opened: the socket over HTTPS, for a device whose WebSocket cannot be set up."),

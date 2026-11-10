@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"net"
 	"net/netip"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -27,8 +28,11 @@ import (
 //   - relays over UDP only, from TURN's port range, each at most Limits.RelayRate a second each
 //     way, all of them at most Limits.RelayTotal;
 //   - a peer only at the address another socket of the same space came from (Traefik's
-//     X-Real-Ip), never at a special-purpose address nor at Phloem's own (permit). Phloem's
-//     firewall holds the same line once more (phloem/deploy/turn.nft).
+//     X-Real-Ip), or that another socket's credential allocated from (a device behind a VPN,
+//     or whose socket goes over IPv6 and its UDP over IPv4), never at a special-purpose address
+//     nor at Phloem's own (permit). An allocation over UDP comes only from an address that got
+//     Phloem's nonce (nonceConn). Phloem's firewall holds the same line once more
+//     (phloem/deploy/turn.nft).
 type TURN struct {
 	// Host is the site's host, the name the URLs give for STUN and TURN over UDP and TCP.
 	Host string
@@ -124,6 +128,11 @@ type turnUser struct {
 	space          string // the space of its socket (the room's key)
 	peer           *peer  // the socket it belongs to; nil once that socket ended
 	allocs         int    // allocations made with it, now
+	// from are the public addresses its allocations came from other than its socket's own,
+	// newest last, at most Limits.AllocsPerSocket: peers for the other devices of the space
+	// while its socket lives, also after an allocation ended (their permissions are renewed
+	// every five minutes, and a device may let its allocation go once a way was found).
+	from []netip.Addr
 }
 
 // turnServer is Pion's TURN with Phloem's rules around it.
@@ -135,11 +144,14 @@ type turnServer struct {
 	total *byteBucket // the bytes of all relays, each way: one bucket per way
 	back  *byteBucket
 
+	nonceKey []byte // binds the nonces handed out over UDP to their address (nonceConn)
+
 	mu      sync.Mutex
-	users   map[string]*turnUser // by name
-	clients map[string]*turnUser // by the client address of an allocation (its 5-tuple's client side)
-	spaces  map[string]int       // allocations by space
-	allocs  int                  // allocations in all
+	users   map[string]*turnUser              // by name
+	members map[string]map[*turnUser]struct{} // the credentials of the sockets that live, by space
+	clients map[string]*turnUser              // by the client address of an allocation (its 5-tuple's client side)
+	spaces  map[string]int                    // allocations by space
+	allocs  int                               // allocations in all
 }
 
 // newTURN starts Pion on the listeners of opt.
@@ -152,11 +164,13 @@ func newTURN(s *Server, opt TURN) (*turnServer, error) {
 	}
 	t := &turnServer{
 		s: s, opt: opt, realm: opt.Host,
-		total:   newByteBucket(float64(s.lim.RelayTotal), float64(s.lim.RelayTotal)),
-		back:    newByteBucket(float64(s.lim.RelayTotal), float64(s.lim.RelayTotal)),
-		users:   map[string]*turnUser{},
-		clients: map[string]*turnUser{},
-		spaces:  map[string]int{},
+		total:    newByteBucket(float64(s.lim.RelayTotal), float64(s.lim.RelayTotal)),
+		back:     newByteBucket(float64(s.lim.RelayTotal), float64(s.lim.RelayTotal)),
+		nonceKey: randomBytes(32),
+		users:    map[string]*turnUser{},
+		members:  map[string]map[*turnUser]struct{}{},
+		clients:  map[string]*turnUser{},
+		spaces:   map[string]int{},
 	}
 	relays := &relays{t: t}
 	srv, err := turn.NewServer(turn.ServerConfig{
@@ -170,7 +184,7 @@ func newTURN(s *Server, opt TURN) (*turnServer, error) {
 			OnAllocationDeleted: t.released,
 			OnPermissionCreated: func(net.Addr, net.Addr, string, string, string, net.Addr, net.IP) { s.m.turn.Inc("permitted") },
 		},
-		PacketConnConfigs: []turn.PacketConnConfig{{PacketConn: opt.PacketConn, RelayAddressGenerator: relays, PermissionHandler: t.permit}},
+		PacketConnConfigs: []turn.PacketConnConfig{{PacketConn: &nonceConn{PacketConn: opt.PacketConn, t: t}, RelayAddressGenerator: relays, PermissionHandler: t.permit}},
 		ListenerConfigs:   []turn.ListenerConfig{{Listener: opt.Listener, RelayAddressGenerator: relays, PermissionHandler: t.permit}},
 	})
 	if err != nil {
@@ -194,18 +208,30 @@ func (t *turnServer) credential(p *peer) *turnUser {
 	u := &turnUser{name: token(16), password: token(16), space: p.room.key, peer: p}
 	u.key = turn.GenerateAuthKey(u.name, t.realm, u.password)
 	t.users[u.name] = u
+	if t.members[u.space] == nil {
+		t.members[u.space] = map[*turnUser]struct{}{}
+	}
+	t.members[u.space][u] = struct{}{}
 	p.turnUser = u
 	return u
 }
 
 // forget ends the credential of a socket that ended: Pion takes it no more, so its allocations
-// end with their lifetime at the latest, and they get no new permission.
+// end with their lifetime at the latest, and they get no new permission; the addresses they
+// came from are peers no more.
 func (t *turnServer) forget(p *peer) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if u := p.turnUser; u != nil {
 		delete(t.users, u.name)
+		if m := t.members[u.space]; m != nil {
+			delete(m, u)
+			if len(m) == 0 {
+				delete(t.members, u.space)
+			}
+		}
 		u.peer = nil
+		u.from = nil
 	}
 }
 
@@ -218,6 +244,16 @@ func (t *turnServer) auth(ra *turn.RequestAttributes) (string, []byte, bool) {
 		return "", nil, false
 	}
 	return u.name, u.key, true
+}
+
+// key is the long-term key of the credential name whose socket lives; nil for none.
+func (t *turnServer) key(name string) []byte {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if u := t.users[name]; u != nil && u.peer != nil {
+		return u.key
+	}
+	return nil
 }
 
 // authed counts what Pion refused for want of a credential.
@@ -240,7 +276,10 @@ func (t *turnServer) quota(name, _ string, _ net.Addr) bool {
 	return ok
 }
 
-// allocated keeps whose an allocation is, by its client address, for permit.
+// allocated keeps whose an allocation is, by its client address, for permit, and that address
+// as one of its socket's device: a public address other than Phloem's own, which answered
+// Phloem with the space's credential (over UDP its nonce, nonceConn; over TCP the handshake).
+// Over TLS the allocation comes from Traefik, a private address, and adds nothing.
 func (t *turnServer) allocated(src, _ net.Addr, _, name, _ string, _ net.Addr, _ int) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -253,6 +292,13 @@ func (t *turnServer) allocated(src, _ net.Addr, _, name, _ string, _ net.Addr, _
 	t.spaces[u.space]++
 	t.allocs++
 	t.s.m.turn.Inc("allocated")
+	if ip, ok := addrIP(src); ok && t.allowed(ip) && ip != t.opt.IP && ip != u.peer.addr && !slices.Contains(u.from, ip) {
+		if len(u.from) >= t.s.lim.AllocsPerSocket {
+			u.from = slices.Delete(u.from, 0, 1)
+		}
+		u.from = append(u.from, ip)
+		t.s.m.turn.Inc("learned")
+	}
 }
 
 func (t *turnServer) released(src, _ net.Addr, _, _, _ string) {
@@ -270,9 +316,9 @@ func (t *turnServer) released(src, _ net.Addr, _, _, _ string) {
 	}
 }
 
-// permit is Pion's PermissionHandler, asked for every permission and channel binding: a peer
-// only at a public address another socket of the allocation's space came from, never at
-// Phloem's own.
+// permit is Pion's PermissionHandler, asked for every permission and channel binding (and
+// asked again when the device renews one): a peer only at a public address another socket of
+// the allocation's space came from or allocated from, never at Phloem's own.
 func (t *turnServer) permit(client net.Addr, peerIP net.IP) bool {
 	ip, ok := netip.AddrFromSlice(peerIP)
 	if !ok {
@@ -287,11 +333,17 @@ func (t *turnServer) permit(client net.Addr, peerIP net.IP) bool {
 	t.mu.Lock()
 	u := t.clients[client.String()]
 	var p *peer
-	if u != nil {
+	var allocatedFrom []*peer // the other sockets of the space whose allocations came from ip
+	if u != nil && u.peer != nil {
 		p = u.peer
+		for o := range t.members[u.space] {
+			if o != u && o.peer != nil && slices.Contains(o.from, ip) {
+				allocatedFrom = append(allocatedFrom, o.peer)
+			}
+		}
 	}
 	t.mu.Unlock()
-	if p == nil || !t.s.cameFrom(p, ip) {
+	if p == nil || !t.s.cameFrom(p, ip, allocatedFrom) {
 		t.s.m.turn.Inc("refused")
 		return false
 	}
@@ -306,8 +358,9 @@ func (t *turnServer) allowed(ip netip.Addr) bool {
 	return public(ip)
 }
 
-// cameFrom says whether another socket of p's space came from ip.
-func (s *Server) cameFrom(p *peer, ip netip.Addr) bool {
+// cameFrom says whether another socket of p's space came from ip, or is one of allocatedFrom
+// (the sockets whose allocations came from ip), while p is in its room.
+func (s *Server) cameFrom(p *peer, ip netip.Addr, allocatedFrom []*peer) bool {
 	r := p.room
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -315,7 +368,7 @@ func (s *Server) cameFrom(p *peer, ip netip.Addr) bool {
 		return false
 	}
 	for _, q := range r.peers {
-		if q != p && q.addr == ip {
+		if q != p && (q.addr == ip || slices.Contains(allocatedFrom, q)) {
 			return true
 		}
 	}
