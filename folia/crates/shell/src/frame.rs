@@ -124,8 +124,11 @@ pub fn BackLink(area: crate::tabs::Area, #[prop(optional_no_strip)] to: Option<S
         let (href, history) = (target.clone(), came_from_it.clone());
         crate::chrome::TopBack::follow(move || Some(crate::chrome::Back { href: href.clone(), label: t.common.back, history: history().is_some() }));
     }
+    // A way back to a page that is no search engine's („Mein Studium", from the program overview)
+    // is none for a crawler either, as the box at the head has it.
+    let rel = crate::seo::nofollow(&target);
     view! {
-        <a class="ghost at-head" href=t.path(&target) data-action="back" data-back=came_from_it title=t.ui.back_title>
+        <a class="ghost at-head" href=t.path(&target) rel=rel data-action="back" data-back=came_from_it title=t.ui.back_title>
             <Icon name="arrow-left"/>{t.common.back}<Shortcut keys="Esc"/>
         </a>
     }
