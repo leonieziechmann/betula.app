@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"slices"
@@ -11,6 +12,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+
+	"github.com/leonieziechmann/betula/phloem/internal/store"
 )
 
 func TestTwoDevicesPushAndHearEachOther(t *testing.T) {
@@ -304,6 +307,66 @@ func TestSlotsAreKeptAndAFullSpaceSaysSo(t *testing.T) {
 	_, w = e.connect(p, a, 0)
 	if w.Slot != 1 {
 		t.Fatalf("a's slot: %s", w.raw)
+	}
+}
+
+// Phloem lost what it held (owner, 2026-11-11: „dass es aus den clients rekonstruiert wird"):
+// its database has another epoch, which the refusal of a hello names, so the device makes its
+// space anew; it and the others take the slots they had, where those are free.
+func TestASpaceIsMadeAnewWithTheSlotsItHad(t *testing.T) {
+	e := newEnv(t, nil)
+	p, a, b, c := newProfile(), randBytes(16), randBytes(16), randBytes(16)
+	e.mustCreate(p, a)
+	_, w := e.connect(p, a, 0)
+	before := w.Epoch
+	if raw, err := base64.RawURLEncoding.DecodeString(before); err != nil || len(raw) != store.EpochLen {
+		t.Fatalf("welcome without its epoch: %s", w.raw)
+	}
+	cw, f := e.open(profile{p.space, randBytes(32)}, a, 0)
+	if f.T != "error" || f.Code != "unauthorized" || f.Epoch != before {
+		t.Fatalf("a refused hello names the same epoch: %s", f.raw)
+	}
+	cw.closed()
+
+	lost := newEnv(t, nil) // a database made anew
+	cl, f := lost.open(p, a, 7)
+	if f.Code != "unauthorized" || f.Epoch == "" || f.Epoch == before {
+		t.Fatalf("after the loss the refusal names another epoch: %s", f.raw)
+	}
+	cl.closed()
+	status, doc, _ := lost.request(http.MethodPost, "/sync/v1/space", nil, map[string]any{"space": b64s(p.space), "token": b64s(p.token), "device": b64s(a), "slot": 2})
+	if status != http.StatusCreated || doc["slot"] != float64(2) {
+		t.Fatalf("made anew in its slot: %d %v", status, doc)
+	}
+	_, w = lost.connect(p, a, 7)
+	if w.Slot != 2 || w.Epoch != f.Epoch || w.Head != 0 {
+		t.Fatalf("welcome of the space made anew: %s", w.raw)
+	}
+	hb := hello(p, b, 3)
+	hb["slot"] = 1
+	cb := watch(t, lost.mustDial(nil))
+	cb.send(hb)
+	if w := cb.expect("welcome"); w.Slot != 1 {
+		t.Fatalf("b takes the slot it had: %s", w.raw)
+	}
+	hc := hello(p, c, 0)
+	hc["slot"] = 2
+	cc := watch(t, lost.mustDial(nil))
+	cc.send(hc)
+	if w := cc.expect("welcome"); w.Slot != 3 {
+		t.Fatalf("a slot that is taken gives the smallest free one: %s", w.raw)
+	}
+	for _, slot := range []int{-1, 17} {
+		if status, _, _ := lost.request(http.MethodPost, "/sync/v1/space", nil, map[string]any{"space": b64s(randBytes(16)), "token": b64s(p.token), "device": b64s(a), "slot": slot}); status != http.StatusBadRequest {
+			t.Errorf("slot %d: %d", slot, status)
+		}
+	}
+	bad := watch(t, lost.mustDial(nil))
+	bh := hello(p, b, 0)
+	bh["slot"] = -1
+	bad.send(bh)
+	if code, _ := bad.closed(); code != websocket.StatusPolicyViolation {
+		t.Errorf("a hello with a negative slot: closed with %d", code)
 	}
 }
 

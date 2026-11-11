@@ -242,17 +242,22 @@ func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (store.Spa
 }
 
 // createSpace is POST /sync/v1/space: a space with the hash of its token, its first device in
-// slot 1. 409 exists, 429 slow_down (per address and in all), 507 budget.
+// slot 1, or in the slot it names (a space made anew after Phloem lost it: the device keeps the
+// slot its writes are numbered in). 409 exists, 429 slow_down (per address and in all), 507 budget.
 func (s *Server) createSpace(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Space  b64 `json:"space"`
 		Token  b64 `json:"token"`
 		Device b64 `json:"device"`
+		Slot   int `json:"slot"`
 	}
 	if !s.readBody(w, r, 1<<10, &body) {
 		return
 	}
-	if len(body.Space) != spaceLen || len(body.Token) != tokenLen || len(body.Device) != deviceLen {
+	if body.Slot == 0 {
+		body.Slot = 1
+	}
+	if len(body.Space) != spaceLen || len(body.Token) != tokenLen || len(body.Device) != deviceLen || body.Slot < 1 || body.Slot > s.lim.MaxDevices {
 		s.fail(w, http.StatusBadRequest, "invalid")
 		return
 	}
@@ -270,7 +275,7 @@ func (s *Server) createSpace(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, http.StatusTooManyRequests, "slow_down")
 		return
 	}
-	err := s.st.CreateSpace(r.Context(), body.Space, store.TokenHash(body.Token), body.Device, now)
+	err := s.st.CreateSpace(r.Context(), body.Space, store.TokenHash(body.Token), body.Device, body.Slot, now)
 	if errors.Is(err, store.ErrExists) {
 		// Nothing was made (often the same device again, whose answer was lost).
 		s.creates.give(key, 1)
@@ -285,7 +290,7 @@ func (s *Server) createSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.m.created.Inc()
-	writeJSON(w, http.StatusCreated, map[string]int{"slot": 1})
+	writeJSON(w, http.StatusCreated, map[string]int{"slot": body.Slot})
 }
 
 // removeSpace is DELETE /sync/v1/space („Sync beenden"): the space and everything of it; its

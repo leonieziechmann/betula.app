@@ -31,7 +31,7 @@ func id(n byte, size int) []byte { return bytes.Repeat([]byte{n}, size) }
 func space(t *testing.T, s *Store, n byte) []byte {
 	t.Helper()
 	sp := id(n, 16)
-	if err := s.CreateSpace(ctx, sp, TokenHash(id(n, 32)), id(n, 16), t0); err != nil {
+	if err := s.CreateSpace(ctx, sp, TokenHash(id(n, 32)), id(n, 16), 1, t0); err != nil {
 		t.Fatal(err)
 	}
 	return sp
@@ -87,14 +87,14 @@ func TestOpenMigratesAndReopens(t *testing.T) {
 		t.Fatal(err)
 	}
 	var v int
-	if err := s.w.QueryRow("PRAGMA user_version").Scan(&v); err != nil || v != 2 {
+	if err := s.w.QueryRow("PRAGMA user_version").Scan(&v); err != nil || v != 3 {
 		t.Fatalf("user_version %d, %v", v, err)
 	}
 	var mode string
 	if err := s.w.QueryRow("PRAGMA journal_mode").Scan(&mode); err != nil || mode != "wal" {
 		t.Fatalf("journal_mode %q, %v", mode, err)
 	}
-	if err := s.CreateSpace(ctx, id(1, 16), TokenHash(id(1, 32)), id(1, 16), t0); err != nil {
+	if err := s.CreateSpace(ctx, id(1, 16), TokenHash(id(1, 32)), id(1, 16), 1, t0); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Append(ctx, id(1, 16), 1, "a", []byte("data"), t0, 1<<20); err != nil {
@@ -138,7 +138,7 @@ func TestOpenRefusesANewerIndex(t *testing.T) {
 func TestCreateAuthenticateDelete(t *testing.T) {
 	s := open(t)
 	sp := space(t, s, 1)
-	if err := s.CreateSpace(ctx, sp, TokenHash(id(9, 32)), id(9, 16), t0); !errors.Is(err, ErrExists) {
+	if err := s.CreateSpace(ctx, sp, TokenHash(id(9, 32)), id(9, 16), 1, t0); !errors.Is(err, ErrExists) {
 		t.Fatalf("a second space of the same id: %v", err)
 	}
 	got, err := s.Authenticate(ctx, sp, id(1, 32))
@@ -196,7 +196,7 @@ func TestJoinSlots(t *testing.T) {
 	sp := space(t, s, 1)
 	slot := func(dev byte) int {
 		t.Helper()
-		n, err := s.Join(ctx, sp, id(dev, 16), t0, 3)
+		n, err := s.Join(ctx, sp, id(dev, 16), 0, t0, 3)
 		if err != nil {
 			t.Fatalf("join %d: %v", dev, err)
 		}
@@ -205,7 +205,7 @@ func TestJoinSlots(t *testing.T) {
 	if got := []int{slot(1), slot(2), slot(3), slot(2)}; fmt.Sprint(got) != "[1 2 3 2]" {
 		t.Fatalf("slots %v: the creator has 1, each device keeps its own", got)
 	}
-	if _, err := s.Join(ctx, sp, id(4, 16), t0, 3); !errors.Is(err, ErrFull) {
+	if _, err := s.Join(ctx, sp, id(4, 16), 0, t0, 3); !errors.Is(err, ErrFull) {
 		t.Fatalf("a fourth device of three slots: %v", err)
 	}
 	if err := s.Leave(ctx, sp, id(2, 16)); err != nil {
@@ -214,15 +214,64 @@ func TestJoinSlots(t *testing.T) {
 	if got := slot(4); got != 2 {
 		t.Errorf("the freed slot goes to the next device: %d", got)
 	}
-	if _, err := s.Join(ctx, id(9, 16), id(1, 16), t0, 3); !errors.Is(err, ErrNotFound) {
+	if _, err := s.Join(ctx, id(9, 16), id(1, 16), 0, t0, 3); !errors.Is(err, ErrNotFound) {
 		t.Errorf("join of a missing space: %v", err)
 	}
 	later := t0.Add(time.Hour)
-	if _, err := s.Join(ctx, sp, id(1, 16), later, 3); err != nil {
+	if _, err := s.Join(ctx, sp, id(1, 16), 0, later, 3); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := s.Space(ctx, sp); !got.Touched.Equal(later) {
 		t.Errorf("a hello touches the space: %v", got.Touched)
+	}
+}
+
+// A space made anew after Phloem lost it: its devices take the slots they had, so that their
+// writes stay numbered where they were; a slot that is taken or none falls back to the smallest
+// free one.
+func TestSlotsKeptForASpaceMadeAnew(t *testing.T) {
+	s := open(t)
+	sp := id(7, 16)
+	if err := s.CreateSpace(ctx, sp, TokenHash(id(7, 32)), id(3, 16), 3, t0); err != nil {
+		t.Fatal(err)
+	}
+	join := func(dev byte, want int) int {
+		t.Helper()
+		n, err := s.Join(ctx, sp, id(dev, 16), want, t0, 4)
+		if err != nil {
+			t.Fatalf("join %d: %v", dev, err)
+		}
+		return n
+	}
+	if got := []int{join(3, 0), join(1, 1), join(2, 3), join(4, 9), join(1, 4)}; fmt.Sprint(got) != "[3 1 2 4 1]" {
+		t.Fatalf("slots %v: the maker keeps 3, a free wish is granted, a taken or impossible one gives the smallest free, a device keeps its own", got)
+	}
+}
+
+// The epoch is the database's: the same after a restart, another for a database made anew.
+func TestTheEpochIsTheDatabases(t *testing.T) {
+	dir := t.TempDir()
+	a, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	epoch := append([]byte(nil), a.Epoch()...)
+	if len(epoch) != EpochLen {
+		t.Fatalf("epoch %x", epoch)
+	}
+	if err := a.Close(); err != nil {
+		t.Fatal(err)
+	}
+	b, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	if !bytes.Equal(b.Epoch(), epoch) {
+		t.Errorf("another epoch after a restart: %x, %x", b.Epoch(), epoch)
+	}
+	if bytes.Equal(open(t).Epoch(), epoch) {
+		t.Error("a new database has the old one's epoch")
 	}
 }
 
@@ -576,7 +625,7 @@ func TestOpenMigratesTheFirstSchema(t *testing.T) {
 	}
 	defer s.Close()
 	var v int
-	if err := s.w.QueryRow("PRAGMA user_version").Scan(&v); err != nil || v != 2 {
+	if err := s.w.QueryRow("PRAGMA user_version").Scan(&v); err != nil || v != 3 {
 		t.Fatalf("user_version %d, %v", v, err)
 	}
 	if n, b := s.Totals(); n != 1 || b != 2*RowBytes+3 {
@@ -588,6 +637,9 @@ func TestOpenMigratesTheFirstSchema(t *testing.T) {
 	checkBytes(t, s)
 	if took, err := s.TakePair(ctx, pid, t0, 256); err != nil || string(took.Box) != "box" {
 		t.Fatalf("the parcel of 0.1.0: %+v %v", took, err)
+	}
+	if len(s.Epoch()) != EpochLen {
+		t.Errorf("a database of 0.1.0 gets its epoch: %x", s.Epoch())
 	}
 	if took, err := s.TakePair(ctx, pid, t0, 256); err != nil || took.State != PairTaken {
 		t.Fatalf("the parcel of 0.1.0 taken: %+v %v", took, err)
