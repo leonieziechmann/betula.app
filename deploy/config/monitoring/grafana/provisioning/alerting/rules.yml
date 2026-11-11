@@ -2165,6 +2165,7 @@ groups:
         noDataState: OK
         execErrState: KeepLast
         dashboardUid: betula-sync
+        panelId: 26
         labels:
           severity: critical
         annotations:

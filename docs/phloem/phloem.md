@@ -205,7 +205,10 @@ The stats file `phloem.prom` (Prometheus text, every 15 s, written by a rename) 
 `phloem_poll_sessions_ended_total{reason}`,
 `phloem_log_problems_total`, and for step 2 the numbers of „TURN", each with `stack`. Alloy reads it through `/rootfs`
 (`config/monitoring/alloy/config.alloy`, job `phloem`); the dashboard "Sync" and the rules of the
-group `betula-phloem` use these names.
+group `betula-phloem` use these names. The dashboard's rows: Phloem (up, spaces, devices, budget,
+pushes, refusals), between devices (TURN's allocations, events and relayed bytes, the signals, the
+socket over HTTPS), shared calendars and lists (parts kept, watched and read, parcels), its
+firewall and rights, Traefik in front of it, its container.
 
 - `phloem_parcels_total{event}`: `left`, `taken`, `missed` (a take that found none), `expired`,
   `withdrawn`.
@@ -275,4 +278,3 @@ log) and /healthz (not Phloem's), the stats file, `phloem status`; at last
 
 - A backup of `phloem.db`: sealed by the devices, so it may leave the house; SQLite's online
   backup into the data file system and off the server, not written yet.
-- A dashboard panel for TURN (the numbers are in the stats file already).
