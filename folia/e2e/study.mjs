@@ -60,7 +60,8 @@
 //   head;
 //   „Vollbild" at the head's right end, the rail and the search staying, Esc out of it; „Als Bild
 //   speichern" a PNG of the day; Lineare Algebra II with Strg onto a Komplex, an exception there,
-//   in its figure and in the Wahlpflicht's, marked „Ausnahme" in its list.
+//   in its figure and in the Wahlpflicht's, marked „Ausnahme" in its list; counted for the
+//   Wahlpflicht of the 4. FS, in the Komplex that holds the most, not under „Weitere".
 // 2d a place as a place for modules (owner, 2026-11-09: „dass die verschwinden, wenn die voll
 //   erfüllt sind … Dann soll der platzhalter azeigen, wie viel progress da schon eingeplant ist"):
 //   the Anwendungsfach set to 12 LP with a module of 6 in it stands with its bar, „6 von 12 LP
@@ -1033,6 +1034,26 @@ if (current !== "2026W") {
     marked: [...document.querySelectorAll(".st-wrow")].filter((row) => row.querySelector(".st-exception")).map((row) => row.querySelector(".st-wrow-id")?.textContent),
   }));
   check(counted.figure === "42 / 50 LP" && counted.komplex === "8 / 10–24 LP" && counted.marked.join() === "11102", `the Wahlpflicht with the exception: ${JSON.stringify(counted)}`);
+  // Counted for the Wahlpflicht of the 4. FS instead, whose lists are the Komplexe's (owner,
+  // 2026-11-11: „Zeig das Ausnahme-Modul auch im Gesamtplan im Komplex"): no Komplex lists it, so
+  // it stands in the one that holds the most, the Praktische Informatik, which takes the room to
+  // 30 with it — „Ausnahme" in its title, no „Weitere".
+  await step("the Gesamtplan, for the exception", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => document.querySelector(".st-rm-grid .st-rm-p") && document.querySelectorAll(".st-rm-sub").length === 6);
+  const atiAgain = await row("Angewandte und Technische Informatik");
+  await step("its menu", () => page.click(`[data-row="${atiAgain}"] .st-rm-p[aria-label^="LAAG2,"]`), () => document.querySelector(".st-pop.root #st-menu-counts"));
+  await step("its Zählt für ›", () => page.click(".st-pop.root #st-menu-counts"), () => document.querySelector(".st-pop.sub #st-menu-other"));
+  await step("its Anderer Bereich …", () => page.click(".st-pop.sub #st-menu-other"), () => document.querySelectorAll(".st-cf .st-cf-opt").length > 8);
+  await step("the Wahlpflicht of the 4. FS", async () => { await page.click('.st-cf-opt:has(b:text-is("Wahlpflicht"))'); await page.click("#st-cf-go"); }, () => document.querySelector(".study-note")?.textContent.includes("zählt als Ausnahme für Wahlpflicht"));
+  const komplexe = await page.evaluate(() => {
+    const sub = (name) => [...document.querySelectorAll(".st-rm-sub")].find((head) => head.querySelector(".st-card-name")?.textContent === name);
+    const praktisch = sub("Praktische Informatik");
+    return {
+      figure: praktisch?.querySelector(".st-card-lp")?.textContent.trim(),
+      piece: praktisch?.nextElementSibling ? document.querySelector(`[data-row="${praktisch.nextElementSibling.dataset.row}"] .st-rm-p[aria-label^="LAAG2,"]`)?.getAttribute("aria-label") : null,
+      weitere: !!sub("Weitere"),
+    };
+  });
+  check(komplexe.figure === "26/10–30" && komplexe.piece?.includes("Ausnahme") && !komplexe.weitere, `the Wahlpflicht's exception in the Gesamtplan: ${JSON.stringify(komplexe)}`);
   await context.close();
 }
 
