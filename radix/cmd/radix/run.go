@@ -81,7 +81,8 @@ func runService(ctx context.Context, args []string) {
 	}
 	recorder, closeLog := logs.setup()
 	defer closeLog()
-	// Offline through Cortex the cycle reads Cortex's store and nothing else: no Gemini either.
+	// Offline through Cortex the cycle reads Cortex's store and nothing else but the BTU's page of
+	// Grundsatzordnungen (cortexFlags.liveClient): no Gemini either.
 	offline := cortex.offline()
 	if offline {
 		semanticOpts.summaryModel = nil
@@ -111,6 +112,7 @@ func runService(ctx context.Context, args []string) {
 	cfg.ArchiveGrace = *archiveGrace
 	cfg.StaleAfter = *staleAfter
 	cfg.Endpoints.Client = cortex.client(cortexclient.ModeCache)
+	cfg.Endpoints.LiveClient = cortex.liveClient(cfg.GeneralDocuments.MaxAge)
 	declareFetchPath(cfg.Endpoints.Client != nil, offline)
 
 	if strings.EqualFold(*offpeak, "any") {
@@ -189,7 +191,7 @@ func declareFetchPath(viaCortex, offline bool) {
 		"1 when the crawl and the statute download go through Cortex (RADIX_CORTEX_URL), 0 when Radix asks the university itself.",
 		nil, func(emit func(float64, ...string)) { emit(v) })
 	metrics.Default.NewGaugeFunc("radix_crawl_cortex_offline",
-		"1 when every request goes to Cortex in mode offline (RADIX_CORTEX_MODE=offline): answered from its store alone, nothing reaches the university.",
+		"1 when every request goes to Cortex in mode offline (RADIX_CORTEX_MODE=offline): answered from its store alone, nothing reaches the university but the BTU's page of Grundsatzordnungen (through Cortex, mode cache).",
 		nil, func(emit func(float64, ...string)) { emit(o) })
 }
 

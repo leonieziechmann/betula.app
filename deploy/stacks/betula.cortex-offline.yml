@@ -2,7 +2,8 @@
 # cycles as a Radix that crawls does ("run": the crawl stages at their times, build, validate,
 # export, the semantic search), but asks Cortex for every page in mode offline (RADIX_CORTEX_MODE,
 # docs/cortex/cortex.md §8): it gets what Cortex has stored, and a page Cortex lacks waits for the
-# next cycle. Nothing reaches the university, and Gemini is not asked either. What Cortex has
+# next cycle. Nothing reaches the university but the BTU's page of Grundsatzordnungen (since Radix
+# 0.12.1, in mode cache through Cortex, at most once in 20 hours), and Gemini is not asked either. What Cortex has
 # stored: what a colour that crawls fetched through it, and what "radix seed-cortex" gave it from
 # an archive (deploy/README.md section 14). The canary's colours run like this: they test the whole
 # way from Cortex to Folia without a second crawler.

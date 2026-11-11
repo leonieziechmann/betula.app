@@ -32,13 +32,14 @@ func addCortexFlags(fs *flag.FlagSet) cortexFlags {
 		maxAge: fs.Duration("cortex-max-age", envDuration("RADIX_CORTEX_MAX_AGE", time.Hour),
 			"Take a page Cortex fetched within this long from Cortex without asking the host again; negative: Cortex's per-host max_age (env RADIX_CORTEX_MAX_AGE)"),
 		mode: fs.String("cortex-mode", envOr("RADIX_CORTEX_MODE", cortexclient.ModeCache),
-			"cache: Cortex fetches what it lacks or holds too long; offline: only what Cortex has stored, nothing reaches the university or Gemini (needs --cortex) (env RADIX_CORTEX_MODE)"),
+			"cache: Cortex fetches what it lacks or holds too long; offline: only what Cortex has stored, nothing reaches the university but the BTU's page of Grundsatzordnungen (through Cortex), nor Gemini (needs --cortex) (env RADIX_CORTEX_MODE)"),
 	}
 }
 
 // offline says whether every request is to be answered from Cortex's store alone
-// (--cortex-mode offline): nothing reaches the university, a page Cortex lacks is skipped
-// (crawl.ErrOfflineMiss), and Gemini is not asked either. An unknown mode, and offline
+// (--cortex-mode offline): nothing reaches the university but the BTU's page of
+// Grundsatzordnungen (liveClient), a page Cortex lacks is skipped (crawl.ErrOfflineMiss), and
+// Gemini is not asked either. An unknown mode, and offline
 // without --cortex, exit with code 2: without Cortex, Radix would ask the university itself.
 func (f cortexFlags) offline() bool {
 	switch *f.mode {
@@ -79,4 +80,27 @@ func (f cortexFlags) client(mode string) *http.Client {
 	oplog.For("crawl").Info("requests go through Cortex", "event", "crawl.cortex", "cortex", strings.Join(c.Endpoints(), ","),
 		"mode", mode, "max_age", f.maxAge.String())
 	return c.HTTPClient(cortexclient.FetchOptions{Mode: mode, MaxAge: *f.maxAge, Stale: cortexclient.StaleNever}, cortexTimeout)
+}
+
+// liveClient is, offline (--cortex-mode offline), the client for the one page an instance that
+// crawls nothing still fetches: the BTU's page of Grundsatzordnungen, German and English
+// (service.Endpoints.LiveClient; owner, 2026-11-11: „mach doch bitte einfach auf canary"). It asks
+// Cortex in mode cache and takes Cortex's copy while it is younger than maxAge, the stage's own
+// age, so that the page reaches the university at most once in that time whoever asks for it.
+// nil while Radix is not offline: then Endpoints.Client fetches it as every page.
+//
+// Log events: crawl.cortex.
+func (f cortexFlags) liveClient(maxAge time.Duration) *http.Client {
+	if !f.offline() {
+		return nil
+	}
+	c, err := cortexclient.New(*f.urls, cortexclient.Options{})
+	if err != nil {
+		slog.Error("invalid --cortex", "component", "cli", "event", "cli.failed", "value", *f.urls, oplog.Err(err))
+		os.Exit(2)
+	}
+	oplog.For("crawl").Info("the BTU's page of Grundsatzordnungen goes through Cortex in mode cache though Radix is offline",
+		"event", "crawl.cortex", "cortex", strings.Join(c.Endpoints(), ","), "mode", cortexclient.ModeCache, "max_age", maxAge.String(),
+		"stage", "general-documents")
+	return c.HTTPClient(cortexclient.FetchOptions{Mode: cortexclient.ModeCache, MaxAge: maxAge, Stale: cortexclient.StaleNever}, cortexTimeout)
 }

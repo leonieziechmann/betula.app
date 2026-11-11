@@ -90,4 +90,13 @@ func TestCortexFlags(t *testing.T) {
 	if f := parse("--cortex-mode", "cache"); f.offline() {
 		t.Error("--cortex-mode cache does not win over the environment")
 	}
+
+	// Offline the BTU's page of Grundsatzordnungen alone may be fetched, through Cortex in mode
+	// cache with its stage's age; online Endpoints.Client fetches it as every page.
+	if f := fetchThrough(t, cortex, parse().liveClient(20*time.Hour)); f.Mode != "cache" || f.MaxAge != "20h" || f.Stale != "never" {
+		t.Errorf("offline, the page of Grundsatzordnungen: %+v", f.Query)
+	}
+	if c := parse("--cortex-mode", "cache").liveClient(20 * time.Hour); c != nil {
+		t.Errorf("online, a client of its own for the page of Grundsatzordnungen: %+v", c)
+	}
 }

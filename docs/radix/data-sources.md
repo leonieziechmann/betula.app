@@ -1019,8 +1019,13 @@ topic. `validate` warns of both („pages of the BTU's Grundsatzordnungen that y
 regulation as missing with the way to the BTU's list, never an older list.
 
 **Canary** does not crawl (`RADIX_CRAWL=cortex-offline`, `deploy/README.md` §12): it rebuilds the
-public site's archive and takes pages from Cortex's store alone. The page reaches it once the public
-site's Radix (0.12.0 or later) has read it, or once anything has fetched it through Cortex.
+public site's archive and takes pages from Cortex's store alone — all but this one. Until Radix
+0.12.1 it reached canary only once the public site's Radix had read it, and the public site was not
+to have the new things yet (owner, 2026-11-11: „mach doch bitte einfach auf canary. Betula.app soll
+doch noch gar nicht die ganzen neuerungen bekommen"). Since then the stage asks Cortex for it in mode
+`cache` even offline, with its own age of 20 h (`Endpoints.LiveClient`): at once where the archive
+lacks it, as canary's copy of the public site's does after every deploy, and Cortex answers from its
+store while its copy is that young (`docs/radix/operations.md`, „Offline through Cortex").
 
 **Checked** on 2026-11-10 against both pages as they were that day (`parser/testdata/
 btu_grundsatzordnungen_de.html`, `…_en.html`): every document read by hand against the page, every
