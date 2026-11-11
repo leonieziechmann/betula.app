@@ -58,9 +58,6 @@ struct Tab {
     /// What counts for it that its lists do not have: what the student let count here as an
     /// exception (`choices::Taken::exception`), shown first, marked as such.
     others: Vec<String>,
-    /// What of a group falls to none of its members (`choices::Group::rest`): its extras, by
-    /// their name and with what they hold, as a section of their own.
-    rest: Option<Stand>,
     /// What a module of it opened from here is planned for: the first placeholder of its rows
     /// from the current semester on that nothing fills, and the row it counts for, with its name.
     fill: Option<u32>,
@@ -237,7 +234,7 @@ fn choice_entry(input: &Input, ready: &Ready, ctx: StudyCtx, view: &PlanView, at
     let tabs: Vec<Tab> = choice
         .lists
         .iter()
-        .map(|list| Tab { name: list.name.clone(), modules: list.modules.clone(), member: None, others: others.clone(), rest: None, fill, counts: counts.clone(), counts_name: name.clone() })
+        .map(|list| Tab { name: list.name.clone(), modules: list.modules.clone(), member: None, others: others.clone(), fill, counts: counts.clone(), counts_name: name.clone() })
         .collect();
     let mut rule = if choice.fues {
         (v.fues_rule)(&credits)
@@ -293,7 +290,7 @@ fn group_entry(input: &Input, ready: &Ready, view: &PlanView, group: &choices::G
     let (extra_least, room) = group.extra(choices);
     let extra_rows: Vec<(String, i64)> = group.extras.iter().filter_map(|at| choices.get(*at)).flat_map(|choice| rows_of(view, choice)).collect();
     let mut places: Vec<SemesterKey> = Vec::new();
-    let mut tabs: Vec<Tab> = members
+    let tabs: Vec<Tab> = members
         .iter()
         .filter_map(|member| choices.get(member.choice).map(|choice| (member, choice)))
         .map(|(member, choice)| {
@@ -310,7 +307,6 @@ fn group_entry(input: &Input, ready: &Ready, view: &PlanView, group: &choices::G
                 modules,
                 member: Some((member.stand, member.room)),
                 others: others_of(&member.taken.iter().collect::<Vec<_>>(), choice),
-                rest: None,
                 fill: open.first().map(|(pid, _)| *pid),
                 counts: RowRef::new(input.program_id, &first_row.0, first_row.1),
                 counts_name: name,
@@ -331,28 +327,6 @@ fn group_entry(input: &Input, ready: &Ready, view: &PlanView, group: &choices::G
     }
     let modules: BTreeSet<&str> = tabs.iter().flat_map(|tab| tab.modules.iter().map(String::as_str)).collect();
     let count = count_of(tabs.len(), modules.len(), t);
-    // What the student let count for an extra that no member's list has: under the extras' name.
-    let rest = group.rest(view);
-    if !rest.is_empty() {
-        let extras: Vec<&Choice> = group.extras.iter().filter_map(|at| choices.get(*at)).collect();
-        let name = extras.iter().map(|choice| bench::short_name(&choice.name)).collect::<Vec<_>>().join(", ");
-        let (passed, planned) = rest.iter().fold((0.0, 0.0), |(passed, planned), taken| match taken.passed {
-            true => (passed + taken.credits.unwrap_or(0.0), planned),
-            false => (passed, planned + taken.credits.unwrap_or(0.0)),
-        });
-        let stand = Stand { passed, planned, least: extra_least, most: room.max(extra_least), spare: 0.0 };
-        let first_row = extras.first().map(|choice| rows_of(view, choice)).and_then(|rows| rows.into_iter().next()).unwrap_or_default();
-        tabs.push(Tab {
-            name: name.clone(),
-            modules: Vec::new(),
-            member: None,
-            others: rest.iter().map(|taken| taken.id.clone()).collect(),
-            rest: Some(stand),
-            fill: None,
-            counts: RowRef::new(input.program_id, &first_row.0, first_row.1),
-            counts_name: name,
-        });
-    }
     let area = first.and_then(|choice| choice.area);
     Entry {
         choice: group.choices().min().unwrap_or(0),
@@ -615,10 +589,9 @@ fn sections_of(entry: &Entry, shown: Option<usize>) -> Vec<Tab> {
     }
 }
 
-/// A group member's name and stand over its modules, or those of its extras for what falls to no
-/// member.
+/// A group member's name and stand over its modules.
 fn section_head(tab: &Tab, t: &'static Texts) -> Option<impl IntoView> {
-    tab.member.map(|(stand, _)| stand).or(tab.rest).map(|stand| view! { <p class="st-wsub"><span>{tab.name.clone()}</span>{fig(&stand, t)}</p> })
+    tab.member.map(|(stand, _)| view! { <p class="st-wsub"><span>{tab.name.clone()}</span>{fig(&stand, t)}</p> })
 }
 
 /// What „Einplanen" of a module opened from `tab` aims at: its choice's placeholder and row. None
