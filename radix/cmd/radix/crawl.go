@@ -113,6 +113,28 @@ func runCrawlGeneralDocuments(ctx context.Context, args []string) {
 	finishCrawl("crawl-general-documents", stats, err)
 }
 
+// runCrawlStudyOrganisation archives the BTU's page „Studienorganisation", German and English: its
+// pages around the study.
+func runCrawlStudyOrganisation(ctx context.Context, args []string) {
+	def := service.DefaultConfig()
+	fs := flag.NewFlagSet("crawl-study-organisation", flag.ExitOnError)
+	dbPath := fs.String("db", defaultDBPath, "Database path")
+	pace := addPaceFlags(fs, 1, int(def.StudyOrganisation.Delay.Milliseconds()), def.StudyOrganisation.MaxAge)
+	cortex := addCortexFlags(fs)
+	logs := addLogFlags(fs)
+	_ = fs.Parse(args)
+	_, closeLog := logs.setup()
+	defer closeLog()
+
+	db := openDB(*dbPath)
+	defer db.Close()
+	ep := service.BTUEndpoints()
+	ep.Client = cortex.client(cortexclient.ModeCache)
+
+	stats, err := service.CrawlStudyOrganisation(ctx, db, ep, pace())
+	finishCrawl("crawl-study-organisation", stats, err)
+}
+
 // runCrawlQISModules archives the QIS module descriptions, the source the catalog
 // is maintained in.
 func runCrawlQISModules(ctx context.Context, args []string) {

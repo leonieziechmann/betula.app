@@ -52,6 +52,9 @@ func (f *fakeBTU) endpoints() Endpoints {
 		// The BTU's page of Grundsatzordnungen as it was on 2026-11-10.
 		GeneralDocumentsDE: f.srv.URL + "/grundsatzordnungen",
 		GeneralDocumentsEN: f.srv.URL + "/en/basic-regulations",
+		// The BTU's page „Studienorganisation" as it was on 2026-11-11.
+		StudyOrganisationDE: f.srv.URL + "/studienorganisation",
+		StudyOrganisationEN: f.srv.URL + "/en/study-organization",
 	}
 }
 
@@ -157,11 +160,14 @@ func (f *fakeBTU) serve(w http.ResponseWriter, r *http.Request) {
 			<tr><th>Veranstaltungsart</th><td>Vorlesung</td><th>Semester</th><td>WS 2026/27</td></tr></table>
 			<table summary="Übersicht über alle Veranstaltungstermine"><tr><th>Tag</th><th>Zeit</th><th>Rhythmus</th><th>Dauer</th><th>Raum</th></tr>
 			<tr><td>Di.</td><td>09:15 bis 10:45</td><td>A/B</td><td>13.10.2026 bis 02.02.2027</td><td>Lehrgebäude 1A - 0.22 - Zentralcampus</td></tr></table>`)
-	case r.URL.Path == "/grundsatzordnungen" || r.URL.Path == "/en/basic-regulations":
-		file := "btu_grundsatzordnungen_de.html"
-		if strings.HasPrefix(r.URL.Path, "/en/") {
-			file = "btu_grundsatzordnungen_en.html"
-		}
+	case r.URL.Path == "/grundsatzordnungen" || r.URL.Path == "/en/basic-regulations" ||
+		r.URL.Path == "/studienorganisation" || r.URL.Path == "/en/study-organization":
+		file := map[string]string{
+			"/grundsatzordnungen":    "btu_grundsatzordnungen_de.html",
+			"/en/basic-regulations":  "btu_grundsatzordnungen_en.html",
+			"/studienorganisation":   "btu_studienorganisation_de.html",
+			"/en/study-organization": "btu_studienorganisation_en.html",
+		}[r.URL.Path]
 		body, err := os.ReadFile(filepath.Join("..", "parser", "testdata", file))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -201,7 +207,7 @@ func newTestService(t *testing.T, site *fakeBTU) (*Service, Config) {
 		Endpoints:   site.endpoints(),
 		SnapshotDir: filepath.Join(t.TempDir(), "snapshot"),
 		Lists:       fast, Modules: fast, QISModules: ModulePace{Pace: fast}, Tree: fast,
-		EventList: EventListPace{Pace: fast}, Events: EventPagePace{Pace: fast}, GeneralDocuments: fast,
+		EventList: EventListPace{Pace: fast}, Events: EventPagePace{Pace: fast}, GeneralDocuments: fast, StudyOrganisation: fast,
 		StaleAfter: time.Hour,
 	}
 	return New(db, cfg, nil), cfg
@@ -255,6 +261,17 @@ func TestCyclePublishesOnlyWhenContentChanges(t *testing.T) {
 	var documents int
 	if err := svc.db.SQL().QueryRow("SELECT COUNT(*) FROM v_general_document WHERE topic = 'framework_bachelor' AND lang = 'de'").Scan(&documents); err != nil || documents != 7 {
 		t.Errorf("%d documents of the Bachelor's Rahmenordnung (err %v), want 7", documents, err)
+	}
+	// The BTU's page „Studienorganisation", German and English: its pages around the study.
+	if s := stage(first, "study-organisation"); s.Crawl == nil || s.Crawl.Fetched != 2 || s.Crawl.Failed != 0 {
+		t.Errorf("study-organisation stage = %+v", s)
+	}
+	if site.hits["/studienorganisation"] != 1 || site.hits["/en/study-organization"] != 1 {
+		t.Errorf("the pages Studienorganisation were asked for %d and %d times, want once each", site.hits["/studienorganisation"], site.hits["/en/study-organization"])
+	}
+	var pages int
+	if err := svc.db.SQL().QueryRow("SELECT COUNT(*) FROM v_study_page").Scan(&pages); err != nil || pages != 62 {
+		t.Errorf("%d study pages (err %v), want 62", pages, err)
 	}
 	snapshot1, err := catalogdb.ReadSnapshotPointer(cfg.SnapshotDir)
 	if err != nil {
@@ -512,7 +529,7 @@ func TestBulkCrawlingWaitsForOffPeakExceptOnFirstStart(t *testing.T) {
 	// stages run, but by day they only ask about what is not settled and fetch the pages
 	// the search has news for: here nothing.
 	r := svc.RunCycle(ctx)
-	for _, name := range []string{"lists", "general-documents", "modules", "qis-modules", "tree"} {
+	for _, name := range []string{"lists", "general-documents", "study-organisation", "modules", "qis-modules", "tree"} {
 		if stage(r, name).Skipped == "" {
 			t.Errorf("stage %s ran outside the off-peak window: %+v", name, stage(r, name))
 		}
@@ -525,7 +542,8 @@ func TestBulkCrawlingWaitsForOffPeakExceptOnFirstStart(t *testing.T) {
 
 	svc.now = func() time.Time { return time.Date(2026, 9, 20, 2, 0, 0, 0, time.Local) }
 	if r := svc.RunCycle(ctx); stage(r, "modules").Crawl == nil || stage(r, "modules").Crawl.Fetched != 2 ||
-		stage(r, "general-documents").Crawl == nil || stage(r, "general-documents").Crawl.Fetched != 2 {
+		stage(r, "general-documents").Crawl == nil || stage(r, "general-documents").Crawl.Fetched != 2 ||
+		stage(r, "study-organisation").Crawl == nil || stage(r, "study-organisation").Crawl.Fetched != 2 {
 		t.Errorf("night cycle = %+v", r)
 	}
 }

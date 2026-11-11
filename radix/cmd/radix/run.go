@@ -66,6 +66,7 @@ func runService(ctx context.Context, args []string) {
 	eventUnsettledPageMaxAge := fs.Duration("event-unsettled-page-max-age", envDuration("RADIX_EVENT_UNSETTLED_PAGE_MAX_AGE", def.Events.UnsettledMaxAge), "Refetch an event page the event search confirms while its dates are not settled once per this long (env RADIX_EVENT_UNSETTLED_PAGE_MAX_AGE)")
 	eventMaxAge := fs.Duration("event-max-age", envDuration("RADIX_EVENT_MAX_AGE", def.Events.MaxAge), "Refetch an event page in doubt, one the event search does not confirm, once per this long (env RADIX_EVENT_MAX_AGE)")
 	treeMaxAge := fs.Duration("tree-max-age", envDuration("RADIX_TREE_MAX_AGE", def.Tree.MaxAge), "Refetch a QIS tree page once per this long, each on a day of its own (env RADIX_TREE_MAX_AGE)")
+	studyMaxAge := fs.Duration("study-organisation-max-age", envDuration("RADIX_STUDY_ORGANISATION_MAX_AGE", def.StudyOrganisation.MaxAge), "Refetch the BTU's page Studienorganisation (German and English) after this long, off-peak (env RADIX_STUDY_ORGANISATION_MAX_AGE)")
 	generalMaxAge := fs.Duration("general-documents-max-age", envDuration("RADIX_GENERAL_DOCUMENTS_MAX_AGE", def.GeneralDocuments.MaxAge), "Refetch the BTU's page of Grundsatzordnungen (German and English) after this long, off-peak (env RADIX_GENERAL_DOCUMENTS_MAX_AGE)")
 	retention := fs.Duration("event-retention", envDuration("RADIX_EVENT_RETENTION", def.EventRetention), "Remove an event this long after its last date, 0 keeps all (env RADIX_EVENT_RETENTION)")
 	archiveGrace := fs.Duration("archive-grace", envDuration("RADIX_ARCHIVE_GRACE", def.ArchiveGrace), "Remove archived pages nothing leads to any more this long after their fetch, 0 keeps them (env RADIX_ARCHIVE_GRACE)")
@@ -81,8 +82,8 @@ func runService(ctx context.Context, args []string) {
 	}
 	recorder, closeLog := logs.setup()
 	defer closeLog()
-	// Offline through Cortex the cycle reads Cortex's store and nothing else but the BTU's page of
-	// Grundsatzordnungen (cortexFlags.liveClient): no Gemini either.
+	// Offline through Cortex the cycle reads Cortex's store and nothing else but the BTU's pages of
+	// Grundsatzordnungen and Studienorganisation (cortexFlags.liveClient): no Gemini either.
 	offline := cortex.offline()
 	if offline {
 		semanticOpts.summaryModel = nil
@@ -108,11 +109,12 @@ func runService(ctx context.Context, args []string) {
 	cfg.Tree.Delay = 2 * time.Duration(*qisDelay) * time.Millisecond
 	cfg.Tree.MaxAge = *treeMaxAge
 	cfg.GeneralDocuments.MaxAge = *generalMaxAge
+	cfg.StudyOrganisation.MaxAge = *studyMaxAge
 	cfg.EventRetention = *retention
 	cfg.ArchiveGrace = *archiveGrace
 	cfg.StaleAfter = *staleAfter
 	cfg.Endpoints.Client = cortex.client(cortexclient.ModeCache)
-	cfg.Endpoints.LiveClient = cortex.liveClient(cfg.GeneralDocuments.MaxAge)
+	cfg.Endpoints.LiveClient = cortex.liveClient(min(cfg.GeneralDocuments.MaxAge, cfg.StudyOrganisation.MaxAge))
 	declareFetchPath(cfg.Endpoints.Client != nil, offline)
 
 	if strings.EqualFold(*offpeak, "any") {
@@ -191,7 +193,7 @@ func declareFetchPath(viaCortex, offline bool) {
 		"1 when the crawl and the statute download go through Cortex (RADIX_CORTEX_URL), 0 when Radix asks the university itself.",
 		nil, func(emit func(float64, ...string)) { emit(v) })
 	metrics.Default.NewGaugeFunc("radix_crawl_cortex_offline",
-		"1 when every request goes to Cortex in mode offline (RADIX_CORTEX_MODE=offline): answered from its store alone, nothing reaches the university but the BTU's page of Grundsatzordnungen (through Cortex, mode cache).",
+		"1 when every request goes to Cortex in mode offline (RADIX_CORTEX_MODE=offline): answered from its store alone, nothing reaches the university but the BTU's pages of Grundsatzordnungen and Studienorganisation (through Cortex, mode cache).",
 		nil, func(emit func(float64, ...string)) { emit(o) })
 }
 

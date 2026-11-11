@@ -777,6 +777,49 @@ fn path_unescaped(part: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
+/// „Rund ums Studium" of „Ordnungen & Dokumente" (`btu_pages`): the BTU's pages around the study, in
+/// the groups its page „Studienorganisation" has them. Only what the snapshot has: where the page
+/// yielded nothing there are no groups, never an older list instead.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct BtuPages {
+    pub groups: Vec<BtuPageGroup>,
+}
+
+/// A group of the BTU's pages under its heading, as the BTU writes it („Prüfungen", „Formalia").
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BtuPageGroup {
+    pub name: String,
+    pub pages: Vec<BtuPage>,
+}
+
+/// A page of the BTU's: its title, the sentence the BTU writes under it, its address.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BtuPage {
+    pub title: String,
+    pub summary: Option<String>,
+    pub url: String,
+}
+
+/// The BTU's pages around the study (`v_study_page`) in `locale`'s language, in the order of its page
+/// „Studienorganisation", grouped as that page groups them; the other language's where the snapshot
+/// has only that one (its page answered and the other did not).
+pub fn btu_pages(db: &dyn Database, locale: Locale) -> Result<BtuPages, DbError> {
+    let (first, other) = if locale == Locale::En { ("en", "de") } else { ("de", "en") };
+    let mut pages = queries::study_pages(db, first)?;
+    if pages.is_empty() {
+        pages = queries::study_pages(db, other)?;
+    }
+    let mut groups: Vec<BtuPageGroup> = Vec::new();
+    for page in pages {
+        let shown = BtuPage { title: page.title, summary: page.summary, url: page.url };
+        match groups.last_mut().filter(|group| group.name == page.section) {
+            Some(group) => group.pages.push(shown),
+            None => groups.push(BtuPageGroup { name: page.section, pages: vec![shown] }),
+        }
+    }
+    Ok(BtuPages { groups })
+}
+
 /// How many marked modules a browser keeps. Far more than anybody marks, and well below what a
 /// single `IN (…)` of the local SQLite takes.
 pub const MAX_BOOKMARKS: usize = 2000;

@@ -6571,6 +6571,13 @@ div.st-col-head.past { cursor: default; }
    its arrow at its end, a Rahmenordnung's amendments folded under it (a row that opens them, its
    chevron turned while open), in the shade of the row they belong to. */
 .st-docs-label { margin: 14px 20px 4px; }
+/* „Rund ums Studium" (btu.rs): a page of the BTU's, its title and under it the sentence the BTU
+   writes about it, at most two lines of it. */
+.st-docs .docrow.pagerow { display: grid; grid-template-columns: 16px minmax(0, 1fr) 16px; column-gap: 10px; row-gap: 1px; padding-block: 9px; }
+.st-docs .pagerow > .icon:first-child { grid-row: 1 / 3; }
+.st-docs .pagerow .docname { grid-column: 2; white-space: normal; }
+.st-docs .pagerow small { grid-column: 2; margin-left: 0; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.st-docs .pagerow > .go { grid-column: 3; grid-row: 1 / 3; }
 .st-docs .docname + .go { margin-left: auto; }
 .st-docs-fold > summary { cursor: pointer; list-style: none; }
 .st-docs-fold > summary::-webkit-details-marker { display: none; }

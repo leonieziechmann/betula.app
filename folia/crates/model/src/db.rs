@@ -24,8 +24,9 @@ use std::fmt;
 /// docs/radix/schema-v2.md, „Choices"). 18: which modules a prerequisite text names as alternatives
 /// (`v_module_prerequisite.choice`; docs/radix/data-sources.md §16). 19: the documents the BTU's
 /// page of Grundsatzordnungen lists for every program (`v_general_document`; docs/radix/schema-v2.md,
-/// „General documents").
-pub const SCHEMA_VERSION: i64 = 19;
+/// „General documents"). 20: the BTU's pages around the study its page „Studienorganisation" lists
+/// (`v_study_page`; docs/radix/schema-v2.md, „Study pages").
+pub const SCHEMA_VERSION: i64 = 20;
 
 /// A SQLite value, as a parameter or as a result cell.
 #[derive(Clone, Debug, PartialEq)]

@@ -31,26 +31,12 @@ pub struct Texts {
     pub forms: &'static str,
     pub btu_site: &'static str,
 
-    // „Rund ums Studium": the BTU's pages, by what they are about.
+    // „Rund ums Studium": the BTU's pages around the study, as its page „Studienorganisation" groups
+    // them; their groups, titles and sentences are the BTU's, in the snapshot.
     pub around: &'static str,
     pub around_lead: &'static str,
-    pub exams: &'static str,
-    pub exams_register: &'static str,
-    pub exams_deadlines: &'static str,
-    pub exams_illness: &'static str,
-    pub exams_work: &'static str,
-    pub semester: &'static str,
-    pub dates: &'static str,
-    pub reregister: &'static str,
-    pub fee: &'static str,
-    pub leave: &'static str,
-    pub change: &'static str,
-    pub exmatriculation: &'static str,
-    pub card: &'static str,
-    pub help: &'static str,
-    pub service: &'static str,
-    pub advice: &'static str,
-    pub portals: &'static str,
+    /// The BTU's page that lists them, where the row of pages the data does not have leads.
+    pub study_organisation: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -72,24 +58,8 @@ pub const DE: Texts = Texts {
     btu_site: "b-tu.de",
 
     around: "Rund ums Studium",
-    around_lead: "Die Seiten der BTU dazu.",
-    exams: "Prüfungen",
-    exams_register: "An- und Abmeldung von Modulprüfungen",
-    exams_deadlines: "Prüfungs- und Studienfristen",
-    exams_illness: "Krankheit und Verhinderung",
-    exams_work: "Prüfungsleistungen",
-    semester: "Semester und Formalitäten",
-    dates: "Termine und Fristen",
-    reregister: "Rückmeldung",
-    fee: "Semestergebühr",
-    leave: "Beurlaubung",
-    change: "Studiengangwechsel",
-    exmatriculation: "Exmatrikulation",
-    card: "Studierendenausweis",
-    help: "Service und Beratung",
-    service: "Studierendenservice",
-    advice: "Beratung und Hilfe",
-    portals: "Portale",
+    around_lead: "Die Seiten der BTU dazu, wie ihre Seite „Studienorganisation“ sie ordnet.",
+    study_organisation: "Studienorganisation",
 };
 
 pub const EN: Texts = Texts {
@@ -115,24 +85,8 @@ pub const EN: Texts = Texts {
     btu_site: "b-tu.de",
 
     around: "Around your studies",
-    around_lead: "The BTU's pages on it.",
-    exams: "Examinations",
-    exams_register: "Registering for examinations",
-    exams_deadlines: "Examination deadlines and study time limits",
-    exams_illness: "Illness and incapability",
-    exams_work: "Academic work",
-    semester: "Semester and formalities",
-    dates: "Dates and deadlines",
-    reregister: "Registering for the following semester",
-    fee: "Semester fee",
-    leave: "Leave of absence",
-    change: "Change of degree programme",
-    exmatriculation: "Removal from the register of students",
-    card: "Identification card",
-    help: "Services and advice",
-    service: "Student services",
-    advice: "Advice and support",
-    portals: "Portals",
+    around_lead: "The BTU's pages on it, as its page “Study organisation” groups them.",
+    study_organisation: "Study organisation",
 };
 
 const MONTHS_DE: [&str; 12] = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
