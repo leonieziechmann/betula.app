@@ -274,7 +274,14 @@ log) and /healthz (not Phloem's), the stats file, `phloem status`; at last
   larger budget then with 49-phloem.sh; the budget has to stay below 95 % of the file system.
 - Status: `docker exec "$(docker ps -q -f label=com.docker.swarm.service.name=<stack>_sync)" /bin/phloem status`.
 
-## Not yet
+## No backup
 
-- A backup of `phloem.db`: sealed by the devices, so it may leave the house; SQLite's online
-  backup into the data file system and off the server, not written yet.
+`phloem.db` has none (owner, 2026-11-11: „Also tbh 1. ist mir egal, mach es im zweifelsfall so,
+dass es aus den clients rekonstruiert wird, falls es mal verloren geht"): every device of a
+profile holds all of it. A database lost, or deleted on purpose, comes back empty with another
+epoch, and the devices make their spaces anew as they connect (docs/phloem/protocol.md section 7);
+for a profile none of whose devices comes back, nothing is lost that anybody still has. What a
+new database cannot bring back: the parcels for devices to come (connect again), and the
+spaces of devices that last connected to a Phloem before 0.5.0 (they never heard an epoch, and
+turn private). Under the limits for new spaces (20 an hour per address, 500 in all) the devices
+of many profiles make theirs over a few hours.

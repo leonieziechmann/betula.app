@@ -1334,7 +1334,8 @@ before. Each relay port is a `docker-proxy` of the host (Docker's userland proxy
   back. Of Phloem: `bash /opt/betula/vps/49-phloem.sh <stack> <previous tag>`.
 - **Its data** is sealed by the devices (Phloem can open none of it): sizes, times and random ids
   are all it knows. A space untouched for 395 days goes by itself; „Sync beenden" deletes one at
-  once. A backup of `phloem.db` is not written yet (`docs/phloem/phloem.md`, „Not yet").
+  once. There is no backup of `phloem.db`: lost, it comes back empty, and the devices make their
+  spaces anew from what they hold (`docs/phloem/phloem.md`, „No backup"; protocol section 7).
 - **Shared calendars** (step 3, Phloem 0.2.0, `folia/design/teilen/teilen.html`): the parts and the
   one-time links go through `/sync/v1/` like everything else; a calendar app's subscription that
   stays current (`/calendar/s/…`) is answered by Folia, which fetches its part at Traefik's
