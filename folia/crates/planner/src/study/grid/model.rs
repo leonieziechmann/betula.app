@@ -396,9 +396,10 @@ impl Subs {
     }
 
     /// The subgroup shown of `area` that module `id` of semester `s` falls in: the one it counts
-    /// for (`bench::counted_in`), for a group's extra the member whose list has it (as the
-    /// Wahlpflicht counts it, `choices::Group::members`), else the row of the plan that names it,
-    /// else the first whose list has it; none for the area's „Weitere".
+    /// for (`bench::counted_in`), for a group's extra the member it falls to (as the Wahlpflicht
+    /// counts it, `choices::Group::members`: the one whose list has it, an exception to the one
+    /// that holds the most), else the row of the plan that names it, else the first whose list has
+    /// it; none for the area's „Weitere".
     fn of_module(&self, area: Option<usize>, id: &str, s: SemesterKey) -> Option<usize> {
         let shown = self.shown(area);
         if shown.is_empty() {
@@ -421,11 +422,11 @@ impl Subs {
         shown.iter().copied().find(|at| self.bench.groups.get(*at).and_then(|group| group.choice()).and_then(|choice| self.view.choices.get(choice)).is_some_and(|choice| choice.list_of(id).is_some()))
     }
 
-    /// Of the group choice `choice` is part of, the member whose list has `id`.
+    /// Of the group choice `choice` is part of, the member `id` falls to.
     fn member_with(&self, choice: usize, id: &str) -> Option<usize> {
         let group = self.view.group_of(choice)?;
-        let member = group.members.iter().copied().find(|member| self.view.choices.get(*member).is_some_and(|choice| choice.list_of(id).is_some()))?;
-        self.bench.of_choice(member)
+        let member = group.members(&self.view).into_iter().find(|member| member.taken.iter().any(|taken| taken.id == id))?;
+        self.bench.of_choice(member.choice)
     }
 
     /// The subgroup shown of `area` a row of the plan falls in.
@@ -579,6 +580,9 @@ impl Frame<'_> {
                 None => String::new(),
             };
             parts.push(format!("{}{only}", (st.unoffered)(season_word(s, t))));
+        }
+        if item.exception {
+            parts.push(st.exception.to_string());
         }
         if let Some(over) = self.subs.over_text(ready, item, s, t) {
             parts.push(over);
