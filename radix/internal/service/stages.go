@@ -65,6 +65,12 @@ type Endpoints struct {
 	// clients). Radix sets the one of Cortex (cortex/client, the Go module cortex/) when RADIX_CORTEX_URL
 	// is set.
 	Client *http.Client
+	// LiveClient, where set, sends the requests of the BTU's page of Grundsatzordnungen instead
+	// of Client: offline through Cortex (RADIX_CORTEX_MODE=offline, the canary) one that may
+	// fetch, so that an instance which crawls nothing still has the regulations for every program
+	// (owner, 2026-11-11: „mach doch bitte einfach auf canary"). Two requests at most every 20
+	// hours, and Cortex answers them from its store while its copy is that young.
+	LiveClient *http.Client
 }
 
 // BTUEndpoints are the live BTU pages.
@@ -107,6 +113,7 @@ func CrawlLists(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Pace) 
 // request each (keys "de" and "en"): the documents it has for every program, its Rahmenordnungen
 // and the Immatrikulationsordnung among them, which the build turns into general_document. The
 // page links the documents; they themselves are not fetched (they are on OPUS, behind a bot check).
+// Endpoints.LiveClient sends them where it is set, else Endpoints.Client.
 func CrawlGeneralDocuments(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Pace) (crawl.Stats, error) {
 	var jobs []crawl.Job
 	for _, page := range []struct{ key, url string }{{"de", ep.GeneralDocumentsDE}, {"en", ep.GeneralDocumentsEN}} {
@@ -117,7 +124,11 @@ func CrawlGeneralDocuments(ctx context.Context, db *catalogdb.DB, ep Endpoints, 
 	if len(jobs) == 0 {
 		return crawl.Stats{}, nil
 	}
-	return crawl.Run(ctx, db, jobs, crawl.Options{Workers: 1, Delay: pace.Delay, MaxAge: pace.MaxAge, Backoff: pace.Backoff, Client: ep.Client})
+	client := ep.Client
+	if ep.LiveClient != nil {
+		client = ep.LiveClient
+	}
+	return crawl.Run(ctx, db, jobs, crawl.Options{Workers: 1, Delay: pace.Delay, MaxAge: pace.MaxAge, Backoff: pace.Backoff, Client: client})
 }
 
 // qisModuleListChunk is how many rows one request of the QIS module table asks for.

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"maps"
 	"sort"
 	"testing"
 	"time"
@@ -135,5 +136,66 @@ func TestOfflineCycleSkipsWhatCortexLacks(t *testing.T) {
 	}
 	if after := siteHits(); after != before {
 		t.Errorf("the university got %d requests offline", after-before)
+	}
+}
+
+// Offline through Cortex with Endpoints.LiveClient (the canary; owner, 2026-11-11: „mach doch
+// bitte einfach auf canary"): an archive that lacks the BTU's page of Grundsatzordnungen, as the
+// public site's copy before its Radix read it, gets it in the next cycle, whatever the hour. Its
+// two pages go to Cortex in mode cache with the stage's age, every other request in mode offline,
+// nothing else reaches the university, and the snapshot has the documents.
+func TestOfflineCycleFetchesTheBTUsRegulationsLive(t *testing.T) {
+	site := newFakeBTU(t)
+	svc, _ := newTestService(t, site)
+	ctx := context.Background()
+	// The public site's archive from before its Radix read the page.
+	pages := svc.cfg.Endpoints
+	svc.cfg.Endpoints.GeneralDocumentsDE, svc.cfg.Endpoints.GeneralDocumentsEN = "", ""
+	if first := svc.RunCycle(ctx); first.Result != "ok" || !first.Published {
+		t.Fatalf("first cycle = %+v", first)
+	}
+	svc.cfg.Endpoints.GeneralDocumentsDE, svc.cfg.Endpoints.GeneralDocumentsEN = pages.GeneralDocumentsDE, pages.GeneralDocumentsEN
+	site.mu.Lock()
+	clear(site.hits)
+	site.mu.Unlock()
+
+	cortex := cortextest.NewServer()
+	t.Cleanup(cortex.Close)
+	c, err := cortexclient.New(cortex.URL, cortexclient.Options{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	svc.cfg.Endpoints.Client = c.HTTPClient(cortexclient.FetchOptions{Mode: cortexclient.ModeOffline, Stale: cortexclient.StaleNever}, time.Minute)
+	svc.cfg.GeneralDocuments.MaxAge = DefaultConfig().GeneralDocuments.MaxAge
+	svc.cfg.Endpoints.LiveClient = c.HTTPClient(cortexclient.FetchOptions{Mode: cortexclient.ModeCache, MaxAge: svc.cfg.GeneralDocuments.MaxAge, Stale: cortexclient.StaleNever}, time.Minute)
+	// At two in the afternoon, outside the off-peak window of 1 to 6.
+	svc.cfg.OffPeakStart, svc.cfg.OffPeakEnd = 1, 6
+	svc.now = func() time.Time { return time.Date(2026, 11, 11, 14, 0, 0, 0, time.Local) }
+	result := svc.RunCycle(ctx)
+	if result.Result != "ok" || !result.Published {
+		t.Fatalf("offline cycle = %+v, want ok and the documents published", result)
+	}
+
+	live := 0
+	for _, f := range cortex.Fetches() {
+		switch {
+		case f.Source == catalogdb.SourceBTUGeneralDocuments:
+			live++
+			if f.Mode != "cache" || f.MaxAge != "20h" {
+				t.Errorf("the BTU's page asked as %+v, want mode cache with the stage's age", f.Query)
+			}
+		case f.Mode != "offline":
+			t.Errorf("%s asked in mode %q", f.Source, f.Mode)
+		}
+	}
+	site.mu.Lock()
+	hits := maps.Clone(site.hits)
+	site.mu.Unlock()
+	if live != 2 || len(hits) != 2 || hits["/grundsatzordnungen"] != 1 || hits["/en/basic-regulations"] != 1 {
+		t.Errorf("%d live fetches; the university got %v, want the two pages of Grundsatzordnungen once each", live, hits)
+	}
+	var documents int
+	if err := svc.db.SQL().QueryRow("SELECT COUNT(*) FROM general_document").Scan(&documents); err != nil || documents == 0 {
+		t.Errorf("general_document has %d rows (err %v)", documents, err)
 	}
 }

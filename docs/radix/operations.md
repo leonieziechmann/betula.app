@@ -81,7 +81,7 @@ Every flag of `run` has an environment variable, so a container or unit file nee
 | `--module-delay`, `--qis-delay` (ms) | `RADIX_MODULE_DELAY_MS`, `RADIX_QIS_DELAY_MS` | `500`, `500` (tree: twice the QIS delay, event search: four times). Through Cortex its floor per host holds on top, for every client together |
 | `--cortex` | `RADIX_CORTEX_URL` | none: Radix fetches directly. Cortex's instances, comma-separated (`http://cortex_a:8100,http://cortex_b:8100`), each a scheme and a host with no path (Radix exits with code 2 otherwise). Also a flag of the five `crawl-*` commands and `download-statutes` |
 | `--cortex-max-age` | `RADIX_CORTEX_MAX_AGE` | `1h`: a page Cortex fetched within this long is taken from Cortex without asking the university again; negative: the host's `max_age` in Cortex's policy |
-| `--cortex-mode` | `RADIX_CORTEX_MODE` | `cache`. `offline`: every request asks Cortex's store alone, nothing reaches the university, and Gemini is not asked (below, „Offline through Cortex"); needs `--cortex` (Radix exits with code 2 otherwise, as for another value). Also a flag of the `crawl-*` commands and `download-statutes` |
+| `--cortex-mode` | `RADIX_CORTEX_MODE` | `cache`. `offline`: every request asks Cortex's store alone but those of the BTU's page of Grundsatzordnungen, nothing else reaches the university, and Gemini is not asked (below, „Offline through Cortex"); needs `--cortex` (Radix exits with code 2 otherwise, as for another value). Also a flag of the `crawl-*` commands and `download-statutes` |
 | `--list-max-age` | `RADIX_LIST_MAX_AGE` | `40h` (every second night) |
 | `--general-documents-max-age` | `RADIX_GENERAL_DOCUMENTS_MAX_AGE` | `20h` (every night) |
 | `--module-max-age`, `--qis-module-max-age`, `--qis-module-unsettled-max-age`, `--tree-max-age` | `RADIX_MODULE_MAX_AGE`, `RADIX_QIS_MODULE_MAX_AGE`, `RADIX_QIS_MODULE_UNSETTLED_MAX_AGE`, `RADIX_TREE_MAX_AGE` | `168h`, `720h`, `168h`, `720h` |
@@ -137,6 +137,16 @@ its age, and nothing else (owner, 2026-10-04: canary tests Cortex without the pu
 Cortex has: what a Radix that crawls fetched through it, and what `radix seed-cortex` gave it from
 an archive (below, „One-off commands").
 
+- **But for the BTU's page of Grundsatzordnungen** (Radix 0.12.1; owner, 2026-11-11, of the
+  regulations for every program: „mach doch bitte einfach auf canary. Betula.app soll doch noch gar
+  nicht die ganzen neuerungen bekommen"): the stage `general-documents` asks Cortex in mode `cache`
+  with its own age (`--general-documents-max-age`, 20 h), so an instance that crawls nothing has the
+  regulations all the same. Two requests (German, English), at once where the archive lacks the
+  page (a canary's copy of a public site whose Radix never read it), else in the off-peak window;
+  Cortex answers them from its store while its copy is younger than 20 h, so the page reaches the
+  university at most once in that time, whoever asks. The log says so at the start
+  (`crawl.cortex`, `stage=general-documents`); the requests count as every stage's.
+
 - **A page Cortex has not stored is skipped** (`504 offline-miss`, `crawl.ErrOfflineMiss`): asked
   once, not retried, no failure, not counted towards `crawl.aborted`, and the archive keeps what it
   has; the next cycle asks again. A cycle is not degraded for it. It counts as `offline_miss`
@@ -183,7 +193,7 @@ Grundsatzordnungen) are b-tu.de, `qis_module_list`, `qis_fues_list`,
 | `radix_crawl_requests_total{source,code}` | requests sent to the university, retries included; `code` is the status, `error` without an answer. Through Cortex: requests to Cortex in the university's place, a page from its store included; `code` is the university's status as Cortex stored it, and an error of Cortex's own counts as `error`, a page Cortex has not stored when asked offline as `offline_miss`. What reached the university is `cortex_upstream_requests_total` (`docs/cortex/cortex.md` §10) |
 | `radix_crawl_request_duration_seconds{source}`, `radix_crawl_response_bytes_total{source}` | time to the end of the body (histogram), bytes received; through Cortex the time includes its queue for the host, and a page from its store takes milliseconds |
 | `radix_crawl_via_cortex` | 1 when `run` fetches through Cortex (`RADIX_CORTEX_URL`), 0 when it asks the university itself; absent in `serve-snapshot`. The dashboard „Radix" uses it to count what reached the university: a Radix without Cortex directly, every other request through Cortex's `cortex_upstream_requests_total` |
-| `radix_crawl_cortex_offline` | 1 when `run` asks Cortex's store alone (`RADIX_CORTEX_MODE=offline`): nothing reaches the university |
+| `radix_crawl_cortex_offline` | 1 when `run` asks Cortex's store alone (`RADIX_CORTEX_MODE=offline`): nothing reaches the university but the BTU's page of Grundsatzordnungen |
 | `radix_crawl_pages_total{source,outcome}` | pages fetched: `changed` (new or another body), `unchanged`, `not_found`, `failed` (given up), `offline_miss` (Cortex had not stored it, asked offline: left as archived); the event search counts each event it lists |
 | `radix_archive_pages{source,status}`, `radix_archive_fetched_24h{source}`, `radix_archive_changed_24h{source}`, `radix_archive_{oldest,newest}_fetch_timestamp_seconds{source}` | the archive: pages (`ok`, `not_found`), fetched and changed in the last 24 h, oldest and newest fetch |
 | `radix_cycles_total{result}`, `radix_cycle_running`, `radix_last_cycle_duration_seconds`, `radix_last_cycle_timestamp_seconds`, `radix_last_success_timestamp_seconds`, `radix_failed_cycles_in_a_row`, `radix_next_cycle_timestamp_seconds` | the cycles, as in `/status` |
