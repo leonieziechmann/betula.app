@@ -24,7 +24,7 @@ use folia_model::rows_detail::{
     AreaNode, AreaPlacement, ChoiceFamily, ChoiceOption, Counterpart, DateCount, DateRow, Document, EventDate, GeneralDocument, Lecturer,
     LecturerName, ModuleAbbrev, ModuleSemester, ModuleSws, ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, PlanTotalEntry,
     ProgramAbbrev, ProgramDepartmentCount, ProgramLink, ProgramPlanEntry, ProgramPlanTotal, ProgramPlanTotalEntry,
-    ProgramVersion, Successor, TextItem, TrackProgram,
+    ProgramVersion, StudyPage, Successor, TextItem, TrackProgram,
 };
 use folia_routes::filter::{CatalogQuery, ProgramRelation};
 use folia_search::Plan as SearchPlan;
@@ -704,6 +704,17 @@ pub fn general_documents(db: &dyn Database) -> Result<Vec<GeneralDocument>, DbEr
         "general_documents",
         "SELECT lang, topic, kind, title, issue, url FROM v_general_document WHERE topic IS NOT NULL ORDER BY lang, ord",
         &[],
+    )
+}
+
+/// The BTU's pages around the study, as its page „Studienorganisation" lists them: of the page in
+/// `lang` ("de" or "en"), in its order.
+pub fn study_pages(db: &dyn Database, lang: &str) -> Result<Vec<StudyPage>, DbError> {
+    fetch(
+        db,
+        "study_pages",
+        "SELECT lang, section, title, abstract, url FROM v_study_page WHERE lang = ? ORDER BY ord",
+        &[Value::from(lang)],
     )
 }
 
