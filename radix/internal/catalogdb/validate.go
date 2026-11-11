@@ -249,6 +249,15 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 		"SELECT COUNT(*) FROM "+missing, "SELECT topic FROM "+missing)
 	v.count("documents of the BTU's pages of Grundsatzordnungen", StatusInfo, "SELECT COUNT(*) FROM general_document", "")
 
+	// The BTU's pages around the study (docs/radix/schema-v2.md, „Study pages"): its page
+	// „Studienorganisation" in German and in English. A page that yields nothing (not archived yet,
+	// a 404, a layout the parser no longer reads) leaves Folia's „Rund ums Studium" without them,
+	// not with old ones.
+	const studyPages = `(SELECT 'de' AS lang UNION ALL SELECT 'en') WHERE lang NOT IN (SELECT lang FROM study_page)`
+	v.count("pages of the BTU's Studienorganisation that yield no page", StatusWarn,
+		"SELECT COUNT(*) FROM "+studyPages, "SELECT lang FROM "+studyPages+" ORDER BY 1")
+	v.count("pages the BTU's pages of Studienorganisation list", StatusInfo, "SELECT COUNT(*) FROM study_page", "")
+
 	for _, b := range baselines {
 		v.baseline(b)
 	}

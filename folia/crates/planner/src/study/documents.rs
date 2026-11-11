@@ -127,7 +127,7 @@ pub(super) fn Documents(ctx: StudyCtx) -> impl IntoView {
                     <section class="panel st-docs" aria-label=t.study_views.documents_list>{list()}</section>
                     <MoreLinks more/>
                     <btu::Statutes ctx level/>
-                    <btu::Around/>
+                    <btu::Around ctx/>
                 </div>
             }
             .into_any()
@@ -144,7 +144,7 @@ pub(super) fn Documents(ctx: StudyCtx) -> impl IntoView {
                 </section>
                 <MoreLinks more/>
                 <btu::Statutes ctx level/>
-                <btu::Around/>
+                <btu::Around ctx/>
             }
             .into_any()
         })

@@ -549,6 +549,32 @@ impl FromRow for GeneralDocument {
     }
 }
 
+/// `v_study_page`: a page of the BTU's site around the study, as its page „Studienorganisation"
+/// lists it, on its German or its English page, in the order of that page (docs/radix/schema-v2.md,
+/// „Study pages").
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct StudyPage {
+    pub page: Code<SitePage>,
+    /// The heading of its group („Prüfungen"), as the BTU writes it.
+    pub section: String,
+    pub title: String,
+    /// The sentence the BTU writes under it.
+    pub summary: Option<String>,
+    pub url: String,
+}
+
+impl FromRow for StudyPage {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self {
+            page: Code::parse(&row.text("lang")?),
+            section: row.text("section")?,
+            title: row.text("title")?,
+            summary: row.opt_text("abstract")?,
+            url: row.text("url")?,
+        })
+    }
+}
+
 /// `v_program_module_area`: where the module tree of the program places a module.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AreaPlacement {

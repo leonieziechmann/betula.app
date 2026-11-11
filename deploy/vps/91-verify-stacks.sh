@@ -591,7 +591,7 @@ check_app() {
         ;;
       cortex-offline)
         if [[ -z "${radix_args}" && "${radix_mode}" == "offline" ]]; then
-          pass "${name}: Radix reads Cortex's store alone as ${name}.env says (cortex-offline: it runs its cycles and fetches nothing from the university but the BTU's page of Grundsatzordnungen, through Cortex)"
+          pass "${name}: Radix reads Cortex's store alone as ${name}.env says (cortex-offline: it runs its cycles and fetches nothing from the university but the BTU's pages of Grundsatzordnungen and Studienorganisation, through Cortex)"
         elif [[ "${radix_args}" == serve-snapshot* ]]; then
           warning "${name}: ${name}.env says RADIX_CRAWL=cortex-offline, but Radix serves its snapshot only (50-app.sh fell back while Cortex did not run, or its release could not read Cortex's store): bash ${BETULA_ROOT}/vps/50-app.sh ${name}"
         else

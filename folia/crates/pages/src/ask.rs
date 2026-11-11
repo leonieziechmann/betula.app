@@ -23,7 +23,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    BookmarksData, BtuDocuments, CatalogChoices, CatalogData, CatalogSummary, FitResult, Ground, HomeData, ModuleData, MyProgramInfo,
+    BookmarksData, BtuDocuments, BtuPages, CatalogChoices, CatalogData, CatalogSummary, FitResult, Ground, HomeData, ModuleData, MyProgramInfo,
     Overlay, Place, PlanSource, ProgramData, ProgramsData, SharedPlanData, StudyDocuments, StudyModules, StudyplanData,
 };
 
@@ -206,6 +206,11 @@ ask!(
     StudyDocumentsAsk { program_id: String } -> StudyDocuments, Lane::Page, |q, db, kept| crate::study_documents(db, &q.program_id)
 );
 ask!(
+    /// The BTU's pages around the study in a language, for „Rund ums Studium" of „Ordnungen &
+    /// Dokumente".
+    BtuPagesAsk { locale: Locale } -> BtuPages, Lane::Page, |q, db, kept| crate::btu_pages(db, q.locale)
+);
+ask!(
     /// The BTU's regulations for every program, for „Ordnungen & Dokumente" of „Mein Studium".
     BtuDocumentsAsk {} -> BtuDocuments, Lane::Page, |q, db, kept| crate::btu_documents(db)
 );
@@ -303,7 +308,7 @@ pub fn answer_json(name: &str, question: &str, db: &dyn Database, kept: &mut Kep
         GroundAsk, HomeAsk, CatalogChoicesAsk, CatalogAsk, CatalogSummaryAsk, CatalogCountAsk, SimilarAsk, ProgramsOverviewAsk,
         ProgramsAsk, ModuleAsk, ProgramAsk, BookmarksAsk, BookmarkPlacesAsk, StudyplanAsk, StudyplanModulesAsk, StudyModulesAsk, ModuleAbbrevsAsk, PlanSourceAsk, MyProgramAsk, FitAsk, CounterpartAsk,
         OverlayAsk, FitLinesAsk, SharedPlanAsk, MetaAsk, ModuleSemestersAsk, NewestSemestersAsk, CatalogRowsAsk, CommandModulesAsk, CatalogPositionAsk, PlanRowsAsk,
-        EventAsk, StudyDocumentsAsk, BtuDocumentsAsk,
+        EventAsk, StudyDocumentsAsk, BtuDocumentsAsk, BtuPagesAsk,
     )
 }
 
@@ -348,6 +353,8 @@ mod tests {
         same(StudyDocumentsAsk { program_id: "079-82-2008".into() });
         same(StudyDocumentsAsk { program_id: "no-such-program".into() });
         same(BtuDocumentsAsk {});
+        same(BtuPagesAsk { locale: Locale::De });
+        same(BtuPagesAsk { locale: Locale::En });
         same(MetaAsk {});
         same(CommandModulesAsk { text: "algoritmen".into(), limit: 6 });
         same(CounterpartAsk { program_id: "079-82-2008".into() });

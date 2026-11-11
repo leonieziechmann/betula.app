@@ -140,21 +140,24 @@ func TestOfflineCycleSkipsWhatCortexLacks(t *testing.T) {
 }
 
 // Offline through Cortex with Endpoints.LiveClient (the canary; owner, 2026-11-11: „mach doch
-// bitte einfach auf canary"): an archive that lacks the BTU's page of Grundsatzordnungen, as the
-// public site's copy before its Radix read it, gets it in the next cycle, whatever the hour. Its
-// two pages go to Cortex in mode cache with the stage's age, every other request in mode offline,
-// nothing else reaches the university, and the snapshot has the documents.
-func TestOfflineCycleFetchesTheBTUsRegulationsLive(t *testing.T) {
+// bitte einfach auf canary"): an archive that lacks the BTU's pages of Grundsatzordnungen and
+// Studienorganisation, as the public site's copy before its Radix read them, gets them in the next
+// cycle, whatever the hour. Their four pages go to Cortex in mode cache with the stages' age, every
+// other request in mode offline, nothing else reaches the university, and the snapshot has the
+// documents and the pages around the study.
+func TestOfflineCycleFetchesTheBTUsPagesLive(t *testing.T) {
 	site := newFakeBTU(t)
 	svc, _ := newTestService(t, site)
 	ctx := context.Background()
-	// The public site's archive from before its Radix read the page.
+	// The public site's archive from before its Radix read the pages.
 	pages := svc.cfg.Endpoints
 	svc.cfg.Endpoints.GeneralDocumentsDE, svc.cfg.Endpoints.GeneralDocumentsEN = "", ""
+	svc.cfg.Endpoints.StudyOrganisationDE, svc.cfg.Endpoints.StudyOrganisationEN = "", ""
 	if first := svc.RunCycle(ctx); first.Result != "ok" || !first.Published {
 		t.Fatalf("first cycle = %+v", first)
 	}
 	svc.cfg.Endpoints.GeneralDocumentsDE, svc.cfg.Endpoints.GeneralDocumentsEN = pages.GeneralDocumentsDE, pages.GeneralDocumentsEN
+	svc.cfg.Endpoints.StudyOrganisationDE, svc.cfg.Endpoints.StudyOrganisationEN = pages.StudyOrganisationDE, pages.StudyOrganisationEN
 	site.mu.Lock()
 	clear(site.hits)
 	site.mu.Unlock()
@@ -167,6 +170,7 @@ func TestOfflineCycleFetchesTheBTUsRegulationsLive(t *testing.T) {
 	}
 	svc.cfg.Endpoints.Client = c.HTTPClient(cortexclient.FetchOptions{Mode: cortexclient.ModeOffline, Stale: cortexclient.StaleNever}, time.Minute)
 	svc.cfg.GeneralDocuments.MaxAge = DefaultConfig().GeneralDocuments.MaxAge
+	svc.cfg.StudyOrganisation.MaxAge = DefaultConfig().StudyOrganisation.MaxAge
 	svc.cfg.Endpoints.LiveClient = c.HTTPClient(cortexclient.FetchOptions{Mode: cortexclient.ModeCache, MaxAge: svc.cfg.GeneralDocuments.MaxAge, Stale: cortexclient.StaleNever}, time.Minute)
 	// At two in the afternoon, outside the off-peak window of 1 to 6.
 	svc.cfg.OffPeakStart, svc.cfg.OffPeakEnd = 1, 6
@@ -179,7 +183,7 @@ func TestOfflineCycleFetchesTheBTUsRegulationsLive(t *testing.T) {
 	live := 0
 	for _, f := range cortex.Fetches() {
 		switch {
-		case f.Source == catalogdb.SourceBTUGeneralDocuments:
+		case f.Source == catalogdb.SourceBTUGeneralDocuments || f.Source == catalogdb.SourceBTUStudyOrganisation:
 			live++
 			if f.Mode != "cache" || f.MaxAge != "20h" {
 				t.Errorf("the BTU's page asked as %+v, want mode cache with the stage's age", f.Query)
@@ -191,8 +195,13 @@ func TestOfflineCycleFetchesTheBTUsRegulationsLive(t *testing.T) {
 	site.mu.Lock()
 	hits := maps.Clone(site.hits)
 	site.mu.Unlock()
-	if live != 2 || len(hits) != 2 || hits["/grundsatzordnungen"] != 1 || hits["/en/basic-regulations"] != 1 {
-		t.Errorf("%d live fetches; the university got %v, want the two pages of Grundsatzordnungen once each", live, hits)
+	if live != 4 || len(hits) != 4 || hits["/grundsatzordnungen"] != 1 || hits["/en/basic-regulations"] != 1 ||
+		hits["/studienorganisation"] != 1 || hits["/en/study-organization"] != 1 {
+		t.Errorf("%d live fetches; the university got %v, want the pages of Grundsatzordnungen and Studienorganisation once each", live, hits)
+	}
+	var studyPages int
+	if err := svc.db.SQL().QueryRow("SELECT COUNT(*) FROM study_page").Scan(&studyPages); err != nil || studyPages == 0 {
+		t.Errorf("study_page has %d rows (err %v)", studyPages, err)
 	}
 	var documents int
 	if err := svc.db.SQL().QueryRow("SELECT COUNT(*) FROM general_document").Scan(&documents); err != nil || documents == 0 {

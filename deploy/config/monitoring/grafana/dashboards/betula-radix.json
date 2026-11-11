@@ -254,7 +254,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|btu_general_documents|statute\", result=~\"hit|not_modified\"}[$__range])) / sum(increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|btu_general_documents|statute\", result!=\"forwarded\"}[$__range]))",
+                        "expr": "sum(increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|btu_general_documents|btu_study_organisation|statute\", result=~\"hit|not_modified\"}[$__range])) / sum(increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|btu_general_documents|btu_study_organisation|statute\", result!=\"forwarded\"}[$__range]))",
                         "instant": true,
                         "legendFormat": "share",
                         "range": false
@@ -844,6 +844,18 @@
                         "value": "b-tu.de · Grundsatzordnungen"
                       }
                     ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "btu_study_organisation"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "b-tu.de · Studienorganisation"
+                      }
+                    ]
                   }
                 ]
               }
@@ -1040,6 +1052,18 @@
                       {
                         "id": "displayName",
                         "value": "b-tu.de · Grundsatzordnungen"
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "btu_study_organisation"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "b-tu.de · Studienorganisation"
                       }
                     ]
                   }
@@ -1516,6 +1540,18 @@
                         "value": "b-tu.de · Grundsatzordnungen"
                       }
                     ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "btu_study_organisation"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "b-tu.de · Studienorganisation"
+                      }
+                    ]
                   }
                 ]
               }
@@ -1710,6 +1746,18 @@
                         "value": "b-tu.de · Grundsatzordnungen"
                       }
                     ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "btu_study_organisation"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "b-tu.de · Studienorganisation"
+                      }
+                    ]
                   }
                 ]
               }
@@ -1740,7 +1788,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (result) (increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|btu_general_documents|statute\", result!=\"forwarded\"}[$__interval]))",
+                        "expr": "sum by (result) (increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|btu_general_documents|btu_study_organisation|statute\", result!=\"forwarded\"}[$__interval]))",
                         "instant": false,
                         "legendFormat": "{{result}}",
                         "range": true
@@ -1978,7 +2026,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sort_desc(sum by (source) (increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|btu_general_documents|statute\", result=~\"hit|not_modified\"}[$__range])) / sum by (source) (increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|btu_general_documents|statute\", result!=\"forwarded\"}[$__range])))",
+                        "expr": "sort_desc(sum by (source) (increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|btu_general_documents|btu_study_organisation|statute\", result=~\"hit|not_modified\"}[$__range])) / sum by (source) (increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|btu_general_documents|btu_study_organisation|statute\", result!=\"forwarded\"}[$__range])))",
                         "instant": true,
                         "legendFormat": "{{source}}",
                         "range": false
@@ -2133,6 +2181,18 @@
                       {
                         "id": "displayName",
                         "value": "b-tu.de · Grundsatzordnungen"
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "btu_study_organisation"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "b-tu.de · Studienorganisation"
                       }
                     ]
                   },
@@ -2588,7 +2648,7 @@
         "spec": {
           "id": 3,
           "title": "Mode",
-          "description": "run: crawls the university and builds the catalog. cortex-offline: runs its cycles on what Cortex has stored and fetches nothing but the BTU's page of Grundsatzordnungen, through Cortex (RADIX_CRAWL=cortex-offline, the canary). serve-snapshot: offline (RADIX_CRAWL=off), only serves the snapshot it has. Exactly one instance of a site should crawl.",
+          "description": "run: crawls the university and builds the catalog. cortex-offline: runs its cycles on what Cortex has stored and fetches nothing but the BTU's pages of Grundsatzordnungen and Studienorganisation, through Cortex (RADIX_CRAWL=cortex-offline, the canary). serve-snapshot: offline (RADIX_CRAWL=off), only serves the snapshot it has. Exactly one instance of a site should crawl.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -3026,6 +3086,18 @@
                       {
                         "id": "displayName",
                         "value": "b-tu.de · Grundsatzordnungen"
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "btu_study_organisation"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "b-tu.de · Studienorganisation"
                       }
                     ]
                   }
@@ -5104,7 +5176,7 @@
         "spec": {
           "id": 8,
           "title": "Fetches through",
-          "description": "Whether this instance's crawl goes through Cortex (RADIX_CORTEX_URL) or asks the university itself, and whether it reads Cortex's store alone (RADIX_CRAWL=cortex-offline: nothing reaches the university but the BTU's page of Grundsatzordnungen, through Cortex). An instance that serves its snapshot offline fetches nothing.",
+          "description": "Whether this instance's crawl goes through Cortex (RADIX_CORTEX_URL) or asks the university itself, and whether it reads Cortex's store alone (RADIX_CRAWL=cortex-offline: nothing reaches the university but the BTU's pages of Grundsatzordnungen and Studienorganisation, through Cortex). An instance that serves its snapshot offline fetches nothing.",
           "links": [],
           "data": {
             "kind": "QueryGroup",

@@ -18,6 +18,7 @@ One cycle, every `--interval` (30 min):
 |---|---|---|
 | `lists` | off-peak only | module catalog list, FÜS list (one request each), every second night (`--list-max-age` 40 h) |
 | `general-documents` | off-peak only | the BTU's page of Grundsatzordnungen, German and English (one request each, the CMS, not QIS), every night (`--general-documents-max-age` 20 h): the documents it has for every program, which the build makes `general_document` of (`docs/radix/data-sources.md` §17) |
+| `study-organisation` | off-peak only | the BTU's page „Studienorganisation", German and English (one request each, the CMS), every night (`--study-organisation-max-age` 20 h): its pages around the study, which the build makes `study_page` of (`docs/radix/data-sources.md` §18) |
 | `modules` | off-peak only | module pages (the copy on b-tu.de, a server of its own, not QIS), each once per `--module-max-age` (7 d) on a day of its own, oldest first, at most 400 per cycle |
 | `qis-modules` | off-peak only | the QIS module table in chunks, every second night (`--list-max-age`), and the QIS module descriptions, at most 200 per cycle. These are the source of the module fields and of the events of the current semester (`docs/radix/data-sources.md` §10). A description is read once a month (`--qis-module-max-age` 30 d) on a day of its own, and sooner when something it depends on changed: never fetched first; then those whose row in the module table changed, and those read while QIS called another semester current (all of them after a semester switch, which the limit spreads over about three nights); then, weekly (`--qis-module-unsettled-max-age` 7 d), modules offered in the semester the catalog presents whose description names none of its events yet (`docs/radix/data-sources.md` §12) |
 | `tree` | off-peak only | QIS program tree; each page once per `--tree-max-age` (30 d) on a day of its own, at most 300 requests per cycle; discovers new programs and PO versions |
@@ -81,9 +82,10 @@ Every flag of `run` has an environment variable, so a container or unit file nee
 | `--module-delay`, `--qis-delay` (ms) | `RADIX_MODULE_DELAY_MS`, `RADIX_QIS_DELAY_MS` | `500`, `500` (tree: twice the QIS delay, event search: four times). Through Cortex its floor per host holds on top, for every client together |
 | `--cortex` | `RADIX_CORTEX_URL` | none: Radix fetches directly. Cortex's instances, comma-separated (`http://cortex_a:8100,http://cortex_b:8100`), each a scheme and a host with no path (Radix exits with code 2 otherwise). Also a flag of the five `crawl-*` commands and `download-statutes` |
 | `--cortex-max-age` | `RADIX_CORTEX_MAX_AGE` | `1h`: a page Cortex fetched within this long is taken from Cortex without asking the university again; negative: the host's `max_age` in Cortex's policy |
-| `--cortex-mode` | `RADIX_CORTEX_MODE` | `cache`. `offline`: every request asks Cortex's store alone but those of the BTU's page of Grundsatzordnungen, nothing else reaches the university, and Gemini is not asked (below, „Offline through Cortex"); needs `--cortex` (Radix exits with code 2 otherwise, as for another value). Also a flag of the `crawl-*` commands and `download-statutes` |
+| `--cortex-mode` | `RADIX_CORTEX_MODE` | `cache`. `offline`: every request asks Cortex's store alone but those of the BTU's pages of Grundsatzordnungen and Studienorganisation, nothing else reaches the university, and Gemini is not asked (below, „Offline through Cortex"); needs `--cortex` (Radix exits with code 2 otherwise, as for another value). Also a flag of the `crawl-*` commands and `download-statutes` |
 | `--list-max-age` | `RADIX_LIST_MAX_AGE` | `40h` (every second night) |
 | `--general-documents-max-age` | `RADIX_GENERAL_DOCUMENTS_MAX_AGE` | `20h` (every night) |
+| `--study-organisation-max-age` | `RADIX_STUDY_ORGANISATION_MAX_AGE` | `20h` (every night) |
 | `--module-max-age`, `--qis-module-max-age`, `--qis-module-unsettled-max-age`, `--tree-max-age` | `RADIX_MODULE_MAX_AGE`, `RADIX_QIS_MODULE_MAX_AGE`, `RADIX_QIS_MODULE_UNSETTLED_MAX_AGE`, `RADIX_TREE_MAX_AGE` | `168h`, `720h`, `168h`, `720h` |
 | `--event-list-max-age`, `--event-unsettled-max-age` | `RADIX_EVENT_LIST_MAX_AGE`, `RADIX_EVENT_UNSETTLED_MAX_AGE` | `12h`, `2h` |
 | `--event-page-max-age`, `--event-unsettled-page-max-age`, `--event-max-age` | `RADIX_EVENT_PAGE_MAX_AGE`, `RADIX_EVENT_UNSETTLED_PAGE_MAX_AGE`, `RADIX_EVENT_MAX_AGE` | `720h`, `168h`, `72h` |
@@ -137,15 +139,17 @@ its age, and nothing else (owner, 2026-10-04: canary tests Cortex without the pu
 Cortex has: what a Radix that crawls fetched through it, and what `radix seed-cortex` gave it from
 an archive (below, „One-off commands").
 
-- **But for the BTU's page of Grundsatzordnungen** (Radix 0.12.1; owner, 2026-11-11, of the
-  regulations for every program: „mach doch bitte einfach auf canary. Betula.app soll doch noch gar
-  nicht die ganzen neuerungen bekommen"): the stage `general-documents` asks Cortex in mode `cache`
-  with its own age (`--general-documents-max-age`, 20 h), so an instance that crawls nothing has the
-  regulations all the same. Two requests (German, English), at once where the archive lacks the
-  page (a canary's copy of a public site whose Radix never read it), else in the off-peak window;
-  Cortex answers them from its store while its copy is younger than 20 h, so the page reaches the
-  university at most once in that time, whoever asks. The log says so at the start
-  (`crawl.cortex`, `stage=general-documents`); the requests count as every stage's.
+- **But for the BTU's pages of Grundsatzordnungen and Studienorganisation** (Radix 0.12.1 and
+  0.13.0; owner, 2026-11-11, of the regulations for every program: „mach doch bitte einfach auf
+  canary. Betula.app soll doch noch gar nicht die ganzen neuerungen bekommen"): the stages
+  `general-documents` and `study-organisation` ask Cortex in mode `cache` with their own age (the
+  younger of `--general-documents-max-age` and `--study-organisation-max-age`, 20 h), so an instance
+  that crawls nothing has the regulations and the pages around the study all the same. Two requests
+  each (German, English), at once where the archive lacks the page (a canary's copy of a public site
+  whose Radix never read it), else in the off-peak window; Cortex answers them from its store while
+  its copy is younger than 20 h, so a page reaches the university at most once in that time,
+  whoever asks. The log says so at the start (`crawl.cortex`,
+  `stages=general-documents,study-organisation`); the requests count as every stage's.
 
 - **A page Cortex has not stored is skipped** (`504 offline-miss`, `crawl.ErrOfflineMiss`): asked
   once, not retried, no failure, not counted towards `crawl.aborted`, and the archive keeps what it
@@ -184,8 +188,8 @@ Prometheus job `radix`: the monitoring stack's scraper asks every instance's Rad
 `tasks.<stack>_radix.` over that instance's `cortex_<stack>`, as the host lists the instances that
 run, `deploy/vps/files/betula-scraper-targets.sh`). The counters start at zero with the process; the `radix_archive_*` gauges
 are read from the archive (at most once a minute) and so survive a restart. `source` is a source
-of the archive: `module_catalog`, `module_page` and `btu_general_documents` (the page of
-Grundsatzordnungen) are b-tu.de, `qis_module_list`, `qis_fues_list`,
+of the archive: `module_catalog`, `module_page`, `btu_general_documents` (the page of
+Grundsatzordnungen) and `btu_study_organisation` (the page „Studienorganisation") are b-tu.de, `qis_module_list`, `qis_fues_list`,
 `qis_module_page`, `qis_tree`, `qis_event_entry` (the event search) and `qis_event` are QIS.
 
 | Metric | What it says |
@@ -193,7 +197,7 @@ Grundsatzordnungen) are b-tu.de, `qis_module_list`, `qis_fues_list`,
 | `radix_crawl_requests_total{source,code}` | requests sent to the university, retries included; `code` is the status, `error` without an answer. Through Cortex: requests to Cortex in the university's place, a page from its store included; `code` is the university's status as Cortex stored it, and an error of Cortex's own counts as `error`, a page Cortex has not stored when asked offline as `offline_miss`. What reached the university is `cortex_upstream_requests_total` (`docs/cortex/cortex.md` §10) |
 | `radix_crawl_request_duration_seconds{source}`, `radix_crawl_response_bytes_total{source}` | time to the end of the body (histogram), bytes received; through Cortex the time includes its queue for the host, and a page from its store takes milliseconds |
 | `radix_crawl_via_cortex` | 1 when `run` fetches through Cortex (`RADIX_CORTEX_URL`), 0 when it asks the university itself; absent in `serve-snapshot`. The dashboard „Radix" uses it to count what reached the university: a Radix without Cortex directly, every other request through Cortex's `cortex_upstream_requests_total` |
-| `radix_crawl_cortex_offline` | 1 when `run` asks Cortex's store alone (`RADIX_CORTEX_MODE=offline`): nothing reaches the university but the BTU's page of Grundsatzordnungen |
+| `radix_crawl_cortex_offline` | 1 when `run` asks Cortex's store alone (`RADIX_CORTEX_MODE=offline`): nothing reaches the university but the BTU's pages of Grundsatzordnungen and Studienorganisation |
 | `radix_crawl_pages_total{source,outcome}` | pages fetched: `changed` (new or another body), `unchanged`, `not_found`, `failed` (given up), `offline_miss` (Cortex had not stored it, asked offline: left as archived); the event search counts each event it lists |
 | `radix_archive_pages{source,status}`, `radix_archive_fetched_24h{source}`, `radix_archive_changed_24h{source}`, `radix_archive_{oldest,newest}_fetch_timestamp_seconds{source}` | the archive: pages (`ok`, `not_found`), fetched and changed in the last 24 h, oldest and newest fetch |
 | `radix_cycles_total{result}`, `radix_cycle_running`, `radix_last_cycle_duration_seconds`, `radix_last_cycle_timestamp_seconds`, `radix_last_success_timestamp_seconds`, `radix_failed_cycles_in_a_row`, `radix_next_cycle_timestamp_seconds` | the cycles, as in `/status` |
@@ -385,8 +389,8 @@ The process stops cleanly on SIGTERM. JSON lines go to the journal.
 
 ### One-off commands
 
-`crawl-modules`, `crawl-qis-modules`, `crawl-tree`, `crawl-events`, `crawl-general-documents`, `prune`,
-`build`, `validate`, `export`, `serve-snapshot`, `seed-cortex`, `download-statutes`, `scan-curriculum`,
+`crawl-modules`, `crawl-qis-modules`, `crawl-tree`, `crawl-events`, `crawl-general-documents`,
+`crawl-study-organisation`, `prune`, `build`, `validate`, `export`, `serve-snapshot`, `seed-cortex`, `download-statutes`, `scan-curriculum`,
 `relink-plans` run one by one against the same database. They can run next to a service: readers never block, and a
 writer waits up to 60 s for the other writer (a build holds the write lock for about 20 s). Their
 `-max-age` is a plain age: a crawl command fetches every page older than it, without the days of
