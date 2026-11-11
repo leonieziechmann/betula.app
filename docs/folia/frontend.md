@@ -2349,8 +2349,18 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     others as they are and its head keeps the focus, its chevron turning (until 1.75.1 the whole
     plan was drawn anew). „+" in a cell, the whole cell where it is empty and a
     round one at its end on hover where it is not, opens the workbench for that semester at that area (until 1.64.0 a dialog
-    of the area's modules, `picker::CellDialog`); a click on a piece (or a right click) opens the
-    module's menu, the semesters' row menu. A piece dragged moves to the semester it is let go over,
+    of the area's modules, `picker::CellDialog`). Since Folia 1.93.1 it says what it does (owner,
+    2026-11-11: „Es ist nicht richtig zu erkennen, was jetzt das (+) macht. Also, dass man damit
+    ein neues modul in den bereich einplant"): an empty cell's „+ Modul einplanen", the round one
+    growing under the pointer or focused into the same words, green, leftwards over the pieces;
+    its title names the area and the semester („Modul einplanen: Informatik, SoSe 2027"), and the
+    line under the plan says „+ in einer Zelle: ein Modul in den Bereich einplanen" (until then
+    „Modul hinzufügen" stood in its title alone). A click on a piece (or a right click) opens the
+    module's menu, the semesters' row menu. Under the pointer a piece is ringed inside its own edge
+    in its area's colour, focused in the page's green inside it as well (until 1.93.1 a ring
+    around it, which the bar of its cell, hiding what does not fit, cut off at the top and the
+    bottom, its sides alone showing: owner, 2026-11-11, „probleme mit den Boxen wenn man module
+    anklickt, die werden abgeschnitten"). A piece dragged moves to the semester it is let go over,
     anywhere in its column (owner, 2026-11-04: „wenn man ein modul drag and dropped, soll einfach
     das gesamte semester die dropstelle sein und light gehighlighted werden mit der stelle, wo es
     final landen soll dann särker"; `Aim`, the cells' `data-sem`, followed at `dragenter` and
@@ -2379,16 +2389,21 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     head with a green bar at its left; every other row grey, its bars and pieces faded; with Strg
     held (the panel's `data-ex`) those where it would count as an exception turn amber, while a
     module the plan names in a row of its own leaves them grey. The semester under the pointer is
-    lit more strongly in each row's colour, its head underlined; the cell it lands in is ringed,
-    green or amber, with what a drop does on its lower edge: „zählt hier", „als Ausnahme", over a
-    grey row, dashed, „Strg: als Ausnahme" or „zählt hier nicht" and „landet hier" in its own row,
+    lit more strongly in each row's colour, its head underlined; the cell it lands in is filled
+    most strongly, green or amber, with what a drop does on its lower edge: „zählt hier", „als
+    Ausnahme", over a grey row, darker, „Strg: als Ausnahme" or „zählt hier nicht" and „landet hier" in its own row,
     where it goes instead (since Folia 1.89.3 between the cell's pieces and those of the row under
     it, covering none of them, its cell over that row meanwhile, and the plan 10 px taller where no
     flag of today stands under it; until then inside the cell, over its pieces). The piece taken up
-    stays as a dashed hole at its place (`is-dragged`), no cell showing its „+" meanwhile, and at the
+    stays as a faint copy at its place (`is-dragged`), no cell showing its „+" meanwhile, and at the
     right of the semesters' head a key names the colours: „zählt dort laut Plan", „passt nicht laut
     Plan", „mit Strg als Ausnahme" (until then only the semester under the pointer and the cell it
-    landed in were lit). Until
+    landed in were lit). Since Folia 1.93.1 colour alone says it (owner, 2026-11-11: „Ich mag die
+    umrandug nicht so sehr und hätte allgemein gerne etwas mehr farbe"): a green and an amber of
+    their own, fuller than the accent's soft green (`--drop-fit`, `--drop-ex`, their words on the
+    edge in a darker shade of each), no ring around the cell it lands in, no dashed line around a
+    grey one or around the piece taken up (until then all three). A fade between the colours,
+    tried, painted every cell of the plan anew at each frame it ran and was left out. Until
     1.69.0 each cell listed the area's modules as plain lines, the plan's open ones in grey. Since
     Folia 1.71.2 the plan's head stays at the top as the semester's does (owner, 2026-11-04: „Ich
     möchte, dass da der header sticky ist von dem Plan. Also ähnlich wie bei dem Semester plan."):
