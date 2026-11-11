@@ -44,6 +44,9 @@ type Config struct {
 	// GeneralDocuments reads the BTU's page of Grundsatzordnungen, German and English, every night:
 	// it changes when the Amtsblatt has a new regulation for every program, a few times a year.
 	GeneralDocuments Pace
+	// StudyOrganisation reads the BTU's page „Studienorganisation", German and English, every
+	// night: its pages around the study, which change when the BTU reorganises its site.
+	StudyOrganisation Pace
 
 	// EventList asks the QIS event search about the linked events, 250 to a request:
 	// every event once per MaxAge in the off-peak window, and an event whose dates are not
@@ -64,8 +67,8 @@ type Config struct {
 }
 
 // DefaultConfig is a polite setup for the BTU servers, which asks QIS for what changes as
-// often as it changes: the module index every second night, the BTU's page of Grundsatzordnungen
-// (two requests) every night; a QIS module description and a page of the program tree once a
+// often as it changes: the module index every second night, the BTU's pages of Grundsatzordnungen
+// and Studienorganisation (two requests each) every night; a QIS module description and a page of the program tree once a
 // month, a description sooner when something it depends on changed; the dates of all events in
 // about ten requests of the event search a night, and those not settled yet every two hours, 250
 // to a request; an event page when the search shows a change, weekly while the search confirms
@@ -102,11 +105,12 @@ func DefaultConfig() Config {
 		},
 		Tree: Pace{Delay: time.Second, MaxAge: 30 * 24 * time.Hour, Spread: true, Limit: 300},
 		// 20 hours: every night, whatever time of the night the last reading was.
-		GeneralDocuments: Pace{Delay: time.Second, MaxAge: 20 * time.Hour},
-		EventRetention:   30 * 24 * time.Hour,
-		ArchiveGrace:     7 * 24 * time.Hour,
-		Baselines:        catalogdb.BTUBaselines,
-		StaleAfter:       26 * time.Hour,
+		GeneralDocuments:  Pace{Delay: time.Second, MaxAge: 20 * time.Hour},
+		StudyOrganisation: Pace{Delay: time.Second, MaxAge: 20 * time.Hour},
+		EventRetention:    30 * 24 * time.Hour,
+		ArchiveGrace:      7 * 24 * time.Hour,
+		Baselines:         catalogdb.BTUBaselines,
+		StaleAfter:        26 * time.Hour,
 	}
 }
 
@@ -312,6 +316,9 @@ func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResul
 	crawlStage("lists", true, catalogdb.SourceModuleCatalog, func() (crawl.Stats, error) { return CrawlLists(ctx, s.db, s.cfg.Endpoints, s.cfg.Lists) })
 	crawlStage("general-documents", true, catalogdb.SourceBTUGeneralDocuments, func() (crawl.Stats, error) {
 		return CrawlGeneralDocuments(ctx, s.db, s.cfg.Endpoints, s.cfg.GeneralDocuments)
+	})
+	crawlStage("study-organisation", true, catalogdb.SourceBTUStudyOrganisation, func() (crawl.Stats, error) {
+		return CrawlStudyOrganisation(ctx, s.db, s.cfg.Endpoints, s.cfg.StudyOrganisation)
 	})
 	crawlStage("modules", true, catalogdb.SourceModulePage, func() (crawl.Stats, error) { return CrawlModules(ctx, s.db, s.cfg.Endpoints, s.cfg.Modules) })
 	// The QIS descriptions carry the events of the semester that runs now, so they

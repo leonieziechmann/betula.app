@@ -279,6 +279,13 @@ fn every_query_runs_against_the_snapshot() {
     assert!(general.windows(2).all(|pair| pair[0].page.code() <= pair[1].page.code()));
     assert!(general.is_empty() || queries::general_documents_fetched(&db).unwrap().is_some());
 
+    // The BTU's pages around the study, as its page „Studienorganisation" lists them, of each
+    // language, with a group and a title each. A snapshot of a Radix before 0.13.0 has none.
+    for lang in ["de", "en"] {
+        let pages = queries::study_pages(&db, lang).unwrap();
+        assert!(pages.iter().all(|page| page.page.code() == lang && !page.section.is_empty() && !page.title.is_empty() && page.url.starts_with("http")), "{pages:?}");
+    }
+
     // Every `pub fn` of folia-query must have run above, and the search's statements and `meta`.
     let functions = |source: &'static str| -> Vec<&'static str> {
         source.lines().filter_map(|line| line.strip_prefix("pub fn ")).filter_map(|rest| rest.split(['(', '<']).next()).collect()
@@ -447,6 +454,26 @@ fn a_regulation_is_named_as_radix_names_its_file() {
     assert_eq!(name("https://opus4.kobv.de/opus4-btu/files/12/12_po.pdf"), "12_po.pdf");
     assert_eq!(name("https://example.org/a/b/c/d/satzung"), "satzung.pdf");
     assert_eq!(name("https://example.org/"), "document.pdf");
+}
+
+/// „Rund ums Studium" is the snapshot's `v_study_page` of the app's language, in its order, each
+/// group the run of pages of one heading; English where the snapshot has English pages.
+#[test]
+fn the_btu_pages_are_the_snapshots() {
+    let db = open();
+    for (locale, lang) in [(folia_locale::Locale::De, "de"), (folia_locale::Locale::En, "en")] {
+        let shown = pages::btu_pages(&db, locale).unwrap();
+        let rows = queries::study_pages(&db, lang).unwrap();
+        let flat: Vec<(String, String, String)> = shown.groups.iter().flat_map(|group| group.pages.iter().map(|page| (group.name.clone(), page.title.clone(), page.url.clone()))).collect();
+        if rows.is_empty() {
+            continue;
+        }
+        let want: Vec<(String, String, String)> = rows.iter().map(|row| (row.section.clone(), row.title.clone(), row.url.clone())).collect();
+        assert_eq!(flat, want, "{lang}");
+        assert!(shown.groups.windows(2).all(|pair| pair[0].name != pair[1].name), "{lang}: a heading split into two groups");
+    }
+    let count = scalar(&db, "SELECT COUNT(*) FROM v_study_page");
+    assert!(count == 0 || !pages::btu_pages(&db, folia_locale::Locale::De).unwrap().groups.is_empty());
 }
 
 /// The Studienplan's queries, run through the recording database of

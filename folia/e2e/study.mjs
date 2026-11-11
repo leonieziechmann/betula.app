@@ -38,7 +38,8 @@
 //   keeps all of it; „Ordnungen & Dokumente" a view marked in the sidebar's „Studiengang", the
 //   regulations with the Regelstudienplan's page in its PDF and the ways on, nothing of the plan,
 //   the BTU's Rahmenordnung for Bachelor-Studiengänge alone with its amendments folded, and
-//   unfolded by a click, its other regulations and its 14 pages (2026-11-10); nothing of it in a
+//   unfolded by a click, its other regulations and its pages around the study in their groups, each
+//   with the BTU's sentence (2026-11-10, from the snapshot since 2026-11-11); nothing of it in a
 //   request.
 // 2b a place filled (folia/design/hinzufuegen/konzepte.html, „Was heute schiefgeht"): the same study,
 //   „Anwendungsfach" alone put into WiSe 2026/27 by the workbench's „Vormerken" (in the Gesamtplan
@@ -702,7 +703,8 @@ if (current !== "2026W") {
       // Rahmenordnung of the degree alone, its amendments folded; its pages around the study.
       btu: rows('.st-docs[aria-labelledby="st-docs-btu"] .doclist > li > a.docrow:not(.docpart)').map(([name]) => name),
       folded: [...document.querySelectorAll(".st-docs-fold")].map((fold) => `${fold.open}:${fold.querySelectorAll("a.docrow").length}:${fold.querySelector("a.docrow")?.checkVisibility()}`),
-      around: rows('.st-docs[aria-labelledby="st-docs-around"] a.docrow').map(([, , href]) => href),
+      around: rows('.st-docs[aria-labelledby="st-docs-around"] a.docrow').map(([name, line, href]) => [name, line, href]),
+      aroundGroups: [...document.querySelectorAll('.st-docs[aria-labelledby="st-docs-around"] .st-docs-label')].map((label) => label.textContent),
     };
   });
   check(documents.current === "Ordnungen & Dokumente" && documents.views === 0 && documents.head === "Ordnungen & Dokumente" && /^Informatik B\.Sc\. · PO 2008/.test(documents.line || "")
@@ -712,7 +714,8 @@ if (current !== "2026W") {
     && /^https:\/\/www\.b-tu\.de\//.test(documents.more[0][2]) && documents.more[1][2] === "/catalog?program=bachelor-informatik-2008" && documents.more[2][2].startsWith("/programs/bachelor-informatik-2008/plan")
     && documents.plain === 0
     && documents.btu.join() === "Rahmenordnung für Bachelor-Studiengänge,Immatrikulationsordnung,Ordnung zum Fachübergreifenden Studium,Brandenburgisches Hochschulgesetz,Alle Grundsatzordnungen,Prüfungs- und Studienordnungen aller Studiengänge,Formulare und Anträge"
-    && documents.folded.join() === "false:6:false" && documents.around.length === 14 && documents.around.every((href) => href.startsWith("https://www.b-tu.de/studium/")), `Ordnungen & Dokumente: ${JSON.stringify(documents)}`);
+    && documents.folded.join() === "false:6:false" && documents.aroundGroups.length >= 3 && documents.aroundGroups.includes("Prüfungen")
+    && documents.around.length >= 20 && documents.around.every(([name, line, href]) => name && line && /^https:\/\//.test(href)), `Ordnungen & Dokumente: ${JSON.stringify(documents)}`);
   await step("the Rahmenordnung's amendments unfolded", () => page.click(".st-docs-fold > summary"), () => document.querySelector(".st-docs-fold")?.open && [...document.querySelectorAll(".st-docs-fold a.docrow")].every((a) => a.checkVisibility()));
   await step("Regelstudienplan", () => page.click('#sidebar .st-vl:has-text("Regelstudienplan")'), () => location.search === "?view=plan" && document.querySelectorAll(".st-mx tbody tr.st-rsp-row").length === 23);
   const regular = await page.evaluate(() => {

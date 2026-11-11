@@ -1,10 +1,11 @@
 // Checks the BTU's pages that „Ordnungen & Dokumente" of „Mein Studium" links for every program
 // (folia/crates/planner/src/study/btu.rs, written by hand): its lists of regulations and forms and
-// „Rund ums Studium", German and English.
+// its page „Studienorganisation", German and English.
 //   node btu.mjs            (no browser, no Betula: the BTU's site itself, through curl)
-// Every page answers 200, one request a second. The regulations themselves are not written there
-// any more: Radix reads the BTU's page of Grundsatzordnungen every night and the snapshot has them
-// (v_general_document); `radix validate` warns when that page yields nothing or lacks one of them.
+// Every page answers 200, one request a second. The regulations and the pages of „Rund ums Studium"
+// are not written there any more: Radix reads the BTU's pages of Grundsatzordnungen and
+// Studienorganisation every night and the snapshot has them (v_general_document, v_study_page);
+// `radix validate` warns when a page yields nothing.
 // Exits 1 on any page that does not answer, saying which: then btu.rs and docs/folia/frontend.md
 // follow the BTU's site.
 import { execFileSync } from "node:child_process";
@@ -23,7 +24,7 @@ const problems = [];
 const literals = [...source.matchAll(/"(https?:\/\/[^"]+)"/g)].map((m) => m[1]).filter((url) => url !== "https://www.b-tu.de");
 const pages = [...source.matchAll(/(?:de|en): "(\/[^"]+)"/g)].map((m) => "https://www.b-tu.de" + m[1]);
 const ours = [...new Set([...literals, ...pages])];
-if (pages.length < 30) problems.push(`btu.rs links only ${pages.length} pages of the BTU: the check no longer reads it`);
+if (pages.length < 8) problems.push(`btu.rs links only ${pages.length} pages of the BTU: the check no longer reads it`);
 
 for (const url of ours) {
   const status = curl(url, "-o", "/dev/null", "-w", "%{http_code}").trim();

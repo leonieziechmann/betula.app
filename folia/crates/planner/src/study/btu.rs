@@ -14,16 +14,23 @@
 //! have (the page not read yet, a heading the rules no longer recognise) is said to be missing and
 //! leads to the BTU's own list, never to an address that may be old.
 //!
-//! The BTU's pages (its lists of regulations and forms, „Rund ums Studium") are written here, each
-//! in the language of the app (the BTU has all of them in both); `e2e/btu.mjs` says which of them no
-//! longer answer.
+//! „Rund ums Studium" comes from the snapshot as well (`folia_pages::btu_pages`; owner, 2026-11-11:
+//! „Mach die Rund ums Studium Seiten auch über Radix"): Radix reads the BTU's page
+//! „Studienorganisation" every night, German and English, and its build makes `v_study_page` of it
+//! (docs/radix/schema-v2.md, „Study pages"): its groups, the pages' titles and the sentence under
+//! each, as the BTU writes them, in the language of the app. Where the snapshot has none of them
+//! (the page not read yet), a row says so and leads to the BTU's page.
+//!
+//! The BTU's own lists of regulations and forms („Bei der BTU") and its page „Studienorganisation"
+//! are written here, each in the language of the app (the BTU has all of them in both);
+//! `e2e/btu.mjs` says which of them no longer answer.
 
 use leptos::prelude::*;
 
 use folia_design::ui::Icon;
 use folia_model::labels::{GeneralTopic, Labelled};
-use folia_pages::ask::BtuDocumentsAsk;
-use folia_pages::{BtuDocument, BtuDocuments, BtuRegulation};
+use folia_pages::ask::{BtuDocumentsAsk, BtuPagesAsk};
+use folia_pages::{BtuDocument, BtuDocuments, BtuPage, BtuPages, BtuRegulation};
 
 use super::StudyCtx;
 use crate::i18n::study_btu::Texts as BtuTexts;
@@ -64,35 +71,9 @@ const LISTS: [Page; 3] = [
     Page { name: |t| t.forms, de: "/studium/im-studium/studienorganisation/pruefungen/ordnungen-und-formulare/formulare-antraege", en: "/en/study/during-studies/study-organization/examinations/regulations-and-forms/forms-applications" },
 ];
 
-/// A group of pages under its name.
-struct Group {
-    name: fn(&BtuTexts) -> &'static str,
-    pages: &'static [Page],
-}
-
-/// „Rund ums Studium": the BTU's pages, in groups as its menu of „Studienorganisation" has them.
-const AROUND: [Group; 3] = [
-    Group { name: |t| t.exams, pages: &[
-        Page { name: |t| t.exams_register, de: "/studium/im-studium/studienorganisation/pruefungen/an-abmeldung-von-modulpruefungen", en: "/en/study/during-studies/study-organization/examinations/registering-for-examinations" },
-        Page { name: |t| t.exams_deadlines, de: "/studium/im-studium/studienorganisation/pruefungen/pruefungs-studienfristen", en: "/en/study/during-studies/study-organization/examinations/examinations-deadlines-and-study-time-limits" },
-        Page { name: |t| t.exams_illness, de: "/studium/im-studium/studienorganisation/pruefungen/krankheit-verhinderung", en: "/en/study/during-studies/study-organization/examinations/illness-and-incapability" },
-        Page { name: |t| t.exams_work, de: "/studium/im-studium/studienorganisation/pruefungen/pruefungsleistungen", en: "/en/study/during-studies/study-organization/examinations/academic-work" },
-    ] },
-    Group { name: |t| t.semester, pages: &[
-        Page { name: |t| t.dates, de: "/studium/im-studium/studienorganisation/quicklinks/termine-fristen", en: "/en/study/during-studies/study-organization/quicklinks/dates-and-deadlines" },
-        Page { name: |t| t.reregister, de: "/studium/im-studium/studienorganisation/formalia/rueckmeldung", en: "/en/study/during-studies/study-organization/formalities/registering-for-the-following-semester" },
-        Page { name: |t| t.fee, de: "/studium/im-studium/studienorganisation/formalia/semestergebuehr", en: "/en/study/during-studies/study-organization/formalities/semester-fee" },
-        Page { name: |t| t.leave, de: "/studium/im-studium/studienorganisation/formalia/beurlaubung", en: "/en/study/during-studies/study-organization/formalities/leave-of-absence" },
-        Page { name: |t| t.change, de: "/studium/im-studium/studienorganisation/formalia/studiengangwechsel", en: "/en/study/during-studies/study-organization/formalities/change-of-degree-programme" },
-        Page { name: |t| t.exmatriculation, de: "/studium/im-studium/studienorganisation/formalia/exmatrikulation", en: "/en/study/during-studies/study-organization/formalities/removal-from-the-register-of-students" },
-        Page { name: |t| t.card, de: "/studium/im-studium/studienorganisation/formalia/studierendenausweis", en: "/en/study/during-studies/study-organization/formalities/identification-card-chip-card" },
-    ] },
-    Group { name: |t| t.help, pages: &[
-        Page { name: |t| t.service, de: "/studium/im-studium/studienorganisation/quicklinks/studierendenservice", en: "/en/study/during-studies/study-organization/quicklinks/student-services" },
-        Page { name: |t| t.advice, de: "/studium/vor-dem-studium/beratung-hilfe", en: "/en/study/before-studying/advice-and-support" },
-        Page { name: |t| t.portals, de: "/studium/im-studium/studienorganisation/quicklinks/portale", en: "/en/study/during-studies/study-organization/quicklinks/portals" },
-    ] },
-];
+/// The BTU's page that lists its pages around the study: where „Rund ums Studium" leads while the
+/// snapshot has none of them.
+const STUDY_ORGANISATION: Page = Page { name: |t| t.study_organisation, de: "/studium/im-studium/studienorganisation", en: "/en/study/during-studies/study-organization" };
 
 /// The address of a page in the app's language.
 fn page_url(page: &Page, locale: Locale) -> String {
@@ -116,6 +97,19 @@ fn row(icon: &'static str, name: String, line: Option<String>, href: String, par
             <Icon name=icon/>
             <span class="docname">{name}</span>
             {line.map(|line| view! { <small>{line}</small> })}
+            <Icon name="arrow-up-right" class="go"/>
+        </a>
+    }
+    .into_any()
+}
+
+/// A page of the BTU's around the study: its title, under it the sentence the BTU writes about it.
+fn page_row(page: BtuPage) -> AnyView {
+    view! {
+        <a class="docrow pagerow" href=page.url rel="noopener">
+            <Icon name="info"/>
+            <span class="docname">{page.title}</span>
+            {page.summary.map(|summary| view! { <small>{summary}</small> })}
             <Icon name="arrow-up-right" class="go"/>
         </a>
     }
@@ -219,11 +213,50 @@ pub(super) fn Statutes(ctx: StudyCtx, level: Level) -> impl IntoView {
     }
 }
 
-/// „Rund ums Studium": the BTU's pages on examinations, the semester's formalities, its services.
+/// „Rund ums Studium": the BTU's pages around the study, in the groups its page
+/// „Studienorganisation" has them, from the snapshot.
 #[component]
-pub(super) fn Around() -> impl IntoView {
+pub(super) fn Around(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let b = &t.study_btu;
+    // The pages; while they are on their way `None`, and what was there stays until the next answer
+    // is. A question that failed has none of them: the row that leads to the BTU says so.
+    let pages = Memo::new(move |before: Option<&Option<BtuPages>>| {
+        let now = ctx.source.with_value(|source| source.as_ref().map(|source| source.now(&BtuPagesAsk { locale: t.locale })))?;
+        folia_pages::ask::unless_pending(now, before, |now| match now {
+            Ok(pages) => Some(pages),
+            Err(error) if error.is_pending() => None,
+            Err(_) => Some(BtuPages::default()),
+        })
+    });
+    let list = move || match pages.get() {
+        None => view! {
+            <ul class="doclist sk-sweep" aria-hidden="true">
+                <li><span class="docrow"><i class="sk sk-w4"></i></span></li>
+                <li><span class="docrow"><i class="sk sk-w3"></i></span></li>
+            </ul>
+        }
+        .into_any(),
+        Some(pages) if pages.groups.is_empty() => view! {
+            <ul class="doclist">
+                <li>{row("circle-help", b.study_organisation.to_string(), Some(b.missing.to_string()), page_url(&STUDY_ORGANISATION, t.locale), false)}</li>
+            </ul>
+        }
+        .into_any(),
+        Some(pages) => pages
+            .groups
+            .into_iter()
+            .map(|group| {
+                view! {
+                    <p class="label st-docs-label">{group.name.clone()}</p>
+                    <ul class="doclist" aria-label=group.name>
+                        {group.pages.into_iter().map(|page| view! { <li>{page_row(page)}</li> }).collect_view()}
+                    </ul>
+                }
+            })
+            .collect_view()
+            .into_any(),
+    };
     view! {
         <section class="panel st-docs" aria-labelledby="st-docs-around">
             <header class="st-view-head">
@@ -232,15 +265,7 @@ pub(super) fn Around() -> impl IntoView {
                     <p>{b.around_lead}</p>
                 </div>
             </header>
-            {AROUND.iter().map(|group| {
-                let (name, pages) = ((group.name)(b), group.pages);
-                view! {
-                    <p class="label st-docs-label">{name}</p>
-                    <ul class="doclist" aria-label=name>
-                        {pages.iter().map(|page| view! { <li>{row("info", (page.name)(b).to_string(), None, page_url(page, t.locale), false)}</li> }).collect_view()}
-                    </ul>
-                }
-            }).collect_view()}
+            {list}
         </section>
     }
 }
@@ -252,13 +277,10 @@ mod tests {
     /// Every page in both languages.
     #[test]
     fn the_pages_of_the_btu_are_in_the_app_language() {
-        let first = &AROUND[0].pages[0];
-        assert_eq!(page_url(first, Locale::De), "https://www.b-tu.de/studium/im-studium/studienorganisation/pruefungen/an-abmeldung-von-modulpruefungen");
-        assert_eq!(page_url(first, Locale::En), "https://www.b-tu.de/en/study/during-studies/study-organization/examinations/registering-for-examinations");
-        let advice = AROUND[2].pages.iter().find(|page| page.de.contains("beratung")).expect("Beratung und Hilfe");
-        assert_eq!(page_url(advice, Locale::De), "https://www.b-tu.de/studium/vor-dem-studium/beratung-hilfe");
-        assert_eq!(page_url(advice, Locale::En), "https://www.b-tu.de/en/study/before-studying/advice-and-support");
+        assert_eq!(page_url(&STUDY_ORGANISATION, Locale::De), "https://www.b-tu.de/studium/im-studium/studienorganisation");
+        assert_eq!(page_url(&STUDY_ORGANISATION, Locale::En), "https://www.b-tu.de/en/study/during-studies/study-organization");
         assert_eq!(page_url(&LISTS[0], Locale::De), "https://www.b-tu.de/studium/im-studium/studienorganisation/pruefungen/ordnungen-und-formulare/grundsatzordnungen");
+        assert_eq!(page_url(&LISTS[2], Locale::En), "https://www.b-tu.de/en/study/during-studies/study-organization/examinations/regulations-and-forms/forms-applications");
     }
 
     /// The Rahmenordnung of the degree first, both where the degree is neither, then what holds for
