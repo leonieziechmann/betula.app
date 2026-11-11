@@ -402,7 +402,8 @@ pub struct Texts {
     /// What a click and a drag do, with the key that lets a module count as an exception („Strg").
     pub grid_help: fn(&str) -> String,
     pub add_in_cell: &'static str,
-    /// What „+" in a cell is for: „Modul hinzufügen: Informatik, WiSe 2026/27".
+    /// What „+" in a cell does, its words under the pointer („Modul einplanen") and its title with
+    /// the cell's area and semester: „Modul einplanen: Informatik, WiSe 2026/27".
     pub add_in_cell_for: fn(&str, &str) -> String,
     /// The title of a grey line: „laut Regelstudienplan im 4. FS · Klick fügt hinzu", „Wiederholer:
     /// im SoSe 2026 nicht bestanden · Klick fügt hinzu".
@@ -683,9 +684,9 @@ pub const DE: Texts = Texts {
     legend_plan_open: "Noch offen laut Plan",
     legend_failed: "Nicht bestanden",
     legend_today: "Heute",
-    grid_help: |key| format!("Klick auf einen Bereich: auf- und zuklappen · Klick auf ein Modul: sein Menü · Ein Modul ziehen: in ein anderes Semester oder auf einen Bereich, in dem es laut Plan zählt, mit {key} auch als Ausnahme"),
-    add_in_cell: "Modul hinzufügen",
-    add_in_cell_for: |area, semester| format!("Modul hinzufügen: {area}, {semester}"),
+    grid_help: |key| format!("Klick auf einen Bereich: auf- und zuklappen · Klick auf ein Modul: sein Menü · + in einer Zelle: ein Modul in den Bereich einplanen · Ein Modul ziehen: in ein anderes Semester oder auf einen Bereich, in dem es laut Plan zählt, mit {key} auch als Ausnahme"),
+    add_in_cell: "Modul einplanen",
+    add_in_cell_for: |area, semester| format!("Modul einplanen: {area}, {semester}"),
     line_title: |fs| format!("laut Regelstudienplan im {fs} · Klick fügt hinzu"),
     line_retake: |semester| format!("Wiederholer: im {semester} nicht bestanden · Klick fügt hinzu"),
 };
@@ -963,9 +964,9 @@ pub const EN: Texts = Texts {
     legend_plan_open: "Still open in the plan",
     legend_failed: "Not passed",
     legend_today: "Today",
-    grid_help: |key| format!("Click an area: expand or collapse · Click a module: its menu · Drag a module: to another semester or onto an area it counts for by the plan, with {key} as an exception as well"),
-    add_in_cell: "Add module",
-    add_in_cell_for: |area, semester| format!("Add module: {area}, {semester}"),
+    grid_help: |key| format!("Click an area: expand or collapse · Click a module: its menu · + in a cell: plan a module into the area · Drag a module: to another semester or onto an area it counts for by the plan, with {key} as an exception as well"),
+    add_in_cell: "Plan a module",
+    add_in_cell_for: |area, semester| format!("Plan a module: {area}, {semester}"),
     line_title: |fs| format!("standard study plan: {fs} · click adds it"),
     line_retake: |semester| format!("Retake: not passed in {semester} · click adds it"),
 };

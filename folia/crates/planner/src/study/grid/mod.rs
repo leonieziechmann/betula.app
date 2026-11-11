@@ -1217,7 +1217,7 @@ fn cell_view(frame: &RowFrame, cell: Cell, of: Of, fit: Memo<Option<Fit>>, row_n
                         })}
                     })}
                     <button type="button" class="st-cell-add" class:st-rm-add=!empty title=for_cell.clone() aria-label=for_cell on:click=move |_| bench::enter(ctx, semester, pick)>
-                        <Icon name="plus"/>{empty.then_some(s.add_in_cell)}
+                        <Icon name="plus"/><span class="lb">{s.add_in_cell}</span>
                     </button>
                     {hint}
                 </div>

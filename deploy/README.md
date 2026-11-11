@@ -299,7 +299,9 @@ It ships the **commit** `HEAD` (uncommitted changes to what the images are built
 canary): Radix runs `radix run` as a colour that crawls does, its cycles at their times, build,
 export and the semantic search included, but with `RADIX_CORTEX_MODE=offline`: every page comes
 from Cortex's store, whatever its age, and a page Cortex has not stored waits for the next cycle.
-Nothing reaches the university, Gemini is not asked, and Radix has no way to the internet. What
+Nothing reaches the university but the BTU's page of Grundsatzordnungen (through Cortex, at most
+once in 20 hours, since Radix 0.12.1: `docs/radix/operations.md`, „Offline through Cortex"), Gemini
+is not asked, and Radix has no way to the internet. What
 Cortex has stored is what a colour that crawls fetched through it and what `radix seed-cortex`
 gave it (section 14). It needs a Cortex that runs and a release of Radix that knows
 `--cortex-mode` (from 2026-10-04 on); without either, `50-app.sh` deploys the instance offline as
@@ -920,7 +922,7 @@ in the store and what not.
 
 The canary's colours (`RADIX_CRAWL=cortex-offline`, section 4) read Cortex's store alone: their
 cycles take a page from Cortex whatever its age and skip one it lacks, and nothing of theirs
-reaches the university.
+reaches the university but the BTU's page of Grundsatzordnungen, through Cortex.
 
 ### Day to day
 
