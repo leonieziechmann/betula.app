@@ -17,6 +17,8 @@ pub const DEVICE: usize = 16;
 /// change with one record larger than that (a saved plan of a whole semester at the caps) goes out
 /// as a snapshot instead.
 pub const MAX_BATCH: usize = 60 * 1024;
+/// The length of the epoch of Phloem's database (`Core::epoch`).
+const EPOCH: usize = 16;
 
 /// A batch of one change, waiting for `stored`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -62,11 +64,42 @@ pub struct Core {
     /// Phloem holds the profile: its welcome brought a snapshot or entries, or it kept this
     /// device's first snapshot. Not kept: every connection finds it out anew.
     pub at_phloem: bool,
+    /// The epoch of Phloem's database as its last welcome named it (base64url; empty before one
+    /// that names it): a refusal or a welcome of another one says Phloem lost what it held, and
+    /// the device makes the space anew (`rebuilt`, `replay`).
+    pub epoch: String,
 }
 
 impl Core {
     pub fn new(key: [u8; KEY], device: [u8; DEVICE]) -> Self {
-        Core { key, device, slot: 0, nr: 0, above: BTreeSet::new(), doc: Doc::default(), writer: None, seq: 0, last: Hlc::default(), outbox: Vec::new(), raw: Vec::new(), touched: BTreeSet::new(), snapshot_due: false, devices_touched: false, at_phloem: false }
+        Core { key, device, slot: 0, nr: 0, above: BTreeSet::new(), doc: Doc::default(), writer: None, seq: 0, last: Hlc::default(), outbox: Vec::new(), raw: Vec::new(), touched: BTreeSet::new(), snapshot_due: false, devices_touched: false, at_phloem: false, epoch: String::new() }
+    }
+
+    /// Phloem lost what it held and the space was made anew (its epoch is another one): its
+    /// entries are numbered from 1 again, and nothing of this device is there.
+    pub fn rebuilt(&mut self) {
+        self.nr = 0;
+        self.above.clear();
+        self.at_phloem = false;
+    }
+
+    /// Every record this device holds, written again to wait to be sent (`Writer::replay`): what
+    /// the space made anew lacks of it, it gets, whichever device made it and in whatever order
+    /// their writes come. As entries, never as a snapshot, which a later one would replace.
+    /// `false` before the device has its slot.
+    pub fn replay(&mut self, mut id: impl FnMut() -> String) -> bool {
+        let Some(writer) = self.writer.as_mut() else { return false };
+        let ops = writer.replay(&mut self.doc);
+        self.seq = writer.seq();
+        self.last = writer.last();
+        for batch in codec::batches(&ops, MAX_BATCH) {
+            if batch.len() > MAX_BATCH {
+                self.snapshot_due = true;
+            } else {
+                self.outbox.push(Pending { id: id(), batch });
+            }
+        }
+        true
     }
 
     /// The slot Phloem gave (on making the space, or in its welcome): the writer goes on after
@@ -216,9 +249,14 @@ impl Core {
 
     // ---- what the browser keeps of it ----
 
-    /// `betula.sync.p<id>.v1`: the key, the device and its slot.
+    /// `betula.sync.p<id>.v1`: the key, the device and its slot, and the epoch of Phloem's
+    /// database it last heard.
     pub fn held(&self) -> String {
-        format!("key\t{}\ndevice\t{}\nslot\t{}\n", b64(&self.key), b64(&self.device), self.slot)
+        let mut out = format!("key\t{}\ndevice\t{}\nslot\t{}\n", b64(&self.key), b64(&self.device), self.slot);
+        if !self.epoch.is_empty() {
+            out.push_str(&format!("epoch\t{}\n", self.epoch));
+        }
+        out
     }
 
     /// `….doc`: which entries are held, the records and the conflicts. Kept now and then.
@@ -250,6 +288,7 @@ impl Core {
         let device: [u8; DEVICE] = unb64(&field(held, "device")?)?.try_into().ok()?;
         let mut core = Core::new(key, device);
         let slot = field(held, "slot").and_then(|s| s.parse().ok()).unwrap_or(0);
+        core.epoch = field(held, "epoch").filter(|epoch| unb64(epoch).is_some_and(|bytes| bytes.len() == EPOCH)).unwrap_or_default();
         let snapshot = field(records, "snapshot").and_then(|s| unb64(&s)).and_then(|bytes| codec::read_snapshot(&bytes).ok());
         if let Some((entries, seen)) = snapshot {
             core.doc.entries = entries;
@@ -361,6 +400,41 @@ mod tests {
         let seqs: Vec<u32> = back.outbox.iter().flat_map(|p| codec::read_batch(&p.batch).unwrap()).map(|op| op.seq).collect();
         assert_eq!(seqs, [1, 2], "a number is never given twice");
         assert!(Core::restore("key\tnope\n", "", "").is_none());
+    }
+
+    /// Phloem lost what it held: the device numbers its entries from 1 again and sends all its
+    /// records as entries; another device that never heard of some of them takes them, and the
+    /// epoch it last heard is kept with the key.
+    #[test]
+    fn a_space_made_anew_gets_every_record_again() {
+        let mut next = ids();
+        let mut a = Core::new([1; KEY], [2; DEVICE]);
+        a.set_slot(2, &mut next);
+        a.change(Store::Marks, "", &marks(&["11787", "12101"]), 1_000, &mut next);
+        a.change(Store::Mine, "", "start\t2026W\n", 1_100, &mut next);
+        a.held_up_to(40);
+        a.stored("b1", 41);
+        a.outbox.clear();
+        a.epoch = "AAAAAAAAAAAAAAAAAAAAAA".into();
+        let kept = Core::restore(&a.held(), &a.records(), &a.waiting()).unwrap();
+        assert_eq!(kept.epoch, a.epoch, "the epoch is kept with the key");
+        assert!(Core::restore(&format!("{}epoch\tshort\n", Core::new([1; KEY], [2; DEVICE]).held()), "", "").unwrap().epoch.is_empty());
+        a.rebuilt();
+        assert_eq!((a.nr, a.at_phloem), (0, false));
+        assert!(a.replay(&mut next));
+        let seqs: Vec<u32> = a.outbox.iter().flat_map(|p| codec::read_batch(&p.batch).unwrap()).map(|op| op.seq).collect();
+        assert!(seqs.iter().all(|seq| *seq > 2) && seqs.len() == a.doc.entries.len(), "every record once, numbered after its writes: {seqs:?}");
+        // A device that holds nothing of it takes all of it from these entries.
+        let mut b = Core::new([1; KEY], [3; DEVICE]);
+        b.set_slot(1, &mut next);
+        for pending in &a.outbox {
+            b.apply(&codec::read_batch(&pending.batch).unwrap());
+        }
+        assert_eq!((b.text(Store::Marks), b.text(Store::Mine)), (a.text(Store::Marks), a.text(Store::Mine)));
+        // The entries Phloem numbers anew count from 1.
+        a.stored(&a.outbox[0].id.clone(), 1);
+        assert_eq!(a.nr, 1);
+        assert!(!Core::new([1; KEY], [2; DEVICE]).replay(ids()), "no slot, no writes");
     }
 
     #[test]

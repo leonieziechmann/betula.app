@@ -202,6 +202,18 @@ ends the setup on the start page once the code is answered), since the camera ap
 may keep other storage than Betula on the home screen; its step 1 leads to `/pair` with „Profil
 übernehmen".
 
+## When Phloem lost what it held
+
+No backup (owner, 2026-11-11: „mach es im zweifelsfall so, dass es aus den clients rekonstruiert
+wird, falls es mal verloren geht"; docs/phloem/protocol.md section 7): the leader keeps the epoch
+of Phloem's database its last welcome named (`Core::epoch`, in `betula.sync.p<id>.v1`). A hello
+refused with another epoch makes the space anew in the device's slot (`Engine::remake`); a welcome
+with another epoch numbers the entries from 1 again (`Core::rebuilt`) and sends every record as
+entries (`Core::replay`, `folia_sync::Writer::replay`), puts the parts of the shares again (`Put`
+forgotten) and leaves the one-time links that wait again (`repost_parcels`). The space counts as
+at Phloem once those entries are kept. Refused with the epoch it knows, the profile is private
+again, as after „Sync beenden" on another device.
+
 ## 5. Checks
 
 - `cargo test -p folia-sync`: the stores' round trips, the cases of two devices, a simulation of
@@ -217,6 +229,10 @@ may keep other storage than Betula on the home screen; its step 1 leads to `/pai
   a code.
 - `folia/e2e/share.mjs`: sharing and following with four browsers against a running Phloem
   (Folia with `FOLIA_SYNC_PARTS` naming it).
+- `folia/e2e/rebuild.mjs` (locally, with `PHLOEM_LOSE` and `PHLOEM_START`): Phloem's database
+  thrown away while two devices each mark a module offline; both make the space anew in their
+  slots and hold all five modules, a device that comes afterwards gets them, a shared list opens
+  again.
 - `folia/e2e/list-share.mjs`: a collection of the Merkliste shared and followed with three
   browsers against a running Phloem; the whole Merkliste as the link of today.
 - `folia/e2e/live.mjs`: two browsers connect directly, and with Phloem's entries to the second held

@@ -424,7 +424,7 @@ pub async fn activate(profile: u16) -> Result<(), Problem> {
     let key = random::<KEY>().ok_or(Problem::Unsupported)?;
     let device = random::<DEVICE>().ok_or(Problem::Unsupported)?;
     let keys = derive(&key).await.map_err(|_| Problem::Unsupported)?;
-    let body = serde_json::to_string(&wire::NewSpace { space: b64(&keys.space), token: b64(&keys.token), device: b64(&device) }).map_err(|_| Problem::Unsupported)?;
+    let body = serde_json::to_string(&wire::NewSpace { space: b64(&keys.space), token: b64(&keys.token), device: b64(&device), slot: 0 }).map_err(|_| Problem::Unsupported)?;
     let (status, text) = call("POST", "space", &[], Some(body)).await?;
     if status != 201 {
         return Err(problem_of(status, &text));
@@ -699,6 +699,11 @@ pub struct Engine {
     welcomed: Cell<bool>,
     /// A new welcome is asked for (`again_soon`).
     again: Cell<bool>,
+    /// The space was made anew after Phloem lost it (its welcome named another epoch): this
+    /// device sends everything it holds, and waits for nobody's records (`waits_for_profile`).
+    rebuilt: Cell<bool>,
+    /// The space is being made anew (`remake`).
+    remaking: Cell<bool>,
     /// Tries in a row that came to no welcome, by either way (`connect`).
     fails: Cell<u32>,
     /// The last welcome came over plain HTTPS: that way comes first.
@@ -982,7 +987,7 @@ impl Engine {
 
     fn hello(&self) -> Out {
         let core = self.core.borrow();
-        Out::Hello { space: b64(&self.keys.space), token: b64(&self.keys.token), device: b64(&core.device), since: core.nr }
+        Out::Hello { space: b64(&self.keys.space), token: b64(&self.keys.token), device: b64(&core.device), since: core.nr, slot: core.slot }
     }
 
     /// Connects by the way that worked last; after two tries in a row without a welcome, by the
@@ -1141,7 +1146,7 @@ impl Engine {
 
     async fn frame(self: &Rc<Self>, frame: In) {
         match frame {
-            In::Welcome { slot, head, now: server, devices, live, snapshot, entries } => {
+            In::Welcome { slot, head, now: server, devices, live, snapshot, entries, epoch } => {
                 *self.tries.borrow_mut() = 0;
                 self.fails.set(0);
                 let by_poll = matches!(self.socket.borrow().as_ref(), Some(Line::Poll(_)));
@@ -1153,6 +1158,21 @@ impl Engine {
                 }
                 if server > 0 {
                     nav::local_set(OFFSET_KEY, &(server as i64 - now() as i64).to_string());
+                }
+                // Phloem lost what it held, and the space was made anew (by this device or another,
+                // `remake`): its entries count from 1 again, nothing of this device is there, and
+                // the parts of its shares are put again.
+                let rebuilt = {
+                    let core = self.core.borrow();
+                    !epoch.is_empty() && !core.epoch.is_empty() && epoch != core.epoch
+                };
+                if rebuilt {
+                    self.core.borrow_mut().rebuilt();
+                    self.in_flight.borrow_mut().clear();
+                    let mut put = Put::read(&nav::local_get(&parts_key(self.profile)).unwrap_or_default());
+                    put.parts.clear();
+                    nav::local_set(&parts_key(self.profile), &put.text());
+                    self.rebuilt.set(true);
                 }
                 self.core.borrow_mut().at_phloem = head > 0 || snapshot.is_some();
                 if let Some(snapshot) = snapshot {
@@ -1172,9 +1192,20 @@ impl Engine {
                     core.held_up_to(head);
                     let had = core.slot();
                     core.set_slot(slot, batch_id);
-                    if had != slot {
+                    // Everything this device holds goes to the space made anew, as entries.
+                    if rebuilt {
+                        core.replay(batch_id);
+                    }
+                    let learned = !epoch.is_empty() && core.epoch != epoch;
+                    if learned {
+                        core.epoch = epoch;
+                    }
+                    if had != slot || learned {
                         nav::local_set(&held_key(self.profile), &core.held());
                     }
+                }
+                if rebuilt {
+                    self.repost_parcels();
                 }
                 folia_plans::ids::set_slot(slot);
                 self.project();
@@ -1195,6 +1226,12 @@ impl Engine {
                 self.in_flight.borrow_mut().remove(&id);
                 self.core.borrow_mut().stored(&id, nr);
                 self.keep_waiting();
+                // A space made anew holds the profile once the records this device sent again are
+                // kept: as entries, not as a first snapshot (`rebuilt`).
+                if self.rebuilt.get() && !self.core.borrow().at_phloem {
+                    self.core.borrow_mut().at_phloem = true;
+                    self.status();
+                }
                 self.later();
             }
             // Joined while the space was still empty, and now the other device's records are
@@ -1230,8 +1267,18 @@ impl Engine {
                 self.core.borrow_mut().snapshot_due = true;
                 self.send_waiting();
             }
-            In::Error { code, id } => match code.as_str() {
-                "unauthorized" => self.ended(),
+            In::Error { code, id, epoch } => match code.as_str() {
+                // With the epoch this device last heard, the space was deleted (Sync beenden) or
+                // expired; with another one, Phloem lost what it held (owner, 2026-11-11: „dass es
+                // aus den clients rekonstruiert wird, falls es mal verloren geht").
+                "unauthorized" => {
+                    let known = self.core.borrow().epoch.clone();
+                    if !epoch.is_empty() && !known.is_empty() && epoch != known {
+                        self.remake();
+                    } else {
+                        self.ended();
+                    }
+                }
                 // A batch too large: the snapshot carries it. (The snapshot itself, above 6 MiB,
                 // which the stores' caps keep a profile below, is not sent again on this
                 // connection.)
@@ -1318,7 +1365,77 @@ impl Engine {
     /// not sent its records): it has none of its own to send either.
     fn waits_for_profile(&self) -> bool {
         let core = self.core.borrow();
-        self.welcomed.get() && !core.at_phloem && !core.snapshot_due && core.nr == 0
+        self.welcomed.get() && !self.rebuilt.get() && !core.at_phloem && !core.snapshot_due && core.nr == 0
+    }
+
+    /// Phloem lost what it held (its refusal named another epoch than the one this device last
+    /// heard): the space is made anew, with this device in the slot it had, or another device of
+    /// the profile made it already (409). The next welcome names the new epoch, and this device
+    /// sends everything it holds (`rebuilt`). Where Phloem takes no new space now (its limits per
+    /// address and in all, its budget) or cannot be reached, it tries again in a few minutes; the
+    /// profile stays as it is on the device meanwhile, offline.
+    fn remake(self: &Rc<Self>) {
+        if self.remaking.replace(true) || *self.closed.borrow() {
+            return;
+        }
+        let engine = Rc::clone(self);
+        leptos::task::spawn_local(async move {
+            let (device, slot) = {
+                let core = engine.core.borrow();
+                (core.device, core.slot)
+            };
+            let body = serde_json::to_string(&wire::NewSpace { space: b64(&engine.keys.space), token: b64(&engine.keys.token), device: b64(&device), slot }).unwrap_or_default();
+            let made = matches!(call("POST", "space", &[], Some(body)).await, Ok((201 | 409, _)));
+            engine.remaking.set(false);
+            let wait = if made { 0 } else { REMAKE_WAIT_MS + random::<1>().map_or(0, |b| u64::from(b[0]) * 500) };
+            let again = Rc::clone(&engine);
+            set_timeout(
+                move || {
+                    if !*again.closed.borrow() {
+                        // The refused socket is gone by now (Phloem closes it after the refusal).
+                        again.disconnect();
+                        again.connect();
+                    }
+                },
+                std::time::Duration::from_millis(wait),
+            );
+        });
+    }
+
+    /// The one-time links that still wait, left anew at a space made anew (Phloem lost them with
+    /// everything else): the same parcel, for the time it has left, holding the part's link as
+    /// before, or for a copy the share's state of now.
+    fn repost_parcels(self: &Rc<Self>) {
+        let engine = Rc::clone(self);
+        leptos::task::spawn_local(async move {
+            let at = secs();
+            let left = |made: u64| (made + ONCE_TTL).saturating_sub(at);
+            let doc = PlanDoc::restored(&engine.plan_text());
+            let shelf = Shelf::restored(&engine.shelf_text());
+            let marks = engine.marks_now();
+            let mut waiting: Vec<(String, u64, wire::ShareContents)> = Vec::new();
+            for share in doc.shares.iter().filter(|s| !s.parcel.is_empty() && left(s.made) >= 60) {
+                let contents = if share.live {
+                    wire::ShareContents { v: 1, part: Some(share.id.clone()), key: Some(share.key.clone()), copy: None }
+                } else {
+                    let Ok(code) = doc.live_part(share, following(share.semester, today())).fitted().0.code() else { continue };
+                    wire::ShareContents { v: 1, part: None, key: None, copy: Some(code) }
+                };
+                waiting.push((share.parcel.clone(), left(share.made), contents));
+            }
+            for share in shelf.shares().iter().filter(|s| !s.parcel.is_empty() && left(s.made) >= 60) {
+                let contents = if share.live {
+                    wire::ShareContents { v: 1, part: Some(share.id.clone()), key: Some(share.key.clone()), copy: None }
+                } else {
+                    let Ok(code) = shelf.list_part(share, &marks).fitted().0.code() else { continue };
+                    wire::ShareContents { v: 1, part: None, key: None, copy: Some(code) }
+                };
+                waiting.push((share.parcel.clone(), left(share.made), contents));
+            }
+            for (parcel, ttl, contents) in waiting {
+                let _ = leave_parcel(&engine.keys, &parcel, ttl, &contents).await;
+            }
+        });
     }
 
     /// Connects again in `ms` (a new welcome), once at a time.
@@ -1396,6 +1513,11 @@ const WS_WELCOME_MS: u64 = 6_000;
 
 /// The same for a session over plain HTTPS, whose first answer is a request more (ms).
 const POLL_WELCOME_MS: u64 = 15_000;
+
+/// How long a device waits before it tries again to make anew a space Phloem lost, where Phloem
+/// took no new space (its limits: 20 spaces an hour per address, 500 in all) or could not be
+/// reached: a few minutes, so that the devices of many profiles do not ask all at once.
+const REMAKE_WAIT_MS: u64 = 3 * 60 * 1000;
 
 // ---- shares (step 3) ----
 
@@ -1595,29 +1717,35 @@ async fn place(profile: u16, live: bool, once: bool, code: &str) -> Result<Place
     if once {
         let parcel_id = random::<16>().ok_or(ShareProblem::Unsupported)?;
         let link_key = random::<32>().ok_or(ShareProblem::Unsupported)?;
+        let parcel = b64(&[&parcel_id[..], &link_key[..]].concat());
         let contents = if live { wire::ShareContents { v: 1, part: Some(placed.id.clone()), key: Some(placed.key.clone()), copy: None } } else { wire::ShareContents { v: 1, part: None, key: None, copy: Some(code.to_string()) } };
-        let plain = serde_json::to_vec(&contents).map_err(|_| ShareProblem::Unsupported)?;
-        let sealed = seal(&aes_key(&link_key).await.map_err(|_| ShareProblem::Unsupported)?, b"share", &plain).await.map_err(|_| ShareProblem::Unsupported)?;
-        let body = serde_json::to_string(&wire::LongParcel { id: b64(&parcel_id), sealed: b64(&sealed), ttl: ONCE_TTL }).map_err(|_| ShareProblem::Unsupported)?;
-        let answer = call("POST", "pair", &auth(&keys), Some(body)).await.map_err(unreachable);
-        let failed = match answer {
-            Ok((201, _)) => None,
-            Ok((status, text)) => Some(share_problem(status, &text)),
-            Err(problem) => Some(problem),
-        };
-        if let Some(problem) = failed {
+        if let Err(problem) = leave_parcel(&keys, &parcel, ONCE_TTL, &contents).await {
             if live {
                 let _ = delete_part(&keys, &placed.id).await;
             }
             return Err(problem);
         }
-        placed.parcel = b64(&[&parcel_id[..], &link_key[..]].concat());
+        placed.parcel = parcel;
         if !live {
             placed.id = b64(&parcel_id);
         }
         placed.until = Some(now() + ONCE_TTL * 1_000);
     }
     Ok(placed)
+}
+
+/// Leaves a one-time link's parcel (`parcel`: its id ‖ key) at Phloem for `ttl` seconds, holding
+/// `contents` sealed with its key.
+async fn leave_parcel(keys: &Keys, parcel: &str, ttl: u64, contents: &wire::ShareContents) -> Result<(), ShareProblem> {
+    let (id, key) = split_link(parcel).ok_or(ShareProblem::Unsupported)?;
+    let link_key = unb64(&key).ok_or(ShareProblem::Unsupported)?;
+    let plain = serde_json::to_vec(contents).map_err(|_| ShareProblem::Unsupported)?;
+    let sealed = seal(&aes_key(&link_key).await.map_err(|_| ShareProblem::Unsupported)?, b"share", &plain).await.map_err(|_| ShareProblem::Unsupported)?;
+    let body = serde_json::to_string(&wire::LongParcel { id, sealed: b64(&sealed), ttl }).map_err(|_| ShareProblem::Unsupported)?;
+    match call("POST", "pair", &auth(keys), Some(body)).await.map_err(unreachable)? {
+        (201, _) => Ok(()),
+        (status, text) => Err(share_problem(status, &text)),
+    }
 }
 
 /// Ends a share at Phloem: its part is deleted, its waiting parcel taken back. The record is the
@@ -2190,6 +2318,8 @@ async fn lead(sync: Sync, profiles: Profiles) {
         watched: RefCell::new(Vec::new()),
         welcomed: Cell::new(false),
         again: Cell::new(false),
+        rebuilt: Cell::new(false),
+        remaking: Cell::new(false),
         fails: Cell::new(0),
         poll_works: Cell::new(https_first()),
         attempt: Cell::new(0),

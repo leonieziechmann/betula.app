@@ -8,7 +8,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "t", rename_all = "lowercase")]
 pub enum Out {
-    Hello { space: String, token: String, device: String, since: u64 },
+    /// `slot`: the one this device had, for a space Phloem made anew after it lost it (0: none).
+    Hello {
+        space: String,
+        token: String,
+        device: String,
+        since: u64,
+        #[serde(skip_serializing_if = "is_zero")]
+        slot: u16,
+    },
     Push { id: String, data: String },
     Snapshot { upto: u64, data: String },
     Leave,
@@ -25,6 +33,10 @@ impl Out {
     pub fn text(&self) -> String {
         serde_json::to_string(self).unwrap_or_default()
     }
+}
+
+fn is_zero(n: &u16) -> bool {
+    *n == 0
 }
 
 /// A snapshot as the welcome carries it.
@@ -62,6 +74,9 @@ pub enum In {
         snapshot: Option<Snapshot>,
         #[serde(default)]
         entries: Vec<Entry>,
+        /// The epoch of Phloem's database (since Phloem 0.5.0; empty before).
+        #[serde(default)]
+        epoch: String,
     },
     Stored {
         id: String,
@@ -85,6 +100,9 @@ pub enum In {
         code: String,
         #[serde(default)]
         id: Option<String>,
+        /// Of `unauthorized`: the epoch of Phloem's database (since Phloem 0.5.0).
+        #[serde(default)]
+        epoch: String,
     },
     Gone,
     /// The answer to `watch`: each part's version now (`rev` 0: Phloem does not have it).
@@ -148,6 +166,9 @@ pub struct NewSpace {
     pub space: String,
     pub token: String,
     pub device: String,
+    /// The slot the device had, for a space made anew after Phloem lost it (0: a new profile).
+    #[serde(skip_serializing_if = "is_zero")]
+    pub slot: u16,
 }
 
 /// Its answer.
@@ -258,16 +279,22 @@ mod tests {
 
     #[test]
     fn frames_read_and_write_as_the_protocol_says() {
-        let hello = Out::Hello { space: "c3BhY2U".into(), token: "dG9rZW4".into(), device: "ZGV2".into(), since: 7 };
+        let hello = Out::Hello { space: "c3BhY2U".into(), token: "dG9rZW4".into(), device: "ZGV2".into(), since: 7, slot: 0 };
         assert_eq!(hello.text(), r#"{"t":"hello","space":"c3BhY2U","token":"dG9rZW4","device":"ZGV2","since":7}"#);
+        let again = Out::Hello { space: "c3BhY2U".into(), token: "dG9rZW4".into(), device: "ZGV2".into(), since: 7, slot: 3 };
+        assert_eq!(again.text(), r#"{"t":"hello","space":"c3BhY2U","token":"dG9rZW4","device":"ZGV2","since":7,"slot":3}"#, "the slot it had, for a space made anew");
+        assert_eq!(serde_json::to_string(&NewSpace { space: "cw".into(), token: "dA".into(), device: "ZA".into(), slot: 0 }).unwrap(), r#"{"space":"cw","token":"dA","device":"ZA"}"#);
+        assert_eq!(serde_json::to_string(&NewSpace { space: "cw".into(), token: "dA".into(), device: "ZA".into(), slot: 2 }).unwrap(), r#"{"space":"cw","token":"dA","device":"ZA","slot":2}"#);
         assert_eq!(Out::Leave.text(), r#"{"t":"leave"}"#);
         let welcome = In::read(r#"{"t":"welcome","slot":2,"head":9,"now":1790000000000,"devices":[1,2],"snapshot":{"upto":4,"data":"AA"},"entries":[{"nr":5,"slot":1,"data":"AQ"}]}"#);
         assert_eq!(
             welcome,
-            Some(In::Welcome { slot: 2, head: 9, now: 1_790_000_000_000, devices: vec![1, 2], live: false, snapshot: Some(Snapshot { upto: 4, data: "AA".into() }), entries: vec![Entry { nr: 5, slot: 1, data: "AQ".into() }] })
+            Some(In::Welcome { slot: 2, head: 9, now: 1_790_000_000_000, devices: vec![1, 2], live: false, snapshot: Some(Snapshot { upto: 4, data: "AA".into() }), entries: vec![Entry { nr: 5, slot: 1, data: "AQ".into() }], epoch: String::new() })
         );
+        assert_eq!(In::read(r#"{"t":"welcome","slot":1,"epoch":"ZXBvY2g"}"#).map(|w| matches!(w, In::Welcome { epoch, .. } if epoch == "ZXBvY2g")), Some(true));
+        assert_eq!(In::read(r#"{"t":"error","code":"unauthorized","epoch":"ZXBvY2g"}"#), Some(In::Error { code: "unauthorized".into(), id: None, epoch: "ZXBvY2g".into() }));
         assert_eq!(In::read(r#"{"t":"welcome","slot":1,"snapshot":null}"#).map(|w| matches!(w, In::Welcome { snapshot: None, .. })), Some(true));
-        assert_eq!(In::read(r#"{"t":"error","code":"too_big","id":"x"}"#), Some(In::Error { code: "too_big".into(), id: Some("x".into()) }));
+        assert_eq!(In::read(r#"{"t":"error","code":"too_big","id":"x"}"#), Some(In::Error { code: "too_big".into(), id: Some("x".into()), epoch: String::new() }));
         assert_eq!(In::read(r#"{"t":"later","from":3}"#), Some(In::Other), "a frame of a later step is left alone");
         assert_eq!(In::read("no json"), None);
         let contents = Contents { v: 1, profiles: vec![Shared { key: "a2V5".into(), name: "Informatik".into() }] };

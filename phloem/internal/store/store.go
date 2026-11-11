@@ -16,6 +16,7 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"embed"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -90,6 +91,7 @@ type Store struct {
 	shut  bool
 	total int64 // sum of spaces.bytes, and RowBytes for every part tombstone (it outlives its space)
 	count int64 // number of spaces
+	epoch []byte
 }
 
 // Space is one space as the store keeps it.
@@ -157,12 +159,29 @@ func Open(dir string) (*Store, error) {
 		_ = w.Close()
 		return nil, fmt.Errorf("failed to read the totals of %s: %w", path, err)
 	}
+	var epoch string
+	err = w.QueryRow("SELECT value FROM meta WHERE key = 'epoch'").Scan(&epoch)
+	if err == nil {
+		s.epoch, err = hex.DecodeString(epoch)
+	}
+	if err != nil || len(s.epoch) != EpochLen {
+		_ = r.Close()
+		_ = w.Close()
+		return nil, fmt.Errorf("failed to read the epoch of %s (%q): %v", path, epoch, err)
+	}
 	s.total += tombstones * RowBytes
 	s.w, s.r = w, r
 	return s, nil
 }
 
 func (s *Store) path() string { return filepath.Join(s.dir, "phloem.db") }
+
+// EpochLen is the length of a database's epoch.
+const EpochLen = 16
+
+// Epoch is what this database is: 16 random bytes it got once (migration 0003). A device that
+// knew another epoch learns that Phloem lost what it held (docs/phloem/protocol.md).
+func (s *Store) Epoch() []byte { return s.epoch }
 
 // dsn: busy_timeout, WAL, synchronous FULL and foreign keys on every connection.
 func dsn(path string) string {
@@ -247,8 +266,9 @@ func (s *Store) write(ctx context.Context, f func(tx *sql.Tx) (dBytes, dSpaces i
 	return nil
 }
 
-// CreateSpace makes a space with the hash of its token, and gives its first device slot 1.
-func (s *Store) CreateSpace(ctx context.Context, id, tokenHash, device []byte, now time.Time) error {
+// CreateSpace makes a space with the hash of its token, and gives its first device slot `slot`:
+// 1 for a new profile, the one it had for a space made anew after Phloem lost it.
+func (s *Store) CreateSpace(ctx context.Context, id, tokenHash, device []byte, slot int, now time.Time) error {
 	ms := now.UnixMilli()
 	return s.write(ctx, func(tx *sql.Tx) (int64, int64, error) {
 		if _, err := tx.ExecContext(ctx, "INSERT INTO spaces (id, token_hash, created, touched, bytes) VALUES (?, ?, ?, ?, ?)", id, tokenHash, ms, ms, RowBytes); err != nil {
@@ -257,7 +277,7 @@ func (s *Store) CreateSpace(ctx context.Context, id, tokenHash, device []byte, n
 			}
 			return 0, 0, err
 		}
-		if _, err := tx.ExecContext(ctx, "INSERT INTO devices (space, device, slot, seen) VALUES (?, ?, 1, ?)", id, device, ms); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO devices (space, device, slot, seen) VALUES (?, ?, ?, ?)", id, device, slot, ms); err != nil {
 			return 0, 0, err
 		}
 		return RowBytes, 1, nil
@@ -341,9 +361,10 @@ func (s *Store) Touch(ctx context.Context, id []byte, now time.Time) error {
 	})
 }
 
-// Join gives a device its slot in a space: the one it has, or the smallest free one of
-// 1..maxSlots (ErrFull when none is). The space is touched.
-func (s *Store) Join(ctx context.Context, id, device []byte, now time.Time, maxSlots int) (int, error) {
+// Join gives a device its slot in a space: the one it has, else `want` where that is one of
+// 1..maxSlots and free (the slot it had before Phloem lost the space: its writes stay numbered
+// in it), else the smallest free one (ErrFull when none is). The space is touched.
+func (s *Store) Join(ctx context.Context, id, device []byte, want int, now time.Time, maxSlots int) (int, error) {
 	slot := 0
 	err := s.write(ctx, func(tx *sql.Tx) (int64, int64, error) {
 		ms := now.UnixMilli()
@@ -378,10 +399,12 @@ func (s *Store) Join(ctx context.Context, id, device []byte, now time.Time, maxS
 		if err := errors.Join(rows.Err(), rows.Close()); err != nil {
 			return 0, 0, err
 		}
-		for n := 1; n <= maxSlots; n++ {
+		if want >= 1 && want <= maxSlots && !taken[want] {
+			slot = want
+		}
+		for n := 1; n <= maxSlots && slot == 0; n++ {
 			if !taken[n] {
 				slot = n
-				break
 			}
 		}
 		if slot == 0 {
