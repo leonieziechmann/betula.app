@@ -47,6 +47,7 @@
 | S6 | OPUS statute PDFs + Gemini enrichment, validated by PDF geometry | `opus4.kobv.de/opus4-btu/files/…` | `radix/internal/gemini/*`, `radix/internal/curriculumscan/*` | files in `statutes/` | plans validated 09-18 … 09-19 | Manual (`scan-curriculum`) |
 | S7 | Legacy unverified AI statute scan | – | `MatchAndLinkCurriculumModules` | – | – | Dead path, see Q3 |
 | S8 | The BTU's page of Grundsatzordnungen, German and English (since 2026-11-10, §17) | `b-tu.de/studium/im-studium/studienorganisation/pruefungen/ordnungen-und-formulare/grundsatzordnungen`, `b-tu.de/en/study/during-studies/study-organization/examinations/regulations-and-forms/basic-regulations` | `service.CrawlGeneralDocuments`, `parser/general_documents.go` | raw_page `btu_general_documents` `de` / `en`, 20 h | – | Radix, every night (§12) |
+| S9 | The BTU's page „Studienorganisation", German and English (since 2026-11-11, §18) | `b-tu.de/studium/im-studium/studienorganisation`, `b-tu.de/en/study/during-studies/study-organization` | `service.CrawlStudyOrganisation`, `parser/study_pages.go` | raw_page `btu_study_organisation` `de` / `en`, 20 h | – | Radix, every night (§12) |
 
 S1–S5 are all views of the same HIS/QIS database. S6 is the legal text. This matters for
 conflict rules: S1–S5 disagreeing with each other points to a scraper bug; S2/S5
@@ -294,6 +295,15 @@ Program, degree, PO version, regulation documents.
 | Sources | **S8**, the BTU's page of Grundsatzordnungen: sections under `<h2>` headings, each with the links of its documents, a section's amendments in a fold („Änderungssatzungen") under it; the English page is built alike, with the BTU's translations where the German page has the regulation and the German amendments. The documents themselves are on OPUS and are not fetched. |
 | Code path | `parser/general_documents.go:ParseGeneralDocuments` → `model.GeneralDocument` → `general_document` (`catalogbuild/documents.go`); topic, kind and issue by `normalize/documents.go`. |
 | Authority | **S8** for which documents there are, their titles and addresses. What a document is about (`topic`), whether it is an amendment (`kind`) and its issue of the Amtsblatt (`issue`) are **derived** (§17): rules on the headings, the folds and the names of the files, never on the titles' dates, some of which are wrong. |
+| Provenance | Rebuilt by every build from the two archived pages (`source_url`); a page that answers 404, is not archived yet or no longer reads yields nothing, and `validate` warns of it. |
+
+### 5.18 The BTU's pages around the study (2026-11-11)
+
+| | |
+|---|---|
+| Sources | **S9**, the BTU's page „Studienorganisation": groups under `<h2>` headings, each a menu of teasers whose tiles are a title that links a page and the sentence under it; the English page is built alike, with its own titles, sentences and addresses. The pages it links are not fetched. |
+| Code path | `parser/study_pages.go:ParseStudyPages` → `model.StudyPage` → `study_page` (`catalogbuild/study_pages.go`). |
+| Authority | **S9** for which pages there are, their groups, titles, sentences and addresses; nothing is derived. |
 | Provenance | Rebuilt by every build from the two archived pages (`source_url`); a page that answers 404, is not archived yet or no longer reads yields nothing, and `validate` warns of it. |
 
 ## 6. Spot-check log
@@ -590,6 +600,7 @@ another server (the CMS, fast, with logs of its own) and is read weekly.
 | module page on b-tu.de (the copy, not QIS) | 7 days | — |
 | QIS program tree | 30 days | — |
 | the BTU's page of Grundsatzordnungen, German and English (the CMS, two requests; §17) | every night (20 h) | — |
+| the BTU's page „Studienorganisation", German and English (the CMS, two requests; §18) | every night (20 h) | — |
 
 The semester QIS calls current stands in the head of every QIS page (`id="choosesemester"`,
 „WiSe 2026/27"; seen on the module table, a module description, event pages, the event search
@@ -1033,3 +1044,38 @@ issue against the list Folia had written by hand (which a test had held to the f
 `TestParseGeneralDocuments*` (parser), `TestGazetteIssue` and `TestGeneralTopic` (normalize),
 `TestGeneralDocumentsFromTheBTUsPage` and `TestValidateWarnsWhenTheBTUsPageYieldsNothing`
 (catalogbuild) hold them.
+
+## 18. The BTU's page „Studienorganisation" (2026-11-11)
+
+Until Folia 1.93.x the BTU's pages around the study — „Rund ums Studium" in „Ordnungen &
+Dokumente": its examinations, the semester's formalities, its services — were written by hand in
+Folia (`study/btu.rs`, 14 of them, in German and English). Since Radix 0.13.0 Radix reads the page
+of the BTU that lists them itself (S9; owner, 2026-11-11: „Mach die Rund ums Studium Seiten auch
+über Radix"), German and English, every night in the off-peak window through Cortex, at the floor
+Cortex keeps for `www.b-tu.de`, and archives both as raw pages of the source
+`btu_study_organisation` (keys `de`, `en`). Offline through Cortex (the canary) it is fetched all
+the same, as the page of Grundsatzordnungen is (§17, `docs/radix/operations.md`, „Offline through
+Cortex"). The pages it links are not read.
+
+**What the build reads.** The content the CMS marks for its search (between `TYPO3SEARCH_begin` and
+`TYPO3SEARCH_end`), there every tile of a menu of teasers (`btu-menu-teaser_element`) with the last
+`<h2>` before it as its group: its title the text of its heading (`btu-menu-teaser_title`), else its
+link's title; its address the link of its heading, else the tile's first link (its picture), with
+its fragment („…/fachstudienberatung#c403684" points into a page); its sentence the text of
+`btu-menu-teaser_abstract`. What is no such tile is left out: the site's menus, the contacts at the
+page's end. On 2026-11-11 both pages had six groups — Quicklinks, Prüfungen (Examinations),
+Formalia (Formalities), Erfolgreich studieren (Study successfully), Besondere Lebenslagen (Special
+life situations), Gesundheit & Versicherung (Health & Insurance) — and 31 tiles; most lead to the
+BTU's site, one to the student body's (the Semesterticket). Nothing is derived: groups, titles and
+sentences are the BTU's, in each language.
+
+**When the page yields nothing.** A page that answered 404, is not archived yet, or whose layout the
+parser no longer reads yields no rows; `validate` warns of it („pages of the BTU's
+Studienorganisation that yield no page"), and Folia says so and leads to the BTU's page, never to an
+older list.
+
+**Checked** on 2026-11-11 against both pages as they were that day (`parser/testdata/
+btu_studienorganisation_de.html`, `…_en.html`): every tile read by hand against the page.
+`TestParseStudyPages*` (parser), `TestStudyPagesFromTheBTUsPage` and
+`TestValidateWarnsWhenTheStudyOrganisationYieldsNothing` (catalogbuild),
+`TestOfflineCycleFetchesTheBTUsPagesLive` (service) hold them.

@@ -60,16 +60,21 @@ type Endpoints struct {
 	// page; "" leaves a page out.
 	GeneralDocumentsDE string
 	GeneralDocumentsEN string
+	// The BTU's page „Studienorganisation", its pages around the study, and its English page; ""
+	// leaves a page out.
+	StudyOrganisationDE string
+	StudyOrganisationEN string
 
 	// Client sends the requests of every stage; nil fetches directly (the crawl's own
 	// clients). Radix sets the one of Cortex (cortex/client, the Go module cortex/) when RADIX_CORTEX_URL
 	// is set.
 	Client *http.Client
-	// LiveClient, where set, sends the requests of the BTU's page of Grundsatzordnungen instead
-	// of Client: offline through Cortex (RADIX_CORTEX_MODE=offline, the canary) one that may
-	// fetch, so that an instance which crawls nothing still has the regulations for every program
-	// (owner, 2026-11-11: „mach doch bitte einfach auf canary"). Two requests at most every 20
-	// hours, and Cortex answers them from its store while its copy is that young.
+	// LiveClient, where set, sends the requests of the BTU's pages of Grundsatzordnungen and
+	// Studienorganisation instead of Client: offline through Cortex (RADIX_CORTEX_MODE=offline, the
+	// canary) one that may fetch, so that an instance which crawls nothing still has the
+	// regulations for every program and the pages around the study (owner, 2026-11-11: „mach doch
+	// bitte einfach auf canary"). Four requests at most every 20 hours, and Cortex answers them from
+	// its store while its copy is that young.
 	LiveClient *http.Client
 }
 
@@ -95,8 +100,10 @@ func BTUEndpoints() Endpoints {
 		EventListURL: qis + "?state=wsearchv&search=1&veranstaltung.veranstid=%[1]s&P_start=0&P_anzahl=%[2]d&P.sort=veranstaltung.veranstnr&P.vx=lang",
 		TreeRootURL: qis + "?state=modulBeschrGast&moduleParameter=modDescr&next=tree.vm&nextdir=qispos/modulBeschr/gast&nodeID=auswahlBaum" +
 			"&navigationPosition=modules%2CmodulBeschrGast&breadcrumb=modDescrViewOnly2&topitem=modules&subitem=modulBeschrGast&asi=",
-		GeneralDocumentsDE: "https://www.b-tu.de/studium/im-studium/studienorganisation/pruefungen/ordnungen-und-formulare/grundsatzordnungen",
-		GeneralDocumentsEN: "https://www.b-tu.de/en/study/during-studies/study-organization/examinations/regulations-and-forms/basic-regulations",
+		GeneralDocumentsDE:  "https://www.b-tu.de/studium/im-studium/studienorganisation/pruefungen/ordnungen-und-formulare/grundsatzordnungen",
+		GeneralDocumentsEN:  "https://www.b-tu.de/en/study/during-studies/study-organization/examinations/regulations-and-forms/basic-regulations",
+		StudyOrganisationDE: "https://www.b-tu.de/studium/im-studium/studienorganisation",
+		StudyOrganisationEN: "https://www.b-tu.de/en/study/during-studies/study-organization",
 	}
 }
 
@@ -119,6 +126,27 @@ func CrawlGeneralDocuments(ctx context.Context, db *catalogdb.DB, ep Endpoints, 
 	for _, page := range []struct{ key, url string }{{"de", ep.GeneralDocumentsDE}, {"en", ep.GeneralDocumentsEN}} {
 		if page.url != "" {
 			jobs = append(jobs, crawl.Job{Source: catalogdb.SourceBTUGeneralDocuments, Key: page.key, URL: page.url})
+		}
+	}
+	if len(jobs) == 0 {
+		return crawl.Stats{}, nil
+	}
+	client := ep.Client
+	if ep.LiveClient != nil {
+		client = ep.LiveClient
+	}
+	return crawl.Run(ctx, db, jobs, crawl.Options{Workers: 1, Delay: pace.Delay, MaxAge: pace.MaxAge, Backoff: pace.Backoff, Client: client})
+}
+
+// CrawlStudyOrganisation archives the BTU's page „Studienorganisation" in German and in English,
+// one request each (keys "de" and "en"): its pages around the study, which the build turns into
+// study_page. The pages it links are not fetched. Endpoints.LiveClient sends them where it is set,
+// else Endpoints.Client.
+func CrawlStudyOrganisation(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Pace) (crawl.Stats, error) {
+	var jobs []crawl.Job
+	for _, page := range []struct{ key, url string }{{"de", ep.StudyOrganisationDE}, {"en", ep.StudyOrganisationEN}} {
+		if page.url != "" {
+			jobs = append(jobs, crawl.Job{Source: catalogdb.SourceBTUStudyOrganisation, Key: page.key, URL: page.url})
 		}
 	}
 	if len(jobs) == 0 {

@@ -6,7 +6,7 @@
 ## 1. Pipeline
 
 ```
-crawl-qis-modules, crawl-modules, crawl-tree, crawl-events, crawl-general-documents ──▶ raw_page ──▶ build ──▶ canonical tables ──▶ validate ──▶ export ──▶ serve-snapshot ──HTTP──▶ web server ──▶ browsers
+crawl-qis-modules, crawl-modules, crawl-tree, crawl-events, crawl-general-documents, crawl-study-organisation ──▶ raw_page ──▶ build ──▶ canonical tables ──▶ validate ──▶ export ──▶ serve-snapshot ──HTTP──▶ web server ──▶ browsers
       (network)                 (archive)   (no network, deterministic)       (gate)      snapshot/     ETag / 304
 scan-curriculum ──▶ plan, plan_entry, plan_total  (validated PDF plans, a source of their own)
 semantic stage (after export) ──▶ module_summary, passage_embedding ──next build──▶ module_vector  (section 6, „Semantic search“)
@@ -14,7 +14,7 @@ semantic stage (after export) ──▶ module_summary, passage_embedding ──
 
 | Step | Command | Package | Notes |
 |---|---|---|---|
-| Archive pages | `radix crawl-qis-modules`, `crawl-modules`, `crawl-tree`, `crawl-events`, `crawl-general-documents` | `radix/internal/crawl`, `radix/internal/catalogdb` (`raw.go`) | One row per page in `raw_page` (gzip body, `source_url`, `fetched_at`, `changed_at`, content hash). Polite: jitter, retries with growing pauses, abort after 10 consecutive failures, resume by `--max-age`. |
+| Archive pages | `radix crawl-qis-modules`, `crawl-modules`, `crawl-tree`, `crawl-events`, `crawl-general-documents`, `crawl-study-organisation` | `radix/internal/crawl`, `radix/internal/catalogdb` (`raw.go`) | One row per page in `raw_page` (gzip body, `source_url`, `fetched_at`, `changed_at`, content hash). Polite: jitter, retries with growing pauses, abort after 10 consecutive failures, resume by `--max-age`. |
 | Study plans | `radix download-statutes`, `radix scan-curriculum` | `radix/internal/curriculumscan`, `radix/internal/gemini`, `catalogdb/plans.go` | Validated plans are stored transactionally (`SavePlan`). The 140 plans of v1 were imported once; that importer is gone. |
 | Build | `radix build` | `radix/internal/catalogbuild`, `radix/internal/normalize`, `radix/internal/qistree` | Parses the archive and replaces all derived tables in **one transaction**; fails on any foreign-key violation. About 20 s for the whole catalog. A parser or normalization fix takes effect by building again, without the network. |
 | Validate | `radix validate` | `catalogdb/validate.go` | Invariants (fail), source problems (warn), numbers (info), count baselines (fail below the minimum). Exit code 1 on failures. |
@@ -56,6 +56,7 @@ is derived and replaced by each build.
 | `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date; `event_date.room_short` is the room's short form („ZHG/HS.A“), `room` keeps the full name; `event_date.series` and `series_weeks` say which single dates are one series (section „Series of single dates“) | the QIS event page where the QIS event search confirms it, else the newer of page and search entry (`docs/radix/data-sources.md` §11); a reading that states nothing of the event is none, and an event without a reading, one BTU removed, is not built; the module page decides which events belong to a module; `room_short` and the series by the build (sections „Short names“, „Series of single dates“) |
 | `event_program`, `event_program_ref` | what an event page lists under „Studiengänge“: the program as QIS names it („Informatik Bachelor (universitäres Profil)“), the Fachsemester, the PO, a remark, the id of QIS's link; and the programs of the catalog each row names (`resolve_status`) | the QIS event page (`docs/radix/data-sources.md` §5.16); resolved by the build (section „Tracks“) |
 | `general_document` | the documents the BTU's page of Grundsatzordnungen lists for every program, German (`lang` `de`) and English (`en`), each in its place on its page (`ord`) with the heading of its section; `topic` what Folia names it for (the Rahmenordnungen, the Immatrikulationsordnung, the FÜS, the Hochschulgesetz; NULL for the rest), `kind` `statute`, `amendment` (in its section's fold of amendments) or `other`, `issue` its issue of the Amtsblatt („13/2016"; NULL where none can be told) | the BTU's page of Grundsatzordnungen (`docs/radix/data-sources.md` §5.17, §17); topic, kind and issue by the build (section „General documents“) |
+| `study_page` | the pages the BTU's page „Studienorganisation" lists around the study, German (`lang` `de`) and English (`en`), each in its place on its page (`ord`) with the heading of its group (`section`), its `title` and the sentence under it (`abstract`; NULL where none) as the BTU writes them, and its `url` | the BTU's page „Studienorganisation" (`docs/radix/data-sources.md` §5.18, §18; section „Study pages“) |
 | `module_choice`, `module_choice_option`, `module_extra` | the choices among a module's events in a semester (within one of its courses where it has them): how many options one takes and what they cover, `program`, `group` or `topic`; their options, each one event or more; the extras beside the compulsory part | build (section „Choices“) |
 | `program_campus`, `module_track`, `module_track_program` | where a program is taught (the SWS of the events QIS lists its family at, and its compulsory modules, per campus); the events of a module that form a course of their own at one campus, where two campuses each hold one; which of them each program takes (`basis` `qis` or `campus`) | build (section „Tracks“) |
 | `module_abbrev`, `program_module_abbrev` | the abbreviation of every module („AuP“), and of every module of every program, unique within the program; `is_override` (a line of the curated file), `choice` (1 = the first candidate; more = it fell back), `is_twin` (`-b`, `-c` after an identical title) | build, from the titles (section „Short names“) |
@@ -122,6 +123,7 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 | `v_program_counterpart` | program × Bachelor/Master counterpart | `program_id, counterpart_id, counterpart_slug, counterpart_name, counterpart_level, counterpart_po_version, match_score` (take the highest) |
 | `v_program_document` | program × document | `program_id, ord, title, doc_type, url` |
 | `v_general_document` | page × document | `lang, ord, section, topic, kind, title, issue, url`: what the BTU has for every program, as its page of Grundsatzordnungen lists it, German and English, in the order of the page; `topic` `framework_bachelor`, `framework_master`, `enrolment`, `fues`, `higher_education_act` or NULL; the regulation of a topic is its first `statute` of the German page, its amendments its `amendment` rows in order, its translation the English page's `statute` that the German page does not list. The titles' dates are the BTU's, and some are wrong: name a document by its `issue` (section „General documents“; schema 19) |
+| `v_study_page` | page × page it lists | `lang, ord, section, title, abstract, url`: the BTU's pages around the study, as its page „Studienorganisation" lists them, German and English, in the order of the page, in its groups („Quicklinks", „Prüfungen", „Formalia", …) (section „Study pages“; schema 20) |
 | `v_department` | department | `id, code, label, name_de, name_en, modules` |
 | `v_semester` | semester | `key, season, year, label, starts_on, ends_on, is_current, teaching_events, exam_events`. `is_current` follows `meta.current_semester`: the calendar decides (April–September summer, October–March winter), but a semester whose schedule is already published wins over it — a semester counts as published once 100 modules have a dated teaching event in it, so that the few events BTU releases early cannot move the catalog. |
 | `program_coverage` | program | `program_id, program_name, degree, po_version, tree_modules, page_modules, plan_entries, plan_entries_linked, modules_without_kind, plan_status` |
@@ -1109,6 +1111,24 @@ and when the German page lacks a topic Folia names („topics Folia names that t
 of Grundsatzordnungen lacks": a heading the rules no longer recognise); it counts the documents
 (info). A snapshot of an older Radix, and one whose page yielded nothing, has no rows: Folia then
 shows the regulation as missing and leads to the BTU's list, never to an address that may be old.
+
+### Study pages (2026-11-11)
+
+The BTU's pages around the study — its examinations, the semester's formalities, its services,
+Folia's „Rund ums Studium" — Folia wrote by hand until 1.93.x (14 of them, in German and English).
+Radix 0.13.0 reads the page that lists them itself (owner, 2026-11-11: „Mach die Rund ums Studium
+Seiten auch über Radix"): the BTU's page „Studienorganisation", German and English (`radix
+crawl-study-organisation`, and in `run` the stage `study-organisation` every night, off-peak,
+`--study-organisation-max-age` 20 h), as raw pages of the source `btu_study_organisation` (keys
+`de`, `en`), and every build turns them into `study_page` (`catalogbuild/study_pages.go`, migration
+0020): every tile of its menus of teasers, in the order of the page, with the heading of its group,
+its title, the sentence under it and its address (`parser.ParseStudyPages`). The pages themselves
+are not fetched. On 2026-11-11 both pages had six groups and 31 tiles.
+
+`validate` warns, and fails nothing, when a page yields no tile („pages of the BTU's
+Studienorganisation that yield no page": not archived, 404, a layout the parser no longer reads),
+and counts them (info). A snapshot whose page yielded nothing has no rows: Folia then says so and
+leads to the BTU's page, never to a list that may be old.
 
 ## 7. Incident note
 
