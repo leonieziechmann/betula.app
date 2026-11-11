@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/leonieziechmann/betula/radix/internal/abbrev"
+	"github.com/leonieziechmann/betula/radix/internal/normalize"
 	"github.com/leonieziechmann/betula/radix/internal/oplog"
 )
 
@@ -230,6 +231,23 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 		"SELECT COUNT(*) FROM module m WHERE m.is_fues = 1 AND NOT EXISTS (SELECT 1 FROM program_module pm WHERE pm.module_id = m.id)", "")
 	v.count("programs without a short degree label", StatusInfo, "SELECT COUNT(*) FROM program WHERE degree_label IS NULL AND degree_level IN ('bachelor', 'master')", "")
 	v.count("events", StatusInfo, "SELECT COUNT(*) FROM event", "")
+
+	// What the BTU has for every program (docs/radix/schema-v2.md, „General documents"): its page of
+	// Grundsatzordnungen in German and in English, and on the German page what Folia names. A page
+	// that yields nothing (not archived yet, a 404, a layout the parser no longer reads) and a
+	// heading the rules no longer recognise leave Folia without those documents, not with old ones.
+	const pages = `(SELECT 'de' AS lang UNION ALL SELECT 'en') WHERE lang NOT IN (SELECT lang FROM general_document)`
+	v.count("pages of the BTU's Grundsatzordnungen that yield no document", StatusWarn,
+		"SELECT COUNT(*) FROM "+pages, "SELECT lang FROM "+pages+" ORDER BY 1")
+	topics := make([]string, len(normalize.GeneralTopics))
+	for i, topic := range normalize.GeneralTopics {
+		topics[i] = "SELECT '" + topic + "' AS topic"
+	}
+	missing := `(` + strings.Join(topics, " UNION ALL ") + `) WHERE topic NOT IN (SELECT topic FROM general_document WHERE lang = 'de' AND topic IS NOT NULL)
+		AND EXISTS (SELECT 1 FROM general_document WHERE lang = 'de')`
+	v.count("topics Folia names that the BTU's German page of Grundsatzordnungen lacks", StatusWarn,
+		"SELECT COUNT(*) FROM "+missing, "SELECT topic FROM "+missing)
+	v.count("documents of the BTU's pages of Grundsatzordnungen", StatusInfo, "SELECT COUNT(*) FROM general_document", "")
 
 	for _, b := range baselines {
 		v.baseline(b)

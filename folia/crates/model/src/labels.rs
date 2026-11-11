@@ -239,6 +239,26 @@ code_enum! {
 }
 
 code_enum! {
+    /// What a document the BTU has for every program is about (`v_general_document.topic`): the
+    /// names „Ordnungen & Dokumente" gives them.
+    GeneralTopic {
+        FrameworkBachelor = "framework_bachelor" => { de: "Rahmenordnung für Bachelor-Studiengänge", en: "General Examination and Study Regulations for Bachelor's programmes" },
+        FrameworkMaster = "framework_master" => { de: "Rahmenordnung für Master-Studiengänge", en: "General Examination and Study Regulations for Master's programmes" },
+        Enrolment = "enrolment" => { de: "Immatrikulationsordnung", en: "Enrolment regulations" },
+        Fues = "fues" => { de: "Ordnung zum Fachübergreifenden Studium", en: "Regulations on interdisciplinary studies (FÜS)" },
+        HigherEducationAct = "higher_education_act" => { de: "Brandenburgisches Hochschulgesetz", en: "Brandenburg Higher Education Act" },
+    }
+}
+
+code_enum! {
+    /// Which of the BTU's two pages of Grundsatzordnungen lists a document (`v_general_document.lang`).
+    SitePage {
+        German = "de" => { de: "Seite der BTU auf Deutsch", en: "The BTU's German page" },
+        English = "en" => { de: "Seite der BTU auf Englisch", en: "The BTU's English page" },
+    }
+}
+
+code_enum! {
     StudySection {
         Basic = "basic" => { de: "Grundstudium", en: "Basic studies" },
         Main = "main" => { de: "Fachstudium", en: "Main studies" },
@@ -380,6 +400,8 @@ pub fn code_sets() -> Vec<(&'static str, Vec<&'static str>)> {
         ("DegreeType", codes::<DegreeType>()),
         ("StudyVariant", codes::<StudyVariant>()),
         ("DocumentType", codes::<DocumentType>()),
+        ("GeneralTopic", codes::<GeneralTopic>()),
+        ("SitePage", codes::<SitePage>()),
         ("StudySection", codes::<StudySection>()),
         ("PlanStatus", codes::<PlanStatus>()),
         ("PlanTotalScope", codes::<PlanTotalScope>()),

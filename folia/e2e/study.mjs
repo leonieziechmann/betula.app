@@ -697,8 +697,8 @@ if (current !== "2026W") {
       plan: rows('.st-docs[aria-labelledby="st-docs-title"] .docpart'),
       more: rows('.st-docs[aria-labelledby="st-docs-more"] .docrow'),
       plain: document.querySelectorAll(".st-over, .st-mx, .prog-head, .matrix, .ptable, .st-sems").length,
-      // What the BTU has for every program (btu.rs): the Rahmenordnung of the degree alone, its
-      // amendments folded; its pages around the study.
+      // What the BTU has for every program (btu.rs, from the snapshot's v_general_document): the
+      // Rahmenordnung of the degree alone, its amendments folded; its pages around the study.
       btu: rows('.st-docs[aria-labelledby="st-docs-btu"] .doclist > li > a.docrow:not(.docpart)').map(([name]) => name),
       folded: [...document.querySelectorAll(".st-docs-fold")].map((fold) => `${fold.open}:${fold.querySelectorAll("a.docrow").length}:${fold.querySelector("a.docrow")?.checkVisibility()}`),
       around: rows('.st-docs[aria-labelledby="st-docs-around"] a.docrow').map(([, , href]) => href),

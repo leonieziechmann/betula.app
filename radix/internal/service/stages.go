@@ -56,6 +56,11 @@ type Endpoints struct {
 	EventListURL  string // fmt template: %[1]s comma-separated QIS event IDs, %[2]d their number; "" skips the event search
 	TreeRootURL   string
 
+	// The BTU's page of Grundsatzordnungen, its documents for every program, and its English
+	// page; "" leaves a page out.
+	GeneralDocumentsDE string
+	GeneralDocumentsEN string
+
 	// Client sends the requests of every stage; nil fetches directly (the crawl's own
 	// clients). Radix sets the one of Cortex (cortex/client, the Go module cortex/) when RADIX_CORTEX_URL
 	// is set.
@@ -84,6 +89,8 @@ func BTUEndpoints() Endpoints {
 		EventListURL: qis + "?state=wsearchv&search=1&veranstaltung.veranstid=%[1]s&P_start=0&P_anzahl=%[2]d&P.sort=veranstaltung.veranstnr&P.vx=lang",
 		TreeRootURL: qis + "?state=modulBeschrGast&moduleParameter=modDescr&next=tree.vm&nextdir=qispos/modulBeschr/gast&nodeID=auswahlBaum" +
 			"&navigationPosition=modules%2CmodulBeschrGast&breadcrumb=modDescrViewOnly2&topitem=modules&subitem=modulBeschrGast&asi=",
+		GeneralDocumentsDE: "https://www.b-tu.de/studium/im-studium/studienorganisation/pruefungen/ordnungen-und-formulare/grundsatzordnungen",
+		GeneralDocumentsEN: "https://www.b-tu.de/en/study/during-studies/study-organization/examinations/regulations-and-forms/basic-regulations",
 	}
 }
 
@@ -92,6 +99,23 @@ func CrawlLists(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Pace) 
 	jobs := []crawl.Job{
 		{Source: catalogdb.SourceModuleCatalog, Key: "list", URL: ep.CatalogURL},
 		{Source: catalogdb.SourceQISFUESList, Key: "list", URL: ep.FUESURL},
+	}
+	return crawl.Run(ctx, db, jobs, crawl.Options{Workers: 1, Delay: pace.Delay, MaxAge: pace.MaxAge, Backoff: pace.Backoff, Client: ep.Client})
+}
+
+// CrawlGeneralDocuments archives the BTU's page of Grundsatzordnungen in German and in English, one
+// request each (keys "de" and "en"): the documents it has for every program, its Rahmenordnungen
+// and the Immatrikulationsordnung among them, which the build turns into general_document. The
+// page links the documents; they themselves are not fetched (they are on OPUS, behind a bot check).
+func CrawlGeneralDocuments(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Pace) (crawl.Stats, error) {
+	var jobs []crawl.Job
+	for _, page := range []struct{ key, url string }{{"de", ep.GeneralDocumentsDE}, {"en", ep.GeneralDocumentsEN}} {
+		if page.url != "" {
+			jobs = append(jobs, crawl.Job{Source: catalogdb.SourceBTUGeneralDocuments, Key: page.key, URL: page.url})
+		}
+	}
+	if len(jobs) == 0 {
+		return crawl.Stats{}, nil
 	}
 	return crawl.Run(ctx, db, jobs, crawl.Options{Workers: 1, Delay: pace.Delay, MaxAge: pace.MaxAge, Backoff: pace.Backoff, Client: ep.Client})
 }

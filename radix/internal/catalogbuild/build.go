@@ -30,6 +30,7 @@ var derivedTables = []string{
 	"program_area", "program_document", "program",
 	"module_successor", "module_prerequisite", "module_text_item",
 	"module_teaching_form", "module_person", "module", "department",
+	"general_document",
 	"meta",
 }
 
@@ -99,6 +100,10 @@ type Report struct {
 	// ModuleVectors counts the modules with a vector for the semantic search (module_vector).
 	ModuleVectors int
 
+	// GeneralDocuments counts the rows of general_document: the documents the BTU's page of
+	// Grundsatzordnungen lists, on its German and its English page.
+	GeneralDocuments int
+
 	// Unused lists archived pages that are not part of the current dataset: module pages
 	// of modules that left the lists, tree pages the root no longer reaches. source → keys.
 	Unused map[string][]string
@@ -158,7 +163,7 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		"modules_with_choices", report.ModulesWithChoices, "choices_program", report.ChoicesByProgram, "choices_group", report.ChoicesInGroups, "choices_topic", report.ChoicesOfTopics, "choice_extras", report.ChoiceExtras,
 		"assertions_page", report.Assertions["module_page"], "assertions_tree", report.Assertions["qis_tree"], "assertions_plan", report.Assertions["pdf_plan"],
 		"abbrev_fell_back", report.AbbrevFellBack, "abbrev_twins", report.AbbrevTwins, "abbrev_changed", report.AbbrevChanged,
-		"module_vectors", report.ModuleVectors, "content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])
+		"module_vectors", report.ModuleVectors, "general_documents", report.GeneralDocuments, "content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])
 	return report, nil
 }
 
@@ -265,6 +270,7 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		{"abbreviations", b.writeAbbreviations}, // needs module and program_module
 		{"search", b.writeSearch},               // needs module and the abbreviations
 		{"module vectors", b.writeModuleVectors},
+		{"general documents", b.writeGeneralDocuments},
 		{"meta", b.writeMeta},
 	}
 	for _, step := range steps {

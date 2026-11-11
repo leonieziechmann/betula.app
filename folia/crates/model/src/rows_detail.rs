@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::{DbError, FromRow, Row};
 use crate::labels::{
-    Campus, ChoiceBasis, ChoiceKind, Code, DegreeLevel, DocumentType, KindBasis, KindSource, LecturerRole, ModuleKind,
-    PlanTotalScope, Relation, ResolveStatus, Rhythm, TeachingForm, TextItemKind, TrackBasis,
+    Campus, ChoiceBasis, ChoiceKind, Code, DegreeLevel, DocumentType, GeneralTopic, KindBasis, KindSource, LecturerRole, ModuleKind,
+    PlanTotalScope, Relation, ResolveStatus, Rhythm, SitePage, TeachingForm, TextItemKind, TrackBasis,
 };
 
 /// `v_module_lecturer`
@@ -517,6 +517,35 @@ pub struct Document {
 impl FromRow for Document {
     fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
         Ok(Self { title: row.text("title")?, doc_type: Code::parse(&row.text("doc_type")?), url: row.text("url")? })
+    }
+}
+
+/// `v_general_document`: a document the BTU's page of Grundsatzordnungen lists for every program,
+/// on its German or its English page, in the order of that page (docs/radix/schema-v2.md, „General
+/// documents").
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct GeneralDocument {
+    pub page: Code<SitePage>,
+    pub topic: Option<Code<GeneralTopic>>,
+    /// The regulation itself, an amendment of it (in its section's fold), or something else.
+    pub kind: Code<DocumentType>,
+    /// What the BTU's page writes for it: its dates are the BTU's, and some are wrong.
+    pub title: String,
+    /// Its issue of the Amtsblatt, „13/2016"; none for a translation or the law.
+    pub issue: Option<String>,
+    pub url: String,
+}
+
+impl FromRow for GeneralDocument {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self {
+            page: Code::parse(&row.text("lang")?),
+            topic: Code::parse_opt(row.opt_text("topic")?),
+            kind: Code::parse(&row.text("kind")?),
+            title: row.text("title")?,
+            issue: row.opt_text("issue")?,
+            url: row.text("url")?,
+        })
     }
 }
 

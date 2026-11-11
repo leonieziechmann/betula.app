@@ -1,15 +1,17 @@
 //! Texts of what „Ordnungen & Dokumente" of „Mein Studium" shows of the BTU as a whole
 //! (`study/btu.rs`): its regulations for every program, and its pages around the study. The
-//! documents are named as the BTU's own pages name them, in each language its pages have.
+//! regulations are named by their topic (`folia_model::labels::GeneralTopic`), as the BTU's own
+//! pages name them, in each language its pages have.
 
 pub struct Texts {
     // „Ordnungen der BTU".
-    /// The panel's title, and what stands under it: for whom, what counts, how old the list is.
+    /// The panel's title, and what stands under it: for whom, what counts, and how old the list is,
+    /// the day Radix read the BTU's page (day, month 1–12, year).
     pub statutes: &'static str,
     pub statutes_lead: &'static str,
-    /// The Rahmenordnungen.
-    pub frame_bachelor: &'static str,
-    pub frame_master: &'static str,
+    pub as_of: fn(u32, u32, i32) -> String,
+    /// What the row of a regulation the data does not have says; it leads to the BTU's list.
+    pub missing: &'static str,
     /// An issue of the Amtsblatt: „ABl. 13/2016".
     pub issue: fn(&str) -> String,
     /// The reading version in an amendment: „Lesefassung, Stand der 5. Änderungssatzung".
@@ -20,14 +22,7 @@ pub struct Texts {
     /// The amendments, folded: „Alle 6 Änderungssatzungen"; one of them: „6. Änderungssatzung".
     pub amendments: fn(usize) -> String,
     pub amendment: fn(usize) -> String,
-    /// The Immatrikulationsordnung, and the suspension of two of its paragraphs.
-    pub enrolment: &'static str,
-    pub enrolment_suspension: &'static str,
-    /// The regulation of the FÜS, and the year it is of.
-    pub fues: &'static str,
-    pub fues_line: &'static str,
-    /// The law of the state the BTU's regulations rest on, and where it is published.
-    pub law: &'static str,
+    /// Where the law of the state the BTU's regulations rest on is published.
     pub law_line: &'static str,
     /// „Bei der BTU": the BTU's own lists, each as a page of it.
     pub at_btu: &'static str,
@@ -60,20 +55,15 @@ pub struct Texts {
 
 pub const DE: Texts = Texts {
     statutes: "Ordnungen der BTU",
-    statutes_lead: "Für alle Studiengänge; welche für dich gilt, sagt deine Prüfungsordnung. Verbindlich ist, was das Amtsblatt der BTU veröffentlicht. Stand der Liste: 10. November 2026.",
-    frame_bachelor: "Rahmenordnung für Bachelor-Studiengänge",
-    frame_master: "Rahmenordnung für Master-Studiengänge",
+    statutes_lead: "Für alle Studiengänge; welche für dich gilt, sagt deine Prüfungsordnung. Verbindlich ist, was das Amtsblatt der BTU veröffentlicht.",
+    as_of: |day, month, year| format!("Stand der Liste: {day}. {} {year}.", month_name(&MONTHS_DE, month)),
+    missing: "Gerade nicht im Datenstand · bei der BTU",
     issue: |issue| format!("ABl. {issue}"),
     reading: |n| format!("Lesefassung, Stand der {n}. Änderungssatzung"),
     english: "Englische Übersetzung",
     not_binding: "nicht verbindlich",
     amendments: |n| if n == 1 { "Die Änderungssatzung".to_string() } else { format!("Alle {n} Änderungssatzungen") },
     amendment: |n| format!("{n}. Änderungssatzung"),
-    enrolment: "Immatrikulationsordnung",
-    enrolment_suspension: "Aussetzung von § 16 Abs. 2 und 3",
-    fues: "Ordnung zum Fachübergreifenden Studium",
-    fues_line: "2010",
-    law: "Brandenburgisches Hochschulgesetz",
     law_line: "Landesrecht, bei BRAVORS",
     at_btu: "Bei der BTU",
     all_statutes: "Alle Grundsatzordnungen",
@@ -104,9 +94,9 @@ pub const DE: Texts = Texts {
 
 pub const EN: Texts = Texts {
     statutes: "BTU regulations",
-    statutes_lead: "For every programme; your examination regulations say which apply to you. What the BTU's Official Gazette publishes is binding. List as of 10 November 2026.",
-    frame_bachelor: "General Examination and Study Regulations for Bachelor's programmes",
-    frame_master: "General Examination and Study Regulations for Master's programmes",
+    statutes_lead: "For every programme; your examination regulations say which apply to you. What the BTU's Official Gazette publishes is binding.",
+    as_of: |day, month, year| format!("List as of {day} {} {year}.", month_name(&MONTHS_EN, month)),
+    missing: "Not in the data right now · at the BTU",
     issue: |issue| format!("Gazette {issue}"),
     reading: |n| format!("Reading version as of the {}", ordinal_amendment(n)),
     english: "English translation",
@@ -117,11 +107,6 @@ pub const EN: Texts = Texts {
         let mut chars = word.chars();
         chars.next().map(|first| first.to_uppercase().chain(chars).collect()).unwrap_or(word)
     },
-    enrolment: "Enrolment regulations",
-    enrolment_suspension: "Suspension of § 16 (2) and (3)",
-    fues: "Regulations on interdisciplinary studies (FÜS)",
-    fues_line: "2010",
-    law: "Brandenburg Higher Education Act",
     law_line: "State law, on BRAVORS",
     at_btu: "At the BTU",
     all_statutes: "All basic regulations",
@@ -149,6 +134,14 @@ pub const EN: Texts = Texts {
     advice: "Advice and support",
     portals: "Portals",
 };
+
+const MONTHS_DE: [&str; 12] = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+const MONTHS_EN: [&str; 12] = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/// The month (1–12) by its name; nothing for what is no month.
+fn month_name(months: &[&'static str; 12], month: u32) -> &'static str {
+    usize::try_from(month).ok().and_then(|month| month.checked_sub(1)).and_then(|at| months.get(at)).copied().unwrap_or_default()
+}
 
 /// „fifth amendment": an amendment by its number, as the BTU's English translations write it.
 fn ordinal_amendment(n: usize) -> String {

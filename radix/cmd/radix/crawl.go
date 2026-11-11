@@ -91,6 +91,28 @@ func runCrawlModules(ctx context.Context, args []string) {
 	finishCrawl("crawl-modules", stats, err)
 }
 
+// runCrawlGeneralDocuments archives the BTU's page of Grundsatzordnungen, German and English: the
+// documents it has for every program.
+func runCrawlGeneralDocuments(ctx context.Context, args []string) {
+	def := service.DefaultConfig()
+	fs := flag.NewFlagSet("crawl-general-documents", flag.ExitOnError)
+	dbPath := fs.String("db", defaultDBPath, "Database path")
+	pace := addPaceFlags(fs, 1, int(def.GeneralDocuments.Delay.Milliseconds()), def.GeneralDocuments.MaxAge)
+	cortex := addCortexFlags(fs)
+	logs := addLogFlags(fs)
+	_ = fs.Parse(args)
+	_, closeLog := logs.setup()
+	defer closeLog()
+
+	db := openDB(*dbPath)
+	defer db.Close()
+	ep := service.BTUEndpoints()
+	ep.Client = cortex.client(cortexclient.ModeCache)
+
+	stats, err := service.CrawlGeneralDocuments(ctx, db, ep, pace())
+	finishCrawl("crawl-general-documents", stats, err)
+}
+
 // runCrawlQISModules archives the QIS module descriptions, the source the catalog
 // is maintained in.
 func runCrawlQISModules(ctx context.Context, args []string) {

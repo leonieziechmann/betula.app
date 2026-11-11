@@ -21,7 +21,7 @@ use folia_model::rows::{
     SearchElsewhere, Semester,
 };
 use folia_model::rows_detail::{
-    AreaNode, AreaPlacement, ChoiceFamily, ChoiceOption, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer,
+    AreaNode, AreaPlacement, ChoiceFamily, ChoiceOption, Counterpart, DateCount, DateRow, Document, EventDate, GeneralDocument, Lecturer,
     LecturerName, ModuleAbbrev, ModuleSemester, ModuleSws, ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, PlanTotalEntry,
     ProgramAbbrev, ProgramDepartmentCount, ProgramLink, ProgramPlanEntry, ProgramPlanTotal, ProgramPlanTotalEntry,
     ProgramVersion, Successor, TextItem, TrackProgram,
@@ -694,6 +694,26 @@ pub fn program_documents(db: &dyn Database, program_id: &str) -> Result<Vec<Docu
         "SELECT title, doc_type, url FROM v_program_document WHERE program_id = ? ORDER BY ord",
         &[Value::from(program_id)],
     )
+}
+
+/// The documents the BTU has for every program that „Ordnungen & Dokumente" names (those with a
+/// topic), German page first, each page in its order.
+pub fn general_documents(db: &dyn Database) -> Result<Vec<GeneralDocument>, DbError> {
+    fetch(
+        db,
+        "general_documents",
+        "SELECT lang, topic, kind, title, issue, url FROM v_general_document WHERE topic IS NOT NULL ORDER BY lang, ord",
+        &[],
+    )
+}
+
+/// When Radix last read the BTU's page of Grundsatzordnungen (RFC 3339), where it has.
+pub fn general_documents_fetched(db: &dyn Database) -> Result<Option<String>, DbError> {
+    let rows = db.query("general_documents_fetched", "SELECT value FROM v_meta WHERE key = 'source.btu_general_documents.newest_fetch'", &[])?;
+    Ok(rows.rows.first().and_then(|row| match row.first() {
+        Some(Value::Text(value)) => Some(value.clone()),
+        _ => None,
+    }))
 }
 
 /// The module tree of a program: every placement of a module in an area, in tree order.

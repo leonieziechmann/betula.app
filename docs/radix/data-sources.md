@@ -46,6 +46,7 @@
 | S5 | QIS program tree (`modulBeschrGast`) | `qisserver3/rds?state=modulBeschrGast…` | `provider/program_tree_provider.go`, `parser/program_tree.go` | `qis:tree:<sha1(url)>`, 7 d | programs 09-11 … 09-17, tree rows 2026-09-17 | Manual (`programs`, `qis-tree`); 1 worker, 300–1000 ms |
 | S6 | OPUS statute PDFs + Gemini enrichment, validated by PDF geometry | `opus4.kobv.de/opus4-btu/files/…` | `radix/internal/gemini/*`, `radix/internal/curriculumscan/*` | files in `statutes/` | plans validated 09-18 … 09-19 | Manual (`scan-curriculum`) |
 | S7 | Legacy unverified AI statute scan | – | `MatchAndLinkCurriculumModules` | – | – | Dead path, see Q3 |
+| S8 | The BTU's page of Grundsatzordnungen, German and English (since 2026-11-10, §17) | `b-tu.de/studium/im-studium/studienorganisation/pruefungen/ordnungen-und-formulare/grundsatzordnungen`, `b-tu.de/en/study/during-studies/study-organization/examinations/regulations-and-forms/basic-regulations` | `service.CrawlGeneralDocuments`, `parser/general_documents.go` | raw_page `btu_general_documents` `de` / `en`, 20 h | – | Radix, every night (§12) |
 
 S1–S5 are all views of the same HIS/QIS database. S6 is the legal text. This matters for
 conflict rules: S1–S5 disagreeing with each other points to a scraper bug; S2/S5
@@ -285,6 +286,15 @@ Program, degree, PO version, regulation documents.
 | Code path | `parser/event.go:parseStudyPrograms` → `model.EventProgram` → `event_program`; resolved to programs by `catalogbuild/eventprograms.go` (`event_program_ref`). |
 | Authority | **S3** for whom the event is meant; the resolution to the catalog's programs is **derived** (`docs/radix/schema-v2.md`, „Tracks“), by name, degree, profile, form of study and PO, every PO of the program where the row names none. A row that resolves to nothing is kept with its label and reported (`build.unresolved_event_programs`), never guessed. |
 | Provenance | Rebuilt by every build from the archived pages; a newer reading of the event search keeps the page's rows. |
+
+### 5.17 What the BTU has for every program (2026-11-10)
+
+| | |
+|---|---|
+| Sources | **S8**, the BTU's page of Grundsatzordnungen: sections under `<h2>` headings, each with the links of its documents, a section's amendments in a fold („Änderungssatzungen") under it; the English page is built alike, with the BTU's translations where the German page has the regulation and the German amendments. The documents themselves are on OPUS and are not fetched. |
+| Code path | `parser/general_documents.go:ParseGeneralDocuments` → `model.GeneralDocument` → `general_document` (`catalogbuild/documents.go`); topic, kind and issue by `normalize/documents.go`. |
+| Authority | **S8** for which documents there are, their titles and addresses. What a document is about (`topic`), whether it is an amendment (`kind`) and its issue of the Amtsblatt (`issue`) are **derived** (§17): rules on the headings, the folds and the names of the files, never on the titles' dates, some of which are wrong. |
+| Provenance | Rebuilt by every build from the two archived pages (`source_url`); a page that answers 404, is not archived yet or no longer reads yields nothing, and `validate` warns of it. |
 
 ## 6. Spot-check log
 
@@ -579,6 +589,7 @@ another server (the CMS, fast, with logs of its own) and is read weekly.
 | QIS module description | 30 days | its row in the module table changed (title, language, credits, FÜS, limitation): the same night. QIS calls another semester current than when the description was read: all of them, 200 a cycle, over about three nights. The module is offered in the semester the catalog presents and its description names none of the semester's events yet: weekly |
 | module page on b-tu.de (the copy, not QIS) | 7 days | — |
 | QIS program tree | 30 days | — |
+| the BTU's page of Grundsatzordnungen, German and English (the CMS, two requests; §17) | every night (20 h) | — |
 
 The semester QIS calls current stands in the head of every QIS page (`id="choosesemester"`,
 „WiSe 2026/27"; seen on the module table, a module description, event pages, the event search
@@ -956,3 +967,64 @@ from its Markdown into the plain text Radix reads, and every choice of more than
 by hand against its text, mandatory and recommended. `TestPrerequisiteChoices` (normalize) holds
 texts of the catalog of both kinds, the unclear ones among them, and
 `TestBuildReadsTheChoicesOfPrerequisites` (catalogbuild) 12202 as QIS renders it.
+
+## 17. The BTU's page of Grundsatzordnungen (2026-11-10)
+
+Until Folia 1.92.0 the regulations the BTU has for every program — the Rahmenordnung for
+Bachelor- and for Master-Studiengänge with their amendments, the Immatrikulationsordnung, the
+Ordnung zum Fachübergreifenden Studium, the Brandenburgisches Hochschulgesetz — were written by
+hand in Folia (`study/btu.rs`), as the BTU's page had them on 2026-11-10, and a check
+(`e2e/btu.mjs`) said when the page and the list drifted apart; someone still had to follow it by
+hand. Since Radix 0.12.0 Radix reads that page itself (S8), German and English, every night in the
+off-peak window through Cortex, at the floor Cortex keeps for `www.b-tu.de` (500 ms, its block page
+refused), and archives both as raw pages of the source `btu_general_documents` (keys `de`, `en`).
+The page changes when the Amtsblatt has a new regulation for every program: a few times a year.
+Only the page is read, never the documents it links: they are on OPUS, which is behind a bot check
+(Anubis), and nothing needs them.
+
+**What the build reads.** The content the CMS marks for its search (between `TYPO3SEARCH_begin`
+and `TYPO3SEARCH_end`; without the marks the whole page but for its head, menus and foot); every
+link after the first `<h2>` belongs to the section of the last one; a link in an
+`accordion-content` belongs to the fold whose `accordion-title` stands beside it; anchors on the
+page itself are not documents. A document's title is the link's text and the words after it up to
+the next link, without „(PDF)" („Satzung über … vom 27. September 2016": the date stands after the
+link). On 2026-11-10 both pages had 13 sections and 50 documents.
+
+**What is derived** (`normalize/documents.go`):
+
+- `topic`, what Folia names: `framework_bachelor` and `framework_master`, every document of the
+  section „Rahmenordnung für Bachelor-Studiengänge" („Framework regulations for Bachelor´s degree
+  programs") and „… Master-Studiengänge" (not those for doctorates); `enrolment`, the section
+  „Immatrikulationsordnung" („Matriculation Regulations"); `higher_education_act`, a title naming
+  the Hochschulgesetz („Higher Education Act"); `fues`, a title naming the Fachübergreifendes
+  Studium („General Studies"). 18 documents of each page; the rest have none.
+- `kind`: `statute` in the section itself, `amendment` in a fold of amendments, `other` in any
+  other fold.
+- `issue`, the issue of the Amtsblatt (owner: documents are named by it, „ABl. 29/2024"): the number
+  begins the name of the file of a document on OPUS or of a file named after the Amtsblatt
+  elsewhere („AMbl-13_2016-RahmenO-BA.pdf", „29_RahmenO.pdf", „Amtsblatt_36_2017_…"); the year is
+  the one the file's name states after the number („13_2016", „39_24"), else the year the old OPUS
+  filed it under („volltexte/2010/"), else the year of the first date in the title — the date of
+  the regulation, whose issue is of the same year as a rule. The titles' dates alone never decide:
+  „Zweite Änderungssatzung der Rahmenordnung für Bachelor-Studiengänge vom 12. September 2016" is
+  ABl. 17/2022, and the English page dates the sixth amendment for Master's programmes 2024, which
+  is ABl. 38/2026. A translation on the BTU's own server has none, though its file's name begins
+  with a number („29-RahmnO_MA_5-…": the Master's is the translation of 30/2024). A document both
+  pages list has the German page's issue. 42 documents of the German page have one.
+
+**When the page yields nothing.** A page that answered 404, is not archived yet, or whose layout the
+parser no longer reads yields no rows, and so does a heading the rules no longer recognise for its
+topic. `validate` warns of both („pages of the BTU's Grundsatzordnungen that yield no document",
+„topics Folia names that the BTU's German page of Grundsatzordnungen lacks"), and Folia shows the
+regulation as missing with the way to the BTU's list, never an older list.
+
+**Canary** does not crawl (`RADIX_CRAWL=cortex-offline`, `deploy/README.md` §12): it rebuilds the
+public site's archive and takes pages from Cortex's store alone. The page reaches it once the public
+site's Radix (0.12.0 or later) has read it, or once anything has fetched it through Cortex.
+
+**Checked** on 2026-11-10 against both pages as they were that day (`parser/testdata/
+btu_grundsatzordnungen_de.html`, `…_en.html`): every document read by hand against the page, every
+issue against the list Folia had written by hand (which a test had held to the files' names).
+`TestParseGeneralDocuments*` (parser), `TestGazetteIssue` and `TestGeneralTopic` (normalize),
+`TestGeneralDocumentsFromTheBTUsPage` and `TestValidateWarnsWhenTheBTUsPageYieldsNothing`
+(catalogbuild) hold them.

@@ -7,7 +7,8 @@ package catalogbuild
 //
 //	BETULA_FIXTURE_DIR=$PWD/snapshot go test ./internal/catalogbuild -run TestWriteFoliaFixture -count=1
 //
-// The numbers are made up; nothing here says anything about the BTU.
+// The numbers are made up; nothing here says anything about the BTU, but for its page of
+// Grundsatzordnungen (general_document), which is the BTU's as it was on 2026-11-10.
 
 import (
 	"context"
@@ -609,6 +610,10 @@ Im zweiten Teil werden Anwendungen aus Forschung und Praxis vorgestellt.</td></t
 			t.Fatalf("SavePlan (Elektrotechnik) failed: %v", err)
 		}
 	}
+
+	// What the BTU has for every program: its page of Grundsatzordnungen as it was on 2026-11-10,
+	// German and English (parser/testdata), the one thing here that is the BTU's own.
+	putGeneralPages(t, db, nil)
 
 	if _, err := Build(context.Background(), db); err != nil {
 		t.Fatalf("Build failed: %v", err)
