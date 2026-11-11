@@ -627,7 +627,9 @@ it Radix fetches directly, as before. Gemini is asked directly either way.
 **Offline through Cortex** (owner, 2026-10-04: „setze das canary radix so ein, dass es cortex im
 offline modus verwendet"). With `--cortex-mode offline` / `RADIX_CORTEX_MODE=offline` (in a deploy
 `RADIX_CRAWL=cortex-offline`) every request goes with `mode=offline`: Radix runs its cycles on what
-Cortex has stored, and nothing reaches the university. A `504 offline-miss` is no failure there:
+Cortex has stored, and nothing reaches the university but the BTU's page of Grundsatzordnungen,
+which Radix 0.12.1 asks for in mode `cache` with an age of 20 h (`docs/radix/operations.md`,
+„Offline through Cortex"). A `504 offline-miss` is no failure there:
 the page is skipped (not retried, not counted towards the abort, the archive keeps what it has)
 and asked for again in the next cycle; Gemini is not asked either. Without `--cortex` the mode
 exits with code 2. The canary's colours run like this: with Cortex's store filled from the public

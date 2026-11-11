@@ -2588,7 +2588,7 @@
         "spec": {
           "id": 3,
           "title": "Mode",
-          "description": "run: crawls the university and builds the catalog. cortex-offline: runs its cycles on what Cortex has stored and fetches nothing (RADIX_CRAWL=cortex-offline, the canary). serve-snapshot: offline (RADIX_CRAWL=off), only serves the snapshot it has. Exactly one instance of a site should crawl.",
+          "description": "run: crawls the university and builds the catalog. cortex-offline: runs its cycles on what Cortex has stored and fetches nothing but the BTU's page of Grundsatzordnungen, through Cortex (RADIX_CRAWL=cortex-offline, the canary). serve-snapshot: offline (RADIX_CRAWL=off), only serves the snapshot it has. Exactly one instance of a site should crawl.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -5104,7 +5104,7 @@
         "spec": {
           "id": 8,
           "title": "Fetches through",
-          "description": "Whether this instance's crawl goes through Cortex (RADIX_CORTEX_URL) or asks the university itself, and whether it reads Cortex's store alone (RADIX_CRAWL=cortex-offline: nothing reaches the university). An instance that serves its snapshot offline fetches nothing.",
+          "description": "Whether this instance's crawl goes through Cortex (RADIX_CORTEX_URL) or asks the university itself, and whether it reads Cortex's store alone (RADIX_CRAWL=cortex-offline: nothing reaches the university but the BTU's page of Grundsatzordnungen, through Cortex). An instance that serves its snapshot offline fetches nothing.",
           "links": [],
           "data": {
             "kind": "QueryGroup",

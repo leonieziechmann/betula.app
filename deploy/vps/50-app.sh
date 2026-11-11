@@ -11,7 +11,7 @@
 # whether the site asks for the password of closed testing (FOLIA_ACCESS_GATE) and whether Radix
 # fetches anything from the university (RADIX_CRAWL; off = it only serves the snapshot it has,
 # stacks/betula.offline.yml; cortex-offline = it runs its cycles on what Cortex has stored and
-# fetches nothing, stacks/betula.cortex-offline.yml). Rollback = the previous tag again; it is
+# fetches nothing but the BTU's page of Grundsatzordnungen, stacks/betula.cortex-offline.yml). Rollback = the previous tag again; it is
 # still loaded (docker image ls 'betula-*').
 #
 # Idempotent: swarm only touches a service whose definition changed. Nothing is deployed unless
@@ -145,7 +145,7 @@ decide_radix_mode() {
   support="$(radix_image_offline)"
   case "${support}" in
     yes)
-      log "Cortex runs (${CORTEX_DETAIL}), and release ${TAG} reads its store alone: Radix runs its cycles on what Cortex has and fetches nothing from the university"
+      log "Cortex runs (${CORTEX_DETAIL}), and release ${TAG} reads its store alone: Radix runs its cycles on what Cortex has and fetches nothing from the university but the BTU's page of Grundsatzordnungen, through Cortex"
       ;;
     no)
       warn "RADIX_CRAWL=cortex-offline, but ${RADIX_IMAGE} is a release from before it (its run has no --cortex-mode): Radix is deployed offline (serve-snapshot) instead. A newer release reads Cortex's store (deploy/ship.sh ${INSTANCE_STACK})"
