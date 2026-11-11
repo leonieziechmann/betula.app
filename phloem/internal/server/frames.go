@@ -70,11 +70,13 @@ type inFrame struct {
 	Upto   *int64 `json:"upto"`
 	Parts  []b64  `json:"parts"`
 	To     *int   `json:"to"` // signal
+	// hello: the slot the device had, for a space Phloem made anew after it lost it (0: none).
+	Slot int `json:"slot"`
 }
 
 // isHello says whether f is a hello as the first frame of a socket must be.
 func (f *inFrame) isHello() bool {
-	return f.T == "hello" && len(f.Space) == spaceLen && len(f.Token) == tokenLen && len(f.Device) == deviceLen && f.Since >= 0
+	return f.T == "hello" && len(f.Space) == spaceLen && len(f.Token) == tokenLen && len(f.Device) == deviceLen && f.Since >= 0 && f.Slot >= 0
 }
 
 // The frames Phloem sends that never change.
@@ -115,9 +117,10 @@ func appendEntry(b []byte, nr int64, slot int, data []byte) []byte {
 	return append(b, '}')
 }
 
-// welcomeFrame answers a valid hello, in one allocation of the size it needs.
-func welcomeFrame(slot int, head, now int64, devices []int, snap *store.Snapshot, entries []store.Entry) []byte {
-	size := 128 + 4*len(devices)
+// welcomeFrame answers a valid hello, in one allocation of the size it needs. epoch is the
+// database's (store.Epoch).
+func welcomeFrame(epoch []byte, slot int, head, now int64, devices []int, snap *store.Snapshot, entries []store.Entry) []byte {
+	size := 160 + 4*len(devices)
 	if snap != nil {
 		size += b64len(len(snap.Data)) + 48
 	}
@@ -136,6 +139,9 @@ func welcomeFrame(slot int, head, now int64, devices []int, snap *store.Snapshot
 	// This Phloem takes signal and turn (step 2): a device sends them only where the welcome says
 	// so, since an older Phloem closes a socket on a frame it does not know.
 	b = append(b, `,"live":true`...)
+	// What this database is: a device that knew another epoch makes what it holds anew here.
+	b = append(b, `,"epoch":`...)
+	b = appendB64(b, epoch)
 	b = append(b, `,"snapshot":`...)
 	if snap == nil {
 		b = append(b, "null"...)
@@ -171,6 +177,14 @@ func storedFrame(id string, nr int64) []byte {
 		Nr int64  `json:"nr"`
 	}{"stored", id, nr})
 	return b
+}
+
+// unauthorizedFrame refuses a hello (a wrong token, or no such space), with the database's epoch:
+// a device that knew another one learns that Phloem lost what it held, and makes its space anew;
+// with the epoch it knew, the space was deleted (Sync beenden) or expired.
+func unauthorizedFrame(epoch []byte) []byte {
+	b := append([]byte(`{"t":"error","code":"unauthorized","epoch":`), appendB64(nil, epoch)...)
+	return append(b, '}')
 }
 
 // errorFrame is an error, of the push id when it has one.

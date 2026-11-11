@@ -312,7 +312,7 @@ func (s *Server) hello(conn *websocket.Conn, addr netip.Addr) *peer {
 	sp, err := s.st.Authenticate(s.ctx, f.Space, f.Token)
 	if errors.Is(err, store.ErrUnauthorized) {
 		s.m.rejected.Inc("unauthorized")
-		s.refuse(conn, errorFrame("unauthorized", ""), statusPolicy, "unauthorized")
+		s.refuse(conn, unauthorizedFrame(s.st.Epoch()), statusPolicy, "unauthorized")
 		return nil
 	}
 	if err != nil {
@@ -353,7 +353,7 @@ func (s *Server) hello(conn *websocket.Conn, addr netip.Addr) *peer {
 		return refuse(errorFrame("full", ""), statusPolicy, "full")
 	}
 	now := s.now()
-	slot, err := s.st.Join(s.ctx, f.Space, f.Device, now, s.lim.MaxDevices)
+	slot, err := s.st.Join(s.ctx, f.Space, f.Device, f.Slot, now, s.lim.MaxDevices)
 	switch {
 	case errors.Is(err, store.ErrFull):
 		s.m.rejected.Inc("full")
@@ -402,7 +402,7 @@ func (s *Server) hello(conn *websocket.Conn, addr netip.Addr) *peer {
 		s.m.closes.Inc("replaced")
 	}
 	r.peers[dkey] = p
-	p.send(outFrame{data: welcomeFrame(slot, sp.Head, now.UnixMilli(), r.slots(), snap, entries), release: release, first: true})
+	p.send(outFrame{data: welcomeFrame(s.st.Epoch(), slot, sp.Head, now.UnixMilli(), r.slots(), snap, entries), release: release, first: true})
 	if old == nil {
 		r.presence(p)
 	}
