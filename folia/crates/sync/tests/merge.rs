@@ -449,3 +449,37 @@ fn one_link_followed_on_two_devices_at_once_is_one_list() {
     b.receive(&unfollowed);
     assert!(folia_sync::schema::retired(&a.doc).collections.contains(&7));
 }
+
+/// Phloem lost what it held, while each device had changed something the other had not heard of
+/// yet (owner, 2026-11-11: „dass es aus den clients rekonstruiert wird"): each sends everything it
+/// holds again, and both end with all of it — a third device that comes later too, from their
+/// writes alone. What both held changes nothing, and a device's next write counts after them.
+#[test]
+fn what_phloem_lost_comes_back_from_the_devices() {
+    let (mut a, mut b) = pair();
+    let common = a.plan(1_000, |d| assert!(d.plan(key("2026W"), "11787", 100, None)));
+    b.receive(&common);
+    // Each changed something the other never got: Phloem lost it with everything else.
+    let _lost_a = a.plan(2_000, |d| assert!(d.plan(key("2026W"), "12104", 200, None)));
+    let _lost_b = b.marks(2_100, |m| m.0.insert(0, ("13977".into(), 2_100)));
+    let _lost_b2 = b.plan(2_200, |d| d.unplan(key("2026W"), "11787", &[]));
+    let again_a = a.writer.replay(&mut a.doc);
+    let again_b = b.writer.replay(&mut b.doc);
+    assert_eq!(again_a.len(), a.doc.entries.len());
+    meet(&mut a, &again_a, &mut b, &again_b);
+    same(&a, &b);
+    assert_eq!(planned(&a, "2026W"), vec!["12104".to_string()], "a's module came, and b's deletion of the common one too");
+    assert!(a.text(Store::Marks).contains("13977"));
+    // A device that comes later gets everything from the writes alone.
+    let mut c = Device::new(3);
+    c.receive(&again_b);
+    c.receive(&again_a);
+    same(&a, &c);
+    // Sent again once more (a reconnect): nothing changes, and nothing counts twice.
+    assert_eq!(a.receive(&again_b), 0);
+    // The next write of a comes after the ones it replayed.
+    let next = a.plan(3_000, |d| assert!(d.plan(key("2027S"), "12101", 300, None)));
+    assert!(next.iter().all(|op| op.seq > again_a.iter().map(|op| op.seq).max().unwrap()));
+    assert_eq!(b.receive(&next), next.len());
+    same(&a, &b);
+}

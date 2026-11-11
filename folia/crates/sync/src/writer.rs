@@ -106,6 +106,27 @@ impl Writer {
 }
 
 impl Writer {
+    /// Every record `doc` holds, deletions included, written again by this device: each keeps its
+    /// value and its clocks and gets a number of this device, so it counts once. For a space
+    /// Phloem lost and the devices make anew (owner, 2026-11-11: „dass es aus den clients
+    /// rekonstruiert wird, falls es mal verloren geht"): every device sends what it holds again,
+    /// a device that holds a record so already changes nothing (the same clock), one that lacks
+    /// it or holds an older write takes it, and of two devices that each wrote one at once both
+    /// see it as they did the first time. In whatever order they arrive, every device ends with
+    /// everything any of them held.
+    pub fn replay(&mut self, doc: &mut Doc) -> Vec<Op> {
+        let dev = self.dev();
+        let mut ops = Vec::with_capacity(doc.entries.len());
+        for (key, entry) in &doc.entries {
+            self.seq = self.seq.saturating_add(1);
+            ops.push(Op { dev, seq: self.seq, key: key.clone(), val: entry.val.clone(), hlc: entry.hlc, created: entry.created, base: entry.base });
+        }
+        for op in &ops {
+            doc.seen.insert(op.dev, op.seq);
+        }
+        ops
+    }
+
     /// A write of one record outside the stores' texts (the devices of a profile, `D|…`, which no
     /// store projects: a build that does not know them keeps them and passes them on): `val`
     /// `None` deletes it. Applied to `doc`; `None` where `doc` holds it so already.
