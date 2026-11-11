@@ -238,7 +238,7 @@ await step("Esc, the mode", () => page.keyboard.press("Escape"), () => !document
 const held = await page.evaluate(() => document.querySelectorAll(".st-card-sem .st-row").length);
 check(held === 6, `the semester holds ${held} modules, not 6`);
 await step("Gesamtplan", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => document.querySelector(".st-cell-add"));
-await step("+ of the Nebenfach in WiSe 2026/27", () => page.click('.st-cell-add[aria-label="Modul hinzufügen: Nebenfach, WiSe 2026/27"]', { force: true }), () => document.querySelector(".st-card-sem.split .st-wb-half .st-wb-pt > b")?.textContent === "Anwendungsfach" && document.querySelector('#sidebar .st-vl[aria-current="page"]')?.textContent.startsWith("Semester") && document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
+await step("+ of the Nebenfach in WiSe 2026/27", () => page.click('.st-cell-add[aria-label="Modul einplanen: Nebenfach, WiSe 2026/27"]', { force: true }), () => document.querySelector(".st-card-sem.split .st-wb-half .st-wb-pt > b")?.textContent === "Anwendungsfach" && document.querySelector('#sidebar .st-vl[aria-current="page"]')?.textContent.startsWith("Semester") && document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
 await step("another view ends it", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => !document.querySelector(".st-wb-half") && document.querySelector(".st-cell-add"));
 const leaks = requests.filter((r) => r.includes("11947") && !r.includes("/pkg/") && !r.includes("/assets/"));
 check(leaks.length === 0, `the plan went into a request: ${leaks.slice(0, 3).join(" | ")}`);
