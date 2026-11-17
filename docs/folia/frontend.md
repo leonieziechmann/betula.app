@@ -1865,28 +1865,40 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       unevenly). They are what the items of the semesters bring as the progress counts them, so
       an area's add up to what its progress holds; planned on the overview's bar is under way and
       planned together.
-    - *The sheet* (`AreasSheet`): under its title what is passed of what the plan asks, then a
-      strip of the four marks, each with its credits over its word — the study's numbers and what
-      the marks mean in one —, then a card per area as the Wahlpflicht has one per choice: its dot
-      and name, what it holds of what it asks („62 / 66 LP"), the Wahlpflicht's bar in its tone
-      (`choose::bar`: passed solid, planned lighter, the modules beyond need hatched, a full bar
-      where all is planned and no „ganz eingeplant"), and its marks with their credits („✓ 34
-      ◐ 16 ○ 12 ◌ 4"); after them „+6 LP über Bedarf", or where nothing is planned yet where the
-      plan puts the area („laut Plan im 5. und 6. FS"). Half up the sheet shows the first areas,
-      where it showed the overview's bar again. What counts towards no area: its credits, its
-      bar hatched.
-    - *An area's dialog* (`AreaDialog`, on a desktop too): the figure under its name, the bar,
-      the strip (all four parts always, one with nothing quiet), then „Deine Module hier" and
-      „Noch offen" (until then „Laut Regelstudienplan") as rows of one kind: the mark, the name
-      over its semester (or over where the plan puts it, „nicht bestanden im SoSe 2026" with the
-      cross for a Wiederholer), the credits. A row with a module is as a whole the way to it
-      beside the page, the plan's open modules too, which were words alone.
-    - *A level up* (Folia 1.97.5; owner, the same day: „es braucht noch einen back button, so
-      dass man eine ebene höher kommt"): an area opened from the sheet has an arrow before its
-      name that leads back to the areas (`Dialog::Area { listed }`, `ModalHead`'s `back`), the
-      sheet staying where it stands; until then the sheet had to be thrown away and opened again
-      for the next area. An area opened from its card on a desktop has no level above it and no
-      arrow. Esc, Back and a finger's throw close the sheet as they close every dialog.
+    - *The areas* („Bereiche", `areas.rs`, `view=progress`): under the title what is passed of
+      what the plan asks, then a strip of the four marks, each with its credits over its word —
+      the study's numbers and what the marks mean in one —, then a card per area as the
+      Wahlpflicht has one per choice: its dot and name, what it holds of what it asks („62 / 66
+      LP"), the Wahlpflicht's bar in its tone (`choose::bar`: passed solid, planned lighter, the
+      modules beyond need hatched, a full bar where all is planned and no „ganz eingeplant"), and
+      its marks with their credits („✓ 34 ◐ 16 ○ 12 ◌ 4"); after them „+6 LP über Bedarf", or
+      where nothing is planned yet where the plan puts the area („laut Plan im 5. und 6. FS"). Not
+      the overview's bar and legend again. What counts towards no area: its credits, its bar
+      hatched.
+    - *An area* (`overview::AreaBody`; on a desktop its dialog, `AreaDialog`, from its card): the
+      figure under its name, the bar, the strip (all four parts always, one with nothing quiet),
+      then „Deine Module hier" and „Noch offen" (until then „Laut Regelstudienplan") as rows of
+      one kind: the mark, the name over its semester (or over where the plan puts it, „nicht
+      bestanden im SoSe 2026" with the cross for a Wiederholer), the credits. A row with a module
+      is as a whole the way to it beside the page, the plan's open modules too, which were words
+      alone; from the dialog it closes the dialog.
+    - *Pages, not sheets* (Folia 1.97.7; owner, the same day: „wenn man auf ein modul klickt von
+      der ansicht, weil das ist modal zu modal und das sieht richtig komisch aus. Also entweder
+      stacken sich modals oder das wird zur eigenen seite"). On a phone the areas were a sheet over
+      the overview, an area the same sheet (with an arrow back to the areas at its head since
+      1.97.5: „es braucht noch einen back button, so dass man eine ebene höher kommt"), and a
+      module of it closed the sheet and came up as a sheet of its own in its place, where closing
+      it left the overview. Now the areas are a page as the Wahlpflicht is, and an area a page
+      behind them as a choice is (`area=<n>`, `area=none` what counts towards none): a module comes
+      up as the sheet over the area's page, the module's sheet as everywhere, and going leaves the
+      page as it was, scrolled where it was. The way a level up is the way back at the head
+      (`chrome::TopBack`): from an area to the areas, from the areas to the overview, through the
+      history where that is the step before (`StudyCtx::area_back`, `view_back`), and Back on
+      Android goes the same way. Pages and not modals stacked: a module's sheet over a modal is
+      nothing the page has (the module beside the page is no `<dialog>`, and a modal leaves what
+      is under it inert), and every other view is a page of a phone already. A desktop keeps its
+      dialog, from which a module opens beside the page; an address of the view shows its page in
+      a panel there, an area's with „‹ Bereiche" at its head.
   - **The views** (owner, 2026-10-14: concept A, „Regelstudienplan und Wahlpflicht werden
     Ansichten von „Mein Studium" – mit deinem Stand darin"; `regular.rs`, `choose.rs`, the data in
     `folia/crates/plans/src/choices.rs`). Until then both were the program's pages, another world
@@ -2063,8 +2075,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     Unten sind dann die rest links aus anpassen"): an overview, and the semesters on either side of
     it. The overview: the headline with „Bereiche ›" and the bar, under it what the bar's parts are
     with their credits („46 bestanden", „50 geplant", „84 offen", „über Bedarf" where some is), a
-    tap anywhere on the box opening the areas as a sheet („The areas as the Wahlpflicht looks",
-    above: a bar and the marks of the statuses for every area; owner, 2026-10-06: „oben die progress bar
+    tap anywhere on the box leading to the areas, a page of their own („The areas as the
+    Wahlpflicht looks", above: a bar and the marks of the statuses for every area; owner, 2026-10-06: „oben die progress bar
     komplett zu einer clickfläche werden, um das menu für den Progress anzuzeigen, aktuell klickt
     sich das auf dem handy komisch", and the same day: „nicht nur der ganze balken, sondern die
     ganze progress box muss klickbar sein"; until then „Bereiche ›" and the bar were two buttons and
@@ -2654,7 +2666,19 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     over several Fachsemester is one of each from the one it is due in on, `PlanLine::due`: the
     Bachelor-Arbeit of „5.–6. FS" is the sixth's, Folia 1.97.4, and the fifth has it under „Aus dem
     6. FS vorziehen", where until then its „Plan übernehmen" took it), the
-    Pflicht not yet planned, its choices as dashed cards with their bars going into their subgroup,
+    Pflicht not yet planned, its choices as dashed cards with their bars going into their subgroup
+    (a card says what its choice asks by the semester's Fachsemester and what of it stands by
+    then, `PlanView::by`, Folia 1.97.6; owner, 2026-11-17: „weil da halt ab semester 3 schon steht,
+    dass man davon 12 lp braucht obwohl man da eigentlich nur 6 braucht. Bei semester 4 würden dann
+    12 lp stehen, wovon 6 schon erfüllt sind. Also nur so viele lp anzeigen, wie bis zu dem
+    semester schon erledigt sein sollten": the Anwendungsfach of the 3. and the 4. FS, 6 LP each,
+    is „0 / 6 LP" in the third semester with „insgesamt 12 LP" beside its span, and „6 / 12 LP" in
+    the fourth once 6 are planned by then; a module of the fourth alone leaves the third's card at
+    „0 / 6 LP", as the Gesamtplan has the third's row open; a row over several Fachsemester asks
+    all of its own from its first on, the plan not saying how it is split, and what is planned up
+    to its last counts. The head of the choice's page in that workbench says the same, its rule the
+    whole; the tree of „Alle Bereiche" has every subgroup as a whole, that being the study. Until
+    then card and head said the whole choice, „0 / 12 LP" from the third semester on),
     the stored placeholders of the semester whose choice is not among them, what is open from the
     Fachsemester before it (the Pflicht's rows that stand nowhere, choices not complete — the FÜS of
     the 1. FS —, what was not passed and is not planned again), then under „Aus dem 4. FS
