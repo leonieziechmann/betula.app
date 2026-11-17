@@ -130,7 +130,8 @@ await go(a.page, "/profile");
 // The mark of a synced profile beside its name (folia_stores::profiles::SyncMark): none while private.
 check(!(await a.page.evaluate(() => Boolean(onPage(".pf-list .sync-mark")))), "A: a private profile is marked as synced on the profile page");
 const activate = a.page.locator("#pf-sync-connect >> visible=true");
-check((await activate.textContent().catch(() => "")).trim() === "Gerät verbinden", "A: no „Gerät verbinden“ on the profile page (is FOLIA_SYNC on?)");
+// A row as those of „Daten" and the Gefahrenzone: „Gerät verbinden" its title and its button's name, „Verbinden" its word.
+check((await activate.getAttribute("aria-label").catch(() => "")) === "Gerät verbinden" && (await activate.textContent().catch(() => "")).trim() === "Verbinden", "A: no „Gerät verbinden“ on the profile page (is FOLIA_SYNC on?)");
 await activate.click().catch(() => {});
 await a.page.getByRole("button", { name: /^Einschalten und Code zeigen$/ }).first().click().catch(() => problems.push("A: no „Einschalten und Code zeigen“ in the dialog"));
 await until("A synced", a.page, () => (localStorage.getItem("betula.sync.p1.status") || "").startsWith("online"), null, 15000);
@@ -190,6 +191,7 @@ check(JSON.stringify(await marksOf(b.page)) === JSON.stringify(await marksOf(a.p
 await go(a.page, "/profile");
 await a.page.click("#pf-sync-code >> visible=true").catch(() => problems.push("A: no „Wiederherstellungscode“"));
 await until("the recovery code", a.page, () => /^[0-9A-Z]{4}(-[0-9A-Z]{4}){12}$/.test(onPage(".pf-code code")?.textContent.trim() || ""), null, 5000);
+check(await a.page.evaluate(() => onPage("#pf-sync-code")?.getAttribute("aria-expanded") === "true" && onPage("#pf-sync-code")?.textContent.trim() === "Verbergen"), "A: the row of the recovery code does not say „Verbergen“ while the code is shown");
 const code = (await a.page.locator(".pf-code code").first().textContent().catch(() => "")).trim();
 const c = await device("C");
 await go(c.page, "/profile");
