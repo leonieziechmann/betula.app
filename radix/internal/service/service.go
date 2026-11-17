@@ -47,6 +47,9 @@ type Config struct {
 	// StudyOrganisation reads the BTU's page „Studienorganisation", German and English, every
 	// night: its pages around the study, which change when the BTU reorganises its site.
 	StudyOrganisation Pace
+	// FUESCatalogs reads the BTU's page „Aktuelle Infos" and the FÜS catalogs it links every
+	// night: a catalog comes each semester, a few weeks into it, and may be issued again.
+	FUESCatalogs Pace
 
 	// EventList asks the QIS event search about the linked events, 250 to a request:
 	// every event once per MaxAge in the off-peak window, and an event whose dates are not
@@ -107,6 +110,7 @@ func DefaultConfig() Config {
 		// 20 hours: every night, whatever time of the night the last reading was.
 		GeneralDocuments:  Pace{Delay: time.Second, MaxAge: 20 * time.Hour},
 		StudyOrganisation: Pace{Delay: time.Second, MaxAge: 20 * time.Hour},
+		FUESCatalogs:      Pace{Delay: time.Second, MaxAge: 20 * time.Hour},
 		EventRetention:    30 * 24 * time.Hour,
 		ArchiveGrace:      7 * 24 * time.Hour,
 		Baselines:         catalogdb.BTUBaselines,
@@ -319,6 +323,9 @@ func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResul
 	})
 	crawlStage("study-organisation", true, catalogdb.SourceBTUStudyOrganisation, func() (crawl.Stats, error) {
 		return CrawlStudyOrganisation(ctx, s.db, s.cfg.Endpoints, s.cfg.StudyOrganisation)
+	})
+	crawlStage("fues-catalogs", true, catalogdb.SourceBTUFUESCatalog, func() (crawl.Stats, error) {
+		return CrawlFUESCatalogs(ctx, s.db, s.cfg.Endpoints, s.cfg.FUESCatalogs, s.now())
 	})
 	crawlStage("modules", true, catalogdb.SourceModulePage, func() (crawl.Stats, error) { return CrawlModules(ctx, s.db, s.cfg.Endpoints, s.cfg.Modules) })
 	// The QIS descriptions carry the events of the semester that runs now, so they

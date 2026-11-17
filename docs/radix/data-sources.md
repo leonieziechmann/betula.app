@@ -47,6 +47,7 @@
 | S6 | OPUS statute PDFs + Gemini enrichment, validated by PDF geometry | `opus4.kobv.de/opus4-btu/files/…` | `radix/internal/gemini/*`, `radix/internal/curriculumscan/*` | files in `statutes/` | plans validated 09-18 … 09-19 | Manual (`scan-curriculum`) |
 | S7 | Legacy unverified AI statute scan | – | `MatchAndLinkCurriculumModules` | – | – | Dead path, see Q3 |
 | S8 | The BTU's page of Grundsatzordnungen, German and English (since 2026-11-10, §17) | `b-tu.de/studium/im-studium/studienorganisation/pruefungen/ordnungen-und-formulare/grundsatzordnungen`, `b-tu.de/en/study/during-studies/study-organization/examinations/regulations-and-forms/basic-regulations` | `service.CrawlGeneralDocuments`, `parser/general_documents.go` | raw_page `btu_general_documents` `de` / `en`, 20 h | – | Radix, every night (§12) |
+| S10 | The BTU's FÜS catalogs: its page „Aktuelle Infos" and the PDF of each semester (since 2026-11-17, §19) | `b-tu.de/studium/im-studium/studienorganisation/quicklinks/aktuelle-infos`, `www-docs.b-tu.de/studierende/public/files/Informationen/FÜS_Katalog_WiSe_2026_27.pdf`, `…_SoSe_2026.pdf` | `service.CrawlFUESCatalogs`, `radix/internal/fuescatalog` | raw_page `btu_fues_catalog_page` `de`, `btu_fues_catalog` by semester, 20 h | – | Radix, every night (§12) |
 | S9 | The BTU's page „Studienorganisation", German and English (since 2026-11-11, §18) | `b-tu.de/studium/im-studium/studienorganisation`, `b-tu.de/en/study/during-studies/study-organization` | `service.CrawlStudyOrganisation`, `parser/study_pages.go` | raw_page `btu_study_organisation` `de` / `en`, 20 h | – | Radix, every night (§12) |
 
 S1–S5 are all views of the same HIS/QIS database. S6 is the legal text. This matters for
@@ -360,12 +361,13 @@ because of what a FÜS module's page names:
   summer's, whose negative lists exclude 286 of the pairs, and 10 in neither. The owner's account of
   a page that names none („Module bei denen das der fall ist machen dann meistens alle oder keine
   Studiengänge der uni da rein") fits: all of the semester's catalog, or none.
-- **Next (owner, the same day: „mach beides, mit Hinweis statt ausblenden").** The FÜS lists from the
-  catalogs of both seasons and their negative lists: a program's FÜS list of a semester is that
-  semester's catalog (or the newest of its season) less the program's Pflicht and Wahlpflicht and
-  its negative list; an exclusion for one Anwendungsfach, Schwerpunkt or Studienrichtung is a note
-  beside the module, not a gap in the list.
-Schema 22, `docs/radix/schema-v2.md` „Membership and kind".
+- **Since schema 23 (Radix 0.14.0; owner, the same day: „mach beides, mit Hinweis statt
+  ausblenden").** The FÜS lists from the catalogs of both seasons and their negative lists (§19): a
+  program's FÜS list of a season is the newest catalog of it less the program's Pflicht and
+  Wahlpflicht and its negative list; an exclusion for one Anwendungsfach, Schwerpunkt or
+  Studienrichtung, and one season's exclusion of a module the other admits, is a note beside the
+  module, not a gap in the list.
+Schemas 22 and 23, `docs/radix/schema-v2.md` „Membership and kind" and „FÜS catalogs".
 
 **Q2. Conflicting module kind (tree vs plan).**
 Evidence: 5.4. Of 438 conflicting pairs, the large groups come from the tree's `Pflicht`
@@ -1111,3 +1113,46 @@ btu_studienorganisation_de.html`, `…_en.html`): every tile read by hand agains
 `TestParseStudyPages*` (parser), `TestStudyPagesFromTheBTUsPage` and
 `TestValidateWarnsWhenTheStudyOrganisationYieldsNothing` (catalogbuild),
 `TestOfflineCycleFetchesTheBTUsPagesLive` (service) hold them.
+
+## 19. The BTU's FÜS catalogs (2026-11-17)
+
+The BTU publishes a „FÜS-Modulkatalog" for every semester, a few weeks into it (the winter's
+2026/27 of 2026-10-14, the summer's 2026 of 2026-03-24): a PDF on `www-docs.b-tu.de` that its page
+„Aktuelle Infos" (Studienorganisation, Quicklinks) links under „FÜS-Modulkatalog zum Wintersemester
+2026/2027". „Im Wintersemester 2026/2027 sind für das Fachübergreifende Studium in Studiengängen an
+der BTU, die im Modulkatalog genannten Module zugelassen. Andere Module dürfen im Fachübergreifenden
+Studium nicht belegt werden. Bitte beachten Sie im Modulkatalog die Negativlisten der Studiengänge,
+die durch die Studiengangsleitungen festgelegt wurden." It lists the modules by campus (Sachsendorf,
+Senftenberg, Zentralcampus: number, title, who teaches it, LP), then the „Liste der Studiengänge"
+with their pages and the „Liste der nicht zugelassenen Module je Studiengang": under a program's
+heading the modules it excludes, some under a part for its degree („für B.Sc", „Nur für M.Sc"),
+its profile („mit anwendungsbezogenem Studienprofil", „mit universitärem und dualem
+Studienprofil"), or a choice („Unabhängig vom Anwendungsfach", „Anwendungsfach Physik", „Schwerpunkt
+Wirtschaftsmathematik", „Studienrichtung Umwelttechnik", „Bei Anwendungsfach Economics and Social
+Sciences:"); „Bitte bei der Studiengangleitung erfragen!" for Bauen und Erhalten (and in the summer
+Landnutzung und Wasserbewirtschaftung), „Keine weiteren Einschränkungen" for a part without
+modules. The winter's: 152 modules, 50 headings, 1,617 lines naming 160 modules; the summer's: 161,
+51, 1,390 naming 172; 53 modules in both.
+
+**How Radix reads it.** `service.CrawlFUESCatalogs` archives the page (`btu_fues_catalog_page`,
+`de`) and every catalog it links, keyed by the semester its text or file name says („2026W"), and,
+while the archive has no copy, the catalogs of the current semester and of the one before by the
+names of the BTU's files (`fuescatalog.CatalogURL`: `F%C3%9CS_Katalog_WiSe_2026_27.pdf`,
+`F%C3%9CS_Katalog_SoSe_2026.pdf`): the page links the current one only. A file not there yet is a
+404, archived as such. Offline through Cortex (the canary) they are fetched all the same, as the
+page of Grundsatzordnungen is (§17). `fuescatalog.ReadRows` takes the PDF apart into rows with the
+positions of their pieces (`github.com/ledongthuc/pdf`), `fuescatalog.Parse` reads the semester from
+the first page, the issue date beside it, the modules (a row that starts with a module number,
+the campus of the „Standort" above it), the list of programs (a name, dots, a page) and the negative
+lists: a row that starts with „-" and a module number is a line, a row further right a title that
+wrapped, a heading the list of programs names a program, another a part. The build maps the
+headings onto the programs (`docs/radix/schema-v2.md`, „FÜS catalogs").
+
+**What QIS makes of it.** A FÜS module's „Zuordnung zu Studiengängen" is the current semester's
+catalog less the negative lists (§7, Q1): every module of the winter's catalog names programs, 111
+of the 137 FÜS modules not in it name none but those they are curricular in, and for Informatik
+B.Sc. it is exactly what the catalog admits for every Anwendungsfach; QIS leaves out what a list
+excludes for one choice, and differs from the negative lists in 8 pairs (Umweltingenieurwesen M.Sc.,
+PO 2021). Anyone can register for any FÜS module in QIS, also for what is not admitted (owner,
+2026-11-17), so the registration says nothing; the catalog is what the Ordnung means.
+

@@ -37,6 +37,7 @@ var commands = [][]command{
 		{"crawl-events", "Look the linked events up in the QIS event search; fetch the event pages it has news for", runCrawlEvents},
 		{"crawl-general-documents", "Archive the BTU's page of Grundsatzordnungen, German and English (its documents for every program)", runCrawlGeneralDocuments},
 		{"crawl-study-organisation", "Archive the BTU's page Studienorganisation, German and English (its pages around the study)", runCrawlStudyOrganisation},
+		{"crawl-fues-catalogs", "Archive the BTU's FÜS catalogs: the one its page Aktuelle Infos links, the one before (the modules of the FÜS and the programs' negative lists)", runCrawlFUESCatalogs},
 		{"prune", "Remove what is not the current dataset: past events, archive pages nothing leads to", runPrune},
 		{"build", "Derive the canonical tables from the raw page archive (no network)", runBuild},
 		{"validate", "Check invariants, source conflicts and count baselines; exit 1 on failures", runValidate},
