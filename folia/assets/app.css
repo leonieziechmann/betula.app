@@ -5837,7 +5837,9 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 }
 /* The box to tick at a row's start (focus.rs `ItemRow`, `.st-sel`; owner, 2026-11-17: „Bei dem pc
    hätte ich gerne auch eine checkbox, die erst eingeblendet wird, wenn der Cursor der nahe kommt
-   oder schon ein Element selected ist"), a desktop's only: a phone holds a row to select it. Its
+   oder schon ein Element selected ist"), and the Merkliste's alike (folia_widgets::list `Row`;
+   the same day: „Merkliste bitte auch so angleichen"), a desktop's only: a phone holds a row to
+   select it. Its
    place is kept whether it shows or not, so that nothing moves as it comes: the row's words begin
    after it, and the heads of the columns, the bar of the rows selected and „Module hinzufügen"
    with them, the box of all of them over the rows' boxes and „Module hinzufügen"'s „+" under
@@ -5851,10 +5853,13 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .st-sems .st-table > .cols { position: relative; padding-left: 48px; }
   .st-sems .st-table > .st-selbar { padding-left: 12px; }
   .st-sems .st-add { padding-left: 11px; gap: 11px; }
+  #bookmarks-scroll #rows .row-wrap > .row { padding-left: 40px; }
+  #bookmarks-scroll .list > .cols { padding-left: 48px; }
+  #bookmarks-scroll .list > .pick-bar { padding-left: 12px; }
   .st-sel { position: absolute; z-index: 1; left: 4px; top: 50%; width: 32px; height: 32px; margin-top: -16px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--r-row); background: transparent; color: var(--on-accent); cursor: pointer; opacity: 0; transition: opacity .12s; -webkit-tap-highlight-color: transparent; }
-  .st-table > .cols > .st-sel { left: 12px; }
+  .cols > .st-sel { left: 12px; }
   .st-selbar > .st-sel { position: static; flex: none; margin: 0; }
-  .st-row:hover > .st-sel, .st-row:focus-within > .st-sel, .st-table > .cols:hover > .st-sel, .st-table.is-selecting .st-sel, .st-sel[aria-checked="true"], .st-sel:focus-visible { opacity: 1; }
+  .row-wrap:hover > .st-sel, .row-wrap:focus-within > .st-sel, .cols:hover > .st-sel, .st-table.is-selecting .st-sel, .list:has(> .pick-bar) .st-sel, .st-sel[aria-checked="true"], .st-sel:focus-visible { opacity: 1; }
   .st-sel:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .st-sel-mark { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--text-3); transition: background .12s, box-shadow .12s; }
   .st-sel-mark > .icon { display: none; width: 12px; height: 12px; stroke-width: 3.2; }
