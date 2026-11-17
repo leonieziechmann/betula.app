@@ -2,12 +2,13 @@
 //! owner, 2026-10-27: „Passt alles, bau Schritt 1 jetzt in Folia"): what a student adds beside what
 //! QIS lists — a job, sport, a Lerngruppe, the Termin of a module QIS has none for.
 //!
-//! The ways in: „+ Termin" in the week's head, under the modules of each calendar (that calendar
-//! chosen), „Termin eintragen" at a module without Termine (that module chosen), a click on a free
-//! stretch of a day of the week (its day and time filled in), and on a phone the round button over
-//! the bar and a finger held on a free stretch of the week (owner, the first question: „+ Termin im
-//! Kopf der Woche, am Handy als runder Knopf über der Leiste; ein Klick auf eine freie Stelle der
-//! Woche, am Handy langes Drücken"). Each opens the form (`OwnForm`), one dialog, on a phone a sheet
+//! The ways in, while the plan is edited (D7; owner, 2026-11-17: the edit mode „weil man dadurch
+//! unnötiges ui ausblenden kann"): „+ Termin" in the mode's bar and on a phone in its dock, under the
+//! modules of each calendar (that calendar chosen), a click on a free stretch of a day of the week
+//! (its day and time filled in), and on a phone a finger held on a free stretch of the week (owner,
+//! the first question: „ein Klick auf eine freie Stelle der Woche, am Handy langes Drücken"); in
+//! both states „Termin eintragen" at a module without Termine (that module chosen) and the empty
+//! week's „+ Termin". Each opens the form (`OwnForm`), one dialog, on a phone a sheet
 //! (`folia_design::modal`): what it is, when — „Jede Woche", „A-Woche", „B-Woche" or „Einmal", which
 //! stand above what they change, the day or the dates (owner, 2026-10-27: „Wenn man solche Buttons
 //! hat, dann ändern die nur den Inhalt unter ihnen") —, the time, the period (the lecture period
@@ -488,7 +489,9 @@ impl Hold {
     pub(super) fn down(self, ev: &leptos::ev::PointerEvent) {
         self.up();
         self.held.set_value(false);
-        if ev.pointer_type() != "touch" {
+        // A finger's alone, and only while the plan is edited (D7): a page for looking makes
+        // nothing of a finger held.
+        if ev.pointer_type() != "touch" || !self.ctx.edit.get_untracked() {
             return;
         }
         let (x, y) = (ev.client_x(), ev.client_y());
@@ -976,32 +979,6 @@ pub(super) fn OwnList(ctx: PlanCtx, calendar: u8, #[prop(into)] hue: Signal<&'st
                 <Icon name="plus"/>{o.add}
             </button>
         </div>
-    }
-}
-
-/// „+ Termin" in the week's head (owner, the first question: „„+ Termin“ im Kopf der Woche"), the
-/// plan's calendar chosen.
-#[component]
-pub(super) fn AddOwn(ctx: PlanCtx) -> impl IntoView {
-    let t = i18n::t();
-    let o = &t.studyplan_own;
-    view! {
-        <button class="mini sp-own-head" type="button" title=o.add_title on:click=move |_| ask_today(ctx, 0, None)>
-            <Icon name="plus"/>{o.add}
-        </button>
-    }
-}
-
-/// On a phone the round button over the bar (owner, the first question: „am Handy als runder Knopf
-/// über der Leiste").
-#[component]
-pub(super) fn OwnFab(ctx: PlanCtx) -> impl IntoView {
-    let t = i18n::t();
-    let o = &t.studyplan_own;
-    view! {
-        <button class="sp-own-fab" type="button" title=o.add_title on:click=move |_| ask_today(ctx, 0, None)>
-            <Icon name="plus"/><span>{o.add}</span>
-        </button>
     }
 }
 

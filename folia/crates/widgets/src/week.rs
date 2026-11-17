@@ -9,11 +9,13 @@
 //! `--lane`, `--lanes` and, where a lane is not one of equal ones, `--wide`, `--mine`, `--theirs`
 //! and `--beside` per slot), and `app.css` turns it into places.
 //!
-//! A slot the page lets act on (the Stundenplan's) has buttons of its own beside its link, over its
-//! bottom right corner (`div.slot-acts > button.slot-act`, each key in `data-act`): „✓" and „×",
-//! what they do in their tooltip, a „✓" that is on filled (`pressed`). The page listens for their
-//! clicks on the grid's box. They come when the slot is pointed at, and stay where a decision is
-//! due or can be taken back (`asks`).
+//! A slot the page lets act on (the Stundenplan's, while it is edited) has buttons of its own beside
+//! its link, over its bottom right corner (`div.slot-acts > button.slot-act`, each key in
+//! `data-act`, its sign in `data-icon`): „✓" and „+" tick, the eye hides, the crossed eye shows
+//! again, the bin deletes (owner, 2026-11-17: „da wo es nur ausblendet das auge und da wo es
+//! entfernt eine Mülltonne"), what they do in their tooltip, a „✓" that is on filled (`pressed`).
+//! The page listens for their clicks on the grid's box. They come when the slot is pointed at or
+//! has the keyboard, and stay where a decision is due or can be taken back (`asks`).
 //!
 //! Slots that stand together (`joint`: the Stundenplan's A-week and B-week Termine of a module at
 //! one time, which never meet each other and clash together) are drawn in one red frame where their
@@ -126,10 +128,9 @@ pub struct GridSlot {
     pub tick: Option<String>,
     /// What a choice in focus leaves behind it: the rest of the plan, which steps back.
     pub dim: bool,
-    /// The key of what a click on the slot's link does besides following it (`data-pre`): a group
-    /// of a choice still open is ticked as its link takes the choice into focus (owner,
-    /// 2026-10-26: „Wenn man auf eine Übung klickt, dann soll die Preselected sein").
-    pub pre: Option<String>,
+    /// Dates of its series the student hid, shown while the plan is edited: the mark in its corner
+    /// (`.slot-hid`), as `edited` is one.
+    pub hides: bool,
     /// The initial of the calendar of one's own a slot in full belongs to („L"), in its corner.
     pub badge: Option<String>,
     /// A Termin of one's own (folia/design/kalender/termine.html): the mark „von dir" in its corner
@@ -158,7 +159,7 @@ pub struct GridBand {
     pub title: String,
 }
 
-/// A button the page puts on a slot: its icon („check", „x"), what it does in words (its name and
+/// A button the page puts on a slot: its icon („check", „plus", „eye", „eye-off", „trash-2"), what it does in words (its name and
 /// tooltip), the key the page knows it by (`data-act`), and whether it is on (`aria-pressed`: a
 /// „✓" of what was taken, whose click takes it back).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
@@ -611,6 +612,7 @@ fn slot_view(slot: &GridSlot, style: String, marks: &Marks, framed: bool) -> Any
         {slot.badge.clone().map(|badge| view! { <i class="slot-who" aria-hidden="true">{badge}</i> })}
         {slot.own.then(|| view! { <i class="slot-own" aria-hidden="true"><Icon name="user-round"/></i> })}
         {slot.edited.then(|| view! { <i class="slot-pen" aria-hidden="true"><Icon name="pencil"/></i> })}
+        {slot.hides.then(|| view! { <i class="slot-hid" aria-hidden="true"><Icon name="eye-off"/></i> })}
         {slot.chosen.then(|| view! { <i class="slot-tick" aria-hidden="true"><Icon name="check"/></i> })}
     };
     // Beside the link, not inside it, in a box of the slot's size (its style), which lets every
@@ -634,7 +636,7 @@ fn slot_view(slot: &GridSlot, style: String, marks: &Marks, framed: bool) -> Any
             <a class=class href=format!("#{first}") data-action="termin" data-lines=slot.lines.join(" ") style=style title=title aria-current=current>{label}{small}{place}</a>
         }
         .into_any(),
-        (None, Some(href)) => view! { <a class=class href=href data-noscroll="" data-pre=slot.pre.clone() style=style title=title aria-current=current>{label}{small}{place}</a> }.into_any(),
+        (None, Some(href)) => view! { <a class=class href=href data-noscroll="" style=style title=title aria-current=current>{label}{small}{place}</a> }.into_any(),
         (None, None) => view! { <div class=class style=style title=title aria-current=current>{label}{small}{place}</div> }.into_any(),
     };
     view! { {drawn}{act} }.into_any()

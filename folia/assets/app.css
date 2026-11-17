@@ -4029,6 +4029,100 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .sp-focusbar .btn:hover { background: color-mix(in srgb, var(--on-invert) 24%, transparent); }
 .sp-focusbar .btn.on { background: var(--on-invert); color: var(--invert); }
 .sp-focusbar kbd { padding: 1px 5px; background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-invert) 32%, transparent); color: color-mix(in srgb, var(--on-invert) 75%, transparent); }
+/* The Stundenplan looked at and edited (studyplan/edit.rs; owner, 2026-11-17: „bei dem Kalender einen
+   edit modus hinzuzufügen, weil man dadurch unnötiges ui ausblenden kann"). „Bearbeiten" last in the
+   head (a.sp-edit-toggle, pressed while editing). Under the head one row of a fixed height
+   (div.sp-status), wider than a phone: the sum and „3 Wahlen offen ›" while looking (div.sp-look), the
+   mode's bar while editing (div.sp-editbar, the workbench's accent-soft; the dark bar stays the
+   focus's), the bar of a choice in focus — each 46px tall, so that the week begins at the same place
+   in every state (critique A.3: no slot moves a pixel). */
+.sp-head .sp-edit-toggle { flex: none; margin-left: auto; }
+.sp-head :is(.sp-together, .sp-weeks, .sp-weekpick) ~ .sp-edit-toggle { margin-left: 6px; }
+.sp-head .sp-together + .sp-weeks { margin-left: 6px; }
+.sp-edit-toggle.on { background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.sp-status { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
+.sp-status > :first-child { box-sizing: border-box; height: 46px; min-height: 46px; }
+.sp-look { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sp-look > .sp-sum { flex: 1 1 auto; min-width: 0; margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sp-open-way { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 6px 0 10px; border-radius: var(--r-ctl); color: var(--text); font-size: 13px; text-decoration: none; }
+.sp-open-way:hover { background: var(--warn-soft); text-decoration: none; }
+.sp-open-way > .icon { width: 16px; height: 16px; color: var(--warn); }
+.sp-open-way > .chev { width: 15px; height: 15px; color: var(--text-3); }
+.sp-open-way b { font-weight: 650; }
+.sp-editbar { display: flex; align-items: center; gap: 8px; padding: 5px 6px 5px 8px; border-radius: 10px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--accent-ink); }
+.sp-editbar .eb-ic { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; background: var(--panel); }
+.sp-editbar .eb-ic .icon { width: 15px; height: 15px; }
+.sp-editbar .eb-text { flex: 1 1 auto; min-width: 0; display: grid; line-height: 1.3; }
+.sp-editbar .eb-text > b { overflow: hidden; font-size: 13.5px; font-weight: 700; white-space: nowrap; text-overflow: ellipsis; }
+.sp-editbar .figs { display: flex; align-items: center; min-width: 0; overflow: hidden; color: var(--text-2); font-size: 12px; white-space: nowrap; }
+.sp-editbar .figs:empty { display: none; }
+.sp-editbar .eb-open { display: inline-flex; align-items: center; gap: 1px; color: var(--warn); font-weight: 650; }
+.sp-editbar .eb-open .chev { width: 13px; height: 13px; transition: transform .2s var(--ease); }
+.sp-editbar .eb-open[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.sp-editbar .eb-open-fig { display: none; color: var(--warn); font-weight: 650; }
+.sp-editbar .eb-hid { white-space: pre; }
+.sp-editbar .btn { flex: none; min-height: 32px; padding: 0 11px; border-radius: 7px; gap: 6px; background: var(--panel); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent-line); font-size: 12.5px; font-weight: 650; }
+.sp-editbar .btn:hover { background: var(--panel-2); }
+.sp-editbar .btn .icon { width: 14px; height: 14px; }
+.sp-editbar .sp-done { background: var(--accent); color: var(--on-accent); box-shadow: none; }
+.sp-editbar .sp-done:hover { background: var(--accent); filter: brightness(1.08); }
+.sp-editbar .sp-done kbd { padding: 1px 5px; background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-accent) 40%, transparent); color: color-mix(in srgb, var(--on-accent) 80%, transparent); }
+.sp-open-under .sp-open-rows { gap: 6px; }
+/* Beside the week „Offen" stands in the module column while editing: the bar's figure is words. */
+@container page (min-width: 900px) {
+  .sp-editbar .eb-open, .sp-open-under { display: none; }
+  .sp-editbar .eb-open-fig { display: inline; }
+}
+/* While looking a free stretch of the week does nothing; while editing it makes a Termin. */
+.sp:not(.sp-edit) .sp-body .sp-week .week .col { cursor: default; }
+/* The slots' buttons (D22): the eye of what the week shows and the crossed eye of what is faint
+   answer as the module's eyes do (hiding is no deleting: no red); the bin takes the red when pointed
+   at; „✓" and „+" stay green. They show while the slot has the keyboard too (D5). */
+.slot:focus-visible + .slot-acts { opacity: 1; }
+.slot-act:is([data-icon="eye"], [data-icon="eye-off"]) { color: var(--text-2); }
+.slot-act:is([data-icon="eye"], [data-icon="eye-off"]) .icon { stroke-width: 2.2; }
+.slot-act:is([data-icon="eye"], [data-icon="eye-off"]):hover { background: var(--panel-3); color: var(--text); }
+.slot-act[data-icon="trash-2"] .icon { stroke-width: 2.2; }
+.slot-act[data-icon="trash-2"]:hover { background: var(--no); color: var(--panel); box-shadow: none; }
+.sp-dayrow .slot-act:is([data-icon="eye"], [data-icon="eye-off"], [data-icon="trash-2"]) { color: var(--text-3); }
+/* A series some of whose dates are hidden, while editing (i.slot-hid): the crossed eye in its
+   corner, as the pen of a changed one, left of the other marks. */
+.slot > .slot-hid { position: absolute; right: 3px; bottom: 3px; display: grid; place-items: center; width: 15px; height: 15px; border-radius: 4px; background: var(--panel); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint, var(--text-3)) 60%, transparent); color: var(--tint, var(--text-3)); }
+.slot > .slot-hid .icon { width: 10px; height: 10px; stroke-width: 2.4; }
+.slot > :is(.slot-own, .slot-pen, .slot-who, .slot-tick) ~ .slot-hid { right: 21px; }
+.slot > :is(.slot-own, .slot-pen) ~ :is(.slot-own, .slot-pen) ~ .slot-hid { right: 39px; }
+.slot.brief > .slot-hid { display: none; }
+.slot.tinted:not(.alt, .extra, .visit) > .slot-hid { background: var(--on-mod); box-shadow: none; color: var(--mod-fill); }
+/* The group „Kalender" in both states: its head holds „+ Kalender" while editing at the height it
+   has without it, and each calendar's row the place of its „…" (span.sp-cal-end), empty while
+   looking, so that „Export" under the group never moves. */
+.sp-cals-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; }
+.sp-cals-head > .flabel { margin: 0; }
+.sp-cals-head > .sp-cal-add { width: auto; min-height: 28px; margin: 0; padding: 0 9px; outline: none; color: var(--accent-ink); }
+.sp-cal > .sp-cal-end { display: grid; place-items: center; width: 32px; height: 32px; }
+.sp-cal.mine { grid-template-columns: 12px minmax(0, 1fr); }
+.sp-cal-newrow { display: grid; gap: 6px; }
+.sp-cal-newrow > .sp-cal-add { margin-top: 0; }
+.sp-share-group, .sp-plans { min-width: 0; }
+/* The mode on a phone (div.sp-editdock): the box of the workbench's dock (.bench-dock), in the tab
+   bar's place and over it; gone while the keyboard is up. The amber line of „Offen" while looking is
+   a link into the mode (a.sp-open-line.way). */
+.sp-editdock { display: none; }
+@media (max-width: 900px) {
+  .sp-editdock { position: fixed; z-index: 35; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px; height: 62px; padding: 6px 7px 6px 16px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--accent-line); animation: st-bar-up .2s var(--ease); }
+  .sp-editdock-w { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+  .sp-editdock-w > b { overflow: hidden; color: var(--accent-ink); font-size: 14.5px; font-weight: 700; white-space: nowrap; text-overflow: ellipsis; }
+  .sp-editdock-w > span { overflow: hidden; color: var(--text-2); font-size: 12px; font-weight: 560; white-space: nowrap; text-overflow: ellipsis; }
+  .sp-editdock .btn { flex: none; height: 46px; min-height: 46px; padding: 0 14px; border-radius: 12px; font-size: 14px; }
+  .sp-editdock .btn .icon { width: 16px; height: 16px; }
+  :root[data-keyboard] .sp-editdock { display: none; }
+  a.sp-open-line.way { display: grid; grid-template-columns: 32px minmax(0, 1fr) 16px; align-items: center; gap: 10px; min-height: 50px; padding: 6px 12px 6px 8px; color: var(--text); text-decoration: none; }
+  a.sp-open-line.way .t { min-width: 0; }
+  a.sp-open-line.way b { display: block; font-size: 14px; font-weight: 650; line-height: 1.25; }
+  a.sp-open-line.way small { display: block; overflow: hidden; color: var(--text-2); font-size: 12px; line-height: 1.3; white-space: nowrap; text-overflow: ellipsis; }
+  .sp-head .sp-edit-toggle { min-height: 44px; padding: 0 12px; }
+  .sp-cal > .sp-cal-end { width: 44px; height: 44px; }
+}
 /* The week while a choice is in focus (week.rs `focus_slots`): its groups, each the box that ticks
    it (button.slot.pick, ticked .on, its box i.pick-box at its bottom right), over the rest of the
    plan, which steps back (.dim, 42 %; owner, 2026-10-26). A group hatched in its tone while not

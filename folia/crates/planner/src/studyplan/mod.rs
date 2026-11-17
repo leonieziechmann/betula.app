@@ -9,15 +9,16 @@
 //! 2026-11-04, are read past); `full=1` lets that module fill the page
 //! with its whole page, inside the plan's area (a local view, `folia_widgets::local`).
 //!
-//! The page is one frame (`ui::Frame`, R17): the sidebar „Anpassen" (`side.rs`: the calendars,
-//! „Export", the plan as a whole and the saved plans),
+//! The page is one frame (`ui::Frame`, R17): the sidebar „Stundenplan" (`side.rs`: the calendars,
+//! „Export", „Teilen …", and while editing the plans saved before),
 //! the plan in the main column (`head.rs`, `week.rs`, `exams.rs`) with its modules in a column
 //! beside it where the page is wide enough, else under it (`modules.rs`), and the module opened
 //! from it floating over the page at its right edge, as the catalog's preview does (`aside.rs`).
 //! The week is there before anything is planned (owner, 2026-09-25), with what to do in its middle.
-//! Its parts share one `PlanCtx`: the memos below, built once per page. On a phone the sidebar is
-//! a sheet, opened by „Anpassen" (`SheetToggle`), „Export" (`export.rs`) stands under the
-//! Termine instead of in it, and the module beside the plan is the page.
+//! The page is looked at or edited (`edit.rs`, `PlanCtx::edit`): only the mode adds the page's own
+//! controls. Its parts share one `PlanCtx`: the memos below, built once per page. On a phone there
+//! is no sidebar: the calendars stand in a line over the week, „Export" and „Teilen …" under the
+//! Termine, the mode is a dock in the tab bar's place, and the module beside the plan is the page.
 //!
 //! The memo graph keeps to R16 (docs/folia/frontend.md): no closure reads a source together with a memo
 //! derived from it. The semester shown depends on the plan (the default semester, B.4), so it is
@@ -32,6 +33,7 @@
 mod add;
 mod aside;
 mod calendars;
+mod edit;
 mod exams;
 mod export;
 mod head;
@@ -75,13 +77,14 @@ use folia_shell::frame::{ErrorState, Frame};
 use folia_design::ui::Icon;
 use self::aside::PlanModulePanel;
 use self::calendars::{CalendarLine, CalendarModules};
+use self::edit::EditDock;
 use self::exams::ExamsView;
 use self::export::CalendarGroup;
 use self::head::{marked_offered, DerivedLine, ExamAlerts, MarkedNote, NothingPlanned, Overlaps, SemesterHead};
 use self::modules::ModuleList;
-use self::open::{FocusBar, OpenLine, OpenPanel, PickSheet};
-use self::own::{OwnFab, OwnForm, OwnNote};
-use self::side::PlanSidebar;
+use self::open::{OpenLine, OpenPanel, PickSheet};
+use self::own::{OwnForm, OwnNote};
+use self::side::{PlanSidebar, SavedPlans, ShareGroup};
 use self::termin::{PlanTerminFull, PlanTerminModal};
 use self::week::{DatesView, WeekLoose, WeekView};
 
@@ -149,12 +152,13 @@ pub(super) struct PlanCtx {
     /// the status row and what the mode reveals answer in the frame of the click (R21). Made of `url`: no
     /// closure reads it and `url` (R16). The week's slots follow the address itself (`week::base_of`).
     pub edit: Memo<bool>,
-    /// „Alle Termine": „Woche" shows every Termin of the planned modules, what the plan leaves out
-    /// faint (owner, 2026-09-25). A view setting of the page, not stored.
-    pub all: RwSignal<bool>,
+    /// „Offen"'s rows stand unfolded over the week (a page without the column beside it): set by the
+    /// way „3 Wahlen offen ›" into the mode, flipped by the bar's figure, off again once the mode is
+    /// left. A view setting of the page, not stored.
+    pub unfolded: RwSignal<bool>,
     /// The phone's layout is in use (`nav::is_phone`, following the window): there the week is a
-    /// carousel of its weeks over the list of its days, and the calendar stands under the Termine
-    /// instead of in the sidebar, which is a sheet there („Anpassen").
+    /// carousel of its weeks over the list of its days, and the calendar, „Export" and „Teilen …"
+    /// stand in the page instead of in a sidebar.
     pub phone: RwSignal<bool>,
     /// On a phone the list of the week's days under its grid is open (owner, 2026-09-27: closed
     /// until asked for). A view setting of the page, not stored; it outlasts the module opened
@@ -273,10 +277,9 @@ pub fn StudyplanPage() -> impl IntoView {
     // Where the app is going: the mode follows a click on its way (`PlanCtx::edit`), the module
     // beside the plan as well (`target`, below).
     let going = Pending::expect();
-    let editing = |url: &StudyplanUrl| url.edit || url.wahl.is_some();
     let edit = Memo::new(move |_| match going.and_then(|going| going.search_on(url::STUDYPLAN)) {
-        Some(search) => editing(&StudyplanUrl::parse(&search)),
-        None => url.with(editing),
+        Some(search) => edit::on(&StudyplanUrl::parse(&search)),
+        None => url.with(edit::on),
     });
     let ctx = PlanCtx {
         url,
@@ -293,7 +296,7 @@ pub fn StudyplanPage() -> impl IntoView {
         undo: RwSignal::new(None),
         weeks: RwSignal::new(Weeks::All),
         edit,
-        all: RwSignal::new(false),
+        unfolded: RwSignal::new(false),
         phone: phone_layout(),
         days: RwSignal::new(false),
         calendars: calendars::shown_calendars(url, current, plan, source, today),
@@ -310,6 +313,12 @@ pub fn StudyplanPage() -> impl IntoView {
             ctx.undo.set(None);
         }
         profile
+    });
+    // „Offen" folds again once the mode is left: the next way in decides anew.
+    Effect::new(move |_| {
+        if !edit.get() {
+            ctx.unfolded.set(false);
+        }
     });
 
     // What fills the page: the plan, or the module after „Vollbild" (until then the plan's panel of
@@ -336,10 +345,14 @@ pub fn StudyplanPage() -> impl IntoView {
         };
         shown && !empty.get()
     });
+    // The module beside the plan by its id: entering or leaving the mode with a module beside the
+    // plan is a step beside the same module, which shows no skeleton.
+    let open_id = Memo::new(move |_| url.with(|url| url.open.clone()));
     let aside = move || {
         let there = open.get();
         let coming = target.with(|to| to.as_ref().is_some_and(beside));
-        if coming && (!there || going.is_some_and(|going| going.waits(Change::Aside))) {
+        let other = target.with(|to| to.as_ref().is_some_and(|to| open_id.with(|id| to.open != *id)));
+        if coming && (!there || (other && going.is_some_and(|going| going.waits(Change::Aside)))) {
             return view! { <DetailSkeleton aside=true calm=there module=true/> }.into_any();
         }
         view! { <PlanModulePanel ctx/> }.into_any()
@@ -350,12 +363,20 @@ pub fn StudyplanPage() -> impl IntoView {
             return view! { <PlanTerminFull ctx/> }.into_any();
         }
         if let Some(id) = filling.get() {
-            let back = address.with_untracked(folia_routes::local::back_href);
+            // „Zurück" of a module that is none of the study's week (a calendar's module, D13): the
+            // plan without the panel, which would only say „Nicht im Studienplan.".
+            let ours = wanted.with_untracked(|wanted| wanted.1.contains(&id));
+            let back = address.with_untracked(|address| match ours {
+                true => folia_routes::local::back_href(address),
+                false => t.path(&address.url.with_open(None, None).path()),
+            });
             return view! { <ModuleInPlace id area=Area::Studyplan back/> }.into_any();
         }
         view! {
             <Title text=t.studyplan.title/>
-            <Frame title=t.studyplan.customise sheet=true sidebar=move || view! { <PlanSidebar ctx/><StorageHint/> } aside aside_picked=picked>
+            // The sidebar „Stundenplan" beside the page; a phone has its groups in the page and,
+            // after it, the storage hint and the saved plans (`side.rs`).
+            <Frame title=t.studyplan.title sidebar=move || view! { <PlanSidebar ctx/><StorageHint/><SavedPlans ctx/> } aside aside_picked=picked>
                 <PlanSeo/>
                 // The page in the mode: what it reveals and hides is styled under `.sp-edit`.
                 <div class="page-inner sp" class:sp-edit=move || ctx.edit.get()>
@@ -425,22 +446,23 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
                 None => view! {
                     <ExamAlerts ctx/>
                     <Overlaps ctx/>
-                    // What is left to choose, over the week where the page is narrow (`open.rs`),
-                    // and the choice in focus: over the week of a wide screen, on a phone a sheet
-                    // under it (H1 of folia/design/kalender/handy.html).
-                    <OpenLine ctx/>
+                    // On a phone what is left to choose, over the week (`open.rs`): a way into the
+                    // mode while looking, its rows while editing. Wider, the status row under the
+                    // head says it, and the choice in focus stands there (`edit.rs`).
+                    {move || ctx.phone.get().then(|| view! { <OpenLine ctx/> })}
                     // On a phone the calendars of one's own in a line over the week, where there
-                    // are any (`calendars.rs`; the sidebar's group is in „Anpassen").
+                    // are any, in both states (`calendars.rs`).
                     {move || (ctx.phone.get() && weekly.get()).then(|| view! { <CalendarLine ctx/> })}
-                    {move || (!ctx.phone.get()).then(|| view! { <FocusBar ctx/> })}
                     <div class="sp-view">{view}</div>
+                    // The choice in focus on a phone: a sheet under the week (H1 of
+                    // folia/design/kalender/handy.html).
                     {move || ctx.phone.get().then(|| view! { <PickSheet ctx/> })}
-                    // On a phone the calendar stands under the Termine, in every view (owner,
-                    // 2026-09-27: in „Anpassen", among what is shown, nobody finds it); with
-                    // nothing planned there is nothing to export.
-                    {move || (ctx.phone.get() && modules.get()).then(|| view! { <section class="sp-export"><CalendarGroup ctx/></section> })}
-                    // On a phone „+ Termin" is the round button over the bar (`own.rs`).
-                    {move || ctx.phone.get().then(|| view! { <OwnFab ctx/> })}
+                    // On a phone „Export" and „Teilen …" stand under the Termine, in every view
+                    // (owner, 2026-09-27: among what is shown nobody finds them); a plan of
+                    // Termine of one's own alone can be shared too.
+                    {move || (ctx.phone.get() && planned.get()).then(|| view! { <section class="sp-export"><CalendarGroup ctx/><ShareGroup ctx/></section> })}
+                    // On a phone the mode is a dock in the tab bar's place (`edit.rs`).
+                    {move || ctx.phone.get().then(|| view! { <EditDock ctx/> })}
                 }
                 .into_any(),
             }}
@@ -462,6 +484,9 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
                 }
             })
         }}
+        // On a phone „+ Kalender" after the module list, while editing (D10: a phone has no
+        // sidebar, and a new calendar is a new part of that list).
+        {move || ctx.phone.get().then(|| view! { <calendars::NewCalendar ctx/> })}
         <div class="sp-below">
             {move || {
                 (fine.get() && planned.get()).then(|| {
@@ -473,14 +498,6 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
             }}
         </div>
     }
-}
-
-/// „Anpassen": opens the sidebar, which on a phone is a sheet from below. Shown on a phone only
-/// (`.sheet-toggle`): the head of the plan carries it at its right end.
-#[component]
-pub(super) fn SheetToggle() -> impl IntoView {
-    let t = i18n::t();
-    view! { <a class="sheet-toggle" href="#sidebar" data-action="sheet-open"><Icon name="sliders-horizontal"/>{t.studyplan.customise}</a> }
 }
 
 /// The last group of the sidebar, on the server as in the app: where the plan lives.

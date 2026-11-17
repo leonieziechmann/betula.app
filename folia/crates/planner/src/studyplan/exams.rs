@@ -5,7 +5,8 @@
 //! deadlines („So 14.02.2027 · bis 24:00") stand at their first day; what QIS lists without a date
 //! stands under „Ohne festen Termin"; one line names the planned modules the data has no exam for.
 //!
-//! Each sitting has an eye: hiding a sitting is how a student takes the other one (a module's
+//! While the plan is edited each sitting has an eye (while looking the page changes nothing, and a
+//! sitting hidden is not listed): hiding a sitting is how a student takes the other one (a module's
 //! sittings are alternatives of each other, `folia_timetable::exams`), and the warnings follow
 //! at once (the timetable is worked out again in Rust, no query, R21). A hidden sitting stays in
 //! the list, dimmed, so the eye can bring it back; one the kind „Prüfung" or the Standort hides
@@ -53,7 +54,23 @@ pub(super) fn ExamsView(ctx: PlanCtx) -> impl IntoView {
             })
         })
     });
-    let lines = Memo::new(move |_| built.with(|built| built.as_ref().map(|(lines, ..)| lines.clone()).unwrap_or_default()));
+    // While looking a sitting the student hid is not listed (nothing on the page changes the plan
+    // then); while editing it stands dimmed with its eye, which brings it back (critique B12).
+    let lines = Memo::new(move |_| -> Vec<Line> {
+        let editing = ctx.edit.get();
+        built.with(|built| {
+            built
+                .as_ref()
+                .map(|(lines, states, _)| {
+                    lines
+                        .iter()
+                        .filter(|line| editing || !matches!(line, Line::Sitting(sitting) if states.get(&sitting.id).is_some_and(|state| state.hidden.is_some())))
+                        .cloned()
+                        .collect()
+                })
+                .unwrap_or_default()
+        })
+    });
     let states = Memo::new(move |_| built.with(|built| built.as_ref().map(|(_, states, _)| states.clone()).unwrap_or_default()));
     // Nothing to list where the data could have had exams: said once. A past semester and one
     // whose dates are not out yet say so in the head already.
@@ -459,17 +476,20 @@ fn sitting_view(ctx: PlanCtx, states: Memo<BTreeMap<String, State>>, sitting: Si
                 <a href=t.path(&sitting.href) data-noscroll="">{sitting.title.clone()}</a>
                 {move || small.with(|small| (!small.is_empty()).then(|| view! { <small>{small.clone()}</small> }))}
             </span>
-            <button
-                class="eye"
-                type="button"
-                aria-pressed=move || if hidden.get() { "true" } else { "false" }
-                aria-label=label
-                title=label
-                disabled=move || eye.with(|(eye, _)| *eye == Eye::Fixed)
-                on:click=toggle
-            >
-                {move || if hidden.get() { view! { <Icon name="eye-off"/> } } else { view! { <Icon name="eye"/> } }}
-            </button>
+            // The eye is the page's own control: only while the plan is edited.
+            {move || ctx.edit.get().then(|| view! {
+                <button
+                    class="eye"
+                    type="button"
+                    aria-pressed=move || if hidden.get() { "true" } else { "false" }
+                    aria-label=label
+                    title=label
+                    disabled=move || eye.with(|(eye, _)| *eye == Eye::Fixed)
+                    on:click=toggle
+                >
+                    {move || if hidden.get() { view! { <Icon name="eye-off"/> } } else { view! { <Icon name="eye"/> } }}
+                </button>
+            })}
         </div>
     }
 }

@@ -651,9 +651,9 @@ fn line_view(ctx: PlanCtx, line: Line, t: &'static i18n::Texts) -> AnyView {
     .into_any()
 }
 
-/// „Offen" beside the week (a page wide enough for the column beside it; app.css shows it there
-/// only): the open choices, the one in focus marked, and while it is compared, „Vergleichen" in
-/// their place.
+/// „Offen" beside the week while the plan is edited (a page wide enough for the column beside it;
+/// app.css shows it there only): the open choices, the one in focus marked, and while it is
+/// compared, „Vergleichen" in their place.
 #[component]
 pub(super) fn OpenPanel(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
@@ -670,7 +670,11 @@ pub(super) fn OpenPanel(ctx: PlanCtx) -> impl IntoView {
             (lines.clone(), lines.iter().filter(|line| !line.gives && (!line.current || !ticked)).count())
         })
     });
+    // While looking „3 Wahlen offen ›" in the status row says it (D8); the panel is the mode's.
     let list = move || {
+        if !ctx.edit.get() {
+            return None;
+        }
         let (lines, count) = lines.get();
         (!lines.is_empty()).then(|| {
             view! {
@@ -697,28 +701,113 @@ pub(super) fn OpenPanel(ctx: PlanCtx) -> impl IntoView {
     }
 }
 
-/// „Offen" over the week where the page is narrow (a phone, a small window; app.css shows it there
-/// only): one line, „2 Wahlen offen" and their names, that opens into the lines.
+/// The id of „Offen"'s rows under the mode's bar, which its figure unfolds (`aria-controls`).
+pub(super) const OPEN_ROWS_ID: &str = "sp-open-rows";
+
+/// Whether a choice is in focus, by `built`'s rule: `wahl=` in a weekly view, naming an event of
+/// groups the timetable has. The address and the timetable are siblings (R16).
+pub(super) fn focused(ctx: PlanCtx) -> Memo<bool> {
+    let code = Memo::new(move |_| ctx.url.with(|url| url.wahl.clone().filter(|_| url.view.is_weekly())));
+    Memo::new(move |_| code.with(|code| code.as_deref().is_some_and(|code| ctx.table.with(|table| table.as_ref().is_some_and(|table| choice::find(table, code).is_some())))))
+}
+
+/// „2 Wahlen offen" and the names after it („Übung MIT1 · Praktikum PP"), of the lines that are not
+/// in focus: what is to choose first; then the changes to decide; where nothing is, where a visit
+/// gives way. `None` with no line.
+fn said_of(open: &[Line], t: &i18n::Texts) -> Option<(String, String)> {
+    let open: Vec<&Line> = open.iter().filter(|line| !line.current).collect();
+    if open.is_empty() {
+        return None;
+    }
+    let choices = open.iter().filter(|line| !line.gives && !line.changed).count();
+    let changes = open.iter().filter(|line| line.changed).count();
+    let said = match (choices, changes) {
+        (0, 0) => (t.studyplan_open.gives_count)(open.len()),
+        (0, n) => (t.studyplan_open.changes_count)(n),
+        (n, _) => (t.studyplan_open.open_count)(n),
+    };
+    let names = open.iter().filter(|line| (choices == 0 && changes == 0) || !line.gives).map(|line| line.name.clone()).collect::<Vec<_>>().join(" · ");
+    Some((said, names))
+}
+
+/// What „Offen" says of the plan, for the status row, the mode's bar and the dock: `None` with
+/// nothing open.
+pub(super) fn open_said(ctx: PlanCtx) -> Memo<Option<(String, String)>> {
+    let t = i18n::t();
+    let built = built(ctx);
+    Memo::new(move |_| built.with(|(lines, _)| said_of(lines, t)))
+}
+
+/// „3 Wahlen offen ›" at the status row's right end while looking (D8): a link into the mode, with
+/// „Offen"'s rows unfolded where the page has no column beside the week. Nothing where nothing is
+/// open.
+#[component]
+pub(super) fn OpenWay(ctx: PlanCtx) -> impl IntoView {
+    let t = i18n::t();
+    let said = open_said(ctx);
+    let href = move || ctx.url.with(|url| t.path(&url.with_edit(true).path()));
+    move || {
+        said.get().map(|(phrase, _)| {
+            let name = (t.studyplan_edit.open_way)(&phrase);
+            view! {
+                <a class="sp-open-way" href=href data-noscroll="" aria-label=name.clone() title=name on:click=move |_| ctx.unfolded.set(true)>
+                    <Icon name="list-checks"/>
+                    <b>{phrase}</b>
+                    <Icon name="chevron-right" class="chev"/>
+                </a>
+            }
+        })
+    }
+}
+
+/// „Offen"'s rows under the mode's bar where the page has no column beside the week (app.css shows
+/// them there only), while the bar's figure has unfolded them.
+#[component]
+pub(super) fn OpenUnder(ctx: PlanCtx) -> impl IntoView {
+    let t = i18n::t();
+    let built = built(ctx);
+    let open = Memo::new(move |_| built.with(|(lines, _)| lines.iter().filter(|line| !line.current).cloned().collect::<Vec<Line>>()));
+    move || {
+        let lines = open.get();
+        (ctx.unfolded.get() && !lines.is_empty()).then(|| {
+            view! {
+                <div class="sp-open-under" id=OPEN_ROWS_ID>
+                    <div class="sp-open-rows">{lines.into_iter().map(|line| line_view(ctx, line, t)).collect_view()}</div>
+                </div>
+            }
+        })
+    }
+}
+
+/// „Offen" on a phone, over the week (D8, D10): while looking the amber line is a link into the mode
+/// that comes with its rows unfolded; while editing it is the line that opens into the rows,
+/// unfolded where one came by it (`PlanCtx::unfolded`) and folded where one came by „Bearbeiten"
+/// (nothing over the week comes with the mode). The outer closure reads the lines and `edit`,
+/// siblings (R16), never the address.
 #[component]
 pub(super) fn OpenLine(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let built = built(ctx);
     let open = Memo::new(move |_| built.with(|(lines, _)| lines.iter().filter(|line| !line.current).cloned().collect::<Vec<Line>>()));
+    let into = move || ctx.url.with(|url| t.path(&url.with_edit(true).path()));
     move || {
         let open = open.get();
-        (!open.is_empty()).then(|| {
-            // What is to choose first; then the changes to decide; where nothing is, where a visit
-            // gives way.
-            let choices = open.iter().filter(|line| !line.gives && !line.changed).count();
-            let changes = open.iter().filter(|line| line.changed).count();
-            let said = match (choices, changes) {
-                (0, 0) => (t.studyplan_open.gives_count)(open.len()),
-                (0, n) => (t.studyplan_open.changes_count)(n),
-                (n, _) => (t.studyplan_open.open_count)(n),
-            };
-            let names = open.iter().filter(|line| (choices == 0 && changes == 0) || !line.gives).map(|line| line.name.clone()).collect::<Vec<_>>().join(" · ");
-            view! {
-                <details class="sp-open-line">
+        let editing = ctx.edit.get();
+        let (said, names) = said_of(&open, t)?;
+        Some(match editing {
+            false => {
+                let name = (t.studyplan_edit.open_way)(&said);
+                view! {
+                    <a class="sp-open-line way" href=into data-noscroll="" aria-label=name.clone() title=name on:click=move |_| ctx.unfolded.set(true)>
+                        <span class="ic" aria-hidden="true"><Icon name="list-checks"/></span>
+                        <span class="t"><b>{said}</b><small>{names}</small></span>
+                        <Icon name="chevron-right" class="chev"/>
+                    </a>
+                }
+                .into_any()
+            }
+            true => view! {
+                <details class="sp-open-line" open=ctx.unfolded.get_untracked()>
                     <summary>
                         <span class="ic" aria-hidden="true"><Icon name="list-checks"/></span>
                         <span class="t"><b>{said}</b><small>{names}</small></span>
@@ -727,6 +816,7 @@ pub(super) fn OpenLine(ctx: PlanCtx) -> impl IntoView {
                     <div class="sp-open-rows">{open.into_iter().map(|line| line_view(ctx, line, t)).collect_view()}</div>
                 </details>
             }
+            .into_any(),
         })
     }
 }
@@ -1110,6 +1200,23 @@ mod tests {
         assert_eq!((focus.state.as_str(), focus.note.clone(), focus.comparing, focus.compare.as_str(), focus.tiles.as_str()), ("1 von 4 angehakt", None, true, "/studyplan?sem=2026W&edit=1&wahl=e148370", "/studyplan?sem=2026W&edit=1&wahl=e148370"));
         assert!(focus.groups[0].ticked && focus.groups[0].day.as_ref().is_some_and(|day| day.bars.iter().any(|bar| bar.own && bar.ticked)));
         assert_eq!(focus.groups.iter().filter(|group| group.ticked).count(), 1);
+    }
+
+    #[test]
+    fn the_status_row_says_what_is_open() {
+        let mut doc = PlanDoc::default();
+        assert!(doc.plan(key(), "12104", 1, None));
+        let table = plan_table(&doc);
+        let open = lines(&table, &short(), &plain(), None, &i18n::DE);
+        assert_eq!(said_of(&open, &i18n::DE), Some(("1 Wahl offen".to_string(), "Praktikum EvS".to_string())));
+        assert_eq!(said_of(&open, &i18n::EN).map(|(said, _)| said), Some("1 choice open".to_string()));
+        // The choice in focus is not counted; nothing open, nothing said.
+        let e = practical(&table);
+        assert_eq!(said_of(&lines(&table, &short(), &plain(), Some(e), &i18n::DE), &i18n::DE), None);
+        // „Fertig" of a focus leads into the mode, from an address with or without `edit`.
+        for url in [plain().with_wahl(Some("e148370")), StudyplanUrl::parse("sem=2026W&wahl=e148370")] {
+            assert_eq!(focus_of(&table, e, &short(), &url, &i18n::DE).unwrap().done, "/studyplan?sem=2026W&edit=1");
+        }
     }
 
     #[test]

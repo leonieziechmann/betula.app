@@ -57,7 +57,7 @@ pub struct Texts {
     /// The buttons of a slot (their names and tooltips): „✓" takes an option of a choice („Diese
     /// Gruppe nehmen") …
     pub take_group: &'static str,
-    /// … „×" leaves it out („Nicht diese Gruppe") …
+    /// … the eye leaves it out („Diese Gruppe ausblenden") …
     pub not_this_group: &'static str,
     /// … the „✓" of the option taken takes the choice back („Gruppe abwählen") …
     pub drop_group: &'static str,
@@ -82,14 +82,17 @@ pub struct Texts {
     /// … and where it meets the plan, what it gives way to (the plan's slots by their labels):
     /// „trifft VL MIT1, der Besuch gibt nach".
     pub gives_way: fn(&str) -> String,
-    /// … „×" hides one Termin of an event of several slots („Termin ausblenden") …
+    /// … the eye hides one Termin of an event of several slots („Ausblenden") …
     pub hide_session: &'static str,
     /// … or the whole event, named by its type as QIS writes it: „Vorlesung ausblenden" …
     pub hide_event: fn(&str) -> String,
     /// … a faint slot's „✓" shows a kind switched off again („„Übung“ wieder einblenden") …
     pub show_kind: fn(&str) -> String,
-    /// … or its Termin („Wieder einblenden").
+    /// … or its Termin with the crossed eye („Einblenden").
     pub show_again: &'static str,
+    /// The bin on a Termin of one's own while the plan is edited: „Löschen" (it is not hidden but
+    /// deleted, with the note and „Rückgängig").
+    pub delete_own: &'static str,
     /// An option of a choice not made yet, how many to take of how many: „1 von 4".
     pub one_of: fn(usize, usize) -> String,
     /// How many single dates a slot or a Termin gathers: „1 Termin", „3 Termine".
@@ -156,7 +159,7 @@ pub const DE: Texts = Texts {
     other_programs: "für andere Studiengänge",
     hidden: "ausgeblendet",
     take_group: "Diese Gruppe nehmen",
-    not_this_group: "Nicht diese Gruppe",
+    not_this_group: "Diese Gruppe ausblenden",
     drop_group: "Gruppe abwählen",
     tick_group: "Klicken zum Anhaken",
     ticked_group: "angehakt · Klicken nimmt den Haken weg",
@@ -170,10 +173,11 @@ pub const DE: Texts = Texts {
     extra: "zusätzlich, freiwillig",
     visit: "Besuch, zählt nicht",
     gives_way: |others| format!("trifft {others}, der Besuch gibt nach"),
-    hide_session: "Termin ausblenden",
+    hide_session: "Ausblenden",
     hide_event: |kind| format!("{kind} ausblenden"),
     show_kind: |kind| format!("„{kind}“ wieder einblenden"),
-    show_again: "Wieder einblenden",
+    show_again: "Einblenden",
+    delete_own: "Löschen",
     one_of: |take, n| format!("{take} von {n}"),
     sessions: |n| if n == 1 { "1 Termin".to_string() } else { format!("{n} Termine") },
     in_week_a: "A-Woche",
@@ -220,7 +224,7 @@ pub const EN: Texts = Texts {
     other_programs: "for other programmes",
     hidden: "hidden",
     take_group: "Take this group",
-    not_this_group: "Not this group",
+    not_this_group: "Hide this group",
     drop_group: "Deselect this group",
     tick_group: "Click to tick",
     ticked_group: "ticked · a click takes the tick away",
@@ -234,10 +238,11 @@ pub const EN: Texts = Texts {
     extra: "additional, optional",
     visit: "visit, does not count",
     gives_way: |others| format!("meets {others}, the visit gives way"),
-    hide_session: "Hide this session",
+    hide_session: "Hide",
     hide_event: |kind| format!("Hide {kind}"),
     show_kind: |kind| format!("Show “{kind}” again"),
-    show_again: "Show again",
+    show_again: "Show",
+    delete_own: "Delete",
     one_of: |take, n| format!("{take} of {n}"),
     sessions: |n| if n == 1 { "1 session".to_string() } else { format!("{n} sessions") },
     in_week_a: "week A",

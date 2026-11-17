@@ -30,6 +30,8 @@ pub struct Texts {
     pub off_title: &'static str,
     /// The switch's name for a screen reader: „Lena in der Woche".
     pub in_week: fn(&str) -> String,
+    /// The tooltip of a slot of a calendar of one's own begins with it: „Lena · nur zum Ansehen".
+    pub look_only: fn(&str) -> String,
     /// The phone's line: „Mein Studiengang, Lena als Spur" …
     pub line_full: fn(&str) -> String,
     pub line_strip: fn(&str) -> String,
@@ -60,10 +62,13 @@ pub struct Texts {
     pub keep_title: &'static str,
 
     // ---- a new calendar ----
+    /// The group's „+ Kalender" while the plan is edited (its tooltip is `new_calendar`).
+    pub add_calendar: &'static str,
     pub new_calendar: &'static str,
-    /// What it is made of: „Aus dem Link, den dir jemand aus dem eigenen Stundenplan geschickt hat
-    /// („Link zum Teilen kopieren")."
+    /// What it is made of: „Ein leerer Kalender, in den du Module aufnimmst, oder der Plan aus
+    /// einem Link, den dir jemand geschickt hat."
     pub new_hint: &'static str,
+    /// „Link (optional)": a calendar takes a name alone.
     pub link: &'static str,
     pub link_placeholder: &'static str,
     pub name: &'static str,
@@ -75,8 +80,9 @@ pub struct Texts {
     /// … of another semester than the one the page shows („aus dem SoSe 2027: er zeigt sich, sobald
     /// der Kalender dieses Semester zeigt") …
     pub link_elsewhere: fn(&str) -> String,
-    /// … or no plan at all.
+    /// … or no plan at all, and that „Anlegen" still makes one, empty.
     pub link_wrong: &'static str,
+    pub link_wrong_still: &'static str,
     /// The eighth is the last (the store holds eight).
     pub full_up: &'static str,
     /// After „Anlegen" and „Als Kalender": „Als Kalender angelegt: Lena".
@@ -134,6 +140,7 @@ pub const DE: Texts = Texts {
     strip_title: "als Spur am Rand jedes Tages",
     off_title: "nicht in der Woche",
     in_week: |name| format!("{name} in der Woche"),
+    look_only: |name| format!("{name} · nur zum Ansehen"),
     line_full: |name| name.to_string(),
     line_strip: |name| format!("{name} als Spur"),
     line_off: |name| format!("{name} aus"),
@@ -154,9 +161,10 @@ pub const DE: Texts = Texts {
     keep: "Behalten",
     keep_title: "Den Kalender mit dem letzten Stand behalten",
 
+    add_calendar: "Kalender",
     new_calendar: "Neuer Kalender",
-    new_hint: "Aus dem Link, den dir jemand aus dem eigenen Stundenplan geschickt hat („Link zum Teilen kopieren“).",
-    link: "Link",
+    new_hint: "Ein leerer Kalender, in den du Module aufnimmst, oder der Plan aus einem Link, den dir jemand geschickt hat.",
+    link: "Link (optional)",
     link_placeholder: "betula.app/studyplan?share=…",
     name: "Name",
     name_placeholder: "z. B. Lena",
@@ -175,6 +183,7 @@ pub const DE: Texts = Texts {
     },
     link_elsewhere: |semester| format!("aus dem {semester}: Er steht in der Woche, sobald der Stundenplan dieses Semester zeigt."),
     link_wrong: "Das ist kein Link zu einem Stundenplan.",
+    link_wrong_still: "Anlegen geht trotzdem, dann leer.",
     full_up: "Acht eigene Kalender sind das Höchste.",
     created: |name| format!("Als Kalender angelegt: {name}"),
 
@@ -218,6 +227,7 @@ pub const EN: Texts = Texts {
     strip_title: "as a strip at the edge of each day",
     off_title: "not in the week",
     in_week: |name| format!("{name} in the week"),
+    look_only: |name| format!("{name} · to look at only"),
     line_full: |name| name.to_string(),
     line_strip: |name| format!("{name} as a strip"),
     line_off: |name| format!("{name} off"),
@@ -238,9 +248,10 @@ pub const EN: Texts = Texts {
     keep: "Keep",
     keep_title: "Keep the calendar as it showed last",
 
+    add_calendar: "Calendar",
     new_calendar: "New calendar",
-    new_hint: "From the link someone sent you from their own timetable (“Copy link to share”).",
-    link: "Link",
+    new_hint: "An empty calendar to add modules to, or the plan from a link someone sent you.",
+    link: "Link (optional)",
     link_placeholder: "betula.app/studyplan?share=…",
     name: "Name",
     name_placeholder: "e.g. Lena",
@@ -259,6 +270,7 @@ pub const EN: Texts = Texts {
     },
     link_elsewhere: |semester| format!("from {semester}: it stands in the week once the timetable shows that semester."),
     link_wrong: "This is no link to a timetable.",
+    link_wrong_still: "You can still create it, empty.",
     full_up: "Eight calendars of your own are the most.",
     created: |name| format!("Created as a calendar: {name}"),
 

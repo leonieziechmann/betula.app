@@ -12,7 +12,7 @@
 //! travels.
 //!
 //! The offer stands at the top of the plan while the address carries a code, as the Merkliste
-//! offers a list from a link: „Übernehmen" plans the modules the plan does not have yet into the
+//! offers a list from a link: „In „Mein Studium“ einplanen" plans the modules the plan does not have yet into the
 //! semester, after the next frame (R21), with the program where the plan has none; „Als Kalender"
 //! puts the plan beside one's own as a calendar, with its groups (`calendars.rs`; a plan of another
 //! semester too, which then stands in the week once the page shows that semester); „Verwerfen"
@@ -201,13 +201,15 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
             <div class="offer" role="status">
                 <Icon name="share-2"/>
                 <p><b>{(s.shared)(&label)}</b>{text}</p>
-                {can_take.then(|| view! {
-                    <button class="mini primary hit" type="button" id="sp-share-take" aria-busy=move || busy.get().then_some("true") on:click=take>{s.take}</button>
-                })}
+                // „Als Kalender" first (D19): the plan beside one's own, which changes nothing of the
+                // study; planning its modules into „Mein Studium" says that it does.
                 {move || (known && room.get()).then(|| view! {
-                    <button class="mini hit" type="button" id="sp-share-calendar" title=t.studyplan_calendars.as_calendar_title aria-busy=move || busy.get().then_some("true") on:click=as_calendar>
+                    <button class="mini primary hit" type="button" id="sp-share-calendar" title=t.studyplan_calendars.as_calendar_title aria-busy=move || busy.get().then_some("true") on:click=as_calendar>
                         {t.studyplan_calendars.as_calendar}
                     </button>
+                })}
+                {can_take.then(|| view! {
+                    <button class="mini hit" type="button" id="sp-share-take" aria-busy=move || busy.get().then_some("true") on:click=take>{s.take}</button>
                 })}
                 <button class="mini hit" type="button" id="sp-share-dismiss" on:click=dismiss>{if can_take { s.dismiss } else { s.ok }}</button>
             </div>
@@ -216,13 +218,18 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
     }
 }
 
-/// What the offer says after its first words, and whether it offers „Übernehmen".
+/// What the offer says after its first words — what the link holds, and where some of it is
+/// planned already, how much is not; no question (D19: the buttons say what they do) — and whether
+/// it offers „In „Mein Studium“ einplanen".
 fn offer_text(offer: Offer, t: &i18n::Texts) -> (String, bool) {
     let s = &t.studyplan_share;
     match offer {
         Offer::Take { names, count, new } => {
-            let question = if new == count { s.take_all.to_string() } else { (s.take_missing)(new) };
-            (format!("{}: {names}. {question}", folia_design::format::modules(i64::try_from(count).unwrap_or(i64::MAX), t.locale)), true)
+            let modules = folia_design::format::modules(i64::try_from(count).unwrap_or(i64::MAX), t.locale);
+            match new == count {
+                true => (format!("{modules}: {names}."), true),
+                false => (format!("{modules}: {names}. {}", (s.take_missing)(new)), true),
+            }
         }
         Offer::Held { names } => ((s.held)(&names), false),
         Offer::Elsewhere { names } => ((s.elsewhere)(&names), false),
@@ -381,7 +388,7 @@ enum Upgrade {
 /// It stands where the offer of a fixed plan stands (`ShareOffer`), with the same words for the
 /// same things: „Als Kalender folgen" puts the plan beside one's own as a calendar that follows
 /// the share (`PlanDoc::follow`), so that every change of it arrives until it is not shared any
-/// more; „Übernehmen" plans its modules; „Verwerfen" leaves the plan as it is. A one-time link of a
+/// more; „In „Mein Studium“ einplanen" plans its modules; „Verwerfen" leaves the plan as it is. A one-time link of a
 /// copy offers „Als Kalender" without following. What opens nothing says why: opened already,
 /// expired, taken back, not shared any more, mistyped. Each answer takes the part after `#` out of
 /// the address. Where the profile is private, the calendar follows from this browser alone, and
@@ -648,18 +655,18 @@ pub(super) fn LiveOffer(ctx: PlanCtx) -> impl IntoView {
                 <div class="offer" role="status">
                     <Icon name="share-2"/>
                     {move || offer_line(offer.get(), false, t)}
-                    {move || can_take(offer.get()).then(|| view! {
-                        <button class="mini primary hit" type="button" id="sp-live-take" aria-busy=move || busy.get().then_some("true") on:click=take>{s.take}</button>
-                    })}
                     {move || match room.get() {
                         true => view! {
-                            <button class="mini hit" type="button" id="sp-live-calendar" title=c.as_calendar_title aria-busy=move || busy.get().then_some("true") on:click=move |_| as_calendar(None)>
+                            <button class="mini primary hit" type="button" id="sp-live-calendar" title=c.as_calendar_title aria-busy=move || busy.get().then_some("true") on:click=move |_| as_calendar(None)>
                                 {c.as_calendar}
                             </button>
                         }
                         .into_any(),
                         false => view! { <span class="hint">{c.full_up}</span> }.into_any(),
                     }}
+                    {move || can_take(offer.get()).then(|| view! {
+                        <button class="mini hit" type="button" id="sp-live-take" aria-busy=move || busy.get().then_some("true") on:click=take>{s.take}</button>
+                    })}
                     <button class="mini hit" type="button" id="sp-live-dismiss" on:click=move |_| done()>{s.dismiss}</button>
                 </div>
             }
@@ -720,9 +727,9 @@ mod tests {
     #[test]
     fn the_offer_asks_in_the_pages_language() {
         let take = |count, new| Offer::Take { names: "MIT-1, AuP, EEG".into(), count, new };
-        assert_eq!(offer_text(take(3, 3), &DE), ("3 Module: MIT-1, AuP, EEG. In deinen Stundenplan übernehmen?".to_string(), true));
-        assert_eq!(offer_text(take(3, 1), &DE).0, "3 Module: MIT-1, AuP, EEG. Eins davon fehlen in deinem Stundenplan. Übernehmen?");
-        assert_eq!(offer_text(take(3, 2), &EN).0, "3 modules: MIT-1, AuP, EEG. 2 of them are missing from your timetable. Add them?");
+        assert_eq!(offer_text(take(3, 3), &DE), ("3 Module: MIT-1, AuP, EEG.".to_string(), true));
+        assert_eq!(offer_text(take(3, 1), &DE).0, "3 Module: MIT-1, AuP, EEG. Eins davon fehlen in deinem Stundenplan.");
+        assert_eq!(offer_text(take(3, 2), &EN).0, "3 modules: MIT-1, AuP, EEG. 2 of them are missing from your timetable.");
         assert_eq!(offer_text(Offer::Held { names: "AuP".into() }, &EN), ("AuP. All of them are already in your timetable.".to_string(), false));
         // The notes of the plan each begin their own way, in every language: none is where another
         // is looked for (`PlanCtx::undo`).
