@@ -112,10 +112,10 @@
 //   bar; a row's menu at its status as a sheet without
 //   „Modul ansehen", „Verschieben nach" in its place; the way back, Back and a finger towards the
 //   overview lead back to it (Back as a close request, as Android has it); a tap anywhere on the
-//   credits opens the areas
-//   as a sheet a finger drags down to close it (a short pull: it slides back) — each area with its
-//   bar and its marks as the Wahlpflicht's choices, an area opening in the sheet and its arrow
-//   leading back to the areas —, the program's card
+//   credits leads to the areas,
+//   a page of their own — each area with its bar and its marks as the Wahlpflicht's choices, an
+//   area a page behind it, its module the sheet over that page and gone again with the page as it
+//   was, the way back at the head a level up —, the program's card
 //   opens „Studiengang wechseln" without a lead, − and + move nothing of it, under the card a line
 //   at the foot of the body, its picker of the program 8 px off the sheet's edges, the screen's
 //   keyboard up (simulated: the part of the page shown shorter) the sheet that part without its
@@ -544,22 +544,20 @@ if (current !== "2026W") {
   // 2026-11-17: „überall eine progressbar, wie beim Wahlpflicht Katalog. Und bitte verwende icons
   // für den Fortschritt"): its bar, its credits by where they stand as a strip of the four marks,
   // and every row with the mark of its status, no box to tick.
-  await step("an area", () => page.click(".st-card >> nth=0"), () => document.querySelector(".st-dialog[open] .st-area-dlg"));
+  await step("an area", () => page.click(".st-card >> nth=0"), () => document.querySelector(".st-dialog[open] .st-area-body"));
   const area = await page.evaluate(() => {
     const dialog = document.querySelector(".st-dialog[open]");
     const rows = [...dialog.querySelectorAll(".st-area-items li")];
     return {
       title: document.querySelector("#st-dialog-title")?.textContent, sub: document.querySelector(".st-dlg-head p")?.textContent, mine: rows.length,
-      bar: Boolean(dialog.querySelector(".st-area-dlg > .st-wbar.big")),
+      bar: Boolean(dialog.querySelector(".st-area-body > .st-wbar.big")),
       tally: [...dialog.querySelectorAll(".st-tally li")].map((part) => `${part.querySelector(".st-tally-w")?.textContent}:${[...(part.querySelector(".st-glyph")?.classList ?? [])].filter((name) => name !== "st-glyph").join()}`).join(),
       marks: rows.filter((row) => row.querySelector(".st-wmk .st-glyph")).length,
       boxes: dialog.querySelectorAll(".st-box, .st-area-bar").length,
-      // Opened from its card, it has no level above it: no arrow back.
-      back: dialog.querySelectorAll(".dlg-back").length,
     };
   });
   check(area.title === "Komplex Informatik" && /^\d+ \/ 66\u00a0LP$/.test(area.sub ?? "") && area.mine >= 2, `the area's dialog: ${JSON.stringify(area)}`);
-  check(area.bar && area.tally === "bestanden:passed,läuft:running,geplant:planned,offen:open" && area.marks === area.mine && area.boxes === 0 && area.back === 0, `the area's dialog has not the Wahlpflicht's bar, the strip of the four marks and a mark at every row: ${JSON.stringify(area)}`);
+  check(area.bar && area.tally === "bestanden:passed,läuft:running,geplant:planned,offen:open" && area.marks === area.mine && area.boxes === 0, `the area's dialog has not the Wahlpflicht's bar, the strip of the four marks and a mark at every row: ${JSON.stringify(area)}`);
   await step("close it", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
 
   // A module beside the page, in full, and back.
@@ -1663,59 +1661,54 @@ if (current !== "2026W") {
   check((await page.evaluate(() => history.length)) === entries, "the way back added a step to the history");
   await page.waitForFunction(() => document.querySelector(".top-back")?.inert && getComputedStyle(document.querySelector(".top-back")).opacity === "0", null, { timeout: 2000 }).catch(() => problems.push("the way back stays on the overview"));
   // The credits one place to tap (owner, 2026-10-06: „die progress bar komplett zu einer
-  // clickfläche werden"): their headline, the bar, the legend and „Bereiche ›" open the areas.
+  // clickfläche werden"): their headline, the bar, the legend and „Bereiche ›" lead to the areas.
   // The whole box, not only the bar (owner, the same day: „nicht nur der ganze balken, sondern die
-  // ganze progress box muss klickbar sein"): its parts, and 6 px inside each of its edges.
+  // ganze progress box muss klickbar sein"): its parts, and 6 px inside each of its edges. The
+  // areas are a page of their own, which the way back at the head leaves (owner, 2026-11-17: „das
+  // ist modal zu modal und das sieht richtig komisch aus … oder das wird zur eigenen seite"; until
+  // then a sheet, whose module closed it and came up in its place). How a sheet of a phone moves
+  // under a finger, sheets.mjs checks.
   const box = await page.$eval(".st-progress", (el) => { const r = el.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; });
   const spots = { headline: await middle(page, ".st-progress .st-headline"), bar: await middle(page, ".st-progress .st-bar"), legend: await middle(page, ".st-progress .st-legend-n li:nth-child(2)"),
     "left edge": { x: box.left + 6, y: (box.top + box.bottom) / 2 }, "right edge": { x: box.right - 6, y: (box.top + box.bottom) / 2 },
     "top edge": { x: (box.left + box.right) / 2, y: box.top + 6 }, "bottom edge": { x: (box.left + box.right) / 2, y: box.bottom - 6 }, corner: { x: box.left + 14, y: box.bottom - 14 } };
+  const onAreas = () => location.search === "?view=progress" && document.querySelector(".st-areas-phone .st-area-list a") && !document.querySelector(".st-dialog[open]");
   for (const [part, at] of Object.entries(spots)) {
-    await step(`the credits: ${part}`, () => page.touchscreen.tap(at.x, at.y), () => document.querySelector(".st-dialog[open] .st-area-list"));
-    await step("close the areas", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
+    await step(`the credits: ${part}`, () => page.touchscreen.tap(at.x, at.y), onAreas);
+    await step("back from the areas", () => page.tap(".top-back.on"), atOverview);
   }
-  await step("Bereiche", () => page.tap(".st-progress-top .st-link"), () => document.querySelector(".st-dialog[open] .st-area-list"));
+  await step("Bereiche", () => page.tap(".st-progress-top .st-link"), onAreas);
   // The areas as the Wahlpflicht has its choices (owner, 2026-11-17): each with what it holds of
   // what it asks, its bar and its marks; over them the strip of the four marks, and nothing of the
-  // overview's headline, bar and legend again.
+  // overview's bar and legend again; the way back at the head to the overview.
   const areaCards = await page.evaluate(() => {
-    const dialog = document.querySelector(".st-dialog[open]");
-    const cards = [...dialog.querySelectorAll(".st-area-list button")];
-    return { cards: cards.length, bars: cards.filter((card) => card.querySelector(".st-wbar") && card.querySelector(".st-wfig")).length, marks: cards.filter((card) => card.querySelector(".st-tally-line .st-glyph")).length, strip: dialog.querySelectorAll(".st-tally li .st-glyph").length, again: dialog.querySelectorAll(".st-bar, .st-headline, .st-key").length };
+    const areas = document.querySelector(".st-areas-phone");
+    const cards = [...areas.querySelectorAll(".st-area-list a")];
+    return {
+      title: areas.querySelector(".st-vhead h1")?.textContent, back: document.querySelector(".top-back.on")?.getAttribute("aria-label"),
+      cards: cards.length, bars: cards.filter((card) => card.querySelector(".st-wbar") && card.querySelector(".st-wfig")).length, marks: cards.filter((card) => card.querySelector(".st-tally-line .st-glyph")).length,
+      strip: areas.querySelectorAll(".st-tally li .st-glyph").length, again: areas.querySelectorAll(".st-bar, .st-key").length,
+    };
   });
-  check(areaCards.cards >= 6 && areaCards.bars === areaCards.cards && areaCards.marks === areaCards.cards && areaCards.strip === 4 && areaCards.again === 0, `the areas' sheet has not a bar and marks for every area: ${JSON.stringify(areaCards)}`);
-  await page.waitForFunction(() => !document.querySelector(".st-dialog[open]")?.getAnimations().some((a) => a.playState === "running"), null, { timeout: 3000 }).catch(() => {});
-  const sheet = await page.evaluate(() => { const box = document.querySelector(".st-dialog[open]").getBoundingClientRect(); return { bottom: Math.round(innerHeight - box.bottom), width: Math.round(box.width), top: Math.round(box.top) }; });
-  // A sheet of a phone (owner, 2026-10-27): half up, as tall as the screen all up.
-  check(Math.abs(sheet.top - 844 * 0.5) < 4 && sheet.bottom === -(844 - 10 - (844 - sheet.top)) && sheet.width === 390, `the areas are no sheet from below, half up: ${JSON.stringify(sheet)}`);
-  // A finger drags the sheet down (owner, 2026-10-05: „dass man die einfach wieder runter sliden
-  // kann"): it follows the finger; a short pull, let go, slides back; drawn far enough, it closes.
-  const drag = async (by, { steps = 8, hold = 0 } = {}) => {
-    await touch("touchStart", 195, sheet.top + 24);
-    for (let i = 1; i <= steps; i++) { await page.waitForTimeout(16); await touch("touchMove", 195, sheet.top + 24 + (by * i) / steps); }
-    if (hold) await page.waitForTimeout(hold);
-    const top = await page.evaluate(() => Math.round(document.querySelector(".st-dialog[open]")?.getBoundingClientRect().top ?? -1));
-    await touch("touchEnd", 0, 0);
-    return top;
-  };
-  const pulled = await drag(60, { hold: 150 });
-  await page.waitForTimeout(600);
-  const after = await page.evaluate(() => Math.round(document.querySelector(".st-dialog[open]")?.getBoundingClientRect().top ?? -1));
-  check(pulled >= sheet.top + 40 && after === sheet.top, `a short pull does not move the sheet and back: ${sheet.top} → ${pulled} → ${after}`);
-  await step("the areas dragged down", () => drag(320), () => !document.querySelector(".st-dialog[open]"));
-  // An area of the sheet opens in it, with its bar and its strip, and an arrow before its name
-  // leads a level up, back to the areas (owner, 2026-11-17: „es braucht noch einen back button, so
-  // dass man eine ebene höher kommt"): the sheet stays where it stands, and the areas have no
-  // arrow.
-  await step("Bereiche again", () => page.tap(".st-progress-top .st-link"), () => document.querySelector(".st-dialog[open] .st-area-list"));
-  await step("an area of the sheet", () => page.tap(".st-area-list li:first-child button"), () => document.querySelector(".st-dialog[open] .st-area-dlg > .st-wbar.big") && document.querySelectorAll(".st-dialog[open] .st-tally li").length === 4 && document.querySelector("#st-dialog-title")?.textContent === "Komplex Informatik");
-  await page.waitForFunction(() => !document.querySelector(".st-dialog[open]")?.getAnimations().some((a) => a.playState === "running"), null, { timeout: 3000 }).catch(() => {});
-  const level = await page.evaluate(() => { const back = document.querySelector(".st-dialog[open] .st-dlg-head .dlg-back"); const box = back?.getBoundingClientRect(); return { label: back?.getAttribute("aria-label"), size: box && [Math.round(box.width), Math.round(box.height)], top: Math.round(document.querySelector(".st-dialog[open]").getBoundingClientRect().top) }; });
-  check(level.label === "Zurück zu den Bereichen" && level.size?.every((side) => side >= 40), `an area of the sheet has no way back to the areas a finger finds: ${JSON.stringify(level)}`);
-  await step("back to the areas", () => page.tap(".st-dialog[open] .dlg-back"), () => document.querySelector(".st-dialog[open] .st-area-list") && document.querySelector("#st-dialog-title")?.textContent === "Übersicht nach Bereichen" && !document.querySelector(".st-dialog[open] .dlg-back"));
-  const levelTop = await page.evaluate(() => Math.round(document.querySelector(".st-dialog[open]").getBoundingClientRect().top));
-  check(levelTop === level.top, `the sheet moved on the way back to the areas: ${level.top} → ${levelTop}`);
-  await step("close the areas once more", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
+  check(areaCards.title === "Bereiche" && areaCards.back === "Zur Übersicht" && areaCards.cards >= 6 && areaCards.bars === areaCards.cards && areaCards.marks === areaCards.cards && areaCards.strip === 4 && areaCards.again === 0, `the areas' page has not a bar and marks for every area: ${JSON.stringify(areaCards)}`);
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "the areas' page on a phone scrolls sideways");
+  // An area, a page of its own behind them: its name and what it holds of what it asks at the
+  // head, its bar, the strip, a mark at every row; the way back at the head a level up.
+  await step("an area's page", () => page.tap(".st-area-list li:first-child a"), () => location.search === "?view=progress&area=0" && document.querySelector(".st-areas-phone .st-vhead h1")?.textContent === "Komplex Informatik" && document.querySelector(".st-areas-phone .st-area-body > .st-wbar.big") && document.querySelectorAll(".st-areas-phone .st-tally li").length === 4);
+  const areaPage = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll(".st-areas-phone .st-area-items li")];
+    return { back: document.querySelector(".top-back.on")?.getAttribute("aria-label"), figure: document.querySelector(".st-areas-phone .st-vhead p")?.textContent, rows: rows.length, marks: rows.filter((row) => row.querySelector(".st-wmk .st-glyph")).length };
+  });
+  check(areaPage.back === "Bereiche" && /^\d+ \/ 66\u00a0LP$/.test(areaPage.figure ?? "") && areaPage.rows >= 2 && areaPage.marks === areaPage.rows, `an area's page: ${JSON.stringify(areaPage)}`);
+  // A module of it comes up as the sheet over the page, and going leaves the page as it was:
+  // where it was scrolled to, no sheet in the place of another.
+  await page.evaluate(() => window.scrollTo(0, 160));
+  const areaScroll = await page.evaluate(() => Math.round(scrollY));
+  await step("a module of the area as the sheet", () => page.tap('.st-areas-phone .st-area-items a:has-text("Theoretische Informatik")'), () => location.search === "?view=progress&area=0&open=11787" && document.querySelector("#preview .hero .mono")?.textContent.trim() === "11787" && !document.querySelector(".st-dialog[open]") && document.querySelector(".st-areas-phone .st-vhead h1")?.textContent === "Komplex Informatik");
+  await step("the module's sheet closed", () => page.goBack(), () => location.search === "?view=progress&area=0" && !document.querySelector(".detail.is-module") && document.querySelector(".st-areas-phone .st-area-body"));
+  check((await page.evaluate(() => Math.round(scrollY))) === areaScroll, `the area's page moved under the module's sheet: ${areaScroll} → ${await page.evaluate(() => Math.round(scrollY))}`);
+  await step("the way back to the areas", () => page.tap(".top-back.on"), onAreas);
+  await step("the way back to the overview", () => page.tap(".top-back.on"), atOverview);
   await step("the program's card", () => page.tap("#st-mine"), () => document.querySelector(".st-dialog[open] #st-switch-program"));
   check((await page.evaluate(() => document.querySelector(".st-dialog[open] .st-dlg-head p"))) === null, "„Studiengang wechseln“ still has its lead");
   // − and + count the Fachsemester, and nothing of the sheet moves while they do (measured once it

@@ -8,8 +8,9 @@
 //! pointer rests on it. Nothing else: what was not passed, a semester heavier than the plan, is
 //! said where it is (owner, 2026-10-04: „Das muss da weg dafür gibt es andere Bereiche. Da soll
 //! einfach nur zu sehen sein, wie steht es bei mir um meine LP"). A phone has the bar and its
-//! legend at the top of its overview (`phone.rs`), and the areas as a sheet (`AreasSheet`). An
-//! area opens what counts there (`AreaDialog`).
+//! legend at the top of its overview (`phone.rs`), and the areas as a page of their own
+//! (`areas.rs`). An area opens what counts there: on a desktop its dialog (`AreaDialog`), on a
+//! phone a page of its own (`AreaBody` in both).
 //!
 //! The sheet and an area's dialog as the Wahlpflicht looks (owner, 2026-11-17: „Also ich hätte
 //! gerne überall eine progressbar, wie beim Wahlpflicht Katalog. Und bitte verwende icons für den
@@ -20,7 +21,9 @@
 //! by where they stand, each with the mark the semesters' rows have (`Tally`, `focus::Glyph`):
 //! passed, under way in the current semester, planned for a later one, and a dashed ring for what
 //! is asked for and not planned yet. The same marks stand at an area's modules and at the plan's
-//! rows still open.
+//! rows still open. The sheet a tap on a phone's bar opened is a page since (owner, the same day:
+//! „das ist modal zu modal und das sieht richtig komisch aus"): a module of an area opened a sheet
+//! in the place of the sheet the area was.
 
 use folia_plans::choices::Stand;
 use folia_plans::study::{AreaKind, Pick, Progress, Study, When};
@@ -102,7 +105,7 @@ impl Tally {
 }
 
 /// The mark of a part of a tally: a status's, or the dashed ring of what stands open.
-fn tally_mark(status: Option<Status>) -> AnyView {
+pub(super) fn tally_mark(status: Option<Status>) -> AnyView {
     match status {
         Some(status) => view! { <Glyph status=status/> }.into_any(),
         None => view! { <OpenGlyph/> }.into_any(),
@@ -111,7 +114,7 @@ fn tally_mark(status: Option<Status>) -> AnyView {
 
 /// A tally as a strip of four (app.css `.st-tally`): each part's mark and credits over its word,
 /// all four always, so that the strip says what the marks are wherever they stand under it.
-fn tally_strip(tally: &Tally, t: &'static Texts) -> impl IntoView {
+pub(super) fn tally_strip(tally: &Tally, t: &'static Texts) -> impl IntoView {
     view! {
         <ul class="st-tally" aria-label=t.study.tally_label>
             {tally.parts(t).into_iter().map(|(status, credits, word)| view! {
@@ -127,7 +130,7 @@ fn tally_strip(tally: &Tally, t: &'static Texts) -> impl IntoView {
 /// A tally in a line (app.css `.st-tally-line`): the marks of the parts it has with their
 /// credits, „✓ 34 ◐ 16 ○ 12", and what is said after them („+6 LP über Bedarf", „laut Plan im
 /// 5. FS").
-fn tally_line(tally: &Tally, after: Option<(String, &'static str)>, t: &'static Texts) -> impl IntoView {
+pub(super) fn tally_line(tally: &Tally, after: Option<(String, &'static str)>, t: &'static Texts) -> impl IntoView {
     let words = tally.words(t);
     view! {
         <span class="st-tally-line">
@@ -142,7 +145,7 @@ fn tally_line(tally: &Tally, after: Option<(String, &'static str)>, t: &'static 
 
 /// What a stand holds of what it asks, as the Wahlpflicht writes it: „62 / 66 LP"; where nothing
 /// is asked (what counts towards no area), „6 LP".
-fn figure_of(stand: &Stand, t: &'static Texts) -> impl IntoView {
+pub(super) fn figure_of(stand: &Stand, t: &'static Texts) -> impl IntoView {
     let unit = t.study_views.col_credits;
     let rest = if stand.least > 0.0 { format!(" / {}\u{a0}{unit}", n(stand.least, t)) } else { format!("\u{a0}{unit}") };
     view! { <span class="st-wfig"><b>{n(stand.taken(), t)}</b>{rest}</span> }
@@ -157,17 +160,17 @@ fn stand_of(progress: &Progress) -> Stand {
 
 /// An area's card.
 #[derive(Clone, Debug, PartialEq)]
-struct Card {
-    area: Option<usize>,
-    name: String,
-    tone: &'static str,
+pub(super) struct Card {
+    pub area: Option<usize>,
+    pub name: String,
+    pub tone: &'static str,
     /// What it holds against what it asks: its bar. What counts towards no area asks for nothing,
     /// all of it hatched.
-    stand: Stand,
-    tally: Tally,
+    pub stand: Stand,
+    pub tally: Tally,
     /// What its line says after its marks, and its class: what is beyond its need, or for an area
     /// nothing is planned for yet, where the plan puts it.
-    after: Option<(String, &'static str)>,
+    pub after: Option<(String, &'static str)>,
     /// A desktop's card in one line: what is taken of what it asks („44/66"), and its class.
     figure: (String, &'static str),
     /// All of it in words, for the pointer resting on the card.
@@ -184,9 +187,9 @@ pub(super) struct Info {
     planned_rest: String,
     pub open: String,
     segments: Vec<Segment>,
-    cards: Vec<Card>,
+    pub cards: Vec<Card>,
     /// The study's credits by where they stand, what counts towards no area included.
-    tally: Tally,
+    pub tally: Tally,
 }
 
 /// „5.–6. FS": the Fachsemester an area's rows lie in.
@@ -364,7 +367,7 @@ fn AreaCard(ctx: StudyCtx, card: Card) -> impl IntoView {
     let area = card.area;
     let (figure, class) = card.figure;
     view! {
-        <button class="st-card" type="button" style=format!("--c: {}", card.tone) title=card.title.clone() aria-label=card.title on:click=move |_| ctx.open(Dialog::Area { area, listed: false })>
+        <button class="st-card" type="button" style=format!("--c: {}", card.tone) title=card.title.clone() aria-label=card.title on:click=move |_| ctx.open(Dialog::Area(area))>
             <span class="st-dot"></span>
             <span class="st-card-name">{card.name}</span>
             <span class=format!("st-card-figure {class}")>{figure}{(class == "done").then(|| view! { <Icon name="check"/> })}</span>
@@ -372,42 +375,7 @@ fn AreaCard(ctx: StudyCtx, card: Card) -> impl IntoView {
     }
 }
 
-/// „Übersicht nach Bereichen": the areas on a phone, each a way to its dialog. Under the head what
-/// is passed of what the plan asks and the study's credits by where they stand, a strip of the
-/// four marks with their words; then every area as the Wahlpflicht has a choice: its name and
-/// what it holds of what it asks, its bar in its tone, and its marks with their credits. Not the
-/// overview's bar and legend again, which stand right behind the sheet: half up it shows the
-/// areas.
-#[component]
-pub(super) fn AreasSheet(ctx: StudyCtx) -> impl IntoView {
-    let t = i18n::t();
-    let s = &t.study;
-    let info = Memo::new(move |_| ctx.with_ready(|ready| Info::of(ready, t)));
-    move || {
-        info.get().map(|info| view! {
-            <DialogHead ctx title=s.areas_title sub=info.headline.clone()/>
-            <div class="st-dlg-body st-areas">
-                {tally_strip(&info.tally, t)}
-                <ul class="st-area-list">
-                    {info.cards.into_iter().map(|card| {
-                        let area = card.area;
-                        view! {
-                            <li>
-                                <button type="button" style=format!("--c: {}", card.tone) on:click=move |_| ctx.open(Dialog::Area { area, listed: true })>
-                                    <span class="st-area-t"><span class="st-dot"></span><b>{card.name}</b>{figure_of(&card.stand, t)}<Icon name="chevron-right"/></span>
-                                    {stand_bar(&card.stand, None, "", t)}
-                                    {tally_line(&card.tally, card.after, t)}
-                                </button>
-                            </li>
-                        }
-                    }).collect_view()}
-                </ul>
-            </div>
-        })
-    }
-}
-
-/// What an area's dialog lists of an item.
+/// What an area lists of an item.
 #[derive(Clone, Debug, PartialEq)]
 struct Entry {
     id: Option<String>,
@@ -422,7 +390,7 @@ struct Entry {
     exception: bool,
 }
 
-/// A row of the plan an area's dialog lists as open.
+/// A row of the plan an area lists as open.
 #[derive(Clone, Debug, PartialEq)]
 struct OpenRow {
     /// Its module, where the plan names one: the row opens it.
@@ -435,14 +403,14 @@ struct OpenRow {
     stands: Option<String>,
 }
 
-/// What an area's dialog shows.
+/// What an area shows, in its dialog and on its page.
 #[derive(Clone, Debug, PartialEq)]
-struct AreaInfo {
-    name: String,
-    tone: &'static str,
+pub(super) struct AreaInfo {
+    pub name: String,
+    pub tone: &'static str,
     /// „62 / 66 LP"; „6 LP" for what counts towards no area.
-    asks: String,
-    stand: Stand,
+    pub asks: String,
+    pub stand: Stand,
     tally: Tally,
     over_text: Option<String>,
     entries: Vec<Entry>,
@@ -453,7 +421,7 @@ struct AreaInfo {
 }
 
 impl AreaInfo {
-    fn of(ready: &Ready, area: Option<usize>, t: &Texts) -> Option<Self> {
+    pub fn of(ready: &Ready, area: Option<usize>, t: &Texts) -> Option<Self> {
         let s = &t.study;
         let study = &ready.study;
         let mut entries = Vec::new();
@@ -538,82 +506,93 @@ impl AreaInfo {
     }
 }
 
-/// An area: what it holds of what it asks under its name, the Wahlpflicht's bar in its tone, its
-/// credits by where they stand; what counts there, each module with the mark of its status and its
-/// semester; the plan's rows still open, with the dashed ring (a cross for one not passed and not
-/// planned again), a row of a module a way to it; and the ways to its modules and its rules.
+/// An area on a desktop, opened from its card: its name and what it holds of what it asks at the
+/// head, and what counts there (`AreaBody`). A module of it opens beside the page, which closes
+/// the dialog.
 #[component]
-pub(super) fn AreaDialog(
-    ctx: StudyCtx,
-    area: Option<usize>,
-    /// Opened from the areas' sheet: an arrow before its name leads back to it (owner,
-    /// 2026-11-17: „es braucht noch einen back button, so dass man eine ebene höher kommt").
-    listed: bool,
-) -> impl IntoView {
+pub(super) fn AreaDialog(ctx: StudyCtx, area: Option<usize>) -> impl IntoView {
     let t = i18n::t();
-    let s = &t.study;
     let info = Memo::new(move |_| ctx.with_ready(|ready| AreaInfo::of(ready, area, t)).flatten());
     move || {
         let Some(info) = info.get() else { return ().into_any() };
         let tone = info.tone;
-        // A row: its mark, its name over what is said of it, its credits; with a module a way to it
-        // beside the page, which closes the dialog.
-        let row = move |id: Option<String>, mark: AnyView, word: &'static str, name: String, sub: AnyView, credits: Option<String>| {
-            let inner = view! {
-                <span class="st-wmk" title=word>{mark}<span class="visually-hidden">{word}</span></span>
-                <span class="st-area-nm"><b>{name}</b>{sub}</span>
-                <span class="st-lp">{credits}</span>
-            };
-            match id {
-                Some(id) => {
-                    let href = super::module_href(ctx, &id, t);
-                    view! { <li><a class="st-area-row" href=href data-noscroll="" on:click=move |_| ctx.dialog.set(None)>{inner}<Icon name="chevron-right"/></a></li> }.into_any()
-                }
-                None => view! { <li><div class="st-area-row">{inner}</div></li> }.into_any(),
-            }
-        };
-        let area_name = info.name.clone();
         view! {
-            <DialogHead ctx title=info.name.clone() sub=info.asks.clone() tone=tone back=listed.then_some((Dialog::Areas, s.back_to_areas))/>
-            <div class="st-dlg-body st-area-dlg" style=format!("--c: {tone}")>
-                {stand_bar(&info.stand, None, "big", t)}
-                {tally_strip(&info.tally, t)}
-                {info.over_text.map(|text| view! { <p class="st-dlg-note">{text}</p> })}
-                <section>
-                    <h3>{s.your_modules}</h3>
-                    {if info.entries.is_empty() {
-                        view! { <p class="hint">{s.none_here}</p> }.into_any()
-                    } else {
-                        view! {
-                            <ul class="st-area-items">
-                                {info.entries.into_iter().map(|entry| {
-                                    let sub = view! {
-                                        <small>{entry.when}{entry.exception.then(|| view! { <span class="flag st-exception" title=(s.exception_title)(&area_name)>{s.exception}</span> })}{entry.over.then(|| view! { <span class="st-chip over">{s.over_need}</span> })}</small>
-                                    };
-                                    row(entry.id, tally_mark(Some(entry.status)), entry.status.word(t), entry.name, sub.into_any(), entry.credits)
-                                }).collect_view()}
-                            </ul>
-                        }.into_any()
-                    }}
-                </section>
-                {(!info.rows.is_empty()).then(|| view! {
-                    <section>
-                        <h3>{s.plan_rows}</h3>
-                        <ul class="st-area-items">
-                            {info.rows.into_iter().map(|open| {
-                                let (mark, word) = if open.failed { (tally_mark(Some(Status::Failed)), Status::Failed.word(t)) } else { (tally_mark(None), s.status_open) };
-                                let sub = open.stands.map(|stands| view! { <small>{stands}</small> });
-                                row(open.id, mark, word, open.name, sub.into_any(), open.credits)
-                            }).collect_view()}
-                        </ul>
-                    </section>
-                })}
-                <nav class="st-area-ways" aria-label=s.more_area>
-                    {info.catalog.map(|(href, label)| view! { <a class="action" href=t.path(&href)><Icon name="search"/><span>{label}</span><Icon name="chevron-right"/></a> })}
-                    {info.rules.map(|href| view! { <a class="action" href=t.path(&href)><Icon name="file-check-2"/><span>{s.area_rules}</span><Icon name="chevron-right"/></a> })}
-                </nav>
+            <DialogHead ctx title=info.name.clone() sub=info.asks.clone() tone=tone/>
+            <div class="st-dlg-body st-area-body" style=format!("--c: {tone}")>
+                <AreaBody ctx info/>
             </div>
         }
         .into_any()
+    }
+}
+
+/// What an area shows under its head, in its dialog and on a phone's page of it: the
+/// Wahlpflicht's bar in its tone and its credits by where they stand; what counts there, each
+/// module with the mark of its status and its semester; the plan's rows still open, with the
+/// dashed ring (a cross for one not passed and not planned again), a row of a module a way to it;
+/// and the ways to its modules and its rules. A module opens beside the page, on a phone as the
+/// sheet over it; where it is opened from the dialog, the dialog closes.
+#[component]
+pub(super) fn AreaBody(ctx: StudyCtx, info: AreaInfo) -> impl IntoView {
+    let t = i18n::t();
+    let s = &t.study;
+    // A row: its mark, its name over what is said of it, its credits; with a module a way to it.
+    let row = move |id: Option<String>, mark: AnyView, word: &'static str, name: String, sub: AnyView, credits: Option<String>| {
+        let inner = view! {
+            <span class="st-wmk" title=word>{mark}<span class="visually-hidden">{word}</span></span>
+            <span class="st-area-nm"><b>{name}</b>{sub}</span>
+            <span class="st-lp">{credits}</span>
+        };
+        match id {
+            Some(id) => {
+                let href = super::module_href(ctx, &id, t);
+                let close = move |_| {
+                    if ctx.dialog.with_untracked(Option::is_some) {
+                        ctx.dialog.set(None);
+                    }
+                };
+                view! { <li><a class="st-area-row" href=href data-noscroll="" on:click=close>{inner}<Icon name="chevron-right"/></a></li> }.into_any()
+            }
+            None => view! { <li><div class="st-area-row">{inner}</div></li> }.into_any(),
+        }
+    };
+    let area_name = info.name.clone();
+    view! {
+        {stand_bar(&info.stand, None, "big", t)}
+        {tally_strip(&info.tally, t)}
+        {info.over_text.map(|text| view! { <p class="st-dlg-note">{text}</p> })}
+        <section>
+            <h3>{s.your_modules}</h3>
+            {if info.entries.is_empty() {
+                view! { <p class="hint">{s.none_here}</p> }.into_any()
+            } else {
+                view! {
+                    <ul class="st-area-items">
+                        {info.entries.into_iter().map(|entry| {
+                            let sub = view! {
+                                <small>{entry.when}{entry.exception.then(|| view! { <span class="flag st-exception" title=(s.exception_title)(&area_name)>{s.exception}</span> })}{entry.over.then(|| view! { <span class="st-chip over">{s.over_need}</span> })}</small>
+                            };
+                            row(entry.id, tally_mark(Some(entry.status)), entry.status.word(t), entry.name, sub.into_any(), entry.credits)
+                        }).collect_view()}
+                    </ul>
+                }.into_any()
+            }}
+        </section>
+        {(!info.rows.is_empty()).then(|| view! {
+            <section>
+                <h3>{s.plan_rows}</h3>
+                <ul class="st-area-items">
+                    {info.rows.into_iter().map(|open| {
+                        let (mark, word) = if open.failed { (tally_mark(Some(Status::Failed)), Status::Failed.word(t)) } else { (tally_mark(None), s.status_open) };
+                        let sub = open.stands.map(|stands| view! { <small>{stands}</small> });
+                        row(open.id, mark, word, open.name, sub.into_any(), open.credits)
+                    }).collect_view()}
+                </ul>
+            </section>
+        })}
+        <nav class="st-area-ways" aria-label=s.more_area>
+            {info.catalog.map(|(href, label)| view! { <a class="action" href=t.path(&href)><Icon name="search"/><span>{label}</span><Icon name="chevron-right"/></a> })}
+            {info.rules.map(|href| view! { <a class="action" href=t.path(&href)><Icon name="file-check-2"/><span>{s.area_rules}</span><Icon name="chevron-right"/></a> })}
+        </nav>
     }
 }
