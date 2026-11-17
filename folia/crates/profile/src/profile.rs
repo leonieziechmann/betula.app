@@ -403,36 +403,65 @@ fn Stats(kept: Kept) -> impl IntoView {
     }
 }
 
-/// A row of „Daten" and of the Gefahrenzone: its icon on a tile, what it does and a sentence, a
-/// button of one width with the same icon.
+/// A row of „Daten", of the Gefahrenzone and of Betula Sync (owner, 2026-11-17, of the profile
+/// page: „da sind die Buttons etwas komisch aligned. Das kann einfach ordentlicher aussehen"): its
+/// icon on a tile, what it does and a sentence, a button of one width at the right with the same
+/// icon (wider only where its word is longer). `primary`: the one emphasized button of a part
+/// („Gerät verbinden"). `name`: the button's name for those who do not see it, where its word
+/// alone says too little („Beenden" of „Sync beenden"). `href`: a link instead of a button.
+/// `class`: the row's (`only-desk`, `only-phone`). `expanded` asks a question in a menu at the
+/// button (`confirm`), or with `disclosure` opens something below the row.
 #[component]
-fn ActionRow(
+pub(crate) fn ActionRow(
     icon: &'static str,
     #[prop(into)] title: Signal<String>,
     #[prop(into)] line: Signal<String>,
     #[prop(into)] label: Signal<String>,
     id: &'static str,
     #[prop(optional)] danger: bool,
+    #[prop(optional)] primary: bool,
+    #[prop(optional)] class: &'static str,
+    #[prop(optional)] name: Option<&'static str>,
+    #[prop(optional, into)] href: Option<String>,
     #[prop(optional, into)] disabled: Signal<Option<&'static str>>,
     #[prop(optional, into)] expanded: Option<Signal<bool>>,
-    on_press: Callback<()>,
+    #[prop(optional)] disclosure: bool,
+    #[prop(optional, into)] on_press: Option<Callback<()>>,
 ) -> impl IntoView {
-    view! {
-        <div class="pf-arow">
-            <span class="pf-tile" class:danger=danger aria-hidden="true"><Icon name=icon/></span>
-            <span class="pf-arow-text"><b>{title}</b><span>{line}</span></span>
+    let look = format!("btn {} pf-abtn{}", if primary { "primary" } else { "secondary" }, if danger { " danger" } else { "" });
+    let control = match href {
+        Some(href) => view! {
+            <a class=look id=id href=href rel="nofollow" aria-label=name>
+                <Icon name=icon/><span>{label}</span>
+            </a>
+        }
+        .into_any(),
+        None => view! {
             <button
-                class=if danger { "btn secondary pf-abtn danger" } else { "btn secondary pf-abtn" }
+                class=look
                 type="button"
                 id=id
+                aria-label=name
                 aria-disabled=move || disabled.get().map(|_| "true")
                 title=move || disabled.get()
-                aria-haspopup=expanded.map(|_| "dialog")
+                aria-haspopup=expanded.filter(|_| !disclosure).map(|_| "dialog")
                 aria-expanded=move || expanded.map(|open| if open.get() { "true" } else { "false" })
-                on:click=move |_| on_press.run(())
+                on:click=move |_| {
+                    if let Some(on_press) = on_press {
+                        on_press.run(());
+                    }
+                }
             >
                 <Icon name=icon/><span>{label}</span>
             </button>
+        }
+        .into_any(),
+    };
+    view! {
+        <div class=if class.is_empty() { "pf-arow".to_string() } else { format!("pf-arow {class}") }>
+            <span class="pf-tile" class:danger=danger aria-hidden="true"><Icon name=icon/></span>
+            <span class="pf-arow-text"><b>{title}</b><span>{line}</span></span>
+            {control}
         </div>
     }
 }
