@@ -1,0 +1,1295 @@
+<title>Betula Installieren-Konzepte</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- Betula offers to install itself (owner, 2026-11-17: „Hey Claude bitte arbeite mal an einer Installation
+     Benachrichtigung für Betula, so dass wenn man zum Beispiel die Einrichtung angeschlossen hat, dass man da dann
+     auf installieren gehen kann oder halt nach einer weile wo man die app schok verwnedet hat. Erstelle erstmal
+     Konzepte und kläre, was dafür notwendig wäre."). Three concepts, each a prototype on an Android phone (Chrome),
+     an iPhone (Safari, iOS 26) and a laptop (Chrome or Edge), light and dark; then the way of each browser, the
+     iPhone's handover, the place that is always there, when Betula asks by itself, and what it takes.
+     Read against canary (Folia 1.95.0, 2026-11-17) and the code of that day: folia/assets/manifest.webmanifest,
+     sw.js, enhance.js, folia/crates/shell/src/document.rs (HEAD_SCRIPT, the manifests), folia/crates/home/src/home/
+     setup.rs and devices.rs (the setup's steps), today.rs (the day), folia/crates/widgets/src/marknote.rs (the
+     note that waits, Notice::SetUp), folia/crates/stores/src/sync/devices.rs („App" for a device that runs
+     installed), docs/folia/frontend.md („The start page", the icons and the splash screens). The browsers' side
+     as of November 2026: beforeinstallprompt in Chromium only; iOS and Safari on the Mac without any API, their
+     web apps with storage of their own (cookies copied at install, iOS 17.2 on; localStorage and IndexedDB not);
+     Firefox 143 on Windows „Zur Taskleiste hinzufügen" without an API; navigator.install() with an intent to ship
+     on Chrome's desktop (M156) and the <install> element in an origin trial (148–153). The photo in bilder/ is
+     the start page's autumn photo (folia/assets/season/autumn.webp, smaller). Tokens are Betula's
+     (folia/assets/app.css); the browsers' own dialogs are drawn in their blue, so that what is Betula's and what
+     is the browser's stays apart. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: the thesis and what all three share, a bar to change the device and the theme, today's way and the
+   new one, one block per concept with its prototype and three columns, then the browsers, the iPhone's
+   handover, the place that is always there, the rules, what it takes, the comparison and the questions.
+   The prototypes use Betula's own tokens (--m-*), light and dark of their own, so that the switch changes the
+   prototype and not this page; the browsers' dialogs take --b-* (their blue). */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4; --panel: #ffffff; --panel-2: #f6f7f8; --panel-3: #eceef1; --desk: #e6e8ec;
+  --line: rgba(15, 23, 42, .08); --line-strong: rgba(15, 23, 42, .15);
+  --text: #10151f; --text-2: #4b5565; --text-3: #6b7484;
+  --invert: #161b26; --on-invert: #ffffff; --bezel: #1b1f27;
+  --accent: oklch(.53 .07 149); --accent-ink: oklch(.44 .07 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --warn: #8a4b00; --warn-soft: color-mix(in srgb, #d97706 11%, var(--panel));
+  --info: #1d4ed8; --info-soft: color-mix(in srgb, #2563eb 9%, var(--panel));
+  --shadow-panel: 0 0 0 1px var(--line), 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330; --desk: #07090d;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #8a93a8;
+    --invert: #e9edf5; --on-invert: #0d1017; --bezel: #2a303b;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --warn: #f2b45c; --warn-soft: color-mix(in srgb, #f2b45c 12%, var(--panel));
+    --info: #93b4ff; --info-soft: color-mix(in srgb, #93b4ff 12%, var(--panel));
+    --shadow-panel: 0 0 0 1px var(--line), 0 20px 40px -22px rgba(0, 0, 0, .7);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330; --desk: #07090d;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #8a93a8;
+  --invert: #e9edf5; --on-invert: #0d1017; --bezel: #2a303b;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --warn: #f2b45c; --warn-soft: color-mix(in srgb, #f2b45c 12%, var(--panel));
+  --info: #93b4ff; --info-soft: color-mix(in srgb, #93b4ff 12%, var(--panel));
+  --shadow-panel: 0 0 0 1px var(--line), 0 20px 40px -22px rgba(0, 0, 0, .7);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4, h5 { margin: 0; text-wrap: balance; }
+p, ul, ol, figure { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+button { font: inherit; color: inherit; }
+a { color: var(--accent-ink); text-underline-offset: 3px; }
+b { font-weight: 650; }
+code { font: 500 .88em/1 var(--mono); padding: 2px 5px; border-radius: 5px; background: var(--panel-3); color: var(--text); overflow-wrap: anywhere; }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 22px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+
+/* The thesis. */
+.intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -.025em; font-weight: 760; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.intro .lead + .lead { margin-top: 10px; }
+.quote { margin-top: 16px; padding: 12px 16px; border-radius: 10px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ul { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.rules li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.rules li > i { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--panel-3); color: var(--text); }
+.rules li b { color: var(--text); font-weight: 620; }
+
+/* The bar. */
+.setbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px; padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter: blur(8px); box-shadow: var(--shadow-panel); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.setbar .group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.setbar .group > span { color: var(--text-3); font-size: 12px; font-weight: 600; }
+.jump { display: flex; flex-wrap: wrap; gap: 4px; }
+.jump a { padding: 5px 9px; border-radius: 8px; color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; }
+.jump a:hover { background: var(--panel-3); color: var(--text); }
+.seg { display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 2px; border-radius: 9px; background: var(--panel-3); }
+.seg button { padding: 5px 11px; border: 0; border-radius: 7px; background: none; color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .12), 0 0 0 1px var(--line); }
+
+/* Sections. */
+.sec { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 24px; display: flex; flex-direction: column; gap: 16px; scroll-margin-top: 80px; min-width: 0; }
+.sec > header { display: flex; flex-direction: column; gap: 6px; }
+.sec h2 { display: flex; align-items: center; gap: 10px; font-size: 23px; letter-spacing: -.018em; font-weight: 740; }
+.sec h3.part { font-size: 16px; font-weight: 700; margin-top: 4px; }
+.sec .sub { max-width: 84ch; color: var(--text-2); text-wrap: pretty; }
+.sec .sub b { color: var(--text); }
+.tag { display: inline-grid; place-items: center; min-width: 30px; height: 30px; padding: 0 8px; border-radius: 8px; background: var(--invert); color: var(--on-invert); font-size: 15px; font-weight: 760; }
+.tryit { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.tryit b { color: var(--text); }
+.tryit svg.i { margin-top: 3px; color: var(--accent-ink); }
+.how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.how > div { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.how h3 { font-size: 14.5px; font-weight: 700; }
+.how ul { margin-top: 8px; display: flex; flex-direction: column; gap: 7px; }
+.how li { position: relative; padding-left: 14px; color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.how li::before { content: ""; position: absolute; left: 1px; top: .62em; width: 5px; height: 5px; border-radius: 2px; background: var(--line-strong); }
+.how li b { color: var(--text); }
+.how .weak { background: var(--warn-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 25%, transparent); }
+
+/* Today's way and the new one, as steps. */
+.ways { display: flex; flex-direction: column; gap: 14px; }
+.way { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 8px 16px; align-items: start; }
+.way > b { padding-top: 6px; font-size: 13.5px; }
+.way > b small { display: block; color: var(--text-3); font-size: 12px; font-weight: 500; }
+.steps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.step { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; color: var(--text-2); }
+.step b { color: var(--text); font-weight: 620; }
+.step.extra { background: var(--warn-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 30%, transparent); }
+.step.new { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.step.end { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.step.end b { color: var(--on-invert); }
+.steps .to { color: var(--text-3); }
+.have { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.have li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; padding: 10px 12px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 13px; text-wrap: pretty; }
+.have li svg.i { margin-top: 2px; color: var(--accent-ink); stroke-width: 2.6; }
+.have li b { color: var(--text); font-weight: 620; }
+
+/* Tables. */
+.scroll { overflow-x: auto; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 760px; }
+th, td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); text-wrap: pretty; }
+thead th { background: var(--panel-2); color: var(--text-3); font-size: 11.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+tbody th { font-weight: 620; color: var(--text); }
+tbody th small { display: block; color: var(--text-3); font-weight: 500; font-size: 12px; }
+td { color: var(--text-2); }
+td.best { color: var(--text); font-weight: 600; }
+.pill { display: inline-block; padding: 1px 7px; border-radius: 6px; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.pill.ok { background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.pill.hand { background: var(--info-soft); color: var(--info); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--info) 30%, transparent); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 30%, transparent); }
+.pill.no { background: var(--panel-3); color: var(--text-2); }
+tbody tr:last-child > * { border-bottom: 0; }
+.qs { display: flex; flex-direction: column; gap: 10px; counter-reset: q; }
+.qs li { counter-increment: q; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 4px 12px; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.qs li::before { content: counter(q); grid-row: span 2; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; background: var(--invert); color: var(--on-invert); font-size: 13px; font-weight: 700; }
+.qs li b { color: var(--text); font-size: 14.5px; }
+.qs li p { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.qs em { font-style: normal; font-weight: 650; color: var(--accent-ink); }
+.rec { padding: 16px 18px; border-radius: 12px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--text-2); text-wrap: pretty; }
+.rec b { color: var(--text); }
+.rec + .rec { margin-top: -6px; }
+.foot { color: var(--text-3); font-size: 12.5px; text-align: center; text-wrap: pretty; }
+
+/* The handover, the variants. */
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.var { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.var.pick { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.var h4 { font-size: 14.5px; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.var p, .var li { color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.var ul { display: flex; flex-direction: column; gap: 6px; }
+.var li { position: relative; padding-left: 14px; }
+.var li::before { content: ""; position: absolute; left: 1px; top: .62em; width: 5px; height: 5px; border-radius: 2px; background: var(--line-strong); }
+.var b { color: var(--text); }
+.film { display: flex; gap: 18px; overflow-x: auto; padding: 4px 2px 10px; }
+.film figure { flex: none; display: flex; flex-direction: column; gap: 10px; width: 250px; }
+.film figcaption { color: var(--text-2); font-size: 13px; text-wrap: pretty; }
+.film figcaption b { display: block; color: var(--text); }
+.mini { width: 250px; height: 500px; border-radius: 26px; background: var(--bezel); padding: 6px; }
+.mini > .mk { width: 100%; height: 100%; border-radius: 21px; overflow: hidden; display: flex; flex-direction: column; font-size: 12px; }
+
+/* The rules, as a line of days. */
+.tl { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; padding: 6px 0 2px; overflow-x: auto; }
+.tl > div { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 30px 10px 0 0; min-width: 130px; }
+.tl > div::before { content: ""; position: absolute; left: 0; right: 0; top: 11px; height: 2px; background: var(--line-strong); }
+.tl > div:first-child::before { left: 9px; }
+.tl > div:last-child::before { right: auto; width: 60%; background: linear-gradient(90deg, var(--line-strong), transparent); }
+.tl > div > i { position: absolute; left: 0; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--panel); box-shadow: inset 0 0 0 2px var(--line-strong); }
+.tl > div.ask > i { background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.tl > div.off > i { background: var(--panel-3); }
+.tl small { color: var(--text-3); font-size: 11.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+.tl b { font-size: 13.5px; }
+.tl span { color: var(--text-2); font-size: 12.5px; text-wrap: pretty; }
+.never { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.never li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.never li svg.i { margin-top: 3px; }
+.never .yes svg.i { color: var(--accent-ink); }
+.never .not svg.i { color: var(--warn); }
+.never b { color: var(--text); }
+
+/* What it takes. */
+.need { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.need > div { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.need h4 { font-size: 14.5px; font-weight: 700; }
+.need ul { margin-top: 10px; display: flex; flex-direction: column; gap: 9px; }
+.need li { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 10px; color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.need li b { color: var(--text); }
+.st { align-self: start; display: inline-grid; place-items: center; height: 21px; border-radius: 6px; font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
+.st.da { background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.st.neu { background: var(--invert); color: var(--on-invert); }
+.st.opt { background: var(--panel-3); color: var(--text-2); }
+.st.test { background: var(--warn-soft); color: var(--warn); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 30%, transparent); }
+.need .wide { grid-column: 1 / -1; }
+.later-api { padding: 12px 16px; border-radius: 12px; background: var(--info-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--info) 25%, transparent); color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.later-api b { color: var(--text); }
+
+/* The place that is always there. */
+.always { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.always figure { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.always figcaption { color: var(--text-2); font-size: 13px; text-wrap: pretty; }
+.always figcaption b { color: var(--text); }
+.always .mk { border-radius: 14px; padding: 14px 16px; background: var(--m-panel); box-shadow: 0 0 0 1px var(--line); }
+
+/* The stage a prototype stands on. */
+.stage { border-radius: 14px; background: var(--desk); min-width: 0; }
+.stage-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 14px 0; }
+.stage-bar .where { color: var(--text-2); font-size: 12.5px; font-weight: 600; }
+.stage-bar .grow { flex: 1; }
+.stage-in { padding: 14px 22px 22px; overflow-x: auto; overflow-y: hidden; }
+.reset { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 0; border-radius: 8px; background: var(--panel); box-shadow: 0 0 0 1px var(--line); color: var(--text-2); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.reset:hover { color: var(--text); }
+.dots { display: flex; gap: 4px; }
+.dots i { width: 22px; height: 4px; border-radius: 2px; background: var(--line-strong); }
+.dots i.on { background: var(--accent); }
+
+/* ---------- The prototype: Betula, small ---------- */
+.mk {
+  --m-bg: #f1f2f4; --m-panel: #ffffff; --m-panel2: #f6f7f8; --m-panel3: #eceef1; --m-rail: #f6f7f8;
+  --m-line: rgba(15, 23, 42, .08); --m-line2: rgba(15, 23, 42, .16);
+  --m-text: #10151f; --m-text2: #4b5565; --m-text3: #5f6878;
+  --m-invert: #161b26; --m-on-invert: #ffffff;
+  --m-accent: #4c7a58; --m-accent-ink: #3c6848; --m-on-accent: #ffffff;
+  --m-accent-soft: #edf3ef; --m-accent-line: rgba(76, 122, 88, .45);
+  --m-ok: #0b7f58; --m-ok-soft: #e7f3ee;
+  --m-pop: 0 0 0 1px rgba(15, 23, 42, .1), 0 18px 40px -14px rgba(15, 23, 42, .35);
+  --m-scrim: rgba(16, 21, 31, .34);
+  --m-toast: #161b26; --m-on-toast: #ffffff;
+  --c1: #4f86b0; --c2: #c8693f; --c3: #8a74c4; --c4: #4c7a58;
+  /* The browsers' own (Chrome's Material, Safari's iOS): their blue, their greys. */
+  --b-sheet: #ffffff; --b-text: #1f1f1f; --b-text2: #444746; --b-line: #e3e3e3; --b-blue: #0b57d0; --b-on-blue: #ffffff; --b-chip: #f0f4f9;
+  --b-bar: rgba(250, 250, 252, .92); --b-ios: #007aff; --b-ios-sheet: #f2f2f7; --b-ios-cell: #ffffff;
+  position: relative; background: var(--m-bg); color: var(--m-text); font: 13.5px/1.45 var(--font); text-align: left;
+}
+.mk.dark {
+  --m-bg: #0a0c11; --m-panel: #12151c; --m-panel2: #171b24; --m-panel3: #1e2330; --m-rail: #0f1218;
+  --m-line: rgba(255, 255, 255, .08); --m-line2: rgba(255, 255, 255, .17);
+  --m-text: #eceff5; --m-text2: #a4adc0; --m-text3: #8a93a8;
+  --m-invert: #e9edf5; --m-on-invert: #0d1017;
+  --m-accent: #5d8f69; --m-accent-ink: #9fcaa9; --m-on-accent: #ffffff;
+  --m-accent-soft: #18241c; --m-accent-line: rgba(127, 178, 140, .5);
+  --m-ok: #4fd1a1; --m-ok-soft: #12261f;
+  --m-pop: 0 0 0 1px rgba(255, 255, 255, .12), 0 22px 44px -16px rgba(0, 0, 0, .8);
+  --m-scrim: rgba(0, 0, 0, .55);
+  --m-toast: #262c38; --m-on-toast: #ffffff;
+  --b-sheet: #1f2023; --b-text: #e3e3e3; --b-text2: #c4c7c5; --b-line: #3c3d40; --b-blue: #a8c7fa; --b-on-blue: #062e6f; --b-chip: #2a2c30;
+  --b-bar: rgba(30, 30, 32, .9); --b-ios: #0a84ff; --b-ios-sheet: #1c1c1e; --b-ios-cell: #2c2c2e;
+}
+.mk button { font: inherit; color: inherit; }
+.mk .i { width: 17px; height: 17px; }
+.mk b { font-weight: 650; }
+
+/* The frames. */
+.phone { width: 380px; height: 760px; margin: 0 auto; border-radius: 36px; background: var(--bezel); padding: 9px; box-shadow: 0 24px 50px -20px rgba(15, 23, 42, .5); }
+.mk.ph { width: 100%; height: 100%; border-radius: 28px; overflow: hidden; display: flex; flex-direction: column; }
+.win { width: 1080px; margin: 0 auto; border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 1px var(--line-strong), 0 24px 50px -28px rgba(0, 0, 0, .45); }
+.win > .mk { display: flex; flex-direction: column; height: 720px; }
+.mk.desk-in { flex: 1; min-height: 0; display: grid; grid-template-columns: 60px minmax(0, 1fr); }
+
+/* The status bar of a phone, Chrome's address bar on Android, Safari's bar on an iPhone. */
+.sbar { flex: none; display: flex; justify-content: space-between; align-items: center; height: 30px; padding: 2px 22px 0; font-size: 12px; font-weight: 650; color: var(--m-text); }
+.sbar.on-photo { position: absolute; top: 0; left: 0; right: 0; z-index: 4; color: #fff; }
+.sbar span:last-child { display: flex; gap: 5px; align-items: center; }
+.sbar span:last-child i { display: block; width: 15px; height: 9px; border-radius: 2px; background: currentColor; opacity: .85; }
+.sbar span:last-child i:first-child { width: 12px; clip-path: polygon(0 100%, 100% 0, 100% 100%); border-radius: 0; }
+.cr-top { flex: none; position: relative; z-index: 4; display: flex; align-items: center; gap: 8px; padding: 4px 10px 8px; background: var(--b-sheet); box-shadow: 0 1px 0 var(--b-line); }
+.cr-url { flex: 1; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 18px; background: var(--b-chip); color: var(--b-text); font: 400 13.5px/1 Roboto, var(--font); }
+.cr-url .i { width: 14px; height: 14px; color: var(--b-text2); }
+.cr-tabs { display: grid; place-items: center; width: 22px; height: 22px; border: 2px solid var(--b-text2); border-radius: 5px; color: var(--b-text2); font: 700 10.5px/1 Roboto, var(--font); }
+.cr-more { color: var(--b-text2); }
+.sf-bar { position: absolute; z-index: 4; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.sf-pill { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; height: 46px; border-radius: 23px; background: var(--b-bar); box-shadow: 0 6px 18px -6px rgba(0, 0, 0, .3), 0 0 0 .5px rgba(0, 0, 0, .12); backdrop-filter: blur(16px); color: var(--b-text); font: 500 14px/1 -apple-system, var(--font); }
+.sf-pill .i { width: 13px; height: 13px; color: var(--b-text2); }
+.sf-btn { position: relative; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--b-bar); box-shadow: 0 6px 18px -6px rgba(0, 0, 0, .3), 0 0 0 .5px rgba(0, 0, 0, .12); backdrop-filter: blur(16px); color: var(--b-text); }
+.sf-btn .i { width: 20px; height: 20px; }
+.sf-btn.hint::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; box-shadow: 0 0 0 2.5px var(--m-accent); animation: ring 1.4s ease-in-out infinite; }
+@keyframes ring { 50% { transform: scale(1.12); opacity: .35; } }
+.mk.ph.sf .p-tabs { margin-bottom: 66px; }
+.sf-bar.lift { z-index: 7; }
+
+/* The window of a laptop: Chrome's tab and address bar, or the installed app's title bar. */
+.wbar { flex: none; display: flex; flex-direction: column; background: var(--b-chip); }
+.wtabs { display: flex; align-items: flex-end; gap: 8px; padding: 8px 12px 0; }
+.wtabs .lights { display: flex; gap: 7px; padding: 0 8px 12px 2px; }
+.wtabs .lights i { width: 11px; height: 11px; border-radius: 50%; background: var(--b-line); }
+.wtab { display: flex; align-items: center; gap: 8px; width: 230px; height: 32px; padding: 0 12px; border-radius: 10px 10px 0 0; background: var(--b-sheet); color: var(--b-text); font: 400 12.5px/1 Roboto, var(--font); }
+.wtab svg.ic { width: 15px; height: 15px; border-radius: 4px; }
+.womni { display: flex; align-items: center; gap: 10px; padding: 6px 12px 8px; background: var(--b-sheet); box-shadow: 0 1px 0 var(--b-line); color: var(--b-text2); }
+.womni .i { width: 16px; height: 16px; }
+.womni .url { flex: 1; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px 0 14px; border-radius: 16px; background: var(--b-chip); color: var(--b-text); font: 400 13.5px/1 Roboto, var(--font); }
+.womni .url .grow { flex: 1; }
+.womni .inst { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: var(--b-text2); }
+.womni .inst.lit { background: color-mix(in srgb, var(--b-blue) 14%, transparent); color: var(--b-blue); }
+.wapp { flex: none; display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 0 0 12px; background: var(--m-bg); box-shadow: 0 1px 0 var(--m-line); color: var(--m-text); font-size: 12.5px; font-weight: 600; }
+.wapp svg.ic { width: 16px; height: 16px; border-radius: 4px; }
+.wapp .grow { flex: 1; }
+.wapp .ctl { display: flex; height: 100%; }
+.wapp .ctl span { display: grid; place-items: center; width: 44px; color: var(--m-text2); }
+.wapp .ctl .i { width: 14px; height: 14px; }
+
+/* Betula's chrome: the phone's bar and tabs, the desktop's rail and top. */
+.p-body { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.p-top { position: relative; z-index: 3; display: flex; align-items: center; gap: 8px; padding: 8px 12px 10px; }
+.p-search { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 12px; background: var(--m-panel); box-shadow: 0 0 0 1px var(--m-line); color: var(--m-text3); font-size: 13px; white-space: nowrap; overflow: hidden; }
+.p-me, .p-inst { flex: none; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--m-panel); box-shadow: 0 0 0 1px var(--m-line); color: var(--m-text2); }
+.p-me { width: 40px; }
+.p-inst { display: flex; gap: 5px; padding: 0 10px; border: 0; color: var(--m-text); font-size: 12.5px; font-weight: 650; cursor: pointer; }
+.p-inst .i { width: 16px; height: 16px; }
+.p-top.clear { position: absolute; left: 0; right: 0; top: 0; }
+.p-top.clear .p-search, .p-top.clear .p-me, .p-top.clear .p-inst { background: rgba(255, 255, 255, .14); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25); color: rgba(255, 255, 255, .88); backdrop-filter: blur(10px); }
+.p-top.clear .p-inst { color: #fff; }
+.p-scroll { position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.p-tabs { position: relative; z-index: 3; flex: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0 8px 10px; padding: 6px 4px; border-radius: 20px; background: var(--m-panel); box-shadow: var(--m-pop); }
+.p-tabs span { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; border-radius: 12px; color: var(--m-text3); font-size: 10px; font-weight: 600; }
+.p-tabs span.on { color: var(--m-text); }
+.p-tabs span.on svg { color: var(--m-on-invert); background: var(--m-invert); border-radius: 9px; padding: 3px 12px; width: 44px; height: 24px; box-sizing: border-box; }
+.p-tabs .i { width: 20px; height: 20px; }
+.d-rail { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0; background: var(--m-rail); box-shadow: inset -1px 0 0 var(--m-line); }
+.d-rail .logo { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: var(--m-invert); margin-bottom: 4px; }
+.d-rail .logo svg { width: 36px; height: 36px; }
+.d-rb { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; color: var(--m-text2); }
+.d-rb.on { background: var(--m-invert); color: var(--m-on-invert); }
+.d-rail .gap { flex: 1; }
+.d-main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.d-top { position: relative; z-index: 3; display: flex; align-items: center; gap: 20px; padding: 10px 16px; }
+.d-top .word { width: 200px; font-size: 16px; font-weight: 780; letter-spacing: .02em; }
+.d-search { flex: 0 1 520px; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 10px; background: var(--m-panel); box-shadow: 0 0 0 1px var(--m-line); color: var(--m-text3); font-size: 13px; }
+.d-top .grow { flex: 1; }
+.d-inst { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 13px; border: 0; border-radius: 10px; background: var(--m-panel); box-shadow: 0 0 0 1px var(--m-line); color: var(--m-text); font-size: 13px; font-weight: 640; cursor: pointer; }
+.d-top.clear { position: absolute; left: 0; right: 0; top: 0; }
+.d-top.clear .word { color: #fff; }
+.d-top.clear .d-search, .d-top.clear .d-inst { background: rgba(255, 255, 255, .14); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25); color: rgba(255, 255, 255, .88); backdrop-filter: blur(10px); }
+.d-top.clear .d-inst { color: #fff; }
+.d-scroll { position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 16px 16px; scrollbar-width: thin; }
+
+/* Shared pieces. */
+.m-panel { background: var(--m-panel); border-radius: 14px; box-shadow: 0 0 0 1px var(--m-line); padding: 16px; min-width: 0; }
+.m-h { font-size: 19px; line-height: 1.2; font-weight: 740; letter-spacing: -.015em; text-wrap: balance; }
+.m-sub { color: var(--m-text2); font-size: 13px; text-wrap: pretty; }
+.m-label { color: var(--m-text3); font-size: 10.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+.m-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 38px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--m-panel); box-shadow: inset 0 0 0 1px var(--m-line2); color: var(--m-text); font-size: 13px; font-weight: 640; white-space: nowrap; cursor: pointer; }
+.m-btn.pri { background: var(--m-accent); color: var(--m-on-accent); box-shadow: none; }
+.m-btn.pri:hover { filter: brightness(1.06); }
+.m-btn.ghost { background: none; box-shadow: none; color: var(--m-accent-ink); }
+.m-btn.wide { width: 100%; height: 46px; font-size: 14px; }
+.m-btn .i { width: 16px; height: 16px; }
+.sim { display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border: 1.5px dashed var(--m-accent-line); border-radius: 9px; background: none; color: var(--m-accent-ink); font-size: 12px; font-weight: 650; cursor: pointer; }
+.sim:hover { background: var(--m-accent-soft); }
+.sim .i { width: 14px; height: 14px; }
+.sims { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 12px 0 4px; }
+.appicon { display: block; flex: none; border-radius: 22%; }
+.gain { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; padding: 7px 0; border-top: 1px solid var(--m-line); }
+.gain:first-child { border-top: 0; }
+.gain .tile { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--m-accent-soft); color: var(--m-accent-ink); }
+.gain b { display: block; font-size: 13.5px; font-weight: 640; }
+.gain span { display: block; color: var(--m-text2); font-size: 12.5px; text-wrap: pretty; }
+.ok-mark { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--m-ok-soft); color: var(--m-ok); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--m-ok) 35%, transparent); }
+.ok-mark .i { width: 24px; height: 24px; stroke-width: 2.4; }
+.done-list { display: flex; flex-direction: column; gap: 6px; }
+.done-list li { display: flex; align-items: center; gap: 8px; color: var(--m-text2); font-size: 13px; }
+.done-list .i { width: 15px; height: 15px; color: var(--m-ok); stroke-width: 2.6; }
+.done-list b { color: var(--m-text); font-weight: 620; }
+
+/* The setup's card on the season's photo (setup.rs), small. */
+.scene { position: relative; isolation: isolate; min-height: 100%; }
+.scene .ph, .hero .ph { position: absolute; inset: 0; z-index: -2; background: #4b5056 url("bilder/herbst.webp") center / cover no-repeat; }
+.scene .sh { position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(8, 10, 14, .38), rgba(8, 10, 14, .1) 40%, rgba(8, 10, 14, .3)); }
+.mk.ph .scene { padding: 64px 10px 14px; }
+.mk.desk-in .scene { margin: 0 -16px; padding: 66px 28px 28px; min-height: 100%; display: grid; grid-template-columns: 560px minmax(0, 1fr); gap: 28px; align-items: start; }
+.brand { align-self: center; justify-self: center; color: #fff; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.brand .appicon { width: 96px; height: 96px; }
+.brand b { font-size: 54px; font-weight: 780; letter-spacing: .02em; line-height: 1; }
+.brand small { font-size: 14px; font-weight: 600; opacity: .9; }
+.ob { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 16px; background: var(--m-panel); box-shadow: var(--m-pop); }
+.mk.desk-in .ob { padding: 20px 22px; }
+.ob-chips { display: flex; gap: 5px; overflow: hidden; }
+.ob-chip { flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 8px 0 4px; border-radius: 13px; background: var(--m-panel2); color: var(--m-text2); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.ob-chip span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.ob-chip i { flex: none; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--m-panel3); color: var(--m-text2); font-style: normal; font-size: 10.5px; font-weight: 700; }
+.ob-chip.done i { background: var(--m-text2); color: var(--m-panel); }
+.ob-chip.done i .i { width: 11px; height: 11px; stroke-width: 3.2; }
+.ob-chip.on { flex: none; color: var(--m-text); }
+.ob-chip.on i { background: var(--m-accent); color: #fff; }
+.ob h4 { font-size: 23px; line-height: 1.15; font-weight: 760; letter-spacing: -.02em; }
+.ob .lede { color: var(--m-text2); font-size: 13.5px; text-wrap: pretty; }
+.ob-acts { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.mk.desk-in .ob-acts { flex-direction: row-reverse; justify-content: flex-start; align-items: center; gap: 10px; }
+
+/* A home screen and a dock, drawn small (the step's picture). */
+.homes { position: relative; height: 80px; border-radius: 12px; overflow: hidden; background: linear-gradient(135deg, #7a8f86, #b79a6c 55%, #8b6f58); box-shadow: inset 0 0 0 1px var(--m-line); display: flex; align-items: center; justify-content: center; gap: 12px; }
+.homes span { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #fff; font-size: 9.5px; font-weight: 600; text-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
+.homes span i { display: block; width: 40px; height: 40px; border-radius: 10px; background: rgba(255, 255, 255, .4); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .3); }
+.homes span.me .appicon { width: 46px; height: 46px; box-shadow: 0 6px 14px -4px rgba(0, 0, 0, .45), 0 0 0 3px rgba(255, 255, 255, .7); animation: bob 2.4s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(-3px); } }
+.homes.dock { align-items: flex-end; padding-bottom: 10px; }
+.homes.dock::after { content: ""; position: absolute; left: 50%; bottom: 6px; width: 300px; height: 58px; transform: translateX(-50%); border-radius: 16px; background: rgba(255, 255, 255, .28); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .35); z-index: 0; }
+.homes.dock span { z-index: 1; }
+
+/* The day (today.rs), small. */
+.hero { position: relative; isolation: isolate; color: #fff; overflow: hidden; }
+.hero .sh { position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(8, 10, 14, .62), rgba(8, 10, 14, .38) 45%, rgba(8, 10, 14, .55)); }
+.mk.ph .hero { padding: 64px 14px 14px; border-radius: 0 0 22px 22px; display: flex; flex-direction: column; gap: 12px; }
+.mk.desk-in .hero { margin: 0 -16px; padding: 72px 24px 22px 28px; height: 286px; border-radius: 0 0 14px 14px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: end; }
+.greet small { display: block; color: rgba(255, 255, 255, .78); font-size: 11.5px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
+.greet h4 { margin-top: 2px; font-size: 30px; line-height: 1.05; font-weight: 760; letter-spacing: -.02em; }
+.greet p { margin-top: 6px; color: rgba(255, 255, 255, .9); font-size: 13.5px; text-wrap: pretty; max-width: 46ch; }
+.clock { margin-top: 10px; display: flex; gap: 3px; align-items: center; }
+.clock i { height: 6px; flex: 1; border-radius: 3px; background: rgba(255, 255, 255, .28); }
+.clock i.f { background: rgba(255, 255, 255, .9); }
+.clock i.now { flex: 2.4; background: linear-gradient(90deg, rgba(255, 255, 255, .9) 40%, rgba(255, 255, 255, .28) 40%); }
+.next { padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, .14); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22); backdrop-filter: blur(12px); }
+.next small { color: rgba(255, 255, 255, .75); font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+.next b { display: block; margin-top: 2px; font-size: 22px; font-weight: 760; }
+.next span { display: block; color: rgba(255, 255, 255, .88); font-size: 12.5px; }
+.cols { display: flex; flex-direction: column; gap: 10px; padding: 12px 0 0; }
+.mk.ph .cols { padding: 10px 10px 4px; }
+.mk.desk-in .cols { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 12px; padding-top: 14px; align-items: start; }
+.cols .col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dp { background: var(--m-panel); border-radius: 14px; box-shadow: 0 0 0 1px var(--m-line); padding: 6px 6px 8px; min-width: 0; }
+.dp h5 { margin: 0; padding: 8px 10px 6px; font-size: 14px; font-weight: 680; }
+.ev { display: grid; grid-template-columns: 48px 4px minmax(0, 1fr); gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; }
+.ev.now { background: var(--m-accent-soft); }
+.ev .t { color: var(--m-text2); font-size: 11.5px; line-height: 1.2; }
+.ev .t b { display: block; color: var(--m-text); font-size: 13.5px; }
+.ev .bar { align-self: stretch; border-radius: 2px; background: var(--c); }
+.ev .w b { display: block; overflow: hidden; font-size: 13px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
+.ev .w small { color: var(--m-text2); font-size: 11.5px; }
+.wk { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; padding: 2px 10px 6px; }
+.wk div { display: grid; gap: 4px; color: var(--m-text3); font-size: 10.5px; font-weight: 620; }
+.wk span { position: relative; height: 70px; border-radius: 6px; background: var(--m-panel2); overflow: hidden; }
+.wk span.today { box-shadow: inset 0 0 0 1.5px var(--m-accent); }
+.wk span i { position: absolute; left: 3px; right: 3px; border-radius: 3px; background: var(--c); opacity: .85; }
+
+/* B: the card in the day. */
+.offer { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 4px 12px; align-items: start; padding: 14px; border-radius: 14px; background: var(--m-panel); box-shadow: 0 0 0 1px var(--m-line), 0 0 0 4px color-mix(in srgb, var(--m-accent) 10%, transparent); animation: rise .3s ease-out; }
+.offer .appicon { width: 44px; height: 44px; grid-row: span 2; }
+.offer h5 { font-size: 14.5px; font-weight: 700; padding-top: 2px; }
+.offer p { grid-column: 2 / 4; color: var(--m-text2); font-size: 12.5px; text-wrap: pretty; }
+.offer .x { grid-row: 1; grid-column: 3; display: grid; place-items: center; width: 30px; height: 30px; margin: -4px -4px 0 0; border: 0; border-radius: 8px; background: none; color: var(--m-text3); cursor: pointer; }
+.offer .x:hover { background: var(--m-panel2); }
+.offer .x .i { width: 15px; height: 15px; }
+.offer .row { grid-column: 2 / 4; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 6px; }
+.offer .row .m-btn { height: 34px; }
+.offer .row small { color: var(--m-text3); font-size: 11.5px; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+
+/* C: the button that waits in the bar, and its bubble. */
+.bubble { position: absolute; z-index: 5; width: 250px; padding: 12px 12px 12px 14px; border-radius: 13px; background: var(--m-toast); color: var(--m-on-toast); box-shadow: 0 18px 40px -14px rgba(0, 0, 0, .5); font-size: 12.5px; animation: pop2 .28s cubic-bezier(.2, .8, .2, 1); }
+.bubble::before { content: ""; position: absolute; top: -6px; width: 12px; height: 12px; background: var(--m-toast); transform: rotate(45deg); border-radius: 2px; }
+.bubble b { display: block; font-size: 13.5px; }
+.bubble p { margin-top: 2px; opacity: .82; text-wrap: pretty; }
+.bubble .row { display: flex; gap: 6px; margin-top: 10px; }
+.bubble .row button { height: 32px; padding: 0 12px; border: 0; border-radius: 8px; font-size: 12.5px; font-weight: 650; cursor: pointer; }
+.bubble .row .go { background: var(--m-accent); color: #fff; }
+.bubble .row .no { background: rgba(255, 255, 255, .1); color: #fff; }
+@keyframes pop2 { from { opacity: 0; transform: translateY(-6px) scale(.97); } }
+.mk.ph .bubble { top: 84px; right: 58px; }
+.mk.ph .bubble::before { right: 30px; }
+.mk.ph.cr .bubble { top: 130px; }
+.mk.ph.edge .p-top.clear { padding-top: 36px; }
+.mk.ph.edge .hero, .mk.ph.edge .scene { padding-top: 94px; }
+.cr-status { flex: none; background: var(--b-sheet); }
+.mk.desk-in .bubble { top: 56px; right: 16px; }
+.mk.desk-in .bubble::before { right: 50px; }
+
+/* The note that waits for interaction (folia_design::waitnote::WaitNote, app.css .wait-note). */
+.wn { position: absolute; z-index: 4; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 8px 6px 8px 14px; background: var(--m-toast); color: var(--m-on-toast); font-size: 13px; animation: wn-rise .3s cubic-bezier(.2, .8, .2, 1); }
+.mk.ph .wn { left: 10px; right: 10px; bottom: 80px; border-radius: 14px; }
+.mk.ph.sf .wn { bottom: 146px; }
+.mk.desk-in .wn { left: 16px; right: 16px; bottom: 16px; min-height: 48px; border-radius: 12px; box-shadow: 0 18px 40px -14px rgba(0, 0, 0, .45); animation-name: wn-in; }
+@keyframes wn-rise { from { transform: translateY(calc(100% + 24px)); } }
+@keyframes wn-in { from { opacity: 0; transform: translateY(10px); } }
+.wn .mark { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--m-accent); color: #fff; }
+.wn .mark .i { width: 13px; height: 13px; stroke-width: 3; }
+.wn .mark .appicon { width: 22px; height: 22px; border-radius: 6px; }
+.wn b { display: block; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wn small { display: block; opacity: .74; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wn .acts { display: flex; align-items: center; }
+.wn .acts button { min-height: 36px; padding: 0 10px; border: 0; border-radius: 9px; background: none; color: var(--m-on-toast); font-weight: 650; white-space: nowrap; cursor: pointer; }
+.wn .acts button:hover { background: rgba(255, 255, 255, .1); }
+.wn .acts button.go { color: #b8e0c4; }
+.wn .acts .x { display: grid; place-items: center; width: 34px; padding: 0; opacity: .72; }
+.wn .acts .x .i { width: 16px; height: 16px; }
+
+/* Overlays: a scrim, a sheet (phone), a dialog (laptop). */
+.scrim { position: absolute; inset: 0; z-index: 5; background: var(--m-scrim); animation: fade .2s ease-out; }
+@keyframes fade { from { opacity: 0; } }
+.sheet { position: absolute; z-index: 6; left: 0; right: 0; bottom: 0; max-height: 88%; overflow-y: auto; scrollbar-width: none; padding: 8px 18px 18px; border-radius: 22px 22px 0 0; background: var(--m-panel); box-shadow: var(--m-pop); animation: up .32s cubic-bezier(.2, .8, .2, 1); }
+.sheet .grab { width: 38px; height: 5px; border-radius: 3px; background: var(--m-line2); margin: 0 auto 12px; }
+.mk.ph.sf .sheet { bottom: 66px; border-radius: 22px; left: 6px; right: 6px; max-height: 80%; }
+@keyframes up { from { transform: translateY(100%); } }
+.dlg { position: absolute; z-index: 6; left: 50%; top: 50%; width: 480px; transform: translate(-50%, -50%); padding: 22px; border-radius: 16px; background: var(--m-panel); box-shadow: var(--m-pop); animation: pop .22s ease-out; }
+@keyframes pop { from { opacity: 0; transform: translate(-50%, -46%); } }
+
+/* The browsers' own install dialogs (Chrome's richer install UI), in their blue. */
+.bd { position: absolute; z-index: 6; background: var(--b-sheet); color: var(--b-text); font: 400 13.5px/1.45 Roboto, system-ui, var(--font); box-shadow: 0 12px 40px -8px rgba(0, 0, 0, .45); }
+.bd.android { left: 0; right: 0; bottom: 0; padding: 10px 20px 18px; border-radius: 26px 26px 0 0; animation: up .3s cubic-bezier(.2, .8, .2, 1); }
+.bd.android .grab { width: 32px; height: 4px; border-radius: 2px; background: var(--b-line); margin: 0 auto 14px; }
+.bd.desktop { top: 6px; right: 34px; width: 400px; padding: 18px 18px 16px; border-radius: 14px; animation: pop2 .2s ease-out; }
+.bd .head { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 2px 12px; align-items: center; }
+.bd .head .appicon { width: 40px; height: 40px; grid-row: span 2; }
+.bd .head b { font-size: 16px; font-weight: 500; }
+.bd .head small { color: var(--b-text2); font-size: 12.5px; }
+.bd .ttl { font-size: 18px; font-weight: 400; margin-bottom: 14px; }
+.bd p { margin-top: 12px; color: var(--b-text2); font-size: 13px; text-wrap: pretty; }
+.bd .shots { display: flex; gap: 8px; margin-top: 14px; overflow: hidden; }
+.bd .shot { flex: none; width: 92px; height: 176px; border-radius: 10px; overflow: hidden; background: var(--m-bg); box-shadow: 0 0 0 1px var(--b-line); display: flex; flex-direction: column; }
+.bd .shot .top { height: 64px; background: #4b5056 url("bilder/herbst.webp") center / cover; }
+.bd .shot .ln { margin: 6px 7px 0; height: 14px; border-radius: 4px; background: var(--m-panel); box-shadow: 0 0 0 1px var(--m-line); }
+.bd .shot .ln.c { background: var(--m-accent-soft); }
+.bd.desktop .shot { width: 176px; height: 104px; }
+.bd.desktop .shot .top { height: 42px; }
+.bd .acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.bd .acts button { height: 38px; padding: 0 18px; border: 0; border-radius: 19px; background: none; color: var(--b-blue); font: 500 14px/1 Roboto, system-ui, var(--font); cursor: pointer; }
+.bd .acts button.fill { background: var(--b-blue); color: var(--b-on-blue); }
+.bd .whose { position: absolute; top: -26px; right: 0; padding: 3px 8px; border-radius: 6px; background: var(--b-blue); color: var(--b-on-blue); font: 600 10.5px/1.3 var(--font); letter-spacing: .02em; }
+.bd.android .whose { top: -28px; right: 14px; }
+.bd.desktop .whose { top: auto; bottom: -28px; right: 0; }
+
+/* iOS: the system's sheet „Zum Home-Bildschirm“, and its paste callout. */
+.ios { position: absolute; z-index: 6; left: 0; right: 0; bottom: 0; top: 46px; border-radius: 14px 14px 0 0; background: var(--b-ios-sheet); color: var(--b-text); font: 400 14px/1.35 -apple-system, system-ui, var(--font); animation: up .32s cubic-bezier(.2, .8, .2, 1); }
+.ios .bar { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; font-weight: 600; }
+.ios .bar button { border: 0; background: none; color: var(--b-ios); font: inherit; cursor: pointer; }
+.ios .bar button.add { font-weight: 700; }
+.ios .cell { margin: 6px 16px; padding: 12px 14px; border-radius: 12px; background: var(--b-ios-cell); display: flex; align-items: center; gap: 12px; }
+.ios .cell .appicon { width: 58px; height: 58px; }
+.ios .cell .fld b { display: block; font-weight: 500; font-size: 15px; padding-bottom: 6px; border-bottom: .5px solid var(--b-line); }
+.ios .cell .fld small { display: block; padding-top: 6px; color: var(--b-text2); font-size: 12.5px; }
+.ios .cell.toggle { justify-content: space-between; }
+.ios .sw { position: relative; width: 50px; height: 30px; border-radius: 15px; background: #34c759; flex: none; }
+.ios .sw::after { content: ""; position: absolute; right: 2px; top: 2px; width: 26px; height: 26px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, .2); }
+.ios .note { margin: 4px 30px; color: var(--b-text2); font-size: 12px; }
+.whose-ios { position: absolute; z-index: 7; bottom: 14px; right: 16px; padding: 3px 8px; border-radius: 6px; background: var(--b-ios); color: #fff; font: 600 10.5px/1.3 var(--font); }
+.callout { position: absolute; z-index: 7; left: 50%; top: -48px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
+.callout-at { position: relative; }
+.callout button { padding: 9px 16px; border: 0; border-radius: 9px; background: #2c2c2e; color: #fff; font: 500 14px/1 -apple-system, system-ui, var(--font); box-shadow: 0 8px 20px -6px rgba(0, 0, 0, .5); cursor: pointer; }
+.callout::after { content: ""; width: 12px; height: 12px; margin-top: -6px; background: #2c2c2e; transform: rotate(45deg); }
+
+/* The iPhone's home screen. */
+.home { position: relative; flex: 1; display: flex; flex-direction: column; padding: 40px 20px 20px; background: linear-gradient(160deg, #50695f, #9c8458 50%, #5f4a3d); color: #fff; }
+.home .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 14px; }
+.home .grid span { display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 500; text-shadow: 0 1px 2px rgba(0, 0, 0, .35); }
+.home .grid span i { display: block; width: 58px; height: 58px; border-radius: 14px; background: rgba(255, 255, 255, .32); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25); }
+.home .grid button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0; border: 0; background: none; color: #fff; font-size: 10.5px; font-weight: 500; text-shadow: 0 1px 2px rgba(0, 0, 0, .35); cursor: pointer; }
+.home .grid button .appicon { width: 58px; height: 58px; animation: land .6s cubic-bezier(.2, 1.4, .4, 1); box-shadow: 0 0 0 3px rgba(255, 255, 255, .75), 0 10px 20px -6px rgba(0, 0, 0, .5); }
+@keyframes land { from { transform: scale(.2); opacity: 0; } }
+.home .dockbar { margin-top: auto; display: flex; justify-content: space-around; padding: 12px; border-radius: 26px; background: rgba(255, 255, 255, .25); }
+.home .dockbar i { width: 54px; height: 54px; border-radius: 14px; background: rgba(255, 255, 255, .38); }
+.home .tip { margin: 26px auto 0; padding: 8px 12px; border-radius: 10px; background: rgba(0, 0, 0, .45); font-size: 12px; text-align: center; backdrop-filter: blur(8px); }
+
+/* Betula's guide on an iPhone. */
+.guide { display: flex; flex-direction: column; gap: 14px; }
+.guide .hd { display: flex; align-items: center; gap: 12px; }
+.guide .hd .appicon { width: 42px; height: 42px; }
+.gsteps { display: flex; flex-direction: column; gap: 0; counter-reset: g; }
+.gsteps li { counter-increment: g; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; padding: 10px 0; border-top: 1px solid var(--m-line); color: var(--m-text2); font-size: 13px; text-wrap: pretty; }
+.gsteps li:first-child { border-top: 0; }
+.gsteps li::before { content: counter(g); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--m-invert); color: var(--m-on-invert); font-size: 12px; font-weight: 700; }
+.gsteps b { color: var(--m-text); font-weight: 640; }
+.key { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; margin: 0 1px; border-radius: 7px; background: var(--m-panel2); box-shadow: inset 0 0 0 1px var(--m-line2); color: var(--m-text); font-size: 12px; font-weight: 600; white-space: nowrap; vertical-align: 1px; }
+.key .i { width: 13px; height: 13px; }
+.carry { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; padding: 11px 12px; border-radius: 12px; background: var(--m-accent-soft); box-shadow: inset 0 0 0 1px var(--m-accent-line); color: var(--m-text2); font-size: 12.5px; text-wrap: pretty; }
+.carry .t { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--m-panel); color: var(--m-accent-ink); }
+.carry b { color: var(--m-text); }
+.carry .got { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; color: var(--m-ok); font-weight: 650; }
+.carry .got .i { width: 14px; height: 14px; stroke-width: 2.8; }
+
+/* The profile page's section „Als App“, small. */
+.ps { display: flex; flex-direction: column; gap: 10px; }
+.ps h5 { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
+.ps h5 .i { width: 17px; height: 17px; color: var(--m-text2); }
+.ps .say { color: var(--m-text2); font-size: 12.5px; text-wrap: pretty; }
+.ps .say b { color: var(--m-text); }
+.ps .line { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid var(--m-line); }
+.ps .line span { color: var(--m-text2); font-size: 12.5px; }
+.ps .line span b { display: block; color: var(--m-text); font-size: 13px; }
+.tg { position: relative; flex: none; width: 36px; height: 21px; border-radius: 11px; background: var(--m-accent); }
+.tg::after { content: ""; position: absolute; right: 2px; top: 2px; width: 17px; height: 17px; border-radius: 50%; background: #fff; }
+.ps .state { display: inline-flex; align-items: center; gap: 6px; color: var(--m-ok); font-size: 13px; font-weight: 650; }
+.ps .state .i { width: 16px; height: 16px; stroke-width: 2.6; }
+.ps .m-btn { align-self: flex-start; }
+.cmdk { display: flex; flex-direction: column; gap: 2px; }
+.cmdk .q { display: flex; align-items: center; gap: 8px; padding: 0 10px 8px; color: var(--m-text); font-size: 13px; border-bottom: 1px solid var(--m-line); margin-bottom: 4px; }
+.cmdk .q .i { color: var(--m-text3); width: 15px; height: 15px; }
+.cmdk .r { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 9px; color: var(--m-text2); font-size: 13px; }
+.cmdk .r.on { background: var(--m-accent-soft); color: var(--m-text); }
+.cmdk .r .i { width: 16px; height: 16px; }
+.cmdk .r small { margin-left: auto; color: var(--m-text3); font-size: 11px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wn, .scrim, .sheet, .dlg, .bd, .ios, .offer, .bubble, .callout, .homes span.me .appicon, .home .grid button .appicon, .sf-btn.hint::after { animation: none; }
+}
+@media (max-width: 900px) {
+  .intro, .how, .way, .two, .need, .always, .never { grid-template-columns: minmax(0, 1fr); }
+  .have { grid-template-columns: minmax(0, 1fr); }
+  .sec { padding: 18px 14px; }
+  .stage-in { padding: 12px 10px 16px; }
+}
+@media (max-width: 600px) {
+  .setbar .jump { display: none; }
+}
+@media (max-width: 420px) {
+  .phone { width: 100%; max-width: 380px; height: 740px; }
+}
+</style>
+
+<main class="page">
+  <section class="intro">
+    <div>
+      <p class="kicker">Betula als App · Installieren</p>
+      <h1>Betula auf den Home-Bildschirm</h1>
+      <p class="lead">Betula lässt sich seit September installieren: das Manifest, die Icons für jeden Launcher, der Service Worker für den Start ohne Netz, die Startbilder fürs iPhone und die Startanimation sind da. Nur sagt es niemand. Wer nicht weiß, dass das Browsermenü „App installieren“ kennt, findet es nie.</p>
+      <p class="lead">Drei Konzepte, wie Betula es selbst anbietet: einmal nach der Einrichtung, einmal nach ein paar Tagen, und immer zu finden. Dazu, was jeder Browser kann, wie auf dem iPhone das Studium in die App mitkommt und was dafür zu bauen ist. „Benachrichtigung“ heißt hier ein Hinweis in Betula, keine Push-Mitteilung.</p>
+      <p class="quote">„Hey Claude bitte arbeite mal an einer Installation Benachrichtigung für Betula, so dass wenn man zum Beispiel die Einrichtung angeschlossen hat, dass man da dann auf installieren gehen kann oder halt nach einer weile wo man die app schok verwnedet hat. Erstelle erstmal Konzepte und kläre, was dafür notwendig wäre.“</p>
+    </div>
+    <div class="rules">
+      <p class="kicker">Was alle drei gemeinsam haben</p>
+      <ul>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></i><span><b>Ein Knopf, der wirklich installiert,</b> wo der Browser es erlaubt (Chrome, Edge, Samsung Internet): Er öffnet den Dialog des Browsers. Wo nicht (iPhone, Safari am Mac, Firefox), öffnet er eine Anleitung mit den Symbolen genau dieses Browsers.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg></i><span><b>Auf dem iPhone kommt das Studium mit.</b> Die App vom Home-Bildschirm hat ihren eigenen Speicher und startete sonst leer. Betula gibt das Profil über die Zwischenablage mit; in der App reicht ein Tipp auf „Einfügen“.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></i><span><b>Immer zu finden, nicht nur per Hinweis:</b> „Als App“ auf der Profilseite, im Menü der Profile und in „Befehle“. Was Betula von selbst zeigt, kommt dazu.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></i><span><b>Höchstens zweimal von selbst:</b> nach der Einrichtung und nach drei weiteren Tagen mit Betula. Wer „Später“ zweimal sagt, wird nicht mehr gefragt. Nie in der App selbst, nie über einem Sheet, nie beim Tippen.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></i><span><b>Nichts verlässt den Browser:</b> Die Tage, die Angebote und die Antwort liegen im localStorage dieses Browsers. Kein Zählen auf dem Server.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <nav class="setbar" aria-label="Ansicht der Prototypen">
+    <div class="jump"><a href="#heute">Heute</a><a href="#a">A</a><a href="#b">B</a><a href="#c">C</a><a href="#browser">Browser</a><a href="#iphone">iPhone</a><a href="#immer">Immer da</a><a href="#wann">Wann</a><a href="#noetig">Nötig</a><a href="#vergleich">Vergleich</a><a href="#fragen">Fragen</a></div>
+    <div class="group">
+      <span>Gerät</span>
+      <div class="seg" id="set-dev"><button type="button" data-v="android" aria-pressed="true">Android</button><button type="button" data-v="iphone" aria-pressed="false">iPhone</button><button type="button" data-v="laptop" aria-pressed="false">Laptop</button></div>
+      <span>Darstellung</span>
+      <div class="seg" id="set-theme"><button type="button" data-v="light" aria-pressed="true">Hell</button><button type="button" data-v="dark" aria-pressed="false">Dunkel</button></div>
+    </div>
+  </nav>
+
+  <section class="sec" id="heute">
+    <header>
+      <h2>Heute und neu</h2>
+      <p class="sub">Was Betula fürs Installieren schon mitbringt, auf canary (Folia 1.95.0), und der Weg dorthin heute und mit einem der Konzepte. Gelb ist, was heute fehlt oder schiefgeht.</p>
+    </header>
+    <ul class="have">
+      <li><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span><b>Manifest</b> mit <code>id</code>, <code>start_url</code>, <code>display: standalone</code>, hell und dunkel, auf Englisch unter <code>/en/</code>.</span></li>
+      <li><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span><b>Icons</b> für jeden Launcher: maskable, monochrom für Material You, das runde Bild des Startbildschirms.</span></li>
+      <li><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span><b>Service Worker</b>: Betula startet ohne Netz, der Katalog liegt in IndexedDB.</span></li>
+      <li><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span><b>Startbilder fürs iPhone</b>, hell und dunkel, und die Startanimation, in der Icon und Wortmarke zum Logo fliegen.</span></li>
+      <li><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span><b>Betula erkennt, wenn es installiert läuft</b> (<code>display-mode: standalone</code>, <code>navigator.standalone</code>); Betula Sync nennt solche Geräte schon „App“.</span></li>
+      <li><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span><b>Die wartende Notiz</b> (WaitNote), wie nach „Studium anlegen“: der Platz für eine kurze Frage, die beim nächsten Tippen geht.</span></li>
+    </ul>
+    <div class="ways">
+      <div class="way"><b>Heute, Android<small>Chrome</small></b><div class="steps"><span class="step extra">das Menü <b>⋮</b> kennen</span><span class="to">›</span><span class="step">App installieren</span><span class="to">›</span><span class="step">Dialog von Chrome</span><span class="to">›</span><span class="step end"><b>Icon auf dem Home-Bildschirm</b></span></div></div>
+      <div class="way"><b>Heute, iPhone<small>Safari, iOS 26</small></b><div class="steps"><span class="step extra"><b>•••</b> › Teilen kennen</span><span class="to">›</span><span class="step">Zum Home-Bildschirm</span><span class="to">›</span><span class="step">Hinzufügen</span><span class="to">›</span><span class="step extra"><b>App startet leer:</b> kein Studium, keine Merkliste</span></div></div>
+      <div class="way"><b>Heute, Laptop<small>Chrome, Edge</small></b><div class="steps"><span class="step extra">das kleine Symbol in der Adressleiste sehen</span><span class="to">›</span><span class="step">Installieren</span><span class="to">›</span><span class="step end"><b>eigenes Fenster</b></span></div></div>
+      <div class="way"><b>Neu<small>alle drei Konzepte</small></b><div class="steps"><span class="step"><b>Einrichtung fertig</b> oder ein paar Tage später</span><span class="to">›</span><span class="step new"><b>Betula fragt</b> · Installieren</span><span class="to">›</span><span class="step">Dialog des Browsers oder Anleitung</span><span class="to">›</span><span class="step new">iPhone: <b>Einfügen</b>, das Studium ist da</span><span class="to">›</span><span class="step end"><b>Installiert</b></span></div></div>
+    </div>
+  </section>
+
+  <section class="sec" id="a">
+    <header>
+      <h2><span class="tag">A</span>Ein Schritt mehr</h2>
+      <p class="sub">Die Einrichtung bekommt einen letzten Schritt <b>„App“</b>, nach „Geräte“ (oder als vierten, wo die Seite kein Betula Sync anbietet): <b>„Betula als App?“</b> mit einem Bild des Home-Bildschirms bzw. des Docks, drei Zeilen, was man davon hat, und <b>„Installieren“</b> oder <b>„Später“</b>. Danach „Alles eingerichtet“ mit allem, was jetzt läuft. Wer „Später“ sagt, bekommt nach ein paar Tagen die Frage noch einmal, als wartende Notiz unten auf dem Tag.</p>
+    </header>
+    <p class="tryit"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 16v-4M12 8h.01"/></svg><span>Tippe auf <b>„Installieren“</b>: Auf Android und am Laptop kommt der Dialog des Browsers (blau), auf dem iPhone Betulas Anleitung, deren gestrichelter Knopf iOS spielt. Oder <b>„Später“</b> und dann <b>„Drei Tage später“</b> für die zweite Frage. Das Gerät wechselst du oben in der Leiste.</span></p>
+    <div class="stage" data-concept="A"></div>
+    <div class="how">
+      <div><h3>Was man sieht</h3><ul><li>Ein Schritt wie die anderen: Chip <b>„5 App“</b>, Frage, Bild, drei Zeilen, zwei Knöpfe.</li><li>Das Bild zeigt das eigene Gerät: Home-Bildschirm auf dem Handy, Dock am Laptop, das Icon mittendrin.</li><li>„Alles eingerichtet“ nennt danach auch <b>„Als App auf dem Home-Bildschirm“</b>.</li></ul></div>
+      <div><h3>Wie es sich verhält</h3><ul><li>Der Schritt erscheint nur, wo Betula noch nicht installiert ist und der Browser es kann. In Firefox am Mac endet die Einrichtung wie heute.</li><li>Auf dem iPhone wird der Knopf zu <b>„Auf den Home-Bildschirm“</b> und öffnet die Anleitung; dabei kopiert Betula das Profil für die App.</li><li>„Später“ beendet die Einrichtung wie heute; nach drei weiteren Nutzungstagen fragt die Notiz unten noch einmal.</li></ul></div>
+      <div class="weak"><h3>Worauf zu achten</h3><ul><li>Die Einrichtung wird länger: fünf Chips, auf dem Handy schon heute abgeschnitten.</li><li>Man soll installieren, bevor man Betula einmal benutzt hat.</li><li>Auf dem iPhone wechselt man mitten in der Einrichtung in eine andere App und fügt dort ein.</li></ul></div>
+    </div>
+  </section>
+
+  <section class="sec" id="b">
+    <header>
+      <h2><span class="tag">B</span>Eine Karte im Tag</h2>
+      <p class="sub">Die Einrichtung bleibt, wie sie ist. Wer danach auf dem Tag landet, findet über „Heute“ (am Laptop über „Diese Woche“) eine Karte <b>„Betula als App“</b>: Icon, ein Satz, <b>„Installieren“</b> und <b>„Später“</b>. Unten steht wie heute „Eingerichtet“ mit „Rückgängig“. Nach „Später“ kommt die Karte nach drei weiteren Nutzungstagen einmal wieder, dann mit <b>„Nicht mehr fragen“</b>.</p>
+    </header>
+    <p class="tryit"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 16v-4M12 8h.01"/></svg><span><b>„Installieren“</b> in der Karte, oder <b>„Später“</b> und dann <b>„Drei Tage später“</b>: Die Karte kommt wieder, jetzt mit „Nicht mehr fragen“.</span></p>
+    <div class="stage" data-concept="B"></div>
+    <div class="how">
+      <div><h3>Was man sieht</h3><ul><li>Eine Karte wie die anderen des Tages, mit dem echten Icon, das gleich auf dem Home-Bildschirm liegt.</li><li>Ein Satz statt einer Liste: <b>„Ein Tipp vom Home-Bildschirm, und du bist in deinem Tag. Ohne Browserleiste, auch ohne Netz.“</b></li><li>Nach der Installation geht die Karte; unten „Installiert“.</li></ul></div>
+      <div><h3>Wie es sich verhält</h3><ul><li>Die Karte steht nur auf dem Tag, nie auf anderen Seiten. Man trifft sie da, wo man nach der Einrichtung ohnehin landet und jeden Tag wieder.</li><li>× und „Später“ heißen dasselbe; das zweite Mal steht „Nicht mehr fragen“ daneben.</li><li>Wer ohne Einrichtung stöbert („Erst mal umschauen“), sieht sie am dritten Tag mit Betula.</li></ul></div>
+      <div class="weak"><h3>Worauf zu achten</h3><ul><li>Auf dem Handy schiebt die Karte „Heute“ um gut 120 px nach unten, solange sie steht.</li><li>Direkt nach der Einrichtung stehen zwei Dinge da: die Karte und unten die Notiz „Eingerichtet“.</li></ul></div>
+    </div>
+  </section>
+
+  <section class="sec" id="c">
+    <header>
+      <h2><span class="tag">C</span>Ein Knopf, der wartet</h2>
+      <p class="sub">Neben der Suche steht ein kleiner Knopf <b>„App“</b> (am Laptop <b>„App installieren“</b>), solange Betula nicht installiert ist. Nach der Einrichtung und nach ein paar Tagen zeigt eine <b>Sprechblase</b> darunter einmal, wozu er da ist. Ein Tipp auf den Knopf installiert, jederzeit, ohne Hinweis. Nach der Installation ist er weg.</p>
+    </header>
+    <p class="tryit"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 16v-4M12 8h.01"/></svg><span>Die Sprechblase zeigt auf den Knopf. <b>„Installieren“</b> in der Blase oder der Knopf selbst öffnen den Dialog bzw. die Anleitung; <b>„Später“</b> lässt nur die Blase gehen, der Knopf bleibt.</span></p>
+    <div class="stage" data-concept="C"></div>
+    <div class="how">
+      <div><h3>Was man sieht</h3><ul><li>Ein Knopf in der Leiste, immer am selben Ort, wie das Symbol in Chromes Adressleiste, nur sichtbar.</li><li>Die Blase dunkel wie die Notiz, mit Pfeil auf den Knopf.</li><li>Nach der Installation hat die Leiste wieder nur Suche und Profil.</li></ul></div>
+      <div><h3>Wie es sich verhält</h3><ul><li>Der Knopf steht auf jeder Seite mit dieser Leiste, nicht nur auf dem Tag.</li><li>Die Blase kommt höchstens zweimal, wie die Karte in B; der Knopf bleibt, bis man installiert oder ihn im Profil ausblendet.</li><li>Am Laptop sitzt er rechts der Suche, wo die Leiste Platz hat.</li></ul></div>
+      <div class="weak"><h3>Worauf zu achten</h3><ul><li>Auf dem Handy wird die Suche schmaler (gut 70 px), auf jeder Seite.</li><li>Ein Knopf, der dauerhaft „installier mich“ sagt, stört die, die es nicht wollen; er braucht ein „Ausblenden“.</li><li>Die Blase über der Suche verdeckt auf dem Tag das Datum.</li></ul></div>
+    </div>
+  </section>
+
+  <section class="sec" id="browser">
+    <header>
+      <h2>Der Weg je Browser</h2>
+      <p class="sub">Nur Chromium-Browser lassen eine Seite den Dialog selbst öffnen (<code>beforeinstallprompt</code>). Überall sonst kann Betula nur zeigen, wo der Browser es versteckt. Wo es gar nicht geht, sagt Betula das und nennt einen Browser, der es kann; der Grund hält, denn der Browser kann es nicht.</p>
+    </header>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Browser</th><th>Was „Installieren“ tut</th><th>Speicher der App</th><th>Erkennt Betula „schon installiert“?</th></tr></thead>
+        <tbody>
+          <tr><th>Chrome, Edge, Samsung Internet<small>Android</small></th><td><span class="pill ok">Dialog</span> des Browsers, aus Betulas Knopf. Chrome legt eine WebAPK an.</td><td><span class="pill ok">geteilt</span> mit dem Browser: alles ist da.</td><td>Ja: kein <code>beforeinstallprompt</code> mehr, dazu <code>getInstalledRelatedApps()</code> (Chrome 84+).</td></tr>
+          <tr><th>Firefox<small>Android</small></th><td><span class="pill hand">Anleitung</span> <b>⋮</b> › „Zum Startbildschirm hinzufügen“.</td><td><span class="pill ok">geteilt</span></td><td>Nein, nur in der App selbst.</td></tr>
+          <tr><th>Safari, auch Chrome und Edge<small>iPhone, iPad (iOS 26)</small></th><td><span class="pill hand">Anleitung</span> <b>•••</b> › Teilen › „Zum Home-Bildschirm“, „Als Web-App öffnen“ an › Hinzufügen.</td><td><span class="pill warn">eigener</span> Nur Cookies werden beim Hinzufügen kopiert (seit iOS 17.2), localStorage und IndexedDB nicht. <a href="#iphone">Übergabe</a> nötig.</td><td>Nein. Betula Sync zeigt „iPhone · App“ in der Liste der Geräte.</td></tr>
+          <tr><th>Chrome, Edge<small>Windows, macOS, Linux, ChromeOS</small></th><td><span class="pill ok">Dialog</span> des Browsers; danach öffnet sich Betula im eigenen Fenster.</td><td><span class="pill ok">geteilt</span></td><td>Ja: <code>getInstalledRelatedApps()</code> ab Chrome und Edge 140.</td></tr>
+          <tr><th>Safari<small>macOS 14 und neuer</small></th><td><span class="pill hand">Anleitung</span> Ablage › „Zum Dock hinzufügen …“.</td><td><span class="pill warn">eigener</span> wie auf dem iPhone, nur Cookies werden kopiert.</td><td>Nein.</td></tr>
+          <tr><th>Firefox<small>Windows (143 und neuer)</small></th><td><span class="pill hand">Anleitung</span> das Symbol „Zur Taskleiste hinzufügen“ in der Adressleiste.</td><td><span class="pill ok">geteilt</span> im selben Profil und Container.</td><td>Nein.</td></tr>
+          <tr><th>Firefox<small>macOS, Linux</small></th><td><span class="pill no">geht nicht</span> Betula sagt es und nennt Chrome, Edge oder Safari; den Tab anheften geht immer.</td><td>–</td><td>–</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="later-api"><b>Was kommt:</b> Chrome und Edge arbeiten an <code>navigator.install()</code> (Intent to Ship für den Desktop ab Chrome 156, Stand 30. September 2026 eine Zustimmung, Android später) und an einem Element <code>&lt;install&gt;</code> mit einem Knopf, den der Browser zeichnet (Origin Trial, Chrome und Edge 148 bis 153). Beides braucht nur die <code>id</code> des Manifests, die Betula hat. WebKit ist dagegen, Firefox hat sich nicht geäußert. Für Betula reicht <code>beforeinstallprompt</code>; derselbe Knopf kann später die neue API nehmen, wo es sie gibt.</p>
+  </section>
+
+  <section class="sec" id="iphone">
+    <header>
+      <h2>Auf dem iPhone kommt das Studium mit</h2>
+      <p class="sub">Eine Web-App vom Home-Bildschirm hat auf dem iPhone (und mit „Zum Dock hinzufügen“ am Mac) ihren eigenen Speicher. Safari kopiert beim Hinzufügen nur die Cookies; Betula hält aber alles im localStorage und in IndexedDB. Wer in Safari einrichtet und dann installiert, fände in der App eine leere Einrichtung, ohne Studium, Stundenplan und Merkliste. Deshalb gibt Betula das Profil mit.</p>
+    </header>
+    <div class="film" id="film"></div>
+    <div class="two">
+      <div class="var pick">
+        <h4>Über die Zwischenablage <span class="pill ok">Vorschlag</span></h4>
+        <ul>
+          <li>Der Tipp auf <b>„Auf den Home-Bildschirm“</b> kopiert, eine Geste wie jede andere, die der Browser dafür verlangt.</li>
+          <li><b>Mit Betula Sync:</b> ein Link zum Verbinden wie bei „Gerät verbinden“, der Schlüssel im Teil nach <code>#</code>. Die App tritt dem Profil bei, Safari und App bleiben gleich.</li>
+          <li><b>Ohne Betula Sync:</b> das Profil selbst als Text, wie bei „Als Datei sichern“. Danach sind es zwei Kopien; Betula sagt das: „In Safari bleibt eine Kopie. Ab jetzt zählt die App.“</li>
+          <li>Die App startet leer und bietet über Schritt 1 <b>„Aus Safari einfügen“</b> an. iOS zeigt dazu seine Blase „Einfügen“; ohne den Tipp liest Betula nichts.</li>
+          <li>Ist die Zwischenablage inzwischen überschrieben: in Safari „Nochmal kopieren“, oder neu einrichten.</li>
+        </ul>
+      </div>
+      <div class="var">
+        <h4>Ein Cookie als Bote <span class="pill warn">zu erproben</span></h4>
+        <ul>
+          <li>iOS kopiert beim Hinzufügen die Cookies. Ein Cookie mit dem Link käme also von selbst in die App, ganz ohne Einfügen.</li>
+          <li>Ein Cookie geht aber mit jeder Anfrage an den Server, und der Schlüssel des Profils darf keine Anfrage erreichen. Er bräuchte einen Pfad, den nie eine Anfrage nimmt und den nur der Service Worker beantwortet.</li>
+          <li>Ob iOS 26 von einer Seite gesetzte Cookies mit eigenem Pfad mitnimmt, ist nicht belegt; die Quellen sprechen von „Login-Cookies“. Erst auf einem echten iPhone ausprobieren.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="immer">
+    <header>
+      <h2>Immer da: Profil, Menü, Befehle</h2>
+      <p class="sub">Was Betula tut, gibt es als etwas, das man anklickt, nicht nur als Hinweis, der einmal kommt (CLAUDE.md: „No action is a key's alone“). Die Profilseite bekommt zwischen „Betula Sync“ und „Daten“ den Abschnitt <b>„Als App“</b>; er sagt, was dieser Browser kann, und hält den Schalter für die Hinweise. Die vier Zustände des Abschnitts, dazu „Befehle“ und das Menü der Profile:</p>
+    </header>
+    <div class="always" id="always"></div>
+  </section>
+
+  <section class="sec" id="wann">
+    <header>
+      <h2>Wann Betula von selbst fragt</h2>
+      <p class="sub">Gezählt werden <b>Tage mit Betula</b> (Kalendertage, an denen Betula offen war), nicht Seitenaufrufe. Die Zahlen sind Vorschläge; sie gelten für alle drei Konzepte.</p>
+    </header>
+    <div class="tl">
+      <div class="ask"><i></i><small>Tag 1</small><b>Einrichtung fertig</b><span>Die erste Frage: Schritt (A), Karte (B) oder Blase (C).</span></div>
+      <div class="off"><i></i><small>„Später“</small><b>Ruhe</b><span>Bis drei weitere Tage mit Betula vergangen sind, frühestens nach einer Woche.</span></div>
+      <div><i></i><small>Tag 2, Tag 3</small><b>nichts</b><span>Der Platz im Profil und im Menü bleibt.</span></div>
+      <div class="ask"><i></i><small>Tag 4</small><b>Die zweite Frage</b><span>Jetzt mit „Nicht mehr fragen“.</span></div>
+      <div class="off"><i></i><small>„Später“</small><b>nie mehr von selbst</b><span>Nur noch über Profil, Menü, Befehle.</span></div>
+      <div><i></i><small>danach</small><b>Profil › Als App</b><span>Der Schalter „Von selbst anbieten“ holt die Hinweise zurück.</span></div>
+    </div>
+    <ul class="never">
+      <li class="yes"><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span><b>Ohne Einrichtung</b> („Erst mal umschauen“): die erste Frage am dritten Tag mit Betula.</span></li>
+      <li class="yes"><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span><b>Nur auf dem Tag</b> (B, und die Notiz in A); die Blase in C auch dort, damit sie niemanden mitten im Katalog unterbricht.</span></li>
+      <li class="not"><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span><b>Nie in der App</b> (<code>display-mode: standalone</code>) und nie, wo Betula erkennt, dass es schon installiert ist.</span></li>
+      <li class="not"><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span><b>Nie über etwas anderem:</b> über einem Sheet, einem Dialog, beim Tippen, zweimal in einer Sitzung.</span></li>
+      <li class="not"><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span><b>Nie, wo es nicht geht</b> (Firefox am Mac und unter Linux): dort sagt es nur der Abschnitt im Profil.</span></li>
+      <li class="not"><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span><b>Nicht doppelt:</b> Chromes eigene Leiste auf Android bleibt weg (<code>preventDefault()</code>), solange Betula selbst fragt. Das Symbol in der Adressleiste am Rechner gehört dem Browser und bleibt.</span></li>
+    </ul>
+  </section>
+
+  <section class="sec" id="noetig">
+    <header>
+      <h2>Was dafür nötig ist</h2>
+      <p class="sub">Alles liegt in Folia; Radix, Cortex und Phloem bleiben, wie sie sind. Gebaut wäre es ein neues Feature, also Folia MINOR. Die Konzepte selbst heben keine Version.</p>
+    </header>
+    <div class="need">
+      <div>
+        <h4>Manifest und Browser</h4>
+        <ul>
+          <li><span class="st da">da</span><span><b>Installierbar</b>: Manifest mit <code>id</code>, Icons, <code>standalone</code>, Service Worker, HTTPS; hell, dunkel, Englisch.</span></li>
+          <li><span class="st neu">neu</span><span><b>Bildschirmfotos und Beschreibung</b> im Manifest (<code>screenshots</code>: drei schmale fürs Handy, ein breites für den Rechner). Dann zeigt Chrome statt der kleinen Frage den großen Dialog mit Bildern, wie im Prototyp. Aus <code>e2e/shot.mjs</code>, deutsch und englisch.</span></li>
+          <li><span class="st neu">neu</span><span><b><code>related_applications</code></b> mit Betula selbst (<code>platform: "webapp"</code>), damit eine Seite im Browser „schon installiert“ erkennt.</span></li>
+          <li><span class="st opt">extra</span><span><b><code>shortcuts</code></b>: Stundenplan, Merkliste, Suche beim langen Drücken aufs Icon.</span></li>
+        </ul>
+      </div>
+      <div>
+        <h4>In der Seite</h4>
+        <ul>
+          <li><span class="st neu">neu</span><span><b>Den Moment fangen</b>: <code>beforeinstallprompt</code> früh abfangen und aufheben (es kann vor der App kommen: im Kopf-Skript oder in <code>enhance.js</code>), <code>appinstalled</code> hören, <code>prompt()</code> nur aus einem Klick. Über dieselbe Brücke an die App wie die anderen Skripte.</span></li>
+          <li><span class="st neu">neu</span><span><b>„Was kann dieser Browser?“</b> als eine Funktion: Dialog, Anleitung (iPhone, Safari am Mac, Firefox Android, Firefox Windows), geht nicht, schon installiert.</span></li>
+          <li><span class="st neu">neu</span><span><b>Zustand pro Browser, nicht pro Profil</b>: <code>betula.install.v1</code> im localStorage mit Tagen, Angeboten, Antwort. In die Liste „What stays in the browser“ (R20).</span></li>
+          <li><span class="st neu">neu</span><span><b>Die Teile</b>: Schritt, Karte oder Knopf je nach Konzept, die Anleitung als Sheet oder Dialog, „Als App“ im Profil, der Eintrag im Menü und in „Befehle“ (R25), Texte deutsch und englisch.</span></li>
+        </ul>
+      </div>
+      <div>
+        <h4>iPhone und Mac</h4>
+        <ul>
+          <li><span class="st neu">neu</span><span><b>Kopieren</b> in Safari: der Link von Betula Sync oder das Profil als Text, beim Tipp auf den Knopf.</span></li>
+          <li><span class="st neu">neu</span><span><b>Einfügen</b> in der App: „Aus Safari einfügen“ in Schritt 1, wo die App installiert läuft und das Profil leer ist. Das Lesen gibt es schon: der Beitritt über den Link (<code>/sync#…</code>) und „Profil übernehmen“ aus einer Datei.</span></li>
+          <li><span class="st test">prüfen</span><span><b>Auf einem echten iPhone (iOS 26) und Mac</b>: der leere Speicher, die Blase „Einfügen“ in der Web-App, ob ein Cookie als Bote mitkommt.</span></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Prüfungen und Betrieb</h4>
+        <ul>
+          <li><span class="st neu">neu</span><span><b><code>e2e/install.mjs</code></b>: ein nachgestelltes <code>beforeinstallprompt</code> mit <code>prompt()</code>, die Frage nach der Einrichtung, die Tage mit fester Uhr, nie im Standalone-Modus (wie <code>launch.mjs</code> ihn vorspielt), die Anleitung mit der Kennung eines iPhones, die Übergabe mit der Zwischenablage. Dazu Server-Tests fürs Manifest.</span></li>
+          <li><span class="st da">da</span><span><b>Canary</b>: Das Manifest und die Icons sind hinter dem Passwort offen; das iPhone nimmt das Cookie des Passworts mit in die App.</span></li>
+          <li><span class="st opt">frage</span><span><b>Zwei Icons namens „Betula“</b>, wer von canary und betula.app installiert. Canary könnte „Betula Canary“ heißen.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="vergleich">
+    <header><h2>Vergleich</h2></header>
+    <div class="scroll">
+      <table>
+        <thead><tr><th></th><th>A · Ein Schritt mehr</th><th>B · Eine Karte im Tag</th><th>C · Ein Knopf, der wartet</th></tr></thead>
+        <tbody>
+          <tr><th>Nach der Einrichtung</th><td class="best">als Teil der Einrichtung, nicht zu übersehen</td><td>auf dem Tag, wo man landet</td><td>eine Blase am Knopf</td></tr>
+          <tr><th>Nach ein paar Tagen</th><td>die wartende Notiz unten</td><td>die Karte noch einmal</td><td>die Blase noch einmal</td></tr>
+          <tr><th>Einrichtung</th><td>ein Schritt länger (5)</td><td class="best">wie heute (4)</td><td class="best">wie heute (4)</td></tr>
+          <tr><th>Immer erreichbar</th><td>Profil, Menü, Befehle</td><td>Profil, Menü, Befehle</td><td class="best">dazu der Knopf auf jeder Seite</td></tr>
+          <tr><th>Was es kostet an Platz</th><td class="best">nichts nach der Einrichtung</td><td>eine Karte auf dem Tag, bis man antwortet</td><td>die Suche wird schmaler, dauerhaft</td></tr>
+          <tr><th>iPhone</th><td>Wechsel in die App mitten in der Einrichtung</td><td class="best">nach der Einrichtung, in Ruhe</td><td class="best">nach der Einrichtung, in Ruhe</td></tr>
+          <tr><th>Aufwand</th><td>mittel: ein Schritt in <code>setup.rs</code>, „Alles eingerichtet“, die Notiz</td><td class="best">klein: eine Karte in <code>today.rs</code></td><td>mittel: der Knopf in beiden Leisten, die Blase</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="rec"><b>Vorschlag: B</b>, mit dem festen Platz im Profil, im Menü und in „Befehle“. Die Einrichtung bleibt bei vier Schritten, die Frage kommt dort, wo man nach der Einrichtung landet und jeden Tag wieder, und auf dem iPhone in Ruhe statt mitten im Ablauf. A ist der stärkere Anstoß, wenn dir die Einrichtung den einen Schritt wert ist; C passt eher als Ergänzung am Laptop, wo die Leiste Platz hat.</p>
+    <p class="rec"><b>Unabhängig vom Konzept zuerst:</b> die Übergabe auf dem iPhone. Ohne sie verliert jeder, der Betula in Safari eingerichtet hat, sein Studium, sobald er auf „Hinzufügen“ tippt, und das passiert schon heute über das Teilen-Menü.</p>
+  </section>
+
+  <section class="sec" id="fragen">
+    <header><h2>Fragen</h2></header>
+    <ol class="qs">
+      <li><b>Welches Konzept?</b><p>A, B oder C, oder B mit dem Knopf aus C am Laptop. <em>Vorschlag:</em> B.</p></li>
+      <li><b>Wie oft von selbst?</b><p>Nach der Einrichtung und nach drei weiteren Tagen mit Betula, dann nie mehr von selbst; der Schalter im Profil holt es zurück. <em>Vorschlag:</em> so.</p></li>
+      <li><b>iPhone: Zwischenablage oder Cookie als Bote?</b><p>Die Zwischenablage braucht einen Tipp mehr, ist aber sicher und belegt. Der Bote wäre ohne Tipp, muss aber erst auf einem iPhone zeigen, dass er ankommt, ohne den Schlüssel an den Server zu geben. <em>Vorschlag:</em> Zwischenablage, den Boten später erproben.</p></li>
+      <li><b>iPhone ohne Betula Sync: eine Kopie mitgeben?</b><p>Dann gibt es das Profil zweimal, in Safari und in der App, ohne Abgleich. Oder vorher Betula Sync vorschlagen. <em>Vorschlag:</em> die Kopie, mit dem Satz dazu; Sync bleibt ein Angebot, keine Bedingung.</p></li>
+      <li><b>Bildschirmfotos im Manifest?</b><p>Chrome zeigt dann den großen Dialog mit Bildern und Beschreibung statt einer kleinen Frage. Drei fürs Handy, eins für den Rechner, aus <code>shot.mjs</code>. <em>Vorschlag:</em> ja.</p></li>
+      <li><b>Eine Seite mit der Anleitung für alle Browser?</b><p><code>/about/install</code> als Thema „Als App“ der Seiten über Betula: auch ohne JavaScript, auffindbar, und das Ziel für Browser ohne Dialog. <em>Vorschlag:</em> ja, später als die Karte.</p></li>
+      <li><b>Canary mit eigenem Namen?</b><p>„Betula Canary“ im Manifest von canary, damit die beiden Icons auseinanderzuhalten sind. <em>Vorschlag:</em> ja.</p></li>
+    </ol>
+  </section>
+
+  <p class="foot">Betula · folia/design/installieren/konzepte.html · gegen canary, Folia 1.95.0, 17. November 2026</p>
+</main>
+
+<script>
+(() => {
+  // Icons (Lucide, as Betula uses them).
+  const P = {
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    user: '<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>',
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    house: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    grid: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
+    cap: '<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>',
+    mark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>',
+    cal: '<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
+    reset: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+    lock: '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    down: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
+    monitorDown: '<path d="M12 13V7"/><path d="m15 10-3 3-3-3"/><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M12 17v4"/><path d="M8 21h8"/>',
+    tap: '<path d="M14 4.1 12 6"/><path d="m5.1 8-2.9-.8"/><path d="m6 12-1.9 2"/><path d="M7.2 2.2 8 5.1"/><path d="M9.037 9.69a.498.498 0 0 1 .653-.653l11 4.5a.5.5 0 0 1-.074.949l-4.349 1.041a1 1 0 0 0-.74.739l-1.04 4.35a.5.5 0 0 1-.95.074z"/>',
+    wifiOff: '<path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="M2 8.82a15 15 0 0 1 4.177-2.643"/><path d="M22 8.82a15 15 0 0 0-11.288-3.764"/><path d="m2 2 20 20"/>',
+    full: '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
+    clip: '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
+    dots: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+    vdots: '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>',
+    share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="m16 6-4-4-4 4"/><path d="M12 2v13"/>',
+    addsq: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M8 12h8"/><path d="M12 8v8"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+    devices: '<path d="M18 8V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8"/><path d="M10 19v-3.96 3.15"/><path d="M7 19h5"/><rect width="6" height="10" x="16" y="12" rx="2"/>',
+    info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+    minus: '<path d="M5 12h14"/>',
+    square: '<rect width="14" height="14" x="5" y="5" rx="1"/>',
+    left: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+    right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  };
+  const I = (name, cls = "i") => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name]}</svg>`;
+  // The app's icon (assets/favicon.svg): ink and paper, the same in either theme, as on a home screen.
+  const LEAF = "M48 14.7C49.21 21.44 55.42 30.77 61.7 40.2H50.4V44.9H64.82C65.77 46.34 66.7 47.78 67.6 49.2C69.82 52.5 70.78 55.51 70.57 58H42.7V62.7H68.13C67.96 62.84 67.78 62.97 67.6 63.1C61.7 65.9 53.9 67 48 68.2C42.1 67 34.3 65.9 28.4 63.1C25.53 61.11 24.66 57.83 26.04 53.8H38.8V49.1H28.46C31.18 44.8 34.22 40.35 37.08 36H48.9V31.3H40.12C44.03 25.09 47.17 19.3 48 14.7Z";
+  const icon = (cls = "appicon") => `<svg class="${cls}" viewBox="0 0 96 96" aria-hidden="true"><rect width="96" height="96" rx="21" fill="#10151f"/><path transform="translate(0 6.5)" d="${LEAF}" fill="#f4f5f7"/></svg>`;
+
+  const S = { dev: "android", dark: false };
+  const CONCEPTS = ["A", "B", "C"];
+  const state = {};
+  const phoneDev = () => S.dev !== "laptop";
+  const ios = () => S.dev === "iphone";
+  const NOTE = {
+    setup: () => ({ t: "Eingerichtet", d: "Informatik B.Sc. · PO 2008 · 1. FS", acts: [["Rückgängig", "undo"]], x: S.dev === "laptop" }),
+    installed: () => ({ t: "Installiert", d: S.dev === "laptop" ? "Betula öffnet sich jetzt im eigenen Fenster" : "Betula liegt auf deinem Home-Bildschirm", acts: [], x: true }),
+    taken: () => ({ t: "Übernommen", d: "Informatik B.Sc. · 1. FS · 5 Module im Stundenplan", acts: [], x: true }),
+    never: () => ({ t: "Wird nicht mehr angeboten", d: "Jederzeit unter Profil › Als App", acts: [["Rückgängig", "unnever"]] }),
+    ask: () => ({ t: "Betula als App?", d: "Ein Tipp vom Home-Bildschirm, auch ohne Netz", acts: [[ios() ? "Anleitung" : "Installieren", "install", "go"]], x: true, app: true }),
+  };
+  const fresh = (c) => ({ step: "offer", from: "offer", note: c === "A" ? null : NOTE.setup(), installed: false, inApp: false, again: false, bubble: true, callout: false, card: true, never: false });
+  const resetAll = () => CONCEPTS.forEach((c) => (state[c] = fresh(c)));
+  resetAll();
+
+  // ---- Frames ----
+  const sbar = (onPhoto) => `<div class="sbar${onPhoto ? " on-photo" : ""}" aria-hidden="true"><span>14:32</span><span><i></i><i></i></span></div>`;
+  const tabs = (on) => `<nav class="p-tabs" aria-hidden="true">${[["house", "Start"], ["grid", "Module"], ["cap", "Studium"], ["mark", "Merkliste"], ["cal", "Stundenplan"]].map(([i, t]) => `<span class="${t === on ? "on" : ""}">${I(i)}${t}</span>`).join("")}</nav>`;
+  const crTop = () => `<div class="cr-top" aria-hidden="true"><span class="cr-url">${I("lock")}betula.app</span><span class="cr-tabs">1</span><span class="cr-more">${I("vdots")}</span></div>`;
+  const sfBar = (hint) => `<div class="sf-bar${hint ? " lift" : ""}" aria-hidden="true"><span class="sf-pill">${I("lock")}betula.app</span><span class="sf-btn${hint ? " hint" : ""}">${I("dots")}</span></div>`;
+  // A phone: mode "browser" (Chrome's bar on top, Safari's at the bottom), "app" (installed), "bare" (iOS itself).
+  const phone = (body, { mode = "browser", clear = false, tab = "Start", over = "", btn = false, hint = false } = {}) => {
+    if (mode === "bare") return `<div class="phone"><div class="mk ph${S.dark ? " dark" : ""}">${body}${over}</div></div>`;
+    const chrome = mode === "browser" && S.dev === "android";
+    const safari = mode === "browser" && ios();
+    const top = `<div class="p-top${clear ? " clear" : ""}"><div class="p-search">${I("search")}Modul, Nummer oder Thema</div>${btn ? `<button class="p-inst" type="button" data-act="install">${I("down")}App</button>` : ""}<div class="p-me">${I("user")}</div></div>`;
+    return `<div class="phone"><div class="mk ph${S.dark ? " dark" : ""}${safari ? " sf" : ""}${chrome ? " cr" : " edge"}">
+      ${chrome ? `<div class="cr-status">${sbar(false)}</div>${crTop()}` : sbar(true)}
+      <div class="p-body">${top}<div class="p-scroll">${body}</div></div>
+      ${tabs(tab)}
+      ${safari ? sfBar(hint) : ""}
+      ${over}
+    </div></div>`;
+  };
+  // A laptop: Chrome's window ("browser") or the installed app's own window ("app").
+  const laptop = (body, { mode = "browser", clear = false, rail = "Start", over = "", btn = false, lit = false } = {}) => {
+    const bar = mode === "browser"
+      ? `<div class="wbar" aria-hidden="true"><div class="wtabs"><span class="lights"><i></i><i></i><i></i></span><span class="wtab">${icon("ic")}Betula · Modulkatalog</span></div><div class="womni">${I("left")}${I("right")}${I("refresh")}<span class="url">${I("lock")}betula.app<span class="grow"></span><span class="inst${lit ? " lit" : ""}">${I("monitorDown")}</span></span>${I("vdots")}</div></div>`
+      : `<div class="wapp" aria-hidden="true">${icon("ic")}Betula<span class="grow"></span><span class="ctl"><span>${I("minus")}</span><span>${I("square")}</span><span>${I("x")}</span></span></div>`;
+    const top = `<div class="d-top${clear ? " clear" : ""}"><span class="word">BETULA</span><div class="d-search">${I("search")}Modul, Nummer oder Thema suchen</div><span class="grow"></span>${btn ? `<button class="d-inst" type="button" data-act="install">${I("monitorDown")}App installieren</button>` : ""}</div>`;
+    return `<div class="win"><div class="mk${S.dark ? " dark" : ""}">${bar}
+      <div class="mk desk-in${S.dark ? " dark" : ""}">
+        <aside class="d-rail" aria-hidden="true"><span class="logo">${icon("")}</span>${[["house", "Start"], ["grid", "Module"], ["cap", "Studium"], ["mark", "Merkliste"], ["cal", "Stundenplan"]].map(([i, t]) => `<span class="d-rb${t === rail ? " on" : ""}">${I(i)}</span>`).join("")}<span class="gap"></span><span class="d-rb">${I("user")}</span></aside>
+        <div class="d-main">${top}<div class="d-scroll">${body}</div>${over}</div>
+      </div></div></div>`;
+  };
+
+  // ---- The setup (setup.rs), its last step ----
+  const chips = (labels, at) => `<div class="ob-chips">${labels.map((l, k) => k < at ? `<span class="ob-chip done"><i>${I("check")}</i><span>${l}</span></span>` : k === at ? `<span class="ob-chip on"><i>${k + 1}</i><span>${l}</span></span>` : `<span class="ob-chip"><i>${k + 1}</i><span>${l}</span></span>`).join("")}</div>`;
+  const CHIPS = ["Informatik B.Sc.", "WiSe 26/27 · 1. FS", "5 Module", "Geräte", "App"];
+  const homes = () => S.dev === "laptop"
+    ? `<div class="homes dock" aria-hidden="true">${["", "", "me", "", ""].map((m) => m ? `<span class="me">${icon()}</span>` : `<span><i></i></span>`).join("")}</div>`
+    : `<div class="homes" aria-hidden="true">${["Kalender", "Mail", "me", "Fotos"].map((m) => m === "me" ? `<span class="me">${icon()}Betula</span>` : `<span><i></i>${m}</span>`).join("")}</div>`;
+  const gains = () => `<div>
+    <div class="gain"><span class="tile">${I("tap")}</span><div><b>${S.dev === "laptop" ? "Ein Klick aus dem Dock" : "Ein Tipp vom Home-Bildschirm"}</b><span>und du bist in deinem Tag.</span></div></div>
+    <div class="gain"><span class="tile">${I("full")}</span><div><b>${S.dev === "laptop" ? "Ein eigenes Fenster" : "Der ganze Bildschirm"}</b><span>ohne Adressleiste, wie jede App.</span></div></div>
+    <div class="gain"><span class="tile">${I("wifiOff")}</span><div><b>Auch ohne Netz</b><span>Stundenplan und Katalog liegen auf dem Gerät.</span></div></div>
+  </div>`;
+  const installLabel = () => (ios() ? "Auf den Home-Bildschirm" : "Installieren");
+  const stepA = () => `<div class="scene"><span class="ph"></span><span class="sh"></span>
+    <div class="ob">
+      ${chips(CHIPS, 4)}
+      <h4>Betula als App?</h4>
+      <p class="lede">${S.dev === "laptop" ? "Leg Betula ins Dock oder in die Taskleiste. Es startet in einem eigenen Fenster, ohne Browser drumherum." : "Leg Betula auf den Home-Bildschirm. Es startet wie jede andere App, ohne Browser drumherum."}</p>
+      ${homes()}
+      ${gains()}
+      <div class="ob-acts"><button class="m-btn pri${phoneDev() ? " wide" : ""}" type="button" data-act="install">${I(S.dev === "laptop" ? "monitorDown" : "down")}${installLabel()}</button><button class="m-btn ghost" type="button" data-act="later">Später</button></div>
+    </div>
+    ${S.dev === "laptop" ? `<div class="brand">${icon("appicon")}<b>BETULA</b><small>Modulkatalog · inoffiziell</small></div>` : ""}
+  </div>`;
+  const doneA = () => `<div class="scene"><span class="ph"></span><span class="sh"></span>
+    <div class="ob">
+      ${chips(CHIPS, 5)}
+      <div style="display:flex;align-items:center;gap:12px"><span class="ok-mark">${I("check")}</span><div><h4 style="font-size:21px">Alles eingerichtet</h4><p class="lede">Betula ist bereit, ${S.dev === "laptop" ? "im eigenen Fenster" : "auf deinem Home-Bildschirm"}.</p></div></div>
+      <ul class="done-list">
+        <li>${I("check")}<span><b>Informatik B.Sc.</b> · PO 2008 · 1. FS</span></li>
+        <li>${I("check")}<span><b>5 Module</b> im Stundenplan</span></li>
+        <li>${I("check")}<span><b>Als App</b> ${S.dev === "laptop" ? "im Dock und im Startmenü" : "auf dem Home-Bildschirm"}</span></li>
+      </ul>
+      <div class="ob-acts"><button class="m-btn pri${phoneDev() ? " wide" : ""}" type="button" data-act="finish">Fertig</button></div>
+    </div>
+    ${S.dev === "laptop" ? `<div class="brand">${icon("appicon")}<b>BETULA</b><small>Modulkatalog · inoffiziell</small></div>` : ""}
+  </div>`;
+
+  // ---- The day (today.rs), small ----
+  const events = [
+    ["11:30", "13:00", "Vorlesung · Entwicklung von Softwaresystemen", "ZHG/HS.C", "var(--c2)", false],
+    ["13:45", "15:15", "Vorlesung · Mathematik IT-1", "LG1A/HS.2", "var(--c1)", true],
+    ["15:30", "17:00", "Tutorium · Mathematik IT-1", "HG/2.45", "var(--c1)", false],
+    ["17:30", "19:00", "Übung · Entwicklung von Softwaresystemen", "HG/0.18", "var(--c2)", false],
+  ];
+  const today = () => `<section class="dp"><h5>Heute</h5>${events.map(([a, b, t, w, c, now]) => `<div class="ev${now ? " now" : ""}" style="--c:${c}"><span class="t"><b>${a}</b>${b}</span><span class="bar"></span><span class="w"><b>${t}</b><small>${w}${now ? " · noch 48 min" : ""}</small></span></div>`).join("")}</section>`;
+  const week = () => `<section class="dp"><h5>Diese Woche</h5><div class="wk">${["Mo", "Di", "Mi", "Do", "Fr"].map((d, k) => `<div>${d}<span class="${k === 1 ? "today" : ""}">${[[8, 22, "var(--c1)"], [40, 18, "var(--c2)"], [70, 16, "var(--c3)"]].filter((_, j) => (j + k) % 3 !== 2).map(([top, h, c]) => `<i style="top:${top}%;height:${h}%;--c:${c}"></i>`).join("")}</span></div>`).join("")}</div></section>`;
+  const hero = () => `
+    <section class="hero"><span class="ph"></span><span class="sh"></span>
+      <div class="greet"><small>Dienstag, 17. November · KW 47</small><h4>Guten Tag.</h4><p>Gerade läuft VL MIT1 in LG1A/HS.2, noch 48 Minuten.</p><div class="clock">${Array.from({ length: 14 }, (_, k) => `<i class="${k < 6 ? "f" : k === 6 ? "now" : ""}"></i>`).join("")}</div></div>
+      ${S.dev === "laptop" ? `<div class="next"><small>Jetzt</small><b>LG1A/HS.2</b><span>Vorlesung · Mathematik IT-1 · bis 15:15</span></div>` : ""}
+    </section>`;
+  // B's card.
+  const cardB = (c) => {
+    const st = state[c];
+    return `<div class="offer" role="region" aria-label="Betula als App">${icon()}
+      <h5>Betula als App</h5>
+      <button class="x" type="button" data-act="later" aria-label="Später">${I("x")}</button>
+      <p>${S.dev === "laptop" ? "Ein Klick aus dem Dock, und du bist in deinem Tag. Eigenes Fenster, auch ohne Netz." : "Ein Tipp vom Home-Bildschirm, und du bist in deinem Tag. Ohne Browserleiste, auch ohne Netz."}</p>
+      <div class="row"><button class="m-btn pri" type="button" data-act="install">${I(S.dev === "laptop" ? "monitorDown" : "down")}${installLabel()}</button>${st.again ? `<button class="m-btn ghost" type="button" data-act="never">Nicht mehr fragen</button>` : `<button class="m-btn ghost" type="button" data-act="later">Später</button>`}</div>
+    </div>`;
+  };
+  const day = (c, { card = false } = {}) => {
+    const k = card ? cardB(c) : "";
+    if (S.dev === "laptop") return `${hero()}<div class="cols"><div class="col">${today()}</div><div class="col">${k}${week()}</div></div>`;
+    return `${hero()}<div class="cols">${k}${today()}${week()}</div>`;
+  };
+  // C's bubble.
+  const bubble = (c) => `<div class="bubble" role="dialog" aria-label="Betula als App"><b>Betula als App?</b><p>${S.dev === "laptop" ? "Hier installieren: eigenes Fenster, auch ohne Netz." : "Hier auf den Home-Bildschirm legen: ein Tipp, und du bist in deinem Tag."}</p><div class="row"><button class="go" type="button" data-act="install">${ios() ? "So geht’s" : "Installieren"}</button><button class="no" type="button" data-act="${state[c].again ? "never" : "bubble-off"}">${state[c].again ? "Nicht mehr fragen" : "Später"}</button></div></div>`;
+
+  // ---- The browsers' own dialogs ----
+  const shots = (n) => `<div class="shots">${Array.from({ length: n }, () => `<span class="shot"><span class="top"></span><span class="ln c"></span><span class="ln"></span><span class="ln"></span>${n === 3 ? `<span class="ln"></span>` : ""}</span>`).join("")}</div>`;
+  const dialogAndroid = () => `<div class="scrim"></div><div class="bd android" role="dialog" aria-label="App installieren"><span class="whose">Chrome</span><div class="grab"></div>
+      <div class="head">${icon()}<b>Betula · Modulkatalog</b><small>betula.app</small></div>
+      <p>Alle Module und Studiengänge der BTU Cottbus-Senftenberg: durchsuchen, filtern, Studium planen. Inoffiziell.</p>
+      ${shots(3)}
+      <div class="acts"><button type="button" data-act="dlg-cancel">Abbrechen</button><button class="fill" type="button" data-act="dlg-ok">Installieren</button></div>
+    </div>`;
+  const dialogDesk = () => `<div class="bd desktop" role="dialog" aria-label="App installieren"><span class="whose">Chrome</span>
+      <div class="ttl">App installieren?</div>
+      <div class="head">${icon()}<b>Betula · Modulkatalog</b><small>betula.app</small></div>
+      <p>Alle Module und Studiengänge der BTU Cottbus-Senftenberg: durchsuchen, filtern, Studium planen. Inoffiziell.</p>
+      ${shots(2)}
+      <div class="acts"><button class="fill" type="button" data-act="dlg-ok">Installieren</button><button type="button" data-act="dlg-cancel">Abbrechen</button></div>
+    </div>`;
+
+  // ---- The iPhone: Betula's guide, iOS's sheet, the home screen, the app's first start ----
+  const guide = () => `<div class="scrim"></div><div class="sheet" role="dialog" aria-label="Auf den Home-Bildschirm"><div class="grab"></div><div class="guide">
+      <div class="hd">${icon()}<div><h3 class="m-h" style="font-size:17px">Betula auf den Home-Bildschirm</h3><p class="m-sub">Safari macht das selbst, in drei Schritten.</p></div></div>
+      <ol class="gsteps">
+        <li><span>Tippe unten rechts auf <span class="key">${I("dots")}</span> und dann auf <span style="white-space:nowrap"><span class="key">${I("share")}Teilen</span>.</span></span></li>
+        <li><span>Wähle <span style="white-space:nowrap"><span class="key">${I("addsq")}Zum Home-Bildschirm</span>,</span> lass <b>„Als Web-App öffnen“</b> an und tippe <b>„Hinzufügen“</b>.</span></li>
+        <li><span>Öffne Betula vom Home-Bildschirm und tippe <b>„Aus Safari einfügen“</b>.</span></li>
+      </ol>
+      <div class="carry"><span class="t">${I("clip")}</span><div><b>Dein Studium kommt mit.</b> Die App hat ihren eigenen Speicher; Betula hat dein Profil dafür in die Zwischenablage gelegt.<br><span class="got">${I("check")}Kopiert</span></div></div>
+      <button class="m-btn pri wide" type="button" data-act="guide-done">Verstanden</button>
+      <div class="sims" style="padding:0"><button class="sim" type="button" data-act="ios-share">${I("tap")}••• › Teilen › Zum Home-Bildschirm (spielt iOS)</button></div>
+    </div></div>`;
+  const iosAdd = () => `<div class="scrim"></div><div class="ios" role="dialog" aria-label="Zum Home-Bildschirm"><span class="whose-ios">iOS</span>
+      <div class="bar"><button type="button" data-act="ios-cancel">Abbrechen</button><span>Zum Home-Bildschirm</span><button class="add" type="button" data-act="ios-add">Hinzufügen</button></div>
+      <div class="cell">${icon()}<div class="fld" style="flex:1"><b>Betula</b><small>https://betula.app/</small></div></div>
+      <p class="note">Ein Symbol wird zu deinem Home-Bildschirm hinzugefügt, damit du schnell auf diese Website zugreifen kannst.</p>
+      <div class="cell toggle"><span>Als Web-App öffnen</span><span class="sw"></span></div>
+    </div>`;
+  const home = () => `<div class="home">${sbar(true)}<div class="grid">${["Kalender", "Fotos", "Kamera", "Mail", "Uhr", "Karten", "Wetter"].map((a) => `<span><i></i>${a}</span>`).join("")}<button type="button" data-act="open-app">${icon()}Betula</button></div><p class="tip">Tippe auf Betula</p><div class="dockbar"><i></i><i></i><i></i><i></i></div></div>`;
+  const appStart = (c) => `<div class="scene"><span class="ph"></span><span class="sh"></span>
+    <div class="ob">
+      ${chips(["Studiengang", "Beginn", "Semester", "Geräte"], 0)}
+      <h4>Willkommen in der App</h4>
+      <p class="lede">Hast du Betula gerade in Safari eingerichtet? Dann liegt dein Profil in der Zwischenablage.</p>
+      <div class="carry"><span class="t">${I("clip")}</span><div><b>Aus Safari einfügen</b><br>Studium, Stundenplan, Merkliste und Notizen kommen mit. Mit Betula Sync bleiben Safari und App gleich.</div></div>
+      <div class="ob-acts"><div class="callout-at">${state[c].callout ? `<div class="callout"><button type="button" data-act="pasted">Einfügen</button></div>` : ""}<button class="m-btn pri wide" type="button" data-act="paste">${I("clip")}Aus Safari einfügen</button></div><button class="m-btn ghost" type="button" data-act="fresh-setup">Neu einrichten</button></div>
+    </div>
+  </div>`;
+
+  // ---- Notes ----
+  const noteHtml = (n) => !n ? "" : `<div class="wn" role="status" data-note>
+      <span class="mark">${n.app ? icon() : I("check")}</span>
+      <div style="min-width:0"><b>${n.t}</b><small>${n.d}</small></div>
+      <div class="acts">${n.acts.map(([label, act, cls]) => `<button type="button" class="${cls || ""}" data-act="${act}">${label}</button>`).join("")}${n.x ? `<button type="button" class="x" data-act="note-x" aria-label="Schließen">${I("x")}</button>` : ""}</div>
+    </div>`;
+
+  // ---- One concept's screen ----
+  const flows = {
+    A: { android: ["offer", "dialog", "done", "day", "later"], laptop: ["offer", "dialog", "done", "day", "later"], iphone: ["offer", "guide", "iosadd", "home", "app", "day"] },
+    B: { android: ["offer", "dialog", "day", "later"], laptop: ["offer", "dialog", "day", "later"], iphone: ["offer", "guide", "iosadd", "home", "app", "day"] },
+    C: { android: ["offer", "dialog", "day", "later"], laptop: ["offer", "dialog", "day", "later"], iphone: ["offer", "guide", "iosadd", "home", "app", "day"] },
+  };
+  const NAMES = {
+    offer: { A: "Einrichtung, Schritt 5 „App“", B: "Der Tag nach der Einrichtung, mit der Karte", C: "Der Tag nach der Einrichtung, die Blase am Knopf" },
+    dialog: "Der Dialog des Browsers", done: "Alles eingerichtet", day: "Der Tag", later: "Drei Tage später",
+    guide: "Betulas Anleitung", iosadd: "iOS: Zum Home-Bildschirm", home: "iOS: der Home-Bildschirm", app: "Die App, erster Start",
+  };
+  const where = (c) => {
+    const st = state[c];
+    const n = NAMES[st.step];
+    const dev = { android: "Android · Chrome", iphone: "iPhone · Safari", laptop: "Laptop · Chrome" }[S.dev];
+    const inApp = st.inApp ? (S.dev === "laptop" ? " · im eigenen Fenster" : " · in der App") : "";
+    return `${dev}${inApp} · ${typeof n === "string" ? n : n[c]}`;
+  };
+  // What lies under an overlay: the step the overlay was opened from.
+  const base = (c, step) => {
+    const st = state[c];
+    const showBtn = c === "C" && !st.installed && !st.inApp;
+    if (step === "offer") {
+      if (c === "A") return { body: stepA(), clear: true, setup: true };
+      if (c === "B") return { body: day(c, { card: st.card }), clear: true, btn: false };
+      return { body: day(c), clear: true, btn: showBtn, bubble: st.bubble };
+    }
+    if (step === "later") {
+      if (c === "A") return { body: day(c), clear: true };
+      if (c === "B") return { body: day(c, { card: st.card }), clear: true };
+      return { body: day(c), clear: true, btn: showBtn, bubble: st.bubble };
+    }
+    if (step === "done") return { body: doneA(), clear: true, setup: true };
+    if (step === "app") return { body: appStart(c), clear: true, setup: true };
+    return { body: day(c), clear: true, btn: showBtn };
+  };
+  const screen = (c) => {
+    const st = state[c];
+    const overlay = { dialog: true, guide: true, iosadd: true }[st.step];
+    const under = overlay ? st.from : st.step;
+    if (st.step === "home") return phone(home(), { mode: "bare" });
+    const b = base(c, under);
+    let over = "";
+    if (st.step === "dialog") over = S.dev === "laptop" ? dialogDesk() : dialogAndroid();
+    else if (st.step === "guide") over = guide();
+    else if (st.step === "iosadd") over = iosAdd();
+    else {
+      if (b.bubble) over += bubble(c);
+      over += noteHtml(st.note);
+    }
+    const mode = st.inApp ? "app" : "browser";
+    if (S.dev === "laptop") return laptop(b.body, { mode, clear: b.clear, rail: b.setup ? "Start" : "Start", over, btn: b.btn, lit: st.step === "dialog" });
+    return phone(b.body, { mode, clear: b.clear, tab: "Start", over, btn: b.btn, hint: st.step === "guide" });
+  };
+  const sims = (c) => {
+    const st = state[c];
+    const out = [];
+    const onDay = ["day", "later"].includes(st.step) || (c !== "A" && st.step === "offer");
+    if (onDay && !st.installed && !st.inApp && !st.never && st.step !== "later") out.push(`<button class="sim" type="button" data-act="days">${I("clock")}Drei Tage später</button>`);
+    return out.length ? `<div class="sims">${out.join("")}</div>` : "";
+  };
+  const render = (c) => {
+    const host = document.querySelector(`.stage[data-concept="${c}"]`);
+    const all = flows[c][S.dev];
+    const at = all.indexOf(state[c].step);
+    host.innerHTML = `
+      <div class="stage-bar"><span class="where">${where(c)}</span><span class="dots" aria-hidden="true">${all.map((_, k) => `<i class="${k <= at ? "on" : ""}"></i>`).join("")}</span><span class="grow"></span><button class="reset" type="button" data-act="reset" data-c="${c}">${I("reset", "i")}Von vorn</button></div>
+      <div class="stage-in">${screen(c)}${sims(c)}</div>`;
+  };
+  const renderAll = () => { CONCEPTS.forEach(render); renderFilm(); renderAlways(); };
+
+  // ---- What a click does ----
+  const go = (c, step) => { state[c].step = step; render(c); };
+  const installed = (c) => {
+    const st = state[c];
+    st.installed = true;
+    st.card = false;
+    st.bubble = false;
+    if (S.dev === "laptop") st.inApp = true;
+    if (c === "A" && ["offer"].includes(st.from)) { st.note = null; go(c, "done"); return; }
+    st.note = NOTE.installed();
+    go(c, "day");
+  };
+  document.addEventListener("click", (ev) => {
+    const el = ev.target.closest("[data-act]");
+    if (!el) return;
+    const host = el.closest(".stage[data-concept]");
+    const c = el.dataset.c || (host && host.dataset.concept);
+    if (!c || !state[c]) return;
+    const st = state[c];
+    switch (el.dataset.act) {
+      case "install":
+        st.from = st.step;
+        st.note = null;
+        go(c, ios() ? "guide" : "dialog");
+        break;
+      case "dlg-cancel": go(c, st.from); break;
+      case "dlg-ok": installed(c); break;
+      case "later":
+        if (c === "A" && st.step === "offer") { st.note = NOTE.setup(); go(c, "day"); break; }
+        st.card = false; st.note = null; go(c, st.step === "later" ? "later" : "day");
+        break;
+      case "bubble-off": st.bubble = false; render(c); break;
+      case "never":
+        st.never = true; st.card = false; st.bubble = false; st.note = NOTE.never(); render(c);
+        break;
+      case "unnever": st.never = false; st.note = null; st.card = st.step !== "day"; st.bubble = c === "C" && st.step !== "day"; render(c); break;
+      case "days":
+        st.again = true; st.card = true; st.bubble = true;
+        st.note = c === "A" ? NOTE.ask() : null;
+        go(c, "later");
+        break;
+      case "finish": st.note = NOTE.setup(); go(c, "day"); break;
+      case "guide-done":
+        if (c === "A" && st.from === "offer") { st.note = NOTE.setup(); go(c, "day"); break; }
+        go(c, st.from);
+        break;
+      case "ios-share": go(c, "iosadd"); break;
+      case "ios-cancel": go(c, "guide"); break;
+      case "ios-add": st.installed = true; go(c, "home"); break;
+      case "open-app": st.inApp = true; st.card = false; st.bubble = false; st.note = null; go(c, "app"); break;
+      case "paste": st.callout = true; render(c); break;
+      case "pasted": st.callout = false; st.note = NOTE.taken(); go(c, "day"); break;
+      case "fresh-setup": st.note = null; st.callout = false; go(c, "app"); break;
+      case "note-x": st.note = null; render(c); break;
+      case "undo": st.note = null; render(c); break;
+      case "reset": state[c] = fresh(c); render(c); break;
+    }
+  });
+  // The note waits for interaction: a tap elsewhere in the prototype is moving on, and it goes.
+  document.addEventListener("pointerdown", (ev) => {
+    const frame = ev.target.closest(".phone, .win");
+    if (!frame || ev.target.closest("[data-note]") || ev.target.closest("[data-act]")) return;
+    const host = frame.closest(".stage[data-concept]");
+    const c = host && host.dataset.concept;
+    if (!c || !state[c].note) return;
+    const n = frame.querySelector("[data-note]");
+    state[c].note = null;
+    if (n) { n.style.transition = "transform .2s cubic-bezier(.4,0,1,1), opacity .2s"; n.style.transform = "translateY(calc(100% + 24px))"; n.style.opacity = "0"; setTimeout(() => n.remove(), 220); }
+  });
+
+  // ---- The iPhone's handover, as a strip of small phones ----
+  const mini = (inner) => `<div class="mini"><div class="mk${S.dark ? " dark" : ""}">${inner}</div></div>`;
+  function renderFilm() {
+    const film = document.getElementById("film");
+    const f1 = `${sbar(false)}<div style="padding:10px 12px;flex:1;display:flex;flex-direction:column;gap:10px">
+        <div class="guide" style="gap:10px"><div class="hd">${icon()}<b style="font-size:14px">Betula auf den Home-Bildschirm</b></div>
+        <ol class="gsteps" style="font-size:12px"><li><span><span class="key">${I("dots")}</span> › <span class="key">${I("share")}Teilen</span></span></li><li><span><span class="key">${I("addsq")}Zum Home-Bildschirm</span></span></li><li><span>In der App: <b>„Aus Safari einfügen“</b></span></li></ol>
+        <div class="carry"><span class="t">${I("clip")}</span><div><b>Dein Studium kommt mit.</b><br><span class="got">${I("check")}Kopiert</span></div></div></div>
+</div>
+        <div style="padding:0 8px 8px;display:flex;gap:6px"><span class="sf-pill" style="height:38px;font-size:12px">${I("lock")}betula.app</span><span class="sf-btn hint" style="width:38px;height:38px">${I("dots")}</span></div>`;
+    const f2 = `<div style="flex:1;position:relative;background:var(--m-scrim)"><div class="ios" style="top:30px;animation:none"><div class="bar" style="font-size:13px"><span style="color:var(--b-ios)">Abbrechen</span><span style="color:var(--b-ios);font-weight:700">Hinzufügen</span></div><div class="cell">${icon()}<div class="fld" style="flex:1"><b>Betula</b><small>https://betula.app/</small></div></div><div class="cell toggle"><span>Als Web-App öffnen</span><span class="sw"></span></div></div></div>`;
+    const f3 = `<div class="scene" style="padding:40px 8px 10px;flex:1"><span class="ph"></span><span class="sh"></span><div class="ob" style="padding:12px;gap:8px"><h4 style="font-size:18px">Willkommen in der App</h4><p class="lede" style="font-size:12px">Hast du Betula gerade in Safari eingerichtet? Dann liegt dein Profil in der Zwischenablage.</p><div class="callout-at" style="margin-top:44px"><div class="callout"><span style="display:block;padding:8px 14px;border-radius:9px;background:#2c2c2e;color:#fff;font:500 13px/1 -apple-system,var(--font)">Einfügen</span></div><span class="m-btn pri wide" style="height:40px;font-size:13px">${I("clip")}Aus Safari einfügen</span></div><span class="m-btn ghost" style="height:30px">Neu einrichten</span></div></div>`;
+    const f4 = `<div class="hero" style="padding:44px 12px 12px;border-radius:0 0 18px 18px"><span class="ph"></span><span class="sh"></span><div class="greet"><small>Di, 17. November</small><h4 style="font-size:24px">Guten Tag.</h4><p style="font-size:12px">Gerade läuft VL MIT1 in LG1A/HS.2.</p></div></div><div style="padding:8px">${today()}</div><div class="wn" style="position:absolute;left:8px;right:8px;bottom:12px;border-radius:12px;animation:none"><span class="mark">${I("check")}</span><div style="min-width:0"><b>Übernommen</b><small>Informatik B.Sc. · 1. FS · 5 Module</small></div><div class="acts"></div></div>`;
+    film.innerHTML = [
+      [f1, "1 · In Safari", "„Auf den Home-Bildschirm“ öffnet die Anleitung und legt das Profil in die Zwischenablage."],
+      [f2, "2 · iOS", "••• › Teilen › „Zum Home-Bildschirm“. „Als Web-App öffnen“ ist in iOS 26 schon an."],
+      [f3, "3 · Die App, erster Start", "Leerer Speicher, also bietet Schritt 1 „Aus Safari einfügen“ an; iOS fragt mit seiner Blase."],
+      [f4, "4 · Der eigene Tag", "Studium, Stundenplan und Merkliste sind da. Mit Betula Sync bleiben Safari und App gleich."],
+    ].map(([inner, t, s]) => `<figure>${mini(inner)}<figcaption><b>${t}</b>${s}</figcaption></figure>`).join("");
+  }
+
+  // ---- The place that is always there: four states of „Als App“, the menu and „Befehle“ ----
+  function renderAlways() {
+    const d = S.dark ? " dark" : "";
+    const sect = (say, act, extra = "") => `<div class="ps"><h5>${I("down")}Als App</h5><p class="say">${say}</p>${act}${extra}<div class="line"><span><b>Von selbst anbieten</b>nach der Einrichtung und nach ein paar Tagen</span><span class="tg" aria-hidden="true"></span></div></div>`;
+    const items = [
+      [sect("Betula startet dann vom Home-Bildschirm oder aus dem Dock, ohne Browserleiste, auch ohne Netz.", `<button class="m-btn pri" type="button">${I("down")}Installieren</button>`), "<b>Chrome, Edge, Samsung Internet:</b> „Installieren“ öffnet den Dialog des Browsers."],
+      [sect("Safari legt Betula auf den Home-Bildschirm; dein Studium nimmst du per Zwischenablage mit.", `<button class="m-btn pri" type="button">${I("share")}Auf den Home-Bildschirm</button>`), "<b>iPhone, iPad, Safari am Mac, Firefox auf Android und Windows:</b> derselbe Knopf öffnet die Anleitung dieses Browsers."],
+      [`<div class="ps"><h5>${I("down")}Als App</h5><span class="state">${I("check")}Läuft als App</span><p class="say">Du nutzt Betula gerade installiert. Neue Versionen kommen von selbst.</p></div>`, "<b>In der App selbst</b>: nichts zu tun, nur der Zustand. Kein Schalter, keine Hinweise."],
+      [`<div class="ps"><h5>${I("down")}Als App</h5><p class="say">Firefox auf dem Mac kann Webseiten nicht installieren. <b>In Chrome, Edge oder Safari geht es</b>; hier kannst du den Tab anheften.</p></div>`, "<b>Firefox am Mac und unter Linux:</b> Betula sagt, warum nicht, und wo es geht."],
+    ];
+    const menu = `<div class="cmdk"><div class="q">${I("search")}instal</div><div class="r on">${I("down")}Als App installieren<small>Profil</small></div><div class="r">${I("user")}Profil öffnen</div></div>`;
+    document.getElementById("always").innerHTML = items.map(([html, cap]) => `<figure><div class="mk${d}">${html}</div><figcaption>${cap}</figcaption></figure>`).join("")
+      + `<figure><div class="mk${d}">${menu}</div><figcaption><b>„Befehle“</b> (Strg + K): „Als App installieren“, solange es etwas zu installieren gibt. Kein eigenes Tastenkürzel nötig.</figcaption></figure>`
+      + `<figure><div class="mk${d}"><div class="cmdk"><div class="r">${I("user")}Profil 1<small>aktiv</small></div><div class="r">${I("devices")}Gerät verbinden</div><div class="r on">${I("down")}Als App installieren</div></div></div><figcaption><b>Das Menü der Profile</b> (am Rechner die Person in der Leiste, auf dem Handy der Knopf neben der Suche): ein Eintrag unter „Gerät verbinden“.</figcaption></figure>`;
+  }
+
+  // ---- The bar ----
+  const bind = (id, apply) => {
+    const seg = document.getElementById(id);
+    seg.addEventListener("click", (ev) => {
+      const b = ev.target.closest("button[data-v]");
+      if (!b) return;
+      seg.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      apply(b.dataset.v);
+      renderAll();
+    });
+  };
+  bind("set-dev", (v) => { S.dev = v; resetAll(); });
+  bind("set-theme", (v) => { S.dark = v === "dark"; });
+  try { if (matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light") { S.dark = true; document.querySelectorAll("#set-theme button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.v === "dark"))); } } catch {}
+  renderAll();
+})();
+</script>

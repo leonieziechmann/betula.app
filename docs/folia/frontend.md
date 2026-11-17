@@ -1833,6 +1833,40 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     then hints under the cards, with „Einplanen" and „Markieren"). An area's
     card opens its dialog: what it asks and holds, the student's modules there, the plan's rows still
     open, its modules in the catalog (the tree's areas, the FÜS list) and the plan's page.
+    **The areas as the Wahlpflicht looks** (Folia 1.97.1; owner, 2026-11-17, of the sheet a tap on
+    a phone's bar opens: „das ist noch aus einer früheren Version, wo die aktuellen Design ideen
+    nicht mit eingeflossen sind. Also ich hätte gerne überall eine progressbar, wie beim
+    Wahlpflicht Katalog. Und bitte verwende icons für den Fortschritt also bestanden, aktuell
+    belegt, noch nicht belegt etc."). Until then the sheet said the overview's headline, its bar
+    and its legend again, right over the overview that has them, and listed the areas in words
+    („34 bestanden · 28 geplant · 4 LP offen"); an area's dialog had a thick bar of its own with a
+    black mark at what it asks, a box at each module, ticked or not, that looked as if it could be
+    ticked, and the plan's open rows as a table of three columns that broke a phone's lines. Now:
+    - *The credits by where they stand* (`overview::Tally`): passed, under way in the current
+      semester („läuft", her „aktuell belegt"), planned for a later one, and what is asked for and
+      not planned yet. Each with the mark a module's status has in the semesters (`focus::Glyph`:
+      the check on green, the ring half filled, the ring), and for what stands open a ring of
+      dashes (`focus::OpenGlyph`, `.st-glyph.open`: as the Gesamtplan's open pieces are dashed; a
+      cone of eight dashes cut to a ring, since a dashed border on a circle of 18 px is drawn
+      unevenly). They are what the items of the semesters bring as the progress counts them, so
+      an area's add up to what its progress holds; planned on the overview's bar is under way and
+      planned together.
+    - *The sheet* (`AreasSheet`): under its title what is passed of what the plan asks, then a
+      strip of the four marks, each with its credits over its word — the study's numbers and what
+      the marks mean in one —, then a card per area as the Wahlpflicht has one per choice: its dot
+      and name, what it holds of what it asks („62 / 66 LP"), the Wahlpflicht's bar in its tone
+      (`choose::bar`: passed solid, planned lighter, the modules beyond need hatched, a full bar
+      where all is planned and no „ganz eingeplant"), and its marks with their credits („✓ 34
+      ◐ 16 ○ 12 ◌ 4"); after them „+6 LP über Bedarf", or where nothing is planned yet where the
+      plan puts the area („laut Plan im 5. und 6. FS"). Half up the sheet shows the first areas,
+      where it showed the overview's bar again. What counts towards no area: its credits, its
+      bar hatched.
+    - *An area's dialog* (`AreaDialog`, on a desktop too): the figure under its name, the bar,
+      the strip (all four parts always, one with nothing quiet), then „Deine Module hier" and
+      „Noch offen" (until then „Laut Regelstudienplan") as rows of one kind: the mark, the name
+      over its semester (or over where the plan puts it, „nicht bestanden im SoSe 2026" with the
+      cross for a Wiederholer), the credits. A row with a module is as a whole the way to it
+      beside the page, the plan's open modules too, which were words alone.
   - **The views** (owner, 2026-10-14: concept A, „Regelstudienplan und Wahlpflicht werden
     Ansichten von „Mein Studium" – mit deinem Stand darin"; `regular.rs`, `choose.rs`, the data in
     `folia/crates/plans/src/choices.rs`). Until then both were the program's pages, another world
@@ -2009,7 +2043,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     Unten sind dann die rest links aus anpassen"): an overview, and the semesters on either side of
     it. The overview: the headline with „Bereiche ›" and the bar, under it what the bar's parts are
     with their credits („46 bestanden", „50 geplant", „84 offen", „über Bedarf" where some is), a
-    tap anywhere on the box opening the areas as a sheet (owner, 2026-10-06: „oben die progress bar
+    tap anywhere on the box opening the areas as a sheet („The areas as the Wahlpflicht looks",
+    above: a bar and the marks of the statuses for every area; owner, 2026-10-06: „oben die progress bar
     komplett zu einer clickfläche werden, um das menu für den Progress anzuzeigen, aktuell klickt
     sich das auf dem handy komisch", and the same day: „nicht nur der ganze balken, sondern die
     ganze progress box muss klickbar sein"; until then „Bereiche ›" and the bar were two buttons and
