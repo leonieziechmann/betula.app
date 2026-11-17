@@ -1456,6 +1456,86 @@ mod tests {
         assert!(area("Fachstudium").unfolds() && area("Nebenfach").unfolds() && layout.keys().contains("Fachstudium"));
     }
 
+    /// What the plan has open stands where the plan has it (owner, 2026-11-17: „wenn man sowas wie
+    /// ein Anwendungsfach hat sollten im 3. Semester nich schon 12 lp stehen, wenn 6 davon
+    /// eigentlich aus dem 4. Semester kommen. Und dann auch sowas, wie die Bachelorarbeit sollte
+    /// halt auch erst im 6. Semester im Default sein"): Informatik B.Sc. in its third semester, a
+    /// module of 6 LP planned for the Anwendungsfach — in the third, the open 6 LP are the fourth's,
+    /// in the area's bar as in the subsection's; in the fourth, the third's; the Bachelor-Arbeit of
+    /// the 5.–6. FS in the sixth, and the workbench's fifth has it to take from the sixth.
+    #[test]
+    fn the_gesamtplan_puts_what_is_open_where_the_plan_has_it() {
+        use folia_plans::bench::Due;
+        use folia_plans::choices::plan_view;
+        use grid::model::{Cell, Fill, Layout, Subs};
+
+        /// The open pieces of a row: the semester each stands in, its label and its title.
+        type Open = Vec<(String, String, String)>;
+
+        let source = plans_of("079-82-2008");
+        let mine = MineDoc { caption: Some(String::new()), start: Some(key("2025W")), ..MineDoc::default() };
+        let mut rows = source.linked.clone();
+        rows.extend(plans_of_rows(&["11908"]));
+        let t = i18n::texts(folia_locale::Locale::De);
+        // Every row and every subsection with its open pieces.
+        let open_of = |plan: &str| {
+            let doc = PlanDoc::restored(plan);
+            let ready = ready(&source, &mine, key("2026W"), &doc, &rows, t);
+            let input = input_of(&source, &ready.setup, &doc, &rows);
+            let subs = Subs::of(&input, &ready);
+            let layout = Layout::of(&ready, &subs, false, &Default::default(), None, t);
+            let open = |cells: &[Cell]| -> Open {
+                cells
+                    .iter()
+                    .flat_map(|cell| match cell {
+                        Cell::Semester(cell) => cell.pieces.iter().filter(|piece| piece.fill == Fill::Open).map(|piece| (cell.key.key(), piece.label.clone(), piece.title.clone())).collect::<Vec<_>>(),
+                        Cell::Past { .. } => Vec::new(),
+                    })
+                    .collect()
+            };
+            layout.rows.iter().flat_map(|row| std::iter::once((row.name.clone(), open(&row.cells))).chain(row.subs.iter().map(|sub| (sub.name.clone(), open(&sub.cells))))).collect::<Vec<_>>()
+        };
+        let said = |all: &[(String, Open)], name: &str| -> Vec<String> {
+            all.iter().find(|(row, _)| row == name).map(|(_, pieces)| pieces.iter().map(|(semester, label, _)| format!("{semester} {label}")).collect()).unwrap()
+        };
+        // Nothing planned: the Anwendungsfach's rows in the third and the fourth, Praktische
+        // Mathematik in the fourth.
+        let nothing = open_of("");
+        assert_eq!(said(&nothing, "Anwendungsfach"), ["2026W +6", "2027S +6"]);
+        assert_eq!(said(&nothing, "Nebenfach"), ["2026W +6", "2027S +12"]);
+        // Systemtheorie I (6 LP) for the Anwendungsfach in the third: what is open is the fourth's.
+        let third = open_of("m\t2026W\t11908\t1\t\t\t079-82-2008\t15\t");
+        assert_eq!(said(&third, "Anwendungsfach"), ["2027S +6"]);
+        assert_eq!(said(&third, "Praktische Mathematik"), ["2027S +6"]);
+        assert_eq!(said(&third, "Nebenfach"), ["2027S +12"]);
+        // In the fourth: the third's row is open.
+        let fourth = open_of("m\t2027S\t11908\t1\t\t\t079-82-2008\t15\t");
+        assert_eq!(said(&fourth, "Anwendungsfach"), ["2026W +6"]);
+        assert_eq!(said(&fourth, "Nebenfach"), ["2026W +6", "2027S +6"]);
+        // The third's row put in as a placeholder, the module in the fourth: nothing of it is
+        // open; the placeholder alone leaves the fourth's row.
+        let place = "p\t1\t2026W\t079-82-2008\t15\t3-3\t6\telective\t\tAnwendungsfach\n";
+        let both = open_of(&format!("{place}m\t2027S\t11908\t1\t\t\t079-82-2008\t15\t"));
+        assert_eq!((said(&both, "Anwendungsfach"), said(&both, "Nebenfach")), (Vec::<String>::new(), vec!["2027S +6".to_string()]));
+        assert_eq!(said(&open_of(place), "Anwendungsfach"), ["2027S +6"]);
+        // The Bachelor-Arbeit of the 5.–6. FS: in the sixth, saying both.
+        let thesis = nothing.iter().find(|(row, _)| row.starts_with("Bachelor")).map(|(_, pieces)| pieces.clone()).unwrap();
+        assert_eq!(thesis.iter().map(|(semester, ..)| semester.as_str()).collect::<Vec<_>>(), ["2028S"]);
+        assert!(thesis[0].2.contains("5. und 6. FS"), "{}", thesis[0].2);
+        // „Laut Plan im 5. FS" has it as what the sixth puts in, not to take over; the sixth's
+        // „Plan übernehmen" takes it.
+        let doc = PlanDoc::default();
+        let ready = ready(&source, &mine, key("2026W"), &doc, &rows, t);
+        let input = input_of(&source, &ready.setup, &doc, &rows);
+        let view = plan_view(&input, &ready.study);
+        let module = |at: &usize| view.lines[*at].module_id.as_deref();
+        let (fifth, sixth) = (Due::of(&view, Some(5), Some(3)), Due::of(&view, Some(6), Some(3)));
+        assert!(!fifth.pflicht.iter().any(|at| module(at) == Some("12333")) && fifth.takeover(&view, key("2027W")).is_empty());
+        assert_eq!(fifth.next.iter().filter_map(module).collect::<Vec<_>>(), ["12333"]);
+        assert_eq!(sixth.pflicht.iter().filter_map(module).collect::<Vec<_>>(), ["12333"]);
+        assert_eq!(sixth.takeover(&view, key("2028S")), ["12333"]);
+    }
+
     /// Maschinenbau numbers its electives („Wahlpflichtmodul 1" … „4"): one choice of 24 LP, whose
     /// list is the tree of its area, the plan's rows naming none.
     #[test]

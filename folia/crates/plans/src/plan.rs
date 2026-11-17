@@ -29,6 +29,26 @@ pub fn span_of(semester: Option<i64>, start_semester: Option<i64>, end_semester:
     }
 }
 
+/// The Fachsemester of its span a row of the plan stands in before the student says otherwise:
+/// its first, and the thesis its last (owner, 2026-11-17: „sowas, wie die Bachelorarbeit sollte
+/// halt auch erst im 6. Semester im Default sein. Weil auch wenn man sie ab dem 5. machen kann
+/// sollte man eigentlich erst am schluss"). What Betula puts in of itself goes by it — the plan's
+/// open rows in the Gesamtplan, „Plan übernehmen", a Fachsemester taken over —; the student plans
+/// the thesis into whichever semester they like.
+pub fn due_in<T: Copy>(span: (T, T), kind: Option<ModuleKind>) -> T {
+    match kind {
+        Some(ModuleKind::Thesis) => span.1,
+        _ => span.0,
+    }
+}
+
+/// `semester_span` from the Fachsemester the row is due in on (`due_in`): of the thesis its last
+/// alone, of any other row all of its span.
+pub fn due_span(entry: &PlanEntry) -> Option<(i64, i64)> {
+    let (first, last) = semester_span(entry)?;
+    Some((due_in((first, last), entry.kind.as_ref().and_then(Code::known)), last))
+}
+
 /// What a row of the plan says about its credits: a number, a range, or nothing. Written the one
 /// way the Studienplan's store keeps it, whatever the language of the page („6", „7,5",
 /// „10–24"); a page writes it in its language with `credits_in`.
@@ -967,6 +987,20 @@ mod tests {
                 .collect();
             assert_eq!(semester_plan(semester, &entries, &areas, Locale::De).requirements, listed, "semester {semester}");
         }
+    }
+
+    /// A row over several Fachsemester is due from its first on, the thesis in its last alone
+    /// (owner, 2026-11-17: „sollte man eigentlich erst am schluss").
+    #[test]
+    fn the_thesis_is_due_in_the_last_fachsemester_of_its_span() {
+        let over = |kind: ModuleKind| PlanEntry { semester: None, start_semester: Some(5), end_semester: Some(6), ..row("Zeile", 5, Some(kind), None) };
+        assert_eq!(due_span(&over(ModuleKind::Thesis)), Some((6, 6)));
+        assert_eq!(due_span(&over(ModuleKind::Elective)), Some((5, 6)));
+        assert_eq!(due_span(&over(ModuleKind::Compulsory)), Some((5, 6)));
+        assert_eq!(due_span(&row("Bachelor-Arbeit", 6, Some(ModuleKind::Thesis), None)), Some((6, 6)));
+        assert_eq!(due_span(&PlanEntry { kind: None, ..over(ModuleKind::Elective) }), Some((5, 6)));
+        assert_eq!(due_in((5u8, 6u8), Some(ModuleKind::Thesis)), 6);
+        assert_eq!(due_in((5u8, 6u8), None), 5);
     }
 
     // The note of a semester names the areas alone where the row's name says no more.

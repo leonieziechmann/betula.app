@@ -496,9 +496,10 @@ impl AreaInfo {
             .iter()
             .filter(|line| line.suggestion.area == Some(index))
             .map(|line| {
-                let stands = match (line.failed_in, line.plan_fs) {
+                // The Fachsemester as the plan prints them: „5. und 6. FS" of a row over both.
+                let stands = match (line.failed_in, line.plan_span.or(line.plan_fs.map(|fs| (fs, fs)))) {
                     (Some(failed), _) => Some((s.failed_in)(&failed.label(t.locale))),
-                    (None, Some(fs)) => Some((s.plan_says)(&(s.fs_span)(fs, fs))),
+                    (None, Some((first, last))) => Some((s.plan_says)(&(s.fs_span)(first, last))),
                     (None, None) => None,
                 };
                 let id = match &line.suggestion.pick {
