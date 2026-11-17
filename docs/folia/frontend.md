@@ -2543,10 +2543,15 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     round one at its end on hover where it is not, opens the workbench for that semester at that area (until 1.64.0 a dialog
     of the area's modules, `picker::CellDialog`). Since Folia 1.93.1 it says what it does (owner,
     2026-11-11: „Es ist nicht richtig zu erkennen, was jetzt das (+) macht. Also, dass man damit
-    ein neues modul in den bereich einplant"): an empty cell's „+ Modul einplanen", the round one
-    growing under the pointer or focused into the same words, green, leftwards over the pieces;
+    ein neues modul in den bereich einplant"): an empty cell's „+ Modul einplanen"; in a cell with
+    pieces the same words on the cell's lower edge at its right end, between its pieces and those of
+    the row under it, once the pointer has rested on the cell a moment or something in it is
+    focused, gone at once as the pointer leaves, always as large, filling green under the pointer
+    (since Folia 1.97.11; owner, 2026-11-17: „die hoverinteraktion mit dem + ist gelinde gesagt sehr
+    buggy" — until then a round „+" over the cell's last piece, which grew under the pointer
+    leftwards over the pieces into these words, so that the last piece could hardly be reached);
     its title names the area and the semester („Modul einplanen: Informatik, SoSe 2027"), and the
-    line under the plan says „+ in einer Zelle: ein Modul in den Bereich einplanen" (until then
+    line under the plan says „+ in einer Zelle: ein Modul in den Bereich einplanen" (until 1.93.1
     „Modul hinzufügen" stood in its title alone). A click on a piece (or a right click) opens the
     module's menu, the semesters' row menu. Under the pointer a piece is ringed inside its own edge
     in its area's colour, focused in the page's green inside it as well (until 1.93.1 a ring
@@ -2585,8 +2590,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     most strongly, green or amber, with what a drop does on its lower edge: „zählt hier", „als
     Ausnahme", over a grey row, darker, „Strg: als Ausnahme" or „zählt hier nicht" and „landet hier" in its own row,
     where it goes instead (since Folia 1.89.3 between the cell's pieces and those of the row under
-    it, covering none of them, its cell over that row meanwhile, and the plan 10 px taller where no
-    flag of today stands under it; until then inside the cell, over its pieces). The piece taken up
+    it, covering none of them, and the plan 10 px taller where no flag of today stands under it;
+    until then inside the cell, over its pieces). Since 1.97.11 these words stand in a layer of their
+    own over the grid (`drop_words`, placed by `dom::cell_edge` where the cell is), so that no cell
+    covers them: until then each stood in its cell, which lay over the row under it, and where the
+    cell under it said something too, that one was drawn after it, over the lower half of „landet
+    hier" (owner, 2026-11-17: „landet hier ist noch abgeschnitten"; over a Komplex right under the
+    Fachstudium's row, say, in a semester gone by, whose ground is not see-through). The piece taken up
     stays as a faint copy at its place (`is-dragged`), no cell showing its „+" meanwhile, and at the
     right of the semesters' head a key names the colours: „zählt dort laut Plan", „passt nicht laut
     Plan", „mit Strg als Ausnahme" (until then only the semester under the pointer and the cell it

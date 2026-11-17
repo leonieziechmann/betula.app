@@ -1,6 +1,6 @@
 [package]
 name = "folia-catalog"
-version = "1.97.10"
+version = "1.97.11"
 edition = "2021"
 description = "The module catalog of Betula: its list and filters"
 
