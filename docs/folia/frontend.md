@@ -299,7 +299,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     „Außerdem als fachübergreifendes Studium (FÜS) anrechenbar in 149 Studiengängen" counts the
     FÜS lists that hold the module (`queries::module_fues_programs`), not the programs its page
     names: a FÜS module whose page names none („Einführung in die Amateurfunktechnik") is on every
-    FÜS list since schema 21 (Folia 1.96.1), and the section shows for it as for ERP, no
+    FÜS list since schema 21 (Folia 1.97.3), and the section shows for it as for ERP, no
     curriculum and that line; until then it had no section.
 - **A module's week says what belongs to it** (owner, 2026-11-03, on Programmierpraktikum's week:
   „aktuell ist es nicht gut zu erkennen, was jetzt zu dem modul gehört … Es muss auch erkennbar
@@ -4247,7 +4247,7 @@ means, the same derivation as the row's panel (`plan::areas_for_row`; „Anwendu
 `area=348,350,351,352,349`, the five Nebenfächer), the FÜS list for a FÜS row, a search for the
 name of a single module, the program's electives where no area fits; nothing picked → the program.
 The FÜS list is the program's own (the FÜS modules whose page admits the program, and since schema
-21, Folia 1.96.1, those whose page admits none, as „Einführung in die Amateurfunktechnik" in
+21, Folia 1.97.3, those whose page admits none, as „Einführung in die Amateurfunktechnik" in
 Informatik: `docs/radix/schema-v2.md`, „Membership and kind"); where the data holds none (20 of
 the 129 current programs with a plan, two with FÜS rows: Power Engineering and Urban Design and
 Sustainable Revitalization, whose 3 FÜS rows led to an empty list until 2026-11-03), the BTU's
