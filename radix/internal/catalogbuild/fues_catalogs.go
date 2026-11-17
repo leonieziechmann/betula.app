@@ -64,8 +64,8 @@ func loadFUESCatalogs(db *catalogdb.DB, src *sources, report *Report) error {
 
 // writeFUESCatalogs writes what the catalogs say (docs/radix/schema-v2.md, „FÜS catalogs"): their
 // modules; the programs each heading names; the lines of the negative lists, a part for a degree
-// or a profile applied to the programs it holds for, a part for what a student chooses kept as
-// its scope. A module the module lists do not hold is left out and reported
+// or a profile applied to the programs it holds for (fues_negative), a part for what a student
+// chooses kept with its choice (fues_negative_choice). A module the module lists do not hold is left out and reported
 // (build.fues_unknown_modules); so is a heading that names no program (fues_catalog_heading,
 // which validate warns of).
 func (b *builder) writeFUESCatalogs() error {
@@ -155,10 +155,18 @@ func (b *builder) writeFUESCatalogs() error {
 			}
 			kind := fuescatalog.ScopeKind(e.Scope)
 			for _, p := range match.programs(e.Program) {
-				scope := ""
+				insert, args := `INSERT OR IGNORE INTO fues_negative (semester, program_id, module_id) VALUES (?, ?, ?)`, []any{cat.Semester, p.id, e.ModuleID}
 				switch kind {
 				case fuescatalog.ScopeChoice:
-					scope = fuescatalog.ChoiceLabel(e.Scope)
+					choice := strings.TrimSpace(fuescatalog.ChoiceLabel(e.Scope))
+					if choice == "" || choice == "-" {
+						choice = strings.TrimSpace(e.Scope)
+					}
+					if choice == "" || choice == "-" {
+						continue // a part that names no choice: no line of anyone's list
+					}
+					insert = `INSERT OR IGNORE INTO fues_negative_choice (semester, program_id, module_id, choice) VALUES (?, ?, ?, ?)`
+					args = append(args, choice)
 				case fuescatalog.ScopeBachelor:
 					if p.degree.Level != "bachelor" {
 						continue
@@ -172,8 +180,7 @@ func (b *builder) writeFUESCatalogs() error {
 						continue
 					}
 				}
-				res, err := b.tx.Exec(`INSERT OR IGNORE INTO fues_negative (semester, program_id, module_id, scope) VALUES (?, ?, ?, ?)`,
-					cat.Semester, p.id, e.ModuleID, scope)
+				res, err := b.tx.Exec(insert, args...)
 				if err != nil {
 					return fmt.Errorf("FÜS catalog %s, negative list of %s: %w", cat.Semester, p.id, err)
 				}

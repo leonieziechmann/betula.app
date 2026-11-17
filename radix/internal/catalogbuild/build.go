@@ -21,7 +21,7 @@ import (
 // plan, plan_entry and plan_scan_status are a source of their own and stay, and so do the
 // caches of the semantic search, module_summary and passage_embedding.
 var derivedTables = []string{
-	"program_fues_note", "fues_negative", "fues_catalog_program", "fues_catalog_heading", "fues_catalog", "fues_catalog_document",
+	"program_fues_note", "fues_negative_choice", "fues_negative", "fues_catalog_program", "fues_catalog_heading", "fues_catalog", "fues_catalog_document",
 	"module_extra", "module_choice_option", "module_choice",
 	"module_track_program", "module_track", "program_campus", "event_program_ref", "event_program",
 	"module_folded", "module_vector", "program_module_abbrev", "module_abbrev",
@@ -109,7 +109,7 @@ type Report struct {
 	StudyPages int
 
 	// FUESCatalogs counts the BTU's FÜS catalogs read, FUESNegatives the lines of their negative
-	// lists written (fues_negative). FUESModulesUnknown counts the module numbers of the catalogs
+	// lists written (fues_negative, fues_negative_choice). FUESModulesUnknown counts the module numbers of the catalogs
 	// that the module lists do not hold; FUESCatalogsUnreadable names the archived catalogs that
 	// could not be read.
 	FUESCatalogs           int
