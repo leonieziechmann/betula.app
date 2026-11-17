@@ -706,8 +706,9 @@ mod tests {
     fn a_row_leads_to_the_overview_and_carries_its_eye() {
         let rows = shown(&Selection::default());
         let words: Vec<(&str, &str, String)> = rows.iter().map(|(id, row)| (id.as_str(), row.label.as_str(), row.said.plain(&i18n::DE))).collect();
-        // In the timetable's order, as the overview's segments: the exercise meets first (Monday).
-        assert_eq!(words, [("148369", "Übung", "2 Gruppen · offen".to_string()), ("148701", "Vorlesung", "Di 11:30 · Fr 09:15".to_string()), ("150132", "Tutorium", "Di 15:30 · freiwillig".to_string())]);
+        // Kind first, as the overview's segments: the lecture, the exercise, the tutorial — though
+        // the three share one title and the exercise's id is the lowest.
+        assert_eq!(words, [("148701", "Vorlesung", "Di 11:30 · Fr 09:15".to_string()), ("148369", "Übung", "2 Gruppen · offen".to_string()), ("150132", "Tutorium", "Di 15:30 · freiwillig".to_string())]);
         let of = |rows: &[(String, RowShown)], id: &str| rows.iter().find(|(event, _)| event == id).map(|(_, row)| row.clone()).unwrap();
         let lecture = of(&rows, "148701");
         // The overview at its first Termin, in the mode it was opened from.

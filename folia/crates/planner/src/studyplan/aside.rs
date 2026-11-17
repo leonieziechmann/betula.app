@@ -880,7 +880,7 @@ fn lead_of(info: &Info, t: &Timetable, sem: SemesterKey, texts: &i18n::Texts) ->
     Some((words.no_dates)(&label, season))
 }
 
-/// The module's events and exams in `t`, in the timetable's order, with their lines; what the
+/// The module's events and exams in `t`, kind first as the module list's rows, with their lines; what the
 /// Standort hides after the rest.
 fn blocks_of(t: &Timetable, id: &str, title: Option<&str>, texts: &i18n::Texts) -> Vec<Block> {
     let own = |modules: &[String]| modules.iter().any(|module| module == id);
@@ -905,6 +905,8 @@ fn blocks_of(t: &Timetable, id: &str, title: Option<&str>, texts: &i18n::Texts) 
             Block { exam: false, index, event: event_number(&event.id), head: head_text(&kind_word(event, texts), &event.title, title), qis: event.source_url.clone(), items, across: ids }
         })
         .collect();
+    // Kind first, as the module list's rows and the overview's segments stand beside it.
+    events.sort_by_key(|block| t.events.get(block.index).map_or(usize::MAX, folia_timetable::categories::kind_rank));
     // The options of a choice among the module's events stand together where its first one does,
     // under its line („1 von 3 wählen"), by their first time; of a choice too long for the week
     // those that fit the plan first (owner, 2026-10-19, the concept: „Was zu deinem Plan passt,
@@ -1737,6 +1739,17 @@ mod tests {
         assert_eq!(texts(&block), vec!["Do 09:15–11:30 · A / B · A/B | 15 Termine · Zentralcampus · 08.10.–28.01.".to_string()]);
         assert_eq!(without_campus("Gebäude 14.E - SFB - 14E.202 Rechner- Pool II - Campus Senftenberg"), "Gebäude 14.E - SFB - 14E.202 Rechner- Pool II");
         assert_eq!(without_campus(" LG 10/214 "), "LG 10/214");
+    }
+
+    /// The panel's blocks stand kind first, as the module list's rows and the overview's segments
+    /// beside it: one title for all, the exercise's id the lowest, the lecture first all the same.
+    #[test]
+    fn the_blocks_stand_kind_first() {
+        let rows = [teaching("148008", 1, "Praktikum", 1, "11:30", "13:00"), teaching("148369", 1, "Übung", 1, "15:30", "17:00"), teaching("148701", 1, "Vorlesung", 2, "11:30", "13:00")];
+        let t = table(&rows, &[], &["12104"], &[], &Selection::default());
+        let blocks = blocks_of(&t, "12104", None, &i18n::DE);
+        let ids: Vec<&str> = blocks.iter().map(|block| t.events[block.index].id.as_str()).collect();
+        assert_eq!(ids, ["148701", "148369", "148008"]);
     }
 
     /// A series of single dates is one Termin in the panel (owner, 2026-10-13: „sehr

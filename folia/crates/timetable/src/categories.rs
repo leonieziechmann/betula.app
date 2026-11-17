@@ -11,6 +11,7 @@
 //! the one a view is about. Pure functions of a `Timetable`, as the rest of the crate.
 
 use folia_calendar::day::clock;
+use folia_calendar::kind::EventKind;
 use folia_calendar::rowkey::RowKey;
 use folia_calendar::select::HiddenBy;
 use folia_locale::Locale;
@@ -33,12 +34,12 @@ pub struct EventRow {
     pub key: RowKey,
 }
 
-/// The events of module `id` that have a Termin, in the timetable's order; those for another place
-/// or program (`HiddenBy::Town`, `Course`, `Program`) left out, unless it is `shown`, the one a view
+/// The events of module `id` that have a Termin, kind first (`kind_rank`), within a kind in the
+/// timetable's order; those for another place or program (`HiddenBy::Town`, `Course`, `Program`) left out, unless it is `shown`, the one a view
 /// is about. One event is a row too.
 pub fn module_events(table: &Timetable, id: &str, shown: Option<usize>, locale: Locale) -> Vec<EventRow> {
     let theirs = |event: &Event| matches!(event.hidden, Some(HiddenBy::Town(_) | HiddenBy::Course(_) | HiddenBy::Program));
-    let events: Vec<(usize, &Event, Vec<termin::Session>)> = table
+    let mut events: Vec<(usize, &Event, Vec<termin::Session>)> = table
         .events
         .iter()
         .enumerate()
@@ -46,6 +47,10 @@ pub fn module_events(table: &Timetable, id: &str, shown: Option<usize>, locale: 
         .map(|(index, event)| (index, event, termin::sessions(event)))
         .filter(|(_, _, sessions)| !sessions.is_empty())
         .collect();
+    // Kind first, as the owner named them (2026-11-17: „die Kategorien vl, Übung, prak"): lectures,
+    // exercises, seminars, practicals, projects, tutorials, then the rest; within a kind the
+    // timetable's order.
+    events.sort_by_key(|(_, event, _)| kind_rank(event));
     let kinds: Vec<String> = events.iter().map(|(_, event, _)| type_text(event, locale)).collect();
     // The weekday and the time of each event's first Termin, which tell two of a kind apart.
     let firsts: Vec<(Option<String>, Option<String>)> = events
@@ -174,6 +179,14 @@ pub fn summary(event: &Event) -> Summary {
     Summary { weekly, dates: days.len(), groups, option_open: event.across.is_some_and(|alt| alt.open), extra: event.extra, out, hidden }
 }
 
+/// Where an event's rows stand among a module's: the place of its first kind in the kinds' order
+/// (`EventKind::ALL`: Vorlesung, Übung, Seminar, Praktikum, Projekt, Tutorium, the rest), an event
+/// of no kind Betula knows last.
+pub fn kind_rank(event: &Event) -> usize {
+    let first = event.kinds.iter().next();
+    first.and_then(|kind| EventKind::ALL.iter().position(|other| *other == kind)).unwrap_or(EventKind::ALL.len())
+}
+
 fn weekday(day: u8, locale: Locale) -> &'static str {
     locale.texts().weekday_short(i64::from(day)).unwrap_or_default()
 }
@@ -209,12 +222,28 @@ mod tests {
 
     #[test]
     fn a_modules_rows_are_its_events_with_a_termin() {
-        let rows = evs();
+        // One title for both, as QIS gives it: the order is the kinds', not the titles'.
+        let rows: Vec<Fixture> = evs().into_iter().map(|row| row.title("Einführung in die Softwaretechnik")).collect();
         let t = table(&rows, &["12104"], &[], &Selection::default());
         let found = module_events(&t, "12104", None, DE);
         assert_eq!(labels(&found), ["Vorlesung", "Übung"]);
         assert!(found.iter().all(|row| t.events[row.event].modules == ["12104"]));
         assert!(module_events(&t, "11112", None, DE).is_empty());
+    }
+
+    #[test]
+    fn a_modules_rows_come_kind_first() {
+        // By their titles („{kind} {id}") the practical and the tutorial would come first.
+        let rows = [
+            teaching("A", "11", 1, "Übung", 1, "09:15", "10:45"),
+            teaching("A", "13", 1, "Tutorium", 1, "11:30", "13:00"),
+            teaching("A", "10", 1, "Vorlesung", 2, "09:15", "10:45"),
+            teaching("A", "12", 1, "Praktikum", 3, "13:45", "15:15"),
+            teaching("A", "14", 1, "Übung", 4, "09:15", "10:45"),
+        ];
+        let t = table(&rows, &["A"], &[], &Selection::default());
+        let found = module_events(&t, "A", None, DE);
+        assert_eq!(labels(&found), ["Vorlesung", "Übung · Mo", "Übung · Do", "Praktikum", "Tutorium"]);
     }
 
     #[test]
