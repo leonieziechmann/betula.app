@@ -28,6 +28,12 @@
 //!    gibt ja jetzt betula sync. Mach das mal als step in die einführung mit rein. So als letzten
 //!    schritt. So dass man es gleich auch auf dem handy hat"): after the study is set up, „Betula
 //!    Sync aktivieren" and the QR code for the phone, or „Später".
+//! 5. „Betula als App?" (`install.rs`; owner, 2026-11-17: „schon bei der einrichtung fragen … Bei
+//!    der einrichtung soll es nur später als option geben"), where this browser can install Betula
+//!    and it is not installed: „Installieren" (or the guide of a browser that installs by its own
+//!    menu) and „Später". Its chip comes once the study is set up: whether a browser lets the page
+//!    install is known only once it says so, and the server's page cannot know it at all. The
+//!    fourth where the site offers no Betula Sync.
 //!
 //! „Studium anlegen" stores the program, its study direction and the Studienbeginn in „Mein
 //! Studiengang" and takes the rows over into the current semester of the Stundenplan, as its
@@ -68,6 +74,7 @@ use folia_stores::studyplan::Studyplan;
 use folia_stores::sync::Sync;
 
 use super::devices::DevicesStep;
+use super::install::{AppStep, Install, TakeOver};
 use crate::i18n::{self, Texts};
 
 /// The browser app (`csr`): only there is anything picked or stored.
@@ -289,13 +296,27 @@ fn with_sync() -> bool {
     }
 }
 
-/// The steps as the chips name them: three, and „Geräte" where Betula Sync follows.
-fn steps(s: &'static i18n::setup::Texts, with_sync: bool) -> Vec<(u8, &'static str)> {
+/// The steps as the chips name them: three, „Geräte" where Betula Sync follows, and „App" where
+/// Betula as an app follows (`app`).
+fn steps(t: &'static Texts, with_sync: bool, app: bool) -> Vec<(u8, &'static str)> {
+    let s = &t.setup;
     let mut steps = vec![(1u8, s.step_program), (2, s.step_start), (3, s.step_semester)];
     if with_sync {
         steps.push((4, s.step_devices));
     }
+    if app {
+        steps.push((app_step(with_sync), t.install.step_app));
+    }
     steps
+}
+
+/// The number of the step „App": after „Geräte" where Betula Sync is offered.
+fn app_step(with_sync: bool) -> u8 {
+    if with_sync {
+        5
+    } else {
+        4
+    }
 }
 
 /// „Profil übernehmen" at the foot of step 1: where the site offers Betula Sync from the phone by
@@ -318,8 +339,11 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
     let s = &t.setup;
     let with_sync = with_sync();
     let step = RwSignal::new(1u8);
-    // What „Studium anlegen" did, while step 4 follows it.
+    // What „Studium anlegen" did, while a step follows it.
     let created = RwSignal::new(None::<Done>);
+    // Whether this browser can install Betula and it is not installed: then „App" follows.
+    let install = Install::expect();
+    let with_app = Memo::new(move |_| install.is_some_and(|install| install.way().is_some()));
     let program = RwSignal::new(None::<String>);
     let start = RwSignal::new(None::<SemesterKey>);
     // What step 2 has picked (none yet: the latest it offers), and the text of its fifth box (none
@@ -452,8 +476,10 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
             0 => (String::new(), None),
             len => ProgramPlans::new(&source.variants, source.supplements.clone()).kept(index.min(len - 1)),
         };
-        // The page keeps the card for step 4, before „Mein Studiengang" says a study is set up.
-        if with_sync {
+        // A step follows (Betula Sync, Betula as an app): the page keeps the card for it, before
+        // „Mein Studiengang" says a study is set up.
+        let follows = with_sync || with_app.get_untracked();
+        if follows {
             on_written.run(());
         }
         // The study set up: felt as done (folia_design::haptic).
@@ -512,7 +538,7 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
         }
         plan_store.update_after_paint(move |stored| *stored = doc);
         let done = Done { program: program_name(&source.program), fs, start, modules, placeholders, passed, plan_before, start_before };
-        if with_sync {
+        if follows {
             on_parked.run(done.clone());
             created.set(Some(done));
             step.set(4);
@@ -520,10 +546,18 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
             on_done.run(done);
         }
     };
-    // „Fertig" or „Später" of step 4: the setup ends with what „Studium anlegen" did.
+    // The setup's last step answered: it ends with what „Studium anlegen" did.
     let finish = Callback::new(move |()| {
         if let Some(done) = created.get_untracked() {
             on_done.run(done);
+        }
+    });
+    // „Fertig" or „Später" of Betula Sync: on to „App" where it follows, else the end.
+    let after_devices = Callback::new(move |()| {
+        if with_app.get_untracked() {
+            step.set(app_step(with_sync));
+        } else {
+            finish.run(());
         }
     });
 
@@ -539,7 +573,10 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
         });
         let start_label = start.get().zip(fs_now.get()).map(|(key, fs)| format!("{} · {fs}.\u{a0}{}", key.short(t.locale), s.fs_short));
         let semester_label = created.with(|done| done.as_ref().map(|done| (s.semester_done)(done.modules + done.placeholders)));
-        steps(s, with_sync)
+        // „App" once the study is set up and this browser can install Betula, and while its step
+        // stands (a browser's dialog, once opened, is no longer offered).
+        let app = created.with(Option::is_some) && (with_app.get() || now_step == app_step(with_sync));
+        steps(t, with_sync, app)
             .into_iter()
             .map(|(n, name)| {
                 let value = match n {
@@ -575,6 +612,9 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
         view! {
             <h1 class="ob-title">{s.program_title}</h1>
             <p class="ob-lede">{s.program_lead}</p>
+            // The first start of an app on an iPhone or a Mac: the profile Safari put on the
+            // clipboard for it.
+            <TakeOver/>
             <div class="ob-combo">
                 <Combobox
                     id="ob-program"
@@ -822,7 +862,8 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
                 1 => step_one().into_any(),
                 2 => step_two().into_any(),
                 3 => step_three().into_any(),
-                _ => view! { <DevicesStep on_finish=finish/> }.into_any(),
+                4 if with_sync => view! { <DevicesStep on_finish=after_devices/> }.into_any(),
+                _ => view! { <AppStep on_finish=finish/> }.into_any(),
             }}
         </div>
     }
@@ -837,7 +878,7 @@ pub fn ServerCard(faculties: Signal<Option<Counted>>) -> impl IntoView {
     view! {
         <div class="ob" data-step="1">
             <nav class="ob-chips" aria-label=s.steps_label>
-                {steps(s, with_sync()).into_iter().map(|(n, name)| view! {
+                {steps(t, with_sync(), false).into_iter().map(|(n, name)| view! {
                     <button type="button" class="ob-chip" class:on=n == 1 disabled=true><i aria-hidden="true">{n}</i><span>{name}</span></button>
                 }).collect_view()}
             </nav>
