@@ -12,6 +12,8 @@
 
 use leptos::prelude::*;
 
+#[cfg(feature = "csr")]
+use folia_design::haptic::{self, Haptic};
 use folia_design::ui::Icon;
 
 use crate::i18n;
@@ -104,6 +106,8 @@ fn run(video: NodeRef<leptos::html::Video>, camera: RwSignal<Camera>, attempt: R
             return;
         }
         last.set_value(text.clone());
+        // Caught, as a scanner's beep: felt the moment the code is read.
+        haptic::play(Haptic::Tap);
         on_read.run(text);
     };
     Effect::new(move |_| {

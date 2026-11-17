@@ -58,6 +58,7 @@ use folia_widgets::list::Facts;
 use leptos::ev::{KeyboardEvent, MouseEvent, PointerEvent, TouchEvent};
 use leptos::prelude::*;
 
+use folia_design::haptic::{self, Haptic};
 use folia_design::ui::Icon;
 
 use super::dom;
@@ -734,6 +735,7 @@ impl Draw {
             let held = set_timeout_with_handle(
                 move || {
                     self.hold.set_value(None);
+                    haptic::play(Haptic::Hold);
                     self.paint_from(ctx, s, &order.get_untracked());
                 },
                 HOLD,
@@ -778,6 +780,8 @@ impl Draw {
         let Some(at) = order.iter().position(|other| *other == over) else { return };
         let keys = self.paint.with_value(|paint| paint.as_ref().map(|paint| painted(&order, paint, at)));
         if let Some(keys) = keys.filter(|keys| ctx.selection.with_untracked(|selection| selection.keys != *keys)) {
+            // A row more or less in what is drawn: felt as a step.
+            haptic::play(Haptic::Tick);
             ctx.selection.update(|selection| selection.keys = keys);
         }
     }

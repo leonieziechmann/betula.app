@@ -58,6 +58,9 @@ pub struct Texts {
     pub theme_light: &'static str,
     pub theme_dark: &'static str,
     pub language: &'static str,
+    /// The switch for vibrations under that row, where the device can vibrate
+    /// (`folia_design::haptic`).
+    pub haptics: &'static str,
     /// „Neues Profil" in the menu of the profiles: the way, its field's name, its button, and why
     /// there can be no other (as the profile page says them, `folia_profile`).
     pub new_profile: &'static str,
@@ -122,11 +125,12 @@ pub const DE: Texts = Texts {
     sync_starting: "Wird eingerichtet …",
     sync_ended: "Sync beendet",
     sync_failed: "Sync gestört",
-    preferences: "Darstellung und Sprache",
+    preferences: "Darstellung, Sprache und Vibration",
     theme_system: "Wie das System",
     theme_light: "Hell",
     theme_dark: "Dunkel",
     language: "Sprache",
+    haptics: "Vibration",
     new_profile: "Neues Profil",
     new_profile_name: "Name des neuen Profils",
     create_profile: "Anlegen",
@@ -184,11 +188,12 @@ pub const EN: Texts = Texts {
     sync_starting: "Setting up …",
     sync_ended: "Sync ended",
     sync_failed: "Sync interrupted",
-    preferences: "Appearance and language",
+    preferences: "Appearance, language and vibration",
     theme_system: "Like the system",
     theme_light: "Light",
     theme_dark: "Dark",
     language: "Language",
+    haptics: "Vibration",
     new_profile: "New profile",
     new_profile_name: "Name of the new profile",
     create_profile: "Create",

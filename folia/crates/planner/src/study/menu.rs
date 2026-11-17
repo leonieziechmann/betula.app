@@ -33,6 +33,7 @@ use folia_plans::study::{self, Item, Subject, When};
 use folia_routes::url::StudyplanUrl;
 use leptos::prelude::*;
 
+use folia_design::haptic::{self, Haptic};
 use folia_design::nav;
 use folia_design::ui::Icon;
 
@@ -257,6 +258,17 @@ fn visit_name(ctx: StudyCtx, s: SemesterKey, id: &str) -> String {
 /// selected are done with then.
 pub(super) fn act(ctx: StudyCtx, act: Act, t: &'static Texts) {
     let s = &t.study;
+    // What changes the plan is felt as the Merkliste's and „Einplanen"'s changes are
+    // (folia_design::haptic): passed and moved as done, taken out or away lightly.
+    let felt = match &act {
+        Act::Passed { passed: true, .. } | Act::Move { .. } => Some(Haptic::Success),
+        Act::Passed { passed: false, .. } | Act::Remove { .. } | Act::MakeVisit { .. } | Act::CountVisit { .. } | Act::Unvisit { .. } | Act::RemoveSemester(_) => Some(Haptic::Tap),
+        Act::Leave { .. } => Some(Haptic::Tick),
+        _ => None,
+    };
+    if let Some(felt) = felt {
+        haptic::play(felt);
+    }
     match act {
         Act::MakeVisit { semester, key } => {
             let Some(item) = items_of(ctx, semester, std::slice::from_ref(&key)).into_iter().next() else { return };

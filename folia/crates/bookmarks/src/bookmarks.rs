@@ -60,6 +60,7 @@ use folia_design::format;
 use crate::i18n::{self, use_location, Locale};
 use folia_widgets::finder::{finder_on, FitView, Finder};
 use folia_widgets::local::ModuleInPlace;
+use folia_design::haptic::{self, Haptic};
 use folia_design::nav;
 use folia_widgets::list::{phone_layout, ListKeys, Row, RowMine, RowStatus};
 use folia_widgets::module::ModulePanel;
@@ -2129,6 +2130,7 @@ fn CollectionChips(ui: CollUi, views: Memo<Views>, here: Memo<BookmarksUrl>) -> 
             let handle = set_timeout_with_handle(
                 move || {
                     pressed.set_value(true);
+                    haptic::play(Haptic::Hold);
                     ui.confirming.set(false);
                     ui.menu.set(at.map(|at| (of, at)));
                 },
@@ -2250,7 +2252,7 @@ fn menu_place(at: Anchor, wide: f64, height: f64, room: nav::Room) -> (f64, f64)
     (left, top)
 }
 
-/// Copies a text into the clipboard (a click's: the browser lets it).
+/// Copies a text into the clipboard (a click's: the browser lets it), and the hand feels it done.
 pub(crate) fn copy(text: &str) {
     #[cfg(feature = "csr")]
     if let Some(window) = web_sys::window() {
@@ -2258,6 +2260,7 @@ pub(crate) fn copy(text: &str) {
     }
     #[cfg(not(feature = "csr"))]
     let _ = text;
+    haptic::play(Haptic::Success);
 }
 
 /// The address of this site a path of it becomes.

@@ -881,6 +881,15 @@ details.fgroup.more > summary { display: flex; color: var(--text-3); font-weight
 .legend .box { margin-left: 5px; }
 .more .flabel { margin-top: 12px; }
 
+/* The switch an iPhone ticks with (folia_design::haptic::TapTick; enhance.js „vibrations"): a label
+   as large as the button it lies in (`.tap-host`, which gets a place of its own where it has none),
+   on top of what the button shows, on an iPhone alone (`html.tap-ticks`); the tap lands on it and is
+   the button's, the native switch it toggles stays out of sight. */
+.tap-tick { display: none; }
+html.tap-ticks .tap-tick { display: block; position: absolute; inset: 0; z-index: 1; margin: 0; border-radius: inherit; cursor: inherit; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+:where(html.tap-ticks .tap-host) { position: relative; }
+.tap-tick > input { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+
 /* One of a few: the row fills the width, every choice the same share of it. Where a choice's words
    (span.seg-label) are wider than its share they end in „…"; what follows them (a count, „bald")
    stays whole. The label cuts, not the choice: a choice that clipped its content would clip its
@@ -3421,6 +3430,12 @@ button.pm-new-way { width: 100%; text-align: left; }
 .seg.pm-seg { margin: 0; grid-auto-columns: 38px; }
 .pm-seg .icon { width: 16px; height: 16px; }
 .pm-lang a, .pm-lang button { font-size: 12.5px; font-weight: 650; letter-spacing: .03em; }
+/* The switch for vibrations, a row under them: where the device can vibrate alone (enhance.js,
+   `html.haptics`), its switch as the collections' default has it. */
+.pm-haptics { display: none; }
+html.haptics .pm-haptics { display: flex; }
+button.pm-haptics { width: 100%; text-align: left; }
+.pm-haptics > .collect-switch { margin-left: auto; overflow: visible; }
 .pm-foot { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 4px 10px 6px; }
 .pm-foot a { color: var(--text-3); font-size: 12.5px; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 .pm-foot a:hover { color: var(--text); }

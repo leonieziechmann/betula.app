@@ -42,6 +42,103 @@
   // Text-like controls only: a focused filter chip (checkbox) must not swallow Esc or "/".
   const typing = (el) => el && ((el.tagName === "INPUT" && !["checkbox", "radio", "button", "submit"].includes(el.type)) || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
 
+  // ---- vibrations: what the hand feels (docs/folia/frontend.md, „Vibrations") ----
+  // (owner, 2026-11-17: „ich möchte dass in der ganzen app vibrations richtig umgesetzt werden und
+  // die Benutzung unterstreichen und satisfying macht"). One small vocabulary for the whole app,
+  // `window.betulaHaptic(kind)` for the app (folia_design::haptic) and this script, each kind for one
+  // kind of moment, short pulses (a buzz of 200 ms reads as a notification, not as a touch):
+  // - `tick`: a pick or a detent — a switch flipped, a choice of a segment, a step of ‹ ›, a finger
+  //   past the point where letting go does something (a row swiped, the bar, a sheet's stop), a row
+  //   joining a selection drawn; a mark taken away, lighter than one given.
+  // - `tap`: something small given or taken back — a mark, „Rückgängig", a module taken out.
+  // - `hold`: a finger held long enough — what it holds is its own now (a row selected, a tab's menu).
+  // - `success`: something done that one built — planned, set up, copied, devices connected.
+  // - `warning`: done, but unusual (CLAUDE.md „Betula does not say no": done, and said what is
+  //   unusual) — planned where the module is not offered or into a semester behind the student.
+  // - `error`: what cannot be — the Merkliste full, a code that is none of Betula's, a file refused.
+  // Android's browsers have the Vibration API (Chromium after the first tap on the page; Firefox
+  // took it out in 129). Safari has none: an iPhone ticks only for a native switch (`<input
+  // type=checkbox switch>`) that the finger's own tap toggles — from iOS 26.5 not for a click from a
+  // script —, so where the app's buttons should tick there, a label for such a switch lies over
+  // them (folia_design::haptic::TapTick, shown by `html.tap-ticks`, app.css): one tick per tap, no
+  // patterns. A wide screen has nothing to vibrate. Kept by this browser, the same in every profile
+  // (`betula.haptics.v1`: `off`, else on), switched in the menu of the profiles where the device can
+  // (`html.haptics`, chrome.rs `Preferences`).
+  const HAPTICS = {
+    tick: [6],
+    tap: [10],
+    hold: [16],
+    success: [10, 60, 16],
+    warning: [16, 80, 10],
+    error: [20, 50, 20, 50, 20],
+  };
+  const HAPTIC_RANK = { tick: 0, tap: 1, hold: 2, success: 3, warning: 4, error: 5 };
+  // ms: two moments of one touch are one feeling — the switch's tick and what its click did, a
+  // swipe's end and its action; the stronger wins, the same again is not felt twice.
+  const HAPTIC_GAP = 60;
+  const HAPTICS_KEY = "betula.haptics.v1";
+  const vibrates = typeof navigator.vibrate === "function";
+  const switchTicks = !vibrates && typeof HTMLInputElement === "function" && "switch" in HTMLInputElement.prototype;
+  const handheld = matchMedia("(pointer: coarse)");
+  const hapticsKept = () => { try { return localStorage.getItem(HAPTICS_KEY) !== "off"; } catch { return true; } };
+  let hapticsOn = hapticsKept();
+  let lastHaptic = { at: -Infinity, rank: -1 };
+  // Whether this device can be felt at all: a phone's browser with the Vibration API, or an iPhone.
+  const showHaptics = () => {
+    root.classList.toggle("haptics", (vibrates || switchTicks) && handheld.matches);
+    root.classList.toggle("tap-ticks", switchTicks && hapticsOn);
+  };
+  showHaptics();
+  handheld.addEventListener?.("change", showHaptics);
+  // Plays `kind` (`force`: also while switched off, to feel it being switched on). Whether it played.
+  const haptic = (kind, force = false) => {
+    const pattern = HAPTICS[kind];
+    if (!pattern || !vibrates || (!hapticsOn && !force) || document.visibilityState === "hidden") return false;
+    const now = performance.now(), rank = HAPTIC_RANK[kind];
+    if (now - lastHaptic.at < HAPTIC_GAP && rank <= lastHaptic.rank) return false;
+    lastHaptic = { at: now, rank };
+    try { return navigator.vibrate(pattern); } catch { return false; }
+  };
+  window.betulaHaptic = (kind) => haptic(String(kind));
+  // On or off, kept for every page and every tab of this browser, and told to the page
+  // (`betula:haptics`), whose switch shows it.
+  const setHaptics = (on) => {
+    hapticsOn = on;
+    try { if (on) localStorage.removeItem(HAPTICS_KEY); else localStorage.setItem(HAPTICS_KEY, "off"); } catch {}
+    showHaptics();
+    if (on) haptic("success", true);
+    dispatchEvent(new Event("betula:haptics"));
+  };
+  addEventListener("storage", (e) => {
+    if (e.key !== HAPTICS_KEY && e.key !== null) return;
+    hapticsOn = hapticsKept();
+    showHaptics();
+    dispatchEvent(new Event("betula:haptics"));
+  });
+  // What flips or picks ticks by itself: a switch, a check box, a choice of a segment or of a
+  // menu, a tab — read before its own click changes it, so that what is chosen already, or what
+  // cannot be pressed, is not felt. An element may name its own (`data-haptic`, „none" for nothing:
+  // what the app plays itself, as Merken). The switch under an iPhone's label is its own tick.
+  const PICKS = '[role="switch"], [role="checkbox"], [role="menuitemcheckbox"], [role="radio"], [role="menuitemradio"], [role="tab"], input[type="checkbox"], input[type="radio"]';
+  document.addEventListener("click", (e) => {
+    const target = e.target;
+    if (!target?.closest || target.closest(".tap-tick")) return;
+    const named = target.closest("[data-haptic]");
+    if (named) {
+      if (named.dataset.haptic in HAPTICS && !named.matches(':disabled, [aria-disabled="true"]')) haptic(named.dataset.haptic);
+      return;
+    }
+    const pick = target.closest(PICKS);
+    if (!pick || pick.matches(':disabled, [aria-disabled="true"]')) return;
+    // (A native radio button is checked before its click is heard: it ticks whatever it was.)
+    const role = pick.getAttribute("role") || "";
+    const chosen = role === "tab" ? pick.getAttribute("aria-selected") === "true" : pick.getAttribute("aria-checked") === "true";
+    if (/radio|tab/.test(role) && chosen) return;
+    haptic("tick");
+  }, true);
+  // A slider (the knobs of the credits) clicks at each of its steps, as a wheel does.
+  document.addEventListener("input", (e) => { if (e.target?.type === "range") haptic("tick"); }, true);
+
   // The start of the installed app (owner, 2026-10-15: concept A of design/launch/konzepte.html).
   // The head script has laid the picture of the system's splash screen over the page (`.launch`,
   // app.css), where the system had its own. It stands while the system fades its splash from above
@@ -1054,6 +1151,11 @@
       d.p = lensOver(s.g, d.p0 - pull, d.p0);
       putTabs(s, d.X + s.g.mark.w / 2 - s.g.mids[s.g.current] - d.p, d.X);
       axisDrag(d.p / s.g.step);
+      // Past a third of the way, letting go goes there: a tick, and another where it would not
+      // any more.
+      const aim = decideTab(d, Infinity);
+      if (aim !== d.aim) haptic("tick");
+      d.aim = aim;
     }
     d.trail.push({ at, T: s.T });
     while (d.trail.length > 2 && at - d.trail[0].at > 100) d.trail.shift();
@@ -1134,6 +1236,8 @@
       followTab(d, x, at);
       to = decideTab(d, at);
       v = rowSpeed(d.trail, at);
+      // Flicked where the finger had not gone far enough yet.
+      if (to !== d.aim) haptic("tick");
     }
     // The pages go on first, then the tab's link is clicked: its stages swap behind them.
     axisRelease(to);
@@ -1168,6 +1272,7 @@
       d.X = d.s.X;
       d.p0 = d.p = d.s.X + g.mark.w / 2 - d.s.T - g.mids[g.current];
       d.trail = [{ at: d.at, T: d.s.T }];
+      d.aim = decideTab(d, Infinity);
       axisGrab(g, d.p0);
       try { d.bar.setPointerCapture(d.id); } catch {}
     }
@@ -1591,6 +1696,8 @@
   const takeSheet = (s, dy) => {
     s.mode = "drag";
     const g = glides.get(s.sheet), goal = g?.ys[g.ys.length - 1];
+    // The stop it stood at or went to: one it comes to rest at instead is felt (`releaseSheet`).
+    s.stop = g ? g.to : s.sheet.classList.contains("is-full") ? "full" : "half";
     const settling = g && Math.abs(glideY(g) - goal) < 1.5 && Math.abs(glideV(g)) < 0.05;
     s.from = settling ? goal : sheetY(s.sheet) - (g ? dy : 0);
     ({ half: s.half, away: s.away } = stopsOf(s.sheet));
@@ -1639,7 +1746,11 @@
   // its grabber all up and back (true: the tap was the grabber's).
   const releaseSheet = (s, at) => {
     if (!s?.sheet?.isConnected) return false;
-    if (!s.mode && s.inside && s.grabber && at - s.at < 400) return toggleSheet(s.sheet);
+    if (!s.mode && s.inside && s.grabber && at - s.at < 400) {
+      const moved = toggleSheet(s.sheet);
+      if (moved) haptic("tick");
+      return moved;
+    }
     if (s.mode !== "drag") return;
     const y = s.trail.length ? s.trail[s.trail.length - 1][1] : s.from;
     const v = fingerSpeed(s.trail, at);
@@ -1652,7 +1763,11 @@
     }
     const to = goalOf(y, v, s.half, s.away);
     if (to === "gone") dismissSheet(s.sheet, y, v);
-    else glideSheet(s.sheet, y, v, to);
+    else {
+      // Into another stop: it clicks in there (owner: „zwei einrastpunkte").
+      if (s.half && to !== s.stop) haptic("tick");
+      glideSheet(s.sheet, y, v, to);
+    }
   };
   const endSheet = (e) => {
     if (e.touches.length) return;
@@ -2263,6 +2378,7 @@
       else if (Math.abs(dx) > Math.abs(dy)) s.mode = "hold"; // sideways: nothing moves
       if (!s.mode) {
         // The finger takes the sheet: under the point it touched, on its way where it is.
+        s.stop = pickGlide?.to ?? (s.sheet.classList.contains("full") ? "full" : "half");
         const m = holdPick(s.sheet);
         s.mode = m ? "drag" : "hold";
         s.from = m?.y ?? 0;
@@ -2286,13 +2402,14 @@
       // A tap on its grabber: all up, or back half up.
       const going = pickGlide?.to ?? (s.sheet.classList.contains("full") ? "full" : "half");
       const m = holdPick(s.sheet);
-      if (m) glidePick(m, going === "full" ? "half" : "full", 0);
+      if (m) { haptic("tick"); glidePick(m, going === "full" ? "half" : "full", 0); }
       return;
     }
     if (s.mode !== "drag" || !pickMorph) return;
     const m = pickMorph, y = s.trail.length ? s.trail[s.trail.length - 1][1] : s.from;
-    const v = fingerSpeed(s.trail, e.timeStamp);
-    glidePick(m, goalOf(Math.max(0, y), v, m.half, m.away), v);
+    const v = fingerSpeed(s.trail, e.timeStamp), to = goalOf(Math.max(0, y), v, m.half, m.away);
+    if (to !== "gone" && to !== s.stop) haptic("tick");
+    glidePick(m, to, v);
   });
   document.addEventListener("touchcancel", () => {
     const s = pickTouch;
@@ -2511,7 +2628,7 @@
     if (!hold?.tab.isConnected || !holdTab(hold.tab)) return;
     tabHeld = true;
     if (tabDrag?.id === hold.id) tabDrag = null;
-    navigator.vibrate?.(8);
+    haptic("hold");
   };
   document.addEventListener("pointerdown", (e) => {
     dropHold();
@@ -2596,6 +2713,9 @@
         break;
       case "letters-set":
         setLetters(target.dataset.lettersValue === "off");
+        break;
+      case "haptics-set":
+        setHaptics(target.dataset.hapticsValue !== "off");
         break;
       case "sheet-open":
         e.preventDefault();
@@ -2691,6 +2811,7 @@
           break;
         }
         navigator.clipboard?.writeText(text).then(() => {
+          haptic("success");
           if (!label || "was" in label.dataset) return;
           label.dataset.was = label.textContent;
           label.textContent = link ? language().linkCopied : language().copied;
