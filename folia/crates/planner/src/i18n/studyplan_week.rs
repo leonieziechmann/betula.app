@@ -19,7 +19,7 @@ pub struct Texts {
     pub tab_b: &'static str,
     /// … and both („A/B").
     pub tab_ab: &'static str,
-    /// The same on a phone, beside „Anpassen" after „Woche" (owner, 2026-10-26: „Woche: A, B,
+    /// The same on a phone, beside „Bearbeiten" after „Woche" (owner, 2026-10-26: „Woche: A, B,
     /// A/B"): „A", „B" and „A/B", and what a screen reader names the last („A- und B-Woche").
     pub short_a: &'static str,
     pub short_b: &'static str,
@@ -33,18 +33,13 @@ pub struct Texts {
     pub weeks: &'static str,
     /// The heading of what has no fixed time, under the week: „Ohne feste Zeit".
     pub no_fixed_time: &'static str,
-    /// „Plan · Alle Termine": the plan's Regelwoche, or every Termin of its modules; the switch's
-    /// name for screen readers: „Termine".
-    pub plan: &'static str,
-    pub all_sessions: &'static str,
-    pub sessions_switch: &'static str,
 
     // ---- a slot and its line ----
     /// The end of a slot's tooltip: the other slots it overlaps, by their labels (joined with
     /// „, "): „überschneidet sich mit VL EvS".
     pub clashes_with: fn(&str) -> String,
-    /// Why „Alle Termine" shows a slot faint, first in its tooltip and its line: its kinds switched
-    /// off (the kinds' labels joined with „/"): „„Tutorium“ ausgeblendet" …
+    /// Why the plan being edited shows a slot faint, first in its tooltip and its line: its kinds
+    /// switched off (the kinds' labels joined with „/"): „„Tutorium“ ausgeblendet" …
     pub kinds_hidden: fn(&str) -> String,
     /// … another option of its choice taken („andere Gruppe gewählt") …
     pub other_group_chosen: &'static str,
@@ -64,10 +59,9 @@ pub struct Texts {
     /// The end of the tooltip of a group of the choice in focus: what a click on it does.
     pub tick_group: &'static str,
     pub ticked_group: &'static str,
-    /// The same of an option of a choice among a module's events: „Diese nehmen", „Nicht diese",
-    /// „Wahl aufheben".
+    /// The same of an option of a choice among a module's events: „Diese nehmen", „Wahl
+    /// aufheben".
     pub take_option: &'static str,
-    pub not_this_option: &'static str,
     pub drop_option: &'static str,
     /// A faint option beside one ticked: „✓" takes it instead („Nur diese Gruppe", „Nur diese"),
     /// „+" beside it („Auch diese Gruppe", „Auch diese").
@@ -149,9 +143,6 @@ pub const DE: Texts = Texts {
     carousel_role: "Karussell",
     weeks: "Wochen",
     no_fixed_time: "Ohne feste Zeit",
-    plan: "Plan",
-    all_sessions: "Alle Termine",
-    sessions_switch: "Termine",
 
     clashes_with: |others| format!("überschneidet sich mit {others}"),
     kinds_hidden: |kinds| format!("„{kinds}“ ausgeblendet"),
@@ -165,7 +156,6 @@ pub const DE: Texts = Texts {
     tick_group: "Klicken zum Anhaken",
     ticked_group: "angehakt · Klicken nimmt den Haken weg",
     take_option: "Diese nehmen",
-    not_this_option: "Nicht diese",
     drop_option: "Wahl aufheben",
     only_group: "Nur diese Gruppe",
     also_group: "Auch diese Gruppe",
@@ -214,9 +204,6 @@ pub const EN: Texts = Texts {
     carousel_role: "carousel",
     weeks: "Weeks",
     no_fixed_time: "No fixed time",
-    plan: "Plan",
-    all_sessions: "All sessions",
-    sessions_switch: "Sessions",
 
     clashes_with: |others| format!("clashes with {others}"),
     kinds_hidden: |kinds| format!("“{kinds}” hidden"),
@@ -230,7 +217,6 @@ pub const EN: Texts = Texts {
     tick_group: "Click to tick",
     ticked_group: "ticked · a click takes the tick away",
     take_option: "Take this one",
-    not_this_option: "Not this one",
     drop_option: "Undo the choice",
     only_group: "Only this group",
     also_group: "This group too",

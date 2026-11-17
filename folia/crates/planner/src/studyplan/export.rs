@@ -1,8 +1,8 @@
 //! The group „Export" (design A.8, D.9; „In deinen Kalender" until 2026-11-04, owner: „In deinen
 //! Kalender soll zu export werden und da soll auch noch der knopf als bild speichern rein"): the
 //! semester as an .ics file, as an address a calendar service fetches by itself, and the week as a
-//! picture („Als Bild speichern", `picture.rs`). It stands in the sidebar, on a phone under the
-//! Termine (`mod.rs`: the sidebar is the sheet „Anpassen" there).
+//! picture („Als Bild speichern", `picture.rs`). It stands in the sidebar, on a phone, which has
+//! none, under the Termine (`mod.rs`).
 //!
 //! The file is made in the browser, from the page's own data and timetable, by the function the
 //! feed uses (`StudyplanData::calendar`), so a download and a subscription of the same plan carry

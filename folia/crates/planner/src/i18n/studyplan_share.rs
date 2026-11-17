@@ -5,21 +5,14 @@
 
 pub struct Texts {
     // ---- the link ----
-    /// „Link zum Teilen kopieren", with what it carries under it …
+    /// „Link zum Teilen kopieren".
     pub copy_link: &'static str,
-    pub with_modules: &'static str,
-    /// … and its tooltip.
-    pub link_title: &'static str,
-    /// The tooltip of the greyed-out link with nothing planned.
-    pub nothing_planned: &'static str,
 
     // ---- the offer ----
     /// „Geteilter Stundenplan · WiSe 2026/27. ": what the offer begins with (the semester's name).
     pub shared: fn(&str) -> String,
-    /// After the modules of a plan none of which is planned yet: „In deinen Stundenplan
-    /// übernehmen?" …
-    pub take_all: &'static str,
-    /// … some of which are (how many are not): „2 davon fehlen in deinem Stundenplan." …
+    /// After the modules of a plan some of which are planned already (how many are not): „2 davon
+    /// fehlen in deinem Stundenplan." …
     pub take_missing: fn(usize) -> String,
     /// … every one of which is (the modules' short names, joined with „, "): „MIT-1, AuP. Alles
     /// davon steht schon in deinem Stundenplan." …
@@ -83,12 +76,8 @@ pub struct Texts {
 
 pub const DE: Texts = Texts {
     copy_link: "Link zum Teilen kopieren",
-    with_modules: "mit den Modulen und Gruppen dieses Semesters",
-    link_title: "Der Link trägt das Semester, die geplanten Module und die angehakten Gruppen: Wer ihn öffnet, kann die Module in den eigenen Stundenplan übernehmen oder deinen Plan als eigenen Kalender daneben legen, und die Vorschau in Messengern zeigt sie.",
-    nothing_planned: "Nichts geplant",
 
     shared: |semester| format!("Geteilter Stundenplan · {semester}. "),
-    take_all: "In deinen Stundenplan übernehmen?",
     take_missing: |n| format!("{} davon fehlen in deinem Stundenplan.", if n == 1 { "Eins".to_string() } else { n.to_string() }),
     held: |names| format!("{names}. Alles davon steht schon in deinem Stundenplan."),
     elsewhere: |names| format!("{names}. Dein Stundenplan zeigt ein anderes Semester."),
@@ -126,12 +115,8 @@ pub const DE: Texts = Texts {
 
 pub const EN: Texts = Texts {
     copy_link: "Copy link to share",
-    with_modules: "with this semester's modules and groups",
-    link_title: "The link carries the semester, the planned modules and the groups ticked: whoever opens it can add the modules to their own timetable or put your plan beside theirs as a calendar of its own, and previews in messengers show them.",
-    nothing_planned: "Nothing planned",
 
     shared: |semester| format!("Shared timetable · {semester}. "),
-    take_all: "Add them to your timetable?",
     take_missing: |n| match n {
         1 => "One of them is missing from your timetable.".to_string(),
         n => format!("{n} of them are missing from your timetable."),

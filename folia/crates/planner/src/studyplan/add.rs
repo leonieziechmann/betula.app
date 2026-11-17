@@ -46,8 +46,8 @@ pub(crate) enum AddTo {
     Calendar(u8),
 }
 
-/// How the note of a module taken in begins (`PlanCtx::undo`, which the import, „Plan leeren" and
-/// the list's × share): a mark of its own, never shown.
+/// How the note of a module taken in begins (`PlanCtx::undo`, which the page's other notes share):
+/// a mark of its own, never shown.
 const ADDED: &str = "Aufgenommen: ";
 
 /// The most modules the catalog's search lists here; the whole catalog has the rest.

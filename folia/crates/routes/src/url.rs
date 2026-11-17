@@ -25,12 +25,13 @@
 //!                                      (`ProgramUrl`)
 //! `/studyplan?sem=…&view=…&edit=1&open=<id>&row=<key>&termin=<key>&on=<day>&wahl=…&import=…&variant=<n>[&share=<code>]`
 //!                                      the visitor's Studienplan (`StudyplanUrl`): which semester
-//!                                      and view, whether it is being edited, the module and Termin beside it or a Termin in
-//!                                      its own view on a day, the Regelstudienplan being taken
-//!                                      over. What is planned lives in the browser,
-//!                                      never in a URL, but for a plan handed on by a link
-//!                                      (`share`, `timetable::share`), which the page offers to
-//!                                      take over and whose link preview names its modules
+//!                                      and view, whether it is being edited, the module beside it
+//!                                      or a Termin's card over it on a day (with `full=1` the
+//!                                      Termin's overview filling the page), the choice in focus,
+//!                                      the Regelstudienplan being taken over. What is planned
+//!                                      lives in the browser, never in a URL, but for a plan handed
+//!                                      on by a link (`share`, `timetable::share`), which the page
+//!                                      offers to take over and whose link preview names its modules
 //! `/profile`                           the visitor's profiles and settings (owner, 2026-10-14):
 //!                                      which profiles there are and what they keep lives in the
 //!                                      browser; the address is the page and nothing more
@@ -1173,8 +1174,9 @@ fn is_choice_code(value: &str) -> bool {
 
 /// What the Studienplan's address says: `/studyplan?sem=2026W&view=dates&open=12104&row=148369-aaf38`.
 ///
-/// How the plan is shown, never what is in it (R20): which semester and which view, the one module
-/// and Termin shown beside the plan (as the Merkliste's `open`), and which program's
+/// How the plan is shown, never what is in it (R20): which semester and which view, whether it is
+/// edited, the one module shown beside the plan (as the Merkliste's `open`) or the Termin whose card
+/// stands over it, the choice in focus, and which program's
 /// Regelstudienplan is being taken over. Tolerant and canonical like `CatalogUrl`. The server
 /// renders one explanation for every query (R9) and caches it by the path alone. The one exception
 /// is `share`: a plan somebody handed on by a link (`timetable::share`, the owner's decision of
@@ -1198,7 +1200,7 @@ pub struct StudyplanUrl {
     /// The Termin of that module the aside points at (`row=<event>-<fp>`, `RowKey::text`).
     /// Nothing without `open`.
     pub row: Option<String>,
-    /// The Termin shown beside the plan in its own view, in the module's place
+    /// The Termin shown in its own view over the plan, its card, in the module's place
     /// (`termin=<event>-<fp>`, `RowKey::text`; folia/design/termin), and the day of it shown
     /// (`on=<YYYY-MM-DD>`, nothing without `termin`; without it the view picks the next date).
     /// With a Termin no module is open.
@@ -1911,9 +1913,9 @@ pub fn decode(text: &str) -> String {
 /// Studienplan's area (tab, history and „Zurück" stay the plan's, the catalog's tab never hears of
 /// it). What stands beside the plan is the plan's own panel of the module (its Termine and what is
 /// chosen of them), not the module's preview: on a phone a sheet over the plan, and only `full`
-/// fills the page with the module. A Termin in its own view (`termin`) fills it the same way
-/// („Ganze Seite", folia/design/termin): the view that adjusts the plan, as a page of two
-/// columns. `StudyplanUrl` says the rest; `full` is written last.
+/// fills the page with the module. A Termin (`termin`) fills it the same way with its overview
+/// („Alle Termine von MIT1", folia/design/termin): the module's events, groups and „Reihe", as a
+/// page of two columns. `StudyplanUrl` says the rest; `full` is written last.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PlanAddress {
     pub url: StudyplanUrl,

@@ -7,9 +7,8 @@ pub struct Texts {
     // ---- the list ----
     /// The group's heading and the phone's line: „Kalender".
     pub heading: &'static str,
-    /// „Mein Studiengang", which is always there and always in full („immer voll").
+    /// „Mein Studiengang", which is always there and always in full.
     pub mine: &'static str,
-    pub always_full: &'static str,
     /// Under „Mein Studiengang" without a program: „dein Studium".
     pub your_study: &'static str,
     /// A calendar without a name: „Kalender 2".
@@ -123,7 +122,6 @@ pub struct Texts {
 pub const DE: Texts = Texts {
     heading: "Kalender",
     mine: "Mein Studiengang",
-    always_full: "immer voll",
     your_study: "dein Studium",
     unnamed: |id| format!("Kalender {id}"),
     modules: |n, names| match (n, names.is_empty()) {
@@ -211,7 +209,6 @@ pub const DE: Texts = Texts {
 pub const EN: Texts = Texts {
     heading: "Calendars",
     mine: "My programme",
-    always_full: "always in full",
     your_study: "your study",
     unnamed: |id| format!("Calendar {id}"),
     modules: |n, names| match (n, names.is_empty()) {

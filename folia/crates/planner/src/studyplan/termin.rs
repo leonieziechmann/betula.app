@@ -1,17 +1,12 @@
 //! A Termin of the plan in its own view (`termin=<key>&on=<day>`, folia/design/termin; owner,
-//! 2026-10-26): the view that adjusts the plan (`folia_widgets::termin`), of the plan's timetable,
-//! in the app's dialog over the plan (owner, 2026-11-03: „muss das ein modal werden"). A click on a
-//! Termin of the week or of „Termine" opens it, „Zum Modul" closes it and opens the module's panel
-//! beside the plan, pointing at the Termin; closing it goes back a step where the plan without it
-//! is the step before, as the module's panel does. „Ganze Seite" (`&full=1`, owner: „bau als
-//! Nächstes Teilen und Ganze Seite") lets it fill the plan's page, as „Vollbild" does a module: the
-//! same view in two columns, still the one that adjusts, with „Zurück" to it over the plan.
-//!
-//! Since the card of one Termin (owner, 2026-11-17: „mehr wie bei google calendar") the dialog over
-//! the plan is that card (`folia_widgets::termin::card`), beside the slot it was opened from; a
-//! click on another slot opens that slot's card in its place. The view with the module's events,
-//! groups and „Reihe" is the overview (`…&full=1`, „Alle Termine von MIT1"), whose „Zurück" leads to
-//! the plan, never to the card.
+//! 2026-10-26), of the plan's timetable. A click on a Termin of the week or of „Termine" opens the
+//! card of that one Termin (`folia_widgets::termin::card`; owner, 2026-11-17: „mehr wie bei google
+//! calendar") in the app's dialog over the plan (owner, 2026-11-03: „muss das ein modal werden"),
+//! beside the slot it was opened from; a click on another slot opens that slot's card in its place,
+//! and closing it goes back a step where the plan without it is the step before, as the module's
+//! panel does. The view with the module's events, groups and „Reihe" is the overview (`…&full=1`,
+//! „Alle Termine von MIT1"), which fills the plan's page as „Vollbild" does a module (owner: „bau
+//! als Nächstes Teilen und Ganze Seite"); its „Zurück" leads to the plan, never to the card.
 
 use folia_calendar::day::Day;
 use folia_calendar::rowkey::RowKey;

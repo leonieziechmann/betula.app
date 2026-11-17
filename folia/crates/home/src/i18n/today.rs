@@ -129,7 +129,6 @@ pub struct Texts {
     pub running_chip: fn(u16) -> String,
     pub cancelled: &'static str,
     pub group_open: &'static str,
-    pub choose_group: &'static str,
     /// „zugleich" before what overlaps.
     pub overlaps: &'static str,
     pub no_lectures: &'static str,
@@ -345,7 +344,6 @@ pub const DE: Texts = Texts {
     running_chip: |minutes| format!("läuft · noch {}", duration(minutes)),
     cancelled: "fällt aus",
     group_open: "Gruppe offen",
-    choose_group: "wählen",
     overlaps: "zugleich",
     no_lectures: "Heute keine Vorlesungen",
     pause_text: |from, until| format!("{} Danach geht es mit der Woche weiter, wie sie war.", stop(format!("Vorlesungsfrei vom {from} bis {until}"))),
@@ -523,7 +521,6 @@ pub const EN: Texts = Texts {
     running_chip: |minutes| format!("on · {} left", duration(minutes)),
     cancelled: "cancelled",
     group_open: "group to choose",
-    choose_group: "choose",
     overlaps: "at the same time",
     no_lectures: "No lectures today",
     pause_text: |from, until| format!("{} Then the week goes on as it was.", stop(format!("No lectures from {from} to {until}"))),

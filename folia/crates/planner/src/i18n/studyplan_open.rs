@@ -65,10 +65,6 @@ pub struct Texts {
     pub fewer: &'static str,
 
     // ---- a group, as a tile and in „Vergleichen" ----
-    /// „Pilling leitet"
-    pub leads: fn(&str) -> String,
-    /// „am 04.11. in LG1A/304" is QIS's; „+1 Raum" where a group meets in two rooms.
-    pub another_room: &'static str,
     /// What it does to its day: „allein am Mittwoch" …
     pub alone: fn(&str) -> String,
     /// … „45 min nach Ü MIT1" …
@@ -179,8 +175,6 @@ pub const DE: Texts = Texts {
     further: "weitere",
     fewer: "weniger",
 
-    leads: |who| format!("{who} leitet"),
-    another_room: "+1 Raum",
     alone: |day| format!("allein am {day}"),
     after: |gap, what| format!("{gap} nach {what}"),
     until: |gap, what| format!("{gap} bis {what}"),
@@ -253,8 +247,6 @@ pub const EN: Texts = Texts {
     further: "more",
     fewer: "fewer",
 
-    leads: |who| format!("led by {who}"),
-    another_room: "+1 room",
     alone: |day| format!("alone on {day}"),
     after: |gap, what| format!("{gap} after {what}"),
     until: |gap, what| format!("{gap} until {what}"),

@@ -341,7 +341,7 @@ pub fn StudyplanPage() -> impl IntoView {
     });
 
     // What fills the page: the plan, or the module after „Vollbild" (until then the plan's panel of
-    // it stands beside the plan, on a phone a sheet over it), or a Termin after „Ganze Seite".
+    // it stands beside the plan, on a phone a sheet over it), or a Termin's overview (`full=1`).
     let filling = Memo::new(move |_| address.with(folia_routes::local::filling));
     let termin_full = Memo::new(move |_| address.with(PlanAddress::termin_full));
     // A page of its own opened from the plan (the overview, a module's whole page) opens at its
@@ -446,22 +446,22 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
     let fine = Memo::new(move |_| failed.with(Option::is_none));
     let shown = Memo::new(move |_| ctx.url.with(|url| url.view));
     let weekly = Memo::new(move |_| matches!(shown.get(), PlanView::Week | PlanView::Overview));
-    // The marked modules, for the empty week's „übernehmen" and „+ Modul"'s „Merkliste" (`add.rs`):
-    // one query of the Merkliste for both.
+    // The marked modules, for „+ Modul"'s „Merkliste" of each calendar of one's own (`add.rs`): one
+    // query of the Merkliste for all of them.
     let marked = marked_offered(ctx);
     let view = move || match shown.get() {
-        PlanView::Week | PlanView::Overview => view! { <WeekView ctx marked/> }.into_any(),
+        PlanView::Week | PlanView::Overview => view! { <WeekView ctx/> }.into_any(),
         PlanView::Dates => view! {
             {move || match planned.get() {
                 true => view! { <DatesView ctx/> }.into_any(),
-                false => view! { <NothingPlanned ctx marked/> }.into_any(),
+                false => view! { <NothingPlanned ctx/> }.into_any(),
             }}
         }
         .into_any(),
         PlanView::Exams => view! {
             {move || match planned.get() {
                 true => view! { <ExamsView ctx/> }.into_any(),
-                false => view! { <NothingPlanned ctx marked/> }.into_any(),
+                false => view! { <NothingPlanned ctx/> }.into_any(),
             }}
         }
         .into_any(),

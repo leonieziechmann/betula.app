@@ -50,8 +50,8 @@ use leptos_router::NavigateOptions;
 use crate::i18n::{self, Texts};
 use super::PlanCtx;
 
-/// How the note of a Termin of one's own begins (`PlanCtx::undo`, which the import, „Plan leeren"
-/// and the lists share): a mark of its own, never shown.
+/// How the note of a Termin of one's own begins (`PlanCtx::undo`, which the page's other notes
+/// share): a mark of its own, never shown.
 pub(super) const OWN_NOTE: &str = "Eigener Termin: ";
 
 /// A new Termin lasts this long (minutes) until its end is changed: a slot of the lectures.

@@ -41,10 +41,9 @@ pub struct Texts {
     pub no_plan_hint: &'static str,
     /// „Mein Stand": the switch that shows the student's stand in the table.
     pub mine: &'static str,
-    /// The columns: „Modul", „Art", the Fachsemester, „Bei dir".
+    /// The columns: „Modul", „Art", „Bei dir".
     pub col_module: &'static str,
     pub col_kind: &'static str,
-    pub col_fs: &'static str,
     pub col_mine: &'static str,
     pub col_credits: &'static str,
     /// The foot: „Laut Plan", „Bei dir".
@@ -59,7 +58,6 @@ pub struct Texts {
     pub state_planned: fn(&str) -> String,
     pub state_again: fn(&str) -> String,
     pub state_failed: fn(&str) -> String,
-    pub state_open: &'static str,
     /// What fills a row's placeholder: „mit Proseminar".
     pub filled_by: fn(&str) -> String,
     /// What is taken of a row's choice: „8 von 12 LP gewählt".
@@ -185,7 +183,6 @@ pub const DE: Texts = Texts {
     mine: "Mein Stand",
     col_module: "Modul",
     col_kind: "Art",
-    col_fs: "Fachsemester",
     col_mine: "Bei dir",
     col_credits: "LP",
     per_plan: "Laut Plan",
@@ -196,7 +193,6 @@ pub const DE: Texts = Texts {
     state_planned: |semester| format!("geplant · {semester}"),
     state_again: |semester| format!("wieder im {semester}"),
     state_failed: |semester| format!("nicht bestanden · {semester}"),
-    state_open: "offen",
     filled_by: |names| format!("mit {names}"),
     choice_taken: |taken, all| format!("{taken} von {all}\u{a0}LP gewählt"),
     plan_it: "Einplanen",
@@ -292,7 +288,6 @@ pub const EN: Texts = Texts {
     mine: "My progress",
     col_module: "Module",
     col_kind: "Kind",
-    col_fs: "Semester",
     col_mine: "Yours",
     col_credits: "CP",
     per_plan: "Per plan",
@@ -303,7 +298,6 @@ pub const EN: Texts = Texts {
     state_planned: |semester| format!("planned · {semester}"),
     state_again: |semester| format!("again in {semester}"),
     state_failed: |semester| format!("not passed · {semester}"),
-    state_open: "open",
     filled_by: |names| format!("with {names}"),
     choice_taken: |taken, all| format!("{taken} of {all}\u{a0}CP chosen"),
     plan_it: "Plan it",

@@ -102,12 +102,10 @@ pub struct Texts {
     pub heading: &'static str,
     /// A Termin of one's own without a name: „Eigener Termin".
     pub unnamed: &'static str,
-    /// In the list and the tooltips: „A", „B", „3 Tage", „ab 15.10.", „bis 18.12.".
+    /// In the list and the tooltips: „A", „B", „3 Tage".
     pub weeks_a: &'static str,
     pub weeks_b: &'static str,
     pub days: fn(usize) -> String,
-    pub from_day: fn(&str) -> String,
-    pub until_day: fn(&str) -> String,
     /// The tooltip of a slot of one's own: „von dir, nicht in Datei und festem Abo" (a share that
     /// stays current takes them along).
     pub by_you: &'static str,
@@ -119,8 +117,6 @@ pub struct Texts {
     pub what_optional: &'static str,
     /// The draft in the week while the form is open: „Neuer Termin".
     pub draft: &'static str,
-    /// A finger held on a free stretch of a phone's week, said for a screen reader.
-    pub hold_hint: &'static str,
     /// The tooltip of a slot of a Termin of QIS changed by hand (step 2): „von dir geändert", and
     /// where QIS says something else now „… QIS sagt inzwischen etwas anderes".
     pub changed: &'static str,
@@ -199,14 +195,11 @@ pub const DE: Texts = Texts {
         1 => "1 Tag".to_string(),
         n => format!("{n} Tage"),
     },
-    from_day: |day| format!("ab {day}"),
-    until_day: |day| format!("bis {day}"),
     by_you: "von dir, nicht in Datei und festem Abo",
     mark: "von dir",
     form_for: |module, semester| format!("Für {module} · {semester}"),
     what_optional: "optional",
     draft: "Neuer Termin",
-    hold_hint: "Finger auf eine freie Stelle halten: ein Termin dort",
     changed: "von dir geändert",
     changed_differs: "von dir geändert, QIS sagt inzwischen etwas anderes",
     changed_elsewhere: "anders als in QIS",
@@ -282,14 +275,11 @@ pub const EN: Texts = Texts {
         1 => "1 day".to_string(),
         n => format!("{n} days"),
     },
-    from_day: |day| format!("from {day}"),
-    until_day: |day| format!("until {day}"),
     by_you: "yours, not in the file or a fixed feed",
     mark: "by you",
     form_for: |module, semester| format!("For {module} · {semester}"),
     what_optional: "optional",
     draft: "New event",
-    hold_hint: "Hold a finger on a free stretch: an event there",
     changed: "changed by you",
     changed_differs: "changed by you, QIS says something else now",
     changed_elsewhere: "not as in QIS",

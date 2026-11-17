@@ -3,12 +3,11 @@
 //! „Woche" is the Regelwoche (`Timetable::regular_week`): a slot per recurring Termin at its
 //! weekday and time in the week grid (`folia_widgets::week`, fitted to the page's height), and the dates of
 //! an event that do not recur gathered into one slot („3 Termine"). The week is there before
-//! anything is planned, an empty frame with „Noch keine Termine" in its middle and the ways to
-//! modules under it (`NothingPlanned`, owner 2026-09-25; on a phone the words and the ways alone,
-//! the page shorter than the screen). A slot says in three lines what and whose („VL EvS"), when
-//! and in which weeks („07:30–09:00 A") and where („ZHG/HS.C"); its tooltip says the rest. Each
-//! slot is a link to its module beside the plan, pointing at that Termin (`open`, `row`). A phone
-//! has the grid too, as wide as its screen and as tall as it leaves it (owner, 2026-09-27), and
+//! anything is planned, an empty frame with „Noch keine Termine" in its middle and its ways under
+//! it while it is looked at (`NothingPlanned`, owner 2026-09-25; on a phone the words and the ways
+//! alone, the page shorter than the screen). A slot says in three lines what and whose („VL EvS"),
+//! when and in which weeks („07:30–09:00 A") and where („ZHG/HS.C"); its tooltip says the rest. A
+//! phone has the grid too, as wide as its screen and as tall as it leaves it (owner, 2026-09-27), and
 //! under it the same slots as a list of days, closed until asked for, whose rows are large enough
 //! for a finger and its buttons. What has no fixed time stands under „Ohne feste Zeit", once for
 //! the semester, under the fold (`WeekLoose`). Where the plan has Termine of A or B weeks only,
@@ -80,7 +79,7 @@ use folia_design::nav;
 use folia_shell::pending::Pending;
 use folia_design::ui::Icon;
 use folia_widgets::week::{slot_buttons, GridBand, GridSlot, SlotButton, WeekGrid};
-use super::head::{hue, kind_word, tone_at, MarkedModule, NothingPlanned};
+use super::head::{hue, kind_word, tone_at, NothingPlanned};
 use super::PlanCtx;
 
 /// Where this browser tab remembers the link the visitor last left a view by (`Place`).
@@ -109,7 +108,7 @@ type Layer = Memo<(Vec<GridSlot>, Vec<GridBand>)>;
 /// What has no fixed time stands under the page's fold (`WeekLoose`), the switch of A and B weeks
 /// in the head (`WeekSwitch`; on a phone beside „Bearbeiten").
 #[component]
-pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl IntoView {
+pub(super) fn WeekView(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let base = base_of(ctx);
     let picked = picked_of(ctx);
@@ -167,7 +166,7 @@ pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl In
         )
     });
     let card = Memo::new(move |_| empty_card(empty.get(), ctx.edit.get()));
-    let nothing = move || card.get().then(|| view! { <NothingPlanned ctx marked/> });
+    let nothing = move || card.get().then(|| view! { <NothingPlanned ctx/> });
     // The buttons of the slots, one listener for all of them: a click changes the plan after the
     // next frame (R21), and the week follows; the bin of a Termin of one's own deletes it with the
     // note and „Rückgängig" (`own::remove`).
@@ -202,7 +201,7 @@ pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl In
         // stays shorter than the screen: an empty week would take all of it. While editing the
         // week is drawn, where a finger held makes a Termin.
         if ctx.phone.get() && card.get() {
-            return view! { <NothingPlanned ctx marked/> }.into_any();
+            return view! { <NothingPlanned ctx/> }.into_any();
         }
         if ctx.phone.get() {
             return view! {

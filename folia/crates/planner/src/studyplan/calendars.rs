@@ -17,15 +17,15 @@
 //! in a line over the week that opens into the same rows (`CalendarLine`; no chips, owner,
 //! 2026-10-26). A new calendar comes by its name alone or from a link pasted into its form
 //! (`NewCalendarForm`, while the plan is edited), or from the offer of a shared plan (`share.rs`,
-//! „Als Kalender"); its menu, while editing too, renames it and deletes it, with „Rückgängig". The module list beside the week has a part per calendar (`CalendarModules`).
+//! „Als Kalender"); its menu, there while the plan is edited, renames it and deletes it, with
+//! „Rückgängig". The module list beside the week has a part per calendar (`CalendarModules`).
 //!
 //! A calendar may follow a share of someone else's (Betula Sync, step 3; folia/design/teilen/
 //! teilen.html, `share.rs`, „Als Kalender folgen"): its row says „aktuell" while every change
 //! arrives, and „nicht mehr geteilt" once the share was taken back, with „Behalten" (it stays with
 //! what it showed last) and „Löschen" under it. Its menu hands a calendar on into a calendar app
 //! („In Kalender-App", the dialog „Teilen" on that side; owner, 2026-11-08: to persons only the
-//! plan of one's own).
-//! „+ Modul" in a calendar is the next step (folia/design/kalender: „+ Modul" and „nur besuchen").
+//! plan of one's own). While the plan is edited „+ Modul" takes a module into a calendar (`add.rs`).
 //!
 //! What the parts show is built as plain values first (`Shown`, `free_time`), which the tests read
 //! without rendering.
@@ -825,7 +825,7 @@ pub(super) fn NewCalendar(ctx: PlanCtx) -> impl IntoView {
 }
 
 /// How the note of a module taken out of a calendar of one's own begins (`PlanCtx::undo`, which
-/// the import, „Plan leeren" and the list's × share), the calendar's number after it: never shown.
+/// the page's other notes share), the calendar's number after it: never shown.
 const CALENDAR_REMOVED: &str = "Aus dem Kalender: ";
 
 /// The calendars' parts of the module list beside the week, one per calendar in their order: a

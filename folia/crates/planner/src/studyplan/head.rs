@@ -1,17 +1,14 @@
 //! The top of the Stundenplan: its head („Stundenplan WiSe 2026/27" and the numbers under it), the
-//! exams that collide as red alerts, the one quiet line of overlaps per week (opened, a line each),
-//! the marked modules that could still be planned (by collection
-//! and search, each with „passt" or what it overlaps with, what the semester does not offer folded
-//! with why; folia/design/merken/konzept.html, „Von überall"), what the empty week says in its
-//! middle, and the one muted line under the calendar that says what the page derived rather than
-//! read (R12). Owner's redesign of 2026-09-25: no stack of cards, numbers
+//! exams that collide as red alerts, the overlaps per week (a figure that unfolds a line each), the
+//! marked modules a calendar of one's own can take in (for „+ Modul", `add.rs`), what the empty
+//! week says in its middle, and the one muted line under the calendar that says what the page
+//! derived rather than read (R12). Owner's redesign of 2026-09-25: no stack of cards, numbers
 //! first. The planned modules are a list of their own beside the week (`modules.rs`).
 //!
 //! Every part reads the memos of `PlanCtx` it needs. Where a part needs two things, it takes them
 //! from sibling memos (`key` and `data`, `table` and a memo of `selection`), never a memo together
-//! with the memo it is derived from (R16); what depends on the plan's placeholders works the
-//! semester out itself (`key_of`), as `wanted` does. Texts are the plan's own terms, numbers first
-//! (design A.3, A.5).
+//! with the memo it is derived from (R16). Texts are the plan's own terms, numbers first (design
+//! A.3, A.5).
 
 use std::collections::BTreeMap;
 
@@ -71,10 +68,10 @@ fn day_name(day: Day, locale: Locale) -> String {
     format!("{} {}", weekday_name(day.weekday(), locale), day.date(locale))
 }
 
-/// Where „+ Modul" leads: the catalog's modules that fit the semester (`fits=`, comparing what the
-/// finder compared the last time it was on, `finder_on`), within „Mein Studiengang" where the
-/// stored program is in the snapshot (the one kind of address its slug may stand in, A.10).
-/// Tracked. A path of the app: a link writes it as `t.path(…)`.
+/// Where the empty week's „Zum Katalog" leads: the catalog's modules that fit the semester
+/// (`fits=`, comparing what the finder compared the last time it was on, `finder_on`), within „Mein
+/// Studiengang" where the stored program is in the snapshot (the one kind of address its slug may
+/// stand in, A.10). Tracked. A path of the app: a link writes it as `t.path(…)`.
 pub(super) fn add_module_href(resolved: Option<MineResolved>, key: SemesterKey) -> String {
     let program = resolved
         .and_then(|resolved| resolved.0.get())
@@ -276,12 +273,11 @@ pub(super) fn marked_offered(ctx: PlanCtx) -> Memo<Vec<MarkedModule>> {
 /// and „+ Termin", a Termin of one's own (it fills a gap, so it is there while the plan is looked
 /// at). Nothing here plans a module (owner, 2026-11-17: „Im Kalender geht es
 /// dann nur noch darum auszuwählen, was jetzt genau gezeigt werden soll. Oder halt termine selbst zu
-/// verwalten."). `marked` is read by nobody now; it goes with the next tidying.
+/// verwalten.").
 #[component]
-pub(super) fn NothingPlanned(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl IntoView {
+pub(super) fn NothingPlanned(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let m = &t.studyplan_modules;
-    let _ = marked;
     let resolved = MineResolved::expect();
     let catalog = move || t.path(&add_module_href(resolved, ctx.key.get()));
     let study = t.path(&folia_routes::url::StudyUrl { plan: true, ..Default::default() }.path());

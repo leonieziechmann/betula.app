@@ -1879,7 +1879,7 @@ a.slot { text-decoration: none; }
 .slot-act .icon { width: 13px; height: 13px; stroke-width: 2.6; }
 .slot-act[data-icon="check"], .slot-act[data-icon="plus"] { color: var(--ok); }
 .slot-act[data-icon="check"]:hover, .slot-act[data-icon="plus"]:hover { background: var(--ok); color: var(--panel); box-shadow: none; }
-.slot-act[data-icon="x"]:hover { background: var(--no); color: var(--panel); box-shadow: none; }
+.slot-act[data-icon="trash-2"]:hover { background: var(--no); color: var(--panel); box-shadow: none; }
 /* Slots that stand together and clash (a module's A-week and B-week Termine at one time,
    week.rs): one red frame around them (div.slot-frame, the slot style of their lanes and times),
    1px outside them, with the red mark at its top right; each slot in it (.framed) keeps its own
@@ -3431,7 +3431,7 @@ button.pm-new-way { width: 100%; text-align: left; }
 }
 
 /* ---------- studyplan (folia/crates/app/src/pages/studyplan, folia/crates/stores/src/studyplan.rs) ----------
-   The Studienplan: the frame of every page, the sidebar „Anpassen", and the plan in one panel of
+   The Studienplan: the frame of every page, the sidebar „Stundenplan", and the plan in one panel of
    the main column (.sp-body) that fills the page's height. The views are built by the parts of
    folia/crates/planner/src/studyplan/*.rs; the markup each rule expects is named beside it. A module's tone is
    a `t-…` class (--tint), as on the start page and in the week grid. */
@@ -3483,7 +3483,7 @@ button.pm-new-way { width: 100%; text-align: left; }
    are a carousel as the pictures of the start page are (`--at`, -2 … 2, week.rs `WeekCarousel`):
    the week shown fills the band, its neighbours wait beside it out of sight, smaller and veiled,
    and come in with the finger that carries the weeks sideways (`--drag`, without their spring
-   while it does; up and down it scrolls the page). The switch in the head beside „Anpassen"
+   while it does; up and down it scrolls the page). The switch in the head beside „Bearbeiten"
    (div.sp-weekpick, owner 2026-10-26: „Woche: A, B, A/B") names the weeks. */
 @property --drag { syntax: "<length>"; inherits: false; initial-value: 0px; }
 .sp-carousel { --bleed: 26px; --w: 100cqw; --side: .92; --step: calc(var(--w) * (1 + var(--side)) / 2 + 6px); position: relative; container-type: inline-size; height: clamp(340px, calc(100vh - 240px), 560px); height: clamp(340px, calc(100svh - 240px), 560px); margin: 0 calc(-1 * var(--bleed)); overflow: hidden; touch-action: pan-y pinch-zoom; user-select: none; -webkit-user-select: none; }
@@ -3526,20 +3526,14 @@ button.pm-new-way { width: 100%; text-align: left; }
 .sp-body > .state { margin: 64px auto; }
 .sp-body > .state p { text-wrap: balance; }
 .state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-/* The head: „Stundenplan WiSe 2026/27" (h1, the semester in its span), on a phone „Anpassen" at
+/* The head: „Stundenplan WiSe 2026/27" (h1, the semester in its span), on a phone „Bearbeiten" at
    the right with „Woche: A, B, A/B" before it, and „A-Woche · B-Woche · A/B" where it applies,
    which the head is always as tall as: the week does not move when it comes. Under it the program
-   and the numbers: „Informatik B.Sc. · 5 Module" (p.sp-sum). The import's head (h2) has ‹ ›
-   around it. */
+   and the numbers: „Informatik B.Sc. · 5 Module" (p.sp-sum). */
 .sp-head { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-height: 36px; margin-left: -8px; }
-.sp-head h2 { font-size: 21px; font-weight: 700; letter-spacing: -.025em; line-height: 1.2; padding: 0 4px; }
 .sp-head h1 { margin: 0; padding-left: 8px; font-size: 21px; font-weight: 700; letter-spacing: -.025em; line-height: 1.2; }
 .sp-head h1 span { color: var(--text-3); font-weight: 600; }
-.sp-head .icon-btn { width: 34px; height: 34px; --hit: 3px; }
-.sp-head .icon-btn[aria-disabled="true"] { opacity: .35; pointer-events: none; }
-.sp-head .sheet-toggle { margin-left: auto; }
-.sp-head .sp-weeks, .sp-head .sp-all { margin-left: auto; }
-.sp-head .sp-all + .sp-weeks { margin-left: 6px; }
+.sp-head .sp-weeks { margin-left: auto; }
 .sp-sum { margin-top: -8px; color: var(--text-2); font-size: 13.5px; font-variant-numeric: tabular-nums; }
 .sp-sum small { color: var(--text-3); font-size: 12.5px; }
 /* The lists of modules beside the week (section.sp-list, modules.rs; the calendars' parts,
@@ -3547,65 +3541,31 @@ button.pm-new-way { width: 100%; text-align: left; }
    calendar's name), then a line per module (a.sp-row), the open one marked as the catalog marks it,
    the key the week names the module by full in its tone as its cards in the week (span.sp-key, empty
    where the week says its name). The rules after these give the lines of „Mein Studiengang" their
-   rows of events; the older ones (div.sp-row-wrap, span.lp, a.open-slot, div.sp-area) the tidying
-   takes away. */
+   rows of events; a calendar's line is a row with its bin beside it (div.sp-row-wrap). */
 .sp-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; align-content: start; }
 .sp-list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; padding: 0 42px 0 12px; margin-bottom: 3px; }
 .sp-list-head .lp { font-weight: 700; font-size: 15px; white-space: nowrap; letter-spacing: -.01em; }
-.sp-list-head .lp small { margin-left: 2px; color: var(--text-3); font-weight: 500; font-size: 11px; }
 .sp-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; min-height: 50px; padding: 6px 42px 6px 12px; border-radius: var(--r-row); color: inherit; text-decoration: none; transition: background .1s; }
 .sp-row::before { content: ""; position: absolute; left: 3px; top: 12px; bottom: 12px; width: 3px; border-radius: 3px; background: transparent; }
-/* Every other module is shaded, as the rows of the catalog's list (`--row-shade`): the list's own
-   modules, and anew those in each placeholder's box, a module taken out keeping its place in the
-   count; not the dashed rows, which hold none. The shade of a row with its × lies on the row's
-   wrap, so the row pointed at and the open one lie above it; a module of the row's other semester
-   is a row of its own, shaded before the rules that stand above it. */
-.sp-row-wrap:where(:nth-child(even of .sp-row-wrap, .sp-row.other)) { border-radius: var(--r-row); background: var(--row-shade); }
-.sp-row.other:where(:nth-child(even of .sp-row-wrap, .sp-row.other)) { background: var(--row-shade); }
+/* Every other module of a calendar is shaded, as the rows of the catalog's list (`--row-shade`).
+   The shade of a row with its bin lies on the row's wrap, so the row pointed at and the open one lie
+   above it. */
+.sp-row-wrap:where(:nth-child(even of .sp-row-wrap)) { border-radius: var(--r-row); background: var(--row-shade); }
 .sp-row:hover { background: var(--row-hover); text-decoration: none; }
 .sp-row[aria-current="true"] { background: var(--panel-3); }
 .sp-row[aria-current="true"]::before { background: var(--accent); }
 .sp-row .t { min-width: 0; }
 .sp-row .t b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 600; font-size: 13.5px; line-height: 1.3; letter-spacing: -.01em; }
 .sp-row .t small { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin-top: 3px; color: var(--text-3); font-size: 12px; }
-.sp-row .lp { font-weight: 650; font-size: 14px; white-space: nowrap; }
-.sp-row .lp small { margin-left: 2px; color: var(--text-3); font-weight: 500; font-size: 11px; }
 .sp-key { --mod: var(--tint, var(--text-3)); flex: none; display: inline-flex; align-items: center; min-width: 14px; height: 18px; padding: 0 6px; border-radius: 4px; background: var(--mod-fill); color: var(--on-mod); font-weight: 650; font-size: 11.5px; font-style: normal; letter-spacing: 0; }
 i.sp-key { width: 14px; padding: 0; }
-.sp-row.open-slot { outline: 1px dashed var(--line-strong); outline-offset: -1px; }
-.sp-row.open-slot .t b { color: var(--text-2); font-weight: 560; }
-.sp-row.open-slot .lp { color: var(--text-2); font-weight: 600; }
-/* A placeholder a module counts for (div.sp-area, owner 2026-09-26: „sehen, dass das ein Bereich
-   ist, wo ein Modul ausgewählt ist"): the dashed line of the open one around its head (the row's
-   name, what it asks for at the right, under it the Fachsemester of a row over several and what
-   counts for it so far), its modules as rows of the list, those of its row's other semesters
-   quiet (a.sp-row.other), and „Weiteres Modul" while the row takes more (a.sp-area-add). */
-.sp-area { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; margin: 2px 0; padding: 0 3px 3px; border-radius: var(--r-row); outline: 1px dashed var(--line-strong); outline-offset: -1px; }
-.sp-area-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; min-height: 40px; padding: 7px 42px 2px 12px; }
-.sp-area-head .t { min-width: 0; }
-.sp-area-head .t b { display: block; color: var(--text-2); font-weight: 560; font-size: 13px; line-height: 1.3; letter-spacing: -.01em; }
-.sp-area-head .t small { display: block; margin-top: 2px; color: var(--text-3); font-size: 12px; }
-.sp-area-head .lp { color: var(--text-2); font-weight: 600; font-size: 14px; white-space: nowrap; }
-.sp-area-head .lp small { margin-left: 2px; color: var(--text-3); font-weight: 500; font-size: 11px; }
-.sp-row.other .t b { color: var(--text-2); font-weight: 560; }
-.sp-row.other .lp { color: var(--text-2); font-weight: 600; }
-.sp-area-add { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 12px; border-radius: var(--r-row); color: var(--text-2); font-weight: 560; font-size: 13px; text-decoration: none; transition: background .1s; }
-.sp-area-add:hover { background: var(--panel-2); color: var(--text); text-decoration: none; }
-.sp-area-add .icon { width: 15px; height: 15px; color: var(--text-3); }
-.sp-area-add:hover .icon { color: var(--text); }
-/* The × of a row (owner, 2026-09-25: „gleich da auch wieder raus nehmen"): beside the row's link,
-   not inside it, at its right end as the mark of the Merkliste's rows, quiet until the row is
-   pointed at; a finger has it at once. The row taken out stays in its place, its title struck,
-   with „Rückgängig" (div.sp-row.gone). */
+/* The bin of a calendar's module (owner, 2026-09-25: „gleich da auch wieder raus nehmen"): beside
+   the row's link, not inside it, at its right end as the mark of the Merkliste's rows. */
 .sp-row-wrap { position: relative; }
 .sp-remove { --hit-y: 9px; --hit-l: 4px; --hit-r: 4px; position: absolute; right: 4px; top: 50%; width: 30px; height: 30px; margin-top: -15px; border-radius: var(--r-row); color: var(--line-strong); }
 .sp-remove .icon { width: 15px; height: 15px; }
-.sp-row-wrap:hover > .sp-remove, .sp-row-wrap:focus-within > .sp-remove { color: var(--text-3); }
 .sp-remove:hover { background: var(--line); color: var(--text); }
 @media (hover: none) { .sp-remove { color: var(--text-3); } }
-.sp-row.gone { padding-right: 6px; }
-.sp-row.gone:hover { background: none; }
-.sp-row.gone .t b { color: var(--text-3); font-weight: 560; text-decoration: line-through; text-decoration-color: var(--line-strong); }
 /* The module list as the index of what the week shows (modules.rs; owner, 2026-11-17:
    „dass bei den Modulen die Kategorien vl, Übung, prak sind und man da die Übersicht auswählen
    kann"): per module one line (div.sp-mod in its tone > a.sp-row.sp-mod-row: the key, the title cut
@@ -3713,8 +3673,8 @@ i.sp-key { width: 14px; padding: 0; }
   .sp-cal-mods .sp-row-wrap { grid-template-columns: minmax(0, 1fr) 44px; }
   .sp-cal-mods .sp-mod-end { width: 44px; height: 44px; }
 }
-/* The note of a take with „Rückgängig" (p.sp-marked-note): the empty week's „übernehmen", „+ Modul"'s
-   „Aufnehmen", a module taken out of a calendar. */
+/* The note of a take with „Rückgängig" (p.sp-marked-note): „+ Modul"'s „Aufnehmen", a module taken
+   out of a calendar. */
 .sp-marked-note { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 9px; margin: 0; padding: 4px 4px 4px 10px; color: var(--text-2); }
 /* „+ Modul" (section.sp-addp, add.rs), under the head of a calendar's part of the list: its name and
    ×, what a module taken in is, the note after „Aufnehmen", the Merkliste and the catalog as two
@@ -3735,7 +3695,6 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-addp-list li:where(:nth-child(even)) { background: var(--row-shade); }
 .sp-addp-list li:hover { background: var(--row-hover); }
 .sp-addp-list li .mini { flex: none; margin-left: auto; }
-.sp-addp .sp-way { margin-top: 0; padding-right: 8px; }
 .sp-addp .sp-take { justify-self: start; margin-top: 0; }
 .sp-marked-chips { margin-top: 0; }
 .sp-marked-search { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-3); }
@@ -3768,21 +3727,14 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-alert .icon { flex: none; width: 18px; height: 18px; margin-top: 1px; }
 .sp-alert b { display: block; font-size: 14.5px; font-weight: 680; line-height: 1.35; }
 .sp-alert small { display: block; margin-top: 2px; color: var(--text-2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
-/* Overlaps: one quiet line, closed until asked (details.sp-overlaps > summary > span, span.no an
-   overlap in red); opened, a compact line each (ul > li > a, a.warn with a red mark), each a link
-   to its module beside the plan. What is left to choose is „Offen"'s (below). */
-.sp-overlaps > summary { cursor: pointer; min-height: 28px; display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0 5px; color: var(--text-2); font-weight: 580; font-size: 13px; font-variant-numeric: tabular-nums; }
-.sp-overlaps > summary .no { color: var(--no); font-weight: 650; }
-.sp-overlaps > summary::after { content: "+"; color: var(--text-3); font-weight: 500; }
-.sp-overlaps[open] > summary::after { content: "–"; }
-.sp-overlaps ul { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; margin-top: 4px; }
+/* Overlaps, unfolded by their figure (div.sp-overlaps.open, below): a compact line each (ul > li >
+   a, a.warn with a red mark), each a link to its module beside the plan. What is left to choose is
+   „Offen"'s (below). */
+.sp-overlaps ul { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; margin-top: 0; }
 .sp-overlaps li > a, .sp-overlaps li > span { display: block; padding: 4px 10px 4px 20px; border-radius: var(--r-s); color: var(--text-2); font-size: 13px; text-decoration: none; position: relative; font-variant-numeric: tabular-nums; }
 .sp-overlaps li > a:hover { background: var(--panel-2); text-decoration: none; }
 .sp-overlaps li > .warn { color: var(--text); }
 .sp-overlaps li > .warn::before { content: ""; position: absolute; left: 8px; top: calc(4px + .65em - 3px); width: 6px; height: 6px; border-radius: 50%; background: var(--no); }
-/* What is hidden (li.hidden > span + button.mini): the line, its „Einblenden" at its end. */
-.sp-overlaps li.hidden { display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 2px 4px 2px 20px; color: var(--text-2); font-size: 13px; }
-.sp-overlaps li.hidden > span { flex: 1; min-width: 0; }
 /* „Offen" and the choice in focus (open.rs; folia/design/kalender/konzepte.html and handy.html,
    owner 2026-10-26: „A mit Fokus", „nimm H1 mit Vergleichen"). Beside the week where the page has
    the column for it, „Offen" (section.sp-open, the head of the planned modules over its rows);
@@ -3858,14 +3810,14 @@ i.sp-key { width: 14px; padding: 0; }
 .week.fit .band { top: calc((var(--from) - var(--first)) * 100% / var(--span) + 1px); height: calc((var(--to) - var(--from)) * 100% / var(--span) - 3px); }
 .week .band.free { background: var(--ok-soft); color: var(--ok); outline: 1.5px dashed color-mix(in srgb, var(--ok) 70%, transparent); outline-offset: -1.5px; }
 .week .band > span { max-width: 100%; padding: 0 3px; overflow: hidden; text-overflow: ellipsis; }
-/* The list of them (div.fgroup.sp-cals, at the top of „Anpassen"): „Mein Studiengang" with its
-   lock, each calendar of one's own a row — its colour as a square in the way it stands (full,
+/* The list of them (div.fgroup.sp-cals, at the top of the sidebar): „Mein Studiengang", each
+   calendar of one's own a row — its colour as a square in the way it stands (full,
    half, outlined), its name and modules, „Voll · Spur · Aus" (span.sp-cal-seg; on a phone with its
    words under the name, as tall as a finger) and its „…" — its menu under it, the note after
    „Löschen", „Neuer Kalender" and its form. */
 .sp-cals > .sp-cal + .sp-cal, .sp-cals > .sp-cal-menu + .sp-cal, .sp-cals > .sp-cal-rename + .sp-cal { margin-top: 6px; }
 .sp-cal { --cal: var(--text-3); display: grid; grid-template-columns: 12px minmax(0, 1fr) auto auto; align-items: center; gap: 4px 9px; min-height: 46px; padding: 6px 4px 6px 10px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
-.sp-cal.mine { --cal: var(--accent); grid-template-columns: 12px minmax(0, 1fr) auto; }
+.sp-cal.mine { --cal: var(--accent); grid-template-columns: 12px minmax(0, 1fr); }
 .sp-cal.off { background: transparent; }
 .sp-cal > .sw { width: 12px; height: 12px; border-radius: 4px; background: var(--cal); }
 .sp-cal > .sw.strip { background: linear-gradient(90deg, transparent 58%, var(--cal) 58%); box-shadow: inset 0 0 0 1.5px var(--cal); }
@@ -3874,10 +3826,6 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-cal > .t b { display: block; overflow: hidden; font-size: 13px; font-weight: 650; line-height: 1.25; white-space: nowrap; text-overflow: ellipsis; }
 .sp-cal > .t small { display: block; overflow: hidden; color: var(--text-3); font-size: 11.5px; line-height: 1.3; white-space: nowrap; text-overflow: ellipsis; }
 .sp-cal.off > .t b { color: var(--text-2); }
-.sp-cal > .lock { display: grid; place-items: center; width: 30px; color: var(--text-3); }
-.sp-cal > .lock .icon { width: 14px; height: 14px; }
-.sp-cal > .sp-cal-more { width: 32px; height: 32px; }
-.sp-cal > .sp-cal-more .icon { width: 16px; height: 16px; }
 .sp-cal-seg { display: inline-flex; gap: 1px; padding: 2px; border-radius: 7px; background: var(--panel-3); }
 .sp-cal-seg > button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 26px; height: 24px; padding: 0 5px; border-radius: 5px; color: var(--text-3); font-size: 12.5px; font-weight: 600; }
 .sp-cal-seg > button:hover { color: var(--text); }
@@ -3920,7 +3868,7 @@ i.sp-key { width: 14px; padding: 0; }
 /* „Gemeinsam frei" in the week's head (button.ghost.sp-together), on once pressed; on a phone a
    row of the line of the calendars with a switch (button.sp-cal-free). */
 .sp-head .sp-together { margin-left: auto; }
-.sp-head .sp-together + .sp-all { margin-left: 6px; }
+.sp-head .sp-together + .sp-weeks { margin-left: 6px; }
 .sp-together.on { background: var(--ok-soft); color: var(--ok); }
 .sp-cal-free { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 50px; padding: 6px 10px 6px 12px; border-radius: var(--r-row); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); text-align: left; }
 .sp-cal-free > .t b { display: block; font-size: 13.5px; font-weight: 650; line-height: 1.25; }
@@ -4026,12 +3974,9 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 /* On a phone a finger held on the week is a Termin there: nothing of the page is selected. */
 .sp-carousel .week { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 
-/* „+ Termin": at the right end of the week's head (button.sp-own-head), under a calendar's
-   modules (button.sp-own-add), at a module without Termine („Termin eintragen", button.sp-enter
-   under its row), and on a phone the round button over the bar (button.sp-own-fab), lifted over a
-   note that waits. */
-.sp-head .sp-own-head { display: inline-flex; align-items: center; gap: 4px; flex: none; }
-.sp-own-head .icon, .sp-own-add .icon, .sp-enter .icon { width: 14px; height: 14px; }
+/* „+ Termin" under the modules (button.sp-own-add) and at a module without Termine („Termin
+   eintragen", button.sp-enter). */
+.sp-own-add .icon, .sp-enter .icon { width: 14px; height: 14px; }
 .sp-own { display: flex; flex-direction: column; margin-top: 6px; }
 .sp-own-h { margin: 6px 0 2px; padding: 0 12px; color: var(--text-3); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
 .sp-own .sp-row.own { width: 100%; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; padding-right: 12px; }
@@ -4042,13 +3987,6 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .sp-key.own .icon { width: 10px; height: 10px; stroke-width: 2.4; }
 .sp-own-add, .sp-enter { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; min-height: 34px; padding: 0 12px; border: 0; border-radius: var(--r-row); background: none; color: var(--accent-ink); font: 600 13px var(--font); cursor: pointer; }
 .sp-own-add:hover, .sp-enter:hover { background: var(--row-hover); }
-.sp-row-wrap.has-enter > .sp-row { padding-bottom: 2px; min-height: 44px; }
-.sp-row-wrap.has-enter > .sp-enter { min-height: 28px; margin: 0 0 4px 2px; font-size: 12.5px; }
-.sp-own-fab { position: fixed; z-index: 28; right: 14px; bottom: calc(88px + env(safe-area-inset-bottom)); display: inline-flex; align-items: center; gap: 6px; height: 48px; padding: 0 18px 0 14px; border: 0; border-radius: 24px; background: var(--invert); color: var(--on-invert); box-shadow: var(--shadow-pop); font: 650 14.5px var(--font); cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.sp-own-fab .icon { width: 18px; height: 18px; stroke-width: 2.4; }
-.sp-own-fab:active { transform: scale(.97); }
-:root:has(.wait-note) .sp-own-fab { bottom: calc(146px + env(safe-area-inset-bottom)); }
-:root:has(#content > .page-stage.front .detail.is-module) .sp-own-fab { display: none; }
 
 /* The form (dialog.st-dialog.m.own-form, folia_design::modal): on a wide screen at the right of the
    window, over a dim light enough to see the week and the draft in it; on a phone a sheet. Its
@@ -4151,7 +4089,6 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
    in every state: no slot moves a pixel. */
 .sp-head .sp-edit-toggle { flex: none; margin-left: auto; }
 .sp-head :is(.sp-together, .sp-weeks, .sp-weekpick) ~ .sp-edit-toggle { margin-left: 6px; }
-.sp-head .sp-together + .sp-weeks { margin-left: 6px; }
 .sp-edit-toggle.on { background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 0 0 0 1px var(--accent-line); }
 /* The head is one row on every screen wider than a phone, whatever it holds, so that the week begins
    at the same place with „Gemeinsam frei" and without: where its own width is short the weeks' switch
@@ -4182,11 +4119,10 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .sp-status > :first-child { box-sizing: border-box; height: 46px; min-height: 46px; }
 .sp-look { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .sp-look > .sp-sum { flex: 1 1 0; min-width: 0; margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.sp-open-way { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 6px 0 10px; border-radius: var(--r-ctl); color: var(--text); font-size: 13px; text-decoration: none; }
+.sp-open-way { flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 6px 0 10px; border-radius: var(--r-ctl); color: var(--text); font-size: 13px; text-decoration: none; }
 .sp-open-way:hover { background: var(--warn-soft); text-decoration: none; }
 .sp-open-way > .icon { width: 16px; height: 16px; color: var(--warn); }
 .sp-open-way > .chev { width: 15px; height: 15px; color: var(--text-3); }
-.sp-open-way { flex: 0 1 auto; min-width: 0; }
 .sp-open-way b { display: inline-flex; flex-wrap: wrap; min-width: 0; height: 1.35em; overflow: hidden; font-weight: 650; }
 .sp-open-way b > span { white-space: pre; }
 /* The overlaps as a figure of the status row and the mode's bar (button.sp-clash-fig, head.rs), red;
@@ -4200,7 +4136,6 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .sp-overlaps.open { padding: 2px 0 0; }
 .sp-overlaps-head { margin: 0 0 2px; padding: 0 10px; color: var(--text-2); font-size: 13px; font-weight: 580; font-variant-numeric: tabular-nums; }
 .sp-overlaps-head .no { color: var(--no); font-weight: 650; }
-.sp-overlaps.open ul { margin-top: 0; }
 /* On a phone the line of numbers under the head carries the overlaps' figure at its end. */
 .sp-sum-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; margin-top: -8px; }
 .sp-sum-row > .sp-sum { flex: 1 1 auto; min-width: 0; margin: 0; }
@@ -4242,8 +4177,6 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .slot-act:is([data-icon="eye"], [data-icon="eye-off"]) .icon { stroke-width: 2.2; }
 .slot-act:is([data-icon="eye"], [data-icon="eye-off"]):hover { background: var(--panel-3); color: var(--text); }
 .slot-act[data-icon="trash-2"] .icon { stroke-width: 2.2; }
-.slot-act[data-icon="trash-2"]:hover { background: var(--no); color: var(--panel); box-shadow: none; }
-.sp-dayrow .slot-act:is([data-icon="eye"], [data-icon="eye-off"], [data-icon="trash-2"]) { color: var(--text-3); }
 /* A series some of whose dates are hidden, while editing (i.slot-hid): the crossed eye, bare in the
    slot's own ink, in its top right corner — a corner of its own, which the slot's buttons (bottom
    right) never cover, on touch neither, and no chip, so that it is not taken for the button
@@ -4270,7 +4203,6 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .sp-cals-head > .flabel { margin: 0; }
 .sp-cals-head > .sp-cal-add { width: auto; min-height: 28px; margin: 0; padding: 0 9px; outline: none; color: var(--accent-ink); }
 .sp-cal > .sp-cal-end { display: grid; place-items: center; width: 32px; height: 32px; }
-.sp-cal.mine { grid-template-columns: 12px minmax(0, 1fr); }
 .sp-cal-newrow { display: grid; gap: 6px; }
 .sp-cal-newrow > .sp-cal-add { margin-top: 0; }
 .sp-share-group, .sp-plans { min-width: 0; }
@@ -4399,16 +4331,15 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
   .sp:has(.sp-pick:is(:not(.full), .morph)) .sp-carousel { height: clamp(220px, calc(100svh - var(--bar) - var(--pick-h, 320px) - 12px), 560px); }
   .sp:has(.sp-pick) { padding-bottom: var(--pick-h, 320px); }
 }
-/* „Plan · Alle Termine" and „A-Woche · B-Woche · A/B" above the week: as wide as their words. On a
-   phone „Plan · Alle Termine" is in „Anpassen", as wide as it (side.rs ViewGroup). */
-.sp-head .seg.sp-weeks, .sp-head .seg.sp-all { justify-self: start; margin-top: 0; }
-.sp-head .seg.sp-weeks button, .sp-head .seg.sp-all button { padding: 0 12px; }
+/* „A-Woche · B-Woche · A/B" above the week: as wide as its words. */
+.sp-head .seg.sp-weeks { justify-self: start; margin-top: 0; }
+.sp-head .seg.sp-weeks button { padding: 0 12px; }
 /* A slot that overlaps another in the week shown: a red ring and a red mark at its top right,
    ringed in the page's ground where it stands on a card's colour. In a red frame with the slot it
    clashes with (.framed) the frame has both. */
 .sp-body .slot.clash:not(.framed) { box-shadow: inset 0 0 0 2px var(--no), var(--lift); }
 .sp-body .slot.clash:not(.framed)::after { content: "!"; position: absolute; top: 3px; right: 3px; width: 13px; height: 13px; border-radius: 50%; background: var(--no); color: var(--panel); font-size: 10px; font-weight: 800; line-height: 13px; text-align: center; box-shadow: 0 0 0 1.5px var(--panel); }
-/* What the plan leaves out, in „Alle Termine" (.slot.faint): pale and dashed in its tone; where it
+/* What the plan leaves out, while it is edited (.slot.faint): pale and dashed in its tone; where it
    would meet a Termin of the plan, dashed red with the mark (.clash). */
 .sp-body .slot.faint { background: color-mix(in oklch, var(--tint) 6%, var(--panel)); color: var(--text-3); font-weight: 560; box-shadow: none; outline: 1px dashed color-mix(in oklch, var(--tint) 60%, var(--line-strong)); outline-offset: -1px; }
 .sp-body .slot.faint.clash { box-shadow: none; outline-color: var(--no); }
@@ -4467,7 +4398,7 @@ a.slot:hover { filter: brightness(.96); }
 .sp-dayrow > a { padding-right: calc(8px + var(--acts, 0) * 42px); }
 .sp-dayrow > .slot-acts { left: auto; right: 4px; top: 50%; width: auto; height: auto; padding: 0; gap: 2px; transform: translateY(-50%); opacity: 1; }
 .sp-dayrow .slot-act { width: 40px; height: 40px; border-radius: var(--r-s); background: transparent; box-shadow: none; }
-.sp-dayrow .slot-act[data-icon="x"] { color: var(--text-3); }
+.sp-dayrow .slot-act:is([data-icon="eye"], [data-icon="eye-off"], [data-icon="trash-2"]) { color: var(--text-3); }
 .sp-dayrow .slot-act[aria-pressed="true"] { background: var(--ok); color: var(--panel); }
 .sp-dayrow .slot-act .icon { width: 18px; height: 18px; }
 /* While the plan is edited the row carries its buttons: the time stands above what it is, so that
@@ -4985,16 +4916,14 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 /* A module's title in a row of „Prüfungen" reads as text, as in the legend. */
 .sp-exam a { color: var(--text); text-decoration: none; }
 .sp-exam a:hover { text-decoration: underline; text-underline-offset: 3px; }
-/* The Übersicht's head holds its h2 alone, without the arrows the head's margin is for. */
-.sp-head > h2:first-child { padding-left: 8px; }
 .btn[aria-busy="true"] { opacity: .7; cursor: progress; }
 .btn[disabled] { opacity: .5; cursor: default; filter: none; }
 /* A note among the sittings keeps to their gap. */
 .sp-exams .note { margin-top: 0; }
 
-/* The Stundenplan's sidebar (side.rs): „Plan" one line per saved plan (name, modules, ×), the
-   loaded one marked. The name field `.sp-save` is the profile's „Neues Profil" (profile.rs). A
-   segment's small words beside its label. */
+/* The Stundenplan's sidebar (side.rs): the plans saved before, one line per saved plan (name,
+   modules, the bin), the loaded one marked. The name field `.sp-save` is the profile's „Neues
+   Profil" (profile.rs). A segment's small words beside its label. */
 .seg button small { margin-left: 5px; color: var(--text-3); font-size: 11px; font-weight: 500; }
 .sp-save { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0 6px; }
 .sp-save input { flex: 1 1 100%; min-width: 0; min-height: 36px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; }
@@ -5006,10 +4935,6 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .sp-saved > .icon-btn { flex: none; width: 32px; height: 32px; color: var(--text-3); }
 .sp-saved > .icon-btn:hover { color: var(--text); }
 
-/* A list that opens under an action: the four ways of „Abonnieren" in the sidebar's „Export"
-   (until 1.19.0 also the semesters of „Anderes Semester" in a module page's sidebar). */
-.sp-sub { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 2px 0 4px 17px; padding-left: 8px; border-left: 2px solid var(--line); }
-.sp-sub .hint { margin: 4px 0 2px 10px; }
 .sidebar .note { margin-top: 6px; }
 /* On a phone „Export" stands under the Termine (section.sp-export > div.fgroup.actions, the
    sidebar's group, export.rs), set off from them by a rule: its three ways as framed buttons across
@@ -5940,23 +5865,18 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .sp-body > .state { margin: 36px auto; }
   .sp-view > .sp-empty { margin: 28px auto; padding: 0; }
   .sp-head { gap: 0; }
-  .sp-head h2, .sp-head h1 { font-size: 19px; }
+  .sp-head h1 { font-size: 19px; }
   .sp-alert b { font-size: 14px; }
-  .sp-head .icon-btn { width: 40px; height: 44px; --hit: 0px; }
-  .sp-head .sheet-toggle, .sp-body > .sheet-toggle { padding: 0 12px; }
-  /* An empty plan taking a Regelstudienplan over has no head: „Anpassen" stands where one has it. */
-  .sp-body > .sheet-toggle { justify-self: end; }
   /* Under the title, or beside it where the row has room: the switch of the weeks, „Woche" and „A",
-     „B", „A/B" (div.sp-weekpick, owner 2026-10-26: in the row of „Anpassen"), and „Anpassen" at
-     the right end. */
+     „B", „A/B" (div.sp-weekpick, owner 2026-10-26: in the row of „Anpassen", the button the head
+     had then), and „Bearbeiten" at the right end. */
   .sp-head { row-gap: 8px; }
   .sp-weekpick { display: flex; align-items: center; gap: 8px; margin-left: 8px; }
   .sp-weekpick > .l { color: var(--text-2); font-size: 14px; font-weight: 600; }
   .sp-head .sp-weekpick .seg.sp-weeks button { min-width: 46px; padding: 0 10px; }
   .sp-sum { margin-top: -8px; }
   .sp-row { min-height: 56px; padding-right: 50px; }
-  .sp-list-head, .sp-area-head { padding-right: 50px; }
-  .sp-area-add { min-height: 44px; }
+  .sp-list-head { padding-right: 50px; }
   .sp-remove { right: 2px; width: 44px; height: 44px; margin-top: -22px; --hit-y: 6px; --hit-l: 2px; --hit-r: 2px; }
   .slot small { display: none; }
   .eye { width: 44px; height: 44px; --hit: 0px; }
@@ -5968,7 +5888,6 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .sp-rowline:has(> :nth-child(2):last-child) { flex-wrap: nowrap; }
   .sp-rowline:has(> :nth-child(2):last-child) > .rl { flex-basis: 0; flex-grow: 1; }
   .sp-rowline > .pick { min-height: 40px; }
-  .sp-row .icon-btn { width: 44px; height: 44px; }
   .sp-daylist a { min-height: 48px; }
   /* The day in two short lines („Mo" over „05.10."), the items get the room. */
   .agenda-day { grid-template-columns: 44px minmax(0, 1fr); gap: 2px 8px; }
@@ -5978,8 +5897,6 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .agenda-item > small { flex-basis: 100%; max-width: none; padding-left: 92px; white-space: normal; }
   .sp-exam { grid-template-columns: minmax(0, 1fr) auto; }
   .sp-exam > .sp-exam-end { grid-column: 2; grid-row: 1 / span 2; width: 44px; }
-  .sp-field { grid-template-columns: minmax(0, 1fr); }
-  .sp-field > .seg { max-width: none; width: 100%; }
   .sp-row { min-height: 48px; }
   .sk.sk-week-tall { height: 300px; }
 }

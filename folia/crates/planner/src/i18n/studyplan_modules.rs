@@ -11,9 +11,8 @@ pub struct Texts {
     pub list: &'static str,
     /// A planned module the catalog has no title for, by its number: „Modul 12104".
     pub module_numbered: fn(&str) -> String,
-    /// The catalog does not know the module („nicht im Modulkatalog"), or the semester has dates,
-    /// the module none in QIS („keine Termine in QIS", beside „Termin eintragen").
-    pub not_in_catalog: &'static str,
+    /// The semester has dates, the module none in QIS: „keine Termine in QIS", beside „Termin
+    /// eintragen".
     pub no_dates: &'static str,
     /// „+ Modul" in the head of a calendar of one's own: its words after the „+", and its name with
     /// the calendar's („Modul in „Lena“ aufnehmen").
@@ -59,7 +58,6 @@ pub const DE: Texts = Texts {
     heading: "Mein Studiengang",
     list: "Module im Stundenplan",
     module_numbered: |id| format!("Modul {id}"),
-    not_in_catalog: "nicht im Modulkatalog",
     no_dates: "keine Termine in QIS",
     add: "Modul",
     add_named: |calendar| format!("Modul in „{calendar}“ aufnehmen"),
@@ -87,7 +85,6 @@ pub const EN: Texts = Texts {
     heading: "My programme",
     list: "Modules in the timetable",
     module_numbered: |id| format!("Module {id}"),
-    not_in_catalog: "not in the module catalogue",
     no_dates: "no dates in QIS",
     add: "Module",
     add_named: |calendar| format!("Add a module to “{calendar}”"),

@@ -24,11 +24,10 @@ pub struct Texts {
     pub nothing: &'static str,
     /// The modules still being looked for.
     pub searching: &'static str,
-    /// The foot: the keys of the list, Shift + Enter, Esc.
+    /// The foot: the keys of the list, Shift + Enter.
     pub foot_choose: &'static str,
     pub foot_run: &'static str,
     pub foot_alt: &'static str,
-    pub foot_close: &'static str,
     /// What a screen reader is told of the list: „12 Treffer".
     pub count: fn(usize) -> String,
     /// After a command with a key ran by its name: „Geht auch mit M".
@@ -71,7 +70,6 @@ pub const DE: Texts = Texts {
     foot_choose: "wählen",
     foot_run: "ausführen",
     foot_alt: "Filter „ohne“, Modul im Vollbild",
-    foot_close: "schließen",
     count: |n| if n == 1 { "1 Treffer".to_string() } else { format!("{n} Treffer") },
     taught: |keys| format!("Geht auch mit {keys}"),
     theme_light: "Hell",
@@ -107,7 +105,6 @@ pub const EN: Texts = Texts {
     foot_choose: "choose",
     foot_run: "run",
     foot_alt: "filter “without”, module in full",
-    foot_close: "close",
     count: |n| if n == 1 { "1 result".to_string() } else { format!("{n} results") },
     taught: |keys| format!("Also works with {keys}"),
     theme_light: "Light",

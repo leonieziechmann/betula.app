@@ -43,8 +43,6 @@ pub struct Texts {
     pub begins_in: fn(&str) -> String,
     /// The ways to the program's pages.
     pub ways: &'static str,
-    pub to_plan: &'static str,
-    pub to_areas: &'static str,
     /// The legend: the parts of the bar („Fortschrittsbalken"), then the marks of a module
     /// („Zeichen an Modulen"), each a word.
     pub legend_bar: &'static str,
@@ -100,7 +98,6 @@ pub struct Texts {
     pub counts_there: &'static str,
     /// The modules that count for nothing there, the first few by name and how many more.
     pub not_there: fn(&str, usize) -> String,
-    pub passed_word: &'static str,
     pub nothing_lost: &'static str,
     /// „Noch nichts geändert", „1 Änderung", „2 Änderungen": the foot.
     pub changes: fn(usize) -> String,
@@ -185,7 +182,6 @@ pub struct Texts {
     pub area_catalog: &'static str,
     pub fues_catalog: &'static str,
     pub area_rules: &'static str,
-    pub close: &'static str,
 
     // The semesters.
     pub semesters: &'static str,
@@ -266,7 +262,6 @@ pub struct Texts {
 
     // What a semester says of a module (`picker.rs`), and „Modul wählen" at a row of the plan
     // without a module.
-    pub move_here: fn(&str) -> String,
     pub choose_module: &'static str,
     /// „jedes SoSe", „jedes Semester".
     pub every: fn(&str) -> String,
@@ -375,8 +370,6 @@ pub struct Texts {
     /// „1 nicht bestanden".
     pub past_cell: fn(&str, &str) -> String,
     pub past_failed: fn(usize) -> String,
-    /// What a piece of a semester too full for its labels says: „4 Module · 24 LP".
-    pub n_modules_lp: fn(&str, &str) -> String,
     /// What a module's piece says of itself in its lane and its title: „bestanden", „läuft",
     /// „geplant", „nicht bestanden", „Wiederholung", „noch offen"; „für „Anwendungsfach“".
     pub bar_passed: &'static str,
@@ -436,8 +429,6 @@ pub const DE: Texts = Texts {
     change_program: "Studiengang ändern …",
     begins_in: |semester| format!("Beginnt im {semester}"),
     ways: "Zum Studiengang",
-    to_plan: "Regelstudienplan",
-    to_areas: "Wahlpflicht & Bereiche",
     legend_bar: "Fortschrittsbalken",
     legend_marks: "Zeichen an Modulen",
     legend_passed: "Bestanden",
@@ -473,7 +464,6 @@ pub const DE: Texts = Texts {
     of_credits: |n| format!("von {n} LP"),
     counts_there: "kommen dort vor",
     not_there: |names, more| if more > 0 { format!("Dort ohne Bereich: {names} und {more} weitere") } else { format!("Dort ohne Bereich: {names}") },
-    passed_word: "bestanden",
     nothing_lost: "Nichts wird gelöscht. Wechselst du zurück, zählt alles wieder wie vorher.",
     changes: |n| match n { 0 => "Noch nichts geändert".to_string(), 1 => "1 Änderung".to_string(), _ => format!("{n} Änderungen") },
     cancel: "Abbrechen",
@@ -531,7 +521,6 @@ pub const DE: Texts = Texts {
     area_catalog: "Module des Bereichs im Katalog",
     fues_catalog: "Alle FÜS-Module im Katalog",
     area_rules: "Was die Studienordnung hier verlangt",
-    close: "Schließen",
 
     semesters: "Semester",
     choose_semester: "Semester wählen",
@@ -592,7 +581,6 @@ pub const DE: Texts = Texts {
     append_lead_plain: "Brauchst du länger, hängst du einfach eins an.",
     append: |semester| format!("{semester} anfügen"),
 
-    move_here: |name| format!("{name} hierher verschieben"),
     choose_module: "Modul wählen",
     every: |season| format!("jedes {season}"),
     every_semester: "jedes Semester",
@@ -668,7 +656,6 @@ pub const DE: Texts = Texts {
     today_at: |day| format!("heute, {day}"),
     past_cell: |credits, modules| format!("✓ {credits}\u{a0}LP · {modules}"),
     past_failed: |n| format!("{n} nicht bestanden"),
-    n_modules_lp: |modules, credits| format!("{modules} · {credits}"),
     bar_passed: "bestanden",
     bar_running: "läuft",
     bar_planned: "geplant",
@@ -716,8 +703,6 @@ pub const EN: Texts = Texts {
     change_program: "Change programme …",
     begins_in: |semester| format!("Begins in {semester}"),
     ways: "To the programme",
-    to_plan: "Standard study plan",
-    to_areas: "Electives & areas",
     legend_bar: "Progress bar",
     legend_marks: "Marks on modules",
     legend_passed: "Passed",
@@ -753,7 +738,6 @@ pub const EN: Texts = Texts {
     of_credits: |n| format!("of {n} CP"),
     counts_there: "occur there",
     not_there: |names, more| if more > 0 { format!("No area there: {names} and {more} more") } else { format!("No area there: {names}") },
-    passed_word: "passed",
     nothing_lost: "Nothing is deleted. If you change back, everything counts as before.",
     changes: |n| match n { 0 => "Nothing changed yet".to_string(), 1 => "1 change".to_string(), _ => format!("{n} changes") },
     cancel: "Cancel",
@@ -811,7 +795,6 @@ pub const EN: Texts = Texts {
     area_catalog: "The area's modules in the catalogue",
     fues_catalog: "All FÜS modules in the catalogue",
     area_rules: "What the regulations ask for here",
-    close: "Close",
 
     semesters: "Semesters",
     choose_semester: "Choose semester",
@@ -872,7 +855,6 @@ pub const EN: Texts = Texts {
     append_lead_plain: "If you need longer, just add one.",
     append: |semester| format!("Add {semester}"),
 
-    move_here: |name| format!("Move {name} here"),
     choose_module: "Choose module",
     every: |season| format!("every {season}"),
     every_semester: "every semester",
@@ -948,7 +930,6 @@ pub const EN: Texts = Texts {
     today_at: |day| format!("today, {day}"),
     past_cell: |credits, modules| format!("✓ {credits}\u{a0}CP · {modules}"),
     past_failed: |n| format!("{n} not passed"),
-    n_modules_lp: |modules, credits| format!("{modules} · {credits}"),
     bar_passed: "passed",
     bar_running: "running",
     bar_planned: "planned",

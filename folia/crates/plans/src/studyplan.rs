@@ -182,14 +182,14 @@ type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>
 ///
 /// `d` and `q` are what „Mein Studium" counts as done (`study`, owner 2026-10-04): a module passed
 /// („bestanden") and a row of a Regelstudienplan without a module that is done („erledigt"), each
-/// with the semester it was done in. They belong to no timetable: „Plan leeren" leaves them, and a
+/// with the semester it was done in. They belong to no timetable: `clear_semester` leaves them, and a
 /// saved or a shared timetable does not carry them. A build before them keeps them as lines of a
 /// tag it does not know.
 ///
 /// `l`, `n` and `o` are the calendars of one's own beside „Mein Studiengang" (`Calendar`, owner
 /// 2026-10-26): a calendar by its number with how it stands in the week (`full`, `strip`, `off`,
 /// empty for as a new one stands), its program (empty for none) and its name; a module of it in a
-/// semester; a group ticked in it. They belong to no timetable of the plan's own: „Plan leeren", a
+/// semester; a group ticked in it. They belong to no timetable of the plan's own: `clear_semester`, a
 /// saved plan and a shared one leave them out. A build before them keeps them as lines of a tag it
 /// does not know.
 ///
@@ -203,8 +203,8 @@ type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>
 /// it has one, its kind by its code (`EventKind::code`: `lecture`, `exercise` …), the fourteenth
 /// field, written only where it is set: every line there was stays what it was. A build before it
 /// reads the line without it and writes it back without it — the Termin stays, its kind goes. The
-/// plan's go with its semester: „Plan leeren" takes them, a saved plan carries them; a calendar's go with
-/// it. A build before them keeps them as lines of a tag it does not know (at most 100 of them).
+/// plan's go with its semester: `clear_semester` takes them, a saved plan carries them; a calendar's
+/// go with it. A build before them keeps them as lines of a tag it does not know (at most 100 of them).
 ///
 /// A calendar of one's own has notes at its Termine (`b` with its number, after its lines) and may
 /// follow a share of someone else's (`f`, its last line); `s` are the shares in force, after the
@@ -457,9 +457,9 @@ impl RowRef {
 }
 
 /// A module only visited in a semester („nur besuchen", decided 2026-10-19: „Ein geplantes Modul
-/// lässt sich auf „nur besuchen“ stellen: in der Woche ja, in den LP nicht"; 2026-10-26: „+ Modul"
-/// in „Mein Studiengang" makes one, „Besuchmodul kann pro kallender gemacht werden … Aber beim
-/// Studien Plan zählt es dann als besucher modul"). Its Termine stand in the week of its semester
+/// lässt sich auf „nur besuchen“ stellen: in der Woche ja, in den LP nicht"; 2026-10-26:
+/// „Besuchmodul kann pro kallender gemacht werden … Aber beim Studien Plan zählt es dann als
+/// besucher modul"). Its Termine stand in the week of its semester
 /// and give way where they meet the plan's; it counts no credits, for no area and no placeholder,
 /// and is never passed. „Mein Studium" lists it apart, where its „Nur besuchen" taken away makes
 /// it a planned module (`count_visit`), and „Nur besuchen" on a planned one makes it a visit
@@ -1488,7 +1488,7 @@ impl PlanDoc {
         }
     }
 
-    /// Empties the timetable of semester `s` („Plan leeren"): its modules, visits and placeholders
+    /// Empties the timetable of semester `s`: its modules, visits and placeholders
     /// (what counted for them elsewhere counts for nothing), what it hides and has chosen. The
     /// other semesters stay, and so do the program, what was passed or done, the code of the
     /// subscription (the page tells that the plan has moved on from it) and the lines of a newer
@@ -2565,47 +2565,6 @@ pub fn placeholder_line(p: &Placeholder, requirement: Option<&SemesterRequiremen
     PlaceholderLine { credits: amount.as_deref().map(texts.credits), amount, lead, areas, tail, locale }
 }
 
-/// Whether a placeholder asks for a module of the Fachübergreifendes Studium, by its stored kind
-/// or name (`plan::is_fues`): its modules are the FÜS list, whatever the program's tree says.
-pub fn is_fues_placeholder(p: &Placeholder) -> bool {
-    plan::is_fues(&stored_entry(p))
-}
-
-/// Whether a placeholder asks for one module the plan names without a link to the catalog
-/// (Pflicht, Abschlussarbeit, Praktikum: `plan::is_single_module`), not for a choice.
-pub fn is_single_placeholder(p: &Placeholder) -> bool {
-    plan::is_single_module(&stored_entry(p))
-}
-
-/// The most credits a placeholder's row takes: what the student set for it (`Placeholder::size`),
-/// else the upper end of a range („10–24" → 24), else the number it states („7,5"); `None` where it
-/// states none.
-pub fn most_credits(p: &Placeholder) -> Option<f64> {
-    let text = p.size.as_deref().or(p.credits.as_deref())?;
-    let last = text.rsplit(['–', '-']).next()?.trim().replace(',', ".");
-    last.parse::<f64>().ok().filter(|most| most.is_finite() && *most > 0.0)
-}
-
-/// Whether a placeholder's row takes another module, given the credits of the modules that count
-/// for it in all its semesters (`None` where the catalog states none). A row that asks for one
-/// module takes one; a choice takes modules while their credits stay below the most it takes
-/// (owner, 2026-09-26: „die wo das nicht nur ein einziges Modul ist, sondern so ne Range" take
-/// more), so „≥ 6" takes one module of 6 and „10–24" up to 24. Where the row or a module states no
-/// credits, there is no telling, and it takes more.
-pub fn takes_more(p: &Placeholder, chosen: &[Option<f64>]) -> bool {
-    if chosen.is_empty() {
-        return true;
-    }
-    if is_single_placeholder(p) {
-        return false;
-    }
-    let known: Option<f64> = chosen.iter().copied().sum();
-    match (most_credits(p), known) {
-        (Some(most), Some(sum)) => sum + 1e-9 < most,
-        _ => true,
-    }
-}
-
 /// A placeholder as the plan row it was taken from, as far as it keeps it: enough for
 /// `plan::is_single_module` and `plan::is_fues`.
 fn stored_entry(p: &Placeholder) -> PlanEntry {
@@ -3370,25 +3329,6 @@ mod tests {
         assert_eq!(doc.same_row(&doc.placeholders[2].clone()).iter().map(|p| p.pid).collect::<Vec<_>>(), [4]);
     }
 
-    #[test]
-    fn a_choice_takes_modules_up_to_its_credits() {
-        let row = |credits: Option<&str>, kind: &str| Placeholder { credits: credits.map(str::to_string), kind: Some(kind.to_string()), ..placeholder() };
-        let (komplex, anwendungsfach, open, thesis) = (row(Some("10–24"), "elective"), row(Some("6"), "elective"), row(None, "elective"), row(Some("12"), "thesis"));
-        assert_eq!((most_credits(&komplex), most_credits(&anwendungsfach), most_credits(&open)), (Some(24.0), Some(6.0), None));
-        assert_eq!(most_credits(&row(Some("7,5"), "elective")), Some(7.5));
-        // Nothing counts for it yet: every row takes a module.
-        assert!([&komplex, &anwendungsfach, &open, &thesis].iter().all(|p| takes_more(p, &[])));
-        // „10–24": modules up to 24.
-        assert!(takes_more(&komplex, &[Some(6.0)]) && takes_more(&komplex, &[Some(6.0), Some(12.0)]));
-        assert!(!takes_more(&komplex, &[Some(12.0), Some(12.0)]) && !takes_more(&komplex, &[Some(18.0), Some(8.0)]));
-        // „≥ 6": one module of 6; one of 5 leaves room.
-        assert!(!takes_more(&anwendungsfach, &[Some(6.0)]) && takes_more(&anwendungsfach, &[Some(5.0)]));
-        // One module where the row asks for one; no telling where credits are missing.
-        assert!(!takes_more(&thesis, &[Some(6.0)]));
-        assert!(takes_more(&open, &[Some(30.0)]) && takes_more(&anwendungsfach, &[None]));
-        assert!(is_single_placeholder(&thesis) && !is_single_placeholder(&komplex));
-    }
-
     /// Lena's plan as her link hands it on: four modules of 2026W and two groups ticked.
     fn lenas(doc: &mut PlanDoc) -> u8 {
         let modules: Vec<String> = ["11109", "13977", "12160", "12229"].iter().map(|id| id.to_string()).collect();
@@ -3522,7 +3462,7 @@ mod tests {
         let summer = key("2027S");
         other.put_semester(summer, &saved);
         assert!(other.changes_of(summer, evs_room().key).is_empty() && other.note_of(summer, evs_room().key).is_none());
-        // „Plan leeren" takes them with the semester.
+        // `clear_semester` takes them with the semester.
         doc.clear_semester(w);
         assert!(doc.changes_of(w, evs_room().key).is_empty() && doc.note_of(w, evs_room().key).is_none());
     }
@@ -3808,7 +3748,7 @@ mod tests {
         assert!(doc.own_termin(theirs).is_none());
         assert!(doc.put_calendar(at, calendar));
         assert_eq!(doc.own_termin(theirs).map(|(calendar, _)| calendar), Some(lena));
-        // „Plan leeren" takes the plan's of the semester, and leaves the calendars' and the others.
+        // `clear_semester` takes the plan's of the semester, and leaves the calendars' and the others.
         let later = doc.add_own(0, key("2027S"), self::job()).unwrap();
         doc.clear_semester(w);
         assert_eq!((doc.own_termin(job), doc.own_termin(theirs).is_some(), doc.own_termin(later).is_some()), (None, true, true));
@@ -3905,7 +3845,7 @@ mod tests {
         doc.remove_calendar(third);
         assert!(doc.put_calendar(at, gone));
         assert_eq!(doc.calendars.iter().map(|calendar| calendar.id).collect::<Vec<_>>(), [lena, second], "where it stood");
-        // „Plan leeren", a saved plan and the semester put back leave the calendars as they are.
+        // `clear_semester`, a saved plan and the semester put back leave the calendars as they are.
         let before = doc.calendars.clone();
         doc.clear_semester(key("2026W"));
         assert!(doc.semester_only(key("2026W")).calendars.is_empty());
@@ -3952,7 +3892,7 @@ mod tests {
         let (w, s) = (key("2026W"), key("2027S"));
         let mut doc = PlanDoc::default();
         assert!(doc.plan(w, "12104", 10, None));
-        // „+ Modul" in „Mein Studiengang": Denkmalpflege, only visited.
+        // Denkmalpflege taken in only to visit it.
         assert!(doc.visit(w, "13676", 20));
         assert!(!doc.visit(w, "13676", 21), "once a semester");
         assert!(!doc.visit(w, "12104", 22), "a planned module becomes a visit by „Nur besuchen“ alone");
@@ -4016,7 +3956,7 @@ mod tests {
         assert!(out.visits_in(w).is_empty() && out.is_visited(s, "13676"));
         assert_eq!(out.selection(w, TownChoice::Derive).chosen_rows, BTreeSet::from([termin(148369, 0xa4d12)]));
 
-        // „Plan leeren" empties the week, visits and all; a saved plan keeps them and puts them back.
+        // `clear_semester` empties the week, visits and all; a saved plan keeps them and puts them back.
         let saved = doc.semester_only(w);
         assert_eq!(saved.visits_in(w), ["13676"]);
         let mut cleared = doc.clone();
@@ -4378,10 +4318,6 @@ mod tests {
         let half = |p: Placeholder| placeholder_line(&p, None, Locale::En).text();
         assert_eq!(half(Placeholder { credits: Some("7,5".to_string()), ..placeholder() }), "≥\u{a0}7.5\u{a0}CP Anwendungsfach");
         assert_eq!(placeholder_line(&Placeholder { credits: Some("7,5".to_string()), ..placeholder() }, None, Locale::De).amount.as_deref(), Some("≥\u{a0}7,5"));
-        // The FÜS by its name or its kind; any other row is none.
-        assert!(is_fues_placeholder(&Placeholder { name: "Modul aus dem FÜS-Katalog der BTU".to_string(), ..placeholder() }));
-        assert!(is_fues_placeholder(&Placeholder { kind: Some("fues".to_string()), name: "Wahlmodul".to_string(), ..placeholder() }));
-        assert!(!is_fues_placeholder(&placeholder()));
     }
 
     #[test]
