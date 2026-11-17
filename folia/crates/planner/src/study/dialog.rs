@@ -24,7 +24,7 @@ use super::{count, overview, side, size, Dialog, StudyCtx};
 /// when an area of the list is opened in it.
 fn size_of(dialog: &Dialog) -> ModalSize {
     match dialog {
-        Dialog::Switch | Dialog::Area(_) | Dialog::Areas | Dialog::CountFor { .. } | Dialog::Size { .. } => ModalSize::M,
+        Dialog::Switch | Dialog::Area { .. } | Dialog::Areas | Dialog::CountFor { .. } | Dialog::Size { .. } => ModalSize::M,
     }
 }
 
@@ -38,7 +38,7 @@ fn size_of(dialog: &Dialog) -> ModalSize {
 fn sheet_of(dialog: &Dialog) -> Sheet {
     match dialog {
         Dialog::Switch | Dialog::CountFor { .. } | Dialog::Size { .. } => Sheet::Full,
-        Dialog::Area(_) | Dialog::Areas => size_of(dialog).sheet(),
+        Dialog::Area { .. } | Dialog::Areas => size_of(dialog).sheet(),
     }
 }
 
@@ -51,7 +51,7 @@ pub(super) fn DialogHost(ctx: StudyCtx) -> impl IntoView {
     view! {
         <Modal open=Signal::derive(move || ctx.dialog.with(Option::is_some)) on_close=move || ctx.dialog.set(None) size sheet labelled_by="st-dialog-title">
             {move || shown.get().map(|dialog| match dialog {
-                Dialog::Area(area) => view! { <overview::AreaDialog ctx area/> }.into_any(),
+                Dialog::Area { area, listed } => view! { <overview::AreaDialog ctx area listed/> }.into_any(),
                 Dialog::Areas => view! { <overview::AreasSheet ctx/> }.into_any(),
                 Dialog::Switch => view! { <side::SwitchDialog ctx/> }.into_any(),
                 Dialog::CountFor { semester, id } => view! { <count::CountDialog ctx semester id/> }.into_any(),
@@ -61,7 +61,9 @@ pub(super) fn DialogHost(ctx: StudyCtx) -> impl IntoView {
     }
 }
 
-/// The head of a dialog: its title, a line under it, and „Schließen" with its key.
+/// The head of a dialog: its title, a line under it, and „Schließen" with its key; before the
+/// title the way a level up, where the dialog was opened from another (`back`: the dialog it
+/// leads back to, and what the arrow says).
 #[component]
 pub(super) fn DialogHead(
     ctx: StudyCtx,
@@ -70,7 +72,9 @@ pub(super) fn DialogHead(
     /// A dot in an area's colour before the title.
     #[prop(optional)]
     tone: Option<&'static str>,
+    #[prop(default = None)] back: Option<(Dialog, &'static str)>,
 ) -> impl IntoView {
     let lead = tone.map(|tone| ViewFn::from(move || view! { <span class="st-dot" style=format!("--c: {tone}")></span> }));
-    view! { <ModalHead id="st-dialog-title" title sub lead on_close=move || ctx.dialog.set(None)/> }
+    let back = back.map(|(to, label)| (Callback::new(move |()| ctx.open(to.clone())), label.to_string()));
+    view! { <ModalHead id="st-dialog-title" title sub lead back on_close=move || ctx.dialog.set(None)/> }
 }
