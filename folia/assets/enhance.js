@@ -1321,8 +1321,11 @@
   //   holds more. `full`: one stop, all up at once, the whole height. `auto`, for what changes
   //   (owner, the same day: „ein Auto Modus, der zwischen fit und Half entscheidet für dynamischen
   //   content"): it fits while what it holds does, and stands half up and all up once it holds
-  //   more (`autoMode`). A sheet of one stop stands where all up is: what is said of all up below
-  //   is said of it.
+  //   more (`autoMode`). `menu`, for a menu (owner, 2026-11-17: „eine menu option hinzuzufügen, wo
+  //   der content einfach perfekt passt und das modal auch nicht auf full gezogen werden kann"):
+  //   one stop, exactly as tall as what it holds (no 40 % as `fit`), up to the whole height, and
+  //   no finger takes it higher. A sheet of one stop stands where all up is: what is said of all
+  //   up below is said of it.
   // - Half up a finger moves the sheet wherever it touches it, and nothing in it scrolls („Im
   //   kleinen modus soll man nicht scrollen können nur im full modus"); all up its content scrolls
   //   and keeps its scroll to itself, and a move down where it is at its top takes the sheet. Pulled
@@ -1451,12 +1454,13 @@
   // What holds its buttons: at the screen's foot while it is half up.
   const footOf = (sheet) => sheet.querySelector("[data-sheet-foot], .st-dlg-foot");
 
-  // How a sheet stands (`data-sheet`, folia_design::modal::Sheet): `fit`, `full`, one of `auto` as
-  // what it holds says (`autoMode`), else `half` (a module's sheet too, and one that names none).
+  // How a sheet stands (`data-sheet`, folia_design::modal::Sheet): `fit`, `full`, `menu`, one of
+  // `auto` as what it holds says (`autoMode`), else `half` (a module's sheet too, and one that names
+  // none).
   const sheetMode = (sheet) => {
     const mode = sheet.getAttribute("data-sheet");
     if (mode === "auto") return autoMode(sheet);
-    return mode === "fit" || mode === "full" ? mode : "half";
+    return mode === "fit" || mode === "full" || mode === "menu" ? mode : "half";
   };
   // A sheet of `auto` fits while what it holds does — at most 70 % of the screen; its height is
   // what it holds (app.css) — and stands half up and all up once it holds more; back to fitting
@@ -1472,7 +1476,7 @@
     return mode;
   };
   // A sheet's stops, in px down from all up (its transform): half up (0 where it has one stop: one
-  // that fits or is all up at once, and one that holds less than half the screen) and away (its top
+  // that fits, a menu, one all up at once, and one that holds less than half the screen) and away (its top
   // at the screen's foot). Half up its foot is lifted as far (`--sheet-half-y`).
   const stopsOf = (sheet, height = sheet.offsetHeight) => {
     const over = height - innerHeight * SHEET_PEEK;

@@ -19,7 +19,7 @@ use folia_design::ui::{self, Icon};
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::collections::Collections;
 use folia_stores::myprogram::{program_name, MineResolved};
-use folia_stores::profiles::{Avatar, Profiles, MAX_NAME, MAX_PROFILES};
+use folia_stores::profiles::{Avatar, Profiles, SyncMark, MAX_NAME, MAX_PROFILES};
 use folia_stores::sync::State as SyncState;
 use folia_stores::studyplan::Studyplan;
 
@@ -731,7 +731,7 @@ pub fn ProfileSwitcher() -> impl IntoView {
                     <button class="pm-item" type="button" role="radio" aria-checked=if on { "true" } else { "false" } node_ref=node on:click=move |_| choose(id)>
                         <Avatar profile=profile.clone()/>
                         <span class="pm-item-text">
-                            <b>{profile.shown(t.locale)}</b>
+                            <span class="pm-item-name"><b>{profile.shown(t.locale)}</b><SyncMark id/></span>
                             <small>{line}</small>
                         </span>
                         <Icon name="check"/>

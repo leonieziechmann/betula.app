@@ -39,7 +39,7 @@ use folia_plans::study;
 use folia_routes::url;
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::myprogram::{program_name, MineResolved, MyProgram};
-use folia_stores::profiles::{Avatar, Backup, Cleared, Deleted, NoBackup, Profile, Profiles, Summary, MAX_NAME, MAX_PROFILES};
+use folia_stores::profiles::{Avatar, Backup, Cleared, Deleted, NoBackup, Profile, Profiles, Summary, SyncMark, MAX_NAME, MAX_PROFILES};
 use folia_stores::studyplan::{Saved, Studyplan};
 use leptos::prelude::*;
 use folia_design::stage::Title;
@@ -644,7 +644,7 @@ fn ProfileList() -> impl IntoView {
                         <button class="pf-item" type="button" role="radio" aria-checked=move || if on.get() { "true" } else { "false" } on:click=move |_| switch(id)>
                             <Avatar profile/>
                             <span class="pf-item-text">
-                                <b>{shown}</b>
+                                <span class="pf-item-name"><b>{shown}</b><SyncMark id/></span>
                                 <small>{line}</small>
                             </span>
                             <Icon name="check"/>
