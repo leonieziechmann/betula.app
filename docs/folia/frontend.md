@@ -1785,7 +1785,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     then hints under the cards, with „Einplanen" and „Markieren"). An area's
     card opens its dialog: what it asks and holds, the student's modules there, the plan's rows still
     open, its modules in the catalog (the tree's areas, the FÜS list) and the plan's page.
-    **The areas as the Wahlpflicht looks** (Folia 1.95.2; owner, 2026-11-17, of the sheet a tap on
+    **The areas as the Wahlpflicht looks** (Folia 1.96.3; owner, 2026-11-17, of the sheet a tap on
     a phone's bar opens: „das ist noch aus einer früheren Version, wo die aktuellen Design ideen
     nicht mit eingeflossen sind. Also ich hätte gerne überall eine progressbar, wie beim
     Wahlpflicht Katalog. Und bitte verwende icons für den Fortschritt also bestanden, aktuell
