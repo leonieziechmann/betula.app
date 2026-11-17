@@ -296,6 +296,11 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     Auslauffunktion"): the fifth runs out under „Alle 12 anzeigen", which unfolds the rest and goes,
     the focus on the sixth; without JavaScript all of them. On a phone a program's kind stands under
     its line, where the name keeps its width and a long kind is whole („Wahlpflich…" was cut off).
+    „Außerdem als fachübergreifendes Studium (FÜS) anrechenbar in 149 Studiengängen" counts the
+    FÜS lists that hold the module (`queries::module_fues_programs`), not the programs its page
+    names: a FÜS module whose page names none („Einführung in die Amateurfunktechnik") is on every
+    FÜS list since schema 21 (Folia 1.96.1), and the section shows for it as for ERP, no
+    curriculum and that line; until then it had no section.
 - **A module's week says what belongs to it** (owner, 2026-11-03, on Programmierpraktikum's week:
   „aktuell ist es nicht gut zu erkennen, was jetzt zu dem modul gehört … Es muss auch erkennbar
   sein, wenn termine abgeschnitten sind"; the concepts' second round, folia/design/kalender/raster.html,
