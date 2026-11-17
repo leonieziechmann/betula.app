@@ -19,7 +19,9 @@
 // fitting again once it holds less; „Tasten" naming its keys; „Plan einrichten" all up at once in one move, a pull bringing it back there,
 // thrown away from there. A menu swiped down closes, and closed by its choice a copy of it glides
 // away. Each modal stands as what it holds asks (owner, 2026-11-04): the programs' filters fit,
-// closed below the screen; „Studiengang wechseln" all up at once.
+// closed below the screen; „Studiengang wechseln" all up at once. A question in a sheet gives each
+// answer a row of its own as well, and the sheet brings it into sight: „Plan leeren" in
+// „Anpassen".
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node sheets.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Fails on a console error or a step that does not show up.
 import { chromium } from "playwright-core";
@@ -321,6 +323,35 @@ const behind = await page.evaluate(() => { const d = document.querySelector("dia
 check(at?.way === "full" && at.full && at.top <= 12 && at.bottom === 844 && behind <= 0, `„Studiengang wechseln“ is not all up at once with nothing behind its buttons: ${JSON.stringify({ ...at, behind })}`);
 await page.keyboard.press("Escape");
 await page.waitForFunction(() => !document.querySelector("dialog.st-dialog[open]"), null, { timeout: 3000 }).catch(() => problems.push("„Studiengang wechseln“ did not close by Esc"));
+
+// ---- a question in a sheet (owner, 2026-11-17: „Ja, Plan leeren auch untereinander. Pass bitte alle
+// an, wo das design pattern nicht eingehalten wird"): „Plan leeren" in „Anpassen", the sheet half
+// up. The question and both answers in sight, each answer across the sheet, one under the other,
+// „Leeren" first; „Abbrechen" takes it back.
+await page.evaluate(() => {
+  localStorage.setItem("betula.studyplan.v1", ["12104", "12107", "12102", "11112"].map((id) => `m\t2026W\t${id}\t1790000000\t`).join("\n") + "\n");
+  sessionStorage.setItem("betula.plan.asked", "1");
+});
+await page.goto(base + "/studyplan", { waitUntil: "domcontentloaded" });
+await page.waitForFunction(() => window.__betulaApp === true && document.querySelector('#content > .page-stage.front a.sheet-toggle[href="#sidebar"]'), null, { timeout: 120000 }).catch(() => problems.push("the Stundenplan has no „Anpassen“"));
+await page.waitForTimeout(500);
+await page.tap('#content > .page-stage.front a.sheet-toggle[href="#sidebar"] >> visible=true');
+await page.waitForFunction(() => { const el = document.querySelector("#content > .page-stage.front #sidebar"); return el?.classList.contains("open") && !el.getAnimations().some((a) => a.playState === "running"); }, null, { timeout: 5000 }).catch(() => problems.push("„Anpassen“ did not open"));
+await page.waitForTimeout(400);
+await page.tap("#content > .page-stage.front #sp-clear");
+await page.waitForFunction(() => document.querySelector("#content > .page-stage.front #sp-clear-ask"), null, { timeout: 3000 }).catch(() => problems.push("„Plan leeren“ did not ask"));
+await page.waitForTimeout(900);
+const cleared = await page.evaluate(() => {
+  const ask = document.querySelector("#content > .page-stage.front #sp-clear-ask");
+  if (!ask) return null;
+  const r = ask.getBoundingClientRect();
+  const rows = [...ask.querySelectorAll("button")].map((button) => { const b = button.getBoundingClientRect(); return { text: button.textContent.trim(), top: Math.round(b.top), bottom: Math.round(b.bottom), width: Math.round(b.width), height: Math.round(b.height) }; });
+  const style = getComputedStyle(ask);
+  return { top: Math.round(r.top), width: Math.round(ask.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)), rows };
+});
+check(cleared && cleared.top >= 0 && cleared.rows.length === 2 && cleared.rows[0].text === "Leeren" && cleared.rows.every((row) => row.width >= cleared.width - 1 && row.height >= 44 && row.bottom <= 844) && cleared.rows[1].top >= cleared.rows[0].bottom, `„Plan leeren“ in „Anpassen“ does not give each answer a row of its own in sight: ${JSON.stringify(cleared)}`);
+await page.tap('#content > .page-stage.front #sp-clear-ask button:has-text("Abbrechen")');
+await page.waitForFunction(() => !document.querySelector("#content > .page-stage.front #sp-clear-ask") && document.querySelector("#content > .page-stage.front #sp-clear"), null, { timeout: 3000 }).catch(() => problems.push("„Abbrechen“ did not take the question of „Plan leeren“ back"));
 
 await browser.close();
 console.log(JSON.stringify({ problems }, null, 2));
