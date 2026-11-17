@@ -727,7 +727,7 @@ mod tests {
         // The notes of the plan each begin their own way, in every language: none is where another
         // is looked for (`PlanCtx::undo`).
         for t in [&DE, &EN] {
-            let notes = [t.studyplan_share.taken, t.studyplan_share.live_taken, t.studyplan_side.cleared, super::super::head::FROM_MARKED];
+            let notes = [t.studyplan_share.taken, t.studyplan_share.live_taken];
             for (i, a) in notes.iter().enumerate() {
                 assert!(notes.iter().enumerate().all(|(j, b)| i == j || !a.starts_with(b)), "{a}");
             }

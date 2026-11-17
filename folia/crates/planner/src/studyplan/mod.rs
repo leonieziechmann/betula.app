@@ -142,6 +142,13 @@ pub(super) struct PlanCtx {
     /// The week „Woche" shows: the A week, the B week, or both („A/B"). A view setting of the
     /// page, not stored.
     pub weeks: RwSignal<Weeks>,
+    /// The plan is being edited (owner, 2026-11-17: „bei dem Kalender einen edit modus hinzuzufügen, weil
+    /// man dadurch unnötiges ui ausblenden kann, und dann im edit modus auch Termine leicht anzeigen kann,
+    /// die man ausgeblendet hat"): the address says `edit=1` or holds a choice in focus (`wahl`), read of
+    /// the address the app is going to while a step is on its way (`Pending`), so that the head's button,
+    /// the status row and what the mode reveals answer in the frame of the click (R21). Made of `url`: no
+    /// closure reads it and `url` (R16). The week's slots follow the address itself (`week::base_of`).
+    pub edit: Memo<bool>,
     /// „Alle Termine": „Woche" shows every Termin of the planned modules, what the plan leaves out
     /// faint (owner, 2026-09-25). A view setting of the page, not stored.
     pub all: RwSignal<bool>,
@@ -263,6 +270,14 @@ pub fn StudyplanPage() -> impl IntoView {
         let (key, selection) = selection.get();
         data.with(|data| data.as_ref().ok().filter(|data| data.key == key).map(|data| data.timetable(&selection)))
     });
+    // Where the app is going: the mode follows a click on its way (`PlanCtx::edit`), the module
+    // beside the plan as well (`target`, below).
+    let going = Pending::expect();
+    let editing = |url: &StudyplanUrl| url.edit || url.wahl.is_some();
+    let edit = Memo::new(move |_| match going.and_then(|going| going.search_on(url::STUDYPLAN)) {
+        Some(search) => editing(&StudyplanUrl::parse(&search)),
+        None => url.with(editing),
+    });
     let ctx = PlanCtx {
         url,
         current,
@@ -277,6 +292,7 @@ pub fn StudyplanPage() -> impl IntoView {
         today,
         undo: RwSignal::new(None),
         weeks: RwSignal::new(Weeks::All),
+        edit,
         all: RwSignal::new(false),
         phone: phone_layout(),
         days: RwSignal::new(false),
@@ -304,7 +320,6 @@ pub fn StudyplanPage() -> impl IntoView {
 
     // The module beside the plan, and a pick on its way there (`pending`): the panel follows the
     // click in the next frame, there at once for a pick and gone at once for a close.
-    let going = Pending::expect();
     let target = Memo::new(move |_| {
         let going = going.filter(|going| going.change() == Some(Change::Aside))?;
         Some(StudyplanUrl::parse(&going.search_on(url::STUDYPLAN)?))
@@ -342,7 +357,8 @@ pub fn StudyplanPage() -> impl IntoView {
             <Title text=t.studyplan.title/>
             <Frame title=t.studyplan.customise sheet=true sidebar=move || view! { <PlanSidebar ctx/><StorageHint/> } aside aside_picked=picked>
                 <PlanSeo/>
-                <div class="page-inner sp">
+                // The page in the mode: what it reveals and hides is styled under `.sp-edit`.
+                <div class="page-inner sp" class:sp-edit=move || ctx.edit.get()>
                     <section class="panel sp-body">
                         <SemesterView ctx/>
                     </section>
