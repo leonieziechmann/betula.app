@@ -1264,6 +1264,11 @@ mod tests {
         assert_eq!(change("/studyplan", "edit=1", "/studyplan", "view=dates&edit=1", false), Some(Change::Column(Shape::Studyplan)));
         assert_eq!(change("/studyplan", "edit=1&termin=148369-aaf38", "/studyplan", "edit=1&termin=148369-aaf38&full=1", false), Some(Change::Page(Shape::Event)));
         assert_eq!(change("/studyplan", "edit=1", "/studyplan", "edit=1&week=2026-10-14", false), None);
+        // Beside a module and on the exams' view the mode comes and goes the same way.
+        assert_eq!(change("/studyplan", "open=12104", "/studyplan", "edit=1&open=12104", true), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "edit=1&open=12104", "/studyplan", "open=12104", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "view=exams", "/studyplan", "view=exams&edit=1", true), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "view=exams&edit=1", "/studyplan", "view=exams", false), Some(Change::Aside));
     }
 
     /// The step before a module's sheet is the page it closes to, written either way.

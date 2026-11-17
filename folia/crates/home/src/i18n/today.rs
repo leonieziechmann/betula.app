@@ -233,7 +233,7 @@ pub const DE: Texts = Texts {
     long_date: |weekday, day, month, week| format!("{weekday}, {day}. {month} · KW {week}"),
     weekday_date: |weekday, date| format!("{weekday} {date}"),
 
-    running: |kind, module, room, minutes| format!("Gerade läuft {kind} {module}{}, noch {minutes}\u{a0}{}.", in_room_de(room), if minutes == 1 { "Minute" } else { "Minuten" }),
+    running: |kind, module, room, minutes| format!("Gerade läuft {}{}, noch {minutes}\u{a0}{}.", format!("{kind} {module}").trim(), in_room_de(room), if minutes == 1 { "Minute" } else { "Minuten" }),
     first_today: |n, time, room| match n {
         1 => format!("Heute ein Termin, um {time}{}.", in_room_de(room)),
         n => format!("Heute {n} Termine, der erste um {time}{}.", in_room_de(room)),
@@ -411,7 +411,7 @@ pub const EN: Texts = Texts {
     long_date: |weekday, day, month, week| format!("{weekday}, {day} {month} · Week {week}"),
     weekday_date: |weekday, date| format!("{weekday} {date}"),
 
-    running: |kind, module, room, minutes| format!("{kind} {module} is on{}, {minutes} more {}.", in_room_en(room), if minutes == 1 { "minute" } else { "minutes" }),
+    running: |kind, module, room, minutes| format!("{} is on{}, {minutes} more {}.", format!("{kind} {module}").trim(), in_room_en(room), if minutes == 1 { "minute" } else { "minutes" }),
     first_today: |n, time, room| match n {
         1 => format!("One date today, at {time}{}.", in_room_en(room)),
         n => format!("{n} dates today, the first at {time}{}.", in_room_en(room)),

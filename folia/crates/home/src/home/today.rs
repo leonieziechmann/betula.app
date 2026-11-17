@@ -532,6 +532,15 @@ fn short_of(entry: &Entry) -> String {
     format!("{} {}", entry.kind_short, entry.short).trim().to_string()
 }
 
+/// „Vorlesung · Entwicklung von Softwaresystemen": an entry's kind and title; a Termin of one's
+/// own by its name alone, which says its kind where it has one.
+fn what(entry: &Entry) -> String {
+    match entry.kind.is_empty() {
+        true => entry.title.clone(),
+        false => format!("{} · {}", entry.kind, entry.title),
+    }
+}
+
 fn time(minute: Option<u16>) -> String {
     minute.map(day::clock).unwrap_or_default()
 }
@@ -780,7 +789,7 @@ fn NextCard(ctx: Ctx, on_setup: Callback<()>) -> impl IntoView {
                     <div class="day-next">
                         <span class="k"><span>{head}</span><span>{format!("{}–{}", time(entry.from), time(entry.to))}</span></span>
                         <span class="when"><b>{when}</b><span data-count="card">{why}</span></span>
-                        <span class="what">{format!("{} · {}", entry.kind, entry.title)}</span>
+                        <span class="what">{what(entry)}</span>
                         <span class="where"><Icon name="map-pin"/><span>{place}{clash.map(|clash| format!(" · {clash}"))}</span></span>
                         {after.map(|after| view! { <span class="where dim">{(tt.after)(&time(after.from), &short_of(after), after.room.as_deref())}</span> })}
                         <span class="acts">
@@ -800,7 +809,7 @@ fn NextCard(ctx: Ctx, on_setup: Callback<()>) -> impl IntoView {
                             <div class="day-next">
                                 <span class="k"><span>{next_day_word(day, *next, t)}</span><span>{if next.0 - day.0 < 7 { weekday_date(*next, t) } else { (tt.days)(next.0 - day.0) }}</span></span>
                                 <span class="when"><b>{time(first.from)}</b><span>{first.room.clone().unwrap_or_default()}</span></span>
-                                <span class="what">{format!("{} · {}", first.kind, first.title)}</span>
+                                <span class="what">{what(first)}</span>
                                 <span class="where"><Icon name="clock-3"/><span>{(tt.termine_until)(firm.len().max(1), &time(last.to))}</span></span>
                                 <span class="acts"><a class="btn sm" href=t.path(url::STUDYPLAN) data-command="">{tt.timetable}</a></span>
                             </div>
@@ -919,7 +928,7 @@ fn entry_row(entry: &Entry, minute: Option<u16>, others: &Today, t: &Texts) -> i
             <span class="day-ev-t num"><b>{time(entry.from)}</b><span>{time(entry.to)}</span></span>
             <span class="day-ev-bar" aria-hidden="true"></span>
             <span class="day-ev-w">
-                <b>{format!("{} · {}", entry.kind, entry.title)}</b>
+                <b>{what(entry)}</b>
                 <small>
                     {entry.room.clone().map(|room| view! { <Icon name="map-pin"/><span>{room}</span> })}
                     {entry.note.clone().map(|note| view! { <span class="day-ev-note">{format!(" · {note}")}</span> })}
@@ -1051,7 +1060,7 @@ fn WeekPanel(ctx: Ctx) -> impl IntoView {
                 let height = (f64::from(to.clamp(WEEK_FROM, WEEK_TO).saturating_sub(from.clamp(WEEK_FROM, WEEK_TO))) / span * 100.0).max(2.0);
                 let class = format!("{}{}{}", hue(entry.tone), if entry.open { " open" } else { "" }, if entry.exam { " exam" } else { "" });
                 let style = format!("top:{top:.1}%;height:{height:.1}%");
-                let said = format!("{} {}–{} · {} · {}", weekday_date(entry.day, t), time(entry.from), time(entry.to), entry.kind, entry.title);
+                let said = format!("{} {}–{} · {}", weekday_date(entry.day, t), time(entry.from), time(entry.to), what(entry));
                 // A Termin leads to its own view over the page; an exam is a mark.
                 Some(match termin_href(entry, t) {
                     Some(href) => view! { <a class=class style=style href=href data-noscroll="" title=said.clone() aria-label=said></a> }.into_any(),

@@ -168,10 +168,26 @@ impl HiddenCount {
 /// hide the store keeps of a Termin QIS has re-keyed is not counted.
 pub fn hidden_count(table: &Timetable) -> HiddenCount {
     let whole = |hidden: Option<HiddenBy>| matches!(hidden, Some(HiddenBy::Event | HiddenBy::Kinds));
+    // `Event::hidden` names the first rule that holds, and the student's two come first: an event
+    // the other town's or program's course or a made choice leaves out anyway is no hide of theirs
+    // where an eye or a kind hides it too, or „Alle einblenden" would bring back less than the
+    // figure says. The options left out mirror `Timetable::build`'s rule.
+    let left_out = |event: &Event| {
+        table.theirs(event)
+            || event.across.is_some_and(|alt| {
+                table.choices.get(alt.choice).is_some_and(|across| match (&across.by, &across.narrowed) {
+                    (Some(_), _) if across.taken.len() >= across.pick => !across.taken.contains(&alt.option),
+                    (None, Some(narrowed)) => !narrowed.contains(&alt.option),
+                    _ => false,
+                })
+            })
+    };
     let mut count = HiddenCount::default();
     for event in &table.events {
         if whole(event.hidden) {
-            count.events += 1;
+            if !left_out(event) {
+                count.events += 1;
+            }
             continue;
         }
         for session in crate::termin::sessions(event) {
@@ -185,7 +201,9 @@ pub fn hidden_count(table: &Timetable) -> HiddenCount {
     }
     for exam in &table.exams {
         if whole(exam.hidden) {
-            count.events += 1;
+            if !table.theirs_exam(exam) {
+                count.events += 1;
+            }
             continue;
         }
         let mut keys: Vec<RowKey> = exam.rows.iter().filter_map(|row| row.key).collect();
@@ -1567,6 +1585,61 @@ pub(crate) mod tests {
         assert!(t.events[0].rows.iter().any(|row| row.hidden == Some(HiddenBy::Choice)));
         assert_eq!(hidden_count(&t), HiddenCount::default());
         assert_eq!(hidden_count(&t).total(), 0);
+    }
+
+    /// An option a made choice leaves out, hidden by its eye before the choice was made, counts
+    /// for nothing: „Alle einblenden" would bring back nothing of it. An open option hidden counts.
+    #[test]
+    fn an_option_left_out_by_a_choice_is_not_hidden() {
+        use crate::model::tests::{choice_row, choosing};
+        let rows = [
+            teaching("H", "245", 1, "Übung", 4, "11:30", "13:00").option(1),
+            teaching("H", "246", 1, "Übung", 2, "07:30", "09:00").option(2),
+            teaching("H", "247", 1, "Übung", 3, "13:45", "15:15").option(3),
+        ];
+        let choices = [choice_row("H", "program", 1, 1, "245"), choice_row("H", "program", 1, 2, "246"), choice_row("H", "program", 1, 3, "247")];
+        // The second option hidden by its eye, then the first taken.
+        let taken = Selection { hidden_events: [246].into(), chosen_rows: [rows[0].key()].into(), ..Selection::default() };
+        let t = choosing(&rows, &["H"], &choices, &[], &taken);
+        assert_eq!(t.events.iter().find(|event| event.id == "246").unwrap().hidden, Some(HiddenBy::Event));
+        assert_eq!(hidden_count(&t), HiddenCount::default());
+        // Open, the same hide is one.
+        let open = Selection { chosen_rows: Default::default(), ..taken };
+        let t = choosing(&rows, &["H"], &choices, &[], &open);
+        assert_eq!(hidden_count(&t), HiddenCount { events: 1, termine: 0, dates: 0 });
+    }
+
+    /// The other town's course is left out whatever else hides it: with „Übung" switched off and
+    /// two events hidden by their eyes, the one of the town taken counts, the two of the other
+    /// town do not — the figure is what „Alle einblenden" brings back.
+    #[test]
+    fn the_other_towns_course_is_not_hidden() {
+        use folia_calendar::kind::{EventKind, KindSet};
+        use crate::model::tests::{sws, table};
+        let rows = [
+            teaching("T", "80", 1, "Vorlesung", 1, "09:15", "10:45"),
+            teaching("T", "81", 1, "Übung", 2, "09:15", "10:45"),
+            teaching("T", "82", 1, "Vorlesung", 3, "09:15", "10:45").campus(Some("senftenberg")),
+            teaching("T", "83", 1, "Übung", 4, "09:15", "10:45").campus(Some("senftenberg")),
+        ];
+        let selection = Selection {
+            town: TownChoice::Only(folia_calendar::select::Town::Cottbus),
+            hidden_kinds: KindSet::default().with(EventKind::Exercise),
+            hidden_events: [81, 82].into(),
+            ..Selection::default()
+        };
+        let t = table(&rows, &["T"], &[sws("T", "exercise", 2.0)], &selection);
+        assert_eq!(hidden_count(&t), HiddenCount { events: 1, termine: 0, dates: 0 });
+    }
+
+    /// A Termin of an exam hidden by its eye (the row's key) counts as one Termin.
+    #[test]
+    fn an_exams_termin_hidden_by_its_row_counts() {
+        let rows = [teaching("A", "80", 1, "Vorlesung", 5, "09:15", "10:45")];
+        let exams = [exam("A", "90", 1, Some(("2027-02-11", "2027-02-11")), "11:00", "13:00")];
+        let key = RowKey::of(&exams[0].date).unwrap();
+        let t = build(&rows, &exams, &["A"], &Selection { hidden_rows: [key].into(), ..Selection::default() });
+        assert_eq!(hidden_count(&t), HiddenCount { events: 0, termine: 1, dates: 0 });
     }
 
     /// A series of single dates is one Termin: hidden whole it counts once, not per date.

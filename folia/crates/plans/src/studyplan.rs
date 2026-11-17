@@ -3546,6 +3546,16 @@ mod tests {
         // The other semester as it was.
         assert_eq!(doc.hidden.get(&s), before.hidden.get(&s));
         assert_eq!(doc.own_termin(theirs), before.own_termin(theirs));
+        // A Termin of a calendar of one's own keeps the days it skips: that calendar is only looked at.
+        let mut calendars = PlanDoc::default();
+        let lena = lenas(&mut calendars);
+        let hers = calendars.add_own(lena, w, job()).unwrap();
+        assert!(calendars.skip_own(hers, day("2026-10-30"), true));
+        calendars.set_event(w, 149_408, true);
+        let kept = calendars.own_termin(hers).map(|(calendar, own)| (calendar, own.clone()));
+        calendars.show_hidden(w);
+        assert_eq!(calendars.own_termin(hers).map(|(calendar, own)| (calendar, own.clone())), kept);
+        assert!(calendars.own_termin(hers).is_some_and(|(_, own)| own.termin.skip == [day("2026-10-30")]));
         // A semester that hid nothing and chose nothing has no entry afterwards.
         let mut only_hidden = PlanDoc::default();
         only_hidden.set_event(w, 149_408, true);
