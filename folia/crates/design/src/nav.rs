@@ -358,6 +358,22 @@ pub fn focus_by_id(id: &str) {
     }
 }
 
+/// Into sight on a phone: the element `id` that unfolded in a sheet (a question and its answers in
+/// „Anpassen"), the sheet all up where it stands half up and hides it, what scrolls in it as little
+/// as brings it in (enhance.js `betula:sheet-show`). Nothing in no sheet or on a wide screen.
+#[allow(unused_variables)]
+pub fn show_in_sheet(id: &str) {
+    #[cfg(feature = "csr")]
+    {
+        let Some(element) = crate::stage::by_id(id) else { return };
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        if let Ok(event) = web_sys::Event::new_with_event_init_dict("betula:sheet-show", &init) {
+            let _ = element.dispatch_event(&event);
+        }
+    }
+}
+
 /// Scrolls the list around an entry (its parent, and nothing else) so that the entry is
 /// visible; `center` puts it in the middle, for the first look at a long list.
 #[allow(unused_variables)]

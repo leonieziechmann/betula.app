@@ -45,6 +45,11 @@ const CLEAR_ID: &str = "sp-clear";
 /// The id of „Ersetzen" when loading a saved plan would replace an unsaved one.
 const LOAD_ID: &str = "sp-load-yes";
 
+/// The questions of „Plan leeren" and of „Ersetzen" with their answers, which a sheet of a phone
+/// brings into sight as they unfold (`nav::show_in_sheet`).
+const CLEAR_ASK_ID: &str = "sp-clear-ask";
+const LOAD_ASK_ID: &str = "sp-load-ask";
+
 #[component]
 pub(super) fn PlanSidebar(ctx: PlanCtx) -> impl IntoView {
     view! {
@@ -145,7 +150,10 @@ fn PlanGroup(ctx: PlanCtx) -> impl IntoView {
     let load = move |which: String| {
         if any.get_untracked() && marked.with_untracked(Option::is_none) {
             asking.set(Some(which));
-            request_animation_frame(|| nav::focus_by_id(LOAD_ID));
+            request_animation_frame(|| {
+                nav::focus_by_id(LOAD_ID);
+                nav::show_in_sheet(LOAD_ASK_ID);
+            });
         } else {
             load_now(which);
         }
@@ -165,7 +173,10 @@ fn PlanGroup(ctx: PlanCtx) -> impl IntoView {
     let restoring = RwSignal::new(false);
     let ask = move |_| {
         confirming.set(true);
-        request_animation_frame(|| nav::focus_by_id("sp-clear-yes"));
+        request_animation_frame(|| {
+            nav::focus_by_id("sp-clear-yes");
+            nav::show_in_sheet(CLEAR_ASK_ID);
+        });
     };
     let clear = move |_| {
         confirming.set(false);
@@ -226,7 +237,7 @@ fn PlanGroup(ctx: PlanCtx) -> impl IntoView {
                         {move || {
                             let three = three.clone();
                             asked.get().then(|| view! {
-                                <p class="action note-action ask">
+                                <p class="action note-action ask" id=LOAD_ASK_ID>
                                     <span>{s.replace_current}</span>
                                     <button class="mini danger hit" type="button" id=LOAD_ID on:click=move |_| load_now(three.clone())>{s.replace}</button>
                                     <button class="mini hit" type="button" on:click=move |_| asking.set(None)>{s.cancel}</button>
@@ -251,7 +262,7 @@ fn PlanGroup(ctx: PlanCtx) -> impl IntoView {
                 }
                 .into_any(),
                 (false, true, _) => view! {
-                    <p class="action note-action ask">
+                    <p class="action note-action ask" id=CLEAR_ASK_ID>
                         <span>{s.really_clear}</span>
                         <button class="mini danger hit" type="button" id="sp-clear-yes" on:click=clear>{s.clear}</button>
                         <button class="mini hit" type="button" on:click=cancel>{s.cancel}</button>

@@ -5837,7 +5837,9 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 }
 /* The box to tick at a row's start (focus.rs `ItemRow`, `.st-sel`; owner, 2026-11-17: „Bei dem pc
    hätte ich gerne auch eine checkbox, die erst eingeblendet wird, wenn der Cursor der nahe kommt
-   oder schon ein Element selected ist"), a desktop's only: a phone holds a row to select it. Its
+   oder schon ein Element selected ist"), and the Merkliste's alike (folia_widgets::list `Row`;
+   the same day: „Merkliste bitte auch so angleichen"), a desktop's only: a phone holds a row to
+   select it. Its
    place is kept whether it shows or not, so that nothing moves as it comes: the row's words begin
    after it, and the heads of the columns, the bar of the rows selected and „Module hinzufügen"
    with them, the box of all of them over the rows' boxes and „Module hinzufügen"'s „+" under
@@ -5851,10 +5853,13 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .st-sems .st-table > .cols { position: relative; padding-left: 48px; }
   .st-sems .st-table > .st-selbar { padding-left: 12px; }
   .st-sems .st-add { padding-left: 11px; gap: 11px; }
+  #bookmarks-scroll #rows .row-wrap > .row { padding-left: 40px; }
+  #bookmarks-scroll .list > .cols { padding-left: 48px; }
+  #bookmarks-scroll .list > .pick-bar { padding-left: 12px; }
   .st-sel { position: absolute; z-index: 1; left: 4px; top: 50%; width: 32px; height: 32px; margin-top: -16px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--r-row); background: transparent; color: var(--on-accent); cursor: pointer; opacity: 0; transition: opacity .12s; -webkit-tap-highlight-color: transparent; }
-  .st-table > .cols > .st-sel { left: 12px; }
+  .cols > .st-sel { left: 12px; }
   .st-selbar > .st-sel { position: static; flex: none; margin: 0; }
-  .st-row:hover > .st-sel, .st-row:focus-within > .st-sel, .st-table > .cols:hover > .st-sel, .st-table.is-selecting .st-sel, .st-sel[aria-checked="true"], .st-sel:focus-visible { opacity: 1; }
+  .row-wrap:hover > .st-sel, .row-wrap:focus-within > .st-sel, .cols:hover > .st-sel, .st-table.is-selecting .st-sel, .list:has(> .pick-bar) .st-sel, .st-sel[aria-checked="true"], .st-sel:focus-visible { opacity: 1; }
   .st-sel:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .st-sel-mark { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--text-3); transition: background .12s, box-shadow .12s; }
   .st-sel-mark > .icon { display: none; width: 12px; height: 12px; stroke-width: 3.2; }
@@ -6320,12 +6325,6 @@ div.st-col-head.past { cursor: default; }
 .st-dlg-head { display: flex; align-items: flex-start; gap: 12px; padding: 16px 14px 12px 22px; }
 .st-dlg-head > div { flex: 1 1 auto; min-width: 0; padding-top: 2px; }
 .st-dlg-head .dlg-close { margin-top: -6px; }
-/* The way a level up (`ModalHead`'s `back`; owner, 2026-11-17: „es braucht noch einen back button,
-   so dass man eine ebene höher kommt"): an arrow before the title, its sign where the head's text
-   begins, as tall as the title's line is in the middle of it. */
-.st-dlg-head .dlg-back { flex: none; width: 32px; height: 32px; margin: -3px -6px 0 -7px; color: var(--text-2); border: 0; background: none; cursor: pointer; }
-.st-dlg-head .dlg-back:hover { background: var(--panel-3); color: var(--text); }
-.st-dlg-head .dlg-back .icon { width: 18px; height: 18px; }
 .st-dlg-head h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.015em; }
 .st-dlg-head h2 .st-dot { width: 10px; height: 10px; }
 .st-dlg-head p { margin: 4px 0 0; color: var(--text-2); font-size: 13.5px; line-height: 1.5; text-wrap: pretty; }
@@ -6404,12 +6403,13 @@ div.st-col-head.past { cursor: default; }
 .st-tally-part .st-glyph > .icon { width: 9px; height: 9px; stroke-width: 3.6; }
 .st-tally-after { color: var(--text-3); }
 .st-tally-after.over { color: color-mix(in oklab, var(--c) 75%, var(--text)); font-weight: 650; }
-/* An area: its bar under the head, the strip, its modules and the plan's rows still open — each
-   its mark, its name over what is said of it (its semester, where the plan puts it), its credits;
-   a row with a module a way to it, as the Wahlpflicht's rows are. */
-.st-area-dlg > .st-wbar { margin-top: 2px; }
-.st-area-dlg > .st-tally { margin-top: 14px; }
-.st-area-dlg section h3 { margin: 20px 0 2px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
+/* An area (overview.rs `AreaBody`, in its dialog and on its page): its bar under the head, the
+   strip, its modules and the plan's rows still open — each its mark, its name over what is said
+   of it (its semester, where the plan puts it), its credits; a row with a module a way to it, as
+   the Wahlpflicht's rows are. */
+.st-area-body > .st-wbar { margin-top: 2px; }
+.st-area-body > .st-tally { margin-top: 14px; }
+.st-area-body section h3 { margin: 20px 0 2px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
 .st-area-items, .st-area-list { list-style: none; margin: 0; padding: 0; }
 .st-area-items li + li { border-top: 1px solid var(--line); }
 .st-area-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 44px; padding: 7px 0; color: var(--text); font-size: 13.5px; text-decoration: none; }
@@ -6422,13 +6422,21 @@ a.st-area-row:hover { background: var(--row-hover); text-decoration: none; }
 .st-area-row .st-lp { font-size: 13px; color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .st-area-ways { display: flex; flex-direction: column; gap: 2px; margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--line); }
 .st-area-ways .action > span { flex: 1; }
-/* The areas: under the strip a card each, as the Wahlpflicht's of a choice — its dot and name,
-   what it holds of what it asks, its bar in its tone (on the card's ground the track is the
-   panel's), its marks. */
-.st-areas > .st-tally { margin-top: 2px; }
+/* The areas (areas.rs; owner, 2026-11-17: „das ist modal zu modal und das sieht richtig komisch
+   aus … oder das wird zur eigenen seite"): a page, on a phone behind the overview, its strip and
+   under it a card each, as the Wahlpflicht's of a choice — its dot and name, what it holds of what
+   it asks, its bar in its tone (on the card's ground the track is darker), its marks; a card the
+   way to the area's page. On a desktop the page in a panel, an area's with a way to the list at
+   its head. */
 .st-area-list { margin-top: 16px; display: flex; flex-direction: column; gap: 6px; }
-.st-area-list button { display: grid; gap: 8px; width: 100%; padding: 12px 10px 11px 14px; border: 0; border-radius: 10px; background: var(--panel-2); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background .15s; }
-@media (hover: hover) { .st-area-list button:hover { background: var(--row-hover); } }
+.st-area-list a { display: grid; gap: 8px; padding: 12px 10px 11px 14px; border-radius: 10px; background: var(--panel-2); color: var(--text); text-decoration: none; transition: background .15s; -webkit-tap-highlight-color: transparent; }
+.st-area-list a:hover { text-decoration: none; }
+@media (hover: hover) { .st-area-list a:hover { background: var(--row-hover); } }
+.st-area-list a:active { background: var(--row-hover); }
+.st-areas-page > .st-areas-in, .st-area-page > .st-area-body { padding: 0 20px 18px; }
+.st-area-h { display: flex; align-items: center; gap: 8px; }
+.st-area-h > .st-dot { width: 10px; height: 10px; }
+.st-area-page > .st-view-head .st-link { flex: none; margin-top: 2px; }
 .st-area-t { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .st-area-t > .st-dot { width: 9px; height: 9px; }
 .st-area-t > b { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; hyphens: auto; }
@@ -7092,6 +7100,11 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
   .st-vhead { padding: 4px 4px 2px; }
   .st-vhead h1 { margin: 0; font-size: 26px; font-weight: 750; letter-spacing: -.03em; line-height: 1.15; }
   .st-vhead p { margin: 4px 0 0; font-size: 14px; color: var(--text-2); }
+  /* An area's page: its dot before its name, at the middle of the name's first line. */
+  .st-area-vhead h1 { display: flex; align-items: flex-start; gap: 10px; }
+  .st-area-vhead h1 > .st-dot { width: 12px; height: 12px; margin-top: .45em; }
+  .st-areas-phone > .panel { padding: 14px 14px 16px; }
+  .st-areas-phone .st-area-ways { margin-bottom: -6px; }
   .st-way { min-height: 56px !important; }
   .st-docs .docrow { padding-inline: 16px; }
   .st-docs .docrow.docpart { margin-top: -4px; padding-left: 44px; padding-block: 4px 9px; }
@@ -7429,14 +7442,28 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
   .view-menu.ask .view-menu-answers > .mini:focus-visible { background: var(--row-hover); box-shadow: inset 0 0 0 2px var(--accent); outline: none; }
   .view-menu.ask .view-menu-answers > .mini > .icon { display: block; flex: none; width: 16px; height: 16px; color: var(--text-2); }
   .view-menu.ask .view-menu-answers > .mini.danger, .view-menu.ask .view-menu-answers > .mini.danger > .icon { color: var(--no); }
+  /* In a sheet, what a question offers and the buttons of a form in it stand one under the other,
+     each across the sheet at a finger's height, the one it suggests or that takes away first (owner,
+     2026-11-17: „Beim modal sollte das unbedingt jeweils eine Zeile sein", „Plan leeren auch
+     untereinander"): „Plan leeren" and „Ersetzen" of „Anpassen", a calendar whose share was taken
+     back, a new calendar and a calendar's new name, a Termin QIS says something else of now, its
+     „Ändern" and its note, a note another device wrote at the same time. Until then they stood side
+     by side as small buttons, as on a wide screen. */
+  [data-sheet] :is(.note-action.ask, .sp-cal-ended, .sp-cal-rename, .sp-cal-actions, .tm-cmp-acts, .chg-foot, .sync-hint-actions) { flex-wrap: wrap; gap: 8px; }
+  [data-sheet] :is(.note-action.ask, .sp-cal-ended, .sp-cal-rename, .sp-cal-actions, .tm-cmp-acts, .chg-foot, .sync-hint-actions) > .mini { --hit-y: 0px; display: inline-flex; flex: 1 1 100%; align-items: center; justify-content: center; gap: 8px; min-height: 46px; font-size: 15px; }
+  [data-sheet] :is(.sp-cal-ended, .sp-cal-rename, .sp-cal-actions, .tm-cmp-acts, .chg-foot, .sync-hint-actions) > .mini .icon { width: 16px; height: 16px; }
+  [data-sheet] :is(.sp-cal-actions, .tm-cmp-acts, .chg-foot, .sync-hint-actions) > .mini:is(.primary, .danger) { order: -1; }
+  [data-sheet] .sp-cal-rename input { min-height: 46px; font-size: 16px; }
+  /* A calendar's menu in „Anpassen": its entries rows of their own, as a menu's on a phone. */
+  [data-sheet] .sp-cal-menu { flex-direction: column; align-items: stretch; gap: 0; }
+  [data-sheet] .sp-cal-menu > .mini { --hit-y: 0px; display: flex; align-items: center; justify-content: flex-start; gap: 10px; min-height: 46px; padding: 0 10px; border-radius: 8px; background: none; box-shadow: none; color: var(--text); font-size: 15px; font-weight: 500; text-align: left; }
+  [data-sheet] .sp-cal-menu > .mini .icon { flex: none; width: 16px; height: 16px; color: var(--text-2); }
   .st-new-body { padding: 16px 4px 18px; }
   .st-new-body .btn { width: 100%; }
   /* Dialogs are sheets of a phone („the sheets of a phone" below): the head says what the dialog
      is under the grabber, its × out of sight. */
   .st-dlg-head { position: relative; padding: 20px 16px 10px; }
   .st-dlg-head > div { padding-top: 0; }
-  .st-dlg-head .dlg-back { width: 40px; height: 40px; margin: -9px -8px 0 -10px; color: var(--text); }
-  .st-dlg-head .dlg-back .icon { width: 20px; height: 20px; }
   .st-dlg-head h2 { font-size: 17px; }
   .st-dlg-bar, .st-dlg-body, .st-dlg-foot { padding-left: 16px; padding-right: 16px; }
   /* The buttons side by side across the sheet, the primary on the right, and off the screen's

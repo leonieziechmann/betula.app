@@ -1,7 +1,10 @@
 // Checks several modules at once on the Merkliste (folia/design/merken/oberflaeche.html, „Mehrere
 // auswählen"; folia/crates/bookmarks/src/pick.rs), and the keys „Mein Studium" got with it.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node selection.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
-// Desktop: Ctrl and a click, Shift and a click, a click while rows are selected, Esc; a mouse drawn
+// Desktop: the box to tick at a row's start under the pointer only, Ctrl and a click, Shift and a
+// click, a row's box, Shift at a selected box letting the range go, Esc; the box over the heads and
+// the bar's (a dash while some are, ticked where all are); a click on a row while rows are selected
+// opening its module (owner, 2026-11-17: „Merkliste bitte auch so angleichen"); a mouse drawn
 // over the rows; Ctrl A; Shift and ↑ ↓ with the focus following; the bar in the place of the heads
 // of the columns, as tall, with the number and the credits; S with rows selected opens the menu of
 // their collections (no note), one made there holds all of them, the dash where some are;
@@ -73,6 +76,15 @@ const planned = (page) => page.evaluate((key) => (localStorage.getItem(key) || "
   const { context, page, step, rows } = await open({ viewport: { width: 1500, height: 900 } }, requests);
   check(rows.length === 6, `the Merkliste lists ${rows.length} modules`);
   const heads = await page.evaluate(() => onPage(".list > .cols")?.getBoundingClientRect().height);
+  // The box to tick at a row's start comes under the pointer, at that row only; the words begin
+  // after it, as the heads do.
+  await page.hover(row(rows, 1));
+  await page.waitForFunction((id) => getComputedStyle(onPage(`.row-wrap:has(a.row[data-id="${id}"]) > .st-sel`)).opacity === "1", rows[1], { timeout: 3000 }).catch(() => {});
+  const boxes = await page.evaluate(() => ({
+    shown: [...allOnPage("#rows .row-wrap")].map((wrap) => getComputedStyle(wrap.querySelector(":scope > .st-sel")).opacity).join(),
+    after: Math.round(onPage("#rows .row-wrap a.row .t").getBoundingClientRect().left - onPage("#rows .row-wrap > .st-sel .st-sel-mark").getBoundingClientRect().right) + "," + Math.round(onPage(".list > .cols > .c-module").getBoundingClientRect().left - onPage("#rows .row-wrap a.row .t").getBoundingClientRect().left),
+  }));
+  check(boxes.shown === "0,1,0,0,0,0" && boxes.after === "12,0", `the boxes to tick: ${JSON.stringify(boxes)}`);
 
   // Ctrl and a click selects, nothing opens; the bar takes the place of the heads, as tall.
   await step("Ctrl and a click selects a row", () => page.click(row(rows, 0), { modifiers: ["Control"] }), (id) => onPage(`.row-wrap:has(a.row[data-id="${id}"])`)?.classList.contains("is-selected"), rows[0]);
@@ -81,8 +93,9 @@ const planned = (page) => page.evaluate((key) => (localStorage.getItem(key) || "
   check(bar && !bar.cols && Math.abs(bar.height - heads) < 1, `the bar is not in the place of the heads, as tall: ${JSON.stringify(bar)} (heads ${heads})`);
   check(/^1 ausgewählt · \d+ LP\b/.test(bar?.text || ""), `the bar does not say how many and their credits: ${bar?.text}`);
   await step("Shift and a click takes in the rows up to it", () => page.click(row(rows, 2), { modifiers: ["Shift"] }), (ids) => [...allOnPage("#rows .row-wrap.is-selected a.row")].length === 3 && ids.every((id) => onPage(`.row-wrap:has(a.row[data-id="${id}"])`).classList.contains("is-selected")), rows.slice(0, 3));
-  await step("a click while rows are selected selects", () => page.click(row(rows, 4)), (id) => onPage(`.row-wrap:has(a.row[data-id="${id}"])`)?.classList.contains("is-selected"), rows[4]);
-  check(!page.url().includes("open="), `a click while selecting opened the module: ${page.url()}`);
+  await step("a row's box selects", () => page.click(`.page-stage.front .row-wrap:has(a.row[data-id="${rows[4]}"]) > .st-sel`), (id) => onPage(`.row-wrap:has(a.row[data-id="${id}"])`)?.classList.contains("is-selected") && onPage("#pick-all")?.getAttribute("aria-checked") === "mixed"
+    && [...allOnPage("#rows .row-wrap > .st-sel")].every((box) => getComputedStyle(box).opacity === "1"), rows[4]);
+  check(!page.url().includes("open="), `a row's box opened the module: ${page.url()}`);
   await step("Ctrl and a click lets go", () => page.click(row(rows, 1), { modifiers: ["Control"] }), (id) => !onPage(`.row-wrap:has(a.row[data-id="${id}"])`)?.classList.contains("is-selected"), rows[1]);
   check(same(await selected(page), [rows[0], rows[2], rows[4]]), `selected: ${await selected(page)}`);
   // The look: tinted, hatched, lined.
@@ -109,7 +122,13 @@ const planned = (page) => page.evaluate((key) => (localStorage.getItem(key) || "
   await page.locator(row(rows, 0)).focus();
   await step("Ctrl A selects every row", () => page.keyboard.press("Control+a"), (n) => allOnPage("#rows .row-wrap.is-selected").length === n, rows.length);
   check(/^6 ausgewählt/.test(await page.evaluate(() => onPage(".pick-bar")?.innerText.trim())), "the bar does not count all of them");
-  check(await page.evaluate(() => onPage("#pick-all")?.disabled === true), "„Alle auswählen\" is not done with all of them selected");
+  check(await page.evaluate(() => onPage("#pick-all")?.getAttribute("aria-checked") === "true"), "the bar's box is not ticked with all of them selected");
+  await step("the bar's box ticked lets go of all", () => page.click("#pick-all"), () => !allOnPage("#rows .row-wrap.is-selected").length && !onPage(".pick-bar"));
+  await page.hover(".page-stage.front .list > .cols");
+  await step("the box over the heads selects all", () => page.click(".page-stage.front .list > .cols > .st-sel"), (n) => allOnPage("#rows .row-wrap.is-selected").length === n, rows.length);
+  // Shift at a selected box lets go of the rows from the last one clicked.
+  await step("Shift at a selected box", async () => { await page.click(`.page-stage.front .row-wrap:has(a.row[data-id="${rows[1]}"]) > .st-sel`); await page.click(`.page-stage.front .row-wrap:has(a.row[data-id="${rows[3]}"]) > .st-sel`, { modifiers: ["Shift"] }); }, (n) => allOnPage("#rows .row-wrap.is-selected").length === n, rows.length - 3);
+  check(same(await selected(page), [rows[0], rows[4], rows[5]]), `Shift at a selected box: ${await selected(page)}`);
   await page.keyboard.press("Escape");
   // In the search field Ctrl A is the field's.
   await page.fill("#topsearch", "x");
@@ -198,6 +217,11 @@ const planned = (page) => page.evaluate((key) => (localStorage.getItem(key) || "
   await page.keyboard.press("Escape");
   await step("M in the row's menu takes its mark away", async () => { await page.click(row(rows, 2), { button: "right" }); await page.waitForFunction(() => document.activeElement?.closest?.(".pick-menu")); await page.keyboard.press("m"); }, (id) => !document.querySelector(".pick-menu") && onPage(`.row-wrap:has(a.row[data-id="${id}"])`)?.classList.contains("unmarked"), rows[2]);
   await step("„Rückgängig\" marks it again", () => page.click(".mark-note .plan-toast-undo"), () => !allOnPage("#rows .row-wrap.unmarked").length);
+
+  // While rows are selected a click on a row opens its module, as lists of mail do; its box selects.
+  await step("a row selected by its box", () => page.click(`.page-stage.front .row-wrap:has(a.row[data-id="${rows[0]}"]) > .st-sel`), () => !!onPage(".pick-bar"));
+  await step("a click on a row opens it while rows are selected", () => page.click(row(rows, 5)), (id) => location.search.includes(`open=${id}`), rows[5]);
+  check(!(await selected(page)).includes(rows[5]), "a click on a row while rows are selected selected it");
 
   // Nothing of it leaves the browser: no request carries the marks or what is selected, none goes
   // elsewhere, and the address never says what is selected.

@@ -164,6 +164,8 @@ pub struct Texts {
     /// selected for screen readers („ausgewählt", after its title).
     pub keys_select: &'static str,
     pub row_selected: &'static str,
+    /// The label of a row's box to tick („„Datenbanken“ auswählen“).
+    pub select_row: fn(&str) -> String,
     /// The filter panel's name, its heading and the button that opens it on a phone.
     pub filters: &'static str,
     pub remove_filter: &'static str,
@@ -445,6 +447,7 @@ pub const DE: Texts = Texts {
     key_save: "merken",
     keys_select: "Strg und Klick, Shift mit Klick oder den Pfeiltasten und Ziehen über Zeilen wählen mehrere aus, Strg A alle",
     row_selected: "ausgewählt",
+    select_row: |name| format!("„{name}“ auswählen"),
     filters: "Filter",
     remove_filter: "Filter entfernen",
     list_end: |n| format!("Ende der Liste · {n} Module"),
@@ -681,6 +684,7 @@ pub const EN: Texts = Texts {
     key_save: "save",
     keys_select: "Ctrl and click, Shift with a click or the arrow keys and dragging over rows select several, Ctrl A all",
     row_selected: "selected",
+    select_row: |name| format!("Select “{name}”"),
     filters: "Filters",
     remove_filter: "Remove filter",
     list_end: |n| format!("End of the list · {n} modules"),

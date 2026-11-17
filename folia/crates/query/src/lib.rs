@@ -652,9 +652,8 @@ pub fn module_program_links(db: &dyn Database, module_id: &str) -> Result<Vec<Pr
     )
 }
 
-/// How many programs have a module on their FÜS list (`v_program_module`, relation `fues`): those
-/// its page admits, and for a FÜS module whose page admits none every program with a FÜS list
-/// (schema 21), of which `module_program_links` names none.
+/// How many programs have a module on their FÜS list (`v_program_module`, relation `fues`): one
+/// each, where `module_program_links` may name a program twice.
 pub fn module_fues_programs(db: &dyn Database, module_id: &str) -> Result<u64, DbError> {
     fetch_count(
         db,

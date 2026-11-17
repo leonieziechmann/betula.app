@@ -13,7 +13,7 @@ use crate::i18n::{self, Locale};
 use folia_design::nav;
 use crate::finder::Finder;
 use crate::swipe::RowSwipe;
-use folia_design::ui::{Icon, KindBadge, OfferBadge};
+use folia_design::ui::{Icon, KindBadge, OfferBadge, TickMark};
 
 
 /// Whether this build is the browser app: only there does a row swipe and mark.
@@ -173,7 +173,7 @@ pub fn Row(
     /// What the visitor keeps of it, after that (the Merkliste).
     #[prop(optional, into)] mine: Option<Signal<RowMine>>,
     /// Where the list selects (the Merkliste, as „Mein Studium"): whether the row is selected,
-    /// hatched in the accent …
+    /// hatched in the accent and, on a wide screen, its box to tick at its start ticked …
     #[prop(optional, into)] selected: Option<Signal<bool>>,
     /// … and what a finger held still on it does (`crate::swipe`): the list selects it.
     #[prop(optional)] on_hold: Option<Callback<String>>,
@@ -219,6 +219,29 @@ pub fn Row(
     let offer = folia_plans::study::Offer::of(&row);
     let swipe = (APP && swipe).then(|| RowSwipe::new(row.id.clone(), row.title.clone(), offer, finder.map(|finder| finder.hint), phone).on_hold(on_hold));
     let is_selected = move || selected.is_some_and(|selected| selected.get());
+    // Where the list selects, on a wide screen the box to tick at the row's start (owner,
+    // 2026-11-17, of the Merkliste: „Merkliste bitte auch so angleichen", as „Mein Studium" has
+    // it): app.css shows it when the pointer comes near the row and while rows are selected. It is
+    // no stop of Tab (the space bar on the row does what it does); what a click on it does is the
+    // list's (`folia_bookmarks::pick`). A phone selects by a finger held still.
+    let tick = selected.filter(|_| APP).map(|selected| {
+        let title = row.title.clone();
+        move || {
+            (!phone.get()).then(|| view! {
+                <button
+                    class="st-sel"
+                    type="button"
+                    role="checkbox"
+                    tabindex="-1"
+                    draggable="false"
+                    aria-checked=move || if selected.get() { "true" } else { "false" }
+                    aria-label=(t.catalog.select_row)(&title)
+                >
+                    <TickMark/>
+                </button>
+            })
+        }
+    });
     let unmarked = move || unmarked.is_some_and(|unmarked| unmarked.get());
     let link = view! {
         <a
@@ -311,6 +334,7 @@ pub fn Row(
                 on:dragstart=move |ev| swipe.drag_start(ev)
             >
                 {swipe.ground_view()}
+                {tick}
                 {link}
                 {mark}
             </div>
@@ -318,6 +342,7 @@ pub fn Row(
         .into_any(),
         None => view! {
             <div class="row-wrap" class:shaded=shaded class:unmarked=unmarked class:is-selected=is_selected data-commands=commands data-commands-when="focus">
+                {tick}
                 {link}
                 {mark}
             </div>

@@ -1880,6 +1880,29 @@
     const sheet = phone() ? sheetAround(e.target) : null;
     if (sheet) raiseSheet(sheet);
   });
+  // What unfolds in a sheet and asks to be seen (`betula:sheet-show` from it, folia_design::nav
+  // `show_in_sheet`: a question and its answers, as „Plan leeren" of „Anpassen", whose answers
+  // stand one under the other): where the sheet half up hides it, all up; what scrolls in it as
+  // little as brings it in, measured as it will stand. In sight already, nothing moves.
+  document.addEventListener("betula:sheet-show", (e) => {
+    const el = e.target, sheet = phone() ? sheetAround(el) : null;
+    if (!sheet || el === sheet) return;
+    const g = glides.get(sheet), at = g ? g.to : sheet.classList.contains("is-full") ? "full" : "half";
+    const { half } = stopsOf(sheet), foot = footOf(sheet)?.offsetHeight ?? 0, gap = 12;
+    let lift = 0;
+    if (at === "half" && half) {
+      if (el.getBoundingClientRect().bottom - sheetY(sheet) + half <= innerHeight - foot - gap) return;
+      lift = Math.max(0, sheetY(sheet));
+      raiseSheet(sheet);
+    }
+    const scroller = scrollerOf(el);
+    if (!sheet.contains(scroller)) return;
+    const view = viewOf(scroller, lift), r = el.getBoundingClientRect();
+    let by = 0;
+    if (r.bottom - lift > view.bottom - foot - gap) by = r.bottom - lift - (view.bottom - foot - gap);
+    if (r.top - lift - by < view.top + gap) by = r.top - lift - (view.top + gap);
+    if (Math.abs(by) >= 1) glideBy(scroller, by);
+  });
   document.addEventListener("focusin", (e) => {
     const sheet = phone() ? sheetAround(e.target) : null;
     if (!sheet || e.target === sheet || !sheet.contains(e.target)) return;

@@ -281,6 +281,20 @@ pub fn ToggleLink(
     }
 }
 
+/// The mark of a box to tick that selects rows (app.css `.st-sel-mark`, in its button `.st-sel`):
+/// empty, a check where its button is ticked, a dash where some of what it stands for is
+/// (`aria-checked="mixed"`). „Mein Studium" and the Merkliste have it at their rows, over their
+/// columns and in the bar of the rows selected.
+#[component]
+pub fn TickMark() -> impl IntoView {
+    view! {
+        <span class="st-sel-mark" aria-hidden="true">
+            <Icon name="check" class="s-all"/>
+            <Icon name="minus" class="s-some"/>
+        </span>
+    }
+}
+
 /// Wraps what only works with JavaScript: shortcut hints, drag handles, the theme switch. The
 /// server sends the same HTML to everybody and cannot know who has scripts (R9), so the parts
 /// are in the page and the stylesheet hides them until the script in the head has marked the
