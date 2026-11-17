@@ -7406,6 +7406,9 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
      entscheidet für dynamischen content"): as tall as what it holds, up to the whole height; it
      fits while that is at most 70 % of the screen, else it stands as `half` does (enhance.js,
      `data-sheet-as="half"`).
+   - `menu`, a menu (owner, 2026-11-17: „eine menu option hinzuzufügen, wo der content einfach
+     perfekt passt und das modal auch nicht auf full gezogen werden kann"): exactly as tall as what
+     it holds, with no least height, up to the whole height, where it scrolls: its one stop.
    Away it is below the screen (`.is-gone`). Every way between is enhance.js's, on springs. Its
    panel's colour goes on under it for the little it gives above all up. */
 @media (max-width: 900px) {
@@ -7414,7 +7417,7 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
   dialog[data-sheet]:not([open]) { display: none; }
   [data-sheet].is-full, [data-sheet]:target { transform: none; touch-action: auto; }
   /* One stop: where all up is, as tall as it fits or the whole height (below). */
-  [data-sheet]:is([data-sheet="fit"], [data-sheet="full"]) { transform: none; touch-action: auto; }
+  [data-sheet]:is([data-sheet="fit"], [data-sheet="full"], [data-sheet="menu"]) { transform: none; touch-action: auto; }
   [data-sheet="auto"]:not([data-sheet-as="half"], .is-gone) { transform: none; touch-action: auto; }
   [data-sheet].is-gone { transform: translateY(100%); }
   /* A panel of filters closed stays below the screen whatever its way: it stays in the page, and a
@@ -7450,6 +7453,8 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
      40 % while it fits. */
   :is([data-sheet], .st-dialog[data-sheet])[data-sheet="auto"] { height: auto; max-height: calc(100dvh - var(--sheet-top)); }
   :is([data-sheet], .st-dialog[data-sheet])[data-sheet="auto"]:not([data-sheet-as="half"]) { min-height: 40dvh; }
+  /* `menu`: exactly as tall as what it holds, however little, up to the whole height. */
+  :is([data-sheet], .st-dialog[data-sheet])[data-sheet="menu"] { height: auto; min-height: 0; max-height: calc(100dvh - var(--sheet-top)); }
   dialog[data-sheet][open] { animation: none; }
   .st-grip { display: none; }
   /* A menu scrolls itself all up; under the grabber its title. */
@@ -7508,6 +7513,9 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
    2026-11-09: „(kontext) menus verwenden, um das löschen zu bestätigen"): a menu at its button, a
    sheet from below on a phone, what is asked over what follows, then the answer and „Abbrechen". */
 .st-pop.pf-confirm { padding: 12px 6px 6px; }
+/* On a phone the room of a menu's sheet (`menu`, as tall as it holds): under its grabber, and its
+   last answer above the screen's foot. */
+@media (max-width: 900px) { .st-pop.pf-confirm[data-sheet] { padding: 18px 8px calc(10px + env(safe-area-inset-bottom)); } }
 .pf-confirm-title { margin: 0 10px 4px; color: var(--text); font-size: 14px; font-weight: 650; line-height: 1.4; text-wrap: pretty; }
 .pf-confirm-hint { margin: 0 10px 10px; color: var(--text-2); font-size: 12.5px; line-height: 1.45; text-wrap: pretty; }
 .pf-danger { box-shadow: 0 0 0 1px color-mix(in srgb, var(--no) 30%, transparent), var(--shadow-panel); }
