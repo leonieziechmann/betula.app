@@ -213,7 +213,7 @@ fn first_from(today: Option<Day>, lectures: Option<(Day, Day)>) -> Day {
 pub(super) fn ask_new(ctx: PlanCtx, calendar: u8, weekday: u8, from: u16, module: Option<String>) {
     let mut draft = Draft::at(calendar, weekday, from);
     draft.module = module.unwrap_or_default();
-    draft.module_name = names_now(ctx, calendar).get(&draft.module).cloned().unwrap_or_default();
+    draft.module_name = module_called(ctx, calendar, &draft.module);
     ctx.own.set(Some(OwnAsk { number: None, draft }));
 }
 
@@ -229,7 +229,7 @@ pub(super) fn ask_edit(ctx: PlanCtx, number: u32) {
     let Some(plan) = ctx.plan else { return };
     let draft = plan.with_untracked(|doc| doc.own_termin(number).map(|(calendar, own)| Draft::of(calendar, &own.termin)));
     if let Some(mut draft) = draft {
-        draft.module_name = names_now(ctx, draft.calendar).get(&draft.module).cloned().unwrap_or_default();
+        draft.module_name = module_called(ctx, draft.calendar, &draft.module);
         ctx.own.set(Some(OwnAsk { number: Some(number), draft }));
     }
 }
@@ -277,6 +277,30 @@ fn names_now(ctx: PlanCtx, calendar: u8) -> BTreeMap<String, String> {
         0 => ctx.data.with_untracked(|data| data.as_ref().map(|data| data.slot_names()).unwrap_or_default()),
         id => ctx.calendars.with_untracked(|calendars| calendars.iter().find(|shown| shown.id == id).map(|shown| shown.titles.clone()).unwrap_or_default()),
     }
+}
+
+/// What the form's line calls the module `module` of calendar `calendar`: as the slots do („EvS"),
+/// else by its title, cut („Für Entwicklung von Softwaresy… · WiSe 2026/27") — never by its number,
+/// which says nothing to a student (a module that left the week keeps its Termine of one's own).
+fn module_called(ctx: PlanCtx, calendar: u8, module: &str) -> String {
+    if let Some(name) = names_now(ctx, calendar).get(module).filter(|name| !name.is_empty()) {
+        return name.clone();
+    }
+    let title = match calendar {
+        0 => ctx.data.with_untracked(|data| data.as_ref().ok().and_then(|data| data.modules.iter().find(|row| row.id == module).map(|row| row.title.clone()))),
+        id => ctx.calendars.with_untracked(|calendars| calendars.iter().find(|shown| shown.id == id).and_then(|shown| shown.full.get(module).cloned())),
+    };
+    title.map(|title| cut(&title, 28)).unwrap_or_default()
+}
+
+/// `text` within `most` letters, cut at a word with „…" where it is longer.
+fn cut(text: &str, most: usize) -> String {
+    if text.chars().count() <= most {
+        return text.to_string();
+    }
+    let head: String = text.chars().take(most).collect();
+    let at = head.rfind(' ').filter(|at| *at > most / 2).unwrap_or(head.len());
+    format!("{}…", head[..at].trim_end())
 }
 
 /// When a Termin of one's own is held, as the list says it: „Fr 13:00", „Di 17:15 · A", „Do 18:00
@@ -448,7 +472,7 @@ pub(super) fn ask_makeup(ctx: PlanCtx, key: RowKey, day: Day) {
         let away = ctx.url.with_untracked(|url| url.with_termin(None).path());
         going.go(&away, NavigateOptions { replace: true, scroll: false, ..Default::default() });
     }
-    let module_name = names_now(ctx, 0).get(&module).cloned().unwrap_or_default();
+    let module_name = module_called(ctx, 0, &module);
     let draft = Draft { kind, rhythm: OwnRhythm::Dates, dates: vec![day.iso()], to: clock(to), place, module, module_name, ..Draft::at(0, day.weekday(), from) };
     ctx.own.set(Some(OwnAsk { number: None, draft }));
 }
@@ -862,7 +886,7 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
                     <label for="own-module">{o.module}</label>
                     <select id="own-module" on:change=move |ev| {
                         let value = event_target_value(&ev);
-                        let name = names_now(ctx, calendar.get_untracked()).get(&value).cloned().unwrap_or_default();
+                        let name = module_called(ctx, calendar.get_untracked(), &value);
                         set(Box::new(move |draft| { draft.module = value; draft.module_name = name; }));
                     }>
                         <option value="" selected=move || draft.with(|draft| draft.as_ref().is_none_or(|draft| draft.module.is_empty()))>{o.no_module}</option>
@@ -901,6 +925,15 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
                 {line}
             </form>
             <footer class="st-dlg-foot">
+                // A Termin of a calendar of one's own has no card yet (its slot opens nothing): its
+                // form is where it is deleted, with the bin (owner, 2026-11-17: „da wo es entfernt
+                // eine Mülltonne"), the note and „Rückgängig". The plan's own are deleted in their
+                // card and by the bin on their slot.
+                {move || editing.get().filter(|_| calendar.get() != 0).map(|number| view! {
+                    <button class="mini own-delete" type="button" data-action="own-delete" on:click=move |_| { close.run(()); remove(ctx, number); }>
+                        <Icon name="trash-2"/>{o.delete}
+                    </button>
+                })}
                 <button class="mini" type="button" on:click=move |_| close.run(())>{o.cancel}</button>
                 <button class="mini primary" type="submit" form="own-form">{move || if editing.get().is_some() { o.save } else { o.create }}</button>
             </footer>
@@ -993,11 +1026,18 @@ pub(super) fn own_rows(held: &[OwnTermin], names: &BTreeMap<String, String>, ton
         .collect()
 }
 
+/// The rows of the plan's Termine of one's own that stand under no module of its week (`week`): of
+/// none, or of a module that left it.
+pub(super) fn of_no_module(rows: Vec<OwnRow>, week: &[String]) -> Vec<OwnRow> {
+    rows.into_iter().filter(|row| row.module.as_ref().is_none_or(|module| !week.contains(module))).collect()
+}
+
 /// „Eigene Termine" under the modules of calendar `calendar` (0 the plan's): a row per Termin of
-/// the semester in the order they came, in its tone with the mark „von dir", and while the plan is
-/// edited „+ Termin" with the calendar chosen. Of the plan's only those of no module of its week (a
-/// Termin of a module stands under its module, `modules.rs`), each a link to its card; of a
-/// calendar of one's own all of them, while editing a button to its form.
+/// the semester in the order they came, in its tone with the mark „von dir". Of the plan's only
+/// those of no module of its week (`of_no_module`: a Termin of a module stands under its module,
+/// `modules.rs`), each a link to its card; of a calendar of one's own all of them, each a button to
+/// its form in both states. While the plan is edited „+ Termin" with the calendar chosen: a
+/// calendar's own always, the plan's only under the head of its rows.
 #[component]
 pub(super) fn OwnList(ctx: PlanCtx, calendar: u8, #[prop(into)] hue: Signal<&'static str>) -> impl IntoView {
     let t = i18n::t();
@@ -1018,7 +1058,7 @@ pub(super) fn OwnList(ctx: PlanCtx, calendar: u8, #[prop(into)] hue: Signal<&'st
         };
         let rows = own_rows(&held, &names, &tones, t);
         match calendar {
-            0 => rows.into_iter().filter(|row| row.module.as_ref().is_none_or(|module| !tones.contains(module))).collect::<Vec<_>>(),
+            0 => of_no_module(rows, &tones),
             _ => rows,
         }
     });
@@ -1040,39 +1080,39 @@ pub(super) fn OwnList(ctx: PlanCtx, calendar: u8, #[prop(into)] hue: Signal<&'st
                 }
                 .into_any()
             }
-            // A calendar of one's own has no card for its slots yet: its form while editing, else
-            // a row to read.
+            // A calendar of one's own has no card for its slots yet: its form, in both states — it
+            // is one's own wherever it stands, changed and deleted there.
             _ => {
                 let (name, number) = (row.name.clone(), row.number);
                 view! {
-                    {move || match ctx.edit.get() {
-                        true => view! {
-                            <button class=format!("sp-row own {hue}") type="button" on:click=move |_| ask_edit(ctx, number)>
-                                <span class="t"><b>{name.clone()}</b>{small()}</span>
-                                <Icon name="pencil"/>
-                            </button>
-                        }
-                        .into_any(),
-                        false => view! {
-                            <div class=format!("sp-row own {hue}")>
-                                <span class="t"><b>{name.clone()}</b>{small()}</span>
-                            </div>
-                        }
-                        .into_any(),
-                    }}
+                    <button class=format!("sp-row own {hue}") type="button" data-action="own-edit" on:click=move |_| ask_edit(ctx, number)>
+                        <span class="t"><b>{name}</b>{small()}</span>
+                        <Icon name="pencil"/>
+                    </button>
                 }
                 .into_any()
             }
         }
     };
+    // „+ Termin" while editing: a calendar of one's own has its own, named for it; the plan's
+    // stands only under the head of its Termine of no module (the mode's bar and the dock hold the
+    // plan's „+ Termin", and each module its own).
+    let calendar_name = Memo::new(move |_| ctx.calendars.with(|calendars| calendars.iter().find(|shown| shown.id == calendar).map(|shown| shown.name.clone()).unwrap_or_default()));
+    let any = Memo::new(move |_| rows.with(|rows| !rows.is_empty()));
     view! {
         <div class="sp-own" role="group" aria-label=o.heading>
-            {move || rows.with(|rows| !rows.is_empty()).then(|| view! { <h3 class="sp-own-h">{o.heading}</h3> })}
+            {move || any.get().then(|| view! { <h3 class="sp-own-h">{o.heading}</h3> })}
             <For each=move || rows.get() key=|row| row.clone() children=row/>
-            {move || ctx.edit.get().then(|| view! {
-                <button class="sp-own-add" type="button" data-action="own-add" title=o.add_title on:click=move |_| ask_today(ctx, calendar, None)>
-                    <Icon name="plus"/>{o.add}
-                </button>
+            {move || (ctx.edit.get() && (calendar != 0 || any.get())).then(|| {
+                let name = match calendar {
+                    0 => o.add_title.to_string(),
+                    _ => (o.add_in)(&calendar_name.get()),
+                };
+                view! {
+                    <button class="sp-own-add" type="button" data-action="own-add" title=name.clone() aria-label=name on:click=move |_| ask_today(ctx, calendar, None)>
+                        <Icon name="plus"/>{o.add}
+                    </button>
+                }
             })}
         </div>
     }
@@ -1194,5 +1234,17 @@ mod tests {
                 ("Eigener Termin", "Termin", "Mi 10:00", "t-own", None),
             ]
         );
+        // „Eigene Termine" of the plan holds those of no module of the week: the lecture stands
+        // under EvS; once EvS left the week it stands there.
+        let loose = |week: &[String]| of_no_module(rows.clone(), week).iter().map(|row| row.number).collect::<Vec<_>>();
+        assert_eq!(loose(&tones), [2, 3]);
+        assert_eq!(loose(&["11112".to_string()]), [1, 2, 3]);
+    }
+
+    #[test]
+    fn a_long_title_is_cut_at_a_word() {
+        assert_eq!(cut("Entwicklung von Softwaresystemen", 28), "Entwicklung von…");
+        assert_eq!(cut("Mathematik IT-1", 28), "Mathematik IT-1");
+        assert_eq!(cut("Elektrotechnikgrundlagenvorlesung", 10), "Elektrotec…");
     }
 }

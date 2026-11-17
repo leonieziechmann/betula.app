@@ -912,14 +912,18 @@ fn CalendarPart(ctx: PlanCtx, id: u8, marked: Memo<Vec<MarkedModule>>) -> impl I
                 .collect::<Vec<_>>()
         })
     });
+    // Where its modules came from, said only where the calendar shows it: ticked groups, a share
+    // it follows, a program of its own come with a link alone. A calendar made by its name (its
+    // modules taken in by „+ Modul") says nothing: the plan keeps no word of where one came from.
     let came = Memo::new(move |_| {
         shown.with(|shown| {
             let calendar = shown.as_ref()?;
-            Some(match calendar.modules.is_empty() {
-                true => (c.none_in)(&semester.get()),
-                false if calendar.groups > 0 => c.from_link_groups.to_string(),
-                false => c.from_link.to_string(),
-            })
+            match calendar.modules.is_empty() {
+                true => Some((c.none_in)(&semester.get())),
+                false if calendar.groups > 0 => Some(c.from_link_groups.to_string()),
+                false if calendar.follow.is_some() || calendar.program.is_some() => Some(c.from_link.to_string()),
+                false => None,
+            }
         })
     });
     let line = move |(module, short, title, href): (String, String, String, String)| {
@@ -930,7 +934,8 @@ fn CalendarPart(ctx: PlanCtx, id: u8, marked: Memo<Vec<MarkedModule>>) -> impl I
         let (gone, whole) = (title.clone(), title.clone());
         view! {
             <div class="sp-row-wrap">
-                <a class="sp-row sp-mod-row" href=href data-noscroll="" title=whole>
+                // The module's own page, a page of its own: it opens at its top.
+                <a class="sp-row sp-mod-row" href=href title=whole>
                     <span class="sp-key">{short}</span>
                     <b>{title}</b>
                 </a>

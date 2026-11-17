@@ -9,12 +9,12 @@
 //! da die Übersicht auswählen kann, wo man alles durchklicken kann", the same day), from the one
 //! function both read (`folia_timetable::categories`): the event's word, what the plan holds of it
 //! („Di 11:30 · Fr 09:15", „4 Gruppen · offen", „Mo 15:30 · 1 von 4", „ausgeblendet"), the whole row a
-//! link to the overview at that event (`termin=<key>&full=1`), and at its end the eye (owner, the same
-//! day: „Ich will übrigens dass wir vom x weg kommen und eher ein augen symbol verwneden"). The eye is
-//! a switch of the whole event while the plan is edited, `eye` while the week shows it and `eye-off`
-//! while it does not; while the plan is looked at its place holds only the crossed eye of a row
-//! hidden in part or whole, a sign that no click answers, so that no text of a row moves when the
-//! mode comes. Then the module's Termine of one's own („von dir", each opening its card), and while
+//! link to the overview at that event (`termin=<key>&full=1`; an event without any date has none,
+//! its row leads to the module beside the plan), and at its end the eye (owner, the same day: „Ich
+//! will übrigens dass wir vom x weg kommen und eher ein augen symbol verwneden"). The eye is a switch
+//! of the whole event while the plan is edited, `eye` while the week shows it and `eye-off` while it
+//! does not; while the plan is looked at its place holds only the crossed eye of a row hidden in
+//! part or whole, a quiet way into the mode, so that no text of a row moves when the mode comes. Then the module's Termine of one's own („von dir", each opening its card), and while
 //! editing „+ Termin"; a module QIS has no Termin for says so with „Termin eintragen" in both states.
 //! While editing, and only while something is hidden, the foot „2 ausgeblendet · Alle einblenden".
 //! The last line leads to „Mein Studium".
@@ -31,6 +31,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use folia_calendar::kind::EventKind;
+use folia_calendar::rowkey::RowKey;
 use folia_calendar::semester::SemesterKey;
 use folia_pages::StudyplanData;
 use folia_plans::studyplan::{PlanDoc, PlanUndo};
@@ -38,6 +39,7 @@ use folia_routes::url::{self, PlanAddress, StudyUrl, StudyplanUrl};
 use folia_timetable::categories::{self, EventRow, Out, Summary};
 use folia_timetable::clash::Weeks;
 use folia_timetable::model::{Event, Timetable};
+use folia_timetable::termin::Occasion;
 use folia_timetable::views::hidden_count;
 use leptos::prelude::*;
 
@@ -89,13 +91,15 @@ fn module_items(data: &StudyplanData, visits: &BTreeSet<String>, t: &'static i18
         .collect()
 }
 
-/// What a click on a row's eye writes: the event hidden, shown again, or a kind of before switched
-/// on again (a `k` line of before 2026-11-04 hides the event: its eye says that reach).
+/// What a click on a row's eye writes: the event hidden, shown again, a kind of before switched on
+/// again (a `k` line of before 2026-11-04 hides the event: its eye says that reach), or the Termine
+/// the student hid one by one shown again where every Termin of the event is hidden so.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Flip {
     Hide(u32),
     Show(u32),
     ShowKind(EventKind),
+    ShowTermine(Vec<RowKey>),
 }
 
 impl Flip {
@@ -104,6 +108,7 @@ impl Flip {
             Flip::Hide(id) => doc.set_event(key, *id, true),
             Flip::Show(id) => doc.set_event(key, *id, false),
             Flip::ShowKind(kind) => doc.set_kind(key, *kind, false),
+            Flip::ShowTermine(rows) => rows.iter().for_each(|row| doc.set_row(key, *row, false)),
         }
     }
 }
@@ -133,7 +138,7 @@ impl Said {
 }
 
 /// „Di 11:30", „Di 07:30 A": a weekly Termin by its weekday and start, the week's letter after it.
-fn weekly_text((day, from, weeks): (u8, u16, Weeks), t: &i18n::Texts) -> String {
+pub(super) fn weekly_text((day, from, weeks): (u8, u16, Weeks), t: &i18n::Texts) -> String {
     let day = t.data.weekday_short(i64::from(day)).unwrap_or_default();
     let letter = match weeks {
         Weeks::A => " A",
@@ -152,7 +157,7 @@ fn weekly_text((day, from, weeks): (u8, u16, Weeks), t: &i18n::Texts) -> String 
 fn summary_text(summary: &Summary, t: &i18n::Texts) -> Said {
     let m = &t.studyplan_modules;
     match summary.out {
-        Some(Out::Hidden | Out::Kind) => return Said { text: t.studyplan_week.hidden.to_string(), open: false, extra: false },
+        Some(Out::Hidden | Out::Kind | Out::Termine) => return Said { text: t.studyplan_week.hidden.to_string(), open: false, extra: false },
         Some(Out::Unchosen) => return Said { text: m.not_chosen.to_string(), open: false, extra: false },
         None => {}
     }
@@ -186,52 +191,89 @@ fn summary_text(summary: &Summary, t: &i18n::Texts) -> Said {
     Said { text: parts.join(" · "), open, extra: summary.extra }
 }
 
+/// What a row says is hidden of an event that shows, each in its word: „1 Gruppe ausgeblendet",
+/// „1 Termin ausgeblendet", „am Fr 20.11. ausgeblendet", „1 Termin · an 2 Tagen ausgeblendet".
+/// `None` where nothing of it is hidden, or all of it (the summary says „ausgeblendet").
+fn hidden_text(summary: &Summary, t: &i18n::Texts) -> Option<String> {
+    let m = &t.studyplan_modules;
+    if summary.out.is_some() || summary.hidden == 0 {
+        return None;
+    }
+    let days = summary.hidden_days.len();
+    let termine = summary.hidden.saturating_sub(days + summary.hidden_groups);
+    let mut parts = Vec::new();
+    if summary.hidden_groups > 0 {
+        parts.push((m.groups)(summary.hidden_groups));
+    }
+    if termine > 0 {
+        parts.push((t.studyplan_week.sessions)(termine));
+    }
+    match summary.hidden_days.as_slice() {
+        [] => {}
+        [day] => parts.push((m.hidden_on)(&format!("{} {}", t.data.weekday_short(i64::from(day.weekday())).unwrap_or_default(), day.day_month(t.locale)))),
+        _ => parts.push((m.hidden_days)(days)),
+    }
+    Some((m.hidden_end)(&parts.join(" · ")))
+}
+
 /// A row of an event as it shows now. `eye`: whether the plan shows the event, the eye's name, and
 /// what a click writes; none where the row cannot be shown or hidden here. `sign`: what the crossed
 /// eye says while looking, of a row hidden in part or whole. `hid`: the same of a row hidden in
-/// part, said after its summary while editing (the eye then says that the event shows).
+/// part, said after its summary while editing (the eye then says that the event shows). `beside`:
+/// the row leads to its module beside the plan, not to a page of its own (an event without any
+/// date has no overview, `Occasion::find`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct RowShown {
     label: String,
     said: Said,
     href: String,
+    beside: bool,
     aria: String,
+    title: String,
     pale: bool,
     hid: Option<String>,
     sign: Option<String>,
     eye: Option<(bool, String, Flip)>,
 }
 
-/// The row of `event` (`row` of `categories::module_events`) of the module the week calls `name`:
-/// what it says, the overview at it (`termin=<key>&full=1`, from the address `base`), and its eye.
-fn row_shown(row: &EventRow, event: &Event, name: &str, base: &StudyplanUrl, t: &i18n::Texts) -> RowShown {
+/// The row of `event` (`row` of `categories::module_events`) of the module `module`, which the week
+/// calls `name`: what it says, where it leads (from the address `base`: the overview at it,
+/// `termin=<key>&full=1`, where the Termin has a date — `dated` —, else the module beside the plan,
+/// pointing at the Termin, as the week's „ohne feste Zeit" does), and its eye.
+fn row_shown(row: &EventRow, event: &Event, module: &str, name: &str, dated: bool, base: &StudyplanUrl, t: &i18n::Texts) -> RowShown {
     let m = &t.studyplan_modules;
     let summary = categories::summary(event);
     let said = summary_text(&summary, t);
-    let href = PlanAddress { url: base.with_termin(Some((row.key, None))), full: true }.path();
-    let aria = (m.row_label)(&row.label, name, &said.plain(t));
-    let hid = (summary.out.is_none() && summary.hidden > 0).then(|| (t.studyplan_edit.dates_hidden)(summary.hidden));
+    let hid = hidden_text(&summary, t);
+    let href = match dated {
+        true => PlanAddress { url: base.with_termin(Some((row.key, None))), full: true }.path(),
+        false => base.with_open(Some(module), Some(row.key)).path(),
+    };
+    let whole = match &hid {
+        Some(hid) => format!("{} · {hid}", said.plain(t)),
+        None => said.plain(t),
+    };
+    let aria = match dated {
+        true => (m.row_label)(&row.label, name, &whole),
+        false => (m.row_label_module)(&row.label, name, &whole),
+    };
     let sign = match summary.out {
-        Some(Out::Hidden | Out::Kind) => Some(t.studyplan_week.hidden.to_string()),
+        Some(Out::Hidden | Out::Kind | Out::Termine) => Some(format!("{} {}", row.label, t.studyplan_week.hidden)),
         _ => hid.clone(),
     };
-    // The eye's name says the kind in the page's language: QIS's word („Vorlesung") stands in the
-    // row in every language, but "Show vorlesung EvS" is no English.
-    let word = match (t.locale, event.kinds.iter().next()) {
-        (i18n::Locale::De, _) | (_, None) => row.label.clone(),
-        (_, Some(kind)) => {
-            let qis = folia_timetable::views::type_text(event, t.locale);
-            row.label.strip_prefix(qis.as_str()).map_or_else(|| row.label.clone(), |rest| format!("{}{rest}", kind.label(t.locale)))
-        }
-    };
-    let named = (m.show_event)(&word, name);
+    // The eye's name says the kind in the page's language: in English Betula's label, lower-cased
+    // inside the sentence, and what tells two of a kind apart after it ("Show exercise · Mon EvS").
+    let kinds = event.kinds.iter().filter(|kind| *kind != EventKind::Other).map(|kind| kind.label(t.locale)).collect::<Vec<_>>().join("/");
+    let apart = row.label.strip_prefix(categories::word(event, t.locale).as_str()).unwrap_or_default();
+    let named = (m.show_event)(&row.label, &kinds, apart, name);
     let eye = match (summary.out, event.id.parse::<u32>()) {
         (Some(Out::Unchosen), _) | (_, Err(_)) => None,
         (None, Ok(id)) => Some((true, named, Flip::Hide(id))),
         (Some(Out::Hidden), Ok(id)) => Some((false, named, Flip::Show(id))),
+        (Some(Out::Termine), Ok(_)) => Some((false, named, Flip::ShowTermine(summary.rows.clone()))),
         (Some(Out::Kind), Ok(_)) => event.kinds.iter().next().map(|kind| (false, (t.studyplan_week.show_kind)(kind.label(t.locale)), Flip::ShowKind(kind))),
     };
-    RowShown { label: row.label.clone(), said, href, aria, pale: summary.out.is_some(), hid, sign, eye }
+    RowShown { label: row.label.clone(), title: format!("{} · {whole}", row.label), said, href, beside: !dated, aria, pale: summary.out.is_some(), hid, sign, eye }
 }
 
 /// The rows of every module of `table`, by module and then by event id, in the overview's order.
@@ -246,7 +288,8 @@ fn rows_of(table: &Timetable, names: &BTreeMap<String, String>, base: &Studyplan
                 .iter()
                 .filter_map(|row| {
                     let event = table.events.get(row.event)?;
-                    Some((event.id.clone(), row_shown(row, event, name, base, t)))
+                    let dated = Occasion::find(table, row.key, None, None).is_some();
+                    Some((event.id.clone(), row_shown(row, event, module, name, dated, base, t)))
                 })
                 .collect();
             (module.clone(), rows)
@@ -266,6 +309,9 @@ fn open_shown(ctx: PlanCtx) -> Memo<Option<String>> {
         }
     })
 }
+
+/// The id of „Alle einblenden", to which the bar's figure „2 ausgeblendet" brings the keyboard.
+pub(super) const SHOW_ALL_ID: &str = "sp-show-all";
 
 /// „Mein Studiengang": a line per module and under it its rows, its Termine of one's own, „+ Termin"
 /// while editing; those of no module of the week; the foot „2 ausgeblendet · Alle einblenden" while
@@ -301,7 +347,9 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
         let label = Memo::new(move |_| shown.with(|row| row.as_ref().map(|row| row.label.clone()).unwrap_or_default()));
         let said = Memo::new(move |_| shown.with(|row| row.as_ref().map(|row| row.said.clone())));
         let href = Memo::new(move |_| shown.with(|row| row.as_ref().map(|row| t.path(&row.href)).unwrap_or_default()));
+        let beside = Memo::new(move |_| shown.with(|row| row.as_ref().is_some_and(|row| row.beside)));
         let aria = Memo::new(move |_| shown.with(|row| row.as_ref().map(|row| row.aria.clone()).unwrap_or_default()));
+        let title = Memo::new(move |_| shown.with(|row| row.as_ref().map(|row| row.title.clone()).unwrap_or_default()));
         let pale = Memo::new(move |_| shown.with(|row| row.as_ref().is_some_and(|row| row.pale)));
         let hid = Memo::new(move |_| shown.with(|row| row.as_ref().and_then(|row| row.hid.clone())));
         let sign = Memo::new(move |_| shown.with(|row| row.as_ref().and_then(|row| row.sign.clone())));
@@ -314,22 +362,35 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
             let key = ctx.key.get_untracked();
             plan.update(|doc| flip.apply(doc, key));
         };
+        // The summary in its parts, each kept whole: where the row is too narrow for it, it wraps
+        // after a „·" and the row grows, in both states alike — never a word cut in its middle.
         let summary = move || {
             said.get().map(|said| {
-                view! {
-                    {said.text}
-                    {said.open.then(|| view! { " · "<em class="open">{m.open}</em> })}
-                    {said.extra.then(|| view! { " · "{m.optional} })}
+                // A part with a figure („Mo 15:30", „4 Gruppen") is one; one of words alone („ohne
+                // feste Zeit") may wrap between them where even it does not fit.
+                let part_of = |part: &str| match part.bytes().any(|byte| byte.is_ascii_digit()) {
+                    true => view! { <span class="sp-cat-p">{part.to_string()}</span> }.into_any(),
+                    false => view! { <span class="sp-cat-p words">{part.to_string()}</span> }.into_any(),
+                };
+                let mut parts: Vec<AnyView> = said.text.split(" · ").map(part_of).collect();
+                if said.open {
+                    parts.push(view! { <em class="open sp-cat-p words">{m.open}</em> }.into_any());
                 }
+                if said.extra {
+                    parts.push(view! { <span class="sp-cat-p words">{m.optional}</span> }.into_any());
+                }
+                let last = parts.len().saturating_sub(1);
+                parts.into_iter().enumerate().map(|(at, part)| view! { {part}{(at < last).then_some("\u{a0}· ")} }).collect_view()
             })
         };
-        // While editing, a row hidden in part says so after its summary: its eye says that the
-        // event shows.
-        let part = move || {
-            ctx.edit.get().then(|| hid.get().map(|hid| view! { <i class="sp-cat-hid" role="img" title=hid.clone() aria-label=hid><Icon name="eye-off"/></i> })).flatten()
-        };
-        // The eye at the row's end: a switch while editing; while looking its place, empty or the
-        // crossed eye of a row hidden in part or whole (`P/aside.rs`'s pattern).
+        // A row hidden in part says so after its summary while editing (its eye then says that the
+        // event shows). Its place is kept while looking, unseen, so that the summary wraps alike in
+        // both states.
+        let part = move || hid.get().map(|hid| view! { <i class="sp-cat-hid" role="img" title=hid.clone() aria-label=hid><Icon name="eye-off"/></i> });
+        // The eye at the row's end: a switch while editing; while looking its place, empty, or the
+        // crossed eye of a row hidden in part or whole, a quiet way into the mode, where the eye
+        // brings it back (owner, 2026-11-17: „im edit modus auch Termine leicht anzeigen kann, die
+        // man ausgeblendet hat").
         let eye = move || match ctx.edit.get() && has_eye.get() {
             true => view! {
                 <button
@@ -350,13 +411,19 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
             }
             .into_any(),
             false => match (ctx.edit.get(), sign.get()) {
-                (false, Some(sign)) => view! { <i class="eye" role="img" title=sign.clone() aria-label=sign><Icon name="eye-off"/></i> }.into_any(),
+                (false, Some(sign)) => {
+                    let name = (t.studyplan_edit.open_way)(&sign);
+                    let into = move || ctx.url.with(|url| t.path(&url.with_edit(true).path()));
+                    view! { <a class="eye sp-cat-way" href=into data-noscroll="" aria-label=name.clone() title=name><Icon name="eye-off"/></a> }.into_any()
+                }
                 _ => view! { <i class="eye" aria-hidden="true"></i> }.into_any(),
             },
         };
         view! {
             <div class="sp-cat" class:off=move || pale.get() data-event=event>
-                <a class="sp-cat-row" href=move || href.get() aria-label=move || aria.get() data-noscroll="">
+                // A row leads to a page of its own (the overview), which opens at its top; one
+                // without a date to its module beside the plan, which keeps the page where it is.
+                <a class="sp-cat-row" href=move || href.get() aria-label=move || aria.get() title=move || title.get() data-noscroll=move || beside.get().then_some("")>
                     <b>{move || label.get()}</b>
                     <span class="sp-cat-sum">{summary}{part}</span>
                     <Icon name="chevron-right"/>
@@ -370,12 +437,12 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
     let own_row = move |row: OwnRow| {
         let href = move || ctx.url.with(|url| t.path(&url.with_termin(Some((row.key, None))).path()));
         let current = Memo::new(move |_| ctx.url.with(|url| url.termin_on().map(|(key, _)| key) == Some(row.key)));
-        let place = (!row.place.is_empty()).then(|| format!(" · {}", row.place));
+        // Its time alone, as the rows of QIS's Termine say theirs; its place is its card's.
         view! {
             <div class="sp-cat own">
                 <a class="sp-cat-row" href=href aria-current=move || current.get().then_some("true") data-noscroll="" title=row.name.clone()>
                     <b>{row.label.clone()}</b>
-                    <span class="sp-cat-sum"><span class="sp-key own" role="img" title=t.studyplan_own.mark aria-label=t.studyplan_own.mark><Icon name="user-round"/></span>{row.when.clone()}{place}</span>
+                    <span class="sp-cat-sum"><span class="sp-key own" role="img" title=t.studyplan_own.mark aria-label=t.studyplan_own.mark><Icon name="user-round"/></span><span class="sp-cat-p">{row.when.clone()}</span></span>
                     <Icon name="chevron-right"/>
                 </a>
                 <i class="eye" aria-hidden="true"></i>
@@ -428,12 +495,14 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
                 </p>
             }
         });
+        // Named for its module („Termin für EvS eintragen"): the list holds one under each.
+        let add_name = (t.studyplan_own.add_for)(&called);
         let add = {
             let (module, title) = (id.clone(), enter_title);
             move || {
                 let module = module.clone();
                 ctx.edit.get().then(|| view! {
-                    <button class="sp-own-add" type="button" data-action="own-add" title=title.clone() on:click=move |_| super::own::ask_today(ctx, 0, Some(module.clone()))>
+                    <button class="sp-own-add" type="button" data-action="own-add" title=title.clone() aria-label=add_name.clone() on:click=move |_| super::own::ask_today(ctx, 0, Some(module.clone()))>
                         <Icon name="plus"/>{t.studyplan_own.add}
                     </button>
                 })
@@ -443,6 +512,16 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
             let id = id.clone();
             move |event: String| category(id.clone(), event)
         };
+        // The column of the rows' words is as wide as the longest of the module's (in letters, a
+        // custom property the stylesheet turns into a width within a share of the row): what tells
+        // two of a kind apart stands at a word's end („Vorlesung · Mi 07:30").
+        let word = {
+            let id = id.clone();
+            Memo::new(move |_| {
+                let rows = rows.with(|rows| rows.get(&id).map(|rows| rows.iter().map(|(_, row)| row.label.chars().count()).max().unwrap_or(0)).unwrap_or(0));
+                mine.with(|mine| mine.iter().map(|row| row.label.chars().count()).max().unwrap_or(0)).max(rows)
+            })
+        };
         view! {
             <div class=format!("sp-mod {}", item.hue) data-id=id.clone()>
                 <a class="sp-row sp-mod-row" class:visit=item.visit href=beside aria-current=move || current.get().then_some("true") data-noscroll="" title=item.title.clone()>
@@ -450,7 +529,7 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
                     <b>{item.title.clone()}</b>
                     {visit}
                 </a>
-                <div class="sp-cats">
+                <div class="sp-cats" style=move || format!("--word: {}", word.get().max(4))>
                     <For each=move || events.get() key=|event| event.clone() children=row_of/>
                     <For each=move || mine.get() key=|row| row.clone() children=own_row/>
                     {none}
@@ -481,7 +560,7 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
                 (ctx.edit.get() && n > 0).then(|| view! {
                     <p class="sp-list-foot">
                         <span>{(t.studyplan_head.hidden)(n)}</span>" · "
-                        <button class="link" type="button" data-action="show-hidden" on:click=show_all>{t.studyplan_head.unhide_all}</button>
+                        <button class="link sp-show-all" type="button" id=SHOW_ALL_ID data-action="show-hidden" on:click=show_all>{t.studyplan_head.unhide_all}</button>
                     </p>
                 })
             }}
@@ -715,21 +794,33 @@ mod tests {
         // The overview at its first Termin, in the mode it was opened from.
         assert_eq!(lecture.href, format!("/studyplan?edit=1&termin={}&full=1", rowkey(&evs()[0]).text()));
         assert_eq!(lecture.aria, "Vorlesung EvS, Di 11:30 · Fr 09:15: alle Termine");
+        assert!(!lecture.beside && lecture.title == "Vorlesung · Di 11:30 · Fr 09:15");
         assert_eq!(lecture.eye, Some((true, "Vorlesung EvS zeigen".to_string(), Flip::Hide(148701))));
         assert!(!lecture.pale && lecture.sign.is_none() && lecture.hid.is_none());
         // Hidden whole: pale, „ausgeblendet", the crossed eye as a sign, the eye shows it again.
         let hidden = shown(&Selection { hidden_events: [148701].into(), ..Selection::default() });
         let lecture = of(&hidden, "148701");
-        assert_eq!((lecture.said.text.as_str(), lecture.pale, lecture.sign.as_deref()), ("ausgeblendet", true, Some("ausgeblendet")));
+        assert_eq!((lecture.said.text.as_str(), lecture.pale, lecture.sign.as_deref()), ("ausgeblendet", true, Some("Vorlesung ausgeblendet")));
         assert_eq!(lecture.eye, Some((false, "Vorlesung EvS zeigen".to_string(), Flip::Show(148701))));
         // The Tuesday hidden: the Friday stays, and the row says one Termin is hidden.
         let part = shown(&Selection { hidden_rows: [rowkey(&evs()[0])].into(), ..Selection::default() });
         let lecture = of(&part, "148701");
         assert_eq!((lecture.said.text.as_str(), lecture.hid.as_deref(), lecture.sign.as_deref(), lecture.pale), ("Fr 09:15", Some("1 Termin ausgeblendet"), Some("1 Termin ausgeblendet"), false));
         assert!(lecture.eye.as_ref().is_some_and(|(on, ..)| *on));
-        // A date hidden: the same.
+        // A date hidden: named by its day; a group hidden: a group.
         let date = shown(&Selection { hidden_dates: [(rowkey(&evs()[1]), d("2026-11-20"))].into(), ..Selection::default() });
-        assert_eq!(of(&date, "148701").hid.as_deref(), Some("1 Termin ausgeblendet"));
+        assert_eq!(of(&date, "148701").hid.as_deref(), Some("am Fr 20.11. ausgeblendet"));
+        let group = shown(&Selection { hidden_rows: [rowkey(&evs()[2])].into(), ..Selection::default() });
+        assert_eq!(of(&group, "148369").hid.as_deref(), Some("1 Gruppe ausgeblendet"));
+        // Every Termin hidden by itself (one click on each line's eye in the module's panel): the
+        // row says „ausgeblendet", its eye is crossed, and a click shows those Termine again.
+        let both = [rowkey(&evs()[0]), rowkey(&evs()[1])];
+        let all = shown(&Selection { hidden_rows: both.into(), ..Selection::default() });
+        let lecture = of(&all, "148701");
+        let mut keys = both.to_vec();
+        keys.sort_unstable();
+        assert_eq!((lecture.said.text.as_str(), lecture.pale, lecture.sign.as_deref()), ("ausgeblendet", true, Some("Vorlesung ausgeblendet")));
+        assert_eq!(lecture.eye, Some((false, "Vorlesung EvS zeigen".to_string(), Flip::ShowTermine(keys))));
         // A kind of before switched off: its eye switches the kind on again and says so.
         use folia_calendar::kind::KindSet;
         let kind = shown(&Selection { hidden_kinds: KindSet::default().with(EventKind::Tutorial), ..Selection::default() });
@@ -784,5 +875,55 @@ mod tests {
         Flip::ShowKind(EventKind::Tutorial).apply(&mut doc, w);
         assert!(doc.selection(w, Default::default()).hidden_kinds.is_empty());
         assert_eq!(doc.selection(w, Default::default()).chosen_rows, ticks);
+    }
+
+    /// The eye of every Termin hidden shows them again, and nothing else: the ticks stay.
+    #[test]
+    fn an_eye_shows_the_termine_hidden_one_by_one() {
+        let w = key("2026W");
+        let mut doc = PlanDoc::default();
+        assert!(doc.plan(w, "12104", 1, None));
+        let (tuesday, friday) = (rowkey(&evs()[0]), rowkey(&evs()[1]));
+        doc.tick(w, rowkey(&evs()[2]), true);
+        doc.set_row(w, tuesday, true);
+        doc.set_row(w, friday, true);
+        let t = table(&evs(), &["12104"], &[], &doc.selection(w, Default::default()));
+        let rows = rows_of(&t, &BTreeMap::new(), &StudyplanUrl::default(), &i18n::DE).remove("12104").unwrap();
+        let (_, lecture) = rows.iter().find(|(id, _)| id == "148701").unwrap();
+        let Some((false, _, flip)) = lecture.eye.clone() else { panic!("{:?}", lecture.eye) };
+        flip.apply(&mut doc, w);
+        let after = doc.selection(w, Default::default());
+        assert!(after.hidden_rows.is_empty() && after.hidden_events.is_empty());
+        assert_eq!(after.chosen_rows, [rowkey(&evs()[2])].into());
+    }
+
+    /// A Termin without any date has no overview: its row leads to the module beside the plan,
+    /// pointing at it, and keeps the page's place.
+    #[test]
+    fn a_row_without_a_date_leads_to_the_module() {
+        let mut colloquium = row("148098", 1, "Kolloquium", "weekly", 1, ("09:15", "10:45"), TERM);
+        (colloquium.date.weekday, colloquium.date.start_time, colloquium.date.end_time, colloquium.date.first_date, colloquium.date.last_date) = (None, None, None, None, None);
+        let rows = [row("148701", 1, "Vorlesung", "weekly", 2, ("11:30", "13:00"), TERM), colloquium.clone()];
+        let t = table(&rows, &["12104"], &[], &Selection::default());
+        let names: BTreeMap<String, String> = [("12104".to_string(), "EvS".to_string())].into();
+        let all = rows_of(&t, &names, &StudyplanUrl::parse("edit=1"), &i18n::DE).remove("12104").unwrap();
+        let (_, kolloquium) = all.iter().find(|(id, _)| id == "148098").unwrap();
+        assert_eq!(kolloquium.href, format!("/studyplan?edit=1&open=12104&row={}", rowkey(&colloquium).text()));
+        assert!(kolloquium.beside && kolloquium.aria.ends_with(": im Modul"));
+        assert_eq!(kolloquium.said.plain(&i18n::DE), "ohne feste Zeit");
+        let (_, lecture) = all.iter().find(|(id, _)| id == "148701").unwrap();
+        assert!(!lecture.beside);
+    }
+
+    /// In English the eye's name takes Betula's label of the kind, never QIS's word lower-cased.
+    #[test]
+    fn english_eyes_take_the_kinds_labels() {
+        let names: BTreeMap<String, String> = [("12104".to_string(), "EvS".to_string())].into();
+        let mut rows = evs();
+        rows.push(row("148702", 1, "Übung", "weekly", 3, ("09:15", "10:45"), TERM));
+        let t = table(&rows, &["12104"], &[], &Selection::default());
+        let all = rows_of(&t, &names, &StudyplanUrl::default(), &i18n::EN).remove("12104").unwrap();
+        let words: Vec<(&str, &str)> = all.iter().map(|(_, row)| (row.label.as_str(), row.eye.as_ref().map_or("", |(_, name, _)| name.as_str()))).collect();
+        assert_eq!(words, [("Lecture", "Show lecture EvS"), ("Exercise · Mon", "Show exercise · Mon EvS"), ("Exercise · Wed", "Show exercise · Wed EvS"), ("Tutorial", "Show tutorial EvS")]);
     }
 }

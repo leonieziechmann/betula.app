@@ -182,10 +182,15 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
         </div>
         <p class="visually-hidden" role="status">{move || told.get()}</p>
         {move || match phone.get() {
-            true => {
-                let text = sum.get();
-                (!text.is_empty()).then(|| view! { <p class="sp-sum">{text}</p> }).into_any()
+            // On a phone the numbers, and the overlaps' figure beside them (a line that is there
+            // whatever the plan holds, so that what it adds or takes moves nothing under it).
+            true => view! {
+                <div class="sp-sum-row">
+                    <p class="sp-sum">{move || sum.get()}</p>
+                    <ClashFigure ctx/>
+                </div>
             }
+            .into_any(),
             false => view! { <StatusRow ctx sum/> }.into_any(),
         }}
         {move || {
@@ -489,6 +494,8 @@ pub(super) struct Summary {
     /// „Standort offen".
     pub parts: Vec<(bool, String)>,
     pub lines: Vec<Note>,
+    /// How many overlaps the parts count, for the figure of the status row and the mode's bar.
+    pub count: usize,
 }
 
 /// „Vorlesung Programmierpraktikum": the kind as QIS names it and the short name of its module;
@@ -543,16 +550,12 @@ pub(super) fn summary(table: &Timetable, about: &About, overlaps: &[Overlap], sh
         When::Day(_) => true,
     };
     let lines: Vec<Note> = overlaps.iter().filter(shows).filter_map(|overlap| overlap_line(table, about, overlap, t)).collect();
-    Summary { parts, lines }
+    Summary { parts, lines, count: weekly + days }
 }
 
-/// The one quiet line under the head, closed until asked: „2 Überschneidungen pro Woche"; opened, a
-/// compact line each, which opens its module beside the plan. In „Woche" it counts the week the
-/// A/B switch shows; elsewhere „A/B". No line with nothing to say. What is hidden is not said here:
-/// the mode shows it faint in its place and counts it in its bar (`edit.rs`), and a line that came
-/// with the first thing hidden moved the week 40 px.
-#[component]
-pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
+/// The overlaps of the plan's timetable as `summary` says them. In „Woche" it counts the week the
+/// A/B switch shows; elsewhere „A/B".
+pub(super) fn overlap_summary(ctx: PlanCtx) -> Memo<Summary> {
     let t = i18n::t();
     let about = Memo::new(move |_| ctx.data.with(|data| data.as_ref().map(About::of).unwrap_or_default()));
     let shown = Memo::new(move |_| {
@@ -563,7 +566,7 @@ pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
             Weeks::All
         }
     });
-    let built = Memo::new(move |_| {
+    Memo::new(move |_| {
         let shown = shown.get();
         ctx.table.with(|table| {
             table
@@ -571,10 +574,57 @@ pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
                 .map(|table| about.with(|about| summary(table, about, &clash::overlaps(&table.events), shown, t)))
                 .unwrap_or_default()
         })
-    });
+    })
+}
+
+/// The id of the overlaps' list, which the figure unfolds (`aria-controls`).
+const OVERLAPS_ID: &str = "sp-overlaps";
+
+/// The overlaps as a figure of the status row and of the mode's bar (on a phone of the line of
+/// numbers under the head): „1 Überschneidung", red, a button that unfolds their list under the row
+/// (`PlanCtx::clashes`). The row is always there and as tall, so what the plan's content adds or
+/// takes moves nothing under it: a line of overlaps over the week went with the Termin hidden that
+/// met another, and the week moved up under the pointer. Nothing without an overlap.
+#[component]
+pub(super) fn ClashFigure(ctx: PlanCtx) -> impl IntoView {
+    let t = i18n::t();
+    let built = overlap_summary(ctx);
+    let count = Memo::new(move |_| built.with(|built| built.count));
+    let said = Memo::new(move |_| built.with(|built| built.parts.iter().map(|(_, text)| text.clone()).collect::<Vec<_>>().join(" · ")));
+    move || {
+        let n = count.get();
+        (n > 0).then(|| {
+            view! {
+                <button
+                    class="sp-clash-fig"
+                    type="button"
+                    aria-expanded=move || if ctx.clashes.get() { "true" } else { "false" }
+                    aria-controls=OVERLAPS_ID
+                    title=move || said.get()
+                    on:click=move |_| ctx.clashes.update(|open| *open = !*open)
+                >
+                    <Icon name="triangle-alert"/>
+                    <span>{(t.studyplan_head.clashes)(n)}</span>
+                    <Icon name="chevron-down" class="chev"/>
+                </button>
+            }
+        })
+    }
+}
+
+/// The overlaps' list under the status row (on a phone under the line of numbers), once their
+/// figure has unfolded it — the student's own click (owner, 2026-09-25: „es gibt x Überschneidungen
+/// pro Woche", aufklappbar): what the figure counts, then a compact line each, which opens its
+/// module beside the plan. What is hidden is not said here: the mode shows it faint in its place
+/// and counts it in its bar (`edit.rs`).
+#[component]
+pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
+    let t = i18n::t();
+    let built = overlap_summary(ctx);
     let parts = Memo::new(move |_| built.with(|built| built.parts.clone()));
     let any = Memo::new(move |_| parts.with(|parts| !parts.is_empty()));
     let lines = Memo::new(move |_| built.with(|built| built.lines.clone()));
+    let said = Memo::new(move |_| parts.with(|parts| parts.iter().map(|(_, text)| text.clone()).collect::<Vec<_>>().join(" · ")));
     let head = move || {
         parts
             .get()
@@ -584,14 +634,12 @@ pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
             .collect_view()
     };
     move || {
-        any.get().then(|| {
+        (any.get() && ctx.clashes.get()).then(|| {
             view! {
-                <details class="sp-overlaps">
-                    <summary>{head}</summary>
-                    <ul>
-                        <For each=move || lines.get() key=|note| note.clone() children=move |note: Note| overlap_item(ctx, note, t)/>
-                    </ul>
-                </details>
+                <div class="sp-overlaps open" id=OVERLAPS_ID role="region" aria-label=move || said.get()>
+                    <p class="sp-overlaps-head">{head}</p>
+                    <ul><For each=move || lines.get() key=|note| note.clone() children=move |note: Note| overlap_item(ctx, note, t)/></ul>
+                </div>
             }
         })
     }

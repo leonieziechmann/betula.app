@@ -10,7 +10,7 @@
 //! course, another program's option) are left out as the module's page leaves them out, unless it is
 //! the one a view is about. Pure functions of a `Timetable`, as the rest of the crate.
 
-use folia_calendar::day::clock;
+use folia_calendar::day::{clock, Day};
 use folia_calendar::kind::EventKind;
 use folia_calendar::rowkey::RowKey;
 use folia_calendar::select::HiddenBy;
@@ -27,8 +27,8 @@ use crate::views::{hidden_days, type_text};
 pub struct EventRow {
     /// Into `Timetable::events`.
     pub event: usize,
-    /// Its word: what QIS calls it (`views::type_text`), and of two of a kind what tells them apart
-    /// („Übung · Mo").
+    /// Its word (`word`: QIS's in German, the kinds' labels in English), and of two of a kind what
+    /// tells them apart („Übung · Mo").
     pub label: String,
     /// Its Termin the plan holds (a group ticked), else its first: where the overview opens at it.
     pub key: RowKey,
@@ -51,7 +51,7 @@ pub fn module_events(table: &Timetable, id: &str, shown: Option<usize>, locale: 
     // exercises, seminars, practicals, projects, tutorials, then the rest; within a kind the
     // timetable's order.
     events.sort_by_key(|(_, event, _)| kind_rank(event));
-    let kinds: Vec<String> = events.iter().map(|(_, event, _)| type_text(event, locale)).collect();
+    let kinds: Vec<String> = events.iter().map(|(_, event, _)| word(event, locale)).collect();
     // The weekday and the time of each event's first Termin, which tell two of a kind apart.
     let firsts: Vec<(Option<String>, Option<String>)> = events
         .iter()
@@ -73,6 +73,20 @@ pub fn module_events(table: &Timetable, id: &str, shown: Option<usize>, locale: 
             Some(EventRow { event: *index, label, key })
         })
         .collect()
+}
+
+/// The word of an event in a row and a segment: in German what QIS calls it („Vorlesung",
+/// „Seminar/Übung", `views::type_text`); in another language the labels of its kinds („Lecture",
+/// "Seminar/Exercise"), as Betula's own sentences and the week's short words have them, and QIS's
+/// word as it is written where Betula knows no kind of it but „Sonstiges".
+pub fn word(event: &Event, locale: Locale) -> String {
+    // „Sonstiges" is no word for what QIS names: its own word says more.
+    let labels: Vec<&str> = event.kinds.iter().filter(|kind| *kind != EventKind::Other).map(|kind| kind.label(locale)).collect();
+    match locale {
+        Locale::De => type_text(event, locale),
+        _ if labels.is_empty() => type_text(event, locale),
+        _ => labels.join("/"),
+    }
 }
 
 /// The words of the rows: each its kind, of two of a kind the weekday of their first Termin
@@ -115,6 +129,9 @@ pub enum Out {
     Hidden,
     /// A kind switched off for the whole semester hides it (a `k` line of before 2026-11-04).
     Kind,
+    /// Every Termin of it is hidden by itself (`r` lines; beside them what a tick leaves out):
+    /// nothing of it shows, and its eye brings those Termine back (`Summary::rows`).
+    Termine,
     /// Another option of a choice among the module's events was taken: not hidden, not chosen.
     Unchosen,
 }
@@ -122,12 +139,16 @@ pub enum Out {
 /// What a row says of its event, as values.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Summary {
-    /// Its weekly Termine the plan holds, in the week's order: weekday, start, weeks. Of an event of
-    /// groups the ticked ones, and what is required beside them; none while its choice is open.
+    /// Its weekly Termine the plan holds, in the week's order: weekday, start, weeks — a slot of
+    /// the week once, however many rows hold it. Of an event of groups the ticked ones (or the one
+    /// left where the others are hidden), and what is required beside them; none while its choice
+    /// is open.
     pub weekly: Vec<(u8, u16, Weeks)>,
     /// The single dates of the Termine it holds that do not recur.
     pub dates: usize,
-    /// Of an event of groups: how many are ticked, of how many (`choice::groups`).
+    /// Of an event of groups: how many are ticked, of how many; while none is ticked, of how many
+    /// are still there to choose from (groups hidden left out). `None` where nothing is ticked and
+    /// one group is left.
     pub groups: Option<(usize, usize)>,
     /// It is an option of a choice among the module's events that is still open.
     pub option_open: bool,
@@ -135,48 +156,91 @@ pub struct Summary {
     pub extra: bool,
     pub out: Option<Out>,
     /// Termine (a series as one) and single dates of it the student hid while it shows: what
-    /// `views::hidden_count` counts of this event.
+    /// `views::hidden_count` counts of this event. Of them the groups (an option of its groups
+    /// hidden whole) and the single dates, by their days, so that a row can say which it is.
     pub hidden: usize,
+    pub hidden_groups: usize,
+    pub hidden_days: Vec<Day>,
+    /// The Termine hidden by themselves (`r` lines), whose eye shows them again where every one
+    /// of the event is hidden (`Out::Termine`).
+    pub rows: Vec<RowKey>,
 }
 
 /// What a row says of `event`: the Termine the plan holds of it, its groups, whether it is out of
 /// the plan and why, and what of it is hidden.
 pub fn summary(event: &Event) -> Summary {
-    let out = event.hidden.map(|hidden| match hidden {
+    let mut out = event.hidden.map(|hidden| match hidden {
         HiddenBy::Event => Out::Hidden,
         HiddenBy::Kinds => Out::Kind,
         _ => Out::Unchosen,
     });
+    let keyed: Vec<&Row> = event.rows.iter().filter(|row| row.key.is_some()).collect();
+    let mut rows: Vec<RowKey> = keyed.iter().filter(|row| row.hidden == Some(HiddenBy::Row)).filter_map(|row| row.key).collect();
+    rows.sort_unstable();
+    rows.dedup();
+    // Nothing of it shows, and the student hid at least one of its Termine: the event is out as if
+    // its eye had hidden it, which would else read „ohne feste Zeit" with an eye that says shown.
+    if out.is_none() && !keyed.is_empty() && keyed.iter().all(|row| row.hidden.is_some()) && !rows.is_empty() {
+        out = Some(Out::Termine);
+    }
+    // While its groups are open, none is held; where every group but one is hidden, that one is.
+    let open = event.unresolved();
+    let held = |row: &Row| row.hidden.is_none() && row.option.is_none_or(|option| event.chosen.contains(&option) || (event.chosen.is_empty() && !open));
     let mut weekly: Vec<(u8, u16, Weeks)> = Vec::new();
     let mut days = Vec::new();
-    let mut hidden = 0;
+    let (mut hidden, mut hidden_groups, mut hidden_days_of) = (0, 0, Vec::new());
     for session in termin::sessions(event) {
-        let rows: Vec<&Row> = termin::termin_rows(event, session.row).into_iter().filter_map(|index| event.rows.get(index)).collect();
-        let Some(first) = event.rows.get(session.row) else { continue };
-        // Held: its Termin is not hidden, and it is required or an option ticked.
-        let held = first.hidden.is_none() && first.option.is_none_or(|option| event.chosen.contains(&option));
+        let termin: Vec<&Row> = termin::termin_rows(event, session.row).into_iter().filter_map(|index| event.rows.get(index)).collect();
         if out.is_none() {
-            if !rows.is_empty() && rows.iter().all(|row| row.hidden == Some(HiddenBy::Row)) {
+            if !termin.is_empty() && termin.iter().all(|row| row.hidden == Some(HiddenBy::Row)) {
                 hidden += 1;
+                if termin.iter().any(|row| row.option.is_some()) {
+                    hidden_groups += 1;
+                }
             } else {
-                hidden += hidden_days(rows.iter().copied()).len();
+                let shut = hidden_days(termin.iter().copied());
+                hidden += shut.len();
+                hidden_days_of.extend(shut);
             }
         }
-        if !held {
-            continue;
-        }
-        match (Weeks::of(first.every), first.slot_day(), first.from) {
-            (Some(weeks), Some(day), Some(from)) => weekly.push((day, from, weeks)),
-            _ => days.extend(rows.iter().flat_map(|row| row.occ.days.iter().copied())),
+        // Each row the plan holds by itself: a Termin in two ranges (a room changed, two keys) or
+        // changed from a day on (one key, two times) says each slot of the week once, as the week
+        // merges them (`regular_week`).
+        for row in termin.into_iter().filter(|row| held(row)) {
+            match (Weeks::of(row.every), row.slot_day(), row.from) {
+                (Some(weeks), Some(day), Some(from)) => {
+                    if !weekly.contains(&(day, from, weeks)) {
+                        weekly.push((day, from, weeks));
+                    }
+                }
+                // A weekly Termin without a time has no date of its own to count: „ohne feste Zeit".
+                _ if row.from.is_none() && !row.occ.all_day => {}
+                _ => days.extend(row.occ.days.iter().copied()),
+            }
         }
     }
+    weekly.sort_by_key(|(day, from, _)| (*day, *from));
     days.sort_unstable();
     days.dedup();
+    hidden_days_of.sort_unstable();
+    hidden_days_of.dedup();
     let groups = match &event.attendance {
-        Attendance::OneOf { .. } if event.across.is_none() => Some((event.chosen.len(), choice::groups(event))),
+        Attendance::OneOf { .. } if !event.chosen.is_empty() => Some((event.chosen.len(), choice::groups(event))),
+        Attendance::OneOf { .. } if open => Some((0, event.visible_options().len())),
         _ => None,
     };
-    Summary { weekly, dates: days.len(), groups, option_open: event.across.is_some_and(|alt| alt.open), extra: event.extra, out, hidden }
+    Summary {
+        weekly,
+        dates: days.len(),
+        groups,
+        option_open: event.across.is_some_and(|alt| alt.open),
+        extra: event.extra,
+        out,
+        hidden,
+        hidden_groups,
+        hidden_days: hidden_days_of,
+        rows,
+    }
 }
 
 /// Where an event's rows stand among a module's: the place of its first kind in the kinds' order
@@ -338,7 +402,7 @@ mod tests {
         let selection = Selection { hidden_events: [11].into(), hidden_rows: [rows[1].key()].into(), hidden_dates: [(rows[0].key(), d("2026-11-23"))].into(), ..Selection::default() };
         let t = table(&rows, &["A"], &[], &selection);
         // The Tuesday hidden and a Monday: one Termin and one date, the Monday still held.
-        assert_eq!(summary(&of(&t, "10")), Summary { weekly: vec![(1, 825, Weeks::All)], hidden: 2, ..Summary::default() });
+        assert_eq!(summary(&of(&t, "10")), Summary { weekly: vec![(1, 825, Weeks::All)], hidden: 2, hidden_days: vec![d("2026-11-23")], rows: vec![rows[1].key()], ..Summary::default() });
         assert_eq!(summary(&of(&t, "11")).out, Some(Out::Hidden));
         // A kind switched off.
         use folia_calendar::kind::{EventKind, KindSet};
@@ -359,8 +423,8 @@ mod tests {
         let mut row = teaching("A", "10", 1, "Seminar", 3, "09:15", "10:45");
         (row.0.date.start_time, row.0.date.end_time) = (None, None);
         let t = table(&[row], &["A"], &[], &Selection::default());
-        let said = summary(&t.events[0]);
-        assert!(said.weekly.is_empty() && said.out.is_none() && said.groups.is_none(), "{said:?}");
+        // A weekly Termin without a time has no slot and no date to count: „ohne feste Zeit".
+        assert_eq!(summary(&t.events[0]), Summary::default());
     }
 
     #[test]
@@ -378,5 +442,98 @@ mod tests {
         assert!(!summary(&of(&taken, "62")).option_open);
         // An option taken over is a row all the same: the overview has its segment.
         assert_eq!(labels(&module_events(&taken, "H", None, DE)).len(), 3);
+    }
+
+    #[test]
+    fn one_slot_in_two_ranges_is_said_once() {
+        // QIS lists one weekly slot in two ranges, before and after its room changed: two keys.
+        let rows = [
+            teaching("A", "10", 1, "Vorlesung", 1, "09:15", "10:45").range("2026-10-05", "2026-10-19"),
+            teaching("A", "10", 2, "Vorlesung", 1, "09:15", "10:45").range("2026-10-26", "2026-11-16"),
+            teaching("A", "10", 3, "Vorlesung", 1, "09:15", "10:45").range("2026-11-23", "2027-01-25"),
+        ];
+        assert_ne!(rows[0].key(), rows[1].key());
+        let t = table(&rows, &["A"], &[], &Selection::default());
+        assert_eq!(summary(&t.events[0]).weekly, [(1, 555, Weeks::All)]);
+    }
+
+    #[test]
+    fn a_termin_changed_from_a_day_on_says_both_times() {
+        use folia_calendar::change::{Change, Scope, Values};
+        let lecture = teaching("A", "80", 1, "Vorlesung", 5, "09:15", "10:45");
+        let was = Values { weekday: 5, from: 555, to: 645, room: String::new() };
+        let change = Change { key: lecture.key(), scope: Scope::From(d("2026-11-06")), weekday: Some(2), time: None, room: None, was, module: "A".into() };
+        let t = table(std::slice::from_ref(&lecture), &["A"], &[], &Selection { changes: vec![change], ..Selection::default() });
+        assert_eq!(summary(&t.events[0]).weekly, [(2, 555, Weeks::All), (5, 555, Weeks::All)]);
+    }
+
+    #[test]
+    fn an_event_whose_termine_are_all_hidden_is_out() {
+        let rows = [teaching("A", "10", 1, "Vorlesung", 2, "11:30", "13:00"), teaching("A", "10", 2, "Vorlesung", 5, "09:15", "10:45")];
+        let one = table(&rows, &["A"], &[], &Selection { hidden_rows: [rows[0].key()].into(), ..Selection::default() });
+        assert_eq!(summary(&one.events[0]).out, None);
+        let both = table(&rows, &["A"], &[], &Selection { hidden_rows: [rows[0].key(), rows[1].key()].into(), ..Selection::default() });
+        let said = summary(&both.events[0]);
+        assert_eq!((said.out, said.weekly.len(), said.hidden), (Some(Out::Termine), 0, 0));
+        let mut keys = vec![rows[0].key(), rows[1].key()];
+        keys.sort_unstable();
+        assert_eq!(said.rows, keys);
+        // The ticked group hidden by itself, the others left out by the tick: out as well.
+        let groups = evs();
+        let ticked = table(&groups, &["12104"], &[], &Selection { chosen_rows: [groups[2].key()].into(), hidden_rows: [groups[2].key()].into(), ..Selection::default() });
+        let said = summary(&of(&ticked, "148369"));
+        assert_eq!((said.out, said.rows.as_slice()), (Some(Out::Termine), [groups[2].key()].as_slice()));
+    }
+
+    #[test]
+    fn groups_hidden_one_by_one() {
+        let rows = evs();
+        let hidden = |hide: &[usize]| Selection { hidden_rows: hide.iter().map(|at| rows[*at].key()).collect(), ..Selection::default() };
+        // One of four hidden: three to choose from.
+        let one = table(&rows, &["12104"], &[], &hidden(&[2]));
+        let said = summary(&of(&one, "148369"));
+        assert_eq!((said.groups, said.hidden, said.hidden_groups), (Some((0, 3)), 1, 1));
+        // Three hidden: the one left is the plan's, nothing is open.
+        let three = table(&rows, &["12104"], &[], &hidden(&[2, 3, 4]));
+        let said = summary(&of(&three, "148369"));
+        assert_eq!((said.groups, said.weekly.as_slice(), said.hidden_groups), (None, [(2, 1050, Weeks::All)].as_slice(), 3));
+    }
+
+    #[test]
+    fn an_option_with_groups_of_its_own_says_them() {
+        let rows = [
+            teaching("H", "61", 1, "Praktikum", 3, "07:30", "09:00").option(1).group("A"),
+            teaching("H", "61", 2, "Praktikum", 3, "09:15", "10:45").option(1).group("B"),
+            teaching("H", "61", 3, "Praktikum", 3, "11:30", "13:00").option(1).group("C"),
+            teaching("H", "62", 1, "Praktikum", 4, "13:45", "15:15").option(2),
+        ];
+        let choices = [choice_row("H", "group", 1, 1, "61"), choice_row("H", "group", 1, 2, "62")];
+        let t = choosing(&rows, &["H"], &choices, &[], &Selection::default());
+        let said = summary(&of(&t, "61"));
+        assert_eq!((said.groups, said.option_open), (Some((0, 3)), true));
+    }
+
+    #[test]
+    fn a_single_date_hidden_is_named_by_its_day() {
+        let rows = [teaching("A", "10", 1, "Vorlesung", 5, "09:15", "10:45")];
+        let t = table(&rows, &["A"], &[], &Selection { hidden_dates: [(rows[0].key(), d("2026-11-20"))].into(), ..Selection::default() });
+        let said = summary(&t.events[0]);
+        assert_eq!((said.hidden, said.hidden_days.as_slice(), said.hidden_groups), (1, [d("2026-11-20")].as_slice(), 0));
+    }
+
+    #[test]
+    fn english_rows_take_the_kinds_labels() {
+        let rows = [teaching("A", "10", 1, "Vorlesung", 1, "09:15", "10:45"), teaching("A", "11", 1, "Übung", 2, "09:15", "10:45"), teaching("A", "12", 1, "Übung", 3, "09:15", "10:45"), teaching("A", "13", 1, "Sonderformat", 4, "09:15", "10:45")];
+        let t = table(&rows, &["A"], &[], &Selection::default());
+        assert_eq!(labels(&module_events(&t, "A", None, Locale::En)), ["Lecture", "Exercise · Tue", "Exercise · Wed", "Sonderformat"]);
+        assert_eq!(labels(&module_events(&t, "A", None, DE)), ["Vorlesung", "Übung · Di", "Übung · Mi", "Sonderformat"]);
+    }
+
+    #[test]
+    fn an_event_two_modules_share_is_a_row_under_both() {
+        let rows = [teaching("A", "10", 1, "Vorlesung", 1, "09:15", "10:45"), teaching("A", "10", 1, "Vorlesung", 1, "09:15", "10:45").of("B")];
+        let t = table(&rows, &["A", "B"], &[], &Selection::default());
+        assert_eq!(module_events(&t, "A", None, DE).len(), 1);
+        assert_eq!(module_events(&t, "B", None, DE), module_events(&t, "A", None, DE));
     }
 }

@@ -33,7 +33,8 @@ use folia_shell::tabs::Tabs;
 use folia_timetable::change::ChangeState;
 use folia_timetable::choice::{self, Around, Open};
 use folia_timetable::clash::{self, When};
-use folia_timetable::model::{Event, Timetable, UNNAMED_GROUP};
+use folia_timetable::categories::Out;
+use folia_timetable::model::{Attendance, Event, Timetable, UNNAMED_GROUP};
 use folia_timetable::termin;
 use folia_timetable::views::{kind_short, short_title};
 use leptos::prelude::*;
@@ -52,6 +53,10 @@ use super::PlanCtx;
 /// beside the plan).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(super) struct Line {
+    /// What the line is of, kept while the plan is edited (`keep`): a choice of groups by its
+    /// event's code („e148369"), one among a module's events „x" and its first event, a change „c"
+    /// and its Termin, a visit that gives way „g" and its two events.
+    pub id: String,
     pub name: String,
     pub say: String,
     pub hue: &'static str,
@@ -120,6 +125,7 @@ pub(super) fn lines(table: &Timetable, titles: &BTreeMap<String, String>, base: 
             let hue = hue(event.tone);
             Some(match item {
                 Open::Groups { event: index, options, blocked } => Line {
+                    id: choice::code(event),
                     name: choice_name(event, titles, t),
                     say: if *blocked { o.none_free.to_string() } else { (o.tick_one_of)(*options) },
                     hue,
@@ -135,6 +141,7 @@ pub(super) fn lines(table: &Timetable, titles: &BTreeMap<String, String>, base: 
                     let module = event.modules.first()?;
                     let row = event.rows.iter().find(|row| row.hidden.is_none()).and_then(|row| row.key);
                     Line {
+                        id: format!("x{}", event.id),
                         name: choice_name(event, titles, t),
                         say: if *blocked { o.none_free.to_string() } else { (o.take_of)(*take, *options) },
                         hue,
@@ -193,7 +200,7 @@ fn change_lines(table: &Timetable, titles: &BTreeMap<String, String>, base: &Stu
                 }
                 ChangeState::Gone => (o.change_gone.to_string(), format!("{} · {}", when(&mine), fields(change, &mine, t)), base.with_open(Some(&change.module), None).path(), Some(ChangeLine::Gone(change.clone(), name.clone()))),
             };
-            Some(Line { name: format!("{name}: {what}"), say, hue: hue(event.map_or(tone, |event| event.tone)), href, current: false, warn: false, module: false, gives: false, change: line, changed: true })
+            Some(Line { id: format!("c{}", change.key.text()), name: format!("{name}: {what}"), say, hue: hue(event.map_or(tone, |event| event.tone)), href, current: false, warn: false, module: false, gives: false, change: line, changed: true })
         })
         .collect()
 }
@@ -273,6 +280,7 @@ fn gives_lines(table: &Timetable, titles: &BTreeMap<String, String>, base: &Stud
             None => base.with_open(Some(module), None).path(),
         };
         lines.push(Line {
+            id: format!("g{}-{}", visit.id, plan.id),
             name: (o.visit_meets)(&short_title(name), &slot_name(plan, titles, t)),
             say: format!("{when} · {}", o.gives_way),
             hue: hue(visit.tone),
@@ -558,6 +566,77 @@ fn built(ctx: PlanCtx) -> Memo<(Vec<Line>, Option<Focus>)> {
     })
 }
 
+/// A line of „Offen" as the page shows it: open, or decided since the plan has been edited
+/// (`done`: what became of it — „ausgeblendet", „Mo 15:30 ✓"), pale in its place.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(super) struct Kept {
+    pub line: Line,
+    pub done: Option<String>,
+}
+
+/// „Offen"'s lines while the plan is edited: those that stood there keep their places, a line
+/// decided since stays, pale, saying what became of it (`fates`, by its id; `settled` where they
+/// know nothing), and leads where it led; a line that comes is added at the end. Inside the mode a
+/// click never moves what was clicked from under the pointer: a row of „Offen" that left took the
+/// list under it up by its height, and the next click on the same place hit „+ Termin". Looking,
+/// the lines as they are: the rows are tidied when the mode is left.
+pub(super) fn keep(before: &[Kept], now: &[Line], fates: &BTreeMap<String, String>, settled: &str, editing: bool) -> Vec<Kept> {
+    if !editing {
+        return now.iter().map(|line| Kept { line: line.clone(), done: None }).collect();
+    }
+    let mut kept: Vec<Kept> = before
+        .iter()
+        .map(|was| match now.iter().find(|line| line.id == was.line.id) {
+            Some(line) => Kept { line: line.clone(), done: None },
+            None => Kept { line: Line { current: false, ..was.line.clone() }, done: Some(fates.get(&was.line.id).cloned().unwrap_or_else(|| settled.to_string())) },
+        })
+        .collect();
+    for line in now {
+        if !kept.iter().any(|was| was.line.id == line.id) {
+            kept.push(Kept { line: line.clone(), done: None });
+        }
+    }
+    kept
+}
+
+/// What became of every choice a line of „Offen" can be of, by the line's id: hidden
+/// („ausgeblendet"), left for another („nicht gewählt"), or its Termine the plan holds now, ticked
+/// („Mo 15:30 ✓"); else „erledigt".
+fn fates(table: &Timetable, t: &i18n::Texts) -> BTreeMap<String, String> {
+    let fate = |event: &Event| {
+        let summary = folia_timetable::categories::summary(event);
+        match summary.out {
+            Some(Out::Hidden | Out::Kind | Out::Termine) => t.studyplan_week.hidden.to_string(),
+            Some(Out::Unchosen) => t.studyplan_modules.not_chosen.to_string(),
+            None if summary.weekly.is_empty() => t.studyplan_open.settled.to_string(),
+            None => format!("{} ✓", summary.weekly.iter().map(|weekly| super::modules::weekly_text(*weekly, t)).collect::<Vec<_>>().join(" · ")),
+        }
+    };
+    let mut all = BTreeMap::new();
+    for event in &table.events {
+        if matches!(event.attendance, Attendance::OneOf { .. }) {
+            all.insert(choice::code(event), fate(event));
+        }
+        if event.across.is_some() {
+            all.insert(format!("x{}", event.id), fate(event));
+        }
+    }
+    all
+}
+
+/// „Offen"'s lines as `keep` keeps them, of the plan's timetable: read by each of its places (the
+/// panel beside the week, the rows under the bar, the phone's line). Its closure reads the lines,
+/// the fates and `edit`: siblings (R16). Read while looking too, so that the next way into the
+/// mode starts from the lines as they are.
+fn kept(ctx: PlanCtx, built: Memo<(Vec<Line>, Option<Focus>)>) -> Memo<Vec<Kept>> {
+    let t = i18n::t();
+    let fates = Memo::new(move |_| ctx.table.with(|table| table.as_ref().map(|table| fates(table, t)).unwrap_or_default()));
+    Memo::new(move |before: Option<&Vec<Kept>>| {
+        let editing = ctx.edit.get();
+        built.with(|(lines, _)| fates.with(|fates| keep(before.map_or(&[][..], Vec::as_slice), lines, fates, t.studyplan_open.settled, editing)))
+    })
+}
+
 /// The choice in focus out of `built`, for the parts that outlast a tick: their rows keep their
 /// places, and a list its scrolling, while a box is ticked.
 fn in_focus(built: Memo<(Vec<Line>, Option<Focus>)>) -> Memo<Option<Focus>> {
@@ -607,9 +686,21 @@ fn back_of(ctx: PlanCtx) -> Signal<Option<&'static str>> {
     })
 }
 
-/// A line of „Offen" as a link.
-fn line_view(ctx: PlanCtx, line: Line, t: &'static i18n::Texts) -> AnyView {
+/// A line of „Offen" as a link; one decided while the plan is edited, pale (`Kept::done`).
+fn line_view(ctx: PlanCtx, kept: Kept, t: &'static i18n::Texts) -> AnyView {
     let o = &t.studyplan_open;
+    let Kept { line, done } = kept;
+    // Decided since the mode was entered: pale in its place, what became of it, where it led.
+    if let Some(done) = done {
+        return view! {
+            <a class=format!("sp-open-row done {}", line.hue) href=t.path(&line.href) data-noscroll="">
+                <i class="od" aria-hidden="true"></i>
+                <span class="t"><b>{line.name}</b><small>{done}</small></span>
+                <span class="go"><Icon name="chevron-right"/></span>
+            </a>
+        }
+        .into_any();
+    }
     if let Some(act) = line.change.clone() {
         let button = |label: &'static str, action: &'static str, primary: bool, run: Box<dyn Fn() + Send + Sync>| {
             view! { <button class="mini" class:primary=primary type="button" data-action=action on:click=move |_| run()>{label}</button> }
@@ -668,21 +759,24 @@ pub(super) fn OpenPanel(ctx: PlanCtx) -> impl IntoView {
     let focus = in_focus(built);
     // On a phone the sheet under the week compares the groups (`PickSheet`).
     let comparing = Memo::new(move |_| field(focus, |focus| focus.comparing));
-    // The lines and how many of them are still open: the one in focus as long as none of its
-    // groups is ticked.
-    let lines = Memo::new(move |_| {
+    // How many of the lines are still open: the one in focus as long as none of its groups is
+    // ticked.
+    let count = Memo::new(move |_| {
         built.with(|(lines, focus)| {
             let ticked = focus.as_ref().is_some_and(|focus| focus.groups.iter().any(|group| group.ticked));
-            (lines.clone(), lines.iter().filter(|line| !line.gives && (!line.current || !ticked)).count())
+            lines.iter().filter(|line| !line.gives && (!line.current || !ticked)).count()
         })
     });
+    // The lines in their places, those decided since the mode was entered among them (`keep`).
+    let kept = kept(ctx, built);
     // While looking „3 Wahlen offen ›" in the status row says it, a way into the mode; the panel is
     // the mode's.
     let list = move || {
+        let lines = kept.get();
         if !ctx.edit.get() {
             return None;
         }
-        let (lines, count) = lines.get();
+        let count = count.get();
         (!lines.is_empty()).then(|| {
             view! {
                 <section class="sp-open" aria-label=o.open>
@@ -725,17 +819,20 @@ fn said_of(open: &[Line], t: &i18n::Texts) -> Option<(String, String)> {
     said_lines(open.iter().filter(|line| !line.current).collect(), t)
 }
 
-/// The same of the lines `open`, whichever is in focus.
+/// The same of the lines `open`, whichever is in focus: „3 Wahlen offen · 1 Änderung offen".
 fn said_lines(open: Vec<&Line>, t: &i18n::Texts) -> Option<(String, String)> {
     if open.is_empty() {
         return None;
     }
     let choices = open.iter().filter(|line| !line.gives && !line.changed).count();
     let changes = open.iter().filter(|line| line.changed).count();
+    // Everything that is still to do, choices first, then changes: neither hides behind the other
+    // while the plan is looked at. Where nothing is, the visits that give way.
     let said = match (choices, changes) {
         (0, 0) => (t.studyplan_open.gives_count)(open.len()),
         (0, n) => (t.studyplan_open.changes_count)(n),
-        (n, _) => (t.studyplan_open.open_count)(n),
+        (n, 0) => (t.studyplan_open.open_count)(n),
+        (n, m) => format!("{} · {}", (t.studyplan_open.open_count)(n), (t.studyplan_open.changes_count)(m)),
     };
     let names = open.iter().filter(|line| (choices == 0 && changes == 0) || !line.gives).map(|line| line.name.clone()).collect::<Vec<_>>().join(" · ");
     Some((said, names))
@@ -777,7 +874,8 @@ pub(super) fn OpenWay(ctx: PlanCtx) -> impl IntoView {
             view! {
                 <a class="sp-open-way" href=href data-noscroll="" aria-label=name.clone() title=name on:click=move |_| ctx.unfolded.set(true)>
                     <Icon name="list-checks"/>
-                    <b>{phrase}</b>
+                    // Each figure whole: where the row is short the later ones give way first.
+                    <b>{phrase.split(" · ").enumerate().map(|(at, part)| view! { <span>{(at > 0).then_some(" · ")}{part.to_string()}</span> }).collect_view()}</b>
                     <Icon name="chevron-right" class="chev"/>
                 </a>
             }
@@ -791,7 +889,8 @@ pub(super) fn OpenWay(ctx: PlanCtx) -> impl IntoView {
 pub(super) fn OpenUnder(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let built = built(ctx);
-    let open = Memo::new(move |_| built.with(|(lines, _)| lines.iter().filter(|line| !line.current).cloned().collect::<Vec<Line>>()));
+    let kept = kept(ctx, built);
+    let open = Memo::new(move |_| kept.with(|lines| lines.iter().filter(|kept| !kept.line.current).cloned().collect::<Vec<Kept>>()));
     move || {
         let lines = open.get();
         (ctx.unfolded.get() && !lines.is_empty()).then(|| {
@@ -813,12 +912,20 @@ pub(super) fn OpenUnder(ctx: PlanCtx) -> impl IntoView {
 pub(super) fn OpenLine(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let built = built(ctx);
-    let open = Memo::new(move |_| built.with(|(lines, _)| lines.iter().filter(|line| !line.current).cloned().collect::<Vec<Line>>()));
+    let kept = kept(ctx, built);
+    let open = Memo::new(move |_| kept.with(|lines| lines.iter().filter(|kept| !kept.line.current).cloned().collect::<Vec<Kept>>()));
     let into = move || ctx.url.with(|url| t.path(&url.with_edit(true).path()));
     move || {
         let open = open.get();
         let editing = ctx.edit.get();
-        let (said, names) = said_of(&open, t)?;
+        // What is still open; while editing, where everything listed is decided, the line stays and
+        // says so (its rows stay in their places, `keep`).
+        let still: Vec<Line> = open.iter().filter(|kept| kept.done.is_none()).map(|kept| kept.line.clone()).collect();
+        let (said, names) = match said_of(&still, t) {
+            Some(said) => said,
+            None if editing && !open.is_empty() => (t.studyplan_open.nothing_open.to_string(), String::new()),
+            None => return None,
+        };
         Some(match editing {
             false => {
                 let name = (t.studyplan_edit.open_way)(&said);
@@ -1254,5 +1361,36 @@ mod tests {
         assert_eq!(gap(45), "45 min");
         assert_eq!(gap(75), "1 h 15");
         assert_eq!(gap(180), "3 h");
+    }
+
+    /// While the plan is edited a line decided stays in its place, pale, saying what became of it;
+    /// one that comes again takes its place back; looking, the lines are as they are.
+    #[test]
+    fn a_line_decided_while_editing_keeps_its_place() {
+        let line = |id: &str| Line { id: id.into(), name: format!("Übung {id}"), say: "eine von 4 anhaken".into(), hue: "t-ice", href: format!("/studyplan?edit=1&wahl={id}"), current: false, warn: false, module: false, gives: false, change: None, changed: false };
+        let fates: BTreeMap<String, String> = [("e1".to_string(), "Mo 15:30 ✓".to_string()), ("e2".to_string(), "ausgeblendet".to_string())].into();
+        let first = keep(&[], &[line("e1"), line("e2"), line("e3")], &fates, "erledigt", true);
+        // The first ticked, the second hidden: both stay where they were.
+        let after = keep(&first, &[line("e3")], &fates, "erledigt", true);
+        let shown: Vec<(&str, Option<&str>)> = after.iter().map(|kept| (kept.line.id.as_str(), kept.done.as_deref())).collect();
+        assert_eq!(shown, [("e1", Some("Mo 15:30 ✓")), ("e2", Some("ausgeblendet")), ("e3", None)]);
+        // The tick taken away: open again, in its place; a new line at the end.
+        let again = keep(&after, &[line("e1"), line("e3"), line("e4")], &fates, "erledigt", true);
+        let shown: Vec<(&str, Option<&str>)> = again.iter().map(|kept| (kept.line.id.as_str(), kept.done.as_deref())).collect();
+        assert_eq!(shown, [("e1", None), ("e2", Some("ausgeblendet")), ("e3", None), ("e4", None)]);
+        // The mode left: tidied.
+        assert_eq!(keep(&again, &[line("e3")], &fates, "erledigt", false).len(), 1);
+    }
+
+    /// The quiet line says everything „Offen" lists: the choices, the changes, both.
+    #[test]
+    fn the_line_says_choices_and_changes() {
+        let line = |id: &str, changed: bool| Line { id: id.into(), name: id.into(), say: String::new(), hue: "t-ice", href: String::new(), current: false, warn: false, module: false, gives: false, change: None, changed };
+        let (a, b, c) = (line("Übung EvS", false), line("Übung MIT1", false), line("VL EvS: QIS sagt jetzt …", true));
+        let said = |lines: Vec<&Line>, t| said_lines(lines, t).map(|(said, _)| said);
+        assert_eq!(said(vec![&a, &b], &i18n::DE).as_deref(), Some("2 Wahlen offen"));
+        assert_eq!(said(vec![&c], &i18n::DE).as_deref(), Some("1 Änderung offen"));
+        assert_eq!(said(vec![&a, &b, &c], &i18n::DE).as_deref(), Some("2 Wahlen offen · 1 Änderung offen"));
+        assert_eq!(said(vec![&a, &c], &i18n::EN).as_deref(), Some("1 choice open · 1 change open"));
     }
 }

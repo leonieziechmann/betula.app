@@ -32,6 +32,8 @@ pub struct Texts {
     pub in_week: fn(&str) -> String,
     /// The tooltip of a slot of a calendar of one's own begins with it: „Lena · nur zum Ansehen".
     pub look_only: fn(&str) -> String,
+    /// The same of a Termin of one's own in it, which is one's own there too: „in „Lena“".
+    pub own_in: fn(&str) -> String,
     /// The phone's line: „Mein Studiengang, Lena als Spur" …
     pub line_full: fn(&str) -> String,
     pub line_strip: fn(&str) -> String,
@@ -141,6 +143,7 @@ pub const DE: Texts = Texts {
     off_title: "nicht in der Woche",
     in_week: |name| format!("{name} in der Woche"),
     look_only: |name| format!("{name} · nur zum Ansehen"),
+    own_in: |name| format!("in „{name}“"),
     line_full: |name| name.to_string(),
     line_strip: |name| format!("{name} als Spur"),
     line_off: |name| format!("{name} aus"),
@@ -228,6 +231,7 @@ pub const EN: Texts = Texts {
     off_title: "not in the week",
     in_week: |name| format!("{name} in the week"),
     look_only: |name| format!("{name} · to look at only"),
+    own_in: |name| format!("in “{name}”"),
     line_full: |name| name.to_string(),
     line_strip: |name| format!("{name} as a strip"),
     line_off: |name| format!("{name} off"),

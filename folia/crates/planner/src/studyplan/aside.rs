@@ -6,7 +6,8 @@
 //! campus, first–last. An eye button hides an event, a Termin or an exam sitting and shows it
 //! again; in a choice („1 von 4 wählen") the line of an option is the choice, with a radio mark: a
 //! click chooses it, a second click or „Wahl aufheben" opens the choice again. What hides an event
-//! from elsewhere (a kind hidden, which „Alle Termine" shows again; the other town's course of a
+//! from elsewhere (a kind hidden before 2026-11-04, which the eye of its row in the module list
+//! shows again; the other town's course of a
 //! module taught in both towns) is said once under the event, and its Termine step back. Above, its
 //! credits, and of a visit that it is one. What the module counts for, taking it out and the other
 //! semesters it is planned in are „Mein Studium"'s: the calendar lists the study's modules and
@@ -19,7 +20,7 @@
 //! row clicked in `sem` as well). Otherwise (a module moved to another semester stays open) it is
 //! the semester the module is planned in nearest to the page's, and the panel loads that
 //! semester's plan itself: the queries of that semester's page, answered from the visit's cache the
-//! second time. A module planned in several semesters says where else, and leads there.
+//! second time.
 //!
 //! Choosing asks the catalog nothing (the store, then the selection and the timetable), so it is
 //! written in the click. What the panel lists (its

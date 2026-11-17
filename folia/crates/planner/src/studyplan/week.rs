@@ -857,8 +857,11 @@ fn week_slots(table: &Timetable, base: &StudyplanUrl, titles: &BTreeMap<String, 
     let mut slots: Vec<PlanSlot> = items.iter().filter(|item| item.in_week(shown)).filter_map(|item| plan_slot(table, base, item, titles, shown, &items, t)).collect();
     if super::edit::on(base) {
         slots.extend(ghost_slots(table, base, titles, shown, &items, t));
-        slots.sort_by_key(|slot| (slot.slot.day, slot.slot.from, slot.slot.to));
     }
+    // Slots at one time share the day's lanes in one order, whether the plan shows them or leaves
+    // them out (faint): by their first Termin, never by being shown. A Termin hidden by its eye
+    // stays in its lane, and the slot beside it does not slide under the pointer.
+    slots.sort_by_key(|slot| (slot.slot.day, slot.slot.from, slot.slot.to, slot.row.keys.first().copied()));
     join_ab(slots)
 }
 
@@ -1137,12 +1140,21 @@ pub(super) fn calendar_slots(table: &Timetable, titles: &BTreeMap<String, String
         .filter(|item| item.in_week(shown) && (!strip || (item.alt.is_none() && !item.extra)))
         .filter_map(|item| {
             let slot = drawn_slot(table, &base, item, titles, &[], &[], t)?.slot;
+            // A Termin of one's own is one's own in whichever calendar („Chor · in „Lena“ · von
+            // dir"); what came with the calendar is there to look at.
+            let own = table.events.get(item.event).is_some_and(|event| event.own.is_some());
+            let said = slot.title.replace(t.studyplan_own.changed_differs, t.studyplan_own.changed_elsewhere).replace(t.studyplan_own.changed, t.studyplan_own.changed_elsewhere);
+            let title = match (own, said.split_once(" · ")) {
+                (true, Some((name, rest))) => format!("{name} · {} · {rest}", (t.studyplan_calendars.own_in)(&calendar.name)),
+                (true, None) => format!("{said} · {}", (t.studyplan_calendars.own_in)(&calendar.name)),
+                (false, _) => format!("{} · {said}", (t.studyplan_calendars.look_only)(&calendar.name)),
+            };
             Some(GridSlot {
                 class: if strip { "strip" } else { "cal" },
                 hue: Some(calendar.hue),
                 mark: None,
                 href: None,
-                title: format!("{} · {}", (t.studyplan_calendars.look_only)(&calendar.name), slot.title.replace(t.studyplan_own.changed_differs, t.studyplan_own.changed_elsewhere).replace(t.studyplan_own.changed, t.studyplan_own.changed_elsewhere)),
+                title,
                 clash: false,
                 // Its changes came with its link, which carries nothing of what QIS said: none of
                 // them asks to be decided, the pen alone says they are changed.

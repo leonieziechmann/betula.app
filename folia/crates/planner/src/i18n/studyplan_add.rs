@@ -3,7 +3,7 @@
 //! it.
 
 pub struct Texts {
-    /// The heading: „Modul in „Mein Studiengang“" (the calendar's name).
+    /// The heading: „Modul in „Lena“" (the calendar's name).
     pub title: fn(&str) -> String,
     /// What a module taken into a calendar of one's own is: nothing of the study („Module in
     /// „Lena“ zählen nirgends.“).

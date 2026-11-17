@@ -28,6 +28,7 @@ use leptos::prelude::*;
 
 use crate::i18n;
 use folia_design::ui::{Icon, Shortcut};
+use super::head::ClashFigure;
 use super::open::{open_said, FocusBar, OpenUnder, OpenWay, OPEN_ROWS_ID};
 use super::PlanCtx;
 
@@ -206,6 +207,7 @@ pub(super) fn StatusRow(ctx: PlanCtx, sum: Memo<String>) -> impl IntoView {
                 false => view! {
                     <div class="sp-look">
                         <p class="sp-sum">{move || sum.get()}</p>
+                        <ClashFigure ctx/>
                         <OpenWay ctx/>
                     </div>
                 }
@@ -213,6 +215,23 @@ pub(super) fn StatusRow(ctx: PlanCtx, sum: Memo<String>) -> impl IntoView {
             })}
         </div>
     }
+}
+
+/// The module list's head to the top of the window (under the page's bars, its `scroll-margin`).
+fn to_list() {
+    #[cfg(feature = "csr")]
+    if let Some(list) = folia_design::stage::select(".sp-list") {
+        let options = leptos::web_sys::ScrollIntoViewOptions::new();
+        options.set_block(leptos::web_sys::ScrollLogicalPosition::Start);
+        list.scroll_into_view_with_scroll_into_view_options(&options);
+    }
+}
+
+/// The bar's figure „2 ausgeblendet": the list's foot into view, the keyboard on „Alle einblenden",
+/// which brings it all back — the figure says what is hidden, the foot is where it comes back.
+fn to_show_all() {
+    folia_design::nav::reveal_selector(&format!("#{}", super::modules::SHOW_ALL_ID));
+    folia_design::nav::focus_by_id(super::modules::SHOW_ALL_ID);
 }
 
 /// The mode's bar (accent-soft, as the workbench's bar over the catalog; the dark bar stays the
@@ -245,7 +264,10 @@ fn EditBar(ctx: PlanCtx) -> impl IntoView {
                 </button>
                 <span class="eb-open-fig">{phrase}</span>
             })}
-            {(hid > 0).then(|| view! { <span class="eb-hid">{if any { " · " } else { "" }}{(t.studyplan_head.hidden)(hid)}</span> })}
+            {(hid > 0).then(|| view! {
+                {any.then_some(" · ")}
+                <button class="eb-hid" type="button" title=t.studyplan_head.unhide_all on:click=move |_| to_show_all()>{(t.studyplan_head.hidden)(hid)}</button>
+            })}
         }
     };
     view! {
@@ -255,6 +277,7 @@ fn EditBar(ctx: PlanCtx) -> impl IntoView {
                 <b>{e.editing}</b>
                 <span class="figs">{figures}</span>
             </span>
+            <ClashFigure ctx/>
             <button class="btn" type="button" data-action="own-add" title=t.studyplan_own.add_title on:click=move |_| super::own::ask_today(ctx, 0, None)>
                 <Icon name="plus"/>{t.studyplan_own.add}
             </button>
@@ -294,12 +317,14 @@ pub(super) fn EditDock(ctx: PlanCtx) -> impl IntoView {
             let (done, back) = leave_link(ctx);
             view! {
                 <div class="sp-editdock" role="toolbar" aria-label=e.editing>
-                    <span class="sp-editdock-w">
+                    // Its left part brings the module list into view, where the eyes are: the mode's
+                    // workbench on a phone stands under the week.
+                    <button class="sp-editdock-w" type="button" data-action="to-list" title=e.to_list on:click=move |_| to_list()>
                         <b>{e.dock}</b>
                         {move || figures.with(|(first, second)| first.clone().map(|first| view! {
                             <span class="figs"><span>{first}</span>{second.clone().map(|second| view! { <span>{second}</span> })}</span>
                         }))}
-                    </span>
+                    </button>
                     <button class="btn secondary sp-editdock-add" type="button" data-action="own-add" title=t.studyplan_own.add_title on:click=move |_| super::own::ask_today(ctx, 0, None)>
                         <Icon name="plus"/>{t.studyplan_own.add}
                     </button>

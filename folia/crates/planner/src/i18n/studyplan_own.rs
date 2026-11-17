@@ -12,6 +12,12 @@ pub struct Texts {
     /// QIS", `studyplan_modules::no_dates`), with its tooltip.
     pub enter: &'static str,
     pub enter_title: fn(&str) -> String,
+    /// The name of a module's „+ Termin" in the list: „Termin für EvS eintragen"; of a calendar's
+    /// own, „Termin in „Lena“ eintragen".
+    pub add_for: fn(&str) -> String,
+    pub add_in: fn(&str) -> String,
+    /// „Löschen" in the form's foot of a Termin of a calendar of one's own (the bin).
+    pub delete: &'static str,
 
     // ---- the form ----
     /// Its title: „Neuer Termin", or „„Arbeit“ bearbeiten" („Termin bearbeiten" without a name).
@@ -128,6 +134,9 @@ pub const DE: Texts = Texts {
     add_title: "Eigenen Termin anlegen: Arbeit, Sport, eine Lerngruppe",
     enter: "Termin eintragen",
     enter_title: |module| format!("Einen Termin für {module} eintragen, den QIS nicht kennt"),
+    add_for: |module| format!("Termin für {module} eintragen"),
+    add_in: |calendar| format!("Termin in „{calendar}“ eintragen"),
+    delete: "Löschen",
 
     form_new: "Neuer Termin",
     form_edit: |name| format!("„{name}“ bearbeiten"),
@@ -208,6 +217,9 @@ pub const EN: Texts = Texts {
     add_title: "Add an event of your own: work, sport, a study group",
     enter: "Add a session",
     enter_title: |module| format!("Add a session of {module} that QIS does not know"),
+    add_for: |module| format!("Add a session of {module}"),
+    add_in: |calendar| format!("Add an event to “{calendar}”"),
+    delete: "Delete",
 
     form_new: "New event",
     form_edit: |name| format!("Edit “{name}”"),

@@ -159,6 +159,10 @@ pub(super) struct PlanCtx {
     /// way „3 Wahlen offen ›" into the mode, flipped by the bar's figure, off again once the mode is
     /// left. A view setting of the page, not stored.
     pub unfolded: RwSignal<bool>,
+    /// The overlaps' list stands unfolded under the status row: flipped by their figure there and in
+    /// the mode's bar (`head::ClashFigure`), never by what the plan holds. A view setting of the
+    /// page, not stored.
+    pub clashes: RwSignal<bool>,
     /// The phone's layout is in use (`nav::is_phone`, following the window): there the week is a
     /// carousel of its weeks over the list of its days, and the calendar, „Export" and „Teilen …"
     /// stand in the page instead of in a sidebar.
@@ -311,6 +315,7 @@ pub fn StudyplanPage() -> impl IntoView {
         weeks: RwSignal::new(Weeks::All),
         edit,
         unfolded: RwSignal::new(false),
+        clashes: RwSignal::new(false),
         phone: phone_layout(),
         days: RwSignal::new(false),
         calendars: calendars::shown_calendars(url, current, plan, source, today),
@@ -339,6 +344,22 @@ pub fn StudyplanPage() -> impl IntoView {
     // it stands beside the plan, on a phone a sheet over it), or a Termin after „Ganze Seite".
     let filling = Memo::new(move |_| address.with(folia_routes::local::filling));
     let termin_full = Memo::new(move |_| address.with(PlanAddress::termin_full));
+    // A page of its own opened from the plan (the overview, a module's whole page) opens at its
+    // top; leaving it finds the plan where it was left, with the keyboard on what opened it
+    // (`left`).
+    #[cfg(feature = "csr")]
+    {
+        let stop = left::watch();
+        on_cleanup(stop);
+        let filled = Memo::new(move |_| address.with(|address| address.full));
+        Effect::new(move |was: Option<bool>| {
+            let now = filled.get();
+            if was == Some(true) && !now {
+                left::restore(&location.search.get_untracked());
+            }
+            now
+        });
+    }
     let empty = Memo::new(move |_| plan.is_none_or(Studyplan::is_empty));
 
     // The module beside the plan, and a pick on its way there (`pending`): the panel follows the
@@ -502,6 +523,106 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
                 })
             }}
         </div>
+    }
+}
+
+/// Where the plan was when a page of its own was opened from it (the overview of a Termin from a row
+/// of the list or from a card, a module's whole page from a calendar's line): the window's scroll,
+/// the page's scroller's (`#page-scroll`, a narrow page), the column's beside the week (`.sp-side`)
+/// and the link clicked. That page opens at its top (it is a page, not a part of the plan); leaving
+/// it by „Zurück", Esc or Back builds the plan anew, which this puts back where it was, the keyboard
+/// on the link (owner, 2026-09-25, of the plan: „Da sollte sich das Layout nicht viel shiften").
+/// Kept in the browser app's memory for this one way there and back.
+#[cfg(feature = "csr")]
+mod left {
+    use std::cell::RefCell;
+
+    use folia_routes::url::PlanAddress;
+    use leptos::wasm_bindgen::{closure::Closure, JsCast};
+    use leptos::web_sys;
+
+    #[derive(Clone)]
+    struct Left {
+        /// The plan's address without its Termin (a card open or not, the way back is the plan).
+        plan: String,
+        top: f64,
+        work: i32,
+        side: i32,
+        link: Option<String>,
+    }
+
+    thread_local! {
+        static LEFT: RefCell<Option<Left>> = const { RefCell::new(None) };
+    }
+
+    fn plan_of(search: &str) -> String {
+        PlanAddress::parse(search.trim_start_matches('?')).url.with_termin(None).path()
+    }
+
+    fn scroll_top(selector: &str) -> i32 {
+        folia_design::stage::select(selector).map_or(0, |element| element.scroll_top())
+    }
+
+    /// Notes the place of the plan as a link to a page of its own is clicked, before the router
+    /// takes the click (a listener of the capturing phase); the returned function takes it off.
+    pub(super) fn watch() -> impl FnOnce() + Send + Sync + 'static {
+        let listener = Closure::<dyn Fn(web_sys::MouseEvent)>::new(|ev: web_sys::MouseEvent| {
+            if ev.button() != 0 || ev.ctrl_key() || ev.meta_key() || ev.shift_key() || ev.alt_key() {
+                return;
+            }
+            let Some(link) = ev.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()).and_then(|element| element.closest("a[href]").ok().flatten()) else { return };
+            let Some(window) = web_sys::window() else { return };
+            let here = window.location().search().unwrap_or_default();
+            let Some(href) = link.get_attribute("href") else { return };
+            let to = href.split_once('?').map_or("", |(_, query)| query);
+            // Only from the plan itself, to a page of its own of the plan's address.
+            if PlanAddress::parse(here.trim_start_matches('?')).full || !PlanAddress::parse(to).full || !href.contains("/studyplan") {
+                return;
+            }
+            let left = Left { plan: plan_of(&here), top: window.scroll_y().unwrap_or(0.0), work: scroll_top("#page-scroll"), side: scroll_top(".sp-side"), link: Some(href) };
+            LEFT.with(|stored| *stored.borrow_mut() = Some(left));
+        });
+        let window = web_sys::window();
+        if let Some(window) = &window {
+            let _ = window.add_event_listener_with_callback_and_bool("click", listener.as_ref().unchecked_ref(), true);
+        }
+        let function: web_sys::js_sys::Function = listener.into_js_value().unchecked_into();
+        let held = send_wrapper::SendWrapper::new(function);
+        move || {
+            if let Some(window) = web_sys::window() {
+                let _ = window.remove_event_listener_with_callback_and_bool("click", &held, true);
+            }
+        }
+    }
+
+    /// The plan built anew at `search` after a page of its own: back where it was left, if it was
+    /// left from this address — in the next frame and once more after the browser has put its own
+    /// idea of the scroll in place (a step back through the history).
+    pub(super) fn restore(search: &str) {
+        let Some(left) = LEFT.with(|stored| stored.borrow_mut().take()) else { return };
+        if left.plan != plan_of(search) {
+            return;
+        }
+        let put = move |focus: bool| {
+            if let Some(window) = web_sys::window() {
+                window.scroll_to_with_x_and_y(0.0, left.top);
+            }
+            if let Some(work) = folia_design::stage::select("#page-scroll") {
+                work.set_scroll_top(left.work);
+            }
+            if let Some(side) = folia_design::stage::select(".sp-side") {
+                side.set_scroll_top(left.side);
+            }
+            let link = left.link.as_ref().filter(|_| focus).and_then(|href| folia_design::stage::select(&format!("a[href=\"{href}\"]")));
+            if let Some(link) = link.and_then(|link| link.dyn_into::<web_sys::HtmlElement>().ok()) {
+                let options = web_sys::FocusOptions::new();
+                options.set_prevent_scroll(true);
+                let _ = link.focus_with_options(&options);
+            }
+        };
+        let again = put.clone();
+        leptos::prelude::request_animation_frame(move || put(true));
+        leptos::prelude::set_timeout(move || again(false), std::time::Duration::from_millis(220));
     }
 }
 

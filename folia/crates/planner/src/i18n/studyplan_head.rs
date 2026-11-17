@@ -68,6 +68,8 @@ pub struct Texts {
     pub clashes_on_days: fn(usize) -> String,
     /// … and after those per week only „1 an einzelnen Tagen" …
     pub more_on_days: fn(usize) -> String,
+    /// The overlaps as the figure of the status row and the mode's bar: „1 Überschneidung".
+    pub clashes: fn(usize) -> String,
     /// … „2 ausgeblendet".
     pub hidden: fn(usize) -> String,
     /// After an overlap's times, the week it is in: „A-Woche", „B-Woche".
@@ -160,6 +162,10 @@ pub const DE: Texts = Texts {
         n => format!("{n} Überschneidungen an einzelnen Tagen"),
     },
     more_on_days: |n| format!("{n} an einzelnen Tagen"),
+    clashes: |n| match n {
+        1 => "1 Überschneidung".to_string(),
+        n => format!("{n} Überschneidungen"),
+    },
     hidden: |n| format!("{n} ausgeblendet"),
     week_a: "A-Woche",
     week_b: "B-Woche",
@@ -233,6 +239,10 @@ pub const EN: Texts = Texts {
         n => format!("{n} clashes on single days"),
     },
     more_on_days: |n| format!("{n} on single days"),
+    clashes: |n| match n {
+        1 => "1 clash".to_string(),
+        n => format!("{n} clashes"),
+    },
     hidden: |n| format!("{n} hidden"),
     week_a: "week A",
     week_b: "week B",

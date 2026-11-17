@@ -1160,10 +1160,11 @@ fn CardWays(ctx: TerminCtx, card: Memo<Option<CardPart>>, own: Memo<Option<OwnPa
     move || {
         let (key, day) = at.get()?;
         let all = all.get().zip(ctx.links.full).map(|(said, full)| {
-            // Its name without the cap „V", which `aria-keyshortcuts` says.
+            // Its name without the cap „V", which `aria-keyshortcuts` says. The overview is a page
+            // of its own: it opens at its top, wherever the page under the card was scrolled.
             let name = said.clone();
             view! {
-                <a class="tm-all" href=full.run((key, Some(day))) rel="nofollow" data-action="fullscreen" data-replace="" data-noscroll="" aria-keyshortcuts="V" aria-label=name>
+                <a class="tm-all" href=full.run((key, Some(day))) rel="nofollow" data-action="fullscreen" data-replace="" aria-keyshortcuts="V" aria-label=name>
                     <span>{said}</span><Icon name="chevron-right"/><Shortcut keys="V"/>
                 </a>
             }

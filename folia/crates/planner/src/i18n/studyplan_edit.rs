@@ -12,8 +12,10 @@ pub struct Texts {
     pub edit_end: &'static str,
     /// The bar's name while editing: „Stundenplan bearbeiten".
     pub editing: &'static str,
-    /// The phone's dock: „Bearbeiten", small under it the figures.
+    /// The phone's dock: „Bearbeiten", small under it the figures; the part a button that brings
+    /// the module list into view („Zu den Modulen": its tooltip).
     pub dock: &'static str,
+    pub to_list: &'static str,
     /// Name and tooltip of the quiet line „3 Wahlen offen ›" and of the phone's line while looking:
     /// „3 Wahlen offen: Stundenplan bearbeiten".
     pub open_way: fn(&str) -> String,
@@ -35,6 +37,7 @@ pub const DE: Texts = Texts {
     edit_end: "Bearbeiten beenden",
     editing: "Stundenplan bearbeiten",
     dock: "Bearbeiten",
+    to_list: "Zu den Modulen",
     open_way: |figures| format!("{figures}: Stundenplan bearbeiten"),
     said: |figures| match figures.trim() {
         "" => "Stundenplan bearbeiten".to_string(),
@@ -54,6 +57,7 @@ pub const EN: Texts = Texts {
     edit_end: "Stop editing",
     editing: "Editing your timetable",
     dock: "Editing",
+    to_list: "To the modules",
     open_way: |figures| format!("{figures}: edit your timetable"),
     said: |figures| match figures.trim() {
         "" => "Editing your timetable".to_string(),

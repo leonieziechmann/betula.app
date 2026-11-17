@@ -18,6 +18,10 @@ pub struct Texts {
     /// the plan (a choice among a module's events is decided there).
     pub choose: &'static str,
     pub in_focus: &'static str,
+    /// What a line of „Offen" decided while the plan is edited says where it knows nothing more:
+    /// „erledigt"; the phone's line where everything listed is decided: „Nichts mehr offen".
+    pub settled: &'static str,
+    pub nothing_open: &'static str,
     pub in_module: &'static str,
     /// Where a visit gives way (owner, 2026-10-26): „Biologie trifft VL MIT1", under it when
     /// („Di 13:45") and „der Besuch gibt nach"; a click shows its Termin („Ansehen"). The phone's
@@ -124,6 +128,8 @@ pub const DE: Texts = Texts {
     none_free: "keine passt ohne Überschneidung",
     choose: "Wählen",
     in_focus: "im Fokus",
+    settled: "erledigt",
+    nothing_open: "Nichts mehr offen",
     in_module: "Im Modul",
     visit_meets: |visit, plan| format!("{visit} trifft {plan}"),
     gives_way: "der Besuch gibt nach",
@@ -196,6 +202,8 @@ pub const EN: Texts = Texts {
     none_free: "none fits without a clash",
     choose: "Choose",
     in_focus: "in focus",
+    settled: "done",
+    nothing_open: "Nothing left open",
     in_module: "In the module",
     visit_meets: |visit, plan| format!("{visit} meets {plan}"),
     gives_way: "the visit gives way",
