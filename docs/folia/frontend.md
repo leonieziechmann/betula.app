@@ -1872,7 +1872,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       over its semester (or over where the plan puts it, „nicht bestanden im SoSe 2026" with the
       cross for a Wiederholer), the credits. A row with a module is as a whole the way to it
       beside the page, the plan's open modules too, which were words alone.
-    - *A level up* (Folia 1.97.4; owner, the same day: „es braucht noch einen back button, so
+    - *A level up* (Folia 1.97.5; owner, the same day: „es braucht noch einen back button, so
       dass man eine ebene höher kommt"): an area opened from the sheet has an arrow before its
       name that leads back to the areas (`Dialog::Area { listed }`, `ModalHead`'s `back`), the
       sheet staying where it stands; until then the sheet had to be thrown away and opened again
