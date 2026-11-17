@@ -2416,11 +2416,11 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                     let height = 2.0 * MENU_ITEM + 60.0 + if kept > 0 { 18.0 } else { 0.0 };
                     return Some(view! {
                         <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close()></div>
-                        <div data-sheet="fit" class="st-pop root view-menu ask" role="alertdialog" aria-label=label style=menu_style(at, height) on:keydown=keys>
+                        <div data-sheet="menu" class="st-pop root view-menu ask" role="alertdialog" aria-label=label style=menu_style(at, height) on:keydown=keys>
                             <p class="view-menu-ask">{question}{(kept > 0).then(|| view! { <small>{(b.delete_keeps)(kept)}</small> })}</p>
                             <div class="view-menu-answers">
-                                <button class="mini danger hit" type="button" role="menuitem" id="delete-yes" on:click=move |_| delete.run(())>{b.delete}</button>
-                                <button class="mini hit" type="button" role="menuitem" on:click=move |_| close()>{b.cancel}</button>
+                                <button class="mini danger hit" type="button" role="menuitem" id="delete-yes" on:click=move |_| delete.run(())><Icon name="trash-2"/><span>{b.delete}</span></button>
+                                <button class="mini hit" type="button" role="menuitem" on:click=move |_| close()><Icon name="x"/><span>{b.cancel}</span></button>
                             </div>
                         </div>
                     }.into_any());
@@ -2474,7 +2474,7 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                 if ui.confirming.get() {
                     return Some(view! {
                         <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close()></div>
-                        <div data-sheet="fit" class="st-pop root view-menu ask" role="alertdialog" aria-label=b.clear style=menu_style(at, 2.0 * MENU_ITEM + 60.0) on:keydown=keys>
+                        <div data-sheet="menu" class="st-pop root view-menu ask" role="alertdialog" aria-label=b.clear style=menu_style(at, 2.0 * MENU_ITEM + 60.0) on:keydown=keys>
                             <p class="view-menu-ask">{(b.clear_question)(count)}</p>
                             <div class="view-menu-answers">
                                 <button class="mini danger hit" type="button" role="menuitem" id="clear-yes" on:click=move |_| {
@@ -2485,8 +2485,8 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                                             notices.say(Notice::Cleared(cleared));
                                         }
                                     }
-                                }>{b.clear_yes}</button>
-                                <button class="mini hit" type="button" role="menuitem" on:click=move |_| close()>{b.cancel}</button>
+                                }><Icon name="trash-2"/><span>{b.clear_yes}</span></button>
+                                <button class="mini hit" type="button" role="menuitem" on:click=move |_| close()><Icon name="x"/><span>{b.cancel}</span></button>
                             </div>
                         </div>
                     }.into_any());
@@ -2584,7 +2584,7 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
         let label = title.clone();
         Some(view! {
             <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close() on:contextmenu=move |ev: leptos::ev::MouseEvent| { ev.prevent_default(); close(); }></div>
-            <div data-sheet="fit" class="st-pop root view-menu" role="menu" aria-label=label style=menu_style(at, height) on:keydown=keys>
+            <div data-sheet="menu" class="st-pop root view-menu" role="menu" aria-label=label style=menu_style(at, height) on:keydown=keys>
                 <p class="st-pop-title st-phone">{title}</p>
                 {entries.into_iter().map(|Entry { icon, label, hint, key, danger, does }| view! {
                     {danger.then(|| view! { <hr/> })}

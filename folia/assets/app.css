@@ -1539,6 +1539,8 @@ button.coll-item.add:hover { background: var(--row-hover); }
 /* What stays, under the question (a collection's: „Die 2 Module darin bleiben gemerkt."). */
 .view-menu-ask small { display: block; margin-top: 3px; color: var(--text-2); font-size: 12.5px; font-weight: 450; }
 .view-menu-answers { display: flex; justify-content: flex-end; gap: 8px; }
+/* Their marks are a phone's alone, where each answer is a row of the menu (below). */
+.view-menu-answers > .mini > .icon { display: none; }
 .st-pop-item > kbd { margin-left: auto; }
 /* „Teilen" of a collection and of the rows selected (bookmarks.rs `ViewMenu`, pick.rs
    `share_parts`; oberflaeche.html, „Weitergeben"): its head, „Link kopieren", „Notizen mitnehmen"
@@ -5815,14 +5817,41 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .st-row.is-place .st-find > .st-find-go { margin-left: -1px; }
 @media (hover: hover) { .st-row.is-place:hover > .row { background: var(--row-hover); } .st-row.is-place:hover .st-find { box-shadow: inset 0 0 0 1px var(--accent-line); } }
 .st-row.is-place:active > .row { background: var(--row-hover); }
-/* A row selected (owner, 2026-10-19: „Die selection soll nicht mehr per checkbox umgesetzt
-   werden, sondern per hervorheben/vlt texture funktionieren"): tinted in the accent, lined with
-   it and hatched, under the pointer too. */
+/* A row selected (owner, 2026-10-19: „per hervorheben/vlt texture"): tinted in the accent, lined
+   with it and hatched, under the pointer too; on a desktop its box ticked as well (below). */
 .st-row.is-selected > .row, .st-row.is-selected:hover > .row {
   background-color: color-mix(in srgb, var(--accent) 11%, var(--panel));
   background-image: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent) 13%, transparent) 0 1.5px, transparent 1.5px 7px);
   box-shadow: inset 0 0 0 1.5px var(--accent-line);
 }
+/* The box to tick at a row's start (focus.rs `ItemRow`, `.st-sel`; owner, 2026-11-17: „Bei dem pc
+   hätte ich gerne auch eine checkbox, die erst eingeblendet wird, wenn der Cursor der nahe kommt
+   oder schon ein Element selected ist"), a desktop's only: a phone holds a row to select it. Its
+   place is kept whether it shows or not, so that nothing moves as it comes: the row's words begin
+   after it, and the heads of the columns, the bar of the rows selected and „Module hinzufügen"
+   with them, the box of all of them over the rows' boxes and „Module hinzufügen"'s „+" under
+   them. It comes when the pointer is over its row (the box of all of them: over the heads), when
+   the row has the focus, and on every row while rows are selected; where nothing points (a
+   tablet's finger) it is always there. Ticked it is filled in the accent with a check, the box of
+   all of them with a dash while only some are. Its button is as large as the status's at the
+   row's other end, the box in its middle. */
+@media (min-width: 901px) {
+  .st-sems .st-row > .row { padding-left: 40px; }
+  .st-sems .st-table > .cols { position: relative; padding-left: 48px; }
+  .st-sems .st-table > .st-selbar { padding-left: 12px; }
+  .st-sems .st-add { padding-left: 11px; gap: 11px; }
+  .st-sel { position: absolute; z-index: 1; left: 4px; top: 50%; width: 32px; height: 32px; margin-top: -16px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--r-row); background: transparent; color: var(--on-accent); cursor: pointer; opacity: 0; transition: opacity .12s; -webkit-tap-highlight-color: transparent; }
+  .st-table > .cols > .st-sel { left: 12px; }
+  .st-selbar > .st-sel { position: static; flex: none; margin: 0; }
+  .st-row:hover > .st-sel, .st-row:focus-within > .st-sel, .st-table > .cols:hover > .st-sel, .st-table.is-selecting .st-sel, .st-sel[aria-checked="true"], .st-sel:focus-visible { opacity: 1; }
+  .st-sel:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .st-sel-mark { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--text-3); transition: background .12s, box-shadow .12s; }
+  .st-sel-mark > .icon { display: none; width: 12px; height: 12px; stroke-width: 3.2; }
+  .st-sel:hover > .st-sel-mark { box-shadow: inset 0 0 0 1.5px var(--text-2); }
+  .st-sel:is([aria-checked="true"], [aria-checked="mixed"]) > .st-sel-mark { background: var(--accent); box-shadow: none; }
+  .st-sel[aria-checked="true"] .s-all, .st-sel[aria-checked="mixed"] .s-some { display: block; }
+}
+@media (min-width: 901px) and (hover: none) { .st-sel { opacity: 1; } }
 /* At the end of a row, where the catalog has the bookmark, the module's status (owner,
    2026-10-19: „Die merken flag soll getauscht werden mit einem Status symbol (In
    progress/bestanden/nicht bestanden)"), the button of the row's menu: as large as the bookmark and
@@ -7310,6 +7339,17 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
   .st-pop-title { margin: 8px 10px 6px; font-size: 13px; font-weight: 600; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .st-pop-back.st-phone { display: flex !important; align-items: center; gap: 6px; width: 100%; min-height: 44px; padding: 0 6px; border: 0; background: none; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; }
   .st-pop-back .icon { width: 18px; height: 18px; }
+  /* A question in a menu's place (the Merkliste's „Leeren", a collection's „Löschen"): what is
+     asked where the menu's title stands, then each answer a row of its own as the menu's entries,
+     the one that takes away first (owner, 2026-11-17: „Beim modal sollte das unbedingt jeweils eine
+     Zeile sein"; until then the two stood side by side at the right, as on a wide screen). */
+  .view-menu-ask { margin: 0 10px 8px; font-size: 15px; }
+  .view-menu-ask small { font-size: 13.5px; }
+  .view-menu-answers { flex-direction: column; gap: 0; }
+  .view-menu.ask .view-menu-answers > .mini { --hit-y: 0px; display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; min-height: 50px; padding: 0 10px; border-radius: 8px; background: none; box-shadow: none; filter: none; color: var(--text); font-size: 15px; font-weight: 500; text-align: left; }
+  .view-menu.ask .view-menu-answers > .mini:focus-visible { background: var(--row-hover); box-shadow: inset 0 0 0 2px var(--accent); outline: none; }
+  .view-menu.ask .view-menu-answers > .mini > .icon { display: block; flex: none; width: 16px; height: 16px; color: var(--text-2); }
+  .view-menu.ask .view-menu-answers > .mini.danger, .view-menu.ask .view-menu-answers > .mini.danger > .icon { color: var(--no); }
   .st-new-body { padding: 16px 4px 18px; }
   .st-new-body .btn { width: 100%; }
   /* Dialogs are sheets of a phone („the sheets of a phone" below): the head says what the dialog
@@ -7373,6 +7413,9 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
      entscheidet für dynamischen content"): as tall as what it holds, up to the whole height; it
      fits while that is at most 70 % of the screen, else it stands as `half` does (enhance.js,
      `data-sheet-as="half"`).
+   - `menu`, a menu (owner, 2026-11-17: „eine menu option hinzuzufügen, wo der content einfach
+     perfekt passt und das modal auch nicht auf full gezogen werden kann"): exactly as tall as what
+     it holds, with no least height, up to the whole height, where it scrolls: its one stop.
    Away it is below the screen (`.is-gone`). Every way between is enhance.js's, on springs. Its
    panel's colour goes on under it for the little it gives above all up. */
 @media (max-width: 900px) {
@@ -7381,7 +7424,7 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
   dialog[data-sheet]:not([open]) { display: none; }
   [data-sheet].is-full, [data-sheet]:target { transform: none; touch-action: auto; }
   /* One stop: where all up is, as tall as it fits or the whole height (below). */
-  [data-sheet]:is([data-sheet="fit"], [data-sheet="full"]) { transform: none; touch-action: auto; }
+  [data-sheet]:is([data-sheet="fit"], [data-sheet="full"], [data-sheet="menu"]) { transform: none; touch-action: auto; }
   [data-sheet="auto"]:not([data-sheet-as="half"], .is-gone) { transform: none; touch-action: auto; }
   [data-sheet].is-gone { transform: translateY(100%); }
   /* A panel of filters closed stays below the screen whatever its way: it stays in the page, and a
@@ -7417,6 +7460,8 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
      40 % while it fits. */
   :is([data-sheet], .st-dialog[data-sheet])[data-sheet="auto"] { height: auto; max-height: calc(100dvh - var(--sheet-top)); }
   :is([data-sheet], .st-dialog[data-sheet])[data-sheet="auto"]:not([data-sheet-as="half"]) { min-height: 40dvh; }
+  /* `menu`: exactly as tall as what it holds, however little, up to the whole height. */
+  :is([data-sheet], .st-dialog[data-sheet])[data-sheet="menu"] { height: auto; min-height: 0; max-height: calc(100dvh - var(--sheet-top)); }
   dialog[data-sheet][open] { animation: none; }
   .st-grip { display: none; }
   /* A menu scrolls itself all up; under the grabber its title. */
@@ -7442,6 +7487,13 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
 .avatar[data-tone="7"] { --tone: var(--t-rose); }
 .avatar[data-tone="8"] { --tone: var(--t-slate); }
 .avatar.large { width: 56px; height: 56px; font-size: 23px; box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--tone) 42%, transparent); }
+/* A profile's name with the mark of Betula Sync beside it (`SyncMark`; owner, 2026-11-17) in the
+   menu of the profiles and the profile page's list: Betula Sync's symbol as „Geräte" has it, quiet
+   in the colour of the line below; a long name gives way, never the mark. */
+.pm-item-name, .pf-item-name { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.pm-item-name b, .pf-item-name b { min-width: 0; }
+.sync-mark { flex: none; display: inline-grid; place-items: center; color: var(--text-3); }
+.sync-mark .icon { width: 14px; height: 14px; stroke-width: 2; }
 .page-inner.pf { grid-template-columns: minmax(0, 1fr); align-content: start; }
 /* The profile page since 2026-11-08 (folia/design/profil/konzepte.html, the second round): the head
    with the name and its pencil, „Mein Studiengang" as a line and the numbers; „Daten" and the
@@ -7475,6 +7527,9 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
    2026-11-09: „(kontext) menus verwenden, um das löschen zu bestätigen"): a menu at its button, a
    sheet from below on a phone, what is asked over what follows, then the answer and „Abbrechen". */
 .st-pop.pf-confirm { padding: 12px 6px 6px; }
+/* On a phone the room of a menu's sheet (`menu`, as tall as it holds): under its grabber, and its
+   last answer above the screen's foot. */
+@media (max-width: 900px) { .st-pop.pf-confirm[data-sheet] { padding: 18px 8px calc(10px + env(safe-area-inset-bottom)); } }
 .pf-confirm-title { margin: 0 10px 4px; color: var(--text); font-size: 14px; font-weight: 650; line-height: 1.4; text-wrap: pretty; }
 .pf-confirm-hint { margin: 0 10px 10px; color: var(--text-2); font-size: 12.5px; line-height: 1.45; text-wrap: pretty; }
 .pf-danger { box-shadow: 0 0 0 1px color-mix(in srgb, var(--no) 30%, transparent), var(--shadow-panel); }
