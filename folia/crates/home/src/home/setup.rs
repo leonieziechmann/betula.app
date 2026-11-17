@@ -177,7 +177,8 @@ fn typed_fs(text: &str) -> Option<u8> {
 
 /// The rows of the plan in Fachsemester `fs`, as „Fachsemester übernehmen" takes them
 /// (`studyplan::import_fs`): a module once, a row without one as a placeholder; rows of prose are
-/// none.
+/// none. A row over several Fachsemester from the one it is due in on (`PlanRow::due`: the thesis
+/// with the last of its span).
 pub fn rows_in(source: &PlanSource, core: Option<&PlanVariant>, page: Option<(&PlanVariant, i64)>, fs: u8) -> Vec<SetupRow> {
     rows_where(source, core, page, |first, last| first <= fs && fs <= last)
 }
@@ -191,7 +192,7 @@ fn rows_where(source: &PlanSource, core: Option<&PlanVariant>, page: Option<(&Pl
     let mut seen: BTreeSet<String> = BTreeSet::new();
     let mut rows = Vec::new();
     for row in plan_rows(core, page) {
-        if !take(row.first, row.last) {
+        if !take(row.due, row.last) {
             continue;
         }
         let entry = row.entry;
@@ -948,6 +949,13 @@ mod tests {
         let earlier = rows_before(&source, core, page, 3);
         assert!(earlier.len() > first.len() && earlier.iter().all(|row| row.span.0 < 3));
         assert!(rows_before(&source, core, page, 1).is_empty());
+        // The Bachelor-Arbeit of the 5.–6. FS is a row of the sixth, where it is due (owner,
+        // 2026-11-17: „eigentlich erst am schluss"); the Komplexe over both are rows of both.
+        let thesis = |rows: &[SetupRow]| rows.iter().filter(|row| row.key == "m:12333").count();
+        let (fifth, sixth) = (rows_in(&source, core, page, 5), rows_in(&source, core, page, 6));
+        assert_eq!((thesis(&fifth), thesis(&sixth), thesis(&rows_before(&source, core, page, 6))), (0, 1, 0));
+        assert_eq!(sixth.iter().find(|row| row.key == "m:12333").map(|row| row.span), Some((5, 6)));
+        assert_eq!(fifth.iter().filter(|row| !row.linked).count(), sixth.iter().filter(|row| !row.linked).count());
     }
 
     fn key(text: &str) -> SemesterKey {

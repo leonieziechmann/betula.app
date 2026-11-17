@@ -100,6 +100,13 @@ pub struct PlanLine {
     pub choice: Option<usize>,
 }
 
+impl PlanLine {
+    /// The Fachsemester it is due in first (`plan::due_in`): `first`, of the thesis `last`.
+    pub fn due(&self) -> u8 {
+        plan::due_in((self.first, self.last), self.kind)
+    }
+}
+
 /// A list of modules a choice is made from: an area of the program's module tree, with the areas
 /// below it.
 #[derive(Clone, Debug, PartialEq)]

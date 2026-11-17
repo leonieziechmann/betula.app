@@ -75,6 +75,13 @@
 //   then gone), takes the place away and the eleventh field with it; „Rückgängig". A place of the
 //   Komplex Praktische Informatik in WiSe 2027/28: its dialog weighs the three Komplexe, „Zusammen
 //   10 von 50 LP", 4 more turn it to 14, stored and shown.
+// 2e what the plan has open stands where the plan has it (owner, 2026-11-17: „wenn man sowas wie
+//   ein Anwendungsfach hat sollten im 3. Semester nich schon 12 lp stehen, wenn 6 davon eigentlich
+//   aus dem 4. Semester kommen. Und dann auch sowas, wie die Bachelorarbeit sollte halt auch erst
+//   im 6. Semester im Default sein"): Systemtheorie I (6 LP) planned for the Anwendungsfach in
+//   WiSe 2026/27 — the Nebenfach's bar has nothing open there and „+12" in SoSe 2027, the
+//   Anwendungsfach's subsection „+6" there; moved to SoSe 2027, the „+6" is the winter's; the
+//   Bachelor-Arbeit of the 5.–6. FS stands in SoSe 2028 and says both.
 // 3 a phone: the overview first (owner, 2026-10-05), the bar with its legend, the program's card
 //   and its ways („Ordnungen & Dokumente" among them, a page of its own), the box „Studium
 //   planen" with a column per semester, the way to all programs, and no sidebar; one row of pages
@@ -607,7 +614,8 @@ if (current !== "2026W") {
   });
   check(roadmap.bands.join(" | ") === "1. Studienjahr · 2025/26 | 2. Studienjahr · 2026/27 | 3. Studienjahr · 2027/28", `the band of the study years: ${roadmap.bands.join(" | ")}`);
   check(roadmap.first.join() === "EvS,EEG,PP" && roadmap.wider, `Informatik's first semester: ${roadmap.first.join()} (EvS wider than PP: ${roadmap.wider})`);
-  check(/^00/.test(roadmap.thesis) && roadmap.thesis.includes("1"), `the Bachelor-Arbeit's bar is not broken before its semester: ${roadmap.thesis}`);
+  // Of the 5.–6. FS, in the sixth (owner, 2026-11-17: „eigentlich erst am schluss").
+  check(roadmap.thesis === "000001", `the Bachelor-Arbeit's bar does not stand in its last semester alone: ${roadmap.thesis}`);
   check(roadmap.today, "the line of today does not run through the current semester, or its flag is missing");
   // The whole head is the toggle (owner, 2026-11-09: „dass man den kompletten bereich als toogle für
   // das aus und einklappen verwenden kann. Der modal mit dem progress ist komplett redundant"): a
@@ -1163,6 +1171,36 @@ if (current !== "2026W") {
   await page.waitForFunction(() => document.querySelector(".st-sz-sum b")?.textContent.replace(/\u00a0/g, " ") === "Zusammen 14 von 50 LP", null, { timeout: 4000 }).catch(() => problems.push("the weighting does not follow the stepper"));
   await step("Übernehmen, 14 LP", () => page.click("#st-sz-go"), (key) => document.querySelector('.st-card-sem .st-row[data-key="r::20"] .lp')?.textContent === "14LP"
     && (localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith("p\t8\t") && line.endsWith("\tKomplex Praktische Informatik\t14")), PLAN);
+  await context.close();
+}
+
+// ---------- 2e: what the plan has open stands where the plan has it ----------
+{
+  const { page, step, seed, context } = await open({ viewport: { width: 1440, height: 900 } }, "/");
+  // Systemtheorie I for the Anwendungsfach, as the workbench's „+ 6 LP" stores it (the row it
+  // counts for: the choice's first).
+  const systemtheorie = (semester) => `m\t${semester}\t11908\t3\t\t\t079-82-2008\t15\t\n`;
+  // The open pieces of a row or a subsection, each with its semester.
+  const openOf = (name) => page.evaluate((name) => {
+    const head = [...document.querySelectorAll(".st-rm-grid > .st-row-head, .st-rm-sub")].find((head) => head.querySelector(".st-card-name")?.textContent === name);
+    const row = head?.nextElementSibling?.dataset.row;
+    return [...document.querySelectorAll(`.st-rm-cell[data-row="${row}"]`)].flatMap((cell) => [...cell.querySelectorAll(".st-rm-seg .st-rm-p.open")].map((piece) => `${cell.dataset.sem} ${piece.textContent.trim()}`)).join(", ");
+  }, name);
+  await seed([[MINE, THIRD], [PLAN, FILLED + systemtheorie("2026W")], ["betula.study.view", "grid"]]);
+  await step("Studium, for what is open", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector(".st-rm-grid"));
+  await step("the Nebenfach unfolded", () => page.click('.st-row-head:has(.st-card-name:text-is("Nebenfach")) .st-card-name'), () => [...document.querySelectorAll(".st-rm-sub .st-card-name")].some((name) => name.textContent === "Anwendungsfach"));
+  const third = { area: await openOf("Nebenfach"), choice: await openOf("Anwendungsfach"), other: await openOf("Praktische Mathematik") };
+  check(third.area === "2027S +12" && third.choice === "2027S +6" && third.other === "2027S +6", `a module of the third semester, the Anwendungsfach's open row: ${JSON.stringify(third)}`);
+  const thesis = await page.evaluate(() => {
+    const head = [...document.querySelectorAll(".st-rm-grid > .st-row-head")].find((head) => head.querySelector(".st-card-name")?.textContent === "Bachelor-Arbeit");
+    return [...document.querySelectorAll(`.st-rm-cell[data-row="${head?.nextElementSibling?.dataset.row}"] .st-rm-seg .st-rm-p.open`)].map((piece) => `${piece.closest(".st-rm-cell").dataset.sem} ${piece.getAttribute("aria-label")}`).join(" | ");
+  });
+  check(/^2028S [^|]*5\. und 6\. FS[^|]*$/.test(thesis), `the Bachelor-Arbeit, open in its last semester: ${thesis}`);
+  // The same module in the fourth: the row of the third is the open one.
+  await seed([[MINE, THIRD], [PLAN, FILLED + systemtheorie("2027S")], ["betula.study.view", "grid"]]);
+  await step("Studium, the module in the fourth", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && [...document.querySelectorAll(".st-rm-sub .st-card-name")].some((name) => name.textContent === "Anwendungsfach"));
+  const fourth = { area: await openOf("Nebenfach"), choice: await openOf("Anwendungsfach") };
+  check(fourth.area === "2026W +6, 2027S +6" && fourth.choice === "2026W +6", `a module of the fourth semester, the Anwendungsfach's open row: ${JSON.stringify(fourth)}`);
   await context.close();
 }
 

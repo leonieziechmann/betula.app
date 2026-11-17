@@ -2401,12 +2401,26 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     „32/30", then says no more than it holds; a placeholder light and dashed with „?" (class
     `is-ph`: until Folia 1.70.1 it was `row`, the catalog's list row's, and took that one's grid and
     height, standing out of its cell). What the
-    plan still has open (`study::open_lines`: a row at its first Fachsemester, not before the current
+    plan still has open (`study::open_lines`: a row at the Fachsemester it is due in — its first,
+    and the thesis the last of its span, `plan::due_in`; owner, 2026-11-17: „sowas, wie die
+    Bachelorarbeit sollte halt auch erst im 6. Semester im Default sein. Weil auch wenn man sie ab
+    dem 5. machen kann sollte man eigentlich erst am schluss"; until Folia 1.97.4 every row stood at
+    its first, the Bachelor-Arbeit of „5.–6. FS" in the fifth —, not before the current
     semester, in the next one that offers it; a Wiederholer in the next semester that offers it): a
     module by its abbreviation, a click plans it; the open rows of an area in a semester together as
-    what the area still asks for („+10", „noch 10 LP offen laut Regelstudienplan"), none of them
+    what they still ask for („+10", „noch 10 LP offen laut Regelstudienplan"), none of them
     where the area asks for nothing more, a click puts a single row in as a placeholder and unfolds
-    the area for several. A placeholder put in so leads into its module choice (owner, 2026-11-04:
+    the area for several. What a choice still asks for stands at its rows that nothing covers
+    (`grid::model::allot`, Folia 1.97.4; owner, the same day: „wenn man sowas wie ein Anwendungsfach
+    hat sollten im 3. Semester nich schon 12 lp stehen, wenn 6 davon eigentlich aus dem 4. Semester
+    kommen"): what counts for the choice covers the row nearest to its own semester first — a
+    module of 6 LP in the third semester the Anwendungsfach's row of the 3. FS, so that the „+6"
+    still open is the fourth's, one in the fourth the row of the 4. FS —, and what it brings beyond
+    its row the next one (8 LP leave „+4"), in the subsection's bar and in the area's alike
+    (`Subs::open_rows`: each row once, by its choice); until then the first open row took what the
+    choice still asked for, and the third semester showed the module and „+6" beside it, the fourth
+    nothing. A piece's title says the Fachsemester as the plan prints them („laut Regelstudienplan
+    im 5. und 6. FS"). A placeholder put in so leads into its module choice (owner, 2026-11-04:
     „wenn man einen platzhalter slot erstellt auch gleich in die modulauswahl dafür geschmissen
     werden"; `bench::choose_for`): the workbench of its semester at its row's subgroup, whose
     „+ Einplanen" fills it, with the note „Anwendungsfach in SoSe 2027 vorgemerkt" and „Rückgängig";
@@ -2621,7 +2635,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     zu ‹ WiSe 2026/27 ›" with the bar of the semester and ×, until then „Planen", a meter and
     „Fertig". *„Laut Plan im 3. FS"* (`bench::Due`), since 1.75.0 the
     rows of the phone's root (`bench::plan_rows`, `bench::next_rows`): „Plan übernehmen" (those of
-    the Fachsemester's Pflicht that stand nowhere yet and that the semester offers, at once), the
+    the Fachsemester's Pflicht that stand nowhere yet and that the semester offers, at once; a row
+    over several Fachsemester is one of each from the one it is due in on, `PlanLine::due`: the
+    Bachelor-Arbeit of „5.–6. FS" is the sixth's, Folia 1.97.4, and the fifth has it under „Aus dem
+    6. FS vorziehen", where until then its „Plan übernehmen" took it), the
     Pflicht not yet planned, its choices as dashed cards with their bars going into their subgroup,
     the stored placeholders of the semester whose choice is not among them, what is open from the
     Fachsemester before it (the Pflicht's rows that stand nowhere, choices not complete — the FÜS of
@@ -4394,7 +4411,9 @@ the pages about Betula since 2026-10-27 (`/about/<topic>`, below).
   3. „Was belegst du im WiSe 2026/27?" (owner, the same day: „bei der Modulwahl muss dann nochmal
      klarer gemacht werden, dass es sich dabei um die Module handelt, die man jetzt wirklich
      belegt"): the modules the Regelstudienplan puts into that Fachsemester
-     (`studyplan::import_fs`; the plans as chips where a program has several study directions),
+     (`studyplan::import_fs`; the plans as chips where a program has several study directions; a
+     row over several Fachsemester with each of them, the thesis with the last of its span alone,
+     `plan::due_span`, Folia 1.97.4: the Bachelor-Arbeit of „5.–6. FS" is no row of the fifth),
      all ticked, a placeholder where the plan names a choice („als Platzhalter, später wählen"),
      and the sentence over them says where the ticks come from and what goes into the Stundenplan
      („Vorausgewählt nach Regelstudienplan (3. FS). Lass nur angehakt, was du wirklich belegst:
