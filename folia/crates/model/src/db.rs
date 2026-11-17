@@ -31,7 +31,9 @@ use std::fmt;
 /// „Membership and kind"): no column changes either time, but a copy of 21 holds the pairs 22 drops.
 /// 23: the FÜS lists by the BTU's FÜS catalogs, and what they say beside a module of a program's
 /// FÜS list (`v_program_fues_note`, `v_fues_catalog`; docs/radix/schema-v2.md, „FÜS catalogs").
-pub const SCHEMA_VERSION: i64 = 23;
+/// 24: the lines of the catalogs' negative lists for one choice in a table of their own, so that a
+/// snapshot with catalogs passes Radix's validation; the read views are 23's.
+pub const SCHEMA_VERSION: i64 = 24;
 
 /// A SQLite value, as a parameter or as a result cell.
 #[derive(Clone, Debug, PartialEq)]
