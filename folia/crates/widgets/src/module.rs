@@ -2119,9 +2119,7 @@ const PROGRAMS_SHOWN: usize = 5;
 /// The programs the module belongs to: curricula first, then how many accept it as FÜS. Five at
 /// most, the fifth running out under a button that shows the rest (`.runout`, app.css, and
 /// enhance.js „runout"); without JavaScript all of them. How many accept it as FÜS is what the
-/// programs' FÜS lists hold (`fues_programs`), not what the page names: a FÜS module whose page
-/// names no program („keine Zuordnung vorhanden") is on every FÜS list (schema 21), and its
-/// section says so as well.
+/// programs' FÜS lists hold (`fues_programs`), one each, where the page may name a program twice.
 #[component]
 fn Programs(data: ModuleData) -> impl IntoView {
     let t = i18n::t();
