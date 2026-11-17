@@ -5,7 +5,7 @@
 //!
 //! From top to bottom: the head — the module's chip in its tone, the kind, „Besuch" or „von dir",
 //! and the tools, which never depend on the date shown („Ändern" or „Bearbeiten", the eye
-//! „Ausblenden", „⋯", „× Schließen"; of a Termin of one's own the bin „Löschen") —, the module's
+//! „Ausblenden", „⋯" with its menu, „×"; of a Termin of one's own the bin „Löschen") —, the module's
 //! title, the series in one line, the ticket with its date arrows (owner, 2026-10-27: „die Tasten
 //! ← → fürs Datum"), what is about the date picked there (a clash, why QIS cancels it, where it
 //! moved, „Am … ausgeblendet · Einblenden", „Von dir geändert … Zurücksetzen"), who only where the
@@ -20,14 +20,16 @@
 //! at, the slot itself while it is edited). „Ausblenden", „Ändern" and the note's field take the
 //! card's body; Esc leads back to the card, one layer at a time (`CardState::peel`).
 //!
-//! On a wide screen the card stands beside the slot's day column it was opened from
-//! (`card_place`), keeps its top edge and its width and grows downward only; on a phone it is a
-//! sheet. Nothing here runs on the server: `/event/<key>` looks a Termin up (R9).
+//! On a wide screen the card stands beside the slot's day column it was opened from, its top at the
+//! slot's where the window lets it (`card_place`), and keeps one edge and its width whatever it
+//! shows: its top, growing downward, or low in the window its bottom, growing upward; on a phone it
+//! is a sheet. Nothing here runs on the server: `/event/<key>` looks a Termin up (R9).
 
 use folia_calendar::semester::SemesterKey;
+use folia_design::modal::{Edge, Placed};
 use folia_design::nav::Room;
 use folia_design::waitnote::WaitNote;
-use folia_plans::studyplan::PlanDoc;
+use folia_plans::studyplan::{PlanDoc, PlanUndo};
 use folia_stores::collections::Anchor;
 use folia_timetable::choice;
 use folia_timetable::model::TakenBy;
@@ -45,6 +47,10 @@ pub(super) struct CardPart {
     /// The dates of it the student hid, named after the series („ausgeblendet: Mo 23.11."): each
     /// leads the ticket there.
     pub off_dates: Vec<(String, Day)>,
+    /// How many more are hidden than are named.
+    pub off_more: usize,
+    /// An extra beside the module's compulsory part („zusätzlich, freiwillig"), as its slot says.
+    pub extra: bool,
     /// The plan leaves the Termin out: why, in a line under the series and above the ticket
     /// („Ausgeblendet", „Vorlesung ausgeblendet", „Andere Gruppe gewählt · Mo 15:30").
     pub off: Option<String>,
@@ -53,6 +59,9 @@ pub(super) struct CardPart {
     pub of_date: Vec<CardLine>,
     /// The date shown is hidden: „Am Mo 23.11. ausgeblendet", and what shows it again.
     pub date_off: Option<(String, CardAct)>,
+    /// Of a Termin of one's own on a date it skips: the eye's words („Am Do 19.11. einblenden") and
+    /// what shows the date again.
+    pub own_show: Option<(String, CardAct)>,
     /// Who leads this Termin, where QIS names somebody at it (the module's responsible is the
     /// overview's).
     pub who: Vec<Person>,
@@ -222,7 +231,15 @@ pub(super) fn card_part(f: Facts<'_>) -> CardPart {
     let rhythm = rhythm_word(first, t);
     let when = first_when(event, o, locale);
     let what = called(event, f.modules, t);
-    let (kind, chip) = (f.head.kind.as_str(), f.head.chip.as_str());
+    let chip = f.head.chip.as_str();
+    // The kind in a sentence of Betula's own: in German QIS's word as the head has it („Vorlesung
+    // ganz"); in another language the kinds' labels („The whole lecture"), QIS's word as written
+    // where the event has no kind Betula knows — never lower-cased, it is a name.
+    let labels: Vec<&str> = event.kinds.iter().map(|kind| kind.label(locale)).collect();
+    let own_word = locale != Locale::De && !labels.is_empty();
+    let kind = if own_word { labels.join("/") } else if f.head.kind.is_empty() { words.panel.to_string() } else { f.head.kind.clone() };
+    let within = if own_word { kind.to_lowercase() } else { kind.clone() };
+    let kind = kind.as_str();
     let n = o.place(None).1;
     let sessions = termin::sessions(event);
     let tile = f.groups.and_then(|groups| groups.tiles.iter().find(|tile| tile.current));
@@ -241,7 +258,11 @@ pub(super) fn card_part(f: Facts<'_>) -> CardPart {
             Some((words.card_series)(&rhythm, &(words.dates)(count), &(words.left)(left)))
         }
     };
-    let off_dates = o.dates.iter().filter(|dated| dated.state == DateState::Hidden).take(3).map(|dated| (day_words(dated.day, f.today, locale), dated.day)).collect();
+    // The dates hidden, named once: the one shown says so under the ticket. Three by name, the
+    // rest as a number („… +2").
+    let hidden_days: Vec<Day> = o.dates.iter().filter(|dated| dated.state == DateState::Hidden && dated.day != o.day).map(|dated| dated.day).collect();
+    let off_dates = hidden_days.iter().take(3).map(|day| (day_words(*day, f.today, locale), *day)).collect();
+    let off_more = hidden_days.len().saturating_sub(3);
 
     let mut of_date: Vec<CardLine> = f.clash.into_iter().map(|hint| CardLine { hint, to: None, makeup: false }).collect();
     match &o.state {
@@ -276,7 +297,7 @@ pub(super) fn card_part(f: Facts<'_>) -> CardPart {
         }
         Some(HiddenBy::Event) => {
             off = Some((words.card_event_off)(kind));
-            big = Some(BigAct { label: (words.card_show_event)(kind), act: CardAct::Show { event: id, kind: None, rows: keys.clone() }, name: "show-event", said: None });
+            big = Some(BigAct { label: (words.card_show_event)(&within), act: CardAct::Show { event: id, kind: None, rows: keys.clone() }, name: "show-event", said: None });
         }
         Some(HiddenBy::Kinds) => {
             // It brings back every event of the kind, which its words say.
@@ -324,7 +345,9 @@ pub(super) fn card_part(f: Facts<'_>) -> CardPart {
             _ => {}
         },
     }
-    let compare = (f.groups.is_some() && event.hidden.is_none()).then(|| choice::code(event));
+    // „Vergleichen ›" where the Termin is a group of a choice, not beside a required Termin of an
+    // event that has groups besides.
+    let compare = (f.groups.is_some() && tile.is_some() && event.hidden.is_none()).then(|| choice::code(event));
 
     // What „Ausblenden" offers, the narrowest first; nothing of a Termin the plan leaves out.
     let mut hide = Vec::new();
@@ -333,7 +356,10 @@ pub(super) fn card_part(f: Facts<'_>) -> CardPart {
         // A Termin of one's own is not hidden as a whole but deleted: its eye hides the date.
         (None, Some(own)) => {
             if let Some((said, day, _)) = &own.date {
-                hide.push(HideChoice { label: (words.card_hide_own)(said), sub: String::new(), icon: "eye", act: CardAct::OwnDate { number: own.number, day: *day, hide: true }, name: "hide-date", said: (words.card_said_own_date)(&what, said) });
+                // A name the student wrote stands in quotes, one composed of kind and module not („VL EvS").
+                let named = event.own.as_ref().is_some_and(|own| !own.name.trim().is_empty());
+                let note = if named { (words.card_said_own_date)(&what, said) } else { (words.card_said_date)(&what, said) };
+                hide.push(HideChoice { label: (words.card_hide_own)(said), sub: String::new(), icon: "eye", act: CardAct::OwnDate { number: own.number, day: *day, hide: true }, name: "hide-date", said: note });
             }
         }
         (None, None) => {
@@ -345,8 +371,14 @@ pub(super) fn card_part(f: Facts<'_>) -> CardPart {
             }
             if in_group || sessions.len() > 1 {
                 let (label, sub, act) = match tile.filter(|_| in_group) {
+                    // A Termin of one date is „Diesen Termin", not „Alle 1".
+                    None if n < 2 => (words.card_this_termin.to_string(), (words.card_when_rhythm)(&when, &rhythm), CardAct::Rows(keys.clone())),
                     None => ((words.change_all)(n), (words.card_when_rhythm)(&when, &rhythm), CardAct::Rows(keys.clone())),
-                    Some(tile) if tile.ticked => (words.card_hide_group.to_string(), (words.card_others_open_again)(all.saturating_sub(1)), CardAct::Drop { ticks: tile.keys.clone(), rows: keys.clone() }),
+                    // The others stand to choose again only where this one was the one ticked.
+                    Some(tile) if tile.ticked => {
+                        let sub = if ticked > 1 { (words.card_others_stay_ticked)(ticked - 1) } else { (words.card_others_open_again)(all.saturating_sub(1)) };
+                        (words.card_hide_group.to_string(), sub, CardAct::Drop { ticks: tile.keys.clone(), rows: keys.clone() })
+                    }
                     Some(_) => (words.card_hide_group.to_string(), (words.card_others_to_choose)(all.saturating_sub(1)), CardAct::Rows(keys.clone())),
                 };
                 hide.push(HideChoice { label, sub, icon: "repeat", act, name: "hide-termin", said: (words.card_said_termin)(&what, &when) });
@@ -363,7 +395,7 @@ pub(super) fn card_part(f: Facts<'_>) -> CardPart {
                 // An option the visitor took among the module's events is taken back as it goes.
                 let leave = across.is_some_and(|(alt, across)| across.by == Some(TakenBy::Chosen) && across.taken.contains(&alt.option));
                 let act = if leave { CardAct::Leave(id) } else { CardAct::Event(id) };
-                hide.push(HideChoice { label: (words.card_hide_whole)(kind), sub, icon: "layers", act, name: "hide-event", said: (words.card_said_event)(kind, chip) });
+                hide.push(HideChoice { label: (words.card_hide_whole)(&within), sub, icon: "layers", act, name: "hide-event", said: (words.card_said_event)(kind, chip) });
             }
         }
     }
@@ -372,8 +404,14 @@ pub(super) fn card_part(f: Facts<'_>) -> CardPart {
         visit: event.visit,
         series,
         off_dates,
+        off_more,
+        extra: event.extra && f.own.is_none(),
         off,
         of_date,
+        own_show: f.own.and_then(|own| match &own.date {
+            Some((said, day, true)) => Some(((words.card_show_own)(said), CardAct::OwnDate { number: own.number, day: *day, hide: false })),
+            _ => None,
+        }),
         date_off,
         who: f.who,
         remark: f.remark,
@@ -393,24 +431,76 @@ pub(super) fn card_part(f: Facts<'_>) -> CardPart {
 
 /// The card's width as the stylesheet has it (app.css `.st-dialog.tm-card-modal`).
 pub(super) const WIDTH: f64 = 400.0;
-/// The room the card keeps under its top: it grows downward only („Ändern", the rows of „⋯"), so
-/// its top stands where its tallest body still ends inside the window.
-const ROOM: f64 = 480.0;
 const GAP: f64 = 10.0;
 const EDGE: f64 = 16.0;
+/// The bodies that take the card's place below its head, as tall as they are drawn (app.css, „The
+/// card of one Termin"; measured 319, 171, 94 + 52 a row), each with a little room for a line that
+/// wraps: „Ändern" with the line of what the change meets, the note's field, and „Ausblenden" by
+/// its rows.
+const BODY_CHANGE: f64 = 345.0;
+const BODY_NOTE: f64 = 190.0;
+const BODY_HIDE: f64 = 104.0;
+const HIDE_ROW: f64 = 54.0;
 
-/// Where the card stands, its left and its top in the window. `at`: the slot's day column from
-/// left to right, the slot from top to bottom. Beside the column on the side with more room — the
-/// other side where it fits there alone —, its top at the slot's; where neither side has room for
-/// it, at the window's edge and under the slot, else over it: never on the slot while the window
-/// leaves another place. Always inside the window and never under the rail (`Room`). Without a
-/// slot in the middle of the page, 12 % of the window down.
-pub(super) fn card_place(at: Option<Anchor>, width: f64, room: Room) -> (f64, f64) {
+/// How tall the bodies of a card can be that take its place under its head (`CardPart`): „Ändern"
+/// where it has the pencil, „Ausblenden" by its rows where the eye opens a choice, the note's field
+/// where „⋯" offers it. 0 for a card that has none of them: a Termin the plan leaves out (no
+/// pencil, no eye), a Termin of one's own (its pencil is the form over the page, its eye acts at
+/// once).
+pub(super) fn tallest_body(card: &CardPart, own: bool, note: bool) -> f64 {
+    if own {
+        return 0.0;
+    }
+    let change = if card.change { BODY_CHANGE } else { 0.0 };
+    let hide = if card.hide.is_empty() { 0.0 } else { BODY_HIDE + HIDE_ROW * card.hide.len() as f64 };
+    let note = if note { BODY_NOTE } else { 0.0 };
+    change.max(hide).max(note)
+}
+
+/// What the card measures of itself as it rests (nothing open in it): its height, and its body's
+/// below the head. The bodies of „Ändern", „Ausblenden" and the note take the body's place.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct Size {
+    pub rest: f64,
+    pub body: f64,
+    /// `tallest_body`.
+    pub tallest: f64,
+}
+
+impl Size {
+    /// As tall as it can grow: its head and the tallest of its bodies, or as it rests.
+    pub(super) fn most(self) -> f64 {
+        (self.rest - self.body + self.tallest).max(self.rest)
+    }
+}
+
+/// Where the card stands (`Placed`). `at`: the slot's day column from left to right, the slot from
+/// top to bottom. Beside the column on the side with more room — the other side where it fits
+/// there alone —, its top at the slot's; where neither side has room for it, at the window's edge
+/// and under the slot, else over it: never on the slot while the window leaves another place.
+/// Always inside the window and never under the rail (`Room`). Without a slot in the middle of the
+/// page, 12 % of the window down.
+///
+/// One edge stays still whatever the card shows (owner, 2026-10-16: „Modale menus springen zu viel
+/// in der größe"): where it can grow as tall as it can under the slot's top, its top stands at the
+/// slot's and it grows downward; else its bottom stands where the resting card ends beside the
+/// slot — the top still at the slot's — and it grows upward, and where even the resting card does
+/// not fit under the slot's top, its bottom is 16 px over the window's edge. No button lies under
+/// the window's edge, nothing makes the window scroll.
+pub(super) fn card_place(at: Option<Anchor>, width: f64, room: Room, size: Size) -> Placed {
     let Room { left: rail, width: view, height: tall } = room;
     let least = rail + EDGE;
     let most = (view - width - EDGE).max(least);
-    let lowest = (tall - ROOM - EDGE).max(EDGE);
-    let Some(at) = at else { return ((rail + (view - rail - width) / 2.0).clamp(least, most), (tall * 0.12).clamp(EDGE, lowest)) };
+    let bottom = |y: f64| Edge::Bottom((tall - y).max(EDGE));
+    let grown = size.most();
+    let top_at = |top: f64| match top + grown <= tall - EDGE {
+        true => Edge::Top(top),
+        false => bottom((top + size.rest).min(tall - EDGE)),
+    };
+    let Some(at) = at else {
+        let left = (rail + (view - rail - width) / 2.0).clamp(least, most);
+        return Placed { left, edge: top_at((tall * 0.12).max(EDGE)) };
+    };
     let (right, left) = (at.right + GAP, at.left - GAP - width);
     let (fits_right, fits_left) = (right <= most, left >= least);
     let more_right = view - at.right >= at.left - rail;
@@ -421,52 +511,94 @@ pub(super) fn card_place(at: Option<Anchor>, width: f64, room: Room) -> (f64, f6
         (false, false, false) => least,
     };
     let beside = x >= at.right || x + width <= at.left;
-    let y = match beside {
-        true => at.top,
-        false if at.bottom + GAP <= lowest => at.bottom + GAP,
-        false => at.top - GAP - ROOM,
+    let edge = match beside {
+        true => top_at(at.top.max(EDGE)),
+        // Under the slot where the resting card fits there, else over it, its bottom above it.
+        false if at.bottom + GAP + size.rest <= tall - EDGE => top_at(at.bottom + GAP),
+        false => bottom((at.top - GAP).max(EDGE + size.rest).min(tall - EDGE)),
     };
-    (x, y.clamp(EDGE, lowest))
+    Placed { left: x, edge }
+}
+
+/// How tall the card in the open dialog is as drawn, and its body (what scrolls when it is cut).
+pub(super) fn measured() -> Option<(f64, f64)> {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        let dialog = folia_design::stage::select("dialog.tm-card-modal[open]")?.dyn_into::<web_sys::HtmlElement>().ok()?;
+        let body = dialog.query_selector(".tm-card > .dbody").ok().flatten()?.dyn_into::<web_sys::HtmlElement>().ok()?;
+        let (shown, scroll) = (f64::from(body.client_height()), f64::from(body.scroll_height()));
+        let tall = f64::from(dialog.offset_height()) - shown + scroll;
+        (tall > 0.0).then_some((tall, scroll))
+    }
+    #[cfg(not(feature = "csr"))]
+    None
+}
+
+/// The card's dialog, while it is open on the page in front.
+#[cfg(feature = "csr")]
+fn dialog() -> Option<web_sys::HtmlElement> {
+    use wasm_bindgen::JsCast;
+    folia_design::stage::select("dialog.tm-card-modal[open]").and_then(|dialog| dialog.dyn_into::<web_sys::HtmlElement>().ok())
+}
+
+/// Whether the keyboard is nowhere in the card: on the dialog itself or fallen to the page
+/// (`body`), as when what had it went.
+#[cfg(feature = "csr")]
+fn lost(dialog: &web_sys::HtmlElement) -> bool {
+    let at = leptos::prelude::document().active_element();
+    at.is_none_or(|at| {
+        let own: &web_sys::Element = dialog.as_ref();
+        at == *own || !own.contains(Some(&at))
+    })
+}
+
+/// Gives the keyboard to what `selector` finds in the card, where the keyboard is nowhere in it.
+fn focus_in(selector: &str) {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        let Some(dialog) = dialog() else { return };
+        if !lost(&dialog) {
+            return;
+        }
+        match dialog.query_selector(selector).ok().flatten().and_then(|to| to.dyn_into::<web_sys::HtmlElement>().ok()) {
+            Some(to) => {
+                let _ = to.focus();
+            }
+            None => {
+                let _ = dialog.focus();
+            }
+        }
+    }
+    #[cfg(not(feature = "csr"))]
+    let _ = selector;
 }
 
 /// The large action has the keyboard as the card opens (a click, then Enter), where there is one
-/// and the focus still is the dialog's own: nothing a visitor reached for loses it.
+/// and the keyboard is nowhere in the card yet: nothing a visitor reached for loses it.
 pub(super) fn focus_big() {
-    #[cfg(feature = "csr")]
-    {
-        use wasm_bindgen::JsCast;
-        let Some(dialog) = folia_design::stage::select("dialog.tm-card-modal[open]") else { return };
-        let own = leptos::prelude::document().active_element().is_some_and(|at| at == dialog);
-        let big = dialog.query_selector(".tm-act .tm-big").ok().flatten().and_then(|big| big.dyn_into::<web_sys::HtmlElement>().ok());
-        if let (true, Some(big)) = (own, big) {
-            let _ = big.focus();
-        }
-    }
-}
-
-/// The dialog has the keyboard again once what stood open in the card went (Esc): ← → V and Esc
-/// work on.
-pub(super) fn focus_card() {
-    #[cfg(feature = "csr")]
-    {
-        use wasm_bindgen::JsCast;
-        if let Some(dialog) = folia_design::stage::select("dialog.tm-card-modal[open]").and_then(|dialog| dialog.dyn_into::<web_sys::HtmlElement>().ok()) {
-            let _ = dialog.focus();
-        }
-    }
+    focus_in(".tm-act .tm-big");
 }
 
 // ---------- the view ----------
 
 /// What stands open inside the card: „Ändern" with what it holds, „Ausblenden"'s choice or the
-/// note's field — one of them at a time, in the card's body — and the rows of „⋯". The dialog owns
-/// it, so that Esc closes what is open in the card before the card (`peel`) and another Termin's
-/// card begins with nothing open (`reset`).
+/// note's field — one of them at a time, in the card's body — and the menu of „⋯" over it. The
+/// dialog owns it, so that Esc closes what is open in the card before the card (`peel`), and a
+/// card that closed leaves nothing open for the next (`reset`).
 #[derive(Clone, Copy)]
 pub(super) struct CardState {
     editing: RwSignal<Option<ChangeDraft>>,
     inner: RwSignal<Inner>,
     more: RwSignal<bool>,
+    /// The card did what closes it: it shows what it showed until it has gone.
+    leaving: RwSignal<bool>,
+    /// What has the keyboard once the layer open in the card goes (Esc, „Abbrechen", „Speichern"):
+    /// the tool that opened it, a selector in the card.
+    returns: StoredValue<Option<&'static str>>,
+    /// How tall the bodies can be that take the card's place (`tallest_body`), for where it stands.
+    pub(super) tallest: RwSignal<f64>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -479,12 +611,29 @@ enum Inner {
 
 impl CardState {
     pub(super) fn new() -> Self {
-        CardState { editing: RwSignal::new(None), inner: RwSignal::new(Inner::None), more: RwSignal::new(false) }
+        CardState {
+            editing: RwSignal::new(None),
+            inner: RwSignal::new(Inner::None),
+            more: RwSignal::new(false),
+            leaving: RwSignal::new(false),
+            returns: StoredValue::new(None),
+            tallest: RwSignal::new(0.0),
+        }
     }
 
-    /// Esc: closes what is open in the card's body; `false` where nothing is (the card closes).
+    /// Something stands open in the card: a body or the menu.
+    pub(super) fn layered(&self) -> bool {
+        self.editing.try_with_untracked(Option::is_some).unwrap_or(false) || self.inner.try_get_untracked().is_some_and(|inner| inner != Inner::None) || self.more.try_get_untracked().unwrap_or(false)
+    }
+
+    /// Esc: closes what is open in the card — the menu first, else the body —; `false` where
+    /// nothing is (the card closes).
     pub(super) fn peel(&self) -> bool {
-        let open = self.editing.try_with_untracked(Option::is_some).unwrap_or(false) || self.inner.try_get_untracked().is_some_and(|inner| inner != Inner::None);
+        if self.more.try_get_untracked().unwrap_or(false) {
+            let _ = self.more.try_set(false);
+            return true;
+        }
+        let open = self.layered();
         if open {
             self.editing.set(None);
             self.inner.set(Inner::None);
@@ -492,12 +641,47 @@ impl CardState {
         open
     }
 
-    /// Nothing open: another Termin's card.
+    /// Opens a body or the menu, from the tool `from` (a selector), which has the keyboard again
+    /// once it goes.
+    fn returns_to(&self, from: &'static str) {
+        self.returns.set_value(Some(from));
+    }
+
+    /// The keyboard back where it belongs once what had it went: the tool that opened the layer
+    /// just closed, else the large action, else the dialog.
+    pub(super) fn refocus(&self) {
+        let to = self.returns.try_get_value().flatten();
+        let _ = self.returns.try_set_value(None);
+        request_animation_frame(move || match to {
+            Some(to) => focus_in(to),
+            None => focus_big(),
+        });
+    }
+
+    /// Nothing open: the card closed, or another Termin's card stands in its place.
     pub(super) fn reset(&self) {
         let _ = self.editing.try_set(None);
         let _ = self.inner.try_set(Inner::None);
         let _ = self.more.try_set(false);
+        let _ = self.leaving.try_set(false);
+        let _ = self.returns.try_set_value(None);
     }
+}
+
+/// Gives the keyboard to what `selector` finds in the card, a frame later, wherever it is now: a
+/// field or a menu that has just opened.
+fn focus_now(selector: &'static str) {
+    request_animation_frame(move || {
+        #[cfg(feature = "csr")]
+        {
+            use wasm_bindgen::JsCast;
+            if let Some(to) = dialog().and_then(|dialog| dialog.query_selector(selector).ok().flatten()).and_then(|to| to.dyn_into::<web_sys::HtmlElement>().ok()) {
+                let _ = to.focus();
+            }
+        }
+        #[cfg(not(feature = "csr"))]
+        let _ = selector;
+    });
 }
 
 /// The card of the Termin `ctx.asked`, top to bottom: `section.is-termin.tm-dialog.tm-card`.
@@ -505,7 +689,13 @@ impl CardState {
 pub(super) fn TerminCard(ctx: TerminCtx, closing: Callback<()>, state: CardState) -> impl IntoView {
     let t = i18n::t();
     let words = &t.termin;
-    let shown = shown_memo(ctx);
+    let live = shown_memo(ctx);
+    // On its way out the card shows what it showed: the plan changes under it after the frame
+    // (`run`), and the dialog goes when the address says so, which can be frames later.
+    let shown = Memo::new(move |before: Option<&Option<Shown>>| match (state.leaving.get(), before) {
+        (true, Some(before)) => before.clone(),
+        _ => live.get(),
+    });
     // Each part of `shown` alone (R16: never `ctx.table` and `shown` in one closure).
     let found = Memo::new(move |_| shown.with(Option::is_some));
     let loading = Memo::new(move |_| ctx.table.with(Option::is_none));
@@ -518,16 +708,42 @@ pub(super) fn TerminCard(ctx: TerminCtx, closing: Callback<()>, state: CardState
     let called = Memo::new(move |_| shown.with(|s| s.as_ref().map(|s| format!("{} · {} · {}", s.head.kind, s.head.title, s.ticket.date)).unwrap_or_default()));
     let changing = Memo::new(move |_| state.editing.with(|draft| draft.as_ref().map(|draft| (draft.key, draft.day))).is_some_and(|open| Some(open) == at.get()));
 
+    // How tall its bodies can be, for where the dialog stands.
+    Effect::new(move |_| {
+        let tallest = card.with(|card| card.as_ref().map(|card| tallest_body(card, own.with(Option::is_some), change.with(Option::is_some)))).unwrap_or(0.0);
+        state.tallest.set(tallest);
+    });
+    // The keyboard never falls out of the card: once a layer closed (Esc, „Abbrechen",
+    // „Speichern") it goes back to the tool that opened it, and once the card changed under it
+    // („Haken wegnehmen", „Einblenden", „Zurücksetzen") to what stands in place of what had it.
+    let layer = Memo::new(move |_| state.editing.with(Option::is_some) || state.inner.get() != Inner::None || state.more.get());
+    Effect::new(move |before: Option<bool>| {
+        let open = layer.get();
+        if before == Some(true) && !open {
+            state.refocus();
+        }
+        open
+    });
+    Effect::new(move |before: Option<()>| {
+        shown.track();
+        if before.is_some() && !layer.get_untracked() {
+            state.refocus();
+        }
+    });
+
     // What takes the Termin out of the week or decides it: the card closes as its × does, the page
     // answers (its note with „Rückgängig", or the slot itself), and the plan follows after the
-    // frame that showed both — as „Löschen" of a Termin of one's own does.
+    // frame — as „Löschen" of a Termin of one's own does. „Rückgängig" takes back what this did,
+    // not what was done meanwhile elsewhere (`PlanUndo`).
     let run = Callback::new(move |(act, said): (CardAct, Option<String>)| {
         let (Some(plan), Some(sem)) = (ctx.plan, sem.get_untracked()) else { return };
         match ctx.done {
             Some(done) => {
                 if let Some(said) = said {
-                    done.run(TerminUndo { said, before: plan.with_untracked(Clone::clone) });
+                    let undo = PlanUndo::made(plan.with_untracked(Clone::clone), |doc| act.apply(doc, sem));
+                    done.run(TerminUndo { said, undo });
                 }
+                state.leaving.set(true);
                 closing.run(());
                 plan.update_after_paint(move |doc| act.apply(doc, sem));
             }
@@ -535,18 +751,35 @@ pub(super) fn TerminCard(ctx: TerminCtx, closing: Callback<()>, state: CardState
             None => plan.update(|doc| act.apply(doc, sem)),
         }
     });
-    // What the card answers itself: the group's line, the date's pill.
+    // What the card answers itself: the group's line, the date's line.
     let stay = Callback::new(move |act: CardAct| {
         let (Some(plan), Some(sem)) = (ctx.plan, sem.get_untracked()) else { return };
         plan.update(|doc| act.apply(doc, sem));
     });
+    // A click in the card beside the menu of „⋯" closes it.
+    let beside_menu = move |ev: leptos::ev::MouseEvent| {
+        if !state.more.get_untracked() {
+            return;
+        }
+        #[cfg(feature = "csr")]
+        {
+            use wasm_bindgen::JsCast;
+            let inside = ev.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()).and_then(|at| at.closest(".tm-menu, [data-action=\"more\"]").ok().flatten()).is_some();
+            if !inside {
+                state.more.set(false);
+            }
+        }
+        #[cfg(not(feature = "csr"))]
+        let _ = ev;
+    };
 
+    let close = move || view! { <button class="ghost hit dlg-close tm-close" type="button" aria-label=t.common.close title=words.card_close_title on:click=move |_| closing.run(())><Icon name="x"/></button> };
     let top = move || {
         let Some((head, sub)) = head.get() else {
-            return view! { <div class="hero-top tm-bar"><div class="tm-tools"><DialogClose on_close=closing label=words.close_title/></div></div> }.into_any();
+            return view! { <div class="hero-top tm-bar"><div class="tm-tools">{close()}</div></div> }.into_any();
         };
-        let chip = view! { <span class=format!("tm-mod {}", hue(head.tone)) class:words=head.words><i></i>{head.chip.clone()}</span> };
-        let kind = (!head.kind.is_empty()).then(|| view! { <span class="tm-kind">{head.kind.clone()}</span> });
+        let chip = view! { <span class=format!("tm-mod {}", hue(head.tone)) class:words=head.words id="tm-chip"><i></i>{head.chip.clone()}</span> };
+        let kind = (!head.kind.is_empty()).then(|| view! { <span class="tm-kind" id="tm-kind">{head.kind.clone()}</span> });
         let tags = move || {
             let visit = card.with(|card| card.as_ref().is_some_and(|card| card.visit));
             // „von dir" of one of one's own that has a module: without one its chip says it.
@@ -562,8 +795,8 @@ pub(super) fn TerminCard(ctx: TerminCtx, closing: Callback<()>, state: CardState
                 {kind}
                 {tags}
                 <div class="tm-tools">
-                    <CardTools ctx card own change state run/>
-                    <DialogClose on_close=closing label=words.close_title/>
+                    <CardTools ctx card own change at called state run stay/>
+                    {close()}
                 </div>
             </div>
             <h2 class="tm-title" id=TITLE_ID>{head.title}</h2>
@@ -586,16 +819,24 @@ pub(super) fn TerminCard(ctx: TerminCtx, closing: Callback<()>, state: CardState
         match state.inner.get() {
             Inner::Hide => view! { <HideView card state run/> }.into_any(),
             Inner::Note => match change.get_untracked() {
-                Some(part) => view! { <NoteField ctx key=part.key note=part.note on_done=Callback::new(move |()| state.inner.set(Inner::None))/> }.into_any(),
+                Some(part) => {
+                    let removable = part.note.is_some();
+                    view! {
+                        <div class="tm-note-body">
+                            <h4>{words.note}<span class="r">{words.note_sub}</span></h4>
+                            <NoteField ctx key=part.key note=part.note removable on_done=Callback::new(move |()| state.inner.set(Inner::None))/>
+                        </div>
+                    }
+                    .into_any()
+                }
                 None => ().into_any(),
             },
             Inner::None => view! {
                 <TicketView ctx shown/>
                 <CardDateLines ctx card at stay/>
                 <ChangedView ctx shown/>
-                <CardPeople ctx card change sem state/>
-                <CardAction ctx card run stay/>
-                <CardMore ctx card change at called state/>
+                <CardPeople card change sem state/>
+                <CardAction ctx card state run stay/>
                 <CardWays ctx card own at/>
             }
             .into_any(),
@@ -603,7 +844,7 @@ pub(super) fn TerminCard(ctx: TerminCtx, closing: Callback<()>, state: CardState
     };
 
     view! {
-        <section class="is-termin tm-dialog tm-card" aria-label=words.panel>
+        <section class="is-termin tm-dialog tm-card" aria-label=words.panel on:click=beside_menu>
             <header class="hero tm-head">{top}</header>
             <div class="dbody tm st-dlg-body" data-sheet-body="">{body}</div>
         </section>
@@ -611,19 +852,31 @@ pub(super) fn TerminCard(ctx: TerminCtx, closing: Callback<()>, state: CardState
 }
 
 /// The head's tools: „Ändern" (of one's own „Bearbeiten"), the eye „Ausblenden", of one's own the
-/// bin „Löschen", „⋯". Which stand comes from the Termin, never from the date shown (an arrow
-/// in the ticket would else change what stands above it: CLAUDE.md, „What picks stands above what it
-/// changes").
+/// bin „Löschen", „⋯" with its menu. Which stand comes from the Termin, never from the date shown
+/// (an arrow in the ticket would else change what stands above it: CLAUDE.md, „What picks stands
+/// above what it changes") — but the eye of a Termin of one's own, which says what is (owner,
+/// 2026-11-17: „da wo es nur ausblendet das auge"): on a date already hidden it is the crossed eye
+/// and shows the date again.
 #[component]
-fn CardTools(ctx: TerminCtx, card: Memo<Option<CardPart>>, own: Memo<Option<OwnPart>>, change: Memo<Option<ChangePart>>, state: CardState, run: Callback<(CardAct, Option<String>)>) -> impl IntoView {
+fn CardTools(
+    ctx: TerminCtx,
+    card: Memo<Option<CardPart>>,
+    own: Memo<Option<OwnPart>>,
+    change: Memo<Option<ChangePart>>,
+    at: Memo<Option<(RowKey, Day)>>,
+    called: Memo<String>,
+    state: CardState,
+    run: Callback<(CardAct, Option<String>)>,
+    stay: Callback<CardAct>,
+) -> impl IntoView {
     let t = i18n::t();
     let words = &t.termin;
-    let tools = Memo::new(move |_| card.with(|card| card.as_ref().map(|card| (card.change, card.hide.first().cloned(), !card.hide.is_empty(), card.date_off.is_some()))));
+    let tools = Memo::new(move |_| card.with(|card| card.as_ref().map(|card| (card.change, card.hide.first().cloned(), !card.hide.is_empty(), card.own_show.clone()))));
     let number = Memo::new(move |_| own.with(|own| own.as_ref().map(|own| own.number)));
     let expanded = |on: bool| if on { "true" } else { "false" };
     let editing = Memo::new(move |_| state.editing.with(Option::is_some));
     move || {
-        let (can_change, first_hide, any_hide, date_off) = tools.get()?;
+        let (can_change, first_hide, any_hide, own_show) = tools.get()?;
         let number = number.get();
         let pencil = match (number, ctx.own) {
             (Some(number), Some(acts)) => Some(view! {
@@ -632,7 +885,14 @@ fn CardTools(ctx: TerminCtx, card: Memo<Option<CardPart>>, own: Memo<Option<OwnP
             (None, _) if can_change => Some(view! {
                 <button class="ghost tm-tool" type="button" data-action="change" title=words.card_change_title aria-label=words.change aria-expanded=move || expanded(editing.get())
                     on:click=move |_| {
+                        state.more.set(false);
+                        // A second press closes it, as the eye's does; what was typed goes with it.
+                        if state.editing.with_untracked(Option::is_some) {
+                            state.editing.set(None);
+                            return;
+                        }
                         let Some(part) = change.get_untracked() else { return };
+                        state.returns_to("[data-action=\"change\"]");
                         state.inner.set(Inner::None);
                         state.editing.set(Some(ChangeDraft::of(&part)));
                     }>
@@ -641,23 +901,25 @@ fn CardTools(ctx: TerminCtx, card: Memo<Option<CardPart>>, own: Memo<Option<OwnP
             }.into_any()),
             _ => None,
         };
-        let eye = match (number, first_hide) {
-            // Of one's own the eye hides the date at once (it has one reach); on a date already
-            // hidden the line under the ticket brings it back.
-            (Some(_), Some(choice)) => Some(view! {
-                <button class="ghost tm-tool" type="button" data-action="hide-date" title=choice.label.clone() aria-label=choice.label.clone()
-                    on:click=move |_| {
-                        if !date_off {
-                            run.run((choice.act.clone(), Some(choice.said.clone())));
-                        }
-                    }>
+        let eye = match (number, first_hide, own_show) {
+            // Of one's own, on a date already hidden: the crossed eye shows it again, the card stays.
+            (Some(_), _, Some((label, act))) => Some(view! {
+                <button class="ghost tm-tool" type="button" data-action="show-date" title=label.clone() aria-label=label on:click=move |_| stay.run(act.clone())>
+                    <Icon name="eye-off"/>
+                </button>
+            }.into_any()),
+            // Of one's own the eye hides the date at once (it has one reach).
+            (Some(_), Some(choice), None) => Some(view! {
+                <button class="ghost tm-tool" type="button" data-action="hide-date" title=choice.label.clone() aria-label=choice.label.clone() on:click=move |_| run.run((choice.act.clone(), Some(choice.said.clone())))>
                     <Icon name="eye"/>
                 </button>
             }.into_any()),
-            (None, _) if any_hide => Some(view! {
+            (None, _, _) if any_hide => Some(view! {
                 <button class="ghost tm-tool" type="button" data-action="hide" title=words.hide aria-label=words.hide aria-expanded=move || expanded(state.inner.get() == Inner::Hide)
                     on:click=move |_| {
+                        state.more.set(false);
                         state.editing.set(None);
+                        state.returns_to("[data-action=\"hide\"]");
                         state.inner.update(|inner| *inner = if *inner == Inner::Hide { Inner::None } else { Inner::Hide });
                     }>
                     <Icon name="eye"/>
@@ -672,25 +934,85 @@ fn CardTools(ctx: TerminCtx, card: Memo<Option<CardPart>>, own: Memo<Option<OwnP
             _ => None,
         };
         let more = number.is_none().then(|| view! {
-            <button class="ghost tm-tool" type="button" data-action="more" title=words.card_more aria-label=words.card_more_title aria-expanded=move || expanded(state.more.get()) on:click=move |_| state.more.update(|more| *more = !*more)>
+            <button class="ghost tm-tool" type="button" data-action="more" title=words.card_more aria-label=words.card_more_title aria-haspopup="menu" aria-expanded=move || expanded(state.more.get())
+                on:click=move |_| {
+                    state.returns_to("[data-action=\"more\"]");
+                    state.more.update(|more| *more = !*more);
+                    if state.more.get_untracked() {
+                        focus_now(".tm-menu [role=menuitem]");
+                    }
+                }>
                 <Icon name="ellipsis"/>
             </button>
+            {move || state.more.get().then(|| view! { <CardMenu ctx card change at called state/> })}
         });
         Some(view! { {pencil}{eye}{bin}{more} })
     }
 }
 
-/// The series in one line (which no arrow changes), the dates of it hidden as links to them, and
-/// why the plan leaves the Termin out (cases d1, d2), above the ticket.
+/// The menu of „⋯" under its sign, over the card's body, which it never makes taller: „Notiz
+/// hinzufügen" (or „bearbeiten"), „Nachholtermin anlegen", „Teilen", „In QIS öffnen ↗" — each entry
+/// one line and a button as a whole. Esc and a click beside it close it.
+#[component]
+fn CardMenu(ctx: TerminCtx, card: Memo<Option<CardPart>>, change: Memo<Option<ChangePart>>, at: Memo<Option<(RowKey, Day)>>, called: Memo<String>, state: CardState) -> impl IntoView {
+    let t = i18n::t();
+    let words = &t.termin;
+    let qis = card.with_untracked(|card| card.as_ref().and_then(|card| card.qis.clone()));
+    let part = change.with_untracked(|change| change.as_ref().map(|change| (change.key, change.day, change.note.is_some())));
+    let note = part.map(|(_, _, has)| {
+        view! {
+            <button class="tm-menu-row" type="button" role="menuitem" data-action="note"
+                on:click=move |_| {
+                    state.more.set(false);
+                    state.editing.set(None);
+                    state.inner.set(Inner::Note);
+                    focus_now("#tm-note-field");
+                }>
+                <Icon name="file-text"/><span>{if has { words.card_note_edit } else { words.card_note_add }}</span>
+            </button>
+        }
+    });
+    let makeup = part.zip(ctx.change).map(|((key, day, _), acts)| {
+        view! {
+            <button class="tm-menu-row" type="button" role="menuitem" data-action="makeup" on:click=move |_| { state.more.set(false); acts.makeup.run((key, day)); }>
+                <Icon name="calendar-plus"/><span>{words.card_makeup}</span>
+            </button>
+        }
+    });
+    let href = move || at.get().map(|(key, day)| t.path(&url::event_path(key, Some(day)))).unwrap_or_default();
+    // „Teilen" says „Kopiert" in its place (enhance.js `share-link`): the menu stays for it.
+    let share = view! {
+        <button class="tm-menu-row tm-share js-only" type="button" role="menuitem" data-action="share-link" data-text=href data-absolute="" data-title=move || called.get() title=words.share_title>
+            <Icon name="share-2"/><span data-label="">{words.share}</span>
+        </button>
+    };
+    let qis = qis.map(|href| {
+        view! {
+            <a class="tm-menu-row" role="menuitem" href=href rel="noopener" target="_blank" on:click=move |_| state.more.set(false)>
+                <Icon name="arrow-up-right"/><span>{words.open_in_qis}" ↗"</span>
+            </a>
+        }
+    });
+    view! { <div class="tm-menu" role="menu" aria-label=words.card_more_title>{note}{makeup}{share}{qis}</div> }
+}
+
+/// The series in one line (which no arrow changes), the other dates of it hidden as links to them
+/// (three by name, the rest as a number), whether it is an extra, and why the plan leaves the
+/// Termin out (cases d1, d2), above the ticket.
 #[component]
 fn CardSeries(ctx: TerminCtx, card: Memo<Option<CardPart>>, at: Memo<Option<(RowKey, Day)>>) -> impl IntoView {
     let t = i18n::t();
     let words = &t.termin;
-    let lines = Memo::new(move |_| card.with(|card| card.as_ref().map(|card| (card.series.clone(), card.off_dates.clone(), card.off.clone()))));
+    let lines = Memo::new(move |_| card.with(|card| card.as_ref().map(|card| (card.series.clone(), card.off_dates.clone(), card.off_more, card.extra, card.off.clone()))));
     let key = Memo::new(move |_| at.get().map(|(key, _)| key));
     move || {
-        let (series, off_dates, off) = lines.get()?;
+        let (series, off_dates, off_more, extra, off) = lines.get()?;
         let key = key.get()?;
+        let series = match (series, extra) {
+            (Some(series), true) => Some(format!("{series} · {}", words.card_extra)),
+            (None, true) => Some(words.card_extra.to_string()),
+            (series, false) => series,
+        };
         let dates = (!off_dates.is_empty()).then(|| {
             let links = off_dates
                 .into_iter()
@@ -703,7 +1025,8 @@ fn CardSeries(ctx: TerminCtx, card: Memo<Option<CardPart>>, at: Memo<Option<(Row
                 })
                 .collect_view();
             let head = (words.card_series_off)("");
-            view! { {series.is_some().then_some(" · ")}{head}{links} }
+            let more = (off_more > 0).then(|| format!(" {}", (words.card_more_off)(off_more)));
+            view! { {series.is_some().then_some(" · ")}{head}{links}{more} }
         });
         let when = (series.is_some() || dates.is_some()).then(|| view! { <p class="tm-when">{series}{dates}</p> });
         let off = off.map(|off| view! { <p class="tm-off"><Icon name="eye-off"/><span>{off}</span></p> });
@@ -754,12 +1077,11 @@ fn CardDateLines(ctx: TerminCtx, card: Memo<Option<CardPart>>, at: Memo<Option<(
 /// Who leads the Termin where it names somebody, QIS's remark, and the note with „Bearbeiten";
 /// under it the hint of Betula Sync where another device wrote into the note at the same time.
 #[component]
-fn CardPeople(ctx: TerminCtx, card: Memo<Option<CardPart>>, change: Memo<Option<ChangePart>>, sem: Memo<Option<SemesterKey>>, state: CardState) -> impl IntoView {
+fn CardPeople(card: Memo<Option<CardPart>>, change: Memo<Option<ChangePart>>, sem: Memo<Option<SemesterKey>>, state: CardState) -> impl IntoView {
     let t = i18n::t();
     let words = &t.termin;
     let lines = Memo::new(move |_| card.with(|card| card.as_ref().map(|card| (card.who.clone(), card.remark.clone(), card.note.clone()))));
     let key = Memo::new(move |_| change.with(|change| change.as_ref().map(|change| change.key)));
-    let _ = ctx;
     move || {
         let (who, remark, note) = lines.get()?;
         let conflict = key.get().map(|row| view! { <crate::syncnote::TerminNoteConflict semester=Signal::derive(move || sem.get()) row/> });
@@ -773,7 +1095,15 @@ fn CardPeople(ctx: TerminCtx, card: Memo<Option<CardPart>>, change: Memo<Option<
                 <p class="tm-hint tm-note-line">
                     <Icon name="file-text"/>
                     <span>{words.note}": "<span class="tm-note-text">{note}</span></span>
-                    <button class="sw" type="button" data-action="note-edit" on:click=move |_| { state.editing.set(None); state.inner.set(Inner::Note); }>{words.note_edit}</button>
+                    <button class="sw" type="button" data-action="note-edit"
+                        on:click=move |_| {
+                            state.returns_to("[data-action=\"note-edit\"]");
+                            state.editing.set(None);
+                            state.inner.set(Inner::Note);
+                            focus_now("#tm-note-field");
+                        }>
+                        {words.note_edit}
+                    </button>
                 </p>
             }
         });
@@ -782,9 +1112,11 @@ fn CardPeople(ctx: TerminCtx, card: Memo<Option<CardPart>>, change: Memo<Option<
 }
 
 /// Of a group its state and the one large action („Diese Gruppe anhaken", „Nur diese Gruppe" ·
-/// „Auch diese", „Einblenden" …), „Vergleichen ›".
+/// „Auch diese", „Einblenden" …), „Vergleichen ›"; of a group ticked, under its line, „Haken
+/// wegnehmen" at the left and „Vergleichen ›" at the right, where the large action and „Vergleichen
+/// ›" stand of one not ticked.
 #[component]
-fn CardAction(ctx: TerminCtx, card: Memo<Option<CardPart>>, run: Callback<(CardAct, Option<String>)>, stay: Callback<CardAct>) -> impl IntoView {
+fn CardAction(ctx: TerminCtx, card: Memo<Option<CardPart>>, state: CardState, run: Callback<(CardAct, Option<String>)>, stay: Callback<CardAct>) -> impl IntoView {
     let t = i18n::t();
     let words = &t.termin;
     let parts = Memo::new(move |_| card.with(|card| card.as_ref().map(|card| (card.group.clone(), card.big.clone(), card.also.clone(), card.compare.clone()))));
@@ -794,9 +1126,15 @@ fn CardAction(ctx: TerminCtx, card: Memo<Option<CardPart>>, run: Callback<(CardA
         if group.is_none() && big.is_none() && compare.is_none() {
             return None;
         }
-        let group = group.map(|(said, untick)| {
-            let untick = untick.map(|act| view! { <button class="sw" type="button" data-action="tick" aria-pressed="true" on:click=move |_| stay.run(act.clone())>{words.card_untick}</button> });
-            view! { <p class="tm-group"><span>{said}</span>{untick}</p> }
+        let (group, untick) = match group {
+            Some((said, untick)) => (Some(view! { <p class="tm-group"><span>{said}</span></p> }), untick),
+            None => (None, None),
+        };
+        // The tick away: the large action comes back, and has the keyboard.
+        let untick = untick.map(|act| {
+            view! {
+                <button class="sw tm-untick" type="button" data-action="tick" aria-pressed="true" on:click=move |_| { state.returns_to(".tm-act .tm-big"); stay.run(act.clone()); }>{words.card_untick}</button>
+            }
         });
         let button = move |act: BigAct, class: &'static str| {
             let pressed = (act.name == "tick").then_some("false");
@@ -806,61 +1144,7 @@ fn CardAction(ctx: TerminCtx, card: Memo<Option<CardPart>>, run: Callback<(CardA
         let big = big.map(|act| button(act, "tm-big"));
         let also = also.map(|act| button(act, "tm-also mini"));
         let compare = compare.map(|href| view! { <a class="go2" href=href data-action="compare" data-replace="" data-noscroll="">{words.card_compare}<Icon name="chevron-right"/></a> });
-        Some(view! { <div class="tm-act">{group}{big}{also}{compare}</div> })
-    }
-}
-
-/// The rows of „⋯", under the lines, the card growing downward, never moving its top: the note,
-/// „Nachholtermin anlegen", „Teilen", „In QIS öffnen".
-#[component]
-fn CardMore(ctx: TerminCtx, card: Memo<Option<CardPart>>, change: Memo<Option<ChangePart>>, at: Memo<Option<(RowKey, Day)>>, called: Memo<String>, state: CardState) -> impl IntoView {
-    let t = i18n::t();
-    let words = &t.termin;
-    let qis = Memo::new(move |_| card.with(|card| card.as_ref().and_then(|card| card.qis.clone())));
-    let part = Memo::new(move |_| change.with(|change| change.as_ref().map(|change| (change.key, change.day, change.note.is_some()))));
-    move || {
-        if !state.more.get() {
-            return None;
-        }
-        let note = part.get().map(|(_, _, has)| {
-            view! {
-                <div class="crow">
-                    <span class="ci"><Icon name="file-text"/></span>
-                    <span><b>{if has { words.card_note_edit } else { words.card_note_add }}</b><small>{words.note_sub}</small></span>
-                    <button class="sw" type="button" data-action="note" on:click=move |_| { state.editing.set(None); state.inner.set(Inner::Note); }>{if has { words.note_edit } else { words.note_add }}</button>
-                </div>
-            }
-        });
-        let makeup = part.get().zip(ctx.change).map(|((key, day, _), acts)| {
-            view! {
-                <div class="crow">
-                    <span class="ci"><Icon name="calendar-plus"/></span>
-                    <span><b>{words.card_makeup}</b><small>{words.makeup_sub}</small></span>
-                    <button class="sw" type="button" data-action="makeup" on:click=move |_| acts.makeup.run((key, day))>{words.makeup_add}</button>
-                </div>
-            }
-        });
-        let qis = qis.get().map(|href| {
-            view! {
-                <div class="crow">
-                    <span class="ci"><Icon name="arrow-up-right"/></span>
-                    <span><b>{words.open_in_qis}</b><small>{words.source}</small></span>
-                    <a class="sw" href=href rel="noopener" target="_blank">{words.open_in_qis}</a>
-                </div>
-            }
-        });
-        Some(view! {
-            <div class="tm-more-rows">
-                {note}
-                {makeup}
-                <div class="crow js-only">
-                    <span class="ci"><Icon name="share-2"/></span>
-                    <span><b>{words.share}</b><small>{words.share_title}</small></span>
-                    <ShareButton at called labeled=true/>
-                </div>
-                {qis}
-            </div>
-        })
+        Some(view! { <div class="tm-act">{group}{big}{also}{untick}{compare}</div> })
     }
 }
 
@@ -876,8 +1160,10 @@ fn CardWays(ctx: TerminCtx, card: Memo<Option<CardPart>>, own: Memo<Option<OwnPa
     move || {
         let (key, day) = at.get()?;
         let all = all.get().zip(ctx.links.full).map(|(said, full)| {
+            // Its name without the cap „V", which `aria-keyshortcuts` says.
+            let name = said.clone();
             view! {
-                <a class="tm-all" href=full.run((key, Some(day))) rel="nofollow" data-action="fullscreen" data-replace="" data-noscroll="">
+                <a class="tm-all" href=full.run((key, Some(day))) rel="nofollow" data-action="fullscreen" data-replace="" data-noscroll="" aria-keyshortcuts="V" aria-label=name>
                     <span>{said}</span><Icon name="chevron-right"/><Shortcut keys="V"/>
                 </a>
             }
@@ -892,7 +1178,8 @@ fn CardWays(ctx: TerminCtx, card: Memo<Option<CardPart>>, own: Memo<Option<OwnPa
 }
 
 /// „Ausblenden", the card's body while it is open: its reaches, the narrowest first, each saying
-/// what it hides; the first has the keyboard as it comes. „Abbrechen" (and Esc) leads back.
+/// what it hides; the first has the keyboard as it comes. „Abbrechen" (and Esc) leads back, the
+/// keyboard to the eye.
 #[component]
 fn HideView(card: Memo<Option<CardPart>>, state: CardState, run: Callback<(CardAct, Option<String>)>) -> impl IntoView {
     let t = i18n::t();
@@ -926,30 +1213,41 @@ fn HideView(card: Memo<Option<CardPart>>, state: CardState, run: Callback<(CardA
             <h4>{words.hide}<span class="r">{words.in_feed}</span></h4>
             {rows}
             <div class="chg-foot">
-                <button class="mini" type="button" data-action="hide-cancel" on:click=move |_| { state.inner.set(Inner::None); request_animation_frame(focus_card); }>{words.cancel}</button>
+                <button class="mini" type="button" data-action="hide-cancel" on:click=move |_| state.inner.set(Inner::None)>{words.cancel}</button>
             </div>
         </div>
     }
 }
 
 /// The note of what a Termin's card did, with „Rückgängig", for a page that has none of its own
-/// (the start page): the sentence, and the plan put back as it was.
+/// (the start page): the sentence, and what the card did taken back (`PlanUndo`) — in the profile
+/// it was done in: with another profile chosen (here or in another tab) there is nothing to undo.
 #[component]
 pub fn TerminNote(plan: Option<Studyplan>, undo: RwSignal<Option<TerminUndo>>) -> impl IntoView {
     let t = i18n::t();
     let said = Memo::new(move |_| undo.with(|undo| undo.as_ref().map(|undo| undo.said.clone())));
-    let restore = move |_| {
-        let (Some(plan), Some(TerminUndo { before, .. })) = (plan, undo.get_untracked()) else { return };
-        undo.set(None);
-        plan.update_after_paint(move |doc| *doc = before);
-    };
-    let gone = Callback::new(move |()| {
-        if said.get_untracked().is_some() {
+    Effect::new(move |before: Option<u16>| {
+        let profile = plan.map_or(0, Studyplan::profile);
+        if before.is_some_and(|before| before != profile) {
             undo.set(None);
         }
+        profile
     });
+    let restore = move |_| {
+        let (Some(plan), Some(TerminUndo { undo: done, .. })) = (plan, undo.get_untracked()) else { return };
+        undo.set(None);
+        plan.update_after_paint(move |doc| done.restore(doc));
+    };
     move || {
         said.get().map(|said| {
+            // A note that leaves lets go of itself alone, not of a newer one that took its place
+            // (the next card's, within the 200 ms the old one takes to go).
+            let mine = said.clone();
+            let gone = Callback::new(move |()| {
+                if undo.with_untracked(|now| now.as_ref().is_some_and(|now| now.said == mine)) {
+                    undo.set(None);
+                }
+            });
             view! {
                 <WaitNote on_gone=gone class="planning-note own-note">
                     <div class="plan-toast out">
@@ -981,7 +1279,11 @@ mod tests {
     }
 
     fn card_of(t: &Timetable, key: RowKey, on: Option<&str>) -> CardPart {
-        shown_of(t, &Against::Itself, key, on.map(d), Some((d("2026-11-10"), 8 * 60)), &modules(), (TerminMode::Adjust, Some(true)), &i18n::DE).unwrap().card.unwrap()
+        card_in(t, key, on, &i18n::DE)
+    }
+
+    fn card_in(t: &Timetable, key: RowKey, on: Option<&str>, texts: &'static Texts) -> CardPart {
+        shown_of(t, &Against::Itself, key, on.map(d), Some((d("2026-11-10"), 8 * 60)), &modules(), (TerminMode::Adjust, Some(true)), texts).unwrap().card.unwrap()
     }
 
     fn names(card: &CardPart) -> Vec<&'static str> {
@@ -997,15 +1299,22 @@ mod tests {
         assert_eq!(card.series.as_deref(), Some("wöchentlich · 15 Termine · noch 10"));
         assert!(card.off_dates.is_empty() && card.date_off.is_none());
         let hidden = table(&rows, &["12104"], &[], &Selection { hidden_dates: [(key, d("2026-11-17"))].into_iter().collect(), ..Selection::default() });
+        // On the hidden date the line under the ticket says so, and the series' line does not again.
         let card = card_of(&hidden, key, Some("2026-11-17"));
-        assert_eq!(card.off_dates, [("Di 17.11.".to_string(), d("2026-11-17"))]);
+        assert!(card.off_dates.is_empty());
         assert_eq!(card.date_off.as_ref().map(|(said, _)| said.as_str()), Some("Am Di 17.11. ausgeblendet"));
         assert!(matches!(card.date_off, Some((_, CardAct::Date { hide: false, .. }))));
-        // On another date of it the line does not stand; the head's tools are the same.
+        // On another date of it the series' line names it and the line does not stand; the head's
+        // tools are the same.
         let other = card_of(&hidden, key, Some("2026-11-24"));
-        assert!(other.date_off.is_none() && other.off_dates.len() == 1);
-        assert_eq!(names(&other), names(&card_of(&hidden, key, Some("2026-11-24"))));
-        assert_eq!(other.change, card.change);
+        assert!(other.date_off.is_none());
+        assert_eq!(other.off_dates, [("Di 17.11.".to_string(), d("2026-11-17"))]);
+        assert_eq!((other.hide.is_empty(), other.change), (card.hide.is_empty(), card.change));
+        // Five hidden: three by name, two as a number.
+        let days = ["2026-11-03", "2026-11-17", "2026-11-24", "2026-12-01", "2026-12-08"];
+        let five = table(&rows, &["12104"], &[], &Selection { hidden_dates: days.iter().map(|day| (key, d(day))).collect(), ..Selection::default() });
+        let card = card_of(&five, key, Some("2026-11-10"));
+        assert_eq!((card.off_dates.len(), card.off_more), (3, 2));
     }
 
     #[test]
@@ -1107,7 +1416,9 @@ mod tests {
         assert_eq!(names(&card), ["hide-date"]);
         assert!(matches!(card.hide[0].act, CardAct::OwnDate { number: 1, hide: true, .. }));
         assert_eq!(card.hide[0].label, "Nur am Fr 20.11. ausblenden");
-        assert_eq!(card.hide[0].said, "„VL EvS“ am Fr 20.11. ausgeblendet");
+        // Its name is made of kind and module, not written by the student: no quotes.
+        assert_eq!(card.hide[0].said, "VL EvS am Fr 20.11. ausgeblendet");
+        assert!(card.own_show.is_none());
         assert!(card.all.is_none() && card.group.is_none() && card.big.is_none() && !card.change);
         assert!(card.series.as_deref().is_some_and(|series| series.starts_with("Jede Woche · ")), "{:?}", card.series);
     }
@@ -1139,8 +1450,86 @@ mod tests {
         assert_eq!(lines(&doc, "c"), 1);
         CardAct::Untick(vec![b]).apply(&mut doc, sem);
         assert_eq!(lines(&doc, "c"), 0);
+        doc.set_kind(sem, EventKind::Lecture, true);
+        assert_eq!(lines(&doc, "k"), 1);
         CardAct::Show { event: None, kind: Some(EventKind::Lecture), rows: Vec::new() }.apply(&mut doc, sem);
         assert_eq!(lines(&doc, "k"), 0);
+        // An option among the module's events taken instead of the others, then left and hidden.
+        let (x, y) = (RowKey::parse("61-aaaaa").unwrap(), RowKey::parse("62-bbbbb").unwrap());
+        doc.choose(sem, 62, Some(y));
+        doc.set_event(sem, 61, true);
+        CardAct::Take { others: vec![61, 62], event: 61, row: x, rows: vec![x] }.apply(&mut doc, sem);
+        let chosen = |doc: &PlanDoc| doc.hidden.get(&sem).map(|hides| hides.chosen.iter().copied().collect::<Vec<_>>()).unwrap_or_default();
+        assert_eq!((chosen(&doc), lines(&doc, "e")), (vec![x], 0));
+        CardAct::Take { others: Vec::new(), event: 62, row: y, rows: vec![y] }.apply(&mut doc, sem);
+        assert_eq!(chosen(&doc), [x, y]);
+        CardAct::Leave(61).apply(&mut doc, sem);
+        assert_eq!((chosen(&doc), lines(&doc, "e")), (vec![y], 1));
+        // What the card did is taken back alone: a tick made meanwhile stays.
+        let before = doc.clone();
+        let undo = PlanUndo::made(before.clone(), |doc| CardAct::Rows(vec![a]).apply(doc, sem));
+        let mut now = undo.after.clone().unwrap();
+        now.tick(sem, b, true);
+        undo.restore(&mut now);
+        assert_eq!((lines(&now, "r"), chosen(&now).contains(&b)), (lines(&before, "r"), true));
+    }
+
+    #[test]
+    fn a_termin_of_one_date_and_a_group_beside_ticked_ones() {
+        // One date: „Diesen Termin", not „Alle 1"; no „Vergleichen ›" beside the required Termin.
+        let rows = vec![teaching("12104", "100", 1, "Vorlesung", 2, "09:15", "10:45"), teaching("12104", "100", 2, "Übung", 3, "09:15", "10:45").rhythm("single").range("2026-11-04", "2026-11-04")];
+        let t = table(&rows, &["12104"], &[], &Selection::default());
+        let card = card_of(&t, rows[1].key(), None);
+        assert!(card.hide.iter().any(|choice| choice.name == "hide-termin" && choice.label == "Diesen Termin"), "{:?}", card.hide);
+        assert!(card.compare.is_none());
+        // Two groups ticked: taking one away leaves the other ticked, nothing stands to choose again.
+        let groups = vec![teaching("12104", "200", 1, "Übung", 1, "11:30", "13:00").group("1-Gruppe"), teaching("12104", "200", 2, "Übung", 2, "09:15", "10:45").group("2-Gruppe"), teaching("12104", "200", 3, "Übung", 3, "11:30", "13:00").group("3-Gruppe")];
+        let t = table(&groups, &["12104"], &[], &Selection { chosen_rows: [groups[0].key(), groups[1].key()].into_iter().collect(), ..Selection::default() });
+        let card = card_of(&t, groups[0].key(), None);
+        assert_eq!(card.hide[1].sub, "die andere angehakte bleibt");
+        assert!(card.compare.is_some());
+    }
+
+    #[test]
+    fn english_sentences_take_the_kinds_labels() {
+        let rows = vec![teaching("12104", "100", 1, "Vorlesung", 2, "09:15", "10:45"), teaching("12104", "100", 2, "Vorlesung", 5, "09:15", "10:45")];
+        let t = table(&rows, &["12104"], &[], &Selection::default());
+        let card = card_in(&t, rows[0].key(), Some("2026-11-10"), &i18n::EN);
+        assert_eq!(card.hide[2].label, "The whole lecture");
+        assert_eq!(card.hide[2].said, "Lecture EvS hidden");
+        let hidden = table(&rows, &["12104"], &[], &Selection { hidden_events: [100].into_iter().collect(), ..Selection::default() });
+        let card = card_in(&hidden, rows[0].key(), None, &i18n::EN);
+        assert_eq!(card.off.as_deref(), Some("Lecture hidden"));
+        assert_eq!(card.big.map(|big| big.label).as_deref(), Some("Show the lecture"));
+        // German keeps QIS's word.
+        let card = card_of(&hidden, rows[0].key(), None);
+        assert_eq!(card.big.map(|big| big.label).as_deref(), Some("Vorlesung einblenden"));
+    }
+
+    #[test]
+    fn an_option_among_the_modules_events_is_taken_from_its_card() {
+        use folia_timetable::model::tests::{choice_row, choosing, listed_at};
+        let rows = [
+            teaching("12104", "60", 1, "Vorlesung", 1, "15:30", "17:00"),
+            teaching("12104", "61", 1, "Übung", 2, "07:30", "09:00").option(1),
+            teaching("12104", "62", 1, "Übung", 3, "13:45", "15:15").option(2),
+        ];
+        // One taken: the other says so and is taken instead or beside; the one taken is left as it hides.
+        let choices = [choice_row("12104", "group", 1, 1, "61"), choice_row("12104", "group", 1, 2, "62")];
+        let taken = choosing(&rows, &["12104"], &choices, &[], &Selection { chosen_rows: [rows[2].key()].into(), ..Selection::default() });
+        let other = card_of(&taken, rows[1].key(), None);
+        assert_eq!(other.off.as_deref(), Some(i18n::DE.termin.other_option));
+        assert!(other.big.as_ref().is_some_and(|big| big.name == "take-only" && matches!(&big.act, CardAct::Take { others, event: 61, .. } if others == &[61, 62])));
+        assert!(other.also.as_ref().is_some_and(|also| also.name == "take-also" && matches!(&also.act, CardAct::Take { others, .. } if others.is_empty())));
+        let chosen = card_of(&taken, rows[2].key(), None);
+        assert!(chosen.hide.iter().any(|choice| choice.act == CardAct::Leave(62)), "{:?}", chosen.hide);
+        // Another program's option: „Diese nehmen".
+        let program = [choice_row("12104", "program", 1, 1, "61"), choice_row("12104", "program", 1, 2, "62")];
+        let theirs = choosing(&rows, &["12104"], &program, &[listed_at("12104", 2)], &Selection::default());
+        let card = card_of(&theirs, rows[1].key(), None);
+        assert_eq!(card.off.as_deref(), Some(i18n::DE.termin.other_programs));
+        assert!(card.big.as_ref().is_some_and(|big| big.name == "take" && matches!(&big.act, CardAct::Take { event: 61, .. })));
+        assert!(card.hide.is_empty() && !card.change);
     }
 
     #[test]
@@ -1155,15 +1544,41 @@ mod tests {
     fn the_card_stands_beside_its_slots_column() {
         let room = Room { left: 64.0, width: 1440.0, height: 900.0 };
         let slot = |left: f64, right: f64, top: f64, bottom: f64| Some(Anchor { left, top, right, bottom });
-        assert_eq!(card_place(slot(400.0, 540.0, 300.0, 380.0), 400.0, room), (550.0, 300.0));
-        assert_eq!(card_place(slot(1100.0, 1240.0, 300.0, 380.0), 400.0, room), (690.0, 300.0));
-        assert_eq!(card_place(slot(700.0, 840.0, 300.0, 380.0), 400.0, room), (290.0, 300.0));
-        assert_eq!(card_place(slot(400.0, 540.0, 700.0, 780.0), 400.0, room).1, 404.0);
-        assert_eq!(card_place(slot(380.0, 500.0, 300.0, 380.0), 400.0, Room { left: 64.0, width: 920.0, height: 800.0 }), (504.0, 300.0));
-        assert_eq!(card_place(slot(420.0, 560.0, 100.0, 190.0), 400.0, Room { left: 64.0, width: 901.0, height: 800.0 }), (80.0, 200.0));
-        assert_eq!(card_place(None, 400.0, room), (552.0, 108.0));
+        // A card of 330 px that can grow to 450.
+        let size = Size { rest: 330.0, body: 200.0, tallest: 320.0 };
+        let place = |at, room| card_place(at, 400.0, room, size);
+        let top = |left: f64, top: f64| Placed { left, edge: Edge::Top(top) };
+        assert_eq!(place(slot(400.0, 540.0, 300.0, 380.0), room), top(550.0, 300.0));
+        assert_eq!(place(slot(1100.0, 1240.0, 300.0, 380.0), room), top(690.0, 300.0));
+        assert_eq!(place(slot(700.0, 840.0, 300.0, 380.0), room), top(290.0, 300.0));
+        assert_eq!(place(slot(380.0, 500.0, 300.0, 380.0), Room { left: 64.0, width: 920.0, height: 800.0 }), top(504.0, 300.0));
+        assert_eq!(place(slot(420.0, 560.0, 100.0, 190.0), Room { left: 64.0, width: 901.0, height: 800.0 }), top(80.0, 200.0));
+        assert_eq!(place(None, room), top(552.0, 108.0));
         for left in [0.0, 70.0, 300.0, 1000.0] {
-            assert!(card_place(slot(left, left + 100.0, 300.0, 380.0), 400.0, room).0 >= 80.0);
+            assert!(place(slot(left, left + 100.0, 300.0, 380.0), room).left >= 80.0);
         }
+        // Lower, where it could not grow under the slot's top: its top still at the slot's, its
+        // bottom where it ends as it rests, growing upward.
+        assert_eq!(place(slot(400.0, 540.0, 500.0, 580.0), room), Placed { left: 550.0, edge: Edge::Bottom(900.0 - 830.0) });
+        // So low that even the resting card does not fit: its bottom 16 px over the window's edge.
+        assert_eq!(place(slot(400.0, 540.0, 700.0, 780.0), room), Placed { left: 550.0, edge: Edge::Bottom(16.0) });
+        // A card that never grows keeps its top at the slot's as long as it fits.
+        let still = Size { rest: 330.0, body: 200.0, tallest: 0.0 };
+        assert_eq!(card_place(slot(400.0, 540.0, 540.0, 620.0), 400.0, room, still), top(550.0, 540.0));
+    }
+
+    #[test]
+    fn a_card_reserves_what_its_bodies_can_grow_to() {
+        let rows = vec![teaching("12104", "100", 1, "Vorlesung", 2, "09:15", "10:45"), teaching("12104", "100", 2, "Vorlesung", 5, "09:15", "10:45")];
+        let t = table(&rows, &["12104"], &[], &Selection::default());
+        let card = card_of(&t, rows[0].key(), Some("2026-11-10"));
+        assert_eq!(tallest_body(&card, false, true), BODY_CHANGE);
+        // A Termin the plan leaves out: no pencil, no eye; the note's field alone.
+        let hidden = table(&rows, &["12104"], &[], &Selection { hidden_events: [100].into_iter().collect(), ..Selection::default() });
+        let card = card_of(&hidden, rows[0].key(), None);
+        assert_eq!(tallest_body(&card, false, true), BODY_NOTE);
+        assert_eq!(tallest_body(&card, true, false), 0.0);
+        assert_eq!(Size { rest: 300.0, body: 200.0, tallest: 100.0 }.most(), 300.0);
+        assert_eq!(Size { rest: 300.0, body: 200.0, tallest: 345.0 }.most(), 445.0);
     }
 }

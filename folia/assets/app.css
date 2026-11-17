@@ -4340,6 +4340,8 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .sp-body .slot.faint { background: color-mix(in oklch, var(--tint) 6%, var(--panel)); color: var(--text-3); font-weight: 560; box-shadow: none; outline: 1px dashed color-mix(in oklch, var(--tint) 60%, var(--line-strong)); outline-offset: -1px; }
 .sp-body .slot.faint.clash { box-shadow: none; outline-color: var(--no); }
 .sp-body .slot.faint.clash::after { opacity: .7; }
+/* A faint slot whose card is open is marked as the open one, as a firm and a hatched one are. */
+.sp-body .slot.faint[aria-current="true"] { outline: 2px solid var(--mod-fill); outline-offset: 2px; }
 /* What the page derived, under the calendar: small and muted. */
 .sp-body > .sp-derived { margin-top: 0; font-size: 12px; }
 /* Where the plan has no fixed time: „Ohne feste Zeit" (h3.label) and its lines. */
@@ -4790,22 +4792,28 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
    angepasst werden so dass das mehr wie bei google calendar"): a small dialog (`s`, 400 px, the
    number of `card::WIDTH`) beside the slot it was opened from over a light dim, so that the week
    stays readable; on a phone a sheet that fits. Its head holds the chip, the kind, the tags and the
-   tools (pencil, eye, bin, ⋯, „Schließen"), its body the ticket and only what is of this Termin, the
-   large action, and one way on. It comes by fading alone: a card that slides would leave its slot. */
+   tools (pencil, eye, bin, ⋯, „×"), its body the ticket and only what is of this Termin, the
+   large action, and one way on. On a wide screen it comes by fading alone (a card that slides would
+   leave its slot); on a phone it is a sheet as every sheet. Its whole box wears no ring when it has
+   the keyboard itself: what is in it shows where the keyboard is from the first Tab on. */
 .st-dialog.tm-card-modal { width: min(400px, calc(100vw - 32px)); }
-.st-dialog.tm-card-modal[open] { animation: fade-in .16s ease-out; }
+.st-dialog.tm-card-modal:focus-visible { outline: none; }
 @media (min-width: 901px) {
+  .st-dialog.tm-card-modal[open] { animation: fade-in .16s ease-out; }
   .st-dialog.tm-card-modal::backdrop { background: rgba(10, 12, 17, .16); }
 }
 .is-termin.tm-dialog.tm-card > .hero { padding: 10px 10px 12px 18px; }
-.tm-card .tm-bar { flex-wrap: wrap; row-gap: 4px; }
-/* „× Schließen" without its cap: the head holds the chip, the kind and four tools in 364 px, and Esc
-   is a key every program has (CLAUDE.md: it needs no visible hint). */
-.tm-card .tm-tools .dlg-close { padding: 0 8px; }
-.tm-card .tm-tools .dlg-close kbd { display: none; }
+/* The head is one row in every case: the chip stays whole, the kind and „Besuch" / „von dir" give
+   way with „…" before a tool would go to a second row. */
+.tm-card .tm-bar { flex-wrap: nowrap; min-width: 0; }
+.tm-card .tm-bar > .tm-mod { flex: none; }
+.tm-card .tm-bar > :is(.tm-kind, .np) { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .is-termin.tm-card .tm-kind { margin-right: 0; }
-.tm-card .tm-tools { margin-left: auto; display: flex; align-items: center; gap: 2px; }
-.tm-card .tm-tool { --hit: 4px; flex: none; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border-radius: 8px; color: var(--text-2); }
+.tm-card .tm-tools { position: relative; flex: none; margin-left: auto; display: flex; align-items: center; gap: 2px; }
+/* The close is the sign „×" alone (its name „Schließen" for a screen reader, its key in its tooltip),
+   a tool as the others. */
+.tm-card .tm-tool, .tm-card .tm-tools .tm-close { --hit-x: 1px; --hit-y: 4px; flex: none; display: grid; place-items: center; width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: 8px; color: var(--text-2); }
+.tm-card .tm-tools .tm-close .icon { width: 16px; height: 16px; }
 .tm-card .tm-tool .icon { width: 16px; height: 16px; }
 .tm-card .tm-tool:hover { background: var(--row-hover); color: var(--text); }
 .tm-card .tm-tool[aria-expanded="true"] { background: var(--panel-3); color: var(--text); }
@@ -4831,9 +4839,6 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .tm-card .tm-act { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .tm-card .tm-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; flex: 1 1 100%; margin: 0; color: var(--text-2); font-size: 13px; font-weight: 560; }
 .tm-card .tm-group > span { flex: 0 1 auto; min-width: 0; }
-/* „Haken wegnehmen": a text button at the line's end, not a switch pressed. */
-.is-termin.tm-card .tm-group .sw { margin-left: auto; height: 28px; padding: 0 2px; background: none; box-shadow: none; color: var(--accent-ink); font-weight: 600; }
-.is-termin.tm-card .tm-group .sw:hover { text-decoration: underline; text-underline-offset: 3px; }
 .tm-card button.tm-big { flex: 1 1 auto; border: 0; font: inherit; font-size: 15px; font-weight: 650; cursor: pointer; }
 /* It has the keyboard as the card opens (a click, then Enter): its ring says so. */
 .tm-card button.tm-big:focus { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
@@ -4846,20 +4851,49 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .tm-card .tm-hide-row .ci { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
 .tm-card .tm-hide-row .ci .icon { width: 16px; height: 16px; }
 .tm-card .tm-hide-row b { display: block; font-size: 13.5px; font-weight: 650; line-height: 1.3; }
-.tm-card .tm-hide-row small { display: block; color: var(--text-3); font-size: 12px; line-height: 1.3; }
+.tm-card .tm-hide-row small { display: block; color: var(--text-2); font-size: 12px; line-height: 1.3; }
 .tm-card .tm-hide .chg-foot { margin-top: 6px; }
-.tm-card .tm-more-rows { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+/* The note's body, named as „Ausblenden" and „Ändern" are: „Notiz · nur für dich, auch in der Datei". */
+.tm-card .tm-note-body { display: flex; flex-direction: column; gap: 8px; }
+.tm-card .tm-note-body > h4 { display: flex; align-items: center; gap: 8px; min-height: 22px; margin: 0; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.tm-card .tm-note-body > h4 .r { margin-left: auto; color: var(--text-2); font-size: 12.5px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.tm-card .tm-note-body .tm-note { margin-top: 0; }
+.tm-card .tm-note .chg-foot .tm-note-remove { margin-right: auto; }
+/* „⋯": a menu under its sign over the card's body, which it never makes taller; each entry one line
+   and a button as a whole. */
+.tm-card .tm-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 3; display: flex; flex-direction: column; min-width: 236px; padding: 4px; border-radius: 12px; background: var(--panel); box-shadow: 0 0 0 1px var(--line), var(--lift-shadow, 0 8px 24px rgba(0, 0, 0, .18)); }
+.tm-card .tm-menu-row { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit; font-size: 13.5px; font-weight: 560; text-align: left; text-decoration: none; white-space: nowrap; cursor: pointer; }
+.tm-card .tm-menu-row:hover, .tm-card .tm-menu-row:focus-visible { background: var(--row-hover); }
+.tm-card .tm-menu-row .icon { flex: none; width: 16px; height: 16px; color: var(--text-2); }
 .tm-card .tm-ways { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 .tm-card .tm-ways :is(a.tm-all, a.tm-way) { display: inline-flex; align-items: center; gap: 2px; color: var(--accent-ink); font-size: 13px; font-weight: 600; text-decoration: none; }
 .tm-card .tm-ways :is(a.tm-all, a.tm-way):hover { text-decoration: underline; text-underline-offset: 3px; }
 .tm-card .tm-ways a .icon { width: 15px; height: 15px; }
 .tm-card .tm-ways a.tm-all kbd { margin-left: 6px; }
-.tm-card .tm-own-feed { margin: 0; color: var(--text-3); font-size: 12px; }
-/* „Ändern" in 364 px: flat, so that „Für"'s three segments have their room. */
-.tm-card .chg { padding: 0; background: none; box-shadow: none; }
+.tm-card .tm-own-feed { margin: 0; color: var(--text-2); font-size: 12px; }
+/* „Ändern" in 364 px: flat, so that „Für"'s three segments have their room; without its heading, day
+   and time in one row (each its label above it), so that it is no taller than the card can grow
+   where it stands (card.rs `BODY_CHANGE`). */
+.tm-card .chg { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 9fr); gap: 10px 10px; padding: 0; background: none; box-shadow: none; }
+.tm-card .chg-fld :is(input[type="time"], select) { padding: 0 6px; }
+.tm-card .chg-two { gap: 4px; }
+.tm-card .chg > * { grid-column: 1 / -1; }
+.tm-card .chg > h4 { display: none; }
+.tm-card .chg > .chg-fld:is(:nth-child(3), :nth-child(4)) { grid-column: auto; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+/* Of a group ticked: „Haken wegnehmen" at the left under its line, „Vergleichen ›" at the right. */
+.is-termin.tm-card .tm-act .tm-untick { height: 28px; padding: 0 2px; background: none; box-shadow: none; color: var(--accent-ink); font-weight: 600; }
+.is-termin.tm-card .tm-act .tm-untick:hover { text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 900px) {
   .is-termin.tm-dialog.tm-card > .hero { padding: 20px 12px 10px 20px; }
-  .tm-card .tm-tool { width: 44px; height: 44px; }
+  .tm-card .tm-tool, .tm-card .tm-tools .tm-close { width: 44px; height: 44px; }
+  .tm-card .tm-menu-row { min-height: 44px; }
+  /* A finger's size: „Vergleichen ›", the date's arrows, „Abbrechen" of „Ausblenden", „Haken
+     wegnehmen". */
+  .tm-card .tm-act .go2, .tm-card .tm-act .tm-untick, .tm-card .tm-hide .mini { min-height: 44px; }
+  .tm-card .tk-date a.pg { min-width: 44px; min-height: 44px; }
+  /* „Für": a date's words in English are longer than a phone's third; they wrap rather than run
+     into the next segment. */
+  .tm-card .seg.chg-seg > button { white-space: normal; text-align: center; line-height: 1.2; }
   .tm-card .tm-hide-row { min-height: 52px; }
   .tm-card .tm-ways a { min-height: 44px; }
   .tm-card button.tm-big { min-height: 48px; }
@@ -6542,6 +6576,8 @@ div.st-col-head.past { cursor: default; }
    its copy in a held picture of the page stands under it. */
 @media (min-width: 901px) {
   .st-dialog.placed { position: fixed; inset: auto; left: var(--x); top: var(--y); margin: 0; max-height: calc(100dvh - var(--y) - 16px); }
+  /* One that stands low in the window keeps its bottom edge and grows upward. */
+  .st-dialog.placed.rises { top: auto; bottom: var(--b); max-height: calc(100dvh - var(--b) - 16px); }
 }
 /* The copy of an open dialog in the picture of the page held over a step is not a second one. */
 .pending-page.held dialog { display: none; }

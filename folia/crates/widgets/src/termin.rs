@@ -207,11 +207,12 @@ pub struct OwnActs {
 }
 
 /// What the card of a Termin did to the plan, for the page's note: the sentence („VL MIT1 Mo 13:45
-/// ausgeblendet") and the plan as it was, which „Rückgängig" puts back.
+/// ausgeblendet") and what „Rückgängig" takes back — what the card did, not what was done
+/// meanwhile in another tab or on another device (`PlanUndo`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct TerminUndo {
     pub said: String,
-    pub before: folia_plans::studyplan::PlanDoc,
+    pub undo: folia_plans::studyplan::PlanUndo,
 }
 
 /// What the view measures a Termin against: whether a group fits, what the date meets, the day
@@ -833,47 +834,87 @@ pub fn TerminModal(
     let front = folia_design::stage::front();
     let pending = Pending::expect();
     let shown = Signal::derive(move || open.get() && front.get());
+    let card = is_card(&ctx);
     let close = Callback::new(move |()| {
         // Read without panicking: the dialog's `close` comes a moment after it closed, its page
         // may be gone by then.
         if !shown.try_get_untracked().unwrap_or(false) {
             return;
         }
+        let Some(to) = ctx.links.close.try_get_untracked() else { return };
+        // `close` is written as a link of the page's language; `go` takes the app's path.
+        let page = i18n::app_path(&to).unwrap_or(&to).to_string();
+        if card {
+            // Back where the page without the card is the step before — the browser says so where it
+            // can, so that a card that took another's place leaves as the first would have —, else
+            // in place of the card's entry: Back never brings a card closed by hand again.
+            folia_shell::nav::close_to(pending, &page, || ctx.links.back.try_get_untracked().flatten().is_some());
+            return;
+        }
         match ctx.links.back.try_get_untracked().flatten() {
             Some(_) => folia_shell::nav::back(),
             None => {
-                if let (Some(pending), Some(close)) = (pending, ctx.links.close.try_get_untracked()) {
-                    // `close` is written as a link of the page's language; `go` takes the app's path.
-                    let to = i18n::app_path(&close).unwrap_or(&close).to_string();
-                    pending.go(&to, NavigateOptions { scroll: false, ..Default::default() });
+                if let Some(pending) = pending {
+                    pending.go(&page, NavigateOptions { scroll: false, ..Default::default() });
                 }
             }
         }
     });
-    let card = is_card(&ctx);
     let state = card::CardState::new();
-    let at = RwSignal::new(None::<(f64, f64)>);
+    let at = RwSignal::new(None::<folia_design::modal::Placed>);
     if card {
         let termin = Memo::new(move |_| ctx.asked.with(|asked| asked.map(|(key, _)| key)));
+        // How tall the card is as it rests, measured while nothing is open in it.
+        let rest = StoredValue::new(None::<(f64, f64)>);
         // Where the card stands: beside its slot on a wide screen, as a sheet (`None`) on a phone.
-        // Its width is the stylesheet's (`card::WIDTH`): nothing is measured.
+        // Its width is the stylesheet's (`card::WIDTH`); its height measured as it rests.
         let place = move || {
-            let spot = (!folia_design::nav::is_phone()).then(|| card::card_place(anchor.and_then(|anchor| anchor.run(())), card::WIDTH, folia_design::nav::room()));
+            if !state.layered() {
+                if let Some(size) = card::measured() {
+                    rest.set_value(Some(size));
+                }
+            }
+            let (tall, body) = rest.try_get_value().flatten().unwrap_or((380.0, 260.0));
+            let size = card::Size { rest: tall, body, tallest: state.tallest.try_get_untracked().unwrap_or(0.0) };
+            let spot = (!folia_design::nav::is_phone()).then(|| card::card_place(anchor.and_then(|anchor| anchor.run(())), card::WIDTH, folia_design::nav::room(), size));
             let _ = at.try_set(spot);
         };
+        // A card that closed leaves nothing open for the next: its state goes as it closes, not
+        // as the next one opens (that one would first be drawn with this one's layer).
+        Effect::new(move |_| {
+            if !shown.get() {
+                state.reset();
+                rest.set_value(None);
+            }
+        });
         Effect::new(move |_| {
             // Another Termin is another card: placed anew, with nothing open in it. Another date
-            // of the same one leaves it where it stands (it keeps its top edge and grows downward).
-            let _ = termin.get();
+            // of the same one leaves it where it stands (one edge stays still).
+            let asked = termin.get();
             if shown.get() {
                 state.reset();
                 place();
-                // A frame later once more: the page's scroll bar goes as a dialog opens, and the
-                // slot's column may have moved by its width.
+                // A frame later once more, measured: the page's scroll bar goes as a dialog opens,
+                // and the slot's column may have moved by its width.
                 request_animation_frame(move || {
                     place();
                     card::focus_big();
                 });
+                // A card opened by its address (a reload, Back) stands in the middle until the week
+                // has drawn its slot: then once beside it, unless something was opened in it.
+                if anchor.is_some_and(|anchor| anchor.run(()).is_none()) {
+                    for wait in [150, 400, 1000] {
+                        set_timeout(
+                            move || {
+                                let same = termin.try_get_untracked().flatten() == asked;
+                                if same && shown.try_get_untracked().unwrap_or(false) && !state.layered() && anchor.is_some_and(|anchor| anchor.run(()).is_some()) {
+                                    place();
+                                }
+                            },
+                            std::time::Duration::from_millis(wait),
+                        );
+                    }
+                }
             }
         });
         Effect::new(move |_| {
@@ -884,22 +925,47 @@ pub fn TerminModal(
             });
             on_cleanup(move || handle.remove());
         });
+        // Esc peels one layer at a time, taken where it is pressed (`keydown`): a browser lets a
+        // page keep a dialog open on its close request (`cancel`) only so many times, then closes
+        // it whatever the page says. A key held down peels one layer.
+        #[cfg(feature = "csr")]
+        Effect::new(move |_| {
+            use wasm_bindgen::closure::Closure;
+            use wasm_bindgen::JsCast;
+            let listener = Closure::<dyn Fn(web_sys::KeyboardEvent)>::new(move |ev: web_sys::KeyboardEvent| {
+                if ev.key() != "Escape" || ev.is_composing() || !shown.try_get_untracked().unwrap_or(false) || !state.layered() {
+                    return;
+                }
+                ev.prevent_default();
+                ev.stop_immediate_propagation();
+                if !ev.repeat() {
+                    state.peel();
+                }
+            });
+            let Some(window) = web_sys::window() else { return };
+            let _ = window.add_event_listener_with_callback_and_bool("keydown", listener.as_ref().unchecked_ref(), true);
+            let listener = send_wrapper::SendWrapper::new(listener);
+            on_cleanup(move || {
+                if let Some(window) = web_sys::window() {
+                    let _ = window.remove_event_listener_with_callback_and_bool("keydown", listener.as_ref().unchecked_ref(), true);
+                }
+            });
+        });
     }
     let size = if card { ModalSize::S } else { ModalSize::M };
     let class = if card { "tm-modal tm-card-modal" } else { "tm-modal" };
-    // Esc peels what stands open in the card before it closes the card.
-    let on_cancel = Callback::new(move |()| {
-        let peeled = card && state.peel();
-        if peeled {
-            request_animation_frame(card::focus_card);
-        }
-        peeled
-    });
-    let on_beside = beside.filter(|_| card);
+    // A close request that is no key (Android's back gesture) peels what stands open in the card
+    // before it closes the card.
+    let on_cancel = Callback::new(move |()| card && state.peel());
+    // Another slot's card in this one's place is a wide screen's: on a phone a tap on the dim
+    // closes the sheet, as every sheet.
+    let on_beside = beside.filter(|_| card).map(|beside| Callback::new(move |point: (f64, f64)| !folia_design::nav::is_phone() && beside.run(point)));
+    // The card's name for a screen reader: its module, its kind and its title.
+    let labelled_by = if card { "tm-chip tm-kind tm-title" } else { TITLE_ID };
     view! {
         // On a phone as tall as the Termin is while that fits, half up and all up past it
         // (`Sheet::Auto`): one Termin is a date and a room, another its groups and a semester of dates.
-        <Modal open=shown on_close=close size sheet=Sheet::Auto class at on_cancel on_beside focus_itself=card labelled_by=TITLE_ID>
+        <Modal open=shown on_close=close size sheet=Sheet::Auto class at on_cancel on_beside focus_itself=card labelled_by>
             {move || match (missing.get(), card) {
                 (true, _) => view! { <TerminMissing closing=close/> }.into_any(),
                 (false, true) => view! { <card::TerminCard ctx closing=close state/> }.into_any(),
@@ -1437,10 +1503,11 @@ fn NoteRow(ctx: TerminCtx, key: RowKey, note: Option<String>) -> impl IntoView {
 }
 
 /// The field of a Termin's note with „Abbrechen" and „Speichern" (an empty one takes the note
-/// away), in the overview under its row and in the card as its body; both end in `on_done`.
-/// Saved after the next frame (R21).
+/// away), in the overview under its row and in the card as its body, where a note exists with
+/// „Entfernen" beside „Abbrechen" (`removable`); each ends in `on_done`. Saved after the next frame
+/// (R21).
 #[component]
-fn NoteField(ctx: TerminCtx, key: RowKey, note: Option<String>, on_done: Callback<()>) -> impl IntoView {
+fn NoteField(ctx: TerminCtx, key: RowKey, note: Option<String>, #[prop(optional)] removable: bool, on_done: Callback<()>) -> impl IntoView {
     let t = i18n::t();
     let text = RwSignal::new(note.unwrap_or_default());
     let sem = Memo::new(move |_| ctx.table.with(|table| table.as_ref().map(|table| table.key)));
@@ -1453,10 +1520,18 @@ fn NoteField(ctx: TerminCtx, key: RowKey, note: Option<String>, on_done: Callbac
             doc.set_note(sem, key, &value);
         });
     };
+    let remove = move |_| {
+        let (Some(plan), Some(sem)) = (ctx.plan, sem.get_untracked()) else { return };
+        on_done.run(());
+        plan.update_after_paint(move |doc| {
+            doc.set_note(sem, key, "");
+        });
+    };
     view! {
         <form class="tm-note" on:submit=save>
             <textarea id="tm-note-field" rows="3" maxlength=folia_calendar::change::MAX_NOTE aria-label=t.termin.note placeholder=t.termin.note_placeholder prop:value=move || text.get() on:input=move |ev| text.set(event_target_value(&ev))></textarea>
             <div class="chg-foot">
+                {removable.then(|| view! { <button class="mini tm-note-remove" type="button" data-action="note-remove" on:click=remove>{t.termin.card_note_remove}</button> })}
                 <button class="mini" type="button" on:click=move |_| on_done.run(())>{t.termin.cancel}</button>
                 <button class="mini primary" type="submit" data-action="note-save">{t.termin.save}</button>
             </div>

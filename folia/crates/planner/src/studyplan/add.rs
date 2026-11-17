@@ -27,6 +27,7 @@ use folia_locale::Locale;
 use folia_model::rows::CatalogRow;
 use folia_pages::ask::{CatalogAsk, FitLinesAsk};
 use folia_pages::Sits;
+use folia_plans::studyplan::PlanUndo;
 use folia_routes::filter::CatalogQuery;
 use folia_routes::url::CatalogUrl;
 use folia_stores::collections::Collections;
@@ -235,7 +236,7 @@ pub(super) fn AddPanel(ctx: PlanCtx, to: AddTo, marked: Memo<Vec<MarkedModule>>)
                     [one] => Some((a.added)(&one.title, &name)),
                     many => Some((a.all_added)(many.len(), &name)),
                 };
-                (said, before)
+                (said, PlanUndo::of(before, doc.clone()))
             });
             if let Some(said) = done {
                 let _ = undo.try_set(Some((format!("{ADDED}{said}"), before)));
@@ -257,7 +258,7 @@ pub(super) fn AddPanel(ctx: PlanCtx, to: AddTo, marked: Memo<Vec<MarkedModule>>)
         restoring.set(true);
         let undo = ctx.undo;
         plan.update_after_paint(move |doc| {
-            *doc = before;
+            before.restore(doc);
             let _ = undo.try_set(None);
             let _ = restoring.try_set(false);
         });

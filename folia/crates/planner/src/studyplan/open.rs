@@ -22,6 +22,7 @@
 
 use std::collections::BTreeMap;
 
+use folia_plans::studyplan::{PlanDoc, PlanUndo};
 use folia_calendar::change::{Change, Scope, Values};
 use folia_calendar::day::clock;
 use folia_calendar::own::{OwnRhythm, OwnTermin};
@@ -230,12 +231,13 @@ fn act_on(ctx: PlanCtx, change: Change, instead: Option<(RowKey, Values)>, own: 
         // Without a name: the week calls it by its module as `name` says it („EvS"), and no
         // abbreviation is written into the plan. Its event is gone with it, so no kind is known.
         let termin = OwnTermin { number: 0, rhythm, weekday, dates, from: values.from, to: values.to, period, module: Some(change.module.clone()), name: String::new(), place: values.room.clone(), skip: Vec::new(), kind: None };
-        let before = plan.with_untracked(Clone::clone);
-        ctx.undo.set(Some((format!("{}{}", super::own::OWN_NOTE, (t.studyplan_open.kept_own)(&name)), before)));
-        plan.update_after_paint(move |doc| {
-            doc.add_own(0, s, termin);
+        let keep = move |doc: &mut PlanDoc| {
+            doc.add_own(0, s, termin.clone());
             doc.remove_change(s, change.key, change.scope);
-        });
+        };
+        let undo = PlanUndo::made(plan.with_untracked(Clone::clone), keep.clone());
+        ctx.undo.set(Some((format!("{}{}", super::own::OWN_NOTE, (t.studyplan_open.kept_own)(&name)), undo)));
+        plan.update_after_paint(keep);
         return;
     }
     plan.update_after_paint(move |doc| {

@@ -38,7 +38,7 @@ use folia_calendar::rowkey::RowKey;
 use folia_design::modal::{kept, Modal, ModalHead, ModalSize};
 use folia_design::ui::Icon;
 use folia_design::waitnote::WaitNote;
-use folia_plans::studyplan::{MAX_OWN, MAX_OWN_ALL};
+use folia_plans::studyplan::{PlanUndo, MAX_OWN, MAX_OWN_ALL};
 use folia_shell::pending::Pending;
 use folia_timetable::clash::{self, Weeks};
 use folia_timetable::model::Timetable;
@@ -241,8 +241,11 @@ pub(super) fn remove(ctx: PlanCtx, number: u32) {
     let t = i18n::t();
     let Some(plan) = ctx.plan else { return };
     let before = plan.with_untracked(Clone::clone);
-    let Some(name) = before.own_termin(number).map(|(calendar, own)| shown_name(&own.termin, &names_now(ctx, calendar), t)) else { return };
-    ctx.undo.set(Some((format!("{OWN_NOTE}{}", (t.studyplan_own.removed)(&name)), before)));
+    let Some(name) = before.own_termin(number).map(|(calendar, own)| said_name(&own.termin, &names_now(ctx, calendar), t)) else { return };
+    let undo = PlanUndo::made(before, |doc| {
+        doc.remove_own(number);
+    });
+    ctx.undo.set(Some((format!("{OWN_NOTE}{}", (t.studyplan_own.removed)(&name)), undo)));
     if let Some(going) = Pending::expect().filter(|_| ctx.url.with_untracked(|url| url.termin.is_some())) {
         let away = ctx.url.with_untracked(|url| url.with_termin(None).path());
         going.go(&away, NavigateOptions { replace: true, scroll: false, ..Default::default() });
@@ -250,6 +253,13 @@ pub(super) fn remove(ctx: PlanCtx, number: u32) {
     plan.update_after_paint(move |doc| {
         doc.remove_own(number);
     });
+}
+
+/// A Termin of one's own as a note says it: its name in quotes, where the student wrote one; else
+/// as the week calls it, bare („VL EvS gelöscht").
+pub(super) fn said_name(own: &OwnTermin, names: &BTreeMap<String, String>, t: &'static Texts) -> String {
+    let name = shown_name(own, names, t);
+    if own.name.trim().is_empty() { name } else { (t.studyplan_own.said)(&name) }
 }
 
 /// A Termin of one's own by its name; without one by its kind and the module it belongs to, as
@@ -672,7 +682,7 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
         if full.get_untracked() || (ask.number.is_none() && all >= MAX_OWN_ALL) {
             return;
         }
-        let name = shown_name(&termin, &names_now(ctx, ask.draft.calendar), t);
+        let name = said_name(&termin, &names_now(ctx, ask.draft.calendar), t);
         let key = ctx.key.get_untracked();
         let undo = ctx.undo;
         ctx.own.set(None);
@@ -683,7 +693,7 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
                     Some(number) => doc.set_own(number, ask.draft.calendar, termin),
                     None => doc.add_own(ask.draft.calendar, key, termin).is_some(),
                 };
-                (done, before)
+                (done, PlanUndo::of(before, doc.clone()))
             });
             if done {
                 let said = if ask.number.is_some() { (o.saved)(&name) } else { (o.created)(&name) };
@@ -899,8 +909,8 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
 }
 
 /// The note after „Anlegen", „Speichern" and „Löschen" of a Termin of one's own, over the page
-/// (`WaitNote`, as „Einplanen"'s): what happened, and „Rückgängig", which puts the plan back as it
-/// was (`PlanCtx::undo`).
+/// (`WaitNote`, as „Einplanen"'s): what happened, and „Rückgängig", which takes back what was done
+/// and nothing that was changed meanwhile elsewhere (`PlanCtx::undo`, `PlanUndo`).
 #[component]
 pub(super) fn OwnNote(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
@@ -910,15 +920,18 @@ pub(super) fn OwnNote(ctx: PlanCtx) -> impl IntoView {
         let (Some(plan), Some((_, before))) = (ctx.plan, ctx.undo.get_untracked()) else { return };
         let undo = ctx.undo;
         undo.set(None);
-        plan.update_after_paint(move |doc| *doc = before);
+        plan.update_after_paint(move |doc| before.restore(doc));
     };
-    let gone = Callback::new(move |()| {
-        if note.get_untracked().is_some() {
-            ctx.undo.set(None);
-        }
-    });
     move || {
         note.get().map(|said| {
+            // A note that leaves lets go of itself alone, not of a newer one that took its place
+            // (the next card's, within the 200 ms the old one takes to go).
+            let mine = said.clone();
+            let gone = Callback::new(move |()| {
+                if note.with_untracked(|now| now.as_deref() == Some(mine.as_str())) {
+                    ctx.undo.set(None);
+                }
+            });
             view! {
                 <WaitNote on_gone=gone class="planning-note own-note">
                     <div class="plan-toast out">

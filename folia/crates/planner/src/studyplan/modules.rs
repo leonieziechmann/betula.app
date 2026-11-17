@@ -33,7 +33,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use folia_calendar::kind::EventKind;
 use folia_calendar::semester::SemesterKey;
 use folia_pages::StudyplanData;
-use folia_plans::studyplan::PlanDoc;
+use folia_plans::studyplan::{PlanDoc, PlanUndo};
 use folia_routes::url::{self, PlanAddress, StudyUrl, StudyplanUrl};
 use folia_timetable::categories::{self, EventRow, Out, Summary};
 use folia_timetable::clash::Weeks;
@@ -462,7 +462,8 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
     let show_all = move |_| {
         let Some(plan) = ctx.plan else { return };
         let (key, n) = (ctx.key.get_untracked(), hidden.get_untracked());
-        ctx.undo.set(Some((format!("{}{}", super::own::OWN_NOTE, (m.shown_again)(n)), plan.with_untracked(Clone::clone))));
+        let undo = PlanUndo::made(plan.with_untracked(Clone::clone), |doc| doc.show_hidden(key));
+        ctx.undo.set(Some((format!("{}{}", super::own::OWN_NOTE, (m.shown_again)(n)), undo)));
         plan.update(move |doc| doc.show_hidden(key));
     };
     view! {

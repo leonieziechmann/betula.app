@@ -55,7 +55,7 @@ use folia_calendar::semester::SemesterKey;
 use folia_calendar::share::{self as shared_plan, SharedPlan};
 use folia_pages::ask::{MetaAsk, SharedPlanAsk, StudyplanAsk};
 use folia_pages::StudyplanData;
-use folia_plans::studyplan::PlanDoc;
+use folia_plans::studyplan::{PlanDoc, PlanUndo};
 use folia_routes::url::{self, PlanView, StudyplanUrl};
 use folia_timetable::clash::Weeks;
 use folia_timetable::model::Timetable;
@@ -141,9 +141,10 @@ pub(super) struct PlanCtx {
     /// the clock for two things only: the default semester and the week „Termine" scrolls to.
     pub today: Option<Day>,
     /// The note of the last change that answers with „Rückgängig" (a share taken in, a Termin of
-    /// one's own deleted, a calendar or a module of one taken out, „Alle einblenden"), and the plan
-    /// before it.
-    pub undo: RwSignal<Option<(String, PlanDoc)>>,
+    /// one's own deleted, a calendar or a module of one taken out, „Alle einblenden", what a
+    /// Termin's card did), and what „Rückgängig" takes back (`PlanUndo`: the change alone, not what
+    /// another tab or device changed meanwhile).
+    pub undo: RwSignal<Option<(String, PlanUndo)>>,
     /// The week „Woche" shows: the A week, the B week, or both („A/B"). A view setting of the
     /// page, not stored.
     pub weeks: RwSignal<Weeks>,

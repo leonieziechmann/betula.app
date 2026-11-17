@@ -40,7 +40,7 @@ use folia_calendar::share::SharedPlan;
 use folia_data::DataClient;
 use folia_design::ui::Icon;
 use folia_pages::ask::StudyplanAsk;
-use folia_plans::studyplan::{Calendar, CalendarView, MAX_CALENDARS};
+use folia_plans::studyplan::{Calendar, CalendarView, PlanUndo, MAX_CALENDARS};
 use folia_routes::url::{PlanAddress, StudyplanUrl};
 use folia_stores::studyplan::Studyplan;
 use folia_timetable::model::Timetable;
@@ -878,7 +878,7 @@ fn CalendarPart(ctx: PlanCtx, id: u8, marked: Memo<Vec<MarkedModule>>) -> impl I
         restoring.set(true);
         let undo = ctx.undo;
         plan.update_after_paint(move |doc| {
-            *doc = before;
+            before.restore(doc);
             let _ = undo.try_set(None);
             let _ = restoring.try_set(false);
         });
@@ -888,7 +888,8 @@ fn CalendarPart(ctx: PlanCtx, id: u8, marked: Memo<Vec<MarkedModule>>) -> impl I
         let key = ctx.key.get_untracked();
         let events = shown.with_untracked(|shown| shown.as_ref().and_then(|calendar| calendar.table.as_ref()).map(|table| super::aside::only_its_events(table, &module)).unwrap_or_default());
         let text = (c.module_removed)(&title, &name.get_untracked());
-        ctx.undo.set(Some((format!("{CALENDAR_REMOVED}{id} {text}"), plan.with_untracked(Clone::clone))));
+        let undo = PlanUndo::made(plan.with_untracked(Clone::clone), |doc| doc.remove_from_calendar(id, key, &module, &events));
+        ctx.undo.set(Some((format!("{CALENDAR_REMOVED}{id} {text}"), undo)));
         plan.update_after_paint(move |doc| doc.remove_from_calendar(id, key, &module, &events));
     };
 

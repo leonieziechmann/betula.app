@@ -1785,6 +1785,150 @@ impl PlanDoc {
     }
 }
 
+/// What a change of the plan did, for „Rückgängig": the plan before it and, where it is known, the
+/// plan it made. Where the plan is still what the change made, it is put back whole; where it
+/// changed besides (another tab, another device through Betula Sync), only what the change did is
+/// taken back (`PlanDoc::revert`), so that what was done elsewhere meanwhile stays.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PlanUndo {
+    pub before: PlanDoc,
+    pub after: Option<PlanDoc>,
+}
+
+impl PlanUndo {
+    /// A change whose plan after it is known.
+    pub fn of(before: PlanDoc, after: PlanDoc) -> Self {
+        PlanUndo { before, after: Some(after) }
+    }
+
+    /// A change of many parts at once (a share taken in, a calendar taken away), whose „Rückgängig"
+    /// puts the whole plan back as it was.
+    pub fn whole(before: PlanDoc) -> Self {
+        PlanUndo { before, after: None }
+    }
+
+    /// The change `act` makes of `before`: the plan after it worked out here, as it will be made.
+    pub fn made(before: PlanDoc, act: impl FnOnce(&mut PlanDoc)) -> Self {
+        let mut after = before.clone();
+        act(&mut after);
+        PlanUndo::of(before, after)
+    }
+
+    /// Takes the change back in `doc`.
+    pub fn restore(self, doc: &mut PlanDoc) {
+        match self.after {
+            Some(after) if *doc != after => doc.revert(&self.before, &after),
+            _ => *doc = self.before,
+        }
+    }
+}
+
+impl PlanDoc {
+    /// Takes back in this plan what turned `before` into `after`, and nothing else: what a
+    /// semester hid, ticked, changed and noted (each line on its own: what the change added goes,
+    /// what it took away comes back), the Termine of one's own (one the change made goes, one it
+    /// deleted comes back where it stood, one it changed is as it was where nobody changed it
+    /// since, else only its skipped days are), and every other part of the plan the change touched
+    /// as a whole.
+    pub fn revert(&mut self, before: &PlanDoc, after: &PlanDoc) {
+        let empty = SemesterHides::default();
+        let semesters: BTreeSet<SemesterKey> = before.hidden.keys().chain(after.hidden.keys()).copied().collect();
+        for s in semesters {
+            let (was, made) = (before.hidden.get(&s).unwrap_or(&empty), after.hidden.get(&s).unwrap_or(&empty));
+            for kind in EventKind::ALL {
+                if was.kinds.contains(kind) != made.kinds.contains(kind) {
+                    self.set_kind(s, kind, was.kinds.contains(kind));
+                }
+            }
+            made.events.difference(&was.events).for_each(|event| self.set_event(s, *event, false));
+            was.events.difference(&made.events).for_each(|event| self.set_event(s, *event, true));
+            made.rows.difference(&was.rows).for_each(|row| self.set_row(s, *row, false));
+            was.rows.difference(&made.rows).for_each(|row| self.set_row(s, *row, true));
+            made.chosen.difference(&was.chosen).for_each(|row| self.tick(s, *row, false));
+            was.chosen.difference(&made.chosen).for_each(|row| self.tick(s, *row, true));
+            made.dates.difference(&was.dates).for_each(|(row, day)| self.set_date(s, *row, *day, false));
+            was.dates.difference(&made.dates).for_each(|(row, day)| self.set_date(s, *row, *day, true));
+            let changed: BTreeSet<(RowKey, Scope)> = was.changes.keys().chain(made.changes.keys()).copied().collect();
+            for (key, scope) in changed.into_iter().filter(|at| was.changes.get(at) != made.changes.get(at)) {
+                match was.changes.get(&(key, scope)) {
+                    Some(change) => {
+                        self.set_change(s, change.clone());
+                    }
+                    None => {
+                        self.remove_change(s, key, scope);
+                    }
+                }
+            }
+            let noted: BTreeSet<RowKey> = was.notes.keys().chain(made.notes.keys()).copied().collect();
+            for key in noted.into_iter().filter(|key| was.notes.get(key) != made.notes.get(key)) {
+                self.set_note(s, key, was.notes.get(&key).map_or("", String::as_str));
+            }
+        }
+        self.revert_own(before, after);
+        // The parts no Termin's change touches, as a whole where the change touched them.
+        let bare = |doc: &PlanDoc| doc.calendars.iter().map(|calendar| Calendar { own: Vec::new(), ..calendar.clone() }).collect::<Vec<_>>();
+        if bare(before) != bare(after) {
+            let own: Vec<(u8, Vec<Own>)> = self.calendars.iter().map(|calendar| (calendar.id, calendar.own.clone())).collect();
+            self.calendars = before.calendars.clone();
+            for (id, list) in own {
+                if let Some(calendar) = self.calendars.iter_mut().find(|calendar| calendar.id == id) {
+                    calendar.own = list;
+                }
+            }
+        }
+        macro_rules! part {
+            ($($field:ident),*) => {$(
+                if before.$field != after.$field {
+                    self.$field = before.$field.clone();
+                }
+            )*};
+        }
+        part!(program, modules, visits, placeholders, subscribed, passed, done_rows, shares, extra);
+    }
+
+    /// `revert` of the Termine of one's own, by their numbers.
+    fn revert_own(&mut self, before: &PlanDoc, after: &PlanDoc) {
+        let all = |doc: &PlanDoc| -> BTreeMap<u32, (u8, usize, Own)> {
+            let lists = std::iter::once((0, &doc.own)).chain(doc.calendars.iter().map(|calendar| (calendar.id, &calendar.own)));
+            lists.flat_map(|(id, list)| list.iter().enumerate().map(move |(at, own)| (own.termin.number, (id, at, own.clone())))).collect()
+        };
+        let (was, made) = (all(before), all(after));
+        for number in made.keys().filter(|number| !was.contains_key(number)) {
+            self.remove_own(*number);
+        }
+        for (number, (calendar, at, own)) in &was {
+            match made.get(number) {
+                None => {
+                    if self.own_termin(*number).is_none() {
+                        self.put_own(RemovedOwn { calendar: *calendar, at: *at, own: own.clone() });
+                    }
+                }
+                Some((_, _, now)) if now == own => {}
+                Some((made_in, _, now)) => {
+                    let here = self.own_termin(*number).map(|(id, held)| (id, held.clone()));
+                    match here {
+                        // Nobody changed it since: as it was, in its calendar and place.
+                        Some((id, held)) if id == *made_in && held == *now => {
+                            self.remove_own(*number);
+                            self.put_own(RemovedOwn { calendar: *calendar, at: *at, own: own.clone() });
+                        }
+                        // Changed since: only the days the change skipped or held again.
+                        Some(_) => {
+                            for day in now.termin.skip.iter().filter(|day| !own.termin.skip.contains(day)) {
+                                self.skip_own(*number, *day, false);
+                            }
+                            for day in own.termin.skip.iter().filter(|day| !now.termin.skip.contains(day)) {
+                                self.skip_own(*number, *day, true);
+                            }
+                        }
+                        None => {}
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// „Mein Studiengang": the visitor's program, study direction, Studienbeginn and town, stored as
 /// lines of a key, a tab (two spaces here) and a value:
 ///
@@ -3443,6 +3587,65 @@ mod tests {
             skip: Vec::new(),
             kind: None,
         }
+    }
+
+    #[test]
+    fn undo_takes_back_what_the_change_did_and_nothing_else() {
+        let w = key("2026W");
+        let day = |iso: &str| Day::parse(iso).unwrap();
+        let (mit, evs) = (termin(148304, 0xe4bf3), termin(148701, 0xb7025));
+        let before = example();
+        // A date hidden, then a group ticked in another tab: „Rückgängig" shows the date again and
+        // keeps the tick.
+        let undo = PlanUndo::made(before.clone(), |doc| doc.set_date(w, mit, day("2026-11-18"), true));
+        let mut doc = undo.after.clone().unwrap();
+        doc.tick(w, termin(148369, 0xaaf38), true);
+        undo.restore(&mut doc);
+        assert!(!doc.hidden[&w].dates.contains(&(mit, day("2026-11-18"))));
+        assert!(doc.hidden[&w].chosen.contains(&termin(148369, 0xaaf38)));
+        // Untouched since: the plan as it was, exactly.
+        let undo = PlanUndo::made(before.clone(), |doc| {
+            doc.tick(w, evs, false);
+            doc.set_row(w, evs, true);
+            doc.set_event(w, 148701, true);
+            doc.set_kind(w, EventKind::Tutorial, true);
+        });
+        let mut doc = undo.after.clone().unwrap();
+        undo.clone().restore(&mut doc);
+        assert_eq!(doc, before);
+        // Each part on its own: the event, the row, the kind back; a note written meanwhile stays.
+        let mut doc = undo.after.clone().unwrap();
+        doc.set_note(w, mit, "Raum prüfen");
+        undo.restore(&mut doc);
+        assert_eq!(doc.note_of(w, mit), Some("Raum prüfen"));
+        doc.set_note(w, mit, "");
+        assert_eq!(doc, before);
+        // A Termin of one's own deleted comes back where it stood; one added meanwhile stays.
+        let mut mine = example();
+        mine.add_own(0, w, job());
+        mine.add_own(0, w, OwnTermin { weekday: 3, name: "Chor".to_string(), ..job() });
+        let undo = PlanUndo::made(mine.clone(), |doc| {
+            doc.remove_own(1);
+        });
+        let mut doc = undo.after.clone().unwrap();
+        let third = doc.add_own(0, w, OwnTermin { weekday: 4, name: "Sport".to_string(), ..job() }).unwrap();
+        undo.restore(&mut doc);
+        assert_eq!(doc.own.iter().map(|own| own.termin.number).collect::<Vec<_>>(), [1, 2, third]);
+        // A day it skipped is held again, though its name changed meanwhile.
+        let undo = PlanUndo::made(mine.clone(), |doc| {
+            doc.skip_own(2, day("2026-11-18"), true);
+        });
+        let mut doc = undo.after.clone().unwrap();
+        let renamed = OwnTermin { name: "Chorprobe".to_string(), ..doc.own_termin(2).unwrap().1.termin.clone() };
+        doc.set_own(2, 0, renamed);
+        undo.restore(&mut doc);
+        let held = &doc.own_termin(2).unwrap().1.termin;
+        assert!(held.skip.is_empty() && held.name == "Chorprobe");
+        // A whole one (a share taken in): the plan before, whatever happened since.
+        let mut doc = example();
+        doc.tick(w, termin(148369, 0xaaf38), true);
+        PlanUndo::whole(before.clone()).restore(&mut doc);
+        assert_eq!(doc, before);
     }
 
     #[test]

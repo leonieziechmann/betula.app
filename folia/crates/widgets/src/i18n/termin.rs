@@ -291,6 +291,20 @@ pub struct Texts {
     pub card_note_edit: &'static str,
     pub card_makeup: &'static str,
     pub card_all: fn(&str) -> String,
+    /// „Ausblenden" of a Termin of one date: „Diesen Termin", not „Alle 1".
+    pub card_this_termin: &'static str,
+    /// „Diese Gruppe" of a group ticked beside others: those stay ticked.
+    pub card_others_stay_ticked: fn(usize) -> String,
+    /// The close's tooltip, which names its key: the button is the sign „×" alone.
+    pub card_close_title: &'static str,
+    /// An extra's series line: „zusätzlich, freiwillig", as its slot says.
+    pub card_extra: &'static str,
+    /// More dates hidden than the series line names: „+2".
+    pub card_more_off: fn(usize) -> String,
+    /// The note's body: its heading is `note`, beside it `note_sub`; „Entfernen" where one exists.
+    pub card_note_remove: &'static str,
+    /// The eye of a Termin of one's own on a date already hidden: it shows the date again.
+    pub card_show_own: fn(&str) -> String,
 }
 
 pub const DE: Texts = Texts {
@@ -506,6 +520,13 @@ pub const DE: Texts = Texts {
     card_note_edit: "Notiz bearbeiten",
     card_makeup: "Nachholtermin anlegen",
     card_all: |chip| format!("Alle Termine von {chip}"),
+    card_this_termin: "Diesen Termin",
+    card_others_stay_ticked: |n| if n == 1 { "die andere angehakte bleibt".to_string() } else { format!("die anderen {n} angehakten bleiben") },
+    card_close_title: "Schließen (Esc)",
+    card_extra: "zusätzlich, freiwillig",
+    card_more_off: |n| format!("+{n}"),
+    card_note_remove: "Entfernen",
+    card_show_own: |day| format!("Am {day} einblenden"),
 };
 
 pub const EN: Texts = Texts {
@@ -554,7 +575,7 @@ pub const EN: Texts = Texts {
     other_place: "Another location",
     other_programs: "For other programmes",
     in_plan: "In your timetable",
-    in_feed: "the calendar feed too",
+    in_feed: "in the calendar feed too",
     groups: |kind| match kind {
         Some(EventKind::Exercise) => "Exercise groups",
         Some(EventKind::Practical) => "Lab groups",
@@ -692,7 +713,7 @@ pub const EN: Texts = Texts {
     card_hide_group: "This group",
     card_others_to_choose: |n| format!("the other {n} stay to choose from"),
     card_others_open_again: |n| format!("the other {n} are open to choose again"),
-    card_hide_whole: |kind| format!("The whole {}", kind.to_lowercase()),
+    card_hide_whole: |kind| format!("The whole {kind}"),
     card_also_at: |when| format!("{when} too"),
     card_all_dates: |n| format!("all {n}"),
     card_all_groups: |n| format!("all {n} groups"),
@@ -710,7 +731,7 @@ pub const EN: Texts = Texts {
     card_event_off: |kind| format!("{kind} hidden"),
     card_other_group: |when| format!("Another group chosen · {when}"),
     card_show: "Show",
-    card_show_event: |kind| format!("Show the {}", kind.to_lowercase()),
+    card_show_event: |kind| format!("Show the {kind}"),
     card_show_kind: |kind| format!("Show “{kind}” again"),
     card_only_group: "Only this group",
     card_also: "This one too",
@@ -721,4 +742,11 @@ pub const EN: Texts = Texts {
     card_note_edit: "Edit the note",
     card_makeup: "Add a make-up date",
     card_all: |chip| format!("All sessions of {chip}"),
+    card_this_termin: "This session",
+    card_others_stay_ticked: |n| if n == 1 { "the other ticked one stays".to_string() } else { format!("the other {n} ticked stay") },
+    card_close_title: "Close (Esc)",
+    card_extra: "extra, optional",
+    card_more_off: |n| format!("+{n}"),
+    card_note_remove: "Remove",
+    card_show_own: |day| format!("Show on {day}"),
 };

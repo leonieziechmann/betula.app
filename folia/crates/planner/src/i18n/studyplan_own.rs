@@ -83,10 +83,13 @@ pub struct Texts {
     pub full_up: &'static str,
 
     // ---- the notes ----
-    /// „„Chor“ angelegt", „„Chor“ gespeichert", „„Chor“ gelöscht" (each with „Rückgängig").
+    /// „„Chor“ angelegt", „„Chor“ gespeichert", „„Chor“ gelöscht" (each with „Rückgängig"); the
+    /// name as `said` gives it: in quotes where the student wrote it, bare where it is made of the
+    /// kind and the module („VL EvS gelöscht").
     pub created: fn(&str) -> String,
     pub saved: fn(&str) -> String,
     pub removed: fn(&str) -> String,
+    pub said: fn(&str) -> String,
 
     // ---- the list and the week ----
     /// The list's heading under a calendar's modules: „Eigene Termine".
@@ -174,9 +177,10 @@ pub const DE: Texts = Texts {
     cancel: "Abbrechen",
     full_up: "100 eigene Termine im Semester sind das Höchste, das der Stundenplan hält.",
 
-    created: |name| format!("„{name}“ angelegt"),
-    saved: |name| format!("„{name}“ gespeichert"),
-    removed: |name| format!("„{name}“ gelöscht"),
+    created: |name| format!("{name} angelegt"),
+    saved: |name| format!("{name} gespeichert"),
+    removed: |name| format!("{name} gelöscht"),
+    said: |name| format!("„{name}“"),
 
     heading: "Eigene Termine",
     unnamed: "Eigener Termin",
@@ -253,9 +257,10 @@ pub const EN: Texts = Texts {
     cancel: "Cancel",
     full_up: "100 events of your own in a semester are the most the timetable holds.",
 
-    created: |name| format!("“{name}” added"),
-    saved: |name| format!("“{name}” saved"),
-    removed: |name| format!("“{name}” deleted"),
+    created: |name| format!("{name} added"),
+    saved: |name| format!("{name} saved"),
+    removed: |name| format!("{name} deleted"),
+    said: |name| format!("“{name}”"),
 
     heading: "Your own events",
     unnamed: "Own event",

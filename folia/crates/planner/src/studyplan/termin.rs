@@ -55,12 +55,12 @@ fn choice_link(ctx: PlanCtx) -> Callback<String, String> {
 
 /// The card hid or ticked a Termin and closed. While the plan is looked at the page's note says so
 /// with „Rückgängig" (`own::OwnNote`, the note of what was done to a Termin, one's own or QIS's;
-/// `PlanCtx::undo` keeps the plan as it was). While it is edited the slot itself answers — full,
+/// `PlanCtx::undo` keeps what the card did, to take back). While it is edited the slot itself answers — full,
 /// faint — and nothing is said.
 fn done(ctx: PlanCtx) -> Callback<TerminUndo> {
     Callback::new(move |undo: TerminUndo| {
         if !ctx.edit.get_untracked() {
-            ctx.undo.set(Some((format!("{}{}", super::own::OWN_NOTE, undo.said), undo.before)));
+            ctx.undo.set(Some((format!("{}{}", super::own::OWN_NOTE, undo.said), undo.undo)));
         }
     })
 }

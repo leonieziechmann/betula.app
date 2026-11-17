@@ -34,6 +34,7 @@ use folia_calendar::live::LivePart;
 use folia_calendar::share::SharedPlan;
 use folia_pages::ask::SharedPlanAsk;
 use folia_pages::SharedPlanData;
+use folia_plans::studyplan::PlanUndo;
 use folia_stores::sync::share::{opening, Opening, ShareProblem};
 use folia_stores::sync::{Opened, Sync};
 use leptos::prelude::*;
@@ -127,7 +128,7 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
                     if doc.program.is_none() {
                         doc.program = program;
                     }
-                    (format!("{}{}", s.taken, taken_count(added, t)), before)
+                    (format!("{}{}", s.taken, taken_count(added, t)), PlanUndo::of(before, doc.clone()))
                 });
                 let _ = undo.try_set(Some(note));
             }
@@ -137,7 +138,7 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
     };
     let dismiss = move |_| leave();
     // „Als Kalender": the plan of the link beside one's own, not in it (`calendars.rs`), with the
-    // groups it ticked; „Rückgängig" puts the plan back as it was. The eighth calendar is the last.
+    // groups it ticked; „Rückgängig" takes it away again. The eighth calendar is the last.
     let made = RwSignal::new(None::<String>);
     let room = Memo::new(move |_| ctx.calendars.with(Vec::len) < folia_plans::studyplan::MAX_CALENDARS);
     let as_calendar = move |_| {
@@ -153,7 +154,7 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
                 if let Some(id) = super::calendars::create(ctx, &plan, "") {
                     let note = (t.studyplan_calendars.created)(&(t.studyplan_calendars.unnamed)(id));
                     let _ = made.try_set(Some(note.clone()));
-                    let _ = undo.try_set(Some((note, before)));
+                    let _ = undo.try_set(Some((note, PlanUndo::of(before, store.with_untracked(Clone::clone)))));
                 }
             }
             leave();
@@ -175,7 +176,7 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
         restoring.set(true);
         let undo = ctx.undo;
         store.update_after_paint(move |doc| {
-            *doc = before;
+            before.restore(doc);
             let _ = undo.try_set(None);
             let _ = restoring.try_set(false);
         });
@@ -470,7 +471,7 @@ pub(super) fn LiveOffer(ctx: PlanCtx) -> impl IntoView {
         found.set(None);
     };
     // „Als Kalender folgen" (with the link) and „Als Kalender" (a copy): a calendar of one's own
-    // with what the part holds, after the next frame (R21); „Rückgängig" puts the plan back.
+    // with what the part holds, after the next frame (R21); „Rückgängig" takes it away again.
     let as_calendar = move |link: Option<String>| {
         if busy.get_untracked() {
             return;
@@ -499,7 +500,7 @@ pub(super) fn LiveOffer(ctx: PlanCtx) -> impl IntoView {
                     let note = (c.created)(&(c.unnamed)(id));
                     let _ = follows.try_set(link.is_some());
                     let _ = made.try_set(Some(note.clone()));
-                    let _ = undo.try_set(Some((note, before)));
+                    let _ = undo.try_set(Some((note, PlanUndo::of(before, store.with_untracked(Clone::clone)))));
                 }
             }
             done();
@@ -526,7 +527,7 @@ pub(super) fn LiveOffer(ctx: PlanCtx) -> impl IntoView {
                     if doc.program.is_none() {
                         doc.program = program;
                     }
-                    (format!("{}{}", s.live_taken, taken_count(added, t)), before)
+                    (format!("{}{}", s.live_taken, taken_count(added, t)), PlanUndo::of(before, doc.clone()))
                 });
                 let _ = undo.try_set(Some(note));
             }
@@ -549,7 +550,7 @@ pub(super) fn LiveOffer(ctx: PlanCtx) -> impl IntoView {
         restoring.set(true);
         let undo = ctx.undo;
         store.update_after_paint(move |doc| {
-            *doc = before;
+            before.restore(doc);
             let _ = undo.try_set(None);
             let _ = restoring.try_set(false);
         });

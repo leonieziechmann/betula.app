@@ -78,6 +78,32 @@ impl ModalSize {
     }
 }
 
+/// Where a placed dialog stands in the window (`Modal`'s `at`), in CSS pixels: its left, and the
+/// one edge that stays still while what it holds grows — its top (it grows downward), or, of a
+/// dialog that stands low in the window, its bottom (it grows upward), as the distance from the
+/// window's bottom.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Placed {
+    pub left: f64,
+    pub edge: Edge,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Edge {
+    Top(f64),
+    Bottom(f64),
+}
+
+impl Placed {
+    /// Its style: `--x` and `--y` (the top) or `--b` (the bottom), data as custom properties (R7).
+    pub fn style(self) -> String {
+        match self.edge {
+            Edge::Top(top) => format!("--x:{:.0}px;--y:{top:.0}px", self.left),
+            Edge::Bottom(bottom) => format!("--x:{:.0}px;--b:{bottom:.0}px", self.left),
+        }
+    }
+}
+
 /// How a sheet of a phone stands (`data-sheet`; enhance.js and app.css „the sheets of a phone";
 /// owner, 2026-11-03: „dass es entweder fit ist, also so dass es nur ein kleines fenster ist. Da
 /// würde ich die größe zwischen 40% bis 70% vom screen erlauben. Und da gibt es dann kein full
@@ -145,11 +171,11 @@ pub fn Modal(
     /// does not come up at once over what it shows.
     #[prop(optional)]
     focus_itself: bool,
-    /// Where it stands on a wide screen instead of the window's middle: its left and its top in the
-    /// window, in CSS pixels, written as `--x` and `--y` (R7: data as custom properties; app.css
-    /// `.st-dialog.placed`). `None`: the middle. A phone's sheet stands as every sheet.
+    /// Where it stands on a wide screen instead of the window's middle (`Placed`; app.css
+    /// `.st-dialog.placed`, `.rises` where its bottom edge stays). `None`: the middle. A phone's
+    /// sheet stands as every sheet.
     #[prop(optional, into)]
-    at: Signal<Option<(f64, f64)>>,
+    at: Signal<Option<Placed>>,
     /// Esc while something stands open inside it: `true` where its owner closed that and the dialog
     /// stays, `false` where the dialog closes as ever. One Esc, one layer.
     #[prop(optional)]
@@ -192,7 +218,11 @@ pub fn Modal(
     };
     let class = move || {
         let size = size.get().class();
-        let placed = if at.get().is_some() { "placed" } else { "" };
+        let placed = match at.get().map(|at| at.edge) {
+            Some(Edge::Top(_)) => "placed",
+            Some(Edge::Bottom(_)) => "placed rises",
+            None => "",
+        };
         ["st-dialog", size, placed, class].iter().filter(|part| !part.is_empty()).copied().collect::<Vec<_>>().join(" ")
     };
     view! {
@@ -204,7 +234,7 @@ pub fn Modal(
             aria-label=move || label.map(|label| label.get())
             tabindex=focus_itself.then_some("-1")
             autofocus=focus_itself
-            style=move || at.get().map(|(x, y)| format!("--x:{x:.0}px;--y:{y:.0}px"))
+            style=move || at.get().map(Placed::style)
             on:cancel=move |ev: leptos::ev::Event| {
                 if on_cancel.is_some_and(|ask| ask.run(())) {
                     ev.prevent_default();

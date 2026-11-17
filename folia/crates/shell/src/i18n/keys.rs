@@ -82,8 +82,8 @@ pub const DE: Texts = Texts {
     termin: "Im Termin",
     termin_rows: &[
         (&["←", "→"], "das Datum davor, das danach"),
-        (&["V"], "ganze Seite"),
-        (&["Esc"], "schließen, von der ganzen Seite zurück"),
+        (&["V"], "alle Termine des Moduls"),
+        (&["Esc"], "schließen, von allen Terminen zurück"),
     ],
     marked: "In der Merkliste",
     marked_rows: &[
@@ -159,8 +159,8 @@ pub const EN: Texts = Texts {
     termin: "In a session",
     termin_rows: &[
         (&["←", "→"], "the date before, the date after"),
-        (&["V"], "full page"),
-        (&["Esc"], "close, back from the full page"),
+        (&["V"], "all sessions of the module"),
+        (&["Esc"], "close, back from all sessions"),
     ],
     marked: "In the saved modules",
     marked_rows: &[
