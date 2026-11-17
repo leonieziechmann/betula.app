@@ -4329,9 +4329,15 @@ beside the page → the catalog narrowed down to that area; a row of the plan �
 means, the same derivation as the row's panel (`plan::areas_for_row`; „Anwendungsfach" →
 `area=348,350,351,352,349`, the five Nebenfächer), the FÜS list for a FÜS row, a search for the
 name of a single module, the program's electives where no area fits; nothing picked → the program.
-The FÜS list is the program's own (the FÜS modules whose page admits the program:
-`docs/radix/schema-v2.md`, „Membership and kind"; schema 21 added those whose page admits none, and
-schema 22 withdrew it); where the data holds none (20 of
+The FÜS list is the program's own (since schema 23 what the BTU's FÜS catalogs admit for it, each
+season's newest, less its own modules and its negative list; without catalogs the FÜS modules whose
+page admits the program: `docs/radix/schema-v2.md`, „FÜS catalogs" and „Membership and kind"). A row
+of it says what the negative list says beside the module (Folia 1.98.0; owner, 2026-11-17: „mit
+Hinweis statt ausblenden"): „Nicht mit Anwendungsfach Physik" where the list excludes the module for
+one choice only, „im Sommersemester nicht zugelassen" where one season's catalog excludes it while
+the other admits it, a flag of its own beside the row's others, titled „Laut Negativliste des
+Studiengangs im FÜS-Katalog der BTU" (`queries::catalog_fues_notes` for the rows of a page,
+`folia_widgets::list::fues_note_text`). Where the data holds none (20 of
 the 129 current programs with a plan, two with FÜS rows: Power Engineering and Urban Design and
 Sustainable Revitalization, whose 3 FÜS rows led to an empty list until 2026-11-03), the BTU's
 (`fues=only`, „FÜS-Liste der BTU"), whose modules „Mein Studium" counts for the FÜS anyway. Every

@@ -29,7 +29,9 @@ use std::fmt;
 /// program on the FÜS list of every program that has one; 22: withdrawn, a program's FÜS list is what
 /// the FÜS modules' pages admit again (`v_program_module`, relation `fues`; docs/radix/schema-v2.md,
 /// „Membership and kind"): no column changes either time, but a copy of 21 holds the pairs 22 drops.
-pub const SCHEMA_VERSION: i64 = 22;
+/// 23: the FÜS lists by the BTU's FÜS catalogs, and what they say beside a module of a program's
+/// FÜS list (`v_program_fues_note`, `v_fues_catalog`; docs/radix/schema-v2.md, „FÜS catalogs").
+pub const SCHEMA_VERSION: i64 = 23;
 
 /// A SQLite value, as a parameter or as a result cell.
 #[derive(Clone, Debug, PartialEq)]
