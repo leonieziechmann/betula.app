@@ -2,6 +2,7 @@
 
 pub mod home;
 pub mod home_detail;
+pub mod install;
 pub mod legal;
 pub mod setup;
 pub mod today;
@@ -18,6 +19,7 @@ folia_design::texts! {
     ground = folia_shell::i18n::ground,
     home = crate::i18n::home,
     home_detail = crate::i18n::home_detail,
+    install = crate::i18n::install,
     legal = crate::i18n::legal,
     marks = folia_stores::i18n::marks,
     module = folia_widgets::i18n::module,

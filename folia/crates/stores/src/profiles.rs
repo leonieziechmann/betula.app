@@ -415,6 +415,23 @@ impl Profiles {
         self.create_with(&name, &backup.texts)
     }
 
+    /// What a backup brings, into this browser's empty first profile where it has nothing else
+    /// (`empty_first`): an installed app on an iPhone or a Mac, which keeps storage of its own
+    /// apart from Safari's, takes over the profile Safari copied for it (`folia_home`'s install)
+    /// instead of holding it beside an empty one. Elsewhere a profile of its own (`create_from`).
+    /// The profile it went into, active; `None` where no profile can be made any more.
+    pub fn take_over(self, backup: &Backup) -> Option<u16> {
+        let Some(first) = self.empty_first() else { return self.create_from(backup) };
+        for (key, text) in KEYS.iter().zip(&backup.texts) {
+            nav::local_set(&key_of(key, first), text);
+        }
+        forget_session(first);
+        self.rename(first, &backup.name);
+        self.switch(first);
+        self.wrote();
+        Some(first)
+    }
+
     fn create_with(self, name: &str, texts: &[String; STORES]) -> Option<u16> {
         let (next, id) = self.registry.with_untracked(|registry| registry.with_new(name, crate::bookmarks::now()))?;
         // Its texts first, then the list: another tab that hears of the profile finds them. What a

@@ -42,6 +42,52 @@
   // Text-like controls only: a focused filter chip (checkbox) must not swallow Esc or "/".
   const typing = (el) => el && ((el.tagName === "INPUT" && !["checkbox", "radio", "button", "submit"].includes(el.type)) || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
 
+  // ---- installing Betula (docs/folia/frontend.md, „Betula as an app") ----
+  // (owner, 2026-11-17: „schon bei der einrichtung fragen und dann, wenn es noch nicht passiert ist
+  // dann anzeigen"). Where the browser lets a page open its own dialog (Chromium:
+  // `beforeinstallprompt`, which comes once the browser finds Betula installable and not installed),
+  // the event is held for the app's button (folia_home::home::install) instead of the browser's own
+  // bar on Android, so that Betula asks once and at its moment. `window.betulaInstall` for the app:
+  // `can()` whether the dialog can be opened now, `prompt()` opens it (a click's) and answers
+  // `accepted`, `dismissed` or `unavailable` (an event opens its dialog once), `installed()` whether
+  // the browser said so since the page loaded (`appinstalled`); `copy(text)` and `paste()` for the
+  // profile an iPhone's or a Mac's app takes over from Safari, which keeps storage apart from it.
+  // Each change is told to the page (`betula:install`).
+  let installEvent = null;
+  let installedNow = false;
+  addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    installEvent = event;
+    installedNow = false;
+    dispatchEvent(new Event("betula:install"));
+  });
+  addEventListener("appinstalled", () => {
+    installEvent = null;
+    installedNow = true;
+    dispatchEvent(new Event("betula:install"));
+  });
+  window.betulaInstall = {
+    can: () => installEvent !== null,
+    installed: () => installedNow,
+    prompt: () => {
+      const event = installEvent;
+      if (!event) return Promise.resolve("unavailable");
+      installEvent = null;
+      dispatchEvent(new Event("betula:install"));
+      return Promise.resolve()
+        .then(() => event.prompt())
+        .then(() => event.userChoice)
+        .then((choice) => (choice && choice.outcome === "accepted" ? "accepted" : "dismissed"))
+        .catch(() => "dismissed");
+    },
+    copy: (text) => {
+      try { return navigator.clipboard.writeText(String(text)).then(() => true, () => false); } catch { return Promise.resolve(false); }
+    },
+    paste: () => {
+      try { return navigator.clipboard.readText().then((text) => String(text || ""), () => ""); } catch { return Promise.resolve(""); }
+    },
+  };
+
   // ---- vibrations: what the hand feels (docs/folia/frontend.md, „Vibrations") ----
   // (owner, 2026-11-17: „ich möchte dass in der ganzen app vibrations richtig umgesetzt werden und
   // die Benutzung unterstreichen und satisfying macht"). One small vocabulary for the whole app,
