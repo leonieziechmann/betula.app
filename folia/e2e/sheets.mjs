@@ -15,7 +15,7 @@
 // grabber leaves; a menu (`menu`; owner, 2026-11-17: „eine menu option hinzuzufügen, wo der
 // content einfach perfekt passt und das modal auch nicht auf full gezogen werden kann") exactly as
 // tall as it holds, below 40 % too, one stop that a pull up comes back to and a tap on the grabber
-// leaves; „Sammeln" (`auto`) half up and all up once it holds more than fits, and
+// leaves, and its question „Merkliste leeren" each answer a row of its own; „Sammeln" (`auto`) half up and all up once it holds more than fits, and
 // fitting again once it holds less; „Tasten" naming its keys; „Plan einrichten" all up at once in one move, a pull bringing it back there,
 // thrown away from there. A menu swiped down closes, and closed by its choice a copy of it glides
 // away. Each modal stands as what it holds asks (owner, 2026-11-04): the programs' filters fit,
@@ -191,6 +191,25 @@ const tapped = await menuAt();
 check(tapped && Math.abs(tapped.top - menu.top) <= 1, `a tap on a menu's grabber moved it: ${JSON.stringify(tapped)}`);
 await finger(195, menu.top + 30, evenly(160, 8), { ms: 16 });
 await page.waitForFunction((selector) => !document.querySelector(selector), MENU, { timeout: 3000 }).catch(() => problems.push("a menu swiped down did not close"));
+// Its question in its place („Merkliste leeren"): as tall as it holds, each answer a row of its own
+// across the sheet, one under the other (owner, 2026-11-17: „Beim modal sollte das unbedingt jeweils
+// eine Zeile sein").
+await page.tap(".page-stage.front .view-more");
+await page.waitForFunction((selector) => document.querySelector(`${selector} .st-pop-item.danger`), MENU, { timeout: 5000 }).catch(() => problems.push("the menu did not open again"));
+await page.waitForTimeout(400);
+await page.tap(`${MENU} .st-pop-item.danger`);
+await page.waitForFunction(() => document.querySelector(".view-menu.ask:not(.sheet-ghost) .view-menu-answers"), null, { timeout: 3000 }).catch(() => problems.push("„Merkliste leeren\" did not ask"));
+await page.waitForTimeout(600);
+const ask = await page.evaluate(() => {
+  const menu = document.querySelector(".view-menu.ask:not(.sheet-ghost)");
+  if (!menu) return null;
+  const r = menu.getBoundingClientRect();
+  const rows = [...menu.querySelectorAll(".view-menu-answers > button")].map((b) => { const box = b.getBoundingClientRect(); return { text: b.textContent.trim(), top: Math.round(box.top), bottom: Math.round(box.bottom), width: Math.round(box.width), height: Math.round(box.height) }; });
+  return { height: Math.round(r.height), width: Math.round(r.width), bottom: Math.round(r.bottom), scroll: menu.scrollHeight, rows };
+});
+check(ask && ask.bottom === 844 && ask.scroll <= ask.height + 1 && ask.rows.length === 2 && ask.rows.every((row) => row.width >= ask.width - 20 && row.height >= 44) && ask.rows[1].top >= ask.rows[0].bottom - 1, `the question in a menu's place does not give each answer a row of its own: ${JSON.stringify(ask)}`);
+await page.tap('.view-menu.ask button:has-text("Abbrechen")');
+await page.waitForFunction(() => !document.querySelector(".sheet-ghost") && !document.querySelector(".view-menu"), null, { timeout: 3000 }).catch(() => problems.push("„Abbrechen\" did not close the question"));
 await page.tap(".page-stage.front .view-more");
 await page.waitForFunction((selector) => document.querySelector(`${selector} .st-pop-item`), MENU, { timeout: 5000 }).catch(() => problems.push("the menu did not open again"));
 await page.waitForTimeout(400);

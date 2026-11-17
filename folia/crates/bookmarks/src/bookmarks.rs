@@ -2422,8 +2422,8 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                         <div data-sheet="menu" class="st-pop root view-menu ask" role="alertdialog" aria-label=label style=menu_style(at, height) on:keydown=keys>
                             <p class="view-menu-ask">{question}{(kept > 0).then(|| view! { <small>{(b.delete_keeps)(kept)}</small> })}</p>
                             <div class="view-menu-answers">
-                                <button class="mini danger hit" type="button" role="menuitem" id="delete-yes" on:click=move |_| delete.run(())>{b.delete}</button>
-                                <button class="mini hit" type="button" role="menuitem" on:click=move |_| close()>{b.cancel}</button>
+                                <button class="mini danger hit" type="button" role="menuitem" id="delete-yes" on:click=move |_| delete.run(())><Icon name="trash-2"/><span>{b.delete}</span></button>
+                                <button class="mini hit" type="button" role="menuitem" on:click=move |_| close()><Icon name="x"/><span>{b.cancel}</span></button>
                             </div>
                         </div>
                     }.into_any());
@@ -2488,8 +2488,8 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                                             notices.say(Notice::Cleared(cleared));
                                         }
                                     }
-                                }>{b.clear_yes}</button>
-                                <button class="mini hit" type="button" role="menuitem" on:click=move |_| close()>{b.cancel}</button>
+                                }><Icon name="trash-2"/><span>{b.clear_yes}</span></button>
+                                <button class="mini hit" type="button" role="menuitem" on:click=move |_| close()><Icon name="x"/><span>{b.cancel}</span></button>
                             </div>
                         </div>
                     }.into_any());
