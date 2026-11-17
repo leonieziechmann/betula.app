@@ -7429,6 +7429,22 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
   .view-menu.ask .view-menu-answers > .mini:focus-visible { background: var(--row-hover); box-shadow: inset 0 0 0 2px var(--accent); outline: none; }
   .view-menu.ask .view-menu-answers > .mini > .icon { display: block; flex: none; width: 16px; height: 16px; color: var(--text-2); }
   .view-menu.ask .view-menu-answers > .mini.danger, .view-menu.ask .view-menu-answers > .mini.danger > .icon { color: var(--no); }
+  /* In a sheet, what a question offers and the buttons of a form in it stand one under the other,
+     each across the sheet at a finger's height, the one it suggests or that takes away first (owner,
+     2026-11-17: „Beim modal sollte das unbedingt jeweils eine Zeile sein", „Plan leeren auch
+     untereinander"): „Plan leeren" and „Ersetzen" of „Anpassen", a calendar whose share was taken
+     back, a new calendar and a calendar's new name, a Termin QIS says something else of now, its
+     „Ändern" and its note, a note another device wrote at the same time. Until then they stood side
+     by side as small buttons, as on a wide screen. */
+  [data-sheet] :is(.note-action.ask, .sp-cal-ended, .sp-cal-rename, .sp-cal-actions, .tm-cmp-acts, .chg-foot, .sync-hint-actions) { flex-wrap: wrap; gap: 8px; }
+  [data-sheet] :is(.note-action.ask, .sp-cal-ended, .sp-cal-rename, .sp-cal-actions, .tm-cmp-acts, .chg-foot, .sync-hint-actions) > .mini { --hit-y: 0px; display: inline-flex; flex: 1 1 100%; align-items: center; justify-content: center; gap: 8px; min-height: 46px; font-size: 15px; }
+  [data-sheet] :is(.sp-cal-ended, .sp-cal-rename, .sp-cal-actions, .tm-cmp-acts, .chg-foot, .sync-hint-actions) > .mini .icon { width: 16px; height: 16px; }
+  [data-sheet] :is(.sp-cal-actions, .tm-cmp-acts, .chg-foot, .sync-hint-actions) > .mini:is(.primary, .danger) { order: -1; }
+  [data-sheet] .sp-cal-rename input { min-height: 46px; font-size: 16px; }
+  /* A calendar's menu in „Anpassen": its entries rows of their own, as a menu's on a phone. */
+  [data-sheet] .sp-cal-menu { flex-direction: column; align-items: stretch; gap: 0; }
+  [data-sheet] .sp-cal-menu > .mini { --hit-y: 0px; display: flex; align-items: center; justify-content: flex-start; gap: 10px; min-height: 46px; padding: 0 10px; border-radius: 8px; background: none; box-shadow: none; color: var(--text); font-size: 15px; font-weight: 500; text-align: left; }
+  [data-sheet] .sp-cal-menu > .mini .icon { flex: none; width: 16px; height: 16px; color: var(--text-2); }
   .st-new-body { padding: 16px 4px 18px; }
   .st-new-body .btn { width: 100%; }
   /* Dialogs are sheets of a phone („the sheets of a phone" below): the head says what the dialog

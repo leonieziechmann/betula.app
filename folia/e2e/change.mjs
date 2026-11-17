@@ -16,7 +16,9 @@
 //   Termin, where „Meine behalten" settles it; one QIS took over („OK"); one of a Termin QIS moved
 //   („Übernehmen" hangs it on the Termin QIS has now); one whose Termin is gone („Als eigenen Termin
 //   behalten" with „Rückgängig").
-// - A phone: „Ändern" in the sheet, nothing wider than the screen.
+// - A phone: a Termin QIS says something else of, its answers each a row of its own across the
+//   sheet, „Meine behalten" first; „Ändern" in the sheet, nothing wider than the screen, „Speichern"
+//   and „Abbrechen" one under the other.
 // Needs the snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
 // console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
@@ -217,12 +219,27 @@ let tuesday = "";
 
 // ---------- a phone ----------
 {
-  const { page, context } = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, FS1, `/studyplan?termin=${friday}`);
+  // A change QIS says something else of now, as under „Offen".
+  const differs = `x\t0\t2026W\t${friday}\tall\t\t\t\tZHG/HS.A\t5\t09:15-10:45\tZHG/HS.B\t12104\n`;
+  const { page, context } = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, FS1 + differs, `/studyplan?termin=${friday}`);
   await until(page, "the Termin's sheet", (dialog) => Boolean(onPage(`${dialog} .tk`)), dialog);
+  // In the sheet each answer a row of its own across it, the one suggested first (owner, 2026-11-17:
+  // „Beim modal sollte das unbedingt jeweils eine Zeile sein").
+  const rows = (selector) => page.evaluate((selector) => {
+    const box = onPage(selector);
+    if (!box) return null;
+    const width = Math.round(box.getBoundingClientRect().width);
+    return { width, rows: [...box.querySelectorAll(":scope > button")].map((button) => { const r = button.getBoundingClientRect(); return { text: button.textContent.trim(), top: Math.round(r.top), bottom: Math.round(r.bottom), width: Math.round(r.width), height: Math.round(r.height) }; }).sort((a, b) => a.top - b.top) };
+  }, selector);
+  const stacked = (got, first) => Boolean(got) && got.rows.length === 2 && got.rows[0].text === first && got.rows.every((row) => row.width >= got.width - 1 && row.height >= 44) && got.rows[1].top >= got.rows[0].bottom;
+  const answers = await rows(`${dialog} .tm-cmp-acts`);
+  check(stacked(answers, "Meine behalten"), `the Termin QIS says something else of: not each answer a row of its own, „Meine behalten“ first: ${JSON.stringify(answers)}`);
   await page.click(`${dialog} [data-action="change"]`);
   await until(page, "„Ändern“ in the sheet", (dialog) => Boolean(onPage(`${dialog} #tm-change`)), dialog);
   const wider = await page.evaluate((dialog) => allOnPage(`${dialog} #tm-change *`).filter((el) => el.getBoundingClientRect().right > innerWidth + 1).map((el) => el.className || el.tagName), dialog);
   check(wider.length === 0, `nothing wider than the screen: ${JSON.stringify(wider.slice(0, 5))}`);
+  const form = await rows(`${dialog} #tm-change .chg-foot`);
+  check(stacked(form, "Speichern"), `„Ändern“ in the sheet: not each button a row of its own, „Speichern“ first: ${JSON.stringify(form)}`);
   if (shots) await page.screenshot({ path: `${shots}/change-phone.png` });
   await context.close();
 }
