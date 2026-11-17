@@ -304,6 +304,8 @@ pub struct Texts {
     /// „Auswählen" in a row's menu, „Alle auswählen"; a row selected, for screen readers; the bar:
     /// „3 ausgewählt", „Auswahl", „Auswahl aufheben"; on a phone its words are short.
     pub select_one: &'static str,
+    /// The label of a row's box to tick („„Datenbanken“ auswählen“).
+    pub select_row: fn(&str) -> String,
     pub select_all: &'static str,
     pub is_selected: &'static str,
     pub n_selected: fn(usize) -> String,
@@ -614,6 +616,7 @@ pub const DE: Texts = Texts {
     n_not_offered: |n| format!("{n} nicht angeboten"),
     remove: "Entfernen",
     select_one: "Auswählen",
+    select_row: |name| format!("„{name}“ auswählen"),
     select_all: "Alle auswählen",
     is_selected: "ausgewählt",
     n_selected: |n| format!("{n} ausgewählt"),
@@ -891,6 +894,7 @@ pub const EN: Texts = Texts {
     n_not_offered: |n| format!("{n} not offered"),
     remove: "Remove",
     select_one: "Select",
+    select_row: |name| format!("Select “{name}”"),
     select_all: "Select all",
     is_selected: "selected",
     n_selected: |n| format!("{n} selected"),

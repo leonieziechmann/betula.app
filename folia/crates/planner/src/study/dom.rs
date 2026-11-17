@@ -670,6 +670,18 @@ pub(super) fn on_open(ev: &leptos::ev::Event) -> bool {
     false
 }
 
+/// Whether the event began on a row's box to tick (`.st-sel`, focus.rs `ItemRow`): a press there
+/// draws a selection as one on the row's box does.
+#[allow(unused_variables)]
+pub(super) fn on_box(ev: &leptos::ev::Event) -> bool {
+    #[cfg(feature = "csr")]
+    {
+        ev.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()).is_some_and(|target| target.closest(".st-sel").ok().flatten().is_some())
+    }
+    #[cfg(not(feature = "csr"))]
+    false
+}
+
 /// The page at its top: the area that scrolls on a wide screen (`#page-scroll`), the window on a
 /// phone. For the workbench on a desktop, which comes in place of the page where it was scrolled to.
 pub(super) fn page_to_top() {
