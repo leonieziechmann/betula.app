@@ -422,7 +422,7 @@ const hold = async (area, ms = 600) => {
   return menu;
 };
 const ways = await hold("programs");
-check(ways.join("|") === "Regelstudienplan /study?view=plan|Wahlpflicht /study?view=areas|Ordnungen &amp; Dokumente /study?view=documents|Alle Studiengänge /programs", `a tab held: „Studium“ does not offer its ways: ${JSON.stringify(ways)}`);
+check(ways.join("|") === "Regelstudienplan /study?view=plan|Wahlpflicht /study?view=areas|Ordnungen & Dokumente /study?view=documents|Alle Studiengänge /programs", `a tab held: „Studium“ does not offer its ways: ${JSON.stringify(ways)}`);
 check(await page.evaluate(() => location.pathname === "/study" && Boolean(document.querySelector(".tab-menu"))), "a tab held: the finger's release went somewhere, or the menu went");
 await page.touchscreen.tap(200, 200);
 await page.waitForFunction(() => !document.querySelector(".tab-menu"), null, { timeout: 2000 }).catch(() => problems.push("a tab held: a tap beside the menu did not close it"));
