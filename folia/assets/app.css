@@ -5850,6 +5850,31 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .st-sel[aria-checked="true"] .s-all, .st-sel[aria-checked="mixed"] .s-some { display: block; }
 }
 @media (min-width: 901px) and (hover: none) { .st-sel { opacity: 1; } }
+/* A row of a semester on a desktop in three lines (focus.rs; owner, 2026-11-17: „Mach das mal so,
+   dass der titel über die ganze Länge der tabelle gehen kann, darunter dann die stats in den
+   spalten mit lp, dozent etc. Und darunter wieder full width die notizen/informationen"): the
+   name across the whole row, the columns under it — the number and the area under „Modul", which
+   needs less room than the name did, so „Verantwortlich" has more —, and what is said of it
+   (`.st-notes`, a placeholder's bar and „Modul wählen") across the row again. The box to tick and
+   the status stand at the name's line. The name's box (`.t`) gives its parts to the row's grid;
+   its link still lies over all of the row. The columns go one by one as the table gets narrower,
+   as the catalog's do. */
+@media (min-width: 901px) {
+  .st-sems .st-table > .cols, .st-sems .st-row > .row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) 150px 56px 110px 46px 100px; }
+  .st-sems .st-row > .row { row-gap: 3px; padding-top: 9px; padding-bottom: 9px; }
+  .st-sems .st-row > .row > .t { display: contents; }
+  .st-sems .st-row > .row > .t > b { grid-column: 1 / -1; grid-row: 1; }
+  .st-sems .st-row > .row > .t > small:not(.st-notes) { grid-column: 1; grid-row: 2; min-width: 0; margin-top: 0; }
+  .st-sems .st-row > .row > :not(.t) { grid-row: 2; }
+  .st-sems .st-row > .row > .t > :is(.st-notes, .st-ph-fill, .st-find) { grid-column: 1 / -1; justify-self: start; }
+  .st-sems .st-row > .row > .t > .st-notes { margin-top: 1px; }
+  .st-sems .st-row > .row > .t > .st-ph-fill { margin-top: 3px; }
+  .st-sems .st-row > .row > .t > .st-find { margin-top: 4px; }
+  .st-sems .row-wrap.st-row > :is(.st-status, .st-sel) { top: 2px; margin-top: 0; }
+  @container list (max-width: 1080px) { .st-sems .st-table > .cols, .st-sems .st-row > .row { grid-template-columns: minmax(0, 1fr) 150px 56px 110px 46px 100px; } }
+  @container list (max-width: 860px) { .st-sems .st-table > .cols, .st-sems .st-row > .row { grid-template-columns: minmax(0, 1fr) 56px 110px 46px 100px; } }
+  @container list (max-width: 660px) { .st-sems .st-table > .cols, .st-sems .st-row > .row { grid-template-columns: minmax(0, 1fr) 54px 30px; } }
+}
 /* At the end of a row, where the catalog has the bookmark, the module's status (owner,
    2026-10-19: „Die merken flag soll getauscht werden mit einem Status symbol (In
    progress/bestanden/nicht bestanden)"), the button of the row's menu: as large as the bookmark and
