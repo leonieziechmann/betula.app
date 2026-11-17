@@ -17,8 +17,8 @@ use std::collections::BTreeSet;
 use folia_model::db::{fetch, fetch_count, fetch_optional, Database, DbError, Value};
 use folia_model::ids::is_module_id;
 use folia_model::rows::{
-    CatalogOffer, CatalogPage, CatalogRow, Department, Module, ModuleVector, Prerequisite, Program, ProgramModule,
-    SearchElsewhere, Semester,
+    CatalogOffer, CatalogPage, CatalogRow, Department, FuesNote, FuesNoteRow, Module, ModuleVector, Prerequisite, Program,
+    ProgramModule, SearchElsewhere, Semester,
 };
 use folia_model::rows_detail::{
     AreaNode, AreaPlacement, ChoiceFamily, ChoiceOption, Counterpart, DateCount, DateRow, Document, EventDate, GeneralDocument, Lecturer,
@@ -208,7 +208,39 @@ pub fn catalog_page(
         }
     }
     with_offers(db, &mut rows)?;
+    if let Some(scope) = query.program.as_ref().filter(|scope| scope.relation == ProgramRelation::Fues) {
+        with_fues_notes(db, &scope.program_slug, &mut rows)?;
+    }
     Ok(CatalogPage { total, offset, rows })
+}
+
+/// The rows of a program's FÜS list with what it says of them (`catalog_fues_notes`).
+fn with_fues_notes(db: &dyn Database, program_slug: &str, rows: &mut [CatalogRow]) -> Result<(), DbError> {
+    let ids: Vec<String> = rows.iter().map(|row| row.id.clone()).collect();
+    let notes = catalog_fues_notes(db, program_slug, &ids)?;
+    for row in rows.iter_mut() {
+        row.fues_note = FuesNote::of(notes.iter().filter(|note| note.module_id == row.id));
+    }
+    Ok(())
+}
+
+/// What the FÜS list of the program `program_slug` says of the modules `module_ids` besides that
+/// they are on it (`v_program_fues_note`, docs/radix/schema-v2.md „FÜS catalogs"): a row per season
+/// that says more, whether its catalog admits the module for every student of the program, and the
+/// choices its negative list excludes it for. One page of a list at a time, as `catalog_offers`.
+pub fn catalog_fues_notes(db: &dyn Database, program_slug: &str, module_ids: &[String]) -> Result<Vec<FuesNoteRow>, DbError> {
+    let ids = id_json(module_ids);
+    if ids == NO_IDS {
+        return Ok(Vec::new());
+    }
+    fetch(
+        db,
+        "catalog_fues_notes",
+        "SELECT n.module_id, n.season, n.semester, n.admitted, n.excluded_for \
+         FROM json_each(?) i JOIN v_program_fues_note n ON n.module_id = i.value \
+         WHERE n.program_id = (SELECT id FROM v_program WHERE slug = ?) ORDER BY n.module_id, n.season",
+        &[Value::from(ids), Value::from(program_slug)],
+    )
 }
 
 /// The rows with what `catalog_offers` says of them: their courses and their choices.
@@ -648,6 +680,17 @@ pub fn module_program_links(db: &dyn Database, module_id: &str) -> Result<Vec<Pr
          po_version, is_latest_po, relation, kind, kind_source, area, kind_basis \
          FROM v_module_program_link WHERE module_id = ? \
          ORDER BY program_slug IS NULL, relation, program_name COLLATE NOCASE, po_version DESC, ord",
+        &[Value::from(module_id)],
+    )
+}
+
+/// How many programs have a module on their FÜS list (`v_program_module`, relation `fues`): one
+/// each, where `module_program_links` may name a program twice.
+pub fn module_fues_programs(db: &dyn Database, module_id: &str) -> Result<u64, DbError> {
+    fetch_count(
+        db,
+        "module_fues_programs",
+        "SELECT COUNT(*) FROM v_program_module WHERE module_id = ? AND relation = 'fues'",
         &[Value::from(module_id)],
     )
 }

@@ -239,13 +239,16 @@ pub struct Due {
 impl Due {
     /// What the plan puts into Fachsemester `fs`; without one (a semester of leave, one before the
     /// Studienbeginn) only what is open from before it, the current semester's Fachsemester `now`.
+    /// A row of the Pflicht over several Fachsemester is one of each from the one it is due in on
+    /// (`PlanLine::due`): the thesis of „5.–6. FS" is the sixth's, and the fifth has it as what
+    /// the next one could take now.
     pub fn of(view: &PlanView, fs: Option<u8>, now: Option<u8>) -> Self {
         let mut due = Due::default();
         let before = fs.or(now).unwrap_or(1);
         for (at, line) in view.lines.iter().enumerate().filter(|(_, line)| line.choice.is_none()) {
             match fs {
-                Some(fs) if line.first <= fs && fs <= line.last => due.pflicht.push(at),
-                Some(fs) if line.first == fs + 1 && stands_nowhere(line.state) => due.next.push(at),
+                Some(fs) if line.due() <= fs && fs <= line.last => due.pflicht.push(at),
+                Some(fs) if line.due() == fs + 1 && stands_nowhere(line.state) => due.next.push(at),
                 _ if line.last < before && stands_nowhere(line.state) => due.earlier.push(at),
                 _ => {}
             }

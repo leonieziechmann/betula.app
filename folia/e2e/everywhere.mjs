@@ -194,10 +194,15 @@ const found = await page.evaluate((area) => {
   if (column < 0 || !head) return false;
   let cell = head;
   for (let i = 0; i <= column; i++) cell = cell.nextElementSibling;
+  cell?.setAttribute("data-check", "the-cell");
   cell?.querySelector(".st-cell-add")?.setAttribute("data-check", "cell");
   return Boolean(cell?.querySelector(".st-cell-add"));
 }, choice.area);
 check(found, `no cell of ${choice.area} in SoSe 27`);
+// The pointer on the cell first: a cell with pieces shows its „+ Modul einplanen" only then, and
+// nothing takes a click there before (Folia 1.97.11).
+await page.hover('[data-check="the-cell"]', { position: { x: 12, y: 12 } });
+await page.waitForTimeout(400);
 await step("the cell", () => page.click('[data-check="cell"]'), () => document.querySelector(".st-wb-half")?.getAttribute("aria-label") === "Hinzufügen zu SoSe 2027" && document.querySelector(".st-wb-half .st-wb-row"));
 const inCell = async () => page.evaluate((title) => {
   const row = [...document.querySelectorAll(".st-wb-half .st-wb-row")].find((li) => li.querySelector(".st-wb-go b")?.textContent === title);

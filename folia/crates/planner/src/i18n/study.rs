@@ -121,10 +121,16 @@ pub struct Texts {
     pub passed_short: &'static str,
     pub planned_short: &'static str,
     pub open_short: &'static str,
+    /// The credits under way in the current semester, in the strip of the areas and of an area
+    /// (`overview::Tally`): „16 läuft" beside „34 bestanden", „12 geplant", „4 offen";
+    /// and what the strip is, for screen readers.
+    pub running_short: &'static str,
+    pub tally_label: &'static str,
     /// The bar, for screen readers, and one area of it.
     pub bar_label: &'static str,
     pub bar_area: fn(&str, &str, &str, &str) -> String,
-    /// „Bereiche": the way to the areas on a phone.
+    /// „Bereiche": the way to the areas on a phone, their page (`areas.rs`), and where the way back
+    /// at the head of an area's page leads.
     pub areas: &'static str,
 
     // A phone: the overview, then the semesters behind „Studium planen".
@@ -136,11 +142,8 @@ pub struct Texts {
     pub chart_label: &'static str,
     /// Under a semester of leave's column: „Urlaub".
     pub leave_short: &'static str,
-    /// What an area's card says: „32 bestanden · 16 geplant", „noch nichts geplant", „18 LP
-    /// offen", „ganz eingeplant", „+6 LP über Bedarf", „laut Plan im 5.–6. FS".
-    pub card_passed: fn(&str) -> String,
-    pub card_planned: fn(&str) -> String,
-    pub nothing_yet: &'static str,
+    /// What an area's card says: „18 LP offen", „ganz eingeplant", „+6 LP über Bedarf", „laut
+    /// Plan im 5.–6. FS".
     pub card_open: fn(&str) -> String,
     pub all_planned: &'static str,
     pub card_over: fn(&str) -> String,
@@ -158,11 +161,6 @@ pub struct Texts {
     pub plan_it: &'static str,
 
     // An area.
-    /// „Übersicht nach Bereichen": the phone's sheet.
-    pub areas_title: &'static str,
-    /// „Verlangt 6 LP · belegt 12 LP", „verlangt: 6 LP".
-    pub area_asks: fn(&str, &str) -> String,
-    pub area_required: fn(&str) -> String,
     pub area_over_text: fn(&str) -> String,
     pub your_modules: &'static str,
     pub none_here: &'static str,
@@ -175,9 +173,9 @@ pub struct Texts {
     pub exception: &'static str,
     pub exception_title: fn(&str) -> String,
     pub over_need: &'static str,
-    /// „Laut Regelstudienplan": the area's rows and where each stands.
+    /// „Noch offen": the plan's rows of the area nothing is planned for, each with the dashed
+    /// ring of what stands open (`focus::OpenGlyph`), whose word is `status_open`.
     pub plan_rows: &'static str,
-    pub row_open: &'static str,
     pub more_area: &'static str,
     pub area_catalog: &'static str,
     pub fues_catalog: &'static str,
@@ -214,6 +212,8 @@ pub struct Texts {
     pub status_running: &'static str,
     pub status_passed: &'static str,
     pub status_failed: &'static str,
+    /// What the dashed ring says: nothing is planned for it yet.
+    pub status_open: &'static str,
     pub status_of: fn(&str, &str) -> String,
     /// A module only visited (folia/design/kalender/konzepte.html, „Ein Besuchsmodul in „Mein
     /// Studium“"): its sign's word („Besuch"), its line („nur besuchen · zählt nicht"); in its
@@ -298,6 +298,8 @@ pub struct Texts {
     /// „Auswählen" in a row's menu, „Alle auswählen"; a row selected, for screen readers; the bar:
     /// „3 ausgewählt", „Auswahl", „Auswahl aufheben"; on a phone its words are short.
     pub select_one: &'static str,
+    /// The label of a row's box to tick („„Datenbanken“ auswählen“).
+    pub select_row: fn(&str) -> String,
     pub select_all: &'static str,
     pub is_selected: &'static str,
     pub n_selected: fn(usize) -> String,
@@ -481,6 +483,8 @@ pub const DE: Texts = Texts {
     passed_short: "bestanden",
     planned_short: "geplant",
     open_short: "offen",
+    running_short: "läuft",
+    tally_label: "LP nach Stand",
     bar_label: "Leistungspunkte nach Bereichen",
     bar_area: |name, passed, planned, required| format!("{name}: {passed} bestanden, {planned} geplant, von {required} LP"),
     areas: "Bereiche",
@@ -488,9 +492,6 @@ pub const DE: Texts = Texts {
     box_now: |semester, figure| format!("Jetzt {semester} · {figure}"),
     chart_label: "Deine Semester",
     leave_short: "Urlaub",
-    card_passed: |n| format!("{n} bestanden"),
-    card_planned: |n| format!("{n} geplant"),
-    nothing_yet: "noch nichts geplant",
     card_open: |n| format!("{n}\u{a0}LP offen"),
     all_planned: "ganz eingeplant",
     card_over: |n| format!("+{n}\u{a0}LP über Bedarf"),
@@ -503,9 +504,6 @@ pub const DE: Texts = Texts {
     outside: "Ohne Bereich",
     plan_it: "Einplanen",
 
-    areas_title: "Übersicht nach Bereichen",
-    area_asks: |required, taken| format!("Verlangt {required}\u{a0}LP · belegt {taken}\u{a0}LP"),
-    area_required: |n| format!("verlangt: {n}\u{a0}LP"),
     area_over_text: |n| format!("{n}\u{a0}LP mehr, als der Bereich verlangt. Betula rechnet sie keinem anderen Bereich an – belegen kannst du sie trotzdem, wenn dich das Thema interessiert."),
     your_modules: "Deine Module hier",
     none_here: "Noch nichts eingeplant.",
@@ -515,8 +513,7 @@ pub const DE: Texts = Texts {
     exception: "Ausnahme",
     exception_title: |area| format!("Zählt als Ausnahme für {area}: laut Plan gehört es woanders hin"),
     over_need: "über Bedarf",
-    plan_rows: "Laut Regelstudienplan",
-    row_open: "offen",
+    plan_rows: "Noch offen",
     more_area: "Mehr zum Bereich",
     area_catalog: "Module des Bereichs im Katalog",
     fues_catalog: "Alle FÜS-Module im Katalog",
@@ -548,6 +545,7 @@ pub const DE: Texts = Texts {
     status_running: "Läuft",
     status_passed: "Bestanden",
     status_failed: "Nicht bestanden",
+    status_open: "Offen",
     status_of: |status, name| format!("{status} – Menü zu {name}"),
     status_visit: "Besuch",
     visit_line: "nur besuchen · zählt nicht",
@@ -604,6 +602,7 @@ pub const DE: Texts = Texts {
     n_not_offered: |n| format!("{n} nicht angeboten"),
     remove: "Entfernen",
     select_one: "Auswählen",
+    select_row: |name| format!("„{name}“ auswählen"),
     select_all: "Alle auswählen",
     is_selected: "ausgewählt",
     n_selected: |n| format!("{n} ausgewählt"),
@@ -755,6 +754,8 @@ pub const EN: Texts = Texts {
     passed_short: "passed",
     planned_short: "planned",
     open_short: "open",
+    running_short: "under way",
+    tally_label: "Credits by where they stand",
     bar_label: "Credit points by area",
     bar_area: |name, passed, planned, required| format!("{name}: {passed} passed, {planned} planned, of {required} CP"),
     areas: "Areas",
@@ -762,9 +763,6 @@ pub const EN: Texts = Texts {
     box_now: |semester, figure| format!("Now {semester} · {figure}"),
     chart_label: "Your semesters",
     leave_short: "Leave",
-    card_passed: |n| format!("{n} passed"),
-    card_planned: |n| format!("{n} planned"),
-    nothing_yet: "nothing planned yet",
     card_open: |n| format!("{n}\u{a0}CP open"),
     all_planned: "fully planned",
     card_over: |n| format!("+{n}\u{a0}CP beyond need"),
@@ -777,9 +775,6 @@ pub const EN: Texts = Texts {
     outside: "No area",
     plan_it: "Plan it",
 
-    areas_title: "Overview by area",
-    area_asks: |required, taken| format!("Asks for {required}\u{a0}CP · taken {taken}\u{a0}CP"),
-    area_required: |n| format!("asks for: {n}\u{a0}CP"),
     area_over_text: |n| format!("{n}\u{a0}CP more than the area asks for. Betula counts them towards no other area – you can still take them if the subject interests you."),
     your_modules: "Your modules here",
     none_here: "Nothing planned yet.",
@@ -789,8 +784,7 @@ pub const EN: Texts = Texts {
     exception: "Exception",
     exception_title: |area| format!("Counts for {area} as an exception: by the plan it belongs elsewhere"),
     over_need: "beyond need",
-    plan_rows: "Standard study plan",
-    row_open: "open",
+    plan_rows: "Still open",
     more_area: "More on the area",
     area_catalog: "The area's modules in the catalogue",
     fues_catalog: "All FÜS modules in the catalogue",
@@ -822,6 +816,7 @@ pub const EN: Texts = Texts {
     status_running: "Under way",
     status_passed: "Passed",
     status_failed: "Not passed",
+    status_open: "Open",
     status_of: |status, name| format!("{status} – menu of {name}"),
     status_visit: "Visit",
     visit_line: "only visited · does not count",
@@ -878,6 +873,7 @@ pub const EN: Texts = Texts {
     n_not_offered: |n| format!("{n} not offered"),
     remove: "Remove",
     select_one: "Select",
+    select_row: |name| format!("Select “{name}”"),
     select_all: "Select all",
     is_selected: "selected",
     n_selected: |n| format!("{n} selected"),

@@ -2118,23 +2118,23 @@ const PROGRAMS_SHOWN: usize = 5;
 
 /// The programs the module belongs to: curricula first, then how many accept it as FÜS. Five at
 /// most, the fifth running out under a button that shows the rest (`.runout`, app.css, and
-/// enhance.js „runout"); without JavaScript all of them.
+/// enhance.js „runout"); without JavaScript all of them. How many accept it as FÜS is what the
+/// programs' FÜS lists hold (`fues_programs`), one each, where the page may name a program twice.
 #[component]
 fn Programs(data: ModuleData) -> impl IntoView {
     let t = i18n::t();
     let words = &t.module;
-    let resolved: Vec<_> = data.programs.iter().filter(|l| l.resolve_status.is(ResolveStatus::Resolved)).cloned().collect();
     // Each with the semester its validated plan places the module in, where it has one.
     let curricular: Vec<(ProgramLink, Option<String>)> = curricula(&data).into_iter().map(|link| {
         let semesters = plan_semesters(&data, &link, t.locale);
         (link, semesters)
     }).collect();
-    let fues = resolved.iter().filter(|l| l.relation.as_ref().is_some_and(|r| r.is(Relation::Fues))).count();
+    let fues = usize::try_from(data.fues_programs).unwrap_or(usize::MAX);
     let unresolved = data.programs.iter().filter(|l| l.resolve_status.is(ResolveStatus::Unresolved)).count();
     let count = curricular.len();
     let cut = count > PROGRAMS_SHOWN;
 
-    (!data.programs.is_empty()).then(|| view! {
+    (!data.programs.is_empty() || fues > 0).then(|| view! {
         <div class="section" id="studiengaenge">
             <h3 class="label">{words.programs}<span>{(words.curricula)(count)}</span></h3>
             {curricular.is_empty().then(|| view! { <p class="hint">{words.no_curriculum}</p> })}
@@ -2926,6 +2926,7 @@ mod tests {
             choices: Vec::new(),
             choice_families: Vec::new(),
             programs: vec![informatik],
+            fues_programs: 0,
             plan_places: vec![folia_model::rows_detail::PlanPlace { program_id: "079-82-2008".into(), semester: Some(1), start_semester: Some(1), end_semester: Some(1) }],
             semesters: vec![semester("2026S", "SoSe 2026", "2026-04-01", "2026-09-30"), semester("2026W", "WiSe 2026/27", "2026-10-01", "2027-03-31")],
             program_abbrevs: Vec::new(),

@@ -528,6 +528,9 @@ pub struct ModuleData {
     #[serde(default)]
     pub choice_families: Vec<ChoiceFamily>,
     pub programs: Vec<ProgramLink>,
+    /// How many programs have the module on their FÜS list (`module_fues_programs`).
+    #[serde(default)]
+    pub fues_programs: u64,
     /// Where the validated study plans place the module (`plan_semesters`).
     pub plan_places: Vec<PlanPlace>,
     pub semesters: Vec<Semester>,
@@ -578,6 +581,7 @@ pub fn module(db: &dyn Database, id: &str) -> Result<Option<ModuleData>, DbError
         choices: queries::module_choices(db, id)?,
         choice_families: queries::module_choice_families(db, id)?,
         programs: queries::module_program_links(db, id)?,
+        fues_programs: queries::module_fues_programs(db, id)?,
         plan_places: queries::module_plan_places(db, id)?,
         semesters: queries::semesters(db)?,
         program_abbrevs: queries::module_program_abbrevs(db, id)?,

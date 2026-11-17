@@ -189,7 +189,7 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
                     <div class="offer" role="status">
                         <Icon name="check"/>
                         <p><b>{note}</b></p>
-                        <button class="mini hit" type="button" id="sp-share-undo" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
+                        <button data-haptic="tap" class="mini hit" type="button" id="sp-share-undo" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
                     </div>
                 }
                 .into_any()
@@ -601,7 +601,7 @@ pub(super) fn LiveOffer(ctx: PlanCtx) -> impl IntoView {
                         <div class="offer" role="status">
                             <Icon name="check"/>
                             <p><b>{note}</b></p>
-                            <button class="mini hit" type="button" id="sp-live-undo" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
+                            <button data-haptic="tap" class="mini hit" type="button" id="sp-live-undo" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
                         </div>
                         {upgrade_view}
                     }

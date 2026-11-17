@@ -18,7 +18,8 @@
 //! way, the action is armed: the ground takes the look of what the module will be and the icon
 //! springs (owner, 2026-10-17) — „Merken" from the quiet ground to the inverted look of a marked
 //! module, „Entfernen" back; „Einplanen" to the accent, „Entfernen" out of the plan from the accent
-//! to red.
+//! to red. The hand feels it as well (`folia_design::haptic`): a tick as the action is armed, and
+//! another as it is no longer; what is done then is felt as its switch's click is.
 //! Let go armed, and the ground says what was done („Gemerkt", „Eingeplant", „Entfernt"), the card
 //! goes aside as far as that takes and holds a moment before it glides back, and the action
 //! follows after the next frame (R21); let go before, and the card glides back and nothing
@@ -55,6 +56,7 @@ use leptos::wasm_bindgen::JsCast;
 use folia_stores::bookmarks::Bookmarks;
 use folia_data::{use_data, DataClient};
 use crate::i18n::{self, Texts};
+use folia_design::haptic::{self, Haptic};
 use folia_design::nav;
 use crate::module::semesters_of;
 use folia_stores::studyplan::{self, Aim, PlanHint, Planning, Pressed, Studyplan};
@@ -317,10 +319,7 @@ impl RowSwipe {
                     }
                     self.finger.set_value(None);
                     self.held.set_value(Some(pointer));
-                    #[cfg(feature = "csr")]
-                    if let Some(window) = web_sys::window() {
-                        let _ = window.navigator().vibrate_with_duration(8);
-                    }
+                    haptic::play(Haptic::Hold);
                     hold.run(self.id.get_value());
                 },
                 HOLD_SELECT,
@@ -556,7 +555,12 @@ impl RowSwipe {
         let arm = arm_at(finger.width);
         self.card.set(Card { offset, open: (offset.abs() / arm).min(1.0) });
         put(self.side, Side::of(offset));
-        put(self.armed, offset.abs() >= arm);
+        // Armed, or no longer: the hand feels the point where letting go does it.
+        let armed = offset.abs() >= arm;
+        if armed != self.armed.get_untracked() {
+            haptic::play(Haptic::Tick);
+        }
+        put(self.armed, armed);
     }
 
     /// The finger goes: lifted at `x` at the time `at`, or taken by the browser (`None`).

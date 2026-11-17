@@ -32,6 +32,7 @@
 //! what it needs of it through a memo of its own (R5). A click answers in the next frame and the
 //! store follows after it (R21, `StudyCtx::change`).
 
+mod areas;
 mod bench;
 mod btu;
 mod card;
@@ -182,10 +183,9 @@ pub(super) enum View {
 /// The dialog open over the page, if any (`dialog.rs`).
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Dialog {
-    /// An area of the progress (`Study::progress`); `None` for what counts towards none.
+    /// An area of the progress (`Study::progress`) on a desktop, opened from its card; `None` for
+    /// what counts towards none. A phone's is a page of its own (`areas.rs`).
     Area(Option<usize>),
-    /// The areas on a phone.
-    Areas,
     /// „Studiengang wechseln".
     Switch,
     /// „Zählt für" › „Anderer Bereich …" of a module of a semester (`count.rs`).
@@ -254,6 +254,8 @@ pub(super) struct StudyCtx {
     /// A phone's choice of the Wahlpflicht was opened from its list, the step before in the
     /// history: its way back goes back there.
     pub choice_back: RwSignal<bool>,
+    /// The same for an area of the progress opened from the list of them (`areas.rs`).
+    pub area_back: RwSignal<bool>,
     /// What „Einplanen" of the module beside the page aims at where the Wahlpflicht opened it: the
     /// module and the choice's placeholder and row (`PlanHint`, `choose.rs`). For that module
     /// alone.
@@ -523,6 +525,7 @@ pub fn StudyPage() -> impl IntoView {
         view_back: RwSignal::new(false),
         choice: RwSignal::new(None),
         choice_back: RwSignal::new(false),
+        area_back: RwSignal::new(false),
         aside_hint: RwSignal::new(None),
         bench: RwSignal::new(None),
         trail: RwSignal::new(Vec::new()),
@@ -752,6 +755,7 @@ fn StudyBody(ctx: StudyCtx) -> impl IntoView {
             StudyView::Plan => view! { <regular::Regular ctx/> }.into_any(),
             StudyView::Choices => view! { <choose::Choose ctx/> }.into_any(),
             StudyView::Documents => view! { <documents::Documents ctx/> }.into_any(),
+            StudyView::Progress => view! { <areas::Areas ctx/> }.into_any(),
         }
     }
 }
@@ -802,7 +806,7 @@ fn UndoView(ctx: StudyCtx, turn: u32) -> impl IntoView {
                 <span class="mark-toast-gap"></span>
                 <div class="plan-toast-end">
                     <span class="plan-toast-sep" aria-hidden="true"></span>
-                    <button class="plan-toast-undo" type="button" on:click=restore>{t.common.undo}</button>
+                    <button data-haptic="tap" class="plan-toast-undo" type="button" on:click=restore>{t.common.undo}</button>
                 </div>
             </div>
         </WaitNote>
@@ -977,6 +981,51 @@ mod tests {
         assert!(modules > 5);
         let after = ready(&source, &mine, key("2026W"), &filled, &source.linked, t);
         assert_eq!(after.study.retakes.len(), after.study.semesters.iter().filter(|s| s.key < key("2026W")).map(|s| s.items.len()).sum::<usize>());
+    }
+
+    /// The marks of the areas (`overview::Tally`; owner, 2026-11-17: „icons für den Fortschritt
+    /// also bestanden, aktuell belegt, noch nicht belegt"): an area's credits by where they stand
+    /// add up to what its progress holds, what is under way is the current semester's alone, and
+    /// what was not passed counts for none of them. Informatik B.Sc. in its third semester: the
+    /// first two passed but Mathematik IT-2, taken again now with the plan's third; two modules
+    /// planned for the summer; two that count towards no area, one passed and one planned.
+    #[test]
+    fn the_credits_of_an_area_by_where_they_stand() {
+        let source = plans_of("079-82-2008");
+        let plan = [
+            "m\t2025W\t12104\t1\t\tplan", "m\t2025W\t12107\t2\t\tplan", "m\t2025W\t12102\t3\t\tplan", "m\t2025W\t11112\t4\t\tplan",
+            "m\t2026S\t12101\t1\t\tplan", "m\t2026S\t11903\t2\t\tplan", "m\t2026S\t11113\t3\t\tplan",
+            "m\t2026W\t11787\t1\t\tplan", "m\t2026W\t12202\t2\t\tplan", "m\t2026W\t11213\t3\t\tplan", "m\t2026W\t11113\t4\t\t", "m\t2026W\t11107\t5\t\t",
+            "m\t2027S\t12204\t1\t\tplan", "m\t2027S\t12214\t2\t\tplan", "m\t2027S\t11108\t3\t\t",
+            "d\t2025W\t12104", "d\t2025W\t12107", "d\t2025W\t12102", "d\t2025W\t11112", "d\t2026S\t12101", "d\t2026S\t11903", "d\t2026W\t11107",
+        ]
+        .join("\n");
+        let doc = PlanDoc::restored(&plan);
+        let mine = MineDoc { caption: Some(String::new()), start: Some(key("2025W")), ..MineDoc::default() };
+        let mut rows = source.linked.clone();
+        rows.extend(plans_of_rows(&["11107", "11108"]));
+        let ready = ready(&source, &mine, key("2026W"), &doc, &rows, i18n::texts(folia_locale::Locale::De));
+        let study = &ready.study;
+        let (areas, outside) = overview::Tally::of(study);
+        assert_eq!(areas.len(), study.progress.len());
+        for (tally, progress) in areas.iter().zip(&study.progress) {
+            let name = &progress.area.name;
+            assert_eq!(tally.passed, progress.passed + progress.over_passed, "{name}: passed");
+            assert_eq!(tally.running + tally.planned, progress.planned + progress.over - progress.over_passed, "{name}: under way and planned");
+            assert_eq!(tally.open, progress.open(), "{name}: open");
+        }
+        let parts = |tally: &overview::Tally| (tally.passed, tally.running, tally.planned, tally.open);
+        // Informatik: 34 passed; Theoretische Informatik and the Softwarepraktikum under way;
+        // Betriebssysteme I and the Digitaltechnik-Praktikum planned; the Proseminar open.
+        assert_eq!(parts(&areas[0]), (34.0, 16.0, 12.0, 4.0));
+        // Mathematik: IT-1 passed, IT-3 and IT-2 again under way; IT-2 not passed in the summer
+        // counts for nothing.
+        assert_eq!(parts(&areas[1]), (8.0, 16.0, 0.0, 0.0));
+        assert_eq!(parts(&areas[2]), (0.0, 0.0, 0.0, 18.0));
+        // Höhere Mathematik T1 and T2 count towards no area: what is passed and what is planned,
+        // as the study says them.
+        assert_eq!(parts(&outside), (6.0, 0.0, 6.0, 0.0));
+        assert_eq!((outside.passed, outside.running + outside.planned), study.outside);
     }
 
     /// Elektrotechnik B.Sc. 2022 has a plan per study direction: the one kept is the one studied.
@@ -1408,6 +1457,135 @@ mod tests {
         assert!(single.iter().all(|name| !layout.keys().contains(*name)));
         assert!(layout.rows.iter().filter(|row| !row.unfolds()).all(|row| row.subs.is_empty() && row.lanes.len() <= 1));
         assert!(area("Fachstudium").unfolds() && area("Nebenfach").unfolds() && layout.keys().contains("Fachstudium"));
+    }
+
+    /// What the plan has open stands where the plan has it (owner, 2026-11-17: „wenn man sowas wie
+    /// ein Anwendungsfach hat sollten im 3. Semester nich schon 12 lp stehen, wenn 6 davon
+    /// eigentlich aus dem 4. Semester kommen. Und dann auch sowas, wie die Bachelorarbeit sollte
+    /// halt auch erst im 6. Semester im Default sein"): Informatik B.Sc. in its third semester, a
+    /// module of 6 LP planned for the Anwendungsfach — in the third, the open 6 LP are the fourth's,
+    /// in the area's bar as in the subsection's; in the fourth, the third's; the Bachelor-Arbeit of
+    /// the 5.–6. FS in the sixth, and the workbench's fifth has it to take from the sixth.
+    #[test]
+    fn the_gesamtplan_puts_what_is_open_where_the_plan_has_it() {
+        use folia_plans::bench::Due;
+        use folia_plans::choices::plan_view;
+        use grid::model::{Cell, Fill, Layout, Subs};
+
+        /// The open pieces of a row: the semester each stands in, its label and its title.
+        type Open = Vec<(String, String, String)>;
+
+        let source = plans_of("079-82-2008");
+        let mine = MineDoc { caption: Some(String::new()), start: Some(key("2025W")), ..MineDoc::default() };
+        let mut rows = source.linked.clone();
+        rows.extend(plans_of_rows(&["11908"]));
+        let t = i18n::texts(folia_locale::Locale::De);
+        // Every row and every subsection with its open pieces.
+        let open_of = |plan: &str| {
+            let doc = PlanDoc::restored(plan);
+            let ready = ready(&source, &mine, key("2026W"), &doc, &rows, t);
+            let input = input_of(&source, &ready.setup, &doc, &rows);
+            let subs = Subs::of(&input, &ready);
+            let layout = Layout::of(&ready, &subs, false, &Default::default(), None, t);
+            let open = |cells: &[Cell]| -> Open {
+                cells
+                    .iter()
+                    .flat_map(|cell| match cell {
+                        Cell::Semester(cell) => cell.pieces.iter().filter(|piece| piece.fill == Fill::Open).map(|piece| (cell.key.key(), piece.label.clone(), piece.title.clone())).collect::<Vec<_>>(),
+                        Cell::Past { .. } => Vec::new(),
+                    })
+                    .collect()
+            };
+            layout.rows.iter().flat_map(|row| std::iter::once((row.name.clone(), open(&row.cells))).chain(row.subs.iter().map(|sub| (sub.name.clone(), open(&sub.cells))))).collect::<Vec<_>>()
+        };
+        let said = |all: &[(String, Open)], name: &str| -> Vec<String> {
+            all.iter().find(|(row, _)| row == name).map(|(_, pieces)| pieces.iter().map(|(semester, label, _)| format!("{semester} {label}")).collect()).unwrap()
+        };
+        // Nothing planned: the Anwendungsfach's rows in the third and the fourth, Praktische
+        // Mathematik in the fourth.
+        let nothing = open_of("");
+        assert_eq!(said(&nothing, "Anwendungsfach"), ["2026W +6", "2027S +6"]);
+        assert_eq!(said(&nothing, "Nebenfach"), ["2026W +6", "2027S +12"]);
+        // Systemtheorie I (6 LP) for the Anwendungsfach in the third: what is open is the fourth's.
+        let third = open_of("m\t2026W\t11908\t1\t\t\t079-82-2008\t15\t");
+        assert_eq!(said(&third, "Anwendungsfach"), ["2027S +6"]);
+        assert_eq!(said(&third, "Praktische Mathematik"), ["2027S +6"]);
+        assert_eq!(said(&third, "Nebenfach"), ["2027S +12"]);
+        // In the fourth: the third's row is open.
+        let fourth = open_of("m\t2027S\t11908\t1\t\t\t079-82-2008\t15\t");
+        assert_eq!(said(&fourth, "Anwendungsfach"), ["2026W +6"]);
+        assert_eq!(said(&fourth, "Nebenfach"), ["2026W +6", "2027S +6"]);
+        // The third's row put in as a placeholder, the module in the fourth: nothing of it is
+        // open; the placeholder alone leaves the fourth's row.
+        let place = "p\t1\t2026W\t079-82-2008\t15\t3-3\t6\telective\t\tAnwendungsfach\n";
+        let both = open_of(&format!("{place}m\t2027S\t11908\t1\t\t\t079-82-2008\t15\t"));
+        assert_eq!((said(&both, "Anwendungsfach"), said(&both, "Nebenfach")), (Vec::<String>::new(), vec!["2027S +6".to_string()]));
+        assert_eq!(said(&open_of(place), "Anwendungsfach"), ["2027S +6"]);
+        // The Bachelor-Arbeit of the 5.–6. FS: in the sixth, saying both.
+        let thesis = nothing.iter().find(|(row, _)| row.starts_with("Bachelor")).map(|(_, pieces)| pieces.clone()).unwrap();
+        assert_eq!(thesis.iter().map(|(semester, ..)| semester.as_str()).collect::<Vec<_>>(), ["2028S"]);
+        assert!(thesis[0].2.contains("5. und 6. FS"), "{}", thesis[0].2);
+        // „Laut Plan im 5. FS" has it as what the sixth puts in, not to take over; the sixth's
+        // „Plan übernehmen" takes it.
+        let doc = PlanDoc::default();
+        let ready = ready(&source, &mine, key("2026W"), &doc, &rows, t);
+        let input = input_of(&source, &ready.setup, &doc, &rows);
+        let view = plan_view(&input, &ready.study);
+        let module = |at: &usize| view.lines[*at].module_id.as_deref();
+        let (fifth, sixth) = (Due::of(&view, Some(5), Some(3)), Due::of(&view, Some(6), Some(3)));
+        assert!(!fifth.pflicht.iter().any(|at| module(at) == Some("12333")) && fifth.takeover(&view, key("2027W")).is_empty());
+        assert_eq!(fifth.next.iter().filter_map(module).collect::<Vec<_>>(), ["12333"]);
+        assert_eq!(sixth.pflicht.iter().filter_map(module).collect::<Vec<_>>(), ["12333"]);
+        assert_eq!(sixth.takeover(&view, key("2028S")), ["12333"]);
+    }
+
+    /// A choice asks by a semester what is due by then (owner, 2026-11-17, of the workbench's card
+    /// in the third semester: „weil da halt ab semester 3 schon steht, dass man davon 12 lp braucht
+    /// obwohl man da eigentlich nur 6 braucht. Bei semester 4 würden dann 12 lp stehen, wovon 6
+    /// schon erfüllt sind"): Informatik's Anwendungsfach, 6 LP in the 3. and 6 in the 4. FS, and
+    /// what of it stands by then; a Komplex of the 5.–6. FS asks all of its own from the fifth on,
+    /// and what is planned into the sixth counts for it there.
+    #[test]
+    fn a_choice_asks_by_a_semester_what_is_due_by_then() {
+        use folia_plans::choices::plan_view;
+
+        let source = plans_of("079-82-2008");
+        let mut rows = source.linked.clone();
+        rows.extend(plans_of_rows(&["11908", "12330"]));
+        let (shown, core, page) = chosen(&source, Some(""), None);
+        let setup = Setup { shown, core, page, start: key("2025W"), start_stored: true, now: key("2026W"), leave: BTreeSet::new(), until: None };
+        // (passed, planned, least, most, part) of the choice named `name` by Fachsemester `fs`.
+        let by = |plan: &str, name: &str, fs: u8| {
+            let doc = PlanDoc::restored(plan);
+            let input = input_of(&source, &setup, &doc, &rows);
+            let view = plan_view(&input, &study::study(&input));
+            let at = view.choices.iter().position(|choice| choice.name == name).unwrap();
+            let by = view.by(at, fs, |fs| study::semester_of_fs(key("2025W"), fs, &BTreeSet::new()));
+            (by.passed, by.planned, by.least, by.most, by.part)
+        };
+        // Nothing planned: 6 by the third, 12 by the fourth and after it; before it begins what
+        // its first Fachsemester asks.
+        assert_eq!(by("", "Anwendungsfach", 3), (0.0, 0.0, 6.0, 6.0, true));
+        assert_eq!(by("", "Anwendungsfach", 4), (0.0, 0.0, 12.0, 12.0, false));
+        assert_eq!(by("", "Anwendungsfach", 6), (0.0, 0.0, 12.0, 12.0, false));
+        assert_eq!(by("", "Anwendungsfach", 2), (0.0, 0.0, 6.0, 6.0, true));
+        // Systemtheorie I (6 LP) in the third: all the third asks, half of what the fourth does.
+        let third = "m\t2026W\t11908\t1\t\t\t079-82-2008\t15\t";
+        assert_eq!(by(third, "Anwendungsfach", 3), (0.0, 6.0, 6.0, 6.0, true));
+        assert_eq!(by(third, "Anwendungsfach", 4), (0.0, 6.0, 12.0, 12.0, false));
+        // In the fourth instead: nothing of it stands by the third.
+        let fourth = "m\t2027S\t11908\t1\t\t\t079-82-2008\t15\t";
+        assert_eq!(by(fourth, "Anwendungsfach", 3), (0.0, 0.0, 6.0, 6.0, true));
+        assert_eq!(by(fourth, "Anwendungsfach", 4), (0.0, 6.0, 12.0, 12.0, false));
+        // Passed in the third: passed by both.
+        let passed = format!("{third}\nd\t2026W\t11908");
+        assert_eq!(by(&passed, "Anwendungsfach", 4), (6.0, 0.0, 12.0, 12.0, false));
+        // A Komplex over the fifth and the sixth: 10–24 from the fifth on, and a module of the
+        // sixth counts for it by the fifth, the row reaching that far.
+        let komplex = "Komplex Praktische Informatik";
+        assert_eq!(by("", komplex, 5), (0.0, 0.0, 10.0, 24.0, false));
+        let (_, planned, least, most, part) = by("m\t2028S\t12330\t1\t\t", komplex, 5);
+        assert!(planned > 0.0 && (least, most, part) == (10.0, 24.0, false), "{planned}");
     }
 
     /// Maschinenbau numbers its electives („Wahlpflichtmodul 1" … „4"): one choice of 24 LP, whose

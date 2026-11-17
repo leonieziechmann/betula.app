@@ -869,10 +869,16 @@ pub enum StudyView {
     /// „Ordnungen & Dokumente": the program's regulations and the ways to what else is known of it
     /// (`view=documents`; 2026-11-10). Until then the program's whole page, at its end.
     Documents,
+    /// „Bereiche": what each area of the progress holds of what it asks, and an area of it with
+    /// what counts there (`view=progress`, `area=<n>`; owner, 2026-11-17: „das ist modal zu modal
+    /// und das sieht richtig komisch aus. Also entweder stacken sich modals oder das wird zur
+    /// eigenen seite"). On a phone the page a tap on the overview's bar leads to; until then a
+    /// sheet, whose module opened a sheet in its place.
+    Progress,
 }
 
 impl StudyView {
-    pub const ALL: &'static [Self] = &[Self::Semesters, Self::Plan, Self::Choices, Self::Documents];
+    pub const ALL: &'static [Self] = &[Self::Semesters, Self::Plan, Self::Choices, Self::Documents, Self::Progress];
 
     pub fn code(self) -> &'static str {
         match self {
@@ -880,6 +886,7 @@ impl StudyView {
             StudyView::Plan => "plan",
             StudyView::Choices => "areas",
             StudyView::Documents => "documents",
+            StudyView::Progress => "progress",
         }
     }
 }
@@ -900,6 +907,10 @@ pub struct StudyUrl {
     /// (`choice=<n>`, an index of the plan's choices; folia/design/wahlpflicht, second round).
     /// Only with `view=areas`.
     pub choice: Option<usize>,
+    /// An area of the progress, a page of its own behind the list of them (`area=<n>`, an index of
+    /// the study's areas; `area=none` what counts towards none): `Some(Some(n))`, `Some(None)`.
+    /// Only with `view=progress`.
+    pub area: Option<Option<usize>>,
     /// The module shown beside the page (`open=<id>`).
     pub open: Option<String>,
     /// The module of `open` fills the page (`full=1`). Nothing without `open`.
@@ -913,13 +924,23 @@ impl StudyUrl {
         let view = first("view").and_then(|code| StudyView::ALL.iter().copied().find(|view| *view != StudyView::Semesters && view.code() == code)).unwrap_or_default();
         let plan = view == StudyView::Semesters && first("plan").as_deref() == Some("1");
         let choice = first("choice").filter(|_| view == StudyView::Choices).and_then(|text| text.parse::<usize>().ok()).filter(|at| *at < 1000);
+        let area = first("area").filter(|_| view == StudyView::Progress).and_then(|text| match text.as_str() {
+            "none" => Some(None),
+            text => text.parse::<usize>().ok().filter(|at| *at < 1000).map(Some),
+        });
         let (open, full) = local_from_pairs(&pairs);
-        Self { view, plan, choice, open, full }
+        Self { view, plan, choice, area, open, full }
     }
 
     /// The Wahlpflicht with a choice of its own (`Some`), or its list (`None`).
     pub fn with_choice(&self, choice: Option<usize>) -> Self {
         Self { choice: choice.filter(|_| self.view == StudyView::Choices), ..self.clone() }
+    }
+
+    /// The areas with an area of their own (`Some`; `Some(None)` what counts towards none), or
+    /// their list (`None`).
+    pub fn with_area(&self, area: Option<Option<usize>>) -> Self {
+        Self { area: area.filter(|_| self.view == StudyView::Progress), ..self.clone() }
     }
 
     /// The same page with the semesters (`true`) or the overview.
@@ -930,7 +951,7 @@ impl StudyUrl {
     /// Another view, with the module beside it as it was; a phone's semesters are the first
     /// view's.
     pub fn with_view(&self, view: StudyView) -> Self {
-        Self { view, plan: false, choice: None, ..self.clone() }
+        Self { view, plan: false, choice: None, area: None, ..self.clone() }
     }
 
     pub fn path(&self) -> String {
@@ -943,6 +964,9 @@ impl StudyUrl {
         }
         if let Some(choice) = self.choice.filter(|_| self.view == StudyView::Choices) {
             pairs.push(("choice", choice.to_string()));
+        }
+        if let Some(area) = self.area.filter(|_| self.view == StudyView::Progress) {
+            pairs.push(("area", area.map_or_else(|| "none".to_string(), |at| at.to_string())));
         }
         pairs.extend(local_pairs(self.open.as_deref(), self.full));
         if pairs.is_empty() {
@@ -962,7 +986,7 @@ impl LocalView for StudyUrl {
     }
 
     fn with_module(&self, open: Option<&str>, full: bool) -> Self {
-        Self { view: self.view, plan: self.plan, choice: self.choice, open: open.map(str::to_string), full: full && open.is_some() }
+        Self { view: self.view, plan: self.plan, choice: self.choice, area: self.area, open: open.map(str::to_string), full: full && open.is_some() }
     }
 
     fn path(&self) -> String {
@@ -2478,6 +2502,19 @@ mod tests {
         assert_eq!(StudyUrl::parse("view=Documents&open=11101").path(), "/study?view=documents&open=11101");
         assert_eq!(StudyUrl::default().with_view(StudyView::Documents).path(), "/study?view=documents");
         assert_eq!(StudyUrl::parse("view=documents&choice=2&plan=1").path(), "/study?view=documents");
+        // The areas, an area of them a page of its own, what counts towards none as `none`, a
+        // module beside them kept; an area nowhere else.
+        let area = StudyUrl::parse("view=progress&area=2&open=11101");
+        assert_eq!((area.view, area.area, area.path().as_str()), (StudyView::Progress, Some(Some(2)), "/study?view=progress&area=2&open=11101"));
+        assert_eq!(area.with_module(None, false).path(), "/study?view=progress&area=2");
+        assert_eq!(area.with_area(None).path(), "/study?view=progress&open=11101");
+        assert_eq!(area.with_area(Some(None)).with_open(None).path(), "/study?view=progress&area=none");
+        assert_eq!(StudyUrl::parse("view=progress&area=NONE").area, Some(None));
+        assert_eq!(StudyUrl::parse("view=progress&area=x").path(), "/study?view=progress");
+        assert_eq!(StudyUrl::parse("view=areas&area=2").path(), "/study?view=areas");
+        assert_eq!(StudyUrl::default().with_area(Some(Some(1))).path(), "/study");
+        assert_eq!(area.with_view(StudyView::Plan).path(), "/study?view=plan&open=11101");
+        assert_eq!(StudyUrl::default().with_view(StudyView::Progress).path(), "/study?view=progress");
     }
 
     #[test]

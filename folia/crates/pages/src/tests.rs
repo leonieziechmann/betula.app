@@ -154,6 +154,12 @@ fn every_query_runs_against_the_snapshot() {
         "{families:?}"
     );
     let offers = queries::catalog_offers(&db, &[id.clone(), "12102".to_string()]).unwrap();
+    // What a program's FÜS list says beside its modules: rows of seasons that say more, each of a
+    // module asked for.
+    let noted = column(&db.inner, "SELECT module_id FROM v_program_fues_note n JOIN v_program p ON p.id = n.program_id WHERE p.slug = 'bachelor-informatik-2008'");
+    let notes = queries::catalog_fues_notes(&db, INFORMATIK_BSC, &noted).unwrap();
+    assert!(notes.iter().all(|note| noted.contains(&note.module_id) && (!note.admitted || note.excluded_for.is_some())), "{notes:?}");
+    assert_eq!(notes.len(), noted.len(), "{notes:?}");
     let newest = queries::module_schedule(&db, &id).unwrap().first().map(|date| date.semester_key.clone());
     match choices.first() {
         Some(first) if Some(&first.semester_key) == newest.as_ref() => {
@@ -176,6 +182,11 @@ fn every_query_runs_against_the_snapshot() {
     assert_eq!(listed.is_empty(), families.iter().all(|row| row.semester_key != semester), "{listed:?}");
     let id = pick("SELECT module_id FROM v_module_program_link WHERE program_slug IS NOT NULL LIMIT 1");
     assert!(queries::module_program_links(&db, &id).unwrap().iter().any(|l| l.program_slug.is_some() && l.program_id.is_some()));
+    // The FÜS lists that hold a module: as many as its pairs `fues`, none for a module on none.
+    let id = pick("SELECT module_id FROM v_program_module WHERE relation = 'fues' GROUP BY module_id ORDER BY COUNT(*) DESC LIMIT 1");
+    let lists = pick(&format!("SELECT CAST(COUNT(*) AS TEXT) FROM v_program_module WHERE module_id = '{id}' AND relation = 'fues'"));
+    assert_eq!(queries::module_fues_programs(&db, &id).unwrap().to_string(), lists);
+    assert_eq!(queries::module_fues_programs(&db, "00000").unwrap(), 0);
     let id = pick("SELECT module_id FROM v_program_plan_entry WHERE module_id IS NOT NULL LIMIT 1");
     let places = queries::module_plan_places(&db, &id).unwrap();
     assert!(!places.is_empty() && places.iter().all(|place| !place.program_id.is_empty()), "{places:?}");
@@ -1286,9 +1297,21 @@ fn page_loaders_return_everything_a_page_shows() {
     let unknown = pages::catalog(&db, &CatalogUrl::parse("program=no-such-program"), folia_locale::Locale::De).unwrap();
     assert_eq!((unknown.program, unknown.page.total), (None, 0));
 
-    let module_id = &catalog.page.rows[0].id;
-    let module = pages::module(&db, module_id).unwrap().expect("module page");
-    assert!(module.programs.iter().any(|link| link.program_slug.as_deref() == Some(INFORMATIK_BSC)));
+    // A module of the program's FÜS list is there by a FÜS catalog of the BTU, the newest of a
+    // season (schema 23), or, without catalogs, by its page, which names the program; its page
+    // counts the FÜS lists that hold it.
+    let in_catalogs: BTreeSet<String> = column(
+        &db,
+        "SELECT DISTINCT c.module_id FROM fues_catalog c JOIN v_fues_catalog d ON d.semester = c.semester WHERE d.is_newest = 1",
+    )
+    .into_iter()
+    .collect();
+    for row in &catalog.page.rows {
+        let module = pages::module(&db, &row.id).unwrap().expect("module page");
+        let named = module.programs.iter().any(|link| link.program_slug.as_deref() == Some(INFORMATIK_BSC));
+        assert!(named || in_catalogs.contains(&row.id), "{}: neither its page nor a FÜS catalog puts it there", row.id);
+        assert!(module.fues_programs > 0, "{}: on a FÜS list it does not count", row.id);
+    }
     assert_eq!(pages::module(&db, "00000").unwrap(), None);
 
     // Faculties are derived: most programs get one, none gets two, and the rest stays unknown.

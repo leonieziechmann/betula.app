@@ -7,7 +7,8 @@
 //!   (`reached`); the bar follows a step at a time and shows each for a moment at least
 //!   (`STEP_MS`), so that steps of a few milliseconds are seen as well and nothing flashes, and
 //!   within the step under way it creeps on slowly, so that a wait looks like work. Once all are
-//!   done it says so for a moment (`DONE_MS`) and hands over (`on_done`).
+//!   done it says so for a moment (`DONE_MS`) and hands over (`on_done`). The hand feels each step
+//!   ticked off, and the last as success (`folia_design::haptic`).
 //! - `Connected`: concept A, the success in place of what led to it: a tick, „Verbunden" (from the
 //!   setup „Alles eingerichtet" with what was set up), what is on now in three rows, that more
 //!   devices are connected on the profile page (owner, the same day: „du kannst später weitere
@@ -17,6 +18,7 @@ use std::time::Duration;
 
 use leptos::prelude::*;
 
+use folia_design::haptic::{self, Haptic};
 use folia_design::ui::Icon;
 
 use crate::i18n;
@@ -85,6 +87,8 @@ fn advance(pace: Pace) {
             pace.waiting.set_value(false);
             pace.since.set_value(now_ms());
             pace.shown.set(at + 1);
+            // Each step ticked off is felt, the last as the whole done.
+            haptic::play(if at + 1 >= pace.steps { Haptic::Success } else { Haptic::Tick });
             if at + 1 >= pace.steps {
                 // The bar can be gone by then: the setup's step 4 behind the scanner finishes its
                 // own bar while „Fertig" ends the setup. Then nobody is told.

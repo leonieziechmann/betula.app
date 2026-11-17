@@ -176,9 +176,12 @@ pub fn slot_buttons(buttons: &[SlotButton]) -> AnyView {
         .iter()
         .map(|button| {
             view! {
+                // Each shows, hides or ticks what the slot is, as a switch does, and ticks as one
+                // (folia_design::haptic); the bin's deletion plays its own, stronger tap.
                 <button
                     class="slot-act"
                     type="button"
+                    data-haptic="tick"
                     data-act=button.key.clone()
                     data-icon=button.icon
                     aria-pressed=button.pressed.then_some("true")

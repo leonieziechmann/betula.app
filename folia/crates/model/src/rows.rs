@@ -235,6 +235,63 @@ pub struct CatalogRow {
     /// (`folia_search::marks`). Filled by the query of the list, never read from a row of SQL.
     #[serde(default)]
     pub marks: Option<SearchMarks>,
+    /// While the list is a program's FÜS list: what it says of the module besides that it is on it
+    /// (`FuesNote`). Not of the list's query: `catalog_fues_notes` reads them for the rows of a page.
+    #[serde(default)]
+    pub fues_note: Option<FuesNote>,
+}
+
+/// What a program's FÜS list says of a module besides that it is on it, by the BTU's FÜS
+/// catalogs (docs/radix/schema-v2.md, „FÜS catalogs"; owner, 2026-11-17: „mit Hinweis statt
+/// ausblenden"): the choices of the program its negative list excludes the module for
+/// („Anwendungsfach Physik"), and the seasons whose catalog holds the module and excludes it for
+/// every student of the program, while the other admits it.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct FuesNote {
+    pub excluded_for: Vec<String>,
+    pub not_in: Vec<Code<TurnusSeason>>,
+}
+
+impl FuesNote {
+    /// The note of a module from its rows of `catalog_fues_notes`; `None` where they say nothing.
+    pub fn of<'a>(rows: impl IntoIterator<Item = &'a FuesNoteRow>) -> Option<Self> {
+        let mut note = Self::default();
+        for row in rows {
+            if !row.admitted {
+                note.not_in.push(row.season.clone());
+            }
+            for scope in row.excluded_for.iter().flat_map(|scopes| scopes.split("; ")) {
+                if !scope.is_empty() && !note.excluded_for.iter().any(|known| known == scope) {
+                    note.excluded_for.push(scope.to_string());
+                }
+            }
+        }
+        (!note.excluded_for.is_empty() || !note.not_in.is_empty()).then_some(note)
+    }
+}
+
+/// A row of `catalog_fues_notes` (`v_program_fues_note`): a season of a module of a program's FÜS
+/// list that says more, the catalog it follows, whether that catalog admits the module for every
+/// student of the program, and the choices it excludes it for (`; `-joined).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FuesNoteRow {
+    pub module_id: String,
+    pub season: Code<TurnusSeason>,
+    pub semester: String,
+    pub admitted: bool,
+    pub excluded_for: Option<String>,
+}
+
+impl FromRow for FuesNoteRow {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self {
+            module_id: row.text("module_id")?,
+            season: Code::parse(&row.text("season")?),
+            semester: row.text("semester")?,
+            admitted: row.flag("admitted")?,
+            excluded_for: row.opt_text("excluded_for")?,
+        })
+    }
 }
 
 /// What a search found in a module, as the row of the list shows it: byte ranges of the title it
@@ -331,6 +388,7 @@ impl FromRow for CatalogRow {
             courses: 0,
             choices: Vec::new(),
             marks: None,
+            fues_note: None,
         })
     }
 }
@@ -555,5 +613,24 @@ mod tests {
         ];
         let choices: Vec<Vec<&str>> = prerequisite_choices(&rows).into_iter().map(|choice| choice.into_iter().map(|p| p.required_module_id.as_str()).collect()).collect();
         assert_eq!(choices, [vec!["12102", "11900"], vec!["12104"], vec!["12101"], vec!["12104"]]);
+    }
+}
+
+#[cfg(test)]
+mod fues_note_tests {
+    use super::*;
+
+    fn row(season: &str, admitted: bool, excluded_for: Option<&str>) -> FuesNoteRow {
+        FuesNoteRow { module_id: "11812".into(), season: Code::parse(season), semester: "2026W".into(), admitted, excluded_for: excluded_for.map(String::from) }
+    }
+
+    #[test]
+    fn a_note_gathers_the_choices_and_the_seasons_that_exclude() {
+        let rows = [row("winter", true, Some("Anwendungsfach Maschinenbau / Elektrotechnik; Anwendungsfach Physik")), row("summer", false, Some("Anwendungsfach Physik"))];
+        let note = FuesNote::of(rows.iter()).unwrap();
+        assert_eq!(note.excluded_for, ["Anwendungsfach Maschinenbau / Elektrotechnik", "Anwendungsfach Physik"]);
+        assert!(note.not_in.len() == 1 && note.not_in[0].is(crate::labels::TurnusSeason::Summer));
+        assert_eq!(FuesNote::of([row("winter", true, None)].iter()), None);
+        assert_eq!(FuesNote::of(std::iter::empty()), None);
     }
 }

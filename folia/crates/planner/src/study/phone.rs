@@ -7,8 +7,8 @@
 //! are over and the current one. A finger anywhere on it draws the row to the semester beside it.
 //!
 //! The overview, top to bottom: the credits (what is passed of what the plan asks, the bar of the
-//! areas, and under it what its parts are, each with its credits; a tap anywhere on them opens the
-//! areas), the program's card, the ways to its Regelstudienplan, its areas and its regulations
+//! areas, and under it what its parts are, each with its credits; a tap anywhere on them leads to
+//! the areas, a page of their own, `areas.rs`), the program's card, the ways to its Regelstudienplan, its areas and its regulations
 //! („Ordnungen & Dokumente", 2026-11-10: a phone had no way to them), the box „Studium
 //! planen" with a column for each semester (what is passed and planned there, against what the
 //! plan puts into its Fachsemester; a tap on the box leads to the current semester, a tap on a
@@ -37,7 +37,7 @@ use folia_shell::tabs::{Area, TabAgain};
 use super::overview::{Bar, Info};
 use super::pager::{plan_path, Dots, Pager, Pages};
 use super::side::{AllPrograms, MineCard, StorageHint, ViewWays};
-use super::{n, Dialog, Ready, StudyCtx};
+use super::{n, Ready, StudyCtx};
 use crate::i18n::{self, Texts};
 
 /// The row of pages: the semesters that are over, the overview, the current semester and the ones
@@ -109,10 +109,11 @@ pub(super) fn Overview(ctx: StudyCtx) -> impl IntoView {
 }
 
 /// The credits: what is passed of what the plan asks, the bar of the areas, and under it what its
-/// parts are, each with its credits („46 bestanden"). A tap anywhere on them opens the areas
+/// parts are, each with its credits („46 bestanden"). A tap anywhere on them leads to the areas
 /// (owner, 2026-10-06: „die progress bar komplett zu einer clickfläche werden, um das menu für den
-/// Progress anzuzeigen"): „Bereiche ›" reaches over the whole box (app.css), one way for a finger
-/// and one for the keys and a screen reader.
+/// Progress anzuzeigen"), a page of their own since 2026-11-17 (`areas.rs`; until then a sheet):
+/// „Bereiche ›" reaches over the whole box (app.css), one way for a finger and one for the keys
+/// and a screen reader.
 #[component]
 fn Progress(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
@@ -120,6 +121,7 @@ fn Progress(ctx: StudyCtx) -> impl IntoView {
     let info = Memo::new(move |_| ctx.with_ready(|ready| Info::of(ready, t)));
     // „46 LP" as the legend says it: „46".
     let short = |text: &str| text.trim_end_matches("\u{a0}LP").trim_end_matches("\u{a0}CP").to_string();
+    let areas = t.path(&url::StudyUrl::default().with_view(url::StudyView::Progress).path());
     move || {
         info.get().map(|info| {
             let over = info.has_over();
@@ -127,7 +129,7 @@ fn Progress(ctx: StudyCtx) -> impl IntoView {
                 <section class="panel st-over st-progress" aria-label=s.overview>
                     <div class="st-progress-top">
                         <p class="st-headline">{info.headline.clone()}</p>
-                        <button class="st-link st-progress-open" type="button" aria-haspopup="dialog" on:click=move |_| ctx.open(Dialog::Areas)>{s.areas}<Icon name="chevron-right"/></button>
+                        <a class="st-link st-progress-open" href=areas.clone()>{s.areas}<Icon name="chevron-right"/></a>
                     </div>
                     <Bar segments=info.segments()/>
                     <ul class="st-legend-n" aria-label=s.legend_bar>

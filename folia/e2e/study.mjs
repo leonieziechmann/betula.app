@@ -11,8 +11,13 @@
 //   statuses of a module the second); the semester at the top of its box, no strip of the
 //   semesters and no switch of the views over it (owner, 2026-10-19), its name the list of every
 //   semester with what each holds; its rows the catalog's, each with its status where the catalog
-//   has the bookmark, no box to tick, the name no link that underlines; the semester's ⋯ selects
-//   the first semester's rows, highlighted and hatched, and „×" lets go; a row's menu at its
+//   has the bookmark, the name no link that underlines, in three lines — the name across the row,
+//   the number and the columns under it, the marks under them (owner, 2026-11-17) —, and a box to
+//   tick at its start that comes when the pointer is over the row; the semester's ⋯ selects the
+//   first semester's rows, highlighted, hatched and ticked, and „×" lets go; a row's box ticked,
+//   every box shown and the box over the rows with a dash, Shift and a click at another box the
+//   rows between, Shift at a selected one letting them go, the box over the rows selecting all and
+//   letting go of all; a row's menu at its
 //   status marks it as passed (counted, the row in its place, the focus back on its status); a
 //   press drawn over three rows selects them, the bar marks them and „Rückgängig" takes it back;
 //   „Module hinzufügen" opens the semester's card (the rows on the left, „Laut Plan im 3. FS" and
@@ -23,7 +28,7 @@
 //   moved by its menu's „Verschieben nach ›" and taken back,
 //   removed and taken back; two rows selected by Ctrl and a click, moved by the bar, and back; a
 //   right click opens a row's menu, the semester's ⋯ selects all of it, Escape lets go; an area's
-//   dialog; a module beside the page by its name and by its row, in full and back; the
+//   dialog (its bar as the Wahlpflicht's, the strip of the four marks, a mark at every row); a module beside the page by its name and by its row, in full and back; the
 //   Gesamtplan as a roadmap (the band of the study years, Informatik's first semester by its
 //   abbreviations, the pieces as wide as their credits, the Bachelor-Arbeit's bar not before its
 //   semester, the line of today and its flag, a click on Mathematik's name unfolding it into its
@@ -70,6 +75,17 @@
 //   then gone), takes the place away and the eleventh field with it; „Rückgängig". A place of the
 //   Komplex Praktische Informatik in WiSe 2027/28: its dialog weighs the three Komplexe, „Zusammen
 //   10 von 50 LP", 4 more turn it to 14, stored and shown.
+// 2e what the plan has open stands where the plan has it (owner, 2026-11-17: „wenn man sowas wie
+//   ein Anwendungsfach hat sollten im 3. Semester nich schon 12 lp stehen, wenn 6 davon eigentlich
+//   aus dem 4. Semester kommen. Und dann auch sowas, wie die Bachelorarbeit sollte halt auch erst
+//   im 6. Semester im Default sein"): Systemtheorie I (6 LP) planned for the Anwendungsfach in
+//   WiSe 2026/27 — the Nebenfach's bar has nothing open there and „+12" in SoSe 2027, the
+//   Anwendungsfach's subsection „+6" there; moved to SoSe 2027, the „+6" is the winter's; the
+//   Bachelor-Arbeit of the 5.–6. FS stands in SoSe 2028 and says both. The workbench's card of
+//   a choice says what it asks by its semester (owner, the same day: „nur so viele lp anzeigen,
+//   wie bis zu dem semester schon erledigt sein sollten"): the Anwendungsfach „0 / 6 LP" in WiSe
+//   2026/27 with „insgesamt 12 LP" beside it, „0 / 12 LP" in SoSe 2027; with the module of the
+//   third semester „6 / 6 LP" there and „6 / 12 LP" in the fourth.
 // 3 a phone: the overview first (owner, 2026-10-05), the bar with its legend, the program's card
 //   and its ways („Ordnungen & Dokumente" among them, a page of its own), the box „Studium
 //   planen" with a column per semester, the way to all programs, and no sidebar; one row of pages
@@ -96,8 +112,10 @@
 //   bar; a row's menu at its status as a sheet without
 //   „Modul ansehen", „Verschieben nach" in its place; the way back, Back and a finger towards the
 //   overview lead back to it (Back as a close request, as Android has it); a tap anywhere on the
-//   credits opens the areas
-//   as a sheet a finger drags down to close it (a short pull: it slides back), the program's card
+//   credits leads to the areas,
+//   a page of their own — each area with its bar and its marks as the Wahlpflicht's choices, an
+//   area a page behind it, its module the sheet over that page and gone again with the page as it
+//   was, the way back at the head a level up —, the program's card
 //   opens „Studiengang wechseln" without a lead, − and + move nothing of it, under the card a line
 //   at the foot of the body, its picker of the program 8 px off the sheet's edges, the screen's
 //   keyboard up (simulated: the part of the page shown shorter) the sheet that part without its
@@ -324,9 +342,12 @@ if (current !== "2026W") {
   // The first winter: its rows not passed (Wiederholer), all selected by the semester's ⋯.
   await step("the first winter", () => pick(page, "WiSe 25/26"), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2025/26");
   // Its rows as the catalog's (owner, 2026-10-19: „1 zu 1 der Style vom Modulkatalog"): the
-  // catalog's row with its columns, the status where the catalog has the bookmark, no box to
-  // tick, a name that is no link of its own that underlines.
+  // catalog's row with its columns, the status where the catalog has the bookmark, a name that is
+  // no link of its own that underlines; a box to tick at the start of each, which only the row
+  // under the pointer shows (owner, 2026-11-17: „eine checkbox, die erst eingeblendet wird, wenn
+  // der Cursor der nahe kommt oder schon ein Element selected ist").
   await page.hover(".st-card-sem .st-row >> nth=0 >> .st-name");
+  await page.waitForFunction(() => getComputedStyle(document.querySelector(".st-card-sem .st-row > .st-sel")).opacity === "1", null, { timeout: 3000 }).catch(() => {});
   const looks = await page.evaluate(() => {
     const row = document.querySelector(".st-card-sem .st-row");
     const box = row.querySelector(":scope > .row");
@@ -334,12 +355,31 @@ if (current !== "2026W") {
       catalog: Boolean(box && row.classList.contains("row-wrap") && box.querySelector(":scope > .t > b") && box.querySelector(":scope > .t > small > .mono") && box.querySelector(":scope > .lp small") && box.querySelector(":scope > .turnus")),
       cols: [...document.querySelectorAll(".st-card-sem .cols > span")].map((span) => span.textContent).join(","),
       status: Boolean(row.querySelector(":scope > .st-status .st-glyph.failed")),
-      boxes: document.querySelectorAll(".st-card-sem .st-sel, .st-card-sem .st-row .st-box, .st-card-sem .st-more").length,
+      boxes: [...document.querySelectorAll(".st-card-sem .st-row")].map((row) => row.querySelectorAll(':scope > .st-sel[role=checkbox][aria-checked="false"]').length + ":" + getComputedStyle(row.querySelector(":scope > .st-sel") ?? row).opacity).join(),
+      others: document.querySelectorAll(".st-card-sem .st-row .st-box, .st-card-sem .st-more").length,
+      // The words of a row begin after its box, as the heads of the columns do.
+      after: Math.round(box.querySelector(":scope > .t > b").getBoundingClientRect().left - row.querySelector(":scope > .st-sel .st-sel-mark").getBoundingClientRect().right) + "," + Math.round(document.querySelector(".st-card-sem .cols > span").getBoundingClientRect().left - box.querySelector(":scope > .t > b").getBoundingClientRect().left),
+      // Three lines (owner, 2026-11-17: „dass der titel über die ganze Länge der tabelle gehen
+      // kann, darunter dann die stats in den spalten … Und darunter wieder full width die
+      // notizen"): the name across the row, the number and the columns under it, each under its
+      // head, the marks under them from where the name begins.
+      lines: (() => {
+        const r = (el) => el.getBoundingClientRect();
+        const name = r(box.querySelector(":scope > .t > b")), id = r(box.querySelector(":scope > .t > small:not(.st-notes)")), notes = r(box.querySelector(":scope > .t > .st-notes"));
+        const head = (cls) => r(document.querySelector(`.st-card-sem .cols > .${cls}`)), cell = (sel) => r(box.querySelector(sel));
+        return [
+          name.right > cell(".resp").right,
+          [".resp", ".exam", ".lp", ".events"].every((sel) => cell(sel).top >= name.bottom - 1 && cell(sel).bottom <= notes.top + 1),
+          id.top >= name.bottom - 1 && Math.round(id.left - name.left) === 0,
+          Math.round(cell(".resp").left - head("c-resp").left) === 0 && Math.round(cell(".lp").right - head("c-lp").right) === 0,
+          Math.round(notes.left - name.left) === 0 && notes.top >= id.bottom - 1,
+        ].map(Number).join("");
+      })(),
       underline: getComputedStyle(row.querySelector(".st-name")).textDecorationLine,
       pointer: getComputedStyle(box).cursor + "," + getComputedStyle(row.querySelector(".st-name")).cursor,
     };
   });
-  check(looks.catalog && looks.cols === "Modul,Verantwortlich,Prüfung,LP,Turnus,Spr.,Termine" && looks.status && looks.boxes === 0 && looks.underline === "none", `the rows are not the catalog's: ${JSON.stringify(looks)}`);
+  check(looks.catalog && looks.cols === "Modul,Verantwortlich,Prüfung,LP,Turnus,Spr.,Termine" && looks.status && looks.boxes === "1:1,1:0,1:0,1:0,1:0" && looks.others === 0 && looks.after === "12,0" && looks.lines === "11111" && looks.underline === "none", `the rows are not the catalog's: ${JSON.stringify(looks)}`);
   await step("select all", async () => { await page.click(".st-card-sem .st-sem-more"); await page.click("#st-menu-select"); }, () => document.querySelector(".st-selbar"));
   const before = await rows(page);
   check(before.length === 5 && before.every((row) => !row.done && row.on && row.chips.some((chip) => chip.startsWith("nicht bestanden"))), `the first winter: ${JSON.stringify(before)}`);
@@ -347,7 +387,23 @@ if (current !== "2026W") {
   // Highlighted and hatched (the same day: „per hervorheben/vlt texture").
   const lit = await page.evaluate(() => getComputedStyle(document.querySelector(".st-card-sem .st-row.is-selected > .row")).backgroundImage);
   check(lit.includes("repeating-linear-gradient"), `a selected row is not hatched: ${lit}`);
+  const ticks = () => page.evaluate(() => [...document.querySelectorAll(".st-card-sem .st-row > .st-sel")].map((box) => box.getAttribute("aria-checked") === "true" ? 1 : 0).join(""));
+  check((await ticks()) === "11111" && (await page.getAttribute("#st-sel-all", "aria-checked")) === "true", `the boxes of all rows selected: ${await ticks()}`);
   await step("let go", () => page.click(".st-selbar .st-act-close"), () => !document.querySelector(".st-selbar") && !document.querySelector(".st-row.is-selected"));
+
+  // The boxes as lists of mail have them (owner, 2026-11-17: „Grundlegend sollte das üblichen
+  // design patterns folgen"): a row's box ticked shows every box, the box over the rows with a
+  // dash; Shift and a click at another the rows between; Shift at a selected one lets them go; the
+  // box over the rows selects all, ticked it lets go of all.
+  await page.hover(".st-card-sem .st-row >> nth=1 >> .st-name");
+  await step("a row's box", () => page.click(".st-card-sem .st-row >> nth=1 >> .st-sel"), () => document.querySelectorAll(".st-card-sem .st-row.is-selected").length === 1 && document.querySelector("#st-sel-all")?.getAttribute("aria-checked") === "mixed" && location.search === ""
+    && [...document.querySelectorAll(".st-card-sem .st-row > .st-sel")].every((box) => getComputedStyle(box).opacity === "1"));
+  await step("Shift and another box", () => page.click(".st-card-sem .st-row >> nth=3 >> .st-sel", { modifiers: ["Shift"] }), () => document.querySelector(".st-selbar-count")?.textContent.startsWith("3 ausgewählt"));
+  check((await ticks()) === "01110", `Shift and a box: ${await ticks()}`);
+  await step("Shift at a selected box", () => page.click(".st-card-sem .st-row >> nth=2 >> .st-sel", { modifiers: ["Shift"] }), () => document.querySelector(".st-selbar-count")?.textContent.startsWith("1 ausgewählt"));
+  check((await ticks()) === "01000", `Shift at a selected box: ${await ticks()}`);
+  await step("the box over the rows", () => page.click("#st-sel-all"), () => document.querySelectorAll(".st-card-sem .st-row.is-selected").length === 5 && document.querySelector("#st-sel-all")?.getAttribute("aria-checked") === "true");
+  await step("ticked, it lets go", () => page.click("#st-sel-all"), () => !document.querySelector(".st-selbar") && !document.querySelector(".st-row.is-selected"));
 
   // A row's menu at its status: „Als bestanden markieren" counts, keeps the row in its place, gives
   // the focus back.
@@ -484,10 +540,24 @@ if (current !== "2026W") {
   await step("Alle auswählen", () => page.click("#st-menu-select"), (n) => document.querySelectorAll(".st-card-sem .st-row.is-selected").length === n, ticked);
   await step("Escape lets go", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-selbar"));
 
-  // An area: what it asks and what counts there.
-  await step("an area", () => page.click(".st-card >> nth=0"), () => document.querySelector(".st-dialog[open] .st-area-dlg"));
-  const area = await page.evaluate(() => ({ title: document.querySelector("#st-dialog-title")?.textContent, sub: document.querySelector(".st-dlg-head p")?.textContent, mine: document.querySelectorAll(".st-area-items li").length }));
-  check(area.title === "Komplex Informatik" && area.sub?.startsWith("Verlangt 66") && area.mine >= 2, `the area's dialog: ${JSON.stringify(area)}`);
+  // An area: what it holds of what it asks and what counts there. As the Wahlpflicht looks (owner,
+  // 2026-11-17: „überall eine progressbar, wie beim Wahlpflicht Katalog. Und bitte verwende icons
+  // für den Fortschritt"): its bar, its credits by where they stand as a strip of the four marks,
+  // and every row with the mark of its status, no box to tick.
+  await step("an area", () => page.click(".st-card >> nth=0"), () => document.querySelector(".st-dialog[open] .st-area-body"));
+  const area = await page.evaluate(() => {
+    const dialog = document.querySelector(".st-dialog[open]");
+    const rows = [...dialog.querySelectorAll(".st-area-items li")];
+    return {
+      title: document.querySelector("#st-dialog-title")?.textContent, sub: document.querySelector(".st-dlg-head p")?.textContent, mine: rows.length,
+      bar: Boolean(dialog.querySelector(".st-area-body > .st-wbar.big")),
+      tally: [...dialog.querySelectorAll(".st-tally li")].map((part) => `${part.querySelector(".st-tally-w")?.textContent}:${[...(part.querySelector(".st-glyph")?.classList ?? [])].filter((name) => name !== "st-glyph").join()}`).join(),
+      marks: rows.filter((row) => row.querySelector(".st-wmk .st-glyph")).length,
+      boxes: dialog.querySelectorAll(".st-box, .st-area-bar").length,
+    };
+  });
+  check(area.title === "Komplex Informatik" && /^\d+ \/ 66\u00a0LP$/.test(area.sub ?? "") && area.mine >= 2, `the area's dialog: ${JSON.stringify(area)}`);
+  check(area.bar && area.tally === "bestanden:passed,läuft:running,geplant:planned,offen:open" && area.marks === area.mine && area.boxes === 0, `the area's dialog has not the Wahlpflicht's bar, the strip of the four marks and a mark at every row: ${JSON.stringify(area)}`);
   await step("close it", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
 
   // A module beside the page, in full, and back.
@@ -502,6 +572,14 @@ if (current !== "2026W") {
   await step("Vollbild", () => page.click('#preview [data-action="fullscreen"]'), () => location.search === "?open=11787&full=1" && document.querySelector(".module-page"));
   check((await page.getAttribute('.rail a[data-area="programs"]', "aria-current")) === "page", "the module in full left the Studium tab");
   await step("Zurück", () => page.click('[data-action="back"]'), () => location.search === "?open=11787" && document.querySelector(".st-card-sem"));
+  // While rows are selected a click on a row still opens its module: the box selects (owner,
+  // 2026-11-17).
+  await page.hover(`.st-card-sem .st-row >> nth=${other} >> .st-name`);
+  await step("a box with a module open", () => page.click(`.st-card-sem .st-row >> nth=${other} >> .st-sel`), () => document.querySelectorAll(".st-card-sem .st-row.is-selected").length === 1);
+  await step("a row opens while rows are selected", () => page.mouse.click(number.x, number.y), () => /^\?open=\d+$/.test(location.search) && location.search !== "?open=11787");
+  check((await page.evaluate(() => document.querySelectorAll(".st-card-sem .st-row.is-selected").length)) <= 1, "a click on a row while rows are selected selected it");
+  // The bar's × lies under the module beside the page: the row's box lets go of it.
+  await step("its box again", () => page.click(".st-card-sem .st-row.is-selected >> .st-sel"), () => !document.querySelector(".st-selbar"));
   await step("close the module", () => page.click('#preview [data-action="close-detail"]'), () => location.search === "" && !document.querySelector("#preview"));
 
   // The Gesamtplan as a roadmap (folia/design/gesamtplan/konzepte.html, A; owner, 2026-11-03):
@@ -511,10 +589,11 @@ if (current !== "2026W") {
   // module's menu; the plan's open module dashed and planned with a click; the view kept.
   await step("Gesamtplan", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => document.querySelector(".st-rm-grid") && document.querySelectorAll(".st-row-head").length === 6 && document.querySelector(".st-rm-seg .st-rm-p"));
   // A cell as tall as what it lists (the Regelstudienplan's pills once took its class, and the
-  // cells shrank to a pill, their modules over the semesters' heads).
+  // cells shrank to a pill, their modules over the semesters' heads); „+ Modul einplanen" stands
+  // on its lower edge, half over the row under it, on purpose (Folia 1.97.11).
   const cut = await page.evaluate(() => [...document.querySelectorAll(".st-grid .st-rm-cell")].filter((cell) => {
     const box = cell.getBoundingClientRect();
-    return [...cell.children].some((child) => { const r = child.getBoundingClientRect(); return r.height > 0 && (r.top < box.top - 1 || r.bottom > box.bottom + 1); });
+    return [...cell.children].filter((child) => !child.classList.contains("st-rm-add")).some((child) => { const r = child.getBoundingClientRect(); return r.height > 0 && (r.top < box.top - 1 || r.bottom > box.bottom + 1); });
   }).length);
   check(cut === 0, `${cut} cells of the Gesamtplan do not hold what they list`);
   const roadmap = await page.evaluate(() => {
@@ -541,7 +620,8 @@ if (current !== "2026W") {
   });
   check(roadmap.bands.join(" | ") === "1. Studienjahr · 2025/26 | 2. Studienjahr · 2026/27 | 3. Studienjahr · 2027/28", `the band of the study years: ${roadmap.bands.join(" | ")}`);
   check(roadmap.first.join() === "EvS,EEG,PP" && roadmap.wider, `Informatik's first semester: ${roadmap.first.join()} (EvS wider than PP: ${roadmap.wider})`);
-  check(/^00/.test(roadmap.thesis) && roadmap.thesis.includes("1"), `the Bachelor-Arbeit's bar is not broken before its semester: ${roadmap.thesis}`);
+  // Of the 5.–6. FS, in the sixth (owner, 2026-11-17: „eigentlich erst am schluss").
+  check(roadmap.thesis === "000001", `the Bachelor-Arbeit's bar does not stand in its last semester alone: ${roadmap.thesis}`);
   check(roadmap.today, "the line of today does not run through the current semester, or its flag is missing");
   // The whole head is the toggle (owner, 2026-11-09: „dass man den kompletten bereich als toogle für
   // das aus und einklappen verwenden kann. Der modal mit dem progress ist komplett redundant"): a
@@ -954,6 +1034,34 @@ if (current !== "2026W") {
   };
   const row = (name) => page.evaluate((name) => [...document.querySelectorAll(".st-rm-sub")].find((head) => head.querySelector(".st-card-name")?.textContent === name)?.nextElementSibling?.dataset.row, name);
   const [anwendung, pm, seminar, praktisch] = [await row("Anwendungsfach"), await row("Praktische Mathematik"), await row("Seminar oder Praktikum"), await row("Praktische Informatik")];
+  // „+ Modul einplanen" of a cell with pieces (owner, 2026-11-17: „die hoverinteraktion mit dem +
+  // ist gelinde gesagt sehr buggy"): on the cell's lower edge once the pointer has rested there,
+  // over none of the pieces, as large under the pointer as beside it, and nothing to the pointer
+  // while it is not there.
+  {
+    const cell = page.locator(`.st-rm-grid > .st-rm-cell[data-row="${praktisch}"]:has(.st-rm-p[aria-label^="DB,"])`).first();
+    await page.mouse.move(5, 5);
+    await page.waitForTimeout(200);
+    const before = await cell.evaluate((cell) => getComputedStyle(cell.querySelector(".st-rm-add")).pointerEvents);
+    const piece = await cell.locator('.st-rm-p[aria-label^="DB,"]').boundingBox();
+    await page.mouse.move(piece.x + piece.width / 2, piece.y + piece.height / 2);
+    await page.waitForTimeout(500);
+    const add = () => cell.evaluate((cell) => {
+      const add = cell.querySelector(".st-rm-add");
+      const r = add.getBoundingClientRect();
+      // The pieces of the areas' and subsections' cells; a lane's bar under the cell it may touch.
+      const over = [...document.querySelectorAll(".st-rm-grid > .st-rm-cell .st-rm-p")].filter((p) => { const q = p.getBoundingClientRect(); return q.width > 0 && q.left < r.right - 1 && q.right > r.left + 1 && q.top < r.bottom - 1 && q.bottom > r.top + 1; }).length;
+      return { shown: getComputedStyle(add).opacity === "1", words: add.textContent, width: Math.round(r.width), edge: Math.round(r.top + r.height / 2 - cell.getBoundingClientRect().bottom), over };
+    });
+    const resting = await add();
+    const box = await cell.locator(".st-rm-add").boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForTimeout(250);
+    const under = await add();
+    check(before === "none" && resting.shown && resting.words === "Modul einplanen" && resting.over === 0 && Math.abs(resting.edge) <= 2 && under.width === resting.width && under.over === 0,
+      `the „+" of Praktische Informatik's cell: ${JSON.stringify({ before, resting, under })}`);
+    await page.mouse.move(5, 5);
+  }
   await drag(`[data-row="${pm}"] .st-rm-p[aria-label^="LAAG2,"]`, `[data-sem="2027S"][data-row="${anwendung}"]`, false);
   check(await page.evaluate((row) => document.querySelector(`.rm-drop-here[data-sem="2027S"][data-row="${row}"]`) !== null, anwendung), "the Anwendungsfach's cell is not where Lineare Algebra II lands");
   await step("let go over the Anwendungsfach", () => page.mouse.up(), () => document.querySelector(".study-note")?.textContent.includes("zählt für Anwendungsfach"));
@@ -962,7 +1070,7 @@ if (current !== "2026W") {
   // Onto the Seminar, whose list does not hold it, Datenbanken does not count: the row says what
   // Strg does, and the module moves in its own; with Strg it counts there as an exception.
   await drag(`[data-row="${praktisch}"] .st-rm-p[aria-label^="DB,"]`, `[data-sem="2028S"][data-row="${seminar}"]`, false);
-  const refused = await page.evaluate((row) => ({ hint: document.querySelector(`[data-sem="2028S"][data-row="${row}"] .st-rm-hint`)?.textContent, no: !!document.querySelector(`.rm-drop-no[data-sem="2028S"][data-row="${row}"]`) }), seminar);
+  const refused = await page.evaluate((row) => ({ hint: document.querySelector(`.st-rm-hint[data-at-sem="2028S"][data-at-row="${row}"]`)?.textContent, no: !!document.querySelector(`.rm-drop-no[data-sem="2028S"][data-row="${row}"]`) }), seminar);
   check(refused.no && refused.hint === "Strg: als Ausnahme", `the Seminar's row under Datenbanken: ${JSON.stringify(refused)}`);
   // Where it fits, before the pointer gets there (owner, 2026-11-10: „für die drag and drop
   // animation/farbgebung nochmal eine überarbeitung haben, so dass man einfacher erkennen kann, wo
@@ -976,7 +1084,7 @@ if (current !== "2026W") {
     return {
       drag: document.querySelector(".st-rm")?.hasAttribute("data-drag") && !document.querySelector(".st-rm")?.hasAttribute("data-ex"),
       own: fit("Praktische Informatik", true), area: fit("Fachstudium", false), seminar: fit("Seminar oder Praktikum", true),
-      lands: document.querySelector(`[data-sem="2028S"][data-row="${fach}"] .st-rm-hint`)?.textContent,
+      lands: document.querySelector(`.st-rm-hint[data-at-sem="2028S"][data-at-row="${fach}"]`)?.textContent,
       hole: document.querySelectorAll('.st-rm-p.is-dragged[aria-label^="DB,"]').length > 0,
       key: [...document.querySelectorAll(".st-rm-dragkey > span")].map((span) => span.textContent).join(" | "),
     };
@@ -986,11 +1094,30 @@ if (current !== "2026W") {
   check((await lines(page, "m\t2028S\t12330\t"))[0]?.split("\t").length <= 6, "Datenbanken counts for the Seminar without Strg");
   await step("Rückgängig, Datenbanken back", () => undo(page), () => !document.querySelector(".study-note"));
   await page.waitForFunction(() => document.querySelector('.st-rm-p[aria-label^="DB,"]'), null, { timeout: 4000 }).catch(() => {});
+  // Over the Komplex right under the Fachstudium's row, which takes it neither: both cells say
+  // something, one under the other, and „landet hier" stands whole over the Komplex (owner,
+  // 2026-11-17: „landet hier ist noch abgeschnitten", the lower cell drawn over its lower half).
+  const grundlagen = await row("Grundlagen der Informatik");
+  await drag(`[data-row="${praktisch}"] .st-rm-p[aria-label^="DB,"]`, `[data-sem="2028S"][data-row="${grundlagen}"]`, false);
+  const stacked = await page.evaluate(() => {
+    const words = [...document.querySelectorAll(".st-rm-hint")];
+    const lands = words.find((w) => w.textContent === "landet hier");
+    if (!lands) return { words: words.map((w) => w.textContent) };
+    const r = lands.getBoundingClientRect();
+    lands.style.pointerEvents = "auto";
+    const low = document.elementFromPoint(r.left + r.width / 2, r.bottom - 2);
+    lands.style.pointerEvents = "";
+    return { words: words.map((w) => w.textContent), whole: low === lands || lands.contains(low), under: low?.className };
+  });
+  check(stacked.whole && stacked.words?.includes("Strg: als Ausnahme"), `„landet hier" over the Komplex under the Fachstudium: ${JSON.stringify(stacked)}`);
+  await step("let go over Grundlagen der Informatik", () => page.mouse.up(), () => document.querySelector(".study-note")?.textContent.includes("ins SoSe 2028 verschoben"));
+  await step("Rückgängig, Datenbanken back once more", () => undo(page), () => !document.querySelector(".study-note"));
+  await page.waitForFunction(() => document.querySelector('.st-rm-p[aria-label^="DB,"]'), null, { timeout: 4000 }).catch(() => {});
   await drag(`[data-row="${praktisch}"] .st-rm-p[aria-label^="DB,"]`, `[data-sem="2027W"][data-row="${seminar}"]`, true);
   const amber = await page.evaluate((row) => ({
     ex: document.querySelector(".st-rm")?.hasAttribute("data-ex"),
     seminar: [...document.querySelectorAll(".st-rm-sub")].find((head) => head.querySelector(".st-card-name")?.textContent === "Seminar oder Praktikum")?.classList.contains("rm-ex"),
-    cell: document.querySelector(`.rm-drop-here.rm-land-ex[data-sem="2027W"][data-row="${row}"] .st-rm-hint.ex`)?.textContent,
+    cell: document.querySelector(`.rm-drop-here.rm-land-ex[data-sem="2027W"][data-row="${row}"]`) && document.querySelector(`.st-rm-hint.ex[data-at-sem="2027W"][data-at-row="${row}"]`)?.textContent,
   }), seminar);
   check(amber.ex && amber.seminar && amber.cell === "als Ausnahme", `the Seminar with Strg held: ${JSON.stringify(amber)}`);
   await step("with Strg, as an exception", async () => { await page.mouse.up(); await page.keyboard.up("Control"); }, () => document.querySelector(".study-note")?.textContent.includes("zählt als Ausnahme für Seminar oder Praktikum"));
@@ -1097,6 +1224,55 @@ if (current !== "2026W") {
   await page.waitForFunction(() => document.querySelector(".st-sz-sum b")?.textContent.replace(/\u00a0/g, " ") === "Zusammen 14 von 50 LP", null, { timeout: 4000 }).catch(() => problems.push("the weighting does not follow the stepper"));
   await step("Übernehmen, 14 LP", () => page.click("#st-sz-go"), (key) => document.querySelector('.st-card-sem .st-row[data-key="r::20"] .lp')?.textContent === "14LP"
     && (localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith("p\t8\t") && line.endsWith("\tKomplex Praktische Informatik\t14")), PLAN);
+  await context.close();
+}
+
+// ---------- 2e: what the plan has open stands where the plan has it ----------
+{
+  const { page, step, seed, context } = await open({ viewport: { width: 1440, height: 900 } }, "/");
+  // Systemtheorie I for the Anwendungsfach, as the workbench's „+ 6 LP" stores it (the row it
+  // counts for: the choice's first).
+  const systemtheorie = (semester) => `m\t${semester}\t11908\t3\t\t\t079-82-2008\t15\t\n`;
+  // The open pieces of a row or a subsection, each with its semester.
+  const openOf = (name) => page.evaluate((name) => {
+    const head = [...document.querySelectorAll(".st-rm-grid > .st-row-head, .st-rm-sub")].find((head) => head.querySelector(".st-card-name")?.textContent === name);
+    const row = head?.nextElementSibling?.dataset.row;
+    return [...document.querySelectorAll(`.st-rm-cell[data-row="${row}"]`)].flatMap((cell) => [...cell.querySelectorAll(".st-rm-seg .st-rm-p.open")].map((piece) => `${cell.dataset.sem} ${piece.textContent.trim()}`)).join(", ");
+  }, name);
+  await seed([[MINE, THIRD], [PLAN, FILLED + systemtheorie("2026W")], ["betula.study.view", "grid"]]);
+  await step("Studium, for what is open", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector(".st-rm-grid"));
+  await step("the Nebenfach unfolded", () => page.click('.st-row-head:has(.st-card-name:text-is("Nebenfach")) .st-card-name'), () => [...document.querySelectorAll(".st-rm-sub .st-card-name")].some((name) => name.textContent === "Anwendungsfach"));
+  const third = { area: await openOf("Nebenfach"), choice: await openOf("Anwendungsfach"), other: await openOf("Praktische Mathematik") };
+  check(third.area === "2027S +12" && third.choice === "2027S +6" && third.other === "2027S +6", `a module of the third semester, the Anwendungsfach's open row: ${JSON.stringify(third)}`);
+  const thesis = await page.evaluate(() => {
+    const head = [...document.querySelectorAll(".st-rm-grid > .st-row-head")].find((head) => head.querySelector(".st-card-name")?.textContent === "Bachelor-Arbeit");
+    return [...document.querySelectorAll(`.st-rm-cell[data-row="${head?.nextElementSibling?.dataset.row}"] .st-rm-seg .st-rm-p.open`)].map((piece) => `${piece.closest(".st-rm-cell").dataset.sem} ${piece.getAttribute("aria-label")}`).join(" | ");
+  });
+  check(/^2028S [^|]*5\. und 6\. FS[^|]*$/.test(thesis), `the Bachelor-Arbeit, open in its last semester: ${thesis}`);
+  // The same module in the fourth: the row of the third is the open one.
+  await seed([[MINE, THIRD], [PLAN, FILLED + systemtheorie("2027S")], ["betula.study.view", "grid"]]);
+  await step("Studium, the module in the fourth", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && [...document.querySelectorAll(".st-rm-sub .st-card-name")].some((name) => name.textContent === "Anwendungsfach"));
+  const fourth = { area: await openOf("Nebenfach"), choice: await openOf("Anwendungsfach") };
+  check(fourth.area === "2026W +6, 2027S +6" && fourth.choice === "2026W +6", `a module of the fourth semester, the Anwendungsfach's open row: ${JSON.stringify(fourth)}`);
+  // The workbench's card of the Anwendungsfach: what it holds of what it asks by the semester,
+  // and the lines under it.
+  const card = () => page.evaluate(() => {
+    const row = [...document.querySelectorAll(".st-wb-half .st-wb-row.choice")].find((row) => row.querySelector(".st-wb-ct > b")?.textContent === "Anwendungsfach");
+    return row ? [row.querySelector(".st-wb-fig")?.textContent, ...[...row.querySelectorAll(".st-wb-go > small > span")].map((span) => span.textContent.trim())].join(" | ").replace(/\u00a0/g, " ") : null;
+  });
+  const cards = async (plan, add) => {
+    await page.evaluate(() => localStorage.removeItem("betula.study.view"));
+    await seed([[MINE, THIRD], [PLAN, plan]]);
+    await step("Studium, for the choice's card", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
+    await step("Module hinzufügen, for the choice's card", () => page.click(`.st-card-sem ${add}`), () => document.querySelector(".st-wb-half .st-wb-sk")?.textContent === "Laut Plan im 3. FS");
+    const third = await card();
+    await step("› SoSe 2027, for the choice's card", () => page.click(".st-card-sem > .st-sem-head .st-turn >> nth=1"), () => document.querySelector(".st-wb-half .st-wb-sk")?.textContent === "Laut Plan im 4. FS");
+    return [third, await card()];
+  };
+  const asked = await cards(FILLED, ".st-empty-add");
+  check(asked[0] === "0 / 6 LP | Nebenfach | laut Plan 3. und 4. FS | insgesamt 12 LP" && asked[1] === "0 / 12 LP | Nebenfach | laut Plan 3. und 4. FS", `the Anwendungsfach's card by its semester: ${JSON.stringify(asked)}`);
+  const held = await cards(FILLED + systemtheorie("2026W"), ".st-add");
+  check(held[0] === "6 / 6 LP | Nebenfach | laut Plan 3. und 4. FS | insgesamt 12 LP" && held[1] === "6 / 12 LP | Nebenfach | laut Plan 3. und 4. FS", `the Anwendungsfach's card with a module of the third semester: ${JSON.stringify(held)}`);
   await context.close();
 }
 
@@ -1323,7 +1499,7 @@ if (current !== "2026W") {
       figure: choice?.querySelector(".st-wb-fig")?.textContent,
     };
   });
-  check(/^8\s*LP$/.test(balanced.words ?? "") && balanced.middle >= 0 && balanced.middle <= 2 && balanced.right <= 1 && balanced.lines === 1 && balanced.dashed === "dashed" && balanced.bar && /^\d+ \/ 12 LP$/.test(balanced.figure ?? ""), `a module and a choice in the sheet: ${JSON.stringify(balanced)}`);
+  check(/^8\s*LP$/.test(balanced.words ?? "") && balanced.middle >= 0 && balanced.middle <= 2 && balanced.right <= 1 && balanced.lines === 1 && balanced.dashed === "dashed" && balanced.bar && /^\d+ \/ 6 LP$/.test(balanced.figure ?? ""), `a module and a choice in the sheet: ${JSON.stringify(balanced)}`);
   // What „Plan übernehmen" takes: the Pflicht of the 3. FS that stands nowhere yet (Softwarepraktikum
   // and Mathematik IT-3 are planned into SoSe 2027 here, and stay there).
   const taking = Number((await page.textContent("#st-wb-takeover")).match(/\d+/)?.[0] || 0);
@@ -1359,7 +1535,7 @@ if (current !== "2026W") {
     chips: [...document.querySelectorAll(".st-wb-page .st-wb-chips > .st-wb-chip")].map((chip) => (chip.querySelector(":scope > span") ?? chip).textContent.trim()).join("|"),
     fach: document.querySelectorAll("#st-wb-fach > option").length,
   }));
-  check(into.crumbs === "Übersicht" && into.name === "Anwendungsfach" && into.title === "Hinzufügen zu WiSe 2026/27" && into.way === "in" && /^\d+ \/ 12 LP$/.test(into.figure ?? "") && into.bar
+  check(into.crumbs === "Übersicht" && into.name === "Anwendungsfach" && into.title === "Hinzufügen zu WiSe 2026/27" && into.way === "in" && /^\d+ \/ 6 LP$/.test(into.figure ?? "") && into.bar
     && into.chips === "Alle 5 Fächer|Im WiSe angeboten|Passt in meine Woche" && into.fach === 6, `a choice's page in the sheet: ${JSON.stringify(into)}`);
   // „Fach" is a chip over the phone's own list (a `<select>`): a Fach picked, its modules alone.
   const all = await page.evaluate(() => document.querySelectorAll(".st-wb-page .st-wb-row").length);
@@ -1533,37 +1709,54 @@ if (current !== "2026W") {
   check((await page.evaluate(() => history.length)) === entries, "the way back added a step to the history");
   await page.waitForFunction(() => document.querySelector(".top-back")?.inert && getComputedStyle(document.querySelector(".top-back")).opacity === "0", null, { timeout: 2000 }).catch(() => problems.push("the way back stays on the overview"));
   // The credits one place to tap (owner, 2026-10-06: „die progress bar komplett zu einer
-  // clickfläche werden"): their headline, the bar, the legend and „Bereiche ›" open the areas.
+  // clickfläche werden"): their headline, the bar, the legend and „Bereiche ›" lead to the areas.
   // The whole box, not only the bar (owner, the same day: „nicht nur der ganze balken, sondern die
-  // ganze progress box muss klickbar sein"): its parts, and 6 px inside each of its edges.
+  // ganze progress box muss klickbar sein"): its parts, and 6 px inside each of its edges. The
+  // areas are a page of their own, which the way back at the head leaves (owner, 2026-11-17: „das
+  // ist modal zu modal und das sieht richtig komisch aus … oder das wird zur eigenen seite"; until
+  // then a sheet, whose module closed it and came up in its place). How a sheet of a phone moves
+  // under a finger, sheets.mjs checks.
   const box = await page.$eval(".st-progress", (el) => { const r = el.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; });
   const spots = { headline: await middle(page, ".st-progress .st-headline"), bar: await middle(page, ".st-progress .st-bar"), legend: await middle(page, ".st-progress .st-legend-n li:nth-child(2)"),
     "left edge": { x: box.left + 6, y: (box.top + box.bottom) / 2 }, "right edge": { x: box.right - 6, y: (box.top + box.bottom) / 2 },
     "top edge": { x: (box.left + box.right) / 2, y: box.top + 6 }, "bottom edge": { x: (box.left + box.right) / 2, y: box.bottom - 6 }, corner: { x: box.left + 14, y: box.bottom - 14 } };
+  const onAreas = () => location.search === "?view=progress" && document.querySelector(".st-areas-phone .st-area-list a") && !document.querySelector(".st-dialog[open]");
   for (const [part, at] of Object.entries(spots)) {
-    await step(`the credits: ${part}`, () => page.touchscreen.tap(at.x, at.y), () => document.querySelector(".st-dialog[open] .st-area-list"));
-    await step("close the areas", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
+    await step(`the credits: ${part}`, () => page.touchscreen.tap(at.x, at.y), onAreas);
+    await step("back from the areas", () => page.tap(".top-back.on"), atOverview);
   }
-  await step("Bereiche", () => page.tap(".st-progress-top .st-link"), () => document.querySelector(".st-dialog[open] .st-area-list"));
-  await page.waitForFunction(() => !document.querySelector(".st-dialog[open]")?.getAnimations().some((a) => a.playState === "running"), null, { timeout: 3000 }).catch(() => {});
-  const sheet = await page.evaluate(() => { const box = document.querySelector(".st-dialog[open]").getBoundingClientRect(); return { bottom: Math.round(innerHeight - box.bottom), width: Math.round(box.width), top: Math.round(box.top) }; });
-  // A sheet of a phone (owner, 2026-10-27): half up, as tall as the screen all up.
-  check(Math.abs(sheet.top - 844 * 0.5) < 4 && sheet.bottom === -(844 - 10 - (844 - sheet.top)) && sheet.width === 390, `the areas are no sheet from below, half up: ${JSON.stringify(sheet)}`);
-  // A finger drags the sheet down (owner, 2026-10-05: „dass man die einfach wieder runter sliden
-  // kann"): it follows the finger; a short pull, let go, slides back; drawn far enough, it closes.
-  const drag = async (by, { steps = 8, hold = 0 } = {}) => {
-    await touch("touchStart", 195, sheet.top + 24);
-    for (let i = 1; i <= steps; i++) { await page.waitForTimeout(16); await touch("touchMove", 195, sheet.top + 24 + (by * i) / steps); }
-    if (hold) await page.waitForTimeout(hold);
-    const top = await page.evaluate(() => Math.round(document.querySelector(".st-dialog[open]")?.getBoundingClientRect().top ?? -1));
-    await touch("touchEnd", 0, 0);
-    return top;
-  };
-  const pulled = await drag(60, { hold: 150 });
-  await page.waitForTimeout(600);
-  const after = await page.evaluate(() => Math.round(document.querySelector(".st-dialog[open]")?.getBoundingClientRect().top ?? -1));
-  check(pulled >= sheet.top + 40 && after === sheet.top, `a short pull does not move the sheet and back: ${sheet.top} → ${pulled} → ${after}`);
-  await step("the areas dragged down", () => drag(320), () => !document.querySelector(".st-dialog[open]"));
+  await step("Bereiche", () => page.tap(".st-progress-top .st-link"), onAreas);
+  // The areas as the Wahlpflicht has its choices (owner, 2026-11-17): each with what it holds of
+  // what it asks, its bar and its marks; over them the strip of the four marks, and nothing of the
+  // overview's bar and legend again; the way back at the head to the overview.
+  const areaCards = await page.evaluate(() => {
+    const areas = document.querySelector(".st-areas-phone");
+    const cards = [...areas.querySelectorAll(".st-area-list a")];
+    return {
+      title: areas.querySelector(".st-vhead h1")?.textContent, back: document.querySelector(".top-back.on")?.getAttribute("aria-label"),
+      cards: cards.length, bars: cards.filter((card) => card.querySelector(".st-wbar") && card.querySelector(".st-wfig")).length, marks: cards.filter((card) => card.querySelector(".st-tally-line .st-glyph")).length,
+      strip: areas.querySelectorAll(".st-tally li .st-glyph").length, again: areas.querySelectorAll(".st-bar, .st-key").length,
+    };
+  });
+  check(areaCards.title === "Bereiche" && areaCards.back === "Zur Übersicht" && areaCards.cards >= 6 && areaCards.bars === areaCards.cards && areaCards.marks === areaCards.cards && areaCards.strip === 4 && areaCards.again === 0, `the areas' page has not a bar and marks for every area: ${JSON.stringify(areaCards)}`);
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "the areas' page on a phone scrolls sideways");
+  // An area, a page of its own behind them: its name and what it holds of what it asks at the
+  // head, its bar, the strip, a mark at every row; the way back at the head a level up.
+  await step("an area's page", () => page.tap(".st-area-list li:first-child a"), () => location.search === "?view=progress&area=0" && document.querySelector(".st-areas-phone .st-vhead h1")?.textContent === "Komplex Informatik" && document.querySelector(".st-areas-phone .st-area-body > .st-wbar.big") && document.querySelectorAll(".st-areas-phone .st-tally li").length === 4);
+  const areaPage = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll(".st-areas-phone .st-area-items li")];
+    return { back: document.querySelector(".top-back.on")?.getAttribute("aria-label"), figure: document.querySelector(".st-areas-phone .st-vhead p")?.textContent, rows: rows.length, marks: rows.filter((row) => row.querySelector(".st-wmk .st-glyph")).length };
+  });
+  check(areaPage.back === "Bereiche" && /^\d+ \/ 66\u00a0LP$/.test(areaPage.figure ?? "") && areaPage.rows >= 2 && areaPage.marks === areaPage.rows, `an area's page: ${JSON.stringify(areaPage)}`);
+  // A module of it comes up as the sheet over the page, and going leaves the page as it was:
+  // where it was scrolled to, no sheet in the place of another.
+  await page.evaluate(() => window.scrollTo(0, 160));
+  const areaScroll = await page.evaluate(() => Math.round(scrollY));
+  await step("a module of the area as the sheet", () => page.tap('.st-areas-phone .st-area-items a:has-text("Theoretische Informatik")'), () => location.search === "?view=progress&area=0&open=11787" && document.querySelector("#preview .hero .mono")?.textContent.trim() === "11787" && !document.querySelector(".st-dialog[open]") && document.querySelector(".st-areas-phone .st-vhead h1")?.textContent === "Komplex Informatik");
+  await step("the module's sheet closed", () => page.goBack(), () => location.search === "?view=progress&area=0" && !document.querySelector(".detail.is-module") && document.querySelector(".st-areas-phone .st-area-body"));
+  check((await page.evaluate(() => Math.round(scrollY))) === areaScroll, `the area's page moved under the module's sheet: ${areaScroll} → ${await page.evaluate(() => Math.round(scrollY))}`);
+  await step("the way back to the areas", () => page.tap(".top-back.on"), onAreas);
+  await step("the way back to the overview", () => page.tap(".top-back.on"), atOverview);
   await step("the program's card", () => page.tap("#st-mine"), () => document.querySelector(".st-dialog[open] #st-switch-program"));
   check((await page.evaluate(() => document.querySelector(".st-dialog[open] .st-dlg-head p"))) === null, "„Studiengang wechseln“ still has its lead");
   // − and + count the Fachsemester, and nothing of the sheet moves while they do (measured once it

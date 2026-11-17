@@ -30,6 +30,7 @@ type sources struct {
 
 	generalPages []generalPage // the BTU's page of Grundsatzordnungen, German first, then English
 	studyPages   []studyPages  // the BTU's page „Studienorganisation", German first, then English
+	fuesCatalogs []fuesCatalog // the BTU's FÜS catalogs, one per semester, oldest first
 }
 
 type modulePage struct {
@@ -212,6 +213,9 @@ func loadSources(ctx context.Context, db *catalogdb.DB, report *Report) (*source
 		return nil, err
 	}
 	if err := loadStudyPages(db, src); err != nil {
+		return nil, err
+	}
+	if err := loadFUESCatalogs(db, src, report); err != nil {
 		return nil, err
 	}
 	return src, nil

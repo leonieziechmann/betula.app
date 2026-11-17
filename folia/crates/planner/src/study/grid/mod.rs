@@ -60,6 +60,7 @@ use folia_plans::study::{self, Pick, When};
 use leptos::html::Div;
 use leptos::prelude::*;
 
+use folia_design::haptic::{self, Haptic};
 use folia_design::nav;
 use folia_design::ui::Icon;
 
@@ -437,6 +438,11 @@ impl Aim {
             dom::drop_moves(ev);
         }
         if self.over.get_untracked() != at {
+            // Another semester that would take it: felt as a step (a finger's drag; a mouse's has
+            // nothing to feel it with).
+            if takes && self.over.get_untracked().map(|over| over.semester) != at.map(|over| over.semester) {
+                haptic::play(Haptic::Tick);
+            }
             self.over.set(at);
         }
     }
@@ -451,6 +457,7 @@ impl Aim {
         }
         ev.prevent_default();
         self.end(ctx);
+        haptic::play(Haptic::Success);
         let (from, to) = (dragged.semester, landing.semester);
         match (landing.count, dragged.counts) {
             (Some((group, exception)), Some(counts)) => {
@@ -527,6 +534,35 @@ impl Aim {
             return None;
         }
         (landing.refused.is_some() && row == RowAt::Area(landing.area)).then(|| ("st-rm-hint fit", st.drop_lands_here.to_string()))
+    }
+
+    /// The cells that say something while the module is over the plan (`hint`), each with its
+    /// semester and row: the one under the pointer, and its area's row where it lands instead.
+    fn hints(self, t: &'static Texts) -> Vec<(SemesterKey, RowAt, &'static str, String)> {
+        let (Some(over), Some(landing)) = (self.over.get(), self.landing.get()) else { return Vec::new() };
+        let mut rows: Vec<RowAt> = over.row.into_iter().collect();
+        if landing.refused.is_some() && !rows.contains(&RowAt::Area(landing.area)) {
+            rows.push(RowAt::Area(landing.area));
+        }
+        rows.into_iter().filter_map(|row| self.hint(over.semester, row, t).map(|(class, text)| (over.semester, row, class, text))).collect()
+    }
+}
+
+/// What a drop does (`Aim::hints`), on the lower edge of the cells it is said of, in a layer of
+/// its own over the plan's grid. Inside its cell it was cut off where the cell under it said
+/// something too: that one was drawn after it, over the words' lower half (owner, 2026-11-17,
+/// „landet hier ist noch abgeschnitten"; until Folia 1.97.11). Where the cells stand is measured
+/// as the words change (`dom::cell_edge`); nothing moves under them while a module is dragged.
+fn drop_words(aim: Aim, t: &'static Texts) -> impl IntoView {
+    move || {
+        aim.hints(t)
+            .into_iter()
+            .filter_map(|(semester, row, class, text)| {
+                let (x, y) = dom::cell_edge(PANEL_ID, &semester.key(), &row.attr())?;
+                let style = format!("left: {x:.1}px; top: {:.1}px", y - 0.5);
+                Some(view! { <span class=class aria-hidden="true" data-at-sem=semester.key() data-at-row=row.attr() style=style>{text}</span> })
+            })
+            .collect_view()
     }
 }
 
@@ -802,6 +838,7 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
                                     <span class="st-rm-flag">{layout.today_flag.clone()}</span>
                                 </div>
                             })}
+                            {drop_words(aim, t)}
                         </div>
                     }
                 })}
@@ -1167,7 +1204,6 @@ fn cell_view(frame: &RowFrame, cell: Cell, of: Of, fit: Memo<Option<Fit>>, row_n
             let unfold_sum = unfold.clone();
             let unfold_open = unfold.clone();
             let row_at = of.row_at();
-            let hint = move || aim.hint(semester, row_at, t).map(|(class, text)| view! { <span class=class aria-hidden="true">{text}</span> });
             // A subsection's „+" opens the workbench at its subgroup, an area's at the one due.
             let pick = match (of.area, of.kind) {
                 (Some(area), Some(kind)) => BenchPick::Group(area, kind),
@@ -1219,7 +1255,6 @@ fn cell_view(frame: &RowFrame, cell: Cell, of: Of, fit: Memo<Option<Fit>>, row_n
                     <button type="button" class="st-cell-add" class:st-rm-add=!empty title=for_cell.clone() aria-label=for_cell on:click=move |_| bench::enter(ctx, semester, pick)>
                         <Icon name="plus"/><span class="lb">{s.add_in_cell}</span>
                     </button>
-                    {hint}
                 </div>
             }
             .into_any()

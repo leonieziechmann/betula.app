@@ -18,7 +18,7 @@ An unofficial catalog of the modules, study programs and study plans of BTU Cott
   of them) and hands them between them, live over a WebSocket (`docs/phloem/phloem.md`).
 
 ```
-QIS (module descriptions, tree, events), b-tu.de/modul, the BTU's Grundsatzordnungen and Studienorganisation ──Cortex──crawl──▶ raw page archive ──build──▶ canonical tables + views ──validate──▶ export ──HTTP──▶ Folia ──▶ browsers
+QIS (module descriptions, tree, events), b-tu.de/modul, the BTU's Grundsatzordnungen, Studienorganisation and FÜS catalogs ──Cortex──crawl──▶ raw page archive ──build──▶ canonical tables + views ──validate──▶ export ──HTTP──▶ Folia ──▶ browsers
 statute PDFs (OPUS) ──Cortex──download-statutes──scan-curriculum (PDF geometry + optional Gemini enrichment)──▶ validated study plans
 ```
 
@@ -60,7 +60,7 @@ radix help                           # all commands
 
 `radix run` serves `GET /snapshot/catalog.db` (ETag, `If-None-Match` → 304), `/healthz` and
 `/status` on `127.0.0.1:8090`. The stages also run one by one: `crawl-qis-modules`, `crawl-modules`,
-`crawl-tree`, `crawl-events`, `crawl-general-documents`, `crawl-study-organisation`, `prune`, `build`,
+`crawl-tree`, `crawl-events`, `crawl-general-documents`, `crawl-study-organisation`, `crawl-fues-catalogs`, `prune`, `build`,
 `validate`, `export`, `serve-snapshot`.
 
 The module fields come from the module description in QIS, not from `b-tu.de/modul`: that page

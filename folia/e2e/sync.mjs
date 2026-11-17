@@ -13,7 +13,8 @@
 // „Verbunden"; a private profile switches Betula Sync on on the way, and a code opens once.
 // The first browser switches Betula Sync on for a profile with marks and a note („Gerät verbinden",
 // „Einschalten und Code zeigen" in its dialog), and the link for the next device opens by itself;
-// the second opens that link and holds the same marks and note in a new profile; a mark set on one
+// the second opens that link and holds the same marks and note in a new profile; the profile page
+// and the menu of the profiles mark a synced profile beside its name, a private one not; a mark set on one
 // shows on the other within seconds; both mark while the second is offline, and once it is back
 // both hold both; the recovery code brings the profile into a third browser; the profile page lists
 // the three devices, this one first, the others online, and „Entfernen" makes the third one leave
@@ -126,11 +127,15 @@ await a.page.evaluate(([seed, note]) => {
   localStorage.setItem("betula.collections.v1", `n\t${seed[0]}\t${note}\n`);
 }, [SEED, NOTE]);
 await go(a.page, "/profile");
+// The mark of a synced profile beside its name (folia_stores::profiles::SyncMark): none while private.
+check(!(await a.page.evaluate(() => Boolean(onPage(".pf-list .sync-mark")))), "A: a private profile is marked as synced on the profile page");
 const activate = a.page.locator("#pf-sync-connect >> visible=true");
-check((await activate.textContent().catch(() => "")).trim() === "Gerät verbinden", "A: no „Gerät verbinden“ on the profile page (is FOLIA_SYNC on?)");
+// A row as those of „Daten" and the Gefahrenzone: „Gerät verbinden" its title and its button's name, „Verbinden" its word.
+check((await activate.getAttribute("aria-label").catch(() => "")) === "Gerät verbinden" && (await activate.textContent().catch(() => "")).trim() === "Verbinden", "A: no „Gerät verbinden“ on the profile page (is FOLIA_SYNC on?)");
 await activate.click().catch(() => {});
 await a.page.getByRole("button", { name: /^Einschalten und Code zeigen$/ }).first().click().catch(() => problems.push("A: no „Einschalten und Code zeigen“ in the dialog"));
 await until("A synced", a.page, () => (localStorage.getItem("betula.sync.p1.status") || "").startsWith("online"), null, 15000);
+await until("A: the profile page marks the profile as synced", a.page, () => Boolean(onPage('.pf-list .pf-item[aria-checked="true"] .sync-mark')), null, 5000);
 await until("the link for the next device", a.page, () => Boolean(onPage(".pf-pair-link code")?.textContent.includes("/sync#")), null, 10000);
 const link = (await a.page.locator(".pf-pair-link code").first().textContent().catch(() => "")).trim();
 const key = await a.page.evaluate(() => (localStorage.getItem("betula.sync.p1.v1") || "").split("\n").find((l) => l.startsWith("key\t"))?.slice(4) || "");
@@ -157,6 +162,10 @@ check(!b.page.url().includes("#"), `B: the link's key is still in the address ($
 check(JSON.stringify(await marksOf(b.page)) === JSON.stringify(await marksOf(a.page)), `B: other marks than A (${await marksOf(b.page)} / ${await marksOf(a.page)})`);
 check((await shelfOf(b.page)).includes(NOTE), "B: the note did not come");
 await doneHome("B", b.page, ".pf-part");
+// The menu of the profiles marks the profile that came as synced, named for those who do not see it
+// (it goes with the next page B loads).
+await b.page.click(".rail .profile-btn >> visible=true").catch(() => problems.push("B: no way to the menu of the profiles"));
+await until("B: the menu of the profiles marks the synced profile", b.page, () => onPage('.profile-menu .pm-item[aria-checked="true"] .sync-mark')?.textContent === "Mit Betula Sync synchronisiert", null, 5000);
 await until("A sees B online", a.page, () => /^online 1( |$)/.test(localStorage.getItem("betula.sync.p1.status") || ""), null, 10000);
 await until("A: the dialog closed as its bar was full", a.page, () => Boolean(window.__closedAt) && !document.querySelector(".pf-connect-dlg .cp"), null, 10000);
 // Longer than the bar's last moment (DONE_MS), so that what it would hand over has come.
@@ -182,6 +191,7 @@ check(JSON.stringify(await marksOf(b.page)) === JSON.stringify(await marksOf(a.p
 await go(a.page, "/profile");
 await a.page.click("#pf-sync-code >> visible=true").catch(() => problems.push("A: no „Wiederherstellungscode“"));
 await until("the recovery code", a.page, () => /^[0-9A-Z]{4}(-[0-9A-Z]{4}){12}$/.test(onPage(".pf-code code")?.textContent.trim() || ""), null, 5000);
+check(await a.page.evaluate(() => onPage("#pf-sync-code")?.getAttribute("aria-expanded") === "true" && onPage("#pf-sync-code")?.textContent.trim() === "Verbergen"), "A: the row of the recovery code does not say „Verbergen“ while the code is shown");
 const code = (await a.page.locator(".pf-code code").first().textContent().catch(() => "")).trim();
 const c = await device("C");
 await go(c.page, "/profile");

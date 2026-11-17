@@ -25,6 +25,7 @@ mod clock;
 mod day;
 mod detail;
 mod devices;
+pub mod install;
 mod overview;
 mod photo;
 mod setup;
@@ -148,6 +149,8 @@ pub fn HomePage() -> impl IntoView {
     // A picker's popup stands where its button was: scrolling the page takes it away.
     let close_popups = RwSignal::new(0u32);
     provide_context(ClosePopups(close_popups));
+    // Betula as an app: the setup's last step and the card on the day (`install`).
+    install::Install::provide();
 
     // The visitor: a program kept is a study set up; „Erst mal umschauen" folds the setup away for
     // the visit; „Studium anlegen" leaves a note („Eingerichtet · …", one that waits for interaction). Where the
@@ -235,6 +238,7 @@ pub fn HomePage() -> impl IntoView {
             <div class="page"><div class="page-inner day" class:termin-full=move || termin_full.get()>
                 <Seo title=t.home.seo_title description=t.home.description path=url::HOME data/>
                 {body}
+                {APP.then(|| view! { <install::GuideDialog/> })}
             </div></div>
             <folia_shell::ground::Ground credit=ViewFn::from(move || view! { <Credits/> })/>
         </div>

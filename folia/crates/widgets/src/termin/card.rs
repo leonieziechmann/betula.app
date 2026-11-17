@@ -1258,7 +1258,7 @@ pub fn TerminNote(plan: Option<Studyplan>, undo: RwSignal<Option<TerminUndo>>) -
                         </div>
                         <div class="plan-toast-end">
                             <span class="plan-toast-sep" aria-hidden="true"></span>
-                            <button class="plan-toast-undo" type="button" on:click=restore>{t.common.undo}</button>
+                            <button data-haptic="tap" class="plan-toast-undo" type="button" on:click=restore>{t.common.undo}</button>
                         </div>
                     </div>
                 </WaitNote>

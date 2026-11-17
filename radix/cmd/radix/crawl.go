@@ -135,6 +135,29 @@ func runCrawlStudyOrganisation(ctx context.Context, args []string) {
 	finishCrawl("crawl-study-organisation", stats, err)
 }
 
+// runCrawlFUESCatalogs archives the BTU's page „Aktuelle Infos" and the FÜS catalogs: the one it
+// links and, where none is archived, those of this semester and the one before by their files'
+// names.
+func runCrawlFUESCatalogs(ctx context.Context, args []string) {
+	def := service.DefaultConfig()
+	fs := flag.NewFlagSet("crawl-fues-catalogs", flag.ExitOnError)
+	dbPath := fs.String("db", defaultDBPath, "Database path")
+	pace := addPaceFlags(fs, 1, int(def.FUESCatalogs.Delay.Milliseconds()), def.FUESCatalogs.MaxAge)
+	cortex := addCortexFlags(fs)
+	logs := addLogFlags(fs)
+	_ = fs.Parse(args)
+	_, closeLog := logs.setup()
+	defer closeLog()
+
+	db := openDB(*dbPath)
+	defer db.Close()
+	ep := service.BTUEndpoints()
+	ep.Client = cortex.client(cortexclient.ModeCache)
+
+	stats, err := service.CrawlFUESCatalogs(ctx, db, ep, pace(), time.Now())
+	finishCrawl("crawl-fues-catalogs", stats, err)
+}
+
 // runCrawlQISModules archives the QIS module descriptions, the source the catalog
 // is maintained in.
 func runCrawlQISModules(ctx context.Context, args []string) {

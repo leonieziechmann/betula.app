@@ -24,6 +24,7 @@
 use folia_calendar::day::Day;
 use folia_design::modal::{kept, Modal, ModalHead, ModalSize};
 use folia_design::nav;
+use folia_design::haptic::TapTick;
 use folia_design::ui::Icon;
 use folia_routes::url::{self, BookmarksUrl, CollectionView};
 use folia_stores::bookmarks::{share_fragment, Bookmarks, Brought, ListPart};
@@ -409,9 +410,10 @@ pub(crate) fn ListShareDialog(open: RwSignal<Option<u32>>) -> impl IntoView {
             <section class="sh-grp">
                 <h3 class="sh-label">{d.along}</h3>
                 <p class="sh-always"><b>{d.always}</b>" "{if whole { d.always_collections } else { d.always_modules }}</p>
-                <button type="button" class="sh-sw" id="sh-notes" role="switch" aria-checked=move || if notes_on.get() { "true" } else { "false" } on:click=move |_| choice.update(|c| c.notes = !c.notes)>
+                <button type="button" class="sh-sw tap-host" id="sh-notes" role="switch" aria-checked=move || if notes_on.get() { "true" } else { "false" } on:click=move |_| choice.update(|c| c.notes = !c.notes)>
                     <span class="track"></span>
                     <span class="t"><b>{d.notes}</b><span>{(d.notes_count)(note_count)}</span></span>
+                    <TapTick/>
                 </button>
             </section>
         };

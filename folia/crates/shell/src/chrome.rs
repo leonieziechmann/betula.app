@@ -13,12 +13,13 @@ use crate::i18n::{self, use_location};
 use crate::languages;
 use crate::pending::Pending;
 use crate::tabs::{Area, TabAgain, Tabs};
+use folia_design::haptic::{self, Haptic};
 use folia_design::nav;
 use folia_design::ui::{self, Icon};
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::collections::Collections;
 use folia_stores::myprogram::{program_name, MineResolved};
-use folia_stores::profiles::{Avatar, Profiles, MAX_NAME, MAX_PROFILES};
+use folia_stores::profiles::{Avatar, Profiles, SyncMark, MAX_NAME, MAX_PROFILES};
 use folia_stores::sync::State as SyncState;
 use folia_stores::studyplan::Studyplan;
 
@@ -730,7 +731,7 @@ pub fn ProfileSwitcher() -> impl IntoView {
                     <button class="pm-item" type="button" role="radio" aria-checked=if on { "true" } else { "false" } node_ref=node on:click=move |_| choose(id)>
                         <Avatar profile=profile.clone()/>
                         <span class="pm-item-text">
-                            <b>{profile.shown(t.locale)}</b>
+                            <span class="pm-item-name"><b>{profile.shown(t.locale)}</b><SyncMark id/></span>
                             <small>{line}</small>
                         </span>
                         <Icon name="check"/>
@@ -758,6 +759,7 @@ pub fn ProfileSwitcher() -> impl IntoView {
             menu.close();
             // The menu goes at once; the profile, and every store reading its empty texts, after
             // the next frame (R21).
+            haptic::play(Haptic::Success);
             nav::after_paint(move || {
                 profiles.create(&typed);
             });
@@ -874,17 +876,22 @@ impl Theme {
 /// second round, folia/design/profil/konzepte.html: B's menu; owner, 2026-11-08: „die profil
 /// unabhängigen einstellungen wo anders hin. Also sowas wie sprache und system theme. Maybe die
 /// beiden sogar in quick access"): light, dark or the system's as three small buttons, each named
-/// for those who do not see it and in its tooltip; the language as its code. Light and dark are set
-/// by `enhance.js` (`data-action="theme-set"`), which keeps them as the switch in the rail does and
-/// says so (`betula:theme`); the menu stays open. Another language is another address, and so a page
-/// load (`languages`).
+/// for those who do not see it and in its tooltip; the language as its code; and where the device
+/// can vibrate (a phone, `html.haptics`, app.css), a row under them with the switch for vibrations
+/// (`folia_design::haptic`; owner, 2026-11-17), whose switching on is felt. Light and dark
+/// and the vibrations are set by `enhance.js` (`data-action="theme-set"`, `"haptics-set"`), which
+/// keeps them as the switch in the rail does and says so (`betula:theme`, `betula:haptics`); the
+/// menu stays open. Another language is another address, and so a page load (`languages`).
 #[component]
 fn Preferences() -> impl IntoView {
     let t = i18n::t();
     let theme = RwSignal::new(Theme::kept());
+    let haptics = RwSignal::new(haptic::on());
     // Effects run in the browser only.
     Effect::new(move |_| {
         let handle = window_event_listener_untyped("betula:theme", move |_| theme.set(Theme::kept()));
+        on_cleanup(move || handle.remove());
+        let handle = window_event_listener_untyped("betula:haptics", move |_| haptics.set(haptic::on()));
         on_cleanup(move || handle.remove());
     });
     let checked = move |on: bool| if on { "true" } else { "false" };
@@ -899,6 +906,12 @@ fn Preferences() -> impl IntoView {
             </div>
             <languages::LanguageChoice/>
         </div>
+        <button class="tab-menu-way pm-haptics tap-host" type="button" role="switch" data-action="haptics-set" data-haptics-value=move || if haptics.get() { "off" } else { "on" } aria-checked=move || checked(haptics.get())>
+            {move || if haptics.get() { view! { <Icon name="vibrate"/> } } else { view! { <Icon name="vibrate-off"/> } }}
+            <span>{t.app.haptics}</span>
+            <span class="collect-switch" aria-hidden="true"></span>
+            <haptic::TapTick/>
+        </button>
     }
 }
 

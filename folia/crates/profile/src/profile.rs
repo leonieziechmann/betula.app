@@ -39,7 +39,7 @@ use folia_plans::study;
 use folia_routes::url;
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::myprogram::{program_name, MineResolved, MyProgram};
-use folia_stores::profiles::{Avatar, Backup, Cleared, Deleted, NoBackup, Profile, Profiles, Summary, MAX_NAME, MAX_PROFILES};
+use folia_stores::profiles::{Avatar, Backup, Cleared, Deleted, NoBackup, Profile, Profiles, Summary, SyncMark, MAX_NAME, MAX_PROFILES};
 use folia_stores::studyplan::{Saved, Studyplan};
 use leptos::prelude::*;
 use folia_design::stage::Title;
@@ -48,6 +48,7 @@ use crate::confirm::{Confirm, Question};
 use crate::i18n::{self, Texts};
 use folia_data::use_ask;
 use folia_design::format;
+use folia_design::haptic::{self, Haptic};
 use folia_design::nav;
 use folia_design::ui::Icon;
 use folia_shell::frame::Frame;
@@ -217,6 +218,19 @@ fn Notice(note: RwSignal<Option<Note>>) -> impl IntoView {
         }
         note.set(None);
     };
+    // What was done is felt as it is said: a profile made or taken over from a file as success, one
+    // deleted or emptied lightly (it can be taken back). Not what was said before the page came.
+    Effect::new(move |seen: Option<()>| {
+        let felt = note.with(|note| {
+            note.as_ref().map(|note| match note {
+                Note::Created(_) | Note::Opened(_) => Haptic::Success,
+                Note::Deleted(..) | Note::Cleared(_) => Haptic::Tap,
+            })
+        });
+        if let (Some(()), Some(felt)) = (seen, felt) {
+            haptic::play(felt);
+        }
+    });
     move || {
         note.get().map(|now| {
             let (icon, said, undoable) = match &now {
@@ -229,7 +243,7 @@ fn Notice(note: RwSignal<Option<Note>>) -> impl IntoView {
                 <div class="offer pf-note" role="status">
                     <Icon name=icon/>
                     <p>{said}</p>
-                    {undoable.then(|| view! { <button class="mini hit" type="button" id=UNDO_ID on:click=undo>{t.common.undo}</button> })}
+                    {undoable.then(|| view! { <button data-haptic="tap" class="mini hit" type="button" id=UNDO_ID on:click=undo>{t.common.undo}</button> })}
                     <button class="mini hit" type="button" on:click=move |_| note.set(None)>{p.ok}</button>
                 </div>
             }
@@ -403,36 +417,65 @@ fn Stats(kept: Kept) -> impl IntoView {
     }
 }
 
-/// A row of „Daten" and of the Gefahrenzone: its icon on a tile, what it does and a sentence, a
-/// button of one width with the same icon.
+/// A row of „Daten", of the Gefahrenzone and of Betula Sync (owner, 2026-11-17, of the profile
+/// page: „da sind die Buttons etwas komisch aligned. Das kann einfach ordentlicher aussehen"): its
+/// icon on a tile, what it does and a sentence, a button of one width at the right with the same
+/// icon (wider only where its word is longer). `primary`: the one emphasized button of a part
+/// („Gerät verbinden"). `name`: the button's name for those who do not see it, where its word
+/// alone says too little („Beenden" of „Sync beenden"). `href`: a link instead of a button.
+/// `class`: the row's (`only-desk`, `only-phone`). `expanded` asks a question in a menu at the
+/// button (`confirm`), or with `disclosure` opens something below the row.
 #[component]
-fn ActionRow(
+pub(crate) fn ActionRow(
     icon: &'static str,
     #[prop(into)] title: Signal<String>,
     #[prop(into)] line: Signal<String>,
     #[prop(into)] label: Signal<String>,
     id: &'static str,
     #[prop(optional)] danger: bool,
+    #[prop(optional)] primary: bool,
+    #[prop(optional)] class: &'static str,
+    #[prop(optional)] name: Option<&'static str>,
+    #[prop(optional, into)] href: Option<String>,
     #[prop(optional, into)] disabled: Signal<Option<&'static str>>,
     #[prop(optional, into)] expanded: Option<Signal<bool>>,
-    on_press: Callback<()>,
+    #[prop(optional)] disclosure: bool,
+    #[prop(optional, into)] on_press: Option<Callback<()>>,
 ) -> impl IntoView {
-    view! {
-        <div class="pf-arow">
-            <span class="pf-tile" class:danger=danger aria-hidden="true"><Icon name=icon/></span>
-            <span class="pf-arow-text"><b>{title}</b><span>{line}</span></span>
+    let look = format!("btn {} pf-abtn{}", if primary { "primary" } else { "secondary" }, if danger { " danger" } else { "" });
+    let control = match href {
+        Some(href) => view! {
+            <a class=look id=id href=href rel="nofollow" aria-label=name>
+                <Icon name=icon/><span>{label}</span>
+            </a>
+        }
+        .into_any(),
+        None => view! {
             <button
-                class=if danger { "btn secondary pf-abtn danger" } else { "btn secondary pf-abtn" }
+                class=look
                 type="button"
                 id=id
+                aria-label=name
                 aria-disabled=move || disabled.get().map(|_| "true")
                 title=move || disabled.get()
-                aria-haspopup=expanded.map(|_| "dialog")
+                aria-haspopup=expanded.filter(|_| !disclosure).map(|_| "dialog")
                 aria-expanded=move || expanded.map(|open| if open.get() { "true" } else { "false" })
-                on:click=move |_| on_press.run(())
+                on:click=move |_| {
+                    if let Some(on_press) = on_press {
+                        on_press.run(());
+                    }
+                }
             >
                 <Icon name=icon/><span>{label}</span>
             </button>
+        }
+        .into_any(),
+    };
+    view! {
+        <div class=if class.is_empty() { "pf-arow".to_string() } else { format!("pf-arow {class}") }>
+            <span class="pf-tile" class:danger=danger aria-hidden="true"><Icon name=icon/></span>
+            <span class="pf-arow-text"><b>{title}</b><span>{line}</span></span>
+            {control}
         </div>
     }
 }
@@ -630,7 +673,7 @@ fn ProfileList() -> impl IntoView {
                         <button class="pf-item" type="button" role="radio" aria-checked=move || if on.get() { "true" } else { "false" } on:click=move |_| switch(id)>
                             <Avatar profile/>
                             <span class="pf-item-text">
-                                <b>{shown}</b>
+                                <span class="pf-item-name"><b>{shown}</b><SyncMark id/></span>
                                 <small>{line}</small>
                             </span>
                             <Icon name="check"/>
@@ -763,6 +806,12 @@ fn OpenFile(note: RwSignal<Option<Note>>) -> impl IntoView {
     let input = NodeRef::<leptos::html::Input>::new();
     // What a file picked holds, until it is taken over or put aside.
     let offer = RwSignal::new(None::<Result<Backup, Refused>>);
+    // A file refused is felt as what cannot be.
+    Effect::new(move |_| {
+        if offer.with(|offer| matches!(offer, Some(Err(_)))) {
+            haptic::play(Haptic::Error);
+        }
+    });
     let pick = move |_| {
         offer.set(None);
         #[cfg(feature = "csr")]

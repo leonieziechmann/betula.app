@@ -2248,7 +2248,8 @@ pub struct ImportFs {
 ///
 /// Every row whose span (`plan::semester_span`) ends at or after `from_fs` is taken, at
 /// Fachsemester `max(span start, from_fs)`: a row over several semesters stands once, in the first
-/// of them that is taken. A row naming a module plans that module; one the plan holds in any
+/// of them that is taken — the thesis in the last of its span, where it is due (`plan::due_span`).
+/// A row naming a module plans that module; one the plan holds in any
 /// semester is left out and counted as „schon geplant", and one the plan names twice is taken or
 /// counted once, at its first Fachsemester. Every other row becomes a placeholder under its own name,
 /// credits, kind, span and the caption of its plan; one whose row (`program_id`, `ord`) has a
@@ -2263,7 +2264,7 @@ pub fn import(doc: &PlanDoc, program_id: &str, core: &PlanVariant, page: Option<
     let mut rows: Vec<(u8, SemesterKey, &PlanVariant, &PlanEntry)> = Vec::new();
     for (variant, filled) in parts {
         for entry in variant.entries.iter().filter(|entry| Some(entry.ord) != filled) {
-            let Some((first, last)) = plan::semester_span(entry) else { continue };
+            let Some((first, last)) = plan::due_span(entry) else { continue };
             if last < i64::from(from_fs) {
                 continue;
             }
@@ -2354,8 +2355,9 @@ pub(crate) fn row_placeholder(program_id: &str, variant: &PlanVariant, entry: &P
 /// placeholder, unless its row has one in the semester already. A row over several Fachsemester
 /// comes with each of them, into the semester it is taken over into (owner, 2026-09-26: „nur dem
 /// ersten Semester zugeordnet" was wrong), and its placeholders there count together
-/// (`PlanDoc::same_row`). Rows of prose never come. `page` as in `import`. So taking the same
-/// Fachsemester twice adds nothing.
+/// (`PlanDoc::same_row`); the thesis comes with the last of its span alone, where it is due
+/// (`plan::due_span`; owner, 2026-11-17: „eigentlich erst am schluss"). Rows of prose never come.
+/// `page` as in `import`. So taking the same Fachsemester twice adds nothing.
 pub fn import_fs(doc: &PlanDoc, program_id: &str, core: &PlanVariant, page: Option<(&PlanVariant, i64)>, semester: SemesterKey, fs: u8) -> Import {
     let parts = std::iter::once((core, page.map(|(_, filled)| filled))).chain(page.map(|(page, _)| (page, None)));
     let mut out = Import::default();
@@ -2363,7 +2365,7 @@ pub fn import_fs(doc: &PlanDoc, program_id: &str, core: &PlanVariant, page: Opti
     let mut taken: BTreeSet<&str> = BTreeSet::new();
     for (variant, filled) in parts {
         for entry in variant.entries.iter().filter(|entry| Some(entry.ord) != filled) {
-            let Some((first, last)) = plan::semester_span(entry) else { continue };
+            let Some((first, last)) = plan::due_span(entry) else { continue };
             if !(first..=last).contains(&i64::from(fs)) {
                 continue;
             }
@@ -4424,6 +4426,7 @@ town	cottbus
             courses: 0,
             choices: Vec::new(),
             marks: None,
+            fues_note: None,
         }
     }
 
@@ -4541,6 +4544,33 @@ town	cottbus
         assert_eq!((again.modules.len(), again.placeholders.len(), again.skipped), (1, 0, 1));
     }
 
+    /// The thesis over two Fachsemester comes with the last of them alone (owner, 2026-11-17:
+    /// „eigentlich erst am schluss"), named by a module or not; the whole plan taken over puts it
+    /// there too.
+    #[test]
+    fn the_thesis_comes_with_the_last_fachsemester_of_its_span() {
+        let thesis = |ord: i64, id: Option<&str>| PlanEntry { module_id: id.map(str::to_string), kind: Some(Code::Known(ModuleKind::Thesis)), ..plan_row(ord, "Bachelor-Arbeit", (5, 6), "") };
+        let (w, s, program) = (key("2027W"), key("2028S"), "079-82-2008");
+        for id in [Some("10012"), None] {
+            let entries = vec![PlanEntry { module_id: Some("10005".to_string()), ..plan_row(1, "Modul 10005", (5, 6), "") }, thesis(2, id)];
+            let core = plan_variants(&entries, &[], Locale::De).remove(0);
+            let doc = PlanDoc::default();
+            let fifth = import_fs(&doc, program, &core, None, w, 5);
+            assert_eq!((fifth.modules.clone(), fifth.placeholders.len()), (vec![(w, "10005".to_string())], 0), "{id:?}");
+            let sixth = import_fs(&doc, program, &core, None, s, 6);
+            match id {
+                Some(id) => assert_eq!(sixth.modules, [(s, "10005".to_string()), (s, id.to_string())]),
+                // Its placeholder keeps the span the plan prints.
+                None => assert_eq!(sixth.placeholders.iter().map(|p| (p.semester, p.ord, p.span)).collect::<Vec<_>>(), [(s, 2, (5, 6))]),
+            }
+            let all = import(&doc, program, &core, None, key("2025W"), 1);
+            match id {
+                Some(id) => assert_eq!(all.modules, [(w, "10005".to_string()), (s, id.to_string())]),
+                None => assert_eq!(all.placeholders.iter().map(|p| p.semester).collect::<Vec<_>>(), [s]),
+            }
+        }
+    }
+
     /// The design's pinned imports (C.19) on the snapshot they were taken from; on any snapshot,
     /// every plan of every program taken over twice adds nothing the second time, reads back
     /// whole, and finds each of its placeholders' rows again.
@@ -4615,7 +4645,8 @@ town	cottbus
         let fs3 = import(&PlanDoc::default(), "079-82-2008", plan, None, key("2025W"), 3);
         let modules = |s: &str| fs3.modules.iter().filter(|(k, _)| *k == key(s)).map(|(_, id)| id.clone()).collect::<Vec<_>>();
         let rows = |s: &str| fs3.placeholders.iter().filter(|p| p.semester == key(s)).map(|p| p.ord).collect::<Vec<_>>();
-        assert_eq!((modules("2026W"), modules("2027S"), modules("2027W")), (vec!["11787".to_string(), "12202".to_string(), "11213".to_string()], vec!["12204".to_string(), "12214".to_string()], vec!["12333".to_string()]));
+        // The Bachelor-Arbeit of the 5.–6. FS in the sixth, where it is due (`plan::due_span`).
+        assert_eq!((modules("2026W"), modules("2027S"), modules("2027W"), modules("2028S")), (vec!["11787".to_string(), "12202".to_string(), "11213".to_string()], vec!["12204".to_string(), "12214".to_string()], Vec::new(), vec!["12333".to_string()]));
         assert_eq!((rows("2026W"), rows("2027S"), rows("2027W")), (vec![15], vec![14, 16, 18], vec![19, 20, 21, 22]));
         assert_eq!(fs3.modules.len() + fs3.placeholders.len(), 14);
 

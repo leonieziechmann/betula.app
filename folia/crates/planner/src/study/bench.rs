@@ -59,7 +59,7 @@ use folia_model::rows::{CatalogRow, Prerequisite};
 use folia_pages::ask::{FitAsk, StudyModulesAsk};
 use folia_pages::FitResult;
 use folia_plans::bench::{self as model, Bench as Groups, Due, Group, GroupKind};
-use folia_plans::choices::{self, PlanView, RowState};
+use folia_plans::choices::{self, PlanLine, PlanView, RowState};
 use folia_plans::study::{self, Offer, Pick, Subject};
 use folia_plans::studyplan::{PlanDoc, RowRef};
 use folia_plans::variants;
@@ -69,6 +69,7 @@ use leptos::prelude::*;
 
 use folia_data::use_ask;
 use folia_design::combobox::{ComboItem, Select};
+use folia_design::haptic::TapTick;
 use folia_design::ui::Icon;
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::studyplan::BenchAim;
@@ -296,6 +297,9 @@ pub(super) struct Model {
     pub due: Due,
     /// The semester's Fachsemester.
     pub fs: Option<u8>,
+    /// The semester of each Fachsemester of the plan (`study::semester_of_fs`), by which a choice
+    /// says what it holds by then (`choice_fill`).
+    pub ends: Vec<(u8, SemesterKey)>,
 }
 
 pub(super) fn model_of(ctx: StudyCtx, s: SemesterKey) -> Option<Model> {
@@ -306,7 +310,9 @@ pub(super) fn model_of(ctx: StudyCtx, s: SemesterKey) -> Option<Model> {
         let fs = study.semester(s).and_then(|semester| semester.fs);
         let now_fs = study.semester(study.now).and_then(|semester| semester.fs);
         let due = Due::of(&view, fs, now_fs);
-        Model { view, groups, due, fs }
+        let last = view.lines.iter().map(|line| line.last).max().unwrap_or(0);
+        let ends = (1..=last).filter_map(|fs| study::semester_of_fs(input.start, fs, input.leave).map(|semester| (fs, semester))).collect();
+        Model { view, groups, due, fs, ends }
     })
 }
 
@@ -844,6 +850,21 @@ fn group_catalog(ctx: StudyCtx, model: &Model, group: &Group, s: SemesterKey, t:
     })
 }
 
+/// „insgesamt 12 LP": what a choice asks in all (`Choice::credits_text`), beside what it asks by the
+/// semester's Fachsemester where that is less.
+fn in_all(credits: &str, t: &Texts) -> String {
+    (t.study_bench.in_all)(&(t.study.credits)(&folia_plans::plan::credits_in(credits, t.locale)))
+}
+
+/// The Fachsemester the plan prints for a row: „5. FS", „5. und 6. FS" of one over both (the
+/// Bachelor-Arbeit, which stands in the sixth: `PlanLine::due`).
+fn fs_of(line: &PlanLine, t: &Texts) -> String {
+    match line.first == line.last {
+        true => (t.study.fs)(line.first),
+        false => (t.study.fs_span)(line.first, line.last),
+    }
+}
+
 /// „Vormerken": a row of the plan put into `s` without a module (a placeholder), then its module
 /// choice in front (`choose_for`; on a phone the sheet all up for it, as a step into a list is).
 fn reserve(ctx: StudyCtx, s: SemesterKey, caption: String, ord: i64, name: String, ev: &leptos::ev::MouseEvent, t: &'static Texts) {
@@ -878,7 +899,7 @@ fn plan_rows(ctx: StudyCtx, parts: Parts, model: &Model, s: SemesterKey, t: &'st
             .filter(|(_, group, _)| group.and_then(|(area, kind)| model.groups.find(area, kind)).and_then(|at| model.groups.groups.get(at)).and_then(Group::choice).is_none_or(|choice| !listed.contains(&choice)))
             .map(|(name, group, held)| reserved_card(ctx, name, group, held, t)),
     );
-    let plan_fs_of = |at: usize| model.view.lines.get(at).map(|line| (b.plan_fs)(&(t.study.fs)(line.first)));
+    let plan_fs_of = |at: usize| model.view.lines.get(at).map(|line| (b.plan_fs)(&fs_of(line, t)));
     rows.extend(model.due.earlier.iter().filter(|at| still_open(ctx, model, **at, s)).filter_map(|at| plan_line(ctx, parts, model, *at, plan_fs_of(*at), s, t)));
     rows.extend(retake_lines(ctx, parts, model, s, t));
     rows.extend(model.due.earlier_choices.iter().filter_map(|at| choice_card(ctx, model, *at, s, t)));
@@ -979,7 +1000,7 @@ fn PflichtPane(ctx: StudyCtx, parts: Parts, at: usize) -> impl IntoView {
             .iter()
             .filter_map(|at| {
                 let line = model.view.lines.get(*at)?;
-                let fs = (t.study.fs)(line.first);
+                let fs = fs_of(line, t);
                 let sub = match line.state {
                     RowState::Passed(_) => (b.passed_fs)(&fs),
                     _ => (b.plan_fs)(&fs),
@@ -1020,8 +1041,13 @@ fn ListPane(ctx: StudyCtx, parts: Parts, group: Option<usize>) -> impl IntoView 
     let head = move || {
         let model = parts.model.get()?;
         Some(match (group.and_then(|at| model.groups.groups.get(at)), choice.get()) {
-            (Some(_), Some(choice)) => {
+            (Some(found), Some(choice)) => {
                 let mut rule = vec![(b.plan_fs)(&(t.study.fs_span)(choice.first, choice.last))];
+                // The figure over it says what is asked by this semester: what the choice asks
+                // in all, where that is more.
+                if let Some(whole) = choice_fill(&model, found).1 {
+                    rule.push(in_all(&whole, t));
+                }
                 if choice.fues {
                     rule.push(b.rule_fues.to_string());
                 }
@@ -1130,8 +1156,8 @@ fn ListPane(ctx: StudyCtx, parts: Parts, group: Option<usize>) -> impl IntoView 
     };
     let switch_chip = move |on: RwSignal<bool>, words: Signal<String>| {
         view! {
-            <button class="st-wb-chip" type="button" role="switch" aria-checked=move || if on.get() { "true" } else { "false" } on:click=move |_| on.update(|on| *on = !*on)>
-                <Icon name="check"/>{move || words.get()}
+            <button class="st-wb-chip tap-host" type="button" role="switch" aria-checked=move || if on.get() { "true" } else { "false" } on:click=move |_| on.update(|on| *on = !*on)>
+                <Icon name="check"/>{move || words.get()}<TapTick/>
             </button>
         }
     };
@@ -1528,12 +1554,13 @@ fn page_name(ctx: StudyCtx, model: &Model, page: Page, short: bool, t: &Texts) -
     }
 }
 
-/// What the head of a page shows beside its name: a subgroup's area's colour, and how far it is.
+/// What the head of a page shows beside its name: a subgroup's area's colour, and how far it is —
+/// a choice by the semester's Fachsemester (`choice_fill`), as its card says it.
 fn page_fill(ctx: StudyCtx, model: &Model, page: Page) -> (Option<&'static str>, Option<Fill>) {
     match page {
         Page::Group(area, kind) => {
             let tone = ctx.with_ready(|ready| ready.tone(Some(area)));
-            let fill = model.groups.find(area, kind).and_then(|at| model.groups.groups.get(at)).map(|group| group_fill(model, group));
+            let fill = model.groups.find(area, kind).and_then(|at| model.groups.groups.get(at)).map(|group| choice_fill(model, group).0);
             (tone, fill)
         }
         Page::Areas | Page::Marked => (None, None),
@@ -1571,6 +1598,19 @@ fn group_fill(model: &Model, group: &Group) -> Fill {
             Fill { passed, planned, least: choice.least, most: choice.most.max(choice.least) }
         }
     }
+}
+
+/// A subgroup's fill in the workbench of a semester: a choice by the semester's Fachsemester —
+/// what it asks by then and what of it is passed or planned by then (`PlanView::by`; owner,
+/// 2026-11-17: „nur so viele lp anzeigen, wie bis zu dem semester schon erledigt sein sollten") —,
+/// and what the choice asks in all where that is more („insgesamt 12 LP", said beside it). A
+/// semester without a Fachsemester (of leave, before the study) and an area's Pflicht have the
+/// whole (`group_fill`), as the tree of „Alle Bereiche" has every subgroup: that is the study.
+fn choice_fill(model: &Model, group: &Group) -> (Fill, Option<String>) {
+    let (GroupKind::Choice(at), Some(fs)) = (group.kind, model.fs) else { return (group_fill(model, group), None) };
+    let by = model.view.by(at, fs, |fs| model.ends.iter().find(|(known, _)| *known == fs).map(|(_, semester)| *semester));
+    let whole = by.part.then(|| model.view.choices.get(at).map(|choice| choice.credits_text.clone())).flatten();
+    (Fill { passed: by.passed, planned: by.planned, least: by.least, most: by.most }, whole)
 }
 
 /// An area's fill, as the overview counts it.
@@ -1977,19 +2017,23 @@ fn choice_card(ctx: StudyCtx, model: &Model, choice: usize, s: SemesterKey, t: &
     let item = model.view.choices.get(choice)?;
     let (area, kind) = (group.area, group.kind);
     let (area_name, tone) = ctx.with_ready(|ready| (ready.area_name(Some(area), t), ready.tone(Some(area))))?;
-    let fill = group_fill(model, group);
+    let (fill, whole) = choice_fill(model, group);
     let span = (b.plan_fs)(&(t.study.fs_span)(item.first, item.last));
+    let whole = whole.map(|credits| in_all(&credits, t));
     let reserved = reserved_of(ctx, model, s).iter().any(|(_, of, _)| *of == Some((area, kind)));
     let name = model::short_name(&item.name);
+    // Done: the choice as a whole, or by this semester what it asks by then.
+    let done = item.complete() || (fill.least > 0.0 && fill.passed + fill.planned + 0.01 >= fill.least);
     Some(
         view! {
-            <li class="st-wb-row choice" class:is-done=item.complete() style=format!("--c: {tone}")>
+            <li class="st-wb-row choice" class:is-done=done style=format!("--c: {tone}")>
                 <button class="st-wb-go" type="button" title=item.name.clone() on:click=move |ev| into_group(ctx, area, kind, &ev)>
                     <span class="st-wb-ct"><b>{name}</b>{fill_figure(fill, t)}</span>
                     {fill_bar(fill)}
                     <small>
                         <span class="st-area"><span class="st-dot"></span>{area_name}</span>
                         <span>{span}</span>
+                        {whole.map(|whole| view! { <span class="st-wb-all">{whole}</span> })}
                         {reserved.then(|| view! { <span class="st-wb-tag">{b.reserved_mark}</span> })}
                     </small>
                 </button>
@@ -2154,7 +2198,7 @@ pub(super) fn counts_choices(ctx: StudyCtx, s: SemesterKey, id: &str, all: bool,
             if groups.groups.is_empty() {
                 return None;
             }
-            let model = Model { due: Due::default(), fs: None, view, groups };
+            let model = Model { due: Due::default(), fs: None, ends: Vec::new(), view, groups };
             let now = model::counted_in(&model.groups, &model.view, id, s);
             let stored = ctx.plan.is_some_and(|plan| plan.with(|doc| doc.counts_of(s, id).is_some() || doc.modules.iter().any(|m| m.semester == s && m.module_id == id && m.fills.is_some())));
             let targets: Vec<Target> = model

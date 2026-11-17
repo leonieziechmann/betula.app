@@ -33,6 +33,7 @@ use folia_plans::study::{self, Item, Subject, When};
 use folia_routes::url::StudyplanUrl;
 use leptos::prelude::*;
 
+use folia_design::haptic::{self, Haptic};
 use folia_design::nav;
 use folia_design::ui::Icon;
 
@@ -257,6 +258,17 @@ fn visit_name(ctx: StudyCtx, s: SemesterKey, id: &str) -> String {
 /// selected are done with then.
 pub(super) fn act(ctx: StudyCtx, act: Act, t: &'static Texts) {
     let s = &t.study;
+    // What changes the plan is felt as the Merkliste's and „Einplanen"'s changes are
+    // (folia_design::haptic): passed and moved as done, taken out or away lightly.
+    let felt = match &act {
+        Act::Passed { passed: true, .. } | Act::Move { .. } => Some(Haptic::Success),
+        Act::Passed { passed: false, .. } | Act::Remove { .. } | Act::MakeVisit { .. } | Act::CountVisit { .. } | Act::Unvisit { .. } | Act::RemoveSemester(_) => Some(Haptic::Tap),
+        Act::Leave { .. } => Some(Haptic::Tick),
+        _ => None,
+    };
+    if let Some(felt) = felt {
+        haptic::play(felt);
+    }
     match act {
         Act::MakeVisit { semester, key } => {
             let Some(item) = items_of(ctx, semester, std::slice::from_ref(&key)).into_iter().next() else { return };
@@ -756,7 +768,7 @@ pub(super) fn MenuHost(ctx: StudyCtx) -> impl IntoView {
             let (x, y) = place_beside((left, top), entry_top, size, view_size);
             let label = title.clone();
             Some(view! {
-                <div data-sheet="auto" class="st-pop sub" role="menu" aria-label=label style=format!("--x:{x:.0}px;--y:{y:.0}px") on:keydown=sub_keys on:pointerenter=move |_| stay()>
+                <div data-sheet="menu" class="st-pop sub" role="menu" aria-label=label style=format!("--x:{x:.0}px;--y:{y:.0}px") on:keydown=sub_keys on:pointerenter=move |_| stay()>
                     <button class="st-pop-back st-phone" type="button" on:click=move |_| close_sub()><Icon name="chevron-left"/><span>{title}</span></button>
                     {sub_entries.into_iter().map(|sub_entry| entry(None, sub_entry)).collect_view()}
                 </div>
@@ -765,7 +777,7 @@ pub(super) fn MenuHost(ctx: StudyCtx) -> impl IntoView {
         let (title, label) = (content.title.clone(), content.title.clone());
         Some(view! {
             <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close() on:contextmenu=move |ev: leptos::ev::MouseEvent| { ev.prevent_default(); close(); } on:wheel=move |_| ctx.menu.set(None)></div>
-            <div data-sheet="auto" class="st-pop root" class:has-sub=move || sub.get().is_some() role="menu" aria-label=label style=format!("--x:{left:.0}px;--y:{top:.0}px;--w:{width:.0}px") on:keydown=root_keys>
+            <div data-sheet="menu" class="st-pop root" class:has-sub=move || sub.get().is_some() role="menu" aria-label=label style=format!("--x:{left:.0}px;--y:{top:.0}px;--w:{width:.0}px") on:keydown=root_keys>
                 <p class="st-pop-title st-phone">{title}</p>
                 {content.entries.into_iter().enumerate().map(|(i, root_entry)| entry(Some(i), root_entry)).collect_view()}
             </div>

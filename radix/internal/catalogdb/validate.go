@@ -227,8 +227,23 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 	v.count("curricular pairs only the tree states", StatusInfo, "SELECT COUNT(*) FROM program_module WHERE relation = 'curricular' AND in_tree = 1 AND on_module_page = 0", "")
 	v.count("curricular pairs only the module page states", StatusInfo, "SELECT COUNT(*) FROM program_module WHERE relation = 'curricular' AND in_tree = 0 AND in_plan = 0", "")
 	v.count("curricular pairs without any stated kind", StatusInfo, "SELECT COUNT(*) FROM program_module WHERE relation = 'curricular' AND kind IS NULL", "")
+	// What the pages state: a FÜS module that the FÜS catalog of the current semester does not hold
+	// names no program but those it is curricular in (migration 0022).
 	v.count("FÜS modules whose page admits no program", StatusInfo,
-		"SELECT COUNT(*) FROM module m WHERE m.is_fues = 1 AND NOT EXISTS (SELECT 1 FROM program_module pm WHERE pm.module_id = m.id)", "")
+		"SELECT COUNT(*) FROM module m WHERE m.is_fues = 1 AND NOT EXISTS (SELECT 1 FROM module_program_ref r WHERE r.module_id = m.id AND r.resolve_status <> 'abroad')", "")
+
+	// The BTU's FÜS catalogs (docs/radix/schema-v2.md, „FÜS catalogs"). Without the newest catalog
+	// of a season the FÜS lists lack that season's modules; without any they are what the pages
+	// admit. A heading that names no program leaves that program's negative list out.
+	v.count("FÜS catalogs read", StatusInfo, "SELECT COUNT(*) FROM fues_catalog_document", "")
+	v.count("seasons without a FÜS catalog", StatusWarn, "SELECT 2 - COUNT(*) FROM v_fues_season", "")
+	const unnamed = ` FROM fues_catalog_heading h JOIN v_fues_season s ON s.semester = h.semester WHERE h.programs = 0`
+	v.count("headings of the FÜS catalogs that name no program", StatusWarn, "SELECT COUNT(*)"+unnamed, "SELECT h.semester || ': ' || h.heading"+unnamed+" ORDER BY 1")
+	v.count("FÜS pairs a module page states that the FÜS catalogs do not admit", StatusInfo, `
+		SELECT COUNT(*) FROM (SELECT DISTINCT a.program_id, a.module_id FROM program_module_assertion a JOIN module m ON m.id = a.module_id
+		WHERE a.source = 'module_page' AND m.is_fues = 1
+		  AND NOT EXISTS (SELECT 1 FROM program_module pm WHERE pm.program_id = a.program_id AND pm.module_id = a.module_id))`, "")
+	v.count("modules of FÜS lists with a note of a season", StatusInfo, "SELECT COUNT(*) FROM program_fues_note", "")
 	v.count("programs without a short degree label", StatusInfo, "SELECT COUNT(*) FROM program WHERE degree_label IS NULL AND degree_level IN ('bachelor', 'master')", "")
 	v.count("events", StatusInfo, "SELECT COUNT(*) FROM event", "")
 

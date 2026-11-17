@@ -23,7 +23,13 @@
 //! where the catalog puts a module's kind, its marks as the catalog's, and at its end, where the
 //! catalog has the bookmark, its status — planned, under way, passed, not passed („Die merken flag
 //! soll getauscht werden mit einem Status symbol"), the button of the row's menu (`menu.rs`; a right
-//! click opens it too). The whole box is the module's button („Es soll die gesamte modulbox als
+//! click opens it too). On a desktop a row has three lines (owner, 2026-11-17: „Mach das mal so,
+//! dass der titel über die ganze Länge der tabelle gehen kann, darunter dann die stats in den
+//! spalten mit lp, dozent etc. Und darunter wieder full width die notizen/informationen"): its name
+//! across the whole row, the columns under it — its number and area under „Modul" —, and what is
+//! said of it (`.st-notes`: its marks, what it counts for, „Einplanen", a placeholder's bar and
+//! „Modul wählen") across the row again; until then the name and what is said of it shared the
+//! first column, and wrapped there. The whole box is the module's button („Es soll die gesamte modulbox als
 //! button funktionieren"): a click anywhere on it opens the module beside the page, its name no link
 //! of its own that underlines; a row of the plan that names no module leads to its modules in the
 //! catalog („Modul wählen"), and a module planned from there goes into the row's semester and fills
@@ -31,16 +37,23 @@
 //! 2026-10-04: „Das Abhaken von dem Modul ist viel zu einfach"): it is in the menu.
 //!
 //! Rows are selected for what is done to several at once (owner, 2026-10-04: „eine Multiselection
-//! für Bearbeitung"), highlighted and hatched, with no box to tick (owner, 2026-10-19: „Die
-//! selection soll nicht mehr per checkbox umgesetzt werden, sondern per hervorheben/vlt texture
-//! funktionieren"): on a desktop Ctrl or ⌘ and a click selects a row, Shift and a click the rows up
-//! to it, a press drawn from one row over others every row it passes, „Auswählen" in a row's menu
-//! the row; on a phone a long press selects a row, and the finger, held on, every row it is drawn
-//! over. While rows are selected a click on one selects it or lets it go, and a bar marks them as
-//! passed, moves them, takes them out: over the rows on a desktop, in the tab bar's place on a phone
-//! (owner, 2026-10-05: „Mach das mal so, dass die die navbar überdeckt"). Under the rows one more,
-//! „Module hinzufügen"; an empty semester is a mark, „Noch keine Module" and „Module hinzufügen"
-//! right under it (owner, 2026-10-05: „keine Module sollte mit icon und gleich modul hinzufügen
+//! für Bearbeitung"), highlighted and hatched (owner, 2026-10-19: „per hervorheben/vlt texture"),
+//! as lists of mail and of files select (owner, 2026-11-17: „Grundlegend sollte das üblichen design
+//! patterns folgen"). On a desktop each row has a box to tick at its start, which comes when the
+//! pointer comes near — over the row — or the row has the focus, and stays on every row while rows
+//! are selected („eine checkbox, die erst eingeblendet wird, wenn der Cursor der nahe kommt oder
+//! schon ein Element selected ist"; until then, since 2026-10-19, there was none): a click on it
+//! selects the row or lets it go, Shift and a click the rows from the last one clicked, which all
+//! take the state the row takes; Ctrl or ⌘ and a click on the row does what the box does, Shift and
+//! a click there what Shift does at the box, a press drawn from one row (or its box) over others
+//! selects every row it passes, „Auswählen" in a row's menu the row, the box over the columns' heads
+//! all of them. A click on the row itself opens the module, while rows are selected too. On a phone
+//! a long press selects a row, the finger, held on, every row it is drawn over, and while rows are
+//! selected a tap selects or lets go. A bar marks them as passed, moves them, takes them out, its
+//! box ticked where all are and with a dash where some are: over the rows on a desktop, in the tab
+//! bar's place on a phone (owner, 2026-10-05: „Mach das mal so, dass die die navbar überdeckt").
+//! Under the rows one more, „Module hinzufügen"; an empty semester is a mark, „Noch keine Module"
+//! and „Module hinzufügen" right under it (owner, 2026-10-05: „keine Module sollte mit icon und gleich modul hinzufügen
 //! sein"). Nothing of what the plan still has open follows them, on a phone neither (owner,
 //! 2026-10-20: „Ja, auf dem Handy auch raus"; until then a row of the catalog each with a „+"): that
 //! is „Module hinzufügen"'s. The semester's own ⋯ in its head holds the rest: the Stundenplan, all
@@ -58,7 +71,8 @@ use folia_widgets::list::Facts;
 use leptos::ev::{KeyboardEvent, MouseEvent, PointerEvent, TouchEvent};
 use leptos::prelude::*;
 
-use folia_design::ui::Icon;
+use folia_design::haptic::{self, Haptic};
+use folia_design::ui::{Icon, TickMark};
 
 use super::dom;
 use super::menu::{self, Act, MenuFor};
@@ -305,6 +319,13 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
                 } else {
                     view! {
                         <div class="cols label st-cols">
+                            // On a desktop the box of all of them, over the rows' boxes: as theirs,
+                            // it comes when the pointer comes near.
+                            {move || (!ctx.phone.get()).then(|| view! {
+                                <button class="st-sel" type="button" role="checkbox" tabindex="-1" aria-checked="false" aria-label=s.select_all title=s.select_all on:click=move |_| menu::act(ctx, Act::SelectAll(semester), t)>
+                                    <TickMark/>
+                                </button>
+                            })}
                             <span>{c.col_module}</span>
                             <span class="c-resp">{c.col_responsible}</span>
                             <span class="c-exam">{c.exam}</span>
@@ -355,10 +376,12 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
 }
 
 /// The bar of the rows selected (owner, 2026-10-04: „Ich finde die Optionen als bestanden
-/// markieren und Löschen als sinnvoll"): how many and their credits, „Alle auswählen" while some
-/// are not; „Als bestanden markieren" (or taking that back where all of them are), „Verschieben
-/// nach", „Entfernen"; and letting go of them. Over the rows on a desktop, in the tab bar's place on
-/// a phone.
+/// markieren und Löschen als sinnvoll"): on a desktop the box of all of them over the rows' boxes,
+/// with a dash while some are selected — a click selects all — and ticked where all are — a click
+/// lets go (owner, 2026-11-17: „Grundlegend sollte das üblichen design patterns folgen"; until then
+/// „Alle auswählen" was a button of the bar); how many and their credits; „Als bestanden markieren"
+/// (or taking that back where all of them are), „Verschieben nach", „Entfernen"; and letting go of
+/// them. Over the rows on a desktop, in the tab bar's place on a phone.
 #[component]
 fn SelectionBar(ctx: StudyCtx, semester: SemesterKey, keys: Memo<Vec<String>>, chosen: Memo<Vec<String>>) -> impl IntoView {
     let t = i18n::t();
@@ -381,14 +404,27 @@ fn SelectionBar(ctx: StudyCtx, semester: SemesterKey, keys: Memo<Vec<String>>, c
         // Its words in full where the table has room for them, short where it has not (a narrow
         // window, a phone).
         <div class="st-selbar" role="toolbar" aria-label=s.selection>
+            {move || (!ctx.phone.get()).then(|| {
+                let word = move || if some_left.get() { s.select_all } else { s.clear_selection };
+                view! {
+                    <button
+                        class="st-sel"
+                        type="button"
+                        id="st-sel-all"
+                        role="checkbox"
+                        aria-checked=move || if some_left.get() { "mixed" } else { "true" }
+                        aria-label=word
+                        title=word
+                        on:click=move |_| if some_left.get_untracked() { menu::act(ctx, Act::SelectAll(semester), t) } else { ctx.selection.set(Selection::default()) }
+                    >
+                        <TickMark/>
+                    </button>
+                }
+            })}
             <span class="st-selbar-count" aria-live="polite">
                 {move || (s.n_selected)(summary.get().0)}
                 <span class="st-long">{move || format!(" · {}", (s.credits)(&n(summary.get().1, t)))}</span>
             </span>
-            <button class="st-act st-pc" type="button" id="st-sel-all" title=s.select_all aria-label=s.select_all disabled=move || !some_left.get() on:click=move |_| menu::act(ctx, Act::SelectAll(semester), t)>
-                <Icon name="list-checks"/>
-                <span class="st-long">{s.select_all}</span>
-            </button>
             <span class="st-grow"></span>
             <button class="st-act" type="button" id="st-sel-passed" on:click=passed>
                 {move || if all_passed.get() { view! { <Icon name="rotate-ccw"/> }.into_any() } else { view! { <Icon name="circle-check-big"/> }.into_any() }}
@@ -464,6 +500,14 @@ pub(super) fn Glyph(#[prop(into)] status: Signal<Status>) -> impl IntoView {
             <Icon name="x" class="g-failed"/>
         </span>
     }
+}
+
+/// The mark of what stands open: a row of the plan nothing is planned for, the credits an area
+/// asks for that are not planned yet. A ring of dashes (app.css `.st-glyph.open`), as the
+/// Gesamtplan's open pieces are dashed; a ring alone is what is planned.
+#[component]
+pub(super) fn OpenGlyph() -> impl IntoView {
+    view! { <span class="st-glyph open" aria-hidden="true"></span> }
 }
 
 /// What a row shows besides its name.
@@ -639,8 +683,10 @@ fn painted(order: &[String], paint: &Paint, at: usize) -> BTreeSet<String> {
     keys
 }
 
-/// Selects the row `key` of semester `s`, or lets it go.
+/// Selects the row `key` of semester `s`, or lets it go: felt as a step, as a row drawn into the
+/// selection is.
 fn toggle(ctx: StudyCtx, s: SemesterKey, key: &str) {
+    haptic::play(Haptic::Tick);
     ctx.selection.update(|selection| {
         if selection.semester != Some(s) {
             *selection = Selection { semester: Some(s), ..Selection::default() };
@@ -652,16 +698,23 @@ fn toggle(ctx: StudyCtx, s: SemesterKey, key: &str) {
     });
 }
 
-/// Selects the rows from the last one clicked to `key` (Shift), besides those selected.
-fn extend(ctx: StudyCtx, s: SemesterKey, order: &[String], key: &str) {
-    let Some(at) = order.iter().position(|other| other == key) else { return };
+/// What is selected after Shift and a click at row `key` (as lists of mail have it): the rows from
+/// the last one clicked (`anchor`; none, the row alone) to it take the state the row takes —
+/// selected where it was not, let go where it was —, the others stay as they were.
+fn ranged(order: &[String], keys: &BTreeSet<String>, anchor: Option<&str>, key: &str) -> BTreeSet<String> {
+    let Some(at) = order.iter().position(|other| other == key) else { return keys.clone() };
+    let from = anchor.and_then(|anchor| order.iter().position(|other| other == anchor)).unwrap_or(at);
+    painted(order, &Paint { start: from, select: !keys.contains(key), base: keys.clone() }, at)
+}
+
+/// Shift and a click at row `key` of semester `s` (`ranged`); the next range begins there.
+fn range(ctx: StudyCtx, s: SemesterKey, order: &[String], key: &str) {
     ctx.selection.update(|selection| {
         if selection.semester != Some(s) {
             *selection = Selection { semester: Some(s), ..Selection::default() };
         }
-        let from = selection.anchor.as_ref().and_then(|anchor| order.iter().position(|other| other == anchor)).unwrap_or(at);
-        selection.keys.extend(order.get(from.min(at)..=from.max(at)).unwrap_or_default().iter().cloned());
-        selection.anchor.get_or_insert_with(|| key.to_string());
+        selection.keys = ranged(order, &selection.keys, selection.anchor.as_deref(), key);
+        selection.anchor = Some(key.to_string());
     });
 }
 
@@ -734,6 +787,7 @@ impl Draw {
             let held = set_timeout_with_handle(
                 move || {
                     self.hold.set_value(None);
+                    haptic::play(Haptic::Hold);
                     self.paint_from(ctx, s, &order.get_untracked());
                 },
                 HOLD,
@@ -778,6 +832,8 @@ impl Draw {
         let Some(at) = order.iter().position(|other| *other == over) else { return };
         let keys = self.paint.with_value(|paint| paint.as_ref().map(|paint| painted(&order, paint, at)));
         if let Some(keys) = keys.filter(|keys| ctx.selection.with_untracked(|selection| selection.keys != *keys)) {
+            // A row more or less in what is drawn: felt as a step.
+            haptic::play(Haptic::Tick);
             ctx.selection.update(|selection| selection.keys = keys);
         }
     }
@@ -812,13 +868,13 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
     let selecting = Memo::new(move |_| ctx.selection.with(|selection| selection.any_in(semester)));
     let status = Memo::new(move |_| row.with(|row| row.as_ref().map_or(Status::Planned, |row| row.status)));
 
-    // A press on the row: what it draws is the list's (`Draw`). The status, „Modul wählen" and
-    // „Einplanen" do what they say.
+    // A press on the row or on its box to tick: what it draws is the list's (`Draw`). The status,
+    // „Modul wählen" and „Einplanen" do what they say.
     let touched = StoredValue::new(false);
     let down = move |ev: PointerEvent| {
         let touch = ev.pointer_type() == "touch";
         touched.set_value(touch);
-        if ev.button() != 0 || ev.shift_key() || ev.ctrl_key() || ev.meta_key() || (dom::on_control(&ev) && !dom::on_open(&ev)) {
+        if ev.button() != 0 || ev.shift_key() || ev.ctrl_key() || ev.meta_key() || (dom::on_control(&ev) && !dom::on_open(&ev) && !dom::on_box(&ev)) {
             draw.end();
             return;
         }
@@ -828,8 +884,11 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
     // es sein, dass man da dann ein modul auswählen kann. Wenn man das anklickt soll man gleich in dem
     // menu/modal landen, wo man das auswählen kann"): its row of the plan, whose choice its box opens.
     let place = Memo::new(move |_| row.with(|row| row.as_ref().and_then(|row| row.choose.clone())));
-    // A click opens the module (the box is its link), or a placeholder's choice; while rows are
-    // selected, or with Ctrl or ⌘, it selects the row or lets it go, with Shift the rows up to it.
+    // A click opens the module (the box is its link), or a placeholder's choice, while rows are
+    // selected too: on a desktop the box to tick selects (owner, 2026-11-17: „Grundlegend sollte
+    // das üblichen design patterns folgen"). With Ctrl or ⌘ it selects the row or lets it go, with
+    // Shift the rows from the last one clicked (`ranged`); on a phone, while rows are selected, a tap
+    // selects or lets go.
     let click = move |ev: MouseEvent| {
         // Not one of the keys (Enter): those come without a press.
         if ev.detail() != 0 && draw.swallows() {
@@ -841,16 +900,16 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
         }
         if ev.shift_key() {
             ev.prevent_default();
-            extend(ctx, semester, &order.get_untracked(), &key.get_value());
-        } else if ev.ctrl_key() || ev.meta_key() || selecting.get_untracked() {
+            range(ctx, semester, &order.get_untracked(), &key.get_value());
+        } else if ev.ctrl_key() || ev.meta_key() || (selecting.get_untracked() && ctx.phone.get_untracked()) {
             ev.prevent_default();
             toggle(ctx, semester, &key.get_value());
         } else if let Some((caption, ord)) = place.get_untracked().filter(|_| dom::on_open(&ev)) {
             super::bench::enter_row(ctx, semester, &caption, ord);
         }
     };
-    // The space bar on the box selects the row or lets it go (Enter opens it, or does what a click
-    // does while rows are selected); Shift and ↑ ↓ take in the next row (`step`).
+    // The space bar on the row selects it or lets it go (Enter opens it; on a phone, while rows are
+    // selected, it does what a tap does); Shift and ↑ ↓ take in the next row (`step`).
     let keys = move |ev: KeyboardEvent| {
         if !dom::on_open(&ev) || ev.ctrl_key() || ev.meta_key() || ev.alt_key() {
             return;
@@ -868,6 +927,19 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
         ev.prevent_default();
         if let Some(to) = step(ctx, semester, &order.get_untracked(), &key.get_value(), by) {
             dom::focus_row(&to);
+        }
+    };
+    // The box to tick at the row's start, on a desktop: a click selects the row or lets it go, with
+    // Shift the rows from the last one clicked (`ranged`); a press on it drawn over other rows draws
+    // as one on the row does, and the click that ends it is none.
+    let tick = move |ev: MouseEvent| {
+        if ev.detail() != 0 && draw.swallows() {
+            return;
+        }
+        if ev.shift_key() {
+            range(ctx, semester, &order.get_untracked(), &key.get_value());
+        } else {
+            toggle(ctx, semester, &key.get_value());
         }
     };
     // A right click opens the row's menu where the pointer is; a long press of a finger does not.
@@ -916,29 +988,51 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
             on:keydown=keys
             on:contextmenu=context
         >
+            // Not one of the stops of Tab: the space bar on the row does what it does.
+            {move || (!ctx.phone.get()).then(|| view! {
+                <button
+                    class="st-sel"
+                    type="button"
+                    role="checkbox"
+                    tabindex="-1"
+                    draggable="false"
+                    aria-checked=move || if selected.get() { "true" } else { "false" }
+                    aria-label=move || (s.select_row)(&name.get())
+                    on:click=tick
+                >
+                    <TickMark/>
+                </button>
+            })}
             <div class="row" class:st-inert=!opens aria-current=move || current.get().then_some("true")>
                 <div class="t">
                     <b>{title}</b>
                     // The line under the name, as the catalog's: its number, its area where the
-                    // catalog has a module's kind, its marks; where the list is narrow its
-                    // language and its events.
+                    // catalog has a module's kind; where the list is narrow its language and its
+                    // events. On a desktop the first of the columns, under the name across the row.
                     <small>
                         {code.clone().map(|code| view! { <span class="mono">{code}</span> })}
-                        {move || row.get().map(|row| {
-                            let item = row.item.clone();
-                            view! {
-                                <span class="kind st-area"><i style=format!("background: {}", row.tone)></i>{row.area.clone()}</span>
-                                // A module that fills a place says so in its flags already
-                                // („für „Anwendungsfach“", `Item::fills`), not twice.
-                                {item.module_id().filter(|_| item.fills.is_none()).and_then(|id| counted.with(|counted| counted.get(id).cloned())).map(|name| view! { <span class="st-for">{(t.study_bench.for_group)(&name)}</span> })}
+                        {move || row.with(|row| row.as_ref().map(|row| view! {
+                            <span class="kind st-area"><i style=format!("background: {}", row.tone)></i>{row.area.clone()}</span>
+                            {row.facts.narrow()}
+                        }))}
+                    </small>
+                    // What is said of it, under all of that (on a desktop across the row): what it
+                    // counts for, its marks, „Einplanen".
+                    {move || row.get().and_then(|row| {
+                        let item = row.item.clone();
+                        // A module that fills a place says so in its flags already („für
+                        // „Anwendungsfach“", `Item::fills`), not twice.
+                        let counted_for = item.module_id().filter(|_| item.fills.is_none()).and_then(|id| counted.with(|counted| counted.get(id).cloned()));
+                        (counted_for.is_some() || !row.flags.is_empty() || row.again.is_some()).then(|| view! {
+                            <small class="st-notes">
+                                {counted_for.map(|name| view! { <span class="st-for">{(t.study_bench.for_group)(&name)}</span> })}
                                 {row.flags.into_iter().map(|(class, text)| view! { <span class=class>{text}</span> }).collect_view()}
                                 {row.again.map(|to| view! {
                                     <button class="st-link" type="button" on:click=move |ev: MouseEvent| { ev.stop_propagation(); plan_again(ctx, &item, to, t); }>{s.plan_it}</button>
                                 })}
-                                {row.facts.narrow()}
-                            }
-                        })}
-                    </small>
+                            </small>
+                        })
+                    })}
                     // What a placeholder holds of what it asks, where modules fill it in part: its
                     // bar in its area's colour and the words.
                     {move || row.with(|row| row.as_ref().and_then(|row| row.fill.clone())).map(|(share, words)| view! {
@@ -1032,9 +1126,11 @@ fn VisitRow(ctx: StudyCtx, semester: SemesterKey, id: String) -> impl IntoView {
                     </b>
                     <small>
                         <span class="mono">{id.clone()}</span>
+                        {move || facts.with(|facts| facts.narrow())}
+                    </small>
+                    <small class="st-notes">
                         <span class="flag neutral st-visit-line">{s.visit_line}</span>
                         {move || unoffered.get().then(|| view! { <span class="flag">{(s.unoffered)(season_word(semester, t))}</span> })}
-                        {move || facts.with(|facts| facts.narrow())}
                     </small>
                 </div>
                 {move || facts.with(|facts| facts.lead())}
@@ -1150,6 +1246,20 @@ mod tests {
         let off = Paint { start: 2, select: false, base: set(&["a", "b", "c", "d"]) };
         assert_eq!(painted(&order, &off, 3), set(&["a", "b"]));
         assert_eq!(painted(&order, &down, 9), set(&["e"]), "beyond the rows: nothing");
+    }
+
+    /// Shift and a click (as lists of mail have it): the rows from the last one clicked take the
+    /// state the row clicked takes, the others stay; with none clicked before, the row alone.
+    #[test]
+    fn shift_and_a_click_gives_the_range_the_state_of_the_row() {
+        let order: Vec<String> = ["a", "b", "c", "d", "e"].map(String::from).to_vec();
+        let set = |keys: &[&str]| keys.iter().map(|key| key.to_string()).collect::<BTreeSet<_>>();
+        assert_eq!(ranged(&order, &set(&["b"]), Some("b"), "d"), set(&["b", "c", "d"]), "downwards");
+        assert_eq!(ranged(&order, &set(&["d", "e"]), Some("d"), "a"), set(&["a", "b", "c", "d", "e"]), "upwards, the rest kept");
+        assert_eq!(ranged(&order, &set(&["a", "b", "c", "d"]), Some("a"), "c"), set(&["d"]), "a row selected lets go of the range");
+        assert_eq!(ranged(&order, &set(&["e"]), None, "b"), set(&["b", "e"]), "none clicked before: the row alone");
+        assert_eq!(ranged(&order, &set(&["e"]), Some("gone"), "b"), set(&["b", "e"]), "the last one clicked gone: the row alone");
+        assert_eq!(ranged(&order, &set(&["e"]), Some("a"), "x"), set(&["e"]), "no such row: nothing");
     }
 
     /// A module's status: passed wherever it is marked so, not passed in a semester that is over,

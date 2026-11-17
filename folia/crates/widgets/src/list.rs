@@ -13,7 +13,7 @@ use crate::i18n::{self, Locale};
 use folia_design::nav;
 use crate::finder::Finder;
 use crate::swipe::RowSwipe;
-use folia_design::ui::{Icon, KindBadge, OfferBadge};
+use folia_design::ui::{Icon, KindBadge, OfferBadge, TickMark};
 
 
 /// Whether this build is the browser app: only there does a row swipe and mark.
@@ -173,7 +173,7 @@ pub fn Row(
     /// What the visitor keeps of it, after that (the Merkliste).
     #[prop(optional, into)] mine: Option<Signal<RowMine>>,
     /// Where the list selects (the Merkliste, as „Mein Studium"): whether the row is selected,
-    /// hatched in the accent …
+    /// hatched in the accent and, on a wide screen, its box to tick at its start ticked …
     #[prop(optional, into)] selected: Option<Signal<bool>>,
     /// … and what a finger held still on it does (`crate::swipe`): the list selects it.
     #[prop(optional)] on_hold: Option<Callback<String>>,
@@ -219,6 +219,29 @@ pub fn Row(
     let offer = folia_plans::study::Offer::of(&row);
     let swipe = (APP && swipe).then(|| RowSwipe::new(row.id.clone(), row.title.clone(), offer, finder.map(|finder| finder.hint), phone).on_hold(on_hold));
     let is_selected = move || selected.is_some_and(|selected| selected.get());
+    // Where the list selects, on a wide screen the box to tick at the row's start (owner,
+    // 2026-11-17, of the Merkliste: „Merkliste bitte auch so angleichen", as „Mein Studium" has
+    // it): app.css shows it when the pointer comes near the row and while rows are selected. It is
+    // no stop of Tab (the space bar on the row does what it does); what a click on it does is the
+    // list's (`folia_bookmarks::pick`). A phone selects by a finger held still.
+    let tick = selected.filter(|_| APP).map(|selected| {
+        let title = row.title.clone();
+        move || {
+            (!phone.get()).then(|| view! {
+                <button
+                    class="st-sel"
+                    type="button"
+                    role="checkbox"
+                    tabindex="-1"
+                    draggable="false"
+                    aria-checked=move || if selected.get() { "true" } else { "false" }
+                    aria-label=(t.catalog.select_row)(&title)
+                >
+                    <TickMark/>
+                </button>
+            })
+        }
+    });
     let unmarked = move || unmarked.is_some_and(|unmarked| unmarked.get());
     let link = view! {
         <a
@@ -246,6 +269,7 @@ pub fn Row(
                     {with_program.then(|| row.plan_semester.map(|n| view! { <span class="plan-sem">{(t.format.semesters)(&(t.format.semester_one)(n))}</span> }))}
                     <OfferBadge status=row.offer_status.clone()/>
                     {(row.is_fues && !with_program).then(|| view! { <span class="flag neutral">"FÜS"</span> })}
+                    {row.fues_note.as_ref().map(|note| view! { <span class="flag long" title=t.catalog.fues_note_title>{fues_note_text(note, t)}</span> })}
                     {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">{t.catalog.limited_places}</span> })}
                     {fit_note}
                     {offered.map(|offered| view! { <span class="row-offer">{offered}</span> })}
@@ -311,6 +335,7 @@ pub fn Row(
                 on:dragstart=move |ev| swipe.drag_start(ev)
             >
                 {swipe.ground_view()}
+                {tick}
                 {link}
                 {mark}
             </div>
@@ -318,6 +343,7 @@ pub fn Row(
         .into_any(),
         None => view! {
             <div class="row-wrap" class:shaded=shaded class:unmarked=unmarked class:is-selected=is_selected data-commands=commands data-commands-when="focus">
+                {tick}
                 {link}
                 {mark}
             </div>
@@ -380,4 +406,43 @@ pub fn phone_layout() -> RwSignal<bool> {
         on_cleanup(move || handle.remove());
     });
     phone
+}
+
+/// What a row of a program's FÜS list says beside its module (`FuesNote`): „Nicht mit
+/// Anwendungsfach Physik oder Anwendungsfach Wirtschaftswissenschaften · im Sommersemester nicht
+/// zugelassen". The choices are the catalog's words, in German as it writes them.
+pub fn fues_note_text(note: &folia_model::rows::FuesNote, t: &'static crate::i18n::Texts) -> String {
+    let mut parts = Vec::new();
+    if let Some((last, rest)) = note.excluded_for.split_last() {
+        let choices = if rest.is_empty() { last.clone() } else { format!("{} {} {last}", rest.join(", "), t.catalog.or) };
+        parts.push((t.catalog.fues_not_with)(&choices));
+    }
+    for season in &note.not_in {
+        if season.is(folia_model::labels::TurnusSeason::Winter) {
+            parts.push(t.catalog.fues_not_in_winter.to_string());
+        } else if season.is(folia_model::labels::TurnusSeason::Summer) {
+            parts.push(t.catalog.fues_not_in_summer.to_string());
+        }
+    }
+    let text = parts.join(" · ");
+    let mut chars = text.chars();
+    chars.next().map(|first| first.to_uppercase().chain(chars).collect()).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod fues_note_text_tests {
+    use super::*;
+    use folia_model::labels::Code;
+    use folia_model::rows::FuesNote;
+
+    #[test]
+    fn the_note_says_the_choices_and_the_season() {
+        let note = FuesNote { excluded_for: vec!["Anwendungsfach Physik".into(), "Anwendungsfach Wirtschaftswissenschaften".into()], not_in: vec![Code::parse("summer")] };
+        assert_eq!(fues_note_text(&note, &i18n::DE), "Nicht mit Anwendungsfach Physik oder Anwendungsfach Wirtschaftswissenschaften · im Sommersemester nicht zugelassen");
+        assert_eq!(fues_note_text(&note, &i18n::EN), "Not with Anwendungsfach Physik or Anwendungsfach Wirtschaftswissenschaften · not admitted in the summer semester");
+        let season = FuesNote { excluded_for: Vec::new(), not_in: vec![Code::parse("winter")] };
+        assert_eq!(fues_note_text(&season, &i18n::DE), "Im Wintersemester nicht zugelassen");
+        let three = FuesNote { excluded_for: vec!["A".into(), "B".into(), "C".into()], not_in: Vec::new() };
+        assert_eq!(fues_note_text(&three, &i18n::DE), "Nicht mit A, B oder C");
+    }
 }

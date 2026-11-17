@@ -27,6 +27,7 @@ use folia_calendar::day::Day;
 use folia_calendar::live::feed_path;
 use folia_calendar::share::SharedPlan;
 use folia_design::modal::{kept, Modal, ModalHead, ModalSize};
+use folia_design::haptic::TapTick;
 use folia_design::ui::Icon;
 use folia_plans::shares::{Share, ShareTo};
 use folia_stores::sync::share::{live_path, once_path, ShareProblem, ONCE_TTL};
@@ -480,9 +481,10 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
         let along_note = (!c.carries_along() && (c.own || c.notes)).then(|| note(d.note_along_fixed, false));
         let switch = move |title: &'static str, text: String, on: Signal<bool>, flip: Callback<()>| {
             view! {
-                <button type="button" class="sh-sw" role="switch" aria-checked=move || if on.get() { "true" } else { "false" } on:click=move |_| flip.run(())>
+                <button type="button" class="sh-sw tap-host" role="switch" aria-checked=move || if on.get() { "true" } else { "false" } on:click=move |_| flip.run(())>
                     <span class="track"></span>
                     <span class="t"><b>{title}</b><span>{text}</span></span>
+                    <TapTick/>
                 </button>
             }
         };

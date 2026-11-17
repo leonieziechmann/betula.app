@@ -42,6 +42,10 @@ use super::{key_of, PlanCtx};
 /// The id of „Ersetzen" when loading a saved plan would replace an unsaved one.
 const LOAD_ID: &str = "sp-load-yes";
 
+/// The question of „Ersetzen" with its answers, which a sheet of a phone brings into sight as it
+/// unfolds (`nav::show_in_sheet`).
+const LOAD_ASK_ID: &str = "sp-load-ask";
+
 /// The sidebar's groups on a page wider than a phone; nothing on a phone, whose page has them in
 /// their places (`mod.rs`: twice in one page would be `#sp-share` and `#sp-abo` twice).
 #[component]
@@ -134,7 +138,10 @@ pub(super) fn SavedPlans(ctx: PlanCtx) -> impl IntoView {
     let load = move |which: String| {
         if any.get_untracked() && marked.with_untracked(Option::is_none) {
             asking.set(Some(which));
-            request_animation_frame(|| nav::focus_by_id(LOAD_ID));
+            request_animation_frame(|| {
+                nav::focus_by_id(LOAD_ID);
+                nav::show_in_sheet(LOAD_ASK_ID);
+            });
         } else {
             load_now(which);
         }
@@ -196,7 +203,7 @@ pub(super) fn SavedPlans(ctx: PlanCtx) -> impl IntoView {
                                 {move || {
                                     let three = three.clone();
                                     asked.get().then(|| view! {
-                                        <p class="action note-action ask">
+                                        <p class="action note-action ask" id=LOAD_ASK_ID>
                                             <span>{s.replace_current}</span>
                                             <button class="mini danger hit" type="button" id=LOAD_ID on:click=move |_| load_now(three.clone())>{s.replace}</button>
                                             <button class="mini hit" type="button" on:click=move |_| asking.set(None)>{s.cancel}</button>
@@ -209,7 +216,7 @@ pub(super) fn SavedPlans(ctx: PlanCtx) -> impl IntoView {
                     {move || removed.with(|removed| removed.as_ref().map(|(_, plan)| plan.name.clone())).map(|name| view! {
                         <p class="sp-cal-note" role="status">
                             <span>{(t.studyplan_calendars.removed)(&name)}</span>
-                            <button class="mini hit" type="button" on:click=undo>{t.common.undo}</button>
+                            <button data-haptic="tap" class="mini hit" type="button" on:click=undo>{t.common.undo}</button>
                         </p>
                     })}
                 </div>

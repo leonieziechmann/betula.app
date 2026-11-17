@@ -19,6 +19,7 @@ One cycle, every `--interval` (30 min):
 | `lists` | off-peak only | module catalog list, FÜS list (one request each), every second night (`--list-max-age` 40 h) |
 | `general-documents` | off-peak only | the BTU's page of Grundsatzordnungen, German and English (one request each, the CMS, not QIS), every night (`--general-documents-max-age` 20 h): the documents it has for every program, which the build makes `general_document` of (`docs/radix/data-sources.md` §17) |
 | `study-organisation` | off-peak only | the BTU's page „Studienorganisation", German and English (one request each, the CMS), every night (`--study-organisation-max-age` 20 h): its pages around the study, which the build makes `study_page` of (`docs/radix/data-sources.md` §18) |
+| `fues-catalogs` | off-peak only | the BTU's page „Aktuelle Infos" (the CMS) and the FÜS catalog it links (a PDF on `www-docs.b-tu.de`), every night (`--fues-catalogs-max-age` 20 h), and the catalogs of this semester and the one before by the names of their files while the archive has no copy: the modules of the FÜS and the programs' negative lists, which the build makes the FÜS lists of (`docs/radix/data-sources.md` §19) |
 | `modules` | off-peak only | module pages (the copy on b-tu.de, a server of its own, not QIS), each once per `--module-max-age` (7 d) on a day of its own, oldest first, at most 400 per cycle |
 | `qis-modules` | off-peak only | the QIS module table in chunks, every second night (`--list-max-age`), and the QIS module descriptions, at most 200 per cycle. These are the source of the module fields and of the events of the current semester (`docs/radix/data-sources.md` §10). A description is read once a month (`--qis-module-max-age` 30 d) on a day of its own, and sooner when something it depends on changed: never fetched first; then those whose row in the module table changed, and those read while QIS called another semester current (all of them after a semester switch, which the limit spreads over about three nights); then, weekly (`--qis-module-unsettled-max-age` 7 d), modules offered in the semester the catalog presents whose description names none of its events yet (`docs/radix/data-sources.md` §12) |
 | `tree` | off-peak only | QIS program tree; each page once per `--tree-max-age` (30 d) on a day of its own, at most 300 requests per cycle; discovers new programs and PO versions |
@@ -82,10 +83,11 @@ Every flag of `run` has an environment variable, so a container or unit file nee
 | `--module-delay`, `--qis-delay` (ms) | `RADIX_MODULE_DELAY_MS`, `RADIX_QIS_DELAY_MS` | `500`, `500` (tree: twice the QIS delay, event search: four times). Through Cortex its floor per host holds on top, for every client together |
 | `--cortex` | `RADIX_CORTEX_URL` | none: Radix fetches directly. Cortex's instances, comma-separated (`http://cortex_a:8100,http://cortex_b:8100`), each a scheme and a host with no path (Radix exits with code 2 otherwise). Also a flag of the five `crawl-*` commands and `download-statutes` |
 | `--cortex-max-age` | `RADIX_CORTEX_MAX_AGE` | `1h`: a page Cortex fetched within this long is taken from Cortex without asking the university again; negative: the host's `max_age` in Cortex's policy |
-| `--cortex-mode` | `RADIX_CORTEX_MODE` | `cache`. `offline`: every request asks Cortex's store alone but those of the BTU's pages of Grundsatzordnungen and Studienorganisation, nothing else reaches the university, and Gemini is not asked (below, „Offline through Cortex"); needs `--cortex` (Radix exits with code 2 otherwise, as for another value). Also a flag of the `crawl-*` commands and `download-statutes` |
+| `--cortex-mode` | `RADIX_CORTEX_MODE` | `cache`. `offline`: every request asks Cortex's store alone but those of the BTU's pages of Grundsatzordnungen and Studienorganisation and of its FÜS catalogs, nothing else reaches the university, and Gemini is not asked (below, „Offline through Cortex"); needs `--cortex` (Radix exits with code 2 otherwise, as for another value). Also a flag of the `crawl-*` commands and `download-statutes` |
 | `--list-max-age` | `RADIX_LIST_MAX_AGE` | `40h` (every second night) |
 | `--general-documents-max-age` | `RADIX_GENERAL_DOCUMENTS_MAX_AGE` | `20h` (every night) |
 | `--study-organisation-max-age` | `RADIX_STUDY_ORGANISATION_MAX_AGE` | `20h` (every night) |
+| `--fues-catalogs-max-age` | `RADIX_FUES_CATALOGS_MAX_AGE` | `20h` (every night) |
 | `--module-max-age`, `--qis-module-max-age`, `--qis-module-unsettled-max-age`, `--tree-max-age` | `RADIX_MODULE_MAX_AGE`, `RADIX_QIS_MODULE_MAX_AGE`, `RADIX_QIS_MODULE_UNSETTLED_MAX_AGE`, `RADIX_TREE_MAX_AGE` | `168h`, `720h`, `168h`, `720h` |
 | `--event-list-max-age`, `--event-unsettled-max-age` | `RADIX_EVENT_LIST_MAX_AGE`, `RADIX_EVENT_UNSETTLED_MAX_AGE` | `12h`, `2h` |
 | `--event-page-max-age`, `--event-unsettled-page-max-age`, `--event-max-age` | `RADIX_EVENT_PAGE_MAX_AGE`, `RADIX_EVENT_UNSETTLED_PAGE_MAX_AGE`, `RADIX_EVENT_MAX_AGE` | `720h`, `168h`, `72h` |
@@ -142,14 +144,15 @@ an archive (below, „One-off commands").
 - **But for the BTU's pages of Grundsatzordnungen and Studienorganisation** (Radix 0.12.1 and
   0.13.0; owner, 2026-11-11, of the regulations for every program: „mach doch bitte einfach auf
   canary. Betula.app soll doch noch gar nicht die ganzen neuerungen bekommen"): the stages
-  `general-documents` and `study-organisation` ask Cortex in mode `cache` with their own age (the
-  younger of `--general-documents-max-age` and `--study-organisation-max-age`, 20 h), so an instance
-  that crawls nothing has the regulations and the pages around the study all the same. Two requests
-  each (German, English), at once where the archive lacks the page (a canary's copy of a public site
-  whose Radix never read it), else in the off-peak window; Cortex answers them from its store while
-  its copy is younger than 20 h, so a page reaches the university at most once in that time,
-  whoever asks. The log says so at the start (`crawl.cortex`,
-  `stages=general-documents,study-organisation`); the requests count as every stage's.
+  `general-documents`, `study-organisation` and `fues-catalogs` ask Cortex in mode `cache` with their
+  own age (the youngest of `--general-documents-max-age`, `--study-organisation-max-age` and
+  `--fues-catalogs-max-age`, 20 h), so an instance that crawls nothing has the regulations, the pages
+  around the study and the FÜS lists all the same. Two requests each (German, English), and for the
+  FÜS catalogs the page and one to three PDFs, at once where the archive lacks the page (a canary's
+  copy of a public site whose Radix never read it), else in the off-peak window; Cortex answers them
+  from its store while its copy is younger than 20 h, so a page reaches the university at most once
+  in that time, whoever asks. The log says so at the start (`crawl.cortex`,
+  `stages=general-documents,study-organisation,fues-catalogs`); the requests count as every stage's.
 
 - **A page Cortex has not stored is skipped** (`504 offline-miss`, `crawl.ErrOfflineMiss`): asked
   once, not retried, no failure, not counted towards `crawl.aborted`, and the archive keeps what it
@@ -189,7 +192,8 @@ Prometheus job `radix`: the monitoring stack's scraper asks every instance's Rad
 run, `deploy/vps/files/betula-scraper-targets.sh`). The counters start at zero with the process; the `radix_archive_*` gauges
 are read from the archive (at most once a minute) and so survive a restart. `source` is a source
 of the archive: `module_catalog`, `module_page`, `btu_general_documents` (the page of
-Grundsatzordnungen) and `btu_study_organisation` (the page „Studienorganisation") are b-tu.de, `qis_module_list`, `qis_fues_list`,
+Grundsatzordnungen), `btu_study_organisation` (the page „Studienorganisation"), `btu_fues_catalog_page` (the page „Aktuelle
+Infos") and `btu_fues_catalog` (the FÜS catalogs) are b-tu.de, `qis_module_list`, `qis_fues_list`,
 `qis_module_page`, `qis_tree`, `qis_event_entry` (the event search) and `qis_event` are QIS.
 
 | Metric | What it says |
@@ -239,6 +243,7 @@ updated. `WARN`: the source data has a problem, or something failed and recovere
 | WARN | `cycle.finished` with `result=degraded` | crawl problems; published data intact |
 | WARN | `validate.check_warned` | e.g. kind conflicts between sources, programs without tree modules, events a module links that have no semester (Folia leaves their dates off the module page) |
 | WARN | `build.unresolved_refs`, `build.tree_leaves_without_module`, `build.tree_pages_missing`, `build.unlisted_module_pages`, `build.unreachable_tree_pages`, `build.modules_without_page`, `build.plans_without_program`, `build.plan_entries_unknown_module`, `build.unpaired_departments` | source data the build could not use, with counts and examples |
+| WARN | `build.fues_unknown_modules`, `build.fues_catalogs_unreadable` | the BTU's FÜS catalogs (`docs/radix/schema-v2.md`, „FÜS catalogs"): a catalog or its negative lists name a module the module lists do not hold (it is left out) / an archived catalog could not be read (a PDF the reader cannot take apart, a layout without the semester on its first page); the FÜS lists then follow the catalogs it could read, or the module pages without any. `build.finished` counts `fues_catalogs` and `fues_negatives`; `validate` warns of a season without a catalog and of a heading that names no program. |
 | WARN | `build.rooms_unknown_building`, `build.room_short_collisions`, `build.abbrev_overrides_unused` | short names (`docs/radix/schema-v2.md`, „Short names"): an event room names a building the table in `radix/internal/normalize/rooms.go` lacks (it keeps the building's full name) / two rooms would share a short form (both keep their long form) / a line of `radix/internal/abbrev/overrides.tsv` applies to no module (a module number the catalog lacks, a program without that module, a pattern that matches nothing an earlier line does not take). Each wants a line in the table or the file. `build.finished` counts `abbrev_fell_back`, `abbrev_twins` and `abbrev_changed` (pairs whose abbreviation moved since the last build: a new title anywhere can move forms in other programs). |
 | WARN | `http.request` with `status` 4xx/503 | |
 | ERROR | `scan.failed`, `scan.extraction_failed`, `scan.save_failed`, `statutes.download_failed` | study plan scan: cannot run / a document could not be read / a plan could not be stored (the previous plan is unchanged) / a PDF could not be downloaded |
@@ -390,7 +395,7 @@ The process stops cleanly on SIGTERM. JSON lines go to the journal.
 ### One-off commands
 
 `crawl-modules`, `crawl-qis-modules`, `crawl-tree`, `crawl-events`, `crawl-general-documents`,
-`crawl-study-organisation`, `prune`, `build`, `validate`, `export`, `serve-snapshot`, `seed-cortex`, `download-statutes`, `scan-curriculum`,
+`crawl-study-organisation`, `crawl-fues-catalogs`, `prune`, `build`, `validate`, `export`, `serve-snapshot`, `seed-cortex`, `download-statutes`, `scan-curriculum`,
 `relink-plans` run one by one against the same database. They can run next to a service: readers never block, and a
 writer waits up to 60 s for the other writer (a build holds the write lock for about 20 s). Their
 `-max-age` is a plain age: a crawl command fetches every page older than it, without the days of

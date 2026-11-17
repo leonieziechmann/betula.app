@@ -366,6 +366,50 @@ pub(in crate::study) struct Subs {
     bench: Bench,
     /// The subgroups shown of each area of the progress: two or more, else none.
     shown: Vec<Vec<usize>>,
+    /// What each open row of a choice still asks for (`open_rows`), by `row_id`.
+    open: BTreeMap<String, f64>,
+}
+
+/// A row of the plan as a piece and its lane name it: its plan's caption and its `ord`.
+fn row_id(caption: &str, ord: i64) -> String {
+    format!("{caption}:{ord}")
+}
+
+/// What each open row of a choice still asks for: `wants` are its open rows in the order of the
+/// plan, each with the semester it stands in and what it says it is worth (`None`: nothing),
+/// `budget` what the choice still asks for in all, `held` what counts for it, by semester. What
+/// counts covers the row nearest to its own semester first, of two as near the earlier, and with
+/// what it brings beyond that row the next nearest (owner, 2026-11-17: „wenn man sowas wie ein
+/// Anwendungsfach hat sollten im 3. Semester nich schon 12 lp stehen, wenn 6 davon eigentlich aus
+/// dem 4. Semester kommen": a module of the third semester stands for the third's row, and what
+/// is open is the fourth's); what `held` does not account for is taken from the first row on. A
+/// row that says nothing of its credits asks for what the others leave. Until Folia 1.97.4 the
+/// first open row took what the choice still asked for, whatever stood beside it.
+fn allot(wants: &[(SemesterKey, Option<f64>)], held: &[(SemesterKey, f64)], budget: f64) -> Vec<f64> {
+    let mut open: Vec<f64> = wants.iter().map(|(_, credits)| credits.unwrap_or(0.0)).collect();
+    let stated: f64 = open.iter().sum();
+    let mut covered = (stated - budget).max(0.0);
+    for (at, credits) in held {
+        let mut left = credits.min(covered);
+        let mut nearest: Vec<(u16, SemesterKey, usize)> = wants.iter().enumerate().map(|(row, (semester, _))| (semester.index().abs_diff(at.index()), *semester, row)).collect();
+        nearest.sort_unstable();
+        for (.., row) in nearest {
+            let Some(slot) = open.get_mut(row) else { continue };
+            let take = left.min(*slot);
+            *slot -= take;
+            left -= take;
+            covered -= take;
+        }
+    }
+    for slot in &mut open {
+        let take = covered.min(*slot);
+        *slot -= take;
+        covered -= take;
+    }
+    if let Some(slot) = wants.iter().position(|(_, credits)| credits.is_none()).and_then(|row| open.get_mut(row)) {
+        *slot = (budget - stated).max(0.0);
+    }
+    open
 }
 
 impl Subs {
@@ -378,7 +422,65 @@ impl Subs {
                 if groups.len() > 1 { groups } else { Vec::new() }
             })
             .collect();
-        Subs { view, bench, shown }
+        let mut subs = Subs { view, bench, shown, open: BTreeMap::new() };
+        subs.open = subs.open_rows(ready);
+        subs
+    }
+
+    /// What each open row of the plan (`Ready::lines`) that is one of a choice still asks for
+    /// (`allot`), by `row_id`: of what the choice's subgroup lacks of its least (`stand_of`, as
+    /// its figure says it), what its rows that stand in the study do not keep already — a row put
+    /// in as a placeholder or marked as done is not open, and its part of the choice is its own
+    /// (`Item::counted`) —, by where what counts for the choice is passed or planned. A choice
+    /// that asks for nothing the plan states has no say here.
+    fn open_rows(&self, ready: &Ready) -> BTreeMap<String, f64> {
+        let mut out = BTreeMap::new();
+        for (group, found) in self.bench.groups.iter().enumerate() {
+            let GroupKind::Choice(choice) = found.kind else { continue };
+            let rows: Vec<(&Line, String)> = ready
+                .lines
+                .iter()
+                .filter_map(|line| match &line.suggestion.pick {
+                    Pick::Row { caption, ord } => {
+                        let at = self.view.lines.iter().position(|row| row.caption == *caption && row.ord == *ord)?;
+                        (self.group_of_line(at) == Some(group)).then(|| (line, row_id(caption, *ord)))
+                    }
+                    Pick::Module { .. } => None,
+                })
+                .collect();
+            let stand = self.stand_of(group).0;
+            if rows.is_empty() || stand.least <= EPSILON {
+                continue;
+            }
+            // What counts for it: a group's member with what falls to it, never what is beyond
+            // need (`Stand::spare`).
+            let member = self.view.group_of(choice).filter(|of| of.members.contains(&choice)).and_then(|of| of.members(&self.view).into_iter().find(|member| member.choice == choice));
+            let taken = match &member {
+                Some(member) => member.taken.as_slice(),
+                None => self.view.choices.get(choice).map_or(&[][..], |choice| choice.taken.as_slice()),
+            };
+            let mut held: BTreeMap<SemesterKey, f64> = BTreeMap::new();
+            for taken in taken.iter().filter(|taken| !self.view.spare.iter().any(|spare| spare.id == taken.id)) {
+                *held.entry(taken.semester).or_default() += taken.credits.unwrap_or(0.0);
+            }
+            let own: Vec<(&str, i64)> = found.lines.iter().filter_map(|at| self.view.lines.get(*at)).map(|line| (line.caption.as_str(), line.ord)).collect();
+            let kept: f64 = ready
+                .study
+                .semesters
+                .iter()
+                .flat_map(|semester| semester.items.iter())
+                .filter(|item| item.passed || !item.failed)
+                .filter_map(|item| match &item.subject {
+                    Subject::Row { caption, ord, .. } if own.contains(&(caption.as_str(), *ord)) => item.counted(),
+                    _ => None,
+                })
+                .sum();
+            let wants: Vec<(SemesterKey, Option<f64>)> = rows.iter().map(|(line, _)| (line.semester, line.suggestion.credits)).collect();
+            let held: Vec<(SemesterKey, f64)> = held.into_iter().collect();
+            let open = allot(&wants, &held, (stand.least - stand.counted() - kept).max(0.0));
+            out.extend(rows.into_iter().map(|(_, id)| id).zip(open));
+        }
+        out
     }
 
     /// The subgroups shown of `area`.
@@ -622,7 +724,7 @@ impl Frame<'_> {
             unoffered: item.unoffered && !item.passed,
             over: !item.failed && self.subs.over_text(self.ready, item, s, self.t).is_some(),
             row: match &item.subject {
-                Subject::Row { caption, ord, credits, .. } => Some(RowOf { id: format!("{caption}:{ord}"), credits: credits.as_deref().and_then(credits_range).or(item.credits.map(|credits| (credits, credits))) }),
+                Subject::Row { caption, ord, credits, .. } => Some(RowOf { id: row_id(caption, *ord), credits: credits.as_deref().and_then(credits_range).or(item.credits.map(|credits| (credits, credits))) }),
                 Subject::Module { .. } => None,
             },
             picks: Vec::new(),
@@ -630,8 +732,9 @@ impl Frame<'_> {
     }
 
     /// The cells and the lanes of a row: the items `holds` of each semester, the open rows of the
-    /// plan `holds_line`, the open rows of a semester together as what the row still asks for
-    /// („+10", at most `budget` in all where it says; none of them where it asks for nothing more).
+    /// plan `holds_line`, the open rows of a semester together as what they still ask for („+10":
+    /// a choice's each what `Subs::open_rows` leaves it, none where that is nothing; at most
+    /// `budget` in all where it says, the earlier semesters first).
     fn bars(&self, holds: impl Fn(&Item, SemesterKey) -> bool, holds_line: impl Fn(&Line) -> bool, mut budget: Option<f64>) -> (Vec<Cell>, Vec<Lane>) {
         let (t, s) = (self.t, &self.t.study);
         let mut cells = Vec::new();
@@ -690,13 +793,24 @@ impl Frame<'_> {
             // What the plan has open here: a module by its abbreviation, the rows together by what
             // the row still asks for („+10"), none of them where it asks for nothing more.
             let lines: Vec<&Line> = self.ready.lines.iter().filter(|line| line.semester == semester.key && holds_line(line)).collect();
-            let mut rows_open: Vec<&Line> = Vec::new();
+            // The open rows, each with what it still asks for.
+            let mut rows_open: Vec<(&Line, Option<f64>)> = Vec::new();
             // The lanes of the open rows, and which row each is.
             let mut row_lanes: Vec<(String, String)> = Vec::new();
             for line in lines {
-                let title = match line.failed_in {
-                    Some(failed) => (s.line_retake)(&failed.label(t.locale)),
-                    None => (s.line_title)(&line.plan_fs.map(s.fs).unwrap_or_default()),
+                // What a row of a choice still asks for; covered by what counts for its choice
+                // elsewhere, it is no piece and in no lane.
+                let asks = match &line.suggestion.pick {
+                    Pick::Row { caption, ord } => self.subs.open.get(&row_id(caption, *ord)).copied(),
+                    Pick::Module { .. } => None,
+                };
+                if asks.is_some_and(|asks| asks <= EPSILON) {
+                    continue;
+                }
+                let title = match (line.failed_in, line.plan_span, line.plan_fs) {
+                    (Some(failed), ..) => (s.line_retake)(&failed.label(t.locale)),
+                    (None, Some((first, last)), _) => (s.line_title)(&(s.fs_span)(first, last)),
+                    (None, None, fs) => (s.line_title)(&fs.map(s.fs).unwrap_or_default()),
                 };
                 let credits = line.suggestion.credits_text.clone().map(|text| folia_plans::plan::credits_in(&text, t.locale)).or_else(|| line.suggestion.credits.map(|credits| n(credits, t)));
                 let piece = |label: String| Piece {
@@ -704,7 +818,7 @@ impl Frame<'_> {
                     semester: semester.key,
                     label,
                     title: format!("{} · {}", line.suggestion.name, title),
-                    grow: line.suggestion.credits.unwrap_or(NO_CREDITS).max(1.0),
+                    grow: asks.or(line.suggestion.credits).unwrap_or(NO_CREDITS).max(1.0),
                     fill: Fill::Open,
                     now: semester.when == When::Now,
                     retake: line.failed_in.is_some(),
@@ -712,7 +826,7 @@ impl Frame<'_> {
                     over: false,
                     row: match &line.suggestion.pick {
                         Pick::Row { caption, ord } => Some(RowOf {
-                            id: format!("{caption}:{ord}"),
+                            id: row_id(caption, *ord),
                             credits: line.suggestion.credits_text.as_deref().and_then(credits_range).or(line.suggestion.credits.map(|credits| (credits, credits))),
                         }),
                         Pick::Module { .. } => None,
@@ -731,13 +845,13 @@ impl Frame<'_> {
                         let lane = format!("row:{}", line.suggestion.name);
                         let at = lane_of(&mut lanes, lane.clone(), &line.suggestion.name, true, credits);
                         set_bar(&mut lanes, at, column, (open, s.bar_open));
-                        rows_open.push(line);
-                        row_lanes.push((lane, format!("{caption}:{ord}")));
+                        rows_open.push((line, asks.or(line.suggestion.credits)));
+                        row_lanes.push((lane, row_id(caption, *ord)));
                     }
                 }
             }
             if !rows_open.is_empty() {
-                let wanted: f64 = rows_open.iter().filter_map(|line| line.suggestion.credits).sum();
+                let wanted: f64 = rows_open.iter().filter_map(|(_, asks)| *asks).sum();
                 let credits = match budget.as_mut() {
                     Some(left) => {
                         let take = if wanted > 0.0 { wanted.min(*left) } else { *left };
@@ -747,7 +861,7 @@ impl Frame<'_> {
                     None => wanted,
                 };
                 if credits > 0.0 {
-                    let names: Vec<&str> = rows_open.iter().map(|line| line.suggestion.name.as_str()).collect();
+                    let names: Vec<&str> = rows_open.iter().map(|(line, _)| line.suggestion.name.as_str()).collect();
                     let click = if rows_open.len() > 1 { format!(" · {}", s.open_rows_click) } else { String::new() };
                     pieces.push(Piece {
                         key: String::new(),
@@ -762,7 +876,7 @@ impl Frame<'_> {
                         over: false,
                         row: None,
                         picks: match rows_open.as_slice() {
-                            [one] => vec![one.suggestion.pick.clone()],
+                            [(one, _)] => vec![one.suggestion.pick.clone()],
                             _ => Vec::new(),
                         },
                     });
@@ -809,8 +923,11 @@ impl Frame<'_> {
             .map(|group| {
                 let group = *group;
                 let (stand, room) = subs.stand_of(group);
-                // What it still asks for: of a choice its least, else nothing to cap by.
-                let budget = matches!(subs.bench.groups.get(group).map(|found| found.kind), Some(GroupKind::Choice(_))).then(|| (stand.least - stand.counted()).max(0.0));
+                // What it still asks for: of a choice its least, else nothing to cap by. Where the
+                // choice states what it asks, its open rows have their share of it already
+                // (`Subs::open_rows`).
+                let allotted = stand.least > EPSILON;
+                let budget = (matches!(subs.bench.groups.get(group).map(|found| found.kind), Some(GroupKind::Choice(_))) && !allotted).then(|| (stand.least - stand.counted()).max(0.0));
                 let (cells, lanes) = self.bars(|item, s| item.area == Some(area) && subs.of_item(item, s) == Some(group), |line| line.suggestion.area == Some(area) && subs.of_line(line) == Some(group), budget);
                 let (name, full) = subs.names_of(group, t);
                 let range = range_of(&stand, t);
@@ -986,6 +1103,37 @@ mod tests {
 
     fn key(text: &str) -> SemesterKey {
         SemesterKey::parse(text).unwrap()
+    }
+
+    /// What a choice still asks for stands at the rows nothing covers (owner, 2026-11-17: „sollten
+    /// im 3. Semester nich schon 12 lp stehen, wenn 6 davon eigentlich aus dem 4. Semester
+    /// kommen"): the Anwendungsfach's rows of 6 LP in the winter and in the summer after it.
+    #[test]
+    fn what_a_choice_still_asks_stands_at_the_rows_nothing_covers() {
+        let (before, winter, summer, after) = (key("2026S"), key("2026W"), key("2027S"), key("2027W"));
+        let rows = [(winter, Some(6.0)), (summer, Some(6.0))];
+        // Nothing counts for it: each row its own.
+        assert_eq!(allot(&rows, &[], 12.0), [6.0, 6.0]);
+        // A module of the winter stands for the winter's row, one of the summer for the summer's.
+        assert_eq!(allot(&rows, &[(winter, 6.0)], 6.0), [0.0, 6.0]);
+        assert_eq!(allot(&rows, &[(summer, 6.0)], 6.0), [6.0, 0.0]);
+        // 8 LP for a row of 6: what is beyond it counts for the other row.
+        assert_eq!(allot(&rows, &[(winter, 8.0)], 4.0), [0.0, 4.0]);
+        // A module of another semester stands for the row nearest to it.
+        assert_eq!(allot(&rows, &[(before, 6.0)], 6.0), [0.0, 6.0]);
+        assert_eq!(allot(&rows, &[(after, 6.0)], 6.0), [6.0, 0.0]);
+        // One in each: nothing is open; both in the winter: neither.
+        assert_eq!(allot(&rows, &[(winter, 6.0), (summer, 6.0)], 0.0), [0.0, 0.0]);
+        assert_eq!(allot(&rows, &[(winter, 12.0)], 0.0), [0.0, 0.0]);
+        // What nothing of a semester covers is taken from the first row on.
+        assert_eq!(allot(&rows, &[], 6.0), [0.0, 6.0]);
+        // The rows ask for less than the choice (its other row stands as a placeholder): theirs.
+        assert_eq!(allot(&[(summer, Some(6.0))], &[], 12.0), [6.0]);
+        // A row that says nothing of its credits asks for what the others leave.
+        assert_eq!(allot(&[(winter, Some(6.0)), (summer, None)], &[], 10.0), [6.0, 4.0]);
+        assert_eq!(allot(&[(winter, None)], &[(winter, 6.0)], 0.0), [0.0]);
+        // Both rows in one semester (the current one, their own being over): the first is covered.
+        assert_eq!(allot(&[(winter, Some(6.0)), (winter, Some(6.0))], &[(before, 6.0)], 6.0), [0.0, 6.0]);
     }
 
     #[test]

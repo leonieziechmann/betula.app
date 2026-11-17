@@ -47,6 +47,7 @@
 | S6 | OPUS statute PDFs + Gemini enrichment, validated by PDF geometry | `opus4.kobv.de/opus4-btu/files/…` | `radix/internal/gemini/*`, `radix/internal/curriculumscan/*` | files in `statutes/` | plans validated 09-18 … 09-19 | Manual (`scan-curriculum`) |
 | S7 | Legacy unverified AI statute scan | – | `MatchAndLinkCurriculumModules` | – | – | Dead path, see Q3 |
 | S8 | The BTU's page of Grundsatzordnungen, German and English (since 2026-11-10, §17) | `b-tu.de/studium/im-studium/studienorganisation/pruefungen/ordnungen-und-formulare/grundsatzordnungen`, `b-tu.de/en/study/during-studies/study-organization/examinations/regulations-and-forms/basic-regulations` | `service.CrawlGeneralDocuments`, `parser/general_documents.go` | raw_page `btu_general_documents` `de` / `en`, 20 h | – | Radix, every night (§12) |
+| S10 | The BTU's FÜS catalogs: its page „Aktuelle Infos" and the PDF of each semester (since 2026-11-17, §19) | `b-tu.de/studium/im-studium/studienorganisation/quicklinks/aktuelle-infos`, `www-docs.b-tu.de/studierende/public/files/Informationen/FÜS_Katalog_WiSe_2026_27.pdf`, `…_SoSe_2026.pdf` | `service.CrawlFUESCatalogs`, `radix/internal/fuescatalog` | raw_page `btu_fues_catalog_page` `de`, `btu_fues_catalog` by semester, 20 h | – | Radix, every night (§12) |
 | S9 | The BTU's page „Studienorganisation", German and English (since 2026-11-11, §18) | `b-tu.de/studium/im-studium/studienorganisation`, `b-tu.de/en/study/during-studies/study-organization` | `service.CrawlStudyOrganisation`, `parser/study_pages.go` | raw_page `btu_study_organisation` `de` / `en`, 20 h | – | Radix, every night (§12) |
 
 S1–S5 are all views of the same HIS/QIS database. S6 is the legal text. This matters for
@@ -146,7 +147,7 @@ Program, degree, PO version, regulation documents.
 | | **„keine Zuordnung vorhanden"** (1,476 modules) is consistent: only 11 of them appear in any tree. |
 | | **Resolution quality of page triples** (19,897 real entries): 16,725 exact · 304 unique substring match on the PO · 1,715 Lehramt entries through P3 (1,565 wrong) · 76 unresolved and dropped silently. |
 | | **S6:** 2,343 distinct linked pairs; 2,174 are in the tree; 143 are in neither tree nor page (older regulations naming modules the live catalog no longer assigns). 2,026 PDF rows have `module_id = ''` and 15 distinct IDs do not exist in `modules`. |
-| Authority | **DECIDED (Q1).** Two relations instead of one: **(a) curricular membership** = every module a student can take towards the degree: the pair is in the QIS tree, or on the page of a module that is not FÜS-flagged, or in the validated plan. **(b) the program's FÜS list** = pair is on the page of a FÜS-flagged module and the module is *not* curricular in that program (FÜS is meant to widen the horizon, so a program's own modules never count as its FÜS). Every program therefore has its own FÜS list. Within (a) the sources are a union with provenance, not a precedence: page and tree state the same thing, and after fixing P2/P3 the single-source remainder (about 650 + 401 pairs) becomes a `validate` report line instead of a silent difference. S6-only pairs are kept with `source = pdf_plan` and shown in the plan, but do not count as live-catalog membership. |
+| Authority | **DECIDED (Q1).** Two relations instead of one: **(a) curricular membership** = every module a student can take towards the degree: the pair is in the QIS tree, or on the page of a module that is not FÜS-flagged, or in the validated plan. **(b) the program's FÜS list** = pair is on the page of a FÜS-flagged module and the module is *not* curricular in that program (FÜS is meant to widen the horizon, so a program's own modules never count as its FÜS). Every program therefore has its own FÜS list. What a FÜS module's page admits is the current semester's FÜS catalog less the programs' negative lists (§7 Q1, 2026-11-17). Within (a) the sources are a union with provenance, not a precedence: page and tree state the same thing, and after fixing P2/P3 the single-source remainder (about 650 + 401 pairs) becomes a `validate` report line instead of a silent difference. S6-only pairs are kept with `source = pdf_plan` and shown in the plan, but do not count as live-catalog membership. |
 | Provenance | Scheme §4, multi-source: `program_module_assertion(program_id, module_id, source, relation, raw_ref, fetched_at)`; `v_program_module` exposes one row per pair with `relation`, the list of sources and `precedence`. Unresolved page triples are kept in staging with `resolve_status` instead of being dropped. |
 
 ### 5.4 Module kind (Pflicht / Wahlpflicht / Abschlussarbeit / Praktikum / FÜS)
@@ -334,6 +335,40 @@ Decision: two relations. **Curricular** = all modules a student can attend for t
 everything QIS lists for the program (tree ∪ module page of non-FÜS modules ∪ validated plan).
 **FÜS of a program** = FÜS-flagged modules whose page admits the program, minus the program's
 curricular modules. Each program has its own allowed FÜS list.
+2026-11-17, „Einführung in die Amateurfunktechnik" (12045), which Informatik's FÜS list lacked
+(owner: „Das ist nämlich eigentlich ok"). Its page says „Zuordnung zu Studiengängen: keine
+Zuordnung vorhanden" beside „Das Modul ist für das Fachübergreifende Studium zugelassen." Schema 21
+put every FÜS module whose page admits no program on the FÜS list of every program that has one,
+and schema 22 withdrew it the same day (owner: „Man kann bei der füs liste tatsächlich alle anmelden
+auch die die man nicht belegen darf. Anzeigen wollen wir aber nur die, die nach Ordnung ok sin."),
+because of what a FÜS module's page names:
+- **The BTU's FÜS catalog of the current semester, less the programs' „Negativlisten".** The BTU
+  publishes a „FÜS-Modulkatalog" for every semester (a PDF linked under Studienorganisation, „Aktuelle
+  Infos": `FÜS_Katalog_WiSe_2026_27.pdf` of 2026-10-14, 152 modules; `FÜS_Katalog_SoSe_2026.pdf` of
+  2026-03-24, 161; 53 in both). Its „Liste der nicht zugelassenen Module je Studiengang" is the
+  „Negativliste" of the Ordnung zum Fachübergreifenden Studium (ABl. 04/2010, § 3 Abs. 2) for 50
+  programs, some by degree, profile, Anwendungsfach, Schwerpunkt or Studienrichtung („Bitte bei der
+  Studiengangleitung erfragen!" for Bauen und Erhalten). Other modules „dürfen im Fachübergreifenden
+  Studium nicht belegt werden", and § 3 Abs. 1 excludes the own program's Pflicht and Wahlpflicht.
+- **Evidence (canary, 2026-11-17).** Every module of the winter's catalog names programs (120 in the
+  median, 15 at least); of the 137 FÜS modules not in it, 111 name none but programs they are
+  curricular in (the 25 that name none at all among them), 26 are on one to ten FÜS lists. Informatik B.Sc.: the
+  winter's catalog allows 117 modules for every Anwendungsfach, exactly the 117 of its FÜS list; QIS
+  leaves out the 21 its negative list excludes for one Anwendungsfach only. 12045 is taught in the
+  summer: in the summer's catalog, not on Informatik's negative list there, not in the winter's.
+  Against the winter's negative lists the pages differ in 8 pairs, all of Umweltingenieurwesen
+  M.Sc. (PO 2021). Of the 25 modules schema 21 added, none is in the winter's catalog, 15 are in the
+  summer's, whose negative lists exclude 286 of the pairs, and 10 in neither. The owner's account of
+  a page that names none („Module bei denen das der fall ist machen dann meistens alle oder keine
+  Studiengänge der uni da rein") fits: all of the semester's catalog, or none.
+- **Since schema 23 (Radix 0.14.0; owner, the same day: „mach beides, mit Hinweis statt
+  ausblenden").** The FÜS lists from the catalogs of both seasons and their negative lists (§19): a
+  program's FÜS list of a season is the newest catalog of it less the program's Pflicht and
+  Wahlpflicht and its negative list; an exclusion for one Anwendungsfach, Schwerpunkt or
+  Studienrichtung, and one season's exclusion of a module the other admits, is a note beside the
+  module, not a gap in the list. A build with a catalog failed validation until schema 24 (Radix
+  0.14.1): a line for every student had the scope `''`, which the check of placeholders refuses.
+Schemas 22 to 24, `docs/radix/schema-v2.md` „Membership and kind" and „FÜS catalogs".
 
 **Q2. Conflicting module kind (tree vs plan).**
 Evidence: 5.4. Of 438 conflicting pairs, the large groups come from the tree's `Pflicht`
@@ -1079,3 +1114,46 @@ btu_studienorganisation_de.html`, `…_en.html`): every tile read by hand agains
 `TestParseStudyPages*` (parser), `TestStudyPagesFromTheBTUsPage` and
 `TestValidateWarnsWhenTheStudyOrganisationYieldsNothing` (catalogbuild),
 `TestOfflineCycleFetchesTheBTUsPagesLive` (service) hold them.
+
+## 19. The BTU's FÜS catalogs (2026-11-17)
+
+The BTU publishes a „FÜS-Modulkatalog" for every semester, a few weeks into it (the winter's
+2026/27 of 2026-10-14, the summer's 2026 of 2026-03-24): a PDF on `www-docs.b-tu.de` that its page
+„Aktuelle Infos" (Studienorganisation, Quicklinks) links under „FÜS-Modulkatalog zum Wintersemester
+2026/2027". „Im Wintersemester 2026/2027 sind für das Fachübergreifende Studium in Studiengängen an
+der BTU, die im Modulkatalog genannten Module zugelassen. Andere Module dürfen im Fachübergreifenden
+Studium nicht belegt werden. Bitte beachten Sie im Modulkatalog die Negativlisten der Studiengänge,
+die durch die Studiengangsleitungen festgelegt wurden." It lists the modules by campus (Sachsendorf,
+Senftenberg, Zentralcampus: number, title, who teaches it, LP), then the „Liste der Studiengänge"
+with their pages and the „Liste der nicht zugelassenen Module je Studiengang": under a program's
+heading the modules it excludes, some under a part for its degree („für B.Sc", „Nur für M.Sc"),
+its profile („mit anwendungsbezogenem Studienprofil", „mit universitärem und dualem
+Studienprofil"), or a choice („Unabhängig vom Anwendungsfach", „Anwendungsfach Physik", „Schwerpunkt
+Wirtschaftsmathematik", „Studienrichtung Umwelttechnik", „Bei Anwendungsfach Economics and Social
+Sciences:"); „Bitte bei der Studiengangleitung erfragen!" for Bauen und Erhalten (and in the summer
+Landnutzung und Wasserbewirtschaftung), „Keine weiteren Einschränkungen" for a part without
+modules. The winter's: 152 modules, 50 headings, 1,617 lines naming 160 modules; the summer's: 161,
+51, 1,390 naming 172; 53 modules in both.
+
+**How Radix reads it.** `service.CrawlFUESCatalogs` archives the page (`btu_fues_catalog_page`,
+`de`) and every catalog it links, keyed by the semester its text or file name says („2026W"), and,
+while the archive has no copy, the catalogs of the current semester and of the one before by the
+names of the BTU's files (`fuescatalog.CatalogURL`: `F%C3%9CS_Katalog_WiSe_2026_27.pdf`,
+`F%C3%9CS_Katalog_SoSe_2026.pdf`): the page links the current one only. A file not there yet is a
+404, archived as such. Offline through Cortex (the canary) they are fetched all the same, as the
+page of Grundsatzordnungen is (§17). `fuescatalog.ReadRows` takes the PDF apart into rows with the
+positions of their pieces (`github.com/ledongthuc/pdf`), `fuescatalog.Parse` reads the semester from
+the first page, the issue date beside it, the modules (a row that starts with a module number,
+the campus of the „Standort" above it), the list of programs (a name, dots, a page) and the negative
+lists: a row that starts with „-" and a module number is a line, a row further right a title that
+wrapped, a heading the list of programs names a program, another a part. The build maps the
+headings onto the programs (`docs/radix/schema-v2.md`, „FÜS catalogs").
+
+**What QIS makes of it.** A FÜS module's „Zuordnung zu Studiengängen" is the current semester's
+catalog less the negative lists (§7, Q1): every module of the winter's catalog names programs, 111
+of the 137 FÜS modules not in it name none but those they are curricular in, and for Informatik
+B.Sc. it is exactly what the catalog admits for every Anwendungsfach; QIS leaves out what a list
+excludes for one choice, and differs from the negative lists in 8 pairs (Umweltingenieurwesen M.Sc.,
+PO 2021). Anyone can register for any FÜS module in QIS, also for what is not admitted (owner,
+2026-11-17), so the registration says nothing; the catalog is what the Ordnung means.
+

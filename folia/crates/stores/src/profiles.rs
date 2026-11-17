@@ -162,6 +162,28 @@ pub fn Avatar(#[prop(into)] profile: Signal<Profile>, #[prop(optional)] large: b
     }
 }
 
+/// The mark beside the name of a profile that Betula Sync keeps (owner, 2026-11-17: „ein Icon
+/// für Profile, die per betula sync verwaltet werden"), wherever the profiles are listed (the menu
+/// of the profiles, the profile page): Betula Sync's symbol, as „Geräte" and the profile page's
+/// Betula Sync have it, in the profile's line, named in its tooltip and for those who do not see
+/// it. Synced, connected or not (`sync::Sync::synced`); nothing for a private profile, nor where
+/// the site offers no Betula Sync.
+#[component]
+pub fn SyncMark(id: u16) -> impl IntoView {
+    let t = crate::i18n::t();
+    let sync = crate::sync::Sync::expect().filter(|_| crate::sync::offered().is_some());
+    move || {
+        sync.filter(|sync| sync.synced(id)).map(|_| {
+            view! {
+                <span class="sync-mark" title=t.profiles.synced>
+                    <folia_design::ui::Icon name="monitor-smartphone"/>
+                    <span class="visually-hidden">{t.profiles.synced}</span>
+                </span>
+            }
+        })
+    }
+}
+
 /// The first profile as the browser had it before there were profiles.
 fn first() -> Profile {
     Profile { id: FIRST, name: String::new(), at: 0 }
@@ -391,6 +413,23 @@ impl Profiles {
     pub fn create_from(self, backup: &Backup) -> Option<u16> {
         let name = self.registry.with_untracked(|registry| registry.fresh(&backup.name));
         self.create_with(&name, &backup.texts)
+    }
+
+    /// What a backup brings, into this browser's empty first profile where it has nothing else
+    /// (`empty_first`): an installed app on an iPhone or a Mac, which keeps storage of its own
+    /// apart from Safari's, takes over the profile Safari copied for it (`folia_home`'s install)
+    /// instead of holding it beside an empty one. Elsewhere a profile of its own (`create_from`).
+    /// The profile it went into, active; `None` where no profile can be made any more.
+    pub fn take_over(self, backup: &Backup) -> Option<u16> {
+        let Some(first) = self.empty_first() else { return self.create_from(backup) };
+        for (key, text) in KEYS.iter().zip(&backup.texts) {
+            nav::local_set(&key_of(key, first), text);
+        }
+        forget_session(first);
+        self.rename(first, &backup.name);
+        self.switch(first);
+        self.wrote();
+        Some(first)
     }
 
     fn create_with(self, name: &str, texts: &[String; STORES]) -> Option<u16> {

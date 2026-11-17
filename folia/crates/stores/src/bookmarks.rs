@@ -26,6 +26,7 @@ use leptos::prelude::*;
 use crate::collections::{clean_name, clean_note, name_key, Anchor, Belongings, CollectAsk, Collecting, Collections, MAX_COLLECTIONS};
 use crate::i18n;
 use crate::profiles::Kept;
+use folia_design::haptic::{self, Haptic, TapTick};
 use folia_design::ui::{Icon, Shortcut};
 
 /// The first profile's key; another profile's has its number in it (`profiles::key_of`).
@@ -219,8 +220,21 @@ impl Bookmarks {
     /// into the collections of the default for new marks, a mark taken away takes the module out
     /// of its collections and its note with it (`collections::Shelf::forget`). What it did is the
     /// last change (`last`), for the note after it; `title` is the module's, for that note. `None`
-    /// for what is no module id, which is never marked.
+    /// for what is no module id, which is never marked. The hand feels it (`folia_design::haptic`):
+    /// a mark given firmly, one taken away lightly, a full Merkliste as what cannot be.
     pub fn flip(self, id: &str, title: &str) -> Option<Toggled> {
+        let toggled = self.flip_quietly(id, title);
+        if let Some(what) = &toggled {
+            haptic::play(match what {
+                Toggled::Marked { .. } => Haptic::Tap,
+                Toggled::Unmarked { .. } => Haptic::Tick,
+                Toggled::Full => Haptic::Error,
+            });
+        }
+        toggled
+    }
+
+    fn flip_quietly(self, id: &str, title: &str) -> Option<Toggled> {
         let shelf = Collections::expect();
         // Taken away in this tab before: back as it was, at its time, without the default.
         if let Some(forgotten) = self.recall(id) {
@@ -271,6 +285,7 @@ impl Bookmarks {
             }
             Flip::Full => {
                 self.noted(id, title, Toggled::Full);
+                haptic::play(Haptic::Error);
                 false
             }
             Flip::Unmarked(mark) => {
@@ -320,6 +335,9 @@ impl Bookmarks {
     /// default put it into; a mark taken away put back where its time puts it, with its
     /// collections and its note.
     pub fn undo(self, change: &Marked) {
+        if change.what != Toggled::Full {
+            haptic::play(Haptic::Tap);
+        }
         match &change.what {
             Toggled::Marked { .. } => {
                 let mut taken = None;
@@ -795,8 +813,8 @@ pub fn MarkButton(
                 }
             };
             view! {
-                <button class="mark-toggle icon-btn" type="button" tabindex="-1" aria-hidden=quiet.then_some("true") data-action="mark" data-id=id.clone() data-title=title.clone() on:click=toggle aria-pressed=pressed aria-label=(t.marks.save_title)(&title) title=hint data-command=command data-command-keys="M">
-                    <Icon name="bookmark"/>
+                <button class="mark-toggle icon-btn tap-host" type="button" tabindex="-1" aria-hidden=quiet.then_some("true") data-action="mark" data-id=id.clone() data-title=title.clone() on:click=toggle aria-pressed=pressed aria-label=(t.marks.save_title)(&title) title=hint data-command=command data-command-keys="M">
+                    <Icon name="bookmark"/><TapTick/>
                 </button>
                 <button class="row-more icon-btn" type="button" tabindex="-1" aria-hidden=quiet.then_some("true") data-action="collect" data-id=id aria-haspopup="dialog" aria-label=(t.marks.collect_title)(&title) title=t.marks.collect_hint on:click=collect data-command=t.marks.collect data-command-keys="Shift+M" data-command-icon="layers">
                     <Icon name="chevron-down"/>
@@ -838,8 +856,8 @@ pub fn MarkButton(
             view! {
                 <span class="mark-pair split">
                     // `with-note` while it says where it marks (app.css), as the plan's switch.
-                    <button class="mark-toggle mark-switch hit" class:with-note=move || small.with(Option::is_some) type="button" data-action="mark" data-id=id data-title=title on:click=toggle aria-pressed=pressed title=hint data-command=command data-command-keys="M">
-                        <Icon name="bookmark"/><span>{label}</span>{move || small.get().map(|small| view! { <small>{small}</small> })}<Shortcut keys="M"/>
+                    <button class="mark-toggle mark-switch hit tap-host" class:with-note=move || small.with(Option::is_some) type="button" data-action="mark" data-id=id data-title=title on:click=toggle aria-pressed=pressed title=hint data-command=command data-command-keys="M">
+                        <Icon name="bookmark"/><span>{label}</span>{move || small.get().map(|small| view! { <small>{small}</small> })}<Shortcut keys="M"/><TapTick/>
                     </button>
                     <button class="mark-more hit" type="button" data-action="collect" aria-label=t.marks.collect title=t.marks.collect_hint aria-haspopup="dialog" on:click=collect data-command=t.marks.collect data-command-keys="Shift+M" data-command-icon="layers">
                         <Icon name="chevron-down"/>
@@ -849,8 +867,8 @@ pub fn MarkButton(
             .into_any()
         }
         MarkLook::Action => view! {
-            <button class="mark-toggle action" type="button" data-action="mark" data-id=id data-title=title on:click=toggle aria-pressed=pressed title=hint data-command=command data-command-keys="M">
-                <Icon name="bookmark"/><span>{label}</span>
+            <button class="mark-toggle action tap-host" type="button" data-action="mark" data-id=id data-title=title on:click=toggle aria-pressed=pressed title=hint data-command=command data-command-keys="M">
+                <Icon name="bookmark"/><span>{label}</span><TapTick/>
             </button>
         }
         .into_any(),

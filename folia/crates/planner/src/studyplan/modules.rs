@@ -45,6 +45,7 @@ use leptos::prelude::*;
 
 use crate::i18n;
 use folia_shell::pending::{Change, Pending};
+use folia_design::haptic::TapTick;
 use folia_design::ui::Icon;
 use super::head::{hue, is_past, tone_at};
 use super::own::{own_rows, OwnRow};
@@ -394,7 +395,7 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
         let eye = move || match ctx.edit.get() && has_eye.get() {
             true => view! {
                 <button
-                    class="eye sp-cat-eye"
+                    class="eye sp-cat-eye tap-host"
                     type="button"
                     role="switch"
                     data-action="show-event"
@@ -407,6 +408,7 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
                         true => view! { <Icon name="eye"/> }.into_any(),
                         false => view! { <Icon name="eye-off"/> }.into_any(),
                     }}
+                    <TapTick/>
                 </button>
             }
             .into_any(),
@@ -617,6 +619,7 @@ mod tests {
             courses: 0,
             choices: Vec::new(),
             marks: None,
+            fues_note: None,
         }
     }
 

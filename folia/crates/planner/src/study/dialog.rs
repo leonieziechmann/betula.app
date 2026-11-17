@@ -20,17 +20,18 @@ use folia_design::modal::{kept, Modal, ModalHead, ModalSize, Sheet};
 use super::{count, overview, side, size, Dialog, StudyCtx};
 
 /// The size of a dialog's kind (app.css „The dialogs"): „l" for a list to choose from, „m" for a
-/// form or an overview. The areas and an area are one size, so that a phone's sheet does not move
-/// when an area of the list is opened in it.
+/// form or an overview.
 fn size_of(dialog: &Dialog) -> ModalSize {
     match dialog {
-        Dialog::Switch | Dialog::Area(_) | Dialog::Areas | Dialog::CountFor { .. } | Dialog::Size { .. } => ModalSize::M,
+        Dialog::Switch | Dialog::Area(_) | Dialog::CountFor { .. } | Dialog::Size { .. } => ModalSize::M,
     }
 }
 
-/// How a dialog's kind stands on a phone: the areas and an area half up and all up, as their
-/// size says; „Studiengang wechseln" all up at once (owner, 2026-11-04: „alle modal instanzen
-/// durchguckst und da einstellst, was am besten zu denen passt"), a form with a search as „Plan
+/// How a dialog's kind stands on a phone: an area half up and all up, as its size says (a phone
+/// has its areas as pages, `areas.rs`: an area's dialog is a desktop's, a sheet only where the
+/// window narrowed while it was open); „Studiengang wechseln" all up at once (owner, 2026-11-04:
+/// „alle modal instanzen durchguckst und da einstellst, was am besten zu denen passt"), a form with
+/// a search as „Plan
 /// einrichten" is: half up its Fachsemester stood behind its buttons, and what it holds changes as
 /// it is filled in, which a sheet that fits would follow up and down. „Zählt für" › „Anderer
 /// Bereich …" all up as well: a list of every subgroup to pick from, its buttons under it; and
@@ -38,7 +39,7 @@ fn size_of(dialog: &Dialog) -> ModalSize {
 fn sheet_of(dialog: &Dialog) -> Sheet {
     match dialog {
         Dialog::Switch | Dialog::CountFor { .. } | Dialog::Size { .. } => Sheet::Full,
-        Dialog::Area(_) | Dialog::Areas => size_of(dialog).sheet(),
+        Dialog::Area(_) => size_of(dialog).sheet(),
     }
 }
 
@@ -52,7 +53,6 @@ pub(super) fn DialogHost(ctx: StudyCtx) -> impl IntoView {
         <Modal open=Signal::derive(move || ctx.dialog.with(Option::is_some)) on_close=move || ctx.dialog.set(None) size sheet labelled_by="st-dialog-title">
             {move || shown.get().map(|dialog| match dialog {
                 Dialog::Area(area) => view! { <overview::AreaDialog ctx area/> }.into_any(),
-                Dialog::Areas => view! { <overview::AreasSheet ctx/> }.into_any(),
                 Dialog::Switch => view! { <side::SwitchDialog ctx/> }.into_any(),
                 Dialog::CountFor { semester, id } => view! { <count::CountDialog ctx semester id/> }.into_any(),
                 Dialog::Size { semester, pid } => view! { <size::SizeDialog ctx semester pid/> }.into_any(),

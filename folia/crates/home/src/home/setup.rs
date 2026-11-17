@@ -28,6 +28,12 @@
 //!    gibt ja jetzt betula sync. Mach das mal als step in die einführung mit rein. So als letzten
 //!    schritt. So dass man es gleich auch auf dem handy hat"): after the study is set up, „Betula
 //!    Sync aktivieren" and the QR code for the phone, or „Später".
+//! 5. „Betula als App?" (`install.rs`; owner, 2026-11-17: „schon bei der einrichtung fragen … Bei
+//!    der einrichtung soll es nur später als option geben"), where this browser can install Betula
+//!    and it is not installed: „Installieren" (or the guide of a browser that installs by its own
+//!    menu) and „Später". Its chip comes once the study is set up: whether a browser lets the page
+//!    install is known only once it says so, and the server's page cannot know it at all. The
+//!    fourth where the site offers no Betula Sync.
 //!
 //! „Studium anlegen" stores the program, its study direction and the Studienbeginn in „Mein
 //! Studiengang" and takes the rows over into the current semester of the Stundenplan, as its
@@ -61,12 +67,14 @@ use folia_data::use_ask;
 use folia_design::combobox::{ComboItem, Combobox};
 use folia_shell::document::SyncOffer;
 use folia_design::format;
+use folia_design::haptic::{self, Haptic, TapTick};
 use folia_design::ui::Icon;
 use folia_stores::myprogram::{po_of, program_name, MyProgram, ProgramPlans};
 use folia_stores::studyplan::Studyplan;
 use folia_stores::sync::Sync;
 
 use super::devices::DevicesStep;
+use super::install::{AppStep, Install, TakeOver};
 use crate::i18n::{self, Texts};
 
 /// The browser app (`csr`): only there is anything picked or stored.
@@ -176,7 +184,8 @@ fn typed_fs(text: &str) -> Option<u8> {
 
 /// The rows of the plan in Fachsemester `fs`, as „Fachsemester übernehmen" takes them
 /// (`studyplan::import_fs`): a module once, a row without one as a placeholder; rows of prose are
-/// none.
+/// none. A row over several Fachsemester from the one it is due in on (`PlanRow::due`: the thesis
+/// with the last of its span).
 pub fn rows_in(source: &PlanSource, core: Option<&PlanVariant>, page: Option<(&PlanVariant, i64)>, fs: u8) -> Vec<SetupRow> {
     rows_where(source, core, page, |first, last| first <= fs && fs <= last)
 }
@@ -190,7 +199,7 @@ fn rows_where(source: &PlanSource, core: Option<&PlanVariant>, page: Option<(&Pl
     let mut seen: BTreeSet<String> = BTreeSet::new();
     let mut rows = Vec::new();
     for row in plan_rows(core, page) {
-        if !take(row.first, row.last) {
+        if !take(row.due, row.last) {
             continue;
         }
         let entry = row.entry;
@@ -287,13 +296,27 @@ fn with_sync() -> bool {
     }
 }
 
-/// The steps as the chips name them: three, and „Geräte" where Betula Sync follows.
-fn steps(s: &'static i18n::setup::Texts, with_sync: bool) -> Vec<(u8, &'static str)> {
+/// The steps as the chips name them: three, „Geräte" where Betula Sync follows, and „App" where
+/// Betula as an app follows (`app`).
+fn steps(t: &'static Texts, with_sync: bool, app: bool) -> Vec<(u8, &'static str)> {
+    let s = &t.setup;
     let mut steps = vec![(1u8, s.step_program), (2, s.step_start), (3, s.step_semester)];
     if with_sync {
         steps.push((4, s.step_devices));
     }
+    if app {
+        steps.push((app_step(with_sync), t.install.step_app));
+    }
     steps
+}
+
+/// The number of the step „App": after „Geräte" where Betula Sync is offered.
+fn app_step(with_sync: bool) -> u8 {
+    if with_sync {
+        5
+    } else {
+        4
+    }
 }
 
 /// „Profil übernehmen" at the foot of step 1: where the site offers Betula Sync from the phone by
@@ -316,8 +339,11 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
     let s = &t.setup;
     let with_sync = with_sync();
     let step = RwSignal::new(1u8);
-    // What „Studium anlegen" did, while step 4 follows it.
+    // What „Studium anlegen" did, while a step follows it.
     let created = RwSignal::new(None::<Done>);
+    // Whether this browser can install Betula and it is not installed: then „App" follows.
+    let install = Install::expect();
+    let with_app = Memo::new(move |_| install.is_some_and(|install| install.way().is_some()));
     let program = RwSignal::new(None::<String>);
     let start = RwSignal::new(None::<SemesterKey>);
     // What step 2 has picked (none yet: the latest it offers), and the text of its fifth box (none
@@ -450,10 +476,14 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
             0 => (String::new(), None),
             len => ProgramPlans::new(&source.variants, source.supplements.clone()).kept(index.min(len - 1)),
         };
-        // The page keeps the card for step 4, before „Mein Studiengang" says a study is set up.
-        if with_sync {
+        // A step follows (Betula Sync, Betula as an app): the page keeps the card for it, before
+        // „Mein Studiengang" says a study is set up.
+        let follows = with_sync || with_app.get_untracked();
+        if follows {
             on_written.run(());
         }
+        // The study set up: felt as done (folia_design::haptic).
+        haptic::play(Haptic::Success);
         // Set up again from a step before (its chip): in place of the first time, so that what was
         // before the setup is what „Rückgängig" puts back.
         let first = created.get_untracked();
@@ -508,7 +538,7 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
         }
         plan_store.update_after_paint(move |stored| *stored = doc);
         let done = Done { program: program_name(&source.program), fs, start, modules, placeholders, passed, plan_before, start_before };
-        if with_sync {
+        if follows {
             on_parked.run(done.clone());
             created.set(Some(done));
             step.set(4);
@@ -516,10 +546,18 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
             on_done.run(done);
         }
     };
-    // „Fertig" or „Später" of step 4: the setup ends with what „Studium anlegen" did.
+    // The setup's last step answered: it ends with what „Studium anlegen" did.
     let finish = Callback::new(move |()| {
         if let Some(done) = created.get_untracked() {
             on_done.run(done);
+        }
+    });
+    // „Fertig" or „Später" of Betula Sync: on to „App" where it follows, else the end.
+    let after_devices = Callback::new(move |()| {
+        if with_app.get_untracked() {
+            step.set(app_step(with_sync));
+        } else {
+            finish.run(());
         }
     });
 
@@ -535,7 +573,10 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
         });
         let start_label = start.get().zip(fs_now.get()).map(|(key, fs)| format!("{} · {fs}.\u{a0}{}", key.short(t.locale), s.fs_short));
         let semester_label = created.with(|done| done.as_ref().map(|done| (s.semester_done)(done.modules + done.placeholders)));
-        steps(s, with_sync)
+        // „App" once the study is set up and this browser can install Betula, and while its step
+        // stands (a browser's dialog, once opened, is no longer offered).
+        let app = created.with(Option::is_some) && (with_app.get() || now_step == app_step(with_sync));
+        steps(t, with_sync, app)
             .into_iter()
             .map(|(n, name)| {
                 let value = match n {
@@ -571,6 +612,9 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
         view! {
             <h1 class="ob-title">{s.program_title}</h1>
             <p class="ob-lede">{s.program_lead}</p>
+            // The first start of an app on an iPhone or a Mac: the profile Safari put on the
+            // clipboard for it.
+            <TakeOver/>
             <div class="ob-combo">
                 <Combobox
                     id="ob-program"
@@ -797,9 +841,10 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
                 </div>
             </div>
             {(fs > 1 && has_plan).then(|| view! {
-                <button type="button" class="ob-switch" role="switch" aria-checked=move || past.get().to_string() on:click=move |_| past.update(|on| *on = !*on) data-command=s.past_switch data-command-state=move || past.get().then_some(s.switch_on)>
+                <button type="button" class="ob-switch tap-host" role="switch" aria-checked=move || past.get().to_string() on:click=move |_| past.update(|on| *on = !*on) data-command=s.past_switch data-command-state=move || past.get().then_some(s.switch_on)>
                     <span class="ob-toggle" aria-hidden="true"></span>
                     <span><b>{s.past_switch}</b><small>{(s.past_detail)(earlier.len(), &format::number(earlier_credits, t.locale), fs - 1)}</small></span>
+                    <TapTick/>
                 </button>
             })}
             <div class="ob-actions">
@@ -817,7 +862,8 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
                 1 => step_one().into_any(),
                 2 => step_two().into_any(),
                 3 => step_three().into_any(),
-                _ => view! { <DevicesStep on_finish=finish/> }.into_any(),
+                4 if with_sync => view! { <DevicesStep on_finish=after_devices/> }.into_any(),
+                _ => view! { <AppStep on_finish=finish/> }.into_any(),
             }}
         </div>
     }
@@ -832,7 +878,7 @@ pub fn ServerCard(faculties: Signal<Option<Counted>>) -> impl IntoView {
     view! {
         <div class="ob" data-step="1">
             <nav class="ob-chips" aria-label=s.steps_label>
-                {steps(s, with_sync()).into_iter().map(|(n, name)| view! {
+                {steps(t, with_sync(), false).into_iter().map(|(n, name)| view! {
                     <button type="button" class="ob-chip" class:on=n == 1 disabled=true><i aria-hidden="true">{n}</i><span>{name}</span></button>
                 }).collect_view()}
             </nav>
@@ -944,6 +990,13 @@ mod tests {
         let earlier = rows_before(&source, core, page, 3);
         assert!(earlier.len() > first.len() && earlier.iter().all(|row| row.span.0 < 3));
         assert!(rows_before(&source, core, page, 1).is_empty());
+        // The Bachelor-Arbeit of the 5.–6. FS is a row of the sixth, where it is due (owner,
+        // 2026-11-17: „eigentlich erst am schluss"); the Komplexe over both are rows of both.
+        let thesis = |rows: &[SetupRow]| rows.iter().filter(|row| row.key == "m:12333").count();
+        let (fifth, sixth) = (rows_in(&source, core, page, 5), rows_in(&source, core, page, 6));
+        assert_eq!((thesis(&fifth), thesis(&sixth), thesis(&rows_before(&source, core, page, 6))), (0, 1, 0));
+        assert_eq!(sixth.iter().find(|row| row.key == "m:12333").map(|row| row.span), Some((5, 6)));
+        assert_eq!(fifth.iter().filter(|row| !row.linked).count(), sixth.iter().filter(|row| !row.linked).count());
     }
 
     fn key(text: &str) -> SemesterKey {

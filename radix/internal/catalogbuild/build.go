@@ -21,6 +21,7 @@ import (
 // plan, plan_entry and plan_scan_status are a source of their own and stay, and so do the
 // caches of the semantic search, module_summary and passage_embedding.
 var derivedTables = []string{
+	"program_fues_note", "fues_negative_choice", "fues_negative", "fues_catalog_program", "fues_catalog_heading", "fues_catalog", "fues_catalog_document",
 	"module_extra", "module_choice_option", "module_choice",
 	"module_track_program", "module_track", "program_campus", "event_program_ref", "event_program",
 	"module_folded", "module_vector", "program_module_abbrev", "module_abbrev",
@@ -107,6 +108,15 @@ type Report struct {
 	// lists, on its German and its English page.
 	StudyPages int
 
+	// FUESCatalogs counts the BTU's FÜS catalogs read, FUESNegatives the lines of their negative
+	// lists written (fues_negative, fues_negative_choice). FUESModulesUnknown counts the module numbers of the catalogs
+	// that the module lists do not hold; FUESCatalogsUnreadable names the archived catalogs that
+	// could not be read.
+	FUESCatalogs           int
+	FUESNegatives          int
+	FUESModulesUnknown     map[string]int
+	FUESCatalogsUnreadable []string
+
 	// Unused lists archived pages that are not part of the current dataset: module pages
 	// of modules that left the lists, tree pages the root no longer reaches. source → keys.
 	Unused map[string][]string
@@ -120,7 +130,7 @@ type Report struct {
 // build.tree_leaves_without_module, build.tree_pages_missing, build.plans_without_program,
 // build.plan_entries_unknown_module, build.modules_without_page, build.event_links_gone,
 // build.rooms_unknown_building, build.room_short_collisions, build.abbrev_overrides_unused,
-// build.unresolved_event_programs).
+// build.unresolved_event_programs, build.fues_unknown_modules, build.fues_catalogs_unreadable).
 func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	log := oplog.For("build")
 	start := time.Now()
@@ -157,6 +167,8 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	warn(len(report.RoomShortCollisions), "build.room_short_collisions", "rooms would share a short form; they keep their long form", "rooms", first(report.RoomShortCollisions, 10))
 	warn(len(report.AbbrevOverridesUnused), "build.abbrev_overrides_unused", "lines of the abbreviation override file apply to no module", "lines", report.AbbrevOverridesUnused)
 	warn(total(report.EventProgramsUnresolved), "build.unresolved_event_programs", "programs event pages list resolve to no program of the catalog", "distinct", len(report.EventProgramsUnresolved), "examples", examples(report.EventProgramsUnresolved, 5))
+	warn(total(report.FUESModulesUnknown), "build.fues_unknown_modules", "the BTU's FÜS catalogs name modules the module lists do not hold; they are left out", "distinct", len(report.FUESModulesUnknown), "examples", examples(report.FUESModulesUnknown, 5))
+	warn(len(report.FUESCatalogsUnreadable), "build.fues_catalogs_unreadable", "archived FÜS catalogs could not be read; the FÜS lists follow the others", "catalogs", report.FUESCatalogsUnreadable)
 
 	log.Info("build finished", "event", "build.finished", "duration_ms", time.Since(start).Milliseconds(),
 		"modules", report.Modules, "programs", report.Programs, "events", report.Events, "events_from_list", report.EventsFromList,
@@ -166,7 +178,7 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		"modules_with_choices", report.ModulesWithChoices, "choices_program", report.ChoicesByProgram, "choices_group", report.ChoicesInGroups, "choices_topic", report.ChoicesOfTopics, "choice_extras", report.ChoiceExtras,
 		"assertions_page", report.Assertions["module_page"], "assertions_tree", report.Assertions["qis_tree"], "assertions_plan", report.Assertions["pdf_plan"],
 		"abbrev_fell_back", report.AbbrevFellBack, "abbrev_twins", report.AbbrevTwins, "abbrev_changed", report.AbbrevChanged,
-		"module_vectors", report.ModuleVectors, "general_documents", report.GeneralDocuments, "study_pages", report.StudyPages, "content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])
+		"module_vectors", report.ModuleVectors, "general_documents", report.GeneralDocuments, "study_pages", report.StudyPages, "fues_catalogs", report.FUESCatalogs, "fues_negatives", report.FUESNegatives, "content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])
 	return report, nil
 }
 
@@ -221,6 +233,7 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		Assertions:           make(map[string]int),
 		Unused:               make(map[string][]string),
 		RoomsUnknownBuilding: make(map[string]int),
+		FUESModulesUnknown:   make(map[string]int),
 
 		EventProgramsUnresolved: make(map[string]int),
 	}
@@ -264,6 +277,7 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		{"module page assignments", b.writePageAssignments},
 		{"plan assertions", b.writePlanAssertions},
 		{"kinds of plan slots", b.writeSlotKinds}, // needs every stated statement
+		{"FÜS catalogs", b.writeFUESCatalogs},     // needs module and program; program_module reads them
 		{"events", b.writeEvents},
 		{"event programs", b.writeEventPrograms}, // needs event and program
 		{"room short forms", b.writeRoomShorts},
@@ -327,10 +341,11 @@ type builder struct {
 	semanticModel string
 }
 
-// materialize evaluates the two expensive *_src views once per build. The public
-// views read the resulting tables, so the browser never has to run that logic.
+// materialize evaluates the expensive *_src views once per build: program_module, module_facet
+// and program_fues_note. The public views read the resulting tables, so the browser never has to
+// run that logic.
 func (b *builder) materialize() error {
-	for table, view := range map[string]string{"program_module": "v_program_module_src", "module_facet": "v_module_facets_src"} {
+	for table, view := range map[string]string{"program_module": "v_program_module_src", "module_facet": "v_module_facets_src", "program_fues_note": "v_program_fues_note_src"} {
 		if _, err := b.tx.Exec("INSERT INTO " + table + " SELECT * FROM " + view); err != nil {
 			return fmt.Errorf("%s: %w", table, err)
 		}

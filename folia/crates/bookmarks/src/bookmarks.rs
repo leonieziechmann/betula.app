@@ -60,6 +60,7 @@ use folia_design::format;
 use crate::i18n::{self, use_location, Locale};
 use folia_widgets::finder::{finder_on, FitView, Finder};
 use folia_widgets::local::ModuleInPlace;
+use folia_design::haptic::{self, Haptic};
 use folia_design::nav;
 use folia_widgets::list::{phone_layout, ListKeys, Row, RowMine, RowStatus};
 use folia_widgets::module::ModulePanel;
@@ -70,7 +71,7 @@ use folia_shell::skeleton::{AppStandin, DetailSkeleton};
 use folia_shell::tabs::{self, Area, Tabs};
 use folia_shell::frame::ErrorState;
 use folia_design::keys::Keys;
-use folia_design::ui::{Hit, Icon, ToggleLink};
+use folia_design::ui::{Hit, Icon, TickMark, ToggleLink};
 use crate::pick::{self, Listed, PickBar, PickMenus, PickRow, Picking};
 use crate::share::{followed_name, take_part, FollowedHead, ListOffer, ListShareDialog};
 
@@ -1327,8 +1328,15 @@ fn List(
     let cols = move || {
         let module_head = head(if program_set { &[BookmarkSort::Study, BookmarkSort::Title] } else { &[BookmarkSort::Title, BookmarkSort::Study] }, module_order, t.catalog.col_module, "c-module");
         view! {
-            // The heads are one stop of Tab, ← and → go from one to the next (enhance.js).
+            // The heads are one stop of Tab, ← and → go from one to the next (enhance.js). On a
+            // wide screen the box of all the rows over their boxes, which comes as theirs do, when
+            // the pointer comes near; no stop of Tab (Ctrl or ⌘ and A selects them all).
             <div class="cols label" role="toolbar" aria-label=t.catalog.sort_label data-stop="x">
+                {move || (!phone.get()).then(|| view! {
+                    <button class="st-sel" type="button" role="checkbox" tabindex="-1" aria-checked="false" aria-label=t.bookmarks.select_all title=t.bookmarks.select_all on:click=move |_| picking.select_all()>
+                        <TickMark/>
+                    </button>
+                })}
                 {module_head}
                 <span class="c-resp">{t.catalog.col_responsible}</span>
                 <span class="c-exam">{t.catalog.exam}</span>
@@ -1439,7 +1447,7 @@ fn List(
         </div>
         {has_rows.then(|| {
             let selecting = Memo::new(move |_| picking.any());
-            move || if selecting.get() { view! { <PickBar picking/> }.into_any() } else { cols().into_any() }
+            move || if selecting.get() { view! { <PickBar picking phone/> }.into_any() } else { cols().into_any() }
         })}
         // The rows are one stop of Tab, ↑ and ↓ go from row to row (enhance.js, „the keyboard").
         <div
@@ -1451,7 +1459,7 @@ fn List(
             on:pointerup=move |_| picking.end()
             on:pointercancel=move |_| picking.end()
             on:touchmove=move |ev: leptos::ev::TouchEvent| picking.touch_move(&ev)
-            on:click=move |ev: leptos::ev::MouseEvent| picking.click(&ev)
+            on:click=move |ev: leptos::ev::MouseEvent| picking.click(&ev, phone.get_untracked())
             on:contextmenu=move |ev: leptos::ev::MouseEvent| picking.context(&ev)
             on:keydown=move |ev: leptos::ev::KeyboardEvent| picking.keys(&ev)
             // A row's link is not dragged away: a mouse drawn over the rows selects them.
@@ -2129,6 +2137,7 @@ fn CollectionChips(ui: CollUi, views: Memo<Views>, here: Memo<BookmarksUrl>) -> 
             let handle = set_timeout_with_handle(
                 move || {
                     pressed.set_value(true);
+                    haptic::play(Haptic::Hold);
                     ui.confirming.set(false);
                     ui.menu.set(at.map(|at| (of, at)));
                 },
@@ -2250,7 +2259,7 @@ fn menu_place(at: Anchor, wide: f64, height: f64, room: nav::Room) -> (f64, f64)
     (left, top)
 }
 
-/// Copies a text into the clipboard (a click's: the browser lets it).
+/// Copies a text into the clipboard (a click's: the browser lets it), and the hand feels it done.
 pub(crate) fn copy(text: &str) {
     #[cfg(feature = "csr")]
     if let Some(window) = web_sys::window() {
@@ -2258,6 +2267,7 @@ pub(crate) fn copy(text: &str) {
     }
     #[cfg(not(feature = "csr"))]
     let _ = text;
+    haptic::play(Haptic::Success);
 }
 
 /// The address of this site a path of it becomes.
@@ -2416,11 +2426,11 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                     let height = 2.0 * MENU_ITEM + 60.0 + if kept > 0 { 18.0 } else { 0.0 };
                     return Some(view! {
                         <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close()></div>
-                        <div data-sheet="fit" class="st-pop root view-menu ask" role="alertdialog" aria-label=label style=menu_style(at, height) on:keydown=keys>
+                        <div data-sheet="menu" class="st-pop root view-menu ask" role="alertdialog" aria-label=label style=menu_style(at, height) on:keydown=keys>
                             <p class="view-menu-ask">{question}{(kept > 0).then(|| view! { <small>{(b.delete_keeps)(kept)}</small> })}</p>
                             <div class="view-menu-answers">
-                                <button class="mini danger hit" type="button" role="menuitem" id="delete-yes" on:click=move |_| delete.run(())>{b.delete}</button>
-                                <button class="mini hit" type="button" role="menuitem" on:click=move |_| close()>{b.cancel}</button>
+                                <button class="mini danger hit" type="button" role="menuitem" id="delete-yes" on:click=move |_| delete.run(())><Icon name="trash-2"/><span>{b.delete}</span></button>
+                                <button class="mini hit" type="button" role="menuitem" on:click=move |_| close()><Icon name="x"/><span>{b.cancel}</span></button>
                             </div>
                         </div>
                     }.into_any());
@@ -2474,7 +2484,7 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                 if ui.confirming.get() {
                     return Some(view! {
                         <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close()></div>
-                        <div data-sheet="fit" class="st-pop root view-menu ask" role="alertdialog" aria-label=b.clear style=menu_style(at, 2.0 * MENU_ITEM + 60.0) on:keydown=keys>
+                        <div data-sheet="menu" class="st-pop root view-menu ask" role="alertdialog" aria-label=b.clear style=menu_style(at, 2.0 * MENU_ITEM + 60.0) on:keydown=keys>
                             <p class="view-menu-ask">{(b.clear_question)(count)}</p>
                             <div class="view-menu-answers">
                                 <button class="mini danger hit" type="button" role="menuitem" id="clear-yes" on:click=move |_| {
@@ -2485,8 +2495,8 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                                             notices.say(Notice::Cleared(cleared));
                                         }
                                     }
-                                }>{b.clear_yes}</button>
-                                <button class="mini hit" type="button" role="menuitem" on:click=move |_| close()>{b.cancel}</button>
+                                }><Icon name="trash-2"/><span>{b.clear_yes}</span></button>
+                                <button class="mini hit" type="button" role="menuitem" on:click=move |_| close()><Icon name="x"/><span>{b.cancel}</span></button>
                             </div>
                         </div>
                     }.into_any());
@@ -2584,7 +2594,7 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
         let label = title.clone();
         Some(view! {
             <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close() on:contextmenu=move |ev: leptos::ev::MouseEvent| { ev.prevent_default(); close(); }></div>
-            <div data-sheet="fit" class="st-pop root view-menu" role="menu" aria-label=label style=menu_style(at, height) on:keydown=keys>
+            <div data-sheet="menu" class="st-pop root view-menu" role="menu" aria-label=label style=menu_style(at, height) on:keydown=keys>
                 <p class="st-pop-title st-phone">{title}</p>
                 {entries.into_iter().map(|Entry { icon, label, hint, key, danger, does }| view! {
                     {danger.then(|| view! { <hr/> })}
@@ -2800,6 +2810,7 @@ mod tests {
             courses: 0,
             choices: Vec::new(),
             marks: None,
+            fues_note: None,
         }
     }
 

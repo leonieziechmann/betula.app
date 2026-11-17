@@ -163,6 +163,8 @@ pub struct PlanRow<'a> {
     pub entry: &'a PlanEntry,
     pub first: u8,
     pub last: u8,
+    /// The Fachsemester it is due in first (`plan::due_in`): `first`, of the thesis `last`.
+    pub due: u8,
 }
 
 /// The rows of the plan `core` with the page that fills a row of it (`variants::supplements`, with
@@ -182,7 +184,8 @@ pub fn plan_rows<'a>(core: Option<&'a PlanVariant>, page: Option<(&'a PlanVarian
             if first == 0 {
                 continue;
             }
-            rows.push(PlanRow { variant, entry, first, last });
+            let due = plan::due_in((first, last), entry.kind.as_ref().and_then(Code::known));
+            rows.push(PlanRow { variant, entry, first, last, due });
         }
     }
     rows
@@ -1239,14 +1242,15 @@ pub struct Suggestion {
 }
 
 /// The rows of the plan in Fachsemester `fs`, as the picker offers them for a semester: each
-/// module once, with where it stands.
+/// module once, with where it stands. A row over several Fachsemester from the one it is due in
+/// on (`PlanRow::due`): the thesis of „5.–6. FS" is a row of the sixth, not of the fifth.
 pub fn plan_semester(input: &Input, study: &Study, fs: u8) -> Vec<Suggestion> {
     let doc = input.doc;
     let catalog: BTreeMap<&str, &CatalogRow> = input.rows.iter().map(|row| (row.id.as_str(), row)).collect();
     let mut named: BTreeSet<&str> = BTreeSet::new();
     let area_of = |caption: &str, ord: i64| study.progress.iter().position(|p| p.area.rows.iter().any(|(c, o)| c == caption && *o == ord));
     let mut out = Vec::new();
-    for row in plan_rows(input.core, input.page).into_iter().filter(|row| row.first <= fs && fs <= row.last) {
+    for row in plan_rows(input.core, input.page).into_iter().filter(|row| row.due <= fs && fs <= row.last) {
         let entry = row.entry;
         let area = area_of(&row.variant.full, entry.ord);
         let credits_text = plan::credits_of(entry);
@@ -1565,15 +1569,18 @@ pub fn needs(doc: &PlanDoc, prerequisites: &[Prerequisite], id: &str, s: Semeste
 pub struct Line {
     pub suggestion: Suggestion,
     pub semester: SemesterKey,
-    /// The Fachsemester the plan puts it into first.
+    /// The Fachsemester the plan puts it into first: the one it is due in (`PlanRow::due`).
     pub plan_fs: Option<u8>,
+    /// The Fachsemester the plan prints for it („5.–6. FS"), of a row still open.
+    pub plan_span: Option<(u8, u8)>,
     /// A Wiederholer: the semester it was not passed in.
     pub failed_in: Option<SemesterKey>,
 }
 
-/// The open rows of the plan, each once at its first Fachsemester (or the current semester, where
-/// that is over; then the next one that offers it), and the Wiederholer in the next semester that
-/// offers them. A semester the study does not reach does not move a row.
+/// The open rows of the plan, each once at the Fachsemester it is due in — its first, the thesis
+/// the last of its span (`plan::due_in`) — (or the current semester, where that is over; then the
+/// next one that offers it), and the Wiederholer in the next semester that offers them. A semester
+/// the study does not reach does not move a row.
 pub fn open_lines(input: &Input, study: &Study) -> Vec<Line> {
     let now = study.now;
     let fit = |at: SemesterKey, offer: Offer| {
@@ -1581,7 +1588,15 @@ pub fn open_lines(input: &Input, study: &Study) -> Vec<Line> {
         let next = offer.next(at);
         if study.semester(next).is_some() { next } else { at }
     };
-    let last = plan_rows(input.core, input.page).iter().map(|row| row.last).max().unwrap_or(0);
+    let rows = plan_rows(input.core, input.page);
+    let last = rows.iter().map(|row| row.last).max().unwrap_or(0);
+    let span_of = |pick: &Pick| {
+        let row = match pick {
+            Pick::Module { id, .. } => rows.iter().find(|row| row.entry.module_id.as_deref() == Some(id.as_str())),
+            Pick::Row { caption, ord } => rows.iter().find(|row| row.variant.full == *caption && row.entry.ord == *ord),
+        };
+        row.map(|row| (row.first, row.last))
+    };
     let mut seen: Vec<Pick> = Vec::new();
     let mut out = Vec::new();
     for fs in 1..=last {
@@ -1592,7 +1607,8 @@ pub fn open_lines(input: &Input, study: &Study) -> Vec<Line> {
             }
             seen.push(suggestion.pick.clone());
             if suggestion.standing == Standing::Open {
-                out.push(Line { semester: fit(at, suggestion.offer), suggestion, plan_fs: Some(fs), failed_in: None });
+                let plan_span = span_of(&suggestion.pick);
+                out.push(Line { semester: fit(at, suggestion.offer), suggestion, plan_fs: Some(fs), plan_span, failed_in: None });
             }
         }
     }
@@ -1615,7 +1631,7 @@ pub fn open_lines(input: &Input, study: &Study) -> Vec<Line> {
             offer: item.offer,
             standing: Standing::Open,
         };
-        out.push(Line { semester: fit(now, item.offer), suggestion, plan_fs: item.plan_fs, failed_in: Some(retake.failed_in) });
+        out.push(Line { semester: fit(now, item.offer), suggestion, plan_fs: item.plan_fs, plan_span: None, failed_in: Some(retake.failed_in) });
     }
     out
 }
@@ -1790,6 +1806,7 @@ mod tests {
             courses: 0,
             choices: Vec::new(),
             marks: None,
+            fues_note: None,
         }
     }
 
@@ -2114,6 +2131,44 @@ mod tests {
         // The Stundenplan takes the Wiederholer.
         let import = retake_import(&study, &doc, key("2026W"));
         assert_eq!((import.modules, import.skipped), (vec![(key("2026W"), "11002".to_string())], 0));
+    }
+
+    /// The thesis over two Fachsemester stands in the last of them (owner, 2026-11-17: „sowas, wie
+    /// die Bachelorarbeit sollte halt auch erst im 6. Semester im Default sein"), with the span the
+    /// plan prints; a choice over the same two in the first. The picker's rows of a Fachsemester
+    /// and a Fachsemester taken over go by the same, and the student puts it where they like.
+    #[test]
+    fn the_thesis_over_several_fachsemester_stands_in_the_last() {
+        let mut w = world();
+        for entry in w.core.entries.iter_mut().filter(|entry| entry.ord == 9) {
+            (entry.semester, entry.start_semester, entry.end_semester) = (None, Some(3), Some(4));
+        }
+        let doc = PlanDoc::default();
+        let input = input(&w, &doc, "2025W", "2025W");
+        let study = study(&input);
+        let lines = open_lines(&input, &study);
+        let thesis = Pick::Module { id: "11009".into(), from_plan: true };
+        let of = |pick: &Pick| lines.iter().find(|line| line.suggestion.pick == *pick).map(|line| (line.semester, line.plan_fs, line.plan_span));
+        assert_eq!(of(&thesis), Some((key("2027S"), Some(4), Some((3, 4)))));
+        assert_eq!(of(&Pick::Row { caption: String::new(), ord: 6 }), Some((key("2026W"), Some(3), Some((3, 4)))));
+        assert_eq!(lines.iter().filter(|line| line.suggestion.pick == thesis).count(), 1);
+        let offers = |fs: u8| plan_semester(&input, &study, fs).iter().any(|suggestion| suggestion.pick == thesis);
+        assert!(!offers(3) && offers(4));
+        // Taken over, the third Fachsemester leaves it and the fourth brings it; filling the
+        // semesters that are over puts it into the fourth alone.
+        let third = studyplan::import_fs(&doc, PROGRAM, &w.core, None, key("2026W"), 3);
+        assert!(third.modules.is_empty() && third.placeholders.len() == 3, "{third:?}");
+        let fourth = studyplan::import_fs(&doc, PROGRAM, &w.core, None, key("2027S"), 4);
+        assert_eq!(fourth.modules, [(key("2027S"), "11009".to_string())]);
+        let mut filled = PlanDoc::default();
+        let later = super::tests::input(&w, &doc, "2025W", "2027W");
+        fill_past(&mut filled, &later, 1);
+        assert_eq!(filled.planned_in("11009"), [key("2027S")]);
+        // Planned into the third all the same: nothing is open of it, and nothing says no.
+        let mut early = PlanDoc::default();
+        assert_eq!(add(&mut early, &input, key("2026W"), std::slice::from_ref(&thesis), 1), 1);
+        let input = super::tests::input(&w, &early, "2025W", "2025W");
+        assert!(open_lines(&input, &super::study(&input)).iter().all(|line| line.suggestion.pick != thesis));
     }
 
     /// What fits a semester: its Fachsemester's rows and those before it still open, the

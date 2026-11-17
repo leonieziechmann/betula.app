@@ -235,7 +235,7 @@ pub fn TodayView(guest: bool, on_setup: Callback<()>, home: Signal<Option<HomeDa
                 return view! {
                     <div class="day-cols guest">
                         <div class="day-col"><MarksPanel/></div>
-                        <div class="day-col"><GuestPanel on_setup/></div>
+                        <div class="day-col"><super::install::InstallCard study=false/><GuestPanel on_setup/></div>
                     </div>
                 }.into_any();
             }
@@ -243,7 +243,9 @@ pub fn TodayView(guest: bool, on_setup: Callback<()>, home: Signal<Option<HomeDa
             view! {
                 <div class="day-cols">
                     <div class="day-col day-main">{main.into_iter().map(panel).collect_view()}</div>
-                    <div class="day-col">{side.into_iter().map(panel).collect_view()}</div>
+                    // Betula as an app, where it has not happened yet (`install`): over the side's
+                    // panels, on a phone the first under the photo (app.css `.day-install`).
+                    <div class="day-col"><super::install::InstallCard study=true/>{side.into_iter().map(panel).collect_view()}</div>
                 </div>
             }.into_any()
         }}

@@ -1,18 +1,26 @@
 //! Several modules at once on the Merkliste (folia/design/merken/oberflaeche.html, „Mehrere
-//! auswählen"; konzept.html, „Mehrere auf einmal"): selected as in „Mein Studium" since 1.31.0 —
-//! no boxes, the row tinted and hatched (app.css `.row-wrap.is-selected`), the bar in the place of
-//! the heads of the columns, on a phone over the tab bar.
+//! auswählen"; konzept.html, „Mehrere auf einmal"): selected as in „Mein Studium" — the row tinted
+//! and hatched (app.css `.row-wrap.is-selected`), the bar in the place of the heads of the columns,
+//! on a phone over the tab bar — and, as „Mein Studium" since Folia 1.96.0, as lists of mail
+//! select (owner, 2026-11-17: „Merkliste bitte auch so angleichen"; until then it had no boxes and
+//! a click while rows were selected selected on a wide screen too).
 //!
-//! - On a wide screen Ctrl or ⌘ and a click selects a row or lets it go, Shift and a click takes in
-//!   the rows from the last one clicked, and a mouse pressed on one row and drawn onto others
-//!   selects them (begun on a selected row, it lets them go); „Auswählen" stands in a row's menu,
-//!   its right click. While rows are selected, a click selects or lets go.
+//! - On a wide screen each row has a box to tick at its start (`folia_widgets::list::Row`), which
+//!   comes when the pointer comes near — over the row — or the row has the focus, and stays on
+//!   every row while rows are selected; a click on it selects the row or lets it go. Shift and a
+//!   click, at a box or on a row, gives the rows from the last one clicked the state the row takes
+//!   (`ranged`); Ctrl or ⌘ and a click on a row selects it or lets it go; a mouse pressed on one row
+//!   (or its box) and drawn onto others selects them (begun on a selected row, it lets them go);
+//!   „Auswählen" stands in a row's menu, its right click; the box over the heads of the columns
+//!   selects all. A click on a row itself opens its module, while rows are selected too.
 //! - On a phone a finger held still on a row selects it (`folia_widgets::swipe`), and drawn on,
-//!   the rows under it; then a tap selects or lets go. Swiping stays.
+//!   the rows under it; then a tap selects or lets go. Swiping stays. No box to tick there.
 //! - Keys, as in „Mein Studium": Shift and ↑ ↓ take in the next row (or let go of the last, back
 //!   towards where it began), Ctrl or ⌘ and A every row the list shows, Esc lets go of them, the
 //!   space bar at a row selects it.
-//! - The bar: „3 ausgewählt · 14 LP", „Alle auswählen" (a wide screen's), „Sammlung" (the menu of
+//! - The bar: on a wide screen the box of all of them over the rows' boxes, with a dash while some
+//!   are selected (a click selects all) and ticked where all are (a click lets go; until 1.97.8
+//!   „Alle auswählen" was a button), „3 ausgewählt · 14 LP", „Sammlung" (the menu of
 //!   their collections, `folia_widgets::collect`, and S), „Einplanen" (each where its own
 //!   „Einplanen" aims, or all into one semester, the semesters as „Verschieben nach" lists them),
 //!   „Teilen" (a link for another device, or the list as text), „Entfernen", and letting go. What
@@ -25,8 +33,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use folia_calendar::semester::SemesterKey;
 use folia_data::use_data;
+use folia_design::haptic::{self, Haptic};
 use folia_design::nav;
-use folia_design::ui::{Icon, KeysText};
+use folia_design::ui::{Icon, KeysText, TickMark};
 use folia_plans::study::{fs_of, Offer};
 use folia_routes::url;
 use folia_stores::bookmarks::{share_fragment, Bookmarks, Brought};
@@ -93,10 +102,23 @@ fn painted(order: &[String], paint: &Paint, at: usize, takes: impl Fn(&str) -> b
     ids
 }
 
-/// The rows from `from` to `to` (Shift and a click), those `takes` takes in and `to` itself.
-fn range(order: &[String], from: &str, to: &str, takes: impl Fn(&str) -> bool) -> Vec<String> {
-    let (Some(a), Some(b)) = (order.iter().position(|id| id == from), order.iter().position(|id| id == to)) else { return vec![to.to_string()] };
-    order.iter().enumerate().take(a.max(b) + 1).skip(a.min(b)).filter(|(i, id)| *i == b || takes(id)).map(|(_, id)| id.clone()).collect()
+/// What is selected after Shift and a click at row `to` (as lists of mail have it): the rows from
+/// the last one clicked (`picked.anchor`; none, or one the list no longer has: the row alone) to it
+/// take the state the row takes — selected where it was not (those `takes` takes in, and the row
+/// itself), let go where it was —, the others stay as they were.
+fn ranged(order: &[String], picked: &Picked, to: &str, takes: impl Fn(&str) -> bool) -> BTreeSet<String> {
+    let Some(at) = order.iter().position(|id| id == to) else { return picked.ids.clone() };
+    let from = picked.anchor.as_deref().and_then(|anchor| order.iter().position(|id| id == anchor)).unwrap_or(at);
+    let select = !picked.ids.contains(to);
+    let mut ids = picked.ids.clone();
+    for (i, id) in order.iter().enumerate().take(from.max(at) + 1).skip(from.min(at)) {
+        if !select {
+            ids.remove(id);
+        } else if i == at || takes(id) {
+            ids.insert(id.clone());
+        }
+    }
+    ids
 }
 
 /// Shift and ↑ or ↓ at row `at` (`by`, ±1): the row it goes to, and what is selected then — the
@@ -208,6 +230,7 @@ impl Picking {
             return;
         }
         let cleared = bookmarks.take_away(&marked);
+        haptic::play(Haptic::Tap);
         if let Some(notices) = self.notices {
             notices.say(Notice::Removed(cleared));
         }
@@ -243,6 +266,8 @@ impl Picking {
 
     /// Selects the row or lets it go.
     pub fn toggle(self, id: &str) {
+        // A row more or less selected: felt as a step, as a row drawn into the selection is.
+        haptic::play(Haptic::Tick);
         self.picked.update(|picked| {
             if !picked.ids.remove(id) {
                 picked.ids.insert(id.to_string());
@@ -251,15 +276,12 @@ impl Picking {
         });
     }
 
-    /// Shift and a click: the rows from the last one clicked to `id`, besides those selected.
+    /// Shift and a click at row `id` (`ranged`); the next range begins there.
     pub fn extend(self, id: &str) {
+        haptic::play(Haptic::Tick);
         let order = self.order();
-        let from = self.picked.with_untracked(|picked| picked.anchor.clone()).unwrap_or_else(|| id.to_string());
-        let taken = range(&order, &from, id, |other| self.marked(other));
-        self.picked.update(|picked| {
-            picked.ids.extend(taken);
-            picked.anchor.get_or_insert_with(|| id.to_string());
-        });
+        let ids = self.picked.with_untracked(|picked| ranged(&order, picked, id, |other| self.marked(other)));
+        self.picked.set(Picked { ids, anchor: Some(id.to_string()) });
     }
 
     /// Every row the list shows that is marked.
@@ -280,14 +302,14 @@ impl Picking {
         self.picked.with(|picked| self.listed.with_value(|listed| listed.order.iter().filter(|id| self.marked(id)).all(|id| picked.ids.contains(id))))
     }
 
-    /// A press on the list: a mouse's on a row's link may draw a selection (on a wide screen; a
-    /// phone's begins with a finger held still, `hold`).
+    /// A press on the list: a mouse's on a row's link or its box to tick may draw a selection (on a
+    /// wide screen; a phone's begins with a finger held still, `hold`).
     pub fn down(self, ev: &PointerEvent, phone: bool) {
         self.touched.set_value(ev.pointer_type() == "touch");
         self.drawn.set_value(false);
         self.press.set_value(None);
         self.paint.set_value(None);
-        if phone || ev.pointer_type() != "mouse" || ev.button() != 0 || ev.shift_key() || ev.ctrl_key() || ev.meta_key() || ev.alt_key() || on_control(ev) {
+        if phone || ev.pointer_type() != "mouse" || ev.button() != 0 || ev.shift_key() || ev.ctrl_key() || ev.meta_key() || ev.alt_key() || (on_control(ev) && !on_box(ev)) {
             return;
         }
         if let Some(id) = row_id_of(ev) {
@@ -336,6 +358,8 @@ impl Picking {
         let Some(at) = order.iter().position(|other| *other == over) else { return };
         let ids = self.paint.with_value(|paint| paint.as_ref().map(|paint| painted(&order, paint, at, |other| self.marked(other))));
         if let Some(ids) = ids.filter(|ids| self.picked.with_untracked(|picked| picked.ids != *ids)) {
+            // A row more or less in what is drawn: felt as a step.
+            haptic::play(Haptic::Tick);
             self.picked.update(|picked| picked.ids = ids);
         }
     }
@@ -355,11 +379,13 @@ impl Picking {
         }
     }
 
-    /// A click on a row: the end of a drawn selection is none; with Shift it takes in the rows up
-    /// to it, with Ctrl or ⌘, or while rows are selected, it selects the row or lets it go; else it
-    /// is the link's (the preview, on a phone the module's page).
-    pub fn click(self, ev: &MouseEvent) {
-        if on_control(ev) {
+    /// A click on a row or its box to tick: the end of a drawn selection is none; with Shift it
+    /// gives the rows from the last one clicked the state the row takes (`ranged`); on the box, with
+    /// Ctrl or ⌘, or on a phone while rows are selected, it selects the row or lets it go; else it is
+    /// the link's (the preview, on a phone the module's page), while rows are selected too.
+    pub fn click(self, ev: &MouseEvent, phone: bool) {
+        let at_box = on_box(ev);
+        if on_control(ev) && !at_box {
             return;
         }
         let Some(id) = row_id_of(ev) else { return };
@@ -372,7 +398,7 @@ impl Picking {
         if ev.shift_key() {
             ev.prevent_default();
             self.extend(&id);
-        } else if ev.ctrl_key() || ev.meta_key() || self.any_untracked() {
+        } else if at_box || ev.ctrl_key() || ev.meta_key() || (phone && self.any_untracked()) {
             ev.prevent_default();
             self.toggle(&id);
         }
@@ -433,11 +459,12 @@ impl Picking {
 }
 
 /// The bar of the rows selected, in the place of the heads of the columns (on a phone over the tab
-/// bar, app.css): how many and their credits, „Alle auswählen" while some are not, „Sammlung",
-/// „Einplanen", „Teilen", „Entfernen", and letting go of them. Its words in full where the list has
-/// room for them.
+/// bar, app.css): on a wide screen the box of all of them over the rows' boxes — a dash while some
+/// are selected, a click selects all; ticked where all are, a click lets go —, how many and their
+/// credits, „Sammlung", „Einplanen", „Teilen", „Entfernen", and letting go of them. Its words in
+/// full where the list has room for them.
 #[component]
-pub(crate) fn PickBar(picking: Picking) -> impl IntoView {
+pub(crate) fn PickBar(picking: Picking, phone: RwSignal<bool>) -> impl IntoView {
     let t = i18n::t();
     let b = &t.bookmarks;
     let collecting = Collecting::expect();
@@ -457,6 +484,26 @@ pub(crate) fn PickBar(picking: Picking) -> impl IntoView {
     view! {
         // Its buttons are commands of „Befehle" (folia_shell::commands) while rows are selected.
         <div class="st-selbar pick-bar" role="toolbar" aria-label=b.selection data-commands=b.selection>
+            {move || (!phone.get()).then(|| {
+                let word = move || if all_in.get() { b.clear_selection } else { b.select_all };
+                view! {
+                    // „Alle auswählen" of „Befehle" while some are not selected; letting go is ×'s.
+                    <button
+                        class="st-sel"
+                        type="button"
+                        id="pick-all"
+                        role="checkbox"
+                        aria-checked=move || if all_in.get() { "true" } else { "mixed" }
+                        aria-label=word
+                        title=word
+                        data-command=move || (!all_in.get()).then_some("")
+                        data-command-icon="list-checks"
+                        on:click=move |_| if all_in.get_untracked() { picking.clear() } else { picking.select_all() }
+                    >
+                        <TickMark/>
+                    </button>
+                }
+            })}
             <span class="st-selbar-count" aria-live="polite">
                 <span class="pick-n num">{move || summary.get().0}</span>
                 <span class="pick-words">{move || {
@@ -466,10 +513,6 @@ pub(crate) fn PickBar(picking: Picking) -> impl IntoView {
                     view! { {words}<span class="st-long">{format!(" · {}", format::credits(Some(credits), t.locale))}</span> }
                 }}</span>
             </span>
-            <button class="st-act st-pc" type="button" id="pick-all" title=b.select_all aria-label=b.select_all data-command="" data-command-icon="list-checks" disabled=move || all_in.get() on:click=move |_| picking.select_all()>
-                <Icon name="list-checks"/>
-                <span class="st-long">{b.select_all}</span>
-            </button>
             <span class="st-grow"></span>
             <button class="st-act" type="button" id="pick-collect" data-action="collect" aria-haspopup="dialog" title=t.marks.collect_hint data-command=b.act_collect data-command-keys="Shift+M" on:click=collect>
                 <Icon name="tag"/>
@@ -580,7 +623,7 @@ pub(crate) fn PickMenus(picking: Picking) -> impl IntoView {
         let label = title.clone();
         Some(view! {
             <div class="st-pop-shade" on:mousedown=|ev: MouseEvent| ev.prevent_default() on:click=move |_| close() on:contextmenu=move |ev: MouseEvent| { ev.prevent_default(); close(); }></div>
-            <div data-sheet="auto" class="st-pop root view-menu pick-menu" role="menu" aria-label=label style=style on:keydown=keys>
+            <div data-sheet="menu" class="st-pop root view-menu pick-menu" role="menu" aria-label=label style=style on:keydown=keys>
                 <p class="st-pop-title st-phone">{title}</p>
                 {parts.into_iter().map(|part| match part {
                     Part::Line => view! { <hr/> }.into_any(),
@@ -940,7 +983,21 @@ fn on_link(ev: &leptos::ev::Event) -> bool {
     }
 }
 
-/// Whether the event happened on a control of a row other than its link (its bookmark).
+/// Whether the event happened on a row's box to tick (`.st-sel`, `folia_widgets::list::Row`).
+fn on_box(ev: &leptos::ev::Event) -> bool {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        ev.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()).is_some_and(|target| target.closest(".row-wrap > .st-sel").ok().flatten().is_some())
+    }
+    #[cfg(not(feature = "csr"))]
+    {
+        let _ = ev;
+        false
+    }
+}
+
+/// Whether the event happened on a control of a row other than its link (its bookmark, its box).
 fn on_control(ev: &leptos::ev::Event) -> bool {
     #[cfg(feature = "csr")]
     {
@@ -1052,13 +1109,20 @@ mod tests {
         assert_eq!(painted(&order, &letting_go, 2, marked), set(&["a", "d"]));
     }
 
+    /// Shift and a click (as lists of mail have it): the rows from the last one clicked take the
+    /// state the row clicked takes — the marked ones and the row itself where it is selected —, the
+    /// others stay; with none clicked before, or one the list no longer has, the row alone.
     #[test]
-    fn shift_and_a_click_takes_in_the_rows_from_the_last_one() {
-        let order = ids(&["a", "b", "c", "d"]);
-        assert_eq!(range(&order, "d", "a", |id| id != "b"), ids(&["a", "c", "d"]));
-        // Clicked itself, an unmarked row is taken in; one the list no longer has is no range.
-        assert_eq!(range(&order, "a", "b", |id| id != "b"), ids(&["a", "b"]));
-        assert_eq!(range(&order, "gone", "c", |_| true), ids(&["c"]));
+    fn shift_and_a_click_gives_the_range_the_state_of_the_row() {
+        let order = ids(&["a", "b", "c", "d", "e"]);
+        let from = |anchor: &str, ids: &[&str]| Picked { ids: set(ids), anchor: Some(anchor.to_string()) };
+        assert_eq!(ranged(&order, &from("d", &["d", "e"]), "a", |id| id != "b"), set(&["a", "c", "d", "e"]), "upwards, an unmarked row passed over");
+        // Clicked itself, an unmarked row is taken in.
+        assert_eq!(ranged(&order, &from("a", &["a"]), "b", |id| id != "b"), set(&["a", "b"]));
+        assert_eq!(ranged(&order, &from("a", &["a", "b", "c", "d"]), "c", |_| true), set(&["d"]), "a row selected lets go of the range");
+        assert_eq!(ranged(&order, &from("gone", &["e"]), "c", |_| true), set(&["c", "e"]), "the last one clicked gone: the row alone");
+        assert_eq!(ranged(&order, &Picked { ids: set(&["e"]), anchor: None }, "b", |_| true), set(&["b", "e"]), "none clicked before: the row alone");
+        assert_eq!(ranged(&order, &from("a", &["e"]), "x", |_| true), set(&["e"]), "no such row: nothing");
     }
 
     /// Shift and ↓ from a row takes in the next, Shift and ↑ back lets it go again, and on past
