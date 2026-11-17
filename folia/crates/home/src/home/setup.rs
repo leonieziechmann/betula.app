@@ -61,6 +61,7 @@ use folia_data::use_ask;
 use folia_design::combobox::{ComboItem, Combobox};
 use folia_shell::document::SyncOffer;
 use folia_design::format;
+use folia_design::haptic::{self, Haptic, TapTick};
 use folia_design::ui::Icon;
 use folia_stores::myprogram::{po_of, program_name, MyProgram, ProgramPlans};
 use folia_stores::studyplan::Studyplan;
@@ -454,6 +455,8 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
         if with_sync {
             on_written.run(());
         }
+        // The study set up: felt as done (folia_design::haptic).
+        haptic::play(Haptic::Success);
         // Set up again from a step before (its chip): in place of the first time, so that what was
         // before the setup is what „Rückgängig" puts back.
         let first = created.get_untracked();
@@ -797,9 +800,10 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
                 </div>
             </div>
             {(fs > 1 && has_plan).then(|| view! {
-                <button type="button" class="ob-switch" role="switch" aria-checked=move || past.get().to_string() on:click=move |_| past.update(|on| *on = !*on) data-command=s.past_switch data-command-state=move || past.get().then_some(s.switch_on)>
+                <button type="button" class="ob-switch tap-host" role="switch" aria-checked=move || past.get().to_string() on:click=move |_| past.update(|on| *on = !*on) data-command=s.past_switch data-command-state=move || past.get().then_some(s.switch_on)>
                     <span class="ob-toggle" aria-hidden="true"></span>
                     <span><b>{s.past_switch}</b><small>{(s.past_detail)(earlier.len(), &format::number(earlier_credits, t.locale), fs - 1)}</small></span>
+                    <TapTick/>
                 </button>
             })}
             <div class="ob-actions">

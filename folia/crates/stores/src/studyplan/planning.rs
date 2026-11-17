@@ -42,6 +42,7 @@ use super::{events_alone, move_in, now, only_its_events_ask, pass_in, toggle_in,
 use folia_plans::studyplan::RowRef;
 use crate::collections::Anchor;
 use crate::myprogram::MyProgram;
+use folia_design::haptic::{self, Haptic};
 use folia_design::nav;
 
 /// The semester the session plans for (P1), kept in the tab's `sessionStorage` from its first use.
@@ -67,6 +68,15 @@ pub struct Pressed {
     pub newest: Option<SemesterKey>,
     /// The page's hint: a page that means a semester (the finder's, a placeholder's).
     pub hint: Option<PlanHint>,
+}
+
+impl Pressed {
+    /// Whether planning the module into `at` is unusual, as the note's line warns of it
+    /// (`folia_widgets::plannote`): a semester behind the student, or one its turnus leaves out.
+    /// Done all the same (CLAUDE.md, „Betula does not say no"), and felt as a warning.
+    pub fn unusual(&self, at: SemesterKey) -> bool {
+        at < self.current || !self.offer.offered(at)
+    }
 }
 
 /// What a note says was done.
@@ -327,6 +337,7 @@ impl Planning {
             return false;
         }
         let turn = self.next_turn();
+        haptic::play(Haptic::done(what.unusual(to)));
         self.note.set(Some(Note { turn, shown: turn, what: what.clone(), kind: NoteKind::Planned { at: to, stepped: false } }));
         self.undo.set_value(None);
         // For the page's placeholder where it stands in `to`, else for the page's row (a choice
@@ -382,6 +393,8 @@ impl Planning {
         let turn = self.next_turn();
         let was = aim.pressed;
         let kind = if was { NoteKind::Removed { from: aim.target } } else { NoteKind::Planned { at: aim.target, stepped: false } };
+        // Planned: done, or done where it is unusual; taken out: lightly.
+        haptic::play(if was { Haptic::Tap } else { Haptic::done(what.unusual(aim.target)) });
         self.note.set(Some(Note { turn, shown: turn, what: what.clone(), kind }));
         self.undo.set_value(None);
         nav::after_paint(move || {
@@ -417,6 +430,7 @@ impl Planning {
     /// is left out.
     pub fn undo(self, plan: Studyplan) {
         let Some(note) = self.note.get_untracked() else { return };
+        haptic::play(Haptic::Tap);
         self.note.set(None);
         self.undone.set_value(note.turn);
         let undo = self.undo.get_value().filter(|undo| undo.turn == note.turn);
@@ -486,6 +500,7 @@ impl Planning {
         }
         let turn = self.next_turn();
         let id = what.id.clone();
+        haptic::play(Haptic::done(what.unusual(to)));
         self.note.set(Some(Note { turn, shown: turn, what, kind: NoteKind::Planned { at: to, stepped: true } }));
         self.undo.set_value(None);
         self.change(plan, turn, move |doc| {
@@ -498,6 +513,7 @@ impl Planning {
     pub fn set_passed(self, plan: Studyplan, what: Pressed, at: SemesterKey, passed: bool) {
         let turn = self.next_turn();
         let id = what.id.clone();
+        haptic::play(if passed { Haptic::Success } else { Haptic::Tap });
         self.note.set(Some(Note { turn, shown: turn, what, kind: NoteKind::Passed { at, passed } }));
         self.undo.set_value(None);
         self.change(plan, turn, move |doc| {
@@ -535,6 +551,8 @@ impl Planning {
         let Some(note) = self.note.get_untracked() else { return };
         let NoteKind::Planned { at, .. } = note.kind else { return };
         let Some(to) = at.plus(by).filter(|to| *to >= self.floor(note.what.current)) else { return };
+        // A semester further, as a step of a wheel; one where it is unusual says so to the hand.
+        haptic::play(if note.what.unusual(to) { Haptic::Warning } else { Haptic::Tick });
         let (id, turn) = (note.what.id.clone(), note.turn);
         let shown = self.next_turn();
         self.note.set(Some(Note { kind: NoteKind::Planned { at: to, stepped: true }, shown, ..note }));
