@@ -4241,10 +4241,13 @@ beside the page → the catalog narrowed down to that area; a row of the plan �
 means, the same derivation as the row's panel (`plan::areas_for_row`; „Anwendungsfach" →
 `area=348,350,351,352,349`, the five Nebenfächer), the FÜS list for a FÜS row, a search for the
 name of a single module, the program's electives where no area fits; nothing picked → the program.
-The FÜS list is the program's own; where the data holds none (20 of the 129 current programs with
-a plan, two with FÜS rows: Power Engineering and Urban Design and Sustainable Revitalization,
-whose 3 FÜS rows led to an empty list until 2026-11-03), the BTU's (`fues=only`, „FÜS-Liste der
-BTU"), whose modules „Mein Studium" counts for the FÜS anyway. Every way to a FÜS list decides so
+The FÜS list is the program's own (the FÜS modules whose page admits the program, and since schema
+21, Folia 1.96.1, those whose page admits none, as „Einführung in die Amateurfunktechnik" in
+Informatik: `docs/radix/schema-v2.md`, „Membership and kind"); where the data holds none (20 of
+the 129 current programs with a plan, two with FÜS rows: Power Engineering and Urban Design and
+Sustainable Revitalization, whose 3 FÜS rows led to an empty list until 2026-11-03), the BTU's
+(`fues=only`, „FÜS-Liste der BTU"), whose modules „Mein Studium" counts for the FÜS anyway. Every
+way to a FÜS list decides so
 (`variants::fues_list_for`): „Modul wählen", the program's page, the Stundenplan's placeholders,
 the FÜS of „Mein Studium" in its overview, its view of the choices and a cell of the Gesamtplan,
 and the catalog's note of a semester. The electives only where a source states one

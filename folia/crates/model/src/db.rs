@@ -25,8 +25,10 @@ use std::fmt;
 /// (`v_module_prerequisite.choice`; docs/radix/data-sources.md §16). 19: the documents the BTU's
 /// page of Grundsatzordnungen lists for every program (`v_general_document`; docs/radix/schema-v2.md,
 /// „General documents"). 20: the BTU's pages around the study its page „Studienorganisation" lists
-/// (`v_study_page`; docs/radix/schema-v2.md, „Study pages").
-pub const SCHEMA_VERSION: i64 = 20;
+/// (`v_study_page`; docs/radix/schema-v2.md, „Study pages"). 21: a FÜS module whose page admits no
+/// program is on the FÜS list of every program that has one (`v_program_module`, relation `fues`;
+/// docs/radix/schema-v2.md, „Membership and kind"): no column changes, but a copy of 20 lacks them.
+pub const SCHEMA_VERSION: i64 = 21;
 
 /// A SQLite value, as a parameter or as a result cell.
 #[derive(Clone, Debug, PartialEq)]
