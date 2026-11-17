@@ -50,6 +50,7 @@ use crate::i18n::{self, Texts};
 use crate::myprogram::MyProgram;
 use crate::profiles::Kept;
 use folia_design::nav;
+use folia_design::haptic::{self, Haptic, TapTick};
 use folia_design::ui::{Icon, Shortcut};
 
 pub mod fit;
@@ -177,6 +178,8 @@ impl Studyplan {
     /// Plans several modules at once (`plan_picks`: the rows selected on the Merkliste), after
     /// the next frame (R21); `then` hears what was done, for the note and its „Rückgängig".
     pub fn plan_many(self, picks: Vec<(String, SemesterKey)>, current: SemesterKey, moves: bool, then: impl FnOnce(PlannedMany) + 'static) {
+        // Felt as done at once, as one module planned is (folia_design::haptic).
+        haptic::play(Haptic::Success);
         nav::after_paint(move || {
             let done = self.update(|doc| {
                 let before = doc.clone();
@@ -504,11 +507,11 @@ pub fn PlanButton(
             let note = move || APP.then(|| aim.with(|aim| hero_note(aim, start.get(), t))).map(|note| view! { <small>{note}</small> });
             // `with-note` while it has the line (app.css), not `:has(> small)`: a `<small>` put in
             // anywhere then had Chrome restyle every switch's icon on the page.
-            (if APP { "plan-toggle mark-switch hit with-note" } else { "plan-toggle mark-switch hit" }, view! { <span>{label}</span>{note}<Shortcut keys="P"/> }.into_any())
+            (if APP { "plan-toggle mark-switch hit with-note tap-host" } else { "plan-toggle mark-switch hit tap-host" }, view! { <span>{label}</span>{note}<Shortcut keys="P"/> }.into_any())
         }
         PlanLook::Action => {
             let line = move || aim.with(|aim| semester_line(aim, start.get(), t));
-            ("plan-toggle action", view! { <span>{label}<small>{line}</small></span> }.into_any())
+            ("plan-toggle action tap-host", view! { <span>{label}<small>{line}</small></span> }.into_any())
         }
     };
     let switch = view! {
@@ -524,7 +527,7 @@ pub fn PlanButton(
             aria-busy=busy
             title=tip
         >
-            {icon}{words}
+            {icon}{words}<TapTick/>
         </button>
     };
     if look == PlanLook::Action {

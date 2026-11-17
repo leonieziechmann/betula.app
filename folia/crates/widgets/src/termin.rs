@@ -64,6 +64,7 @@ use leptos_router::NavigateOptions;
 
 use folia_design::format;
 use folia_design::modal::{Modal, ModalSize, Sheet};
+use folia_design::haptic::TapTick;
 use folia_design::ui::{DialogClose, Icon, Shortcut};
 use folia_shell::frame::BackLink;
 use folia_shell::pending::Pending;
@@ -1221,7 +1222,7 @@ fn PlanView(ctx: TerminCtx, shown: Memo<Option<Shown>>, editing: RwSignal<Option
                     <div class="crow">
                         <span class="ci"><Icon name="calendar-check-2"/></span>
                         <span><b>{group.said.clone()}</b><small>{group.sub}</small></span>
-                        <button class="tg" class:on=ticked type="button" role="switch" aria-checked=if ticked { "true" } else { "false" } aria-label=group.said data-action="tick" on:click=tick><i></i></button>
+                        <button class="tg tap-host" class:on=ticked type="button" role="switch" aria-checked=if ticked { "true" } else { "false" } aria-label=group.said data-action="tick" on:click=tick><i></i><TapTick/></button>
                     </div>
                 }
             });
@@ -1240,7 +1241,7 @@ fn PlanView(ctx: TerminCtx, shown: Memo<Option<Shown>>, editing: RwSignal<Option
                     <div class="crow">
                         <span class="ci">{if on { view! { <Icon name="eye"/> }.into_any() } else { view! { <Icon name="eye-off"/> }.into_any() }}</span>
                         <span><b>{label.clone()}</b><small>{part.sub.clone()}</small></span>
-                        <button class="tg" class:on=on type="button" role="switch" aria-checked=if on { "true" } else { "false" } aria-label=label data-action="show-event" on:click=switch><i></i></button>
+                        <button class="tg tap-host" class:on=on type="button" role="switch" aria-checked=if on { "true" } else { "false" } aria-label=label data-action="show-event" on:click=switch><i></i><TapTick/></button>
                     </div>
                     {on.then_some(group_row)}
                     {on.then_some(date_row)}

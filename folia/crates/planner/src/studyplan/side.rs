@@ -246,7 +246,7 @@ fn PlanGroup(ctx: PlanCtx) -> impl IntoView {
                     <p class="action note-action">
                         <Icon name="check"/>
                         <span>{s.cleared}</span>
-                        <button class="mini hit" type="button" id="sp-clear-undo" aria-busy=move || restoring.get().then_some("true") on:click=undo>{t.common.undo}</button>
+                        <button data-haptic="tap" class="mini hit" type="button" id="sp-clear-undo" aria-busy=move || restoring.get().then_some("true") on:click=undo>{t.common.undo}</button>
                     </p>
                 }
                 .into_any(),

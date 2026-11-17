@@ -10,8 +10,20 @@
 //! einfach nur zu sehen sein, wie steht es bei mir um meine LP"). A phone has the bar and its
 //! legend at the top of its overview (`phone.rs`), and the areas as a sheet (`AreasSheet`). An
 //! area opens what counts there (`AreaDialog`).
+//!
+//! The sheet and an area's dialog as the Wahlpflicht looks (owner, 2026-11-17: „Also ich hätte
+//! gerne überall eine progressbar, wie beim Wahlpflicht Katalog. Und bitte verwende icons für den
+//! Fortschritt also bestanden, aktuell belegt, noch nicht belegt etc."; until then the sheet said
+//! the overview's headline, bar and legend again and listed the areas in words, and the dialog
+//! had a bar of its own and a box to tick at each module): every area with what it holds of what
+//! it asks („62 / 66 LP") and the Wahlpflicht's bar in its tone (`choose::bar`), and its credits
+//! by where they stand, each with the mark the semesters' rows have (`Tally`, `focus::Glyph`):
+//! passed, under way in the current semester, planned for a later one, and a dashed ring for what
+//! is asked for and not planned yet. The same marks stand at an area's modules and at the plan's
+//! rows still open.
 
-use folia_plans::study::AreaKind;
+use folia_plans::choices::Stand;
+use folia_plans::study::{AreaKind, Pick, Progress, Study, When};
 use folia_plans::variants;
 use folia_routes::filter::{CatalogQuery, ProgramScope};
 use folia_routes::url::{CatalogUrl, ProgramTab, ProgramUrl};
@@ -19,7 +31,9 @@ use leptos::prelude::*;
 
 use folia_design::ui::Icon;
 
+use super::choose::bar as stand_bar;
 use super::dialog::DialogHead;
+use super::focus::{Glyph, OpenGlyph, Status};
 use super::{n, Dialog, Ready, StudyCtx};
 use crate::i18n::{self, Texts};
 
@@ -36,16 +50,124 @@ pub(super) struct Segment {
     label: String,
 }
 
+/// The credits of an area, or of the study, by where they stand: passed, under way in the current
+/// semester („aktuell belegt"), planned for a later one, and what is asked for and not planned
+/// yet. Each has its mark (`tally_mark`): the statuses of a module (`focus::Status`), and the
+/// dashed ring of what stands open.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(super) struct Tally {
+    pub passed: f64,
+    pub running: f64,
+    pub planned: f64,
+    pub open: f64,
+}
+
+impl Tally {
+    /// The tallies of the areas of the progress, and of what counts towards none: what the items
+    /// of the semesters bring, as the progress counts them (`study::Progress`: what was not passed
+    /// counts for nothing, a row that modules fill for what they leave of it). An area's add up to
+    /// what its progress holds — passed and planned, what goes beyond its need included.
+    pub fn of(study: &Study) -> (Vec<Tally>, Tally) {
+        let mut areas: Vec<Tally> = study.progress.iter().map(|progress| Tally { open: progress.open(), ..Tally::default() }).collect();
+        let mut outside = Tally::default();
+        for semester in &study.semesters {
+            for item in semester.items.iter().filter(|item| item.passed || !item.failed) {
+                let Some(credits) = item.counted().filter(|credits| *credits > 0.0) else { continue };
+                let tally = item.area.and_then(|area| areas.get_mut(area)).unwrap_or(&mut outside);
+                match (item.passed, semester.when) {
+                    (true, _) => tally.passed += credits,
+                    (false, When::Now) => tally.running += credits,
+                    (false, _) => tally.planned += credits,
+                }
+            }
+        }
+        (areas, outside)
+    }
+
+    /// The areas' together.
+    fn sum(tallies: &[Tally]) -> Tally {
+        tallies.iter().fold(Tally::default(), |sum, tally| Tally { passed: sum.passed + tally.passed, running: sum.running + tally.running, planned: sum.planned + tally.planned, open: sum.open + tally.open })
+    }
+
+    /// Its parts in the order of a study: the mark, the credits, the word.
+    fn parts(&self, t: &Texts) -> [(Option<Status>, f64, &'static str); 4] {
+        let s = &t.study;
+        [(Some(Status::Passed), self.passed, s.passed_short), (Some(Status::Running), self.running, s.running_short), (Some(Status::Planned), self.planned, s.planned_short), (None, self.open, s.open_short)]
+    }
+
+    /// „34 bestanden, 16 läuft, 12 geplant, 4 offen": its parts in words, for a screen reader.
+    fn words(&self, t: &Texts) -> String {
+        self.parts(t).into_iter().filter(|(_, credits, _)| *credits > 0.0).map(|(_, credits, word)| format!("{} {word}", n(credits, t))).collect::<Vec<_>>().join(", ")
+    }
+}
+
+/// The mark of a part of a tally: a status's, or the dashed ring of what stands open.
+fn tally_mark(status: Option<Status>) -> AnyView {
+    match status {
+        Some(status) => view! { <Glyph status=status/> }.into_any(),
+        None => view! { <OpenGlyph/> }.into_any(),
+    }
+}
+
+/// A tally as a strip of four (app.css `.st-tally`): each part's mark and credits over its word,
+/// all four always, so that the strip says what the marks are wherever they stand under it.
+fn tally_strip(tally: &Tally, t: &'static Texts) -> impl IntoView {
+    view! {
+        <ul class="st-tally" aria-label=t.study.tally_label>
+            {tally.parts(t).into_iter().map(|(status, credits, word)| view! {
+                <li class:none=credits <= 0.0>
+                    <span class="st-tally-n">{tally_mark(status)}<b>{n(credits, t)}</b></span>
+                    <span class="st-tally-w">{word}</span>
+                </li>
+            }).collect_view()}
+        </ul>
+    }
+}
+
+/// A tally in a line (app.css `.st-tally-line`): the marks of the parts it has with their
+/// credits, „✓ 34 ◐ 16 ○ 12", and what is said after them („+6 LP über Bedarf", „laut Plan im
+/// 5. FS").
+fn tally_line(tally: &Tally, after: Option<(String, &'static str)>, t: &'static Texts) -> impl IntoView {
+    let words = tally.words(t);
+    view! {
+        <span class="st-tally-line">
+            <span class="visually-hidden">{words}</span>
+            {tally.parts(t).into_iter().filter(|(_, credits, _)| *credits > 0.0).map(|(status, credits, word)| view! {
+                <span class="st-tally-part" title=word aria-hidden="true">{tally_mark(status)}{n(credits, t)}</span>
+            }).collect_view()}
+            {after.map(|(text, class)| view! { <span class=format!("st-tally-after {class}")>{text}</span> })}
+        </span>
+    }
+}
+
+/// What a stand holds of what it asks, as the Wahlpflicht writes it: „62 / 66 LP"; where nothing
+/// is asked (what counts towards no area), „6 LP".
+fn figure_of(stand: &Stand, t: &'static Texts) -> impl IntoView {
+    let unit = t.study_views.col_credits;
+    let rest = if stand.least > 0.0 { format!(" / {}\u{a0}{unit}", n(stand.least, t)) } else { format!("\u{a0}{unit}") };
+    view! { <span class="st-wfig"><b>{n(stand.taken(), t)}</b>{rest}</span> }
+}
+
+/// An area's stand as the Wahlpflicht's bar draws one (`choose::bar`): what it holds, what goes
+/// beyond its need included, against what it asks; the modules beyond need hatched.
+fn stand_of(progress: &Progress) -> Stand {
+    let passed = progress.passed + progress.over_passed;
+    Stand { passed, planned: progress.planned + progress.over - progress.over_passed, least: progress.area.required, most: progress.area.required, spare: progress.spare }
+}
+
 /// An area's card.
 #[derive(Clone, Debug, PartialEq)]
 struct Card {
     area: Option<usize>,
     name: String,
     tone: &'static str,
-    required: Option<String>,
-    line: String,
-    /// What it still needs, all planned, or beyond need: the words and their class.
-    state: (String, &'static str),
+    /// What it holds against what it asks: its bar. What counts towards no area asks for nothing,
+    /// all of it hatched.
+    stand: Stand,
+    tally: Tally,
+    /// What its line says after its marks, and its class: what is beyond its need, or for an area
+    /// nothing is planned for yet, where the plan puts it.
+    after: Option<(String, &'static str)>,
     /// A desktop's card in one line: what is taken of what it asks („44/66"), and its class.
     figure: (String, &'static str),
     /// All of it in words, for the pointer resting on the card.
@@ -63,6 +185,8 @@ pub(super) struct Info {
     pub open: String,
     segments: Vec<Segment>,
     cards: Vec<Card>,
+    /// The study's credits by where they stand, what counts towards no area included.
+    tally: Tally,
 }
 
 /// „5.–6. FS": the Fachsemester an area's rows lie in.
@@ -91,6 +215,7 @@ impl Info {
             planned_rest.push_str(&(s.outside_part)(&n(totals.outside.1, t)));
         }
 
+        let (tallies, outside_tally) = Tally::of(study);
         let mut segments = Vec::new();
         let mut cards = Vec::new();
         for (i, progress) in study.progress.iter().enumerate() {
@@ -108,18 +233,8 @@ impl Info {
                     label: (s.bar_area)(&name, &n(progress.passed, t), &n(progress.planned, t), &n(progress.area.required, t)),
                 });
             }
-            let mut parts = Vec::new();
-            if progress.passed + progress.over_passed > 0.0 {
-                parts.push((s.card_passed)(&n(progress.passed + progress.over_passed, t)));
-            }
-            let planned = progress.planned + progress.over - progress.over_passed;
-            if planned > 0.0 {
-                parts.push((s.card_planned)(&n(planned, t)));
-            }
-            let line = match parts.is_empty() {
-                false => parts.join(" · "),
-                true => span_of(ready, i, t).map_or_else(|| s.nothing_yet.to_string(), |span| (s.plan_says)(&span)),
-            };
+            let stand = stand_of(progress);
+            let tally = tallies.get(i).copied().unwrap_or_default();
             let state = if progress.spare > 0.0 {
                 ((s.card_over)(&n(progress.spare, t)), "over")
             } else if open > 0.0 {
@@ -127,11 +242,20 @@ impl Info {
             } else {
                 (s.all_planned.to_string(), "done")
             };
-            let taken = n(progress.passed + progress.planned + progress.over, t);
+            // After the marks: what is beyond need; where nothing is planned yet, where the plan
+            // puts the area.
+            let after = if progress.spare > 0.0 {
+                Some((state.0.clone(), "over"))
+            } else if stand.taken() <= 0.0 {
+                span_of(ready, i, t).map(|span| ((s.plan_says)(&span), ""))
+            } else {
+                None
+            };
+            let taken = n(stand.taken(), t);
             let required = n(progress.area.required, t);
             let figure = (format!("{taken}/{required}"), if state.1 == "open" { "" } else { state.1 });
             let title = (s.card_title)(&name, &taken, &required, &state.0);
-            cards.push(Card { area: Some(i), name, tone, required: Some((s.credits)(&required)), line, state, figure, title });
+            cards.push(Card { area: Some(i), name, tone, stand, tally, after, figure, title });
         }
         let (outside_passed, outside_planned) = study.outside;
         if outside_passed + outside_planned > 0.0 {
@@ -144,17 +268,16 @@ impl Info {
                 over: outside_passed + outside_planned,
                 label: format!("{}: {}", s.outside, (s.credits)(&n(outside_passed + outside_planned, t))),
             });
-            let mut parts = Vec::new();
-            if outside_passed > 0.0 {
-                parts.push((s.card_passed)(&n(outside_passed, t)));
-            }
-            if outside_planned > 0.0 {
-                parts.push((s.card_planned)(&n(outside_planned, t)));
-            }
             let all = (s.credits)(&n(outside_passed + outside_planned, t));
             let title = format!("{}: {all}", s.outside);
-            cards.push(Card { area: None, name: s.outside.to_string(), tone: "var(--text-3)", required: None, line: parts.join(" · "), state: (String::new(), ""), figure: (all, ""), title });
+            // It asks for nothing: all of it beyond need, hatched as on the bar of the areas.
+            let stand = Stand { passed: outside_passed, planned: outside_planned, least: 0.0, most: 0.0, spare: outside_passed + outside_planned };
+            cards.push(Card { area: None, name: s.outside.to_string(), tone: "var(--text-3)", stand, tally: outside_tally, after: None, figure: (all, ""), title });
         }
+        let mut tally = Tally::sum(&tallies);
+        tally.passed += outside_tally.passed;
+        tally.running += outside_tally.running;
+        tally.planned += outside_tally.planned;
         Info {
             program,
             headline,
@@ -164,6 +287,7 @@ impl Info {
             open: (s.credits)(&n(totals.open, t)),
             segments,
             cards,
+            tally,
         }
     }
 
@@ -248,40 +372,38 @@ fn AreaCard(ctx: StudyCtx, card: Card) -> impl IntoView {
     }
 }
 
-/// „Übersicht nach Bereichen": the areas on a phone, each a way to its dialog.
+/// „Übersicht nach Bereichen": the areas on a phone, each a way to its dialog. Under the head what
+/// is passed of what the plan asks and the study's credits by where they stand, a strip of the
+/// four marks with their words; then every area as the Wahlpflicht has a choice: its name and
+/// what it holds of what it asks, its bar in its tone, and its marks with their credits. Not the
+/// overview's bar and legend again, which stand right behind the sheet: half up it shows the
+/// areas.
 #[component]
 pub(super) fn AreasSheet(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
     let info = Memo::new(move |_| ctx.with_ready(|ready| Info::of(ready, t)));
-    view! {
-        <DialogHead ctx title=s.areas_title/>
-        {move || info.get().map(|info| view! {
+    move || {
+        info.get().map(|info| view! {
+            <DialogHead ctx title=s.areas_title sub=info.headline.clone()/>
             <div class="st-dlg-body st-areas">
-                <p class="st-headline small">{info.headline.clone()}</p>
-                <p class="st-dlg-note">{format!("{} {}{} · {} {}", info.planned, s.planned_tail, info.planned_rest, info.open, s.open_tail)}</p>
-                <Bar segments=info.segments.clone()/>
-                <p class="st-stats-short">
-                    <span><span class="st-key passed"></span>{s.passed_short}</span>
-                    <span><span class="st-key planned"></span>{s.planned_short}</span>
-                    <span><span class="st-key open"></span>{s.open_short}</span>
-                    <span><span class="st-key over"></span>{s.over_need}</span>
-                </p>
+                {tally_strip(&info.tally, t)}
                 <ul class="st-area-list">
                     {info.cards.into_iter().map(|card| {
                         let area = card.area;
                         view! {
                             <li>
                                 <button type="button" style=format!("--c: {}", card.tone) on:click=move |_| ctx.open(Dialog::Area(area))>
-                                    <span class="st-card-head"><span class="st-dot"></span><span class="st-card-name">{card.name}</span>{card.required.map(|required| view! { <span class="st-card-lp">{required}</span> })}<Icon name="chevron-right"/></span>
-                                    <span class="st-card-line">{card.line}" · "<b class=card.state.1>{card.state.0}</b></span>
+                                    <span class="st-area-t"><span class="st-dot"></span><b>{card.name}</b>{figure_of(&card.stand, t)}<Icon name="chevron-right"/></span>
+                                    {stand_bar(&card.stand, None, "", t)}
+                                    {tally_line(&card.tally, card.after, t)}
                                 </button>
                             </li>
                         }
                     }).collect_view()}
                 </ul>
             </div>
-        })}
+        })
     }
 }
 
@@ -291,11 +413,26 @@ struct Entry {
     id: Option<String>,
     name: String,
     credits: Option<String>,
-    passed: bool,
+    /// Where it stands: passed, under way in the current semester, planned for a later one.
+    status: Status,
+    /// Its semester, „WiSe 2026/27".
     when: String,
     over: bool,
     /// Counted here by the student where the plan does not put it (`study::Item::exception`).
     exception: bool,
+}
+
+/// A row of the plan an area's dialog lists as open.
+#[derive(Clone, Debug, PartialEq)]
+struct OpenRow {
+    /// Its module, where the plan names one: the row opens it.
+    id: Option<String>,
+    name: String,
+    credits: Option<String>,
+    /// Not passed in a semester that is over, and not planned again.
+    failed: bool,
+    /// „laut Plan im 5. FS", „nicht bestanden im SoSe 2026".
+    stands: Option<String>,
 }
 
 /// What an area's dialog shows.
@@ -303,15 +440,14 @@ struct Entry {
 struct AreaInfo {
     name: String,
     tone: &'static str,
-    asks: Option<String>,
-    required: f64,
-    passed: f64,
-    planned: f64,
-    over: f64,
+    /// „62 / 66 LP"; „6 LP" for what counts towards no area.
+    asks: String,
+    stand: Stand,
+    tally: Tally,
     over_text: Option<String>,
     entries: Vec<Entry>,
-    /// The plan's rows of the area: name, credits, where it stands.
-    rows: Vec<(String, Option<String>, String)>,
+    /// The plan's rows of the area that are open.
+    rows: Vec<OpenRow>,
     catalog: Option<(String, &'static str)>,
     rules: Option<String>,
 }
@@ -326,20 +462,23 @@ impl AreaInfo {
             // here in its place.
             for item in semester.items.iter().filter(|item| item.area == area && !item.failed && (item.fillers.is_empty() || item.counted().is_some())) {
                 let credits = item.counted().map(|credits| (s.credits)(&n(credits, t)));
-                let when = if item.passed { (s.passed_in)(&semester.key.label(t.locale)) } else { (s.planned_in)(&semester.key.label(t.locale)) };
-                entries.push(Entry { id: item.module_id().map(str::to_string), name: item.name.clone(), credits, passed: item.passed, when, over: item.spare, exception: item.exception });
+                let status = match (item.passed, semester.when) {
+                    (true, _) => Status::Passed,
+                    (false, When::Now) => Status::Running,
+                    (false, _) => Status::Planned,
+                };
+                entries.push(Entry { id: item.module_id().map(str::to_string), name: item.name.clone(), credits, status, when: semester.key.label(t.locale), over: item.spare, exception: item.exception });
             }
         }
+        let (tallies, outside_tally) = Tally::of(study);
         let Some(index) = area else {
             let total: f64 = study.outside.0 + study.outside.1;
             return Some(AreaInfo {
                 name: s.outside.to_string(),
                 tone: "var(--text-3)",
-                asks: None,
-                required: 0.0,
-                passed: study.outside.0,
-                planned: study.outside.1,
-                over: 0.0,
+                asks: (s.credits)(&n(total, t)),
+                stand: Stand { passed: study.outside.0, planned: study.outside.1, least: 0.0, most: 0.0, spare: total },
+                tally: outside_tally,
                 over_text: None,
                 entries,
                 rows: Vec::new(),
@@ -349,8 +488,9 @@ impl AreaInfo {
         };
         let progress = study.progress.get(index)?;
         let named = ready.named.get(index)?;
-        let taken = progress.passed + progress.planned + progress.over;
-        // The plan's rows of the area, each with where it stands.
+        let stand = stand_of(progress);
+        // The plan's rows of the area that are open, each with where the plan puts it; a
+        // Wiederholer with the semester it was not passed in.
         let rows = ready
             .lines
             .iter()
@@ -358,11 +498,16 @@ impl AreaInfo {
             .map(|line| {
                 // The Fachsemester as the plan prints them: „5. und 6. FS" of a row over both.
                 let stands = match (line.failed_in, line.plan_span.or(line.plan_fs.map(|fs| (fs, fs)))) {
-                    (Some(failed), _) => (s.failed_in)(&failed.label(t.locale)),
-                    (None, Some((first, last))) => format!("{} · {}", s.row_open, (s.plan_says)(&(s.fs_span)(first, last))),
-                    (None, None) => s.row_open.to_string(),
+                    (Some(failed), _) => Some((s.failed_in)(&failed.label(t.locale))),
+                    (None, Some((first, last))) => Some((s.plan_says)(&(s.fs_span)(first, last))),
+                    (None, None) => None,
                 };
-                (line.suggestion.name.clone(), line.suggestion.credits_text.clone().or_else(|| line.suggestion.credits.map(|credits| n(credits, t))), stands)
+                let id = match &line.suggestion.pick {
+                    Pick::Module { id, .. } => Some(id.clone()),
+                    Pick::Row { .. } => None,
+                };
+                let credits = line.suggestion.credits_text.clone().or_else(|| line.suggestion.credits.map(|credits| n(credits, t))).map(|credits| (s.credits)(&credits));
+                OpenRow { id, name: line.suggestion.name.clone(), credits, failed: line.failed_in.is_some(), stands }
             })
             .collect();
         let scope = ProgramScope { program_slug: ready.program.slug.clone(), ..Default::default() };
@@ -379,12 +524,12 @@ impl AreaInfo {
         Some(AreaInfo {
             name: named.full.clone(),
             tone: named.tone,
-            asks: Some((s.area_asks)(&n(progress.area.required, t), &n(taken, t))),
-            required: progress.area.required,
-            passed: progress.passed,
-            planned: progress.planned,
-            over: progress.over,
-            over_text: (progress.over > 0.0).then(|| (s.area_over_text)(&n(progress.over, t))),
+            asks: (t.study_views.figure)(&n(stand.taken(), t), &n(progress.area.required, t)),
+            stand,
+            tally: tallies.get(index).copied().unwrap_or_default(),
+            // „Über Bedarf" is what the modules beyond need bring, as the bar hatches it; what a
+            // module the area needs brings past it (8 LP where 6 were left) is no more than taken.
+            over_text: (progress.spare > 0.0).then(|| (s.area_over_text)(&n(progress.spare, t))),
             entries,
             rows,
             catalog,
@@ -393,8 +538,10 @@ impl AreaInfo {
     }
 }
 
-/// An area: what it asks, what counts there, what goes beyond it, the plan's rows still open, and
-/// the ways to its modules and its rules.
+/// An area: what it holds of what it asks under its name, the Wahlpflicht's bar in its tone, its
+/// credits by where they stand; what counts there, each module with the mark of its status and its
+/// semester; the plan's rows still open, with the dashed ring (a cross for one not passed and not
+/// planned again), a row of a module a way to it; and the ways to its modules and its rules.
 #[component]
 pub(super) fn AreaDialog(ctx: StudyCtx, area: Option<usize>) -> impl IntoView {
     let t = i18n::t();
@@ -403,28 +550,28 @@ pub(super) fn AreaDialog(ctx: StudyCtx, area: Option<usize>) -> impl IntoView {
     move || {
         let Some(info) = info.get() else { return ().into_any() };
         let tone = info.tone;
-        let whole = (info.required + info.over).max(info.passed + info.planned).max(1.0);
-        let bar = (info.required > 0.0).then(|| {
-            let at = |value: f64| format!("{:.3}%", value / whole * 100.0);
-            view! {
-                <div class="st-area-bar" style=format!("--c: {tone}") role="img" aria-label=info.asks.clone().unwrap_or_default()>
-                    <span class="passed" style=format!("width: {}", at(info.passed))></span>
-                    <span class="planned" style=format!("width: {}", at(info.planned))></span>
-                    <span class="over" style=format!("width: {}", at(info.over))></span>
-                    <i class="st-need" style=format!("left: {}", at(info.required))></i>
-                </div>
-                <p class="st-area-legend">
-                    <span>{(s.card_passed)(&n(info.passed, t))}</span>
-                    <span>{(s.card_planned)(&n(info.planned, t))}</span>
-                    <span class="need">{(s.area_required)(&n(info.required, t))}</span>
-                    {(info.over > 0.0).then(|| view! { <b class="over">{format!("+{}", n(info.over, t))}</b> })}
-                </p>
+        // A row: its mark, its name over what is said of it, its credits; with a module a way to it
+        // beside the page, which closes the dialog.
+        let row = move |id: Option<String>, mark: AnyView, word: &'static str, name: String, sub: AnyView, credits: Option<String>| {
+            let inner = view! {
+                <span class="st-wmk" title=word>{mark}<span class="visually-hidden">{word}</span></span>
+                <span class="st-area-nm"><b>{name}</b>{sub}</span>
+                <span class="st-lp">{credits}</span>
+            };
+            match id {
+                Some(id) => {
+                    let href = super::module_href(ctx, &id, t);
+                    view! { <li><a class="st-area-row" href=href data-noscroll="" on:click=move |_| ctx.dialog.set(None)>{inner}<Icon name="chevron-right"/></a></li> }.into_any()
+                }
+                None => view! { <li><div class="st-area-row">{inner}</div></li> }.into_any(),
             }
-        });
+        };
+        let area_name = info.name.clone();
         view! {
-            <DialogHead ctx title=info.name.clone() sub=info.asks.clone().unwrap_or_default() tone=tone/>
+            <DialogHead ctx title=info.name.clone() sub=info.asks.clone() tone=tone/>
             <div class="st-dlg-body st-area-dlg" style=format!("--c: {tone}")>
-                {bar}
+                {stand_bar(&info.stand, None, "big", t)}
+                {tally_strip(&info.tally, t)}
                 {info.over_text.map(|text| view! { <p class="st-dlg-note">{text}</p> })}
                 <section>
                     <h3>{s.your_modules}</h3>
@@ -434,22 +581,10 @@ pub(super) fn AreaDialog(ctx: StudyCtx, area: Option<usize>) -> impl IntoView {
                         view! {
                             <ul class="st-area-items">
                                 {info.entries.into_iter().map(|entry| {
-                                    let name = match entry.id.clone() {
-                                        Some(id) => {
-                                            let href = super::module_href(ctx, &id, t);
-                                            view! { <a href=href data-noscroll="" on:click=move |_| ctx.dialog.set(None)>{entry.name.clone()}</a> }.into_any()
-                                        }
-                                        None => view! { <span>{entry.name.clone()}</span> }.into_any(),
+                                    let sub = view! {
+                                        <small>{entry.when}{entry.exception.then(|| view! { <span class="flag st-exception" title=(s.exception_title)(&area_name)>{s.exception}</span> })}{entry.over.then(|| view! { <span class="st-chip over">{s.over_need}</span> })}</small>
                                     };
-                                    view! {
-                                        <li class:passed=entry.passed>
-                                            <span class="st-box" class:with=entry.passed aria-hidden="true">{entry.passed.then(|| view! { <Icon name="check"/> })}</span>
-                                            <div>
-                                                <div class="st-line">{name}<span class="st-lp">{entry.credits}</span></div>
-                                                <div class="st-sub">{entry.when}{entry.exception.then(|| view! { <span class="flag st-exception" title=(s.exception_title)(&info.name)>{s.exception}</span> })}{entry.over.then(|| view! { <span class="st-chip over">{s.over_need}</span> })}</div>
-                                            </div>
-                                        </li>
-                                    }
+                                    row(entry.id, tally_mark(Some(entry.status)), entry.status.word(t), entry.name, sub.into_any(), entry.credits)
                                 }).collect_view()}
                             </ul>
                         }.into_any()
@@ -458,9 +593,11 @@ pub(super) fn AreaDialog(ctx: StudyCtx, area: Option<usize>) -> impl IntoView {
                 {(!info.rows.is_empty()).then(|| view! {
                     <section>
                         <h3>{s.plan_rows}</h3>
-                        <ul class="st-area-rows">
-                            {info.rows.into_iter().map(|(name, credits, stands)| view! {
-                                <li><span>{name}</span><span class="st-sub">{stands}</span><span class="st-lp">{credits}</span></li>
+                        <ul class="st-area-items">
+                            {info.rows.into_iter().map(|open| {
+                                let (mark, word) = if open.failed { (tally_mark(Some(Status::Failed)), Status::Failed.word(t)) } else { (tally_mark(None), s.status_open) };
+                                let sub = open.stands.map(|stands| view! { <small>{stands}</small> });
+                                row(open.id, mark, word, open.name, sub.into_any(), open.credits)
                             }).collect_view()}
                         </ul>
                     </section>

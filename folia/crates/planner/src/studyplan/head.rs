@@ -350,7 +350,7 @@ pub(super) fn MarkedNote(ctx: PlanCtx) -> impl IntoView {
                 <p class="action note-action sp-marked-note">
                     <Icon name="check"/>
                     <span>{note}</span>
-                    <button class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
+                    <button data-haptic="tap" class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
                 </p>
             }
         })

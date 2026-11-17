@@ -23,7 +23,13 @@
 //! where the catalog puts a module's kind, its marks as the catalog's, and at its end, where the
 //! catalog has the bookmark, its status — planned, under way, passed, not passed („Die merken flag
 //! soll getauscht werden mit einem Status symbol"), the button of the row's menu (`menu.rs`; a right
-//! click opens it too). The whole box is the module's button („Es soll die gesamte modulbox als
+//! click opens it too). On a desktop a row has three lines (owner, 2026-11-17: „Mach das mal so,
+//! dass der titel über die ganze Länge der tabelle gehen kann, darunter dann die stats in den
+//! spalten mit lp, dozent etc. Und darunter wieder full width die notizen/informationen"): its name
+//! across the whole row, the columns under it — its number and area under „Modul" —, and what is
+//! said of it (`.st-notes`: its marks, what it counts for, „Einplanen", a placeholder's bar and
+//! „Modul wählen") across the row again; until then the name and what is said of it shared the
+//! first column, and wrapped there. The whole box is the module's button („Es soll die gesamte modulbox als
 //! button funktionieren"): a click anywhere on it opens the module beside the page, its name no link
 //! of its own that underlines; a row of the plan that names no module leads to its modules in the
 //! catalog („Modul wählen"), and a module planned from there goes into the row's semester and fills
@@ -65,6 +71,7 @@ use folia_widgets::list::Facts;
 use leptos::ev::{KeyboardEvent, MouseEvent, PointerEvent, TouchEvent};
 use leptos::prelude::*;
 
+use folia_design::haptic::{self, Haptic};
 use folia_design::ui::Icon;
 
 use super::dom;
@@ -507,6 +514,14 @@ pub(super) fn Glyph(#[prop(into)] status: Signal<Status>) -> impl IntoView {
     }
 }
 
+/// The mark of what stands open: a row of the plan nothing is planned for, the credits an area
+/// asks for that are not planned yet. A ring of dashes (app.css `.st-glyph.open`), as the
+/// Gesamtplan's open pieces are dashed; a ring alone is what is planned.
+#[component]
+pub(super) fn OpenGlyph() -> impl IntoView {
+    view! { <span class="st-glyph open" aria-hidden="true"></span> }
+}
+
 /// What a row shows besides its name.
 #[derive(Clone, Debug, PartialEq)]
 struct Row {
@@ -680,8 +695,10 @@ fn painted(order: &[String], paint: &Paint, at: usize) -> BTreeSet<String> {
     keys
 }
 
-/// Selects the row `key` of semester `s`, or lets it go.
+/// Selects the row `key` of semester `s`, or lets it go: felt as a step, as a row drawn into the
+/// selection is.
 fn toggle(ctx: StudyCtx, s: SemesterKey, key: &str) {
+    haptic::play(Haptic::Tick);
     ctx.selection.update(|selection| {
         if selection.semester != Some(s) {
             *selection = Selection { semester: Some(s), ..Selection::default() };
@@ -782,6 +799,7 @@ impl Draw {
             let held = set_timeout_with_handle(
                 move || {
                     self.hold.set_value(None);
+                    haptic::play(Haptic::Hold);
                     self.paint_from(ctx, s, &order.get_untracked());
                 },
                 HOLD,
@@ -826,6 +844,8 @@ impl Draw {
         let Some(at) = order.iter().position(|other| *other == over) else { return };
         let keys = self.paint.with_value(|paint| paint.as_ref().map(|paint| painted(&order, paint, at)));
         if let Some(keys) = keys.filter(|keys| ctx.selection.with_untracked(|selection| selection.keys != *keys)) {
+            // A row more or less in what is drawn: felt as a step.
+            haptic::play(Haptic::Tick);
             ctx.selection.update(|selection| selection.keys = keys);
         }
     }
@@ -999,25 +1019,32 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
                 <div class="t">
                     <b>{title}</b>
                     // The line under the name, as the catalog's: its number, its area where the
-                    // catalog has a module's kind, its marks; where the list is narrow its
-                    // language and its events.
+                    // catalog has a module's kind; where the list is narrow its language and its
+                    // events. On a desktop the first of the columns, under the name across the row.
                     <small>
                         {code.clone().map(|code| view! { <span class="mono">{code}</span> })}
-                        {move || row.get().map(|row| {
-                            let item = row.item.clone();
-                            view! {
-                                <span class="kind st-area"><i style=format!("background: {}", row.tone)></i>{row.area.clone()}</span>
-                                // A module that fills a place says so in its flags already
-                                // („für „Anwendungsfach“", `Item::fills`), not twice.
-                                {item.module_id().filter(|_| item.fills.is_none()).and_then(|id| counted.with(|counted| counted.get(id).cloned())).map(|name| view! { <span class="st-for">{(t.study_bench.for_group)(&name)}</span> })}
+                        {move || row.with(|row| row.as_ref().map(|row| view! {
+                            <span class="kind st-area"><i style=format!("background: {}", row.tone)></i>{row.area.clone()}</span>
+                            {row.facts.narrow()}
+                        }))}
+                    </small>
+                    // What is said of it, under all of that (on a desktop across the row): what it
+                    // counts for, its marks, „Einplanen".
+                    {move || row.get().and_then(|row| {
+                        let item = row.item.clone();
+                        // A module that fills a place says so in its flags already („für
+                        // „Anwendungsfach“", `Item::fills`), not twice.
+                        let counted_for = item.module_id().filter(|_| item.fills.is_none()).and_then(|id| counted.with(|counted| counted.get(id).cloned()));
+                        (counted_for.is_some() || !row.flags.is_empty() || row.again.is_some()).then(|| view! {
+                            <small class="st-notes">
+                                {counted_for.map(|name| view! { <span class="st-for">{(t.study_bench.for_group)(&name)}</span> })}
                                 {row.flags.into_iter().map(|(class, text)| view! { <span class=class>{text}</span> }).collect_view()}
                                 {row.again.map(|to| view! {
                                     <button class="st-link" type="button" on:click=move |ev: MouseEvent| { ev.stop_propagation(); plan_again(ctx, &item, to, t); }>{s.plan_it}</button>
                                 })}
-                                {row.facts.narrow()}
-                            }
-                        })}
-                    </small>
+                            </small>
+                        })
+                    })}
                     // What a placeholder holds of what it asks, where modules fill it in part: its
                     // bar in its area's colour and the words.
                     {move || row.with(|row| row.as_ref().and_then(|row| row.fill.clone())).map(|(share, words)| view! {
@@ -1111,9 +1138,11 @@ fn VisitRow(ctx: StudyCtx, semester: SemesterKey, id: String) -> impl IntoView {
                     </b>
                     <small>
                         <span class="mono">{id.clone()}</span>
+                        {move || facts.with(|facts| facts.narrow())}
+                    </small>
+                    <small class="st-notes">
                         <span class="flag neutral st-visit-line">{s.visit_line}</span>
                         {move || unoffered.get().then(|| view! { <span class="flag">{(s.unoffered)(season_word(semester, t))}</span> })}
-                        {move || facts.with(|facts| facts.narrow())}
                     </small>
                 </div>
                 {move || facts.with(|facts| facts.lead())}

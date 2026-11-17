@@ -25,6 +25,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use folia_calendar::semester::SemesterKey;
 use folia_data::use_data;
+use folia_design::haptic::{self, Haptic};
 use folia_design::nav;
 use folia_design::ui::{Icon, KeysText};
 use folia_plans::study::{fs_of, Offer};
@@ -208,6 +209,7 @@ impl Picking {
             return;
         }
         let cleared = bookmarks.take_away(&marked);
+        haptic::play(Haptic::Tap);
         if let Some(notices) = self.notices {
             notices.say(Notice::Removed(cleared));
         }
@@ -243,6 +245,8 @@ impl Picking {
 
     /// Selects the row or lets it go.
     pub fn toggle(self, id: &str) {
+        // A row more or less selected: felt as a step, as a row drawn into the selection is.
+        haptic::play(Haptic::Tick);
         self.picked.update(|picked| {
             if !picked.ids.remove(id) {
                 picked.ids.insert(id.to_string());
@@ -336,6 +340,8 @@ impl Picking {
         let Some(at) = order.iter().position(|other| *other == over) else { return };
         let ids = self.paint.with_value(|paint| paint.as_ref().map(|paint| painted(&order, paint, at, |other| self.marked(other))));
         if let Some(ids) = ids.filter(|ids| self.picked.with_untracked(|picked| picked.ids != *ids)) {
+            // A row more or less in what is drawn: felt as a step.
+            haptic::play(Haptic::Tick);
             self.picked.update(|picked| picked.ids = ids);
         }
     }

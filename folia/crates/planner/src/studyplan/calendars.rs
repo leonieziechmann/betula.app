@@ -38,6 +38,7 @@ use folia_calendar::select::Selection;
 use folia_calendar::semester::SemesterKey;
 use folia_calendar::share::SharedPlan;
 use folia_data::DataClient;
+use folia_design::haptic::TapTick;
 use folia_design::ui::Icon;
 use folia_pages::ask::StudyplanAsk;
 use folia_plans::studyplan::{Calendar, CalendarView, MAX_CALENDARS};
@@ -507,7 +508,7 @@ fn removed_note(ctx: PlanCtx, removed: RwSignal<Option<(usize, Calendar)>>, t: &
             view! {
                 <p class="sp-cal-note" role="status">
                     <span>{(t.studyplan_calendars.removed)(&name)}</span>
-                    <button class="mini hit" type="button" on:click=undo>{t.common.undo}</button>
+                    <button data-haptic="tap" class="mini hit" type="button" on:click=undo>{t.common.undo}</button>
                 </p>
             }
         })
@@ -608,9 +609,10 @@ pub(super) fn TogetherSwitch(ctx: PlanCtx, #[prop(optional)] row: bool) -> impl 
             let toggle = move |_| ctx.together.update(|on| *on = !*on);
             match row {
                 true => view! {
-                    <button class="sp-cal-free" type="button" role="switch" aria-checked=move || if ctx.together.get() { "true" } else { "false" } title=c.together_title on:click=toggle>
+                    <button class="sp-cal-free tap-host" type="button" role="switch" aria-checked=move || if ctx.together.get() { "true" } else { "false" } title=c.together_title on:click=toggle>
                         <span class="t"><b>{c.together}</b><small>{c.together_small}</small></span>
                         <i class="tg" aria-hidden="true"><i></i></i>
+                        <TapTick/>
                     </button>
                 }
                 .into_any(),
@@ -817,7 +819,7 @@ fn CalendarPart(ctx: PlanCtx, id: u8, marked: Memo<Vec<MarkedModule>>) -> impl I
                 <p class="action note-action sp-marked-note">
                     <Icon name="check"/>
                     <span>{note}</span>
-                    <button class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
+                    <button data-haptic="tap" class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
                 </p>
             })}
             {rows}

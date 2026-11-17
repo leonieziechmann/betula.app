@@ -30,6 +30,7 @@ use folia_calendar::day::{clock, minutes, Day};
 use folia_calendar::own::{OwnRhythm, OwnTermin, MAX_OWN_DATES, MAX_OWN_NUMBER, MAX_OWN_TEXT, OWN_EVENT_BASE};
 use folia_calendar::rowkey::RowKey;
 use folia_design::modal::{kept, Modal, ModalHead, ModalSize};
+use folia_design::haptic::{self, Haptic};
 use folia_design::ui::Icon;
 use folia_design::waitnote::WaitNote;
 use folia_plans::studyplan::{MAX_OWN, MAX_OWN_ALL};
@@ -221,6 +222,7 @@ pub(super) fn remove(ctx: PlanCtx, number: u32) {
     let before = plan.with_untracked(Clone::clone);
     let Some(name) = before.own_termin(number).map(|(calendar, own)| shown_name(&own.termin, &names_now(ctx, calendar), t)) else { return };
     ctx.undo.set(Some((format!("{OWN_NOTE}{}", (t.studyplan_own.removed)(&name)), before)));
+    haptic::play(Haptic::Tap);
     if let Some(going) = Pending::expect() {
         let away = ctx.url.with_untracked(|url| t.path(&url.with_termin(None).path()));
         going.go(&away, NavigateOptions { replace: true, scroll: false, ..Default::default() });
@@ -494,6 +496,7 @@ impl Hold {
                 }
                 if let Some((day, minute)) = spot_at(x, y) {
                     hold.held.set_value(true);
+                    haptic::play(Haptic::Hold);
                     ask_new(hold.ctx, 0, day, minute, None);
                 }
             },
@@ -631,8 +634,11 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
         // All of the plan's together hold two hundred at most.
         let all = plan.with_untracked(|doc| doc.own.len() + doc.calendars.iter().map(|calendar| calendar.own.len()).sum::<usize>());
         if full.get_untracked() || (ask.number.is_none() && all >= MAX_OWN_ALL) {
+            haptic::play(Haptic::Error);
             return;
         }
+        // Entered: felt as done the moment the form goes.
+        haptic::play(Haptic::Success);
         let name = shown_name(&termin, &names_now(ctx, ask.draft.calendar), t);
         let key = ctx.key.get_untracked();
         let undo = ctx.undo;
@@ -870,7 +876,7 @@ pub(super) fn OwnNote(ctx: PlanCtx) -> impl IntoView {
                         </div>
                         <div class="plan-toast-end">
                             <span class="plan-toast-sep" aria-hidden="true"></span>
-                            <button class="plan-toast-undo" type="button" on:click=restore>{t.common.undo}</button>
+                            <button data-haptic="tap" class="plan-toast-undo" type="button" on:click=restore>{t.common.undo}</button>
                         </div>
                     </div>
                 </WaitNote>

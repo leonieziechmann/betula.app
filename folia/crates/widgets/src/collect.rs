@@ -40,6 +40,7 @@ use leptos::prelude::*;
 
 use folia_design::nav::{room, Room};
 use folia_design::modal::{Modal, Sheet};
+use folia_design::haptic::TapTick;
 use folia_design::ui::Icon;
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::collections::{Anchor, CollectAsk, Collecting, Collections, Refused, Shelf};
@@ -542,9 +543,10 @@ fn CollectBody(ask: CollectAsk, work: Work, phone: bool, close: Callback<()>) ->
                 };
                 Some(view! {
                     <div class="collect-sep"></div>
-                    <button class="collect-default" type="button" role="switch" aria-checked=if on { "true" } else { "false" } on:click=flip>
+                    <button class="collect-default tap-host" type="button" role="switch" aria-checked=if on { "true" } else { "false" } on:click=flip>
                         <span class="collect-default-label"><b>{m.standard}</b>{before.map(|before| view! { <small>{before}</small> })}</span>
                         <span class="collect-switch" aria-hidden="true"></span>
+                        <TapTick/>
                     </button>
                 }.into_any())
             } else {
