@@ -11,8 +11,12 @@
 //   statuses of a module the second); the semester at the top of its box, no strip of the
 //   semesters and no switch of the views over it (owner, 2026-10-19), its name the list of every
 //   semester with what each holds; its rows the catalog's, each with its status where the catalog
-//   has the bookmark, no box to tick, the name no link that underlines; the semester's ⋯ selects
-//   the first semester's rows, highlighted and hatched, and „×" lets go; a row's menu at its
+//   has the bookmark, the name no link that underlines, and a box to tick at its start that comes
+//   when the pointer is over the row (owner, 2026-11-17); the semester's ⋯ selects the first
+//   semester's rows, highlighted, hatched and ticked, and „×" lets go; a row's box ticked, every
+//   box shown and the box over the rows with a dash, Shift and a click at another box the rows
+//   between, Shift at a selected one letting them go, the box over the rows selecting all and
+//   letting go of all; a row's menu at its
 //   status marks it as passed (counted, the row in its place, the focus back on its status); a
 //   press drawn over three rows selects them, the bar marks them and „Rückgängig" takes it back;
 //   „Module hinzufügen" opens the semester's card (the rows on the left, „Laut Plan im 3. FS" and
@@ -324,9 +328,12 @@ if (current !== "2026W") {
   // The first winter: its rows not passed (Wiederholer), all selected by the semester's ⋯.
   await step("the first winter", () => pick(page, "WiSe 25/26"), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2025/26");
   // Its rows as the catalog's (owner, 2026-10-19: „1 zu 1 der Style vom Modulkatalog"): the
-  // catalog's row with its columns, the status where the catalog has the bookmark, no box to
-  // tick, a name that is no link of its own that underlines.
+  // catalog's row with its columns, the status where the catalog has the bookmark, a name that is
+  // no link of its own that underlines; a box to tick at the start of each, which only the row
+  // under the pointer shows (owner, 2026-11-17: „eine checkbox, die erst eingeblendet wird, wenn
+  // der Cursor der nahe kommt oder schon ein Element selected ist").
   await page.hover(".st-card-sem .st-row >> nth=0 >> .st-name");
+  await page.waitForFunction(() => getComputedStyle(document.querySelector(".st-card-sem .st-row > .st-sel")).opacity === "1", null, { timeout: 3000 }).catch(() => {});
   const looks = await page.evaluate(() => {
     const row = document.querySelector(".st-card-sem .st-row");
     const box = row.querySelector(":scope > .row");
@@ -334,12 +341,15 @@ if (current !== "2026W") {
       catalog: Boolean(box && row.classList.contains("row-wrap") && box.querySelector(":scope > .t > b") && box.querySelector(":scope > .t > small > .mono") && box.querySelector(":scope > .lp small") && box.querySelector(":scope > .turnus")),
       cols: [...document.querySelectorAll(".st-card-sem .cols > span")].map((span) => span.textContent).join(","),
       status: Boolean(row.querySelector(":scope > .st-status .st-glyph.failed")),
-      boxes: document.querySelectorAll(".st-card-sem .st-sel, .st-card-sem .st-row .st-box, .st-card-sem .st-more").length,
+      boxes: [...document.querySelectorAll(".st-card-sem .st-row")].map((row) => row.querySelectorAll(':scope > .st-sel[role=checkbox][aria-checked="false"]').length + ":" + getComputedStyle(row.querySelector(":scope > .st-sel") ?? row).opacity).join(),
+      others: document.querySelectorAll(".st-card-sem .st-row .st-box, .st-card-sem .st-more").length,
+      // The words of a row begin after its box, as the heads of the columns do.
+      after: Math.round(box.querySelector(":scope > .t").getBoundingClientRect().left - row.querySelector(":scope > .st-sel .st-sel-mark").getBoundingClientRect().right) + "," + Math.round(document.querySelector(".st-card-sem .cols > span").getBoundingClientRect().left - box.querySelector(":scope > .t").getBoundingClientRect().left),
       underline: getComputedStyle(row.querySelector(".st-name")).textDecorationLine,
       pointer: getComputedStyle(box).cursor + "," + getComputedStyle(row.querySelector(".st-name")).cursor,
     };
   });
-  check(looks.catalog && looks.cols === "Modul,Verantwortlich,Prüfung,LP,Turnus,Spr.,Termine" && looks.status && looks.boxes === 0 && looks.underline === "none", `the rows are not the catalog's: ${JSON.stringify(looks)}`);
+  check(looks.catalog && looks.cols === "Modul,Verantwortlich,Prüfung,LP,Turnus,Spr.,Termine" && looks.status && looks.boxes === "1:1,1:0,1:0,1:0,1:0" && looks.others === 0 && looks.after === "12,0" && looks.underline === "none", `the rows are not the catalog's: ${JSON.stringify(looks)}`);
   await step("select all", async () => { await page.click(".st-card-sem .st-sem-more"); await page.click("#st-menu-select"); }, () => document.querySelector(".st-selbar"));
   const before = await rows(page);
   check(before.length === 5 && before.every((row) => !row.done && row.on && row.chips.some((chip) => chip.startsWith("nicht bestanden"))), `the first winter: ${JSON.stringify(before)}`);
@@ -347,7 +357,23 @@ if (current !== "2026W") {
   // Highlighted and hatched (the same day: „per hervorheben/vlt texture").
   const lit = await page.evaluate(() => getComputedStyle(document.querySelector(".st-card-sem .st-row.is-selected > .row")).backgroundImage);
   check(lit.includes("repeating-linear-gradient"), `a selected row is not hatched: ${lit}`);
+  const ticks = () => page.evaluate(() => [...document.querySelectorAll(".st-card-sem .st-row > .st-sel")].map((box) => box.getAttribute("aria-checked") === "true" ? 1 : 0).join(""));
+  check((await ticks()) === "11111" && (await page.getAttribute("#st-sel-all", "aria-checked")) === "true", `the boxes of all rows selected: ${await ticks()}`);
   await step("let go", () => page.click(".st-selbar .st-act-close"), () => !document.querySelector(".st-selbar") && !document.querySelector(".st-row.is-selected"));
+
+  // The boxes as lists of mail have them (owner, 2026-11-17: „Grundlegend sollte das üblichen
+  // design patterns folgen"): a row's box ticked shows every box, the box over the rows with a
+  // dash; Shift and a click at another the rows between; Shift at a selected one lets them go; the
+  // box over the rows selects all, ticked it lets go of all.
+  await page.hover(".st-card-sem .st-row >> nth=1 >> .st-name");
+  await step("a row's box", () => page.click(".st-card-sem .st-row >> nth=1 >> .st-sel"), () => document.querySelectorAll(".st-card-sem .st-row.is-selected").length === 1 && document.querySelector("#st-sel-all")?.getAttribute("aria-checked") === "mixed" && location.search === ""
+    && [...document.querySelectorAll(".st-card-sem .st-row > .st-sel")].every((box) => getComputedStyle(box).opacity === "1"));
+  await step("Shift and another box", () => page.click(".st-card-sem .st-row >> nth=3 >> .st-sel", { modifiers: ["Shift"] }), () => document.querySelector(".st-selbar-count")?.textContent.startsWith("3 ausgewählt"));
+  check((await ticks()) === "01110", `Shift and a box: ${await ticks()}`);
+  await step("Shift at a selected box", () => page.click(".st-card-sem .st-row >> nth=2 >> .st-sel", { modifiers: ["Shift"] }), () => document.querySelector(".st-selbar-count")?.textContent.startsWith("1 ausgewählt"));
+  check((await ticks()) === "01000", `Shift at a selected box: ${await ticks()}`);
+  await step("the box over the rows", () => page.click("#st-sel-all"), () => document.querySelectorAll(".st-card-sem .st-row.is-selected").length === 5 && document.querySelector("#st-sel-all")?.getAttribute("aria-checked") === "true");
+  await step("ticked, it lets go", () => page.click("#st-sel-all"), () => !document.querySelector(".st-selbar") && !document.querySelector(".st-row.is-selected"));
 
   // A row's menu at its status: „Als bestanden markieren" counts, keeps the row in its place, gives
   // the focus back.
@@ -502,6 +528,14 @@ if (current !== "2026W") {
   await step("Vollbild", () => page.click('#preview [data-action="fullscreen"]'), () => location.search === "?open=11787&full=1" && document.querySelector(".module-page"));
   check((await page.getAttribute('.rail a[data-area="programs"]', "aria-current")) === "page", "the module in full left the Studium tab");
   await step("Zurück", () => page.click('[data-action="back"]'), () => location.search === "?open=11787" && document.querySelector(".st-card-sem"));
+  // While rows are selected a click on a row still opens its module: the box selects (owner,
+  // 2026-11-17).
+  await page.hover(`.st-card-sem .st-row >> nth=${other} >> .st-name`);
+  await step("a box with a module open", () => page.click(`.st-card-sem .st-row >> nth=${other} >> .st-sel`), () => document.querySelectorAll(".st-card-sem .st-row.is-selected").length === 1);
+  await step("a row opens while rows are selected", () => page.mouse.click(number.x, number.y), () => /^\?open=\d+$/.test(location.search) && location.search !== "?open=11787");
+  check((await page.evaluate(() => document.querySelectorAll(".st-card-sem .st-row.is-selected").length)) <= 1, "a click on a row while rows are selected selected it");
+  // The bar's × lies under the module beside the page: the row's box lets go of it.
+  await step("its box again", () => page.click(".st-card-sem .st-row.is-selected >> .st-sel"), () => !document.querySelector(".st-selbar"));
   await step("close the module", () => page.click('#preview [data-action="close-detail"]'), () => location.search === "" && !document.querySelector("#preview"));
 
   // The Gesamtplan as a roadmap (folia/design/gesamtplan/konzepte.html, A; owner, 2026-11-03):
