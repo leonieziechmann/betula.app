@@ -10,9 +10,12 @@
 // rest half up; Esc closes it and a copy of it glides away. Three ways to stand (owner, 2026-11-03:
 // „dass es entweder fit ist … zwischen 40% bis 70% vom screen … kein full screen. Dann die Option
 // mit 50% und Full screen. Und dann noch die Option für sofort full screen"): the keys' dialog half
-// up and all up, its top half up at half the screen; a menu and the dialog „Sammeln" fit, as tall
-// as they hold between 40 and 70 % of the screen, one stop that a pull comes back to and a tap on
-// the grabber leaves; „Sammeln" (`auto`) half up and all up once it holds more than fits, and
+// up and all up, its top half up at half the screen; the dialog „Sammeln" fits, as tall as it
+// holds between 40 and 70 % of the screen, one stop that a pull comes back to and a tap on the
+// grabber leaves; a menu (`menu`; owner, 2026-11-17: „eine menu option hinzuzufügen, wo der
+// content einfach perfekt passt und das modal auch nicht auf full gezogen werden kann") exactly as
+// tall as it holds, below 40 % too, one stop that a pull up comes back to and a tap on the grabber
+// leaves; „Sammeln" (`auto`) half up and all up once it holds more than fits, and
 // fitting again once it holds less; „Tasten" naming its keys; „Plan einrichten" all up at once in one move, a pull bringing it back there,
 // thrown away from there. A menu swiped down closes, and closed by its choice a copy of it glides
 // away. Each modal stands as what it holds asks (owner, 2026-11-04): the programs' filters fit,
@@ -157,7 +160,7 @@ check(copy !== null, "Esc: no copy of the dialog glided away");
 await page.waitForFunction(() => !document.querySelector(".sheet-ghost") && !document.querySelector("dialog.keys-dialog[open]"), null, { timeout: 3000 }).catch(() => problems.push("Esc: the dialog or its copy stayed"));
 check(await page.evaluate(() => Boolean(document.querySelector(".detail.is-module h2")) && !document.querySelector(".detail.is-module").classList.contains("is-gone")), "Esc on the dialog took the module's sheet along");
 
-// ---- a menu: a sheet of one stop, as tall as what it holds
+// ---- a menu: a sheet of one stop, exactly as tall as what it holds, which no finger pulls higher
 await page.goto(base + "/bookmarks", { waitUntil: "domcontentloaded" });
 await page.waitForFunction(() => window.__betulaApp === true && document.querySelectorAll("#rows a.row, .rows a.row").length >= 6, null, { timeout: 120000 }).catch(() => problems.push("the Merkliste does not list the modules marked"));
 await page.waitForTimeout(500);
@@ -166,13 +169,26 @@ const menuAt = () => page.evaluate((selector) => {
   const menu = document.querySelector(`${selector}:not(.sheet-ghost)`);
   if (!menu) return null;
   const r = menu.getBoundingClientRect();
-  return { top: Math.round(r.top), bottom: Math.round(r.bottom), height: Math.round(r.height), full: menu.classList.contains("is-full"), sheet: menu.hasAttribute("data-sheet"), grip: getComputedStyle(menu, "::before").width, moving: menu.getAnimations().some((a) => a.playState === "running") };
+  // What it holds: from its top to the foot of its last entry, and its padding under that.
+  const last = [...menu.children].filter((el) => el.offsetHeight).at(-1);
+  const holds = last ? Math.round(last.getBoundingClientRect().bottom - r.top + parseFloat(getComputedStyle(menu).paddingBottom)) : null;
+  return { top: Math.round(r.top), bottom: Math.round(r.bottom), height: Math.round(r.height), holds, way: menu.dataset.sheet, full: menu.classList.contains("is-full"), sheet: menu.hasAttribute("data-sheet"), grip: getComputedStyle(menu, "::before").width, moving: menu.getAnimations().some((a) => a.playState === "running") };
 }, MENU);
 await page.tap(".page-stage.front .view-more");
 await page.waitForFunction((selector) => document.querySelector(selector), MENU, { timeout: 5000 }).catch(() => problems.push("the Merkliste's ⋯ did not open its menu"));
 await page.waitForFunction((selector) => !document.querySelector(selector)?.getAnimations().some((a) => a.playState === "running"), MENU, { timeout: 3000 }).catch(() => {});
 const menu = await menuAt();
-check(menu?.sheet && menu.full && menu.bottom === 844 && menu.height >= FIT[0] && menu.height <= FIT[1] && menu.grip === "40px", `a menu is no sheet of one stop that fits (40–70 % of the screen): ${JSON.stringify(menu)}`);
+check(menu?.sheet && menu.way === "menu" && menu.full && menu.bottom === 844 && menu.height < FIT[0] && Math.abs(menu.height - menu.holds) <= 1 && menu.grip === "40px", `a menu is no sheet of one stop exactly as tall as what it holds (the Merkliste's ⋯ under 40 % of the screen): ${JSON.stringify(menu)}`);
+// Pulled up, it gives a little and comes back: no stop above its own, no whole height.
+await finger(195, menu.top + 30, evenly(-260, 10), { ms: 16, hold: 60 });
+await page.waitForFunction((selector) => !document.querySelector(selector)?.getAnimations().some((a) => a.playState === "running"), MENU, { timeout: 3000 }).catch(() => problems.push("a menu pulled up does not come to rest"));
+const pulled = await menuAt();
+check(pulled && Math.abs(pulled.top - menu.top) <= 1 && pulled.height === menu.height, `a menu pulled up did not come back to its height: ${JSON.stringify(pulled)}, before ${JSON.stringify(menu)}`);
+// A tap on its grabber leaves it be.
+await page.tap(".view-menu", { position: { x: 195, y: 10 } });
+await page.waitForTimeout(600);
+const tapped = await menuAt();
+check(tapped && Math.abs(tapped.top - menu.top) <= 1, `a tap on a menu's grabber moved it: ${JSON.stringify(tapped)}`);
 await finger(195, menu.top + 30, evenly(160, 8), { ms: 16 });
 await page.waitForFunction((selector) => !document.querySelector(selector), MENU, { timeout: 3000 }).catch(() => problems.push("a menu swiped down did not close"));
 await page.tap(".page-stage.front .view-more");
