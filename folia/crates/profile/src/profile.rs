@@ -48,6 +48,7 @@ use crate::confirm::{Confirm, Question};
 use crate::i18n::{self, Texts};
 use folia_data::use_ask;
 use folia_design::format;
+use folia_design::haptic::{self, Haptic};
 use folia_design::nav;
 use folia_design::ui::Icon;
 use folia_shell::frame::Frame;
@@ -217,6 +218,19 @@ fn Notice(note: RwSignal<Option<Note>>) -> impl IntoView {
         }
         note.set(None);
     };
+    // What was done is felt as it is said: a profile made or taken over from a file as success, one
+    // deleted or emptied lightly (it can be taken back). Not what was said before the page came.
+    Effect::new(move |seen: Option<()>| {
+        let felt = note.with(|note| {
+            note.as_ref().map(|note| match note {
+                Note::Created(_) | Note::Opened(_) => Haptic::Success,
+                Note::Deleted(..) | Note::Cleared(_) => Haptic::Tap,
+            })
+        });
+        if let (Some(()), Some(felt)) = (seen, felt) {
+            haptic::play(felt);
+        }
+    });
     move || {
         note.get().map(|now| {
             let (icon, said, undoable) = match &now {
@@ -229,7 +243,7 @@ fn Notice(note: RwSignal<Option<Note>>) -> impl IntoView {
                 <div class="offer pf-note" role="status">
                     <Icon name=icon/>
                     <p>{said}</p>
-                    {undoable.then(|| view! { <button class="mini hit" type="button" id=UNDO_ID on:click=undo>{t.common.undo}</button> })}
+                    {undoable.then(|| view! { <button data-haptic="tap" class="mini hit" type="button" id=UNDO_ID on:click=undo>{t.common.undo}</button> })}
                     <button class="mini hit" type="button" on:click=move |_| note.set(None)>{p.ok}</button>
                 </div>
             }
@@ -792,6 +806,12 @@ fn OpenFile(note: RwSignal<Option<Note>>) -> impl IntoView {
     let input = NodeRef::<leptos::html::Input>::new();
     // What a file picked holds, until it is taken over or put aside.
     let offer = RwSignal::new(None::<Result<Backup, Refused>>);
+    // A file refused is felt as what cannot be.
+    Effect::new(move |_| {
+        if offer.with(|offer| matches!(offer, Some(Err(_)))) {
+            haptic::play(Haptic::Error);
+        }
+    });
     let pick = move |_| {
         offer.set(None);
         #[cfg(feature = "csr")]

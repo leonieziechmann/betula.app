@@ -533,7 +533,7 @@ pub(super) fn ModuleList(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl 
                         <b>{title}</b>
                         <small><span>{words.removed}</span></small>
                     </span>
-                    <button class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
+                    <button data-haptic="tap" class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
                 </div>
             </div>
         }

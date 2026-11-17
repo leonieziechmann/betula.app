@@ -32,6 +32,7 @@ use folia_calendar::semester::{fachsemester, SemesterKey};
 use leptos::ev::{KeyboardEvent, MouseEvent};
 use leptos::prelude::*;
 
+use folia_design::haptic::TapTick;
 use folia_design::ui::Icon;
 use folia_design::waitnote::{Sideways, WaitNote};
 use folia_stores::myprogram::MyProgram;
@@ -64,7 +65,7 @@ fn NoteView(planning: Planning, plan: Studyplan, mine: Option<MyProgram>) -> imp
     let end = view! {
         <div class="plan-toast-end">
             <span class="plan-toast-sep" aria-hidden="true"></span>
-            <button class="plan-toast-undo" type="button" on:click=move |_| planning.undo(plan)>{t.common.undo}</button>
+            <button data-haptic="tap" class="plan-toast-undo" type="button" on:click=move |_| planning.undo(plan)>{t.common.undo}</button>
         </div>
     };
     match first.kind {
@@ -151,10 +152,11 @@ fn NoteView(planning: Planning, plan: Studyplan, mine: Option<MyProgram>) -> imp
                 let (at, stepped) = now.get();
                 let on = chosen.get() == Some(at);
                 (stepped || chosen.get().is_some()).then(|| view! {
-                    <button class="plan-toast-keep" type="button" role="switch" aria-checked=if on { "true" } else { "false" } title=t.planner.keep_hint on:click=move |_| planning.keep(at)>
+                    <button class="plan-toast-keep tap-host" type="button" role="switch" aria-checked=if on { "true" } else { "false" } title=t.planner.keep_hint on:click=move |_| planning.keep(at)>
                         <Icon name="layers"/>
                         <span>{t.planner.keep_for}" "<b>{at.short(t.locale)}</b></span>
                         <span class="plan-toast-switch" aria-hidden="true"></span>
+                        <TapTick/>
                     </button>
                 })
             };

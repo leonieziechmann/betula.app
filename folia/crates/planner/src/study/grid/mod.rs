@@ -60,6 +60,7 @@ use folia_plans::study::{self, Pick, When};
 use leptos::html::Div;
 use leptos::prelude::*;
 
+use folia_design::haptic::{self, Haptic};
 use folia_design::nav;
 use folia_design::ui::Icon;
 
@@ -437,6 +438,11 @@ impl Aim {
             dom::drop_moves(ev);
         }
         if self.over.get_untracked() != at {
+            // Another semester that would take it: felt as a step (a finger's drag; a mouse's has
+            // nothing to feel it with).
+            if takes && self.over.get_untracked().map(|over| over.semester) != at.map(|over| over.semester) {
+                haptic::play(Haptic::Tick);
+            }
             self.over.set(at);
         }
     }
@@ -451,6 +457,7 @@ impl Aim {
         }
         ev.prevent_default();
         self.end(ctx);
+        haptic::play(Haptic::Success);
         let (from, to) = (dragged.semester, landing.semester);
         match (landing.count, dragged.counts) {
             (Some((group, exception)), Some(counts)) => {

@@ -11,11 +11,12 @@
 //   statuses of a module the second); the semester at the top of its box, no strip of the
 //   semesters and no switch of the views over it (owner, 2026-10-19), its name the list of every
 //   semester with what each holds; its rows the catalog's, each with its status where the catalog
-//   has the bookmark, the name no link that underlines, and a box to tick at its start that comes
-//   when the pointer is over the row (owner, 2026-11-17); the semester's ⋯ selects the first
-//   semester's rows, highlighted, hatched and ticked, and „×" lets go; a row's box ticked, every
-//   box shown and the box over the rows with a dash, Shift and a click at another box the rows
-//   between, Shift at a selected one letting them go, the box over the rows selecting all and
+//   has the bookmark, the name no link that underlines, in three lines — the name across the row,
+//   the number and the columns under it, the marks under them (owner, 2026-11-17) —, and a box to
+//   tick at its start that comes when the pointer is over the row; the semester's ⋯ selects the
+//   first semester's rows, highlighted, hatched and ticked, and „×" lets go; a row's box ticked,
+//   every box shown and the box over the rows with a dash, Shift and a click at another box the
+//   rows between, Shift at a selected one letting them go, the box over the rows selecting all and
 //   letting go of all; a row's menu at its
 //   status marks it as passed (counted, the row in its place, the focus back on its status); a
 //   press drawn over three rows selects them, the bar marks them and „Rückgängig" takes it back;
@@ -344,12 +345,28 @@ if (current !== "2026W") {
       boxes: [...document.querySelectorAll(".st-card-sem .st-row")].map((row) => row.querySelectorAll(':scope > .st-sel[role=checkbox][aria-checked="false"]').length + ":" + getComputedStyle(row.querySelector(":scope > .st-sel") ?? row).opacity).join(),
       others: document.querySelectorAll(".st-card-sem .st-row .st-box, .st-card-sem .st-more").length,
       // The words of a row begin after its box, as the heads of the columns do.
-      after: Math.round(box.querySelector(":scope > .t").getBoundingClientRect().left - row.querySelector(":scope > .st-sel .st-sel-mark").getBoundingClientRect().right) + "," + Math.round(document.querySelector(".st-card-sem .cols > span").getBoundingClientRect().left - box.querySelector(":scope > .t").getBoundingClientRect().left),
+      after: Math.round(box.querySelector(":scope > .t > b").getBoundingClientRect().left - row.querySelector(":scope > .st-sel .st-sel-mark").getBoundingClientRect().right) + "," + Math.round(document.querySelector(".st-card-sem .cols > span").getBoundingClientRect().left - box.querySelector(":scope > .t > b").getBoundingClientRect().left),
+      // Three lines (owner, 2026-11-17: „dass der titel über die ganze Länge der tabelle gehen
+      // kann, darunter dann die stats in den spalten … Und darunter wieder full width die
+      // notizen"): the name across the row, the number and the columns under it, each under its
+      // head, the marks under them from where the name begins.
+      lines: (() => {
+        const r = (el) => el.getBoundingClientRect();
+        const name = r(box.querySelector(":scope > .t > b")), id = r(box.querySelector(":scope > .t > small:not(.st-notes)")), notes = r(box.querySelector(":scope > .t > .st-notes"));
+        const head = (cls) => r(document.querySelector(`.st-card-sem .cols > .${cls}`)), cell = (sel) => r(box.querySelector(sel));
+        return [
+          name.right > cell(".resp").right,
+          [".resp", ".exam", ".lp", ".events"].every((sel) => cell(sel).top >= name.bottom - 1 && cell(sel).bottom <= notes.top + 1),
+          id.top >= name.bottom - 1 && Math.round(id.left - name.left) === 0,
+          Math.round(cell(".resp").left - head("c-resp").left) === 0 && Math.round(cell(".lp").right - head("c-lp").right) === 0,
+          Math.round(notes.left - name.left) === 0 && notes.top >= id.bottom - 1,
+        ].map(Number).join("");
+      })(),
       underline: getComputedStyle(row.querySelector(".st-name")).textDecorationLine,
       pointer: getComputedStyle(box).cursor + "," + getComputedStyle(row.querySelector(".st-name")).cursor,
     };
   });
-  check(looks.catalog && looks.cols === "Modul,Verantwortlich,Prüfung,LP,Turnus,Spr.,Termine" && looks.status && looks.boxes === "1:1,1:0,1:0,1:0,1:0" && looks.others === 0 && looks.after === "12,0" && looks.underline === "none", `the rows are not the catalog's: ${JSON.stringify(looks)}`);
+  check(looks.catalog && looks.cols === "Modul,Verantwortlich,Prüfung,LP,Turnus,Spr.,Termine" && looks.status && looks.boxes === "1:1,1:0,1:0,1:0,1:0" && looks.others === 0 && looks.after === "12,0" && looks.lines === "11111" && looks.underline === "none", `the rows are not the catalog's: ${JSON.stringify(looks)}`);
   await step("select all", async () => { await page.click(".st-card-sem .st-sem-more"); await page.click("#st-menu-select"); }, () => document.querySelector(".st-selbar"));
   const before = await rows(page);
   check(before.length === 5 && before.every((row) => !row.done && row.on && row.chips.some((chip) => chip.startsWith("nicht bestanden"))), `the first winter: ${JSON.stringify(before)}`);
