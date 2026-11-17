@@ -162,6 +162,28 @@ pub fn Avatar(#[prop(into)] profile: Signal<Profile>, #[prop(optional)] large: b
     }
 }
 
+/// The mark beside the name of a profile that Betula Sync keeps (owner, 2026-11-17: „ein Icon
+/// für Profile, die per betula sync verwaltet werden"), wherever the profiles are listed (the menu
+/// of the profiles, the profile page): Betula Sync's symbol, as „Geräte" and the profile page's
+/// Betula Sync have it, in the profile's line, named in its tooltip and for those who do not see
+/// it. Synced, connected or not (`sync::Sync::synced`); nothing for a private profile, nor where
+/// the site offers no Betula Sync.
+#[component]
+pub fn SyncMark(id: u16) -> impl IntoView {
+    let t = crate::i18n::t();
+    let sync = crate::sync::Sync::expect().filter(|_| crate::sync::offered().is_some());
+    move || {
+        sync.filter(|sync| sync.synced(id)).map(|_| {
+            view! {
+                <span class="sync-mark" title=t.profiles.synced>
+                    <folia_design::ui::Icon name="monitor-smartphone"/>
+                    <span class="visually-hidden">{t.profiles.synced}</span>
+                </span>
+            }
+        })
+    }
+}
+
 /// The first profile as the browser had it before there were profiles.
 fn first() -> Profile {
     Profile { id: FIRST, name: String::new(), at: 0 }

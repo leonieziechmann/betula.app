@@ -5456,7 +5456,11 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   „wenn man beim pc über das profil in der nav bar links hovert, kann man die profile direkt
   auswählen. Beim Handy long hold.“): the profiles with their „Mein Studiengang“
   (`Profiles::program_lines`, as on the page), the active one checked; a click makes one the
-  active profile after the next frame (R21), and the menu goes at once. Below them „Neues Profil“
+  active profile after the next frame (R21), and the menu goes at once. A profile that Betula Sync
+  keeps has Betula Sync's symbol beside its name, here and in the page's list (`profiles::SyncMark`,
+  since Folia 1.95.1; owner, 2026-11-17: „ein Icon für Profile, die per betula sync verwaltet
+  werden"): synced, connected or not (`Sync::synced`), named in its tooltip and for those who do
+  not see it („Mit Betula Sync synchronisiert“); a long name gives way, never the mark. Below them „Neues Profil“
   (owner, 2026-10-19: „ein kleines Menü, wo man die profile als option hat, neues Profil anlegen und
   dann halt profil Einstellungen, und vlt noch change lang"): tapped, a field for the name takes its
   place (none: „Profil 3“), and „Anlegen“ or Enter makes the new profile, empty, the active one as
