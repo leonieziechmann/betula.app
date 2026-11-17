@@ -227,8 +227,10 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 	v.count("curricular pairs only the tree states", StatusInfo, "SELECT COUNT(*) FROM program_module WHERE relation = 'curricular' AND in_tree = 1 AND on_module_page = 0", "")
 	v.count("curricular pairs only the module page states", StatusInfo, "SELECT COUNT(*) FROM program_module WHERE relation = 'curricular' AND in_tree = 0 AND in_plan = 0", "")
 	v.count("curricular pairs without any stated kind", StatusInfo, "SELECT COUNT(*) FROM program_module WHERE relation = 'curricular' AND kind IS NULL", "")
+	// Since migration 0021 each of them is on the FÜS list of every program that has one, so what
+	// the page states counts, not the pairs.
 	v.count("FÜS modules whose page admits no program", StatusInfo,
-		"SELECT COUNT(*) FROM module m WHERE m.is_fues = 1 AND NOT EXISTS (SELECT 1 FROM program_module pm WHERE pm.module_id = m.id)", "")
+		"SELECT COUNT(*) FROM module m WHERE m.is_fues = 1 AND NOT EXISTS (SELECT 1 FROM module_program_ref r WHERE r.module_id = m.id AND r.resolve_status <> 'abroad')", "")
 	v.count("programs without a short degree label", StatusInfo, "SELECT COUNT(*) FROM program WHERE degree_label IS NULL AND degree_level IN ('bachelor', 'master')", "")
 	v.count("events", StatusInfo, "SELECT COUNT(*) FROM event", "")
 

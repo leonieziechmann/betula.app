@@ -146,7 +146,7 @@ Program, degree, PO version, regulation documents.
 | | **„keine Zuordnung vorhanden"** (1,476 modules) is consistent: only 11 of them appear in any tree. |
 | | **Resolution quality of page triples** (19,897 real entries): 16,725 exact · 304 unique substring match on the PO · 1,715 Lehramt entries through P3 (1,565 wrong) · 76 unresolved and dropped silently. |
 | | **S6:** 2,343 distinct linked pairs; 2,174 are in the tree; 143 are in neither tree nor page (older regulations naming modules the live catalog no longer assigns). 2,026 PDF rows have `module_id = ''` and 15 distinct IDs do not exist in `modules`. |
-| Authority | **DECIDED (Q1).** Two relations instead of one: **(a) curricular membership** = every module a student can take towards the degree: the pair is in the QIS tree, or on the page of a module that is not FÜS-flagged, or in the validated plan. **(b) the program's FÜS list** = pair is on the page of a FÜS-flagged module and the module is *not* curricular in that program (FÜS is meant to widen the horizon, so a program's own modules never count as its FÜS). Every program therefore has its own FÜS list. Within (a) the sources are a union with provenance, not a precedence: page and tree state the same thing, and after fixing P2/P3 the single-source remainder (about 650 + 401 pairs) becomes a `validate` report line instead of a silent difference. S6-only pairs are kept with `source = pdf_plan` and shown in the plan, but do not count as live-catalog membership. |
+| Authority | **DECIDED (Q1).** Two relations instead of one: **(a) curricular membership** = every module a student can take towards the degree: the pair is in the QIS tree, or on the page of a module that is not FÜS-flagged, or in the validated plan. **(b) the program's FÜS list** = pair is on the page of a FÜS-flagged module and the module is *not* curricular in that program (FÜS is meant to widen the horizon, so a program's own modules never count as its FÜS). Every program therefore has its own FÜS list. A FÜS-flagged module whose page admits no program is on every such list (refined 2026-11-17, §7 Q1). Within (a) the sources are a union with provenance, not a precedence: page and tree state the same thing, and after fixing P2/P3 the single-source remainder (about 650 + 401 pairs) becomes a `validate` report line instead of a silent difference. S6-only pairs are kept with `source = pdf_plan` and shown in the plan, but do not count as live-catalog membership. |
 | Provenance | Scheme §4, multi-source: `program_module_assertion(program_id, module_id, source, relation, raw_ref, fetched_at)`; `v_program_module` exposes one row per pair with `relation`, the list of sources and `precedence`. Unresolved page triples are kept in staging with `resolve_status` instead of being dropped. |
 
 ### 5.4 Module kind (Pflicht / Wahlpflicht / Abschlussarbeit / Praktikum / FÜS)
@@ -334,6 +334,20 @@ Decision: two relations. **Curricular** = all modules a student can attend for t
 everything QIS lists for the program (tree ∪ module page of non-FÜS modules ∪ validated plan).
 **FÜS of a program** = FÜS-flagged modules whose page admits the program, minus the program's
 curricular modules. Each program has its own allowed FÜS list.
+Refined 2026-11-17 (owner, of „Einführung in die Amateurfunktechnik" (12045), which Informatik's
+FÜS list lacked: „Das ist nämlich eigentlich ok"): a FÜS-flagged module whose page admits **no**
+program is on the FÜS list of every program that has one, minus where it is curricular. Its page
+says „Zuordnung zu Studiengängen: keine Zuordnung vorhanden" beside „Das Modul ist für das
+Fachübergreifende Studium zugelassen.", and a page that names no program restricts no one: the
+Ordnung zum Fachübergreifenden Studium (ABl. 04/2010, § 3) lets a student choose freely from the
+FÜS catalog but for the Pflicht and Wahlpflicht modules of the own program and a program's
+published „Negativliste". Evidence (canary, 2026-11-17): 25 of the 289 FÜS modules admit no
+program, 19 with „keine Zuordnung vorhanden" and 6 with nothing but „Abschluss im Ausland"; none
+of them is curricular in a program with a FÜS list. A page that names programs still admits those
+alone: 86 FÜS modules name only programs they are curricular in (48 of them five programs or
+fewer, the others at most 20; 12396 Thermische Systembetrachtungen names Elektrotechnik alone)
+and are on no FÜS list.
+Schema 21, `docs/radix/schema-v2.md` „Membership and kind".
 
 **Q2. Conflicting module kind (tree vs plan).**
 Evidence: 5.4. Of 438 conflicting pairs, the large groups come from the tree's `Pflicht`
