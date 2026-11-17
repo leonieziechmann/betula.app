@@ -1873,7 +1873,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       bestanden im SoSe 2026" with the cross for a Wiederholer), the credits. A row with a module
       is as a whole the way to it beside the page, the plan's open modules too, which were words
       alone; from the dialog it closes the dialog.
-    - *Pages, not sheets* (Folia 1.97.6; owner, the same day: „wenn man auf ein modul klickt von
+    - *Pages, not sheets* (Folia 1.97.7; owner, the same day: „wenn man auf ein modul klickt von
       der ansicht, weil das ist modal zu modal und das sieht richtig komisch aus. Also entweder
       stacken sich modals oder das wird zur eigenen seite"). On a phone the areas were a sheet over
       the overview, an area the same sheet (with an arrow back to the areas at its head since
