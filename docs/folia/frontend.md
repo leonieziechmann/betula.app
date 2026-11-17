@@ -296,11 +296,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     Auslauffunktion"): the fifth runs out under „Alle 12 anzeigen", which unfolds the rest and goes,
     the focus on the sixth; without JavaScript all of them. On a phone a program's kind stands under
     its line, where the name keeps its width and a long kind is whole („Wahlpflich…" was cut off).
-    „Außerdem als fachübergreifendes Studium (FÜS) anrechenbar in 149 Studiengängen" counts the
-    FÜS lists that hold the module (`queries::module_fues_programs`), not the programs its page
-    names: a FÜS module whose page names none („Einführung in die Amateurfunktechnik") is on every
-    FÜS list since schema 21 (Folia 1.97.3), and the section shows for it as for ERP, no
-    curriculum and that line; until then it had no section.
+    „Außerdem als fachübergreifendes Studium (FÜS) anrechenbar in 111 Studiengängen" counts the
+    FÜS lists that hold the module (`queries::module_fues_programs`, one each), not the lines of
+    its page, which may name a program twice (since Folia 1.97.3); the section shows wherever that
+    is above 0.
 - **A module's week says what belongs to it** (owner, 2026-11-03, on Programmierpraktikum's week:
   „aktuell ist es nicht gut zu erkennen, was jetzt zu dem modul gehört … Es muss auch erkennbar
   sein, wenn termine abgeschnitten sind"; the concepts' second round, folia/design/kalender/raster.html,
@@ -4302,9 +4301,9 @@ beside the page → the catalog narrowed down to that area; a row of the plan �
 means, the same derivation as the row's panel (`plan::areas_for_row`; „Anwendungsfach" →
 `area=348,350,351,352,349`, the five Nebenfächer), the FÜS list for a FÜS row, a search for the
 name of a single module, the program's electives where no area fits; nothing picked → the program.
-The FÜS list is the program's own (the FÜS modules whose page admits the program, and since schema
-21, Folia 1.97.3, those whose page admits none, as „Einführung in die Amateurfunktechnik" in
-Informatik: `docs/radix/schema-v2.md`, „Membership and kind"); where the data holds none (20 of
+The FÜS list is the program's own (the FÜS modules whose page admits the program:
+`docs/radix/schema-v2.md`, „Membership and kind"; schema 21 added those whose page admits none, and
+schema 22 withdrew it); where the data holds none (20 of
 the 129 current programs with a plan, two with FÜS rows: Power Engineering and Urban Design and
 Sustainable Revitalization, whose 3 FÜS rows led to an empty list until 2026-11-03), the BTU's
 (`fues=only`, „FÜS-Liste der BTU"), whose modules „Mein Studium" counts for the FÜS anyway. Every

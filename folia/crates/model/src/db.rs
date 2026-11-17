@@ -26,9 +26,10 @@ use std::fmt;
 /// page of Grundsatzordnungen lists for every program (`v_general_document`; docs/radix/schema-v2.md,
 /// „General documents"). 20: the BTU's pages around the study its page „Studienorganisation" lists
 /// (`v_study_page`; docs/radix/schema-v2.md, „Study pages"). 21: a FÜS module whose page admits no
-/// program is on the FÜS list of every program that has one (`v_program_module`, relation `fues`;
-/// docs/radix/schema-v2.md, „Membership and kind"): no column changes, but a copy of 20 lacks them.
-pub const SCHEMA_VERSION: i64 = 21;
+/// program on the FÜS list of every program that has one; 22: withdrawn, a program's FÜS list is what
+/// the FÜS modules' pages admit again (`v_program_module`, relation `fues`; docs/radix/schema-v2.md,
+/// „Membership and kind"): no column changes either time, but a copy of 21 holds the pairs 22 drops.
+pub const SCHEMA_VERSION: i64 = 22;
 
 /// A SQLite value, as a parameter or as a result cell.
 #[derive(Clone, Debug, PartialEq)]

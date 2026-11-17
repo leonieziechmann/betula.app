@@ -528,8 +528,7 @@ pub struct ModuleData {
     #[serde(default)]
     pub choice_families: Vec<ChoiceFamily>,
     pub programs: Vec<ProgramLink>,
-    /// How many programs have the module on their FÜS list (`module_fues_programs`): those its
-    /// page names, or, where it names none, every program with a FÜS list (schema 21).
+    /// How many programs have the module on their FÜS list (`module_fues_programs`).
     #[serde(default)]
     pub fues_programs: u64,
     /// Where the validated study plans place the module (`plan_semesters`).
