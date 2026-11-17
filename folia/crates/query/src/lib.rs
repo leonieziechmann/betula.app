@@ -652,6 +652,18 @@ pub fn module_program_links(db: &dyn Database, module_id: &str) -> Result<Vec<Pr
     )
 }
 
+/// How many programs have a module on their FÜS list (`v_program_module`, relation `fues`): those
+/// its page admits, and for a FÜS module whose page admits none every program with a FÜS list
+/// (schema 21), of which `module_program_links` names none.
+pub fn module_fues_programs(db: &dyn Database, module_id: &str) -> Result<u64, DbError> {
+    fetch_count(
+        db,
+        "module_fues_programs",
+        "SELECT COUNT(*) FROM v_program_module WHERE module_id = ? AND relation = 'fues'",
+        &[Value::from(module_id)],
+    )
+}
+
 /// Where the validated study plans place a module: every row of a plan that names it, in the
 /// plan's order (docs/radix/schema-v2.md, `get_curriculum_entries`).
 pub fn module_plan_places(db: &dyn Database, module_id: &str) -> Result<Vec<PlanPlace>, DbError> {

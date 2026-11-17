@@ -81,6 +81,16 @@ Arbeit, which v1 labelled „B.Sc.", has none.
 
 - `relation = 'fues'`: the module is on the FÜS list, its page admits the program, and neither
   the program's tree nor its validated plan contains it. Everything else is `curricular`.
+- A FÜS module whose page admits no program is on the FÜS list of every program that has one
+  (schema 21; owner, 2026-11-17, of „Einführung in die Amateurfunktechnik" (12045) in Informatik:
+  „Das ist nämlich eigentlich ok"). „Admits no program": „Zuordnung zu Studiengängen" names no
+  program of a degree („keine Zuordnung vorhanden", or only „Abschluss im Ausland"; no
+  `module_program_ref` but `abroad`), or there is no page. „Has one": a FÜS module's page admits
+  the program and it is not curricular there. Where the module is curricular it stays so; a
+  program without a FÜS list gets none of them (Folia leads it to the BTU's whole list). Such a
+  pair is stated by no source: `in_tree`, `on_module_page` and `in_plan` 0, no area
+  (`v_program_module_src`; `docs/radix/data-sources.md` §7, Q1). On canary's snapshot of
+  2026-11-17 25 of the 289 FÜS modules, 3,725 pairs in 149 programs; Informatik B.Sc. 117 → 142.
 - `kind` is decided by the strongest statement: a stated value beats an inferred one, then
   `pdf_plan` > `module_page` (remarks) > `qis_tree` (a label on the area path). `precedence` is
   1–3 for stated, 4–6 for inferred statements. The tree's v1 default „Pflicht" no longer exists:
@@ -216,7 +226,9 @@ the cache, 2 answered 404 (12690, 14037: on the FÜS list, no page), 0 failed.
 `validate` currently warns about: 2 modules without a page, 3 programs without any tree module
 (Hebammenwissenschaft, Pflegewissenschaft, Physiotherapie, all PO 2026), 43 kind conflicts. It
 reports as information: 4,712 curricular pairs without any stated kind, 415 pairs only the
-module page states, 109 only the tree states, 25 FÜS modules whose page admits no program.
+module page states, 109 only the tree states, 25 FÜS modules whose page admits no program (on
+no program's FÜS list then; since schema 21 on that of every program that has one, and `validate`
+counts what the pages state).
 
 ## 6. Done since the first build, and what is still open
 
