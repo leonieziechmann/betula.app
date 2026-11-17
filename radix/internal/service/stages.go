@@ -18,6 +18,7 @@ import (
 
 	"github.com/leonieziechmann/betula/radix/internal/catalogdb"
 	"github.com/leonieziechmann/betula/radix/internal/crawl"
+	"github.com/leonieziechmann/betula/radix/internal/fuescatalog"
 	"github.com/leonieziechmann/betula/radix/internal/model"
 	"github.com/leonieziechmann/betula/radix/internal/normalize"
 	"github.com/leonieziechmann/betula/radix/internal/oplog"
@@ -64,17 +65,21 @@ type Endpoints struct {
 	// leaves a page out.
 	StudyOrganisationDE string
 	StudyOrganisationEN string
+	// The BTU's page „Aktuelle Infos", which links the FÜS catalog of the current semester, and the
+	// directory the BTU puts its catalogs in; "" leaves them out.
+	FUESCatalogPage  string
+	FUESCatalogFiles string
 
 	// Client sends the requests of every stage; nil fetches directly (the crawl's own
 	// clients). Radix sets the one of Cortex (cortex/client, the Go module cortex/) when RADIX_CORTEX_URL
 	// is set.
 	Client *http.Client
 	// LiveClient, where set, sends the requests of the BTU's pages of Grundsatzordnungen and
-	// Studienorganisation instead of Client: offline through Cortex (RADIX_CORTEX_MODE=offline, the
-	// canary) one that may fetch, so that an instance which crawls nothing still has the
-	// regulations for every program and the pages around the study (owner, 2026-11-11: „mach doch
-	// bitte einfach auf canary"). Four requests at most every 20 hours, and Cortex answers them from
-	// its store while its copy is that young.
+	// Studienorganisation and of its FÜS catalogs instead of Client: offline through Cortex
+	// (RADIX_CORTEX_MODE=offline, the canary) one that may fetch, so that an instance which crawls
+	// nothing still has the regulations for every program, the pages around the study and the FÜS
+	// lists (owner, 2026-11-11: „mach doch bitte einfach auf canary"). Seven requests at most every
+	// 20 hours, and Cortex answers them from its store while its copy is that young.
 	LiveClient *http.Client
 }
 
@@ -104,6 +109,8 @@ func BTUEndpoints() Endpoints {
 		GeneralDocumentsEN:  "https://www.b-tu.de/en/study/during-studies/study-organization/examinations/regulations-and-forms/basic-regulations",
 		StudyOrganisationDE: "https://www.b-tu.de/studium/im-studium/studienorganisation",
 		StudyOrganisationEN: "https://www.b-tu.de/en/study/during-studies/study-organization",
+		FUESCatalogPage:     "https://www.b-tu.de/studium/im-studium/studienorganisation/quicklinks/aktuelle-infos",
+		FUESCatalogFiles:    "https://www-docs.b-tu.de/studierende/public/files/Informationen/",
 	}
 }
 
@@ -157,6 +164,58 @@ func CrawlStudyOrganisation(ctx context.Context, db *catalogdb.DB, ep Endpoints,
 		client = ep.LiveClient
 	}
 	return crawl.Run(ctx, db, jobs, crawl.Options{Workers: 1, Delay: pace.Delay, MaxAge: pace.MaxAge, Backoff: pace.Backoff, Client: client})
+}
+
+// CrawlFUESCatalogs archives the BTU's FÜS catalogs (docs/radix/data-sources.md §19): its page
+// „Aktuelle Infos" (key "de"), then every catalog that page links, keyed by the semester it is for
+// („2026W"), and, where the archive holds no copy, the catalogs of the current semester and of the
+// one before by the names of the BTU's files (fuescatalog.CatalogURL): the page links the current
+// one only, and the FÜS lists need the newest of either season. A file that is not there yet is a
+// 404, archived as such. Endpoints.LiveClient sends them where it is set, else Endpoints.Client.
+func CrawlFUESCatalogs(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Pace, now time.Time) (crawl.Stats, error) {
+	if ep.FUESCatalogPage == "" {
+		return crawl.Stats{}, nil
+	}
+	client := ep.Client
+	if ep.LiveClient != nil {
+		client = ep.LiveClient
+	}
+	opts := crawl.Options{Workers: 1, Delay: pace.Delay, MaxAge: pace.MaxAge, Backoff: pace.Backoff, Client: client}
+	stats, err := crawl.Run(ctx, db, []crawl.Job{{Source: catalogdb.SourceBTUFUESCatalogPage, Key: "de", URL: ep.FUESCatalogPage}}, opts)
+	if err != nil {
+		return stats, err
+	}
+	var jobs []crawl.Job
+	linked := map[string]bool{}
+	if page, err := db.GetPage(catalogdb.SourceBTUFUESCatalogPage, "de"); err == nil && page.HTTPStatus == http.StatusOK {
+		for _, link := range fuescatalog.Links(page.Body, page.URL) {
+			if !linked[link.Semester] {
+				linked[link.Semester] = true
+				jobs = append(jobs, crawl.Job{Source: catalogdb.SourceBTUFUESCatalog, Key: link.Semester, URL: link.URL})
+			}
+		}
+	}
+	current := fuescatalog.SemesterAt(now)
+	for _, semester := range []string{current, fuescatalog.Previous(current)} {
+		if linked[semester] || ep.FUESCatalogFiles == "" {
+			continue
+		}
+		if p, err := db.GetPage(catalogdb.SourceBTUFUESCatalog, semester); err == nil && p.HTTPStatus == http.StatusOK {
+			continue
+		}
+		jobs = append(jobs, crawl.Job{Source: catalogdb.SourceBTUFUESCatalog, Key: semester, URL: fuescatalog.CatalogURL(ep.FUESCatalogFiles, semester)})
+	}
+	if len(jobs) == 0 {
+		return stats, nil
+	}
+	more, err := crawl.Run(ctx, db, jobs, opts)
+	stats.Fetched += more.Fetched
+	stats.Changed += more.Changed
+	stats.NotFound += more.NotFound
+	stats.Skipped += more.Skipped
+	stats.Failed += more.Failed
+	stats.OfflineMiss += more.OfflineMiss
+	return stats, err
 }
 
 // qisModuleListChunk is how many rows one request of the QIS module table asks for.

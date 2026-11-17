@@ -105,6 +105,12 @@ func eventPageHTML(title, eventType, room, duration string) string {
 
 func buildFixture(t *testing.T) (*catalogdb.DB, *Report) {
 	t.Helper()
+	return buildFixtureWith(t, nil)
+}
+
+// buildFixtureWith builds the fixture with what more archives before the build.
+func buildFixtureWith(t *testing.T, more func(put func(source, key, body string))) (*catalogdb.DB, *Report) {
+	t.Helper()
 	db, err := catalogdb.Open(filepath.Join(t.TempDir(), "v2.db"))
 	if err != nil {
 		t.Fatalf("Open failed: %v", err)
@@ -172,6 +178,9 @@ func buildFixture(t *testing.T) (*catalogdb.DB, *Report) {
 		{ModuleName: "Wahlpflicht Informatik", MinCredits: 10, MaxCredits: 24, KindRaw: "Wahlpflicht"},
 	}}); err != nil {
 		t.Fatalf("SavePlan failed: %v", err)
+	}
+	if more != nil {
+		more(put)
 	}
 
 	report, err := Build(context.Background(), db)

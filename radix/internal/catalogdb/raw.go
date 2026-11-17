@@ -22,20 +22,26 @@ const (
 	// The BTU's page „Studienorganisation", its pages around the study: keys "de" and "en", its
 	// German and its English page (service.CrawlStudyOrganisation).
 	SourceBTUStudyOrganisation = "btu_study_organisation"
-	SourceModulePage           = "module_page"
-	SourceQISEvent             = "qis_event"
-	SourceQISEventEntry        = "qis_event_entry" // an event's entry in the QIS event search, keyed like its page
-	SourceQISFUESList          = "qis_fues_list"
-	SourceQISModuleList        = "qis_module_list"
-	SourceQISModulePage        = "qis_module_page"
-	SourceQISTree              = "qis_tree"
+	// The BTU's page „Aktuelle Infos" (key "de"), which links the FÜS catalog of the current
+	// semester, and the catalogs, PDFs keyed by the semester they are for („2026W";
+	// service.CrawlFUESCatalogs).
+	SourceBTUFUESCatalogPage = "btu_fues_catalog_page"
+	SourceBTUFUESCatalog     = "btu_fues_catalog"
+	SourceModulePage         = "module_page"
+	SourceQISEvent           = "qis_event"
+	SourceQISEventEntry      = "qis_event_entry" // an event's entry in the QIS event search, keyed like its page
+	SourceQISFUESList        = "qis_fues_list"
+	SourceQISModuleList      = "qis_module_list"
+	SourceQISModulePage      = "qis_module_page"
+	SourceQISTree            = "qis_tree"
 )
 
 // WholeAnswerSources are the sources whose archived page is the whole answer of its URL, as
 // the server gave it. The others archive pieces of a larger answer under a URL of their own:
 // the entries of the QIS event search, each under its event's page.
 var WholeAnswerSources = []string{SourceModuleCatalog, SourceQISFUESList, SourceModulePage, SourceQISModuleList,
-	SourceQISModulePage, SourceQISTree, SourceQISEvent, SourceBTUGeneralDocuments, SourceBTUStudyOrganisation}
+	SourceQISModulePage, SourceQISTree, SourceQISEvent, SourceBTUGeneralDocuments, SourceBTUStudyOrganisation,
+	SourceBTUFUESCatalogPage, SourceBTUFUESCatalog}
 
 // ErrNotFound is returned when a requested row does not exist.
 var ErrNotFound = errors.New("not found")

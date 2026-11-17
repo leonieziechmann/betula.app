@@ -208,6 +208,14 @@ pub struct Texts {
     /// The same in the column, where there are none.
     pub events_none: &'static str,
     pub limited_places: &'static str,
+    /// On a row of a program's FÜS list, what its negative list in the BTU's FÜS catalog says
+    /// (`FuesNote`; owner, 2026-11-17: „mit Hinweis statt ausblenden"): „Nicht mit Anwendungsfach
+    /// Physik", the choices joined with `or`; „im Sommersemester nicht zugelassen"; the two parts
+    /// joined by „ · ". `fues_note_title` says where it comes from.
+    pub fues_not_with: fn(&str) -> String,
+    pub fues_not_in_winter: &'static str,
+    pub fues_not_in_summer: &'static str,
+    pub fues_note_title: &'static str,
     /// Under a title, where a search found the module by it: the title in the other language
     /// („engl. Time-discrete Systems…"), a lecturer responsible for it or one who teaches it.
     pub row_title_en: &'static str,
@@ -478,6 +486,10 @@ pub const DE: Texts = Texts {
     },
     events_none: "noch keine",
     limited_places: "begrenzte Plätze",
+    fues_not_with: |choices| format!("Nicht mit {choices}"),
+    fues_not_in_winter: "im Wintersemester nicht zugelassen",
+    fues_not_in_summer: "im Sommersemester nicht zugelassen",
+    fues_note_title: "Laut Negativliste des Studiengangs im FÜS-Katalog der BTU",
     row_title_en: "engl.",
     row_title_de: "dt.",
     row_responsible: "verantwortlich",
@@ -715,6 +727,10 @@ pub const EN: Texts = Texts {
     },
     events_none: "none yet",
     limited_places: "limited places",
+    fues_not_with: |choices| format!("Not with {choices}"),
+    fues_not_in_winter: "not admitted in the winter semester",
+    fues_not_in_summer: "not admitted in the summer semester",
+    fues_note_title: "By the programme's negative list in the BTU's FÜS catalogue",
     row_title_en: "Eng.",
     row_title_de: "Ger.",
     row_responsible: "responsible",

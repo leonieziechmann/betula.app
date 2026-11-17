@@ -68,6 +68,7 @@ func runService(ctx context.Context, args []string) {
 	treeMaxAge := fs.Duration("tree-max-age", envDuration("RADIX_TREE_MAX_AGE", def.Tree.MaxAge), "Refetch a QIS tree page once per this long, each on a day of its own (env RADIX_TREE_MAX_AGE)")
 	studyMaxAge := fs.Duration("study-organisation-max-age", envDuration("RADIX_STUDY_ORGANISATION_MAX_AGE", def.StudyOrganisation.MaxAge), "Refetch the BTU's page Studienorganisation (German and English) after this long, off-peak (env RADIX_STUDY_ORGANISATION_MAX_AGE)")
 	generalMaxAge := fs.Duration("general-documents-max-age", envDuration("RADIX_GENERAL_DOCUMENTS_MAX_AGE", def.GeneralDocuments.MaxAge), "Refetch the BTU's page of Grundsatzordnungen (German and English) after this long, off-peak (env RADIX_GENERAL_DOCUMENTS_MAX_AGE)")
+	fuesMaxAge := fs.Duration("fues-catalogs-max-age", envDuration("RADIX_FUES_CATALOGS_MAX_AGE", def.FUESCatalogs.MaxAge), "Refetch the BTU's page Aktuelle Infos and the FÜS catalogs it links after this long, off-peak (env RADIX_FUES_CATALOGS_MAX_AGE)")
 	retention := fs.Duration("event-retention", envDuration("RADIX_EVENT_RETENTION", def.EventRetention), "Remove an event this long after its last date, 0 keeps all (env RADIX_EVENT_RETENTION)")
 	archiveGrace := fs.Duration("archive-grace", envDuration("RADIX_ARCHIVE_GRACE", def.ArchiveGrace), "Remove archived pages nothing leads to any more this long after their fetch, 0 keeps them (env RADIX_ARCHIVE_GRACE)")
 	staleAfter := fs.Duration("stale-after", envDuration("RADIX_STALE_AFTER", def.StaleAfter), "Report unhealthy without a successful cycle for this long (env RADIX_STALE_AFTER)")
@@ -110,11 +111,12 @@ func runService(ctx context.Context, args []string) {
 	cfg.Tree.MaxAge = *treeMaxAge
 	cfg.GeneralDocuments.MaxAge = *generalMaxAge
 	cfg.StudyOrganisation.MaxAge = *studyMaxAge
+	cfg.FUESCatalogs.MaxAge = *fuesMaxAge
 	cfg.EventRetention = *retention
 	cfg.ArchiveGrace = *archiveGrace
 	cfg.StaleAfter = *staleAfter
 	cfg.Endpoints.Client = cortex.client(cortexclient.ModeCache)
-	cfg.Endpoints.LiveClient = cortex.liveClient(min(cfg.GeneralDocuments.MaxAge, cfg.StudyOrganisation.MaxAge))
+	cfg.Endpoints.LiveClient = cortex.liveClient(min(cfg.GeneralDocuments.MaxAge, cfg.StudyOrganisation.MaxAge, cfg.FUESCatalogs.MaxAge))
 	declareFetchPath(cfg.Endpoints.Client != nil, offline)
 
 	if strings.EqualFold(*offpeak, "any") {
