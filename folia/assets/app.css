@@ -7442,6 +7442,13 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
 .avatar[data-tone="7"] { --tone: var(--t-rose); }
 .avatar[data-tone="8"] { --tone: var(--t-slate); }
 .avatar.large { width: 56px; height: 56px; font-size: 23px; box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--tone) 42%, transparent); }
+/* A profile's name with the mark of Betula Sync beside it (`SyncMark`; owner, 2026-11-17) in the
+   menu of the profiles and the profile page's list: Betula Sync's symbol as „Geräte" has it, quiet
+   in the colour of the line below; a long name gives way, never the mark. */
+.pm-item-name, .pf-item-name { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.pm-item-name b, .pf-item-name b { min-width: 0; }
+.sync-mark { flex: none; display: inline-grid; place-items: center; color: var(--text-3); }
+.sync-mark .icon { width: 14px; height: 14px; stroke-width: 2; }
 .page-inner.pf { grid-template-columns: minmax(0, 1fr); align-content: start; }
 /* The profile page since 2026-11-08 (folia/design/profil/konzepte.html, the second round): the head
    with the name and its pencil, „Mein Studiengang" as a line and the numbers; „Daten" and the

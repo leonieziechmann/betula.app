@@ -204,6 +204,12 @@ impl Sync {
         action.or_else(|| self.states.with(|states| states.iter().find(|(p, _)| *p == id).map(|(_, s)| s.clone()))).unwrap_or(State::Private)
     }
 
+    /// Whether Betula Sync keeps profile `id` here (synced, connected or not), as this browser
+    /// keeps it: an action under way or one that failed (`state`) does not change it. Tracked.
+    pub fn synced(self, id: u16) -> bool {
+        self.states.with(|states| states.iter().any(|(p, state)| *p == id && state.synced()))
+    }
+
     /// The devices of profile `id` (synced; none for a private one). Tracked.
     pub fn devices(self, id: u16) -> Devices {
         self.devices.with(|all| all.iter().find(|(p, _)| *p == id).map(|(_, d)| d.clone())).unwrap_or_default()
