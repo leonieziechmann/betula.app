@@ -425,7 +425,7 @@ fn MarkedNote(marked: Marked, into: std::collections::BTreeSet<u32>, bookmarks: 
                 }}
                 <div class="plan-toast-end">
                     <span class="plan-toast-sep" aria-hidden="true"></span>
-                    <button class="plan-toast-undo" type="button" on:click=move |_| {
+                    <button data-haptic="tap" class="plan-toast-undo" type="button" on:click=move |_| {
                         bookmarks.undo(&marked);
                         done.set(true);
                     }>{t.common.undo}</button>
@@ -485,7 +485,7 @@ fn end_of(t: &'static Texts, done: RwSignal<bool>, undo: impl Fn() + 'static) ->
     view! {
         <div class="plan-toast-end">
             <span class="plan-toast-sep" aria-hidden="true"></span>
-            <button class="plan-toast-undo" type="button" on:click=move |_| {
+            <button data-haptic="tap" class="plan-toast-undo" type="button" on:click=move |_| {
                 undo();
                 done.set(true);
             }>{t.common.undo}</button>

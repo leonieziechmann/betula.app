@@ -69,6 +69,7 @@ use leptos::prelude::*;
 
 use folia_data::use_ask;
 use folia_design::combobox::{ComboItem, Select};
+use folia_design::haptic::TapTick;
 use folia_design::ui::Icon;
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::studyplan::BenchAim;
@@ -1130,8 +1131,8 @@ fn ListPane(ctx: StudyCtx, parts: Parts, group: Option<usize>) -> impl IntoView 
     };
     let switch_chip = move |on: RwSignal<bool>, words: Signal<String>| {
         view! {
-            <button class="st-wb-chip" type="button" role="switch" aria-checked=move || if on.get() { "true" } else { "false" } on:click=move |_| on.update(|on| *on = !*on)>
-                <Icon name="check"/>{move || words.get()}
+            <button class="st-wb-chip tap-host" type="button" role="switch" aria-checked=move || if on.get() { "true" } else { "false" } on:click=move |_| on.update(|on| *on = !*on)>
+                <Icon name="check"/>{move || words.get()}<TapTick/>
             </button>
         }
     };

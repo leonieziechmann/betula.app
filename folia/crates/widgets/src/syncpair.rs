@@ -10,6 +10,7 @@
 
 use leptos::prelude::*;
 
+use folia_design::haptic::{self, Haptic};
 use folia_design::ui::Icon;
 use folia_stores::profiles::MAX_PROFILES;
 use folia_stores::sync::{Pairing, Problem};
@@ -43,7 +44,7 @@ pub fn now_ms() -> u64 {
     0
 }
 
-/// Copies a text into the clipboard (a click's: the browser lets it).
+/// Copies a text into the clipboard (a click's: the browser lets it), and the hand feels it done.
 pub fn copy(text: &str) {
     #[cfg(feature = "csr")]
     if let Some(window) = web_sys::window() {
@@ -51,6 +52,7 @@ pub fn copy(text: &str) {
     }
     #[cfg(not(feature = "csr"))]
     let _ = text;
+    haptic::play(Haptic::Success);
 }
 
 /// Whether the system can share a link (the Web Share API: phones, and some desktops).

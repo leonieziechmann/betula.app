@@ -71,6 +71,7 @@ use folia_widgets::list::Facts;
 use leptos::ev::{KeyboardEvent, MouseEvent, PointerEvent, TouchEvent};
 use leptos::prelude::*;
 
+use folia_design::haptic::{self, Haptic};
 use folia_design::ui::Icon;
 
 use super::dom;
@@ -686,8 +687,10 @@ fn painted(order: &[String], paint: &Paint, at: usize) -> BTreeSet<String> {
     keys
 }
 
-/// Selects the row `key` of semester `s`, or lets it go.
+/// Selects the row `key` of semester `s`, or lets it go: felt as a step, as a row drawn into the
+/// selection is.
 fn toggle(ctx: StudyCtx, s: SemesterKey, key: &str) {
+    haptic::play(Haptic::Tick);
     ctx.selection.update(|selection| {
         if selection.semester != Some(s) {
             *selection = Selection { semester: Some(s), ..Selection::default() };
@@ -788,6 +791,7 @@ impl Draw {
             let held = set_timeout_with_handle(
                 move || {
                     self.hold.set_value(None);
+                    haptic::play(Haptic::Hold);
                     self.paint_from(ctx, s, &order.get_untracked());
                 },
                 HOLD,
@@ -832,6 +836,8 @@ impl Draw {
         let Some(at) = order.iter().position(|other| *other == over) else { return };
         let keys = self.paint.with_value(|paint| paint.as_ref().map(|paint| painted(&order, paint, at)));
         if let Some(keys) = keys.filter(|keys| ctx.selection.with_untracked(|selection| selection.keys != *keys)) {
+            // A row more or less in what is drawn: felt as a step.
+            haptic::play(Haptic::Tick);
             ctx.selection.update(|selection| selection.keys = keys);
         }
     }

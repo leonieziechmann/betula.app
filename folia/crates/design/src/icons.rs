@@ -113,6 +113,8 @@ pub const ICONS: &[(&str, &str)] = &[
     ("user-round", r#"<circle cx="12" cy="8" r="5"/> <path d="M20 21a8 8 0 0 0-16 0"/>"#),
     ("user-round-plus", r#"<path d="M2 21a8 8 0 0 1 13.292-6"/> <circle cx="10" cy="8" r="5"/> <path d="M19 16v6"/> <path d="M22 19h-6"/>"#),
     ("users-round", r#"<path d="M18 21a8 8 0 0 0-16 0"/> <circle cx="10" cy="8" r="5"/> <path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/>"#),
+    ("vibrate", r#"<path d="m2 8 2 2-2 2 2 2-2 2"/> <path d="m22 8-2 2 2 2-2 2 2 2"/> <rect width="8" height="14" x="8" y="5" rx="1"/>"#),
+    ("vibrate-off", r#"<path d="m2 8 2 2-2 2 2 2-2 2"/> <path d="m22 8-2 2 2 2-2 2 2 2"/> <path d="M8 8v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2"/> <path d="M16 10.34V6c0-.55-.45-1-1-1h-4.34"/> <line x1="2" x2="22" y1="2" y2="22"/>"#),
     ("waypoints", r#"<circle cx="12" cy="4.5" r="2.5"/> <path d="m10.2 6.3-3.9 3.9"/> <circle cx="4.5" cy="12" r="2.5"/> <path d="M7 12h10"/> <circle cx="19.5" cy="12" r="2.5"/> <path d="m13.8 17.7 3.9-3.9"/> <circle cx="12" cy="19.5" r="2.5"/>"#),
     ("wifi-off", r#"<path d="M12 20h.01"/> <path d="M8.5 16.429a5 5 0 0 1 7 0"/> <path d="M5 12.859a10 10 0 0 1 5.17-2.69"/> <path d="M19 12.859a10 10 0 0 0-2.007-1.523"/> <path d="M2 8.82a15 15 0 0 1 4.177-2.643"/> <path d="M22 8.82a15 15 0 0 0-11.288-3.764"/> <path d="m2 2 20 20"/>"#),
     ("x", r#"<path d="M18 6 6 18"/> <path d="m6 6 12 12"/>"#),

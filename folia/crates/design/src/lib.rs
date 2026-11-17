@@ -2,14 +2,15 @@
 //! the dialogs — a sheet from below on a phone —, and `waitnote`, a note that waits for
 //! interaction), how numbers, dates and keys are written (`format`, `keys`),
 //! the browser's own means (`nav`: storage, sizes, popups; `keyboard`: the screen's keyboard of a
-//! phone) and the languages with the texts of these parts (`i18n`, and `texts!`, with which every
-//! crate of the app puts its texts together). Below the shell and the features: it knows no page,
+//! phone; `haptic`: what the hand feels) and the languages with the texts of these parts (`i18n`,
+//! and `texts!`, with which every crate of the app puts its texts together). Below the shell and the features: it knows no page,
 //! no data and no store (docs/folia/folia-refactor.md §7.4).
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
 pub mod combobox;
 pub mod format;
+pub mod haptic;
 pub mod i18n;
 pub mod icons;
 pub mod keyboard;
