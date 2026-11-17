@@ -151,12 +151,13 @@ await step("Anwendungsfach ›", () => page.click('.st-wb-half .st-wb-row.choice
 const anw = await half();
 const anwHead = await page.evaluate(() => ({
   figure: document.querySelector(".st-wb-half .st-wb-pt > .st-wb-fig")?.textContent,
+  rule: document.querySelector(".st-wb-half .st-wb-rule")?.textContent.replace(/\u00a0/g, " "),
   bar: Boolean(document.querySelector(".st-wb-half .st-wb-pth > .st-wb-fill")),
   chips: [...document.querySelectorAll(".st-wb-half .st-wb-ctl .st-wb-chips > *")].map((chip) => chip.textContent.trim()).join("|"),
   way: document.querySelector(".st-wb-half .st-wb-page")?.getAttribute("data-way"),
   esc: document.querySelector('.st-card-sem [data-action="close-focus"]')?.classList.contains("st-wb-back"),
 }));
-check(anw.crumbs === "Übersicht" && anw.groups[0] === "passen in deine Woche" && anwHead.figure === "0 / 12 LP" && anwHead.bar && anwHead.chips === "Alle 5 Fächer|Im WiSe angeboten|Passt in meine Woche" && anwHead.way === "in" && anwHead.esc, `the Anwendungsfach: ${JSON.stringify({ crumbs: anw.crumbs, groups: anw.groups, ...anwHead })}`);
+check(anw.crumbs === "Übersicht" && anw.groups[0] === "passen in deine Woche" && anwHead.figure === "0 / 6 LP" && anwHead.rule?.includes("insgesamt 12 LP") && anwHead.bar && anwHead.chips === "Alle 5 Fächer|Im WiSe angeboten|Passt in meine Woche" && anwHead.way === "in" && anwHead.esc, `the Anwendungsfach: ${JSON.stringify({ crumbs: anw.crumbs, groups: anw.groups, ...anwHead })}`);
 const lists = await page.evaluate(() => document.querySelector("#st-wb-fach")?.textContent.trim());
 check(lists === "Alle 5 Fächer", `„Fach“: ${lists}`);
 const all = anw.rows.length;
@@ -169,7 +170,9 @@ const vwl = "Einführung in die Volkswirtschaftslehre";
 await step("+ Einplanen", () => page.click(`.st-wb-half .st-wb-row:has(.st-wb-go b:text-is("${vwl}")) .st-wb-plus`), (vwl) => [...document.querySelectorAll(".st-card-sem .st-row")].some((row) => row.querySelector(".st-name")?.textContent === vwl && row.querySelector(".st-for")?.textContent === "für Anwendungsfach"), vwl);
 const vwlLine = (await lines("m\t2026W\t11947\t"))[0]?.split("\t");
 check(vwlLine?.[6] === "079-82-2008" && vwlLine?.[7] && vwlLine?.length === 9, `the store does not remember the Anwendungsfach: ${JSON.stringify(vwlLine)}`);
-check((await pageFigure()) === "6 / 12 LP", `what the Anwendungsfach counts: ${await pageFigure()}`);
+// By the third Fachsemester the Anwendungsfach asks 6 of its 12 LP (owner, 2026-11-17: „nur so
+// viele lp anzeigen, wie bis zu dem semester schon erledigt sein sollten").
+check((await pageFigure()) === "6 / 6 LP", `what the Anwendungsfach counts: ${await pageFigure()}`);
 await step("its row planned", () => Promise.resolve(), (vwl) => document.querySelector(`.st-wb-half .st-wb-row.is-done .st-wb-plus.done`)?.closest(".st-wb-row")?.textContent.includes(vwl), vwl);
 
 // 5: a module both choices list, planned from Praktische Mathematik; its menu beside the half.

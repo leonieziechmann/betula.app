@@ -32,6 +32,7 @@
 //! what it needs of it through a memo of its own (R5). A click answers in the next frame and the
 //! store follows after it (R21, `StudyCtx::change`).
 
+mod areas;
 mod bench;
 mod btu;
 mod card;
@@ -182,11 +183,9 @@ pub(super) enum View {
 /// The dialog open over the page, if any (`dialog.rs`).
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Dialog {
-    /// An area of the progress (`Study::progress`); `None` for what counts towards none. `listed`
-    /// where it was opened from the areas' sheet: its head has the way back to it.
-    Area { area: Option<usize>, listed: bool },
-    /// The areas on a phone.
-    Areas,
+    /// An area of the progress (`Study::progress`) on a desktop, opened from its card; `None` for
+    /// what counts towards none. A phone's is a page of its own (`areas.rs`).
+    Area(Option<usize>),
     /// „Studiengang wechseln".
     Switch,
     /// „Zählt für" › „Anderer Bereich …" of a module of a semester (`count.rs`).
@@ -255,6 +254,8 @@ pub(super) struct StudyCtx {
     /// A phone's choice of the Wahlpflicht was opened from its list, the step before in the
     /// history: its way back goes back there.
     pub choice_back: RwSignal<bool>,
+    /// The same for an area of the progress opened from the list of them (`areas.rs`).
+    pub area_back: RwSignal<bool>,
     /// What „Einplanen" of the module beside the page aims at where the Wahlpflicht opened it: the
     /// module and the choice's placeholder and row (`PlanHint`, `choose.rs`). For that module
     /// alone.
@@ -524,6 +525,7 @@ pub fn StudyPage() -> impl IntoView {
         view_back: RwSignal::new(false),
         choice: RwSignal::new(None),
         choice_back: RwSignal::new(false),
+        area_back: RwSignal::new(false),
         aside_hint: RwSignal::new(None),
         bench: RwSignal::new(None),
         trail: RwSignal::new(Vec::new()),
@@ -753,6 +755,7 @@ fn StudyBody(ctx: StudyCtx) -> impl IntoView {
             StudyView::Plan => view! { <regular::Regular ctx/> }.into_any(),
             StudyView::Choices => view! { <choose::Choose ctx/> }.into_any(),
             StudyView::Documents => view! { <documents::Documents ctx/> }.into_any(),
+            StudyView::Progress => view! { <areas::Areas ctx/> }.into_any(),
         }
     }
 }
@@ -1534,6 +1537,55 @@ mod tests {
         assert_eq!(fifth.next.iter().filter_map(module).collect::<Vec<_>>(), ["12333"]);
         assert_eq!(sixth.pflicht.iter().filter_map(module).collect::<Vec<_>>(), ["12333"]);
         assert_eq!(sixth.takeover(&view, key("2028S")), ["12333"]);
+    }
+
+    /// A choice asks by a semester what is due by then (owner, 2026-11-17, of the workbench's card
+    /// in the third semester: „weil da halt ab semester 3 schon steht, dass man davon 12 lp braucht
+    /// obwohl man da eigentlich nur 6 braucht. Bei semester 4 würden dann 12 lp stehen, wovon 6
+    /// schon erfüllt sind"): Informatik's Anwendungsfach, 6 LP in the 3. and 6 in the 4. FS, and
+    /// what of it stands by then; a Komplex of the 5.–6. FS asks all of its own from the fifth on,
+    /// and what is planned into the sixth counts for it there.
+    #[test]
+    fn a_choice_asks_by_a_semester_what_is_due_by_then() {
+        use folia_plans::choices::plan_view;
+
+        let source = plans_of("079-82-2008");
+        let mut rows = source.linked.clone();
+        rows.extend(plans_of_rows(&["11908", "12330"]));
+        let (shown, core, page) = chosen(&source, Some(""), None);
+        let setup = Setup { shown, core, page, start: key("2025W"), start_stored: true, now: key("2026W"), leave: BTreeSet::new(), until: None };
+        // (passed, planned, least, most, part) of the choice named `name` by Fachsemester `fs`.
+        let by = |plan: &str, name: &str, fs: u8| {
+            let doc = PlanDoc::restored(plan);
+            let input = input_of(&source, &setup, &doc, &rows);
+            let view = plan_view(&input, &study::study(&input));
+            let at = view.choices.iter().position(|choice| choice.name == name).unwrap();
+            let by = view.by(at, fs, |fs| study::semester_of_fs(key("2025W"), fs, &BTreeSet::new()));
+            (by.passed, by.planned, by.least, by.most, by.part)
+        };
+        // Nothing planned: 6 by the third, 12 by the fourth and after it; before it begins what
+        // its first Fachsemester asks.
+        assert_eq!(by("", "Anwendungsfach", 3), (0.0, 0.0, 6.0, 6.0, true));
+        assert_eq!(by("", "Anwendungsfach", 4), (0.0, 0.0, 12.0, 12.0, false));
+        assert_eq!(by("", "Anwendungsfach", 6), (0.0, 0.0, 12.0, 12.0, false));
+        assert_eq!(by("", "Anwendungsfach", 2), (0.0, 0.0, 6.0, 6.0, true));
+        // Systemtheorie I (6 LP) in the third: all the third asks, half of what the fourth does.
+        let third = "m\t2026W\t11908\t1\t\t\t079-82-2008\t15\t";
+        assert_eq!(by(third, "Anwendungsfach", 3), (0.0, 6.0, 6.0, 6.0, true));
+        assert_eq!(by(third, "Anwendungsfach", 4), (0.0, 6.0, 12.0, 12.0, false));
+        // In the fourth instead: nothing of it stands by the third.
+        let fourth = "m\t2027S\t11908\t1\t\t\t079-82-2008\t15\t";
+        assert_eq!(by(fourth, "Anwendungsfach", 3), (0.0, 0.0, 6.0, 6.0, true));
+        assert_eq!(by(fourth, "Anwendungsfach", 4), (0.0, 6.0, 12.0, 12.0, false));
+        // Passed in the third: passed by both.
+        let passed = format!("{third}\nd\t2026W\t11908");
+        assert_eq!(by(&passed, "Anwendungsfach", 4), (6.0, 0.0, 12.0, 12.0, false));
+        // A Komplex over the fifth and the sixth: 10–24 from the fifth on, and a module of the
+        // sixth counts for it by the fifth, the row reaching that far.
+        let komplex = "Komplex Praktische Informatik";
+        assert_eq!(by("", komplex, 5), (0.0, 0.0, 10.0, 24.0, false));
+        let (_, planned, least, most, part) = by("m\t2028S\t12330\t1\t\t", komplex, 5);
+        assert!(planned > 0.0 && (least, most, part) == (10.0, 24.0, false), "{planned}");
     }
 
     /// Maschinenbau numbers its electives („Wahlpflichtmodul 1" … „4"): one choice of 24 LP, whose
