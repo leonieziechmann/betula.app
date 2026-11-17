@@ -76,7 +76,7 @@ pub(crate) fn Confirm(asking: RwSignal<Option<Question>>, #[prop(into)] on_yes: 
                     <div class="st-pop-shade pf-confirm-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close()></div>
                     <div
                         id="pf-confirm"
-                        data-sheet="auto"
+                        data-sheet="menu"
                         class="st-pop pf-confirm"
                         role="alertdialog"
                         aria-modal="true"
