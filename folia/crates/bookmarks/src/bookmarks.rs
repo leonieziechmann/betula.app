@@ -71,7 +71,7 @@ use folia_shell::skeleton::{AppStandin, DetailSkeleton};
 use folia_shell::tabs::{self, Area, Tabs};
 use folia_shell::frame::ErrorState;
 use folia_design::keys::Keys;
-use folia_design::ui::{Hit, Icon, ToggleLink};
+use folia_design::ui::{Hit, Icon, TickMark, ToggleLink};
 use crate::pick::{self, Listed, PickBar, PickMenus, PickRow, Picking};
 use crate::share::{followed_name, take_part, FollowedHead, ListOffer, ListShareDialog};
 
@@ -1328,8 +1328,15 @@ fn List(
     let cols = move || {
         let module_head = head(if program_set { &[BookmarkSort::Study, BookmarkSort::Title] } else { &[BookmarkSort::Title, BookmarkSort::Study] }, module_order, t.catalog.col_module, "c-module");
         view! {
-            // The heads are one stop of Tab, ← and → go from one to the next (enhance.js).
+            // The heads are one stop of Tab, ← and → go from one to the next (enhance.js). On a
+            // wide screen the box of all the rows over their boxes, which comes as theirs do, when
+            // the pointer comes near; no stop of Tab (Ctrl or ⌘ and A selects them all).
             <div class="cols label" role="toolbar" aria-label=t.catalog.sort_label data-stop="x">
+                {move || (!phone.get()).then(|| view! {
+                    <button class="st-sel" type="button" role="checkbox" tabindex="-1" aria-checked="false" aria-label=t.bookmarks.select_all title=t.bookmarks.select_all on:click=move |_| picking.select_all()>
+                        <TickMark/>
+                    </button>
+                })}
                 {module_head}
                 <span class="c-resp">{t.catalog.col_responsible}</span>
                 <span class="c-exam">{t.catalog.exam}</span>
@@ -1440,7 +1447,7 @@ fn List(
         </div>
         {has_rows.then(|| {
             let selecting = Memo::new(move |_| picking.any());
-            move || if selecting.get() { view! { <PickBar picking/> }.into_any() } else { cols().into_any() }
+            move || if selecting.get() { view! { <PickBar picking phone/> }.into_any() } else { cols().into_any() }
         })}
         // The rows are one stop of Tab, ↑ and ↓ go from row to row (enhance.js, „the keyboard").
         <div
@@ -1452,7 +1459,7 @@ fn List(
             on:pointerup=move |_| picking.end()
             on:pointercancel=move |_| picking.end()
             on:touchmove=move |ev: leptos::ev::TouchEvent| picking.touch_move(&ev)
-            on:click=move |ev: leptos::ev::MouseEvent| picking.click(&ev)
+            on:click=move |ev: leptos::ev::MouseEvent| picking.click(&ev, phone.get_untracked())
             on:contextmenu=move |ev: leptos::ev::MouseEvent| picking.context(&ev)
             on:keydown=move |ev: leptos::ev::KeyboardEvent| picking.keys(&ev)
             // A row's link is not dragged away: a mouse drawn over the rows selects them.
