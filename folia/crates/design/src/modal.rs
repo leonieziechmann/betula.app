@@ -28,8 +28,9 @@
 //! On a phone it stands as its size says (`ModalSize::sheet`): `S` fits, `M` comes half up, `L`
 //! is all up at once; `sheet=Sheet::…` where what it holds asks for another way (a long list of
 //! keys half up, a form with a search all up, what changes `Sheet::Auto`, which fits while it can
-//! and goes half up past that). A menu, the filters and the map are sheets of their own
-//! (`data-sheet="fit"`, `"half"`, `"full"`, `"auto"`).
+//! and goes half up past that, a few choices `Sheet::Menu`, as tall as they are). A menu, the
+//! filters and the map are sheets of their own (`data-sheet="menu"`, `"fit"`, `"half"`, `"full"`,
+//! `"auto"`).
 //!
 //! What holds its buttons is a `footer.st-dlg-foot` (or carries `data-sheet-foot`): on a phone it
 //! stays at the screen's foot while the sheet is half up. What scrolls is a `div.st-dlg-body` (or
@@ -79,11 +80,13 @@ impl ModalSize {
 /// owner, 2026-11-03: „dass es entweder fit ist, also so dass es nur ein kleines fenster ist. Da
 /// würde ich die größe zwischen 40% bis 70% vom screen erlauben. Und da gibt es dann kein full
 /// screen. Dann die Option mit 50% und Full screen. Und dann noch die Option für sofort full
-/// screen"). A finger throws each away; each comes up from below.
+/// screen"; and a menu, 2026-11-17: „eine menu option hinzuzufügen, wo der content einfach perfekt
+/// passt und das modal auch nicht auf full gezogen werden kann"). A finger throws each away; each
+/// comes up from below.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Sheet {
     /// A small window: as tall as what it holds, between 40 and 70 % of the screen, and no higher;
-    /// what it holds beyond scrolls in it. A question, a note, a menu.
+    /// what it holds beyond scrolls in it. A question, a note.
     Fit,
     /// Half up as it comes, all up by a finger or its grabber; half up nothing in it scrolls, and
     /// its buttons stand at the screen's foot. What is read and worked in beside the page: a form,
@@ -97,6 +100,11 @@ pub enum Sheet {
     /// (70 % of the screen), `Half` once it holds more, and back (enhance.js `autoMode`). A list
     /// that grows and shrinks, a search's answers, what differs from one to the next.
     Auto,
+    /// A menu: exactly as tall as what it holds, however little that is (no 40 % as `Fit` has), up
+    /// to the whole height, where what it holds beyond scrolls in it; one stop, which no finger
+    /// pulls higher (it gives a little and comes back). The menus of a row, of ⋯, of „Einplanen in
+    /// …", their submenus, and a question asked in a menu's place (every `.st-pop`).
+    Menu,
 }
 
 impl Sheet {
@@ -107,6 +115,7 @@ impl Sheet {
             Sheet::Half => "half",
             Sheet::Full => "full",
             Sheet::Auto => "auto",
+            Sheet::Menu => "menu",
         }
     }
 }
