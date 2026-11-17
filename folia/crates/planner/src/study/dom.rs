@@ -360,6 +360,22 @@ pub(super) fn scrolled_cards(row: &leptos::web_sys::Element) -> Option<(f64, f64
     None
 }
 
+/// The middle of the lower edge of the plan's cell of semester `semester` and row `row` (its
+/// `data-sem`, `data-row`) in the panel `id`, in px from the top left corner of the plan's grid:
+/// where the words of a drop stand (grid/, `drop_words`).
+#[allow(unused_variables)]
+pub(super) fn cell_edge(id: &str, semester: &str, row: &str) -> Option<(f64, f64)> {
+    #[cfg(feature = "csr")]
+    {
+        let panel = folia_design::stage::by_id(id)?;
+        let grid = panel.query_selector(".st-rm-grid").ok()??.get_bounding_client_rect();
+        let cell = panel.query_selector(&format!(".st-rm-grid > .st-rm-cell[data-sem=\"{semester}\"][data-row=\"{row}\"]")).ok()??.get_bounding_client_rect();
+        Some((cell.left() - grid.left() + cell.width() / 2.0, cell.bottom() - grid.top()))
+    }
+    #[cfg(not(feature = "csr"))]
+    None
+}
+
 /// The width of the element of `id` (px); 0 where it is not there.
 #[allow(unused_variables)]
 pub(super) fn width_of(id: &str) -> f64 {

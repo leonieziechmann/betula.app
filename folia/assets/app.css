@@ -6140,11 +6140,14 @@ div.st-col-head.past { cursor: default; }
 .st-rm-dragkey .k.ex { background: color-mix(in srgb, var(--drop-ex) 40%, var(--panel)); box-shadow: inset 3px 0 0 var(--drop-ex); }
 /* What a drop does stands on the lower edge of its cell, between its pieces and those of the row
    under it (each cell keeps 8–9 px clear there), so that it covers none of them, nor sits where the
-   picture of the piece at the pointer is; its cell over the row under it meanwhile, and room under
+   picture of the piece at the pointer is: in a layer of its own over the grid (grid/,
+   `drop_words`), placed where the cell is, so that no cell drawn after it covers it; room under
    the last row where no flag of today is. Until Folia 1.89.3 it stood inside the cell, over its
-   pieces (seen on canary, 2026-11-10: „CB" under „landet hier"). */
-.st-rm-hint { position: absolute; z-index: 4; left: 50%; top: 100%; translate: -50% -50%; max-width: calc(100% - 8px); padding: 1px 6px; border-radius: 5px; background: var(--text); color: var(--panel); box-shadow: 0 0 0 1px var(--panel); font-size: 10.5px; font-weight: 650; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
-.st-rm-cell:has(> .st-rm-hint) { z-index: 1; }
+   pieces (seen on canary, 2026-11-10: „CB" under „landet hier"); until 1.97.11 on the cell's edge
+   but in the cell, its lower half cut off where the cell under it said something too and was
+   drawn after it (owner, 2026-11-17: „landet hier ist noch abgeschnitten"). */
+.st-rm-grid { position: relative; }
+.st-rm-hint { position: absolute; z-index: 1; translate: -50% -50%; max-width: 240px; padding: 1px 6px; border-radius: 5px; background: var(--text); color: var(--panel); box-shadow: 0 0 0 1px var(--panel); font-size: 10.5px; font-weight: 650; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
 .st-rm-grid:not(:has(> .st-rm-foot)) { padding-bottom: 10px; }
 .st-rm-hint.fit { background: var(--drop-fit-ink); color: #fff; }
 .st-rm-hint.ex { background: var(--drop-ex-ink); color: #fff; }
@@ -6195,20 +6198,29 @@ div.st-col-head.past { cursor: default; }
 .st-cell-add .icon { flex: none; width: 13px; height: 13px; }
 .st-cell-add > .lb { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .st-rm-cell > .st-cell-add { position: absolute; z-index: 1; inset: 9px 5px; width: auto; height: auto; margin: 0; }
-/* In a cell with pieces a round „+" at its end, over the last piece while the pointer is in the
-   cell; under the pointer itself or focused it says what it does — „Modul einplanen", into the
-   cell's area and semester (its title names both) — growing leftwards over the pieces, green as
-   a button that does it (owner, 2026-11-11: „Es ist nicht richtig zu erkennen, was jetzt das (+)
-   macht. Also, dass man damit ein neues modul in den bereich einplant"; until Folia 1.93.1 a „+"
-   alone, „Modul hinzufügen" only in its title). An empty cell says it all along. */
-.st-rm-cell > .st-cell-add.st-rm-add { z-index: 3; inset: auto 4px auto auto; top: 50%; translate: 0 -50%; gap: 0; width: auto; max-width: calc(100cqw - 8px); height: 22px; padding: 0 3.5px; border-style: solid; border-radius: 11px; background: var(--panel); box-shadow: 0 1px 4px -1px rgba(15, 23, 42, .35); transition: opacity .12s, padding .18s var(--ease), background-color .18s, border-color .18s, color .18s; }
-.st-rm-add > .lb { max-width: 0; opacity: 0; transition: max-width .18s var(--ease), margin .18s var(--ease), opacity .12s; }
-.st-rm-cell > .st-cell-add.st-rm-add:is(:hover, :focus-visible) { padding: 0 10px 0 7px; border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
-.st-rm-add:is(:hover, :focus-visible) > .lb { max-width: 10em; margin-left: 5px; opacity: 1; }
-.st-rm-cell:hover > .st-cell-add, .st-rm-cell:focus-within > .st-cell-add, .st-cell-add:focus-visible { opacity: 1; }
+/* In a cell with pieces „+ Modul einplanen" stands on the cell's lower edge at its right end while
+   the pointer rests on the cell or something in it is focused: between its pieces and those of the
+   row under it, over none of them, always as large; a button with a border that fills green under
+   the pointer, into the cell's area and semester (its title names both; owner, 2026-11-11: „Es ist
+   nicht richtig zu erkennen, was jetzt das (+) macht. Also, dass man damit ein neues modul in den
+   bereich einplant"). It comes once the pointer has rested a moment, so that a pointer crossing
+   the plan leaves no trail of them, and goes at once; no pointer finds it while it is not there,
+   and its cell lies over the row under it while it is. Focus shows it only where it is the keys'
+   (`:focus-visible`): a piece clicked keeps the focus, and with it the words stayed after the
+   pointer had gone. Over a lane under the cell it may touch the top of the lane's bar, whose
+   words stay clear. Until Folia 1.97.11 a round „+" over the
+   cell's last piece, which grew under the pointer leftwards over the pieces into these words
+   (owner, 2026-11-17: „die hoverinteraktion mit dem + ist gelinde gesagt sehr buggy"); until
+   1.93.1 that „+" alone. An empty cell is the button all over and says it all along. */
+.st-rm-cell > .st-cell-add.st-rm-add { z-index: 3; inset: auto 6px auto auto; top: 100%; translate: 0 -50%; gap: 4px; width: auto; max-width: calc(100% - 12px); height: 17px; padding: 0 8px 0 6px; border-style: solid; border-radius: 9px; background: var(--panel); font-size: 11px; line-height: 15px; box-shadow: 0 1px 3px -1px rgba(15, 23, 42, .3); pointer-events: none; transition: opacity .1s, background-color .12s, border-color .12s, color .12s; }
+.st-rm-add .icon { width: 11px; height: 11px; }
+.st-rm-cell:is(:hover, :has(:focus-visible)) > .st-cell-add.st-rm-add { pointer-events: auto; transition: opacity .12s .14s, background-color .12s, border-color .12s, color .12s; }
+.st-rm-cell:is(:hover, :has(:focus-visible)):has(> .st-rm-add) { z-index: 1; }
+.st-rm-cell > .st-cell-add.st-rm-add:is(:hover, :focus-visible) { border-color: var(--accent); background: var(--accent); color: var(--on-accent); transition-delay: 0s; }
+.st-rm-cell:is(:hover, :has(:focus-visible)) > .st-cell-add, .st-cell-add:focus-visible { opacity: 1; }
 /* None while a module is dragged: a drag takes no click, and the cell it was taken from (focused, or
    under the pointer as it began) would show its „+" over the hole. */
-.st-rm[data-drag] .st-rm-cell > .st-cell-add { opacity: 0; }
+.st-rm[data-drag] .st-rm-cell > .st-cell-add { opacity: 0; pointer-events: none; }
 
 /* An unfolded area: a lane per module, its name and credits on the left. */
 .st-rm-lane { display: flex; align-items: center; gap: 6px; min-width: 0; height: 30px; padding: 0 10px 0 30px; background: color-mix(in oklab, var(--text) 1.6%, var(--panel)); font-size: 12px; color: var(--text-2); }
