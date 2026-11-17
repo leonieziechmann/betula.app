@@ -100,8 +100,8 @@ func (f cortexFlags) liveClient(maxAge time.Duration) *http.Client {
 		slog.Error("invalid --cortex", "component", "cli", "event", "cli.failed", "value", *f.urls, oplog.Err(err))
 		os.Exit(2)
 	}
-	oplog.For("crawl").Info("the BTU's pages of Grundsatzordnungen and Studienorganisation go through Cortex in mode cache though Radix is offline",
+	oplog.For("crawl").Info("the BTU's pages of Grundsatzordnungen and Studienorganisation and its FÜS catalogs go through Cortex in mode cache though Radix is offline",
 		"event", "crawl.cortex", "cortex", strings.Join(c.Endpoints(), ","), "mode", cortexclient.ModeCache, "max_age", maxAge.String(),
-		"stages", "general-documents,study-organisation")
+		"stages", "general-documents,study-organisation,fues-catalogs")
 	return c.HTTPClient(cortexclient.FetchOptions{Mode: cortexclient.ModeCache, MaxAge: maxAge, Stale: cortexclient.StaleNever}, cortexTimeout)
 }

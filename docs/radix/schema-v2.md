@@ -6,7 +6,7 @@
 ## 1. Pipeline
 
 ```
-crawl-qis-modules, crawl-modules, crawl-tree, crawl-events, crawl-general-documents, crawl-study-organisation ──▶ raw_page ──▶ build ──▶ canonical tables ──▶ validate ──▶ export ──▶ serve-snapshot ──HTTP──▶ web server ──▶ browsers
+crawl-qis-modules, crawl-modules, crawl-tree, crawl-events, crawl-general-documents, crawl-study-organisation, crawl-fues-catalogs ──▶ raw_page ──▶ build ──▶ canonical tables ──▶ validate ──▶ export ──▶ serve-snapshot ──HTTP──▶ web server ──▶ browsers
       (network)                 (archive)   (no network, deterministic)       (gate)      snapshot/     ETag / 304
 scan-curriculum ──▶ plan, plan_entry, plan_total  (validated PDF plans, a source of their own)
 semantic stage (after export) ──▶ module_summary, passage_embedding ──next build──▶ module_vector  (section 6, „Semantic search“)
@@ -14,7 +14,7 @@ semantic stage (after export) ──▶ module_summary, passage_embedding ──
 
 | Step | Command | Package | Notes |
 |---|---|---|---|
-| Archive pages | `radix crawl-qis-modules`, `crawl-modules`, `crawl-tree`, `crawl-events`, `crawl-general-documents`, `crawl-study-organisation` | `radix/internal/crawl`, `radix/internal/catalogdb` (`raw.go`) | One row per page in `raw_page` (gzip body, `source_url`, `fetched_at`, `changed_at`, content hash). Polite: jitter, retries with growing pauses, abort after 10 consecutive failures, resume by `--max-age`. |
+| Archive pages | `radix crawl-qis-modules`, `crawl-modules`, `crawl-tree`, `crawl-events`, `crawl-general-documents`, `crawl-study-organisation`, `crawl-fues-catalogs` | `radix/internal/crawl`, `radix/internal/catalogdb` (`raw.go`) | One row per page in `raw_page` (gzip body, `source_url`, `fetched_at`, `changed_at`, content hash). Polite: jitter, retries with growing pauses, abort after 10 consecutive failures, resume by `--max-age`. |
 | Study plans | `radix download-statutes`, `radix scan-curriculum` | `radix/internal/curriculumscan`, `radix/internal/gemini`, `catalogdb/plans.go` | Validated plans are stored transactionally (`SavePlan`). The 140 plans of v1 were imported once; that importer is gone. |
 | Build | `radix build` | `radix/internal/catalogbuild`, `radix/internal/normalize`, `radix/internal/qistree` | Parses the archive and replaces all derived tables in **one transaction**; fails on any foreign-key violation. About 20 s for the whole catalog. A parser or normalization fix takes effect by building again, without the network. |
 | Validate | `radix validate` | `catalogdb/validate.go` | Invariants (fail), source problems (warn), numbers (info), count baselines (fail below the minimum). Exit code 1 on failures. |
@@ -87,6 +87,10 @@ Arbeit, which v1 labelled „B.Sc.", has none.
   winter. Schema 21 put every FÜS module whose page admits no program on the FÜS list of every
   program that has one; schema 22 withdrew it the same day, 2026-11-17: it showed what the
   regulations do not allow (`docs/radix/data-sources.md` §7, Q1).
+- Since schema 23 the BTU's FÜS catalogs decide where there are any (section „FÜS catalogs"): a
+  FÜS module that neither tree nor plan places in a program is on its FÜS list where the newest
+  catalog of a season admits it for the program, and nowhere else; a module only a catalog places
+  there is `fues`, flagged by QIS or not. Without catalogs the rule above holds.
 - `kind` is decided by the strongest statement: a stated value beats an inferred one, then
   `pdf_plan` > `module_page` (remarks) > `qis_tree` (a label on the area path). `precedence` is
   1–3 for stated, 4–6 for inferred statements. The tree's v1 default „Pflicht" no longer exists:
@@ -130,6 +134,8 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 | `v_program_document` | program × document | `program_id, ord, title, doc_type, url` |
 | `v_general_document` | page × document | `lang, ord, section, topic, kind, title, issue, url`: what the BTU has for every program, as its page of Grundsatzordnungen lists it, German and English, in the order of the page; `topic` `framework_bachelor`, `framework_master`, `enrolment`, `fues`, `higher_education_act` or NULL; the regulation of a topic is its first `statute` of the German page, its amendments its `amendment` rows in order, its translation the English page's `statute` that the German page does not list. The titles' dates are the BTU's, and some are wrong: name a document by its `issue` (section „General documents“; schema 19) |
 | `v_study_page` | page × page it lists | `lang, ord, section, title, abstract, url`: the BTU's pages around the study, as its page „Studienorganisation" lists them, German and English, in the order of the page, in its groups („Quicklinks", „Prüfungen", „Formalia", …) (section „Study pages“; schema 20) |
+| `v_fues_catalog` | FÜS catalog read | `semester, season, issued, modules, url, is_newest`: the BTU's FÜS catalogs Radix read, `2026W` for the winter 2026/27, `season` `winter` or `summer`, `is_newest` for the newest of its season, the one the FÜS lists follow (section „FÜS catalogs"; schema 23) |
+| `v_program_fues_note` | program × module × season | `program_id, module_id, season, semester, admitted, excluded_for`: a season that says more of a module of a program's FÜS list: `admitted` 0, the season's catalog holds it and the program's negative list excludes it for every student; `excluded_for` the choices it excludes it for („Anwendungsfach Physik", `; `-joined). Only such seasons, only modules on the list (section „FÜS catalogs"; schema 23) |
 | `v_department` | department | `id, code, label, name_de, name_en, modules` |
 | `v_semester` | semester | `key, season, year, label, starts_on, ends_on, is_current, teaching_events, exam_events`. `is_current` follows `meta.current_semester`: the calendar decides (April–September summer, October–March winter), but a semester whose schedule is already published wins over it — a semester counts as published once 100 modules have a dated teaching event in it, so that the few events BTU releases early cannot move the catalog. |
 | `program_coverage` | program | `program_id, program_name, degree, po_version, tree_modules, page_modules, plan_entries, plan_entries_linked, modules_without_kind, plan_status` |
@@ -1136,6 +1142,57 @@ are not fetched. On 2026-11-11 both pages had six groups and 31 tiles.
 Studienorganisation that yield no page": not archived, 404, a layout the parser no longer reads),
 and counts them (info). A snapshot whose page yielded nothing has no rows: Folia then says so and
 leads to the BTU's page, never to a list that may be old.
+
+### FÜS catalogs (2026-11-17)
+
+The BTU publishes a FÜS catalog for every semester: a PDF its page „Aktuelle Infos" links (§19 of
+`docs/radix/data-sources.md`), with the modules admitted to the Fachübergreifendes Studium in that
+semester, by campus, and the „Liste der nicht zugelassenen Module je Studiengang", the negative
+lists of the Ordnung zum Fachübergreifenden Studium (§ 3 Abs. 2): per program, some by degree („für
+B.Sc"), profile („mit anwendungsbezogenem Studienprofil"), or what a student chooses (an
+Anwendungsfach, a Schwerpunkt, a Studienrichtung). Radix 0.14.0 reads them (owner, 2026-11-17:
+„Anzeigen wollen wir aber nur die, die nach Ordnung ok sin." — „mach beides, mit Hinweis statt
+ausblenden"): `radix crawl-fues-catalogs`, in `run` the stage `fues-catalogs` every night,
+off-peak, `--fues-catalogs-max-age` 20 h; raw pages `btu_fues_catalog_page` (`de`) and
+`btu_fues_catalog` keyed by the semester. Every build reads them (`radix/internal/fuescatalog`,
+`catalogbuild/fues_catalogs.go`, migration 0023):
+
+| Table | One row per | What |
+|---|---|---|
+| `fues_catalog_document` | catalog | its semester, the date it states, how many modules it lists, its address |
+| `fues_catalog` | catalog × module | the modules, by campus („zentralcampus", „sachsendorf", „senftenberg") |
+| `fues_catalog_heading` | catalog × heading | its headings of programs and how many programs each names (0: none, `validate` warns) |
+| `fues_catalog_program` | catalog × program | the programs it names: every PO of a program's name and its „ - dual" (a heading that names several, „… / …; …", each; „Lehramt Primarstufe" every subject; a slip of two letters at most, „Propulsation"), with what it says instead of modules („Bitte bei der Studiengangleitung erfragen!") |
+| `fues_negative` | catalog × program × module × scope | a line of a negative list: scope `''` for every student of the program, a part for a degree or a profile applied to the programs it holds for; else the choice it holds for, as the catalog names it („Bei Anwendungsfach X:" as „Anwendungsfach X") |
+| `program_fues_note` | program × module × season | materialized from `v_program_fues_note_src` (read view `v_program_fues_note`) |
+
+**The rule.** A program has a FÜS list where a FÜS module's page admits it (QIS's list of the
+current semester) or the newest catalog of a season names it. Its FÜS list of a season is that
+season's newest catalog (`v_fues_season`; „2026W" and „2026S" on 2026-11-17) less its own modules
+(the tree places them or the plan states them, § 3 Abs. 1) less what its negative list excludes for
+every student of it (`v_program_fues_src`). `program_module` holds every module some season admits,
+relation `fues`. What the list excludes for one choice only stays on it, and so does a module a
+season's catalog holds and excludes while the other season admits it; `program_fues_note` says so,
+and Folia writes it beside the module („Nicht mit Anwendungsfach Physik", „im Sommersemester nicht
+zugelassen"). A catalog not published yet is a 404 and none; until a season has a catalog its
+modules are on no list but by their pages (without any catalog the lists are the pages', as
+before).
+
+On canary's data of 2026-11-17 with the catalogs of the winter 2026/27 (152 modules, of
+2026-10-14) and the summer 2026 (161, of 2026-03-24): 156 programs with a FÜS list (QIS's 149 and
+7 the catalogs name), 33,595 pairs `fues` instead of 17,986; of QIS's, 19 are gone, all excluded
+by negative lists (17 of Umweltingenieurwesen M.Sc.); 693 notes, 214 of choices, 479 of a season.
+Informatik B.Sc.: 240 modules, 27 of them with a note; „Einführung in die Amateurfunktechnik"
+(12045) by the summer's catalog.
+
+`validate`: the catalogs read (info), seasons without a catalog (warn), headings that name no
+program (warn, with their semester and heading), FÜS pairs a module page states that the catalogs
+do not admit (info), the notes (info). The build warns of modules the catalogs name that the module
+lists lack (`build.fues_unknown_modules`) and of catalogs it cannot read
+(`build.fues_catalogs_unreadable`). `TestTheWintersCatalog`, `TestTheSummersCatalog` (fuescatalog,
+on rows of both PDFs: `testdata/*.tsv.gz`, `TestWriteFixtures` writes them),
+`TestFUESListsFollowTheCatalogs`, `TestProgramsOfAHeading` (catalogbuild), `TestCrawlFUESCatalogs`
+(service) hold it.
 
 ## 7. Incident note
 

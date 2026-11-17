@@ -269,6 +269,7 @@ pub fn Row(
                     {with_program.then(|| row.plan_semester.map(|n| view! { <span class="plan-sem">{(t.format.semesters)(&(t.format.semester_one)(n))}</span> }))}
                     <OfferBadge status=row.offer_status.clone()/>
                     {(row.is_fues && !with_program).then(|| view! { <span class="flag neutral">"FÜS"</span> })}
+                    {row.fues_note.as_ref().map(|note| view! { <span class="flag long" title=t.catalog.fues_note_title>{fues_note_text(note, t)}</span> })}
                     {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">{t.catalog.limited_places}</span> })}
                     {fit_note}
                     {offered.map(|offered| view! { <span class="row-offer">{offered}</span> })}
@@ -405,4 +406,43 @@ pub fn phone_layout() -> RwSignal<bool> {
         on_cleanup(move || handle.remove());
     });
     phone
+}
+
+/// What a row of a program's FÜS list says beside its module (`FuesNote`): „Nicht mit
+/// Anwendungsfach Physik oder Anwendungsfach Wirtschaftswissenschaften · im Sommersemester nicht
+/// zugelassen". The choices are the catalog's words, in German as it writes them.
+pub fn fues_note_text(note: &folia_model::rows::FuesNote, t: &'static crate::i18n::Texts) -> String {
+    let mut parts = Vec::new();
+    if let Some((last, rest)) = note.excluded_for.split_last() {
+        let choices = if rest.is_empty() { last.clone() } else { format!("{} {} {last}", rest.join(", "), t.catalog.or) };
+        parts.push((t.catalog.fues_not_with)(&choices));
+    }
+    for season in &note.not_in {
+        if season.is(folia_model::labels::TurnusSeason::Winter) {
+            parts.push(t.catalog.fues_not_in_winter.to_string());
+        } else if season.is(folia_model::labels::TurnusSeason::Summer) {
+            parts.push(t.catalog.fues_not_in_summer.to_string());
+        }
+    }
+    let text = parts.join(" · ");
+    let mut chars = text.chars();
+    chars.next().map(|first| first.to_uppercase().chain(chars).collect()).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod fues_note_text_tests {
+    use super::*;
+    use folia_model::labels::Code;
+    use folia_model::rows::FuesNote;
+
+    #[test]
+    fn the_note_says_the_choices_and_the_season() {
+        let note = FuesNote { excluded_for: vec!["Anwendungsfach Physik".into(), "Anwendungsfach Wirtschaftswissenschaften".into()], not_in: vec![Code::parse("summer")] };
+        assert_eq!(fues_note_text(&note, &i18n::DE), "Nicht mit Anwendungsfach Physik oder Anwendungsfach Wirtschaftswissenschaften · im Sommersemester nicht zugelassen");
+        assert_eq!(fues_note_text(&note, &i18n::EN), "Not with Anwendungsfach Physik or Anwendungsfach Wirtschaftswissenschaften · not admitted in the summer semester");
+        let season = FuesNote { excluded_for: Vec::new(), not_in: vec![Code::parse("winter")] };
+        assert_eq!(fues_note_text(&season, &i18n::DE), "Im Wintersemester nicht zugelassen");
+        let three = FuesNote { excluded_for: vec!["A".into(), "B".into(), "C".into()], not_in: Vec::new() };
+        assert_eq!(fues_note_text(&three, &i18n::DE), "Nicht mit A, B oder C");
+    }
 }

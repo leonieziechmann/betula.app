@@ -2810,6 +2810,7 @@ mod tests {
             courses: 0,
             choices: Vec::new(),
             marks: None,
+            fues_note: None,
         }
     }
 

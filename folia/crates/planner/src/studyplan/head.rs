@@ -1482,6 +1482,7 @@ mod tests {
             courses: 0,
             choices: Vec::new(),
             marks: None,
+            fues_note: None,
         };
         let data = BookmarksData {
             rows: vec![row("11103"), row("12330"), row("12104")],
