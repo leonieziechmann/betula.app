@@ -23,9 +23,9 @@
 //!                                      tabs, which of several study plans is shown, which module
 //!                                      stands beside it, and whether that module fills the page
 //!                                      (`ProgramUrl`)
-//! `/studyplan?sem=…&view=…&open=<id>&row=<key>&termin=<key>&on=<day>&import=…&variant=<n>[&share=<code>]`
+//! `/studyplan?sem=…&view=…&edit=1&open=<id>&row=<key>&termin=<key>&on=<day>&wahl=…&import=…&variant=<n>[&share=<code>]`
 //!                                      the visitor's Studienplan (`StudyplanUrl`): which semester
-//!                                      and view, the module and Termin beside it or a Termin in
+//!                                      and view, whether it is being edited, the module and Termin beside it or a Termin in
 //!                                      its own view on a day, the Regelstudienplan being taken
 //!                                      over. What is planned lives in the browser,
 //!                                      never in a URL, but for a plan handed on by a link
@@ -1186,6 +1186,13 @@ pub struct StudyplanUrl {
     /// depends on the plan and the date and so is the page's to work out.
     pub sem: Option<String>,
     pub view: PlanView,
+    /// The plan is being edited (`edit=1`; owner, 2026-11-17: „bei dem Kalender einen edit modus
+    /// hinzuzufügen, weil man dadurch unnötiges ui ausblenden kann"): the page shows what configures
+    /// it. How the plan is shown, as `view` is; every `with_*` carries it, so that a Termin's card
+    /// opened while editing keeps the mode. A choice in focus is a part of the mode: `edit` is true
+    /// wherever `wahl` names one (`parse`, `with_wahl` and `path` keep it so; an address of before
+    /// with `wahl=` alone reads as the mode), and leaving the mode leaves the focus (`with_edit`).
+    pub edit: bool,
     /// The module shown beside the plan (`open=<id>`).
     pub open: Option<String>,
     /// The Termin of that module the aside points at (`row=<event>-<fp>`, `RowKey::text`).
@@ -1214,7 +1221,7 @@ pub struct StudyplanUrl {
 
 impl Default for StudyplanUrl {
     fn default() -> Self {
-        Self { sem: None, view: PlanView::Week, open: None, row: None, termin: None, on: None, wahl: None, vergleich: false, import: None, variant: 1, share: None }
+        Self { sem: None, view: PlanView::Week, edit: false, open: None, row: None, termin: None, on: None, wahl: None, vergleich: false, import: None, variant: 1, share: None }
     }
 }
 
@@ -1233,6 +1240,7 @@ impl StudyplanUrl {
         Self {
             sem: first("sem").and_then(|key| SemesterKey::parse(&key)).map(SemesterKey::key),
             view: first("view").and_then(|code| PlanView::from_code(&code.to_ascii_lowercase())).unwrap_or_default(),
+            edit: first("edit").as_deref() == Some("1") || wahl.is_some(),
             row: open.as_ref().and(first("row")).and_then(|key| RowKey::parse(&key.to_ascii_lowercase())).map(RowKey::text),
             variant: match import {
                 Some(_) => first("variant").and_then(|n| n.parse::<usize>().ok()).filter(|n| (1..=MAX_PLAN_VARIANTS).contains(n)).unwrap_or(1),
@@ -1253,8 +1261,8 @@ impl StudyplanUrl {
         self.sem.as_deref().and_then(SemesterKey::parse)
     }
 
-    /// `/studyplan` with the canonical query string: `sem`, `view`, `open`, `row`, `termin`, `on`,
-    /// `wahl`, `vergleich`, `import`, `variant`, `share`, each only when it says something.
+    /// `/studyplan` with the canonical query string: `sem`, `view`, `edit`, `open`, `row`, `termin`,
+    /// `on`, `wahl`, `vergleich`, `import`, `variant`, `share`, each only when it says something.
     pub fn path(&self) -> String {
         let mut out: Vec<(&str, String)> = Vec::new();
         if let Some(sem) = &self.sem {
@@ -1262,6 +1270,10 @@ impl StudyplanUrl {
         }
         if self.view != PlanView::Week {
             out.push(("view", self.view.code().to_string()));
+        }
+        // A choice in focus is edited, also in a literal written without `edit`.
+        if self.edit || self.wahl.is_some() {
+            out.push(("edit", "1".to_string()));
         }
         if let Some(id) = &self.open {
             out.push(("open", id.clone()));
@@ -1308,6 +1320,15 @@ impl StudyplanUrl {
         Self { view, wahl: self.wahl.clone().filter(|_| weekly), vergleich: self.vergleich && weekly, ..self.clone() }
     }
 
+    /// The plan being edited, or looked at again. Leaving the mode leaves the choice in focus, which is
+    /// a part of it; what stands beside or over the plan stays.
+    pub fn with_edit(&self, edit: bool) -> Self {
+        match edit {
+            true => Self { edit, ..self.clone() },
+            false => Self { edit, wahl: None, vergleich: false, ..self.clone() },
+        }
+    }
+
     /// This module beside the plan, pointing at this Termin of it, or (`None`) nothing beside it;
     /// either way no Termin.
     pub fn with_open(&self, id: Option<&str>, row: Option<RowKey>) -> Self {
@@ -1326,9 +1347,10 @@ impl StudyplanUrl {
     }
 
     /// This choice in focus (its code, `folia_timetable::choice::code`), its groups as tiles and
-    /// not compared, or (`None`) no choice in focus; either way nothing beside the plan.
+    /// not compared, or (`None`) no choice in focus; either way nothing beside the plan. A choice in
+    /// focus is edited; leaving it (`None`) stays in the mode.
     pub fn with_wahl(&self, code: Option<&str>) -> Self {
-        Self { wahl: code.map(str::to_string), vergleich: false, open: None, row: None, termin: None, on: None, ..self.clone() }
+        Self { edit: self.edit || code.is_some(), wahl: code.map(str::to_string), vergleich: false, open: None, row: None, termin: None, on: None, ..self.clone() }
     }
 
     /// The choice in focus with its groups compared day by day, or as tiles again.
@@ -2093,6 +2115,7 @@ mod tests {
             StudyplanUrl {
                 sem: Some("2026W".into()),
                 view: PlanView::Dates,
+                edit: false,
                 open: Some("12104".into()),
                 row: Some("148369-aaf38".into()),
                 termin: None,
@@ -2113,19 +2136,20 @@ mod tests {
         // A choice in focus: its code, compared or not, and nothing beside the plan with it.
         let focus = StudyplanUrl::parse("wahl=E148304&vergleich=1&open=12104&termin=148304-aaf38");
         assert_eq!((focus.wahl.as_deref(), focus.vergleich, focus.open.as_deref(), focus.termin.as_deref()), (Some("e148304"), true, None, None));
-        assert_eq!(focus.path(), "/studyplan?wahl=e148304&vergleich=1");
+        assert!(focus.edit);
+        assert_eq!(focus.path(), "/studyplan?edit=1&wahl=e148304&vergleich=1");
         assert_eq!(back(&focus), focus);
         assert!(!StudyplanUrl::parse("vergleich=1").vergleich);
         assert_eq!(StudyplanUrl::parse("wahl=x148304").wahl, None);
         assert_eq!(StudyplanUrl::parse("wahl=e").wahl, None);
-        assert_eq!(focus.with_vergleich(false).path(), "/studyplan?wahl=e148304");
-        assert_eq!(StudyplanUrl::default().with_wahl(Some("e148370")).with_vergleich(true).path(), "/studyplan?wahl=e148370&vergleich=1");
-        assert_eq!(focus.with_wahl(None).path(), "/studyplan");
+        assert_eq!(focus.with_vergleich(false).path(), "/studyplan?edit=1&wahl=e148304");
+        assert_eq!(StudyplanUrl::default().with_wahl(Some("e148370")).with_vergleich(true).path(), "/studyplan?edit=1&wahl=e148370&vergleich=1");
+        assert_eq!(focus.with_wahl(None).path(), "/studyplan?edit=1");
         assert_eq!(focus.with_termin(Some((RowKey::parse("148304-aaf38").unwrap(), None))).wahl, None);
         assert_eq!(focus.with_open(Some("12104"), None).wahl, None);
         // The weekly views keep it, the others close it.
-        assert_eq!(focus.with_view(PlanView::Overview).path(), "/studyplan?view=all&wahl=e148304&vergleich=1");
-        assert_eq!(focus.with_view(PlanView::Dates).path(), "/studyplan?view=dates");
+        assert_eq!(focus.with_view(PlanView::Overview).path(), "/studyplan?view=all&edit=1&wahl=e148304&vergleich=1");
+        assert_eq!(focus.with_view(PlanView::Dates).path(), "/studyplan?view=dates&edit=1");
         for view in PlanView::ALL {
             assert_eq!(PlanView::from_code(view.code()), Some(*view));
             assert_eq!(back(&StudyplanUrl::default().with_view(*view)).view, *view);
@@ -2190,6 +2214,40 @@ mod tests {
         assert_eq!(open.with_termin(Some((key, None))).path(), "/studyplan?termin=148369-aaf38");
         assert_eq!(url.with_termin(None).path(), "/studyplan");
         assert_eq!(url.with_semester(SemesterKey::new(2027, false)).path(), "/studyplan?sem=2027S");
+    }
+
+    /// The plan being edited (owner, 2026-11-17): a key of its own, carried by every link of the page,
+    /// and what a choice in focus always is.
+    #[test]
+    fn the_studyplan_is_edited_by_its_address() {
+        assert!(StudyplanUrl::parse("edit=1").edit && !StudyplanUrl::parse("").edit);
+        for none in ["edit=0", "edit=true", "edit=", "EDIT=1", "bearbeiten=1"] {
+            assert!(!StudyplanUrl::parse(none).edit, "{none}");
+        }
+        let url = StudyplanUrl::parse("termin=148369-AAF38&edit=1&view=dates&sem=2026w");
+        assert_eq!(url.path(), "/studyplan?sem=2026W&view=dates&edit=1&termin=148369-aaf38");
+        assert_eq!(StudyplanUrl::parse(url.path().split_once('?').map(|(_, query)| query).unwrap_or_default()), url);
+        // What opens inside the mode keeps it; what closes keeps it too.
+        let edit = StudyplanUrl::default().with_edit(true);
+        let key = RowKey::parse("148369-aaf38").unwrap();
+        assert_eq!(edit.path(), "/studyplan?edit=1");
+        assert_eq!(edit.with_termin(Some((key, None))).path(), "/studyplan?edit=1&termin=148369-aaf38");
+        assert_eq!(edit.with_termin(Some((key, None))).with_termin(None).path(), "/studyplan?edit=1");
+        assert_eq!(edit.with_open(Some("12104"), None).path(), "/studyplan?edit=1&open=12104");
+        assert_eq!(edit.with_view(PlanView::Exams).path(), "/studyplan?view=exams&edit=1");
+        // A choice in focus is the mode: from the plan looked at (the card's „Vergleichen ›"), by a
+        // link of before, and when it is left.
+        let focus = StudyplanUrl::default().with_termin(Some((key, None))).with_wahl(Some("e148370")).with_vergleich(true);
+        assert_eq!(focus.path(), "/studyplan?edit=1&wahl=e148370&vergleich=1");
+        assert_eq!(focus.with_wahl(None).path(), "/studyplan?edit=1");
+        let old = StudyplanUrl::parse("wahl=e148370");
+        assert!(old.edit);
+        assert_eq!(old.path(), "/studyplan?edit=1&wahl=e148370");
+        // Leaving the mode leaves the choice in focus; the Termin over the plan stays.
+        assert_eq!(focus.with_edit(false).path(), "/studyplan");
+        assert_eq!(edit.with_termin(Some((key, None))).with_edit(false).path(), "/studyplan?termin=148369-aaf38");
+        // „Ganze Seite" is written last, after it.
+        assert_eq!(PlanAddress::parse("edit=1&termin=148369-aaf38&full=1").path(), "/studyplan?edit=1&termin=148369-aaf38&full=1");
     }
 
     #[test]

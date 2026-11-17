@@ -223,7 +223,9 @@ fn act_on(ctx: PlanCtx, change: Change, instead: Option<(RowKey, Values)>, own: 
             Scope::From(day) => (OwnRhythm::Week, values.weekday, Vec::new(), lecture.map(|(_, last)| (change.moved(day, change.was.weekday), last))),
             Scope::All => (OwnRhythm::Week, values.weekday, Vec::new(), None),
         };
-        let termin = OwnTermin { number: 0, rhythm, weekday, dates, from: values.from, to: values.to, period, module: Some(change.module.clone()), name: name.clone(), place: values.room.clone(), skip: Vec::new() };
+        // Without a name: the week calls it by its module as `name` says it („EvS"), and no
+        // abbreviation is written into the plan. Its event is gone with it, so no kind is known.
+        let termin = OwnTermin { number: 0, rhythm, weekday, dates, from: values.from, to: values.to, period, module: Some(change.module.clone()), name: String::new(), place: values.room.clone(), skip: Vec::new(), kind: None };
         let before = plan.with_untracked(Clone::clone);
         ctx.undo.set(Some((format!("{}{}", super::own::OWN_NOTE, (t.studyplan_open.kept_own)(&name)), before)));
         plan.update_after_paint(move |doc| {
@@ -1055,14 +1057,14 @@ mod tests {
         fn said(lines: &[Line]) -> Vec<(&str, &str, &str, bool)> {
             lines.iter().map(|line| (line.name.as_str(), line.say.as_str(), line.href.as_str(), line.current)).collect()
         }
-        assert_eq!(said(&lines(&table, &short(), &plain(), None, &i18n::DE)), [("Praktikum EvS", "eine von 4 anhaken", "/studyplan?sem=2026W&wahl=e148370", false)]);
-        assert_eq!(said(&lines(&table, &short(), &plain(), Some(e), &i18n::EN)), [("Praktikum EvS", "tick one of 4", "/studyplan?sem=2026W&wahl=e148370", true)]);
+        assert_eq!(said(&lines(&table, &short(), &plain(), None, &i18n::DE)), [("Praktikum EvS", "eine von 4 anhaken", "/studyplan?sem=2026W&edit=1&wahl=e148370", false)]);
+        assert_eq!(said(&lines(&table, &short(), &plain(), Some(e), &i18n::EN)), [("Praktikum EvS", "tick one of 4", "/studyplan?sem=2026W&edit=1&wahl=e148370", true)]);
         // Ticked, it is no longer open, but stays in the list while it is in focus.
         let key_of = table.events[e].rows[0].key.unwrap();
         doc.tick(key(), key_of, true);
         let ticked = plan_table(&doc);
         assert!(lines(&ticked, &short(), &plain(), None, &i18n::DE).is_empty());
-        assert_eq!(said(&lines(&ticked, &short(), &plain(), Some(e), &i18n::DE)), [("Praktikum EvS", "eine von 4 anhaken", "/studyplan?sem=2026W&wahl=e148370", true)]);
+        assert_eq!(said(&lines(&ticked, &short(), &plain(), Some(e), &i18n::DE)), [("Praktikum EvS", "eine von 4 anhaken", "/studyplan?sem=2026W&edit=1&wahl=e148370", true)]);
     }
 
     #[test]
@@ -1098,14 +1100,14 @@ mod tests {
         assert_eq!(focus.groups[2].day.as_ref().map(|day| (day.icon, day.warn, day.bars.iter().filter(|bar| bar.hit).count())), Some(("triangle-alert", true, 1)));
         // The only choice: no „Weiter"; „Fertig" leaves the focus, „Vergleichen" compares, ‹ goes
         // back to the tiles; each group by its place, which its tile and its line carry.
-        assert_eq!((focus.next.clone(), focus.done.as_str(), focus.compare.as_str(), focus.tiles.as_str()), (None, "/studyplan?sem=2026W", "/studyplan?sem=2026W&wahl=e148370&vergleich=1", "/studyplan?sem=2026W&wahl=e148370"));
+        assert_eq!((focus.next.clone(), focus.done.as_str(), focus.compare.as_str(), focus.tiles.as_str()), (None, "/studyplan?sem=2026W&edit=1", "/studyplan?sem=2026W&edit=1&wahl=e148370&vergleich=1", "/studyplan?sem=2026W&edit=1&wahl=e148370"));
         assert_eq!(focus.groups.iter().map(|group| group.at).collect::<Vec<_>>(), [0, 1, 2, 3]);
         // Ticked: how many, without the note of an untouched choice.
         let first = table.events[e].rows[0].key.unwrap();
         doc.tick(key(), first, true);
         let ticked = plan_table(&doc);
         let focus = focus_of(&ticked, e, &short(), &url.with_vergleich(true), &i18n::DE).unwrap();
-        assert_eq!((focus.state.as_str(), focus.note.clone(), focus.comparing, focus.compare.as_str(), focus.tiles.as_str()), ("1 von 4 angehakt", None, true, "/studyplan?sem=2026W&wahl=e148370", "/studyplan?sem=2026W&wahl=e148370"));
+        assert_eq!((focus.state.as_str(), focus.note.clone(), focus.comparing, focus.compare.as_str(), focus.tiles.as_str()), ("1 von 4 angehakt", None, true, "/studyplan?sem=2026W&edit=1&wahl=e148370", "/studyplan?sem=2026W&edit=1&wahl=e148370"));
         assert!(focus.groups[0].ticked && focus.groups[0].day.as_ref().is_some_and(|day| day.bars.iter().any(|bar| bar.own && bar.ticked)));
         assert_eq!(focus.groups.iter().filter(|group| group.ticked).count(), 1);
     }

@@ -15,7 +15,7 @@ fn pair() -> (Device, Device) {
 }
 
 fn termin(name: &str) -> OwnTermin {
-    OwnTermin { number: 0, rhythm: OwnRhythm::Week, weekday: 3, dates: Vec::new(), from: 10 * 60, to: 11 * 60 + 30, period: None, module: None, name: name.to_string(), place: "Bibliothek".to_string(), skip: Vec::new() }
+    OwnTermin { number: 0, rhythm: OwnRhythm::Week, weekday: 3, dates: Vec::new(), from: 10 * 60, to: 11 * 60 + 30, period: None, module: None, name: name.to_string(), place: "Bibliothek".to_string(), skip: Vec::new(), kind: None }
 }
 
 fn planned(device: &Device, s: &str) -> Vec<String> {

@@ -20,7 +20,7 @@ fn day(iso: &str) -> Day {
 }
 
 fn termin(name: &str, weekday: u8) -> OwnTermin {
-    OwnTermin { number: 0, rhythm: OwnRhythm::Week, weekday, dates: Vec::new(), from: 13 * 60, to: 17 * 60, period: None, module: None, name: name.to_string(), place: "Café Mosaik".to_string(), skip: Vec::new() }
+    OwnTermin { number: 0, rhythm: OwnRhythm::Week, weekday, dates: Vec::new(), from: 13 * 60, to: 17 * 60, period: None, module: None, name: name.to_string(), place: "Café Mosaik".to_string(), skip: Vec::new(), kind: None }
 }
 
 fn placeholder(s: &str, ord: i64, name: &str) -> Placeholder {
@@ -69,6 +69,8 @@ pub fn rich_plan() -> PlanDoc {
     let max = doc.add_calendar("Max", None, s, &["12160".to_string()], &[], &[]).unwrap();
     assert!(doc.add_to_calendar(lena, w, "12229"));
     assert_eq!(doc.add_own(lena, w, termin("Volleyball", 4)), Some(3));
+    // A Termin of one's own with its kind: a line of fourteen fields, carried whole by its record.
+    assert_eq!(doc.add_own(0, w, OwnTermin { kind: Some(EventKind::Exercise), ..termin("", 3) }), Some(4));
     assert!(doc.set_change(w, change(148_701, 0xb7025, Scope::On(day("2026-11-13")), "C 7")));
     assert!(doc.add_to_calendar(max, s, "12101"));
     // What is shared, and Max's calendar following a share with its notes.

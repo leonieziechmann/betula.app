@@ -158,7 +158,7 @@ type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>
 /// l  <calendar>  <view>  <program_id>  <name>
 /// n  <calendar>  <semester>  <module_id>
 /// o  <calendar>  <semester>  <event_id>-<fp 5 hex>
-/// t  <number>  <calendar>  <semester>  <rhythm>  <weekday|dates>  <from>-<to>  <first>  <last>  <module>  <name>  <place>  <skip>
+/// t  <number>  <calendar>  <semester>  <rhythm>  <weekday|dates>  <from>-<to>  <first>  <last>  <module>  <name>  <place>  <skip>  [<kind>]
 /// f  <calendar>  <link>  <since>  <ended>
 /// s  <id>  <calendar>  <to>  <semester>  <made>  <flags>  <key>  <parcel>  <program>  <name>
 /// ```
@@ -199,8 +199,11 @@ type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>
 /// first), its semester, how it recurs (`w`, `a`, `b`, or `d` on dates of its own), its weekday or
 /// its dates joined by commas, its time, the first and the last day of one that recurs where they
 /// are not the lecture period's (else empty), the module it belongs to (empty for none), its name
-/// and place, and the days it is not held on („Nur am … ausblenden"), joined by commas. The plan's
-/// go with its semester: „Plan leeren" takes them, a saved plan carries them; a calendar's go with
+/// and place, and the days it is not held on („Nur am … ausblenden"), joined by commas; and, where
+/// it has one, its kind by its code (`EventKind::code`: `lecture`, `exercise` …), the fourteenth
+/// field, written only where it is set: every line there was stays what it was. A build before it
+/// reads the line without it and writes it back without it — the Termin stays, its kind goes. The
+/// plan's go with its semester: „Plan leeren" takes them, a saved plan carries them; a calendar's go with
 /// it. A build before them keeps them as lines of a tag it does not know (at most 100 of them).
 ///
 /// A calendar of one's own has notes at its Termine (`b` with its number, after its lines) and may
@@ -1175,6 +1178,22 @@ impl PlanDoc {
             hides.rows.clear();
             hides.chosen.clear();
             hides.dates.clear();
+        }
+        self.prune(s);
+    }
+
+    /// „Alle einblenden": shows again everything the student hid in a semester — its events, Termine,
+    /// single dates and kinds, and the days the plan's Termine of one's own skip — and leaves every
+    /// tick: what was chosen stays chosen (`show_all` undoes the choices as well, and leaves the kinds).
+    pub fn show_hidden(&mut self, s: SemesterKey) {
+        if let Some(hides) = self.hidden.get_mut(&s) {
+            hides.kinds = KindSet::default();
+            hides.events.clear();
+            hides.rows.clear();
+            hides.dates.clear();
+        }
+        for own in self.own.iter_mut().filter(|own| own.semester == s) {
+            own.termin.skip.clear();
         }
         self.prune(s);
     }
@@ -2662,8 +2681,10 @@ fn own_line(calendar: u8, own: &Own) -> String {
         _ => termin.weekday.to_string(),
     };
     let (first, last) = termin.period.map(|(first, last)| (first.iso(), last.iso())).unwrap_or_default();
+    // Its kind only where it has one, so that a line without stays as it was.
+    let kind = termin.kind.map(|kind| format!("\t{}", kind.code())).unwrap_or_default();
     format!(
-        "t\t{}\t{calendar}\t{}\t{}\t{when}\t{}-{}\t{first}\t{last}\t{}\t{}\t{}\t{}",
+        "t\t{}\t{calendar}\t{}\t{}\t{when}\t{}-{}\t{first}\t{last}\t{}\t{}\t{}\t{}{kind}",
         termin.number,
         own.semester.key(),
         termin.rhythm.code(),
@@ -2710,6 +2731,8 @@ fn own_of(fields: &[&str]) -> Option<(u8, Own)> {
         name: field(10).to_string(),
         place: field(11).to_string(),
         skip: days(field(12))?,
+        // A code this build does not know is no kind (unknown stays unknown); the Termin is one.
+        kind: EventKind::from_code(field(13)),
     };
     Some((calendar, Own { semester, termin: kept_own(termin)? }))
 }
@@ -3071,6 +3094,7 @@ mod tests {
             name: "😀".repeat(MAX_OWN_TEXT),
             place: "😀".repeat(MAX_OWN_TEXT),
             skip: dates,
+            kind: Some(EventKind::Consultation),
         };
         let last = doc.calendars.last().map(|calendar| calendar.id).unwrap();
         for n in 0..MAX_OWN_ALL {
@@ -3417,6 +3441,7 @@ mod tests {
             name: "Arbeit".to_string(),
             place: "Café Mosaik".to_string(),
             skip: Vec::new(),
+            kind: None,
         }
     }
 
@@ -3460,6 +3485,72 @@ mod tests {
         // A Termin of one's own plans nothing and counts for nothing.
         assert_eq!(back.semesters(), doc.semesters());
         assert!(!back.is_planned(w, "13700") && !back.is_visited(w, "13700"));
+    }
+
+    /// The kind of a Termin of one's own: the line's fourteenth field, written only where it is set, so
+    /// that every line there was stays as it was and a build before it keeps the Termin.
+    #[test]
+    fn a_termin_of_ones_own_keeps_its_kind_in_a_field_of_its_own() {
+        let w = key("2026W");
+        let mut doc = PlanDoc::default();
+        let makeup = OwnTermin { rhythm: OwnRhythm::Dates, weekday: 0, dates: vec![day("2026-11-12")], from: 9 * 60 + 15, to: 10 * 60 + 45, module: Some("12104".to_string()), name: String::new(), place: "ZHG/HS.A".to_string(), kind: Some(EventKind::Lecture), ..job() };
+        assert_eq!(doc.add_own(0, w, makeup), Some(1));
+        assert_eq!(doc.add_own(0, w, job()), Some(2));
+        let text = doc.stored();
+        assert!(text.contains("t\t1\t0\t2026W\td\t2026-11-12\t09:15-10:45\t\t\t12104\t\tZHG/HS.A\t\tlecture\n"), "{text}");
+        assert!(text.contains("t\t2\t0\t2026W\tw\t5\t13:00-17:00\t\t\t\tArbeit\tCafé Mosaik\t\n"), "{text}");
+        assert_eq!(PlanDoc::restored(&text), doc);
+        // A build before the field reads the line without it and writes it so: the Termin stays.
+        let older = text.replace("\tlecture\n", "\n");
+        let read = PlanDoc::restored(&older);
+        assert_eq!(read.own_termin(1).map(|(_, own)| (own.termin.kind, own.termin.module.clone())), Some((None, Some("12104".to_string()))));
+        assert_eq!(read.stored(), older);
+        // A code of a newer build is no kind here; the Termin is one all the same.
+        assert_eq!(PlanDoc::restored(&text.replace("\tlecture\n", "\tworkshop\n")).own_termin(1).map(|(_, own)| own.termin.kind), Some(None));
+        // A saved plan is another plan where a kind differs.
+        let saved = doc.semester_only(w);
+        assert!(doc.holds_saved(w, &saved));
+        assert!(doc.set_own(1, 0, OwnTermin { kind: Some(EventKind::Exercise), ..doc.own_termin(1).map(|(_, own)| own.termin.clone()).unwrap() }));
+        assert!(!doc.holds_saved(w, &saved));
+    }
+
+    /// „Alle einblenden" brings back what was hidden — kinds, events, Termine, dates, the days a
+    /// Termin of one's own skips — and leaves what was chosen, changed and noted, and every other
+    /// semester.
+    #[test]
+    fn showing_what_is_hidden_leaves_the_ticks() {
+        let (w, s) = (key("2026W"), key("2027S"));
+        let mut doc = PlanDoc::default();
+        for semester in [w, s] {
+            doc.set_kind(semester, EventKind::Tutorial, true);
+            doc.set_event(semester, 149_408, true);
+            doc.set_row(semester, termin(148_369, 0xaaf38), true);
+            doc.set_date(semester, termin(148_701, 0xb7025), semester.bounds().0.plus(30), true);
+            doc.tick(semester, termin(148_370, 0xeb017), true);
+            doc.tick(semester, termin(148_370, 0xeb018), true);
+        }
+        assert!(doc.set_change(w, evs_room()));
+        assert!(doc.set_note(w, termin(148_701, 0xb7025), "Raum prüfen"));
+        let own = doc.add_own(0, w, job()).unwrap();
+        assert!(doc.skip_own(own, day("2026-10-30"), true));
+        let theirs = doc.add_own(0, s, job()).unwrap();
+        assert!(doc.skip_own(theirs, day("2027-04-30"), true));
+        let before = doc.clone();
+        doc.show_hidden(w);
+        let hides = doc.hidden.get(&w).unwrap();
+        assert!(hides.kinds.is_empty() && hides.events.is_empty() && hides.rows.is_empty() && hides.dates.is_empty());
+        assert_eq!(hides.chosen.len(), 2);
+        assert_eq!((hides.changes.len(), hides.notes.len()), (1, 1));
+        let text = doc.stored();
+        assert!(text.contains("t\t1\t0\t2026W\tw\t5\t13:00-17:00\t\t\t\tArbeit\tCafé Mosaik\t\n"), "{text}");
+        // The other semester as it was.
+        assert_eq!(doc.hidden.get(&s), before.hidden.get(&s));
+        assert_eq!(doc.own_termin(theirs), before.own_termin(theirs));
+        // A semester that hid nothing and chose nothing has no entry afterwards.
+        let mut only_hidden = PlanDoc::default();
+        only_hidden.set_event(w, 149_408, true);
+        only_hidden.show_hidden(w);
+        assert_eq!(only_hidden, PlanDoc::default());
     }
 
     #[test]

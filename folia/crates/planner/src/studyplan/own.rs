@@ -27,6 +27,7 @@ use std::collections::BTreeMap;
 
 use folia_calendar::change::Change;
 use folia_calendar::day::{clock, minutes, Day};
+use folia_calendar::kind::EventKind;
 use folia_calendar::own::{OwnRhythm, OwnTermin, MAX_OWN_DATES, MAX_OWN_NUMBER, MAX_OWN_TEXT, OWN_EVENT_BASE};
 use folia_calendar::rowkey::RowKey;
 use folia_design::modal::{kept, Modal, ModalHead, ModalSize};
@@ -36,7 +37,7 @@ use folia_plans::studyplan::{MAX_OWN, MAX_OWN_ALL};
 use folia_shell::pending::Pending;
 use folia_timetable::clash::{self, Weeks};
 use folia_timetable::model::Timetable;
-use folia_timetable::views::{kind_short, short_title};
+use folia_timetable::views::{kind_short, own_label, short_title};
 use folia_widgets::week::GridSlot;
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
@@ -50,6 +51,10 @@ pub(super) const OWN_NOTE: &str = "Eigener Termin: ";
 
 /// A new Termin lasts this long (minutes) until its end is changed: a slot of the lectures.
 const NEW_LENGTH: u16 = 90;
+
+/// The kinds the form's „Art" offers: those a module's Termine are mostly of. A kind it does not
+/// offer (one „Nachholtermin" took over from a „Sonstiges") is offered as well while it is the draft's.
+const KINDS: [EventKind; 6] = [EventKind::Lecture, EventKind::Exercise, EventKind::Seminar, EventKind::Practical, EventKind::Tutorial, EventKind::Project];
 
 /// What the form is open with (`PlanCtx::own`): the Termin changed by its number (`None` for a new
 /// one), and what its fields hold.
@@ -80,6 +85,8 @@ pub(crate) struct Draft {
     pub module: String,
     /// The days it skips, kept from the Termin changed.
     pub skip: Vec<Day>,
+    /// Its kind („Art"); none until one is picked.
+    pub kind: Option<EventKind>,
 }
 
 /// What keeps a draft from being a Termin: what cannot be (owner, 2026-10-18: a no needs a reason
@@ -121,6 +128,7 @@ impl Draft {
             calendar,
             module: String::new(),
             skip: Vec::new(),
+            kind: None,
         }
     }
 
@@ -138,6 +146,7 @@ impl Draft {
             calendar,
             module: own.module.clone().unwrap_or_default(),
             skip: own.skip.clone(),
+            kind: own.kind,
         }
     }
 
@@ -174,7 +183,7 @@ impl Draft {
         let place: String = self.place.trim().chars().take(MAX_OWN_TEXT).collect();
         let module = Some(self.module.clone()).filter(|module| !module.is_empty());
         let skip = self.skip.iter().copied().take(MAX_OWN_DATES).collect();
-        Ok(OwnTermin { number: number.clamp(1, MAX_OWN_NUMBER), rhythm: self.rhythm, weekday, dates, from, to, period, module, name, place, skip })
+        Ok(OwnTermin { number: number.clamp(1, MAX_OWN_NUMBER), rhythm: self.rhythm, weekday, dates, from, to, period, module, name, place, skip, kind: self.kind })
     }
 }
 
@@ -230,14 +239,12 @@ pub(super) fn remove(ctx: PlanCtx, number: u32) {
     });
 }
 
-/// A Termin of one's own by its name; without one by the module it belongs to, as `names` call the
-/// modules (the slots' names: „PBS"), else „Eigener Termin".
+/// A Termin of one's own by its name; without one by its kind and the module it belongs to, as
+/// `names` call the modules (the slots' names: „VL PBS", `folia_timetable::views::own_label`), else
+/// „Eigener Termin". The week's slots, the list of days, „Offen" and the notes call it so.
 pub(super) fn shown_name(own: &OwnTermin, names: &BTreeMap<String, String>, t: &'static Texts) -> String {
-    match (own.name.trim(), own.module.as_ref().and_then(|module| names.get(module))) {
-        ("", Some(module)) => short_title(module),
-        ("", None) => t.studyplan_own.unnamed.to_string(),
-        (name, _) => name.to_string(),
-    }
+    let module = own.module.as_ref().and_then(|module| names.get(module)).map(String::as_str);
+    own_label(own, module, t.locale).unwrap_or_else(|| t.studyplan_own.unnamed.to_string())
 }
 
 /// What the slots of calendar `calendar` (0 the plan's) name its modules by, for a Termin of one's
@@ -398,24 +405,25 @@ pub(super) fn change_fit(ctx: PlanCtx, change: Change) -> (bool, String) {
 /// „Nachholtermin" of the Termin `key` on `day` (folia/design/kalender/termine.html, „Ein Tag
 /// anders": „ein eigener Termin zum Modul, einmal, mit Art und Raum"): its view closes, and the form
 /// opens for a Termin of one's own of the plan's calendar, of its module, on that date alone, at its
-/// time and in its room, named as its slot is („VL EvS").
+/// time and in its room, of its kind and without a name: the week calls it as its slot is („VL
+/// EvS", `shown_name`), and the kind stays a word of its own (owner, 2026-11-17: „dass man zu
+/// Modulen custom termine hinzufügen und auch editieren kann").
 pub(super) fn ask_makeup(ctx: PlanCtx, key: RowKey, day: Day) {
     let t = i18n::t();
-    let names = ctx.data.with_untracked(|data| data.as_ref().map(|data| data.slot_names()).unwrap_or_default());
     let seed = ctx.table.with_untracked(|table| {
         let event = table.as_ref()?.events.iter().find(|event| event.rows.iter().any(|row| row.key == Some(key)))?;
         let row = event.rows.iter().find(|row| row.key == Some(key) && row.from.is_some() && row.to.is_some())?;
         let module = event.modules.first()?.clone();
-        let short = names.get(&module).map_or_else(|| short_title(&event.title), |name| short_title(name));
-        let name = format!("{} {short}", kind_short(event, t.locale)).trim().to_string();
-        Some((module, name, row.from?, row.to?, row.date.room_shown().unwrap_or_default().to_string()))
+        // The first kind, as a „Vorlesung/Übung" is named by its first word elsewhere.
+        let kind = event.kinds.iter().next();
+        Some((module, kind, row.from?, row.to?, row.date.room_shown().unwrap_or_default().to_string()))
     });
-    let Some((module, name, from, to, place)) = seed else { return };
+    let Some((module, kind, from, to, place)) = seed else { return };
     if let Some(going) = Pending::expect() {
         let away = ctx.url.with_untracked(|url| t.path(&url.with_termin(None).path()));
         going.go(&away, NavigateOptions { replace: true, scroll: false, ..Default::default() });
     }
-    let draft = Draft { name, rhythm: OwnRhythm::Dates, dates: vec![day.iso()], to: clock(to), place, module, ..Draft::at(0, day.weekday(), from) };
+    let draft = Draft { kind, rhythm: OwnRhythm::Dates, dates: vec![day.iso()], to: clock(to), place, module, ..Draft::at(0, day.weekday(), from) };
     ctx.own.set(Some(OwnAsk { number: None, draft }));
 }
 
@@ -589,6 +597,14 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
         ctx.calendars.with(|calendars| {
             calendars.iter().find(|calendar| calendar.id == id).map(|calendar| calendar.modules.iter().map(|module| (module.clone(), calendar.full.get(module).cloned().unwrap_or_else(|| module.clone()))).collect()).unwrap_or_default()
         })
+    });
+    // The kinds „Art" offers, and the draft's where the list lacks it.
+    let kinds = Memo::new(move |_| {
+        let mut kinds = KINDS.to_vec();
+        if let Some(kind) = draft.with(|draft| draft.as_ref().and_then(|draft| draft.kind)).filter(|kind| !KINDS.contains(kind)) {
+            kinds.push(kind);
+        }
+        kinds
     });
     let lectures = Memo::new(move |_| ctx.table.with(|table| table.as_ref().and_then(|table| table.facts.lecture)));
     // What the draft is, or what keeps it from being one.
@@ -830,6 +846,17 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
                         }).collect_view()}
                     </select>
                 </div>
+                // Its kind, a word about it (owner, 2026-11-17: „dass man zu Modulen custom termine
+                // hinzufügen … kann"): with its module the week calls it „VL EvS"; it hides nothing.
+                <div class="own-fld">
+                    <label for="own-kind">{o.kind}</label>
+                    <select id="own-kind" on:change=move |ev| { let value = EventKind::from_code(&event_target_value(&ev)); set(Box::new(move |draft| draft.kind = value)); }>
+                        <option value="" selected=move || draft.with(|draft| draft.as_ref().is_none_or(|draft| draft.kind.is_none()))>{o.no_kind}</option>
+                        {move || kinds.get().into_iter().map(|kind| view! {
+                            <option value=kind.code() selected=move || draft.with(|draft| draft.as_ref().is_some_and(|draft| draft.kind == Some(kind)))>{kind.label(t.locale)}</option>
+                        }).collect_view()}
+                    </select>
+                </div>
                 {line}
             </form>
             <footer class="st-dlg-foot">
@@ -1014,6 +1041,18 @@ mod tests {
         assert_eq!(Draft { period: Some(("x".into(), "y".into())), ..dates }.termin(1).map(|termin| termin.period), Ok(None));
     }
 
+    /// Without a name a Termin of one's own goes by its kind and its module, as a slot of QIS does.
+    #[test]
+    fn a_termin_of_ones_own_is_called_by_its_kind_and_its_module() {
+        let names: BTreeMap<String, String> = [("12104".to_string(), "EvS".to_string())].into();
+        let own = Draft { module: "12104".into(), kind: Some(EventKind::Lecture), ..Draft::at(0, 5, 9 * 60) }.termin(1).unwrap();
+        assert_eq!(shown_name(&own, &names, &i18n::DE), "VL EvS");
+        assert_eq!(shown_name(&OwnTermin { kind: None, ..own.clone() }, &names, &i18n::DE), "EvS");
+        assert_eq!(shown_name(&OwnTermin { module: None, ..own.clone() }, &names, &i18n::DE), "Vorlesung");
+        assert_eq!(shown_name(&OwnTermin { name: "Tafelübung".into(), ..own.clone() }, &names, &i18n::DE), "Tafelübung");
+        assert_eq!(shown_name(&OwnTermin { module: None, kind: None, ..own }, &names, &i18n::DE), "Eigener Termin");
+    }
+
     #[test]
     fn a_termin_changed_keeps_what_its_form_does_not_show() {
         let own = OwnTermin {
@@ -1028,6 +1067,7 @@ mod tests {
             name: "Lerngruppe".into(),
             place: "IKMZ 2.12".into(),
             skip: vec![d("2026-11-03")],
+            kind: Some(EventKind::Exercise),
         };
         let draft = Draft::of(3, &own);
         assert_eq!((draft.calendar, draft.from.as_str(), draft.to.as_str(), draft.module.as_str()), (3, "17:15", "18:45", "11112"));

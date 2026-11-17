@@ -806,8 +806,9 @@ fn program_change(from: &ProgramUrl, to: &ProgramUrl, phone: bool) -> Option<Cha
 
 /// Within the Studienplan: another semester, view or Regelstudienplan being taken over is its
 /// column; the module beside it, a Termin in its own view (`termin`, `on`) and the choice in focus
-/// over the week (`wahl`, `vergleich`) are the aside (on a phone a sheet over the plan). „Vollbild"
-/// fills the page with the module's whole page (`PlanAddress`). The Übersicht shows every semester:
+/// over the week (`wahl`, `vergleich`) and the plan being edited (`edit`) are the aside (on a phone a
+/// sheet over the plan, a step of its own). „Vollbild" fills the page with the module's whole page
+/// (`PlanAddress`). The Übersicht shows every semester:
 /// there `sem` only says which of its semesters a module planned twice is shown in beside it, so it
 /// is the aside's.
 fn studyplan_change(from: &PlanAddress, to: &PlanAddress) -> Option<Change> {
@@ -827,10 +828,12 @@ fn studyplan_change(from: &PlanAddress, to: &PlanAddress) -> Option<Change> {
         if url.view == PlanView::Overview { None } else { url.sem.as_deref() }
     }
     // The choice in focus stands over the week as the module beside it does: a step of its own,
-    // which „Fertig" takes back.
-    fn beside(url: &StudyplanUrl) -> ([Option<&str>; 6], bool) {
+    // which „Fertig" takes back. The plan being edited (`edit`) comes and goes the same way, on a
+    // phone too, so that Back leaves the mode and never the page (owner, 2026-11-17: „bei dem
+    // Kalender einen edit modus hinzuzufügen").
+    fn beside(url: &StudyplanUrl) -> ([Option<&str>; 6], bool, bool) {
         let at = [url.open.as_deref(), url.row.as_deref(), url.open.as_ref().and(url.sem.as_deref()), url.termin.as_deref(), url.on.as_deref(), url.wahl.as_deref()];
-        (at, url.vergleich)
+        (at, url.vergleich, url.edit)
     }
     if (column_sem(from), from.view, &from.import, from.variant) != (column_sem(to), to.view, &to.import, to.variant) {
         Some(Change::Column(Shape::Studyplan))
@@ -1251,6 +1254,16 @@ mod tests {
         assert_eq!(change("/studyplan", "wahl=e148304", "/studyplan", "wahl=e148304&vergleich=1", true), Some(Change::Aside));
         assert_eq!(change("/studyplan", "wahl=e148304", "/studyplan", "wahl=e148370", false), Some(Change::Aside));
         assert_eq!(change("/studyplan", "wahl=e148304&vergleich=1", "/studyplan", "", false), Some(Change::Aside));
+        // The plan being edited comes and goes as what stands beside it: a step of its own, on a phone
+        // too (Back leaves the mode, „Fertig" goes back a step), never in place of the entry.
+        assert_eq!(change("/studyplan", "", "/studyplan", "edit=1", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "edit=1", "/studyplan", "", true), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "edit=1", "/studyplan", "edit=1&termin=148369-aaf38", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "edit=1&wahl=e148304", "/studyplan", "edit=1", true), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "termin=148369-aaf38", "/studyplan", "edit=1&wahl=e148304&vergleich=1", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "edit=1", "/studyplan", "view=dates&edit=1", false), Some(Change::Column(Shape::Studyplan)));
+        assert_eq!(change("/studyplan", "edit=1&termin=148369-aaf38", "/studyplan", "edit=1&termin=148369-aaf38&full=1", false), Some(Change::Page(Shape::Event)));
+        assert_eq!(change("/studyplan", "edit=1", "/studyplan", "edit=1&week=2026-10-14", false), None);
     }
 
     /// The step before a module's sheet is the page it closes to, written either way.

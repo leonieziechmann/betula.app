@@ -57,6 +57,10 @@ pub struct Texts {
     /// „Gehört zu", and „kein Modul".
     pub module: &'static str,
     pub no_module: &'static str,
+    /// „Art", the field of its kind, and „Termin", its option for none (the kinds are the
+    /// timetable's labels: „Vorlesung", „Übung" …).
+    pub kind: &'static str,
+    pub no_kind: &'static str,
     /// What it meets of the week: „Passt in deine Woche", „Trifft Ü MIT1 (Mi 09:15)." with
     /// „Anlegen geht trotzdem." / „Speichern geht trotzdem.", and of another calendar „Zählt für
     /// „Gemeinsam frei“ mit Lena".
@@ -148,6 +152,8 @@ pub const DE: Texts = Texts {
     mine: "Mein Studiengang",
     module: "Gehört zu",
     no_module: "kein Modul",
+    kind: "Art",
+    no_kind: "Termin",
     fits: "Passt in deine Woche",
     meets: |what| format!("Trifft {what}."),
     meets_anyway_new: "Anlegen geht trotzdem.",
@@ -222,6 +228,8 @@ pub const EN: Texts = Texts {
     mine: "My programme",
     module: "Belongs to",
     no_module: "no module",
+    kind: "Type",
+    no_kind: "Event",
     fits: "Fits your week",
     meets: |what| format!("Meets {what}."),
     meets_anyway_new: "You can still add it.",

@@ -15,6 +15,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::day::Day;
+use crate::kind::EventKind;
 use crate::rowkey::RowKey;
 
 /// The event number of the Termin of one's own numbered 0; the first one is one more. Above every
@@ -91,6 +92,13 @@ pub struct OwnTermin {
     /// `MAX_OWN_DATES`: the timetable takes them out of its days, as a hidden date of a Termin of
     /// QIS (`Selection::hidden_dates`), and its view still names them.
     pub skip: Vec<Day>,
+    /// What kind of Termin it is („Art": Vorlesung, Übung …), where the student says (owner,
+    /// 2026-11-17: „dass man zu Modulen custom termine hinzufügen … kann. Weil viele Professoren ihre
+    /// daten nicht ordentlich aktuell halten"): with its module the week calls it „VL EvS", and it
+    /// stands among that module's Termine. A word about it and nothing more: no kind hides it, and the
+    /// timetable weighs it as before (`folia_timetable::model::own_event`).
+    #[serde(default)]
+    pub kind: Option<EventKind>,
 }
 
 impl OwnTermin {
@@ -152,6 +160,7 @@ mod tests {
             name: "Arbeit".to_string(),
             place: "Café Mosaik".to_string(),
             skip: Vec::new(),
+            kind: None,
         }
     }
 
@@ -178,6 +187,7 @@ mod tests {
         assert!(till_midnight.is_valid());
         let unnamed = OwnTermin { name: String::new(), place: String::new(), ..job() };
         assert!(unnamed.is_valid(), "nothing about it is required");
+        assert!(OwnTermin { kind: Some(EventKind::Lecture), ..job() }.is_valid());
         let dates = OwnTermin { rhythm: OwnRhythm::Dates, weekday: 0, dates: vec![d("2026-11-12"), d("2026-11-19")], ..job() };
         assert!(dates.is_valid());
         let a_week = OwnTermin { rhythm: OwnRhythm::AWeek, period: Some((d("2026-10-15"), d("2026-12-18"))), ..job() };

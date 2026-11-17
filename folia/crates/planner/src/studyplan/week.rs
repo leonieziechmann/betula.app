@@ -2319,6 +2319,7 @@ pub(super) mod tests {
             name: "Chor".into(),
             place: "Aula".into(),
             skip: Vec::new(),
+            kind: None,
         };
         let table = Timetable::build(&input, &Selection { own: vec![chor], ..Selection::default() });
         let blocks = agenda_blocks(&table, &table.agenda(Locale::De), &plain(), &titles(), None, &i18n::DE);
