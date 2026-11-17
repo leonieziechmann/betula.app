@@ -1291,17 +1291,13 @@ fn page_loaders_return_everything_a_page_shows() {
     let unknown = pages::catalog(&db, &CatalogUrl::parse("program=no-such-program"), folia_locale::Locale::De).unwrap();
     assert_eq!((unknown.program, unknown.page.total), (None, 0));
 
-    // A module of the program's FÜS list is there by its page, which names the program, or, where
-    // its page names no program, as on every FÜS list (schema 21); its page counts the FÜS lists.
-    let mut named = 0;
+    // A module of the program's FÜS list is there by its page, which names the program; its page
+    // counts the FÜS lists that hold it.
     for row in &catalog.page.rows {
         let module = pages::module(&db, &row.id).unwrap().expect("module page");
-        let names = module.programs.iter().any(|link| link.program_slug.as_deref() == Some(INFORMATIK_BSC));
-        assert!(names || module.programs.iter().all(|link| link.program_id.is_none()), "{}: names other programs only", row.id);
+        assert!(module.programs.iter().any(|link| link.program_slug.as_deref() == Some(INFORMATIK_BSC)), "{}: its page does not name the program", row.id);
         assert!(module.fues_programs > 0, "{}: on a FÜS list it does not count", row.id);
-        named += usize::from(names);
     }
-    assert!(named > 0, "no module of the FÜS list whose page names the program");
     assert_eq!(pages::module(&db, "00000").unwrap(), None);
 
     // Faculties are derived: most programs get one, none gets two, and the rest stays unknown.
