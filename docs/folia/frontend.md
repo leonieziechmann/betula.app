@@ -2304,14 +2304,14 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     plan still has open (`study::open_lines`: a row at the Fachsemester it is due in — its first,
     and the thesis the last of its span, `plan::due_in`; owner, 2026-11-17: „sowas, wie die
     Bachelorarbeit sollte halt auch erst im 6. Semester im Default sein. Weil auch wenn man sie ab
-    dem 5. machen kann sollte man eigentlich erst am schluss"; until Folia 1.95.1 every row stood at
+    dem 5. machen kann sollte man eigentlich erst am schluss"; until Folia 1.96.3 every row stood at
     its first, the Bachelor-Arbeit of „5.–6. FS" in the fifth —, not before the current
     semester, in the next one that offers it; a Wiederholer in the next semester that offers it): a
     module by its abbreviation, a click plans it; the open rows of an area in a semester together as
     what they still ask for („+10", „noch 10 LP offen laut Regelstudienplan"), none of them
     where the area asks for nothing more, a click puts a single row in as a placeholder and unfolds
     the area for several. What a choice still asks for stands at its rows that nothing covers
-    (`grid::model::allot`, Folia 1.95.1; owner, the same day: „wenn man sowas wie ein Anwendungsfach
+    (`grid::model::allot`, Folia 1.96.3; owner, the same day: „wenn man sowas wie ein Anwendungsfach
     hat sollten im 3. Semester nich schon 12 lp stehen, wenn 6 davon eigentlich aus dem 4. Semester
     kommen"): what counts for the choice covers the row nearest to its own semester first — a
     module of 6 LP in the third semester the Anwendungsfach's row of the 3. FS, so that the „+6"
@@ -2537,7 +2537,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     rows of the phone's root (`bench::plan_rows`, `bench::next_rows`): „Plan übernehmen" (those of
     the Fachsemester's Pflicht that stand nowhere yet and that the semester offers, at once; a row
     over several Fachsemester is one of each from the one it is due in on, `PlanLine::due`: the
-    Bachelor-Arbeit of „5.–6. FS" is the sixth's, Folia 1.95.1, and the fifth has it under „Aus dem
+    Bachelor-Arbeit of „5.–6. FS" is the sixth's, Folia 1.96.3, and the fifth has it under „Aus dem
     6. FS vorziehen", where until then its „Plan übernehmen" took it), the
     Pflicht not yet planned, its choices as dashed cards with their bars going into their subgroup,
     the stored placeholders of the semester whose choice is not among them, what is open from the
@@ -4310,7 +4310,7 @@ the pages about Betula since 2026-10-27 (`/about/<topic>`, below).
      belegt"): the modules the Regelstudienplan puts into that Fachsemester
      (`studyplan::import_fs`; the plans as chips where a program has several study directions; a
      row over several Fachsemester with each of them, the thesis with the last of its span alone,
-     `plan::due_span`, Folia 1.95.1: the Bachelor-Arbeit of „5.–6. FS" is no row of the fifth),
+     `plan::due_span`, Folia 1.96.3: the Bachelor-Arbeit of „5.–6. FS" is no row of the fifth),
      all ticked, a placeholder where the plan names a choice („als Platzhalter, später wählen"),
      and the sentence over them says where the ticks come from and what goes into the Stundenplan
      („Vorausgewählt nach Regelstudienplan (3. FS). Lass nur angehakt, was du wirklich belegst:

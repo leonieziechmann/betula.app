@@ -383,7 +383,7 @@ fn row_id(caption: &str, ord: i64) -> String {
 /// Anwendungsfach hat sollten im 3. Semester nich schon 12 lp stehen, wenn 6 davon eigentlich aus
 /// dem 4. Semester kommen": a module of the third semester stands for the third's row, and what
 /// is open is the fourth's); what `held` does not account for is taken from the first row on. A
-/// row that says nothing of its credits asks for what the others leave. Until Folia 1.95.1 the
+/// row that says nothing of its credits asks for what the others leave. Until Folia 1.96.3 the
 /// first open row took what the choice still asked for, whatever stood beside it.
 fn allot(wants: &[(SemesterKey, Option<f64>)], held: &[(SemesterKey, f64)], budget: f64) -> Vec<f64> {
     let mut open: Vec<f64> = wants.iter().map(|(_, credits)| credits.unwrap_or(0.0)).collect();
