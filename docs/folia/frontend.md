@@ -1872,6 +1872,12 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       over its semester (or over where the plan puts it, „nicht bestanden im SoSe 2026" with the
       cross for a Wiederholer), the credits. A row with a module is as a whole the way to it
       beside the page, the plan's open modules too, which were words alone.
+    - *A level up* (Folia 1.97.5; owner, the same day: „es braucht noch einen back button, so
+      dass man eine ebene höher kommt"): an area opened from the sheet has an arrow before its
+      name that leads back to the areas (`Dialog::Area { listed }`, `ModalHead`'s `back`), the
+      sheet staying where it stands; until then the sheet had to be thrown away and opened again
+      for the next area. An area opened from its card on a desktop has no level above it and no
+      arrow. Esc, Back and a finger's throw close the sheet as they close every dialog.
   - **The views** (owner, 2026-10-14: concept A, „Regelstudienplan und Wahlpflicht werden
     Ansichten von „Mein Studium" – mit deinem Stand darin"; `regular.rs`, `choose.rs`, the data in
     `folia/crates/plans/src/choices.rs`). Until then both were the program's pages, another world

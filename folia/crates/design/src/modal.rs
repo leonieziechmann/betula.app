@@ -40,7 +40,7 @@
 
 use leptos::prelude::*;
 
-use crate::ui::DialogClose;
+use crate::ui::{DialogClose, Icon};
 
 /// How large a dialog is on a wide screen, by what it holds (app.css „The dialogs"; owner,
 /// 2026-10-16: „Modale menus springen zu viel in der größe. Erstelle dir mal 3 verschiedene
@@ -224,7 +224,7 @@ pub fn on_backdrop(node: NodeRef<leptos::html::Dialog>, ev: &leptos::ev::MouseEv
 }
 
 /// The head of a dialog: what it is (its title, named by `id` for `Modal`'s `labelled_by`, a line
-/// under it) and its way out, „× Schließen Esc" on a wide screen (`DialogClose`), out of sight on a
+/// under it), the way a level up where it has one (`back`), and its way out, „× Schließen Esc" on a wide screen (`DialogClose`), out of sight on a
 /// phone, whose sheet has its grabber alone.
 #[component]
 pub fn ModalHead(
@@ -240,12 +240,22 @@ pub fn ModalHead(
     /// What closes the dialog.
     #[prop(into)]
     on_close: Callback<()>,
+    /// The way a level up, an arrow before the title, and what it says to a screen reader
+    /// („Zurück zu den Bereichen"): where the dialog shows a part of what it showed before (an
+    /// area of the areas' sheet; owner, 2026-11-17: „es braucht noch einen back button, so dass
+    /// man eine ebene höher kommt"). Not its way out, which stays ×, Esc, Back and a finger's
+    /// throw.
+    #[prop(default = None)]
+    back: Option<(Callback<()>, String)>,
     /// What the head holds besides, under the line.
     #[prop(optional)]
     children: Option<Children>,
 ) -> impl IntoView {
     view! {
         <header class="st-dlg-head">
+            {back.map(|(on_back, label)| view! {
+                <button class="icon-btn hit dlg-back" type="button" aria-label=label.clone() title=label on:click=move |_| on_back.run(())><Icon name="arrow-left"/></button>
+            })}
             <div>
                 <h2 id=id>{lead.map(|lead| lead.run())}{title}</h2>
                 {sub.map(|sub| view! { <p>{sub}</p> })}

@@ -110,7 +110,8 @@
 //   overview lead back to it (Back as a close request, as Android has it); a tap anywhere on the
 //   credits opens the areas
 //   as a sheet a finger drags down to close it (a short pull: it slides back) — each area with its
-//   bar and its marks as the Wahlpflicht's choices, an area opening in the sheet —, the program's card
+//   bar and its marks as the Wahlpflicht's choices, an area opening in the sheet and its arrow
+//   leading back to the areas —, the program's card
 //   opens „Studiengang wechseln" without a lead, − and + move nothing of it, under the card a line
 //   at the foot of the body, its picker of the program 8 px off the sheet's edges, the screen's
 //   keyboard up (simulated: the part of the page shown shorter) the sheet that part without its
@@ -549,10 +550,12 @@ if (current !== "2026W") {
       tally: [...dialog.querySelectorAll(".st-tally li")].map((part) => `${part.querySelector(".st-tally-w")?.textContent}:${[...(part.querySelector(".st-glyph")?.classList ?? [])].filter((name) => name !== "st-glyph").join()}`).join(),
       marks: rows.filter((row) => row.querySelector(".st-wmk .st-glyph")).length,
       boxes: dialog.querySelectorAll(".st-box, .st-area-bar").length,
+      // Opened from its card, it has no level above it: no arrow back.
+      back: dialog.querySelectorAll(".dlg-back").length,
     };
   });
   check(area.title === "Komplex Informatik" && /^\d+ \/ 66\u00a0LP$/.test(area.sub ?? "") && area.mine >= 2, `the area's dialog: ${JSON.stringify(area)}`);
-  check(area.bar && area.tally === "bestanden:passed,läuft:running,geplant:planned,offen:open" && area.marks === area.mine && area.boxes === 0, `the area's dialog has not the Wahlpflicht's bar, the strip of the four marks and a mark at every row: ${JSON.stringify(area)}`);
+  check(area.bar && area.tally === "bestanden:passed,läuft:running,geplant:planned,offen:open" && area.marks === area.mine && area.boxes === 0 && area.back === 0, `the area's dialog has not the Wahlpflicht's bar, the strip of the four marks and a mark at every row: ${JSON.stringify(area)}`);
   await step("close it", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
 
   // A module beside the page, in full, and back.
@@ -1677,10 +1680,19 @@ if (current !== "2026W") {
   const after = await page.evaluate(() => Math.round(document.querySelector(".st-dialog[open]")?.getBoundingClientRect().top ?? -1));
   check(pulled >= sheet.top + 40 && after === sheet.top, `a short pull does not move the sheet and back: ${sheet.top} → ${pulled} → ${after}`);
   await step("the areas dragged down", () => drag(320), () => !document.querySelector(".st-dialog[open]"));
-  // An area of the sheet opens in it, with its bar and its strip.
+  // An area of the sheet opens in it, with its bar and its strip, and an arrow before its name
+  // leads a level up, back to the areas (owner, 2026-11-17: „es braucht noch einen back button, so
+  // dass man eine ebene höher kommt"): the sheet stays where it stands, and the areas have no
+  // arrow.
   await step("Bereiche again", () => page.tap(".st-progress-top .st-link"), () => document.querySelector(".st-dialog[open] .st-area-list"));
   await step("an area of the sheet", () => page.tap(".st-area-list li:first-child button"), () => document.querySelector(".st-dialog[open] .st-area-dlg > .st-wbar.big") && document.querySelectorAll(".st-dialog[open] .st-tally li").length === 4 && document.querySelector("#st-dialog-title")?.textContent === "Komplex Informatik");
-  await step("close the area", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
+  await page.waitForFunction(() => !document.querySelector(".st-dialog[open]")?.getAnimations().some((a) => a.playState === "running"), null, { timeout: 3000 }).catch(() => {});
+  const level = await page.evaluate(() => { const back = document.querySelector(".st-dialog[open] .st-dlg-head .dlg-back"); const box = back?.getBoundingClientRect(); return { label: back?.getAttribute("aria-label"), size: box && [Math.round(box.width), Math.round(box.height)], top: Math.round(document.querySelector(".st-dialog[open]").getBoundingClientRect().top) }; });
+  check(level.label === "Zurück zu den Bereichen" && level.size?.every((side) => side >= 40), `an area of the sheet has no way back to the areas a finger finds: ${JSON.stringify(level)}`);
+  await step("back to the areas", () => page.tap(".st-dialog[open] .dlg-back"), () => document.querySelector(".st-dialog[open] .st-area-list") && document.querySelector("#st-dialog-title")?.textContent === "Übersicht nach Bereichen" && !document.querySelector(".st-dialog[open] .dlg-back"));
+  const levelTop = await page.evaluate(() => Math.round(document.querySelector(".st-dialog[open]").getBoundingClientRect().top));
+  check(levelTop === level.top, `the sheet moved on the way back to the areas: ${level.top} → ${levelTop}`);
+  await step("close the areas once more", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
   await step("the program's card", () => page.tap("#st-mine"), () => document.querySelector(".st-dialog[open] #st-switch-program"));
   check((await page.evaluate(() => document.querySelector(".st-dialog[open] .st-dlg-head p"))) === null, "„Studiengang wechseln“ still has its lead");
   // − and + count the Fachsemester, and nothing of the sheet moves while they do (measured once it

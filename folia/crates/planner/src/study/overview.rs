@@ -364,7 +364,7 @@ fn AreaCard(ctx: StudyCtx, card: Card) -> impl IntoView {
     let area = card.area;
     let (figure, class) = card.figure;
     view! {
-        <button class="st-card" type="button" style=format!("--c: {}", card.tone) title=card.title.clone() aria-label=card.title on:click=move |_| ctx.open(Dialog::Area(area))>
+        <button class="st-card" type="button" style=format!("--c: {}", card.tone) title=card.title.clone() aria-label=card.title on:click=move |_| ctx.open(Dialog::Area { area, listed: false })>
             <span class="st-dot"></span>
             <span class="st-card-name">{card.name}</span>
             <span class=format!("st-card-figure {class}")>{figure}{(class == "done").then(|| view! { <Icon name="check"/> })}</span>
@@ -393,7 +393,7 @@ pub(super) fn AreasSheet(ctx: StudyCtx) -> impl IntoView {
                         let area = card.area;
                         view! {
                             <li>
-                                <button type="button" style=format!("--c: {}", card.tone) on:click=move |_| ctx.open(Dialog::Area(area))>
+                                <button type="button" style=format!("--c: {}", card.tone) on:click=move |_| ctx.open(Dialog::Area { area, listed: true })>
                                     <span class="st-area-t"><span class="st-dot"></span><b>{card.name}</b>{figure_of(&card.stand, t)}<Icon name="chevron-right"/></span>
                                     {stand_bar(&card.stand, None, "", t)}
                                     {tally_line(&card.tally, card.after, t)}
@@ -543,7 +543,13 @@ impl AreaInfo {
 /// semester; the plan's rows still open, with the dashed ring (a cross for one not passed and not
 /// planned again), a row of a module a way to it; and the ways to its modules and its rules.
 #[component]
-pub(super) fn AreaDialog(ctx: StudyCtx, area: Option<usize>) -> impl IntoView {
+pub(super) fn AreaDialog(
+    ctx: StudyCtx,
+    area: Option<usize>,
+    /// Opened from the areas' sheet: an arrow before its name leads back to it (owner,
+    /// 2026-11-17: „es braucht noch einen back button, so dass man eine ebene höher kommt").
+    listed: bool,
+) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
     let info = Memo::new(move |_| ctx.with_ready(|ready| AreaInfo::of(ready, area, t)).flatten());
@@ -568,7 +574,7 @@ pub(super) fn AreaDialog(ctx: StudyCtx, area: Option<usize>) -> impl IntoView {
         };
         let area_name = info.name.clone();
         view! {
-            <DialogHead ctx title=info.name.clone() sub=info.asks.clone() tone=tone/>
+            <DialogHead ctx title=info.name.clone() sub=info.asks.clone() tone=tone back=listed.then_some((Dialog::Areas, s.back_to_areas))/>
             <div class="st-dlg-body st-area-dlg" style=format!("--c: {tone}")>
                 {stand_bar(&info.stand, None, "big", t)}
                 {tally_strip(&info.tally, t)}

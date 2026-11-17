@@ -163,8 +163,10 @@ pub struct Texts {
     pub plan_it: &'static str,
 
     // An area.
-    /// „Übersicht nach Bereichen": the phone's sheet.
+    /// „Übersicht nach Bereichen": the phone's sheet; and what the arrow at the head of an area
+    /// opened from it says.
     pub areas_title: &'static str,
+    pub back_to_areas: &'static str,
     pub area_over_text: fn(&str) -> String,
     pub your_modules: &'static str,
     pub none_here: &'static str,
@@ -516,6 +518,7 @@ pub const DE: Texts = Texts {
     plan_it: "Einplanen",
 
     areas_title: "Übersicht nach Bereichen",
+    back_to_areas: "Zurück zu den Bereichen",
     area_over_text: |n| format!("{n}\u{a0}LP mehr, als der Bereich verlangt. Betula rechnet sie keinem anderen Bereich an – belegen kannst du sie trotzdem, wenn dich das Thema interessiert."),
     your_modules: "Deine Module hier",
     none_here: "Noch nichts eingeplant.",
@@ -794,6 +797,7 @@ pub const EN: Texts = Texts {
     plan_it: "Plan it",
 
     areas_title: "Overview by area",
+    back_to_areas: "Back to the areas",
     area_over_text: |n| format!("{n}\u{a0}CP more than the area asks for. Betula counts them towards no other area – you can still take them if the subject interests you."),
     your_modules: "Your modules here",
     none_here: "Nothing planned yet.",
