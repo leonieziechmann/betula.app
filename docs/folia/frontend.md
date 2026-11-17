@@ -2124,7 +2124,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     on a desktop the catalog's columns as well (`folia_widgets::list::Facts`: Verantwortlich,
     Prüfung, Turnus, Sprache, Termine; the table is the container `list`, so that they go one by one
     as it gets narrower, as the list's do), every other row shaded, under the heads of the catalog's
-    columns. On a desktop it has three lines since Folia 1.96.1 (owner, 2026-11-17: „Jo Moment das
+    columns. On a desktop it has three lines since Folia 1.96.3 (owner, 2026-11-17: „Jo Moment das
     Tabele Layout für die Module ist richtig mist. Mach das mal so, dass der titel über die ganze
     Länge der tabelle gehen kann, darunter dann die stats in den spalten mit lp, dozent etc. Und
     darunter wieder full width die notizen/informationen"): its title across the whole row; under
