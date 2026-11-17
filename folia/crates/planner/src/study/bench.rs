@@ -59,7 +59,7 @@ use folia_model::rows::{CatalogRow, Prerequisite};
 use folia_pages::ask::{FitAsk, StudyModulesAsk};
 use folia_pages::FitResult;
 use folia_plans::bench::{self as model, Bench as Groups, Due, Group, GroupKind};
-use folia_plans::choices::{self, PlanView, RowState};
+use folia_plans::choices::{self, PlanLine, PlanView, RowState};
 use folia_plans::study::{self, Offer, Pick, Subject};
 use folia_plans::studyplan::{PlanDoc, RowRef};
 use folia_plans::variants;
@@ -845,6 +845,15 @@ fn group_catalog(ctx: StudyCtx, model: &Model, group: &Group, s: SemesterKey, t:
     })
 }
 
+/// The Fachsemester the plan prints for a row: „5. FS", „5. und 6. FS" of one over both (the
+/// Bachelor-Arbeit, which stands in the sixth: `PlanLine::due`).
+fn fs_of(line: &PlanLine, t: &Texts) -> String {
+    match line.first == line.last {
+        true => (t.study.fs)(line.first),
+        false => (t.study.fs_span)(line.first, line.last),
+    }
+}
+
 /// „Vormerken": a row of the plan put into `s` without a module (a placeholder), then its module
 /// choice in front (`choose_for`; on a phone the sheet all up for it, as a step into a list is).
 fn reserve(ctx: StudyCtx, s: SemesterKey, caption: String, ord: i64, name: String, ev: &leptos::ev::MouseEvent, t: &'static Texts) {
@@ -879,7 +888,7 @@ fn plan_rows(ctx: StudyCtx, parts: Parts, model: &Model, s: SemesterKey, t: &'st
             .filter(|(_, group, _)| group.and_then(|(area, kind)| model.groups.find(area, kind)).and_then(|at| model.groups.groups.get(at)).and_then(Group::choice).is_none_or(|choice| !listed.contains(&choice)))
             .map(|(name, group, held)| reserved_card(ctx, name, group, held, t)),
     );
-    let plan_fs_of = |at: usize| model.view.lines.get(at).map(|line| (b.plan_fs)(&(t.study.fs)(line.first)));
+    let plan_fs_of = |at: usize| model.view.lines.get(at).map(|line| (b.plan_fs)(&fs_of(line, t)));
     rows.extend(model.due.earlier.iter().filter(|at| still_open(ctx, model, **at, s)).filter_map(|at| plan_line(ctx, parts, model, *at, plan_fs_of(*at), s, t)));
     rows.extend(retake_lines(ctx, parts, model, s, t));
     rows.extend(model.due.earlier_choices.iter().filter_map(|at| choice_card(ctx, model, *at, s, t)));
@@ -980,7 +989,7 @@ fn PflichtPane(ctx: StudyCtx, parts: Parts, at: usize) -> impl IntoView {
             .iter()
             .filter_map(|at| {
                 let line = model.view.lines.get(*at)?;
-                let fs = (t.study.fs)(line.first);
+                let fs = fs_of(line, t);
                 let sub = match line.state {
                     RowState::Passed(_) => (b.passed_fs)(&fs),
                     _ => (b.plan_fs)(&fs),
