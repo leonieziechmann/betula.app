@@ -72,7 +72,7 @@ use leptos::ev::{KeyboardEvent, MouseEvent, PointerEvent, TouchEvent};
 use leptos::prelude::*;
 
 use folia_design::haptic::{self, Haptic};
-use folia_design::ui::Icon;
+use folia_design::ui::{Icon, TickMark};
 
 use super::dom;
 use super::menu::{self, Act, MenuFor};
@@ -323,7 +323,7 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
                             // it comes when the pointer comes near.
                             {move || (!ctx.phone.get()).then(|| view! {
                                 <button class="st-sel" type="button" role="checkbox" tabindex="-1" aria-checked="false" aria-label=s.select_all title=s.select_all on:click=move |_| menu::act(ctx, Act::SelectAll(semester), t)>
-                                    <SelMark/>
+                                    <TickMark/>
                                 </button>
                             })}
                             <span>{c.col_module}</span>
@@ -417,7 +417,7 @@ fn SelectionBar(ctx: StudyCtx, semester: SemesterKey, keys: Memo<Vec<String>>, c
                         title=word
                         on:click=move |_| if some_left.get_untracked() { menu::act(ctx, Act::SelectAll(semester), t) } else { ctx.selection.set(Selection::default()) }
                     >
-                        <SelMark/>
+                        <TickMark/>
                     </button>
                 }
             })}
@@ -445,18 +445,6 @@ fn SelectionBar(ctx: StudyCtx, semester: SemesterKey, keys: Memo<Vec<String>>, c
                 <Icon name="x"/>
             </button>
         </div>
-    }
-}
-
-/// The mark of a box to tick (app.css `.st-sel`): empty, a check where its button is ticked, a dash
-/// where some of what it stands for is (`aria-checked="mixed"`).
-#[component]
-fn SelMark() -> impl IntoView {
-    view! {
-        <span class="st-sel-mark" aria-hidden="true">
-            <Icon name="check" class="s-all"/>
-            <Icon name="minus" class="s-some"/>
-        </span>
     }
 }
 
@@ -1012,7 +1000,7 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
                     aria-label=move || (s.select_row)(&name.get())
                     on:click=tick
                 >
-                    <SelMark/>
+                    <TickMark/>
                 </button>
             })}
             <div class="row" class:st-inert=!opens aria-current=move || current.get().then_some("true")>
