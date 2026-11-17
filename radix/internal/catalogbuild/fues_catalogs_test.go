@@ -59,10 +59,10 @@ func TestFUESListsFollowTheCatalogs(t *testing.T) {
 	want(t, db, `SELECT semester, program_id, IFNULL(note, '∅') FROM fues_catalog_program ORDER BY 1, 2`,
 		"2026S|079-82-2008|∅", "2026S|079-88-2008|∅",
 		"2026W|079-82-2008|Bitte bei der Studiengangleitung erfragen!", "2026W|079-88-2008|Bitte bei der Studiengangleitung erfragen!")
-	want(t, db, `SELECT semester, program_id, module_id, scope FROM fues_negative ORDER BY 1, 2, 3, 4`,
-		"2026S|079-82-2008|14037|", "2026S|079-88-2008|14037|",
-		"2026W|079-82-2008|11152|Anwendungsfach Physik",
-		"2026W|079-88-2008|11152|", "2026W|079-88-2008|11152|Anwendungsfach Physik")
+	want(t, db, `SELECT semester, program_id, module_id FROM fues_negative ORDER BY 1, 2, 3`,
+		"2026S|079-82-2008|14037", "2026S|079-88-2008|14037", "2026W|079-88-2008|11152")
+	want(t, db, `SELECT semester, program_id, module_id, choice FROM fues_negative_choice ORDER BY 1, 2, 3, 4`,
+		"2026W|079-82-2008|11152|Anwendungsfach Physik", "2026W|079-88-2008|11152|Anwendungsfach Physik")
 
 	// B.Sc.: ERP by its page and the winter's catalog, with a note; 14037 by the winter's catalog
 	// alone, the summer's excludes it; its own Lineare Algebra stays its own.
@@ -97,6 +97,14 @@ func TestFUESListsFollowTheCatalogs(t *testing.T) {
 	}
 	if c := checks["headings of the FÜS catalogs that name no program"]; strings.Join(c.Samples, ";") != "2026W: Astrologie" {
 		t.Errorf("samples: %q", c.Samples)
+	}
+	// What the catalogs write passes validate: a failing check keeps the export back, and until
+	// schema 24 a line for every student had the scope '', which the check of placeholders refused
+	// (canary, 2026-11-17).
+	for name, c := range checks {
+		if c.Status == catalogdb.StatusFail {
+			t.Errorf("%s fails: %+v", name, c)
+		}
 	}
 }
 

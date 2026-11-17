@@ -4332,7 +4332,7 @@ name of a single module, the program's electives where no area fits; nothing pic
 The FÜS list is the program's own (since schema 23 what the BTU's FÜS catalogs admit for it, each
 season's newest, less its own modules and its negative list; without catalogs the FÜS modules whose
 page admits the program: `docs/radix/schema-v2.md`, „FÜS catalogs" and „Membership and kind"). A row
-of it says what the negative list says beside the module (Folia 1.98.0; owner, 2026-11-17: „mit
+of it says what the negative list says beside the module (Folia 1.99.0; owner, 2026-11-17: „mit
 Hinweis statt ausblenden"): „Nicht mit Anwendungsfach Physik" where the list excludes the module for
 one choice only, „im Sommersemester nicht zugelassen" where one season's catalog excludes it while
 the other admits it, a flag of its own beside the row's others, titled „Laut Negativliste des

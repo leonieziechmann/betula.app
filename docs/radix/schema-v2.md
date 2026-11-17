@@ -1155,7 +1155,7 @@ Anwendungsfach, a Schwerpunkt, a Studienrichtung). Radix 0.14.0 reads them (owne
 ausblenden"): `radix crawl-fues-catalogs`, in `run` the stage `fues-catalogs` every night,
 off-peak, `--fues-catalogs-max-age` 20 h; raw pages `btu_fues_catalog_page` (`de`) and
 `btu_fues_catalog` keyed by the semester. Every build reads them (`radix/internal/fuescatalog`,
-`catalogbuild/fues_catalogs.go`, migration 0023):
+`catalogbuild/fues_catalogs.go`, migrations 0023 and 0024):
 
 | Table | One row per | What |
 |---|---|---|
@@ -1163,7 +1163,8 @@ off-peak, `--fues-catalogs-max-age` 20 h; raw pages `btu_fues_catalog_page` (`de
 | `fues_catalog` | catalog × module | the modules, by campus („zentralcampus", „sachsendorf", „senftenberg") |
 | `fues_catalog_heading` | catalog × heading | its headings of programs and how many programs each names (0: none, `validate` warns) |
 | `fues_catalog_program` | catalog × program | the programs it names: every PO of a program's name and its „ - dual" (a heading that names several, „… / …; …", each; „Lehramt Primarstufe" every subject; a slip of two letters at most, „Propulsation"), with what it says instead of modules („Bitte bei der Studiengangleitung erfragen!") |
-| `fues_negative` | catalog × program × module × scope | a line of a negative list: scope `''` for every student of the program, a part for a degree or a profile applied to the programs it holds for; else the choice it holds for, as the catalog names it („Bei Anwendungsfach X:" as „Anwendungsfach X") |
+| `fues_negative` | catalog × program × module | a line of a negative list that holds for every student of the program, a part for a degree or a profile applied to the programs it holds for |
+| `fues_negative_choice` | catalog × program × module × choice | a line that holds for one choice only, as the catalog names it („Bei Anwendungsfach X:" as „Anwendungsfach X"); never empty. Until schema 24 both were `fues_negative`, every student's with the scope `''`, which `validate`'s check of placeholders refused: no build with a catalog was exported (canary, 2026-11-17, Radix 0.14.0) |
 | `program_fues_note` | program × module × season | materialized from `v_program_fues_note_src` (read view `v_program_fues_note`) |
 
 **The rule.** A program has a FÜS list where a FÜS module's page admits it (QIS's list of the

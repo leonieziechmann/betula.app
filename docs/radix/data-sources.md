@@ -366,8 +366,9 @@ because of what a FÜS module's page names:
   program's FÜS list of a season is the newest catalog of it less the program's Pflicht and
   Wahlpflicht and its negative list; an exclusion for one Anwendungsfach, Schwerpunkt or
   Studienrichtung, and one season's exclusion of a module the other admits, is a note beside the
-  module, not a gap in the list.
-Schemas 22 and 23, `docs/radix/schema-v2.md` „Membership and kind" and „FÜS catalogs".
+  module, not a gap in the list. A build with a catalog failed validation until schema 24 (Radix
+  0.14.1): a line for every student had the scope `''`, which the check of placeholders refuses.
+Schemas 22 to 24, `docs/radix/schema-v2.md` „Membership and kind" and „FÜS catalogs".
 
 **Q2. Conflicting module kind (tree vs plan).**
 Evidence: 5.4. Of 438 conflicting pairs, the large groups come from the tree's `Pflicht`
