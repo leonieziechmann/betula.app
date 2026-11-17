@@ -5817,14 +5817,41 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .st-row.is-place .st-find > .st-find-go { margin-left: -1px; }
 @media (hover: hover) { .st-row.is-place:hover > .row { background: var(--row-hover); } .st-row.is-place:hover .st-find { box-shadow: inset 0 0 0 1px var(--accent-line); } }
 .st-row.is-place:active > .row { background: var(--row-hover); }
-/* A row selected (owner, 2026-10-19: „Die selection soll nicht mehr per checkbox umgesetzt
-   werden, sondern per hervorheben/vlt texture funktionieren"): tinted in the accent, lined with
-   it and hatched, under the pointer too. */
+/* A row selected (owner, 2026-10-19: „per hervorheben/vlt texture"): tinted in the accent, lined
+   with it and hatched, under the pointer too; on a desktop its box ticked as well (below). */
 .st-row.is-selected > .row, .st-row.is-selected:hover > .row {
   background-color: color-mix(in srgb, var(--accent) 11%, var(--panel));
   background-image: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent) 13%, transparent) 0 1.5px, transparent 1.5px 7px);
   box-shadow: inset 0 0 0 1.5px var(--accent-line);
 }
+/* The box to tick at a row's start (focus.rs `ItemRow`, `.st-sel`; owner, 2026-11-17: „Bei dem pc
+   hätte ich gerne auch eine checkbox, die erst eingeblendet wird, wenn der Cursor der nahe kommt
+   oder schon ein Element selected ist"), a desktop's only: a phone holds a row to select it. Its
+   place is kept whether it shows or not, so that nothing moves as it comes: the row's words begin
+   after it, and the heads of the columns, the bar of the rows selected and „Module hinzufügen"
+   with them, the box of all of them over the rows' boxes and „Module hinzufügen"'s „+" under
+   them. It comes when the pointer is over its row (the box of all of them: over the heads), when
+   the row has the focus, and on every row while rows are selected; where nothing points (a
+   tablet's finger) it is always there. Ticked it is filled in the accent with a check, the box of
+   all of them with a dash while only some are. Its button is as large as the status's at the
+   row's other end, the box in its middle. */
+@media (min-width: 901px) {
+  .st-sems .st-row > .row { padding-left: 40px; }
+  .st-sems .st-table > .cols { position: relative; padding-left: 48px; }
+  .st-sems .st-table > .st-selbar { padding-left: 12px; }
+  .st-sems .st-add { padding-left: 11px; gap: 11px; }
+  .st-sel { position: absolute; z-index: 1; left: 4px; top: 50%; width: 32px; height: 32px; margin-top: -16px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--r-row); background: transparent; color: var(--on-accent); cursor: pointer; opacity: 0; transition: opacity .12s; -webkit-tap-highlight-color: transparent; }
+  .st-table > .cols > .st-sel { left: 12px; }
+  .st-selbar > .st-sel { position: static; flex: none; margin: 0; }
+  .st-row:hover > .st-sel, .st-row:focus-within > .st-sel, .st-table > .cols:hover > .st-sel, .st-table.is-selecting .st-sel, .st-sel[aria-checked="true"], .st-sel:focus-visible { opacity: 1; }
+  .st-sel:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .st-sel-mark { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--text-3); transition: background .12s, box-shadow .12s; }
+  .st-sel-mark > .icon { display: none; width: 12px; height: 12px; stroke-width: 3.2; }
+  .st-sel:hover > .st-sel-mark { box-shadow: inset 0 0 0 1.5px var(--text-2); }
+  .st-sel:is([aria-checked="true"], [aria-checked="mixed"]) > .st-sel-mark { background: var(--accent); box-shadow: none; }
+  .st-sel[aria-checked="true"] .s-all, .st-sel[aria-checked="mixed"] .s-some { display: block; }
+}
+@media (min-width: 901px) and (hover: none) { .st-sel { opacity: 1; } }
 /* At the end of a row, where the catalog has the bookmark, the module's status (owner,
    2026-10-19: „Die merken flag soll getauscht werden mit einem Status symbol (In
    progress/bestanden/nicht bestanden)"), the button of the row's menu: as large as the bookmark and
