@@ -226,6 +226,71 @@ pub struct Texts {
     pub page_description: fn(&str, &str) -> String,
     pub not_found: &'static str,
     pub not_found_hint: &'static str,
+    /// The card of one Termin (`termin/card.rs`; owner, 2026-11-17: „wenn man auf einen termin
+    /// klickt, dass dann infos kommen die halt nicht nur für den Termin sind. Das muss auch
+    /// angepasst werden so dass das mehr wie bei google calendar"). Its tools: „Ändern"'s tooltip
+    /// („Zeit, Tag oder Raum ändern"), the eye of a Termin of one's own („Nur am Di 24.11.
+    /// ausblenden"), „Mehr" („Mehr zu diesem Termin"); the head's tags „Besuch" and „von dir".
+    pub card_change_title: &'static str,
+    pub card_hide_own: fn(&str) -> String,
+    pub card_more: &'static str,
+    pub card_more_title: &'static str,
+    pub card_visit: &'static str,
+    pub card_own: &'static str,
+    /// The series in one line under the title: „wöchentlich · 15 Termine · noch 8", of one of
+    /// one's own „Jede Woche · 05.10.–31.01., die Vorlesungszeit", and the dates hidden after it
+    /// („ausgeblendet: Mo 23.11.").
+    pub card_series: fn(&str, &str, &str) -> String,
+    pub card_own_series: fn(&str, &str) -> String,
+    pub card_series_off: fn(&str) -> String,
+    /// „Ausblenden", the choice of its reach: „Mo 13:45 · wöchentlich", „Diese Gruppe" („die
+    /// anderen 3 bleiben zur Wahl", „die anderen 3 stehen wieder zur Wahl"), „Vorlesung ganz"
+    /// („auch Di 13:45", „alle 15", „alle 4 Gruppen").
+    pub card_when_rhythm: fn(&str, &str) -> String,
+    pub card_hide_group: &'static str,
+    pub card_others_to_choose: fn(usize) -> String,
+    pub card_others_open_again: fn(usize) -> String,
+    pub card_hide_whole: fn(&str) -> String,
+    pub card_also_at: fn(&str) -> String,
+    pub card_all_dates: fn(usize) -> String,
+    pub card_all_groups: fn(usize) -> String,
+    /// The page's note once the card did it, with „Rückgängig": „VL MIT1 am Mo 23.11.
+    /// ausgeblendet", „VL MIT1 Mo 13:45 ausgeblendet", „Vorlesung MIT1 ausgeblendet", „Ü EvS Mo
+    /// 15:30 angehakt", „„Chor“ am Fr 20.11. ausgeblendet".
+    pub card_said_date: fn(&str, &str) -> String,
+    pub card_said_termin: fn(&str, &str) -> String,
+    pub card_said_event: fn(&str, &str) -> String,
+    pub card_said_ticked: fn(&str, &str) -> String,
+    pub card_said_own_date: fn(&str, &str) -> String,
+    /// A group of a choice in the card: „Eine von 4 Übungsgruppen · noch keine angehakt" with
+    /// „Diese Gruppe anhaken"; „Angehakt · 1 von 4 Übungsgruppen" with „Haken wegnehmen";
+    /// „Vergleichen".
+    pub card_one_of: fn(usize, &str) -> String,
+    pub card_none_ticked: &'static str,
+    pub card_tick: &'static str,
+    pub card_ticked_of: fn(usize, usize, &str) -> String,
+    pub card_untick: &'static str,
+    pub card_compare: &'static str,
+    /// A Termin the plan leaves out: why („Vorlesung ausgeblendet", „Andere Gruppe gewählt · Mo
+    /// 15:30") and what brings it back („Einblenden", „Vorlesung einblenden", „„Übung“ wieder
+    /// einblenden", „Nur diese Gruppe", „Auch diese", „Nur diese", „Diese nehmen"); a date hidden
+    /// („Am Mo 23.11. ausgeblendet").
+    pub card_event_off: fn(&str) -> String,
+    pub card_other_group: fn(&str) -> String,
+    pub card_show: &'static str,
+    pub card_show_event: fn(&str) -> String,
+    pub card_show_kind: fn(&str) -> String,
+    pub card_only_group: &'static str,
+    pub card_also: &'static str,
+    pub card_only: &'static str,
+    pub card_take: &'static str,
+    pub card_date_off: fn(&str) -> String,
+    /// „⋯": „Notiz hinzufügen", „Notiz bearbeiten", „Nachholtermin anlegen"; the way on: „Alle
+    /// Termine von MIT1".
+    pub card_note_add: &'static str,
+    pub card_note_edit: &'static str,
+    pub card_makeup: &'static str,
+    pub card_all: fn(&str) -> String,
 }
 
 pub const DE: Texts = Texts {
@@ -399,6 +464,48 @@ pub const DE: Texts = Texts {
     page_description: |what, when| format!("{what} am {when}, mit allen Terminen der Reihe und was an ihnen anders ist, laut QIS."),
     not_found: "Diesen Termin gibt es nicht",
     not_found_hint: "QIS kennt ihn nicht (mehr). Die Termine eines Moduls stehen auf seiner Seite im Katalog.",
+    card_change_title: "Zeit, Tag oder Raum ändern",
+    card_hide_own: |day| format!("Nur am {day} ausblenden"),
+    card_more: "Mehr",
+    card_more_title: "Mehr zu diesem Termin",
+    card_visit: "Besuch",
+    card_own: "von dir",
+    card_series: |rhythm, dates, left| format!("{rhythm} · {dates} · {left}"),
+    card_own_series: |rhythm, when| if when.is_empty() { rhythm.to_string() } else { format!("{rhythm} · {when}") },
+    card_series_off: |days| format!("ausgeblendet: {days}"),
+    card_when_rhythm: |when, rhythm| format!("{when} · {rhythm}"),
+    card_hide_group: "Diese Gruppe",
+    card_others_to_choose: |n| format!("die anderen {n} bleiben zur Wahl"),
+    card_others_open_again: |n| format!("die anderen {n} stehen wieder zur Wahl"),
+    card_hide_whole: |kind| format!("{kind} ganz"),
+    card_also_at: |when| format!("auch {when}"),
+    card_all_dates: |n| format!("alle {n}"),
+    card_all_groups: |n| format!("alle {n} Gruppen"),
+    card_said_date: |what, day| format!("{what} am {day} ausgeblendet"),
+    card_said_termin: |what, when| format!("{what} {when} ausgeblendet"),
+    card_said_event: |kind, chip| format!("{kind} {chip} ausgeblendet"),
+    card_said_ticked: |what, when| format!("{what} {when} angehakt"),
+    card_said_own_date: |name, day| format!("„{name}“ am {day} ausgeblendet"),
+    card_one_of: |n, groups| format!("Eine von {n} {groups}"),
+    card_none_ticked: "noch keine angehakt",
+    card_tick: "Diese Gruppe anhaken",
+    card_ticked_of: |ticked, all, groups| format!("Angehakt · {ticked} von {all} {groups}"),
+    card_untick: "Haken wegnehmen",
+    card_compare: "Vergleichen",
+    card_event_off: |kind| format!("{kind} ausgeblendet"),
+    card_other_group: |when| format!("Andere Gruppe gewählt · {when}"),
+    card_show: "Einblenden",
+    card_show_event: |kind| format!("{kind} einblenden"),
+    card_show_kind: |kind| format!("„{kind}“ wieder einblenden"),
+    card_only_group: "Nur diese Gruppe",
+    card_also: "Auch diese",
+    card_only: "Nur diese",
+    card_take: "Diese nehmen",
+    card_date_off: |day| format!("Am {day} ausgeblendet"),
+    card_note_add: "Notiz hinzufügen",
+    card_note_edit: "Notiz bearbeiten",
+    card_makeup: "Nachholtermin anlegen",
+    card_all: |chip| format!("Alle Termine von {chip}"),
 };
 
 pub const EN: Texts = Texts {
@@ -572,4 +679,46 @@ pub const EN: Texts = Texts {
     page_description: |what, when| format!("{what} on {when}, with every date of the series and what differs, per QIS."),
     not_found: "This session does not exist",
     not_found_hint: "QIS does not know it (any more). A module's sessions are on its page in the catalog.",
+    card_change_title: "Change time, day or room",
+    card_hide_own: |day| format!("Hide only on {day}"),
+    card_more: "More",
+    card_more_title: "More on this session",
+    card_visit: "Visit",
+    card_own: "by you",
+    card_series: |rhythm, dates, left| format!("{rhythm} · {dates} · {left}"),
+    card_own_series: |rhythm, when| if when.is_empty() { rhythm.to_string() } else { format!("{rhythm} · {when}") },
+    card_series_off: |days| format!("hidden: {days}"),
+    card_when_rhythm: |when, rhythm| format!("{when} · {rhythm}"),
+    card_hide_group: "This group",
+    card_others_to_choose: |n| format!("the other {n} stay to choose from"),
+    card_others_open_again: |n| format!("the other {n} are open to choose again"),
+    card_hide_whole: |kind| format!("The whole {}", kind.to_lowercase()),
+    card_also_at: |when| format!("{when} too"),
+    card_all_dates: |n| format!("all {n}"),
+    card_all_groups: |n| format!("all {n} groups"),
+    card_said_date: |what, day| format!("{what} hidden on {day}"),
+    card_said_termin: |what, when| format!("{what} {when} hidden"),
+    card_said_event: |kind, chip| format!("{kind} {chip} hidden"),
+    card_said_ticked: |what, when| format!("{what} {when} ticked"),
+    card_said_own_date: |name, day| format!("“{name}” hidden on {day}"),
+    card_one_of: |n, groups| format!("One of {n} {}", groups.to_lowercase()),
+    card_none_ticked: "none ticked yet",
+    card_tick: "Tick this group",
+    card_ticked_of: |ticked, all, groups| format!("Ticked · {ticked} of {all} {}", groups.to_lowercase()),
+    card_untick: "Take the tick away",
+    card_compare: "Compare",
+    card_event_off: |kind| format!("{kind} hidden"),
+    card_other_group: |when| format!("Another group chosen · {when}"),
+    card_show: "Show",
+    card_show_event: |kind| format!("Show the {}", kind.to_lowercase()),
+    card_show_kind: |kind| format!("Show “{kind}” again"),
+    card_only_group: "Only this group",
+    card_also: "This one too",
+    card_only: "Only this one",
+    card_take: "Take this one",
+    card_date_off: |day| format!("Hidden on {day}"),
+    card_note_add: "Add a note",
+    card_note_edit: "Edit the note",
+    card_makeup: "Add a make-up date",
+    card_all: |chip| format!("All sessions of {chip}"),
 };

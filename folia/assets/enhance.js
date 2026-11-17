@@ -4198,7 +4198,7 @@
     // `TerminModal`): ← and → its date as the arrows beside it, V its whole page, ? the keys with
     // „Im Termin" first. Not in a field; with the keyboard nowhere (a click on its text), where it
     // is the one dialog open, not under another (the keys' over it).
-    const dialogs = e.target.closest?.("dialog[open]") ? [e.target.closest("dialog[open]")] : [...document.querySelectorAll("dialog[open]")];
+    const dialogs = e.target.closest?.("dialog[open]") ? [e.target.closest("dialog[open]")] : [...document.querySelectorAll("dialog[open]")].filter((d) => !d.closest(".pending-page"));
     const termin = over && plain && !e.defaultPrevented && !texty(el) && dialogs.length === 1 ? dialogs[0] : null;
     if (termin?.querySelector(".is-termin")) {
       if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.shiftKey) {

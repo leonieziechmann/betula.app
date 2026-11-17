@@ -51,7 +51,7 @@ pub fn EventPage() -> impl IntoView {
     let status = PageStatus::capture();
     let termin = Callback::new(move |(key, on): (RowKey, Option<Day>)| t.path(&url::event_path(key, on)));
     let module = Callback::new(move |(id, _): (String, Option<RowKey>)| t.path(&url::module_path(&id)));
-    let links = TerminLinks { termin, module, close: Signal::stored(String::new()), back: Signal::stored(None), adjust: Some(found.adjust()), full: None };
+    let links = TerminLinks { termin, module, close: Signal::stored(String::new()), back: Signal::stored(None), adjust: Some(found.adjust()), full: None, choice: None };
     let now = ticking_clock();
     let ctx = found.ctx(links, TerminPlace::Page, now);
     // The page's title and what it says of itself, on the day shown.

@@ -13,7 +13,10 @@
 //! (`on_close`), and so does its × (`ModalHead`); what it holds goes in one piece as it closes, so
 //! that the copy a phone lets glide away (`ghostSheet`) shows all of it; a dialog that goes with the
 //! component holding it leaves the top layer first; the browser gives the focus back to what opened
-//! it.
+//! it. Where its owner places it (`at`, a card beside the slot it was opened from) it stands there
+//! instead of the window's middle; Esc closes what stands open in it first, where its owner says so
+//! (`on_cancel`); a click beside it can be its owner's (`on_beside`: another slot's card in its
+//! place) instead of closing it.
 //!
 //! ```ignore
 //! view! {
@@ -142,6 +145,19 @@ pub fn Modal(
     /// does not come up at once over what it shows.
     #[prop(optional)]
     focus_itself: bool,
+    /// Where it stands on a wide screen instead of the window's middle: its left and its top in the
+    /// window, in CSS pixels, written as `--x` and `--y` (R7: data as custom properties; app.css
+    /// `.st-dialog.placed`). `None`: the middle. A phone's sheet stands as every sheet.
+    #[prop(optional, into)]
+    at: Signal<Option<(f64, f64)>>,
+    /// Esc while something stands open inside it: `true` where its owner closed that and the dialog
+    /// stays, `false` where the dialog closes as ever. One Esc, one layer.
+    #[prop(optional)]
+    on_cancel: Option<Callback<(), bool>>,
+    /// A click beside it at this point of the window: `true` where its owner took it (what it shows
+    /// changes), `false` where the dialog closes as ever.
+    #[prop(optional_no_strip)]
+    on_beside: Option<Callback<(f64, f64), bool>>,
     children: ChildrenFn,
 ) -> impl IntoView {
     let node = NodeRef::<leptos::html::Dialog>::new();
@@ -168,12 +184,16 @@ pub fn Modal(
     });
     let beside = move |ev: leptos::ev::MouseEvent| {
         if on_backdrop(node, &ev) {
-            on_close.run(());
+            let point = (f64::from(ev.client_x()), f64::from(ev.client_y()));
+            if !on_beside.is_some_and(|ask| ask.run(point)) {
+                on_close.run(());
+            }
         }
     };
     let class = move || {
         let size = size.get().class();
-        ["st-dialog", size, class].iter().filter(|part| !part.is_empty()).copied().collect::<Vec<_>>().join(" ")
+        let placed = if at.get().is_some() { "placed" } else { "" };
+        ["st-dialog", size, placed, class].iter().filter(|part| !part.is_empty()).copied().collect::<Vec<_>>().join(" ")
     };
     view! {
         <dialog
@@ -184,6 +204,12 @@ pub fn Modal(
             aria-label=move || label.map(|label| label.get())
             tabindex=focus_itself.then_some("-1")
             autofocus=focus_itself
+            style=move || at.get().map(|(x, y)| format!("--x:{x:.0}px;--y:{y:.0}px"))
+            on:cancel=move |ev: leptos::ev::Event| {
+                if on_cancel.is_some_and(|ask| ask.run(())) {
+                    ev.prevent_default();
+                }
+            }
             on:close=move |_| on_close.run(())
             on:click=beside
         >

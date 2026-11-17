@@ -39,6 +39,13 @@
 //! the module and who teaches, which no pick changes, and the source at the end — with „Zurück"
 //! (Esc) to the view over the page; and as a page of its own (`/event/<key>/<day>`) in the same
 //! two columns. „Teilen" hands on that page's address.
+//!
+//! From the Stundenplan and the start page a click on a Termin opens the card of that one Termin
+//! instead (`card`, owner, 2026-11-17: „wenn man auf einen termin klickt, dass dann infos kommen die
+//! halt nicht nur für den Termin sind. Das muss auch angepasst werden so dass das mehr wie bei
+//! google calendar"): what, when, where, who where it names somebody, and the few actions on it. The
+//! view above, with the module's events, groups and „Reihe", is then the overview („Alle Termine von
+//! MIT1", `…&full=1`); a module's page keeps it in its dialog to look up.
 
 use std::collections::BTreeMap;
 
@@ -69,6 +76,9 @@ use folia_shell::frame::BackLink;
 use folia_shell::pending::Pending;
 use folia_shell::tabs::Area;
 use crate::i18n::{self, Locale, Texts};
+
+mod card;
+pub use card::TerminNote;
 
 /// Which of the two views (owner, 2026-10-26: „Wir sollten das wahrscheinlich Trennen zwischen der
 /// Informativen ansicht für die Modulpage und mein studiengang und dann der ansicht bei der
@@ -121,15 +131,19 @@ pub struct TerminLinks {
     /// „Ganze Seite": the Termin on a day filling the page it stands beside (`full=1`); `None`
     /// where the page has no such place.
     pub full: Option<Callback<(RowKey, Option<Day>), String>>,
+    /// The choice of an event's groups in focus in the Stundenplan, by its code
+    /// (`folia_timetable::choice::code`): „Vergleichen ›" of a group. `None` where the page leads to
+    /// none (to look up).
+    pub choice: Option<Callback<String, String>>,
 }
 
 /// Where the view stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TerminPlace {
-    /// Over a page in the app's one dialog (`TerminModal`): on a wide screen in the middle of the
-    /// window over the page dimmed, on a phone a sheet from below as every dialog is. At its head
-    /// „Teilen", „Ganze Seite" where the page has a place for it, and the dialog's „Schließen"
-    /// (Esc; `TerminModal`'s way out).
+    /// Over a page in the app's one dialog (`TerminModal`): to look up in the middle of the window
+    /// over the page dimmed, with „Teilen", „Ganze Seite" where the page has a place for it and the
+    /// dialog's „Schließen" (Esc; `TerminModal`'s way out) at its head; to adjust the card of the
+    /// one Termin (`card`), beside its slot. On a phone a sheet from below as every dialog is.
     Dialog,
     /// Filling the page of `Area` it stood over („Ganze Seite"): two columns where the page is
     /// wide, „Zurück" to the view over the page (`TerminLinks::close`) and „Teilen".
@@ -168,6 +182,10 @@ pub struct TerminCtx {
     /// „Nachholtermin"; `None` where it adds neither (the start page: „Ändern" without the line of
     /// what it meets).
     pub change: Option<ChangeActs>,
+    /// The card changed the plan and closed: the page says so with „Rückgängig" where the week does
+    /// not show the answer itself (while the plan is looked at), and says nothing where it does
+    /// (while it is edited). `None`: the card stays and shows what it did; and to look up.
+    pub done: Option<Callback<TerminUndo>>,
 }
 
 /// What a page adds to „Ändern" of a Termin of QIS (folia/design/kalender/termine.html, step 2):
@@ -186,6 +204,14 @@ pub struct ChangeActs {
 pub struct OwnActs {
     pub edit: Callback<u32>,
     pub remove: Callback<u32>,
+}
+
+/// What the card of a Termin did to the plan, for the page's note: the sentence („VL MIT1 Mo 13:45
+/// ausgeblendet") and the plan as it was, which „Rückgängig" puts back.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TerminUndo {
+    pub said: String,
+    pub before: folia_plans::studyplan::PlanDoc,
 }
 
 /// What the view measures a Termin against: whether a group fits, what the date meets, the day
@@ -277,6 +303,8 @@ struct Shown {
     own: Option<OwnPart>,
     /// A Termin of QIS with a time, to adjust: what „Ändern" starts from and what holds.
     change: Option<ChangePart>,
+    /// The card of the Termin (`card`): from the Stundenplan and the start page.
+    card: Option<card::CardPart>,
 }
 
 /// What a Termin of QIS shows of a change and what „Ändern" starts from: its key and module, the
@@ -471,6 +499,11 @@ struct PlanPart {
     /// The plan holds the Termin: an event without groups, the group ticked, or any while none is.
     /// What changes it („Ändern", the note, „Nachholtermin") stands under the switch that does.
     held: bool,
+    /// The Termin as a whole: its keys, its words („Mo 13:45 im Stundenplan"), the line under them
+    /// („15 Termine") and whether the plan shows it — of an event of several Termine without
+    /// groups, and of any Termin hidden that way (a group left out by its eye), so that it can come
+    /// back here.
+    termin: Option<(Vec<RowKey>, String, String, bool)>,
 }
 
 /// Of an event's groups the one the Termin shows, under „Im Stundenplan": its keys (one ticks it,
@@ -598,14 +631,7 @@ pub fn TerminView(
     closing: Option<Callback<()>>,
 ) -> impl IntoView {
     let t = i18n::t();
-    let shown = Memo::new(move |_| {
-        let (now, planned) = (ctx.now.get(), ctx.planned.get());
-        ctx.asked.with(|asked| {
-            ctx.table.with(|table| {
-                ctx.against.with(|against| ctx.modules.with(|modules| asked.and_then(|(key, on)| shown_of(table.as_ref()?, against, key, on, now, modules, (ctx.mode, planned), t))))
-            })
-        })
-    });
+    let shown = shown_memo(ctx);
     let found = Memo::new(move |_| shown.with(Option::is_some));
     let loading = Memo::new(move |_| ctx.table.with(Option::is_none));
     let head = Memo::new(move |_| shown.with(|s| s.as_ref().map(|s| s.head.clone())));
@@ -746,22 +772,44 @@ pub fn TerminView(
     }
 }
 
+/// What the view of `ctx.asked` shows, worked out in one memo of every source (R16): the view and
+/// the card read it alike.
+fn shown_memo(ctx: TerminCtx) -> Memo<Option<Shown>> {
+    let t = i18n::t();
+    Memo::new(move |_| {
+        let (now, planned) = (ctx.now.get(), ctx.planned.get());
+        ctx.asked.with(|asked| {
+            ctx.table.with(|table| {
+                ctx.against.with(|against| ctx.modules.with(|modules| asked.and_then(|(key, on)| shown_of(table.as_ref()?, against, key, on, now, modules, (ctx.mode, planned), t))))
+            })
+        })
+    })
+}
+
+/// The view is the card of one Termin: in the dialog, from the Stundenplan and the start page.
+fn is_card(ctx: &TerminCtx) -> bool {
+    ctx.place == TerminPlace::Dialog && ctx.mode == TerminMode::Adjust
+}
+
 /// The id of the Termin's title in its dialog, which names the dialog.
 const TITLE_ID: &str = "tm-title";
 
 /// The Termin over a page in the app's one dialog (owner, 2026-11-03: „Also erstmal muss das ein
 /// modal werden oder eine fullpage Seite mit zurück etc. Aktuell ist das übelst cursed. Das muss
-/// neu"; `folia_design::modal::Modal`): on a wide screen in the middle of the window over the page
-/// dimmed (`m`, 600 × 600 px, its body scrolling), on a phone the sheet from below every dialog is.
-/// Until then it stood beside the page, over its right part, the page in use around it.
+/// neu"; `folia_design::modal::Modal`). From the Stundenplan and the start page the card of the one
+/// Termin (`card::TerminCard`; owner, 2026-11-17: „mehr wie bei google calendar"): small, on a wide
+/// screen beside the slot it was opened from over a light dim, else in the middle of the page near
+/// its top; from a module's page the view to look up in the middle of the window (`m`, 600 × 600 px,
+/// its body scrolling). On a phone either is the sheet from below every dialog is.
 ///
 /// It stands while the address asks for it (`open`) and its page is in front: a page kept behind
 /// another (`folia_design::stage`) holds no dialog over that one, and the dialog comes back with
 /// its page. Esc, a click beside it, Back, a finger's throw and its „Schließen" go back a step
 /// where the page without it is the step before (`TerminLinks::back`), else to that page
-/// (`TerminLinks::close`); a dialog its address closes („Zum Modul", „Ganze Seite", another page)
-/// asks for nothing more. While the Termin's answer comes, its frame alone; `missing`: the address
-/// names no Termin (an old one, one typed), which the dialog says.
+/// (`TerminLinks::close`); a dialog its address closes („Alle Termine von …", another page) asks
+/// for nothing more. Esc closes what stands open inside the card first („Ändern", „Ausblenden"'s
+/// choice, the note's field), one layer at a time. While the Termin's answer comes, its frame
+/// alone; `missing`: the address names no Termin (an old one, one typed), which the dialog says.
 #[component]
 pub fn TerminModal(
     ctx: TerminCtx,
@@ -771,6 +819,16 @@ pub fn TerminModal(
     /// The address names no Termin.
     #[prop(optional, into)]
     missing: Signal<bool>,
+    /// The card alone, on a wide screen: the box in the window of what it was opened from — the
+    /// slot's day column from left to right, the slot from top to bottom —, asked as the card
+    /// opens, a frame later and when the window changes. Without it, or without a box: in the
+    /// middle of the page, near the top.
+    #[prop(optional)]
+    anchor: Option<Callback<(), Option<folia_stores::collections::Anchor>>>,
+    /// The card alone: a click beside it at this point of the window. `true`: the page took it
+    /// (another slot's card comes in this one's place); else the card closes.
+    #[prop(optional)]
+    beside: Option<Callback<(f64, f64), bool>>,
 ) -> impl IntoView {
     let front = folia_design::stage::front();
     let pending = Pending::expect();
@@ -790,13 +848,60 @@ pub fn TerminModal(
             }
         }
     });
+    let card = is_card(&ctx);
+    let state = card::CardState::new();
+    let at = RwSignal::new(None::<(f64, f64)>);
+    if card {
+        let termin = Memo::new(move |_| ctx.asked.with(|asked| asked.map(|(key, _)| key)));
+        // Where the card stands: beside its slot on a wide screen, as a sheet (`None`) on a phone.
+        // Its width is the stylesheet's (`card::WIDTH`): nothing is measured.
+        let place = move || {
+            let spot = (!folia_design::nav::is_phone()).then(|| card::card_place(anchor.and_then(|anchor| anchor.run(())), card::WIDTH, folia_design::nav::room()));
+            let _ = at.try_set(spot);
+        };
+        Effect::new(move |_| {
+            // Another Termin is another card: placed anew, with nothing open in it. Another date
+            // of the same one leaves it where it stands (it keeps its top edge, D11).
+            let _ = termin.get();
+            if shown.get() {
+                state.reset();
+                place();
+                // A frame later once more: the page's scroll bar goes as a dialog opens, and the
+                // slot's column may have moved by its width.
+                request_animation_frame(move || {
+                    place();
+                    card::focus_big();
+                });
+            }
+        });
+        Effect::new(move |_| {
+            let handle = window_event_listener(leptos::ev::resize, move |_| {
+                if shown.try_get_untracked().unwrap_or(false) {
+                    place();
+                }
+            });
+            on_cleanup(move || handle.remove());
+        });
+    }
+    let size = if card { ModalSize::S } else { ModalSize::M };
+    let class = if card { "tm-modal tm-card-modal" } else { "tm-modal" };
+    // Esc peels what stands open in the card before it closes the card.
+    let on_cancel = Callback::new(move |()| {
+        let peeled = card && state.peel();
+        if peeled {
+            request_animation_frame(card::focus_card);
+        }
+        peeled
+    });
+    let on_beside = beside.filter(|_| card);
     view! {
         // On a phone as tall as the Termin is while that fits, half up and all up past it
         // (`Sheet::Auto`): one Termin is a date and a room, another its groups and a semester of dates.
-        <Modal open=shown on_close=close size=ModalSize::M sheet=Sheet::Auto class="tm-modal" labelled_by=TITLE_ID>
-            {move || match missing.get() {
-                true => view! { <TerminMissing closing=close/> }.into_any(),
-                false => view! { <TerminView ctx closing=close/> }.into_any(),
+        <Modal open=shown on_close=close size sheet=Sheet::Auto class at on_cancel on_beside focus_itself=card labelled_by=TITLE_ID>
+            {move || match (missing.get(), card) {
+                (true, _) => view! { <TerminMissing closing=close/> }.into_any(),
+                (false, true) => view! { <card::TerminCard ctx closing=close state/> }.into_any(),
+                (false, false) => view! { <TerminView ctx closing=close/> }.into_any(),
             }}
         </Modal>
     }
@@ -1210,6 +1315,12 @@ fn PlanView(ctx: TerminCtx, shown: Memo<Option<Shown>>, editing: RwSignal<Option
         let (Some(plan), Some(sem), Some((_, key, day, hidden))) = (ctx.plan, sem.get_untracked(), part.with_untracked(|part| part.as_ref().and_then(|part| part.date.clone()))) else { return };
         plan.update(|doc| doc.set_date(sem, key, day, !hidden));
     };
+    // The Termin as a whole: its Termine hidden or shown again (`set_row`'s last word is „hidden",
+    // so it is what the switch was).
+    let whole = move |_: leptos::ev::MouseEvent| {
+        let (Some(plan), Some(sem), Some((keys, _, _, shown))) = (ctx.plan, sem.get_untracked(), part.with_untracked(|part| part.as_ref().and_then(|part| part.termin.clone()))) else { return };
+        plan.update(|doc| keys.iter().for_each(|key| doc.set_row(sem, *key, shown)));
+    };
     move || {
         part.get().map(|part| {
             let label = (t.termin.show_kind)(&part.kind);
@@ -1222,6 +1333,19 @@ fn PlanView(ctx: TerminCtx, shown: Memo<Option<Shown>>, editing: RwSignal<Option
                         <span class="ci"><Icon name="calendar-check-2"/></span>
                         <span><b>{group.said.clone()}</b><small>{group.sub}</small></span>
                         <button class="tg" class:on=ticked type="button" role="switch" aria-checked=if ticked { "true" } else { "false" } aria-label=group.said data-action="tick" on:click=tick><i></i></button>
+                    </div>
+                }
+            });
+            // The Termin as a whole, named as a group is („Mo 13:45 im Stundenplan"); what it hides
+            // stands under it (owner, 2026-11-03: „der Schalter sollte über den Elementen stehen,
+            // die dann ausgeblendet werden").
+            let whole_on = part.termin.as_ref().is_none_or(|(.., shown)| *shown);
+            let termin_row = part.termin.clone().map(|(_, said, sub, shown)| {
+                view! {
+                    <div class="crow">
+                        <span class="ci">{if shown { view! { <Icon name="eye"/> }.into_any() } else { view! { <Icon name="eye-off"/> }.into_any() }}</span>
+                        <span><b>{said.clone()}</b><small>{sub}</small></span>
+                        <button class="tg" class:on=shown type="button" role="switch" aria-checked=if shown { "true" } else { "false" } aria-label=said data-action="show-termin" on:click=whole><i></i></button>
                     </div>
                 }
             });
@@ -1242,8 +1366,9 @@ fn PlanView(ctx: TerminCtx, shown: Memo<Option<Shown>>, editing: RwSignal<Option
                         <span><b>{label.clone()}</b><small>{part.sub.clone()}</small></span>
                         <button class="tg" class:on=on type="button" role="switch" aria-checked=if on { "true" } else { "false" } aria-label=label data-action="show-event" on:click=switch><i></i></button>
                     </div>
-                    {on.then_some(group_row)}
-                    {on.then_some(date_row)}
+                    {on.then_some(termin_row)}
+                    {(on && whole_on).then_some(group_row)}
+                    {(on && whole_on).then_some(date_row)}
                     {move || change.get().filter(|_| on && held).map(|change| view! { <ChangeRows ctx part=change editing/> })}
                 </section>
             }
@@ -1285,26 +1410,15 @@ fn ChangeRows(ctx: TerminCtx, part: ChangePart, editing: RwSignal<Option<ChangeD
 }
 
 /// The note at a Termin: its words, or what it is for („nur für dich, auch in der Datei"), and
-/// „Hinzufügen" or „Bearbeiten", which open its field with „Abbrechen" and „Speichern" (an empty one
-/// takes the note away). Saved after the next frame (R21). Under it the hint of Betula Sync where
-/// another device wrote into the note at the same time (`syncnote::TerminNoteConflict`).
+/// „Hinzufügen" or „Bearbeiten", which open its field (`NoteField`). Under it the hint of Betula
+/// Sync where another device wrote into the note at the same time (`syncnote::TerminNoteConflict`).
 #[component]
 fn NoteRow(ctx: TerminCtx, key: RowKey, note: Option<String>) -> impl IntoView {
     let t = i18n::t();
     let open = RwSignal::new(false);
-    let text = RwSignal::new(note.clone().unwrap_or_default());
     let sem = Memo::new(move |_| ctx.table.with(|table| table.as_ref().map(|table| table.key)));
-    let save = move |ev: leptos::ev::SubmitEvent| {
-        ev.prevent_default();
-        let (Some(plan), Some(sem)) = (ctx.plan, sem.get_untracked()) else { return };
-        let value = text.get_untracked();
-        open.set(false);
-        plan.update_after_paint(move |doc| {
-            doc.set_note(sem, key, &value);
-        });
-    };
     let has = note.is_some();
-    let said = note.unwrap_or_else(|| t.termin.note_sub.to_string());
+    let said = note.clone().unwrap_or_else(|| t.termin.note_sub.to_string());
     view! {
         <div class="crow">
             <span class="ci"><Icon name="file-text"/></span>
@@ -1313,18 +1427,38 @@ fn NoteRow(ctx: TerminCtx, key: RowKey, note: Option<String>) -> impl IntoView {
                 {if has { t.termin.note_edit } else { t.termin.note_add }}
             </button>
         </div>
-        {move || open.get().then(|| view! {
-            <form class="tm-note" on:submit=save>
-                <textarea id="tm-note-field" rows="3" maxlength=folia_calendar::change::MAX_NOTE aria-label=t.termin.note placeholder=t.termin.note_placeholder prop:value=move || text.get() on:input=move |ev| text.set(event_target_value(&ev))></textarea>
-                <div class="chg-foot">
-                    <button class="mini" type="button" on:click=move |_| open.set(false)>{t.termin.cancel}</button>
-                    <button class="mini primary" type="submit" data-action="note-save">{t.termin.save}</button>
-                </div>
-            </form>
-        })}
+        {move || open.get().then(|| view! { <NoteField ctx key note=note.clone() on_done=Callback::new(move |()| open.set(false))/> })}
         // What another device of the profile wrote into the same note at the same time (Betula
         // Sync).
         <crate::syncnote::TerminNoteConflict semester=Signal::derive(move || sem.get()) row=key/>
+    }
+}
+
+/// The field of a Termin's note with „Abbrechen" and „Speichern" (an empty one takes the note
+/// away), in the overview under its row and in the card as its body; both end in `on_done`.
+/// Saved after the next frame (R21).
+#[component]
+fn NoteField(ctx: TerminCtx, key: RowKey, note: Option<String>, on_done: Callback<()>) -> impl IntoView {
+    let t = i18n::t();
+    let text = RwSignal::new(note.unwrap_or_default());
+    let sem = Memo::new(move |_| ctx.table.with(|table| table.as_ref().map(|table| table.key)));
+    let save = move |ev: leptos::ev::SubmitEvent| {
+        ev.prevent_default();
+        let (Some(plan), Some(sem)) = (ctx.plan, sem.get_untracked()) else { return };
+        let value = text.get_untracked();
+        on_done.run(());
+        plan.update_after_paint(move |doc| {
+            doc.set_note(sem, key, &value);
+        });
+    };
+    view! {
+        <form class="tm-note" on:submit=save>
+            <textarea id="tm-note-field" rows="3" maxlength=folia_calendar::change::MAX_NOTE aria-label=t.termin.note placeholder=t.termin.note_placeholder prop:value=move || text.get() on:input=move |ev| text.set(event_target_value(&ev))></textarea>
+            <div class="chg-foot">
+                <button class="mini" type="button" on:click=move |_| on_done.run(())>{t.termin.cancel}</button>
+                <button class="mini primary" type="submit" data-action="note-save">{t.termin.save}</button>
+            </div>
+        </form>
     }
 }
 
@@ -1742,13 +1876,11 @@ fn called(event: &Event, modules: &BTreeMap<String, ModuleFacts>, t: &'static Te
     }
 }
 
-/// A Termin of one's own by its name; without one by its module's chip, else „Eigener Termin".
+/// A Termin of one's own by its name; without one by its kind and its module's chip („VL EvS",
+/// `views::own_label`, as the week calls it), else „Eigener Termin".
 fn own_name(own: &OwnTermin, modules: &BTreeMap<String, ModuleFacts>, t: &'static Texts) -> String {
-    match (own.name.trim(), &own.module) {
-        ("", Some(module)) => chip_of(Some(module), modules),
-        ("", None) => t.termin.own_chip.to_string(),
-        (name, _) => name.to_string(),
-    }
+    let module = own.module.as_ref().map(|id| chip_of(Some(id), modules));
+    folia_timetable::views::own_label(own, module.as_deref(), t.locale).unwrap_or_else(|| t.termin.own_chip.to_string())
 }
 
 /// How a Termin of one's own recurs: „Jede Woche", „A-Woche", „B-Woche", „Einmal", „An 3 Tagen".
@@ -1826,7 +1958,11 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
     // A Termin of one's own names the module it belongs to, where it belongs to one.
     let own = event.own.as_ref();
     let module = own.map_or(event.modules.first(), |own| own.module.as_ref());
-    let kind = if own.is_some() { String::new() } else { type_text(event, locale) };
+    // A Termin of one's own says its kind where it has one (a word only: it hides by nothing).
+    let kind = match own {
+        Some(own) => own.kind.map(|kind| kind.label(locale).to_string()).unwrap_or_default(),
+        None => type_text(event, locale),
+    };
     let first_kind = event.kinds.iter().next();
     let own_title = event.title.trim().to_string();
     let module_title = module.and_then(|id| modules.get(id)).map(|facts| facts.title.trim().to_string()).filter(|title| !title.is_empty());
@@ -1853,7 +1989,7 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
         _ => chip_of(module, modules),
     };
     let words = own.is_some() && module.is_none();
-    let head = Head { out: mode == TerminMode::LookUp && planned == Some(false), tone: event.tone, chip, kind: kind.clone(), kind_at_head: tabs.is_empty() && own.is_none(), title, words };
+    let head = Head { out: mode == TerminMode::LookUp && planned == Some(false), tone: event.tone, chip, kind: kind.clone(), kind_at_head: tabs.is_empty() && !kind.is_empty(), title, words };
 
     // The ticket.
     let past = now.is_some_and(|(day, minute)| o.day < day || (o.day == day && o.to.is_some_and(|to| to <= minute)));
@@ -1959,6 +2095,8 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
         let what = other.map(|other| format!("{}, {}–{}", called(other, modules, t), clock(met.from), clock(met.to))).unwrap_or_default();
         hints.push(Hint { warn: true, icon: "triangle-alert", text: (t.termin.meets)(&what) });
     }
+    // What the date meets, for the card's lines (nothing else is in the list yet).
+    let clash = hints.first().cloned();
     match &o.state {
         DateState::Cancelled(reason, instead) => {
             if !reason.trim().is_empty() {
@@ -1982,8 +2120,9 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
         };
         hints.push(Hint { warn: false, icon: "eye-off", text });
     }
-    if let Some(comment) = first.date.comment.as_deref().map(str::trim).filter(|comment| !comment.is_empty()) {
-        hints.push(Hint { warn: false, icon: "info", text: comment.to_string() });
+    let remark = first.date.comment.as_deref().map(str::trim).filter(|comment| !comment.is_empty()).map(str::to_string);
+    if let Some(comment) = &remark {
+        hints.push(Hint { warn: false, icon: "info", text: comment.clone() });
     }
 
     // The groups, and „Im Stundenplan".
@@ -2010,10 +2149,18 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
             });
             // A date of what the plan holds: of an event without groups, of the group ticked, or
             // while none is (all stand hatched in the plan).
-            let held = group.as_ref().is_none_or(|(group, ticked)| group.ticked || *ticked == 0);
+            let held = group.as_ref().is_none_or(|(group, ticked)| group.ticked || *ticked == 0) && o.hidden != Some(HiddenBy::Row);
             let hideable = held && matches!(o.state, DateState::Held | DateState::Note(_) | DateState::Hidden) && o.dates.iter().filter(|dated| dated.state.held()).count() > 1;
             let date = o.date_key(table).filter(|_| hideable).map(|key| (day_words(o.day, today, locale), key, o.day, o.state == DateState::Hidden));
-            PlanPart { event: id, kind: kind.clone(), shown, sub: sub.to_string(), group: group.map(|(group, _)| group), date, held }
+            // The Termin as a whole: of an event of several Termine without groups, and of one
+            // hidden that way.
+            let whole = o.hidden == Some(HiddenBy::Row) || (groups.is_none() && termin::sessions(event).len() > 1);
+            let termin = whole.then(|| {
+                let keys = row_keys(event, &o);
+                let when = first_when(event, &o, locale);
+                (keys, (t.termin.group_in_plan)(&when), (t.termin.dates)(o.place(None).1), o.hidden != Some(HiddenBy::Row))
+            });
+            PlanPart { event: id, kind: kind.clone(), shown, sub: sub.to_string(), group: group.map(|(group, _)| group), date, held, termin }
         }),
     };
 
@@ -2074,7 +2221,28 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
         let name = format!("{} {}", head.chip, kind);
         (ics::write(&calendar), (t.termin.calendar_file)(name.trim()))
     });
-    Some(Shown { key, day: o.day, head, pick, ticket, people, hints, plan, groups, the_day, series, range, module: module_part, staff, source, file, own: own_part, change })
+    // The card, from the Stundenplan and the start page: who only where the Termin names somebody
+    // (the module's responsible is the overview's).
+    let who = if leads.is_empty() { Vec::new() } else { people.clone() };
+    let card = (mode == TerminMode::Adjust).then(|| {
+        card::card_part(card::Facts { table, o: &o, event, modules, today, t, head: &head, first_kind, who, clash, remark, groups: groups.as_ref(), plan: plan.as_ref(), own: own_part.as_ref(), change: change.as_ref(), qis: source.qis.as_deref() })
+    });
+    Some(Shown { key, day: o.day, head, pick, ticket, people, hints, plan, groups, the_day, series, range, module: module_part, staff, source, file, own: own_part, change, card })
+}
+
+/// The keys of a Termin's rows, each once, in their order.
+fn row_keys(event: &Event, o: &Occasion) -> Vec<RowKey> {
+    o.rows.iter().filter_map(|row| event.rows.get(*row)?.key).fold(Vec::new(), |mut keys, key| {
+        if !keys.contains(&key) {
+            keys.push(key);
+        }
+        keys
+    })
+}
+
+/// When a Termin is, by its first row („Mo 13:45").
+fn first_when(event: &Event, o: &Occasion, locale: Locale) -> String {
+    o.rows.first().and_then(|row| event.rows.get(*row)).map(|row| when_of(row, locale)).unwrap_or_default()
 }
 
 /// What a page of the Termin says of itself, on the date the view shows at `now`: the browser
@@ -2270,17 +2438,7 @@ fn series_part(o: &Occasion, event: &Event, today: Option<Day>, t: &'static Text
 fn range_part(event: &Event, o: &Occasion, today: Option<Day>, t: &'static Texts) -> RangePart {
     let locale = t.locale;
     let first = o.rows.first().and_then(|row| event.rows.get(*row));
-    let rhythm = match first.and_then(|row| row.every) {
-        Some(Every::Week) => t.termin.weekly.to_string(),
-        Some(Every::AWeek) => (t.termin.fortnightly)("A"),
-        Some(Every::BWeek) => (t.termin.fortnightly)("B"),
-        Some(Every::ThreeWeeks) => (t.termin.every_weeks)(3),
-        Some(Every::FourWeeks) => (t.termin.every_weeks)(4),
-        None => match first.and_then(|row| row.date.rhythm.as_ref()).and_then(|rhythm| rhythm.known()) {
-            Some(folia_model::labels::Rhythm::Block) => t.termin.block.to_string(),
-            _ => t.termin.single.to_string(),
-        },
-    };
+    let rhythm = rhythm_word(first, t);
     let when = first.and_then(|row| Some(format!("{} {}–{}", weekday(row.slot_day()?, locale), clock(row.from?), clock(row.to?))));
     let held: Vec<Day> = o.dates.iter().filter(|dated| dated.state.held()).map(|dated| dated.day).collect();
     let span = held.first().zip(held.last()).map(|(a, b)| if a == b { day_words(*a, today, locale) } else { format!("{}–{}", a.day_month(locale), b.date(locale)) });
@@ -2316,6 +2474,22 @@ fn range_part(event: &Event, o: &Occasion, today: Option<Day>, t: &'static Texts
     }
     let assumed = first.is_some_and(|row| row.occ.assumed);
     RangePart { head, assumed, lines }
+}
+
+/// How a Termin recurs, by its first row: „wöchentlich", „14-täglich, A-Woche", „alle 3 Wochen",
+/// „als Block", „einzeln".
+fn rhythm_word(first: Option<&Row>, t: &'static Texts) -> String {
+    match first.and_then(|row| row.every) {
+        Some(Every::Week) => t.termin.weekly.to_string(),
+        Some(Every::AWeek) => (t.termin.fortnightly)("A"),
+        Some(Every::BWeek) => (t.termin.fortnightly)("B"),
+        Some(Every::ThreeWeeks) => (t.termin.every_weeks)(3),
+        Some(Every::FourWeeks) => (t.termin.every_weeks)(4),
+        None => match first.and_then(|row| row.date.rhythm.as_ref()).and_then(|rhythm| rhythm.known()) {
+            Some(folia_model::labels::Rhythm::Block) => t.termin.block.to_string(),
+            _ => t.termin.single.to_string(),
+        },
+    }
 }
 
 /// When a Termin of an event is: „Mo 11:30", „Fr 11:30 · A" every other week, the day of a single
@@ -2660,6 +2834,26 @@ mod tests {
         let off = dot("2026-12-22");
         assert!(!off.link && off.class == "sd off", "{off:?}");
         assert_eq!(dot("2026-10-06").class, "sd past");
+    }
+
+    #[test]
+    fn the_overview_switches_a_termin_as_a_whole() {
+        // A lecture held twice a week: the Termin's own switch, „Di 09:15 im Stundenplan".
+        let rows = vec![
+            teaching("12104", "100", 1, "Vorlesung", 2, "09:15", "10:45"),
+            teaching("12104", "100", 2, "Vorlesung", 5, "09:15", "10:45"),
+            teaching("12104", "200", 1, "Übung", 1, "11:30", "13:00").group("1-Gruppe"),
+            teaching("12104", "200", 2, "Übung", 2, "13:45", "15:15").group("2-Gruppe"),
+        ];
+        let texts = &i18n::DE;
+        let plan_of = |selection: &Selection, key: RowKey| shown_of(&table(&rows, &["12104"], &[], selection), &Against::Itself, key, None, None, &modules(), (TerminMode::Adjust, Some(true)), texts).unwrap().plan.unwrap();
+        let shown = plan_of(&Selection::default(), rows[0].key());
+        assert!(shown.termin.as_ref().is_some_and(|(keys, said, sub, on)| keys == &[rows[0].key()] && said == "Di 09:15 im Stundenplan" && sub == "15 Termine" && *on), "{:?}", shown.termin);
+        // Hidden that way: off, no date to hide and nothing to change under it.
+        let hidden = plan_of(&Selection { hidden_rows: [rows[0].key()].into_iter().collect(), ..Selection::default() }, rows[0].key());
+        assert!(hidden.termin.as_ref().is_some_and(|(.., on)| !*on) && hidden.date.is_none() && !hidden.held);
+        // A group has its own switch: none of the Termin as a whole.
+        assert!(plan_of(&Selection::default(), rows[2].key()).termin.is_none());
     }
 
     #[test]

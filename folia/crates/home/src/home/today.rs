@@ -26,12 +26,12 @@ use folia_pages::ask::{MetaAsk, PlanSourceAsk, StudyModulesAsk, StudyplanAsk, St
 use folia_pages::{HomeData, PlanSource, StudyplanData};
 use folia_plans::study::{self, Totals};
 use folia_plans::studyplan::{MineDoc, PlanDoc};
-use folia_routes::url::{self, PlanView, StudyUrl, StudyplanUrl};
+use folia_routes::url::{self, PlanAddress, PlanView, StudyUrl, StudyplanUrl};
 use folia_timetable::clash::Weeks;
 use folia_timetable::facts::SemesterFacts;
 use folia_timetable::model::Timetable;
 use folia_timetable::views::AgendaWeek;
-use folia_widgets::termin::{module_facts, page_head, Against, TerminCtx, TerminLinks, TerminMode, TerminModal, TerminPlace, TerminView};
+use folia_widgets::termin::{module_facts, page_head, Against, TerminCtx, TerminLinks, TerminMode, TerminModal, TerminNote, TerminPlace, TerminUndo, TerminView};
 use leptos::prelude::*;
 
 use folia_data::use_ask;
@@ -411,12 +411,14 @@ fn termin_href(entry: &Entry, t: &Texts) -> Option<String> {
 }
 
 /// A Termin of the plan in its own view over the start page (`/?termin=<key>&on=<day>`; owner,
-/// 2026-10-26, folia/design/termin): the view that adjusts the plan, as from the Stundenplan, in
-/// the app's dialog over the page (owner, 2026-11-03: „muss das ein modal werden"), on a phone the
-/// sheet every dialog is. „Zum Modul" leads to the module beside the Stundenplan; closing goes back
-/// a step where the start page without it is the step before. „Ganze Seite" (`&full=1`) lets it
-/// fill the start page, in two columns, with „Zurück" to it over the page (app.css hides the rest
-/// of the page meanwhile).
+/// 2026-10-26, folia/design/termin): the card of that one Termin, as from the Stundenplan (owner,
+/// 2026-11-17: „mehr wie bei google calendar"), in the app's dialog in the middle of the page near
+/// its top, on a phone the sheet every dialog is; what it hides or ticks closes it with a note and
+/// „Rückgängig" (`TerminNote`). Its way on, „Alle Termine von …", leads to the Stundenplan's
+/// overview (`/studyplan?termin=…&on=…&full=1`); closing goes back a step where the start page
+/// without it is the step before. The start page filled with the view (`/?termin=…&full=1`, the
+/// way on until then) still answers, in two columns, with „Zurück" to the card over the page
+/// (app.css hides the rest of the page meanwhile).
 #[component]
 fn TerminOver(table: Memo<Option<Timetable>>, data: Memo<Option<StudyplanData>>, plan: Option<Studyplan>, now: RwSignal<(Day, u16)>) -> impl IntoView {
     let t = i18n::t();
@@ -429,8 +431,14 @@ fn TerminOver(table: Memo<Option<Timetable>>, data: Memo<Option<StudyplanData>>,
     let module = Callback::new(move |(id, key): (String, Option<RowKey>)| t.path(&StudyplanUrl::default().with_open(Some(&id), key).path()));
     // The page's own clock, read every half minute (`TodayView`).
     let now = Signal::derive(move || Some(now.get()));
+    // What the card did, for its note with „Rückgängig".
+    let undo = RwSignal::new(None::<TerminUndo>);
+    let done = Callback::new(move |said: TerminUndo| undo.set(Some(said)));
+    // „Vergleichen ›" of a group: its choice in focus in the Stundenplan.
+    let choice = Callback::new(move |code: String| t.path(&StudyplanUrl::default().with_wahl(Some(&code)).with_vergleich(true).path()));
     let ctx = move |links: TerminLinks, place: TerminPlace| TerminCtx {
         change: None,
+        done: matches!(place, TerminPlace::Dialog).then_some(done),
         table,
         asked,
         modules,
@@ -450,8 +458,9 @@ fn TerminOver(table: Memo<Option<Timetable>>, data: Memo<Option<StudyplanData>>,
             tabs.is_some_and(|tabs| same_page(&tabs.before(&now), url::HOME)).then_some("history")
         });
         let termin = Callback::new(move |at: (RowKey, Option<Day>)| t.path(&url::home_termin_path(Some(at))));
-        let full = Callback::new(move |(key, on): (RowKey, Option<Day>)| t.path(&url::home_termin_full_path(key, on)));
-        let links = TerminLinks { termin, module, close, back, adjust: None, full: Some(full) };
+        // The way on: the Stundenplan's overview of the Termin.
+        let full = Callback::new(move |(key, on): (RowKey, Option<Day>)| t.path(&PlanAddress { url: StudyplanUrl::default(), full: false }.with_termin(Some((key, on)), true).path()));
+        let links = TerminLinks { termin, module, close, back, adjust: None, full: Some(full), choice: Some(choice) };
         let ctx = ctx(links, TerminPlace::Dialog);
         // The dialog stands with the page, so that it closes by its address alone.
         let open = Signal::derive(move || shown.get() && !filling.get());
@@ -461,7 +470,7 @@ fn TerminOver(table: Memo<Option<Timetable>>, data: Memo<Option<StudyplanData>>,
         // „Zurück": the Termin over the page again, on the day shown.
         let close = Signal::derive(move || t.path(&asked.with(|asked| url::home_termin_path(*asked))));
         let termin = Callback::new(move |(key, on): (RowKey, Option<Day>)| t.path(&url::home_termin_full_path(key, on)));
-        let links = TerminLinks { termin, module, close, back: Signal::stored(None), adjust: None, full: None };
+        let links = TerminLinks { termin, module, close, back: Signal::stored(None), adjust: None, full: None, choice: Some(choice) };
         let ctx = ctx(links, TerminPlace::Full(Area::Home));
         let title = Memo::new(move |_| {
             let now = now.get();
@@ -488,6 +497,7 @@ fn TerminOver(table: Memo<Option<Timetable>>, data: Memo<Option<StudyplanData>>,
     });
     view! {
         {over()}
+        <TerminNote plan undo/>
         {move || (shown.get() && filling.get()).then(full)}
     }
 }

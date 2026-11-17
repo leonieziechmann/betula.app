@@ -4668,6 +4668,90 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
   .is-termin.tm-dialog > .hero { padding: 20px 16px 12px 20px; }
   .is-termin.tm-dialog > .dbody.tm { padding: 14px 20px 24px; }
 }
+/* The card of one Termin (folia/crates/widgets/src/termin/card.rs; owner, 2026-11-17: „wenn man auf
+   einen termin klickt, dass dann infos kommen die halt nicht nur für den Termin sind. Das muss auch
+   angepasst werden so dass das mehr wie bei google calendar"): a small dialog (`s`, 400 px, the
+   number of `card::WIDTH`) beside the slot it was opened from over a light dim, so that the week
+   stays readable; on a phone a sheet that fits. Its head holds the chip, the kind, the tags and the
+   tools (pencil, eye, bin, ⋯, „Schließen"), its body the ticket and only what is of this Termin, the
+   large action, and one way on. It comes by fading alone: a card that slides would leave its slot. */
+.st-dialog.tm-card-modal { width: min(400px, calc(100vw - 32px)); }
+.st-dialog.tm-card-modal[open] { animation: fade-in .16s ease-out; }
+@media (min-width: 901px) {
+  .st-dialog.tm-card-modal::backdrop { background: rgba(10, 12, 17, .16); }
+}
+.is-termin.tm-dialog.tm-card > .hero { padding: 10px 10px 12px 18px; }
+.tm-card .tm-bar { flex-wrap: wrap; row-gap: 4px; }
+/* „× Schließen" without its cap: the head holds the chip, the kind and four tools in 364 px, and Esc
+   is a key every program has (CLAUDE.md: it needs no visible hint). */
+.tm-card .tm-tools .dlg-close { padding: 0 8px; }
+.tm-card .tm-tools .dlg-close kbd { display: none; }
+.is-termin.tm-card .tm-kind { margin-right: 0; }
+.tm-card .tm-tools { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+.tm-card .tm-tool { --hit: 4px; flex: none; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border-radius: 8px; color: var(--text-2); }
+.tm-card .tm-tool .icon { width: 16px; height: 16px; }
+.tm-card .tm-tool:hover { background: var(--row-hover); color: var(--text); }
+.tm-card .tm-tool[aria-expanded="true"] { background: var(--panel-3); color: var(--text); }
+.tm-card .tm-tool.danger:hover { color: var(--no); }
+.is-termin.tm-card .np { margin-right: 0; }
+.tm-card .tm-when { margin: 4px 0 0; color: var(--text-2); font-size: 13px; line-height: 1.4; }
+.tm-card .tm-when a.tm-off-date { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.tm-card .tm-sub { margin: 2px 0 0; }
+.tm-card .tm-off, .tm-card .tm-date-off { display: flex; align-items: center; gap: 6px; margin: 4px 0 0; color: var(--text-2); font-size: 13px; }
+.tm-card .tm-off .icon, .tm-card .tm-date-off > .icon { flex: none; width: 15px; height: 15px; color: var(--text-3); }
+.tm-card .tm-date-off { display: flex; margin: 0; }
+.tm-card .tm-date-off > span { flex: 1 1 auto; min-width: 0; }
+.is-termin.tm-dialog.tm-card > .dbody.tm { display: flex; flex-direction: column; padding: 14px 18px 16px; gap: 12px; }
+.tm-card .tk-time > b { font-size: 30px; }
+.tm-card .plate { font-size: 21px; }
+.tm-card .tm-lines { display: flex; flex-direction: column; gap: 6px; }
+.tm-card .tm-lines .tm-hint { margin: 0; }
+.tm-card .tm-hint a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.tm-card .tm-hint .tm-makeup { display: inline-flex; align-items: center; gap: 1px; margin-left: 8px; color: var(--accent-ink); font-weight: 600; }
+.tm-card .tm-hint .tm-makeup .icon { width: 14px; height: 14px; }
+.tm-card .tm-note-line { grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; }
+.tm-card .tm-note-text { color: var(--text); }
+.tm-card .tm-act { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.tm-card .tm-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; flex: 1 1 100%; margin: 0; color: var(--text-2); font-size: 13px; font-weight: 560; }
+.tm-card .tm-group > span { flex: 0 1 auto; min-width: 0; }
+/* „Haken wegnehmen": a text button at the line's end, not a switch pressed. */
+.is-termin.tm-card .tm-group .sw { margin-left: auto; height: 28px; padding: 0 2px; background: none; box-shadow: none; color: var(--accent-ink); font-weight: 600; }
+.is-termin.tm-card .tm-group .sw:hover { text-decoration: underline; text-underline-offset: 3px; }
+.tm-card button.tm-big { flex: 1 1 auto; border: 0; font: inherit; font-size: 15px; font-weight: 650; cursor: pointer; }
+/* It has the keyboard as the card opens (a click, then Enter): its ring says so. */
+.tm-card button.tm-big:focus { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+.tm-card .tm-act .go2 { margin-left: auto; }
+.tm-card .tm-hide { display: flex; flex-direction: column; gap: 4px; }
+.tm-card .tm-hide > h4 { display: flex; align-items: center; gap: 8px; min-height: 22px; margin: 0 0 4px; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.tm-card .tm-hide > h4 .r { margin-left: auto; color: var(--text-2); font-size: 12.5px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.tm-card .tm-hide-row { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: center; min-height: 48px; padding: 6px 8px; border-radius: 10px; color: var(--text); text-align: left; }
+.tm-card .tm-hide-row:hover, .tm-card .tm-hide-row:focus-visible { background: var(--row-hover); }
+.tm-card .tm-hide-row .ci { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
+.tm-card .tm-hide-row .ci .icon { width: 16px; height: 16px; }
+.tm-card .tm-hide-row b { display: block; font-size: 13.5px; font-weight: 650; line-height: 1.3; }
+.tm-card .tm-hide-row small { display: block; color: var(--text-3); font-size: 12px; line-height: 1.3; }
+.tm-card .tm-hide .chg-foot { margin-top: 6px; }
+.tm-card .tm-more-rows { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+.tm-card .tm-ways { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.tm-card .tm-ways :is(a.tm-all, a.tm-way) { display: inline-flex; align-items: center; gap: 2px; color: var(--accent-ink); font-size: 13px; font-weight: 600; text-decoration: none; }
+.tm-card .tm-ways :is(a.tm-all, a.tm-way):hover { text-decoration: underline; text-underline-offset: 3px; }
+.tm-card .tm-ways a .icon { width: 15px; height: 15px; }
+.tm-card .tm-ways a.tm-all kbd { margin-left: 6px; }
+.tm-card .tm-own-feed { margin: 0; color: var(--text-3); font-size: 12px; }
+/* „Ändern" in 364 px: flat, so that „Für"'s three segments have their room. */
+.tm-card .chg { padding: 0; background: none; box-shadow: none; }
+@media (max-width: 900px) {
+  .is-termin.tm-dialog.tm-card > .hero { padding: 20px 12px 10px 20px; }
+  .tm-card .tm-tool { width: 44px; height: 44px; }
+  .tm-card .tm-hide-row { min-height: 52px; }
+  .tm-card .tm-ways a { min-height: 44px; }
+  .tm-card button.tm-big { min-height: 48px; }
+  .tm-card .tm-lines .sw, .tm-card .tm-group .sw, .tm-card .tm-hint .tm-makeup { min-height: 44px; }
+  /* The large action at the sheet's foot (critique C.2). */
+  .tm-card .tm-act { order: 9; }
+  .is-termin.tm-dialog.tm-card > .dbody.tm { padding: 12px 20px 24px; }
+}
+
 /* The eye: hide or show an event, a Termin, a sitting (aria-pressed: hidden). */
 .eye { --hit: 3px; flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: var(--r-s); color: var(--text-3); transition: background .12s, color .12s; }
 .eye:hover { background: var(--panel-3); color: var(--text); }
@@ -6336,6 +6420,14 @@ div.st-col-head.past { cursor: default; }
 .st-dialog::backdrop { background: rgba(10, 12, 17, .5); }
 .st-dialog[open]::backdrop { animation: fade-in .2s ease-out; }
 :root:has(#content > .page-stage.front .st-dialog[open]) { overflow: hidden; }
+/* A dialog its owner places (`Modal`'s `at`, the card of a Termin beside its slot): its left and top
+   are data (`--x`, `--y`); it grows downward and ends inside the window. Fixed explicitly, so that
+   its copy in a held picture of the page stands under it. */
+@media (min-width: 901px) {
+  .st-dialog.placed { position: fixed; inset: auto; left: var(--x); top: var(--y); margin: 0; max-height: calc(100dvh - var(--y) - 16px); }
+}
+/* The copy of an open dialog in the picture of the page held over a step is not a second one. */
+.pending-page.held dialog { display: none; }
 .st-dlg { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 /* Head, bar and foot as tall as what they hold; the body takes the rest of the frame and scrolls. */
 .st-dlg-head, .st-dlg-bar, .st-dlg-foot { flex: none; }
