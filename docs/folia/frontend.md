@@ -1304,7 +1304,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       „Mein Studium"'s menu with „Verschieben nach ›", the Merkliste's menu of one or several
       modules, their submenus (a submenu in its menu's place stands where the menu stood), and a
       question asked in a menu's place (the Merkliste's „Leeren", a collection's „Löschen", a
-      profile's question before it is emptied or deleted).
+      profile's question before it is emptied or deleted). Such a question gives each answer a row
+      of its own, as the menu's entries, the one that takes away first and „Abbrechen" under it
+      (owner, the same day: „Beim modal sollte das unbedingt jeweils eine Zeile sein"; until then
+      the Merkliste's stood side by side at the right, as on a wide screen, where they still do).
 
     Each way chosen by what the sheet holds, measured on a phone of 390 × 844 px (owner,
     2026-11-04: „alle modal instanzen durchguckst und da einstellst, was am besten zu denen
@@ -2807,7 +2810,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     slowing down as it lets go coming to rest half up and one as long and as quick on average
     speeding up throwing it away; Esc leaving a copy that glides away; a menu a sheet of one stop
     (`menu`) exactly as tall as what it holds (the Merkliste's ⋯, under 40 % of the screen), a pull
-    up bringing it back to its height and a tap on its grabber leaving it be, thrown away by a
+    up bringing it back to its height and a tap on its grabber leaving it be, its question
+    „Merkliste leeren" each answer a row of its own across the sheet, thrown away by a
     finger, and closed by its choice leaving a copy that glides away; „Sammeln" (`auto`) a dialog that fits while it holds little, a tap on its
     grabber and a short pull leaving it where it is, half up and all up once it holds more (all up
     as it was, half up under a pull), fitting again once it holds less; „Tasten" naming its keys; „Plan einrichten" all up at once in one move, never half up, a short pull coming
