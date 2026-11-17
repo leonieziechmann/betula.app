@@ -182,8 +182,9 @@ pub(super) enum View {
 /// The dialog open over the page, if any (`dialog.rs`).
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Dialog {
-    /// An area of the progress (`Study::progress`); `None` for what counts towards none.
-    Area(Option<usize>),
+    /// An area of the progress (`Study::progress`); `None` for what counts towards none. `listed`
+    /// where it was opened from the areas' sheet: its head has the way back to it.
+    Area { area: Option<usize>, listed: bool },
     /// The areas on a phone.
     Areas,
     /// „Studiengang wechseln".
