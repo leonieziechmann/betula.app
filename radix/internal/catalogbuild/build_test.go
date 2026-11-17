@@ -309,8 +309,8 @@ func TestPrograms(t *testing.T) {
 	db, _ := buildFixture(t)
 
 	want(t, db, `SELECT id, slug, name, degree_level, degree_type, study_variant, degree_label, degree_display, po_year, po_amendment, is_latest_po, has_plan, curricular_modules, fues_modules, documents FROM v_program ORDER BY id`,
-		"079-82-2008|bachelor-informatik-2008|Informatik|bachelor|university|∅|∅|Bachelor|2008|2. SÄ 2024|1|1|3|2|1",
-		"079-88-2008|master-informatik-2008|Informatik|master|university|∅|∅|Master|2008|3. SÄ 2024|1|0|1|2|1")
+		"079-82-2008|bachelor-informatik-2008|Informatik|bachelor|university|∅|∅|Bachelor|2008|2. SÄ 2024|1|1|3|1|1",
+		"079-88-2008|master-informatik-2008|Informatik|master|university|∅|∅|Master|2008|3. SÄ 2024|1|0|1|1|1")
 	want(t, db, `SELECT program_id, counterpart_id, counterpart_level, match_score FROM v_program_counterpart ORDER BY 1`,
 		"079-82-2008|079-88-2008|master|3", "079-88-2008|079-82-2008|bachelor|3")
 	want(t, db, `SELECT COUNT(*) FROM v_program_version`, "0")
@@ -336,14 +336,11 @@ func TestMembershipRelationAndKindPrecedence(t *testing.T) {
 		// the tree has no label (v1 defaulted to Pflicht), the plan says „Modul": the page's remark decides
 		"11881|curricular|elective|module_page|stated|2|Fachstudium|main|1|1|1|∅",
 		// nothing states a kind; the title lets us infer it, marked as inferred
-		"12999|curricular|thesis|qis_tree|inferred|6|∅|∅|1|0|0|∅",
-		// FÜS module that no page admits to any program: on the FÜS list of every program that has one
-		"14037|fues|fues|∅|∅|∅|∅|∅|0|0|0|∅")
+		"12999|curricular|thesis|qis_tree|inferred|6|∅|∅|1|0|0|∅")
 
 	want(t, db, `SELECT module_id, relation, kind, kind_source FROM v_program_module WHERE program_id = '079-88-2008' ORDER BY module_id`,
 		"11152|fues|fues|∅",
-		"11881|curricular|elective|module_page", // page says „PO 2008", which fits exactly one Master PO
-		"14037|fues|fues|∅")
+		"11881|curricular|elective|module_page") // page says „PO 2008", which fits exactly one Master PO
 
 	want(t, db, `SELECT program_id, area, kind FROM v_program_module_area WHERE module_id = '11881' ORDER BY 1`, "079-82-2008|Fachstudium|∅")
 
@@ -558,7 +555,7 @@ func TestExportWritesTrimmedSnapshotWithContentETag(t *testing.T) {
 	_ = snap.QueryRow("PRAGMA journal_mode").Scan(&journal)
 	_ = snap.QueryRow("SELECT COUNT(*) FROM v_program_module WHERE program_id = '079-82-2008'").Scan(&modules)
 	_ = snap.QueryRow("SELECT COUNT(*) FROM pragma_foreign_key_check").Scan(&fkViolations)
-	if rawTables != 0 || journal != "delete" || modules != 5 || fkViolations != 0 {
+	if rawTables != 0 || journal != "delete" || modules != 4 || fkViolations != 0 {
 		t.Errorf("snapshot: raw tables %d, journal %q, modules %d, fk violations %d", rawTables, journal, modules, fkViolations)
 	}
 

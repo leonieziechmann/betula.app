@@ -10,13 +10,12 @@ import (
 	"github.com/leonieziechmann/betula/radix/internal/catalogdb"
 )
 
-// TestFUESWithoutPrograms: a FÜS module whose page admits no program („keine Zuordnung
-// vorhanden", only „Abschluss im Ausland", or no page) is on the FÜS list of every program that
-// has one (owner, 2026-11-17, of „Einführung in die Amateurfunktechnik" in Informatik: „Das ist
-// nämlich eigentlich ok"; migration 0021). Where it is curricular it stays curricular; a program
-// without a FÜS list gets none, as Folia leads it to the BTU's whole list; a page that names
-// programs admits those alone, also one that names a program Betula does not know.
-func TestFUESWithoutPrograms(t *testing.T) {
+// TestFUESListIsWhatThePageAdmits: a FÜS module is on a program's FÜS list where its page admits
+// the program and it is not curricular there, and nowhere else. One whose page admits no program
+// („keine Zuordnung vorhanden", only „Abschluss im Ausland", or no page) is on none: its page names
+// none because the FÜS catalog of the current semester does not hold it, as „Einführung in die
+// Amateurfunktechnik" in the winter (migration 0022, which withdraws 0021's rule).
+func TestFUESListIsWhatThePageAdmits(t *testing.T) {
 	db, err := catalogdb.Open(filepath.Join(t.TempDir(), "fues.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -94,14 +93,9 @@ func TestFUESWithoutPrograms(t *testing.T) {
 	rows.Close()
 	want := []string{
 		"079-82-2008 11152 fues fues ∅ ∅ 0 1 0",
-		"079-82-2008 12045 fues fues ∅ ∅ 0 0 0",
-		"079-82-2008 14037 fues fues ∅ ∅ 0 0 0",
-		"079-82-2008 14077 fues fues ∅ ∅ 0 0 0",
 		"079-88-2008 11152 fues fues ∅ ∅ 0 1 0",
 		"079-88-2008 12045 curricular ∅ ∅ Fachstudium 1 0 0",
 		"079-88-2008 12396 curricular ∅ ∅ Fachstudium 1 1 0",
-		"079-88-2008 14037 fues fues ∅ ∅ 0 0 0",
-		"079-88-2008 14077 fues fues ∅ ∅ 0 0 0",
 		"853-88-2016 11101 curricular ∅ ∅ Pflichtmodule 1 0 0",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
@@ -109,8 +103,8 @@ func TestFUESWithoutPrograms(t *testing.T) {
 	}
 }
 
-// What validate reports is what the pages state, not the pairs since: in the fixture 14037, known
-// from the FÜS list alone, while ERP's page admits both programs.
+// What validate reports is what the pages state: in the fixture 14037, known from the FÜS list
+// alone, while ERP's page admits both programs.
 func TestValidateCountsFUESModulesWithoutPrograms(t *testing.T) {
 	db, _ := buildFixture(t)
 	if c := validated(t, db)["FÜS modules whose page admits no program"]; c.Status != catalogdb.StatusInfo || c.Value != 1 {
