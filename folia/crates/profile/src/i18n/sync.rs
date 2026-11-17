@@ -34,11 +34,22 @@ pub struct Texts {
     // Why something did not happen: `folia_widgets::syncpair::problem_text`.
 
     // ---- a synced profile's actions ----
-    /// „Gerät verbinden": the button and the dialog's title.
+    /// „Gerät verbinden": the row's title and the dialog's; the line under it in a synced
+    /// profile (in a private one `activate_hint`); its button's word.
     pub pair: &'static str,
+    pub pair_hint: &'static str,
+    pub pair_button: &'static str,
     /// The only profile, empty and private (a new device): what to do on the device that has it.
     pub alone_lead: &'static str,
     pub alone_phone: &'static str,
+    /// Its rows: „Profil vom Handy holen" on a wide screen, „Code am Rechner scannen" on a phone,
+    /// „Wiederherstellungscode eingeben" (the titles: `scan`); the line under each where it has
+    /// none of its own, and the buttons' words.
+    pub get_hint: &'static str,
+    pub get_button: &'static str,
+    pub scan_hint: &'static str,
+    pub scan_button: &'static str,
+    pub recover_button: &'static str,
     /// The dialog once the link is shown: a device that came while it was open (the value is the
     /// profile's name), „Fertig".
     pub joined: fn(&str) -> String,
@@ -48,10 +59,11 @@ pub struct Texts {
     /// „Kopiert" for a moment after „Code kopieren".
     pub copied: &'static str,
     pub close: &'static str,
-    /// „Wiederherstellungscode zeigen", the line under it, what it is, „Code kopieren",
-    /// „Verbergen".
+    /// „Wiederherstellungscode": the row's title, the line under it, its button's word („Anzeigen";
+    /// „Verbergen" while it is shown), what it is, „Code kopieren", „Verbergen".
     pub code_show: &'static str,
     pub code_hint: &'static str,
+    pub code_button: &'static str,
     pub code_lead: &'static str,
     pub code_copy: &'static str,
     pub code_hide: &'static str,
@@ -186,8 +198,15 @@ pub const DE: Texts = Texts {
     retry: "Erneut versuchen",
 
     pair: "Gerät verbinden",
-    alone_lead: "Hast du Betula schon auf dem Handy? Hol dein Profil hierher: Der Rechner zeigt einen Code, dein Handy scannt ihn.",
-    alone_phone: "Hast du Betula schon auf einem anderen Gerät? Lass es dort unter „Gerät verbinden“ einen Code zeigen und scanne ihn hier.",
+    pair_hint: "Noch ein Handy, Tablet oder einen Rechner",
+    pair_button: "Verbinden",
+    alone_lead: "Hast du Betula schon auf dem Handy? Dann hol dein Profil hierher.",
+    alone_phone: "Hast du Betula schon auf einem anderen Gerät? Dann hol dein Profil hierher.",
+    get_hint: "Der Rechner zeigt einen Code, dein Handy scannt ihn",
+    get_button: "Holen",
+    scan_hint: "Das andere Gerät zeigt ihn unter „Gerät verbinden“",
+    scan_button: "Scannen",
+    recover_button: "Eingeben",
     joined: |name| format!("Ein weiteres Gerät ist verbunden. „{name}“ ist jetzt auch dort."),
     done: "Fertig",
     pairing: "Link wird vorbereitet …",
@@ -195,6 +214,7 @@ pub const DE: Texts = Texts {
     close: "Schließen",
     code_show: "Wiederherstellungscode",
     code_hint: "Holt das Profil ohne deine Geräte zurück",
+    code_button: "Anzeigen",
     code_lead: "Wer diesen Code hat, hat das Profil. Bewahre ihn auf wie ein Passwort, etwa in deinem Passwortmanager; auf ein neues Gerät holst du das Profil damit unter „Profil von einem anderen Gerät“.",
     code_copy: "Code kopieren",
     code_hide: "Verbergen",
@@ -307,8 +327,15 @@ pub const EN: Texts = Texts {
     retry: "Try again",
 
     pair: "Connect a device",
-    alone_lead: "Already have Betula on your phone? Bring your profile here: the computer shows a code, your phone scans it.",
-    alone_phone: "Already have Betula on another device? Have it show a code under “Connect a device” and scan it here.",
+    pair_hint: "Another phone, tablet or computer",
+    pair_button: "Connect",
+    alone_lead: "Already have Betula on your phone? Then bring your profile here.",
+    alone_phone: "Already have Betula on another device? Then bring your profile here.",
+    get_hint: "This computer shows a code, your phone scans it",
+    get_button: "Get",
+    scan_hint: "The other device shows it under “Connect a device”",
+    scan_button: "Scan",
+    recover_button: "Enter",
     joined: |name| format!("Another device is connected. “{name}” is there as well now."),
     done: "Done",
     pairing: "Preparing the link …",
@@ -316,6 +343,7 @@ pub const EN: Texts = Texts {
     close: "Close",
     code_show: "Recovery code",
     code_hint: "Gets the profile back without your devices",
+    code_button: "Show",
     code_lead: "Whoever has this code has the profile. Keep it like a password, for example in your password manager; on a new device you get the profile with it under “Profile from another device”.",
     code_copy: "Copy code",
     code_hide: "Hide",

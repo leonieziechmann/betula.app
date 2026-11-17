@@ -5599,7 +5599,9 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   with the credits, collections and notes, saved plans; none is a link, the rail has the ways. Then
   Betula Sync (below, `#devices`), „Daten“ („Als Datei sichern“) and the „Gefahrenzone“: „Profil
   leeren“ and „Profil löschen“, each a row with its icon on a tile and a button of one width with
-  the same icon (the only profile is emptied, and says so before). Every question before something
+  the same icon (the only profile is emptied, and says so before), as Betula Sync's actions are
+  since Folia 1.97.2 (132 px, 116 px on a phone: the longest German word, „Verbinden“ and
+  „Speichern“; a longer one makes its button wider). Every question before something
   that takes away („Profil leeren“, „Profil löschen“, „Entfernen“ of a device, „Nur dieses Gerät
   trennen“, „Sync beenden“) is a menu at its button since 2026-11-09 (`folia_profile::confirm`,
   app.css `.st-pop`, a sheet from below on a phone; owner: „(kontext) menus verwenden, um das
@@ -5648,9 +5650,16 @@ switched on; R20 has the exception.
   direkt“, „Rechner · Firefox · Windows — vor 2 Std.“), this device first, then those online, then
   by when they were last seen, a device online that named nothing as „Ein weiteres Gerät“, and
   „Entfernen“ for another device (it stands in no list any more and leaves the next time it is
-  online, with its copy; for a lost one the menu says to end Sync and start anew), „Gerät
-  verbinden“, „Wiederherstellungscode“ (with „Code kopieren“ and „Verbergen“), and quiet at the end
-  „Nur dieses Gerät trennen“ and „Sync beenden“, each after a question in a menu at its button.
+  online, with its copy; for a lost one the menu says to end Sync and start anew), then „Gerät
+  verbinden“, „Wiederherstellungscode“ (the code under its row, with „Code kopieren“; the row's
+  button says „Verbergen“ while it is shown), „Nur dieses Gerät trennen“ and „Sync beenden“, the
+  last two after a question in a menu at their button. Since Folia 1.97.2 each of its actions in
+  every state is a row as those of „Daten“ and the Gefahrenzone (`profile::ActionRow`; owner,
+  2026-11-17: „da sind die Buttons etwas komisch aligned. Das kann einfach ordentlicher
+  aussehen“): its icon on a tile, its title and a sentence, a button of one width at the right with
+  a short word („Verbinden“, „Anzeigen“, „Trennen“, „Beenden“), named in full for those who do not
+  see it (`aria-label`: „Sync beenden“); „Gerät verbinden“ the one emphasized. Before, the part had
+  its buttons at the left under its text, of different widths, and the last two as quiet links.
   The menu of the profiles names the devices online („Synchron · Pixel 7 online“) where each of
   them named itself.
   Ended on another device: private again with all it holds, „Wieder aktivieren“. The only profile,

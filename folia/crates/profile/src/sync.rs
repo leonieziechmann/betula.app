@@ -5,9 +5,11 @@
 //! of the profiles leads.
 //!
 //! - **Private**: what it is, and „Gerät verbinden".
-//! - **Synced**: online with how many other devices, or offline; „Gerät verbinden",
-//!   „Wiederherstellungscode", and quiet at the end „Nur dieses Gerät trennen" and „Sync beenden",
-//!   each after a question.
+//! - **Synced**: online with how many other devices, or offline; the devices; „Gerät verbinden",
+//!   „Wiederherstellungscode", „Nur dieses Gerät trennen" and „Sync beenden", the last two after a
+//!   question. Each a row as those of „Daten" and the Gefahrenzone (`profile::ActionRow`; owner,
+//!   2026-11-17: „da sind die Buttons etwas komisch aligned"), „Gerät verbinden" the one
+//!   emphasized.
 //! - **The only profile, empty and private** (a new device): what to do on the device that has it,
 //!   and the recovery code typed in (`FromOther`, also under „Profil hinzufügen").
 //! - **Ended** on another device, or failed: why, and the way on.
@@ -41,6 +43,7 @@ pub use folia_widgets::syncpair::problem_text;
 
 use crate::confirm::{Confirm, Question};
 use crate::i18n;
+use crate::profile::ActionRow;
 
 const CONNECT_ID: &str = "pf-sync-connect";
 const ACTIVATE_YES_ID: &str = "pf-sync-yes";
@@ -129,16 +132,12 @@ pub fn SyncPart(#[prop(into)] empty: Signal<bool>) -> impl IntoView {
         }
         now
     });
-    let show_code = move |_| {
+    let show_code = move || {
         if open.with_untracked(|open| matches!(open, Open::Code(_))) {
             open.set(Open::Nothing);
         } else if let Some(code) = sync.recovery_code(id.get_untracked()) {
             open.set(Open::Code(code));
         }
-    };
-    let cancel = move |back: &'static str| {
-        open.set(Open::Nothing);
-        request_animation_frame(move || nav::focus_by_id(back));
     };
 
     let status = move || {
@@ -158,24 +157,24 @@ pub fn SyncPart(#[prop(into)] empty: Signal<bool>) -> impl IntoView {
         })
     };
 
-    let connect_button = move |label: &'static str| {
+    // „Gerät verbinden", a row of its own like those of „Daten" and the Gefahrenzone (owner,
+    // 2026-11-17): on a wide screen its button opens the dialog; on a phone it leads to the scanner,
+    // which shows a code of its own on request (concept, second round: „Am Handy führt „Gerät
+    // verbinden“ zum Scanner"). The one emphasized button of the part.
+    let give = Callback::new(move |()| dialog.set(Some(Direction::Give)));
+    let connect_rows = move |line: &'static str| {
         view! {
-            <button class="btn primary" type="button" id=CONNECT_ID on:click=move |_| dialog.set(Some(Direction::Give))>
-                <Icon name="monitor-smartphone"/><span>{label}</span>
-            </button>
+            <ActionRow class="only-desk" icon="monitor-smartphone" title=s.pair.to_string() line=line.to_string() label=s.pair_button.to_string() name=s.pair id=CONNECT_ID primary=true on_press=give/>
+            <ActionRow class="only-phone" icon="scan-line" title=s.pair.to_string() line=line.to_string() label=s.pair_button.to_string() name=s.pair id="pf-sync-scan" primary=true href=t.path(url::CONNECT)/>
         }
     };
-    // „Gerät verbinden" on a wide screen opens the dialog; on a phone it leads to the scanner, which
-    // shows a code of its own on request (concept, second round: „Am Handy führt „Gerät verbinden“
-    // zum Scanner").
-    let connect_ways = move || {
+    // Switched on again after it ended, or once more after it failed: the same row, the button
+    // saying so.
+    let again_row = move |label: &'static str| {
         view! {
-            <button class="btn primary only-desk" type="button" id=CONNECT_ID on:click=move |_| dialog.set(Some(Direction::Give))>
-                <Icon name="monitor-smartphone"/><span>{s.pair}</span>
-            </button>
-            <a class="btn primary only-phone" id="pf-sync-scan" href=t.path(url::CONNECT) rel="nofollow">
-                <Icon name="scan-line"/><span>{s.pair}</span>
-            </a>
+            <div class="pf-arows">
+                <ActionRow icon="monitor-smartphone" title=s.pair.to_string() line=s.activate_hint.to_string() label=label.to_string() id=CONNECT_ID primary=true on_press=give/>
+            </div>
         }
     };
     // The body follows the kind of state alone: a synced profile's list of devices stays, and the
@@ -196,20 +195,33 @@ pub fn SyncPart(#[prop(into)] empty: Signal<bool>) -> impl IntoView {
         State::Starting => Shape::Starting,
         State::Online { .. } | State::Offline => Shape::Synced,
     });
+    // The recovery code, shown under its row.
+    let opened = move || match open.get() {
+        Open::Nothing => ().into_any(),
+        Open::Code(code) => view! { <RecoveryCode code/> }.into_any(),
+    };
+    let code_open = Signal::derive(move || open.with(|open| matches!(open, Open::Code(_))));
+    let asked = move |at: &'static str| Signal::derive(move || leaving.with(|asking| asking.as_ref().is_some_and(|q| q.at == at)));
     let body = move || {
         if alone.get() {
             let c = &t.scan;
             return view! {
                 <p class="pf-sub pf-sync-lead only-desk">{s.alone_lead}</p>
                 <p class="pf-sub pf-sync-lead only-phone">{s.alone_phone}</p>
-                <div class="pf-sync-actions">
-                    <button class="btn primary only-desk" type="button" id=GET_ID on:click=move |_| dialog.set(Some(Direction::Get))>
-                        <Icon name="download"/><span>{c.dir_get}</span>
-                    </button>
-                    <a class="btn primary only-phone" href=t.path(url::CONNECT) rel="nofollow"><Icon name="scan-line"/><span>{c.scan_way}</span></a>
-                    <button class="btn secondary" type="button" id=RECOVER_WAY_ID aria-expanded=move || if recovering.get() { "true" } else { "false" } on:click=move |_| recovering.update(|open| *open = !*open)>
-                        <Icon name="lock"/><span>{c.no_phone_way}</span>
-                    </button>
+                <div class="pf-arows">
+                    <ActionRow class="only-desk" icon="download" title=c.dir_get.to_string() line=s.get_hint.to_string() label=s.get_button.to_string() name=c.dir_get id=GET_ID primary=true on_press=Callback::new(move |()| dialog.set(Some(Direction::Get)))/>
+                    <ActionRow class="only-phone" icon="scan-line" title=c.scan_way.to_string() line=s.scan_hint.to_string() label=s.scan_button.to_string() name=c.scan_way id="pf-sync-scan" primary=true href=t.path(url::CONNECT)/>
+                    <ActionRow
+                        icon="lock"
+                        title=c.no_phone_way.to_string()
+                        line=s.code_hint.to_string()
+                        label=s.recover_button.to_string()
+                        name=c.no_phone_way
+                        id=RECOVER_WAY_ID
+                        expanded=Signal::derive(move || recovering.get())
+                        disclosure=true
+                        on_press=Callback::new(move |()| recovering.update(|open| *open = !*open))
+                    />
                 </div>
                 {move || recovering.get().then(|| view! { <FromOther sync id=RECOVER_ID/> })}
             }
@@ -218,34 +230,35 @@ pub fn SyncPart(#[prop(into)] empty: Signal<bool>) -> impl IntoView {
         match shape.get() {
             Shape::Private => view! {
                 <p class="pf-sub pf-sync-lead">{s.private_lead}</p>
-                <div class="pf-sync-actions">{connect_ways()}</div>
+                <div class="pf-arows">{connect_rows(s.activate_hint)}</div>
             }
             .into_any(),
-            Shape::Ended => view! { <div class="pf-sync-actions">{connect_button(s.ended_again)}</div> }.into_any(),
-            Shape::Failed => view! { <div class="pf-sync-actions">{connect_button(s.retry)}</div> }.into_any(),
+            Shape::Ended => again_row(s.ended_again).into_any(),
+            Shape::Failed => again_row(s.retry).into_any(),
             Shape::Starting => ().into_any(),
             Shape::Synced => view! {
-                <DeviceList sync id/>
                 <p class="pf-sub pf-sync-lead">{s.synced_lead}</p>
-                <div class="pf-sync-actions">
-                    {connect_ways()}
-                    <button class="btn secondary" type="button" id=CODE_ID aria-expanded=move || if open.with(|open| matches!(open, Open::Code(_))) { "true" } else { "false" } on:click=show_code>
-                        <Icon name="lock"/><span>{s.code_show}</span>
-                    </button>
+                <DeviceList sync id/>
+                <div class="pf-arows">
+                    {connect_rows(s.pair_hint)}
+                    <ActionRow
+                        icon="lock"
+                        title=s.code_show.to_string()
+                        line=s.code_hint.to_string()
+                        label=Signal::derive(move || if code_open.get() { s.code_hide } else { s.code_button }.to_string())
+                        name=s.code_show
+                        id=CODE_ID
+                        expanded=code_open
+                        disclosure=true
+                        on_press=Callback::new(move |()| show_code())
+                    />
+                    {opened}
+                    <ActionRow icon="x" title=s.leave.to_string() line=s.leave_hint.to_string() label=s.leave_yes.to_string() name=s.leave id=LEAVE_ID expanded=asked(LEAVE_ID) on_press=Callback::new(move |()| ask(LEAVE_ID))/>
+                    <ActionRow icon="trash-2" title=s.stop.to_string() line=s.stop_hint.to_string() label=s.stop_yes.to_string() name=s.stop id=STOP_ID expanded=asked(STOP_ID) on_press=Callback::new(move |()| ask(STOP_ID))/>
                 </div>
-                <p class="pf-sync-quiet">
-                    <button class="linkish" type="button" id=LEAVE_ID aria-haspopup="dialog" on:click=move |_| ask(LEAVE_ID)>{s.leave}</button>
-                    <button class="linkish" type="button" id=STOP_ID aria-haspopup="dialog" on:click=move |_| ask(STOP_ID)>{s.stop}</button>
-                </p>
             }
             .into_any(),
         }
-    };
-
-    // What is open below the actions of a synced profile.
-    let opened = move || match open.get() {
-        Open::Nothing => ().into_any(),
-        Open::Code(code) => view! { <RecoveryCode code close=Callback::new(move |()| cancel(CODE_ID))/> }.into_any(),
     };
 
     view! {
@@ -253,7 +266,6 @@ pub fn SyncPart(#[prop(into)] empty: Signal<bool>) -> impl IntoView {
             <h2 id="pf-sync"><Icon name="monitor-smartphone"/>{s.heading}</h2>
             {status}
             {body}
-            {opened}
             <Confirm asking=leaving on_yes=Callback::new(move |yes: &'static str| match yes {
                 LEAVE_YES_ID => sync.leave(id.get_untracked()),
                 STOP_YES_ID => sync.stop(id.get_untracked()),
@@ -702,9 +714,10 @@ fn profiles_name(id: u16) -> String {
     Profiles::expect().and_then(|profiles| untrack(|| profiles.all()).into_iter().find(|profile| profile.id == id)).map(|profile| profile.shown(t.locale)).unwrap_or_default()
 }
 
-/// The recovery code shown: what it is, „Code kopieren", „Verbergen".
+/// The recovery code shown under its row: what it is, „Code kopieren"; the row's button hides it
+/// again („Verbergen").
 #[component]
-fn RecoveryCode(code: String, close: Callback<()>) -> impl IntoView {
+fn RecoveryCode(code: String) -> impl IntoView {
     let t = i18n::t();
     let s = &t.sync;
     let copied = RwSignal::new(false);
@@ -723,7 +736,6 @@ fn RecoveryCode(code: String, close: Callback<()>) -> impl IntoView {
                     {move || view! { <Icon name=if copied.get() { "check" } else { "copy" }/> }}
                     <span>{move || if copied.get() { s.copied } else { s.code_copy }}</span>
                 </button>
-                <button class="mini hit" type="button" on:click=move |_| close.run(())>{s.code_hide}</button>
             </div>
         </div>
     }
