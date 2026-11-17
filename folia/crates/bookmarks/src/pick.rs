@@ -245,6 +245,8 @@ impl Picking {
 
     /// Selects the row or lets it go.
     pub fn toggle(self, id: &str) {
+        // A row more or less selected: felt as a step, as a row drawn into the selection is.
+        haptic::play(Haptic::Tick);
         self.picked.update(|picked| {
             if !picked.ids.remove(id) {
                 picked.ids.insert(id.to_string());

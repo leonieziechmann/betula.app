@@ -681,8 +681,10 @@ fn painted(order: &[String], paint: &Paint, at: usize) -> BTreeSet<String> {
     keys
 }
 
-/// Selects the row `key` of semester `s`, or lets it go.
+/// Selects the row `key` of semester `s`, or lets it go: felt as a step, as a row drawn into the
+/// selection is.
 fn toggle(ctx: StudyCtx, s: SemesterKey, key: &str) {
+    haptic::play(Haptic::Tick);
     ctx.selection.update(|selection| {
         if selection.semester != Some(s) {
             *selection = Selection { semester: Some(s), ..Selection::default() };
