@@ -483,7 +483,52 @@ impl Group {
     }
 }
 
+/// What a choice asks by a Fachsemester and holds by then (`PlanView::by`).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct By {
+    pub passed: f64,
+    /// Planned and not passed.
+    pub planned: f64,
+    pub least: f64,
+    pub most: f64,
+    /// It asks for less by then than in all (`Choice::least`).
+    pub part: bool,
+}
+
 impl PlanView {
+    /// What choice `at` asks by Fachsemester `fs`, and what of it is passed or planned by then
+    /// (owner, 2026-11-17, of the workbench's card „Anwendungsfach 0 / 12 LP" in the third
+    /// semester: „weil da halt ab semester 3 schon steht, dass man davon 12 lp braucht obwohl man
+    /// da eigentlich nur 6 braucht. Bei semester 4 würden dann 12 lp stehen, wovon 6 schon erfüllt
+    /// sind. Also nur so viele lp anzeigen, wie bis zu dem semester schon erledigt sein sollten"):
+    /// of its rows those that begin by then, each with what it says — the Anwendungsfach of the
+    /// 3. and the 4. FS, 6 LP each, asks 6 by the third and 12 by the fourth. A row over several
+    /// Fachsemester asks all of its own from its first on (the plan does not say how it is
+    /// split), and what is taken counts up to its last; before the choice begins it asks what its
+    /// first Fachsemester does (taken early). `semester_of`: the semester of a Fachsemester
+    /// (`study::semester_of_fs`); where the study has none for it, all that is taken counts.
+    pub fn by(&self, at: usize, fs: u8, semester_of: impl Fn(u8) -> Option<SemesterKey>) -> By {
+        let Some(choice) = self.choices.get(at) else { return By::default() };
+        let by = fs.max(choice.first);
+        let rows: Vec<&PlanLine> = choice.lines.iter().filter_map(|line| self.lines.get(*line)).collect();
+        let due: Vec<&PlanLine> = rows.iter().copied().filter(|line| line.first <= by).collect();
+        let part = due.len() < rows.len();
+        let (least, most) = match part {
+            false => (choice.least, choice.most.max(choice.least)),
+            true => due.iter().fold((0.0, 0.0), |(least, most), line| {
+                let (low, high) = line.credits_text.as_deref().and_then(study::credits_range).or(line.credits.map(|credits| (credits, credits))).unwrap_or((0.0, 0.0));
+                (least + low, most + high.max(low))
+            }),
+        };
+        let until = semester_of(due.iter().map(|line| line.last).max().unwrap_or(by).max(by));
+        let held = |passed: bool| -> f64 { choice.taken.iter().filter(|taken| taken.passed == passed && until.is_none_or(|until| taken.semester <= until)).filter_map(|taken| taken.credits).sum() };
+        let mut passed = held(true);
+        if choice.done.is_some_and(|done| until.is_none_or(|until| done <= until)) {
+            passed = passed.max(least);
+        }
+        By { passed, planned: held(false), least, most, part: part && least + EPSILON < choice.least }
+    }
+
     /// The group a choice is part of.
     pub fn group_of(&self, choice: usize) -> Option<&Group> {
         self.groups.iter().find(|group| group.choices().any(|at| at == choice))

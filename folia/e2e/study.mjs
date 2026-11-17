@@ -81,7 +81,11 @@
 //   im 6. Semester im Default sein"): Systemtheorie I (6 LP) planned for the Anwendungsfach in
 //   WiSe 2026/27 — the Nebenfach's bar has nothing open there and „+12" in SoSe 2027, the
 //   Anwendungsfach's subsection „+6" there; moved to SoSe 2027, the „+6" is the winter's; the
-//   Bachelor-Arbeit of the 5.–6. FS stands in SoSe 2028 and says both.
+//   Bachelor-Arbeit of the 5.–6. FS stands in SoSe 2028 and says both. The workbench's card of
+//   a choice says what it asks by its semester (owner, the same day: „nur so viele lp anzeigen,
+//   wie bis zu dem semester schon erledigt sein sollten"): the Anwendungsfach „0 / 6 LP" in WiSe
+//   2026/27 with „insgesamt 12 LP" beside it, „0 / 12 LP" in SoSe 2027; with the module of the
+//   third semester „6 / 6 LP" there and „6 / 12 LP" in the fourth.
 // 3 a phone: the overview first (owner, 2026-10-05), the bar with its legend, the program's card
 //   and its ways („Ordnungen & Dokumente" among them, a page of its own), the box „Studium
 //   planen" with a column per semester, the way to all programs, and no sidebar; one row of pages
@@ -1202,6 +1206,25 @@ if (current !== "2026W") {
   await step("Studium, the module in the fourth", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && [...document.querySelectorAll(".st-rm-sub .st-card-name")].some((name) => name.textContent === "Anwendungsfach"));
   const fourth = { area: await openOf("Nebenfach"), choice: await openOf("Anwendungsfach") };
   check(fourth.area === "2026W +6, 2027S +6" && fourth.choice === "2026W +6", `a module of the fourth semester, the Anwendungsfach's open row: ${JSON.stringify(fourth)}`);
+  // The workbench's card of the Anwendungsfach: what it holds of what it asks by the semester,
+  // and the lines under it.
+  const card = () => page.evaluate(() => {
+    const row = [...document.querySelectorAll(".st-wb-half .st-wb-row.choice")].find((row) => row.querySelector(".st-wb-ct > b")?.textContent === "Anwendungsfach");
+    return row ? [row.querySelector(".st-wb-fig")?.textContent, ...[...row.querySelectorAll(".st-wb-go > small > span")].map((span) => span.textContent.trim())].join(" | ").replace(/\u00a0/g, " ") : null;
+  });
+  const cards = async (plan, add) => {
+    await page.evaluate(() => localStorage.removeItem("betula.study.view"));
+    await seed([[MINE, THIRD], [PLAN, plan]]);
+    await step("Studium, for the choice's card", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
+    await step("Module hinzufügen, for the choice's card", () => page.click(`.st-card-sem ${add}`), () => document.querySelector(".st-wb-half .st-wb-sk")?.textContent === "Laut Plan im 3. FS");
+    const third = await card();
+    await step("› SoSe 2027, for the choice's card", () => page.click(".st-card-sem > .st-sem-head .st-turn >> nth=1"), () => document.querySelector(".st-wb-half .st-wb-sk")?.textContent === "Laut Plan im 4. FS");
+    return [third, await card()];
+  };
+  const asked = await cards(FILLED, ".st-empty-add");
+  check(asked[0] === "0 / 6 LP | Nebenfach | laut Plan 3. und 4. FS | insgesamt 12 LP" && asked[1] === "0 / 12 LP | Nebenfach | laut Plan 3. und 4. FS", `the Anwendungsfach's card by its semester: ${JSON.stringify(asked)}`);
+  const held = await cards(FILLED + systemtheorie("2026W"), ".st-add");
+  check(held[0] === "6 / 6 LP | Nebenfach | laut Plan 3. und 4. FS | insgesamt 12 LP" && held[1] === "6 / 12 LP | Nebenfach | laut Plan 3. und 4. FS", `the Anwendungsfach's card with a module of the third semester: ${JSON.stringify(held)}`);
   await context.close();
 }
 
@@ -1428,7 +1451,7 @@ if (current !== "2026W") {
       figure: choice?.querySelector(".st-wb-fig")?.textContent,
     };
   });
-  check(/^8\s*LP$/.test(balanced.words ?? "") && balanced.middle >= 0 && balanced.middle <= 2 && balanced.right <= 1 && balanced.lines === 1 && balanced.dashed === "dashed" && balanced.bar && /^\d+ \/ 12 LP$/.test(balanced.figure ?? ""), `a module and a choice in the sheet: ${JSON.stringify(balanced)}`);
+  check(/^8\s*LP$/.test(balanced.words ?? "") && balanced.middle >= 0 && balanced.middle <= 2 && balanced.right <= 1 && balanced.lines === 1 && balanced.dashed === "dashed" && balanced.bar && /^\d+ \/ 6 LP$/.test(balanced.figure ?? ""), `a module and a choice in the sheet: ${JSON.stringify(balanced)}`);
   // What „Plan übernehmen" takes: the Pflicht of the 3. FS that stands nowhere yet (Softwarepraktikum
   // and Mathematik IT-3 are planned into SoSe 2027 here, and stay there).
   const taking = Number((await page.textContent("#st-wb-takeover")).match(/\d+/)?.[0] || 0);
@@ -1464,7 +1487,7 @@ if (current !== "2026W") {
     chips: [...document.querySelectorAll(".st-wb-page .st-wb-chips > .st-wb-chip")].map((chip) => (chip.querySelector(":scope > span") ?? chip).textContent.trim()).join("|"),
     fach: document.querySelectorAll("#st-wb-fach > option").length,
   }));
-  check(into.crumbs === "Übersicht" && into.name === "Anwendungsfach" && into.title === "Hinzufügen zu WiSe 2026/27" && into.way === "in" && /^\d+ \/ 12 LP$/.test(into.figure ?? "") && into.bar
+  check(into.crumbs === "Übersicht" && into.name === "Anwendungsfach" && into.title === "Hinzufügen zu WiSe 2026/27" && into.way === "in" && /^\d+ \/ 6 LP$/.test(into.figure ?? "") && into.bar
     && into.chips === "Alle 5 Fächer|Im WiSe angeboten|Passt in meine Woche" && into.fach === 6, `a choice's page in the sheet: ${JSON.stringify(into)}`);
   // „Fach" is a chip over the phone's own list (a `<select>`): a Fach picked, its modules alone.
   const all = await page.evaluate(() => document.querySelectorAll(".st-wb-page .st-wb-row").length);
