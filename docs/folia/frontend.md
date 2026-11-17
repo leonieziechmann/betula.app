@@ -2645,7 +2645,19 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     over several Fachsemester is one of each from the one it is due in on, `PlanLine::due`: the
     Bachelor-Arbeit of „5.–6. FS" is the sixth's, Folia 1.97.4, and the fifth has it under „Aus dem
     6. FS vorziehen", where until then its „Plan übernehmen" took it), the
-    Pflicht not yet planned, its choices as dashed cards with their bars going into their subgroup,
+    Pflicht not yet planned, its choices as dashed cards with their bars going into their subgroup
+    (a card says what its choice asks by the semester's Fachsemester and what of it stands by
+    then, `PlanView::by`, Folia 1.97.6; owner, 2026-11-17: „weil da halt ab semester 3 schon steht,
+    dass man davon 12 lp braucht obwohl man da eigentlich nur 6 braucht. Bei semester 4 würden dann
+    12 lp stehen, wovon 6 schon erfüllt sind. Also nur so viele lp anzeigen, wie bis zu dem
+    semester schon erledigt sein sollten": the Anwendungsfach of the 3. and the 4. FS, 6 LP each,
+    is „0 / 6 LP" in the third semester with „insgesamt 12 LP" beside its span, and „6 / 12 LP" in
+    the fourth once 6 are planned by then; a module of the fourth alone leaves the third's card at
+    „0 / 6 LP", as the Gesamtplan has the third's row open; a row over several Fachsemester asks
+    all of its own from its first on, the plan not saying how it is split, and what is planned up
+    to its last counts. The head of the choice's page in that workbench says the same, its rule the
+    whole; the tree of „Alle Bereiche" has every subgroup as a whole, that being the study. Until
+    then card and head said the whole choice, „0 / 12 LP" from the third semester on),
     the stored placeholders of the semester whose choice is not among them, what is open from the
     Fachsemester before it (the Pflicht's rows that stand nowhere, choices not complete — the FÜS of
     the 1. FS —, what was not passed and is not planned again), then under „Aus dem 4. FS

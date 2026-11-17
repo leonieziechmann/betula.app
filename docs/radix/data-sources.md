@@ -341,12 +341,17 @@ says „Zuordnung zu Studiengängen: keine Zuordnung vorhanden" beside „Das Mo
 Fachübergreifende Studium zugelassen.", and a page that names no program restricts no one: the
 Ordnung zum Fachübergreifenden Studium (ABl. 04/2010, § 3) lets a student choose freely from the
 FÜS catalog but for the Pflicht and Wahlpflicht modules of the own program and a program's
-published „Negativliste". Evidence (canary, 2026-11-17): 25 of the 289 FÜS modules admit no
-program, 19 with „keine Zuordnung vorhanden" and 6 with nothing but „Abschluss im Ausland"; none
-of them is curricular in a program with a FÜS list. A page that names programs still admits those
-alone: 86 FÜS modules name only programs they are curricular in (48 of them five programs or
-fewer, the others at most 20; 12396 Thermische Systembetrachtungen names Elektrotechnik alone)
-and are on no FÜS list.
+published „Negativliste". Why a page names none, the owner the same day: „wenn ein füs modul
+keine Studiengänge nennt dann ist das wahrscheinlich der fall, weil es zu keinem gehört. Module
+bei denen das der fall ist machen dann meistens alle oder keine Studiengänge der uni da rein." —
+a FÜS module that belongs to no program names all programs or none, and both mean all. Evidence
+(canary, 2026-11-17): 25 of the 289 FÜS modules admit no program, 19 with „keine Zuordnung
+vorhanden" and 6 with nothing but „Abschluss im Ausland"; they are exactly the FÜS modules that
+are in no program's tree or plan, and 134 others name more than 100 programs. A page that names
+programs still admits those alone: 86 FÜS modules name only programs they are curricular in (48
+of them five programs or fewer, the others at most 20; 12396 Thermische Systembetrachtungen names
+Elektrotechnik alone) and are on no FÜS list; whether they are FÜS for every other program is
+open (asked 2026-11-17).
 Schema 21, `docs/radix/schema-v2.md` „Membership and kind".
 
 **Q2. Conflicting module kind (tree vs plan).**

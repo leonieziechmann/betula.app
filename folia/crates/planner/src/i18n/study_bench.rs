@@ -112,6 +112,8 @@ pub struct Texts {
     pub path: &'static str,
     /// „vorgemerkt" at a choice reserved in the semester.
     pub reserved_mark: &'static str,
+    /// „insgesamt 12 LP": what a choice asks in all, beside what it asks by the semester.
+    pub in_all: fn(&str) -> String,
 
     // The menu of a row.
     /// „Zählt für ›", its entries and the one that leaves it to the tree; the note („Analysis II
@@ -247,6 +249,7 @@ pub const DE: Texts = Texts {
     back: "Zurück",
     path: "Wo du bist",
     reserved_mark: "vorgemerkt",
+    in_all: |credits| format!("insgesamt {credits}"),
 
     counts_menu: "Zählt für",
     counts_tree: "Automatisch",
@@ -364,6 +367,7 @@ pub const EN: Texts = Texts {
     back: "Back",
     path: "Where you are",
     reserved_mark: "reserved",
+    in_all: |credits| format!("{credits} in all"),
 
     counts_menu: "Counts for",
     counts_tree: "Automatically",
