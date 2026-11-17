@@ -589,10 +589,11 @@ if (current !== "2026W") {
   // module's menu; the plan's open module dashed and planned with a click; the view kept.
   await step("Gesamtplan", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => document.querySelector(".st-rm-grid") && document.querySelectorAll(".st-row-head").length === 6 && document.querySelector(".st-rm-seg .st-rm-p"));
   // A cell as tall as what it lists (the Regelstudienplan's pills once took its class, and the
-  // cells shrank to a pill, their modules over the semesters' heads).
+  // cells shrank to a pill, their modules over the semesters' heads); „+ Modul einplanen" stands
+  // on its lower edge, half over the row under it, on purpose (Folia 1.97.11).
   const cut = await page.evaluate(() => [...document.querySelectorAll(".st-grid .st-rm-cell")].filter((cell) => {
     const box = cell.getBoundingClientRect();
-    return [...cell.children].some((child) => { const r = child.getBoundingClientRect(); return r.height > 0 && (r.top < box.top - 1 || r.bottom > box.bottom + 1); });
+    return [...cell.children].filter((child) => !child.classList.contains("st-rm-add")).some((child) => { const r = child.getBoundingClientRect(); return r.height > 0 && (r.top < box.top - 1 || r.bottom > box.bottom + 1); });
   }).length);
   check(cut === 0, `${cut} cells of the Gesamtplan do not hold what they list`);
   const roadmap = await page.evaluate(() => {
@@ -1033,6 +1034,34 @@ if (current !== "2026W") {
   };
   const row = (name) => page.evaluate((name) => [...document.querySelectorAll(".st-rm-sub")].find((head) => head.querySelector(".st-card-name")?.textContent === name)?.nextElementSibling?.dataset.row, name);
   const [anwendung, pm, seminar, praktisch] = [await row("Anwendungsfach"), await row("Praktische Mathematik"), await row("Seminar oder Praktikum"), await row("Praktische Informatik")];
+  // „+ Modul einplanen" of a cell with pieces (owner, 2026-11-17: „die hoverinteraktion mit dem +
+  // ist gelinde gesagt sehr buggy"): on the cell's lower edge once the pointer has rested there,
+  // over none of the pieces, as large under the pointer as beside it, and nothing to the pointer
+  // while it is not there.
+  {
+    const cell = page.locator(`.st-rm-grid > .st-rm-cell[data-row="${praktisch}"]:has(.st-rm-p[aria-label^="DB,"])`).first();
+    await page.mouse.move(5, 5);
+    await page.waitForTimeout(200);
+    const before = await cell.evaluate((cell) => getComputedStyle(cell.querySelector(".st-rm-add")).pointerEvents);
+    const piece = await cell.locator('.st-rm-p[aria-label^="DB,"]').boundingBox();
+    await page.mouse.move(piece.x + piece.width / 2, piece.y + piece.height / 2);
+    await page.waitForTimeout(500);
+    const add = () => cell.evaluate((cell) => {
+      const add = cell.querySelector(".st-rm-add");
+      const r = add.getBoundingClientRect();
+      // The pieces of the areas' and subsections' cells; a lane's bar under the cell it may touch.
+      const over = [...document.querySelectorAll(".st-rm-grid > .st-rm-cell .st-rm-p")].filter((p) => { const q = p.getBoundingClientRect(); return q.width > 0 && q.left < r.right - 1 && q.right > r.left + 1 && q.top < r.bottom - 1 && q.bottom > r.top + 1; }).length;
+      return { shown: getComputedStyle(add).opacity === "1", words: add.textContent, width: Math.round(r.width), edge: Math.round(r.top + r.height / 2 - cell.getBoundingClientRect().bottom), over };
+    });
+    const resting = await add();
+    const box = await cell.locator(".st-rm-add").boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForTimeout(250);
+    const under = await add();
+    check(before === "none" && resting.shown && resting.words === "Modul einplanen" && resting.over === 0 && Math.abs(resting.edge) <= 2 && under.width === resting.width && under.over === 0,
+      `the „+" of Praktische Informatik's cell: ${JSON.stringify({ before, resting, under })}`);
+    await page.mouse.move(5, 5);
+  }
   await drag(`[data-row="${pm}"] .st-rm-p[aria-label^="LAAG2,"]`, `[data-sem="2027S"][data-row="${anwendung}"]`, false);
   check(await page.evaluate((row) => document.querySelector(`.rm-drop-here[data-sem="2027S"][data-row="${row}"]`) !== null, anwendung), "the Anwendungsfach's cell is not where Lineare Algebra II lands");
   await step("let go over the Anwendungsfach", () => page.mouse.up(), () => document.querySelector(".study-note")?.textContent.includes("zählt für Anwendungsfach"));
@@ -1041,7 +1070,7 @@ if (current !== "2026W") {
   // Onto the Seminar, whose list does not hold it, Datenbanken does not count: the row says what
   // Strg does, and the module moves in its own; with Strg it counts there as an exception.
   await drag(`[data-row="${praktisch}"] .st-rm-p[aria-label^="DB,"]`, `[data-sem="2028S"][data-row="${seminar}"]`, false);
-  const refused = await page.evaluate((row) => ({ hint: document.querySelector(`[data-sem="2028S"][data-row="${row}"] .st-rm-hint`)?.textContent, no: !!document.querySelector(`.rm-drop-no[data-sem="2028S"][data-row="${row}"]`) }), seminar);
+  const refused = await page.evaluate((row) => ({ hint: document.querySelector(`.st-rm-hint[data-at-sem="2028S"][data-at-row="${row}"]`)?.textContent, no: !!document.querySelector(`.rm-drop-no[data-sem="2028S"][data-row="${row}"]`) }), seminar);
   check(refused.no && refused.hint === "Strg: als Ausnahme", `the Seminar's row under Datenbanken: ${JSON.stringify(refused)}`);
   // Where it fits, before the pointer gets there (owner, 2026-11-10: „für die drag and drop
   // animation/farbgebung nochmal eine überarbeitung haben, so dass man einfacher erkennen kann, wo
@@ -1055,7 +1084,7 @@ if (current !== "2026W") {
     return {
       drag: document.querySelector(".st-rm")?.hasAttribute("data-drag") && !document.querySelector(".st-rm")?.hasAttribute("data-ex"),
       own: fit("Praktische Informatik", true), area: fit("Fachstudium", false), seminar: fit("Seminar oder Praktikum", true),
-      lands: document.querySelector(`[data-sem="2028S"][data-row="${fach}"] .st-rm-hint`)?.textContent,
+      lands: document.querySelector(`.st-rm-hint[data-at-sem="2028S"][data-at-row="${fach}"]`)?.textContent,
       hole: document.querySelectorAll('.st-rm-p.is-dragged[aria-label^="DB,"]').length > 0,
       key: [...document.querySelectorAll(".st-rm-dragkey > span")].map((span) => span.textContent).join(" | "),
     };
@@ -1065,11 +1094,30 @@ if (current !== "2026W") {
   check((await lines(page, "m\t2028S\t12330\t"))[0]?.split("\t").length <= 6, "Datenbanken counts for the Seminar without Strg");
   await step("Rückgängig, Datenbanken back", () => undo(page), () => !document.querySelector(".study-note"));
   await page.waitForFunction(() => document.querySelector('.st-rm-p[aria-label^="DB,"]'), null, { timeout: 4000 }).catch(() => {});
+  // Over the Komplex right under the Fachstudium's row, which takes it neither: both cells say
+  // something, one under the other, and „landet hier" stands whole over the Komplex (owner,
+  // 2026-11-17: „landet hier ist noch abgeschnitten", the lower cell drawn over its lower half).
+  const grundlagen = await row("Grundlagen der Informatik");
+  await drag(`[data-row="${praktisch}"] .st-rm-p[aria-label^="DB,"]`, `[data-sem="2028S"][data-row="${grundlagen}"]`, false);
+  const stacked = await page.evaluate(() => {
+    const words = [...document.querySelectorAll(".st-rm-hint")];
+    const lands = words.find((w) => w.textContent === "landet hier");
+    if (!lands) return { words: words.map((w) => w.textContent) };
+    const r = lands.getBoundingClientRect();
+    lands.style.pointerEvents = "auto";
+    const low = document.elementFromPoint(r.left + r.width / 2, r.bottom - 2);
+    lands.style.pointerEvents = "";
+    return { words: words.map((w) => w.textContent), whole: low === lands || lands.contains(low), under: low?.className };
+  });
+  check(stacked.whole && stacked.words?.includes("Strg: als Ausnahme"), `„landet hier" over the Komplex under the Fachstudium: ${JSON.stringify(stacked)}`);
+  await step("let go over Grundlagen der Informatik", () => page.mouse.up(), () => document.querySelector(".study-note")?.textContent.includes("ins SoSe 2028 verschoben"));
+  await step("Rückgängig, Datenbanken back once more", () => undo(page), () => !document.querySelector(".study-note"));
+  await page.waitForFunction(() => document.querySelector('.st-rm-p[aria-label^="DB,"]'), null, { timeout: 4000 }).catch(() => {});
   await drag(`[data-row="${praktisch}"] .st-rm-p[aria-label^="DB,"]`, `[data-sem="2027W"][data-row="${seminar}"]`, true);
   const amber = await page.evaluate((row) => ({
     ex: document.querySelector(".st-rm")?.hasAttribute("data-ex"),
     seminar: [...document.querySelectorAll(".st-rm-sub")].find((head) => head.querySelector(".st-card-name")?.textContent === "Seminar oder Praktikum")?.classList.contains("rm-ex"),
-    cell: document.querySelector(`.rm-drop-here.rm-land-ex[data-sem="2027W"][data-row="${row}"] .st-rm-hint.ex`)?.textContent,
+    cell: document.querySelector(`.rm-drop-here.rm-land-ex[data-sem="2027W"][data-row="${row}"]`) && document.querySelector(`.st-rm-hint.ex[data-at-sem="2027W"][data-at-row="${row}"]`)?.textContent,
   }), seminar);
   check(amber.ex && amber.seminar && amber.cell === "als Ausnahme", `the Seminar with Strg held: ${JSON.stringify(amber)}`);
   await step("with Strg, as an exception", async () => { await page.mouse.up(); await page.keyboard.up("Control"); }, () => document.querySelector(".study-note")?.textContent.includes("zählt als Ausnahme für Seminar oder Praktikum"));
