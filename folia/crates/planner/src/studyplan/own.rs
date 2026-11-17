@@ -2,7 +2,7 @@
 //! owner, 2026-10-27: „Passt alles, bau Schritt 1 jetzt in Folia"): what a student adds beside what
 //! QIS lists — a job, sport, a Lerngruppe, the Termin of a module QIS has none for.
 //!
-//! The ways in, while the plan is edited (D7; owner, 2026-11-17: the edit mode „weil man dadurch
+//! The ways in, while the plan is edited (owner, 2026-11-17: the edit mode „weil man dadurch
 //! unnötiges ui ausblenden kann"): „+ Termin" in the mode's bar and on a phone in its dock, under the
 //! modules of each calendar (that calendar chosen), a click on a free stretch of a day of the week
 //! (its day and time filled in), and on a phone a finger held on a free stretch of the week (owner,
@@ -244,7 +244,7 @@ pub(super) fn remove(ctx: PlanCtx, number: u32) {
     let Some(name) = before.own_termin(number).map(|(calendar, own)| shown_name(&own.termin, &names_now(ctx, calendar), t)) else { return };
     ctx.undo.set(Some((format!("{OWN_NOTE}{}", (t.studyplan_own.removed)(&name)), before)));
     if let Some(going) = Pending::expect().filter(|_| ctx.url.with_untracked(|url| url.termin.is_some())) {
-        let away = ctx.url.with_untracked(|url| t.path(&url.with_termin(None).path()));
+        let away = ctx.url.with_untracked(|url| url.with_termin(None).path());
         going.go(&away, NavigateOptions { replace: true, scroll: false, ..Default::default() });
     }
     plan.update_after_paint(move |doc| {
@@ -425,7 +425,6 @@ pub(super) fn change_fit(ctx: PlanCtx, change: Change) -> (bool, String) {
 /// EvS", `shown_name`), and the kind stays a word of its own (owner, 2026-11-17: „dass man zu
 /// Modulen custom termine hinzufügen und auch editieren kann").
 pub(super) fn ask_makeup(ctx: PlanCtx, key: RowKey, day: Day) {
-    let t = i18n::t();
     let seed = ctx.table.with_untracked(|table| {
         let event = table.as_ref()?.events.iter().find(|event| event.rows.iter().any(|row| row.key == Some(key)))?;
         let row = event.rows.iter().find(|row| row.key == Some(key) && row.from.is_some() && row.to.is_some())?;
@@ -436,7 +435,7 @@ pub(super) fn ask_makeup(ctx: PlanCtx, key: RowKey, day: Day) {
     });
     let Some((module, kind, from, to, place)) = seed else { return };
     if let Some(going) = Pending::expect() {
-        let away = ctx.url.with_untracked(|url| t.path(&url.with_termin(None).path()));
+        let away = ctx.url.with_untracked(|url| url.with_termin(None).path());
         going.go(&away, NavigateOptions { replace: true, scroll: false, ..Default::default() });
     }
     let module_name = names_now(ctx, 0).get(&module).cloned().unwrap_or_default();
@@ -505,9 +504,9 @@ impl Hold {
     pub(super) fn down(self, ev: &leptos::ev::PointerEvent) {
         self.up();
         self.held.set_value(false);
-        // A finger's alone, and only while the plan is edited (D7): a page for looking makes
-        // nothing of a finger held.
-        if ev.pointer_type() != "touch" || !self.ctx.edit.get_untracked() {
+        // A finger's alone, and only while the plan is edited: a page for looking makes nothing of
+        // a finger held, nor does a choice in focus, whose groups are the week's boxes then.
+        if ev.pointer_type() != "touch" || !self.ctx.edit.get_untracked() || self.ctx.url.with_untracked(|url| url.wahl.is_some()) {
             return;
         }
         let (x, y) = (ev.client_x(), ev.client_y());
@@ -834,7 +833,7 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
             </ModalHead>
             <form class="st-dlg-body own-body" id="own-form" on:submit=submit>
                 // What it is, then where it belongs: „Kalender" above „Gehört zu", whose modules it
-                // changes, and „Art" under the module (critique A.2 §7; owner, 2026-10-27: „Wenn man
+                // changes, and „Art" under the module (owner, 2026-10-27: „Wenn man
                 // solche Buttons hat, dann ändern die nur den Inhalt unter ihnen"); then when and
                 // where. With a module the name may stay empty: the week calls it „VL EvS".
                 <div class="own-fld">

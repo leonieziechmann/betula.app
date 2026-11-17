@@ -3607,7 +3607,7 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-row.gone { padding-right: 6px; }
 .sp-row.gone:hover { background: none; }
 .sp-row.gone .t b { color: var(--text-3); font-weight: 560; text-decoration: line-through; text-decoration-color: var(--line-strong); }
-/* The module list as the index of what the week shows (modules.rs; critique D; owner, 2026-11-17:
+/* The module list as the index of what the week shows (modules.rs; owner, 2026-11-17:
    „dass bei den Modulen die Kategorien vl, Übung, prak sind und man da die Übersicht auswählen
    kann"): per module one line (div.sp-mod in its tone > a.sp-row.sp-mod-row: the key, the title cut
    with „…", „Besuch"), under it its rows (div.sp-cats > div.sp-cat[data-event]: a.sp-cat-row with
@@ -4095,11 +4095,36 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
    (div.sp-status), wider than a phone: the sum and „3 Wahlen offen ›" while looking (div.sp-look), the
    mode's bar while editing (div.sp-editbar, the workbench's accent-soft; the dark bar stays the
    focus's), the bar of a choice in focus — each 46px tall, so that the week begins at the same place
-   in every state (critique A.3: no slot moves a pixel). */
+   in every state: no slot moves a pixel. */
 .sp-head .sp-edit-toggle { flex: none; margin-left: auto; }
 .sp-head :is(.sp-together, .sp-weeks, .sp-weekpick) ~ .sp-edit-toggle { margin-left: 6px; }
 .sp-head .sp-together + .sp-weeks { margin-left: 6px; }
 .sp-edit-toggle.on { background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 0 0 0 1px var(--accent-line); }
+/* The head is one row on every screen wider than a phone, whatever it holds, so that the week begins
+   at the same place with „Gemeinsam frei" and without: where its own width is short the weeks' switch
+   says „A · B · A/B" (the phone's words; span.seg-brief), then „Gemeinsam frei" keeps its sign alone
+   (its name stays for a screen reader, its title says what it does), and last the title gives way
+   with „…". „Bearbeiten" always closes the row. */
+.seg-brief { display: none; }
+@media (min-width: 901px) {
+  .sp-head { flex-wrap: nowrap; container: sp-head / inline-size; }
+  .sp-head > h1 { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .sp-head > :not(h1) { flex: none; }
+  .sp-head .sp-together .tg-text { white-space: nowrap; }
+}
+@container sp-head (max-width: 780px) {
+  .sp-head:has(.sp-together) .sp-weeks .seg-label { display: none; }
+  .sp-head:has(.sp-together) .sp-weeks .seg-brief { display: inline; }
+  .sp-head:has(.sp-together) .seg.sp-weeks button { min-width: 38px; padding: 0 10px; }
+}
+@container sp-head (max-width: 670px) {
+  .sp-head .sp-together .tg-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+@container sp-head (max-width: 610px) {
+  .sp-head .sp-weeks .seg-label { display: none; }
+  .sp-head .sp-weeks .seg-brief { display: inline; }
+  .sp-head .seg.sp-weeks button { min-width: 38px; padding: 0 10px; }
+}
 .sp-status { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
 .sp-status > :first-child { box-sizing: border-box; height: 46px; min-height: 46px; }
 .sp-look { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -4126,18 +4151,19 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .sp-editbar .btn .icon { width: 14px; height: 14px; }
 .sp-editbar .sp-done { background: var(--accent); color: var(--on-accent); box-shadow: none; }
 .sp-editbar .sp-done:hover { background: var(--accent); filter: brightness(1.08); }
-.sp-editbar .sp-done kbd { padding: 1px 5px; background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-accent) 40%, transparent); color: color-mix(in srgb, var(--on-accent) 80%, transparent); }
+.sp-editbar .sp-done kbd { padding: 1px 5px; background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-accent) 55%, transparent); color: var(--on-accent); }
 .sp-open-under .sp-open-rows { gap: 6px; }
 /* Beside the week „Offen" stands in the module column while editing: the bar's figure is words. */
 @container page (min-width: 900px) {
   .sp-editbar .eb-open, .sp-open-under { display: none; }
   .sp-editbar .eb-open-fig { display: inline; }
 }
-/* While looking a free stretch of the week does nothing; while editing it makes a Termin. */
-.sp:not(.sp-edit) .sp-body .sp-week .week .col { cursor: default; }
-/* The slots' buttons (D22): the eye of what the week shows and the crossed eye of what is faint
+/* While looking a free stretch of the week does nothing; while editing it makes a Termin; with a
+   choice in focus (its boxes, button.slot.pick) nothing again. */
+.sp:not(.sp-edit) .sp-body .sp-week .week .col, .sp-edit .sp-body .sp-week:has(.slot.pick) .week .col { cursor: default; }
+/* The slots' buttons (owner, 2026-11-17: „eher ein augen symbol verwneden"): the eye of what the week shows and the crossed eye of what is faint
    answer as the module's eyes do (hiding is no deleting: no red); the bin takes the red when pointed
-   at; „✓" and „+" stay green. They show while the slot has the keyboard too (D5). */
+   at; „✓" and „+" stay green. They show while the slot has the keyboard too. */
 .slot:focus-visible + .slot-acts { opacity: 1; }
 .slot-act:is([data-icon="eye"], [data-icon="eye-off"]) { color: var(--text-2); }
 .slot-act:is([data-icon="eye"], [data-icon="eye-off"]) .icon { stroke-width: 2.2; }
@@ -4145,14 +4171,25 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .slot-act[data-icon="trash-2"] .icon { stroke-width: 2.2; }
 .slot-act[data-icon="trash-2"]:hover { background: var(--no); color: var(--panel); box-shadow: none; }
 .sp-dayrow .slot-act:is([data-icon="eye"], [data-icon="eye-off"], [data-icon="trash-2"]) { color: var(--text-3); }
-/* A series some of whose dates are hidden, while editing (i.slot-hid): the crossed eye in its
-   corner, as the pen of a changed one, left of the other marks. */
-.slot > .slot-hid { position: absolute; right: 3px; bottom: 3px; display: grid; place-items: center; width: 15px; height: 15px; border-radius: 4px; background: var(--panel); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint, var(--text-3)) 60%, transparent); color: var(--tint, var(--text-3)); }
-.slot > .slot-hid .icon { width: 10px; height: 10px; stroke-width: 2.4; }
-.slot > :is(.slot-own, .slot-pen, .slot-who, .slot-tick) ~ .slot-hid { right: 21px; }
-.slot > :is(.slot-own, .slot-pen) ~ :is(.slot-own, .slot-pen) ~ .slot-hid { right: 39px; }
-.slot.brief > .slot-hid { display: none; }
-.slot.tinted:not(.alt, .extra, .visit) > .slot-hid { background: var(--on-mod); box-shadow: none; color: var(--mod-fill); }
+/* A series some of whose dates are hidden, while editing (i.slot-hid): the crossed eye, bare in the
+   slot's own ink, in its top right corner — a corner of its own, which the slot's buttons (bottom
+   right) never cover, on touch neither, and no chip, so that it is not taken for the button
+   „Einblenden". Left of the red „!" of a clash. The title's first line keeps clear of it. */
+.slot > .slot-hid { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 12px; height: 12px; color: currentColor; opacity: .8; pointer-events: none; }
+.slot > .slot-hid .icon { width: 12px; height: 12px; stroke-width: 2.2; }
+.slot:is(.clash, .framed) > .slot-hid { right: 19px; }
+.slot:has(> .slot-hid) > .l { padding-right: 12px; }
+.slot:is(.clash, .framed):has(> .slot-hid) > .l { padding-right: 27px; }
+/* A finger on a screen wider than a phone: the slots' buttons a finger's size and apart (on a phone
+   the day list's rows carry them at 40px); a mouse keeps the small ones. */
+@media (hover: none) and (pointer: coarse) and (min-width: 901px) {
+  .slot-acts { gap: 8px; padding: 4px; }
+  .slot-act { width: 32px; height: 32px; border-radius: 8px; }
+  .slot-act .icon { width: 16px; height: 16px; }
+}
+/* A slot of a calendar of one's own leads nowhere (its tooltip says „Lena · nur zum Ansehen"): the
+   arrow, not the hand. */
+.sp-body .sp-week .week .col :is(.slot.cal, .slot.strip) { cursor: default; }
 /* The group „Kalender" in both states: its head holds „+ Kalender" while editing at the height it
    has without it, and each calendar's row the place of its „…" (span.sp-cal-end), empty while
    looking, so that „Export" under the group never moves. */
@@ -4164,6 +4201,8 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .sp-cal-newrow { display: grid; gap: 6px; }
 .sp-cal-newrow > .sp-cal-add { margin-top: 0; }
 .sp-share-group, .sp-plans { min-width: 0; }
+/* „Teilen …"'s second line says where it shares to: whole, on a second line where it needs one. */
+.sp-share-group .action small { overflow: visible; white-space: normal; text-overflow: clip; }
 /* The mode on a phone (div.sp-editdock): the box of the workbench's dock (.bench-dock), in the tab
    bar's place and over it; gone while the keyboard is up. The amber line of „Offen" while looking is
    a link into the mode (a.sp-open-line.way). */
@@ -4172,7 +4211,11 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
   .sp-editdock { position: fixed; z-index: 35; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px; height: 62px; padding: 6px 7px 6px 16px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--accent-line); animation: st-bar-up .2s var(--ease); }
   .sp-editdock-w { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
   .sp-editdock-w > b { overflow: hidden; color: var(--accent-ink); font-size: 14.5px; font-weight: 700; white-space: nowrap; text-overflow: ellipsis; }
-  .sp-editdock-w > span { overflow: hidden; color: var(--text-2); font-size: 12px; font-weight: 560; white-space: nowrap; text-overflow: ellipsis; }
+  /* The figures (span.figs): the second goes whole to a line of its own, which is not shown, where
+     the two do not fit beside each other; only a first one too long for the dock is cut. */
+  .sp-editdock-w > .figs { display: flex; flex-wrap: wrap; height: 1.3em; overflow: hidden; color: var(--text-2); font-size: 12px; font-weight: 560; }
+  .sp-editdock-w > .figs > span { white-space: pre; }
+  .sp-editdock-w > .figs > span:first-child { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
   .sp-editdock .btn { flex: none; height: 46px; min-height: 46px; padding: 0 14px; border-radius: 12px; font-size: 14px; }
   .sp-editdock .btn .icon { width: 16px; height: 16px; }
   :root[data-keyboard] .sp-editdock { display: none; }
@@ -4180,7 +4223,7 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
   a.sp-open-line.way .t { min-width: 0; }
   a.sp-open-line.way b { display: block; font-size: 14px; font-weight: 650; line-height: 1.25; }
   a.sp-open-line.way small { display: block; overflow: hidden; color: var(--text-2); font-size: 12px; line-height: 1.3; white-space: nowrap; text-overflow: ellipsis; }
-  .sp-head .sp-edit-toggle { min-height: 44px; padding: 0 12px; }
+  .sp-head .sp-edit-toggle, .sp-head .sp-weekpick ~ .sp-edit-toggle { min-height: 44px; margin-left: auto; padding: 0 12px; }
   .sp-cal > .sp-cal-end { width: 44px; height: 44px; }
 }
 /* The week while a choice is in focus (week.rs `focus_slots`): its groups, each the box that ticks
@@ -4352,6 +4395,11 @@ a.slot:hover { filter: brightness(.96); }
 .sp-dayrow .slot-act[data-icon="x"] { color: var(--text-3); }
 .sp-dayrow .slot-act[aria-pressed="true"] { background: var(--ok); color: var(--panel); }
 .sp-dayrow .slot-act .icon { width: 18px; height: 18px; }
+/* While the plan is edited the row carries its buttons: the time stands above what it is, so that
+   the title has the row's width beside the buttons and is not broken into three lines. */
+.sp-dayrow:has(> .slot-acts) > a { flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; }
+.sp-dayrow:has(> .slot-acts) > a .t { min-width: 0; font-size: 12.5px; }
+.sp-dayrow:has(> .slot-acts) > a > span:not(.t) { align-self: stretch; }
 
 /* „Termine": a week a section (section.agenda-week#kw-<year>-<week> > h3 + .agenda-day …), a day a
    row: the day on the left (.when), its items on the right (.agenda-item > i + span.t + span, the
@@ -4405,6 +4453,15 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .sp-exam .when { font-weight: 620; font-variant-numeric: tabular-nums; }
 .sp-exam small { display: block; color: var(--text-3); font-weight: 450; font-size: 12px; }
 .sp-exam[data-hidden] { opacity: .5; }
+/* The eye's place (span.sp-exam-end) stands while looking too, empty, so that the line keeps its
+   columns in both states; under the list while looking „2 ausgeblendet ›" (p.sp-exams-hid) leads into
+   the mode, where the hidden sittings stand. */
+.sp-exam > .sp-exam-end { display: grid; place-items: center; width: 30px; min-height: 30px; }
+.sp-exams-hid { margin: 8px 0 0; }
+.sp-exams-hid > a { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 6px 0 8px; border-radius: var(--r-ctl); color: var(--text-2); font-size: 13px; text-decoration: none; }
+.sp-exams-hid > a:hover { background: var(--panel-2); color: var(--text); }
+.sp-exams-hid .icon { width: 15px; height: 15px; }
+.sp-exams-hid .chev { color: var(--text-3); }
 
 /* The module beside the plan (PlanModulePanel, section.panel.detail.aside): its events
    (.sp-event > h3 + .sp-rowline …), each Termin a line with its eye, the one the address points
@@ -4807,7 +4864,7 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
   .tm-card .tm-ways a { min-height: 44px; }
   .tm-card button.tm-big { min-height: 48px; }
   .tm-card .tm-lines .sw, .tm-card .tm-group .sw, .tm-card .tm-hint .tm-makeup { min-height: 44px; }
-  /* The large action at the sheet's foot (critique C.2). */
+  /* The large action at the sheet's foot. */
   .tm-card .tm-act { order: 9; }
   .is-termin.tm-dialog.tm-card > .dbody.tm { padding: 12px 20px 24px; }
 }
@@ -5813,7 +5870,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .agenda-item > span:not(.t) { flex: 1 1 150px; }
   .agenda-item > small { flex-basis: 100%; max-width: none; padding-left: 92px; white-space: normal; }
   .sp-exam { grid-template-columns: minmax(0, 1fr) auto; }
-  .sp-exam .eye { grid-column: 2; grid-row: 1 / span 2; }
+  .sp-exam > .sp-exam-end { grid-column: 2; grid-row: 1 / span 2; width: 44px; }
   .sp-field { grid-template-columns: minmax(0, 1fr); }
   .sp-field > .seg { max-width: none; width: 100%; }
   .sp-row { min-height: 48px; }

@@ -140,7 +140,9 @@ pub(super) struct PlanCtx {
     /// The browser's date, read once when the page was built; `None` on the server. The page reads
     /// the clock for two things only: the default semester and the week „Termine" scrolls to.
     pub today: Option<Day>,
-    /// The note of the last „Übernehmen" or „Plan leeren", and the plan before it („Rückgängig").
+    /// The note of the last change that answers with „Rückgängig" (a share taken in, a Termin of
+    /// one's own deleted, a calendar or a module of one taken out, „Alle einblenden"), and the plan
+    /// before it.
     pub undo: RwSignal<Option<(String, PlanDoc)>>,
     /// The week „Woche" shows: the A week, the B week, or both („A/B"). A view setting of the
     /// page, not stored.
@@ -220,6 +222,17 @@ pub(crate) fn today() -> Option<Day> {
 /// module's whole page (`full=1`, a local view); its „Zurück" returns here.
 pub(super) fn full_href(url: &StudyplanUrl, id: &str) -> String {
     folia_routes::local::full_href(&PlanAddress { url: url.clone(), full: false }, id)
+}
+
+/// Where „Zurück" leads from a module that fills the page, as the app's path (`ModuleInPlace` writes
+/// it as a link of the page's language): the plan with the module beside it again where it is one of
+/// the study's week (`ours`), else the plan without it — a calendar's module, which the panel would
+/// only call „Nicht im Studienplan.".
+fn back_of(address: &PlanAddress, ours: bool) -> String {
+    match ours {
+        true => folia_routes::local::back_href(address),
+        false => address.url.with_open(None, None).path(),
+    }
 }
 
 #[component]
@@ -363,13 +376,8 @@ pub fn StudyplanPage() -> impl IntoView {
             return view! { <PlanTerminFull ctx/> }.into_any();
         }
         if let Some(id) = filling.get() {
-            // „Zurück" of a module that is none of the study's week (a calendar's module, D13): the
-            // plan without the panel, which would only say „Nicht im Studienplan.".
             let ours = wanted.with_untracked(|wanted| wanted.1.contains(&id));
-            let back = address.with_untracked(|address| match ours {
-                true => folia_routes::local::back_href(address),
-                false => t.path(&address.url.with_open(None, None).path()),
-            });
+            let back = address.with_untracked(|address| back_of(address, ours));
             return view! { <ModuleInPlace id area=Area::Studyplan back/> }.into_any();
         }
         view! {
@@ -397,9 +405,9 @@ pub fn StudyplanPage() -> impl IntoView {
     .into_any()
 }
 
-/// The semester, in three parts (`.sp-body` lays them out). Above the fold (`.sp-fold`): its head,
-/// the exams that collide (red, in every view), the one line of overlaps, open choices and what is
-/// hidden, and the view. Beside it where the page is wide enough, else under it: the planned
+/// The semester, in three parts (`.sp-body` lays them out). Above the fold (`.sp-fold`): its head
+/// and the status row under it, the exams that collide (red, in every view), the line of overlaps,
+/// and the view. Beside it where the page is wide enough, else under it: the planned
 /// modules (`.sp-side`), a column of its own, so that however long their list is the week keeps
 /// its height. Under the fold (`.sp-below`): what has no fixed time and the line that says what is
 /// derived. The fold is as tall as the page shows, so that the week fits into it (owner,
@@ -575,6 +583,16 @@ mod tests {
         assert_eq!(key_of(&url(""), None, &PlanDoc::default(), Day::from_ymd(2026, 11, 5)), key("2026W"));
         assert_eq!(key_of(&url(""), None, &PlanDoc::default(), Day::from_ymd(2027, 2, 5)), key("2026W"));
         assert_eq!(key_of(&url(""), None, &PlanDoc::default(), Day::from_ymd(2027, 5, 5)), key("2027S"));
+    }
+
+    /// „Zurück" from a module filling the page is the app's path, never with the language's prefix,
+    /// which the link writes itself; a module of a calendar of one's own goes back to the plan alone.
+    #[test]
+    fn back_from_a_module_filling_the_page_is_the_apps_path() {
+        let address = |query: &str| PlanAddress { url: StudyplanUrl::parse(query), full: true };
+        assert_eq!(back_of(&address("open=99999"), false), "/studyplan");
+        assert_eq!(back_of(&address("edit=1&open=99999"), false), "/studyplan?edit=1");
+        assert_eq!(back_of(&address("open=12104"), true), "/studyplan?open=12104");
     }
 
     #[test]

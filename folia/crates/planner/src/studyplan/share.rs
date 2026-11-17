@@ -18,7 +18,7 @@
 //! semester too, which then stands in the week once the page shows that semester); „Verwerfen"
 //! leaves the plan as it is. Each takes the code out of the address, in the same history entry.
 //! Where the offer stood, „Aus dem Link übernommen: 6 Module" or „Als Kalender angelegt: Kalender
-//! 2" then answers with „Rückgängig" (`PlanCtx::undo`, which the import and „Plan leeren" share)
+//! 2" then answers with „Rückgängig" (`PlanCtx::undo`, which the import shares with the other notes)
 //! until the next change of the kind. A code of another semester than the one the page shows is
 //! otherwise only named: the page has no other.
 //!
@@ -201,7 +201,7 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
             <div class="offer" role="status">
                 <Icon name="share-2"/>
                 <p><b>{(s.shared)(&label)}</b>{text}</p>
-                // „Als Kalender" first (D19): the plan beside one's own, which changes nothing of the
+                // „Als Kalender" first: the plan beside one's own, which changes nothing of the
                 // study; planning its modules into „Mein Studium" says that it does.
                 {move || (known && room.get()).then(|| view! {
                     <button class="mini primary hit" type="button" id="sp-share-calendar" title=t.studyplan_calendars.as_calendar_title aria-busy=move || busy.get().then_some("true") on:click=as_calendar>
@@ -219,7 +219,7 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
 }
 
 /// What the offer says after its first words — what the link holds, and where some of it is
-/// planned already, how much is not; no question (D19: the buttons say what they do) — and whether
+/// planned already, how much is not; no question (the buttons say what they do) — and whether
 /// it offers „In „Mein Studium“ einplanen".
 fn offer_text(offer: Offer, t: &i18n::Texts) -> (String, bool) {
     let s = &t.studyplan_share;

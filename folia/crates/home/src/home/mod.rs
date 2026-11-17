@@ -188,7 +188,7 @@ pub fn HomePage() -> impl IntoView {
             return;
         }
         if let Some(going) = folia_shell::pending::Pending::expect() {
-            going.go(&t.path(url::HOME), leptos_router::NavigateOptions { replace: true, scroll: false, ..Default::default() });
+            going.go(url::HOME, leptos_router::NavigateOptions { replace: true, scroll: false, ..Default::default() });
         }
         match parked.get_untracked() {
             Some(done) => on_done.run(done),

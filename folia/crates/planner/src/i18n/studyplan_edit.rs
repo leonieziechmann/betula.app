@@ -6,8 +6,10 @@
 pub struct Texts {
     /// „Bearbeiten": the head's button (the pencil, `aria-pressed`) …
     pub edit: &'static str,
-    /// … its tooltip and its name as a command: „Stundenplan bearbeiten".
+    /// … its tooltip and its name as a command: „Stundenplan bearbeiten"; pressed, while the plan is
+    /// edited, „Bearbeiten beenden", which a click then does.
     pub edit_title: &'static str,
+    pub edit_end: &'static str,
     /// The bar's name while editing: „Stundenplan bearbeiten".
     pub editing: &'static str,
     /// The phone's dock: „Bearbeiten", small under it the figures.
@@ -30,6 +32,7 @@ pub struct Texts {
 pub const DE: Texts = Texts {
     edit: "Bearbeiten",
     edit_title: "Stundenplan bearbeiten",
+    edit_end: "Bearbeiten beenden",
     editing: "Stundenplan bearbeiten",
     dock: "Bearbeiten",
     open_way: |figures| format!("{figures}: Stundenplan bearbeiten"),
@@ -48,6 +51,7 @@ pub const DE: Texts = Texts {
 pub const EN: Texts = Texts {
     edit: "Edit",
     edit_title: "Edit your timetable",
+    edit_end: "Stop editing",
     editing: "Editing your timetable",
     dock: "Editing",
     open_way: |figures| format!("{figures}: edit your timetable"),

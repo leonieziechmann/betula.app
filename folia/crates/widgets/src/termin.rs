@@ -842,7 +842,9 @@ pub fn TerminModal(
         match ctx.links.back.try_get_untracked().flatten() {
             Some(_) => folia_shell::nav::back(),
             None => {
-                if let (Some(pending), Some(to)) = (pending, ctx.links.close.try_get_untracked()) {
+                if let (Some(pending), Some(close)) = (pending, ctx.links.close.try_get_untracked()) {
+                    // `close` is written as a link of the page's language; `go` takes the app's path.
+                    let to = i18n::app_path(&close).unwrap_or(&close).to_string();
                     pending.go(&to, NavigateOptions { scroll: false, ..Default::default() });
                 }
             }
@@ -861,7 +863,7 @@ pub fn TerminModal(
         };
         Effect::new(move |_| {
             // Another Termin is another card: placed anew, with nothing open in it. Another date
-            // of the same one leaves it where it stands (it keeps its top edge, D11).
+            // of the same one leaves it where it stands (it keeps its top edge and grows downward).
             let _ = termin.get();
             if shown.get() {
                 state.reset();

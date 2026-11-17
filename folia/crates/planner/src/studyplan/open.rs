@@ -1,7 +1,10 @@
 //! „Offen" and the choice in focus (folia/design/kalender/konzepte.html and handy.html; owner,
 //! 2026-10-26: „A mit Fokus und Spur aus C", „nimm H1 mit Vergleichen"). What the plan leaves to
-//! choose is a list of its own: beside the week where the page has the column for it („Offen",
-//! `OpenPanel`), else a line over the week that opens into the same rows (`OpenLine`). A choice of
+//! choose is a list of its own. While the plan is looked at it is one way into the mode, „3 Wahlen
+//! offen ›" at the status row's end (`OpenWay`; on a phone the amber line over the week, `OpenLine`),
+//! which enters it with the rows unfolded. While it is edited the rows stand beside the week where
+//! the page has the column for it („Offen", `OpenPanel`), else under the mode's bar, unfolded by its
+//! figure (`OpenUnder`), on a phone under the line over the week (`OpenLine`). A choice of
 //! groups taken into focus (`wahl=`) stands in the week with every group outlined, the rest behind
 //! it (`week::focus_slots`); a screen wider than a phone says over the week what to do
 //! (`FocusBar`: „Weiter", „Vergleichen", „Fertig" with Esc), a phone lays a sheet under the week
@@ -13,8 +16,9 @@
 //! A tick acts at once, as the Termin's tiles do (`PlanDoc::tick`), and the Kalender-Abo follows.
 //! A choice among a module's events is listed too; its module beside the plan decides it, as
 //! before. Last, where a visit meets the plan's Termine it gives way, and „Offen" says so (owner,
-//! 2026-10-26: „Biologie trifft VL MIT1 · Di 13:45 · der Besuch gibt nach"), a line to its Termin. What the parts show is built as plain values first (`Line`, `Focus`), which the tests
-//! read without rendering.
+//! 2026-10-26: „Biologie trifft VL MIT1 · Di 13:45 · der Besuch gibt nach"), a line to its Termin.
+//! What the parts show is built as plain values first (`Line`, `Focus`), which the tests read
+//! without rendering.
 
 use std::collections::BTreeMap;
 
@@ -670,7 +674,8 @@ pub(super) fn OpenPanel(ctx: PlanCtx) -> impl IntoView {
             (lines.clone(), lines.iter().filter(|line| !line.gives && (!line.current || !ticked)).count())
         })
     });
-    // While looking „3 Wahlen offen ›" in the status row says it (D8); the panel is the mode's.
+    // While looking „3 Wahlen offen ›" in the status row says it, a way into the mode; the panel is
+    // the mode's.
     let list = move || {
         if !ctx.edit.get() {
             return None;
@@ -715,7 +720,11 @@ pub(super) fn focused(ctx: PlanCtx) -> Memo<bool> {
 /// in focus: what is to choose first; then the changes to decide; where nothing is, where a visit
 /// gives way. `None` with no line.
 fn said_of(open: &[Line], t: &i18n::Texts) -> Option<(String, String)> {
-    let open: Vec<&Line> = open.iter().filter(|line| !line.current).collect();
+    said_lines(open.iter().filter(|line| !line.current).collect(), t)
+}
+
+/// The same of the lines `open`, whichever is in focus.
+fn said_lines(open: Vec<&Line>, t: &i18n::Texts) -> Option<(String, String)> {
     if open.is_empty() {
         return None;
     }
@@ -738,7 +747,21 @@ pub(super) fn open_said(ctx: PlanCtx) -> Memo<Option<(String, String)>> {
     Memo::new(move |_| built.with(|(lines, _)| said_of(lines, t)))
 }
 
-/// „3 Wahlen offen ›" at the status row's right end while looking (D8): a link into the mode, with
+/// What „Offen" says to a screen reader while a choice is in focus too: the one in focus counts as
+/// long as none of its groups is ticked, as `OpenPanel` counts it (the bars leave it out, the focus
+/// bar names it).
+pub(super) fn open_said_all(ctx: PlanCtx) -> Memo<Option<(String, String)>> {
+    let t = i18n::t();
+    let built = built(ctx);
+    Memo::new(move |_| {
+        built.with(|(lines, focus)| {
+            let ticked = focus.as_ref().is_some_and(|focus| focus.groups.iter().any(|group| group.ticked));
+            said_lines(lines.iter().filter(|line| !line.current || !ticked).collect(), t)
+        })
+    })
+}
+
+/// „3 Wahlen offen ›" at the status row's right end while looking: a link into the mode, with
 /// „Offen"'s rows unfolded where the page has no column beside the week. Nothing where nothing is
 /// open.
 #[component]
@@ -779,7 +802,7 @@ pub(super) fn OpenUnder(ctx: PlanCtx) -> impl IntoView {
     }
 }
 
-/// „Offen" on a phone, over the week (D8, D10): while looking the amber line is a link into the mode
+/// „Offen" on a phone, over the week, the one place it has there: while looking the amber line is a link into the mode
 /// that comes with its rows unfolded; while editing it is the line that opens into the rows,
 /// unfolded where one came by it (`PlanCtx::unfolded`) and folded where one came by „Bearbeiten"
 /// (nothing over the week comes with the mode). The outer closure reads the lines and `edit`,
@@ -852,7 +875,7 @@ pub(super) fn FocusBar(ctx: PlanCtx) -> impl IntoView {
     move || {
         open.get().then(|| {
             let next = move || {
-                field(focus, |focus| focus.next.clone()).map(|(label, href)| view! { <a class="btn" href=t.path(&href) data-noscroll="">{label}</a> })
+                field(focus, |focus| focus.next.clone()).map(|(label, href)| view! { <a class="btn" href=t.path(&href) data-noscroll="" data-replace="">{label}</a> })
             };
             view! {
                 <div class=move || field(focus, |focus| format!("sp-focusbar {}", focus.hue)) role="region" aria-label=move || field(focus, |focus| focus.name.clone())>
@@ -1062,7 +1085,10 @@ pub(super) fn PickSheet(ctx: PlanCtx) -> impl IntoView {
         </div>
     };
     let action = move || match field(focus, |focus| focus.next.clone()) {
-        Some((label, href)) => view! { <a class="big" href=t.path(&href) data-noscroll="">{label}<Icon name="chevron-right"/></a> }.into_any(),
+        // „Weiter" takes the place of the choice in focus in the history, as a pick does: Back
+        // after „Fertig" leaves the mode, whatever choices one walked through (owner, 2026-11-17:
+        // the mode is left by Back).
+        Some((label, href)) => view! { <a class="big" href=t.path(&href) data-noscroll="" data-replace="">{label}<Icon name="chevron-right"/></a> }.into_any(),
         None => done_link(focus, back, t, true).into_any(),
     };
     // ‹ back to the tiles, shown all up (app.css): a finger moving the sheet up brings it in as far

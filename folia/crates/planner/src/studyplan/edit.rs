@@ -51,10 +51,13 @@ fn leave_link(ctx: PlanCtx) -> (Signal<String>, Signal<Option<&'static str>>) {
 }
 
 /// „Bearbeiten" at the head's right end, in both states, pressed while editing: a link to the plan
-/// in the mode, so that the mode is an address (a new tab, Back). Pressed, it leaves the mode as
-/// „Fertig" does — the way out of the mode and of a choice in focus at once (two layers, one
-/// click). It carries no `data-action="close-focus"`: Esc clicks the first such link of the page,
-/// and with a choice in focus one Esc would then leave two layers.
+/// in the mode, so that the mode is an address (a new tab, Back), with the role of a button, which
+/// it acts as (`aria-pressed`; Space acts as Enter does). Pressed, it leaves the mode as „Fertig"
+/// does, in the frame of the click (R21) — the way out of the mode and of a choice in focus at once
+/// (two layers, one click) — and is named so as a command („Bearbeiten beenden"). It carries no
+/// `data-action="close-focus"`: Esc clicks the first such link of the page, and with a choice in
+/// focus one Esc would then leave two layers. Where the mode was left by a control that goes with it
+/// („Fertig"), the keyboard comes to this button, never to the page's body.
 #[component]
 pub(super) fn EditToggle(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
@@ -71,20 +74,85 @@ pub(super) fn EditToggle(ctx: PlanCtx) -> impl IntoView {
         let (page, now) = ctx.url.with_untracked(|url| (url.with_edit(false).path(), url.path()));
         folia_shell::nav::close_to(going, &page, || tabs.is_some_and(|tabs| same_page(&tabs.before(&now), &page)));
     };
+    // A button is pressed by Space too; a link is not.
+    let space = move |ev: leptos::ev::KeyboardEvent| {
+        if ev.key() == " " && !ev.ctrl_key() && !ev.meta_key() && !ev.alt_key() {
+            ev.prevent_default();
+            #[cfg(feature = "csr")]
+            {
+                use leptos::wasm_bindgen::JsCast;
+                if let Some(element) = ev.current_target().and_then(|target| target.dyn_into::<leptos::web_sys::HtmlElement>().ok()) {
+                    element.click();
+                }
+            }
+        }
+    };
+    let name = move || if ctx.edit.get() { e.edit_end } else { e.edit_title };
+    // The mode left by „Fertig" or Esc, whose bar goes with it: the keyboard to this button. Entered
+    // by „3 Wahlen offen ›", which goes with the looking state: to the first of „Offen"'s rows (on
+    // a narrow page the bar's figure that unfolds them, on a phone the line), else „Fertig".
+    #[cfg(feature = "csr")]
+    Effect::new(move |was: Option<bool>| {
+        let now = ctx.edit.get();
+        match (was, now) {
+            (Some(true), false) => request_animation_frame(|| {
+                if lost_focus() {
+                    folia_design::nav::focus_by_id(EDIT_TOGGLE_ID);
+                }
+            }),
+            (Some(false), true) => request_animation_frame(|| {
+                if lost_focus() {
+                    focus_first_shown(&[".sp-open .sp-open-rows a", ".sp-editbar .eb-open", "details.sp-open-line > summary", ".sp-editbar .sp-done", ".sp-editdock .sp-editdock-go"]);
+                }
+            }),
+            _ => {}
+        }
+        now
+    });
     view! {
         <a
             class="ghost sp-edit-toggle"
             class:on=move || ctx.edit.get()
+            id=EDIT_TOGGLE_ID
             href=href
+            role="button"
             data-noscroll=""
             aria-pressed=move || if ctx.edit.get() { "true" } else { "false" }
-            title=e.edit_title
-            data-command=e.edit_title
+            title=name
+            data-command=name
             on:click=leave
+            on:keydown=space
         >
             <Icon name="pencil"/>
             {e.edit}
         </a>
+    }
+}
+
+/// The id of „Bearbeiten", which the keyboard comes back to when the mode is left.
+const EDIT_TOGGLE_ID: &str = "sp-edit-toggle";
+
+/// The keyboard to the first element of the page in front that one of `selectors` finds and that is
+/// shown (the stylesheet shows some of them on some screens alone), in the order of `selectors`.
+#[cfg(feature = "csr")]
+fn focus_first_shown(selectors: &[&str]) {
+    use leptos::wasm_bindgen::JsCast;
+    let shown = selectors.iter().find_map(|selector| folia_design::stage::select_all(selector).into_iter().find(|element| { let rect = element.get_bounding_client_rect(); rect.width() > 0.0 && rect.height() > 0.0 }));
+    if let Some(element) = shown.and_then(|element| element.dyn_into::<leptos::web_sys::HtmlElement>().ok()) {
+        let options = leptos::web_sys::FocusOptions::new();
+        options.set_prevent_scroll(true);
+        let _ = element.focus_with_options(&options);
+    }
+}
+
+/// Whether the keyboard is nowhere: on the page's body, or on an element no longer in the page (a
+/// bar that went with the mode).
+#[cfg(feature = "csr")]
+pub(super) fn lost_focus() -> bool {
+    let Some(document) = leptos::web_sys::window().and_then(|window| window.document()) else { return false };
+    match document.active_element() {
+        None => true,
+        Some(active) => active.is_same_node(document.body().map(Into::into).as_ref()) || !active.is_connected(),
     }
 }
 
@@ -101,12 +169,13 @@ fn figures_text(open: Option<&str>, hidden: usize, sep: &str, t: &i18n::Texts) -
     open.map(str::to_string).into_iter().chain(hid).collect::<Vec<_>>().join(sep)
 }
 
-/// What the mode says to a screen reader (B13): its name and figures while editing („Stundenplan
+/// What the mode says to a screen reader: its name and figures while editing („Stundenplan
 /// bearbeiten: 3 Wahlen offen, 2 ausgeblendet"), „Bearbeiten beendet" once it was left, nothing
 /// before. It reads `edit` (of the address) and the two figures (of the timetable): siblings (R16).
 pub(super) fn said(ctx: PlanCtx) -> Memo<String> {
     let t = i18n::t();
-    let open = open_said(ctx);
+    // Every choice open, the one in focus too while none of its groups is ticked.
+    let open = super::open::open_said_all(ctx);
     let hidden = hidden(ctx);
     Memo::new(move |before: Option<&String>| {
         if ctx.edit.get() {
@@ -120,7 +189,7 @@ pub(super) fn said(ctx: PlanCtx) -> Memo<String> {
     })
 }
 
-/// The status row (D3; critique A.3): one row under the head, on every screen wider than a phone, as
+/// The status row: one row under the head, on every screen wider than a phone, as
 /// tall in each of its three states — the sum and „3 Wahlen offen ›" while looking, the mode's bar
 /// while editing, the bar of a choice in focus. One bar at a time. It stands above the week and
 /// changes nothing above itself („what picks stands above what it changes").
@@ -209,7 +278,17 @@ pub(super) fn EditDock(ctx: PlanCtx) -> impl IntoView {
     let focused = super::open::focused(ctx);
     let open = open_said(ctx);
     let hidden = hidden(ctx);
-    let figures = Memo::new(move |_| open.with(|open| figures_text(open.as_ref().map(|(said, _)| said.as_str()), hidden.get(), " · ", t)));
+    // The two figures apart: where the dock is short the second gives way whole (app.css), never a
+    // word cut in its middle („3 Wahlen offen · 2 ausgebl…").
+    let figures = Memo::new(move |_| {
+        let open = open.with(|open| open.as_ref().map(|(said, _)| said.clone()));
+        let hid = hidden.get();
+        let hid = (hid > 0).then(|| (t.studyplan_head.hidden)(hid));
+        match (open, hid) {
+            (Some(open), Some(hid)) => (Some(open), Some(format!(" · {hid}"))),
+            (open, hid) => (open.or(hid), None),
+        }
+    });
     move || {
         (ctx.edit.get() && !focused.get()).then(|| {
             let (done, back) = leave_link(ctx);
@@ -217,7 +296,9 @@ pub(super) fn EditDock(ctx: PlanCtx) -> impl IntoView {
                 <div class="sp-editdock" role="toolbar" aria-label=e.editing>
                     <span class="sp-editdock-w">
                         <b>{e.dock}</b>
-                        {move || figures.with(|figures| (!figures.is_empty()).then(|| view! { <span>{figures.clone()}</span> }))}
+                        {move || figures.with(|(first, second)| first.clone().map(|first| view! {
+                            <span class="figs"><span>{first}</span>{second.clone().map(|second| view! { <span>{second}</span> })}</span>
+                        }))}
                     </span>
                     <button class="btn secondary sp-editdock-add" type="button" data-action="own-add" title=t.studyplan_own.add_title on:click=move |_| super::own::ask_today(ctx, 0, None)>
                         <Icon name="plus"/>{t.studyplan_own.add}

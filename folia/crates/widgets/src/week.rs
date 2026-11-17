@@ -87,8 +87,8 @@ pub struct GridSlot {
     pub place: String,
     /// The look: "" (a lecture), "other" (any other teaching), "tinted" (a module of the
     /// Studienplan, in its `hue`), "planned" (another planned module beside a module's own
-    /// slots), "once" (single dates), "faint" (what the Stundenplan leaves out, in „Alle
-    /// Termine"), "cal" (a calendar of one's own in full, its colour the `hue`) and "strip" (one as
+    /// slots), "once" (single dates), "faint" (what the Stundenplan leaves out, while it is
+    /// edited), "cal" (a calendar of one's own in full, its colour the `hue`) and "strip" (one as
     /// a strip at the day's edge, see the module's doc).
     pub class: &'static str,
     /// The tint of a `tinted` slot: one of the `t-…` classes of `app.css` („t-ice" … „t-slate").

@@ -32,6 +32,7 @@ use crate::i18n;
 use folia_stores::myprogram::MyProgram;
 use folia_design::nav;
 use folia_stores::studyplan::Saved;
+use folia_plans::studyplan::SavedPlan;
 use folia_design::ui::Icon;
 use super::calendars::CalendarsGroup;
 use super::export::CalendarGroup;
@@ -99,7 +100,15 @@ pub(super) fn SavedPlans(ctx: PlanCtx) -> impl IntoView {
     let any = Memo::new(move |_| held.with(|held| held.0));
     let marked = Memo::new(move |_| held.with(|held| held.1.clone()));
     let entries = Memo::new(move |_| saved.with(|saved| saved.plans.iter().map(|p| (p.name.clone(), p.modules())).collect::<Vec<_>>()));
-    let shown = Memo::new(move |_| ctx.edit.get() && entries.with(|entries| !entries.is_empty()));
+    // The plan the bin took last, at its place, until „Rückgängig" puts it back (every bin of the
+    // page answers with its note) or the mode is left.
+    let removed = RwSignal::new(None::<(usize, SavedPlan)>);
+    Effect::new(move |_| {
+        if !ctx.edit.get() {
+            removed.set(None);
+        }
+    });
+    let shown = Memo::new(move |_| ctx.edit.get() && (entries.with(|entries| !entries.is_empty()) || removed.with(Option::is_some)));
 
     // Loading: at once where nothing unsaved is lost, else after „Ersetzen". The row is marked in
     // the next frame (`said`); the plan follows after it (R21).
@@ -134,7 +143,24 @@ pub(super) fn SavedPlans(ctx: PlanCtx) -> impl IntoView {
         if asking.with_untracked(|asking| asking.as_deref() == Some(which.as_str())) {
             asking.set(None);
         }
-        saved.update(|saved| saved.remove(&which));
+        let gone = saved.update(|saved| {
+            let at = saved.plans.iter().position(|plan| plan.name == which)?;
+            let plan = saved.plans.get(at).cloned()?;
+            saved.remove(&which);
+            Some((at, plan))
+        });
+        removed.set(gone);
+    };
+    let undo = move |_| {
+        if let Some((at, plan)) = removed.get_untracked() {
+            saved.update(|saved| {
+                if saved.get(&plan.name).is_none() {
+                    let at = at.min(saved.plans.len());
+                    saved.plans.insert(at, plan);
+                }
+            });
+        }
+        removed.set(None);
     };
 
     move || {
@@ -161,7 +187,8 @@ pub(super) fn SavedPlans(ctx: PlanCtx) -> impl IntoView {
                                         <span>{which.clone()}</span>
                                         <small class="num">{format::modules(i64::try_from(count).unwrap_or(i64::MAX), t.locale)}</small>
                                     </button>
-                                    // It is deleted, not hidden: the bin (D22).
+                                    // It is deleted, not hidden: the bin (owner, 2026-11-17: „da wo es
+                                    // entfernt eine Mülltonne").
                                     <button class="icon-btn" type="button" aria-label=(s.delete_named)(&which) title=s.delete on:click=move |_| delete(two.clone())>
                                         <Icon name="trash-2"/>
                                     </button>
@@ -179,6 +206,12 @@ pub(super) fn SavedPlans(ctx: PlanCtx) -> impl IntoView {
                             }
                         }
                     />
+                    {move || removed.with(|removed| removed.as_ref().map(|(_, plan)| plan.name.clone())).map(|name| view! {
+                        <p class="sp-cal-note" role="status">
+                            <span>{(t.studyplan_calendars.removed)(&name)}</span>
+                            <button class="mini hit" type="button" on:click=undo>{t.common.undo}</button>
+                        </p>
+                    })}
                 </div>
             }
         })

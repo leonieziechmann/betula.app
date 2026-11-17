@@ -137,7 +137,7 @@ fn head_line(data: &StudyplanData) -> Option<HeadLine> {
 
 /// The head: „Stundenplan WiSe 2026/27" (the one semester the page shows, owner's redesign of
 /// 2026-09-25), then the same controls in both states, so that it is one row and wraps the same
-/// whether the plan is looked at or edited (D3): „Gemeinsam frei" where another calendar stands in
+/// whether the plan is looked at or edited: „Gemeinsam frei" where another calendar stands in
 /// the week, the switch of A and B weeks where it applies, and „Bearbeiten" (`EditToggle`). On a
 /// phone the switch of the weeks is short („Woche: A, B, A/B"; owner, 2026-10-26) and stands under
 /// the title beside „Bearbeiten". Under the head the status row (`StatusRow`): the program and the
@@ -265,11 +265,11 @@ pub(super) fn marked_offered(ctx: PlanCtx) -> Memo<Vec<MarkedModule>> {
 
 // ---------- nothing planned yet ----------
 
-/// A semester without anything in its week (D18; owner, 2026-09-25): „Noch keine Termine" in the
+/// A semester without anything in its week (owner, 2026-09-25): „Noch keine Termine" in the
 /// middle of its empty week, a line on where its Termine come from, and three ways — to „Mein
 /// Studium", where the modules of the study are planned, to the catalog's modules that fit the week,
 /// and „+ Termin", a Termin of one's own (it fills a gap, so it is there while the plan is looked
-/// at, `final-plan.md` §0.3). Nothing here plans a module (owner, 2026-11-17: „Im Kalender geht es
+/// at). Nothing here plans a module (owner, 2026-11-17: „Im Kalender geht es
 /// dann nur noch darum auszuwählen, was jetzt genau gezeigt werden soll. Oder halt termine selbst zu
 /// verwalten."). `marked` is read by nobody now; it goes with the next tidying.
 #[component]
@@ -550,7 +550,7 @@ pub(super) fn summary(table: &Timetable, about: &About, overlaps: &[Overlap], sh
 /// compact line each, which opens its module beside the plan. In „Woche" it counts the week the
 /// A/B switch shows; elsewhere „A/B". No line with nothing to say. What is hidden is not said here:
 /// the mode shows it faint in its place and counts it in its bar (`edit.rs`), and a line that came
-/// with the first thing hidden moved the week 40 px (critique A.3).
+/// with the first thing hidden moved the week 40 px.
 #[component]
 pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();

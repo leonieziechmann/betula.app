@@ -208,7 +208,7 @@ pub(super) struct Facts<'a> {
     pub qis: Option<&'a str>,
 }
 
-/// The card of the Termin `f` found (critique C.3, the seven cases): a firm Termin, a group of an
+/// The card of the Termin `f` found, in its seven cases: a firm Termin, a group of an
 /// open choice, a group ticked, one the plan leaves out, one of one's own, a date QIS cancels, a
 /// Termin changed by the student.
 pub(super) fn card_part(f: Facts<'_>) -> CardPart {
@@ -500,7 +500,7 @@ impl CardState {
     }
 }
 
-/// The card of the Termin `ctx.asked` (critique C.2, top to bottom): `section.is-termin.tm-dialog.tm-card`.
+/// The card of the Termin `ctx.asked`, top to bottom: `section.is-termin.tm-dialog.tm-card`.
 #[component]
 pub(super) fn TerminCard(ctx: TerminCtx, closing: Callback<()>, state: CardState) -> impl IntoView {
     let t = i18n::t();
@@ -611,8 +611,9 @@ pub(super) fn TerminCard(ctx: TerminCtx, closing: Callback<()>, state: CardState
 }
 
 /// The head's tools: „Ändern" (of one's own „Bearbeiten"), the eye „Ausblenden", of one's own the
-/// bin „Löschen", „⋯". Which stand comes from the Termin, never from the date shown (critique C.1,
-/// 4: an arrow in the ticket would else change what stands above it).
+/// bin „Löschen", „⋯". Which stand comes from the Termin, never from the date shown (an arrow
+/// in the ticket would else change what stands above it: CLAUDE.md, „What picks stands above what it
+/// changes").
 #[component]
 fn CardTools(ctx: TerminCtx, card: Memo<Option<CardPart>>, own: Memo<Option<OwnPart>>, change: Memo<Option<ChangePart>>, state: CardState, run: Callback<(CardAct, Option<String>)>) -> impl IntoView {
     let t = i18n::t();
@@ -809,7 +810,7 @@ fn CardAction(ctx: TerminCtx, card: Memo<Option<CardPart>>, run: Callback<(CardA
     }
 }
 
-/// The rows of „⋯", under the lines, the card growing downward (critique C.1, 3): the note,
+/// The rows of „⋯", under the lines, the card growing downward, never moving its top: the note,
 /// „Nachholtermin anlegen", „Teilen", „In QIS öffnen".
 #[component]
 fn CardMore(ctx: TerminCtx, card: Memo<Option<CardPart>>, change: Memo<Option<ChangePart>>, at: Memo<Option<(RowKey, Day)>>, called: Memo<String>, state: CardState) -> impl IntoView {

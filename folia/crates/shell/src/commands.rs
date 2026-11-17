@@ -702,12 +702,13 @@ mod page {
             next.open = Some(id.to_string());
             next.path()
         };
-        let to = t.path(&to);
+        // `Pending::go` takes the app's path and writes the language's prefix itself; the browser's
+        // own step takes the address as it is written.
         match crate::pending::Pending::expect() {
             Some(going) => going.go(&to, Default::default()),
             None => {
                 if let Some(window) = web_sys::window() {
-                    let _ = window.location().assign(&to);
+                    let _ = window.location().assign(&t.path(&to));
                 }
             }
         }

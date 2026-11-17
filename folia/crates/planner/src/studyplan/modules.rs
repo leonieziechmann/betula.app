@@ -143,7 +143,7 @@ fn weekly_text((day, from, weeks): (u8, u16, Weeks), t: &i18n::Texts) -> String 
     format!("{day} {}{letter}", folia_calendar::day::clock(from))
 }
 
-/// What a row says of its event (critique D): one or two Termine a week by weekday and start („Di
+/// What a row says of its event: one or two Termine a week by weekday and start („Di
 /// 11:30 · Fr 09:15", „Di 07:30 A"), three or four by their weekdays („Mo · Mi · Fr"), more or single
 /// dates alone „5 Termine"; groups none of which is ticked „4 Gruppen · offen", ticked their times and
 /// „1 von 4"; an option of an open choice its times and „offen"; nothing with a time „ohne feste
@@ -215,7 +215,16 @@ fn row_shown(row: &EventRow, event: &Event, name: &str, base: &StudyplanUrl, t: 
         Some(Out::Hidden | Out::Kind) => Some(t.studyplan_week.hidden.to_string()),
         _ => hid.clone(),
     };
-    let named = (m.show_event)(&row.label, name);
+    // The eye's name says the kind in the page's language: QIS's word („Vorlesung") stands in the
+    // row in every language, but "Show vorlesung EvS" is no English.
+    let word = match (t.locale, event.kinds.iter().next()) {
+        (i18n::Locale::De, _) | (_, None) => row.label.clone(),
+        (_, Some(kind)) => {
+            let qis = folia_timetable::views::type_text(event, t.locale);
+            row.label.strip_prefix(qis.as_str()).map_or_else(|| row.label.clone(), |rest| format!("{}{rest}", kind.label(t.locale)))
+        }
+    };
+    let named = (m.show_event)(&word, name);
     let eye = match (summary.out, event.id.parse::<u32>()) {
         (Some(Out::Unchosen), _) | (_, Err(_)) => None,
         (None, Ok(id)) => Some((true, named, Flip::Hide(id))),
@@ -357,7 +366,7 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
         }
     };
     // A Termin of one's own of the module: its card, in both states (it is deleted there and by the
-    // bin on its slot, not hidden: no eye, D22).
+    // bin on its slot, not hidden: no eye; owner, 2026-11-17: „da wo es entfernt eine Mülltonne").
     let own_row = move |row: OwnRow| {
         let href = move || ctx.url.with(|url| t.path(&url.with_termin(Some((row.key, None))).path()));
         let current = Memo::new(move |_| ctx.url.with(|url| url.termin_on().map(|(key, _)| key) == Some(row.key)));
@@ -399,7 +408,8 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
         // What „+ Termin" and „Termin eintragen" name the module by: as the week does.
         let called = names.with_untracked(|names| names.get(&id).cloned()).unwrap_or_else(|| item.title.clone());
         let enter_title = (t.studyplan_own.enter_title)(&called);
-        // „keine Termine in QIS · Termin eintragen ›" in both states (it fills a gap, D7); the way
+        // „keine Termine in QIS · Termin eintragen ›" in both states (it fills a gap, as the empty
+        // week's „+ Termin" does); the way
         // goes once the module has a Termin of one's own.
         let none = item.undated.then(|| {
             let (module, title) = (id.clone(), enter_title.clone());
@@ -622,7 +632,7 @@ mod tests {
         summary_text(&summary, &i18n::DE).plain(&i18n::DE)
     }
 
-    /// Every case of the summary, as critique D says them.
+    /// Every case of the summary, each in its words.
     #[test]
     fn a_row_says_what_the_plan_holds_of_its_event() {
         let week = |day: u8, from: u16| (day, from, Weeks::All);

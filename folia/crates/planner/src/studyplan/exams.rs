@@ -5,12 +5,15 @@
 //! deadlines („So 14.02.2027 · bis 24:00") stand at their first day; what QIS lists without a date
 //! stands under „Ohne festen Termin"; one line names the planned modules the data has no exam for.
 //!
-//! While the plan is edited each sitting has an eye (while looking the page changes nothing, and a
-//! sitting hidden is not listed): hiding a sitting is how a student takes the other one (a module's
-//! sittings are alternatives of each other, `folia_timetable::exams`), and the warnings follow
-//! at once (the timetable is worked out again in Rust, no query, R21). A hidden sitting stays in
-//! the list, dimmed, so the eye can bring it back; one the kind „Prüfung" or the Standort hides
-//! says so, and its eye shows the kind again or (the Standort decides) does nothing.
+//! While the plan is edited each sitting has an eye: hiding a sitting is how a student takes the
+//! other one (a module's sittings are alternatives of each other, `folia_timetable::exams`), and the
+//! warnings follow at once (the timetable is worked out again in Rust, no query, R21). A hidden
+//! sitting stays in the list then, dimmed, so the eye can bring it back; one the kind „Prüfung" or
+//! the Standort hides says so, and its eye shows the kind again or (the Standort decides) does
+//! nothing. While looking nothing on the page changes the plan: a hidden sitting is not listed, its
+//! eye's place stays empty (the line keeps its shape, on a phone its column), and one quiet line
+//! says how many are hidden and leads into the mode, so that the view is never blank where the
+//! student hid everything (`listed`).
 //!
 //! The view reads the timetable and the address without the module beside the plan, two
 //! siblings (R16), and the titles through a memo of the data. What it shows is built as plain
@@ -54,34 +57,62 @@ pub(super) fn ExamsView(ctx: PlanCtx) -> impl IntoView {
             })
         })
     });
-    // While looking a sitting the student hid is not listed (nothing on the page changes the plan
-    // then); while editing it stands dimmed with its eye, which brings it back (critique B12).
-    let lines = Memo::new(move |_| -> Vec<Line> {
+    // While looking a hidden sitting is not listed (nothing on the page changes the plan then);
+    // while editing it stands dimmed with its eye, which brings it back. With the lines the number
+    // left out, which the quiet line under them says.
+    let shown = Memo::new(move |_| -> (Vec<Line>, usize) {
         let editing = ctx.edit.get();
-        built.with(|built| {
-            built
-                .as_ref()
-                .map(|(lines, states, _)| {
-                    lines
-                        .iter()
-                        .filter(|line| editing || !matches!(line, Line::Sitting(sitting) if states.get(&sitting.id).is_some_and(|state| state.hidden.is_some())))
-                        .cloned()
-                        .collect()
-                })
-                .unwrap_or_default()
-        })
+        built.with(|built| built.as_ref().map(|(lines, states, _)| listed(lines, states, editing)).unwrap_or_default())
     });
+    let lines = Memo::new(move |_| shown.with(|(lines, _)| lines.clone()));
+    let left_out = Memo::new(move |_| shown.with(|(_, left_out)| *left_out));
     let states = Memo::new(move |_| built.with(|built| built.as_ref().map(|(_, states, _)| states.clone()).unwrap_or_default()));
     // Nothing to list where the data could have had exams: said once. A past semester and one
     // whose dates are not out yet say so in the head already.
     let none = Memo::new(move |_| built.with(|built| built.as_ref().is_some_and(|(lines, _, listed)| *listed && lines.is_empty())));
+    // „2 ausgeblendet ›": what looking leaves out, as a way into the mode, where it shows them.
+    let into_mode = move || ctx.url.with(|url| t.path(&url.with_edit(true).path()));
 
     view! {
         {move || none.get().then(|| view! { <p class="hint">{t.studyplan_exams.none}</p> })}
         <div class="sp-exams">
             <For each=move || lines.get() key=|line| line.clone() children=move |line: Line| line_view(ctx, states, line, t)/>
         </div>
+        {move || {
+            let n = left_out.get();
+            (n > 0).then(|| {
+                let said = (t.studyplan_head.hidden)(n);
+                let name = (t.studyplan_edit.open_way)(&said);
+                view! {
+                    <p class="sp-exams-hid">
+                        <a href=into_mode data-noscroll="" aria-label=name>
+                            <Icon name="eye-off"/>
+                            <span>{said}</span>
+                            <Icon name="chevron-right" class="chev"/>
+                        </a>
+                    </p>
+                }
+            })
+        }}
     }
+}
+
+/// The lines the view lists, and how many sittings it leaves out: while editing every line; while
+/// looking none of a hidden sitting, and no „Ohne festen Termin" that nothing follows any more.
+fn listed(lines: &[Line], states: &BTreeMap<String, State>, editing: bool) -> (Vec<Line>, usize) {
+    if editing {
+        return (lines.to_vec(), 0);
+    }
+    let hidden = |line: &Line| matches!(line, Line::Sitting(sitting) if states.get(&sitting.id).is_some_and(|state| state.hidden.is_some()));
+    let left_out = lines.iter().filter(|line| hidden(line)).count();
+    let kept: Vec<&Line> = lines.iter().filter(|line| !hidden(line)).collect();
+    let shown = kept
+        .iter()
+        .enumerate()
+        .filter(|(at, line)| !matches!(line, Line::Undated) || matches!(kept.get(at + 1), Some(Line::Sitting(_))))
+        .map(|(_, line)| (*line).clone())
+        .collect();
+    (shown, left_out)
 }
 
 // ---------- what the view shows ----------
@@ -181,8 +212,8 @@ impl State {
     }
 }
 
-/// What the eye of a sitting does. Every sitting has one, so the line keeps its shape (and on a
-/// phone its column) whatever hides it.
+/// What the eye of a sitting does. Every sitting has one while the plan is edited, and its place
+/// while it is looked at, so the line keeps its shape (and on a phone its column) whatever hides it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Eye {
     /// Hides the sitting: the student takes another one.
@@ -476,8 +507,9 @@ fn sitting_view(ctx: PlanCtx, states: Memo<BTreeMap<String, State>>, sitting: Si
                 <a href=t.path(&sitting.href) data-noscroll="">{sitting.title.clone()}</a>
                 {move || small.with(|small| (!small.is_empty()).then(|| view! { <small>{small.clone()}</small> }))}
             </span>
-            // The eye is the page's own control: only while the plan is edited.
-            {move || ctx.edit.get().then(|| view! {
+            // The eye is the page's own control: only while the plan is edited. Its place stays
+            // while looking, so that the line keeps its columns (on a phone the date's).
+            <span class="sp-exam-end">{move || ctx.edit.get().then(|| view! {
                 <button
                     class="eye"
                     type="button"
@@ -489,7 +521,7 @@ fn sitting_view(ctx: PlanCtx, states: Memo<BTreeMap<String, State>>, sitting: Si
                 >
                     {move || if hidden.get() { view! { <Icon name="eye-off"/> } } else { view! { <Icon name="eye"/> } }}
                 </button>
-            })}
+            })}</span>
         </div>
     }
 }
@@ -668,6 +700,33 @@ mod tests {
         assert_eq!(state(Some(HiddenBy::Town(Town::Senftenberg))).reason(None, &i18n::DE).as_deref(), Some("Standort Cottbus"));
         assert_eq!(state(Some(HiddenBy::Event)).reason(None, &i18n::DE), None);
         assert_eq!((kinds.reason(None, &i18n::EN).as_deref(), town.reason(None, &i18n::EN).as_deref()), (Some("Exams hidden"), Some("Location: Senftenberg")));
+    }
+
+    /// While looking a hidden sitting is not listed, and the view says how many it leaves out (never
+    /// blank where every sitting is hidden); „Ohne festen Termin" does not stand alone. While
+    /// editing every line stands.
+    #[test]
+    fn looking_leaves_the_hidden_sittings_out_and_counts_them() {
+        let rows = [
+            exam("1", "10", 1, Some(("2027-02-08", "2027-02-08")), ("11:00", "13:00"), Some("Audimax 1"), None),
+            exam("2", "20", 1, None, ("", ""), None, None),
+        ];
+        let all = table(&["1", "2"], &rows, &Selection::default());
+        let (lines, _) = exam_lines(&all, &about(false), &StudyplanUrl::default(), &i18n::DE);
+        let keys: Vec<RowKey> = lines.iter().filter_map(|line| match line {
+            Line::Sitting(s) => s.key,
+            _ => None,
+        }).collect();
+        // The undated one hidden: its heading goes with it.
+        let selection = Selection { hidden_rows: keys.iter().skip(1).copied().collect(), ..Default::default() };
+        let (lines, states) = exam_lines(&table(&["1", "2"], &rows, &selection), &about(false), &StudyplanUrl::default(), &i18n::DE);
+        let (looking, left_out) = listed(&lines, &states, false);
+        assert_eq!((texts(&looking), left_out), (vec!["Mo 08.02.2027 11:00–13:00 · Mathematik W-1 · Audimax 1".to_string()], 1));
+        assert_eq!(listed(&lines, &states, true), (lines.clone(), 0));
+        // Both hidden: nothing listed, both counted.
+        let selection = Selection { hidden_rows: keys.iter().copied().collect(), ..Default::default() };
+        let (lines, states) = exam_lines(&table(&["1", "2"], &rows, &selection), &about(false), &StudyplanUrl::default(), &i18n::DE);
+        assert_eq!(listed(&lines, &states, false), (Vec::new(), 2));
     }
 
     #[test]

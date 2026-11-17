@@ -84,9 +84,10 @@ pub struct Texts {
     pub gives_way: fn(&str) -> String,
     /// … the eye hides one Termin of an event of several slots („Ausblenden") …
     pub hide_session: &'static str,
-    /// … or the whole event, named by its type as QIS writes it: „Vorlesung ausblenden" …
+    /// … or the whole event, named by its type as QIS writes it („Vorlesung ausblenden"; in English
+    /// by the kind's word, "Hide the lecture") …
     pub hide_event: fn(&str) -> String,
-    /// … a faint slot's „✓" shows a kind switched off again („„Übung“ wieder einblenden") …
+    /// … a faint slot's crossed eye shows a kind switched off again („„Übung“ wieder einblenden") …
     pub show_kind: fn(&str) -> String,
     /// … or its Termin with the crossed eye („Einblenden").
     pub show_again: &'static str,
@@ -239,7 +240,7 @@ pub const EN: Texts = Texts {
     visit: "visit, does not count",
     gives_way: |others| format!("meets {others}, the visit gives way"),
     hide_session: "Hide",
-    hide_event: |kind| format!("Hide {kind}"),
+    hide_event: |kind| format!("Hide the {kind}"),
     show_kind: |kind| format!("Show “{kind}” again"),
     show_again: "Show",
     delete_own: "Delete",
