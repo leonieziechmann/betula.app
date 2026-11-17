@@ -6320,12 +6320,6 @@ div.st-col-head.past { cursor: default; }
 .st-dlg-head { display: flex; align-items: flex-start; gap: 12px; padding: 16px 14px 12px 22px; }
 .st-dlg-head > div { flex: 1 1 auto; min-width: 0; padding-top: 2px; }
 .st-dlg-head .dlg-close { margin-top: -6px; }
-/* The way a level up (`ModalHead`'s `back`; owner, 2026-11-17: „es braucht noch einen back button,
-   so dass man eine ebene höher kommt"): an arrow before the title, its sign where the head's text
-   begins, as tall as the title's line is in the middle of it. */
-.st-dlg-head .dlg-back { flex: none; width: 32px; height: 32px; margin: -3px -6px 0 -7px; color: var(--text-2); border: 0; background: none; cursor: pointer; }
-.st-dlg-head .dlg-back:hover { background: var(--panel-3); color: var(--text); }
-.st-dlg-head .dlg-back .icon { width: 18px; height: 18px; }
 .st-dlg-head h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.015em; }
 .st-dlg-head h2 .st-dot { width: 10px; height: 10px; }
 .st-dlg-head p { margin: 4px 0 0; color: var(--text-2); font-size: 13.5px; line-height: 1.5; text-wrap: pretty; }
@@ -6404,12 +6398,13 @@ div.st-col-head.past { cursor: default; }
 .st-tally-part .st-glyph > .icon { width: 9px; height: 9px; stroke-width: 3.6; }
 .st-tally-after { color: var(--text-3); }
 .st-tally-after.over { color: color-mix(in oklab, var(--c) 75%, var(--text)); font-weight: 650; }
-/* An area: its bar under the head, the strip, its modules and the plan's rows still open — each
-   its mark, its name over what is said of it (its semester, where the plan puts it), its credits;
-   a row with a module a way to it, as the Wahlpflicht's rows are. */
-.st-area-dlg > .st-wbar { margin-top: 2px; }
-.st-area-dlg > .st-tally { margin-top: 14px; }
-.st-area-dlg section h3 { margin: 20px 0 2px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
+/* An area (overview.rs `AreaBody`, in its dialog and on its page): its bar under the head, the
+   strip, its modules and the plan's rows still open — each its mark, its name over what is said
+   of it (its semester, where the plan puts it), its credits; a row with a module a way to it, as
+   the Wahlpflicht's rows are. */
+.st-area-body > .st-wbar { margin-top: 2px; }
+.st-area-body > .st-tally { margin-top: 14px; }
+.st-area-body section h3 { margin: 20px 0 2px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
 .st-area-items, .st-area-list { list-style: none; margin: 0; padding: 0; }
 .st-area-items li + li { border-top: 1px solid var(--line); }
 .st-area-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 44px; padding: 7px 0; color: var(--text); font-size: 13.5px; text-decoration: none; }
@@ -6422,13 +6417,21 @@ a.st-area-row:hover { background: var(--row-hover); text-decoration: none; }
 .st-area-row .st-lp { font-size: 13px; color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .st-area-ways { display: flex; flex-direction: column; gap: 2px; margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--line); }
 .st-area-ways .action > span { flex: 1; }
-/* The areas: under the strip a card each, as the Wahlpflicht's of a choice — its dot and name,
-   what it holds of what it asks, its bar in its tone (on the card's ground the track is the
-   panel's), its marks. */
-.st-areas > .st-tally { margin-top: 2px; }
+/* The areas (areas.rs; owner, 2026-11-17: „das ist modal zu modal und das sieht richtig komisch
+   aus … oder das wird zur eigenen seite"): a page, on a phone behind the overview, its strip and
+   under it a card each, as the Wahlpflicht's of a choice — its dot and name, what it holds of what
+   it asks, its bar in its tone (on the card's ground the track is darker), its marks; a card the
+   way to the area's page. On a desktop the page in a panel, an area's with a way to the list at
+   its head. */
 .st-area-list { margin-top: 16px; display: flex; flex-direction: column; gap: 6px; }
-.st-area-list button { display: grid; gap: 8px; width: 100%; padding: 12px 10px 11px 14px; border: 0; border-radius: 10px; background: var(--panel-2); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background .15s; }
-@media (hover: hover) { .st-area-list button:hover { background: var(--row-hover); } }
+.st-area-list a { display: grid; gap: 8px; padding: 12px 10px 11px 14px; border-radius: 10px; background: var(--panel-2); color: var(--text); text-decoration: none; transition: background .15s; -webkit-tap-highlight-color: transparent; }
+.st-area-list a:hover { text-decoration: none; }
+@media (hover: hover) { .st-area-list a:hover { background: var(--row-hover); } }
+.st-area-list a:active { background: var(--row-hover); }
+.st-areas-page > .st-areas-in, .st-area-page > .st-area-body { padding: 0 20px 18px; }
+.st-area-h { display: flex; align-items: center; gap: 8px; }
+.st-area-h > .st-dot { width: 10px; height: 10px; }
+.st-area-page > .st-view-head .st-link { flex: none; margin-top: 2px; }
 .st-area-t { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .st-area-t > .st-dot { width: 9px; height: 9px; }
 .st-area-t > b { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; hyphens: auto; }
@@ -7092,6 +7095,11 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
   .st-vhead { padding: 4px 4px 2px; }
   .st-vhead h1 { margin: 0; font-size: 26px; font-weight: 750; letter-spacing: -.03em; line-height: 1.15; }
   .st-vhead p { margin: 4px 0 0; font-size: 14px; color: var(--text-2); }
+  /* An area's page: its dot before its name, at the middle of the name's first line. */
+  .st-area-vhead h1 { display: flex; align-items: flex-start; gap: 10px; }
+  .st-area-vhead h1 > .st-dot { width: 12px; height: 12px; margin-top: .45em; }
+  .st-areas-phone > .panel { padding: 14px 14px 16px; }
+  .st-areas-phone .st-area-ways { margin-bottom: -6px; }
   .st-way { min-height: 56px !important; }
   .st-docs .docrow { padding-inline: 16px; }
   .st-docs .docrow.docpart { margin-top: -4px; padding-left: 44px; padding-block: 4px 9px; }
@@ -7435,8 +7443,6 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
      is under the grabber, its × out of sight. */
   .st-dlg-head { position: relative; padding: 20px 16px 10px; }
   .st-dlg-head > div { padding-top: 0; }
-  .st-dlg-head .dlg-back { width: 40px; height: 40px; margin: -9px -8px 0 -10px; color: var(--text); }
-  .st-dlg-head .dlg-back .icon { width: 20px; height: 20px; }
   .st-dlg-head h2 { font-size: 17px; }
   .st-dlg-bar, .st-dlg-body, .st-dlg-foot { padding-left: 16px; padding-right: 16px; }
   /* The buttons side by side across the sheet, the primary on the right, and off the screen's

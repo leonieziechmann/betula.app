@@ -32,6 +32,7 @@
 //! what it needs of it through a memo of its own (R5). A click answers in the next frame and the
 //! store follows after it (R21, `StudyCtx::change`).
 
+mod areas;
 mod bench;
 mod btu;
 mod card;
@@ -182,11 +183,9 @@ pub(super) enum View {
 /// The dialog open over the page, if any (`dialog.rs`).
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Dialog {
-    /// An area of the progress (`Study::progress`); `None` for what counts towards none. `listed`
-    /// where it was opened from the areas' sheet: its head has the way back to it.
-    Area { area: Option<usize>, listed: bool },
-    /// The areas on a phone.
-    Areas,
+    /// An area of the progress (`Study::progress`) on a desktop, opened from its card; `None` for
+    /// what counts towards none. A phone's is a page of its own (`areas.rs`).
+    Area(Option<usize>),
     /// „Studiengang wechseln".
     Switch,
     /// „Zählt für" › „Anderer Bereich …" of a module of a semester (`count.rs`).
@@ -255,6 +254,8 @@ pub(super) struct StudyCtx {
     /// A phone's choice of the Wahlpflicht was opened from its list, the step before in the
     /// history: its way back goes back there.
     pub choice_back: RwSignal<bool>,
+    /// The same for an area of the progress opened from the list of them (`areas.rs`).
+    pub area_back: RwSignal<bool>,
     /// What „Einplanen" of the module beside the page aims at where the Wahlpflicht opened it: the
     /// module and the choice's placeholder and row (`PlanHint`, `choose.rs`). For that module
     /// alone.
@@ -524,6 +525,7 @@ pub fn StudyPage() -> impl IntoView {
         view_back: RwSignal::new(false),
         choice: RwSignal::new(None),
         choice_back: RwSignal::new(false),
+        area_back: RwSignal::new(false),
         aside_hint: RwSignal::new(None),
         bench: RwSignal::new(None),
         trail: RwSignal::new(Vec::new()),
@@ -753,6 +755,7 @@ fn StudyBody(ctx: StudyCtx) -> impl IntoView {
             StudyView::Plan => view! { <regular::Regular ctx/> }.into_any(),
             StudyView::Choices => view! { <choose::Choose ctx/> }.into_any(),
             StudyView::Documents => view! { <documents::Documents ctx/> }.into_any(),
+            StudyView::Progress => view! { <areas::Areas ctx/> }.into_any(),
         }
     }
 }
