@@ -21,6 +21,7 @@
 use leptos::prelude::*;
 
 use folia_design::stage::Title;
+use folia_design::haptic::{self, Haptic};
 use folia_design::ui::Icon;
 use folia_routes::url;
 use folia_shell::frame::Plain;
@@ -117,8 +118,14 @@ pub fn ConnectPage() -> impl IntoView {
             note.set(None);
             join(fragment);
         }
-        Scanned::OtherSite => note.set(Some(c.scan_other_site)),
-        Scanned::Other => note.set(Some(c.scan_other)),
+        Scanned::OtherSite => {
+            haptic::play(Haptic::Error);
+            note.set(Some(c.scan_other_site));
+        }
+        Scanned::Other => {
+            haptic::play(Haptic::Error);
+            note.set(Some(c.scan_other));
+        }
     });
     let ways = move |first: (&'static str, &'static str, &'static str)| {
         view! {

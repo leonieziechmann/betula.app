@@ -422,7 +422,7 @@ const hold = async (area, ms = 600) => {
   return menu;
 };
 const ways = await hold("programs");
-check(ways.join("|") === "Regelstudienplan /study?view=plan|Wahlpflicht /study?view=areas|Alle Studiengänge /programs", `a tab held: „Studium“ does not offer its ways: ${JSON.stringify(ways)}`);
+check(ways.join("|") === "Regelstudienplan /study?view=plan|Wahlpflicht /study?view=areas|Ordnungen & Dokumente /study?view=documents|Alle Studiengänge /programs", `a tab held: „Studium“ does not offer its ways: ${JSON.stringify(ways)}`);
 check(await page.evaluate(() => location.pathname === "/study" && Boolean(document.querySelector(".tab-menu"))), "a tab held: the finger's release went somewhere, or the menu went");
 await page.touchscreen.tap(200, 200);
 await page.waitForFunction(() => !document.querySelector(".tab-menu"), null, { timeout: 2000 }).catch(() => problems.push("a tab held: a tap beside the menu did not close it"));
@@ -442,7 +442,7 @@ await page.evaluate(() => document.querySelector("#filters .sheet-close")?.click
 await page.waitForFunction(() => !document.getElementById("filters")?.classList.contains("open"), null, { timeout: 3000 }).catch(() => {});
 await page.waitForTimeout(600);
 const otherWays = await hold("programs");
-check(otherWays.length === 3 && (await page.evaluate(() => location.pathname === "/catalog" && Boolean(document.querySelector(".tab-menu")))), `a tab other than the current one held: its release went to the tab, or the menu went: ${JSON.stringify({ ways: otherWays, at: await page.evaluate(() => location.pathname) })}`);
+check(otherWays.length === 4 && (await page.evaluate(() => location.pathname === "/catalog" && Boolean(document.querySelector(".tab-menu")))), `a tab other than the current one held: its release went to the tab, or the menu went: ${JSON.stringify({ ways: otherWays, at: await page.evaluate(() => location.pathname) })}`);
 await page.touchscreen.tap(200, 200);
 await page.waitForFunction(() => !document.querySelector(".tab-menu"), null, { timeout: 2000 }).catch(() => problems.push("a tab other than the current one held: a tap beside the menu did not close it"));
 check(await page.evaluate(() => location.pathname === "/catalog"), "a tab other than the current one held: the tap beside the menu went somewhere");
