@@ -80,7 +80,7 @@ use self::calendars::{CalendarLine, CalendarModules};
 use self::edit::EditDock;
 use self::exams::ExamsView;
 use self::export::CalendarGroup;
-use self::head::{marked_offered, DerivedLine, ExamAlerts, MarkedNote, NothingPlanned, Overlaps, SemesterHead};
+use self::head::{marked_offered, DerivedLine, ExamAlerts, NothingPlanned, Overlaps, SemesterHead};
 use self::modules::ModuleList;
 use self::open::{OpenLine, OpenPanel, PickSheet};
 use self::own::{OwnForm, OwnNote};
@@ -477,16 +477,12 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
                 view! {
                     <div class="sp-side">
                         <OpenPanel ctx/>
-                        <ModuleList ctx marked/>
+                        <ModuleList ctx/>
                         <CalendarModules ctx marked/>
-                        <MarkedNote ctx/>
                     </div>
                 }
             })
         }}
-        // On a phone „+ Kalender" after the module list, while editing (D10: a phone has no
-        // sidebar, and a new calendar is a new part of that list).
-        {move || ctx.phone.get().then(|| view! { <calendars::NewCalendar ctx/> })}
         <div class="sp-below">
             {move || {
                 (fine.get() && planned.get()).then(|| {

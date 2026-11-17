@@ -102,6 +102,12 @@ pub struct Texts {
     /// The tooltip of a slot of one's own: „von dir, nicht in Datei und festem Abo" (a share that
     /// stays current takes them along).
     pub by_you: &'static str,
+    /// The mark of a Termin of one's own in the list of modules: „von dir".
+    pub mark: &'static str,
+    /// The form's sub-line opened for a module: „Für EvS · WiSe 2026/27"; „Was" then needs no name
+    /// (its placeholder „optional": the week calls it by its kind and module).
+    pub form_for: fn(&str, &str) -> String,
+    pub what_optional: &'static str,
     /// The draft in the week while the form is open: „Neuer Termin".
     pub draft: &'static str,
     /// A finger held on a free stretch of a phone's week, said for a screen reader.
@@ -183,6 +189,9 @@ pub const DE: Texts = Texts {
     from_day: |day| format!("ab {day}"),
     until_day: |day| format!("bis {day}"),
     by_you: "von dir, nicht in Datei und festem Abo",
+    mark: "von dir",
+    form_for: |module, semester| format!("Für {module} · {semester}"),
+    what_optional: "optional",
     draft: "Neuer Termin",
     hold_hint: "Finger auf eine freie Stelle halten: ein Termin dort",
     changed: "von dir geändert",
@@ -259,6 +268,9 @@ pub const EN: Texts = Texts {
     from_day: |day| format!("from {day}"),
     until_day: |day| format!("until {day}"),
     by_you: "yours, not in the file or a fixed feed",
+    mark: "by you",
+    form_for: |module, semester| format!("For {module} · {semester}"),
+    what_optional: "optional",
     draft: "New event",
     hold_hint: "Hold a finger on a free stretch: an event there",
     changed: "changed by you",

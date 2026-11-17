@@ -5,10 +5,8 @@
 pub struct Texts {
     /// The heading: „Modul in „Mein Studiengang“" (the calendar's name).
     pub title: fn(&str) -> String,
-    /// What a module taken in there is: in „Mein Studiengang" a visit („Zählt in „Mein Studium“ als
-    /// Besuch, ohne LP."), in a calendar of one's own nothing of the study („Module in „Lena“ zählen
-    /// nirgends.").
-    pub mine_says: &'static str,
+    /// What a module taken into a calendar of one's own is: nothing of the study („Module in
+    /// „Lena“ zählen nirgends.“).
     pub calendar_says: fn(&str) -> String,
     /// The × of the panel.
     pub close: &'static str,
@@ -36,13 +34,14 @@ pub struct Texts {
     pub added: fn(&str, &str) -> String,
     pub all_added: fn(usize, &str) -> String,
     pub take_all: fn(usize) -> String,
-    /// The way to the whole catalog at the end: what fits the week.
-    pub to_catalog: &'static str,
+    /// Over the panel of a calendar that follows a share: what is taken in lasts until the share
+    /// changes („„Lena“ folgt einem geteilten Stundenplan. Was du hier aufnimmst, hält bis zu
+    /// seiner nächsten Änderung.“).
+    pub follows: fn(&str) -> String,
 }
 
 pub const DE: Texts = Texts {
     title: |calendar| format!("Modul in „{calendar}“"),
-    mine_says: "Zählt in „Mein Studium“ als Besuch, ohne LP.",
     calendar_says: |calendar| format!("Module in „{calendar}“ zählen nirgends."),
     close: "Schließen",
     ways: "Woher",
@@ -62,12 +61,11 @@ pub const DE: Texts = Texts {
     added: |title, calendar| format!("„{title}“ in „{calendar}“ aufgenommen"),
     all_added: |n, calendar| format!("{n} gemerkte Module in „{calendar}“ aufgenommen"),
     take_all: |n| format!("{n} gemerkte Module aufnehmen"),
-    to_catalog: "Im Katalog suchen, mit „Passt in meinen Stundenplan“",
+    follows: |name| format!("„{name}“ folgt einem geteilten Stundenplan. Was du hier aufnimmst, hält bis zu seiner nächsten Änderung."),
 };
 
 pub const EN: Texts = Texts {
     title: |calendar| format!("Module into “{calendar}”"),
-    mine_says: "Counts in “My studies” as a visit, without credits.",
     calendar_says: |calendar| format!("Modules in “{calendar}” count nowhere."),
     close: "Close",
     ways: "From",
@@ -87,5 +85,5 @@ pub const EN: Texts = Texts {
     added: |title, calendar| format!("“{title}” added to “{calendar}”"),
     all_added: |n, calendar| format!("{n} saved modules added to “{calendar}”"),
     take_all: |n| format!("Add {n} saved modules"),
-    to_catalog: "Search the catalogue, with “Fits my timetable”",
+    follows: |name| format!("“{name}” follows a shared timetable. What you add here lasts until its next change."),
 };

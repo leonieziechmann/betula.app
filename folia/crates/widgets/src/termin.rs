@@ -2508,87 +2508,33 @@ fn when_of(row: &Row, locale: Locale) -> String {
     }
 }
 
-/// The module `id`'s events where it has more than one (`Pick::events`), in the timetable's order:
-/// those for another place or program left out, as the module's page leaves them out (unless it is
-/// the one shown), and those without a Termin.
+/// The module `id`'s events where it has more than one (`Pick::events`), as the Stundenplan's list
+/// of modules has them (`folia_timetable::categories::module_events`, so that the two cannot
+/// differ): in the timetable's order, those for another place or program left out, as the module's
+/// page leaves them out (unless it is the one shown), and those without a Termin.
 fn event_tabs(table: &Timetable, id: &str, o: &Occasion, module_title: Option<&str>, t: &'static Texts) -> Vec<EventTab> {
     let locale = t.locale;
-    let theirs = |event: &Event| matches!(event.hidden, Some(HiddenBy::Town(_) | HiddenBy::Course(_) | HiddenBy::Program));
-    let events: Vec<(usize, &Event, Vec<termin::Session>)> = table
-        .events
-        .iter()
-        .enumerate()
-        .filter(|(index, event)| event.modules.iter().any(|module| module == id) && (*index == o.event || !theirs(event)))
-        .map(|(index, event)| (index, event, termin::sessions(event)))
-        .filter(|(_, _, sessions)| !sessions.is_empty())
-        .collect();
-    if events.len() < 2 {
+    let rows = folia_timetable::categories::module_events(table, id, Some(o.event), locale);
+    if rows.len() < 2 {
         return Vec::new();
     }
-    let kinds: Vec<String> = events.iter().map(|(_, event, _)| type_text(event, locale)).collect();
-    // The weekday and the time of each event's first Termin, which tell two of a kind apart.
-    let firsts: Vec<(Option<String>, Option<String>)> = events
-        .iter()
-        .map(|(_, event, sessions)| {
-            let row = sessions.first().and_then(|session| event.rows.get(session.row));
-            let day = row.and_then(Row::slot_day).map(|day| weekday(day, locale).to_string());
-            let time = row.and_then(|row| Some(format!("{} {}", weekday(row.slot_day()?, locale), clock(row.from?))));
-            (day, time)
-        })
-        .collect();
-    let labels = tell_apart(&kinds, &firsts);
-    events
-        .iter()
-        .zip(labels)
-        .map(|((index, event, sessions), label)| {
-            let current = *index == o.event;
-            // Its Termin the plan holds (a group ticked), else its first.
-            let held = |session: &&termin::Session| event.rows.get(session.row).and_then(|row| row.option).is_some_and(|option| event.chosen.contains(&option));
-            let key = match current {
-                true => o.key,
-                false => sessions.iter().find(held).or(sessions.first()).map_or(o.key, |session| session.key),
-            };
+    rows.into_iter()
+        .filter_map(|row| {
+            let event = table.events.get(row.event)?;
+            let current = row.event == o.event;
+            // The Termin shown for its own event, else the row's: the one the plan holds, else its first.
+            let key = if current { o.key } else { row.key };
             let own = event.title.trim();
             let title = if own.is_empty() || module_title.is_some_and(|module| same_words(own, module)) { String::new() } else { format!(" · {own}") };
-            let whens: Vec<String> = sessions.iter().filter_map(|session| event.rows.get(session.row)).map(|row| when_of(row, locale)).collect();
+            let whens: Vec<String> = termin::sessions(event).iter().filter_map(|session| event.rows.get(session.row)).map(|row| when_of(row, locale)).collect();
             let said = format!("{}{title}: {}", type_text(event, locale), whens.join(", "));
-            EventTab { key, label, said, current }
+            Some(EventTab { key, label: row.label, said, current })
         })
         .collect()
 }
 
-/// The words of the events' segments: each its kind, and of two of a kind the weekday of their
-/// first Termin („Übung · Mo"), where that is the same too its time („Übung · Mo 09:15"), where
-/// that is the same too a number in their order („Übung · Mo 09:15 2").
-fn tell_apart(kinds: &[String], firsts: &[(Option<String>, Option<String>)]) -> Vec<String> {
-    // How often a word stands among the words.
-    let count = |labels: &[String], label: &String| labels.iter().filter(|other| *other == label).count();
-    let by_day: Vec<String> = kinds
-        .iter()
-        .zip(firsts)
-        .map(|(kind, (day, _))| match day {
-            Some(day) if count(kinds, kind) > 1 => format!("{kind} · {day}"),
-            _ => kind.clone(),
-        })
-        .collect();
-    let by_time: Vec<String> = kinds
-        .iter()
-        .zip(firsts)
-        .zip(&by_day)
-        .map(|((kind, (_, time)), label)| match time {
-            Some(time) if label != kind && count(&by_day, label) > 1 => format!("{kind} · {time}"),
-            _ => label.clone(),
-        })
-        .collect();
-    by_time
-        .iter()
-        .enumerate()
-        .map(|(at, label)| match count(&by_time, label) > 1 {
-            true => format!("{label} {}", by_time.iter().take(at + 1).filter(|other| *other == label).count()),
-            false => label.clone(),
-        })
-        .collect()
-}
+#[cfg(test)]
+use folia_timetable::categories::tell_apart;
 
 /// To look up an event held at several times without groups to choose among: its Termine, each
 /// leading to its own.

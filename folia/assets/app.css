@@ -3607,6 +3607,66 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-row.gone { padding-right: 6px; }
 .sp-row.gone:hover { background: none; }
 .sp-row.gone .t b { color: var(--text-3); font-weight: 560; text-decoration: line-through; text-decoration-color: var(--line-strong); }
+/* The module list as the index of what the week shows (modules.rs; critique D; owner, 2026-11-17:
+   „dass bei den Modulen die Kategorien vl, Übung, prak sind und man da die Übersicht auswählen
+   kann"): per module one line (div.sp-mod in its tone > a.sp-row.sp-mod-row: the key, the title cut
+   with „…", „Besuch"), under it its rows (div.sp-cats > div.sp-cat[data-event]: a.sp-cat-row with
+   the event's word, the summary and the chevron, a link to the overview; at its end the eye, the
+   module panel's .eye, as a switch while editing and as an empty place or the crossed eye while
+   looking, so that no text moves), its Termine of one's own (.sp-cat.own, the mark „von dir"),
+   „keine Termine in QIS · Termin eintragen ›" (p.sp-cat-none) and „+ Termin" while editing. The
+   rows' words stand in one column, the summaries in the next. A row 28 px, a module 30 px; on a
+   phone 44 px each. The foot while editing (p.sp-list-foot): „2 ausgeblendet · Alle einblenden". */
+.sp-list { gap: 0; }
+.sp-mod { display: grid; grid-template-columns: minmax(0, 1fr); margin-bottom: 4px; }
+.sp-row.sp-mod-row { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 3px 8px 3px 12px; }
+.sp-row.sp-mod-row > b { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; font-size: 13.5px; letter-spacing: -.01em; }
+.sp-row.sp-mod-row > .sp-visit { flex: none; color: var(--text-3); font-size: 12px; }
+.sp-row.sp-mod-row::before { top: 7px; bottom: 7px; }
+.sp-cats { display: grid; grid-template-columns: minmax(0, 1fr); }
+.sp-cat { display: grid; grid-template-columns: minmax(0, 1fr) 30px; align-items: center; min-height: 28px; }
+.sp-cat-row { display: grid; grid-template-columns: 76px minmax(0, 1fr) 14px; align-items: center; column-gap: 8px; min-height: 28px; padding: 0 2px 0 22px; border-radius: var(--r-row); color: var(--text-2); font-size: 12.5px; text-decoration: none; transition: background .1s; }
+.sp-cat-row:hover { background: var(--row-hover); color: var(--text); text-decoration: none; }
+.sp-cat-row[aria-current="true"] { background: var(--panel-3); }
+.sp-cat-row > b { display: inline-flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); font-weight: 560; }
+.sp-cat-sum { display: flex; align-items: center; gap: 0 4px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.sp-cat-sum > em.open { font-style: normal; font-weight: 600; color: var(--warn); }
+.sp-cat-row > .icon { width: 14px; height: 14px; color: var(--text-3); }
+.sp-cat > .eye { width: 30px; height: 28px; }
+.sp-cat > i.eye:not(:has(.icon)) { pointer-events: none; }
+.sp-cat > i.eye:hover { background: none; color: var(--text-3); }
+.sp-cat > i.eye .icon, .sp-cat-hid .icon { width: 15px; height: 15px; }
+.sp-cat-eye[aria-checked="false"] { color: var(--text); }
+.sp-cat-hid { display: inline-grid; place-items: center; flex: none; color: var(--text-3); }
+.sp-cat-hid .icon { width: 13px; height: 13px; }
+/* A row the plan leaves out stands pale: hidden, or an option another was taken over. */
+.sp-cat.off .sp-cat-row > b, .sp-cat.off .sp-cat-sum { color: var(--text-3); }
+.sp-cat.own .sp-key.own { flex: none; }
+.sp-cat-none { display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; min-height: 28px; margin: 0; padding: 0 8px 0 22px; color: var(--text-3); font-size: 12.5px; }
+.sp-cat-none .sp-enter { display: inline-flex; align-items: center; gap: 2px; min-height: 26px; padding: 0 4px; font-size: 12.5px; }
+.sp-cat-none .sp-enter .icon { width: 13px; height: 13px; }
+.sp-cats > .sp-own-add { min-height: 28px; margin-left: 14px; padding: 0 8px; font-size: 12.5px; }
+.sp-list-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; min-height: 30px; margin: 4px 0 0; padding: 0 12px; color: var(--text-2); font-size: 12.5px; }
+.sp-list-foot .link { font-size: 12.5px; }
+/* A calendar of one's own: a line per module, the bin at its end while editing, its place there
+   while looking (span.sp-mod-end). */
+.sp-cal-mods .sp-row-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 30px; align-items: center; }
+.sp-cal-mods .sp-mod-end { display: grid; place-items: center; width: 30px; height: 30px; }
+.sp-cal-mods .sp-mod-end > .sp-remove { position: static; margin: 0; color: var(--text-3); }
+.sp-cal-mods .sp-mod-end > .sp-remove:hover { color: var(--no); }
+.sp-cal-follows { margin: 0 0 6px; padding: 0 12px; font-size: 12px; }
+/* The empty week's line under „Noch keine Termine". */
+.sp-empty-line { max-width: 34ch; margin: -6px 0 0; color: var(--text-2); font-size: 13.5px; }
+.sp-empty .state-actions .btn .icon { width: 15px; height: 15px; }
+@media (max-width: 900px) {
+  .sp-row.sp-mod-row { min-height: 44px; padding-right: 8px; }
+  .sp-cat { grid-template-columns: minmax(0, 1fr) 44px; min-height: 44px; }
+  .sp-cat-row { min-height: 44px; grid-template-columns: 84px minmax(0, 1fr) 14px; font-size: 13.5px; }
+  .sp-cat > .eye { width: 44px; height: 44px; }
+  .sp-cat-none, .sp-cats > .sp-own-add { min-height: 44px; font-size: 13.5px; }
+  .sp-cal-mods .sp-row-wrap { grid-template-columns: minmax(0, 1fr) 44px; }
+  .sp-cal-mods .sp-mod-end { width: 44px; height: 44px; }
+}
 /* The note of a take with „Rückgängig" (p.sp-marked-note): the empty week's „übernehmen", „+ Modul"'s
    „Aufnehmen", a module taken out of a calendar. */
 .sp-marked-note { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 9px; margin: 0; padding: 4px 4px 4px 10px; color: var(--text-2); }

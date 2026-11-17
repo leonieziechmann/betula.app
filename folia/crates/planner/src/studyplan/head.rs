@@ -35,7 +35,6 @@ use folia_stores::bookmarks::Bookmarks;
 use folia_design::format;
 use crate::i18n::{self, Locale};
 use folia_stores::myprogram::MineResolved;
-use folia_design::nav;
 use folia_widgets::finder::finder_on;
 use folia_design::ui::Icon;
 use super::calendars::TogetherSwitch;
@@ -83,18 +82,6 @@ pub(super) fn add_module_href(resolved: Option<MineResolved>, key: SemesterKey) 
         .map(|info| ProgramScope { program_slug: info.program.slug, ..Default::default() });
     let query = CatalogQuery { program, fits: Some(finder_on(key)), ..Default::default() };
     CatalogUrl { query, ..Default::default() }.path()
-}
-
-/// Seconds since 1970, for when a module was planned; 0 outside the browser, which plans nothing.
-fn now_secs() -> u64 {
-    #[cfg(feature = "csr")]
-    {
-        let millis = web_sys::js_sys::Date::now();
-        if millis.is_finite() && millis > 0.0 {
-            return (millis / 1000.0) as u64;
-        }
-    }
-    0
 }
 
 // ---------- the head ----------
@@ -220,20 +207,19 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
 
 // ---------- the Merkliste ----------
 
-/// A marked module: its number, its title, why the semester shown does not offer it (`None`: it
-/// does), and whether its week holds it already (planned or visited).
+/// A marked module: its number, its title, and why the semester shown does not offer it (`None`: it
+/// does).
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct MarkedModule {
     pub id: String,
     pub title: String,
     pub unoffered: Option<String>,
-    pub in_week: bool,
 }
 
 /// The marked modules, in the order of the Merkliste, each with why `key`'s half of the year does
 /// not offer it, where it does not: no longer offered, only in the other half („nur SoSe"), or the
-/// turnus the catalog states („unregelmäßig"); and whether `week` holds it.
-fn marked_of(data: &BookmarksData, key: SemesterKey, week: &[String], t: &'static i18n::Texts) -> Vec<MarkedModule> {
+/// turnus the catalog states („unregelmäßig").
+fn marked_of(data: &BookmarksData, key: SemesterKey, t: &'static i18n::Texts) -> Vec<MarkedModule> {
     let (season, other) = if key.winter { (Season::Winter, Season::Summer) } else { (Season::Summer, Season::Winter) };
     data.rows
         .iter()
@@ -247,19 +233,15 @@ fn marked_of(data: &BookmarksData, key: SemesterKey, week: &[String], t: &'stati
                     format::turnus(row.turnus_season.as_ref(), row.turnus_parity.as_ref(), t.locale)
                 }
             });
-            MarkedModule { id: row.id.clone(), title: row.title.clone(), unoffered, in_week: week.contains(&row.id) }
+            MarkedModule { id: row.id.clone(), title: row.title.clone(), unoffered }
         })
         .collect()
 }
 
-/// How the note of the marked modules taken over at once begins (`PlanCtx::undo`, which the
-/// import, „Plan leeren" and the list's × share): a mark of its own, the same in every language;
-/// only what follows it is shown.
-pub(super) const FROM_MARKED: &str = "Merkliste: ";
-
-/// The marked modules for the semester shown (`marked_of`), for the page's two ways to them: the
-/// empty week's „übernehmen" (what the semester offers) and „+ Modul"'s „Merkliste" (`add.rs`).
-/// One memo for both.
+/// The marked modules for the semester shown (`marked_of`), for „+ Modul"'s „Merkliste" of a
+/// calendar of one's own (`add.rs`). The empty week takes none of them over any more (owner,
+/// 2026-11-17: „man kann gerade noch module im Kalender verwalten, das ist aber keine gute idee,
+/// weil man das ja in mein Studium macht"); until then it offered „3 gemerkte Module übernehmen".
 pub(super) fn marked_offered(ctx: PlanCtx) -> Memo<Vec<MarkedModule>> {
     let t = i18n::t();
     let bookmarks = Bookmarks::expect();
@@ -272,114 +254,42 @@ pub(super) fn marked_offered(ctx: PlanCtx) -> Memo<Vec<MarkedModule>> {
         let now = ctx.source.with_value(|source| source.as_ref().map(|source| source.now(&BookmarksAsk { ids: ids.clone(), sort: BookmarkSort::Added, descending: false, query: Default::default(), also: Vec::new() })))?;
         folia_pages::ask::unless_pending(now, before, Result::ok)
     });
-    // The semester and what is planned into it, from the semester's data (its ids are the plan's).
+    // The semester, from the semester's data.
     Memo::new(move |_| {
         ctx.data.with(|data| match data {
-            Ok(data) => loaded.with(|marked| marked.as_ref().map(|marked| marked_of(marked, data.key, &data.ids, t)).unwrap_or_default()),
+            Ok(data) => loaded.with(|marked| marked.as_ref().map(|marked| marked_of(marked, data.key, t)).unwrap_or_default()),
             Err(_) => Vec::new(),
         })
     })
 }
 
-/// Plans `ids` into the semester shown at once, after the next frame (R21), with the note
-/// „3 gemerkte Module übernommen" and its „Rückgängig"; a semester the plan holds no more of takes
-/// what fits, in the order given. `busy` answers the click at once.
-fn take_marked(ctx: PlanCtx, ids: Vec<String>, busy: RwSignal<bool>, t: &'static i18n::Texts) {
-    let Some(plan) = ctx.plan else { return };
-    if ids.is_empty() || busy.get_untracked() {
-        return;
-    }
-    busy.set(true);
-    let (key, undo) = (ctx.key.get_untracked(), ctx.undo);
-    nav::after_paint(move || {
-        let (taken, before) = plan.update(|doc| {
-            let before = doc.clone();
-            let at = now_secs();
-            (ids.iter().filter(|id| doc.plan(key, id, at, None)).count(), before)
-        });
-        if taken > 0 {
-            let _ = undo.try_set(Some((marked_note(taken, t), before)));
-        }
-        let _ = busy.try_set(false);
-    });
-}
-
-/// The note of the marked modules taken over at once in the empty week („3 gemerkte Module
-/// übernommen", `NothingPlanned`), with „Rückgängig", where the list of modules stands. Until
-/// 2026-10-27 „Aus der Merkliste" planned marked modules one by one here; that is „+ Modul"'s
-/// „Merkliste" now, which takes them in to visit (`add.rs`; owner, 2026-10-26: „Nein aus dem
-/// Kallender soll man nicht module in den Studienplan aufnehmen können").
-#[component]
-pub(super) fn MarkedNote(ctx: PlanCtx) -> impl IntoView {
-    let t = i18n::t();
-    let note = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().and_then(|(note, _)| note.strip_prefix(FROM_MARKED).map(str::to_string))));
-    let restoring = RwSignal::new(false);
-    let restore = move |_| {
-        if restoring.get_untracked() {
-            return;
-        }
-        let (Some(plan), Some((_, before))) = (ctx.plan, ctx.undo.get_untracked()) else { return };
-        restoring.set(true);
-        let undo = ctx.undo;
-        plan.update_after_paint(move |doc| {
-            *doc = before;
-            let _ = undo.try_set(None);
-            let _ = restoring.try_set(false);
-        });
-    };
-    move || {
-        note.get().map(|note| {
-            view! {
-                <p class="action note-action sp-marked-note">
-                    <Icon name="check"/>
-                    <span>{note}</span>
-                    <button class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
-                </p>
-            }
-        })
-    }
-}
-
 // ---------- nothing planned yet ----------
 
-/// „3 gemerkte Module übernehmen", „1 gemerktes Modul übernehmen".
-fn take_marked_label(count: usize, t: &i18n::Texts) -> String {
-    (t.studyplan_head.take_marked)(count)
-}
-
-/// „3 gemerkte Module übernommen", after `FROM_MARKED`.
-fn marked_note(count: usize, t: &i18n::Texts) -> String {
-    format!("{FROM_MARKED}{}", (t.studyplan_head.marked_taken)(count))
-}
-
-/// A semester without a module (owner, 2026-09-25): „Noch keine Termine" in the middle of its empty
-/// week, and under it the way to the catalog's modules that fit the week („Zum Katalog", as
-/// „Modul hinzufügen" of the list leads); where the Merkliste holds modules the semester could take
-/// (`marked`), „3 gemerkte Module übernehmen" first, which plans them all at once. The click
-/// answers at once and the plan follows after the next frame (R21); the note and its „Rückgängig"
-/// stand where the list of modules does (`MarkedNote`).
+/// A semester without anything in its week (D18; owner, 2026-09-25): „Noch keine Termine" in the
+/// middle of its empty week, a line on where its Termine come from, and three ways — to „Mein
+/// Studium", where the modules of the study are planned, to the catalog's modules that fit the week,
+/// and „+ Termin", a Termin of one's own (it fills a gap, so it is there while the plan is looked
+/// at, `final-plan.md` §0.3). Nothing here plans a module (owner, 2026-11-17: „Im Kalender geht es
+/// dann nur noch darum auszuwählen, was jetzt genau gezeigt werden soll. Oder halt termine selbst zu
+/// verwalten."). `marked` is read by nobody now; it goes with the next tidying.
 #[component]
 pub(super) fn NothingPlanned(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl IntoView {
     let t = i18n::t();
+    let m = &t.studyplan_modules;
+    let _ = marked;
     let resolved = MineResolved::expect();
-    // What the semester offers of them: the empty week takes these.
-    let offered = Memo::new(move |_| marked.with(|marked| marked.iter().filter(|module| module.unoffered.is_none() && !module.in_week).map(|module| module.id.clone()).collect::<Vec<_>>()));
-    let count = Memo::new(move |_| offered.with(Vec::len));
-    let busy = RwSignal::new(false);
-    let take = move |_| take_marked(ctx, offered.get_untracked(), busy, t);
     let catalog = move || t.path(&add_module_href(resolved, ctx.key.get()));
+    let study = t.path(&folia_routes::url::StudyUrl { plan: true, ..Default::default() }.path());
     view! {
         <div class="sp-empty">
             <p class="state-title">{t.studyplan_head.no_dates}</p>
+            <p class="sp-empty-line">{m.empty_week}</p>
             <div class="state-actions">
-                {move || match count.get() {
-                    0 => view! { <a class="btn primary" href=catalog>{t.studyplan_head.to_catalog}</a> }.into_any(),
-                    count => view! {
-                        <button class="btn primary" type="button" aria-busy=move || busy.get().then_some("true") on:click=take>{take_marked_label(count, t)}</button>
-                        <a class="btn secondary" href=catalog>{t.studyplan_head.to_catalog}</a>
-                    }
-                    .into_any(),
-                }}
+                <a class="btn primary" href=study>{m.to_my_study}</a>
+                <a class="btn secondary" href=catalog>{t.studyplan_head.to_catalog}</a>
+                <button class="btn secondary" type="button" title=t.studyplan_own.add_title on:click=move |_| super::own::ask_today(ctx, 0, None)>
+                    <Icon name="plus"/>{t.studyplan_own.add}
+                </button>
             </div>
         </div>
     }
@@ -1198,13 +1108,9 @@ mod tests {
             missing: Vec::new(),
         };
         // Every marked module in the Merkliste's order: what its half of the year offers, the rest
-        // with why not, and whether the week holds it already.
-        let marked = |id: &str, unoffered: Option<&str>, in_week: bool| MarkedModule { id: id.into(), title: format!("Modul {id}"), unoffered: unoffered.map(str::to_string), in_week };
-        assert_eq!(marked_of(&data, key("2026W"), &["12104".to_string()], &DE), vec![marked("11103", None, false), marked("12330", Some("nur SoSe"), false), marked("12104", None, true)]);
-        assert_eq!(marked_of(&data, key("2027S"), &[], &DE), vec![marked("11103", Some("nur WiSe"), false), marked("12330", None, false), marked("12104", Some("nur WiSe"), false)]);
-        // The empty week takes them over at once, and says how many it took.
-        assert_eq!((take_marked_label(1, &DE), take_marked_label(3, &DE)), ("1 gemerktes Modul übernehmen".to_string(), "3 gemerkte Module übernehmen".to_string()));
-        assert_eq!((marked_note(1, &DE), marked_note(3, &DE)), ("Merkliste: 1 gemerktes Modul übernommen".to_string(), "Merkliste: 3 gemerkte Module übernommen".to_string()));
-        assert_eq!((take_marked_label(1, &EN), marked_note(3, &EN)), ("Add 1 saved module".to_string(), "Merkliste: 3 saved modules added".to_string()));
+        // with why not.
+        let marked = |id: &str, unoffered: Option<&str>| MarkedModule { id: id.into(), title: format!("Modul {id}"), unoffered: unoffered.map(str::to_string) };
+        assert_eq!(marked_of(&data, key("2026W"), &DE), vec![marked("11103", None), marked("12330", Some("nur SoSe")), marked("12104", None)]);
+        assert_eq!(marked_of(&data, key("2027S"), &DE), vec![marked("11103", Some("nur WiSe")), marked("12330", None), marked("12104", Some("nur WiSe"))]);
     }
 }
