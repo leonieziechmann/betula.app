@@ -673,18 +673,18 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     - **Several at once** (Folia 1.36.0; konzept.html, „Mehrere auf einmal", oberflaeche.html,
       „Mehrere auswählen"; `folia/crates/bookmarks/src/pick.rs`): rows are selected as in „Mein
       Studium" — the row tinted in the accent and hatched, the bar in the place of the heads of the
-      columns, as tall (on a phone over the tab bar) —, and since 1.97.6, as „Mein Studium" since
+      columns, as tall (on a phone over the tab bar) —, and since 1.97.8, as „Mein Studium" since
       1.96.0, as lists of mail select (owner, 2026-11-17: „Merkliste bitte auch so angleichen";
       below, „Mein Studium"). On a wide screen each row has a box to tick at its start
       (`folia_widgets::list::Row`, `.st-sel`), which comes when the pointer is over the row or the
       row has the focus and stays on every row while rows are selected, its place kept so that
       nothing moves (the rows' words, the heads and the bar begin after it); a click on it selects
       the row or lets it go. Shift and a click, at a box or on a row, gives the rows from the last
-      one clicked the state the row takes and leaves the others (`pick::ranged`; until 1.97.6 Shift
+      one clicked the state the row takes and leaves the others (`pick::ranged`; until 1.97.8 Shift
       only took rows in); Ctrl or ⌘ and a click on a row selects it or lets it go; a mouse pressed
       on a row or its box and drawn onto others selects them (begun on a selected row it lets them
       go; a row's link is not dragged away); the box over the heads selects all. A click on a row
-      itself opens its module beside the list, while rows are selected too (until 1.97.6 it
+      itself opens its module beside the list, while rows are selected too (until 1.97.8 it
       selected there). A row's right click has a menu of
       its own: „Sammlung und Notiz …" (⇧M), „Auswählen" or „Abwählen", „Einplanen" where its switch
       would plan it (or „Aus dem Plan nehmen"), „Merken" or „Von der Merkliste entfernen" (M); while
@@ -703,7 +703,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       what leaves the list (a search, a filter, another view) is let go of. The bar: on a wide
       screen the box of all of them over the rows' boxes, with a dash while some are selected (a
       click selects all, „Alle auswählen" of „Befehle") and ticked where all are (a click lets go;
-      until 1.97.6 „Alle auswählen" was a button), „3 ausgewählt · 14 LP", „Sammlung" — the menu of their collections, a
+      until 1.97.8 „Alle auswählen" was a button), „3 ausgewählt · 14 LP", „Sammlung" — the menu of their collections, a
       check where all of them are in one, a dash where some are, a tap on the dash takes in the
       rest, no note and no default (`CollectAsk::more`) —, „Einplanen" — „Jedes in sein Semester"
       (each where its own switch aims, `studyplan::aim_now` with the semester of its newest events,

@@ -19,7 +19,7 @@
 //!   towards where it began), Ctrl or ⌘ and A every row the list shows, Esc lets go of them, the
 //!   space bar at a row selects it.
 //! - The bar: on a wide screen the box of all of them over the rows' boxes, with a dash while some
-//!   are selected (a click selects all) and ticked where all are (a click lets go; until 1.97.6
+//!   are selected (a click selects all) and ticked where all are (a click lets go; until 1.97.8
 //!   „Alle auswählen" was a button), „3 ausgewählt · 14 LP", „Sammlung" (the menu of
 //!   their collections, `folia_widgets::collect`, and S), „Einplanen" (each where its own
 //!   „Einplanen" aims, or all into one semester, the semesters as „Verschieben nach" lists them),
