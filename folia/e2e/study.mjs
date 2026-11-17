@@ -23,7 +23,7 @@
 //   moved by its menu's „Verschieben nach ›" and taken back,
 //   removed and taken back; two rows selected by Ctrl and a click, moved by the bar, and back; a
 //   right click opens a row's menu, the semester's ⋯ selects all of it, Escape lets go; an area's
-//   dialog; a module beside the page by its name and by its row, in full and back; the
+//   dialog (its bar as the Wahlpflicht's, the strip of the four marks, a mark at every row); a module beside the page by its name and by its row, in full and back; the
 //   Gesamtplan as a roadmap (the band of the study years, Informatik's first semester by its
 //   abbreviations, the pieces as wide as their credits, the Bachelor-Arbeit's bar not before its
 //   semester, the line of today and its flag, a click on Mathematik's name unfolding it into its
@@ -97,7 +97,8 @@
 //   „Modul ansehen", „Verschieben nach" in its place; the way back, Back and a finger towards the
 //   overview lead back to it (Back as a close request, as Android has it); a tap anywhere on the
 //   credits opens the areas
-//   as a sheet a finger drags down to close it (a short pull: it slides back), the program's card
+//   as a sheet a finger drags down to close it (a short pull: it slides back) — each area with its
+//   bar and its marks as the Wahlpflicht's choices, an area opening in the sheet —, the program's card
 //   opens „Studiengang wechseln" without a lead, − and + move nothing of it, under the card a line
 //   at the foot of the body, its picker of the program 8 px off the sheet's edges, the screen's
 //   keyboard up (simulated: the part of the page shown shorter) the sheet that part without its
@@ -484,10 +485,24 @@ if (current !== "2026W") {
   await step("Alle auswählen", () => page.click("#st-menu-select"), (n) => document.querySelectorAll(".st-card-sem .st-row.is-selected").length === n, ticked);
   await step("Escape lets go", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-selbar"));
 
-  // An area: what it asks and what counts there.
+  // An area: what it holds of what it asks and what counts there. As the Wahlpflicht looks (owner,
+  // 2026-11-17: „überall eine progressbar, wie beim Wahlpflicht Katalog. Und bitte verwende icons
+  // für den Fortschritt"): its bar, its credits by where they stand as a strip of the four marks,
+  // and every row with the mark of its status, no box to tick.
   await step("an area", () => page.click(".st-card >> nth=0"), () => document.querySelector(".st-dialog[open] .st-area-dlg"));
-  const area = await page.evaluate(() => ({ title: document.querySelector("#st-dialog-title")?.textContent, sub: document.querySelector(".st-dlg-head p")?.textContent, mine: document.querySelectorAll(".st-area-items li").length }));
-  check(area.title === "Komplex Informatik" && area.sub?.startsWith("Verlangt 66") && area.mine >= 2, `the area's dialog: ${JSON.stringify(area)}`);
+  const area = await page.evaluate(() => {
+    const dialog = document.querySelector(".st-dialog[open]");
+    const rows = [...dialog.querySelectorAll(".st-area-items li")];
+    return {
+      title: document.querySelector("#st-dialog-title")?.textContent, sub: document.querySelector(".st-dlg-head p")?.textContent, mine: rows.length,
+      bar: Boolean(dialog.querySelector(".st-area-dlg > .st-wbar.big")),
+      tally: [...dialog.querySelectorAll(".st-tally li")].map((part) => `${part.querySelector(".st-tally-w")?.textContent}:${[...(part.querySelector(".st-glyph")?.classList ?? [])].filter((name) => name !== "st-glyph").join()}`).join(),
+      marks: rows.filter((row) => row.querySelector(".st-wmk .st-glyph")).length,
+      boxes: dialog.querySelectorAll(".st-box, .st-area-bar").length,
+    };
+  });
+  check(area.title === "Komplex Informatik" && /^\d+ \/ 66\u00a0LP$/.test(area.sub ?? "") && area.mine >= 2, `the area's dialog: ${JSON.stringify(area)}`);
+  check(area.bar && area.tally === "bestanden:passed,läuft:running,geplant:planned,offen:open" && area.marks === area.mine && area.boxes === 0, `the area's dialog has not the Wahlpflicht's bar, the strip of the four marks and a mark at every row: ${JSON.stringify(area)}`);
   await step("close it", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
 
   // A module beside the page, in full, and back.
@@ -1545,6 +1560,15 @@ if (current !== "2026W") {
     await step("close the areas", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
   }
   await step("Bereiche", () => page.tap(".st-progress-top .st-link"), () => document.querySelector(".st-dialog[open] .st-area-list"));
+  // The areas as the Wahlpflicht has its choices (owner, 2026-11-17): each with what it holds of
+  // what it asks, its bar and its marks; over them the strip of the four marks, and nothing of the
+  // overview's headline, bar and legend again.
+  const areaCards = await page.evaluate(() => {
+    const dialog = document.querySelector(".st-dialog[open]");
+    const cards = [...dialog.querySelectorAll(".st-area-list button")];
+    return { cards: cards.length, bars: cards.filter((card) => card.querySelector(".st-wbar") && card.querySelector(".st-wfig")).length, marks: cards.filter((card) => card.querySelector(".st-tally-line .st-glyph")).length, strip: dialog.querySelectorAll(".st-tally li .st-glyph").length, again: dialog.querySelectorAll(".st-bar, .st-headline, .st-key").length };
+  });
+  check(areaCards.cards >= 6 && areaCards.bars === areaCards.cards && areaCards.marks === areaCards.cards && areaCards.strip === 4 && areaCards.again === 0, `the areas' sheet has not a bar and marks for every area: ${JSON.stringify(areaCards)}`);
   await page.waitForFunction(() => !document.querySelector(".st-dialog[open]")?.getAnimations().some((a) => a.playState === "running"), null, { timeout: 3000 }).catch(() => {});
   const sheet = await page.evaluate(() => { const box = document.querySelector(".st-dialog[open]").getBoundingClientRect(); return { bottom: Math.round(innerHeight - box.bottom), width: Math.round(box.width), top: Math.round(box.top) }; });
   // A sheet of a phone (owner, 2026-10-27): half up, as tall as the screen all up.
@@ -1564,6 +1588,10 @@ if (current !== "2026W") {
   const after = await page.evaluate(() => Math.round(document.querySelector(".st-dialog[open]")?.getBoundingClientRect().top ?? -1));
   check(pulled >= sheet.top + 40 && after === sheet.top, `a short pull does not move the sheet and back: ${sheet.top} → ${pulled} → ${after}`);
   await step("the areas dragged down", () => drag(320), () => !document.querySelector(".st-dialog[open]"));
+  // An area of the sheet opens in it, with its bar and its strip.
+  await step("Bereiche again", () => page.tap(".st-progress-top .st-link"), () => document.querySelector(".st-dialog[open] .st-area-list"));
+  await step("an area of the sheet", () => page.tap(".st-area-list li:first-child button"), () => document.querySelector(".st-dialog[open] .st-area-dlg > .st-wbar.big") && document.querySelectorAll(".st-dialog[open] .st-tally li").length === 4 && document.querySelector("#st-dialog-title")?.textContent === "Komplex Informatik");
+  await step("close the area", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
   await step("the program's card", () => page.tap("#st-mine"), () => document.querySelector(".st-dialog[open] #st-switch-program"));
   check((await page.evaluate(() => document.querySelector(".st-dialog[open] .st-dlg-head p"))) === null, "„Studiengang wechseln“ still has its lead");
   // − and + count the Fachsemester, and nothing of the sheet moves while they do (measured once it

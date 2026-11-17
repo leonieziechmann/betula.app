@@ -466,6 +466,14 @@ pub(super) fn Glyph(#[prop(into)] status: Signal<Status>) -> impl IntoView {
     }
 }
 
+/// The mark of what stands open: a row of the plan nothing is planned for, the credits an area
+/// asks for that are not planned yet. A ring of dashes (app.css `.st-glyph.open`), as the
+/// Gesamtplan's open pieces are dashed; a ring alone is what is planned.
+#[component]
+pub(super) fn OpenGlyph() -> impl IntoView {
+    view! { <span class="st-glyph open" aria-hidden="true"></span> }
+}
+
 /// What a row shows besides its name.
 #[derive(Clone, Debug, PartialEq)]
 struct Row {

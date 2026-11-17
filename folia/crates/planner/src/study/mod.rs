@@ -979,6 +979,51 @@ mod tests {
         assert_eq!(after.study.retakes.len(), after.study.semesters.iter().filter(|s| s.key < key("2026W")).map(|s| s.items.len()).sum::<usize>());
     }
 
+    /// The marks of the areas (`overview::Tally`; owner, 2026-11-17: „icons für den Fortschritt
+    /// also bestanden, aktuell belegt, noch nicht belegt"): an area's credits by where they stand
+    /// add up to what its progress holds, what is under way is the current semester's alone, and
+    /// what was not passed counts for none of them. Informatik B.Sc. in its third semester: the
+    /// first two passed but Mathematik IT-2, taken again now with the plan's third; two modules
+    /// planned for the summer; two that count towards no area, one passed and one planned.
+    #[test]
+    fn the_credits_of_an_area_by_where_they_stand() {
+        let source = plans_of("079-82-2008");
+        let plan = [
+            "m\t2025W\t12104\t1\t\tplan", "m\t2025W\t12107\t2\t\tplan", "m\t2025W\t12102\t3\t\tplan", "m\t2025W\t11112\t4\t\tplan",
+            "m\t2026S\t12101\t1\t\tplan", "m\t2026S\t11903\t2\t\tplan", "m\t2026S\t11113\t3\t\tplan",
+            "m\t2026W\t11787\t1\t\tplan", "m\t2026W\t12202\t2\t\tplan", "m\t2026W\t11213\t3\t\tplan", "m\t2026W\t11113\t4\t\t", "m\t2026W\t11107\t5\t\t",
+            "m\t2027S\t12204\t1\t\tplan", "m\t2027S\t12214\t2\t\tplan", "m\t2027S\t11108\t3\t\t",
+            "d\t2025W\t12104", "d\t2025W\t12107", "d\t2025W\t12102", "d\t2025W\t11112", "d\t2026S\t12101", "d\t2026S\t11903", "d\t2026W\t11107",
+        ]
+        .join("\n");
+        let doc = PlanDoc::restored(&plan);
+        let mine = MineDoc { caption: Some(String::new()), start: Some(key("2025W")), ..MineDoc::default() };
+        let mut rows = source.linked.clone();
+        rows.extend(plans_of_rows(&["11107", "11108"]));
+        let ready = ready(&source, &mine, key("2026W"), &doc, &rows, i18n::texts(folia_locale::Locale::De));
+        let study = &ready.study;
+        let (areas, outside) = overview::Tally::of(study);
+        assert_eq!(areas.len(), study.progress.len());
+        for (tally, progress) in areas.iter().zip(&study.progress) {
+            let name = &progress.area.name;
+            assert_eq!(tally.passed, progress.passed + progress.over_passed, "{name}: passed");
+            assert_eq!(tally.running + tally.planned, progress.planned + progress.over - progress.over_passed, "{name}: under way and planned");
+            assert_eq!(tally.open, progress.open(), "{name}: open");
+        }
+        let parts = |tally: &overview::Tally| (tally.passed, tally.running, tally.planned, tally.open);
+        // Informatik: 34 passed; Theoretische Informatik and the Softwarepraktikum under way;
+        // Betriebssysteme I and the Digitaltechnik-Praktikum planned; the Proseminar open.
+        assert_eq!(parts(&areas[0]), (34.0, 16.0, 12.0, 4.0));
+        // Mathematik: IT-1 passed, IT-3 and IT-2 again under way; IT-2 not passed in the summer
+        // counts for nothing.
+        assert_eq!(parts(&areas[1]), (8.0, 16.0, 0.0, 0.0));
+        assert_eq!(parts(&areas[2]), (0.0, 0.0, 0.0, 18.0));
+        // Höhere Mathematik T1 and T2 count towards no area: what is passed and what is planned,
+        // as the study says them.
+        assert_eq!(parts(&outside), (6.0, 0.0, 6.0, 0.0));
+        assert_eq!((outside.passed, outside.running + outside.planned), study.outside);
+    }
+
     /// Elektrotechnik B.Sc. 2022 has a plan per study direction: the one kept is the one studied.
     #[test]
     fn the_study_direction_kept_is_studied() {
