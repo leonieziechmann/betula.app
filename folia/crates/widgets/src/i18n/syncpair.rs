@@ -90,7 +90,7 @@ pub const DE: Texts = Texts {
     gains: [
         ("Auf beiden Geräten", "Stundenplan, Studium, Merkliste und Notizen sind auf beiden gleich."),
         ("Sofort abgeglichen", "Was du auf einem Gerät änderst, ist auf dem anderen gleich da. Auch nach einer Weile offline."),
-        ("Verschlüsselt, ohne Konto", "Nur deine Geräte haben den Schlüssel; der Server kann nichts lesen."),
+        ("Verschlüsselt, nur für dich", "Nur deine Geräte haben den Schlüssel; der Server kann nichts lesen."),
     ],
     later: "Weitere Geräte verbindest du jederzeit im Profil unter ",
     later_where: "„Gerät verbinden“",
@@ -134,7 +134,7 @@ pub const EN: Texts = Texts {
     gains: [
         ("On both devices", "Timetable, studies, saved modules and notes are the same on both."),
         ("In line at once", "What you change on one device is on the other right away. Even after a while offline."),
-        ("Encrypted, no account", "Only your devices have the key; the server cannot read anything."),
+        ("Encrypted, for you alone", "Only your devices have the key; the server cannot read anything."),
     ],
     later: "You can connect more devices at any time in the profile under ",
     later_where: "“Connect a device”",

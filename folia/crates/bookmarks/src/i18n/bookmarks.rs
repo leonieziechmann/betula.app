@@ -219,7 +219,7 @@ pub struct Texts {
 
 pub const DE: Texts = Texts {
     title: "Merkliste",
-    description: "Module der BTU Cottbus-Senftenberg merken und wiederfinden. Die Merkliste liegt nur im eigenen Browser: kein Konto, keine Daten auf dem Server.",
+    description: "Module der BTU Cottbus-Senftenberg merken, in Sammlungen ordnen und wiederfinden. Die Merkliste gehört zu deinem Profil und liegt auf deinem Gerät.",
 
     broken_link: "Der Link ist beschädigt.",
     broken_link_hint: "Die Merkliste darin lässt sich nicht lesen: Vielleicht fehlt beim Kopieren ein Stück, oder ein Zeichen ist falsch abgetippt.",
@@ -374,7 +374,7 @@ pub const DE: Texts = Texts {
 
 pub const EN: Texts = Texts {
     title: "Saved modules",
-    description: "Save modules of BTU Cottbus-Senftenberg and find them again. Your saved modules stay in your own browser: no account, no data on the server.",
+    description: "Save modules of BTU Cottbus-Senftenberg, sort them into collections and find them again. Your saved modules belong to your profile and are kept on your device.",
 
     broken_link: "The link is damaged.",
     broken_link_hint: "The saved modules in it cannot be read: perhaps a piece went missing when it was copied, or a character was mistyped.",
