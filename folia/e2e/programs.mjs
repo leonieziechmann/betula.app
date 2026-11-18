@@ -17,6 +17,7 @@
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
+import { catalogBytes } from "./catalog.mjs";
 
 const base = (process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
 // What the snapshot says of a program, read with the app's own sql.js: the BTU adds modules to a
@@ -25,7 +26,7 @@ const base = (process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/
 // check had pinned 85).
 const initSqlJs = createRequire(import.meta.url)("../assets/sql-wasm.js");
 const SQL = await initSqlJs({ locateFile: (file) => fileURLToPath(new URL(`../assets/${file}`, import.meta.url)) });
-const snapshot = new SQL.Database(new Uint8Array(await (await fetch(base + "/api/db")).arrayBuffer()));
+const snapshot = new SQL.Database(await catalogBytes(base));
 const programOf = (slug) => {
   const statement = snapshot.prepare("SELECT curricular_modules, fues_modules FROM v_program WHERE slug = ?");
   const row = statement.getAsObject([slug]);

@@ -24,6 +24,7 @@ mod lastmod;
 mod launch;
 mod logo;
 mod parts;
+mod pass;
 mod semantic;
 mod snapshot;
 mod texts;
@@ -39,7 +40,7 @@ use axum::http::{header, HeaderValue};
 use axum::middleware::{self, Next};
 use axum::response::Response;
 use axum::Router;
-use axum::routing::get;
+use axum::routing::{get, post};
 use clap::Parser;
 use folia_data::{CatalogSource, Source};
 use folia_model::{Database, DbError};
@@ -75,6 +76,8 @@ pub struct AppState {
     pub semantic: Option<Arc<semantic::Model>>,
     /// Closed testing: the password in front of the whole site (`access`); `None` when it is open.
     pub gate: Option<Arc<access::Gate>>,
+    /// The pass a browser earns before it gets the catalog (`pass`); `None` when the catalog is open.
+    pub passes: Option<Arc<pass::Passes>>,
     /// Where pages that are not in the cache are rendered, and how long a page waits for a place
     /// before it is answered 503 (`busy`).
     pub renders: Arc<busy::Places>,
@@ -343,6 +346,7 @@ pub fn router(state: AppState) -> Router {
         .route("/de/{*rest}", get(language_redirect))
         .route("/en/", get(language_redirect))
         .route("/api/db", get(api::database))
+        .route(pass::PATH, post(pass::enter))
         .route("/api/status", get(api::status))
         .route("/api/map.json", get(api::program_map))
         .route("/healthz", get(api::health))
@@ -458,6 +462,16 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
         }
     };
 
+    let passes = pass::Passes::new(config.pass_difficulty).map(Arc::new);
+    match &passes {
+        Some(passes) => tracing::info!(component = "pass", event = "pass.on", difficulty = passes.difficulty(), "the catalog asks for a pass"),
+        None if config.pass_difficulty > 0 => {
+            tracing::error!(component = "server", event = "server.start_failed", "the system has no randomness for the pass's key");
+            return std::process::ExitCode::FAILURE;
+        }
+        None => tracing::info!(component = "pass", event = "pass.off", "the catalog answers without a pass"),
+    }
+
     let store = match SnapshotStore::new(config.data_dir.clone()) {
         Ok(store) => store,
         Err(error) => {
@@ -502,6 +516,7 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
         packages: Arc::default(),
         semantic,
         gate,
+        passes,
         renders: Arc::new(busy::Places::new("render", places(config.render_places), render_wait)),
         render_wait,
         feeds: Arc::new(busy::Places::new("calendar", places(config.feed_places), Duration::from_secs(10))),
