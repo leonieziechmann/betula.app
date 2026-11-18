@@ -36,24 +36,24 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr`, asking the data worker. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `folia/scripts/build-client.sh` into `site/pkg`. |
 | `worker/` | The data worker (WASM, no Leptos) and its script: the catalog in sql.js, every question of the app's pages answered beside the page's thread; built with the client. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets, the drawn cards. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what is meant first and marked, a lecturer written another way, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `courses.mjs` (a module held at two campuses: every course in its colour, Mein Studiengang's alone with „Auch zeigen", another program's highlighted, the Stundenplan's line naming the course), `choices.mjs` (a module's choices and extras: the exercises of HM T3 hatched and Mein Studiengang's taken with „Auch zeigen", the Aufbaukurs dotted, the groups of Musiktheorie, the 14 projects of Berufspraktische Profilierung in the list alone, the catalog's row; the Stundenplan with HM T3: the choice open, made with „✓" and opened again, „Zusatz", Bauingenieurwesen's exercise preselected and another taken in the panel), `termin.mjs` (a Termin in its own view: a slot of the Stundenplan opening it in the dialog over the plan, its head, the groups above the ticket and its switches in their order, two groups ticked — the one shown by its switch, another picked above — and both solid in the week, one taken back, the next date, one date hidden and shown again, the event off with what stands under its switch and on, „Zum Modul", Esc; a Termin of the start page over it and closed again; the sheet on a phone, its picks no steps of the history there and Back leaving it; the Termin's own page scrolling under a phone's finger), `programs.mjs`, `bookmarks.mjs` (with the warning near 256 following the count), `arrows.mjs` („Knopf mit Pfeil": a row's arrow beside its bookmark and ⇧M, S and N gone, M with Caps Lock, a module's arrows marked or not, ⇧P and „Einplanen in …" — at its switch beside the rail, a semester chosen, „Rückgängig" —, the planned arrow's menu, ⌘ on a Mac), `befehle.mjs` („Befehle", R25: the button in the search field with its keys and a click, Ctrl + K, „Gehe zu" with the tabs' keys, / and F, a module's commands first and „Merken" with „Geht auch mit M", ↓ ↑, a filter folded by its group — Enter „mit" and off, Shift + Enter „ohne" —, a module by its number beside the list and as its page, a module page's sections, the settings saying what holds now, „Filter" and „Suchfeld", nothing found, Ctrl + K closing it, the single keys off), `tastatur.mjs` (the keyboard of the catalog and of what is global, R24: ↓ into the list at the open module, F into the filters with their ring, „Esc zum Verlassen" and the lit section, Tab from section to section opening „Weitere Filter" and stopping at either end, the arrows across the filters, + − Entf at a chip and the bar that names them, the bubble „Finden" with its marks, a typo, Enter, Shift + Enter and Esc, the knobs of the credits — + − Bild ↓ Ende, one taking the other along, a digit's field, the arrows going on —, ← → at an option group, Esc out into the list, Tab round the content and back to its row, V and Enter on the open row in full, Ctrl + F6 from region to region, the rail as one stop, Esc in the search, ? and the overview with its switch for the single keys, „Strg + K" on a PC and „⌘K" on a Mac), `selection.mjs` (several modules at once on the Merkliste: the box to tick at a row's start under the pointer, a row's box, Shift at a box, the box over the heads and the bar's, a click on a row opening its module while rows are selected, Ctrl, Shift, drawn with the mouse, the keys, the bar's „Sammlung", „Einplanen", „Teilen" and „Entfernen" with „Rückgängig", a row's menu, a finger held on a phone), `share.mjs` („Weitergeben": a collection's „Teilen" with its head, „Link kopieren", „Notizen mitnehmen", the text with each module's link; its link on another device kept as a collection, again with the notes under „Anderer Name …", which refuses a name there is; the whole list for a third device with every collection and note; the selection's link of modules alone; nothing of it in a request), `everywhere.mjs` (the Merkliste from elsewhere: the tab's menu of its views, the catalog's „Gemerkt" per collection and „nicht in …", „Mein Studium"'s Wahlpflicht with the marked module first, the workbench's marked modules marked and its „Gemerkt" by collection and search with „+ Einplanen", the Gesamtplan's cell opening the workbench with the marked module first, the workbench's sheet on a phone with „Gemerkt" as a page of it, the Merkliste of the Stundenplan's „+ Modul" with „passt", the folded summer's, a collection taken in as visits and „Rückgängig", nothing of it in a request), `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `sheets.mjs` (the sheets of a phone: the ways — fit, half, full, auto, menu —, nothing scrolling half up, the grabber, thrown by the speed as the finger lets go, a dialog over a module's sheet, a menu, the copy that glides away, a question in a sheet each answer a row), `back.mjs` (Back on a phone as Android and an iPhone have it and on a wide screen: what lies over a page, the semester of „Mein Studium", the filters' draft, a module closed, a stack for each tab, the profile as a page of a while, a link from outside), `stages.mjs` (the tabs that stay built: a tab seen before in the next frame as it was left, scrolled as far, the title and the tags of the page in front, the way back at the head of a phone's page the page in front's alone), `achse.mjs` (a change of tab on a phone, the pages on an axis: a tap, Back to Start, taps on the way, a finger along the bar, the ground and the dots with their page, the Merkliste's headings and rows where they stood, scrolled down and to its end, less motion, a wide screen), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `haptics.mjs` (the vibrations: on a phone whose `navigator.vibrate` writes down what it plays, a row swiped armed and back, the bar swiped, a tab held, „Merken" firm and taken away light, „Einplanen" done or a warning, ‹ ›, „Rückgängig", a segment chosen already felt not at all, the switch in the menu of the profiles off for the next page and on with what it feels like; an iPhone's label for a native switch over „Merken", a tap marking once; a wide screen without the switch), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", the arrow's menu — passed and back, moved, ⇧P and its keys, taken out —, a row swiped on a phone), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `choice-sheet.mjs` (the choice in focus, its sheet on a phone), `calendars.mjs` (calendars of one's own), `visits.mjs` (visits and „+ Modul": in the week, in „Offen", in the list and in „Mein Studium", a calendar of one's own), `own.mjs` (Termine of one's own: „+ Termin", the form and its draft, a free stretch clicked or held, the view with „Bearbeiten" and „Löschen", „Termin eintragen", Lena's calendar and from it to another of one's own, the line following, the start page), `change.mjs` (changes of Termine of QIS: „Ändern" for every date with the pens and „Zurücksetzen", one date on another day, the note, „Nachholtermin", the share link and the calendar made of it, the four lines of „Offen", a phone: the answers to a change QIS says something else of and the buttons of „Ändern" one under the other), `btu.mjs` (the BTU's pages „Ordnungen & Dokumente" links by hand, `btu.rs` — its lists of regulations and forms and its page „Studienorganisation", German and English —, against the BTU's site through curl, no browser and no Betula: every one answers; the regulations and the pages of „Rund ums Studium" are in the snapshot, and `radix validate` warns when the BTU's page yields none), `study.mjs` („Mein Studium": the first visit, the areas, the semester at the top of its box and the list of the semesters at its name, the box the catalog's list staying at the top, the rows as the catalog's with their status, on a desktop in three lines (the name across the row, the number and the columns under it, the marks under them), the rows' menus, selecting several — the box to tick at a row's start under the pointer, Shift and a box, the box over the rows, a click on a row opening its module while rows are selected —, the workbench („Module hinzufügen": on a desktop the semester's card opened, the page around it as it was, „Laut Plan im 3. FS" and „Plan übernehmen", ×, „Wählen ›" of the Regelstudienplan and the Gesamtplan's plan leading into it and × back; on a phone its sheet half up under the semester and over the tab bar, the page veiled, „Plan übernehmen" into the semester over it and the note that waits over the sheet with „Rückgängig", a choice going into its page with the sheet all up, ‹ and „Übersicht ›" over it, a module's sheet over it and Esc, „Vormerken", Esc a step back, an area into its subgroups and one into its list, a step of the path back, „Gemerkt" and ‹, „Im Katalog suchen" with the bar in the tab bar's place and „Abbrechen", the placeholder dashed with „Modul wählen ›" and a tap on it opening the sheet all up at its choice, „Fertig"), moving and taking out, the Gesamtplan (a click on an area's name unfolding it, the one button unfolding all and folding all, the Bachelor-Arbeit of one lane alone no button, a module dragged over a semester's head: the semester lit, its area's cell, its subsection's and its lane's strongly, let go there and „Rückgängig"; the Fachstudium's Komplexe and the Nebenfach's choices as subsections with their figures and bars, 8 of 6 LP no „über Bedarf", a module dragged onto another subsection counting there, onto one that does not list it moving in its own with „Strg: als Ausnahme" and with Strg an exception, Lineare Algebra II with Strg onto a Komplex counting in its figure and in the Wahlpflicht's, marked „Ausnahme" in its list, counted for the Wahlpflicht of the 4. FS in the Komplex that holds the most, the rows green, grey and with Strg amber as it is dragged, „landet hier", its dashed hole and the key at the head, „Vollbild" with the rail and the search and Esc, „Als Bild speichern"), the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned, „Ordnungen & Dokumente" with the regulations, the Regelstudienplan's page in its PDF and the ways on, nothing of the plan, the Rahmenordnung of the degree alone with its amendments folded and unfolded, the BTU's pages around the study in their groups, each with the BTU's sentence, on a phone too —, a place put in by „Vormerken" (in the Gesamtplan a piece as tall as the others, the Anwendungsfach one lane with the plan's open row of the 4th FS and so a subsection that does not unfold, its „+6" leading into its module choice), filled through „Modul wählen" (the workbench at its subgroup, „Im Katalog suchen" with the workbench's bar and „Zurück zu WiSe 2026/27") and by the Wahlpflicht and counted once, full no item of its own, its module „für „Anwendungsfach“", a place of 12 with a module of 6 with its bar „6 von 12 LP eingeplant" and counting the rest, „Umfang …" turned to „Wie im Plan" taking it away and „Rückgängig", the module taken out and the place back, a Komplex's „Umfang …" weighing the three Komplexe and stored, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `bench.mjs` (the workbench of „Mein Studium“ on a desktop, folia/design/hinzufuegen/rechner.html, variant B: the semester's card opened under its one head, the sidebar and the overview where they were, the bar of what the semester holds in the head, the rows on the left and the half on the right with „Hinzufügen“, × and „Laut Plan im 3. FS“; „Plan übernehmen“ into the rows; the Anwendungsfach's page with its path, „Fach“, „Passt in meine Woche“ and „Im WiSe angeboten“; „+ Einplanen“ counting for its subgroup, said at its row and remembered; a module of two choices, its row's menu beside the open half with „Zählt für ›“, „Anderer Bereich …“ with an exception marked and „Automatisch“ back; „Alle Bereiche“ as the tree, the FÜS, a module beside the page aiming at the workbench and Esc; the catalog with the workbench's bar and „Zurück zu WiSe 2026/27“; ‹ › in the head turning the semester and the half; Esc a step back and then the mode; the Gesamtplan's „+“ opening it in the semesters' view and another view ending it; nothing of it in a request), `home.mjs` (the start page: the setup, „Studium anlegen" and „Rückgängig", the day, the photo and its name, the page under the bar on a wide screen, the phone's frost and leaves), `install.mjs` (Betula as an app: the setup's step „App" where the browser offers its dialog, „Installieren" and „Später", the card on the day where it has not happened yet and „Nicht mehr anzeigen", an iPhone's guide and the profile its app takes over from the clipboard, nothing where Betula runs installed), `about.mjs` (the pages about Betula, `/about` leading to the overview, Esc back to the start page), `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box with „Neues Profil“, the profile page on top of the list it was opened from and its arrow back to it, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `csp.mjs` (no page breaks the Content-Security-Policy), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots), `r16.mjs` (the misses of R16 in any check, with the app of `scripts/r16.sh`). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what is meant first and marked, a lecturer written another way, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `courses.mjs` (a module held at two campuses: every course in its colour, Mein Studiengang's alone with „Auch zeigen", another program's highlighted, the Stundenplan's line naming the course — „… in Cottbus-Sachsendorf laut Studiengang" of 12102 planned into WiSe 2026/27), `choices.mjs` (a module's choices and extras: the exercises of HM T3 hatched and Mein Studiengang's taken with „Auch zeigen", the Aufbaukurs dotted, the groups of Musiktheorie, the 14 projects of Berufspraktische Profilierung in the list alone, the catalog's row; the Stundenplan with HM T3 while editing: three exercises hatched „1 von 3", „Offen"'s row, „Diese nehmen" taking one, the others faint, the row pale in its place („Mi 13:45 ✓"), „Wahl aufheben"; looking, no button and „1 Wahl offen" into the mode; Bauingenieurwesen's exercise „laut Studiengang" and another taken in the panel), `termin.mjs` (the card of one Termin, since Folia 1.100.0: no button on a slot while looking, a click on each of the 21 slots opening its card beside it — never over the slot, inside the window, its top at the slot's or higher where the card at its tallest needs it, never anchored by its foot, at two sizes of the window and by its address —, its head and tools, a hatched group ticked by its large action with „Rückgängig", a ticked one, „Ausblenden" and its three reaches with their notes, the faint cards while editing, Esc peeling one layer at a time, another slot's card in its place, ← →, „⋯ › Teilen", V and the overview with the Termin's own switch and its „Zurück"; the start page's card in the middle with its note and its way on; the sheet on a phone; the views to look up on a module's page and `/event/…`; until 1.100.0 the Termin in its own view in the dialog over the plan), `programs.mjs`, `bookmarks.mjs` (with the warning near 256 following the count), `arrows.mjs` („Knopf mit Pfeil": a row's arrow beside its bookmark and ⇧M, S and N gone, M with Caps Lock, a module's arrows marked or not, ⇧P and „Einplanen in …" — at its switch beside the rail, a semester chosen, „Rückgängig" —, the planned arrow's menu, ⌘ on a Mac), `befehle.mjs` („Befehle", R25: the button in the search field with its keys and a click, Ctrl + K, „Gehe zu" with the tabs' keys, / and F, a module's commands first and „Merken" with „Geht auch mit M", ↓ ↑, a filter folded by its group — Enter „mit" and off, Shift + Enter „ohne" —, a module by its number beside the list and as its page, a module page's sections, the settings saying what holds now, „Filter" and „Suchfeld", nothing found, Ctrl + K closing it, the single keys off), `tastatur.mjs` (the keyboard of the catalog and of what is global, R24: ↓ into the list at the open module, F into the filters with their ring, „Esc zum Verlassen" and the lit section, Tab from section to section opening „Weitere Filter" and stopping at either end, the arrows across the filters, + − Entf at a chip and the bar that names them, the bubble „Finden" with its marks, a typo, Enter, Shift + Enter and Esc, the knobs of the credits — + − Bild ↓ Ende, one taking the other along, a digit's field, the arrows going on —, ← → at an option group, Esc out into the list, Tab round the content and back to its row, V and Enter on the open row in full, Ctrl + F6 from region to region, the rail as one stop, Esc in the search, ? and the overview with its switch for the single keys, „Strg + K" on a PC and „⌘K" on a Mac), `selection.mjs` (several modules at once on the Merkliste: the box to tick at a row's start under the pointer, a row's box, Shift at a box, the box over the heads and the bar's, a click on a row opening its module while rows are selected, Ctrl, Shift, drawn with the mouse, the keys, the bar's „Sammlung", „Einplanen", „Teilen" and „Entfernen" with „Rückgängig", a row's menu, a finger held on a phone), `share.mjs` („Weitergeben": a collection's „Teilen" with its head, „Link kopieren", „Notizen mitnehmen", the text with each module's link; its link on another device kept as a collection, again with the notes under „Anderer Name …", which refuses a name there is; the whole list for a third device with every collection and note; the selection's link of modules alone; nothing of it in a request), `everywhere.mjs` (the Merkliste from elsewhere: the tab's menu of its views, the catalog's „Gemerkt" per collection and „nicht in …", „Mein Studium"'s Wahlpflicht with the marked module first, the workbench's marked modules marked and its „Gemerkt" by collection and search with „+ Einplanen", the Gesamtplan's cell opening the workbench with the marked module first, the workbench's sheet on a phone with „Gemerkt" as a page of it, the Merkliste of „+ Modul" of a calendar of one's own while editing with how its offers sit in the week, the folded summer's, a collection taken into the calendar and „Rückgängig", none in „Mein Studiengang", nothing of it in a request), `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `sheets.mjs` (the sheets of a phone: the ways — fit, half, full, auto, menu —, nothing scrolling half up, the grabber, thrown by the speed as the finger lets go, a dialog over a module's sheet, a menu, the copy that glides away, a question in a sheet each answer a row, and so the Stundenplan's calendar part on a phone while editing: a calendar's menu, its new name, „Neuer Kalender", a saved plan's „Ersetzen" in sight over the dock), `back.mjs` (Back on a phone as Android and an iPhone have it and on a wide screen: what lies over a page, the semester of „Mein Studium", the filters' draft, a module closed, a stack for each tab, the profile as a page of a while, a link from outside), `stages.mjs` (the tabs that stay built: a tab seen before in the next frame as it was left, scrolled as far, the title and the tags of the page in front, the way back at the head of a phone's page the page in front's alone), `achse.mjs` (a change of tab on a phone, the pages on an axis: a tap, Back to Start, taps on the way, a finger along the bar, the ground and the dots with their page, the Merkliste's headings and rows where they stood, scrolled down and to its end, less motion, a wide screen), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `haptics.mjs` (the vibrations: on a phone whose `navigator.vibrate` writes down what it plays, a row swiped armed and back, the bar swiped, a tab held, „Merken" firm and taken away light, „Einplanen" done or a warning, ‹ ›, „Rückgängig", a segment chosen already felt not at all, the switch in the menu of the profiles off for the next page and on with what it feels like; an iPhone's label for a native switch over „Merken", a tap marking once; a wide screen without the switch), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", the arrow's menu — passed and back, moved, ⇧P and its keys, taken out —, a row swiped on a phone), `edit.mjs` (the Stundenplan looked at and edited, since Folia 1.100.0: looking, nothing changes the plan; the status row and its quiet line; „Bearbeiten", `edit=1`, the week not moving by a tenth of a pixel; the focus inside the mode; the slots' buttons and the lines each writes, the faint slots, the pale rows of „Offen", a free stretch; the sidebar; a phone's dock; English addresses; „Befehle"), `categories.mjs` (the module list: a row per event, kind first, the summaries' texts, real modules, the eye while editing, what is hidden and „Alle einblenden", nothing cut at 1280 px, the way to the overview and back to the row, „+ Termin" under a module, nothing that manages the study, a calendar's „+ Modul", the empty week), `studyplan-phone.mjs` (the Stundenplan's week on a phone: the carousel of A, B and A/B beside „Bearbeiten", the day list, the dock and the day list's buttons only while editing, a slot's card and Back, „Export" and „Teilen …" under the Termine), `choice-sheet.mjs` (the way to a choice: a hatched group's card ticking nothing, its large action, „Vergleichen ›" into the focus inside the mode; on a phone the amber line into the mode and the choice's sheet moved by the finger), `calendars.mjs` (calendars of one's own: Lena's link with the group ticked in its card, „Als Kalender", strip, in full, off, „Gemeinsam frei", the list's „aus einem Link · mit den Gruppen"; „+ Kalender" and the menu only while editing, a calendar by its name alone, renamed, deleted and back; the phone's line „Kalender"), `visits.mjs` (a module only visited, as „Mein Studium" makes it: ringed in the week, giving way, in „Offen" while editing, one line „Besuch" in the list with nothing to take it out, „nur besuchen · zählt nicht" in „Mein Studium"; „Modul aufnehmen" of a calendar of one's own only while editing, on a phone too), `own.mjs` (Termine of one's own in the two states: no „+ Termin" and a free stretch that does nothing while looking, the mode's „+ Termin", the form — Was, Gehört zu, Art, Wann — and its draft, the slot's bin with „Rückgängig", a free stretch while editing, the card's pencil, eye and bin, „Termin eintragen" while looking, „+ Termin" under a module with „Art" Vorlesung („VL EvS", the fourteenth field), Termine alone, Lena's calendar, the dock and the finger held on a phone, the start page), `change.mjs` (changes of Termine of QIS from the card: its pencil „Ändern" for every date with the pens and „Zurücksetzen", one date on another day, the note and „Nachholtermin" in „⋯" — „Was" empty, „Art" Vorlesung —, the share link and the calendar made of it, the four lines of „Offen" in the mode, a phone: the answers to a change QIS says something else of and the buttons of „Ändern" one under the other), `btu.mjs` (the BTU's pages „Ordnungen & Dokumente" links by hand, `btu.rs` — its lists of regulations and forms and its page „Studienorganisation", German and English —, against the BTU's site through curl, no browser and no Betula: every one answers; the regulations and the pages of „Rund ums Studium" are in the snapshot, and `radix validate` warns when the BTU's page yields none), `study.mjs` („Mein Studium": the first visit, the areas, the semester at the top of its box and the list of the semesters at its name, the box the catalog's list staying at the top, the rows as the catalog's with their status, on a desktop in three lines (the name across the row, the number and the columns under it, the marks under them), the rows' menus, selecting several — the box to tick at a row's start under the pointer, Shift and a box, the box over the rows, a click on a row opening its module while rows are selected —, the workbench („Module hinzufügen": on a desktop the semester's card opened, the page around it as it was, „Laut Plan im 3. FS" and „Plan übernehmen", ×, „Wählen ›" of the Regelstudienplan and the Gesamtplan's plan leading into it and × back; on a phone its sheet half up under the semester and over the tab bar, the page veiled, „Plan übernehmen" into the semester over it and the note that waits over the sheet with „Rückgängig", a choice going into its page with the sheet all up, ‹ and „Übersicht ›" over it, a module's sheet over it and Esc, „Vormerken", Esc a step back, an area into its subgroups and one into its list, a step of the path back, „Gemerkt" and ‹, „Im Katalog suchen" with the bar in the tab bar's place and „Abbrechen", the placeholder dashed with „Modul wählen ›" and a tap on it opening the sheet all up at its choice, „Fertig"), moving and taking out, the Gesamtplan (a click on an area's name unfolding it, the one button unfolding all and folding all, the Bachelor-Arbeit of one lane alone no button, a module dragged over a semester's head: the semester lit, its area's cell, its subsection's and its lane's strongly, let go there and „Rückgängig"; the Fachstudium's Komplexe and the Nebenfach's choices as subsections with their figures and bars, 8 of 6 LP no „über Bedarf", a module dragged onto another subsection counting there, onto one that does not list it moving in its own with „Strg: als Ausnahme" and with Strg an exception, Lineare Algebra II with Strg onto a Komplex counting in its figure and in the Wahlpflicht's, marked „Ausnahme" in its list, counted for the Wahlpflicht of the 4. FS in the Komplex that holds the most, the rows green, grey and with Strg amber as it is dragged, „landet hier", its dashed hole and the key at the head, „Vollbild" with the rail and the search and Esc, „Als Bild speichern"), the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned, „Ordnungen & Dokumente" with the regulations, the Regelstudienplan's page in its PDF and the ways on, nothing of the plan, the Rahmenordnung of the degree alone with its amendments folded and unfolded, the BTU's pages around the study in their groups, each with the BTU's sentence, on a phone too —, a place put in by „Vormerken" (in the Gesamtplan a piece as tall as the others, the Anwendungsfach one lane with the plan's open row of the 4th FS and so a subsection that does not unfold, its „+6" leading into its module choice), filled through „Modul wählen" (the workbench at its subgroup, „Im Katalog suchen" with the workbench's bar and „Zurück zu WiSe 2026/27") and by the Wahlpflicht and counted once, full no item of its own, its module „für „Anwendungsfach“", a place of 12 with a module of 6 with its bar „6 von 12 LP eingeplant" and counting the rest, „Umfang …" turned to „Wie im Plan" taking it away and „Rückgängig", the module taken out and the place back, a Komplex's „Umfang …" weighing the three Komplexe and stored, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `bench.mjs` (the workbench of „Mein Studium“ on a desktop, folia/design/hinzufuegen/rechner.html, variant B: the semester's card opened under its one head, the sidebar and the overview where they were, the bar of what the semester holds in the head, the rows on the left and the half on the right with „Hinzufügen“, × and „Laut Plan im 3. FS“; „Plan übernehmen“ into the rows; the Anwendungsfach's page with its path, „Fach“, „Passt in meine Woche“ and „Im WiSe angeboten“; „+ Einplanen“ counting for its subgroup, said at its row and remembered; a module of two choices, its row's menu beside the open half with „Zählt für ›“, „Anderer Bereich …“ with an exception marked and „Automatisch“ back; „Alle Bereiche“ as the tree, the FÜS, a module beside the page aiming at the workbench and Esc; the catalog with the workbench's bar and „Zurück zu WiSe 2026/27“; ‹ › in the head turning the semester and the half; Esc a step back and then the mode; the Gesamtplan's „+“ opening it in the semesters' view and another view ending it; nothing of it in a request), `home.mjs` (the start page: the setup, „Studium anlegen" and „Rückgängig", the day, the photo and its name, the page under the bar on a wide screen, the phone's frost and leaves), `install.mjs` (Betula as an app: the setup's step „App" where the browser offers its dialog, „Installieren" and „Später", the card on the day where it has not happened yet and „Nicht mehr anzeigen", an iPhone's guide and the profile its app takes over from the clipboard, nothing where Betula runs installed), `about.mjs` (the pages about Betula, `/about` leading to the overview, Esc back to the start page), `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box with „Neues Profil“, the profile page on top of the list it was opened from and its arrow back to it, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `csp.mjs` (no page breaks the Content-Security-Policy), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots), `r16.mjs` (the misses of R16 in any check, with the app of `scripts/r16.sh`). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`folia/crates/routes/src/url.rs`)
 
 | URL | Page |
 |---|---|
-| `/` | The start page (concept A, 2026-10-20; „The start page" below): on a first visit the setup — the program, the semester the study began in, the modules of the Fachsemester that follows — over the photo of the season; once a study is set up the visitor's day (the next thing, the day, the week, the exams, the study, the Merkliste, the ways into the catalog). The server writes the setup's first step and the day's skeleton for everybody (R9); the stylesheet shows the skeleton where the head script finds a program kept (`html.mine`), and a script puts the day the app kept into it before the first paint (`home/ahead.rs`). `?termin=<key>&on=<day>`: a Termin of the plan over the page in its own view, `&full=1` filling the page with it („Ganze Seite"), the app's alone (the server's page is the same for every query) |
+| `/` | The start page (concept A, 2026-10-20; „The start page" below): on a first visit the setup — the program, the semester the study began in, the modules of the Fachsemester that follows — over the photo of the season; once a study is set up the visitor's day (the next thing, the day, the week, the exams, the study, the Merkliste, the ways into the catalog). The server writes the setup's first step and the day's skeleton for everybody (R9); the stylesheet shows the skeleton where the head script finds a program kept (`html.mine`), and a script puts the day the app kept into it before the first paint (`home/ahead.rs`). `?termin=<key>&on=<day>`: the card of a Termin of the plan over the page (Folia 1.100.0; until then the Termin in its own view), whose way on is the Stundenplan's overview; `&full=1` still fills the page with the Termin's view (the „Ganze Seite" of before), the app's alone (the server's page is the same for every query) |
 | `/about` | „Über Betula" until 2026-10-27 (owner: „die /about seite muss komplett raus nur die about/<slug> seiten sind ok"): no page any more. The server answers it with a redirect for good (308) to `/about/overview`, in its language and with its query (`about_redirect` in `folia-server`), and the browser app goes on there in the same entry of the history (`topics::AboutRedirect`, for an entry of the history from before). No page links it; not in the sitemap (see „„Über Betula" and the map of the programs" below) |
 | `/about/<topic>` | A page about Betula on one topic (`url::AboutTopic`, `folia/crates/home/src/home/topics.rs`; 2026-10-27): `overview` („Überblick", `home/overview.rs`: what „Über Betula" kept — the first panel with the figures on a birch, the carousel with the map, what the app can do, the `WebApplication` data), `finding` („Module finden": the way to a module, the filters with their board, the ways into the catalog), `planning` („Studium planen": the Regelstudienpläne, the Stundenplan, the programs by faculty), `data` („Deine Daten": no account, where the data comes from), `technology` („Technik": with and without JavaScript, the devices), `questions` („Häufige Fragen", with the `FAQPage` data). Each with its own title and description, „Zurück" to the start page (Esc), the row of the topics and the others as tiles; in the sitemap, the stage of no tab (`stage::Key::Other`), as the legal pages; another name after `/about/` is a 404. The start page's tiles lead to five of them (all but „Technik"), the setup's „Was ist Betula?" to the overview |
 | `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `area`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `events`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `marked`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation). `area=<id>[,<id>…]` are areas of the selected program's module tree („Wahlpflichtmodule Praktische Informatik"): the modules the tree places in any of them or below one (several come from a row of the plan that means several areas, opened from the program's page; the picker then says „5 Bereiche", one tag per area above the list) |
 | `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone the preview is a sheet from below over the list, without „Vollbild" (2026-10-06, 2026-10-16, „A module on a phone" below; until then a tap on a row opened the module's page, and the app turned a shared `open` link into it). The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
-| `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen. `?termin=<key>&on=<day>`: a Termin of it in the app's dialog over the page to look up, on a phone the sheet every dialog is (the app's alone; „A Termin in its own view") |
+| `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen. `?termin=<key>&on=<day>`: a Termin of it in the app's dialog over the page to look up, on a phone the sheet every dialog is (the app's alone; „A Termin in its own view"); the view of 600 px it was, not the card the Stundenplan and the start page open since Folia 1.100.0 |
 | `/event/<key>[/<day>]` | A Termin's own page to look up (`url::event_path`, 2026-10-26; „A Termin in its own view" below), where a line of a module's Termine leads: the key a `RowKey`, the day a date of it (without one the next, the server's the first). The server renders it the same for everybody, `noindex`, not in the sitemap, its links to other dates `nofollow`; an event no module links is a 404. A page of a while: it lies on the tab it was opened from |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
 | `/study[?view=plan\|areas\|documents][&choice=<n>][&open=<id>][&full=1]` | „Mein Studium“ (`StudyUrl`, 2026-10-04): the visitor's study semester by semester, the first page of the Studium tab in the app (see „Mein Studium“ below). What is passed and planned lives in the browser; the address says only how it is shown: which view (`view`, 2026-10-14: `plan` the Regelstudienplan, `areas` the Wahlpflicht, none the semesters; 2026-11-10 `documents` the program's regulations; on a phone each a page of its own that Back leaves), on a phone a choice of the Wahlpflicht as a page of its own behind its list (`choice`, an index of the plan's choices, Folia 1.74.0), which module stands beside the page, and whether it fills it. The semester a phone's row shows rather than the overview is no part of the address since 2026-10-18 but the state of its entry of the history, which a reload, Back and Forward bring along and which writes no step („Back" below); from 2026-10-05 it was `plan=1`, a step after the overview, which is still read (and links the box „Studium planen" without JavaScript) and gives way to `/study` once the row is back at the overview; a desktop shows both at once. The server renders one stand-in for everybody, `noindex`, not in the sitemap |
 | `/programs/<slug>/plan\|areas\|my-plan[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar: the Regelstudienplan (`plan`) and „Wahlpflicht & Bereiche“ (`areas`). „Mein Plan“ (`my-plan`, the visitor's, `noindex` and not in the sitemap, `ProgramTab::indexed`) took the place of „Alle Module“ on 2026-09-25 (the program's modules are its catalog, `/catalog?program=<slug>`, and `…/modules` is a 404) and became „Mein Studium“ on 2026-10-04: the views no longer list it, the app goes on from its address to `/study` in the same history entry, and the server's page there says so. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all but `variant` (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key and its canonical address is the plain one. The plan of each further study direction is a page of its own (2026-09-26): `?variant=<n>` is its canonical address, listed in the sitemap, with the direction in its title; the first is the plain address, and a number past the last plan names the last. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone an area or a row of the plan picked is the page, and a module comes up as a sheet over the page or over what was picked (2026-10-06; until then `open` alone showed it in full there) |
 | `/bookmarks?collection=…&turnus=…&stand=…&counts=1&lang=…&ects_min=…&campus=…&graded=yes&fits=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (the view — a collection by its number, `none` for „Ohne Sammlung", never its name —, half of the year, „Stand", „Zählt in meinem Studium", the few of the catalog's filters it has under the catalog's names, the order — `added`, `study`, `offer`, `title`, `ects`, `events`, each turned round with `desc=1` —, the previewed module), never what is on it: the marks live in the browser, and so does what is typed into the search at the head on this page (`folia_shell::search::LocalSearch`, R20). `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/widgets/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` is a sheet over the list (2026-10-06; until then it did what `full=1` does). The server renders an explanation, the same for everybody, `noindex` |
-| `/studyplan?sem=…&view=…&open=<id>&row=<key>&termin=<key>&on=<day>&wahl=e<event>&vergleich=1&import=…&variant=<n>[&share=<code>][&full=1]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20) — `termin` and `on` a Termin in its own view in the app's dialog over it, and with `full=1` filling the page („Ganze Seite", as `open=<id>&full=1` a module; `PlanAddress`; „A Termin in its own view"), `wahl` a choice of groups in focus over the week and `vergleich` its groups compared day by day („Offen and the choice in focus") —, with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
+| `/studyplan?sem=…&view=…&edit=1&open=<id>&row=<key>&termin=<key>&on=<day>&wahl=e<event>&vergleich=1&import=…&variant=<n>[&share=<code>][&full=1]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20) — `edit=1` the plan being edited (Folia 1.100.0, „Looking and editing": exactly `1`, written after `view` and carried by every other key's change; an address with `wahl` is editing whether it says so or not, and is written with it), `termin` and `on` the card of that one Termin over it (since 1.100.0; until then the Termin in its own view in the app's dialog), and with `full=1` the overview filling the page, the view with the module's events, groups and series (until 1.100.0 „Ganze Seite" of the dialog; as `open=<id>&full=1` a module; `PlanAddress`; „A Termin in its own view"), `wahl` a choice of groups in focus over the week and `vergleich` its groups compared day by day („Offen and the choice in focus") —, with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
 | `/profile` | „Profil" (owner, 2026-10-14; reworked 2026-11-08, folia/design/profil/konzepte.html): the profiles of this browser and the active one's page — its name (renamed in place), „Mein Studiengang" as a line, what it keeps counted (no links), Betula Sync (`#devices`), „Daten" (a file) and the „Gefahrenzone" (emptied, deleted); in the sidebar the profiles (a click switches) and „Profil hinzufügen" (empty, from another device, from a file). What every profile shares (light, dark or the system's; the language) is in the menu of the profiles. What it shows lives in the browser; the address is the page and says nothing more. A page of a while: on a phone its arrow leads back to where the visitor was (2026-10-19). The server renders one stand-in for everybody, `noindex`, not in the sitemap („Profiles" below) |
 | `/sync`, `/sync#<…>` | „Gerät verbinden" (Betula Sync, 2026-11-05; „Betula Sync in the browser" below): where devices find each other. Without `#` the scanner (since 2026-11-08), which reads the code another device shows (a link of `/sync#…` or a code of `/pair#…`); `#<…>` the link of another device, whose sealed parcel holds the profile's key. What follows `#` never reaches a server, and it leaves the address and the history as soon as the page has read it. The server renders an explanation, the same for everybody, `noindex`; a phone's menu of the profiles and its profile page lead to the scanner. `/verbinden#<…>` until 2026-11-08, which leads here (below) |
 | `/pair`, `/pair#<…>` | „Mit dem Handy verbinden" (Betula Sync, 2026-11-08; owner: „Da muss ein link kommen wie betula.app/pair wo dann der qr code gezeigt wird"; `folia/crates/profile/src/pair.rs`, docs/folia/sync.md „The actions"): the address one types on a computer. It shows a QR code of `/pair#<id ‖ public key>` (an ECDH key made in the browser) with four digits, ten minutes, and takes the profile once the phone that scans it has sent it; on the phone, which opens it with its camera app or reads it with Betula's scanner, which profile goes, the digits and „Ja, „Lena“ verbinden". `noindex`, not listed |
@@ -339,21 +339,24 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   what is made of it, `--lift` the shadow under a card), and the Stundenplan's states take its
   forms: what one attends is a card full in its module's tone with white words (`.tinted`), a single
   date full and lighter, an option of a choice not made hatched and ringed with its words on plates
-  (`.alt`, its „✓" and „×" as before), an extra dotted (`.extra`), a group of the choice in focus
+  (`.alt`; its „✓" and, until Folia 1.100.0, its „×" — since then, and only while the plan is
+  edited, „✓" and the eye, „Looking and editing" below), an extra dotted (`.extra`), a group of the
+  choice in focus
   hatched until it is ticked and full with a white tick once it is (`.pick`, `.on`, which lifts). A
   visit, hatched before, is a white card ringed in its module's tone, as a calendar of one's own in
   full is in its colour with its initial (`.visit`, `.cal`; a choice of either hatched, an extra
   dotted): what counts is full, what does not is white, so that the two stay apart by their form now
   that stripes are what one chooses. A clash is a red ring inside the card with the „!" (on a phone
   at its bottom), giving way and a change of QIS to decide a yellow ring, the marks of one's own
-  Termin and of a Termin changed by hand white on a full card. What „Alle Termine" adds stays faint
-  and dashed; the Termin open beside the week has a ring at a distance and lifts. On a wide page the
+  Termin and of a Termin changed by hand white on a full card. What editing adds (until 1.100.0 „Alle
+  Termine") stays faint and dashed, never with the red of a clash; the Termin whose card is open has
+  a ring at a distance and lifts (a faint one a solid ring of 2 px). On a wide page the
   week stands without a box, as a module's week (a phone's weeks keep theirs, which the carousel
   carries). In the list beside the week a module's key is full in its tone as its cards (`.sp-key`),
   a visit's ringed, a calendar's ringed in its colour, one's own full with its white mark; „Offen"
   names where a visit gives way with a ringed square; the phone's list of days rings a visit too.
-  The Termin view and the focus say „stehen alle 4 schraffiert im Stundenplan". The demo week of
-  „Planen" (`/about/planning`) is the same grid.
+  The overview of a Termin and the focus say „stehen alle 4 schraffiert im Stundenplan". The demo
+  week of „Planen" (`/about/planning`) is the same grid.
 - **Side by side the two halves end on one line** (owner, 2026-10-27, of the wide screen: „dass
   gerne mal riesige Lücken in dem UI sind. Bitte verbesser das mal, so dass das relativ uniform
   ist"; app.css `.module-grid`, enhance.js). Measured on 24 modules across the catalog at 1440 px,
@@ -465,7 +468,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     `clash`, `fit`; the planner's `week.rs`, `aside.rs`, `head.rs`, `side.rs`): a choice among a
     module's events (`Timetable::choices`, from `StudyplanData::choices`, `modules_choices`) is open
     until it is made. In the week its options are hatched with „1 von 3" in their tooltip (a choice
-    of two „2 von 4") and „✓ Diese nehmen" / „× Nicht diese"; a choice of more than four options
+    of two „2 von 4"), each opening its card, and while the plan is edited carry „✓ Diese nehmen"
+    and the eye „Übung ausblenden" (until Folia 1.100.0 „× Nicht diese", in both states); a choice of
+    more than four options
     stands only in the panel beside the plan (`WEEK_OPTIONS`), whose options say „passt" or
     „überschneidet sich" (`clash::option_meetings`). Over the week „1 Wahl offen", in its list „1
     von 3 wählen: Übung · Höhere Mathematik - T3", or „0 von 3 Terminen frei: …" when no option is
@@ -473,9 +478,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     option (a Termin of it in `Selection::chosen_rows`, which a subscription carries and a share
     link does not); once as many are taken as the choice asks for, the others leave the week
     (`HiddenBy::Option`) and step back in the panel, where a tap on one ticks it beside them (owner,
-    2026-10-26: every option ticked counts alike, as many as one likes); in „Alle Termine" a faint
-    one has „✓ Nur diese" (instead: „Ein Tipp auf einen anderen Termin wählt um") and „+ Auch
-    diese" (beside); „Wahl aufheben" and the „✓" of an option taken take that option back alone.
+    2026-10-26: every option ticked counts alike, as many as one likes); while the plan is edited
+    (until 1.100.0 in „Alle Termine") a faint one has „✓ Nur diese" (instead: „Ein Tipp auf einen
+    anderen Termin wählt um") and „+ Auch diese" (beside), and its card „Nur diese" · „Auch diese";
+    „Wahl aufheben" and the „✓" of an option taken take that option back alone.
     For the plan's program (`StudyplanData::listed`, `modules_choice_listed`, by
     its family) Betula preselects what QIS lists it at: as many options as the choice asks for, or
     fewer, are taken (`TakenBy::Program`, the box ticked, „Laut Studiengang; die anderen sind für
@@ -719,7 +725,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       hinzufügen" and first in a cell of the Gesamtplan), and in the Wahlpflicht's lists, with how
       many count in a choice („Mein Studium" below); the catalog's „Gemerkt" per
       collection; the Merkliste's tab held or right clicked, a menu of its views. In the Stundenplan
-      the Merkliste is one of the two ways of „+ Modul" in each calendar (Folia 1.52.0,
+      the Merkliste is one of the two ways of „+ Modul" in each calendar of one's own (Folia 1.52.0,
       `studyplan/add.rs`; „Visits and „+ Modul"" below; from 1.38.0 to 1.51.0 „Aus der Merkliste"
       planned into the study): every marked module the calendar does not hold yet, its
       collections as chips with how many each holds of these (those that hold none left out), a
@@ -731,7 +737,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       Stundenplan would show it) — and „Aufnehmen", „3 gemerkte Module aufnehmen" for all of them shown (of a
       collection too), and folded under them „Im WiSe 2026/27 nicht angeboten · 2", each with why
       („nur SoSe", „nicht mehr angeboten", the turnus) and „Aufnehmen" all the same. In „Mein
-      Studiengang" what it takes in is a visit.
+      Studiengang" what it took in was a visit, until its „+ Modul" left the calendar (Folia
+      1.100.0):
+      since then only the calendars of one's own have it, while the plan is edited.
     - **Near the limit** (256 modules, owner, 2026-10-19: „Also 256 Module sind auch genug. Dann
       gibt es einfach ein Limit, und man bekommt ne Meldung") the head of the whole list says
       „248 / 256" from 240 marks on, from 250 in the warning's colour; nowhere else is a limit
@@ -1329,8 +1337,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       the safe area; it comes up from below to half up. What is read and worked in beside the page:
       a dialog of the size „m" („Termin eintragen", over the week that shows its draft; the areas
       and an area, one size, so that the sheet stays where it is from the one to the other), the
-      catalog's filters, the Merkliste's filters and orders, the Stundenplan's „Anpassen" (whose
-      calendars open their menus in it), a page's own sheet (the workbench of „Mein Studium",
+      catalog's filters, the Merkliste's filters and orders, the Stundenplan's „Anpassen" until
+      Folia 1.100.0 (whose calendars opened their menus in it), a page's own sheet (the workbench of
+      „Mein Studium",
       `.page-sheet`: the whole height, a light veil before it, under a module's), a module over a page,
       „Tasten" (a long list; it names its keys on a phone too, a PC's or a Mac's, since who opens
       it there has a keyboard). A dialog takes the whole height, so that it does not grow and
@@ -1374,17 +1383,25 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     well, and so do the buttons of a form in it (owner, 2026-11-17: „Ja, Plan leeren auch
     untereinander. Pass bitte alle an, wo das design pattern nicht eingehalten wird"): buttons
     across the sheet at a finger's height (46 px), one under the other, the one it suggests or that
-    takes away first — „Plan leeren" and „Ersetzen" of „Anpassen", a calendar whose share was taken
-    back („Behalten", „Löschen"), „Neuer Kalender" and a calendar's new name, a Termin QIS says
-    something else of now („Meine behalten" over „QIS übernehmen"), its „Ändern" and its note
-    („Speichern" over „Abbrechen"), a note another device wrote at the same time; a calendar's menu
-    in „Anpassen" gives each entry a row as a menu's. Until then they stood side by side as small
-    buttons, as they still do on a wide screen (app.css „In a sheet, what a question offers"). A
-    dialog's foot is not such a question: its buttons stand side by side across the sheet (owner,
-    2026-10-16). What unfolds in a sheet and asks to be seen (`betula:sheet-show`,
-    `folia_design::nav::show_in_sheet`: the questions of „Anpassen", whose answers reach below the
-    sheet half up now that they stand one under the other) takes the sheet all up where it would be
-    out of sight, and what scrolls in it as little as brings it in; in sight it moves nothing.
+    takes away first — a calendar whose share was taken back („Behalten", „Löschen"), „Neuer
+    Kalender" and a calendar's new name („Sichern" over „Abbrechen"), a saved plan's „Ersetzen", a
+    Termin QIS says something else of now („Meine behalten" over „QIS übernehmen"), its „Ändern" and
+    its note („Speichern" over „Abbrechen"), the card's „Ausblenden", a note another device wrote at
+    the same time; a calendar's menu gives each entry a row as a menu's (46 px). Until then they
+    stood side by side as small buttons, as they still do on a wide screen (app.css „In a sheet,
+    what a question offers"). The Stundenplan has no sheet „Anpassen" since Folia 1.100.0 (it held
+    „Plan leeren", gone, and the calendars and saved plans): on a phone, while it is edited, the
+    calendars stand in the page on the line „Kalender" (`details.sp-cal-line`), „Neuer Kalender"
+    under the modules (`form.sp-cal-new`) and the saved plans as a group of their own (`.sp-plans`),
+    and the same rule holds there as in a sheet (`:is([data-sheet], .sp-cal-line, .sp-cal-new,
+    .sp-plans)`). A dialog's foot is not such a question: its buttons stand side by side across the
+    sheet (owner, 2026-10-16). What unfolds and asks to be seen (`betula:sheet-show`,
+    `folia_design::nav::show_in_sheet`: a saved plan's „Ersetzen", whose answers stand one under the
+    other) takes a sheet it is in all up where it would be out of sight, and what scrolls in it as
+    little as brings it in; in sight it moves nothing. In a phone's page, where the saved plans
+    stand since Folia 1.100.0 (until then in „Anpassen", half up), the page brings it in as little
+    as it must, clear of the dock of the Stundenplan's mode over the page's foot
+    (`scroll-margin-bottom`).
 
     Each way chosen by what the sheet holds, measured on a phone of 390 × 844 px (owner,
     2026-11-04: „alle modal instanzen durchguckst und da einstellst, was am besten zu denen
@@ -2918,7 +2935,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     way round; its tab counts the current semester's modules. Its „Importieren" had „Mein Studium"
     as its second source until it went (2026-11-04): the Wiederholer into the semester shown
     (`study::retake_import`), which the workbench lists under „Noch offen aus früheren Semestern".
-    „Plan leeren" empties the semester shown and leaves the others and what was passed.
+    „Plan leeren" emptied the semester shown and left the others and what was passed, until the
+    calendar stopped managing the study's modules (Folia 1.100.0, „Looking and editing").
   - `node folia/e2e/study.mjs` checks the first visit, the overview (the credits, nothing else), the
     sidebar (the program's card and its dialog, no way to the Stundenplan, the legend in two
     parts, the statuses in the second), the semester at the top of its box with no strip and no
@@ -2993,9 +3011,12 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (`menu`) exactly as tall as what it holds (the Merkliste's ⋯, under 40 % of the screen), a pull
     up bringing it back to its height and a tap on its grabber leaving it be, its question
     „Merkliste leeren" each answer a row of its own across the sheet, thrown away by a
-    finger, and closed by its choice leaving a copy that glides away; „Plan leeren" in „Anpassen"
-    half up, the sheet bringing the question into sight, each answer a row across it, „Leeren"
-    first; „Sammeln" (`auto`) a dialog that fits while it holds little, a tap on its
+    finger, and closed by its choice leaving a copy that glides away; the Stundenplan's calendar
+    part on a phone while it is edited (until Folia 1.100.0 „Plan leeren" in „Anpassen"): a
+    calendar's menu one entry a row, its new name's field, „Sichern" and „Abbrechen" one under the
+    other, „Neuer Kalender"'s „Anlegen" and „Abbrechen", a saved plan's question „Ersetzen" and
+    „Abbrechen" in sight and clear of the dock, each answer across its box, the one that acts first,
+    „Abbrechen" taking each back and writing nothing; „Sammeln" (`auto`) a dialog that fits while it holds little, a tap on its
     grabber and a short pull leaving it where it is, half up and all up once it holds more (all up
     as it was, half up under a pull), fitting again once it holds less; „Tasten" naming its keys; „Plan einrichten" all up at once in one move, never half up, a short pull coming
     back all up and a quick one throwing it away.
@@ -3034,79 +3055,334 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   horizontalen Platz"; it leaves the page's margin and the panel's, 12 + 14 px, and the rest of
   the page keeps them). Its slots say what and where they are held („zeige auch die location
   an"), their time only where a slot is wide enough (a tablet's); the red mark of a clash stands
-  in a slot's bottom corner, where it covers no name. A slot is a link to its Termin in its own
-  view (2026-10-26, „A Termin in its own view" below; until then to its module); the „✓" and „×"
-  are the list's. Where the plan has Termine of A or B weeks only, the grid is a carousel of
+  in a slot's bottom corner, where it covers no name. A slot is a link to its Termin, since Folia
+  1.100.0 to its card as a sheet (from 2026-10-26 to the Termin in its own view, „A Termin in its own
+  view" below; until then to its module); the slots' buttons are the list's rows', and only while
+  the plan is edited: the eye, „✓" and „+", the bin of one's own (until 1.100.0 „✓" and „×" in both
+  states). Where the plan has Termine of A or B weeks only, the grid is a carousel of
   „A-Woche", „B-Woche" and „A/B", as the pictures of the start page are one: a finger carries the
   weeks sideways and lets the next one in, any other move scrolls the page, and the three stand in
   a row without going round. Its switch stands in the head under the title, „Woche: A, B, A/B"
-  beside „Anpassen" (owner, 2026-10-26: „Dann kann oben in die gleiche Reihe mit dem Anpassen
-  Knopf die Handles"; until then tabs under the week), and „Plan · Alle Termine" is in „Anpassen",
-  under „Termine" (under „Ansicht" until 2026-11-04), greyed out where it would show nothing („Das ist keine Aktion, die man häufig
-  macht"); a wider screen keeps both switches in the head.
+  beside „Bearbeiten" (until 1.100.0 „Anpassen"; owner, 2026-10-26: „Dann kann oben in die gleiche
+  Reihe mit dem Anpassen Knopf die Handles"; until then tabs under the week). „Plan · Alle Termine",
+  which stood in „Anpassen" under „Termine" (under „Ansicht" until 2026-11-04), greyed out where it
+  would show nothing („Das ist keine Aktion, die man häufig macht"), is the mode since 1.100.0; a
+  wider screen keeps the weeks' switch in the head.
   Under the grid the list of the week's days (each Termin a row as tall as a finger, with its
   buttons) is closed until its line „Termine als Liste (8) +" opens it („standardmäßig
   eingeklappt"); the line counts the week shown, and the list stays open under a module opened
   from it, which comes up as a sheet over the plan („A module on a phone"). With nothing planned a phone shows no empty week, only „Noch keine
-  Termine" and the ways to modules, as before: the page stays shorter than the screen.
+  Termine" and the ways on, as before: the page stays shorter than the screen (while the plan is
+  edited the bare week, since 1.100.0).
   „Export" (the .ics file, „Als Bild speichern" and the subscription; „In deinen Kalender" until
   2026-11-04) stands under the Termine, in every view: in the sheet „Anpassen", among what is
   shown, nobody looked for it. A wider screen keeps it in the sidebar.
 - **The Stundenplan's sidebar, slimmed** (owner, 2026-11-04, `studyplan/side.rs`: „Komplett
   entfernen, weil überholt das system" and „Später an einen anderen ort verlegen (jetzt einfach
-  entfernen ich kümmer mich später)"). „Anpassen" holds „Kalender", on a phone „Termine" („Plan ·
-  Alle Termine"), „Export" and „Plan". Gone for good: „Studiengang" („das ist jetzt mein studium":
+  entfernen ich kümmer mich später)"). „Anpassen" held „Kalender", on a phone „Termine" („Plan ·
+  Alle Termine"), „Export" and „Plan", until Folia 1.100.0 titled the sidebar „Stundenplan" and left
+  the phone no sheet („Looking and editing" below). Gone for good: „Studiengang" („das ist jetzt
+  mein studium":
   the timetable's program is what this session took a plan with, else „Mein Studiengang", chosen in
   „Mein Studium"), „Importieren" (the same day: „Das ist ja auch in mein studium": a semester takes
   its Fachsemester over there, „Plan übernehmen", and the start page's card leads there; an address
   with `import=` is read past) and „Plan speichern" („das sind jetzt hat man ja mehrere kallender";
-  the plans saved before stay in „Plan" to be loaded and deleted). Gone until they have another place:
+  the plans saved before stay in „Plan" to be loaded and deleted; since 1.100.0 „Gespeicherte Pläne",
+  last in the sidebar while the plan is edited). Gone until they have another place:
   „Ansicht" (Woche · Termine · Prüfungen; „Termine" and „Prüfungen" are reached by their address,
   the start page's links among them), „Zeigen" (to become masks in the content area; a kind hidden
   before shows faint under „Alle Termine", whose „✓" brings it back) and „Standort" (a town chosen
   before still decides; the line under the head and the module's panel no longer ask for one).
+  „Zeigen" has its place since 1.100.0 in the content, as the masks it was to become: the mode, in
+  which what the plan leaves out stands faint in the week, every event has its eye in the module
+  list and „Alle einblenden" brings everything back; a kind is no longer switched off as a whole
+  (one switched off before stays so, faint while editing, and its card's „„Übung“ wieder
+  einblenden" brings it back). „Ansicht" and „Standort" have none yet.
 - **„Als Bild speichern"** (owner, 2026-11-04: „In deinen Kalender soll zu export werden und da
   soll auch noch der knopf als bild speichern rein"; `studyplan/picture.rs`): in „Export", over
   „Abonnieren", the week as a PNG, made in the browser and downloaded („stundenplan-2026W.png"),
   so nothing of the plan reaches the server. It is the week the grid shows, in the A-week, the
   B-week or both as its switch has it („WiSe 2026/27 · A-Woche" under „Stundenplan", the site in
-  the corner), without links, buttons, calendars of one's own or „Alle Termine"'s faint slots: the
+  the corner), without links, buttons, calendars of one's own or the faint slots of editing (of
+  „Alle
+  Termine" until 1.100.0): the
   grid's geometry (days as wide as their lanes, 08:00 to 18:00 at least) at 1200 CSS pixels drawn
   twice as large, in Inter, in the light theme's colours whatever the page shows (a module's card
   full in its tone, single dates lighter, a choice hatched and ringed, an extra dashed, a clash red
   with its „!"). The picture is laid out as plain values (`lay_out`), which the tests read, and
   drawn on a canvas after the frame that shows the click (R21). Without a Termin it is greyed out.
+- **Looking and editing** (owner, 2026-11-17: „Ich glaube, das was hier die richtige Lösung wäre ist
+  bei dem Kalender einen edit modus hinzuzufügen, weil man dadurch unnötiges ui ausblenden kann, und
+  dann im edit modus auch Termine leicht anzeigen kann, die man ausgeblendet hat." and „Im Kalender
+  geht es dann nur noch darum auszuwählen, was jetzt genau gezeigt werden soll. Oder halt termine
+  selbst zu verwalten."; Folia 1.100.0; `StudyplanUrl::edit`, `PlanCtx::edit`, the planner's
+  `studyplan/edit.rs`, `open.rs`, `modules.rs`, `side.rs`, `folia_timetable::categories`,
+  `folia_widgets::termin::card`). The Stundenplan has two states. **Looking**, the default: nothing
+  on the page changes the plan — the week's slots carry no buttons, the module list no switches, the
+  sidebar no menus, a free stretch does nothing. **Editing** adds the page's own controls and shows
+  what the plan leaves out, faint, in its place. What one opens on purpose — a Termin's card, the
+  module beside the plan, the overview — changes what it is about in both states (Google Calendar's
+  bubble has its pencil and its bin without any mode). Three things are no settings of the plan's
+  Termine and stay while looking: „A-Woche · B-Woche · A/B", „Gemeinsam frei" and the calendars'
+  „Voll · Spur · Aus". Where a gap is, a way stands in the page while looking too:
+  „3 Wahlen offen ›", the empty week's „+ Termin", „Termin eintragen" at a module QIS has no Termin
+  for.
+  - **The address**: `edit=1` (exactly `1`, after `view`; every other key's change carries it,
+    `with_edit(false)` also leaves the choice in focus). A choice in focus is a part of the mode: an
+    address with `wahl=` is editing whether it says `edit=1` or not, so a link of before
+    (`?wahl=e148370`) opens the mode, and every link the focus writes carries `edit=1`. Entering and
+    leaving is a step of the history of its own (`Change::Aside`, on a phone too): „Bearbeiten" in
+    the head enters it, „Fertig" (Esc), Back and the pressed „Bearbeiten" leave it, in the frame of
+    the click. A reload keeps it; entering writes nothing to the plan. The page carries `sp-edit`
+    while it is edited.
+  - **The head and the status row** (`SemesterHead`, `StatusRow`): the head holds the same controls
+    in both states — the title, „Gemeinsam frei", the weeks, „Bearbeiten" (the pencil,
+    `aria-pressed`, a button to a screen reader, the command „Stundenplan bearbeiten" in „Befehle",
+    pressed „Bearbeiten beenden") — on one row of 36 px on every screen wider than a phone: where it
+    is short the weeks read „A · B · A/B", then „Gemeinsam frei" keeps its sign alone, then the
+    title gives way. Under it one row of 46 px says the state: looking, the sum („Informatik B.Sc. ·
+    4 Module") and at its end „3 Wahlen offen ›" (with „· 2 Änderungen offen" where changes ask; the
+    later figures give way whole), which enters the mode with the keyboard on the first open row;
+    editing, the mode's bar (`EditBar`, in the accent's soft tone): „Stundenplan bearbeiten", its
+    figures („3 Wahlen offen · 2 ausgeblendet"), „+ Termin", „Fertig" with the cap „Esc"; with a
+    choice in focus the dark bar of the focus. One bar at a time, so that the week does not move:
+    measured at 1440 × 900 and 1180 × 820, the week and its slots stand to the hundredth of a pixel
+    alike in looking, editing and a choice in focus. The overlaps are a red figure of that row, of
+    the bar and of a phone's line of numbers („1 Überschneidung", `ClashFigure`), whose click
+    unfolds their list under it; until 1.100.0 the line under the head held them in a fold. While
+    editing, the list unfolded keeps its box and its lines (`head::kept_notes`, as „Offen" keeps
+    its rows): a line that no longer overlaps stays in its place struck through (its words for a
+    screen reader „keine Überschneidung mehr"), the list's head then says „Keine Überschneidung
+    mehr", and so does the figure, quiet (`.sp-clash-fig.none`), so that the list can still be
+    folded; leaving the mode with nothing overlapping folds it. The line
+    „N ausgeblendet +" under the head (which moved the week 40 px), the head's „+ Termin" and its „1
+    Platzhalter" went. The bar's „2 ausgeblendet" brings the list's „Alle einblenden" into view with
+    the keyboard on it. A screen reader hears the mode („Stundenplan bearbeiten: 3 Wahlen offen, 2
+    ausgeblendet", „Bearbeiten beendet"); after „Fertig" the keyboard is on „Bearbeiten".
+  - **In the week**: a slot of the plan opens its card in both states, a hatched group too, and
+    while editing a faint slot („A Termin in its own view" below). Buttons only while editing (and
+    while the slot or one of its buttons has the keyboard), wide and narrow and in the rows of a
+    phone's list of days: the eye on what the week shows („Ausblenden", „Vorlesung ausblenden",
+    „Diese Gruppe ausblenden"), the crossed eye on what is faint („Einblenden", „„Übung“ wieder
+    einblenden"), „✓" to tick or take („Diese Gruppe nehmen", „Nur diese Gruppe", „Diese nehmen",
+    „Nur diese") and „+" beside („Auch diese Gruppe", „Auch diese"); a group of an open choice
+    hidden by its eye has „✓" and the crossed eye, so that showing it again does not tick it. A
+    Termin of one's own carries the bin („Löschen", with the note and „Rückgängig") and never an
+    eye; for half a second after it the week takes no click (`hush_after_bin`), so that a second
+    click meant for the bin does not land on the slot that takes its lane. What the plan leaves out stands faint in its place while editing (`ghost_slots`, what „Plan
+    · Alle Termine" showed until 1.100.0), never drawn as a clash; slots at one time keep their lanes
+    in both states. A series some of whose dates are hidden carries the bare crossed eye in its top
+    right corner while editing („1 Termin ausgeblendet", `GridSlot::hides`, in the place of `pre`).
+    A free stretch opens the form of a new Termin only while editing and no choice is in focus, a
+    finger held on a phone the same; while looking it does nothing and its pointer is the arrow. A
+    slot of a calendar of one's own opens nothing („Lena · nur zum Ansehen"; a Termin of one's own
+    there „Chor · in „Lena“"). On a touch screen wider than a phone the buttons are 32 px, 8 px
+    apart.
+  - **What answers**: everything acts at once, nothing is saved by a button. While looking, what
+    takes a Termin out of the week or decides it (from its card) answers with a note and
+    „Rückgängig"; while editing the slot itself answers, full or faint, and no note comes but the
+    bin's. „Rückgängig" takes back what the action wrote and nothing else (`PlanUndo`,
+    `PlanDoc::revert`): where the plan changed meanwhile, in another tab or through Betula Sync,
+    only those lines — a semester's hides, ticks, changes and notes one by one, Termine of one's own
+    by their numbers; until 1.100.0 it put the plan back as it was before the action. Every note of
+    the Stundenplan and the start page takes it.
+  - **The signs** (owner, the same day, while it was planned: „Ich will übrigens dass wir vom x weg
+    kommen und eher ein augen symbol verwneden. Das passt viel besser." and „Außer bei custom
+    terminen. Also da wo es nur ausblendet das auge und da wo es entfernt eine Mülltonne."):
+    whatever shows or hides a Termin carries the eye, and the eye says what is, as the module beside
+    the plan had it — `eye` the week shows it (a click hides it), `eye-off` hidden (a click shows
+    it). Where something is removed, the bin (`trash-2`): a Termin of one's own (it is deleted, not
+    hidden), a module of a calendar of one's own, a calendar („Löschen" in its menu), a saved plan.
+    „×" stays only where something closes: a dialog, a note, a panel. Until 1.100.0 a slot's „×" hid
+    it and „✓ Wieder einblenden" brought it back.
+  - **The module list** (owner, the same day: „Man kanm das wahrscheinlich am besten umsetzen, in
+    dem man das so Macht, dass bei den Modulen die Kategorien vl, Übung, prak sind und man da die
+    Übersicht auswählen kann, wo man alles durchklicken kann."; `ModuleList`): the index of what the
+    week shows, the same rows in both states, a part per calendar. A module is one line — its key in
+    its tone, its title cut at the end with „…", „Besuch" after a visit's — leading to the module
+    beside the plan. Under it a row per event that has a Termin, exactly the overview's segments
+    (one function, `categories::module_events`, which `event_tabs` reads too), kind first:
+    Vorlesung, Übung, Seminar, Praktikum, Projekt, Tutorium, then the rest (`kind_rank`; the module
+    beside the plan orders its parts so too; until 1.100.0 the timetable's order, which put EvS's
+    exercise first). A row says the event's word (in English the kinds' labels, „Lecture") and what
+    the plan holds of it, each slot of the week once (`categories::summary`): „Di 11:30 · Fr 09:15",
+    „Di 07:30 A", „Mo · Mi · Fr", „5 Termine", „ohne feste Zeit", „4 Gruppen · offen", „Mo 15:30 · 1
+    von 4", „· freiwillig", „ausgeblendet", „nicht gewählt" (the sign of a row hidden in part names
+    what: „am Fr 20.11. ausgeblendet", „1 Gruppe ausgeblendet"); it wraps after a „·", never inside
+    a word (the word's column is as wide as the module's longest word, within a share of the row).
+    The whole row leads to the overview at that event (the Termin the plan holds, else its first; an
+    event without any date to the module beside the plan, `open=<id>&row=<key>`), which opens at its
+    top; „Zurück", Esc and Back find the plan scrolled as it was, the keyboard on the row. At its
+    end the eye: while editing the switch of the whole event (`role="switch"`, „Vorlesung EvS
+    zeigen"; an event whose Termine were hidden one by one shows them again); while looking its
+    place holds only the crossed eye of a row hidden in part or whole, a quiet way into the mode
+    („Tutorium ausgeblendet: Stundenplan bearbeiten"), so that no text of a row moves when the mode
+    comes. Then the module's Termine of one's own (the mark „von dir", each opening its card), and
+    while editing „+ Termin" („Termin für EvS eintragen"); a module QIS has no Termin for says
+    „keine Termine in QIS · Termin eintragen ›" in both states. While editing, and only while
+    something is hidden, the foot „2 ausgeblendet · Alle einblenden" (`PlanDoc::show_hidden`: the
+    kinds, events, Termine and dates hidden and the days the plan's Termine of one's own skip, every
+    tick kept; the note „3 wieder eingeblendet" with „Rückgängig"); its figure, as the bar's, counts
+    what the student hid, never a choice made nor what the plan leaves out anyway
+    (`views::hidden_count`). The last line: „Module planen in „Mein Studium“". On a narrow page the
+    modules stand in columns; beside the week the column scrolls by itself. Until 1.100.0 a module's
+    row had its number, its credits and its „×", placeholders had rows and the list a sum.
+  - **„Offen"** (`open.rs`): looking, „3 Wahlen offen ›" in the status row, on a phone the amber
+    line over the week, a link into the mode with its rows open. Editing: where the page has the
+    column beside the week, the panel at its top; on a narrow page the bar's figure unfolds the rows
+    under the bar (`PlanCtx::unfolded`); on a phone the rows under the line, over the week. A line
+    decided while editing stays in its place, pale, saying what became of it („ausgeblendet", „Mo
+    15:30 ✓" of a group ticked, „nicht gewählt" left for another, „erledigt"; a choice among a
+    module's events says the option taken, „Übung HMT3 · Mi 13:45 ✓", whichever of its events the
+    line was named by), until the mode is left, so that a click never moves what
+    was clicked; on a phone „Nichts mehr offen" once all are.
+  - **The sidebar** (`side.rs`, `calendars.rs`), titled „Stundenplan" as the page is (until 1.100.0
+    „Anpassen"): „Kalender" in both states — „Mein Studiengang" with its program, without the lock
+    it had, and each calendar with „Voll · Spur · Aus"; while editing „+ Kalender" in the group's
+    head (the form „Neuer Kalender" opens under it) and each calendar's „…", in places that are
+    there while looking —, „Export", „Teilen …", the storage hint, and while editing „Gespeicherte
+    Pläne", last (a click loads one, the bin deletes it with „Rückgängig"). The menu and the form
+    are layers: Esc closes them before the mode, and leaving the mode closes them; while a dialog
+    stands in front of them (a Termin's card, „Neuer Termin", „Tasten"), Esc closes that dialog first
+    and never reaches what is under it (`folia_design::modal::dialog_in_front`), so one Esc closes
+    one thing.
+  - **On a phone** no sheet „Anpassen" and no sidebar: „Bearbeiten" ends the head („Woche: A, B,
+    A/B" before it), the calendars stand in one line over the week where there are calendars of
+    one's own (while editing their rows carry „…"), „Export" and „Teilen …" under the Termine.
+    Editing, the dock in the tab bar's place (`EditDock`; owner, 2026-11-04, of the workbench's:
+    „wenn unten die navbar mit ausgetauscht wird mit einer interaction bar"): „Bearbeiten" with the
+    figures small under it, a button that brings the module list into view · „+ Termin" · „Fertig",
+    not while a choice's sheet is up; the module list stands right under the week, „+ Kalender" its
+    last row; looking, it stands after „Export". Nothing over the week comes with the mode. The
+    round button „+" over the bar goes (the dock has „+ Termin"), and „Nach oben" stands nowhere on
+    this page, whose eyes are along the right edge.
+  - **What left the calendar** (owner, the same day: „Denn man kann gerade noch module im Kalender
+    verwalten, das ist aber keine gute idee, weil man das ja in mein Studium macht."): the study's
+    modules are listed here, never managed — „+ Modul" of „Mein Studiengang", the list's „×", the
+    module panel's „Entfernen", „Zählt für" and „Auch geplant", the placeholders' rows, the credits
+    and their sum, „Plan leeren", the empty week's „N gemerkte Module übernehmen". Calendars of
+    one's own keep „+ Modul", while editing (owner, the same day: „Bei den weitern Kalender soll man
+    btw weiter module hinzufügen könenn, weil das ja nur die Anzeige für die termine sind und nicht
+    dein Studium ist."). The plans saved before stay (loading one still replaces the semester of the
+    study), and so do the offers of a shared plan, in other words: „Als Kalender" first, „In „Mein
+    Studium“ einplanen" in the place of „Übernehmen", without the question „In deinen Stundenplan
+    übernehmen?".
+  - **Decided against what was decided before**: a hatched group opens its card, whose large action
+    „Diese Gruppe anhaken" has the keyboard (a click, then Enter), instead of taking its choice into
+    focus with the group ticked (owner, 2026-10-26: „Wenn man auf eine Übung klickt, dann soll die
+    Preselected sein, so dass man einfach direkt auf Fertig klicken kann"; `data-pre` goes): one
+    click, one meaning, the same in both states; the focus is entered from „Offen" („Wählen") and
+    from the card („Vergleichen ›"). Visits are no longer made in the calendar (the decision of
+    2026-10-26, „Visits and „+ Modul"" below). „+ Termin" and a click on a free stretch are the
+    mode's (two of the ways in of 2026-10-27, „Termine of one's own" below).
+  - **The empty week** (`NothingPlanned`): the card „Noch keine Termine" only where the week has
+    nothing to draw (no module, no Termin of one's own, no calendar in the week), on a phone too,
+    and only while looking; editing, the bare week. Its ways: „Zu „Mein Studium“" (`/study?plan=1`),
+    „Zum Katalog", „+ Termin".
+  - **„Prüfungen"** (`exams.rs`): the eyes only while editing, their place kept while looking; a
+    sitting hidden is left out while looking, and „2 ausgeblendet ›" under the list leads into the
+    mode.
+  - **Not yet:** a card for a slot of a calendar of one's own (its Termine of one's own open their
+    form, whose bin deletes them); ticking and hiding in a calendar of one's own; a switch of the
+    views Woche · Termine · Prüfungen (they are reached by their addresses); „Standort"; Termine of
+    one's own in the file and the fixed subscription; hidden dates standing pale in `view=dates`; a
+    visit made in one step in „Mein Studium"; the German query keys `wahl` and `vergleich` in US
+    English (CLAUDE.md, „Addresses"). A Termin of one's own deleted by its slot's bin leaves its
+    lane to the slot beside it.
 - **A Termin in its own view** (owner, 2026-10-26, after four rounds of
   `folia/design/termin/konzepte.html`: „Ja zu allen drei Vorschlägen, bau das jetzt in Folia";
   `folia_timetable::termin`, `folia_widgets::termin`, the planner's `studyplan/termin.rs`, the start
   page's `TerminOver`). The owner, of the round before: „Beim kallender workflow wenn man auf einen
   Termin klickt. Ich würde schätzen punkt 1 sind ein paar mehr infos. Punkt 2 ist dann die Termine
   zu customizen."
-  - **Where it opens: the app's dialog over the page** (owner, 2026-11-03, of the panel it was
-    until then: „Also erstmal muss das ein modal werden oder eine fullpage zeite mit zurück etc.
-    Aktuell ist das übelst cursed. Das muss neu"; `folia_widgets::termin::TerminModal`, the one
-    dialog `folia_design::modal::Modal` in its `m` size). A slot of the Stundenplan's week and a line
-    of its „Termine" open the Termin over the plan (`/studyplan?termin=<key>&on=<day>`, the key a
+  - **A click opens the card of that one Termin** (owner, 2026-11-17: „Das was gerade auch noch
+    nicht gute läuft ist, dass wenn man auf einen termin klickt, dass dann infos kommen die halt
+    nicht nur für den Termin sind. Das muss auch angepasst werden so dass das mehr wie bei google
+    calendar."; Folia 1.100.0; `folia_widgets::termin::card`, `TerminCard`, `CardState`;
+    `TerminModal` with the placing props of `folia_design::modal::Modal`: `at`, `on_cancel`,
+    `on_beside`). From the Stundenplan and the start page the dialog is a small card of the Termin
+    (`TerminPlace::Dialog`, the dialog's `s` size), in both states of the plan and by the same
+    addresses (`termin=<key>[&on=<day>]`); what follows below is its overview since. Top to bottom:
+    the head on one row — the chip in its tone, the kind, „Besuch" or „von dir" (the kind gives way
+    with „…"), and the tools, which never depend on the date shown: the pencil „Ändern" (of one's
+    own „Bearbeiten"), the eye „Ausblenden" (of one's own „Nur am Di 24.11. ausblenden", on a day it
+    skips the crossed eye „Am Mi 18.11. einblenden"), of one's own the bin „Löschen", „⋯" (not of
+    one's own) and „×", named „Schließen", its tooltip naming Esc —; the module's title (of one's
+    own its name, „VL EvS" without one); the series in one line („wöchentlich · 15 Termine · noch
+    8", „zusätzlich, freiwillig", the dates hidden, three by name and „+2"); the ticket with its
+    arrows; the date's lines (a clash, why QIS cancels it with „Nachholtermin anlegen ›", where it
+    moved, „Am Fr 20.11. ausgeblendet · Einblenden", „Von dir geändert … · Zurücksetzen"); who, only
+    where the Termin itself names somebody („verantwortet das Modul" is the overview's: under an
+    exercise it named the wrong person); QIS's remark; the note („Notiz: …" with „Bearbeiten"); of a
+    group its state and the one large action — „Diese Gruppe anhaken" (the keyboard on it as the
+    card opens), ticked „Haken wegnehmen", faint „Nur diese Gruppe" · „Auch diese", hidden
+    „Einblenden"; of a single date „Diesen Termin" — with „Vergleichen ›" into the focus where it is
+    a group; and one way on, „Alle Termine von MIT1" (V), the overview; of one's own „nicht in Datei
+    und festem Abo". „⋯" is a menu under its sign over the body, one line each: „Notiz hinzufügen"
+    (or „bearbeiten"), „Nachholtermin anlegen", „Teilen", „In QIS öffnen ↗". „Ausblenden" offers its
+    reaches in the card's body, each saying what stays („Nur am Mo 23.11." · „Alle 15" or „Diese
+    Gruppe" · „Vorlesung ganz"); „Ändern" and the note's field take the body too. Esc peels one
+    layer at a time, the menu, then the body, then the card (taken at `keydown`, however often), and
+    the keyboard goes back to the tool that opened the layer. What hides or decides a Termin closes
+    the card; while looking a note says so with „Rückgängig" („VL MIT1 am Mo 23.11. ausgeblendet",
+    „Ü EvS Mo 15:30 angehakt"), while editing the slot answers. In English Betula's sentences take
+    the kinds' labels („The whole lecture"); QIS's word stays as QIS writes it, without „the", where
+    a Termin's type has no kind of Betula's own (`categories::labels`: „Hide Kolloquium", „The whole
+    Kolloquium", „Kolloquium hidden", „Show Kolloquium").
+  - **Where the card stands** (`card_place`, `Placed`): on a wide screen beside the slot's day
+    column, on the side with more room, never over the slot nor under the rail, 16 px inside the
+    window, over a light dim. Its top edge stays still whatever it shows (owner, 2026-10-16: „Modale
+    menus springen zu viel in der größe"), so that no tool of its head moves from under the pointer
+    and a second press in the same place closes what the first opened: the top is the slot's, moved
+    up only as far as the card at its tallest (`Size::most`: its head and the tallest of its bodies —
+    „Ändern", „Ausblenden", the note, „⋯") needs to end 16 px over the window's edge, never above
+    16 px under the window's top, and it grows downward only; no card is anchored by its foot, so a
+    card low in the window stands well above its slot, beside the slot's column. While a layer is
+    open (`section.tm-card.layered`) it is at least as tall as it rests (`.st-dialog.placed`, its
+    style `--x`, `--y` and the resting height `--h`), so that a body shorter than the resting one
+    moves no edge either. Where neither side of the column leaves room, it stands under the slot
+    where the card at its tallest fits there, else over it. Opened by its address it asks every
+    100 ms until the week has drawn the slot it marks and is placed beside it then; with no slot
+    (the start page) it stands in the middle of the page's column, 12 % of the window's height from
+    its top. A click on another slot opens that slot's card in its
+    place, the address replaced, so that one Back leaves it. On a phone a sheet that fits, its tools
+    44 px, the large action at its foot, a tap on the dim closing it. On the start page its way on
+    is the Stundenplan's overview (`/studyplan?termin=…&on=…&full=1`).
+  - **The overview** (`…&termin=<key>&on=<day>&full=1`): the view below as the page it fills,
+    reached from the card's „Alle Termine von …" (V), from a row of the module list and from the
+    start page's card. „Zurück" (Esc) leads to the plan, with `edit` as it was, never to the card;
+    it opens at its top, and the way back finds the plan scrolled as it was. Until 1.100.0 a slot and
+    a line opened this view in the dialog of 600 px over the plan and the start page, „Ganze Seite"
+    filled the page with it and „Zurück" led to the dialog; the dialog stays over a module's own
+    page (below), and `/event/<key>` is as it was.
+  - **Where it opens: the app's dialog over the page** (owner, 2026-11-03, of the panel it was until
+    then: „Also erstmal muss das ein modal werden oder eine fullpage zeite mit zurück etc. Aktuell
+    ist das übelst cursed. Das muss neu"; `folia_widgets::termin::TerminModal`, the one dialog
+    `folia_design::modal::Modal` in its `m` size). A slot of the Stundenplan's week and a line of
+    its „Termine" open the Termin over the plan (`/studyplan?termin=<key>&on=<day>`, the key a
     `RowKey`, the day of a line its own, a slot's none: the view picks the next date, the day after
     once today's is over); its slot is marked as the one open. A Termin of the start page (a line of
     „Heute" and „Morgen", the card's „Termin ansehen", a bar of the week) opens over the start page
-    (`/?termin=…&on=…`, `url::home_termin`), and a line of a module's „Termine" over the module's own
-    page (below). On a wide screen the dialog stands in the middle of the window, 600 × 600 px over
-    the page dimmed, its head staying while its body scrolls; on a phone it is the sheet from below
-    every dialog is. Until then it stood beside the page, over the page's right part (the
-    Stundenplan's Thursday and Friday, a module's Termine and „Einplanen"), the page in use around
-    it. The dialog stands while its address asks for it and its page is in front: a page kept
-    behind another (`folia_design::stage`) holds no dialog over that one, and Back brings it back
-    with its page. Each event, group and date that picks it leads to its own Termin by such an
-    address: on a wide screen a step each, so Back steps back through them; on a phone in place of
-    the current entry, so Back leaves the Termin (`data-pick`; owner, 2026-11-03: „Das sind nämlich
-    nur buttons und keine Aktionen"). Esc, a click beside it, Back, a finger's throw and its
-    „Schließen" close it (back a step where the page without it is the step before, else to that
-    page), and so does what leads elsewhere („Zum Modul", „Anpassen ›", „Ganze Seite"). An exam and
-    a Termin without a date open their module, as before. As a page (its own, `/event/…`, or
-    filling the page it stood over) it is as tall as what it holds and the page scrolls: its box is
-    no scroller of its own, which kept a phone's swipe from the page (owner, 2026-11-03: „ich kann
-    aber auf der Termin Page immer noch nicht scrollen").
+    (`/?termin=…&on=…`, `url::home_termin`), and a line of a module's „Termine" over the module's
+    own page (below). Since 1.100.0 what the Stundenplan and the start page open there is the card
+    (above), and this view is their overview; what follows of the dialog holds for the module's own
+    page, and held for the other two until then. On a wide screen the dialog stands in the middle of
+    the window, 600 × 600 px over the page dimmed, its head staying while its body scrolls; on a
+    phone it is the sheet from below every dialog is. Until 2026-11-03 it stood beside the page,
+    over the page's right part (the Stundenplan's Thursday and Friday, a module's Termine and
+    „Einplanen"), the page in use around it. The dialog stands while its address asks for it and its
+    page is in front: a page kept behind another (`folia_design::stage`) holds no dialog over that
+    one, and Back brings it back with its page. Each event, group and date that picks it leads to
+    its own Termin by such an address: on a wide screen a step each, so Back steps back through
+    them; on a phone in place of the current entry, so Back leaves the Termin (`data-pick`; owner,
+    2026-11-03: „Das sind nämlich nur buttons und keine Aktionen"). Esc, a click beside it, Back, a
+    finger's throw and its „Schließen" close it (back a step where the page without it is the step
+    before, else to that page), and so does what leads elsewhere („Zum Modul", „Anpassen ›", „Ganze
+    Seite"; of the card „Vergleichen ›" and „Alle Termine von …", in place of the card's entry). An
+    exam and a Termin without a date open their module, as before. As a page (its own, `/event/…`,
+    or filling the page it stood over) it is as tall as what it holds and the page scrolls: its box
+    is no scroller of its own, which kept a phone's swipe from the page (owner, 2026-11-03: „ich
+    kann aber auf der Termin Page immer noch nicht scrollen").
   - **What picks it stands above everything it changes** (owner, 2026-10-27, after trying the fourth
     round on canary: „Also eine Sache, die komplett unverständlich ist, ist der Fakt, dass man unten
     auswählt, welchen Termin man sich genau angucken möchte und sich dann die Seite nur marginal
@@ -3146,23 +3422,25 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     red (`termin::clash_on`), why QIS cancels the date and the day it moves to, a note of the room,
     why the plan leaves it out, QIS's remark.
   - **Then what one adjusts: „Im Stundenplan · auch im Kalender-Abo"** (from the Stundenplan and the
-    start page, `TerminMode::Adjust`), each switch above what it hides (owner, 2026-11-03: „hier gilt
-    das gleiche Prinzip mit Übung anzeigen der Schalter sollte über den Elementen stehen, die dann
-    ausgeblendet werden"): first „Praktikum zeigen", the whole event; under it, of an event's
+    start page, `TerminMode::Adjust`), each switch above what it hides (owner, 2026-11-03: „hier
+    gilt das gleiche Prinzip mit Übung anzeigen der Schalter sollte über den Elementen stehen, die
+    dann ausgeblendet werden"): first „Praktikum zeigen", the whole event; under it, of an event's
     groups, the one shown („Mo 11:30 im Stundenplan", `PlanGroup`; owner: „darunter kann man dann
     den Tag wählen und dann noch ob es im Kalender sein soll"), a switch that ticks it or takes its
-    tick away. Another group is picked above and ticked there, as many as one likes (owner: „mehr
-    als eine Übung … im Kallender anzeigen lassen können ist ein must"; all ticked count alike,
-    `Selection::chosen_rows`, `Event::chosen` a set), how many are under the switch („2 von 4
-    angehakt"); none ticked, the choice stays open and its groups stand hatched in the week („Bis du
-    eine anhakst, stehen alle 4 schraffiert im Stundenplan."). Last „Nur am Mo 02.11. · Ausblenden",
-    this one date of what the plan holds (of an event without groups, of the group ticked, or while
-    none is; `Selection::hidden_dates`, the store's `h` lines, `PlanDoc::set_date`; the week, the
-    day, the clashes and the feed leave it out, `Occurrences::hidden`), „Zeigen" brings it back. The
-    event off, what stands under its switch goes with it. Everything acts at once, without saving;
-    the Kalender-Abo follows (its code carries the
-    hidden dates as a field appended to its frozen layout, `subscription::date_value`, so a code
-    without any is the same as before).
+    tick away. Between the two since 1.100.0 the switch of this Termin as a whole, named as the
+    group's is („Fr 09:15 im Stundenplan", `PlanPart::termin`, `set_row`), what stands under it
+    shown only while it is on. Another group is picked above and ticked there, as many as one likes
+    (owner: „mehr als eine Übung … im Kallender anzeigen lassen können ist ein must"; all ticked
+    count alike, `Selection::chosen_rows`, `Event::chosen` a set), how many are under the switch („2
+    von 4 angehakt"); none ticked, the choice stays open and its groups stand hatched in the week
+    („Bis du eine anhakst, stehen alle 4 schraffiert im Stundenplan."). Last „Nur am Mo 02.11. ·
+    Ausblenden", this one date of what the plan holds (of an event without groups, of the group
+    ticked, or while none is; `Selection::hidden_dates`, the store's `h` lines, `PlanDoc::set_date`;
+    the week, the day, the clashes and the feed leave it out, `Occurrences::hidden`), „Zeigen"
+    brings it back. The event off, what stands under its switch goes with it. Everything acts at
+    once, without saving; the Kalender-Abo follows (its code carries the hidden dates as a field
+    appended to its frozen layout, `subscription::date_value`, so a code without any is the same as
+    before).
   - **Then what one looks up:** „Der Tag" (the plan's Termine of the day on a ribbon from 7 to 19,
     this one filled, and what comes after it with the time between), a picture that opens nothing,
     „Modul" („Zum Modul": the module's panel beside the plan, pointing at the Termin, and its exam in
@@ -3170,8 +3448,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     weekday, time, first and last date, how many, and every date that differs), at the end „Quelle:
     QIS" with the event's number and „In QIS öffnen".
   - **The panel and the week** follow the same ticks: an option's line in the panel beside the plan
-    is a box (a click ticks it or takes its tick away); „Ausgeblendet" over the week lists every
-    option ticked („nur Mo 15:30, Di 11:30") and each hidden date with its own „Einblenden".
+    is a box (a click ticks it or takes its tick away). „Ausgeblendet" over the week listed every
+    option ticked („nur Mo 15:30, Di 11:30") and each hidden date with its own „Einblenden" until
+    1.100.0; since then a hidden date is the line of its card („Am … ausgeblendet · Einblenden") and
+    the crossed eye in its slot's corner while the plan is edited.
   - **To look up: its own page** `/event/<key>[/<day>]` (`folia_catalog::event`, `TerminMode::LookUp`;
     the concept's „Zum Nachschlagen"), where a line of a module's „Termine" leads from the server's
     page, a preview and „Vollbild" in another area (an exam still to QIS; on the module's own page
@@ -3191,28 +3471,30 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   - **„Teilen" and „Ganze Seite"** (owner, 2026-10-26: „Passt so, bau als Nächstes Teilen und Ganze
     Seite"; `TerminPlace`). At the head of the dialog: „Teilen" (its sign), „Ganze Seite" (its sign
     and V; not on a phone's sheet, which goes all up itself, as „Vollbild" of a module is not there)
-    and the dialog's „Schließen" (Esc; on a phone the grabber's, as every dialog's). „Teilen" hands on the Termin's own page on the day
-    shown (`/event/<key>/<day>`, a whole address in the page's language): to the device's share
-    sheet on a touch screen, else into the clipboard, „Link kopiert" in its place for a moment
-    (enhance.js, `share-link`; it needs JavaScript, R15). „Ganze Seite" lets the Termin fill the
-    page it stood over (`/studyplan?…&termin=…&on=…&full=1`, `/?termin=…&on=…&full=1`), as
-    „Vollbild" does a module: the same view, still the one that adjusts, in two columns where the
-    page is wide (folia/design/termin, „Die Seite": on the left what picks the Termin with its
-    series, the ticket, who, „Im Stundenplan", the day and the period; on the right the module and who
-    teaches, which no pick changes, and the source), its events, groups and dates leading to their
-    Termin filling the page too, „Zurück" (Esc)
-    to the dialog over the page on the day shown, „Teilen" in words at the right. The start page's
-    own parts make way meanwhile (app.css; its photo leaves the bar, `betula:frost`). A Termin's own
-    page has the same two columns and „Teilen".
-  - **← and →** (owner, 2026-10-27: „bau als Nächstes die Tasten ← → fürs Datum"): the date
-    before and after, as the arrows beside the date (`data-step`, enhance.js), in the dialog over the
-    page, filling it and on its own page; one date a press, a key held does not run through the
-    series. Not in a field, nor where the arrows are another's (a mode, a group of one stop, a
-    panel's edge, the note of a module planned). The dialog keeps them, V and `?` while it is the one
-    dialog open (a dialog takes the page's keys away from the page otherwise; `?` puts the keys'
-    overview over it). The arrows need no hint (CLAUDE.md, „Design"); the
-    overview of the keys has „Im Termin" wherever a Termin stands in its own view, first where `?`
-    was pressed in it (←, →, V, Esc).
+    and the dialog's „Schließen" (Esc; on a phone the grabber's, as every dialog's). „Teilen" hands
+    on the Termin's own page on the day shown (`/event/<key>/<day>`, a whole address in the page's
+    language): to the device's share sheet on a touch screen, else into the clipboard, „Link
+    kopiert" in its place for a moment (enhance.js, `share-link`; it needs JavaScript, R15). „Ganze
+    Seite" lets the Termin fill the page it stood over (`/studyplan?…&termin=…&on=…&full=1`,
+    `/?termin=…&on=…&full=1`), as „Vollbild" does a module: the same view, still the one that
+    adjusts, in two columns where the page is wide (folia/design/termin, „Die Seite": on the left
+    what picks the Termin with its series, the ticket, who, „Im Stundenplan", the day and the
+    period; on the right the module and who teaches, which no pick changes, and the source), its
+    events, groups and dates leading to their Termin filling the page too, „Zurück" (Esc) to the
+    dialog over the page on the day shown (since 1.100.0 on the Stundenplan to the plan without the
+    Termin, never to the card; on the start page, which still answers to it, to the card), „Teilen"
+    in words at the right. The start page's own parts make way meanwhile (app.css; its photo leaves
+    the bar, `betula:frost`). A Termin's own page has the same two columns and „Teilen".
+  - **← and →** (owner, 2026-10-27: „bau als Nächstes die Tasten ← → fürs Datum"): the date before
+    and after, as the arrows beside the date (`data-step`, enhance.js), in the card (which stays
+    where it stands), in the dialog over the page, filling it and on its own page; one date a press,
+    a key held does not run through the series. Not in a field, nor where the arrows are another's
+    (a mode, a group of one stop, a panel's edge, the note of a module planned). The dialog keeps
+    them, V and `?` while it is the one dialog open (a dialog takes the page's keys away from the
+    page otherwise; `?` puts the keys' overview over it). The arrows need no hint (CLAUDE.md,
+    „Design"); the overview of the keys has „Im Termin" wherever a Termin stands in its own view or
+    its card, first where `?` was pressed in it (←, →, V „alle Termine des Moduls", Esc „schließen,
+    von allen Terminen zurück").
   - **Over its module's page** (owner, 2026-10-27: „bau als Nächstes den Termin als Sheet über
     der Modulseite"; the concept: „über /catalog/module/11112?termin=… zum Nachschlagen"): on the
     module's own page in the app a line of its „Termine" opens the Termin in the dialog over the page
@@ -3229,29 +3511,38 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   `focus_slots`). The first step of the new calendar: the week opens as the Regelwoche, and what the
   plan leaves to choose is a list of its own.
   - **„Offen"** lists the choices still open (`choice::open`): the groups of an event none of which
-    is ticked („Übung MIT1 · eine von 3 anhaken"), then the choices among a module's events („1 von 4
-    wählen", decided in the module's panel as before); those none of whose options is free first,
-    in yellow („keine passt ohne Überschneidung"). Where the page has the column beside the week it
-    stands at its top, over the modules; where it has not (a phone, a narrow window) it is one line
-    over the week, „2 Wahlen offen" and their names, which opens into the same rows. The quiet line
-    under the head counts only the overlaps now (and the Standort until 2026-11-04): the choices are „Offen"'s; on a
-    phone it says nothing of what is hidden either (owner, 2026-10-26: „Der Ausgeblendet Knopf kann
-    weg" — a group ticked counted as „1 ausgeblendet"), which comes back with „Alle Termine" in
-    „Anpassen" and in its module.
-  - **The focus** (`wahl=e<event>`): a row of „Offen", and a hatched group in the week, take the
-    choice into focus; the hatched group comes ticked (owner, 2026-10-26: „Wenn man auf eine Übung
-    klickt, dann soll die Preselected sein, so dass man einfach direkt auf Fertig klicken kann"):
-    its link carries the key of its „✓" (`GridSlot::pre`, `data-pre`), which acts after the next
-    frame while the link is followed (a click with a key held only follows it), on a wide screen,
-    in a phone's carousel and in its list of days. A row of „Offen" ticks nothing: no group was
-    picked there. Its groups all stand in the week, each a box to tick, hatched in its tone while
-    not ticked, full once ticked, red where it meets the plan; the rest of the week steps back to
-    42 % and leads nowhere. As many groups as one likes can be ticked (`PlanDoc::tick`, as the
-    Termin's tiles do); the focus stays after a tick. Over the week of a wide screen a dark bar says
-    what is chosen and what to do, whether the groups fit („Nur Do 09:15 passt, die anderen
+    is ticked („Übung MIT1 · eine von 3 anhaken"), then the choices among a module's events („1 von
+    4 wählen", decided in the module's panel as before); those none of whose options is free first,
+    in yellow („keine passt ohne Überschneidung"). Since Folia 1.100.0 its rows are the mode's
+    („Looking and editing" above): while looking „3 Wahlen offen ›" in the status row, on a phone
+    the amber line over the week, each a way into the mode with the rows open; while editing, where
+    the page has the column beside the week they stand at its top, over the modules, on a narrow
+    page they unfold under the mode's bar, on a phone under the line over the week, „2 Wahlen offen"
+    and their names (until then the rows stood so in both states, a narrow window's in a line over
+    the week). The quiet line under the head counted only the overlaps then (and the Standort until
+    2026-11-04), and since 1.100.0 the overlaps are a figure of the status row: the choices are
+    „Offen"'s; on a phone it says nothing of what is hidden either (owner, 2026-10-26: „Der
+    Ausgeblendet Knopf kann weg" — a group ticked counted as „1 ausgeblendet"), which came back with
+    „Alle Termine" in „Anpassen" and in its module, and comes back with the mode's faint slots, the
+    module list's eyes and „Alle einblenden" now.
+  - **The focus** (`wahl=e<event>`, a part of the mode, so its address carries `edit=1`): a row of
+    „Offen" („Wählen") and a card's „Vergleichen ›" take the choice into focus. Until Folia 1.100.0 a
+    hatched group in the week took it too and came ticked (owner, 2026-10-26: „Wenn man auf eine
+    Übung klickt, dann soll die Preselected sein, so dass man einfach direkt auf Fertig klicken
+    kann"): its link carried the key of its „✓" (`GridSlot::pre`, `data-pre`), which acted after the
+    next frame while the link was followed, on a wide screen, in a phone's carousel and in its list
+    of days. Since then a hatched group opens its card, whose large action „Diese Gruppe anhaken"
+    has the keyboard: one click, one meaning in both states. A row of „Offen" ticks nothing: no
+    group was picked there. Its groups all stand in the week, each a box to tick, hatched in its
+    tone while not ticked, full once ticked, red where it meets the plan; the rest of the week steps
+    back to 42 % and leads nowhere. As many groups as one likes can be ticked (`PlanDoc::tick`, as
+    the Termin's tiles do); the focus stays after a tick. Over the week of a wide screen a dark bar
+    says what is chosen and what to do, whether the groups fit („Nur Do 09:15 passt, die anderen
     überschneiden sich. Anhaken geht trotzdem."), „Weiter: Praktikum PP" to the next choice still
-    open, „Vergleichen" and „Fertig" with Esc (`data-action="close-focus"`: back a step where the
-    plan without the focus is the step before, `pending.rs` treats it as the module's „Schließen").
+    open (in the place of the focus in the history, so that Back after „Fertig" leaves the mode),
+    „Vergleichen" and „Fertig" with Esc (`data-action="close-focus"`: back a step where the plan
+    without the focus is the step before, else to the plan being edited, `?edit=1`; `pending.rs`
+    treats it as the module's „Schließen"). A free stretch does nothing while a choice is in focus.
   - **On a phone** (H1 of handy.html) a sheet under the week holds the groups as the Termin's tiles
     (at most three a row, from seven on five and „+N"), „Vergleichen ›", a line of what is to know,
     and one large action, „Weiter: …" or „Fertig"; × and Esc close it. The week above it is as tall
@@ -3291,80 +3582,100 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     each day's right edge, which the day's lanes leave free, only what stands firm: no group of a
     choice still open, no extra), or not at all — „Voll · Spur · Aus" at its row. A new one stands
     in full while it holds at most eight Termine a week and as a strip beyond, until its switch
-    says otherwise. Its slots open nothing and name the calendar in their tooltip; behind a choice
-    in focus they step back with the plan. Once another calendar stands in the week, „Gemeinsam
+    says otherwise. Its slots open nothing and name the calendar in their tooltip („Lena · nur zum
+    Ansehen", a Termin of one's own there „Chor · in „Lena“"); behind a choice in focus they step
+    back with the plan. Once another calendar stands in the week, „Gemeinsam
     frei" in the week's head (on a phone in the line of the calendars) draws the stretches between
     8 and 18 o'clock that no firm Termin of the plan or of any calendar in the week touches, from
     90 minutes on, „beide frei" or „alle frei" in them.
-  - **The list** stands at the top of „Anpassen" (`CalendarsGroup`; on a phone in the sheet too,
-    its switch with its words as tall as a finger): „Mein Studiengang" with its lock, each calendar
-    with its modules, its switch and „…" („Umbenennen", „Löschen" with „Rückgängig"), and „Neuer
-    Kalender": the link pasted (any shape: the page's address, `betula.app/…?share=`, the code
-    alone), what it holds said before „Anlegen", a name. On a phone, where there are calendars of
-    one's own, one line over the week opens into the same rows and „Gemeinsam frei". The offer of a
-    shared plan has „Als Kalender" besides „Übernehmen", with „Rückgängig". The module list has a
-    part per calendar: its name in its colour and „+ Modul" in its head (below), its modules as
-    rows (title, abbreviation, number; the × takes one out of the calendar, with „Rückgängig"),
-    „Noch keine Module im WiSe 2026/27" while it holds none, and where it came from („aus einem
-    Link · mit den Gruppen"). The group of the calendar file and the subscription is „In deinen
-    Kalender" now.
+  - **The list** stands at the top of the sidebar, „Kalender" (`CalendarsGroup`; at the top of
+    „Anpassen" until Folia 1.100.0, on a phone in the sheet too, its switch with its words as tall as
+    a finger): „Mein Studiengang" (until 1.100.0 with its lock), each calendar with its modules, its
+    switch and, while the plan is edited, „…" („Umbenennen", „Löschen" with „Rückgängig"), and while
+    editing „+ Kalender" in the group's head, which opens „Neuer Kalender" under it: a name and
+    „Link (optional)" — the link pasted (any shape: the page's address, `betula.app/…?share=`, the
+    code alone), what it holds said before „Anlegen". Since 1.100.0 a calendar is made by its name
+    alone, empty, to take modules in (`create_empty`; „Anlegen" never disabled, an empty name its
+    number, „Kalender 1", a text that is no link „Anlegen geht trotzdem, dann leer."); until then
+    the link was what made one. On a phone, where there are calendars of one's own, one line over
+    the week opens into the same rows and „Gemeinsam frei"; „+ Kalender" is the last row of the
+    module list while editing. The offer of a shared plan has „Als Kalender", first since 1.100.0,
+    besides „In „Mein Studium“ einplanen" (until then „Übernehmen"), with „Rückgängig". The module
+    list has a part per calendar: its name in its colour and, while editing, „+ Modul" in its head
+    (below), its modules as rows of one line (key and title; until 1.100.0 title, abbreviation,
+    number, and the × in both states), each leading to the module's page in the plan's place
+    (`open=<id>&full=1`) and while editing ending in the bin, which takes it out of the calendar
+    with „Rückgängig"; „Noch keine Module im WiSe 2026/27" while it holds none, and where it came
+    from („aus einem Link · mit den Gruppen") where its groups were ticked, it follows a share or
+    has a program of its own. Its Termine of one's own are rows that open their form in both states.
+    The group of the calendar file and the subscription is „In deinen Kalender" now (since
+    2026-11-04 „Export").
 - **Visits and „+ Modul"** (owner, 2026-10-26: „Besuchmodul kann pro kallender gemacht werden also
   eher bei jedem kallender kann man auch andere module hinyufügen. Aber beim Studien Plan zählt es
   dann als besucher modul"; konzepte.html, „+ Modul in einem Kalender" and „Ein Besuchsmodul in
   „Mein Studium“"; the planner's `studyplan/add.rs`, `PlanDoc::visit`, the timetable's
   `clash::yields`). The third step of the new calendar: a module only visited, in the week and
   counting for nothing.
-  - **„+ Modul"** stands in the head of each calendar's part of the module list (pressed while its
-    panel is open; a calendar's „…" has „Modul aufnehmen" too) and opens under it „Modul in „X““:
-    what a module taken in there is („Zählt in „Mein Studium“ als Besuch, ohne LP." in „Mein
-    Studiengang", „Module in „Lena“ zählen nirgends." in one of one's own), the Merkliste and the
-    catalog as two ways (the Merkliste first while it offers anything), each module with its
-    number (the catalog has modules of one name) and how it sits in that calendar's week
-    (`pages::fit_lines`: „passt", „Überschneidet sich mit: …", „keine Termine im WiSe 2026/27"),
-    „Aufnehmen", and after it a note with „Rückgängig". The Merkliste is as „Aus der Merkliste" had
-    it (folia/design/merken/konzept.html, „Von überall": the collections as chips, a search, what
-    the semester offers, „3 gemerkte Module aufnehmen", folded what it does not offer, with why);
-    the catalog is a search (from two letters, the first 12 it finds). „Mein Studiengang"'s panel
-    ends with the way to the whole catalog with „Passt in meinen Stundenplan". A module that does
-    not fit is taken in all the same: Betula says what is unusual. × and Esc close it; opened from
-    a calendar's menu it comes into view.
+  - **„+ Modul"** stands in the head of each calendar of one's own's part of the module list, while
+    the plan is edited (pressed while its panel is open; a calendar's „…" has „Modul aufnehmen"
+    too), and opens under it „Modul in „X““: what a module taken in there is („Module in „Lena“
+    zählen nirgends."; of a calendar that follows a share „„Lena“ folgt einem geteilten Stundenplan.
+    Was du hier aufnimmst, hält bis zu seiner nächsten Änderung."), the Merkliste and the catalog as
+    two ways (the Merkliste first while it offers anything), each module with its number (the
+    catalog has modules of one name) and how it sits in that calendar's week (`pages::fit_lines`:
+    „passt", „Überschneidet sich mit: …", „keine Termine im WiSe 2026/27"), „Aufnehmen", and after
+    it a note with „Rückgängig". The Merkliste is as „Aus der Merkliste" had it
+    (folia/design/merken/konzept.html, „Von überall": the collections as chips, a search, what the
+    semester offers, „3 gemerkte Module aufnehmen", folded what it does not offer, with why); the
+    catalog is a search (from two letters, the first 12 it finds). A module that does not fit is
+    taken in all the same: Betula says what is unusual. × and Esc close it; opened from a calendar's
+    menu it comes into view. Until Folia 1.100.0 „Mein Studiengang"'s part had „+ Modul" too, in both
+    states („Zählt in „Mein Studium“ als Besuch, ohne LP."), its panel ending with the way to the
+    whole catalog with „Passt in meinen Stundenplan"; it left with what managed the study's modules
+    („Looking and editing" above).
   - **From the calendar only visits** (owner, 2026-10-26: „Nein aus dem Kallender soll man nicht
     module in den Studienplan aufnehmen können. Es soll nur möglich sein besuchsmodule zu planen.
     Damit es einen weg gibt, wie man sein studium plant und nicht 200 verschiedene."): what „+
-    Modul" takes into „Mein Studiengang" is a visit, a `v` line after the `m` lines (which an older
-    build keeps as a line it does not know and counts nothing of: the safe way round); into a
-    calendar of one's own an `n` line. A module is a visit or planned in a semester, never both
-    (`PlanDoc::plan` turns a visit into the planned module). The modules of the study come from
-    „Mein Studium", where the last line of „Mein Studiengang"'s part leads („Module des Studiums in
-    „Mein Studium“"), in the place of „Modul hinzufügen" and „Aus der Merkliste".
+    Modul" took into „Mein Studiengang" was a visit, until 1.100.0 took even that out of the calendar
+    (owner, 2026-11-17: „Denn man kann gerade noch module im Kalender verwalten, das ist aber keine
+    gute idee, weil man das ja in mein Studium macht."): a visit is made in „Mein Studium" now, a
+    planned module set to „Nur besuchen" (below), and the visits there are stay. A visit is a `v`
+    line after the `m` lines (which an older build keeps as a line it does not know and counts
+    nothing of: the safe way round); what „+ Modul" takes into a calendar of one's own an `n` line.
+    A module is a visit or planned in a semester, never both (`PlanDoc::plan` turns a visit into the
+    planned module). The modules of the study come from „Mein Studium", where the last line of „Mein
+    Studiengang"'s part leads („Module planen in „Mein Studium“", until 1.100.0 „Module des Studiums
+    in „Mein Studium“"), in the place of „Modul hinzufügen" and „Aus der Merkliste".
   - **In the week** a visit is a white card ringed in its module's tone (hatched until 1.68.0);
     where it meets a module of the plan it gives way (those of its slots yellow, `gives`, their
     tooltip „Besuch, zählt nicht · trifft VL MIT1, der Besuch gibt nach"), never the red of a clash:
     visits are no part of the hard clashes, as extras are not (`clash::meetings`); `clash::yields`
     says where they give way. „Offen" lists each such meeting after the choices („EiP trifft VL MIT1
     · Di 13:45 · der Besuch gibt nach · Ansehen", which opens the visit's Termin), its count the
-    choices' alone. The head counts visits apart („4 Module · 1 Besuch"); the list has them after
-    the planned modules („Besuch · zählt nicht", no LP, the sum without them; the × takes one out,
-    with „Rückgängig"); the page's exams leave out a visit's (`Timetable::build`). A visit's groups
-    are chosen as any module's (`Selection::visits` only tells the week which modules are visits).
-    The calendar file and the subscription carry a visit's Termine as the week has them and leave
-    its exams out, the same bytes as ever: the subscription's code has no field for visits (one of
-    its own would be refused by older builds), so it carries a visit as a module, its exams among
-    the hidden events (`Timetable::visit_exams`), and a town the page derived without the visits as
-    the town it is (`export::town_of`). A visit's Termine count for nothing when the town is
-    derived. The share link leaves visits out, since the receiver's „Übernehmen" would plan them to
-    count.
+    choices' alone. The head counts visits apart („4 Module · 1 Besuch"); the list says „Besuch"
+    after a visit's title (until 1.100.0 it had them after the planned modules with „Besuch · zählt
+    nicht", no LP, the sum without them, and the × that took one out, with „Rückgängig"; the module
+    beside the plan still says „Besuch · zählt nicht"); the page's exams leave out a visit's
+    (`Timetable::build`). A visit's groups are chosen as any module's (`Selection::visits` only
+    tells the week which modules are visits). The calendar file and the subscription carry a visit's
+    Termine as the week has them and leave its exams out, the same bytes as ever: the subscription's
+    code has no field for visits (one of its own would be refused by older builds), so it carries a
+    visit as a module, its exams among the hidden events (`Timetable::visit_exams`), and a town the
+    page derived without the visits as the town it is (`export::town_of`). A visit's Termine count
+    for nothing when the town is derived. The share link leaves visits out, since the receiver's „In
+    „Mein Studium“ einplanen" („Übernehmen" until 1.100.0) would plan them to count.
   - **In „Mein Studium"** a visit stands after the semester's rows (`study::VisitItem`): its name,
-    its number, „nur besuchen · aus dem Kalender", the catalog's facts, „–" for its credits, a sign
-    of its own; no area, no credits, never passed. Its menu: „Im Kalender öffnen", „Nur besuchen"
-    ticked (without the tick it counts, an `m` line in its place: `PlanDoc::count_visit`),
-    „Entfernen" with „Rückgängig". A planned module not passed in the semester has „Nur besuchen"
-    unticked (`PlanDoc::make_visit`; the Merkliste's concept, question 3, decided on 2026-10-19:
-    „Ein geplantes Modul lässt sich auf „nur besuchen“ stellen: in der Woche ja, in den LP
-    nicht."). A row's name and facts follow the catalog's answer, which on a page loaded afresh
-    comes after the row is drawn. The start page's day has a visit's Termine with the plan's
-    (`PlanDoc::week_in`).
-  - **Not yet:** ticking the groups of a calendar of one's own, visits in the Gesamtplan's grid.
+    its number, „nur besuchen · zählt nicht" (until 1.100.0 „nur besuchen · aus dem Kalender"), the
+    catalog's facts, „–" for its credits, a sign of its own; no area, no credits, never passed. Its
+    menu: „Im Kalender öffnen", „Nur besuchen" ticked (without the tick it counts, an `m` line in
+    its place: `PlanDoc::count_visit`), „Entfernen" with „Rückgängig". A planned module not passed
+    in the semester has „Nur besuchen" unticked (`PlanDoc::make_visit`; the Merkliste's concept,
+    question 3, decided on 2026-10-19: „Ein geplantes Modul lässt sich auf „nur besuchen“ stellen:
+    in der Woche ja, in den LP nicht."). A row's name and facts follow the catalog's answer, which
+    on a page loaded afresh comes after the row is drawn. The start page's day has a visit's Termine
+    with the plan's (`PlanDoc::week_in`).
+  - **Not yet:** ticking the groups of a calendar of one's own, visits in the Gesamtplan's grid, a
+    visit made in one step in „Mein Studium" (a module is planned and then set to „Nur besuchen").
 - **Termine of one's own** (folia/design/kalender/termine.html, its first step; owner, 2026-10-27:
   „Passt alles, bau Schritt 1 jetzt in Folia" — the nine proposals of its questions; the planner's
   `studyplan/own.rs`, `folia_calendar::own::OwnTermin`, `PlanDoc::own`, the timetable's
@@ -3373,17 +3684,26 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   a day and a time).
   - **What one is**: every week, in the A or the B weeks (`SemesterFacts::ab_week`), or on dates of
     its own (up to 30); a time (up to 24:00); through the lecture period or a period of its own; a
-    name and a place (80 characters each, neither required: one without a name goes by the module
-    it belongs to — „PBS" in the week, the list and the notes, the module's title in its view —,
-    without one either it is „Eigener Termin"); the module it belongs to; the days it skips („Nur
-    am … ausblenden"). It is keyed as a
-    Termin of QIS (`RowKey`), by an event number QIS never gives (4000000000 and up, no
-    fingerprint), so its key stays when it is changed. It lives in the plan's text, a `t` line per
-    Termin (`PlanDoc::own`, calendar 0; a calendar of one's own keeps its own, `Calendar::own`, after
-    its `o` lines): 100 per calendar and semester, 200 in all; the store read up to 1 MiB then
-    (2 MiB since the second step). „Plan leeren" takes the plan's of the semester, a saved plan
-    carries them (numbered anew when put back), a calendar's go and come back with it. An older
-    build keeps the lines as lines it does not know (a hundred of them).
+    name and a place (80 characters each, neither required); the module it belongs to; since Folia
+    1.100.0 its kind (`OwnTermin::kind`, „Art": Vorlesung, Übung, Seminar, Praktikum, Tutorium,
+    Projekt, or none, „Termin"; owner, 2026-11-17: „Ganz wichtig ist auch, dass man zu Modulen
+    custom termine hinzufügen und auch editieren kann. Weil viele Professoren ihre daten nicht
+    ordentlich aktuell halten."); the days it skips („Nur am … ausblenden"). One without a name goes
+    by its kind and its module (`views::own_label`): „VL EvS" in the week, the list, the notes, the
+    card and the start page, its module alone („PBS") without a kind, its kind in full without a
+    module, and without any of them it is „Eigener Termin" (until 1.100.0 it went by its module, the
+    module's title in its view). The kind is a word only: no switch and no hidden kind hides a
+    Termin of one's own, it counts for no kind of the finder, and the share's frozen layout
+    (`CodeOwn`) does not carry it, so that a feed of a share names one without a name by its module.
+    It is keyed as a Termin of QIS (`RowKey`), by an event number QIS never gives (4000000000 and
+    up, no fingerprint), so its key stays when it is changed. It lives in the plan's text, a `t`
+    line per Termin (`PlanDoc::own`, calendar 0; a calendar of one's own keeps its own,
+    `Calendar::own`, after its `o` lines; the kind its fourteenth field, by its code, `lecture`,
+    written only where set, so that every line there was stays as it was): 100 per calendar and
+    semester, 200 in all; the store read up to 1 MiB then (2 MiB since the second step). „Plan
+    leeren" took the plan's of the semester until it went (1.100.0), a saved plan carries them
+    (numbered anew when put back), a calendar's go and come back with it. An older build keeps the
+    lines as lines it does not know (a hundred of them).
   - **In the timetable** each is an event of its own (`Timetable::build`, `Selection::own`): rows as
     QIS's of its rhythm would be (`occur`: the break and the holidays skip a recurring one, as a
     weekly row of QIS; a single date is never skipped), linked by no module, so it meets every
@@ -3391,45 +3711,65 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     choice of groups says „trifft HiWi"; no „gibt nach"). Its tone is its module's where that is in
     the week, else its own grey (`t-own`, tone 0). The calendar file and the subscription leave them
     out until „Eigene Termine mitnehmen", their own step (the code carries none, and no key of one).
-  - **The ways in** (the first question): „+ Termin" at the right end of the week's head (in every
-    view), under the modules of each calendar (that calendar chosen), „Termin eintragen" under a
-    module without Termine (that module chosen), a click on a free stretch of a day of the week (its
+  - **The ways in** (the first question): since Folia 1.100.0 most are the mode's („Looking and
+    editing" above) — the mode's bar's „+ Termin" (a phone's dock's), „+ Termin" under each module
+    of the list („Termin für EvS eintragen", that module chosen and the form saying „Für EvS · WiSe
+    2026/27"), under the Termine of one's own of the plan and of each calendar of one's own („Termin
+    in „Lena“ eintragen", that calendar chosen), a click on a free stretch of a day of the week (its
     day and the time to the quarter hour; the grid names its hours, `data-first` and `data-last` on
-    `.week`), and on a phone the round button over the bar and a finger held still for half a second
+    `.week`; not while a choice is in focus), and on a phone a finger held still for half a second
     on a free stretch of the week (`own::Hold`, touch only; the click that ends it opens nothing).
+    In both states: „Termin eintragen" at a module QIS has no Termin for (that module chosen), the
+    empty week's „+ Termin", and the card's „⋯ › Nachholtermin anlegen". Until 1.100.0 „+ Termin"
+    stood at the right end of the week's head (in every view), a free stretch and the held finger
+    made one in both states, and a phone had the round button over the bar.
   - **The form** (`OwnForm`, `folia_design::modal::Modal` of the size m, on a wide screen at the
     window's right over a light dim, on a phone a sheet): „Neuer Termin" or „„Arbeit“ bearbeiten",
-    of which calendar and semester; „Was", „Wann" (Jede Woche · A-Woche · B-Woche · Einmal) above
-    what it changes — the day, or the dates with „+ Datum" — (owner, 2026-10-27: „Wenn man solche
-    Buttons hat, dann ändern die nur den Inhalt unter ihnen"), „Zeit", „Zeitraum" (the lecture
-    period with „ändern", then its own „von" and „bis" and the way back), „Wo", „Kalender" (where
-    there are calendars of one's own), „Gehört zu" (the calendar's modules of the week). Under it
-    what it meets of the plan's week, worked out with the draft in its timetable: „Passt in deine
-    Woche", „Trifft VL EvS (Fr 09:15). Anlegen geht trotzdem.", in another calendar „Zählt für
-    „Gemeinsam frei“ mit Lena", or what keeps it from being a Termin (an end before its beginning, a
-    time or a date missing, a period that ends before it begins), and the cap. While it is open the
-    week shows the draft dashed where it will stand (`.slot.draft`), in the place of the Termin it
-    changes. „Anlegen" and „Speichern" close it at once and change the plan after the next frame
-    (R21); a note over the page says so with „Rückgängig" (`OwnNote`, a `WaitNote` as „Einplanen"'s).
+    of which calendar and semester (opened for a module „Für EvS · WiSe 2026/27", its title cut at a
+    word where the slots have no short name for it); first what it is — „Was" („optional" where it
+    belongs to a module), „Kalender" (where there are calendars of one's own), „Gehört zu" (the
+    calendar's modules of the week), „Art" (since 1.100.0, `#own-kind`) —, then „Wann" (Jede Woche ·
+    A-Woche · B-Woche · Einmal) above what it changes — the day, or the dates with „+ Datum" —
+    (owner, 2026-10-27: „Wenn man solche Buttons hat, dann ändern die nur den Inhalt unter ihnen"),
+    „Zeit", „Zeitraum" (the lecture period with „ändern", then its own „von" and „bis" and the way
+    back), „Wo" (until 1.100.0 „Kalender" and „Gehört zu" came last). Under it what it meets of the
+    plan's week, worked out with the draft in its timetable: „Passt in deine Woche", „Trifft VL EvS
+    (Fr 09:15). Anlegen geht trotzdem.", in another calendar „Zählt für „Gemeinsam frei“ mit Lena",
+    or what keeps it from being a Termin (an end before its beginning, a time or a date missing, a
+    period that ends before it begins), and the cap. While it is open the week shows the draft
+    dashed where it will stand (`.slot.draft`), in the place of the Termin it changes, named as it
+    will be („VL EvS"). Of a Termin of a calendar of one's own its foot has the bin, „Löschen", with
+    the note and „Rückgängig". „Anlegen" and „Speichern" close it at once and change the plan after
+    the next frame (R21); a note over the page says so with „Rückgängig" (`OwnNote`, a `WaitNote` as
+    „Einplanen"'s).
   - **In the week** a slot of one's own carries the mark „von dir" in its corner (`GridSlot::own`,
-    `i.slot-own`) and no „×" (its view changes it); its tooltip says „von dir, nicht in Datei und
-    Abo". „Termine" lists their dates as QIS's, with the same mark after the name (`.ag-own`). A
-    semester of Termine of one's own alone is no empty one: its week has them, not „Noch keine
-    Termine", and so has „Termine". The head counts them („4 Module · 1 eigener Termin"); the
-    list „Eigene Termine" under a calendar's modules has a row each (of the plan's a link to its
-    view, of a calendar of one's own a button to its form) and „+ Termin". „Offen", the overlaps
-    and a choice in focus name one by its name, one without a name by its module.
-  - **Its view** (`folia_widgets::termin`, `OwnActs`): the head's chip „Eigener Termin" in the
-    page's font (its module's chip where it belongs to one), its name, no „Teilen" (it has no page
-    of its own), the ticket with its place in words (nothing where it has none, never „kein Raum"),
-    and „Im Stundenplan · nicht in Datei und Abo": how it recurs and when with „Bearbeiten", „Nur am
-    … ausblenden" (its own `skip`, so it works in every calendar), „Löschen" with „Rückgängig",
-    which closes the view; at its end „Von dir angelegt" where one of QIS says „Quelle: QIS". From
-    the start page, which has them in its day as the plan's, it says „Im Stundenplan ändern"
-    instead of the two buttons.
+    `i.slot-own`), no „×" and, since 1.100.0, while the plan is edited the bin „Löschen" (with the
+    note and „Rückgängig") and never an eye: it is deleted, not hidden; its tooltip says „von dir,
+    nicht in Datei und Abo". „Termine" lists their dates as QIS's, with the same mark after the name
+    (`.ag-own`). A semester of Termine of one's own alone is no empty one: its week has them, not
+    „Noch keine Termine", and so has „Termine". The head counts them („4 Module · 1 eigener
+    Termin"). In the module list one of a module is a row under that module's events, its word and
+    its time with the mark „von dir", opening its card; those of no module of the week stand under
+    „Eigene Termine" after a calendar's modules, a row each (of the plan's a link to its card, of a
+    calendar of one's own a button to its form, in both states), with „+ Termin" while editing.
+    Until 1.100.0 all stood under „Eigene Termine". „Offen", the overlaps and a choice in focus name
+    one as the week does.
+  - **Its card** (since Folia 1.100.0; „A Termin in its own view" above): the head's chip „Eigener
+    Termin" in the page's font (its module's chip and its kind where it belongs to one) with „von
+    dir", its name (as the week calls it), the series, the ticket with its place in words (nothing
+    where it has none, never „kein Raum"), what it meets, and last „nicht in Datei und festem Abo".
+    Its tools: the pencil „Bearbeiten" (the form), the eye „Nur am Di 24.11. ausblenden" (its own
+    `skip`, so it works in every calendar; it acts at once, with the note and „Rückgängig", and on a
+    day it skips is the crossed eye „Am … einblenden"), the bin „Löschen" with „Rückgängig", which
+    closes the card; no „⋯" and no „Teilen" (it has no page of its own). From the start page, which
+    has them in its day as the plan's, its way on is „Im Stundenplan ändern ›". Until 1.100.0 its
+    view had these under „Im Stundenplan · nicht in Datei und Abo", with „Von dir angelegt" at its
+    end where one of QIS says „Quelle: QIS" (`OwnActs`).
   - **Not yet** (its third step): own Termine in the file, the subscription and the share link
-    („belegt"), own exams and deadlines. Changing a Termin of QIS and a note at a Termin are its
-    second step, the next part.
+    („belegt"), own exams and deadlines; the kind in a share's code (a feed of a share calls one
+    without a name „EvS", not „VL EvS"); a card for a Termin of a calendar of one's own (its row and
+    its form stand in for it). Changing a Termin of QIS and a note at a Termin are its second step,
+    the next part.
 - **Changes of Termine of QIS** (folia/design/kalender/termine.html, its second step; owner,
   2026-11-03: „Passt, bau Schritt 2 jetzt in Folia"; `folia_calendar::change::Change`,
   `PlanDoc::set_change`, `folia_timetable::change`, the view's `ChangeView`). A student moves a
@@ -3464,21 +3804,28 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (QIS gave the Termin another day, start, group or first date), it hangs („Moved", with the one
     Termin the event has, where it has one); both are gone. A change of a module not in the
     semester's plan says nothing.
-  - **The view** (`folia_widgets::termin`, `ChangeActs`): under „Im Stundenplan", of a Termin the
-    plan holds (under the switches of its event and its group, which take them away, as „Nur am …
-    ausblenden"), „Zeit, Tag oder Raum" with „Ändern", the note with „Hinzufügen" or „Bearbeiten",
-    and „Nachholtermin". „Ändern"
-    opens the form in the view's body: „Für" (Nur am … · Ab … · Alle N; the scope of the change
-    holding on the date, else „Alle") above Tag, Zeit and Raum, a field the change changes marked,
-    „QIS sagt: Fr 09:15–10:45 · ZHG/HS.C", what it meets of the week worked out with the draft in
-    the timetable („Passt in deine Woche", „Trifft … Speichern geht trotzdem."), „Abbrechen" and
-    „Speichern" (after the next frame, R21; one that says what QIS says takes the change of its
-    scope away). A changed date has the pen beside its time or its room in the ticket and the line
-    „Von dir geändert, alle Termine · QIS: ZHG/HS.C" with „Zurücksetzen"; one QIS says something
-    else of now compares both („QIS jetzt", „Deine Änderung") with „QIS übernehmen" and „Meine
-    behalten" (`PlanDoc::keep_change`: what QIS says now is what it said). Its dates under „Reihe"
-    that a change of one date moved are marked (`.sd.chg`). Editing again keeps the key of the
-    change holding on the date, so a series of single dates keeps one change.
+  - **The card and the overview** (`folia_widgets::termin`, `ChangeActs`): since Folia 1.100.0
+    „Ändern" is the card's pencil („Zeit, Tag oder Raum ändern"), the note and „Nachholtermin" are
+    entries of its „⋯" („Notiz hinzufügen", „Nachholtermin anlegen"; on a date QIS cancels
+    „Nachholtermin anlegen ›" stands on the line that says why), and a note there is is a line of
+    the card („Notiz: …" with „Bearbeiten"; its body has „Entfernen"). The overview keeps them as
+    the view had them until then: under „Im Stundenplan", of a Termin the plan holds (under the
+    switches of its event and its group, which take them away, as „Nur am … ausblenden"), „Zeit, Tag
+    oder Raum" with „Ändern", the note with „Hinzufügen" or „Bearbeiten", and „Nachholtermin".
+    „Nachholtermin" opens the form of a Termin of one's own of the module on that date, „Was" empty
+    and „Art" the event's kind, so that it is called „VL EvS" (until 1.100.0 „VL EvS" was written
+    into its name). „Ändern" opens the form in the body of the card or the view, keeping the card's
+    top edge and width (in the card without its heading, day and time in one row): „Für" (Nur am … ·
+    Ab … · Alle N; the scope of the change holding on the date, else „Alle") above Tag, Zeit and
+    Raum, a field the change changes marked, „QIS sagt: Fr 09:15–10:45 · ZHG/HS.C", what it meets of
+    the week worked out with the draft in the timetable („Passt in deine Woche", „Trifft … Speichern
+    geht trotzdem."), „Abbrechen" and „Speichern" (after the next frame, R21; one that says what QIS
+    says takes the change of its scope away). A changed date has the pen beside its time or its room
+    in the ticket and the line „Von dir geändert, alle Termine · QIS: ZHG/HS.C" with „Zurücksetzen";
+    one QIS says something else of now compares both („QIS jetzt", „Deine Änderung") with „QIS
+    übernehmen" and „Meine behalten" (`PlanDoc::keep_change`: what QIS says now is what it said).
+    Its dates under „Reihe" that a change of one date moved are marked (`.sd.chg`). Editing again
+    keeps the key of the change holding on the date, so a series of single dates keeps one change.
   - **In the week** a changed slot has the pen in its corner (`GridSlot::edited`, `i.slot-pen`)
     and, where QIS says something else now, an amber edge (`conflict`); its tooltip says „von dir
     geändert". A date moved by a change of one date is a date of the week of its own; a room changed
@@ -3488,8 +3835,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     dasselbe wie du" with „OK"; „QIS hat den Termin verschoben", „jetzt Di 15:30 · deine Änderung
     hing an Di 15:30" with „Übernehmen" (the change on the Termin QIS has now) and „Verwerfen"; „den
     Termin gibt es nicht mehr" with „Als eigenen Termin behalten" (a Termin of one's own of what the
-    change said, with „Rückgängig") and „Verwerfen". A phone's line counts them („1 Änderung
-    offen").
+    change said, without a name, so that its module names it, with „Rückgängig") and „Verwerfen". A
+    phone's line counts them („1 Änderung offen"). Since Folia 1.100.0 these lines stand where
+    „Offen" stands while the plan is edited; while looking the status row says „· 2 Änderungen
+    offen" beside the choices, a way into the mode.
   - **File, subscription, link**: the calendar file and the feed take the change („Von dir
     geändert" in the description). Changed for every date the series is the change's; a date a
     change from a day or of one date moves stands in its series for the date it was, by its
@@ -3499,7 +3848,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     far as its code holds them beside the groups (`SharedPlan::changes`, 20 at most), and „Als
     Kalender" keeps them in the calendar it makes. A note goes into the file the browser makes alone
     („Deine Notiz: …"), never into an address. The privacy notice names both (3 November 2026).
-  - **Not yet**: changing a Termin in a calendar of one's own (its Termine do not open a view yet);
+  - **Not yet**: changing a Termin in a calendar of one's own (its Termine open no card yet);
     a change across Termine of several keys at once.
 - **Tokens:** `folia/assets/app.css` starts with the token block (colors, radii, shadows); everything
   below uses tokens only. One look, light and dark: dark follows the system, the switch in the rail
@@ -6214,15 +6563,17 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
     enhance.js leaves alone.
   - **The overview** (`folia_shell::keys`): the rail's button „Tasten" and `?` open it, the group of
     where the keyboard was first; a page with keys of its own adds its groups to `keys::groups` and
-    their rows to the shell's texts (`i18n/keys.rs`). A Termin in its own view adds „Im Termin"
-    wherever it stands (`keys::termin_at`).
+    their rows to the shell's texts (`i18n/keys.rs`). A Termin in its own view or its card adds „Im
+    Termin" wherever it stands (`keys::termin_at`): ← →, V „alle Termine des Moduls" (until Folia
+    1.100.0 „Ganze Seite"), Esc „schließen, von allen Terminen zurück".
   - **The list** is a list box (`Row`'s `position`: `role="option"`, its place, the open one
     selected; its buttons beside the link are the mouse's and hidden from screen readers), and what
     a screen reader hears when it changes is a status of the count outside it, not the whole list.
     A row the page builds anew (a virtual list reordering its rows) gets the keyboard back by its
     `data-id`.
-  Not yet: the keys of „Mein Studium" and the Stundenplan, Shift + F10, Ctrl + C and Ctrl + Z in a
-  list (step 6 of the concept). Until 1.43.0 the Merkliste had no keys of its own: 1.42.0 had taken
+  Not yet: the keys of „Mein Studium" and the Stundenplan (but Esc, which ends its mode beside
+  „Fertig", Folia 1.100.0), Shift + F10, Ctrl + C and Ctrl + Z in a list (step 6 of the concept).
+  Until 1.43.0 the Merkliste had no keys of its own: 1.42.0 had taken
   the old arrows of every `.rows` list away with the regions, and its rows were no stop yet.
 - **R25. A command has a name** („Befehle", `folia_shell::commands`; folia/design/tastatur/
   konzept.html, „Befehle"; owner, 2026-10-20: „mach mal als erstes die command palette, ich glaube
@@ -7141,99 +7492,263 @@ scrolling (the last rows at its end, the page keeping its height, no two rows ov
 `page` following).
 
 ```bash
+cd e2e && node edit.mjs
+```
+
+drives the Stundenplan looked at and edited (Folia 1.100.0; § „The Stundenplan looked at and
+edited") with Informatik B.Sc.'s first semester planned (the snapshot whose current semester is WiSe
+2026/27). Looking, nothing on the page changes the plan: no button beside a slot, also with the
+pointer on it or the keyboard in it, no „+ Termin", no faint slot, a click on a free stretch opens
+nothing, a hatched group leads to its Termin. The status row (46 px in both states) says the plan
+(„… · 4 Module · 1 eigener Termin"), its overlap („1 Überschneidung", a button that unfolds the
+overlaps) and „3 Wahlen offen · 2 Änderungen offen ›", the quiet line into the mode, whose first row
+of „Offen" then has the keyboard. „Bearbeiten" is pressed two frames after the click (`.sp-edit`,
+the bar, `edit=1`, the live region „Stundenplan bearbeiten: 3 Wahlen offen"), the store byte for
+byte as before; the week and three named slots measured looking, editing and with a choice in focus
+are equal to a tenth of a pixel; a reload keeps the mode, „Fertig", Esc, Back and the pressed button
+each leave it. „Wählen ›" takes the choice into focus inside the mode (the focus bar in the bar's
+place), „Weiter" replaces the entry, the focus's „Fertig" leads back into the mode, an old link
+`?wahl=e148370` is the mode too. Editing: the bar's figures („2 Wahlen offen · 2 ausgeblendet"), the
+faint slots with their Termin's link, the slots' buttons (the eye „Ausblenden", the crossed eye
+„Einblenden", „✓" and „+" to tick, the bin alone on a Termin of one's own, no „×" anywhere) and the
+line each writes or removes (`r`, `e`, `c`; the bin's `t` with „Rückgängig"), no note but the bin's;
+the crossed eye of a series with a hidden date only while editing; a choice decided keeps its row of
+„Offen" in place, pale („Mi 11:30 ✓"), until the mode is left; the eye clicked has its crossed eye
+under the pointer, a second click there brings the plan back; half a second after the bin, a free
+stretch opens the form for that day, and Esc closes the form alone. The sidebar: „Stundenplan",
+„Kalender" with „Voll · Spur · Aus" in both states, „+ Kalender" and the calendars' „…" only while
+editing, no „Plan leeren", „Export" in its place. A phone: no „Anpassen", the dock at rest exactly
+in the tab bar's box, the module list directly under the week while editing, „Nach oben" never, a
+choice's sheet without the dock, Back step by step. `/en/studyplan`: the slot's bin, the card's
+„Delete", the overview's and the module's way back stay under `/en/studyplan`. „Befehle" finds
+„Stundenplan bearbeiten" and, in the mode, „Bearbeiten beenden". `--only=<block>` runs some of its
+blocks (`look`, `status`, `enter`, `focus`, `edit`, `side`, `phone`, `en`, `command`).
+
+```bash
+cd e2e && node categories.mjs
+```
+
+drives the Stundenplan's module list on the same data (Folia 1.100.0). One line a module (the title
+cut with „…"), a row per event that has a Termin, kind first, with the summaries' exact texts of the
+example week (EvS „Vorlesung · Di 11:30 · Fr 09:15", „Übung · 4 Gruppen · offen", EEG „Vorlesung ·
+Di 07:30 A · Di 09:15", „Übung · Di 07:30 B", PP „Vorlesung · Fr 11:30 A", „Praktikum · 4 Gruppen ·
+offen", MIT1 „Vorlesung · Mo 13:45 · Di 13:45", „Übung · 3 Gruppen · offen", „Tutorium · Di 15:30 ·
+freiwillig"), the same rows and the summaries' left edge in both states, the last line „Module
+planen in „Mein Studium“" to `/study?plan=1`; of real modules a slot said once (12196 „Mo 09:15"),
+the Bachelor-Arbeit's projects apart, a row without a date leading to the module beside the plan
+(11515 `open=11515&row=…`), „ohne feste Zeit" (11474), groups („4 Gruppen · offen", „2 Gruppen ·
+offen", 11777). The eye while editing is a switch („Tutorium MIT1 zeigen"): the `e` line, the row
+pale „ausgeblendet", the crossed eye, the slot faint, the keyboard and the eye where they were, a
+second press back with the ticks untouched; looking, no button in the list and the crossed eye of a
+hidden row a link into the mode. A lecture hidden Termin by Termin reads „ausgeblendet" and its eye
+shows it again in one click; three groups hidden: „Mo 15:30" with the sign „3 Gruppen ausgeblendet"
+(shown only while editing); a hidden date „am Fr 20.11. ausgeblendet"; the foot „4 ausgeblendet ·
+Alle einblenden" while editing alone, which keeps the ticks, „4 wieder eingeblendet · Rückgängig"
+bringing every line back. At 1280 px no part of a summary is cut or broken, for the example week and
+the real modules, in both states. A row leads to the overview at that event, „Zurück" to the plan
+where it was (the column's scroll, the row's place, the keyboard on the row). „+ Termin" of EvS
+(editing alone): the form „Für EvS · WiSe 2026/27" with „Art" after „Gehört zu"; a Termin of one's
+own under its module with „von dir", opening its card; „keine Termine in QIS · Termin eintragen" in
+both states. Nothing manages the study's modules: no „+ Modul", no „×", no credits, no numbers in
+the list, the panel without „Entfernen", „Zählt für", „Auch geplant". A calendar made by its name
+alone, its „+ Modul" (editing alone) taking a module in as one line to `open=…&full=1`, its bin with
+„Rückgängig", a Termin of one's own in it. The empty week's three ways (wide and phone), and the
+week without the card while editing. `--only=<block>` runs some of its blocks (`rows`, `real`,
+`eye`, `hidden`, `cut`, `back`, `own`, `manage`, `calendar`, `empty`).
+
+```bash
 cd e2e && node studyplan-phone.mjs
 ```
 
-drives the Stundenplan's week on a phone, with real touches as `phone.mjs` does, on any snapshot:
-it plans modules of the current semester held in A weeks, in B weeks and every week, which it
-finds in the snapshot the server serves (`/api/db`, read with the app's own sql.js). The week is
-a grid as wide as the window, three of them (A/B shown, the others out of the pointer's and the
-focus's reach), switched in the head beside „Anpassen" („Woche: A, B, A/B") without „Plan · Alle
-Termine", which is in „Anpassen"; each slot tall enough says where it is held; a swipe to the right
-brings the week before, carried by the finger while it moves, and opens nothing; two more end at
-the A-Woche; a short move changes nothing, a move up scrolls the page; the list of days is closed
-under a line that counts the week shown, opens with it and follows the switch; a slot opens its
-module, and back the week is in view as it was; „Kalender" stands under the Termine in the views
-„Woche", „Termine" and „Prüfungen" and not in the sheet; a wide screen keeps it in the sidebar and
-both switches in the head; a plan without A or B weeks has the grid alone, without a switch of the
-weeks.
+drives the Stundenplan's week on a phone, with real touches as `phone.mjs` does, on any snapshot: it
+plans modules of the current semester held in A weeks, in B weeks and every week, which it finds in
+the snapshot the server serves (`/api/db`, read with the app's own sql.js). The week is a grid as
+wide as the window, three of them (A/B shown, the others out of the pointer's and the focus's
+reach), switched by the carousel of A, B and A/B beside „Bearbeiten" in the head, carried by a
+finger while it moves; a swipe to the right brings the week before and opens nothing, two more end
+at the A-Woche, a short move changes nothing and any other move scrolls the page; each slot tall
+enough says where it is held. The list of days is closed until its line opens it, and follows the
+week shown. „Bearbeiten" brings the dock in the tab bar's box and the buttons of the day list's rows
+(none while looking), and Back takes both away; a slot opens its card (`termin=`), and back the week
+is in view as it was; „Export" and „Teilen …" stand under the Termine in every view; a wide screen
+keeps „Export" in the sidebar and the weeks' switch and „Bearbeiten" in the head; a plan without A
+or B weeks has the grid alone, without a switch of the weeks. (Until Folia 1.100.0 the head held
+„Anpassen" and its sheet „Plan · Alle Termine", and a slot opened its module.)
 
 ```bash
 cd e2e && node choice-sheet.mjs
 ```
 
-drives the choice in focus with Informatik B.Sc.'s first semester planned (Programmierpraktikum in
-four groups; the snapshot whose current semester is WiSe 2026/27): on a wide screen a click on a
-hatched group takes its choice into focus with that group ticked; on a phone a tap does the same,
-the line under the head says nothing of what is hidden, a finger moving the sheet up holds the
-tiles on their way to „Vergleichen" (`.morph`, a card per group), let go all up the address says
-`vergleich=1`, down from its head it is back at the tiles, „Vergleichen ›" and ‹ take the same
-way, and a quick move down closes the choice, its tick kept.
+drives the way to a choice and its sheet with Informatik B.Sc.'s first semester planned
+(Programmierpraktikum in four groups; the snapshot whose current semester is WiSe 2026/27): on a
+wide screen a click on a hatched group opens its card and ticks nothing; the card's large action
+„Diese Gruppe anhaken" has the keyboard; its „Vergleichen ›" takes the choice into focus inside the
+mode (`edit=1&wahl=…&vergleich=1`), where a click on a group ticks it („1 von 4 angehakt", one `c`
+line). On a phone the amber line leads into the mode with its rows open, the Praktikum's row opens
+the sheet and a tap on a tile ticks it; a finger moving the sheet up holds the tiles on their way to
+„Vergleichen" (`.morph`, a card per group), let go all up the address says `vergleich=1`, down from
+its head it is back at the tiles, „Vergleichen ›" and ‹ take the same way, and a quick move down
+closes the choice while the mode stays. (Until Folia 1.100.0 a click on a hatched group took its
+choice into focus with that group ticked, `data-pre`.)
 
 ```bash
 cd e2e && node calendars.mjs
 ```
 
-drives the calendars of one's own on the same data: Lena's BWL B.Sc. with a group of hers ticked,
-handed on by her link, is taken „Als Kalender" from the offer (its `l`, `n` and `o` lines in the
-plan's text, nothing of it planned), stands as a strip at first, in full with its initial after
-its switch, off after it again; „Gemeinsam frei" draws where both are free; the module list has its
-part; „Neuer Kalender" makes another from the link pasted, with a name, which its menu renames and
-deletes, and „Rückgängig" brings it back where it stood; a phone has one line over the week that
-opens into the rows, their switches with their words.
+drives the calendars of one's own on the same data: Lena's link carries the group of her BWL B.Sc.
+she ticked in its card; „Als Kalender" from the offer puts her plan beside one's own (its `l`, `n`
+and `o` lines in the plan's text, nothing of it planned), as a strip at first, in full with its
+initial after its switch, off after it again; „Gemeinsam frei" draws where both are free; the module
+list has its part („aus einem Link · mit den Gruppen"). Looking, „Kalender" has no „+ Kalender" and
+no menu; while editing „Neuer Kalender" makes another from the link pasted, with a name, which its
+menu renames and deletes, and „Rückgängig" brings it back where it stood, and a calendar is made by
+its name alone („Anlegen" never disabled). A phone has one line over the week, „Kalender Mein
+Studiengang, Lena als Spur", that opens into the rows, their switches with their words („Voll · Spur
+· Aus").
 
 ```bash
 cd e2e && node visits.mjs
 ```
 
-drives visits and „+ Modul" on the same data, Informatik B.Sc.'s first semester planned:
-„+ Modul" of „Mein Studiengang" with nothing marked opens on the catalog, whose search by number
-finds Einführung in die Programmierung with its number and how it sits in the week; „Aufnehmen"
-takes it in as a visit (a `v` line, nothing planned), with its note; the week rings it and its
-slots give way where it meets the plan, without a new red clash; „Offen" says „EiP trifft VL MIT1
-· Di 13:45 · der Besuch gibt nach"; the head counts „1 Besuch", the list has it as „Besuch · zählt
-nicht" with the same credits, its × takes it out and „Rückgängig" brings it back; Esc closes the
-panel. „Mein Studium" shows the visit with its name, „nur besuchen · aus dem Kalender" and „–",
-its menu („Im Kalender öffnen", „Nur besuchen" ticked, „Entfernen"); without the tick it counts
-(an `m` line), the planned module's menu makes it a visit again, „Entfernen" has „Rückgängig". A
-calendar of one's own takes a module in from its „…" („Modul aufnehmen": an `n` line and a row of
-its part), whose × takes it out with „Rückgängig"; on a phone „+ Modul" opens in view.
+drives visits on the same data, Informatik B.Sc.'s first semester planned and Einführung in die
+Programmierung only visited (seeded as „Mein Studium" writes it, a `v` line: since Folia 1.100.0 the
+Stundenplan makes no visit). The week rings it and its slots give way where it meets the plan,
+without a red clash, also in the focus of its own choice; the head counts „· 1 Besuch", the quiet
+line the choices alone; „Offen" in the mode says „EiP trifft VL MIT1 · Di 13:45 · der Besuch gibt
+nach"; the list has it as one line „EiP … Besuch" with its rows and nothing to take it out. „Mein
+Studium" shows the visit with „nur besuchen · zählt nicht" and its menu („Nur besuchen" ticked,
+„Entfernen"); without the tick it counts (an `m` line), the planned module's menu makes it a visit
+again, „Entfernen" has „Rückgängig". A calendar of one's own while editing takes a module in from
+its „…" („Modul aufnehmen": an `n` line, „Module in „Lena“ zählen nirgends."), whose bin takes it
+out with „Rückgängig"; looking, neither stands. On a phone a calendar's „+ Modul" opens in view.
+(Until Folia 1.100.0 „+ Modul" of „Mein Studiengang" took a module in as a visit, and the list's ×
+took it out.)
+
+```bash
+cd e2e && node choices.mjs
+```
+
+drives a module's choices among its events on the same data: the module's page (the line over the
+week, the exercises of HM T3 hatched, the Aufbaukurs dotted, the headings), Bauingenieurwesen's
+exercise taken with the others behind „Auch zeigen", the groups of Musiktheorie, the 14 projects of
+Berufspraktische Profilierung in the list alone and the catalog's „14 Projekte zur Wahl". Then the
+Stundenplan with 11206 seeded in WiSe 2026/27 (after 15 November „Einplanen" plans the next
+semester), edited with the module beside it: three exercises hatched „1 von 3", the Aufbaukurs
+lighter, „Offen" „1 von 3 wählen · Im Modul", the panel's „passt"; „Diese nehmen" takes one (a `c`
+line), the others faint, „Offen"'s row pale in its place saying the option taken („… · Mi 13:45 ✓"),
+„Wahl aufheben" opens it again; looking, no button and „1 Wahl offen" into the mode.
+Bauingenieurwesen's Stundenplan has its exercise „laut Studiengang", the others faint, and a tap in
+the panel takes another. (The module beside the plan lies over the plan's right end at 1440 px and
+wider, „Fertig" with it: the check leaves by Esc, the module first, then the mode.)
+
+```bash
+cd e2e && node everywhere.mjs
+```
+
+drives the Merkliste from elsewhere on the same data: the tab's menu of its views, the catalog's
+„Gemerkt" per collection and „nicht in …", „Mein Studium"'s Wahlpflicht with the marked module
+first, the workbench's marked modules and its „Gemerkt" by collection and search, the Gesamtplan's
+cell (the pointer on it first, which shows its „+ Modul einplanen") opening the workbench with the
+marked module first, the workbench's sheet on a phone. In the Stundenplan (Folia 1.100.0) „+ Modul"
+of a calendar of one's own while editing: its Merkliste with the winter's offers and how they sit in
+the week, the summer's folded „nur SoSe", the search, a collection, „2 gemerkte Module aufnehmen" as
+`n` lines of the calendar (never `m` or `v`), „Rückgängig", Esc; „Mein Studiengang" has no „+ Modul"
+(until then it took them in as visits); nothing of the marks in a request.
+
+```bash
+cd e2e && node studyplan.mjs
+```
+
+drives the Stundenplan's persistence, privacy, the server's page, labels and sharing on the same
+data; the empty plan offers its three ways („Zu „Mein Studium“" `/study?plan=1`, „Zum Katalog"
+`/catalog?fits=2026W`, „+ Termin") and the frame says „Stundenplan" (since Folia 1.100.0; „Anpassen"
+before); a plan with placeholders lists its three modules and nothing of the placeholders, and
+stores nothing new (the list does not manage the study). It skips itself with a note on a snapshot
+of another semester; `--only=<n>` runs one of its blocks (3, 5, 8, 9, 10).
+
+```bash
+cd e2e && node courses.mjs
+```
+
+drives a module held at two campuses: every course in its colour, Mein Studiengang's alone with
+„Auch zeigen", another program's highlighted; in the Stundenplan, with 12102 seeded into WiSe
+2026/27 (after 15 November „Einplanen" plans the next semester), its line reads „… in
+Cottbus-Sachsendorf laut Studiengang".
+
+```bash
+cd e2e && node termin.mjs
+```
+
+drives the card of one Termin on the Stundenplan with Informatik B.Sc.'s first semester planned
+(Folia 1.100.0; until then the Termin in its own view in the dialog over the plan, whose segments,
+groups, „Reihe", day and switches are the overview's now and asserted there). While looking no slot
+carries a button and a hatched group leads to its Termin; a click on a slot opens its card beside it
+— for every one of the 21 slots at 1440 × 900, after the window shrinks to 1180 × 820 and opened by
+its address (beside its slot once the week has drawn it, however late): never over the slot or its
+day's column, inside the window, right of the rail, its top at the slot's, or higher where the card
+at its tallest would not end 16 px over the window's edge from there, never anchored by its foot —
+with the chip, the kind, the title, the series, the ticket, the tools „Ändern", the eye, „⋯" and
+„×", „Alle Termine von PP" and nothing that picks. A hatched group's „Diese Gruppe anhaken" has the
+keyboard and Enter ticks it with the note and „Rückgängig"; a ticked one's „Haken wegnehmen" keeps
+the card; a lecture's „Ausblenden" offers its three reaches with their notes, a hidden date's line
+„Einblenden"; the faint cards while editing have „Einblenden", „Nur diese Gruppe" and „Auch diese"
+and no note. Esc peels „Ändern", „Ausblenden", „⋯" and the note one at a time, the card's top and
+width kept; another slot's card takes its place without a step of the history, and one Back leaves;
+← → do not move it; `?` shows „Im Termin"; „⋯ › Teilen" copies `/event/<key>/<day>`; V and „Alle
+Termine von …" open the overview (two columns, its switches, the Termin's own „Fr 09:15 im
+Stundenplan"), whose Esc and „Zurück" lead to the plan. The start page's card stands in the middle,
+its eye answers with the note and „Rückgängig", its way on is the Stundenplan's overview, and
+`/?termin=…&full=1` still fills the start page. On a phone a sheet, its tools 44 px, the large
+action last, the next date in place of the entry, Back leaving it. A module's page and `/event/…`
+keep the view to look up. `--only=<block>` runs some of its blocks (`card`, `hide`, `peel`, `place`,
+`keys`, `overview`, `edit`, `start`, `phone`, `lookup`).
 
 ```bash
 cd e2e && node own.mjs
 ```
 
-drives the Termine of one's own on the same data (§ „Termine of one's own"): „+ Termin" in the
-week's head opens „Neuer Termin" with „Wann" above the day, the draft stands dashed where it will
-be and the form says „Passt in deine Woche"; „Anlegen" writes its `t` line, draws the slot with
-its mark, counts it in the head, lists it under „Eigene Termine" and says so with „Rückgängig".
-One on Friday morning says „Trifft VL EvS (Fr 09:15). Anlegen geht trotzdem." and both turn red;
-a click on a free stretch opens the form at that day and time, Esc closes it. Its view has no
-„Teilen", „Im Stundenplan · nicht in Datei und Abo", „Nur am … ausblenden" (its skip in the
-line, and back), „Bearbeiten" (the place changed) and „Löschen" with „Rückgängig". „Termin
-eintragen" of Praktikum Betriebssysteme opens the form with the module chosen; without a name the
-Termin goes by „PBS" in its tone, its view by the module's title with „Von dir angelegt". Lena's
-calendar takes one of its own (calendar 1's line, „Zählt für „Gemeinsam frei“ mit Lena"), its
-row opens its form; a plan of Termine of one's own alone has them in its week and in „Termine",
-without „Noch keine Termine"; on a phone the round button opens the form as a sheet and a finger
-held on a free stretch opens it there; the start page has today's in the day, its view leading to
-the Stundenplan.
+drives the Termine of one's own on the same data (§ „Termine of one's own") in the two states of the
+plan: while looking there is no „+ Termin" and a free stretch does nothing; „Bearbeiten" and the
+bar's „+ Termin" open „Neuer Termin" (Was, Gehört zu, Art, Wann above the day, Zeit), the draft
+stands dashed where it will be and the form says „Passt in deine Woche"; „Anlegen" writes its `t`
+line, draws the slot with the bin alone, lists it and says so with „Rückgängig". One on Friday
+morning says „Trifft VL EvS (Fr 09:15). Anlegen geht trotzdem." and both turn red; a click on a free
+stretch while editing opens the form at that day and time, Esc closes it; the slot's bin deletes it
+and „Rückgängig" brings it back; „Fertig" leaves the mode. Its card has the pencil, the eye „Nur am
+… ausblenden" and the bin: the eye skips the day with its note and on that day is „Am … einblenden",
+the pencil's form saves the place changed, the bin says „gelöscht" with „Rückgängig". „Termin
+eintragen" of Praktikum Betriebssysteme while looking makes „PBS angelegt", a row under its module,
+its card „von dir"; „+ Termin" under EvS with „Art" Vorlesung makes „VL EvS" (the fourteenth field,
+`lecture`), „Termin" back „EvS". A plan of Termine of one's own alone has them in its week and in
+„Termine", without „Noch keine Termine"; Lena's calendar takes one of its own while editing
+(calendar 1's line); on a phone the dock's „+ Termin" opens the form as a sheet and a finger held on
+a free stretch opens it only while editing; the start page has today's in the day, its card leading
+to the Stundenplan. `--only=<block>` runs some of its blocks (`form`, `card`, `module`, `kind`,
+`alone`, `lena`, `phone`, `start`).
 
 ```bash
 cd e2e && node change.mjs
 ```
 
-drives the changes of Termine of QIS on the same data (§ „Changes of Termine of QIS"): VL EvS's
-Friday slot opens its view, „Ändern" its form with „Für" above Tag, Zeit and Raum, „Alle …" chosen
-and „QIS sagt: Fr 09:15–10:45 · ZHG/HS.C"; another room and „Speichern" write its `x` line, put the
-pen in the ticket and on the slot and say „Von dir geändert, alle Termine · QIS: ZHG/HS.C", which
-„Zurücksetzen" takes back. „Nur am …" on Thursday at 10:00 says what it meets before „Speichern",
-writes the line of one date and puts the date on Thursday in the week; the note writes its `b`
-line; „Nachholtermin" opens the form of a Termin of one's own named „VL EvS". The share link of a
-plan with a change makes a calendar with its `x` line of calendar 1. „Offen" of four changes —
-QIS says something else, the same, moved the Tutorium's Termin, has the event no more — offers
-„OK", „Übernehmen", „Als eigenen Termin behalten" and leads the first to its Termin, where „Meine
-behalten" settles it; on a phone the form fits the sheet.
+drives the changes of Termine of QIS on the same data (§ „Changes of Termine of QIS") from the card:
+VL EvS's Friday slot opens it, its pencil „Ändern" the form in the card's body with „Für" above Tag,
+Zeit and Raum, „Alle …" chosen and „QIS sagt: Fr 09:15–10:45 · ZHG/HS.C"; another room and
+„Speichern" write its `x` line, put the pen in the ticket and on the slot and say „Von dir geändert,
+alle Termine · QIS: ZHG/HS.C", which „Zurücksetzen" takes back. „Nur am …" on Thursday at 10:00 says
+what it meets before „Speichern", writes the line of one date and puts the date on Thursday in the
+week. The note and „Nachholtermin" are entries of „⋯": the note writes its `b` line and stands in
+the card as „Notiz: …" with „Bearbeiten", the entry then „Notiz bearbeiten"; „Nachholtermin" opens
+the form of a Termin of one's own with „Was" empty and „Art" Vorlesung, whose `t` line of that date
+ends in `lecture` and whose slot says „VL EvS". The share link of a plan with a change makes a
+calendar with its `x` line of calendar 1. „Offen" asks while editing: looking, none of its lines
+stands and the quiet line counts the changes beside the choices („3 Wahlen offen · 4 Änderungen
+offen ›"), leading into the mode, where „Offen" of four changes — QIS says something else, the same,
+moved the Tutorium's Termin, has the event no more — offers „OK", „Übernehmen", „Als eigenen Termin
+behalten" and leads the first to its Termin, where „Meine behalten" settles it; a line settled stays
+in its place, pale („erledigt"), until the mode is left, and then the quiet line says the choices
+alone. On a phone the answers to a change QIS says something else of stand each a row across the
+sheet, „Meine behalten" first, „Ändern" fits the sheet, and its „Speichern" and „Abbrechen" stand
+one under the other.
 
 ```bash
 cd e2e && node tabbar.mjs
@@ -7768,8 +8283,11 @@ the field for its name. On the synthetic catalog as on the real one.
     one recurring slot, „ab"/„bis" where it covers a part of the lecture period, A or B, „3-wöch.",
     „4-wöch.", its dates in the tooltip; a date QIS cancels stays in its range (`Row::slot_day`),
     and a series QIS cancels whole has no slot, as a recurring row has none.
-  - **The panel beside the plan** (`studyplan/aside.rs`, `by_termin`): one Termin, „Di 13:45–15:15
-    · HG 0.20 · A/B" over „5 Termine · Zentralcampus · 13.10.–17.11."; its eye hides and shows the
-    keys of all its dates together (a plan hides rows by their keys, one per date), and the list of
-    what is hidden („2 ausgeblendet") names the hidden series once, „Einblenden" showing them all
-    (`Unhide::Rows`).
+  - **The panel beside the plan** (`studyplan/aside.rs`, `by_termin`): one Termin, „Di 13:45–15:15 ·
+    HG 0.20 · A/B" over „5 Termine · Zentralcampus · 13.10.–17.11."; its eye hides and shows the
+    keys of all its dates together (a plan hides rows by their keys, one per date). The list of what
+    is hidden („2 ausgeblendet") under the head named the hidden series once, „Einblenden" showing
+    them all (`Unhide::Rows`), until Folia 1.100.0 took it away; since then a hidden series counts
+    once in the mode's „N ausgeblendet" (`views::hidden_count`), its event's row in the module list
+    says „ausgeblendet" where it was all the event held, and its slot stands faint while the plan is
+    edited.
