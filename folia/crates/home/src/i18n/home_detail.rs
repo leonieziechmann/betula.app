@@ -291,7 +291,7 @@ pub const DE: Texts = Texts {
         title: "Bestanden, geplant, offen: dein Studium auf einen Blick",
         lead: "Du sagst Betula einmal, was du studierst und seit wann. Daraus wird dein Plan bis zum Abschluss, Semester für Semester, mit den Leistungspunkten jedes Bereichs.",
         points: [
-            Point { title: "In drei Klicks eingerichtet", text: "Studiengang, Studienbeginn, Fachsemester: Betula füllt die Semester nach Regelstudienplan, und du hakst nur noch ab, was bestanden ist." },
+            Point { title: "Schnell eingerichtet", text: "Studiengang, Studienbeginn, Fachsemester: Betula füllt die Semester nach Regelstudienplan, und du hakst ab, was bestanden ist. Oder „Notenübersicht einlesen“: Dein Browser liest die PDF der BTU selbst, sie verlässt dein Gerät nicht." },
             Point { title: "Leistungspunkte je Bereich", text: "Ein Balken zeigt, was bestanden, geplant und offen ist. Belegst du mehr, als ein Bereich verlangt, sagt Betula auch das." },
             Point { title: "Warnt, bevor es hakt", text: "Beim Einplanen siehst du, ob ein Modul in dem Semester angeboten wird und ob seine Voraussetzungen schon davor liegen." },
             Point { title: "Wenn es anders läuft", text: "Urlaubssemester, ein Semester länger, eine Wiederholung oder ein Wechsel des Studiengangs: Der Plan rechnet neu, und nichts geht verloren." },
@@ -543,7 +543,7 @@ pub const EN: Texts = Texts {
         title: "Passed, planned, open: your studies at a glance",
         lead: "You tell Betula once what you study and since when. That becomes your plan up to your degree, semester by semester, with the credit points of every area.",
         points: [
-            Point { title: "Set up in three clicks", text: "Programme, start of studies, semester: Betula fills the semesters from the standard study plan, and you only tick off what you have passed." },
+            Point { title: "Set up quickly", text: "Programme, start of studies, semester: Betula fills the semesters from the standard study plan, and you tick off what you have passed. Or “Read your transcript”: your browser reads the BTU's PDF itself, and it does not leave your device." },
             Point { title: "Credit points by area", text: "A bar shows what is passed, planned and open. If you take more than an area asks for, Betula says that too." },
             Point { title: "Warns before it snags", text: "While planning you see whether a module is offered in that semester and whether its prerequisites come before it." },
             Point { title: "When things go differently", text: "A semester of leave, one semester more, a retake or a change of programme: the plan counts anew, and nothing is lost." },
