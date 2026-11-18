@@ -218,6 +218,7 @@ fn state(store: Arc<SnapshotStore>) -> AppState {
         packages: Arc::default(),
         semantic: None,
         gate: None,
+        passes: None,
         renders: Arc::new(crate::busy::Places::new("render", 2, std::time::Duration::from_secs(3))),
         render_wait: std::time::Duration::from_secs(3),
         feeds: Arc::new(crate::busy::Places::new("calendar", 2, std::time::Duration::from_secs(10))),
@@ -1810,6 +1811,63 @@ async fn the_catalog_download_comes_from_memory() {
     let (_, headers, body) = request(&router, "/api/db", &[("accept-encoding", "br")]).await;
     assert!(headers.get(header::CONTENT_ENCODING).is_none());
     assert_eq!(body.len() as u64, bare.current().unwrap().bytes);
+}
+
+/// The pass (`pass`): the catalog's download asks for one, a solved challenge earns it, and it
+/// holds for the network it was earned in. The pages, the files and a 304 ask for nothing.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_catalog_asks_for_a_pass_that_a_little_work_earns() {
+    let store = store_with("pass", &snapshot_file());
+    let etag = store.current().unwrap().etag.clone();
+    let mut state = state(store);
+    state.passes = Some(Arc::new(crate::pass::Passes::with_key([3; 32], 10)));
+    let router = crate::router(state);
+    let home = [("x-forwarded-for", "203.0.113.77"), ("x-forwarded-proto", "https")];
+
+    // Without a pass: a challenge, kept by nobody, and no byte of the catalog.
+    let (status, headers, body) = request(&router, "/api/db", &home).await;
+    assert_eq!((status, headers[header::WWW_AUTHENTICATE].to_str().unwrap(), headers[header::CACHE_CONTROL].to_str().unwrap()), (StatusCode::UNAUTHORIZED, "Betula-Pass", "no-store"));
+    let asked: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(asked["difficulty"], 10);
+    let (challenge, seed) = (asked["challenge"].as_str().unwrap().to_string(), asked["seed"].as_str().unwrap().to_string());
+    assert!(challenge.starts_with("c1.") && challenge.contains(&format!(".10.{seed}.")), "{challenge}");
+    assert_eq!(request(&router, "/api/db", &[("if-none-match", etag.as_str())]).await.0, StatusCode::NOT_MODIFIED, "what the browser has costs nothing");
+    for open in ["/api/status", "/robots.txt", folia_app::STYLESHEET] {
+        assert_eq!(request(&router, open, &home).await.0, StatusCode::OK, "{open}");
+    }
+
+    // A wrong number, or the right one from another network, earns nothing but a new challenge.
+    let nonce = crate::pass::solve(&seed, 10);
+    let form = |nonce: u64| format!("challenge={challenge}&nonce={nonce}");
+    let wrong = (0u64..).find(|n| crate::pass::leading_zeros(&<sha2::Sha256 as sha2::Digest>::digest(format!("{seed}{n}").as_bytes())) < 10).unwrap();
+    let (status, headers, body) = post(&router, "/api/pass", &home, &form(wrong)).await;
+    assert_eq!((status, headers.get(header::SET_COOKIE)), (StatusCode::FORBIDDEN, None));
+    assert!(serde_json::from_str::<serde_json::Value>(&body).unwrap()["challenge"].as_str().unwrap() != challenge, "a new challenge to try again with");
+    assert_eq!(post(&router, "/api/pass", &[("x-forwarded-for", "198.51.100.4")], &form(nonce)).await.0, StatusCode::FORBIDDEN);
+
+    // The solution earns the pass, for the API's addresses alone and over HTTPS only.
+    let (status, headers, _) = post(&router, "/api/pass", &home, &form(nonce)).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let cookie = headers[header::SET_COOKIE].to_str().unwrap().to_string();
+    assert!(cookie.starts_with("betula_pass=p1.") && cookie.ends_with("; Path=/api/; Max-Age=604800; HttpOnly; SameSite=Strict; Secure"), "{cookie}");
+    let pass = cookie.split(';').next().unwrap().to_string();
+
+    // With it the catalog comes, from the same /24; from another network it is no pass.
+    let (status, _, body) = request(&router, "/api/db", &[("x-forwarded-for", "203.0.113.200"), ("cookie", pass.as_str())]).await;
+    assert_eq!((status, body.len() as u64), (StatusCode::OK, std::fs::metadata(snapshot_file()).unwrap().len()));
+    assert_eq!(request(&router, "/api/db", &[("x-forwarded-for", "203.0.114.1"), ("cookie", pass.as_str())]).await.0, StatusCode::UNAUTHORIZED);
+    let forged = format!("{}{}", &pass[..pass.len() - 1], if pass.ends_with('0') { '1' } else { '0' });
+    assert_eq!(request(&router, "/api/db", &[home[0], ("cookie", forged.as_str())]).await.0, StatusCode::UNAUTHORIZED);
+
+    // Off, the catalog answers whoever asks, and a solution has nothing to earn.
+    let open = crate::router(state_open("pass-off"));
+    assert_eq!(request(&open, "/api/db", &home).await.0, StatusCode::OK);
+    let (status, headers, _) = post(&open, "/api/pass", &home, "challenge=x&nonce=1").await;
+    assert_eq!((status, headers.get(header::SET_COOKIE)), (StatusCode::NO_CONTENT, None));
+}
+
+fn state_open(name: &str) -> AppState {
+    state(store_with(name, &snapshot_file()))
 }
 
 /// The addresses a page writes into its HTML (`href`, `action`, `src`, `content` of a URL), each

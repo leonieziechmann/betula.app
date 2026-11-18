@@ -185,7 +185,10 @@ Why this order, and what can go wrong:
   log every 5 minutes (the 7-day numbers and the calendar subscriptions once an hour) with the rules
   in `config/monitoring/loki-rules`, and writes them to Prometheus, which keeps them like every
   metric (15 days, `config/monitoring/prometheus.yml`). Its charts begin with the first count; there
-  is no history from before.
+  is no history from before. Its row „The pass in front of the catalog" (since Folia 1.107.0) counts
+  what `/api/db` and `/api/pass` answered, by request and by address: catalogs refused without a
+  pass, passes earned, catalogs downloaded (docs/folia/frontend.md §3, „The pass in front of the
+  catalog").
 - The dashboard "Security" (`betula-security.json`, since 2026-10-21): who gets in (sshd's logins
   with user, key fingerprint and source, refused attempts, networks that logged in for the first time
   in 30 days), what changes on the host (sudo commands, watched files, packages, boots and power

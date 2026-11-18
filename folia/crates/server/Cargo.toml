@@ -1,6 +1,6 @@
 [package]
 name = "folia-server"
-version = "1.106.2"
+version = "1.107.0"
 edition = "2021"
 description = "Folia, the web server of Betula: fetches snapshots from Radix, renders the app, serves the snapshot to browsers"
 # Minifies the stylesheet, the scripts and the SVGs of folia/assets, which the server embeds.
@@ -54,6 +54,9 @@ clap = { version = "4", features = ["derive", "env"] }
 # constant time.
 hmac = "0.12"
 sha2 = "0.10"
+# The pass in front of the catalog (src/pass.rs): the key its challenges and passes are signed
+# with, and their seeds, from the system's randomness. aes-gcm builds on it already.
+getrandom = "0.2"
 # Link-preview cards (src/cards.rs): SVG to PNG in this process, with our own font files only.
 resvg = { version = "0.45", default-features = false, features = ["text"] }
 # The shaper resvg sets text with, used directly to measure lines before they are set.

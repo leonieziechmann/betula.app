@@ -24,6 +24,7 @@
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
+import { catalogBytes } from "./catalog.mjs";
 
 const base = (process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
 const problems = [];
@@ -34,7 +35,7 @@ const PLAN = "betula.studyplan.v1";
 // ---- what to plan: from the snapshot the server serves
 const initSqlJs = createRequire(import.meta.url)("../assets/sql-wasm.js");
 const SQL = await initSqlJs({ locateFile: (file) => fileURLToPath(new URL(`../assets/${file}`, import.meta.url)) });
-const db = new SQL.Database(new Uint8Array(await (await fetch(base + "/api/db")).arrayBuffer()));
+const db = new SQL.Database(await catalogBytes(base));
 const rows = (sql, params = []) => {
   const statement = db.prepare(sql);
   statement.bind(params);
