@@ -2402,6 +2402,11 @@ a.ms-col:hover { background: var(--row-hover); text-decoration: none; }
 .home > .panel:is(.about-ways, .topic-ways) { content-visibility: visible; }
 /* A jump to a section of the page draws them all on its way (enhance.js, `jump`). */
 .jumping .home > .panel { content-visibility: visible; }
+/* So does a page opened at one of its sections (`/about/data#sharing`, an anchor of before as
+   well): the browser goes there while the page loads, and over guessed heights it stopped half a
+   screen off the section as often as not, the panels above taking their own heights after it
+   (2026-11-18, `e2e/about.mjs`). */
+.home:has(:target) > .panel { content-visibility: visible; }
 .block-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 18px 12px 14px 24px; }
 .block-head h2 { font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
 .block-head p { grid-column: 1 / -1; color: var(--text-2); max-width: 86ch; text-wrap: pretty; }
@@ -2985,9 +2990,14 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 }
 
 /* An anchor a chapter or a section of the pages about Betula had while its anchors were German
-   (`detail::Look::was`): empty and out of the layout, at the head of what it named, so a link to
-   it stops where a link to the chapter does. */
-.was-anchor { position: absolute; scroll-margin-top: 38px; }
+   (`detail::Look::was`), and one a part of a legal page had (`legal::Part::was`): empty and out
+   of the layout, the first child of its section, at that section's upper edge and with that
+   section's scroll margin, so a link to it stops exactly where a link to the section does, at
+   every width. (Until 2026-11-18 it stood where the section's layout put it, with a margin of its
+   own: in the middle of a chapter, whose columns are centred, and too low on a phone.
+   `e2e/about.mjs` measures both stops.) */
+section:has(> .was-anchor) { position: relative; }
+section > .was-anchor { position: absolute; top: 0; left: 0; margin: 0; scroll-margin: inherit; }
 
 /* The Merkliste: its collections beside three marked modules, one of them with a note. */
 .shelf { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; }
@@ -3157,12 +3167,11 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 .legal-head .legal-stand { margin-top: 4px; color: var(--text-3); font-size: 13px; }
 .legal-part { container: part / inline-size; padding: 20px 24px 22px; border-top: 1px solid var(--line); scroll-margin-top: 8px; }
 .legal-part h2 { font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
-/* An anchor a part had before (`Part::was`): empty, at the head of its heading, and a link to it
-   stops where a link to the part does (the part's padding above the heading, and its margin). */
-.legal-was { scroll-margin-top: 28px; }
 /* One measure for the text, the label | text rows included, so the parts share their right edge. */
 .legal-part > * { max-width: 704px; }
 .legal-part > :where(:not(:first-child)), .legal-facts dd > :where(:not(:first-child)) { margin-top: 10px; }
+/* The heading is a part's first line also behind an anchor the part had before (`.was-anchor`). */
+.legal-part > h2 { margin-top: 0; }
 .legal-part p, .legal-part li, .legal-facts dd { color: var(--text-2); font-size: 14.5px; line-height: 1.6; }
 .legal-part p, .legal-facts dd { text-wrap: pretty; }
 .legal-part ul { display: grid; gap: 3px; }
@@ -3192,7 +3201,6 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 @media (max-width: 900px) {
   .legal-head { padding: 20px 16px 14px; }
   .legal-part { padding: 18px 16px 20px; scroll-margin-top: 76px; }
-  .legal-was { scroll-margin-top: 94px; }
 }
 
 /* Two abilities a row, and an odd last one takes the whole row: no empty cell at the end (nine
@@ -6035,8 +6043,11 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .board .box { width: 16px; height: 16px; border-radius: 4px; }
   .board .box .icon { width: 12px; height: 12px; }
   .board .mock-seg > button { min-height: 34px; font-size: 13px; }
-  .feature { padding: 26px 16px 18px; scroll-margin-top: 76px; }
-  .was-anchor { scroll-margin-top: 102px; }
+  .feature { padding: 26px 16px 18px; }
+  /* A section stops under the bar at the top, which stays there (`--bar`), not behind it: a link
+     to a chapter showed it from its heading on, its name under the search. (The 76 px were said of
+     `.feature` alone, which `.home > .panel` outdid with its 14 px; 2026-11-18.) */
+  .home > .panel { scroll-margin-top: 76px; }
   .feature-picture { padding: 16px; }
   .feature-picture.bare { padding: 0; }
   /* The Studienplan on a phone: the panel and its parts in finger sizes. */

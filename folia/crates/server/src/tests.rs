@@ -783,7 +783,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
         // section had until 2026-11-18 still lead to it, each on the page it stood on.
         let was: &[&str] = match topic {
             folia_routes::url::AboutTopic::Overview => &["ueberblick", "funktionen"],
-            folia_routes::url::AboutTopic::Finding => &["weg", "filter", "einstiege"],
+            folia_routes::url::AboutTopic::Finding => &["weg", "einstiege"],
             folia_routes::url::AboutTopic::Planning => &["regelstudienplaene", "stundenplan", "fakultaeten"],
             folia_routes::url::AboutTopic::Data => &["ohne-konto", "daten"],
             folia_routes::url::AboutTopic::Technology => &["technik", "geraete"],
@@ -792,6 +792,10 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
         for old in was {
             assert_eq!(page.matches(&format!("class=\"was-anchor\" id=\"{old}\"")).count() + page.matches(&format!("id=\"{old}\" class=\"was-anchor\"")).count(), 1, "{path}: #{old} still leads somewhere");
         }
+        // „Filter" kept its anchor, an English word as well; `#filters` is the catalog's panel,
+        // which the page's script looks for on the page in front, and no chapter may be it.
+        assert_eq!(page.matches("id=\"filter\"").count(), usize::from(topic == folia_routes::url::AboutTopic::Finding), "{path}: the chapter of the filters");
+        assert!(!page.contains("id=\"filters\""), "{path}: a chapter has the id of the catalog's filters");
         // No page speaks of an account: there is none (owner, 2026-11-18). An address may still
         // name what was (`#ohne-konto`).
         let said = page.replace("ohne-konto", "").to_lowercase();
