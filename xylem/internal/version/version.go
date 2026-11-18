@@ -11,7 +11,7 @@ import (
 
 // Version is the release of Xylem (`xylem version`, `xylem status`, xylem_build_info): by
 // SemVer, raised with every change to Xylem's shipped sources (CLAUDE.md, „Versions").
-const Version = "0.1.0"
+const Version = "0.2.0"
 
 // Build names the binary that runs: a hash of its own executable. "" when it cannot be read.
 func Build() string {
