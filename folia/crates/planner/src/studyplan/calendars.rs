@@ -14,11 +14,14 @@
 //! between 8 and 18 o'clock (all decided 2026-10-26).
 //!
 //! The list stands at the top of the sidebar where the page has one (`CalendarsGroup`), on a phone
-//! in a line over the week that opens into the same rows (`CalendarLine`; no chips, owner,
-//! 2026-10-26). A new calendar comes by its name alone or from a link pasted into its form
-//! (`NewCalendarForm`, while the plan is edited), or from the offer of a shared plan (`share.rs`,
-//! „Als Kalender"); its menu, there while the plan is edited, renames it and deletes it, with
-//! „Rückgängig". The module list beside the week has a part per calendar (`CalendarModules`).
+//! in a sheet the head's „Kalender" opens, in both states (`CalendarSheet`; owner, 2026-11-18: „Dann
+//! fehlt am Handy das Feature für weitere Kalender komplett bitte baue das wieder ein"; until then
+//! a line over the week, there only once a calendar of one's own was; no chips, owner, 2026-10-26).
+//! A new calendar comes by its name alone or from a link pasted into its form (`NewCalendarForm`,
+//! while the plan is edited, in the phone's sheet always), or from the offer of a shared plan
+//! (`share.rs`, „Als Kalender"); its menu, there while the plan is edited (in the sheet always),
+//! renames it and deletes it, with „Rückgängig". The module list beside the week has a part per
+//! calendar (`CalendarModules`).
 //!
 //! A calendar may follow a share of someone else's (Betula Sync, step 3; folia/design/teilen/
 //! teilen.html, `share.rs`, „Als Kalender folgen"): its row says „aktuell" while every change
@@ -39,6 +42,7 @@ use folia_calendar::semester::SemesterKey;
 use folia_calendar::share::SharedPlan;
 use folia_data::DataClient;
 use folia_design::haptic::TapTick;
+use folia_design::modal::{Modal, ModalHead, ModalSize, Sheet};
 use folia_design::ui::Icon;
 use folia_pages::ask::StudyplanAsk;
 use folia_plans::studyplan::{Calendar, CalendarView, PlanUndo, MAX_CALENDARS};
@@ -422,7 +426,9 @@ fn CalendarMenu(ctx: PlanCtx, id: u8, name: String, open: RwSignal<Option<u8>>, 
         .into_any(),
         false => view! {
             <div class="sp-cal-menu">
-                <button class="mini" type="button" on:click=move |_| { ctx.adding.set(Some(AddTo::Calendar(id))); open.set(None); }><Icon name="plus"/>{c.add_module}</button>
+                // „+ Modul" stands under the week in the calendar's part of the list: from a phone's
+                // sheet the sheet makes way for it.
+                <button class="mini" type="button" on:click=move |_| { ctx.adding.set(Some(AddTo::Calendar(id))); open.set(None); ctx.sheet.set(None); }><Icon name="plus"/>{c.add_module}</button>
                 <button class="mini" type="button" on:click=move |_| renaming.set(true)><Icon name="pencil"/>{c.rename}</button>
                 // Into a calendar app, where the site offers Betula Sync, whose service keeps it
                 // current (the dialog offers to save a private profile).
@@ -454,10 +460,11 @@ fn came_of(calendar: &Shown, semester: &str, t: &'static i18n::Texts) -> Option<
 
 /// A row of a calendar of one's own: its colour (a square in the way it stands), its name and
 /// modules, its switch („Voll · Spur · Aus", in both states: it is no setting of the plan's
-/// Termine), and while the plan is edited its menu („…"), in a place that is there while looking
-/// (`span.sp-cal-end`), so that the row is not built anew with the mode. `phone`: the switch with
-/// its words, under the name.
-fn calendar_row(ctx: PlanCtx, calendar: Shown, semester: String, phone: bool, open: RwSignal<Option<u8>>, removed: RwSignal<Option<(usize, Calendar)>>, t: &'static i18n::Texts) -> impl IntoView {
+/// Termine), and while `manage` says so its menu („…"), in a place that is there without it
+/// (`span.sp-cal-end`), so that the row is not built anew with the mode: in the sidebar while the
+/// plan is edited, in a phone's sheet always. `phone`: the switch with its words, under the name.
+#[allow(clippy::too_many_arguments)]
+fn calendar_row(ctx: PlanCtx, calendar: Shown, semester: String, phone: bool, manage: Signal<bool>, open: RwSignal<Option<u8>>, removed: RwSignal<Option<(usize, Calendar)>>, t: &'static i18n::Texts) -> impl IntoView {
     let c = &t.studyplan_calendars;
     let id = calendar.id;
     let line = calendar_line(&calendar, &semester, t);
@@ -469,7 +476,7 @@ fn calendar_row(ctx: PlanCtx, calendar: Shown, semester: String, phone: bool, op
     let name = calendar.name.clone();
     let title = calendar.name.clone();
     let menu = move || {
-        (open.get() == Some(id) && ctx.edit.get()).then(|| {
+        (open.get() == Some(id) && manage.get()).then(|| {
             let name = name.clone();
             view! { <CalendarMenu ctx id name open removed/> }
         })
@@ -488,7 +495,7 @@ fn calendar_row(ctx: PlanCtx, calendar: Shown, semester: String, phone: bool, op
             <span class="sp-cal-end">
                 {move || {
                     let label = (c.menu)(&title);
-                    ctx.edit.get().then(|| view! {
+                    manage.get().then(|| view! {
                         <button class="icon-btn sp-cal-more" type="button" aria-expanded=move || if open.get() == Some(id) { "true" } else { "false" } aria-label=label.clone() title=label on:click=toggle>
                             <Icon name="ellipsis"/>
                         </button>
@@ -611,7 +618,8 @@ pub(super) fn CalendarsGroup(ctx: PlanCtx) -> impl IntoView {
     // On a phone (the line „Kalender" over the week) the switch with its words, as tall as a finger.
     let rows = move || {
         let (semester, phone) = (semester.get(), ctx.phone.get());
-        ctx.calendars.get().into_iter().map(|calendar| calendar_row(ctx, calendar, semester.clone(), phone, open, removed, t)).collect_view()
+        let manage = Signal::derive(move || ctx.edit.get());
+        ctx.calendars.get().into_iter().map(|calendar| calendar_row(ctx, calendar, semester.clone(), phone, manage, open, removed, t)).collect_view()
     };
     view! {
         <div class="fgroup sp-cals">
@@ -630,56 +638,67 @@ pub(super) fn CalendarsGroup(ctx: PlanCtx) -> impl IntoView {
     }
 }
 
-/// The calendars on a phone, where there are any of one's own (no sidebar beside the week; owner,
-/// 2026-10-26: no chips), in both states: one line over the week, „Kalender" and how each stands
-/// („Mein Studiengang, Lena als Spur"), that opens into the rows with their switch as tall as a
-/// finger and „Gemeinsam frei"; while the plan is edited each row has its menu. „Neuer Kalender" is
-/// the last row of the module list on a phone (`NewCalendar`).
+/// The calendars on a phone, in a sheet the head's „Kalender" opens (owner, 2026-11-18: „Dann fehlt
+/// am Handy das Feature für weitere Kalender komplett bitte baue das wieder ein"), their one place
+/// there, in both states — it is opened on purpose: „Mein Studiengang", each calendar of one's own
+/// with its switch in words as tall as a finger and its menu („…": „Modul aufnehmen", „Umbenennen",
+/// „Löschen" with „Rückgängig"), „Gemeinsam frei" once another calendar stands in the week, and „+
+/// Kalender" with the form „Neuer Kalender" under it. Until then a phone had a line „Kalender" over
+/// the week, there only once a calendar of one's own was, and „+ Kalender" as the last row of the
+/// module list while editing. Esc closes what stands open in it first, then the sheet.
 #[component]
-pub(super) fn CalendarLine(ctx: PlanCtx) -> impl IntoView {
+pub(super) fn CalendarSheet(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let c = &t.studyplan_calendars;
-    let open = RwSignal::new(None::<u8>);
+    let open = Signal::derive(move || ctx.sheet.get() == Some(super::head::PhoneSheet::Calendars));
+    let adding = RwSignal::new(false);
+    let menu = RwSignal::new(None::<u8>);
     let removed = RwSignal::new(None::<(usize, Calendar)>);
-    layer_of_mode(ctx, move || open.with(Option::is_some), move || open.set(None));
-    let semester = Memo::new(move |_| ctx.key.get().label(t.locale));
-    let any = Memo::new(move |_| ctx.calendars.with(|calendars| !calendars.is_empty()) || removed.with(Option::is_some));
-    let summary = move || {
-        let mut parts = vec![c.mine.to_string()];
-        for calendar in ctx.calendars.get() {
-            parts.push(match calendar.view {
-                CalendarView::Full => (c.line_full)(&calendar.name),
-                CalendarView::Strip => (c.line_strip)(&calendar.name),
-                CalendarView::Off => (c.line_off)(&calendar.name),
-            });
+    let close = Callback::new(move |()| ctx.sheet.set(None));
+    let cancel = Callback::new(move |()| {
+        if menu.with_untracked(Option::is_some) {
+            menu.set(None);
+            return true;
         }
-        parts.join(", ")
-    };
+        if adding.get_untracked() {
+            adding.set(false);
+            return true;
+        }
+        false
+    });
+    // Opened again, the sheet is as it is drawn: no menu, no form, no note of before.
+    Effect::new(move |_| {
+        if !open.get() {
+            menu.set(None);
+            adding.set(false);
+            removed.set(None);
+        }
+    });
+    let semester = Memo::new(move |_| ctx.key.get().label(t.locale));
+    let manage = Signal::stored(true);
     let rows = move || {
         let semester = semester.get();
-        ctx.calendars.get().into_iter().map(|calendar| calendar_row(ctx, calendar, semester.clone(), true, open, removed, t)).collect_view()
+        ctx.calendars.get().into_iter().map(|calendar| calendar_row(ctx, calendar, semester.clone(), true, manage, menu, removed, t)).collect_view()
     };
-    move || {
-        any.get().then(|| {
-            view! {
-                <details class="sp-cal-line">
-                    <summary>
-                        <span class="ic" aria-hidden="true"><Icon name="layers"/></span>
-                        <span class="t"><b>{c.heading}</b><small>{summary}</small></span>
-                        <Icon name="chevron-down" class="chev"/>
-                    </summary>
-                    <div class="sp-cal-rows">
-                        <div class="sp-cal mine">
-                            <i class="sw full" aria-hidden="true"></i>
-                            <span class="t"><b>{c.mine}</b><small>{move || mine_line(ctx, t)}</small></span>
-                        </div>
-                        {rows}
-                        {removed_note(ctx, removed, t)}
-                        <TogetherSwitch ctx row=true/>
+    view! {
+        <Modal open on_close=close size=ModalSize::M sheet=Sheet::Auto class="sp-cal-sheet" labelled_by="sp-cal-sheet-title" on_cancel=cancel>
+            <ModalHead id="sp-cal-sheet-title" title=c.heading sub=Some(t.studyplan_head.calendars_sub.to_string()) on_close=close/>
+            <div class="st-dlg-body">
+                <div class="sp-cals sp-cal-rows">
+                    <div class="sp-cal mine">
+                        <i class="sw full" aria-hidden="true"></i>
+                        <span class="t"><b>{c.mine}</b><small>{move || mine_line(ctx, t)}</small></span>
                     </div>
-                </details>
-            }
-        })
+                    {rows}
+                    {removed_note(ctx, removed, t)}
+                    <TogetherSwitch ctx row=true/>
+                    <div class="sp-cal-newrow">
+                        <NewCalendarButton ctx open=adding/>
+                        <NewCalendarForm ctx open=adding/>
+                    </div>
+                </div>
+            </div>
+        </Modal>
     }
 }
 
@@ -713,8 +732,9 @@ pub(super) fn TogetherSwitch(ctx: PlanCtx, #[prop(optional)] row: bool) -> impl 
     }
 }
 
-/// „+ Kalender" in the group's head while the plan is edited: opens the form „Neuer Kalender" under
-/// it. At the cap (`MAX_CALENDARS`) nothing: the form's place says why.
+/// „+ Kalender" in the group's head while the plan is edited, and last in a phone's sheet of the
+/// calendars: opens the form „Neuer Kalender" under it. At the cap (`MAX_CALENDARS`) nothing: the
+/// form's place says why.
 #[component]
 fn NewCalendarButton(ctx: PlanCtx, open: RwSignal<bool>) -> impl IntoView {
     let t = i18n::t();
@@ -824,37 +844,18 @@ fn NewCalendarForm(ctx: PlanCtx, open: RwSignal<bool>) -> impl IntoView {
     }
 }
 
-/// „+ Kalender" and the form under it, one under the other: the last row of the module list on a
-/// phone, which has no sidebar, while the plan is edited.
-#[component]
-pub(super) fn NewCalendar(ctx: PlanCtx) -> impl IntoView {
-    let open = RwSignal::new(false);
-    layer_of_mode(ctx, move || open.get(), move || open.set(false));
-    move || {
-        ctx.edit.get().then(|| {
-            view! {
-                <div class="sp-cal-newrow">
-                    <NewCalendarButton ctx open/>
-                    <NewCalendarForm ctx open/>
-                </div>
-            }
-        })
-    }
-}
-
 /// How the note of a module taken out of a calendar of one's own begins (`PlanCtx::undo`, which
 /// the page's other notes share), the calendar's number after it: never shown.
 const CALENDAR_REMOVED: &str = "Aus dem Kalender: ";
 
 /// The calendars' parts of the module list beside the week, one per calendar in their order: a
-/// part keeps its place (and its „+ Modul" what was typed) while the calendar does. On a phone, which
-/// has no sidebar, „+ Kalender" is the last row of the list while the plan is edited.
+/// part keeps its place (and its „+ Modul" what was typed) while the calendar does. (On a phone „+
+/// Kalender" is in the calendars' sheet, `CalendarSheet`.)
 #[component]
 pub(super) fn CalendarModules(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl IntoView {
     let ids = Memo::new(move |_| ctx.calendars.with(|calendars| calendars.iter().map(|calendar| calendar.id).collect::<Vec<u8>>()));
     view! {
         <For each=move || ids.get() key=|id| *id children=move |id| view! { <CalendarPart ctx id marked/> }/>
-        {move || ctx.phone.get().then(|| view! { <NewCalendar ctx/> })}
     }
 }
 
@@ -972,7 +973,9 @@ fn CalendarPart(ctx: PlanCtx, id: u8, marked: Memo<Vec<MarkedModule>>) -> impl I
                     </button>
                 })}
             </div>
-            {move || (adding.get() && ctx.edit.get()).then(|| view! {
+            // While editing; on a phone also while looking, where the calendars' sheet opened it on
+            // purpose.
+            {move || (adding.get() && (ctx.edit.get() || ctx.phone.get())).then(|| view! {
                 // A calendar that follows a share takes the sharer's next change over what is added.
                 {move || follows.get().then(|| view! { <p class="hint sp-cal-follows">{(t.studyplan_add.follows)(&name.get())}</p> })}
                 <AddPanel ctx to=AddTo::Calendar(id) marked/>

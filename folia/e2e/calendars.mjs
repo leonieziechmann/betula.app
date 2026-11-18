@@ -13,10 +13,13 @@
 //   without a menu; „Bearbeiten" brings both.
 // - „Neuer Kalender" from the link pasted, with a name; its menu renames it and deletes it, and
 //   „Rückgängig" brings it back where it stood. A calendar made by its name alone, without a link.
-// - A phone: one line over the week, „Kalender" and how each stands, that opens into the rows.
+// - A phone: the head's „Kalender" opens a sheet, in both states, with the rows, „Gemeinsam frei", each
+//   calendar's menu and „+ Kalender"; Esc closes the menu first.
 // History: 2026-11-17, the edit mode. Lena ticks her group in its card („Diese Gruppe anhaken"), not by
 // the click on the hatched slot that took it into focus with the group ticked (that preselection went);
 // „+ Kalender" and the calendars' menus are the mode's; „Neuer Kalender" takes a name alone.
+// 2026-11-18: on a phone the line over the week became the sheet of the head's „Kalender" (owner: „Dann
+// fehlt am Handy das Feature für weitere Kalender komplett bitte baue das wieder ein").
 // Needs the snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
 // console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
@@ -164,18 +167,36 @@ let link = "";
   await context.close();
 }
 
-// ---------- a phone: the line over the week ----------
+// ---------- a phone: the sheet „Kalender" of the head ----------
 {
   const plan = FS1 + "l\t1\t\t013-82-2018\tLena\n" + ["11109", "13977", "12160", "12229", "13980"].map((id) => `n\t1\t2026W\t${id}`).join("\n") + "\n";
   const { page, context } = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, plan, INFORMATIK);
-  await until(page, "the phone's line", () => Boolean(onPage(".sp-cal-line > summary")));
-  const said = await page.evaluate(() => onPage(".sp-cal-line > summary")?.innerText.replace(/\s+/g, " ").trim() ?? "");
-  check(said === "Kalender Mein Studiengang, Lena als Spur", `the phone's line: „${said}"`);
-  await page.tap(".sp-cal-line > summary");
-  await page.waitForTimeout(400);
-  const words = await page.evaluate(() => allOnPage(".sp-cal-line .sp-cal-seg button").map((b) => b.textContent.trim()));
-  check(JSON.stringify(words) === JSON.stringify(["Voll", "Spur", "Aus"]) && (await page.evaluate(() => Boolean(onPage(".sp-cal-line .sp-cal-free")))), `the rows with their words and „Gemeinsam frei": ${JSON.stringify(words)}`);
+  await until(page, "the head's „Kalender“", () => Boolean(onPage(".sp-head .sp-tool[data-action='calendars']")));
+  check(await page.evaluate(() => !document.querySelector(".sp-cal-line, .sp-cal-newrow:not(dialog *)")), "a phone still has the line over the week or „+ Kalender“ in the list");
+  // While looking: it is opened on purpose, so it has everything.
+  await page.tap("#content > .page-stage.front .sp-tool[data-action='calendars']");
+  await until(page, "the sheet", () => Boolean(document.querySelector("dialog.sp-cal-sheet[open] .sp-cal:not(.mine)")));
+  const words = await page.evaluate(() => [...document.querySelectorAll("dialog.sp-cal-sheet[open] .sp-cal-seg button")].map((b) => b.textContent.trim()));
+  const has = await page.evaluate(() => ({ mine: Boolean(document.querySelector("dialog.sp-cal-sheet[open] .sp-cal.mine")), free: Boolean(document.querySelector("dialog.sp-cal-sheet[open] .sp-cal-free")), more: Boolean(document.querySelector("dialog.sp-cal-sheet[open] .sp-cal-more")), add: Boolean(document.querySelector("dialog.sp-cal-sheet[open] .sp-cal-add")), title: document.querySelector("dialog.sp-cal-sheet[open] h2")?.textContent.trim() }));
+  check(JSON.stringify(words) === JSON.stringify(["Voll", "Spur", "Aus"]) && has.mine && has.free && has.more && has.add && has.title === "Kalender", `the sheet: the rows with their words, „Gemeinsam frei“, the menu and „+ Kalender“, looking: ${JSON.stringify({ words, has })}`);
+  // Its menu: a question's answers each a row (the app's rule for sheets).
+  await page.tap("dialog.sp-cal-sheet[open] .sp-cal-more");
+  await until(page, "the menu", () => Boolean(document.querySelector("dialog.sp-cal-sheet[open] .sp-cal-menu")));
+  const menu = await page.evaluate(() => [...document.querySelectorAll("dialog.sp-cal-sheet[open] .sp-cal-menu > button")].map((b) => b.textContent.trim()));
+  check(menu.includes("Umbenennen") && menu.includes("Löschen") && menu.includes("Modul aufnehmen"), `the menu: ${JSON.stringify(menu)}`);
+  // Esc closes the menu first, the sheet stays.
+  await page.keyboard.press("Escape");
+  await until(page, "the menu closed, the sheet open", () => !document.querySelector("dialog.sp-cal-sheet[open] .sp-cal-menu") && Boolean(document.querySelector("dialog.sp-cal-sheet[open]")));
+  // „+ Kalender" by a name alone.
+  await page.tap("dialog.sp-cal-sheet[open] .sp-cal-add");
+  await until(page, "the form", () => Boolean(document.querySelector("dialog.sp-cal-sheet[open] #sp-cal-new-name")));
+  await page.fill("#sp-cal-new-name", "WG");
+  await page.tap("dialog.sp-cal-sheet[open] .sp-cal-new button[type=submit]");
+  await until(page, "a calendar by its name in the sheet", ([key]) => /^l\t2\t\t\tWG$/m.test(localStorage.getItem(key) ?? "") && document.querySelectorAll("dialog.sp-cal-sheet[open] .sp-cal:not(.mine)").length === 2, [PLAN]);
   if (shots) await page.screenshot({ path: `${shots}/calendars-phone.png` });
+  await page.keyboard.press("Escape");
+  await until(page, "the sheet closed", () => !document.querySelector("dialog.sp-cal-sheet[open]"));
+  check(await page.evaluate(() => window.__marker === 1), "the page loaded again");
   await context.close();
 }
 

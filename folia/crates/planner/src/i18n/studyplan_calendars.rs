@@ -5,7 +5,7 @@
 
 pub struct Texts {
     // ---- the list ----
-    /// The group's heading and the phone's line: „Kalender".
+    /// The group's heading, the phone's head button and its sheet's title: „Kalender".
     pub heading: &'static str,
     /// „Mein Studiengang", which is always there and always in full.
     pub mine: &'static str,
@@ -33,10 +33,6 @@ pub struct Texts {
     pub look_only: fn(&str) -> String,
     /// The same of a Termin of one's own in it, which is one's own there too: „in „Lena“".
     pub own_in: fn(&str) -> String,
-    /// The phone's line: „Mein Studiengang, Lena als Spur" …
-    pub line_full: fn(&str) -> String,
-    pub line_strip: fn(&str) -> String,
-    pub line_off: fn(&str) -> String,
 
     // ---- a calendar's menu ----
     pub menu: fn(&str) -> String,
@@ -142,9 +138,6 @@ pub const DE: Texts = Texts {
     in_week: |name| format!("{name} in der Woche"),
     look_only: |name| format!("{name} · nur zum Ansehen"),
     own_in: |name| format!("in „{name}“"),
-    line_full: |name| name.to_string(),
-    line_strip: |name| format!("{name} als Spur"),
-    line_off: |name| format!("{name} aus"),
 
     menu: |name| format!("Mehr zu {name}"),
     rename: "Umbenennen",
@@ -229,9 +222,6 @@ pub const EN: Texts = Texts {
     in_week: |name| format!("{name} in the week"),
     look_only: |name| format!("{name} · to look at only"),
     own_in: |name| format!("in “{name}”"),
-    line_full: |name| name.to_string(),
-    line_strip: |name| format!("{name} as a strip"),
-    line_off: |name| format!("{name} off"),
 
     menu: |name| format!("More on {name}"),
     rename: "Rename",

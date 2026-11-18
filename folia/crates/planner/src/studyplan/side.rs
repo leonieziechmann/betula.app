@@ -6,8 +6,9 @@
 //! the same on the server), and while editing the plans saved before (`SavedPlans`), last, so that
 //! nothing above them moves. „Plan leeren" went on 2026-11-17: the calendar no longer manages the
 //! study's modules (owner: „man kann gerade noch module im Kalender verwalten, das ist aber keine
-//! gute idee, weil man das ja in mein Studium macht"). A phone has no sidebar: its groups stand in
-//! the page (`mod.rs`), and the saved plans after it.
+//! gute idee, weil man das ja in mein Studium macht"). A phone has no sidebar: its calendars and
+//! „Export" with „Teilen …" are sheets its head opens (`calendars::CalendarSheet`, `ExportSheet`),
+//! and the saved plans stand after the page.
 //!
 //! What the sidebar had besides went on 2026-11-04 (owner: „Komplett entfernen, weil überholt das
 //! system" and „Später an einen anderen ort verlegen (jetzt einfach entfernen ich kümmer mich
@@ -33,6 +34,7 @@ use folia_stores::myprogram::MyProgram;
 use folia_design::nav;
 use folia_stores::studyplan::Saved;
 use folia_plans::studyplan::{PlanUndo, SavedPlan};
+use folia_design::modal::{Modal, ModalHead, ModalSize, Sheet};
 use folia_design::ui::Icon;
 use super::calendars::CalendarsGroup;
 use super::export::CalendarGroup;
@@ -78,6 +80,35 @@ pub(super) fn ShareGroup(ctx: PlanCtx) -> impl IntoView {
                 <span><span>{t.studyplan_share_dialog.open}</span><small>{t.studyplan_share_dialog.open_hint}</small></span>
             </button>
         </div>
+    }
+}
+
+/// „Export" on a phone: a sheet the head's „Export" opens (owner, 2026-11-18: „Ja und Export sollte am
+/// handy wahrscheinlich auch ein modal werden oder so"), with what the sidebar's groups hold —
+/// „.ics herunterladen", „Als Bild speichern", „Abonnieren" with what it unfolds — and „Teilen …".
+/// Until then they stood in a section under the Termine. „Abonnieren" and „Teilen …" open the dialog
+/// „Teilen", which takes the sheet's place: one sheet at a time.
+#[component]
+pub(super) fn ExportSheet(ctx: PlanCtx) -> impl IntoView {
+    let t = i18n::t();
+    let open = Signal::derive(move || ctx.sheet.get() == Some(super::head::PhoneSheet::Export));
+    let close = Callback::new(move |()| ctx.sheet.set(None));
+    Effect::new(move |_| {
+        if ctx.sharing.with(Option::is_some) && open.get_untracked() {
+            ctx.sheet.set(None);
+        }
+    });
+    let sub = move || (t.studyplan_head.export_sub)(&ctx.key.get().label(t.locale));
+    view! {
+        <Modal open on_close=close size=ModalSize::M sheet=Sheet::Auto class="sp-export-sheet" labelled_by="sp-export-sheet-title">
+            <ModalHead id="sp-export-sheet-title" title=t.studyplan_export.calendar on_close=close>
+                <p>{sub}</p>
+            </ModalHead>
+            <div class="st-dlg-body sp-export">
+                <CalendarGroup ctx/>
+                <ShareGroup ctx/>
+            </div>
+        </Modal>
     }
 }
 

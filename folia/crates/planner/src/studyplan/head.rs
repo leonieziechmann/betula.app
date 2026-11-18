@@ -132,14 +132,29 @@ fn head_line(data: &StudyplanData) -> Option<HeadLine> {
     data.counts.is_empty().then_some(HeadLine::Unpublished)
 }
 
+/// The sheet a phone's head opens (`PlanCtx::sheet`): the calendars, or „Export".
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PhoneSheet {
+    Calendars,
+    Export,
+}
+
 /// The head: „Stundenplan WiSe 2026/27" (the one semester the page shows, owner's redesign of
 /// 2026-09-25), then the same controls in both states, so that it is one row and wraps the same
 /// whether the plan is looked at or edited: „Gemeinsam frei" where another calendar stands in
-/// the week, the switch of A and B weeks where it applies, and „Bearbeiten" (`EditToggle`). On a
-/// phone the switch of the weeks is short („Woche: A, B, A/B"; owner, 2026-10-26) and stands under
-/// the title beside „Bearbeiten". Under the head the status row (`StatusRow`): the program and the
-/// numbers, and what the state says; on a phone the numbers alone. Then, where it applies, the line
-/// of a past semester, or of one whose dates are not out yet.
+/// the week, the switch of A and B weeks where it applies, and „Bearbeiten" (`EditToggle`). Under
+/// the head the status row (`StatusRow`): the program and the numbers, and what the state says.
+/// Then, where it applies, the line of a past semester, or of one whose dates are not out yet.
+///
+/// On a phone the head is two calm rows of one grid (owner, 2026-11-18: „Dann muss oben noch
+/// aufgeräumt werden, also der header ist ja eine absolute Katastrophe"): the title with the
+/// semester small beside it and „Bearbeiten" at the right; under it a quiet toolbar, the switch of
+/// the weeks as „A · B · A/B" at the left where the plan has Termine of A or B weeks (no word
+/// „Woche": its name says it), and at the right „Kalender" and „Export", which open their sheets
+/// (`PhoneSheets`). The same two rows in both states. The line of the program and the numbers is
+/// the wide status row's alone; under a phone's head stands only the overlaps' figure, where there
+/// are any. Until then a phone had three rows that shared no line: the title, „Woche [A|B|A/B] …
+/// Bearbeiten", and „Informatik B.Sc. · 5 Module".
 #[component]
 pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
@@ -170,24 +185,17 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
     view! {
         <div class="sp-head" data-commands=t.studyplan.title>
             <h1>{t.studyplan.title}" "<span>{move || key.get().label(t.locale)}</span></h1>
-            {move || (weekly.get() && ab.get() && phone.get()).then(|| view! { <WeekSwitch weeks=ctx.weeks short=true/> })}
             // „Gemeinsam frei" once another calendar stands in the week (`calendars.rs`; on a phone
-            // in the line of the calendars).
+            // in the calendars' sheet).
             {move || (weekly.get() && !phone.get()).then(|| view! { <TogetherSwitch ctx/> })}
             {move || (weekly.get() && ab.get() && !phone.get()).then(|| view! { <WeekSwitch weeks=ctx.weeks/> })}
             <EditToggle ctx/>
+            {move || phone.get().then(|| view! { <PhoneTools ctx ab=Signal::derive(move || weekly.get() && ab.get())/> })}
         </div>
         <p class="visually-hidden" role="status">{move || told.get()}</p>
         {move || match phone.get() {
-            // On a phone the numbers, and the overlaps' figure beside them (a line that is there
-            // whatever the plan holds, so that what it adds or takes moves nothing under it).
-            true => view! {
-                <div class="sp-sum-row">
-                    <p class="sp-sum">{move || sum.get()}</p>
-                    <ClashFigure ctx/>
-                </div>
-            }
-            .into_any(),
+            // On a phone the overlaps' figure alone, under the head, where there are any.
+            true => view! { <div class="sp-sum-row"><ClashFigure ctx/></div> }.into_any(),
             false => view! { <StatusRow ctx sum/> }.into_any(),
         }}
         {move || {
@@ -204,6 +212,40 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
                 None => ().into_any(),
             }
         }}
+    }
+}
+
+/// The second row of a phone's head, a quiet toolbar: the switch of the weeks („A · B · A/B") at its
+/// left where `ab` says the plan has Termine of A or B weeks, and at its right „Kalender" and
+/// „Export", each with its sign and word, which open their sheets (`PlanCtx::sheet`). Its place
+/// is there in both states and whatever the plan holds, so that the week does not move.
+#[component]
+fn PhoneTools(ctx: PlanCtx, ab: Signal<bool>) -> impl IntoView {
+    let t = i18n::t();
+    let h = &t.studyplan_head;
+    let open = move |sheet: PhoneSheet| move |_| ctx.sheet.set(Some(sheet));
+    let expanded = move |sheet: PhoneSheet| move || if ctx.sheet.get() == Some(sheet) { "true" } else { "false" };
+    view! {
+        {move || ab.get().then(|| view! { <WeekSwitch weeks=ctx.weeks short=true/> })}
+        <div class="sp-tools" role="toolbar" aria-label=t.studyplan.title>
+            <button class="ghost sp-tool" type="button" data-action="calendars" aria-haspopup="dialog" aria-expanded=expanded(PhoneSheet::Calendars) title=h.calendars_title on:click=open(PhoneSheet::Calendars)>
+                <Icon name="layers"/>{t.studyplan_calendars.heading}
+            </button>
+            <button class="ghost sp-tool" type="button" data-action="export" aria-haspopup="dialog" aria-expanded=expanded(PhoneSheet::Export) title=h.export_title on:click=open(PhoneSheet::Export)>
+                <Icon name="download"/>{t.studyplan_export.calendar}
+            </button>
+        </div>
+    }
+}
+
+/// The two sheets a phone's head opens: the calendars (`calendars::CalendarSheet`) and „Export"
+/// (`side::ExportSheet`). (They close when the page is no longer a phone's, whose sidebar holds
+/// both: `mod.rs`.)
+#[component]
+pub(super) fn PhoneSheets(ctx: PlanCtx) -> impl IntoView {
+    view! {
+        <super::calendars::CalendarSheet ctx/>
+        <super::side::ExportSheet ctx/>
     }
 }
 
