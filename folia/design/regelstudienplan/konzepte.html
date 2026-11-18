@@ -23,7 +23,14 @@
      to WiSe 2027/28, Proseminar filling „Proseminar oder Praktikum", Datenbanken (6 LP) for the
      Komplex Praktische Informatik. The abbreviations of the choices in C („AwF", „WP", „GdI" …) are
      made up; the plan has none. Tokens are Betula's (folia/assets/app.css), the marks its
-     `.st-glyph`; Inter comes from Google Fonts here, the app self-hosts it. Nothing of it is built. -->
+     `.st-glyph`; Inter comes from Google Fonts here, the app self-hosts it.
+     Decided the same day: A (owner: „Ja Option a ist super! Setz das bitte um"), built in Folia
+     1.102.0 (regular.rs `PlanPhone`) with the proposals of the questions: no button in a row, a
+     moved module in its place in the plan only, the area in the module's sheet, the choices' short
+     names, nothing folded, the view opening at the top. Built otherwise than drawn here: a module's
+     row opens the module's own sheet (Einplanen, Verschieben, Bestanden as everywhere), and a
+     choice's row leads straight to its page in the Wahlpflicht, which says what it asks and lists
+     its modules, with no sheet in between; its way back leads back to the plan. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@500&display=swap">
@@ -458,9 +465,10 @@ table.t td:first-child { color: var(--text); font-weight: 620; min-width: 150px;
 <div class="page">
   <section class="intro" aria-labelledby="top-title">
     <div>
-      <p class="kicker">Folia · Mein Studium · Regelstudienplan am Handy · 18. November 2026 · gelesen in Folia 1.100.0</p>
+      <p class="kicker">Folia · Mein Studium · Regelstudienplan am Handy · 18. November 2026 · gelesen in Folia 1.100.0 · entschieden: A, gebaut in Folia 1.102.0</p>
       <h1 id="top-title">Der Regelstudienplan am Handy</h1>
       <p class="lead">Heute sieht man am Handy schwer, welches Modul in welches Semester gehört, und die Karten sind unruhig. Hier sind drei Konzepte. Alle drei haben dieselben ruhigen Zeilen, aber jedes beantwortet die Frage <b>„Welches Semester ist das?“</b> anders: <b>A</b> gibt jedem Semester einen Kasten, dessen Kopf beim Scrollen oben stehen bleibt. <b>B</b> legt das Studium auf eine Linie, die Semester sind ihre Halte. <b>C</b> zeigt oben den ganzen Plan als Raster und darunter immer genau ein Semester. Jedes ist ein Handy zum Anklicken, mit deinem Studiengang und einem Beispielstudium.</p>
+      <p class="quote"><b>Entschieden: A.</b> „Ja Option a ist super! Setz das bitte um“ <span>— du, am selben Tag.</span> Gebaut in Folia 1.102.0 mit den Vorschlägen zu den Fragen. Anders als hier gezeichnet: Eine Modul-Zeile öffnet das Blatt des Moduls selbst, und eine Wahl-Zeile führt direkt zu ihrer Seite in der Wahlpflicht, deren Pfeil zurück zum Regelstudienplan führt.</p>
       <p class="quote">„Hey claude, wir müssen nochmal am regelstudienplan in mein Studium am Handy arbeiten. Der ist da schwer zu erknnen. Bitte erstelle ein paar Konzepte, so dass ich mir angucken kann, wie es am besten laufen sollte. Das größte Problem ist meiner Ansicht nach, dass man nicht richtig erkennen kann, welches Modul in welchem Semester belegt werden soll und die Anzeige der Module sehr unruhig ist.“ <span>— du</span></p>
     </div>
     <div class="rules">
