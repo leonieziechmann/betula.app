@@ -1125,8 +1125,11 @@ mod browser {
             // A step beside the page: on a phone in place of the current entry, on a wide screen
             // one step for every pause (`Pending::in_place`). A link that only shows the same
             // otherwise (`data-replace`: „Vergleichen" of the plan's choice in focus) takes the
-            // current entry's place too, so that „Fertig" after it is a step back.
-            let beside = pending.in_place(change, &from_path, &from_search, &to) || link.has_attribute("data-replace") || pick;
+            // current entry's place too, so that „Fertig" after it is a step back. A link that
+            // leads into another view on purpose (`data-push`: a choice of the Regelstudienplan
+            // into the Wahlpflicht) is a step of the history on a phone too, so that Back and the
+            // arrow come back to where it was.
+            let beside = (pending.in_place(change, &from_path, &from_search, &to) || link.has_attribute("data-replace") || pick) && !link.has_attribute("data-push");
             pending.start(to, Via::Link { replace: closing || beside, scroll }, change, false);
         });
         // Back and Forward: the browser has moved already, the router hears of it a frame later.
