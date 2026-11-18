@@ -17,6 +17,9 @@
 //   clipboard is said and taken nowhere.
 // - Running installed (`display-mode: standalone`): neither the step nor the card, and counted as
 //   installed.
+// - Taken off since (owner, 2026-11-18: „ich hatte es … chrome explizit deinstalliert zum testen"):
+//   „installed" kept from the app, and the browser's offer as the page loads, before the start page
+//   listens: the offer outweighs what was kept, and the step comes.
 // Nothing of it in a request. Needs radix serve-snapshot + folia running and a fresh
 // `bash scripts/build-client.sh`; a server without `--sync` (three steps before „App").
 //   node e2e/install.mjs [base-url]
@@ -37,21 +40,31 @@ const asked = [];
 const today = () => { const d = new Date(); return Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000); };
 
 // A browser: `ios` an iPhone's Safari (`installed`: on its home screen), `standalone` an app window
-// of Chromium; `seed` what it keeps before the first page.
-const open = async ({ ios = false, installed = false, standalone = false, seed = {}, phone = false } = {}) => {
+// of Chromium; `seed` what it keeps before the first page; `offerAtLoad` the browser offering its
+// dialog as the page loads (after enhance.js, before the app).
+const open = async ({ ios = false, installed = false, standalone = false, seed = {}, phone = false, offerAtLoad = false } = {}) => {
   const device = phone ? { ...devices["Pixel 7"] } : { viewport: { width: 1280, height: 860 } };
   const context = await browser.newContext({ ...device, ...(ios ? { userAgent: IPHONE_UA } : {}), timezoneId: "Europe/Berlin", locale: "de-DE" });
   await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: base });
   await context.addInitScript(ON_PAGE);
-  await context.addInitScript(({ ios, installed, standalone, seed }) => {
+  await context.addInitScript(({ ios, installed, standalone, seed, offerAtLoad }) => {
     if (ios) Object.defineProperty(Navigator.prototype, "standalone", { get: () => installed, configurable: true });
+    if (offerAtLoad) {
+      document.addEventListener("DOMContentLoaded", () => {
+        window.__prompted = 0;
+        const event = new Event("beforeinstallprompt", { cancelable: true });
+        event.prompt = () => { window.__prompted += 1; return Promise.resolve(); };
+        event.userChoice = Promise.resolve({ outcome: "dismissed", platform: "web" });
+        dispatchEvent(event);
+      });
+    }
     const media = window.matchMedia.bind(window);
     window.matchMedia = (query) => (query === "(display-mode: standalone)" ? { matches: standalone, media: query, addEventListener() {}, removeEventListener() {} } : media(query));
     if (!sessionStorage.getItem("seeded")) {
       for (const [key, value] of Object.entries(seed)) localStorage.setItem(key, value);
       sessionStorage.setItem("seeded", "1");
     }
-  }, { ios, installed, standalone, seed });
+  }, { ios, installed, standalone, seed, offerAtLoad });
   const page = await context.newPage();
   page.on("pageerror", (error) => errors.push(String(error).slice(0, 300)));
   page.on("request", (request) => { if (/install|clipboard/i.test(request.url()) || /betula\.install/.test(request.postData() || "")) asked.push(request.url()); });
@@ -214,6 +227,16 @@ let copied = "";
   await page.waitForTimeout(300);
   check((await card(page)) === null, "running installed: a card");
   check(/^installed$/m.test(await kept(page)), "running installed is not counted as installed");
+  await context.close();
+}
+
+// ---------- Taken off since: the browser's offer at load outweighs „installed" kept ----------
+{
+  const { context, page } = await open({ seed: { [KEY]: "installed\n" }, offerAtLoad: true });
+  check(await page.evaluate(() => window.betulaInstall?.can() === true), "the offer at load is not held");
+  check(!/^installed$/m.test(await kept(page)), `„installed\" stays after the browser offers its dialog: ${JSON.stringify(await kept(page))}`);
+  await setUp(page);
+  await page.waitForSelector(".ob-install >> visible=true", { timeout: 8000 }).catch(() => failures.push("taken off since: no step „App\" though the browser offers its dialog"));
   await context.close();
 }
 
