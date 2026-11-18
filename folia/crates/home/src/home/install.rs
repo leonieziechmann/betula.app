@@ -237,12 +237,20 @@ impl Install {
         if cfg!(feature = "csr") {
             let today = super::today::clock_now().map(|(day, _)| day.0);
             let running = running_as_app();
+            // A browser that offers its dialog now has Betula not installed, whatever was kept:
+            // the offer often comes as the page loads, before the start page listens
+            // (`enhance.js` holds it), and an app taken off since must be offered again (owner,
+            // 2026-11-18: „ich hatte es … chrome explizit deinstalliert zum testen").
+            let offered = !running && bridge_says("can");
             install.change(|kept| {
                 if let Some(today) = today {
                     kept.see(today);
                 }
                 if running {
                     kept.installed = true;
+                }
+                if offered {
+                    kept.installed = false;
                 }
             });
             Effect::new(move |_| {
@@ -278,7 +286,14 @@ impl Install {
     /// the app, or a browser that cannot. Tracked.
     pub fn way(self) -> Option<Way> {
         self.heard.track();
-        if self.kept.with(|kept| kept.installed) || running_as_app() {
+        if running_as_app() {
+            return None;
+        }
+        // The browser's offer first: it is made only where Betula is not installed.
+        if bridge_says("can") {
+            return Some(Way::Prompt);
+        }
+        if self.kept.with(|kept| kept.installed) {
             return None;
         }
         browser_way()

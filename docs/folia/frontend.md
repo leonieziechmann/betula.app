@@ -5228,8 +5228,12 @@ but nothing said so.
   synced; connecting the app to it is „Gerät verbinden" on the profile page.
 - **Installed**: the browser said so (`appinstalled`, or the dialog accepted), or Betula runs as the
   app (`display-mode: standalone`, `minimal-ui`, `window-controls-overlay`, or
-  `navigator.standalone`; not `fullscreen`, which a browser's window in full screen matches too): nothing is offered there. A browser that offers its dialog again had
-  Betula taken off, and the card may come again.
+  `navigator.standalone`; not `fullscreen`, which a browser's window in full screen matches too): nothing is offered there. A browser that offers its dialog has
+  Betula not installed, whatever was kept: its offer outweighs `installed` (`Install::way`) and
+  takes it back, also where it came as the page loaded, before the start page listened (owner,
+  2026-11-18, in Chrome after taking the app off: „ich hatte es … chrome explizit deinstalliert zum
+  testen"; until Folia 1.102.1 the app had kept `installed` in the storage it shares with Chrome,
+  and an offer made at the load was not heard, so nothing was offered).
 - **What is kept** (R20): `betula.install.v1`, of this browser and not of a profile, as the switch
   of the vibrations: the last 16 days the start page was open (`days`), the day of „Später"
   (`later`), `never`, `installed`. The privacy notice names it and the clipboard.
@@ -5246,7 +5250,9 @@ counted) the step with its chip, „Installieren" accepted ending the setup and 
 and the card three days with Betula and a week later, its × putting it off again, „Nicht mehr
 anzeigen" for good; a study never asked with the card at once; an iPhone's guide with the profile
 on the clipboard and its app taking it over with „Studium einfügen" (something else on the
-clipboard said and not taken); running installed, nothing. Needs a server without `--sync`.
+clipboard said and not taken); running installed, nothing; `installed` kept from an app taken off
+since and the browser's offer as the page loads (before the app listens): the step comes. Needs a
+server without `--sync`.
 
 ### „Über Betula" and the map of the programs (2026-09-20; the start page until 2026-10-20; pages per topic since 2026-10-27)
 
