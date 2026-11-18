@@ -53,6 +53,7 @@ type AnnouncementView struct {
 	Urgency  string                `json:"urgency"`
 	Link     string                `json:"link"`
 	Texts    map[string]store.Text `json:"texts"`
+	Source   string                `json:"source"` // who made it: command (a person) or feed
 	State    string                `json:"state"`
 	Sent     int64                 `json:"sent"`
 	Gone     int64                 `json:"gone"`
@@ -88,6 +89,8 @@ type Status struct {
 	Announcements map[string]int64 `json:"announcements"`
 	Retries       int64            `json:"retries"`
 	Next          *time.Time       `json:"next,omitempty"` // when the next one that waits is due
+	// Feed is the feed Betula's own announcements are read from; none without one.
+	Feed *FeedStatus `json:"feed,omitempty"`
 	// Refused are the hosts of endpoints refused since the start as no push service's Xylem
 	// writes to, with how often: a browser that could not subscribe (--push-hosts takes more).
 	Refused map[string]int64 `json:"refused,omitempty"`
@@ -96,7 +99,10 @@ type Status struct {
 func view(a store.Announcement) AnnouncementView {
 	v := AnnouncementView{
 		ID: a.ID, Key: a.Key, Topic: a.Topic, At: a.SendAt, Until: a.Until, Urgency: a.Urgency, Link: a.Link, Texts: a.Texts,
-		State: a.State, Sent: a.Sent, Gone: a.Gone, Failed: a.Failed,
+		Source: a.Source, State: a.State, Sent: a.Sent, Gone: a.Gone, Failed: a.Failed,
+	}
+	if v.Source == "" {
+		v.Source = store.ByCommand
 	}
 	if !a.Created.IsZero() {
 		v.Created = &a.Created
@@ -119,6 +125,8 @@ func (s *Server) serveLocal(w http.ResponseWriter, r *http.Request) {
 		s.announce(w, r)
 	case hasID && method == http.MethodDelete:
 		s.cancelAnnouncement(w, r, id)
+	case path == "/feed" && method == http.MethodPost:
+		s.readFeedNow(w, r)
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method")
 	}
@@ -139,7 +147,7 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	st := Status{
 		Version: s.opt.Version, Build: s.opt.Build, Stack: s.opt.Stack, Started: s.started, Site: s.site, Lang: s.lang, Key: s.key.Public(),
 		Subscriptions: s.st.Subscriptions(), Max: s.max, Topics: topics, Languages: langs,
-		Announcements: pending, Retries: retries,
+		Announcements: pending, Retries: retries, Feed: s.feedStatus(),
 	}
 	if at, ok, err := s.st.Next(ctx); err != nil {
 		s.internal(w, "next", err)
@@ -195,7 +203,7 @@ func (s *Server) announce(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := s.now()
-	a, problem := s.check(req, now)
+	a, problem, _ := s.check(req, now)
 	if problem != "" {
 		refuse(w, "%s", problem)
 		return
@@ -233,8 +241,19 @@ func (s *Server) announce(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, status, AnnounceResponse{Announcement: view(kept), Made: made, Reach: reach})
 }
 
-// check reads a request into an announcement, or says what is wrong with it.
-func (s *Server) check(req AnnounceRequest, now time.Time) (store.Announcement, string) {
+// check reads a request into an announcement, or says what is wrong with it; over: nothing
+// but that its time is over.
+func (s *Server) check(req AnnounceRequest, now time.Time) (a store.Announcement, problem string, over bool) {
+	a, problem = s.checkParts(req, now)
+	if problem == "" && !a.Until.After(now) {
+		life := a.Until.Sub(a.SendAt)
+		return a, fmt.Sprintf("its time is over: told from %s for %s, it ended %s", a.SendAt.Format(time.RFC3339), life, a.Until.Format(time.RFC3339)), true
+	}
+	return a, problem, false
+}
+
+// checkParts is check without the look at the clock.
+func (s *Server) checkParts(req AnnounceRequest, now time.Time) (store.Announcement, string) {
 	var a store.Announcement
 	if req.Key != "" && !keyName.MatchString(req.Key) {
 		return a, "key: letters, digits and . _ : - only, 64 at most"
@@ -274,9 +293,6 @@ func (s *Server) check(req AnnounceRequest, now time.Time) (store.Announcement, 
 	}
 	a.SendAt = a.SendAt.Truncate(time.Millisecond)
 	a.Until = a.SendAt.Add(life)
-	if !a.Until.After(now) {
-		return a, fmt.Sprintf("its time is over: told from %s for %s, it ended %s", a.SendAt.Format(time.RFC3339), life, a.Until.Format(time.RFC3339))
-	}
 	if len(req.Texts) == 0 {
 		return a, "texts: none"
 	}

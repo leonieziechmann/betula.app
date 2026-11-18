@@ -553,6 +553,17 @@ fn the_studyplan_queries(db: &Recording, semester: &str) {
         counts.iter().map(|count| count.dates).sum::<i64>(),
         direct(format!("SELECT COUNT(DISTINCT event_id || '/' || ord) FROM v_module_schedule WHERE semester_key = '{semester}' AND first_date IS NOT NULL"))
     );
+    // And so is every sitting of an exam: the dated exam rows at an hour an exam is held at, or
+    // without one (`announce::tests` checks the periods read from them).
+    let sittings = queries::semester_exam_counts(db, semester).unwrap();
+    assert!(sittings.iter().all(|count| count.rhythm.is_none() && count.dates > 0));
+    assert_eq!(
+        sittings.iter().map(|count| count.dates).sum::<i64>(),
+        direct(format!(
+            "SELECT COUNT(DISTINCT event_id || '/' || COALESCE(ord, 0)) FROM v_module_exam WHERE semester_key = '{semester}' \
+             AND first_date IS NOT NULL AND (start_time IS NULL OR (start_time >= '06:00' AND start_time < '22:00'))"
+        ))
+    );
 
     let sws = queries::modules_teaching_sws(db, &planned).unwrap();
     assert!(!sws.is_empty() && sws.iter().all(|row| asked.contains(row.module_id.as_str()) && row.sws >= 0.0), "{sws:?}");

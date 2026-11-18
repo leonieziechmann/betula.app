@@ -60,6 +60,9 @@ pub struct Snapshot {
     /// `/sitemap.xml` as made on first request: the round of the warm-up whose dates it names
     /// (`lastmod::Changes::rounds`; made anew after the next), its ETag, and its XML.
     pub sitemap: Mutex<Option<(u64, String, Arc<Kept>)>>,
+    /// `/api/announcements` as made on first request: the day in Berlin it is of (made anew on
+    /// the next), its ETag, and its JSON.
+    pub announcements: Mutex<Option<(folia_calendar::day::Day, String, Arc<Kept>)>>,
     pool: Mutex<Vec<NativeDatabase>>,
 }
 
@@ -114,6 +117,7 @@ impl Snapshot {
             program_map,
             programs,
             sitemap: Mutex::new(None),
+            announcements: Mutex::new(None),
             pool: Mutex::new(vec![db]),
         })
     }

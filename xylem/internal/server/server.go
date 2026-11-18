@@ -57,15 +57,23 @@ type Limits struct {
 	MaxLife      time.Duration // the longest: no push service keeps a message longer
 	DefaultLife  time.Duration // unless it says otherwise
 
-	Senders      int             // requests to push services at a time
-	BatchSize    int             // subscriptions an announcement is written to in one step
-	SendTimeout  time.Duration   // a request to a push service ends within it
-	Backoff      []time.Duration // the waits before another attempt, one after the other; then it is given up
-	MaxWait      time.Duration   // the longest a push service's Retry-After is followed
-	TokenLife    time.Duration   // how long a VAPID token is signed for
-	TickEvery    time.Duration   // how often what is due is looked for
-	SweepEvery   time.Duration   // finished announcements go this often ...
-	KeepFinished time.Duration   // ... once they are finished for this long
+	Senders     int             // requests to push services at a time
+	BatchSize   int             // subscriptions an announcement is written to in one step
+	SendTimeout time.Duration   // a request to a push service ends within it
+	Backoff     []time.Duration // the waits before another attempt, one after the other; then it is given up
+	MaxWait     time.Duration   // the longest a push service's Retry-After is followed
+	TokenLife   time.Duration   // how long a VAPID token is signed for
+	TickEvery   time.Duration   // how often what is due is looked for
+
+	FeedEvery      time.Duration // how often the feed is read
+	FeedTimeout    time.Duration // a read of the feed ends within it
+	MaxFeedBytes   int           // the bytes of the feed
+	MaxFeedEntries int           // the announcements the feed may name
+	FeedPerDay     int           // announcements of the feed's told within a day of each other
+	DayFrom        int           // the hours of the day, in the machine's time zone: an announcement
+	DayUntil       int           // of the feed's without a time of its own is told within them
+	SweepEvery     time.Duration // finished announcements go this often ...
+	KeepFinished   time.Duration // ... once they are finished for this long
 }
 
 // DefaultLimits are the contract's limits (docs/xylem/protocol.md) and Xylem's own beside them
@@ -87,15 +95,23 @@ var DefaultLimits = Limits{
 	MaxLife:      28 * 24 * time.Hour,
 	DefaultLife:  24 * time.Hour,
 
-	Senders:      8,
-	BatchSize:    100,
-	SendTimeout:  15 * time.Second,
-	Backoff:      []time.Duration{time.Minute, 5 * time.Minute, 15 * time.Minute, time.Hour, 3 * time.Hour, 6 * time.Hour, 12 * time.Hour},
-	MaxWait:      time.Hour,
-	TokenLife:    12 * time.Hour,
-	TickEvery:    5 * time.Second,
-	SweepEvery:   time.Hour,
-	KeepFinished: 395 * 24 * time.Hour,
+	Senders:     8,
+	BatchSize:   100,
+	SendTimeout: 15 * time.Second,
+	Backoff:     []time.Duration{time.Minute, 5 * time.Minute, 15 * time.Minute, time.Hour, 3 * time.Hour, 6 * time.Hour, 12 * time.Hour},
+	MaxWait:     time.Hour,
+	TokenLife:   12 * time.Hour,
+	TickEvery:   5 * time.Second,
+
+	FeedEvery:      10 * time.Minute,
+	FeedTimeout:    20 * time.Second,
+	MaxFeedBytes:   256 << 10,
+	MaxFeedEntries: 64,
+	FeedPerDay:     4,
+	DayFrom:        8,
+	DayUntil:       20,
+	SweepEvery:     time.Hour,
+	KeepFinished:   395 * 24 * time.Hour,
 }
 
 func (l Limits) withDefaults() Limits {
@@ -132,6 +148,14 @@ func (l Limits) withDefaults() Limits {
 	pickD(&l.MaxWait, d.MaxWait)
 	pickD(&l.TokenLife, d.TokenLife)
 	pickD(&l.TickEvery, d.TickEvery)
+	pickD(&l.FeedEvery, d.FeedEvery)
+	pickD(&l.FeedTimeout, d.FeedTimeout)
+	pick(&l.MaxFeedBytes, d.MaxFeedBytes)
+	pick(&l.MaxFeedEntries, d.MaxFeedEntries)
+	pick(&l.FeedPerDay, d.FeedPerDay)
+	if l.DayFrom <= 0 && l.DayUntil <= 0 {
+		l.DayFrom, l.DayUntil = d.DayFrom, d.DayUntil
+	}
 	pickD(&l.SweepEvery, d.SweepEvery)
 	pickD(&l.KeepFinished, d.KeepFinished)
 	return l
@@ -154,6 +178,14 @@ type Options struct {
 	// Origins are the browser origins taken, as scheme://host[:port], exactly. Empty: the
 	// origin whose host is the request's own (the site's own origin behind Traefik).
 	Origins []string
+
+	// Feed is the address of the site's feed of announcements (docs/xylem/protocol.md section
+	// 7): what Betula announces by itself. "": none, and only a person announces.
+	Feed string
+	// FeedClient reads the feed; nil: Xylem's own (no proxy, no redirect followed).
+	FeedClient *http.Client
+	// Location is the time zone of the hours of the day (Limits.DayFrom); nil: the machine's.
+	Location *time.Location
 
 	// Hosts are hosts taken as push services beside the ones Xylem knows (Services): a name
 	// exactly, or with a leading dot every host under it.
@@ -207,6 +239,9 @@ type Server struct {
 	origins  map[string]bool
 	services []Service
 	client   *http.Client
+	feed     string // the feed's address; "": none
+	feedHTTP *http.Client
+	loc      *time.Location
 	reg      *metrics.Registry
 	m        meters
 	started  time.Time
@@ -223,6 +258,8 @@ type Server struct {
 	newAll *limiter // new subscriptions in all (one key)
 
 	workMu sync.Mutex // one round of the sender at a time
+	feedMu sync.Mutex // one read of the feed at a time
+	feedSt feedState  // guarded by mu
 
 	tokenMu sync.Mutex
 	tokens  map[string]token // VAPID tokens by the origin of the push service
@@ -275,6 +312,10 @@ func New(opt Options) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	feed, err := checkFeed(opt.Feed)
+	if err != nil {
+		return nil, err
+	}
 	if opt.Lang == "" {
 		opt.Lang = DefaultLang
 	}
@@ -295,9 +336,20 @@ func New(opt Options) (*Server, error) {
 		reg = metrics.NewRegistry()
 	}
 	lim := opt.Limits.withDefaults()
+	if lim.DayFrom < 0 || lim.DayFrom >= lim.DayUntil || lim.DayUntil > 24 {
+		return nil, fmt.Errorf("the hours of the day %d to %d are none", lim.DayFrom, lim.DayUntil)
+	}
 	client := opt.Client
 	if client == nil {
 		client = pushClient(lim.SendTimeout, lim.Senders)
+	}
+	feedHTTP := opt.FeedClient
+	if feedHTTP == nil {
+		feedHTTP = feedClient(lim.FeedTimeout)
+	}
+	loc := opt.Location
+	if loc == nil {
+		loc = time.Local
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
@@ -313,6 +365,10 @@ func New(opt Options) (*Server, error) {
 		origins:    origins,
 		services:   services,
 		client:     client,
+		feed:       feed,
+		feedHTTP:   feedHTTP,
+		loc:        loc,
+		feedSt:     feedState{warned: map[string]bool{}},
 		reg:        reg,
 		started:    time.Now(),
 		ctx:        ctx,
@@ -329,6 +385,10 @@ func New(opt Options) (*Server, error) {
 	s.up.Store(true)
 	s.declare()
 	s.wg.Add(3)
+	if s.feed != "" {
+		s.wg.Add(1)
+		go s.feedLoop()
+	}
 	go s.sendLoop()
 	go s.sweepLoop()
 	go s.statsLoop()

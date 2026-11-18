@@ -26,6 +26,8 @@ type meters struct {
 	pushSeconds   *metrics.Histogram // how long they took, by service
 	announcements *metrics.Counter   // by event
 	rejected      *metrics.Counter   // requests refused, by reason
+	feedReads     *metrics.Counter   // reads of the feed, by result
+	feedChanges   *metrics.Counter   // what the reads did, by event
 }
 
 func (s *Server) declare() {
@@ -42,6 +44,21 @@ func (s *Server) declare() {
 		rejected: r.NewCounter("xylem_rejections_total",
 			"Requests of browsers refused, by reason (origin, invalid, too_big, endpoint, keys, lang, topics, slow_down, full).", "reason"),
 	}
+	s.m.feedReads = r.NewCounter("xylem_feed_reads_total",
+		"Reads of the feed, by result (read; unchanged: 304; failed).", "result")
+	s.m.feedChanges = r.NewCounter("xylem_feed_changes_total",
+		"What the reads of the feed did, by event (made, revised, revived, withdrawn, skipped: the first read's old news; late: its time was over; invalid: not readable; capped: too many within a day).", "event")
+	r.NewGaugeFunc("xylem_feed_read_time_seconds", "When the feed was last read (Unix time); 0: never, or no feed is set.", nil,
+		func(emit func(float64, ...string)) {
+			s.mu.Lock()
+			read := s.feedSt.read
+			s.mu.Unlock()
+			if read.IsZero() {
+				emit(0)
+				return
+			}
+			emit(float64(read.Unix()))
+		})
 	r.NewGaugeFunc("xylem_up", "1 while Xylem runs; the last file it writes says 0.", nil,
 		func(emit func(float64, ...string)) { emit(metrics.Bool(s.up.Load())) })
 	build := s.opt.Build

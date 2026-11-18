@@ -8,9 +8,11 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -72,6 +74,15 @@ func freeAddr(t *testing.T) string {
 func TestServeAndItsCommands(t *testing.T) {
 	data, stats := t.TempDir(), t.TempDir()
 	addr := freeAddr(t)
+	// The site's feed of what Betula announces by itself: nothing at first.
+	var feedMu sync.Mutex
+	feed := `{"announcements":[]}`
+	site := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		feedMu.Lock()
+		defer feedMu.Unlock()
+		_, _ = w.Write([]byte(feed))
+	}))
+	defer site.Close()
 	t.Setenv("XYLEM_ADDR", addr) // how the commands find the instance, as in the image
 	t.Setenv("TZ", "UTC")
 	capture(t)
@@ -79,7 +90,8 @@ func TestServeAndItsCommands(t *testing.T) {
 	done := make(chan int, 1)
 	go func() {
 		done <- runServe(ctx, []string{"--data", data, "--site", "https://betula.app", "--stats-dir", stats, "--stats-interval", "50ms",
-			"--stack", "xylem-test", "--origins", "https://betula.app", "--max-subscriptions", "1000", "--log-format", "text"})
+			"--stack", "xylem-test", "--origins", "https://betula.app", "--max-subscriptions", "1000", "--log-format", "text",
+			"--feed", site.URL + "/api/announcements", "--feed-interval", "1h"})
 	}()
 	deadline := time.Now().Add(10 * time.Second)
 	for {
@@ -174,11 +186,37 @@ func TestServeAndItsCommands(t *testing.T) {
 		t.Errorf("status of nothing: %d", code)
 	}
 
+	// The feed: read at the start (it named nothing), and now on asking.
+	if code, text := command("feed"); code != 0 || !strings.Contains(text, "The feed names 0 announcements.") || !strings.Contains(text, "Nothing changed.") {
+		t.Errorf("feed, nothing named: %d %s", code, text)
+	}
+	feedMu.Lock()
+	feed = `{"announcements":[
+		{"key":"exams-2030w-1","topic":"exams","at":"2031-02-10T07:00:00+01:00","for":"12h","link":"/","texts":{"de":{"title":"Die Prüfungsphase beginnt"},"en":{"title":"The exam period begins","link":"/en"}}},
+		{"key":"dates-2031s","topic":"semester","texts":{"en":{"title":"Only English"}}}]}`
+	feedMu.Unlock()
+	code, text = command("feed")
+	if code != 0 || !strings.Contains(text, "The feed names 2 announcements.") || !strings.Contains(text, "made       exams-2030w-1  (2031-02-10 06:00 UTC)") ||
+		!strings.Contains(text, "invalid    dates-2031s") || !strings.Contains(text, `none in "de"`) {
+		t.Errorf("feed: %d\n%s", code, text)
+	}
+	code, text = command("announcements", "--limit", "1")
+	if code != 0 || !strings.Contains(text, "feed") || !strings.Contains(text, "Die Prüfungsphase beginnt") || !strings.Contains(text, " by ") {
+		t.Errorf("the list after the feed: %d\n%s", code, text)
+	}
+	if code, text := command("feed", "--json"); code != 0 || !strings.Contains(text, `"entries":2`) {
+		t.Errorf("feed --json: %d %s", code, text)
+	}
+	code, text = command("status")
+	if err := json.Unmarshal([]byte(text), &st); code != 0 || err != nil || st.Feed == nil || st.Feed.URL != site.URL+"/api/announcements" || st.Feed.Entries != 2 || st.Feed.Read == nil {
+		t.Errorf("status with a feed: %d %s %v", code, text, err)
+	}
+
 	// A problem in the log is counted in the stats file (serve installed the logger).
 	slog.Warn("a test's warning", "component", "test", "event", "test.warned")
 	prom := filepath.Join(stats, "xylem.prom")
 	for deadline := time.Now().Add(5 * time.Second); ; {
-		if data, err := os.ReadFile(prom); err == nil && strings.Contains(string(data), `xylem_announcements_pending{stack="xylem-test",state="waiting"} 1`) {
+		if data, err := os.ReadFile(prom); err == nil && strings.Contains(string(data), `xylem_announcements_pending{stack="xylem-test",state="waiting"} 2`) {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -219,14 +257,16 @@ func TestServeAndItsCommands(t *testing.T) {
 func TestServeRefusesABadConfiguration(t *testing.T) {
 	capture(t)
 	for name, args := range map[string][]string{
-		"no site":       {},
-		"a site's path": {"--site", "https://betula.app/app"},
-		"plain http":    {"--site", "http://betula.app"},
-		"origin":        {"--site", "https://betula.app", "--origins", "betula.app"},
-		"no room":       {"--site", "https://betula.app", "--max-subscriptions", "0"},
-		"a push host":   {"--site", "https://betula.app", "--push-hosts", "https://push.example"},
-		"a contact":     {"--site", "https://betula.app", "--contact", "me"},
-		"log level":     {"--site", "https://betula.app", "--log-level", "loud"},
+		"no site":        {},
+		"a site's path":  {"--site", "https://betula.app/app"},
+		"plain http":     {"--site", "http://betula.app"},
+		"origin":         {"--site", "https://betula.app", "--origins", "betula.app"},
+		"no room":        {"--site", "https://betula.app", "--max-subscriptions", "0"},
+		"a push host":    {"--site", "https://betula.app", "--push-hosts", "https://push.example"},
+		"a contact":      {"--site", "https://betula.app", "--contact", "me"},
+		"log level":      {"--site", "https://betula.app", "--log-level", "loud"},
+		"a feed":         {"--site", "https://betula.app", "--feed", "betula.app/api/announcements"},
+		"feed too often": {"--site", "https://betula.app", "--feed-interval", "5s"},
 	} {
 		args = append(args, "--addr", freeAddr(t), "--data", t.TempDir(), "--log-format", "text")
 		if code := runServe(context.Background(), args); code != 2 {
