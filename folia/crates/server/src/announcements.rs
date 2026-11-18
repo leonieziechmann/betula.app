@@ -171,7 +171,7 @@ mod tests {
 
         assert_eq!(entries[2]["key"], "exams-2026w-1");
         assert_eq!(entries[2]["texts"]["de"]["title"], "Die Prüfungsphase beginnt");
-        assert_eq!(entries[2]["texts"]["de"]["body"], "Bis 20.02. liegen die meisten Prüfungen des WiSe 2026/27. Viel Erfolg!");
+        assert_eq!(entries[2]["texts"]["de"]["body"], "Bis 20.02. stehen viele Prüfungen des WiSe 2026/27 an. Viel Erfolg!");
         assert_eq!(entries[3]["texts"]["de"]["title"], "Die zweite Prüfungsphase beginnt");
         assert_eq!(entries[3]["texts"]["en"]["title"], "The second exam period begins");
 
