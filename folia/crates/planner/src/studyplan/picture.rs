@@ -4,8 +4,8 @@
 //!
 //! The picture is the week the grid shows (`week::picture_slots`: the Regelwoche of the plan, in
 //! the A-week, the B-week or both as the head's switch has it), without what belongs to the page
-//! (links, buttons, the calendars of one's own beside it, „Alle Termine"'s faint slots). It is laid
-//! out here as plain values (`Picture`, a list of what to draw, in CSS pixels), which the tests
+//! (links, buttons, the calendars of one's own beside it, the faint slots of the plan edited). It is
+//! laid out here as plain values (`Picture`, a list of what to draw, in CSS pixels), which the tests
 //! read, and drawn on a canvas at twice that size (`draw`), in the app's typeface, whose widths the
 //! canvas measures. It keeps to the week's geometry: a day as wide as its lanes need, slots that
 //! overlap side by side (`folia_timetable::grid`), 08:00 to 18:00 at least. Its colours are the

@@ -12,6 +12,12 @@ pub struct Texts {
     /// QIS", `studyplan_modules::no_dates`), with its tooltip.
     pub enter: &'static str,
     pub enter_title: fn(&str) -> String,
+    /// The name of a module's „+ Termin" in the list: „Termin für EvS eintragen"; of a calendar's
+    /// own, „Termin in „Lena“ eintragen".
+    pub add_for: fn(&str) -> String,
+    pub add_in: fn(&str) -> String,
+    /// „Löschen" in the form's foot of a Termin of a calendar of one's own (the bin).
+    pub delete: &'static str,
 
     // ---- the form ----
     /// Its title: „Neuer Termin", or „„Arbeit“ bearbeiten" („Termin bearbeiten" without a name).
@@ -57,6 +63,10 @@ pub struct Texts {
     /// „Gehört zu", and „kein Modul".
     pub module: &'static str,
     pub no_module: &'static str,
+    /// „Art", the field of its kind, and „Termin", its option for none (the kinds are the
+    /// timetable's labels: „Vorlesung", „Übung" …).
+    pub kind: &'static str,
+    pub no_kind: &'static str,
     /// What it meets of the week: „Passt in deine Woche", „Trifft Ü MIT1 (Mi 09:15)." with
     /// „Anlegen geht trotzdem." / „Speichern geht trotzdem.", and of another calendar „Zählt für
     /// „Gemeinsam frei“ mit Lena".
@@ -79,29 +89,34 @@ pub struct Texts {
     pub full_up: &'static str,
 
     // ---- the notes ----
-    /// „„Chor“ angelegt", „„Chor“ gespeichert", „„Chor“ gelöscht" (each with „Rückgängig").
+    /// „„Chor“ angelegt", „„Chor“ gespeichert", „„Chor“ gelöscht" (each with „Rückgängig"); the
+    /// name as `said` gives it: in quotes where the student wrote it, bare where it is made of the
+    /// kind and the module („VL EvS gelöscht").
     pub created: fn(&str) -> String,
     pub saved: fn(&str) -> String,
     pub removed: fn(&str) -> String,
+    pub said: fn(&str) -> String,
 
     // ---- the list and the week ----
     /// The list's heading under a calendar's modules: „Eigene Termine".
     pub heading: &'static str,
     /// A Termin of one's own without a name: „Eigener Termin".
     pub unnamed: &'static str,
-    /// In the list and the tooltips: „A", „B", „3 Tage", „ab 15.10.", „bis 18.12.".
+    /// In the list and the tooltips: „A", „B", „3 Tage".
     pub weeks_a: &'static str,
     pub weeks_b: &'static str,
     pub days: fn(usize) -> String,
-    pub from_day: fn(&str) -> String,
-    pub until_day: fn(&str) -> String,
     /// The tooltip of a slot of one's own: „von dir, nicht in Datei und festem Abo" (a share that
     /// stays current takes them along).
     pub by_you: &'static str,
+    /// The mark of a Termin of one's own in the list of modules: „von dir".
+    pub mark: &'static str,
+    /// The form's sub-line opened for a module: „Für EvS · WiSe 2026/27"; „Was" then needs no name
+    /// (its placeholder „optional": the week calls it by its kind and module).
+    pub form_for: fn(&str, &str) -> String,
+    pub what_optional: &'static str,
     /// The draft in the week while the form is open: „Neuer Termin".
     pub draft: &'static str,
-    /// A finger held on a free stretch of a phone's week, said for a screen reader.
-    pub hold_hint: &'static str,
     /// The tooltip of a slot of a Termin of QIS changed by hand (step 2): „von dir geändert", and
     /// where QIS says something else now „… QIS sagt inzwischen etwas anderes".
     pub changed: &'static str,
@@ -115,6 +130,9 @@ pub const DE: Texts = Texts {
     add_title: "Eigenen Termin anlegen: Arbeit, Sport, eine Lerngruppe",
     enter: "Termin eintragen",
     enter_title: |module| format!("Einen Termin für {module} eintragen, den QIS nicht kennt"),
+    add_for: |module| format!("Termin für {module} eintragen"),
+    add_in: |calendar| format!("Termin in „{calendar}“ eintragen"),
+    delete: "Löschen",
 
     form_new: "Neuer Termin",
     form_edit: |name| format!("„{name}“ bearbeiten"),
@@ -148,6 +166,8 @@ pub const DE: Texts = Texts {
     mine: "Mein Studiengang",
     module: "Gehört zu",
     no_module: "kein Modul",
+    kind: "Art",
+    no_kind: "Termin",
     fits: "Passt in deine Woche",
     meets: |what| format!("Trifft {what}."),
     meets_anyway_new: "Anlegen geht trotzdem.",
@@ -162,9 +182,10 @@ pub const DE: Texts = Texts {
     cancel: "Abbrechen",
     full_up: "100 eigene Termine im Semester sind das Höchste, das der Stundenplan hält.",
 
-    created: |name| format!("„{name}“ angelegt"),
-    saved: |name| format!("„{name}“ gespeichert"),
-    removed: |name| format!("„{name}“ gelöscht"),
+    created: |name| format!("{name} angelegt"),
+    saved: |name| format!("{name} gespeichert"),
+    removed: |name| format!("{name} gelöscht"),
+    said: |name| format!("„{name}“"),
 
     heading: "Eigene Termine",
     unnamed: "Eigener Termin",
@@ -174,11 +195,11 @@ pub const DE: Texts = Texts {
         1 => "1 Tag".to_string(),
         n => format!("{n} Tage"),
     },
-    from_day: |day| format!("ab {day}"),
-    until_day: |day| format!("bis {day}"),
     by_you: "von dir, nicht in Datei und festem Abo",
+    mark: "von dir",
+    form_for: |module, semester| format!("Für {module} · {semester}"),
+    what_optional: "optional",
     draft: "Neuer Termin",
-    hold_hint: "Finger auf eine freie Stelle halten: ein Termin dort",
     changed: "von dir geändert",
     changed_differs: "von dir geändert, QIS sagt inzwischen etwas anderes",
     changed_elsewhere: "anders als in QIS",
@@ -189,6 +210,9 @@ pub const EN: Texts = Texts {
     add_title: "Add an event of your own: work, sport, a study group",
     enter: "Add a session",
     enter_title: |module| format!("Add a session of {module} that QIS does not know"),
+    add_for: |module| format!("Add a session of {module}"),
+    add_in: |calendar| format!("Add an event to “{calendar}”"),
+    delete: "Delete",
 
     form_new: "New event",
     form_edit: |name| format!("Edit “{name}”"),
@@ -222,6 +246,8 @@ pub const EN: Texts = Texts {
     mine: "My programme",
     module: "Belongs to",
     no_module: "no module",
+    kind: "Type",
+    no_kind: "Event",
     fits: "Fits your week",
     meets: |what| format!("Meets {what}."),
     meets_anyway_new: "You can still add it.",
@@ -236,9 +262,10 @@ pub const EN: Texts = Texts {
     cancel: "Cancel",
     full_up: "100 events of your own in a semester are the most the timetable holds.",
 
-    created: |name| format!("“{name}” added"),
-    saved: |name| format!("“{name}” saved"),
-    removed: |name| format!("“{name}” deleted"),
+    created: |name| format!("{name} added"),
+    saved: |name| format!("{name} saved"),
+    removed: |name| format!("{name} deleted"),
+    said: |name| format!("“{name}”"),
 
     heading: "Your own events",
     unnamed: "Own event",
@@ -248,11 +275,11 @@ pub const EN: Texts = Texts {
         1 => "1 day".to_string(),
         n => format!("{n} days"),
     },
-    from_day: |day| format!("from {day}"),
-    until_day: |day| format!("until {day}"),
     by_you: "yours, not in the file or a fixed feed",
+    mark: "by you",
+    form_for: |module, semester| format!("For {module} · {semester}"),
+    what_optional: "optional",
     draft: "New event",
-    hold_hint: "Hold a finger on a free stretch: an event there",
     changed: "changed by you",
     changed_differs: "changed by you, QIS says something else now",
     changed_elsewhere: "not as in QIS",

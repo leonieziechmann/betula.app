@@ -158,7 +158,7 @@ type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>
 /// l  <calendar>  <view>  <program_id>  <name>
 /// n  <calendar>  <semester>  <module_id>
 /// o  <calendar>  <semester>  <event_id>-<fp 5 hex>
-/// t  <number>  <calendar>  <semester>  <rhythm>  <weekday|dates>  <from>-<to>  <first>  <last>  <module>  <name>  <place>  <skip>
+/// t  <number>  <calendar>  <semester>  <rhythm>  <weekday|dates>  <from>-<to>  <first>  <last>  <module>  <name>  <place>  <skip>  [<kind>]
 /// f  <calendar>  <link>  <since>  <ended>
 /// s  <id>  <calendar>  <to>  <semester>  <made>  <flags>  <key>  <parcel>  <program>  <name>
 /// ```
@@ -182,14 +182,14 @@ type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>
 ///
 /// `d` and `q` are what „Mein Studium" counts as done (`study`, owner 2026-10-04): a module passed
 /// („bestanden") and a row of a Regelstudienplan without a module that is done („erledigt"), each
-/// with the semester it was done in. They belong to no timetable: „Plan leeren" leaves them, and a
+/// with the semester it was done in. They belong to no timetable: `clear_semester` leaves them, and a
 /// saved or a shared timetable does not carry them. A build before them keeps them as lines of a
 /// tag it does not know.
 ///
 /// `l`, `n` and `o` are the calendars of one's own beside „Mein Studiengang" (`Calendar`, owner
 /// 2026-10-26): a calendar by its number with how it stands in the week (`full`, `strip`, `off`,
 /// empty for as a new one stands), its program (empty for none) and its name; a module of it in a
-/// semester; a group ticked in it. They belong to no timetable of the plan's own: „Plan leeren", a
+/// semester; a group ticked in it. They belong to no timetable of the plan's own: `clear_semester`, a
 /// saved plan and a shared one leave them out. A build before them keeps them as lines of a tag it
 /// does not know.
 ///
@@ -199,9 +199,12 @@ type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>
 /// first), its semester, how it recurs (`w`, `a`, `b`, or `d` on dates of its own), its weekday or
 /// its dates joined by commas, its time, the first and the last day of one that recurs where they
 /// are not the lecture period's (else empty), the module it belongs to (empty for none), its name
-/// and place, and the days it is not held on („Nur am … ausblenden"), joined by commas. The plan's
-/// go with its semester: „Plan leeren" takes them, a saved plan carries them; a calendar's go with
-/// it. A build before them keeps them as lines of a tag it does not know (at most 100 of them).
+/// and place, and the days it is not held on („Nur am … ausblenden"), joined by commas; and, where
+/// it has one, its kind by its code (`EventKind::code`: `lecture`, `exercise` …), the fourteenth
+/// field, written only where it is set: every line there was stays what it was. A build before it
+/// reads the line without it and writes it back without it — the Termin stays, its kind goes. The
+/// plan's go with its semester: `clear_semester` takes them, a saved plan carries them; a calendar's
+/// go with it. A build before them keeps them as lines of a tag it does not know (at most 100 of them).
 ///
 /// A calendar of one's own has notes at its Termine (`b` with its number, after its lines) and may
 /// follow a share of someone else's (`f`, its last line); `s` are the shares in force, after the
@@ -454,9 +457,9 @@ impl RowRef {
 }
 
 /// A module only visited in a semester („nur besuchen", decided 2026-10-19: „Ein geplantes Modul
-/// lässt sich auf „nur besuchen“ stellen: in der Woche ja, in den LP nicht"; 2026-10-26: „+ Modul"
-/// in „Mein Studiengang" makes one, „Besuchmodul kann pro kallender gemacht werden … Aber beim
-/// Studien Plan zählt es dann als besucher modul"). Its Termine stand in the week of its semester
+/// lässt sich auf „nur besuchen“ stellen: in der Woche ja, in den LP nicht"; 2026-10-26:
+/// „Besuchmodul kann pro kallender gemacht werden … Aber beim Studien Plan zählt es dann als
+/// besucher modul"). Its Termine stand in the week of its semester
 /// and give way where they meet the plan's; it counts no credits, for no area and no placeholder,
 /// and is never passed. „Mein Studium" lists it apart, where its „Nur besuchen" taken away makes
 /// it a planned module (`count_visit`), and „Nur besuchen" on a planned one makes it a visit
@@ -1179,6 +1182,22 @@ impl PlanDoc {
         self.prune(s);
     }
 
+    /// „Alle einblenden": shows again everything the student hid in a semester — its events, Termine,
+    /// single dates and kinds, and the days the plan's Termine of one's own skip — and leaves every
+    /// tick: what was chosen stays chosen (`show_all` undoes the choices as well, and leaves the kinds).
+    pub fn show_hidden(&mut self, s: SemesterKey) {
+        if let Some(hides) = self.hidden.get_mut(&s) {
+            hides.kinds = KindSet::default();
+            hides.events.clear();
+            hides.rows.clear();
+            hides.dates.clear();
+        }
+        for own in self.own.iter_mut().filter(|own| own.semester == s) {
+            own.termin.skip.clear();
+        }
+        self.prune(s);
+    }
+
     /// Keeps the code of the subscription just handed out for a semester, so the page can tell
     /// when the plan has moved on from it. A text that is no code is not kept.
     pub fn remember(&mut self, s: SemesterKey, code: &str) {
@@ -1469,7 +1488,7 @@ impl PlanDoc {
         }
     }
 
-    /// Empties the timetable of semester `s` („Plan leeren"): its modules, visits and placeholders
+    /// Empties the timetable of semester `s`: its modules, visits and placeholders
     /// (what counted for them elsewhere counts for nothing), what it hides and has chosen. The
     /// other semesters stay, and so do the program, what was passed or done, the code of the
     /// subscription (the page tells that the plan has moved on from it) and the lines of a newer
@@ -1764,6 +1783,235 @@ impl PlanDoc {
             .collect();
         held.contains(&s) || held.len() < MAX_SEMESTERS
     }
+}
+
+/// What a change of the plan did, for „Rückgängig": the plan before it and, where it is known, the
+/// plan it made. Where the plan is still what the change made, it is put back whole; where it
+/// changed besides (another tab, another device through Betula Sync), only what the change did is
+/// taken back (`PlanDoc::revert`), so that what was done elsewhere meanwhile stays.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PlanUndo {
+    pub before: PlanDoc,
+    pub after: Option<PlanDoc>,
+}
+
+impl PlanUndo {
+    /// A change whose plan after it is known.
+    pub fn of(before: PlanDoc, after: PlanDoc) -> Self {
+        PlanUndo { before, after: Some(after) }
+    }
+
+    /// A change of many parts at once (a share taken in, a calendar taken away), whose „Rückgängig"
+    /// puts the whole plan back as it was.
+    pub fn whole(before: PlanDoc) -> Self {
+        PlanUndo { before, after: None }
+    }
+
+    /// The change `act` makes of `before`: the plan after it worked out here, as it will be made.
+    pub fn made(before: PlanDoc, act: impl FnOnce(&mut PlanDoc)) -> Self {
+        let mut after = before.clone();
+        act(&mut after);
+        PlanUndo::of(before, after)
+    }
+
+    /// Takes the change back in `doc`.
+    pub fn restore(self, doc: &mut PlanDoc) {
+        match self.after {
+            Some(after) if *doc != after => doc.revert(&self.before, &after),
+            _ => *doc = self.before,
+        }
+    }
+}
+
+impl PlanDoc {
+    /// Takes back in this plan what turned `before` into `after`, and nothing else: what a
+    /// semester hid, ticked, changed and noted (each line on its own: what the change added goes,
+    /// what it took away comes back), the calendars of one's own (one the change made goes, one it
+    /// deleted comes back where it stood, of one it changed each line the change wrote: its name,
+    /// its view, its modules, ticks, changes and notes), the study's modules (by semester and
+    /// module), the Termine of one's own (one the change made goes, one it deleted comes back
+    /// where it stood — under a new number where its own is taken by now —, one it changed is as
+    /// it was where nobody changed it since, else only its skipped days are), and every other part
+    /// of the plan the change touched as a whole. What was done elsewhere meanwhile stays.
+    pub fn revert(&mut self, before: &PlanDoc, after: &PlanDoc) {
+        let empty = SemesterHides::default();
+        let semesters: BTreeSet<SemesterKey> = before.hidden.keys().chain(after.hidden.keys()).copied().collect();
+        for s in semesters {
+            let (was, made) = (before.hidden.get(&s).unwrap_or(&empty), after.hidden.get(&s).unwrap_or(&empty));
+            for kind in EventKind::ALL {
+                if was.kinds.contains(kind) != made.kinds.contains(kind) {
+                    self.set_kind(s, kind, was.kinds.contains(kind));
+                }
+            }
+            made.events.difference(&was.events).for_each(|event| self.set_event(s, *event, false));
+            was.events.difference(&made.events).for_each(|event| self.set_event(s, *event, true));
+            made.rows.difference(&was.rows).for_each(|row| self.set_row(s, *row, false));
+            was.rows.difference(&made.rows).for_each(|row| self.set_row(s, *row, true));
+            made.chosen.difference(&was.chosen).for_each(|row| self.tick(s, *row, false));
+            was.chosen.difference(&made.chosen).for_each(|row| self.tick(s, *row, true));
+            made.dates.difference(&was.dates).for_each(|(row, day)| self.set_date(s, *row, *day, false));
+            was.dates.difference(&made.dates).for_each(|(row, day)| self.set_date(s, *row, *day, true));
+            let changed: BTreeSet<(RowKey, Scope)> = was.changes.keys().chain(made.changes.keys()).copied().collect();
+            for (key, scope) in changed.into_iter().filter(|at| was.changes.get(at) != made.changes.get(at)) {
+                match was.changes.get(&(key, scope)) {
+                    Some(change) => {
+                        self.set_change(s, change.clone());
+                    }
+                    None => {
+                        self.remove_change(s, key, scope);
+                    }
+                }
+            }
+            let noted: BTreeSet<RowKey> = was.notes.keys().chain(made.notes.keys()).copied().collect();
+            for key in noted.into_iter().filter(|key| was.notes.get(key) != made.notes.get(key)) {
+                self.set_note(s, key, was.notes.get(&key).map_or("", String::as_str));
+            }
+        }
+        // The calendars before their Termine: a calendar the change deleted is back before its
+        // Termine come back into it.
+        self.revert_calendars(before, after);
+        self.revert_own(before, after);
+        self.modules = revert_lines(&self.modules, &before.modules, &after.modules, |planned| (planned.semester, planned.module_id.clone()));
+        macro_rules! part {
+            ($($field:ident),*) => {$(
+                if before.$field != after.$field {
+                    self.$field = before.$field.clone();
+                }
+            )*};
+        }
+        part!(program, visits, placeholders, subscribed, passed, done_rows, shares, extra);
+    }
+
+    /// `revert` of the calendars of one's own but their Termine, by their numbers and line by line.
+    fn revert_calendars(&mut self, before: &PlanDoc, after: &PlanDoc) {
+        for made in after.calendars.iter().filter(|made| before.calendar(made.id).is_none()) {
+            self.remove_calendar(made.id);
+        }
+        for (at, was) in before.calendars.iter().enumerate() {
+            let Some(made) = after.calendar(was.id) else {
+                // Deleted by the change: back where it stood, unless its number is taken by now;
+                // its Termine come back by `revert_own`.
+                if self.calendar(was.id).is_none() {
+                    self.put_calendar(at, Calendar { own: Vec::new(), ..was.clone() });
+                }
+                continue;
+            };
+            let Some(here) = self.calendars.iter_mut().find(|here| here.id == was.id) else { continue };
+            // A line of one value as it was, where it is still what the change wrote.
+            macro_rules! line {
+                ($($field:ident),*) => {$(
+                    if was.$field != made.$field && here.$field == made.$field {
+                        here.$field = was.$field.clone();
+                    }
+                )*};
+            }
+            line!(name, view, program, follow);
+            here.modules = revert_lines(&here.modules, &was.modules, &made.modules, Clone::clone);
+            made.chosen.difference(&was.chosen).for_each(|tick| {
+                here.chosen.remove(tick);
+            });
+            here.chosen.extend(was.chosen.difference(&made.chosen).copied());
+            for key in was.changes.keys().chain(made.changes.keys()).copied().collect::<BTreeSet<_>>() {
+                if was.changes.get(&key) != made.changes.get(&key) {
+                    match was.changes.get(&key) {
+                        Some(change) => here.changes.insert(key, change.clone()),
+                        None => here.changes.remove(&key),
+                    };
+                }
+            }
+            for key in was.notes.keys().chain(made.notes.keys()).copied().collect::<BTreeSet<_>>() {
+                if was.notes.get(&key) != made.notes.get(&key) {
+                    match was.notes.get(&key) {
+                        Some(note) => here.notes.insert(key, note.clone()),
+                        None => here.notes.remove(&key),
+                    };
+                }
+            }
+        }
+    }
+
+    /// `revert` of the Termine of one's own, by their numbers.
+    fn revert_own(&mut self, before: &PlanDoc, after: &PlanDoc) {
+        let all = |doc: &PlanDoc| -> BTreeMap<u32, (u8, usize, Own)> {
+            let lists = std::iter::once((0, &doc.own)).chain(doc.calendars.iter().map(|calendar| (calendar.id, &calendar.own)));
+            lists.flat_map(|(id, list)| list.iter().enumerate().map(move |(at, own)| (own.termin.number, (id, at, own.clone())))).collect()
+        };
+        let (was, made) = (all(before), all(after));
+        // Made by the change: it goes, where what holds its number is still what the change made
+        // (another tab may have deleted it and given the number to a Termin of its own).
+        for (number, (_, _, own)) in made.iter().filter(|(number, _)| !was.contains_key(number)) {
+            if self.own_termin(*number).is_some_and(|(_, held)| held == own) {
+                self.remove_own(*number);
+            }
+        }
+        for (number, (calendar, at, own)) in &was {
+            match made.get(number) {
+                None => {
+                    // Deleted by the change: back where it stood; where its number went to
+                    // another Termin meanwhile (a new one takes the number after the largest,
+                    // which was this one's), under a new number.
+                    let own = match self.own_termin(*number) {
+                        None => own.clone(),
+                        Some((_, held)) if held == own => continue,
+                        Some(_) => match self.next_own_number() {
+                            Some(free) => Own { termin: OwnTermin { number: free, ..own.termin.clone() }, ..own.clone() },
+                            None => continue,
+                        },
+                    };
+                    self.put_own(RemovedOwn { calendar: *calendar, at: *at, own });
+                }
+                Some((_, _, now)) if now == own => {}
+                Some((made_in, _, now)) => {
+                    let here = self.own_termin(*number).map(|(id, held)| (id, held.clone()));
+                    match here {
+                        // Nobody changed it since: as it was, in its calendar and place — and
+                        // where that calendar is gone meanwhile, where it stands now.
+                        Some((id, held)) if id == *made_in && held == *now => {
+                            let removed = self.remove_own(*number);
+                            if !self.put_own(RemovedOwn { calendar: *calendar, at: *at, own: own.clone() }) {
+                                if let Some(removed) = removed {
+                                    self.put_own(removed);
+                                }
+                            }
+                        }
+                        // Changed since: only the days the change skipped or held again.
+                        Some(_) => {
+                            for day in now.termin.skip.iter().filter(|day| !own.termin.skip.contains(day)) {
+                                self.skip_own(*number, *day, false);
+                            }
+                            for day in own.termin.skip.iter().filter(|day| !now.termin.skip.contains(day)) {
+                                self.skip_own(*number, *day, true);
+                            }
+                        }
+                        None => {}
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The lines of a list (`now`) with what turned `before` into `after` taken back, each line by
+/// its `key`: a line the change added goes, one it removed comes back where it stood, one it changed
+/// is as it was where it is still what the change made. Every other line stays as it is now.
+fn revert_lines<T: Clone + PartialEq, K: PartialEq>(now: &[T], before: &[T], after: &[T], key: impl Fn(&T) -> K) -> Vec<T> {
+    let find = |list: &'_ [T], line: &T| list.iter().find(|other| key(other) == key(line)).cloned();
+    let mut lines: Vec<T> = now
+        .iter()
+        .filter_map(|line| match (find(before, line), find(after, line)) {
+            // Added by the change and still as it made it: it goes.
+            (None, Some(made)) if made == *line => None,
+            // Changed by the change and untouched since: as it was.
+            (Some(was), Some(made)) if made == *line && was != made => Some(was),
+            _ => Some(line.clone()),
+        })
+        .collect();
+    for (at, line) in before.iter().enumerate() {
+        if find(after, line).is_none() && find(&lines, line).is_none() {
+            lines.insert(at.min(lines.len()), line.clone());
+        }
+    }
+    lines
 }
 
 /// „Mein Studiengang": the visitor's program, study direction, Studienbeginn and town, stored as
@@ -2404,47 +2652,6 @@ pub fn placeholder_line(p: &Placeholder, requirement: Option<&SemesterRequiremen
     PlaceholderLine { credits: amount.as_deref().map(texts.credits), amount, lead, areas, tail, locale }
 }
 
-/// Whether a placeholder asks for a module of the Fachübergreifendes Studium, by its stored kind
-/// or name (`plan::is_fues`): its modules are the FÜS list, whatever the program's tree says.
-pub fn is_fues_placeholder(p: &Placeholder) -> bool {
-    plan::is_fues(&stored_entry(p))
-}
-
-/// Whether a placeholder asks for one module the plan names without a link to the catalog
-/// (Pflicht, Abschlussarbeit, Praktikum: `plan::is_single_module`), not for a choice.
-pub fn is_single_placeholder(p: &Placeholder) -> bool {
-    plan::is_single_module(&stored_entry(p))
-}
-
-/// The most credits a placeholder's row takes: what the student set for it (`Placeholder::size`),
-/// else the upper end of a range („10–24" → 24), else the number it states („7,5"); `None` where it
-/// states none.
-pub fn most_credits(p: &Placeholder) -> Option<f64> {
-    let text = p.size.as_deref().or(p.credits.as_deref())?;
-    let last = text.rsplit(['–', '-']).next()?.trim().replace(',', ".");
-    last.parse::<f64>().ok().filter(|most| most.is_finite() && *most > 0.0)
-}
-
-/// Whether a placeholder's row takes another module, given the credits of the modules that count
-/// for it in all its semesters (`None` where the catalog states none). A row that asks for one
-/// module takes one; a choice takes modules while their credits stay below the most it takes
-/// (owner, 2026-09-26: „die wo das nicht nur ein einziges Modul ist, sondern so ne Range" take
-/// more), so „≥ 6" takes one module of 6 and „10–24" up to 24. Where the row or a module states no
-/// credits, there is no telling, and it takes more.
-pub fn takes_more(p: &Placeholder, chosen: &[Option<f64>]) -> bool {
-    if chosen.is_empty() {
-        return true;
-    }
-    if is_single_placeholder(p) {
-        return false;
-    }
-    let known: Option<f64> = chosen.iter().copied().sum();
-    match (most_credits(p), known) {
-        (Some(most), Some(sum)) => sum + 1e-9 < most,
-        _ => true,
-    }
-}
-
 /// A placeholder as the plan row it was taken from, as far as it keeps it: enough for
 /// `plan::is_single_module` and `plan::is_fues`.
 fn stored_entry(p: &Placeholder) -> PlanEntry {
@@ -2664,8 +2871,10 @@ fn own_line(calendar: u8, own: &Own) -> String {
         _ => termin.weekday.to_string(),
     };
     let (first, last) = termin.period.map(|(first, last)| (first.iso(), last.iso())).unwrap_or_default();
+    // Its kind only where it has one, so that a line without stays as it was.
+    let kind = termin.kind.map(|kind| format!("\t{}", kind.code())).unwrap_or_default();
     format!(
-        "t\t{}\t{calendar}\t{}\t{}\t{when}\t{}-{}\t{first}\t{last}\t{}\t{}\t{}\t{}",
+        "t\t{}\t{calendar}\t{}\t{}\t{when}\t{}-{}\t{first}\t{last}\t{}\t{}\t{}\t{}{kind}",
         termin.number,
         own.semester.key(),
         termin.rhythm.code(),
@@ -2712,6 +2921,8 @@ fn own_of(fields: &[&str]) -> Option<(u8, Own)> {
         name: field(10).to_string(),
         place: field(11).to_string(),
         skip: days(field(12))?,
+        // A code this build does not know is no kind (unknown stays unknown); the Termin is one.
+        kind: EventKind::from_code(field(13)),
     };
     Some((calendar, Own { semester, termin: kept_own(termin)? }))
 }
@@ -3073,6 +3284,7 @@ mod tests {
             name: "😀".repeat(MAX_OWN_TEXT),
             place: "😀".repeat(MAX_OWN_TEXT),
             skip: dates,
+            kind: Some(EventKind::Consultation),
         };
         let last = doc.calendars.last().map(|calendar| calendar.id).unwrap();
         for n in 0..MAX_OWN_ALL {
@@ -3202,25 +3414,6 @@ mod tests {
         let first = doc.placeholders[0].clone();
         assert_eq!(doc.same_row(&first).iter().map(|p| p.pid).collect::<Vec<_>>(), [1, 2, 5]);
         assert_eq!(doc.same_row(&doc.placeholders[2].clone()).iter().map(|p| p.pid).collect::<Vec<_>>(), [4]);
-    }
-
-    #[test]
-    fn a_choice_takes_modules_up_to_its_credits() {
-        let row = |credits: Option<&str>, kind: &str| Placeholder { credits: credits.map(str::to_string), kind: Some(kind.to_string()), ..placeholder() };
-        let (komplex, anwendungsfach, open, thesis) = (row(Some("10–24"), "elective"), row(Some("6"), "elective"), row(None, "elective"), row(Some("12"), "thesis"));
-        assert_eq!((most_credits(&komplex), most_credits(&anwendungsfach), most_credits(&open)), (Some(24.0), Some(6.0), None));
-        assert_eq!(most_credits(&row(Some("7,5"), "elective")), Some(7.5));
-        // Nothing counts for it yet: every row takes a module.
-        assert!([&komplex, &anwendungsfach, &open, &thesis].iter().all(|p| takes_more(p, &[])));
-        // „10–24": modules up to 24.
-        assert!(takes_more(&komplex, &[Some(6.0)]) && takes_more(&komplex, &[Some(6.0), Some(12.0)]));
-        assert!(!takes_more(&komplex, &[Some(12.0), Some(12.0)]) && !takes_more(&komplex, &[Some(18.0), Some(8.0)]));
-        // „≥ 6": one module of 6; one of 5 leaves room.
-        assert!(!takes_more(&anwendungsfach, &[Some(6.0)]) && takes_more(&anwendungsfach, &[Some(5.0)]));
-        // One module where the row asks for one; no telling where credits are missing.
-        assert!(!takes_more(&thesis, &[Some(6.0)]));
-        assert!(takes_more(&open, &[Some(30.0)]) && takes_more(&anwendungsfach, &[None]));
-        assert!(is_single_placeholder(&thesis) && !is_single_placeholder(&komplex));
     }
 
     /// Lena's plan as her link hands it on: four modules of 2026W and two groups ticked.
@@ -3356,7 +3549,7 @@ mod tests {
         let summer = key("2027S");
         other.put_semester(summer, &saved);
         assert!(other.changes_of(summer, evs_room().key).is_empty() && other.note_of(summer, evs_room().key).is_none());
-        // „Plan leeren" takes them with the semester.
+        // `clear_semester` takes them with the semester.
         doc.clear_semester(w);
         assert!(doc.changes_of(w, evs_room().key).is_empty() && doc.note_of(w, evs_room().key).is_none());
     }
@@ -3419,7 +3612,165 @@ mod tests {
             name: "Arbeit".to_string(),
             place: "Café Mosaik".to_string(),
             skip: Vec::new(),
+            kind: None,
         }
+    }
+
+    #[test]
+    fn undo_takes_back_what_the_change_did_and_nothing_else() {
+        let w = key("2026W");
+        let day = |iso: &str| Day::parse(iso).unwrap();
+        let (mit, evs) = (termin(148304, 0xe4bf3), termin(148701, 0xb7025));
+        let before = example();
+        // A date hidden, then a group ticked in another tab: „Rückgängig" shows the date again and
+        // keeps the tick.
+        let undo = PlanUndo::made(before.clone(), |doc| doc.set_date(w, mit, day("2026-11-18"), true));
+        let mut doc = undo.after.clone().unwrap();
+        doc.tick(w, termin(148369, 0xaaf38), true);
+        undo.restore(&mut doc);
+        assert!(!doc.hidden[&w].dates.contains(&(mit, day("2026-11-18"))));
+        assert!(doc.hidden[&w].chosen.contains(&termin(148369, 0xaaf38)));
+        // Untouched since: the plan as it was, exactly.
+        let undo = PlanUndo::made(before.clone(), |doc| {
+            doc.tick(w, evs, false);
+            doc.set_row(w, evs, true);
+            doc.set_event(w, 148701, true);
+            doc.set_kind(w, EventKind::Tutorial, true);
+        });
+        let mut doc = undo.after.clone().unwrap();
+        undo.clone().restore(&mut doc);
+        assert_eq!(doc, before);
+        // Each part on its own: the event, the row, the kind back; a note written meanwhile stays.
+        let mut doc = undo.after.clone().unwrap();
+        doc.set_note(w, mit, "Raum prüfen");
+        undo.restore(&mut doc);
+        assert_eq!(doc.note_of(w, mit), Some("Raum prüfen"));
+        doc.set_note(w, mit, "");
+        assert_eq!(doc, before);
+        // A Termin of one's own deleted comes back where it stood; one added meanwhile stays.
+        let mut mine = example();
+        mine.add_own(0, w, job());
+        mine.add_own(0, w, OwnTermin { weekday: 3, name: "Chor".to_string(), ..job() });
+        let undo = PlanUndo::made(mine.clone(), |doc| {
+            doc.remove_own(1);
+        });
+        let mut doc = undo.after.clone().unwrap();
+        let third = doc.add_own(0, w, OwnTermin { weekday: 4, name: "Sport".to_string(), ..job() }).unwrap();
+        undo.restore(&mut doc);
+        assert_eq!(doc.own.iter().map(|own| own.termin.number).collect::<Vec<_>>(), [1, 2, third]);
+        // A day it skipped is held again, though its name changed meanwhile.
+        let undo = PlanUndo::made(mine.clone(), |doc| {
+            doc.skip_own(2, day("2026-11-18"), true);
+        });
+        let mut doc = undo.after.clone().unwrap();
+        let renamed = OwnTermin { name: "Chorprobe".to_string(), ..doc.own_termin(2).unwrap().1.termin.clone() };
+        doc.set_own(2, 0, renamed);
+        undo.restore(&mut doc);
+        let held = &doc.own_termin(2).unwrap().1.termin;
+        assert!(held.skip.is_empty() && held.name == "Chorprobe");
+        // A whole one (a share taken in): the plan before, whatever happened since.
+        let mut doc = example();
+        doc.tick(w, termin(148369, 0xaaf38), true);
+        PlanUndo::whole(before.clone()).restore(&mut doc);
+        assert_eq!(doc, before);
+    }
+
+    #[test]
+    fn undo_takes_back_the_lines_of_calendars_and_modules_and_nothing_else() {
+        let w = key("2026W");
+        // A module taken out of „Lena", then „Max" deleted and „Lena" renamed in another tab:
+        // „Rückgängig" brings the module back into „Lena" and nothing else — „Max" stays gone,
+        // the new name stays.
+        let mut mine = example();
+        let lena = lenas(&mut mine);
+        let max = mine.add_calendar("Max", None, w, &["11103".to_string()], &[], &[]).unwrap();
+        let undo = PlanUndo::made(mine.clone(), |doc| doc.remove_from_calendar(lena, w, "13977", &[]));
+        let mut doc = undo.after.clone().unwrap();
+        doc.remove_calendar(max);
+        doc.rename_calendar(lena, "Lena K.");
+        undo.restore(&mut doc);
+        assert!(doc.calendar(max).is_none());
+        let held = doc.calendar(lena).unwrap();
+        assert_eq!(held.name, "Lena K.");
+        assert_eq!(held.modules, mine.calendar(lena).unwrap().modules);
+        // A calendar the change made goes; one it deleted comes back where it stood.
+        let undo = PlanUndo::made(mine.clone(), |doc| {
+            doc.add_calendar("Kim", None, w, &[], &[], &[]);
+        });
+        let mut doc = undo.after.clone().unwrap();
+        doc.set_calendar_view(lena, CalendarView::Off);
+        undo.restore(&mut doc);
+        assert_eq!(doc.calendars.iter().map(|calendar| calendar.name.as_str()).collect::<Vec<_>>(), ["Lena", "Max"]);
+        assert_eq!(doc.calendar(lena).unwrap().view, Some(CalendarView::Off));
+        let undo = PlanUndo::made(mine.clone(), |doc| {
+            doc.remove_calendar(lena);
+        });
+        let mut doc = undo.after.clone().unwrap();
+        doc.tick(w, termin(148369, 0xaaf38), true);
+        undo.restore(&mut doc);
+        assert_eq!(doc.calendars, mine.calendars);
+        assert!(doc.hidden[&w].chosen.contains(&termin(148369, 0xaaf38)));
+        // A module planned by the change goes; one changed in another tab meanwhile stays as it
+        // was changed there, and one planned there stays.
+        let undo = PlanUndo::made(mine.clone(), |doc| {
+            doc.plan(w, "13977", 1, None);
+        });
+        let mut doc = undo.after.clone().unwrap();
+        doc.plan(w, "12160", 2, None);
+        undo.restore(&mut doc);
+        assert!(!doc.modules.iter().any(|planned| planned.module_id == "13977"));
+        assert!(doc.modules.iter().any(|planned| planned.module_id == "12160"));
+        let first = mine.modules.first().cloned().unwrap();
+        let undo = PlanUndo::made(mine.clone(), |doc| {
+            doc.plan(w, "13977", 1, None);
+        });
+        let mut doc = undo.after.clone().unwrap();
+        let changed = Planned { fills: Some(7), ..first.clone() };
+        doc.modules[0] = changed.clone();
+        undo.restore(&mut doc);
+        assert_eq!(doc.modules.first(), Some(&changed));
+    }
+
+    #[test]
+    fn undo_of_a_termin_of_ones_own_survives_what_another_tab_did() {
+        let w = key("2026W");
+        // „Chor" (#1) deleted, then another tab makes „Sport", which takes the number 1: „Rückgängig"
+        // brings „Chor" back under a new number, „Sport" stays.
+        let mut mine = example();
+        mine.add_own(0, w, OwnTermin { weekday: 3, name: "Chor".to_string(), ..job() });
+        let undo = PlanUndo::made(mine.clone(), |doc| {
+            doc.remove_own(1);
+        });
+        let mut doc = undo.after.clone().unwrap();
+        assert_eq!(doc.add_own(0, w, OwnTermin { weekday: 4, name: "Sport".to_string(), ..job() }), Some(1));
+        undo.restore(&mut doc);
+        let names: Vec<(u32, &str)> = doc.own.iter().map(|own| (own.termin.number, own.termin.name.as_str())).collect();
+        assert_eq!(names.len(), 2);
+        assert!(names.contains(&(1, "Sport")) && names.iter().any(|(number, name)| *number != 1 && *name == "Chor"));
+        // The other way round: a Termin the change made, deleted in another tab and its number
+        // given to another — „Rückgängig" leaves that other one.
+        let undo = PlanUndo::made(example(), |doc| {
+            doc.add_own(0, w, OwnTermin { weekday: 3, name: "Chor".to_string(), ..job() });
+        });
+        let mut doc = undo.after.clone().unwrap();
+        doc.remove_own(1);
+        doc.add_own(0, w, OwnTermin { weekday: 4, name: "Sport".to_string(), ..job() });
+        undo.restore(&mut doc);
+        assert_eq!(doc.own.iter().map(|own| own.termin.name.as_str()).collect::<Vec<_>>(), ["Sport"]);
+        // A Termin moved from „Max" into „Lena", and „Max" deleted meanwhile: „Rückgängig" cannot
+        // put it back there and keeps it where it stands.
+        let mut mine = example();
+        let lena = lenas(&mut mine);
+        let max = mine.add_calendar("Max", None, w, &[], &[], &[]).unwrap();
+        let number = mine.add_own(max, w, OwnTermin { weekday: 3, name: "Chor".to_string(), ..job() }).unwrap();
+        let moved = mine.own_termin(number).unwrap().1.termin.clone();
+        let undo = PlanUndo::made(mine.clone(), |doc| {
+            doc.set_own(number, lena, moved.clone());
+        });
+        let mut doc = undo.after.clone().unwrap();
+        doc.remove_calendar(max);
+        undo.restore(&mut doc);
+        assert_eq!(doc.own_termin(number).map(|(calendar, own)| (calendar, own.termin.name.as_str())), Some((lena, "Chor")));
     }
 
     #[test]
@@ -3464,6 +3815,82 @@ mod tests {
         assert!(!back.is_planned(w, "13700") && !back.is_visited(w, "13700"));
     }
 
+    /// The kind of a Termin of one's own: the line's fourteenth field, written only where it is set, so
+    /// that every line there was stays as it was and a build before it keeps the Termin.
+    #[test]
+    fn a_termin_of_ones_own_keeps_its_kind_in_a_field_of_its_own() {
+        let w = key("2026W");
+        let mut doc = PlanDoc::default();
+        let makeup = OwnTermin { rhythm: OwnRhythm::Dates, weekday: 0, dates: vec![day("2026-11-12")], from: 9 * 60 + 15, to: 10 * 60 + 45, module: Some("12104".to_string()), name: String::new(), place: "ZHG/HS.A".to_string(), kind: Some(EventKind::Lecture), ..job() };
+        assert_eq!(doc.add_own(0, w, makeup), Some(1));
+        assert_eq!(doc.add_own(0, w, job()), Some(2));
+        let text = doc.stored();
+        assert!(text.contains("t\t1\t0\t2026W\td\t2026-11-12\t09:15-10:45\t\t\t12104\t\tZHG/HS.A\t\tlecture\n"), "{text}");
+        assert!(text.contains("t\t2\t0\t2026W\tw\t5\t13:00-17:00\t\t\t\tArbeit\tCafé Mosaik\t\n"), "{text}");
+        assert_eq!(PlanDoc::restored(&text), doc);
+        // A build before the field reads the line without it and writes it so: the Termin stays.
+        let older = text.replace("\tlecture\n", "\n");
+        let read = PlanDoc::restored(&older);
+        assert_eq!(read.own_termin(1).map(|(_, own)| (own.termin.kind, own.termin.module.clone())), Some((None, Some("12104".to_string()))));
+        assert_eq!(read.stored(), older);
+        // A code of a newer build is no kind here; the Termin is one all the same.
+        assert_eq!(PlanDoc::restored(&text.replace("\tlecture\n", "\tworkshop\n")).own_termin(1).map(|(_, own)| own.termin.kind), Some(None));
+        // A saved plan is another plan where a kind differs.
+        let saved = doc.semester_only(w);
+        assert!(doc.holds_saved(w, &saved));
+        assert!(doc.set_own(1, 0, OwnTermin { kind: Some(EventKind::Exercise), ..doc.own_termin(1).map(|(_, own)| own.termin.clone()).unwrap() }));
+        assert!(!doc.holds_saved(w, &saved));
+    }
+
+    /// „Alle einblenden" brings back what was hidden — kinds, events, Termine, dates, the days a
+    /// Termin of one's own skips — and leaves what was chosen, changed and noted, and every other
+    /// semester.
+    #[test]
+    fn showing_what_is_hidden_leaves_the_ticks() {
+        let (w, s) = (key("2026W"), key("2027S"));
+        let mut doc = PlanDoc::default();
+        for semester in [w, s] {
+            doc.set_kind(semester, EventKind::Tutorial, true);
+            doc.set_event(semester, 149_408, true);
+            doc.set_row(semester, termin(148_369, 0xaaf38), true);
+            doc.set_date(semester, termin(148_701, 0xb7025), semester.bounds().0.plus(30), true);
+            doc.tick(semester, termin(148_370, 0xeb017), true);
+            doc.tick(semester, termin(148_370, 0xeb018), true);
+        }
+        assert!(doc.set_change(w, evs_room()));
+        assert!(doc.set_note(w, termin(148_701, 0xb7025), "Raum prüfen"));
+        let own = doc.add_own(0, w, job()).unwrap();
+        assert!(doc.skip_own(own, day("2026-10-30"), true));
+        let theirs = doc.add_own(0, s, job()).unwrap();
+        assert!(doc.skip_own(theirs, day("2027-04-30"), true));
+        let before = doc.clone();
+        doc.show_hidden(w);
+        let hides = doc.hidden.get(&w).unwrap();
+        assert!(hides.kinds.is_empty() && hides.events.is_empty() && hides.rows.is_empty() && hides.dates.is_empty());
+        assert_eq!(hides.chosen.len(), 2);
+        assert_eq!((hides.changes.len(), hides.notes.len()), (1, 1));
+        let text = doc.stored();
+        assert!(text.contains("t\t1\t0\t2026W\tw\t5\t13:00-17:00\t\t\t\tArbeit\tCafé Mosaik\t\n"), "{text}");
+        // The other semester as it was.
+        assert_eq!(doc.hidden.get(&s), before.hidden.get(&s));
+        assert_eq!(doc.own_termin(theirs), before.own_termin(theirs));
+        // A Termin of a calendar of one's own keeps the days it skips: that calendar is only looked at.
+        let mut calendars = PlanDoc::default();
+        let lena = lenas(&mut calendars);
+        let hers = calendars.add_own(lena, w, job()).unwrap();
+        assert!(calendars.skip_own(hers, day("2026-10-30"), true));
+        calendars.set_event(w, 149_408, true);
+        let kept = calendars.own_termin(hers).map(|(calendar, own)| (calendar, own.clone()));
+        calendars.show_hidden(w);
+        assert_eq!(calendars.own_termin(hers).map(|(calendar, own)| (calendar, own.clone())), kept);
+        assert!(calendars.own_termin(hers).is_some_and(|(_, own)| own.termin.skip == [day("2026-10-30")]));
+        // A semester that hid nothing and chose nothing has no entry afterwards.
+        let mut only_hidden = PlanDoc::default();
+        only_hidden.set_event(w, 149_408, true);
+        only_hidden.show_hidden(w);
+        assert_eq!(only_hidden, PlanDoc::default());
+    }
+
     #[test]
     fn a_termin_of_ones_own_is_changed_skipped_and_taken_away_with_a_way_back() {
         let w = key("2026W");
@@ -3506,7 +3933,7 @@ mod tests {
         assert!(doc.own_termin(theirs).is_none());
         assert!(doc.put_calendar(at, calendar));
         assert_eq!(doc.own_termin(theirs).map(|(calendar, _)| calendar), Some(lena));
-        // „Plan leeren" takes the plan's of the semester, and leaves the calendars' and the others.
+        // `clear_semester` takes the plan's of the semester, and leaves the calendars' and the others.
         let later = doc.add_own(0, key("2027S"), self::job()).unwrap();
         doc.clear_semester(w);
         assert_eq!((doc.own_termin(job), doc.own_termin(theirs).is_some(), doc.own_termin(later).is_some()), (None, true, true));
@@ -3603,7 +4030,7 @@ mod tests {
         doc.remove_calendar(third);
         assert!(doc.put_calendar(at, gone));
         assert_eq!(doc.calendars.iter().map(|calendar| calendar.id).collect::<Vec<_>>(), [lena, second], "where it stood");
-        // „Plan leeren", a saved plan and the semester put back leave the calendars as they are.
+        // `clear_semester`, a saved plan and the semester put back leave the calendars as they are.
         let before = doc.calendars.clone();
         doc.clear_semester(key("2026W"));
         assert!(doc.semester_only(key("2026W")).calendars.is_empty());
@@ -3650,7 +4077,7 @@ mod tests {
         let (w, s) = (key("2026W"), key("2027S"));
         let mut doc = PlanDoc::default();
         assert!(doc.plan(w, "12104", 10, None));
-        // „+ Modul" in „Mein Studiengang": Denkmalpflege, only visited.
+        // Denkmalpflege taken in only to visit it.
         assert!(doc.visit(w, "13676", 20));
         assert!(!doc.visit(w, "13676", 21), "once a semester");
         assert!(!doc.visit(w, "12104", 22), "a planned module becomes a visit by „Nur besuchen“ alone");
@@ -3714,7 +4141,7 @@ mod tests {
         assert!(out.visits_in(w).is_empty() && out.is_visited(s, "13676"));
         assert_eq!(out.selection(w, TownChoice::Derive).chosen_rows, BTreeSet::from([termin(148369, 0xa4d12)]));
 
-        // „Plan leeren" empties the week, visits and all; a saved plan keeps them and puts them back.
+        // `clear_semester` empties the week, visits and all; a saved plan keeps them and puts them back.
         let saved = doc.semester_only(w);
         assert_eq!(saved.visits_in(w), ["13676"]);
         let mut cleared = doc.clone();
@@ -4076,10 +4503,6 @@ mod tests {
         let half = |p: Placeholder| placeholder_line(&p, None, Locale::En).text();
         assert_eq!(half(Placeholder { credits: Some("7,5".to_string()), ..placeholder() }), "≥\u{a0}7.5\u{a0}CP Anwendungsfach");
         assert_eq!(placeholder_line(&Placeholder { credits: Some("7,5".to_string()), ..placeholder() }, None, Locale::De).amount.as_deref(), Some("≥\u{a0}7,5"));
-        // The FÜS by its name or its kind; any other row is none.
-        assert!(is_fues_placeholder(&Placeholder { name: "Modul aus dem FÜS-Katalog der BTU".to_string(), ..placeholder() }));
-        assert!(is_fues_placeholder(&Placeholder { kind: Some("fues".to_string()), name: "Wahlmodul".to_string(), ..placeholder() }));
-        assert!(!is_fues_placeholder(&placeholder()));
     }
 
     #[test]

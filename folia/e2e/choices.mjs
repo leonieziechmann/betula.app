@@ -12,12 +12,21 @@
 //   brings them back faint under „Für andere Studiengänge".
 // - The groups, and the catalogue of projects: no week, five in the list and the rest folded away.
 // - The catalog's row: „14 Projekte zur Wahl".
-// - The Stundenplan with 11206 planned, nobody's: the three exercises hatched „1 von 3", the
-//   Aufbaukurs lighter, the choice under „Offen" beside the week („1 von 3
-//   wählen", in the module), the panel's „1 von 3 wählen" with „passt"; „✓" on one takes it and
-//   leaves the others out, „Wahl aufheben" opens the choice again.
+// - The Stundenplan with 11206 planned (seeded), nobody's, edited with the module beside it: the three
+//   exercises hatched „1 von 3", the Aufbaukurs lighter, the choice under „Offen" („1 von 3 wählen",
+//   in the module), the panel's „1 von 3 wählen" with „passt"; „✓" („Diese nehmen") on one takes it (a
+//   `c` line) and leaves the others faint („Nur diese", „Auch diese"), „Offen"'s row stays pale until
+//   the mode is left, saying the option taken („… · Mi 13:45 ✓"), „Wahl aufheben" opens the choice
+//   again. Looking, the week has no buttons and
+//   „1 Wahl offen" is the way into the mode.
 // - The Stundenplan of Bauingenieurwesen: its exercise taken („Höhere Mathematik - T3: Übung Di
-//   07:30 laut Studiengang"), and a tap on another in the panel takes that one instead.
+//   07:30 laut Studiengang"), the others faint, and a tap on another in the panel takes that one
+//   instead.
+// History: 2026-11-17, the edit mode. The plan is seeded instead of planned by „Einplanen" on the
+// module's page: after 15 November „Einplanen" plans the next semester (who plans in the middle of a
+// semester plans the next), and the blocks expected WiSe 2026/27. The buttons beside a slot stand
+// only while editing, so the blocks open `edit=1`; what a choice leaves out stays faint there. Then:
+// the pale row of the choice taken says its option („Mi 13:45 ✓"; it said „nicht gewählt").
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
@@ -28,14 +37,16 @@ const ON_PAGE = { path: fileURLToPath(new URL("on-page.js", import.meta.url)) };
 const problems = [];
 const check = (ok, message) => { if (!ok) problems.push(message); };
 const MINE = "betula.myprogram.v1";
+const PLAN = "betula.studyplan.v1";
 const BAU = "program\t017-82-2022\nname\tBauingenieurwesen B.Sc. · PO 2022\ncaption\t\nstart\t2026W\n";
 const shots = process.env.SMOKE_SHOTS;
 
-const open = async (path, mine) => {
+const open = async (path, mine, plan) => {
   const context = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
   await context.addInitScript(ON_PAGE);
   await context.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
   if (mine) await context.addInitScript(([key, value]) => { if (!localStorage.getItem(key)) localStorage.setItem(key, value); }, [MINE, mine]);
+  if (plan) await context.addInitScript(([key, value]) => { if (localStorage.getItem(key) === null) localStorage.setItem(key, value); }, [PLAN, plan]);
   const page = await context.newPage();
   page.on("console", (m) => { if (m.type() === "error") problems.push("console: " + m.text().slice(0, 300)); });
   page.on("pageerror", (e) => problems.push("pageerror: " + String(e).slice(0, 300)));
@@ -132,19 +143,10 @@ const alt = (slots) => slots.filter(([c]) => c.split(" ").includes("alt")).lengt
 }
 
 // ---------- the Stundenplan ----------
-// Plans 11206 from its page, then opens the Stundenplan of 2026W (with the module beside it).
-const planned = async (mine, beside) => {
-  const { page, context } = await open("/catalog/module/11206", mine);
-  await until(page, "„Einplanen\"", () => Boolean(onPage(".hero-line .plan-toggle")));
-  await page.click(".hero-line .plan-toggle >> visible=true");
-  // The plan is written after the next frame: the button pressed and no longer busy.
-  await until(page, "the module planned", () => {
-    const button = onPage(".hero-line .plan-toggle");
-    return button?.getAttribute("aria-pressed") === "true" && !button.hasAttribute("aria-busy");
-  });
-  await page.goto(base + "/studyplan?sem=2026W" + (beside ? "&open=11206" : ""), { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the Stundenplan: the browser app never took over"));
-  await until(page, "the week", () => document.querySelectorAll(".sp-body .week .slot").length > 0);
+// 11206 planned into WiSe 2026/27 (seeded), the Stundenplan edited with the module beside it.
+const planned = async (mine) => {
+  const { page, context } = await open("/studyplan?sem=2026W&edit=1&open=11206", mine, "m\t2026W\t11206\t1790000000\t\n");
+  await until(page, "the week", () => document.querySelectorAll(".sp-body .week .slot").length > 0 && document.querySelector(".sp-editbar"));
   return { page, context };
 };
 // The slots of the week (their look, tooltip and text), „Offen" beside it, what is derived, and the
@@ -152,6 +154,7 @@ const planned = async (mine, beside) => {
 const plan = (page) => page.evaluate(() => ({
   slots: [...document.querySelectorAll(".sp-body .week .slot")].map((slot) => ({ c: slot.className, title: slot.getAttribute("title") ?? "", text: slot.textContent.trim() })),
   open: [...document.querySelectorAll(".sp-side .sp-open .sp-open-row")].map((row) => row.textContent.replace(/\s+/g, " ").trim()),
+  done: [...document.querySelectorAll(".sp-side .sp-open .sp-open-row.done")].length,
   derived: document.querySelector(".sp-derived")?.textContent.trim() ?? "",
   choices: [...document.querySelectorAll(".sp-event .sp-choice")].map((line) => line.textContent.trim()),
   fits: [...document.querySelectorAll(".sp-rowline .fit")].map((fit) => fit.textContent.trim()),
@@ -159,9 +162,11 @@ const plan = (page) => page.evaluate(() => ({
 const hatched = (p) => p.slots.filter((slot) => slot.c.split(" ").includes("alt"));
 // The button `label` of the slot of `time`: the slot's buttons stand beside it, not in it.
 const act = (page, time, label) => page.locator(".sp-body .week .slot", { hasText: time }).first().locator("xpath=following-sibling::*[1]").locator(`.slot-act[aria-label="${label}"]`);
-const exercise = (p, time) => p.slots.find((slot) => slot.text.includes(time) && slot.text.includes("HG/0."));
+// An exercise the week shows (not faint).
+const exercise = (p, time) => p.slots.find((slot) => slot.text.includes(time) && slot.text.includes("HG/0.") && !slot.c.split(" ").includes("faint"));
+const faint = (p) => p.slots.filter((slot) => slot.c.split(" ").includes("faint"));
 {
-  const { page, context } = await planned(null, true);
+  const { page, context } = await planned(null);
   await until(page, "the open choice", () => document.querySelectorAll(".sp-body .week .slot.alt").length === 3);
   let p = await plan(page);
   check(hatched(p).length === 3 && hatched(p).every((slot) => slot.title.includes("1 von 3")), `three exercises hatched, „1 von 3": ${JSON.stringify(p.slots)}`);
@@ -169,29 +174,42 @@ const exercise = (p, time) => p.slots.find((slot) => slot.text.includes(time) &&
   check(p.open.length === 1 && p.open[0].includes("1 von 3 wählen") && p.open[0].includes("Im Modul"), `„Offen": ${JSON.stringify(p.open)}`);
   check(p.choices.includes("1 von 3 wählen") && p.fits.filter((fit) => fit === "passt").length === 3, `the panel: ${JSON.stringify(p.choices)} ${JSON.stringify(p.fits)}`);
   if (shots) await page.screenshot({ path: `${shots}/choices-plan-open.png` });
-  // ✓ on Mi 13:45: it is taken, the others are left out.
+  // ✓ on Mi 13:45: it is taken, the others are left out (faint while editing).
   const count = p.slots.length;
-  await act(page, "13:45", "Diese nehmen").click();
+  await act(page, "13:45", "Diese nehmen").click().catch(() => problems.push("no „Diese nehmen“ beside Mi 13:45"));
   await until(page, "the choice made", () => document.querySelectorAll(".sp-body .week .slot.alt").length === 0);
   p = await plan(page);
-  check(p.slots.length === count - 2 && exercise(p, "13:45") && !exercise(p, "07:30") && !exercise(p, "11:30"), `Mi 13:45 alone: ${JSON.stringify(p.slots)}`);
-  check(p.open.length === 0, `nothing open: ${JSON.stringify(p.open)}`);
+  check(p.slots.length === count && faint(p).length === 2 && exercise(p, "13:45") && !exercise(p, "07:30") && !exercise(p, "11:30"), `Mi 13:45 alone, the others faint: ${JSON.stringify(p.slots)}`);
+  check((await page.evaluate((key) => localStorage.getItem(key), PLAN)).split("\n").filter((line) => line.startsWith("c\t2026W\t")).length === 1, "not one `c` line for the exercise taken");
+  // The pale row says the option taken („Übung HMT3 · Mi 13:45 ✓"), as a group ticked does.
+  check(p.open.length === 1 && p.done === 1 && /Mi 13:45 ✓$/.test(p.open[0]), `„Offen“'s row stays, pale, while editing, with the option taken: ${JSON.stringify(p.open)}`);
   if (shots) await page.screenshot({ path: `${shots}/choices-plan-chosen.png` });
   // „Wahl aufheben": the three open again.
-  await act(page, "13:45", "Wahl aufheben").click();
+  await act(page, "13:45", "Wahl aufheben").click().catch(() => problems.push("no „Wahl aufheben“ beside Mi 13:45"));
   await until(page, "the choice open again", () => document.querySelectorAll(".sp-body .week .slot.alt").length === 3);
+  // Looking: no button, „1 Wahl offen" into the mode. (At 1500 px the module beside the plan lies over
+  // the plan's right end, „Fertig" with it: Esc closes the module, Esc again leaves the mode.)
+  await page.keyboard.press("Escape");
+  // The next key once the picture of the page before is gone (a key while it is held can be lost).
+  await until(page, "Esc closes the module", () => !location.search.includes("open=") && document.querySelector(".sp-editbar") && !document.querySelector(".pending-page.held"));
+  await page.keyboard.press("Escape");
+  // (Read once the held picture of the page before is gone: it still has the mode's buttons.)
+  await until(page, "looking", () => !document.querySelector(".sp-editbar") && !location.search.includes("edit=1") && document.querySelectorAll(".sp-body .week .slot").length > 0 && !document.querySelector(".pending-page.held"));
+  const look = await page.evaluate(() => ({ acts: document.querySelectorAll(".sp-body .slot-act").length, way: document.querySelector(".sp-open-way")?.textContent.trim(), href: document.querySelector(".sp-open-way")?.getAttribute("href") }));
+  check(look.acts === 0 && look.way === "1 Wahl offen" && look.href?.includes("edit=1"), `looking: ${JSON.stringify(look)}`);
+  check(await page.evaluate(() => window.__marker === 1), "the Stundenplan: the page loaded again");
   await context.close();
 }
 {
-  const { page, context } = await planned(BAU, true);
+  const { page, context } = await planned(BAU);
   await until(page, "the program's exercise", () => (document.querySelector(".sp-derived")?.textContent ?? "").includes("Höhere Mathematik - T3: Übung Di 07:30 laut Studiengang"));
   let p = await plan(page);
-  check(hatched(p).length === 0 && exercise(p, "07:30") && !exercise(p, "13:45"), `Di 07:30 alone: ${JSON.stringify(p.slots)}`);
+  check(hatched(p).length === 0 && exercise(p, "07:30") && !exercise(p, "13:45") && faint(p).length === 2, `Di 07:30 alone: ${JSON.stringify(p.slots)}`);
   check(p.open.length === 0 && p.choices.some((line) => line.startsWith("Laut Studiengang")), `taken by the program: ${JSON.stringify(p.open)} ${JSON.stringify(p.choices)}`);
   if (shots) await page.screenshot({ path: `${shots}/choices-plan-program.png` });
   // A tap on Mi 13:45 in the panel takes it instead.
-  await page.locator(".sp-rowline > .pick", { hasText: "Mi 13:45" }).click();
-  await until(page, "Mi 13:45 taken", () => [...document.querySelectorAll(".sp-body .week .slot")].some((slot) => slot.textContent.includes("13:45")));
+  await page.locator(".sp-rowline > .pick", { hasText: "Mi 13:45" }).click().catch(() => problems.push("no line Mi 13:45 in the panel"));
+  await until(page, "Mi 13:45 taken", () => [...document.querySelectorAll(".sp-body .week .slot:not(.faint)")].some((slot) => slot.textContent.includes("13:45")));
   p = await plan(page);
   check(exercise(p, "13:45") && !exercise(p, "07:30") && !p.derived.includes("Übung Di 07:30"), `Mi 13:45 instead: ${JSON.stringify(p.slots)} „${p.derived}"`);
   await context.close();

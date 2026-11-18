@@ -38,7 +38,7 @@ use leptos_router::location::Location;
 use leptos_router::NavigateOptions;
 
 use folia_data::Later;
-use crate::i18n::use_location;
+use crate::i18n::{use_location, Locale};
 use folia_routes::url::PlanAddress;
 
 /// A change of this kind that took this long the last time (smoothed) gets a skeleton: below it,
@@ -364,6 +364,7 @@ impl Pending {
     /// panel): in place of the current entry where a step beside the page takes its place
     /// (`in_place`), else a step of its own.
     pub fn go_beside(&self, to: &str) {
+        let to = &app_address(to, crate::i18n::locale());
         let replace = match (self.change_to(to), self.here()) {
             (Some(change), Some((path, search))) => self.in_place(change, &path, &search, to),
             _ => false,
@@ -415,6 +416,9 @@ impl Pending {
     }
 
     fn go_with(&self, to: &str, options: NavigateOptions, quiet: bool) {
+        // A caller may hand over what a link of the page says (its `href`, `/en/studyplan?…`);
+        // the router wants the app's path, and a prefix left on it leads to `/en/en/…`.
+        let to = &app_address(to, crate::i18n::locale());
         let via = Via::Link { replace: options.replace, scroll: options.scroll };
         match self.change_to(to) {
             Some(change) => self.start(to.to_string(), via, change, quiet),
@@ -682,6 +686,18 @@ fn path_of(to: &str) -> &str {
     to.split(['?', '#']).next().unwrap_or(to)
 }
 
+/// `to` as an address of the app in `locale`: what comes with that language's prefix
+/// (`/en/studyplan?termin=…`, `/en?termin=…`, `/en`) without it, query and fragment kept; an
+/// address of the app (`/studyplan?…`) and one of another language as they are.
+fn app_address(to: &str, locale: Locale) -> String {
+    let prefix = locale.prefix();
+    match to.strip_prefix(prefix) {
+        Some(rest) if !prefix.is_empty() && rest.starts_with('/') => rest.to_string(),
+        Some(rest) if !prefix.is_empty() && (rest.is_empty() || rest.starts_with(['?', '#'])) => format!("/{rest}"),
+        _ => to.to_string(),
+    }
+}
+
 /// The query of an address, without `?` and without the fragment.
 fn search_of(to: &str) -> &str {
     let without_fragment = to.split('#').next().unwrap_or(to);
@@ -806,8 +822,9 @@ fn program_change(from: &ProgramUrl, to: &ProgramUrl, phone: bool) -> Option<Cha
 
 /// Within the Studienplan: another semester, view or Regelstudienplan being taken over is its
 /// column; the module beside it, a Termin in its own view (`termin`, `on`) and the choice in focus
-/// over the week (`wahl`, `vergleich`) are the aside (on a phone a sheet over the plan). „Vollbild"
-/// fills the page with the module's whole page (`PlanAddress`). The Übersicht shows every semester:
+/// over the week (`wahl`, `vergleich`) and the plan being edited (`edit`) are the aside (on a phone a
+/// sheet over the plan, a step of its own). „Vollbild" fills the page with the module's whole page
+/// (`PlanAddress`). The Übersicht shows every semester:
 /// there `sem` only says which of its semesters a module planned twice is shown in beside it, so it
 /// is the aside's.
 fn studyplan_change(from: &PlanAddress, to: &PlanAddress) -> Option<Change> {
@@ -827,10 +844,12 @@ fn studyplan_change(from: &PlanAddress, to: &PlanAddress) -> Option<Change> {
         if url.view == PlanView::Overview { None } else { url.sem.as_deref() }
     }
     // The choice in focus stands over the week as the module beside it does: a step of its own,
-    // which „Fertig" takes back.
-    fn beside(url: &StudyplanUrl) -> ([Option<&str>; 6], bool) {
+    // which „Fertig" takes back. The plan being edited (`edit`) comes and goes the same way, on a
+    // phone too, so that Back leaves the mode and never the page (owner, 2026-11-17: „bei dem
+    // Kalender einen edit modus hinzuzufügen").
+    fn beside(url: &StudyplanUrl) -> ([Option<&str>; 6], bool, bool) {
         let at = [url.open.as_deref(), url.row.as_deref(), url.open.as_ref().and(url.sem.as_deref()), url.termin.as_deref(), url.on.as_deref(), url.wahl.as_deref()];
-        (at, url.vergleich)
+        (at, url.vergleich, url.edit)
     }
     if (column_sem(from), from.view, &from.import, from.variant) != (column_sem(to), to.view, &to.import, to.variant) {
         Some(Change::Column(Shape::Studyplan))
@@ -1140,6 +1159,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_step_takes_the_apps_address_whatever_the_link_says() {
+        // English: a link's `href` comes with the prefix, the app's path without; both lead to
+        // the app's path, never to `/en/en/…`.
+        assert_eq!(app_address("/en/studyplan?termin=148370-eb017", Locale::En), "/studyplan?termin=148370-eb017");
+        assert_eq!(app_address("/studyplan?termin=148370-eb017", Locale::En), "/studyplan?termin=148370-eb017");
+        assert_eq!(app_address("/en?termin=148370-eb017&full=1", Locale::En), "/?termin=148370-eb017&full=1");
+        assert_eq!(app_address("/en", Locale::En), "/");
+        assert_eq!(app_address("/en#top", Locale::En), "/#top");
+        // A path that only begins with the letters is no prefix.
+        assert_eq!(app_address("/entry", Locale::En), "/entry");
+        // German has no prefix: both stay as they are (`/en/…` is a link into English).
+        assert_eq!(app_address("/studyplan?termin=148370-eb017", Locale::De), "/studyplan?termin=148370-eb017");
+        assert_eq!(app_address("/en/studyplan?termin=148370-eb017", Locale::De), "/en/studyplan?termin=148370-eb017");
+    }
+
+    #[test]
     fn what_a_step_changes() {
         assert_eq!(change("/catalog", "", "/programs", "", false), Some(Change::Page(Shape::Programs)));
         assert_eq!(change("/catalog", "turnus=winter", "/catalog", "turnus=winter&form=lecture", false), Some(Change::List));
@@ -1251,6 +1286,21 @@ mod tests {
         assert_eq!(change("/studyplan", "wahl=e148304", "/studyplan", "wahl=e148304&vergleich=1", true), Some(Change::Aside));
         assert_eq!(change("/studyplan", "wahl=e148304", "/studyplan", "wahl=e148370", false), Some(Change::Aside));
         assert_eq!(change("/studyplan", "wahl=e148304&vergleich=1", "/studyplan", "", false), Some(Change::Aside));
+        // The plan being edited comes and goes as what stands beside it: a step of its own, on a phone
+        // too (Back leaves the mode, „Fertig" goes back a step), never in place of the entry.
+        assert_eq!(change("/studyplan", "", "/studyplan", "edit=1", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "edit=1", "/studyplan", "", true), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "edit=1", "/studyplan", "edit=1&termin=148369-aaf38", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "edit=1&wahl=e148304", "/studyplan", "edit=1", true), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "termin=148369-aaf38", "/studyplan", "edit=1&wahl=e148304&vergleich=1", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "edit=1", "/studyplan", "view=dates&edit=1", false), Some(Change::Column(Shape::Studyplan)));
+        assert_eq!(change("/studyplan", "edit=1&termin=148369-aaf38", "/studyplan", "edit=1&termin=148369-aaf38&full=1", false), Some(Change::Page(Shape::Event)));
+        assert_eq!(change("/studyplan", "edit=1", "/studyplan", "edit=1&week=2026-10-14", false), None);
+        // Beside a module and on the exams' view the mode comes and goes the same way.
+        assert_eq!(change("/studyplan", "open=12104", "/studyplan", "edit=1&open=12104", true), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "edit=1&open=12104", "/studyplan", "open=12104", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "view=exams", "/studyplan", "view=exams&edit=1", true), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "view=exams&edit=1", "/studyplan", "view=exams", false), Some(Change::Aside));
     }
 
     /// The step before a module's sheet is the page it closes to, written either way.

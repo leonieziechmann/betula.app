@@ -20,8 +20,11 @@
 // thrown away from there. A menu swiped down closes, and closed by its choice a copy of it glides
 // away. Each modal stands as what it holds asks (owner, 2026-11-04): the programs' filters fit,
 // closed below the screen; „Studiengang wechseln" all up at once. A question in a sheet gives each
-// answer a row of its own as well, and the sheet brings it into sight: „Plan leeren" in
-// „Anpassen".
+// answer a row of its own as well, and so does the Stundenplan's calendar part, which a phone has in
+// the page while the plan is edited: a calendar's menu, its new name, „Neuer Kalender" and a saved
+// plan's question „Ersetzen" in sight.
+// History: until Folia 1.100.0 the last part asked „Plan leeren" in the Stundenplan's sheet
+// „Anpassen"; the redesign took both away (2026-11-17), the rule is checked where it holds now.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node sheets.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Fails on a console error or a step that does not show up.
 import { chromium } from "playwright-core";
@@ -324,34 +327,73 @@ check(at?.way === "full" && at.full && at.top <= 12 && at.bottom === 844 && behi
 await page.keyboard.press("Escape");
 await page.waitForFunction(() => !document.querySelector("dialog.st-dialog[open]"), null, { timeout: 3000 }).catch(() => problems.push("„Studiengang wechseln“ did not close by Esc"));
 
-// ---- a question in a sheet (owner, 2026-11-17: „Ja, Plan leeren auch untereinander. Pass bitte alle
-// an, wo das design pattern nicht eingehalten wird"): „Plan leeren" in „Anpassen", the sheet half
-// up. The question and both answers in sight, each answer across the sheet, one under the other,
-// „Leeren" first; „Abbrechen" takes it back.
+// ---- a question in a sheet gives each answer a row of its own (owner, 2026-11-17: „Ja, Plan leeren
+// auch untereinander. Pass bitte alle an, wo das design pattern nicht eingehalten wird"). The
+// Stundenplan has no sheet „Anpassen" since its redesign (Folia 1.100.0): on a phone, while it is
+// edited, its calendars stand in the page on the line „Kalender", „+ Kalender" is the last row under
+// the modules and the saved plans a group of their own, and the rule holds there as in a sheet. A
+// calendar's menu one entry a row; its new name's field, „Sichern" and „Abbrechen" one under the other;
+// „Neuer Kalender"'s „Anlegen" and „Abbrechen"; a saved plan's question „Ersetzen" and „Abbrechen", in
+// sight, clear of the dock. Each answer across its box, at least 44 px tall, the one that acts first;
+// „Abbrechen" takes each back.
 await page.evaluate(() => {
-  localStorage.setItem("betula.studyplan.v1", ["12104", "12107", "12102", "11112"].map((id) => `m\t2026W\t${id}\t1790000000\t`).join("\n") + "\n");
+  localStorage.setItem("betula.studyplan.v1", ["12104", "12107", "12102", "11112"].map((id) => `m\t2026W\t${id}\t1790000000\t`).join("\n") + "\nl\t1\t\t\tLerngruppe\n");
+  localStorage.setItem("betula.studyplan.saved.v1", "plan\tAlt\t\nm\t2026W\t12107\t1790000000\t\n");
   sessionStorage.setItem("betula.plan.asked", "1");
 });
-await page.goto(base + "/studyplan", { waitUntil: "domcontentloaded" });
-await page.waitForFunction(() => window.__betulaApp === true && document.querySelector('#content > .page-stage.front a.sheet-toggle[href="#sidebar"]'), null, { timeout: 120000 }).catch(() => problems.push("the Stundenplan has no „Anpassen“"));
+const PLAN_NOW = await page.evaluate(() => localStorage.getItem("betula.studyplan.v1"));
+await page.goto(base + "/studyplan?edit=1", { waitUntil: "domcontentloaded" });
+await page.waitForFunction(() => window.__betulaApp === true && document.querySelector("#content > .page-stage.front .sp-cal-line > summary"), null, { timeout: 120000 }).catch(() => problems.push("the Stundenplan has no line „Kalender“ while it is edited"));
 await page.waitForTimeout(500);
-await page.tap('#content > .page-stage.front a.sheet-toggle[href="#sidebar"] >> visible=true');
-await page.waitForFunction(() => { const el = document.querySelector("#content > .page-stage.front #sidebar"); return el?.classList.contains("open") && !el.getAnimations().some((a) => a.playState === "running"); }, null, { timeout: 5000 }).catch(() => problems.push("„Anpassen“ did not open"));
+// The buttons of a box as rows: their text, place and size, top to bottom, and the box's inner width.
+const asRows = (selector, buttons = ":scope > button") => page.evaluate(([selector, buttons]) => {
+  const box = document.querySelector(`#content > .page-stage.front ${selector}`);
+  if (!box || !box.getClientRects().length) return null;
+  const style = getComputedStyle(box), r = box.getBoundingClientRect();
+  const rows = [...box.querySelectorAll(buttons)].filter((b) => b.getClientRects().length).map((button) => { const b = button.getBoundingClientRect(); const at = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); return { text: button.textContent.trim(), left: Math.round(b.left), top: Math.round(b.top), bottom: Math.round(b.bottom), width: Math.round(b.width), height: Math.round(b.height), free: Boolean(at) && (at === button || button.contains(at)) }; }).sort((x, y) => x.top - y.top);
+  return { top: Math.round(r.top), bottom: Math.round(r.bottom), width: Math.round(box.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)), rows };
+}, [selector, buttons]);
+const eachARow = (got, count, first) => Boolean(got) && got.rows.length === count && (first === null || got.rows[0].text === first) && got.rows.every((row, i) => row.width >= got.width - 1 && row.height >= 44 && (i === 0 || row.top >= got.rows[i - 1].bottom));
+// In sight: on the screen, and nothing over it (the dock of the mode stands over the page's foot).
+const inSight = (got) => Boolean(got) && got.rows.every((row) => row.top >= 0 && row.bottom <= 844 && row.free);
+// A calendar's menu on the line „Kalender".
+await page.tap("#content > .page-stage.front .sp-cal-line > summary");
 await page.waitForTimeout(400);
-await page.tap("#content > .page-stage.front #sp-clear");
-await page.waitForFunction(() => document.querySelector("#content > .page-stage.front #sp-clear-ask"), null, { timeout: 3000 }).catch(() => problems.push("„Plan leeren“ did not ask"));
+await page.tap("#content > .page-stage.front .sp-cal-line .sp-cal-more >> visible=true").catch(() => problems.push("the calendar „Lerngruppe“ has no menu while the plan is edited"));
+await page.waitForFunction(() => document.querySelector("#content > .page-stage.front .sp-cal-line .sp-cal-menu"), null, { timeout: 3000 }).catch(() => problems.push("a calendar's menu did not open"));
+await page.waitForTimeout(300);
+const calMenu = await asRows(".sp-cal-line .sp-cal-menu");
+check(eachARow(calMenu, calMenu?.rows.length >= 3 ? calMenu.rows.length : -1, "Modul aufnehmen") && calMenu.rows.some((row) => row.text === "Umbenennen") && calMenu.rows.at(-1).text === "Löschen" && calMenu.rows.every((row) => row.height >= 46), `a calendar's menu on a phone does not give each entry a row of its own: ${JSON.stringify(calMenu)}`);
+// „Umbenennen": the field, „Sichern" and „Abbrechen" one under the other.
+await page.tap('#content > .page-stage.front .sp-cal-line .sp-cal-menu > button:has-text("Umbenennen")');
+await page.waitForFunction(() => document.querySelector("#content > .page-stage.front .sp-cal-line .sp-cal-rename"), null, { timeout: 3000 }).catch(() => problems.push("„Umbenennen“ did not open the calendar's name"));
+await page.waitForTimeout(300);
+const rename = await asRows(".sp-cal-line .sp-cal-rename", ":scope > input, :scope > button");
+check(eachARow(rename, 3, "") && rename.rows[1].text === "Sichern" && rename.rows[2].text === "Abbrechen", `a calendar's new name on a phone: not its field, „Sichern“ and „Abbrechen“ one under the other: ${JSON.stringify(rename)}`);
+await page.tap('#content > .page-stage.front .sp-cal-line .sp-cal-rename > button:has-text("Abbrechen")');
+await page.waitForFunction(() => !document.querySelector("#content > .page-stage.front .sp-cal-rename"), null, { timeout: 3000 }).catch(() => problems.push("„Abbrechen“ did not close the calendar's new name"));
+check((await page.evaluate(() => localStorage.getItem("betula.studyplan.v1"))) === PLAN_NOW, "the calendar's menu and „Abbrechen“ wrote the plan");
+// „+ Kalender": „Anlegen" and „Abbrechen" one under the other.
+await page.locator("#content > .page-stage.front .sp-cal-newrow .sp-cal-add").scrollIntoViewIfNeeded().catch(() => {});
+await page.tap("#content > .page-stage.front .sp-cal-newrow .sp-cal-add >> visible=true").catch(() => problems.push("the phone has no „+ Kalender“ while the plan is edited"));
+await page.waitForFunction(() => document.querySelector("#content > .page-stage.front .sp-cal-new .sp-cal-actions"), null, { timeout: 3000 }).catch(() => problems.push("„+ Kalender“ did not open „Neuer Kalender“"));
+await page.locator("#content > .page-stage.front .sp-cal-new .sp-cal-actions").scrollIntoViewIfNeeded().catch(() => {});
+await page.waitForTimeout(400);
+const made = await asRows(".sp-cal-new .sp-cal-actions");
+check(eachARow(made, 2, "Anlegen") && made.rows[1].text === "Abbrechen", `„Neuer Kalender“ on a phone does not give each answer a row of its own: ${JSON.stringify(made)}`);
+await page.tap('#content > .page-stage.front .sp-cal-new .sp-cal-actions > button:has-text("Abbrechen")');
+await page.waitForFunction(() => !document.querySelector("#content > .page-stage.front .sp-cal-new"), null, { timeout: 3000 }).catch(() => problems.push("„Abbrechen“ did not close „Neuer Kalender“"));
+// A saved plan over a plan with modules asks first: „Ersetzen" and „Abbrechen", in sight.
+await page.locator("#content > .page-stage.front .sp-plans .sp-saved > button.action").scrollIntoViewIfNeeded().catch(() => {});
+await page.waitForTimeout(300);
+await page.tap('#content > .page-stage.front .sp-plans .sp-saved > button.action:has-text("Alt")').catch(() => problems.push("the saved plan „Alt“ is not in the page while the plan is edited"));
+await page.waitForFunction(() => document.querySelector("#content > .page-stage.front #sp-load-ask"), null, { timeout: 3000 }).catch(() => problems.push("a saved plan over a plan with modules did not ask"));
 await page.waitForTimeout(900);
-const cleared = await page.evaluate(() => {
-  const ask = document.querySelector("#content > .page-stage.front #sp-clear-ask");
-  if (!ask) return null;
-  const r = ask.getBoundingClientRect();
-  const rows = [...ask.querySelectorAll("button")].map((button) => { const b = button.getBoundingClientRect(); return { text: button.textContent.trim(), top: Math.round(b.top), bottom: Math.round(b.bottom), width: Math.round(b.width), height: Math.round(b.height) }; });
-  const style = getComputedStyle(ask);
-  return { top: Math.round(r.top), width: Math.round(ask.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)), rows };
-});
-check(cleared && cleared.top >= 0 && cleared.rows.length === 2 && cleared.rows[0].text === "Leeren" && cleared.rows.every((row) => row.width >= cleared.width - 1 && row.height >= 44 && row.bottom <= 844) && cleared.rows[1].top >= cleared.rows[0].bottom, `„Plan leeren“ in „Anpassen“ does not give each answer a row of its own in sight: ${JSON.stringify(cleared)}`);
-await page.tap('#content > .page-stage.front #sp-clear-ask button:has-text("Abbrechen")');
-await page.waitForFunction(() => !document.querySelector("#content > .page-stage.front #sp-clear-ask") && document.querySelector("#content > .page-stage.front #sp-clear"), null, { timeout: 3000 }).catch(() => problems.push("„Abbrechen“ did not take the question of „Plan leeren“ back"));
+const replace = await asRows("#sp-load-ask");
+check(eachARow(replace, 2, "Ersetzen") && replace.rows[1].text === "Abbrechen" && inSight(replace), `a saved plan's question on a phone does not give each answer a row of its own in sight: ${JSON.stringify(replace)}`);
+await page.tap('#content > .page-stage.front #sp-load-ask button:has-text("Abbrechen")');
+await page.waitForFunction(() => !document.querySelector("#content > .page-stage.front #sp-load-ask"), null, { timeout: 3000 }).catch(() => problems.push("„Abbrechen“ did not take the saved plan's question back"));
+check((await page.evaluate(() => localStorage.getItem("betula.studyplan.v1"))) === PLAN_NOW, "„Abbrechen“ of the saved plan's question replaced the plan");
 
 await browser.close();
 console.log(JSON.stringify({ problems }, null, 2));

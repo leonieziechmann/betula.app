@@ -1881,11 +1881,14 @@
     if (sheet) raiseSheet(sheet);
   });
   // What unfolds in a sheet and asks to be seen (`betula:sheet-show` from it, folia_design::nav
-  // `show_in_sheet`: a question and its answers, as „Plan leeren" of „Anpassen", whose answers
+  // `show_in_sheet`: a question and its answers, as a saved plan's „Ersetzen", whose answers
   // stand one under the other): where the sheet half up hides it, all up; what scrolls in it as
   // little as brings it in, measured as it will stand. In sight already, nothing moves.
   document.addEventListener("betula:sheet-show", (e) => {
     const el = e.target, sheet = phone() ? sheetAround(el) : null;
+    // In a phone's page instead (the Stundenplan's saved plans while it is edited): the page brings
+    // it in, clear of the dock over its foot (its `scroll-margin-bottom`).
+    if (!sheet && phone()) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
     if (!sheet || el === sheet) return;
     const g = glides.get(sheet), at = g ? g.to : sheet.classList.contains("is-full") ? "full" : "half";
     const { half } = stopsOf(sheet), foot = footOf(sheet)?.offsetHeight ?? 0, gap = 12;
@@ -4392,7 +4395,7 @@
     // `TerminModal`): ← and → its date as the arrows beside it, V its whole page, ? the keys with
     // „Im Termin" first. Not in a field; with the keyboard nowhere (a click on its text), where it
     // is the one dialog open, not under another (the keys' over it).
-    const dialogs = e.target.closest?.("dialog[open]") ? [e.target.closest("dialog[open]")] : [...document.querySelectorAll("dialog[open]")];
+    const dialogs = e.target.closest?.("dialog[open]") ? [e.target.closest("dialog[open]")] : [...document.querySelectorAll("dialog[open]")].filter((d) => !d.closest(".pending-page"));
     const termin = over && plain && !e.defaultPrevented && !texty(el) && dialogs.length === 1 ? dialogs[0] : null;
     if (termin?.querySelector(".is-termin")) {
       if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.shiftKey) {

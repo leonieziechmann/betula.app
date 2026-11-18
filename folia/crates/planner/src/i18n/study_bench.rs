@@ -8,7 +8,6 @@ pub struct Texts {
     /// „30 von 30 LP": what the semester holds against what the plan puts into it; „30 LP" where
     /// the plan says nothing.
     pub of_planned: fn(&str, &str) -> String,
-    pub credits: fn(&str) -> String,
 
     // The areas.
     /// „Bereiche", for screen readers at the ways of the root.
@@ -78,8 +77,7 @@ pub struct Texts {
     pub no_hits: &'static str,
     /// A choice whose lists the tree leaves empty.
     pub no_list: &'static str,
-    /// „Einplanen", „bestanden", and what a click does (module, semester).
-    pub plan: &'static str,
+    /// „bestanden", and what a click does (module, semester).
     pub passed: &'static str,
     pub plan_aria: fn(&str, &str) -> String,
     pub unplan_aria: fn(&str, &str) -> String,
@@ -151,8 +149,6 @@ pub struct Texts {
     pub size_lead: fn(&str) -> String,
     pub size_plan: fn(&str) -> String,
     pub size_held: fn(&str) -> String,
-    pub size_less: &'static str,
-    pub size_more: &'static str,
     /// „Wie im Plan": what the row says again.
     pub size_reset: &'static str,
     /// The stepper's buttons and field.
@@ -184,7 +180,6 @@ pub struct Texts {
 pub const DE: Texts = Texts {
     done_hint: "Planen beenden",
     of_planned: |have, plan| format!("{have} von {plan} LP"),
-    credits: |have| format!("{have} LP"),
 
     areas: "Bereiche",
     by_plan: |fs| format!("Laut Plan im {fs}"),
@@ -229,7 +224,6 @@ pub const DE: Texts = Texts {
     nothing: "Nichts, was alle Schalter erfüllt.",
     no_hits: "Nichts gefunden.",
     no_list: "Der Modulbaum nennt für diese Wahl keine Module. Im Katalog findest du sie.",
-    plan: "Einplanen",
     passed: "bestanden",
     plan_aria: |title, semester| format!("{title} in {semester} einplanen"),
     unplan_aria: |title, semester| format!("{title} aus {semester} herausnehmen"),
@@ -275,8 +269,6 @@ pub const DE: Texts = Texts {
     size_lead: |semester| format!("Wie viele LP willst du hierfür im {semester} belegen? Der Platzhalter verschwindet, sobald seine Module so viel haben."),
     size_plan: |credits| format!("Laut Plan {credits}\u{a0}LP"),
     size_held: |credits| format!("darin schon {credits}\u{a0}LP"),
-    size_less: "Weniger",
-    size_more: "Mehr",
     size_reset: "Wie im Plan",
     size_down: "1 LP weniger",
     size_up: "1 LP mehr",
@@ -302,7 +294,6 @@ pub const DE: Texts = Texts {
 pub const EN: Texts = Texts {
     done_hint: "Stop planning",
     of_planned: |have, plan| format!("{have} of {plan} ECTS"),
-    credits: |have| format!("{have} ECTS"),
 
     areas: "Areas",
     by_plan: |fs| format!("By the plan in {fs}"),
@@ -347,7 +338,6 @@ pub const EN: Texts = Texts {
     nothing: "Nothing meets every switch.",
     no_hits: "Nothing found.",
     no_list: "The module tree names no modules for this choice. The catalogue has them.",
-    plan: "Plan",
     passed: "passed",
     plan_aria: |title, semester| format!("Plan {title} for {semester}"),
     unplan_aria: |title, semester| format!("Take {title} out of {semester}"),
@@ -393,8 +383,6 @@ pub const EN: Texts = Texts {
     size_lead: |semester| format!("How many CP do you want to take for this in {semester}? The placeholder goes once its modules hold that much."),
     size_plan: |credits| format!("By the plan {credits}\u{a0}CP"),
     size_held: |credits| format!("{credits}\u{a0}CP in it already"),
-    size_less: "Less",
-    size_more: "More",
     size_reset: "As in the plan",
     size_down: "1 CP less",
     size_up: "1 CP more",

@@ -6,9 +6,13 @@
 //! campus, first–last. An eye button hides an event, a Termin or an exam sitting and shows it
 //! again; in a choice („1 von 4 wählen") the line of an option is the choice, with a radio mark: a
 //! click chooses it, a second click or „Wahl aufheben" opens the choice again. What hides an event
-//! from elsewhere (a kind hidden, which „Alle Termine" shows again; the other town's course of a
-//! module taught in both towns) is said once under the event, and its Termine step back. Above, where the module
-//! stands in the plan: its credits, the placeholder it counts for, and „Entfernen". At the end, the
+//! from elsewhere (a kind hidden before 2026-11-04, which the eye of its row in the module list
+//! shows again; the other town's course of a
+//! module taught in both towns) is said once under the event, and its Termine step back. Above, its
+//! credits, and of a visit that it is one. What the module counts for, taking it out and the other
+//! semesters it is planned in are „Mein Studium"'s: the calendar lists the study's modules and
+//! manages none of them (owner, 2026-11-17: „man kann gerade noch module im Kalender verwalten, das
+//! ist aber keine gute idee, weil man das ja in mein Studium macht"). At the end, the
 //! module's clashes and exam warnings in the words of the semester's notes, each leading to the
 //! other module where there is one.
 //!
@@ -16,11 +20,10 @@
 //! row clicked in `sem` as well). Otherwise (a module moved to another semester stays open) it is
 //! the semester the module is planned in nearest to the page's, and the panel loads that
 //! semester's plan itself: the queries of that semester's page, answered from the visit's cache the
-//! second time. A module planned in several semesters says where else, and leads there.
+//! second time.
 //!
 //! Choosing asks the catalog nothing (the store, then the selection and the timetable), so it is
-//! written in the click. Removing changes what is planned, which the pages query for: the control
-//! answers first and the store follows after the next frame (R21). What the panel lists (its
+//! written in the click. What the panel lists (its
 //! events, Termine and options) and what is shown of it (hidden, chosen) are two memos, so an eye
 //! button or a choice flips its own state in place and keeps the focus.
 
@@ -31,13 +34,12 @@ use folia_calendar::kind::{fold, EventKind, KindSet};
 use folia_calendar::rowkey::RowKey;
 use folia_calendar::select::{HiddenBy, Town, TownChoice};
 use folia_model::labels::Labelled;
-use folia_calendar::semester::{of_fachsemester, SemesterKey};
+use folia_calendar::semester::SemesterKey;
 use folia_model::labels::{Campus, Code, Rhythm, TurnusSeason};
 use folia_model::rows::CatalogRow;
 use folia_pages::ask::{StudyplanAsk, StudyplanModulesAsk};
 use folia_pages::StudyplanData;
-use folia_plans::studyplan::{Placeholder, PlanDoc};
-use folia_routes::url::{PlanView, StudyplanUrl};
+use folia_plans::studyplan::PlanDoc;
 use folia_timetable::clash;
 use folia_timetable::exams::{self, ExamRow, ExamShape, ExamWarning, Termin, TerminAt, WarningKind};
 use folia_timetable::model::{Attendance, Basis, Event, Row, TakenBy, Timetable};
@@ -49,11 +51,9 @@ use folia_design::format;
 use crate::i18n::{self, Locale};
 use folia_stores::myprogram::MyProgram;
 use folia_design::nav;
-use folia_shell::pending::Pending;
 use folia_shell::frame::ErrorState;
 use folia_shell::pending::same_page;
 use folia_shell::tabs::Tabs;
-use folia_design::combobox::{ComboItem, Select};
 use folia_design::ui::{Icon, Shortcut};
 use folia_widgets::module::ModuleIds;
 use super::head::blocked_line;
@@ -119,20 +119,6 @@ struct Head {
     credits: Option<f64>,
     missing: bool,
     abbrev: Option<String>,
-}
-
-/// Where the module stands, as the select of its placeholder offers it.
-#[derive(Clone, Debug, PartialEq)]
-struct Choices {
-    id: String,
-    sem: SemesterKey,
-    /// The placeholders it can count for, with their labels.
-    placeholders: Vec<(u32, String)>,
-    fills: Option<u32>,
-    /// The other semesters it is planned in (a module over two semesters, a retake).
-    elsewhere: Vec<SemesterKey>,
-    /// Only visited in `sem`: it counts for no placeholder, and „Entfernen" takes the visit away.
-    visit: bool,
 }
 
 /// What the panel lists: the module's events and exams in its semester, with their Termine and
@@ -332,7 +318,6 @@ struct Shown {
 #[component]
 pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
-    let going = Pending::expect();
     let town = move || ctx.mine.map(MyProgram::town).unwrap_or_default();
 
     let place = Memo::new(move |_| {
@@ -405,24 +390,14 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
     let shown = Memo::new(move |_| shown_all.with(|all| all.as_ref().map(|all| all.blocks.clone()).unwrap_or_default()));
     let notes = Memo::new(move |_| shown_all.with(|all| all.as_ref().map(|all| all.notes.clone()).unwrap_or_default()));
 
-    // Where the module is planned and what it counts for.
-    let choices = Memo::new(move |_| {
+    // Whether the module is only visited in its semester: it says so beside its credits.
+    let visit = Memo::new(move |_| {
         let (url, current) = (ctx.url.get(), ctx.current.get());
         let id = url.open.clone()?;
-        let start = ctx.mine.and_then(MyProgram::start);
         ctx.plan?.with(|doc| {
             let shown = key_of(&url, current, doc, ctx.today);
             let sem = home_semester(doc, shown, &id)?;
-            let fills = doc.modules.iter().find(|m| m.semester == sem && m.module_id == id).and_then(|m| m.fills);
-            let visit = doc.is_visited(sem, &id);
-            Some(Choices {
-                placeholders: if visit { Vec::new() } else { placeholder_choices(doc, sem, start, fills, t) },
-                elsewhere: doc.planned_in(&id).into_iter().filter(|other| *other != sem).collect(),
-                id,
-                sem,
-                fills,
-                visit,
-            })
+            Some(doc.is_visited(sem, &id))
         })
     });
 
@@ -491,7 +466,7 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
                         <a class="ghost" href=close data-action="close-detail" data-back=back data-noscroll="" title=t.studyplan_aside.close_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
                     </div>
                     {heading}
-                    <Actions ctx going head place table choices/>
+                    <Actions head visit/>
                 </header>
                 <div class="dbody">
                     {move || error.get().map(|error| view! { <ErrorState error/> })}
@@ -504,106 +479,24 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
     }
 }
 
-/// Under the title: the credits, and where the module is planned — the placeholder it counts for,
-/// „Entfernen" — and the other semesters it is planned in. Removing answers in the next frame and
-/// changes the plan after it (R21); „Entfernen" closes the panel, since the module is no longer
-/// there. (The Stundenplan is one semester's: the select that moved a module to another semester
-/// is gone, owner 2026-09-25.)
+/// Under the title: the credits, and of a module only visited „Besuch · zählt nicht". Until
+/// 2026-11-17 here stood what it counts for („Zählt für"), „Entfernen" and the other semesters it is
+/// planned in („Auch geplant"): „Mein Studium" manages them, the calendar lists (owner, 2026-11-17).
+/// The Stundenplan is one semester's: the select that moved a module to another semester is gone
+/// (owner, 2026-09-25).
 #[component]
-fn Actions(
-    ctx: PlanCtx,
-    going: Option<Pending>,
-    head: Memo<Option<Head>>,
-    place: Memo<Option<Place>>,
-    table: Memo<Option<Timetable>>,
-    choices: Memo<Option<Choices>>,
-) -> impl IntoView {
+fn Actions(head: Memo<Option<Head>>, visit: Memo<Option<bool>>) -> impl IntoView {
     let t = i18n::t();
     let credits = Memo::new(move |_| head.with(|head| head.as_ref().map(|head| format::credits(head.credits, t.locale))));
-    let planned = Memo::new(move |_| choices.with(Option::is_some));
-    let placeholders = Memo::new(move |_| choices.with(|c| c.as_ref().map(|c| c.placeholders.clone()).unwrap_or_default()));
-    let fills = Memo::new(move |_| choices.with(|c| c.as_ref().and_then(|c| c.fills)));
-    let elsewhere = Memo::new(move |_| choices.with(|c| c.as_ref().map(|c| c.elsewhere.clone()).unwrap_or_default()));
-    let visit = Memo::new(move |_| choices.with(|c| c.as_ref().is_some_and(|c| c.visit)));
-    let removing = RwSignal::new(false);
-    let tabs = Tabs::expect();
-
-    let set_fills = Callback::new(move |value: String| {
-        let Some(plan) = ctx.plan else { return };
-        let pid = value.parse::<u32>().ok();
-        let Some((id, sem)) = choices.with_untracked(|c| c.as_ref().map(|c| (c.id.clone(), c.sem))) else { return };
-        plan.update(|doc| doc.set_fills(sem, &id, pid));
-    });
-    let remove = move |_: leptos::ev::MouseEvent| {
-        let Some(plan) = ctx.plan else { return };
-        let Some((id, sem)) = place.with_untracked(|place| place.as_ref().and_then(|place| Some((place.id.clone(), place.sem?)))) else { return };
-        let events = table.with_untracked(|t| t.as_ref().filter(|t| t.key == sem).map(|t| only_its_events(t, &id)).unwrap_or_default());
-        removing.set(true);
-        // The panel's own entry goes: back where the plan without it is the step before, else in
-        // its place; Back leads to where the visitor was before opening the module, not to a panel
-        // of a module the plan no longer holds (`nav::close_to`).
-        let page = ctx.url.with_untracked(|url| url.with_open(None, None).path());
-        let now = ctx.url.with_untracked(|url| url.path());
-        folia_shell::nav::close_to(going, &page, || tabs.is_some_and(|tabs| same_page(&tabs.before(&now), &page)));
-        let visited = visit.get_untracked();
-        plan.update_after_paint(move |doc| match visited {
-            true => doc.unvisit(sem, &id, &events),
-            false => doc.unplan(sem, &id, &events),
-        });
-    };
-
-    let selects = move || {
-        planned.get().then(|| {
-            view! {
-                {move || (!placeholders.with(Vec::is_empty)).then(|| view! {
-                    <Select
-                        id="sp-counts-for"
-                        label=t.studyplan_aside.counts_for
-                        items=Signal::derive(move || {
-                            let none = ComboItem::new("", t.studyplan_aside.no_placeholder, "", 0);
-                            std::iter::once(none).chain(placeholders.with(|placeholders| placeholders.iter().map(|(pid, label)| ComboItem::new(pid.to_string(), label.clone(), "", 0)).collect::<Vec<_>>())).collect()
-                        })
-                        selected=Signal::derive(move || fills.get().map(|pid| pid.to_string()).unwrap_or_default())
-                        on_select=set_fills
-                        small=true
-                    />
-                })}
-                <button class="mini" type="button" on:click=remove aria-busy=move || removing.get().then_some("true")>{t.studyplan_aside.remove}</button>
-            }
-        })
-    };
-    // „Auch geplant: WiSe 2027/28": the module in another of its semesters, beside the same view
-    // (on the Übersicht only the panel changes).
-    let also = move || {
-        let others = elsewhere.get();
-        (!others.is_empty()).then(|| {
-            let links = others
-                .into_iter()
-                .enumerate()
-                .map(|(n, sem)| {
-                    let href = move || {
-                        ctx.url.with(|url| {
-                            let open = url.open.clone();
-                            t.path(&StudyplanUrl { sem: Some(sem.key()), open, row: None, ..url.clone() }.path())
-                        })
-                    };
-                    let overview = move || ctx.url.with(|url| (url.view == PlanView::Overview).then_some(""));
-                    view! { {(n > 0).then_some(", ")}<a href=href data-noscroll=overview>{sem.label(t.locale)}</a> }
-                })
-                .collect_view();
-            view! { <p class="hint sp-also">{t.studyplan_aside.also_planned}{links}</p> }
-        })
-    };
+    let visit = Memo::new(move |_| visit.get().unwrap_or(false));
     view! {
         {move || credits.get().map(|credits| view! {
             <div class="sp-actions">
                 <span class="badge strong num" class:visit=move || visit.get()>{credits}</span>
                 // A visit says what it is beside the credits it does not count.
-                {move || visit.get().then(|| view! { <span class="sp-visit-note">{t.studyplan_modules.visit}</span> })}
-                {selects}
+                {move || visit.get().then(|| view! { <span class="sp-visit-note">{t.studyplan_aside.visit_note}</span> })}
             </div>
         })}
-        {also}
     }
 }
 
@@ -988,7 +881,7 @@ fn lead_of(info: &Info, t: &Timetable, sem: SemesterKey, texts: &i18n::Texts) ->
     Some((words.no_dates)(&label, season))
 }
 
-/// The module's events and exams in `t`, in the timetable's order, with their lines; what the
+/// The module's events and exams in `t`, kind first as the module list's rows, with their lines; what the
 /// Standort hides after the rest.
 fn blocks_of(t: &Timetable, id: &str, title: Option<&str>, texts: &i18n::Texts) -> Vec<Block> {
     let own = |modules: &[String]| modules.iter().any(|module| module == id);
@@ -1013,6 +906,8 @@ fn blocks_of(t: &Timetable, id: &str, title: Option<&str>, texts: &i18n::Texts) 
             Block { exam: false, index, event: event_number(&event.id), head: head_text(&kind_word(event, texts), &event.title, title), qis: event.source_url.clone(), items, across: ids }
         })
         .collect();
+    // Kind first, as the module list's rows and the overview's segments stand beside it.
+    events.sort_by_key(|block| t.events.get(block.index).map_or(usize::MAX, folia_timetable::categories::kind_rank));
     // The options of a choice among the module's events stand together where its first one does,
     // under its line („1 von 3 wählen"), by their first time; of a choice too long for the week
     // those that fit the plan first (owner, 2026-10-19, the concept: „Was zu deinem Plan passt,
@@ -1564,13 +1459,11 @@ fn group_of(row: &Row) -> Option<&str> {
     row.date.group_name.as_deref().map(str::trim).filter(|name| !name.is_empty() && *name != UNNAMED_GROUP)
 }
 
-/// What an event is called in a line: its type as QIS writes it („Übung", „Vorlesung/Übung"),
-/// else its first kind, else „Termin".
+/// What an event is called in a line: what Betula calls its kind wherever it writes it
+/// (`views::type_text`: QIS's word in German, „Übung", „Vorlesung/Übung"; its kinds' labels in
+/// English), else „Termin".
 fn kind_word(event: &Event, texts: &i18n::Texts) -> String {
-    match event.type_raw.as_deref().map(str::trim).filter(|kind| !kind.is_empty()) {
-        Some(kind) => kind.to_string(),
-        None => event.kinds.iter().next().map_or(texts.plans_data.session, |kind| kind.label(texts.locale)).to_string(),
-    }
+    Some(folia_timetable::views::type_text(event, texts.locale)).filter(|kind| !kind.is_empty()).unwrap_or_else(|| texts.plans_data.session.to_string())
 }
 
 /// An event's head: what it is, and its title where that is not the module's own (the panel's
@@ -1601,33 +1494,6 @@ pub(super) fn only_its_events(t: &Timetable, id: &str) -> Vec<u32> {
         .chain(t.exams.iter().filter(|exam| only(&exam.modules)).map(|exam| exam.event_id.as_str()))
         .filter_map(event_number)
         .collect()
-}
-
-/// The placeholders a module planned in `sem` can count for: those whose span reaches `sem`, and
-/// the one it counts for now, wherever that stands. A row over several Fachsemester stands in each
-/// semester it was taken over into; of its placeholders that reach `sem`, the last one is offered,
-/// the one in `sem` where there is one.
-fn placeholder_choices(doc: &PlanDoc, sem: SemesterKey, start: Option<SemesterKey>, fills: Option<u32>, texts: &i18n::Texts) -> Vec<(u32, String)> {
-    let offered = |p: &Placeholder| covers(p, sem, start) && !doc.same_row(p).iter().any(|q| q.semester > p.semester && covers(q, sem, start));
-    doc.placeholders
-        .iter()
-        .filter(|p| Some(p.pid) == fills || offered(p))
-        .map(|p| (p.pid, (texts.studyplan_aside.for_placeholder)(&p.name)))
-        .collect()
-}
-
-/// Whether a placeholder spans `sem`: it stands in its first semester, and runs to the last
-/// Fachsemester of its span (counted from the Studienbeginn, else from where it stands).
-fn covers(p: &Placeholder, sem: SemesterKey, start: Option<SemesterKey>) -> bool {
-    if sem < p.semester {
-        return false;
-    }
-    let last = start
-        .and_then(|start| of_fachsemester(start, p.span.1))
-        .filter(|last| *last >= p.semester)
-        .or_else(|| p.semester.plus(i32::from(p.span.1.saturating_sub(p.span.0))))
-        .unwrap_or(p.semester);
-    sem <= last
 }
 
 #[cfg(test)]
@@ -1872,6 +1738,17 @@ mod tests {
         assert_eq!(texts(&block), vec!["Do 09:15–11:30 · A / B · A/B | 15 Termine · Zentralcampus · 08.10.–28.01.".to_string()]);
         assert_eq!(without_campus("Gebäude 14.E - SFB - 14E.202 Rechner- Pool II - Campus Senftenberg"), "Gebäude 14.E - SFB - 14E.202 Rechner- Pool II");
         assert_eq!(without_campus(" LG 10/214 "), "LG 10/214");
+    }
+
+    /// The panel's blocks stand kind first, as the module list's rows and the overview's segments
+    /// beside it: one title for all, the exercise's id the lowest, the lecture first all the same.
+    #[test]
+    fn the_blocks_stand_kind_first() {
+        let rows = [teaching("148008", 1, "Praktikum", 1, "11:30", "13:00"), teaching("148369", 1, "Übung", 1, "15:30", "17:00"), teaching("148701", 1, "Vorlesung", 2, "11:30", "13:00")];
+        let t = table(&rows, &[], &["12104"], &[], &Selection::default());
+        let blocks = blocks_of(&t, "12104", None, &i18n::DE);
+        let ids: Vec<&str> = blocks.iter().map(|block| t.events[block.index].id.as_str()).collect();
+        assert_eq!(ids, ["148701", "148369", "148008"]);
     }
 
     /// A series of single dates is one Termin in the panel (owner, 2026-10-13: „sehr
@@ -2197,48 +2074,5 @@ mod tests {
         assert_eq!(home_semester(&doc, key("2026W"), "12204"), Some(key("2027S")));
         assert_eq!(home_semester(&doc, key("2028S"), "12204"), Some(key("2027W")));
         assert_eq!(home_semester(&doc, key("2026W"), "11103"), None);
-    }
-
-    #[test]
-    fn a_module_counts_for_the_placeholders_its_semester_has() {
-        let placeholder = |pid: u32, semester: &str, span: (u8, u8), name: &str| Placeholder {
-            pid,
-            semester: key(semester),
-            program_id: "079-82-2008".into(),
-            ord: i64::from(pid),
-            span,
-            credits: Some("6".into()),
-            kind: None,
-            caption: String::new(),
-            name: name.into(),
-            size: None,
-        };
-        let doc = PlanDoc {
-            placeholders: vec![
-                placeholder(1, "2026W", (1, 1), "Fachübergreifendes Studium"),
-                placeholder(2, "2026W", (1, 3), "Anwendungsfach"),
-                placeholder(3, "2027S", (2, 2), "Wahlpflichtmodul 1"),
-            ],
-            ..PlanDoc::default()
-        };
-        let pids = |choices: Vec<(u32, String)>| choices.into_iter().map(|(pid, _)| pid).collect::<Vec<_>>();
-        assert_eq!(pids(placeholder_choices(&doc, key("2026W"), Some(key("2026W")), None, &i18n::DE)), vec![1, 2]);
-        // The span of FS 1–3 reaches the summer; counted from where it stands it does too.
-        assert_eq!(pids(placeholder_choices(&doc, key("2027S"), Some(key("2026W")), None, &i18n::DE)), vec![2, 3]);
-        assert_eq!(pids(placeholder_choices(&doc, key("2027S"), None, None, &i18n::DE)), vec![2, 3]);
-        // The one it counts for stays offered wherever it stands.
-        assert_eq!(pids(placeholder_choices(&doc, key("2027W"), Some(key("2026W")), Some(1), &i18n::DE)), vec![1, 2]);
-        let first = placeholder_choices(&doc, key("2026W"), None, None, &i18n::DE);
-        assert_eq!(first.first().map(|(_, label)| label.as_str()), Some("Für „Fachübergreifendes Studium“"));
-        let english = placeholder_choices(&doc, key("2026W"), None, None, &i18n::EN);
-        assert_eq!(english.first().map(|(_, label)| label.as_str()), Some("For “Fachübergreifendes Studium”"));
-        // The Anwendungsfach's row taken over into the summer too: there, and after it, that one
-        // is offered.
-        let mut both = doc.clone();
-        both.placeholders.push(Placeholder { pid: 4, semester: key("2027S"), ..placeholder(2, "2026W", (1, 3), "Anwendungsfach") });
-        assert_eq!(pids(placeholder_choices(&both, key("2027S"), Some(key("2026W")), None, &i18n::DE)), vec![3, 4]);
-        assert_eq!(pids(placeholder_choices(&both, key("2027S"), Some(key("2026W")), Some(2), &i18n::DE)), vec![2, 3, 4]);
-        assert_eq!(pids(placeholder_choices(&both, key("2027W"), Some(key("2026W")), None, &i18n::DE)), vec![4]);
-        assert_eq!(pids(placeholder_choices(&both, key("2026W"), Some(key("2026W")), None, &i18n::DE)), vec![1, 2]);
     }
 }

@@ -3,19 +3,22 @@
 // docs/folia/frontend.md, „Visits"), on canary's data of 2026W: Informatik B.Sc.'s first semester
 // planned (EvS, EEG, PP, MIT1), Einführung in die Programmierung (EiP, 12105) taken in to visit.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node visits.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
-// - „+ Modul" of „Mein Studiengang" with nothing marked: the catalog's search by number, the module
-//   with its number and how it sits in the week, „Aufnehmen" (a `v` line, nothing planned), its note.
-// - The week: the visit ringed in its tone, giving way where it meets the plan (its slots `gives`,
-//   no new red clash; in the focus of its own choice too), „Offen" saying so („EiP trifft VL MIT1 ·
-//   Di 13:45 · der Besuch gibt nach"), the head counting it apart („1 Besuch"), the list with it
-//   under the planned ones („Besuch · zählt nicht") and the same credits; its × takes it out,
-//   „Rückgängig" brings it back.
-// - „Mein Studium": the visit with its name, „nur besuchen · aus dem Kalender" and „–"; its menu
+// - A visit (seeded: a `v` line, as „Mein Studium" writes it) in the week: ringed in its tone, giving
+//   way where it meets the plan (its slots `gives`, no red clash; in the focus of its own choice too),
+//   the head counting it apart („1 Besuch"), the quiet line counting only the choices („4 Wahlen
+//   offen"), „Offen" in the mode saying where it gives way („EiP trifft VL MIT1 · Di 13:45 · der Besuch
+//   gibt nach"), the list with it as one line with „Besuch" and its rows, and nothing to take it out.
+// - „Mein Studium": the visit with its name, „nur besuchen · zählt nicht" and „–"; its menu
 //   („Im Kalender öffnen", „Nur besuchen" ticked, „Entfernen"); without the tick it counts (an `m`
 //   line), the planned module's menu makes it a visit again, „Entfernen" with „Rückgängig".
-// - A calendar of one's own: its „…" has „Modul aufnehmen", the panel „Modul in „Lena“", what it
-//   takes in is an `n` line and a row of its part, whose × takes it out with „Rückgängig".
-// - A phone: „+ Modul" opens in view.
+// - A calendar of one's own, while editing: its „…" has „Modul aufnehmen", the panel „Modul in
+//   „Lena“", what it takes in is an `n` line and a row of its part, whose bin takes it out with
+//   „Rückgängig". While looking the part has neither „+ Modul" nor the bin.
+// - A phone: a calendar's „+ Modul" opens in view.
+// History: 2026-11-17, the edit mode. „+ Modul" of „Mein Studiengang" went (visits are made in „Mein
+// Studium"), and with it the list's „×" of a visit and its credits; the first block seeds the visit
+// and keeps what the week, „Offen" and the head say of it. A calendar's „+ Modul" is the mode's. „Mein
+// Studium" says of a visit „nur besuchen · zählt nicht" (was „… · aus dem Kalender").
 // Needs the snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
 // console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
@@ -65,49 +68,32 @@ const stored = (page) => page.evaluate((key) => (localStorage.getItem(key) ?? ""
 const text = (page, selector) => page.evaluate((selector) => onPage(selector)?.innerText.replace(/\s+/g, " ").trim() ?? null, selector);
 const wide = { viewport: { width: 1440, height: 900 } };
 
-// ---------- „+ Modul" of „Mein Studiengang", the visit in the week ----------
+// ---------- the visit in the week ----------
 {
-  const { page, context } = await open(wide, FS1);
-  await until(page, "the week", () => allOnPage(".sp-week .slot").length > 0 && Boolean(onPage(".sp-list > .sp-list-head .lp")));
-  const before = { sum: await text(page, ".sp-list > .sp-list-head .lp"), clashes: await page.evaluate(() => allOnPage(".sp-week .slot.clash").length) };
-  await page.click(".sp-list .sp-add-mod >> visible=true");
-  await until(page, "„+ Modul“, the catalog first with nothing marked", () => onPage('.sp-addp [role="tab"][aria-selected="true"]')?.textContent === "Katalog"
-    && onPage(".sp-addp-head b")?.textContent === "Modul in „Mein Studiengang“"
-    && onPage(".sp-addp-says")?.textContent === "Zählt in „Mein Studium“ als Besuch, ohne LP."
-    && onPage(".sp-list .sp-add-mod")?.getAttribute("aria-expanded") === "true");
-  await page.fill(".sp-addp .sp-marked-search input", EIP);
-  await until(page, "the search finds EiP with how it sits", (id) => Boolean(onPage(`.sp-addp li[data-id="${id}"] .sp-fit`)), EIP);
-  const found = await page.evaluate((id) => {
-    const li = onPage(`.sp-addp li[data-id="${id}"]`);
-    return { number: li?.querySelector(".sp-addp-id")?.textContent, fit: li?.querySelector(".sp-fit")?.textContent, warn: li?.querySelector(".sp-fit")?.classList.contains("warn") };
-  }, EIP);
-  check(found.number === EIP && found.warn && /^Überschneidet sich mit: .+/.test(found.fit ?? ""), `EiP in the search: ${JSON.stringify(found)}`);
-  check(Boolean(await page.evaluate(() => onPage('.sp-addp a.sp-way[href*="/catalog"]'))), "no way to the whole catalog");
-  await page.click(`.sp-addp li[data-id="${EIP}"] .mini`);
-  await until(page, "taken in as a visit", ([key, id, title]) => {
-    const text = localStorage.getItem(key) ?? "";
-    return text.includes(`v\t2026W\t${id}\t`) && !text.includes(`m\t2026W\t${id}\t`)
-      && onPage(".sp-addp .sp-marked-note")?.textContent.includes(`„${title}“ in „Mein Studiengang“ aufgenommen`)
-      && !onPage(`.sp-addp li[data-id="${id}"]`);
-  }, [PLAN, EIP, EIP_TITLE]);
-
-  // The week: ringed, giving way, no new clash.
+  const { page, context } = await open(wide, FS1 + VISIT);
+  // The week: ringed, giving way, no clash.
   await until(page, "the visit in the week", () => allOnPage(".sp-week .slot.visit").length > 0 && allOnPage(".sp-week .slot.gives").length > 0);
   const week = await page.evaluate(() => ({
     gives: allOnPage(".sp-week .slot.gives").map((slot) => slot.title),
     clashes: allOnPage(".sp-week .slot.clash").length,
-    visitClash: allOnPage(".sp-week .slot.visit.clash").length,
   }));
   check(week.gives.every((title) => /Besuch, zählt nicht/.test(title) && /der Besuch gibt nach/.test(title)), `the slots that give way: ${JSON.stringify(week.gives)}`);
-  check(week.clashes === before.clashes && week.visitClash === 0, `the visit made a clash: ${JSON.stringify({ before: before.clashes, ...week })}`);
-  // „Offen" says where it gives way, and counts only the choices.
+  check(week.clashes === 0, `the visit made a clash: ${JSON.stringify(week)}`);
+  // The head counts it apart; the quiet line counts the choices alone.
+  check((await text(page, ".sp-sum")) === "Informatik B.Sc. · 4 Module · 1 Besuch", `the head: ${await text(page, ".sp-sum")}`);
+  check((await text(page, ".sp-status .sp-open-way")) === "4 Wahlen offen", `the quiet line: ${await text(page, ".sp-status .sp-open-way")}`);
+  // The list: one line with „Besuch", its rows, nothing that takes it out, no credits.
+  const row = await page.evaluate((id) => {
+    const mod = onPage(`.sp-list .sp-mod[data-id="${id}"]`);
+    return mod && { line: mod.querySelector(".sp-mod-row")?.innerText.replace(/\s+/g, " ").trim(), visit: mod.querySelector(".sp-mod-row")?.classList.contains("visit"), rows: mod.querySelectorAll(".sp-cat").length, out: mod.querySelectorAll(".sp-remove, .lp, .mono").length };
+  }, EIP);
+  check(row?.line === `EiP ${EIP_TITLE} Besuch` && row.visit && row.rows > 0 && row.out === 0, `the list's visit: ${JSON.stringify(row)}`);
+  // „Offen" in the mode says where it gives way.
+  await page.click(".sp-status .sp-open-way");
+  await until(page, "the mode", () => Boolean(onPage(".sp-editbar")) && allOnPage(".sp-side .sp-open-row.gives").length > 0);
   const lines = await page.evaluate(() => allOnPage(".sp-side .sp-open-row.gives").map((row) => row.innerText.replace(/\s+/g, " ").trim()));
   check(lines.includes("EiP trifft VL MIT1 Di 13:45 · der Besuch gibt nach Ansehen"), `„Offen“: ${JSON.stringify(lines)}`);
-  // The head counts it apart; the list has it under the planned ones, with the same credits.
-  check((await text(page, ".sp-sum")) === "Informatik B.Sc. · 4 Module · 1 Besuch", `the head: ${await text(page, ".sp-sum")}`);
-  const row = await text(page, ".sp-list .sp-row.visit");
-  check(row === `${EIP_TITLE} EiP Besuch · zählt nicht ${EIP}`, `the list's visit: „${row}"`);
-  check((await text(page, ".sp-list > .sp-list-head .lp")) === before.sum, `the credits counted the visit: ${before.sum} → ${await text(page, ".sp-list > .sp-list-head .lp")}`);
+  check(await page.evaluate((id) => onPage(`.sp-list .sp-mod[data-id="${id}"]`)?.querySelectorAll(".sp-remove").length === 0, EIP), "editing: the visit can be taken out of the list");
   if (shots) await page.screenshot({ path: `${shots}/visits-week.png` });
   // The visit's own choice in focus: its groups that meet the plan give way, yellow, never red.
   await page.click('.sp-side .sp-open-row:has-text("Übung EiP") >> visible=true');
@@ -117,15 +103,7 @@ const wide = { viewport: { width: 1440, height: 900 } };
   if (shots) await page.screenshot({ path: `${shots}/visits-focus.png` });
   await page.keyboard.press("Escape");
   await until(page, "the focus closed", () => !location.search.includes("wahl="));
-  // Its × takes it out, „Rückgängig" brings it back.
-  await page.click(".sp-list .sp-row-wrap:has(.sp-row.visit) .sp-remove");
-  await until(page, "the visit taken out", ([key, id]) => !(localStorage.getItem(key) ?? "").includes(`\t${id}\t`) && Boolean(onPage(".sp-list .sp-row.gone")) && allOnPage(".sp-week .slot.visit").length === 0, [PLAN, EIP]);
-  await page.click(".sp-list .sp-row.gone .mini");
-  await until(page, "the visit back", ([key, id]) => (localStorage.getItem(key) ?? "").includes(`v\t2026W\t${id}\t`) && Boolean(onPage(".sp-list .sp-row.visit")), [PLAN, EIP]);
-  // Esc closes the panel.
-  await page.focus(".sp-addp .sp-marked-search input");
-  await page.keyboard.press("Escape");
-  await until(page, "Esc closes „+ Modul“", () => !onPage(".sp-addp"));
+  check((await stored(page)).length === 1, `the plan's lines of EiP: ${JSON.stringify(await stored(page))}`);
   check(await page.evaluate(() => window.__marker === 1), "the page loaded again");
   await context.close();
 }
@@ -136,7 +114,7 @@ const wide = { viewport: { width: 1440, height: 900 } };
   const visit = `.st-visit[data-key="v:${EIP}"]`;
   await until(page, "the visit with its name", ([selector, title]) => onPage(`${selector} .st-name`)?.textContent === title, [visit, EIP_TITLE]);
   const said = await text(page, visit);
-  check(said?.startsWith(`${EIP_TITLE} ${EIP} nur besuchen · aus dem Kalender`) && said.includes("–"), `the visit's row: „${said}"`);
+  check(said?.startsWith(`${EIP_TITLE} ${EIP} nur besuchen · zählt nicht`) && said.includes("–"), `the visit's row: „${said}"`);
   const menu = () => page.evaluate(() => allOnPage(".st-pop [role^=menuitem]").map((item) => `${item.id}${item.getAttribute("aria-checked") === "true" ? "✓" : ""}`));
   await page.click(`${visit} .st-status`);
   await until(page, "the visit's menu", () => Boolean(onPage("#st-menu-visit")));
@@ -166,7 +144,10 @@ const wide = { viewport: { width: 1440, height: 900 } };
 // ---------- a calendar of one's own ----------
 {
   const { page, context } = await open(wide, FS1 + LENA);
-  await until(page, "Lena's part", () => Boolean(onPage(".sp-cal-mods .sp-add-mod")));
+  await until(page, "Lena's part while looking", () => Boolean(onPage(".sp-cal-mods .sp-mod-row")));
+  check(await page.evaluate(() => allOnPage(".sp-cal-mods .sp-add-mod, .sp-cal-mods .sp-remove, .sp-cal .sp-cal-more").filter((el) => el.getClientRects().length).length === 0), "looking: „+ Modul“, a bin or a menu in Lena's part");
+  await page.click("#sp-edit-toggle");
+  await until(page, "Lena's part while editing", () => Boolean(onPage(".sp-cal-mods .sp-add-mod")) && Boolean(onPage(".sp-cal:not(.mine) .sp-cal-more")));
   await page.click(".sp-cal:not(.mine) .sp-cal-more >> nth=0");
   await page.click('.sp-cal-menu button:has-text("Modul aufnehmen")');
   await until(page, "„Modul in „Lena““", () => onPage(".sp-cal-mods .sp-addp-head b")?.textContent === "Modul in „Lena“" && onPage(".sp-cal-mods .sp-addp-says")?.textContent === "Module in „Lena“ zählen nirgends." && !onPage(".sp-cal-mods .sp-addp a.sp-way"));
@@ -178,7 +159,8 @@ const wide = { viewport: { width: 1440, height: 900 } };
     return text.includes(`n\t1\t2026W\t${id}`) && !text.includes(`v\t2026W\t${id}`) && !text.includes(`m\t2026W\t${id}`)
       && allOnPage(".sp-cal-mods .sp-row").some((row) => row.textContent.includes(title));
   }, [PLAN, EIP, EIP_TITLE]);
-  // Its row's × takes it out, „Rückgängig" brings it back.
+  // Its row's bin takes it out, „Rückgängig" brings it back.
+  check(await page.evaluate((title) => [...document.querySelectorAll(".sp-cal-mods .sp-row-wrap")].find((wrap) => wrap.textContent.includes(title))?.querySelector(".sp-remove use")?.getAttribute("href")?.endsWith("#trash-2"), EIP_TITLE), "the calendar's module has no bin");
   await page.click(`.sp-cal-mods .sp-row-wrap:has-text("${EIP_TITLE}") .sp-remove`);
   await until(page, "taken out of Lena's", ([key, id, title]) => !(localStorage.getItem(key) ?? "").includes(`n\t1\t2026W\t${id}`) && onPage(".sp-cal-mods .sp-marked-note")?.textContent.includes(`„${title}“ aus „Lena“ genommen`), [PLAN, EIP, EIP_TITLE]);
   await page.click(".sp-cal-mods .sp-marked-note .mini");
@@ -188,13 +170,13 @@ const wide = { viewport: { width: 1440, height: 900 } };
   await context.close();
 }
 
-// ---------- a phone: „+ Modul" in view ----------
+// ---------- a phone: a calendar's „+ Modul" in view ----------
 {
-  const { page, context } = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, FS1 + VISIT);
-  await until(page, "the phone's list", () => Boolean(onPage(".sp-list .sp-add-mod")));
-  await page.tap(".sp-list .sp-add-mod >> visible=true");
+  const { page, context } = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, FS1 + VISIT + LENA, "/studyplan?edit=1");
+  await until(page, "the phone's calendar part", () => Boolean(onPage(".sp-cal-mods .sp-add-mod")));
+  await page.tap(".sp-cal-mods .sp-add-mod >> visible=true");
   await until(page, "„+ Modul“ in view on a phone", () => {
-    const panel = onPage(".sp-addp")?.getBoundingClientRect();
+    const panel = onPage(".sp-cal-mods .sp-addp")?.getBoundingClientRect();
     return panel && panel.top >= 0 && panel.top < innerHeight - 80 && panel.right <= innerWidth + 0.5;
   });
   if (shots) await page.screenshot({ path: `${shots}/visits-phone.png` });

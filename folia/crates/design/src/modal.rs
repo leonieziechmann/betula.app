@@ -13,7 +13,10 @@
 //! (`on_close`), and so does its × (`ModalHead`); what it holds goes in one piece as it closes, so
 //! that the copy a phone lets glide away (`ghostSheet`) shows all of it; a dialog that goes with the
 //! component holding it leaves the top layer first; the browser gives the focus back to what opened
-//! it.
+//! it. Where its owner places it (`at`, a card beside the slot it was opened from) it stands there
+//! instead of the window's middle; Esc closes what stands open in it first, where its owner says so
+//! (`on_cancel`); a click beside it can be its owner's (`on_beside`: another slot's card in its
+//! place) instead of closing it.
 //!
 //! ```ignore
 //! view! {
@@ -73,6 +76,24 @@ impl ModalSize {
             ModalSize::M => Sheet::Half,
             ModalSize::L => Sheet::Full,
         }
+    }
+}
+
+/// Where a placed dialog stands in the window (`Modal`'s `at`), in CSS pixels: its left and its
+/// top, the edge that stays still while what it holds grows (it grows downward), and how tall it
+/// stays at least while something stands open in it (`least`, 0 for no such height), so that
+/// what opens shorter than what it rests with moves no edge either.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Placed {
+    pub left: f64,
+    pub top: f64,
+    pub least: f64,
+}
+
+impl Placed {
+    /// Its style: `--x`, `--y` and `--h`, data as custom properties (R7).
+    pub fn style(self) -> String {
+        format!("--x:{:.0}px;--y:{:.0}px;--h:{:.0}px", self.left, self.top, self.least)
     }
 }
 
@@ -151,14 +172,30 @@ pub fn Modal(
     /// does not come up at once over what it shows.
     #[prop(optional)]
     focus_itself: bool,
+    /// Where it stands on a wide screen instead of the window's middle (`Placed`; app.css
+    /// `.st-dialog.placed`). `None`: the middle. A phone's sheet stands as every sheet.
+    #[prop(optional, into)]
+    at: Signal<Option<Placed>>,
+    /// Esc while something stands open inside it: `true` where its owner closed that and the dialog
+    /// stays, `false` where the dialog closes as ever. One Esc, one layer.
+    #[prop(optional)]
+    on_cancel: Option<Callback<(), bool>>,
+    /// A click beside it at this point of the window: `true` where its owner took it (what it shows
+    /// changes), `false` where the dialog closes as ever.
+    #[prop(optional_no_strip)]
+    on_beside: Option<Callback<(f64, f64), bool>>,
     children: ChildrenFn,
 ) -> impl IntoView {
     let node = NodeRef::<leptos::html::Dialog>::new();
+    // A click beside it a moment after it came was meant for what opened it (the second click of
+    // a slow double click on „+ Termin" closed the form it had opened): it takes none for 400 ms.
+    let born = crate::nav::Newborn::now();
     // Shown while `open` says so, from the frame it is in the page.
     Effect::new(move |_| {
         let open = open.get();
         let Some(dialog) = node.get() else { return };
         if open && !dialog.open() {
+            born.again();
             let _ = dialog.show_modal();
             if focus_itself {
                 let _ = dialog.focus();
@@ -176,13 +213,17 @@ pub fn Modal(
         }
     });
     let beside = move |ev: leptos::ev::MouseEvent| {
-        if on_backdrop(node, &ev) {
-            on_close.run(());
+        if on_backdrop(node, &ev) && !born.swallows(&ev) {
+            let point = (f64::from(ev.client_x()), f64::from(ev.client_y()));
+            if !on_beside.is_some_and(|ask| ask.run(point)) {
+                on_close.run(());
+            }
         }
     };
     let class = move || {
         let size = size.get().class();
-        ["st-dialog", size, class].iter().filter(|part| !part.is_empty()).copied().collect::<Vec<_>>().join(" ")
+        let placed = if at.get().is_some() { "placed" } else { "" };
+        ["st-dialog", size, placed, class].iter().filter(|part| !part.is_empty()).copied().collect::<Vec<_>>().join(" ")
     };
     view! {
         <dialog
@@ -193,11 +234,43 @@ pub fn Modal(
             aria-label=move || label.map(|label| label.get())
             tabindex=focus_itself.then_some("-1")
             autofocus=focus_itself
+            style=move || at.get().map(Placed::style)
+            on:cancel=move |ev: leptos::ev::Event| {
+                if on_cancel.is_some_and(|ask| ask.run(())) {
+                    ev.prevent_default();
+                }
+            }
             on:close=move |_| on_close.run(())
             on:click=beside
+            // The press of such a click neither takes the keyboard from the field it has.
+            on:mousedown=move |ev: leptos::ev::MouseEvent| {
+                if on_backdrop(node, &ev) {
+                    born.swallows(&ev);
+                }
+            }
         >
             {move || open.get().then(|| view! { <div class="st-dlg">{children()}</div> })}
         </dialog>
+    }
+}
+
+/// Whether a dialog stands open over the page other than one `but` matches (a selector): the form
+/// „Neuer Termin", the keys' overview, a card. A listener of Esc for what lies under the dialogs
+/// leaves the key to the one in front (one Esc, the topmost layer). The copy of a dialog in the
+/// picture held over a step is none.
+pub fn dialog_in_front(but: Option<&str>) -> bool {
+    #[cfg(feature = "csr")]
+    {
+        let Some(document) = web_sys::window().and_then(|window| window.document()) else { return false };
+        let Ok(open) = document.query_selector_all("dialog[open]") else { return false };
+        (0..open.length()).filter_map(|at| open.item(at)).filter_map(|node| wasm_bindgen::JsCast::dyn_into::<web_sys::Element>(node).ok()).any(|dialog| {
+            dialog.closest(".pending-page.held").ok().flatten().is_none() && !but.is_some_and(|but| dialog.matches(but).unwrap_or(false))
+        })
+    }
+    #[cfg(not(feature = "csr"))]
+    {
+        let _ = but;
+        false
     }
 }
 

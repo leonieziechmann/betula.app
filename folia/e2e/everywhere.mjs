@@ -7,11 +7,15 @@
 // the bookmark; the workbench of „Module hinzufügen" says of a marked module of the plan that it is
 // marked, with its collections; its „Gemerkt" lists the marked modules by collection and search,
 // „+ Einplanen" plans one; the Gesamtplan's cell opens the workbench at its area with the marked
-// module first in its group; on a phone the workbench is a sheet whose „Gemerkt" unfolds them. The Stundenplan's „+ Modul" of „Mein
-// Studiengang", its Merkliste: what the winter offers each with how it sits in the week, the
-// summer's folded with „nur SoSe", a search, a collection, „2 gemerkte Module aufnehmen" (as visits)
-// and „Rückgängig", Esc. Nothing of the marks, the names of the collections or what is typed is in a
-// request.
+// module first in its group; on a phone the workbench is a sheet whose „Gemerkt" unfolds them. The Stundenplan's „+ Modul" of a
+// calendar of one's own, while editing, its Merkliste: what the winter offers each with how it sits in
+// the week, the summer's folded with „nur SoSe", a search, a collection, „2 gemerkte Module aufnehmen"
+// (into the calendar, never into the study) and „Rückgängig", Esc. Nothing of the marks, the names of
+// the collections or what is typed is in a request.
+// History: 2026-11-17, the edit mode. „+ Modul" of „Mein Studiengang" went (owner: „Denn man kann gerade
+// noch module im Kalender verwalten, das ist aber keine gute idee"); the Merkliste of „+ Modul" is
+// checked in a calendar of one's own, which keeps „+ Modul" while editing („Bei den weitern Kalender
+// soll man btw weiter module hinzufügen könenn").
 // Needs a snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
 // console error, or a step that does not show up.
 import { chromium } from "playwright-core";
@@ -220,15 +224,15 @@ const leaks = requests.filter((r) => marked.some((id) => r.includes(id)) || r.in
 check(leaks.length === 0, `the marks, a collection or the search went into a request: ${leaks.slice(0, 3).join(" | ")}`);
 await context.close();
 
-// ---------- the Stundenplan's „+ Modul", its Merkliste ----------
-// The first semester's four modules planned into WiSe 2026/27; marked: Analysis I and Theoretische
-// Informatik, both of the winter, in „Kandidatenkiste", and Algorithmieren und Programmieren, a
-// summer's, in „Für Lenachen". What „+ Modul" of „Mein Studiengang" takes in is a visit (a `v`
-// line), never a module of the study (owner, 2026-10-26).
+// ---------- the Stundenplan's „+ Modul" of a calendar of one's own, its Merkliste ----------
+// The first semester's four modules planned into WiSe 2026/27 and an empty calendar „WG"; marked:
+// Analysis I and Theoretische Informatik, both of the winter, in „Kandidatenkiste", and Algorithmieren
+// und Programmieren, a summer's, in „Für Lenachen". What „+ Modul" of a calendar takes in is an `n`
+// line of that calendar, never a module of the study or a visit.
 {
   const { context, page, go, step, requests } = await open({ viewport: { width: 1440, height: 900 } });
   await go("/catalog");
-  const fs1 = ["12104", "12107", "12102", "11112"].map((id) => `m\t2026W\t${id}\t1790000000\t`).join("\n") + "\n";
+  const fs1 = ["12104", "12107", "12102", "11112"].map((id) => `m\t2026W\t${id}\t1790000000\t`).join("\n") + "\nl\t1\t\t\tWG\n";
   const [analysis, theory, programming] = ["11103", ti, "12101"];
   await page.evaluate(([key, shelf, plan, fs1, ids, now, kandidaten, lena]) => {
     localStorage.setItem(key, ids.map((id, i) => `${id}\t${now - i * 60}\n`).join(""));
@@ -236,10 +240,11 @@ await context.close();
     localStorage.setItem(plan, fs1);
   }, [KEY, SHELF, PLAN, fs1, [analysis, theory, programming], now, KANDIDATEN, LENA]);
   requests.length = 0;
-  await go("/studyplan");
-  await page.waitForSelector(".sp-list .sp-add-mod", { timeout: 20000 }).catch(() => problems.push("„Mein Studiengang“ has no „+ Modul“"));
+  await go("/studyplan?edit=1");
+  await page.waitForSelector(".sp-cal-mods .sp-add-mod", { timeout: 20000 }).catch(() => problems.push("the calendar „WG“ has no „+ Modul“ while editing"));
+  check(await page.evaluate(() => !onPage(".sp-list .sp-add-mod")), "„Mein Studiengang“ has „+ Modul“");
   const lis = (selector = ".sp-addp-list li") => page.evaluate((selector) => [...document.querySelectorAll(`.sp-addp ${selector}`)].map((li) => ({ id: li.dataset.id, fit: li.querySelector(".sp-fit")?.textContent ?? null, kind: li.querySelector(".sp-fit")?.className ?? null })), selector);
-  await step("+ Modul", () => page.click(".sp-list .sp-add-mod"), () => document.querySelector('.sp-addp [role="tab"][aria-selected="true"]')?.textContent === "Merkliste (3)" && document.querySelectorAll(".sp-addp .sp-addp-list li").length === 2 && document.querySelector(".sp-addp-says")?.textContent === "Zählt in „Mein Studium“ als Besuch, ohne LP.");
+  await step("+ Modul", () => page.click(".sp-cal-mods .sp-add-mod"), () => document.querySelector('.sp-addp [role="tab"][aria-selected="true"]')?.textContent === "Merkliste (3)" && document.querySelectorAll(".sp-addp .sp-addp-list li").length === 2 && document.querySelector(".sp-addp-says")?.textContent === "Module in „WG“ zählen nirgends.");
   const chips = await page.evaluate(() => [...document.querySelectorAll(".sp-addp .sp-marked-chips button")].map((b) => `${b.firstChild.textContent} ${b.querySelector(".n")?.textContent}${b.getAttribute("aria-pressed") === "true" ? "*" : ""}`));
   check(JSON.stringify(chips) === JSON.stringify(["Alle 3*", `${KANDIDATEN} 2`, `${LENA} 1`]), `the collections of „+ Modul“: ${JSON.stringify(chips)}`);
   // How each sits in the week, once the panel is open: „passt", or what it overlaps with.
@@ -259,13 +264,13 @@ await context.close();
   check((await page.evaluate(() => document.querySelector(".sp-addp .sp-take")?.textContent)) === "2 gemerkte Module aufnehmen", "no „2 gemerkte Module aufnehmen“ for the collection");
   await step("aufnehmen", () => page.click(".sp-addp .sp-take"), ([key, ids]) => {
     const text = localStorage.getItem(key) || "";
-    return ids.every((id) => text.includes(`v\t2026W\t${id}\t`) && !text.includes(`m\t2026W\t${id}\t`))
-      && document.querySelector(".sp-addp .sp-marked-note")?.textContent.includes("2 gemerkte Module in „Mein Studiengang“ aufgenommen")
+    return ids.every((id) => text.includes(`n\t1\t2026W\t${id}\n`) && !text.includes(`m\t2026W\t${id}\t`) && !text.includes(`v\t2026W\t${id}\t`))
+      && document.querySelector(".sp-addp .sp-marked-note")?.textContent.includes("2 gemerkte Module in „WG“ aufgenommen")
       && document.querySelector('.sp-addp [role="tab"][aria-selected="true"]')?.textContent === "Merkliste (1)"
-      && document.querySelectorAll(".sp-list .sp-row.visit").length === 2;
+      && document.querySelectorAll(".sp-cal-mods a.sp-mod-row").length === 2;
   }, [PLAN, [analysis, theory]]);
-  await step("Rückgängig the take", () => page.click(".sp-addp .sp-marked-note .mini"), ([key, ids]) => ids.every((id) => !(localStorage.getItem(key) || "").includes(`\t${id}\t`)) && document.querySelector('.sp-addp [role="tab"][aria-selected="true"]')?.textContent === "Merkliste (3)" && !document.querySelector(".sp-list .sp-row.visit"), [PLAN, [analysis, theory]]);
-  await step("Esc closes „+ Modul“", async () => { await page.focus(".sp-addp .sp-marked-search input"); await page.keyboard.press("Escape"); }, () => !document.querySelector(".sp-addp") && document.querySelector(".sp-list .sp-add-mod")?.getAttribute("aria-expanded") === "false");
+  await step("Rückgängig the take", () => page.click(".sp-addp .sp-marked-note .mini"), ([key, ids]) => ids.every((id) => !(localStorage.getItem(key) || "").includes(`\t${id}\t`)) && document.querySelector('.sp-addp [role="tab"][aria-selected="true"]')?.textContent === "Merkliste (3)" && !document.querySelector(".sp-cal-mods a.sp-mod-row"), [PLAN, [analysis, theory]]);
+  await step("Esc closes „+ Modul“", async () => { await page.focus(".sp-addp .sp-marked-search input"); await page.keyboard.press("Escape"); }, () => !document.querySelector(".sp-addp") && document.querySelector(".sp-cal-mods .sp-add-mod")?.getAttribute("aria-expanded") === "false" && location.search === "?edit=1");
   const leaks = requests.filter((r) => [analysis, theory, programming].some((id) => r.includes(id)) || r.includes(KANDIDATEN) || r.includes(encodeURIComponent(KANDIDATEN)) || r.includes("Lenachen") || r.includes("theoret"));
   check(leaks.length === 0, `the Stundenplan's Merkliste went into a request: ${leaks.slice(0, 3).join(" | ")}`);
   await context.close();

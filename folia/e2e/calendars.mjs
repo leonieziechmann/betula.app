@@ -9,9 +9,14 @@
 // - The calendar stands as a strip at first (more than eight Termine a week), its switch takes it
 //   in full (outlined, its initial in the corner) and off; „Gemeinsam frei" in the head draws where
 //   both are free; the module list has its part.
+// - While looking the rows of „Kalender" stand with their „Voll · Spur · Aus", without „+ Kalender" and
+//   without a menu; „Bearbeiten" brings both.
 // - „Neuer Kalender" from the link pasted, with a name; its menu renames it and deletes it, and
-//   „Rückgängig" brings it back where it stood.
+//   „Rückgängig" brings it back where it stood. A calendar made by its name alone, without a link.
 // - A phone: one line over the week, „Kalender" and how each stands, that opens into the rows.
+// History: 2026-11-17, the edit mode. Lena ticks her group in its card („Diese Gruppe anhaken"), not by
+// the click on the hatched slot that took it into focus with the group ticked (that preselection went);
+// „+ Kalender" and the calendars' menus are the mode's; „Neuer Kalender" takes a name alone.
 // Needs the snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
 // console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
@@ -70,11 +75,14 @@ const wide = { viewport: { width: 1440, height: 900 } };
 let link = "";
 {
   const { page, context } = await open(wide, LENA, BWL);
-  await until(page, "Lena's week", () => allOnPage(".sp-week a.slot.alt[data-pre]").length > 0);
-  await page.click(".sp-week a.slot.alt[data-pre] >> nth=0");
-  await until(page, "Lena's group ticked", () => /1 von \d/.test(onPage(".sp-focusbar .what small")?.textContent ?? ""));
+  await until(page, "Lena's week", () => allOnPage(".sp-week a.slot.alt").length > 0);
+  // Her group ticked in its card.
+  await page.click(".sp-week a.slot.alt >> nth=0").catch(() => problems.push("Lena's hatched group: nothing to click"));
+  await until(page, "its card", () => document.activeElement?.matches("dialog[open] .tm-big[data-action='tick']"));
+  await page.keyboard.press("Enter");
+  await until(page, "Lena's group ticked", ([key]) => (localStorage.getItem(key) ?? "").split("\n").some((line) => line.startsWith("c\t2026W\t")), [PLAN]);
   await page.keyboard.press("Escape");
-  await until(page, "the focus closed", () => !location.search.includes("wahl="));
+  await until(page, "the card closed", () => !location.search.includes("termin=") && !document.querySelector("dialog[open]"));
   // „Teilen …": a private profile hands on the fixed copy for everybody, the link of today.
   await page.click("#sp-share");
   await until(page, "the dialog „Teilen“", () => Boolean(onPage(".sh-dialog[open] #sh-make")));
@@ -119,6 +127,12 @@ let link = "";
   await page.click(".sp-cal:not(.mine) .sp-cal-seg button >> nth=2");
   await until(page, "off", () => allOnPage(".sp-week .slot.cal, .sp-week .slot.strip, .sp-week .band").length === 0);
 
+  // Looking: no „+ Kalender", no menu; the mode brings them.
+  const shown = (selector) => page.evaluate((selector) => allOnPage(selector).filter((el) => el.getClientRects().length).length, selector);
+  check(await shown(".sp-cals .sp-cal-add") === 0 && await shown(".sp-cal .sp-cal-more") === 0, "looking: „+ Kalender“ or a calendar's menu");
+  await page.click("#sp-edit-toggle");
+  await until(page, "the mode", () => Boolean(onPage(".sp-editbar")) && Boolean(onPage(".sp-cals .sp-cal-add")) && Boolean(onPage(".sp-cal:not(.mine) .sp-cal-more")));
+
   // „Neuer Kalender" from the link, named; renamed, deleted and brought back.
   await page.click(".sp-cal-add");
   await page.fill(".sp-cal-new input[inputmode=url]", `https://betula.app${link}`);
@@ -133,11 +147,19 @@ let link = "";
   await until(page, "renamed", () => allOnPage(".sp-cals .sp-cal b").some((b) => b.textContent === "Lerngruppe"));
   await page.click(".sp-cal:not(.mine) .sp-cal-more >> nth=0");
   await page.click('.sp-cal-menu button:has-text("Löschen")');
-  await until(page, "deleted", () => allOnPage(".sp-cals .sp-cal").length === 2 && /gelöscht/.test(onPage(".sp-cals .sp-cal-note")?.textContent ?? ""));
-  await page.click(".sp-cals .sp-cal-note button");
+  // Its note stands under „Als Kalender angelegt: Lena", the note of the offer.
+  await until(page, "deleted", () => allOnPage(".sp-cals .sp-cal").length === 2 && allOnPage(".sp-cals .sp-cal-note").some((note) => /„Lerngruppe“ gelöscht/.test(note.textContent)));
+  await page.click('.sp-cals .sp-cal-note:has-text("gelöscht") button');
   await until(page, "brought back", () => allOnPage(".sp-cals .sp-cal").length === 3);
   r = await rows(page);
   check(r[1].startsWith("Lerngruppe") && r[2].startsWith("Lena"), `back where it stood: ${JSON.stringify(r)}`);
+  // A calendar by its name alone: no link, „Anlegen" never disabled.
+  await page.click(".sp-cal-add");
+  await until(page, "the form again", () => document.activeElement?.id === "sp-cal-new-name");
+  check(await page.evaluate(() => !onPage(".sp-cal-new button[type=submit]")?.disabled), "„Anlegen“ is disabled without a link");
+  await page.fill("#sp-cal-new-name", "WG");
+  await page.click(".sp-cal-new button[type=submit]");
+  await until(page, "a calendar by its name alone", ([key]) => /^l\t3\t\t\tWG$/m.test(localStorage.getItem(key) ?? "") && allOnPage(".sp-cals .sp-cal").length === 4, [PLAN]);
   check(await page.evaluate(() => window.__marker === 1), "the page loaded again");
   await context.close();
 }

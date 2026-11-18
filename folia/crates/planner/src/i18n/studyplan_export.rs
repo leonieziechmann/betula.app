@@ -23,9 +23,6 @@ pub struct Texts {
     /// The calendar services (Outlook is a name).
     pub apple: &'static str,
     pub google: &'static str,
-    /// „Adresse kopieren", and what the address is.
-    pub copy_address: &'static str,
-    pub subscription_hint: &'static str,
     /// The plan has moved on from the address last handed out: „Abo veraltet: …", „Neue Adresse
     /// kopieren", and after its click „Neue Adresse kopiert".
     pub stale: &'static str,
@@ -48,8 +45,6 @@ pub const DE: Texts = Texts {
     show_all: "Alle einblenden",
     apple: "Apple Kalender",
     google: "Google Kalender",
-    copy_address: "Adresse kopieren",
-    subscription_hint: "Die Adresse enthält Semester, Module und Ausgeblendetes; dein Kalender holt Änderungen selbst (Google etwa täglich).",
     stale: "Abo veraltet: Plan seitdem geändert",
     copy_new: "Neue Adresse kopieren",
     new_copied: "Neue Adresse kopiert",
@@ -68,8 +63,6 @@ pub const EN: Texts = Texts {
     show_all: "Show all",
     apple: "Apple Calendar",
     google: "Google Calendar",
-    copy_address: "Copy address",
-    subscription_hint: "The address contains the semester, the modules and what is hidden; your calendar fetches changes by itself (Google about once a day).",
     stale: "Subscription out of date: plan changed since",
     copy_new: "Copy new address",
     new_copied: "New address copied",

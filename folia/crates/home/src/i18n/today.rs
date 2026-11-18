@@ -129,7 +129,6 @@ pub struct Texts {
     pub running_chip: fn(u16) -> String,
     pub cancelled: &'static str,
     pub group_open: &'static str,
-    pub choose_group: &'static str,
     /// „zugleich" before what overlaps.
     pub overlaps: &'static str,
     pub no_lectures: &'static str,
@@ -233,7 +232,7 @@ pub const DE: Texts = Texts {
     long_date: |weekday, day, month, week| format!("{weekday}, {day}. {month} · KW {week}"),
     weekday_date: |weekday, date| format!("{weekday} {date}"),
 
-    running: |kind, module, room, minutes| format!("Gerade läuft {kind} {module}{}, noch {minutes}\u{a0}{}.", in_room_de(room), if minutes == 1 { "Minute" } else { "Minuten" }),
+    running: |kind, module, room, minutes| format!("Gerade läuft {}{}, noch {minutes}\u{a0}{}.", format!("{kind} {module}").trim(), in_room_de(room), if minutes == 1 { "Minute" } else { "Minuten" }),
     first_today: |n, time, room| match n {
         1 => format!("Heute ein Termin, um {time}{}.", in_room_de(room)),
         n => format!("Heute {n} Termine, der erste um {time}{}.", in_room_de(room)),
@@ -345,7 +344,6 @@ pub const DE: Texts = Texts {
     running_chip: |minutes| format!("läuft · noch {}", duration(minutes)),
     cancelled: "fällt aus",
     group_open: "Gruppe offen",
-    choose_group: "wählen",
     overlaps: "zugleich",
     no_lectures: "Heute keine Vorlesungen",
     pause_text: |from, until| format!("{} Danach geht es mit der Woche weiter, wie sie war.", stop(format!("Vorlesungsfrei vom {from} bis {until}"))),
@@ -411,7 +409,7 @@ pub const EN: Texts = Texts {
     long_date: |weekday, day, month, week| format!("{weekday}, {day} {month} · Week {week}"),
     weekday_date: |weekday, date| format!("{weekday} {date}"),
 
-    running: |kind, module, room, minutes| format!("{kind} {module} is on{}, {minutes} more {}.", in_room_en(room), if minutes == 1 { "minute" } else { "minutes" }),
+    running: |kind, module, room, minutes| format!("{} is on{}, {minutes} more {}.", format!("{kind} {module}").trim(), in_room_en(room), if minutes == 1 { "minute" } else { "minutes" }),
     first_today: |n, time, room| match n {
         1 => format!("One date today, at {time}{}.", in_room_en(room)),
         n => format!("{n} dates today, the first at {time}{}.", in_room_en(room)),
@@ -523,7 +521,6 @@ pub const EN: Texts = Texts {
     running_chip: |minutes| format!("on · {} left", duration(minutes)),
     cancelled: "cancelled",
     group_open: "group to choose",
-    choose_group: "choose",
     overlaps: "at the same time",
     no_lectures: "No lectures today",
     pause_text: |from, until| format!("{} Then the week goes on as it was.", stop(format!("No lectures from {from} to {until}"))),

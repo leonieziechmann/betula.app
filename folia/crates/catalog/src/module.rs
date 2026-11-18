@@ -133,7 +133,7 @@ fn ModuleTermin(id: Memo<String>, kept: Memo<ModuleHint>, asked: Memo<Option<(Ro
     let termin = Callback::new(move |shown: (RowKey, Option<Day>)| t.path(&at(Some(shown))));
     let module = Callback::new(move |(id, _): (String, Option<RowKey>)| t.path(&url::module_path(&id)));
     let full = Callback::new(move |(key, on): (RowKey, Option<Day>)| t.path(&url::event_path(key, on)));
-    let links = TerminLinks { termin, module, close, back, adjust: Some(found.adjust()), full: Some(full) };
+    let links = TerminLinks { termin, module, close, back, adjust: Some(found.adjust()), full: Some(full), choice: None };
     let ctx = found.ctx(links, TerminPlace::Dialog, ticking_clock());
     let open = Signal::derive(move || asked.with(Option::is_some));
     let missing = Signal::derive(move || matches!(found.phase.get(), Some(Ok(false) | Err(_))));

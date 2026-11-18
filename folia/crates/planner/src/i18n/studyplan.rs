@@ -3,8 +3,6 @@
 pub struct Texts {
     /// The page's name: its title, and the start of its heading („Stundenplan WiSe 2026/27").
     pub title: &'static str,
-    /// „Anpassen": the sidebar's heading, and the button that opens it as a sheet on a phone.
-    pub customise: &'static str,
     /// The last line of the sidebar, on the server as in the app: where the plan lives.
     pub storage_hint: &'static str,
     /// What search engines and link previews read of the page …
@@ -21,7 +19,6 @@ pub struct Texts {
 
 pub const DE: Texts = Texts {
     title: "Stundenplan",
-    customise: "Anpassen",
     storage_hint: "Dein Stundenplan liegt nur in diesem Browser.",
     seo_description: "Dein Stundenplan: Termine, Prüfungen und Kalender-Abo der geplanten Module.",
     shared_title: |semester| format!("Stundenplan · {semester}"),
@@ -32,7 +29,6 @@ pub const DE: Texts = Texts {
 
 pub const EN: Texts = Texts {
     title: "Timetable",
-    customise: "Customise",
     storage_hint: "Your timetable is stored in this browser only.",
     seo_description: "Your timetable: dates, exams and a calendar subscription of the planned modules.",
     shared_title: |semester| format!("Timetable · {semester}"),

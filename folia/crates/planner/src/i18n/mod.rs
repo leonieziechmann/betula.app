@@ -8,6 +8,7 @@ pub mod studyplan;
 pub mod studyplan_add;
 pub mod studyplan_aside;
 pub mod studyplan_calendars;
+pub mod studyplan_edit;
 pub mod studyplan_exams;
 pub mod studyplan_export;
 pub mod studyplan_head;
@@ -42,6 +43,7 @@ folia_design::texts! {
     studyplan_add = crate::i18n::studyplan_add,
     studyplan_aside = crate::i18n::studyplan_aside,
     studyplan_calendars = crate::i18n::studyplan_calendars,
+    studyplan_edit = crate::i18n::studyplan_edit,
     studyplan_exams = crate::i18n::studyplan_exams,
     studyplan_export = crate::i18n::studyplan_export,
     studyplan_head = crate::i18n::studyplan_head,

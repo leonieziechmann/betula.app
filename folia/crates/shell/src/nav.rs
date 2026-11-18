@@ -298,6 +298,12 @@ pub fn came_from(target: &str, guess: impl FnOnce() -> bool) -> bool {
 /// without it, back through the history where that is the step before (`came_from`; `guess` where
 /// the browser does not say), else in place of the current entry, so that Back does not bring it.
 pub fn close_to(going: Option<crate::pending::Pending>, target: &str, guess: impl FnOnce() -> bool) {
+    // Where the browser says the step before is `target`, `Pending` holds the step at once, so that
+    // what it changes shows in the frame of the click (R21) and not when the browser's `popstate`
+    // comes back.
+    if going.is_some_and(|going| going.back_if_before(target)) {
+        return;
+    }
     if came_from(target, guess) {
         back();
     } else if let Some(going) = going {

@@ -10,8 +10,12 @@
 //   8 the week's labels: a cut first word ends a label, a module's own slots say their kinds;
 //   9 a plan handed on by a link: its page's tags and picture, the offer, taking it over, the note
 //     with „Rückgängig", and the same link handed on again;
-//   10 the placeholders' boxes: a module chosen for one stands in its box, „Weiteres Modul" while
-//     its row takes more.
+//   10 the placeholders leave the list: a plan with placeholders lists its modules, one line each,
+//     and nothing of the placeholders; what is stored stays as it was.
+// History: 2026-11-17, the edit mode. The empty plan has three ways on („Zu „Mein Studium“", „Zum
+// Katalog", „+ Termin"), the frame is „Stundenplan" (was „Anpassen"); block 10 no longer finds the
+// placeholders' boxes, „Weiteres Modul" and the open placeholders: the calendar lists, it does not
+// manage the study's modules (owner: „das macht man ja in mein Studium").
 // Needs the snapshot whose current semester is WiSe 2026/27 (the plans below are of that
 // semester); another snapshot skips the blocks with a note. Prints {timings, problems} (block 7)
 // and fails on a page load after takeover, a console error, or a step that does not show up.
@@ -101,11 +105,11 @@ async function persistence() {
   const requests = [];
   const { page, step, context } = await open({ viewport: { width: 1500, height: 900 } }, "/studyplan", { requests });
 
-  // A fresh browser: nothing planned, the empty week with the way to the catalog's modules that
-  // fit it (nothing marked, so nothing to take over), and the plan's tab current.
+  // A fresh browser: nothing planned, the empty week with its three ways on — „Mein Studium", the
+  // catalog's modules that fit it, a Termin of one's own — and the plan's tab current.
   await page.waitForFunction(emptyPlan, null, { timeout: 8000 }).catch(() => problems.push("a fresh browser does not show the empty plan"));
   const fresh = await page.evaluate(() => ({
-    links: [...document.querySelectorAll(".sp-body .sp-empty .btn")].map((a) => [a.textContent.trim(), a.getAttribute("href")]),
+    links: [...document.querySelectorAll(".sp-body .sp-empty .state-actions .btn")].map((a) => [a.textContent.trim(), a.getAttribute("href")]),
     week: Boolean(document.querySelector(".sp-body .week.fit")),
     tab: document.querySelector('.rail .nav[data-area="studyplan"]')?.getAttribute("aria-current"),
     title: document.querySelector(".crumb h1")?.textContent,
@@ -113,8 +117,8 @@ async function persistence() {
     hint: document.querySelector(".sidebar .storage-hint")?.textContent ?? "",
     count: Boolean(document.querySelector('.nav[data-area="studyplan"] .nav-count')),
   }));
-  check(JSON.stringify(fresh.links) === JSON.stringify([["Zum Katalog", "/catalog?fits=2026W"]]), `the empty plan's ways on: ${JSON.stringify(fresh.links)}`);
-  check(fresh.week && fresh.tab === "page" && fresh.title === "Stundenplan" && fresh.frame === "Anpassen" && !fresh.count, `the empty plan: ${JSON.stringify(fresh)}`);
+  check(JSON.stringify(fresh.links) === JSON.stringify([["Zu „Mein Studium“", "/study?plan=1"], ["Zum Katalog", "/catalog?fits=2026W"], ["Termin", null]]), `the empty plan's ways on: ${JSON.stringify(fresh.links)}`);
+  check(fresh.week && fresh.tab === "page" && fresh.title === "Stundenplan" && fresh.frame === "Stundenplan" && !fresh.count, `the empty plan: ${JSON.stringify(fresh)}`);
   check(fresh.hint.includes("nur in diesem Browser"), "the sidebar does not say where the plan lives");
   check((await stored(page, PLAN)) === null && (await stored(page, MINE)) === null, "a fresh browser stored something by looking at the plan");
 
@@ -244,11 +248,10 @@ async function withoutTheApp() {
   await waiting.close();
 }
 
-// ---------- 10: the placeholders' boxes ----------
-// A placeholder a module counts for is a box around it (owner, 2026-09-26: „sehen, dass das ein
-// Bereich ist, wo ein Modul ausgewählt ist"), with what counts for its row in another semester and
-// „Weiteres Modul" while the row takes more (a range of credits); a full one has none, one nothing
-// counts for is the dashed row. The store keeps the row's placeholder of each semester.
+// ---------- 10: the placeholders leave the list ----------
+// A plan of the fifth semester with its placeholders, as „Importieren" wrote it (until 2026-11-04): the
+// list names its modules of the semester, one line each, and nothing of the placeholders — no box, no
+// „Weiteres Modul", no open placeholder; the store keeps them as they were.
 async function areas() {
   const context = await browser.newContext({ viewport: { width: 1500, height: 900 } });
   await context.addInitScript(([plan, mine, planText, mineText]) => { if (!localStorage.getItem(plan)) { localStorage.setItem(plan, planText); localStorage.setItem(mine, mineText); } }, [PLAN, MINE, FS5, MINE_FS1]);
@@ -256,23 +259,14 @@ async function areas() {
   watch(page);
   await page.goto(base + "/studyplan", { waitUntil: "domcontentloaded" });
   await takeover(page);
-  await page.waitForFunction(() => document.querySelectorAll(".sp-list .sp-area").length === 2, null, { timeout: 8000 }).catch(() => problems.push("the placeholders' boxes do not show"));
+  await page.waitForFunction(() => document.querySelectorAll(".sp-list .sp-mod").length === 3, null, { timeout: 8000 }).catch(() => problems.push("the modules of the plan with placeholders do not show"));
   const seen = await page.evaluate(() => ({
-    own: [...document.querySelectorAll(".sp-list > .sp-row-wrap .mono")].map((id) => id.textContent),
-    boxes: [...document.querySelectorAll(".sp-list > .sp-area")].map((box) => ({
-      head: box.querySelector(".sp-area-head b")?.textContent,
-      small: box.querySelector(".sp-area-head small")?.textContent,
-      modules: [...box.querySelectorAll(".sp-row .mono")].map((id) => id.textContent),
-      more: box.querySelector("a.sp-area-add")?.getAttribute("href") ?? null,
-    })),
-    open: [...document.querySelectorAll(".sp-list > a.open-slot b")].map((b) => b.textContent),
+    modules: [...document.querySelectorAll(".sp-list .sp-mod")].map((mod) => mod.dataset.id),
+    placeholders: document.querySelectorAll(".sp-list .sp-area, .sp-list a.sp-area-add, .sp-list a.open-slot").length,
+    said: /Komplex|Seminar oder Praktikum|Weiteres Modul/.test(document.querySelector(".sp-list")?.innerText ?? ""),
   }));
-  const [komplex, seminar] = seen.boxes;
-  check(JSON.stringify(seen.own) === JSON.stringify(["12333"]), `the list's own rows: ${JSON.stringify(seen)}`);
-  check(komplex?.head === "Komplex Grundlagen der Informatik" && komplex.small === "5.–6. FS · 12 LP geplant" && JSON.stringify(komplex.modules) === JSON.stringify(["12339", "11881"]) && Boolean(komplex.more?.endsWith("fill=p1")), `the Komplex's box: ${JSON.stringify(komplex)}`);
-  check(seminar?.head === "Seminar oder Praktikum" && JSON.stringify(seminar.modules) === JSON.stringify(["12111"]) && seminar.more === null, `a full box: ${JSON.stringify(seminar)}`);
-  check(JSON.stringify(seen.open) === JSON.stringify(["Komplex Praktische Informatik", "Komplex Angewandte und Technische Informatik"]), `the open placeholders: ${JSON.stringify(seen.open)}`);
-  check((await stored(page, PLAN)) === FS5, "showing the boxes changed what is stored");
+  check(JSON.stringify(seen.modules) === JSON.stringify(["12333", "12339", "12111"]) && seen.placeholders === 0 && !seen.said, `the list of a plan with placeholders: ${JSON.stringify(seen)}`);
+  check((await stored(page, PLAN)) === FS5, "showing the plan changed what is stored");
   await context.close();
 }
 

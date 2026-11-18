@@ -211,7 +211,7 @@ pub const DE: Texts = Texts {
         lead: "Plane Module ein, einzeln oder als ganzes Fachsemester aus dem Regelstudienplan. Betula legt die Termine in die Woche und zeigt, was sich wirklich überschneidet.",
         points: [
             Point { title: "Echte Überschneidungen", text: "Gezählt an den Tagen, an denen sich Termine treffen: mit A- und B-Wochen, Terminen in nur einem Teil des Semesters und ausgefallenen Tagen." },
-            Point { title: "Übungsgruppen zur Wahl", text: "Eine Überschneidung zählt erst, wenn keine Gruppe mehr frei ist. Mit ✓ und × entscheidest du direkt in der Woche." },
+            Point { title: "Übungsgruppen zur Wahl", text: "Eine Überschneidung zählt erst, wenn keine Gruppe mehr frei ist. Mit ✓ und dem Auge entscheidest du direkt in der Woche." },
             Point { title: "Prüfungen im Blick", text: "Betula warnt, wenn Prüfungen sich überschneiden oder zu wenig Zeit für den Weg zwischen Cottbus und Senftenberg lassen." },
             Point { title: "Findet, was noch passt", text: "„Passt in meinen Stundenplan“ zeigt im Katalog nur Module, die in deine freien Zeiten passen." },
         ],
@@ -381,7 +381,7 @@ pub const EN: Texts = Texts {
         lead: "Plan modules one by one or import a whole semester of your standard study plan. Betula puts the dates into the week and shows what really clashes.",
         points: [
             Point { title: "Real clashes", text: "Counted on the days on which dates meet: with A and B weeks, dates in only part of the semester and cancelled days." },
-            Point { title: "Exercise groups to choose from", text: "A clash only counts once no group is free any more. ✓ and × decide right in the week." },
+            Point { title: "Exercise groups to choose from", text: "A clash only counts once no group is free any more. ✓ and the eye decide right in the week." },
             Point { title: "Exams in view", text: "Betula warns when exams overlap or leave too little time to get between Cottbus and Senftenberg." },
             Point { title: "Finds what still fits", text: "“Fits my timetable” shows only modules in the catalogue that fit into your free time." },
         ],

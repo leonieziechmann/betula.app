@@ -175,14 +175,14 @@ fn entry(table: &Timetable, item: &AgendaItem, day: Day, titles: &BTreeMap<Strin
     let tone = |module: Option<&String>| -> u8 { module.and_then(|id| table.modules.iter().position(|planned| planned == id)).map_or(1, |at| u8::try_from(at % 8 + 1).unwrap_or(1)) };
     if let Some(e) = item.event {
         let event = table.events.get(e)?;
-        // A Termin of one's own by its name (the module it belongs to its chip), else „Eigener
-        // Termin"; it has no kind.
+        // A Termin of one's own is called as the week calls it (`views::own_label`: its name, else
+        // its kind and module „VL EvS", else its module or its kind), else „Eigener Termin": one
+        // rule names it everywhere, so its kind is in that name and not set before it again.
         let own = event.own.as_ref();
         let module = own.map_or(event.modules.first(), |own| own.module.as_ref());
         let (title, short) = match own {
             Some(own) => {
-                let name = Some(own.name.trim()).filter(|name| !name.is_empty()).map(str::to_string);
-                let name = name.or_else(|| module.and_then(|id| names.get(id).cloned())).unwrap_or_else(|| words.own.to_string());
+                let name = views::own_label(own, module.and_then(|id| names.get(id)).map(String::as_str), words.locale).unwrap_or_else(|| words.own.to_string());
                 (name.clone(), name)
             }
             None => named(module, &event.title),
@@ -194,8 +194,14 @@ fn entry(table: &Timetable, item: &AgendaItem, day: Day, titles: &BTreeMap<Strin
             day,
             from: item.from,
             to: item.to,
-            kind: if own.is_some() { String::new() } else { views::type_text(event, words.locale) },
-            kind_short: if own.is_some() { String::new() } else { views::kind_short(event, words.locale) },
+            kind: match own {
+                Some(_) => String::new(),
+                None => views::type_text(event, words.locale),
+            },
+            kind_short: match own {
+                Some(_) => String::new(),
+                None => views::kind_short(event, words.locale),
+            },
             title,
             short,
             module: module.cloned(),
@@ -289,6 +295,29 @@ mod tests {
         assert!(evening.running().is_none() && evening.next().is_none() && evening.coming().count() == 0);
         let (thursday, entries) = evening.next_day.clone().unwrap();
         assert_eq!((thursday, entries.len()), (d("2026-10-22"), 1));
+    }
+
+    /// A Termin of one's own is called as the week calls it: without a name by its kind and its
+    /// module's short name („VL MIT1"), without a kind by its module; with a name by the name alone.
+    /// The kind is in the name, never set before it again.
+    #[test]
+    fn a_termin_of_ones_own_brings_its_kind() {
+        use folia_calendar::kind::EventKind;
+        use folia_calendar::own::{OwnRhythm, OwnTermin};
+        let rows = [teaching("11111", "1", 1, "Vorlesung", 2, "07:30", "09:00")];
+        let own = |number, weekday, kind| OwnTermin { number, rhythm: OwnRhythm::Week, weekday, dates: Vec::new(), from: 12 * 60, to: 13 * 60, period: None, module: Some("11111".into()), name: String::new(), place: String::new(), skip: Vec::new(), kind };
+        let named = OwnTermin { name: "Tafelübung".into(), ..own(3, 4, Some(EventKind::Exercise)) };
+        let table = table(&rows, &["11111"], &[], &Selection { own: vec![own(1, 2, Some(EventKind::Lecture)), own(2, 3, None), named], ..Selection::default() });
+        let agenda = table.agenda(Locale::De);
+        let names = BTreeMap::from([("11111".to_string(), "MIT1".to_string())]);
+        let entries = |day| today(&table, &agenda, &BTreeMap::new(), &names, d(day), 0, &words()).entries;
+        let tuesday = entries("2026-10-20");
+        let made_up = tuesday.iter().find(|entry| entry.from == Some(12 * 60)).unwrap();
+        assert_eq!((made_up.kind.as_str(), made_up.kind_short.as_str(), made_up.short.as_str(), made_up.title.as_str()), ("", "", "VL MIT1", "VL MIT1"));
+        let wednesday = entries("2026-10-21");
+        assert_eq!(wednesday.iter().map(|entry| (entry.kind.as_str(), entry.short.as_str())).collect::<Vec<_>>(), [("", "MIT1")]);
+        let thursday = entries("2026-10-22");
+        assert_eq!(thursday.iter().map(|entry| (entry.kind_short.as_str(), entry.short.as_str())).collect::<Vec<_>>(), [("", "Tafelübung")]);
     }
 
     #[test]

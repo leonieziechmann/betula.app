@@ -15,6 +15,9 @@
 //   over the week and speaks of what the week draws (owner, 2026-11-04: „nur für die visuell
 //   angezeigten"): not of Sachsendorf's Tuesday lecture, which meets EEG's at 07:30, until „Auch
 //   zeigen" draws it, and then of it.
+// History: 2026-11-17, the Stundenplan's block seeds 12102 into WiSe 2026/27 instead of planning it
+// by „Einplanen" on the module's page: after 15 November „Einplanen" plans the next semester (who plans
+// in the middle of a semester plans the next), and the line expected WiSe 2026/27's.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
@@ -115,16 +118,7 @@ const termine = (page) => page.evaluate(() => {
 
 // ---------- the Stundenplan of Medizininformatik ----------
 {
-  const { page, context } = await open("/catalog/module/12102", MEDINF);
-  await until(page, "„Einplanen\"", () => Boolean(onPage(".hero-line .plan-toggle")));
-  await page.click(".hero-line .plan-toggle >> visible=true");
-  // The plan is written after the next frame: the button pressed and no longer busy.
-  await until(page, "the module planned", () => {
-    const button = onPage(".hero-line .plan-toggle");
-    return button?.getAttribute("aria-pressed") === "true" && !button.hasAttribute("aria-busy");
-  });
-  await page.goto(base + "/studyplan?sem=2026W", { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the Stundenplan: the browser app never took over"));
+  const { page, context } = await open("/studyplan?sem=2026W", MEDINF, "m\t2026W\t12102\t1790000000\t\n");
   await until(page, "the derived line", () => (onPage(".sp-derived")?.textContent ?? "").includes("in Cottbus-Sachsendorf laut Studiengang"));
   if (shots) await page.screenshot({ path: `${shots}/courses-studyplan.png`, fullPage: true });
   await context.close();

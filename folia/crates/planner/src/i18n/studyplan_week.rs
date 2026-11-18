@@ -19,7 +19,7 @@ pub struct Texts {
     pub tab_b: &'static str,
     /// … and both („A/B").
     pub tab_ab: &'static str,
-    /// The same on a phone, beside „Anpassen" after „Woche" (owner, 2026-10-26: „Woche: A, B,
+    /// The same on a phone, beside „Bearbeiten" after „Woche" (owner, 2026-10-26: „Woche: A, B,
     /// A/B"): „A", „B" and „A/B", and what a screen reader names the last („A- und B-Woche").
     pub short_a: &'static str,
     pub short_b: &'static str,
@@ -33,18 +33,13 @@ pub struct Texts {
     pub weeks: &'static str,
     /// The heading of what has no fixed time, under the week: „Ohne feste Zeit".
     pub no_fixed_time: &'static str,
-    /// „Plan · Alle Termine": the plan's Regelwoche, or every Termin of its modules; the switch's
-    /// name for screen readers: „Termine".
-    pub plan: &'static str,
-    pub all_sessions: &'static str,
-    pub sessions_switch: &'static str,
 
     // ---- a slot and its line ----
     /// The end of a slot's tooltip: the other slots it overlaps, by their labels (joined with
     /// „, "): „überschneidet sich mit VL EvS".
     pub clashes_with: fn(&str) -> String,
-    /// Why „Alle Termine" shows a slot faint, first in its tooltip and its line: its kinds switched
-    /// off (the kinds' labels joined with „/"): „„Tutorium“ ausgeblendet" …
+    /// Why the plan being edited shows a slot faint, first in its tooltip and its line: its kinds
+    /// switched off (the kinds' labels joined with „/"): „„Tutorium“ ausgeblendet" …
     pub kinds_hidden: fn(&str) -> String,
     /// … another option of its choice taken („andere Gruppe gewählt") …
     pub other_group_chosen: &'static str,
@@ -57,17 +52,16 @@ pub struct Texts {
     /// The buttons of a slot (their names and tooltips): „✓" takes an option of a choice („Diese
     /// Gruppe nehmen") …
     pub take_group: &'static str,
-    /// … „×" leaves it out („Nicht diese Gruppe") …
+    /// … the eye leaves it out („Diese Gruppe ausblenden") …
     pub not_this_group: &'static str,
     /// … the „✓" of the option taken takes the choice back („Gruppe abwählen") …
     pub drop_group: &'static str,
     /// The end of the tooltip of a group of the choice in focus: what a click on it does.
     pub tick_group: &'static str,
     pub ticked_group: &'static str,
-    /// The same of an option of a choice among a module's events: „Diese nehmen", „Nicht diese",
-    /// „Wahl aufheben".
+    /// The same of an option of a choice among a module's events: „Diese nehmen", „Wahl
+    /// aufheben".
     pub take_option: &'static str,
-    pub not_this_option: &'static str,
     pub drop_option: &'static str,
     /// A faint option beside one ticked: „✓" takes it instead („Nur diese Gruppe", „Nur diese"),
     /// „+" beside it („Auch diese Gruppe", „Auch diese").
@@ -82,14 +76,19 @@ pub struct Texts {
     /// … and where it meets the plan, what it gives way to (the plan's slots by their labels):
     /// „trifft VL MIT1, der Besuch gibt nach".
     pub gives_way: fn(&str) -> String,
-    /// … „×" hides one Termin of an event of several slots („Termin ausblenden") …
+    /// … the eye hides one Termin of an event of several slots („Ausblenden") …
     pub hide_session: &'static str,
-    /// … or the whole event, named by its type as QIS writes it: „Vorlesung ausblenden" …
-    pub hide_event: fn(&str) -> String,
-    /// … a faint slot's „✓" shows a kind switched off again („„Übung“ wieder einblenden") …
+    /// … or the whole event, named by its type as QIS writes it („Vorlesung ausblenden"; in English
+    /// by the kind's word, "Hide the lecture", and by QIS's word as written where it names no kind
+    /// Betula knows, "Hide Kolloquium": the second value says it is Betula's own word) …
+    pub hide_event: fn(&str, bool) -> String,
+    /// … a faint slot's crossed eye shows a kind switched off again („„Übung“ wieder einblenden") …
     pub show_kind: fn(&str) -> String,
-    /// … or its Termin („Wieder einblenden").
+    /// … or its Termin with the crossed eye („Einblenden").
     pub show_again: &'static str,
+    /// The bin on a Termin of one's own while the plan is edited: „Löschen" (it is not hidden but
+    /// deleted, with the note and „Rückgängig").
+    pub delete_own: &'static str,
     /// An option of a choice not made yet, how many to take of how many: „1 von 4".
     pub one_of: fn(usize, usize) -> String,
     /// How many single dates a slot or a Termin gathers: „1 Termin", „3 Termine".
@@ -145,9 +144,6 @@ pub const DE: Texts = Texts {
     carousel_role: "Karussell",
     weeks: "Wochen",
     no_fixed_time: "Ohne feste Zeit",
-    plan: "Plan",
-    all_sessions: "Alle Termine",
-    sessions_switch: "Termine",
 
     clashes_with: |others| format!("überschneidet sich mit {others}"),
     kinds_hidden: |kinds| format!("„{kinds}“ ausgeblendet"),
@@ -156,12 +152,11 @@ pub const DE: Texts = Texts {
     other_programs: "für andere Studiengänge",
     hidden: "ausgeblendet",
     take_group: "Diese Gruppe nehmen",
-    not_this_group: "Nicht diese Gruppe",
+    not_this_group: "Diese Gruppe ausblenden",
     drop_group: "Gruppe abwählen",
     tick_group: "Klicken zum Anhaken",
     ticked_group: "angehakt · Klicken nimmt den Haken weg",
     take_option: "Diese nehmen",
-    not_this_option: "Nicht diese",
     drop_option: "Wahl aufheben",
     only_group: "Nur diese Gruppe",
     also_group: "Auch diese Gruppe",
@@ -170,10 +165,11 @@ pub const DE: Texts = Texts {
     extra: "zusätzlich, freiwillig",
     visit: "Besuch, zählt nicht",
     gives_way: |others| format!("trifft {others}, der Besuch gibt nach"),
-    hide_session: "Termin ausblenden",
-    hide_event: |kind| format!("{kind} ausblenden"),
+    hide_session: "Ausblenden",
+    hide_event: |kind, _| format!("{kind} ausblenden"),
     show_kind: |kind| format!("„{kind}“ wieder einblenden"),
-    show_again: "Wieder einblenden",
+    show_again: "Einblenden",
+    delete_own: "Löschen",
     one_of: |take, n| format!("{take} von {n}"),
     sessions: |n| if n == 1 { "1 Termin".to_string() } else { format!("{n} Termine") },
     in_week_a: "A-Woche",
@@ -209,9 +205,6 @@ pub const EN: Texts = Texts {
     carousel_role: "carousel",
     weeks: "Weeks",
     no_fixed_time: "No fixed time",
-    plan: "Plan",
-    all_sessions: "All sessions",
-    sessions_switch: "Sessions",
 
     clashes_with: |others| format!("clashes with {others}"),
     kinds_hidden: |kinds| format!("“{kinds}” hidden"),
@@ -220,12 +213,11 @@ pub const EN: Texts = Texts {
     other_programs: "for other programmes",
     hidden: "hidden",
     take_group: "Take this group",
-    not_this_group: "Not this group",
+    not_this_group: "Hide this group",
     drop_group: "Deselect this group",
     tick_group: "Click to tick",
     ticked_group: "ticked · a click takes the tick away",
     take_option: "Take this one",
-    not_this_option: "Not this one",
     drop_option: "Undo the choice",
     only_group: "Only this group",
     also_group: "This group too",
@@ -234,10 +226,11 @@ pub const EN: Texts = Texts {
     extra: "additional, optional",
     visit: "visit, does not count",
     gives_way: |others| format!("meets {others}, the visit gives way"),
-    hide_session: "Hide this session",
-    hide_event: |kind| format!("Hide {kind}"),
+    hide_session: "Hide",
+    hide_event: |kind, own| if own { format!("Hide the {kind}") } else { format!("Hide {kind}") },
     show_kind: |kind| format!("Show “{kind}” again"),
-    show_again: "Show again",
+    show_again: "Show",
+    delete_own: "Delete",
     one_of: |take, n| format!("{take} of {n}"),
     sessions: |n| if n == 1 { "1 session".to_string() } else { format!("{n} sessions") },
     in_week_a: "week A",
