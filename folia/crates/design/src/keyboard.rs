@@ -254,6 +254,11 @@ mod browser {
         scrolling_to: f64,
         /// How tall the part shown was when the dialogs and sheets were placed in it.
         placed_for: f64,
+        /// The room below what scrolls that what was scrolled up needs (`--kb-pad`, never less than
+        /// the part shown): the room below a box is counted from the box's foot, not from the end of
+        /// what it holds, so a field low in a long dialog (the dialog „Teilen"'s „Für wen") stopped
+        /// at the keyboard's edge instead of coming up to the top. For as long as the keyboard is up.
+        room: f64,
         /// Counts the keyboard's goings: the room below what scrolled stays until it has scrolled
         /// back, unless the keyboard is up again by then.
         gone: u32,
@@ -318,8 +323,9 @@ mod browser {
             let _ = root.remove_attribute("data-keyboard-leaving");
             let _ = style.set_property("--vv-top", &format!("{:.1}px", viewport.offset_top()));
             let _ = style.set_property("--vv-height", &format!("{:.1}px", viewport.height()));
-            let _ = style.set_property("--kb-pad", &format!("{:.1}px", viewport.height()));
+            let _ = style.set_property("--kb-pad", &format!("{:.1}px", viewport.height().max(state.room)));
         } else if state.up {
+            state.room = 0.0;
             let _ = root.remove_attribute("data-keyboard");
             for name in ["--vv-top", "--vv-height", "--kb-room"] {
                 let _ = style.remove_property(name);
@@ -396,7 +402,13 @@ mod browser {
         let now = scroller.top(window);
         if scroll {
             let by = top.get_bounding_client_rect().top() - scroller.view_top(window, viewport, x) - MARGIN;
-            state.scrolling_to = (now + by).clamp(0.0, scroller.end(window).max(0.0));
+            let to = (now + by).max(0.0);
+            // The room it needs to come up that far, where what scrolls it has less.
+            if to > scroller.end(window) + 0.5 && to > state.room {
+                state.room = to;
+                let _ = style.set_property("--kb-pad", &format!("{:.1}px", viewport.height().max(to)));
+            }
+            state.scrolling_to = to.min(scroller.end(window).max(0.0));
             scroller.scroll_to(window, state.scrolling_to);
         }
         // A picker's list down to the keyboard, from where it comes to stand.

@@ -520,7 +520,7 @@ const VERSION: u8 = 1;
 /// The marked modules as a code carries them. A module id is five digits, so it travels as a
 /// number; an id that is none travels as it is. Since Folia 1.39.0 a code also carries collections
 /// and notes (folia/design/merken/konzept.html, „Weitergeben"): a collection's link its name, the
-/// link for another device every collection, and the notes where they go along. They are fields
+/// link of the whole Merkliste every collection, and the notes where they go along. They are fields
 /// at the end, empty in a code of only modules, so a code of before reads as it did and one of
 /// only modules is what it was (`folia_pack`'s rule for lasting codes).
 #[derive(Default, serde::Serialize, serde::Deserialize)]

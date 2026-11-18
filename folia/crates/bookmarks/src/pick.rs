@@ -23,7 +23,7 @@
 //!   „Alle auswählen" was a button), „3 ausgewählt · 14 LP", „Sammlung" (the menu of
 //!   their collections, `folia_widgets::collect`, and S), „Einplanen" (each where its own
 //!   „Einplanen" aims, or all into one semester, the semesters as „Verschieben nach" lists them),
-//!   „Teilen" (a link for another device, or the list as text), „Entfernen", and letting go. What
+//!   „Teilen" (a link that brings them, or the list as text), „Entfernen", and letting go. What
 //!   it did the note at the bottom says, with „Rückgängig" for all of them.
 //! - A range, a drawn selection and „Alle auswählen" take in the rows that are marked; a row
 //!   whose mark was taken away here (dimmed until the page is left) only when it is chosen itself.
@@ -759,8 +759,7 @@ fn plan_parts(picking: Picking, earlier: bool, t: &'static Texts) -> Option<(Str
     Some(((b.plan_n)(ids.len()), parts))
 }
 
-/// „Teilen" of the rows selected: the link for another device that brings them, and the rows as
-/// text, each copied, as the menu of the whole list has them.
+/// „Teilen" of the rows selected: the link that brings them, and the rows as text, each copied.
 fn share_parts(picking: Picking, t: &'static Texts) -> Option<(String, Vec<Part>)> {
     let b = &t.bookmarks;
     let notices = Notices::expect();

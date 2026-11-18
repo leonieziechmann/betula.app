@@ -89,10 +89,13 @@ check(await max.page.locator(".sh-dialog[open] .sh-tag").count() === 2, "Max: th
 check(await max.page.locator(".sh-dialog[open] .sh-up.need").count() === 1, "Max: no word on what saving the profile means");
 await max.page.locator(".sh-dialog[open] .sh-sw", { hasText: "Eigene Termine" }).click();
 await max.page.fill("#sh-who", "Lena");
+check(await max.page.evaluate(() => document.querySelector(".sh-name > .sh-av")?.textContent === "L" && parseFloat(getComputedStyle(document.querySelector("#sh-who")).borderTopLeftRadius) > 0), "Max: „Für wen“ is not Betula's field with the avatar of the row it names");
 const make = max.page.locator("#sh-make");
 check((await make.textContent()).includes("Profil speichern und Link erstellen"), `Max: the button says „${await make.textContent()}“`);
-await make.click();
+// Enter in „Für wen“ makes it, as the button does (Folia 1.105.2); the focus goes to „Link kopieren“.
+await max.page.press("#sh-who", "Enter");
 await until("Max: the one-time link is made", max.page, () => Boolean(onPage(".sh-link")?.textContent.includes("#once=")), null, 30000);
+await until("Max: the focus at „Link kopieren“", max.page, () => document.activeElement?.id === "sh-copy", null, 5000);
 const once = (await max.page.locator(".sh-link").first().textContent()).trim();
 check(once.startsWith(base + "/studyplan#once="), `Max: the link is ${once}`);
 // The link is there before the profile's connection to Phloem: over a real network (canary) the
