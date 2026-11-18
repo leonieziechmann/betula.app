@@ -3,6 +3,9 @@
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 SMOKE_PHLOEM_URL=http://127.0.0.1:8200 node --import ./chromium.mjs sync.mjs
 // Folia runs with FOLIA_SYNC=on (and FOLIA_SYNC_URL where Phloem answers on another port), Phloem
 // with PHLOEM_ORIGINS naming Folia's origin.
+// `--hints` checks only what needs no Phloem, against Folia with FOLIA_SYNC=on and no Phloem
+// behind /sync/v1/: the hints of where a profile's data lives say a synced profile's text while it
+// is synced but not connected, and the private one after a switch to a private profile.
 // The start page's setup ends with Betula Sync where the site offers it: a fourth chip „Geräte"
 // on the server's page and the app's, „Betula Sync aktivieren" after „Studium anlegen", the QR code
 // and the link at once, a second browser that opens it holding the study, the bar and „Alles eingerichtet" and
@@ -120,6 +123,82 @@ const markOne = async (page, name, stay = false, avoid = []) => {
   await until(`${name} marks ${id}`, page, (id) => onPage(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`)?.getAttribute("aria-pressed") === "true", id, 5000);
   return id;
 };
+
+// ---- --hints: where the data lives, by the profile's state, without Phloem ----
+// (owner, 2026-11-18: „wir können noch nicht reinschreiben. Deinen stundenplan liegt nur in deinem
+// Browser, wenn sync an ist?") A profile this browser keeps as synced whose service is away is
+// synced, but not connected (`State::Offline`): the browser is seeded with what a synced profile
+// keeps (its key, `betula.sync.p<n>.v1`) and Folia answers /sync/v1/ with 404, as with Phloem
+// away. Profile 1 synced with a study, 2 private with one, 3 synced without, 4 private without.
+// The hints of the Stundenplan's sidebar (and a phone's page end), „Mein Studium"'s sidebar, its
+// setup and the empty Merkliste say the synced text, and the private one after a switch in the
+// menu of the profiles, on the same page.
+if (process.argv.includes("--hints")) {
+  const SYNCED = {
+    plan: "Dein Stundenplan liegt in diesem Browser und, weil Betula Sync an ist, auf deinen anderen Geräten. Auf dem Server liegt er nur verschlüsselt.",
+    study: "Was du planst und als bestanden markierst, liegt in diesem Browser und, weil Betula Sync an ist, auf deinen anderen Geräten. Auf dem Server liegt es nur verschlüsselt.",
+    setup: "Liegt in diesem Browser und, weil Betula Sync an ist, auf deinen anderen Geräten; auf dem Server nur verschlüsselt.",
+    marks: "Das Lesezeichen an einem Modul setzt es auf diese Liste, die Taste M ebenso. Sie liegt in diesem Browser und, weil Betula Sync an ist, auf deinen anderen Geräten; auf dem Server nur verschlüsselt.",
+  };
+  const PRIVATE = {
+    plan: "Dein Stundenplan liegt nur in diesem Browser.",
+    study: "Was du planst und als bestanden markierst, bleibt in diesem Browser.",
+    setup: "Bleibt in diesem Browser.",
+    marks: "Das Lesezeichen an einem Modul setzt es auf diese Liste, die Taste M ebenso. Sie bleibt in diesem Browser gespeichert.",
+  };
+  const held = (fill) => `key\t${Buffer.alloc(32, fill).toString("base64url")}\ndevice\t${Buffer.alloc(16, fill + 1).toString("base64url")}\nslot\t1\n`;
+  const study = "program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\ncaption\t\nstart\t2026W\n";
+  const plan = ["12104", "12107", "12102", "11112"].map((id) => `m\t2026W\t${id}\t1790000000\t`).join("\n") + "\n";
+  const seed = {
+    "betula.profiles.v1": "active\t3\nprofile\t1\t0\tSynchron\nprofile\t2\t1\tPrivat\nprofile\t3\t2\tSynchron leer\nprofile\t4\t3\tPrivat leer\n",
+    "betula.sync.p1.v1": held(7),
+    "betula.sync.p3.v1": held(9),
+    "betula.myprogram.v1": study,
+    "betula.studyplan.v1": plan,
+    "betula.p2.myprogram.v1": study,
+    "betula.p2.studyplan.v1": plan,
+  };
+  const hints = async (who, viewport, options = {}) => {
+    const h = await device(who, browser, { viewport, locale: "de-DE", ...options });
+    await h.context.addInitScript((seed) => {
+      if (!localStorage.getItem("betula.profiles.v1")) for (const [key, value] of Object.entries(seed)) localStorage.setItem(key, value);
+    }, seed);
+    return h;
+  };
+  const says = (page, name, selector, text) => until(`${name}: ${JSON.stringify(text)}`, page, ([selector, text]) => (onPage(selector)?.textContent ?? "").trim() === text, [selector, text], 15000);
+  const switchTo = async (page, name) => {
+    await page.click(".rail .profile-btn >> visible=true").catch(() => problems.push(`no way to the menu of the profiles for „${name}“`));
+    await page.click(`.profile-menu .pm-item:has(.pm-item-name b:text-is("${name}")) >> visible=true`).catch(() => problems.push(`no „${name}“ in the menu of the profiles`));
+    await until(`„${name}“ active`, page, (name) => onPage(".rail .profile-btn")?.getAttribute("aria-label") === `Profil: ${name}`, name, 10000);
+  };
+  const h = await hints("H", { width: 1440, height: 900 });
+  await go(h.page, "/bookmarks");
+  await until("H: profile 3 synced, not connected", h.page, () => Boolean(localStorage.getItem("betula.sync.p3.v1")) && !(localStorage.getItem("betula.sync.p3.status") || "").startsWith("online") && localStorage.getItem("betula.sync.p3.ended") === null, null, 5000);
+  await says(h.page, "the empty Merkliste, synced", ".state p:not(.state-title)", SYNCED.marks);
+  await go(h.page, "/study");
+  await says(h.page, "the setup, synced", ".st-setup-foot .hint", SYNCED.setup);
+  await switchTo(h.page, "Privat leer");
+  await says(h.page, "the setup, private after a switch", ".st-setup-foot .hint", PRIVATE.setup);
+  await switchTo(h.page, "Synchron");
+  await says(h.page, "„Mein Studium“, synced", ".storage-hint", SYNCED.study);
+  await go(h.page, "/studyplan");
+  await says(h.page, "the Stundenplan's sidebar, synced", ".sidebar .storage-hint", SYNCED.plan);
+  await switchTo(h.page, "Privat");
+  await says(h.page, "the Stundenplan's sidebar, private after a switch", ".sidebar .storage-hint", PRIVATE.plan);
+  await go(h.page, "/study");
+  await says(h.page, "„Mein Studium“, private", ".storage-hint", PRIVATE.study);
+  await go(h.page, "/bookmarks");
+  await says(h.page, "the empty Merkliste, private", ".state p:not(.state-title)", PRIVATE.marks);
+  check(await h.page.evaluate(() => !localStorage.getItem("betula.sync.p1.ended") && !localStorage.getItem("betula.sync.p3.ended")), "H: a synced profile ended without its service");
+  // A phone: the Stundenplan's hint at the page's end.
+  const p = await hints("P", { width: 390, height: 844 }, { isMobile: true, hasTouch: true });
+  await p.context.addInitScript(() => { if (!sessionStorage.getItem("seeded")) { sessionStorage.setItem("seeded", "1"); localStorage.setItem("betula.profiles.v1", localStorage.getItem("betula.profiles.v1").replace(/^active\t\d+/m, "active\t1")); } });
+  await go(p.page, "/studyplan");
+  await says(p.page, "a phone's Stundenplan, synced", ".storage-hint", SYNCED.plan);
+  await browser.close();
+  console.log(JSON.stringify({ timings, problems }, null, 2));
+  process.exit(problems.length ? 1 : 0);
+}
 
 // ---- the first browser: marks and a note, then „Gerät verbinden" ----
 const a = await device("A");

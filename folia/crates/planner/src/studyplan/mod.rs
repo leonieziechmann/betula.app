@@ -648,13 +648,15 @@ mod left {
     }
 }
 
-/// The last group of the sidebar, on the server as in the app: where the plan lives.
+/// The last group of the sidebar, on the server as in the app: where the plan lives, by whether
+/// the active profile is synced (`active_synced`; the server's page says the private text).
 #[component]
 pub(super) fn StorageHint() -> impl IntoView {
     let t = i18n::t();
+    let synced = folia_stores::sync::active_synced();
     view! {
         <div class="fgroup">
-            <p class="hint storage-hint"><Icon name="shield-check"/><span>{t.studyplan.storage_hint}</span></p>
+            <p class="hint storage-hint"><Icon name="shield-check"/><span>{move || t.studyplan.storage_hint(synced.get())}</span></p>
         </div>
     }
 }

@@ -1009,6 +1009,21 @@ fn unescape(note: &str) -> String {
     text
 }
 
+/// Whether the active profile is synced here (connected or not, `State::synced`): what the hints
+/// of where a profile's data lives ask, which cannot say „nur in diesem Browser" of a synced one
+/// (owner, 2026-11-18: „wir können noch nicht reinschreiben. Deinen stundenplan liegt nur in
+/// deinem Browser, wenn sync an ist?"). One memo of the active profile and its state, so that the
+/// hint follows Sync switched on or ended and a profile switched; false on the server and where the
+/// site does not offer Betula Sync. Tracked.
+pub fn active_synced() -> Memo<bool> {
+    let sync = Sync::expect();
+    let profiles = crate::profiles::Profiles::expect();
+    Memo::new(move |_| {
+        let (Some(sync), Some(profiles)) = (sync, profiles) else { return false };
+        offered().is_some() && sync.state(profiles.active()).synced()
+    })
+}
+
 /// Whether this site offers Betula Sync, and where Phloem answers: the page's `betula-sync` meta
 /// tag. `None` on the server and where the site does not offer it.
 pub fn offered() -> Option<String> {

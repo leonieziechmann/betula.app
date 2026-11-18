@@ -97,10 +97,12 @@ pub struct Texts {
     /// The server's page, which cannot know what is marked.
     pub server_title: &'static str,
     pub server_hint: &'static str,
-    /// Nothing marked yet. The hint names the key M between its two parts.
+    /// Nothing marked yet. The hint names the key M between its two parts; its end says where the
+    /// list lives, in a private profile and in a synced one (`empty_hint_end`).
     pub empty_title: &'static str,
     pub empty_hint_start: &'static str,
     pub empty_hint_end: &'static str,
+    pub empty_hint_end_synced: &'static str,
     /// Nothing marked is offered in the half of the year chosen („Winter"); its title and hint.
     pub nothing_in_season: fn(&str) -> String,
     pub nothing_in_season_hint: fn(&str) -> String,
@@ -281,10 +283,11 @@ pub const DE: Texts = Texts {
     nothing_filtered: "Nichts Gemerktes passt zu diesen Filtern",
     nothing_filtered_hint: "Nimm einen Filter zurück oder sieh dir alle gemerkten an.",
     server_title: "Deine Merkliste",
-    server_hint: "Sie liegt in deinem Browser, nicht auf dem Server, und erscheint, sobald die App geladen ist. Dafür braucht es JavaScript.",
+    server_hint: "Sie liegt in deinem Browser, wo der Server sie nicht lesen kann, und erscheint, sobald die App geladen ist. Dafür braucht es JavaScript.",
     empty_title: "Noch nichts gemerkt",
     empty_hint_start: "Das Lesezeichen an einem Modul setzt es auf diese Liste, die Taste ",
     empty_hint_end: " ebenso. Sie bleibt in diesem Browser gespeichert.",
+    empty_hint_end_synced: " ebenso. Sie liegt in diesem Browser und, weil Betula Sync an ist, auf deinen anderen Geräten; auf dem Server nur verschlüsselt.",
     nothing_in_season: |season| format!("Nichts davon im {season}"),
     nothing_in_season_hint: |season| format!("Keines der gemerkten Module wird laut Modulbeschreibung im {season} angeboten."),
     show_all_saved: "Alle gemerkten zeigen",
@@ -433,10 +436,11 @@ pub const EN: Texts = Texts {
     nothing_filtered: "None of your saved modules matches these filters",
     nothing_filtered_hint: "Remove a filter, or look at all your saved modules.",
     server_title: "Your saved modules",
-    server_hint: "They are kept in your browser, not on the server, and appear once the app has loaded. This needs JavaScript.",
+    server_hint: "They are kept in your browser, where the server cannot read them, and appear once the app has loaded. This needs JavaScript.",
     empty_title: "Nothing saved yet",
     empty_hint_start: "The bookmark on a module adds it to this list, and so does the key ",
     empty_hint_end: ". The list stays saved in this browser.",
+    empty_hint_end_synced: ". The list is stored in this browser and, as Betula Sync is on, on your other devices; on the server encrypted only.",
     nothing_in_season: |season| format!("None of them in {season}"),
     nothing_in_season_hint: |season| format!("According to their module descriptions, none of the saved modules is offered in {season}."),
     show_all_saved: "Show all saved modules",
@@ -516,3 +520,37 @@ pub const EN: Texts = Texts {
     unplan: "Take out of the plan",
     unmark: "Remove from saved modules",
 };
+
+impl Texts {
+    /// The end of the empty list's hint, by whether the active profile is synced
+    /// (`folia_stores::sync::active_synced`): „bleibt in diesem Browser" is untrue of a synced one
+    /// (owner, 2026-11-18: „wir können noch nicht reinschreiben. Deinen stundenplan liegt nur in
+    /// deinem Browser, wenn sync an ist?").
+    pub fn empty_hint_end(&self, synced: bool) -> &'static str {
+        if synced { self.empty_hint_end_synced } else { self.empty_hint_end }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use folia_stores::sync::{Problem, State};
+
+    /// A synced profile's list names its other devices and the server's encrypted copy; every
+    /// other state keeps „in diesem Browser gespeichert", in both languages.
+    #[test]
+    fn the_empty_lists_hint_follows_the_profiles_state() {
+        let states = [State::Private, State::Starting, State::Ending, State::Online { devices: 2, direct: 0, relayed: 1 }, State::Offline, State::Ended, State::Failed(Problem::Unsupported)];
+        for state in states {
+            let synced = matches!(state, State::Online { .. } | State::Offline);
+            assert_eq!(state.synced(), synced);
+            let (de, en) = if synced {
+                (" ebenso. Sie liegt in diesem Browser und, weil Betula Sync an ist, auf deinen anderen Geräten; auf dem Server nur verschlüsselt.", ". The list is stored in this browser and, as Betula Sync is on, on your other devices; on the server encrypted only.")
+            } else {
+                (" ebenso. Sie bleibt in diesem Browser gespeichert.", ". The list stays saved in this browser.")
+            };
+            assert_eq!(DE.empty_hint_end(state.synced()), de, "{state:?}");
+            assert_eq!(EN.empty_hint_end(state.synced()), en, "{state:?}");
+        }
+    }
+}
