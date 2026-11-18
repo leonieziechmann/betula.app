@@ -49,8 +49,9 @@ const VISIT: Duration = Duration::from_secs(90 * 24 * 60 * 60);
 const MAX_FAILURES: u32 = 10;
 const WINDOW: Duration = Duration::from_secs(60);
 
-/// Reachable without the password.
-const OPEN: &[&str] = &[
+/// Reachable without the password, and from an address the trap paused (`trap`): what a page of
+/// its own, a home screen and a supervisor need.
+pub(crate) const OPEN: &[&str] = &[
     PATH,
     "/healthz",
     crate::api::LIVENESS,
@@ -261,7 +262,7 @@ fn turn_away(request: &Request) -> Response {
 }
 
 /// Where a login leads: a path of this site and nothing else (never another host, never the login page).
-fn way_back(next: Option<&str>) -> String {
+pub(crate) fn way_back(next: Option<&str>) -> String {
     let next = next.unwrap_or("/");
     let local = next.starts_with('/') && !next.starts_with("//") && next.len() <= 2048 && !next.chars().any(|c| c == '\\' || c.is_control());
     let login = next == PATH || next.strip_prefix(PATH).is_some_and(|rest| rest.starts_with(['?', '/', '#']));

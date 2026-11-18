@@ -456,6 +456,8 @@ pub async fn status(State(state): State<AppState>) -> Response {
         "build": state.build_id.as_ref(),
         "semantic_model": semantic_model,
         "semantic_passage_model": semantic_passage_model,
+        // How many addresses the traps keep paused right now (`trap`); null without traps.
+        "paused_addresses": state.traps.as_ref().map(|traps| traps.kept()),
     });
     ([(header::CACHE_CONTROL, "no-store")], Json(body)).into_response()
 }

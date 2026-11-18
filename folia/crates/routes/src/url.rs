@@ -191,6 +191,18 @@ pub fn from_setup(raw_query: &str) -> bool {
 /// a server; the page is no page search engines list.
 pub const PAIR: &str = "/pair";
 
+/// The traps (`folia-server`, `trap`): no page links what lies under here for a person and no part
+/// of the app asks for it, so whoever does ask is a program that follows what nobody sees. Under
+/// `/api/`, which `robots.txt` has kept every crawler out of since before there were traps.
+pub const TRAP_PREFIX: &str = "/api/trap/";
+/// The link every page of the server carries where nobody sees it (`folia_app::shell`).
+pub const TRAP_LINK: &str = "/api/trap/modules";
+/// The address the data worker's script names and never asks for
+/// (`folia/crates/worker/js/data-worker.js`).
+pub const TRAP_IN_SCRIPT: &str = "/api/trap/catalog.db";
+/// Where the button of the page a paused address gets leads (a POST; asked for, it is a trap too).
+pub const TRAP_RELEASE: &str = "/api/trap/release";
+
 /// The addresses that moved, old and new (owner, 2026-11-08: „Url struktur alles in us
 /// englisch"). An old one is no page any more but stays an address that leads there for good, in
 /// every language and with its query: the server answers it with a permanent redirect
