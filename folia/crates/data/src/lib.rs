@@ -226,6 +226,17 @@ impl DataClient {
         answer
     }
 
+    /// The answer to `ask`, asked for this once and kept nowhere: neither the question nor the
+    /// answer goes among the answers kept by their question. For a question that carries what the
+    /// visitor gave only for the moment (the titles read from a Notenübersicht, `TranscriptAsk`),
+    /// which nothing of the page holds once it has been answered.
+    pub async fn ask_once<A: Ask>(&self, ask: A) -> Result<A::Answer, DataError> {
+        if let Some(answer) = self.local(&ask) {
+            return answer;
+        }
+        self.remotely(&ask).await
+    }
+
     /// The answer at hand or none, without asking: what a page shows while it waits.
     pub fn peek<A: Ask>(&self, ask: &A) -> Option<Result<A::Answer, DataError>> {
         let key = ask.key();

@@ -6793,6 +6793,25 @@ div.st-col-head.past { cursor: default; }
 .st-area-body > .st-wbar { margin-top: 2px; }
 .st-area-body > .st-tally { margin-top: 14px; }
 .st-area-body section h3 { margin: 20px 0 2px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
+/* „Notenübersicht einlesen" (transcript.rs): the program it names and what becomes of it, what was
+   read and what taking it over changes, its rows as an area's are (each its mark, the catalog's
+   title over its semester and what changes, its credits), what the catalog does not have, and
+   where it was read. */
+.st-tr-program { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: var(--r-panel); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.st-tr-program > span:last-child { display: grid; gap: 2px; min-width: 0; }
+.st-tr-program b { font-size: 14.5px; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
+.st-tr-since { color: var(--text-2); font-size: 13px; font-weight: 500; white-space: nowrap; }
+.st-tr-program small { color: var(--text-2); font-size: 12.5px; }
+.st-tr-program small.st-tr-warn { color: var(--warn); font-weight: 560; }
+.st-tr-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--accent-soft); color: var(--accent-ink); }
+.st-tr-counts { margin: 12px 0 0; font-size: 13.5px; font-weight: 600; line-height: 1.5; }
+.st-tr-counts > span { color: var(--text-2); font-size: 12.5px; font-weight: 500; }
+.st-transcript section h3 { margin: 18px 0 2px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
+.st-transcript .st-area-nm small { display: block; }
+.st-tr-missing .st-wmk .icon { width: 16px; height: 16px; color: var(--text-3); }
+.st-tr-problem { display: flex; gap: 8px; align-items: flex-start; margin: 0; color: var(--warn); font-weight: 560; line-height: 1.5; text-wrap: pretty; }
+.st-tr-problem .icon { flex: none; width: 16px; height: 16px; margin-top: 3px; }
+.st-transcript > .st-safe { margin-top: 16px; line-height: 1.5; }
 .st-area-items, .st-area-list { list-style: none; margin: 0; padding: 0; }
 .st-area-items li + li { border-top: 1px solid var(--line); }
 .st-area-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 44px; padding: 7px 0; color: var(--text); font-size: 13.5px; text-decoration: none; }
@@ -6983,6 +7002,12 @@ a.st-area-row:hover { background: var(--row-hover); text-decoration: none; }
 .st-fill > span:last-child > span { color: var(--text-2); font-size: 12.5px; font-weight: 500; }
 .st-fill[disabled] { color: var(--text-3); cursor: default; }
 .st-fill[disabled] .st-box { opacity: .5; }
+/* Or all of it from the Notenübersicht (transcript.rs): a box as wide and as tall as the one above
+   it, its icon where that one has its box. */
+.st-setup > .st-tr-box { max-width: 680px; }
+.st-tr-box { display: flex; gap: 10px; }
+.st-tr-box > .st-tr-icon { width: 20px; height: 20px; margin-top: 1px; border-radius: 6px; }
+.st-tr-box > .st-tr-icon .icon { width: 14px; height: 14px; }
 .st-setup-head { display: flex; gap: 14px; align-items: flex-start; }
 .st-setup-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-ink); }
 .st-setup-head h1 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -.015em; }

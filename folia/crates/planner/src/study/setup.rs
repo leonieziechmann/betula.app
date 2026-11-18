@@ -5,7 +5,8 @@
 //! „Studium anlegen" stores it all in „Mein Studiengang" at once. A program kept from elsewhere
 //! (the program's page, the Stundenplan) is the one offered; so is its Studienbeginn. As in the
 //! card nothing moves while it is used: the box that fills the semesters before is there in the
-//! first Fachsemester too, where there are none and it says so.
+//! first Fachsemester too, where there are none and it says so. Or the Notenübersicht sets up all of
+//! it at once, program, Studienbeginn and what was passed (`transcript.rs`).
 
 use folia_calendar::semester::SemesterKey;
 use folia_plans::study;
@@ -15,6 +16,7 @@ use folia_design::ui::Icon;
 use folia_stores::myprogram::program_name;
 
 use super::card::{Ids, Part, StudyCard};
+use super::transcript::TranscriptBox;
 use super::side::{direction_options, kept_plan, plan_line, plans_of, program_items, title_of};
 use super::{assumed_start, chosen, input_of, now_secs, rows_of, Setup as Asked, State, StudyCtx};
 use crate::i18n;
@@ -143,6 +145,8 @@ pub(super) fn Setup(ctx: StudyCtx) -> impl IntoView {
                     None => view! { <span><b>{s.fill_later}</b><span>{s.fill_later_hint}</span></span> }.into_any(),
                 }}
             </button>
+            // Or all of it from the Notenübersicht: program, Studienbeginn and the modules passed.
+            <TranscriptBox ctx/>
             <footer class="st-setup-foot">
                 <p class="hint"><Icon name="shield-check"/><span>{s.stays_here}</span></p>
                 <a class="ghost" href=t.path(folia_routes::url::PROGRAMS)>{s.all_programs}</a>

@@ -17,7 +17,7 @@ use std::collections::BTreeSet;
 use folia_model::db::{fetch, fetch_count, fetch_optional, Database, DbError, Value};
 use folia_model::ids::is_module_id;
 use folia_model::rows::{
-    CatalogOffer, CatalogPage, CatalogRow, Department, FuesNote, FuesNoteRow, Module, ModuleVector, Prerequisite, Program,
+    CatalogOffer, CatalogPage, CatalogRow, Department, FuesNote, FuesNoteRow, Module, ModuleTitle, ModuleVector, Prerequisite, Program,
     ProgramModule, SearchElsewhere, Semester,
 };
 use folia_model::rows_detail::{
@@ -127,6 +127,13 @@ pub fn curriculum_links(db: &dyn Database) -> Result<Vec<(String, String)>, DbEr
         [program, module] => text(program).zip(text(module)),
         _ => None,
     }).collect())
+}
+
+/// Every module's titles and credits, offered or not: what the rows of a Notenübersicht are
+/// matched with (`folia_pages::transcript`). Nothing of the Notenübersicht goes into the statement
+/// (it is matched in Rust), so the data worker keeps no part of it with the statement's answer.
+pub fn module_titles(db: &dyn Database) -> Result<Vec<ModuleTitle>, DbError> {
+    fetch(db, "module_titles", "SELECT id, title, title_de, title_en, credits, offer_status FROM v_module ORDER BY id", &[])
 }
 
 /// Every module that has a page, offered or not: the sitemap.
