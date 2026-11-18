@@ -24,8 +24,9 @@
 //   plan leaves out stands faint, its link the Termin's; the slots' buttons — `eye` „Ausblenden" on a
 //   Termin the week shows, `eye-off` „Einblenden" on a faint one, „✓"/„+" to tick („Diese Gruppe
 //   nehmen", „Nur diese Gruppe", „Auch diese Gruppe"), the bin alone on a Termin of one's own, no „×"
-//   anywhere; each answers in the store (`r`, `e`, `c` lines; the bin removes the `t` line, its note's
-//   „Rückgängig" brings it back) and no other note comes. A series with a hidden date carries the crossed
+//   anywhere; each answers in the store (`r`, `e`, `c` lines; the bin removes the `t` line, the keyboard comes
+//   to its note's „Rückgängig", the note stands through a click elsewhere, and „Rückgängig" brings the
+//   line back with the keyboard on the slot put back) and no other note comes. A series with a hidden date carries the crossed
 //   eye only while editing. A choice decided while editing keeps its row of „Offen" in place, pale
 //   („Mi 11:30 ✓"), until the mode is left. A click never moves what was clicked from under the pointer
 //   (the eye clicked twice brings the plan back). A free stretch opens the form for that day; Esc closes
@@ -413,8 +414,18 @@ if (block("edit")) {
   await page.focus(bin).catch(() => {});
   await click(page, bin, "the bin of „Arbeit“");
   await until(page, "the bin", ([key]) => !(localStorage.getItem(key) ?? "").includes("\tArbeit\t") && /„Arbeit“ gelöscht/.test(onPage(".own-note .plan-toast-said")?.textContent ?? ""), [PLAN]);
+  // The keyboard, whose bin went with the Termin, is on „Rückgängig"; and a deletion's note stays
+  // until it is put away: a click on a blank part of the sidebar leaves it standing (it took the
+  // „Rückgängig" with it once, and a slow double click on a bin lost the Termin).
+  await until(page, "the keyboard on „Rückgängig“ after the bin", () => document.activeElement?.id === "own-note-undo");
+  const blank = await page.evaluate(() => { const at = { x: 200, y: innerHeight - 140 }; return document.elementFromPoint(at.x, at.y)?.closest("a, button, input, select, label, dialog, .wait-note") ? null : at; });
+  check(Boolean(blank), "a blank part of the sidebar to click");
+  if (blank) await page.mouse.click(blank.x, blank.y);
+  await page.waitForTimeout(700);
+  check(await page.evaluate(() => Boolean(onPage(".own-note .plan-toast-undo") ?? document.querySelector(".own-note .plan-toast-undo"))), "a deletion's note stands after a click elsewhere");
   await click(page, ".own-note .plan-toast-undo", "„Rückgängig“ of the bin");
   await until(page, "„Rückgängig“ of the bin", ([key, line]) => (localStorage.getItem(key) ?? "").includes(line) && allOnPage(".sp-week a.slot.own").length === 1, [PLAN, ARBEIT]);
+  await until(page, "the keyboard on the slot put back", () => document.activeElement?.matches?.(".sp-week a.slot.own") === true);
   // A free stretch: the form of a new Termin, of that day; Esc closes the form and the mode stays. The
   // week takes no click for half a second after a slot's bin (a second click meant for the bin would
   // land on what moved into its place), so the free stretch waits that out.

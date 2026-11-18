@@ -898,7 +898,14 @@ pub(super) fn OpenWay(ctx: PlanCtx) -> impl IntoView {
         said.get().map(|(phrase, _)| {
             let name = (t.studyplan_edit.open_way)(&phrase);
             view! {
-                <a class="sp-open-way" href=href data-noscroll="" aria-label=name.clone() title=name on:click=move |_| ctx.unfolded.set(true)>
+                // „Fertig" of the mode stood in its place: a moment after the mode was left it takes
+                // no click of the pointer meant for „Fertig" (`PlanCtx::left`) — never as the page
+                // comes, nor when what it says changes.
+                <a class="sp-open-way" href=href data-noscroll="" aria-label=name.clone() title=name on:click=move |ev| {
+                    if !ctx.left.swallows(&ev) {
+                        ctx.unfolded.set(true);
+                    }
+                }>
                     <Icon name="list-checks"/>
                     // Each figure whole: where the row is short the later ones give way first.
                     <b>{phrase.split(" · ").enumerate().map(|(at, part)| view! { <span>{(at > 0).then_some(" · ")}{part.to_string()}</span> }).collect_view()}</b>
@@ -1309,7 +1316,7 @@ mod tests {
             lines.iter().map(|line| (line.name.as_str(), line.say.as_str(), line.href.as_str(), line.current)).collect()
         }
         assert_eq!(said(&lines(&table, &short(), &plain(), None, &i18n::DE)), [("Praktikum EvS", "eine von 4 anhaken", "/studyplan?sem=2026W&edit=1&wahl=e148370", false)]);
-        assert_eq!(said(&lines(&table, &short(), &plain(), Some(e), &i18n::EN)), [("Praktikum EvS", "tick one of 4", "/studyplan?sem=2026W&edit=1&wahl=e148370", true)]);
+        assert_eq!(said(&lines(&table, &short(), &plain(), Some(e), &i18n::EN)), [("Practical EvS", "tick one of 4", "/studyplan?sem=2026W&edit=1&wahl=e148370", true)]);
         // Ticked, it is no longer open, but stays in the list while it is in focus.
         let key_of = table.events[e].rows[0].key.unwrap();
         doc.tick(key(), key_of, true);

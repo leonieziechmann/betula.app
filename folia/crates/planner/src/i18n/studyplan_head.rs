@@ -78,6 +78,9 @@ pub struct Texts {
     // ---- what is hidden ----
     /// „Alle einblenden": everything the plan hides, shown again at once.
     pub unhide_all: &'static str,
+    /// The tooltip of the mode's „2 ausgeblendet": it leads to „Alle einblenden" under the list,
+    /// it brings nothing back itself.
+    pub to_unhide_all: &'static str,
 
     // ---- what is derived ----
     /// „Abgeleitet: Vorlesungszeit …, Standort Cottbus.": the parts joined with „, ".
@@ -152,6 +155,7 @@ pub const DE: Texts = Texts {
     blocked: |options, kind, title| format!("0 von {options} Terminen frei: {kind} · {title}"),
 
     unhide_all: "Alle einblenden",
+    to_unhide_all: "Zu „Alle einblenden“",
 
     derived: |parts| format!("Abgeleitet: {parts}."),
     lecture_period: |first, last| format!("Vorlesungszeit {first}–{last}"),
@@ -214,6 +218,7 @@ pub const EN: Texts = Texts {
     blocked: |options, kind, title| format!("0 of {options} sessions free: {kind} · {title}"),
 
     unhide_all: "Show all",
+    to_unhide_all: "Go to “Show all”",
 
     derived: |parts| format!("Derived: {parts}."),
     lecture_period: |first, last| format!("lecture period {first}–{last}"),

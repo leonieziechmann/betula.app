@@ -27,7 +27,7 @@
 
 use folia_calendar::semester::SemesterKey;
 use folia_design::modal::Placed;
-use folia_design::nav::Room;
+use folia_design::nav::{Newborn, Room};
 use folia_design::waitnote::WaitNote;
 use folia_plans::studyplan::{PlanDoc, PlanUndo};
 use folia_stores::collections::Anchor;
@@ -1123,6 +1123,11 @@ fn CardAction(ctx: TerminCtx, card: Memo<Option<CardPart>>, state: CardState, ru
     let t = i18n::t();
     let words = &t.termin;
     let parts = Memo::new(move |_| card.with(|card| card.as_ref().map(|card| (card.group.clone(), card.big.clone(), card.also.clone(), card.compare.clone()))));
+    // What a click of the large action or of „Haken wegnehmen" puts in its place („Diese Gruppe
+    // anhaken" where „Haken wegnehmen" was) takes no click of the pointer for a moment: the second
+    // click of a slow double click ticked the group again (folia_design::nav::Newborn). The card
+    // opening starts no such moment: nothing stood where its actions come.
+    let born = Newborn::grown();
     move || {
         let (group, big, also, compare) = parts.get()?;
         let compare = compare.zip(ctx.links.choice).map(|(code, choice)| choice.run(code));
@@ -1136,13 +1141,25 @@ fn CardAction(ctx: TerminCtx, card: Memo<Option<CardPart>>, state: CardState, ru
         // The tick away: the large action comes back, and has the keyboard.
         let untick = untick.map(|act| {
             view! {
-                <button class="sw tm-untick" type="button" data-action="tick" aria-pressed="true" on:click=move |_| { state.returns_to(".tm-act .tm-big"); stay.run(act.clone()); }>{words.card_untick}</button>
+                <button class="sw tm-untick" type="button" data-action="tick" aria-pressed="true" on:click=move |ev| {
+                    if born.swallows(&ev) {
+                        return;
+                    }
+                    born.again();
+                    state.returns_to(".tm-act .tm-big");
+                    stay.run(act.clone());
+                }>{words.card_untick}</button>
             }
         });
         let button = move |act: BigAct, class: &'static str| {
             let pressed = (act.name == "tick").then_some("false");
             let BigAct { label, act, name, said } = act;
-            view! { <button class=class type="button" data-action=name aria-pressed=pressed on:click=move |_| run.run((act.clone(), said.clone()))>{label}</button> }
+            view! { <button class=class type="button" data-action=name aria-pressed=pressed on:click=move |ev| {
+                if !born.swallows(&ev) {
+                    born.again();
+                    run.run((act.clone(), said.clone()));
+                }
+            }>{label}</button> }
         };
         let big = big.map(|act| button(act, "tm-big"));
         let also = also.map(|act| button(act, "tm-also mini"));

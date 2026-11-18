@@ -21,6 +21,13 @@
 //! sideways (`Sideways`: the semester of the note of „Einplanen", `folia_widgets::plannote`); a
 //! swipe is never a tap as well.
 //!
+//! A note whose going loses what it offers for good — the „Rückgängig" of a deletion: a Termin the
+//! student typed by hand — is `lasting`: it stays until it is put away (its ×, Esc while the
+//! keyboard is on it, a finger swiping it down), its own button is pressed, a newer note takes its
+//! place or the page is left. A click elsewhere, a key elsewhere, a scroll, a card or form opening
+//! (another address of the same page) are no reason: a slow double click on a bin, or the next
+//! click within seconds, took the „Rückgängig" with it, and the Termin was gone.
+//!
 //! It goes down out of sight, from where it stands, and then the host lets go of it (the same day:
 //! „wenn man da die Modul Ansicht schließt sollte die notification auch mit eher Animation nach
 //! unten raus geschlossen werden. Aktuell ist das ziemlich unangenehm anzusehen"). Its place is
@@ -137,6 +144,10 @@ pub fn WaitNote(
     /// the menu it opened).
     #[prop(optional, into)]
     away: Option<Signal<bool>>,
+    /// It stays until put away or replaced (a deletion's note, see the module's head): nothing
+    /// done elsewhere on the page moves it on.
+    #[prop(optional)]
+    lasting: bool,
     /// Classes of its own besides `wait-note`.
     #[prop(optional, into)]
     class: String,
@@ -197,9 +208,9 @@ pub fn WaitNote(
         });
     }
 
-    // Another page, module, filter or search.
+    // Another page, module, filter or search; a lasting note goes with the page alone.
     let location = i18n::use_location();
-    let here = Memo::new(move |_| (location.pathname.get(), steps_of(&location.search.get())));
+    let here = Memo::new(move |_| (location.pathname.get(), if lasting { String::new() } else { steps_of(&location.search.get()) }));
     Effect::new(move |before: Option<(String, String)>| {
         let now = here.get();
         if before.is_some_and(|before| before != now) && !fresh() {
@@ -224,12 +235,14 @@ pub fn WaitNote(
         });
         on_cleanup(move || resized.remove());
         let keys = window_event_listener(leptos::ev::keydown, move |ev| {
-            if is_moving_on(&ev, root, on_key) && !fresh() {
+            if is_moving_on(&ev, root, on_key, lasting) && (lasting || !fresh()) {
                 leave();
             }
         });
         on_cleanup(move || keys.remove());
-        if let Some(watch) = watch(root, fresh, swiped, leave) {
+        // What counts as moving on: for a lasting note nothing done on the page.
+        let moves_on = move || !lasting && !fresh();
+        if let Some(watch) = watch(root, moves_on, swiped, leave) {
             on_cleanup(move || drop(watch));
         }
     }
@@ -399,9 +412,10 @@ fn place_of(element: &web_sys::HtmlDivElement) -> Option<String> {
 
 /// Whether a key is the student moving on: not taken by the note (`on_key`), not on the note itself
 /// (Enter or the space bar on its buttons), not a modifier, Tab, a function key or a key with a
-/// modifier. Esc puts the note away, also from the note.
+/// modifier. Esc puts the note away, also from the note; a lasting note only from itself (Esc
+/// elsewhere closes what lies in front, a form or a card).
 #[cfg(feature = "csr")]
-fn is_moving_on(ev: &KeyboardEvent, root: NodeRef<leptos::html::Div>, on_key: Option<Callback<KeyboardEvent, bool>>) -> bool {
+fn is_moving_on(ev: &KeyboardEvent, root: NodeRef<leptos::html::Div>, on_key: Option<Callback<KeyboardEvent, bool>>, lasting: bool) -> bool {
     use leptos::wasm_bindgen::JsCast;
     let key = ev.key();
     if on_key.is_some_and(|on_key| on_key.run(ev.clone())) {
@@ -411,6 +425,9 @@ fn is_moving_on(ev: &KeyboardEvent, root: NodeRef<leptos::html::Div>, on_key: Op
     if root.get_untracked().zip(target).is_some_and(|(root, target)| root.contains(Some(&target))) {
         return key == "Escape";
     }
+    if lasting {
+        return false;
+    }
     let function_key = key.strip_prefix('F').is_some_and(|number| !number.is_empty() && number.chars().all(|c| c.is_ascii_digit()));
     let quiet = matches!(key.as_str(), "Shift" | "Control" | "Alt" | "AltGraph" | "Meta" | "CapsLock" | "Tab" | "Dead" | "Unidentified" | "Process");
     key == "Escape" || !(function_key || quiet || ev.ctrl_key() || ev.meta_key() || ev.alt_key())
@@ -418,7 +435,8 @@ fn is_moving_on(ev: &KeyboardEvent, root: NodeRef<leptos::html::Div>, on_key: Op
 
 /// What the note hears on the page, on its way down (capture): a click elsewhere, and a scroll of
 /// anything — each element's first position since the note came kept, one further than `far` from
-/// there moving on; within `GRACE` the positions are taken anew. A click on the note right after a
+/// there moving on; while `moves_on` says no (within `GRACE`, or ever for a lasting note) the
+/// positions are taken anew. A click on the note right after a
 /// swipe is the swipe's end and goes no further. A module's sheet sliding away (`sheet-away`,
 /// enhance.js) takes the note along. Dropping it removes the listeners.
 #[cfg(feature = "csr")]
@@ -440,7 +458,7 @@ impl Drop for Watch {
 }
 
 #[cfg(feature = "csr")]
-fn watch(root: NodeRef<leptos::html::Div>, fresh: impl Fn() -> bool + Copy + 'static, swiped: StoredValue<f64>, leave: impl Fn() + Copy + 'static) -> Option<send_wrapper::SendWrapper<Watch>> {
+fn watch(root: NodeRef<leptos::html::Div>, moves_on: impl Fn() -> bool + Copy + 'static, swiped: StoredValue<f64>, leave: impl Fn() + Copy + 'static) -> Option<send_wrapper::SendWrapper<Watch>> {
     use wasm_bindgen::JsCast;
     let document = web_sys::window()?.document()?;
     let on_note = move |target: Option<web_sys::EventTarget>| {
@@ -456,7 +474,7 @@ fn watch(root: NodeRef<leptos::html::Div>, fresh: impl Fn() -> bool + Copy + 'st
                 ev.stop_immediate_propagation();
                 ev.prevent_default();
             }
-        } else if !fresh() {
+        } else if moves_on() {
             leave();
         }
     });
@@ -470,7 +488,7 @@ fn watch(root: NodeRef<leptos::html::Div>, fresh: impl Fn() -> bool + Copy + 'st
             None => window.as_ref().map_or((0.0, 0.0), |window| (window.scroll_y().unwrap_or(0.0), window.scroll_x().unwrap_or(0.0))),
         };
         let far = window.and_then(|window| window.inner_height().ok()?.as_f64()).map_or(SCROLLED_MIN, |height| (height * SCROLLED).clamp(SCROLLED_MIN, SCROLLED_MAX));
-        let early = fresh();
+        let early = !moves_on();
         match seen.iter_mut().find(|(known, ..)| *known == target) {
             Some(first) if early => *first = (target, top, left),
             Some((_, top_first, left_first)) => {

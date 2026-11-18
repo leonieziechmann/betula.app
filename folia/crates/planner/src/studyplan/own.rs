@@ -55,6 +55,16 @@ use super::PlanCtx;
 /// share): a mark of its own, never shown.
 pub(super) const OWN_NOTE: &str = "Eigener Termin: ";
 
+/// How the note of a Termin of one's own deleted begins: a note that stays until it is put away
+/// (`WaitNote`'s `lasting`), since what the student typed by hand is gone with its „Rückgängig".
+pub(super) const OWN_GONE: &str = "Eigener Termin gelöscht: ";
+
+/// The id of the note's „Rückgängig", where the keyboard goes when a deletion took what it was on.
+const OWN_UNDO_ID: &str = "own-note-undo";
+
+/// The latest end the form's start moves it to (minutes): 23:55, the last of its field's steps.
+const LAST_END: u16 = 24 * 60 - 5;
+
 /// A new Termin lasts this long (minutes) until its end is changed: a slot of the lectures.
 const NEW_LENGTH: u16 = 90;
 
@@ -161,6 +171,19 @@ impl Draft {
         }
     }
 
+    /// The start typed (`from`, as its field holds it): the end follows by the length the Termin had
+    /// (09:15 for 16:00–17:30 makes 09:15–10:45), as a calendar's form does — the end left behind
+    /// made „Endet vor dem Beginn" or a Termin of eight hours. No later than 23:55, the last time
+    /// its field takes; an end before the start, or a time half typed, keeps the end as it is.
+    pub(super) fn start_at(&mut self, from: String) {
+        if let (Some(before), Some(to), Some(now)) = (minutes(self.from.trim()), minutes(self.to.trim()), minutes(from.trim())) {
+            if to > before {
+                self.to = clock(now.saturating_add(to - before).min(LAST_END));
+            }
+        }
+        self.from = from;
+    }
+
     /// The Termin it makes, numbered `number`, or what keeps it from being one.
     pub(super) fn termin(&self, number: u32) -> Result<OwnTermin, Trouble> {
         let (Some(from), Some(to)) = (minutes(self.from.trim()), minutes(self.to.trim())) else { return Err(Trouble::NoTime) };
@@ -246,7 +269,8 @@ pub(super) fn remove(ctx: PlanCtx, number: u32) {
     let undo = PlanUndo::made(before, |doc| {
         doc.remove_own(number);
     });
-    ctx.undo.set(Some((format!("{OWN_NOTE}{}", (t.studyplan_own.removed)(&name)), undo)));
+    ctx.back_to.set_value(slot_in_focus());
+    ctx.undo.set(Some((format!("{OWN_GONE}{}", (t.studyplan_own.removed)(&name)), undo)));
     haptic::play(Haptic::Tap);
     if let Some(going) = Pending::expect().filter(|_| ctx.url.with_untracked(|url| url.termin.is_some())) {
         let away = ctx.url.with_untracked(|url| url.with_termin(None).path());
@@ -255,6 +279,48 @@ pub(super) fn remove(ctx: PlanCtx, number: u32) {
     plan.update_after_paint(move |doc| {
         doc.remove_own(number);
     });
+}
+
+/// The slot of the week the keyboard is on — by the bin on it, or the slot of the card open — as a
+/// selector that finds it again once „Rückgängig" put it back: by its lines (`data-lines`), which
+/// are its Termine's and come back with them, else by its address (a Termin of one's own's).
+fn slot_in_focus() -> Option<String> {
+    #[cfg(feature = "csr")]
+    {
+        let active = leptos::web_sys::window()?.document()?.active_element()?;
+        let slot = match active.closest(".slot-acts").ok().flatten() {
+            Some(acts) => acts.previous_element_sibling(),
+            None => folia_design::stage::select(".sp-week .week a.slot[aria-current=\"true\"]"),
+        }?;
+        let plain = |value: &String| !value.is_empty() && !value.contains(['"', '\\']);
+        if let Some(lines) = slot.get_attribute("data-lines").filter(plain) {
+            return Some(format!(".sp-week .week a.slot[data-lines=\"{lines}\"]"));
+        }
+        let href = slot.get_attribute("href").filter(plain)?;
+        Some(format!(".sp-week .week a.slot[href=\"{href}\"]"))
+    }
+    #[cfg(not(feature = "csr"))]
+    None
+}
+
+/// The keyboard to the first element of the page in front that `selectors` find, in their order,
+/// where it is nowhere (on the page's body, or on what went): never taken from where it is.
+fn focus_where_lost(selectors: &[&str]) {
+    #[cfg(feature = "csr")]
+    {
+        use leptos::wasm_bindgen::JsCast;
+        if !super::edit::lost_focus() {
+            return;
+        }
+        let found = selectors.iter().find_map(|selector| folia_design::stage::select(selector)).and_then(|element| element.dyn_into::<leptos::web_sys::HtmlElement>().ok());
+        if let Some(element) = found {
+            let options = leptos::web_sys::FocusOptions::new();
+            options.set_prevent_scroll(true);
+            let _ = element.focus_with_options(&options);
+        }
+    }
+    #[cfg(not(feature = "csr"))]
+    let _ = selectors;
 }
 
 /// A Termin of one's own as a note says it: its name in quotes, where the student wrote one; else
@@ -700,6 +766,26 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
         here >= MAX_OWN
     });
 
+    // The keyboard to „Was" as the form opens, not to its „Schließen" (the dialog's first button):
+    // what it is is what one types first. Not on a phone, where it would bring up the screen's
+    // keyboard over the sheet before anything was asked. After the frame its fields are drawn in.
+    Effect::new(move |was: Option<bool>| {
+        let now = open.get();
+        if now && was != Some(true) && !ctx.phone.get_untracked() {
+            request_animation_frame(|| {
+                #[cfg(feature = "csr")]
+                {
+                    use leptos::wasm_bindgen::JsCast;
+                    if let Some(what) = folia_design::stage::by_id("own-what").and_then(|what| what.dyn_into::<leptos::web_sys::HtmlElement>().ok()) {
+                        let options = leptos::web_sys::FocusOptions::new();
+                        options.set_prevent_scroll(true);
+                        let _ = what.focus_with_options(&options);
+                    }
+                }
+            });
+        }
+        now
+    });
     let submit = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
         let (Some(plan), Some(ask)) = (ctx.plan, ctx.own.get_untracked()) else { return };
@@ -918,7 +1004,7 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
                 <div class="own-fld">
                     <span class="own-lb">{o.time}</span>
                     <span class="own-two">
-                        <input type="time" step="300" aria-label=o.begin prop:value=move || draft.with(|draft| draft.as_ref().map(|draft| draft.from.clone()).unwrap_or_default()) on:input=move |ev| { let value = event_target_value(&ev); set(Box::new(move |draft| draft.from = value)); }/>
+                        <input type="time" step="300" aria-label=o.begin prop:value=move || draft.with(|draft| draft.as_ref().map(|draft| draft.from.clone()).unwrap_or_default()) on:input=move |ev| { let value = event_target_value(&ev); set(Box::new(move |draft| draft.start_at(value))); }/>
                         <span>{o.until}</span>
                         <input type="time" step="300" aria-label=o.end prop:value=move || draft.with(|draft| draft.as_ref().map(|draft| draft.to.clone()).unwrap_or_default()) on:input=move |ev| { let value = event_target_value(&ev); set(Box::new(move |draft| draft.to = value)); }/>
                     </span>
@@ -953,26 +1039,47 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
 #[component]
 pub(super) fn OwnNote(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
-    let note = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().and_then(|(note, _)| note.strip_prefix(OWN_NOTE).map(str::to_string))));
-    // A new note is a new one: what it says comes and goes with it.
+    // What it says, and whether it is a deletion's, which stays until it is put away.
+    let note = Memo::new(move |_| {
+        ctx.undo.with(|undo| {
+            let (note, _) = undo.as_ref()?;
+            note.strip_prefix(OWN_GONE).map(|said| (said.to_string(), true)).or_else(|| note.strip_prefix(OWN_NOTE).map(|said| (said.to_string(), false)))
+        })
+    });
+    // A new note is a new one: what it says comes and goes with it. What a deletion took comes
+    // back, and the keyboard with it where the note held it (the slot it stood on, else the week).
     let restore = move |_| {
         let (Some(plan), Some((_, before))) = (ctx.plan, ctx.undo.get_untracked()) else { return };
         let undo = ctx.undo;
         undo.set(None);
         plan.update_after_paint(move |doc| before.restore(doc));
+        let back = ctx.back_to.get_value();
+        folia_design::nav::after_paint(move || {
+            request_animation_frame(move || {
+                let back = back.as_deref().into_iter().chain([".sp-week .week a.slot"]).collect::<Vec<_>>();
+                focus_where_lost(&back);
+            });
+        });
     };
     move || {
-        note.get().map(|said| {
+        note.get().map(|(said, lasting)| {
+            // The keyboard was on what the deletion took (the bin, the card's „Löschen", a form
+            // that closed): it comes to „Rückgängig", never to the page's body — once the Termin
+            // has gone from the week, and once a card or form has closed.
+            if lasting {
+                folia_design::nav::after_paint(|| request_animation_frame(|| focus_where_lost(&[&format!("#{OWN_UNDO_ID}")])));
+                set_timeout(|| focus_where_lost(&[&format!("#{OWN_UNDO_ID}")]), std::time::Duration::from_millis(350));
+            }
             // A note that leaves lets go of itself alone, not of a newer one that took its place
             // (the next card's, within the 200 ms the old one takes to go).
             let mine = said.clone();
             let gone = Callback::new(move |()| {
-                if note.with_untracked(|now| now.as_deref() == Some(mine.as_str())) {
+                if note.with_untracked(|now| now.as_ref().map(|(now, _)| now.as_str()) == Some(mine.as_str())) {
                     ctx.undo.set(None);
                 }
             });
             view! {
-                <WaitNote on_gone=gone class="planning-note own-note">
+                <WaitNote on_gone=gone lasting class="planning-note own-note">
                     <div class="plan-toast out">
                         <div class="plan-toast-main">
                             <span class="plan-toast-mark" aria-hidden="true"><Icon name="check"/></span>
@@ -980,7 +1087,7 @@ pub(super) fn OwnNote(ctx: PlanCtx) -> impl IntoView {
                         </div>
                         <div class="plan-toast-end">
                             <span class="plan-toast-sep" aria-hidden="true"></span>
-                            <button data-haptic="tap" class="plan-toast-undo" type="button" on:click=restore>{t.common.undo}</button>
+                            <button data-haptic="tap" class="plan-toast-undo" id=OWN_UNDO_ID type="button" on:click=restore>{t.common.undo}</button>
                         </div>
                     </div>
                 </WaitNote>
@@ -1139,6 +1246,23 @@ mod tests {
         assert_eq!(first_from(Some(d("2026-11-03")), Some((d("2027-04-12"), d("2027-07-16")))), d("2027-04-12"), "a semester to come");
         assert_eq!(first_from(Some(d("2026-09-01")), winter), d("2026-10-12"), "before its lectures");
         assert_eq!(first_from(Some(d("2026-11-03")), None), d("2026-11-03"), "no lecture period known");
+    }
+
+    #[test]
+    fn the_end_follows_the_start_by_the_length_it_had() {
+        let started = |draft: &Draft, from: &str| {
+            let mut draft = draft.clone();
+            draft.start_at(from.into());
+            (draft.from, draft.to)
+        };
+        let new = Draft::at(0, 1, 16 * 60);
+        assert_eq!((new.from.as_str(), new.to.as_str()), ("16:00", "17:30"));
+        assert_eq!(started(&new, "09:15"), ("09:15".into(), "10:45".into()), "earlier: the end comes along");
+        assert_eq!(started(&new, "17:00"), ("17:00".into(), "18:30".into()), "later than the old end");
+        assert_eq!(started(&new, "23:00"), ("23:00".into(), "23:55".into()), "no later than the field's last time");
+        assert_eq!(started(&new, ""), (String::new(), "17:30".into()), "a field emptied keeps the end");
+        let backwards = Draft { to: "15:00".into(), ..new.clone() };
+        assert_eq!(started(&backwards, "09:00"), ("09:00".into(), "15:00".into()), "no length to keep");
     }
 
     #[test]

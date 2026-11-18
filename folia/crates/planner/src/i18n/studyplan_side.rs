@@ -9,6 +9,8 @@ pub struct Texts {
     pub delete: &'static str,
     /// „Aktuellen Plan ersetzen?": loading a saved plan would lose the one shown.
     pub replace_current: &'static str,
+    /// „„Für Lea“ geladen", with „Rückgängig": a saved plan took the semester's place.
+    pub loaded: fn(&str) -> String,
 }
 
 pub const DE: Texts = Texts {
@@ -17,6 +19,7 @@ pub const DE: Texts = Texts {
     delete_named: |name| format!("„{name}“ löschen"),
     delete: "Löschen",
     replace_current: "Aktuellen Plan ersetzen?",
+    loaded: |name| format!("„{name}“ geladen"),
 };
 
 pub const EN: Texts = Texts {
@@ -25,4 +28,5 @@ pub const EN: Texts = Texts {
     delete_named: |name| format!("Delete “{name}”"),
     delete: "Delete",
     replace_current: "Replace the current plan?",
+    loaded: |name| format!("“{name}” loaded"),
 };

@@ -95,6 +95,9 @@ pub(super) fn EditToggle(ctx: PlanCtx) -> impl IntoView {
     #[cfg(feature = "csr")]
     Effect::new(move |was: Option<bool>| {
         let now = ctx.edit.get();
+        if was == Some(true) && !now {
+            ctx.left.again();
+        }
         match (was, now) {
             (Some(true), false) => request_animation_frame(|| {
                 if lost_focus() {
@@ -227,10 +230,17 @@ fn to_list() {
     }
 }
 
-/// The bar's figure „2 ausgeblendet": the list's foot into view, the keyboard on „Alle einblenden",
-/// which brings it all back — the figure says what is hidden, the foot is where it comes back.
+/// The bar's figure „2 ausgeblendet": the keyboard on „Alle einblenden" under the list, which
+/// brings it all back — the figure says what is hidden, the foot is where it comes back. The page
+/// scrolls only as far as brings the foot into sight, and not at all where it is in sight: the
+/// bar under the pointer stays where it is.
 fn to_show_all() {
-    folia_design::nav::reveal_selector(&format!("#{}", super::modules::SHOW_ALL_ID));
+    #[cfg(feature = "csr")]
+    if let Some(foot) = folia_design::stage::select(&format!("#{}", super::modules::SHOW_ALL_ID)) {
+        let options = leptos::web_sys::ScrollIntoViewOptions::new();
+        options.set_block(leptos::web_sys::ScrollLogicalPosition::Nearest);
+        foot.scroll_into_view_with_scroll_into_view_options(&options);
+    }
     folia_design::nav::focus_by_id(super::modules::SHOW_ALL_ID);
 }
 
@@ -246,6 +256,9 @@ fn EditBar(ctx: PlanCtx) -> impl IntoView {
     let open = open_said(ctx);
     let hidden = hidden(ctx);
     let (done, back) = leave_link(ctx);
+    // „Fertig" stands where „3 Wahlen offen ›" was clicked: the second click of a slow double click
+    // was meant for that, and left the mode again (folia_design::nav::Newborn).
+    let born = folia_design::nav::Newborn::now();
     let phrase = move || open.with(|open| open.as_ref().map(|(said, _)| said.clone()).unwrap_or_default());
     let figures = move || {
         let any = open.with(Option::is_some);
@@ -264,9 +277,15 @@ fn EditBar(ctx: PlanCtx) -> impl IntoView {
                 </button>
                 <span class="eb-open-fig">{phrase}</span>
             })}
-            {(hid > 0).then(|| view! {
-                {any.then_some(" · ")}
-                <button class="eb-hid" type="button" title=t.studyplan_head.unhide_all on:click=move |_| to_show_all()>{(t.studyplan_head.hidden)(hid)}</button>
+            {(hid > 0).then(|| {
+                let said = (t.studyplan_head.hidden)(hid);
+                let name = format!("{said} · {}", t.studyplan_head.to_unhide_all);
+                view! {
+                    // The figures stand in a row of boxes, which drops the spaces at a text's ends:
+                    // the separator keeps them in a box of its own („offen · 1", not „offen·1").
+                    {any.then(|| view! { <span class="eb-sep">" · "</span> })}
+                    <button class="eb-hid" type="button" title=t.studyplan_head.to_unhide_all aria-label=name on:click=move |_| to_show_all()>{said}</button>
+                }
             })}
         }
     };
@@ -281,7 +300,7 @@ fn EditBar(ctx: PlanCtx) -> impl IntoView {
             <button class="btn" type="button" data-action="own-add" title=t.studyplan_own.add_title on:click=move |_| super::own::ask_today(ctx, 0, None)>
                 <Icon name="plus"/>{t.studyplan_own.add}
             </button>
-            <a class="btn sp-done" href=done data-action="close-focus" data-back=move || back.get() data-noscroll="">
+            <a class="btn sp-done" href=done data-action="close-focus" data-back=move || back.get() data-noscroll="" on:click=move |ev| { born.swallows(&ev); }>
                 {t.studyplan_open.done}
                 <Shortcut keys="Esc"/>
             </a>

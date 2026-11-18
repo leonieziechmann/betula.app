@@ -1072,7 +1072,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   werden. Aktuell ist das ziemlich unangenehm anzusehen"): its place is kept from its coming, so
   what changes around it — a module's sheet that closes on a phone, a page without a sidebar — never
   moves it on its way out, and a module's sheet sliding away takes it along at once (enhance.js
-  `sheet-away` on the document). × and Esc put it away, and a finger swiping it down (the same day:
+  `sheet-away` on the document). A note whose going loses what it offers for good — the
+  „Rückgängig" of a deletion in the Stundenplan: a Termin of one's own, typed by hand — is `lasting`
+  (since Folia 1.100.0): it stays until it is put away (×, Esc while the keyboard is on it, a finger
+  swiping it down), its „Rückgängig" is pressed, a newer note takes its place or the page is left; a
+  click elsewhere, a key elsewhere, a scroll, a card or a form opening move nothing (the acceptance
+  test of 2026-11-18: a slow double click on a bin, or any click in the seconds after it, took the
+  „Rückgängig" with it). × and Esc put it away, and a finger swiping it down (the same day:
   „Auf dem Handy soll es die Geste geben die notification nach unten weg zu wischen"); a part of it
   may take a finger swiped sideways (`Sideways`), and a swipe is never a tap as well. On a wide
   screen one bar across the content: right of the sidebar where the page has one, the catalog's
@@ -1458,8 +1464,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     a line, „× Schließen Esc" on a wide screen), its body a `div.st-dlg-body`, its buttons a
     `footer.st-dlg-foot`; what it shows read from what its owner gave last (`modal::kept`), so that
     it goes in one piece. Nothing else is needed: on a wide screen it is a dialog in the middle of the
-    window, on a phone a sheet. Each dialog wrote its own showing, closing and click beside it
-    before; „Mein Studium"'s, the keys', „Einplanen"'s and the collections' are `Modal` now, the map
+    window, on a phone a sheet. A click beside it in the first 0.4 s after it opened — the second
+    click of a slow double click on what opened it („+ Termin") — neither closes it nor takes the
+    keyboard (`nav::Newborn`, which „3 Wahlen offen ›" (after the mode was left) and „Fertig" of the Stundenplan's mode and the
+    card's large action and „Haken wegnehmen" use as well: a control that came where the pointer just
+    clicked takes no click of a pointer for 0.4 s — the card's, after a click of one of them, not as
+    the card opens; a key's click always counts). Each dialog wrote its
+    own showing, closing and click beside it before; „Mein Studium"'s, the keys', „Einplanen"'s and the collections' are `Modal` now, the map
     a dialog of its own with `data-sheet`. A menu is a sheet with `data-sheet="menu"` on its `.st-pop`
     (`menu.rs`, `planmenu.rs`, `planinto.rs`, the Merkliste's, the profile's question); anything else with `data-sheet`, its
     foot `data-sheet-foot`, what scrolls `data-sheet-body`.
@@ -3071,7 +3082,12 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   Under the grid the list of the week's days (each Termin a row as tall as a finger, with its
   buttons) is closed until its line „Termine als Liste (8) +" opens it („standardmäßig
   eingeklappt"); the line counts the week shown, and the list stays open under a module opened
-  from it, which comes up as a sheet over the plan („A module on a phone"). With nothing planned a phone shows no empty week, only „Noch keine
+  from it, which comes up as a sheet over the plan („A module on a phone"). Its days and rows are
+  kept by what they are, and the list is built anew only when the week comes to hold Termine or none:
+  a button tapped changes its own row alone, and the page holds still under the finger (a bin threw it
+  600 px while the whole list was rebuilt with every Termin deleted). Of the rows' buttons an offer
+  („✓" of a group to take, „+") is drawn as a button, outlined in its green, and what was taken
+  filled. With nothing planned a phone shows no empty week, only „Noch keine
   Termine" and the ways on, as before: the page stays shorter than the screen (while the plan is
   edited the bare week, since 1.100.0).
   „Export" (the .ics file, „Als Bild speichern" and the subscription; „In deinen Kalender" until
@@ -3156,8 +3172,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     mehr", and so does the figure, quiet (`.sp-clash-fig.none`), so that the list can still be
     folded; leaving the mode with nothing overlapping folds it. The line
     „N ausgeblendet +" under the head (which moved the week 40 px), the head's „+ Termin" and its „1
-    Platzhalter" went. The bar's „2 ausgeblendet" brings the list's „Alle einblenden" into view with
-    the keyboard on it. A screen reader hears the mode („Stundenplan bearbeiten: 3 Wahlen offen, 2
+    Platzhalter" went. The bar's „2 ausgeblendet" (its tooltip „Zu „Alle einblenden“", its name „2
+    ausgeblendet · Zu „Alle einblenden“") puts the keyboard on the list's „Alle einblenden",
+    scrolling only as far as brings it into sight and not at all where it is in sight; its „ · "
+    keeps its spaces (`.eb-sep`). A screen reader hears the mode („Stundenplan bearbeiten: 3 Wahlen offen, 2
     ausgeblendet", „Bearbeiten beendet"); after „Fertig" the keyboard is on „Bearbeiten".
   - **In the week**: a slot of the plan opens its card in both states, a hatched group too, and
     while editing a faint slot („A Termin in its own view" below). Buttons only while editing (and
@@ -3169,7 +3187,11 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     hidden by its eye has „✓" and the crossed eye, so that showing it again does not tick it. A
     Termin of one's own carries the bin („Löschen", with the note and „Rückgängig") and never an
     eye; for half a second after it the week takes no click (`hush_after_bin`), so that a second
-    click meant for the bin does not land on the slot that takes its lane. What the plan leaves out stands faint in its place while editing (`ghost_slots`, what „Plan
+    click meant for the bin does not land on the slot that takes its lane. A slot too narrow for its
+    buttons (ten modules side by side) shows none of them while nothing points at it, so they never
+    draw over the slot beside it; with the pointer or the keyboard on it they come, above its
+    neighbours (app.css, the container `slot-acts` of `.week .slot-acts`: one button takes 26 px, two
+    49, three 72). What the plan leaves out stands faint in its place while editing (`ghost_slots`, what „Plan
     · Alle Termine" showed until 1.100.0), never drawn as a clash; slots at one time keep their lanes
     in both states. A series some of whose dates are hidden carries the bare crossed eye in its top
     right corner while editing („1 Termin ausgeblendet", `GridSlot::hides`, in the place of `pre`).
@@ -3241,7 +3263,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     it had, and each calendar with „Voll · Spur · Aus"; while editing „+ Kalender" in the group's
     head (the form „Neuer Kalender" opens under it) and each calendar's „…", in places that are
     there while looking —, „Export", „Teilen …", the storage hint, and while editing „Gespeicherte
-    Pläne", last (a click loads one, the bin deletes it with „Rückgängig"). The menu and the form
+    Pläne", last (a click loads one, the bin deletes it with „Rückgängig"; a plan loaded, by a click
+    or by „Ersetzen", says „„Alt“ geladen" with „Rückgängig" under them, `p.sp-loaded-note`, which
+    puts back the semester and the Standort as they were). The menu and the form
     are layers: Esc closes them before the mode, and leaving the mode closes them; while a dialog
     stands in front of them (a Termin's card, „Neuer Termin", „Tasten"), Esc closes that dialog first
     and never reaches what is under it (`folia_design::modal::dialog_in_front`), so one Esc closes
@@ -3741,7 +3765,14 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     will be („VL EvS"). Of a Termin of a calendar of one's own its foot has the bin, „Löschen", with
     the note and „Rückgängig". „Anlegen" and „Speichern" close it at once and change the plan after
     the next frame (R21); a note over the page says so with „Rückgängig" (`OwnNote`, a `WaitNote` as
-    „Einplanen"'s).
+    „Einplanen"'s). The note of a Termin deleted — by its slot's bin, its card's or its form's
+    „Löschen" — stays until it is put away or replaced (`lasting`, `OWN_GONE`): no click elsewhere, no
+    card or form opening takes it; the keyboard, where the deletion took what it was on, comes to its
+    „Rückgängig" (`#own-note-undo`), and after „Rückgängig" to the slot put back (else the week's
+    first). The form opens with the keyboard in „Was" (not on a phone, where the screen's keyboard
+    would come up over the sheet); a start typed moves the end along by the length the Termin had
+    (`Draft::start_at`: 09:15 for 16:00–17:30 makes 09:15–10:45, no later than 23:55). What it meets
+    of the week is said amber (`.own-fit.warn`): allowed, and so no red.
   - **In the week** a slot of one's own carries the mark „von dir" in its corner (`GridSlot::own`,
     `i.slot-own`), no „×" and, since 1.100.0, while the plan is edited the bin „Löschen" (with the
     note and „Rückgängig") and never an eye: it is deleted, not hidden; its tooltip says „von dir,
@@ -8218,7 +8249,7 @@ the field for its name. On the synthetic catalog as on the real one.
   later. Since 2026-09-25 an entry is as short as a slot of the week, for the phone (owner: „so
   kompakt wie möglich … so wie die Infos bei der Ansicht auf der Seite"): „VL EvS" in „ZHG/HS.C",
   „Ü AuP · 1 von 3", „Prüfung EvS · 2. Termin"; its description says it all in full (what QIS calls
-  the event, the modules with number and title, the rooms as QIS names them, and what the rows say;
+  the event — in the English feed its kinds' English labels, since 1.100.0 —, the modules with number and title, the rooms as QIS names them, and what the rows say;
   `folia_timetable::export`). A program's abbreviations differ from a module's own in about 7 %
   of its compulsory modules, and the download must be the feed, so the code carries the program;
   and it names the layout of its fields in four bits (`subscription::VERSION`), so a later layout

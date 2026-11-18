@@ -187,11 +187,15 @@ pub fn Modal(
     children: ChildrenFn,
 ) -> impl IntoView {
     let node = NodeRef::<leptos::html::Dialog>::new();
+    // A click beside it a moment after it came was meant for what opened it (the second click of
+    // a slow double click on „+ Termin" closed the form it had opened): it takes none for 400 ms.
+    let born = crate::nav::Newborn::now();
     // Shown while `open` says so, from the frame it is in the page.
     Effect::new(move |_| {
         let open = open.get();
         let Some(dialog) = node.get() else { return };
         if open && !dialog.open() {
+            born.again();
             let _ = dialog.show_modal();
             if focus_itself {
                 let _ = dialog.focus();
@@ -209,7 +213,7 @@ pub fn Modal(
         }
     });
     let beside = move |ev: leptos::ev::MouseEvent| {
-        if on_backdrop(node, &ev) {
+        if on_backdrop(node, &ev) && !born.swallows(&ev) {
             let point = (f64::from(ev.client_x()), f64::from(ev.client_y()));
             if !on_beside.is_some_and(|ask| ask.run(point)) {
                 on_close.run(());
@@ -238,6 +242,12 @@ pub fn Modal(
             }
             on:close=move |_| on_close.run(())
             on:click=beside
+            // The press of such a click neither takes the keyboard from the field it has.
+            on:mousedown=move |ev: leptos::ev::MouseEvent| {
+                if on_backdrop(node, &ev) {
+                    born.swallows(&ev);
+                }
+            }
         >
             {move || open.get().then(|| view! { <div class="st-dlg">{children()}</div> })}
         </dialog>

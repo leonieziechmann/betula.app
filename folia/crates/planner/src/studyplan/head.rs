@@ -340,13 +340,10 @@ impl Note {
     }
 }
 
-/// What an event is called in a line: its type as QIS writes it (in every language), else its
-/// first kind, else „Termin".
+/// What an event is called in a line: what Betula calls its kind wherever it writes it
+/// (`views::type_text`: QIS's word in German, its kinds' labels in English), else „Termin".
 pub(super) fn kind_word(event: &Event, locale: Locale) -> String {
-    match event.type_raw.as_deref().map(str::trim).filter(|kind| !kind.is_empty()) {
-        Some(kind) => kind.to_string(),
-        None => event.kinds.iter().next().map_or(folia_plans::i18n::texts(locale).session, |kind| kind.label(locale)).to_string(),
-    }
+    Some(folia_timetable::views::type_text(event, locale)).filter(|kind| !kind.is_empty()).unwrap_or_else(|| folia_plans::i18n::texts(locale).session.to_string())
 }
 
 /// „0 von 2 Terminen frei: Laborausbildung · Programmierpraktikum": a choice none of whose options
@@ -1009,15 +1006,16 @@ mod tests {
         assert_eq!(alone.parts[0], (true, "2 Überschneidungen an einzelnen Tagen".to_string()));
         // The figure counts what the parts say: per week and on single days, nothing in the B week.
         assert_eq!((summary.count, both.count, alone.count, b.count), (1, 2, 2, 0));
-        // In English, the weekdays and dates too; QIS's types and the titles stay as they are.
+        // In English, the weekdays and dates too, and the kinds by their English labels; the titles
+        // stay as they are.
         let english = super::summary(&table, &about, &[a_week_overlap(), day], Weeks::All, &EN);
         assert_eq!(
             texts(&english),
             (
                 vec![(true, "1 clash per week"), (true, "1 on single days")],
                 vec![
-                    (true, "Tue 07:30–09:00 · Vorlesung Elektrische und elektronische … × Vorlesung Programmierpraktikum · week A"),
-                    (true, "Tue 3 Nov 07:30–09:00 · Vorlesung Elektrische und elektronische … × Vorlesung Programmierpraktikum"),
+                    (true, "Tue 07:30–09:00 · Lecture Elektrische und elektronische … × Lecture Programmierpraktikum · week A"),
+                    (true, "Tue 3 Nov 07:30–09:00 · Lecture Elektrische und elektronische … × Lecture Programmierpraktikum"),
                 ]
             )
         );

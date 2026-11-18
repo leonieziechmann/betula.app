@@ -183,6 +183,12 @@ pub(super) struct PlanCtx {
     /// The dialog „Teilen" while it is open: for which calendar, on which side
     /// (`share_dialog.rs`; folia/design/teilen/teilen.html). Not stored.
     pub sharing: RwSignal<Option<share_dialog::ShareOpen>>,
+    /// Where the keyboard goes once „Rückgängig" put back the Termin of one's own a deletion took:
+    /// the slot it stood on, as a selector of the week (`own::remove`). Not stored.
+    pub back_to: StoredValue<Option<String>>,
+    /// When the mode was left last: „3 Wahlen offen ›" comes where „Fertig" was clicked, and takes no
+    /// click of the pointer for a moment (`folia_design::nav::Newborn`; `edit.rs` starts it).
+    pub left: folia_design::nav::Newborn,
 }
 
 /// The semester the page shows: the one the catalog has dates for, the snapshot's current one
@@ -321,6 +327,8 @@ pub fn StudyplanPage() -> impl IntoView {
         adding: RwSignal::new(None),
         own: RwSignal::new(None),
         sharing: RwSignal::new(None),
+        back_to: StoredValue::new(None),
+        left: folia_design::nav::Newborn::grown(),
     };
     // What „Rückgängig" puts back is the plan of the profile it was taken from: with another
     // profile (chosen here or in another tab, `folia_stores::profiles`) there is nothing to undo.

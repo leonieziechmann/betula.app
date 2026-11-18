@@ -197,6 +197,10 @@ pub(super) fn WeekView(ctx: PlanCtx) -> impl IntoView {
     // On a phone the list of days is closed until asked for (owner, 2026-09-27): the grid over it
     // shows the week. Its line says how many Termine it holds.
     let rows = Memo::new(move |_| slots.with(Vec::len));
+    // Whether there are any: the toggle and the list are built anew only when that changes, never
+    // with every Termin deleted (rebuilt, the list took the browser's hold of the scroll with it,
+    // and the bin threw the page 600 px under the finger).
+    let any_rows = Memo::new(move |_| rows.get() > 0);
     let week = move || {
         // A phone with nothing planned says what to do where the week will stand, and the page
         // stays shorter than the screen: an empty week would take all of it. While editing the
@@ -208,7 +212,7 @@ pub(super) fn WeekView(ctx: PlanCtx) -> impl IntoView {
             return view! {
                 <WeekCarousel ctx weeks layers shown=slots layer picked/>
                 {move || {
-                    (rows.get() > 0).then(|| {
+                    any_rows.get().then(|| {
                         view! {
                             <button
                                 class="sp-days-toggle"
@@ -224,7 +228,7 @@ pub(super) fn WeekView(ctx: PlanCtx) -> impl IntoView {
                     })
                 }}
                 {move || {
-                    (ctx.days.get() && rows.get() > 0).then(|| {
+                    (ctx.days.get() && any_rows.get()).then(|| {
                         view! {
                             <div class="sp-days" id=DAYS_ID on:click=act>
                                 <DayList slots picked/>
@@ -1614,43 +1618,44 @@ fn day_groups(rows: impl IntoIterator<Item = DayRow>) -> Vec<(u8, Vec<DayRow>)> 
 }
 
 /// The Regelwoche on a phone, under its grid: a list of days, each Termin a row as tall as a
-/// finger, with its buttons.
+/// finger, with its buttons. Days and rows are kept by what they are, so that a button tapped
+/// changes its own row alone: rebuilt, a whole day took the browser's hold of the scroll with it,
+/// and a bin threw the page 600 px under the finger.
 #[component]
 fn DayList(slots: Memo<Vec<PlanSlot>>, picked: Memo<Picked>) -> impl IntoView {
     let t = i18n::t();
     let groups = Memo::new(move |_| slots.with(|slots| day_groups(slots.iter().map(|slot| slot.row.clone()))));
-    let day = move |(day, rows): (u8, Vec<DayRow>)| {
-        let rows = rows
-            .into_iter()
-            .map(|row| {
-                let marked = row.clone();
-                let current = move || picked.with(|picked| marked.is(picked)).then_some("true");
-                let note = (!row.note.is_empty()).then(|| view! { <small>{row.note}</small> });
-                // The Termin's buttons beside its link, as in the grid, in view (a finger has no
-                // pointer to show them).
-                let count = row.acts.len();
-                let act = (count > 0).then(|| view! { <div class="slot-acts">{slot_buttons(&row.acts)}</div> });
-                view! {
-                    <div class="sp-dayrow" style=format!("--acts:{count}")>
-                        <a class=row.class href=t.path(&row.href) data-noscroll="" aria-current=current>
-                            <span class="t">{row.time}</span>
-                            <span>{row.text}{note}</span>
-                        </a>
-                        {act}
-                    </div>
-                }
-            })
-            .collect_view();
+    let days = Memo::new(move |_| groups.with(|groups| groups.iter().map(|(day, _)| *day).collect::<Vec<u8>>()));
+    let row = move |row: DayRow| {
+        let marked = row.clone();
+        let current = move || picked.with(|picked| marked.is(picked)).then_some("true");
+        let note = (!row.note.is_empty()).then(|| view! { <small>{row.note}</small> });
+        // The Termin's buttons beside its link, as in the grid, in view (a finger has no
+        // pointer to show them).
+        let count = row.acts.len();
+        let act = (count > 0).then(|| view! { <div class="slot-acts">{slot_buttons(&row.acts)}</div> });
+        view! {
+            <div class="sp-dayrow" style=format!("--acts:{count}")>
+                <a class=row.class href=t.path(&row.href) data-noscroll="" aria-current=current>
+                    <span class="t">{row.time}</span>
+                    <span>{row.text}{note}</span>
+                </a>
+                {act}
+            </div>
+        }
+    };
+    let day = move |day: u8| {
+        let rows = Memo::new(move |_| groups.with(|groups| groups.iter().find(|(of, _)| *of == day).map(|(_, rows)| rows.clone()).unwrap_or_default()));
         view! {
             <section>
                 <h3 class="label">{weekday_name(day, t)}</h3>
-                {rows}
+                <For each=move || rows.get() key=|row| row.clone() children=row/>
             </section>
         }
     };
     view! {
         <div class="sp-daylist" on:click=|ev| remember(Within::Days, &ev)>
-            <For each=move || groups.get() key=|group| group.clone() children=day/>
+            <For each=move || days.get() key=|day| *day children=day/>
         </div>
     }
 }
@@ -2675,9 +2680,9 @@ pub(super) mod tests {
                 ("Ex Entwicklung von Softwaresystemen", "11:45–13:15 · 23 Feb", "HG 0.20 · 1 session · 23 Feb"),
             ]
         );
-        // QIS's type of the event („Vorlesung") is the data's word, in every language.
+        // The kind in English as the slot's short word has it („Lec"), never QIS's „Vorlesung" beside it.
         let lecture = slots.get(1).unwrap();
-        assert_eq!(lecture.slot.title, "Vorlesung · Entwicklung von Softwaresystemen · Tue 11:30–13:00 · HG 0.20");
+        assert_eq!(lecture.slot.title, "Lecture · Entwicklung von Softwaresystemen · Tue 11:30–13:00 · HG 0.20");
         // While looking no slot has a button; while editing the eye says what it does.
         assert!(lecture.acts.is_empty());
         let edited = week_slots(&table, &editing(), &titles(), Weeks::All, None, en);
@@ -2709,7 +2714,7 @@ pub(super) mod tests {
         assert!(blocks.iter().any(|block| matches!(block, Block::Break { text, .. } if text == "21 Dec–3 Jan · no lectures")), "{blocks:?}");
         let items = agenda_items(&blocks);
         let (when, first) = items.first().unwrap();
-        assert_eq!((when.as_str(), first.text.as_str(), first.title.as_str()), ("Tue 6 Oct", "Übung · Entwicklung von Softwaresystemen", "Übung · Entwicklung von Softwaresystemen · 6 Oct 2026 07:30–09:00 · HG 0.20"));
+        assert_eq!((when.as_str(), first.text.as_str(), first.title.as_str()), ("Tue 6 Oct", "Exercise · Entwicklung von Softwaresystemen", "Exercise · Entwicklung von Softwaresystemen · 6 Oct 2026 07:30–09:00 · HG 0.20"));
     }
 
     #[test]

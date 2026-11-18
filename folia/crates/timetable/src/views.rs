@@ -24,6 +24,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use folia_calendar::change::Scope;
 use folia_calendar::day::Day;
+use folia_calendar::kind::EventKind;
 use folia_calendar::own::OwnTermin;
 use folia_calendar::rowkey::RowKey;
 use folia_calendar::select::HiddenBy;
@@ -214,11 +215,17 @@ pub fn hidden_count(table: &Timetable) -> HiddenCount {
     count
 }
 
-/// What QIS calls an event („Übung", „Vorlesung/Übung", „Laborausbildung": the data's words,
-/// in every language), else its kinds in `locale`.
+/// What an event is called wherever Betula writes its kind — the card's head, „Offen", the list,
+/// a line, the calendar file: in German what QIS calls it („Übung", „Vorlesung/Übung",
+/// „Laborausbildung": the data's words); in another language the labels of its kinds („Lecture",
+/// "Seminar/Exercise"), as the week's short words („Lec EvS") are, and QIS's word as written where
+/// Betula knows no kind of it but „Sonstiges" („Kolloquium"). One rule, so that no English page
+/// says „Vorlesung" beside "Lecture". Without a word of QIS's, its kinds in `locale`.
 pub fn type_text(event: &Event, locale: Locale) -> String {
+    let labels = || event.kinds.iter().filter(|kind| *kind != EventKind::Other).map(|kind| kind.label(locale)).collect::<Vec<_>>().join("/");
     match event.type_raw.as_deref().map(str::trim).filter(|text| !text.is_empty()) {
-        Some(text) => text.to_string(),
+        Some(text) if locale == Locale::De => text.to_string(),
+        Some(text) => Some(labels()).filter(|labels| !labels.is_empty()).unwrap_or_else(|| text.to_string()),
         None => event.kinds.iter().map(|kind| kind.label(locale)).collect::<Vec<_>>().join("/"),
     }
 }

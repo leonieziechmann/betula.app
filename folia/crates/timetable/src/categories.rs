@@ -75,15 +75,12 @@ pub fn module_events(table: &Timetable, id: &str, shown: Option<usize>, locale: 
         .collect()
 }
 
-/// The word of an event in a row and a segment: in German what QIS calls it („Vorlesung",
-/// „Seminar/Übung", `views::type_text`); in another language the labels of its kinds („Lecture",
-/// "Seminar/Exercise"), as Betula's own sentences and the week's short words have them, and QIS's
-/// word as it is written where Betula knows no kind of it but „Sonstiges".
+/// The word of an event in a row and a segment: what Betula calls its kind wherever it writes it
+/// (`views::type_text`) — in German QIS's word („Vorlesung", „Seminar/Übung"), in another language
+/// the labels of its kinds („Lecture", "Seminar/Exercise"), QIS's word as written where Betula knows
+/// no kind of it but „Sonstiges".
 pub fn word(event: &Event, locale: Locale) -> String {
-    match labels(event, locale) {
-        labels if locale == Locale::De || labels.is_empty() => type_text(event, locale),
-        labels => labels,
-    }
+    type_text(event, locale)
 }
 
 /// The labels of the kinds of an event that are Betula's own word for it in `locale`, joined „/"

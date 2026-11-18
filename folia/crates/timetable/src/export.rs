@@ -1594,7 +1594,7 @@ mod tests {
     }
 
     /// The feed of `/en/calendar/<code>.ics`: the same entries with the same UIDs, the words around
-    /// the data in English, and what QIS says as QIS says it.
+    /// the data and the kinds in English, and what else QIS says as QIS says it.
     #[test]
     fn the_calendar_in_english() {
         let rows = rows();
@@ -1607,13 +1607,14 @@ mod tests {
         let uids = |c: &Calendar| c.entries.iter().map(|entry| (entry.uid.clone(), entry.when, entry.tentative)).collect::<Vec<_>>();
         assert_eq!(uids(&c), uids(&de), "a subscription that changes its language updates its entries");
 
-        // The lecture: „Vorlesung" is what QIS calls it, the rest is English.
+        // The lecture: its kind by its English label, as its category and summary have it; the
+        // titles and rooms are what QIS says.
         let lecture = on(&c, &rows[0], "2026-10-06");
         assert_eq!((lecture.summary.as_str(), lecture.categories.as_slice()), ("Lec SWT", ["Lecture".to_string()].as_slice()));
         assert_eq!(
             lecture.description.as_deref(),
             Some(
-                "Vorlesung\nModule 11111 Softwaretechnik\nweekly 6 Oct 2026–26 Jan 2027\nRooms: Zentrales \
+                "Lecture\nModule 11111 Softwaretechnik\nweekly 6 Oct 2026–26 Jan 2027\nRooms: Zentrales \
                  Hörsaalgebäude - Hörsaal A - Zentralcampus / Zentrales Hörsaalgebäude - Hörsaal B - \
                  Zentralcampus\nCancelled: 22 Dec, 29 Dec (no lectures)\nSource: QIS"
             )
@@ -1631,7 +1632,7 @@ mod tests {
             )
         );
         // The Saturdays: the break, a holiday, a date QIS cancels without a reason, a room note.
-        let lines = "Übung\nModule 11111 Softwaretechnik\nweekly 10 Oct 2026–30 Jan 2027\nLecturers: Robel\nCancelled: \
+        let lines = "Exercise\nModule 11111 Softwaretechnik\nweekly 10 Oct 2026–30 Jan 2027\nLecturers: Robel\nCancelled: \
                      26 Dec, 2 Jan (no lectures); 31 Oct (Reformation Day); 7 Nov (according to QIS)";
         let noted = on(&c, &rows[3], "2026-11-14");
         assert_eq!(noted.description.as_deref(), Some(format!("{lines}\nNote: Raumwechsel\nSource: QIS").as_str()));

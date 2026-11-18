@@ -1459,13 +1459,11 @@ fn group_of(row: &Row) -> Option<&str> {
     row.date.group_name.as_deref().map(str::trim).filter(|name| !name.is_empty() && *name != UNNAMED_GROUP)
 }
 
-/// What an event is called in a line: its type as QIS writes it („Übung", „Vorlesung/Übung"),
-/// else its first kind, else „Termin".
+/// What an event is called in a line: what Betula calls its kind wherever it writes it
+/// (`views::type_text`: QIS's word in German, „Übung", „Vorlesung/Übung"; its kinds' labels in
+/// English), else „Termin".
 fn kind_word(event: &Event, texts: &i18n::Texts) -> String {
-    match event.type_raw.as_deref().map(str::trim).filter(|kind| !kind.is_empty()) {
-        Some(kind) => kind.to_string(),
-        None => event.kinds.iter().next().map_or(texts.plans_data.session, |kind| kind.label(texts.locale)).to_string(),
-    }
+    Some(folia_timetable::views::type_text(event, texts.locale)).filter(|kind| !kind.is_empty()).unwrap_or_else(|| texts.plans_data.session.to_string())
 }
 
 /// An event's head: what it is, and its title where that is not the module's own (the panel's
