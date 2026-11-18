@@ -188,6 +188,7 @@ pub(super) fn WeekView(ctx: PlanCtx) -> impl IntoView {
         let (Some(plan), Some(act)) = (ctx.plan, slots.with_untracked(|slots| act_of(slots, &key))) else { return };
         if let Act::RemoveOwn(number) = act {
             super::own::remove(ctx, number);
+            hush_after_bin();
             return;
         }
         let semester = ctx.key.get_untracked();
@@ -843,7 +844,8 @@ impl DayRow {
     }
 }
 
-/// The slots of the Regelwoche held in the week `shown`, in its order (weekday, time, event);
+/// The slots of the Regelwoche held in the week `shown`, by weekday, time and their first Termin's
+/// key (so that a faint slot keeps its lane);
 /// `titles` are the planned modules' titles by id. While the plan is edited (`edit::on(base)`; the
 /// mode shows what the plan leaves out, faint, in its place), what it leaves out besides (`ghost_slots`), in the
 /// order of the week. With a choice in focus (`focus`, its event), its groups and the rest behind
@@ -1411,13 +1413,13 @@ fn plan_acts(table: &Timetable, item: &WeekItem, keys: &[RowKey], slots: usize, 
             Some(row) if alt.open => {
                 return vec![
                     SlotAct::take(words.take_option, Act::ChooseAcross { events: Vec::new(), event: id, row, rows: keys.to_vec() }),
-                    SlotAct::hide((words.hide_event)(&eye_word(event, t.locale)), Act::HideEvent(id)),
+                    SlotAct::hide(hide_event(event, t), Act::HideEvent(id)),
                 ];
             }
             _ if chosen => {
                 return vec![
                     SlotAct::taken(words.drop_option, Act::UnchooseAcross(id)),
-                    SlotAct::hide((words.hide_event)(&eye_word(event, t.locale)), Act::DropAcross(id)),
+                    SlotAct::hide(hide_event(event, t), Act::DropAcross(id)),
                 ];
             }
             _ => {}
@@ -1433,7 +1435,7 @@ fn plan_acts(table: &Timetable, item: &WeekItem, keys: &[RowKey], slots: usize, 
             vec![SlotAct::taken(words.drop_group, Act::Untick(ticks.clone())), SlotAct::hide(words.not_this_group, Act::Drop { ticks, rows: keys.to_vec() })]
         }
         _ if slots > 1 && !keys.is_empty() => vec![SlotAct::hide(words.hide_session, Act::HideRows(keys.to_vec()))],
-        _ => vec![SlotAct::hide((words.hide_event)(&eye_word(event, t.locale)), Act::HideEvent(id))],
+        _ => vec![SlotAct::hide(hide_event(event, t), Act::HideEvent(id))],
     }
 }
 
@@ -1497,14 +1499,24 @@ fn empty_card(nothing: bool, editing: bool) -> bool {
     nothing && !editing
 }
 
-/// What the eye of a whole event calls it: in German QIS's word („Vorlesung ausblenden",
-/// „Laborausbildung ausblenden"), in another language the kind's word of that language, which QIS
-/// does not write („Hide the lecture", not „Hide Vorlesung"); QIS's word where it names no kind.
-fn eye_word(event: &Event, locale: Locale) -> String {
-    match (locale, event.kinds.iter().next()) {
-        (Locale::De, _) | (_, None) => kind_word(event, locale),
-        (_, Some(kind)) => kind.label(locale).to_lowercase(),
+/// What the eye of a whole event calls it, and whether that is Betula's own word (which English
+/// says with its article): in German QIS's word („Vorlesung ausblenden", „Laborausbildung
+/// ausblenden"), in another language the kind's word of that language, which QIS does not write
+/// („Hide the lecture", not „Hide Vorlesung"); QIS's word as written where it names no kind Betula
+/// knows but „Sonstiges" („Hide Kolloquium", never „Hide the other").
+fn eye_word(event: &Event, locale: Locale) -> (String, bool) {
+    let first = event.kinds.iter().find(|kind| *kind != EventKind::Other);
+    match (locale, first) {
+        (Locale::De, _) | (_, None) => (kind_word(event, locale), false),
+        (_, Some(kind)) => (kind.label(locale).to_lowercase(), true),
     }
+}
+
+/// The words of the eye of a whole event („Vorlesung ausblenden", "Hide the lecture", "Hide
+/// Kolloquium").
+fn hide_event(event: &Event, t: &i18n::Texts) -> String {
+    let (word, own) = eye_word(event, t.locale);
+    (t.studyplan_week.hide_event)(&word, own)
 }
 
 /// The rows behind a slot of the Regelwoche: the shown rows of its event at its weekday and
@@ -2219,6 +2231,39 @@ fn day_short(day: u8, t: &i18n::Texts) -> &'static str {
     t.data.weekday_short(i64::from(day)).unwrap_or_default()
 }
 
+/// How long (ms) the week takes no click after the bin of a slot deleted a Termin of one's own.
+#[cfg(feature = "csr")]
+const HUSH_MS: u64 = 500;
+
+/// After the bin of a slot deleted a Termin of one's own, the slot beside it takes the lane it
+/// stood in, its eye under the pointer: for half a second a click on the week (or the day list of
+/// a phone) does nothing — it hides no neighbour — and does not take the note with „Rückgängig"
+/// away either (the note hears clicks on the document; this listener on the window comes first).
+fn hush_after_bin() {
+    #[cfg(feature = "csr")]
+    {
+        use leptos::wasm_bindgen::closure::Closure;
+        use leptos::wasm_bindgen::JsCast;
+        let Some(window) = leptos::web_sys::window() else { return };
+        let hush = Closure::<dyn Fn(leptos::web_sys::Event)>::new(|ev: leptos::web_sys::Event| {
+            let on_week = ev.target().and_then(|target| target.dyn_into::<leptos::web_sys::Element>().ok()).is_some_and(|element| element.closest(".sp-week, .sp-days").ok().flatten().is_some());
+            if on_week {
+                ev.stop_immediate_propagation();
+                ev.prevent_default();
+            }
+        });
+        if window.add_event_listener_with_callback_and_bool("click", hush.as_ref().unchecked_ref(), true).is_err() {
+            return;
+        }
+        set_timeout(
+            move || {
+                let _ = window.remove_event_listener_with_callback_and_bool("click", hush.as_ref().unchecked_ref(), true);
+            },
+            std::time::Duration::from_millis(HUSH_MS),
+        );
+    }
+}
+
 #[cfg(test)]
 pub(super) mod tests {
     use folia_calendar::day::holidays;
@@ -2638,6 +2683,11 @@ pub(super) mod tests {
         let edited = week_slots(&table, &editing(), &titles(), Weeks::All, None, en);
         // The eye names the kind in English, not QIS's German word.
         assert_eq!(edited.get(1).unwrap().acts.iter().map(|act| act.label.as_str()).collect::<Vec<_>>(), ["Hide the lecture"]);
+        // A type QIS names that is no kind Betula knows („Kolloquium"): QIS's word as written,
+        // never „Hide the other".
+        let colloquium = self::table(&[row("148701", 1, "Kolloquium", "weekly", 5, ("13:45", "15:15"), ("2026-10-06", "2027-01-26"))]);
+        let edited = week_slots(&colloquium, &editing(), &titles(), Weeks::All, None, en);
+        assert_eq!(edited.first().unwrap().acts.iter().map(|act| act.label.as_str()).collect::<Vec<_>>(), ["Hide Kolloquium"]);
         let event = table.events.iter().find(|event| event.id == "148701").unwrap();
         assert_eq!((reason_text(HiddenBy::Kinds, event, en), reason_text(HiddenBy::Choice, event, en)), ("“Lecture” hidden".to_string(), "another group chosen".to_string()));
         // The slot keeps the app's path; the grid writes its link under `/en`.

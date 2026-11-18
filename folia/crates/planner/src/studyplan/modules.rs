@@ -264,7 +264,7 @@ fn row_shown(row: &EventRow, event: &Event, module: &str, name: &str, dated: boo
     };
     // The eye's name says the kind in the page's language: in English Betula's label, lower-cased
     // inside the sentence, and what tells two of a kind apart after it ("Show exercise · Mon EvS").
-    let kinds = event.kinds.iter().filter(|kind| *kind != EventKind::Other).map(|kind| kind.label(t.locale)).collect::<Vec<_>>().join("/");
+    let kinds = categories::labels(event, t.locale);
     let apart = row.label.strip_prefix(categories::word(event, t.locale).as_str()).unwrap_or_default();
     let named = (m.show_event)(&row.label, &kinds, apart, name);
     let eye = match (summary.out, event.id.parse::<u32>()) {
@@ -858,6 +858,11 @@ mod tests {
         let (_, other) = &all[0];
         assert_eq!((other.said.text.as_str(), other.pale, other.eye.is_none()), ("nicht gewählt", true, true));
         assert!(all[1].1.eye.is_some());
+        // „Offen" says of the choice decided by „Diese nehmen" what was taken, whichever of its
+        // events its line was named by — never „nicht gewählt".
+        let fates = super::super::open::fates(&t, &i18n::DE);
+        assert_eq!(fates.get("x61").map(String::as_str), Some("Mi 07:30 ✓"));
+        assert_eq!(fates.get("x62").map(String::as_str), Some("Mi 07:30 ✓"));
     }
 
     /// An eye writes an `e` line, shows it again without one, and a kind is switched on; the ticks

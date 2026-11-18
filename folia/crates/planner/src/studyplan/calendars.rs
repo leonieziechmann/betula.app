@@ -438,6 +438,20 @@ fn CalendarMenu(ctx: PlanCtx, id: u8, name: String, open: RwSignal<Option<u8>>, 
     }
 }
 
+/// Where a calendar's modules came from, said only where the calendar shows it: ticked groups, a
+/// share it follows, a program of its own come with a link alone. A calendar made by its name (its
+/// modules taken in by „+ Modul") says nothing: the plan keeps no word of where one came from.
+/// Without a module: that it has none in the semester.
+fn came_of(calendar: &Shown, semester: &str, t: &'static i18n::Texts) -> Option<String> {
+    let c = &t.studyplan_calendars;
+    match calendar.modules.is_empty() {
+        true => Some((c.none_in)(semester)),
+        false if calendar.groups > 0 => Some(c.from_link_groups.to_string()),
+        false if calendar.follow.is_some() || calendar.program.is_some() => Some(c.from_link.to_string()),
+        false => None,
+    }
+}
+
 /// A row of a calendar of one's own: its colour (a square in the way it stands), its name and
 /// modules, its switch („Voll · Spur · Aus", in both states: it is no setting of the plan's
 /// Termine), and while the plan is edited its menu („…"), in a place that is there while looking
@@ -558,7 +572,9 @@ fn layer_of_mode(ctx: PlanCtx, shown: impl Fn() -> bool + Copy + Send + Sync + '
         let front = folia_design::stage::front();
         Effect::new(move |_| {
             let keys = window_event_listener(leptos::ev::keydown, move |ev| {
-                if ev.key() != "Escape" || ev.default_prevented() || folia_shell::nav::watched() || !front.get_untracked() || !untrack(shown) {
+                // A dialog over the page (a card, the form of a Termin, the keys' overview) takes
+                // its Esc itself: one Esc, the layer in front.
+                if ev.key() != "Escape" || ev.default_prevented() || folia_shell::nav::watched() || !front.get_untracked() || !untrack(shown) || folia_design::modal::dialog_in_front(None) {
                     return;
                 }
                 // One Esc, one thing: the Esc that takes the keyboard out of a field (enhance.js)
@@ -914,19 +930,9 @@ fn CalendarPart(ctx: PlanCtx, id: u8, marked: Memo<Vec<MarkedModule>>) -> impl I
                 .collect::<Vec<_>>()
         })
     });
-    // Where its modules came from, said only where the calendar shows it: ticked groups, a share
-    // it follows, a program of its own come with a link alone. A calendar made by its name (its
-    // modules taken in by „+ Modul") says nothing: the plan keeps no word of where one came from.
     let came = Memo::new(move |_| {
-        shown.with(|shown| {
-            let calendar = shown.as_ref()?;
-            match calendar.modules.is_empty() {
-                true => Some((c.none_in)(&semester.get())),
-                false if calendar.groups > 0 => Some(c.from_link_groups.to_string()),
-                false if calendar.follow.is_some() || calendar.program.is_some() => Some(c.from_link.to_string()),
-                false => None,
-            }
-        })
+        let semester = semester.get();
+        shown.with(|shown| came_of(shown.as_ref()?, &semester, t))
     });
     let line = move |(module, short, title, href): (String, String, String, String)| {
         let label = Signal::derive({
@@ -1055,6 +1061,13 @@ mod tests {
             elsewhere: None,
             follow: None,
         };
+        // Where its modules came from: said only where the calendar shows it (ticked groups, a
+        // program of its own); one made by its name says nothing, one without modules that.
+        let t = &i18n::DE;
+        assert_eq!(came_of(&lena(CalendarView::Full), "WiSe 26/27", t), None);
+        assert_eq!(came_of(&Shown { groups: 2, ..lena(CalendarView::Full) }, "WiSe 26/27", t).as_deref(), Some(t.studyplan_calendars.from_link_groups));
+        assert_eq!(came_of(&Shown { program: Some("013-82-2018".into()), ..lena(CalendarView::Full) }, "WiSe 26/27", t).as_deref(), Some(t.studyplan_calendars.from_link));
+        assert_eq!(came_of(&Shown { modules: Vec::new(), ..lena(CalendarView::Full) }, "WiSe 26/27", t), Some((t.studyplan_calendars.none_in)("WiSe 26/27")));
         // In full: all three, outlined in its colour with its initial, its name first in the tooltip.
         let (slots, bands) = layer(&[lena(CalendarView::Full)], Some(&plan), Weeks::All, false, false, &i18n::DE);
         assert_eq!(slots.iter().map(|slot| (slot.day, slot.class, slot.alt, slot.badge.as_deref())).collect::<Vec<_>>(), [(1, "cal", false, Some("L")), (2, "cal", true, Some("L")), (3, "cal", true, Some("L"))]);

@@ -276,7 +276,9 @@ pub struct Texts {
     pub card_event_off: fn(&str) -> String,
     pub card_other_group: fn(&str) -> String,
     pub card_show: &'static str,
-    pub card_show_event: fn(&str) -> String,
+    /// „Vorlesung einblenden", "Show the lecture"; "Show Kolloquium" where the word is QIS's (the
+    /// second value: it is Betula's own word).
+    pub card_show_event: fn(&str, bool) -> String,
     pub card_show_kind: fn(&str) -> String,
     pub card_only_group: &'static str,
     pub card_also: &'static str,
@@ -505,7 +507,7 @@ pub const DE: Texts = Texts {
     card_event_off: |kind| format!("{kind} ausgeblendet"),
     card_other_group: |when| format!("Andere Gruppe gewählt · {when}"),
     card_show: "Einblenden",
-    card_show_event: |kind| format!("{kind} einblenden"),
+    card_show_event: |kind, _| format!("{kind} einblenden"),
     card_show_kind: |kind| format!("„{kind}“ wieder einblenden"),
     card_only_group: "Nur diese Gruppe",
     card_also: "Auch diese",
@@ -725,7 +727,7 @@ pub const EN: Texts = Texts {
     card_event_off: |kind| format!("{kind} hidden"),
     card_other_group: |when| format!("Another group chosen · {when}"),
     card_show: "Show",
-    card_show_event: |kind| format!("Show the {kind}"),
+    card_show_event: |kind, own| if own { format!("Show the {kind}") } else { format!("Show {kind}") },
     card_show_kind: |kind| format!("Show “{kind}” again"),
     card_only_group: "Only this group",
     card_also: "This one too",

@@ -79,29 +79,21 @@ impl ModalSize {
     }
 }
 
-/// Where a placed dialog stands in the window (`Modal`'s `at`), in CSS pixels: its left, and the
-/// one edge that stays still while what it holds grows — its top (it grows downward), or, of a
-/// dialog that stands low in the window, its bottom (it grows upward), as the distance from the
-/// window's bottom.
+/// Where a placed dialog stands in the window (`Modal`'s `at`), in CSS pixels: its left and its
+/// top, the edge that stays still while what it holds grows (it grows downward), and how tall it
+/// stays at least while something stands open in it (`least`, 0 for no such height), so that
+/// what opens shorter than what it rests with moves no edge either.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Placed {
     pub left: f64,
-    pub edge: Edge,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Edge {
-    Top(f64),
-    Bottom(f64),
+    pub top: f64,
+    pub least: f64,
 }
 
 impl Placed {
-    /// Its style: `--x` and `--y` (the top) or `--b` (the bottom), data as custom properties (R7).
+    /// Its style: `--x`, `--y` and `--h`, data as custom properties (R7).
     pub fn style(self) -> String {
-        match self.edge {
-            Edge::Top(top) => format!("--x:{:.0}px;--y:{top:.0}px", self.left),
-            Edge::Bottom(bottom) => format!("--x:{:.0}px;--b:{bottom:.0}px", self.left),
-        }
+        format!("--x:{:.0}px;--y:{:.0}px;--h:{:.0}px", self.left, self.top, self.least)
     }
 }
 
@@ -181,8 +173,7 @@ pub fn Modal(
     #[prop(optional)]
     focus_itself: bool,
     /// Where it stands on a wide screen instead of the window's middle (`Placed`; app.css
-    /// `.st-dialog.placed`, `.rises` where its bottom edge stays). `None`: the middle. A phone's
-    /// sheet stands as every sheet.
+    /// `.st-dialog.placed`). `None`: the middle. A phone's sheet stands as every sheet.
     #[prop(optional, into)]
     at: Signal<Option<Placed>>,
     /// Esc while something stands open inside it: `true` where its owner closed that and the dialog
@@ -227,11 +218,7 @@ pub fn Modal(
     };
     let class = move || {
         let size = size.get().class();
-        let placed = match at.get().map(|at| at.edge) {
-            Some(Edge::Top(_)) => "placed",
-            Some(Edge::Bottom(_)) => "placed rises",
-            None => "",
-        };
+        let placed = if at.get().is_some() { "placed" } else { "" };
         ["st-dialog", size, placed, class].iter().filter(|part| !part.is_empty()).copied().collect::<Vec<_>>().join(" ")
     };
     view! {
@@ -254,6 +241,26 @@ pub fn Modal(
         >
             {move || open.get().then(|| view! { <div class="st-dlg">{children()}</div> })}
         </dialog>
+    }
+}
+
+/// Whether a dialog stands open over the page other than one `but` matches (a selector): the form
+/// „Neuer Termin", the keys' overview, a card. A listener of Esc for what lies under the dialogs
+/// leaves the key to the one in front (one Esc, the topmost layer). The copy of a dialog in the
+/// picture held over a step is none.
+pub fn dialog_in_front(but: Option<&str>) -> bool {
+    #[cfg(feature = "csr")]
+    {
+        let Some(document) = web_sys::window().and_then(|window| window.document()) else { return false };
+        let Ok(open) = document.query_selector_all("dialog[open]") else { return false };
+        (0..open.length()).filter_map(|at| open.item(at)).filter_map(|node| wasm_bindgen::JsCast::dyn_into::<web_sys::Element>(node).ok()).any(|dialog| {
+            dialog.closest(".pending-page.held").ok().flatten().is_none() && !but.is_some_and(|but| dialog.matches(but).unwrap_or(false))
+        })
+    }
+    #[cfg(not(feature = "csr"))]
+    {
+        let _ = but;
+        false
     }
 }
 

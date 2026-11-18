@@ -486,8 +486,7 @@ pub(super) fn ExamAlerts(ctx: PlanCtx) -> impl IntoView {
 /// aufklappbar): its parts, and opened, a line each.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(super) struct Summary {
-    /// „2 Überschneidungen pro Woche", „1 an einzelnen Tagen" (`true`: an overlap, drawn red),
-    /// „Standort offen".
+    /// „2 Überschneidungen pro Woche", „1 an einzelnen Tagen" (`true`: an overlap, drawn red).
     pub parts: Vec<(bool, String)>,
     pub lines: Vec<Note>,
     /// How many overlaps the parts count, for the figure of the status row and the mode's bar.
@@ -576,23 +575,66 @@ pub(super) fn overlap_summary(ctx: PlanCtx) -> Memo<Summary> {
 /// The id of the overlaps' list, which the figure unfolds (`aria-controls`).
 const OVERLAPS_ID: &str = "sp-overlaps";
 
+/// A line of the unfolded overlaps as the page shows it: its overlap, or one that went since
+/// (`gone`), pale in its place.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(super) struct KeptNote {
+    pub note: Note,
+    pub gone: bool,
+}
+
+/// The unfolded overlaps' lines while the plan is edited (`keeping`): those that stood there keep
+/// their places, a line whose overlap went stays, pale, and a line that comes is added at the end —
+/// as „Offen"'s rows stay (`open::keep`). One unfolds the list to see what overlaps and then hides
+/// one of the two: the list going with the last overlap took the week up under the pointer by its
+/// height, and the next click in the same place opened „Neuer Termin". Else the lines as they are.
+pub(super) fn keep_notes(before: &[KeptNote], now: &[Note], keeping: bool) -> Vec<KeptNote> {
+    if !keeping {
+        return now.iter().map(|note| KeptNote { note: note.clone(), gone: false }).collect();
+    }
+    let mut kept: Vec<KeptNote> = before.iter().map(|was| KeptNote { note: was.note.clone(), gone: !now.contains(&was.note) }).collect();
+    for note in now {
+        if !kept.iter().any(|was| was.note == *note) {
+            kept.push(KeptNote { note: note.clone(), gone: false });
+        }
+    }
+    kept
+}
+
+/// The overlaps' lines as `keep_notes` keeps them: kept while the plan is edited and the list is
+/// unfolded. Its closure reads the lines, `edit` and `clashes`: siblings (R16); a reader that reads
+/// `edit` or `clashes` too reads them first.
+fn kept_notes(ctx: PlanCtx, built: Memo<Summary>) -> Memo<Vec<KeptNote>> {
+    Memo::new(move |before: Option<&Vec<KeptNote>>| {
+        let keeping = ctx.edit.get() && ctx.clashes.get();
+        built.with(|built| keep_notes(before.map_or(&[][..], Vec::as_slice), &built.lines, keeping))
+    })
+}
+
 /// The overlaps as a figure of the status row and of the mode's bar (on a phone of the line of
 /// numbers under the head): „1 Überschneidung", red, a button that unfolds their list under the row
 /// (`PlanCtx::clashes`). The row is always there and as tall, so what the plan's content adds or
 /// takes moves nothing under it: a line of overlaps over the week went with the Termin hidden that
-/// met another, and the week moved up under the pointer. Nothing without an overlap.
+/// met another, and the week moved up under the pointer. Nothing without an overlap — but while the
+/// plan is edited and the list stays unfolded after the last overlap went, „Keine Überschneidung
+/// mehr", the button that folds it.
 #[component]
 pub(super) fn ClashFigure(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let built = overlap_summary(ctx);
+    let kept = kept_notes(ctx, built);
     let count = Memo::new(move |_| built.with(|built| built.count));
     let said = Memo::new(move |_| built.with(|built| built.parts.iter().map(|(_, text)| text.clone()).collect::<Vec<_>>().join(" · ")));
     move || {
+        let open = ctx.clashes.get();
+        let staying = open && kept.with(|kept| !kept.is_empty());
         let n = count.get();
-        (n > 0).then(|| {
+        (n > 0 || staying).then(|| {
+            let words = if n > 0 { (t.studyplan_head.clashes)(n) } else { t.studyplan_head.no_clash_left.to_string() };
             view! {
                 <button
                     class="sp-clash-fig"
+                    class:none=n == 0
                     type="button"
                     aria-expanded=move || if ctx.clashes.get() { "true" } else { "false" }
                     aria-controls=OVERLAPS_ID
@@ -600,7 +642,7 @@ pub(super) fn ClashFigure(ctx: PlanCtx) -> impl IntoView {
                     on:click=move |_| ctx.clashes.update(|open| *open = !*open)
                 >
                     <Icon name="triangle-alert"/>
-                    <span>{(t.studyplan_head.clashes)(n)}</span>
+                    <span>{words}</span>
                     <Icon name="chevron-down" class="chev"/>
                 </button>
             }
@@ -612,29 +654,40 @@ pub(super) fn ClashFigure(ctx: PlanCtx) -> impl IntoView {
 /// figure has unfolded it — the student's own click (owner, 2026-09-25: „es gibt x Überschneidungen
 /// pro Woche", aufklappbar): what the figure counts, then a compact line each, which opens its
 /// module beside the plan. What is hidden is not said here: the mode shows it faint in its place
-/// and counts it in its bar (`edit.rs`).
+/// and counts it in its bar (`edit.rs`). While the plan is edited the unfolded list keeps its box
+/// (`keep_notes`) until the student folds it or leaves the mode; looking, it goes with the last
+/// overlap, and leaving the mode where nothing overlaps folds it.
 #[component]
 pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let built = overlap_summary(ctx);
+    let kept = kept_notes(ctx, built);
     let parts = Memo::new(move |_| built.with(|built| built.parts.clone()));
-    let any = Memo::new(move |_| parts.with(|parts| !parts.is_empty()));
-    let lines = Memo::new(move |_| built.with(|built| built.lines.clone()));
-    let said = Memo::new(move |_| parts.with(|parts| parts.iter().map(|(_, text)| text.clone()).collect::<Vec<_>>().join(" · ")));
+    let said = Memo::new(move |_| match parts.with(|parts| parts.iter().map(|(_, text)| text.clone()).collect::<Vec<_>>().join(" · ")) {
+        said if said.is_empty() => t.studyplan_head.no_clash_left.to_string(),
+        said => said,
+    });
+    let none = Memo::new(move |_| built.with(|built| built.count == 0));
+    Effect::new(move |_| {
+        if !ctx.edit.get() && none.get() && ctx.clashes.get_untracked() {
+            ctx.clashes.set(false);
+        }
+    });
     let head = move || {
-        parts
-            .get()
-            .into_iter()
-            .enumerate()
-            .map(|(i, (warn, text))| view! { {(i > 0).then_some(" · ")}<span class:no=warn>{text}</span> })
-            .collect_view()
+        let parts = parts.get();
+        if parts.is_empty() {
+            return view! { <span>{t.studyplan_head.no_clash_left}</span> }.into_any();
+        }
+        parts.into_iter().enumerate().map(|(i, (warn, text))| view! { {(i > 0).then_some(" · ")}<span class:no=warn>{text}</span> }).collect_view().into_any()
     };
     move || {
-        (any.get() && ctx.clashes.get()).then(|| {
+        let open = ctx.clashes.get();
+        let any = kept.with(|kept| !kept.is_empty());
+        (open && any).then(|| {
             view! {
                 <div class="sp-overlaps open" id=OVERLAPS_ID role="region" aria-label=move || said.get()>
                     <p class="sp-overlaps-head">{head}</p>
-                    <ul><For each=move || lines.get() key=|note| note.clone() children=move |note: Note| overlap_item(ctx, note, t)/></ul>
+                    <ul><For each=move || kept.get() key=|kept| kept.clone() children=move |kept: KeptNote| overlap_item(ctx, kept, t)/></ul>
                 </div>
             }
         })
@@ -643,15 +696,23 @@ pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
 
 /// One line of the opened overlaps: a link to its module beside the plan, or plain text where it
 /// names none.
-fn overlap_item(ctx: PlanCtx, note: Note, t: &'static i18n::Texts) -> impl IntoView {
-    let class = if note.warn { "warn" } else { "" };
+fn overlap_item(ctx: PlanCtx, kept: KeptNote, t: &'static i18n::Texts) -> impl IntoView {
+    let KeptNote { note, gone } = kept;
+    let class = match (gone, note.warn) {
+        (true, _) => "gone",
+        (false, true) => "warn",
+        (false, false) => "",
+    };
+    // Gone: pale and struck through in the box it had (a word after it would wrap the line and
+    // move the week); the words for a screen reader.
+    let after = gone.then(|| view! { <span class="visually-hidden">{format!(" · {}", t.studyplan_head.clash_gone)}</span> });
     match note.module {
         Some(module) => {
             let row = note.row;
             let href = move || t.path(&ctx.url.with(|url| url.with_open(Some(&module), row).path()));
-            view! { <li><a class=class href=href data-noscroll="">{note.text}</a></li> }.into_any()
+            view! { <li><a class=class href=href data-noscroll="">{note.text}{after}</a></li> }.into_any()
         }
-        None => view! { <li><span class=class>{note.text}</span></li> }.into_any(),
+        None => view! { <li><span class=class>{note.text}{after}</span></li> }.into_any(),
     }
 }
 
@@ -905,6 +966,27 @@ mod tests {
     }
 
     #[test]
+    fn the_unfolded_overlaps_keep_their_box_while_the_plan_is_edited() {
+        let note = |text: &str| Note { warn: true, text: text.to_string(), module: Some("12104".to_string()), row: None };
+        let (a, b) = (note("Di 09:15–10:45 · VL EEG × VL EvS"), note("Do 13:45–15:15 · Ü MIT1 × Prak PP"));
+        let fresh = |notes: &[Note]| notes.iter().map(|note| KeptNote { note: note.clone(), gone: false }).collect::<Vec<_>>();
+        let before = fresh(&[a.clone(), b.clone()]);
+        // Editing with the list unfolded: the line whose overlap went stays, pale, in its place.
+        let kept = keep_notes(&before, std::slice::from_ref(&b), true);
+        assert_eq!(kept, [KeptNote { note: a.clone(), gone: true }, KeptNote { note: b.clone(), gone: false }]);
+        // The last one gone too: the box stays with both lines.
+        let kept = keep_notes(&kept, &[], true);
+        assert!(kept.len() == 2 && kept.iter().all(|kept| kept.gone));
+        // One back takes its place again; a new one comes at the end.
+        let c = note("Fr 11:30–13:00 · VL MIT1 × VL PP");
+        let kept = keep_notes(&kept, &[a.clone(), c.clone()], true);
+        assert_eq!(kept.iter().map(|kept| (kept.note.text.as_str(), kept.gone)).collect::<Vec<_>>(), [(a.text.as_str(), false), (b.text.as_str(), true), (c.text.as_str(), false)]);
+        // Folded, or looking: the lines as they are.
+        assert!(keep_notes(&kept, &[], false).is_empty());
+        assert_eq!(keep_notes(&kept, std::slice::from_ref(&c), false), fresh(std::slice::from_ref(&c)));
+    }
+
+    #[test]
     fn one_line_counts_the_overlaps_per_week() {
         let (table, about) = first_semester();
         let summary = summary(&table, &about, &[a_week_overlap()], Weeks::All, &DE);
@@ -925,6 +1007,8 @@ mod tests {
         assert!(both.lines[1].text.starts_with("Di 03.11. 07:30–09:00 · "));
         let alone = summary_of(&table, &about, &[day.clone(), day.clone()], Weeks::All);
         assert_eq!(alone.parts[0], (true, "2 Überschneidungen an einzelnen Tagen".to_string()));
+        // The figure counts what the parts say: per week and on single days, nothing in the B week.
+        assert_eq!((summary.count, both.count, alone.count, b.count), (1, 2, 2, 0));
         // In English, the weekdays and dates too; QIS's types and the titles stay as they are.
         let english = super::summary(&table, &about, &[a_week_overlap(), day], Weeks::All, &EN);
         assert_eq!(

@@ -79,8 +79,9 @@ pub struct Texts {
     /// … the eye hides one Termin of an event of several slots („Ausblenden") …
     pub hide_session: &'static str,
     /// … or the whole event, named by its type as QIS writes it („Vorlesung ausblenden"; in English
-    /// by the kind's word, "Hide the lecture") …
-    pub hide_event: fn(&str) -> String,
+    /// by the kind's word, "Hide the lecture", and by QIS's word as written where it names no kind
+    /// Betula knows, "Hide Kolloquium": the second value says it is Betula's own word) …
+    pub hide_event: fn(&str, bool) -> String,
     /// … a faint slot's crossed eye shows a kind switched off again („„Übung“ wieder einblenden") …
     pub show_kind: fn(&str) -> String,
     /// … or its Termin with the crossed eye („Einblenden").
@@ -165,7 +166,7 @@ pub const DE: Texts = Texts {
     visit: "Besuch, zählt nicht",
     gives_way: |others| format!("trifft {others}, der Besuch gibt nach"),
     hide_session: "Ausblenden",
-    hide_event: |kind| format!("{kind} ausblenden"),
+    hide_event: |kind, _| format!("{kind} ausblenden"),
     show_kind: |kind| format!("„{kind}“ wieder einblenden"),
     show_again: "Einblenden",
     delete_own: "Löschen",
@@ -226,7 +227,7 @@ pub const EN: Texts = Texts {
     visit: "visit, does not count",
     gives_way: |others| format!("meets {others}, the visit gives way"),
     hide_session: "Hide",
-    hide_event: |kind| format!("Hide the {kind}"),
+    hide_event: |kind, own| if own { format!("Hide the {kind}") } else { format!("Hide {kind}") },
     show_kind: |kind| format!("Show “{kind}” again"),
     show_again: "Show",
     delete_own: "Delete",

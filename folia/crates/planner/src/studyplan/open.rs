@@ -601,8 +601,10 @@ pub(super) fn keep(before: &[Kept], now: &[Line], fates: &BTreeMap<String, Strin
 
 /// What became of every choice a line of „Offen" can be of, by the line's id: hidden
 /// („ausgeblendet"), left for another („nicht gewählt"), or its Termine the plan holds now, ticked
-/// („Mo 15:30 ✓"); else „erledigt".
-fn fates(table: &Timetable, t: &i18n::Texts) -> BTreeMap<String, String> {
+/// („Mo 15:30 ✓"); else „erledigt". A choice among a module's events that took an option says
+/// that option's Termine („Mi 13:45 ✓", as a ticked group's row does) whichever of its events the
+/// line was named by — it was decided, not left.
+pub(super) fn fates(table: &Timetable, t: &i18n::Texts) -> BTreeMap<String, String> {
     let fate = |event: &Event| {
         let summary = folia_timetable::categories::summary(event);
         match summary.out {
@@ -621,13 +623,34 @@ fn fates(table: &Timetable, t: &i18n::Texts) -> BTreeMap<String, String> {
             all.insert(format!("x{}", event.id), fate(event));
         }
     }
+    for across in &table.choices {
+        let taken: Vec<String> = across
+            .taken
+            .iter()
+            .filter_map(|option| across.options.get(*option))
+            .flatten()
+            .filter_map(|index| table.events.get(*index))
+            .map(folia_timetable::categories::summary)
+            .filter(|summary| summary.out.is_none())
+            .flat_map(|summary| summary.weekly)
+            .map(|weekly| super::modules::weekly_text(weekly, t))
+            .collect();
+        if taken.is_empty() {
+            continue;
+        }
+        let said = format!("{} ✓", taken.join(" · "));
+        for event in across.options.iter().flatten().filter_map(|index| table.events.get(*index)) {
+            all.insert(format!("x{}", event.id), said.clone());
+        }
+    }
     all
 }
 
 /// „Offen"'s lines as `keep` keeps them, of the plan's timetable: read by each of its places (the
 /// panel beside the week, the rows under the bar, the phone's line). Its closure reads the lines,
-/// the fates and `edit`: siblings (R16). Read while looking too, so that the next way into the
-/// mode starts from the lines as they are.
+/// the fates and `edit`: siblings (R16). A reader that also reads `edit` reads it before these
+/// lines, which are made of it (R16). Read while looking too, so that the next way into the mode
+/// starts from the lines as they are.
 fn kept(ctx: PlanCtx, built: Memo<(Vec<Line>, Option<Focus>)>) -> Memo<Vec<Kept>> {
     let t = i18n::t();
     let fates = Memo::new(move |_| ctx.table.with(|table| table.as_ref().map(|table| fates(table, t)).unwrap_or_default()));
@@ -771,9 +794,12 @@ pub(super) fn OpenPanel(ctx: PlanCtx) -> impl IntoView {
     let kept = kept(ctx, built);
     // While looking „3 Wahlen offen ›" in the status row says it, a way into the mode; the panel is
     // the mode's.
+    // The mode first, then the lines made of it (R16: the source before what is derived from it);
+    // the lines are read while looking too, so that `keep` tidies them when the mode is left.
     let list = move || {
+        let editing = ctx.edit.get();
         let lines = kept.get();
-        if !ctx.edit.get() {
+        if !editing {
             return None;
         }
         let count = count.get();
@@ -906,8 +932,8 @@ pub(super) fn OpenUnder(ctx: PlanCtx) -> impl IntoView {
 /// „Offen" on a phone, over the week, the one place it has there: while looking the amber line is a link into the mode
 /// that comes with its rows unfolded; while editing it is the line that opens into the rows,
 /// unfolded where one came by it (`PlanCtx::unfolded`) and folded where one came by „Bearbeiten"
-/// (nothing over the week comes with the mode). The outer closure reads the lines and `edit`,
-/// siblings (R16), never the address.
+/// (nothing over the week comes with the mode). The outer closure reads `edit` first and then the
+/// lines, which are made of it (R16), never the address.
 #[component]
 pub(super) fn OpenLine(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
@@ -916,8 +942,8 @@ pub(super) fn OpenLine(ctx: PlanCtx) -> impl IntoView {
     let open = Memo::new(move |_| kept.with(|lines| lines.iter().filter(|kept| !kept.line.current).cloned().collect::<Vec<Kept>>()));
     let into = move || ctx.url.with(|url| t.path(&url.with_edit(true).path()));
     move || {
-        let open = open.get();
         let editing = ctx.edit.get();
+        let open = open.get();
         // What is still open; while editing, where everything listed is decided, the line stays and
         // says so (its rows stay in their places, `keep`).
         let still: Vec<Line> = open.iter().filter(|kept| kept.done.is_none()).map(|kept| kept.line.clone()).collect();

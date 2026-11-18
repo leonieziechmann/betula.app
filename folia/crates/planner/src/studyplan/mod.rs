@@ -112,8 +112,6 @@ const APP: bool = cfg!(feature = "csr");
 /// A part reads the memos it needs, and a store only where it writes (the memos already follow
 /// it): R16 forbids reading a source together with a memo derived from it.
 #[derive(Clone, Copy)]
-// The views of WP17–WP21 read every part; the stubs of WP16 read none of them yet.
-#[allow(dead_code)]
 pub(super) struct PlanCtx {
     /// The address without `full` (while a module fills the page, no view is shown).
     pub url: Memo<StudyplanUrl>,
@@ -537,8 +535,10 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
 mod left {
     use std::cell::RefCell;
 
-    use folia_routes::url::PlanAddress;
+    use folia_routes::url::{self, PlanAddress};
     use leptos::wasm_bindgen::{closure::Closure, JsCast};
+
+    use crate::i18n::Locale;
     use leptos::web_sys;
 
     #[derive(Clone)]
@@ -574,9 +574,12 @@ mod left {
             let Some(window) = web_sys::window() else { return };
             let here = window.location().search().unwrap_or_default();
             let Some(href) = link.get_attribute("href") else { return };
-            let to = href.split_once('?').map_or("", |(_, query)| query);
-            // Only from the plan itself, to a page of its own of the plan's address.
-            if PlanAddress::parse(here.trim_start_matches('?')).full || !PlanAddress::parse(to).full || !href.contains("/studyplan") {
+            let (path, to) = href.split_once('?').unwrap_or((href.as_str(), ""));
+            // Only from the plan itself — the page is built behind the others, and the start
+            // page's card links to the plan's overview too —, to a page of its own of the plan's
+            // address.
+            let on_plan = Locale::split(&window.location().pathname().unwrap_or_default()).1 == url::STUDYPLAN;
+            if !on_plan || PlanAddress::parse(here.trim_start_matches('?')).full || !PlanAddress::parse(to).full || Locale::split(path).1 != url::STUDYPLAN {
                 return;
             }
             let left = Left { plan: plan_of(&here), top: window.scroll_y().unwrap_or(0.0), work: scroll_top("#page-scroll"), side: scroll_top(".sp-side"), link: Some(href) };

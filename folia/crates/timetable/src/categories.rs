@@ -80,13 +80,19 @@ pub fn module_events(table: &Timetable, id: &str, shown: Option<usize>, locale: 
 /// "Seminar/Exercise"), as Betula's own sentences and the week's short words have them, and QIS's
 /// word as it is written where Betula knows no kind of it but „Sonstiges".
 pub fn word(event: &Event, locale: Locale) -> String {
-    // „Sonstiges" is no word for what QIS names: its own word says more.
-    let labels: Vec<&str> = event.kinds.iter().filter(|kind| *kind != EventKind::Other).map(|kind| kind.label(locale)).collect();
-    match locale {
-        Locale::De => type_text(event, locale),
-        _ if labels.is_empty() => type_text(event, locale),
-        _ => labels.join("/"),
+    match labels(event, locale) {
+        labels if locale == Locale::De || labels.is_empty() => type_text(event, locale),
+        labels => labels,
     }
+}
+
+/// The labels of the kinds of an event that are Betula's own word for it in `locale`, joined „/"
+/// („Lecture", "Seminar/Exercise"); empty where it has none but „Sonstiges", which is no word for
+/// what QIS names — „Kolloquium", „Kurs", „musikalischer Einzelunterricht" say more, and a sentence
+/// of Betula's own calls such an event by QIS's word as written („Hide Kolloquium", never „Hide the
+/// other").
+pub fn labels(event: &Event, locale: Locale) -> String {
+    event.kinds.iter().filter(|kind| *kind != EventKind::Other).map(|kind| kind.label(locale)).collect::<Vec<_>>().join("/")
 }
 
 /// The words of the rows: each its kind, of two of a kind the weekday of their first Termin

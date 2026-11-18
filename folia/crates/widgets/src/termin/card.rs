@@ -26,7 +26,7 @@
 //! is a sheet. Nothing here runs on the server: `/event/<key>` looks a Termin up (R9).
 
 use folia_calendar::semester::SemesterKey;
-use folia_design::modal::{Edge, Placed};
+use folia_design::modal::Placed;
 use folia_design::nav::Room;
 use folia_design::waitnote::WaitNote;
 use folia_plans::studyplan::{PlanDoc, PlanUndo};
@@ -234,10 +234,11 @@ pub(super) fn card_part(f: Facts<'_>) -> CardPart {
     let chip = f.head.chip.as_str();
     // The kind in a sentence of Betula's own: in German QIS's word as the head has it („Vorlesung
     // ganz"); in another language the kinds' labels („The whole lecture"), QIS's word as written
-    // where the event has no kind Betula knows — never lower-cased, it is a name.
-    let labels: Vec<&str> = event.kinds.iter().map(|kind| kind.label(locale)).collect();
+    // where the event has no kind Betula knows but „Sonstiges" („The whole Kolloquium", never „The
+    // whole other") — never lower-cased, it is a name.
+    let labels = folia_timetable::categories::labels(event, locale);
     let own_word = locale != Locale::De && !labels.is_empty();
-    let kind = if own_word { labels.join("/") } else if f.head.kind.is_empty() { words.panel.to_string() } else { f.head.kind.clone() };
+    let kind = if own_word { labels } else if f.head.kind.is_empty() { words.panel.to_string() } else { f.head.kind.clone() };
     let within = if own_word { kind.to_lowercase() } else { kind.clone() };
     let kind = kind.as_str();
     let n = o.place(None).1;
@@ -297,7 +298,7 @@ pub(super) fn card_part(f: Facts<'_>) -> CardPart {
         }
         Some(HiddenBy::Event) => {
             off = Some((words.card_event_off)(kind));
-            big = Some(BigAct { label: (words.card_show_event)(&within), act: CardAct::Show { event: id, kind: None, rows: keys.clone() }, name: "show-event", said: None });
+            big = Some(BigAct { label: (words.card_show_event)(&within, own_word), act: CardAct::Show { event: id, kind: None, rows: keys.clone() }, name: "show-event", said: None });
         }
         Some(HiddenBy::Kinds) => {
             // It brings back every event of the kind, which its words say.
@@ -481,25 +482,25 @@ impl Size {
 /// Always inside the window and never under the rail (`Room`). Without a slot in the middle of the
 /// page, 12 % of the window down.
 ///
-/// One edge stays still whatever the card shows (owner, 2026-10-16: „Modale menus springen zu viel
-/// in der größe"): where it can grow as tall as it can under the slot's top, its top stands at the
-/// slot's and it grows downward; else its bottom stands where the resting card ends beside the
-/// slot — the top still at the slot's — and it grows upward, and where even the resting card does
-/// not fit under the slot's top, its bottom is 16 px over the window's edge. No button lies under
-/// the window's edge, nothing makes the window scroll.
+/// Its top edge stays still whatever the card shows (owner, 2026-10-16: „Modale menus springen zu
+/// viel in der größe"), so that no tool of its head moves from under the pointer and a second press
+/// in the same place closes what the first opened: the top stands at the slot's, moved up only as
+/// far as the card at its tallest (`Size::most`: its head and its tallest body) needs to end 16 px
+/// over the window's edge, and never above 16 px under the window's top; it grows downward only.
+/// While something stands open in it the card is at least as tall as it rests (`Placed::least`),
+/// so that a body shorter than its resting one moves no edge either. No button lies under the
+/// window's edge, nothing makes the window scroll.
 pub(super) fn card_place(at: Option<Anchor>, width: f64, room: Room, size: Size) -> Placed {
     let Room { left: rail, width: view, height: tall } = room;
     let least = rail + EDGE;
     let most = (view - width - EDGE).max(least);
-    let bottom = |y: f64| Edge::Bottom((tall - y).max(EDGE));
     let grown = size.most();
-    let top_at = |top: f64| match top + grown <= tall - EDGE {
-        true => Edge::Top(top),
-        false => bottom((top + size.rest).min(tall - EDGE)),
-    };
+    // The top that lets the card at its tallest end inside the window, never above its top edge.
+    let top_for = |top: f64| top.min(tall - EDGE - grown).max(EDGE);
+    let placed = |left: f64, top: f64| Placed { left, top, least: size.rest };
     let Some(at) = at else {
         let left = (rail + (view - rail - width) / 2.0).clamp(least, most);
-        return Placed { left, edge: top_at((tall * 0.12).max(EDGE)) };
+        return placed(left, top_for((tall * 0.12).max(EDGE)));
     };
     let (right, left) = (at.right + GAP, at.left - GAP - width);
     let (fits_right, fits_left) = (right <= most, left >= least);
@@ -511,13 +512,15 @@ pub(super) fn card_place(at: Option<Anchor>, width: f64, room: Room, size: Size)
         (false, false, false) => least,
     };
     let beside = x >= at.right || x + width <= at.left;
-    let edge = match beside {
-        true => top_at(at.top.max(EDGE)),
-        // Under the slot where the resting card fits there, else over it, its bottom above it.
-        false if at.bottom + GAP + size.rest <= tall - EDGE => top_at(at.bottom + GAP),
-        false => bottom((at.top - GAP).max(EDGE + size.rest).min(tall - EDGE)),
+    let top = match beside {
+        true => top_for(at.top.max(EDGE)),
+        // Under the slot where the card at its tallest fits there, else over it, its tallest
+        // bottom above the slot; where neither leaves room, as far up as the window lets it.
+        false if at.bottom + GAP + grown <= tall - EDGE => at.bottom + GAP,
+        false if at.top - GAP - grown >= EDGE => at.top - GAP - grown,
+        false => top_for(at.bottom + GAP),
     };
-    Placed { left: x, edge }
+    placed(x, top)
 }
 
 /// How tall the card in the open dialog is as drawn, and its body (what scrolls when it is cut).
@@ -844,7 +847,7 @@ pub(super) fn TerminCard(ctx: TerminCtx, closing: Callback<()>, state: CardState
     };
 
     view! {
-        <section class="is-termin tm-dialog tm-card" aria-label=words.panel on:click=beside_menu>
+        <section class="is-termin tm-dialog tm-card" class:layered=move || layer.get() aria-label=words.panel on:click=beside_menu>
             <header class="hero tm-head">{top}</header>
             <div class="dbody tm st-dlg-body" data-sheet-body="">{body}</div>
         </section>
@@ -998,7 +1001,7 @@ fn CardMenu(ctx: TerminCtx, card: Memo<Option<CardPart>>, change: Memo<Option<Ch
 
 /// The series in one line (which no arrow changes), the other dates of it hidden as links to them
 /// (three by name, the rest as a number), whether it is an extra, and why the plan leaves the
-/// Termin out (cases d1, d2), above the ticket.
+/// Termin out (hidden, or a group of a choice another group was ticked over), above the ticket.
 #[component]
 fn CardSeries(ctx: TerminCtx, card: Memo<Option<CardPart>>, at: Memo<Option<(RowKey, Day)>>) -> impl IntoView {
     let t = i18n::t();
@@ -1410,7 +1413,7 @@ mod tests {
         let rows = vec![teaching("12104", "100", 1, "Vorlesung", 2, "09:15", "10:45")];
         let own = OwnTermin { number: 1, rhythm: OwnRhythm::Week, weekday: 5, dates: Vec::new(), from: 13 * 60, to: 15 * 60, period: None, module: Some("12104".into()), name: String::new(), place: "Hörsaal".into(), skip: Vec::new(), kind: Some(EventKind::Lecture) };
         let key = own.key();
-        let t = table(&rows, &["12104"], &[], &Selection { own: vec![own], ..Selection::default() });
+        let t = table(&rows, &["12104"], &[], &Selection { own: vec![own.clone()], ..Selection::default() });
         let shown = shown_of(&t, &Against::Itself, key, Some(d("2026-11-20")), Some((d("2026-11-10"), 600)), &modules(), (TerminMode::Adjust, Some(true)), &i18n::DE).unwrap();
         assert_eq!((shown.head.chip.as_str(), shown.head.kind.as_str()), ("EvS", "Vorlesung"));
         let card = shown.card.unwrap();
@@ -1422,6 +1425,11 @@ mod tests {
         assert!(card.own_show.is_none());
         assert!(card.all.is_none() && card.group.is_none() && card.big.is_none() && !card.change);
         assert!(card.series.as_deref().is_some_and(|series| series.starts_with("Jede Woche · ")), "{:?}", card.series);
+        // On a day it skips, its tool is the crossed eye that holds that day again, at once.
+        let skipped = OwnTermin { skip: vec![d("2026-11-20")], ..own };
+        let t = table(&rows, &["12104"], &[], &Selection { own: vec![skipped], ..Selection::default() });
+        let card = shown_of(&t, &Against::Itself, key, Some(d("2026-11-20")), Some((d("2026-11-10"), 600)), &modules(), (TerminMode::Adjust, Some(true)), &i18n::DE).unwrap().card.unwrap();
+        assert!(matches!(&card.own_show, Some((label, CardAct::OwnDate { number: 1, hide: false, .. })) if label == "Am Fr 20.11. einblenden"), "{:?}", card.own_show);
     }
 
     #[test]
@@ -1505,6 +1513,15 @@ mod tests {
         // German keeps QIS's word.
         let card = card_of(&hidden, rows[0].key(), None);
         assert_eq!(card.big.map(|big| big.label).as_deref(), Some("Vorlesung einblenden"));
+        // A type QIS names that is no kind Betula knows: QIS's word as written, never „the other".
+        let rows = vec![teaching("12104", "100", 1, "Kolloquium", 2, "09:15", "10:45"), teaching("12104", "100", 2, "Kolloquium", 5, "09:15", "10:45")];
+        let t = table(&rows, &["12104"], &[], &Selection::default());
+        let card = card_in(&t, rows[0].key(), Some("2026-11-10"), &i18n::EN);
+        assert_eq!(card.hide[2].label, "The whole Kolloquium");
+        let hidden = table(&rows, &["12104"], &[], &Selection { hidden_events: [100].into_iter().collect(), ..Selection::default() });
+        let card = card_in(&hidden, rows[0].key(), None, &i18n::EN);
+        assert_eq!(card.off.as_deref(), Some("Kolloquium hidden"));
+        assert_eq!(card.big.map(|big| big.label).as_deref(), Some("Show Kolloquium"));
     }
 
     #[test]
@@ -1548,7 +1565,7 @@ mod tests {
         // A card of 330 px that can grow to 450.
         let size = Size { rest: 330.0, body: 200.0, tallest: 320.0 };
         let place = |at, room| card_place(at, 400.0, room, size);
-        let top = |left: f64, top: f64| Placed { left, edge: Edge::Top(top) };
+        let top = |left: f64, top: f64| Placed { left, top, least: 330.0 };
         assert_eq!(place(slot(400.0, 540.0, 300.0, 380.0), room), top(550.0, 300.0));
         assert_eq!(place(slot(1100.0, 1240.0, 300.0, 380.0), room), top(690.0, 300.0));
         assert_eq!(place(slot(700.0, 840.0, 300.0, 380.0), room), top(290.0, 300.0));
@@ -1558,14 +1575,39 @@ mod tests {
         for left in [0.0, 70.0, 300.0, 1000.0] {
             assert!(place(slot(left, left + 100.0, 300.0, 380.0), room).left >= 80.0);
         }
-        // Lower, where it could not grow under the slot's top: its top still at the slot's, its
-        // bottom where it ends as it rests, growing upward.
-        assert_eq!(place(slot(400.0, 540.0, 500.0, 580.0), room), Placed { left: 550.0, edge: Edge::Bottom(900.0 - 830.0) });
-        // So low that even the resting card does not fit: its bottom 16 px over the window's edge.
-        assert_eq!(place(slot(400.0, 540.0, 700.0, 780.0), room), Placed { left: 550.0, edge: Edge::Bottom(16.0) });
-        // A card that never grows keeps its top at the slot's as long as it fits.
+        // A card opened low in the window keeps its top edge too, moved up only as far as the card
+        // at its tallest needs to end 16 px over the window's edge: 900 − 16 − 450.
+        assert_eq!(place(slot(400.0, 540.0, 500.0, 580.0), room), top(550.0, 434.0));
+        assert_eq!(place(slot(400.0, 540.0, 700.0, 780.0), room), top(550.0, 434.0));
+        // Taller at its tallest than the window: at the window's top edge, never above it.
+        assert_eq!(place(slot(400.0, 540.0, 300.0, 380.0), Room { left: 64.0, width: 1440.0, height: 420.0 }), top(550.0, 16.0));
+        // A card that never grows keeps its top at the slot's as long as it fits as it rests.
         let still = Size { rest: 330.0, body: 200.0, tallest: 0.0 };
         assert_eq!(card_place(slot(400.0, 540.0, 540.0, 620.0), 400.0, room, still), top(550.0, 540.0));
+    }
+
+    #[test]
+    fn the_cards_top_is_the_edge_that_stays_still() {
+        // Whatever is open in the card, its top is where it was placed and its tallest body ends
+        // inside the window: every slot of a week from the window's top to its foot, three windows.
+        for (width, height) in [(1440.0, 900.0), (1280.0, 720.0), (1024.0, 700.0)] {
+            let room = Room { left: 64.0, width, height };
+            for (rest, body, tallest) in [(330.0, 200.0, 345.0), (412.0, 280.0, 212.0), (250.0, 120.0, 0.0), (300.0, 180.0, 190.0)] {
+                let size = Size { rest, body, tallest };
+                let mut y = 60.0;
+                while y < height - 40.0 {
+                    let placed = card_place(Some(Anchor { left: 400.0, top: y, right: 540.0, bottom: y + 40.0 }), 400.0, room, size);
+                    assert!(placed.top >= EDGE, "{width}×{height} at {y}: top {}", placed.top);
+                    assert!(placed.top <= y.max(EDGE), "{width}×{height} at {y}: top {} under the slot's", placed.top);
+                    if size.most() <= height - 2.0 * EDGE {
+                        assert!(placed.top + size.most() <= height - EDGE + 0.01, "{width}×{height} at {y}: grows out of the window");
+                    }
+                    // While a layer is open the card is at least as tall as it rests.
+                    assert_eq!(placed.least, rest);
+                    y += 37.0;
+                }
+            }
+        }
     }
 
     #[test]

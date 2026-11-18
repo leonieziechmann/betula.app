@@ -59,6 +59,12 @@ pub struct Texts {
     pub more_on_days: fn(usize) -> String,
     /// The overlaps as the figure of the status row and the mode's bar: „1 Überschneidung".
     pub clashes: fn(usize) -> String,
+    /// The figure and the head of the unfolded list while the plan is edited and the last overlap
+    /// went: „Keine Überschneidung mehr".
+    pub no_clash_left: &'static str,
+    /// What a screen reader hears after a line of the unfolded list whose overlap went while the
+    /// plan is edited (the line stands struck through): „keine Überschneidung mehr".
+    pub clash_gone: &'static str,
     /// … „2 ausgeblendet".
     pub hidden: fn(usize) -> String,
     /// After an overlap's times, the week it is in: „A-Woche", „B-Woche".
@@ -138,6 +144,8 @@ pub const DE: Texts = Texts {
         1 => "1 Überschneidung".to_string(),
         n => format!("{n} Überschneidungen"),
     },
+    no_clash_left: "Keine Überschneidung mehr",
+    clash_gone: "keine Überschneidung mehr",
     hidden: |n| format!("{n} ausgeblendet"),
     week_a: "A-Woche",
     week_b: "B-Woche",
@@ -198,6 +206,8 @@ pub const EN: Texts = Texts {
         1 => "1 clash".to_string(),
         n => format!("{n} clashes"),
     },
+    no_clash_left: "No clashes left",
+    clash_gone: "no longer clashes",
     hidden: |n| format!("{n} hidden"),
     week_a: "week A",
     week_b: "week B",

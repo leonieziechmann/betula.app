@@ -3840,6 +3840,10 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-cal > .sw.strip { background: linear-gradient(90deg, transparent 58%, var(--cal) 58%); box-shadow: inset 0 0 0 1.5px var(--cal); }
 .sp-cal > .sw.off { background: transparent; box-shadow: inset 0 0 0 1.5px var(--cal); }
 .sp-cal > .t { min-width: 0; }
+/* The „…" of a calendar's row, in its place that stands while looking too (span.sp-cal-end): as
+   small as the sidebar's other small controls. */
+.sp-cal-end > .sp-cal-more { width: 32px; height: 32px; }
+.sp-cal-end > .sp-cal-more .icon { width: 16px; height: 16px; }
 .sp-cal > .t b { display: block; overflow: hidden; font-size: 13px; font-weight: 650; line-height: 1.25; white-space: nowrap; text-overflow: ellipsis; }
 .sp-cal > .t small { display: block; overflow: hidden; color: var(--text-3); font-size: 11.5px; line-height: 1.3; white-space: nowrap; text-overflow: ellipsis; }
 .sp-cal.off > .t b { color: var(--text-2); }
@@ -4150,6 +4154,11 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .sp-clash-fig > .chev { width: 14px; height: 14px; color: var(--text-3); transition: transform .2s var(--ease); }
 .sp-clash-fig[aria-expanded="true"] > .chev { transform: rotate(180deg); }
 .sp-editbar .sp-clash-fig { min-height: 32px; border-radius: 7px; }
+/* While the plan is edited and the list stays unfolded after the last overlap went: the button that
+   folds it, quiet; its pale lines say each overlap is gone. */
+.sp-clash-fig.none { color: var(--text-2); }
+.sp-clash-fig.none:hover { background: var(--panel-2); }
+.sp-overlaps li > .gone { color: var(--text-3); text-decoration: line-through; text-decoration-color: color-mix(in oklch, var(--text-3) 60%, transparent); }
 .sp-overlaps.open { padding: 2px 0 0; }
 .sp-overlaps-head { margin: 0 0 2px; padding: 0 10px; color: var(--text-2); font-size: 13px; font-weight: 580; font-variant-numeric: tabular-nums; }
 .sp-overlaps-head .no { color: var(--no); font-weight: 650; }
@@ -6651,12 +6660,13 @@ div.st-col-head.past { cursor: default; }
 .st-dialog[open]::backdrop { animation: fade-in .2s ease-out; }
 :root:has(#content > .page-stage.front .st-dialog[open]) { overflow: hidden; }
 /* A dialog its owner places (`Modal`'s `at`, the card of a Termin beside its slot): its left and top
-   are data (`--x`, `--y`); it grows downward and ends inside the window. Fixed explicitly, so that
-   its copy in a held picture of the page stands under it. */
+   are data (`--x`, `--y`); its top stays, it grows downward and ends inside the window. Fixed
+   explicitly, so that its copy in a held picture of the page stands under it. */
 @media (min-width: 901px) {
   .st-dialog.placed { position: fixed; inset: auto; left: var(--x); top: var(--y); margin: 0; max-height: calc(100dvh - var(--y) - 16px); }
-  /* One that stands low in the window keeps its bottom edge and grows upward. */
-  .st-dialog.placed.rises { top: auto; bottom: var(--b); max-height: calc(100dvh - var(--b) - 16px); }
+  /* While something stands open in the card it is at least as tall as it rests (`--h`): a body
+     shorter than the resting one (the eye's two rows, the note) moves no edge either. */
+  .st-dialog.placed:has(.tm-card.layered) { min-height: min(var(--h), calc(100dvh - var(--y) - 16px)); }
 }
 /* The copy of an open dialog in the picture of the page held over a step is not a second one. */
 .pending-page.held dialog { display: none; }

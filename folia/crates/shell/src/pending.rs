@@ -38,7 +38,7 @@ use leptos_router::location::Location;
 use leptos_router::NavigateOptions;
 
 use folia_data::Later;
-use crate::i18n::use_location;
+use crate::i18n::{use_location, Locale};
 use folia_routes::url::PlanAddress;
 
 /// A change of this kind that took this long the last time (smoothed) gets a skeleton: below it,
@@ -364,6 +364,7 @@ impl Pending {
     /// panel): in place of the current entry where a step beside the page takes its place
     /// (`in_place`), else a step of its own.
     pub fn go_beside(&self, to: &str) {
+        let to = &app_address(to, crate::i18n::locale());
         let replace = match (self.change_to(to), self.here()) {
             (Some(change), Some((path, search))) => self.in_place(change, &path, &search, to),
             _ => false,
@@ -415,6 +416,9 @@ impl Pending {
     }
 
     fn go_with(&self, to: &str, options: NavigateOptions, quiet: bool) {
+        // A caller may hand over what a link of the page says (its `href`, `/en/studyplan?…`);
+        // the router wants the app's path, and a prefix left on it leads to `/en/en/…`.
+        let to = &app_address(to, crate::i18n::locale());
         let via = Via::Link { replace: options.replace, scroll: options.scroll };
         match self.change_to(to) {
             Some(change) => self.start(to.to_string(), via, change, quiet),
@@ -680,6 +684,18 @@ pub fn Bind() -> impl IntoView {
 
 fn path_of(to: &str) -> &str {
     to.split(['?', '#']).next().unwrap_or(to)
+}
+
+/// `to` as an address of the app in `locale`: what comes with that language's prefix
+/// (`/en/studyplan?termin=…`, `/en?termin=…`, `/en`) without it, query and fragment kept; an
+/// address of the app (`/studyplan?…`) and one of another language as they are.
+fn app_address(to: &str, locale: Locale) -> String {
+    let prefix = locale.prefix();
+    match to.strip_prefix(prefix) {
+        Some(rest) if !prefix.is_empty() && rest.starts_with('/') => rest.to_string(),
+        Some(rest) if !prefix.is_empty() && (rest.is_empty() || rest.starts_with(['?', '#'])) => format!("/{rest}"),
+        _ => to.to_string(),
+    }
 }
 
 /// The query of an address, without `?` and without the fragment.
@@ -1141,6 +1157,22 @@ mod browser {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_step_takes_the_apps_address_whatever_the_link_says() {
+        // English: a link's `href` comes with the prefix, the app's path without; both lead to
+        // the app's path, never to `/en/en/…`.
+        assert_eq!(app_address("/en/studyplan?termin=148370-eb017", Locale::En), "/studyplan?termin=148370-eb017");
+        assert_eq!(app_address("/studyplan?termin=148370-eb017", Locale::En), "/studyplan?termin=148370-eb017");
+        assert_eq!(app_address("/en?termin=148370-eb017&full=1", Locale::En), "/?termin=148370-eb017&full=1");
+        assert_eq!(app_address("/en", Locale::En), "/");
+        assert_eq!(app_address("/en#top", Locale::En), "/#top");
+        // A path that only begins with the letters is no prefix.
+        assert_eq!(app_address("/entry", Locale::En), "/entry");
+        // German has no prefix: both stay as they are (`/en/…` is a link into English).
+        assert_eq!(app_address("/studyplan?termin=148370-eb017", Locale::De), "/studyplan?termin=148370-eb017");
+        assert_eq!(app_address("/en/studyplan?termin=148370-eb017", Locale::De), "/en/studyplan?termin=148370-eb017");
+    }
 
     #[test]
     fn what_a_step_changes() {

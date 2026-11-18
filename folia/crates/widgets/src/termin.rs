@@ -902,19 +902,14 @@ pub fn TerminModal(
                     card::focus_big();
                 });
                 // A card opened by its address (a reload, Back) stands in the middle until the week
-                // has drawn its slot: then once beside it, unless something was opened in it.
+                // has drawn its slot — however long a slow load takes —: then once beside it,
+                // unless it closed, shows another Termin or something was opened in it meanwhile.
                 if anchor.is_some_and(|anchor| anchor.run(()).is_none()) {
-                    for wait in [150, 400, 1000] {
-                        set_timeout(
-                            move || {
-                                let same = termin.try_get_untracked().flatten() == asked;
-                                if same && shown.try_get_untracked().unwrap_or(false) && !state.layered() && anchor.is_some_and(|anchor| anchor.run(()).is_some()) {
-                                    place();
-                                }
-                            },
-                            std::time::Duration::from_millis(wait),
-                        );
-                    }
+                    let still = move || {
+                        let same = termin.try_get_untracked().flatten() == asked;
+                        (same && shown.try_get_untracked().unwrap_or(false) && !state.layered()).then(|| anchor.is_some_and(|anchor| anchor.run(()).is_some()))
+                    };
+                    when_ready(still, place);
                 }
             }
         });
@@ -934,7 +929,9 @@ pub fn TerminModal(
             use wasm_bindgen::closure::Closure;
             use wasm_bindgen::JsCast;
             let listener = Closure::<dyn Fn(web_sys::KeyboardEvent)>::new(move |ev: web_sys::KeyboardEvent| {
-                if ev.key() != "Escape" || ev.is_composing() || !shown.try_get_untracked().unwrap_or(false) || !state.layered() {
+                // A dialog over the card (the keys' overview) takes its Esc itself: one Esc, the
+                // layer in front.
+                if ev.key() != "Escape" || ev.is_composing() || !shown.try_get_untracked().unwrap_or(false) || !state.layered() || folia_design::modal::dialog_in_front(Some(".tm-card-modal")) {
                     return;
                 }
                 ev.prevent_default();
@@ -974,6 +971,19 @@ pub fn TerminModal(
             }}
         </Modal>
     }
+}
+
+/// Runs `then` once `ready` says so (`Some(true)`), asking every 100 ms for as long as it waits
+/// (`Some(false)`); `None` stops asking.
+fn when_ready(ready: impl Fn() -> Option<bool> + Copy + 'static, then: impl Fn() + Copy + 'static) {
+    set_timeout(
+        move || match ready() {
+            Some(true) => then(),
+            Some(false) => when_ready(ready, then),
+            None => {}
+        },
+        std::time::Duration::from_millis(100),
+    );
 }
 
 /// The dialog of an address that names no Termin: so it says, with a word where Termine are.
