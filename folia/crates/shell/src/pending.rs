@@ -1104,8 +1104,10 @@ mod browser {
             };
             ev.prevent_default();
             // On a phone a page of another tab is a change of tabs, and the first use of a page come
-            // to from outside lays under it what lies above it (`nav::steer`).
-            if crate::nav::steer(pending, &from_path, &from_search, &to) {
+            // to from outside lays under it what lies above it (`nav::steer`); a link that lends its
+            // page to the tab it is followed from (`data-lend`: „Module planen in „Mein Studium““
+            // of the Stundenplan) is a step on top of that tab instead.
+            if crate::nav::steer(pending, &from_path, &from_search, &to, link.has_attribute("data-lend")) {
                 return;
             }
             let action = link.get_attribute("data-action").unwrap_or_default();
@@ -1130,6 +1132,10 @@ mod browser {
             // into the Wahlpflicht) is a step of the history on a phone too, so that Back and the
             // arrow come back to where it was.
             let beside = (pending.in_place(change, &from_path, &from_search, &to) || link.has_attribute("data-replace") || pick) && !link.has_attribute("data-push");
+            // A new entry from a page lent to another tab's stack ends the loan (`nav::lent_step`).
+            if !(closing || beside) && crate::nav::lent_step(pending, &from_path, &from_search, &to) {
+                return;
+            }
             pending.start(to, Via::Link { replace: closing || beside, scroll }, change, false);
         });
         // Back and Forward: the browser has moved already, the router hears of it a frame later.

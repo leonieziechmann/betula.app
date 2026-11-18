@@ -39,6 +39,20 @@
 //!   Where the browser lacks the Navigation API, or an entry below is of another load of a page (the
 //!   site's pages before the app took over, another language: going there loads that page anew; a
 //!   reload keeps the entries the page wrote), each link is a step of its own as before.
+//! - **A page lent to the calendar** (`data-lend`, `lend`; owner, 2026-11-18: „wenn man vom Kalender
+//!   auf Module planan in geht, dann kommt man mit back nicht wieder zum Kalender zurück. Mach das
+//!   so, dass man so lange man da nichts weiteres in die back history macht, dass dann der
+//!   Terminkalender das back ist."; Folia 1.105.4): the one exception to a link to a page of another
+//!   tab. „Module planen in „Mein Studium““ of the Stundenplan is a step on top of the calendar's
+//!   stack, as a page of a while is, but the page is the tab „Studium"'s, whose tab the bar shows
+//!   as current. Back and the arrow lead to the calendar as it was left — on Android the first Back
+//!   too, past the semester the link itself opened (`lent`); what the visitor opens there
+//!   themselves closes first as always. „Stundenplan" tapped leads there as well. The first step
+//!   that writes a new entry in „Mein Studium" ends the loan (`lent_step`): the history becomes what
+//!   a change of tabs would have made it, Start and the stack of „Studium", and the calendar's tab
+//!   keeps its stack without the page lent; so do „Studium" tapped again (`again`) and a change to
+//!   another tab. The entry under the page lent is known by its key (the Navigation API); where
+//!   that is missing every link is a step of its own as before, which leads back to the calendar.
 //! - **A page of a while** (`passing`: the profile page; owner, 2026-10-19: „dass die Profile page,
 //!   als temporäre seite getreated werden soll wo man dann oben den zurück pfeil hat und genau wieder
 //!   da landet, wo man davor war"): no tab's, so no change of tabs. It is a step on top of the tab
@@ -119,6 +133,33 @@ pub fn tab_of_page(path: &str, from: Area) -> Area {
     } else {
         Area::of(path)
     }
+}
+
+/// The tab of the page `top` where it is lent to the tab `tab` of the history under it (`lend`):
+/// a page of another tab on top of it. `None` for a page of the tab itself, a module's own page the
+/// tab shows in place, and a page of a while.
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+pub(crate) fn lent_to(tab: Area, top: &str) -> Option<Area> {
+    let area = tab_of_page(top.split(['?', '#']).next().unwrap_or(top), tab);
+    (area != tab).then_some(area)
+}
+
+/// What a tab left keeps (`browser::save`), from the addresses of its stack, its first page first:
+/// its own stack without the pages of a while on it, and, where the top is a page lent to it
+/// (`lent`), without that page too, which is its own tab's then, with what lies above it in that
+/// tab under it. The tab whose top the browser is at comes last.
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+pub(crate) fn stacks_left(tab: Area, urls: &[String], lent: bool) -> Vec<(Area, Vec<String>)> {
+    let path = |url: &str| url.split(['?', '#']).next().unwrap_or(url).to_string();
+    let (own, top) = match urls.split_last() {
+        Some((top, rest)) if lent => (rest, Some(top)),
+        _ => (urls, None),
+    };
+    let mut left = vec![(tab, own.iter().filter(|url| !passing(&path(url))).cloned().collect())];
+    if let Some(top) = top {
+        left.push((tab_of_page(&path(top), tab), chain_of(top)));
+    }
+    left
 }
 
 /// An entry a change of tabs writes: its address, and the semester „Mein Studium"'s row keeps there.
@@ -417,8 +458,10 @@ pub fn seed() -> bool {
 
 /// A link followed on a phone, from where the router is (`from_path`, `from_search`) to `to`: its
 /// first use seeds a page come to from outside (`seed`), and a page of another tab is a change of
-/// tabs, with what lies above it under it (`chain_of`). True where the change of tabs took the step.
-pub fn steer(pending: crate::pending::Pending, from_path: &str, from_search: &str, to: &str) -> bool {
+/// tabs, with what lies above it under it (`chain_of`) — except where the link lends the page
+/// (`lend`, its `data-lend`): then it is a step of its own on top of the tab it is followed from.
+/// On a page lent the tab one is in is the page's own. True where the change of tabs took the step.
+pub fn steer(pending: crate::pending::Pending, from_path: &str, from_search: &str, to: &str, lend: bool) -> bool {
     #[cfg(feature = "csr")]
     {
         if !phone() {
@@ -429,17 +472,65 @@ pub fn steer(pending: crate::pending::Pending, from_path: &str, from_search: &st
         }
         let to = to.split('#').next().unwrap_or(to);
         let Some((entries, at, base, landing)) = browser::stacked_or_seeded() else { return false };
-        let from = browser::tab_at(&entries, base, at);
+        let lent = browser::lent_at(&entries, base, at);
+        let from = lent.unwrap_or_else(|| browser::tab_at(&entries, base, at));
         let into = tab_of_page(to.split('?').next().unwrap_or(to), from);
-        if into == from {
-            // The link takes its own step, above the way up its first use lays under the page.
+        if into == from || (lend && lent.is_none()) {
+            // The link takes its own step, above the way up its first use lays under the page; a
+            // link that lends its page marks the entry it is followed from (`browser::lend`).
             if let Some(landing) = landing {
                 browser::seed_now(landing);
+            }
+            if into != from {
+                browser::lend();
             }
             return false;
         }
         let stack = chain_of(to).into_iter().map(|url| Entry { url, semester: None }).collect();
         browser::tab_to(pending, (from_path, from_search), entries, at, base, stack, landing, true)
+    }
+    #[cfg(not(feature = "csr"))]
+    {
+        let _ = (pending, from_path, from_search, to, lend);
+        false
+    }
+}
+
+/// Whether the page the browser is at on a phone is lent to the tab under it (`steer`, `lend`):
+/// Back and the arrow lead to the page under it, past the semester the link itself opened in „Mein
+/// Studium"'s row (`folia_planner`'s phone).
+pub fn lent() -> bool {
+    #[cfg(feature = "csr")]
+    {
+        phone() && browser::stacked().is_some_and(|(entries, at, base)| browser::lent_at(&entries, base, at).is_some())
+    }
+    #[cfg(not(feature = "csr"))]
+    false
+}
+
+/// A link followed on a phone that writes a new entry, from where the router is to `to` (after
+/// `steer`, which took the links to another tab): from a page lent (`lent`), a page of its own tab
+/// ends the loan — the history becomes what a change of tabs would have made it, Start and the stack
+/// of that tab up to `to` (`chain_of`), and the tab under it keeps its stack without the page lent
+/// (owner, 2026-11-18: „so lange man da nichts weiteres in die back history macht"). True where it
+/// took the step.
+pub fn lent_step(pending: crate::pending::Pending, from_path: &str, from_search: &str, to: &str) -> bool {
+    #[cfg(feature = "csr")]
+    {
+        if !phone() {
+            return false;
+        }
+        if rewriting() {
+            return true;
+        }
+        let to = to.split('#').next().unwrap_or(to);
+        let Some((entries, at, base)) = browser::stacked() else { return false };
+        let Some(area) = browser::lent_at(&entries, base, at) else { return false };
+        if tab_of_page(to.split('?').next().unwrap_or(to), area) != area {
+            return false;
+        }
+        let stack = chain_of(to).into_iter().map(|url| Entry { url, semester: None }).collect();
+        browser::tab_to(pending, (from_path, from_search), entries, at, base, stack, None, true)
     }
     #[cfg(not(feature = "csr"))]
     {
@@ -465,6 +556,14 @@ pub fn tab(pending: crate::pending::Pending, area: Area, href: &str) -> bool {
         }
         let Some((entries, at, base, landing)) = browser::stacked_or_seeded() else { return false };
         let now = browser::tab_at(&entries, base, at);
+        // The tab a page is lent to (`lend`): back to it as it was left, the page lent ahead.
+        if now == area && browser::lent_at(&entries, base, at).is_some() {
+            if !entries.get(at - 1).is_some_and(|entry| entry.same) {
+                return false;
+            }
+            browser::go(-1);
+            return true;
+        }
         if now == area {
             let first = if area == Area::Home { base } else { base + 1 };
             let to = if browser::passing_at(&entries, at) { (first..at).rev().find(|&i| !browser::passing_at(&entries, i)).unwrap_or(first) } else { first };
@@ -546,6 +645,9 @@ pub fn tab_top(area: Area, href: &str) -> String {
     if phone() {
         if area == Area::Home {
             return "/".to_string();
+        }
+        if let Some(under) = browser::lent_under(area) {
+            return under;
         }
         if let Some(top) = browser::saved(area).and_then(|stack| stack.last().map(|entry| entry.url.clone())) {
             return top;
@@ -858,6 +960,40 @@ mod browser {
         entries.get(base + 1).and_then(|entry| entry.url.as_deref()).map_or(Area::Home, |url| Area::of(url.split('?').next().unwrap_or(url)))
     }
 
+    /// The key of the entry a link that lends its page was followed from (`super::steer`): the
+    /// page lent is the entry right above it. The key stays the entry's while it is written in place.
+    const LENT: &str = "betula.nav.lent";
+
+    /// The link that lends its page is followed from the entry the browser is at.
+    pub(super) fn lend() {
+        if let Some((entries, at)) = seen() {
+            if let Some(entry) = entries.get(at) {
+                folia_design::nav::session_set(LENT, &entry.key);
+            }
+        }
+    }
+
+    /// The tab of the page at `at` where it is lent (`super::lent_to`): the entry under it is the
+    /// one the link was followed from, both of this load of the page, above the tab's first page.
+    pub(super) fn lent_at(entries: &[Seen], base: usize, at: usize) -> Option<Area> {
+        let key = folia_design::nav::session_get(LENT).filter(|key| !key.is_empty())?;
+        if at < base + 2 {
+            return None;
+        }
+        let (under, here) = (entries.get(at - 1)?, entries.get(at)?);
+        if under.key != key || !under.same || !here.same {
+            return None;
+        }
+        super::lent_to(tab_at(entries, base, at), here.url.as_deref()?)
+    }
+
+    /// Where the tab `area` is, where the page the browser is at is lent to it: the entry under it.
+    pub(super) fn lent_under(area: Area) -> Option<String> {
+        let (entries, at, base) = stacked()?;
+        lent_at(&entries, base, at)?;
+        (tab_at(&entries, base, at) == area).then(|| entries.get(at - 1).and_then(|entry| entry.url.clone())).flatten()
+    }
+
     /// Whether the entry at `at` is a page of a while (`super::passing`).
     pub(super) fn passing_at(entries: &[Seen], at: usize) -> bool {
         entries.get(at).and_then(|entry| entry.url.as_deref()).is_some_and(|url| super::passing(url.split(['?', '#']).next().unwrap_or(url)))
@@ -1073,6 +1209,8 @@ mod browser {
         if keep {
             save(&entries, base, at);
         }
+        // The history written anew: no page is lent any more.
+        folia_design::nav::session_set(LENT, "");
         let top = stack.last().map_or_else(|| "/".to_string(), |entry| entry.url.clone());
         let (top_path, top_search) = top.split_once('?').unwrap_or((top.as_str(), ""));
         // A tab whose page stands on its stage comes to the front at once, scrolled where it was
@@ -1157,22 +1295,30 @@ mod browser {
 
     /// The tab of the history keeps its stack, from its first page to where the browser is, without
     /// the pages of a while on top of it (`super::passing`: they were the visitor's for a while, not
-    /// the tab's); the row's semester where the browser is at „Mein Studium".
+    /// the tab's); the row's semester where the browser is at „Mein Studium". A page lent to it
+    /// (`lent_at`) is no part of it either: it is its own tab's stack (`super::stacks_left`).
     fn save(entries: &[Seen], base: usize, at: usize) {
-        let area = tab_at(entries, base, at);
-        // Start has no stack of its own (the profile, the legal pages are only above it for a while).
-        // The catalog lent to the workbench of „Mein Studium" keeps the stack it had before, as the
-        // memory of the tabs gives back where it was left (`tabs::catalog_lent`): what the workbench
-        // looked for there is not what the tab „Module" comes back to.
-        if area == Area::Home || (area == Area::Catalog && crate::tabs::catalog_lent()) {
-            return;
-        }
-        let urls: Vec<String> = (base + 1..=at).filter(|&i| !passing_at(entries, i)).filter_map(|i| entries.get(i).and_then(|entry| entry.url.clone())).collect();
+        let tab = tab_at(entries, base, at);
+        let lent = lent_at(entries, base, at).is_some();
+        let urls: Vec<String> = (base + 1..=at).filter_map(|i| entries.get(i).and_then(|entry| entry.url.clone())).collect();
         let here = entries.get(at).and_then(|entry| entry.url.as_deref());
         let semester = (here == Some(folia_routes::url::STUDY)).then(|| kept("semester")).flatten();
-        let mut all: Vec<_> = stacks().into_iter().filter(|(other, _, _)| other != name(area)).collect();
-        if !urls.is_empty() {
-            all.push((name(area).to_string(), semester, urls));
+        let left = super::stacks_left(tab, &urls, lent);
+        let last = left.len().saturating_sub(1);
+        let mut all = stacks();
+        for (index, (area, urls)) in left.into_iter().enumerate() {
+            // Start has no stack of its own (the profile, the legal pages are only above it for a
+            // while). The catalog lent to the workbench of „Mein Studium" keeps the stack it had
+            // before, as the memory of the tabs gives back where it was left (`tabs::catalog_lent`):
+            // what the workbench looked for there is not what the tab „Module" comes back to.
+            if area == Area::Home || (area == Area::Catalog && crate::tabs::catalog_lent()) {
+                continue;
+            }
+            all.retain(|(other, _, _)| other != name(area));
+            if !urls.is_empty() {
+                // The row's semester is the entry's the browser is at: the top of the last stack.
+                all.push((name(area).to_string(), semester.clone().filter(|_| index == last), urls));
+            }
         }
         let text: Vec<String> = all.into_iter().map(|(area, semester, urls)| format!("{area}\t{}\t{}", semester.unwrap_or_default(), urls.join("\t"))).collect();
         folia_design::nav::session_set(STACKS, &text.join("\n"));
@@ -1259,6 +1405,38 @@ mod tests {
                 assert!(plan(0, at, &stack).iter().all(|op| *op != Op::Go(0)), "{at} {len}");
             }
         }
+    }
+
+    /// A page lent to the calendar (owner, 2026-11-18: „dass dann der Terminkalender das back ist"):
+    /// a step on top of the calendar's stack, which keeps its stack without it; the first further
+    /// step in its own tab writes the history as a change of tabs.
+    #[test]
+    fn a_page_lent_to_the_calendar() {
+        // „Mein Studium" on top of the calendar is lent; the calendar's own pages, a module's own
+        // page it shows in place and a page of a while are not.
+        assert_eq!(lent_to(Area::Studyplan, "/study?plan=1"), Some(Area::Programs));
+        assert_eq!(lent_to(Area::Studyplan, "/study"), Some(Area::Programs));
+        assert_eq!(lent_to(Area::Studyplan, "/studyplan?sem=2026W&edit=1"), None);
+        assert_eq!(lent_to(Area::Studyplan, "/catalog/module/11103"), None);
+        assert_eq!(lent_to(Area::Studyplan, "/event/148370-eb017/2026-11-02"), None);
+        assert_eq!(lent_to(Area::Programs, "/programs"), None);
+        let urls = |list: &[&str]| list.iter().map(|url| url.to_string()).collect::<Vec<_>>();
+        // The calendar left from the page lent: its stack without it, the page its tab's own.
+        let calendar = urls(&["/studyplan?sem=2026W", "/studyplan?sem=2026W&edit=1", "/study?plan=1"]);
+        assert_eq!(
+            stacks_left(Area::Studyplan, &calendar, true),
+            [(Area::Studyplan, urls(&["/studyplan?sem=2026W", "/studyplan?sem=2026W&edit=1"])), (Area::Programs, urls(&["/study?plan=1"]))]
+        );
+        // Without a loan the stack is the tab's, the pages of a while left out, as before.
+        assert_eq!(stacks_left(Area::Catalog, &urls(&["/catalog", "/profile"]), false), [(Area::Catalog, urls(&["/catalog"]))]);
+        assert_eq!(stacks_left(Area::Studyplan, &calendar, false), [(Area::Studyplan, calendar.clone())]);
+        // The loan ended by a further step („Alle Studiengänge"): Start, „Mein Studium" and the
+        // page, written in place over the calendar's entry and the page lent.
+        let ended: Vec<Entry> = chain_of("/programs").iter().map(|url| entry(url)).collect();
+        assert_eq!(plan(0, 2, &ended), [Op::Go(-1), Op::Replace(entry("/study")), Op::Go(1), Op::Replace(entry("/programs"))]);
+        // From deeper in the calendar: what lies ahead is left over.
+        let ended: Vec<Entry> = chain_of("/study?view=plan").iter().map(|url| entry(url)).collect();
+        assert_eq!(plan(0, 3, &ended), [Op::Go(-2), Op::Replace(entry("/study")), Op::Go(1), Op::Replace(entry("/study?view=plan"))]);
     }
 
     #[test]

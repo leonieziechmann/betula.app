@@ -567,8 +567,9 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
                 })
             }}
             // The modules of the study are planned in „Mein Studium" (owner, 2026-10-26 and
-            // 2026-11-17).
-            <a class="sp-way" href=study>
+            // 2026-11-17). On a phone the page is lent to the calendar's stack, so that Back comes
+            // back here (`data-lend`, `folia_shell::nav`; owner, 2026-11-18).
+            <a class="sp-way" href=study data-lend="">
                 <span>{m.to_study}</span><Icon name="chevron-right"/>
             </a>
         </section>

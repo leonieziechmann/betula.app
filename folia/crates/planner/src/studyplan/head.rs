@@ -351,7 +351,8 @@ pub(super) fn NothingPlanned(ctx: PlanCtx) -> impl IntoView {
             <p class="state-title">{t.studyplan_head.no_dates}</p>
             <p class="sp-empty-line">{m.empty_week}</p>
             <div class="state-actions">
-                <a class="btn primary" href=study>{m.to_my_study}</a>
+                // Lent to the calendar's stack on a phone, as the list's way (`data-lend`).
+                <a class="btn primary" href=study data-lend="">{m.to_my_study}</a>
                 <a class="btn secondary" href=catalog>{t.studyplan_head.to_catalog}</a>
                 <button class="btn secondary" type="button" title=t.studyplan_own.add_title on:click=move |_| super::own::ask_today(ctx, 0, None)>
                     <Icon name="plus"/>{t.studyplan_own.add}

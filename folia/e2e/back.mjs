@@ -29,6 +29,15 @@
 // 9 the Stundenplan's sheets on a phone („Kalender", „Export", „Teilen …" over „Export", „+ Modul" over
 //   „Kalender"): each closes with one Back and writes no entry, Forward opens nothing, the page stays;
 //   what lay over another sheet goes back to it, the keyboard on the row that opened it.
+// 10 „Module planen in „Mein Studium““ of the calendar (`data-lend`; owner, 2026-11-18): the page is
+//   lent on top of the calendar's stack, the bar shows „Studium“; one Back (past the semester the link
+//   opened) and the arrow lead to the calendar as it was left (`edit=1`), Forward brings the page
+//   again; the semester's menu closes first, a semester turned to by › brings the overview first,
+//   the workbench's sheet ended by a tap beside it is no Back, and after each the calendar; „Stundenplan“ tapped leads
+//   there too; „Studium“ tapped again ends the loan as it opens the area as it starts, the calendar's
+//   tab keeping its stack; a further entry („Alle Studiengänge“) ends it, Back then leads up
+//   through „Mein Studium“ to Start. An iPhone (Back and the arrow) and a wide screen: Back is the
+//   history, the calendar.
 // An iPhone (no CloseWatcher): Back is the history; a dialog goes with the page it leaves.
 // A wide screen: filter clicks closer than a second are one step, after a pause another; the
 // module beside the list closed by its × goes back where the list was the step before, and so does
@@ -361,6 +370,102 @@ await part("the Stundenplan's sheets", async () => {
   await step("Back closes „Kalender“ then", () => back(page), () => !document.querySelector("dialog[open]"));
   await stays("„+ Modul“ over „Kalender“");
 });
+
+// ---------- the calendar's way into „Mein Studium", a page lent ----------
+// (owner, 2026-11-18: „wenn man vom Kalender auf Module planan in geht, dann kommt man mit back nicht
+// wieder zum Kalender zurück. Mach das so, dass man so lange man da nichts weiteres in die back
+// history macht, dass dann der Terminkalender das back ist.")
+const lentParts = async (name, options, { android, iphone = false }) => part(name, async () => {
+  const { page, step, seed } = await open(options, "/", { iphone });
+  await seed([[MINE, THIRD], [PLAN, FILLED]]);
+  const stack = async () => { const now = await where(page); return now.entries.slice(0, now.at + 1).join(" "); };
+  const front = "#content > .page-stage.front";
+  // The row of „Mein Studium“ rests at a semester, not the overview.
+  const away = () => { const here = document.querySelector(".st-pager > .st-slot[data-here]"); return Boolean(here) && !here.classList.contains("is-overview") && !document.querySelector(".st-pager.is-gliding"); };
+  const tapOrClick = (selector) => (options.hasTouch ? page.tap(selector) : page.click(selector));
+  await step("„Stundenplan“", () => tapOrClick(`a.nav[data-area="studyplan"]:visible`), () => location.pathname === "/studyplan" && document.querySelector("#content > .page-stage.front a.sp-way"));
+  await step("„Bearbeiten“", () => tapOrClick(`${front} .sp-edit-toggle`), () => /[?&]edit=1/.test(location.search) && document.querySelector("#content > .page-stage.front a.sp-way"));
+  const calendar = await where(page);
+  const toStudy = (label) => step(label, async () => {
+    await page.locator(`${front} a.sp-way`).scrollIntoViewIfNeeded();
+    await tapOrClick(`${front} a.sp-way`);
+  }, () => location.pathname === "/study");
+  const backAtCalendar = async (label, how) => {
+    await step(label, how, (here) => location.pathname + location.search === here && document.querySelector("#content > .page-stage.front a.sp-way"), calendar.here);
+    const now = await where(page);
+    check(now.at === calendar.at && now.entries[now.at] === calendar.here, `${label}: not the calendar as it was left: ${JSON.stringify(calendar)} → ${JSON.stringify(now)}`);
+  };
+  await toStudy("„Module planen in „Mein Studium““");
+  check((await stack()) === `${calendar.entries.slice(0, calendar.at + 1).join(" ")} /study?plan=1`, `the page is not lent on top of the calendar: ${await stack()}`);
+  if (options.hasTouch) check(await page.evaluate(() => document.querySelector('.bottomnav a.nav[data-area="programs"]')?.getAttribute("aria-current") === "page"), "the bar does not show „Studium“ as current");
+  if (!android) {
+    // An iPhone and a wide screen: Back is the history.
+    await backAtCalendar("Back: the calendar", () => page.evaluate(() => history.back()));
+    if (iphone) {
+      await toStudy("the way again, for the arrow");
+      await backAtCalendar("the arrow: the calendar", () => page.tap(".top-back.on"));
+    }
+    return;
+  }
+  // One Back, past the semester the link itself opened.
+  await page.waitForFunction(resting("WiSe 2026/27"), null, { timeout: 8000 }).catch(() => problems.push("the link did not open the current semester"));
+  await backAtCalendar("one Back: the calendar", () => back(page));
+  check(await page.evaluate(() => navigation.canGoForward), "Forward does not bring „Mein Studium“ again");
+  // The arrow at the head the same.
+  await toStudy("the way again, for the arrow");
+  await page.waitForFunction(away, null, { timeout: 8000 }).catch(() => {});
+  await backAtCalendar("the arrow: the calendar", () => page.tap(".top-back.on"));
+  // What the visitor opens there closes first: the semester's menu, then Back leads to the calendar.
+  await toStudy("the way, for a menu");
+  await page.waitForFunction(away, null, { timeout: 8000 }).catch(() => {});
+  await step("the semester's menu", () => page.tap(".st-pager > .st-slot[data-here] .st-sem-more"), () => document.documentElement.hasAttribute("data-layers") || document.querySelector("dialog:modal"));
+  await step("Back closes the menu", () => back(page), () => !document.documentElement.hasAttribute("data-layers") && !document.querySelector("dialog:modal") && location.pathname === "/study");
+  await backAtCalendar("Back after the menu: the calendar", () => back(page));
+  // A semester turned to by ›: Back brings the overview, the Back after it the calendar.
+  await toStudy("the way, for a turn");
+  await page.waitForFunction(away, null, { timeout: 8000 }).catch(() => {});
+  await step("› to the next semester", () => page.tap(".st-pager > .st-slot[data-here] .st-turn >> nth=1"), resting("SoSe 2027"));
+  await step("Back: the overview", () => back(page), resting(null));
+  await backAtCalendar("Back after the overview: the calendar", () => back(page));
+  // The workbench's sheet closed by a tap beside it (a phone's workbench has no „Fertig“; the
+  // tap beside it is its end, no Back): the Back after it leads to the calendar.
+  await toStudy("the way, for the workbench");
+  await page.waitForFunction(away, null, { timeout: 8000 }).catch(() => problems.push("the way did not open a semester for the workbench"));
+  await step("„Module hinzufügen“", () => page.tap(".st-pager > .st-slot[data-here] :is(.st-add, .st-empty-add)"), () => document.querySelector(".st-wb-sheet"));
+  await page.waitForTimeout(400);
+  await step("a tap beside the workbench", () => page.touchscreen.tap(195, 60), () => !document.querySelector(".st-wb-sheet") && location.pathname === "/study");
+  await backAtCalendar("Back after the workbench: the calendar", () => back(page));
+  // „Stundenplan“ tapped from the page lent: the calendar as it was left.
+  await toStudy("the way, for the tab");
+  await backAtCalendar("„Stundenplan“: the calendar", () => page.tap('.bottomnav a.nav[data-area="studyplan"]'));
+  // „Studium“ tapped again (Folia 1.105.0): the area opens as it starts, the loan ends; the
+  // calendar's tab keeps its stack without the page lent.
+  await toStudy("the way, for „Studium“ again");
+  await step("„Studium“ tapped again", () => page.tap('.bottomnav a.nav[data-area="programs"]'), () => location.pathname === "/study" && !location.search && document.querySelector(".st-planbox"));
+  check((await stack()) === "/ /study", `„Studium“ tapped again did not write its own stack: ${await stack()}`);
+  await step("„Stundenplan“ after it", () => page.tap('.bottomnav a.nav[data-area="studyplan"]'), (here) => location.pathname + location.search === here, calendar.here);
+  check((await stack()) === calendar.entries.slice(0, calendar.at + 1).join(" "), `the calendar did not come back as it was left: ${await stack()}`);
+  // A further entry in „Mein Studium“ ends the loan: Back leads up through „Mein Studium“ to Start.
+  await toStudy("the way, for a further step");
+  await page.waitForFunction(away, null, { timeout: 8000 }).catch(() => {});
+  // To the overview without a step of the history: a semester turned to by ›, then Back.
+  const was = await page.$eval(".st-pager > .st-slot[data-here]", (here) => here.querySelector("h2")?.textContent);
+  await step("› for the overview", () => page.tap(".st-pager > .st-slot[data-here] .st-turn >> nth=1"), (was) => {
+    const here = document.querySelector(".st-pager > .st-slot[data-here]");
+    return here && !document.querySelector(".st-pager.is-gliding") && here.querySelector("h2")?.textContent !== was;
+  }, was);
+  await step("Back: the overview, the loan kept", () => back(page), resting(null));
+  check((await stack()) === `${calendar.entries.slice(0, calendar.at + 1).join(" ")} /study`, `the overview is no longer lent on top of the calendar: ${await stack()}`);
+  await step("„Alle Studiengänge“", () => page.tap('.st-rest a[href="/programs"]'), () => location.pathname === "/programs");
+  check((await stack()) === "/ /study /programs", `the further step did not end the loan: ${await stack()}`);
+  await step("Back: „Mein Studium“", () => back(page), () => location.pathname === "/study");
+  await step("Back: Start", () => back(page), () => location.pathname === "/");
+  check((await where(page)).at === 0, `Back did not lead up to Start: ${JSON.stringify(await where(page))}`);
+  await step("„Stundenplan“: as it was left", () => page.tap('.bottomnav a.nav[data-area="studyplan"]'), (here) => location.pathname + location.search === here, calendar.here);
+});
+await lentParts("lent, Android", PHONE, { android: true });
+await lentParts("lent, iPhone", PHONE, { android: false, iphone: true });
+await lentParts("lent, wide", { viewport: { width: 1280, height: 900 } }, { android: false });
 
 // ---------- a link from outside ----------
 await part("a link from outside", async () => {
