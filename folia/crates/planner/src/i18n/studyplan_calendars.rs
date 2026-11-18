@@ -5,7 +5,7 @@
 
 pub struct Texts {
     // ---- the list ----
-    /// The group's heading and the phone's line: „Kalender".
+    /// The group's heading, the phone's head button and its sheet's title: „Kalender".
     pub heading: &'static str,
     /// „Mein Studiengang", which is always there and always in full.
     pub mine: &'static str,
@@ -33,10 +33,6 @@ pub struct Texts {
     pub look_only: fn(&str) -> String,
     /// The same of a Termin of one's own in it, which is one's own there too: „in „Lena“".
     pub own_in: fn(&str) -> String,
-    /// The phone's line: „Mein Studiengang, Lena als Spur" …
-    pub line_full: fn(&str) -> String,
-    pub line_strip: fn(&str) -> String,
-    pub line_off: fn(&str) -> String,
 
     // ---- a calendar's menu ----
     pub menu: fn(&str) -> String,
@@ -88,6 +84,9 @@ pub struct Texts {
     pub full_up: &'static str,
     /// After „Anlegen" and „Als Kalender": „Als Kalender angelegt: Lena".
     pub created: fn(&str) -> String,
+    /// The note after „Anlegen" with a link that could not be read: the calendar is made all the same,
+    /// empty, and the note says so: „Link nicht lesbar – leerer Kalender angelegt: Max".
+    pub created_unread: fn(&str) -> String,
 
     // ---- the shared plan's offer ----
     /// „Als Kalender": the plan of the link beside one's own, not in it.
@@ -142,9 +141,6 @@ pub const DE: Texts = Texts {
     in_week: |name| format!("{name} in der Woche"),
     look_only: |name| format!("{name} · nur zum Ansehen"),
     own_in: |name| format!("in „{name}“"),
-    line_full: |name| name.to_string(),
-    line_strip: |name| format!("{name} als Spur"),
-    line_off: |name| format!("{name} aus"),
 
     menu: |name| format!("Mehr zu {name}"),
     rename: "Umbenennen",
@@ -187,6 +183,7 @@ pub const DE: Texts = Texts {
     link_wrong_still: "Anlegen geht trotzdem, dann leer.",
     full_up: "Acht eigene Kalender sind das Höchste.",
     created: |name| format!("Als Kalender angelegt: {name}"),
+    created_unread: |name| format!("Link nicht lesbar – leerer Kalender angelegt: {name}"),
 
     as_calendar: "Als Kalender",
     as_calendar_title: "Den Plan als eigenen Kalender neben deinen legen, mit seinen Gruppen. Er zählt nicht für dein Studium.",
@@ -229,9 +226,6 @@ pub const EN: Texts = Texts {
     in_week: |name| format!("{name} in the week"),
     look_only: |name| format!("{name} · to look at only"),
     own_in: |name| format!("in “{name}”"),
-    line_full: |name| name.to_string(),
-    line_strip: |name| format!("{name} as a strip"),
-    line_off: |name| format!("{name} off"),
 
     menu: |name| format!("More on {name}"),
     rename: "Rename",
@@ -274,6 +268,7 @@ pub const EN: Texts = Texts {
     link_wrong_still: "You can still create it, empty.",
     full_up: "Eight calendars of your own are the most.",
     created: |name| format!("Created as a calendar: {name}"),
+    created_unread: |name| format!("Link not readable – empty calendar created: {name}"),
 
     as_calendar: "As a calendar",
     as_calendar_title: "Put the plan beside yours as a calendar of its own, with its groups. It does not count for your study.",

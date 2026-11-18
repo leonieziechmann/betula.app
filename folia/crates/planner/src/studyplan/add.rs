@@ -130,9 +130,10 @@ fn found_for(rows: &[CatalogRow], held: &[String]) -> Vec<Offered> {
 }
 
 /// „+ Modul" of the calendar `to`, under the head of its part of the list (`calendars.rs`). Closed by
-/// its ×, by Esc, and by „+ Modul" again.
+/// its ×, by Esc, and by „+ Modul" again. On a phone it is a sheet of its own (`calendars::AddSheet`,
+/// `sheet` its way out): the sheet's head names it and closes it, Esc and Back are the sheet's.
 #[component]
-pub(super) fn AddPanel(ctx: PlanCtx, to: AddTo, marked: Memo<Vec<MarkedModule>>) -> impl IntoView {
+pub(super) fn AddPanel(ctx: PlanCtx, to: AddTo, marked: Memo<Vec<MarkedModule>>, #[prop(optional)] sheet: Option<Callback<()>>) -> impl IntoView {
     let t = i18n::t();
     let a = &t.studyplan_add;
     let AddTo::Calendar(id) = to;
@@ -263,11 +264,16 @@ pub(super) fn AddPanel(ctx: PlanCtx, to: AddTo, marked: Memo<Vec<MarkedModule>>)
             let _ = restoring.try_set(false);
         });
     };
-    let close = move || ctx.adding.set(None);
-    // Opened from a calendar's menu the panel may lie out of view (on a phone under the week).
-    nav::after_paint(|| {
-        nav::reveal_selector(".sp-addp");
-    });
+    let close = move || match sheet {
+        Some(sheet) => sheet.run(()),
+        None => ctx.adding.set(None),
+    };
+    // Opened from a calendar's menu the panel may lie out of view.
+    if sheet.is_none() {
+        nav::after_paint(|| {
+            nav::reveal_selector(".sp-addp");
+        });
+    }
 
     let semester = Memo::new(move |_| ctx.key.get().label(t.locale));
     let row = move |module: Offered| {
@@ -384,18 +390,21 @@ pub(super) fn AddPanel(ctx: PlanCtx, to: AddTo, marked: Memo<Vec<MarkedModule>>)
     view! {
         <section
             class="sp-addp"
+            class:in-sheet=sheet.is_some()
             aria-label=move || (a.title)(&name())
             on:keydown=move |ev: leptos::ev::KeyboardEvent| {
-                if ev.key() == "Escape" {
+                if ev.key() == "Escape" && sheet.is_none() {
                     ev.stop_propagation();
                     close();
                 }
             }
         >
-            <div class="sp-addp-head">
-                <b>{move || (a.title)(&name())}</b>
-                <button class="icon-btn" type="button" aria-label=a.close title=a.close on:click=move |_| close()><Icon name="x"/></button>
-            </div>
+            {sheet.is_none().then(|| view! {
+                <div class="sp-addp-head">
+                    <b>{move || (a.title)(&name())}</b>
+                    <button class="icon-btn" type="button" aria-label=a.close title=a.close on:click=move |_| close()><Icon name="x"/></button>
+                </div>
+            })}
             <p class="sp-addp-says">{says}</p>
             {move || note.get().map(|note| view! {
                 <p class="action note-action sp-marked-note">
