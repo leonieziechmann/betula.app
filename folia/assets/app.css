@@ -7860,7 +7860,7 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
 .pf-link .pf-pair-text { gap: 10px; align-content: start; }
 .pf-link .pf-pair-text p { margin: 0; }
 .pf-link-how { color: var(--text); font-size: 14.5px; font-weight: 560; line-height: 1.45; text-wrap: pretty; }
-.pf-link-once { color: var(--text-2); font-size: 13px; line-height: 1.45; text-wrap: pretty; }
+.pf-link-once, .pf-link-hint { color: var(--text-2); font-size: 13px; line-height: 1.45; text-wrap: pretty; }
 .pf-link-once .icon { display: inline-block; width: 13px; height: 13px; margin-right: 6px; vertical-align: -2px; color: var(--text-3); }
 .pf-link .pf-pair-link { display: flex; align-items: center; gap: 9px; min-width: 0; min-height: 42px; margin-top: 2px; padding: 0 12px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-3); }
 .pf-link .pf-pair-link .icon { flex: none; width: 15px; height: 15px; }
@@ -7868,6 +7868,17 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
 .pf-link .pf-pair-actions { gap: 8px; margin-top: 4px; }
 .pf-link .pf-pair-actions .icon { width: 17px; height: 17px; }
 .pf-link .pf-link-copy { order: -1; }
+/* Gone (owner, 2026-11-18: „wenn das Ding dann abgelaufen ist möchte ich noch einen retry knopf"):
+   the old code faded on its tile, the round sign to renew it on top, which a tap renews as
+   „Neuer Link" does. While a link is made a blank tile stands in the code's place. */
+.pf-link-veil { position: relative; display: block; padding: 0; border: 0; border-radius: 16px; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.pf-link-veil .pf-qr path { opacity: .14; }
+.pf-link-renew { position: absolute; left: 50%; top: 50%; display: grid; place-items: center; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; background: var(--accent); color: var(--on-accent); box-shadow: 0 10px 24px -10px rgba(0, 0, 0, .6); transition: transform .15s var(--ease), filter .15s; }
+.pf-link-renew .icon { width: 26px; height: 26px; stroke-width: 2.2; }
+.pf-link-veil:hover .pf-link-renew { filter: brightness(1.08); transform: scale(1.05); }
+.pf-link-veil:active .pf-link-renew { transform: scale(.94); }
+.pf-link .pf-qr.pf-link-blank { background: var(--sk); box-shadow: none; }
+.pf-link[aria-busy="true"] .pf-link-how { color: var(--text-2); font-weight: 500; }
 .pf-connect-body .pf-link { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 20px; padding: 0; border-radius: 0; background: none; box-shadow: none; }
 .pf-connect-body .pf-link-code { padding-top: 6px; }
 .pf-connect-body .pf-link .pf-qr { width: 216px; height: 216px; border-radius: 16px; }

@@ -37,7 +37,7 @@ use folia_routes::url;
 use folia_stores::profiles::{Profiles, FIRST};
 use folia_stores::sync::{Conflict, Pairing, Problem, Request, State, Sync};
 use folia_widgets::syncdone::{ways, ConnectProgress, Connected};
-use folia_widgets::syncpair::{copy, now_ms, PairLink, COPIED_MS};
+use folia_widgets::syncpair::{copy, now_ms, PairLink, PairWait, COPIED_MS};
 
 pub use folia_widgets::syncpair::problem_text;
 
@@ -477,7 +477,7 @@ pub(crate) fn Connect(sync: Sync, id: Memo<u16>, state: Memo<State>, dialog: RwS
             </div>
         }
         .into_any(),
-        Step::Starting | Step::Pair(None) => view! { <p class="pf-sync-wait" role="status">{if matches!(step.get_untracked(), Step::Starting) { s.starting } else { s.pairing }}</p> }.into_any(),
+        Step::Starting | Step::Pair(None) => view! { <PairWait said=if matches!(step.get_untracked(), Step::Starting) { s.starting } else { s.pairing }/> }.into_any(),
         Step::Pair(Some(Ok(pairing))) => view! { <PairLink pairing again=Callback::new(move |()| pair())/> }.into_any(),
         Step::Pair(Some(Err(problem))) => view! {
             <p class="action note-action pf-refused" role="status">
