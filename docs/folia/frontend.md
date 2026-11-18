@@ -1470,7 +1470,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     stood side by side as small buttons, as they still do on a wide screen (app.css „In a sheet,
     what a question offers"). The Stundenplan has no sheet „Anpassen" since Folia 1.100.0 (it held
     „Plan leeren", gone, and the calendars and saved plans): on a phone its calendars are the sheet
-    the head's „Kalender" opens (since 1.102.3, `dialog.sp-cal-sheet`, „Neuer Kalender" in it; from
+    the head's „Kalender" opens (since 1.105.3, `dialog.sp-cal-sheet`, „Neuer Kalender" in it; from
     1.100.0 the line „Kalender" over the week and „Neuer Kalender" under the modules), and while it
     is edited the saved plans stand in the page as a group of their own (`.sp-plans`), where the same
     rule holds as in a sheet (`:is([data-sheet], .sp-cal-new, .sp-plans)`). A dialog's foot is not such a question: its buttons stand side by side across the
@@ -3198,7 +3198,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     up bringing it back to its height and a tap on its grabber leaving it be, its question
     „Merkliste leeren" each answer a row of its own across the sheet, thrown away by a
     finger, and closed by its choice leaving a copy that glides away; the Stundenplan's sheet
-    „Kalender" on a phone while it is edited (since Folia 1.102.3; until then its line over the week,
+    „Kalender" on a phone while it is edited (since Folia 1.105.3; until then its line over the week,
     until 1.100.0 „Plan leeren" in „Anpassen"): a calendar's menu one entry a row, its new name's field, „Sichern" and „Abbrechen" one under the
     other, „Neuer Kalender"'s „Anlegen" and „Abbrechen", a saved plan's question „Ersetzen" and
     „Abbrechen" in sight and clear of the dock (Esc closing the calendar's menu, then the sheet), each answer across its box, the one that acts first,
@@ -3251,7 +3251,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   „A-Woche", „B-Woche" and „A/B", as the pictures of the start page are one: a finger carries the
   weeks sideways and lets the next one in, any other move scrolls the page, and the three stand in
   a row without going round. Its switch stands in the head's toolbar under the title, „A · B · A/B"
-  without the word „Woche", which its name says (since Folia 1.102.3, „Looking and editing" below;
+  without the word „Woche", which its name says (since Folia 1.105.3, „Looking and editing" below;
   until then „Woche: A, B, A/B" beside „Bearbeiten", until 1.100.0 „Anpassen"; owner, 2026-10-26:
   „Dann kann oben in die gleiche Reihe mit dem Anpassen Knopf die Handles"; until then tabs under
   the week). „Plan · Alle Termine",
@@ -3270,7 +3270,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   Termine" and the ways on, as before: the page stays shorter than the screen (while the plan is
   edited the bare week, since 1.100.0).
   „Export" (the .ics file, „Als Bild speichern" and the subscription; „In deinen Kalender" until
-  2026-11-04) is a sheet the head's „Export" opens, with „Teilen …" (since Folia 1.102.3; owner,
+  2026-11-04) is a sheet the head's „Export" opens, with „Teilen …" (since Folia 1.105.3; owner,
   2026-11-18: „Ja und Export sollte am handy wahrscheinlich auch ein modal werden oder so"); from
   2026-09-27 it stood under the Termine, in every view: in the sheet „Anpassen", among what is
   shown, nobody looked for it. A wider screen keeps it in the sidebar.
@@ -3344,8 +3344,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     figures („3 Wahlen offen · 2 ausgeblendet"), „+ Termin", „Fertig" with the cap „Esc"; with a
     choice in focus the dark bar of the focus. One bar at a time, so that the week does not move:
     measured at 1440 × 900 and 1180 × 820, the week and its slots stand to the hundredth of a pixel
-    alike in looking, editing and a choice in focus (again with the head tidied, 1.102.3). The
-    semester beside the title is quiet, smaller and lighter on the title's baseline (since 1.102.3;
+    alike in looking, editing and a choice in focus (again with the head tidied, 1.105.3). The
+    semester beside the title is quiet, smaller and lighter on the title's baseline (since 1.105.3;
     until then as large as the title, in grey). The overlaps are a red figure of that row, of
     the bar and of a phone's line of numbers („1 Überschneidung", `ClashFigure`), whose click
     unfolds their list under it; until 1.100.0 the line under the head held them in a fold. While
@@ -3455,7 +3455,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     one thing.
   - **On a phone** no sheet „Anpassen" and no sidebar. The head is two calm rows of one grid, the
     same in both states (owner, 2026-11-18: „Dann muss oben noch aufgeräumt werden, also der header
-    ist ja eine absolute Katastrophe"; Folia 1.102.3, `head::PhoneTools`): the title with the
+    ist ja eine absolute Katastrophe"; Folia 1.105.3, `head::PhoneTools`): the title with the
     semester small and quiet beside it and „Bearbeiten" at the right (pencil and word, pressed while
     editing); under it a quiet toolbar, the weeks' switch „A · B · A/B" at the left where the plan has
     Termine of A or B weeks (`div.sp-weekpick`, its name „Woche"), „Kalender" and „Export" at the
@@ -3470,7 +3470,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     there only while it has something to say: the amber line of what is open and at its right the
     overlaps' figure, compact (`button.sp-clash-fig.compact`: the sign and the number, its name the
     whole words), the figure alone with its words where nothing is open; what it unfolds opens under
-    the band, over the week (since Folia 1.102.3; until then the figure had a row of its own,
+    the band, over the week (since Folia 1.105.3; until then the figure had a row of its own,
     `.sp-sum-row`, between the head and the amber line, and the week moved by it with the first
     overlap). An eye of the module list that makes or ends an overlap moves the band in or out
     above the week; the row tapped stays under the finger (the browser's scroll anchoring). Until
@@ -3478,14 +3478,14 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     numbers. „Kalender" and „Export" are a `group` named „Kalender und Export"; „Kalender" carries
     the number of calendars of one's own as a badge at its sign (`.sp-badge`, the tab bar's
     pattern), its name „Kalender, 1 weiterer". The weeks' segment is a finger's 44 px by its hit
-    area (`--hit-y`), not by its look (until 1.102.3 no segment's area worked: `.seg` stated only
+    area (`--hit-y`), not by its look (until 1.105.3 no segment's area worked: `.seg` stated only
     `--hit-y`, and the bare `--hit` its sides fell back to is a colour of the theme's). „Kalender" opens the calendars' sheet (`CalendarSheet`,
     `dialog.sp-cal-sheet`, a sheet that fits as long as it can; owner, the same day: „Dann fehlt am
     Handy das Feature für weitere Kalender komplett bitte baue das wieder ein"), their one place on
     a phone and in both states, since it is opened on purpose: „Mein Studiengang", each calendar of
     one's own with „Voll · Spur · Aus" in words and its „…" („Modul aufnehmen", which opens „+ Modul"
     as a sheet in the calendars' sheet's place, `calendars::AddSheet`, `dialog.sp-add-sheet`, whose
-    ×, Esc and Back lead back to the calendars' sheet — since 1.102.3; until then the panel opened
+    ×, Esc and Back lead back to the calendars' sheet — since 1.105.3; until then the panel opened
     under the week, far below the head; the list's „+ Modul" while editing opens the same sheet,
     which closes to the page; „Umbenennen"; „Löschen" with the note and „Rückgängig"), „Gemeinsam
     frei" where another calendar stands in the week, and „+ Kalender" with the form „Neuer Kalender"
@@ -3501,7 +3501,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (`ExportSheet`, `dialog.sp-export-sheet`; until then a section under the Termine), „Teilen …" a
     row as the three above it; „Abonnieren" and „Teilen …" open „Teilen", which takes the sheet's
     place, and closing it (×, Esc, Back) brings the sheet back with the keyboard on the row that
-    opened it (since 1.102.3). The sheets close when the page grows wider than a phone, whose sidebar
+    opened it (since 1.105.3). The sheets close when the page grows wider than a phone, whose sidebar
     has them. None of them has an entry in the history: a sheet lies over the page, Android's Back
     is a close request that closes it (the modal `<dialog>`'s own watcher), an iPhone does without
     („### Back"; `e2e/back.mjs` checks each).
@@ -3976,14 +3976,14 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     `.week`; not while a choice is in focus), a span drawn there by a drag, and on a phone a finger
     held still for half a second on a free stretch of the week (`own::Hold`, touch only; the click
     that ends it opens nothing). The drag (owner, 2026-11-18: „Zum Beispiel bei den custom terminen
-    mach die option für drag placement um gleich eine Zeitspanne zu machen"; Folia 1.102.3,
+    mach die option für drag placement um gleich eine Zeitspanne zu machen"; Folia 1.105.3,
     `own::Drag`, `own::span_of`, `PlanCtx::sketch`): a mouse or a pen pressed on a free stretch and
     moved more than 4 px draws the dashed span from the quarter of an hour pressed to the pointer, in
     quarters of an hour; upward as downward, the quarter pressed always in it, a quarter of an hour
     at least, never out of its day's column nor the grid's hours. While it is drawn it lies over its
     column, not in its lanes (`own::SketchView`, `div.sp-sketch`, its box from `own::drawn_at` as
     custom properties), so that no slot under it changes its width; it takes a lane once it is the
-    form's draft. Its times are always readable (since Folia 1.102.3; on a phone a short span showed
+    form's draft. Its times are always readable (since Folia 1.105.3; on a phone a short span showed
     „16:00 …" alone): a tag with them („16:00–16:45", `div.sp-sketch-tag`, 96 × 24 px) stands above
     the span's top edge, inside the week as far as the window shows it — on a phone's last column too
     —, below the bottom edge where there is no room above and the pointer is at the top, else beside
@@ -4009,7 +4009,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     man direkt los lässt dann ein 90min termin."): the finger held half a second vibrates
     (`Haptic::Hold`) and the span of 90 minutes stands; nothing is open or stored yet; the finger
     stretches it as it moves; only the lift opens the form with what stands, whose „Anlegen" makes
-    the Termin (until 1.102.3 the lift of a hold opened the form at once). The page holds still
+    the Termin (until 1.105.3 the lift of a hold opened the form at once). The page holds still
     meanwhile: one `touchmove` listener on the phone's week, not passive, there while the week is
     (WebKit decides at a touch's start whether its moves can be cancelled), cancels only while a
     finger's span is drawn; while a finger is held or draws, its long press opens no menu of the
@@ -4032,7 +4032,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     A-Woche · B-Woche · Einmal) above what it changes, and where a button of the plan's calendar
     opened the form while editing („+ Termin" of the bar, the dock, a module's row) one quiet line
     under it that the gesture is quicker („Schneller: die Zeitspanne direkt in der Woche ziehen.", on
-    a phone „Schneller: in der Woche gedrückt halten und ziehen."; since 1.102.3, `OwnAsk::hint`,
+    a phone „Schneller: in der Woche gedrückt halten und ziehen."; since 1.105.3, `OwnAsk::hint`,
     `p.own-quicker`; none where the form came from the week) — the day, or the dates with „+ Datum" —
     (owner, 2026-10-27: „Wenn man solche Buttons hat, dann ändern die nur den Inhalt unter ihnen"),
     „Zeit", „Zeitraum" (the lecture period with „ändern", then its own „von" and „bis" and the way
@@ -7998,7 +7998,7 @@ them in the page; its „Abonnieren" opens „Teilen" in the sheet's place, and 
 screen keeps „Export" in the sidebar and the weeks' switch and „Bearbeiten" in the head, and has no
 toolbar; a plan without A or B weeks has the grid alone, without a switch of the weeks. (Until Folia
 1.100.0 the head held „Anpassen" and its sheet „Plan · Alle Termine", and a slot opened its module;
-until 1.102.3 „Woche: A, B, A/B" stood beside „Bearbeiten", the line of numbers under them, and
+until 1.105.3 „Woche: A, B, A/B" stood beside „Bearbeiten", the line of numbers under them, and
 „Export" and „Teilen …" under the Termine.)
 
 ```bash
@@ -8032,7 +8032,7 @@ its name alone („Anlegen" never disabled). On a phone the head's „Kalender" 
 looking (no line over the week, no „+ Kalender" in the list): the rows with their words („Voll · Spur
 · Aus"), „Gemeinsam frei", each calendar's menu („Modul aufnehmen", „Umbenennen", „Löschen"), which
 Esc closes before the sheet, and „+ Kalender", by which a calendar is made by its name in the sheet.
-(From Folia 1.100.0 to 1.102.3 a phone had one line over the week, „Kalender Mein Studiengang, Lena
+(From Folia 1.100.0 to 1.105.3 a phone had one line over the week, „Kalender Mein Studiengang, Lena
 als Spur", that opened into the rows.)
 
 ```bash
