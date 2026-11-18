@@ -8,9 +8,15 @@
 //! program's page leads to the list it came from, „Mein Studium" or the overview.
 //!
 //! - From another area, a tab leads to where its area was left.
-//! - On a page inside the area (a module, a program), the area's own tab leads up to the area's
-//!   list as it was left (filters, position).
-//! - On the list itself, the tab is the plain link to the list without filters.
+//! - In its own area — its list, a module, a program — the tab leads to where the area starts, its
+//!   view as it opens without anything remembered (owner, 2026-11-18: „wenn man schon auf einen tab
+//!   ist und dann nochmal darauf klickt, dass sich dann die standard Ansicht davon öffnet. Also bei
+//!   mein Studium zum Beispiel die mein Studium page. Beim Modulkatalog für Standard Filter von
+//!   Studiengang, bei der landing Page etc. Und ganz noch oben gescrollt"): the start page, the
+//!   catalog of „Mein Studiengang" (`chrome::tab_home`), „Mein Studium", the Merkliste and the
+//!   Stundenplan without a filter, a view or a module beside them; at its top, and a list there
+//!   comes back to no row (`Tabs::afresh`, `TabAgain`). Until then the tab led up to the area's
+//!   list as it was left, and on the list it was the plain link to the list without filters.
 //!
 //! The same memory answers two more questions: where „Zurück" on a module's or a program's page
 //! leads (the area's list; through the browser history if that is where the visitor came from,
@@ -88,7 +94,9 @@ impl Area {
     }
 
     /// The list of the area: where its tab leads when nothing is remembered. „Studium"'s is „Mein
-    /// Studium", the app's alone: the server's tab leads to the overview (`chrome::NavItems`).
+    /// Studium", the app's alone: the server's tab leads to the overview (`chrome::NavItems`). Where
+    /// the area starts, but for the catalog, whose first page is the catalog of „Mein Studiengang"
+    /// where one is chosen (`chrome::tab_home`).
     pub fn root(self) -> &'static str {
         match self {
             Area::Home => url::HOME,
@@ -139,7 +147,8 @@ struct Memory {
     bookmarks: Option<String>,
     /// The Studienplan as it was left: its semester and view, the module beside it.
     studyplan: Option<String>,
-    /// „Mein Studium" as it was left (the module beside it): where „Studium" leads up to.
+    /// „Mein Studium" as it was left (the module beside it): where the way back of the program
+    /// overview leads up to (`Tabs::study`).
     study: Option<String>,
     /// The catalog lent to the workbench of „Mein Studium", with what its tab held before (`catalog`,
     /// `catalog_list`; owner, 2026-11-18: „wenn man von der Werkbank in den Katalog geht, dann
@@ -151,6 +160,9 @@ struct Memory {
     /// 2026/27", another tab) gives back what the tab held. Only this session's: where it held
     /// nothing yet, nothing (the catalog of „Mein Studiengang" then, as on the first entry).
     lent: Option<(Option<String>, Option<String>)>,
+    /// Where the tab of the area the app is in, tapped again, leads (`Tabs::afresh`), until the
+    /// app's next address: the area's page as it starts, which comes from no page before it.
+    again: Option<String>,
 }
 
 /// The line before what the catalog held when it was lent (`Memory::lent`), as this tab's session
@@ -163,11 +175,22 @@ fn site_path(line: &str) -> Option<String> {
 }
 
 impl Memory {
-    /// The app is at `location`, `bench` whether the workbench of „Mein Studium" is open.
-    fn visit(&mut self, location: String, bench: bool) {
+    /// The app is at `location`, `bench` whether the workbench of „Mein Studium" is open. True where
+    /// it is where the tab tapped again led (`Tabs::afresh`): that page comes from no page before
+    /// it, so that its list comes back to no row (`Tabs::before`).
+    fn visit(&mut self, location: String, bench: bool) -> bool {
         if location == self.current {
-            return;
+            return false;
         }
+        let afresh = self.again.take().is_some_and(|again| again == location);
+        self.step(location, bench);
+        if afresh {
+            self.previous.clear();
+        }
+        afresh
+    }
+
+    fn step(&mut self, location: String, bench: bool) {
         let path = path_of(&location).to_string();
         // The catalog lent to the workbench from its first page while the workbench is open, until
         // the first step out of the catalog; a page of a while on top of it (a Termin, the profile:
@@ -261,8 +284,12 @@ impl Tabs {
         Effect::new(move |_| {
             let now = location_of(&location.pathname.get(), &location.search.get());
             let bench = planning.is_some_and(|planning| planning.bench_untracked().is_some());
-            self.0.update(|memory| memory.visit(now, bench));
+            let afresh = self.0.try_update(|memory| memory.visit(now, bench)).unwrap_or(false);
             nav::session_set(STORAGE_KEY, &self.0.with_untracked(Memory::stored));
+            // Where the tab tapped again led: the page starts at its top, once it is built.
+            if afresh {
+                to_top(false);
+            }
         });
     }
 
@@ -272,26 +299,33 @@ impl Tabs {
     }
 
     /// Where the tab of `area` leads, seen from `path`, where the area has a first page of its own
-    /// for this visitor (the catalog of „Mein Studiengang", A.10): `root` stands in only where
-    /// nothing of the area is remembered, its first entry of the session. On the area's list the
-    /// tab stays the plain link to it, a reset, and a page the visitor left the area at always
-    /// wins, so a filter the visitor took away is never added back.
+    /// for this visitor (the catalog of „Mein Studiengang", A.10): from another area where the
+    /// area was left, `root` only where nothing of it is remembered, its first entry of the
+    /// session, so that a filter the visitor took away is not added back by a change of tabs. In
+    /// its own area, on its list and on a page inside it, `root`: the tab tapped again opens the
+    /// area as it starts (owner, 2026-11-18: „dass sich dann die standard Ansicht davon öffnet").
     pub fn href_with_root(self, area: Area, path: &str, root: &str) -> String {
+        if Area::of(path) == area {
+            return root.to_string();
+        }
         self.0.with(|memory| {
-            let (last, list) = match area {
-                Area::Catalog => (&memory.catalog, &memory.catalog_list),
-                // Inside the area its tab leads up to „Mein Studium", from the overview as well.
-                Area::Programs => (&memory.programs, &memory.study),
-                Area::Bookmarks => (&memory.bookmarks, &memory.bookmarks),
-                Area::Studyplan => (&memory.studyplan, &memory.studyplan),
-                Area::Home => (&None, &None),
+            let last = match area {
+                Area::Catalog => &memory.catalog,
+                Area::Programs => &memory.programs,
+                Area::Bookmarks => &memory.bookmarks,
+                Area::Studyplan => &memory.studyplan,
+                Area::Home => &None,
             };
-            if Area::of(path) == area && path == area.root() {
-                return area.root().to_string();
-            }
-            let remembered = if Area::of(path) != area { last } else { list };
-            remembered.clone().unwrap_or_else(|| root.to_string())
+            last.clone().unwrap_or_else(|| root.to_string())
         })
+    }
+
+    /// The tab of the area the app is in was tapped again and leads to `to`, where the area starts
+    /// (`href_with_root`): that page comes from no page before it, so that its list comes back to
+    /// no row it would show again (`before`), and starts at its top once the app is there
+    /// (`follow`). Until the app's next address.
+    pub fn afresh(self, to: &str) {
+        self.0.update_untracked(|memory| memory.again = Some(to.to_string()));
     }
 
     /// The list of `area` as it was left: where „Zurück" on a page of the area leads. A program's
@@ -308,8 +342,8 @@ impl Tabs {
         .unwrap_or_else(|| area.back_root().to_string())
     }
 
-    /// „Mein Studium" as it was left: where „Studium"'s tab leads up to inside its area, and where
-    /// the way back of the program overview leads (`chrome::Up::Study`).
+    /// „Mein Studium" as it was left: where the way back of the program overview leads
+    /// (`chrome::Up::Study`).
     pub fn study(self) -> String {
         self.0.with_untracked(|memory| memory.study.clone()).unwrap_or_else(|| url::STUDY.to_string())
     }
@@ -333,9 +367,18 @@ impl Tabs {
     }
 
     /// Where the visitor was before `now`. Pages ask this while they are built, which may be
-    /// before or after the memory has heard of `now`; the answer is the same either way.
+    /// before or after the memory has heard of `now`; the answer is the same either way. Nothing
+    /// where the tab tapped again led to `now` (`afresh`).
     pub fn before(self, now: &str) -> String {
-        self.0.with_untracked(|memory| if memory.current == now { memory.previous.clone() } else { memory.current.clone() })
+        self.0.with_untracked(|memory| {
+            if memory.again.as_deref() == Some(now) {
+                String::new()
+            } else if memory.current == now {
+                memory.previous.clone()
+            } else {
+                memory.current.clone()
+            }
+        })
     }
 
     /// The area the visitor was in before `now`. A module's page asks this: opened out of an area
@@ -347,18 +390,29 @@ impl Tabs {
 }
 
 /// A tab tapped while its area is the one the app is in (owner, 2026-10-06, of „Studium": „Wenn
-/// man den anklickt muss es sofort wieder an die standard position gehen"): the area's page goes
-/// back to where it starts (`count`), also where the tab leads to the address the app is at and the
-/// router has nothing to do.
+/// man den anklickt muss es sofort wieder an die standard position gehen"; 2026-11-18, of every
+/// tab: „dass sich dann die standard Ansicht davon öffnet … Und ganz noch oben gescrollt"): the
+/// tab leads to where the area starts (`Tabs::href_with_root`), and the area's page goes back to
+/// where it starts (`count`: „Mein Studium" its semester, its row and its workbench), also where
+/// the tab leads to the address the app is at and the router has nothing to do. The page comes to
+/// its top (`to_top`).
 #[derive(Clone, Copy)]
-pub struct TabAgain(RwSignal<[u32; 5]>);
+pub struct TabAgain {
+    counts: RwSignal<[u32; 5]>,
+    /// How many pages of each area, built, take themselves to their top (`takes_its_top`).
+    own: StoredValue<[u32; 5]>,
+}
 
 impl TabAgain {
     /// Creates the count and provides it: call it once, in `App`.
     pub fn provide() -> Self {
-        let again = TabAgain(RwSignal::new([0; 5]));
+        let again = TabAgain::new();
         provide_context(again);
         again
+    }
+
+    fn new() -> Self {
+        TabAgain { counts: RwSignal::new([0; 5]), own: StoredValue::new([0; 5]) }
     }
 
     pub fn expect() -> Option<Self> {
@@ -377,7 +431,7 @@ impl TabAgain {
 
     /// The tab of `area` was tapped while its area is the one the app is in.
     pub fn tapped(self, area: Area) {
-        self.0.update(|counts| {
+        self.counts.update(|counts| {
             if let Some(count) = counts.get_mut(Self::slot(area)) {
                 *count = count.wrapping_add(1);
             }
@@ -386,8 +440,63 @@ impl TabAgain {
 
     /// How often the tab of `area` was tapped while its area was the one the app is in. Tracked.
     pub fn count(self, area: Area) -> u32 {
-        self.0.with(|counts| counts.get(Self::slot(area)).copied().unwrap_or(0))
+        self.counts.with(|counts| counts.get(Self::slot(area)).copied().unwrap_or(0))
     }
+
+    /// The page of `area` being built takes itself to its top where its tab is tapped again while
+    /// the app is there already (`count`): the row of „Mein Studium" on a phone, whose overview
+    /// comes in from its top as the row turns to it, and whose window goes up at the overview. The
+    /// window does not glide besides (`to_top`). For as long as the page is built.
+    pub fn takes_its_top(self, area: Area) {
+        let slot = Self::slot(area);
+        self.own.update_value(|own| {
+            if let Some(pages) = own.get_mut(slot) {
+                *pages += 1;
+            }
+        });
+        on_cleanup(move || {
+            self.own.try_update_value(|own| {
+                if let Some(pages) = own.get_mut(slot) {
+                    *pages = pages.saturating_sub(1);
+                }
+            });
+        });
+    }
+
+    /// Whether a page of `area` built takes itself to its top (`takes_its_top`).
+    pub(crate) fn keeps_its_top(self, area: Area) -> bool {
+        self.own.with_value(|own| own.get(Self::slot(area)).is_some_and(|pages| *pages > 0))
+    }
+}
+
+/// The page in front to its top (owner, 2026-11-18: „Und ganz noch oben gescrollt"): the window on a
+/// phone, the page's own scroll area on a wide screen, as „Nach oben" takes it there (enhance.js,
+/// `betula:tab-again`). `glide`: from where it is, as „Nach oben" glides, where the tab tapped again
+/// leaves the page what it is; else at once, in the next frame, where the tab led to where the area
+/// starts and the page is built there (`Tabs::follow`).
+pub(crate) fn to_top(glide: bool) {
+    #[cfg(feature = "csr")]
+    {
+        use leptos::wasm_bindgen::JsValue;
+        use leptos::web_sys;
+        let send = move || {
+            let Some(window) = web_sys::window() else { return };
+            let detail = web_sys::js_sys::Object::new();
+            let _ = web_sys::js_sys::Reflect::set(&detail, &JsValue::from_str("glide"), &JsValue::from_bool(glide));
+            let init = web_sys::CustomEventInit::new();
+            init.set_detail(&detail);
+            if let Ok(event) = web_sys::CustomEvent::new_with_event_init_dict("betula:tab-again", &init) {
+                let _ = window.dispatch_event(&event);
+            }
+        };
+        if glide {
+            send();
+        } else {
+            request_animation_frame(send);
+        }
+    }
+    #[cfg(not(feature = "csr"))]
+    let _ = glide;
 }
 
 /// Whether the catalog is lent to the workbench of „Mein Studium" (`Memory::lent`), as this tab's
@@ -430,10 +539,16 @@ mod tests {
         // a signal in the arena of its owner and have none outside one.
         let owner = Owner::new();
         owner.set();
-        let again = TabAgain(RwSignal::new([0; 5]));
+        let again = TabAgain::new();
         again.tapped(Area::Programs);
         again.tapped(Area::Programs);
         assert_eq!((again.count(Area::Programs), again.count(Area::Catalog)), (2, 0));
+        // A page that takes itself to its top does so while it is built.
+        let page = Owner::new();
+        page.with(|| again.takes_its_top(Area::Programs));
+        assert!(again.keeps_its_top(Area::Programs) && !again.keeps_its_top(Area::Catalog));
+        page.cleanup();
+        assert!(!again.keeps_its_top(Area::Programs));
     }
 
     #[test]
@@ -504,7 +619,7 @@ mod tests {
         memory.visit("/catalog/module/12107".to_string(), false);
         assert_eq!((Area::of(path_of(&memory.previous)), memory.catalog.as_deref()), (Area::Studyplan, Some("/catalog?turnus=winter")));
 
-        // The tab: from elsewhere to where the plan was left; on the plan itself the plain link.
+        // The tab: from elsewhere to where the plan was left; on the plan itself where it starts.
         let tabs = Tabs(RwSignal::new(memory.clone()));
         assert_eq!(tabs.href(Area::Studyplan, "/catalog"), "/studyplan?sem=2026W&view=dates&open=12104&full=1");
         assert_eq!(tabs.href(Area::Studyplan, "/studyplan"), "/studyplan");
@@ -541,11 +656,14 @@ mod tests {
             memory.visit(location.to_string(), false);
         }
         let tabs = Tabs(RwSignal::new(memory.clone()));
-        // From another area: where the area was left; inside it: up to „Mein Studium" as it was left.
+        // From another area: where the area was left; inside it „Mein Studium" as it starts (owner,
+        // 2026-11-18: „bei mein Studium zum Beispiel die mein Studium page"), not as it was left.
         assert_eq!(tabs.href(Area::Programs, "/catalog"), "/programs/bachelor-informatik-2008/plan");
-        assert_eq!(tabs.href(Area::Programs, "/programs/bachelor-informatik-2008/areas"), "/study?open=12104");
-        assert_eq!(tabs.href(Area::Programs, "/programs"), "/study?open=12104");
+        assert_eq!(tabs.href(Area::Programs, "/programs/bachelor-informatik-2008/areas"), "/study");
+        assert_eq!(tabs.href(Area::Programs, "/programs"), "/study");
         assert_eq!(tabs.href(Area::Programs, "/study"), "/study");
+        // The way back of the program overview: „Mein Studium" as it was left.
+        assert_eq!(tabs.study(), "/study?open=12104");
         // „Zurück" on the program's page: the list it was reached from.
         assert_eq!(tabs.list(Area::Programs), "/study?open=12104");
         memory.visit("/programs?level=master".to_string(), false);
@@ -571,18 +689,22 @@ mod tests {
         let fresh = Tabs(RwSignal::new(Memory::default()));
         assert_eq!(fresh.href_with_root(Area::Catalog, "/", mine), mine);
         assert_eq!(fresh.href_with_root(Area::Catalog, "/catalog/module/12104", mine), mine);
-        // On the catalog's list itself the tab is a reset to the whole catalog, as without it.
-        assert_eq!(fresh.href_with_root(Area::Catalog, "/catalog", mine), "/catalog");
+        // On the catalog's list itself the tab tapped again leads there too, where the catalog
+        // starts (owner, 2026-11-18: „Beim Modulkatalog für Standard Filter von Studiengang"); until
+        // then a reset to the whole catalog.
+        assert_eq!(fresh.href_with_root(Area::Catalog, "/catalog", mine), mine);
 
-        // Once the catalog was visited, what it was left at wins: the student who took the
-        // program's tag away is not led back to it.
+        // Once the catalog was visited, what it was left at wins from another area: the student who
+        // took the program's tag away is not led back to it by a change of tabs. In the catalog its
+        // tab is the catalog as it starts.
         let mut memory = Memory::default();
         for location in [mine, "/catalog", "/programs"] {
             memory.visit(location.to_string(), false);
         }
         let visited = Tabs(RwSignal::new(memory));
         assert_eq!(visited.href_with_root(Area::Catalog, "/programs", mine), "/catalog");
-        assert_eq!(visited.href_with_root(Area::Catalog, "/catalog/module/12104", mine), "/catalog");
+        assert_eq!(visited.href_with_root(Area::Catalog, "/catalog/module/12104", mine), mine);
+        assert_eq!(visited.href_with_root(Area::Catalog, "/catalog", mine), mine);
         // `href` is the same with the area's own root.
         assert_eq!(visited.href(Area::Catalog, "/programs"), visited.href_with_root(Area::Catalog, "/programs", "/catalog"));
         assert_eq!(fresh.href(Area::Catalog, "/"), "/catalog");
@@ -645,6 +767,41 @@ mod tests {
         // What a session kept is read back only as paths of this site.
         assert_eq!(Memory::restored("\n\n\n\n\n\n\nworkbench\n//evil.example\n/catalog").lent, Some((None, Some("/catalog".into()))));
         assert_eq!(Memory::restored("\n\n\n\n\n\n\nsomething\n/catalog\n/catalog").lent, None);
+    }
+
+    #[test]
+    fn a_tab_tapped_again_starts_its_area_afresh() {
+        // The tabs' signal needs an owner, as on a page.
+        let owner = Owner::new();
+        owner.set();
+        let mine = "/catalog?program=bachelor-informatik-2008";
+        let mut memory = Memory::default();
+        for location in ["/catalog?turnus=winter", "/catalog?turnus=winter&open=11112", "/catalog/module/11112"] {
+            assert!(!memory.visit(location.to_string(), false), "no tab tapped again");
+        }
+        let tabs = Tabs(RwSignal::new(memory));
+        // The list a module's page goes back to shows that module's row again (`page_below`)…
+        assert_eq!(tabs.before(mine), "/catalog/module/11112");
+        // …but not where the tab tapped again leads: asked while that page is built, before the
+        // memory has heard of it, and after.
+        tabs.afresh(mine);
+        assert_eq!(tabs.before(mine), "");
+        assert!(tabs.0.try_update(|memory| memory.visit(mine.to_string(), false)).unwrap_or(false), "the page the tab led to");
+        assert_eq!(tabs.before(mine), "");
+        // It is remembered as any page of the area: the catalog's tab leads there from elsewhere,
+        // „Zurück" of a module's page to it.
+        assert_eq!((tabs.left(Area::Catalog).as_deref(), tabs.list(Area::Catalog)), (Some(mine), mine.to_string()));
+        // Only until the next address: one elsewhere ends it, and the page after it comes from
+        // the page before as always.
+        tabs.afresh("/study");
+        let open = format!("{mine}&open=12104");
+        assert!(!tabs.0.try_update(|memory| memory.visit(open.clone(), false)).unwrap_or(true));
+        assert_eq!((tabs.before(&open), tabs.before("/study")), (mine.to_string(), open.clone()));
+        // A visit to the address the app is at is no visit.
+        tabs.afresh(&open);
+        assert!(!tabs.0.try_update(|memory| memory.visit(open.clone(), false)).unwrap_or(true));
+        // What a reload keeps knows nothing of it.
+        assert_eq!(tabs.0.with_untracked(|memory| Memory::restored(&memory.stored()).again), None);
     }
 
     #[test]

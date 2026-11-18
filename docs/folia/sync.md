@@ -150,7 +150,7 @@ profile there. It ends only then: after 8 s without, a line under the bar says t
 here yet and Betula keeps trying (until Folia 1.90.0 the bar ended after 8 s all the same, and
 said „Verbunden" for a profile that never came). `Connected` then: a tick, „Verbunden" (from the setup „Alles eingerichtet" with what
 was set up), what is on now in three rows (on both devices, in line at once and offline, sealed
-without an account), that more devices are connected on the profile page („Gerät verbinden"), and
+for the visitor alone), that more devices are connected on the profile page („Gerät verbinden"), and
 „Fertig".
 
 Every way of connecting ends on the start page (owner, 2026-11-09: „dass man wieder bei der main
