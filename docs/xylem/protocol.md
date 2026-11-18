@@ -224,8 +224,8 @@ Folia's server and Xylem, and no browser is part of it.
       "for": "12h",
       "link": "/",
       "texts": {
-        "de": {"title": "Die Prüfungsphase beginnt", "body": "Bis 20.02. liegen die meisten Prüfungen des WiSe 2026/27. Viel Erfolg!"},
-        "en": {"title": "The exam period begins", "body": "Most exams of Winter 2026/27 are held until 20 Feb. Good luck!", "link": "/en"}
+        "de": {"title": "Die Prüfungsphase beginnt", "body": "Bis 20.02. stehen viele Prüfungen des WiSe 2026/27 an. Viel Erfolg!"},
+        "en": {"title": "The exam period begins", "body": "Many exams of Winter 2026/27 are held until 20 Feb. Good luck!", "link": "/en"}
       }
     }
   ]

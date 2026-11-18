@@ -92,7 +92,7 @@ pub const DE: Texts = Texts {
     exams_begin: "Die Prüfungsphase beginnt",
     exams_begin_second: "Die zweite Prüfungsphase beginnt",
     exams_begin_further: "Eine weitere Prüfungsphase beginnt",
-    exams_text: |last, semester| format!("Bis {last} liegen die meisten Prüfungen des {semester}. Viel Erfolg!"),
+    exams_text: |last, semester| format!("Bis {last} stehen viele Prüfungen des {semester} an. Viel Erfolg!"),
     dates_title: |semester| format!("Die Termine fürs {semester} sind da"),
     dates_text: |semester| format!("Der Stundenplan für das {semester} ist veröffentlicht. Du kannst jetzt planen."),
 };
@@ -133,7 +133,7 @@ pub const EN: Texts = Texts {
     exams_begin: "The exam period begins",
     exams_begin_second: "The second exam period begins",
     exams_begin_further: "Another exam period begins",
-    exams_text: |last, semester| format!("Most exams of {semester} are held until {last}. Good luck!"),
+    exams_text: |last, semester| format!("Many exams of {semester} are held until {last}. Good luck!"),
     dates_title: |semester| format!("The dates for {semester} are in"),
     dates_text: |semester| format!("The timetable for {semester} is published. You can plan it now."),
 };
