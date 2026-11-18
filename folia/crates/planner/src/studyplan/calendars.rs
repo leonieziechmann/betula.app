@@ -15,8 +15,9 @@
 //!
 //! The list stands at the top of the sidebar where the page has one (`CalendarsGroup`), on a phone
 //! in a line over the week that opens into the same rows (`CalendarLine`; no chips, owner,
-//! 2026-10-26). A new calendar comes from a link pasted into its form (`NewCalendar`) or from the
-//! offer of a shared plan (`share.rs`, „Als Kalender"); its menu renames it and deletes it, with
+//! 2026-10-26). A new calendar comes by its name alone or from a link pasted into its form
+//! (`NewCalendarForm`, while the plan is edited), or from the offer of a shared plan (`share.rs`,
+//! „Als Kalender"); its menu, there while the plan is edited, renames it and deletes it, with
 //! „Rückgängig". The module list beside the week has a part per calendar (`CalendarModules`).
 //!
 //! A calendar may follow a share of someone else's (Betula Sync, step 3; folia/design/teilen/
@@ -24,8 +25,7 @@
 //! arrives, and „nicht mehr geteilt" once the share was taken back, with „Behalten" (it stays with
 //! what it showed last) and „Löschen" under it. Its menu hands a calendar on into a calendar app
 //! („In Kalender-App", the dialog „Teilen" on that side; owner, 2026-11-08: to persons only the
-//! plan of one's own).
-//! „+ Modul" in a calendar is the next step (folia/design/kalender: „+ Modul" and „nur besuchen").
+//! plan of one's own). While the plan is edited „+ Modul" takes a module into a calendar (`add.rs`).
 //!
 //! What the parts show is built as plain values first (`Shown`, `free_time`), which the tests read
 //! without rendering.
@@ -41,8 +41,8 @@ use folia_data::DataClient;
 use folia_design::haptic::TapTick;
 use folia_design::ui::Icon;
 use folia_pages::ask::StudyplanAsk;
-use folia_plans::studyplan::{Calendar, CalendarView, MAX_CALENDARS};
-use folia_routes::url::StudyplanUrl;
+use folia_plans::studyplan::{Calendar, CalendarView, PlanUndo, MAX_CALENDARS};
+use folia_routes::url::{PlanAddress, StudyplanUrl};
 use folia_stores::studyplan::Studyplan;
 use folia_timetable::model::Timetable;
 use folia_widgets::week::{GridBand, GridSlot};
@@ -307,6 +307,21 @@ pub(super) fn create(ctx: PlanCtx, plan: &SharedPlan, name: &str) -> Option<u8> 
     store.update(|doc| doc.add_calendar(name, program.as_deref(), key, &modules, &chosen, &changes))
 }
 
+/// A calendar of one's own without a link („Neuer Kalender" takes a name alone): empty, of the
+/// semester shown, for modules one adds to it („+ Modul"); its number, or `None` at the cap.
+fn create_empty(ctx: PlanCtx, name: &str) -> Option<u8> {
+    let (store, key) = (ctx.plan?, ctx.key.get_untracked());
+    store.update(|doc| doc.add_calendar(name, None, key, &[], &[], &[]))
+}
+
+/// What the note calls a calendar just made: the name typed, else „Kalender 2" (its number).
+fn made_name(typed: &str, id: u8, t: &i18n::Texts) -> String {
+    match typed.trim() {
+        "" => (t.studyplan_calendars.unnamed)(id),
+        name => name.to_string(),
+    }
+}
+
 // ---------- the parts ----------
 
 /// The way a calendar stands, as its switch shows it: its icon and its words.
@@ -423,8 +438,25 @@ fn CalendarMenu(ctx: PlanCtx, id: u8, name: String, open: RwSignal<Option<u8>>, 
     }
 }
 
+/// Where a calendar's modules came from, said only where the calendar shows it: ticked groups, a
+/// share it follows, a program of its own come with a link alone. A calendar made by its name (its
+/// modules taken in by „+ Modul") says nothing: the plan keeps no word of where one came from.
+/// Without a module: that it has none in the semester.
+fn came_of(calendar: &Shown, semester: &str, t: &'static i18n::Texts) -> Option<String> {
+    let c = &t.studyplan_calendars;
+    match calendar.modules.is_empty() {
+        true => Some((c.none_in)(semester)),
+        false if calendar.groups > 0 => Some(c.from_link_groups.to_string()),
+        false if calendar.follow.is_some() || calendar.program.is_some() => Some(c.from_link.to_string()),
+        false => None,
+    }
+}
+
 /// A row of a calendar of one's own: its colour (a square in the way it stands), its name and
-/// modules, its switch and its menu. `phone`: the switch with its words, under the name.
+/// modules, its switch („Voll · Spur · Aus", in both states: it is no setting of the plan's
+/// Termine), and while the plan is edited its menu („…"), in a place that is there while looking
+/// (`span.sp-cal-end`), so that the row is not built anew with the mode. `phone`: the switch with
+/// its words, under the name.
 fn calendar_row(ctx: PlanCtx, calendar: Shown, semester: String, phone: bool, open: RwSignal<Option<u8>>, removed: RwSignal<Option<(usize, Calendar)>>, t: &'static i18n::Texts) -> impl IntoView {
     let c = &t.studyplan_calendars;
     let id = calendar.id;
@@ -435,8 +467,9 @@ fn calendar_row(ctx: PlanCtx, calendar: Shown, semester: String, phone: bool, op
         CalendarView::Off => "off",
     };
     let name = calendar.name.clone();
+    let title = calendar.name.clone();
     let menu = move || {
-        (open.get() == Some(id)).then(|| {
+        (open.get() == Some(id) && ctx.edit.get()).then(|| {
             let name = name.clone();
             view! { <CalendarMenu ctx id name open removed/> }
         })
@@ -452,9 +485,16 @@ fn calendar_row(ctx: PlanCtx, calendar: Shown, semester: String, phone: bool, op
             <i class=format!("sw {way}") aria-hidden="true"></i>
             <span class="t"><b>{calendar.name.clone()}</b><small>{following}{line}</small></span>
             {(!phone).then(|| view_switch(ctx, &calendar, false, t))}
-            <button class="icon-btn sp-cal-more" type="button" aria-expanded=move || if open.get() == Some(id) { "true" } else { "false" } aria-label=(c.menu)(&calendar.name) title=(c.menu)(&calendar.name) on:click=toggle>
-                <Icon name="ellipsis"/>
-            </button>
+            <span class="sp-cal-end">
+                {move || {
+                    let label = (c.menu)(&title);
+                    ctx.edit.get().then(|| view! {
+                        <button class="icon-btn sp-cal-more" type="button" aria-expanded=move || if open.get() == Some(id) { "true" } else { "false" } aria-label=label.clone() title=label on:click=toggle>
+                            <Icon name="ellipsis"/>
+                        </button>
+                    })
+                }}
+            </span>
             {phone.then(|| view_switch(ctx, &calendar, true, t))}
         </div>
         {ended}
@@ -515,46 +555,93 @@ fn removed_note(ctx: PlanCtx, removed: RwSignal<Option<(usize, Calendar)>>, t: &
     }
 }
 
-/// The calendars beside the week, at the top of the sidebar (a page wider than a phone):
-/// „Mein Studiengang" with its lock, each calendar of one's own with its switch and its menu, and
-/// „Neuer Kalender".
+/// What the group opens over itself while the plan is edited — a calendar's menu („…"), the form
+/// „Neuer Kalender" — is a layer of the page while `shown` (`folia_shell::nav::layer_while`): Esc
+/// closes it first, before the mode (a field typed in gives up the keyboard before that), and on a
+/// phone Back. It closes when the mode is left, so that entering the mode again finds the group as
+/// it is drawn, never with a form open.
+fn layer_of_mode(ctx: PlanCtx, shown: impl Fn() -> bool + Copy + Send + Sync + 'static, close: impl Fn() + Copy + Send + Sync + 'static) {
+    folia_shell::nav::layer_while(move || shown() && ctx.edit.get(), close, folia_shell::nav::Kind::Over);
+    Effect::new(move |_| {
+        if !ctx.edit.get() {
+            untrack(close);
+        }
+    });
+    #[cfg(feature = "csr")]
+    {
+        let front = folia_design::stage::front();
+        Effect::new(move |_| {
+            let keys = window_event_listener(leptos::ev::keydown, move |ev| {
+                // A dialog over the page (a card, the form of a Termin, the keys' overview) takes
+                // its Esc itself: one Esc, the layer in front.
+                if ev.key() != "Escape" || ev.default_prevented() || folia_shell::nav::watched() || !front.get_untracked() || !untrack(shown) || folia_design::modal::dialog_in_front(None) {
+                    return;
+                }
+                // One Esc, one thing: the Esc that takes the keyboard out of a field (enhance.js)
+                // leaves the form open.
+                let typed = ev.target().and_then(|target| leptos::wasm_bindgen::JsCast::dyn_into::<leptos::web_sys::Element>(target).ok()).is_some_and(|element| element.matches("input, textarea, select, [contenteditable]").unwrap_or(false));
+                if typed {
+                    return;
+                }
+                ev.prevent_default();
+                close();
+            });
+            on_cleanup(move || keys.remove());
+        });
+    }
+}
+
+/// The id of the field „Name" of „Neuer Kalender", which takes the keyboard when the form opens.
+const NEW_NAME_ID: &str = "sp-cal-new-name";
+
+/// The calendars beside the week, at the top of the sidebar (a page wider than a phone), in both
+/// states: „Mein Studiengang", each calendar of one's own with its switch; while the plan is
+/// edited „+ Kalender" in the group's head, the form „Neuer Kalender" under it, and each calendar's
+/// menu.
 #[component]
 pub(super) fn CalendarsGroup(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let c = &t.studyplan_calendars;
+    let adding = RwSignal::new(false);
     let open = RwSignal::new(None::<u8>);
     let removed = RwSignal::new(None::<(usize, Calendar)>);
+    layer_of_mode(ctx, move || adding.get(), move || adding.set(false));
+    layer_of_mode(ctx, move || open.with(Option::is_some), move || open.set(None));
     let semester = Memo::new(move |_| ctx.key.get().label(t.locale));
-    // On a phone (the sheet „Anpassen") the switch with its words, as tall as a finger.
+    // On a phone (the line „Kalender" over the week) the switch with its words, as tall as a finger.
     let rows = move || {
         let (semester, phone) = (semester.get(), ctx.phone.get());
         ctx.calendars.get().into_iter().map(|calendar| calendar_row(ctx, calendar, semester.clone(), phone, open, removed, t)).collect_view()
     };
     view! {
         <div class="fgroup sp-cals">
-            <p class="flabel label">{c.heading}</p>
+            <div class="sp-cals-head">
+                <p class="flabel label">{c.heading}</p>
+                {move || ctx.edit.get().then(|| view! { <NewCalendarButton ctx open=adding/> })}
+            </div>
+            {move || ctx.edit.get().then(|| view! { <NewCalendarForm ctx open=adding/> })}
             <div class="sp-cal mine">
                 <i class="sw full" aria-hidden="true"></i>
                 <span class="t"><b>{c.mine}</b><small>{move || mine_line(ctx, t)}</small></span>
-                <span class="lock" title=c.always_full aria-label=c.always_full><Icon name="lock"/></span>
             </div>
             {rows}
             {removed_note(ctx, removed, t)}
-            <NewCalendar ctx/>
         </div>
     }
 }
 
 /// The calendars on a phone, where there are any of one's own (no sidebar beside the week; owner,
-/// 2026-10-26: no chips): one line over the week, „Kalender" and how each stands („Mein
-/// Studiengang, Lena als Spur"), that opens into the rows with their switch as tall as a finger and
-/// „Gemeinsam frei". „Neuer Kalender" is in „Anpassen", with the same rows (`CalendarsGroup`).
+/// 2026-10-26: no chips), in both states: one line over the week, „Kalender" and how each stands
+/// („Mein Studiengang, Lena als Spur"), that opens into the rows with their switch as tall as a
+/// finger and „Gemeinsam frei"; while the plan is edited each row has its menu. „Neuer Kalender" is
+/// the last row of the module list on a phone (`NewCalendar`).
 #[component]
 pub(super) fn CalendarLine(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let c = &t.studyplan_calendars;
     let open = RwSignal::new(None::<u8>);
     let removed = RwSignal::new(None::<(usize, Calendar)>);
+    layer_of_mode(ctx, move || open.with(Option::is_some), move || open.set(None));
     let semester = Memo::new(move |_| ctx.key.get().label(t.locale));
     let any = Memo::new(move |_| ctx.calendars.with(|calendars| !calendars.is_empty()) || removed.with(Option::is_some));
     let summary = move || {
@@ -585,7 +672,6 @@ pub(super) fn CalendarLine(ctx: PlanCtx) -> impl IntoView {
                         <div class="sp-cal mine">
                             <i class="sw full" aria-hidden="true"></i>
                             <span class="t"><b>{c.mine}</b><small>{move || mine_line(ctx, t)}</small></span>
-                            <span class="lock" title=c.always_full aria-label=c.always_full><Icon name="lock"/></span>
                         </div>
                         {rows}
                         {removed_note(ctx, removed, t)}
@@ -618,7 +704,7 @@ pub(super) fn TogetherSwitch(ctx: PlanCtx, #[prop(optional)] row: bool) -> impl 
                 .into_any(),
                 false => view! {
                     <button class="ghost sp-together" class:on=move || ctx.together.get() type="button" aria-pressed=move || if ctx.together.get() { "true" } else { "false" } title=c.together_title on:click=toggle>
-                        <Icon name="users-round"/>{c.together}
+                        <Icon name="users-round"/><span class="tg-text">{c.together}</span>
                     </button>
                 }
                 .into_any(),
@@ -627,13 +713,41 @@ pub(super) fn TogetherSwitch(ctx: PlanCtx, #[prop(optional)] row: bool) -> impl 
     }
 }
 
-/// „Neuer Kalender": a button that opens the form — the link someone handed on and a name — and
-/// says what the link holds before „Anlegen"; the eighth calendar is the last (`MAX_CALENDARS`).
+/// „+ Kalender" in the group's head while the plan is edited: opens the form „Neuer Kalender" under
+/// it. At the cap (`MAX_CALENDARS`) nothing: the form's place says why.
 #[component]
-pub(super) fn NewCalendar(ctx: PlanCtx) -> impl IntoView {
+fn NewCalendarButton(ctx: PlanCtx, open: RwSignal<bool>) -> impl IntoView {
     let t = i18n::t();
     let c = &t.studyplan_calendars;
-    let open = RwSignal::new(false);
+    let full = Memo::new(move |_| ctx.calendars.with(Vec::len) >= MAX_CALENDARS);
+    move || {
+        (!full.get()).then(|| {
+            view! {
+                <button class="sp-cal-add" type="button" title=c.new_calendar aria-expanded=move || if open.get() { "true" } else { "false" } on:click=move |_| {
+                    let opening = !open.get_untracked();
+                    open.set(opening);
+                    // The form takes the keyboard into „Name" (`autofocus` acts on a page's load
+                    // alone, not on a field put in later).
+                    if opening {
+                        request_animation_frame(|| folia_design::nav::focus_by_id(NEW_NAME_ID));
+                    }
+                }>
+                    <Icon name="plus"/>{c.add_calendar}
+                </button>
+            }
+        })
+    }
+}
+
+/// The form „Neuer Kalender" while `open`: „Name" first, then „Link (optional)" and what the
+/// link holds; „Anlegen" is never disabled (CLAUDE.md, „Betula does not say no"): without a link, or
+/// with a text that is none (it says so, and that „Anlegen" still makes one), the calendar is empty;
+/// with a link it is the plan of the link. An empty name is „Kalender 2". The form closes at once
+/// and the calendar comes after the next frame (R21), the note with it. At the cap the hint.
+#[component]
+fn NewCalendarForm(ctx: PlanCtx, open: RwSignal<bool>) -> impl IntoView {
+    let t = i18n::t();
+    let c = &t.studyplan_calendars;
     let link = RwSignal::new(String::new());
     let name = RwSignal::new(String::new());
     let done = RwSignal::new(None::<String>);
@@ -646,7 +760,7 @@ pub(super) fn NewCalendar(ctx: PlanCtx) -> impl IntoView {
             return None;
         }
         Some(match plan_of_text(&text) {
-            None => Err(c.link_wrong.to_string()),
+            None => Err(format!("{} {}", c.link_wrong, c.link_wrong_still)),
             Some(plan) => {
                 let what = (c.link_holds)(plan.modules.len(), plan.chosen.len());
                 match plan.key() {
@@ -656,18 +770,22 @@ pub(super) fn NewCalendar(ctx: PlanCtx) -> impl IntoView {
             }
         })
     });
-    // The form closes at once; the calendar comes after the next frame (R21), and the note with it.
     let submit = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
-        let Some(plan) = plan_of_text(&link.get_untracked()) else { return };
+        // The note of a calendar made before goes; this one's comes with the calendar.
+        done.set(None);
+        let plan = plan_of_text(&link.get_untracked());
         let typed = name.get_untracked();
         link.set(String::new());
         name.set(String::new());
         open.set(false);
         folia_design::nav::after_paint(move || {
-            if let Some(id) = create(ctx, &plan, &typed) {
-                let shown = if typed.trim().is_empty() { (c.unnamed)(id) } else { typed.trim().to_string() };
-                let _ = done.try_set(Some((c.created)(&shown)));
+            let made = match &plan {
+                Some(plan) => create(ctx, plan, &typed),
+                None => create_empty(ctx, typed.trim()),
+            };
+            if let Some(id) = made {
+                let _ = done.try_set(Some((c.created)(&made_name(&typed, id, t))));
             }
         });
     };
@@ -678,16 +796,16 @@ pub(super) fn NewCalendar(ctx: PlanCtx) -> impl IntoView {
         if !open.get() {
             return view! {
                 {move || done.get().map(|note| view! { <p class="sp-cal-note" role="status"><Icon name="check"/><span>{note}</span></p> })}
-                <button class="sp-cal-add" type="button" on:click=move |_| { done.set(None); open.set(true); }>
-                    <Icon name="plus"/>{c.new_calendar}
-                </button>
             }
             .into_any();
         }
-        let ready = move || holds.with(|holds| matches!(holds, Some(Ok(_))));
         view! {
             <form class="sp-cal-new" on:submit=submit>
                 <p class="hint">{c.new_hint}</p>
+                <label>
+                    <span>{c.name}</span>
+                    <input type="text" maxlength=folia_plans::studyplan::MAX_CALENDAR_NAME placeholder=c.name_placeholder prop:value=move || name.get() on:input=move |ev| name.set(event_target_value(&ev)) id=NEW_NAME_ID/>
+                </label>
                 <label>
                     <span>{c.link}</span>
                     <input type="text" inputmode="url" autocomplete="off" placeholder=c.link_placeholder prop:value=move || link.get() on:input=move |ev| link.set(event_target_value(&ev))/>
@@ -696,13 +814,9 @@ pub(super) fn NewCalendar(ctx: PlanCtx) -> impl IntoView {
                     Ok(what) => view! { <p class="sp-cal-holds ok"><Icon name="check"/><span>{what}</span></p> }.into_any(),
                     Err(wrong) => view! { <p class="sp-cal-holds no"><Icon name="triangle-alert"/><span>{wrong}</span></p> }.into_any(),
                 })}
-                <label>
-                    <span>{c.name}</span>
-                    <input type="text" maxlength=folia_plans::studyplan::MAX_CALENDAR_NAME placeholder=c.name_placeholder prop:value=move || name.get() on:input=move |ev| name.set(event_target_value(&ev))/>
-                </label>
                 <div class="sp-cal-actions">
-                    <button class="mini primary" type="submit" disabled=move || !ready()>{c.create}</button>
-                    <button class="mini" type="button" on:click=move |_| open.set(false)>{c.cancel}</button>
+                    <button class="mini primary" type="submit">{c.create}</button>
+                    <button class="mini" type="button" on:click=move |_| { open.set(false); done.set(None); }>{c.cancel}</button>
                 </div>
             </form>
         }
@@ -710,22 +824,49 @@ pub(super) fn NewCalendar(ctx: PlanCtx) -> impl IntoView {
     }
 }
 
+/// „+ Kalender" and the form under it, one under the other: the last row of the module list on a
+/// phone, which has no sidebar, while the plan is edited.
+#[component]
+pub(super) fn NewCalendar(ctx: PlanCtx) -> impl IntoView {
+    let open = RwSignal::new(false);
+    layer_of_mode(ctx, move || open.get(), move || open.set(false));
+    move || {
+        ctx.edit.get().then(|| {
+            view! {
+                <div class="sp-cal-newrow">
+                    <NewCalendarButton ctx open/>
+                    <NewCalendarForm ctx open/>
+                </div>
+            }
+        })
+    }
+}
+
 /// How the note of a module taken out of a calendar of one's own begins (`PlanCtx::undo`, which
-/// the import, „Plan leeren" and the list's × share), the calendar's number after it: never shown.
+/// the page's other notes share), the calendar's number after it: never shown.
 const CALENDAR_REMOVED: &str = "Aus dem Kalender: ";
 
 /// The calendars' parts of the module list beside the week, one per calendar in their order: a
-/// part keeps its place (and its „+ Modul" what was typed) while the calendar does.
+/// part keeps its place (and its „+ Modul" what was typed) while the calendar does. On a phone, which
+/// has no sidebar, „+ Kalender" is the last row of the list while the plan is edited.
 #[component]
 pub(super) fn CalendarModules(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl IntoView {
     let ids = Memo::new(move |_| ctx.calendars.with(|calendars| calendars.iter().map(|calendar| calendar.id).collect::<Vec<u8>>()));
-    view! { <For each=move || ids.get() key=|id| *id children=move |id| view! { <CalendarPart ctx id marked/> }/> }
+    view! {
+        <For each=move || ids.get() key=|id| *id children=move |id| view! { <CalendarPart ctx id marked/> }/>
+        {move || ctx.phone.get().then(|| view! { <NewCalendar ctx/> })}
+    }
 }
 
-/// A calendar's part of the module list: its name in its colour with „+ Modul" (`add.rs`), its
-/// modules of the semester as rows of the list (its key in its colour; a click shows the module
-/// beside the plan, its × takes it out of the calendar with „Rückgängig"), and where they came from
-/// („aus einem Link · mit den Gruppen"), or that it holds none in the semester.
+/// A calendar's part of the module list: its name in its colour, a line per module of the semester
+/// (its key in the calendar's colour, its title) leading to the module's own page — a calendar of
+/// one's own is no part of the study, so the panel of the plan's module would only say „Nicht im
+/// Studienplan." —, where they came from („aus einem Link · mit den Gruppen"), or that it holds
+/// none in the semester; then its Termine of one's own. While the plan is edited the head carries
+/// „+ Modul" (`add.rs`) and each module the bin, which takes it out of the calendar with „Rückgängig"
+/// (owner, 2026-11-17: „Bei den weitern Kalender soll man btw weiter module hinzufügen könenn, weil
+/// das ja nur die Anzeige für die termine sind"; „da wo es entfernt eine Mülltonne"). Its modules
+/// have no rows of events yet: nothing of them can be shown, hidden or opened here (a second pass).
 #[component]
 fn CalendarPart(ctx: PlanCtx, id: u8, marked: Memo<Vec<MarkedModule>>) -> impl IntoView {
     let t = i18n::t();
@@ -733,6 +874,7 @@ fn CalendarPart(ctx: PlanCtx, id: u8, marked: Memo<Vec<MarkedModule>>) -> impl I
     let shown = Memo::new(move |_| ctx.calendars.with(|calendars| calendars.iter().find(|calendar| calendar.id == id).cloned()));
     let name = Memo::new(move |_| shown.with(|shown| shown.as_ref().map(|calendar| calendar.name.clone()).unwrap_or_default()));
     let hue = Memo::new(move |_| shown.with(|shown| shown.as_ref().map_or("k-1", |calendar| calendar.hue)));
+    let follows = Memo::new(move |_| shown.with(|shown| shown.as_ref().is_some_and(|calendar| calendar.follow == Some(Following::Live))));
     let semester = Memo::new(move |_| ctx.key.get().label(t.locale));
     let adding = Memo::new(move |_| ctx.adding.get() == Some(AddTo::Calendar(id)));
     let add = move |_| ctx.adding.update(|adding| *adding = if *adding == Some(AddTo::Calendar(id)) { None } else { Some(AddTo::Calendar(id)) });
@@ -754,7 +896,7 @@ fn CalendarPart(ctx: PlanCtx, id: u8, marked: Memo<Vec<MarkedModule>>) -> impl I
         restoring.set(true);
         let undo = ctx.undo;
         plan.update_after_paint(move |doc| {
-            *doc = before;
+            before.restore(doc);
             let _ = undo.try_set(None);
             let _ = restoring.try_set(false);
         });
@@ -764,57 +906,77 @@ fn CalendarPart(ctx: PlanCtx, id: u8, marked: Memo<Vec<MarkedModule>>) -> impl I
         let key = ctx.key.get_untracked();
         let events = shown.with_untracked(|shown| shown.as_ref().and_then(|calendar| calendar.table.as_ref()).map(|table| super::aside::only_its_events(table, &module)).unwrap_or_default());
         let text = (c.module_removed)(&title, &name.get_untracked());
-        ctx.undo.set(Some((format!("{CALENDAR_REMOVED}{id} {text}"), plan.with_untracked(Clone::clone))));
+        let undo = PlanUndo::made(plan.with_untracked(Clone::clone), |doc| doc.remove_from_calendar(id, key, &module, &events));
+        ctx.undo.set(Some((format!("{CALENDAR_REMOVED}{id} {text}"), undo)));
         plan.update_after_paint(move |doc| doc.remove_from_calendar(id, key, &module, &events));
     };
 
     // The address without a module beside the plan, the links' start: a sibling of `shown`, both
     // following the address, never read with the address itself (R16).
     let base = Memo::new(move |_| ctx.url.with(|url| url.with_open(None, None)));
-    let rows = move || {
+    // The modules as plain values (key in a keyed list, R5): what a line shows, and its address.
+    let lines = Memo::new(move |_| {
         shown.with(|shown| {
-            let Some(calendar) = shown.as_ref() else { return ().into_any() };
-            if calendar.modules.is_empty() {
-                return view! { <p class="sp-cal-came">{(c.none_in)(&semester.get())}</p> }.into_any();
-            }
-            let came = if calendar.groups > 0 { c.from_link_groups } else { c.from_link };
-            let rows = calendar
+            let Some(calendar) = shown.as_ref() else { return Vec::new() };
+            calendar
                 .modules
                 .iter()
                 .zip(&calendar.names)
                 .map(|(module, short)| {
                     let title = calendar.full.get(module).cloned().unwrap_or_else(|| (t.studyplan_modules.module_numbered)(module));
-                    let href = base.with(|base| t.path(&base.with_open(Some(module), None).path()));
-                    let label = (c.remove_module)(&title, &calendar.name);
-                    let (module, gone) = (module.clone(), title.clone());
-                    view! {
-                        <div class="sp-row-wrap">
-                            <a class="sp-row" href=href data-noscroll="">
-                                <span class="t">
-                                    <b>{title}</b>
-                                    <small><span class="sp-key">{short.clone()}</span><span class="mono">{module.clone()}</span></small>
-                                </span>
-                            </a>
-                            <button class="icon-btn sp-remove" type="button" title=label.clone() aria-label=label on:click=move |_| remove(module.clone(), gone.clone())>
-                                <Icon name="x"/>
-                            </button>
-                        </div>
-                    }
+                    let href = base.with(|base| t.path(&PlanAddress { url: base.with_open(Some(module), None), full: true }.path()));
+                    (module.clone(), short.clone(), title, href)
                 })
-                .collect_view();
-            view! { {rows}<p class="sp-cal-came">{came}</p> }.into_any()
+                .collect::<Vec<_>>()
         })
+    });
+    let came = Memo::new(move |_| {
+        let semester = semester.get();
+        shown.with(|shown| came_of(shown.as_ref()?, &semester, t))
+    });
+    let line = move |(module, short, title, href): (String, String, String, String)| {
+        let label = Signal::derive({
+            let title = title.clone();
+            move || (c.remove_module)(&title, &name.get())
+        });
+        let (gone, whole) = (title.clone(), title.clone());
+        view! {
+            <div class="sp-row-wrap">
+                // The module's own page, a page of its own: it opens at its top.
+                <a class="sp-row sp-mod-row" href=href title=whole>
+                    <span class="sp-key">{short}</span>
+                    <b>{title}</b>
+                </a>
+                // The bin's place is there while looking too, so that no title moves.
+                <span class="sp-mod-end">
+                    {move || {
+                        let (module, gone) = (module.clone(), gone.clone());
+                        ctx.edit.get().then(|| view! {
+                            <button class="icon-btn sp-remove" type="button" title=label aria-label=label on:click=move |_| remove(module.clone(), gone.clone())>
+                                <Icon name="trash-2"/>
+                            </button>
+                        })
+                    }}
+                </span>
+            </div>
+        }
     };
     let add_label = move || (t.studyplan_modules.add_named)(&name.get());
     view! {
         <section class=move || format!("sp-cal-mods {}", hue.get()) aria-label=move || name.get()>
             <div class="sp-list-head">
                 <h2 class="label"><i class="sw" aria-hidden="true"></i>{move || name.get()}</h2>
-                <button class="mini sp-add-mod" type="button" aria-expanded=move || if adding.get() { "true" } else { "false" } aria-label=add_label title=add_label on:click=add>
-                    <Icon name="plus"/>{t.studyplan_modules.add}
-                </button>
+                {move || ctx.edit.get().then(|| view! {
+                    <button class="mini sp-add-mod" type="button" aria-expanded=move || if adding.get() { "true" } else { "false" } aria-label=add_label title=add_label on:click=add>
+                        <Icon name="plus"/>{t.studyplan_modules.add}
+                    </button>
+                })}
             </div>
-            {move || adding.get().then(|| view! { <AddPanel ctx to=AddTo::Calendar(id) marked/> })}
+            {move || (adding.get() && ctx.edit.get()).then(|| view! {
+                // A calendar that follows a share takes the sharer's next change over what is added.
+                {move || follows.get().then(|| view! { <p class="hint sp-cal-follows">{(t.studyplan_add.follows)(&name.get())}</p> })}
+                <AddPanel ctx to=AddTo::Calendar(id) marked/>
+            })}
             {move || note.get().map(|note| view! {
                 <p class="action note-action sp-marked-note">
                     <Icon name="check"/>
@@ -822,8 +984,9 @@ fn CalendarPart(ctx: PlanCtx, id: u8, marked: Memo<Vec<MarkedModule>>) -> impl I
                     <button data-haptic="tap" class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
                 </p>
             })}
-            {rows}
-            // Its Termine of one's own, with „+ Termin" this calendar chosen (`own.rs`).
+            <For each=move || lines.get() key=|line| line.clone() children=line/>
+            {move || came.get().map(|came| view! { <p class="sp-cal-came">{came}</p> })}
+            // Its Termine of one's own, and while editing „+ Termin" with this calendar chosen (`own.rs`).
             <super::own::OwnList ctx calendar=id hue=Signal::derive(move || hue.get())/>
         </section>
     }
@@ -898,6 +1061,13 @@ mod tests {
             elsewhere: None,
             follow: None,
         };
+        // Where its modules came from: said only where the calendar shows it (ticked groups, a
+        // program of its own); one made by its name says nothing, one without modules that.
+        let t = &i18n::DE;
+        assert_eq!(came_of(&lena(CalendarView::Full), "WiSe 26/27", t), None);
+        assert_eq!(came_of(&Shown { groups: 2, ..lena(CalendarView::Full) }, "WiSe 26/27", t).as_deref(), Some(t.studyplan_calendars.from_link_groups));
+        assert_eq!(came_of(&Shown { program: Some("013-82-2018".into()), ..lena(CalendarView::Full) }, "WiSe 26/27", t).as_deref(), Some(t.studyplan_calendars.from_link));
+        assert_eq!(came_of(&Shown { modules: Vec::new(), ..lena(CalendarView::Full) }, "WiSe 26/27", t), Some((t.studyplan_calendars.none_in)("WiSe 26/27")));
         // In full: all three, outlined in its colour with its initial, its name first in the tooltip.
         let (slots, bands) = layer(&[lena(CalendarView::Full)], Some(&plan), Weeks::All, false, false, &i18n::DE);
         assert_eq!(slots.iter().map(|slot| (slot.day, slot.class, slot.alt, slot.badge.as_deref())).collect::<Vec<_>>(), [(1, "cal", false, Some("L")), (2, "cal", true, Some("L")), (3, "cal", true, Some("L"))]);
@@ -919,6 +1089,22 @@ mod tests {
         other.id = 2;
         let (_, bands) = layer(&[lena(CalendarView::Strip), other], Some(&plan), Weeks::All, true, false, &i18n::DE);
         assert!(bands.iter().all(|band| band.label == "alle frei"));
+    }
+
+    /// „Neuer Kalender" by a name alone, by nothing, or by a text that is no link: an empty calendar
+    /// each time, called by the name typed, else by its number.
+    #[test]
+    fn a_calendar_is_made_by_its_name_alone() {
+        let key = SemesterKey::parse("2026W").unwrap();
+        let mut doc = folia_plans::studyplan::PlanDoc::default();
+        assert!(plan_of_text("Das ist kein Link").is_none());
+        let sport = doc.add_calendar("Sport", None, key, &[], &[], &[]).unwrap();
+        let nameless = doc.add_calendar("", None, key, &[], &[], &[]).unwrap();
+        assert_eq!(doc.calendars.len(), 2);
+        assert!(doc.calendars.iter().all(|calendar| calendar.modules.is_empty() && calendar.program.is_none()), "{:?}", doc.calendars);
+        assert_eq!(doc.calendars.iter().map(|calendar| calendar.name.as_str()).collect::<Vec<_>>(), ["Sport", ""]);
+        assert_eq!((made_name(" Sport ", sport, &i18n::DE), made_name("", nameless, &i18n::DE)), ("Sport".to_string(), format!("Kalender {nameless}")));
+        assert_eq!(made_name("  ", nameless, &i18n::EN), format!("Calendar {nameless}"));
     }
 
     #[test]

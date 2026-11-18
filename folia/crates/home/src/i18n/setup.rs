@@ -20,8 +20,7 @@ pub struct Texts {
     pub program_lead: &'static str,
     /// „148 Studiengänge in 6 Fakultäten, jeder ein Punkt".
     pub drawing: fn(usize, usize) -> String,
-    /// The faculties of the drawing's key, by their number: a short name each.
-    pub faculty: fn(&str) -> String,
+    /// The drawing's key: „übergreifend", the programs of no one faculty.
     pub across_faculties: &'static str,
     pub look_around: &'static str,
     pub look_around_title: &'static str,
@@ -74,10 +73,8 @@ pub struct Texts {
     pub switch_on: &'static str,
     /// „4 Module, 28 LP aus FS 1", „aus FS 1–2".
     pub past_detail: fn(usize, &str, u8) -> String,
-    pub past_none: &'static str,
     pub without_modules: &'static str,
     pub create: &'static str,
-    pub back: &'static str,
     /// The chip of step 3 once the study is set up: „4 Module".
     pub semester_done: fn(usize) -> String,
 
@@ -125,7 +122,6 @@ pub const DE: Texts = Texts {
     program_title: "Was studierst du?",
     program_lead: "In drei Klicks zu deinem Stundenplan. Ohne Konto, alles bleibt in diesem Browser.",
     drawing: |programs, faculties| format!("{programs} Studiengänge in {faculties} Fakultäten, jeder ein Punkt"),
-    faculty: |code| format!("Fakultät {code}"),
     across_faculties: "übergreifend",
     look_around: "Erst mal umschauen",
     look_around_title: "Die Einrichtung einklappen; sie bleibt oben erreichbar",
@@ -168,10 +164,8 @@ pub const DE: Texts = Texts {
         1 => format!("{modules} {}, {credits}\u{a0}LP aus FS\u{a0}1", if modules == 1 { "Modul" } else { "Module" }),
         last => format!("{modules} {}, {credits}\u{a0}LP aus FS\u{a0}1–{last}", if modules == 1 { "Modul" } else { "Module" }),
     },
-    past_none: "Im 1. Fachsemester gibt es noch nichts zu markieren.",
     without_modules: "Ohne Module weiter",
     create: "Studium anlegen",
-    back: "Zurück",
     semester_done: |modules| match modules {
         0 => "Ohne Module".to_string(),
         1 => "1 Modul".to_string(),
@@ -216,7 +210,6 @@ pub const EN: Texts = Texts {
     program_title: "What do you study?",
     program_lead: "Three clicks to your timetable. No account, everything stays in this browser.",
     drawing: |programs, faculties| format!("{programs} degree programmes in {faculties} faculties, one dot each"),
-    faculty: |code| format!("Faculty {code}"),
     across_faculties: "across faculties",
     look_around: "Look around first",
     look_around_title: "Fold the set-up away; it stays within reach at the top",
@@ -259,10 +252,8 @@ pub const EN: Texts = Texts {
         1 => format!("{modules} {}, {credits}\u{a0}ECTS of semester\u{a0}1", if modules == 1 { "module" } else { "modules" }),
         last => format!("{modules} {}, {credits}\u{a0}ECTS of semesters\u{a0}1–{last}", if modules == 1 { "module" } else { "modules" }),
     },
-    past_none: "In the first semester there is nothing to mark yet.",
     without_modules: "Continue without modules",
     create: "Set up my studies",
-    back: "Back",
     semester_done: |modules| match modules {
         0 => "No modules".to_string(),
         1 => "1 module".to_string(),

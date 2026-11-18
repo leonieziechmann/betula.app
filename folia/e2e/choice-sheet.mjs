@@ -1,16 +1,23 @@
-// The sheet of a choice in focus on a phone and the group a tap preselects (owner, 2026-10-26;
+// The sheet of a choice in focus on a phone, and the way to a choice from the week (owner, 2026-10-26;
 // docs/folia/frontend.md, „Offen and the choice in focus"), on canary's data of 2026W with Informatik
 // B.Sc.'s first semester planned (Programmierpraktikum 148370 in four groups, Mo, Mi, Do 11:30 and
 // Fr 13:45).
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node choice-sheet.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
-// - A wide screen: a click on a hatched group of the week takes its choice into focus with that group
-//   ticked („1 von 4 angehakt"; „Wenn man auf eine Übung klickt, dann soll die Preselected sein").
-// - A phone: a tap on a hatched group does the same, the sheet's tile of it ticked; the line under
-//   the head no longer says what is hidden („Der Ausgeblendet Knopf kann weg").
+// - A wide screen: a click on a hatched group of the week opens its card and ticks nothing; the card's
+//   large action is „Diese Gruppe anhaken" and has the keyboard; its „Vergleichen ›" takes the choice
+//   into focus inside the edit mode (`edit=1&wahl=e148370&vergleich=1`, „noch keine angehakt"), where a
+//   click on a group ticks it („1 von 4 angehakt", one `c` line).
+// - A phone: the amber line „3 Wahlen offen" leads into the mode with its rows open; the row of the
+//   Praktikum opens the sheet („noch keine angehakt"), a tap on a tile ticks it; nothing under the head
+//   says what is hidden.
 // - A finger moves the sheet: up from its head, the tiles on their way to „Vergleichen" while it
 //   touches (`.morph`, `--p` between half up and all up, a card for each group); let go all up, the
 //   address says `vergleich=1`; down from all up, back to the tiles; „Vergleichen ›" and ‹ take the
-//   same way; a quick move down from half up closes the choice.
+//   same way; a quick move down from half up closes the choice, the mode stays.
+// History: 2026-11-17, the edit mode and the card. A hatched group no longer takes its choice into focus
+// with that group ticked (`data-pre` went: a click on a Termin shows that Termin); the focus is reached
+// from the card's „Vergleichen ›" and from „Offen", and the group is ticked there. „Plan · Alle Termine"
+// and the line of the overlaps as a `details` went from the phone's head.
 // Needs the snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
 // console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
@@ -57,17 +64,23 @@ const until = async (page, name, fn, arg) => {
 };
 const ticks = (page) => page.evaluate((key) => (localStorage.getItem(key) ?? "").split("\n").filter((line) => line.startsWith("c\t2026W\t148370-")).length, PLAN);
 
-// ---------- a wide screen: the group clicked comes ticked ----------
+// ---------- a wide screen: the card of a hatched group, its „Vergleichen ›" ----------
 {
   const { page, context } = await open({ viewport: { width: 1440, height: 900 } });
   await until(page, "the week", () => document.querySelectorAll(".sp-week .slot").length > 0);
-  const group = page.locator(".sp-week a.slot.alt[data-pre]", { hasText: "Prak PP" }).first();
+  const group = page.locator('.sp-week a.slot.alt[href$="termin=148370-eb017"]', { hasText: "Prak PP" });
   check(await group.count() === 1, "wide: no hatched group of the Praktikum to click");
-  await group.click();
-  await until(page, "wide: the choice in focus", () => location.search.includes("wahl=e148370") && document.querySelector(".sp-focusbar"));
+  await group.click().catch(() => problems.push("wide: the hatched group could not be clicked"));
+  await until(page, "wide: its card", () => location.search === "?termin=148370-eb017" && document.activeElement?.matches("dialog[open] .tm-big[data-action='tick']") && document.activeElement.textContent === "Diese Gruppe anhaken");
+  check(await ticks(page) === 0, `wide: the click ticked a group: ${await ticks(page)}`);
+  check(await page.evaluate(() => !document.querySelector(".sp-week [data-pre]")), "wide: a slot still preselects");
+  await page.click("dialog[open] a.go2[data-action='compare']").catch(() => problems.push("wide: the card has no „Vergleichen ›“"));
+  await until(page, "wide: the choice in focus", () => location.search === "?edit=1&wahl=e148370&vergleich=1" && document.querySelector(".sp-focusbar") && /noch keine angehakt/.test(document.querySelector(".sp-focusbar .what small")?.textContent ?? ""));
+  await page.click('.sp-week button.slot.pick[title*="Mo 11:30"]').catch(() => problems.push("wide: no group of Monday in focus"));
   await until(page, "wide: the group clicked ticked", () => /1 von 4/.test(document.querySelector(".sp-focusbar .what small")?.textContent ?? ""));
   check(await ticks(page) === 1, `wide: not one tick kept: ${await ticks(page)}`);
-  if (shots) await page.screenshot({ path: `${shots}/choice-wide-preselected.png` });
+  if (shots) await page.screenshot({ path: `${shots}/choice-wide-focus.png` });
+  check(await page.evaluate(() => window.__marker === 1), "wide: the page loaded again");
   await context.close();
 }
 
@@ -105,18 +118,19 @@ const ticks = (page) => page.evaluate((key) => (localStorage.getItem(key) ?? "")
   });
   const head = () => page.evaluate(() => ({ y: liveSheet()?.getBoundingClientRect().top ?? 600 }));
   await until(page, "phone: the week", () => document.querySelectorAll(".sp-carousel .slot").length > 0);
-  check(await page.evaluate(() => !document.querySelector(".sp-head .sp-all")), "phone: „Plan · Alle Termine\" still in the head");
+  check(await page.evaluate(() => !document.querySelector(".sp-all")), "phone: „Plan · Alle Termine\" still there");
 
-  // A tap on a hatched group: its choice in the sheet, that group ticked.
-  const group = page.locator(".sp-slide.is-current a.slot.alt[data-pre]", { hasText: "Prak" }).first();
-  check(await group.count() === 1, "phone: no hatched group of the Praktikum to tap");
-  await group.tap();
-  await until(page, "phone: the sheet", () => location.search.includes("wahl=e148370") && liveSheet());
-  await until(page, "phone: the group tapped ticked", () => liveSheet()?.querySelector(".grp-h .r")?.textContent.includes("1 von 4"));
+  // The amber line: into the mode, its rows open; the Praktikum's row: its sheet; a tap on a tile.
+  await page.tap("a.sp-open-line").catch(() => problems.push("phone: no amber line to tap"));
+  await until(page, "phone: the mode with the rows open", () => location.search === "?edit=1" && document.querySelectorAll("details.sp-open-line[open] .sp-open-row").length === 3);
+  await page.tap('details.sp-open-line .sp-open-row[href$="wahl=e148370"]').catch(() => problems.push("phone: no row of the Praktikum"));
+  await until(page, "phone: the sheet", () => location.search === "?edit=1&wahl=e148370" && liveSheet() && /noch keine angehakt/.test(liveSheet().querySelector(".grp-h .r")?.textContent ?? ""));
+  await page.tap("section.sp-pick .sp-pick-body > .grp .gs.pick >> nth=0").catch(() => problems.push("phone: no tile to tap"));
+  await until(page, "phone: the tile tapped ticked", () => liveSheet()?.querySelector(".grp-h .r")?.textContent.includes("1 von 4"));
   let s = await sheet();
   check(s?.tiles.filter((on) => on === "true").length === 1 && !s.full, `phone: not one tile ticked, half up: ${JSON.stringify(s)}`);
-  check(await page.evaluate(() => !/ausgeblendet/.test(document.querySelector(".sp-overlaps > summary")?.textContent ?? "")), "phone: the line under the head says what is hidden");
-  if (shots) await page.screenshot({ path: `${shots}/choice-phone-preselected.png` });
+  check(await page.evaluate(() => !/ausgeblendet/.test(document.querySelector(".sp-sum-row, .sp-overlaps")?.textContent ?? "")), "phone: the line under the head says what is hidden");
+  if (shots) await page.screenshot({ path: `${shots}/choice-phone-ticked.png` });
 
   // Up from its head: the tiles on their way while the finger moves; let go past the middle, all up.
   let box = await head();
@@ -152,7 +166,7 @@ const ticks = (page) => page.evaluate((key) => (localStorage.getItem(key) ?? "")
   // A quick move down from half up: away, the choice closed, its tick kept.
   box = await head();
   await swipe(195, box.y + 30, box.y + 250, 5);
-  await until(page, "phone: the sheet away", () => !location.search.includes("wahl=") && !liveSheet());
+  await until(page, "phone: the sheet away, the mode stays", () => location.search === "?edit=1" && !liveSheet());
   check(await ticks(page) === 1, `phone: the tick not kept: ${await ticks(page)}`);
   check(await page.evaluate(() => window.__marker === 1), "phone: the page loaded again");
   await context.close();

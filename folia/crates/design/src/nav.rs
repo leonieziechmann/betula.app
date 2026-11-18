@@ -358,8 +358,8 @@ pub fn focus_by_id(id: &str) {
     }
 }
 
-/// Into sight on a phone: the element `id` that unfolded in a sheet (a question and its answers in
-/// „Anpassen"), the sheet all up where it stands half up and hides it, what scrolls in it as little
+/// Into sight on a phone: the element `id` that unfolded in a sheet (a question and its answers, as
+/// a saved plan's „Ersetzen"), the sheet all up where it stands half up and hides it, what scrolls in it as little
 /// as brings it in (enhance.js `betula:sheet-show`). Nothing in no sheet or on a wide screen.
 #[allow(unused_variables)]
 pub fn show_in_sheet(id: &str) {
@@ -625,4 +625,58 @@ pub fn fragment() -> String {
     }
     #[cfg(not(feature = "csr"))]
     String::new()
+}
+
+/// How long (ms) a control that came where the pointer just clicked takes no click of a pointer:
+/// the second click of a slow double click, or one a moment late, was meant for what stood there
+/// before — „3 Wahlen offen ›" and „Fertig" in one place, „Haken wegnehmen" and „Diese Gruppe
+/// anhaken", „+ Termin" and the form that opens over it (review of 2026-11-18: the mode entered and
+/// left again, a group ticked and unticked, the form opened and closed by one double click).
+const NEWBORN_MS: f64 = 400.0;
+
+/// When a control came, so that its click lets a pointer's click of its first 400 ms go
+/// (`Newborn::swallows`). Made where the control is built (or `again` where it changes in place).
+#[derive(Clone, Copy, Debug)]
+pub struct Newborn(leptos::prelude::StoredValue<f64>);
+
+impl Newborn {
+    /// A control that comes now.
+    pub fn now() -> Self {
+        Newborn(leptos::prelude::StoredValue::new(clock_ms()))
+    }
+
+    /// A control whose clicks count from the start; `again` starts its 400 ms (where a click of its
+    /// own is about to put something else in its place).
+    pub fn grown() -> Self {
+        Newborn(leptos::prelude::StoredValue::new(f64::NEG_INFINITY))
+    }
+
+    /// The control came anew (it stands where it stood, saying and doing something else).
+    pub fn again(self) {
+        use leptos::prelude::SetValue;
+        self.0.set_value(clock_ms());
+    }
+
+    /// Whether `ev` is a pointer's click within 400 ms of the control's coming: such a click does
+    /// nothing (its default prevented, it goes no further), and the handler returns. A key's click
+    /// (Enter, the space bar: `detail` 0) always counts — the keyboard does not double-click.
+    pub fn swallows(self, ev: &leptos::ev::MouseEvent) -> bool {
+        use leptos::prelude::GetValue;
+        let young = ev.detail() > 0 && clock_ms() - self.0.try_get_value().unwrap_or(f64::NEG_INFINITY) < NEWBORN_MS;
+        if young {
+            ev.prevent_default();
+            ev.stop_propagation();
+        }
+        young
+    }
+}
+
+/// The page's clock in ms; 0 on the server.
+fn clock_ms() -> f64 {
+    #[cfg(feature = "csr")]
+    {
+        web_sys::window().and_then(|window| window.performance()).map_or(0.0, |performance| performance.now())
+    }
+    #[cfg(not(feature = "csr"))]
+    0.0
 }

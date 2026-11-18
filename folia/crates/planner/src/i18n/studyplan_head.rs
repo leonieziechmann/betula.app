@@ -4,9 +4,6 @@
 
 pub struct Texts {
     // ---- the head ----
-    /// „1 Platzhalter", „2 Platzhalter": the placeholders open in the semester, in the line under
-    /// the heading and in what the import adds.
-    pub placeholders: fn(usize) -> String,
     /// „1 Besuch", „2 Besuche": the modules of the week only visited, in the same line.
     pub visits: fn(usize) -> String,
     /// „1 eigener Termin", „3 eigene Termine", in the same line.
@@ -18,16 +15,8 @@ pub struct Texts {
     pub unpublished: fn(&str) -> String,
 
     // ---- the Merkliste ----
-    /// „Aus der Merkliste (3)": the marked modules the semester could still take, closed until
-    /// asked.
-    pub from_bookmarks: fn(usize) -> String,
-    /// „Einplanen": a marked module's button, and „Eingeplant" right after its click.
+    /// „Einplanen": a marked module's button.
     pub plan: &'static str,
-    pub planned: &'static str,
-    /// „3 gemerkte Module übernehmen": the empty week's button that plans them all at once …
-    pub take_marked: fn(usize) -> String,
-    /// … and its note, with „Rückgängig": „3 gemerkte Module übernommen".
-    pub marked_taken: fn(usize) -> String,
     /// The list's collections („Sammlungen", for a screen reader), „Alle", its search, „passt"
     /// beside a module that fits the plan, „Im WiSe 2026/27 nicht angeboten · 2" over what the
     /// semester does not offer and „nur SoSe" at one of them, and what a search that finds nothing
@@ -68,6 +57,14 @@ pub struct Texts {
     pub clashes_on_days: fn(usize) -> String,
     /// … and after those per week only „1 an einzelnen Tagen" …
     pub more_on_days: fn(usize) -> String,
+    /// The overlaps as the figure of the status row and the mode's bar: „1 Überschneidung".
+    pub clashes: fn(usize) -> String,
+    /// The figure and the head of the unfolded list while the plan is edited and the last overlap
+    /// went: „Keine Überschneidung mehr".
+    pub no_clash_left: &'static str,
+    /// What a screen reader hears after a line of the unfolded list whose overlap went while the
+    /// plan is edited (the line stands struck through): „keine Überschneidung mehr".
+    pub clash_gone: &'static str,
     /// … „2 ausgeblendet".
     pub hidden: fn(usize) -> String,
     /// After an overlap's times, the week it is in: „A-Woche", „B-Woche".
@@ -79,14 +76,11 @@ pub struct Texts {
     pub blocked: fn(usize, &str, &str) -> String,
 
     // ---- what is hidden ----
-    /// „Prüfung Mathematik IT-1": an exam by its module's title.
-    pub exam_of: fn(&str) -> String,
-    /// „nur Mo 15:30": the one option a choice was narrowed to, by when it meets.
-    pub only: fn(&str) -> String,
-    /// „Einblenden": takes one line back …
-    pub unhide: &'static str,
-    /// … „Alle einblenden": every line.
+    /// „Alle einblenden": everything the plan hides, shown again at once.
     pub unhide_all: &'static str,
+    /// The tooltip of the mode's „2 ausgeblendet": it leads to „Alle einblenden" under the list,
+    /// it brings nothing back itself.
+    pub to_unhide_all: &'static str,
 
     // ---- what is derived ----
     /// „Abgeleitet: Vorlesungszeit …, Standort Cottbus.": the parts joined with „, ".
@@ -111,7 +105,6 @@ pub struct Texts {
 }
 
 pub const DE: Texts = Texts {
-    placeholders: |n| format!("{n} Platzhalter"),
     visits: |n| match n {
         1 => "1 Besuch".to_string(),
         n => format!("{n} Besuche"),
@@ -123,17 +116,7 @@ pub const DE: Texts = Texts {
     past: |semester| format!("{semester} ist vorbei; vergangene Termine fehlen im Datenstand."),
     unpublished: |semester| format!("{semester}: noch keine Termine veröffentlicht."),
 
-    from_bookmarks: |n| format!("Aus der Merkliste ({n})"),
     plan: "Einplanen",
-    planned: "Eingeplant",
-    take_marked: |n| match n {
-        1 => "1 gemerktes Modul übernehmen".to_string(),
-        n => format!("{n} gemerkte Module übernehmen"),
-    },
-    marked_taken: |n| match n {
-        1 => "1 gemerktes Modul übernommen".to_string(),
-        n => format!("{n} gemerkte Module übernommen"),
-    },
     collections: "Sammlungen",
     all: "Alle",
     search_marked: "In der Merkliste suchen",
@@ -160,15 +143,19 @@ pub const DE: Texts = Texts {
         n => format!("{n} Überschneidungen an einzelnen Tagen"),
     },
     more_on_days: |n| format!("{n} an einzelnen Tagen"),
+    clashes: |n| match n {
+        1 => "1 Überschneidung".to_string(),
+        n => format!("{n} Überschneidungen"),
+    },
+    no_clash_left: "Keine Überschneidung mehr",
+    clash_gone: "keine Überschneidung mehr",
     hidden: |n| format!("{n} ausgeblendet"),
     week_a: "A-Woche",
     week_b: "B-Woche",
     blocked: |options, kind, title| format!("0 von {options} Terminen frei: {kind} · {title}"),
 
-    exam_of: |title| format!("Prüfung {title}"),
-    only: |when| format!("nur {when}"),
-    unhide: "Einblenden",
     unhide_all: "Alle einblenden",
+    to_unhide_all: "Zu „Alle einblenden“",
 
     derived: |parts| format!("Abgeleitet: {parts}."),
     lecture_period: |first, last| format!("Vorlesungszeit {first}–{last}"),
@@ -181,10 +168,6 @@ pub const DE: Texts = Texts {
 };
 
 pub const EN: Texts = Texts {
-    placeholders: |n| match n {
-        1 => "1 placeholder".to_string(),
-        n => format!("{n} placeholders"),
-    },
     visits: |n| match n {
         1 => "1 visit".to_string(),
         n => format!("{n} visits"),
@@ -196,17 +179,7 @@ pub const EN: Texts = Texts {
     past: |semester| format!("{semester} is over; past dates are missing from the data."),
     unpublished: |semester| format!("{semester}: no dates published yet."),
 
-    from_bookmarks: |n| format!("From saved modules ({n})"),
     plan: "Plan",
-    planned: "Planned",
-    take_marked: |n| match n {
-        1 => "Add 1 saved module".to_string(),
-        n => format!("Add {n} saved modules"),
-    },
-    marked_taken: |n| match n {
-        1 => "1 saved module added".to_string(),
-        n => format!("{n} saved modules added"),
-    },
     collections: "Collections",
     all: "All",
     search_marked: "Search your saved modules",
@@ -233,15 +206,19 @@ pub const EN: Texts = Texts {
         n => format!("{n} clashes on single days"),
     },
     more_on_days: |n| format!("{n} on single days"),
+    clashes: |n| match n {
+        1 => "1 clash".to_string(),
+        n => format!("{n} clashes"),
+    },
+    no_clash_left: "No clashes left",
+    clash_gone: "no longer clashes",
     hidden: |n| format!("{n} hidden"),
     week_a: "week A",
     week_b: "week B",
     blocked: |options, kind, title| format!("0 of {options} sessions free: {kind} · {title}"),
 
-    exam_of: |title| format!("Exam {title}"),
-    only: |when| format!("only {when}"),
-    unhide: "Show",
     unhide_all: "Show all",
+    to_unhide_all: "Go to “Show all”",
 
     derived: |parts| format!("Derived: {parts}."),
     lecture_period: |first, last| format!("lecture period {first}–{last}"),

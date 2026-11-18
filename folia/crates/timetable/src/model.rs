@@ -1844,6 +1844,7 @@ pub mod tests {
             name: "Arbeit".into(),
             place: "Café Mosaik".into(),
             skip: Vec::new(),
+            kind: None,
         }
     }
 
@@ -1867,6 +1868,20 @@ pub mod tests {
         assert_eq!((t.events[clash.a.0].id.as_str(), t.events[clash.b.0].id.as_str()), ("81", "4000000001"));
         // Its slot in the week, as any other.
         assert!(t.regular_week().iter().any(|item| t.events[item.event].own.is_some() && item.day == 5 && item.from == 780 && item.clash));
+    }
+
+    /// Its kind is a word about it: nothing hides it by it, nothing weighs it otherwise.
+    #[test]
+    fn a_kind_of_a_termin_of_ones_own_changes_no_timetable() {
+        let rows = [teaching("A", "80", 1, "Vorlesung", 5, "09:15", "10:45"), teaching("B", "81", 1, "Übung", 5, "14:00", "15:30")];
+        let own = |kind| OwnTermin { module: Some("A".into()), name: String::new(), kind, ..job(1) };
+        let of = |kind| table(&rows, &["A", "B"], &[], &Selection { hidden_kinds: KindSet::default().with(EventKind::Lecture), own: vec![own(kind)], ..Selection::default() });
+        let (with, without) = (of(Some(EventKind::Lecture)), of(None));
+        invariants(&with);
+        let event = with.events.iter().find(|event| event.own.is_some()).unwrap();
+        assert_eq!((event.kinds, event.class, event.hidden), (KindSet::default(), Class::Other, None));
+        assert_eq!(event.own.as_ref().and_then(|own| own.kind), Some(EventKind::Lecture));
+        assert_eq!((&with.clashes, with.kinds_present()), (&without.clashes, without.kinds_present()));
     }
 
     #[test]

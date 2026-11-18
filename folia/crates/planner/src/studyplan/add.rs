@@ -1,27 +1,23 @@
-//! „+ Modul" in every calendar (folia/design/kalender/konzepte.html, „+ Modul in einem Kalender";
-//! owner, 2026-10-26: „Besuchmodul kann pro kallender gemacht werden also eher bei jedem kallender
-//! kann man auch andere module hinyufügen. Aber beim Studien Plan zählt es dann als besucher
-//! modul").
+//! „+ Modul" in a calendar of one's own (folia/design/kalender/konzepte.html, „+ Modul in einem
+//! Kalender"; owner, 2026-11-17: „Bei den weitern Kalender soll man btw weiter module hinzufügen
+//! könenn, weil das ja nur die Anzeige für die termine sind und nicht dein Studium ist."). A module
+//! taken in counts nowhere (`PlanDoc::add_to_calendar`). „Mein Studiengang" takes none here: its
+//! modules, visits too, are planned in „Mein Studium" (owner, the same day: „man kann gerade noch
+//! module im Kalender verwalten, das ist aber keine gute idee, weil man das ja in mein Studium
+//! macht"); until 2026-11-17 its „+ Modul" took a module in to visit it.
 //!
-//! A module taken into „Mein Studiengang" from here is only visited (`PlanDoc::visit`): in the
-//! week, ringed in its tone, giving way where it meets the plan, and in „Mein Studium" on „nur
-//! besuchen", without credits. The modules of the study come from „Mein Studium" alone (owner,
-//! 2026-10-26: „Nein aus dem Kallender soll man nicht module in den Studienplan aufnehmen können.
-//! Es soll nur möglich sein besuchsmodule zu planen. Damit es einen weg gibt, wie man sein studium
-//! plant und nicht 200 verschiedene."). One taken into a calendar of one's own counts nowhere
-//! (`PlanDoc::add_to_calendar`).
-//!
-//! The panel opens under the head of the calendar's part of the list beside the week (`AddPanel`):
-//! what a module taken in is, the Merkliste and the catalog as two ways, each module with how it
-//! sits in that calendar's week (`pages::fit_lines`: „passt", „überschneidet sich mit …"; one that
-//! does not fit is taken in all the same, Betula says what is unusual), „Aufnehmen", and after it
-//! a note with „Rückgängig". The Merkliste is as „Aus der Merkliste" had it until it planned into
-//! the study (folia/design/merken/konzept.html, „Von überall": „nach Sammlung und Suche; zuerst,
-//! was das Semester anbietet, mit „passt“ oder „überschneidet sich mit …“; danach, was es nicht
-//! anbietet, mit dem Grund; „3 gemerkte übernehmen“ auch für eine Sammlung"): the collections as
-//! chips, a search, what the semester offers, all of it at once, and folded what it does not, each
-//! with why. The catalog is a search. A click answers at once, the plan follows after the next
-//! frame (R21), and the module then leaves the list, being in the calendar.
+//! The panel opens under the head of the calendar's part of the list beside the week (`AddPanel`),
+//! while the plan is edited: what a module taken in is, the Merkliste and the catalog as two ways,
+//! each module with how it sits in that calendar's week (`pages::fit_lines`: „passt",
+//! „überschneidet sich mit …"; one that does not fit is taken in all the same, Betula says what is
+//! unusual), „Aufnehmen", and after it a note with „Rückgängig". The Merkliste is as „Aus der
+//! Merkliste" had it until it planned into the study (folia/design/merken/konzept.html, „Von
+//! überall": „nach Sammlung und Suche; zuerst, was das Semester anbietet, mit „passt“ oder
+//! „überschneidet sich mit …“; danach, was es nicht anbietet, mit dem Grund; „3 gemerkte übernehmen“
+//! auch für eine Sammlung"): the collections as chips, a search, what the semester offers, all of it
+//! at once, and folded what it does not, each with why. The catalog is a search. A click answers at
+//! once, the plan follows after the next frame (R21), and the module then leaves the list, being in
+//! the calendar.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -31,30 +27,27 @@ use folia_locale::Locale;
 use folia_model::rows::CatalogRow;
 use folia_pages::ask::{CatalogAsk, FitLinesAsk};
 use folia_pages::Sits;
+use folia_plans::studyplan::PlanUndo;
 use folia_routes::filter::CatalogQuery;
 use folia_routes::url::CatalogUrl;
 use folia_stores::collections::Collections;
-use folia_stores::myprogram::MineResolved;
 use leptos::prelude::*;
 
 use folia_design::nav;
 use folia_design::ui::Icon;
 
-use super::head::{add_module_href, MarkedModule};
-use super::{now_secs, PlanCtx};
+use super::head::MarkedModule;
+use super::PlanCtx;
 use crate::i18n;
 
-/// Which calendar „+ Modul" takes a module into.
+/// Which calendar „+ Modul" takes a module into: one of one's own, by its number.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum AddTo {
-    /// „Mein Studiengang": a visit.
-    Mine,
-    /// A calendar of one's own, by its number.
     Calendar(u8),
 }
 
-/// How the note of a module taken in begins (`PlanCtx::undo`, which the import, „Plan leeren" and
-/// the list's × share): a mark of its own, never shown.
+/// How the note of a module taken in begins (`PlanCtx::undo`, which the page's other notes share):
+/// a mark of its own, never shown.
 const ADDED: &str = "Aufgenommen: ";
 
 /// The most modules the catalog's search lists here; the whole catalog has the rest.
@@ -101,9 +94,9 @@ struct Panel {
 }
 
 impl Panel {
-    fn of(target: Option<Target>, marked: &[MarkedModule], to: AddTo, way: Option<Way>, rows: Option<&[CatalogRow]>, locale: Locale) -> Panel {
+    fn of(target: Option<Target>, marked: &[MarkedModule], way: Option<Way>, rows: Option<&[CatalogRow]>, locale: Locale) -> Panel {
         let held = target.as_ref().map_or(&[][..], |target| target.held.as_slice());
-        let offered = marked_for(marked, to, held);
+        let offered = marked_for(marked, held);
         let way = way.unwrap_or(if offered.is_empty() { Way::Catalog } else { Way::Marked });
         let found = rows.map(|rows| found_for(rows, held));
         let ids: Vec<String> = match way {
@@ -122,15 +115,11 @@ impl Panel {
     }
 }
 
-/// The marked modules a calendar does not hold yet: of „Mein Studiengang" what its week holds
-/// neither planned nor visited, of one of one's own what it holds not.
-fn marked_for(marked: &[MarkedModule], to: AddTo, held: &[String]) -> Vec<Offered> {
+/// The marked modules a calendar does not hold yet.
+fn marked_for(marked: &[MarkedModule], held: &[String]) -> Vec<Offered> {
     marked
         .iter()
-        .filter(|module| match to {
-            AddTo::Mine => !module.in_week,
-            AddTo::Calendar(_) => !held.contains(&module.id),
-        })
+        .filter(|module| !held.contains(&module.id))
         .map(|module| Offered { id: module.id.clone(), title: module.title.clone(), unoffered: module.unoffered.clone() })
         .collect()
 }
@@ -140,24 +129,16 @@ fn found_for(rows: &[CatalogRow], held: &[String]) -> Vec<Offered> {
     rows.iter().filter(|row| !held.contains(&row.id)).take(FOUND).map(|row| Offered { id: row.id.clone(), title: row.title.clone(), unoffered: None }).collect()
 }
 
-/// „+ Modul" of the calendar `to`, under the head of its part of the list (`modules.rs`,
-/// `calendars.rs`). Closed by its ×, by Esc, and by „+ Modul" again.
+/// „+ Modul" of the calendar `to`, under the head of its part of the list (`calendars.rs`). Closed by
+/// its ×, by Esc, and by „+ Modul" again.
 #[component]
 pub(super) fn AddPanel(ctx: PlanCtx, to: AddTo, marked: Memo<Vec<MarkedModule>>) -> impl IntoView {
     let t = i18n::t();
     let a = &t.studyplan_add;
-    let resolved = MineResolved::expect();
-    // The calendar and what it holds: „Mein Studiengang"'s week is the plan's (`wanted`, its
-    // semester too), held against every Termin of it, visits too (a visit gives way only to what
-    // counts); a calendar of one's own as it stands (`calendars.rs`). `wanted` and `selection` are
-    // siblings (R16).
-    let target = Memo::new(move |_| match to {
-        AddTo::Mine => {
-            let (key, held, program) = ctx.wanted.get();
-            let selection = ctx.selection.with(|(_, selection)| Selection { visits: BTreeSet::new(), ..selection.clone() });
-            Some(Target { name: t.studyplan_calendars.mine.to_string(), key, held, program, selection })
-        }
-        AddTo::Calendar(id) => ctx.calendars.with(|calendars| {
+    let AddTo::Calendar(id) = to;
+    // The calendar and what it holds, as it stands (`calendars.rs`).
+    let target = Memo::new(move |_| {
+        ctx.calendars.with(|calendars| {
             calendars.iter().find(|calendar| calendar.id == id).map(|calendar| Target {
                 name: calendar.name.clone(),
                 key: calendar.key,
@@ -165,7 +146,7 @@ pub(super) fn AddPanel(ctx: PlanCtx, to: AddTo, marked: Memo<Vec<MarkedModule>>)
                 program: calendar.program.clone(),
                 selection: calendar.selection.clone(),
             })
-        }),
+        })
     });
     // The catalog's search, from two letters: asked whichever way is shown (what was typed stays
     // when the Merkliste is looked at), kept while the next answer is on its way.
@@ -184,7 +165,7 @@ pub(super) fn AddPanel(ctx: PlanCtx, to: AddTo, marked: Memo<Vec<MarkedModule>>)
     let panel = Memo::new(move |_| {
         let chosen = way.get();
         let target = target.get();
-        marked.with(|marked| found_rows.with(|rows| Panel::of(target, marked, to, chosen, rows.as_deref(), t.locale)))
+        marked.with(|marked| found_rows.with(|rows| Panel::of(target, marked, chosen, rows.as_deref(), t.locale)))
     });
     let shown_way = Memo::new(move |_| panel.with(|panel| panel.way));
     let listed = Memo::new(move |_| panel.with(|panel| panel.found.clone().unwrap_or_default()));
@@ -249,20 +230,13 @@ pub(super) fn AddPanel(ctx: PlanCtx, to: AddTo, marked: Memo<Vec<MarkedModule>>)
         nav::after_paint(move || {
             let (done, before) = plan.update(|doc| {
                 let before = doc.clone();
-                let at = now_secs();
-                let done: Vec<&Offered> = modules
-                    .iter()
-                    .filter(|module| match to {
-                        AddTo::Mine => doc.visit(key, &module.id, at),
-                        AddTo::Calendar(id) => doc.add_to_calendar(id, key, &module.id),
-                    })
-                    .collect();
+                let done: Vec<&Offered> = modules.iter().filter(|module| doc.add_to_calendar(id, key, &module.id)).collect();
                 let said = match done.as_slice() {
                     [] => None,
                     [one] => Some((a.added)(&one.title, &name)),
                     many => Some((a.all_added)(many.len(), &name)),
                 };
-                (said, before)
+                (said, PlanUndo::of(before, doc.clone()))
             });
             if let Some(said) = done {
                 let _ = undo.try_set(Some((format!("{ADDED}{said}"), before)));
@@ -284,7 +258,7 @@ pub(super) fn AddPanel(ctx: PlanCtx, to: AddTo, marked: Memo<Vec<MarkedModule>>)
         restoring.set(true);
         let undo = ctx.undo;
         plan.update_after_paint(move |doc| {
-            *doc = before;
+            before.restore(doc);
             let _ = undo.try_set(None);
             let _ = restoring.try_set(false);
         });
@@ -404,13 +378,9 @@ pub(super) fn AddPanel(ctx: PlanCtx, to: AddTo, marked: Memo<Vec<MarkedModule>>)
         .into_any(),
     };
     let name = move || panel.with(|panel| panel.name.clone());
-    let says = move || match to {
-        AddTo::Mine => a.mine_says.to_string(),
-        AddTo::Calendar(_) => (a.calendar_says)(&name()),
-    };
+    let says = move || (a.calendar_says)(&name());
     let marked_words = Signal::derive(move || (a.marked)(panel.with(|panel| panel.offered.len())));
     let catalog_words = Signal::derive(move || a.catalog.to_string());
-    let catalog = move || t.path(&add_module_href(resolved, ctx.key.get()));
     view! {
         <section
             class="sp-addp"
@@ -439,11 +409,6 @@ pub(super) fn AddPanel(ctx: PlanCtx, to: AddTo, marked: Memo<Vec<MarkedModule>>)
                 {tab(Way::Catalog, catalog_words)}
             </div>
             {body}
-            // The whole catalog, with what fits the week: of „Mein Studiengang" alone, whose week
-            // the catalog's finder knows.
-            {(to == AddTo::Mine).then(|| view! {
-                <a class="sp-way" href=catalog><span>{a.to_catalog}</span><Icon name="chevron-right"/></a>
-            })}
         </section>
     }
 }
@@ -452,19 +417,16 @@ pub(super) fn AddPanel(ctx: PlanCtx, to: AddTo, marked: Memo<Vec<MarkedModule>>)
 mod tests {
     use super::*;
 
-    fn marked(id: &str, in_week: bool, unoffered: Option<&str>) -> MarkedModule {
-        MarkedModule { id: id.into(), title: format!("Modul {id}"), unoffered: unoffered.map(str::to_string), in_week }
+    fn marked(id: &str, unoffered: Option<&str>) -> MarkedModule {
+        MarkedModule { id: id.into(), title: format!("Modul {id}"), unoffered: unoffered.map(str::to_string) }
     }
 
     #[test]
     fn the_merkliste_offers_what_the_calendar_does_not_hold() {
-        let list = [marked("13676", false, None), marked("12104", true, None), marked("41103", false, Some("nur SoSe"))];
-        // „Mein Studiengang": what its week holds neither planned nor visited, the one the semester
-        // does not offer too, with why.
-        let mine: Vec<(String, Option<String>)> = marked_for(&list, AddTo::Mine, &[]).into_iter().map(|module| (module.id, module.unoffered)).collect();
-        assert_eq!(mine, [("13676".to_string(), None), ("41103".to_string(), Some("nur SoSe".to_string()))]);
-        // A calendar of one's own: what it holds not, whatever the week holds.
-        let lena: Vec<String> = marked_for(&list, AddTo::Calendar(1), &["13676".to_string()]).into_iter().map(|module| module.id).collect();
-        assert_eq!(lena, ["12104", "41103"]);
+        let list = [marked("13676", None), marked("12104", None), marked("41103", Some("nur SoSe"))];
+        // What it holds not, whatever the plan's week holds; the one the semester does not offer
+        // too, with why.
+        let lena: Vec<(String, Option<String>)> = marked_for(&list, &["13676".to_string()]).into_iter().map(|module| (module.id, module.unoffered)).collect();
+        assert_eq!(lena, [("12104".to_string(), None), ("41103".to_string(), Some("nur SoSe".to_string()))]);
     }
 }

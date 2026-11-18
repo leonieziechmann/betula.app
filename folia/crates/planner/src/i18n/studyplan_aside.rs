@@ -27,16 +27,8 @@ pub struct Texts {
     pub not_planned: &'static str,
 
     // ---- where the module stands ----
-    /// The select of the placeholder the module counts for: its name („Zählt für"), the choice
-    /// of none („Für keinen Platzhalter") and a placeholder by its name („Für „Anwendungsfach“").
-    pub counts_for: &'static str,
-    pub no_placeholder: &'static str,
-    pub for_placeholder: fn(&str) -> String,
-    /// Takes the module out of the plan: „Entfernen".
-    pub remove: &'static str,
-    /// Before the other semesters the module is planned in, which follow as links: „Auch
-    /// geplant: ".
-    pub also_planned: &'static str,
+    /// Beside the credits of a module only visited: „Besuch · zählt nicht“.
+    pub visit_note: &'static str,
 
     // ---- a semester without the module's dates (the semester's name written already) ----
     /// A semester that is over: „WiSe 2025/26 ist vorbei; vergangene Termine fehlen im
@@ -147,11 +139,7 @@ pub const DE: Texts = Texts {
     not_in_catalog: "Nicht im Modulkatalog.",
     not_planned: "Nicht im Studienplan.",
 
-    counts_for: "Zählt für",
-    no_placeholder: "Für keinen Platzhalter",
-    for_placeholder: |name| format!("Für „{name}“"),
-    remove: "Entfernen",
-    also_planned: "Auch geplant: ",
+    visit_note: "Besuch · zählt nicht",
 
     past: |semester| format!("{semester} ist vorbei; vergangene Termine fehlen im Datenstand."),
     unpublished: |semester| format!("{semester}: noch keine Termine veröffentlicht."),
@@ -230,11 +218,7 @@ pub const EN: Texts = Texts {
     not_in_catalog: "Not in the module catalogue.",
     not_planned: "Not in the timetable.",
 
-    counts_for: "Counts for",
-    no_placeholder: "For no placeholder",
-    for_placeholder: |name| format!("For “{name}”"),
-    remove: "Remove",
-    also_planned: "Also planned: ",
+    visit_note: "visit · does not count",
 
     past: |semester| format!("{semester} is over; past dates are missing from the data."),
     unpublished: |semester| format!("{semester}: no dates published yet."),

@@ -483,7 +483,7 @@ mod tests {
     }
 
     fn termin(number: u32, name: &str) -> OwnTermin {
-        OwnTermin { number, rhythm: OwnRhythm::Week, weekday: 2, dates: vec![], from: 600, to: 720, period: None, module: None, name: name.into(), place: String::new(), skip: vec![] }
+        OwnTermin { number, rhythm: OwnRhythm::Week, weekday: 2, dates: vec![], from: 600, to: 720, period: None, module: None, name: name.into(), place: String::new(), skip: vec![], kind: None }
     }
 
     #[test]

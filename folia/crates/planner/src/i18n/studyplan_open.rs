@@ -18,6 +18,10 @@ pub struct Texts {
     /// the plan (a choice among a module's events is decided there).
     pub choose: &'static str,
     pub in_focus: &'static str,
+    /// What a line of „Offen" decided while the plan is edited says where it knows nothing more:
+    /// „erledigt"; the phone's line where everything listed is decided: „Nichts mehr offen".
+    pub settled: &'static str,
+    pub nothing_open: &'static str,
     pub in_module: &'static str,
     /// Where a visit gives way (owner, 2026-10-26): „Biologie trifft VL MIT1", under it when
     /// („Di 13:45") and „der Besuch gibt nach"; a click shows its Termin („Ansehen"). The phone's
@@ -61,10 +65,6 @@ pub struct Texts {
     pub fewer: &'static str,
 
     // ---- a group, as a tile and in „Vergleichen" ----
-    /// „Pilling leitet"
-    pub leads: fn(&str) -> String,
-    /// „am 04.11. in LG1A/304" is QIS's; „+1 Raum" where a group meets in two rooms.
-    pub another_room: &'static str,
     /// What it does to its day: „allein am Mittwoch" …
     pub alone: fn(&str) -> String,
     /// … „45 min nach Ü MIT1" …
@@ -124,6 +124,8 @@ pub const DE: Texts = Texts {
     none_free: "keine passt ohne Überschneidung",
     choose: "Wählen",
     in_focus: "im Fokus",
+    settled: "erledigt",
+    nothing_open: "Nichts mehr offen",
     in_module: "Im Modul",
     visit_meets: |visit, plan| format!("{visit} trifft {plan}"),
     gives_way: "der Besuch gibt nach",
@@ -173,8 +175,6 @@ pub const DE: Texts = Texts {
     further: "weitere",
     fewer: "weniger",
 
-    leads: |who| format!("{who} leitet"),
-    another_room: "+1 Raum",
     alone: |day| format!("allein am {day}"),
     after: |gap, what| format!("{gap} nach {what}"),
     until: |gap, what| format!("{gap} bis {what}"),
@@ -196,6 +196,8 @@ pub const EN: Texts = Texts {
     none_free: "none fits without a clash",
     choose: "Choose",
     in_focus: "in focus",
+    settled: "done",
+    nothing_open: "Nothing left open",
     in_module: "In the module",
     visit_meets: |visit, plan| format!("{visit} meets {plan}"),
     gives_way: "the visit gives way",
@@ -245,8 +247,6 @@ pub const EN: Texts = Texts {
     further: "more",
     fewer: "fewer",
 
-    leads: |who| format!("led by {who}"),
-    another_room: "+1 room",
     alone: |day| format!("alone on {day}"),
     after: |gap, what| format!("{gap} after {what}"),
     until: |gap, what| format!("{gap} until {what}"),

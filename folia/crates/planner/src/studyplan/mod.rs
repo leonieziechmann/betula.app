@@ -9,15 +9,16 @@
 //! 2026-11-04, are read past); `full=1` lets that module fill the page
 //! with its whole page, inside the plan's area (a local view, `folia_widgets::local`).
 //!
-//! The page is one frame (`ui::Frame`, R17): the sidebar „Anpassen" (`side.rs`: the calendars,
-//! „Export", the plan as a whole and the saved plans),
+//! The page is one frame (`ui::Frame`, R17): the sidebar „Stundenplan" (`side.rs`: the calendars,
+//! „Export", „Teilen …", and while editing the plans saved before),
 //! the plan in the main column (`head.rs`, `week.rs`, `exams.rs`) with its modules in a column
 //! beside it where the page is wide enough, else under it (`modules.rs`), and the module opened
 //! from it floating over the page at its right edge, as the catalog's preview does (`aside.rs`).
 //! The week is there before anything is planned (owner, 2026-09-25), with what to do in its middle.
-//! Its parts share one `PlanCtx`: the memos below, built once per page. On a phone the sidebar is
-//! a sheet, opened by „Anpassen" (`SheetToggle`), „Export" (`export.rs`) stands under the
-//! Termine instead of in it, and the module beside the plan is the page.
+//! The page is looked at or edited (`edit.rs`, `PlanCtx::edit`): only the mode adds the page's own
+//! controls. Its parts share one `PlanCtx`: the memos below, built once per page. On a phone there
+//! is no sidebar: the calendars stand in a line over the week, „Export" and „Teilen …" under the
+//! Termine, the mode is a dock in the tab bar's place, and the module beside the plan is the page.
 //!
 //! The memo graph keeps to R16 (docs/folia/frontend.md): no closure reads a source together with a memo
 //! derived from it. The semester shown depends on the plan (the default semester, B.4), so it is
@@ -32,6 +33,7 @@
 mod add;
 mod aside;
 mod calendars;
+mod edit;
 mod exams;
 mod export;
 mod head;
@@ -53,7 +55,7 @@ use folia_calendar::semester::SemesterKey;
 use folia_calendar::share::{self as shared_plan, SharedPlan};
 use folia_pages::ask::{MetaAsk, SharedPlanAsk, StudyplanAsk};
 use folia_pages::StudyplanData;
-use folia_plans::studyplan::PlanDoc;
+use folia_plans::studyplan::{PlanDoc, PlanUndo};
 use folia_routes::url::{self, PlanView, StudyplanUrl};
 use folia_timetable::clash::Weeks;
 use folia_timetable::model::Timetable;
@@ -75,13 +77,14 @@ use folia_shell::frame::{ErrorState, Frame};
 use folia_design::ui::Icon;
 use self::aside::PlanModulePanel;
 use self::calendars::{CalendarLine, CalendarModules};
+use self::edit::EditDock;
 use self::exams::ExamsView;
 use self::export::CalendarGroup;
-use self::head::{marked_offered, DerivedLine, ExamAlerts, MarkedNote, NothingPlanned, Overlaps, SemesterHead};
+use self::head::{marked_offered, DerivedLine, ExamAlerts, NothingPlanned, Overlaps, SemesterHead};
 use self::modules::ModuleList;
-use self::open::{FocusBar, OpenLine, OpenPanel, PickSheet};
-use self::own::{OwnFab, OwnForm, OwnNote};
-use self::side::PlanSidebar;
+use self::open::{OpenLine, OpenPanel, PickSheet};
+use self::own::{OwnForm, OwnNote};
+use self::side::{PlanSidebar, SavedPlans, ShareGroup};
 use self::termin::{PlanTerminFull, PlanTerminModal};
 use self::week::{DatesView, WeekLoose, WeekView};
 
@@ -109,8 +112,6 @@ const APP: bool = cfg!(feature = "csr");
 /// A part reads the memos it needs, and a store only where it writes (the memos already follow
 /// it): R16 forbids reading a source together with a memo derived from it.
 #[derive(Clone, Copy)]
-// The views of WP17–WP21 read every part; the stubs of WP16 read none of them yet.
-#[allow(dead_code)]
 pub(super) struct PlanCtx {
     /// The address without `full` (while a module fills the page, no view is shown).
     pub url: Memo<StudyplanUrl>,
@@ -137,17 +138,32 @@ pub(super) struct PlanCtx {
     /// The browser's date, read once when the page was built; `None` on the server. The page reads
     /// the clock for two things only: the default semester and the week „Termine" scrolls to.
     pub today: Option<Day>,
-    /// The note of the last „Übernehmen" or „Plan leeren", and the plan before it („Rückgängig").
-    pub undo: RwSignal<Option<(String, PlanDoc)>>,
+    /// The note of the last change that answers with „Rückgängig" (a share taken in, a Termin of
+    /// one's own deleted, a calendar or a module of one taken out, „Alle einblenden", what a
+    /// Termin's card did), and what „Rückgängig" takes back (`PlanUndo`: the change alone, not what
+    /// another tab or device changed meanwhile).
+    pub undo: RwSignal<Option<(String, PlanUndo)>>,
     /// The week „Woche" shows: the A week, the B week, or both („A/B"). A view setting of the
     /// page, not stored.
     pub weeks: RwSignal<Weeks>,
-    /// „Alle Termine": „Woche" shows every Termin of the planned modules, what the plan leaves out
-    /// faint (owner, 2026-09-25). A view setting of the page, not stored.
-    pub all: RwSignal<bool>,
+    /// The plan is being edited (owner, 2026-11-17: „bei dem Kalender einen edit modus hinzuzufügen, weil
+    /// man dadurch unnötiges ui ausblenden kann, und dann im edit modus auch Termine leicht anzeigen kann,
+    /// die man ausgeblendet hat"): the address says `edit=1` or holds a choice in focus (`wahl`), read of
+    /// the address the app is going to while a step is on its way (`Pending`), so that the head's button,
+    /// the status row and what the mode reveals answer in the frame of the click (R21). Made of `url`: no
+    /// closure reads it and `url` (R16). The week's slots follow the address itself (`week::base_of`).
+    pub edit: Memo<bool>,
+    /// „Offen"'s rows stand unfolded over the week (a page without the column beside it): set by the
+    /// way „3 Wahlen offen ›" into the mode, flipped by the bar's figure, off again once the mode is
+    /// left. A view setting of the page, not stored.
+    pub unfolded: RwSignal<bool>,
+    /// The overlaps' list stands unfolded under the status row: flipped by their figure there and in
+    /// the mode's bar (`head::ClashFigure`), never by what the plan holds. A view setting of the
+    /// page, not stored.
+    pub clashes: RwSignal<bool>,
     /// The phone's layout is in use (`nav::is_phone`, following the window): there the week is a
-    /// carousel of its weeks over the list of its days, and the calendar stands under the Termine
-    /// instead of in the sidebar, which is a sheet there („Anpassen").
+    /// carousel of its weeks over the list of its days, and the calendar, „Export" and „Teilen …"
+    /// stand in the page instead of in a sidebar.
     pub phone: RwSignal<bool>,
     /// On a phone the list of the week's days under its grid is open (owner, 2026-09-27: closed
     /// until asked for). A view setting of the page, not stored; it outlasts the module opened
@@ -167,6 +183,12 @@ pub(super) struct PlanCtx {
     /// The dialog „Teilen" while it is open: for which calendar, on which side
     /// (`share_dialog.rs`; folia/design/teilen/teilen.html). Not stored.
     pub sharing: RwSignal<Option<share_dialog::ShareOpen>>,
+    /// Where the keyboard goes once „Rückgängig" put back the Termin of one's own a deletion took:
+    /// the slot it stood on, as a selector of the week (`own::remove`). Not stored.
+    pub back_to: StoredValue<Option<String>>,
+    /// When the mode was left last: „3 Wahlen offen ›" comes where „Fertig" was clicked, and takes no
+    /// click of the pointer for a moment (`folia_design::nav::Newborn`; `edit.rs` starts it).
+    pub left: folia_design::nav::Newborn,
 }
 
 /// The semester the page shows: the one the catalog has dates for, the snapshot's current one
@@ -209,6 +231,17 @@ pub(crate) fn today() -> Option<Day> {
 /// module's whole page (`full=1`, a local view); its „Zurück" returns here.
 pub(super) fn full_href(url: &StudyplanUrl, id: &str) -> String {
     folia_routes::local::full_href(&PlanAddress { url: url.clone(), full: false }, id)
+}
+
+/// Where „Zurück" leads from a module that fills the page, as the app's path (`ModuleInPlace` writes
+/// it as a link of the page's language): the plan with the module beside it again where it is one of
+/// the study's week (`ours`), else the plan without it — a calendar's module, which the panel would
+/// only call „Nicht im Studienplan.".
+fn back_of(address: &PlanAddress, ours: bool) -> String {
+    match ours {
+        true => folia_routes::local::back_href(address),
+        false => address.url.with_open(None, None).path(),
+    }
 }
 
 #[component]
@@ -263,6 +296,13 @@ pub fn StudyplanPage() -> impl IntoView {
         let (key, selection) = selection.get();
         data.with(|data| data.as_ref().ok().filter(|data| data.key == key).map(|data| data.timetable(&selection)))
     });
+    // Where the app is going: the mode follows a click on its way (`PlanCtx::edit`), the module
+    // beside the plan as well (`target`, below).
+    let going = Pending::expect();
+    let edit = Memo::new(move |_| match going.and_then(|going| going.search_on(url::STUDYPLAN)) {
+        Some(search) => edit::on(&StudyplanUrl::parse(&search)),
+        None => url.with(edit::on),
+    });
     let ctx = PlanCtx {
         url,
         current,
@@ -277,7 +317,9 @@ pub fn StudyplanPage() -> impl IntoView {
         today,
         undo: RwSignal::new(None),
         weeks: RwSignal::new(Weeks::All),
-        all: RwSignal::new(false),
+        edit,
+        unfolded: RwSignal::new(false),
+        clashes: RwSignal::new(false),
         phone: phone_layout(),
         days: RwSignal::new(false),
         calendars: calendars::shown_calendars(url, current, plan, source, today),
@@ -285,6 +327,8 @@ pub fn StudyplanPage() -> impl IntoView {
         adding: RwSignal::new(None),
         own: RwSignal::new(None),
         sharing: RwSignal::new(None),
+        back_to: StoredValue::new(None),
+        left: folia_design::nav::Newborn::grown(),
     };
     // What „Rückgängig" puts back is the plan of the profile it was taken from: with another
     // profile (chosen here or in another tab, `folia_stores::profiles`) there is nothing to undo.
@@ -295,16 +339,37 @@ pub fn StudyplanPage() -> impl IntoView {
         }
         profile
     });
+    // „Offen" folds again once the mode is left: the next way in decides anew.
+    Effect::new(move |_| {
+        if !edit.get() {
+            ctx.unfolded.set(false);
+        }
+    });
 
     // What fills the page: the plan, or the module after „Vollbild" (until then the plan's panel of
-    // it stands beside the plan, on a phone a sheet over it), or a Termin after „Ganze Seite".
+    // it stands beside the plan, on a phone a sheet over it), or a Termin's overview (`full=1`).
     let filling = Memo::new(move |_| address.with(folia_routes::local::filling));
     let termin_full = Memo::new(move |_| address.with(PlanAddress::termin_full));
+    // A page of its own opened from the plan (the overview, a module's whole page) opens at its
+    // top; leaving it finds the plan where it was left, with the keyboard on what opened it
+    // (`left`).
+    #[cfg(feature = "csr")]
+    {
+        let stop = left::watch();
+        on_cleanup(stop);
+        let filled = Memo::new(move |_| address.with(|address| address.full));
+        Effect::new(move |was: Option<bool>| {
+            let now = filled.get();
+            if was == Some(true) && !now {
+                left::restore(&location.search.get_untracked());
+            }
+            now
+        });
+    }
     let empty = Memo::new(move |_| plan.is_none_or(Studyplan::is_empty));
 
     // The module beside the plan, and a pick on its way there (`pending`): the panel follows the
     // click in the next frame, there at once for a pick and gone at once for a close.
-    let going = Pending::expect();
     let target = Memo::new(move |_| {
         let going = going.filter(|going| going.change() == Some(Change::Aside))?;
         Some(StudyplanUrl::parse(&going.search_on(url::STUDYPLAN)?))
@@ -321,10 +386,14 @@ pub fn StudyplanPage() -> impl IntoView {
         };
         shown && !empty.get()
     });
+    // The module beside the plan by its id: entering or leaving the mode with a module beside the
+    // plan is a step beside the same module, which shows no skeleton.
+    let open_id = Memo::new(move |_| url.with(|url| url.open.clone()));
     let aside = move || {
         let there = open.get();
         let coming = target.with(|to| to.as_ref().is_some_and(beside));
-        if coming && (!there || going.is_some_and(|going| going.waits(Change::Aside))) {
+        let other = target.with(|to| to.as_ref().is_some_and(|to| open_id.with(|id| to.open != *id)));
+        if coming && (!there || (other && going.is_some_and(|going| going.waits(Change::Aside)))) {
             return view! { <DetailSkeleton aside=true calm=there module=true/> }.into_any();
         }
         view! { <PlanModulePanel ctx/> }.into_any()
@@ -335,14 +404,18 @@ pub fn StudyplanPage() -> impl IntoView {
             return view! { <PlanTerminFull ctx/> }.into_any();
         }
         if let Some(id) = filling.get() {
-            let back = address.with_untracked(folia_routes::local::back_href);
+            let ours = wanted.with_untracked(|wanted| wanted.1.contains(&id));
+            let back = address.with_untracked(|address| back_of(address, ours));
             return view! { <ModuleInPlace id area=Area::Studyplan back/> }.into_any();
         }
         view! {
             <Title text=t.studyplan.title/>
-            <Frame title=t.studyplan.customise sheet=true sidebar=move || view! { <PlanSidebar ctx/><StorageHint/> } aside aside_picked=picked>
+            // The sidebar „Stundenplan" beside the page; a phone has its groups in the page and,
+            // after it, the storage hint and the saved plans (`side.rs`).
+            <Frame title=t.studyplan.title sidebar=move || view! { <PlanSidebar ctx/><StorageHint/><SavedPlans ctx/> } aside aside_picked=picked>
                 <PlanSeo/>
-                <div class="page-inner sp">
+                // The page in the mode: what it reveals and hides is styled under `.sp-edit`.
+                <div class="page-inner sp" class:sp-edit=move || ctx.edit.get()>
                     <section class="panel sp-body">
                         <SemesterView ctx/>
                     </section>
@@ -360,9 +433,9 @@ pub fn StudyplanPage() -> impl IntoView {
     .into_any()
 }
 
-/// The semester, in three parts (`.sp-body` lays them out). Above the fold (`.sp-fold`): its head,
-/// the exams that collide (red, in every view), the one line of overlaps, open choices and what is
-/// hidden, and the view. Beside it where the page is wide enough, else under it: the planned
+/// The semester, in three parts (`.sp-body` lays them out). Above the fold (`.sp-fold`): its head
+/// and the status row under it, the exams that collide (red, in every view), the line of overlaps,
+/// and the view. Beside it where the page is wide enough, else under it: the planned
 /// modules (`.sp-side`), a column of its own, so that however long their list is the week keeps
 /// its height. Under the fold (`.sp-below`): what has no fixed time and the line that says what is
 /// derived. The fold is as tall as the page shows, so that the week fits into it (owner,
@@ -379,22 +452,22 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
     let fine = Memo::new(move |_| failed.with(Option::is_none));
     let shown = Memo::new(move |_| ctx.url.with(|url| url.view));
     let weekly = Memo::new(move |_| matches!(shown.get(), PlanView::Week | PlanView::Overview));
-    // The marked modules, for the empty week's „übernehmen" and „+ Modul"'s „Merkliste" (`add.rs`):
-    // one query of the Merkliste for both.
+    // The marked modules, for „+ Modul"'s „Merkliste" of each calendar of one's own (`add.rs`): one
+    // query of the Merkliste for all of them.
     let marked = marked_offered(ctx);
     let view = move || match shown.get() {
-        PlanView::Week | PlanView::Overview => view! { <WeekView ctx marked/> }.into_any(),
+        PlanView::Week | PlanView::Overview => view! { <WeekView ctx/> }.into_any(),
         PlanView::Dates => view! {
             {move || match planned.get() {
                 true => view! { <DatesView ctx/> }.into_any(),
-                false => view! { <NothingPlanned ctx marked/> }.into_any(),
+                false => view! { <NothingPlanned ctx/> }.into_any(),
             }}
         }
         .into_any(),
         PlanView::Exams => view! {
             {move || match planned.get() {
                 true => view! { <ExamsView ctx/> }.into_any(),
-                false => view! { <NothingPlanned ctx marked/> }.into_any(),
+                false => view! { <NothingPlanned ctx/> }.into_any(),
             }}
         }
         .into_any(),
@@ -409,22 +482,23 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
                 None => view! {
                     <ExamAlerts ctx/>
                     <Overlaps ctx/>
-                    // What is left to choose, over the week where the page is narrow (`open.rs`),
-                    // and the choice in focus: over the week of a wide screen, on a phone a sheet
-                    // under it (H1 of folia/design/kalender/handy.html).
-                    <OpenLine ctx/>
+                    // On a phone what is left to choose, over the week (`open.rs`): a way into the
+                    // mode while looking, its rows while editing. Wider, the status row under the
+                    // head says it, and the choice in focus stands there (`edit.rs`).
+                    {move || ctx.phone.get().then(|| view! { <OpenLine ctx/> })}
                     // On a phone the calendars of one's own in a line over the week, where there
-                    // are any (`calendars.rs`; the sidebar's group is in „Anpassen").
+                    // are any, in both states (`calendars.rs`).
                     {move || (ctx.phone.get() && weekly.get()).then(|| view! { <CalendarLine ctx/> })}
-                    {move || (!ctx.phone.get()).then(|| view! { <FocusBar ctx/> })}
                     <div class="sp-view">{view}</div>
+                    // The choice in focus on a phone: a sheet under the week (H1 of
+                    // folia/design/kalender/handy.html).
                     {move || ctx.phone.get().then(|| view! { <PickSheet ctx/> })}
-                    // On a phone the calendar stands under the Termine, in every view (owner,
-                    // 2026-09-27: in „Anpassen", among what is shown, nobody finds it); with
-                    // nothing planned there is nothing to export.
-                    {move || (ctx.phone.get() && modules.get()).then(|| view! { <section class="sp-export"><CalendarGroup ctx/></section> })}
-                    // On a phone „+ Termin" is the round button over the bar (`own.rs`).
-                    {move || ctx.phone.get().then(|| view! { <OwnFab ctx/> })}
+                    // On a phone „Export" and „Teilen …" stand under the Termine, in every view
+                    // (owner, 2026-09-27: among what is shown nobody finds them); a plan of
+                    // Termine of one's own alone can be shared too.
+                    {move || (ctx.phone.get() && planned.get()).then(|| view! { <section class="sp-export"><CalendarGroup ctx/><ShareGroup ctx/></section> })}
+                    // On a phone the mode is a dock in the tab bar's place (`edit.rs`).
+                    {move || ctx.phone.get().then(|| view! { <EditDock ctx/> })}
                 }
                 .into_any(),
             }}
@@ -439,9 +513,8 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
                 view! {
                     <div class="sp-side">
                         <OpenPanel ctx/>
-                        <ModuleList ctx marked/>
+                        <ModuleList ctx/>
                         <CalendarModules ctx marked/>
-                        <MarkedNote ctx/>
                     </div>
                 }
             })
@@ -459,12 +532,109 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
     }
 }
 
-/// „Anpassen": opens the sidebar, which on a phone is a sheet from below. Shown on a phone only
-/// (`.sheet-toggle`): the head of the plan carries it at its right end.
-#[component]
-pub(super) fn SheetToggle() -> impl IntoView {
-    let t = i18n::t();
-    view! { <a class="sheet-toggle" href="#sidebar" data-action="sheet-open"><Icon name="sliders-horizontal"/>{t.studyplan.customise}</a> }
+/// Where the plan was when a page of its own was opened from it (the overview of a Termin from a row
+/// of the list or from a card, a module's whole page from a calendar's line): the window's scroll,
+/// the page's scroller's (`#page-scroll`, a narrow page), the column's beside the week (`.sp-side`)
+/// and the link clicked. That page opens at its top (it is a page, not a part of the plan); leaving
+/// it by „Zurück", Esc or Back builds the plan anew, which this puts back where it was, the keyboard
+/// on the link (owner, 2026-09-25, of the plan: „Da sollte sich das Layout nicht viel shiften").
+/// Kept in the browser app's memory for this one way there and back.
+#[cfg(feature = "csr")]
+mod left {
+    use std::cell::RefCell;
+
+    use folia_routes::url::{self, PlanAddress};
+    use leptos::wasm_bindgen::{closure::Closure, JsCast};
+
+    use crate::i18n::Locale;
+    use leptos::web_sys;
+
+    #[derive(Clone)]
+    struct Left {
+        /// The plan's address without its Termin (a card open or not, the way back is the plan).
+        plan: String,
+        top: f64,
+        work: i32,
+        side: i32,
+        link: Option<String>,
+    }
+
+    thread_local! {
+        static LEFT: RefCell<Option<Left>> = const { RefCell::new(None) };
+    }
+
+    fn plan_of(search: &str) -> String {
+        PlanAddress::parse(search.trim_start_matches('?')).url.with_termin(None).path()
+    }
+
+    fn scroll_top(selector: &str) -> i32 {
+        folia_design::stage::select(selector).map_or(0, |element| element.scroll_top())
+    }
+
+    /// Notes the place of the plan as a link to a page of its own is clicked, before the router
+    /// takes the click (a listener of the capturing phase); the returned function takes it off.
+    pub(super) fn watch() -> impl FnOnce() + Send + Sync + 'static {
+        let listener = Closure::<dyn Fn(web_sys::MouseEvent)>::new(|ev: web_sys::MouseEvent| {
+            if ev.button() != 0 || ev.ctrl_key() || ev.meta_key() || ev.shift_key() || ev.alt_key() {
+                return;
+            }
+            let Some(link) = ev.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()).and_then(|element| element.closest("a[href]").ok().flatten()) else { return };
+            let Some(window) = web_sys::window() else { return };
+            let here = window.location().search().unwrap_or_default();
+            let Some(href) = link.get_attribute("href") else { return };
+            let (path, to) = href.split_once('?').unwrap_or((href.as_str(), ""));
+            // Only from the plan itself — the page is built behind the others, and the start
+            // page's card links to the plan's overview too —, to a page of its own of the plan's
+            // address.
+            let on_plan = Locale::split(&window.location().pathname().unwrap_or_default()).1 == url::STUDYPLAN;
+            if !on_plan || PlanAddress::parse(here.trim_start_matches('?')).full || !PlanAddress::parse(to).full || Locale::split(path).1 != url::STUDYPLAN {
+                return;
+            }
+            let left = Left { plan: plan_of(&here), top: window.scroll_y().unwrap_or(0.0), work: scroll_top("#page-scroll"), side: scroll_top(".sp-side"), link: Some(href) };
+            LEFT.with(|stored| *stored.borrow_mut() = Some(left));
+        });
+        let window = web_sys::window();
+        if let Some(window) = &window {
+            let _ = window.add_event_listener_with_callback_and_bool("click", listener.as_ref().unchecked_ref(), true);
+        }
+        let function: web_sys::js_sys::Function = listener.into_js_value().unchecked_into();
+        let held = send_wrapper::SendWrapper::new(function);
+        move || {
+            if let Some(window) = web_sys::window() {
+                let _ = window.remove_event_listener_with_callback_and_bool("click", &held, true);
+            }
+        }
+    }
+
+    /// The plan built anew at `search` after a page of its own: back where it was left, if it was
+    /// left from this address — in the next frame and once more after the browser has put its own
+    /// idea of the scroll in place (a step back through the history).
+    pub(super) fn restore(search: &str) {
+        let Some(left) = LEFT.with(|stored| stored.borrow_mut().take()) else { return };
+        if left.plan != plan_of(search) {
+            return;
+        }
+        let put = move |focus: bool| {
+            if let Some(window) = web_sys::window() {
+                window.scroll_to_with_x_and_y(0.0, left.top);
+            }
+            if let Some(work) = folia_design::stage::select("#page-scroll") {
+                work.set_scroll_top(left.work);
+            }
+            if let Some(side) = folia_design::stage::select(".sp-side") {
+                side.set_scroll_top(left.side);
+            }
+            let link = left.link.as_ref().filter(|_| focus).and_then(|href| folia_design::stage::select(&format!("a[href=\"{href}\"]")));
+            if let Some(link) = link.and_then(|link| link.dyn_into::<web_sys::HtmlElement>().ok()) {
+                let options = web_sys::FocusOptions::new();
+                options.set_prevent_scroll(true);
+                let _ = link.focus_with_options(&options);
+            }
+        };
+        let again = put.clone();
+        leptos::prelude::request_animation_frame(move || put(true));
+        leptos::prelude::set_timeout(move || again(false), std::time::Duration::from_millis(220));
+    }
 }
 
 /// The last group of the sidebar, on the server as in the app: where the plan lives.
@@ -546,6 +716,16 @@ mod tests {
         assert_eq!(key_of(&url(""), None, &PlanDoc::default(), Day::from_ymd(2026, 11, 5)), key("2026W"));
         assert_eq!(key_of(&url(""), None, &PlanDoc::default(), Day::from_ymd(2027, 2, 5)), key("2026W"));
         assert_eq!(key_of(&url(""), None, &PlanDoc::default(), Day::from_ymd(2027, 5, 5)), key("2027S"));
+    }
+
+    /// „Zurück" from a module filling the page is the app's path, never with the language's prefix,
+    /// which the link writes itself; a module of a calendar of one's own goes back to the plan alone.
+    #[test]
+    fn back_from_a_module_filling_the_page_is_the_apps_path() {
+        let address = |query: &str| PlanAddress { url: StudyplanUrl::parse(query), full: true };
+        assert_eq!(back_of(&address("open=99999"), false), "/studyplan");
+        assert_eq!(back_of(&address("edit=1&open=99999"), false), "/studyplan?edit=1");
+        assert_eq!(back_of(&address("open=12104"), true), "/studyplan?open=12104");
     }
 
     #[test]

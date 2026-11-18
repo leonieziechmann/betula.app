@@ -80,7 +80,7 @@ use crate::ics::{self, Calendar, Entry, Repeat, Rule, When};
 use crate::change::ChangeState;
 use crate::model::{Event, Row, Timetable};
 use crate::occur::{Every, Skipped};
-use crate::views::{kind_and_title, kind_short, short_title, type_text};
+use crate::views::{kind_and_title, kind_short, own_label, short_title, type_text};
 
 /// The domain of every UID. The same for the download and the feed, so a calendar that holds both
 /// holds each date once, and fixed: another domain would make every subscribed entry a new one.
@@ -557,8 +557,12 @@ fn teaching(t: &Timetable, event: &Event, names: &Names, locale: Locale) -> Vec<
         return Vec::new();
     }
     let texts = crate::i18n::texts(locale);
-    // As its slot in the week: „VL EvS".
-    let label = slot_text(&kind_short(event, locale), &names.short_of(&event.modules, &event.title));
+    // As its slot in the week: „VL EvS". A Termin of one's own without a name links no module and
+    // has no kind here (its share carries neither, `folia_calendar::live`): its module's short name.
+    let label = match event.own.as_ref().filter(|own| own.name.trim().is_empty()) {
+        Some(own) => own_label(own, own.module.as_ref().and_then(|id| names.short.get(id)).map(String::as_str), locale).unwrap_or_default(),
+        None => slot_text(&kind_short(event, locale), &names.short_of(&event.modules, &event.title)),
+    };
     let what = names.what(&type_text(event, locale), &event.title, &event.modules);
     let categories: Vec<String> = event.kinds.iter().map(|kind| kind.label(locale).to_string()).collect();
     let open = event.unresolved();
@@ -1590,7 +1594,7 @@ mod tests {
     }
 
     /// The feed of `/en/calendar/<code>.ics`: the same entries with the same UIDs, the words around
-    /// the data in English, and what QIS says as QIS says it.
+    /// the data and the kinds in English, and what else QIS says as QIS says it.
     #[test]
     fn the_calendar_in_english() {
         let rows = rows();
@@ -1603,13 +1607,14 @@ mod tests {
         let uids = |c: &Calendar| c.entries.iter().map(|entry| (entry.uid.clone(), entry.when, entry.tentative)).collect::<Vec<_>>();
         assert_eq!(uids(&c), uids(&de), "a subscription that changes its language updates its entries");
 
-        // The lecture: „Vorlesung" is what QIS calls it, the rest is English.
+        // The lecture: its kind by its English label, as its category and summary have it; the
+        // titles and rooms are what QIS says.
         let lecture = on(&c, &rows[0], "2026-10-06");
         assert_eq!((lecture.summary.as_str(), lecture.categories.as_slice()), ("Lec SWT", ["Lecture".to_string()].as_slice()));
         assert_eq!(
             lecture.description.as_deref(),
             Some(
-                "Vorlesung\nModule 11111 Softwaretechnik\nweekly 6 Oct 2026–26 Jan 2027\nRooms: Zentrales \
+                "Lecture\nModule 11111 Softwaretechnik\nweekly 6 Oct 2026–26 Jan 2027\nRooms: Zentrales \
                  Hörsaalgebäude - Hörsaal A - Zentralcampus / Zentrales Hörsaalgebäude - Hörsaal B - \
                  Zentralcampus\nCancelled: 22 Dec, 29 Dec (no lectures)\nSource: QIS"
             )
@@ -1627,7 +1632,7 @@ mod tests {
             )
         );
         // The Saturdays: the break, a holiday, a date QIS cancels without a reason, a room note.
-        let lines = "Übung\nModule 11111 Softwaretechnik\nweekly 10 Oct 2026–30 Jan 2027\nLecturers: Robel\nCancelled: \
+        let lines = "Exercise\nModule 11111 Softwaretechnik\nweekly 10 Oct 2026–30 Jan 2027\nLecturers: Robel\nCancelled: \
                      26 Dec, 2 Jan (no lectures); 31 Oct (Reformation Day); 7 Nov (according to QIS)";
         let noted = on(&c, &rows[3], "2026-11-14");
         assert_eq!(noted.description.as_deref(), Some(format!("{lines}\nNote: Raumwechsel\nSource: QIS").as_str()));
@@ -1855,6 +1860,7 @@ mod tests {
             name: "Arbeit".into(),
             place: String::new(),
             skip: vec![d("2026-10-30")],
+            kind: None,
         };
         let with = Selection { own: vec![own], ..selection() };
         let page = build(&rows(), &exams(), &[A, B], &two_sws(), &with);
@@ -1865,6 +1871,36 @@ mod tests {
         assert_eq!(code, without);
         assert!(code.selection().own.is_empty());
         assert!(same_subscription(&without.code().unwrap(), &code, &page));
+    }
+
+    /// A share that stays current takes the Termine of one's own along: one with a name by its
+    /// name, one without by its module's short name (its kind does not travel, `folia_calendar::live`).
+    #[test]
+    fn a_termin_of_ones_own_without_a_name_is_its_modules_in_a_feed() {
+        let own = |number, name: &str, module: Option<&str>| folia_calendar::own::OwnTermin {
+            number,
+            rhythm: folia_calendar::own::OwnRhythm::Week,
+            weekday: 5,
+            dates: Vec::new(),
+            from: 13 * 60,
+            to: 17 * 60,
+            period: None,
+            module: module.map(str::to_string),
+            name: name.into(),
+            place: String::new(),
+            skip: Vec::new(),
+            kind: None,
+        };
+        let with = Selection { own: vec![own(1, "Arbeit", None), own(2, "", Some(A)), own(3, "", None)], ..selection() };
+        let page = build(&rows(), &exams(), &[A, B], &two_sws(), &with);
+        let feed = calendar_with_own(&page, &titles(), &names(), "WiSe 2026/27", "2026-09-23T12:35:16Z", Locale::De);
+        let summary = |number: u32| {
+            let key = folia_calendar::own::OwnTermin { number, ..own(number, "", None) }.key().text();
+            feed.entries.iter().find(|entry| entry.uid.starts_with(&key)).map(|entry| entry.summary.clone())
+        };
+        assert_eq!(summary(1).as_deref(), Some("Arbeit"));
+        assert_eq!(summary(2).as_deref(), Some("SWT"));
+        assert_eq!(summary(3).as_deref(), Some(""));
     }
 
     #[test]

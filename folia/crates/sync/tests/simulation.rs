@@ -150,7 +150,7 @@ impl World {
 }
 
 fn own(name: &str, weekday: u8) -> OwnTermin {
-    OwnTermin { number: 0, rhythm: OwnRhythm::Week, weekday, dates: Vec::new(), from: 10 * 60, to: 11 * 60 + 30, period: None, module: None, name: name.to_string(), place: String::new(), skip: Vec::new() }
+    OwnTermin { number: 0, rhythm: OwnRhythm::Week, weekday, dates: Vec::new(), from: 10 * 60, to: 11 * 60 + 30, period: None, module: None, name: name.to_string(), place: String::new(), skip: Vec::new(), kind: None }
 }
 
 /// One thing a person does on one device, with what that device shows.

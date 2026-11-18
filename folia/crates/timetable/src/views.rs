@@ -24,7 +24,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use folia_calendar::change::Scope;
 use folia_calendar::day::Day;
+use folia_calendar::kind::EventKind;
+use folia_calendar::own::OwnTermin;
 use folia_calendar::rowkey::RowKey;
+use folia_calendar::select::HiddenBy;
 use folia_locale::Locale;
 use folia_search::fold;
 
@@ -114,11 +117,115 @@ pub fn kind_short(event: &Event, locale: Locale) -> String {
     event.kinds.iter().map(|kind| kind.short(locale)).collect::<Vec<_>>().join("/")
 }
 
-/// What QIS calls an event („Übung", „Vorlesung/Übung", „Laborausbildung": the data's words,
-/// in every language), else its kinds in `locale`.
+/// What a Termin of one's own is called in a few words, as a slot, a line and a note name it: its
+/// name; without one the few letters of its kind and its module as `module` names it („VL EvS", the
+/// slots' short name), its module alone („EvS") where it has no kind, its kind in full („Vorlesung")
+/// where it has no module. `None` where it has none of them: the page says „Eigener Termin".
+pub fn own_label(own: &OwnTermin, module: Option<&str>, locale: Locale) -> Option<String> {
+    let name = own.name.trim();
+    if !name.is_empty() {
+        return Some(name.to_string());
+    }
+    match (own.kind, module.map(short_title).filter(|module| !module.is_empty())) {
+        (Some(kind), Some(module)) => Some(format!("{} {module}", kind.short(locale))),
+        (None, Some(module)) => Some(module),
+        (Some(kind), None) => Some(kind.label(locale).to_string()),
+        (None, None) => None,
+    }
+}
+
+/// The days of these rows the student hid („Nur am … ausblenden"; the days a Termin of one's own
+/// skips), in order, each once — of rows the plan shows. What a slot's mark counts, the card's
+/// series line names and the mode's figure sums.
+pub fn hidden_days<'r>(rows: impl IntoIterator<Item = &'r Row>) -> Vec<Day> {
+    let mut days: Vec<Day> = rows.into_iter().filter(|row| row.hidden.is_none()).flat_map(|row| row.occ.hidden.iter().copied()).collect();
+    days.sort_unstable();
+    days.dedup();
+    days
+}
+
+/// What the plan leaves out of a timetable because the student hid it (owner, 2026-11-17: „im edit
+/// modus auch Termine leicht anzeigen kann, die man ausgeblendet hat"): whole events (their eye, a
+/// kind switched off; an exam among them), single Termine (a series of single dates is one) and
+/// single dates. Not what a choice leaves out — a group not ticked, an option not taken, another
+/// program's, the other town's course: a made choice is no hide.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct HiddenCount {
+    pub events: usize,
+    pub termine: usize,
+    pub dates: usize,
+}
+
+impl HiddenCount {
+    /// Everything hidden, as „2 ausgeblendet" says it.
+    pub fn total(self) -> usize {
+        self.events + self.termine + self.dates
+    }
+}
+
+/// What a timetable leaves out because the student hid it (`HiddenCount`): an event hidden whole
+/// counts once and nothing of it more; of an event shown, a Termin whose every row is hidden counts
+/// once, else each of its hidden dates; an exam the same. It counts what the timetable holds, so a
+/// hide the store keeps of a Termin QIS has re-keyed is not counted.
+pub fn hidden_count(table: &Timetable) -> HiddenCount {
+    let whole = |hidden: Option<HiddenBy>| matches!(hidden, Some(HiddenBy::Event | HiddenBy::Kinds));
+    // `Event::hidden` names the first rule that holds, and the student's two come first: an event
+    // the other town's or program's course or a made choice leaves out anyway is no hide of theirs
+    // where an eye or a kind hides it too, or „Alle einblenden" would bring back less than the
+    // figure says. The options left out mirror `Timetable::build`'s rule.
+    let left_out = |event: &Event| {
+        table.theirs(event)
+            || event.across.is_some_and(|alt| {
+                table.choices.get(alt.choice).is_some_and(|across| match (&across.by, &across.narrowed) {
+                    (Some(_), _) if across.taken.len() >= across.pick => !across.taken.contains(&alt.option),
+                    (None, Some(narrowed)) => !narrowed.contains(&alt.option),
+                    _ => false,
+                })
+            })
+    };
+    let mut count = HiddenCount::default();
+    for event in &table.events {
+        if whole(event.hidden) {
+            if !left_out(event) {
+                count.events += 1;
+            }
+            continue;
+        }
+        for session in crate::termin::sessions(event) {
+            let rows: Vec<&Row> = crate::termin::termin_rows(event, session.row).into_iter().filter_map(|index| event.rows.get(index)).collect();
+            if !rows.is_empty() && rows.iter().all(|row| row.hidden == Some(HiddenBy::Row)) {
+                count.termine += 1;
+            } else {
+                count.dates += hidden_days(rows).len();
+            }
+        }
+    }
+    for exam in &table.exams {
+        if whole(exam.hidden) {
+            if !table.theirs_exam(exam) {
+                count.events += 1;
+            }
+            continue;
+        }
+        let mut keys: Vec<RowKey> = exam.rows.iter().filter_map(|row| row.key).collect();
+        keys.sort_unstable();
+        keys.dedup();
+        count.termine += keys.iter().filter(|key| exam.rows.iter().filter(|row| row.key == Some(**key)).all(|row| row.hidden == Some(HiddenBy::Row))).count();
+    }
+    count
+}
+
+/// What an event is called wherever Betula writes its kind — the card's head, „Offen", the list,
+/// a line, the calendar file: in German what QIS calls it („Übung", „Vorlesung/Übung",
+/// „Laborausbildung": the data's words); in another language the labels of its kinds („Lecture",
+/// "Seminar/Exercise"), as the week's short words („Lec EvS") are, and QIS's word as written where
+/// Betula knows no kind of it but „Sonstiges" („Kolloquium"). One rule, so that no English page
+/// says „Vorlesung" beside "Lecture". Without a word of QIS's, its kinds in `locale`.
 pub fn type_text(event: &Event, locale: Locale) -> String {
+    let labels = || event.kinds.iter().filter(|kind| *kind != EventKind::Other).map(|kind| kind.label(locale)).collect::<Vec<_>>().join("/");
     match event.type_raw.as_deref().map(str::trim).filter(|text| !text.is_empty()) {
-        Some(text) => text.to_string(),
+        Some(text) if locale == Locale::De => text.to_string(),
+        Some(text) => Some(labels()).filter(|labels| !labels.is_empty()).unwrap_or_else(|| text.to_string()),
         None => event.kinds.iter().map(|kind| kind.label(locale)).collect::<Vec<_>>().join("/"),
     }
 }
@@ -1456,5 +1563,141 @@ pub(crate) mod tests {
         assert!(wednesdays.iter().all(|(day, rows)| d(day).weekday() == 3 && *rows == 4));
         assert_eq!(dates_of("13102", "148703"), [("2027-02-12".to_string(), 2)]);
         assert_eq!(dates_of("11212", "148325"), [("2027-02-17".to_string(), 2)]);
+    }
+
+    /// A Termin of one's own without a name goes by its kind and its module, as a slot of QIS does.
+    #[test]
+    fn a_termin_of_ones_own_is_called_by_its_name_else_its_kind_and_module() {
+        use folia_calendar::kind::EventKind;
+        use folia_calendar::own::OwnRhythm;
+        let own = OwnTermin { number: 1, rhythm: OwnRhythm::Week, weekday: 5, dates: Vec::new(), from: 9 * 60, to: 10 * 60, period: None, module: Some("12104".into()), name: String::new(), place: String::new(), skip: Vec::new(), kind: Some(EventKind::Lecture) };
+        assert_eq!(own_label(&own, Some("EvS"), Locale::De).as_deref(), Some("VL EvS"));
+        assert_eq!(own_label(&own, Some("EvS"), Locale::En).as_deref(), Some("Lec EvS"));
+        assert_eq!(own_label(&OwnTermin { kind: None, ..own.clone() }, Some("EvS"), Locale::De).as_deref(), Some("EvS"));
+        assert_eq!(own_label(&own, None, Locale::De).as_deref(), Some("Vorlesung"));
+        assert_eq!(own_label(&own, Some("  "), Locale::De).as_deref(), Some("Vorlesung"), "a module without a name is none");
+        assert_eq!(own_label(&OwnTermin { kind: None, ..own.clone() }, None, Locale::De), None);
+        assert_eq!(own_label(&OwnTermin { name: " Tafelübung ".into(), ..own }, Some("EvS"), Locale::De).as_deref(), Some("Tafelübung"));
+    }
+
+    /// Two groups of an Übung and two options of a choice among a module's events: ticking one
+    /// group and taking one option hides the others, and that is a choice made, not a hide.
+    #[test]
+    fn a_made_choice_is_not_hidden() {
+        let rows = [
+            teaching("A", "50", 1, "Übung", 1, "09:15", "10:45").group("1-Gruppe"),
+            teaching("A", "50", 2, "Übung", 2, "11:30", "13:00").group("2-Gruppe"),
+        ];
+        let t = build(&rows, &[], &["A"], &Selection { chosen_rows: [rows[0].key()].into(), ..Selection::default() });
+        assert!(t.events[0].rows.iter().any(|row| row.hidden == Some(HiddenBy::Choice)));
+        assert_eq!(hidden_count(&t), HiddenCount::default());
+        assert_eq!(hidden_count(&t).total(), 0);
+    }
+
+    /// An option a made choice leaves out, hidden by its eye before the choice was made, counts
+    /// for nothing: „Alle einblenden" would bring back nothing of it. An open option hidden counts.
+    #[test]
+    fn an_option_left_out_by_a_choice_is_not_hidden() {
+        use crate::model::tests::{choice_row, choosing};
+        let rows = [
+            teaching("H", "245", 1, "Übung", 4, "11:30", "13:00").option(1),
+            teaching("H", "246", 1, "Übung", 2, "07:30", "09:00").option(2),
+            teaching("H", "247", 1, "Übung", 3, "13:45", "15:15").option(3),
+        ];
+        let choices = [choice_row("H", "program", 1, 1, "245"), choice_row("H", "program", 1, 2, "246"), choice_row("H", "program", 1, 3, "247")];
+        // The second option hidden by its eye, then the first taken.
+        let taken = Selection { hidden_events: [246].into(), chosen_rows: [rows[0].key()].into(), ..Selection::default() };
+        let t = choosing(&rows, &["H"], &choices, &[], &taken);
+        assert_eq!(t.events.iter().find(|event| event.id == "246").unwrap().hidden, Some(HiddenBy::Event));
+        assert_eq!(hidden_count(&t), HiddenCount::default());
+        // Open, the same hide is one.
+        let open = Selection { chosen_rows: Default::default(), ..taken };
+        let t = choosing(&rows, &["H"], &choices, &[], &open);
+        assert_eq!(hidden_count(&t), HiddenCount { events: 1, termine: 0, dates: 0 });
+    }
+
+    /// The other town's course is left out whatever else hides it: with „Übung" switched off and
+    /// two events hidden by their eyes, the one of the town taken counts, the two of the other
+    /// town do not — the figure is what „Alle einblenden" brings back.
+    #[test]
+    fn the_other_towns_course_is_not_hidden() {
+        use folia_calendar::kind::{EventKind, KindSet};
+        use crate::model::tests::{sws, table};
+        let rows = [
+            teaching("T", "80", 1, "Vorlesung", 1, "09:15", "10:45"),
+            teaching("T", "81", 1, "Übung", 2, "09:15", "10:45"),
+            teaching("T", "82", 1, "Vorlesung", 3, "09:15", "10:45").campus(Some("senftenberg")),
+            teaching("T", "83", 1, "Übung", 4, "09:15", "10:45").campus(Some("senftenberg")),
+        ];
+        let selection = Selection {
+            town: TownChoice::Only(folia_calendar::select::Town::Cottbus),
+            hidden_kinds: KindSet::default().with(EventKind::Exercise),
+            hidden_events: [81, 82].into(),
+            ..Selection::default()
+        };
+        let t = table(&rows, &["T"], &[sws("T", "exercise", 2.0)], &selection);
+        assert_eq!(hidden_count(&t), HiddenCount { events: 1, termine: 0, dates: 0 });
+    }
+
+    /// A Termin of an exam hidden by its eye (the row's key) counts as one Termin.
+    #[test]
+    fn an_exams_termin_hidden_by_its_row_counts() {
+        let rows = [teaching("A", "80", 1, "Vorlesung", 5, "09:15", "10:45")];
+        let exams = [exam("A", "90", 1, Some(("2027-02-11", "2027-02-11")), "11:00", "13:00")];
+        let key = RowKey::of(&exams[0].date).unwrap();
+        let t = build(&rows, &exams, &["A"], &Selection { hidden_rows: [key].into(), ..Selection::default() });
+        assert_eq!(hidden_count(&t), HiddenCount { events: 0, termine: 1, dates: 0 });
+    }
+
+    /// A series of single dates is one Termin: hidden whole it counts once, not per date.
+    #[test]
+    fn a_hidden_series_counts_once() {
+        let rows: Vec<Fixture> = ["2026-10-13", "2026-10-20", "2026-10-27"].iter().zip(1..).map(|(day, ord)| single("A", "40", ord, day, "13:45", "15:15").series(1, 1)).collect();
+        let hidden = Selection { hidden_rows: rows.iter().map(Fixture::key).collect(), ..Selection::default() };
+        let t = build(&rows, &[], &["A"], &hidden);
+        assert_eq!(hidden_count(&t), HiddenCount { events: 0, termine: 1, dates: 0 });
+    }
+
+    /// An event hidden whole counts once; its Termine and dates hidden besides are not counted again.
+    #[test]
+    fn a_hidden_event_does_not_count_its_termine_again() {
+        let rows = [teaching("A", "80", 1, "Vorlesung", 2, "11:30", "13:00"), teaching("A", "80", 2, "Vorlesung", 5, "09:15", "10:45")];
+        let hidden = Selection {
+            hidden_events: [80].into(),
+            hidden_rows: [rows[0].key()].into(),
+            hidden_dates: [(rows[1].key(), d("2026-11-06"))].into(),
+            ..Selection::default()
+        };
+        let t = build(&rows, &[], &["A"], &hidden);
+        assert_eq!(hidden_count(&t), HiddenCount { events: 1, termine: 0, dates: 0 });
+        // Shown again, the Termin and the date count each.
+        let shown = build(&rows, &[], &["A"], &Selection { hidden_events: Default::default(), ..hidden });
+        assert_eq!(hidden_count(&shown), HiddenCount { events: 0, termine: 1, dates: 1 });
+        assert_eq!(hidden_days(&shown.events[0].rows), [d("2026-11-06")]);
+    }
+
+    /// A date hidden, a day a Termin of one's own skips, a kind switched off and an exam hidden:
+    /// each counts, the hidden days of a series in order and once.
+    #[test]
+    fn a_hidden_date_a_skipped_day_and_a_kind_switched_off_count() {
+        use folia_calendar::kind::{EventKind, KindSet};
+        use folia_calendar::own::OwnRhythm;
+        let rows = [teaching("A", "80", 1, "Vorlesung", 5, "09:15", "10:45"), teaching("A", "81", 1, "Tutorium", 3, "16:00", "17:30")];
+        let exams = [exam("A", "90", 1, Some(("2027-02-11", "2027-02-11")), "11:00", "13:00")];
+        let own = OwnTermin { number: 1, rhythm: OwnRhythm::Week, weekday: 2, dates: Vec::new(), from: 8 * 60, to: 9 * 60, period: None, module: Some("A".into()), name: String::new(), place: String::new(), skip: vec![d("2026-11-03"), d("2026-11-10")], kind: Some(EventKind::Lecture) };
+        let selection = Selection {
+            hidden_kinds: KindSet::default().with(EventKind::Tutorial),
+            hidden_dates: [(rows[0].key(), d("2026-11-13")), (rows[0].key(), d("2026-11-06"))].into(),
+            hidden_events: [90].into(),
+            own: vec![own],
+            ..Selection::default()
+        };
+        let t = build(&rows, &exams, &["A"], &selection);
+        assert_eq!(hidden_count(&t), HiddenCount { events: 2, termine: 0, dates: 4 });
+        assert_eq!(hidden_count(&t).total(), 6);
+        let lecture = t.events.iter().find(|event| event.id == "80").unwrap();
+        assert_eq!(hidden_days(&lecture.rows), [d("2026-11-06"), d("2026-11-13")]);
+        let mine = t.events.iter().find(|event| event.own.is_some()).unwrap();
+        assert_eq!(hidden_days(&mine.rows), [d("2026-11-03"), d("2026-11-10")]);
     }
 }

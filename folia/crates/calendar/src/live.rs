@@ -9,8 +9,10 @@
 //! ticked and the changes of Termine of QIS. For a calendar app also what is hidden and the town,
 //! so that the subscribed calendar is the week the student sees, as a subscription's code carries
 //! it (`subscription`); for a person not, as the link of a fixed plan leaves it out (`share`).
-//! The Termine of one's own and the notes at Termine only where the share takes them along. No
-//! name, no profile, nothing that leads back to the sharer.
+//! The Termine of one's own and the notes at Termine only where the share takes them along — a
+//! Termin of one's own without its kind (`OwnTermin::kind`, which `CodeOwn` has no place for), so
+//! that a calendar that follows the share, and a calendar app's feed of it, see it by its name, else
+//! by its module, never by its kind. No name, no profile, nothing that leads back to the sharer.
 //!
 //! A part outlives releases as a code does (a friend's Betula of last month reads it): the layout
 //! is named in the code (`VERSION`), and the struct keeps pack's rule for lasting codes within it
@@ -165,6 +167,7 @@ impl CodeOwn {
             name: self.name.chars().take(MAX_OWN_TEXT).collect(),
             place: self.place.chars().take(MAX_OWN_TEXT).collect(),
             skip: self.skip.iter().map(day).collect(),
+            kind: None,
         };
         termin.is_valid().then_some(termin)
     }
@@ -393,11 +396,11 @@ mod tests {
     }
 
     fn arbeit() -> OwnTermin {
-        OwnTermin { number: 7, rhythm: OwnRhythm::Week, weekday: 5, dates: vec![], from: 13 * 60, to: 17 * 60, period: None, module: None, name: "Arbeit".into(), place: "Café Mosaik".into(), skip: vec![day("2026-12-25")] }
+        OwnTermin { number: 7, rhythm: OwnRhythm::Week, weekday: 5, dates: vec![], from: 13 * 60, to: 17 * 60, period: None, module: None, name: "Arbeit".into(), place: "Café Mosaik".into(), skip: vec![day("2026-12-25")], kind: None }
     }
 
     fn block() -> OwnTermin {
-        OwnTermin { number: 9, rhythm: OwnRhythm::Dates, weekday: 0, dates: vec![day("2026-09-28"), day("2026-11-14")], from: 9 * 60, to: 16 * 60, period: None, module: Some("12104".into()), name: "Blockseminar".into(), place: String::new(), skip: vec![] }
+        OwnTermin { number: 9, rhythm: OwnRhythm::Dates, weekday: 0, dates: vec![day("2026-09-28"), day("2026-11-14")], from: 9 * 60, to: 16 * 60, period: None, module: Some("12104".into()), name: "Blockseminar".into(), place: String::new(), skip: vec![], kind: None }
     }
 
     fn selection() -> Selection {
@@ -519,5 +522,13 @@ mod tests {
         assert_eq!(following(winter(), day("2027-10-02")), SemesterKey::parse("2027W").unwrap());
         // Made for the coming semester: it stays there, though today is still in the last one.
         assert_eq!(following(summer, day("2027-02-10")), summer);
+    }
+
+    /// A kind stays with the sharer: the part's layout has no place for it.
+    #[test]
+    fn a_kind_of_a_termin_of_ones_own_does_not_travel() {
+        let with = OwnTermin { kind: Some(EventKind::Lecture), ..arbeit() };
+        assert_eq!(CodeOwn::of(winter(), &with), CodeOwn::of(winter(), &arbeit()));
+        assert_eq!(CodeOwn::of(winter(), &with).termin(winter()), Some(arbeit()));
     }
 }

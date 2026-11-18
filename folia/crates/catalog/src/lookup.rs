@@ -181,6 +181,7 @@ impl LookUp {
             links,
             place,
             own: None,
+            done: None,
         }
     }
 }
