@@ -25,6 +25,7 @@ use leptos::prelude::*;
 
 use crate::i18n::use_location;
 use folia_design::nav;
+use folia_stores::studyplan::Planning;
 
 const STORAGE_KEY: &str = "betula.tabs";
 
@@ -140,14 +141,46 @@ struct Memory {
     studyplan: Option<String>,
     /// „Mein Studium" as it was left (the module beside it): where „Studium" leads up to.
     study: Option<String>,
+    /// The catalog lent to the workbench of „Mein Studium", with what its tab held before (`catalog`,
+    /// `catalog_list`; owner, 2026-11-18: „wenn man von der Werkbank in den Katalog geht, dann
+    /// überschreibt das die filter auch wenn man auf abbrechen oder fertig drückt. Die vorherigen
+    /// Filter müssen danach wieder hergestellt werden"). While the workbench is open the catalog is
+    /// its — „Im Katalog suchen" with the subgroup's filters and the semester's half of the year, the
+    /// bar at its head —, and its pages are remembered as any, so that a module's „Zurück" leads to
+    /// that list; the first step out of the catalog („Abbrechen", „Fertig", „Zurück zu WiSe
+    /// 2026/27", another tab) gives back what the tab held. Only this session's: where it held
+    /// nothing yet, nothing (the catalog of „Mein Studiengang" then, as on the first entry).
+    lent: Option<(Option<String>, Option<String>)>,
+}
+
+/// The line before what the catalog held when it was lent (`Memory::lent`), as this tab's session
+/// keeps it.
+const LENT: &str = "workbench";
+
+/// A path of this site, else nothing: what is kept ends up in links.
+fn site_path(line: &str) -> Option<String> {
+    (line.starts_with('/') && !line.starts_with("//")).then(|| line.to_string())
 }
 
 impl Memory {
-    fn visit(&mut self, location: String) {
+    /// The app is at `location`, `bench` whether the workbench of „Mein Studium" is open.
+    fn visit(&mut self, location: String, bench: bool) {
         if location == self.current {
             return;
         }
         let path = path_of(&location).to_string();
+        // The catalog lent to the workbench from its first page while the workbench is open, until
+        // the first step out of the catalog; a page of a while on top of it (a Termin, the profile:
+        // `nav::passing`) is still in it.
+        if Area::of(&path) == Area::Catalog {
+            if bench && self.lent.is_none() {
+                self.lent = Some((self.catalog.clone(), self.catalog_list.clone()));
+            }
+        } else if !crate::nav::passing(&path) {
+            if let Some((catalog, list)) = self.lent.take() {
+                (self.catalog, self.catalog_list) = (catalog, list);
+            }
+        }
         // A module's page opened out of an area that shows its modules in place (a program, the
         // marked modules: a link on the module shown there) belongs to that area, not to the
         // catalog: the catalog's tab keeps leading to the list as it was left, and that list does
@@ -185,15 +218,22 @@ impl Memory {
     }
 
     fn stored(&self) -> String {
-        [&self.catalog, &self.catalog_list, &self.programs, &self.programs_list, &self.bookmarks, &self.studyplan, &self.study].map(|entry| entry.clone().unwrap_or_default()).join("\n")
+        let mut lines = [&self.catalog, &self.catalog_list, &self.programs, &self.programs_list, &self.bookmarks, &self.studyplan, &self.study].map(|entry| entry.clone().unwrap_or_default()).to_vec();
+        // The catalog lent to the workbench, so that a reload meanwhile still gives it back.
+        if let Some((catalog, list)) = &self.lent {
+            lines.extend([LENT.to_string(), catalog.clone().unwrap_or_default(), list.clone().unwrap_or_default()]);
+        }
+        lines.join("\n")
     }
 
     fn restored(stored: &str) -> Self {
         // Only paths of this site: what is stored ends up in links. What an older version stored
         // (fewer lines) reads as far as it goes.
-        let mut lines = stored.lines().map(|line| Some(line.to_string()).filter(|line| line.starts_with('/') && !line.starts_with("//")));
-        let mut next = || lines.next().flatten();
-        Self { catalog: next(), catalog_list: next(), programs: next(), programs_list: next(), bookmarks: next(), studyplan: next(), study: next(), ..Default::default() }
+        let mut lines = stored.lines();
+        let mut next = || lines.next().and_then(site_path);
+        let memory = Self { catalog: next(), catalog_list: next(), programs: next(), programs_list: next(), bookmarks: next(), studyplan: next(), study: next(), ..Default::default() };
+        let lent = (lines.next() == Some(LENT)).then(|| (lines.next().and_then(site_path), lines.next().and_then(site_path)));
+        Self { lent, ..memory }
     }
 }
 
@@ -216,9 +256,12 @@ impl Tabs {
     /// Follows the router. Call it once, inside the router.
     pub fn follow(self) {
         let location = use_location();
+        // The workbench of „Mein Studium" open, which the catalog is lent to (`Memory::lent`).
+        let planning = Planning::expect();
         Effect::new(move |_| {
             let now = location_of(&location.pathname.get(), &location.search.get());
-            self.0.update(|memory| memory.visit(now));
+            let bench = planning.is_some_and(|planning| planning.bench_untracked().is_some());
+            self.0.update(|memory| memory.visit(now, bench));
             nav::session_set(STORAGE_KEY, &self.0.with_untracked(Memory::stored));
         });
     }
@@ -347,6 +390,14 @@ impl TabAgain {
     }
 }
 
+/// Whether the catalog is lent to the workbench of „Mein Studium" (`Memory::lent`), as this tab's
+/// session keeps it: a phone's change of tabs out of it leaves the catalog's stack as it was before
+/// (`nav`), as the memory gives back its pages.
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+pub(crate) fn catalog_lent() -> bool {
+    nav::session_get(STORAGE_KEY).is_some_and(|stored| Memory::restored(&stored).lent.is_some())
+}
+
 /// The last segment of `location` if it is a page below `prefix`: the module or program the
 /// visitor comes back from.
 pub fn page_below(location: &str, prefix: &str) -> Option<String> {
@@ -389,7 +440,7 @@ mod tests {
     fn tabs_remember_where_their_area_was_left() {
         let mut memory = Memory::default();
         for location in ["/catalog?turnus=winter", "/catalog?turnus=winter&page=3", "/catalog/module/11112", "/programs?level=master", "/programs/master-informatik-2008/plan"] {
-            memory.visit(location.to_string());
+            memory.visit(location.to_string(), false);
         }
         assert_eq!(memory.catalog.as_deref(), Some("/catalog/module/11112"));
         assert_eq!(memory.catalog_list.as_deref(), Some("/catalog?turnus=winter&page=3"));
@@ -400,7 +451,7 @@ mod tests {
         // A module opened out of a program leaves the catalog's memory alone.
         let mut from_program = Memory::default();
         for location in ["/catalog?turnus=winter", "/programs/master-informatik-2008/plan?open=11112", "/catalog/module/11112"] {
-            from_program.visit(location.to_string());
+            from_program.visit(location.to_string(), false);
         }
         assert_eq!(from_program.catalog.as_deref(), Some("/catalog?turnus=winter"));
         assert_eq!(from_program.programs.as_deref(), Some("/programs/master-informatik-2008/plan?open=11112"));
@@ -417,7 +468,7 @@ mod tests {
         assert_eq!(Area::of("/bookmarks"), Area::Bookmarks);
         let mut memory = Memory::default();
         for location in ["/catalog?turnus=winter", "/bookmarks?sort=ects&open=11112", "/bookmarks?sort=ects&open=11112&full=1"] {
-            memory.visit(location.to_string());
+            memory.visit(location.to_string(), false);
         }
         // „Vollbild" stays among the marked modules: their tab remembers it, the catalog's does not
         // hear of it.
@@ -425,7 +476,7 @@ mod tests {
         assert_eq!((memory.catalog.as_deref(), memory.catalog_list.as_deref()), (Some("/catalog?turnus=winter"), Some("/catalog?turnus=winter")));
         // A module's own page reached from there (a successor named on the page) is theirs as well:
         // its „Zurück" leads back to them, and the catalog's tab still leads to its list.
-        memory.visit("/catalog/module/11113".to_string());
+        memory.visit("/catalog/module/11113".to_string(), false);
         assert_eq!((Area::of(path_of(&memory.previous)), memory.catalog.as_deref()), (Area::Bookmarks, Some("/catalog?turnus=winter")));
         assert!(Area::Bookmarks.shows_in_place() && Area::Programs.shows_in_place() && !Area::Catalog.shows_in_place() && !Area::Home.shows_in_place());
         // A reload keeps it, and what an older version stored (four lines) still reads.
@@ -443,14 +494,14 @@ mod tests {
         assert!(Area::Studyplan.shows_in_place());
         let mut memory = Memory::default();
         for location in ["/catalog?turnus=winter", "/studyplan?sem=2026W&view=dates", "/studyplan?sem=2026W&view=dates&open=12104&full=1"] {
-            memory.visit(location.to_string());
+            memory.visit(location.to_string(), false);
         }
         // Its tab remembers the plan as it was left, the module filling it included; the catalog's
         // does not hear of the module.
         assert_eq!(memory.studyplan.as_deref(), Some("/studyplan?sem=2026W&view=dates&open=12104&full=1"));
         assert_eq!(memory.catalog.as_deref(), Some("/catalog?turnus=winter"));
         // A module's own page reached from there belongs to the plan: its „Zurück" leads back to it.
-        memory.visit("/catalog/module/12107".to_string());
+        memory.visit("/catalog/module/12107".to_string(), false);
         assert_eq!((Area::of(path_of(&memory.previous)), memory.catalog.as_deref()), (Area::Studyplan, Some("/catalog?turnus=winter")));
 
         // The tab: from elsewhere to where the plan was left; on the plan itself the plain link.
@@ -487,7 +538,7 @@ mod tests {
 
         let mut memory = Memory::default();
         for location in ["/study?open=12104", "/programs/bachelor-informatik-2008/plan", "/catalog?turnus=winter"] {
-            memory.visit(location.to_string());
+            memory.visit(location.to_string(), false);
         }
         let tabs = Tabs(RwSignal::new(memory.clone()));
         // From another area: where the area was left; inside it: up to „Mein Studium" as it was left.
@@ -497,12 +548,12 @@ mod tests {
         assert_eq!(tabs.href(Area::Programs, "/study"), "/study");
         // „Zurück" on the program's page: the list it was reached from.
         assert_eq!(tabs.list(Area::Programs), "/study?open=12104");
-        memory.visit("/programs?level=master".to_string());
-        memory.visit("/programs/master-informatik-2008/plan".to_string());
+        memory.visit("/programs?level=master".to_string(), false);
+        memory.visit("/programs/master-informatik-2008/plan".to_string(), false);
         assert_eq!(Tabs(RwSignal::new(memory.clone())).list(Area::Programs), "/programs?level=master");
         // A module's own page reached from „Mein Studium" is the area's, as from a program.
-        memory.visit("/study".to_string());
-        memory.visit("/catalog/module/12104".to_string());
+        memory.visit("/study".to_string(), false);
+        memory.visit("/catalog/module/12104".to_string(), false);
         assert_eq!((Area::of(path_of(&memory.previous)), memory.catalog.as_deref()), (Area::Programs, Some("/catalog?turnus=winter")));
         // A reload keeps it as the seventh line.
         assert_eq!(Memory::restored(&memory.stored()).study.as_deref(), Some("/study"));
@@ -527,7 +578,7 @@ mod tests {
         // program's tag away is not led back to it.
         let mut memory = Memory::default();
         for location in [mine, "/catalog", "/programs"] {
-            memory.visit(location.to_string());
+            memory.visit(location.to_string(), false);
         }
         let visited = Tabs(RwSignal::new(memory));
         assert_eq!(visited.href_with_root(Area::Catalog, "/programs", mine), "/catalog");
@@ -535,6 +586,65 @@ mod tests {
         // `href` is the same with the area's own root.
         assert_eq!(visited.href(Area::Catalog, "/programs"), visited.href_with_root(Area::Catalog, "/programs", "/catalog"));
         assert_eq!(fresh.href(Area::Catalog, "/"), "/catalog");
+    }
+
+    #[test]
+    fn the_workbench_gives_the_catalog_back() {
+        // The tabs' signal needs an owner, as on a page.
+        let owner = Owner::new();
+        owner.set();
+        let mine = "/catalog?program=bachelor-informatik-2008";
+        let bench = "/catalog?program=bachelor-informatik-2008&turnus=winter&fill=p3";
+        // The student's own filters, then the workbench's „Im Katalog suchen", a module beside its
+        // list and its own page, whose „Zurück" leads to the workbench's list.
+        let mut memory = Memory::default();
+        memory.visit("/catalog?turnus=summer&lang=en".to_string(), false);
+        memory.visit("/catalog?turnus=summer&lang=en&open=11112".to_string(), false);
+        for location in ["/study?plan=1", bench, &format!("{bench}&open=12160"), "/catalog/module/12160"] {
+            memory.visit(location.to_string(), true);
+        }
+        let beside = format!("{bench}&open=12160");
+        assert_eq!(Tabs(RwSignal::new(memory.clone())).list(Area::Catalog), beside);
+        // A reload meanwhile keeps the loan.
+        let reloaded = Memory::restored(&memory.stored());
+        assert_eq!((reloaded.catalog_list.as_deref(), reloaded.lent.clone()), (Some(beside.as_str()), memory.lent.clone()));
+        // „Fertig": the tab leads to the catalog as the student left it, from everywhere.
+        memory.visit(format!("{bench}&open=12160"), true);
+        memory.visit("/study?plan=1".to_string(), true);
+        assert_eq!(memory.lent, None);
+        let own = "/catalog?turnus=summer&lang=en&open=11112";
+        assert_eq!((memory.catalog.as_deref(), memory.catalog_list.as_deref()), (Some(own), Some(own)));
+        let tabs = Tabs(RwSignal::new(memory.clone()));
+        assert_eq!((tabs.href_with_root(Area::Catalog, "/study", mine), tabs.list(Area::Catalog)), (own.to_string(), own.to_string()));
+        assert_eq!(Memory::restored(&memory.stored()), Memory { current: String::new(), previous: String::new(), ..memory.clone() });
+        assert_eq!(memory.stored().split('\n').count(), 7, "nothing lent, nothing more kept");
+
+        // Only this session's: a catalog not visited before the workbench is not visited after it,
+        // and the tab's first entry is the catalog of „Mein Studiengang" again.
+        let mut fresh = Memory::default();
+        for location in ["/study", bench, "/catalog?turnus=winter"] {
+            fresh.visit(location.to_string(), true);
+        }
+        // Back to „Mein Studium" with the browser's Back, a Termin's page of a while on the way.
+        fresh.visit("/event/148370-eb017".to_string(), true);
+        assert!(fresh.lent.is_some(), "a page of a while is still the catalog's");
+        fresh.visit("/study".to_string(), true);
+        assert_eq!((fresh.catalog.clone(), fresh.catalog_list.clone(), fresh.lent.clone()), (None, None, None));
+        assert_eq!(Tabs(RwSignal::new(fresh)).href_with_root(Area::Catalog, "/study", mine), mine);
+
+        // Without the workbench the catalog is the tab's as always; a module's page opened from
+        // „Mein Studium" lends nothing it would change.
+        let mut plain = Memory::default();
+        for location in ["/catalog?turnus=summer", "/study", "/catalog?turnus=winter", "/study"] {
+            plain.visit(location.to_string(), false);
+        }
+        assert_eq!(plain.catalog_list.as_deref(), Some("/catalog?turnus=winter"));
+        plain.visit("/catalog/module/12104".to_string(), true);
+        plain.visit("/study".to_string(), true);
+        assert_eq!((plain.catalog_list.as_deref(), plain.lent.clone()), (Some("/catalog?turnus=winter"), None));
+        // What a session kept is read back only as paths of this site.
+        assert_eq!(Memory::restored("\n\n\n\n\n\n\nworkbench\n//evil.example\n/catalog").lent, Some((None, Some("/catalog".into()))));
+        assert_eq!(Memory::restored("\n\n\n\n\n\n\nsomething\n/catalog\n/catalog").lent, None);
     }
 
     #[test]

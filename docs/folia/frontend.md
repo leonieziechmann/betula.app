@@ -898,6 +898,19 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   not there. „Zurück" on a program's page leads to the list it came from, „Mein Studium" or the overview as it
   was left, and to the overview where nothing is remembered (`Area::back_root`, which the server's
   page links). Without the app the tab is the overview: there is nothing to plan without it.
+  **The catalog is lent to the workbench of „Mein Studium" while it is open** (`Memory::lent`,
+  Folia 1.100.1; owner, 2026-11-18: „wenn man von der Werkbank in den Katalog geht, dann
+  überschreibt das die filter auch wenn man auf abbrechen oder fertig drückt. Die vorherigen Filter
+  müssen danach wieder hergestellt werden. Pass auf, dass nur die Filter von der aktuellen session
+  wieder hergestellt werden"): from its first page while the workbench is open — „Im Katalog
+  suchen" with the subgroup's filters, or the tab — the memory follows the catalog as always, so
+  that a module's „Zurück" leads to the workbench's list, and the first step out of the catalog
+  („Abbrechen", „Fertig", „Zurück zu WiSe 2026/27", Back, another tab; not a page of a while on top
+  of it) gives back what the catalog's tab held before, on a phone its stack too (`nav`). Only this
+  session's: where the tab held nothing yet, it holds nothing again, and its first entry is the
+  catalog of „Mein Studiengang"; a reload meanwhile keeps the loan (`betula.tabs`, a line
+  `workbench` and the two the catalog held). Until then the workbench's filters stayed the
+  catalog's.
 - **A swipe along the phone's bottom bar goes to the tab beside the current one** (owner,
   2026-09-30, and the other way round the next day, the first direction being „invertiert zu dem,
   was man intuitiv erwartet": „die ganze Leiste zu bewegen und den selector stehen zu lassen und
@@ -2777,7 +2790,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     semester's card open at the page it was left at, on a phone
     its row of the semesters (`plan=1`), which stands at the workbench's semester with its sheet
     open: back to the tab „Studium" is a change of tabs, which keeps no semester of the row's own
-    entry. *On a phone* (Folia 1.70.0; folia/design/
+    entry. The catalog is the workbench's meanwhile: once it is left, its tab leads to the catalog as
+    the student left it before, in this session (`folia_shell::tabs`, Folia 1.100.1; until then to
+    the workbench's filters). *On a phone* (Folia 1.70.0; folia/design/
     hinzufuegen/handy.html, variant B; owner, 2026-11-04: „Also ich finde Option B bedeutend
     besser, weil da leichter zu erkennen ist, was jetzt geplant und was vorgeschlagen ist") the page
     stays where it is — the semester's page of the row with ← and its dots, or the view it was
@@ -4293,7 +4308,9 @@ screen kommt und nicht die Seiten rückwärts abzuspielen". The concept with its
   (`history.go`, `replaceState`; `nav::plan`). What the tap changes shows in the next frame
   (`Pending::hold`); the history is written after that frame, as a link's step is (the tap stays
   fresh for seconds), and the router takes the top at the end (`Pending::release`). The tab left
-  keeps its stack (in `sessionStorage`, `betula.nav.stacks`) and comes back as it was left; what is
+  keeps its stack (in `sessionStorage`, `betula.nav.stacks`) and comes back as it was left — the
+  catalog lent to the workbench of „Mein Studium" the stack it had before (`tabs::catalog_lent`,
+  Folia 1.100.1) —; what is
   left over ahead is no way Forward (`nav::on_popstate` steps back out of it). The tab tapped again
   leads to its first page. A module's own page opened out of a tab that shows its modules in place stays in that tab
   (`nav::tab_of_page`), and so does the profile page, a page of a while (`nav::passing`; „Profiles“
