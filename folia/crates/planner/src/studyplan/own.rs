@@ -667,6 +667,50 @@ pub(super) fn held_span(anchor: u16, first: u16, last: u16) -> (u16, u16) {
     (from, from.saturating_add(NEW_LENGTH).min(high).max(least))
 }
 
+/// The span a finger draws with the pointer at `at`, the span `before` standing: the end goes to
+/// the neighbouring quarter of an hour only once the pointer is `margin` (minutes) past the line
+/// between them, and a move over more than one quarter goes there at once. A real finger resting on
+/// a phone's grid trembles by a pixel or two, and a quarter of an hour is about 11 px there, so that
+/// the end flipped between two quarters under a finger at rest (owner, 2026-11-18: „Ja das dragging
+/// funktioniert nicht dass ist richtig buggy."). The spans `span_of` gives stand in one order as the
+/// pointer goes down, in which the sum of the start and the end grows: `before` stays while it lies
+/// between the spans of the pointer `margin` above and below.
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+pub(super) fn steady_span(before: Option<(u16, u16)>, anchor: u16, at: f64, margin: f64, first: u16, last: u16) -> (u16, u16) {
+    let now = span_of(anchor, at, first, last);
+    let Some(before) = before else { return now };
+    let order = |(from, to): (u16, u16)| u32::from(from) + u32::from(to);
+    let (above, below) = (span_of(anchor, at - margin, first, last), span_of(anchor, at + margin, first, last));
+    if order(above) <= order(before) && order(before) <= order(below) {
+        before
+    } else {
+        now
+    }
+}
+
+/// How long (ms) before the lift a change of a finger's span is the lift's own shift, and how long
+/// (ms) what stood before it must have stood for the finger to have rested on it.
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+const LIFT_MS: f64 = 80.0;
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+const RESTED_MS: f64 = 150.0;
+
+/// The span a finger's lift at `lift` (ms) gives, of the spans that stood while it drew (`stood`:
+/// since when each stood, in order) and what stands (`standing`). A real finger shifts by one to
+/// three millimetres as it lifts, within the last few dozen milliseconds, and so the span changed
+/// under a finger that had rested on what it wanted (owner, 2026-11-18: „Ja das dragging funktioniert
+/// nicht dass ist richtig buggy."): where the span changed within `LIFT_MS` before the lift and what
+/// stood before those changes had stood `RESTED_MS` at least, the lift gives that. A finger still
+/// moving as it lifts ended a drag in motion: what stands, as its tag said.
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+pub(super) fn lifted_span(stood: &[(f64, (u16, u16))], lift: f64, standing: (u16, u16)) -> (u16, u16) {
+    let Some(rested) = stood.iter().rposition(|(since, _)| *since <= lift - LIFT_MS) else { return standing };
+    match (stood.get(rested), stood.get(rested + 1)) {
+        (Some((since, span)), Some((changed, _))) if changed - since >= RESTED_MS => *span,
+        _ => standing,
+    }
+}
+
 /// The span a drag draws in the week while it lasts (`PlanCtx::sketch`): its day and minutes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Sketch {
@@ -784,15 +828,22 @@ pub(super) fn ask_span(ctx: PlanCtx, weekday: u8, from: u16, to: u16) {
 /// How far (px) a mouse moves before its press draws a span: less is a click.
 const DRAG_SLOP: f64 = 4.0;
 
-/// How far (px) a held finger moves before the span follows it: less is the finger's own trembling,
-/// and the span stays a new Termin's length; more, and a quarter of an hour on a phone's grid (about
-/// 11 px) can be drawn.
-const FOLLOW_SLOP: f64 = 6.0;
+/// How far (px, about 2.5 mm) a held finger moves from where it was held before the span follows
+/// it: less is the finger's own trembling, and the 90 minutes stand. A real finger trembles and
+/// drifts by a millimetre or two while it is held (owner, 2026-11-18: „Ja das dragging funktioniert
+/// nicht dass ist richtig buggy."), and Android reports no move under 8 px at all, so that with a
+/// smaller slop the first move it reports draws a quarter of an hour or two in place of the 90
+/// minutes. A shorter span is still drawn: past this and back.
+const FOLLOW_SLOP: f64 = 16.0;
+
+/// How far (px) a finger goes past the line between two quarters of an hour before the end steps
+/// over it (`steady_span`): a finger at rest trembles by a pixel or two over a phone's 11 px quarter.
+const STEP_SLOP: f64 = 3.0;
 
 /// A press on a free stretch of the week while it lasts: the pointer and whether it is a finger, the
 /// column it began in, the quarter of an hour pressed, where it began, whether the span is drawn
-/// (`live`) and whether it follows the pointer yet (a finger's hold draws a new Termin's length
-/// until the finger moves).
+/// (`live`), whether it follows the pointer yet (a finger's hold draws a new Termin's length
+/// until the finger moves) and the span it drew when it followed last (`drew`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Press {
     pointer: i32,
@@ -802,6 +853,22 @@ struct Press {
     y: f64,
     live: bool,
     follows: bool,
+    drew: Option<(u16, u16)>,
+}
+
+/// The time (ms) on the page's clock, which an event's `timeStamp` is on too: when a finger's hold
+/// completed. A move and the lift go by their event's time, when the finger did it, not by when the
+/// page came to handle it.
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+fn now_ms() -> f64 {
+    #[cfg(feature = "csr")]
+    {
+        web_sys::window().and_then(|window| window.performance()).map_or(0.0, |performance| performance.now())
+    }
+    #[cfg(not(feature = "csr"))]
+    {
+        0.0
+    }
 }
 
 /// A span drawn on a free stretch of the week while the plan is edited (owner, 2026-11-18: „drag
@@ -820,6 +887,14 @@ struct Press {
 /// the pointer (`pointercancel`, `lostpointercapture`), a second pointer coming down, the window
 /// losing the focus, the mode left, another semester or week, the page turning a phone's or a wide
 /// one's.
+///
+/// A finger is no mouse: it trembles while it rests, drifts while it is held and shifts by one to
+/// three millimetres as it lifts, and the checks' finger, which stood still to the pixel, did none of
+/// it (owner, 2026-11-18, of a real Android phone: „Ja das dragging funktioniert nicht dass ist
+/// richtig buggy."). So for a finger the span follows only once it is `FOLLOW_SLOP` from where it was
+/// held, its end steps to the next quarter of an hour only `STEP_SLOP` past the line
+/// (`steady_span`), and the lift gives what stood while the finger rested, not the shift of lifting
+/// (`stood`, `lifted_span`). A mouse's and a pen's drawing are as exact as their pointer.
 #[derive(Clone, Copy)]
 pub(super) struct Drag {
     ctx: PlanCtx,
@@ -829,6 +904,9 @@ pub(super) struct Drag {
     swallow: StoredValue<bool>,
     /// The span as it stands over its column, and its tag.
     drawn: RwSignal<Option<Drawn>>,
+    /// The spans a finger's drag drew and since when each stood (ms, `now_ms` and the events'
+    /// `timeStamp`), for its lift.
+    stood: StoredValue<Vec<(f64, (u16, u16))>>,
     /// What holds the pointer (the week) and the column pressed, while a press lasts.
     #[cfg(feature = "csr")]
     held_by: StoredValue<Option<send_wrapper::SendWrapper<(web_sys::Element, web_sys::Element)>>>,
@@ -841,6 +919,7 @@ impl Drag {
             press: StoredValue::new(None),
             swallow: StoredValue::new(false),
             drawn: RwSignal::new(None),
+            stood: StoredValue::new(Vec::new()),
             #[cfg(feature = "csr")]
             held_by: StoredValue::new(None),
         };
@@ -905,7 +984,7 @@ impl Drag {
             self.held_by.set_value(Some(send_wrapper::SendWrapper::new((holder, at))));
             let y = f64::from(ev.client_y());
             let anchor = quarter(column.minute(y));
-            self.press.set_value(Some(Press { pointer: ev.pointer_id(), touch: false, column, anchor, y, live: false, follows: false }));
+            self.press.set_value(Some(Press { pointer: ev.pointer_id(), touch: false, column, anchor, y, live: false, follows: false, drew: None }));
         }
         #[cfg(not(feature = "csr"))]
         let _ = (ev, another);
@@ -924,9 +1003,10 @@ impl Drag {
             let Some(holder) = element.closest(".sp-carousel").ok().flatten().or_else(|| element.closest(".sp-week").ok().flatten()) else { return false };
             let _ = holder.set_pointer_capture(pointer);
             self.held_by.set_value(Some(send_wrapper::SendWrapper::new((holder, at))));
-            let press = Press { pointer, touch: true, column, anchor, y: f64::from(y), live: true, follows: false };
+            let press = Press { pointer, touch: true, column, anchor, y: f64::from(y), live: true, follows: false, drew: None };
             self.press.set_value(Some(press));
-            self.draw(press, press.y);
+            self.stood.set_value(Vec::new());
+            self.draw(press, press.y, now_ms());
             true
         }
         #[cfg(not(feature = "csr"))]
@@ -958,9 +1038,9 @@ impl Drag {
             press.follows = true;
             press.live = true;
         }
-        self.press.set_value(Some(press));
         ev.prevent_default();
-        self.draw(press, y);
+        press.drew = Some(self.draw(press, y, ev.time_stamp()));
+        self.press.set_value(Some(press));
         true
     }
 
@@ -979,17 +1059,29 @@ impl Drag {
         press.column
     }
 
-    /// The span of `press` with the pointer at `y`, in the week and over its column.
-    fn draw(self, press: Press, y: f64) {
+    /// The span of `press` with the pointer at `y` at the time `when`, in the week and over its
+    /// column; which it is. A finger's end steps only on a clear move (`steady_span`), and when its
+    /// span changes is kept for the lift (`stood`).
+    fn draw(self, press: Press, y: f64, when: f64) -> (u16, u16) {
         let column = self.column_now(press);
-        let (from, to) = if press.follows { span_of(press.anchor, column.minute(y), column.first, column.last) } else { held_span(press.anchor, column.first, column.last) };
+        let (from, to) = if !press.follows {
+            held_span(press.anchor, column.first, column.last)
+        } else if press.touch {
+            let margin = STEP_SLOP * f64::from(column.last.saturating_sub(column.first)) / column.height.max(1.0);
+            steady_span(press.drew, press.anchor, column.minute(y), margin, column.first, column.last)
+        } else {
+            span_of(press.anchor, column.minute(y), column.first, column.last)
+        };
         let next = Some(Sketch { day: column.day, from, to });
         if self.ctx.sketch.get_untracked() != next {
             self.ctx.sketch.set(next);
+            if press.touch {
+                self.stood.update_value(|stood| stood.push((when, (from, to))));
+            }
         }
         #[cfg(feature = "csr")]
         {
-            let Some(held) = self.held_by.get_value() else { return };
+            let Some(held) = self.held_by.get_value() else { return (from, to) };
             let (holder, at) = &*held;
             let boxed = |rect: web_sys::DomRect| Boxed { left: rect.left(), top: rect.top(), width: rect.width(), height: rect.height() };
             let seen = web_sys::window().map_or(Boxed { left: 0.0, top: 0.0, width: f64::MAX, height: f64::MAX }, |window| Boxed {
@@ -1003,31 +1095,51 @@ impl Drag {
                 self.drawn.set(Some(drawn));
             }
         }
+        (from, to)
     }
 
     /// The pointer let go: where a span was drawn, the form opens with it (and the click that
-    /// follows opens nothing). Whether a drag ended.
+    /// follows opens nothing); a finger's with what stood while it rested (`lifted_span`). Whether
+    /// a drag ended.
     pub(super) fn up(self, ev: &leptos::ev::PointerEvent) -> bool {
         let Some(press) = self.press.get_value() else { return false };
         if ev.pointer_id() != press.pointer {
             return false;
         }
         let drawn = self.ctx.sketch.get_untracked();
+        let stood = self.stood.get_value();
         self.cancel();
         if !press.live {
             return false;
         }
         if let Some(sketch) = drawn {
-            ask_span(self.ctx, sketch.day, sketch.from, sketch.to);
+            let (from, to) = if press.touch { lifted_span(&stood, ev.time_stamp(), (sketch.from, sketch.to)) } else { (sketch.from, sketch.to) };
+            ask_span(self.ctx, sketch.day, from, to);
         }
         true
     }
 
-    /// The browser took the pointer from the week (`lostpointercapture`): its drag is given up.
+    /// The browser took the pointer from the week (`lostpointercapture` at the element that holds
+    /// it): its drag is given up. The same event of another element bubbles up to the week, and is
+    /// none of the drag's: a finger's pointer is held by the element it came down on until the week
+    /// takes it as the hold completes, and that element's loss of it comes at the finger's next
+    /// event; taken for the week's, it gives the drag up whenever the finger moved before the hold
+    /// completed, and the lift opens nothing.
     pub(super) fn lost(self, ev: &leptos::ev::PointerEvent) {
-        if self.press.get_value().is_some_and(|press| press.pointer == ev.pointer_id()) {
-            self.cancel();
+        if !self.press.get_value().is_some_and(|press| press.pointer == ev.pointer_id()) {
+            return;
         }
+        #[cfg(feature = "csr")]
+        {
+            use wasm_bindgen::JsCast;
+            let target = ev.target().and_then(|target| target.dyn_into::<web_sys::Node>().ok());
+            if let (Some(held), Some(target)) = (self.held_by.get_value(), target) {
+                if !held.0.is_same_node(Some(&target)) {
+                    return;
+                }
+            }
+        }
+        self.cancel();
     }
 
     /// The drag given up: no press, no hold of the pointer, nothing drawn, nothing opened. Safe
@@ -1035,6 +1147,7 @@ impl Drag {
     pub(super) fn cancel(self) {
         let press = self.press.try_get_value().flatten();
         let _ = self.press.try_set_value(None);
+        let _ = self.stood.try_update_value(Vec::clear);
         // The click that ends a press that drew opens nothing (the form is open, or the drag was
         // given up); the next press clears it, so that no later click is lost.
         if press.is_some_and(|press| press.live) {
@@ -1167,9 +1280,14 @@ pub(super) fn SketchView(drag: Drag) -> impl IntoView {
     }
 }
 
-/// How long (ms) a finger held still on a phone's week is a hold, and how far (px) it may move.
+/// How long (ms) a finger held still on a phone's week is a hold, and how far (px) it may move: as
+/// far as the carousel lets it go before it carries a week (`week::DRAG`), and Android lets it go
+/// before it scrolls the page itself and takes the pointer (`pointercancel`). A real finger drifts
+/// while it is held (owner, 2026-11-18: „Ja das dragging funktioniert nicht dass ist richtig
+/// buggy."): a slop wider than the carousel's would let a drift sideways carry the week while the
+/// hold goes on, and both would have the finger.
 const HOLD_MS: u64 = 500;
-const HOLD_SLOP: i32 = 10;
+const HOLD_SLOP: i32 = 8;
 
 /// A finger held on a free stretch of a phone's week (owner, 2026-11-18: „Das soll so sein, dass man
 /// lange gedrückt hält, dann bekommt man ein vib feedback, und danach kann man draggen oder einfach
@@ -1179,6 +1297,12 @@ const HOLD_SLOP: i32 = 10;
 /// moves; only the lift opens the form with what stands, whose „Anlegen" makes the Termin. A finger
 /// that moves before the hold completes scrolls the page. The click that ends the hold opens
 /// nothing. A mouse or a pen does not hold: a click and a drag are theirs.
+///
+/// One of the two has the finger, the hold or a phone's carousel, never both (owner, 2026-11-18,
+/// of a real finger, which drifts while it is held: „Ja das dragging funktioniert nicht dass ist
+/// richtig buggy."): while the hold is `pending` the carousel carries no week; a finger that leaves
+/// `HOLD_SLOP` ends the hold, and the carousel may carry or the page scroll; once the hold completed
+/// the drag has the finger, and nothing is carried.
 #[derive(Clone, Copy)]
 pub(super) struct Hold {
     drag: Drag,
@@ -1233,6 +1357,11 @@ impl Hold {
             timer.clear();
             self.timer.set_value(None);
         }
+    }
+
+    /// A finger is held on the week and the hold has not completed: the carousel carries no week.
+    pub(super) fn pending(self) -> bool {
+        self.timer.get_value().is_some() && self.at.get_value().is_some()
     }
 
     /// A finger is held on the week, or draws: its long press opens no menu of the browser's.
@@ -2003,6 +2132,50 @@ mod tests {
     /// The span being drawn lies over its column; its times stand in a tag outside it, above its
     /// top edge, inside the week and the window — on a phone's last column too —, below or beside it
     /// where there is no room above, never where the pointer is; its own text only where it fits.
+    #[test]
+    fn a_fingers_end_steps_only_on_a_clear_move() {
+        // The grid from 07:00 to 19:00, pressed at 16:05 (the quarter of 16:00); 4 minutes are about
+        // 3 px of a phone's 10.8 px quarter.
+        let (first, last, anchor, margin) = (7 * 60, 19 * 60, 960, 4.0);
+        let to_1715 = Some((960, 1035));
+        // Resting 2 minutes past the line of 17:15 and trembling: the end stays.
+        assert_eq!(steady_span(to_1715, anchor, 1037.0, margin, first, last), (960, 1035));
+        assert_eq!(steady_span(to_1715, anchor, 1033.0, margin, first, last), (960, 1035));
+        // Clearly past it: the next quarter, and back clearly before it.
+        assert_eq!(steady_span(to_1715, anchor, 1040.0, margin, first, last), (960, 1050));
+        assert_eq!(steady_span(Some((960, 1050)), anchor, 1037.0, margin, first, last), (960, 1050));
+        assert_eq!(steady_span(Some((960, 1050)), anchor, 1030.0, margin, first, last), (960, 1035));
+        // A move over more than one quarter goes there at once, either way.
+        assert_eq!(steady_span(to_1715, anchor, 1062.0, margin, first, last), (960, 1065));
+        assert_eq!(steady_span(to_1715, anchor, 1005.0, margin, first, last), (960, 1005));
+        // Upward the start steps alike: 15:30–16:15 stays at 15:28, goes at 15:25.
+        assert_eq!(steady_span(Some((930, 975)), anchor, 928.0, margin, first, last), (930, 975));
+        assert_eq!(steady_span(Some((930, 975)), anchor, 925.0, margin, first, last), (915, 975));
+        // Nothing before: where the pointer is.
+        assert_eq!(steady_span(None, anchor, 1037.0, margin, first, last), (960, 1050));
+        // No margin: as a mouse draws.
+        assert_eq!(steady_span(to_1715, anchor, 1037.0, 0.0, first, last), span_of(anchor, 1037.0, first, last));
+    }
+
+    #[test]
+    fn a_fingers_lift_gives_what_stood_while_it_rested() {
+        let (held, a, b, c) = ((960, 1050), (960, 1035), (960, 1050), (960, 1065));
+        // Rested on 16:00–17:15 for 300 ms, then a jump within the lift's 30 ms: the rested span.
+        assert_eq!(lifted_span(&[(0.0, held), (100.0, a), (400.0, b)], 430.0, b), a);
+        // Two jumps inside the last 80 ms: walked back over both.
+        assert_eq!(lifted_span(&[(0.0, held), (100.0, a), (400.0, b), (420.0, c)], 440.0, c), a);
+        // A steady drag, a change every 50 ms up to the lift: what stands, as the tag said.
+        assert_eq!(lifted_span(&[(0.0, held), (500.0, a), (550.0, b), (600.0, c)], 615.0, c), c);
+        // The 90 minutes held, then one jump as the finger lifts: the 90 minutes.
+        assert_eq!(lifted_span(&[(0.0, held), (690.0, a)], 700.0, a), held);
+        // No change at all, or none within the last 80 ms: what stands.
+        assert_eq!(lifted_span(&[(0.0, held)], 700.0, held), held);
+        assert_eq!(lifted_span(&[(0.0, held), (100.0, a)], 700.0, a), a);
+        assert_eq!(lifted_span(&[], 700.0, held), held);
+        // Every change inside the last 80 ms, nothing rested before: what stands.
+        assert_eq!(lifted_span(&[(650.0, a), (680.0, b)], 700.0, b), b);
+    }
+
     #[test]
     fn the_span_drawn_says_its_times_outside_it() {
         let boxed = |left: f64, top: f64, width: f64, height: f64| Boxed { left, top, width, height };
