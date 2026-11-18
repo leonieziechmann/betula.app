@@ -18,20 +18,32 @@ mod tests {
             let quoted = |label: &str| format!("{open}{label}{close}");
             let home = &t.home;
             let answer = |question: usize, faq: &folia_home::i18n::home::Faq| faq.questions.get(question).map(|(_, answer)| *answer).unwrap_or_default();
+            let sync = &folia_profile::i18n::texts(*locale).sync;
+            let dialog = &folia_planner::i18n::texts(*locale).studyplan_share_dialog;
             let pairs = [
+                (answer(7, &home.about_betula), quoted(t.myprogram.mine)),
+                (answer(7, &home.about_betula), quoted(t.app.my_studies)),
+                (answer(0, &home.using_betula), quoted(t.catalog.similar)),
                 (answer(0, &home.using_betula), quoted(t.topics.finding.name)),
                 (answer(0, &home.using_betula), quoted(t.topics.more)),
-                (answer(1, &home.using_betula), quoted(t.studyplan_head.plan)),
-                (answer(1, &home.using_betula), quoted(t.catalog.fits)),
-                (answer(2, &home.using_betula), quoted(t.catalog.saved_chip)),
-                (answer(3, &home.using_betula), quoted(t.bookmarks.transfer)),
-                (answer(3, &home.using_betula), quoted(t.studyplan_share.copy_link)),
+                (answer(3, &home.using_betula), quoted(t.studyplan_head.plan)),
+                (answer(3, &home.using_betula), quoted(t.catalog.fits)),
+                (answer(4, &home.using_betula), quoted(t.catalog.saved_chip)),
+                (answer(5, &home.using_betula), quoted(t.profile.title)),
+                (answer(5, &home.using_betula), quoted(sync.pair)),
+                (answer(6, &home.using_betula), quoted(sync.stop)),
+                (answer(7, &home.using_betula), quoted(t.profile.title)),
+                (answer(8, &home.using_betula), quoted(dialog.open)),
+                (answer(9, &home.using_betula), quoted(t.profile.title)),
+                (answer(10, &home.using_betula), quoted(t.app.my_studies)),
                 (answer(0, &home.for_studies), quoted(t.program.in_catalog)),
                 (answer(0, &home.for_studies), quoted(t.myprogram.mine)),
                 (answer(3, &home.for_studies), quoted(ProgramTab::Areas.label(*locale))),
                 (answer(3, &home.for_studies), quoted(t.catalog.area)),
                 (answer(4, &home.for_studies), quoted(t.catalog.confirmed)),
-                (answer(7, &home.about_betula), quoted(t.myprogram.mine)),
+                (answer(6, &home.for_studies), quoted(t.app.my_studies)),
+                (home.study.text, quoted(t.app.my_studies)),
+                (home.search.text, quoted(t.catalog.similar)),
             ];
             for (text, label) in pairs {
                 assert!(text.contains(&label), "{locale:?}: {label} is not in: {text}");
@@ -49,11 +61,16 @@ mod tests {
             let quoted = |label: &str| format!("{open}{label}{close}");
             let d = &t.home_detail;
             let point = |chapter: &folia_home::i18n::home_detail::Chapter, n: usize| chapter.points.get(n).map(|point| point.text).unwrap_or_default();
+            let sync = &folia_profile::i18n::texts(*locale).sync;
             let pairs = [
+                (point(&d.flow, 0), quoted(t.catalog.similar)),
                 (point(&d.filters, 3), quoted(t.common.reset)),
                 (point(&d.timetable, 3), quoted(t.catalog.fits)),
-                (point(&d.account, 0), quoted(t.bookmarks.transfer)),
-                (point(&d.account, 1), quoted(t.studyplan_share.copy_link)),
+                (d.profile.lead, quoted(t.app.my_studies)),
+                (point(&d.profile, 2), quoted(t.profile.title)),
+                (point(&d.profile, 2), quoted(t.common.undo)),
+                (point(&d.sync, 3), quoted(sync.stop)),
+                (d.to_study, quoted(t.app.my_studies)),
                 (point(&d.data, 2), quoted(t.common.not_stated)),
                 (point(&d.data, 2), quoted(t.module.time_open)),
                 (d.hints.program, quoted(t.catalog.my_program)),
@@ -129,6 +146,14 @@ mod tests {
             assert_eq!(q.quoted_one_clash_per_week, (t.studyplan_head.clashes_per_week)(1), "{locale:?}");
             assert_eq!(q.quoted_copy_link, t.studyplan_share.copy_link, "{locale:?}");
             assert_eq!((q.quoted_download, q.quoted_apple, q.quoted_google), (t.studyplan_export.download, t.studyplan_export.apple, t.studyplan_export.google), "{locale:?}");
+            // The Merkliste's picture, the ways of the dialog „Teilen" and what comes along, and
+            // „Mein Studium" where a chapter or a picture of the carousel is named after it.
+            assert_eq!((q.quoted_collections, q.quoted_planned, q.quoted_passed), (t.bookmarks.collections, t.bookmarks.status_planned, t.bookmarks.status_passed), "{locale:?}");
+            let dialog = &folia_planner::i18n::texts(*locale).studyplan_share_dialog;
+            assert_eq!((q.quoted_fixed, q.quoted_live, q.quoted_once), (dialog.copy, dialog.stays, dialog.row_once), "{locale:?}");
+            assert_eq!((q.quoted_along, q.quoted_own, q.quoted_notes), (dialog.along, dialog.own, dialog.notes), "{locale:?}");
+            assert_eq!((q.study.name, t.home.study_slide.title), (t.app.my_studies, t.app.my_studies), "{locale:?}");
+            assert_eq!(t.home.timetable_slide.tab, t.app.studyplan, "{locale:?}");
         }
     }
 }

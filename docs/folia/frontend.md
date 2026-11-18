@@ -44,7 +44,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 |---|---|
 | `/` | The start page (concept A, 2026-10-20; „The start page" below): on a first visit the setup — the program, the semester the study began in, the modules of the Fachsemester that follows — over the photo of the season; once a study is set up the visitor's day (the next thing, the day, the week, the exams, the study, the Merkliste, the ways into the catalog). The server writes the setup's first step and the day's skeleton for everybody (R9); the stylesheet shows the skeleton where the head script finds a program kept (`html.mine`), and a script puts the day the app kept into it before the first paint (`home/ahead.rs`). `?termin=<key>&on=<day>`: the card of a Termin of the plan over the page (Folia 1.100.0; until then the Termin in its own view), whose way on is the Stundenplan's overview; `&full=1` still fills the page with the Termin's view (the „Ganze Seite" of before), the app's alone (the server's page is the same for every query) |
 | `/about` | „Über Betula" until 2026-10-27 (owner: „die /about seite muss komplett raus nur die about/<slug> seiten sind ok"): no page any more. The server answers it with a redirect for good (308) to `/about/overview`, in its language and with its query (`about_redirect` in `folia-server`), and the browser app goes on there in the same entry of the history (`topics::AboutRedirect`, for an entry of the history from before). No page links it; not in the sitemap (see „„Über Betula" and the map of the programs" below) |
-| `/about/<topic>` | A page about Betula on one topic (`url::AboutTopic`, `folia/crates/home/src/home/topics.rs`; 2026-10-27): `overview` („Überblick", `home/overview.rs`: what „Über Betula" kept — the first panel with the figures on a birch, the carousel with the map, what the app can do, the `WebApplication` data), `finding` („Module finden": the way to a module, the filters with their board, the ways into the catalog), `planning` („Studium planen": the Regelstudienpläne, the Stundenplan, the programs by faculty), `data` („Deine Daten": no account, where the data comes from), `technology` („Technik": with and without JavaScript, the devices), `questions` („Häufige Fragen", with the `FAQPage` data). Each with its own title and description, „Zurück" to the start page (Esc), the row of the topics and the others as tiles; in the sitemap, the stage of no tab (`stage::Key::Other`), as the legal pages; another name after `/about/` is a 404. The start page's tiles lead to five of them (all but „Technik"), the setup's „Was ist Betula?" to the overview |
+| `/about/<topic>` | A page about Betula on one topic (`url::AboutTopic`, `folia/crates/home/src/home/topics.rs`; 2026-10-27): `overview` („Überblick", `home/overview.rs`: what „Über Betula" kept — the first panel with the figures on a birch, the carousel with the map, what the app can do, the `WebApplication` data), `finding` („Module finden": the way to a module, the filters with their board, the Merkliste, the ways into the catalog), `planning` („Studium planen": the Regelstudienpläne, „Mein Studium", the Stundenplan, the programs by faculty), `data` („Deine Daten": the profile kept on the device, Betula Sync, sharing, where the catalog's data comes from), `technology` („Technik": with and without JavaScript, the devices), `questions` („Häufige Fragen", with the `FAQPage` data). Each with its own title and description, „Zurück" to the start page (Esc), the row of the topics and the others as tiles; in the sitemap, the stage of no tab (`stage::Key::Other`), as the legal pages; another name after `/about/` is a 404. The start page's tiles lead to five of them (all but „Technik"), the setup's „Was ist Betula?" to the overview |
 | `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `area`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `events`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `marked`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation). `area=<id>[,<id>…]` are areas of the selected program's module tree („Wahlpflichtmodule Praktische Informatik"): the modules the tree places in any of them or below one (several come from a row of the plan that means several areas, opened from the program's page; the picker then says „5 Bereiche", one tag per area above the list) |
 | `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone the preview is a sheet from below over the list, without „Vollbild" (2026-10-06, 2026-10-16, „A module on a phone" below; until then a tap on a row opened the module's page, and the app turned a shared `open` link into it). The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen. `?termin=<key>&on=<day>`: a Termin of it in the app's dialog over the page to look up, on a phone the sheet every dialog is (the app's alone; „A Termin in its own view"); the view of 600 px it was, not the card the Stundenplan and the start page open since Folia 1.100.0 |
@@ -5023,7 +5023,7 @@ the pages about Betula since 2026-10-27 (`/about/<topic>`, below).
      page shows the setup while it ends, by a memo of what it shows, so that the card is not built
      anew when „Mein Studiengang" says a study is set up); the chip of step 3 says what went into
      the Stundenplan („4 Module"). What Betula Sync does and what the server then keeps, as three
-     points (sealed with a key only the devices have; no account, random ids, sizes and times;
+     points (sealed with a key only the devices have; no name and no e-mail address, random ids, sizes and times;
      ended at any time on the profile page, everything on the server gone, and so after 13 months
      untouched), as the profile page's dialog „Gerät verbinden" says it before its „Einschalten und
      Code zeigen"; then „Betula Sync aktivieren"
@@ -5343,13 +5343,14 @@ no page `/about`, only a page per topic:
   module, the filters and their board, and under them the eight ways into the catalog with their
   counts, as tiles the way the start page's „Entdecken" has them), „Studium planen" (the
   Regelstudienpläne with the number of checked plans, the Stundenplan, and the programs by
-  faculty, a tile each, its number in its colour from the map), „Deine Daten" (no account with its
-  four zeros, the birch from Radix to Folia), „Technik" (with and without JavaScript, the devices
-  and languages) and „Häufige Fragen" (the three groups, the `FAQPage` data). The chapters are
-  those of „Betula im Detail" (`detail::Chapters`, two to a topic, the second's picture on the
-  left) and the questions those of the page, moved, not rewritten; the panel that named the
-  chapters went (its words with it). The two lists of the ways in and the faculties, side by side
-  on „Über Betula", went to the topics they belong to.
+  faculty, a tile each, its number in its colour from the map), „Deine Daten" (until 2026-11-18 no
+  account with its four zeros, and the birch from Radix to Folia), „Technik" (with and without
+  JavaScript, the devices and languages) and „Häufige Fragen" (the three groups, the `FAQPage`
+  data). The chapters were those of „Betula im Detail" (`detail::Chapters`, two to a topic, the
+  second's picture on the left) and the questions those of the page, moved, not rewritten („Brought
+  up to date" below has what they are since 2026-11-18); the panel that named the chapters went
+  (its words with it). The two lists of the ways in and the faculties, side by side on „Über
+  Betula", went to the topics they belong to.
 - **Every topic's page** is as the start page is, without a frame: its head has „Zurück" to the
   start page with Esc beside it (`frame::BackLink`, `Area::Home`), which Esc follows — back
   through the history where the start page is the step before, else to it —, on a phone the box at
@@ -5380,6 +5381,58 @@ no page `/about`, only a page per topic:
   two where the page is narrower (the start page's rule for „Entdecken", now asked of the nearest
   container, the start page's or a topic's page).
 
+**Brought up to date (2026-11-18).** Owner, after the privacy notice was rebuilt around profiles
+and local data: „Ja änder das auch mal. Du kannst die ganzen seiten bei der landing page anpassen.
+Die sind alle veraltet und könnten etwas interessanter werden." The pages were those of September
+and October: they knew neither the day on the start page nor „Mein Studium", the Merkliste's
+collections and notes, profiles, Betula Sync or the dialog „Teilen", said that Strg+K searches (it
+opens the commands since 2026-10-20; „/" is the search) and F shows a module in full (V does), and
+their heart was „Kein Konto. Und trotzdem fehlt nichts.", with an answer that said „es gibt weder
+Passwort noch Profil". What they are now:
+- **No account anywhere** (owner, the same day, of the privacy notice: „wir reden nicht von konten,
+  weil die gibt es ja nicht sondern von profilen und lokalen Daten"): the pages, the setup, the
+  profile page, the dialogs „Teilen" and the texts search engines read say what there is — a
+  profile, kept locally on the device, and with Betula Sync on every device, sealed with a key
+  only they have — where they said „ohne Konto". Tests hold the texts of `i18n/home.rs`,
+  `i18n/home_detail.rs` and the legal pages to it, the server's test every page about Betula.
+- **The overview**: twelve abilities instead of nine, four rows of three (`overview::abilities`):
+  „Mein Studium", the day on the start page and the Merkliste came, „Deine Daten bleiben bei dir"
+  stands where „Kein Konto, und nichts fehlt" stood, and the search says what it finds (titles,
+  numbers, abbreviations, lecturers, and „Ähnliche Module" by topic). The carousel has five
+  pictures, the day first: the start page of a study set up, the catalog, „Mein Studium", the
+  Stundenplan, and the map; the Regelstudienplan and a module's page went (the first has its
+  chapter, the second shows beside the catalog's list). Its screenshots of a study are those of
+  an example, which `folia/e2e/showcase-shots.mjs` sets up through the start page's setup, with
+  the day standing still at a weekday of the lecture period (`SHOTS_NOW`).
+- **The chapters** (`detail::Chapters`, `i18n/home_detail.rs`), twelve instead of eight, each
+  still a panel with a picture made of the app's own look: „Module finden" has the way to a module
+  (five questions, one of them answered by „Ähnliche Module"), the filters and the Merkliste (its
+  collections beside three marked modules, one with a note); „Studium planen" the
+  Regelstudienpläne, „Mein Studium" (the credits passed over a bar of the areas, and the
+  semesters) and the Stundenplan (with a Termin of one's own in its week); „Deine Daten" the
+  profile (where things live: on the device; on the server nothing, or with Betula Sync the
+  profile sealed; between them the address of a page), Betula Sync (two devices and the server
+  between them, which holds bytes that say nothing), sharing (the three ways of the dialog „Teilen"
+  by its own names, each with the link it gives, and what comes along) and the sources; „Technik"
+  as before, with the keys as they are and Betula as an app. A topic's heading and the line under
+  it say what its page holds now („Deine Daten bleiben bei dir", „Vom Regelstudienplan bis zur
+  nächsten Vorlesung").
+- **The questions**: „Wo liegen meine Daten?" where „Warum gibt es kein Konto?" stood, and among
+  „Betula nutzen" what the start page shows, what „Mein Studium" is, several devices with Betula
+  Sync, who can read what Sync keeps, a lost phone and the recovery code, sharing, and a profile
+  per program; „Fürs Studium" ends with how many credits are still missing.
+- **What a text quotes** of a feature the pages' crate does not know — the Merkliste's
+  „Sammlungen", the stands of a module, the dialog's „Fester Stand", „Bleibt aktuell",
+  „Einmal-Link" and what comes along, „Gerät verbinden", „Sync beenden" — is held to that
+  feature's own words by `folia_app::quotes`, with what the pages quoted before.
+- **The anchors** of the chapters and sections are US English like every address (`#way`,
+  `#filters`, `#saved`, `#ways-in`; `#study-plans`, `#my-studies`, `#timetable`, `#faculties`;
+  `#profile`, `#sync`, `#sharing`, `#sources`; `#technology`, `#devices`; `#overview`,
+  `#abilities`, `#questions`), and the German ones they had (`#weg`, `#filter`, `#einstiege`,
+  `#regelstudienplaene`, `#stundenplan`, `#fakultaeten`, `#ohne-konto`, `#daten`, `#technik`,
+  `#geraete`, `#ueberblick`, `#funktionen`, `#fragen`) still lead to them: an empty element out of
+  the layout at the head of what each named (`.was-anchor`, `detail::Look::was`).
+
 „Über Betula" (`/about` until 2026-10-27, the overview `/about/overview` since, `home/overview.rs`;
 `/` until concept A, „The start page" above) answers three questions at a glance: what this is
 (headline, „inoffiziell" in the first line), what is in it (four figures, and the map as the one
@@ -5403,11 +5456,13 @@ other with thin rules, and on each rule a stroke from alternating edges, the str
 each number is set so large that all of them are about equally wide (`--em`, its width in units of
 its size, from `figure_em`; a single digit grows only as large as three), quiet in weight and
 colour (owner: „kleiner und etwas dezenter"). Under it a
-**carousel**: the map, then screenshots of the catalog, a study plan and a module page
-(`folia/assets/shots/*.webp`, light and dark, wide and phone, made by
+**carousel**: the map, then screenshots of the catalog, a study plan and a module page (since
+2026-11-18 the day, the catalog, „Mein Studium", the Stundenplan and the map, „Brought up to date"
+above;
+`folia/assets/shots/*.webp`, light and dark, wide and phone, made by
 `node folia/e2e/showcase-shots.mjs <base-url>`, embedded in the binary, served under `/assets/shots/`; run
 it again when those pages change). The current picture stands in front, half of each neighbour shows
-behind it at its sides (owner: they overlap, as if behind it), it goes round (four slides on top of each other, placed by `--at`; before a move the one
+behind it at its sides (owner: they overlap, as if behind it), it goes round (the slides on top of each other, placed by `--at`; before a move the one
 that comes in is put on its side without animation, then everything moves one frame later, so no
 picture crosses the frame; moves overshoot a little, `--spring`, and the caption of the picture
 that comes forward slides in). It turns on by itself when the bar in the current tab is full (a CSS

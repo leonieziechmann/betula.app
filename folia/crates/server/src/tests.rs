@@ -750,7 +750,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     assert_eq!(status, StatusCode::OK);
     assert!(about.contains("class=\"map map-wide\"") && about.contains("class=\"map map-tall\""), "the overview draws the map the snapshot was opened with");
     assert!(about.contains("\"@type\":\"WebApplication\"") && !about.contains("\"@type\":\"FAQPage\"") && !about.contains("\"@type\":\"WebSite\""), "the overview's structured data");
-    assert!(!about.contains("class=\"panel feature t-") && !about.contains("id=\"fragen\"") && !about.contains("id=\"einstiege\"") && !about.contains("id=\"fakultaeten\""), "the overview without the chapters, the questions and the lists");
+    assert!(!about.contains("class=\"panel feature t-") && !about.contains("id=\"questions\"") && !about.contains("id=\"ways-in\"") && !about.contains("id=\"faculties\""), "the overview without the chapters, the questions and the lists");
     assert!(about.contains("<a id=\"home-program\" href=\"/programs\"") && about.matches("program-pick\"").count() == 1 && about.contains("<dl class=\"tree-figures\">") && about.contains("class=\"hero-trunk\"") && woods(&about) == 1 && !about.contains("class=\"branch") && !about.contains("start-step"), "the overview's button, figures and wood");
     let mut features = 0;
     for topic in folia_routes::url::AboutTopic::ALL {
@@ -774,13 +774,33 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
         match topic {
             folia_routes::url::AboutTopic::Finding => {
                 assert_eq!(page.matches("class=\"bgroup").count(), 12, "{path}: the board of the filters");
-                assert!(page.contains("id=\"einstiege\"") && page.matches("rel=\"nofollow\" data-command=").count() >= 8, "{path}: the ways into the catalog");
+                assert!(page.contains("id=\"ways-in\"") && page.matches("rel=\"nofollow\" data-command=").count() >= 8, "{path}: the ways into the catalog");
             }
-            folia_routes::url::AboutTopic::Planning => assert!(page.contains("id=\"fakultaeten\"") && page.contains("href=\"/programs#fakultaet-"), "{path}: the programs by faculty"),
-            _ => assert!(!page.contains("id=\"einstiege\"") && !page.contains("id=\"fakultaeten\""), "{path}: no lists"),
+            folia_routes::url::AboutTopic::Planning => assert!(page.contains("id=\"faculties\"") && page.contains("href=\"/programs#fakultaet-"), "{path}: the programs by faculty"),
+            _ => assert!(!page.contains("id=\"ways-in\"") && !page.contains("id=\"faculties\""), "{path}: no lists"),
         }
+        // The anchors are US English (CLAUDE.md, „Addresses"), and the German ones a chapter or a
+        // section had until 2026-11-18 still lead to it, each on the page it stood on.
+        let was: &[&str] = match topic {
+            folia_routes::url::AboutTopic::Overview => &["ueberblick", "funktionen"],
+            folia_routes::url::AboutTopic::Finding => &["weg", "filter", "einstiege"],
+            folia_routes::url::AboutTopic::Planning => &["regelstudienplaene", "stundenplan", "fakultaeten"],
+            folia_routes::url::AboutTopic::Data => &["ohne-konto", "daten"],
+            folia_routes::url::AboutTopic::Technology => &["technik", "geraete"],
+            folia_routes::url::AboutTopic::Questions => &["fragen"],
+        };
+        for old in was {
+            assert_eq!(page.matches(&format!("class=\"was-anchor\" id=\"{old}\"")).count() + page.matches(&format!("id=\"{old}\" class=\"was-anchor\"")).count(), 1, "{path}: #{old} still leads somewhere");
+        }
+        // No page speaks of an account: there is none (owner, 2026-11-18). An address may still
+        // name what was (`#ohne-konto`).
+        let said = page.replace("ohne-konto", "").to_lowercase();
+        assert!(!said.contains("konto") && !said.contains("konten"), "{path} speaks of an account");
     }
-    assert_eq!(features, 8, "the chapters of „Betula im Detail\", two to a topic");
+    // The chapters: the way to a module, the filters and the Merkliste; the Regelstudienpläne,
+    // „Mein Studium" and the Stundenplan; the profile, Betula Sync, sharing and the sources; the
+    // site with and without JavaScript and the devices.
+    assert_eq!(features, 12, "the chapters of the topics");
     let (status, _, _) = request(&router, "/about/nothing", &[]).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "an address of no topic");
     // Impressum and Datenschutz: linked from the ground at the end of the start page and from the
